@@ -91,4 +91,4 @@ Electron 下是否走主进程由 preload 注入的 `window.__QUALITEST_ELECTRON
 
 ## 与后端仓库的关系
 
-`qualitest-ui` 与 Maven 模块 **`qualitest`** 并列于同一 Git 仓时，前端构建产物路径为 **`qualitest-ui/apps/web/dist`**；部署时将该目录作为静态资源由 Nginx 或网关托管即可。
+`qualitest-ui` 位于主仓根目录下（与 Maven 模块并列）；前端构建产物路径为 **`qualitest-ui/apps/web/dist`**；部署时将该目录作为静态资源由 Nginx 或网关托管即可。

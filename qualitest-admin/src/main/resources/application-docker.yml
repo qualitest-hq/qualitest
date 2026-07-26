@@ -1,12 +1,14 @@
 # =============================================================================
-# 生产环境（profile=prod）
+# Docker / Compose 环境（profile=docker）
+# 启动：-Dspring.profiles.active=docker
+# 敏感项必须通过环境变量注入（见仓库根目录 .env.example）
 # =============================================================================
 
 qualitest:
   name: Qualitest
   version: 1.0.0
   copyrightYear: 2026
-  profile: ${QUALITEST_PROFILE:/home/ruoyi/uploadPath}   # Linux 部署上传目录
+  profile: ${QUALITEST_PROFILE:/data/upload}
   addressEnabled: false
   captchaType: math
 
@@ -23,7 +25,7 @@ server:
 
 logging:
   level:
-    com.qualitest: ${LOGGING_LEVEL_COM_QUALITEST:info}           # 生产降低日志量
+    com.qualitest: ${LOGGING_LEVEL_COM_QUALITEST:info}
     org.springframework: warn
 
 user:
@@ -40,12 +42,12 @@ spring:
       max-request-size: 20MB
   devtools:
     restart:
-      enabled: false              # 生产关闭热部署
+      enabled: false
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      host: ${SPRING_DATA_REDIS_HOST:redis}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-      database: ${SPRING_DATA_REDIS_DATABASE:10}
+      database: ${SPRING_DATA_REDIS_DATABASE:0}
       password: ${SPRING_DATA_REDIS_PASSWORD:}
       timeout: 10s
       lettuce:
@@ -59,9 +61,9 @@ spring:
     driverClassName: com.mysql.cj.jdbc.Driver
     druid:
       master:
-        url: ${SPRING_DATASOURCE_DRUID_MASTER_URL:jdbc:mysql://localhost:3306/qualitest?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8}
+        url: ${SPRING_DATASOURCE_DRUID_MASTER_URL:jdbc:mysql://mysql:3306/qualitest?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8}
         username: ${SPRING_DATASOURCE_DRUID_MASTER_USERNAME:root}
-        password: ${SPRING_DATASOURCE_DRUID_MASTER_PASSWORD:}          # 生产必须通过环境变量注入
+        password: ${SPRING_DATASOURCE_DRUID_MASTER_PASSWORD:}
       slave:
         enabled: false
         url:
@@ -81,9 +83,11 @@ spring:
       testOnBorrow: false
       testOnReturn: false
       webStatFilter:
-        enabled: false            # 关闭 Web 统计暴露
+        enabled: false
       statViewServlet:
-        enabled: false            # 关闭 /druid 控制台
+        enabled: false
+        allow:
+        url-pattern: /druid/*
       filter:
         stat:
           enabled: true
@@ -96,8 +100,8 @@ spring:
 
 token:
   header: Authorization
-  secret: ${TOKEN_SECRET:}  # 生产必须通过环境变量注入强随机密钥
-  expireTime: 1440
+  secret: ${TOKEN_SECRET:}
+  expireTime: ${TOKEN_EXPIRE_TIME:1440}
 
 mybatis:
   typeAliasesPackage: com.qualitest.**.domain,com.qualitest.**.params,com.qualitest.**.result
@@ -113,7 +117,7 @@ springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
-    enabled: false                # 生产关闭在线 API 文档
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
     path: /swagger-ui.html
     tags-sorter: alpha
   group-configs:
@@ -123,7 +127,7 @@ springdoc:
       packages-to-scan: com.qualitest.web.controller.tool
 
 referer:
-  enabled: true                   # 生产开启防盗链
+  enabled: false
   allowed-domains: localhost,127.0.0.1
 
 xss:

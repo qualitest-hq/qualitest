@@ -24,15 +24,48 @@ target/
 *.iws
 *.iml
 *.ipr
+*.ids
+*.orig
 
 # Rebel
 rebel.xml
 
 ######################################################################
-# Others
+# Local secrets / overrides（勿提交）
+
+.env
+.env.*
+!.env.example
+!**/.env.example
+!**/.env.*.example
+
+**/application-local.yml
+**/application-*-local.yml
+**/application-local.yaml
+**/application-*-local.yaml
+
+# 密钥 / 证书
+*.pem
+*.p12
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+*.key
+
+######################################################################
+# Runtime / uploads
+
+logs/
+**/logs/
+uploadPath/
+**/uploadPath/
+/data/
 *.log
 *.xml.versionsBackup
 *.swp
+.DS_Store
+Thumbs.db
 
 !*/build/*.java
 !*/build/*.html

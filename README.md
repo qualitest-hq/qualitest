@@ -260,7 +260,7 @@ flowchart TB
 | 模块 | 说明 |
 |:-----|:-----|
 | `qualitest-admin` | 后台管理系统入口，打包为可部署 JAR |
-| `qualitest-ui` | 前端单页应用（独立仓库 / 目录） |
+| `qualitest-ui` | 前端 Yarn workspace（本仓目录 `qualitest-ui/`，含 Web / Electron） |
 | `qualitest-framework` | 框架核心封装（安全、配置、通用切面等） |
 | `qualitest-system` | 系统与业务模块（接口、测试流、AI、MCP 等） |
 | `qualitest-common` | 通用工具与公共组件 |
@@ -271,16 +271,15 @@ flowchart TB
 
 ## ⚡ 5 分钟快速开始
 
-> 工作区通常包含四个目录，各管一块：**平台后端**、**平台前端**、**被测靶场**、**IDEA 插件**。下面按「先跑起来 → 再联调一条链」排列，细节见各仓库 README。
+> 工作区建议在 `qualitest-all` 下并列 clone **三仓**：本仓库（含前端）、靶场、IDEA 插件。下面按「先跑起来 → 再联调一条链」排列。
 
-### 四个项目，各干什么
+### 相关仓库
 
-| 目录 | 端口 | 一句话 |
+| 仓库 | 端口 | 一句话 |
 |:-----|:-----|:-------|
-| [`qualitest`](../qualitest/)（本仓库） | **8080** | 质衡主平台：接口库、调试台、测试流、AI、MCP |
-| [`qualitest-ui`](../qualitest-ui/) | **5173** | Web 界面，联调时代理到 8080 |
-| [`qualitest-demo`](../qualitest-demo/) | **8081** | 商城靶场，供调试 / 编排 / AI 用例练习 |
-| [`qualitest-intellij-plugin`](../qualitest-intellij-plugin/) | — | IDEA 里扫 Controller，一键上传到平台 |
+| 本仓库 [`qualitest`](https://github.com/qualitest-hq/qualitest)（含 [`qualitest-ui/`](./qualitest-ui/)） | **8080** / **5173** | 质衡主平台 + Web |
+| [`qualitest-demo`](https://github.com/qualitest-hq/qualitest-demo) | **8081** | 商城靶场，供调试 / 编排 / AI 用例练习 |
+| [`qualitest-intellij-plugin`](https://github.com/qualitest-hq/qualitest-intellij-plugin) | — | IDEA 里扫 Controller，一键上传到平台 |
 
 ```mermaid
 flowchart LR
@@ -291,7 +290,9 @@ flowchart LR
 
 ### 前置条件（一次性）
 
-JDK 17+、MySQL 8+、Redis 3+、Maven 3+、Node 18+、Yarn 1.x。数据库账号改各自 `application-dev.yml` 即可。
+JDK 17+、MySQL 8+、Redis 3+、Maven 3+、Node 18+、Yarn 1.x。数据库账号改各自 `application-dev.yml` 或复制根目录 [`.env.example`](./.env.example) 为 `.env` 后通过环境变量覆盖即可。
+
+> **安全提示（生产必读）**：仓库内 `dev` 默认口令（如库密码 `123456`、弱 `TOKEN_SECRET`）仅便于本地体验。**生产 / 公网部署必须**通过环境变量注入强随机 `TOKEN_SECRET`、数据库与 Redis 口令，并使用 `prod` 或 `docker` profile（`docker` 已关闭 Druid 控制台，上传目录默认 `/data/upload`）。切勿把真实云 API Key、个人 `.env`、`application-local.yml` 提交进 Git。
 
 ### ① 启动质衡（约 2 分钟）
 
@@ -301,13 +302,13 @@ cd qualitest
 mvn clean package -DskipTests
 qualitest.bat          # Windows；Linux 用 ./qualitest.sh
 
-# 前端：另开终端
+# 前端：另开终端（本仓子目录）
 cd qualitest-ui
 yarn install && yarn dev
 ```
 
 浏览器打开 **http://localhost:5173**，默认账号见初始化 SQL 或部署说明。  
-→ 后端 / 前端更多选项见下方 [详细部署](#-详细部署) 与 [`qualitest-ui/README.md`](../qualitest-ui/README.md)。
+→ 后端 / 前端更多选项见下方 [详细部署](#-详细部署) 与 [`qualitest-ui/README.md`](./qualitest-ui/README.md)。
 
 ### ② 启动靶场（约 1 分钟，**可选**）
 
@@ -321,19 +322,19 @@ mvn clean install && demo.bat    # 或 ./demo.sh
 ```
 
 Swagger：**http://localhost:8081/swagger-ui.html**  
-→ 场景加载、认证说明见 [`qualitest-demo/README.md`](../qualitest-demo/README.md)。
+→ 场景加载、认证说明见 [qualitest-demo README](https://github.com/qualitest-hq/qualitest-demo#readme)。
 
 ### ③ 平台里建项目并同步接口（约 2 分钟）
 
 1. 登录质衡 → **测试项目** → 新建项目（例如「Demo 商城」）。
 2. 进入 **项目设置** → 复制 **Project Token**。
-3. IDEA 安装 [Qualitest Helper](../qualitest-intellij-plugin/)（`buildPlugin` 打 ZIP 离线安装），配置：
+3. IDEA 安装 [Qualitest Helper](https://github.com/qualitest-hq/qualitest-intellij-plugin)（`buildPlugin` 打 ZIP 离线安装），配置：
    - 服务器地址：`http://localhost:8080`
    - 项目令牌：上一步复制的 Token
 4. 用 IDEA 打开 **`qualitest-demo`**（或你自己的 Java 工程）→ **Tools → Qualitest Helper → 项目级上传**（或 Controller 右键上传）。
 5. 回到 Web：**接口管理** 应出现已上传接口；**环境** 里把 `baseUrl` 设为被测服务地址（用靶场时为 `http://localhost:8081`）。
 
-→ 插件配置与上传方式见 [`qualitest-intellij-plugin/README.md`](../qualitest-intellij-plugin/README.md)。
+→ 插件配置与上传方式见 [插件 README](https://github.com/qualitest-hq/qualitest-intellij-plugin#readme)。
 
 ### ④ 跑通一条主链路（任选其一）
 
@@ -344,7 +345,7 @@ Swagger：**http://localhost:8081/swagger-ui.html**
 | **AI 辅助** | 测试流旁打开 AI 面板 → 描述需求 → **先看 Diff 再合并** |
 | **Cursor 联读** | 项目设置复制 MCP 配置到 `mcp.json` → 只读查流 / 节点 / Run |
 
-AI 自然语言示例（需先在靶场加载场景）：[`qualitest-demo/docs/ai-test-flow-prompts.md`](../qualitest-demo/docs/ai-test-flow-prompts.md)。
+AI 自然语言示例（需先在靶场加载场景）：靶场仓 [`docs/ai-test-flow-prompts.md`](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)。
 
 ---
 
@@ -379,13 +380,13 @@ yarn install
 yarn dev         # 开发；生产构建见 yarn build
 ```
 
-→ 桌面端、环境变量、传输模式等见 [`qualitest-ui/README.md`](../qualitest-ui/README.md)。
+→ 桌面端、环境变量、传输模式等见 [`qualitest-ui/README.md`](./qualitest-ui/README.md)。
 
 ---
 
 <div align="center">
 
-**质衡 Qualitest** · 让质量保障更高效
+**质衡 Qualitest** · 让质量保障更高效 · [Apache-2.0](LICENSE)
 
 <sub>构建与启动细节以仓库内 `qualitest.bat` / `qualitest.sh` 及各模块配置为准</sub>
 
