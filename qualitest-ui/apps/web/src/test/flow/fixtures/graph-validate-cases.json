@@ -1,0 +1,70 @@
+{
+  "cases": [
+    {
+      "id": "demo-graph-ok",
+      "fixture": "demo-graph.json",
+      "expectErrors": 0,
+      "expectWarnings": 0
+    },
+    {
+      "id": "multi-start",
+      "fixture": "invalid-multi-start.json",
+      "expectErrors": 1,
+      "expectWarnings": 0
+    },
+    {
+      "id": "http-unbound",
+      "fixture": "invalid-http-unbound.json",
+      "expectErrors": 0,
+      "expectWarnings": 1
+    },
+    {
+      "id": "duplicate-node-id",
+      "fixture": "invalid-duplicate-node-id.json",
+      "expectErrors": 1,
+      "expectWarnings": 0
+    },
+    {
+      "id": "invalid-node-type",
+      "fixture": "invalid-node-type.json",
+      "expectErrors": 1,
+      "expectWarnings": 0
+    },
+    {
+      "id": "edge-extra-field",
+      "fixture": "invalid-edge-extra-field.json",
+      "expectErrors": 1,
+      "expectWarnings": 0
+    },
+    {
+      "id": "missing-meta-run",
+      "fixture": "invalid-missing-meta-run.json",
+      "expectErrors": 1,
+      "expectWarnings": 0
+    },
+    {
+      "id": "script-invalid-language",
+      "fixture": "invalid-script-language.json",
+      "expectErrors": 1,
+      "expectWarnings": 0
+    },
+    {
+      "id": "http-missing-callmode",
+      "fixture": "invalid-http-missing-callmode.json",
+      "expectErrors": 1,
+      "expectWarnings": 0
+    },
+    {
+      "id": "script-empty-source",
+      "fixture": "invalid-script-empty-source.json",
+      "expectErrors": 0,
+      "expectWarnings": 1
+    },
+    {
+      "id": "subflow-missing-id",
+      "fixture": "invalid-subflow-missing-id.json",
+      "expectErrors": 1,
+      "expectWarnings": 2
+    }
+  ]
+}

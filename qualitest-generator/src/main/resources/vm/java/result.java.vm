@@ -1,0 +1,79 @@
+package ${packageName}.result;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+#foreach ($import in $resultImportList)
+import ${import};
+#end
+import lombok.*;
+import org.apache.ibatis.type.Alias;
+import java.util.Date;
+import java.math.BigDecimal;
+import ${basePackage}.common.annotation.Excel;
+
+import java.io.Serializable;
+
+/**
+ * ${functionName} Result 对象
+ *
+ * @author ${author}
+ * @since ${datetime}
+ */
+@Getter
+@Setter
+@ToString
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+@Alias("${ClassName}Result")
+public class ${ClassName}Result implements Serializable {
+
+#foreach ($column in $columns)
+#if(!$table.isResultSuperColumn($column.javaField))
+    /**
+     * $column.columnComment
+     */
+#if($column.list || !$table.isResultSuperColumn($column.javaField))
+#set($parentheseIndex=$column.columnComment.indexOf("（"))
+#if($parentheseIndex != -1)
+    #set($comment=$column.columnComment.substring(0, $parentheseIndex))
+#else
+    #set($comment=$column.columnComment)
+#end
+#if($parentheseIndex != -1)
+    @Excel(name = "${comment}", readConverterExp = "$column.readConverterExp()")
+#elseif($column.javaType == 'Date')
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
+#elseif($column.javaType == 'Long')
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+#else
+    @Excel(name = "${comment}")
+#end
+#end
+    private $column.javaType $column.javaField;
+
+#end
+#end
+#if($hasCreateBy)
+
+    /**
+     * 创建者
+     */
+    @Excel(name = "创建者")
+    private String creator;
+#end
+#if($hasUpdateBy)
+
+    /**
+     * 更新者
+     */
+    @Excel(name = "更新者")
+    private String updater;
+#end
+#if($table.sub)
+
+    /** $table.subTable.functionName信息 */
+    private List<${subClassName}> ${subclassName}List;
+#end
+
+}

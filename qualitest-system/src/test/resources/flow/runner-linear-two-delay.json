@@ -1,0 +1,47 @@
+{
+  "nodes": [
+    {
+      "id": "d1",
+      "type": "delay",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "等待1",
+        "ms": 1
+      }
+    },
+    {
+      "id": "d2",
+      "type": "delay",
+      "position": {
+        "x": 200,
+        "y": 0
+      },
+      "data": {
+        "name": "等待2",
+        "ms": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "d1",
+      "target": "d2"
+    }
+  ],
+  "meta": {
+    "activeScenarioId": "s1",
+    "scenarios": [
+      {
+        "id": "s1",
+        "name": "线性",
+        "testProjectEnvId": "",
+        "flowSeed": {}
+      }
+    ],
+    "flowOutputs": []
+  }
+}

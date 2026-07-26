@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.ai.mapper.AiChatSessionMapper">
+
+    <resultMap type="AiChatSession" id="AiChatSessionResult">
+        <result property="aiChatSessionId" column="ai_chat_session_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="sessionScene" column="session_scene"/>
+        <result property="bizRefJson" column="biz_ref_json"/>
+        <result property="currentModelId" column="current_model_id"/>
+        <result property="thinkingEnabled" column="thinking_enabled"/>
+        <result property="sessionTitle" column="session_title"/>
+        <result property="contextSummary" column="context_summary"/>
+        <result property="summaryMessageCount" column="summary_message_count"/>
+        <result property="summaryUpdatedAt" column="summary_updated_at"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="sessionNotDeleted">
+        and ifnull(acs.del_status, 0) = 0
+    </sql>
+
+    <sql id="selectAiChatSessionVo">
+        select ai_chat_session_id,
+               test_project_id,
+               user_id,
+               session_scene,
+               biz_ref_json,
+               current_model_id,
+               thinking_enabled,
+               session_title,
+               context_summary,
+               summary_message_count,
+               summary_updated_at,
+               del_status,
+               create_time
+        from ai_chat_session
+    </sql>
+
+    <sql id="selectAiChatSessionAliasVo">
+        select acs.ai_chat_session_id as aiChatSessionId,
+               acs.test_project_id    as testProjectId,
+               acs.user_id            as userId,
+               acs.session_scene      as sessionScene,
+               acs.biz_ref_json       as bizRefJson,
+               acs.current_model_id   as currentModelId,
+               acs.thinking_enabled   as thinkingEnabled,
+               acs.session_title      as sessionTitle,
+               acs.context_summary    as contextSummary,
+               acs.summary_message_count as summaryMessageCount,
+               acs.summary_updated_at as summaryUpdatedAt,
+               acs.del_status         as delStatus,
+               acs.create_time        as createTime
+        from ai_chat_session acs
+    </sql>
+
+    <select id="selectAiChatSessionList" parameterType="AiChatSession" resultMap="AiChatSessionResult">
+        <include refid="selectAiChatSessionVo"/>
+        <where>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="userId != null ">
+                and user_id = #{userId}
+            </if>
+            <if test="sessionScene != null and sessionScene != ''">
+                and session_scene = #{sessionScene}
+            </if>
+            <if test="currentModelId != null ">
+                and current_model_id = #{currentModelId}
+            </if>
+            <if test="sessionTitle != null and sessionTitle != ''">
+                and session_title = #{sessionTitle}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAiChatSessionById" parameterType="Long" resultMap="AiChatSessionResult">
+        <include refid="selectAiChatSessionVo"/>
+        where ai_chat_session_id = #{aiChatSessionId}
+          and ifnull(del_status, 0) = 0
+    </select>
+
+    <select id="selectAiChatSessionResultList" parameterType="AiChatSessionParams" resultType="AiChatSessionResult">
+        select
+        acs.ai_chat_session_id as aiChatSessionId,
+        acs.test_project_id as testProjectId,
+        acs.user_id as userId,
+        acs.session_scene as sessionScene,
+        acs.biz_ref_json as bizRefJson,
+        acs.current_model_id as currentModelId,
+        acs.thinking_enabled as thinkingEnabled,
+        acs.session_title as sessionTitle,
+        acs.context_summary as contextSummary,
+        acs.summary_message_count as summaryMessageCount,
+        acs.summary_updated_at as summaryUpdatedAt,
+        acs.create_time as createTime
+        from ai_chat_session acs
+        <where>
+            <if test="testProjectId != null">
+                and acs.test_project_id = #{testProjectId}
+            </if>
+            <if test="userId != null">
+                and acs.user_id = #{userId}
+            </if>
+            <if test="sessionScene != null and sessionScene != ''">
+                and acs.session_scene = #{sessionScene}
+            </if>
+            <if test="currentModelId != null">
+                and acs.current_model_id = #{currentModelId}
+            </if>
+            <if test="sessionTitle != null and sessionTitle != ''">
+                and acs.session_title like concat('%', #{sessionTitle}, '%')
+            </if>
+            <if test="bizRefJson != null and bizRefJson != ''">
+                and acs.biz_ref_json = #{bizRefJson}
+            </if>
+            <if test="testFlowId != null">
+                and CAST(JSON_UNQUOTE(JSON_EXTRACT(acs.biz_ref_json, '$.testFlowId')) AS CHAR) = CAST(#{testFlowId} AS CHAR)
+            </if>
+            <if test="testProjectApiId != null">
+                and CAST(JSON_UNQUOTE(JSON_EXTRACT(acs.biz_ref_json, '$.testProjectApiId')) AS CHAR) = CAST(#{testProjectApiId} AS CHAR)
+            </if>
+            <include refid="sessionNotDeleted"/>
+        </where>
+        order by acs.create_time desc
+    </select>
+
+    <select id="selectAiChatSessionResult" parameterType="Long" resultType="AiChatSessionResult">
+        select acs.ai_chat_session_id as aiChatSessionId,
+               acs.test_project_id    as testProjectId,
+               acs.user_id            as userId,
+               acs.session_scene      as sessionScene,
+               acs.biz_ref_json       as bizRefJson,
+               acs.current_model_id   as currentModelId,
+               acs.thinking_enabled   as thinkingEnabled,
+               acs.session_title      as sessionTitle,
+               acs.context_summary    as contextSummary,
+               acs.summary_message_count as summaryMessageCount,
+               acs.summary_updated_at as summaryUpdatedAt,
+               acs.create_time        as createTime
+        from ai_chat_session acs
+        where acs.ai_chat_session_id = #{aiChatSessionId}
+          and ifnull(acs.del_status, 0) = 0
+        limit 1
+    </select>
+
+    <select id="selectAiChatSessionCount" parameterType="AiChatSessionParams" resultType="int">
+        select count(1)
+        from ai_chat_session acs
+        <where>
+            <if test="testProjectId != null ">
+                and acs.test_project_id = #{testProjectId}
+            </if>
+            <if test="userId != null ">
+                and acs.user_id = #{userId}
+            </if>
+            <if test="sessionScene != null  and sessionScene != ''">
+                and acs.session_scene = #{sessionScene}
+            </if>
+            <if test="currentModelId != null ">
+                and acs.current_model_id = #{currentModelId}
+            </if>
+            <if test="sessionTitle != null  and sessionTitle != ''">
+                and acs.session_title like concat('%', #{sessionTitle}, '%')
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAiChatSessionOne" parameterType="AiChatSessionParams" resultMap="AiChatSessionResult">
+        select
+        acs.ai_chat_session_id,
+        acs.test_project_id,
+        acs.user_id,
+        acs.session_scene,
+        acs.biz_ref_json,
+        acs.current_model_id,
+        acs.thinking_enabled,
+        acs.session_title,
+        acs.context_summary,
+        acs.summary_message_count,
+        acs.summary_updated_at,
+        acs.create_time
+        from ai_chat_session acs
+        <where>
+            <if test="testProjectId != null ">
+                and acs.test_project_id = #{testProjectId}
+            </if>
+            <if test="userId != null ">
+                and acs.user_id = #{userId}
+            </if>
+            <if test="sessionScene != null  and sessionScene != ''">
+                and acs.session_scene = #{sessionScene}
+            </if>
+            <if test="currentModelId != null ">
+                and acs.current_model_id = #{currentModelId}
+            </if>
+            <if test="sessionTitle != null  and sessionTitle != ''">
+                and acs.session_title like concat('%', #{sessionTitle}, '%')
+            </if>
+        </where>
+        order by acs.ai_chat_session_id desc
+        limit 1
+    </select>
+
+    <insert id="insertAiChatSession" parameterType="AiChatSession">
+        insert into ai_chat_session
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="aiChatSessionId != null">
+                ai_chat_session_id,
+            </if>
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="userId != null">
+                user_id,
+            </if>
+            <if test="sessionScene != null and sessionScene != ''">
+                session_scene,
+            </if>
+            <if test="bizRefJson != null and bizRefJson != ''">
+                biz_ref_json,
+            </if>
+            <if test="currentModelId != null">
+                current_model_id,
+            </if>
+            <if test="thinkingEnabled != null">
+                thinking_enabled,
+            </if>
+            <if test="sessionTitle != null">
+                session_title,
+            </if>
+            <if test="contextSummary != null">
+                context_summary,
+            </if>
+            <if test="summaryMessageCount != null">
+                summary_message_count,
+            </if>
+            <if test="summaryUpdatedAt != null">
+                summary_updated_at,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="aiChatSessionId != null">
+                #{aiChatSessionId},
+            </if>
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="userId != null">
+                #{userId},
+            </if>
+            <if test="sessionScene != null and sessionScene != ''">
+                #{sessionScene},
+            </if>
+            <if test="bizRefJson != null and bizRefJson != ''">
+                #{bizRefJson},
+            </if>
+            <if test="currentModelId != null">
+                #{currentModelId},
+            </if>
+            <if test="thinkingEnabled != null">
+                #{thinkingEnabled},
+            </if>
+            <if test="sessionTitle != null">
+                #{sessionTitle},
+            </if>
+            <if test="contextSummary != null">
+                #{contextSummary},
+            </if>
+            <if test="summaryMessageCount != null">
+                #{summaryMessageCount},
+            </if>
+            <if test="summaryUpdatedAt != null">
+                #{summaryUpdatedAt},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateAiChatSession" parameterType="AiChatSession">
+        update ai_chat_session
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="userId != null">
+                user_id = #{userId},
+            </if>
+            <if test="sessionScene != null and sessionScene != ''">
+                session_scene = #{sessionScene},
+            </if>
+            <if test="bizRefJson != null and bizRefJson != ''">
+                biz_ref_json = #{bizRefJson},
+            </if>
+            <if test="currentModelId != null">
+                current_model_id = #{currentModelId},
+            </if>
+            <if test="thinkingEnabled != null">
+                thinking_enabled = #{thinkingEnabled},
+            </if>
+            <if test="sessionTitle != null">
+                session_title = #{sessionTitle},
+            </if>
+            <if test="contextSummary != null">
+                context_summary = #{contextSummary},
+            </if>
+            <if test="summaryMessageCount != null">
+                summary_message_count = #{summaryMessageCount},
+            </if>
+            <if test="summaryUpdatedAt != null">
+                summary_updated_at = #{summaryUpdatedAt},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+        </trim>
+        where ai_chat_session_id = #{aiChatSessionId}
+    </update>
+
+    <delete id="deleteAiChatSessionById" parameterType="Long">
+        delete
+        from ai_chat_session
+        where ai_chat_session_id = #{aiChatSessionId}
+    </delete>
+
+    <delete id="deleteAiChatSessionByIdList" parameterType="java.util.List">
+        delete from ai_chat_session where ai_chat_session_id in
+        <foreach item="aiChatSessionId" collection="list" open="(" separator="," close=")">
+            #{aiChatSessionId}
+        </foreach>
+    </delete>
+</mapper>

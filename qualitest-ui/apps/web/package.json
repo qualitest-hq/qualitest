@@ -1,0 +1,69 @@
+{
+  "name": "@qualitest/web",
+  "version": "3.9.2",
+  "description": "质衡自动化测试系统 Web 端",
+  "author": "质衡",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:prod": "vite build",
+    "build:desktop": "vite build --mode desktop",
+    "build:stage": "vite build --mode staging",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "@element-plus/icons-vue": "2.3.2",
+    "@lobehub/icons": "^5.10.0",
+    "@qualitest/transport-types": "1.0.0",
+    "@tanstack/vue-virtual": "^3.13.31",
+    "@vue-flow/background": "^1.3.2",
+    "@vue-flow/controls": "^1.1.3",
+    "@vue-flow/core": "^1.48.2",
+    "@vue-flow/minimap": "^1.5.4",
+    "@vueup/vue-quill": "1.2.0",
+    "@vueuse/core": "14.1.0",
+    "axios": "1.13.2",
+    "clipboard": "2.0.11",
+    "codemirror": "^6.0.2",
+    "dompurify": "^3.2.6",
+    "echarts": "5.6.0",
+    "element-plus": "2.13.1",
+    "file-saver": "2.0.5",
+    "fuse.js": "7.1.0",
+    "js-beautify": "1.15.4",
+    "js-cookie": "3.0.5",
+    "jsencrypt": "3.3.2",
+    "marked": "^15.0.12",
+    "nprogress": "0.2.0",
+    "pinia": "3.0.4",
+    "splitpanes": "4.0.4",
+    "vue": "3.5.26",
+    "vue-cropper": "1.1.1",
+    "vue-router": "4.6.4",
+    "vuedraggable": "4.1.0"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.2.0",
+    "@vitejs/plugin-vue": "5.2.4",
+    "happy-dom": "^20.10.6",
+    "sass-embedded": "1.97.2",
+    "unplugin-auto-import": "0.18.6",
+    "unplugin-vue-setup-extend-plus": "1.0.1",
+    "vite": "6.4.1",
+    "vite-plugin-compression": "0.5.1",
+    "vite-plugin-svg-icons": "2.0.1",
+    "vitest": "3.2.4"
+  },
+  "overrides": {
+    "quill": "2.0.2"
+  },
+  "resolutions": {
+    "quill": "2.0.2"
+  }
+}

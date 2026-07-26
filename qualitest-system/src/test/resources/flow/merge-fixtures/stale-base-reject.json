@@ -1,0 +1,54 @@
+{
+  "description": "E2E 参考：base 变更后 hash 不一致应阻断 merge（前端校验）",
+  "baseGraph": {
+    "nodes": [
+      {
+        "id": "1001",
+        "type": "http",
+        "position": { "x": 40, "y": 80 },
+        "data": {
+          "name": "登录",
+          "callMode": "external",
+          "externalUrl": "https://example.com/login",
+          "httpMethod": "POST"
+        }
+      }
+    ],
+    "edges": [],
+    "meta": {
+      "viewport": { "x": 0, "y": 0, "zoom": 1 },
+      "layout": "manual",
+      "startNodeId": "1001",
+      "activeScenarioId": "sc1",
+      "scenarios": [
+        {
+          "id": "sc1",
+          "name": "默认",
+          "testProjectEnvId": "",
+          "flowSeed": {}
+        }
+      ],
+      "flowOutputs": []
+    }
+  },
+  "patch": {
+    "addNodes": [
+      {
+        "id": "9001",
+        "type": "http",
+        "data": {
+          "name": "下一步",
+          "callMode": "external",
+          "externalUrl": "https://example.com/next",
+          "httpMethod": "GET"
+        }
+      }
+    ],
+    "addEdges": [
+      { "id": "8001", "source": "1001", "target": "9001" }
+    ]
+  },
+  "acceptedIds": ["addNode:9001", "addEdge:8001"],
+  "expectOk": true,
+  "e2eNote": "前端在试算后修改 base 画布，baseGraphHash 不一致时应阻断 merge"
+}

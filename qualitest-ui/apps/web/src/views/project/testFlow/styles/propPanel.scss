@@ -1,0 +1,213 @@
+/** 右栏属性 / 运行配置共用表单样式 */
+
+@mixin flow-prop-empty {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--pd-text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+@mixin flow-prop-empty-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  border-radius: 12px;
+  background: var(--pd-bg-sunken);
+  border: 1px dashed var(--pd-border-subtle);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  opacity: 0.6;
+}
+
+@mixin flow-prop-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@mixin flow-prop-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--pd-divider);
+}
+
+@mixin flow-prop-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--pd-text-muted);
+    margin-bottom: 0;
+  }
+
+  > input,
+  > select,
+  > textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--pd-border-subtle);
+    background: var(--pd-surface-elevated);
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--pd-text);
+    box-sizing: border-box;
+    transition: box-shadow 0.15s, border-color 0.15s;
+
+    &:focus {
+      outline: none;
+      box-shadow: 0 0 0 1px var(--pd-primary) inset;
+      border-color: var(--pd-primary);
+    }
+  }
+
+  > input,
+  > select {
+    height: 32px;
+  }
+}
+
+@mixin flow-prop-field-hint {
+  font-size: 10px;
+  color: var(--pd-text-muted);
+  margin: 0;
+  line-height: 1.45;
+}
+
+@mixin flow-prop-field-banner {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1d4ed8;
+  line-height: 1.45;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+@mixin flow-kv-editor-root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  .flow-kv-editor__head {
+    display: grid;
+    grid-template-columns: 1fr 1fr 28px;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--pd-text-muted);
+    padding: 0 2px;
+  }
+
+  .flow-kv-editor__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 28px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .flow-kv-editor__input {
+    width: 100%;
+    height: 32px;
+    padding: 6px 8px;
+    border: 1px solid var(--pd-border-subtle);
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--pd-text);
+    background: var(--pd-surface-elevated);
+    box-sizing: border-box;
+    transition: box-shadow 0.15s, border-color 0.15s;
+
+    &:focus {
+      outline: none;
+      box-shadow: 0 0 0 1px var(--pd-primary) inset;
+      border-color: var(--pd-primary);
+    }
+  }
+
+  .flow-kv-editor__remove {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .flow-kv-editor__add {
+    align-self: flex-start;
+    margin-top: 2px;
+    height: 26px;
+    font-size: 11px;
+    padding: 0 8px;
+  }
+}
+
+/** @deprecated 请用 flow-kv-editor-root 并在子组件内引用 */
+@mixin flow-kv-editor {
+  .flow-kv-editor {
+    @include flow-kv-editor-root;
+  }
+}
+
+@mixin flow-prop-el-select($class-name: 'prop-el-select') {
+  :deep(.#{$class-name}) {
+    width: 100%;
+
+    .el-select__wrapper {
+      min-height: 32px;
+      padding: 0 8px;
+      border-radius: 6px;
+      box-shadow: 0 0 0 1px var(--pd-border-subtle) inset;
+      background: var(--pd-surface-elevated);
+      font-size: 12px;
+      transition: box-shadow 0.15s, border-color 0.15s;
+
+      &.is-focused {
+        box-shadow: 0 0 0 1px var(--pd-primary) inset;
+      }
+    }
+  }
+}
+
+/** 属性面板根容器：一次性注入常用块样式 */
+@mixin flow-prop-panel-root {
+  .prop-empty {
+    @include flow-prop-empty;
+
+    &__icon {
+      @include flow-prop-empty-icon;
+    }
+  }
+
+  .prop-form {
+    @include flow-prop-form;
+  }
+
+  .prop-section {
+    @include flow-prop-section;
+  }
+
+  .field {
+    @include flow-prop-field;
+  }
+
+  .field__hint {
+    @include flow-prop-field-hint;
+  }
+
+  .field__banner {
+    @include flow-prop-field-banner;
+  }
+}

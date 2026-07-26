@@ -1,0 +1,88 @@
+{
+  "mockContext": {
+    "env": {
+      "baseUrl": "https://dev.example.com",
+      "timeout": 30
+    },
+    "flow": {
+      "token": "abc",
+      "loginUser": "admin",
+      "count": 5
+    },
+    "asset": {
+      "defaults": {
+        "apiKey": "sk-demo",
+        "nested": { "x": 1 }
+      }
+    },
+    "lastResponse": {
+      "status": 200,
+      "durationMs": 120,
+      "headers": {
+        "Authorization": "Bearer body-token",
+        "X-Request-Id": "req-99"
+      },
+      "body": {
+        "data": {
+          "code": 0,
+          "token": "body-token",
+          "items": [1, 2, 3]
+        }
+      }
+    }
+  },
+  "compareCases": [
+    { "id": "eq-code-zero", "rule": { "left": "http.body.data.code", "operator": "eq", "right": "0" }, "expected": true },
+    { "id": "eq-code-fail", "rule": { "left": "http.body.data.code", "operator": "eq", "right": "1" }, "expected": false },
+    { "id": "ne-token", "rule": { "left": "flow.token", "operator": "ne", "right": "xyz" }, "expected": true },
+    { "id": "gt-count", "rule": { "left": "flow.count", "operator": "gt", "right": "3" }, "expected": true },
+    { "id": "lt-count", "rule": { "left": "flow.count", "operator": "lt", "right": "10" }, "expected": true },
+    { "id": "gte-count", "rule": { "left": "flow.count", "operator": "gte", "right": "5" }, "expected": true },
+    { "id": "lte-count", "rule": { "left": "flow.count", "operator": "lte", "right": "5" }, "expected": true },
+    { "id": "contains-user", "rule": { "left": "flow.loginUser", "operator": "contains", "right": "min" }, "expected": true },
+    { "id": "not-contains", "rule": { "left": "flow.loginUser", "operator": "not_contains", "right": "xyz" }, "expected": true },
+    { "id": "exists-token", "rule": { "left": "flow.token", "operator": "exists", "right": "" }, "expected": true },
+    { "id": "exists-missing", "rule": { "left": "flow.missing", "operator": "exists", "right": "" }, "expected": false },
+    { "id": "right-placeholder", "rule": { "left": "http.body.data.token", "operator": "eq", "right": "{{flow.token}}" }, "expected": false },
+    { "id": "duration-gt", "rule": { "left": "http.duration", "operator": "gt", "right": "100" }, "expected": true },
+    { "id": "asset-nested", "rule": { "left": "asset.defaults.nested.x", "operator": "eq", "right": "1" }, "expected": true }
+  ],
+  "extractCases": [
+    {
+      "id": "flow-token-body",
+      "extracts": [{ "from": "body", "expr": "$.data.token", "scope": "flow", "name": "token" }],
+      "expected": [{ "name": "token", "scope": "flow", "value": "body-token" }],
+      "flowAfter": { "token": "body-token" }
+    },
+    {
+      "id": "flow-code-body",
+      "extracts": [{ "from": "body", "expr": "$.data.code", "scope": "flow", "name": "code" }],
+      "expected": [{ "name": "code", "scope": "flow", "value": 0 }],
+      "flowAfter": { "code": 0 }
+    },
+    {
+      "id": "env-header",
+      "extracts": [{ "from": "header", "expr": "X-Request-Id", "scope": "env", "name": "lastReqId" }],
+      "expected": [{ "name": "lastReqId", "scope": "env", "value": "req-99" }],
+      "envAfter": { "lastReqId": "req-99" }
+    },
+    {
+      "id": "status-extract",
+      "extracts": [{ "from": "status", "expr": "", "scope": "flow", "name": "lastStatus" }],
+      "expected": [{ "name": "lastStatus", "scope": "flow", "value": 200 }],
+      "flowAfter": { "lastStatus": 200 }
+    },
+    {
+      "id": "asset-scope",
+      "extracts": [{ "from": "body", "expr": "$.data.token", "scope": "asset", "name": "tok", "entryKey": "defaults", "fieldPath": "lastToken" }],
+      "expected": [{ "name": "tok", "scope": "asset", "value": "body-token" }],
+      "assetAfter": { "defaults": { "apiKey": "sk-demo", "nested": { "x": 1 }, "lastToken": "body-token" } }
+    },
+    {
+      "id": "regex-unsupported",
+      "extracts": [{ "from": "regex", "expr": "token", "scope": "flow", "name": "rx" }],
+      "expected": [{ "name": "rx", "scope": "flow", "value": null }],
+      "flowAfter": { "rx": null }
+    }
+  ]
+}

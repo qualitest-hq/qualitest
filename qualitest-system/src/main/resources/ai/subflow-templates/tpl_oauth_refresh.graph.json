@@ -1,0 +1,84 @@
+{
+  "nodes": [
+    {
+      "id": "oauth_refresh",
+      "type": "http",
+      "position": {
+        "x": 40,
+        "y": 80
+      },
+      "data": {
+        "name": "OAuth Refresh Token",
+        "callMode": "external",
+        "httpMethod": "POST",
+        "externalUrl": "{{env.oauthTokenUrl}}",
+        "headers": [
+          {
+            "_enabled": true,
+            "name": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "requestConfig": {
+          "method": "POST",
+          "body": {
+            "mode": "urlencoded",
+            "urlencoded": [
+              {
+                "_enabled": true,
+                "name": "grant_type",
+                "value": "refresh_token"
+              },
+              {
+                "_enabled": true,
+                "name": "refresh_token",
+                "value": "{{flow.refreshToken}}"
+              },
+              {
+                "_enabled": true,
+                "name": "client_id",
+                "value": "{{asset.oauth.clientId}}"
+              },
+              {
+                "_enabled": true,
+                "name": "client_secret",
+                "value": "{{asset.oauth.clientSecret}}"
+              }
+            ]
+          }
+        },
+        "extracts": [
+          {
+            "from": "body",
+            "expr": "$.access_token",
+            "scope": "flow",
+            "name": "token"
+          }
+        ],
+        "summary": "POST ↗ {{env.oauthTokenUrl}} · refresh"
+      }
+    }
+  ],
+  "edges": [],
+  "meta": {
+    "schemaVersion": 1,
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "activeScenarioId": "tpl_sc_default",
+    "scenarios": [
+      {
+        "id": "tpl_sc_default",
+        "name": "模板默认",
+        "testProjectEnvId": "",
+        "flowSeed": {
+          "refreshToken": ""
+        },
+        "remark": "OAuth Refresh 子流模板"
+      }
+    ],
+    "flowOutputs": []
+  }
+}

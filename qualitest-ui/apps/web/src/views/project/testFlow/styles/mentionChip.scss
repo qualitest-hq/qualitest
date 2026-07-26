@@ -1,0 +1,122 @@
+/** AI 设计 @ chip 共享样式：可编辑输入框与只读历史消息共用 */
+
+.ai-mention-chip {
+  display: inline;
+  padding: 1px 6px 1px 4px;
+  margin: 0 1px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  vertical-align: baseline;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.ai-mention-chip__type {
+  font-weight: 600;
+}
+
+.ai-mention-chip__dot {
+  opacity: 0.55;
+  padding: 0 1px;
+}
+
+.ai-mention-chip__label {
+  font-weight: 500;
+}
+
+.ai-mention-chip--api {
+  background: rgba(11, 110, 220, 0.12);
+  color: #0b6edc;
+}
+
+.ai-mention-chip--node {
+  background: rgba(124, 58, 237, 0.1);
+  color: #6d28d9;
+}
+
+.ai-mention-chip--run {
+  background: rgba(234, 88, 12, 0.1);
+  color: #c2410c;
+}
+
+.ai-mention-chip--var {
+  background: rgba(13, 148, 136, 0.1);
+  color: #0f766e;
+}
+
+/* 可编辑 chip：带边框与 @/× 悬停切换 */
+.ai-mention-chip--editable {
+  &.ai-mention-chip--api {
+    border: 1px solid rgba(11, 110, 220, 0.25);
+  }
+
+  &.ai-mention-chip--node {
+    border: 1px solid rgba(124, 58, 237, 0.22);
+  }
+
+  &.ai-mention-chip--run {
+    border: 1px solid rgba(234, 88, 12, 0.22);
+  }
+
+  &.ai-mention-chip--var {
+    border: 1px solid rgba(13, 148, 136, 0.22);
+  }
+}
+
+.ai-mention-chip__remove {
+  display: inline-block;
+  position: relative;
+  width: 14px;
+  height: 1em;
+  margin-right: 1px;
+  vertical-align: baseline;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-mention-chip__glyph {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 14px;
+  transform: translateY(-50%);
+  text-align: center;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  transition: opacity 0.12s ease;
+}
+
+.ai-mention-chip__glyph--at {
+  opacity: 0.72;
+}
+
+.ai-mention-chip__glyph--close {
+  opacity: 0;
+  color: #dc2626;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.ai-mention-chip--editable:hover .ai-mention-chip__glyph--at {
+  opacity: 0;
+}
+
+.ai-mention-chip--editable:hover .ai-mention-chip__glyph--close {
+  opacity: 1;
+}
+
+/* 只读 chip：静态 @ 符号，无删除交互 */
+.ai-mention-chip--readonly .ai-mention-chip__at {
+  display: inline-block;
+  width: 14px;
+  margin-right: 1px;
+  text-align: center;
+  font-weight: 600;
+  opacity: 0.72;
+  vertical-align: baseline;
+}

@@ -1,0 +1,51 @@
+{
+  "description": "两个新增节点 + 一条连线：分批 confirm 第二个节点时延后开始节点校验",
+  "baseGraph": {
+    "nodes": [],
+    "edges": [],
+    "meta": {
+      "viewport": { "x": 0, "y": 0, "zoom": 1 },
+      "layout": "manual",
+      "activeScenarioId": "sc1",
+      "scenarios": [
+        {
+          "id": "sc1",
+          "name": "默认",
+          "testProjectEnvId": "",
+          "flowSeed": {}
+        }
+      ],
+      "flowOutputs": []
+    }
+  },
+  "patch": {
+    "addNodes": [
+      {
+        "id": "9001",
+        "type": "http",
+        "position": { "x": 40, "y": 80 },
+        "data": {
+          "name": "登录",
+          "callMode": "external",
+          "externalUrl": "https://example.com/login",
+          "httpMethod": "POST"
+        }
+      },
+      {
+        "id": "9002",
+        "type": "http",
+        "position": { "x": 240, "y": 80 },
+        "data": {
+          "name": "获取用户信息",
+          "callMode": "external",
+          "externalUrl": "https://example.com/profile",
+          "httpMethod": "GET"
+        }
+      }
+    ],
+    "addEdges": [
+      { "id": "8001", "source": "9001", "target": "9002" }
+    ]
+  },
+  "expectOk": true
+}

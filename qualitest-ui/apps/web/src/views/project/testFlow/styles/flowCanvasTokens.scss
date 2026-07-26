@@ -1,0 +1,136 @@
+/** 测试流画布共用设计 token 与按钮样式（通过 mixin 注入各根容器） */
+
+@mixin flow-pd-core-vars {
+  --pd-bg-sunken: #e9f2fc;
+  --pd-surface: #fbfdff;
+  --pd-surface-elevated: #ffffff;
+  --pd-border-subtle: #c5d8ec;
+  --pd-border-muted: #d6e6f5;
+  --pd-divider: #dbe8f4;
+  --pd-text: #0f172a;
+  --pd-text-muted: #5a6b86;
+  --pd-primary: #0b6edc;
+  --pd-primary-soft: rgba(11, 110, 220, 0.12);
+  --pd-primary-glow: rgba(11, 110, 220, 0.25);
+  --pd-gradient-panel-head: linear-gradient(180deg, #fafcff 0%, #fff 100%);
+}
+
+@mixin flow-pd-layout-vars {
+  @include flow-pd-core-vars;
+  --pd-bg-page: #e6f0fb;
+  --pd-bg-sidebar: #dfeaf8;
+  --pd-bg-toolbar: #d0e2f4;
+  --pd-radius: 10px;
+  --pd-radius-sm: 8px;
+  --pd-shadow-card: 0 1px 2px rgba(20, 60, 120, 0.05), 0 4px 14px rgba(30, 80, 160, 0.07);
+  --pd-font-body: 14px;
+}
+
+@mixin flow-pd-modal-vars {
+  @include flow-pd-core-vars;
+  --pd-radius: 10px;
+  --pd-radius-sm: 8px;
+  --pd-shadow-card: 0 1px 2px rgba(20, 60, 120, 0.05), 0 4px 14px rgba(30, 80, 160, 0.07);
+}
+
+@mixin flow-pd-import-vars {
+  --pd-border-subtle: #c5d8ec;
+  --pd-divider: #dbe8f4;
+  --pd-text: #0f172a;
+  --pd-text-muted: #5a6b86;
+  --pd-primary: #0b6edc;
+  --pd-primary-soft: rgba(11, 110, 220, 0.12);
+  --pd-surface-elevated: #ffffff;
+  --pd-bg-sunken: #e9f2fc;
+}
+
+@mixin flow-pd-btn-base($height: 32px, $padding-x: 12px) {
+  height: $height;
+  padding: 0 $padding-x;
+  border-radius: 6px;
+  border: 1px solid var(--pd-border-subtle);
+  background: var(--pd-surface-elevated);
+  color: var(--pd-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--pd-primary) 35%, var(--pd-border-subtle));
+    background: #fff;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+@mixin flow-pd-btn-primary {
+  background: var(--pd-primary);
+  border-color: var(--pd-primary);
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: #095ec0;
+    border-color: #095ec0;
+  }
+}
+
+@mixin flow-pd-btn-ghost {
+  border-color: transparent;
+  background: transparent;
+
+  &:hover:not(:disabled) {
+    background: var(--pd-primary-soft);
+    border-color: transparent;
+  }
+}
+
+@mixin flow-pd-buttons-nested($btn-height: 32px, $btn-padding-x: 12px) {
+  .btn {
+    @include flow-pd-btn-base($btn-height, $btn-padding-x);
+  }
+
+  .btn--primary {
+    @include flow-pd-btn-primary;
+  }
+
+  .btn--ghost {
+    @include flow-pd-btn-ghost;
+  }
+}
+
+@mixin flow-pd-buttons-scoped($scope, $btn-height: 32px, $btn-padding-x: 12px) {
+  #{$scope} .btn {
+    @include flow-pd-btn-base($btn-height, $btn-padding-x);
+  }
+
+  #{$scope} .btn--primary {
+    @include flow-pd-btn-primary;
+  }
+
+  #{$scope} .btn--ghost {
+    @include flow-pd-btn-ghost;
+  }
+}
+
+/** 画布节点主色派生 token，依赖父级已设置 --node-accent */
+@mixin flow-node-accent-derivatives {
+  --node-accent-soft: color-mix(in srgb, var(--node-accent, var(--pd-primary)) 11%, #fff);
+  --node-accent-border: color-mix(in srgb, var(--node-accent, var(--pd-primary)) 22%, transparent);
+  --node-accent-fg: color-mix(in srgb, var(--node-accent, var(--pd-primary)) 78%, #0f172a);
+}
+
+/** 节点内 chip / 小徽章：继承 --node-accent 派生色 */
+@mixin flow-node-chip-accent {
+  @include flow-node-accent-derivatives;
+  background: var(--node-accent-soft);
+  color: var(--node-accent-fg);
+  border: 1px solid var(--node-accent-border);
+}

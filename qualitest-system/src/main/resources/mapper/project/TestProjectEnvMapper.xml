@@ -1,0 +1,417 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestProjectEnvMapper">
+
+    <resultMap type="TestProjectEnv" id="TestProjectEnvResult">
+        <result property="testProjectEnvId" column="test_project_env_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="shareStatus" column="share_status"/>
+        <result property="envColor" column="env_color"/>
+        <result property="envName" column="env_name"/>
+        <result property="envUrl" column="env_url"/>
+        <result property="envVariables" column="env_variables"/>
+        <result property="allowDestructiveReset" column="allow_destructive_reset"/>
+        <result property="sortNum" column="sort_num"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestProjectEnvVo">
+        select test_project_env_id,
+               test_project_id,
+               user_id,
+               share_status,
+               env_color,
+               env_name,
+               env_url,
+               env_variables,
+               allow_destructive_reset,
+               sort_num,
+               del_status,
+               create_time,
+               update_time
+        from test_project_env
+    </sql>
+
+    <sql id="selectTestProjectEnvAliasVo">
+        select tpe.test_project_env_id as testProjectEnvId,
+               tpe.test_project_id     as testProjectId,
+               tpe.user_id             as userId,
+               tpe.share_status        as shareStatus,
+               tpe.env_color           as envColor,
+               tpe.env_name            as envName,
+               tpe.env_url             as envUrl,
+               tpe.env_variables       as envVariables,
+               tpe.allow_destructive_reset as allowDestructiveReset,
+               tpe.sort_num            as sortNum,
+               tpe.del_status          as delStatus,
+               tpe.create_time         as createTime,
+               tpe.update_time         as updateTime
+        from test_project_env tpe
+    </sql>
+
+    <select id="selectTestProjectEnvList" parameterType="TestProjectEnv" resultMap="TestProjectEnvResult">
+        <include refid="selectTestProjectEnvVo"/>
+        <where>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="userId != null ">
+                and user_id = #{userId}
+            </if>
+            <if test="shareStatus != null and shareStatus != ''">
+                and share_status = #{shareStatus}
+            </if>
+            <if test="envColor != null and envColor != ''">
+                and env_color = #{envColor}
+            </if>
+            <if test="envName != null and envName != ''">
+                and env_name = #{envName}
+            </if>
+            <if test="envUrl != null and envUrl != ''">
+                and env_url = #{envUrl}
+            </if>
+            <if test="envVariables != null and envVariables != ''">
+                and env_variables = #{envVariables}
+            </if>
+            <if test="sortNum != null">
+                and sort_num = #{sortNum}
+            </if>
+        </where>
+        order by sort_num asc, test_project_env_id desc
+    </select>
+
+    <select id="selectTestProjectEnvById" parameterType="Long" resultMap="TestProjectEnvResult">
+        <include refid="selectTestProjectEnvVo"/>
+        where test_project_env_id = #{testProjectEnvId}
+    </select>
+
+    <select id="selectTestProjectEnvResultList" parameterType="TestProjectEnvParams" resultType="TestProjectEnvResult">
+        select
+        tpe.test_project_env_id as testProjectEnvId,
+        tpe.test_project_id as testProjectId,
+        tpe.user_id as userId,
+        tpe.share_status as shareStatus,
+        tpe.env_color as envColor,
+        tpe.env_name as envName,
+        tpe.env_url as envUrl,
+        tpe.env_variables as envVariables,
+        tpe.allow_destructive_reset as allowDestructiveReset,
+        tpe.sort_num as sortNum,
+        tpe.del_status as delStatus,
+        tpe.create_time as createTime,
+        tpe.update_time as updateTime
+        from test_project_env tpe
+        where tpe.del_status = 0
+        <if test="testProjectId != null">
+            and tpe.test_project_id = #{testProjectId}
+        </if>
+        <if test="userId != null">
+            and tpe.user_id = #{userId}
+        </if>
+        <if test="shareStatus != null and shareStatus != ''">
+            and tpe.share_status = #{shareStatus}
+        </if>
+        <if test="envColor != null and envColor != ''">
+            and tpe.env_color = #{envColor}
+        </if>
+        <if test="envName != null and envName != ''">
+            and tpe.env_name like concat('%', #{envName}, '%')
+        </if>
+        <if test="envUrl != null and envUrl != ''">
+            and tpe.env_url = #{envUrl}
+        </if>
+        <if test="envVariables != null and envVariables != ''">
+            and tpe.env_variables = #{envVariables}
+        </if>
+        <if test="sortNum != null">
+            and tpe.sort_num = #{sortNum}
+        </if>
+        order by tpe.sort_num asc, tpe.test_project_env_id desc
+    </select>
+
+    <select id="selectTestProjectEnvResult" parameterType="Long" resultType="TestProjectEnvResult">
+        select tpe.test_project_env_id as testProjectEnvId,
+               tpe.test_project_id     as testProjectId,
+               tpe.user_id             as userId,
+               tpe.share_status        as shareStatus,
+               tpe.env_color           as envColor,
+               tpe.env_name            as envName,
+               tpe.env_url             as envUrl,
+               tpe.env_variables       as envVariables,
+               tpe.allow_destructive_reset as allowDestructiveReset,
+               tpe.sort_num            as sortNum,
+               tpe.del_status          as delStatus,
+               tpe.create_time         as createTime,
+               tpe.update_time         as updateTime
+        from test_project_env tpe
+        where tpe.del_status = 0
+          and tpe.test_project_env_id = #{testProjectEnvId}
+        limit 1
+    </select>
+
+    <select id="selectTestProjectEnvCount" parameterType="TestProjectEnvParams" resultType="int">
+        select count(1)
+        from test_project_env tpe
+        where tpe.del_status = 0
+        <if test="testProjectId != null ">
+            and tpe.test_project_id = #{testProjectId}
+        </if>
+        <if test="userId != null ">
+            and tpe.user_id = #{userId}
+        </if>
+        <if test="shareStatus != null and shareStatus != ''">
+            and tpe.share_status = #{shareStatus}
+        </if>
+        <if test="envColor != null and envColor != ''">
+            and tpe.env_color = #{envColor}
+        </if>
+        <if test="envName != null  and envName != ''">
+            and tpe.env_name like concat('%', #{envName}, '%')
+        </if>
+        <if test="envUrl != null  and envUrl != ''">
+            and tpe.env_url = #{envUrl}
+        </if>
+        <if test="envVariables != null  and envVariables != ''">
+            and tpe.env_variables = #{envVariables}
+        </if>
+        <if test="sortNum != null">
+            and tpe.sort_num = #{sortNum}
+        </if>
+    </select>
+
+    <select id="selectMaxSortNumByProjectId" resultType="java.lang.Integer">
+        select max(sort_num)
+        from test_project_env
+        where del_status = 0
+          and test_project_id = #{testProjectId}
+    </select>
+
+    <select id="selectEnvIdsByProjectAndUser" resultType="java.lang.Long">
+        select test_project_env_id
+        from test_project_env
+        where del_status = 0
+          and test_project_id = #{testProjectId}
+          and user_id = #{userId}
+    </select>
+
+    <update id="batchUpdateSortNumForReorder">
+        update test_project_env
+        set sort_num = case test_project_env_id
+        <foreach collection="rows" item="row">
+            when #{row.testProjectEnvId} then #{row.sortNum}
+        </foreach>
+        end,
+        update_time = #{updateTime}
+        where del_status = 0
+          and test_project_id = #{testProjectId}
+          and user_id = #{userId}
+          and test_project_env_id in
+        <foreach collection="rows" item="row" open="(" separator="," close=")">
+            #{row.testProjectEnvId}
+        </foreach>
+    </update>
+
+    <select id="selectTestProjectEnvOne" parameterType="TestProjectEnvParams" resultMap="TestProjectEnvResult">
+        select tpe.test_project_env_id,
+               tpe.test_project_id,
+               tpe.user_id,
+               tpe.share_status,
+               tpe.env_color,
+               tpe.env_name,
+               tpe.env_url,
+               tpe.env_variables,
+               tpe.allow_destructive_reset,
+               tpe.sort_num,
+               tpe.del_status,
+               tpe.create_time,
+               tpe.update_time
+        from test_project_env tpe
+        where tpe.del_status = 0
+        <if test="testProjectId != null ">
+            and tpe.test_project_id = #{testProjectId}
+        </if>
+        <if test="userId != null ">
+            and tpe.user_id = #{userId}
+        </if>
+        <if test="shareStatus != null and shareStatus != ''">
+            and tpe.share_status = #{shareStatus}
+        </if>
+        <if test="envColor != null and envColor != ''">
+            and tpe.env_color = #{envColor}
+        </if>
+        <if test="envName != null  and envName != ''">
+            and tpe.env_name like concat('%', #{envName}, '%')
+        </if>
+        <if test="envUrl != null  and envUrl != ''">
+            and tpe.env_url = #{envUrl}
+        </if>
+        <if test="envVariables != null  and envVariables != ''">
+            and tpe.env_variables = #{envVariables}
+        </if>
+        <if test="sortNum != null">
+            and tpe.sort_num = #{sortNum}
+        </if>
+        order by tpe.sort_num asc, tpe.test_project_env_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestProjectEnv" parameterType="TestProjectEnv">
+        insert into test_project_env
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectEnvId != null">
+                test_project_env_id,
+            </if>
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="userId != null">
+                user_id,
+            </if>
+            <if test="shareStatus != null and shareStatus != ''">
+                share_status,
+            </if>
+            <if test="envColor != null">
+                env_color,
+            </if>
+            <if test="envName != null and envName != ''">
+                env_name,
+            </if>
+            <if test="envUrl != null and envUrl != ''">
+                env_url,
+            </if>
+            <if test="envVariables != null and envVariables != ''">
+                env_variables,
+            </if>
+            <if test="allowDestructiveReset != null">
+                allow_destructive_reset,
+            </if>
+            <if test="sortNum != null">
+                sort_num,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectEnvId != null">
+                #{testProjectEnvId},
+            </if>
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="userId != null">
+                #{userId},
+            </if>
+            <if test="shareStatus != null and shareStatus != ''">
+                #{shareStatus},
+            </if>
+            <if test="envColor != null">
+                #{envColor},
+            </if>
+            <if test="envName != null and envName != ''">
+                #{envName},
+            </if>
+            <if test="envUrl != null and envUrl != ''">
+                #{envUrl},
+            </if>
+            <if test="envVariables != null and envVariables != ''">
+                #{envVariables},
+            </if>
+            <if test="allowDestructiveReset != null">
+                #{allowDestructiveReset},
+            </if>
+            <if test="sortNum != null">
+                #{sortNum},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestProjectEnv" parameterType="TestProjectEnv">
+        update test_project_env
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="userId != null">
+                user_id = #{userId},
+            </if>
+            <if test="shareStatus != null and shareStatus != ''">
+                share_status = #{shareStatus},
+            </if>
+            <if test="envColor != null">
+                env_color = #{envColor},
+            </if>
+            <if test="envName != null and envName != ''">
+                env_name = #{envName},
+            </if>
+            <if test="envUrl != null">
+                env_url = #{envUrl},
+            </if>
+            <if test="envVariables != null">
+                env_variables = #{envVariables},
+            </if>
+            <if test="allowDestructiveReset != null">
+                allow_destructive_reset = #{allowDestructiveReset},
+            </if>
+            <if test="sortNum != null">
+                sort_num = #{sortNum},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_project_env_id = #{testProjectEnvId}
+    </update>
+
+    <delete id="deleteTestProjectEnvById" parameterType="Long">
+        delete
+        from test_project_env
+        where test_project_env_id = #{testProjectEnvId}
+    </delete>
+
+    <delete id="deleteTestProjectEnvByIdList" parameterType="java.util.List">
+        delete from test_project_env where test_project_env_id in
+        <foreach item="testProjectEnvId" collection="list" open="(" separator="," close=")">
+            #{testProjectEnvId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestProjectEnvById" parameterType="Long">
+        update test_project_env
+        set del_status = 1
+        where test_project_env_id = #{testProjectEnvId}
+    </update>
+
+    <update id="logicDeleteTestProjectEnvByIdList" parameterType="java.util.List">
+        update test_project_env set del_status = 1 where test_project_env_id in
+        <foreach item="testProjectEnvId" collection="list" open="(" separator="," close=")">
+            #{testProjectEnvId}
+        </foreach>
+    </update>
+</mapper>

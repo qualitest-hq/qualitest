@@ -1,0 +1,190 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "search_apis",
+      "description": "按关键词搜索当前测试项目下的 API 接口，返回 id、method、path、name；keyword 可省略，将列举 scopeApiIds 或项目接口",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "搜索关键词，匹配接口名、路径或描述；可省略"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "返回条数上限，默认使用系统配置，最大不超过配置上限"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_api_detail",
+      "description": "获取单个 API 的 path/query/header/body 参数摘要（含 required）、body 示例、响应 schema 一层摘要；另返回项目响应约定 responseConvention 与建议 extracts（suggestedExtracts）",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testProjectApiId": {
+            "type": "string",
+            "description": "项目 API ID"
+          }
+        },
+        "required": ["testProjectApiId"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_graph_summary",
+      "description": "获取测试流画布的节点与边摘要。Web 使用当前画布；MCP 可在 arguments 或信封中仅传 testFlowId，无需 graphJson",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_flow_meta",
+      "description": "获取画布 meta：运行场景、flowOutputNames、startNodeId。MCP 可仅传 testFlowId 自动加载",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_project_envs",
+      "description": "列举当前测试项目的环境 id、名称、URL 与环境变量键名（不含值）；为场景绑定 testProjectEnvId 或编写 {{env.*}} 占位符前建议调用",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_node_detail",
+      "description": "获取单个节点的 type 与完整 data。MCP 可仅传 testFlowId 自动加载画布",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "节点 id"
+          },
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": ["nodeId"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_run_failure",
+      "description": "获取某次测试流 Run 的失败步骤现场。按 failureCategory 分区：bizCode（业务码）、assert（断言）、other；同时返回 bizCodeFailures / assertFailures / otherFailures 列表",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "description": "测试流运行记录 id；可省略，将使用请求上下文中的 contextRunId"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_flow_api_health",
+      "description": "检查当前画布「项目接口」HTTP 节点的 API 语义健康告警（API_MISSING / ORPHAN_PARAM / EXTRACT_PATH_MISSING）。用户提到左上角「API 语义」告警、绑定失效、接口不存在或已删除、修复测试流异常（非 Run 失败）时优先调用；返回 nodeId、绑定 apiId、message，以及节点残留 apiName/apiPath 便于换绑",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_subflow_templates",
+      "description": "列举平台内置子流模板（tpl_*）与项目测试流摘要，供 subflow 节点选型；Web 改图场景优先使用",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "按测试流名称模糊过滤 projectSubflows；可省略"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "projectSubflows 返回条数上限，默认 20"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_subflow_detail",
+      "description": "读取测试流拓扑摘要与 flowOutputs，无需 graphJson 信封；浏览子流结构优先于 get_flow",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "被引用的测试流 id；可省略，将使用请求上下文中的 testFlowId"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_flow_design_patch",
+      "description": "提交测试流画布增量修改建议（FlowDesignPatch）。改图或修复流程时必须调用；仅答疑时不要调用。参数须为原子变更包（见 schema description）。校验后向用户展示 Diff，不会自动保存。",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+]

@@ -1,0 +1,557 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestProjectApiMapper">
+
+    <resultMap type="TestProjectApi" id="TestProjectApiResult">
+        <result property="testProjectApiId" column="test_project_api_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="apiGroupId" column="api_group_id"/>
+        <result property="apiStatus" column="api_status"/>
+        <result property="apiGroup" column="api_group"/>
+        <result property="apiName" column="api_name"/>
+        <result property="apiDescription" column="api_description"/>
+        <result property="apiPath" column="api_path"/>
+        <result property="protocolType" column="protocol_type"/>
+        <result property="requestConfig" column="request_config"/>
+        <result property="headers" column="headers"/>
+        <result property="cookies" column="cookies"/>
+        <result property="responseConfig" column="response_config"/>
+        <!-- 测试值层：参数默认值、body/响应示例等 -->
+        <result property="testValueConfig" column="test_value_config"/>
+        <!-- 业务响应码白名单 JSON -->
+        <result property="bizCodeConfig" column="biz_code_config"/>
+        <result property="preRequestScript" column="pre_request_script"/>
+        <result property="postRequestScript" column="post_request_script"/>
+        <result property="lastSyncTime" column="last_sync_time"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestProjectApiVo">
+        select test_project_api_id,
+               test_project_id,
+               api_group_id,
+               api_status,
+               api_group,
+               api_name,
+               api_description,
+               api_path,
+               protocol_type,
+               request_config,
+               headers,
+               cookies,
+               response_config,
+               test_value_config,
+               biz_code_config,
+               pre_request_script,
+               post_request_script,
+               last_sync_time,
+               del_status,
+               create_time,
+               update_time
+        from test_project_api
+    </sql>
+
+    <sql id="selectTestProjectApiAliasVo">
+        select tpa.test_project_api_id as testProjectApiId,
+               tpa.test_project_id     as testProjectId,
+               tpa.api_group_id        as apiGroupId,
+               tpa.api_status          as apiStatus,
+               tpa.api_group           as apiGroup,
+               tpa.api_name            as apiName,
+               tpa.api_description     as apiDescription,
+               tpa.api_path            as apiPath,
+               tpa.protocol_type       as protocolType,
+               tpa.request_config      as requestConfig,
+               tpa.headers             as headers,
+               tpa.cookies             as cookies,
+               tpa.response_config     as responseConfig,
+               tpa.test_value_config   as testValueConfig,
+               tpa.biz_code_config     as bizCodeConfig,
+               tpa.pre_request_script  as preRequestScript,
+               tpa.post_request_script as postRequestScript,
+               tpa.last_sync_time      as lastSyncTime,
+               tpa.del_status          as delStatus,
+               tpa.create_time         as createTime,
+               tpa.update_time         as updateTime
+        from test_project_api tpa
+    </sql>
+
+    <select id="selectTestProjectApiList" parameterType="TestProjectApi" resultMap="TestProjectApiResult">
+        <include refid="selectTestProjectApiVo"/>
+        <where>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="apiGroupId != null ">
+                and api_group_id = #{apiGroupId}
+            </if>
+            <if test="apiStatus != null and apiStatus != ''">
+                and api_status = #{apiStatus}
+            </if>
+            <if test="apiName != null and apiName != ''">
+                and api_name = #{apiName}
+            </if>
+            <if test="apiPath != null and apiPath != ''">
+                and api_path = #{apiPath}
+            </if>
+            <if test="protocolType != null and protocolType != ''">
+                and protocol_type = #{protocolType}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestProjectApiById" parameterType="Long" resultMap="TestProjectApiResult">
+        <include refid="selectTestProjectApiVo"/>
+        where test_project_api_id = #{testProjectApiId}
+    </select>
+
+    <select id="selectTestProjectApiResultList" parameterType="TestProjectApiParams" resultType="TestProjectApiResult">
+        select
+        tpa.test_project_api_id as testProjectApiId,
+        tpa.test_project_id as testProjectId,
+        tpa.api_group_id as apiGroupId,
+        tpa.api_status as apiStatus,
+        tpa.api_group as apiGroup,
+        tpa.api_name as apiName,
+        tpa.api_description as apiDescription,
+        tpa.api_path as apiPath,
+        tpa.protocol_type as protocolType,
+        tpa.request_config as requestConfig,
+        tpa.headers as headers,
+        tpa.cookies as cookies,
+        tpa.response_config as responseConfig,
+        tpa.test_value_config as testValueConfig,
+        tpa.biz_code_config as bizCodeConfig,
+        tpa.pre_request_script as preRequestScript,
+        tpa.post_request_script as postRequestScript,
+        tpa.last_sync_time as lastSyncTime,
+        tpa.del_status as delStatus,
+        tpa.create_time as createTime,
+        tpa.update_time as updateTime
+        from test_project_api tpa
+        where tpa.del_status = 0
+        <if test="testProjectId != null">
+            and tpa.test_project_id = #{testProjectId}
+        </if>
+        <if test="apiGroupId != null">
+            and tpa.api_group_id = #{apiGroupId}
+        </if>
+        <if test="apiStatus != null and apiStatus != ''">
+            and tpa.api_status = #{apiStatus}
+        </if>
+        <if test="apiName != null and apiName != ''">
+            and tpa.api_name like concat('%', #{apiName}, '%')
+        </if>
+        <if test="apiPath != null and apiPath != ''">
+            and tpa.api_path like concat('%', #{apiPath}, '%')
+        </if>
+        <if test="protocolType != null and protocolType != ''">
+            and tpa.protocol_type = #{protocolType}
+        </if>
+        order by tpa.test_project_api_id desc
+    </select>
+
+    <select id="selectTestProjectApiResult" parameterType="Long" resultType="TestProjectApiResult">
+        select tpa.test_project_api_id as testProjectApiId,
+               tpa.test_project_id     as testProjectId,
+               tpa.api_group_id        as apiGroupId,
+               tpa.api_status          as apiStatus,
+               tpa.api_group           as apiGroup,
+               tpa.api_name            as apiName,
+               tpa.api_description     as apiDescription,
+               tpa.api_path            as apiPath,
+               tpa.protocol_type       as protocolType,
+               tpa.request_config      as requestConfig,
+               tpa.headers             as headers,
+               tpa.cookies             as cookies,
+               tpa.response_config     as responseConfig,
+               tpa.test_value_config   as testValueConfig,
+               tpa.biz_code_config     as bizCodeConfig,
+               tpa.pre_request_script  as preRequestScript,
+               tpa.post_request_script as postRequestScript,
+               tpa.last_sync_time      as lastSyncTime,
+               tpa.del_status          as delStatus,
+               tpa.create_time         as createTime,
+               tpa.update_time         as updateTime
+        from test_project_api tpa
+        where tpa.del_status = 0
+          and tpa.test_project_api_id = #{testProjectApiId}
+        limit 1
+    </select>
+
+    <select id="selectTestProjectApiCount" parameterType="TestProjectApiParams" resultType="int">
+        select count(1)
+        from test_project_api tpa
+        where tpa.del_status = 0
+        <if test="testProjectId != null ">
+            and tpa.test_project_id = #{testProjectId}
+        </if>
+        <if test="apiGroupId != null ">
+            and tpa.api_group_id = #{apiGroupId}
+        </if>
+        <if test="apiStatus != null  and apiStatus != ''">
+            and tpa.api_status = #{apiStatus}
+        </if>
+        <if test="apiName != null  and apiName != ''">
+            and tpa.api_name like concat('%', #{apiName}, '%')
+        </if>
+        <if test="apiPath != null  and apiPath != ''">
+            and tpa.api_path like concat('%', #{apiPath}, '%')
+        </if>
+        <if test="protocolType != null  and protocolType != ''">
+            and tpa.protocol_type = #{protocolType}
+        </if>
+    </select>
+
+    <select id="selectTestProjectApiOne" parameterType="TestProjectApiParams" resultMap="TestProjectApiResult">
+        select tpa.test_project_api_id,
+               tpa.test_project_id,
+               tpa.api_group_id,
+               tpa.api_status,
+               tpa.api_group,
+               tpa.api_name,
+               tpa.api_description,
+               tpa.api_path,
+               tpa.protocol_type,
+               tpa.request_config,
+               tpa.headers,
+               tpa.cookies,
+               tpa.response_config,
+               tpa.test_value_config,
+               tpa.biz_code_config,
+               tpa.pre_request_script,
+               tpa.post_request_script,
+               tpa.last_sync_time,
+               tpa.del_status,
+               tpa.create_time,
+               tpa.update_time
+        from test_project_api tpa
+        where tpa.del_status = 0
+        <if test="testProjectId != null ">
+            and tpa.test_project_id = #{testProjectId}
+        </if>
+        <if test="apiGroupId != null ">
+            and tpa.api_group_id = #{apiGroupId}
+        </if>
+        <if test="apiStatus != null  and apiStatus != ''">
+            and tpa.api_status = #{apiStatus}
+        </if>
+        <if test="apiName != null  and apiName != ''">
+            and tpa.api_name like concat('%', #{apiName}, '%')
+        </if>
+        <if test="apiPath != null  and apiPath != ''">
+            and tpa.api_path like concat('%', #{apiPath}, '%')
+        </if>
+        <if test="protocolType != null  and protocolType != ''">
+            and tpa.protocol_type = #{protocolType}
+        </if>
+        order by tpa.test_project_api_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestProjectApi" parameterType="TestProjectApi">
+        insert into test_project_api
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectApiId != null">
+                test_project_api_id,
+            </if>
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="apiGroupId != null">
+                api_group_id,
+            </if>
+            <if test="apiStatus != null and apiStatus != ''">
+                api_status,
+            </if>
+            <if test="apiGroup != null and apiGroup != ''">
+                api_group,
+            </if>
+            <if test="apiName != null and apiName != ''">
+                api_name,
+            </if>
+            <if test="apiDescription != null">
+                api_description,
+            </if>
+            <if test="apiPath != null and apiPath != ''">
+                api_path,
+            </if>
+            <if test="protocolType != null and protocolType != ''">
+                protocol_type,
+            </if>
+            <if test="requestConfig != null and requestConfig != ''">
+                request_config,
+            </if>
+            <if test="headers != null and headers != ''">
+                headers,
+            </if>
+            <if test="cookies != null and cookies != ''">
+                cookies,
+            </if>
+            <if test="responseConfig != null and responseConfig != ''">
+                response_config,
+            </if>
+            <if test="testValueConfig != null and testValueConfig != ''">
+                test_value_config,
+            </if>
+            <if test="bizCodeConfig != null and bizCodeConfig != ''">
+                biz_code_config,
+            </if>
+            <if test="preRequestScript != null and preRequestScript != ''">
+                pre_request_script,
+            </if>
+            <if test="postRequestScript != null and postRequestScript != ''">
+                post_request_script,
+            </if>
+            <if test="lastSyncTime != null">
+                last_sync_time,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectApiId != null">
+                #{testProjectApiId},
+            </if>
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="apiGroupId != null">
+                #{apiGroupId},
+            </if>
+            <if test="apiStatus != null and apiStatus != ''">
+                #{apiStatus},
+            </if>
+            <if test="apiGroup != null and apiGroup != ''">
+                #{apiGroup},
+            </if>
+            <if test="apiName != null and apiName != ''">
+                #{apiName},
+            </if>
+            <if test="apiDescription != null">
+                #{apiDescription},
+            </if>
+            <if test="apiPath != null and apiPath != ''">
+                #{apiPath},
+            </if>
+            <if test="protocolType != null and protocolType != ''">
+                #{protocolType},
+            </if>
+            <if test="requestConfig != null and requestConfig != ''">
+                #{requestConfig},
+            </if>
+            <if test="headers != null and headers != ''">
+                #{headers},
+            </if>
+            <if test="cookies != null and cookies != ''">
+                #{cookies},
+            </if>
+            <if test="responseConfig != null and responseConfig != ''">
+                #{responseConfig},
+            </if>
+            <if test="testValueConfig != null and testValueConfig != ''">
+                #{testValueConfig},
+            </if>
+            <if test="bizCodeConfig != null and bizCodeConfig != ''">
+                #{bizCodeConfig},
+            </if>
+            <if test="preRequestScript != null and preRequestScript != ''">
+                #{preRequestScript},
+            </if>
+            <if test="postRequestScript != null and postRequestScript != ''">
+                #{postRequestScript},
+            </if>
+            <if test="lastSyncTime != null">
+                #{lastSyncTime},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 插件/API 导入批量新增：单条 SQL 多行 VALUES -->
+    <insert id="batchInsertTestProjectApi">
+        insert into test_project_api (
+            test_project_api_id,
+            test_project_id,
+            api_group_id,
+            api_status,
+            api_group,
+            api_name,
+            api_description,
+            api_path,
+            protocol_type,
+            request_config,
+            headers,
+            cookies,
+            response_config,
+            test_value_config,
+            biz_code_config,
+            pre_request_script,
+            post_request_script,
+            last_sync_time,
+            del_status,
+            create_time,
+            update_time
+        ) values
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.testProjectApiId},
+                #{item.testProjectId},
+                #{item.apiGroupId},
+                #{item.apiStatus},
+                #{item.apiGroup},
+                #{item.apiName},
+                #{item.apiDescription},
+                #{item.apiPath},
+                #{item.protocolType},
+                #{item.requestConfig},
+                #{item.headers},
+                #{item.cookies},
+                #{item.responseConfig},
+                #{item.testValueConfig},
+                #{item.bizCodeConfig},
+                #{item.preRequestScript},
+                #{item.postRequestScript},
+                #{item.lastSyncTime},
+                #{item.delStatus},
+                #{item.createTime},
+                #{item.updateTime}
+            )
+        </foreach>
+    </insert>
+
+    <update id="updateTestProjectApi" parameterType="TestProjectApi">
+        update test_project_api
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="apiGroupId != null">
+                api_group_id = #{apiGroupId},
+            </if>
+            <if test="apiStatus != null and apiStatus != ''">
+                api_status = #{apiStatus},
+            </if>
+            <if test="apiGroup != null and apiGroup != ''">
+                api_group = #{apiGroup},
+            </if>
+            <if test="apiName != null and apiName != ''">
+                api_name = #{apiName},
+            </if>
+            <if test="apiDescription != null">
+                api_description = #{apiDescription},
+            </if>
+            <if test="apiPath != null and apiPath != ''">
+                api_path = #{apiPath},
+            </if>
+            <if test="protocolType != null and protocolType != ''">
+                protocol_type = #{protocolType},
+            </if>
+            <if test="requestConfig != null and requestConfig != ''">
+                request_config = #{requestConfig},
+            </if>
+            <if test="headers != null and headers != ''">
+                headers = #{headers},
+            </if>
+            <if test="cookies != null and cookies != ''">
+                cookies = #{cookies},
+            </if>
+            <if test="responseConfig != null and responseConfig != ''">
+                response_config = #{responseConfig},
+            </if>
+            <if test="testValueConfig != null">
+                test_value_config = #{testValueConfig},
+            </if>
+            <if test="bizCodeConfig != null">
+                biz_code_config = #{bizCodeConfig},
+            </if>
+            <if test="preRequestScript != null and preRequestScript != ''">
+                pre_request_script = #{preRequestScript},
+            </if>
+            <if test="postRequestScript != null and postRequestScript != ''">
+                post_request_script = #{postRequestScript},
+            </if>
+            <if test="lastSyncTime != null">
+                last_sync_time = #{lastSyncTime},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_project_api_id = #{testProjectApiId}
+    </update>
+
+    <delete id="deleteTestProjectApiById" parameterType="Long">
+        delete
+        from test_project_api
+        where test_project_api_id = #{testProjectApiId}
+    </delete>
+
+    <delete id="deleteTestProjectApiByIdList" parameterType="java.util.List">
+        delete from test_project_api where test_project_api_id in
+        <foreach item="testProjectApiId" collection="list" open="(" separator="," close=")">
+            #{testProjectApiId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestProjectApiById" parameterType="Long">
+        update test_project_api
+        set del_status = 1
+        where test_project_api_id = #{testProjectApiId}
+    </update>
+
+    <update id="logicDeleteTestProjectApiByIdList" parameterType="java.util.List">
+        update test_project_api set del_status = 1 where test_project_api_id in
+        <foreach item="testProjectApiId" collection="list" open="(" separator="," close=")">
+            #{testProjectApiId}
+        </foreach>
+    </update>
+
+    <select id="selectDistinctTestProjectIdsByApiIdList" parameterType="java.util.List" resultType="long">
+        select distinct test_project_id
+        from test_project_api
+        where test_project_api_id in
+        <foreach item="testProjectApiId" collection="list" open="(" separator="," close=")">
+            #{testProjectApiId}
+        </foreach>
+    </select>
+
+    <!-- AI 设计工具 search_apis：按名称/路径/描述模糊匹配，限制条数 -->
+    <select id="searchApisByKeyword" resultMap="TestProjectApiResult">
+        <include refid="selectTestProjectApiVo"/>
+        where test_project_id = #{testProjectId}
+          and del_status = 0
+          and (
+            api_name like concat('%', #{keyword}, '%')
+            or api_path like concat('%', #{keyword}, '%')
+            or api_description like concat('%', #{keyword}, '%')
+          )
+        order by api_name
+        limit #{limit}
+    </select>
+</mapper>

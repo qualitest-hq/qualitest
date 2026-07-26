@@ -1,0 +1,383 @@
+[
+  {
+    "templateId": "deepseek",
+    "displayName": "DeepSeek",
+    "icon": "deepseek",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.deepseek.com",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["deepseek-*"],
+      "excludePatterns": ["*-embed-*", "*-rerank-*"]
+    },
+    "recommendedModels": ["deepseek-chat", "deepseek-reasoner"],
+    "docUrl": "https://platform.deepseek.com/api-docs"
+  },
+  {
+    "templateId": "openai",
+    "displayName": "OpenAI",
+    "icon": "openai",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.openai.com/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "excludePatterns": ["*-embed-*", "dall-e-*", "tts-*", "whisper-*"]
+    },
+    "recommendedModels": ["gpt-4o", "gpt-4o-mini"],
+    "docUrl": "https://platform.openai.com/docs"
+  },
+  {
+    "templateId": "siliconflow",
+    "displayName": "硅基流动",
+    "icon": "siliconflow",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.siliconflow.cn/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "excludePatterns": ["*-embed-*", "*-rerank-*"]
+    },
+    "recommendedModels": [],
+    "docUrl": "https://docs.siliconflow.cn"
+  },
+  {
+    "templateId": "anthropic",
+    "displayName": "Anthropic",
+    "icon": "anthropic",
+    "provider": "anthropic_compatible",
+    "defaultBaseUrl": "https://api.anthropic.com",
+    "baseUrlEditable": true,
+    "discoveryType": "anthropic_models",
+    "discoveryPath": "/v1/models",
+    "modelFilters": {},
+    "recommendedModels": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022"],
+    "docUrl": "https://docs.anthropic.com"
+  },
+  {
+    "templateId": "ollama",
+    "displayName": "Ollama",
+    "icon": "ollama",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "http://127.0.0.1:11434/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "ollama_tags",
+    "discoveryPath": "/api/tags",
+    "modelFilters": {},
+    "recommendedModels": [],
+    "docUrl": "https://ollama.com"
+  },
+  {
+    "templateId": "moonshot",
+    "displayName": "Moonshot（Kimi）",
+    "icon": "moonshot",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.moonshot.cn/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["moonshot-*", "kimi-*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["kimi-k2-0711-preview", "moonshot-v1-8k"],
+    "docUrl": "https://platform.moonshot.cn/docs"
+  },
+  {
+    "templateId": "zhipu",
+    "displayName": "智谱 AI",
+    "icon": "zhipu",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["glm-*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["glm-4-flash", "glm-4-plus"],
+    "docUrl": "https://open.bigmodel.cn/dev/api"
+  },
+  {
+    "templateId": "qwen",
+    "displayName": "通义千问",
+    "icon": "qwen",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["qwen*"],
+      "excludePatterns": ["*-embed-*", "*-rerank-*"]
+    },
+    "recommendedModels": ["qwen-plus", "qwen-turbo", "qwen-max"],
+    "docUrl": "https://help.aliyun.com/zh/model-studio/"
+  },
+  {
+    "templateId": "minimax",
+    "displayName": "MiniMax",
+    "icon": "minimax",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.minimax.chat/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["abab*", "minimax*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["MiniMax-Text-01", "abab6.5s-chat"],
+    "docUrl": "https://platform.minimaxi.com/document"
+  },
+  {
+    "templateId": "volcengine",
+    "displayName": "火山引擎（豆包）",
+    "icon": "volcengine",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["doubao-*", "ep-*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["doubao-pro-32k", "doubao-lite-32k"],
+    "docUrl": "https://www.volcengine.com/docs/82379"
+  },
+  {
+    "templateId": "baichuan",
+    "displayName": "百川智能",
+    "icon": "baichuan",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.baichuan-ai.com/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["Baichuan*", "baichuan*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["Baichuan4-Turbo", "Baichuan3-Turbo"],
+    "docUrl": "https://platform.baichuan-ai.com/docs"
+  },
+  {
+    "templateId": "yi",
+    "displayName": "零一万物",
+    "icon": "yi",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.lingyiwanwu.com/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["yi-*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["yi-lightning", "yi-large"],
+    "docUrl": "https://platform.lingyiwanwu.com/docs"
+  },
+  {
+    "templateId": "stepfun",
+    "displayName": "阶跃星辰",
+    "icon": "stepfun",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.stepfun.com/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["step-*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["step-2-16k", "step-1-8k"],
+    "docUrl": "https://platform.stepfun.com/docs"
+  },
+  {
+    "templateId": "hunyuan",
+    "displayName": "腾讯混元",
+    "icon": "hunyuan",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.hunyuan.cloud.tencent.com/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["hunyuan-*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["hunyuan-pro", "hunyuan-standard"],
+    "docUrl": "https://cloud.tencent.com/document/product/1729"
+  },
+  {
+    "templateId": "gemini",
+    "displayName": "Google Gemini",
+    "icon": "gemini",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["gemini-*"],
+      "excludePatterns": ["*-embed-*", "*-image-*"]
+    },
+    "recommendedModels": ["gemini-2.0-flash", "gemini-1.5-pro"],
+    "docUrl": "https://ai.google.dev/gemini-api/docs"
+  },
+  {
+    "templateId": "groq",
+    "displayName": "Groq",
+    "icon": "groq",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.groq.com/openai/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "excludePatterns": ["*-embed-*", "whisper-*"]
+    },
+    "recommendedModels": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768"],
+    "docUrl": "https://console.groq.com/docs"
+  },
+  {
+    "templateId": "mistral",
+    "displayName": "Mistral AI",
+    "icon": "mistral",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.mistral.ai/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["mistral-large-latest", "mistral-small-latest"],
+    "docUrl": "https://docs.mistral.ai"
+  },
+  {
+    "templateId": "openrouter",
+    "displayName": "OpenRouter",
+    "icon": "openrouter",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://openrouter.ai/api/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": [],
+    "docUrl": "https://openrouter.ai/docs"
+  },
+  {
+    "templateId": "together",
+    "displayName": "Together AI",
+    "icon": "together",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.together.xyz/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": [],
+    "docUrl": "https://docs.together.ai"
+  },
+  {
+    "templateId": "fireworks",
+    "displayName": "Fireworks AI",
+    "icon": "fireworks",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.fireworks.ai/inference/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": [],
+    "docUrl": "https://docs.fireworks.ai"
+  },
+  {
+    "templateId": "azure",
+    "displayName": "Azure OpenAI",
+    "icon": "azure",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "excludePatterns": ["*-embed-*", "dall-e-*", "tts-*", "whisper-*"]
+    },
+    "recommendedModels": ["gpt-4o", "gpt-4o-mini"],
+    "docUrl": "https://learn.microsoft.com/azure/ai-services/openai/"
+  },
+  {
+    "templateId": "perplexity",
+    "displayName": "Perplexity",
+    "icon": "perplexity",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.perplexity.ai",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["sonar*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["sonar", "sonar-pro"],
+    "docUrl": "https://docs.perplexity.ai"
+  },
+  {
+    "templateId": "xai",
+    "displayName": "xAI",
+    "icon": "xai",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "https://api.x.ai/v1",
+    "baseUrlEditable": true,
+    "discoveryType": "openai_models",
+    "discoveryPath": "/models",
+    "modelFilters": {
+      "includePatterns": ["grok-*"],
+      "excludePatterns": ["*-embed-*"]
+    },
+    "recommendedModels": ["grok-2-latest"],
+    "docUrl": "https://docs.x.ai"
+  },
+  {
+    "templateId": "custom_anthropic",
+    "displayName": "自定义（Anthropic 兼容）",
+    "icon": "custom",
+    "provider": "anthropic_compatible",
+    "defaultBaseUrl": "",
+    "baseUrlEditable": true,
+    "discoveryType": "anthropic_models",
+    "discoveryPath": "/v1/models",
+    "modelFilters": {},
+    "recommendedModels": [],
+    "docUrl": ""
+  },
+  {
+    "templateId": "custom_static",
+    "displayName": "自定义（无列表接口）",
+    "icon": "custom",
+    "provider": "openai_compatible",
+    "defaultBaseUrl": "",
+    "baseUrlEditable": true,
+    "discoveryType": "none",
+    "discoveryPath": "",
+    "modelFilters": {},
+    "staticModels": [],
+    "recommendedModels": [],
+    "docUrl": ""
+  }
+]

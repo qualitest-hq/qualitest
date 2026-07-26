@@ -1,0 +1,39 @@
+{
+  "nodes": [
+    {
+      "id": "c1",
+      "type": "assign",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "写入子变量",
+        "assignments": [
+          {
+            "scope": "flow",
+            "name": "childOut",
+            "op": "set",
+            "value": "ok"
+          }
+        ],
+        "summary": "flow.childOut ← ok"
+      }
+    }
+  ],
+  "edges": [],
+  "meta": {
+    "activeScenarioId": "sc-child",
+    "scenarios": [
+      {
+        "id": "sc-child",
+        "name": "子流默认",
+        "testProjectEnvId": "",
+        "flowSeed": {}
+      }
+    ],
+    "flowOutputs": [
+      { "name": "childOut", "description": "子流输出变量" }
+    ]
+  }
+}

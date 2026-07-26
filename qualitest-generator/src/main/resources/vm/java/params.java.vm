@@ -1,0 +1,55 @@
+package ${packageName}.params;
+
+#foreach ($import in $importList)
+import ${import};
+#end
+#if($table.crud || $table.sub)
+import ${basePackage}.common.core.domain.BaseEntity;
+#elseif($table.tree)
+import ${basePackage}.common.core.domain.TreeEntity;
+#end
+import lombok.*;
+import org.apache.ibatis.type.Alias;
+
+import java.io.Serializable;
+
+/**
+ * ${functionName} Params 对象
+ *
+ * @author ${author}
+ * @since ${datetime}
+ */
+#if($table.crud || $table.sub)
+#set($Entity="BaseEntity")
+#elseif($table.tree)
+#set($Entity="TreeEntity")
+#end
+@Getter
+@Setter
+@ToString
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+@Alias("${ClassName}Params")
+public class ${ClassName}Params extends ${Entity} implements Serializable {
+
+#foreach ($column in $columns)
+#if(!$table.isSuperColumn($column.javaField) && $column.query)
+    /**
+     * $column.columnComment
+     */
+#if($column.list)
+#if($column.javaType == 'Date')
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+#end
+#end
+    private $column.javaType $column.javaField;
+
+#end
+#end
+#if($table.sub)
+    /** $table.subTable.functionName信息 */
+    private List<${subClassName}> ${subclassName}List;
+
+#end
+}

@@ -1,0 +1,101 @@
+{
+  "nodes": [
+    {
+      "id": "login_a",
+      "type": "http",
+      "position": {
+        "x": 40,
+        "y": 60
+      },
+      "data": {
+        "name": "身份 A 登录",
+        "callMode": "project",
+        "testProjectApiId": "",
+        "httpMethod": "POST",
+        "apiPath": "/api/login",
+        "requestConfig": {
+          "method": "POST",
+          "body": {
+            "mode": "json",
+            "json": {
+              "example": "{\"username\":\"{{flow.userA}}\",\"password\":\"{{flow.passA}}\"}"
+            }
+          }
+        },
+        "extracts": [
+          {
+            "from": "body",
+            "expr": "$.data.token",
+            "scope": "flow",
+            "name": "tokenA"
+          }
+        ],
+        "summary": "请选择身份 A 登录接口"
+      }
+    },
+    {
+      "id": "login_b",
+      "type": "http",
+      "position": {
+        "x": 360,
+        "y": 60
+      },
+      "data": {
+        "name": "身份 B 登录",
+        "callMode": "project",
+        "testProjectApiId": "",
+        "httpMethod": "POST",
+        "apiPath": "/api/login",
+        "requestConfig": {
+          "method": "POST",
+          "body": {
+            "mode": "json",
+            "json": {
+              "example": "{\"username\":\"{{flow.userB}}\",\"password\":\"{{flow.passB}}\"}"
+            }
+          }
+        },
+        "extracts": [
+          {
+            "from": "body",
+            "expr": "$.data.token",
+            "scope": "flow",
+            "name": "tokenB"
+          }
+        ],
+        "summary": "请选择身份 B 登录接口"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "login_a",
+      "target": "login_b"
+    }
+  ],
+  "meta": {
+    "schemaVersion": 1,
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "activeScenarioId": "tpl_sc_default",
+    "scenarios": [
+      {
+        "id": "tpl_sc_default",
+        "name": "模板默认",
+        "testProjectEnvId": "",
+        "flowSeed": {
+          "userA": "",
+          "passA": "",
+          "userB": "",
+          "passB": ""
+        },
+        "remark": "双身份登录子流模板"
+      }
+    ],
+    "flowOutputs": []
+  }
+}

@@ -1,0 +1,33 @@
+/**
+ * AI 助手侧栏外层 dock 样式。
+ *
+ * 面板挂在画布或 API 详情页右侧，全高绝对定位。
+ * pointer-events: none 让 dock 本身不挡点击，内部 Shell 再开启 pointer-events。
+ *
+ * 用法：.my-dock { @include ai-chat-dock($z-index); }
+ */
+@use '../../../views/project/testFlow/styles/flowCanvasTokens.scss' as flow;
+
+@mixin ai-chat-dock($z-index: 100) {
+  @include flow.flow-pd-core-vars;
+  // 侧栏宽度，Shell 通过 var(--ai-chat-panel-width) 读取
+  --ai-chat-panel-width: min(560px, 42vw);
+
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: $z-index;
+  pointer-events: none;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  color: var(--pd-text);
+
+  @include flow.flow-pd-buttons-nested;
+
+  .btn--sm {
+    height: 26px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+}

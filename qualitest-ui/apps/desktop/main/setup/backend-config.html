@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
+  <title>Backend</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    body {
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background: linear-gradient(160deg, #f0f4ff 0%, #f5f7fa 48%, #eef1f6 100%);
+      color: #303133;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 20px 24px 18px;
+    }
+    .header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .header-icon {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #6b7fd7 0%, #5a6fc6 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(90, 111, 198, 0.35);
+    }
+    .header-text h1 {
+      margin: 0 0 4px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1d2129;
+    }
+    .header-text .hint {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #86909c;
+    }
+    .failed {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid #fde2e2;
+      color: #c45656;
+      font-size: 12px;
+      line-height: 1.55;
+      word-break: break-all;
+    }
+    .failed[hidden] { display: none !important; }
+    .field { flex: 1; min-height: 0; }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #4e5969;
+    }
+    input {
+      width: 100%;
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid #dcdfe6;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #303133;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input::placeholder { color: #c0c4cc; }
+    input:hover { border-color: #c0c4cc; }
+    input:focus {
+      border-color: #5a6fc6;
+      box-shadow: 0 0 0 3px rgba(90, 111, 198, 0.15);
+    }
+    .err {
+      min-height: 20px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #f56c6c;
+      line-height: 1.4;
+    }
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    button {
+      min-width: 84px;
+      height: 34px;
+      padding: 0 16px;
+      border-radius: 8px;
+      border: 1px solid #dcdfe6;
+      background: #fff;
+      font-size: 13px;
+      color: #606266;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    button:hover:not(:disabled) {
+      color: #5a6fc6;
+      border-color: #c6d0f5;
+      background: #f5f7ff;
+    }
+    button.primary {
+      border-color: #5a6fc6;
+      background: linear-gradient(135deg, #6b7fd7 0%, #5a6fc6 100%);
+      color: #fff;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(90, 111, 198, 0.35);
+    }
+    button.primary:hover:not(:disabled) {
+      color: #fff;
+      border-color: #4e62b8;
+      background: linear-gradient(135deg, #5f73d0 0%, #4e62b8 100%);
+    }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="header">
+      <span class="header-icon" aria-hidden="true">!</span>
+      <div class="header-text">
+        <h1 id="titleText"></h1>
+        <p class="hint" id="hintText"></p>
+      </div>
+    </header>
+    <div id="failedBox" class="failed" hidden></div>
+    <div class="field">
+      <label for="url" id="labelText"></label>
+      <input id="url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false" />
+      <div id="err" class="err"></div>
+    </div>
+    <div class="actions">
+      <button type="button" id="cancelBtn"></button>
+      <button type="button" id="submitBtn" class="primary"></button>
+    </div>
+  </div>
+  <script>
+    const api = window.__QUALITEST_BACKEND_SETUP__
+    const urlInput = document.getElementById('url')
+    const errEl = document.getElementById('err')
+    const failedBox = document.getElementById('failedBox')
+    const submitBtn = document.getElementById('submitBtn')
+    const cancelBtn = document.getElementById('cancelBtn')
+    let i18n = {}
+    let busy = false
+
+    function applyI18n(t) {
+      i18n = t || {}
+      document.title = i18n.windowTitle || document.title
+      document.getElementById('titleText').textContent = i18n.pageTitle || ''
+      document.getElementById('hintText').textContent = i18n.hint || ''
+      document.getElementById('labelText').textContent = i18n.fieldLabel || ''
+      cancelBtn.textContent = i18n.cancel || ''
+      submitBtn.textContent = i18n.connect || ''
+    }
+
+    api.getInitial().then(({ url, lastError, texts }) => {
+      applyI18n(texts)
+      urlInput.value = url || ''
+      if (lastError) {
+        failedBox.hidden = false
+        failedBox.textContent = lastError
+      }
+      urlInput.focus()
+      urlInput.select()
+    })
+
+    function setBusy(v) {
+      busy = v
+      submitBtn.disabled = v
+      cancelBtn.disabled = v
+      submitBtn.textContent = v ? (i18n.connecting || '...') : (i18n.connect || '')
+    }
+
+    async function onSubmit() {
+      if (busy) return
+      errEl.textContent = ''
+      setBusy(true)
+      try {
+        const res = await api.submit(urlInput.value)
+        if (!res.ok) {
+          errEl.textContent = res.error || i18n.connectFail || ''
+          if (res.probeError) {
+            failedBox.hidden = false
+            failedBox.textContent = res.probeError
+          }
+        }
+      } finally {
+        setBusy(false)
+      }
+    }
+
+    submitBtn.addEventListener('click', onSubmit)
+    cancelBtn.addEventListener('click', () => { if (!busy) api.cancel() })
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') onSubmit()
+      if (e.key === 'Escape') api.cancel()
+    })
+  </script>
+</body>
+</html>

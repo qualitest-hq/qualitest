@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+
+# 锁文件须提交（勿忽略）：yarn.lock 用于团队与 CI 可复现安装，见 README / Yarn 文档。
+
+# Build output
+dist/
+dist-ssr/
+apps/web/dist/
+apps/desktop/release/
+apps/desktop/.cache/
+apps/desktop/build/icon.ico
+apps/desktop/build/.branding-stamp
+*.asar.unpacked/
+
+# Logs & debug
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test / coverage
+coverage/
+.nyc_output/
+tests/**/coverage/
+tests/e2e/reports/
+selenium-debug.log
+
+# Vite
+.vite/
+
+# 本地环境变量（勿提交密钥）
+.env.local
+.env.*.local
+
+# 工具缓存
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# Editor & OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.sw?
+*.orig
+
+.vscode/*
+!.vscode/extensions.json
+
+# 可选编排工具（若日后启用）
+.turbo/

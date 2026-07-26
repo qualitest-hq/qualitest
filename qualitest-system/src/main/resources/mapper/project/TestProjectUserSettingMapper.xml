@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestProjectUserSettingMapper">
+
+    <resultMap type="TestProjectUserSetting" id="TestProjectUserSettingResult">
+        <result property="testProjectUserSettingId" column="test_project_user_setting_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="projectToken" column="project_token"/>
+        <result property="testProjectEnvId" column="test_project_env_id"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestProjectUserSettingVo">
+        select test_project_user_setting_id, test_project_id, user_id, project_token, test_project_env_id, del_status, create_time, update_time
+        from test_project_user_setting
+    </sql>
+
+    <sql id="selectTestProjectUserSettingAliasVo">
+        select tpus.test_project_user_setting_id as testProjectUserSettingId,
+               tpus.test_project_id              as testProjectId,
+               tpus.user_id                      as userId,
+               tpus.project_token                as projectToken,
+               tpus.test_project_env_id          as testProjectEnvId,
+               tpus.del_status                   as delStatus,
+               tpus.create_time                  as createTime,
+               tpus.update_time                  as updateTime
+        from test_project_user_setting tpus
+    </sql>
+
+    <select id="selectTestProjectUserSettingList" parameterType="TestProjectUserSetting"
+            resultMap="TestProjectUserSettingResult">
+        <include refid="selectTestProjectUserSettingVo"/>
+        <where>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="userId != null ">
+                and user_id = #{userId}
+            </if>
+            <if test="projectToken != null and projectToken != ''">
+                and project_token = #{projectToken}
+            </if>
+            <if test="testProjectEnvId != null ">
+                and test_project_env_id = #{testProjectEnvId}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestProjectUserSettingById" parameterType="Long" resultMap="TestProjectUserSettingResult">
+        <include refid="selectTestProjectUserSettingVo"/>
+        where test_project_user_setting_id = #{testProjectUserSettingId}
+    </select>
+
+    <select id="selectTestProjectUserSettingResultOne" parameterType="TestProjectUserSettingParams"
+            resultType="TestProjectUserSettingResult">
+        select
+        tpus.test_project_user_setting_id as testProjectUserSettingId,
+        tpus.test_project_id as testProjectId,
+        tpus.user_id as userId,
+        tpus.project_token as projectToken,
+        tpus.test_project_env_id as testProjectEnvId,
+        tpus.del_status as delStatus,
+        tpus.create_time as createTime,
+        tpus.update_time as updateTime
+        from test_project_user_setting tpus
+        where tpus.del_status = 0
+        <if test="testProjectId != null">
+            and tpus.test_project_id = #{testProjectId}
+        </if>
+        <if test="userId != null">
+            and tpus.user_id = #{userId}
+        </if>
+        <if test="testProjectEnvId != null">
+            and tpus.test_project_env_id = #{testProjectEnvId}
+        </if>
+        order by tpus.test_project_user_setting_id desc
+        limit 1
+    </select>
+
+    <select id="selectTestProjectUserSettingResult" parameterType="Long" resultType="TestProjectUserSettingResult">
+        select tpus.test_project_user_setting_id as testProjectUserSettingId,
+               tpus.test_project_id              as testProjectId,
+               tpus.user_id                      as userId,
+               tpus.project_token                as projectToken,
+               tpus.test_project_env_id          as testProjectEnvId,
+               tpus.del_status                   as delStatus,
+               tpus.create_time                  as createTime,
+               tpus.update_time                  as updateTime
+        from test_project_user_setting tpus
+        where tpus.del_status = 0
+          and tpus.test_project_user_setting_id = #{testProjectUserSettingId}
+        limit 1
+    </select>
+
+    <select id="selectTestProjectUserSettingCount" parameterType="TestProjectUserSettingParams" resultType="int">
+        select count(1)
+        from test_project_user_setting tpus
+        where tpus.del_status = 0
+        <if test="testProjectId != null ">
+            and tpus.test_project_id = #{testProjectId}
+        </if>
+        <if test="userId != null ">
+            and tpus.user_id = #{userId}
+        </if>
+        <if test="projectToken != null and projectToken != ''">
+            and tpus.project_token = #{projectToken}
+        </if>
+        <if test="testProjectEnvId != null ">
+            and tpus.test_project_env_id = #{testProjectEnvId}
+        </if>
+    </select>
+
+    <select id="selectTestProjectUserSettingOne" parameterType="TestProjectUserSettingParams" resultMap="TestProjectUserSettingResult">
+        select tpus.test_project_user_setting_id,
+               tpus.test_project_id,
+               tpus.user_id,
+               tpus.project_token,
+               tpus.test_project_env_id,
+               tpus.del_status,
+               tpus.create_time,
+               tpus.update_time
+        from test_project_user_setting tpus
+        where tpus.del_status = 0
+        <if test="testProjectId != null ">
+            and tpus.test_project_id = #{testProjectId}
+        </if>
+        <if test="userId != null ">
+            and tpus.user_id = #{userId}
+        </if>
+        <if test="projectToken != null and projectToken != ''">
+            and tpus.project_token = #{projectToken}
+        </if>
+        <if test="testProjectEnvId != null ">
+            and tpus.test_project_env_id = #{testProjectEnvId}
+        </if>
+        order by tpus.test_project_user_setting_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestProjectUserSetting" parameterType="TestProjectUserSetting">
+        insert into test_project_user_setting
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectUserSettingId != null">
+                test_project_user_setting_id,
+            </if>
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="userId != null">
+                user_id,
+            </if>
+            <if test="projectToken != null and projectToken != ''">
+                project_token,
+            </if>
+            <if test="testProjectEnvId != null">
+                test_project_env_id,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectUserSettingId != null">
+                #{testProjectUserSettingId},
+            </if>
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="userId != null">
+                #{userId},
+            </if>
+            <if test="projectToken != null and projectToken != ''">
+                #{projectToken},
+            </if>
+            <if test="testProjectEnvId != null">
+                #{testProjectEnvId},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestProjectUserSetting" parameterType="TestProjectUserSetting">
+        update test_project_user_setting
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="userId != null">
+                user_id = #{userId},
+            </if>
+            <if test="projectToken != null and projectToken != ''">
+                project_token = #{projectToken},
+            </if>
+            <if test="testProjectEnvId != null">
+                test_project_env_id = #{testProjectEnvId},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_project_user_setting_id = #{testProjectUserSettingId}
+    </update>
+
+    <delete id="deleteTestProjectUserSettingById" parameterType="Long">
+        delete
+        from test_project_user_setting
+        where test_project_user_setting_id = #{testProjectUserSettingId}
+    </delete>
+
+    <delete id="deleteTestProjectUserSettingByIdList" parameterType="java.util.List">
+        delete from test_project_user_setting where test_project_user_setting_id in
+        <foreach item="testProjectUserSettingId" collection="list" open="(" separator="," close=")">
+            #{testProjectUserSettingId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestProjectUserSettingById" parameterType="Long">
+        update test_project_user_setting
+        set del_status = 1
+        where test_project_user_setting_id = #{testProjectUserSettingId}
+    </update>
+
+    <update id="logicDeleteTestProjectUserSettingByIdList" parameterType="java.util.List">
+        update test_project_user_setting set del_status = 1 where test_project_user_setting_id in
+        <foreach item="testProjectUserSettingId" collection="list" open="(" separator="," close=")">
+            #{testProjectUserSettingId}
+        </foreach>
+    </update>
+
+    <update id="logicDeleteTestProjectUserSettingByProjectIdAndUserId">
+        update test_project_user_setting
+        set del_status = 1
+        where test_project_id = #{testProjectId}
+          and user_id = #{userId}
+          and del_status = 0
+    </update>
+
+    <select id="selectByProjectToken" parameterType="String" resultMap="TestProjectUserSettingResult">
+        <include refid="selectTestProjectUserSettingVo"/>
+        where project_token = #{projectToken}
+        limit 1
+    </select>
+</mapper>

@@ -1,0 +1,32 @@
+{
+  "nodes": [
+    {
+      "id": "nested1",
+      "type": "subflow",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "嵌套子流",
+        "subflowId": "999",
+        "versionPolicy": "latest",
+        "inputs": [],
+        "outputs": []
+      }
+    }
+  ],
+  "edges": [],
+  "meta": {
+    "activeScenarioId": "sc1",
+    "scenarios": [
+      {
+        "id": "sc1",
+        "name": "默认",
+        "testProjectEnvId": "",
+        "flowSeed": {}
+      }
+    ],
+    "flowOutputs": []
+  }
+}

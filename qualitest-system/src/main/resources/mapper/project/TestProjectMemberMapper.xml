@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestProjectMemberMapper">
+
+    <resultMap type="TestProjectMember" id="TestProjectMemberResultMap">
+        <result property="testProjectMemberId" column="test_project_member_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="memberRole" column="member_role"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestProjectMemberVo">
+        select test_project_member_id,
+               test_project_id,
+               user_id,
+               member_role,
+               del_status,
+               create_time,
+               update_time
+        from test_project_member
+    </sql>
+
+    <select id="selectTestProjectMemberList" parameterType="TestProjectMember" resultMap="TestProjectMemberResultMap">
+        <include refid="selectTestProjectMemberVo"/>
+        <where>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="userId != null ">
+                and user_id = #{userId}
+            </if>
+            <if test="memberRole != null and memberRole != ''">
+                and member_role = #{memberRole}
+            </if>
+            <if test="testProjectMemberIdList != null and testProjectMemberIdList.size() > 0">
+                and test_project_member_id in
+                <foreach item="id" collection="testProjectMemberIdList" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestProjectMemberById" parameterType="Long" resultMap="TestProjectMemberResultMap">
+        <include refid="selectTestProjectMemberVo"/>
+        where test_project_member_id = #{testProjectMemberId}
+    </select>
+
+    <select id="selectTestProjectMemberResultList" parameterType="TestProjectMemberParams"
+            resultType="TestProjectMemberResult">
+        select
+        tpm.test_project_member_id as testProjectMemberId,
+        tpm.test_project_id as testProjectId,
+        tp.project_name as projectName,
+        tpm.user_id as userId,
+        su.nick_name as nickName,
+        su.user_name as userName,
+        tpm.member_role as memberRole,
+        tpm.del_status as delStatus,
+        tpm.create_time as createTime,
+        tpm.update_time as updateTime
+        from test_project_member tpm
+        left join test_project tp on tpm.test_project_id = tp.test_project_id
+        left join sys_user su on tpm.user_id = su.user_id and su.del_flag = '0'
+        <where>
+            tpm.del_status = 0
+            <if test="testProjectMemberId != null">
+                and tpm.test_project_member_id = #{testProjectMemberId}
+            </if>
+            <if test="testProjectId != null">
+                and tpm.test_project_id = #{testProjectId}
+            </if>
+            <if test="projectName != null and projectName != ''">
+                and tp.project_name like concat('%', #{projectName}, '%')
+            </if>
+            <if test="userId != null">
+                and tpm.user_id = #{userId}
+            </if>
+            <if test="userName != null and userName != ''">
+                and su.nick_name like concat('%', #{userName}, '%')
+            </if>
+            <if test="memberRole != null and memberRole != ''">
+                and tpm.member_role = #{memberRole}
+            </if>
+        </where>
+        order by tpm.test_project_member_id desc
+    </select>
+
+    <select id="selectTestProjectMemberResult" parameterType="Long" resultType="TestProjectMemberResult">
+        select tpm.test_project_member_id as testProjectMemberId,
+               tpm.test_project_id        as testProjectId,
+               tp.project_name            as projectName,
+               tpm.user_id                as userId,
+               su.nick_name               as nickName,
+               su.user_name               as userName,
+               tpm.member_role            as memberRole,
+               tpm.del_status             as delStatus,
+               tpm.create_time            as createTime,
+               tpm.update_time            as updateTime
+        from test_project_member tpm
+                 left join test_project tp on tpm.test_project_id = tp.test_project_id
+                 left join sys_user su on tpm.user_id = su.user_id and su.del_flag = '0'
+        where tpm.del_status = 0
+          and tpm.test_project_member_id = #{testProjectMemberId}
+        limit 1
+    </select>
+
+    <select id="selectMemberUserIdsByTestProjectId" resultType="long">
+        select user_id
+        from test_project_member
+        where test_project_id = #{testProjectId}
+          and del_status = 0
+    </select>
+
+    <select id="selectTestProjectMemberCount" parameterType="TestProjectMemberParams" resultType="int">
+        select count(1)
+        from test_project_member tpm
+        left join test_project tp on tpm.test_project_id = tp.test_project_id
+        left join sys_user su on tpm.user_id = su.user_id and su.del_flag = '0'
+        <where>
+            tpm.del_status = 0
+            <if test="testProjectMemberId != null">
+                and tpm.test_project_member_id = #{testProjectMemberId}
+            </if>
+            <if test="testProjectId != null ">
+                and tpm.test_project_id = #{testProjectId}
+            </if>
+            <if test="projectName != null and projectName != ''">
+                and tp.project_name like concat('%', #{projectName}, '%')
+            </if>
+            <if test="userId != null ">
+                and tpm.user_id = #{userId}
+            </if>
+            <if test="userName != null and userName != ''">
+                and su.nick_name like concat('%', #{userName}, '%')
+            </if>
+            <if test="memberRole != null  and memberRole != ''">
+                and tpm.member_role = #{memberRole}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestProjectMemberOne" parameterType="TestProjectMemberParams"
+            resultMap="TestProjectMemberResultMap">
+        select tpm.test_project_member_id,
+        tpm.test_project_id,
+        tpm.user_id,
+        tpm.member_role,
+        tpm.del_status,
+        tpm.create_time,
+        tpm.update_time
+        from test_project_member tpm
+        left join test_project tp on tpm.test_project_id = tp.test_project_id
+        left join sys_user su on tpm.user_id = su.user_id and su.del_flag = '0'
+        <where>
+            tpm.del_status = 0
+            <if test="testProjectMemberId != null">
+                and tpm.test_project_member_id = #{testProjectMemberId}
+            </if>
+            <if test="testProjectId != null ">
+                and tpm.test_project_id = #{testProjectId}
+            </if>
+            <if test="projectName != null and projectName != ''">
+                and tp.project_name like concat('%', #{projectName}, '%')
+            </if>
+            <if test="userId != null ">
+                and tpm.user_id = #{userId}
+            </if>
+            <if test="userName != null and userName != ''">
+                and su.nick_name like concat('%', #{userName}, '%')
+            </if>
+            <if test="memberRole != null  and memberRole != ''">
+                and tpm.member_role = #{memberRole}
+            </if>
+        </where>
+        order by tpm.test_project_member_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestProjectMember" parameterType="TestProjectMember">
+        insert into test_project_member
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectMemberId != null">
+                test_project_member_id,
+            </if>
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="userId != null">
+                user_id,
+            </if>
+            <if test="memberRole != null and memberRole != ''">
+                member_role,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectMemberId != null">
+                #{testProjectMemberId},
+            </if>
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="userId != null">
+                #{userId},
+            </if>
+            <if test="memberRole != null and memberRole != ''">
+                #{memberRole},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestProjectMember" parameterType="TestProjectMember">
+        update test_project_member
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="userId != null">
+                user_id = #{userId},
+            </if>
+            <if test="memberRole != null and memberRole != ''">
+                member_role = #{memberRole},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_project_member_id = #{testProjectMemberId}
+    </update>
+
+    <delete id="deleteTestProjectMemberById" parameterType="Long">
+        delete
+        from test_project_member
+        where test_project_member_id = #{testProjectMemberId}
+    </delete>
+
+    <delete id="deleteTestProjectMemberByIdList" parameterType="java.util.List">
+        delete from test_project_member where test_project_member_id in
+        <foreach item="testProjectMemberId" collection="list" open="(" separator="," close=")">
+            #{testProjectMemberId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestProjectMemberById" parameterType="Long">
+        update test_project_member
+        set del_status = 1
+        where test_project_member_id = #{testProjectMemberId}
+    </update>
+
+    <update id="logicDeleteTestProjectMemberByIdList" parameterType="java.util.List">
+        update test_project_member set del_status = 1 where test_project_member_id in
+        <foreach item="testProjectMemberId" collection="list" open="(" separator="," close=")">
+            #{testProjectMemberId}
+        </foreach>
+    </update>
+</mapper>

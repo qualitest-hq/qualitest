@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.ai.mapper.AiLlmModelMapper">
+
+    <resultMap type="AiLlmModel" id="AiLlmModelResult">
+        <result property="aiLlmModelId" column="ai_llm_model_id"/>
+        <result property="aiLlmVendorId" column="ai_llm_vendor_id"/>
+        <result property="modelName" column="model_name"/>
+        <result property="displayName" column="display_name"/>
+        <result property="builtinStatus" column="builtin_status"/>
+        <result property="enableStatus" column="enable_status"/>
+        <result property="thinkingCapable" column="thinking_capable"/>
+        <result property="thinkingDefault" column="thinking_default"/>
+        <result property="thinkingBudgetTokens" column="thinking_budget_tokens"/>
+        <result property="sortNum" column="sort_num"/>
+        <result property="remark" column="remark"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectAiLlmModelVo">
+        select ai_llm_model_id,
+               ai_llm_vendor_id,
+               model_name,
+               display_name,
+               builtin_status,
+               enable_status,
+               thinking_capable,
+               thinking_default,
+               thinking_budget_tokens,
+               sort_num,
+               remark,
+               del_status,
+               create_time,
+               update_time
+        from ai_llm_model
+    </sql>
+
+    <sql id="selectAiLlmModelAliasVo">
+        select alm.ai_llm_model_id  as aiLlmModelId,
+               alm.ai_llm_vendor_id as aiLlmVendorId,
+               alm.model_name       as modelName,
+               alm.display_name     as displayName,
+               alm.builtin_status   as builtinStatus,
+               alm.enable_status    as enableStatus,
+               alm.thinking_capable as thinkingCapable,
+               alm.thinking_default as thinkingDefault,
+               alm.thinking_budget_tokens as thinkingBudgetTokens,
+               alm.sort_num         as sortNum,
+               alm.remark           as remark,
+               alm.del_status       as delStatus,
+               alm.create_time      as createTime,
+               alm.update_time      as updateTime
+        from ai_llm_model alm
+    </sql>
+
+    <select id="selectAiLlmModelList" parameterType="AiLlmModel" resultMap="AiLlmModelResult">
+        <include refid="selectAiLlmModelVo"/>
+        <where>
+            <if test="aiLlmVendorId != null ">
+                and ai_llm_vendor_id = #{aiLlmVendorId}
+            </if>
+            <if test="modelName != null and modelName != ''">
+                and model_name = #{modelName}
+            </if>
+            <if test="enableStatus != null ">
+                and enable_status = #{enableStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAiLlmModelById" parameterType="Long" resultMap="AiLlmModelResult">
+        <include refid="selectAiLlmModelVo"/>
+        where ai_llm_model_id = #{aiLlmModelId}
+    </select>
+
+    <select id="selectAiLlmModelResultList" parameterType="AiLlmModelParams" resultType="AiLlmModelResult">
+        select
+        alm.ai_llm_model_id as aiLlmModelId,
+        alm.ai_llm_vendor_id as aiLlmVendorId,
+        alv.vendor_name as vendorName,
+        alm.model_name as modelName,
+        alm.display_name as displayName,
+        alm.builtin_status as builtinStatus,
+        alm.enable_status as enableStatus,
+        alm.thinking_capable as thinkingCapable,
+        alm.thinking_default as thinkingDefault,
+        alm.thinking_budget_tokens as thinkingBudgetTokens,
+        alm.sort_num as sortNum,
+        alm.remark as remark,
+        alm.del_status as delStatus,
+        alm.create_time as createTime,
+        alm.update_time as updateTime
+        from ai_llm_model alm
+        left join ai_llm_vendor alv on alm.ai_llm_vendor_id = alv.ai_llm_vendor_id
+        where alm.del_status = 0
+        <if test="aiLlmVendorId != null">
+            and alm.ai_llm_vendor_id = #{aiLlmVendorId}
+        </if>
+        <if test="modelName != null and modelName != ''">
+            and alm.model_name like concat('%', #{modelName}, '%')
+        </if>
+        <if test="enableStatus != null">
+            and alm.enable_status = #{enableStatus}
+        </if>
+        order by alm.sort_num asc, alm.ai_llm_model_id desc
+    </select>
+
+    <select id="selectAiLlmModelResult" parameterType="Long" resultType="AiLlmModelResult">
+        select alm.ai_llm_model_id  as aiLlmModelId,
+               alm.ai_llm_vendor_id as aiLlmVendorId,
+               alv.vendor_name      as vendorName,
+               alm.model_name       as modelName,
+               alm.display_name     as displayName,
+               alm.builtin_status   as builtinStatus,
+               alm.enable_status    as enableStatus,
+               alm.thinking_capable as thinkingCapable,
+               alm.thinking_default as thinkingDefault,
+               alm.thinking_budget_tokens as thinkingBudgetTokens,
+               alm.sort_num         as sortNum,
+               alm.remark           as remark,
+               alm.del_status       as delStatus,
+               alm.create_time      as createTime,
+               alm.update_time      as updateTime
+        from ai_llm_model alm
+        left join ai_llm_vendor alv on alm.ai_llm_vendor_id = alv.ai_llm_vendor_id
+        where alm.del_status = 0
+          and alm.ai_llm_model_id = #{aiLlmModelId}
+        limit 1
+    </select>
+
+    <select id="selectAiLlmModelCount" parameterType="AiLlmModelParams" resultType="int">
+        select count(1)
+        from ai_llm_model alm
+        where alm.del_status = 0
+        <if test="aiLlmVendorId != null ">
+            and alm.ai_llm_vendor_id = #{aiLlmVendorId}
+        </if>
+        <if test="modelName != null  and modelName != ''">
+            and alm.model_name like concat('%', #{modelName}, '%')
+        </if>
+        <if test="enableStatus != null ">
+            and alm.enable_status = #{enableStatus}
+        </if>
+    </select>
+
+    <select id="selectAiLlmModelOne" parameterType="AiLlmModelParams" resultMap="AiLlmModelResult">
+        select
+        alm.ai_llm_model_id,
+        alm.ai_llm_vendor_id,
+        alm.model_name,
+        alm.display_name,
+        alm.builtin_status,
+        alm.enable_status,
+        alm.thinking_capable,
+        alm.thinking_default,
+        alm.thinking_budget_tokens,
+        alm.sort_num,
+        alm.remark,
+        alm.del_status,
+        alm.create_time,
+        alm.update_time
+        from ai_llm_model alm
+        where alm.del_status = 0
+        <if test="aiLlmVendorId != null ">
+            and alm.ai_llm_vendor_id = #{aiLlmVendorId}
+        </if>
+        <if test="modelName != null  and modelName != ''">
+            and alm.model_name like concat('%', #{modelName}, '%')
+        </if>
+        <if test="enableStatus != null ">
+            and alm.enable_status = #{enableStatus}
+        </if>
+        order by alm.ai_llm_model_id desc
+        limit 1
+    </select>
+
+    <insert id="insertAiLlmModel" parameterType="AiLlmModel">
+        insert into ai_llm_model
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="aiLlmModelId != null">
+                ai_llm_model_id,
+            </if>
+            <if test="aiLlmVendorId != null">
+                ai_llm_vendor_id,
+            </if>
+            <if test="modelName != null and modelName != ''">
+                model_name,
+            </if>
+            <if test="displayName != null">
+                display_name,
+            </if>
+            <if test="builtinStatus != null">
+                builtin_status,
+            </if>
+            <if test="enableStatus != null">
+                enable_status,
+            </if>
+            <if test="thinkingCapable != null">
+                thinking_capable,
+            </if>
+            <if test="thinkingDefault != null">
+                thinking_default,
+            </if>
+            <if test="thinkingBudgetTokens != null">
+                thinking_budget_tokens,
+            </if>
+            <if test="sortNum != null">
+                sort_num,
+            </if>
+            <if test="remark != null">
+                remark,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="aiLlmModelId != null">
+                #{aiLlmModelId},
+            </if>
+            <if test="aiLlmVendorId != null">
+                #{aiLlmVendorId},
+            </if>
+            <if test="modelName != null and modelName != ''">
+                #{modelName},
+            </if>
+            <if test="displayName != null">
+                #{displayName},
+            </if>
+            <if test="builtinStatus != null">
+                #{builtinStatus},
+            </if>
+            <if test="enableStatus != null">
+                #{enableStatus},
+            </if>
+            <if test="thinkingCapable != null">
+                #{thinkingCapable},
+            </if>
+            <if test="thinkingDefault != null">
+                #{thinkingDefault},
+            </if>
+            <if test="thinkingBudgetTokens != null">
+                #{thinkingBudgetTokens},
+            </if>
+            <if test="sortNum != null">
+                #{sortNum},
+            </if>
+            <if test="remark != null">
+                #{remark},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateAiLlmModel" parameterType="AiLlmModel">
+        update ai_llm_model
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="aiLlmVendorId != null">
+                ai_llm_vendor_id = #{aiLlmVendorId},
+            </if>
+            <if test="modelName != null and modelName != ''">
+                model_name = #{modelName},
+            </if>
+            <if test="displayName != null">
+                display_name = #{displayName},
+            </if>
+            <if test="builtinStatus != null">
+                builtin_status = #{builtinStatus},
+            </if>
+            <if test="enableStatus != null">
+                enable_status = #{enableStatus},
+            </if>
+            <if test="thinkingCapable != null">
+                thinking_capable = #{thinkingCapable},
+            </if>
+            <if test="thinkingDefault != null">
+                thinking_default = #{thinkingDefault},
+            </if>
+            <if test="thinkingBudgetTokens != null">
+                thinking_budget_tokens = #{thinkingBudgetTokens},
+            </if>
+            <if test="sortNum != null">
+                sort_num = #{sortNum},
+            </if>
+            <if test="remark != null">
+                remark = #{remark},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where ai_llm_model_id = #{aiLlmModelId}
+    </update>
+
+    <delete id="deleteAiLlmModelById" parameterType="Long">
+        delete
+        from ai_llm_model
+        where ai_llm_model_id = #{aiLlmModelId}
+    </delete>
+
+    <delete id="deleteAiLlmModelByIdList" parameterType="java.util.List">
+        delete from ai_llm_model where ai_llm_model_id in
+        <foreach item="aiLlmModelId" collection="list" open="(" separator="," close=")">
+            #{aiLlmModelId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteAiLlmModelById" parameterType="Long">
+        update ai_llm_model
+        set del_status = 1
+        where ai_llm_model_id = #{aiLlmModelId}
+    </update>
+
+    <update id="logicDeleteAiLlmModelByIdList" parameterType="java.util.List">
+        update ai_llm_model set del_status = 1 where ai_llm_model_id in
+        <foreach item="aiLlmModelId" collection="list" open="(" separator="," close=")">
+            #{aiLlmModelId}
+        </foreach>
+    </update>
+
+    <!-- 按模型 id JOIN 厂商，供 resolve() 拉取 base_url、api_key（仅服务端） -->
+    <select id="selectAiLlmModelResolve" parameterType="Long" resultType="AiLlmModelResolveResult">
+        select alm.ai_llm_model_id   as aiLlmModelId,
+               alm.ai_llm_vendor_id  as aiLlmVendorId,
+               alm.model_name        as modelName,
+               alm.display_name      as displayName,
+               alv.vendor_name       as vendorName,
+               alv.provider          as provider,
+               alv.base_url          as baseUrl,
+               alv.api_key           as apiKey,
+               alm.enable_status     as modelEnableStatus,
+               alm.thinking_capable  as thinkingCapable,
+               alm.thinking_default  as thinkingDefault,
+               alm.thinking_budget_tokens as thinkingBudgetTokens,
+               alv.enable_status     as vendorEnableStatus,
+               alm.del_status        as modelDelStatus,
+               alv.del_status        as vendorDelStatus,
+               alm.sort_num          as modelSortNum
+        from ai_llm_model alm
+                 inner join ai_llm_vendor alv on alm.ai_llm_vendor_id = alv.ai_llm_vendor_id
+        where alm.ai_llm_model_id = #{aiLlmModelId}
+    </select>
+
+    <!-- 所有启用且未删除的模型及厂商，按 sort_num 排序，供 listModelsGrouped() -->
+    <select id="selectEnabledAiLlmModelsWithVendor" resultType="AiLlmModelResolveResult">
+        select alm.ai_llm_model_id   as aiLlmModelId,
+               alm.ai_llm_vendor_id  as aiLlmVendorId,
+               alm.model_name        as modelName,
+               alm.display_name      as displayName,
+               alv.vendor_name       as vendorName,
+               alv.provider          as provider,
+               alv.base_url          as baseUrl,
+               alv.api_key           as apiKey,
+               alm.enable_status     as modelEnableStatus,
+               alm.thinking_capable  as thinkingCapable,
+               alm.thinking_default  as thinkingDefault,
+               alm.thinking_budget_tokens as thinkingBudgetTokens,
+               alv.enable_status     as vendorEnableStatus,
+               alm.del_status        as modelDelStatus,
+               alv.del_status        as vendorDelStatus,
+               alm.sort_num          as modelSortNum,
+               alv.sort_num          as vendorSortNum
+        from ai_llm_model alm
+                 inner join ai_llm_vendor alv on alm.ai_llm_vendor_id = alv.ai_llm_vendor_id
+        where alm.del_status = 0
+          and alv.del_status = 0
+          and alm.enable_status = 1
+          and alv.enable_status = 1
+        order by alv.sort_num, alm.sort_num
+    </select>
+</mapper>

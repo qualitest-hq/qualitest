@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestFlowRunStepMapper">
+
+    <resultMap type="TestFlowRunStep" id="TestFlowRunStepResult">
+        <result property="testFlowRunStepId" column="test_flow_run_step_id"/>
+        <result property="testFlowRunId" column="test_flow_run_id"/>
+        <result property="stepIndex" column="step_index"/>
+        <result property="nodeId" column="node_id"/>
+        <result property="nodeType" column="node_type"/>
+        <result property="nodeName" column="node_name"/>
+        <result property="status" column="status"/>
+        <result property="durationMs" column="duration_ms"/>
+        <result property="edgeId" column="edge_id"/>
+        <result property="stepDetails" column="step_details"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestFlowRunStepVo">
+        select test_flow_run_step_id,
+               test_flow_run_id,
+               step_index,
+               node_id,
+               node_type,
+               node_name,
+               status,
+               duration_ms,
+               edge_id,
+               step_details,
+               del_status,
+               create_time,
+               update_time
+        from test_flow_run_step
+    </sql>
+
+    <sql id="selectTestFlowRunStepAliasVo">
+        select tfrs.test_flow_run_step_id as testFlowRunStepId,
+               tfrs.test_flow_run_id      as testFlowRunId,
+               tfrs.step_index            as stepIndex,
+               tfrs.node_id               as nodeId,
+               tfrs.node_type             as nodeType,
+               tfrs.node_name             as nodeName,
+               tfrs.status                as status,
+               tfrs.duration_ms           as durationMs,
+               tfrs.edge_id               as edgeId,
+               tfrs.step_details          as stepDetails,
+               tfrs.del_status            as delStatus,
+               tfrs.create_time           as createTime,
+               tfrs.update_time           as updateTime
+        from test_flow_run_step tfrs
+    </sql>
+
+    <select id="selectTestFlowRunStepList" parameterType="TestFlowRunStep" resultMap="TestFlowRunStepResult">
+        <include refid="selectTestFlowRunStepVo"/>
+        <where>
+            <if test="testFlowRunId != null ">
+                and test_flow_run_id = #{testFlowRunId}
+            </if>
+            <if test="nodeId != null and nodeId != ''">
+                and node_id = #{nodeId}
+            </if>
+            <if test="nodeType != null and nodeType != ''">
+                and node_type = #{nodeType}
+            </if>
+            <if test="nodeName != null and nodeName != ''">
+                and node_name = #{nodeName}
+            </if>
+            <if test="status != null and status != ''">
+                and status = #{status}
+            </if>
+            <if test="edgeId != null and edgeId != ''">
+                and edge_id = #{edgeId}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestFlowRunStepById" parameterType="Long" resultMap="TestFlowRunStepResult">
+        <include refid="selectTestFlowRunStepVo"/>
+        where test_flow_run_step_id = #{testFlowRunStepId}
+    </select>
+
+    <select id="selectTestFlowRunStepResultList" parameterType="TestFlowRunStepParams"
+            resultType="TestFlowRunStepResult">
+        select
+        tfrs.test_flow_run_step_id as testFlowRunStepId,
+        tfrs.test_flow_run_id as testFlowRunId,
+        tfrs.step_index as stepIndex,
+        tfrs.node_id as nodeId,
+        tfrs.node_type as nodeType,
+        tfrs.node_name as nodeName,
+        tfrs.status as status,
+        tfrs.duration_ms as durationMs,
+        tfrs.edge_id as edgeId,
+        tfrs.step_details as stepDetails,
+        tfrs.del_status as delStatus,
+        tfrs.create_time as createTime,
+        tfrs.update_time as updateTime
+        from test_flow_run_step tfrs
+        where tfrs.del_status = 0
+        <if test="testFlowRunId != null">
+            and tfrs.test_flow_run_id = #{testFlowRunId}
+        </if>
+        <if test="nodeId != null and nodeId != ''">
+            and tfrs.node_id = #{nodeId}
+        </if>
+        <if test="nodeType != null and nodeType != ''">
+            and tfrs.node_type = #{nodeType}
+        </if>
+        <if test="nodeName != null and nodeName != ''">
+            and tfrs.node_name like concat('%', #{nodeName}, '%')
+        </if>
+        <if test="status != null and status != ''">
+            and tfrs.status = #{status}
+        </if>
+        <if test="edgeId != null and edgeId != ''">
+            and tfrs.edge_id = #{edgeId}
+        </if>
+        order by tfrs.test_flow_run_step_id desc
+    </select>
+
+    <select id="selectTestFlowRunStepResult" parameterType="Long" resultType="TestFlowRunStepResult">
+        select tfrs.test_flow_run_step_id as testFlowRunStepId,
+               tfrs.test_flow_run_id      as testFlowRunId,
+               tfrs.step_index            as stepIndex,
+               tfrs.node_id               as nodeId,
+               tfrs.node_type             as nodeType,
+               tfrs.node_name             as nodeName,
+               tfrs.status                as status,
+               tfrs.duration_ms           as durationMs,
+               tfrs.edge_id               as edgeId,
+               tfrs.step_details          as stepDetails,
+               tfrs.del_status            as delStatus,
+               tfrs.create_time           as createTime,
+               tfrs.update_time           as updateTime
+        from test_flow_run_step tfrs
+        where tfrs.del_status = 0
+          and tfrs.test_flow_run_step_id = #{testFlowRunStepId}
+        limit 1
+    </select>
+
+    <select id="selectTestFlowRunStepCount" parameterType="TestFlowRunStepParams" resultType="int">
+        select count(1)
+        from test_flow_run_step tfrs
+        where tfrs.del_status = 0
+        <if test="testFlowRunId != null ">
+            and tfrs.test_flow_run_id = #{testFlowRunId}
+        </if>
+        <if test="nodeId != null  and nodeId != ''">
+            and tfrs.node_id = #{nodeId}
+        </if>
+        <if test="nodeType != null  and nodeType != ''">
+            and tfrs.node_type = #{nodeType}
+        </if>
+        <if test="nodeName != null  and nodeName != ''">
+            and tfrs.node_name like concat('%', #{nodeName}, '%')
+        </if>
+        <if test="status != null  and status != ''">
+            and tfrs.status = #{status}
+        </if>
+        <if test="edgeId != null  and edgeId != ''">
+            and tfrs.edge_id = #{edgeId}
+        </if>
+    </select>
+
+    <select id="selectTestFlowRunStepOne" parameterType="TestFlowRunStepParams" resultMap="TestFlowRunStepResult">
+        select
+        tfrs.test_flow_run_step_id,
+        tfrs.test_flow_run_id,
+        tfrs.step_index,
+        tfrs.node_id,
+        tfrs.node_type,
+        tfrs.node_name,
+        tfrs.status,
+        tfrs.duration_ms,
+        tfrs.edge_id,
+        tfrs.step_details,
+        tfrs.del_status,
+        tfrs.create_time,
+        tfrs.update_time
+        from test_flow_run_step tfrs
+        where tfrs.del_status = 0
+        <if test="testFlowRunId != null ">
+            and tfrs.test_flow_run_id = #{testFlowRunId}
+        </if>
+        <if test="nodeId != null  and nodeId != ''">
+            and tfrs.node_id = #{nodeId}
+        </if>
+        <if test="nodeType != null  and nodeType != ''">
+            and tfrs.node_type = #{nodeType}
+        </if>
+        <if test="nodeName != null  and nodeName != ''">
+            and tfrs.node_name like concat('%', #{nodeName}, '%')
+        </if>
+        <if test="status != null  and status != ''">
+            and tfrs.status = #{status}
+        </if>
+        <if test="edgeId != null  and edgeId != ''">
+            and tfrs.edge_id = #{edgeId}
+        </if>
+        order by tfrs.test_flow_run_step_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestFlowRunStep" parameterType="TestFlowRunStep">
+        insert into test_flow_run_step
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testFlowRunStepId != null">
+                test_flow_run_step_id,
+            </if>
+            <if test="testFlowRunId != null">
+                test_flow_run_id,
+            </if>
+            <if test="stepIndex != null">
+                step_index,
+            </if>
+            <if test="nodeId != null and nodeId != ''">
+                node_id,
+            </if>
+            <if test="nodeType != null and nodeType != ''">
+                node_type,
+            </if>
+            <if test="nodeName != null">
+                node_name,
+            </if>
+            <if test="status != null and status != ''">
+                status,
+            </if>
+            <if test="durationMs != null">
+                duration_ms,
+            </if>
+            <if test="edgeId != null">
+                edge_id,
+            </if>
+            <if test="stepDetails != null and stepDetails != ''">
+                step_details,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testFlowRunStepId != null">
+                #{testFlowRunStepId},
+            </if>
+            <if test="testFlowRunId != null">
+                #{testFlowRunId},
+            </if>
+            <if test="stepIndex != null">
+                #{stepIndex},
+            </if>
+            <if test="nodeId != null and nodeId != ''">
+                #{nodeId},
+            </if>
+            <if test="nodeType != null and nodeType != ''">
+                #{nodeType},
+            </if>
+            <if test="nodeName != null">
+                #{nodeName},
+            </if>
+            <if test="status != null and status != ''">
+                #{status},
+            </if>
+            <if test="durationMs != null">
+                #{durationMs},
+            </if>
+            <if test="edgeId != null">
+                #{edgeId},
+            </if>
+            <if test="stepDetails != null and stepDetails != ''">
+                #{stepDetails},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestFlowRunStep" parameterType="TestFlowRunStep">
+        update test_flow_run_step
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testFlowRunId != null">
+                test_flow_run_id = #{testFlowRunId},
+            </if>
+            <if test="stepIndex != null">
+                step_index = #{stepIndex},
+            </if>
+            <if test="nodeId != null and nodeId != ''">
+                node_id = #{nodeId},
+            </if>
+            <if test="nodeType != null and nodeType != ''">
+                node_type = #{nodeType},
+            </if>
+            <if test="nodeName != null">
+                node_name = #{nodeName},
+            </if>
+            <if test="status != null and status != ''">
+                status = #{status},
+            </if>
+            <if test="durationMs != null">
+                duration_ms = #{durationMs},
+            </if>
+            <if test="edgeId != null">
+                edge_id = #{edgeId},
+            </if>
+            <if test="stepDetails != null and stepDetails != ''">
+                step_details = #{stepDetails},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_flow_run_step_id = #{testFlowRunStepId}
+    </update>
+
+    <delete id="deleteTestFlowRunStepById" parameterType="Long">
+        delete
+        from test_flow_run_step
+        where test_flow_run_step_id = #{testFlowRunStepId}
+    </delete>
+
+    <delete id="deleteTestFlowRunStepByIdList" parameterType="java.util.List">
+        delete from test_flow_run_step where test_flow_run_step_id in
+        <foreach item="testFlowRunStepId" collection="list" open="(" separator="," close=")">
+            #{testFlowRunStepId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestFlowRunStepById" parameterType="Long">
+        update test_flow_run_step
+        set del_status = 1
+        where test_flow_run_step_id = #{testFlowRunStepId}
+    </update>
+
+    <update id="logicDeleteTestFlowRunStepByIdList" parameterType="java.util.List">
+        update test_flow_run_step set del_status = 1 where test_flow_run_step_id in
+        <foreach item="testFlowRunStepId" collection="list" open="(" separator="," close=")">
+            #{testFlowRunStepId}
+        </foreach>
+    </update>
+</mapper>

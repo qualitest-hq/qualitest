@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestProjectApiGroupMapper">
+
+    <resultMap type="TestProjectApiGroup" id="TestProjectApiGroupResult">
+        <result property="apiGroupId" column="api_group_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="ancestors" column="ancestors"/>
+        <result property="groupName" column="group_name"/>
+        <result property="sortNum" column="sort_num"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestProjectApiGroupVo">
+        select api_group_id,
+               test_project_id,
+               parent_id,
+               ancestors,
+               group_name,
+               sort_num,
+               del_status,
+               create_time,
+               update_time
+        from test_project_api_group
+    </sql>
+
+    <sql id="selectTestProjectApiGroupAliasVo">
+        select tpag.api_group_id    as apiGroupId,
+               tpag.test_project_id as testProjectId,
+               tpag.parent_id       as parentId,
+               tpag.ancestors       as ancestors,
+               tpag.group_name      as groupName,
+               tpag.sort_num       as sortNum,
+               tpag.del_status      as delStatus,
+               tpag.create_time     as createTime,
+               tpag.update_time     as updateTime
+        from test_project_api_group tpag
+    </sql>
+
+    <select id="selectTestProjectApiGroupList" parameterType="TestProjectApiGroup"
+            resultMap="TestProjectApiGroupResult">
+        <include refid="selectTestProjectApiGroupVo"/>
+        <where>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="parentId != null ">
+                and parent_id = #{parentId}
+            </if>
+            <if test="ancestors != null and ancestors != ''">
+                and ancestors = #{ancestors}
+            </if>
+            <if test="groupName != null and groupName != ''">
+                and group_name = #{groupName}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestProjectApiGroupById" parameterType="Long" resultMap="TestProjectApiGroupResult">
+        <include refid="selectTestProjectApiGroupVo"/>
+        where api_group_id = #{apiGroupId}
+    </select>
+
+    <select id="selectTestProjectApiGroupResultList" parameterType="TestProjectApiGroupParams"
+            resultType="TestProjectApiGroupResult">
+        select
+        tpag.api_group_id as apiGroupId,
+        tpag.test_project_id as testProjectId,
+        tpag.parent_id as parentId,
+        tpag.ancestors as ancestors,
+        tpag.group_name as groupName,
+        tpag.sort_num as sortNum,
+        tpag.del_status as delStatus,
+        tpag.create_time as createTime,
+        tpag.update_time as updateTime
+        from test_project_api_group tpag
+        where tpag.del_status = 0
+        <if test="testProjectId != null">
+            and tpag.test_project_id = #{testProjectId}
+        </if>
+        <if test="parentId != null">
+            and tpag.parent_id = #{parentId}
+        </if>
+        <if test="ancestors != null and ancestors != ''">
+            and tpag.ancestors = #{ancestors}
+        </if>
+        <if test="groupName != null and groupName != ''">
+            and tpag.group_name like concat('%', #{groupName}, '%')
+        </if>
+        order by tpag.api_group_id desc
+    </select>
+
+    <select id="selectTestProjectApiGroupResult" parameterType="Long" resultType="TestProjectApiGroupResult">
+        select tpag.api_group_id    as apiGroupId,
+               tpag.test_project_id as testProjectId,
+               tpag.parent_id       as parentId,
+               tpag.ancestors       as ancestors,
+               tpag.group_name      as groupName,
+               tpag.sort_num       as sortNum,
+               tpag.del_status      as delStatus,
+               tpag.create_time     as createTime,
+               tpag.update_time     as updateTime
+        from test_project_api_group tpag
+        where tpag.del_status = 0
+          and tpag.api_group_id = #{apiGroupId}
+        limit 1
+    </select>
+
+    <select id="selectTestProjectApiGroupCount" parameterType="TestProjectApiGroupParams" resultType="int">
+        select count(1)
+        from test_project_api_group tpag
+        where tpag.del_status = 0
+        <if test="testProjectId != null ">
+            and tpag.test_project_id = #{testProjectId}
+        </if>
+        <if test="parentId != null ">
+            and tpag.parent_id = #{parentId}
+        </if>
+        <if test="ancestors != null  and ancestors != ''">
+            and tpag.ancestors = #{ancestors}
+        </if>
+        <if test="groupName != null  and groupName != ''">
+            and tpag.group_name like concat('%', #{groupName}, '%')
+        </if>
+    </select>
+
+    <select id="selectTestProjectApiGroupOne" parameterType="TestProjectApiGroupParams" resultMap="TestProjectApiGroupResult">
+        select tpag.api_group_id,
+               tpag.test_project_id,
+               tpag.parent_id,
+               tpag.ancestors,
+               tpag.group_name,
+               tpag.sort_num,
+               tpag.del_status,
+               tpag.create_time,
+               tpag.update_time
+        from test_project_api_group tpag
+        where tpag.del_status = 0
+        <if test="testProjectId != null ">
+            and tpag.test_project_id = #{testProjectId}
+        </if>
+        <if test="parentId != null ">
+            and tpag.parent_id = #{parentId}
+        </if>
+        <if test="ancestors != null  and ancestors != ''">
+            and tpag.ancestors = #{ancestors}
+        </if>
+        <if test="groupName != null  and groupName != ''">
+            and tpag.group_name like concat('%', #{groupName}, '%')
+        </if>
+        order by tpag.api_group_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestProjectApiGroup" parameterType="TestProjectApiGroup" useGeneratedKeys="true"
+            keyProperty="apiGroupId">
+        insert into test_project_api_group
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="parentId != null">
+                parent_id,
+            </if>
+            <if test="ancestors != null">
+                ancestors,
+            </if>
+            <if test="groupName != null and groupName != ''">
+                group_name,
+            </if>
+            <if test="sortNum != null">
+                sort_num,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="parentId != null">
+                #{parentId},
+            </if>
+            <if test="ancestors != null">
+                #{ancestors},
+            </if>
+            <if test="groupName != null and groupName != ''">
+                #{groupName},
+            </if>
+            <if test="sortNum != null">
+                #{sortNum},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestProjectApiGroup" parameterType="TestProjectApiGroup">
+        update test_project_api_group
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="parentId != null">
+                parent_id = #{parentId},
+            </if>
+            <if test="ancestors != null">
+                ancestors = #{ancestors},
+            </if>
+            <if test="groupName != null and groupName != ''">
+                group_name = #{groupName},
+            </if>
+            <if test="sortNum != null">
+                sort_num = #{sortNum},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where api_group_id = #{apiGroupId}
+    </update>
+
+    <delete id="deleteTestProjectApiGroupById" parameterType="Long">
+        delete
+        from test_project_api_group
+        where api_group_id = #{apiGroupId}
+    </delete>
+
+    <delete id="deleteTestProjectApiGroupByIdList" parameterType="java.util.List">
+        delete from test_project_api_group where api_group_id in
+        <foreach item="apiGroupId" collection="list" open="(" separator="," close=")">
+            #{apiGroupId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestProjectApiGroupById" parameterType="Long">
+        update test_project_api_group
+        set del_status = 1
+        where api_group_id = #{apiGroupId}
+    </update>
+
+    <update id="logicDeleteTestProjectApiGroupByIdList" parameterType="java.util.List">
+        update test_project_api_group set del_status = 1 where api_group_id in
+        <foreach item="apiGroupId" collection="list" open="(" separator="," close=")">
+            #{apiGroupId}
+        </foreach>
+    </update>
+</mapper>

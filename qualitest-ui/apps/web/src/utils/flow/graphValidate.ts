@@ -1,0 +1,332 @@
+/**
+ * 测试流图 JSON 结构校验（设计态 TS）。
+ *
+ * 规则与后端 GraphJsonValidator 对齐，
+ * 消息文案逐字一致，保证前后端 error/warning 条数相同。
+ *
+ * 运行方式（在 `qualitest-ui/apps/web` 目录）：
+ * ```bash
+ * yarn test graphValidate
+ * ```
+ */
+import { isKnownNodeType, nodeTypeLabel } from './nodeTypes';
+import type { GraphEdge, GraphJson, GraphNode } from './graphTypes';
+
+const ALLOWED_EDGE_KEYS = new Set(['id', 'source', 'target', 'label']);
+
+/** 图校验结果；ok 为 true 当且仅当 errors 为空 */
+export interface GraphValidationResult {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+/** 开始节点唯一性校验结果 */
+export interface StartNodesValidation {
+  ok: boolean;
+  ids: string[];
+  message: string;
+}
+
+/** 从 graph_json / graphJson 包装中取出图对象 */
+export function unwrapGraphPayload(raw: Record<string, unknown>): Record<string, unknown> {
+  if (raw.graph_json != null && typeof raw.graph_json === 'object' && !Array.isArray(raw.graph_json)) {
+    return raw.graph_json as Record<string, unknown>;
+  }
+  if (raw.graphJson != null && typeof raw.graphJson === 'object' && !Array.isArray(raw.graphJson)) {
+    return raw.graphJson as Record<string, unknown>;
+  }
+  return raw;
+}
+
+/** 列出无入边节点 id（候选开始节点；同一 id 只计一次，与 Java GraphJsonValidator 一致） */
+export function findStartNodeIds(graph: Pick<GraphJson, 'nodes' | 'edges'>): string[] {
+  const nodes = graph.nodes ?? [];
+  const edges = graph.edges ?? [];
+  if (!nodes.length) return [];
+  const hasIncoming = new Set(edges.map((e) => e.target));
+  const uniqueIds = [...new Set(nodes.map((n) => n.id).filter((id): id is string => Boolean(id)))];
+  return uniqueIds.filter((id) => !hasIncoming.has(id));
+}
+
+function formatStartNodeNames(nodes: GraphNode[], ids: string[]): string {
+  return ids
+    .map((id) => {
+      const node = nodes.find((n) => n.id === id);
+      const name = node?.data?.name;
+      if (name != null && String(name).trim()) return String(name);
+      return nodeTypeLabel(node?.type) || id;
+    })
+    .join('、');
+}
+
+/** 校验流程是否恰有一个开始节点（无入边节点） */
+export function validateStartNodes(graph: Pick<GraphJson, 'nodes' | 'edges'>): StartNodesValidation {
+  const nodes = graph.nodes ?? [];
+  const ids = findStartNodeIds(graph);
+  if (!nodes.length) {
+    return { ok: true, ids, message: '' };
+  }
+  if (ids.length === 0) {
+    return {
+      ok: false,
+      ids,
+      message: '未找到开始节点（每个节点都有入边，可能存在无法触发的子图）',
+    };
+  }
+  if (ids.length > 1) {
+    return {
+      ok: false,
+      ids,
+      message: `流程只能有一个开始节点，当前有 ${ids.length} 个：${formatStartNodeNames(nodes, ids)}`,
+    };
+  }
+  return { ok: true, ids, message: '' };
+}
+
+function hasTestProjectApiId(data: Record<string, unknown> | undefined): boolean {
+  const value = data?.testProjectApiId;
+  return value != null && String(value).trim() !== '';
+}
+
+const HTTP_CALL_MODES = new Set(['project', 'external']);
+
+function validateHttpNodeFields(
+  p: string,
+  id: string | undefined,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+  warnings: string[],
+): void {
+  const name = data?.name != null ? String(data.name) : id;
+  const callModeRaw = data?.callMode;
+  if (callModeRaw == null || String(callModeRaw).trim() === '') {
+    errors.push(`${p} HTTP 节点「${name}」缺少 callMode`);
+    return;
+  }
+  const callMode = String(callModeRaw).trim();
+  if (!HTTP_CALL_MODES.has(callMode)) {
+    errors.push(`${p} HTTP 节点「${name}」callMode 无效：${callMode}`);
+    return;
+  }
+  if (callMode === 'project') {
+    if (!hasTestProjectApiId(data)) {
+      warnings.push(`HTTP 节点「${name}」未绑定 testProjectApiId`);
+    }
+    return;
+  }
+  const externalUrl = data?.externalUrl;
+  if (externalUrl == null || String(externalUrl).trim() === '') {
+    errors.push(`${p} HTTP 节点「${name}」外联模式缺少 externalUrl`);
+  }
+  const httpMethod = data?.httpMethod;
+  if (httpMethod == null || String(httpMethod).trim() === '') {
+    errors.push(`${p} HTTP 节点「${name}」外联模式缺少 httpMethod`);
+  }
+  if (hasTestProjectApiId(data)) {
+    errors.push(`${p} HTTP 节点「${name}」外联模式不可填写 testProjectApiId`);
+  }
+}
+
+function validateSubflowNodeFields(
+  p: string,
+  id: string | undefined,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+  warnings: string[],
+): void {
+  const name = data?.name != null ? String(data.name) : id;
+  const subflowId = data?.subflowId;
+  if (subflowId == null || String(subflowId).trim() === '') {
+    errors.push(`${p} 子流节点「${name}」缺少 subflowId`);
+  }
+  const policy = data?.versionPolicy;
+  if (policy != null && String(policy).trim() !== '') {
+    const pv = String(policy).trim();
+    if (pv !== 'pinned' && pv !== 'latest') {
+      errors.push(`${p} 子流节点「${name}」versionPolicy 无效：${pv}`);
+    }
+  }
+  const inputs = data?.inputs;
+  if (!Array.isArray(inputs) || inputs.length === 0) {
+    warnings.push(`子流节点「${name}」inputs 为空`);
+  }
+  const outputs = data?.outputs;
+  if (!Array.isArray(outputs) || outputs.length === 0) {
+    warnings.push(`子流节点「${name}」outputs 为空`);
+  }
+}
+
+const SCRIPT_LANGUAGES = new Set(['javascript', 'python']);
+
+/** script 节点：非法 language 为 error，空 source 为 warning */
+function validateScriptNodeFields(
+  p: string,
+  id: string | undefined,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+  warnings: string[],
+): void {
+  const name = data?.name != null ? String(data.name) : id;
+  const language = data?.language != null ? String(data.language).trim() : '';
+  if (!language || !SCRIPT_LANGUAGES.has(language)) {
+    errors.push(`${p} script 节点「${name}」language 无效：${language || '(空)'}`);
+  }
+  const source = data?.source != null ? String(data.source) : '';
+  if (!source.trim()) {
+    warnings.push(`Script 节点「${name}」source 为空`);
+  }
+}
+
+function hasOutgoingEdge(edges: GraphEdge[], source: string, target: string): boolean {
+  return edges.some((e) => e.source === source && e.target === target);
+}
+
+function validateNodeFields(
+  p: string,
+  node: GraphNode | null | undefined,
+  nodeIds: Set<string>,
+  errors: string[],
+  warnings: string[],
+): void {
+  if (!node || typeof node !== 'object') {
+    errors.push(`${p} 不是有效对象`);
+    return;
+  }
+  const { id, type } = node;
+  if (!id || typeof id !== 'string') {
+    errors.push(`${p} 缺少 id`);
+  } else if (nodeIds.has(id)) {
+    errors.push(`${p} id 重复：${id}`);
+  } else {
+    nodeIds.add(id);
+  }
+
+  if (!type || !isKnownNodeType(type)) {
+    errors.push(`${p} type 无效：${type || '(空)'}`);
+  }
+  const pos = node.position;
+  if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') {
+    errors.push(`${p} position 需包含数字 x / y`);
+  }
+  if (!node.data || typeof node.data !== 'object') {
+    errors.push(`${p} 缺少 data 对象`);
+  }
+
+  if (type === 'http') {
+    validateHttpNodeFields(p, id, node.data, errors, warnings);
+  }
+  if (type === 'subflow') {
+    validateSubflowNodeFields(p, id, node.data, errors, warnings);
+  }
+  if (type === 'condition') {
+    const branches = node.data?.branches;
+    if (!Array.isArray(branches) || !branches.length) {
+      const name = node.data?.name != null ? String(node.data.name) : id;
+      warnings.push(`条件节点「${name}」缺少 branches，导入后将补默认 IF/ELSE`);
+    }
+  }
+  if (type === 'script') {
+    validateScriptNodeFields(p, id, node.data, errors, warnings);
+  }
+}
+
+function validateConditionBranches(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  warnings: string[],
+): void {
+  nodes.forEach((n) => {
+    if (n.type !== 'condition') return;
+    const branches = (n.data?.branches as Array<Record<string, unknown>> | undefined) ?? [];
+    branches.forEach((b) => {
+      const branchId = b.id;
+      const target = b.target;
+      if (!target || String(target).trim() === '') {
+        warnings.push(`条件节点 ${n.id} 分支 ${branchId ?? '?'} 未绑定 target`);
+      } else if (!hasOutgoingEdge(edges, n.id, String(target))) {
+        warnings.push(`条件节点 ${n.id} 分支 ${branchId} 的 target 无对应出边：${target}`);
+      }
+    });
+  });
+}
+
+function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): void {
+  const meta = graph.meta;
+  if (meta == null || typeof meta !== 'object' || Array.isArray(meta)) {
+    errors.push('缺少 meta.scenarios');
+    return;
+  }
+  const scenarios = (meta as Record<string, unknown>).scenarios;
+  if (!Array.isArray(scenarios) || scenarios.length === 0) {
+    errors.push('meta.scenarios 不能为空');
+  }
+}
+
+/** 校验测试流图 JSON 结构，返回 errors / warnings 列表 */
+export function validateGraphJson(raw: unknown): GraphValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, errors: ['根对象必须是 JSON 对象'], warnings };
+  }
+
+  const graph = unwrapGraphPayload(raw as Record<string, unknown>);
+  const nodes = graph.nodes;
+  const edges = graph.edges;
+
+  if (!Array.isArray(nodes)) errors.push('缺少 nodes 数组');
+  if (!Array.isArray(edges)) errors.push('缺少 edges 数组');
+  if (errors.length) return { ok: false, errors, warnings };
+
+  const nodeIds = new Set<string>();
+  (nodes as GraphNode[]).forEach((node, i) => {
+    validateNodeFields(`nodes[${i}]`, node, nodeIds, errors, warnings);
+  });
+
+  const edgeIds = new Set<string>();
+  (edges as GraphEdge[]).forEach((edge, i) => {
+    const p = `edges[${i}]`;
+    if (!edge || typeof edge !== 'object') {
+      errors.push(`${p} 不是有效对象`);
+      return;
+    }
+    const { id, source, target } = edge;
+    if (!id || typeof id !== 'string') {
+      errors.push(`${p} 缺少 id`);
+    } else if (edgeIds.has(id)) {
+      errors.push(`${p} id 重复：${id}`);
+    } else {
+      edgeIds.add(id);
+    }
+    if (!source) {
+      errors.push(`${p} 缺少 source`);
+    } else if (!nodeIds.has(source)) {
+      errors.push(`${p} source 不存在：${source}`);
+    }
+    if (!target) {
+      errors.push(`${p} 缺少 target`);
+    } else if (!nodeIds.has(target)) {
+      errors.push(`${p} target 不存在：${target}`);
+    }
+    Object.keys(edge as Record<string, unknown>).forEach((key) => {
+      if (!ALLOWED_EDGE_KEYS.has(key)) {
+        errors.push(`边 ${id || i} 含不允许的字段：${key}`);
+      }
+    });
+  });
+
+  validateConditionBranches(nodes as GraphNode[], edges as GraphEdge[], warnings);
+
+  const startCheck = validateStartNodes({ nodes: nodes as GraphNode[], edges: edges as GraphEdge[] });
+  if (!startCheck.ok) errors.push(startCheck.message);
+
+  appendMetaRunError(graph, errors);
+
+  if (!(nodes as GraphNode[]).length) {
+    warnings.push('nodes 为空，导入后将得到空白画布');
+  }
+
+  return { ok: errors.length === 0, errors, warnings };
+}

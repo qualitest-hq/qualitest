@@ -1,0 +1,140 @@
+{
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "http",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "登录",
+        "testProjectApiId": "1001",
+        "apiPath": "/api/login",
+        "httpMethod": "POST",
+        "requestConfig": {
+          "configVersion": 1,
+          "method": "POST",
+          "queryParams": [],
+          "pathParams": [],
+          "declaredHeaders": [],
+          "body": {
+            "mode": "json",
+            "json": {
+              "example": "{\"username\":\"{{flow.loginUser}}\"}"
+            }
+          }
+        },
+        "extracts": [
+          {
+            "from": "body",
+            "expr": "$.data.token",
+            "scope": "flow",
+            "name": "token"
+          },
+          {
+            "from": "body",
+            "expr": "$.data.code",
+            "scope": "flow",
+            "name": "code"
+          }
+        ],
+        "callMode": "project"
+      }
+    },
+    {
+      "id": "n2",
+      "type": "http",
+      "position": {
+        "x": 200,
+        "y": 0
+      },
+      "data": {
+        "name": "业务A",
+        "testProjectApiId": "1002",
+        "apiPath": "/api/biz/a",
+        "httpMethod": "GET",
+        "headers": [
+          {
+            "_enabled": true,
+            "name": "Authorization",
+            "value": "Bearer {{flow.token}}"
+          }
+        ],
+        "callMode": "project"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "http",
+      "position": {
+        "x": 400,
+        "y": 0
+      },
+      "data": {
+        "name": "业务B",
+        "testProjectApiId": "1003",
+        "apiPath": "/api/biz/b",
+        "httpMethod": "GET",
+        "callMode": "project"
+      }
+    },
+    {
+      "id": "n4",
+      "type": "assert",
+      "position": {
+        "x": 600,
+        "y": 0
+      },
+      "data": {
+        "name": "断言 code",
+        "rules": [
+          {
+            "left": "flow.code",
+            "operator": "eq",
+            "right": "0"
+          }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "n1",
+      "target": "n2"
+    },
+    {
+      "id": "e2",
+      "source": "n2",
+      "target": "n3"
+    },
+    {
+      "id": "e3",
+      "source": "n3",
+      "target": "n4"
+    }
+  ],
+  "meta": {
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "layout": "manual",
+    "startNodeId": "n1",
+    "activeScenarioId": "sc-default",
+    "scenarios": [
+      {
+        "id": "sc-default",
+        "name": "默认",
+        "testProjectEnvId": "9001",
+        "flowSeed": {
+          "loginUser": "admin"
+        },
+        "remark": "线性冒烟"
+      }
+    ],
+    "flowOutputs": []
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    {
+      "id": "cd1",
+      "type": "delay",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "子流等待",
+        "ms": 1
+      }
+    }
+  ],
+  "edges": [],
+  "meta": {
+    "activeScenarioId": "sc-child",
+    "scenarios": [
+      {
+        "id": "sc-child",
+        "name": "子流默认",
+        "testProjectEnvId": "",
+        "flowSeed": {}
+      }
+    ],
+    "flowOutputs": []
+  }
+}

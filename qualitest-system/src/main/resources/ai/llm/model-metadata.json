@@ -1,0 +1,176 @@
+{
+  "deepseek-chat": {
+    "displayName": "DeepSeek Chat",
+    "thinkingCapable": 0,
+    "contextWindow": 65536,
+    "tags": ["chat"]
+  },
+  "deepseek-reasoner": {
+    "displayName": "DeepSeek Reasoner",
+    "thinkingCapable": 1,
+    "thinkingDefault": 1,
+    "tags": ["reasoning"]
+  },
+  "gpt-4o": {
+    "displayName": "GPT-4o",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "gpt-4o-mini": {
+    "displayName": "GPT-4o Mini",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "claude-sonnet-4-20250514": {
+    "displayName": "Claude Sonnet 4",
+    "thinkingCapable": 1,
+    "thinkingDefault": 0,
+    "tags": ["chat"]
+  },
+  "claude-3-5-sonnet-20241022": {
+    "displayName": "Claude 3.5 Sonnet",
+    "thinkingCapable": 1,
+    "thinkingDefault": 0,
+    "tags": ["chat"]
+  },
+  "kimi-k2-0711-preview": {
+    "displayName": "Kimi K2",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "moonshot-v1-8k": {
+    "displayName": "Moonshot V1 8K",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "glm-4-flash": {
+    "displayName": "GLM-4 Flash",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "glm-4-plus": {
+    "displayName": "GLM-4 Plus",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "qwen-plus": {
+    "displayName": "Qwen Plus",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "qwen-turbo": {
+    "displayName": "Qwen Turbo",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "qwen-max": {
+    "displayName": "Qwen Max",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "MiniMax-Text-01": {
+    "displayName": "MiniMax Text 01",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "abab6.5s-chat": {
+    "displayName": "ABAB 6.5s Chat",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "doubao-pro-32k": {
+    "displayName": "豆包 Pro 32K",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "doubao-lite-32k": {
+    "displayName": "豆包 Lite 32K",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "Baichuan4-Turbo": {
+    "displayName": "Baichuan4 Turbo",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "Baichuan3-Turbo": {
+    "displayName": "Baichuan3 Turbo",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "yi-lightning": {
+    "displayName": "Yi Lightning",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "yi-large": {
+    "displayName": "Yi Large",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "step-2-16k": {
+    "displayName": "Step 2 16K",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "step-1-8k": {
+    "displayName": "Step 1 8K",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "hunyuan-pro": {
+    "displayName": "混元 Pro",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "hunyuan-standard": {
+    "displayName": "混元 Standard",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "gemini-2.0-flash": {
+    "displayName": "Gemini 2.0 Flash",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "gemini-1.5-pro": {
+    "displayName": "Gemini 1.5 Pro",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "llama-3.3-70b-versatile": {
+    "displayName": "Llama 3.3 70B",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "mixtral-8x7b-32768": {
+    "displayName": "Mixtral 8x7B",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "mistral-large-latest": {
+    "displayName": "Mistral Large",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "mistral-small-latest": {
+    "displayName": "Mistral Small",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "sonar": {
+    "displayName": "Sonar",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "sonar-pro": {
+    "displayName": "Sonar Pro",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  },
+  "grok-2-latest": {
+    "displayName": "Grok 2",
+    "thinkingCapable": 0,
+    "tags": ["chat"]
+  }
+}

@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestProjectMapper">
+
+    <resultMap type="TestProject" id="TestProjectResult">
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="projectName" column="project_name"/>
+        <result property="assetVariables" column="asset_variables"/>
+        <!-- 项目响应约定 JSON：业务码路径、成功值、消息字段、数据包装字段 -->
+        <result property="responseConvention" column="response_convention"/>
+        <result property="lastApiSyncTime" column="last_api_sync_time"/>
+        <result property="apiCount" column="api_count"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestProjectVo">
+        select test_project_id, project_name, asset_variables, response_convention, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
+        from test_project
+    </sql>
+
+    <sql id="selectTestProjectAliasVo">
+        select tp.test_project_id    as testProjectId,
+               tp.project_name       as projectName,
+               tp.asset_variables    as assetVariables,
+               tp.response_convention as responseConvention,
+               tp.last_api_sync_time as lastApiSyncTime,
+               tp.api_count          as apiCount,
+               tp.owner_id           as ownerId,
+               tp.del_status         as delStatus,
+               tp.create_time        as createTime,
+               tp.update_time        as updateTime
+        from test_project tp
+    </sql>
+
+    <select id="selectTestProjectList" parameterType="TestProject" resultMap="TestProjectResult">
+        <include refid="selectTestProjectVo"/>
+        <where>
+            <if test="projectName != null and projectName != ''">
+                and project_name = #{projectName}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestProjectById" parameterType="Long" resultMap="TestProjectResult">
+        <include refid="selectTestProjectVo"/>
+        where test_project_id = #{testProjectId}
+    </select>
+
+    <select id="selectTestProjectResultList" parameterType="TestProjectParams" resultType="TestProjectResult">
+        select
+        tp.test_project_id as testProjectId,
+        tp.project_name as projectName,
+        tp.last_api_sync_time as lastApiSyncTime,
+        tp.api_count as apiCount,
+        tp.owner_id as ownerId,
+        su.nick_name as ownerName,
+        tp.del_status as delStatus,
+        tp.create_time as createTime,
+        tp.update_time as updateTime
+        from test_project tp
+        left join sys_user su on tp.owner_id = su.user_id
+        left join test_project_member tpm on tp.test_project_id = tpm.test_project_id
+        where tp.del_status = 0
+        <if test="projectName != null and projectName != ''">
+            and tp.project_name like concat('%', #{projectName}, '%')
+        </if>
+        <if test="ownerName != null and ownerName != ''">
+            and su.nick_name like concat('%', #{ownerName}, '%')
+        </if>
+        <if test="memberUserId != null">
+            and tpm.user_id = #{memberUserId}
+        </if>
+        group by tp.test_project_id
+        order by tp.test_project_id desc
+    </select>
+
+    <select id="selectTestProjectResult" parameterType="Long" resultType="TestProjectResult">
+        select tp.test_project_id    as testProjectId,
+               tp.project_name       as projectName,
+               tp.response_convention as responseConvention,
+               tp.last_api_sync_time as lastApiSyncTime,
+               tp.api_count          as apiCount,
+               tp.owner_id           as ownerId,
+               su.nick_name          as ownerName,
+               tp.del_status         as delStatus,
+               tp.create_time        as createTime,
+               tp.update_time        as updateTime
+        from test_project tp
+        left join sys_user su on tp.owner_id = su.user_id
+        where tp.del_status = 0
+          and tp.test_project_id = #{testProjectId}
+        limit 1
+    </select>
+
+    <select id="selectTestProjectCount" parameterType="TestProjectParams" resultType="int">
+        select count(1)
+        from test_project tp
+        left join sys_user su on tp.owner_id = su.user_id
+        where tp.del_status = 0
+        <if test="projectName != null  and projectName != ''">
+            and tp.project_name like concat('%', #{projectName}, '%')
+        </if>
+        <if test="ownerName != null and ownerName != ''">
+            and su.nick_name like concat('%', #{ownerName}, '%')
+        </if>
+    </select>
+
+    <select id="selectTestProjectOne" parameterType="TestProjectParams" resultMap="TestProjectResult">
+        select tp.test_project_id,
+               tp.project_name,
+               tp.asset_variables,
+               tp.response_convention,
+               tp.last_api_sync_time,
+               tp.api_count,
+               tp.owner_id,
+               tp.del_status,
+               tp.create_time,
+               tp.update_time
+        from test_project tp
+        left join sys_user su on tp.owner_id = su.user_id
+        where tp.del_status = 0
+        <if test="projectName != null  and projectName != ''">
+            and tp.project_name like concat('%', #{projectName}, '%')
+        </if>
+        <if test="ownerName != null and ownerName != ''">
+            and su.nick_name like concat('%', #{ownerName}, '%')
+        </if>
+        order by tp.test_project_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestProject" parameterType="TestProject">
+        insert into test_project
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="projectName != null and projectName != ''">
+                project_name,
+            </if>
+            <if test="assetVariables != null">
+                asset_variables,
+            </if>
+            <if test="responseConvention != null">
+                response_convention,
+            </if>
+            <if test="lastApiSyncTime != null">
+                last_api_sync_time,
+            </if>
+            <if test="apiCount != null">
+                api_count,
+            </if>
+            <if test="ownerId != null">
+                owner_id,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="projectName != null and projectName != ''">
+                #{projectName},
+            </if>
+            <if test="assetVariables != null">
+                #{assetVariables},
+            </if>
+            <if test="responseConvention != null">
+                #{responseConvention},
+            </if>
+            <if test="lastApiSyncTime != null">
+                #{lastApiSyncTime},
+            </if>
+            <if test="apiCount != null">
+                #{apiCount},
+            </if>
+            <if test="ownerId != null">
+                #{ownerId},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestProject" parameterType="TestProject">
+        update test_project
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="projectName != null and projectName != ''">
+                project_name = #{projectName},
+            </if>
+            <if test="assetVariables != null">
+                asset_variables = #{assetVariables},
+            </if>
+            <if test="responseConvention != null">
+                response_convention = #{responseConvention},
+            </if>
+            <if test="lastApiSyncTime != null">
+                last_api_sync_time = #{lastApiSyncTime},
+            </if>
+            <if test="apiCount != null">
+                api_count = #{apiCount},
+            </if>
+            <if test="ownerId != null">
+                owner_id = #{ownerId},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_project_id = #{testProjectId}
+    </update>
+
+    <delete id="deleteTestProjectById" parameterType="Long">
+        delete
+        from test_project
+        where test_project_id = #{testProjectId}
+    </delete>
+
+    <delete id="deleteTestProjectByIdList" parameterType="java.util.List">
+        delete from test_project where test_project_id in
+        <foreach item="testProjectId" collection="list" open="(" separator="," close=")">
+            #{testProjectId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestProjectById" parameterType="Long">
+        update test_project
+        set del_status = 1
+        where test_project_id = #{testProjectId}
+    </update>
+
+    <update id="logicDeleteTestProjectByIdList" parameterType="java.util.List">
+        update test_project set del_status = 1 where test_project_id in
+        <foreach item="testProjectId" collection="list" open="(" separator="," close=")">
+            #{testProjectId}
+        </foreach>
+    </update>
+
+    <select id="selectAssetVariablesByTestProjectId" parameterType="Long" resultType="java.lang.String">
+        select asset_variables
+        from test_project
+        where test_project_id = #{testProjectId}
+          and del_status = 0
+        limit 1
+    </select>
+
+    <update id="updateAssetVariables" parameterType="TestProject">
+        update test_project
+        set asset_variables = #{assetVariables},
+            update_time     = now()
+        where test_project_id = #{testProjectId}
+          and del_status = 0
+    </update>
+
+    <update id="refreshApiCount" parameterType="Long">
+        <!-- 按库内实际 API 条数回写项目 api_count -->
+        update test_project tp
+        set api_count   = (select count(1)
+                           from test_project_api tpa
+                           where tpa.test_project_id = #{testProjectId}
+                             and tpa.del_status = 0),
+            update_time = now()
+        where tp.test_project_id = #{testProjectId}
+          and tp.del_status = 0
+    </update>
+    
+</mapper>

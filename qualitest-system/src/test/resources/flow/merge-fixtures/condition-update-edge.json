@@ -1,0 +1,76 @@
+{
+  "description": "updateEdge 时 condition 分支 target 同步更新",
+  "baseGraph": {
+    "nodes": [
+      {
+        "id": "1001",
+        "type": "condition",
+        "position": { "x": 40, "y": 80 },
+        "data": {
+          "name": "条件",
+          "branches": [
+            {
+              "id": "2071158532992012288",
+              "kind": "if",
+              "target": "1002",
+              "conditions": [{ "left": "flow.code", "operator": "eq", "right": "0" }]
+            },
+            {
+              "id": "2071158532992012289",
+              "kind": "else",
+              "conditions": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "1002",
+        "type": "http",
+        "position": { "x": 420, "y": 40 },
+        "data": {
+          "name": "旧目标",
+          "callMode": "external",
+          "externalUrl": "https://example.com/old",
+          "httpMethod": "GET"
+        }
+      },
+      {
+        "id": "1003",
+        "type": "http",
+        "position": { "x": 420, "y": 160 },
+        "data": {
+          "name": "新目标",
+          "callMode": "external",
+          "externalUrl": "https://example.com/new",
+          "httpMethod": "GET"
+        }
+      }
+    ],
+    "edges": [
+      { "id": "2001", "source": "1001", "target": "1002" }
+    ],
+    "meta": {
+      "viewport": { "x": 0, "y": 0, "zoom": 1 },
+      "layout": "manual",
+      "startNodeId": "1001",
+      "activeScenarioId": "sc1",
+      "scenarios": [
+        {
+          "id": "sc1",
+          "name": "默认",
+          "testProjectEnvId": "",
+          "flowSeed": {}
+        }
+      ],
+      "flowOutputs": []
+    }
+  },
+  "patch": {
+    "updateEdges": [
+      { "id": "2001", "source": "1001", "target": "1003" }
+    ]
+  },
+  "acceptedIds": ["updateEdge:2001"],
+  "expectOk": true,
+  "expectEdgeTarget": "1003"
+}

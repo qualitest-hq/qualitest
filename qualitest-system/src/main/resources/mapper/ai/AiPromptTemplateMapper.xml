@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.ai.mapper.AiPromptTemplateMapper">
+
+    <resultMap type="AiPromptTemplate" id="AiPromptTemplateResult">
+        <result property="aiPromptTemplateId" column="ai_prompt_template_id"/>
+        <result property="templateScope" column="template_scope"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="sessionScene" column="session_scene"/>
+        <result property="templateTitle" column="template_title"/>
+        <result property="templateDescription" column="template_description"/>
+        <result property="templateContent" column="template_content"/>
+        <result property="builtinStatus" column="builtin_status"/>
+        <result property="enableStatus" column="enable_status"/>
+        <result property="sortNum" column="sort_num"/>
+        <result property="remark" column="remark"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectAiPromptTemplateVo">
+        select ai_prompt_template_id, template_scope, test_project_id, session_scene, template_title,
+        template_description, template_content, builtin_status, enable_status, sort_num, remark, del_status,
+        create_time, update_time from ai_prompt_template
+    </sql>
+
+    <sql id="selectAiPromptTemplateAliasVo">
+        select apt.ai_prompt_template_id as aiPromptTemplateId, apt.template_scope as templateScope, apt.test_project_id
+        as testProjectId, apt.session_scene as sessionScene, apt.template_title as templateTitle,
+        apt.template_description as templateDescription, apt.template_content as templateContent, apt.builtin_status as
+        builtinStatus, apt.enable_status as enableStatus, apt.sort_num as sortNum, apt.remark as remark, apt.del_status
+        as delStatus, apt.create_time as createTime, apt.update_time as updateTime from ai_prompt_template apt
+    </sql>
+
+    <select id="selectAiPromptTemplateList" parameterType="AiPromptTemplate" resultMap="AiPromptTemplateResult">
+        <include refid="selectAiPromptTemplateVo"/>
+        <where>
+            <if test="templateScope != null and templateScope != ''">
+                and template_scope = #{templateScope}
+            </if>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="sessionScene != null and sessionScene != ''">
+                and session_scene = #{sessionScene}
+            </if>
+            <if test="templateTitle != null and templateTitle != ''">
+                and template_title like concat('%', #{templateTitle}, '%')
+            </if>
+            <if test="builtinStatus != null ">
+                and builtin_status = #{builtinStatus}
+            </if>
+            <if test="enableStatus != null ">
+                and enable_status = #{enableStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAiPromptTemplateById" parameterType="Long" resultMap="AiPromptTemplateResult">
+        <include refid="selectAiPromptTemplateVo"/>
+        where ai_prompt_template_id = #{aiPromptTemplateId}
+    </select>
+
+    <select id="selectAiPromptTemplateResultList" parameterType="AiPromptTemplateParams"
+            resultType="AiPromptTemplateResult">
+        select
+        apt.ai_prompt_template_id as aiPromptTemplateId,
+        apt.template_scope as templateScope,
+        apt.test_project_id as testProjectId,
+        apt.session_scene as sessionScene,
+        apt.template_title as templateTitle,
+        apt.template_description as templateDescription,
+        apt.template_content as templateContent,
+        apt.builtin_status as builtinStatus,
+        apt.enable_status as enableStatus,
+        apt.sort_num as sortNum,
+        apt.remark as remark,
+        apt.del_status as delStatus,
+        apt.create_time as createTime,
+        apt.update_time as updateTime
+        from ai_prompt_template apt
+        where apt.del_status = 0
+        <if test="templateScope != null and templateScope != ''">
+            and apt.template_scope = #{templateScope}
+        </if>
+        <if test="testProjectId != null">
+            and apt.test_project_id = #{testProjectId}
+        </if>
+        <if test="sessionScene != null and sessionScene != ''">
+            and apt.session_scene = #{sessionScene}
+        </if>
+        <if test="templateTitle != null and templateTitle != ''">
+            and apt.template_title like concat('%', #{templateTitle}, '%')
+        </if>
+        <if test="builtinStatus != null">
+            and apt.builtin_status = #{builtinStatus}
+        </if>
+        <if test="enableStatus != null">
+            and apt.enable_status = #{enableStatus}
+        </if>
+        order by apt.template_scope asc, apt.sort_num asc, apt.ai_prompt_template_id asc
+    </select>
+
+    <select id="selectAiPromptTemplateResult" parameterType="Long" resultType="AiPromptTemplateResult">
+        select
+        apt.ai_prompt_template_id as aiPromptTemplateId,
+        apt.template_scope as templateScope,
+        apt.test_project_id as testProjectId,
+        apt.session_scene as sessionScene,
+        apt.template_title as templateTitle,
+        apt.template_description as templateDescription,
+        apt.template_content as templateContent,
+        apt.builtin_status as builtinStatus,
+        apt.enable_status as enableStatus,
+        apt.sort_num as sortNum,
+        apt.remark as remark,
+        apt.del_status as delStatus,
+        apt.create_time as createTime,
+        apt.update_time as updateTime
+        from ai_prompt_template apt
+        where
+        apt.del_status = 0 and
+        apt.ai_prompt_template_id = #{aiPromptTemplateId}
+        limit 1
+    </select>
+
+    <select id="selectAiPromptTemplateCount" parameterType="AiPromptTemplateParams" resultType="int">
+        select count(1)
+        from ai_prompt_template apt
+        where apt.del_status = 0
+        <if test="templateScope != null  and templateScope != ''">
+            and apt.template_scope = #{templateScope}
+        </if>
+        <if test="testProjectId != null ">
+            and apt.test_project_id = #{testProjectId}
+        </if>
+        <if test="sessionScene != null  and sessionScene != ''">
+            and apt.session_scene = #{sessionScene}
+        </if>
+        <if test="templateTitle != null  and templateTitle != ''">
+            and apt.template_title like concat('%', #{templateTitle}, '%')
+        </if>
+        <if test="builtinStatus != null ">
+            and apt.builtin_status = #{builtinStatus}
+        </if>
+        <if test="enableStatus != null ">
+            and apt.enable_status = #{enableStatus}
+        </if>
+    </select>
+
+    <select id="selectAiPromptTemplateForDesignPanel" resultType="AiPromptTemplateResult">
+        select
+        apt.ai_prompt_template_id as aiPromptTemplateId,
+        apt.template_scope as templateScope,
+        apt.test_project_id as testProjectId,
+        apt.session_scene as sessionScene,
+        apt.template_title as templateTitle,
+        apt.template_description as templateDescription,
+        apt.template_content as templateContent,
+        apt.builtin_status as builtinStatus,
+        apt.enable_status as enableStatus,
+        apt.sort_num as sortNum,
+        apt.remark as remark,
+        apt.del_status as delStatus,
+        apt.create_time as createTime,
+        apt.update_time as updateTime
+        from ai_prompt_template apt
+        where apt.del_status = 0
+        and apt.enable_status = 1
+        and apt.session_scene = #{sessionScene}
+        and (
+            apt.template_scope = 'platform'
+            or (apt.template_scope = 'project' and apt.test_project_id = #{testProjectId})
+        )
+        order by apt.template_scope asc, apt.sort_num asc, apt.ai_prompt_template_id asc
+    </select>
+
+    <select id="selectAiPromptTemplateOne" parameterType="AiPromptTemplateParams" resultMap="AiPromptTemplateResult">
+        select
+        apt.ai_prompt_template_id,
+        apt.template_scope,
+        apt.test_project_id,
+        apt.session_scene,
+        apt.template_title,
+        apt.template_description,
+        apt.template_content,
+        apt.builtin_status,
+        apt.enable_status,
+        apt.sort_num,
+        apt.remark,
+        apt.del_status,
+        apt.create_time,
+        apt.update_time
+        from ai_prompt_template apt
+        where apt.del_status = 0
+        <if test="templateScope != null  and templateScope != ''">
+            and apt.template_scope = #{templateScope}
+        </if>
+        <if test="testProjectId != null ">
+            and apt.test_project_id = #{testProjectId}
+        </if>
+        <if test="sessionScene != null  and sessionScene != ''">
+            and apt.session_scene = #{sessionScene}
+        </if>
+        <if test="templateTitle != null  and templateTitle != ''">
+            and apt.template_title like concat('%', #{templateTitle}, '%')
+        </if>
+        <if test="builtinStatus != null ">
+            and apt.builtin_status = #{builtinStatus}
+        </if>
+        <if test="enableStatus != null ">
+            and apt.enable_status = #{enableStatus}
+        </if>
+        order by apt.ai_prompt_template_id desc
+        limit 1
+    </select>
+
+    <insert id="insertAiPromptTemplate" parameterType="AiPromptTemplate">
+        insert into ai_prompt_template
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="aiPromptTemplateId != null">
+                ai_prompt_template_id,
+            </if>
+            <if test="templateScope != null and templateScope != ''">
+                template_scope,
+            </if>
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="sessionScene != null and sessionScene != ''">
+                session_scene,
+            </if>
+            <if test="templateTitle != null and templateTitle != ''">
+                template_title,
+            </if>
+            <if test="templateDescription != null">
+                template_description,
+            </if>
+            <if test="templateContent != null and templateContent != ''">
+                template_content,
+            </if>
+            <if test="builtinStatus != null">
+                builtin_status,
+            </if>
+            <if test="enableStatus != null">
+                enable_status,
+            </if>
+            <if test="sortNum != null">
+                sort_num,
+            </if>
+            <if test="remark != null">
+                remark,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="aiPromptTemplateId != null">
+                #{aiPromptTemplateId},
+            </if>
+            <if test="templateScope != null and templateScope != ''">
+                #{templateScope},
+            </if>
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="sessionScene != null and sessionScene != ''">
+                #{sessionScene},
+            </if>
+            <if test="templateTitle != null and templateTitle != ''">
+                #{templateTitle},
+            </if>
+            <if test="templateDescription != null">
+                #{templateDescription},
+            </if>
+            <if test="templateContent != null and templateContent != ''">
+                #{templateContent},
+            </if>
+            <if test="builtinStatus != null">
+                #{builtinStatus},
+            </if>
+            <if test="enableStatus != null">
+                #{enableStatus},
+            </if>
+            <if test="sortNum != null">
+                #{sortNum},
+            </if>
+            <if test="remark != null">
+                #{remark},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateAiPromptTemplate" parameterType="AiPromptTemplate">
+        update ai_prompt_template
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="templateScope != null and templateScope != ''">
+                template_scope = #{templateScope},
+            </if>
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="sessionScene != null and sessionScene != ''">
+                session_scene = #{sessionScene},
+            </if>
+            <if test="templateTitle != null and templateTitle != ''">
+                template_title = #{templateTitle},
+            </if>
+            <if test="templateDescription != null">
+                template_description = #{templateDescription},
+            </if>
+            <if test="templateContent != null and templateContent != ''">
+                template_content = #{templateContent},
+            </if>
+            <if test="builtinStatus != null">
+                builtin_status = #{builtinStatus},
+            </if>
+            <if test="enableStatus != null">
+                enable_status = #{enableStatus},
+            </if>
+            <if test="sortNum != null">
+                sort_num = #{sortNum},
+            </if>
+            <if test="remark != null">
+                remark = #{remark},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where ai_prompt_template_id = #{aiPromptTemplateId}
+    </update>
+
+    <delete id="deleteAiPromptTemplateById" parameterType="Long">
+        delete from ai_prompt_template where ai_prompt_template_id = #{aiPromptTemplateId}
+    </delete>
+
+    <delete id="deleteAiPromptTemplateByIdList" parameterType="java.util.List">
+        delete from ai_prompt_template where ai_prompt_template_id in
+        <foreach item="aiPromptTemplateId" collection="list" open="(" separator="," close=")">
+            #{aiPromptTemplateId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteAiPromptTemplateById" parameterType="Long">
+        update ai_prompt_template set del_status = 1 where ai_prompt_template_id = #{aiPromptTemplateId}
+    </update>
+
+    <update id="logicDeleteAiPromptTemplateByIdList" parameterType="java.util.List">
+        update ai_prompt_template set del_status = 1 where ai_prompt_template_id in
+        <foreach item="aiPromptTemplateId" collection="list" open="(" separator="," close=")">
+            #{aiPromptTemplateId}
+        </foreach>
+    </update>
+</mapper>

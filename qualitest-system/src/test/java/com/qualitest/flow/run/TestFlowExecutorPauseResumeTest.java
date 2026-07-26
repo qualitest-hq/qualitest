@@ -1,0 +1,187 @@
+package com.qualitest.flow.run;
+
+import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.context.ResolvedRunScenario;
+import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.model.GraphNode;
+import com.qualitest.flow.node.NodeHandlerRegistry;
+import com.qualitest.flow.node.StepError;
+import com.qualitest.flow.node.StepResult;
+import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
+import com.qualitest.flow.snapshot.RunSnapshotPolicy;
+import com.qualitest.flow.snapshot.SnapshotCheckpointService;
+import com.qualitest.flow.snapshot.SnapshotRestoreService;
+import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.project.domain.TestFlowRun;
+import com.qualitest.project.domain.TestFlowRunStep;
+import com.qualitest.project.domain.TestProjectEnv;
+import com.qualitest.project.service.ITestFlowRunService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static com.qualitest.flow.support.FlowTestSections.begin;
+import static com.qualitest.flow.support.FlowTestSections.end;
+import static com.qualitest.flow.support.FlowTestSections.log;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * {@link TestFlowExecutor} 暂停与原地重试单测：onNodeFailure=prompt 时失败暂停，retry_in_place 后通过。
+ * <p>
+ * 夹具 {@code flow/linear-run-graph.json}（截断为两节点）。
+ * <p>
+ * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=TestFlowExecutorPauseResumeTest
+ */
+class TestFlowExecutorPauseResumeTest {
+
+    private ITestFlowRunService runService;
+    private RunPersistenceService runPersistenceService;
+    private SnapshotCheckpointService snapshotCheckpointService;
+    private SnapshotRestoreService snapshotRestoreService;
+    private TestFlowExecutor executor;
+    private List<TestFlowRunStep> persistedSteps;
+    private TestFlowRun pausedRun;
+
+    @BeforeEach
+    void setUp() {
+        runService = mock(ITestFlowRunService.class);
+        runPersistenceService = mock(RunPersistenceService.class);
+        snapshotCheckpointService = mock(SnapshotCheckpointService.class);
+        snapshotRestoreService = mock(SnapshotRestoreService.class);
+        persistedSteps = new ArrayList<>();
+
+        when(snapshotCheckpointService.maybeCheckpoint(any(), any(), any(), any(), any())).thenReturn(null);
+
+        doAnswer(inv -> {
+            persistedSteps.add(inv.getArgument(0));
+            return null;
+        }).when(runPersistenceService).insertStep(any());
+
+        when(runPersistenceService.casMarkRunningFromPaused(any())).thenReturn(true);
+
+        doAnswer(inv -> {
+            TestFlowRun update = inv.getArgument(0);
+            if (pausedRun != null && pausedRun.getTestFlowRunId().equals(update.getTestFlowRunId())) {
+                if (update.getStatus() != null) {
+                    pausedRun.setStatus(update.getStatus());
+                }
+                if (update.getRunExecutionState() != null) {
+                    pausedRun.setRunExecutionState(update.getRunExecutionState());
+                }
+                if (Boolean.TRUE.equals(update.getClearExecutionState())) {
+                    pausedRun.setRunExecutionState(null);
+                }
+            }
+            return null;
+        }).when(runPersistenceService).updateRun(any());
+
+        AtomicInteger httpCalls = new AtomicInteger();
+        NodeHandlerRegistry registry = new NodeHandlerRegistry(List.of(
+                new AbstractStubNodeHandler(FlowNodeType.HTTP) {
+                    @Override
+                    public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
+                        int n = httpCalls.incrementAndGet();
+                        if (n == 2) {
+                            return StepResult.builder()
+                                    .nodeId(node.getId())
+                                    .nodeType("http")
+                                    .status(StepResult.STATUS_FAILED)
+                                    .error(StepError.of(com.qualitest.flow.exception.FlowErrorCode.TF_STEP_ERROR, "fail"))
+                                    .durationMs(1)
+                                    .build();
+                        }
+                        return StepResult.builder()
+                                .nodeId(node.getId())
+                                .nodeType("http")
+                                .status(StepResult.STATUS_PASSED)
+                                .durationMs(1)
+                                .flowAfter(new HashMap<>(ctx.getFlow()))
+                                .build();
+                    }
+                }
+        ));
+
+        executor = new TestFlowExecutor(
+                registry, new FlowGraphRunner(), runService, runPersistenceService,
+                new RunStatusUpdater(runPersistenceService),
+                new StepResultWriter(),
+                new SnapshotPreExecuteHookFactory(snapshotCheckpointService, new StepResultWriter()),
+                new ResumeContinuationPlanner(snapshotRestoreService));
+    }
+
+    /**
+     * onNodeFailure=prompt：第二次 http 失败触发暂停，retry_in_place 后通过。
+     * 期望：首次 paused 且 runExecutionState 含 n2；续跑后 passed。
+     */
+    @Test
+    void execute_promptOnFailure_pausesThenRetryInPlacePasses() {
+        begin("execute_promptOnFailure_pausesThenRetryInPlacePasses");
+        GraphJson graph = loadGraph("flow/linear-run-graph.json");
+        graph.setNodes(graph.getNodes().subList(0, 2));
+        graph.setEdges(graph.getEdges().subList(0, 1));
+
+        Long runId = 9001L;
+        pausedRun = TestFlowRun.builder()
+                .testFlowRunId(runId)
+                .testFlowId(1L)
+                .testProjectEnvId(100L)
+                .runScenarioId("sc-default")
+                .status(TestFlowExecutor.RUN_STATUS_RUNNING)
+                .graphJsonSnapshot(graph.toJsonString())
+                .build();
+
+        when(runService.selectTestFlowRunById(runId)).thenReturn(pausedRun);
+
+        RunBootstrapMeta bootstrap = new RunBootstrapMeta(
+                ResolvedRunScenario.builder()
+                        .scenarioId("sc-default")
+                        .testProjectEnvId(100L)
+                        .onNodeFailure(RunSnapshotPolicy.ON_NODE_FAILURE_PROMPT)
+                        .build(),
+                "test",
+                TestProjectEnv.builder().envUrl("http://localhost:8081").allowDestructiveReset(1).build()
+        );
+
+        ExecutionOutcome first = executor.execute(
+                runId, graph, FlowRunContext.builder().flow(new HashMap<>()).build(), bootstrap);
+
+        assertTrue(first.isPaused());
+        assertEquals(TestFlowExecutor.RUN_STATUS_PAUSED, pausedRun.getStatus());
+        assertTrue(pausedRun.getRunExecutionState() != null && pausedRun.getRunExecutionState().contains("n2"));
+        log("firstRun paused=true pauseNode=n2");
+
+        pausedRun.setStatus(TestFlowExecutor.RUN_STATUS_PAUSED);
+        ExecutionOutcome resumed = executor.resume(
+                runId,
+                ResumeDecision.builder().decision(ResumeDecision.RETRY_IN_PLACE).operator("tester").build(),
+                TestProjectEnv.builder().envUrl("http://localhost:8081").allowDestructiveReset(1).build()
+        );
+
+        assertTrue(resumed.isPassed());
+        assertEquals(TestFlowExecutor.RUN_STATUS_PASSED, pausedRun.getStatus());
+        log("resumed status=passed");
+        end("execute_promptOnFailure_pausesThenRetryInPlacePasses");
+    }
+
+    private static GraphJson loadGraph(String path) {
+        try (InputStream in = TestFlowExecutorPauseResumeTest.class.getClassLoader().getResourceAsStream(path)) {
+            String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            return GraphJson.parse(json);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+}
+

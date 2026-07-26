@@ -1,0 +1,5 @@
+# 入口配置：仅指定默认环境；dev / prod 的完整项在对应 profile 文件中
+spring:
+  profiles:
+    # 本地默认 dev；生产启动时改为 prod（如 -Dspring.profiles.active=prod）
+    active: dev

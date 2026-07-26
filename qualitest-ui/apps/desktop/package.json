@@ -1,0 +1,25 @@
+{
+  "name": "@qualitest/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "质衡 Qualitest 桌面端",
+  "author": "质衡",
+  "type": "module",
+  "main": "main/index.js",
+  "scripts": {
+    "dev": "node scripts/desktop.mjs dev",
+    "build": "node scripts/desktop.mjs build"
+  },
+  "dependencies": {
+    "@qualitest/transport-types": "1.0.0",
+    "axios": "1.13.2",
+    "form-data": "4.0.4"
+  },
+  "devDependencies": {
+    "electron": "34.2.0",
+    "electron-builder": "25.1.8",
+    "png-to-ico": "2.1.8",
+    "rcedit": "4.0.1",
+    "sharp": "0.33.5"
+  }
+}

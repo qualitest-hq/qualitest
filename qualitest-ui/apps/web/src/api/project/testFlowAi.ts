@@ -1,0 +1,166 @@
+/**
+ * 测试流 AI 设计 HTTP 客户端。
+ *
+ * - POST /project/testFlow/ai/design/stream — SSE 流式设计
+ * - POST /project/testFlow/ai/patch/confirmUnit — 单 Staging 单元确认校验与合并
+ * - GET  /project/testFlow/ai/promptTemplates — AI 设计面板提示词模板列表
+ */
+import request from '@/utils/request';
+import { consumeAuthenticatedSsePost } from '@/utils/ai/consumeSseStream';
+
+import type { GraphJson } from '@/utils/flow/graphTypes';
+
+import type { AiDesignMention, ComposerDoc } from '@/views/project/testFlow/types/mentionTypes';
+import type {
+  DesignValidationResult,
+  FlowDesignPatch,
+  TestFlowDesignResult,
+} from '@/views/project/testFlow/types/aiDesignTypes';
+
+/** 流式设计请求体 */
+export interface TestFlowDesignRequestPayload {
+  /** 当前测试流 id */
+  testFlowId: string;
+  /** 所属测试项目 id */
+  testProjectId: string;
+  /** 选用的 LLM 模型 id */
+  aiLlmModelId: string;
+  /** 多轮会话 id；空则服务端创建新会话 */
+  aiChatSessionId?: string | null;
+  /** 用户输入纯文本（由 composerDoc 线性化） */
+  prompt: string;
+  /** 从 composerDoc 提取的去重 @ 引用 */
+  mentions?: AiDesignMention[];
+  /** 编辑器完整文档，用于会话恢复时重建 chip */
+  composerDoc?: ComposerDoc;
+  /** 当前画布 graph_json */
+  graphJson: GraphJson;
+  /** 对话级思考开关 */
+  thinkingEnabled?: boolean;
+  /** 限定可检索的 API id 范围（可选） */
+  scopeApiIds?: string[];
+  /** 画布上下文：选中的节点 id 列表（可选） */
+  contextNodeIds?: string[];
+  /** 画布上下文：关联的 Run id，用于失败修复场景（可选） */
+  contextRunId?: string;
+}
+
+/** SSE 推送的事件类型 */
+export type AiDesignStreamEventType =
+  | 'token'
+  | 'thinking'
+  | 'tool_start'
+  | 'tool_end'
+  | 'done'
+  | 'error';
+
+/** 单条 SSE 事件载荷 */
+export interface AiDesignStreamEvent {
+  type: AiDesignStreamEventType;
+  /** token / thinking 事件的文本增量 */
+  text?: string;
+  /** tool_start / tool_end 的工具名 */
+  tool?: string;
+  /** error 事件的错误说明 */
+  message?: string;
+  /** done 事件的完整设计结果 */
+  result?: TestFlowDesignResult;
+}
+
+/** SSE 消费回调，各事件类型对应可选处理器 */
+export interface AiDesignStreamHandlers {
+  onEvent?: (event: AiDesignStreamEvent) => void;
+  onToken?: (text: string) => void;
+  onThinking?: (text: string) => void;
+  onToolStart?: (tool: string) => void;
+  onToolEnd?: (tool: string) => void;
+  onDone?: (result: TestFlowDesignResult) => void;
+  onError?: (message: string) => void;
+}
+
+const BASE_API = import.meta.env.VITE_APP_BASE_API as string;
+
+/** AI 设计面板提示词模板项 */
+export interface AiPromptTemplateItem {
+  aiPromptTemplateId: string;
+  templateScope: 'platform' | 'project';
+  testProjectId?: string;
+  sessionScene?: string;
+  templateTitle: string;
+  templateDescription?: string;
+  templateContent: string;
+  builtinStatus?: number;
+  enableStatus?: number;
+  sortNum?: number;
+  remark?: string;
+}
+
+/**
+ * 查询 AI 设计面板可用提示词模板（平台级 + 当前项目级）。
+ */
+export async function listAiDesignPromptTemplates(
+  testProjectId: string,
+  sessionScene = 'test_flow_design',
+): Promise<AiPromptTemplateItem[]> {
+  const res = await request({
+    url: '/project/testFlow/ai/promptTemplates',
+    method: 'get',
+    params: { testProjectId, sessionScene },
+  });
+  return (res.data ?? []) as AiPromptTemplateItem[];
+}
+
+/** 单 Staging 单元 confirm 的请求体 */
+export interface FlowDesignPatchConfirmPayload {
+  testProjectId: string;
+  graphJson: GraphJson;
+  patch: FlowDesignPatch;
+  unitId: string;
+  draftOverride?: Record<string, unknown>;
+  confirmedUnitIds: string[];
+  rejectedUnitIds?: string[];
+}
+
+/** 单 Staging 单元 confirm 的响应体 */
+export interface FlowDesignPatchConfirmResult extends DesignValidationResult {
+  graphJson?: GraphJson | null;
+  dependencyHints?: string[];
+  baseGraphHash?: string;
+}
+
+/**
+ * 确认单个 Staging 变更单元：draft 合并 → 单单元过滤 → 全图校验。
+ * 成功时返回 graphJson 供前端落盘；失败时 graphJson 为 null。
+ */
+export async function confirmFlowDesignUnit(
+  data: FlowDesignPatchConfirmPayload,
+): Promise<FlowDesignPatchConfirmResult> {
+  const res = await request({
+    url: '/project/testFlow/ai/patch/confirmUnit',
+    method: 'post',
+    headers: { repeatSubmit: false },
+    data,
+  });
+  return res.data as FlowDesignPatchConfirmResult;
+}
+
+/**
+ * SSE 流式设计。
+ * 使用 fetch + ReadableStream 解析 `data:` 行；支持 AbortSignal 取消。
+ * 流结束时应收到 type=done 事件，否则抛出异常。
+ */
+export async function designTestFlowStream(
+  data: TestFlowDesignRequestPayload,
+  handlers: AiDesignStreamHandlers,
+  signal?: AbortSignal,
+): Promise<TestFlowDesignResult> {
+  return consumeAuthenticatedSsePost<AiDesignStreamEvent, TestFlowDesignResult>({
+    url: `${BASE_API}/project/testFlow/ai/design/stream`,
+    body: data,
+    handlers,
+    signal,
+    defaultErrorMessage: 'AI 助手请求失败',
+    missingResultMessage: '未收到设计结果',
+  });
+}
+

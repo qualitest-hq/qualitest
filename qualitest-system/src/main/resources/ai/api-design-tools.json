@@ -1,0 +1,66 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "get_api_design_context",
+      "description": "获取当前接口设计上下文：method/path/名称/说明、参数 type+约束+测值预览、body/response schema 叶节点、脚本摘要、可选 workbenchSnapshot",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_api_detail",
+      "description": "获取单个 API 的 path/query/header/body 参数摘要（含 type/约束）、body 示例与响应 schema 摘要。查询*其他*接口时使用；当前接口优先 get_api_design_context",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testProjectApiId": {
+            "type": "string",
+            "description": "项目 API ID；可省略，将使用当前上下文中的接口"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_project_envs",
+      "description": "列举当前测试项目的环境 id、名称、URL 与环境变量键名（不含值）",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_asset_variables",
+      "description": "列举项目素材库变量：key、备注、子字段名；不含明文值。用于选用 {{asset.key.field}} 测值占位符",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_api_design_patch",
+      "description": "提交 API 设计增量修改建议（ApiDesignPatch）。生成或修复脚本/约束/测值时必须调用；仅答疑时不要调用。不会自动保存。",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+]

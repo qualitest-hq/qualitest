@@ -1,0 +1,49 @@
+{
+  "nodes": [
+    {
+      "id": "2040999000000000020",
+      "type": "delay",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "等待 A",
+        "ms": 1000
+      }
+    },
+    {
+      "id": "2040999000000000020",
+      "type": "delay",
+      "position": {
+        "x": 300,
+        "y": 0
+      },
+      "data": {
+        "name": "等待 B",
+        "ms": 500
+      }
+    }
+  ],
+  "edges": [],
+  "meta": {
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "layout": "manual",
+    "startNodeId": "2040999000000000020",
+    "activeScenarioId": "2042000000000000101",
+    "scenarios": [
+      {
+        "id": "2042000000000000101",
+        "name": "默认",
+        "testProjectEnvId": "2042000000000000001",
+        "flowSeed": {},
+        "remark": "duplicate node id + 多开始节点"
+      }
+    ],
+    "flowOutputs": []
+  }
+}

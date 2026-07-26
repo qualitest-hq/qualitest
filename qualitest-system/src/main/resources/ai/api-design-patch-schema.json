@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "description": "submit_api_design_patch 的入参：API 设计增量修改建议。不会自动保存。",
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "中文说明本次修改意图"
+    },
+    "changes": {
+      "type": "array",
+      "description": "变更列表",
+      "items": {
+        "type": "object",
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "description": "稳定单元 id，如 script:pre、constraint:request.queryParams.mobile、testValue:request.paramDefaults.mobile、meta:apiDescription"
+          },
+          "target": {
+            "type": "string",
+            "description": "script | request.queryParams | request.pathParams | request.declaredHeaders | request.body.formData | request.body.urlencoded | request.body.schema | response.schema | testValue.request.paramDefaults | testValue.request.bodyExample | testValue.response.examplesById | meta"
+          },
+          "phase": {
+            "type": "string",
+            "enum": ["pre", "post"],
+            "description": "仅 script：前置或后置"
+          },
+          "path": {
+            "type": "string",
+            "description": "参数名、schema 点分路径、或响应 example 的 responseId"
+          },
+          "type": {
+            "type": "string",
+            "description": "字段类型，约束矩阵校验用（string/integer/number/array/...）"
+          },
+          "responseId": {
+            "type": "string",
+            "description": "可选：response.schema 所属响应条目 id"
+          },
+          "action": {
+            "type": "string",
+            "description": "update | clear | set | updateConstraints"
+          },
+          "constraints": {
+            "type": "object",
+            "description": "updateConstraints：仅矩阵允许键；禁止 enum/const；参数用 minValue/maxValue，schema 用 minimum/maximum"
+          },
+          "description": {
+            "type": "string",
+            "description": "可选：一并更新字段说明"
+          },
+          "value": {
+            "description": "set 测值：字符串或 JSON；优先 {{asset.*}} / {{env.*}}"
+          },
+          "content": {
+            "type": "string",
+            "description": "脚本完整源码，或 meta 文案"
+          }
+        },
+        "required": ["target", "action"]
+      }
+    }
+  },
+  "required": ["summary", "changes"]
+}

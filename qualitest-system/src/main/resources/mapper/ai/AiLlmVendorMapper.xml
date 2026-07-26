@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.ai.mapper.AiLlmVendorMapper">
+
+    <resultMap type="AiLlmVendor" id="AiLlmVendorResult">
+        <result property="aiLlmVendorId" column="ai_llm_vendor_id"/>
+        <result property="vendorName" column="vendor_name"/>
+        <result property="builtinStatus" column="builtin_status"/>
+        <result property="templateId" column="template_id"/>
+        <result property="provider" column="provider"/>
+        <result property="discoveryType" column="discovery_type"/>
+        <result property="baseUrl" column="base_url"/>
+        <result property="apiKey" column="api_key"/>
+        <result property="enableStatus" column="enable_status"/>
+        <result property="sortNum" column="sort_num"/>
+        <result property="remark" column="remark"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectAiLlmVendorVo">
+        select ai_llm_vendor_id,
+               vendor_name,
+               builtin_status,
+               template_id,
+               provider,
+               discovery_type,
+               base_url,
+               api_key,
+               enable_status,
+               sort_num,
+               remark,
+               del_status,
+               create_time,
+               update_time
+        from ai_llm_vendor
+    </sql>
+
+    <sql id="selectAiLlmVendorAliasVo">
+        select alv.ai_llm_vendor_id as aiLlmVendorId,
+               alv.vendor_name      as vendorName,
+               alv.builtin_status   as builtinStatus,
+               alv.template_id      as templateId,
+               alv.provider         as provider,
+               alv.discovery_type   as discoveryType,
+               alv.base_url         as baseUrl,
+               alv.api_key          as apiKey,
+               alv.enable_status    as enableStatus,
+               alv.sort_num         as sortNum,
+               alv.remark           as remark,
+               alv.del_status       as delStatus,
+               alv.create_time      as createTime,
+               alv.update_time      as updateTime
+        from ai_llm_vendor alv
+    </sql>
+
+    <select id="selectAiLlmVendorList" parameterType="AiLlmVendor" resultMap="AiLlmVendorResult">
+        <include refid="selectAiLlmVendorVo"/>
+        <where>
+            <if test="vendorName != null and vendorName != ''">
+                and vendor_name = #{vendorName}
+            </if>
+            <if test="provider != null and provider != ''">
+                and provider = #{provider}
+            </if>
+            <if test="enableStatus != null ">
+                and enable_status = #{enableStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAiLlmVendorById" parameterType="Long" resultMap="AiLlmVendorResult">
+        <include refid="selectAiLlmVendorVo"/>
+        where ai_llm_vendor_id = #{aiLlmVendorId}
+    </select>
+
+    <select id="selectAiLlmVendorResultList" parameterType="AiLlmVendorParams" resultType="AiLlmVendorResult">
+        select
+        alv.ai_llm_vendor_id as aiLlmVendorId,
+        alv.vendor_name as vendorName,
+        alv.builtin_status as builtinStatus,
+        alv.template_id as templateId,
+        alv.provider as provider,
+        alv.discovery_type as discoveryType,
+        alv.base_url as baseUrl,
+        alv.api_key as apiKey,
+        alv.enable_status as enableStatus,
+        alv.sort_num as sortNum,
+        alv.remark as remark,
+        alv.del_status as delStatus,
+        alv.create_time as createTime,
+        alv.update_time as updateTime
+        from ai_llm_vendor alv
+        where alv.del_status = 0
+        <if test="vendorName != null and vendorName != ''">
+            and alv.vendor_name like concat('%', #{vendorName}, '%')
+        </if>
+        <if test="provider != null and provider != ''">
+            and alv.provider = #{provider}
+        </if>
+        <if test="enableStatus != null">
+            and alv.enable_status = #{enableStatus}
+        </if>
+        order by alv.sort_num
+    </select>
+
+    <select id="selectAiLlmVendorResult" parameterType="Long" resultType="AiLlmVendorResult">
+        select alv.ai_llm_vendor_id as aiLlmVendorId,
+               alv.vendor_name      as vendorName,
+               alv.builtin_status   as builtinStatus,
+               alv.template_id      as templateId,
+               alv.provider         as provider,
+               alv.discovery_type   as discoveryType,
+               alv.base_url         as baseUrl,
+               alv.api_key          as apiKey,
+               alv.enable_status    as enableStatus,
+               alv.sort_num         as sortNum,
+               alv.remark           as remark,
+               alv.del_status       as delStatus,
+               alv.create_time      as createTime,
+               alv.update_time      as updateTime
+        from ai_llm_vendor alv
+        where alv.del_status = 0
+          and alv.ai_llm_vendor_id = #{aiLlmVendorId}
+        limit 1
+    </select>
+
+    <select id="selectAiLlmVendorCount" parameterType="AiLlmVendorParams" resultType="int">
+        select count(1)
+        from ai_llm_vendor alv
+        where alv.del_status = 0
+        <if test="vendorName != null  and vendorName != ''">
+            and alv.vendor_name like concat('%', #{vendorName}, '%')
+        </if>
+        <if test="provider != null  and provider != ''">
+            and alv.provider = #{provider}
+        </if>
+        <if test="enableStatus != null ">
+            and alv.enable_status = #{enableStatus}
+        </if>
+    </select>
+
+    <select id="selectAiLlmVendorOne" parameterType="AiLlmVendorParams" resultMap="AiLlmVendorResult">
+        select
+        alv.ai_llm_vendor_id,
+        alv.vendor_name,
+        alv.builtin_status,
+        alv.template_id,
+        alv.provider,
+        alv.discovery_type,
+        alv.base_url,
+        alv.api_key,
+        alv.enable_status,
+        alv.sort_num,
+        alv.remark,
+        alv.del_status,
+        alv.create_time,
+        alv.update_time
+        from ai_llm_vendor alv
+        where alv.del_status = 0
+        <if test="vendorName != null  and vendorName != ''">
+            and alv.vendor_name like concat('%', #{vendorName}, '%')
+        </if>
+        <if test="provider != null  and provider != ''">
+            and alv.provider = #{provider}
+        </if>
+        <if test="enableStatus != null ">
+            and alv.enable_status = #{enableStatus}
+        </if>
+        order by alv.ai_llm_vendor_id desc
+        limit 1
+    </select>
+
+    <insert id="insertAiLlmVendor" parameterType="AiLlmVendor">
+        insert into ai_llm_vendor
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="aiLlmVendorId != null">
+                ai_llm_vendor_id,
+            </if>
+            <if test="vendorName != null and vendorName != ''">
+                vendor_name,
+            </if>
+            <if test="builtinStatus != null">
+                builtin_status,
+            </if>
+            <if test="templateId != null">
+                template_id,
+            </if>
+            <if test="provider != null and provider != ''">
+                provider,
+            </if>
+            <if test="discoveryType != null">
+                discovery_type,
+            </if>
+            <if test="baseUrl != null and baseUrl != ''">
+                base_url,
+            </if>
+            <if test="apiKey != null">
+                api_key,
+            </if>
+            <if test="enableStatus != null">
+                enable_status,
+            </if>
+            <if test="sortNum != null">
+                sort_num,
+            </if>
+            <if test="remark != null">
+                remark,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="aiLlmVendorId != null">
+                #{aiLlmVendorId},
+            </if>
+            <if test="vendorName != null and vendorName != ''">
+                #{vendorName},
+            </if>
+            <if test="builtinStatus != null">
+                #{builtinStatus},
+            </if>
+            <if test="templateId != null">
+                #{templateId},
+            </if>
+            <if test="provider != null and provider != ''">
+                #{provider},
+            </if>
+            <if test="discoveryType != null">
+                #{discoveryType},
+            </if>
+            <if test="baseUrl != null and baseUrl != ''">
+                #{baseUrl},
+            </if>
+            <if test="apiKey != null">
+                #{apiKey},
+            </if>
+            <if test="enableStatus != null">
+                #{enableStatus},
+            </if>
+            <if test="sortNum != null">
+                #{sortNum},
+            </if>
+            <if test="remark != null">
+                #{remark},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateAiLlmVendor" parameterType="AiLlmVendor">
+        update ai_llm_vendor
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="vendorName != null and vendorName != ''">
+                vendor_name = #{vendorName},
+            </if>
+            <if test="builtinStatus != null">
+                builtin_status = #{builtinStatus},
+            </if>
+            <if test="templateId != null">
+                template_id = #{templateId},
+            </if>
+            <if test="provider != null and provider != ''">
+                provider = #{provider},
+            </if>
+            <if test="discoveryType != null">
+                discovery_type = #{discoveryType},
+            </if>
+            <if test="baseUrl != null and baseUrl != ''">
+                base_url = #{baseUrl},
+            </if>
+            <if test="apiKey != null">
+                api_key = #{apiKey},
+            </if>
+            <if test="enableStatus != null">
+                enable_status = #{enableStatus},
+            </if>
+            <if test="sortNum != null">
+                sort_num = #{sortNum},
+            </if>
+            <if test="remark != null">
+                remark = #{remark},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where ai_llm_vendor_id = #{aiLlmVendorId}
+    </update>
+
+    <delete id="deleteAiLlmVendorById" parameterType="Long">
+        delete
+        from ai_llm_vendor
+        where ai_llm_vendor_id = #{aiLlmVendorId}
+    </delete>
+
+    <delete id="deleteAiLlmVendorByIdList" parameterType="java.util.List">
+        delete from ai_llm_vendor where ai_llm_vendor_id in
+        <foreach item="aiLlmVendorId" collection="list" open="(" separator="," close=")">
+            #{aiLlmVendorId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteAiLlmVendorById" parameterType="Long">
+        update ai_llm_vendor
+        set del_status = 1
+        where ai_llm_vendor_id = #{aiLlmVendorId}
+    </update>
+
+    <update id="logicDeleteAiLlmVendorByIdList" parameterType="java.util.List">
+        update ai_llm_vendor set del_status = 1 where ai_llm_vendor_id in
+        <foreach item="aiLlmVendorId" collection="list" open="(" separator="," close=")">
+            #{aiLlmVendorId}
+        </foreach>
+    </update>
+</mapper>

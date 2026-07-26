@@ -1,0 +1,80 @@
+/**
+ * Staging 画布同步：hydrate patch 后应产出完整节点与边列表。
+ */
+import { createPinia, setActivePinia } from 'pinia';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
+import {
+  computeStagingCanvasSync,
+  createStagingCanvasSyncContext,
+} from '@/views/project/testFlow/utils/stagingCanvasCompute';
+import { useAiStagingStore } from '@/views/project/testFlow/stores/aiStagingStore';
+import { useFlowCanvasStore } from '@/views/project/testFlow/stores/flowCanvasStore';
+
+const patch: FlowDesignPatch = {
+  addNodes: [
+    { id: '9001', type: 'http', position: { x: 40, y: 80 }, data: { name: '用户登录' } },
+    { id: '9002', type: 'http', position: { x: 420, y: 80 }, data: { name: '获取当前用户信息' } },
+    { id: '9003', type: 'assert', position: { x: 800, y: 80 }, data: { name: '响应验证' } },
+  ],
+  addEdges: [
+    { id: '8001', source: '9001', target: '9002' },
+    { id: '8002', source: '9002', target: '9003' },
+    { id: '8003', source: '9001', target: '9003' },
+  ],
+};
+
+describe('stagingCanvasSync', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  /** 3 节点 3 连线 hydrate 后，sync 应产出 3 个节点与 3 条有效边。 */
+  it('hydrate 3 节点 + 3 连线后 sync 应产出 3 条边', () => {
+    const stagingStore = useAiStagingStore();
+    const canvasStore = useFlowCanvasStore();
+
+    stagingStore.hydrateStagingFromPatch('msg-1', patch, { nodes: [], edges: [] });
+
+    expect(Object.values(stagingStore.unitsById).filter((u) => u.kind === 'addEdge')).toHaveLength(3);
+
+    const { nodes, edges } = computeStagingCanvasSync(
+      createStagingCanvasSyncContext(
+        stagingStore.unitsById,
+        canvasStore.nodes,
+        canvasStore.edges,
+        stagingStore.stagingByNodeId,
+        stagingStore.stagingByEdgeId,
+      ),
+    );
+
+    expect(nodes).toHaveLength(3);
+    expect(edges).toHaveLength(3);
+    expect(edges.every((e) => e.source && e.target)).toBe(true);
+  });
+
+  /** source 或 target 为空时不应生成边，避免无效端点进入 pending。 */
+  it('addEdge 缺少 source/target 时不生成无效边', () => {
+    const stagingStore = useAiStagingStore();
+    stagingStore.hydrateStagingFromPatch(
+      'msg-bad',
+      {
+        addNodes: [{ id: '9001', type: 'http', data: { name: 'A' } }],
+        addEdges: [{ id: '8001', source: '', target: '9001' }],
+      },
+      { nodes: [], edges: [] },
+    );
+
+    const { edges } = computeStagingCanvasSync(
+      createStagingCanvasSyncContext(
+        stagingStore.unitsById,
+        [{ id: '9001', type: 'http', position: { x: 0, y: 0 }, data: {} }],
+        [],
+        stagingStore.stagingByNodeId,
+        stagingStore.stagingByEdgeId,
+      ),
+    );
+    expect(edges).toHaveLength(0);
+  });
+});

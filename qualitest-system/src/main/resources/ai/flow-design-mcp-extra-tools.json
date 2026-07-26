@@ -1,0 +1,40 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "list_flows",
+      "description": "MCP 专用：按 keyword/limit 列举项目测试流摘要（不含 graphJson）。子流选型含平台模板请用 list_subflow_templates",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "按测试流名称模糊搜索；可省略"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "返回条数上限，默认 20"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_flow",
+      "description": "MCP 专用：读取单条测试流完整 graphJson。浏览拓扑优先 get_subflow_detail 或带 testFlowId 的 get_graph_summary",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；可省略，将使用请求上下文中的 testFlowId"
+          }
+        },
+        "required": []
+      }
+    }
+  }
+]

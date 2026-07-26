@@ -1,0 +1,114 @@
+{
+  "nodes": [
+    {
+      "id": "n_start",
+      "type": "assign",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "初始化",
+        "assignments": [
+          {
+            "scope": "flow",
+            "name": "code",
+            "op": "set",
+            "value": "0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "n_cond",
+      "type": "condition",
+      "position": {
+        "x": 200,
+        "y": 0
+      },
+      "data": {
+        "name": "分支",
+        "branches": [
+          {
+            "id": "b_if",
+            "kind": "if",
+            "target": "n_ok",
+            "conditions": [
+              {
+                "left": "flow.code",
+                "operator": "eq",
+                "right": "0"
+              }
+            ]
+          },
+          {
+            "id": "b_else",
+            "kind": "else",
+            "target": "n_fail",
+            "conditions": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "n_ok",
+      "type": "delay",
+      "position": {
+        "x": 400,
+        "y": -40
+      },
+      "data": {
+        "name": "成功",
+        "ms": 10
+      }
+    },
+    {
+      "id": "n_fail",
+      "type": "delay",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "data": {
+        "name": "失败",
+        "ms": 10
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "n_start",
+      "target": "n_cond"
+    },
+    {
+      "id": "e_if",
+      "source": "n_cond",
+      "target": "n_ok"
+    },
+    {
+      "id": "e_else",
+      "source": "n_cond",
+      "target": "n_fail"
+    }
+  ],
+  "meta": {
+    "viewport": {
+      "x": 40,
+      "y": 40,
+      "zoom": 1
+    },
+    "layout": "manual",
+    "startNodeId": "n_start",
+    "activeScenarioId": "sc1",
+    "scenarios": [
+      {
+        "id": "sc1",
+        "name": "默认",
+        "testProjectEnvId": "1",
+        "flowSeed": {}
+      }
+    ],
+    "flowOutputs": []
+  }
+}

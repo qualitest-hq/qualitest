@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.ai.mapper.AiChatMessageMapper">
+
+    <resultMap type="AiChatMessage" id="AiChatMessageResult">
+        <result property="aiChatMessageId" column="ai_chat_message_id"/>
+        <result property="aiChatSessionId" column="ai_chat_session_id"/>
+        <result property="messageRole" column="message_role"/>
+        <result property="aiLlmModelId" column="ai_llm_model_id"/>
+        <result property="messageContent" column="message_content"/>
+        <result property="thinkingContent" column="thinking_content"/>
+        <result property="resultMetaJson" column="result_meta_json"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectAiChatMessageVo">
+        select ai_chat_message_id,
+               ai_chat_session_id,
+               message_role,
+               ai_llm_model_id,
+               message_content,
+               thinking_content,
+               result_meta_json,
+               create_time
+        from ai_chat_message
+    </sql>
+
+    <sql id="selectAiChatMessageAliasVo">
+        select acm.ai_chat_message_id as aiChatMessageId,
+               acm.ai_chat_session_id as aiChatSessionId,
+               acm.message_role       as messageRole,
+               acm.ai_llm_model_id    as aiLlmModelId,
+               acm.message_content    as messageContent,
+               acm.thinking_content   as thinkingContent,
+               acm.result_meta_json   as resultMetaJson,
+               acm.create_time        as createTime
+        from ai_chat_message acm
+    </sql>
+
+    <select id="selectAiChatMessageList" parameterType="AiChatMessage" resultMap="AiChatMessageResult">
+        <include refid="selectAiChatMessageVo"/>
+        <where>
+            <if test="aiChatSessionId != null ">
+                and ai_chat_session_id = #{aiChatSessionId}
+            </if>
+            <if test="messageRole != null and messageRole != ''">
+                and message_role = #{messageRole}
+            </if>
+            <if test="aiLlmModelId != null ">
+                and ai_llm_model_id = #{aiLlmModelId}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAiChatMessageById" parameterType="Long" resultMap="AiChatMessageResult">
+        <include refid="selectAiChatMessageVo"/>
+        where ai_chat_message_id = #{aiChatMessageId}
+    </select>
+
+    <select id="selectAiChatMessageResultList" parameterType="AiChatMessageParams" resultType="AiChatMessageResult">
+        select
+        acm.ai_chat_message_id as aiChatMessageId,
+        acm.ai_chat_session_id as aiChatSessionId,
+        acm.message_role as messageRole,
+        acm.ai_llm_model_id as aiLlmModelId,
+        acm.message_content as messageContent,
+        acm.thinking_content as thinkingContent,
+        acm.result_meta_json as resultMetaJson,
+        acm.create_time as createTime
+        from ai_chat_message acm
+        <where>
+            <if test="aiChatSessionId != null">
+                and acm.ai_chat_session_id = #{aiChatSessionId}
+            </if>
+            <if test="messageRole != null and messageRole != ''">
+                and acm.message_role = #{messageRole}
+            </if>
+            <if test="aiLlmModelId != null">
+                and acm.ai_llm_model_id = #{aiLlmModelId}
+            </if>
+        </where>
+        order by acm.ai_chat_message_id desc
+    </select>
+
+    <select id="selectAiChatMessageResult" parameterType="Long" resultType="AiChatMessageResult">
+        select acm.ai_chat_message_id as aiChatMessageId,
+               acm.ai_chat_session_id as aiChatSessionId,
+               acm.message_role       as messageRole,
+               acm.ai_llm_model_id    as aiLlmModelId,
+               acm.message_content    as messageContent,
+               acm.thinking_content   as thinkingContent,
+               acm.result_meta_json   as resultMetaJson,
+               acm.create_time        as createTime
+        from ai_chat_message acm
+        where acm.ai_chat_message_id = #{aiChatMessageId}
+        limit 1
+    </select>
+
+    <select id="selectAiChatMessageCount" parameterType="AiChatMessageParams" resultType="int">
+        select count(1)
+        from ai_chat_message acm
+        <where>
+            <if test="aiChatSessionId != null ">
+                and acm.ai_chat_session_id = #{aiChatSessionId}
+            </if>
+            <if test="messageRole != null  and messageRole != ''">
+                and acm.message_role = #{messageRole}
+            </if>
+            <if test="aiLlmModelId != null ">
+                and acm.ai_llm_model_id = #{aiLlmModelId}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAiChatMessageOne" parameterType="AiChatMessageParams" resultMap="AiChatMessageResult">
+        select
+        acm.ai_chat_message_id,
+        acm.ai_chat_session_id,
+        acm.message_role,
+        acm.ai_llm_model_id,
+        acm.message_content,
+        acm.thinking_content,
+        acm.result_meta_json,
+        acm.create_time
+        from ai_chat_message acm
+        <where>
+            <if test="aiChatSessionId != null ">
+                and acm.ai_chat_session_id = #{aiChatSessionId}
+            </if>
+            <if test="messageRole != null  and messageRole != ''">
+                and acm.message_role = #{messageRole}
+            </if>
+            <if test="aiLlmModelId != null ">
+                and acm.ai_llm_model_id = #{aiLlmModelId}
+            </if>
+        </where>
+        order by acm.ai_chat_message_id desc
+        limit 1
+    </select>
+
+    <insert id="insertAiChatMessage" parameterType="AiChatMessage">
+        insert into ai_chat_message
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="aiChatMessageId != null">
+                ai_chat_message_id,
+            </if>
+            <if test="aiChatSessionId != null">
+                ai_chat_session_id,
+            </if>
+            <if test="messageRole != null and messageRole != ''">
+                message_role,
+            </if>
+            <if test="aiLlmModelId != null">
+                ai_llm_model_id,
+            </if>
+            <if test="messageContent != null and messageContent != ''">
+                message_content,
+            </if>
+            <if test="thinkingContent != null">
+                thinking_content,
+            </if>
+            <if test="resultMetaJson != null">
+                result_meta_json,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="aiChatMessageId != null">
+                #{aiChatMessageId},
+            </if>
+            <if test="aiChatSessionId != null">
+                #{aiChatSessionId},
+            </if>
+            <if test="messageRole != null and messageRole != ''">
+                #{messageRole},
+            </if>
+            <if test="aiLlmModelId != null">
+                #{aiLlmModelId},
+            </if>
+            <if test="messageContent != null and messageContent != ''">
+                #{messageContent},
+            </if>
+            <if test="thinkingContent != null">
+                #{thinkingContent},
+            </if>
+            <if test="resultMetaJson != null">
+                #{resultMetaJson},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateAiChatMessage" parameterType="AiChatMessage">
+        update ai_chat_message
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="aiChatSessionId != null">
+                ai_chat_session_id = #{aiChatSessionId},
+            </if>
+            <if test="messageRole != null and messageRole != ''">
+                message_role = #{messageRole},
+            </if>
+            <if test="aiLlmModelId != null">
+                ai_llm_model_id = #{aiLlmModelId},
+            </if>
+            <if test="messageContent != null and messageContent != ''">
+                message_content = #{messageContent},
+            </if>
+            <if test="thinkingContent != null">
+                thinking_content = #{thinkingContent},
+            </if>
+            <if test="resultMetaJson != null">
+                result_meta_json = #{resultMetaJson},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+        </trim>
+        where ai_chat_message_id = #{aiChatMessageId}
+    </update>
+
+    <delete id="deleteAiChatMessageById" parameterType="Long">
+        delete
+        from ai_chat_message
+        where ai_chat_message_id = #{aiChatMessageId}
+    </delete>
+
+    <delete id="deleteAiChatMessageByIdList" parameterType="java.util.List">
+        delete from ai_chat_message where ai_chat_message_id in
+        <foreach item="aiChatMessageId" collection="list" open="(" separator="," close=")">
+            #{aiChatMessageId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteAiChatMessageBySessionId" parameterType="Long">
+        delete from ai_chat_message where ai_chat_session_id = #{aiChatSessionId}
+    </delete>
+
+    <select id="selectAiChatMessageResultListBySessionAsc" parameterType="Long" resultType="AiChatMessageResult">
+        select acm.ai_chat_message_id as aiChatMessageId,
+               acm.ai_chat_session_id as aiChatSessionId,
+               acm.message_role       as messageRole,
+               acm.ai_llm_model_id    as aiLlmModelId,
+               acm.message_content    as messageContent,
+               acm.thinking_content   as thinkingContent,
+               acm.result_meta_json   as resultMetaJson,
+               acm.create_time        as createTime
+        from ai_chat_message acm
+        where acm.ai_chat_session_id = #{aiChatSessionId}
+        order by acm.create_time asc, acm.ai_chat_message_id asc
+    </select>
+
+    <select id="selectAiChatMessageResultPageBySession" resultType="AiChatMessageResult">
+        select sub.aiChatMessageId,
+               sub.aiChatSessionId,
+               sub.messageRole,
+               sub.aiLlmModelId,
+               sub.messageContent,
+               sub.thinkingContent,
+               sub.resultMetaJson,
+               sub.createTime
+        from (
+            select acm.ai_chat_message_id as aiChatMessageId,
+                   acm.ai_chat_session_id as aiChatSessionId,
+                   acm.message_role       as messageRole,
+                   acm.ai_llm_model_id    as aiLlmModelId,
+                   acm.message_content    as messageContent,
+                   acm.thinking_content   as thinkingContent,
+                   acm.result_meta_json   as resultMetaJson,
+                   acm.create_time        as createTime
+            from ai_chat_message acm
+            where acm.ai_chat_session_id = #{aiChatSessionId}
+            <if test="beforeMessageId != null">
+                and acm.ai_chat_message_id &lt; #{beforeMessageId}
+            </if>
+            order by acm.ai_chat_message_id desc
+            limit #{limit}
+        ) sub
+        order by sub.aiChatMessageId asc
+    </select>
+
+    <select id="countAiChatMessageBySessionId" parameterType="Long" resultType="int">
+        select count(1)
+        from ai_chat_message acm
+        where acm.ai_chat_session_id = #{aiChatSessionId}
+    </select>
+
+    <select id="countAiChatMessageBeforeId" resultType="int">
+        select count(1)
+        from ai_chat_message acm
+        where acm.ai_chat_session_id = #{aiChatSessionId}
+          and acm.ai_chat_message_id &lt; #{beforeMessageId}
+    </select>
+</mapper>

@@ -1,0 +1,271 @@
+package com.qualitest.ai.scenario.flow;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.flow.http.FlowHttpCallMode;
+import com.qualitest.flow.http.FlowHttpNodePathSupport;
+import com.qualitest.flow.http.HttpNodeRequestValueOverridesSupport;
+import com.qualitest.flow.http.SuccessCheckResolver;
+import com.qualitest.project.domain.TestProjectApi;
+import com.qualitest.project.support.ResponseConventionSupport;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * AI 设计 patch 落盘前，规范化 HTTP 节点 data。
+ * <p>
+ * project 模式：
+ * <ul>
+ *   <li>测值写入 requestValueOverrides（只保留相对资产默认不同的项）</li>
+ *   <li>删除整份 requestConfig、临时 requestBody、apiPath</li>
+ *   <li>必要时从 API 补全 httpMethod</li>
+ * </ul>
+ * 另处理 extracts 路径规范化、successCheck 默认 mode。
+ * external 模式只处理 extracts 与 successCheck。
+ */
+public final class FlowDesignHttpNodeNormalizer {
+
+    /**
+     * 业务响应根字段名。
+     * 给浅路径补 data 前缀时跳过这些字段，避免把 code / msg / data 误改成 data.xxx。
+     */
+    private static final Set<String> ROOT_CONVENTION_FIELDS = Set.of(
+            ResponseConventionSupport.DEFAULT_CODE_PATH,
+            ResponseConventionSupport.DEFAULT_MESSAGE_PATH,
+            ResponseConventionSupport.DEFAULT_DATA_PATH
+    );
+
+    private FlowDesignHttpNodeNormalizer() {
+    }
+
+    /**
+     * 规范化 HTTP 节点 data（就地修改）。
+     *
+     * @param data 节点 data
+     * @param api  已绑定的项目接口；未绑定或外联时为 null
+     */
+    public static void normalize(Map<String, Object> data, TestProjectApi api) {
+        if (data == null) {
+            return;
+        }
+        normalizeExtracts(data);
+        ensureSuccessCheckDefault(data);
+
+        String callMode = data.get("callMode") != null ? String.valueOf(data.get("callMode")).trim() : "";
+        if (FlowHttpCallMode.isExternal(callMode)) {
+            return;
+        }
+        if (!FlowHttpCallMode.isProject(callMode) && data.get("testProjectApiId") == null) {
+            return;
+        }
+
+        syncHttpMethodFromApi(data, api);
+
+        JSONObject overrides = HttpNodeRequestValueOverridesSupport.buildDiffOverrides(
+                data.get("requestValueOverrides"),
+                data.get("requestConfig"),
+                data.get("requestBody"),
+                api);
+        Map<String, Object> persist = HttpNodeRequestValueOverridesSupport.toPersistMap(overrides);
+        if (persist != null) {
+            data.put("requestValueOverrides", persist);
+        } else {
+            data.remove("requestValueOverrides");
+        }
+
+        data.remove("requestConfig");
+        data.remove("requestBody");
+        FlowHttpNodePathSupport.stripNodeApiPath(data);
+    }
+
+    /**
+     * 节点未写 httpMethod 时，从 API 的 requestConfig.method 补上。
+     */
+    private static void syncHttpMethodFromApi(Map<String, Object> data, TestProjectApi api) {
+        Object existing = data.get("httpMethod");
+        if (existing != null && !String.valueOf(existing).isBlank()) {
+            data.put("httpMethod", String.valueOf(existing).trim().toUpperCase(Locale.ROOT));
+            return;
+        }
+        if (api == null || api.getRequestConfig() == null || api.getRequestConfig().isBlank()) {
+            return;
+        }
+        try {
+            JSONObject rc = JSON.parseObject(api.getRequestConfig());
+            if (rc == null) {
+                return;
+            }
+            String method = rc.getString("method");
+            if (method != null && !method.isBlank()) {
+                data.put("httpMethod", method.trim().toUpperCase(Locale.ROOT));
+            }
+        } catch (Exception ignored) {
+            // keep unset
+        }
+    }
+
+    /**
+     * 为缺失的 successCheck 写入默认 mode：
+     * project → inherit（按项目约定校验业务码）；external → off（不校验）。
+     * 节点已配置 mode 时不覆盖。
+     */
+    static void ensureSuccessCheckDefault(Map<String, Object> data) {
+        if (data == null) {
+            return;
+        }
+        Object existing = data.get("successCheck");
+        if (existing instanceof Map<?, ?> map && map.get("mode") != null
+                && !String.valueOf(map.get("mode")).isBlank()) {
+            return;
+        }
+        String callMode = data.get("callMode") != null ? String.valueOf(data.get("callMode")).trim() : "";
+        String mode = FlowHttpCallMode.isExternal(callMode)
+                ? SuccessCheckResolver.MODE_OFF
+                : SuccessCheckResolver.MODE_INHERIT;
+        Map<String, Object> successCheck = new LinkedHashMap<>();
+        successCheck.put("mode", mode);
+        data.put("successCheck", successCheck);
+    }
+
+    /**
+     * 规范化 extracts 列表：补全 from/scope/name，把旧字段 value/path 转成 expr，
+     * 并给单段浅路径补上 data 前缀。语义健康检查比对抽取路径前也会调用。
+     */
+    public static void normalizeExtracts(Map<String, Object> data) {
+        Object raw = data.get("extracts");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return;
+        }
+        JSONArray normalized = new JSONArray();
+        for (Object item : list) {
+            JSONObject row = toJsonObject(item);
+            if (row == null) {
+                continue;
+            }
+            JSONObject next = normalizeExtractRow(row);
+            if (next != null) {
+                normalized.add(next);
+            }
+        }
+        if (!normalized.isEmpty()) {
+            data.put("extracts", normalized);
+        }
+    }
+
+    private static JSONObject normalizeExtractRow(JSONObject row) {
+        String name = defaultString(row.getString("name"), row.getString("entryKey"));
+        String expr = row.getString("expr");
+        if (expr == null || expr.isBlank()) {
+            Object legacy = row.get("value");
+            if (legacy == null) {
+                legacy = row.get("path");
+            }
+            if (legacy != null && !String.valueOf(legacy).isBlank()) {
+                expr = convertLegacyExtractExpr(String.valueOf(legacy));
+            }
+        } else {
+            expr = convertLegacyExtractExpr(expr);
+        }
+        if (name == null || name.isBlank() || expr == null || expr.isBlank()) {
+            return null;
+        }
+        expr = ensureDataPathPrefix(expr);
+        JSONObject next = new JSONObject();
+        next.put("from", defaultString(row.getString("from"), "body"));
+        next.put("expr", expr);
+        next.put("scope", defaultString(row.getString("scope"), "flow"));
+        next.put("name", name.trim());
+        String entryKey = row.getString("entryKey");
+        if (entryKey != null) {
+            next.put("entryKey", entryKey);
+        }
+        String fieldPath = row.getString("fieldPath");
+        if (fieldPath != null) {
+            next.put("fieldPath", fieldPath);
+        }
+        return next;
+    }
+
+    /**
+     * 将旧式提取路径转为 $.a.b 形式。
+     */
+    static String convertLegacyExtractExpr(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String text = raw.trim();
+        if (text.isEmpty()) {
+            return "";
+        }
+        if (text.startsWith("$.")) {
+            return text;
+        }
+        if (text.startsWith("http.body.")) {
+            return "$." + text.substring("http.body.".length());
+        }
+        if (text.startsWith("responses.")) {
+            return "$." + text.substring("responses.".length());
+        }
+        if (text.startsWith("response.")) {
+            return "$." + text.substring("response.".length());
+        }
+        if (text.startsWith("body.")) {
+            return "$." + text.substring("body.".length());
+        }
+        if (!text.startsWith("$") && !text.contains("{{")) {
+            return "$." + text;
+        }
+        return text;
+    }
+
+    /**
+     * 单段浅路径补 $.data. 前缀。
+     */
+    static String ensureDataPathPrefix(String expr) {
+        if (expr == null || expr.isBlank()) {
+            return expr;
+        }
+        String text = expr.trim();
+        if (!text.startsWith("$.")) {
+            return text;
+        }
+        String rest = text.substring(2);
+        if (rest.isEmpty() || rest.contains(".")) {
+            return text;
+        }
+        if (ROOT_CONVENTION_FIELDS.contains(rest)) {
+            return text;
+        }
+        String dataPath = ResponseConventionSupport.DEFAULT_DATA_PATH;
+        if (rest.equals(dataPath)) {
+            return text;
+        }
+        return "$." + dataPath + "." + rest;
+    }
+
+    private static JSONObject toJsonObject(Object raw) {
+        if (raw instanceof JSONObject obj) {
+            return obj;
+        }
+        if (raw instanceof Map<?, ?> map) {
+            return new JSONObject(map);
+        }
+        if (raw instanceof String text && !text.isBlank()) {
+            try {
+                return JSON.parseObject(text);
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static String defaultString(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+}

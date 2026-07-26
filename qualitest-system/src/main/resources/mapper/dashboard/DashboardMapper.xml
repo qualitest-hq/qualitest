@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.dashboard.mapper.DashboardMapper">
+
+    <sql id="memberProjectFilter">
+        <if test="memberUserId != null">
+            and exists (
+                select 1
+                from test_project_member tpm
+                where tpm.test_project_id = tp.test_project_id
+                  and tpm.user_id = #{memberUserId}
+            )
+        </if>
+    </sql>
+
+    <select id="countProjects" parameterType="DashboardParams" resultType="long">
+        select count(distinct tp.test_project_id)
+        from test_project tp
+        where tp.del_status = 0
+        <include refid="memberProjectFilter"/>
+    </select>
+
+    <select id="countFlows" parameterType="DashboardParams" resultType="long">
+        select count(distinct tf.test_flow_id)
+        from test_flow tf
+                 inner join test_project tp on tf.test_project_id = tp.test_project_id
+        where tf.del_status = 0
+          and tp.del_status = 0
+        <include refid="memberProjectFilter"/>
+    </select>
+
+    <select id="countApis" parameterType="DashboardParams" resultType="long">
+        select count(distinct tpa.test_project_api_id)
+        from test_project_api tpa
+                 inner join test_project tp on tpa.test_project_id = tp.test_project_id
+        where tpa.del_status = 0
+          and tp.del_status = 0
+        <include refid="memberProjectFilter"/>
+    </select>
+
+    <select id="countRuns" parameterType="DashboardParams" resultType="long">
+        select count(distinct tfr.test_flow_run_id)
+        from test_flow_run tfr
+                 inner join test_flow tf on tfr.test_flow_id = tf.test_flow_id
+                 inner join test_project tp on tf.test_project_id = tp.test_project_id
+        where tfr.del_status = 0
+          and tf.del_status = 0
+          and tp.del_status = 0
+        <include refid="memberProjectFilter"/>
+    </select>
+
+    <select id="selectRecentProjects" parameterType="DashboardParams" resultType="TestProjectResult">
+        select tp.test_project_id    as testProjectId,
+               tp.project_name       as projectName,
+               tp.last_api_sync_time as lastApiSyncTime,
+               tp.api_count          as apiCount,
+               tp.owner_id           as ownerId,
+               su.nick_name          as ownerName,
+               tp.update_time        as updateTime
+        from test_project tp
+                 left join sys_user su on tp.owner_id = su.user_id
+        where tp.del_status = 0
+        <include refid="memberProjectFilter"/>
+        order by tp.update_time desc, tp.test_project_id desc
+        limit 5
+    </select>
+
+    <select id="selectRecentRuns" parameterType="DashboardParams" resultType="DashboardRecentRunResult">
+        select tfr.test_flow_run_id as testFlowRunId,
+               tfr.test_flow_id     as testFlowId,
+               tf.test_project_id   as testProjectId,
+               tf.flow_name         as flowName,
+               tp.project_name      as projectName,
+               tfr.status           as status,
+               tfr.started_at       as startedAt,
+               tfr.finished_at      as finishedAt,
+               tfr.duration_ms      as durationMs,
+               tfr.trigger_type     as triggerType
+        from test_flow_run tfr
+                 inner join test_flow tf on tfr.test_flow_id = tf.test_flow_id
+                 inner join test_project tp on tf.test_project_id = tp.test_project_id
+        where tfr.del_status = 0
+          and tf.del_status = 0
+          and tp.del_status = 0
+        <include refid="memberProjectFilter"/>
+        order by tfr.started_at desc, tfr.test_flow_run_id desc
+        limit 10
+    </select>
+
+    <select id="selectRunTrend" parameterType="DashboardParams" resultType="DashboardRunTrendItem">
+        select date_format(tfr.started_at, '%Y-%m-%d')                         as date,
+               sum(case when tfr.status = 'passed' then 1 else 0 end)          as passed,
+               sum(case when tfr.status = 'failed' then 1 else 0 end)          as failed,
+               sum(case when tfr.status = 'cancelled' then 1 else 0 end)       as cancelled,
+               count(1)                                                        as total
+        from test_flow_run tfr
+                 inner join test_flow tf on tfr.test_flow_id = tf.test_flow_id
+                 inner join test_project tp on tf.test_project_id = tp.test_project_id
+        where tfr.del_status = 0
+          and tf.del_status = 0
+          and tp.del_status = 0
+          and tfr.started_at is not null
+          and tfr.started_at &gt;= date_sub(curdate(), interval 6 day)
+        <include refid="memberProjectFilter"/>
+        group by date_format(tfr.started_at, '%Y-%m-%d')
+        order by date asc
+    </select>
+
+    <select id="selectRecentRunStatusCount" parameterType="DashboardParams" resultType="DashboardRunStatusCount">
+        select sum(case when tfr.status = 'passed' then 1 else 0 end) as passedCount,
+               sum(case when tfr.status in ('passed', 'failed', 'cancelled') then 1 else 0 end) as finishedCount
+        from test_flow_run tfr
+                 inner join test_flow tf on tfr.test_flow_id = tf.test_flow_id
+                 inner join test_project tp on tf.test_project_id = tp.test_project_id
+        where tfr.del_status = 0
+          and tf.del_status = 0
+          and tp.del_status = 0
+          and tfr.started_at is not null
+          and tfr.started_at &gt;= date_sub(curdate(), interval 6 day)
+        <include refid="memberProjectFilter"/>
+    </select>
+
+    <!-- 仍有 API 语义告警的测试流总数（可见项目范围内） -->
+    <select id="countApiHealthAttention" parameterType="DashboardParams" resultType="long">
+        select count(distinct tf.test_flow_id)
+        from test_flow tf
+                 inner join test_project tp on tf.test_project_id = tp.test_project_id
+        where tf.del_status = 0
+          and tp.del_status = 0
+          and tf.api_health_warning_count &gt; 0
+        <include refid="memberProjectFilter"/>
+    </select>
+
+    <!-- 待关注流摘要：读 api_health_*，按告警数/检查时间排序，最多 20 条 -->
+    <select id="selectApiHealthAttention" parameterType="DashboardParams"
+            resultType="DashboardApiHealthAttentionItem">
+        select tf.test_project_id           as testProjectId,
+               tp.project_name              as projectName,
+               tf.test_flow_id              as testFlowId,
+               tf.flow_name                 as flowName,
+               tf.api_health_warning_count  as warningCount,
+               tf.api_health_warning_codes  as warningCodes,
+               tf.api_health_checked_at     as checkedAt
+        from test_flow tf
+                 inner join test_project tp on tf.test_project_id = tp.test_project_id
+        where tf.del_status = 0
+          and tp.del_status = 0
+          and tf.api_health_warning_count &gt; 0
+        <include refid="memberProjectFilter"/>
+        order by tf.api_health_warning_count desc,
+                 tf.api_health_checked_at desc,
+                 tf.test_flow_id desc
+        limit 20
+    </select>
+
+</mapper>

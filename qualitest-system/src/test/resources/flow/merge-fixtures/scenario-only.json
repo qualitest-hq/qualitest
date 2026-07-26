@@ -1,0 +1,48 @@
+{
+  "description": "仅切换默认运行场景",
+  "baseGraph": {
+    "nodes": [
+      {
+        "id": "1001",
+        "type": "http",
+        "position": { "x": 40, "y": 80 },
+        "data": {
+          "name": "登录",
+          "callMode": "external",
+          "externalUrl": "https://example.com/login",
+          "httpMethod": "POST"
+        }
+      }
+    ],
+    "edges": [],
+    "meta": {
+      "viewport": { "x": 0, "y": 0, "zoom": 1 },
+      "layout": "manual",
+      "startNodeId": "1001",
+      "activeScenarioId": "sc1",
+      "scenarios": [
+        {
+          "id": "sc1",
+          "name": "默认",
+          "testProjectEnvId": "",
+          "flowSeed": {}
+        },
+        {
+          "id": "sc2",
+          "name": "回归",
+          "testProjectEnvId": "",
+          "flowSeed": {}
+        }
+      ],
+      "flowOutputs": []
+    }
+  },
+  "patch": {
+    "scenarioPatch": {
+      "activeScenarioId": "sc2"
+    }
+  },
+  "acceptedIds": ["scenario:activeScenarioId"],
+  "expectOk": true,
+  "expectActiveScenarioId": "sc2"
+}

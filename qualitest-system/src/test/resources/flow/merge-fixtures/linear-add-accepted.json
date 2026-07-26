@@ -1,0 +1,53 @@
+{
+  "description": "线性新增：单节点画布 + patch 新增节点与连线",
+  "baseGraph": {
+    "nodes": [
+      {
+        "id": "1001",
+        "type": "http",
+        "position": { "x": 40, "y": 80 },
+        "data": {
+          "name": "登录",
+          "callMode": "external",
+          "externalUrl": "https://example.com/login",
+          "httpMethod": "POST"
+        }
+      }
+    ],
+    "edges": [],
+    "meta": {
+      "viewport": { "x": 0, "y": 0, "zoom": 1 },
+      "layout": "manual",
+      "startNodeId": "1001",
+      "activeScenarioId": "sc1",
+      "scenarios": [
+        {
+          "id": "sc1",
+          "name": "默认",
+          "testProjectEnvId": "",
+          "flowSeed": {}
+        }
+      ],
+      "flowOutputs": []
+    }
+  },
+  "patch": {
+    "addNodes": [
+      {
+        "id": "9001",
+        "type": "http",
+        "data": {
+          "name": "下一步",
+          "callMode": "external",
+          "externalUrl": "https://example.com/next",
+          "httpMethod": "GET"
+        }
+      }
+    ],
+    "addEdges": [
+      { "id": "8001", "source": "1001", "target": "9001" }
+    ]
+  },
+  "acceptedIds": ["addNode:9001", "addEdge:8001"],
+  "expectOk": true
+}

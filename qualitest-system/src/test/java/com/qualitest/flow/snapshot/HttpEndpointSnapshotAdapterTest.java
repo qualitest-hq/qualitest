@@ -1,0 +1,76 @@
+package com.qualitest.flow.snapshot;
+
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+
+class HttpEndpointSnapshotAdapterTest {
+
+    private MockWebServer server;
+    private HttpEndpointSnapshotAdapter adapter;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        server = new MockWebServer();
+        server.start();
+        adapter = new HttpEndpointSnapshotAdapter();
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        server.shutdown();
+    }
+
+    @Test
+    void snapshot_postsContractAndParsesResponse() throws Exception {
+        server.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"snapshotId\":\"snap-abc\",\"createdAt\":\"2026-07-01T00:00:00Z\","
+                        + "\"scope\":\"tables\",\"status\":\"ready\"}"));
+
+        String base = server.url("/test-support").toString().replaceAll("/$", "");
+        SnapshotRef ref = adapter.snapshot(SnapshotRequest.builder()
+                .resetEndpointBase(base)
+                .scope("tables")
+                .tables(List.of("mall_order"))
+                .label("run-1:node-1")
+                .meta(Map.of("env", "test"))
+                .timeoutMs(5_000L)
+                .build());
+
+        assertEquals("snap-abc", ref.getSnapshotId());
+        assertEquals("ready", ref.getStatus());
+
+        RecordedRequest request = server.takeRequest();
+        assertEquals("/test-support/snapshot", request.getPath());
+        assertEquals("POST", request.getMethod());
+        String body = request.getBody().readUtf8();
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("\"scope\":\"tables\""));
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("mall_order"));
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("run-1:node-1"));
+    }
+
+    @Test
+    void restore_postsSnapshotId_andIsIdempotent() {
+        server.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"snapshotId\":\"snap-abc\",\"status\":\"restored\"}"));
+        server.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"snapshotId\":\"snap-abc\",\"status\":\"restored\"}"));
+
+        String base = server.url("/test-support").toString().replaceAll("/$", "");
+        assertDoesNotThrow(() -> adapter.restore(base, "snap-abc", 5_000L));
+        assertDoesNotThrow(() -> adapter.restore(base, "snap-abc", 5_000L));
+        assertEquals(2, server.getRequestCount());
+    }
+}

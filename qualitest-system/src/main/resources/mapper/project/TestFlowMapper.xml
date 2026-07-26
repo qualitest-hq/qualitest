@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestFlowMapper">
+
+    <resultMap type="TestFlow" id="TestFlowResult">
+        <result property="testFlowId" column="test_flow_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="flowName" column="flow_name"/>
+        <result property="flowDescription" column="flow_description"/>
+        <result property="graphJson" column="graph_json"/>
+        <result property="apiHealthWarningCount" column="api_health_warning_count"/>
+        <result property="apiHealthCheckedAt" column="api_health_checked_at"/>
+        <result property="apiHealthWarningCodes" column="api_health_warning_codes"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestFlowVo">
+        select test_flow_id,
+               test_project_id,
+               flow_name,
+               flow_description,
+               graph_json,
+               api_health_warning_count,
+               api_health_checked_at,
+               api_health_warning_codes,
+               del_status,
+               create_time,
+               update_time
+        from test_flow
+    </sql>
+
+    <sql id="selectTestFlowAliasVo">
+        select tf.test_flow_id              as testFlowId,
+               tf.test_project_id           as testProjectId,
+               tf.flow_name                 as flowName,
+               tf.flow_description          as flowDescription,
+               tf.graph_json                as graphJson,
+               tf.api_health_warning_count  as apiHealthWarningCount,
+               tf.api_health_checked_at     as apiHealthCheckedAt,
+               tf.api_health_warning_codes  as apiHealthWarningCodes,
+               tf.del_status                as delStatus,
+               tf.create_time               as createTime,
+               tf.update_time               as updateTime
+        from test_flow tf
+    </sql>
+
+    <select id="selectTestFlowList" parameterType="TestFlow" resultMap="TestFlowResult">
+        <include refid="selectTestFlowVo"/>
+        <where>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="flowName != null and flowName != ''">
+                and flow_name = #{flowName}
+            </if>
+            <if test="delStatus != null">
+                and del_status = #{delStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestFlowById" parameterType="Long" resultMap="TestFlowResult">
+        <include refid="selectTestFlowVo"/>
+        where test_flow_id = #{testFlowId}
+    </select>
+
+    <select id="selectTestFlowResultList" parameterType="TestFlowParams" resultType="TestFlowResult">
+        select
+        tf.test_flow_id as testFlowId,
+        tf.test_project_id as testProjectId,
+        tf.flow_name as flowName,
+        tf.flow_description as flowDescription,
+        tf.graph_json as graphJson,
+        tf.api_health_warning_count as apiHealthWarningCount,
+        tf.api_health_checked_at as apiHealthCheckedAt,
+        tf.api_health_warning_codes as apiHealthWarningCodes,
+        tf.del_status as delStatus,
+        tf.create_time as createTime,
+        tf.update_time as updateTime
+        from test_flow tf
+        where tf.del_status = 0
+        <if test="testProjectId != null">
+            and tf.test_project_id = #{testProjectId}
+        </if>
+        <if test="flowName != null and flowName != ''">
+            and tf.flow_name like concat('%', #{flowName}, '%')
+        </if>
+        order by tf.test_flow_id desc
+    </select>
+
+    <select id="selectTestFlowResult" parameterType="Long" resultType="TestFlowResult">
+        select tf.test_flow_id     as testFlowId,
+               tf.test_project_id  as testProjectId,
+               tf.flow_name        as flowName,
+               tf.flow_description as flowDescription,
+               tf.graph_json       as graphJson,
+               tf.api_health_warning_count as apiHealthWarningCount,
+               tf.api_health_checked_at as apiHealthCheckedAt,
+               tf.api_health_warning_codes as apiHealthWarningCodes,
+               tf.del_status       as delStatus,
+               tf.create_time      as createTime,
+               tf.update_time      as updateTime
+        from test_flow tf
+        where tf.del_status = 0
+          and tf.test_flow_id = #{testFlowId}
+        limit 1
+    </select>
+
+    <select id="selectTestFlowCount" parameterType="TestFlowParams" resultType="int">
+        select count(1)
+        from test_flow tf
+        where tf.del_status = 0
+        <if test="testProjectId != null ">
+            and tf.test_project_id = #{testProjectId}
+        </if>
+        <if test="flowName != null  and flowName != ''">
+            and tf.flow_name like concat('%', #{flowName}, '%')
+        </if>
+    </select>
+
+    <select id="selectTestFlowOne" parameterType="TestFlowParams" resultMap="TestFlowResult">
+        select
+        tf.test_flow_id,
+        tf.test_project_id,
+        tf.flow_name,
+        tf.flow_description,
+        tf.graph_json,
+        tf.api_health_warning_count,
+        tf.api_health_checked_at,
+        tf.api_health_warning_codes,
+        tf.del_status,
+        tf.create_time,
+        tf.update_time
+        from test_flow tf
+        where tf.del_status = 0
+        <if test="testProjectId != null ">
+            and tf.test_project_id = #{testProjectId}
+        </if>
+        <if test="flowName != null  and flowName != ''">
+            and tf.flow_name like concat('%', #{flowName}, '%')
+        </if>
+        order by tf.test_flow_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestFlow" parameterType="TestFlow">
+        insert into test_flow
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testFlowId != null">
+                test_flow_id,
+            </if>
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="flowName != null and flowName != ''">
+                flow_name,
+            </if>
+            <if test="flowDescription != null">
+                flow_description,
+            </if>
+            <if test="graphJson != null and graphJson != ''">
+                graph_json,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testFlowId != null">
+                #{testFlowId},
+            </if>
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="flowName != null and flowName != ''">
+                #{flowName},
+            </if>
+            <if test="flowDescription != null">
+                #{flowDescription},
+            </if>
+            <if test="graphJson != null and graphJson != ''">
+                #{graphJson},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestFlow" parameterType="TestFlow">
+        update test_flow
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="flowName != null and flowName != ''">
+                flow_name = #{flowName},
+            </if>
+            <if test="flowDescription != null">
+                flow_description = #{flowDescription},
+            </if>
+            <if test="graphJson != null and graphJson != ''">
+                graph_json = #{graphJson},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="updateBy != null and updateBy != ''">
+                update_by = #{updateBy},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_flow_id = #{testFlowId}
+    </update>
+
+    <update id="updateApiHealthFields" parameterType="TestFlow">
+        <!-- 只更新 API 语义健康三字段，不动业务列 -->
+        update test_flow
+        set api_health_warning_count = #{apiHealthWarningCount},
+            api_health_checked_at    = #{apiHealthCheckedAt},
+            api_health_warning_codes = #{apiHealthWarningCodes}
+        where test_flow_id = #{testFlowId}
+    </update>
+
+    <delete id="deleteTestFlowById" parameterType="Long">
+        delete
+        from test_flow
+        where test_flow_id = #{testFlowId}
+    </delete>
+
+    <delete id="deleteTestFlowByIdList" parameterType="java.util.List">
+        delete from test_flow where test_flow_id in
+        <foreach item="testFlowId" collection="list" open="(" separator="," close=")">
+            #{testFlowId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestFlowById" parameterType="Long">
+        update test_flow
+        set del_status = 1
+        where test_flow_id = #{testFlowId}
+    </update>
+
+    <update id="logicDeleteTestFlowByIdList" parameterType="java.util.List">
+        update test_flow set del_status = 1 where test_flow_id in
+        <foreach item="testFlowId" collection="list" open="(" separator="," close=")">
+            #{testFlowId}
+        </foreach>
+    </update>
+</mapper>

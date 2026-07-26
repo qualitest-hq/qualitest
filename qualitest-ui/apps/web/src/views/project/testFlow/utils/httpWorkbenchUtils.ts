@@ -1,0 +1,392 @@
+/**
+ * HTTP 节点请求配置工作台。
+ * <p>
+ * 编辑时展示「API 有效请求 ⊕ 节点测值覆盖」的完整样子；
+ * 保存时只把相对资产默认不同的测值写入 requestValueOverrides，
+ * 不写整份 requestConfig，也不写 apiPath（路径只读展示资产路径）。
+ */
+import { REQUEST_CONFIG_VERSION } from '@/views/project/testProject/utils/apiConfigV2Constants'
+import {
+  emptyKVRow,
+  ensureBodyShape,
+  ensureTrailingEmptyRow,
+  headersCookiesToRows,
+  parseFlexibleJson,
+} from '@/views/project/testProject/utils/apiDetailRequestWorkbench'
+import { isUrlencodedBodyMode } from '@/views/project/testProject/utils/bodyModeUtils'
+import { HTTP_METHODS } from '@/views/project/testProject/utils/httpMethodMeta'
+
+export { emptyKVRow, ensureBodyShape, ensureTrailingEmptyRow, HTTP_METHODS };
+
+export type KvRow = ReturnType<typeof emptyKVRow>;
+
+/** 规范化 KV 行：补默认字段，并保证末尾有空行便于继续填写 */
+export function normalizeKvRows(rows: KvRow[] | undefined): KvRow[] {
+  if (!Array.isArray(rows) || !rows.length) return [emptyKVRow()];
+  const out = rows.map((r) => ({ ...emptyKVRow(), ...r, _enabled: r._enabled !== false }));
+  ensureTrailingEmptyRow(out);
+  return out;
+}
+
+/** 统计已启用且名称或值非空的 KV 行数 */
+export function countFilledRows(rows: KvRow[] | undefined) {
+  return (rows || []).filter(
+    (r) => r._enabled !== false && (String(r.name || '').trim() || String(r.value || '').trim()),
+  ).length;
+}
+
+/** 配置弹窗编辑草稿：内存里是完整有效请求，落盘时再差分 */
+export interface HttpWorkbenchDraft {
+  testProjectApiId: string;
+  apiName: string;
+  /** 仅展示用，来自 API 资产；保存时不写回节点 */
+  apiPath: string;
+  requestConfig: {
+    configVersion: number;
+    method: string;
+    queryParams: KvRow[];
+    pathParams: KvRow[];
+    body: ReturnType<typeof ensureBodyShape>;
+  };
+  headerRows: KvRow[];
+  cookieRows: KvRow[];
+}
+
+/** 节点上保存的测值覆盖 */
+export interface RequestValueOverrides {
+  /** 按参数名覆盖 query / path 等 value */
+  paramDefaults?: Record<string, unknown>;
+  /** 覆盖 JSON body 测值 */
+  bodyExample?: unknown;
+}
+
+/** 从 API 详情构建编辑草稿（详情里的 requestConfig 已是有效配置） */
+export function buildWorkbenchFromApiDetail(apiDetail: Record<string, unknown> | null): HttpWorkbenchDraft {
+  if (!apiDetail) {
+    return {
+      testProjectApiId: '',
+      apiName: '',
+      apiPath: '',
+      requestConfig: {
+        configVersion: REQUEST_CONFIG_VERSION,
+        method: 'GET',
+        queryParams: [emptyKVRow()],
+        pathParams: [emptyKVRow()],
+        body: ensureBodyShape(null),
+      },
+      headerRows: [emptyKVRow()],
+      cookieRows: [emptyKVRow()],
+    };
+  }
+  const rc = (parseFlexibleJson(apiDetail.requestConfig) as Record<string, unknown>) || {};
+  return {
+    testProjectApiId: String(apiDetail.testProjectApiId ?? ''),
+    apiName: String(apiDetail.apiName ?? ''),
+    apiPath: String(apiDetail.apiPath ?? ''),
+    requestConfig: {
+      configVersion: REQUEST_CONFIG_VERSION,
+      method: String(rc.method || 'GET').toUpperCase(),
+      queryParams: normalizeKvRows(rc.queryParams as KvRow[]),
+      pathParams: normalizeKvRows(rc.pathParams as KvRow[]),
+      body: ensureBodyShape(rc.body as Record<string, unknown> | null | undefined),
+    },
+    headerRows: headersCookiesToRows(apiDetail.headers as string),
+    cookieRows: headersCookiesToRows(apiDetail.cookies as string),
+  };
+}
+
+/**
+ * 把 requestValueOverrides 叠到草稿：按 name 改参数 value，并写 body example。
+ */
+export function applyRequestValueOverridesToWorkbench(
+  draft: HttpWorkbenchDraft,
+  overrides: RequestValueOverrides | null | undefined,
+) {
+  if (!overrides || typeof overrides !== 'object') return;
+  const params = overrides.paramDefaults;
+  if (params && typeof params === 'object') {
+    applyParamDefaultsToRows(draft.requestConfig.queryParams, params);
+    applyParamDefaultsToRows(draft.requestConfig.pathParams, params);
+  }
+  if (Object.prototype.hasOwnProperty.call(overrides, 'bodyExample')) {
+    applyBodyExampleToDraft(draft, overrides.bodyExample);
+  }
+}
+
+/** 按参数名把 defaults 写进 KV 行；没有对应行则追加 */
+function applyParamDefaultsToRows(rows: KvRow[], params: Record<string, unknown>) {
+  for (const [name, value] of Object.entries(params)) {
+    if (!name) continue;
+    const row = rows.find((r) => String(r.name || '').trim() === name);
+    if (row) {
+      row.value = value as string;
+      row._enabled = true;
+    } else {
+      rows.push({
+        ...emptyKVRow(),
+        name,
+        value: value as string,
+        _enabled: true,
+      });
+    }
+  }
+  ensureTrailingEmptyRow(rows);
+}
+
+/** 把 bodyExample 写入草稿 JSON body */
+export function applyBodyExampleToDraft(draft: HttpWorkbenchDraft, bodyExample: unknown) {
+  const body = ensureBodyShape(draft.requestConfig.body) as Record<string, unknown> & {
+    mode?: string;
+    json?: { example?: unknown; schema?: unknown };
+  };
+  if (!body.mode || body.mode === 'none') body.mode = 'json';
+  if (body.mode === 'json') {
+    body.json = {
+      ...(body.json || { example: '', schema: null }),
+      example: bodyExample as string | Record<string, unknown> | unknown[],
+    };
+    draft.requestConfig.body = body as HttpWorkbenchDraft['requestConfig']['body'];
+  }
+}
+
+/** 临时 requestBody 字符串写入草稿 body example（能 parse 则存对象） */
+export function applyRequestBodyTextToDraft(draft: HttpWorkbenchDraft, requestBody: unknown) {
+  if (requestBody == null || !String(requestBody).trim()) return;
+  const bodyText = String(requestBody).trim();
+  try {
+    applyBodyExampleToDraft(draft, JSON.parse(bodyText));
+  } catch {
+    applyBodyExampleToDraft(draft, bodyText);
+  }
+}
+
+/**
+ * 用 API 有效配置 + 节点 data 拼编辑草稿。
+ * 路径用资产；测值叠 requestValueOverrides；若仍有旧版 requestConfig 则先叠其 value。
+ */
+export function buildWorkbenchFromApiAndNode(
+  apiDetail: Record<string, unknown> | null,
+  nodeData: Record<string, unknown>,
+): HttpWorkbenchDraft {
+  const draft = buildWorkbenchFromApiDetail(apiDetail);
+  if (!nodeData?.testProjectApiId && !draft.testProjectApiId) {
+    return draft;
+  }
+  if (nodeData.testProjectApiId) {
+    draft.testProjectApiId = String(nodeData.testProjectApiId);
+  }
+  if (nodeData.apiName) draft.apiName = String(nodeData.apiName);
+  if (nodeData.httpMethod) {
+    draft.requestConfig.method = String(nodeData.httpMethod).toUpperCase();
+  }
+
+  if (nodeData.requestConfig && typeof nodeData.requestConfig === 'object') {
+    mergeThickConfigValues(draft, nodeData.requestConfig as Record<string, unknown>);
+  }
+
+  applyRequestValueOverridesToWorkbench(
+    draft,
+    (nodeData.requestValueOverrides as RequestValueOverrides) || null,
+  );
+
+  if (Array.isArray(nodeData.headers) && nodeData.headers.length) {
+    draft.headerRows = normalizeKvRows(nodeData.headers as KvRow[]);
+  }
+  if (Array.isArray(nodeData.cookies) && nodeData.cookies.length) {
+    draft.cookieRows = normalizeKvRows(nodeData.cookies as KvRow[]);
+  }
+  return draft;
+}
+
+/**
+ * 把旧版整份 requestConfig 里的测值叠进草稿（参数 value、body）。
+ * 洗库前打开旧节点、或 AI 残留厚配置时用。
+ */
+export function mergeThickConfigValues(draft: HttpWorkbenchDraft, rc: Record<string, unknown>) {
+  if (rc.method) draft.requestConfig.method = String(rc.method).toUpperCase();
+  const overlayValues = (target: KvRow[], src: unknown) => {
+    if (!Array.isArray(src)) return;
+    for (const item of src) {
+      if (!item || typeof item !== 'object') continue;
+      const name = String((item as KvRow).name || '').trim();
+      const value = (item as KvRow).value;
+      if (!name || value == null || String(value).trim() === '') continue;
+      const row = target.find((r) => String(r.name || '').trim() === name);
+      if (row) row.value = value as string;
+      else target.push({ ...emptyKVRow(), name, value: value as string, _enabled: true });
+    }
+    ensureTrailingEmptyRow(target);
+  };
+  overlayValues(draft.requestConfig.queryParams, rc.queryParams);
+  overlayValues(draft.requestConfig.pathParams, rc.pathParams);
+  if (rc.body && typeof rc.body === 'object') {
+    draft.requestConfig.body = ensureBodyShape(rc.body as Record<string, unknown>);
+  }
+}
+
+/** 两个测值是否相等（JSON 字符串与对象视为可等价） */
+function valueEquals(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  return normalizeValueText(a) === normalizeValueText(b);
+}
+
+function normalizeValueText(value: unknown): string {
+  if (typeof value === 'string') {
+    const t = value.trim();
+    if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
+      try {
+        return JSON.stringify(JSON.parse(t));
+      } catch {
+        return t;
+      }
+    }
+    return t;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/** 从草稿 KV 行收集已填参数名→值 */
+function collectFilledParamDefaults(rows: KvRow[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const r of rows || []) {
+    if (r._enabled === false) continue;
+    const name = String(r.name || '').trim();
+    if (!name) continue;
+    if (r.value == null || String(r.value).trim() === '') continue;
+    out[name] = r.value;
+  }
+  return out;
+}
+
+/** 从草稿取出 JSON body example；空则 undefined */
+function extractBodyExampleFromDraft(draft: HttpWorkbenchDraft): unknown | undefined {
+  const body = draft.requestConfig.body as Record<string, unknown> | undefined;
+  if (!body || body.mode !== 'json') return undefined;
+  const example = (body.json as Record<string, unknown> | undefined)?.example;
+  if (example == null || String(example).trim() === '') return undefined;
+  if (typeof example === 'string') {
+    try {
+      return JSON.parse(example);
+    } catch {
+      return example;
+    }
+  }
+  return example;
+}
+
+/**
+ * 相对资产基线草稿算差分：只保留草稿里与基线不同的测值，作为节点 requestValueOverrides。
+ * 无差异返回 null。
+ */
+export function buildRequestValueOverridesDiff(
+  draft: HttpWorkbenchDraft,
+  assetBaseline: HttpWorkbenchDraft,
+): RequestValueOverrides | null {
+  const draftParams = {
+    ...collectFilledParamDefaults(draft.requestConfig.queryParams),
+    ...collectFilledParamDefaults(draft.requestConfig.pathParams),
+  };
+  const assetParams = {
+    ...collectFilledParamDefaults(assetBaseline.requestConfig.queryParams),
+    ...collectFilledParamDefaults(assetBaseline.requestConfig.pathParams),
+  };
+
+  const paramDefaults: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(draftParams)) {
+    if (!valueEquals(value, assetParams[name])) {
+      paramDefaults[name] = value;
+    }
+  }
+
+  const result: RequestValueOverrides = {};
+  if (Object.keys(paramDefaults).length) {
+    result.paramDefaults = paramDefaults;
+  }
+
+  const draftBody = extractBodyExampleFromDraft(draft);
+  const assetBody = extractBodyExampleFromDraft(assetBaseline);
+  if (draftBody !== undefined && !valueEquals(draftBody, assetBody)) {
+    result.bodyExample = draftBody;
+  }
+
+  return Object.keys(result).length ? result : null;
+}
+
+/**
+ * 把编辑草稿写回节点 data：
+ * 只写 requestValueOverrides 差分；删除 requestConfig、requestBody、apiPath。
+ *
+ * @param assetBaseline 打开弹窗时的资产有效配置基线；缺省则空基线（有值都进 overrides）
+ */
+export function applyWorkbenchToNodeData(
+  data: Record<string, unknown>,
+  draft: HttpWorkbenchDraft,
+  assetBaseline?: HttpWorkbenchDraft | null,
+) {
+  data.testProjectApiId = draft.testProjectApiId;
+  data.apiName = draft.apiName;
+  data.httpMethod = draft.requestConfig.method;
+  data.callMode = 'project';
+
+  const baseline = assetBaseline || buildWorkbenchFromApiDetail(null);
+  const overrides = buildRequestValueOverridesDiff(draft, baseline);
+  if (overrides) {
+    data.requestValueOverrides = overrides;
+  } else {
+    delete data.requestValueOverrides;
+  }
+
+  delete data.requestConfig;
+  delete data.requestBody;
+  delete data.apiPath;
+
+  data.headers = draft.headerRows.filter(
+    (r) => String(r.name || '').trim() || String(r.value || '').trim(),
+  );
+  data.cookies = draft.cookieRows.filter(
+    (r) => String(r.name || '').trim() || String(r.value || '').trim(),
+  );
+  if (!data.name || data.name === 'HTTP 请求') data.name = draft.apiName || data.name;
+}
+
+/**
+ * 统计节点参数数量，供属性面板摘要。
+ * 优先数 requestValueOverrides；若仍有旧版 requestConfig 则也能统计。
+ */
+export function countHttpParamStats(data: Record<string, unknown>) {
+  const overrides = (data.requestValueOverrides as RequestValueOverrides) || {};
+  const paramCount = overrides.paramDefaults ? Object.keys(overrides.paramDefaults).length : 0;
+  const bodyCount = Object.prototype.hasOwnProperty.call(overrides, 'bodyExample')
+    && overrides.bodyExample != null
+    && String(overrides.bodyExample).trim() !== ''
+    ? 1
+    : 0;
+
+  const rc = (data.requestConfig as Record<string, unknown>) || {};
+  const body = (rc.body as Record<string, unknown>) || {};
+  let thickBody = 0;
+  if (body.mode === 'json' && String((body.json as Record<string, unknown>)?.example || '').trim()) thickBody = 1;
+  if (isUrlencodedBodyMode(body.mode)) thickBody = countFilledRows(body.urlencoded as KvRow[]);
+
+  return {
+    query: paramCount || countFilledRows(rc.queryParams as KvRow[]),
+    path: countFilledRows(rc.pathParams as KvRow[]),
+    headers: countFilledRows(data.headers as KvRow[]),
+    cookies: countFilledRows(data.cookies as KvRow[]),
+    body: bodyCount || thickBody,
+  };
+}
+
+/** DebugKvSheet 各标签页的列标题与占位符 */
+export const KV_SHEET_LABELS: Record<string, { name: string; value: string; namePh: string; valuePh: string }> = {
+  headers: { name: 'Header 名', value: '值', namePh: 'Header 名', valuePh: '值' },
+  query: { name: '参数名', value: '参数值', namePh: '名称', valuePh: '值' },
+  path: { name: 'Path 变量', value: '参数值', namePh: '变量名', valuePh: '值' },
+  cookies: { name: '名称', value: '值', namePh: 'Cookie 名', valuePh: '值' },
+  urlencoded: { name: '字段名', value: '字段值', namePh: '名称', valuePh: '值' },
+};

@@ -1,0 +1,39 @@
+{
+  "nodes": [
+    {
+      "id": "2040999000000000031",
+      "type": "script",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "非法语言",
+        "language": "ruby",
+        "source": "ctx.setFlow('x', 1);",
+        "timeoutMs": 5000
+      }
+    }
+  ],
+  "edges": [],
+  "meta": {
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "layout": "manual",
+    "startNodeId": "2040999000000000031",
+    "activeScenarioId": "2042000000000000101",
+    "scenarios": [
+      {
+        "id": "2042000000000000101",
+        "name": "默认",
+        "testProjectEnvId": "2042000000000000001",
+        "flowSeed": {},
+        "remark": "invalid script language"
+      }
+    ],
+    "flowOutputs": []
+  }
+}

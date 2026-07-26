@@ -1,0 +1,62 @@
+[
+  {
+    "templateId": "tpl_login_bearer",
+    "name": "Bearer 登录",
+    "description": "HTTP(project) 登录 → extract token",
+    "inputs": [
+      { "name": "username", "description": "登录用户名" },
+      { "name": "password", "description": "登录密码" }
+    ],
+    "outputs": [
+      { "name": "token", "description": "Bearer Token" }
+    ]
+  },
+  {
+    "templateId": "tpl_login_captcha",
+    "name": "验证码登录",
+    "description": "取验证码图 → 外联打码 → 登录",
+    "inputs": [
+      { "name": "username", "description": "登录用户名" },
+      { "name": "password", "description": "登录密码" }
+    ],
+    "outputs": [
+      { "name": "token", "description": "Bearer Token" }
+    ]
+  },
+  {
+    "templateId": "tpl_oauth_client_credentials",
+    "name": "OAuth Client Credentials",
+    "description": "HTTP(external) 获取 access_token",
+    "inputs": [],
+    "outputs": [
+      { "name": "token", "description": "access_token" },
+      { "name": "tokenExpiresIn", "description": "过期秒数" }
+    ]
+  },
+  {
+    "templateId": "tpl_oauth_refresh",
+    "name": "OAuth Refresh Token",
+    "description": "HTTP(external) refresh_token grant",
+    "inputs": [
+      { "name": "refreshToken", "description": "refresh_token" }
+    ],
+    "outputs": [
+      { "name": "token", "description": "新的 access_token" }
+    ]
+  },
+  {
+    "templateId": "tpl_dual_login",
+    "name": "双身份登录",
+    "description": "两次登录链，输出 tokenA / tokenB",
+    "inputs": [
+      { "name": "userA", "description": "身份 A 用户名" },
+      { "name": "passA", "description": "身份 A 密码" },
+      { "name": "userB", "description": "身份 B 用户名" },
+      { "name": "passB", "description": "身份 B 密码" }
+    ],
+    "outputs": [
+      { "name": "tokenA", "description": "身份 A Token" },
+      { "name": "tokenB", "description": "身份 B Token" }
+    ]
+  }
+]
