@@ -39,6 +39,9 @@ rebel.xml
 !**/.env.example
 !**/.env.*.example
 
+# Compose 本地覆盖（可含端口/密钥）
+docker-compose.override.yml
+
 **/application-local.yml
 **/application-*-local.yml
 **/application-local.yaml

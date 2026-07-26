@@ -294,7 +294,25 @@ JDK 17+、MySQL 8+、Redis 3+、Maven 3+、Node 18+、Yarn 1.x。数据库账号
 
 > **安全提示（生产必读）**：仓库内 `dev` 默认口令（如库密码 `123456`、弱 `TOKEN_SECRET`）仅便于本地体验。**生产 / 公网部署必须**通过环境变量注入强随机 `TOKEN_SECRET`、数据库与 Redis 口令，并使用 `prod` 或 `docker` profile（`docker` 已关闭 Druid 控制台，上传目录默认 `/data/upload`）。切勿把真实云 API Key、个人 `.env`、`application-local.yml` 提交进 Git。
 
-### ① 启动质衡（约 2 分钟）
+### ① 启动质衡
+
+#### 方式 A · Docker Compose 全栈（推荐，约首次构建较慢）
+
+前置：Docker Desktop / Compose V2。详情见 [`docs/deploy.md`](./docs/deploy.md)。
+
+```bash
+cd qualitest
+# Windows
+scripts\quick-start.bat
+# Linux / macOS
+chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
+```
+
+浏览器打开 **http://localhost**，默认账号 **`admin` / `admin123`**。  
+仅起数据库依赖：`docker compose up -d mysql redis`。  
+可选 RustFS（demo 文件 API）：`docker compose --profile rustfs up -d` 或 `scripts\quick-start.bat rustfs`。
+
+#### 方式 B · 本机开发（JDK + MySQL + Redis + Yarn）
 
 ```bash
 # 后端：建库 qualitest，导入 sql/qualitest_*.sql，改 application-dev.yml 后打包启动
@@ -307,8 +325,8 @@ cd qualitest-ui
 yarn install && yarn dev
 ```
 
-浏览器打开 **http://localhost:5173**，默认账号见初始化 SQL 或部署说明。  
-→ 后端 / 前端更多选项见下方 [详细部署](#-详细部署) 与 [`qualitest-ui/README.md`](./qualitest-ui/README.md)。
+浏览器打开 **http://localhost:5173**。  
+→ 更多选项见下方 [详细部署](#-详细部署) 与 [`qualitest-ui/README.md`](./qualitest-ui/README.md)。
 
 ### ② 启动靶场（约 1 分钟，**可选**）
 
@@ -350,6 +368,9 @@ AI 自然语言示例（需先在靶场加载场景）：靶场仓 [`docs/ai-tes
 ---
 
 ## ⚙️ 详细部署
+
+- Compose 全栈：[docs/deploy.md](./docs/deploy.md)
+- 本机命令见下方环境要求 / 后端 / 前端。
 
 ### 环境要求
 

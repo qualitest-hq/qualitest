@@ -1,0 +1,117 @@
+# 质衡 Qualitest — Docker Compose 全栈
+# 用法：
+#   docker compose up -d --build                    # 全栈（MySQL + Redis + 后端 + Nginx）
+#   docker compose up -d mysql redis                # 仅依赖（本机跑 mvn / yarn）
+#   docker compose --profile rustfs up -d           # 额外启动 RustFS（S3，供 demo 文件 API）
+#   docker compose --profile rustfs up -d --build   # 全栈 + RustFS
+
+name: qualitest
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: qualitest-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-qualitest}
+      MYSQL_DATABASE: qualitest
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/qualitest_20260722_135127.sql:/docker-entrypoint-initdb.d/01-qualitest.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: qualitest-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # 可选：S3 兼容对象存储（qualitest-demo 文件上传 API 用）
+  # 启用：docker compose --profile rustfs up -d
+  rustfs:
+    profiles: ["rustfs"]
+    image: rustfs/rustfs:latest
+    container_name: qualitest-rustfs
+    restart: unless-stopped
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+    ports:
+      - "${RUSTFS_API_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - rustfs_data:/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: qualitest-hq/qualitest-app:${QUALITEST_IMAGE_TAG:-latest}
+    container_name: qualitest-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: "8080"
+      QUALITEST_PROFILE: /data/upload
+      SPRING_DATASOURCE_DRUID_MASTER_URL: jdbc:mysql://mysql:3306/qualitest?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
+      SPRING_DATASOURCE_DRUID_MASTER_USERNAME: root
+      SPRING_DATASOURCE_DRUID_MASTER_PASSWORD: ${MYSQL_ROOT_PASSWORD:-qualitest}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_DATABASE: "0"
+      SPRING_DATA_REDIS_PASSWORD: ""
+      TOKEN_SECRET: ${TOKEN_SECRET:-qualitest-compose-dev-change-me-32chars!!}
+      LOGGING_LEVEL_COM_QUALITEST: ${LOGGING_LEVEL_COM_QUALITEST:-info}
+    volumes:
+      - upload_data:/data/upload
+    # 调试时可解开：宿主机直连后端
+    # ports:
+    #   - "8080:8080"
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.web
+    image: qualitest-hq/qualitest-web:${QUALITEST_IMAGE_TAG:-latest}
+    container_name: qualitest-web
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-80}:80"
+
+volumes:
+  mysql_data:
+  redis_data:
+  upload_data:
+  rustfs_data:

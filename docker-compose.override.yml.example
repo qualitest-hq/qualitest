@@ -1,0 +1,18 @@
+# Docker Compose 端口 / 密钥覆盖示例
+# 复制为 docker-compose.override.yml 后生效（该文件已在 .gitignore 建议中，勿提交密钥）
+
+services:
+  mysql:
+    ports:
+      - "3307:3306"
+  redis:
+    ports:
+      - "6380:6379"
+  web:
+    ports:
+      - "8088:80"
+  # 可选：启用 rustfs profile 时改宿主机端口
+  # rustfs:
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
