@@ -3,21 +3,21 @@
 #
 # 用法：
 #   ./scripts/quick-start.sh           # 启动 MySQL + Redis + 后端 + Nginx
-#   ./scripts/quick-start.sh rustfs    # 同上，并启用可选 RustFS（S3，供 demo 文件 API）
 #   ./scripts/quick-start.sh -h        # 显示本说明
 #
 # 说明：从任意目录调用即可（脚本会切到仓库根）；依赖 Docker Engine/Desktop + Compose V2
+# 靶场 / RustFS：见独立仓 qualitest-demo
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
 用法:
   ./scripts/quick-start.sh           启动全栈（MySQL + Redis + 后端 + Nginx）
-  ./scripts/quick-start.sh rustfs    全栈 + 可选 RustFS（S3 API :9000 / 控制台 :9001）
   ./scripts/quick-start.sh -h        显示本说明
 
-仅依赖:  docker compose up -d mysql redis
-停止:    docker compose down
+仅依赖:     docker compose up -d mysql redis
+停止:       docker compose down
+靶场/RustFS: 独立仓 qualitest-demo
 EOF
 }
 
@@ -29,7 +29,7 @@ case "${1:-}" in
     usage
     exit 0
     ;;
-  rustfs|"")
+  "")
     ;;
   *)
     echo "[error] 未知参数: $1" >&2
@@ -55,14 +55,8 @@ if [[ ! -f .env ]]; then
   fi
 fi
 
-PROFILE_ARGS=()
-if [[ "${1:-}" == "rustfs" ]]; then
-  PROFILE_ARGS=(--profile rustfs)
-  echo "[info] 已启用可选 profile: rustfs"
-fi
-
 echo "[info] 构建并启动 MySQL + Redis + 后端 + Nginx ..."
-docker compose "${PROFILE_ARGS[@]}" up -d --build
+docker compose up -d --build
 
 echo
 echo "=============================================="
@@ -71,10 +65,5 @@ echo " 浏览器打开: http://localhost:${WEB_PORT:-80}"
 echo " 默认账号:   admin / admin123"
 echo " 停止:       docker compose down"
 echo " 仅依赖:     docker compose up -d mysql redis"
-echo " 含 RustFS:  ./scripts/quick-start.sh rustfs"
-if [[ "${1:-}" == "rustfs" ]]; then
-  echo " RustFS API: http://localhost:${RUSTFS_API_PORT:-9000}"
-  echo " 控制台:     http://localhost:${RUSTFS_CONSOLE_PORT:-9001}"
-  echo " 默认密钥:   rustfsadmin / rustfsadmin（供 qualitest-demo 文件 API）"
-fi
+echo " 靶场/RustFS: 见 qualitest-demo（./scripts/quick-start.sh）"
 echo "=============================================="

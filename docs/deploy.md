@@ -2,7 +2,7 @@
 
 ## 一键全栈
 
-前置：Docker Desktop / Docker Engine + Compose V2，本机端口 **80 / 3306 / 6379** 可用（启用 RustFS 时另需 **9000 / 9001**；可用 `.env` 或 `docker-compose.override.yml` 改端口）。
+前置：Docker Desktop / Docker Engine + Compose V2，本机端口 **80 / 3306 / 6379** 可用（可用 `.env` 或 `docker-compose.override.yml` 改端口）。
 
 ```bash
 # Linux / macOS
@@ -37,25 +37,15 @@ mvn -pl qualitest-admin -am -DskipTests package
 cd qualitest-ui && yarn install && yarn dev
 ```
 
-## 可选：RustFS（S3，供 qualitest-demo 文件 API）
+## 靶场 / RustFS（独立仓）
 
-默认**不启动**。需要时：
+本仓 Compose **不含**靶场与 RustFS。接口测试靶场、可选 S3（RustFS）见独立仓：
 
-```bash
-docker compose --profile rustfs up -d
-# 或全栈一并启动
-scripts\quick-start.bat rustfs
-# ./scripts/quick-start.sh rustfs
-```
+- 仓库：[qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)
+- 部署说明：[docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)
+- 一键：`scripts\quick-start.bat` / `./scripts/quick-start.sh`（可选参数 `rustfs`）
 
-| 项 | 默认 |
-|----|------|
-| S3 API | http://localhost:9000 |
-| 控制台 | http://localhost:9001 |
-| Access / Secret | `rustfsadmin` / `rustfsadmin` |
-
-本机跑 `qualitest-demo` 时，确认 `demo.rustfs.enabled=true`，且 `endpoint` 指向 `http://127.0.0.1:9000`。  
-**推荐**：靶场独立 Compose 见 [qualitest-demo/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)（`scripts\quick-start.bat rustfs`），不必依赖本仓 profile。
+默认与主仓端口错开（Web 8082 / API 8081 / MySQL 3307 / Redis 6380），可与主仓同时运行。
 
 ## 架构
 
@@ -65,7 +55,6 @@ scripts\quick-start.bat rustfs
 | redis | qualitest-redis | 缓存 / 会话 |
 | app | qualitest-app | Spring Boot，`profile=docker`，上传目录 `/data/upload` |
 | web | qualitest-web | Nginx 静态资源 + `/prod-api` → app:8080 |
-| rustfs（可选） | qualitest-rustfs | S3 API :9000 / 控制台 :9001；`--profile rustfs` |
 
 ## 常用命令
 
@@ -73,7 +62,7 @@ scripts\quick-start.bat rustfs
 docker compose logs -f app
 docker compose ps
 docker compose down          # 保留数据卷
-docker compose down -v       # 清空 MySQL/Redis/上传/RustFS 等数据卷（慎用）
+docker compose down -v       # 清空 MySQL/Redis/上传卷（慎用）
 ```
 
 ## 相关文件

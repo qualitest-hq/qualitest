@@ -11,8 +11,3 @@ services:
   web:
     ports:
       - "8088:80"
-  # 可选：启用 rustfs profile 时改宿主机端口
-  # rustfs:
-  #   ports:
-  #     - "9000:9000"
-  #     - "9001:9001"

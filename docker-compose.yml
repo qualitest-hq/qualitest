@@ -1,9 +1,9 @@
 # 质衡 Qualitest — Docker Compose 全栈
 # 用法：
-#   docker compose up -d --build                    # 全栈（MySQL + Redis + 后端 + Nginx）
-#   docker compose up -d mysql redis                # 仅依赖（本机跑 mvn / yarn）
-#   docker compose --profile rustfs up -d           # 额外启动 RustFS（S3，供 demo 文件 API）
-#   docker compose --profile rustfs up -d --build   # 全栈 + RustFS
+#   docker compose up -d --build     # 全栈（MySQL + Redis + 后端 + Nginx）
+#   docker compose up -d mysql redis # 仅依赖（本机跑 mvn / yarn）
+# 一键脚本见 scripts/quick-start.sh|.bat
+# 靶场 / RustFS 见独立仓 qualitest-demo
 
 name: qualitest
 
@@ -45,26 +45,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-
-  # 可选：S3 兼容对象存储（qualitest-demo 文件上传 API 用）
-  # 启用：docker compose --profile rustfs up -d
-  rustfs:
-    profiles: ["rustfs"]
-    image: rustfs/rustfs:latest
-    container_name: qualitest-rustfs
-    restart: unless-stopped
-    command: ["/data"]
-    environment:
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
-      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
-      RUSTFS_ADDRESS: ":9000"
-      RUSTFS_CONSOLE_ENABLE: "true"
-      RUSTFS_CONSOLE_ADDRESS: ":9001"
-    ports:
-      - "${RUSTFS_API_PORT:-9000}:9000"
-      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
-    volumes:
-      - rustfs_data:/data
 
   app:
     build:
@@ -114,4 +94,3 @@ volumes:
   mysql_data:
   redis_data:
   upload_data:
-  rustfs_data:

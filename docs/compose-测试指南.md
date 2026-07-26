@@ -12,7 +12,7 @@
 | Docker | Docker Desktop 已安装并**正在运行**（托盘图标正常） |
 | Compose | 终端能执行 `docker compose version`（需 V2） |
 | 磁盘 | 建议剩余 ≥ 10GB（首次拉镜像 + Maven/Yarn 构建） |
-| 端口 | 本机 **80 / 3306 / 6379** 尽量空闲；测 RustFS 时另需 **9000 / 9001**；冲突见文末「改端口」 |
+| 端口 | 本机 **80 / 3306 / 6379** 尽量空闲；冲突见文末「改端口」 |
 | 代码 | 在仓库根目录 `qualitest/`（含 `docker-compose.yml`、`qualitest-ui/`） |
 
 ```bat
@@ -81,19 +81,7 @@ docker compose logs -f mysql
 | D | API 通 | 登录后菜单/接口有数据（F12 Network 里 `/prod-api/` 为 200 或业务码成功） |
 | E | 刷新 SPA | 登录后任意路由刷新仍回到应用（不 404） |
 
-### 1.4 可选：RustFS
-
-默认不启动。跑 `qualitest-demo` 文件 API 时再开：
-
-```bat
-docker compose --profile rustfs up -d
-scripts\quick-start.bat rustfs
-```
-
-浏览器 **http://localhost:9001**，账号 **`rustfsadmin` / `rustfsadmin`**；S3 API **http://localhost:9000**。  
-本机跑 demo 时保持 `demo.rustfs.enabled=true` 与 endpoint `http://127.0.0.1:9000`。
-
-### 1.5 停掉
+### 1.4 停掉
 
 ```bat
 docker compose down
@@ -122,9 +110,8 @@ docker compose ps
 
 | 现象 | 可能原因 | 处理 |
 |------|----------|------|
-| `port is already allocated` | 80/3306/6379（或 9000/9001）被占 | 见下方「改端口」 |
+| `port is already allocated` | 80/3306/6379 被占 | 见下方「改端口」 |
 | `app` 一直 unhealthy / Restarting | 等不够 / 库未就绪 / 密钥或库密码错 | `docker compose logs app`；确认 mysql healthy 后再看 app |
-| RustFS 起不来 / permission denied | 少见：数据卷权限 | `docker compose logs rustfs`；`down -v` 后重来，或见官方对 uid `10001` 的说明 |
 | 登录页 502 / `/prod-api` 502 | 后端未起来 | 等 app healthy；`logs -f app` |
 | 登录页空白 | 前端构建失败 | `docker compose logs web`；重建：`docker compose build --no-cache web` |
 | 登录密码不对 | 用了旧数据卷或非种子库 | 清卷重来（慎用，见下） |
@@ -139,9 +126,6 @@ docker compose ps
 WEB_PORT=8088
 MYSQL_PORT=3307
 REDIS_PORT=6380
-# 可选 RustFS
-# RUSTFS_API_PORT=9000
-# RUSTFS_CONSOLE_PORT=9001
 MYSQL_ROOT_PASSWORD=qualitest
 TOKEN_SECRET=换成你自己的长随机串
 ```
@@ -163,7 +147,7 @@ docker compose down -v
 docker compose up -d --build
 ```
 
-`-v` 会删 MySQL/Redis/上传/RustFS 等数据卷，等于全新初始化。
+`-v` 会删 MySQL/Redis/上传卷，等于全新初始化。
 
 ---
 
@@ -188,7 +172,7 @@ docker compose up -d --build
 - [ ] `docker compose up -d mysql redis` 仅依赖可用
 - [ ] `docker compose down` 能干净停止
 - [ ] 改 `WEB_PORT` 后仍能访问
-- [ ] （可选）`docker compose --profile rustfs up -d`：控制台 http://localhost:9001 能登录 `rustfsadmin`/`rustfsadmin`
+- [ ] （可选）靶场 / RustFS：见独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)
 
 ---
 
