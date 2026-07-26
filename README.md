@@ -310,7 +310,7 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 浏览器打开 **http://localhost**，默认账号 **`admin` / `admin123`**。  
 仅起数据库依赖：`docker compose up -d mysql redis`。  
-靶场 / RustFS：见独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)（`scripts\quick-start.bat`，可选 `rustfs`）。
+靶场 / RustFS：见独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)（`scripts\quick-start.bat rustfs`）。
 
 #### 方式 B · 本机开发（JDK + MySQL + Redis + Yarn）
 

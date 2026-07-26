@@ -43,7 +43,7 @@ cd qualitest-ui && yarn install && yarn dev
 
 - 仓库：[qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)
 - 部署说明：[docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)
-- 一键：`scripts\quick-start.bat` / `./scripts/quick-start.sh`（可选参数 `rustfs`）
+- 一键：`scripts\quick-start.bat rustfs` / `./scripts/quick-start.sh rustfs`（会加载 `docker-compose.rustfs.yml`）
 
 默认与主仓端口错开（Web 8082 / API 8081 / MySQL 3307 / Redis 6380），可与主仓同时运行。
 
