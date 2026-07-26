@@ -54,7 +54,8 @@ scripts\quick-start.bat rustfs
 | 控制台 | http://localhost:9001 |
 | Access / Secret | `rustfsadmin` / `rustfsadmin` |
 
-本机跑 `qualitest-demo` 时，确认 `demo.rustfs.enabled=true`，且 `endpoint` 指向 `http://127.0.0.1:9000`（与 `.env.example` / `application-dev.yml` 默认一致）。首次可在控制台建 bucket `qualitest-demo`（demo 启动时也会尝试自动创建）。
+本机跑 `qualitest-demo` 时，确认 `demo.rustfs.enabled=true`，且 `endpoint` 指向 `http://127.0.0.1:9000`。  
+**推荐**：靶场独立 Compose 见 [qualitest-demo/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)（`scripts\quick-start.bat rustfs`），不必依赖本仓 profile。
 
 ## 架构
 
