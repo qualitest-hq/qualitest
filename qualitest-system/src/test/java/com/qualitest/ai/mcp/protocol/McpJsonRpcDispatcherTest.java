@@ -33,12 +33,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link McpJsonRpcDispatcher} 单元测试。
- * <p>
- * 验证 JSON-RPC 分发：initialize 会话与 serverInfo、tools/list 与 tools/call 委托、
- * 未知方法与通知类请求的错误/空响应处理。依赖服务使用 Mock，不访问数据库。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=McpJsonRpcDispatcherTest
+ * 测 McpJsonRpcDispatcher：initialize / tools/list / tools/call 与错误、通知处理。
+ * 边界：依赖 Mock，不访问库；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=McpJsonRpcDispatcherTest
  */
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -65,8 +62,8 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * POST initialize 请求体，testProjectId=42。
-     * 期望：JSON-RPC 成功响应；DispatchResult.sessionId 非空；serverInfo.testProjectId 为 "42"。
+     * 前提：POST initialize，testProjectId=42。
+     * 期望：成功响应；sessionId 非空；serverInfo.testProjectId=42。
      */
     @Test
     @Order(1)
@@ -87,8 +84,8 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * tools/list 请求，Mock 返回 1 个协议格式工具定义。
-     * 期望：委托 {@link FlowDesignToolsDefinitionService#loadMcpProtocolTools()}；result.tools 数组长度为 1。
+     * 前提：tools/list；Mock 返回 1 个协议工具。
+     * 期望：委托 loadMcpProtocolTools；result.tools 长度 1。
      */
     @Test
     @Order(2)
@@ -107,8 +104,8 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * tools/call 调用 search_apis，arguments 含 keyword=login。
-     * 期望：经 {@link McpToolArgumentsMapper} 映射后委托 {@link McpToolInvokeService#invoke}；content[0].text 为工具返回 JSON。
+     * 前提：tools/call search_apis，arguments.keyword=login。
+     * 期望：委托 invoke；content[0].text 为工具返回 JSON。
      */
     @Test
     @Order(3)
@@ -137,8 +134,8 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * tools/call 调用 bad_tool，InvokeService 抛出 {@link ServiceException}。
-     * 期望：仍返回 JSON-RPC result；result.isError=true。
+     * 前提：tools/call bad_tool；InvokeService 抛 ServiceException。
+     * 期望：仍返回 JSON-RPC result；isError=true。
      */
     @Test
     @Order(4)
@@ -160,7 +157,7 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * tools/call 工具返回 JSON 含 error 字段时。
+     * 前提：工具返回 JSON 含 error 字段。
      * 期望：result.isError=true。
      */
     @Test
@@ -187,8 +184,8 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * method 为未实现的 unknown/method。
-     * 期望：JSON-RPC error.code=-32601（Method not found）。
+     * 前提：method=unknown/method。
+     * 期望：JSON-RPC error.code=-32601。
      */
     @Test
     @Order(5)
@@ -204,8 +201,8 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * notifications/initialized 无 id 的通知请求。
-     * 期望：DispatchResult.notification=true；responseBody 为 null。
+     * 前提：notifications/initialized（无 id）。
+     * 期望：notification=true；responseBody=null。
      */
     @Test
     @Order(6)

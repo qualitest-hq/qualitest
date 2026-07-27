@@ -1,5 +1,7 @@
 /**
- * hydrateStagingFromPatch 冲突时回滚画布上的旧 Staging 效果。
+ * 测 aiStagingStore：跨 message 节点冲突时回滚画布旧 Staging。
+ * 边界：mock revertStagingUnitOnCanvas；Pinia 内存态。
+ * 单跑：yarn test aiStagingStore.conflict   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -36,6 +38,8 @@ describe('aiStagingStore conflict revert', () => {
   };
 
   it('跨 message 节点冲突时调用 revertStagingUnitOnCanvas', () => {
+    // 前提：两批 message 均 update 同一节点
+    // 期望：revert 旧单元，保留 msg-2 的 pending 单元
     const store = useAiStagingStore();
     const patch1: FlowDesignPatch = {
       updateNodes: [{ id: '1001', data: { name: '第一批' } }],

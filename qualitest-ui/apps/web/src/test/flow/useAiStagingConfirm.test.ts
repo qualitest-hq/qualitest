@@ -1,6 +1,7 @@
 /**
- * deleteNode confirm 后关联 pending addEdge 应 reject。
- * useFlowViewport 已 mock，避免测试依赖 Vue Flow 实例。
+ * 测 useAiStagingConfirm：deleteNode confirm 后关联 pending addEdge 应 reject。
+ * 边界：mock confirm API、viewport、history 等；Pinia 内存态。
+ * 单跑：yarn test useAiStagingConfirm   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -77,6 +78,8 @@ describe('useAiStagingConfirm deleteNode', () => {
   });
 
   it('confirm deleteNode 后 reject 关联 pending addEdge', async () => {
+    // 前提：deleteNode 与依赖已删节点的 pending addEdge 同批 hydrate
+    // 期望：deleteNode confirmed，addEdge rejected 且从画布移除
     const canvasStore = useFlowCanvasStore();
     const stagingStore = useAiStagingStore();
     canvasStore.testProjectId = '10';

@@ -15,16 +15,16 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link RunSessionSupport} 单元测试：useRunSession 解析与转发前 Cookie 注入。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=RunSessionSupportTest
+ * 测 RunSessionSupport：useRunSession 解析与转发前 Cookie 注入。
+ * 边界：boolean/字符串 true；覆盖同名 Cookie 头。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunSessionSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RunSessionSupportTest {
 
     /**
-     * 节点 data.useRunSession 应支持 boolean 与字符串 "true"。
-     * 期望：null/空 map 为 false；true/"true" 为 true。
+     * 前提：data 为 null/空 map/true/"true"。
+     * 期望：前两者 false；true 与 "true" 为 true。
      */
     @Test
     @Order(1)
@@ -39,8 +39,8 @@ class RunSessionSupportTest {
     }
 
     /**
-     * applyToForward 应将 session 中的 Cookie 合并进转发参数，覆盖同名 Cookie 头。
-     * 期望：headers 仅一条 Cookie；值含 session 吸收的 sid。
+     * 前提：session 已吸收 sid=xyz；params 原有 Cookie: old=1。
+     * 期望：headers 仅一条 Cookie，值含 sid=xyz。
      */
     @Test
     @Order(2)

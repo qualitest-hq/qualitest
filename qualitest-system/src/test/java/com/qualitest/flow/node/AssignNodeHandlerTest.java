@@ -20,12 +20,9 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link AssignNodeHandler} 单元测试：验证「赋值」节点对 flow 变量的批量修改。
- * <p>
- * 被测对象读取节点 data 中的 {@code assignments} 数组，按 op（set / add 等）依次修改
- * {@code flow} 作用域变量，并在 {@link StepResult#getAssigns()} 中记录每条赋值的前后快照。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=AssignNodeHandlerTest
+ * 测 AssignNodeHandler：按 assignments 批量改 flow 变量并记录 assigns。
+ * 边界：set/add；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AssignNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AssignNodeHandlerTest {
@@ -33,9 +30,8 @@ class AssignNodeHandlerTest {
     private final AssignNodeHandler handler = new AssignNodeHandler();
 
     /**
-     * 连续两条赋值：先 set {@code pollAttempt=0}，再 add step=1。
-     * 期望：步骤 passed；{@code flow.pollAttempt == 1}；
-     * assigns 列表 2 条，分别记录 after=0 和 after=1。
+     * 前提：assignments 先 set pollAttempt=0，再 add step=1。
+     * 期望：passed；flow.pollAttempt=1；assigns 两条 after 分别为 0、1。
      */
     @Test
     @Order(1)
@@ -62,9 +58,8 @@ class AssignNodeHandlerTest {
     }
 
     /**
-     * op 为 add 时在现有值基础上累加 step。
-     * 初始 {@code flow.count=3}，add step=2。
-     * 期望：{@code flow.count == 5}；assigns 中 op 为 add。
+     * 前提：flow.count=3，assignment 为 add step=2。
+     * 期望：flow.count=5；assigns 一条且 op=add。
      */
     @Test
     @Order(2)

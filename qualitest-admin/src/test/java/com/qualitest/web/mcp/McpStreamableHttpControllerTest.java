@@ -34,13 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * {@link McpStreamableHttpController} 单元测试。
- * <p>
- * 验证 Streamable HTTP 适配层：POST 委托 {@link McpJsonRpcDispatcher}、
- * initialize 响应写入 {@link McpJsonRpc#SESSION_HEADER}、项目上下文从请求属性读取 testProjectId。
- * Dispatcher 与 SessionRegistry 使用 Mock。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-admin -am -DskipTests=false -Dtest=McpStreamableHttpControllerTest
+ * 测 McpStreamableHttpController：Streamable HTTP 委托 Dispatcher 与会话头。
+ * 边界：Dispatcher/SessionRegistry Mock；项目上下文来自请求属性。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-admin -am -Dtest=McpStreamableHttpControllerTest
  */
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -71,8 +67,8 @@ class McpStreamableHttpControllerTest {
     }
 
     /**
-     * POST initialize，Dispatcher 返回带 session 的 JSON-RPC 响应。
-     * 期望：HTTP 200；响应头 {@link McpJsonRpc#SESSION_HEADER}=session-abc；响应体 jsonrpc=2.0。
+     * 前提：POST initialize；Dispatcher 返回带 session-abc 的响应。
+     * 期望：HTTP 200；SESSION_HEADER=session-abc；jsonrpc=2.0。
      */
     @Test
     @Order(1)
@@ -95,8 +91,8 @@ class McpStreamableHttpControllerTest {
     }
 
     /**
-     * POST tools/list，Dispatcher 返回空工具列表。
-     * 期望：dispatch 入参 testProjectId=99；HTTP 200；result.tools 为数组。
+     * 前提：POST tools/list；Dispatcher 返回空 tools；项目上下文 testProjectId=99。
+     * 期望：dispatch 入参为 99；HTTP 200；result.tools 为数组。
      */
     @Test
     @Order(2)

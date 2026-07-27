@@ -9,17 +9,25 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * 告警 code 聚合逻辑单测：空值、去重保序、超长截断。
+ * <p>
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiFlowHealthPersistServiceTest
  */
 class ApiFlowHealthPersistServiceTest {
 
-    /** 空入参应得到 null */
+    /**
+     * 前提：aggregateCodes 入参为 null 或空列表。
+     * 期望：返回 null。
+     */
     @Test
     void aggregateCodes_nullOrEmpty_returnsNull() {
         assertNull(ApiFlowHealthPersistService.aggregateCodes(null));
         assertNull(ApiFlowHealthPersistService.aggregateCodes(List.of()));
     }
 
-    /** 相同 code 只保留首次出现，顺序为首次出现顺序 */
+    /**
+     * 前提：告警列表含重复 code（API_MISSING 出现两次）。
+     * 期望：去重后按首次出现顺序拼接为 API_MISSING,ORPHAN_PARAM。
+     */
     @Test
     void aggregateCodes_dedupesInOrder() {
         HttpNodeApiHealthWarning a = HttpNodeApiHealthWarning.of(
@@ -32,7 +40,10 @@ class ApiFlowHealthPersistServiceTest {
                 ApiFlowHealthPersistService.aggregateCodes(List.of(a, b, a2)));
     }
 
-    /** 拼接结果超过字段上限时截断到 WARNING_CODES_MAX_LEN */
+    /**
+     * 前提：单条告警 code 长度超过 WARNING_CODES_MAX_LEN。
+     * 期望：拼接结果被截断至 WARNING_CODES_MAX_LEN。
+     */
     @Test
     void aggregateCodes_truncatesToMaxLen() {
         String longCode = "A".repeat(300);

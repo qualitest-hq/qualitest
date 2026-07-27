@@ -1,5 +1,7 @@
 /**
- * Staging 画布同步：hydrate patch 后应产出完整节点与边列表。
+ * 测 computeStagingCanvasSync：hydrate patch 后产出完整节点与边列表。
+ * 边界：Pinia 内存态，无真实画布渲染。
+ * 单跑：yarn test stagingCanvasSync   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -32,6 +34,8 @@ describe('stagingCanvasSync', () => {
 
   /** 3 节点 3 连线 hydrate 后，sync 应产出 3 个节点与 3 条有效边。 */
   it('hydrate 3 节点 + 3 连线后 sync 应产出 3 条边', () => {
+    // 前提：patch 含 3 节点 3 边且已 hydrate
+    // 期望：sync 产出 3 节点 3 边且端点有效
     const stagingStore = useAiStagingStore();
     const canvasStore = useFlowCanvasStore();
 
@@ -56,6 +60,8 @@ describe('stagingCanvasSync', () => {
 
   /** source 或 target 为空时不应生成边，避免无效端点进入 pending。 */
   it('addEdge 缺少 source/target 时不生成无效边', () => {
+    // 前提：addEdge 的 source 为空
+    // 期望：sync 不产出任何边
     const stagingStore = useAiStagingStore();
     stagingStore.hydrateStagingFromPatch(
       'msg-bad',

@@ -1,7 +1,6 @@
 package com.qualitest.flow.run;
 
 import com.qualitest.flow.context.FlowRunContext;
-import com.qualitest.flow.context.ResolvedRunScenario;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
@@ -24,8 +23,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * 测 FlowGraphRunner 续跑：从中部节点继续、跳过节点、节点失败 pause。
+ * 边界：Stub handler + 夹具 flow/linear-run-graph.json；无真实 HTTP。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphRunnerResumeTest
+ */
 class FlowGraphRunnerResumeTest {
 
+    /**
+     * 前提：continuation 从 n3 开始，HTTP stub 通过。
+     * 期望：通过；步数为 2；首步为 n3；handler 只调一次。
+     */
     @Test
     void resumeFromMiddleNode_continuesExecution() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
@@ -69,6 +77,10 @@ class FlowGraphRunnerResumeTest {
         assertEquals(1, calls.get());
     }
 
+    /**
+     * 前提：resumeMode=SKIP_NODE，从 n1 续跑。
+     * 期望：首步 skipped，下一步为 n2，整体通过。
+     */
     @Test
     void skipNode_skipsHandlerAndContinues() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
@@ -109,6 +121,10 @@ class FlowGraphRunnerResumeTest {
         assertEquals("n2", outcome.getSteps().get(1).getNodeId());
     }
 
+    /**
+     * 前提：HTTP stub 失败，策略 onNodeFailure=prompt。
+     * 期望：outcome 暂停，pauseNodeId=n1。
+     */
     @Test
     void nodeFailureWithPrompt_pausesRun() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");

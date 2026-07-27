@@ -33,12 +33,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link SubflowNodeHandler} 单元测试：子流加载、inputs 种子、outputs 合并与 childSteps。
- * <p>
- * 被测对象按 subflowId 加载同项目任意测试流，在内存中跑子图并把 outputs 写回父 flow。
- * 依赖 Mock {@link ITestFlowService}；子图 Handler 使用 assign/delay 桩，不访问数据库。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=SubflowNodeHandlerTest
+ * 测 SubflowNodeHandler：子流加载、inputs/outputs、跨项目与深度限制。
+ * 边界：Mock ITestFlowService；子图用 assign 桩；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SubflowNodeHandlerTest {
@@ -72,8 +69,8 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 正常路径：子图 assign 写入 childOut，outputs 映射到父 flow.parentToken。
-     * 期望：passed；childSteps 非空；父 flow 含 inputs 种子与 outputs 合并结果。
+     * 前提：子图 assign 写 childOut；outputs 映射到 parentToken。
+     * 期望：passed；childSteps 非空；父 flow 含种子与合并结果。
      */
     @Test
     @Order(1)
@@ -102,8 +99,8 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 节点 outputs 为空时，应使用子图 meta.flowOutputs 默认映射写回父 flow。
-     * 期望：passed；父 flow.childOut 等于子图 assign 写入值。
+     * 前提：节点 outputs 为空；子图 meta.flowOutputs 声明 childOut。
+     * 期望：passed；父 flow.childOut 等于子图写入值。
      */
     @Test
     @Order(2)
@@ -126,8 +123,8 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 节点未配置 subflowId 时应立即失败。
-     * 期望：failed；错误码 {@link FlowErrorCode#TF_SUBFLOW_INVALID}。
+     * 前提：节点未配置 subflowId。
+     * 期望：failed；错误码 TF_SUBFLOW_INVALID。
      */
     @Test
     @Order(3)
@@ -142,8 +139,8 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 任意同项目测试流均可被子流节点引用并正常执行。
-     * 期望：passed；outputs 映射到父 flow.parentToken。
+     * 前提：subflowId 指向同项目任意测试流且图可跑。
+     * 期望：passed；outputs 映射到 parentToken。
      */
     @Test
     @Order(4)
@@ -165,8 +162,8 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 子流与父运行上下文不属于同一项目时应失败。
-     * 期望：failed；错误消息含「不属于当前项目」。
+     * 前提：子流 testProjectId 与父上下文不一致。
+     * 期望：failed；消息含「不属于当前项目」。
      */
     @Test
     @Order(5)
@@ -190,7 +187,8 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 子图任一步失败时，父 subflow 步应 failed，并附带 childSteps 摘要。
+     * 前提：子图任一步返回 failed。
+     * 期望：父 subflow 步 failed，且含 childSteps 摘要。
      */
     @Test
     @Order(6)
@@ -220,8 +218,8 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 子流嵌套深度超过 {@link SubflowDepth#MAX_DEPTH} 时应拒绝执行。
-     * 期望：failed；错误码 {@link FlowErrorCode#TF_SUBFLOW_NESTED}；消息含「嵌套超过上限」。
+     * 前提：父上下文嵌套深度已达 MAX_DEPTH。
+     * 期望：failed；TF_SUBFLOW_NESTED；消息含「嵌套超过上限」。
      */
     @Test
     @Order(7)

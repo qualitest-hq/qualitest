@@ -22,13 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * AI patch 单 Staging 单元 confirm 服务单元测试。
- *
- * 验证 draft 合并、单 unitId 过滤、依赖校验、内存合并、图校验的完整 confirm 链路，
- * 以及 baseGraphHash、dependencyHints、失败重试与幂等等 Web 端依赖的响应字段。
- * 全部在内存中完成，不写数据库。
- *
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=FlowDesignPatchConfirmServiceTest
+ * 测 FlowDesignPatchConfirmService：单 Staging 单元 confirm（合并、依赖、图校验、幂等）。
+ * 边界：全部内存完成，不写数据库。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignPatchConfirmServiceTest
  */
 class FlowDesignPatchConfirmServiceTest {
 
@@ -41,13 +37,19 @@ class FlowDesignPatchConfirmServiceTest {
         confirmService = new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator());
     }
 
-    /** 线性新增：按 acceptedIds 顺序逐单元 confirm，应全部成功 */
+    /**
+     * 前提：夹具 linear-add-accepted，按 acceptedIds 顺序逐单元 confirm。
+     * 期望：全部成功，合并图符合夹具。
+     */
     @Test
     void confirm_linearAddAccepted_ok() throws IOException {
         runSequentialFixture("flow/merge-fixtures/linear-add-accepted.json");
     }
 
-    /** 仅 confirm addEdge 不先 confirm addNode，依赖未满足应失败 */
+    /**
+     * 前提：仅 confirm addEdge:8001，未先 confirm 依赖节点。
+     * 期望：失败（与夹具 assertConfirmFixture 一致）。
+     */
     @Test
     void confirm_partialEdgeOnly_fails() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-edge-only.json");
@@ -57,7 +59,10 @@ class FlowDesignPatchConfirmServiceTest {
         FlowMergeFixtureTestSupport.assertConfirmFixture(fixture, result);
     }
 
-    /** 仅 confirm addEdge 时，应携带依赖提示且 baseGraphHash 为 16 位 hex */
+    /**
+     * 前提：同上，仅 confirm addEdge。
+     * 期望：dependencyHints 提示需先确认 addNode:9001；baseGraphHash 长 16；无 graphJson。
+     */
     @Test
     void confirm_partialEdgeOnly_emitsDependencyHints() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-edge-only.json");
@@ -72,7 +77,10 @@ class FlowDesignPatchConfirmServiceTest {
         assertNull(result.getGraphJson());
     }
 
-    /** addEdge 依赖重试：先 confirm addNode，再 confirm addEdge 应成功 */
+    /**
+     * 前提：先 confirm addNode:9001，再 confirm addEdge:8001。
+     * 期望：两步都成功，合并后有 1 条边。
+     */
     @Test
     void confirm_addEdgeAfterAddNode_ok() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-edge-only.json");
@@ -93,25 +101,37 @@ class FlowDesignPatchConfirmServiceTest {
         assertEquals(1, addEdgeResult.getGraphJson().getEdges().size());
     }
 
-    /** condition 节点画布：仅 confirm addEdge，分支 target 同步，应成功 */
+    /**
+     * 前提：夹具 condition-add-edge-only，单单元 confirm。
+     * 期望：分支 target 同步，confirm 成功。
+     */
     @Test
     void confirm_conditionAddEdgeOnly_ok() throws IOException {
         runSingleUnitFixture("flow/merge-fixtures/condition-add-edge-only.json");
     }
 
-    /** 只 confirm addNode 不 confirm addEdge，孤立新增节点可单独落盘，应成功 */
+    /**
+     * 前提：夹具 partial-node-only（只 confirm 节点）。
+     * 期望：孤立新增节点可单独落盘，成功。
+     */
     @Test
     void confirm_partialNodeOnly_ok() throws IOException {
         runSingleUnitFixture("flow/merge-fixtures/partial-node-only.json");
     }
 
-    /** confirm deleteNode，合并时级联删除关联边，应成功 */
+    /**
+     * 前提：夹具 delete-node-cascade。
+     * 期望：删除节点并级联清边，成功。
+     */
     @Test
     void confirm_deleteNodeCascade_ok() throws IOException {
         runSingleUnitFixture("flow/merge-fixtures/delete-node-cascade.json");
     }
 
-    /** confirm updateEdge：与 preview 同 fixture，当前图校验器对「旧目标悬空」报 error，保留用例对齐 */
+    /**
+     * 前提：夹具 condition-update-edge（与 preview 同 fixture）。
+     * 期望：当前校验器对旧目标悬空报错，confirm 失败且无 graphJson。
+     */
     @Test
     void confirm_conditionUpdateEdge_matchesPreviewBehavior() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/condition-update-edge.json");
@@ -123,19 +143,28 @@ class FlowDesignPatchConfirmServiceTest {
         assertNull(result.getGraphJson());
     }
 
-    /** 仅 confirm 默认场景切换，不修改节点与边，应成功 */
+    /**
+     * 前提：夹具 scenario-only。
+     * 期望：仅切换默认场景，成功。
+     */
     @Test
     void confirm_scenarioOnly_ok() throws IOException {
         runSingleUnitFixture("flow/merge-fixtures/scenario-only.json");
     }
 
-    /** 相同 acceptedIds 顺序逐单元 confirm，合并结果应稳定，应成功 */
+    /**
+     * 前提：夹具 remerge-same-accepted，按序逐单元 confirm。
+     * 期望：合并结果稳定，成功。
+     */
     @Test
     void confirm_remergeSameAccepted_ok() throws IOException {
         runSequentialFixture("flow/merge-fixtures/remerge-same-accepted.json");
     }
 
-    /** 相同 unitId + draftOverride 重复 confirm，合并图 hash 应一致（幂等） */
+    /**
+     * 前提：同一 unitId + 请求连续 confirm 两次。
+     * 期望：均成功，合并图 hash 一致。
+     */
     @Test
     void confirm_sameUnitId_idempotent() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-node-only.json");
@@ -152,7 +181,10 @@ class FlowDesignPatchConfirmServiceTest {
                 GraphJsonHashUtil.computeBaseGraphHash(second.getGraphJson()));
     }
 
-    /** confirm updateNode + draftOverride：draft 写入 data，校验通过后落盘 */
+    /**
+     * 前提：先加节点，再 updateNode + draftOverride 改 name。
+     * 期望：校验通过，落盘 name=登录V2。
+     */
     @Test
     void confirm_updateNodeWithDraft_ok() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/linear-add-accepted.json");
@@ -183,7 +215,10 @@ class FlowDesignPatchConfirmServiceTest {
         assertEquals("登录V2", merged.getData().get("name"));
     }
 
-    /** confirm 失败重试：draft 修正后 ok 由 false 变 true */
+    /**
+     * 前提：先用坏 draft（空 externalUrl）失败，再用合法 draft 重试。
+     * 期望：先 false，后 true 且有 graphJson。
+     */
     @Test
     void confirm_failedRetryWithDraft_ok() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-node-only.json");
@@ -216,7 +251,10 @@ class FlowDesignPatchConfirmServiceTest {
         assertNotNull(goodResult.getGraphJson());
     }
 
-    /** 两个 addNode 未 confirm 全部连线前，第二个 addNode 确认应成功（延后开始节点校验） */
+    /**
+     * 前提：multi-add-nodes-partial，连线尚未全部 confirm。
+     * 期望：第二个 addNode 仍成功，并有「开始节点」相关 warning。
+     */
     @Test
     void confirm_secondAddNodeWhileEdgePending_ok() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/multi-add-nodes-partial.json");
@@ -243,7 +281,10 @@ class FlowDesignPatchConfirmServiceTest {
         assertTrue(secondResult.getWarnings().stream().anyMatch(w -> w.contains("开始节点")));
     }
 
-    /** confirm updateScenario + draftOverride：remark 与失败策略字段应落盘 */
+    /**
+     * 前提：updateScenario + draftOverride 改 remark / 失败策略。
+     * 期望：场景字段落盘成功。
+     */
     @Test
     void confirm_updateScenarioWithDraft_ok() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/scenario-only.json");

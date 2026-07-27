@@ -13,20 +13,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * {@link FlowRunContextBuilder} 与 {@link EnvUrlSupport} 单元测试：验证运行上下文的组装。
- * <p>
- * {@link FlowRunContextBuilder#build} 将项目环境（envUrl、envVariables）、素材库 JSON、
- * 场景 flowSeed 合并为 {@link FlowRunContext} 的三个作用域：env / asset / flow。
- * {@link EnvUrlSupport} 负责从多模块 JSON envUrl 中取默认模块、补全 http 协议前缀。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=FlowRunContextBuilderTest
+ * 测 FlowRunContextBuilder / EnvUrlSupport：组装 env/asset/flow 与多模块 envUrl。
+ * 边界：无协议 host 补 http；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowRunContextBuilderTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowRunContextBuilderTest {
 
     /**
-     * 完整 build 路径：envUrl → env.baseUrl；envVariables → env.timeout；
-     * assetJson → asset.defaults.clientId；flowSeed → flow.loginUser。
+     * 前提：TestProjectEnv 含 envUrl、envVariables；assetJson 与 flowSeed 非空。
+     * 期望：ctx.env 含 baseUrl/timeout，flow 含 loginUser，asset.defaults 含 clientId。
      */
     @Test
     @Order(1)
@@ -58,8 +54,8 @@ class FlowRunContextBuilderTest {
     }
 
     /**
-     * {@link EnvUrlSupport#resolveEnvBaseUrlForRequest}：多模块 JSON 取「默认模块」的 URL。
-     * {@link EnvUrlSupport#ensureHttpSchemeForRequest}：无协议 host 自动补 http://。
+     * 前提：envUrl 为多模块 JSON；host 无协议前缀。
+     * 期望：resolve 取默认模块 URL；ensureHttpScheme 补 http:// 前缀。
      */
     @Test
     @Order(2)

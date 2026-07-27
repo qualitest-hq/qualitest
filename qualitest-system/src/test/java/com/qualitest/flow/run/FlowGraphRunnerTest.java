@@ -27,12 +27,9 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link FlowGraphRunner} 单元测试：内存图遍历、线性多步与子流嵌套禁止。
- * <p>
- * 被测对象按 {@link GraphWalker} 顺序执行节点 Handler，失败时短路返回；
- * {@code forbidNestedSubflow=true} 时扫描并拒绝子图内的 subflow 节点。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=FlowGraphRunnerTest
+ * 测 FlowGraphRunner：内存图遍历、线性多步与 forbidNestedSubflow。
+ * 边界：失败短路；子图含 subflow 时拒绝；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphRunnerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowGraphRunnerTest {
@@ -49,7 +46,8 @@ class FlowGraphRunnerTest {
     }
 
     /**
-     * 单节点图应执行一步并返回 passed。
+     * 前提：单 delay 节点图，registry 全部通过。
+     * 期望：run 返回 passed，执行 1 步。
      */
     @Test
     @Order(1)
@@ -71,7 +69,8 @@ class FlowGraphRunnerTest {
     }
 
     /**
-     * 线性两节点图应按边顺序执行两步。
+     * 前提：线性两 delay 节点图，registry 全部通过。
+     * 期望：run 返回 passed，按边顺序执行 d1→d2 两步。
      */
     @Test
     @Order(2)
@@ -88,7 +87,8 @@ class FlowGraphRunnerTest {
     }
 
     /**
-     * 任一步 failed 时应短路，不再执行后续节点。
+     * 前提：线性两节点图，首步 d1 handler 返回 failed。
+     * 期望：run 短路，仅 1 步，outcome 含 error。
      */
     @Test
     @Order(3)
@@ -121,7 +121,8 @@ class FlowGraphRunnerTest {
     }
 
     /**
-     * 子图内 subflow 节点由 Runner 正常调度（深度限制在 SubflowNodeHandler 内校验）。
+     * 前提：图含 subflow 节点，registry 注册 subflow 桩 handler。
+     * 期望：run 返回 passed，执行 1 步 subflow 节点。
      */
     @Test
     @Order(4)

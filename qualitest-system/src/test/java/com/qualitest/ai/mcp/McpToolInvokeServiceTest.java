@@ -26,13 +26,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link McpToolInvokeService} 单元测试。
- * <p>
- * 验证 MCP 网关编排：只读白名单拦截、{@code submit_flow_design_patch} 显式拒绝、
- * 上下文工厂委托与工具执行结果封装。
- * Executor 与 ContextFactory 使用 Mock，不访问数据库。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=McpToolInvokeServiceTest
+ * 测 McpToolInvokeService：白名单拦截、拒绝 submit_patch、只读工具委托与 error 标记。
+ * 边界：Executor/ContextFactory Mock；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=McpToolInvokeServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpToolInvokeServiceTest {
@@ -49,8 +45,8 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 调用不在 MCP 白名单内的工具名 unknown。
-     * 期望：抛出 {@link ServiceException}。
+     * 前提：工具名 unknown（非白名单）。
+     * 期望：抛 ServiceException。
      */
     @Test
     @Order(1)
@@ -63,8 +59,8 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 显式调用 {@link FlowDesignToolExecutor#SUBMIT_FLOW_DESIGN_PATCH}。
-     * 期望：抛出 {@link ServiceException}，消息含「不支持修改测试流」；不委托 Executor。
+     * 前提：调用 SUBMIT_FLOW_DESIGN_PATCH。
+     * 期望：抛 ServiceException（含「不支持修改测试流」）；不委托 Executor。
      */
     @Test
     @Order(2)
@@ -79,9 +75,8 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 白名单工具 list_flows 正常调用。
-     * 期望：经 ContextFactory 构建上下文后调用 Executor；
-     * {@link McpToolResult#getTool()}=list_flows。
+     * 前提：白名单工具 list_flows。
+     * 期望：经 ContextFactory 后调 Executor；result.tool=list_flows。
      */
     @Test
     @Order(3)
@@ -104,8 +99,8 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * search_apis 成功路径，arguments 含 keyword=login。
-     * 期望：{@link McpToolResult#getResultJson()} 可解析且含 items 字段。
+     * 前提：search_apis，arguments.keyword=login。
+     * 期望：resultJson 可解析且含 items。
      */
     @Test
     @Order(4)
@@ -132,10 +127,8 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 白名单工具 list_subflow_templates 正常调用。
-     * 期望：经 ContextFactory 构建上下文后调用 Executor；
-     * {@link McpToolResult#getTool()}=list_subflow_templates；
-     * resultJson 含 platformTemplates、projectSubflows。
+     * 前提：list_subflow_templates。
+     * 期望：tool 名正确；resultJson 含 platformTemplates、projectSubflows。
      */
     @Test
     @Order(5)
@@ -164,10 +157,8 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 白名单工具 get_subflow_detail 正常调用。
-     * 期望：经 ContextFactory 构建上下文后调用 Executor；
-     * {@link McpToolResult#getTool()}=get_subflow_detail；
-     * resultJson 含 testFlowId、nodeCount。
+     * 前提：get_subflow_detail。
+     * 期望：tool 名正确；resultJson 含 testFlowId、nodeCount。
      */
     @Test
     @Order(6)
@@ -196,7 +187,7 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * get_flow 成功路径。
+     * 前提：get_flow。
      * 期望：委托 Executor 并返回 resultJson。
      */
     @Test
@@ -221,7 +212,8 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 工具返回含 error 字段时，McpToolResult.error=true。
+     * 前提：工具返回 JSON 含 error 字段。
+     * 期望：McpToolResult.error=true。
      */
     @Test
     @Order(8)

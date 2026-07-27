@@ -26,13 +26,9 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link NodeHandlerRegistry} 单元测试：验证节点类型到 Handler 的路由与桩执行行为。
- * <p>
- * 被测对象维护 nodeType → {@link NodeHandler} 映射，提供 {@code requireHandler}（未知类型抛异常）
- * 和 {@code execute}（委托 Handler 执行并返回 {@link StepResult}）。
- * 本测试注册 http/assert/delay 三个桩 Handler，验证 MVP 节点可路由、非 MVP 节点被拒绝。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=NodeHandlerRegistryTest
+ * 测 NodeHandlerRegistry：类型路由、未知类型拒绝、桩 execute 行为。
+ * 边界：仅注册 http/assert/delay 桩；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=NodeHandlerRegistryTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class NodeHandlerRegistryTest {
@@ -60,7 +56,8 @@ class NodeHandlerRegistryTest {
     }
 
     /**
-     * {@code requireHandler} 对 http / assert / delay 返回对应实现类，且 {@code supports} 为真。
+     * 前提：registry 已注册 http/assert/delay 桩 handler。
+     * 期望：requireHandler 返回非 null，supports 均为 true。
      */
     @Test
     @Order(1)
@@ -77,7 +74,8 @@ class NodeHandlerRegistryTest {
     }
 
     /**
-     * 未知 type、{@code condition}、{@code assign}、null、空串均应抛 {@link FlowErrorCode#TF_NODE_UNSUPPORTED}。
+     * 前提：requireHandler 入参为 unknown/condition/assign/null/空串。
+     * 期望：均抛 TF_NODE_UNSUPPORTED 异常。
      */
     @Test
     @Order(2)
@@ -96,8 +94,8 @@ class NodeHandlerRegistryTest {
     }
 
     /**
-     * stub {@code execute} 返回 {@code failed}、{@code TF_STEP_ERROR}，message 含「未实现」；
-     * {@code flowAfter} 为当前 {@code flow} 快照。
+     * 前提：http/assert/delay 桩 handler 执行各类型节点。
+     * 期望：返回 failed + TF_STEP_ERROR，message 含「未实现」，flowAfter 为当前 flow 快照。
      */
     @Test
     @Order(3)
@@ -126,8 +124,8 @@ class NodeHandlerRegistryTest {
     }
 
     /**
-     * {@code demo-graph.json} 中 {@code http}/{@code assert}/{@code delay} 可路由，
-     * {@code condition}/{@code assign} 被拒绝。
+     * 前提：demo-graph.json 含 http/assert/delay 与 condition/assign 节点。
+     * 期望：MVP 类型可路由，condition/assign 抛 TF_NODE_UNSUPPORTED。
      */
     @Test
     @Order(4)

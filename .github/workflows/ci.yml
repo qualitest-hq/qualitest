@@ -5,7 +5,7 @@
 # - 根 pom 默认 skipTests=true；本 workflow 后端 job 先做编译校验（package -DskipTests）
 # - 前端跑 Vitest（qualitest-ui → yarn test）
 # - qualitest-system 全量单测仍有存量失败，修绿后把 backend 的 package 换成：
-#     mvn -B -pl qualitest-system -am test -DskipTests=false
+#     mvn -B test -DskipTests=false -pl qualitest-system -am
 
 name: CI
 

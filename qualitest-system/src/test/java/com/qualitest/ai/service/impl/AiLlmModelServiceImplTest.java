@@ -27,17 +27,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link AiLlmModelServiceImpl} 单元测试。
- * <p>
- * 覆盖三类能力：
- * <ul>
- *   <li>{@link AiLlmModelServiceImpl#resolve(Long)}：按模型主键组装运行时 {@link LlmModelConfig}，并校验启用/删除/密钥等前置条件</li>
- *   <li>{@link AiLlmModelServiceImpl#listModelsGrouped()}：返回按厂商分组的启用模型列表及默认模型 ID</li>
- *   <li>物理删除保护：{@code builtin_status=1} 的内置模型不可通过 {@code delete*} 接口删除</li>
- * </ul>
- * Mapper 与 ConfigService 使用 Mock，不访问数据库。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=AiLlmModelServiceImplTest
+ * 测 AiLlmModelServiceImpl：resolve 组装配置、按厂商分组列表、内置模型删除保护。
+ * 边界：Mapper/Config Mock；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiLlmModelServiceImplTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AiLlmModelServiceImplTest {
@@ -47,7 +39,7 @@ class AiLlmModelServiceImplTest {
     private AiLlmModelServiceImpl service;
 
     /**
-     * 构造被测 Service 并注入 Mock 依赖；ConfigService 返回固定的超时与 maxTokens 配置。
+     * 每个用例重建 Service；Config 固定超时与 maxTokens。
      */
     @BeforeEach
     void setUp() {
@@ -63,9 +55,8 @@ class AiLlmModelServiceImplTest {
     }
 
     /**
-     * 模型与所属厂商均启用、均未逻辑删除，且厂商已配置 baseUrl 与 apiKey。
-     * 期望：{@link AiLlmModelServiceImpl#resolve(Long)} 返回完整 {@link LlmModelConfig}，
-     * 含 modelId、modelName、baseUrl 及 ConfigService 提供的 maxTokens。
+     * 前提：模型/厂商均启用未删除，且有 baseUrl、apiKey。
+     * 期望：resolve 返回含 modelId、modelName、baseUrl、maxTokens 的配置。
      */
     @Test
     @Order(1)
@@ -100,8 +91,8 @@ class AiLlmModelServiceImplTest {
     }
 
     /**
-     * 模型 {@code enable_status=0}（未启用），厂商仍为启用状态。
-     * 期望：{@link AiLlmModelServiceImpl#resolve(Long)} 抛出 {@link LlmClientException}，消息含「未启用」。
+     * 前提：modelEnableStatus=0。
+     * 期望：抛 LlmClientException，消息含「未启用」。
      */
     @Test
     @Order(2)
@@ -121,9 +112,8 @@ class AiLlmModelServiceImplTest {
     }
 
     /**
-     * 两条启用模型分属两个厂商，厂商 sort_num 分别为 10 与 20。
-     * 期望：{@link AiLlmModelServiceImpl#listModelsGrouped()} 返回 2 个厂商分组；
-     * 第一组为 sort_num 较小的 OpenAI；{@code defaultModelId} 取全局排序后首个模型（1001）。
+     * 前提：两条启用模型分属 sort_num=10/20 的两厂商。
+     * 期望：2 个分组；首组 OpenAI；defaultModelId=1001。
      */
     @Test
     @Order(3)
@@ -161,9 +151,8 @@ class AiLlmModelServiceImplTest {
     }
 
     /**
-     * 目标模型 {@code builtin_status=1}（系统内置）。
-     * 期望：{@link AiLlmModelServiceImpl#deleteAiLlmModelById(Long)} 抛出 {@link ServiceException}，
-     * 消息含「内置」；不调用 Mapper 物理删除。
+     * 前提：模型 builtin_status=1。
+     * 期望：deleteById 抛 ServiceException（消息含「内置」）。
      */
     @Test
     @Order(4)
@@ -181,8 +170,8 @@ class AiLlmModelServiceImplTest {
     }
 
     /**
-     * 目标模型 {@code builtin_status=0}（用户自建或发现同步入库）。
-     * 期望：{@link AiLlmModelServiceImpl#deleteAiLlmModelById(Long)} 通过删除校验并调用 Mapper 物理删除，返回 1。
+     * 前提：模型 builtin_status=0；Mapper 删除返回 1。
+     * 期望：返回 1。
      */
     @Test
     @Order(5)

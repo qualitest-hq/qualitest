@@ -16,12 +16,9 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link DelayNodeHandler} 单元测试：验证「延时等待」节点的阻塞行为。
- * <p>
- * 被测对象读取节点 data 中的 {@code ms} 字段，调用 {@code Thread.sleep} 阻塞指定毫秒数，
- * 然后返回 passed 状态的 {@link StepResult}，{@code durationMs} 应反映实际等待时长。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=DelayNodeHandlerTest
+ * 测 DelayNodeHandler：按 data.ms 阻塞后返回 passed。
+ * 边界：真实 sleep（短毫秒）；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=DelayNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DelayNodeHandlerTest {
@@ -29,8 +26,8 @@ class DelayNodeHandlerTest {
     private final DelayNodeHandler handler = new DelayNodeHandler();
 
     /**
-     * 配置延时 10ms，执行前后记录墙钟时间。
-     * 期望：步骤 passed；{@code result.durationMs >= 10}；实际 elapsed >= 10ms。
+     * 前提：节点 ms=10。
+     * 期望：status=passed；durationMs 与墙钟均 ≥10。
      */
     @Test
     @Order(1)

@@ -11,8 +11,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+/**
+ * 测 GraphJsonHashUtil：图结构稳定哈希（节点顺序无关、边变更敏感）。
+ * 边界：纯函数，无 DB。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphJsonHashUtilTest
+ */
 class GraphJsonHashUtilTest {
 
+    /**
+     * 前提：同一图对象与 JSON 深拷贝后再算哈希。
+     * 期望：哈希非空、长度 16，且两次相等。
+     */
     @Test
     void computeBaseGraphHash_sameGraph_producesSameHash() {
         GraphJson graph = sampleGraph();
@@ -23,6 +32,10 @@ class GraphJsonHashUtilTest {
         assertEquals(hash1, hash2);
     }
 
+    /**
+     * 前提：两图节点集合相同但列表顺序不同。
+     * 期望：哈希相同。
+     */
     @Test
     void computeBaseGraphHash_nodeOrderIgnored() {
         GraphJson graphA = sampleGraph();
@@ -35,6 +48,10 @@ class GraphJsonHashUtilTest {
                 GraphJsonHashUtil.computeBaseGraphHash(graphB));
     }
 
+    /**
+     * 前提：仅改一条边的 target。
+     * 期望：哈希不同。
+     */
     @Test
     void computeBaseGraphHash_changedEdge_producesDifferentHash() {
         GraphJson base = sampleGraph();
@@ -46,6 +63,10 @@ class GraphJsonHashUtilTest {
                 GraphJsonHashUtil.computeBaseGraphHash(changed));
     }
 
+    /**
+     * 前提：图为 null 或空 builder。
+     * 期望：返回稳定非空哈希，且两者相等。
+     */
     @Test
     void computeBaseGraphHash_nullGraph_returnsStableHash() {
         String hash = GraphJsonHashUtil.computeBaseGraphHash(null);

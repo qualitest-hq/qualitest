@@ -11,20 +11,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * {@link CompareRuleEvaluator} 单元测试：验证断言/条件分支中的比较规则求值。
+ * {@link CompareRuleEvaluator} 单元测试：断言/条件分支中的比较规则求值。
  * <p>
- * 被测对象读取 rule 的 left（如 flow.code、http.body.data.token、asset.xxx）、
- * operator（eq/ne/gt/lt/gte/lte/contains/exists 等 9 种）、right（支持占位符），
- * 在 {@link FlowRunContext} 上求值并返回 boolean。
+ * 覆盖 rule 的 left（flow.code、http.body.data.token、asset.xxx 等）、
+ * operator（eq/ne/gt/lt/gte/lte/contains/exists 等 9 种）、right（支持占位符）组合。
  * <p>
- * 数据驱动：用例来自 {@code classpath:flow/compare-extract-cases.json} 的 compareCases 数组。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=CompareRuleEvaluatorTest
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=CompareRuleEvaluatorTest
  */
 class CompareRuleEvaluatorTest {
 
@@ -49,21 +44,18 @@ class CompareRuleEvaluatorTest {
     }
 
     /**
-     * 数据驱动主测试：遍历 compareCases，对每条 rule 调用 {@link CompareRuleEvaluator#eval}，
-     * 断言返回值与 fixture 中的 expected 一致。失败时断言消息含用例 id 便于定位。
+     * 前提：fixture compareCases 含 rule 与 mockContext 上下文。
+     * 期望：每条 case 的 eval 布尔结果与 expected 一致。
      */
     @Test
     void eval_fixtureCases() {
-        begin("eval_fixtureCases");
         for (int i = 0; i < compareCases.size(); i++) {
             JSONObject c = compareCases.getJSONObject(i);
             String id = c.getString("id");
             boolean actual = CompareRuleEvaluator.eval(c.getJSONObject("rule"), ctx);
             boolean expected = c.getBooleanValue("expected");
-            System.out.printf("  OK %-22s  ->  %s (expected %s)%n", id, actual, expected);
-            assertEquals(expected, actual, id);
+            assertEquals(expected, actual, "case: " + id);
         }
-        end("eval_fixtureCases");
     }
 
     /**

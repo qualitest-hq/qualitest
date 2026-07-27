@@ -13,14 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * {@link RunExecutionState} 单元测试：暂停时持久化到 run_execution_state 的 JSON 往返。
- * <p>
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=RunExecutionStateTest
+ * 测 RunExecutionState：暂停时持久化到 run_execution_state 的 JSON 往返。
+ * 边界：纯序列化，无 DB。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunExecutionStateTest
  */
 class RunExecutionStateTest {
 
     /**
-     * 构建含 nextStepIndex、暂停节点、快照栈与 context 的状态后序列化再反序列化。
+     * 前提：状态含 nextStepIndex、暂停节点、快照栈与 context，再序列化反序列化。
      * 期望：字段完整保留。
      */
     @Test

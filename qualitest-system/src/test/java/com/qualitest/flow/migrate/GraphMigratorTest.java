@@ -16,6 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * {@link GraphMigrator} 单元测试。
+ * <p>
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphMigratorTest
  */
 class GraphMigratorTest {
 
@@ -26,6 +28,10 @@ class GraphMigratorTest {
         migrator = new GraphMigrator();
     }
 
+    /**
+     * 前提：GraphJson 无 meta 或 schemaVersion。
+     * 期望：resolveVersion 返回 DEFAULT 与 V1。
+     */
     @Test
     void resolveVersion_missingMeta_defaultsToV1() {
         GraphJson graph = GraphJson.builder().build();
@@ -33,11 +39,19 @@ class GraphMigratorTest {
         assertEquals(GraphSchemaVersions.V1, migrator.resolveVersion(graph));
     }
 
+    /**
+     * 前提：最小图无 schemaVersion 字段。
+     * 期望：needsUpgrade 返回 false。
+     */
     @Test
     void needsUpgrade_missingSchemaVersion_returnsFalse() {
         assertFalse(migrator.needsUpgrade(minimalGraph()));
     }
 
+    /**
+     * 前提：已是 V1 图（含 activeScenarioId）。
+     * 期望：migrateToLatest 无实质变更，版本仍为 V1。
+     */
     @Test
     void migrateToLatest_v1Graph_isNoOp() {
         GraphJson graph = v1Graph();
@@ -46,6 +60,10 @@ class GraphMigratorTest {
         assertEquals("sc-1", migrated.getMeta().getActiveScenarioId());
     }
 
+    /**
+     * 前提：V1 图已是最新版本。
+     * 期望：previewUpgrade 报告 upgradeAvailable=false，from/to 版本正确。
+     */
     @Test
     void previewUpgrade_v1Graph_notAvailable() {
         GraphUpgradePreview preview = migrator.previewUpgrade(v1Graph());
@@ -54,6 +72,10 @@ class GraphMigratorTest {
         assertEquals(GraphSchemaVersions.CURRENT, preview.getUpgradeToVersion());
     }
 
+    /**
+     * 前提：最小图无 schemaVersion。
+     * 期望：stampCurrentVersion 写入 CURRENT 版本号。
+     */
     @Test
     void stampCurrentVersion_writesSchemaVersion() {
         GraphJson graph = minimalGraph();

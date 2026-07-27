@@ -48,14 +48,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * FlowDesignToolExecutor 单元测试。
- * <p>
- * 覆盖只读查询（search_apis、get_api_detail、get_graph_summary、get_flow_api_health、
- * list_flows、get_flow 等）、get_run_failure 失败步骤摘要，以及
- * submit_flow_design_patch 的规范化、capture 写入与 validation 回传。
- * Mapper 与 Normalizer 使用 Mock，不访问数据库与真实 LLM。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=FlowDesignToolExecutorTest
+ * 测 FlowDesignToolExecutor：设计工具只读查询、健康检查与 submit_flow_design_patch。
+ * 边界：Mock Mapper / Normalizer / 各 Service，不访问 DB 与真实 LLM；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolExecutorTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowDesignToolExecutorTest {
@@ -95,8 +90,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * search_apis 传入 keyword=login：应调用 mapper.searchApisByKeyword 并返回匹配项的 id/method/path。
-     * 期望：items 1 条，truncated=false。
+     * 前提：search_apis keyword=login，mapper 返回匹配项。
+     * 期望：items 1 条含 id/method/path，truncated=false。
      */
     @Test
     @Order(1)
@@ -125,8 +120,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * search_apis 无关键词时：应优先从 context.scopeApiIds 列举 API（不查全库）。
-     * 期望：返回 scope 内 API 的 name 等信息。
+     * 前提：无关键词，context.scopeApiIds 已限定范围。
+     * 期望：只返回 scope 内 API，不查全库。
      */
     @Test
     @Order(2)
@@ -147,8 +142,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_api_detail 传入合法 testProjectApiId：应返回 method/path/bodyParams/bodyExample/responseSchemaSummary。
-     * 期望：bodyParams 含 username；truncated=false。
+     * 前提：get_api_detail 传入本项目合法 testProjectApiId。
+     * 期望：返回 method/path/bodyParams（含 username）等语义摘要，truncated=false。
      */
     @Test
     @Order(3)
@@ -188,8 +183,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_api_detail 请求的 API 不属于当前 testProjectId 时，不应泄露接口详情。
-     * 期望：返回 error=「接口不属于当前项目」。
+     * 前提：API 属于其它项目。
+     * 期望：error=「接口不属于当前项目」，不泄露详情。
      */
     @Test
     @Order(4)
@@ -210,8 +205,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * 调用未注册的工具名时。
-     * 期望：返回 JSON error，消息含「未知工具」。
+     * 前提：调用未注册工具名。
+     * 期望：JSON error 含「未知工具」。
      */
     @Test
     @Order(5)
@@ -224,8 +219,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * {@link FlowDesignApiSummarizer#resolveMethod}：从 requestConfig.method 解析并转大写；缺省 GET。
-     * 期望：loginApi=POST；无 method 时=GET。
+     * 前提：requestConfig 有/无 method。
+     * 期望：有则转大写 POST；缺省 GET。
      */
     @Test
     @Order(6)
@@ -241,7 +236,7 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_graph_summary：返回节点与边摘要。
+     * 前提：上下文图含节点 n1 与边。
      * 期望：nodeCount=1；nodes[0].id=n1；contextNodeIds 含 n1。
      */
     @Test
@@ -285,8 +280,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_node_detail：按 nodeId 返回 data。
-     * 期望：id=n1；type=http；data.name=登录。
+     * 前提：按 nodeId=n1 查询。
+     * 期望：返回 id/type/data.name=登录。
      */
     @Test
     @Order(8)
@@ -323,8 +318,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_run_failure：返回 failed 步骤列表及 failureCount。
-     * 期望：failed=true；failureCount=1；顶层 nodeId/nodeName 与 failures[0] 一致。
+     * 前提：运行含一条 failed 步骤。
+     * 期望：failed=true；failureCount=1；顶层 nodeId 与 failures[0] 一致。
      */
     @Test
     @Order(9)
@@ -376,8 +371,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_flow_api_health：节点绑定的 API 已不存在时，返回 API_MISSING，
-     * 并带上节点 data 里残留的 apiName / apiPath / httpMethod，方便后续换绑。
+     * 前提：节点绑定的 API 已不存在。
+     * 期望：返回 API_MISSING，并带残留 apiName/apiPath/httpMethod 提示。
      */
     @Test
     @Order(25)
@@ -432,8 +427,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * submit 校验通过：写入 capture，tool_result 含 validation、patchStats 与 hint。
-     * 期望：received=true；validation.ok=true；capture.submitted=true。
+     * 前提：submit 校验通过。
+     * 期望：写入 capture；received/validation.ok=true。
      */
     @Test
     @Order(21)
@@ -477,7 +472,7 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * validation 失败：tool_result.errors 非空，hint 提示模型修正后重试。
+     * 前提：submit 校验失败。
      * 期望：validation.ok=false；errors 1 条；hint 含「修正」。
      */
     @Test
@@ -517,7 +512,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * 同一轮多次 submit：后者覆盖前者，返回 replacedPrevious=true。
+     * 前提：同一轮连续两次 submit。
+     * 期望：后者覆盖前者，返回 replacedPrevious=true。
      */
     @Test
     @Order(23)
@@ -554,7 +550,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_graph_summary：MCP 仅传 testFlowId 时自动从库加载 graphJson。
+     * 前提：MCP 仅传 testFlowId，上下文无 graph。
+     * 期望：自动从库加载 graphJson 后返回摘要。
      */
     @Test
     @Order(24)
@@ -584,8 +581,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_flow_meta：从画布 meta.run 提取 activeScenarioId、startNodeId 与场景摘要。
-     * 期望：scenarios 含 name、flowSeedKeys 等字段。
+     * 前提：画布 meta 含 activeScenarioId 与场景。
+     * 期望：返回场景摘要（name、flowSeedKeys 等）。
      */
     @Test
     @Order(10)
@@ -629,8 +626,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * list_project_envs：列举项目环境 id、名称、URL 及 envVarKeys（仅键名，不返回值）。
-     * 期望：items[0].id=201；envVarKeys 含 baseUrl。
+     * 前提：项目有一条环境，envVariables 含 baseUrl 键。
+     * 期望：items[0].id=201；envVarKeys 含 baseUrl（不返回值）。
      */
     @Test
     @Order(11)
@@ -661,8 +658,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * arguments 非合法 JSON 时。
-     * 期望：返回 error=「arguments 非合法 JSON」，不进入工具实现。
+     * 前提：arguments 不是合法 JSON。
+     * 期望：error=「arguments 非合法 JSON」，不进入工具实现。
      */
     @Test
     @Order(12)
@@ -678,8 +675,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_graph_summary 节点数超过压缩阈值时，仍返回 contextNodeIds 对应节点摘要。
-     * 期望：compressed=true，nodes 仅含上下文节点。
+     * 前提：节点数超过压缩阈值，contextNodeIds 含 n5。
+     * 期望：compressed=true，nodes 仅含上下文节点 n5。
      */
     @Test
     @Order(13)
@@ -718,7 +715,7 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * search_apis 传入 limit 参数时，返回条数不超过 limit 且 truncated=true。
+     * 前提：search_apis 传 limit=2，库中有更多匹配。
      * 期望：items.size=2；truncated=true。
      */
     @Test
@@ -754,8 +751,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * list_flows：按项目列举测试流摘要。
-     * 期望：items 含 testFlowId、flowName，不含 graphJson。
+     * 前提：项目下有测试流「登录流」。
+     * 期望：items 含 testFlowId/flowName，不含 graphJson。
      */
     @Test
     @Order(15)
@@ -781,8 +778,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_flow：读取属于当前项目的测试流并解析 graphJson。
-     * 期望：flowName 与 graphJson.nodes 存在。
+     * 前提：testFlowId 属于当前项目且含 graphJson。
+     * 期望：返回 flowName，并解析出 graphJson.nodes。
      */
     @Test
     @Order(16)
@@ -809,8 +806,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_flow 请求的测试流不属于当前 testProjectId。
-     * 期望：返回 error=「测试流不属于当前项目」。
+     * 前提：测试流属于其它项目。
+     * 期望：error=「测试流不属于当前项目」。
      */
     @Test
     @Order(17)
@@ -834,9 +831,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * list_subflow_templates：列举平台内置模板与当前项目测试流摘要。
-     * 期望：platformTemplates 非空且含 templateId；projectSubflows 含 testFlowId、flowName；
-     * 返回 hint 提示如何引用子流。
+     * 前提：有平台模板与项目内子流。
+     * 期望：platformTemplates 非空含 templateId；projectSubflows 含 testFlowId/flowName；有 hint。
      */
     @Test
     @Order(18)
@@ -871,9 +867,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_subflow_detail：读取被引用测试流的拓扑摘要。
-     * 期望：flowName、startNodeId、nodeCount/edgeCount、nodeTypeCounts、flowOutputNames、
-     * nodes 含 HTTP callMode 与子流 subflowId，edges 含 source/target。
+     * 前提：被引用测试流含 http/subflow 节点与边、meta.startNodeId/flowOutputs。
+     * 期望：返回拓扑摘要（flowName、startNodeId、计数、类型、outputs、nodes/edges 关键字段）。
      */
     @Test
     @Order(19)
@@ -931,8 +926,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * get_subflow_detail 请求的测试流不属于当前 testProjectId 时，不应泄露图结构。
-     * 期望：返回 error=「测试流不属于当前项目」。
+     * 前提：子流 detail 请求的测试流属于其它项目。
+     * 期望：error=「测试流不属于当前项目」，不泄露图结构。
      */
     @Test
     @Order(20)

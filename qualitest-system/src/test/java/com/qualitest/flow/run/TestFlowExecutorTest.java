@@ -36,15 +36,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * {@link TestFlowExecutor} 集成风格单测：验证完整流程图的顺序执行与落库行为。
- * <p>
- * 被测对象按 {@link GraphWalker} 遍历图节点，调用 {@link NodeHandlerRegistry} 执行各步，
- * 通过 {@link StepResultWriter} 写入 {@link TestFlowRunStep}，最后更新 {@link TestFlowRun} 终态。
- * <p>
- * 本测试 Mock 落库服务与 HTTP/Delay Handler（桩返回 passed），Assert 走真实 {@link AssertNodeHandler}。
- * 夹具 {@code flow/linear-run-graph.json}：3×http + 1×assert 单链，共 4 个业务步 + 1 个 run_config 步。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=TestFlowExecutorTest
+ * 测 TestFlowExecutor：线性图顺序执行、落库与断言失败短路。
+ * 边界：http/delay 桩 + 真实 Assert；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TestFlowExecutorTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class TestFlowExecutorTest {
@@ -127,9 +121,8 @@ class TestFlowExecutorTest {
     private final RunCaptorHolder runCaptorHolder = new RunCaptorHolder();
 
     /**
-     * 线性 4 步全部通过（flow.code=0 满足 assert 规则）。
-     * 期望：落库 5 条 step（含 step_index=0 的 run_config）；Run 终态 passed；
-     * flow_snapshot 含 flow 变量；各步 stepDetails 含 http/flowAfter 等字段。
+     * 前提：linear-run-graph；flow.code=0 满足 assert。
+     * 期望：passed；落库 5 步（含 run_config）；终态 passed；stepDetails 含 http/flowAfter。
      */
     @Test
     @Order(1)
@@ -183,8 +176,8 @@ class TestFlowExecutorTest {
     }
 
     /**
-     * assert 步失败（flow.code=99 不满足 eq 0）时执行器应短路停止。
-     * 期望：仍写入失败步记录；Run 终态 failed 且含 errorCode；不再执行后续节点。
+     * 前提：flow.code=99，assert 规则 eq 0 失败。
+     * 期望：outcome 失败；写入失败步；Run 终态 failed 且含 errorCode。
      */
     @Test
     @Order(2)

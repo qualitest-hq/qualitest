@@ -13,9 +13,9 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link SubflowTemplateCatalog} 单元测试：平台内置子流模板目录与 flowOutputs 嵌入。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=SubflowTemplateCatalogTest
+ * 测 SubflowTemplateCatalog：内置模板目录、按 id 查找、图骨架与 flowOutputs 嵌入。
+ * 边界：未知 templateId / null 元数据；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowTemplateCatalogTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SubflowTemplateCatalogTest {
@@ -24,7 +24,7 @@ class SubflowTemplateCatalogTest {
     private static final String LOGIN_BEARER_TEMPLATE_ID = "tpl_login_bearer";
 
     /**
-     * listTemplates 应加载 classpath 内置模板目录。
+     * 前提：classpath 内置模板目录可用。
      * 期望：列表非空；含 tpl_oauth_client_credentials。
      */
     @Test
@@ -39,8 +39,8 @@ class SubflowTemplateCatalogTest {
     }
 
     /**
-     * findById 应解析已知 templateId；未知 id 或 null 返回 null。
-     * 期望：OAuth 模板含 templateId 与 name。
+     * 前提：已知 OAuth templateId；另测未知 id 与 null。
+     * 期望：返回含 templateId/name；未知与 null 为 null。
      */
     @Test
     @Order(2)
@@ -57,8 +57,8 @@ class SubflowTemplateCatalogTest {
     }
 
     /**
-     * loadGraphJson 应返回模板图骨架 JSON。
-     * 期望：OAuth 模板含 http 节点；未知 templateId 返回 null。
+     * 前提：加载 OAuth 模板图；另测缺失 id。
+     * 期望：JSON 含 http 节点；缺失 id 返回 null。
      */
     @Test
     @Order(3)
@@ -73,8 +73,8 @@ class SubflowTemplateCatalogTest {
     }
 
     /**
-     * embedFlowOutputsIntoGraph 应将模板 outputs 写入 meta.flowOutputs。
-     * 期望：嵌入后 flowOutputs 非空；空模板元数据时写入空数组。
+     * 前提：login_bearer / oauth 模板及其图骨架；另测 null 元数据。
+     * 期望：meta.flowOutputs 非空；null 元数据写入空数组。
      */
     @Test
     @Order(4)

@@ -13,16 +13,16 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link FlowRunSession} 单元测试：Set-Cookie 吸收与 Cookie 请求头拼装。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=FlowRunSessionTest
+ * 测 FlowRunSession：吸收 Set-Cookie 并拼装 Cookie 请求头。
+ * 边界：单条 Set-Cookie。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowRunSessionTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowRunSessionTest {
 
     /**
-     * 吸收响应 Set-Cookie 后应能拼出 Cookie 请求头。
-     * 期望：session 非空；buildCookieHeader 含 sid 值。
+     * 前提：吸收 Set-Cookie: sid=abc123。
+     * 期望：session 非空；buildCookieHeader 含 sid=abc123。
      */
     @Test
     @Order(1)

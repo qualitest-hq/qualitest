@@ -10,19 +10,15 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link AnthropicPayloadBuilder} 单元测试：验证 Anthropic Claude API 请求/响应格式的转换。
- * <p>
- * 被测对象负责：将内部 {@link LlmMessage} 列表转为 Anthropic messages 格式（含 system 块、
- * assistant tool_use、user tool_result）；构建请求体（structured output、thinking、caching、stream）；
- * 解析响应中的 text、thinking、tool_use 与 usage（含 cache token）。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=AnthropicPayloadBuilderTest
+ * 测 AnthropicPayloadBuilder：内部 LlmMessage ↔ Anthropic 请求/响应格式转换。
+ * 边界：纯函数，不发 HTTP。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AnthropicPayloadBuilderTest
  */
 class AnthropicPayloadBuilderTest {
 
     /**
-     * {@link AnthropicPayloadBuilder#toAnthropicMessages}：system 消息提取到 systemBlockList；
-     * assistant 含 tool_use 块；连续 tool_result 合并为一条 user 消息；is_error 标记错误结果。
+     * 前提：消息列表含 system、user、assistant tool_use 与连续 tool_result（含 is_error）。
+     * 期望：system 提取到 systemBlockList；messages 含 assistant tool_use 与合并的 user tool_result。
      */
     @Test
     void toAnthropicMessages_convertsSystemToolAndAssistantToolUse() {
@@ -56,7 +52,8 @@ class AnthropicPayloadBuilderTest {
     }
 
     /**
-     * {@link AnthropicPayloadBuilder#toAnthropicToolChoice}：指定工具名时返回 type=tool + name。
+     * 前提：指定工具名 search_apis。
+     * 期望：toAnthropicToolChoice 返回 type=tool、name=search_apis。
      */
     @Test
     void toAnthropicToolChoice_supportsNamedTool() {
@@ -66,8 +63,8 @@ class AnthropicPayloadBuilderTest {
     }
 
     /**
-     * {@link AnthropicPayloadBuilder#buildBody}：request 含 responseFormat/thinking/promptCaching/stream 时
-     * 应写入 output_format、thinking.budget_tokens、system 数组及 beta headers。
+     * 前提：request 启用 responseFormat、thinking、promptCaching、stream。
+     * 期望：body 含 output_format/thinking/system 数组，stream=true，beta headers 非空。
      */
     @Test
     void buildBody_appliesStructuredOutputThinkingAndCaching() {
@@ -94,8 +91,8 @@ class AnthropicPayloadBuilderTest {
     }
 
     /**
-     * {@link AnthropicPayloadBuilder#parseResponse}：从 Anthropic 响应 JSON 中提取
-     * text 内容、thinking 内容、tool_use 列表、finishReason 及 usage（含 cache token）。
+     * 前提：Anthropic 响应 JSON 含 thinking/text/tool_use 与 cache token usage。
+     * 期望：parseResponse 提取 content、thinkingContent、toolCalls、finishReason 及 usage。
      */
     @Test
     void parseResponse_readsTextThinkingToolUseAndUsage() {

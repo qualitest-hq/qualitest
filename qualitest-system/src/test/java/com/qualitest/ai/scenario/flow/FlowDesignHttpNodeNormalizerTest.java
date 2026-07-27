@@ -14,8 +14,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+
+/**
+ * 测 FlowDesignHttpNodeNormalizer：AI patch 里 HTTP 节点瘦身（body → overrides，剥厚 requestConfig）。
+ * 边界：纯函数，依赖传入的 TestProjectApi，无 DB。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignHttpNodeNormalizerTest
+ */
 class FlowDesignHttpNodeNormalizerTest {
 
+    /**
+     * 前提：节点带 requestBody JSON，项目 API 含 method=POST。
+     * 期望：去掉 requestBody/requestConfig/apiPath；写入 httpMethod 与 bodyExample overrides；successCheck=inherit。
+     */
     @Test
     void normalize_writesRequestBodyToOverrides_notRequestConfig() {
         TestProjectApi api = TestProjectApi.builder()
@@ -47,6 +57,10 @@ class FlowDesignHttpNodeNormalizerTest {
         assertEquals("inherit", successCheck.get("mode"));
     }
 
+    /**
+     * 前提：节点带厚 requestConfig，query 值与 API 默认不同。
+     * 期望：剥掉 requestConfig，仅保留与默认的 diff overrides。
+     */
     @Test
     void normalize_stripsThickRequestConfig_keepsDiffOverrides() {
         TestProjectApi api = TestProjectApi.builder()
@@ -80,6 +94,10 @@ class FlowDesignHttpNodeNormalizerTest {
         assertEquals("{{flow.mobile}}", params.get("mobile"));
     }
 
+    /**
+     * 前提：节点 query 值与资产默认相同。
+     * 期望：剥掉 requestConfig，且不产生 requestValueOverrides。
+     */
     @Test
     void normalize_sameAsAssetDefaults_noOverrides() {
         TestProjectApi api = TestProjectApi.builder()
@@ -105,6 +123,10 @@ class FlowDesignHttpNodeNormalizerTest {
         assertNull(data.get("requestValueOverrides"));
     }
 
+    /**
+     * 前提：extracts 使用旧字段 value=responses.mobile。
+     * 期望：转为 expr=$.data.mobile、from=body、scope=flow，并去掉 value。
+     */
     @Test
     void normalize_extractsValueConvertedToExprWithDataPrefix() {
         Map<String, Object> data = new HashMap<>();
@@ -123,6 +145,10 @@ class FlowDesignHttpNodeNormalizerTest {
         assertFalse(row.containsKey("value"));
     }
 
+    /**
+     * 前提：旧式 responses.* / http.body.data.* / 已是 $. 的表达式。
+     * 期望：统一成 $. 路径。
+     */
     @Test
     void convertLegacyExtractExpr_handlesCommonPrefixes() {
         assertEquals("$.mobile", FlowDesignHttpNodeNormalizer.convertLegacyExtractExpr("responses.mobile"));
@@ -130,6 +156,10 @@ class FlowDesignHttpNodeNormalizerTest {
         assertEquals("$.token", FlowDesignHttpNodeNormalizer.convertLegacyExtractExpr("$.token"));
     }
 
+    /**
+     * 前提：浅层 $.mobile、已有 $.data、根字段 $.code/$.msg。
+     * 期望：业务字段补 $.data. 前缀；根字段与已有前缀保持不变。
+     */
     @Test
     void ensureDataPathPrefix_shallowAndRootFields() {
         assertEquals("$.data.mobile", FlowDesignHttpNodeNormalizer.ensureDataPathPrefix("$.mobile"));
@@ -139,6 +169,10 @@ class FlowDesignHttpNodeNormalizerTest {
         assertEquals("$.data", FlowDesignHttpNodeNormalizer.ensureDataPathPrefix("$.data"));
     }
 
+    /**
+     * 前提：callMode=external。
+     * 期望：successCheck.mode=off。
+     */
     @Test
     void normalize_external_defaultsSuccessCheckOff() {
         Map<String, Object> data = new HashMap<>();

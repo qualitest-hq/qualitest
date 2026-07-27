@@ -21,13 +21,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link FlowDesignToolContextFactory} 单元测试。
- * <p>
- * 验证 Web 设计请求与 MCP 调用请求均能组装出完整的 {@link FlowDesignToolContext}，
- * 含项目归属校验、scopeApiIds 解析及运行时限制参数注入。
- * ConfigService 使用 Mock。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=FlowDesignToolContextFactoryTest
+ * 测 FlowDesignToolContextFactory：Web 设计请求与 MCP 调用组装 FlowDesignToolContext。
+ * 边界：Mock AiLlmConfigService；校验项目归属与 scopeApiIds。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolContextFactoryTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowDesignToolContextFactoryTest {
@@ -47,8 +43,8 @@ class FlowDesignToolContextFactoryTest {
     }
 
     /**
-     * Web {@link TestFlowDesignRequest} 应映射项目、测试流、画布及配置上限。
-     * 期望：testProjectId=PROJECT_ID，testFlowId=3001L，maxSearchApis=10。
+     * 前提：Web TestFlowDesignRequest 带项目、流 id 与空图。
+     * 期望：上下文映射项目/流 id，并注入 maxSearchApis=10、maxToolResultBytes=8192。
      */
     @Test
     @Order(1)
@@ -70,8 +66,8 @@ class FlowDesignToolContextFactoryTest {
     }
 
     /**
-     * MCP 请求省略 testProjectId 时，应回退使用 Token 解析出的项目 id。
-     * 期望：scopeApiIds 字符串列表解析为 Long 列表。
+     * 前提：MCP 请求省略 testProjectId，仅有 Token 项目与 scopeApiIds=["2001"]。
+     * 期望：回退 Token 项目；scopeApiIds 解析为 Long 2001。
      */
     @Test
     @Order(2)
@@ -92,8 +88,8 @@ class FlowDesignToolContextFactoryTest {
     }
 
     /**
-     * MCP 请求显式传入的 testProjectId 与 Token 归属项目不匹配。
-     * 期望：抛出 {@link ServiceException}，拒绝越权访问。
+     * 前提：MCP 显式 testProjectId=999，与 Token 项目 100 不一致。
+     * 期望：抛 ServiceException，消息含「不一致」。
      */
     @Test
     @Order(3)

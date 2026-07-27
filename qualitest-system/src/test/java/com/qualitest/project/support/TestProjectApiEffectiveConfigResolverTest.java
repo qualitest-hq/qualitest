@@ -14,18 +14,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 有效配置合成单元测试。
- * <p>
- * 覆盖：参数默认值与 body 示例叠回请求、响应 example 按 id 叠回、null 安全、
- * Result 就地替换、以及生成仅替换配置字段的 API 副本。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=TestProjectApiEffectiveConfigResolverTest
+ * 测 TestProjectApiEffectiveConfigResolver：test_value 叠回请求/响应有效配置。
+ * 边界：null 安全、Result 就地替换、配置字段副本；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TestProjectApiEffectiveConfigResolverTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class TestProjectApiEffectiveConfigResolverTest {
 
     /**
-     * paramDefaults 与 bodyExample 应写入合成后的 request_config 对应字段。
+     * 前提：API 含 query 参数与 body example，test_value_config 提供 paramDefaults/bodyExample。
+     * 期望：有效 requestConfig 含覆盖后的 mobile 默认值与 username body 示例。
      */
     @Test
     @Order(1)
@@ -60,7 +58,8 @@ class TestProjectApiEffectiveConfigResolverTest {
     }
 
     /**
-     * test_value_config.response.examplesById 应按 response id 回填 responses[].example。
+     * 前提：response id 匹配，test_value_config 含 examplesById 示例。
+     * 期望：有效 responseConfig 含覆盖后的 code:14 示例内容。
      */
     @Test
     @Order(2)
@@ -97,7 +96,10 @@ class TestProjectApiEffectiveConfigResolverTest {
         end("resolve_overlaysResponseExampleById");
     }
 
-    /** 入参 api 为 null 时返回空 JSON 占位，避免 NPE。 */
+    /**
+     * 前提：resolve 入参 api 为 null。
+     * 期望：request/response 均返回空 JSON 占位 {}，不抛异常。
+     */
     @Test
     @Order(3)
     void resolve_nullApi_returnsEmptyJson() {
@@ -110,7 +112,8 @@ class TestProjectApiEffectiveConfigResolverTest {
     }
 
     /**
-     * overlayResultConfigs 应就地替换 Result 的 request/response，testValueConfig 列保持原值。
+     * 前提：Result 含 request/response 与 testValueConfig 默认值。
+     * 期望：overlay 后 request 含默认值，testValueConfig 列保持原值不变。
      */
     @Test
     @Order(4)
@@ -147,7 +150,8 @@ class TestProjectApiEffectiveConfigResolverTest {
     }
 
     /**
-     * toApiView 应复制源 API 的身份字段，并用有效配置替换 request/response 及覆盖层字段。
+     * 前提：源 API 含身份字段与 testValueConfig 默认值。
+     * 期望：toApiView 保留 id/path/headers，requestConfig 为有效配置（含 hello）。
      */
     @Test
     @Order(5)

@@ -6,11 +6,17 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** {@link ResponseConfigImportNormalizer} 单元测试 */
+/** {@link ResponseConfigImportNormalizer} 单元测试
+ * <p>
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ResponseConfigImportNormalizerTest
+ */
 class ResponseConfigImportNormalizerTest {
 
+    /**
+     * 前提：合法 v2 responseConfig 含 responses 数组。
+     * 期望：normalize 成功；输出含 configVersion、responses 与 resp id。
+     */
     @Test
-    void normalize_acceptsV2ResponsesArray() {
         String raw = """
                 {
                   "configVersion": 1,
@@ -29,8 +35,11 @@ class ResponseConfigImportNormalizerTest {
         assertTrue(out.contains("resp-abc123"));
     }
 
+    /**
+     * 前提：responseConfig 含非法 content 字段。
+     * 期望：抛 ServiceException，消息含 content。
+     */
     @Test
-    void normalize_rejectsContentField() {
         String raw = """
                 {
                   "configVersion": 1,
@@ -43,13 +52,19 @@ class ResponseConfigImportNormalizerTest {
         assertTrue(ex.getMessage().contains("content"));
     }
 
+    /**
+     * 前提：入参非合法 JSON 字符串。
+     * 期望：抛 ServiceException。
+     */
     @Test
-    void normalize_rejectsInvalidJson() {
         assertThrows(ServiceException.class, () -> ResponseConfigImportNormalizer.normalize("not-json"));
     }
 
+    /**
+     * 前提：responseConfig 缺少 responses 数组。
+     * 期望：抛 ServiceException。
+     */
     @Test
-    void normalize_rejectsMissingResponsesArray() {
         String raw = """
                 {"configVersion": 1}
                 """;

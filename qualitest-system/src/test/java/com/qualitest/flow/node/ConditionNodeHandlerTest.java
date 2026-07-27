@@ -19,13 +19,9 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link ConditionNodeHandler} 单元测试：验证「条件分支」节点的求值与路由决策。
- * <p>
- * 被测对象遍历节点 data 中的 {@code branches} 数组，用 {@link com.qualitest.flow.context.CompareRuleEvaluator}
- * 对 IF 分支的 conditions 求值；命中则记录 {@code branchTaken}（含 branchId 与 kind），
- * 供 {@link GraphWalker} 决定下一跳节点。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ConditionNodeHandlerTest
+ * 测 ConditionNodeHandler：按 branches 条件求值并写入 branchTaken。
+ * 边界：命中 if / 落 else / target 缺失失败；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ConditionNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ConditionNodeHandlerTest {
@@ -33,8 +29,8 @@ class ConditionNodeHandlerTest {
     private final ConditionNodeHandler handler = new ConditionNodeHandler();
 
     /**
-     * {@code flow.code == 0} 满足 IF 分支条件 {@code flow.code eq 0}。
-     * 期望：步骤 passed；{@code branchTaken.branchId == 'b_if'}，kind=if。
+     * 前提：flow.code=0，IF 条件 eq 0。
+     * 期望：passed；branchTaken.branchId=b_if，kind=if。
      */
     @Test
     @Order(1)
@@ -53,8 +49,8 @@ class ConditionNodeHandlerTest {
     }
 
     /**
-     * {@code flow.code == 99} 不满足 IF 条件，应走 ELSE 分支。
-     * 期望：步骤 passed；{@code branchTaken.branchId == 'b_else'}，kind=else。
+     * 前提：flow.code=99，不满足 IF。
+     * 期望：passed；branchTaken.branchId=b_else，kind=else。
      */
     @Test
     @Order(2)
@@ -73,8 +69,8 @@ class ConditionNodeHandlerTest {
     }
 
     /**
-     * IF 分支条件成立但 target 未配置（null）时无法确定下一跳。
-     * 期望：步骤 failed，{@code result.error} 非空。
+     * 前提：IF 条件成立但 target 为 null。
+     * 期望：failed；result.error 非空。
      */
     @Test
     @Order(3)

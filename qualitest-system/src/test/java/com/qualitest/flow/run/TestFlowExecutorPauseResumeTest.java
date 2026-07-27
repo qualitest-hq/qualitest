@@ -38,11 +38,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link TestFlowExecutor} 暂停与原地重试单测：onNodeFailure=prompt 时失败暂停，retry_in_place 后通过。
- * <p>
- * 夹具 {@code flow/linear-run-graph.json}（截断为两节点）。
- * <p>
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=TestFlowExecutorPauseResumeTest
+ * 测 TestFlowExecutor 暂停与原地重试：onNodeFailure=prompt 时失败暂停，retry_in_place 后通过。
+ * 边界：Mock 落库/快照服务；夹具 flow/linear-run-graph.json（截断为两节点）。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TestFlowExecutorPauseResumeTest
  */
 class TestFlowExecutorPauseResumeTest {
 
@@ -122,8 +120,8 @@ class TestFlowExecutorPauseResumeTest {
     }
 
     /**
-     * onNodeFailure=prompt：第二次 http 失败触发暂停，retry_in_place 后通过。
-     * 期望：首次 paused 且 runExecutionState 含 n2；续跑后 passed。
+     * 前提：onNodeFailure=prompt；n2 首次 http 失败，续跑 decision=retry_in_place。
+     * 期望：首次 paused 且 state 含 n2；续跑后 passed。
      */
     @Test
     void execute_promptOnFailure_pausesThenRetryInPlacePasses() {

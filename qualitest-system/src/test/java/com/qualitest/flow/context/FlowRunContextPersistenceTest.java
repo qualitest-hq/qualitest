@@ -8,8 +8,17 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
+/**
+ * 测 FlowRunContextPersistence：上下文 Map 往返序列化。
+ * 边界：纯内存，无 DB。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowRunContextPersistenceTest
+ */
 class FlowRunContextPersistenceTest {
 
+    /**
+     * 前提：ctx 含 flow / env / cookies / testProjectId。
+     * 期望：toMap → fromMap 后字段完整保留，会话非空。
+     */
     @Test
     void roundTrip_preservesFlowAndCookies() {
         FlowRunSession session = new FlowRunSession();

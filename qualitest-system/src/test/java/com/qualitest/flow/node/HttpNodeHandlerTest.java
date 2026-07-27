@@ -32,16 +32,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link HttpNodeHandler} 单元测试：验证测试流程中 HTTP 节点的完整执行链路。
- * <p>
- * 被测对象负责：根据节点绑定的 {@code testProjectApiId} 加载项目 API 定义 → 解析占位符与前置脚本
- * → 调用 {@link IDebugHttpForwardService} 发起真实 HTTP 转发 → 校验 2xx 状态码 → 按 extracts 配置
- * 从响应中提取变量写入 {@code flow} 作用域 → 组装 {@link StepResult}（含 http 详情）。
- * <p>
- * 依赖全部 Mock：{@link ITestProjectApiService} 返回 API 元数据，
- * {@link IDebugHttpForwardService} 模拟 HTTP 响应，不发起真实网络请求。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=HttpNodeHandlerTest
+ * 测 HttpNodeHandler：绑定 API / 外联转发、extracts、preScript、业务码与 RunSession Cookie。
+ * 边界：依赖 Mock，不发真实网络；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class HttpNodeHandlerTest {
@@ -66,9 +59,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * 正常路径：Mock 返回 200 + JSON body，节点配置 JsonPath extracts。
-     * 期望：步骤状态 passed；{@code flow.token}、{@code flow.code} 从响应体提取成功；
-     * {@code result.http} 非空（含请求/响应摘要）。
+     * 前提：Mock 返回 200 + JSON；节点配置 JsonPath extracts。
+     * 期望：passed；flow.token/code 提取成功；result.http 非空。
      */
     @Test
     @Order(1)
@@ -106,8 +98,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * HTTP 状态码非 2xx 时步骤应立即失败，不再执行 extracts。
-     * 期望：状态 failed，错误码 {@link FlowErrorCode#TF_HTTP_STATUS}。
+     * 前提：转发返回非 2xx。
+     * 期望：failed；错误码 TF_HTTP_STATUS。
      */
     @Test
     @Order(2)
@@ -137,8 +129,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * 节点 data 中缺少 {@code testProjectApiId}（未绑定项目 API）时无法执行。
-     * 期望：状态 failed，错误码 {@link FlowErrorCode#TF_HTTP_UNBOUND}。
+     * 前提：节点 data 缺少 testProjectApiId。
+     * 期望：failed；错误码 TF_HTTP_UNBOUND。
      */
     @Test
     @Order(3)
@@ -154,9 +146,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * API 定义上的前置脚本（{@code preRequestScript}）应在转发前执行，可改写请求参数。
-     * 本用例脚本调用 {@code api.request.headers.add} 添加自定义头 X-Flow。
-     * 期望：转发参数中含该请求头；步骤 passed；{@code result.http.preScript} 记录脚本执行摘要。
+     * 前提：API preRequestScript 调用 headers.add 写入 X-Flow。
+     * 期望：转发参数含该头；passed；result.http.preScript 非空。
      */
     @Test
     @Order(4)
@@ -190,8 +181,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * 外联 HTTP 节点：不绑定项目 API，直接请求 externalUrl。
-     * 期望：passed；extracts 写入 flow；result.http.callMode=external。
+     * 前提：外联节点配 externalUrl，上下文已授权外联。
+     * 期望：passed；extracts 写入 flow；callMode=external。
      */
     @Test
     @Order(5)
@@ -221,8 +212,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * 运行上下文未授权外联 HTTP 时应拒绝执行。
-     * 期望：failed；错误码 {@link FlowErrorCode#TF_HTTP_EXTERNAL_DENIED}。
+     * 前提：外联节点，但上下文未授权外联。
+     * 期望：failed；错误码 TF_HTTP_EXTERNAL_DENIED。
      */
     @Test
     @Order(6)
@@ -244,8 +235,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * 外联 HTTP 节点 preScript 应在转发前执行并可添加请求头。
-     * 期望：passed；转发参数含 X-Ext；result.http.preScript 非空。
+     * 前提：外联节点带 preScript 添加 X-Ext。
+     * 期望：passed；转发参数含 X-Ext；preScript 摘要非空。
      */
     @Test
     @Order(7)
@@ -274,7 +265,7 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * useRunSession=true 时 HTTP 响应 Set-Cookie 应写入 RunSession。
+     * 前提：useRunSession=true；响应含 Set-Cookie。
      * 期望：passed；runSession 非空；result.http 含 runSessionCookies。
      */
     @Test
@@ -307,8 +298,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * HTTP 200 但业务 code 非成功值时步骤应失败。
-     * 期望：failed；{@link FlowErrorCode#TF_BIZ_CODE}；http.bizCheck.passed=false。
+     * 前提：HTTP 200 但业务 code 非成功值。
+     * 期望：failed；TF_BIZ_CODE；http.bizCheck.passed=false。
      */
     @Test
     @Order(9)
@@ -345,7 +336,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * 节点 successCheck.mode=off 时跳过业务码校验。
+     * 前提：节点 successCheck.mode=off；body 含失败业务码。
+     * 期望：跳过业务码校验，步骤仍可 passed。
      */
     @Test
     @Order(10)
@@ -376,7 +368,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * external 默认不校验业务码（即使 body 含失败 code）。
+     * 前提：外联节点；body 含失败业务码。
+     * 期望：默认不校验业务码，步骤 passed。
      */
     @Test
     @Order(11)
@@ -401,7 +394,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * API biz_code_config.successValues=[0] 时 code=0 通过、code=200 失败。
+     * 前提：API biz_code_config.successValues=[0]；分别测 code=0 与 code=200。
+     * 期望：0 通过、200 失败。
      */
     @Test
     @Order(12)

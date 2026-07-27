@@ -26,13 +26,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link ProjectTokenFilter} 单元测试。
- * <p>
- * 验证项目 Token 鉴权：MCP 端点失败时返回 JSON-RPC 错误体（-32001），
- * 普通 REST 项目接口失败时返回 {@code {code,msg}}；合法 Token 放行 FilterChain。
- * SettingService 使用 Mock。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-framework -am -DskipTests=false -Dtest=ProjectTokenFilterTest
+ * 测 ProjectTokenFilter：MCP/REST 项目 Token 鉴权与错误体格式。
+ * 边界：SettingService Mock；MCP 用 JSON-RPC -32001，REST 用 {code,msg}。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-framework -am -Dtest=ProjectTokenFilterTest
  */
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -53,8 +49,8 @@ class ProjectTokenFilterTest {
     }
 
     /**
-     * POST {@link ProjectConstants#MCP_ENDPOINT}，未携带 X-Project-Token。
-     * 期望：HTTP 401；响应体含 jsonrpc=2.0 与 error.code=-32001；不进入 FilterChain。
+     * 前提：POST MCP 端点，未带 X-Project-Token。
+     * 期望：401；JSON-RPC error.code=-32001；不进入 FilterChain。
      */
     @Test
     @Order(1)
@@ -74,8 +70,8 @@ class ProjectTokenFilterTest {
     }
 
     /**
-     * POST MCP 端点，Token 校验失败（ServiceException: Token 无效）。
-     * 期望：HTTP 401；响应体为 JSON-RPC 错误且含业务消息「Token 无效」。
+     * 前提：POST MCP；Token 校验抛「Token 无效」。
+     * 期望：401；JSON-RPC 错误体含该消息。
      */
     @Test
     @Order(2)
@@ -97,8 +93,8 @@ class ProjectTokenFilterTest {
     }
 
     /**
-     * GET 普通项目 REST 接口 /api/project/apis，未携带 Token。
-     * 期望：HTTP 401；响应体为传统 {@code {code:401,msg:...}} 结构，非 JSON-RPC。
+     * 前提：GET /api/project/apis，未带 Token。
+     * 期望：401；响应为 {code:401,msg:...}，非 JSON-RPC。
      */
     @Test
     @Order(3)
@@ -117,8 +113,8 @@ class ProjectTokenFilterTest {
     }
 
     /**
-     * POST MCP 端点，Token 校验通过。
-     * 期望：进入 FilterChain；{@link TestProjectUserSetting} 写入请求属性 PROJECT_SETTING_ATTR。
+     * 前提：POST MCP；Token 校验通过。
+     * 期望：进入 FilterChain；PROJECT_SETTING_ATTR 写入请求属性。
      */
     @Test
     @Order(4)

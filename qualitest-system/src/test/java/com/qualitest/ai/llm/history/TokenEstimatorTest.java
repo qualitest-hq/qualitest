@@ -8,23 +8,26 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Token 启发式估算单元测试。
- *
- * 验证空文本、中英文混合、单条 LlmMessage 的 token 估算行为。
- * 估算用于历史裁剪时的 token 预算控制，不调用真实 tokenizer。
- *
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=TokenEstimatorTest
+ * 测 TokenEstimator：历史裁剪用的启发式 token 估算。
+ * 边界：纯函数，不调用真实 tokenizer。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TokenEstimatorTest
  */
 class TokenEstimatorTest {
 
-    /** null 或空字符串应返回 0 */
+    /**
+     * 前提：estimateText 入参为 null 或空串。
+     * 期望：均返回 0。
+     */
     @Test
     void estimateText_emptyReturnsZero() {
         assertEquals(0, TokenEstimator.estimateText(null));
         assertEquals(0, TokenEstimator.estimateText(""));
     }
 
-    /** 中文同等字符数应比英文估算值更高 */
+    /**
+     * 前提：同等长度的英文与中文纯文本。
+     * 期望：中文估算 token 数高于英文且大于 0。
+     */
     @Test
     void estimateText_mixedContent() {
         int english = TokenEstimator.estimateText("hello world test");
@@ -33,7 +36,10 @@ class TokenEstimatorTest {
         assertTrue(chinese > 0);
     }
 
-    /** 单条消息的估算应包含 role 等固定开销，大于纯文本估算 */
+    /**
+     * 前提：同内容 user 消息与纯文本 estimateText。
+     * 期望：estimateMessage 大于纯文本估算（含 role 等开销）。
+     */
     @Test
     void estimateMessage_includesOverhead() {
         int textOnly = TokenEstimator.estimateText("hello");

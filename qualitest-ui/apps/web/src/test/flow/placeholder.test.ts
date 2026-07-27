@@ -1,13 +1,8 @@
 /**
- * resolvePlaceholderString / resolvePathSegment 单元测试：验证 {{scope.path}} 占位符解析。
- *
- * 两种模式：lenient（设计态，未定义占位符 → 空串）与 strict（正式 Run，未定义 → 抛 PlaceholderUndefinedError）。
- * 支持 env / flow / asset / http.* 快照路径、嵌套路径、混合文本。
- *
- * 数据驱动：用例来自 fixtures/placeholder-cases.json，
- * 与后端 qualitest-system/.../placeholder-cases.json 共享，保证 Java 与 TS 解析一致。
- *
- * 运行（apps/web 目录）：yarn test placeholder
+ * 测 resolvePlaceholderString / resolvePathSegment：{{scope.path}} 占位符解析。
+ * 边界：纯函数；用例来自 fixtures/placeholder-cases.json（与后端共享）。
+ * 单跑：yarn test placeholder   （在 qualitest-ui 或 apps/web 下）
+ * @vitest-environment happy-dom
  */
 import { describe, expect, it } from 'vitest';
 
@@ -20,66 +15,222 @@ import fixture from './fixtures/placeholder-cases.json';
 /** fixture 中的 mockContext，结构与运行时 FlowRunContext 一致，各用例只读共享 */
 const ctx = fixture.mockContext as FlowRunContext;
 
-function quote(value: unknown): string {
-  if (value == null) return 'null';
-  return JSON.stringify(String(value));
-}
-
-function logCase(mode: string, id: string, template: unknown, result: unknown) {
-  // eslint-disable-next-line no-console
-  console.log(`  OK [${mode}] ${id.padEnd(24)}  ${quote(template)}  ->  ${quote(result)}`);
+function caseById(id: string) {
+  const c = fixture.cases.find((x) => x.id === id);
+  if (!c) throw new Error(`missing placeholder case: ${id}`);
+  return c;
 }
 
 describe('resolvePlaceholderString', () => {
-  // eslint-disable-next-line no-console
-  console.log(`\n=== resolvePlaceholderString fixture cases (${fixture.cases.length}) ===`);
+  it('env.baseUrl 占位符解析为环境变量值（lenient）', () => {
+    // 前提：模板 {{env.baseUrl}}/api，lenient 模式
+    // 期望：解析为 https://dev.example.com/api
+    const c = caseById('env-base-url');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
 
-  /** 数据驱动：按 mode 分别断言 lenient / strict 行为；strict 未定义占位符抛 errorCode */
-  for (const c of fixture.cases) {
-    if (c.mode === 'both' || c.mode === 'lenient') {
-      it(`[lenient] ${c.id}`, () => {
-        const actual = resolvePlaceholderString(c.template, ctx, 'lenient');
-        logCase('lenient', c.id, c.template, actual);
-        expect(actual).toBe(c.expected);
-      });
+  it('env.baseUrl 占位符解析为环境变量值（strict）', () => {
+    // 前提：模板 {{env.baseUrl}}/api，strict 模式
+    // 期望：解析为 https://dev.example.com/api
+    const c = caseById('env-base-url');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('flow.token 占位符解析为 flow 变量值（lenient）', () => {
+    // 前提：模板 {{flow.token}}
+    // 期望：解析为 abc
+    const c = caseById('flow-token');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('flow.token 占位符解析为 flow 变量值（strict）', () => {
+    // 前提：模板 {{flow.token}}，strict 模式
+    // 期望：解析为 abc
+    const c = caseById('flow-token');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('asset 标量字段占位符解析（lenient）', () => {
+    // 前提：模板 {{asset.defaults.apiKey}}
+    // 期望：解析为 sk-demo
+    const c = caseById('asset-scalar');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('asset 标量字段占位符解析（strict）', () => {
+    // 前提：模板 {{asset.defaults.apiKey}}，strict 模式
+    // 期望：解析为 sk-demo
+    const c = caseById('asset-scalar');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('asset 嵌套字段占位符解析（lenient）', () => {
+    // 前提：模板 {{asset.defaults.nested.x}}
+    // 期望：解析为 1
+    const c = caseById('asset-nested');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('asset 嵌套字段占位符解析（strict）', () => {
+    // 前提：模板 {{asset.defaults.nested.x}}，strict 模式
+    // 期望：解析为 1
+    const c = caseById('asset-nested');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('asset 多层嵌套字段占位符解析（lenient）', () => {
+    // 前提：模板 {{asset.reporter_01.account.password}}
+    // 期望：解析为 secret
+    const c = caseById('asset-deep');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('asset 多层嵌套字段占位符解析（strict）', () => {
+    // 前提：模板 {{asset.reporter_01.account.password}}，strict 模式
+    // 期望：解析为 secret
+    const c = caseById('asset-deep');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('占位符与普通文本混排时正确拼接（lenient）', () => {
+    // 前提：模板 Bearer {{flow.token}}!
+    // 期望：解析为 Bearer abc!
+    const c = caseById('mixed-template');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('占位符与普通文本混排时正确拼接（strict）', () => {
+    // 前提：模板 Bearer {{flow.token}}!，strict 模式
+    // 期望：解析为 Bearer abc!
+    const c = caseById('mixed-template');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('http.body.* 按路径从上一步响应体取值（lenient）', () => {
+    // 前提：模板 {{http.body.data.code}}
+    // 期望：解析为 0
+    const c = caseById('http-body-code');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('http.body.* 按路径从上一步响应体取值（strict）', () => {
+    // 前提：模板 {{http.body.data.code}}，strict 模式
+    // 期望：解析为 0
+    const c = caseById('http-body-code');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('http.status 取上一步响应状态码（lenient）', () => {
+    // 前提：模板 {{http.status}}
+    // 期望：解析为 200
+    const c = caseById('http-status');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('http.status 取上一步响应状态码（strict）', () => {
+    // 前提：模板 {{http.status}}，strict 模式
+    // 期望：解析为 200
+    const c = caseById('http-status');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('http.duration 取上一步请求耗时（lenient）', () => {
+    // 前提：模板 {{http.duration}}
+    // 期望：解析为 120
+    const c = caseById('http-duration');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('http.duration 取上一步请求耗时（strict）', () => {
+    // 前提：模板 {{http.duration}}，strict 模式
+    // 期望：解析为 120
+    const c = caseById('http-duration');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('http.header.* 取上一步响应头（lenient）', () => {
+    // 前提：模板 {{http.header.Authorization}}
+    // 期望：解析为 Bearer body-token
+    const c = caseById('http-header');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('http.header.* 取上一步响应头（strict）', () => {
+    // 前提：模板 {{http.header.Authorization}}，strict 模式
+    // 期望：解析为 Bearer body-token
+    const c = caseById('http-header');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('模板为 null 时返回空串（lenient）', () => {
+    // 前提：template 为 null
+    // 期望：返回空串
+    const c = caseById('null-template');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('模板为 null 时返回空串（strict）', () => {
+    // 前提：template 为 null，strict 模式
+    // 期望：返回空串
+    const c = caseById('null-template');
+    expect(resolvePlaceholderString(c.template, ctx, 'strict')).toBe(c.expected);
+  });
+
+  it('未定义占位符替换为空串（lenient）', () => {
+    // 前提：模板 x{{flow.missing}}y，lenient 模式
+    // 期望：解析为 xy
+    const c = caseById('missing-lenient');
+    expect(resolvePlaceholderString(c.template, ctx, 'lenient')).toBe(c.expected);
+  });
+
+  it('未定义占位符抛出异常（strict）', () => {
+    // 前提：模板 {{flow.missing}}，strict 模式
+    // 期望：抛出 PlaceholderUndefinedError
+    const c = caseById('missing-strict');
+    expect(() => resolvePlaceholderString(c.template, ctx, 'strict')).toThrow(
+      PlaceholderUndefinedError,
+    );
+    try {
+      resolvePlaceholderString(c.template, ctx, 'strict');
+    } catch (e) {
+      expect((e as PlaceholderUndefinedError).code).toBe(c.errorCode);
     }
-    if (c.mode === 'both' || c.mode === 'strict') {
-      it(`[strict] ${c.id}`, () => {
-        if (c.errorCode) {
-          expect(() => resolvePlaceholderString(c.template, ctx, 'strict')).toThrow(
-            PlaceholderUndefinedError,
-          );
-          try {
-            resolvePlaceholderString(c.template, ctx, 'strict');
-          } catch (e) {
-            logCase('strict', c.id, c.template, `throw ${(e as PlaceholderUndefinedError).code}`);
-            expect((e as PlaceholderUndefinedError).code).toBe(c.errorCode);
-          }
-        } else {
-          const actual = resolvePlaceholderString(c.template, ctx, 'strict');
-          logCase('strict', c.id, c.template, actual);
-          expect(actual).toBe(c.expected);
-        }
-      });
+  });
+
+  it('混合文本中未定义占位符仍抛出异常（strict）', () => {
+    // 前提：模板 Bearer {{flow.missing}}，strict 模式
+    // 期望：抛出 PlaceholderUndefinedError
+    const c = caseById('missing-strict-partial');
+    expect(() => resolvePlaceholderString(c.template, ctx, 'strict')).toThrow(
+      PlaceholderUndefinedError,
+    );
+    try {
+      resolvePlaceholderString(c.template, ctx, 'strict');
+    } catch (e) {
+      expect((e as PlaceholderUndefinedError).code).toBe(c.errorCode);
     }
-  }
+  });
 
   /** http.duration：上一步 HTTP 耗时（毫秒），fixture lastResponse.durationMs = 120 */
-  it('resolvePathSegment http.duration', () => {
+  it('按路径解析 http.duration（上一步请求耗时）', () => {
+    // 前提：路径 http.duration，ctx 含 lastResponse.durationMs=120
+    // 期望：返回 120
     const actual = resolvePathSegment(ctx, 'http.duration');
-    logCase('path', 'http.duration', 'http.duration', actual);
     expect(actual).toBe(120);
   });
 
   /** http.body.*：从上一步响应 Body 按点路径取值，fixture body.data.code = 0 */
-  it('resolvePathSegment http.body', () => {
+  it('按路径解析 http.body.data.code（上一步响应体嵌套字段）', () => {
+    // 前提：路径 http.body.data.code
+    // 期望：返回 0
     const actual = resolvePathSegment(ctx, 'http.body.data.code');
-    logCase('path', 'http.body', 'http.body.data.code', actual);
     expect(actual).toBe(0);
   });
 
   /** strict 模式下异常应携带占位符名 flow.missing，便于前端/日志定位 */
-  it('[strict] throwsWithPlaceholderName', () => {
+  it('strict 模式下异常携带未定义占位符名称，便于定位', () => {
+    // 前提：模板 {{flow.missing}}，strict 模式
+    // 期望：异常 code 为 TF_PLACEHOLDER_UNDEFINED，placeholder 为 flow.missing
     expect(() => resolvePlaceholderString('{{flow.missing}}', ctx, 'strict')).toThrow(
       PlaceholderUndefinedError,
     );
@@ -87,7 +238,6 @@ describe('resolvePlaceholderString', () => {
       resolvePlaceholderString('{{flow.missing}}', ctx, 'strict');
     } catch (e) {
       const err = e as PlaceholderUndefinedError;
-      logCase('strict', 'throwsWithPlaceholderName', '{{flow.missing}}', `throw ${err.code}`);
       expect(err.code).toBe('TF_PLACEHOLDER_UNDEFINED');
       expect(err.placeholder).toBe('flow.missing');
     }

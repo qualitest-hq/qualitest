@@ -19,15 +19,15 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link SubflowIoSupport} 单元测试：子流 inputs 种子、outputs 合并与 childSteps 摘要。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=SubflowIoSupportTest
+ * 测 SubflowIoSupport：inputs 种子、outputs 合并、childSteps 摘要与空映射判定。
+ * 边界：占位符与类型推断；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowIoSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SubflowIoSupportTest {
 
     /**
-     * inputs 配置应从父 flow 解析占位符，并对数字/boolean 做类型推断。
+     * 前提：父 flow 含 token/retry；inputs 用占位符与字面 true。
      * 期望：childIn=abc；maxRetry=3L；enabled=true。
      */
     @Test
@@ -54,8 +54,8 @@ class SubflowIoSupportTest {
     }
 
     /**
-     * 子图成功后 outputs 应把子 flow 键映射到父 flow 的 flowKey。
-     * 期望：parent.flow.parentToken=tok-9；merged 含同名键。
+     * 前提：子 flow.accessToken=tok-9；outputs 映射到 parentToken。
+     * 期望：父 flow.parentToken=tok-9；merged 含同名键。
      */
     @Test
     @Order(2)
@@ -77,8 +77,8 @@ class SubflowIoSupportTest {
     }
 
     /**
-     * 失败子步应写入 error 摘要字段，供 Run 详情 childSteps 展示。
-     * 期望：status=failed；error.code=TF_ASSERT_FAILED。
+     * 前提：失败 StepResult（TF_ASSERT_FAILED）。
+     * 期望：摘要 status=failed；error.code=TF_ASSERT_FAILED。
      */
     @Test
     @Order(3)
@@ -105,8 +105,8 @@ class SubflowIoSupportTest {
     }
 
     /**
-     * inputs/outputs 映射列表空值判断。
-     * 期望：null 与空列表为 true；非空列表为 false。
+     * 前提：映射列表为 null / 空 / 非空。
+     * 期望：前两者 true；非空 false。
      */
     @Test
     @Order(4)

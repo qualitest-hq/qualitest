@@ -5,17 +5,15 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link AiAgentRunner#isToolErrorResult} 单元测试：验证工具执行结果的失败判定逻辑。
- * <p>
- * Agent 循环中，工具返回 JSON 若含 {@code "error"} 字段则视为工具调用失败，
- *  Runner 会将该结果标记为 error 并决定是否重试或终止。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=AiAgentRunnerToolResultTest
+ * 测 AiAgentRunnerToolResult：工具返回 JSON 是否含 error 字段的判定。
+ * 边界：纯静态方法，无 IO。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiAgentRunnerToolResultTest
  */
 class AiAgentRunnerToolResultTest {
 
     /**
-     * JSON 含 error 字段 → true；正常 items 结果 → false；null → false。
+     * 前提：工具返回 JSON 含 error 字段、正常 items 结果、或 null。
+     * 期望：含 error 返回 true，items 与 null 返回 false。
      */
     @Test
     void isToolErrorResult_detectsErrorField() {

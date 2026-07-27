@@ -39,12 +39,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link TestFlowExecutor#resume} 路径单测：四种决策 + 幂等 + 环境静默跳过还原。
- * <p>
- * Mock 落库与 {@link SnapshotCheckpointService}；restore 可 Mock 或走真实 {@link SnapshotRestoreService}。
- * 夹具 {@code flow/linear-run-graph.json}。
- * <p>
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=TestFlowExecutorResumePathsTest
+ * 测 TestFlowExecutor.resume：四种决策 + 幂等 + 环境静默跳过还原。
+ * 边界：Mock 落库与 SnapshotCheckpointService；夹具 flow/linear-run-graph.json。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TestFlowExecutorResumePathsTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class TestFlowExecutorResumePathsTest {
@@ -107,7 +104,7 @@ class TestFlowExecutorResumePathsTest {
     }
 
     /**
-     * 对非 paused 的 Run 再次 resume。
+     * 前提：Run 非 paused，再次 resume。
      * 期望：幂等返回 TF_RUN_NOT_PAUSED。
      */
     @Test
@@ -128,8 +125,8 @@ class TestFlowExecutorResumePathsTest {
     }
 
     /**
-     * abort 决策。
-     * 期望：Run 终态 aborted。
+     * 前提：paused Run；decision=abort。
+     * 期望：终态 aborted。
      */
     @Test
     @Order(2)
@@ -150,7 +147,7 @@ class TestFlowExecutorResumePathsTest {
     }
 
     /**
-     * skip 决策。
+     * 前提：paused 在中间节点；decision=skip。
      * 期望：跳过暂停节点并跑完剩余图，终态 passed。
      */
     @Test
@@ -172,7 +169,7 @@ class TestFlowExecutorResumePathsTest {
     }
 
     /**
-     * restoreAndRetry 且 Mock restore 成功。
+     * 前提：paused；restoreAndRetry；Mock restore 成功。
      * 期望：从快照节点重跑，终态 passed。
      */
     @Test
@@ -204,7 +201,7 @@ class TestFlowExecutorResumePathsTest {
     }
 
     /**
-     * 环境 allowDestructiveReset=0 时的 restoreAndRetry。
+     * 前提：restoreAndRetry，但 allowDestructiveReset=0。
      * 期望：跳过 restore 调用，仍从快照节点续跑通过。
      */
     @Test
@@ -285,4 +282,4 @@ class TestFlowExecutorResumePathsTest {
         }
     }
 }
-
+

@@ -1,5 +1,7 @@
 /**
- * confirm hash 守卫：服务端 baseGraphHash 与客户端算法不一致时不应误阻断落盘。
+ * 测 applyConfirmResultWithHashGuard：hash 不一致但画布未变时仍落盘。
+ * 边界：mock computeBaseGraphHash 与 confirm API；Pinia 内存态。
+ * 单跑：yarn test stagingConfirmRequest   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,6 +43,8 @@ describe('applyConfirmResultWithHashGuard', () => {
   });
 
   it('服务端 baseGraphHash 与客户端不一致但画布未变时仍落盘', async () => {
+    // 前提：服务端 hash 与请求 hash 不同，确认后当前 hash 仍等于请求 hash
+    // 期望：落盘成功，不触发 hash 冲突回调
     const canvasStore = useFlowCanvasStore();
     const stagingStore = useAiStagingStore();
     canvasStore.testProjectId = '10';

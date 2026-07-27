@@ -13,18 +13,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * {@link ConditionBranchMergeHelper} 单元测试：验证 condition 出边与 branches[].target 的同步。
- * <p>
- * 被测对象在 patch 合并写入 addEdge / updateEdge / deleteEdge 时，
- * 维护源 condition 节点 data.branches[].target，供运行期 {@link com.qualitest.flow.run.GraphWalker} 解析下一跳。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ConditionBranchMergeHelperTest
+ * 测 ConditionBranchMergeHelper：patch 合并写入边时同步 condition 节点 branches[].target。
+ * 边界：纯函数，无真实图执行。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ConditionBranchMergeHelperTest
  */
 class ConditionBranchMergeHelperTest {
 
     /**
-     * 新增 condition 出边且分支尚未绑定 target。
-     * 期望：首条未绑定分支（IF）写入 edge.target；ELSE 分支仍为 null。
+     * 前提：condition 出边新增，IF/ELSE 均尚未绑定 target。
+     * 期望：首条未绑定分支（IF）写入 edge.target；ELSE 仍为 null。
      */
     @Test
     void syncConditionEdgeToNodes_bindsFirstUnboundBranch() {
@@ -44,8 +41,8 @@ class ConditionBranchMergeHelperTest {
     }
 
     /**
-     * 删除 condition 出边前清除分支绑定。
-     * 期望：指向该 target 的 branches[].target 被移除。
+     * 前提：IF 分支已绑定 target=1002，即将删除对应出边。
+     * 期望：branches[].target 被清除。
      */
     @Test
     void clearConditionTargetForRemovedEdge_clearsBinding() {
@@ -67,8 +64,8 @@ class ConditionBranchMergeHelperTest {
     }
 
     /**
-     * 分支改连到新 target 时，移除同源到旧 target 的冗余出边。
-     * 期望：旧出边 2000 被删；仅保留新出边 2001；IF 分支 target 更新为 1002。
+     * 前提：IF 原指向 1003（边 2000），再同步新出边到 1002。
+     * 期望：旧边 2000 删除；仅留 2001；IF target 更新为 1002。
      */
     @Test
     void syncConditionEdgeToNodes_removesStaleEdgeWhenRebinding() {

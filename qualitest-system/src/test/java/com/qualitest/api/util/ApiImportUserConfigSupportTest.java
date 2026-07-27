@@ -16,16 +16,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 导入覆盖层写入规则单元测试。
- * <p>
- * 覆盖：JSON/脚本是否已配置的判定，以及本地非空保留、本地空写上传包、双空写 "{}"。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ApiImportUserConfigSupportTest
+ * 测 ApiImportUserConfigSupport：导入时用户覆盖层写入与「已配置」判定。
+ * 边界：空 JSON/脚本；本地非空保留；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiImportUserConfigSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiImportUserConfigSupportTest {
 
-    /** 空对象、空数组、null 字面量应视为未配置；含键值的 JSON 视为已配置。 */
+    /**
+     * 前提：null、空串、{}、[]、null 字面量与含键 JSON。
+     * 期望：前者视为未配置；{"a":1} 视为已配置。
+     */
     @Test
     @Order(1)
     void isNonEmptyUserJson() {
@@ -40,7 +41,10 @@ class ApiImportUserConfigSupportTest {
         end("isNonEmptyUserJson");
     }
 
-    /** 脚本 trim 后非空视为已配置。 */
+    /**
+     * 前提：null、空白与含内容的脚本字符串。
+     * 期望：空白视为未配置；非空脚本视为已配置。
+     */
     @Test
     @Order(2)
     void isNonEmptyUserScript() {
@@ -52,7 +56,10 @@ class ApiImportUserConfigSupportTest {
         end("isNonEmptyUserScript");
     }
 
-    /** 本地 JSON 非空时不调用 setter。 */
+    /**
+     * 前提：本地 JSON 非空，上传包也有内容。
+     * 期望：不调用 setter，保留本地值。
+     */
     @Test
     @Order(3)
     void applyJsonFieldOnUpdate_localNonEmpty_preserves() {
@@ -69,7 +76,10 @@ class ApiImportUserConfigSupportTest {
         end("applyJsonFieldOnUpdate_localNonEmpty_preserves");
     }
 
-    /** 本地 JSON 为空且上传包有内容时，应写入上传包内容。 */
+    /**
+     * 前提：本地 JSON 为 {}，上传包含 X-Trace 头。
+     * 期望：写入上传包 JSON。
+     */
     @Test
     @Order(4)
     void applyJsonFieldOnUpdate_localEmpty_usesIncoming() {
@@ -86,7 +96,10 @@ class ApiImportUserConfigSupportTest {
         end("applyJsonFieldOnUpdate_localEmpty_usesIncoming");
     }
 
-    /** 本地与上传包均为空时，应写入空对象 JSON。 */
+    /**
+     * 前提：本地与上传包 JSON 均为空。
+     * 期望：写入 "{}"。
+     */
     @Test
     @Order(5)
     void applyJsonFieldOnUpdate_bothEmpty_setsEmptyObject() {
@@ -100,7 +113,10 @@ class ApiImportUserConfigSupportTest {
         end("applyJsonFieldOnUpdate_bothEmpty_setsEmptyObject");
     }
 
-    /** 本地脚本非空时不覆盖。 */
+    /**
+     * 前提：本地脚本非空，上传包脚本不同。
+     * 期望：不覆盖，保留本地脚本。
+     */
     @Test
     @Order(6)
     void applyScriptFieldOnUpdate_localNonEmpty_preserves() {
@@ -117,7 +133,10 @@ class ApiImportUserConfigSupportTest {
         end("applyScriptFieldOnUpdate_localNonEmpty_preserves");
     }
 
-    /** 本地脚本为空时写入上传包脚本（可为 null）。 */
+    /**
+     * 前提：本地与上传包脚本均为 null。
+     * 期望：setter 收到 null。
+     */
     @Test
     @Order(7)
     void applyScriptFieldOnUpdate_localEmpty_setsIncoming() {

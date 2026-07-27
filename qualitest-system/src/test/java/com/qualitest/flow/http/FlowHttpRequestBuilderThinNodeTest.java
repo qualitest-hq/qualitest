@@ -15,9 +15,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 薄节点运行时：以 API 有效配置为底，叠 requestValueOverrides；忽略残留 requestConfig。
+ * <p>
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowHttpRequestBuilderThinNodeTest
  */
 class FlowHttpRequestBuilderThinNodeTest {
 
+    /**
+     * 前提：薄节点含 requestValueOverrides，API 有效配置为 GET；节点残留厚 requestConfig。
+     * 期望：以 API 结构为底叠覆盖层，method 仍为 GET，忽略残留 POST 配置。
+     */
     @Test
     void build_usesApiStructure_andNodeOverrides() {
         TestProjectApi api = TestProjectApi.builder()
@@ -73,6 +79,10 @@ class FlowHttpRequestBuilderThinNodeTest {
         assertFalse(built.getMethod().equals("POST"));
     }
 
+    /**
+     * 前提：基础 requestConfig 含空值 query/body，overrides 提供 paramDefaults 与 bodyExample。
+     * 期望：overlay 后 JSON 含覆盖后的参数值与 body 示例字段。
+     */
     @Test
     void overlayRequestValuesFromOverrides_appliesParamAndBody() {
         String base = """

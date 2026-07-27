@@ -14,9 +14,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 图遍历与按 API id 匹配引用的纯逻辑测试（不启 Spring）。
+ * <p>
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowHttpNodeVisitorAndScanLogicTest
  */
 class FlowHttpNodeVisitorAndScanLogicTest {
 
+    /**
+     * 前提：图含 2 个 http 节点与 1 个 script 节点。
+     * 期望：visit 回调仅对 http 节点计数，共 2 次，无错误。
+     */
     @Test
     void visit_countsHttpNodesOnly() {
         String graph = """
@@ -32,6 +38,10 @@ class FlowHttpNodeVisitorAndScanLogicTest {
         assertEquals(2, httpCount.get());
     }
 
+    /**
+     * 前提：多种 callMode 与 testProjectApiId 组合的节点 data。
+     * 期望：project/绑 id 为 true，external/空 data 为 false。
+     */
     @Test
     void isProjectBoundHttp_rules() {
         assertTrue(FlowHttpNodeVisitor.isProjectBoundHttp(
@@ -47,6 +57,10 @@ class FlowHttpNodeVisitorAndScanLogicTest {
                 com.alibaba.fastjson2.JSONObject.parseObject("{}")));
     }
 
+    /**
+     * 前提：图中 project 节点分别绑定 API 100 与 200。
+     * 期望：扫描 target=100 时仅命中 n1。
+     */
     @Test
     void scanLogic_findsMatchingApiId() {
         String graph = """
@@ -70,6 +84,10 @@ class FlowHttpNodeVisitorAndScanLogicTest {
         assertEquals(List.of("n1"), hitIds);
     }
 
+    /**
+     * 前提：传入非法 JSON 字符串。
+     * 期望：visit 返回非空错误信息。
+     */
     @Test
     void visit_invalidJson_returnsError() {
         String err = FlowHttpNodeVisitor.visit("{not-json", (a, b, c) -> {

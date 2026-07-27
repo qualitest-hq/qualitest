@@ -18,11 +18,9 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 
 /**
- * {@link SnapshotRestoreService} 单元测试：续跑时的数据还原与审计步生成。
- * <p>
- * Mock {@link DbSnapshotAdapter}，不访问真实 HTTP。
- * <p>
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=SnapshotRestoreServiceTest
+ * 测 SnapshotRestoreService：续跑时的数据还原与审计步生成。
+ * 边界：Mock DbSnapshotAdapter，不访问真实 HTTP。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SnapshotRestoreServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SnapshotRestoreServiceTest {
@@ -31,7 +29,7 @@ class SnapshotRestoreServiceTest {
     private final SnapshotRestoreService service = new SnapshotRestoreService(adapter, new StepResultWriter());
 
     /**
-     * 环境允许还原且 adapter 成功。
+     * 前提：环境允许还原且 adapter 成功。
      * 期望：调用 restore；返回 nodeType=restore 的审计步，含 snapshotId。
      */
     @Test
@@ -52,7 +50,7 @@ class SnapshotRestoreServiceTest {
     }
 
     /**
-     * allowDestructiveReset=0。
+     * 前提：allowDestructiveReset=0。
      * 期望：返回 null，不调 adapter。
      */
     @Test

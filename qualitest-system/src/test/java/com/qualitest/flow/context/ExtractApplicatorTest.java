@@ -12,21 +12,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * {@link ExtractApplicator} 单元测试：验证 HTTP 响应变量提取逻辑。
+ * {@link ExtractApplicator} 单元测试：HTTP 响应变量提取逻辑。
  * <p>
- * 被测对象根据 extracts 配置（from=body/header/status、expr、scope、name），
- * 从上一步 HTTP 响应快照中提取值，写入 env / flow / asset 对应作用域，
- * 并返回 applied 列表供 stepDetails 记录。
+ * 覆盖 extracts 配置（from=body/header/status、expr、scope、name）从响应快照
+ * 提取值并写入 env / flow / asset 作用域；含 JsonPath 提取、regex 未实现返回 null 等边界。
  * <p>
- * 数据驱动：用例来自 {@code classpath:flow/compare-extract-cases.json} 的 extractCases 数组，
- * 覆盖 JsonPath body 提取、header 提取、status 码、asset 作用域、regex 未实现返回 null 等场景。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ExtractApplicatorTest
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ExtractApplicatorTest
  */
 class ExtractApplicatorTest {
 
@@ -54,13 +48,11 @@ class ExtractApplicatorTest {
     }
 
     /**
-     * 数据驱动主测试：遍历 extractCases，对每条 extracts 配置调用 {@link ExtractApplicator#apply}。
-     * 断言 applied 条目的 name/scope/value，以及可选的 flowAfter / envAfter / assetAfter 副作用。
-     * 每条用例独立 buildContext，避免状态污染。
+     * 前提：fixture extractCases 含 extracts 配置与 mock 响应快照。
+     * 期望：每条 case 的 applied 条目及 flow/env/asset 副作用与 expected 一致。
      */
     @Test
     void apply_fixtureCases() {
-        begin("apply_fixtureCases");
         for (int i = 0; i < extractCases.size(); i++) {
             JSONObject c = extractCases.getJSONObject(i);
             String id = c.getString("id");
@@ -68,10 +60,9 @@ class ExtractApplicatorTest {
 
             List<JSONObject> applied = ExtractApplicator.apply(c.getJSONArray("extracts"), ctx, response);
             JSONArray expected = c.getJSONArray("expected");
-            System.out.printf("  OK %-22s  applied=%s%n", id, JSON.toJSONString(applied));
 
             // 本步报告条数与字段
-            assertEquals(expected.size(), applied.size(), id);
+            assertEquals(expected.size(), applied.size(), "case: " + id);
             for (int j = 0; j < expected.size(); j++) {
                 JSONObject exp = expected.getJSONObject(j);
                 JSONObject act = applied.get(j);
@@ -83,7 +74,6 @@ class ExtractApplicatorTest {
             // flow / env / asset 写入结果
             assertScopeAfter(c, ctx, id);
         }
-        end("apply_fixtureCases");
     }
 
     /**

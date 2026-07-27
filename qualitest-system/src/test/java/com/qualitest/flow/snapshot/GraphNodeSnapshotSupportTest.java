@@ -18,16 +18,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link GraphNodeSnapshotSupport} 单元测试：从节点 data 读取 snapshotBefore / snapshotScope。
- * <p>
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=GraphNodeSnapshotSupportTest
+ * 测 GraphNodeSnapshotSupport：从节点 data 读取 snapshotBefore / snapshotScope。
+ * 边界：纯函数，只解析节点 data，无 DB / HTTP。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphNodeSnapshotSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class GraphNodeSnapshotSupportTest {
 
     /**
-     * snapshotBefore 支持布尔 true 与字符串 "true"。
-     * 期望：缺省或 null 节点为 false。
+     * 前提：snapshotBefore 为布尔 true 或字符串 "true"；另测 null / 缺省节点。
+     * 期望：true/"true" 为 true；缺省或 null 节点为 false。
      */
     @Test
     @Order(1)
@@ -46,7 +46,7 @@ class GraphNodeSnapshotSupportTest {
     }
 
     /**
-     * 未配置 snapshotScope。
+     * 前提：节点未配置 snapshotScope。
      * 期望：scope=tables，tables 为空列表。
      */
     @Test
@@ -61,7 +61,7 @@ class GraphNodeSnapshotSupportTest {
     }
 
     /**
-     * 配置 tables 含空白与空串。
+     * 前提：tables 配置含空白与空串。
      * 期望：trim 后保留 t_order、t_user。
      */
     @Test
@@ -82,8 +82,8 @@ class GraphNodeSnapshotSupportTest {
     }
 
     /**
-     * data.name 存在时读取展示名。
-     * 期望：nodeName=下单；null 节点返回空串。
+     * 前提：data.name=下单；另测 null 节点。
+     * 期望：返回「下单」；null 返回空串。
      */
     @Test
     @Order(4)

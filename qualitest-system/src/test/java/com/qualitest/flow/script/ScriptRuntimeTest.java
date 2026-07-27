@@ -23,14 +23,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link ScriptRuntime} 单元测试：验证流程脚本引擎对 JavaScript / Python 的执行能力。
- * <p>
- * 被测对象负责：在隔离沙箱中执行用户脚本，向脚本暴露 {@code ctx} 对象（读写 flow 变量、
- * JSON 解析、HMAC/MD5 等工具方法），并返回 {@link ScriptExecutionResult}（成功/失败、写入记录、错误码）。
- * <p>
- * 覆盖场景：JS 读写 flow、内置加密函数、Python 基本执行、空脚本/非法语言/超时等异常路径。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ScriptRuntimeTest
+ * 测 ScriptRuntime：JS/Python 沙箱执行、内置工具与超时/非法语言。
+ * 边界：真实 Graal 引擎；含死循环超时；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ScriptRuntimeTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ScriptRuntimeTest {
@@ -38,8 +33,8 @@ class ScriptRuntimeTest {
     private final ScriptRuntime runtime = new ScriptRuntime(null);
 
     /**
-     * JavaScript 脚本通过 {@code ctx.getFlow} 读取已有变量，再用 {@code ctx.setFlow} 写入新变量。
-     * 期望：执行成功；{@code flow.x} 等于原 {@code flow.a} 的值；{@code writes} 列表记录本次写入。
+     * 前提：flow.a 已有值；JS getFlow/setFlow 写入 x。
+     * 期望：成功；flow.x=原 a；writes 记录本次写入。
      */
     @Test
     @Order(1)
@@ -64,9 +59,8 @@ class ScriptRuntimeTest {
     }
 
     /**
-     * JavaScript 内置工具方法：{@code ctx.jsonParse} 解析 JSON 字符串；
-     * {@code ctx.hmacSha256}、{@code ctx.md5} 计算摘要。
-     * 期望：HMAC 输出 64 位十六进制；MD5 与已知值一致。
+     * 前提：JS 调用 jsonParse / hmacSha256 / md5。
+     * 期望：HMAC 64 位十六进制；MD5 与已知值一致。
      */
     @Test
     @Order(2)
@@ -93,8 +87,8 @@ class ScriptRuntimeTest {
     }
 
     /**
-     * Python 脚本冒烟：{@code ctx.setFlow('pyOk', True)} 写入布尔值。
-     * 期望：执行成功；{@code flow.pyOk == true}。
+     * 前提：Python 脚本 setFlow('pyOk', True)。
+     * 期望：成功；flow.pyOk=true。
      */
     @Test
     @Order(3)
@@ -115,8 +109,8 @@ class ScriptRuntimeTest {
     }
 
     /**
-     * 脚本源码为空或仅空白字符时不应执行。
-     * 期望：失败，错误码 {@link FlowErrorCode#TF_SCRIPT_ERROR}。
+     * 前提：源码为空或仅空白。
+     * 期望：失败；错误码 TF_SCRIPT_ERROR。
      */
     @Test
     @Order(4)
@@ -136,8 +130,8 @@ class ScriptRuntimeTest {
     }
 
     /**
-     * 传入不支持的语言标识（如 ruby）时应拒绝执行。
-     * 期望：失败，错误码 {@link FlowErrorCode#TF_SCRIPT_ERROR}。
+     * 前提：language=ruby。
+     * 期望：失败；错误码 TF_SCRIPT_ERROR。
      */
     @Test
     @Order(5)
@@ -152,9 +146,8 @@ class ScriptRuntimeTest {
     }
 
     /**
-     * 脚本执行超过 {@code timeoutMs} 限制时应被强制中断。
-     * 本用例脚本为 {@code while(true){}} 死循环，超时设为 200ms。
-     * 期望：失败，错误码 {@link FlowErrorCode#TF_SCRIPT_TIMEOUT}。
+     * 前提：while(true){}，timeoutMs=200。
+     * 期望：失败；错误码 TF_SCRIPT_TIMEOUT。
      */
     @Test
     @Order(6)
@@ -175,8 +168,8 @@ class ScriptRuntimeTest {
     }
 
     /**
-     * base64 / uuid / log / session API。
-     * 期望：base64 编解码往返；uuid 非空；session 读写 cached=token-1；logs 含 hello。
+     * 前提：JS 调用 base64/uuid/log/session。
+     * 期望：编解码往返；uuid 非空；session cached=token-1；logs 含 hello。
      */
     @Test
     @Order(7)
@@ -208,8 +201,8 @@ class ScriptRuntimeTest {
     }
 
     /**
-     * ctx.http 外联：返回 ok/status/body。
-     * 期望：flow.ok=true；flow.code=abc（从响应 JSON 解析）。
+     * 前提：ctx.http 外联 Mock 返回 JSON。
+     * 期望：flow.ok=true；flow.code=abc。
      */
     @Test
     @Order(8)
@@ -248,8 +241,8 @@ class ScriptRuntimeTest {
     }
 
     /**
-     * ctx.http 单步调用次数超过上限时应失败。
-     * 期望：success=false；错误码 {@link FlowErrorCode#TF_SCRIPT_ERROR}。
+     * 前提：单步 ctx.http 调用次数超过上限。
+     * 期望：success=false；错误码 TF_SCRIPT_ERROR。
      */
     @Test
     @Order(9)

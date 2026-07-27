@@ -13,13 +13,9 @@ import static com.qualitest.flow.support.FlowTestSections.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link GraphJsonValidator} 单元测试：验证流程图 JSON 的结构与业务规则校验。
- * <p>
- * 被测对象检查：唯一开始节点、HTTP 节点 API 绑定、condition 分支完整性等，
- * 返回 {@link GraphValidationResult}（errors 阻断运行，warnings 仅提示）。
- * 测试数据来自 demo-graph 及 {@code graph-validate-cases.json} manifest。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=GraphJsonValidatorTest
+ * 测 GraphJsonValidator：开始节点、HTTP 绑定 warning、subflow 规则与 manifest 夹具。
+ * 边界：demo-graph 与 graph-validate-cases；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphJsonValidatorTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class GraphJsonValidatorTest {
@@ -36,8 +32,8 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * 标准 demo-graph.json 结构完整、规则合规。
-     * 期望：validate 返回 ok，errors 和 warnings 均为空。
+     * 前提：标准 demo-graph.json。
+     * 期望：ok；errors/warnings 为空。
      */
     @Test
     @Order(1)
@@ -54,7 +50,7 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * 图中存在多个无入边节点（多个「开始节点」）时校验应失败。
+     * 前提：图含多个无入边节点。
      * 期望：1 条 error，消息含「开始节点」。
      */
     @Test
@@ -72,8 +68,8 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * HTTP 节点未绑定 testProjectApiId 时产生 warning，但不阻断校验（ok 仍为 true）。
-     * 期望：1 条 warning，消息含 testProjectApiId。
+     * 前提：HTTP 节点未绑定 testProjectApiId。
+     * 期望：1 条 warning（含 testProjectApiId）；ok 仍为 true。
      */
     @Test
     @Order(3)
@@ -90,8 +86,8 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * 数据驱动：遍历 graph-validate-cases.json manifest，对每个 fixture 断言
-     * expectErrors / expectWarnings 条数与 manifest 声明一致。
+     * 前提：graph-validate-cases.json 各 fixture。
+     * 期望：expectErrors / expectWarnings 条数与 manifest 一致。
      */
     @Test
     @Order(4)
@@ -113,7 +109,8 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * {@link GraphJsonValidator#validateStartNodes} 子校验：demo-graph 恰有一个开始节点。
+     * 前提：demo-graph 调用 validateStartNodes。
+     * 期望：恰有一个开始节点，校验通过。
      */
     @Test
     @Order(5)
@@ -128,7 +125,8 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * 多个无入边节点时 validateStartNodes 应失败，返回所有候选开始节点 id。
+     * 前提：多个无入边节点。
+     * 期望：validateStartNodes 失败，并返回候选开始节点 id。
      */
     @Test
     @Order(6)
@@ -144,8 +142,8 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * 环图（每个节点都有入边，无开始节点）时 validateStartNodes 应失败。
-     * 期望：消息含「未找到开始节点」，ids 为空。
+     * 前提：环图（每个节点都有入边）。
+     * 期望：失败；消息含「未找到开始节点」；ids 为空。
      */
     @Test
     @Order(7)
@@ -161,7 +159,8 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * subflow 节点缺少 subflowId 时应产生 error；未配置 inputs/outputs 时产生 warning。
+     * 前提：subflow 缺 subflowId，且未配 inputs/outputs。
+     * 期望：error + inputs/outputs 相关 warning。
      */
     @Test
     @Order(8)

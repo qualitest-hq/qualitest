@@ -1,5 +1,7 @@
 /**
- * aiStagingStore stagingByScenarioId 单元测试。
+ * 测 aiStagingStore stagingByScenarioId：场景类 Staging 映射。
+ * 边界：Pinia 内存态，无 API 依赖。
+ * 单跑：yarn test aiStagingScenario   （在 qualitest-ui 或 apps/web 下）
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
@@ -12,6 +14,8 @@ describe('aiStagingStore stagingByScenarioId', () => {
   });
 
   it('pending addScenario 映射到 scenarioId', () => {
+    // 前提：patch 含 addScenarios
+    // 期望：stagingByScenarioId 指向 addScenario 单元
     const stagingStore = useAiStagingStore();
     stagingStore.hydrateStagingFromPatch(
       'msg-1',
@@ -28,6 +32,8 @@ describe('aiStagingStore stagingByScenarioId', () => {
   });
 
   it('pending setActiveScenario 映射到目标场景', () => {
+    // 前提：patch 切换 activeScenarioId 至 sc2
+    // 期望：stagingByScenarioId['sc2'] 指向切换单元
     const stagingStore = useAiStagingStore();
     stagingStore.hydrateStagingFromPatch(
       'msg-2',

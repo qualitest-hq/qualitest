@@ -2,13 +2,20 @@ package com.qualitest.flow.snapshot;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * 测 FlowRunSnapshotState：运行期快照栈的截断与 JSON 往返。
+ * 边界：纯内存结构，无 DB / HTTP。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowRunSnapshotStateTest
+ */
 class FlowRunSnapshotStateTest {
 
+    /**
+     * 前提：栈上依次有 snap-1 / snap-2 / snap-3。
+     * 期望：truncateAfter(snap-2) 后仅保留到 snap-2。
+     */
     @Test
     void truncateAfter_removesLaterEntries() {
         FlowRunSnapshotState state = new FlowRunSnapshotState();
@@ -21,6 +28,10 @@ class FlowRunSnapshotStateTest {
         assertEquals("snap-2", state.peek().getSnapshotId());
     }
 
+    /**
+     * 前提：栈上有一条 snap-a，序列化为 JSON 再还原。
+     * 期望：条目数与 snapshotId 一致。
+     */
     @Test
     void jsonRoundTrip() {
         FlowRunSnapshotState state = new FlowRunSnapshotState();

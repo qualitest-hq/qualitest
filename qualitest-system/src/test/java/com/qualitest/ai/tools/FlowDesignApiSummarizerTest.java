@@ -10,10 +10,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link FlowDesignApiSummarizer} 单元测试。
+ * 测 FlowDesignApiSummarizer：把 API request/response/测值配置压成 LLM 可读摘要，并建议 extracts。
+ * 边界：纯函数，不访问 DB。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignApiSummarizerTest
  */
 class FlowDesignApiSummarizerTest {
 
+    /**
+     * 前提：V2 request 含 queryParams；headers 为对象形式 Authorization。
+     * 期望：摘要含 page query 与 Authorization header。
+     */
     @Test
     void summarizeRequest_readsQueryParamsAndObjectHeaders() {
         var out = FlowDesignApiSummarizer.summarizeRequest(
@@ -25,6 +31,10 @@ class FlowDesignApiSummarizerTest {
         assertEquals("Authorization", out.getJSONArray("headerParams").getJSONObject(0).getString("name"));
     }
 
+    /**
+     * 前提：query 带 type/pattern/maxLength/valuePreview。
+     * 期望：摘要保留类型与约束，不含 enum。
+     */
     @Test
     void summarizeRequest_includesTypeAndConstraints() {
         String requestConfig = """
@@ -39,6 +49,10 @@ class FlowDesignApiSummarizerTest {
         assertFalse(mobile.containsKey("enum"));
     }
 
+    /**
+     * 前提：body 为 x-www-form-urlencoded，含 page。
+     * 期望：bodyParams 含 page。
+     */
     @Test
     void summarizeRequest_readsUrlencodedBodyParams() {
         String requestConfig = """
@@ -49,6 +63,10 @@ class FlowDesignApiSummarizerTest {
         assertEquals("page", out.getJSONArray("bodyParams").getJSONObject(0).getString("name"));
     }
 
+    /**
+     * 前提：json body schema 含嵌套 user.mobile。
+     * 期望：bodySchemaLeaves 压成 path=user.mobile。
+     */
     @Test
     void summarizeRequest_bodySchemaLeaves() {
         String requestConfig = """
@@ -62,6 +80,10 @@ class FlowDesignApiSummarizerTest {
         assertEquals("^1", leaves.getJSONObject(0).getString("pattern"));
     }
 
+    /**
+     * 前提：V2 response 含 code schema。
+     * 期望：优先读出 code=integer。
+     */
     @Test
     void summarizeResponse_prefersResponsesSchemaLeaves() {
         var out = FlowDesignApiSummarizer.summarizeResponse(ApiConfigV2TestFixtures.RESPONSE_WITH_CODE_SCHEMA);
@@ -69,12 +91,20 @@ class FlowDesignApiSummarizerTest {
         assertEquals("integer", out.getString("code"));
     }
 
+    /**
+     * 前提：非 V2 形状的裸 JSON Schema。
+     * 期望：摘要为空。
+     */
     @Test
     void summarizeResponse_ignoresNonV2Shape() {
         var out = FlowDesignApiSummarizer.summarizeResponse("{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"integer\"}}}");
         assertTrue(out.isEmpty());
     }
 
+    /**
+     * 前提：测值配置含 paramDefaults / bodyExample / response examples。
+     * 期望：摘要带出 mobile 默认值、bodyExample、exampleId。
+     */
     @Test
     void summarizeTestValueConfig_readsParamDefaults() {
         String tv = """
@@ -87,6 +117,10 @@ class FlowDesignApiSummarizerTest {
         assertEquals("resp-1", out.getJSONArray("responseExampleIds").getString(0));
     }
 
+    /**
+     * 前提：响应摘要含 code/msg 与 data.* 字段。
+     * 期望：suggestExtracts 只建议 data 下字段，expr 为 $.data.xxx。
+     */
     @Test
     void suggestExtracts_fromDataPathFields() {
         var summary = new JSONObject();

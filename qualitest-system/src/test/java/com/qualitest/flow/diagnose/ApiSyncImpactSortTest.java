@@ -9,10 +9,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * 导入影响汇总中，受影响流排序与条数截断的单元测试。
+ * <p>
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiSyncImpactSortTest
  */
 class ApiSyncImpactSortTest {
 
-    /** 告警多的流排前面；告警数相同时按流名称排序 */
+    /**
+     * 前提：多条流摘要 warningCount 与 flowName 各不相同。
+     * 期望：按告警数降序、同数按名称排序，顺序为 2→3→4→1。
+     */
     @Test
     void sortAndLimitFlows_ordersByWarningThenName() {
         List<AffectedFlowSummary> flows = new ArrayList<>();
@@ -25,7 +30,10 @@ class ApiSyncImpactSortTest {
         assertEquals(List.of(2L, 3L, 4L, 1L), sorted.stream().map(f -> f.testFlowId).toList());
     }
 
-    /** 超过上限时只保留前 N 条，且仍按告警数优先 */
+    /**
+     * 前提：流数量超过 SYNC_IMPACT_FLOW_LIMIT。
+     * 期望：截断至上限条数，且告警数最多的流仍排首位。
+     */
     @Test
     void sortAndLimitFlows_truncatesToLimit() {
         List<AffectedFlowSummary> flows = new ArrayList<>();

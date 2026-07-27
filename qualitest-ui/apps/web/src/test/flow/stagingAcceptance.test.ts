@@ -1,5 +1,7 @@
 /**
- * messageAcceptedMap 与 Staging 重灌恢复 confirmed 状态。
+ * 测 stagingAcceptance：messageAcceptedMap 与 Staging 重灌恢复 confirmed。
+ * 边界：Pinia 内存态，ref 模拟 accepted map。
+ * 单跑：yarn test stagingAcceptance   （在 qualitest-ui 或 apps/web 下）
  */
 import { ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
@@ -24,11 +26,15 @@ describe('stagingAcceptance', () => {
   });
 
   it('recordStagingUnitConfirmed 写入 accepted map', () => {
+    // 前提：调用 recordStagingUnitConfirmed
+    // 期望：accepted map 含该 unitId
     recordStagingUnitConfirmed('msg-1', 'addNode:9001');
     expect(acceptedStagingUnitIds('msg-1').has('addNode:9001')).toBe(true);
   });
 
   it('重灌 Staging 时从 accepted map 恢复 confirmed 状态', () => {
+    // 前提：accepted map 已记录 addNode confirmed，再 hydrate 同 patch
+    // 期望：addNode confirmed、addEdge pending，摘要计数正确
     const store = useAiStagingStore();
     const patch: FlowDesignPatch = {
       addNodes: [{ id: '9001', type: 'http', data: { name: 'A' } }],

@@ -17,13 +17,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * 会话摘要 Checkpoint 服务单元测试。
- *
- * 验证 assistant 消息数不足时跳过摘要生成；
- * 达到触发条件时拉取被裁掉的历史、调用 LLM 生成摘要并写回会话。
- * 依赖 Mock，不调用真实 LLM 与数据库。
- *
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=AiChatSessionSummaryServiceTest
+ * 测 AiChatSessionSummaryService：assistant 条数不足跳过；达条件时用被裁历史调 LLM 写回摘要。
+ * 边界：全 Mock，不调用真实 LLM / DB。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiChatSessionSummaryServiceTest
  */
 class AiChatSessionSummaryServiceTest {
 
@@ -49,7 +45,10 @@ class AiChatSessionSummaryServiceTest {
                 llmProvider, policyResolver, executor);
     }
 
-    /** assistant 轮次过少时不应调用 LLM 生成摘要 */
+    /**
+     * 前提：会话存在且 assistant 消息数低于触发阈值。
+     * 期望：不调用 LLM，不写 context_summary。
+     */
     @Test
     void refreshSummaryIfNeeded_skipsWhenAssistantCountLow() throws Exception {
         AiChatSession session = AiChatSession.builder()
@@ -64,7 +63,10 @@ class AiChatSessionSummaryServiceTest {
         verify(llmProvider, never()).chat(any(), any());
     }
 
-    /** 满足触发条件时应加载被裁历史、生成摘要并更新 context_summary 字段 */
+    /**
+     * 前提：assistant 轮次达阈值，模型与历史窗口策略可用。
+     * 期望：加载被裁历史调 LLM 生成摘要，并更新 context_summary 与 summaryMessageCount。
+     */
     @Test
     void refreshSummaryIfNeeded_updatesSummaryWhenTriggered() throws Exception {
         AiChatSession session = AiChatSession.builder()

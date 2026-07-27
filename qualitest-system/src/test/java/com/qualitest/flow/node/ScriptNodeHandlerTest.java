@@ -19,12 +19,9 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link ScriptNodeHandler} 单元测试：验证流程图中「脚本」类型节点的执行逻辑。
- * <p>
- * 被测对象从节点 data 读取 {@code language}、{@code source}、{@code timeoutMs}，
- * 委托 {@link ScriptRuntime} 执行脚本，并将执行结果（语言、写入记录、错误信息）写入 {@link StepResult}。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ScriptNodeHandlerTest
+ * 测 ScriptNodeHandler：委托 ScriptRuntime 执行节点脚本并写入 StepResult。
+ * 边界：成功写入 / 空源码失败；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ScriptNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ScriptNodeHandlerTest {
@@ -32,9 +29,8 @@ class ScriptNodeHandlerTest {
     private final ScriptNodeHandler handler = new ScriptNodeHandler(new ScriptRuntime(null));
 
     /**
-     * 正常 JavaScript 脚本：{@code ctx.setFlow('demo', 'ok')} 写入 flow 变量。
-     * 期望：步骤 passed；{@code flow.demo == 'ok'}；
-     * {@code result.script} 含 language 与非空 writes 列表。
+     * 前提：javascript 源码 ctx.setFlow('demo','ok')。
+     * 期望：passed；flow.demo=ok；result.script 含 language 与非空 writes。
      */
     @Test
     @Order(1)
@@ -54,8 +50,8 @@ class ScriptNodeHandlerTest {
     }
 
     /**
-     * 脚本源码为空字符串时不应执行。
-     * 期望：步骤 failed，错误码 {@link FlowErrorCode#TF_SCRIPT_ERROR}。
+     * 前提：source 为空串。
+     * 期望：failed，错误码 TF_SCRIPT_ERROR。
      */
     @Test
     @Order(2)

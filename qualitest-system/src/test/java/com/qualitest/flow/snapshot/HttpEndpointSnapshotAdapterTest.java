@@ -10,9 +10,14 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ * 测 HttpEndpointSnapshotAdapter：对 /test-support 的 snapshot / restore HTTP 契约。
+ * 边界：MockWebServer，不连真实环境。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpEndpointSnapshotAdapterTest
+ */
 class HttpEndpointSnapshotAdapterTest {
 
     private MockWebServer server;
@@ -30,6 +35,10 @@ class HttpEndpointSnapshotAdapterTest {
         server.shutdown();
     }
 
+    /**
+     * 前提：服务端返回 ready 快照；请求 scope=tables、表 mall_order。
+     * 期望：解析 snapshotId；POST 路径与 body 字段正确。
+     */
     @Test
     void snapshot_postsContractAndParsesResponse() throws Exception {
         server.enqueue(new MockResponse()
@@ -59,6 +68,10 @@ class HttpEndpointSnapshotAdapterTest {
         org.junit.jupiter.api.Assertions.assertTrue(body.contains("run-1:node-1"));
     }
 
+    /**
+     * 前提：连续两次 restore 均返回 restored。
+     * 期望：两次均不抛错，服务端收到 2 次请求。
+     */
     @Test
     void restore_postsSnapshotId_andIsIdempotent() {
         server.enqueue(new MockResponse()

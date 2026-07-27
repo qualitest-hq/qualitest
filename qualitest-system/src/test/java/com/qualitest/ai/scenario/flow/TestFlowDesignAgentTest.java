@@ -31,14 +31,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * 测试流 AI 设计 Agent 单元测试。
- *
- * 验证：prompt 为空时拒绝请求；Agent 调用 submit 后返回 patch；
- * 纯答疑轮次 explainOnly=true；Agent 失败时抛出可读异常；
- * 成功落库 assistant 消息后触发异步会话摘要刷新。
- * 依赖 Mock，不调用真实 LLM。
- *
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=TestFlowDesignAgentTest
+ * 测 TestFlowDesignAgent：测试流 AI 设计 Agent（空 prompt / submit patch / 纯答疑 / 失败可读异常 / 摘要刷新）。
+ * 边界：全 Mock，不调用真实 LLM。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TestFlowDesignAgentTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class TestFlowDesignAgentTest {
@@ -116,8 +111,8 @@ class TestFlowDesignAgentTest {
     }
 
     /**
-     * prompt 为空时。
-     * 期望：抛出 LlmClientException，不调用 AgentRunner。
+     * 前提：prompt 为空。
+     * 期望：抛 LlmClientException（含「设计描述」），不调用 AgentRunner。
      */
     @Test
     @Order(1)
@@ -133,8 +128,8 @@ class TestFlowDesignAgentTest {
     }
 
     /**
-     * Agent 调用 submit 且校验通过时，应返回 patch、validation 与 explainOnly=false。
-     * 期望：写入会话消息、触发异步摘要刷新，并执行 submit 工具。
+     * 前提：Agent 调用 submit 且校验通过。
+     * 期望：返回 patch、validation.ok、explainOnly=false；落库并触发摘要刷新。
      */
     @Test
     @Order(2)
@@ -168,8 +163,8 @@ class TestFlowDesignAgentTest {
     }
 
     /**
-     * Agent 仅返回自然语言说明、未调用 submit 时。
-     * 期望：explainOnly=true，patch 为 null，不执行 submit 工具。
+     * 前提：Agent 仅返回自然语言，未调用 submit。
+     * 期望：explainOnly=true，patch=null，不执行 submit。
      */
     @Test
     @Order(3)
@@ -192,8 +187,8 @@ class TestFlowDesignAgentTest {
     }
 
     /**
-     * Agent 已 submit patch 但 Runner 因空 content 返回 error（如触达 maxSteps）时。
-     * 期望：仍返回 patch，不因 isOk=false 失败。
+     * 前提：已 submit patch，但 Runner 因空 content / maxSteps 返回非 ok。
+     * 期望：仍返回 patch，不因 isOk=false 整单失败。
      */
     @Test
     @Order(4)
@@ -234,8 +229,8 @@ class TestFlowDesignAgentTest {
     }
 
     /**
-     * AgentRunner 返回 error 时。
-     * 期望：将错误信息包装为 LlmClientException 抛出。
+     * 前提：AgentRunner 返回 error=步数超限。
+     * 期望：包装为 LlmClientException，消息为「步数超限」。
      */
     @Test
     @Order(5)

@@ -11,18 +11,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link PlaceholderResolver} 单元测试：验证 {@code {{scope.path}}} 占位符的解析行为。
+ * {@link PlaceholderResolver} 单元测试：{{scope.path}} 占位符解析。
  * <p>
- * 两种模式：lenient（设计态，未定义占位符 → 空串）与 strict（正式 Run，未定义 → 抛异常）。
- * 支持 env / flow / asset / http.* 快照路径、嵌套路径、混合文本。
+ * 覆盖 lenient（设计态，未定义 → 空串）与 strict（正式 Run，未定义 → 抛异常）两种模式；
+ * env / flow / asset / http.* 快照路径、嵌套路径、混合文本。测试数据与前端
+ * {@code placeholder-cases.json} 共享，保证 Java 与 TS 解析一致。
  * <p>
- * 测试数据与前端 {@code qualitest-ui/.../placeholder-cases.json} 共享，保证 Java 与 TS 解析一致。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=PlaceholderResolverTest
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=PlaceholderResolverTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class PlaceholderResolverTest {
@@ -64,24 +62,13 @@ class PlaceholderResolverTest {
     }
 
     /**
-     * 数据驱动主测试：遍历 fixture 中全部 case，按 mode 分别断言 lenient / strict 行为。
-     * <p>
-     * fixture 字段说明：
-     * <ul>
-     *   <li>{@code id} — 用例标识，失败时出现在断言消息中</li>
-     *   <li>{@code template} — 待解析模板，含 {@code {{scope.path}}} 占位符</li>
-     *   <li>{@code expected} — lenient 或 strict 成功时的期望结果</li>
-     *   <li>{@code errorCode} — strict 模式下期望抛出的错误码（与 expected 互斥）</li>
-     *   <li>{@code mode} — {@code both} | {@code lenient} | {@code strict}，控制本 case 跑哪些模式</li>
-     * </ul>
-     * 覆盖范围：env / flow / asset / http.* 快照、嵌套路径、混合文本、null 模板、未定义占位符。
+     * 前提：fixture placeholder-cases.json 含 mockContext 与各 mode 用例。
+     * 期望：lenient/strict 解析结果或 errorCode 与 fixture expected 一致。
      */
     @Test
     @Order(1)
     void fixtureCases_matchExpected() {
-        begin("fixtureCases_matchExpected");
-        assertNotNull(cases);
-        System.out.println("  cases: " + cases.size());
+        assertNotNull(cases, "fixture cases 数组不应为空");
         for (int i = 0; i < cases.size(); i++) {
             JSONObject c = cases.getJSONObject(i);
             String id = c.getString("id");
@@ -92,7 +79,6 @@ class PlaceholderResolverTest {
             if ("both".equals(mode) || "lenient".equals(mode)) {
                 String expected = c.getString("expected");
                 String actual = lenient.resolve(template, ctx);
-                logCase("lenient", id, template, actual);
                 assertEquals(expected, actual, "lenient case: " + id);
             }
             // strict：未定义 → 抛 FlowExecutionException；有 errorCode 则只校验错误码
@@ -103,68 +89,51 @@ class PlaceholderResolverTest {
                             () -> strict.resolve(template, ctx),
                             "strict case: " + id
                     );
-                    logCase("strict", id, template, "throw " + ex.getCode());
                     assertEquals(c.getString("errorCode"), ex.getCode(), "case: " + id);
                 } else {
                     String expected = c.getString("expected");
                     String actual = strict.resolve(template, ctx);
-                    logCase("strict", id, template, actual);
                     assertEquals(expected, actual, "strict case: " + id);
                 }
             }
         }
-        end("fixtureCases_matchExpected");
     }
 
     /**
-     * {@code http.duration}：上一步 HTTP 耗时（毫秒）。
-     * fixture mockContext.lastResponse.durationMs = 120。
+     * 前提：mockContext lastResponse.durationMs=120。
+     * 期望：resolvePathSegment("http.duration") 返回 120L。
      */
     @Test
     @Order(2)
     void resolvePathSegment_httpDuration() {
-        begin("resolvePathSegment_httpDuration");
         Object actual = lenient.resolvePathSegment(ctx, "http.duration");
-        System.out.println("  resolvePathSegment(\"http.duration\") -> " + actual);
-        assertEquals(120L, actual);
-        end("resolvePathSegment_httpDuration");
+        assertEquals(120L, actual, "http.duration 应取自 lastResponse.durationMs");
     }
 
     /**
-     * {@code http.body.*}：从上一步响应 Body 按点路径取值。
-     * fixture lastResponse.body.data.code = 0。
+     * 前提：mockContext lastResponse.body.data.code=0。
+     * 期望：resolvePathSegment("http.body.data.code") 返回 0。
      */
     @Test
     @Order(3)
     void resolvePathSegment_httpBody() {
-        begin("resolvePathSegment_httpBody");
         Object actual = lenient.resolvePathSegment(ctx, "http.body.data.code");
-        System.out.println("  resolvePathSegment(\"http.body.data.code\") -> " + actual);
-        assertEquals(0, actual);
-        end("resolvePathSegment_httpBody");
+        assertEquals(0, actual, "http.body.data.code 应从 lastResponse.body 按点路径取值");
     }
 
     /**
-     * strict 模式下，异常应携带占位符名 {@code flow.missing}，便于前端/日志定位。
+     * 前提：strict 模式解析未定义占位符 {{flow.missing}}。
+     * 期望：抛 TF_PLACEHOLDER_UNDEFINED，placeholder 名为 flow.missing。
      */
     @Test
     @Order(4)
     void strict_throwsWithPlaceholderName() {
-        begin("strict_throwsWithPlaceholderName");
         FlowExecutionException ex = assertThrows(
                 FlowExecutionException.class,
                 () -> strict.resolve("{{flow.missing}}", ctx)
         );
-        System.out.println("  strict \"{{flow.missing}}\" -> throw " + ex.getCode()
-                + ", placeholder=" + ex.getPlaceholder());
-        assertEquals("TF_PLACEHOLDER_UNDEFINED", ex.getCode());
-        assertEquals("flow.missing", ex.getPlaceholder());
-        end("strict_throwsWithPlaceholderName");
-    }
-
-    private static void logCase(String resolveMode, String id, String template, Object result) {
-        System.out.printf("  OK [%s] %-24s  %s  ->  %s%n",
-                resolveMode, id, quote(template), result);
+        assertEquals("TF_PLACEHOLDER_UNDEFINED", ex.getCode(), "未定义占位符应抛该错误码");
+        assertEquals("flow.missing", ex.getPlaceholder(), "异常应携带占位符名，便于定位");
     }
 
     /**

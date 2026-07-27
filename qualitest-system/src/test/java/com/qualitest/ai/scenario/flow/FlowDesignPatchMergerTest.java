@@ -27,9 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * AI patch 合并器单元测试。
- *
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=FlowDesignPatchMergerTest
+ * 测 FlowDesignPatchMerger：AI patch 合并进图（节点/边/场景）与按 accepted 过滤。
+ * 边界：内存合并 + GraphJsonValidator；数据驱动夹具在 flow/merge-fixtures/。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignPatchMergerTest
  */
 class FlowDesignPatchMergerTest {
 
@@ -44,46 +44,82 @@ class FlowDesignPatchMergerTest {
         normalizer = new FlowDesignPatchNormalizer(null, validator, merger);
     }
 
+    /**
+     * 前提：夹具 linear-add-accepted（线性加节点/边且全部 accepted）。
+     * 期望：合并后图结构符合夹具断言，校验通过。
+     */
     @Test
     void merge_fixture_linearAddAccepted() throws IOException {
         runFixture("flow/merge-fixtures/linear-add-accepted.json");
     }
 
+    /**
+     * 前提：夹具 partial-edge-only（只接受边、未接受对应节点）。
+     * 期望：合并结果图校验失败。
+     */
     @Test
     void merge_fixture_partialEdgeOnly_fails() throws IOException {
         runFixture("flow/merge-fixtures/partial-edge-only.json");
     }
 
+    /**
+     * 前提：夹具 condition-add-edge-only（仅给 condition 补出边）。
+     * 期望：合并成功并通过夹具断言。
+     */
     @Test
     void merge_fixture_conditionAddEdgeOnly_ok() throws IOException {
         runFixture("flow/merge-fixtures/condition-add-edge-only.json");
     }
 
+    /**
+     * 前提：夹具 partial-node-only（只接受节点）。
+     * 期望：合并成功并通过夹具断言。
+     */
     @Test
     void merge_fixture_partialNodeOnly_ok() throws IOException {
         runFixture("flow/merge-fixtures/partial-node-only.json");
     }
 
+    /**
+     * 前提：夹具 delete-node-cascade（删除节点）。
+     * 期望：节点删除且关联边被级联清理。
+     */
     @Test
     void merge_fixture_deleteNodeCascade_ok() throws IOException {
         runFixture("flow/merge-fixtures/delete-node-cascade.json");
     }
 
+    /**
+     * 前提：夹具 condition-update-edge（更新 condition 出边）。
+     * 期望：合并成功并通过夹具断言。
+     */
     @Test
     void merge_fixture_conditionUpdateEdge_ok() throws IOException {
         runFixture("flow/merge-fixtures/condition-update-edge.json");
     }
 
+    /**
+     * 前提：夹具 scenario-only（仅场景 patch）。
+     * 期望：合并成功并通过夹具断言。
+     */
     @Test
     void merge_fixture_scenarioOnly_ok() throws IOException {
         runFixture("flow/merge-fixtures/scenario-only.json");
     }
 
+    /**
+     * 前提：夹具 remerge-same-accepted（同一 accepted 集合再合并一次）。
+     * 期望：幂等，仍通过。
+     */
     @Test
     void merge_fixture_remergeSameAccepted_ok() throws IOException {
         runFixture("flow/merge-fixtures/remerge-same-accepted.json");
     }
 
+    /**
+     * 前提：partial-edge-only 的 patch，accepted 仅含边 8001。
+     * 期望：过滤后无 addNodes，仅保留边 8001。
+     */
     @Test
     void filterPatchByAccepted_onlyIncludesCheckedItems() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-edge-only.json");
@@ -97,6 +133,10 @@ class FlowDesignPatchMergerTest {
         assertEquals("8001", filtered.getAddEdges().get(0).getId());
     }
 
+    /**
+     * 前提：scenarioPatch 仅设 activeScenarioId=sc2，accepted 含 scenario:activeScenarioId。
+     * 期望：过滤后仍保留 sc2。
+     */
     @Test
     void filterPatchByAccepted_scenarioActiveScenarioId() {
         FlowDesignPatch patch = new FlowDesignPatch();
@@ -111,6 +151,10 @@ class FlowDesignPatchMergerTest {
         assertEquals("sc2", filtered.getScenarioPatch().getActiveScenarioId());
     }
 
+    /**
+     * 前提：已有节点 data.name=旧名；update 带 name/callMode。
+     * 期望：浅合并后 name=新名，并写入 callMode。
+     */
     @Test
     void applyNodeUpdate_mergesData() {
         GraphNode existing = GraphNode.builder()
@@ -129,6 +173,10 @@ class FlowDesignPatchMergerTest {
         assertEquals("external", existing.getData().get("callMode"));
     }
 
+    /**
+     * 前提：图含 1001→1002 边，patch 删除节点 1002。
+     * 期望：节点 1002 消失，边列表清空。
+     */
     @Test
     void deleteNode_cascadesEdges() {
         GraphJson base = GraphJson.builder()

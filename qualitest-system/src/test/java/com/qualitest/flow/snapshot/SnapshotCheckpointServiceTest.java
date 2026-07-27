@@ -25,11 +25,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link SnapshotCheckpointService} 单元测试：节点前 checkpoint 尝试与快照栈压入。
- * <p>
- * Mock {@link DbSnapshotAdapter}，验证 maybeCheckpoint 在各类条件下的返回值。
- * <p>
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=SnapshotCheckpointServiceTest
+ * 测 SnapshotCheckpointService：节点前 checkpoint 尝试与快照栈压入。
+ * 边界：Mock DbSnapshotAdapter，不访问真实库。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SnapshotCheckpointServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SnapshotCheckpointServiceTest {
@@ -38,7 +36,7 @@ class SnapshotCheckpointServiceTest {
     private final SnapshotCheckpointService service = new SnapshotCheckpointService(adapter);
 
     /**
-     * 节点未开 snapshotBefore。
+     * 前提：节点未开 snapshotBefore。
      * 期望：返回 null，不调 adapter。
      */
     @Test
@@ -52,7 +50,7 @@ class SnapshotCheckpointServiceTest {
     }
 
     /**
-     * snapshotBefore=true 且环境允许还原。
+     * 前提：snapshotBefore=true 且环境允许还原；adapter 返回 snap-1。
      * 期望：adapter.snapshot 被调用；attempt 成功；栈顶 snapshotId=snap-1。
      */
     @Test
@@ -86,8 +84,8 @@ class SnapshotCheckpointServiceTest {
     }
 
     /**
-     * onSnapshotFailure=prompt 且 adapter 抛错。
-     * 期望：attempt 失败且 shouldPause=true，不 abort、不 continue。
+     * 前提：onSnapshotFailure=prompt，adapter.snapshot 抛错。
+     * 期望：shouldPause=true；不 abort、不 continueDespiteFailure。
      */
     @Test
     @Order(3)
@@ -114,7 +112,7 @@ class SnapshotCheckpointServiceTest {
     }
 
     /**
-     * allowDestructiveReset=0 但节点开了 snapshotBefore。
+     * 前提：snapshotBefore=true，但 allowDestructiveReset=0。
      * 期望：静默跳过，返回 null。
      */
     @Test
@@ -142,4 +140,4 @@ class SnapshotCheckpointServiceTest {
                 .build();
     }
 }
-
+

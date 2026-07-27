@@ -25,11 +25,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link ResumeContinuationPlanner} 单元测试：resume 决策到续跑计划的翻译。
- * <p>
- * 夹具 {@code flow/linear-run-graph.json}。
- * <p>
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ResumeContinuationPlannerTest
+ * 测 ResumeContinuationPlanner：resume 决策到续跑计划的翻译。
+ * 边界：Mock SnapshotRestoreService；夹具 flow/linear-run-graph.json。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ResumeContinuationPlannerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ResumeContinuationPlannerTest {
@@ -38,7 +36,7 @@ class ResumeContinuationPlannerTest {
     private final ResumeContinuationPlanner planner = new ResumeContinuationPlanner(restoreService);
 
     /**
-     * restoreAndRetry 指定 snap-1。
+     * 前提：restoreAndRetry 指定 snap-1，栈上已有 snap-1 / snap-2。
      * 期望：有 restore 步；continuation 从 n1 重试；栈截断后仅保留 snap-1。
      */
     @Test
@@ -67,8 +65,8 @@ class ResumeContinuationPlannerTest {
     }
 
     /**
-     * 环境未允许还原时的 restoreAndRetry。
-     * 期望：restoreStep=null；仍从 n1 RETRY_NODE 续跑。
+     * 前提：restoreAndRetry + snap-1，但 allowDestructiveReset=0。
+     * 期望：restoreStep=null；仍从 n1 以 RETRY_NODE 续跑。
      */
     @Test
     @Order(2)
@@ -96,7 +94,7 @@ class ResumeContinuationPlannerTest {
     }
 
     /**
-     * skip 决策。
+     * 前提：decision=SKIP，pauseNodeId=n2。
      * 期望：无 restore 步；resumeMode=SKIP_NODE。
      */
     @Test
@@ -116,8 +114,8 @@ class ResumeContinuationPlannerTest {
     }
 
     /**
-     * 未传 snapshotId，暂停节点为 n2 且栈中有 n1、n2 两条记录。
-     * 期望：回退到 n2 对应的最后一次 checkpoint snap-b。
+     * 前提：未传 snapshotId；pause=n2；栈含 n1→snap-a、n2→snap-b。
+     * 期望：resolveSnapshotId 回退为 snap-b。
      */
     @Test
     @Order(4)

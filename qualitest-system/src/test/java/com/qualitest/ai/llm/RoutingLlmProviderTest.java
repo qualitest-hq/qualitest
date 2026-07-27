@@ -7,17 +7,12 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * {@link RoutingLlmProvider} 单元测试：验证 LLM 协议路由器的委托逻辑。
- * <p>
- * 被测对象根据 {@link LlmModelConfig#getProvider()} 将 chat/chatStream 请求
- * 分发到 {@link OpenAiCompatibleProvider} 或 {@link AnthropicCompatibleProvider}；
- * provider 为 null 时默认走 OpenAI；未知 provider 抛 {@link LlmClientException}。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=RoutingLlmProviderTest
+ * 测 RoutingLlmProvider：按 LlmModelConfig.provider 把 chat/chatStream 分发到 OpenAI 或 Anthropic 实现。
+ * 边界：Mock 两个 CompatibleProvider；不发真实 HTTP。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RoutingLlmProviderTest
  */
 class RoutingLlmProviderTest {
 
@@ -33,7 +28,8 @@ class RoutingLlmProviderTest {
     }
 
     /**
-     * provider=openai_compatible 时 chat 应委托 OpenAiCompatibleProvider，不调用 Anthropic。
+     * 前提：provider=openai_compatible。
+     * 期望：chat 只委托 OpenAiCompatibleProvider。
      */
     @Test
     void chat_openAiCompatibleProvider() {
@@ -52,7 +48,8 @@ class RoutingLlmProviderTest {
     }
 
     /**
-     * provider=anthropic_compatible 时 chat 应委托 AnthropicCompatibleProvider，不调用 OpenAI。
+     * 前提：provider=anthropic_compatible。
+     * 期望：chat 只委托 AnthropicCompatibleProvider。
      */
     @Test
     void chat_anthropicCompatibleProvider() {
@@ -71,7 +68,8 @@ class RoutingLlmProviderTest {
     }
 
     /**
-     * provider 为 null 时应默认路由到 OpenAiCompatibleProvider（向后兼容）。
+     * 前提：provider 为 null。
+     * 期望：默认走 OpenAiCompatibleProvider。
      */
     @Test
     void chat_nullProviderUsesOpenAi() {
@@ -87,8 +85,8 @@ class RoutingLlmProviderTest {
     }
 
     /**
-     * provider 为未知标识（如 unknown_provider）时应拒绝调用。
-     * 期望：抛 {@link LlmClientException}，消息含「不支持的协议标识」。
+     * 前提：provider 为未知标识 unknown_provider。
+     * 期望：抛 LlmClientException，消息含「不支持的协议标识」。
      */
     @Test
     void chat_unsupportedProviderThrows() {
@@ -103,7 +101,8 @@ class RoutingLlmProviderTest {
     }
 
     /**
-     * chatStream 应按 provider 路由；Anthropic provider 应调用 anthropicCompatibleProvider.chatStream。
+     * 前提：provider=anthropic_compatible，stream=true。
+     * 期望：chatStream 委托 anthropicCompatibleProvider.chatStream。
      */
     @Test
     void chatStream_delegatesToAnthropicProvider() {

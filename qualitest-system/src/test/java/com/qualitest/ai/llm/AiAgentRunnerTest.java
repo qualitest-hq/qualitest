@@ -14,12 +14,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * {@link AiAgentRunner} 单元测试：验证 LLM Agent 多步工具调用循环。
- * <p>
- * 被测对象维护 messages 历史，循环调用 LlmProvider.chat：若响应含 tool_calls 则执行 toolExecutor、
- * 将结果追加为 tool 消息后继续；若响应含 content 则结束。受 maxSteps 限制，超限返回 error。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=AiAgentRunnerTest
+ * 测 AiAgentRunner：多步 tool_call 循环（执行工具、写回 tool 消息、maxSteps / 终态探针）。
+ * 边界：Mock LlmProvider / AiLlmConfigService，不发真实 LLM；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiAgentRunnerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AiAgentRunnerTest {
@@ -44,8 +41,8 @@ class AiAgentRunnerTest {
     }
 
     /**
-     * 典型 Agent 流程：第 1 轮 LLM 返回 tool_call → 执行工具 → 第 2 轮返回 JSON content。
-     * 期望：ok=true，content 为最终 JSON，stepsUsed=1，共调用 LLM 2 次。
+     * 前提：第 1 轮返回 tool_call，第 2 轮返回 JSON content。
+     * 期望：ok=true，content 为最终 JSON，stepsUsed=1，LLM 调用 2 次。
      */
     @Test
     @Order(1)
@@ -81,8 +78,8 @@ class AiAgentRunnerTest {
     }
 
     /**
-     * LLM 连续返回 tool_call 直到达到 maxSteps 上限。
-     * 期望：ok=false，error 含「最大步数」，stepsUsed=maxSteps。
+     * 前提：LLM 连续返回 tool_call 直至触达 maxSteps=2。
+     * 期望：ok=false，error 含「最大步数」，stepsUsed=2。
      */
     @Test
     @Order(2)
@@ -111,8 +108,8 @@ class AiAgentRunnerTest {
     }
 
     /**
-     * 首轮 LLM 直接返回 content（无 tool_calls）时无需工具步。
-     * 期望：ok=true，content trim 后返回，stepsUsed=0，仅调用 LLM 1 次。
+     * 前提：首轮直接返回 content，无 tool_calls。
+     * 期望：ok=true，content 已 trim，stepsUsed=0，仅调 LLM 1 次。
      */
     @Test
     @Order(3)
@@ -139,7 +136,8 @@ class AiAgentRunnerTest {
     }
 
     /**
-     * terminalSuccessProbe 为 true 时，即使无 content 且触达步数上限也视为成功。
+     * 前提：触达步数上限且无 content，但 terminalSuccessProbe=true。
+     * 期望：仍 ok，terminalViaTool=true，content=null。
      */
     @Test
     @Order(4)

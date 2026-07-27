@@ -18,13 +18,9 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link AssertNodeHandler} 单元测试：验证「断言」节点对比较规则的批量求值。
- * <p>
- * 被测对象读取节点 data 中的 {@code rules} 数组，逐条调用 {@link com.qualitest.flow.context.CompareRuleEvaluator#eval}；
- * 全部通过则步骤 passed，任一失败则整步 failed（错误码 {@link FlowErrorCode#TF_ASSERT_FAILED}），
- * 并在 {@code result.assertDetails} 中记录每条规则的求值结果。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=AssertNodeHandlerTest
+ * 测 AssertNodeHandler：rules 全过则 passed，任一条失败则 TF_ASSERT_FAILED。
+ * 边界：flow / http.body 路径；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AssertNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AssertNodeHandlerTest {
@@ -32,8 +28,8 @@ class AssertNodeHandlerTest {
     private final AssertNodeHandler handler = new AssertNodeHandler();
 
     /**
-     * 两条规则均成立：{@code flow.code eq 0} 与 {@code http.body.code eq 0}。
-     * 期望：步骤 passed；{@code result.assertDetails} 非空。
+     * 前提：flow.code=0 且 http.body.code=0，两条 eq 规则。
+     * 期望：passed；assertDetails 非空。
      */
     @Test
     @Order(1)
@@ -64,8 +60,8 @@ class AssertNodeHandlerTest {
     }
 
     /**
-     * {@code flow.code == 1} 不满足 {@code flow.code eq 0}。
-     * 期望：步骤 failed，错误码 {@link FlowErrorCode#TF_ASSERT_FAILED}。
+     * 前提：flow.code=1，规则要求 eq 0。
+     * 期望：failed，错误码 TF_ASSERT_FAILED。
      */
     @Test
     @Order(2)

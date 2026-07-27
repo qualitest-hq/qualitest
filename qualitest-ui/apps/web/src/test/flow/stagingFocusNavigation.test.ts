@@ -1,8 +1,9 @@
 /**
- * stagingFocusNavigation 单元测试。
- *
- * 覆盖：确认节点后跳下一节点、两端节点确认后跳连线、确认连线后跳下一节点。
- */import { describe, expect, it } from 'vitest';
+ * 测 resolveNextStagingFocusUnit：确认后下一聚焦单元解析。
+ * 边界：纯函数，仅 fixture 单元列表。
+ * 单跑：yarn test stagingFocusNavigation   （在 qualitest-ui 或 apps/web 下）
+ */
+import { describe, expect, it } from 'vitest';
 
 import type { AiStagingUnit } from '@/views/project/testFlow/types/aiStagingTypes';
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
@@ -34,6 +35,8 @@ describe('resolveNextStagingFocusUnit', () => {
   };
 
   it('确认第一个节点后聚焦下一个 pending 节点', () => {
+    // 前提：首节点已 confirmed，次节点仍 pending
+    // 期望：下一聚焦为 addNode:9002
     const pendingUnits = [
       unit('addNode:9001', 'addNode', 'confirmed'),
       unit('addNode:9002', 'addNode'),
@@ -50,6 +53,8 @@ describe('resolveNextStagingFocusUnit', () => {
   });
 
   it('两个节点都确认后聚焦其间连线', () => {
+    // 前提：两端节点均已 confirmed，连线仍 pending
+    // 期望：下一聚焦为 addEdge:8001
     const pendingUnits = [
       unit('addNode:9001', 'addNode', 'confirmed'),
       unit('addNode:9002', 'addNode', 'confirmed'),
@@ -66,6 +71,8 @@ describe('resolveNextStagingFocusUnit', () => {
   });
 
   it('确认连线后聚焦下一个 pending 节点', () => {
+    // 前提：连线已 confirmed，后续仍有 pending 节点
+    // 期望：下一聚焦为 addNode:9003
     const extendedPatch: FlowDesignPatch = {
       ...patch,
       addNodes: [

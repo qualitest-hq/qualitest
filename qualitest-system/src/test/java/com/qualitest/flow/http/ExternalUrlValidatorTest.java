@@ -14,16 +14,16 @@ import static com.qualitest.flow.support.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link ExternalUrlValidator} 单元测试：外联 URL 协议与 host 校验（不做白名单拦截）。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ExternalUrlValidatorTest
+ * 测 ExternalUrlValidator：外联 URL 协议与 host 校验（不做白名单拦截）。
+ * 边界：纯函数；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ExternalUrlValidatorTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ExternalUrlValidatorTest {
 
     /**
-     * http/https 且含合法 host 的 URL 应通过校验。
-     * 期望：不抛出 {@link FlowExecutionException}。
+     * 前提：http/https 且含合法 host（含 127.0.0.1、任意域名）。
+     * 期望：均不抛 FlowExecutionException。
      */
     @Test
     @Order(1)
@@ -37,8 +37,8 @@ class ExternalUrlValidatorTest {
     }
 
     /**
-     * 空白 URL 应拒绝。
-     * 期望：{@link FlowErrorCode#TF_HTTP_EXTERNAL_DENIED}。
+     * 前提：URL 仅空白。
+     * 期望：抛 TF_HTTP_EXTERNAL_DENIED。
      */
     @Test
     @Order(2)
@@ -52,8 +52,8 @@ class ExternalUrlValidatorTest {
     }
 
     /**
-     * 非 http/https 协议应拒绝。
-     * 期望：{@link FlowErrorCode#TF_HTTP_EXTERNAL_DENIED}。
+     * 前提：协议为 ftp。
+     * 期望：抛 TF_HTTP_EXTERNAL_DENIED。
      */
     @Test
     @Order(3)
@@ -67,8 +67,8 @@ class ExternalUrlValidatorTest {
     }
 
     /**
-     * 缺少 host 的 URL 应拒绝。
-     * 期望：{@link FlowErrorCode#TF_HTTP_EXTERNAL_DENIED}。
+     * 前提：URL 缺 host（https:///path）。
+     * 期望：抛 TF_HTTP_EXTERNAL_DENIED。
      */
     @Test
     @Order(4)

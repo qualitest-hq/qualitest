@@ -15,20 +15,16 @@ import static com.qualitest.flow.support.FlowTestSections.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link RunScenarioBootstrap} 单元测试：验证流程运行前「场景」的解析与校验。
- * <p>
- * 被测对象从 {@link GraphJson#getMeta()} 的 run.scenarios 中查找目标场景，
- * 返回 {@link ResolvedRunScenario}（含 scenarioId、环境 id、flowSeed 初始变量）。
- * 支持 API 入参覆盖 testProjectEnvId；找不到场景时抛 {@link FlowErrorCode#TF_GRAPH_INVALID}。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=RunScenarioBootstrapTest
+ * 测 RunScenarioBootstrap：运行前从 graph meta 解析场景（含 env 覆盖与缺失场景）。
+ * 边界：夹具 flow/linear-run-graph.json；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunScenarioBootstrapTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RunScenarioBootstrapTest {
 
     /**
-     * 未显式传入 scenarioId 时，应使用 graph meta.run.activeScenarioId 对应的场景。
-     * 期望：scenarioId=sc-default、flowSeed 含 loginUser=admin、testProjectEnvId=9001。
+     * 前提：未传 scenarioId，图 meta.activeScenarioId=sc-default。
+     * 期望：scenarioId=sc-default；flowSeed.loginUser=admin；envId=9001。
      */
     @Test
     @Order(1)
@@ -48,8 +44,8 @@ class RunScenarioBootstrapTest {
     }
 
     /**
-     * API 调用方传入的 testProjectEnvId 应优先于场景内配置的环境 id。
-     * 期望：返回的 testProjectEnvId=7777（覆盖场景原值 9001）。
+     * 前提：API 传入 testProjectEnvId=7777，覆盖场景内 9001。
+     * 期望：返回 envId=7777。
      */
     @Test
     @Order(2)
@@ -63,8 +59,8 @@ class RunScenarioBootstrapTest {
     }
 
     /**
-     * 指定不存在的 scenarioId 时无法启动运行。
-     * 期望：抛 {@link FlowExecutionException}，错误码 {@link FlowErrorCode#TF_GRAPH_INVALID}。
+     * 前提：scenarioId=missing 不存在。
+     * 期望：抛 FlowExecutionException，码 TF_GRAPH_INVALID。
      */
     @Test
     @Order(3)

@@ -1,5 +1,7 @@
 /**
- * useFlowHistory 与 Staging 单元快照联动测试。
+ * 测 useFlowHistory：undo 时恢复 Staging 单元状态。
+ * 边界：mock element-plus；Pinia 内存态。
+ * 单跑：yarn test useFlowHistory.staging   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,6 +37,8 @@ describe('useFlowHistory staging snapshot', () => {
   };
 
   it('pushHistory 后 undo 恢复 Staging 单元状态', async () => {
+    // 前提：confirm 后 pushHistory，再执行 undo
+    // 期望：单元 status 从 confirmed 恢复为 pending
     const canvasStore = useFlowCanvasStore();
     const stagingStore = useAiStagingStore();
     const { pushHistory, undo, resetHistory } = useFlowHistory();

@@ -10,18 +10,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * {@link OkHttpLlmClient.StreamToolCallAccumulator} 单元测试：验证 OpenAI 流式 {@code delta.tool_calls} 分片聚合。
- * <p>
- * SSE 模式下 tool_calls 的 id、name、arguments 会分多帧到达；被测对象按 {@code index} 合并后，
- * {@link OkHttpLlmClient#chatStream} 才能将完整 {@link LlmToolCall} 交给 {@link AiAgentRunner} 执行工具。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=OkHttpLlmClientStreamToolCallTest
+ * 测 OkHttpLlmClient.StreamToolCallAccumulator：OpenAI 流式 delta.tool_calls 分片聚合。
+ * 边界：纯累加器，不发 HTTP。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=OkHttpLlmClientStreamToolCallTest
  */
 class OkHttpLlmClientStreamToolCallTest {
 
     /**
-     * 单工具多帧 arguments 增量拼接。
-     * 期望：聚合后 id/name/argumentsJson 与完整 tool_call 一致。
+     * 前提：单工具多帧增量拼接 id/name/arguments。
+     * 期望：聚合后 id/name/argumentsJson 完整一致。
      */
     @Test
     void accumulator_mergesIncrementalToolCallDeltas() {
@@ -46,8 +43,8 @@ class OkHttpLlmClientStreamToolCallTest {
     }
 
     /**
-     * 同一轮响应并行返回多个 tool_calls（不同 index）。
-     * 期望：按 index 顺序产出两条完整 LlmToolCall，互不覆盖。
+     * 前提：同一轮并行两个 index 的 tool_calls。
+     * 期望：按 index 产出两条完整 LlmToolCall，互不覆盖。
      */
     @Test
     void accumulator_supportsMultipleParallelToolCalls() {

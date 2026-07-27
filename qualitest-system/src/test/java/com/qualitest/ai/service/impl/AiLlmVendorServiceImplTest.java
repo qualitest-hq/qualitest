@@ -25,16 +25,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link AiLlmVendorServiceImpl} 单元测试。
- * <p>
- * 覆盖厂商删除保护与发现缓存失效：
- * <ul>
- *   <li>物理删除：{@code builtin_status=1} 的内置厂商不可删除；自定义厂商可删除并清除发现缓存</li>
- *   <li>批量逻辑删除：列表中含内置厂商时整批拒绝</li>
- * </ul>
- * Mapper 与 {@link ModelDiscoveryService} 使用 Mock，不访问数据库与 Redis。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=AiLlmVendorServiceImplTest
+ * 测 AiLlmVendorServiceImpl：内置厂商删除保护与发现缓存失效。
+ * 边界：Mapper/Discovery Mock；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiLlmVendorServiceImplTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AiLlmVendorServiceImplTest {
@@ -44,7 +37,7 @@ class AiLlmVendorServiceImplTest {
     private AiLlmVendorServiceImpl service;
 
     /**
-     * 构造被测 Service 并注入 Mock 的 Mapper 与 ModelDiscoveryService。
+     * 每个用例重建 Service 并注入 Mock。
      */
     @BeforeEach
     void setUp() {
@@ -56,9 +49,8 @@ class AiLlmVendorServiceImplTest {
     }
 
     /**
-     * 目标厂商 {@code builtin_status=1}（系统预置）。
-     * 期望：{@link AiLlmVendorServiceImpl#deleteAiLlmVendorById(Long)} 抛出 {@link ServiceException}，
-     * 消息含「内置」；不调用 Mapper 物理删除，也不失效发现缓存。
+     * 前提：厂商 builtin_status=1。
+     * 期望：deleteById 抛 ServiceException（消息含「内置」）。
      */
     @Test
     @Order(1)
@@ -76,9 +68,8 @@ class AiLlmVendorServiceImplTest {
     }
 
     /**
-     * 目标厂商 {@code builtin_status=0}（用户自建）。
-     * 期望：{@link AiLlmVendorServiceImpl#deleteAiLlmVendorById(Long)} 通过删除校验；
-     * 调用 Mapper 物理删除并返回 1；调用 {@link ModelDiscoveryService#invalidateDiscoverCache(Long)} 清除该厂商的发现缓存。
+     * 前提：厂商 builtin_status=0；Mapper 删除返回 1。
+     * 期望：返回 1；调用 invalidateDiscoverCache(8002)。
      */
     @Test
     @Order(2)
@@ -97,9 +88,8 @@ class AiLlmVendorServiceImplTest {
     }
 
     /**
-     * 批量逻辑删除列表中包含 {@code builtin_status=1} 的内置厂商。
-     * 期望：{@link AiLlmVendorServiceImpl#logicDeleteAiLlmVendorByIdList(List)} 抛出 {@link ServiceException}；
-     * 不执行任何逻辑删除。
+     * 前提：批量逻辑删除列表含 builtin_status=1 的厂商。
+     * 期望：抛 ServiceException，不执行逻辑删除。
      */
     @Test
     @Order(3)

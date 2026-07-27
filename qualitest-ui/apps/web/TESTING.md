@@ -1,12 +1,14 @@
-# 前端测试说明（qualitest-ui · flow 模块）
+# 前端测试说明（qualitest-ui · apps/web）
 
-测试流相关单元测试在 `src/test/flow/`，被测源码主要在 `src/utils/flow/` 与 `src/views/project/testFlow/`。
+编写约定以主仓 **[docs/测试编写约定.md](../../../docs/测试编写约定.md)** 为准（类/文件头三件套、每条 `it` 写「前提 + 期望」、中文标题、AAA、断言对行为）。本文只补运行方式与 flow 夹具对齐。
+
+测试主要在 `src/test/`（按领域分子目录），被测源码多在 `src/utils/`、`src/views/project/testFlow/`。
 
 ## 环境要求
 
 - Node.js（与项目 Vite 版本匹配）
 - Yarn 或 npm
-- 所有命令在 **`qualitest-ui/apps/web`** 目录执行
+- 所有命令在 **`qualitest-ui/apps/web`** 目录执行（或在 `qualitest-ui` 根目录用 workspace 脚本）
 
 ## 运行方式
 
@@ -53,53 +55,21 @@ Vitest 配置在 `vite.config.js`：
 ## 目录结构
 
 ```
-src/test/flow/
-  graphValidate.test.ts    图 JSON 结构校验
-  graphAdapter.test.ts     VueFlow ↔ GraphJson 互转
-  placeholder.test.ts      占位符解析
-  compareRule.test.ts      断言规则求值
-  extract.test.ts          HTTP 响应提取
-  snowflakeId.test.ts      节点 id 生成
-  fixtures/                夹具 JSON（与后端 resources/flow 同名对齐）
+src/test/
+  flow/          测试流 / staging / 图工具
+  project/       项目 / API 设计补丁等
+  ai/            AI 消息选择器等
+  */fixtures/    夹具 JSON（与后端 resources 同名对齐时需同步）
 
-src/utils/flow/            纯函数内核（placeholder、compareRule、extract 等）
+src/utils/flow/            纯函数内核
 src/views/project/testFlow/  画布、适配器、stores、composables
 ```
 
-## 测试文件一览
-
-| 测试文件 | 被测模块 | 说明 |
-|---|---|---|
-| `graphValidate.test.ts` | `@/utils/flow/graphValidate` | 开始节点、边、meta.run；数据驱动 |
-| `graphAdapter.test.ts` | `@/views/project/testFlow/graphAdapter` | `toGraphJson` / `fromGraphJson` / `createEmptyGraph` |
-| `placeholder.test.ts` | `@/utils/flow/placeholder` | `{{env.*}}` / `{{flow.*}}` / `{{asset.*}}` |
-| `compareRule.test.ts` | `@/utils/flow/compareRule` | 9 种运算符、多作用域左值、右值占位符 |
-| `extract.test.ts` | `@/utils/flow/extract` | JsonPath / header / status / asset 作用域 |
-| `snowflakeId.test.ts` | `@/utils/flow/snowflakeId`、`nodeDataUtils` | 雪花 id 唯一性与 `generateNodeId` |
-
-## 推荐回归组合
-
-改 flow 工具函数或图适配后，建议全跑：
-
-```bash
-yarn test
-```
-
-仅改求值内核时：
-
-```bash
-yarn test src/test/flow/compareRule.test.ts src/test/flow/extract.test.ts src/test/flow/placeholder.test.ts
-```
-
-仅改图结构相关时：
-
-```bash
-yarn test src/test/flow/graphValidate.test.ts src/test/flow/graphAdapter.test.ts
-```
-
-## 约定
+## 约定摘要（细则见主文档）
 
 - 框架：Vitest（`describe` / `it` / `expect`）。
+- 文件头：测谁、边界、`yarn test <片段>`。
+- 每条 `it`：两行「前提 / 期望」；标题优先中文短句。
 - 数据驱动用例优先读 `fixtures/*.json`，与后端 `qualitest-system/src/test/resources/flow/` 同名文件保持同步。
 - 测试环境为 Node，不启动浏览器；画布交互、正式 Run API 暂无自动化覆盖。
 
@@ -115,12 +85,11 @@ yarn test src/test/flow/graphValidate.test.ts src/test/flow/graphAdapter.test.ts
 | `demo-graph.json` | `qualitest-system/src/test/resources/flow/demo-graph.json` |
 | `invalid-*.json` | 同上 |
 
-跨端一致性校验示例（分别在两端目录执行）：
+跨端一致性校验示例：
 
 ```bash
-# 后端
-cd qualitest
-mvn test -pl qualitest-system -am -DskipTests=false "-Dtest=CompareRuleEvaluatorTest,ExtractApplicatorTest,PlaceholderResolverTest"
+# 后端（qualitest 目录）
+mvn test -DskipTests=false -pl qualitest-system -am "-Dtest=CompareRuleEvaluatorTest,ExtractApplicatorTest,PlaceholderResolverTest"
 
 # 前端
 cd qualitest-ui/apps/web

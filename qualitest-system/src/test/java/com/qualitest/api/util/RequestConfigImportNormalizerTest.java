@@ -11,10 +11,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * {@link RequestConfigImportNormalizer} 单元测试。
  * 覆盖：标准结构通过、非法键/缺版本失败、text→string、file 位置矫正。
+ * <p>
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RequestConfigImportNormalizerTest
  */
 class RequestConfigImportNormalizerTest {
 
-    /** 合法标准结构可规范化成功，并含 configVersion、queryParams。 */
+    /**
+     * 前提：合法 v2 requestConfig JSON（含 configVersion、queryParams）。
+     * 期望：normalize 成功；输出含 configVersion 与 queryParams，无 params 键。
+     */
     @Test
     void normalize_acceptsV2Shape() throws Exception {
         String raw = """
@@ -33,7 +38,10 @@ class RequestConfigImportNormalizerTest {
         assertTrue(!out.contains("\"params\""));
     }
 
-    /** 顶层含 params 键时抛业务异常。 */
+    /**
+     * 前提：requestConfig 顶层含非法 params 键。
+     * 期望：抛 ServiceException，消息含 params。
+     */
     @Test
     void normalize_rejectsParamsKey() {
         String raw = """
@@ -44,7 +52,10 @@ class RequestConfigImportNormalizerTest {
         assertTrue(ex.getMessage().contains("params"));
     }
 
-    /** 缺少 configVersion 时抛业务异常。 */
+    /**
+     * 前提：requestConfig 缺少 configVersion。
+     * 期望：抛 ServiceException。
+     */
     @Test
     void normalize_rejectsMissingConfigVersion() {
         String raw = """
@@ -53,7 +64,10 @@ class RequestConfigImportNormalizerTest {
         assertThrows(ServiceException.class, () -> RequestConfigImportNormalizer.normalize(raw));
     }
 
-    /** formData：file 保留，text / TEXT 均改为 string。 */
+    /**
+     * 前提：formData 含 file、text、TEXT 类型项。
+     * 期望：file 保留；text/TEXT 均规范为 string。
+     */
     @Test
     void normalize_formData_textToString_keepsFile() throws Exception {
         String raw = """
@@ -81,8 +95,8 @@ class RequestConfigImportNormalizerTest {
     }
 
     /**
-     * query、path、headers、urlencoded 上的 file 一律改为 string
-     *（file 只允许出现在 formData）。
+     * 前提：query/path/headers/urlencoded 参数 type=file。
+     * 期望：normalize 后均改为 string（file 仅允许 formData）。
      */
     @Test
     void normalize_fileOutsideFormData_coercesToString() throws Exception {
@@ -106,7 +120,10 @@ class RequestConfigImportNormalizerTest {
         assertEquals("string", root.path("body").path("urlencoded").get(0).path("type").asText());
     }
 
-    /** query 参数 type=text 改为 string。 */
+    /**
+     * 前提：queryParams 单项 type=text。
+     * 期望：normalize 后 type 变为 string。
+     */
     @Test
     void normalize_queryParam_textToString() throws Exception {
         String raw = """

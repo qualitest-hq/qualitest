@@ -18,7 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link FlowGraphContextResolver} 单元测试。
+ * 测 FlowGraphContextResolver：从参数或 testFlowId 解析图上下文。
+ * 边界：Mock ITestFlowService，不访问真实库。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphContextResolverTest
  */
 @ExtendWith(MockitoExtension.class)
 class FlowGraphContextResolverTest {
@@ -40,6 +42,10 @@ class FlowGraphContextResolverTest {
                 .build();
     }
 
+    /**
+     * 前提：参数无 graph、无 testFlowId。
+     * 期望：失败，错误 JSON 含 error 与 hint。
+     */
     @Test
     void resolve_missingGraphAndFlowId_returnsError() {
         FlowGraphContextResolver.ResolvedGraph resolved = resolver.resolve(Map.of(), context);
@@ -48,6 +54,10 @@ class FlowGraphContextResolverTest {
         assertTrue(resolved.errorJson().contains("hint"));
     }
 
+    /**
+     * 前提：仅传 testFlowId，Service 返回同项目的 graphJson。
+     * 期望：解析成功，节点 n1 存在。
+     */
     @Test
     void resolve_autoLoadByTestFlowId_returnsGraph() {
         when(testFlowService.selectTestFlowResult(FLOW_ID)).thenReturn(
@@ -65,6 +75,10 @@ class FlowGraphContextResolverTest {
         assertEquals("n1", resolved.graph().getNodes().get(0).getId());
     }
 
+    /**
+     * 前提：testFlowId 对应流属于其它项目。
+     * 期望：失败（项目不匹配）。
+     */
     @Test
     void resolve_wrongProject_returnsError() {
         when(testFlowService.selectTestFlowResult(FLOW_ID)).thenReturn(
@@ -80,6 +94,10 @@ class FlowGraphContextResolverTest {
         assertTrue(resolved.errorJson().contains("不属于当前项目"));
     }
 
+    /**
+     * 前提：上下文已带 graphJson，参数为空。
+     * 期望：优先用上下文图，解析成功。
+     */
     @Test
     void resolve_prefersContextGraphJson() {
         GraphJson graph = GraphJson.builder().build();

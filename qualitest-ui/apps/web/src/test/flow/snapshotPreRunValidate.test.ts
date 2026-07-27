@@ -1,7 +1,7 @@
 /**
- * snapshotPreRunValidate / resolveResetBaseUrl 单元测试。
- *
- * 运行（apps/web 目录）：yarn test snapshotPreRunValidate
+ * 测 snapshotPreRunValidate / resolveResetBaseUrl：快照前置节点重置端点静态校验。
+ * 边界：纯函数，fixture 图与环境 URL。
+ * 单跑：yarn test snapshotPreRunValidate   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 
@@ -32,42 +32,58 @@ function graphWithSnapshotBefore(enabled: boolean): Pick<GraphJson, 'nodes'> {
 }
 
 describe('resolveResetBaseUrl', () => {
-  it('plainHttpUrl_appendsTestSupport', () => {
+  it('普通 http 基址会自动补上 /test-support', () => {
+    // 前提：基址为 http://host:8081
+    // 期望：末尾补上 /test-support
     expect(resolveResetBaseUrl('http://host:8081')).toBe('http://host:8081/test-support');
   });
 
-  it('noScheme_addsHttpAndTestSupport', () => {
+  it('无协议时补 http 并挂上 /test-support', () => {
+    // 前提：基址为 localhost:8081（无协议）
+    // 期望：补 http 并挂 /test-support
     expect(resolveResetBaseUrl('localhost:8081')).toBe('http://localhost:8081/test-support');
   });
 
-  it('trailingSlashOnBase_normalized', () => {
+  it('基址末尾斜杠会被规范化后再拼路径', () => {
+    // 前提：基址末尾有斜杠
+    // 期望：规范化后拼 /test-support
     expect(resolveResetBaseUrl('http://host:8081/')).toBe('http://host:8081/test-support');
   });
 
-  it('emptyEnvUrl_returnsEmpty', () => {
+  it('空环境 URL 时还原基址为空串', () => {
+    // 前提：环境 URL 为空或仅空白
+    // 期望：还原基址为空串
     expect(resolveResetBaseUrl('')).toBe('');
     expect(resolveResetBaseUrl('   ')).toBe('');
   });
 
-  it('invalidJson_returnsEmpty', () => {
+  it('非法 JSON 环境 URL 时还原为空串', () => {
+    // 前提：环境 URL 为非法 JSON
+    // 期望：还原基址为空串
     expect(resolveResetBaseUrl('{bad')).toBe('');
   });
 
-  it('multiModuleJson_usesDefaultModule', () => {
+  it('多模块 JSON 取默认模块 URL', () => {
+    // 前提：环境 URL 为多模块 JSON
+    // 期望：取默认模块 URL 并拼 /test-support
     const envUrl = JSON.stringify({ [DEFAULT_ENV_MODULE_NAME]: 'http://demo:8081' });
     expect(resolveResetBaseUrl(envUrl)).toBe('http://demo:8081/test-support');
   });
 });
 
 describe('isSnapshotBeforeNode', () => {
-  it('acceptsBooleanAndStringTrue', () => {
+  it('snapshotBefore 为真值时判定为快照节点', () => {
+    // 前提：snapshotBefore 为 true/'true'/1/'1'
+    // 期望：均判定为快照节点
     expect(isSnapshotBeforeNode({ snapshotBefore: true })).toBe(true);
     expect(isSnapshotBeforeNode({ snapshotBefore: 'true' })).toBe(true);
     expect(isSnapshotBeforeNode({ snapshotBefore: 1 })).toBe(true);
     expect(isSnapshotBeforeNode({ snapshotBefore: '1' })).toBe(true);
   });
 
-  it('defaultsToFalse', () => {
+  it('缺省或 false 时不视为快照节点', () => {
+    // 前提：无 snapshotBefore 或值为 false
+    // 期望：均不为快照节点
     expect(isSnapshotBeforeNode({})).toBe(false);
     expect(isSnapshotBeforeNode({ snapshotBefore: false })).toBe(false);
     expect(isSnapshotBeforeNode(undefined)).toBe(false);
@@ -75,7 +91,9 @@ describe('isSnapshotBeforeNode', () => {
 });
 
 describe('validateSnapshotResetEndpointStatic', () => {
-  it('noSnapshotNodes_skips', () => {
+  it('无快照节点时跳过重置端点校验', () => {
+    // 前提：图中无 snapshotBefore 节点
+    // 期望：校验通过
     const result = validateSnapshotResetEndpointStatic({ nodes: [] }, {
       allowDestructiveReset: 1,
       envUrl: '',
@@ -83,7 +101,9 @@ describe('validateSnapshotResetEndpointStatic', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('snapshotButResetDisabled_skips', () => {
+  it('有快照但未开破坏性重置时跳过校验', () => {
+    // 前提：有快照节点但 allowDestructiveReset=0
+    // 期望：校验通过
     const result = validateSnapshotResetEndpointStatic(graphWithSnapshotBefore(true), {
       allowDestructiveReset: 0,
       envUrl: '',
@@ -91,16 +111,25 @@ describe('validateSnapshotResetEndpointStatic', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('snapshotAndResetEnabled_validUrl_passes', () => {
+  it('开启重置且 URL 合法时校验通过', () => {
+    // 前提：有快照、开启重置、envUrl 合法
+    // 期望：校验通过
     const result = validateSnapshotResetEndpointStatic(graphWithSnapshotBefore(true), {
       allowDestructiveReset: 1,
       envUrl: 'http://host:8081',
     });
     expect(result.ok).toBe(true);
+  });
+
+  it('存在 snapshotBefore 节点时 hasSnapshotBeforeNodes 返回 true', () => {
+    // 前提：图含 snapshotBefore=true 节点
+    // 期望：hasSnapshotBeforeNodes 为 true
     expect(hasSnapshotBeforeNodes(graphWithSnapshotBefore(true))).toBe(true);
   });
 
-  it('snapshotAndResetEnabled_emptyUrl_fails', () => {
+  it('开启重置但 URL 为空时失败并给出端点错误', () => {
+    // 前提：有快照且开启重置，envUrl 为空
+    // 期望：ok 为 false，message 为端点错误文案
     const result = validateSnapshotResetEndpointStatic(graphWithSnapshotBefore(true), {
       allowDestructiveReset: 1,
       envUrl: '',
@@ -109,7 +138,9 @@ describe('validateSnapshotResetEndpointStatic', () => {
     expect(result.message).toBe(SNAPSHOT_RESET_ENDPOINT_ERROR);
   });
 
-  it('snapshotAndResetEnabled_badJson_fails', () => {
+  it('开启重置但环境 URL 非法 JSON 时失败', () => {
+    // 前提：有快照且开启重置，envUrl 非法 JSON
+    // 期望：校验失败
     const result = validateSnapshotResetEndpointStatic(graphWithSnapshotBefore(true), {
       allowDestructiveReset: 1,
       envUrl: '{not-json',
@@ -117,7 +148,9 @@ describe('validateSnapshotResetEndpointStatic', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('multiModuleEnvUrl_passes', () => {
+  it('多模块环境 URL 解析成功时校验通过', () => {
+    // 前提：多模块 JSON envUrl 含默认模块
+    // 期望：校验通过
     const envUrl = JSON.stringify({ [DEFAULT_ENV_MODULE_NAME]: 'http://demo:8081' });
     const result = validateSnapshotResetEndpointStatic(graphWithSnapshotBefore(true), {
       allowDestructiveReset: 1,

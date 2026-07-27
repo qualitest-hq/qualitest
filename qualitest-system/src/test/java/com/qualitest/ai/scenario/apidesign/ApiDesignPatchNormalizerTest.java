@@ -11,10 +11,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+
+/**
+ * 测 ApiDesignPatchNormalizer：API 设计 patch 校验与归一（脚本 / 约束 / 禁止 import）。
+ * 边界：纯函数 Normalizer，无 DB。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiDesignPatchNormalizerTest
+ */
 class ApiDesignPatchNormalizerTest {
 
     private final ApiDesignPatchNormalizer normalizer = new ApiDesignPatchNormalizer();
 
+    /**
+     * 前提：合法 pre 脚本 update。
+     * 期望：校验通过；unitId 归一为 script:pre。
+     */
     @Test
     void normalize_validScriptUpdate_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();
@@ -32,6 +42,10 @@ class ApiDesignPatchNormalizerTest {
         assertEquals("script:pre", result.patch().getChanges().get(0).getUnitId());
     }
 
+    /**
+     * 前提：post 脚本 clear，已带 unitId。
+     * 期望：校验通过，action 仍为 clear。
+     */
     @Test
     void normalize_clearPost_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();
@@ -48,6 +62,10 @@ class ApiDesignPatchNormalizerTest {
         assertEquals("clear", result.patch().getChanges().get(0).getAction());
     }
 
+    /**
+     * 前提：脚本内容含 forbidden import。
+     * 期望：校验失败。
+     */
     @Test
     void normalize_forbiddenImport_fails() {
         ApiDesignPatch patch = new ApiDesignPatch();
@@ -63,6 +81,10 @@ class ApiDesignPatchNormalizerTest {
         assertFalse(result.validation().isOk());
     }
 
+    /**
+     * 前提：updateConstraints 针对 request.queryParams.mobile。
+     * 期望：校验通过（约束补丁合法）。
+     */
     @Test
     void normalize_constraintUpdate_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();
@@ -84,6 +106,10 @@ class ApiDesignPatchNormalizerTest {
         assertEquals("updateConstraints", result.patch().getChanges().get(0).getAction());
     }
 
+    /**
+     * 前提：约束含 enum。
+     * 期望：校验失败，错误信息含 enum。
+     */
     @Test
     void normalize_enumRejected() {
         ApiDesignPatch patch = new ApiDesignPatch();
@@ -103,6 +129,10 @@ class ApiDesignPatchNormalizerTest {
         assertTrue(result.validation().getErrors().stream().anyMatch(e -> e.contains("enum")));
     }
 
+    /**
+     * 前提：integer 约束同时带 pattern 与 minValue。
+     * 期望：通过但剥掉 pattern，保留 minValue，并有 warning。
+     */
     @Test
     void normalize_integerWithPattern_strippedOrFails() {
         ApiDesignPatch patch = new ApiDesignPatch();
@@ -125,6 +155,10 @@ class ApiDesignPatchNormalizerTest {
         assertFalse(result.validation().getWarnings().isEmpty());
     }
 
+    /**
+     * 前提：body.schema 约束误用 minValue（表单字段名）。
+     * 期望：校验失败。
+     */
     @Test
     void normalize_schemaRejectsMinValue() {
         ApiDesignPatch patch = new ApiDesignPatch();
@@ -143,6 +177,10 @@ class ApiDesignPatchNormalizerTest {
         assertFalse(result.validation().isOk());
     }
 
+    /**
+     * 前提：testValue.request.paramDefaults 的 set。
+     * 期望：校验通过。
+     */
     @Test
     void normalize_testValueSet_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();
@@ -159,6 +197,10 @@ class ApiDesignPatchNormalizerTest {
         assertEquals("set", result.patch().getChanges().get(0).getAction());
     }
 
+    /**
+     * 前提：testValue set 同时带 constraints。
+     * 期望：校验失败（测值与约束不可混用）。
+     */
     @Test
     void normalize_testValueWithConstraints_fails() {
         ApiDesignPatch patch = new ApiDesignPatch();
@@ -177,6 +219,10 @@ class ApiDesignPatchNormalizerTest {
         assertFalse(result.validation().isOk());
     }
 
+    /**
+     * 前提：meta.apiDescription update。
+     * 期望：通过；unitId 为 meta:apiDescription。
+     */
     @Test
     void normalize_metaDescription_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();

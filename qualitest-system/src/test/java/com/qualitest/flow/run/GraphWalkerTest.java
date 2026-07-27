@@ -20,21 +20,16 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link GraphWalker} 单元测试：验证流程图遍历器的节点定位与下一跳解析。
- * <p>
- * 被测对象负责：从 {@link GraphJson} 中定位唯一开始节点、按节点类型解析下一跳
- * （普通节点沿出边、condition 节点沿 branchTaken 指定的 target），并查找对应边 id。
- * 本测试结合真实 {@link ConditionNodeHandler}、{@link AssignNodeHandler} 产生 branchTaken。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=GraphWalkerTest
+ * 测 GraphWalker：找开始节点、resolveNext（condition target / 唯一出边）。
+ * 边界：branch-graph 与 linear-run-graph；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphWalkerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class GraphWalkerTest {
 
     /**
-     * 分支图 {@code branch-graph.json}：{@code flow.code=0} 命中 IF 分支。
-     * 期望：开始节点 n_start；condition 步 branchTaken=b_if；
-     * resolveNext 返回 n_ok，入边 id=e_if。
+     * 前提：branch-graph；flow.code=0 命中 IF。
+     * 期望：开始 n_start；branchTaken=b_if；next=n_ok，边 e_if。
      */
     @Test
     @Order(1)
@@ -59,8 +54,8 @@ class GraphWalkerTest {
     }
 
     /**
-     * assign 节点将 {@code flow.code} 从 1 清零为 0，随后 condition 仍按新值求值。
-     * 期望：assign 后下一跳为 n_cond；condition 命中 IF → n_ok。
+     * 前提：flow.code 初值 1；n_start 为 assign 清零后再进 condition。
+     * 期望：assign 后 next=n_cond；condition 命中 IF → n_ok。
      */
     @Test
     @Order(2)
@@ -90,8 +85,8 @@ class GraphWalkerTest {
     }
 
     /**
-     * 线性图每个节点仅有一条出边，resolveNext 应沿唯一出边前进。
-     * 期望：n1 → n2。
+     * 前提：linear-run-graph，n1 仅一条出边。
+     * 期望：resolveNext(n1)=n2。
      */
     @Test
     @Order(3)

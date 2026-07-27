@@ -1,7 +1,7 @@
 /**
- * stagingLocate 单元测试：摘要定位辅助。
- *
- * 运行（apps/web 目录）：yarn test stagingLocate
+ * 测 stagingLocate：摘要定位辅助（首个 pending 单元与场景 id 解析）。
+ * 边界：纯函数，fixture 单元列表。
+ * 单跑：yarn test stagingLocate   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 
@@ -30,20 +30,28 @@ describe('stagingLocate', () => {
   ];
 
   it('isGraphStagingKind / isScenarioStagingKind 分类正确', () => {
+    // 前提：各类 kind 输入
+    // 期望：图/场景 kind 判定符合约定
     expect(isGraphStagingKind('addNode')).toBe(true);
     expect(isScenarioStagingKind('addScenario')).toBe(true);
     expect(isGraphStagingKind('setActiveScenario')).toBe(false);
   });
 
   it('findFirstPendingGraphUnit 跳过已确认与非图单元', () => {
+    // 前提：列表含 confirmed 图单元与 pending 场景单元
+    // 期望：返回首个 pending 图单元 updateNode:n2
     expect(findFirstPendingGraphUnit(units)?.unitId).toBe('updateNode:n2');
   });
 
   it('findFirstPendingScenarioUnit 返回首个 pending 场景单元', () => {
+    // 前提：含 pending addScenario
+    // 期望：返回 addScenario:sc2
     expect(findFirstPendingScenarioUnit(units)?.unitId).toBe('addScenario:sc2');
   });
 
   it('resolveScenarioIdFromUnit 解析 setActiveScenario', () => {
+    // 前提：setActiveScenario 单元 draft 含 activeScenarioId
+    // 期望：返回 sc9
     const activeUnit = unit({
       unitId: 'setActiveScenario',
       kind: 'setActiveScenario',
@@ -54,42 +62,8 @@ describe('stagingLocate', () => {
   });
 
   it('resolveScenarioIdFromUnit 从 unitId 解析场景 id', () => {
+    // 前提：addScenario 单元 unitId 含场景 id
+    // 期望：返回 sc2
     expect(resolveScenarioIdFromUnit(units[2])).toBe('sc2');
-  });
-});
-
-describe('aiStagingStore buildMessageSummary 与单元计数一致', () => {
-  it('摘要 pending/confirmed/rejected 与 listUnitsForMessage 一致', async () => {
-    const { createPinia, setActivePinia } = await import('pinia');
-    const { useAiStagingStore } = await import('@/views/project/testFlow/stores/aiStagingStore');
-
-    setActivePinia(createPinia());
-    const store = useAiStagingStore();
-    const patch = {
-      addNodes: [{ id: 'a1', type: 'http', data: { name: 'A' } }],
-      addEdges: [{ id: 'e1', source: 'a1', target: 'b1' }],
-      scenarioPatch: {
-        addScenarios: [{ id: 'sc-new', name: '新场景', testProjectEnvId: '', flowSeed: {} }],
-      },
-    };
-    const ctx = {
-      nodes: [],
-      edges: [],
-      runConfig: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }] },
-    };
-
-    store.hydrateStagingFromPatch('msg-sum', patch, ctx);
-    store.markConfirmed('addNode:a1');
-    store.markRejected('addEdge:e1');
-
-    const units = store.listUnitsForMessage('msg-sum');
-    const summary = store.buildMessageSummary('msg-sum');
-
-    expect(summary.pending).toBe(units.filter((u) => u.status === 'pending').length);
-    expect(summary.confirmed).toBe(units.filter((u) => u.status === 'confirmed').length);
-    expect(summary.rejected).toBe(units.filter((u) => u.status === 'rejected').length);
-    expect(summary.addNodeCount).toBe(1);
-    expect(summary.addEdgeCount).toBe(1);
-    expect(summary.scenarioCount).toBe(1);
   });
 });

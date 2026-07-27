@@ -13,22 +13,17 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link StepResultWriter} 单元测试：验证流程运行步骤结果的持久化格式。
- * <p>
- * 被测对象负责将运行时上下文（场景信息、env 快照、flow 变量）序列化为
- * {@link TestFlowRunStep} / {@link TestFlowRunStepResult} 实体，供落库与前端回放展示。
- * 其中 step_index=0 的「运行配置」步（{@code nodeType=run_config}）记录场景加载摘要。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=StepResultWriterTest
+ * 测 StepResultWriter：run_config 步序列化、graph 快照回退、hasRunConfigStep 识别。
+ * 边界：无落库记录时从 graphJsonSnapshot 反推。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=StepResultWriterTest
  */
 class StepResultWriterTest {
 
     private final StepResultWriter writer = new StepResultWriter();
 
     /**
-     * 从已解析的 {@link ResolvedRunScenario} 和 {@link FlowRunContext} 构建 step_index=0 的运行配置步。
-     * 期望：nodeType=run_config、stepIndex=0；stepDetails 含 scenarioLoaded（场景 id/名称/环境 id/环境名/env 快照）
-     * 和 flowAfter（当前 flow 变量快照）。
+     * 前提：ResolvedRunScenario + ctx 含 env/flow。
+     * 期望：stepIndex=0、nodeType=run_config；details 含 scenarioLoaded 与 flowAfter。
      */
     @Test
     void toRunConfigStepEntity_writesScenarioLoadedAndFlowAfter() {
@@ -63,8 +58,8 @@ class StepResultWriterTest {
     }
 
     /**
-     * 当运行时缺少 step_index=0 记录时，从 {@link TestFlowRunResult#getGraphJsonSnapshot()} 反推场景信息。
-     * 期望：生成的 fallback 步含 scenarioLoaded 和 flowAfter（来自 graph meta.run.scenarios 的 flowSeed）。
+     * 前提：run 无 step0，仅有 graphJsonSnapshot（sc-1 + flowSeed.x=1）。
+     * 期望：fallback 步含 scenarioLoaded；flowAfter.x=1；hasRunConfigStep=true。
      */
     @Test
     void buildFallbackRunConfigStepResult_derivesFromGraphSnapshot() {
@@ -105,8 +100,8 @@ class StepResultWriterTest {
     }
 
     /**
-     * {@link StepResultWriter#hasRunConfigStep} 应能识别已持久化的 step_index=0 + nodeType=run_config 记录。
-     * 普通 http 步（stepIndex=1）不应被误判。
+     * 前提：列表分别为 run_config@0 与普通 http@1。
+     * 期望：前者 true，后者 false。
      */
     @Test
     void hasRunConfigStep_detectsPersistedStep0() {

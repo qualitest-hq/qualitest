@@ -13,16 +13,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link RunSnapshotPolicy} 单元测试：运行场景上的失败/快照策略解析与判定。
- * <p>
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=RunSnapshotPolicyTest
+ * 测 RunSnapshotPolicy：运行场景上的失败/快照策略解析与判定。
+ * 边界：纯函数，仅依赖 ResolvedRunScenario 字段，无 DB / HTTP。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunSnapshotPolicyTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RunSnapshotPolicyTest {
 
     /**
-     * fromScenario 传入大小写混合的取值。
-     * 期望：prompt → shouldPauseOnNodeFailure；continue → shouldContinueOnSnapshotFailure。
+     * 前提：fromScenario 传入大小写混合的 onNodeFailure / onSnapshotFailure。
+     * 期望：归一后 prompt 暂停节点失败，continue 在快照失败时继续。
      */
     @Test
     @Order(1)
@@ -40,7 +40,7 @@ class RunSnapshotPolicyTest {
     }
 
     /**
-     * 默认策略未配置场景字段。
+     * 前提：使用 defaults()，场景字段未配置。
      * 期望：节点失败不暂停；checkpoint 失败 abort。
      */
     @Test

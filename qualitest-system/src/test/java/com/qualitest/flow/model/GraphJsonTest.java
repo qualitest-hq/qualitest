@@ -19,12 +19,9 @@ import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link GraphJson} 单元测试：验证流程图 JSON 模型的反序列化、字段完整性与往返一致性。
- * <p>
- * 使用 {@code demo-graph.json} 夹具（11 节点、11 边、3 场景、展平 meta），
- * 断言 parse 结果、场景字段、condition 分支 target、serialize 往返不丢数据。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=GraphJsonTest
+ * 测 GraphJson：demo-graph.json 反序列化、场景字段、condition 分支 target、serialize 往返。
+ * 边界：仅 classpath 夹具；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphJsonTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class GraphJsonTest {
@@ -57,7 +54,7 @@ class GraphJsonTest {
     }
 
     /**
-     * demo-graph.json 应能成功 parse 为 GraphJson 对象。
+     * 前提：加载 demo-graph.json。
      * 期望：11 节点、11 边、3 场景，meta.scenarios 非空。
      */
     @Test
@@ -77,8 +74,8 @@ class GraphJsonTest {
     }
 
     /**
-     * meta 各场景字段应完整：id（雪花数字串）、name、testProjectEnvId、flowSeed、remark。
-     * 预发轮询场景 staging 的 flowSeed.bizId=rpt-99。
+     * 前提：已解析的 demo 图。
+     * 期望：各场景 id/name/env/flowSeed/remark 齐全；预发场景 bizId=rpt-99。
      */
     @Test
     @Order(2)
@@ -110,8 +107,8 @@ class GraphJsonTest {
     }
 
     /**
-     * condition 节点的分支目标存储在 data.branches[].target（非 edge），共 2 个 condition 节点。
-     * 期望：每个 branch 含 id 和 target。
+     * 前提：demo 含 2 个 condition 节点。
+     * 期望：每个 branch 含 id 与 target。
      */
     @Test
     @Order(3)
@@ -136,8 +133,8 @@ class GraphJsonTest {
     }
 
     /**
-     * parse → toJsonString → parse 往返后图结构不变。
-     * 期望：scenarios JSON 一致、activeScenarioId 不变、节点 id 集合不变、边 source/target 不变。
+     * 前提：parse → toJsonString → parse。
+     * 期望：scenarios、activeScenarioId、节点 id、边 source/target 均保持。
      */
     @Test
     @Order(4)

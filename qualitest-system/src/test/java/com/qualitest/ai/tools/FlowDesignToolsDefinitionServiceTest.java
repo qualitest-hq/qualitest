@@ -16,10 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * FlowDesignToolsDefinitionService 单元测试。
- * <p>
- * 覆盖：Web 工具列表含 submit 与 get_flow_api_health、不含 list_flows/get_flow；
- * MCP 列表共 12 个只读工具、含 get_flow_api_health、不含 submit。
+ * 测 FlowDesignToolsDefinitionService：Web / MCP 工具清单差异。
+ * 边界：Mock FlowDesignToolExecutor.registeredToolNames，不启真实 Agent。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolsDefinitionServiceTest
  */
 @ExtendWith(MockitoExtension.class)
 class FlowDesignToolsDefinitionServiceTest {
@@ -36,7 +35,10 @@ class FlowDesignToolsDefinitionServiceTest {
         service.validateToolRegistryConsistency();
     }
 
-    /** Web 列表应有 11 个工具：含 submit、get_flow_api_health；不含仅 MCP 的 list_flows/get_flow */
+    /**
+     * 前提：registeredToolNames 为全部声明工具。
+     * 期望：Web 列表含 submit、get_flow_api_health；不含 list_flows / get_flow。
+     */
     @Test
     void loadToolsDefinition_containsSubmit_notListFlows() {
         List<String> names = service.loadToolsDefinition().stream()
@@ -55,7 +57,10 @@ class FlowDesignToolsDefinitionServiceTest {
         assertFalse(names.contains(FlowDesignToolNames.GET_FLOW.getId()));
     }
 
-    /** MCP 列表应有 12 个只读工具：含 get_flow_api_health、list_flows、get_flow；不含 submit */
+    /**
+     * 前提：registeredToolNames 为全部声明工具。
+     * 期望：MCP 列表 12 个、含 list_flows/get_flow/get_flow_api_health，不含 submit。
+     */
     @Test
     void loadMcpProtocolTools_hasTwelveTools_excludesSubmit() {
         List<String> names = service.loadMcpProtocolTools().stream()
@@ -68,6 +73,10 @@ class FlowDesignToolsDefinitionServiceTest {
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW_API_HEALTH.getId()));
     }
 
+    /**
+     * 前提：加载 MCP 工具列表。
+     * 期望：名称集合与 FlowDesignToolNames.mcpAllowedToolIds() 一致。
+     */
     @Test
     void mcpToolIds_matchEnum() {
         Set<String> mcpNames = service.loadMcpProtocolTools().stream()

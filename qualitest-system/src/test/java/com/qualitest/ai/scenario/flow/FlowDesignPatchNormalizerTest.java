@@ -32,13 +32,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link FlowDesignPatchNormalizer} 单元测试：AI 生成的流程补丁规范化与图校验。
- * <p>
- * LLM 输出的 {@link FlowDesignPatch} 可能缺少节点 id、绑定非法 API 等。
- * Normalizer 负责补雪花 id、补 position、校验/补全 API 绑定、生成 summary，并预合并后调用 {@link GraphJsonValidator}。
- * Mock {@link TestProjectApiMapper}，不访问数据库。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=FlowDesignPatchNormalizerTest
+ * 测 FlowDesignPatchNormalizer：AI 流程补丁规范化（补 id/position、API 绑定、summary）与预合并校验。
+ * 边界：Mock TestProjectApiMapper，不访问数据库；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignPatchNormalizerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowDesignPatchNormalizerTest {
@@ -56,9 +52,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 缺 id 或非数字 id：应为节点/边补雪花 id，并为节点补默认 position。
-     * 节点 id 被替换时，若连线 source 指向旧 id，应同步映射到新节点 id。
-     * 期望：节点 id 为数字串；position=(40,80)；边 id 为数字串；边 source 等于新节点 id。
+     * 前提：新增节点/边缺 id，边 source 指向将被替换的旧 id。
+     * 期望：节点与边补数字雪花 id；节点 position=(40,80)；边 source 映射到新节点 id。
      */
     @Test
     @Order(1)
@@ -97,7 +92,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 已有画布节点时，缺省 position 的新增节点应落在末节点右侧一格（x+380，y 不变）。
+     * 前提：基图画布已有节点 position=(40,80)，新增节点未带 position。
+     * 期望：新节点落在末节点右侧一格 (420,80)。
      */
     @Test
     @Order(2)
@@ -130,8 +126,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 非法 testProjectApiId：应置空绑定并写入 warning。
-     * 期望：testProjectApiId=null；warnings 含「testProjectApiId 无效」。
+     * 前提：project 模式节点的 testProjectApiId 非数字。
+     * 期望：绑定置空；warnings 含「testProjectApiId 无效」。
      */
     @Test
     @Order(3)
@@ -161,8 +157,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 合法 API 绑定：应补全 apiName、apiPath 与 HTTP summary。
-     * 期望：summary=「POST /api/auth/login」。
+     * 前提：合法 API 绑定，Mapper 返回登录接口。
+     * 期望：补全 apiName/apiPath，summary=「POST /api/auth/login」。
      */
     @Test
     @Order(4)
@@ -202,8 +198,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 线性 http→assert 补丁预合并后：图校验应通过，assert 节点应有 rules summary。
-     * 期望：validation.ok=true；assert summary=「http.body.data.code eq 0」。
+     * 前提：线性 http→assert 补丁，API 合法。
+     * 期望：validation.ok；assert summary=「http.body.data.code eq 0」。
      */
     @Test
     @Order(5)
@@ -257,8 +253,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * updateNodes 中非法 testProjectApiId：应置空并写入 warning。
-     * 期望：testProjectApiId=null；warnings 含「不属于当前项目」。
+     * 前提：updateNodes 写入不属于当前项目的 testProjectApiId。
+     * 期望：置空绑定；warnings 含「不属于当前项目」。
      */
     @Test
     @Order(6)
@@ -297,8 +293,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * suggestedDeletes 预合并后：被删节点不应参与图校验。
-     * 期望：validation.ok=true。
+     * 前提：suggestedDeletes 删除 assert 节点后预合并。
+     * 期望：被删节点不参与校验，validation.ok。
      */
     @Test
     @Order(7)
@@ -334,8 +330,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * updateNodes 修改已有 http 节点 API 绑定：应补全 apiName/apiPath。
-     * 期望：apiName=用户登录；apiPath=/api/auth/login。
+     * 前提：updateNodes 为已有 http 节点绑定合法 API。
+     * 期望：补全 apiName=用户登录、apiPath=/api/auth/login。
      */
     @Test
     @Order(8)
@@ -376,8 +372,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * addScenarios 缺 id 时补雪花 id，预合并校验通过。
-     * 期望：scenario.id 为数字串；validation.ok=true。
+     * 前提：addScenarios 缺 id。
+     * 期望：补数字雪花 id；validation.ok。
      */
     @Test
     @Order(9)
@@ -404,8 +400,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * updateScenarios 浅合并 flowSeed。
-     * 期望：保留 loginUser=admin；新增 pollAttempt=1。
+     * 前提：已有场景 flowSeed 含 loginUser；update 只带 pollAttempt。
+     * 期望：浅合并后两者都在。
      */
     @Test
     @Order(10)
@@ -435,8 +431,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * deleteScenarioIds 删除后仍保留至少一个场景。
-     * 期望：scenarios 剩 1 条；active 场景 id 不变。
+     * 前提：两个场景，删除其中一个。
+     * 期望：仍剩 1 条，且为原先保留的 keepId。
      */
     @Test
     @Order(11)
@@ -464,8 +460,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 非法 activeScenarioId 产生 warning，且不修改基准图上的 activeScenarioId。
-     * 期望：warnings 含 activeScenarioId；base.meta.activeScenarioId 保持原值。
+     * 前提：activeScenarioId 指向不存在的场景。
+     * 期望：warnings 含 activeScenarioId；base 上原 active 不变。
      */
     @Test
     @Order(12)
@@ -488,8 +484,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 外联 HTTP 节点应生成带 ↗ 的外联 summary。
-     * 期望：summary 为「POST ↗ oauth.example.com/token」；callMode、httpMethod 保留。
+     * 前提：外联 HTTP 带 externalUrl 与 POST。
+     * 期望：summary=「POST ↗ oauth.example.com/token」；callMode/httpMethod 保留。
      */
     @Test
     @Order(13)
@@ -522,8 +518,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 外联 HTTP 缺少 externalUrl 时 Normalizer 应写入 warning。
-     * 期望：warnings 含「外联模式缺少 externalUrl」；不阻断 normalize。
+     * 前提：外联 HTTP 缺少 externalUrl。
+     * 期望：warnings 含「外联模式缺少 externalUrl」，不阻断 normalize。
      */
     @Test
     @Order(14)
@@ -552,8 +548,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 子流节点应根据 subflowName 与 outputs 生成「名称 → flowKey」形式 summary。
-     * 期望：summary 为「登录子流 → token」；subflowId 保留。
+     * 前提：子流节点带 subflowName 与 outputs.flowKey=token。
+     * 期望：summary=「登录子流 → token」；subflowId 保留。
      */
     @Test
     @Order(15)

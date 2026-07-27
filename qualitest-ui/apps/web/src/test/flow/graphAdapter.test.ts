@@ -1,11 +1,7 @@
 /**
- * graphAdapter 单元测试：验证流程图在「持久化 GraphJson」与「Vue Flow 画布状态」之间的转换。
- *
- * createEmptyGraph：新建空图时的默认 viewport、layout、展平 meta 场景。
- * fromGraphJson / toGraphJson：demo-graph 往返不丢 meta/viewport；剥离 vue-flow UI 字段；
- * condition 出边还原 sourceHandle 与 edge type；空图往返保留 meta 场景。
- *
- * 运行（apps/web 目录）：yarn test graphAdapter
+ * 测 graphAdapter：GraphJson 与 Vue Flow 画布状态双向转换。
+ * 边界：纯函数；demo-graph fixture，无 Pinia。
+ * 单跑：yarn test graphAdapter   （在 qualitest-ui 或 apps/web 下）
  */
 import type { Node } from '@vue-flow/core';
 import { describe, expect, it } from 'vitest';
@@ -20,6 +16,8 @@ import demoGraph from './fixtures/demo-graph.json';
 
 describe('createEmptyGraph', () => {
   it('包含默认 viewport 与至少一条 run 场景', () => {
+    // 前提：调用 createEmptyGraph
+    // 期望：空 nodes/edges，meta 含默认 viewport 与至少一条场景
     const graph = createEmptyGraph();
     expect(graph.nodes).toEqual([]);
     expect(graph.edges).toEqual([]);
@@ -35,6 +33,8 @@ describe('createEmptyGraph', () => {
 
 describe('fromGraphJson / toGraphJson', () => {
   it('demo-graph 往返不丢失 viewport 与 run', () => {
+    // 前提：demo-graph 经 fromGraphJson → toGraphJson 往返
+    // 期望：viewport、场景、边数量不丢失
     const adapted = fromGraphJson(demoGraph);
     expect(adapted.viewport).toEqual({ x: 0, y: 0, zoom: 1 });
     expect(adapted.runConfig.activeScenarioId).toBe('2042000000000000101');
@@ -50,6 +50,8 @@ describe('fromGraphJson / toGraphJson', () => {
   });
 
   it('剥离 vue-flow UI 字段', () => {
+    // 前提：节点带 selected/dragging/computedPosition
+    // 期望：序列化 JSON 不含 UI 字段
     const adapted = fromGraphJson(demoGraph);
     const uiNode: Node = {
       ...adapted.nodes[0],
@@ -68,6 +70,8 @@ describe('fromGraphJson / toGraphJson', () => {
   });
 
   it('condition 出边加载时还原 sourceHandle 与 edge type', () => {
+    // 前提：demo-graph 含 condition 节点两条出边
+    // 期望：IF/ELSE 边 type 为 condition 且 sourceHandle 正确
     const adapted = fromGraphJson(demoGraph);
     const condId = '2040354743931883503';
     const condEdges = adapted.edges.filter((e) => e.source === condId);
@@ -81,6 +85,8 @@ describe('fromGraphJson / toGraphJson', () => {
   });
 
   it('空图往返保留 meta 场景', () => {
+    // 前提：空图设置 viewport 与 testProjectEnvId 后往返
+    // 期望：meta viewport 与 envId 保留
     const empty = createEmptyGraph({ testProjectEnvId: '1001' });
     const adapted = fromGraphJson(empty);
     adapted.viewport = { x: 120, y: 80, zoom: 1.25 };
@@ -90,6 +96,8 @@ describe('fromGraphJson / toGraphJson', () => {
   });
 
   it('toGraphJson 排除未 confirm 的 Staging add 并回滚 pending update', () => {
+    // 前提：stagingFilter 排除 add、回滚 update 基线
+    // 期望：输出无 staging 新增节点，update 节点恢复基线名称
     const adapted = fromGraphJson(demoGraph);
     const baseNode = adapted.nodes[0];
     const stagingNode: Node = {

@@ -1,5 +1,7 @@
 /**
- * Staging 会话级清理与截断检测。
+ * 测 stagingCleanup：会话级 pending 检测、回滚与全量清理。
+ * 边界：mock revertStagingUnitOnCanvas；Pinia 内存态。
+ * 单跑：yarn test stagingCleanup   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -42,6 +44,8 @@ describe('stagingCleanup', () => {
   }
 
   it('hasPendingStagingFromMessageIndex 检测 fromIndex 后的 pending', () => {
+    // 前提：两条 message 均有 pending 单元
+    // 期望：fromIndex 0/1 为 true，2 为 false
     hydratePending('msg-a');
     hydratePending('msg-b');
 
@@ -53,6 +57,8 @@ describe('stagingCleanup', () => {
   });
 
   it('revertPendingStagingForMessageIds 仅回滚指定 message 的 pending', () => {
+    // 前提：两条 message 各有 pending，仅指定 msg-a
+    // 期望：只 revert 一条 addNode 单元
     hydratePending('msg-a');
     hydratePending('msg-b');
 
@@ -63,6 +69,8 @@ describe('stagingCleanup', () => {
   });
 
   it('clearAllStagingState 回滚画布并重置 store', () => {
+    // 前提：存在 pending 单元且画布已写入节点
+    // 期望：revert 被调用，store 清空且 pendingCount 为 0
     hydratePending('msg-a');
     const stagingStore = useAiStagingStore();
     const canvasStore = useFlowCanvasStore();

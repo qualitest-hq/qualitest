@@ -9,12 +9,9 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 对话历史裁剪单元测试。
- *
- * 验证条数上限、token 预算、reservedTokens 预留空间下的裁剪结果，
- * 以及被裁掉的前缀消息能否正确还原（供会话摘要使用）。
- *
- * 运行：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ChatHistoryTrimmerTest
+ * 测 ChatHistoryTrimmer：按条数 / token 预算裁剪对话历史，并还原被裁前缀。
+ * 边界：纯函数，不调用真实 tokenizer。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ChatHistoryTrimmerTest
  */
 class ChatHistoryTrimmerTest {
 
@@ -22,13 +19,19 @@ class ChatHistoryTrimmerTest {
         return HistoryWindowPolicy.builder().countLimit(count).tokenBudget(tokens).build();
     }
 
-    /** 空历史应返回空列表 */
+    /**
+     * 前提：历史消息列表为空。
+     * 期望：trim 返回空列表。
+     */
     @Test
     void trim_emptyHistory() {
         assertTrue(ChatHistoryTrimmer.trim(List.of(), policy(10, 1000), 0).isEmpty());
     }
 
-    /** 仅条数超限时，保留最后 N 条且顺序不变 */
+    /**
+     * 前提：20 条消息，countLimit=5，token 预算充足。
+     * 期望：保留 msg-15～msg-19 共 5 条，顺序不变。
+     */
     @Test
     void trim_countLimitOnly() {
         List<LlmMessage> history = IntStream.range(0, 20)
@@ -40,7 +43,10 @@ class ChatHistoryTrimmerTest {
         assertEquals("msg-19", trimmed.get(4).getContent());
     }
 
-    /** token 预算不足时，在条数上限内进一步从头部裁掉长消息，保留最新消息 */
+    /**
+     * 前提：含两条超长消息与两条短消息，tokenBudget=500。
+     * 期望：裁掉部分前缀；最后一条仍为 short-2。
+     */
     @Test
     void trim_tokenBudgetLimitsFurther() {
         List<LlmMessage> history = List.of(
@@ -53,7 +59,10 @@ class ChatHistoryTrimmerTest {
         assertEquals("short-2", trimmed.get(trimmed.size() - 1).getContent());
     }
 
-    /** 根据裁剪前后列表，还原被丢弃的前缀消息 */
+    /**
+     * 前提：full 含 old-1、old-2、keep-1、keep-2，trimmed 为后两条。
+     * 期望：droppedPrefix 返回 old-1、old-2。
+     */
     @Test
     void droppedPrefix_returnsHeadMessages() {
         List<LlmMessage> full = List.of(

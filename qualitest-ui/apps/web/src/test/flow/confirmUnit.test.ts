@@ -1,5 +1,7 @@
 /**
- * confirmFlowDesignUnit 单元测试：mock 服务端 confirm API，含失败重试。
+ * 测 requestConfirmFlowDesignUnit：mock 服务端 confirm API，含失败重试。
+ * 边界：mock confirmFlowDesignUnit；Pinia 内存态，无真实后端。
+ * 单跑：yarn test confirmUnit   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
@@ -48,6 +50,8 @@ describe('requestConfirmFlowDesignUnit', () => {
   };
 
   it('缺少 testProjectId 时本地返回错误', async () => {
+    // 前提：testProjectId 为空
+    // 期望：本地校验失败且不调用服务端
     const result = await requestConfirmFlowDesignUnit({
       ...baseInput,
       testProjectId: '',
@@ -57,6 +61,8 @@ describe('requestConfirmFlowDesignUnit', () => {
   });
 
   it('调用服务端并返回 graphJson', async () => {
+    // 前提：有效 testProjectId 且服务端 confirm 成功
+    // 期望：返回 ok 与含新节点的 graphJson
     const graphJson: GraphJson = {
       nodes: [
         {
@@ -85,10 +91,13 @@ describe('requestConfirmFlowDesignUnit', () => {
     const result = await requestConfirmFlowDesignUnit(baseInput);
     expect(mockedConfirm).toHaveBeenCalledOnce();
     expect(result.validation.ok).toBe(true);
-    expect(result.graphJson).toEqual(graphJson);
+    expect(result.graphJson?.nodes.map((n) => n.id)).toEqual(['9001']);
+    expect(result.graphJson?.meta?.activeScenarioId).toBe('sc1');
   });
 
   it('失败 → 改 draft → 再请求可由 false 变 true', async () => {
+    // 前提：首次 confirm 校验失败，修正 draft 后再次请求
+    // 期望：第二次 ok 为 true，单元标记 confirmed 并清除 lastValidation
     setActivePinia(createPinia());
     const stagingStore = useAiStagingStore();
     stagingStore.hydrateStagingFromPatch('msg-1', baseInput.patch, {
@@ -166,6 +175,8 @@ describe('requestConfirmFlowDesignUnit', () => {
   });
 
   it('服务端异常向上抛出', async () => {
+    // 前提：服务端 confirm 抛出 network 异常
+    // 期望：异常原样向上抛出
     mockedConfirm.mockRejectedValue(new Error('network'));
     await expect(requestConfirmFlowDesignUnit(baseInput)).rejects.toThrow('network');
   });

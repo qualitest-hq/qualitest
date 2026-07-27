@@ -1,5 +1,7 @@
 /**
- * Staging 画布写入 store：新增节点与边时，边应暂存 pendingEdges 而非直接写入 edges。
+ * 测 applyStagingCanvasToStore：Staging 画布写入 store 时边进 pendingEdges。
+ * 边界：Pinia 内存态，无真实 Vue Flow 实例。
+ * 单跑：yarn test useAiStagingCanvas   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
@@ -35,6 +37,8 @@ describe('applyStagingCanvasToStore', () => {
 
   /** 节点与边同时新增时，边写入 pendingEdges 并触发灌入计数，不直接覆盖 edges。 */
   it('节点与边同时新增时，边应进入 pendingEdges 等待灌入', async () => {
+    // 前提：pending addNode 与 addEdge 同时写入画布
+    // 期望：节点落盘，边进 pendingEdges 且 flushToken 递增
     const store = useFlowCanvasStore();
     const stagingStore = useAiStagingStore();
 
@@ -74,6 +78,8 @@ describe('applyStagingCanvasToStore', () => {
 
   /** 端点节点尚不存在时，flushPendingEdges 应失败并保留 pending。 */
   it('端点未就绪时保留 pendingEdges', async () => {
+    // 前提：pendingEdges 端点节点尚未在 nodes 中
+    // 期望：flush 失败，pending 保留且 edges 仍为空
     const store = useFlowCanvasStore();
 
     store.setPendingEdges([

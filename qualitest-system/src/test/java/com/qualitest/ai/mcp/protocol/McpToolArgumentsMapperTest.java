@@ -20,12 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link McpToolArgumentsMapper} 单元测试。
- * <p>
- * 验证 MCP tools/call 的 arguments 映射：信封字段（testFlowId、scopeApiIds、graphJson）
- * 与业务参数字段分离，null 输入返回空 {@link McpToolInvokeParams}。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=McpToolArgumentsMapperTest
+ * 测 McpToolArgumentsMapper：MCP tools/call arguments 拆信封字段与业务参数。
+ * 边界：纯映射；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=McpToolArgumentsMapperTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpToolArgumentsMapperTest {
@@ -38,8 +35,8 @@ class McpToolArgumentsMapperTest {
     }
 
     /**
-     * arguments 同时含信封字段与业务字段（testFlowId、scopeApiIds、keyword、limit）。
-     * 期望：testFlowId=1001L；scopeApiIds=["1","2"]；arguments 仅含 keyword、limit。
+     * 前提：arguments 同时含 testFlowId/scopeApiIds 与 keyword/limit。
+     * 期望：信封字段进 params；arguments 仅留业务字段。
      */
     @Test
     @Order(1)
@@ -62,8 +59,8 @@ class McpToolArgumentsMapperTest {
     }
 
     /**
-     * arguments 含 graphJson 对象（nodes/edges 为空数组）。
-     * 期望：{@link McpToolInvokeParams#getGraphJson()} 非空且 nodes 为空。
+     * 前提：arguments 含 graphJson 对象（空 nodes/edges）。
+     * 期望：params.graphJson 非空且 nodes 为空。
      */
     @Test
     @Order(2)
@@ -81,8 +78,8 @@ class McpToolArgumentsMapperTest {
     }
 
     /**
-     * arguments 为 null。
-     * 期望：返回空 {@link McpToolInvokeParams}；testProjectId 与 arguments 均为 null；不抛异常。
+     * 前提：arguments 为 null。
+     * 期望：返回空 params，不抛异常。
      */
     @Test
     @Order(3)

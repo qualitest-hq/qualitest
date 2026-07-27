@@ -19,16 +19,16 @@ import static com.qualitest.flow.support.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link GraphMetaIoSupport} 单元测试：子流 inputs/outputs 默认映射与 flowOutput 名称提取。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=GraphMetaIoSupportTest
+ * 测 GraphMetaIoSupport：子流 inputs/outputs 默认映射与 flowOutput 名称提取。
+ * 边界：activeScenario flowSeed；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphMetaIoSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class GraphMetaIoSupportTest {
 
     /**
-     * meta.flowOutputs 应转为默认 outputs 映射（name 与 flowKey 同名）。
-     * 期望：每条 flowOutput 对应一行 {name, flowKey}。
+     * 前提：meta.flowOutputs 含 token、refreshToken。
+     * 期望：默认 outputs 两行，name 与 flowKey 同名。
      */
     @Test
     @Order(1)
@@ -53,8 +53,8 @@ class GraphMetaIoSupportTest {
     }
 
     /**
-     * 当前激活场景的 flowSeed 键应建议为子流 inputs 占位符。
-     * 期望：name=种子键名，value={{flow.键名}}。
+     * 前提：activeScenario 的 flowSeed 含 loginUser。
+     * 期望：inputs 一行 name=loginUser、value={{flow.loginUser}}。
      */
     @Test
     @Order(2)
@@ -81,8 +81,8 @@ class GraphMetaIoSupportTest {
     }
 
     /**
-     * flowOutputNames 应提取 meta.flowOutputs 中的 name 列表。
-     * 期望：顺序与声明一致。
+     * 前提：meta.flowOutputs 仅 token。
+     * 期望：flowOutputNames=[token]。
      */
     @Test
     @Order(3)

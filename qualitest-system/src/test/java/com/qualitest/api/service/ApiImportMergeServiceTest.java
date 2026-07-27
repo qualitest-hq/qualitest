@@ -16,12 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 结构合并单元测试。
- * <p>
- * 覆盖：参数默认值迁入测试值层、响应 example 保留、删除参数归档、body 示例迁出结构层、
- * 字段级 soft merge（约束保留 / 类型变更丢约束 / schema 递归）。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ApiImportMergeServiceTest
+ * 测 ApiImportMergeService：导入结构合并（参数默认值、响应 example、soft merge）。
+ * 边界：本地 vs 上传包差异；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiImportMergeServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiImportMergeServiceTest {
@@ -30,7 +27,8 @@ class ApiImportMergeServiceTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     /**
-     * 本地 query 参数 value 应迁入 test_value_config，结构层不含 value；上传包新增参数应记入 queryParamsAdded。
+     * 前提：本地 query 参数含 value，上传包新增 pageNum。
+     * 期望：默认值迁入 test_value_config，结构层无 value，summary 记录 pageNum 新增。
      */
     @Test
     @Order(1)
@@ -94,7 +92,8 @@ class ApiImportMergeServiceTest {
     }
 
     /**
-     * 同一 response id 下用户 example 应保留：写入 test_value_config 或合并后的 response_config，并记入 userPreserved。
+     * 前提：同 response id，本地含用户 example，上传包更新 schema。
+     * 期望：example 保留于合并结果，summary.userPreserved 含 responseExample。
      */
     @Test
     @Order(2)
@@ -139,7 +138,8 @@ class ApiImportMergeServiceTest {
     }
 
     /**
-     * 代码侧移除的 query 参数应记入 queryParamsRemoved，默认值仍保留在 test_value_config.removedParams。
+     * 前提：本地含 legacyKey 参数，上传包 queryParams 为空。
+     * 期望：summary 记录 queryParamsRemoved，默认值保留于 test_value_config。
      */
     @Test
     @Order(3)
@@ -191,7 +191,8 @@ class ApiImportMergeServiceTest {
     }
 
     /**
-     * body.json.example 应迁入 test_value_config.request.bodyExample，结构层去掉 example。
+     * 前提：本地 body.json 含 example 字符串。
+     * 期望：example 迁入 test_value_config.bodyExample，结构层不含 example。
      */
     @Test
     @Order(4)
@@ -249,7 +250,8 @@ class ApiImportMergeServiceTest {
     }
 
     /**
-     * 同名参数类型未变时，本地 pattern/maxLength 应保留，上传包 description 仍可写入。
+     * 前提：同名 mobile 参数类型未变，本地含 pattern/maxLength，上传包含 description。
+     * 期望：合并后保留 pattern/maxLength，写入 description。
      */
     @Test
     @Order(5)
@@ -299,7 +301,8 @@ class ApiImportMergeServiceTest {
     }
 
     /**
-     * 同名参数类型变更时，以上传包为准，丢弃仅适用于旧类型的 pattern。
+     * 前提：同名 age 参数本地为 string+pattern，上传包改为 integer。
+     * 期望：类型变为 integer，丢弃 string 专属约束，保留 description。
      */
     @Test
     @Order(6)
@@ -350,7 +353,8 @@ class ApiImportMergeServiceTest {
     }
 
     /**
-     * Body schema 递归 soft merge：同名未变字段保留 pattern，上传包新增属性应出现。
+     * 前提：body schema mobile 类型未变，本地含 pattern/maxLength，上传包新增 username。
+     * 期望：mobile 约束保留并写入 description，username 属性出现。
      */
     @Test
     @Order(7)
@@ -422,7 +426,8 @@ class ApiImportMergeServiceTest {
     }
 
     /**
-     * 同 response id 下 schema soft merge：未变字段保留约束，上传包删除的属性应从结构消失。
+     * 前提：同 response id，本地 schema 含 code.minimum 与 legacy，上传包删 legacy 增 msg。
+     * 期望：code.minimum 保留，legacy 消失，msg 出现。
      */
     @Test
     @Order(8)

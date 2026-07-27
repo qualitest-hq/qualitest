@@ -1,5 +1,7 @@
 /**
- * AI 设计请求 graph_json 应排除未 confirm 的 Staging 对象。
+ * 测 buildFlowGraphInput + stagingFilter：AI 设计请求排除未 confirm 的 Staging。
+ * 边界：Pinia 内存态，无真实 API 调用。
+ * 单跑：yarn test useAiDesign.staging   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -16,6 +18,8 @@ describe('AI design graph_json staging filter', () => {
   });
 
   it('pending addNode 不出现在设计请求 graph_json 中', () => {
+    // 前提：画布含 pending addNode，启用 stagingFilter
+    // 期望：过滤后 graph_json 不含该节点
     const canvasStore = useFlowCanvasStore();
     const stagingStore = useAiStagingStore();
 

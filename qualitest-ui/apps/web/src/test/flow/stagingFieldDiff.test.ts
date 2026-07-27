@@ -1,5 +1,7 @@
 /**
- * stagingFieldDiff 单元测试。
+ * 测 stagingFieldDiff：节点/边/场景字段差异行与写回。
+ * 边界：纯函数，无 store 依赖。
+ * 单跑：yarn test stagingFieldDiff   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 
@@ -12,6 +14,8 @@ import {
 
 describe('buildNodeStagingFieldRows', () => {
   it('仅输出 baseline 与 draft 不同的字段', () => {
+    // 前提：baseline 与 draft 仅 name 不同
+    // 期望：只输出 data.name 一行差异
     const rows = buildNodeStagingFieldRows(
       {
         type: 'http',
@@ -31,6 +35,8 @@ describe('buildNodeStagingFieldRows', () => {
 
 describe('buildEdgeStagingFieldRows', () => {
   it('输出变更的 source/target/label', () => {
+    // 前提：baseline 与 draft 的 target、label 不同
+    // 期望：仅输出 target 与 label 两行
     const rows = buildEdgeStagingFieldRows(
       { source: '1001', target: '1002', label: 'A' },
       { source: '1001', target: '1003', label: 'B' },
@@ -41,6 +47,8 @@ describe('buildEdgeStagingFieldRows', () => {
 
 describe('buildScenarioStagingFieldRows', () => {
   it('输出场景字段差异', () => {
+    // 前提：场景 name 变更，remark 相同
+    // 期望：仅输出 name 差异行
     const rows = buildScenarioStagingFieldRows(
       { name: '默认', remark: '旧说明' },
       { name: '登录回归', remark: '旧说明' },
@@ -52,6 +60,8 @@ describe('buildScenarioStagingFieldRows', () => {
 
 describe('applyStagingFieldToDraft', () => {
   it('写回 data 字段', () => {
+    // 前提：draft 含 data.name，写入新值
+    // 期望：data.name 更新为新名称
     const next = applyStagingFieldToDraft(
       { data: { name: '旧' } },
       'data.name',
@@ -61,6 +71,8 @@ describe('applyStagingFieldToDraft', () => {
   });
 
   it('写回场景 name 字段', () => {
+    // 前提：场景 draft 含 name 字段
+    // 期望：name 更新为新场景名
     const next = applyStagingFieldToDraft({ name: '旧场景' }, 'name', '新场景');
     expect(next.name).toBe('新场景');
   });

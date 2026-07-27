@@ -11,19 +11,12 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link ApiRequestScriptService} 单元测试：验证 API 调试/流程 HTTP 步的前置与后置脚本执行。
- * <p>
- * 被测对象在 HTTP 转发前执行 preRequestScript（可改写 headers、variables），
- * 转发后执行 postRequestScript（含 api.test 断言），返回 {@link ApiScriptExecutionResult}。
- * forwardService 传 null，不涉及真实 HTTP。
- * <p>
- * 运行（qualitest 目录）：mvn test -pl qualitest-system -am -DskipTests=false -Dtest=ApiRequestScriptServiceTest
+ * 测 ApiRequestScriptService：调试/流程 HTTP 的前后置脚本。
+ * 边界：forwardService=null；空脚本跳过；存量 begin/end 保留。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiRequestScriptServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiRequestScriptServiceTest {
@@ -32,13 +25,12 @@ class ApiRequestScriptServiceTest {
     private final ApiRequestScriptService service = new ApiRequestScriptService(scriptRuntime, null);
 
     /**
-     * 前置脚本 {@code api.request.headers.add} 应向 DebugHttpForwardParams 添加自定义请求头。
-     * 期望：params.headers 含 X-Test=1；result.success=true。
+     * 前提：前置脚本 headers.add('X-Test','1')。
+     * 期望：params.headers 含该头；result.success=true。
      */
     @Test
     @Order(1)
     void preScript_addHeader() {
-        begin("preScript_addHeader");
         DebugHttpForwardParams params = DebugHttpForwardParams.builder()
                 .method("GET")
                 .url("http://localhost/api")
@@ -50,24 +42,21 @@ class ApiRequestScriptServiceTest {
                 new HashMap<>(),
                 params
         );
-        assertTrue(result.isSuccess());
+        assertTrue(result.isSuccess(), "前置脚本应执行成功");
         assertEquals("1", params.getHeaders().stream()
                 .filter(h -> "X-Test".equals(h.getName()))
                 .findFirst()
                 .map(DebugHttpForwardParams.HeaderPair::getValue)
-                .orElse(null));
-        log("header X-Test=1");
-        end("preScript_addHeader");
+                .orElse(null), "应写入自定义请求头 X-Test=1");
     }
 
     /**
-     * 前置脚本 {@code api.variables.set('token', 'abc')} 应写入 variables Map。
-     * 期望：variables.get("token") == "abc"。
+     * 前提：前置脚本 variables.set('token','abc')。
+     * 期望：variables.token=abc。
      */
     @Test
     @Order(2)
     void preScript_setVariable() {
-        begin("preScript_setVariable");
         Map<String, Object> variables = new HashMap<>();
         DebugHttpForwardParams params = DebugHttpForwardParams.builder()
                 .method("POST")
@@ -80,20 +69,17 @@ class ApiRequestScriptServiceTest {
                 new HashMap<>(),
                 params
         );
-        assertTrue(result.isSuccess());
-        assertEquals("abc", variables.get("token"));
-        log("token=abc");
-        end("preScript_setVariable");
+        assertTrue(result.isSuccess(), "前置脚本应执行成功");
+        assertEquals("abc", variables.get("token"), "应写入 variables.token=abc");
     }
 
     /**
-     * 后置脚本 api.test 断言 response.code==200 通过时。
-     * 期望：result.success；tests 列表首项 passed=true。
+     * 前提：后置脚本断言 response.code==200，实际 200。
+     * 期望：success；tests 首项 passed=true。
      */
     @Test
     @Order(3)
     void postScript_assertPass() {
-        begin("postScript_assertPass");
         ApiScriptContext.ResponseSnapshot response = ApiScriptSupport.fromForwardResult(
                 200, "OK", Map.of("Content-Type", "application/json"), "{\"ok\":true}", 10L);
         DebugHttpForwardParams params = DebugHttpForwardParams.builder()
@@ -112,21 +98,18 @@ class ApiRequestScriptServiceTest {
                 params,
                 response
         );
-        assertTrue(result.isSuccess());
-        assertFalse(result.getTests().isEmpty());
-        assertTrue((Boolean) result.getTests().get(0).get("passed"));
-        log("testsPassed=1");
-        end("postScript_assertPass");
+        assertTrue(result.isSuccess(), "response.code=200 时断言应通过");
+        assertFalse(result.getTests().isEmpty(), "应记录一条 api.test 结果");
+        assertTrue((Boolean) result.getTests().get(0).get("passed"), "首条测试应为 passed=true");
     }
 
     /**
-     * 后置脚本断言 response.code==200 但实际返回 500 时。
-     * 期望：result 失败，错误码 {@link FlowErrorCode#TF_ASSERT_FAILED}。
+     * 前提：后置脚本断言 code==200，实际 500。
+     * 期望：失败；错误码 TF_ASSERT_FAILED。
      */
     @Test
     @Order(4)
     void postScript_assertFail() {
-        begin("postScript_assertFail");
         ApiScriptContext.ResponseSnapshot response = ApiScriptSupport.fromForwardResult(
                 500, "Error", Map.of(), "{}", 10L);
         DebugHttpForwardParams params = DebugHttpForwardParams.builder()
@@ -141,24 +124,27 @@ class ApiRequestScriptServiceTest {
                 params,
                 response
         );
-        assertFalse(result.isSuccess());
-        assertEquals(FlowErrorCode.TF_ASSERT_FAILED, result.getErrorCode());
-        log("errorCode=" + result.getErrorCode().getCode());
-        end("postScript_assertFail");
+        assertFalse(result.isSuccess(), "response.code=500 时断言应失败");
+        assertEquals(FlowErrorCode.TF_ASSERT_FAILED, result.getErrorCode(), "失败错误码应为 TF_ASSERT_FAILED");
     }
 
     /**
-     * 空/空白脚本应跳过执行，直接返回 success（不报错）。
-     * 期望：result.success=true。
+     * 前提：脚本为 null/空白。
+     * 期望：直接 success，不改动请求快照与 variables。
      */
     @Test
     @Order(5)
     void blankScript_skips() {
-        begin("blankScript_skips");
         ApiScriptContext context = new ApiScriptContext();
+        context.mergeScopeMaps(new HashMap<>(Map.of("token", "abc")), new HashMap<>(), new HashMap<>());
+        context.getRequest().setMethod("GET");
+        context.getRequest().setUrl("http://localhost/api");
+
         ApiScriptExecutionResult result = service.executePre("", context);
-        assertTrue(result.isSuccess());
-        log("skipped=true");
-        end("blankScript_skips");
+
+        assertTrue(result.isSuccess(), "空脚本应视为跳过成功");
+        assertEquals("abc", context.getVariables().get("token"), "空脚本不应改动 variables");
+        assertEquals("GET", context.getRequest().getMethod(), "空脚本不应改动请求 method");
+        assertEquals("http://localhost/api", context.getRequest().getUrl(), "空脚本不应改动请求 url");
     }
 }

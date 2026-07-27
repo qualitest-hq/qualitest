@@ -1,9 +1,16 @@
+/**
+ * 测 applyApiDesignChangesToDetail：AI API 设计 patch 合并进 apiDetail 草稿。
+ * 边界：纯函数，内存 detail 对象，不落库。
+ * 单跑：yarn test applyApiDesignPatch   （在 qualitest-ui 或 apps/web 下）
+ */
 import { describe, expect, it } from 'vitest'
 
 import { applyApiDesignChangesToDetail } from '@/views/project/testProject/utils/applyApiDesignPatch'
 
 describe('applyApiDesignChangesToDetail', () => {
-  it('applies query constraint and test value', () => {
+  it('写入 query 约束与测试值', () => {
+    // 前提：changes 含 query 约束与 paramDefaults
+    // 期望：queryParams 写入 pattern/maxLength/value
     const detail = {
       requestConfig: JSON.stringify({
         configVersion: 1,
@@ -37,7 +44,9 @@ describe('applyApiDesignChangesToDetail', () => {
     expect(rc.queryParams[0].value).toBe('{{asset.demo.mobile}}')
   })
 
-  it('applies script and meta', () => {
+  it('写入脚本与元信息（apiDescription），未涉及的脚本保持不变', () => {
+    // 前提：changes 仅更新 post 脚本与 apiDescription
+    // 期望：postRequestScript/apiDescription 更新，preRequestScript 不变
     const detail = { apiDescription: '', preRequestScript: 'old', postRequestScript: '' }
     const next = applyApiDesignChangesToDetail(detail, [
       { target: 'script', phase: 'post', action: 'update', content: 'api.test("x", () => {});' },
