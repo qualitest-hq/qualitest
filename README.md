@@ -407,7 +407,7 @@ yarn dev         # 开发；生产构建见 yarn build
 
 <div align="center">
 
-**质衡 Qualitest** · 让质量保障更高效 · [Apache-2.0](LICENSE)
+**质衡 Qualitest** · 让质量保障更高效 · [Apache-2.0](LICENSE) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md)
 
 <sub>构建与启动细节以仓库内 `qualitest.bat` / `qualitest.sh` 及各模块配置为准</sub>
 

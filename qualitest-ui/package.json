@@ -21,6 +21,8 @@
     "build:prod": "yarn build:web",
     "build:stage": "yarn workspace @qualitest/web build:stage",
     "preview": "yarn workspace @qualitest/web preview",
+    "test": "yarn workspace @qualitest/web test",
+    "test:watch": "yarn workspace @qualitest/web test:watch",
     "dev:desktop": "concurrently -k -n web,desk -c blue,magenta \"yarn dev:web\" \"node ./node_modules/wait-on/bin/wait-on http://127.0.0.1:5173 && yarn workspace @qualitest/desktop dev\"",
     "dev:desktop:only": "yarn workspace @qualitest/desktop dev",
     "build:desktop": "yarn workspace @qualitest/web build:desktop && yarn workspace @qualitest/desktop build"

@@ -1,0 +1,63 @@
+# 质衡主仓 CI（不依赖 qualitest-demo）
+# 触发：push / PR 到 main
+#
+# 说明：
+# - 根 pom 默认 skipTests=true；本 workflow 后端 job 先做编译校验（package -DskipTests）
+# - 前端跑 Vitest（qualitest-ui → yarn test）
+# - qualitest-system 全量单测仍有存量失败，修绿后把 backend 的 package 换成：
+#     mvn -B -pl qualitest-system -am test -DskipTests=false
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Compile qualitest-system (+ deps)
+        run: mvn -B -pl qualitest-system -am package -DskipTests=true
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: qualitest-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: yarn
+          cache-dependency-path: qualitest-ui/yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Test @qualitest/web
+        run: yarn test
