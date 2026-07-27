@@ -17,13 +17,42 @@
 
 <br/>
 
+[English Summary](#english-summary) ·
 [项目亮点](#-项目亮点) ·
 [核心能力](#-核心能力) ·
 [功能演示](#-功能演示) ·
 [技术架构](#-技术架构) ·
 [模块结构](#-模块结构) ·
 [5 分钟快速开始](#-5-分钟快速开始) ·
-[详细部署](#-详细部署)
+[详细部署](#-详细部署) ·
+[MCP](./docs/mcp.md) ·
+[AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
+
+<br/>
+
+<a id="english-summary"></a>
+<details>
+<summary><strong>English Summary</strong> — value prop &amp; quick start (full docs in Chinese below)</summary>
+
+<br/>
+
+**Qualitest** is an enterprise API testing / quality platform: sync APIs from IntelliJ, debug in-project, orchestrate flows on a canvas, design with AI (**diff before merge**), and let Cursor **read** the same project via MCP.
+
+| Piece | Role |
+|:------|:-----|
+| This repo | Platform + Web (`qualitest-ui/`) — default **http://localhost** via Compose |
+| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | Optional shop target on **:8081** |
+| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | Upload Controllers → platform |
+
+```bash
+cd qualitest
+# Windows: scripts\quick-start.bat
+chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
+```
+
+Login **`admin` / `admin123`**. MCP: [docs/mcp.md](./docs/mcp.md). AI prompt recipes (demo): [ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
+
+</details>
 
 <br/>
 
@@ -116,6 +145,8 @@ flowchart LR
 
 **先预览 Diff，确认后再合并**，不会悄悄把你的流程改乱。管理员可在后台接入多家大模型，团队按需选用。
 
+可直接粘贴的业务意图示例（配合靶场场景）：[qualitest-demo · AI 测试流提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)。
+
 </td>
 </tr>
 <tr>
@@ -130,6 +161,8 @@ flowchart LR
 MCP 提供 **只读** 工具：查接口、列举/勘察测试流、读 Run 失败现场、看子流模板与拓扑摘要等。**改画布须在 Web 端 AI 面板** 预览 Diff 后合并，MCP 不会直接写库。
 
 典型用法：`list_flows` 选定测试流 → 带 `testFlowId` 问「这条流有哪些节点？」「上次跑挂在哪？」—— AI 读到的是平台上的 **真数据**，不是瞎猜。
+
+→ 配置模板与示例提问见 [`docs/mcp.md`](./docs/mcp.md)。
 
 </td>
 <td width="50%" valign="top">
@@ -361,15 +394,16 @@ Swagger：**http://localhost:8081/swagger-ui.html**
 | **调接口** | 接口调试台 → 选中接口 → 切环境 → 发请求 |
 | **编排用例** | 测试流 → 拖 HTTP / 断言节点 → 运行 |
 | **AI 辅助** | 测试流旁打开 AI 面板 → 描述需求 → **先看 Diff 再合并** |
-| **Cursor 联读** | 项目设置复制 MCP 配置到 `mcp.json` → 只读查流 / 节点 / Run |
-
-AI 自然语言示例（需先在靶场加载场景）：靶场仓 [`docs/ai-test-flow-prompts.md`](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)。
+| **Cursor 联读** | 项目设置复制 MCP 配置到 `mcp.json` → 只读查流 / 节点 / Run（详见 [`docs/mcp.md`](./docs/mcp.md)） |
+| **AI 造流（靶场）** | 先加载场景，再粘贴自然语言意图 → [AI 测试流提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) |
 
 ---
 
 ## ⚙️ 详细部署
 
 - Compose 全栈：[docs/deploy.md](./docs/deploy.md)
+- Cursor MCP：[docs/mcp.md](./docs/mcp.md)
+- AI 提示集（demo）：[ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
 - 本机命令见下方环境要求 / 后端 / 前端。
 
 ### 环境要求
