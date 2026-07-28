@@ -16,7 +16,9 @@ scripts\quick-start.bat
 docker compose up -d --build
 ```
 
-浏览器打开 **http://localhost**，默认账号 **`admin` / `admin123`**（以种子 SQL 为准）。
+浏览器打开 **http://localhost**（端口由 `WEB_PORT` 控制，默认 **80**），默认账号 **`admin` / `admin123`**（以种子 SQL 为准）。
+
+IDEA 插件（Compose 下后端默认不映射宿主机 8080）服务器地址填 **`http://localhost/prod-api`**；本机 `mvn` 开发则填 **`http://localhost:8080`**。
 
 生产务必修改 `.env` 中的 `MYSQL_ROOT_PASSWORD`、`TOKEN_SECRET`。
 
