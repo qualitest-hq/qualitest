@@ -1,0 +1,50 @@
+name: 想法 / 功能
+description: 新能力、体验改进，或「有点怪但可能有用」的点子
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        半成品想法也欢迎——先开 Issue 聊聊即可，不一定立刻要有 PR。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 场景或动机
+      description: 你在什么场景下觉得缺这一点？
+      placeholder: 例如：在 Cursor 里想一句话触发某条测试流…
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望怎样
+      description: 大致方案或交互即可，不必写得很正式
+    validations:
+      required: false
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 现有变通（可选）
+      description: 目前有没有凑合用的办法
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: 大致模块（可选）
+      multiple: true
+      options:
+        - 部署 / Compose
+        - 后端 API
+        - Web 前端
+        - 测试流 / 画布
+        - AI Diff / LLM
+        - MCP
+        - 数据快照 / 还原
+        - IDEA 插件（也可到插件仓提）
+        - demo 靶场（也可到 demo 仓提）
+        - 文档 / 社区
+        - 其他
+    validations:
+      required: false

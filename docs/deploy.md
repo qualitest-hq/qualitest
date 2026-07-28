@@ -1,8 +1,14 @@
-# 部署说明（Compose 全栈）
+# 部署说明
 
-## 一键全栈
+面向 Compose 全栈与本机开发的端口、环境变量与生产加固。快速上手摘要见根目录 [README](../README.md)；安全披露见 [SECURITY.md](../SECURITY.md)。
 
-前置：Docker Desktop / Docker Engine + Compose V2，本机端口 **80 / 3306 / 6379** 可用（可用 `.env` 或 `docker-compose.override.yml` 改端口）。
+靶场 / RustFS 不在本仓 Compose 内，见独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) 的 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)。
+
+---
+
+## 一键全栈（推荐）
+
+前置：Docker Desktop / Docker Engine + Compose V2；默认占用宿主机 **80 / 3306 / 6379**（可用 `.env` 改，见下文）。
 
 ```bash
 # Linux / macOS
@@ -12,15 +18,18 @@ chmod +x scripts/quick-start.sh
 # Windows
 scripts\quick-start.bat
 
-# 或手动
+# 或手动（无 .env 时可先复制 .env.example）
+# cp .env.example .env   # Windows: copy .env.example .env
 docker compose up -d --build
 ```
 
-浏览器打开 **http://localhost**（端口由 `WEB_PORT` 控制，默认 **80**），默认账号 **`admin` / `admin123`**（以种子 SQL 为准）。
+- 浏览器：**http://localhost**（`WEB_PORT` 非 80 时带端口）
+- 默认账号：**`admin` / `admin123`**（种子 SQL；上公网前务必改掉）
+- IDEA 插件服务器地址：Compose 填 **`http://localhost/prod-api`**；本机后端填 **`http://localhost:8080`**
 
-IDEA 插件（Compose 下后端默认不映射宿主机 8080）服务器地址填 **`http://localhost/prod-api`**；本机 `mvn` 开发则填 **`http://localhost:8080`**。
+首次 `--build` 会拉基础镜像并编译前后端，可能较慢，属正常。
 
-生产务必修改 `.env` 中的 `MYSQL_ROOT_PASSWORD`、`TOKEN_SECRET`。
+---
 
 ## 仅依赖（本机开发）
 
@@ -33,30 +42,112 @@ docker compose up -d mysql redis
 ```bash
 # 后端（profile=dev，连 localhost:3306 / 6379）
 mvn -pl qualitest-admin -am -DskipTests package
-# 按 qualitest.bat / spring-boot:run 启动
+# 按根目录 qualitest.bat / qualitest.sh 或 spring-boot:run 启动
 
 # 前端
 cd qualitest-ui && yarn install && yarn dev
 ```
 
-## 靶场 / RustFS（独立仓）
+浏览器：**http://localhost:5173**。库需已导入 `sql/qualitest_*.sql`（取最新一份），或依赖 Compose MySQL 首次初始化卷。
 
-本仓 Compose **不含**靶场与 RustFS。接口测试靶场、可选 S3（RustFS）见独立仓：
+---
 
-- 仓库：[qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)
-- 部署说明：[docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)
-- 一键：`scripts\quick-start.bat rustfs` / `./scripts/quick-start.sh rustfs`（会加载 `docker-compose.rustfs.yml`）
+## 端口
 
-默认与主仓端口错开（Web 8082 / API 8081 / MySQL 3307 / Redis 6380），可与主仓同时运行。
+| 项 | Compose 全栈 | 本机开发 | 说明 |
+|----|--------------|----------|------|
+| 质衡 Web | **`WEB_PORT` → 默认 80** | Vite **5173** | Compose 经 Nginx 提供静态页 |
+| 质衡 API | 容器内 **8080**（默认不映射宿主机） | **8080** | 浏览器走 Nginx **`/prod-api`**；插件 Compose 填 `http://localhost/prod-api` |
+| MySQL | **`MYSQL_PORT` → 默认 3306** | 本机或同上 | 库名 `qualitest` |
+| Redis | **`REDIS_PORT` → 默认 6379** | 本机或同上 | Compose 内 app 用库号 `0`；本机 `.env.example` 示例多为 `10` |
+| 靶场 API（demo） | **8081** | 同左 | 独立仓；可与主仓同时跑 |
+| 靶场 UI（demo Compose） | **8082** | 按 demo 文档 | demo MySQL/Redis 默认 **3307 / 6380** |
+
+### 改端口（最小示例）
+
+复制 [`.env.example`](../.env.example) 为 `.env`（勿提交），例如：
+
+```env
+WEB_PORT=8088
+MYSQL_PORT=33066
+REDIS_PORT=63790
+```
+
+更复杂的本机覆盖（挂载、额外服务等）可用 `docker-compose.override.yml`（勿提交含密钥的内容；正式模板见路线图阶段 4）。
+
+调试需宿主机直连后端时，可在 `docker-compose.yml` 的 `app` 服务解开 `ports: "8080:8080"` 注释后重建。
+
+---
+
+## 环境变量
+
+权威清单见 [`.env.example`](../.env.example)。Compose 会把部分项注入 `app`；本机 `dev` / `prod` 也可同名覆盖。
+
+| 变量 | 典型用途 | 备注 |
+|------|----------|------|
+| `WEB_PORT` / `MYSQL_PORT` / `REDIS_PORT` | 宿主机端口映射 | 仅 Compose |
+| `MYSQL_ROOT_PASSWORD` | MySQL root；同时作为 Compose 内数据源密码 | **生产必改**；默认 `qualitest` 仅本地 |
+| `TOKEN_SECRET` | JWT 签名密钥 | **生产必改**为强随机长串 |
+| `TOKEN_EXPIRE_TIME` | Token 有效期（分钟） | 可选 |
+| `SERVER_PORT` | 后端监听端口 | Compose 内固定 8080 |
+| `QUALITEST_PROFILE` | 上传文件目录 | Compose / docker profile 默认 `/data/upload`（卷 `upload_data`） |
+| `SPRING_DATASOURCE_DRUID_MASTER_*` | JDBC URL / 用户 / 密码 | Compose 已写死连服务名 `mysql`；本机改 localhost |
+| `SPRING_DATA_REDIS_*` | Redis host / port / database / password | Compose 内 host=`redis` |
+| `LOGGING_LEVEL_COM_QUALITEST` | 业务日志级别 | 默认 `info` |
+| `QUALITEST_IMAGE_TAG` | 本地构建镜像 tag | 默认 `latest` |
+| `DRUID_STAT_USERNAME` / `DRUID_STAT_PASSWORD` | Druid 控制台（仅 **dev**） | docker / prod **已关闭**控制台，勿对公网开 dev |
+
+---
 
 ## 架构
 
+```text
+┌─────────────┐     /prod-api      ┌──────────────────┐
+│   nginx     │ ─────────────────► │ qualitest-admin  │
+│  (静态 dist) │                    │   (8080)         │
+└─────────────┘                    └────────┬─────────┘
+                                            │
+                                   ┌────────┴────────┐
+                                   │ mysql │ redis  │
+                                   └─────────────────┘
+```
+
 | 服务 | 容器名 | 说明 |
 |------|--------|------|
-| mysql | qualitest-mysql | 初始化脚本：`sql/qualitest_*.sql` |
+| mysql | qualitest-mysql | 初始化：`sql/qualitest_*.sql` → `/docker-entrypoint-initdb.d/`（仅空卷首次） |
 | redis | qualitest-redis | 缓存 / 会话 |
-| app | qualitest-app | Spring Boot，`profile=docker`，上传目录 `/data/upload` |
-| web | qualitest-web | Nginx 静态资源 + `/prod-api` → app:8080 |
+| app | qualitest-app | Spring Boot，`SPRING_PROFILES_ACTIVE=docker`，上传 `/data/upload` |
+| web | qualitest-web | Nginx 静态资源 + `/prod-api` → `app:8080` |
+
+---
+
+## 生产加固
+
+默认值仅便于本地体验，**不得**原样用于公网或生产。
+
+1. **密钥与口令**  
+   - 强随机 `TOKEN_SECRET`  
+   - 修改 `MYSQL_ROOT_PASSWORD`（及本机数据源口令）  
+   - 登录后立即修改种子账号 `admin` / `admin123`  
+   - Redis 若对公网可达，设置 `SPRING_DATA_REDIS_PASSWORD` 并同步 compose  
+
+2. **Profile**  
+   - Compose 使用 **`docker`**：Druid **statViewServlet / webStatFilter 已关闭**，上传默认 `/data/upload`  
+   - 非 Compose 生产用 **`prod`**，同样不要启用 Druid 控制台；**切勿**把 `dev`（含默认 Druid 账号）暴露到公网  
+
+3. **HTTPS**  
+   - 本仓 Compose **默认仅 HTTP**（`WEB_PORT`→容器 80）  
+   - 生产请在前面加反向代理（Nginx / Caddy / 云 LB）终结 TLS，反代到 `http://127.0.0.1:${WEB_PORT}`；或自建证书挂到自有 Nginx，把 `deploy/nginx/default.conf` 作 upstream 参考  
+   - 证书与私钥不要打进镜像、不要提交进 Git  
+
+4. **网络与数据**  
+   - 尽量只暴露 Web 端口；MySQL / Redis 端口可不映射到公网（仅容器网络访问）  
+   - 数据在 Docker 卷：`mysql_data` / `redis_data` / `upload_data`；备份与迁移需自行处理  
+   - 勿提交 `.env`、`application-local.yml`、真实云 API Key、MCP / LLM 密钥  
+
+更多见 [SECURITY.md](../SECURITY.md)。
+
+---
 
 ## 常用命令
 
@@ -64,8 +155,25 @@ cd qualitest-ui && yarn install && yarn dev
 docker compose logs -f app
 docker compose ps
 docker compose down          # 保留数据卷
-docker compose down -v       # 清空 MySQL/Redis/上传卷（慎用）
+docker compose down -v       # 清空 MySQL / Redis / 上传卷（慎用，等于重装库）
+docker compose up -d --build # 改代码或 Dockerfile 后重建
 ```
+
+---
+
+## 排障
+
+| 现象 | 可尝试 |
+|------|--------|
+| `Bind for 0.0.0.0:80 failed` 等端口占用 | 改 `.env` 中 `WEB_PORT` / `MYSQL_PORT` / `REDIS_PORT` 后重新 `up` |
+| 首次启动很慢 / 构建失败 | 确认 Docker 资源与网络；重试 `docker compose build --no-cache app`（或 `web`） |
+| 打不开页面但容器在跑 | `docker compose ps`；`logs -f web` / `logs -f app`；确认访问的是 `WEB_PORT` |
+| 登录失败 / 401 | 确认种子账号；若改过 `TOKEN_SECRET` 需重新登录；查 `app` 日志 |
+| MySQL 初始化没进库 | 初始化只在**空数据卷首次**执行；改 SQL 后需 `down -v` 再 `up`（会丢数据） |
+| 插件连不上 | Compose 用 `http://localhost/prod-api`；本机用 `http://localhost:8080`；勿混用 |
+| 与 demo 端口冲突 | demo 默认 8081/8082/3307/6380，一般不冲突；若自改过主仓端口再核对 |
+
+---
 
 ## 相关文件
 
@@ -75,3 +183,4 @@ docker compose down -v       # 清空 MySQL/Redis/上传卷（慎用）
 - [`deploy/nginx/default.conf`](../deploy/nginx/default.conf)
 - [`.env.example`](../.env.example)
 - [`application-docker.yml`](../qualitest-admin/src/main/resources/application-docker.yml)
+- 靶场部署：[qualitest-demo/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)

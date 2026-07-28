@@ -1,0 +1,97 @@
+name: Bug 报告
+description: 功能异常、报错、与文档不符的行为
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        说清楚怎么复现、期望和实际即可。有日志或截图更好。
+        安全相关请走 [SECURITY.md](https://github.com/qualitest-hq/qualitest/blob/main/SECURITY.md)，不要开公开 Issue。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么
+      description: 一句话描述问题
+      placeholder: 例如：Compose 启动后登录一直 401
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 尽量可复现；能写多少写多少
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      placeholder: 应该怎样
+    validations:
+      required: false
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      placeholder: 实际怎样；可贴关键错误信息（勿贴密钥）
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: 大致模块
+      multiple: true
+      options:
+        - 部署 / Compose / Docker
+        - 后端 API
+        - Web 前端
+        - 测试流 / 画布
+        - AI Diff / LLM
+        - MCP
+        - 数据快照 / 还原
+        - 文档
+        - 其他
+    validations:
+      required: false
+  - type: dropdown
+    id: run-mode
+    attributes:
+      label: 运行方式
+      options:
+        - Docker Compose 全栈
+        - 本机后端 + 本机前端
+        - 仅本机后端
+        - 其他 / 不清楚
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / commit
+      description: 分支、tag 或短 commit（可选）
+      placeholder: main / abc1234
+    validations:
+      required: false
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境信息（可选）
+      description: OS、JDK、浏览器等；有助于排查
+      placeholder: |
+        OS: Windows 10 / Ubuntu 22.04
+        JDK: 17
+        浏览器: Chrome …
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充
+      description: 日志片段、截图说明等（请脱敏）
+    validations:
+      required: false

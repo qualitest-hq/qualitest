@@ -24,7 +24,7 @@
 [技术架构](#-技术架构) ·
 [模块结构](#-模块结构) ·
 [5 分钟快速开始](#-5-分钟快速开始) ·
-[详细部署](#-详细部署) ·
+[部署说明](./docs/deploy.md) ·
 [MCP](./docs/mcp.md) ·
 [AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
 
@@ -40,8 +40,8 @@
 
 | Piece | Role |
 |:------|:-----|
-| This repo | Platform + Web (`qualitest-ui/`) — Compose UI **http://localhost** (port **80**); local API **:8080** + Vite **:5173** |
-| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | Optional shop target — API **:8081** (Compose UI **:8082**) |
+| This repo | Platform + Web (`qualitest-ui/`) |
+| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | Optional shop API target |
 | [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | Upload Controllers → platform |
 
 ```bash
@@ -50,7 +50,7 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open **http://localhost**, login **`admin` / `admin123`**. Change `TOKEN_SECRET` / DB passwords before any public deploy. MCP: [docs/mcp.md](./docs/mcp.md). AI prompt recipes (demo): [ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
+Open **http://localhost**, login **`admin` / `admin123`**. Ports, env vars, production hardening: [docs/deploy.md](./docs/deploy.md). MCP: [docs/mcp.md](./docs/mcp.md). AI prompts (demo): [ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
 
 </details>
 
@@ -304,163 +304,58 @@ flowchart TB
 
 ## ⚡ 5 分钟快速开始
 
-> 工作区建议在 `qualitest-all` 下并列 clone **三仓**：本仓库（含前端）、靶场、IDEA 插件。下面按「先跑起来 → 再联调一条链」排列。
-
-### 相关仓库
-
-| 仓库 | 一句话 |
-|:-----|:-------|
-| 本仓库 [`qualitest`](https://github.com/qualitest-hq/qualitest)（含 [`qualitest-ui/`](./qualitest-ui/)） | 质衡主平台 + Web |
-| [`qualitest-demo`](https://github.com/qualitest-hq/qualitest-demo) | 商城靶场，供调试 / 编排 / AI 用例练习 |
-| [`qualitest-intellij-plugin`](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA 里扫 Controller，一键上传到平台 |
-
-### 默认账号与端口
-
-| 项 | Compose 全栈（推荐） | 本机开发 |
-|:---|:---------------------|:---------|
-| **登录** | **`admin` / `admin123`**（种子 SQL） | 同左 |
-| 质衡 Web | **http://localhost**（宿主机 **`WEB_PORT`，默认 80**） | **http://localhost:5173**（Vite） |
-| 质衡 API | 容器内 `8080`；浏览器经 Nginx **`/prod-api`**；插件填 **`http://localhost/prod-api`** | **http://localhost:8080**（插件同此） |
-| MySQL / Redis | **3306** / **6379** | 本机实例，或 `docker compose up -d mysql redis` |
-| 靶场 API（demo） | **http://localhost:8081**（Swagger 同端口） | 同左 |
-| 靶场管理端 UI（demo Compose） | **http://localhost:8082** | 按 demo 仓说明启动 |
+> 建议在 `qualitest-all` 下并列 clone **三仓**：本仓库（含 `qualitest-ui/`）、[靶场](https://github.com/qualitest-hq/qualitest-demo)、[IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)。  
+> 端口、环境变量、本机开发、生产加固与排障见 **[`docs/deploy.md`](./docs/deploy.md)**（勿把默认口令用于公网）。
 
 ```mermaid
 flowchart LR
-    Plugin["IDEA 插件"] -->|上传接口| Platform["质衡 Compose :80 / 本机 :8080+:5173"]
-    Platform -->|调试 / 编排| Demo["qualitest-demo :8081"]
+    Plugin["IDEA 插件"] -->|上传接口| Platform["质衡"]
+    Platform -->|调试 / 编排| Demo["qualitest-demo"]
     Cursor["Cursor MCP"] -.->|只读勘察| Platform
 ```
 
-### 前置条件（一次性）
-
-- **方式 A（Compose）**：Docker Desktop / Docker Engine + Compose V2；本机端口 **80 / 3306 / 6379** 可用（可用 `.env` 改，见 [`.env.example`](./.env.example)）。
-- **方式 B（本机）**：JDK 17+、MySQL 8+、Redis 3+、Maven 3+、Node 20+、Yarn 1.x；库账号改 `application-dev.yml` 或用环境变量覆盖。
-
-> **安全提示（生产必读）**：仓库内 `dev` / Compose 默认口令（如库密码、弱 `TOKEN_SECRET`）仅便于本地体验。**生产 / 公网部署必须**通过 `.env` 或环境变量注入强随机 `TOKEN_SECRET`、数据库与 Redis 口令，并使用 `prod` 或 `docker` profile（`docker` 已关闭 Druid 控制台，上传目录默认 `/data/upload`）。切勿把真实云 API Key、个人 `.env`、`application-local.yml` 提交进 Git。
-
 ### ① 启动质衡
 
-#### 方式 A · Docker Compose 全栈（推荐，首次构建较慢）
-
-详情见 [`docs/deploy.md`](./docs/deploy.md)。
+需 Docker + Compose V2。首次 `--build` 较慢。
 
 ```bash
 cd qualitest
-# 无 .env 时，quick-start 会从 .env.example 复制一份
-# Windows
-scripts\quick-start.bat
-# Linux / macOS
+# Windows: scripts\quick-start.bat
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
-# 等价手动命令
-# docker compose up -d --build
 ```
 
-浏览器打开 **http://localhost**（若改了 `WEB_PORT` 则带端口），默认账号 **`admin` / `admin123`**。  
-仅起数据库依赖（本机跑 `mvn` / `yarn` 时）：`docker compose up -d mysql redis`。  
-停止：`docker compose down`（加 `-v` 会清空数据卷，慎用）。
+打开 **http://localhost**，登录 **`admin` / `admin123`**。本机 `mvn` / `yarn` 开发见 [deploy.md](./docs/deploy.md)。
 
-#### 方式 B · 本机开发（JDK + MySQL + Redis + Yarn）
+### ② 启动靶场（可选）
 
-```bash
-# 可选：只起依赖
-# docker compose up -d mysql redis
-
-# 后端：建库 qualitest，导入 sql/qualitest_*.sql（取最新一份），改 application-dev.yml 后打包启动
-cd qualitest
-mvn clean package -DskipTests
-qualitest.bat          # Windows；Linux 用 ./qualitest.sh
-
-# 前端：另开终端（本仓子目录）
-cd qualitest-ui
-yarn install && yarn dev
-```
-
-浏览器打开 **http://localhost:5173**，账号同上 **`admin` / `admin123`**。  
-→ 更多选项见下方 [详细部署](#-详细部署) 与 [`qualitest-ui/README.md`](./qualitest-ui/README.md)。
-
-### ② 启动靶场（约 1 分钟，**可选**）
-
-> **可选说明：** 若你已有自己的 Spring 项目，可跳过本步，直接用 IDEA 插件把**自己的接口**上传到质衡，环境 `baseUrl` 指向你的服务即可。  
-> 启动 `qualitest-demo` 只是为了**零配置体验**：自带商城业务、测试场景（S01–S08）和 AI 提示词示例，与本 README 中的演示 GIF / 文档路径一致。  
-> 默认端口与主仓错开（Compose：**API 8081 / UI 8082 / MySQL 3307 / Redis 6380**），可与主仓同时运行。详见 [demo 部署说明](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)。
+已有自己的被测服务可跳过；靶场用于零配置体验演示场景与 AI 提示集。启动与端口见 [demo 部署说明](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)。
 
 ```bash
 cd qualitest-demo
-# 推荐：Compose 全栈（Windows / Linux·macOS）
 scripts\quick-start.bat
 # chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
-# 可选含 RustFS：scripts\quick-start.bat rustfs
-
-# 或本机：建库 qualitest-demo，导入 sql/qualitest-demo_*.sql，改 application-dev.yml
-# mvn clean install && demo.bat    # 或 ./demo.sh
 ```
 
-- 被测 API / Swagger：**http://localhost:8081/swagger-ui.html**  
-- Compose 管理端 UI：**http://localhost:8082**（账号 `admin` / `admin123`，与质衡无关）  
-→ 场景加载、认证说明见 [qualitest-demo README](https://github.com/qualitest-hq/qualitest-demo#readme)。
+Swagger 一般为 **http://localhost:8081/swagger-ui.html**。
 
-### ③ 平台里建项目并同步接口（约 2 分钟）
+### ③ 建项目并同步接口
 
-1. 登录质衡 → **测试项目** → 新建项目（例如「Demo 商城」）。
-2. 进入 **项目设置** → 复制 **Project Token**。
-3. IDEA 安装 [Qualitest Helper](https://github.com/qualitest-hq/qualitest-intellij-plugin)（`buildPlugin` 打 ZIP 离线安装），配置：
-   - 服务器地址：**方式 A（Compose）** 填 `http://localhost/prod-api`；**方式 B（本机）** 填 `http://localhost:8080`
-   - 项目令牌：上一步复制的 Token
-4. 用 IDEA 打开 **`qualitest-demo`**（或你自己的 Java 工程）→ **Tools → Qualitest Helper → 项目级上传**（或 Controller 右键上传）。
-5. 回到 Web：**接口管理** 应出现已上传接口；**环境** 里把 `baseUrl` 设为被测服务地址（用靶场时为 `http://localhost:8081`）。
+1. 登录质衡 → **测试项目** → 新建 → **项目设置** 复制 **Project Token**。
+2. IDEA 安装 [Qualitest Helper](https://github.com/qualitest-hq/qualitest-intellij-plugin)：服务器地址 Compose 填 `http://localhost/prod-api`，本机填 `http://localhost:8080`；粘贴 Token。
+3. 打开 `qualitest-demo`（或自有工程）→ **Tools → Qualitest Helper → 项目级上传**。
+4. Web **接口管理** 应有接口；**环境** `baseUrl` 指向被测服务（靶场多为 `http://localhost:8081`）。
 
-→ 插件配置与上传方式见 [插件 README](https://github.com/qualitest-hq/qualitest-intellij-plugin#readme)。
-
-### ④ 跑通一条主链路（任选其一）
+### ④ 跑通一条主链路（任选）
 
 | 你想试什么 | 怎么做 |
 |:-----------|:-------|
-| **调接口** | 接口调试台 → 选中接口 → 切环境 → 发请求 |
-| **编排用例** | 测试流 → 拖 HTTP / 断言节点 → 运行 |
-| **AI 辅助** | 测试流旁打开 AI 面板 → 描述需求 → **先看 Diff 再合并** |
-| **Cursor 联读** | 项目设置复制 MCP 配置到 `mcp.json` → 只读查流 / 节点 / Run（详见 [`docs/mcp.md`](./docs/mcp.md)） |
-| **AI 造流（靶场）** | 先加载场景，再粘贴自然语言意图 → [AI 测试流提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) |
+| **调接口** | 接口调试台 → 选环境 → 发请求 |
+| **编排用例** | 测试流 → 拖 HTTP / 断言 → 运行 |
+| **AI 辅助** | AI 面板 → 描述需求 → **先看 Diff 再合并** |
+| **Cursor 联读** | 项目设置复制 MCP 到 `mcp.json` → [`docs/mcp.md`](./docs/mcp.md) |
+| **AI 造流（靶场）** | [AI 测试流提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) |
 
----
-
-## ⚙️ 详细部署
-
-- Compose 全栈：[docs/deploy.md](./docs/deploy.md)
-- Cursor MCP：[docs/mcp.md](./docs/mcp.md)
-- AI 提示集（demo）：[ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
-- 本机命令见下方环境要求 / 后端 / 前端。
-
-### 环境要求
-
-| 环境 | 要求 |
-|:-----|:-----|
-| **开发** | Windows 10+、JDK 17+、MySQL 8.0+、Maven 3.0+、Redis 3.0+、Node 20+ |
-| **生产** | CentOS 7+、同上 JDK / MySQL / Redis 等要求 |
-
-### 后端
-
-```bash
-cd qualitest
-
-# 配置数据库与 Redis（qualitest-admin/src/main/resources/application-dev.yml，生产用 application-prod.yml）
-
-mvn clean package -DskipTests
-
-qualitest.bat    # Windows
-./qualitest.sh   # Linux
-```
-
-### 前端
-
-```bash
-cd qualitest-ui
-
-yarn install
-yarn dev         # 开发；生产构建见 yarn build
-```
-
-→ 桌面端、环境变量、传输模式等见 [`qualitest-ui/README.md`](./qualitest-ui/README.md)。
+更多文档：[部署说明](./docs/deploy.md) · [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)
 
 ---
 
@@ -468,6 +363,6 @@ yarn dev         # 开发；生产构建见 yarn build
 
 **质衡 Qualitest** · 让质量保障更高效 · [Apache-2.0](LICENSE) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md)
 
-<sub>构建与启动细节以仓库内 `qualitest.bat` / `qualitest.sh` 及各模块配置为准</sub>
+<sub>部署细节以 [`docs/deploy.md`](./docs/deploy.md) 为准</sub>
 
 </div>

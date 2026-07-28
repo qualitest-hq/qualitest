@@ -1,9 +1,14 @@
 # 质衡主仓 CI（不依赖 qualitest-demo）
-# 触发：push / PR 到 main
+# 触发：push / PR 到 main；按路径只跑相关 Job
+#
+# - 仅 docs / 社区文件等：detect-changes 后 backend、frontend 均跳过
+# - 仅 qualitest-ui：只跑 frontend
+# - 仅后端模块 / pom：只跑 backend
+# - 改本 workflow：两端都跑
 #
 # 说明：
-# - 根 pom 默认 skipTests=true；本 workflow 后端 job 先做编译校验（package -DskipTests）
-# - 前端跑 Vitest（qualitest-ui → yarn test）
+# - 根 pom 默认 skipTests=true；backend 先做编译校验（package -DskipTests）
+# - frontend 跑 Vitest（qualitest-ui → yarn test）
 # - qualitest-system 全量单测仍有存量失败，修绿后把 backend 的 package 换成：
 #     mvn -B test -DskipTests=false -pl qualitest-system -am
 
@@ -20,8 +25,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: detect-changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Path filter
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - '.github/workflows/ci.yml'
+              - 'pom.xml'
+              - 'qualitest-admin/**'
+              - 'qualitest-common/**'
+              - 'qualitest-framework/**'
+              - 'qualitest-generator/**'
+              - 'qualitest-quartz/**'
+              - 'qualitest-system/**'
+            frontend:
+              - '.github/workflows/ci.yml'
+              - 'qualitest-ui/**'
+
   backend:
     name: backend
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -40,6 +75,8 @@ jobs:
 
   frontend:
     name: frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:

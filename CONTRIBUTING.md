@@ -18,6 +18,8 @@ Bug、文档笔误、小体验改进、大功能设想、甚至「有点怪但�
 
 ## 提 Issue（可选格式，能写多少写多少）
 
+GitHub 上「New issue」可选表单（Bug / 想法 / 提问）；空白 Issue 也开放。安全漏洞请走 [`SECURITY.md`](./SECURITY.md)。
+
 - **Bug**：怎么复现、期望 vs 实际；有日志/截图更好  
 - **想法 / 功能**：场景或动机即可；已有变通方案也可以顺手提一句  
 - **提问**：搜一下已有 Issue / README；部署问题可先看 [`docs/deploy.md`](./docs/deploy.md)
@@ -39,7 +41,7 @@ Bug、文档笔误、小体验改进、大功能设想、甚至「有点怪但�
 1. 从最新 `main` 拉分支即可（命名随意，`fix/...` / `feat/...` 都行）。  
 2. 尽量一次 PR 只做一件事；大范围纯格式化请单独开。  
 3. 自测相关路径：后端可 `mvn -pl qualitest-system -am package`；前端在 `qualitest-ui` 下 `yarn test`。有 CI 时看 GitHub Actions 是否绿。  
-4. PR 里简单说下改了啥、怎么验证；能关联 Issue 更好。  
+4. PR 描述会带简易模板（改了啥 / 怎么验证 / 清单）；能关联 Issue 更好。  
 5. **请勿**提交密钥、`.env`、本地绝对路径配置、`target/` / `node_modules/` 等构建产物。
 
 维护者会做轻量 Review。Issue / PR 在业余时间处理，**不承诺固定 SLA**；紧急安全问题请走 [`SECURITY.md`](./SECURITY.md)。
