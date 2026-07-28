@@ -107,7 +107,12 @@ class HttpNodeApiHealthCheckerTest {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
                 .requestConfig("{\"method\":\"GET\"}")
-                .responseConfig("{\"responses\":[{\"schema\":{\"code\":\"string\",\"data\":{\"token\":\"string\"}}}]}")
+                .responseConfig("""
+                        {"responses":[{"schema":{"type":"object","properties":{
+                          "code":{"type":"string"},
+                          "data":{"type":"object","properties":{"token":{"type":"string"}}}
+                        }}}]}
+                        """)
                 .build();
 
         String graph = """
@@ -141,7 +146,12 @@ class HttpNodeApiHealthCheckerTest {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
                 .requestConfig("{\"method\":\"GET\"}")
-                .responseConfig("{\"responses\":[{\"schema\":{\"code\":\"string\",\"data\":{\"token\":\"string\"}}}]}")
+                .responseConfig("""
+                        {"responses":[{"schema":{"type":"object","properties":{
+                          "code":{"type":"string"},
+                          "data":{"type":"object","properties":{"token":{"type":"string"}}}
+                        }}}]}
+                        """)
                 .build();
 
         String graph = """
@@ -203,7 +213,11 @@ class HttpNodeApiHealthCheckerTest {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(2L)
                 .requestConfig("{\"method\":\"POST\",\"queryParams\":[{\"name\":\"keep\"}]}")
-                .responseConfig("{\"responses\":[{\"schema\":{\"data\":{\"ok\":true}}}]}")
+                .responseConfig("""
+                        {"responses":[{"schema":{"type":"object","properties":{
+                          "data":{"type":"object","properties":{"ok":{"type":"boolean"}}}
+                        }}}]}
+                        """)
                 .build();
         JSONObject data = new JSONObject();
         data.put("callMode", "project");

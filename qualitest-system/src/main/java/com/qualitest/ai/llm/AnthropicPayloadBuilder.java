@@ -250,11 +250,11 @@ public final class AnthropicPayloadBuilder {
         if (promptCaching) {
             JSONObject last = systemBlocks.get(systemBlocks.size() - 1);
             last.put("cache_control", cacheControl());
-            body.put("system", systemBlocks);
+            body.put("system", new JSONArray(systemBlocks));
         } else if (systemBlocks.size() == 1) {
             body.put("system", systemBlocks.get(0).getString("text"));
         } else {
-            body.put("system", systemBlocks);
+            body.put("system", new JSONArray(systemBlocks));
         }
     }
 

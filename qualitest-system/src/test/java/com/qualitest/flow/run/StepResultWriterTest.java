@@ -75,17 +75,15 @@ class StepResultWriterTest {
         String snapshot = """
                 {
                   "meta": {
-                    "run": {
-                      "activeScenarioId": "sc-1",
-                      "scenarios": [
-                        {
-                          "id": "sc-1",
-                          "name": "默认",
-                          "testProjectEnvId": "201",
-                          "flowSeed": { "x": 1 }
-                        }
-                      ]
-                    }
+                    "activeScenarioId": "sc-1",
+                    "scenarios": [
+                      {
+                        "id": "sc-1",
+                        "name": "默认",
+                        "testProjectEnvId": "201",
+                        "flowSeed": { "x": 1 }
+                      }
+                    ]
                   },
                   "nodes": [],
                   "edges": []

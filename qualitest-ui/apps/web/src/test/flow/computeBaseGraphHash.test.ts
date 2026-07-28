@@ -48,7 +48,7 @@ describe('computeBaseGraphHash', () => {
     expect(canonicalGraphJsonString(sampleGraph)).toBe(canonicalGraphJsonString(reversed));
   });
 
-  it('修改边 target 会改变 hash', () => {
+  it('修改边 target 会改变 hash', async () => {
     // 前提：仅修改一条边的 target
     // 期望：两次 hash 均为 16 位且不相等
     const hashA = await computeBaseGraphHashFromGraphJson(sampleGraph);
@@ -63,7 +63,7 @@ describe('computeBaseGraphHash', () => {
     expect(hashA).not.toBe(hashB);
   });
 
-  it('同一图两次 hash 一致', () => {
+  it('同一图两次 hash 一致', async () => {
     // 前提：同一图深拷贝后再 hash
     // 期望：两次 hash 相同
     const hash1 = await computeBaseGraphHashFromGraphJson(sampleGraph);

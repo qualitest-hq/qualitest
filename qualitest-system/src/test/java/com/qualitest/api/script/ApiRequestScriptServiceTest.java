@@ -54,7 +54,7 @@ class ApiRequestScriptServiceTest {
 
     /**
      * 前提：前置脚本 variables.set('token','abc')。
-     * 期望：variables.token=abc。
+     * 期望：写入落在 result.context.variables（调用方 Map 为入口副本，不回写）。
      */
     @Test
     @Order(2)
@@ -73,7 +73,8 @@ class ApiRequestScriptServiceTest {
                 params
         );
         assertTrue(result.isSuccess(), "前置脚本应执行成功");
-        assertEquals("abc", variables.get("token"), "应写入 variables.token=abc");
+        assertNull(variables.get("token"), "入口 variables 为副本，executePreIfPresent 不回写调用方 Map");
+        assertEquals("abc", result.getContext().getVariables().get("token"), "应写入 context.variables.token=abc");
     }
 
     /**

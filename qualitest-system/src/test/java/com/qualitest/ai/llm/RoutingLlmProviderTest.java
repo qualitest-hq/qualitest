@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -128,7 +129,7 @@ class RoutingLlmProviderTest {
                 .build();
         routingLlmProvider.chatStream(model, request, response -> {
         });
-        verify(anthropicCompatibleProvider).chatStream(model, request, any(LlmStreamCallback.class));
+        verify(anthropicCompatibleProvider).chatStream(eq(model), eq(request), any(LlmStreamCallback.class));
     }
 
     private static LlmModelConfig baseConfig(String provider) {

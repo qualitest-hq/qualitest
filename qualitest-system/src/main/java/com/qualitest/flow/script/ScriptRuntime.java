@@ -5,10 +5,10 @@ import com.qualitest.api.script.ApiScriptExecutionResult;
 import com.qualitest.api.script.ApiScriptHost;
 import com.qualitest.api.script.ApiScriptPhase;
 import com.qualitest.api.service.IDebugHttpForwardService;
-import com.qualitest.api.service.IDebugHttpForwardService;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.io.IOAccess;
 import org.springframework.stereotype.Component;
@@ -36,6 +36,9 @@ import java.util.concurrent.TimeoutException;
 public class ScriptRuntime {
 
     private static final Semaphore CONCURRENCY = new Semaphore(ScriptConstants.MAX_CONCURRENT_SCRIPTS);
+
+    /** 进程内共享 Engine，避免每次新建 Context 重复加载语言（尤其 Python 冷启动很慢） */
+    private static final Engine SHARED_ENGINE = Engine.create();
 
     private final IDebugHttpForwardService forwardService;
 
@@ -275,6 +278,7 @@ public class ScriptRuntime {
 
     private static Context buildContext(String graalLang, ByteArrayOutputStream outBuffer) {
         Context.Builder builder = Context.newBuilder(graalLang)
+                .engine(SHARED_ENGINE)
                 .allowExperimentalOptions(true)
                 .allowIO(IOAccess.NONE)
                 .allowCreateThread(false)

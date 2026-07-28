@@ -272,7 +272,7 @@ public class ApiScriptHost implements ProxyObject {
             return switch (key) {
                 case "get" -> (ProxyExecutable) args -> {
                     requireArgs(args, 1, scopeName + ".get");
-                    return ScriptValueConverter.toGuest(store.get(args[0].asString()));
+                    return ScriptValueConverter.toScriptValue(store.get(args[0].asString()));
                 };
                 case "set" -> (ProxyExecutable) args -> {
                     requireArgs(args, 2, scopeName + ".set");
@@ -329,7 +329,7 @@ public class ApiScriptHost implements ProxyObject {
                 case "url" -> request.getUrl();
                 case "method" -> request.getMethod();
                 case "headers" -> new HeadersHost(context, true);
-                case "body" -> ScriptValueConverter.toGuest(request.getBody());
+                case "body" -> ScriptValueConverter.toScriptValue(request.getBody());
                 default -> null;
             };
         }
@@ -389,7 +389,7 @@ public class ApiScriptHost implements ProxyObject {
             return switch (key) {
                 case "code", "status" -> response.getCode();
                 case "statusText" -> response.getStatusText();
-                case "headers" -> ScriptValueConverter.toGuest(response.getHeaders());
+                case "headers" -> ScriptValueConverter.toScriptValue(response.getHeaders());
                 case "text" -> (ProxyExecutable) args -> response.getBodyText() != null ? response.getBodyText() : "";
                 case "json" -> (ProxyExecutable) args -> parseJsonBody(response.getBodyText());
                 default -> null;
@@ -469,7 +469,7 @@ public class ApiScriptHost implements ProxyObject {
                     requireArgs(args, 1, "headers.get");
                     return headers.get(args[0].asString());
                 };
-                case "list" -> ScriptValueConverter.toGuest(new ArrayList<>(headers.entrySet()).stream()
+                case "list" -> ScriptValueConverter.toScriptValue(new ArrayList<>(headers.entrySet()).stream()
                         .map(e -> Map.of("key", e.getKey(), "value", e.getValue()))
                         .toList());
                 default -> null;

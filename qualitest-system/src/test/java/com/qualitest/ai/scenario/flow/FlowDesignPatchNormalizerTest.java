@@ -56,6 +56,7 @@ class FlowDesignPatchNormalizerTest {
     @DisplayName("缺 id 时补雪花 id 与默认坐标")
     void normalize_assignsSnowflakeIdsAndPosition() {
         GraphNode httpNode = GraphNode.builder()
+                .id("bad")
                 .type("http")
                 .data(new HashMap<>(Map.of("callMode", "project", "name", "登录")))
                 .build();
@@ -143,8 +144,8 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 前提：合法 API 绑定，Mapper 返回登录接口。
-     * 期望：补全 apiName/apiPath，summary=「POST /api/auth/login」。
+     * 前提：合法 API 绑定，Mapper 返回登录接口（含 method=POST）。
+     * 期望：补全 apiName；不写入 apiPath（路径只跟资产）；summary=「POST 用户登录」。
      */
     @Test
     @Order(4)
@@ -155,13 +156,13 @@ class FlowDesignPatchNormalizerTest {
                 .testProjectId(PROJECT_ID)
                 .apiName("用户登录")
                 .apiPath("/api/auth/login")
+                .requestConfig("{\"method\":\"POST\"}")
                 .build());
 
         Map<String, Object> data = new HashMap<>();
         data.put("name", "登录");
         data.put("callMode", "project");
         data.put("testProjectApiId", String.valueOf(API_ID));
-        data.put("requestConfig", Map.of("method", "POST"));
         GraphNode node = GraphNode.builder()
                 .id("9002")
                 .type("http")
@@ -175,8 +176,8 @@ class FlowDesignPatchNormalizerTest {
 
         Map<String, Object> normalized = result.patch().getAddNodes().get(0).getData();
         assertEquals("用户登录", normalized.get("apiName"));
-        assertEquals("/api/auth/login", normalized.get("apiPath"));
-        assertEquals("POST /api/auth/login", normalized.get("summary"));
+        assertNull(normalized.get("apiPath"), "节点不存 apiPath，路径只跟资产");
+        assertEquals("POST 用户登录", normalized.get("summary"));
     }
 
     /**
@@ -305,7 +306,7 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：updateNodes 为已有 http 节点绑定合法 API。
-     * 期望：补全 apiName=用户登录、apiPath=/api/auth/login。
+     * 期望：补全 apiName=用户登录；不写入 apiPath。
      */
     @Test
     @Order(8)
@@ -340,7 +341,7 @@ class FlowDesignPatchNormalizerTest {
 
         Map<String, Object> normalized = result.patch().getUpdateNodes().get(0).getData();
         assertEquals("用户登录", normalized.get("apiName"));
-        assertEquals("/api/auth/login", normalized.get("apiPath"));
+        assertNull(normalized.get("apiPath"), "节点不存 apiPath，路径只跟资产");
     }
 
     /**

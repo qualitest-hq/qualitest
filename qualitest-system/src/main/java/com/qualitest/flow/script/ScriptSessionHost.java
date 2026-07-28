@@ -31,7 +31,7 @@ public final class ScriptSessionHost implements ProxyObject {
                 requireArgs(args, 1, "session.get");
                 String name = args[0].asString();
                 Map<String, Object> store = runContext.getSession();
-                return ScriptValueConverter.toGuest(store.get(name));
+                return ScriptValueConverter.toScriptValue(store.get(name));
             };
             case "set" -> (ProxyExecutable) args -> {
                 requireArgs(args, 2, "session.set");

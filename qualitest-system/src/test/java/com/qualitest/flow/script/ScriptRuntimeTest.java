@@ -76,12 +76,13 @@ class ScriptRuntimeTest {
         assertTrue(result.isSuccess());
         assertNotNull(ctx.getFlow().get("sign"));
         assertEquals(64, String.valueOf(ctx.getFlow().get("sign")).length());
-        assertEquals("636a83b0e93f990608f25e7798322c6", ctx.getFlow().get("digest"));
+        assertEquals("8d777f385d3dfec8815d20f7496026dc", ctx.getFlow().get("digest"));
     }
 
     /**
      * 前提：Python 脚本 setFlow('pyOk', True)。
      * 期望：成功；flow.pyOk=true。
+     * 超时放宽：GraalPython 首次加载语言可能较慢。
      */
     @Test
     @Order(3)
@@ -92,7 +93,7 @@ class ScriptRuntimeTest {
         ScriptExecutionResult result = runtime.execute(
                 ScriptConstants.LANGUAGE_PYTHON,
                 source,
-                5000,
+                60000,
                 ctx
         );
         assertTrue(result.isSuccess(), result.getErrorMessage());

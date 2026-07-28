@@ -74,7 +74,7 @@ public class ScriptHostContext implements ProxyObject {
             case "getFlow" -> (ProxyExecutable) args -> {
                 requireArgs(args, 1, "getFlow");
                 String name = args[0].asString();
-                return ScriptValueConverter.toGuest(runContext.getFlow().get(name));
+                return ScriptValueConverter.toScriptValue(runContext.getFlow().get(name));
             };
             case "setFlow" -> (ProxyExecutable) args -> {
                 requireArgs(args, 2, "setFlow");
@@ -92,13 +92,13 @@ public class ScriptHostContext implements ProxyObject {
             };
             case "getEnv" -> (ProxyExecutable) args -> {
                 requireArgs(args, 1, "getEnv");
-                return ScriptValueConverter.toGuest(runContext.getEnv().get(args[0].asString()));
+                return ScriptValueConverter.toScriptValue(runContext.getEnv().get(args[0].asString()));
             };
             case "getAsset" -> (ProxyExecutable) args -> {
                 requireArgs(args, 1, "getAsset");
                 String assetKey = args[0].asString();
                 String path = args.length > 1 && !args[1].isNull() ? args[1].asString() : "";
-                return ScriptValueConverter.toGuest(resolveAsset(assetKey, path));
+                return ScriptValueConverter.toScriptValue(resolveAsset(assetKey, path));
             };
             case "getLastHttp" -> (ProxyExecutable) args -> {
                 FlowRunContext.HttpResponseSnapshot last = runContext.getLastResponse();
@@ -107,10 +107,10 @@ public class ScriptHostContext implements ProxyObject {
                 }
                 Map<String, Object> snapshot = new LinkedHashMap<>();
                 snapshot.put("status", last.getStatus());
-                snapshot.put("headers", ScriptValueConverter.toGuest(last.getHeaders()));
-                snapshot.put("body", ScriptValueConverter.toGuest(last.getBody()));
+                snapshot.put("headers", last.getHeaders());
+                snapshot.put("body", last.getBody());
                 snapshot.put("durationMs", last.getDurationMs());
-                return snapshot;
+                return ScriptValueConverter.toScriptValue(snapshot);
             };
             case "jsonParse" -> (ProxyExecutable) args -> {
                 requireArgs(args, 1, "jsonParse");
@@ -162,7 +162,8 @@ public class ScriptHostContext implements ProxyObject {
         @SuppressWarnings("unchecked")
         Map<String, Object> options = (Map<String, Object>) raw;
         httpCallCount++;
-        return ScriptHttpForwarder.forward(runContext, options, forwardService);
+        return ScriptValueConverter.toScriptValue(
+                ScriptHttpForwarder.forward(runContext, options, forwardService));
     }
 
     @Override
