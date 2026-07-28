@@ -2,18 +2,22 @@ package com.qualitest.api.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.qualitest.common.exception.ServiceException;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link RequestConfigImportNormalizer} 单元测试。
- * 覆盖：标准结构通过、非法键/缺版本失败、text→string、file 位置矫正。
- * <p>
+ * 测 RequestConfigImportNormalizer：导入请求配置规范化与非法结构拒绝。
+ * 边界：纯函数，无 DB；含 text→string、file 仅允许 formData。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RequestConfigImportNormalizerTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RequestConfigImportNormalizerTest {
 
     /**
@@ -21,6 +25,8 @@ class RequestConfigImportNormalizerTest {
      * 期望：normalize 成功；输出含 configVersion 与 queryParams，无 params 键。
      */
     @Test
+    @Order(1)
+    @DisplayName("规范化：接受合法 v2 结构")
     void normalize_acceptsV2Shape() throws Exception {
         String raw = """
                 {
@@ -43,6 +49,8 @@ class RequestConfigImportNormalizerTest {
      * 期望：抛 ServiceException，消息含 params。
      */
     @Test
+    @Order(2)
+    @DisplayName("规范化：拒绝顶层 params 键")
     void normalize_rejectsParamsKey() {
         String raw = """
                 {"configVersion":1,"method":"GET","params":[]}
@@ -57,6 +65,8 @@ class RequestConfigImportNormalizerTest {
      * 期望：抛 ServiceException。
      */
     @Test
+    @Order(3)
+    @DisplayName("规范化：缺少 configVersion 时拒绝")
     void normalize_rejectsMissingConfigVersion() {
         String raw = """
                 {"method":"GET","queryParams":[]}
@@ -69,6 +79,8 @@ class RequestConfigImportNormalizerTest {
      * 期望：file 保留；text/TEXT 均规范为 string。
      */
     @Test
+    @Order(4)
+    @DisplayName("规范化：formData 中 text 变 string，file 保留")
     void normalize_formData_textToString_keepsFile() throws Exception {
         String raw = """
                 {
@@ -99,6 +111,8 @@ class RequestConfigImportNormalizerTest {
      * 期望：normalize 后均改为 string（file 仅允许 formData）。
      */
     @Test
+    @Order(5)
+    @DisplayName("规范化：非 formData 的 file 强制改为 string")
     void normalize_fileOutsideFormData_coercesToString() throws Exception {
         String raw = """
                 {
@@ -125,6 +139,8 @@ class RequestConfigImportNormalizerTest {
      * 期望：normalize 后 type 变为 string。
      */
     @Test
+    @Order(6)
+    @DisplayName("规范化：query 参数 text 变为 string")
     void normalize_queryParam_textToString() throws Exception {
         String raw = """
                 {

@@ -2,7 +2,11 @@ package com.qualitest.flow.graph;
 
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphNode;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * 边界：纯函数，无真实图执行。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ConditionBranchMergeHelperTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ConditionBranchMergeHelperTest {
 
     /**
@@ -24,6 +29,8 @@ class ConditionBranchMergeHelperTest {
      * 期望：首条未绑定分支（IF）写入 edge.target；ELSE 仍为 null。
      */
     @Test
+    @Order(1)
+    @DisplayName("新增出边时绑定首个未绑定分支")
     void syncConditionEdgeToNodes_bindsFirstUnboundBranch() {
         String ifBranchId = "2071158532992012288";
         GraphNode condition = conditionNode("1001", ifBranchId, "2071158532992012289");
@@ -45,6 +52,8 @@ class ConditionBranchMergeHelperTest {
      * 期望：branches[].target 被清除。
      */
     @Test
+    @Order(2)
+    @DisplayName("删除出边时清除对应分支 target")
     void clearConditionTargetForRemovedEdge_clearsBinding() {
         String ifBranchId = "2071158532992012288";
         GraphNode condition = conditionNode("1001", ifBranchId, "2071158532992012289");
@@ -68,6 +77,8 @@ class ConditionBranchMergeHelperTest {
      * 期望：旧边 2000 删除；仅留 2001；IF target 更新为 1002。
      */
     @Test
+    @Order(3)
+    @DisplayName("重绑分支时删除旧出边并更新 target")
     void syncConditionEdgeToNodes_removesStaleEdgeWhenRebinding() {
         String ifBranchId = "2071158532992012288";
         GraphNode condition = conditionNode("1001", ifBranchId, "2071158532992012289");

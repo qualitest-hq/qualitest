@@ -8,6 +8,7 @@ import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
 import com.qualitest.flow.validate.FlowNodeType;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -20,14 +21,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 NodeHandlerRegistry：类型路由、未知类型拒绝、桩 execute 行为。
- * 边界：仅注册 http/assert/delay 桩；存量 begin/end 保留。
+ * 边界：仅注册 http/assert/delay 桩；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=NodeHandlerRegistryTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -61,16 +59,14 @@ class NodeHandlerRegistryTest {
      */
     @Test
     @Order(1)
+    @DisplayName("注册表：可解析 http/assert/delay 桩")
     void registry_resolvesMvpHandlers() {
-        begin("registry_resolvesMvpHandlers");
         assertNotNull(registry.requireHandler("http"));
         assertNotNull(registry.requireHandler("assert"));
         assertNotNull(registry.requireHandler("delay"));
         assertTrue(registry.requireHandler("http").supports("http"));
         assertTrue(registry.requireHandler("assert").supports("assert"));
         assertTrue(registry.requireHandler("delay").supports("delay"));
-        log("http / assert / delay routed");
-        end("registry_resolvesMvpHandlers");
     }
 
     /**
@@ -79,8 +75,8 @@ class NodeHandlerRegistryTest {
      */
     @Test
     @Order(2)
+    @DisplayName("注册表：未知类型抛 TF_NODE_UNSUPPORTED")
     void registry_unknownType_throws() {
-        begin("registry_unknownType_throws");
         for (String type : Arrays.asList("unknown", "condition", "assign", null, "")) {
             FlowExecutionException ex = assertThrows(
                     FlowExecutionException.class,
@@ -88,9 +84,7 @@ class NodeHandlerRegistryTest {
                     "type=" + type
             );
             assertEquals(FlowErrorCode.TF_NODE_UNSUPPORTED.getCode(), ex.getCode(), "type=" + type);
-            log("rejected type=" + (type == null || type.isBlank() ? "(empty)" : type));
         }
-        end("registry_unknownType_throws");
     }
 
     /**
@@ -99,8 +93,8 @@ class NodeHandlerRegistryTest {
      */
     @Test
     @Order(3)
+    @DisplayName("桩执行：返回未实现失败结果")
     void stubExecute_returnsNotImplemented() {
-        begin("stubExecute_returnsNotImplemented");
         for (String type : List.of("http", "assert", "delay")) {
             GraphNode node = GraphNode.builder()
                     .id("n-" + type)
@@ -118,9 +112,7 @@ class NodeHandlerRegistryTest {
             assertEquals(FlowErrorCode.TF_STEP_ERROR.getCode(), result.getError().getCode());
             assertTrue(result.getError().getMessage().contains("未实现"), type);
             assertEquals(ctx.getFlow(), result.getFlowAfter());
-            log("stub execute type=" + type);
         }
-        end("stubExecute_returnsNotImplemented");
     }
 
     /**
@@ -129,8 +121,8 @@ class NodeHandlerRegistryTest {
      */
     @Test
     @Order(4)
+    @DisplayName("demo-graph：MVP 可路由，condition/assign 拒绝")
     void demoGraph_mvpNodesRoutable() {
-        begin("demoGraph_mvpNodesRoutable");
         String json = loadResource("flow/demo-graph.json");
         GraphJson graph = GraphJson.parse(json);
         int supportedCount = 0;
@@ -152,10 +144,8 @@ class NodeHandlerRegistryTest {
                 unsupportedCount++;
             }
         }
-        log("supported nodes=" + supportedCount + " unsupported nodes=" + unsupportedCount);
         assertTrue(supportedCount >= 3, "demo-graph should contain http/assert/delay nodes");
         assertTrue(unsupportedCount >= 1, "demo-graph should contain condition or assign nodes");
-        end("demoGraph_mvpNodesRoutable");
     }
 
     /**

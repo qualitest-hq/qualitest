@@ -1,7 +1,11 @@
 package com.qualitest.ai.llm;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 
@@ -14,6 +18,7 @@ import static org.mockito.Mockito.*;
  * 边界：Mock 两个 CompatibleProvider；不发真实 HTTP。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RoutingLlmProviderTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RoutingLlmProviderTest {
 
     private OpenAiCompatibleProvider openAiCompatibleProvider;
@@ -32,6 +37,8 @@ class RoutingLlmProviderTest {
      * 期望：chat 只委托 OpenAiCompatibleProvider。
      */
     @Test
+    @Order(1)
+    @DisplayName("openai 协议委托 OpenAiCompatibleProvider")
     void chat_openAiCompatibleProvider() {
         LlmModelConfig model = baseConfig(LlmProviderTypes.OPENAI_COMPATIBLE);
         LlmChatRequest request = LlmChatRequest.builder()
@@ -52,6 +59,8 @@ class RoutingLlmProviderTest {
      * 期望：chat 只委托 AnthropicCompatibleProvider。
      */
     @Test
+    @Order(2)
+    @DisplayName("anthropic 协议委托 AnthropicCompatibleProvider")
     void chat_anthropicCompatibleProvider() {
         LlmModelConfig model = baseConfig(LlmProviderTypes.ANTHROPIC_COMPATIBLE);
         LlmChatRequest request = LlmChatRequest.builder()
@@ -72,6 +81,8 @@ class RoutingLlmProviderTest {
      * 期望：默认走 OpenAiCompatibleProvider。
      */
     @Test
+    @Order(3)
+    @DisplayName("provider 为 null 时默认走 OpenAI")
     void chat_nullProviderUsesOpenAi() {
         LlmModelConfig model = baseConfig(null);
         LlmChatRequest request = LlmChatRequest.builder()
@@ -89,6 +100,8 @@ class RoutingLlmProviderTest {
      * 期望：抛 LlmClientException，消息含「不支持的协议标识」。
      */
     @Test
+    @Order(4)
+    @DisplayName("未知 provider 抛 LlmClientException")
     void chat_unsupportedProviderThrows() {
         LlmModelConfig model = baseConfig("unknown_provider");
         LlmChatRequest request = LlmChatRequest.builder()
@@ -105,6 +118,8 @@ class RoutingLlmProviderTest {
      * 期望：chatStream 委托 anthropicCompatibleProvider.chatStream。
      */
     @Test
+    @Order(5)
+    @DisplayName("流式 chatStream 委托 anthropic 实现")
     void chatStream_delegatesToAnthropicProvider() {
         LlmModelConfig model = baseConfig(LlmProviderTypes.ANTHROPIC_COMPATIBLE);
         LlmChatRequest request = LlmChatRequest.builder()

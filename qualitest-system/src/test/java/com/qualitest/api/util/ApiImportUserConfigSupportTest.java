@@ -1,5 +1,6 @@
 package com.qualitest.api.util;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -7,9 +8,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -17,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测 ApiImportUserConfigSupport：导入时用户覆盖层写入与「已配置」判定。
- * 边界：空 JSON/脚本；本地非空保留；存量 begin/end 保留。
+ * 边界：空 JSON/脚本；本地非空保留；双空写 "{}"；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiImportUserConfigSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -29,16 +27,14 @@ class ApiImportUserConfigSupportTest {
      */
     @Test
     @Order(1)
-    void isNonEmptyUserJson() {
-        begin("isNonEmptyUserJson");
+    @DisplayName("用户 JSON：空值视为未配置，含键视为已配置")
+    void isNonEmptyUserJson_emptyVsConfigured() {
         assertFalse(ApiImportUserConfigSupport.isNonEmptyUserJson(null));
         assertFalse(ApiImportUserConfigSupport.isNonEmptyUserJson(""));
         assertFalse(ApiImportUserConfigSupport.isNonEmptyUserJson("{}"));
         assertFalse(ApiImportUserConfigSupport.isNonEmptyUserJson("[]"));
         assertFalse(ApiImportUserConfigSupport.isNonEmptyUserJson("null"));
         assertTrue(ApiImportUserConfigSupport.isNonEmptyUserJson("{\"a\":1}"));
-        log("empty/null rejected; object with keys accepted");
-        end("isNonEmptyUserJson");
     }
 
     /**
@@ -47,13 +43,11 @@ class ApiImportUserConfigSupportTest {
      */
     @Test
     @Order(2)
-    void isNonEmptyUserScript() {
-        begin("isNonEmptyUserScript");
+    @DisplayName("用户脚本：空白视为未配置，非空视为已配置")
+    void isNonEmptyUserScript_blankVsConfigured() {
         assertFalse(ApiImportUserConfigSupport.isNonEmptyUserScript(null));
         assertFalse(ApiImportUserConfigSupport.isNonEmptyUserScript("   "));
         assertTrue(ApiImportUserConfigSupport.isNonEmptyUserScript("console.log(1);"));
-        log("blank script=false; content=true");
-        end("isNonEmptyUserScript");
     }
 
     /**
@@ -62,8 +56,8 @@ class ApiImportUserConfigSupportTest {
      */
     @Test
     @Order(3)
+    @DisplayName("更新 JSON：本地非空时保留本地")
     void applyJsonFieldOnUpdate_localNonEmpty_preserves() {
-        begin("applyJsonFieldOnUpdate_localNonEmpty_preserves");
         AtomicReference<String> written = new AtomicReference<>("unchanged");
 
         ApiImportUserConfigSupport.applyJsonFieldOnUpdate(
@@ -72,8 +66,6 @@ class ApiImportUserConfigSupportTest {
                 written::set);
 
         assertEquals("unchanged", written.get());
-        log("local headers preserved");
-        end("applyJsonFieldOnUpdate_localNonEmpty_preserves");
     }
 
     /**
@@ -82,8 +74,8 @@ class ApiImportUserConfigSupportTest {
      */
     @Test
     @Order(4)
+    @DisplayName("更新 JSON：本地为空时采用上传包")
     void applyJsonFieldOnUpdate_localEmpty_usesIncoming() {
-        begin("applyJsonFieldOnUpdate_localEmpty_usesIncoming");
         AtomicReference<String> written = new AtomicReference<>();
 
         ApiImportUserConfigSupport.applyJsonFieldOnUpdate(
@@ -92,8 +84,6 @@ class ApiImportUserConfigSupportTest {
                 written::set);
 
         assertEquals("{\"X-Trace\":\"1\"}", written.get());
-        log("incoming cookies applied");
-        end("applyJsonFieldOnUpdate_localEmpty_usesIncoming");
     }
 
     /**
@@ -102,15 +92,13 @@ class ApiImportUserConfigSupportTest {
      */
     @Test
     @Order(5)
+    @DisplayName("更新 JSON：双方皆空时写入空对象")
     void applyJsonFieldOnUpdate_bothEmpty_setsEmptyObject() {
-        begin("applyJsonFieldOnUpdate_bothEmpty_setsEmptyObject");
         AtomicReference<String> written = new AtomicReference<>();
 
         ApiImportUserConfigSupport.applyJsonFieldOnUpdate(null, null, written::set);
 
         assertEquals("{}", written.get());
-        log("both empty -> {}");
-        end("applyJsonFieldOnUpdate_bothEmpty_setsEmptyObject");
     }
 
     /**
@@ -119,8 +107,8 @@ class ApiImportUserConfigSupportTest {
      */
     @Test
     @Order(6)
+    @DisplayName("更新脚本：本地非空时保留本地")
     void applyScriptFieldOnUpdate_localNonEmpty_preserves() {
-        begin("applyScriptFieldOnUpdate_localNonEmpty_preserves");
         AtomicReference<String> written = new AtomicReference<>("local-script");
 
         ApiImportUserConfigSupport.applyScriptFieldOnUpdate(
@@ -129,8 +117,6 @@ class ApiImportUserConfigSupportTest {
                 written::set);
 
         assertEquals("local-script", written.get());
-        log("local pre script preserved");
-        end("applyScriptFieldOnUpdate_localNonEmpty_preserves");
     }
 
     /**
@@ -139,14 +125,12 @@ class ApiImportUserConfigSupportTest {
      */
     @Test
     @Order(7)
+    @DisplayName("更新脚本：本地为空时写入上传包（可为 null）")
     void applyScriptFieldOnUpdate_localEmpty_setsIncoming() {
-        begin("applyScriptFieldOnUpdate_localEmpty_setsIncoming");
         AtomicReference<String> written = new AtomicReference<>("placeholder");
 
         ApiImportUserConfigSupport.applyScriptFieldOnUpdate(null, null, written::set);
 
         assertNull(written.get());
-        log("empty local -> incoming null");
-        end("applyScriptFieldOnUpdate_localEmpty_setsIncoming");
     }
 }

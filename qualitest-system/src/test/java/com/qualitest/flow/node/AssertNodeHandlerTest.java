@@ -4,6 +4,7 @@ import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.AssertNodeHandler;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -12,14 +13,11 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 AssertNodeHandler：rules 全过则 passed，任一条失败则 TF_ASSERT_FAILED。
- * 边界：flow / http.body 路径；存量 begin/end 保留。
+ * 边界：flow / http.body 路径；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AssertNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -33,8 +31,8 @@ class AssertNodeHandlerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("执行：全部规则通过时 passed")
     void execute_allRulesPass() {
-        begin("execute_allRulesPass");
         FlowRunContext ctx = FlowRunContext.builder()
                 .flow(Map.of("code", 0))
                 .lastResponse(FlowRunContext.HttpResponseSnapshot.builder()
@@ -55,8 +53,6 @@ class AssertNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, "e1");
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertNotNull(result.getAssertDetails());
-        log("status=" + result.getStatus() + " rules=" + result.getAssertDetails().get("rules"));
-        end("execute_allRulesPass");
     }
 
     /**
@@ -65,8 +61,8 @@ class AssertNodeHandlerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("执行：规则失败时返回 TF_ASSERT_FAILED")
     void execute_ruleFails() {
-        begin("execute_ruleFails");
         FlowRunContext ctx = FlowRunContext.builder().flow(Map.of("code", 1)).build();
         GraphNode node = GraphNode.builder()
                 .id("a1")
@@ -79,7 +75,5 @@ class AssertNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(StepResult.STATUS_FAILED, result.getStatus());
         assertEquals(FlowErrorCode.TF_ASSERT_FAILED.getCode(), result.getError().getCode());
-        log("status=" + result.getStatus() + " error=" + result.getError().getCode());
-        end("execute_ruleFails");
     }
 }

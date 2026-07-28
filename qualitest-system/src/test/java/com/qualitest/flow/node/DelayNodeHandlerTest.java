@@ -3,6 +3,7 @@ package com.qualitest.flow.node;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.DelayNodeHandler;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -10,14 +11,11 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 DelayNodeHandler：按 data.ms 阻塞后返回 passed。
- * 边界：真实 sleep（短毫秒）；存量 begin/end 保留。
+ * 边界：真实 sleep（短毫秒）；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=DelayNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -31,8 +29,8 @@ class DelayNodeHandlerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("执行：按 ms 等待后返回 passed")
     void execute_waitsAndPasses() {
-        begin("execute_waitsAndPasses");
         GraphNode node = GraphNode.builder()
                 .id("d1")
                 .type("delay")
@@ -45,8 +43,5 @@ class DelayNodeHandlerTest {
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertTrue(result.getDurationMs() >= 10);
         assertTrue(elapsed >= 10);
-
-        log("status=" + result.getStatus() + " durationMs=" + result.getDurationMs() + " wallMs=" + elapsed);
-        end("execute_waitsAndPasses");
     }
 }

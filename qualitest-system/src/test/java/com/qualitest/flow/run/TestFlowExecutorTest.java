@@ -15,6 +15,7 @@ import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestFlowRunStep;
 import com.qualitest.project.service.ITestFlowRunService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -28,16 +29,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
  * 测 TestFlowExecutor：线性图顺序执行、落库与断言失败短路。
- * 边界：http/delay 桩 + 真实 Assert；存量 begin/end 保留。
+ * 边界：http/delay 桩 + 真实 Assert；Mock 落库与快照。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TestFlowExecutorTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -126,8 +124,8 @@ class TestFlowExecutorTest {
      */
     @Test
     @Order(1)
+    @DisplayName("线性图执行通过并落库五步")
     void execute_linearGraph_persistsStepsAndFinishesPassed() {
-        begin("execute_linearGraph_persistsStepsAndFinishesPassed");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         FlowRunContext ctx = FlowRunContext.builder()
                 .env(Map.of("baseUrl", "http://localhost"))
@@ -166,13 +164,6 @@ class TestFlowExecutorTest {
         String details = persistedSteps.get(1).getStepDetails();
         assertTrue(writer.parseStepDetails(details).containsKey("http"));
         assertTrue(writer.parseStepDetails(persistedSteps.get(1).getStepDetails()).containsKey("flowAfter"));
-
-        for (TestFlowRunStep step : persistedSteps) {
-            log(String.format("step[%d] node=%s type=%s status=%s",
-                    step.getStepIndex(), step.getNodeId(), step.getNodeType(), step.getStatus()));
-        }
-        log("runStatus=" + finished.getStatus() + " executedSteps=" + outcome.getExecutedSteps());
-        end("execute_linearGraph_persistsStepsAndFinishesPassed");
     }
 
     /**
@@ -181,8 +172,8 @@ class TestFlowExecutorTest {
      */
     @Test
     @Order(2)
+    @DisplayName("断言失败时短路并标记 failed")
     void execute_assertFail_stopsEarly() {
-        begin("execute_assertFail_stopsEarly");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>(Map.of("code", 99))).build();
         RunBootstrapMeta bootstrap = new RunBootstrapMeta(
@@ -206,11 +197,6 @@ class TestFlowExecutorTest {
                 TestFlowExecutor.RUN_STATUS_FAILED.equals(r.getStatus())
                         && r.getErrorCode() != null
         ));
-
-        log("passed=" + outcome.isPassed() + " errorCode=" + outcome.getErrorCode());
-        log("lastStep node=" + persistedSteps.get(4).getNodeId()
-                + " status=" + persistedSteps.get(4).getStatus());
-        end("execute_assertFail_stopsEarly");
     }
 
     private static GraphJson loadGraph(String path) {

@@ -8,6 +8,7 @@ import com.qualitest.api.params.McpToolInvokeParams;
 import com.qualitest.api.result.McpToolResult;
 import com.qualitest.common.exception.ServiceException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -19,10 +20,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.common.test.FlowTestSections.begin;
-import static com.qualitest.common.test.FlowTestSections.end;
-import static com.qualitest.common.test.FlowTestSections.log;
-import static com.qualitest.common.test.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -34,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 McpJsonRpcDispatcher：initialize / tools/list / tools/call 与错误、通知处理。
- * 边界：依赖 Mock，不访问库；存量 begin/end 保留。
+ * 边界：依赖 Mock，不访问库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=McpJsonRpcDispatcherTest
  */
 @ExtendWith(MockitoExtension.class)
@@ -67,8 +64,8 @@ class McpJsonRpcDispatcherTest {
      */
     @Test
     @Order(1)
+    @DisplayName("initialize 返回 serverInfo 与 session")
     void dispatch_initialize_returnsServerInfoAndSession() {
-        begin("dispatch_initialize_returnsServerInfoAndSession");
         String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
 
         McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 42L);
@@ -78,9 +75,6 @@ class McpJsonRpcDispatcherTest {
         assertEquals("2.0", json.getString("jsonrpc"));
         assertEquals(1, json.getIntValue("id"));
         assertEquals("42", json.getJSONObject("result").getJSONObject("serverInfo").getString("testProjectId"));
-        log("sessionId=" + quote(result.getSessionId())
-                + " testProjectId=" + quote(json.getJSONObject("result").getJSONObject("serverInfo").getString("testProjectId")));
-        end("dispatch_initialize_returnsServerInfoAndSession");
     }
 
     /**
@@ -89,8 +83,8 @@ class McpJsonRpcDispatcherTest {
      */
     @Test
     @Order(2)
+    @DisplayName("tools/list 返回协议工具列表")
     void dispatch_toolsList_returnsProtocolTools() {
-        begin("dispatch_toolsList_returnsProtocolTools");
         List<Map<String, Object>> mcpTools = List.of(Map.of("name", "list_flows"));
         when(toolsDefinitionService.loadMcpProtocolTools()).thenReturn(mcpTools);
 
@@ -99,8 +93,6 @@ class McpJsonRpcDispatcherTest {
 
         JSONObject json = JSON.parseObject(result.getResponseBody());
         assertEquals(1, json.getJSONObject("result").getJSONArray("tools").size());
-        log("toolsCount=1");
-        end("dispatch_toolsList_returnsProtocolTools");
     }
 
     /**
@@ -109,8 +101,8 @@ class McpJsonRpcDispatcherTest {
      */
     @Test
     @Order(3)
+    @DisplayName("tools/call 委托 invoke 并回写 content")
     void dispatch_toolsCall_invokesService() {
-        begin("dispatch_toolsCall_invokesService");
         McpToolInvokeParams params = new McpToolInvokeParams();
         params.setArguments(Map.of("keyword", "login"));
         when(argumentsMapper.fromToolArguments(any())).thenReturn(params);
@@ -129,8 +121,6 @@ class McpJsonRpcDispatcherTest {
         assertEquals("{\"apis\":[]}", json.getJSONObject("result").getJSONArray("content")
                 .getJSONObject(0).getString("text"));
         verify(mcpToolInvokeService).invoke(eq("search_apis"), any(), eq(1L));
-        log("tool=search_apis contentText=" + quote("{\"apis\":[]}"));
-        end("dispatch_toolsCall_invokesService");
     }
 
     /**
@@ -139,8 +129,8 @@ class McpJsonRpcDispatcherTest {
      */
     @Test
     @Order(4)
+    @DisplayName("tools/call 异常时 isError=true")
     void dispatch_toolsCall_serviceException_returnsIsError() {
-        begin("dispatch_toolsCall_serviceException_returnsIsError");
         when(argumentsMapper.fromToolArguments(any())).thenReturn(new McpToolInvokeParams());
         when(mcpToolInvokeService.invoke(eq("bad_tool"), any(), eq(1L)))
                 .thenThrow(new ServiceException("MCP 不支持的工具: bad_tool"));
@@ -152,8 +142,36 @@ class McpJsonRpcDispatcherTest {
 
         JSONObject json = JSON.parseObject(result.getResponseBody());
         assertTrue(json.getJSONObject("result").getBooleanValue("isError"));
-        log("isError=true");
-        end("dispatch_toolsCall_serviceException_returnsIsError");
+    }
+
+    /**
+     * 前提：method=unknown/method。
+     * 期望：JSON-RPC error.code=-32601。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("未知 method 返回 -32601")
+    void dispatch_unknownMethod_returnsError() {
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"unknown/method\"}";
+        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 1L);
+
+        JSONObject json = JSON.parseObject(result.getResponseBody());
+        assertEquals(-32601, json.getJSONObject("error").getIntValue("code"));
+    }
+
+    /**
+     * 前提：notifications/initialized（无 id）。
+     * 期望：notification=true；responseBody=null。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("通知无 id 时返回空通知")
+    void dispatch_notification_returnsEmptyNotification() {
+        String body = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}";
+        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 1L);
+
+        assertTrue(result.isNotification());
+        assertNull(result.getResponseBody());
     }
 
     /**
@@ -162,8 +180,8 @@ class McpJsonRpcDispatcherTest {
      */
     @Test
     @Order(7)
+    @DisplayName("业务 error 时 isError=true")
     void dispatch_toolsCall_businessError_returnsIsError() {
-        begin("dispatch_toolsCall_businessError_returnsIsError");
         when(argumentsMapper.fromToolArguments(any())).thenReturn(new McpToolInvokeParams());
         when(mcpToolInvokeService.invoke(eq("get_flow"), any(), eq(1L)))
                 .thenReturn(McpToolResult.builder()
@@ -179,41 +197,5 @@ class McpJsonRpcDispatcherTest {
 
         JSONObject json = JSON.parseObject(result.getResponseBody());
         assertTrue(json.getJSONObject("result").getBooleanValue("isError"));
-        log("isError=true businessError");
-        end("dispatch_toolsCall_businessError_returnsIsError");
-    }
-
-    /**
-     * 前提：method=unknown/method。
-     * 期望：JSON-RPC error.code=-32601。
-     */
-    @Test
-    @Order(5)
-    void dispatch_unknownMethod_returnsError() {
-        begin("dispatch_unknownMethod_returnsError");
-        String body = "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"unknown/method\"}";
-        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 1L);
-
-        JSONObject json = JSON.parseObject(result.getResponseBody());
-        assertEquals(-32601, json.getJSONObject("error").getIntValue("code"));
-        log("errorCode=-32601");
-        end("dispatch_unknownMethod_returnsError");
-    }
-
-    /**
-     * 前提：notifications/initialized（无 id）。
-     * 期望：notification=true；responseBody=null。
-     */
-    @Test
-    @Order(6)
-    void dispatch_notification_returnsEmptyNotification() {
-        begin("dispatch_notification_returnsEmptyNotification");
-        String body = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}";
-        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 1L);
-
-        assertTrue(result.isNotification());
-        assertNull(result.getResponseBody());
-        log("notification=true responseBody=null");
-        end("dispatch_notification_returnsEmptyNotification");
     }
 }

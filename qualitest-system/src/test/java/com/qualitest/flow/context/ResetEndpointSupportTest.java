@@ -1,6 +1,10 @@
 package com.qualitest.flow.context;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -9,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * 边界：纯函数；覆盖 http 补路径、斜杠归一、JSON 多模块取默认、空基址。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ResetEndpointSupportTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ResetEndpointSupportTest {
 
     /**
@@ -16,6 +21,8 @@ class ResetEndpointSupportTest {
      * 期望：末尾补上 /test-support。
      */
     @Test
+    @Order(1)
+    @DisplayName("resolve：普通 http 基址补上 /test-support")
     void resolve_httpBase_appendsTestSupport() {
         assertEquals(
                 "http://localhost:8081/test-support",
@@ -28,6 +35,8 @@ class ResetEndpointSupportTest {
      * 期望：归一后仍得到单一 /test-support，无双斜杠。
      */
     @Test
+    @Order(2)
+    @DisplayName("resolve：末尾斜杠归一后仍补 /test-support")
     void resolve_trimsTrailingSlash() {
         assertEquals(
                 "http://localhost:8081/test-support",
@@ -40,6 +49,8 @@ class ResetEndpointSupportTest {
      * 期望：取默认模块基址再补 /test-support。
      */
     @Test
+    @Order(3)
+    @DisplayName("resolve：多模块 JSON 取默认模块基址")
     void resolve_jsonModuleUsesDefaultModule() {
         String json = "{\"默认模块\":\"http://demo:8081\",\"其他\":\"http://other:9000\"}";
         assertEquals("http://demo:8081/test-support", ResetEndpointSupport.resolve(json));
@@ -50,6 +61,8 @@ class ResetEndpointSupportTest {
      * 期望：返回空串。
      */
     @Test
+    @Order(4)
+    @DisplayName("join：基址为空时返回空串")
     void joinBaseAndPath_handlesEmptyBase() {
         assertEquals("", ResetEndpointSupport.joinBaseAndPath("", "/test-support"));
     }

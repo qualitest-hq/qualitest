@@ -3,6 +3,10 @@ package com.qualitest.ai.tools;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -21,6 +25,7 @@ import static org.mockito.Mockito.when;
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolsDefinitionServiceTest
  */
 @ExtendWith(MockitoExtension.class)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowDesignToolsDefinitionServiceTest {
 
     @Mock
@@ -40,6 +45,8 @@ class FlowDesignToolsDefinitionServiceTest {
      * 期望：Web 列表含 submit、get_flow_api_health；不含 list_flows / get_flow。
      */
     @Test
+    @Order(1)
+    @DisplayName("Web 清单含 submit 不含 list_flows")
     void loadToolsDefinition_containsSubmit_notListFlows() {
         List<String> names = service.loadToolsDefinition().stream()
                 .map(tool -> {
@@ -62,6 +69,8 @@ class FlowDesignToolsDefinitionServiceTest {
      * 期望：MCP 列表 12 个、含 list_flows/get_flow/get_flow_api_health，不含 submit。
      */
     @Test
+    @Order(2)
+    @DisplayName("MCP 十二工具不含 submit")
     void loadMcpProtocolTools_hasTwelveTools_excludesSubmit() {
         List<String> names = service.loadMcpProtocolTools().stream()
                 .map(tool -> String.valueOf(tool.get("name")))
@@ -78,6 +87,8 @@ class FlowDesignToolsDefinitionServiceTest {
      * 期望：名称集合与 FlowDesignToolNames.mcpAllowedToolIds() 一致。
      */
     @Test
+    @Order(3)
+    @DisplayName("MCP 工具 id 与枚举一致")
     void mcpToolIds_matchEnum() {
         Set<String> mcpNames = service.loadMcpProtocolTools().stream()
                 .map(tool -> String.valueOf(tool.get("name")))

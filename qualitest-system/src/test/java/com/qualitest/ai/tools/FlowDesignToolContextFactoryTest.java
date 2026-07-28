@@ -7,15 +7,13 @@ import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.model.GraphJson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,8 +46,8 @@ class FlowDesignToolContextFactoryTest {
      */
     @Test
     @Order(1)
+    @DisplayName("Web 请求组装上下文并注入限额")
     void fromDesignRequest_buildsContextWithMentions() {
-        begin("fromDesignRequest_buildsContextWithMentions");
         TestFlowDesignRequest request = new TestFlowDesignRequest();
         request.setTestProjectId(PROJECT_ID);
         request.setTestFlowId(3001L);
@@ -61,8 +59,6 @@ class FlowDesignToolContextFactoryTest {
         assertEquals(3001L, ctx.getTestFlowId());
         assertEquals(10, ctx.getMaxSearchApis());
         assertEquals(8192, ctx.getMaxToolResultBytes());
-        log("testFlowId=3001 maxSearchApis=10");
-        end("fromDesignRequest_buildsContextWithMentions");
     }
 
     /**
@@ -71,8 +67,8 @@ class FlowDesignToolContextFactoryTest {
      */
     @Test
     @Order(2)
+    @DisplayName("MCP 省略项目时回退 Token 项目")
     void fromMcpRequest_usesTokenProjectWhenOmitted() {
-        begin("fromMcpRequest_usesTokenProjectWhenOmitted");
         McpToolInvokeParams params = new McpToolInvokeParams();
         params.setTestFlowId(3001L);
         params.setScopeApiIds(List.of("2001"));
@@ -83,8 +79,6 @@ class FlowDesignToolContextFactoryTest {
         assertEquals(3001L, ctx.getTestFlowId());
         assertNotNull(ctx.getScopeApiIds());
         assertEquals(2001L, ctx.getScopeApiIds().get(0));
-        log("scopeApiId=2001");
-        end("fromMcpRequest_usesTokenProjectWhenOmitted");
     }
 
     /**
@@ -93,15 +87,13 @@ class FlowDesignToolContextFactoryTest {
      */
     @Test
     @Order(3)
+    @DisplayName("MCP 项目不一致时抛异常")
     void fromMcpRequest_rejectsMismatchedProjectId() {
-        begin("fromMcpRequest_rejectsMismatchedProjectId");
         McpToolInvokeParams params = new McpToolInvokeParams();
         params.setTestProjectId(999L);
 
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> factory.fromMcpRequest(params, TOKEN_PROJECT_ID, null));
         assertTrue(ex.getMessage().contains("不一致"));
-        log("rejected=true");
-        end("fromMcpRequest_rejectsMismatchedProjectId");
     }
 }

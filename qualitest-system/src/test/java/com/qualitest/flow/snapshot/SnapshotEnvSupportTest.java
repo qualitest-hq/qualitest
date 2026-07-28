@@ -1,6 +1,7 @@
 package com.qualitest.flow.snapshot;
 
 import com.qualitest.project.domain.TestProjectEnv;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ class SnapshotEnvSupportTest {
      */
     @Test
     @Order(1)
+    @DisplayName("允许重置时拼接 /test-support 根路径")
     void isResetAllowed_flagEnabled() {
         TestProjectEnv env = TestProjectEnv.builder()
                 .envUrl("http://localhost:8081")
@@ -40,6 +42,7 @@ class SnapshotEnvSupportTest {
      */
     @Test
     @Order(2)
+    @DisplayName("禁止重置时 isResetAllowed 为 false")
     void isResetAllowed_flagDisabled() {
         TestProjectEnv env = TestProjectEnv.builder().allowDestructiveReset(0).build();
         assertFalse(SnapshotEnvSupport.isResetAllowed(env), "allowDestructiveReset=0 时应禁止重置");

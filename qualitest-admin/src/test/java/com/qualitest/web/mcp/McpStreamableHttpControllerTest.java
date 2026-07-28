@@ -8,6 +8,7 @@ import com.qualitest.project.domain.TestProjectUserSetting;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -21,10 +22,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import static com.qualitest.common.test.FlowTestSections.begin;
-import static com.qualitest.common.test.FlowTestSections.end;
-import static com.qualitest.common.test.FlowTestSections.log;
-import static com.qualitest.common.test.FlowTestSections.quote;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -72,8 +69,8 @@ class McpStreamableHttpControllerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("initialize 返回 JSON 并带会话头")
     void handlePost_initialize_returnsJsonWithSessionHeader() throws Exception {
-        begin("handlePost_initialize_returnsJsonWithSessionHeader");
         String responseBody = """
                 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}
                 """;
@@ -86,8 +83,6 @@ class McpStreamableHttpControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string(McpJsonRpc.SESSION_HEADER, "session-abc"))
                 .andExpect(jsonPath("$.jsonrpc").value("2.0"));
-        log("sessionHeader=" + quote("session-abc") + " status=200");
-        end("handlePost_initialize_returnsJsonWithSessionHeader");
     }
 
     /**
@@ -96,8 +91,8 @@ class McpStreamableHttpControllerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("tools/list 委托 Dispatcher 并返回 tools 数组")
     void handlePost_toolsList_delegatesToDispatcher() throws Exception {
-        begin("handlePost_toolsList_delegatesToDispatcher");
         String responseBody = """
                 {"jsonrpc":"2.0","id":2,"result":{"tools":[]}}
                 """;
@@ -109,8 +104,6 @@ class McpStreamableHttpControllerTest {
                         .content("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.tools").isArray());
-        log("testProjectId=99 tools=array");
-        end("handlePost_toolsList_delegatesToDispatcher");
     }
 
     private static void bindProjectSetting(long testProjectId) {

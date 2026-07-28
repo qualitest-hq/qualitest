@@ -8,7 +8,11 @@ import com.qualitest.ai.llm.LlmProvider;
 import com.qualitest.ai.llm.history.HistoryWindowPolicy;
 import com.qualitest.ai.llm.history.HistoryWindowPolicyResolver;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.List;
@@ -21,6 +25,7 @@ import static org.mockito.Mockito.*;
  * 边界：全 Mock，不调用真实 LLM / DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiChatSessionSummaryServiceTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AiChatSessionSummaryServiceTest {
 
     private IAiChatSessionService aiChatSessionService;
@@ -50,6 +55,8 @@ class AiChatSessionSummaryServiceTest {
      * 期望：不调用 LLM，不写 context_summary。
      */
     @Test
+    @Order(1)
+    @DisplayName("assistant 条数不足时跳过摘要")
     void refreshSummaryIfNeeded_skipsWhenAssistantCountLow() throws Exception {
         AiChatSession session = AiChatSession.builder()
                 .aiChatSessionId(1L)
@@ -68,6 +75,8 @@ class AiChatSessionSummaryServiceTest {
      * 期望：加载被裁历史调 LLM 生成摘要，并更新 context_summary 与 summaryMessageCount。
      */
     @Test
+    @Order(2)
+    @DisplayName("达阈值时调 LLM 写回摘要")
     void refreshSummaryIfNeeded_updatesSummaryWhenTriggered() throws Exception {
         AiChatSession session = AiChatSession.builder()
                 .aiChatSessionId(1L)

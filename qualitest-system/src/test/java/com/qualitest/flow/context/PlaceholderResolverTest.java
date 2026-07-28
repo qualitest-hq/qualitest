@@ -14,12 +14,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link PlaceholderResolver} 单元测试：{{scope.path}} 占位符解析。
- * <p>
- * 覆盖 lenient（设计态，未定义 → 空串）与 strict（正式 Run，未定义 → 抛异常）两种模式；
- * env / flow / asset / http.* 快照路径、嵌套路径、混合文本。测试数据与前端
- * {@code placeholder-cases.json} 共享，保证 Java 与 TS 解析一致。
- * <p>
+ * 测 PlaceholderResolver：{{scope.path}} 占位符解析（lenient / strict）。
+ * 边界：fixture placeholder-cases.json，与前端 TS 用例对齐；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=PlaceholderResolverTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -67,6 +63,7 @@ class PlaceholderResolverTest {
      */
     @Test
     @Order(1)
+    @DisplayName("fixture：lenient/strict 解析与 expected 一致")
     void fixtureCases_matchExpected() {
         assertNotNull(cases, "fixture cases 数组不应为空");
         for (int i = 0; i < cases.size(); i++) {
@@ -105,6 +102,7 @@ class PlaceholderResolverTest {
      */
     @Test
     @Order(2)
+    @DisplayName("路径：http.duration 取自 lastResponse")
     void resolvePathSegment_httpDuration() {
         Object actual = lenient.resolvePathSegment(ctx, "http.duration");
         assertEquals(120L, actual, "http.duration 应取自 lastResponse.durationMs");
@@ -116,6 +114,7 @@ class PlaceholderResolverTest {
      */
     @Test
     @Order(3)
+    @DisplayName("路径：http.body 按点路径取值")
     void resolvePathSegment_httpBody() {
         Object actual = lenient.resolvePathSegment(ctx, "http.body.data.code");
         assertEquals(0, actual, "http.body.data.code 应从 lastResponse.body 按点路径取值");
@@ -127,6 +126,7 @@ class PlaceholderResolverTest {
      */
     @Test
     @Order(4)
+    @DisplayName("strict：未定义占位符抛错并带名称")
     void strict_throwsWithPlaceholderName() {
         FlowExecutionException ex = assertThrows(
                 FlowExecutionException.class,

@@ -1,14 +1,12 @@
 package com.qualitest.flow.snapshot;
 
 import com.qualitest.flow.context.ResolvedRunScenario;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,8 +24,8 @@ class RunSnapshotPolicyTest {
      */
     @Test
     @Order(1)
+    @DisplayName("归一化场景策略大小写")
     void fromScenario_normalizesCase() {
-        begin("fromScenario_normalizesCase");
         RunSnapshotPolicy policy = RunSnapshotPolicy.fromScenario(ResolvedRunScenario.builder()
                 .onNodeFailure("Prompt")
                 .onSnapshotFailure("CONTINUE")
@@ -35,8 +33,6 @@ class RunSnapshotPolicyTest {
         assertTrue(policy.shouldPauseOnNodeFailure());
         assertTrue(policy.shouldContinueOnSnapshotFailure());
         assertFalse(policy.shouldAbortOnSnapshotFailure());
-        log("pauseOnNodeFailure=true continueOnSnapshotFailure=true");
-        end("fromScenario_normalizesCase");
     }
 
     /**
@@ -45,12 +41,10 @@ class RunSnapshotPolicyTest {
      */
     @Test
     @Order(2)
+    @DisplayName("defaults 节点不暂停且快照 abort")
     void defaults_failAndAbort() {
-        begin("defaults_failAndAbort");
         RunSnapshotPolicy policy = RunSnapshotPolicy.defaults();
         assertFalse(policy.shouldPauseOnNodeFailure());
         assertTrue(policy.shouldAbortOnSnapshotFailure());
-        log("defaultOnNodeFailure=fail defaultOnSnapshotFailure=abort");
-        end("defaults_failAndAbort");
     }
 }

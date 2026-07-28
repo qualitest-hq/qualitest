@@ -17,19 +17,19 @@ import com.qualitest.project.domain.TestFlowRunStep;
 import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.service.ITestFlowRunService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,6 +42,7 @@ import static org.mockito.Mockito.when;
  * 边界：Mock 落库/快照服务；夹具 flow/linear-run-graph.json（截断为两节点）。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TestFlowExecutorPauseResumeTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class TestFlowExecutorPauseResumeTest {
 
     private ITestFlowRunService runService;
@@ -124,8 +125,9 @@ class TestFlowExecutorPauseResumeTest {
      * 期望：首次 paused 且 state 含 n2；续跑后 passed。
      */
     @Test
+    @Order(1)
+    @DisplayName("失败暂停后原地重试可通过")
     void execute_promptOnFailure_pausesThenRetryInPlacePasses() {
-        begin("execute_promptOnFailure_pausesThenRetryInPlacePasses");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         graph.setNodes(graph.getNodes().subList(0, 2));
         graph.setEdges(graph.getEdges().subList(0, 1));
@@ -158,7 +160,6 @@ class TestFlowExecutorPauseResumeTest {
         assertTrue(first.isPaused());
         assertEquals(TestFlowExecutor.RUN_STATUS_PAUSED, pausedRun.getStatus());
         assertTrue(pausedRun.getRunExecutionState() != null && pausedRun.getRunExecutionState().contains("n2"));
-        log("firstRun paused=true pauseNode=n2");
 
         pausedRun.setStatus(TestFlowExecutor.RUN_STATUS_PAUSED);
         ExecutionOutcome resumed = executor.resume(
@@ -169,8 +170,6 @@ class TestFlowExecutorPauseResumeTest {
 
         assertTrue(resumed.isPassed());
         assertEquals(TestFlowExecutor.RUN_STATUS_PASSED, pausedRun.getStatus());
-        log("resumed status=passed");
-        end("execute_promptOnFailure_pausesThenRetryInPlacePasses");
     }
 
     private static GraphJson loadGraph(String path) {
@@ -182,4 +181,3 @@ class TestFlowExecutorPauseResumeTest {
         }
     }
 }
-

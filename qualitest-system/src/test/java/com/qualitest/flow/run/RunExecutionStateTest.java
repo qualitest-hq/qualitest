@@ -1,14 +1,15 @@
 package com.qualitest.flow.run;
 
 import com.qualitest.flow.snapshot.SnapshotStackEntry;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -17,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * 边界：纯序列化，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunExecutionStateTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RunExecutionStateTest {
 
     /**
@@ -24,8 +26,9 @@ class RunExecutionStateTest {
      * 期望：字段完整保留。
      */
     @Test
+    @Order(1)
+    @DisplayName("暂停状态 JSON 往返字段完整")
     void jsonRoundTrip() {
-        begin("jsonRoundTrip");
         RunExecutionState state = RunExecutionState.builder()
                 .nextStepIndex(5)
                 .pauseNodeId("n2")
@@ -39,7 +42,5 @@ class RunExecutionStateTest {
         assertEquals(5, restored.getNextStepIndex());
         assertEquals("n2", restored.getPauseNodeId());
         assertEquals(1, restored.getSnapshotStack().size());
-        log("nextStepIndex=5 pauseNodeId=n2 stackSize=1");
-        end("jsonRoundTrip");
     }
 }

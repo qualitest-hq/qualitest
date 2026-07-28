@@ -9,6 +9,7 @@ import com.qualitest.api.params.McpToolInvokeParams;
 import com.qualitest.api.result.McpToolResult;
 import com.qualitest.common.exception.ServiceException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -16,10 +17,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.Map;
 
-import static com.qualitest.common.test.FlowTestSections.begin;
-import static com.qualitest.common.test.FlowTestSections.end;
-import static com.qualitest.common.test.FlowTestSections.log;
-import static com.qualitest.common.test.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mock;
@@ -27,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 McpToolInvokeService：白名单拦截、拒绝 submit_patch、只读工具委托与 error 标记。
- * 边界：Executor/ContextFactory Mock；存量 begin/end 保留。
+ * 边界：Executor/ContextFactory Mock；无真实 LLM / DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=McpToolInvokeServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -50,12 +47,10 @@ class McpToolInvokeServiceTest {
      */
     @Test
     @Order(1)
+    @DisplayName("未知工具名抛 ServiceException")
     void invoke_unknownTool_throws() {
-        begin("invoke_unknownTool_throws");
         McpToolInvokeParams params = new McpToolInvokeParams();
         assertThrows(ServiceException.class, () -> service.invoke("unknown", params, 100L));
-        log("tool=" + quote("unknown") + " rejected=true");
-        end("invoke_unknownTool_throws");
     }
 
     /**
@@ -64,14 +59,12 @@ class McpToolInvokeServiceTest {
      */
     @Test
     @Order(2)
+    @DisplayName("submit_patch 被拒绝")
     void invoke_submitPatch_rejected() {
-        begin("invoke_submitPatch_rejected");
         McpToolInvokeParams params = new McpToolInvokeParams();
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> service.invoke(FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH, params, 100L));
         assertTrue(ex.getMessage().contains("不支持修改测试流"));
-        log("error=" + quote(ex.getMessage()));
-        end("invoke_submitPatch_rejected");
     }
 
     /**
@@ -80,8 +73,8 @@ class McpToolInvokeServiceTest {
      */
     @Test
     @Order(3)
+    @DisplayName("list_flows 白名单通过并委托")
     void invoke_listFlows_allowed() {
-        begin("invoke_listFlows_allowed");
         McpToolInvokeParams params = new McpToolInvokeParams();
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testProjectId(100L)
@@ -94,8 +87,6 @@ class McpToolInvokeServiceTest {
 
         McpToolResult result = service.invoke(FlowDesignToolExecutor.LIST_FLOWS, params, 100L);
         assertEquals(FlowDesignToolExecutor.LIST_FLOWS, result.getTool());
-        log("tool=" + quote(result.getTool()));
-        end("invoke_listFlows_allowed");
     }
 
     /**
@@ -104,8 +95,8 @@ class McpToolInvokeServiceTest {
      */
     @Test
     @Order(4)
+    @DisplayName("search_apis 返回含 items 的结果")
     void invoke_searchApis_returnsResult() {
-        begin("invoke_searchApis_returnsResult");
         McpToolInvokeParams params = new McpToolInvokeParams();
         params.setArguments(Map.of("keyword", "login"));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
@@ -122,8 +113,6 @@ class McpToolInvokeServiceTest {
         assertEquals(FlowDesignToolExecutor.SEARCH_APIS, result.getTool());
         JSONObject json = JSON.parseObject(result.getResultJson());
         assertTrue(json.containsKey("items"));
-        log("tool=search_apis hasItems=true");
-        end("invoke_searchApis_returnsResult");
     }
 
     /**
@@ -132,8 +121,8 @@ class McpToolInvokeServiceTest {
      */
     @Test
     @Order(5)
+    @DisplayName("list_subflow_templates 返回模板列表")
     void invoke_listSubflowTemplates_allowed() {
-        begin("invoke_listSubflowTemplates_allowed");
         McpToolInvokeParams params = new McpToolInvokeParams();
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testProjectId(100L)
@@ -152,8 +141,6 @@ class McpToolInvokeServiceTest {
         assertTrue(json.containsKey("projectSubflows"));
         assertEquals("tpl_oauth_client_credentials",
                 json.getJSONArray("platformTemplates").getJSONObject(0).getString("templateId"));
-        log("tool=list_subflow_templates platformCount=" + json.getJSONArray("platformTemplates").size());
-        end("invoke_listSubflowTemplates_allowed");
     }
 
     /**
@@ -162,8 +149,8 @@ class McpToolInvokeServiceTest {
      */
     @Test
     @Order(6)
+    @DisplayName("get_subflow_detail 返回节点边计数")
     void invoke_getSubflowDetail_allowed() {
-        begin("invoke_getSubflowDetail_allowed");
         McpToolInvokeParams params = new McpToolInvokeParams();
         params.setArguments(Map.of("testFlowId", "3002"));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
@@ -182,8 +169,6 @@ class McpToolInvokeServiceTest {
         assertEquals("3002", json.getString("testFlowId"));
         assertEquals(2, json.getIntValue("nodeCount"));
         assertEquals(1, json.getIntValue("edgeCount"));
-        log("tool=get_subflow_detail testFlowId=" + quote(json.getString("testFlowId")));
-        end("invoke_getSubflowDetail_allowed");
     }
 
     /**
@@ -192,8 +177,8 @@ class McpToolInvokeServiceTest {
      */
     @Test
     @Order(7)
+    @DisplayName("get_flow 允许并返回结果")
     void invoke_getFlow_allowed() {
-        begin("invoke_getFlow_allowed");
         McpToolInvokeParams params = new McpToolInvokeParams();
         params.setArguments(Map.of("testFlowId", "3001"));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
@@ -207,8 +192,6 @@ class McpToolInvokeServiceTest {
 
         assertEquals(FlowDesignToolExecutor.GET_FLOW, result.getTool());
         assertFalse(result.isError());
-        log("tool=get_flow error=false");
-        end("invoke_getFlow_allowed");
     }
 
     /**
@@ -217,8 +200,8 @@ class McpToolInvokeServiceTest {
      */
     @Test
     @Order(8)
+    @DisplayName("业务 error 字段标记 isError")
     void invoke_businessError_setsErrorFlag() {
-        begin("invoke_businessError_setsErrorFlag");
         McpToolInvokeParams params = new McpToolInvokeParams();
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testProjectId(100L)
@@ -230,7 +213,5 @@ class McpToolInvokeServiceTest {
         McpToolResult result = service.invoke(FlowDesignToolExecutor.GET_FLOW, params, 100L);
 
         assertTrue(result.isError());
-        log("error=true");
-        end("invoke_businessError_setsErrorFlag");
     }
 }

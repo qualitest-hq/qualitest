@@ -6,6 +6,7 @@ import com.qualitest.project.domain.TestProjectUserSetting;
 import com.qualitest.project.service.ITestProjectUserSettingService;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -16,9 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
-import static com.qualitest.common.test.FlowTestSections.begin;
-import static com.qualitest.common.test.FlowTestSections.end;
-import static com.qualitest.common.test.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
@@ -54,8 +52,8 @@ class ProjectTokenFilterTest {
      */
     @Test
     @Order(1)
+    @DisplayName("MCP 缺 Token 返回 JSON-RPC -32001")
     void mcpEndpoint_missingToken_returnsJsonRpcError() throws Exception {
-        begin("mcpEndpoint_missingToken_returnsJsonRpcError");
         MockHttpServletRequest request = new MockHttpServletRequest("POST", ProjectConstants.MCP_ENDPOINT);
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -65,8 +63,6 @@ class ProjectTokenFilterTest {
         assertTrue(response.getContentAsString().contains("\"jsonrpc\":\"2.0\""));
         assertTrue(response.getContentAsString().contains("\"code\":-32001"));
         verify(filterChain, never()).doFilter(request, response);
-        log("status=401 errorCode=-32001 chainBlocked=true");
-        end("mcpEndpoint_missingToken_returnsJsonRpcError");
     }
 
     /**
@@ -75,8 +71,8 @@ class ProjectTokenFilterTest {
      */
     @Test
     @Order(2)
+    @DisplayName("MCP Token 无效返回 JSON-RPC 错误")
     void mcpEndpoint_invalidToken_returnsJsonRpcError() throws Exception {
-        begin("mcpEndpoint_invalidToken_returnsJsonRpcError");
         MockHttpServletRequest request = new MockHttpServletRequest("POST", ProjectConstants.MCP_ENDPOINT);
         request.addHeader(ProjectConstants.PROJECT_TOKEN_HEADER, "bad-token");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -88,8 +84,6 @@ class ProjectTokenFilterTest {
         assertEquals(401, response.getStatus());
         assertTrue(response.getContentAsString().contains("Token 无效"));
         assertTrue(response.getContentAsString().contains("\"jsonrpc\":\"2.0\""));
-        log("status=401 messageContains=Token无效");
-        end("mcpEndpoint_invalidToken_returnsJsonRpcError");
     }
 
     /**
@@ -98,8 +92,8 @@ class ProjectTokenFilterTest {
      */
     @Test
     @Order(3)
+    @DisplayName("REST 缺 Token 返回 {code,msg}")
     void restProjectEndpoint_missingToken_returnsRestError() throws Exception {
-        begin("restProjectEndpoint_missingToken_returnsRestError");
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/project/apis");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -108,8 +102,6 @@ class ProjectTokenFilterTest {
         assertEquals(401, response.getStatus());
         assertTrue(response.getContentAsString().contains("\"code\":401"));
         assertTrue(response.getContentAsString().contains("\"msg\""));
-        log("status=401 restFormat=true");
-        end("restProjectEndpoint_missingToken_returnsRestError");
     }
 
     /**
@@ -118,8 +110,8 @@ class ProjectTokenFilterTest {
      */
     @Test
     @Order(4)
+    @DisplayName("MCP Token 有效时放行并写入项目上下文")
     void mcpEndpoint_validToken_continuesChain() throws Exception {
-        begin("mcpEndpoint_validToken_continuesChain");
         MockHttpServletRequest request = new MockHttpServletRequest("POST", ProjectConstants.MCP_ENDPOINT);
         request.addHeader(ProjectConstants.PROJECT_TOKEN_HEADER, "good-token");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -131,7 +123,5 @@ class ProjectTokenFilterTest {
 
         verify(filterChain).doFilter(request, response);
         assertEquals(setting, request.getAttribute(ProjectConstants.PROJECT_SETTING_ATTR));
-        log("testProjectId=1 chainContinued=true");
-        end("mcpEndpoint_validToken_continuesChain");
     }
 }

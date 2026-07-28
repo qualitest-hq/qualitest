@@ -5,7 +5,11 @@ import com.qualitest.flow.context.ResolvedRunScenario;
 import com.qualitest.project.domain.TestFlowRunStep;
 import com.qualitest.project.result.TestFlowRunResult;
 import com.qualitest.project.result.TestFlowRunStepResult;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 import java.util.Map;
@@ -17,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 边界：无落库记录时从 graphJsonSnapshot 反推。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=StepResultWriterTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class StepResultWriterTest {
 
     private final StepResultWriter writer = new StepResultWriter();
@@ -26,6 +31,8 @@ class StepResultWriterTest {
      * 期望：stepIndex=0、nodeType=run_config；details 含 scenarioLoaded 与 flowAfter。
      */
     @Test
+    @Order(1)
+    @DisplayName("run_config 步写入 scenarioLoaded 与 flowAfter")
     void toRunConfigStepEntity_writesScenarioLoadedAndFlowAfter() {
         ResolvedRunScenario scenario = ResolvedRunScenario.builder()
                 .scenarioId("sc-1")
@@ -62,6 +69,8 @@ class StepResultWriterTest {
      * 期望：fallback 步含 scenarioLoaded；flowAfter.x=1；hasRunConfigStep=true。
      */
     @Test
+    @Order(2)
+    @DisplayName("无 step0 时从 graph 快照回退")
     void buildFallbackRunConfigStepResult_derivesFromGraphSnapshot() {
         String snapshot = """
                 {
@@ -104,6 +113,8 @@ class StepResultWriterTest {
      * 期望：前者 true，后者 false。
      */
     @Test
+    @Order(3)
+    @DisplayName("识别已落库的 run_config@0")
     void hasRunConfigStep_detectsPersistedStep0() {
         TestFlowRunStepResult step0 = TestFlowRunStepResult.builder()
                 .stepIndex(0L)

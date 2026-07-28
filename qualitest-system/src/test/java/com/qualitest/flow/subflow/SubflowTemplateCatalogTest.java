@@ -2,19 +2,17 @@ package com.qualitest.flow.subflow;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 SubflowTemplateCatalog：内置模板目录、按 id 查找、图骨架与 flowOutputs 嵌入。
- * 边界：未知 templateId / null 元数据；存量 begin/end 保留。
+ * 边界：classpath 模板；未知 templateId / null 元数据；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowTemplateCatalogTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -29,13 +27,11 @@ class SubflowTemplateCatalogTest {
      */
     @Test
     @Order(1)
+    @DisplayName("目录：加载平台内置模板列表")
     void listTemplates_loadsPlatformCatalog() {
-        begin("listTemplates_loadsPlatformCatalog");
         var templates = SubflowTemplateCatalog.listTemplates();
         assertFalse(templates.isEmpty());
         assertTrue(templates.stream().anyMatch(t -> OAUTH_TEMPLATE_ID.equals(t.getString("templateId"))));
-        log("templateCount=" + templates.size());
-        end("listTemplates_loadsPlatformCatalog");
     }
 
     /**
@@ -44,16 +40,14 @@ class SubflowTemplateCatalogTest {
      */
     @Test
     @Order(2)
+    @DisplayName("查找：已知 id 命中，未知/null 返回 null")
     void findById_resolvesKnownTemplate() {
-        begin("findById_resolvesKnownTemplate");
         JSONObject tpl = SubflowTemplateCatalog.findById(OAUTH_TEMPLATE_ID);
         assertNotNull(tpl);
         assertEquals(OAUTH_TEMPLATE_ID, tpl.getString("templateId"));
         assertNotNull(tpl.getString("name"));
         assertNull(SubflowTemplateCatalog.findById("tpl_not_exists"));
         assertNull(SubflowTemplateCatalog.findById(null));
-        log("name=" + tpl.getString("name"));
-        end("findById_resolvesKnownTemplate");
     }
 
     /**
@@ -62,14 +56,12 @@ class SubflowTemplateCatalogTest {
      */
     @Test
     @Order(3)
+    @DisplayName("加载：OAuth 模板图含 http 节点")
     void loadGraphJson_oauthTemplate() {
-        begin("loadGraphJson_oauthTemplate");
         String graph = SubflowTemplateCatalog.loadGraphJson(OAUTH_TEMPLATE_ID);
         assertNotNull(graph);
         assertTrue(graph.contains("\"type\": \"http\""));
         assertNull(SubflowTemplateCatalog.loadGraphJson("tpl_missing"));
-        log("graphLength=" + graph.length());
-        end("loadGraphJson_oauthTemplate");
     }
 
     /**
@@ -78,8 +70,8 @@ class SubflowTemplateCatalogTest {
      */
     @Test
     @Order(4)
+    @DisplayName("嵌入：meta.flowOutputs 写入图骨架")
     void embedFlowOutputsIntoGraph_writesMetaFlowOutputs() {
-        begin("embedFlowOutputsIntoGraph_writesMetaFlowOutputs");
         JSONObject tpl = SubflowTemplateCatalog.findById(LOGIN_BEARER_TEMPLATE_ID);
         assertNotNull(tpl);
 
@@ -100,7 +92,5 @@ class SubflowTemplateCatalogTest {
 
         String empty = SubflowTemplateCatalog.embedFlowOutputsIntoGraph("{\"meta\":{}}", null);
         assertTrue(JSONObject.parseObject(empty).getJSONObject("meta").getJSONArray("flowOutputs").isEmpty());
-        log("outputs=" + flowOutputs.size());
-        end("embedFlowOutputsIntoGraph_writesMetaFlowOutputs");
     }
 }

@@ -5,17 +5,13 @@ import org.junit.jupiter.api.*;
 
 import java.util.List;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
-import static com.qualitest.flow.support.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
  * 测 AiAgentRunner：多步 tool_call 循环（执行工具、写回 tool 消息、maxSteps / 终态探针）。
- * 边界：Mock LlmProvider / AiLlmConfigService，不发真实 LLM；存量 begin/end 保留。
+ * 边界：Mock LlmProvider / AiLlmConfigService，不发真实 LLM。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiAgentRunnerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -46,8 +42,8 @@ class AiAgentRunnerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("tool_call 后返回最终 JSON 成功")
     void run_toolCallThenFinalJson_succeeds() {
-        begin("run_toolCallThenFinalJson_succeeds");
         LlmToolCall toolCall = LlmToolCall.builder()
                 .id("call_1")
                 .name("search_apis")
@@ -73,8 +69,6 @@ class AiAgentRunnerTest {
         assertEquals("{\"addNodes\":[],\"addEdges\":[]}", result.getContent());
         assertEquals(1, result.getStepsUsed());
         verify(llmProvider, times(2)).chat(eq(modelConfig), any());
-        log("ok=" + result.isOk() + " content=" + quote(result.getContent()) + " stepsUsed=" + result.getStepsUsed());
-        end("run_toolCallThenFinalJson_succeeds");
     }
 
     /**
@@ -83,8 +77,8 @@ class AiAgentRunnerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("超过 maxSteps 时返回错误")
     void run_exceedsMaxSteps_returnsError() {
-        begin("run_exceedsMaxSteps_returnsError");
         LlmToolCall toolCall = LlmToolCall.builder()
                 .id("call_loop")
                 .name("search_apis")
@@ -103,8 +97,6 @@ class AiAgentRunnerTest {
         assertFalse(result.isOk());
         assertTrue(result.getError().contains("最大步数"));
         assertEquals(2, result.getStepsUsed());
-        log("ok=" + result.isOk() + " error=" + quote(result.getError()) + " stepsUsed=" + result.getStepsUsed());
-        end("run_exceedsMaxSteps_returnsError");
     }
 
     /**
@@ -113,8 +105,8 @@ class AiAgentRunnerTest {
      */
     @Test
     @Order(3)
+    @DisplayName("无 tool_call 时直接返回 content")
     void run_directContent_noToolCalls() {
-        begin("run_directContent_noToolCalls");
         when(llmProvider.chat(eq(modelConfig), any()))
                 .thenReturn(LlmChatResponse.builder()
                         .content("  {\"summary\":\"ok\"}  ")
@@ -131,8 +123,6 @@ class AiAgentRunnerTest {
         assertEquals("{\"summary\":\"ok\"}", result.getContent());
         assertEquals(0, result.getStepsUsed());
         verify(llmProvider, times(1)).chat(eq(modelConfig), any());
-        log("ok=" + result.isOk() + " content=" + quote(result.getContent()) + " stepsUsed=" + result.getStepsUsed());
-        end("run_directContent_noToolCalls");
     }
 
     /**
@@ -141,8 +131,8 @@ class AiAgentRunnerTest {
      */
     @Test
     @Order(4)
+    @DisplayName("终态探针成功时无 content 仍 ok")
     void run_terminalSuccessProbe_succeedsWithoutContent() {
-        begin("run_terminalSuccessProbe_succeedsWithoutContent");
         LlmToolCall toolCall = LlmToolCall.builder()
                 .id("call_submit")
                 .name("submit_flow_design_patch")
@@ -163,6 +153,5 @@ class AiAgentRunnerTest {
         assertTrue(result.isTerminalViaTool());
         assertNull(result.getContent());
         assertEquals(1, result.getStepsUsed());
-        end("run_terminalSuccessProbe_succeedsWithoutContent");
     }
 }

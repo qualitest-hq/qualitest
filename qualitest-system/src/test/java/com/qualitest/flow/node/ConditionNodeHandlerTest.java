@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.ConditionNodeHandler;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -13,14 +14,11 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 ConditionNodeHandler：按 branches 条件求值并写入 branchTaken。
- * 边界：命中 if / 落 else / target 缺失失败；存量 begin/end 保留。
+ * 边界：命中 if / 落 else / target 缺失失败；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ConditionNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -34,8 +32,8 @@ class ConditionNodeHandlerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("执行：条件命中 IF 分支")
     void execute_hitsIfBranch() {
-        begin("execute_hitsIfBranch");
         GraphNode node = conditionNode("b_if", "n_ok", "b_else", "n_fail");
         FlowRunContext ctx = new FlowRunContext();
         ctx.getFlow().put("code", 0);
@@ -44,8 +42,6 @@ class ConditionNodeHandlerTest {
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertEquals("b_if", result.getBranchTaken().get("branchId"));
         assertEquals("if", result.getBranchTaken().get("kind"));
-        log("branchTaken=" + result.getBranchTaken());
-        end("execute_hitsIfBranch");
     }
 
     /**
@@ -54,8 +50,8 @@ class ConditionNodeHandlerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("执行：条件不满足时落入 ELSE")
     void execute_fallsThroughToElse() {
-        begin("execute_fallsThroughToElse");
         GraphNode node = conditionNode("b_if", "n_ok", "b_else", "n_fail");
         FlowRunContext ctx = new FlowRunContext();
         ctx.getFlow().put("code", 99);
@@ -64,8 +60,6 @@ class ConditionNodeHandlerTest {
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertEquals("b_else", result.getBranchTaken().get("branchId"));
         assertEquals("else", result.getBranchTaken().get("kind"));
-        log("branchTaken=" + result.getBranchTaken());
-        end("execute_fallsThroughToElse");
     }
 
     /**
@@ -74,8 +68,8 @@ class ConditionNodeHandlerTest {
      */
     @Test
     @Order(3)
+    @DisplayName("执行：命中分支缺 target 时失败")
     void execute_failsWhenTargetMissing() {
-        begin("execute_failsWhenTargetMissing");
         JSONObject ifBranch = branch("b_if", "if", null);
         ifBranch.put("conditions", conditions("flow.flag", "eq", "1"));
         JSONObject elseBranch = branch("b_else", "else", "n_fail");
@@ -87,8 +81,6 @@ class ConditionNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(StepResult.STATUS_FAILED, result.getStatus());
         assertNotNull(result.getError());
-        log("error=" + result.getError().getCode());
-        end("execute_failsWhenTargetMissing");
     }
 
     /** 构造含 IF/ELSE 两分支的 condition 节点 */

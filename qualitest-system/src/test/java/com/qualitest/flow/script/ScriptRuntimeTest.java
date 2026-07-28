@@ -5,18 +5,15 @@ import com.qualitest.api.result.DebugHttpForwardResult;
 import com.qualitest.api.service.IDebugHttpForwardService;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -24,7 +21,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 ScriptRuntime：JS/Python 沙箱执行、内置工具与超时/非法语言。
- * 边界：真实 Graal 引擎；含死循环超时；存量 begin/end 保留。
+ * 边界：真实 Graal 引擎；含死循环超时；ctx.http 用 Mock ForwardService。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ScriptRuntimeTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -38,8 +35,8 @@ class ScriptRuntimeTest {
      */
     @Test
     @Order(1)
+    @DisplayName("JS getFlow/setFlow 写入成功")
     void javascript_setFlowAndGetFlow() {
-        begin("javascript_setFlowAndGetFlow");
         FlowRunContext ctx = FlowRunContext.builder()
                 .flow(new HashMap<>(Map.of("a", "hello")))
                 .build();
@@ -54,8 +51,6 @@ class ScriptRuntimeTest {
         assertEquals("hello", ctx.getFlow().get("x"));
         assertEquals(1, result.getWrites().size());
         assertEquals("x", result.getWrites().get(0).get("key"));
-        log("flow.x=" + ctx.getFlow().get("x"));
-        end("javascript_setFlowAndGetFlow");
     }
 
     /**
@@ -64,8 +59,8 @@ class ScriptRuntimeTest {
      */
     @Test
     @Order(2)
+    @DisplayName("JS jsonParse 与 HMAC/MD5 正确")
     void javascript_jsonAndHmac() {
-        begin("javascript_jsonAndHmac");
         FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>()).build();
         String source = """
                 var obj = ctx.jsonParse('{"n":1}');
@@ -82,8 +77,6 @@ class ScriptRuntimeTest {
         assertNotNull(ctx.getFlow().get("sign"));
         assertEquals(64, String.valueOf(ctx.getFlow().get("sign")).length());
         assertEquals("636a83b0e93f990608f25e7798322c6", ctx.getFlow().get("digest"));
-        log("sign=" + ctx.getFlow().get("sign"));
-        end("javascript_jsonAndHmac");
     }
 
     /**
@@ -92,8 +85,8 @@ class ScriptRuntimeTest {
      */
     @Test
     @Order(3)
+    @DisplayName("Python setFlow 冒烟成功")
     void python_smokeSetFlow() {
-        begin("python_smokeSetFlow");
         FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>()).build();
         String source = "ctx.setFlow('pyOk', True)";
         ScriptExecutionResult result = runtime.execute(
@@ -104,8 +97,6 @@ class ScriptRuntimeTest {
         );
         assertTrue(result.isSuccess(), result.getErrorMessage());
         assertEquals(true, ctx.getFlow().get("pyOk"));
-        log("flow.pyOk=" + ctx.getFlow().get("pyOk"));
-        end("python_smokeSetFlow");
     }
 
     /**
@@ -114,8 +105,8 @@ class ScriptRuntimeTest {
      */
     @Test
     @Order(4)
+    @DisplayName("空源码失败并返回 TF_SCRIPT_ERROR")
     void emptySource_fails() {
-        begin("emptySource_fails");
         FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>()).build();
         ScriptExecutionResult result = runtime.execute(
                 ScriptConstants.LANGUAGE_JAVASCRIPT,
@@ -125,8 +116,6 @@ class ScriptRuntimeTest {
         );
         assertFalse(result.isSuccess());
         assertEquals(FlowErrorCode.TF_SCRIPT_ERROR, result.getErrorCode());
-        log("errorCode=" + result.getErrorCode().getCode());
-        end("emptySource_fails");
     }
 
     /**
@@ -135,14 +124,12 @@ class ScriptRuntimeTest {
      */
     @Test
     @Order(5)
+    @DisplayName("非法语言失败并返回 TF_SCRIPT_ERROR")
     void invalidLanguage_fails() {
-        begin("invalidLanguage_fails");
         FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>()).build();
         ScriptExecutionResult result = runtime.execute("ruby", "1", 5000, ctx);
         assertFalse(result.isSuccess());
         assertEquals(FlowErrorCode.TF_SCRIPT_ERROR, result.getErrorCode());
-        log("errorCode=" + result.getErrorCode().getCode());
-        end("invalidLanguage_fails");
     }
 
     /**
@@ -151,8 +138,8 @@ class ScriptRuntimeTest {
      */
     @Test
     @Order(6)
+    @DisplayName("死循环超时返回 TF_SCRIPT_TIMEOUT")
     void timeout_fails() {
-        begin("timeout_fails");
         FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>()).build();
         String source = "while(true){}";
         ScriptExecutionResult result = runtime.execute(
@@ -163,8 +150,6 @@ class ScriptRuntimeTest {
         );
         assertFalse(result.isSuccess());
         assertEquals(FlowErrorCode.TF_SCRIPT_TIMEOUT, result.getErrorCode());
-        log("errorCode=" + result.getErrorCode().getCode());
-        end("timeout_fails");
     }
 
     /**
@@ -173,8 +158,8 @@ class ScriptRuntimeTest {
      */
     @Test
     @Order(7)
+    @DisplayName("JS base64/uuid/session/log 可用")
     void javascript_enhancedCtxApis() {
-        begin("javascript_enhancedCtxApis");
         FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>()).session(new HashMap<>()).build();
         String source = """
                 ctx.log('hello');
@@ -196,8 +181,6 @@ class ScriptRuntimeTest {
         assertNotNull(ctx.getFlow().get("id"));
         assertEquals("token-1", ctx.getFlow().get("cached"));
         assertTrue(result.getLogs().stream().anyMatch(l -> l.contains("hello")));
-        log("b64RoundTrip=ok sessionCached=token-1");
-        end("javascript_enhancedCtxApis");
     }
 
     /**
@@ -206,8 +189,8 @@ class ScriptRuntimeTest {
      */
     @Test
     @Order(8)
+    @DisplayName("ctx.http 成功写入 flow")
     void javascript_ctxHttp_success() {
-        begin("javascript_ctxHttp_success");
         IDebugHttpForwardService forwardService = mock(IDebugHttpForwardService.class);
         when(forwardService.forward(any(DebugHttpForwardParams.class))).thenReturn(
                 DebugHttpForwardResult.success(200, "OK", Map.of("Content-Type", "application/json"),
@@ -236,8 +219,6 @@ class ScriptRuntimeTest {
         assertTrue(result.isSuccess(), result.getErrorMessage());
         assertEquals(true, ctx.getFlow().get("ok"));
         assertEquals("abc", ctx.getFlow().get("code"));
-        log("ok=true code=abc");
-        end("javascript_ctxHttp_success");
     }
 
     /**
@@ -246,8 +227,8 @@ class ScriptRuntimeTest {
      */
     @Test
     @Order(9)
+    @DisplayName("ctx.http 超限调用失败")
     void javascript_ctxHttp_callLimit() {
-        begin("javascript_ctxHttp_callLimit");
         IDebugHttpForwardService forwardService = mock(IDebugHttpForwardService.class);
         when(forwardService.forward(any())).thenReturn(
                 DebugHttpForwardResult.success(200, "OK", Map.of(), "{}")
@@ -270,7 +251,5 @@ class ScriptRuntimeTest {
         );
         assertFalse(result.isSuccess());
         assertEquals(FlowErrorCode.TF_SCRIPT_ERROR, result.getErrorCode());
-        log("callLimitExceeded=true");
-        end("javascript_ctxHttp_callLimit");
     }
 }

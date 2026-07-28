@@ -5,7 +5,6 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.util.ApiConfigV2TestFixtures;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
-import com.qualitest.ai.tools.FlowDesignApiSummarizer;
 import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.project.domain.TestProjectApi;
@@ -29,6 +28,7 @@ import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphRunScenario;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -38,10 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
-import static com.qualitest.flow.support.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mock;
@@ -49,7 +45,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 FlowDesignToolExecutor：设计工具只读查询、健康检查与 submit_flow_design_patch。
- * 边界：Mock Mapper / Normalizer / 各 Service，不访问 DB 与真实 LLM；存量 begin/end 保留。
+ * 边界：Mock Mapper / Normalizer / 各 Service，不访问 DB 与真实 LLM。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolExecutorTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -95,8 +91,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(1)
+    @DisplayName("按关键词搜索返回匹配 API")
     void searchApis_byKeyword_returnsMatchedItems() {
-        begin("searchApis_byKeyword_returnsMatchedItems");
         TestProjectApi api = loginApi();
         when(mapper.searchApisByKeyword(PROJECT_ID, "login", 10)).thenReturn(List.of(api));
 
@@ -112,11 +108,6 @@ class FlowDesignToolExecutorTest {
         assertEquals("POST", items.getJSONObject(0).getString("method"));
         assertEquals("/api/auth/login", items.getJSONObject(0).getString("path"));
         assertFalse(root.getBooleanValue("truncated"));
-        log("items=" + items.size()
-                + " id=" + quote(items.getJSONObject(0).getString("id"))
-                + " method=" + quote(items.getJSONObject(0).getString("method"))
-                + " path=" + quote(items.getJSONObject(0).getString("path")));
-        end("searchApis_byKeyword_returnsMatchedItems");
     }
 
     /**
@@ -125,8 +116,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(2)
+    @DisplayName("无关键词时优先返回 scope API")
     void searchApis_scopeApiIds_priorityWithoutKeyword() {
-        begin("searchApis_scopeApiIds_priorityWithoutKeyword");
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(loginApi());
 
         String json = executor.executeTool(
@@ -137,8 +128,6 @@ class FlowDesignToolExecutorTest {
         JSONArray items = JSON.parseObject(json).getJSONArray("items");
         assertEquals(1, items.size());
         assertEquals("用户登录", items.getJSONObject(0).getString("name"));
-        log("items=" + items.size() + " name=" + quote(items.getJSONObject(0).getString("name")));
-        end("searchApis_scopeApiIds_priorityWithoutKeyword");
     }
 
     /**
@@ -147,8 +136,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(3)
+    @DisplayName("合法 API 返回语义摘要")
     void getApiDetail_validApi_returnsSemanticSummary() {
-        begin("getApiDetail_validApi_returnsSemanticSummary");
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(loginApi());
 
         String json = executor.executeTool(
@@ -157,7 +146,6 @@ class FlowDesignToolExecutorTest {
                 context);
 
         JSONObject root = JSON.parseObject(json);
-        log("detail=" + json);
         assertEquals(String.valueOf(API_ID), root.getString("testProjectApiId"));
         assertEquals("POST", root.getString("method"));
         assertEquals("/api/auth/login", root.getString("path"));
@@ -168,18 +156,6 @@ class FlowDesignToolExecutorTest {
         assertEquals("code", root.getJSONObject("responseConvention").getString("codePath"));
         assertNotNull(root.getJSONArray("suggestedExtracts"));
         assertFalse(root.getBooleanValue("truncated"));
-        end("getApiDetail_validApi_returnsSemanticSummary");
-    }
-
-    private static boolean paramSummariesContainName(JSONArray params, String name) {
-        if (params == null) return false;
-        for (int i = 0; i < params.size(); i++) {
-            Object item = params.get(i);
-            if (item instanceof JSONObject obj && name.equals(obj.getString("name"))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -188,8 +164,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(4)
+    @DisplayName("跨项目 API 返回归属错误")
     void getApiDetail_wrongProject_returnsError() {
-        begin("getApiDetail_wrongProject_returnsError");
         TestProjectApi otherProject = loginApi();
         otherProject.setTestProjectId(999L);
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(otherProject);
@@ -200,8 +176,6 @@ class FlowDesignToolExecutorTest {
                 context);
 
         assertEquals("接口不属于当前项目", JSON.parseObject(json).getString("error"));
-        log("error=" + quote(JSON.parseObject(json).getString("error")));
-        end("getApiDetail_wrongProject_returnsError");
     }
 
     /**
@@ -210,12 +184,10 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(5)
+    @DisplayName("未知工具名返回错误")
     void executeTool_unknownTool_returnsError() {
-        begin("executeTool_unknownTool_returnsError");
         String json = executor.executeTool("unknown_tool", "{}", context);
         assertTrue(JSON.parseObject(json).getString("error").contains("未知工具"));
-        log("error=" + quote(JSON.parseObject(json).getString("error")));
-        end("executeTool_unknownTool_returnsError");
     }
 
     /**
@@ -224,15 +196,13 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(6)
+    @DisplayName("从 requestConfig 解析 HTTP 方法")
     void resolveMethod_fromRequestConfig() {
-        begin("resolveMethod_fromRequestConfig");
         assertEquals("POST", FlowDesignApiSummarizer.resolveMethod(loginApi()));
         TestProjectApi getApi = TestProjectApi.builder()
                 .requestConfig("{\"method\":\"get\"}")
                 .build();
         assertEquals("GET", FlowDesignApiSummarizer.resolveMethod(getApi));
-        log("loginApi=POST defaultGet=GET");
-        end("resolveMethod_fromRequestConfig");
     }
 
     /**
@@ -241,8 +211,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(7)
+    @DisplayName("图摘要返回节点边与上下文")
     void getGraphSummary_returnsNodesAndEdges() {
-        begin("getGraphSummary_returnsNodesAndEdges");
         GraphJson graph = GraphJson.builder()
                 .nodes(new ArrayList<>(List.of(
                         GraphNode.builder()
@@ -275,8 +245,6 @@ class FlowDesignToolExecutorTest {
         assertEquals("n1", root.getJSONArray("nodes").getJSONObject(0).getString("id"));
         assertEquals("登录", root.getJSONArray("nodes").getJSONObject(0).getString("name"));
         assertEquals("n1", root.getJSONArray("contextNodeIds").getString(0));
-        log("nodeCount=1 contextNodeId=n1");
-        end("getGraphSummary_returnsNodesAndEdges");
     }
 
     /**
@@ -285,8 +253,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(8)
+    @DisplayName("按 nodeId 返回节点详情")
     void getNodeDetail_validNode_returnsData() {
-        begin("getNodeDetail_validNode_returnsData");
         GraphJson graph = GraphJson.builder()
                 .nodes(new ArrayList<>(List.of(
                         GraphNode.builder()
@@ -313,8 +281,6 @@ class FlowDesignToolExecutorTest {
         assertEquals("n1", root.getString("id"));
         assertEquals("http", root.getString("type"));
         assertEquals("登录", root.getJSONObject("data").getString("name"));
-        log("nodeId=n1 type=http");
-        end("getNodeDetail_validNode_returnsData");
     }
 
     /**
@@ -323,8 +289,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(9)
+    @DisplayName("失败运行返回失败步骤详情")
     void getRunFailure_failedStep_returnsDetails() {
-        begin("getRunFailure_failedStep_returnsDetails");
         Long runId = 5001L;
         when(runService.selectTestFlowRunResult(runId)).thenReturn(
                 TestFlowRunResult.builder()
@@ -366,218 +332,6 @@ class FlowDesignToolExecutorTest {
         assertEquals(1, root.getIntValue("assertFailureCount"));
         assertEquals(0, root.getIntValue("bizCodeFailureCount"));
         assertEquals(1, root.getJSONArray("assertFailures").size());
-        log("failureCount=1 nodeName=断言 failureCategory=assert");
-        end("getRunFailure_failedStep_returnsDetails");
-    }
-
-    /**
-     * 前提：节点绑定的 API 已不存在。
-     * 期望：返回 API_MISSING，并带残留 apiName/apiPath/httpMethod 提示。
-     */
-    @Test
-    @Order(25)
-    void getFlowApiHealth_missingApi_returnsWarningWithHints() {
-        begin("getFlowApiHealth_missingApi_returnsWarningWithHints");
-        Long missingApiId = 9999L;
-        when(mapper.selectTestProjectApiById(missingApiId)).thenReturn(null);
-
-        Map<String, Object> data = new java.util.HashMap<>();
-        data.put("name", "客户端用户登录");
-        data.put("callMode", "project");
-        data.put("testProjectApiId", String.valueOf(missingApiId));
-        data.put("apiName", "客户端用户登录");
-        data.put("apiPath", "/api/account/auth/login");
-        data.put("httpMethod", "POST");
-
-        GraphJson graph = GraphJson.builder()
-                .nodes(List.of(GraphNode.builder()
-                        .id("n1")
-                        .type("http")
-                        .position(GraphNodePosition.builder().x(0).y(0).build())
-                        .data(data)
-                        .build()))
-                .edges(new ArrayList<>())
-                .build();
-        FlowDesignToolContext graphCtx = FlowDesignToolContext.builder()
-                .testProjectId(PROJECT_ID)
-                .testFlowId(3001L)
-                .graphJson(graph)
-                .maxToolResultBytes(8192)
-                .build();
-
-        String json = executor.executeTool(
-                FlowDesignToolExecutor.GET_FLOW_API_HEALTH,
-                "{}",
-                graphCtx);
-
-        JSONObject root = JSON.parseObject(json);
-        assertFalse(root.getBooleanValue("healthy"));
-        assertEquals(1, root.getIntValue("warningCount"));
-        assertTrue(root.getJSONArray("warningCodes").contains("API_MISSING"));
-        JSONObject warning = root.getJSONArray("warnings").getJSONObject(0);
-        assertEquals("API_MISSING", warning.getString("code"));
-        assertEquals("n1", warning.getString("nodeId"));
-        assertEquals("客户端用户登录", warning.getString("nodeName"));
-        assertEquals(String.valueOf(missingApiId), warning.getString("testProjectApiId"));
-        assertEquals("客户端用户登录", warning.getString("apiName"));
-        assertEquals("/api/account/auth/login", warning.getString("apiPath"));
-        assertEquals("POST", warning.getString("httpMethod"));
-        log("warningCount=1 code=API_MISSING apiPath=/api/account/auth/login");
-        end("getFlowApiHealth_missingApi_returnsWarningWithHints");
-    }
-
-    /**
-     * 前提：submit 校验通过。
-     * 期望：写入 capture；received/validation.ok=true。
-     */
-    @Test
-    @Order(21)
-    void submitFlowDesignPatch_recordsCaptureAndReturnsValidation() {
-        begin("submitFlowDesignPatch_recordsCaptureAndReturnsValidation");
-        FlowDesignPatch patch = new FlowDesignPatch();
-        patch.setSummary("登录链路");
-        patch.setAddNodes(new ArrayList<>(List.of(
-                GraphNode.builder().id("n1").type("http").data(new java.util.HashMap<>()).build())));
-        DesignValidationResult validation = DesignValidationResult.builder()
-                .ok(true)
-                .errors(List.of())
-                .warnings(List.of("HTTP 节点 API 已置空"))
-                .build();
-        when(normalizer.normalize(any(FlowDesignPatch.class), any(), eq(PROJECT_ID))).thenReturn(
-                new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
-
-        FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
-        FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
-                .testProjectId(PROJECT_ID)
-                .testFlowId(3001L)
-                .graphJson(GraphJson.builder().nodes(new ArrayList<>()).edges(new ArrayList<>()).build())
-                .maxToolResultBytes(8192)
-                .submitCapture(capture)
-                .build();
-
-        String json = executor.executeTool(
-                FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
-                "{\"summary\":\"登录链路\",\"addNodes\":[{\"id\":\"n1\",\"type\":\"http\",\"data\":{}}]}",
-                submitCtx);
-
-        JSONObject root = JSON.parseObject(json);
-        assertTrue(root.getBooleanValue("received"));
-        assertTrue(root.getJSONObject("validation").getBooleanValue("ok"));
-        assertEquals(1, root.getJSONObject("validation").getJSONArray("warnings").size());
-        assertEquals(1, root.getJSONObject("patchStats").getIntValue("addNodes"));
-        assertTrue(capture.isSubmitted());
-        assertEquals("登录链路", capture.getNormalizedPatch().getSummary());
-        log("received=true patchStats.addNodes=1");
-        end("submitFlowDesignPatch_recordsCaptureAndReturnsValidation");
-    }
-
-    /**
-     * 前提：submit 校验失败。
-     * 期望：validation.ok=false；errors 1 条；hint 含「修正」。
-     */
-    @Test
-    @Order(22)
-    void submitFlowDesignPatch_validationFailed_returnsErrors() {
-        begin("submitFlowDesignPatch_validationFailed_returnsErrors");
-        FlowDesignPatch patch = new FlowDesignPatch();
-        DesignValidationResult validation = DesignValidationResult.builder()
-                .ok(false)
-                .errors(List.of("边 target 不存在"))
-                .warnings(List.of())
-                .build();
-        when(normalizer.normalize(any(FlowDesignPatch.class), any(), eq(PROJECT_ID))).thenReturn(
-                new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
-
-        FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
-                .testProjectId(PROJECT_ID)
-                .testFlowId(3001L)
-                .graphJson(GraphJson.builder().nodes(new ArrayList<>()).edges(new ArrayList<>()).build())
-                .maxToolResultBytes(8192)
-                .submitCapture(new FlowDesignSubmitCapture())
-                .build();
-
-        String json = executor.executeTool(
-                FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
-                "{\"summary\":\"x\",\"addEdges\":[{\"source\":\"a\",\"target\":\"b\"}]}",
-                submitCtx);
-
-        JSONObject root = JSON.parseObject(json);
-        assertFalse(root.getJSONObject("validation").getBooleanValue("ok"));
-        assertFalse(root.getBooleanValue("received"));
-        assertEquals("校验未通过", root.getString("error"));
-        assertEquals(1, root.getJSONObject("validation").getJSONArray("errors").size());
-        assertTrue(root.getString("hint").contains("修正"));
-        log("validationOk=false errors=1");
-        end("submitFlowDesignPatch_validationFailed_returnsErrors");
-    }
-
-    /**
-     * 前提：同一轮连续两次 submit。
-     * 期望：后者覆盖前者，返回 replacedPrevious=true。
-     */
-    @Test
-    @Order(23)
-    void submitFlowDesignPatch_replacedPrevious_returnsFlag() {
-        begin("submitFlowDesignPatch_replacedPrevious_returnsFlag");
-        FlowDesignPatch patch = new FlowDesignPatch();
-        DesignValidationResult validation = DesignValidationResult.builder()
-                .ok(true)
-                .errors(List.of())
-                .warnings(List.of())
-                .build();
-        when(normalizer.normalize(any(FlowDesignPatch.class), any(), eq(PROJECT_ID))).thenReturn(
-                new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
-
-        FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
-        capture.record(new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
-        FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
-                .testProjectId(PROJECT_ID)
-                .testFlowId(3001L)
-                .graphJson(GraphJson.builder().nodes(new ArrayList<>()).edges(new ArrayList<>()).build())
-                .submitCapture(capture)
-                .build();
-
-        String json = executor.executeTool(
-                FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
-                "{\"summary\":\"第二次\"}",
-                submitCtx);
-
-        JSONObject root = JSON.parseObject(json);
-        assertTrue(root.getBooleanValue("replacedPrevious"));
-        assertTrue(root.getString("hint").contains("覆盖"));
-        log("replacedPrevious=true");
-        end("submitFlowDesignPatch_replacedPrevious_returnsFlag");
-    }
-
-    /**
-     * 前提：MCP 仅传 testFlowId，上下文无 graph。
-     * 期望：自动从库加载 graphJson 后返回摘要。
-     */
-    @Test
-    @Order(24)
-    void getGraphSummary_autoLoadByTestFlowId() {
-        begin("getGraphSummary_autoLoadByTestFlowId");
-        String graphJson = """
-                {"nodes":[{"id":"n1","type":"http","data":{"name":"登录"}}],"edges":[]}
-                """;
-        when(flowService.selectTestFlowResult(3001L)).thenReturn(
-                TestFlowResult.builder()
-                        .testFlowId(3001L)
-                        .testProjectId(PROJECT_ID)
-                        .flowName("登录流")
-                        .graphJson(graphJson)
-                        .build());
-
-        String json = executor.executeTool(
-                FlowDesignToolExecutor.GET_GRAPH_SUMMARY,
-                "{\"testFlowId\":\"3001\"}",
-                context);
-
-        JSONObject root = JSON.parseObject(json);
-        assertEquals(1, root.getIntValue("nodeCount"));
-        assertEquals("n1", root.getJSONArray("nodes").getJSONObject(0).getString("id"));
-        log("autoLoad nodeCount=1");
-        end("getGraphSummary_autoLoadByTestFlowId");
     }
 
     /**
@@ -586,8 +340,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(10)
+    @DisplayName("返回场景摘要与 flowSeedKeys")
     void getFlowMeta_returnsScenarios() {
-        begin("getFlowMeta_returnsScenarios");
         GraphJson graph = GraphJson.builder()
                 .nodes(new ArrayList<>())
                 .edges(new ArrayList<>())
@@ -621,8 +375,6 @@ class FlowDesignToolExecutorTest {
         assertEquals("默认", root.getJSONArray("scenarios").getJSONObject(0).getString("name"));
         assertEquals("loginUser", root.getJSONArray("scenarios").getJSONObject(0)
                 .getJSONArray("flowSeedKeys").getString(0));
-        log("activeScenarioId=sc-default startNodeId=start-1");
-        end("getFlowMeta_returnsScenarios");
     }
 
     /**
@@ -631,8 +383,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(11)
+    @DisplayName("列出环境摘要不含变量值")
     void listProjectEnvs_returnsEnvSummaries() {
-        begin("listProjectEnvs_returnsEnvSummaries");
         when(envService.selectTestProjectEnvList(any(TestProjectEnv.class))).thenReturn(List.of(
                 TestProjectEnv.builder()
                         .testProjectEnvId(201L)
@@ -653,8 +405,6 @@ class FlowDesignToolExecutorTest {
         assertEquals("201", item.getString("id"));
         assertEquals("本地", item.getString("name"));
         assertEquals("baseUrl", item.getJSONArray("envVarKeys").getString(0));
-        log("envId=201 envVarKeys=baseUrl");
-        end("listProjectEnvs_returnsEnvSummaries");
     }
 
     /**
@@ -663,15 +413,13 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(12)
+    @DisplayName("非法 JSON arguments 返回错误")
     void executeTool_invalidArgumentsJson_returnsError() {
-        begin("executeTool_invalidArgumentsJson_returnsError");
         String json = executor.executeTool(
                 FlowDesignToolExecutor.GET_NODE_DETAIL,
                 "{not-json",
                 context);
         assertEquals("arguments 非合法 JSON", JSON.parseObject(json).getString("error"));
-        log("error=arguments 非合法 JSON");
-        end("executeTool_invalidArgumentsJson_returnsError");
     }
 
     /**
@@ -680,8 +428,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(13)
+    @DisplayName("超阈值压缩仅保留上下文节点")
     void getGraphSummary_compressed_includesContextNodes() {
-        begin("getGraphSummary_compressed_includesContextNodes");
         List<GraphNode> manyNodes = new ArrayList<>();
         for (int i = 0; i < 81; i++) {
             manyNodes.add(GraphNode.builder()
@@ -710,8 +458,6 @@ class FlowDesignToolExecutorTest {
         assertTrue(root.getBooleanValue("compressed"));
         assertEquals(1, root.getJSONArray("nodes").size());
         assertEquals("n5", root.getJSONArray("nodes").getJSONObject(0).getString("id"));
-        log("compressed=true nodes=1");
-        end("getGraphSummary_compressed_includesContextNodes");
     }
 
     /**
@@ -720,8 +466,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(14)
+    @DisplayName("limit 截断并标记 truncated")
     void searchApis_limitArgument_capsAtMaxSearchApis() {
-        begin("searchApis_limitArgument_capsAtMaxSearchApis");
         List<TestProjectApi> many = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             TestProjectApi api = loginApi();
@@ -746,8 +492,6 @@ class FlowDesignToolExecutorTest {
         JSONObject root = JSON.parseObject(json);
         assertEquals(2, root.getJSONArray("items").size());
         assertTrue(root.getBooleanValue("truncated"));
-        log("items=2 truncated=true");
-        end("searchApis_limitArgument_capsAtMaxSearchApis");
     }
 
     /**
@@ -756,8 +500,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(15)
+    @DisplayName("列出测试流摘要不含 graphJson")
     void listFlows_returnsSummaries() {
-        begin("listFlows_returnsSummaries");
         when(flowService.selectTestFlowResultList(any(TestFlowParams.class))).thenReturn(List.of(
                 TestFlowResult.builder()
                         .testFlowId(3001L)
@@ -773,8 +517,6 @@ class FlowDesignToolExecutorTest {
         assertEquals("3001", root.getJSONArray("items").getJSONObject(0).getString("testFlowId"));
         assertEquals("登录流", root.getJSONArray("items").getJSONObject(0).getString("flowName"));
         assertFalse(root.getJSONArray("items").getJSONObject(0).containsKey("graphJson"));
-        log("testFlowId=3001 flowName=登录流");
-        end("listFlows_returnsSummaries");
     }
 
     /**
@@ -783,8 +525,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(16)
+    @DisplayName("合法测试流返回 graphJson")
     void getFlow_validFlow_returnsGraphJson() {
-        begin("getFlow_validFlow_returnsGraphJson");
         when(flowService.selectTestFlowResult(3001L)).thenReturn(
                 TestFlowResult.builder()
                         .testFlowId(3001L)
@@ -801,8 +543,6 @@ class FlowDesignToolExecutorTest {
         JSONObject root = JSON.parseObject(json);
         assertEquals("登录流", root.getString("flowName"));
         assertTrue(root.getJSONObject("graphJson").containsKey("nodes"));
-        log("flowName=登录流 hasGraphJson=true");
-        end("getFlow_validFlow_returnsGraphJson");
     }
 
     /**
@@ -811,8 +551,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(17)
+    @DisplayName("跨项目测试流返回归属错误")
     void getFlow_wrongProject_returnsError() {
-        begin("getFlow_wrongProject_returnsError");
         when(flowService.selectTestFlowResult(3001L)).thenReturn(
                 TestFlowResult.builder()
                         .testFlowId(3001L)
@@ -826,8 +566,6 @@ class FlowDesignToolExecutorTest {
                 context);
 
         assertEquals("测试流不属于当前项目", JSON.parseObject(json).getString("error"));
-        log("error=" + quote(JSON.parseObject(json).getString("error")));
-        end("getFlow_wrongProject_returnsError");
     }
 
     /**
@@ -836,8 +574,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(18)
+    @DisplayName("列出平台模板与项目子流")
     void listSubflowTemplates_returnsPlatformAndProject() {
-        begin("listSubflowTemplates_returnsPlatformAndProject");
         when(flowService.selectTestFlowResultList(any(TestFlowParams.class))).thenReturn(List.of(
                 TestFlowResult.builder()
                         .testFlowId(3002L)
@@ -860,10 +598,6 @@ class FlowDesignToolExecutorTest {
         assertEquals("OAuth 子流", project.getJSONObject(0).getString("flowName"));
         assertEquals("演示 OAuth", project.getJSONObject(0).getString("flowDescription"));
         assertTrue(root.containsKey("hint"));
-        log("platformCount=" + platform.size()
-                + " projectCount=" + project.size()
-                + " testFlowId=" + quote(project.getJSONObject(0).getString("testFlowId")));
-        end("listSubflowTemplates_returnsPlatformAndProject");
     }
 
     /**
@@ -872,8 +606,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(19)
+    @DisplayName("子流详情返回拓扑摘要")
     void getSubflowDetail_returnsTopology() {
-        begin("getSubflowDetail_returnsTopology");
         String graphJson = """
                 {
                   "nodes": [
@@ -920,9 +654,6 @@ class FlowDesignToolExecutorTest {
         assertEquals("h1", root.getJSONArray("edges").getJSONObject(0).getString("source"));
         assertEquals("s1", root.getJSONArray("edges").getJSONObject(0).getString("target"));
         assertTrue(root.containsKey("hint"));
-        log("nodeCount=" + root.getIntValue("nodeCount")
-                + " flowOutput=" + quote(root.getJSONArray("flowOutputNames").getString(0)));
-        end("getSubflowDetail_returnsTopology");
     }
 
     /**
@@ -931,8 +662,8 @@ class FlowDesignToolExecutorTest {
      */
     @Test
     @Order(20)
+    @DisplayName("跨项目子流详情返回归属错误")
     void getSubflowDetail_wrongProject_returnsError() {
-        begin("getSubflowDetail_wrongProject_returnsError");
         when(flowService.selectTestFlowResult(3002L)).thenReturn(
                 TestFlowResult.builder()
                         .testFlowId(3002L)
@@ -946,8 +677,217 @@ class FlowDesignToolExecutorTest {
                 context);
 
         assertEquals("测试流不属于当前项目", JSON.parseObject(json).getString("error"));
-        log("error=" + quote(JSON.parseObject(json).getString("error")));
-        end("getSubflowDetail_wrongProject_returnsError");
+    }
+
+    /**
+     * 前提：submit 校验通过。
+     * 期望：写入 capture；received/validation.ok=true。
+     */
+    @Test
+    @Order(21)
+    @DisplayName("submit 校验通过写入 capture")
+    void submitFlowDesignPatch_recordsCaptureAndReturnsValidation() {
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setSummary("登录链路");
+        patch.setAddNodes(new ArrayList<>(List.of(
+                GraphNode.builder().id("n1").type("http").data(new java.util.HashMap<>()).build())));
+        DesignValidationResult validation = DesignValidationResult.builder()
+                .ok(true)
+                .errors(List.of())
+                .warnings(List.of("HTTP 节点 API 已置空"))
+                .build();
+        when(normalizer.normalize(any(FlowDesignPatch.class), any(), eq(PROJECT_ID))).thenReturn(
+                new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
+
+        FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
+        FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
+                .testProjectId(PROJECT_ID)
+                .testFlowId(3001L)
+                .graphJson(GraphJson.builder().nodes(new ArrayList<>()).edges(new ArrayList<>()).build())
+                .maxToolResultBytes(8192)
+                .submitCapture(capture)
+                .build();
+
+        String json = executor.executeTool(
+                FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
+                "{\"summary\":\"登录链路\",\"addNodes\":[{\"id\":\"n1\",\"type\":\"http\",\"data\":{}}]}",
+                submitCtx);
+
+        JSONObject root = JSON.parseObject(json);
+        assertTrue(root.getBooleanValue("received"));
+        assertTrue(root.getJSONObject("validation").getBooleanValue("ok"));
+        assertEquals(1, root.getJSONObject("validation").getJSONArray("warnings").size());
+        assertEquals(1, root.getJSONObject("patchStats").getIntValue("addNodes"));
+        assertTrue(capture.isSubmitted());
+        assertEquals("登录链路", capture.getNormalizedPatch().getSummary());
+    }
+
+    /**
+     * 前提：submit 校验失败。
+     * 期望：validation.ok=false；errors 1 条；hint 含「修正」。
+     */
+    @Test
+    @Order(22)
+    @DisplayName("submit 校验失败返回 errors")
+    void submitFlowDesignPatch_validationFailed_returnsErrors() {
+        FlowDesignPatch patch = new FlowDesignPatch();
+        DesignValidationResult validation = DesignValidationResult.builder()
+                .ok(false)
+                .errors(List.of("边 target 不存在"))
+                .warnings(List.of())
+                .build();
+        when(normalizer.normalize(any(FlowDesignPatch.class), any(), eq(PROJECT_ID))).thenReturn(
+                new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
+
+        FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
+                .testProjectId(PROJECT_ID)
+                .testFlowId(3001L)
+                .graphJson(GraphJson.builder().nodes(new ArrayList<>()).edges(new ArrayList<>()).build())
+                .maxToolResultBytes(8192)
+                .submitCapture(new FlowDesignSubmitCapture())
+                .build();
+
+        String json = executor.executeTool(
+                FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
+                "{\"summary\":\"x\",\"addEdges\":[{\"source\":\"a\",\"target\":\"b\"}]}",
+                submitCtx);
+
+        JSONObject root = JSON.parseObject(json);
+        assertFalse(root.getJSONObject("validation").getBooleanValue("ok"));
+        assertFalse(root.getBooleanValue("received"));
+        assertEquals("校验未通过", root.getString("error"));
+        assertEquals(1, root.getJSONObject("validation").getJSONArray("errors").size());
+        assertTrue(root.getString("hint").contains("修正"));
+    }
+
+    /**
+     * 前提：同一轮连续两次 submit。
+     * 期望：后者覆盖前者，返回 replacedPrevious=true。
+     */
+    @Test
+    @Order(23)
+    @DisplayName("二次 submit 返回覆盖标记")
+    void submitFlowDesignPatch_replacedPrevious_returnsFlag() {
+        FlowDesignPatch patch = new FlowDesignPatch();
+        DesignValidationResult validation = DesignValidationResult.builder()
+                .ok(true)
+                .errors(List.of())
+                .warnings(List.of())
+                .build();
+        when(normalizer.normalize(any(FlowDesignPatch.class), any(), eq(PROJECT_ID))).thenReturn(
+                new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
+
+        FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
+        capture.record(new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
+        FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
+                .testProjectId(PROJECT_ID)
+                .testFlowId(3001L)
+                .graphJson(GraphJson.builder().nodes(new ArrayList<>()).edges(new ArrayList<>()).build())
+                .submitCapture(capture)
+                .build();
+
+        String json = executor.executeTool(
+                FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
+                "{\"summary\":\"第二次\"}",
+                submitCtx);
+
+        JSONObject root = JSON.parseObject(json);
+        assertTrue(root.getBooleanValue("replacedPrevious"));
+        assertTrue(root.getString("hint").contains("覆盖"));
+    }
+
+    /**
+     * 前提：MCP 仅传 testFlowId，上下文无 graph。
+     * 期望：自动从库加载 graphJson 后返回摘要。
+     */
+    @Test
+    @Order(24)
+    @DisplayName("无图时按 testFlowId 自动加载摘要")
+    void getGraphSummary_autoLoadByTestFlowId() {
+        String graphJson = """
+                {"nodes":[{"id":"n1","type":"http","data":{"name":"登录"}}],"edges":[]}
+                """;
+        when(flowService.selectTestFlowResult(3001L)).thenReturn(
+                TestFlowResult.builder()
+                        .testFlowId(3001L)
+                        .testProjectId(PROJECT_ID)
+                        .flowName("登录流")
+                        .graphJson(graphJson)
+                        .build());
+
+        String json = executor.executeTool(
+                FlowDesignToolExecutor.GET_GRAPH_SUMMARY,
+                "{\"testFlowId\":\"3001\"}",
+                context);
+
+        JSONObject root = JSON.parseObject(json);
+        assertEquals(1, root.getIntValue("nodeCount"));
+        assertEquals("n1", root.getJSONArray("nodes").getJSONObject(0).getString("id"));
+    }
+
+    /**
+     * 前提：节点绑定的 API 已不存在。
+     * 期望：返回 API_MISSING，并带残留 apiName/apiPath/httpMethod 提示。
+     */
+    @Test
+    @Order(25)
+    @DisplayName("缺失 API 健康检查返回告警提示")
+    void getFlowApiHealth_missingApi_returnsWarningWithHints() {
+        Long missingApiId = 9999L;
+        when(mapper.selectTestProjectApiById(missingApiId)).thenReturn(null);
+
+        Map<String, Object> data = new java.util.HashMap<>();
+        data.put("name", "客户端用户登录");
+        data.put("callMode", "project");
+        data.put("testProjectApiId", String.valueOf(missingApiId));
+        data.put("apiName", "客户端用户登录");
+        data.put("apiPath", "/api/account/auth/login");
+        data.put("httpMethod", "POST");
+
+        GraphJson graph = GraphJson.builder()
+                .nodes(List.of(GraphNode.builder()
+                        .id("n1")
+                        .type("http")
+                        .position(GraphNodePosition.builder().x(0).y(0).build())
+                        .data(data)
+                        .build()))
+                .edges(new ArrayList<>())
+                .build();
+        FlowDesignToolContext graphCtx = FlowDesignToolContext.builder()
+                .testProjectId(PROJECT_ID)
+                .testFlowId(3001L)
+                .graphJson(graph)
+                .maxToolResultBytes(8192)
+                .build();
+
+        String json = executor.executeTool(
+                FlowDesignToolExecutor.GET_FLOW_API_HEALTH,
+                "{}",
+                graphCtx);
+
+        JSONObject root = JSON.parseObject(json);
+        assertFalse(root.getBooleanValue("healthy"));
+        assertEquals(1, root.getIntValue("warningCount"));
+        assertTrue(root.getJSONArray("warningCodes").contains("API_MISSING"));
+        JSONObject warning = root.getJSONArray("warnings").getJSONObject(0);
+        assertEquals("API_MISSING", warning.getString("code"));
+        assertEquals("n1", warning.getString("nodeId"));
+        assertEquals("客户端用户登录", warning.getString("nodeName"));
+        assertEquals(String.valueOf(missingApiId), warning.getString("testProjectApiId"));
+        assertEquals("客户端用户登录", warning.getString("apiName"));
+        assertEquals("/api/account/auth/login", warning.getString("apiPath"));
+        assertEquals("POST", warning.getString("httpMethod"));
+    }
+
+    private static boolean paramSummariesContainName(JSONArray params, String name) {
+        if (params == null) return false;
+        for (int i = 0; i < params.size(); i++) {
+            Object item = params.get(i);
+            if (item instanceof JSONObject obj && name.equals(obj.getString("name"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static TestProjectApi loginApi() {

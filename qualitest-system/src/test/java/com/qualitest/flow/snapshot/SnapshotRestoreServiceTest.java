@@ -2,14 +2,12 @@ package com.qualitest.flow.snapshot;
 
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.project.domain.TestProjectEnv;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -34,8 +32,8 @@ class SnapshotRestoreServiceTest {
      */
     @Test
     @Order(1)
+    @DisplayName("允许还原时返回 restore 审计步")
     void restore_success() {
-        begin("restore_success");
         doNothing().when(adapter).restore(anyString(), anyString(), anyLong());
         TestProjectEnv env = TestProjectEnv.builder()
                 .envUrl("http://localhost:8081")
@@ -45,8 +43,6 @@ class SnapshotRestoreServiceTest {
         var step = service.restore(env, 1L, "snap-1", "n1");
         assertEquals(StepResultWriter.NODE_TYPE_RESTORE, step.getNodeType());
         assertEquals("snap-1", step.getSnapshot().get("snapshotId"));
-        log("restoreStep nodeType=" + step.getNodeType() + " snapshotId=snap-1");
-        end("restore_success");
     }
 
     /**
@@ -55,14 +51,12 @@ class SnapshotRestoreServiceTest {
      */
     @Test
     @Order(2)
+    @DisplayName("不允许还原时静默跳过")
     void restore_silentSkipWhenNotAllowed() {
-        begin("restore_silentSkipWhenNotAllowed");
         TestProjectEnv env = TestProjectEnv.builder()
                 .envUrl("http://localhost:8081")
                 .allowDestructiveReset(0)
                 .build();
         assertNull(service.restore(env, 1L, "snap-1", "n1"));
-        log("restoreStep=null (silent skip)");
-        end("restore_silentSkipWhenNotAllowed");
     }
 }

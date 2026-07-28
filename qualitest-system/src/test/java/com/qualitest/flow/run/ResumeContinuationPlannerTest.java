@@ -5,6 +5,7 @@ import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.snapshot.FlowRunSnapshotState;
 import com.qualitest.flow.snapshot.SnapshotRestoreService;
 import com.qualitest.project.domain.TestProjectEnv;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -13,9 +14,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -41,8 +39,8 @@ class ResumeContinuationPlannerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("restoreAndRetry 截断快照栈")
     void plan_restoreAndRetry_truncatesStack() {
-        begin("plan_restoreAndRetry_truncatesStack");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         FlowRunSnapshotState stack = new FlowRunSnapshotState();
         stack.push("n1", "snap-1");
@@ -60,8 +58,6 @@ class ResumeContinuationPlannerTest {
         assertEquals("n1", planned.getContinuation().getStartNodeId());
         assertEquals(1, stack.entries().size());
         assertEquals("snap-1", stack.peek().getSnapshotId());
-        log("startNodeId=n1 stackSize=1 restoreStep=present");
-        end("plan_restoreAndRetry_truncatesStack");
     }
 
     /**
@@ -70,8 +66,8 @@ class ResumeContinuationPlannerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("环境禁止重置时静默跳过 restore")
     void plan_restoreAndRetry_silentSkipRestoreWhenEnvDeniesReset() {
-        begin("plan_restoreAndRetry_silentSkipRestoreWhenEnvDeniesReset");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         FlowRunSnapshotState stack = new FlowRunSnapshotState();
         stack.push("n1", "snap-1");
@@ -89,8 +85,6 @@ class ResumeContinuationPlannerTest {
         assertNull(planned.getRestoreStep());
         assertEquals("n1", planned.getContinuation().getStartNodeId());
         assertEquals(RunContinuation.ResumeMode.RETRY_NODE, planned.getContinuation().getResumeMode());
-        log("restoreStep=null startNodeId=n1 mode=RETRY_NODE");
-        end("plan_restoreAndRetry_silentSkipRestoreWhenEnvDeniesReset");
     }
 
     /**
@@ -99,8 +93,8 @@ class ResumeContinuationPlannerTest {
      */
     @Test
     @Order(3)
+    @DisplayName("SKIP 决策使用 SKIP_NODE 模式")
     void plan_skip_usesSkipMode() {
-        begin("plan_skip_usesSkipMode");
         RunExecutionState state = RunExecutionState.builder().pauseNodeId("n2").incomingEdgeId("e1").build();
         ResumeContinuationPlanner.PlannedResume planned = planner.plan(
                 ResumeDecision.builder().decision(ResumeDecision.SKIP).build(),
@@ -109,8 +103,6 @@ class ResumeContinuationPlannerTest {
 
         assertNull(planned.getRestoreStep());
         assertEquals(RunContinuation.ResumeMode.SKIP_NODE, planned.getContinuation().getResumeMode());
-        log("mode=SKIP_NODE");
-        end("plan_skip_usesSkipMode");
     }
 
     /**
@@ -119,8 +111,8 @@ class ResumeContinuationPlannerTest {
      */
     @Test
     @Order(4)
+    @DisplayName("未传 snapshotId 时回退到暂停节点")
     void resolveSnapshotId_fallsBackToPauseNode() {
-        begin("resolveSnapshotId_fallsBackToPauseNode");
         FlowRunSnapshotState stack = new FlowRunSnapshotState();
         stack.push("n1", "snap-a");
         stack.push("n2", "snap-b");
@@ -129,8 +121,6 @@ class ResumeContinuationPlannerTest {
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).build(),
                 stack, "n2");
         assertEquals("snap-b", id);
-        log("resolvedSnapshotId=snap-b");
-        end("resolveSnapshotId_fallsBackToPauseNode");
     }
 
     private static GraphJson loadGraph(String path) {

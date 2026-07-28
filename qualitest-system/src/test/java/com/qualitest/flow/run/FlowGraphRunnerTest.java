@@ -10,6 +10,7 @@ import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
 import com.qualitest.flow.validate.FlowNodeType;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -19,16 +20,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 FlowGraphRunner：内存图遍历、线性多步与 forbidNestedSubflow。
- * 边界：失败短路；子图含 subflow 时拒绝；存量 begin/end 保留。
+ * 边界：失败短路；子图含 subflow 时拒绝；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphRunnerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -51,8 +48,8 @@ class FlowGraphRunnerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("单 delay 节点图执行通过")
     void run_singleDelayNode_passes() {
-        begin("run_singleDelayNode_passes");
         String json = """
                 {
                   "nodes":[{"id":"d1","type":"delay","position":{"x":0,"y":0},"data":{"name":"等待","ms":1}}],
@@ -64,8 +61,6 @@ class FlowGraphRunnerTest {
         FlowGraphRunner.Outcome outcome = runner.run(graph, ctx, registry);
         assertTrue(outcome.isPassed());
         assertEquals(1, outcome.getSteps().size());
-        log("passed steps=" + outcome.getSteps().size());
-        end("run_singleDelayNode_passes");
     }
 
     /**
@@ -74,16 +69,14 @@ class FlowGraphRunnerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("线性两节点按边顺序通过")
     void run_linearTwoNodes_passes() {
-        begin("run_linearTwoNodes_passes");
         GraphJson graph = GraphJson.parse(loadResource("flow/runner-linear-two-delay.json"));
         FlowGraphRunner.Outcome outcome = runner.run(graph, ctx, registry);
         assertTrue(outcome.isPassed());
         assertEquals(2, outcome.getSteps().size());
         assertEquals("d1", outcome.getSteps().get(0).getNodeId());
         assertEquals("d2", outcome.getSteps().get(1).getNodeId());
-        log("linear steps=" + outcome.getSteps().size());
-        end("run_linearTwoNodes_passes");
     }
 
     /**
@@ -92,8 +85,8 @@ class FlowGraphRunnerTest {
      */
     @Test
     @Order(3)
+    @DisplayName("首步失败时短路仅执行一步")
     void run_failedStep_stopsEarly() {
-        begin("run_failedStep_stopsEarly");
         registry = new NodeHandlerRegistry(List.of(
                 new AbstractStubNodeHandler(FlowNodeType.DELAY) {
                     @Override
@@ -116,8 +109,6 @@ class FlowGraphRunnerTest {
         assertFalse(outcome.isPassed());
         assertEquals(1, outcome.getSteps().size());
         assertNotNull(outcome.getError());
-        log("stopped at step=" + outcome.getSteps().get(0).getNodeId());
-        end("run_failedStep_stopsEarly");
     }
 
     /**
@@ -126,8 +117,8 @@ class FlowGraphRunnerTest {
      */
     @Test
     @Order(4)
+    @DisplayName("含 subflow 节点的图可执行")
     void run_graphWithSubflowNode_executes() {
-        begin("run_graphWithSubflowNode_executes");
         registry = new NodeHandlerRegistry(List.of(
                 new AbstractStubNodeHandler(FlowNodeType.SUBFLOW) {
                     @Override
@@ -148,8 +139,6 @@ class FlowGraphRunnerTest {
         FlowGraphRunner.Outcome outcome = runner.run(graph, ctx, registry);
         assertTrue(outcome.isPassed());
         assertEquals(1, outcome.getSteps().size());
-        log("subflow node executed at depth 0");
-        end("run_graphWithSubflowNode_executes");
     }
 
     private static NodeHandlerRegistry passingDelayRegistry() {

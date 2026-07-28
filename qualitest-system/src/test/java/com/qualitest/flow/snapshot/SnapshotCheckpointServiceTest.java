@@ -3,6 +3,7 @@ package com.qualitest.flow.snapshot;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.project.domain.TestProjectEnv;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -12,10 +13,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -41,12 +40,10 @@ class SnapshotCheckpointServiceTest {
      */
     @Test
     @Order(1)
+    @DisplayName("未开 snapshotBefore 时跳过 checkpoint")
     void maybeCheckpoint_skipsWhenSnapshotBeforeFalse() {
-        begin("maybeCheckpoint_skipsWhenSnapshotBeforeFalse");
         GraphNode node = GraphNode.builder().id("n1").type("http").data(Map.of()).build();
         assertNull(service.maybeCheckpoint(node, 1L, env(), RunSnapshotPolicy.defaults(), new FlowRunSnapshotState()));
-        log("attempt=null");
-        end("maybeCheckpoint_skipsWhenSnapshotBeforeFalse");
     }
 
     /**
@@ -55,8 +52,8 @@ class SnapshotCheckpointServiceTest {
      */
     @Test
     @Order(2)
+    @DisplayName("开启后调用 adapter 并压栈成功")
     void maybeCheckpoint_callsAdapterWhenEnabled() {
-        begin("maybeCheckpoint_callsAdapterWhenEnabled");
         when(adapter.snapshot(any())).thenReturn(SnapshotRef.builder()
                 .snapshotId("snap-1")
                 .status("ready")
@@ -79,8 +76,6 @@ class SnapshotCheckpointServiceTest {
         assertTrue(attempt.isPassed());
         assertEquals("snap-1", state.peek().getSnapshotId());
         verify(adapter).snapshot(any());
-        log("passed=true snapshotId=snap-1 stackSize=" + state.entries().size());
-        end("maybeCheckpoint_callsAdapterWhenEnabled");
     }
 
     /**
@@ -89,8 +84,8 @@ class SnapshotCheckpointServiceTest {
      */
     @Test
     @Order(3)
+    @DisplayName("快照失败且 prompt 时应暂停")
     void maybeCheckpoint_onSnapshotFailurePrompt_shouldPause() {
-        begin("maybeCheckpoint_onSnapshotFailurePrompt_shouldPause");
         when(adapter.snapshot(any())).thenThrow(new SnapshotException(FlowErrorCode.TF_SNAPSHOT_FAILED, "down"));
 
         Map<String, Object> data = new HashMap<>();
@@ -105,10 +100,8 @@ class SnapshotCheckpointServiceTest {
                 node, 1L, env(), policy, new FlowRunSnapshotState());
 
         assertTrue(attempt.isShouldPause());
-        assertTrue(attempt.shouldContinueDespiteFailure() == false);
-        assertTrue(attempt.isAbortRun() == false);
-        log("shouldPause=true abortRun=false");
-        end("maybeCheckpoint_onSnapshotFailurePrompt_shouldPause");
+        assertFalse(attempt.shouldContinueDespiteFailure());
+        assertFalse(attempt.isAbortRun());
     }
 
     /**
@@ -117,8 +110,8 @@ class SnapshotCheckpointServiceTest {
      */
     @Test
     @Order(4)
+    @DisplayName("环境不允许还原时静默跳过")
     void maybeCheckpoint_silentSkipWhenResetNotAllowed() {
-        begin("maybeCheckpoint_silentSkipWhenResetNotAllowed");
         Map<String, Object> data = new HashMap<>();
         data.put(GraphNodeSnapshotSupport.KEY_SNAPSHOT_BEFORE, true);
         GraphNode node = GraphNode.builder().id("n1").type("http").data(data).build();
@@ -128,8 +121,6 @@ class SnapshotCheckpointServiceTest {
                 RunSnapshotPolicy.defaults(), new FlowRunSnapshotState());
 
         assertNull(attempt);
-        log("attempt=null (env reset not allowed)");
-        end("maybeCheckpoint_silentSkipWhenResetNotAllowed");
     }
 
     private static TestProjectEnv env() {
@@ -140,4 +131,3 @@ class SnapshotCheckpointServiceTest {
                 .build();
     }
 }
-

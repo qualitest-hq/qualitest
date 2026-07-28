@@ -2,7 +2,11 @@ package com.qualitest.ai.llm;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 
@@ -14,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * 边界：纯累加器，不发 HTTP。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=OkHttpLlmClientStreamToolCallTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class OkHttpLlmClientStreamToolCallTest {
 
     /**
@@ -21,6 +26,8 @@ class OkHttpLlmClientStreamToolCallTest {
      * 期望：聚合后 id/name/argumentsJson 完整一致。
      */
     @Test
+    @Order(1)
+    @DisplayName("增量 delta 聚合为完整 tool_call")
     void accumulator_mergesIncrementalToolCallDeltas() {
         OkHttpLlmClient.StreamToolCallAccumulator accumulator = new OkHttpLlmClient.StreamToolCallAccumulator();
 
@@ -47,6 +54,8 @@ class OkHttpLlmClientStreamToolCallTest {
      * 期望：按 index 产出两条完整 LlmToolCall，互不覆盖。
      */
     @Test
+    @Order(2)
+    @DisplayName("并行多 index 产出多条 tool_call")
     void accumulator_supportsMultipleParallelToolCalls() {
         OkHttpLlmClient.StreamToolCallAccumulator accumulator = new OkHttpLlmClient.StreamToolCallAccumulator();
 

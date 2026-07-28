@@ -11,7 +11,11 @@ import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
 import com.qualitest.flow.node.impl.AssertNodeHandler;
 import com.qualitest.flow.snapshot.RunSnapshotPolicy;
 import com.qualitest.flow.validate.FlowNodeType;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 边界：Stub handler + 夹具 flow/linear-run-graph.json；无真实 HTTP。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphRunnerResumeTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowGraphRunnerResumeTest {
 
     /**
@@ -35,6 +40,8 @@ class FlowGraphRunnerResumeTest {
      * 期望：通过；步数为 2；首步为 n3；handler 只调一次。
      */
     @Test
+    @Order(1)
+    @DisplayName("从中部节点续跑继续执行")
     void resumeFromMiddleNode_continuesExecution() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         AtomicInteger calls = new AtomicInteger();
@@ -82,6 +89,8 @@ class FlowGraphRunnerResumeTest {
      * 期望：首步 skipped，下一步为 n2，整体通过。
      */
     @Test
+    @Order(2)
+    @DisplayName("SKIP_NODE 跳过节点后继续")
     void skipNode_skipsHandlerAndContinues() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
 
@@ -126,6 +135,8 @@ class FlowGraphRunnerResumeTest {
      * 期望：outcome 暂停，pauseNodeId=n1。
      */
     @Test
+    @Order(3)
+    @DisplayName("节点失败且 prompt 时暂停")
     void nodeFailureWithPrompt_pausesRun() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
 

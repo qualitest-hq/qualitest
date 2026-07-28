@@ -2,18 +2,22 @@ package com.qualitest.api.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link ApiSchemaSoftMergeSupport} 单元测试。
- * 覆盖：text/string 类型比较、类型变更时是否保留用户约束。
- * <p>
+ * 测 ApiSchemaSoftMergeSupport：参数 schema soft merge 与类型变更判定。
+ * 边界：纯函数，无 DB；text/string 视为同型。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiSchemaSoftMergeSupportTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiSchemaSoftMergeSupportTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -23,6 +27,8 @@ class ApiSchemaSoftMergeSupportTest {
      * 期望：不算类型变更；合并后 type=string，保留 pattern 并采用 description。
      */
     @Test
+    @Order(1)
+    @DisplayName("soft merge：text 与 string 同型，保留本地 pattern")
     void mergeParamNode_textEqualsString_preservesLocalPattern() {
         ObjectNode local = mapper.createObjectNode();
         local.put("name", "bizType");
@@ -46,6 +52,8 @@ class ApiSchemaSoftMergeSupportTest {
      * 期望：算类型变更；合并后 type=file，不保留 pattern。
      */
     @Test
+    @Order(2)
+    @DisplayName("soft merge：string 改 file 算类型变更并丢弃 pattern")
     void mergeParamNode_fileVsString_isTypeChange_dropsPattern() {
         ObjectNode local = mapper.createObjectNode();
         local.put("name", "file");

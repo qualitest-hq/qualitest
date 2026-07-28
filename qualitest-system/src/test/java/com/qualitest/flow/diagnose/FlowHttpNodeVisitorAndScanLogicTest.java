@@ -1,7 +1,11 @@
 package com.qualitest.flow.diagnose;
 
 import com.qualitest.flow.graph.FlowHttpNodeVisitor;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,10 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 图遍历与按 API id 匹配引用的纯逻辑测试（不启 Spring）。
- * <p>
+ * 测 FlowHttpNodeVisitor / 按 API id 匹配引用：图遍历与扫描纯逻辑。
+ * 边界：不启 Spring；内存图 JSON。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowHttpNodeVisitorAndScanLogicTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowHttpNodeVisitorAndScanLogicTest {
 
     /**
@@ -24,6 +29,8 @@ class FlowHttpNodeVisitorAndScanLogicTest {
      * 期望：visit 回调仅对 http 节点计数，共 2 次，无错误。
      */
     @Test
+    @Order(1)
+    @DisplayName("visit 仅计 http 节点")
     void visit_countsHttpNodesOnly() {
         String graph = """
                 {"nodes":[
@@ -43,6 +50,8 @@ class FlowHttpNodeVisitorAndScanLogicTest {
      * 期望：project/绑 id 为 true，external/空 data 为 false。
      */
     @Test
+    @Order(2)
+    @DisplayName("isProjectBoundHttp 规则判定")
     void isProjectBoundHttp_rules() {
         assertTrue(FlowHttpNodeVisitor.isProjectBoundHttp(
                 com.alibaba.fastjson2.JSONObject.parseObject("{\"callMode\":\"project\",\"testProjectApiId\":\"1\"}")));
@@ -62,6 +71,8 @@ class FlowHttpNodeVisitorAndScanLogicTest {
      * 期望：扫描 target=100 时仅命中 n1。
      */
     @Test
+    @Order(3)
+    @DisplayName("扫描命中匹配的 API id")
     void scanLogic_findsMatchingApiId() {
         String graph = """
                 {"nodes":[
@@ -89,6 +100,8 @@ class FlowHttpNodeVisitorAndScanLogicTest {
      * 期望：visit 返回非空错误信息。
      */
     @Test
+    @Order(4)
+    @DisplayName("非法 JSON 返回错误")
     void visit_invalidJson_returnsError() {
         String err = FlowHttpNodeVisitor.visit("{not-json", (a, b, c) -> {
         });

@@ -5,6 +5,7 @@ import com.qualitest.ai.llm.discovery.ModelDiscoveryService;
 import com.qualitest.ai.mapper.AiLlmVendorMapper;
 import com.qualitest.common.exception.ServiceException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -13,10 +14,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
-import static com.qualitest.flow.support.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,7 +23,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 AiLlmVendorServiceImpl：内置厂商删除保护与发现缓存失效。
- * 边界：Mapper/Discovery Mock；存量 begin/end 保留。
+ * 边界：Mapper/Discovery Mock；无真实 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiLlmVendorServiceImplTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -54,8 +51,8 @@ class AiLlmVendorServiceImplTest {
      */
     @Test
     @Order(1)
+    @DisplayName("内置厂商禁止删除")
     void delete_builtinVendor_throws() {
-        begin("delete_builtinVendor_throws");
         when(mapper.selectAiLlmVendorById(8001L)).thenReturn(AiLlmVendor.builder()
                 .aiLlmVendorId(8001L)
                 .builtinStatus(1)
@@ -63,8 +60,6 @@ class AiLlmVendorServiceImplTest {
 
         ServiceException ex = assertThrows(ServiceException.class, () -> service.deleteAiLlmVendorById(8001L));
         assertTrue(ex.getMessage().contains("内置"));
-        log("error=" + quote(ex.getMessage()));
-        end("delete_builtinVendor_throws");
     }
 
     /**
@@ -73,8 +68,8 @@ class AiLlmVendorServiceImplTest {
      */
     @Test
     @Order(2)
+    @DisplayName("自定义厂商删除并失效缓存")
     void delete_customVendor_invalidatesCache() {
-        begin("delete_customVendor_invalidatesCache");
         when(mapper.selectAiLlmVendorById(8002L)).thenReturn(AiLlmVendor.builder()
                 .aiLlmVendorId(8002L)
                 .builtinStatus(0)
@@ -83,8 +78,6 @@ class AiLlmVendorServiceImplTest {
 
         assertEquals(1, service.deleteAiLlmVendorById(8002L));
         verify(modelDiscoveryService).invalidateDiscoverCache(8002L);
-        log("deletedVendorId=8002 cacheInvalidated=true");
-        end("delete_customVendor_invalidatesCache");
     }
 
     /**
@@ -93,15 +86,13 @@ class AiLlmVendorServiceImplTest {
      */
     @Test
     @Order(3)
+    @DisplayName("批量逻辑删除含内置时抛异常")
     void logicDelete_builtinVendorList_throws() {
-        begin("logicDelete_builtinVendorList_throws");
         when(mapper.selectAiLlmVendorById(8003L)).thenReturn(AiLlmVendor.builder()
                 .aiLlmVendorId(8003L)
                 .builtinStatus(1)
                 .build());
 
         assertThrows(ServiceException.class, () -> service.logicDeleteAiLlmVendorByIdList(List.of(8003L)));
-        log("blockedBuiltinVendorId=8003");
-        end("logicDelete_builtinVendorList_throws");
     }
 }

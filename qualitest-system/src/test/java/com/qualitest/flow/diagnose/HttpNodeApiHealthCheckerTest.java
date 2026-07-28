@@ -3,7 +3,11 @@ package com.qualitest.flow.diagnose;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.project.domain.TestProjectApi;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 import java.util.Set;
@@ -14,11 +18,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * HttpNodeApiHealthChecker 单元测试。
- * 覆盖：孤儿测值、抽取路径缺失/命中、API 缺失、参数名大小写忽略。
- * <p>
+ * 测 HttpNodeApiHealthChecker：HTTP 节点相对 API 的健康告警。
+ * 边界：纯函数/内存 API 对象；无 DB；含孤儿测值、抽取路径、API 缺失。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpNodeApiHealthCheckerTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class HttpNodeApiHealthCheckerTest {
 
     private final HttpNodeApiHealthChecker checker = new HttpNodeApiHealthChecker();
@@ -28,6 +32,8 @@ class HttpNodeApiHealthCheckerTest {
      * 期望：精确/前缀匹配返回 true，无关路径返回 false。
      */
     @Test
+    @Order(1)
+    @DisplayName("路径精确与前缀匹配 schema")
     void pathMatchesSchema_exactAndPrefix() {
         Set<String> paths = Set.of("code", "data.token", "msg");
         assertTrue(HttpNodeApiHealthChecker.pathMatchesSchema("data.token", paths));
@@ -41,6 +47,8 @@ class HttpNodeApiHealthCheckerTest {
      * 期望：产生 ORPHAN_PARAM 告警，detail 含 gone。
      */
     @Test
+    @Order(2)
+    @DisplayName("孤儿参数产生 ORPHAN_PARAM")
     void orphanParam_warnsWhenNameMissingFromApi() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
@@ -67,6 +75,8 @@ class HttpNodeApiHealthCheckerTest {
      * 期望：不产生 ORPHAN_PARAM 告警。
      */
     @Test
+    @Order(3)
+    @DisplayName("参数名大小写不同不告警")
     void orphanParam_caseInsensitiveMatch_noWarn() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
@@ -91,6 +101,8 @@ class HttpNodeApiHealthCheckerTest {
      * 期望：产生 EXTRACT_PATH_MISSING 告警，detail 含 userId。
      */
     @Test
+    @Order(4)
+    @DisplayName("抽取路径缺失告警")
     void extractPathMissing_whenNotInSchema() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
@@ -123,6 +135,8 @@ class HttpNodeApiHealthCheckerTest {
      * 期望：不产生 EXTRACT_PATH_MISSING 告警。
      */
     @Test
+    @Order(5)
+    @DisplayName("抽取路径在 schema 中不告警")
     void extractPathOk_whenInSchema() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
@@ -147,6 +161,8 @@ class HttpNodeApiHealthCheckerTest {
      * 期望：产生 API_MISSING 告警，共 1 条。
      */
     @Test
+    @Order(6)
+    @DisplayName("API 缺失产生 API_MISSING")
     void apiMissing_whenResolverReturnsNull() {
         String graph = """
                 {"nodes":[{"id":"n1","type":"http","data":{
@@ -166,6 +182,8 @@ class HttpNodeApiHealthCheckerTest {
      * 期望：collectParamNames 返回 query 名与 body 内属性名。
      */
     @Test
+    @Order(7)
+    @DisplayName("collectParamNames 含 query 与 body")
     void collectParamNames_includesQueryAndBody() {
         Set<String> names = HttpNodeApiHealthChecker.collectParamNames(
                 "{\"queryParams\":[{\"name\":\"q\"}],\"body\":{\"mode\":\"json\",\"json\":{\"example\":\"{\\\"a\\\":1}\"}}}",
@@ -179,6 +197,8 @@ class HttpNodeApiHealthCheckerTest {
      * 期望：同时产生 ORPHAN_PARAM 与 EXTRACT_PATH_MISSING 告警。
      */
     @Test
+    @Order(8)
+    @DisplayName("同节点孤儿参数与抽取缺失并存")
     void checkNode_orphanAndExtractTogether() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(2L)

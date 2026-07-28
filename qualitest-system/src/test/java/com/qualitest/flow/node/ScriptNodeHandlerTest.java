@@ -5,6 +5,7 @@ import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.ScriptNodeHandler;
 import com.qualitest.flow.script.ScriptRuntime;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -13,14 +14,11 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 ScriptNodeHandler：委托 ScriptRuntime 执行节点脚本并写入 StepResult。
- * 边界：成功写入 / 空源码失败；存量 begin/end 保留。
+ * 边界：真实 Graal；成功写入 / 空源码失败；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ScriptNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -34,8 +32,8 @@ class ScriptNodeHandlerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("执行：脚本成功写入 flow 并记录 writes")
     void execute_success() {
-        begin("execute_success");
         GraphNode node = scriptNode("javascript", "ctx.setFlow('demo', 'ok');");
         FlowRunContext ctx = new FlowRunContext();
 
@@ -45,8 +43,6 @@ class ScriptNodeHandlerTest {
         assertNotNull(result.getScript());
         assertEquals("javascript", result.getScript().get("language"));
         assertFalse(((java.util.List<?>) result.getScript().get("writes")).isEmpty());
-        log("flow.demo=" + ctx.getFlow().get("demo"));
-        end("execute_success");
     }
 
     /**
@@ -55,8 +51,8 @@ class ScriptNodeHandlerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("执行：空源码失败并返回 TF_SCRIPT_ERROR")
     void execute_emptySource_fails() {
-        begin("execute_emptySource_fails");
         GraphNode node = scriptNode("javascript", "");
         FlowRunContext ctx = new FlowRunContext();
 
@@ -64,8 +60,6 @@ class ScriptNodeHandlerTest {
         assertEquals(StepResult.STATUS_FAILED, result.getStatus());
         assertNotNull(result.getError());
         assertEquals(FlowErrorCode.TF_SCRIPT_ERROR.getCode(), result.getError().getCode());
-        log("error=" + result.getError().getCode());
-        end("execute_emptySource_fails");
     }
 
     private static GraphNode scriptNode(String language, String source) {

@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.AssignNodeHandler;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -14,14 +15,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 AssignNodeHandler：按 assignments 批量改 flow 变量并记录 assigns。
- * 边界：set/add；存量 begin/end 保留。
+ * 边界：set/add；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AssignNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -35,8 +33,8 @@ class AssignNodeHandlerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("执行：set 后再 add 累加 flow 变量")
     void execute_setAndAdd() {
-        begin("execute_setAndAdd");
         JSONArray assignments = new JSONArray();
         assignments.add(row("pollAttempt", "set", "0", null, null));
         assignments.add(row("pollAttempt", "add", null, 1, 0));
@@ -53,8 +51,6 @@ class AssignNodeHandlerTest {
         assertEquals(2, assigns.size());
         assertEquals(0L, assigns.get(0).get("after"));
         assertEquals(1L, assigns.get(1).get("after"));
-        log("flow.pollAttempt=" + ctx.getFlow().get("pollAttempt"));
-        end("execute_setAndAdd");
     }
 
     /**
@@ -63,8 +59,8 @@ class AssignNodeHandlerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("执行：对已有 flow 值按 step 做 add")
     void execute_addWithStep() {
-        begin("execute_addWithStep");
         JSONArray assignments = new JSONArray();
         assignments.add(row("count", "add", null, 2, 0));
 
@@ -81,8 +77,6 @@ class AssignNodeHandlerTest {
         assertEquals(1, assigns.size());
         assertEquals("add", assigns.get(0).get("op"));
         assertEquals(5L, assigns.get(0).get("after"));
-        log("count after=" + ctx.getFlow().get("count"));
-        end("execute_addWithStep");
     }
 
     private static GraphNode assignNode(JSONArray assignments) {

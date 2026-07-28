@@ -4,7 +4,11 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -14,13 +18,11 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * {@link CompareRuleEvaluator} 单元测试：断言/条件分支中的比较规则求值。
- * <p>
- * 覆盖 rule 的 left（flow.code、http.body.data.token、asset.xxx 等）、
- * operator（eq/ne/gt/lt/gte/lte/contains/exists 等 9 种）、right（支持占位符）组合。
- * <p>
+ * 测 CompareRuleEvaluator：断言/条件分支比较规则求值。
+ * 边界：fixture compare-extract-cases.json；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=CompareRuleEvaluatorTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class CompareRuleEvaluatorTest {
 
     /**
@@ -48,6 +50,8 @@ class CompareRuleEvaluatorTest {
      * 期望：每条 case 的 eval 布尔结果与 expected 一致。
      */
     @Test
+    @Order(1)
+    @DisplayName("求值：fixture 各 compareCases 与 expected 一致")
     void eval_fixtureCases() {
         for (int i = 0; i < compareCases.size(); i++) {
             JSONObject c = compareCases.getJSONObject(i);

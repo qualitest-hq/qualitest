@@ -12,6 +12,10 @@ import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 边界：内存合并 + GraphJsonValidator；数据驱动夹具在 flow/merge-fixtures/。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignPatchMergerTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowDesignPatchMergerTest {
 
     private FlowDesignPatchMerger merger;
@@ -49,6 +54,8 @@ class FlowDesignPatchMergerTest {
      * 期望：合并后图结构符合夹具断言，校验通过。
      */
     @Test
+    @Order(1)
+    @DisplayName("线性加节点边全部接受合并成功")
     void merge_fixture_linearAddAccepted() throws IOException {
         runFixture("flow/merge-fixtures/linear-add-accepted.json");
     }
@@ -58,6 +65,8 @@ class FlowDesignPatchMergerTest {
      * 期望：合并结果图校验失败。
      */
     @Test
+    @Order(2)
+    @DisplayName("只接受边未接受节点时校验失败")
     void merge_fixture_partialEdgeOnly_fails() throws IOException {
         runFixture("flow/merge-fixtures/partial-edge-only.json");
     }
@@ -67,6 +76,8 @@ class FlowDesignPatchMergerTest {
      * 期望：合并成功并通过夹具断言。
      */
     @Test
+    @Order(3)
+    @DisplayName("条件节点仅补边合并成功")
     void merge_fixture_conditionAddEdgeOnly_ok() throws IOException {
         runFixture("flow/merge-fixtures/condition-add-edge-only.json");
     }
@@ -76,6 +87,8 @@ class FlowDesignPatchMergerTest {
      * 期望：合并成功并通过夹具断言。
      */
     @Test
+    @Order(4)
+    @DisplayName("只接受节点合并成功")
     void merge_fixture_partialNodeOnly_ok() throws IOException {
         runFixture("flow/merge-fixtures/partial-node-only.json");
     }
@@ -85,6 +98,8 @@ class FlowDesignPatchMergerTest {
      * 期望：节点删除且关联边被级联清理。
      */
     @Test
+    @Order(5)
+    @DisplayName("删除节点级联清理关联边")
     void merge_fixture_deleteNodeCascade_ok() throws IOException {
         runFixture("flow/merge-fixtures/delete-node-cascade.json");
     }
@@ -94,6 +109,8 @@ class FlowDesignPatchMergerTest {
      * 期望：合并成功并通过夹具断言。
      */
     @Test
+    @Order(6)
+    @DisplayName("更新条件出边合并成功")
     void merge_fixture_conditionUpdateEdge_ok() throws IOException {
         runFixture("flow/merge-fixtures/condition-update-edge.json");
     }
@@ -103,6 +120,8 @@ class FlowDesignPatchMergerTest {
      * 期望：合并成功并通过夹具断言。
      */
     @Test
+    @Order(7)
+    @DisplayName("仅场景 patch 合并成功")
     void merge_fixture_scenarioOnly_ok() throws IOException {
         runFixture("flow/merge-fixtures/scenario-only.json");
     }
@@ -112,6 +131,8 @@ class FlowDesignPatchMergerTest {
      * 期望：幂等，仍通过。
      */
     @Test
+    @Order(8)
+    @DisplayName("同 accepted 再合并幂等通过")
     void merge_fixture_remergeSameAccepted_ok() throws IOException {
         runFixture("flow/merge-fixtures/remerge-same-accepted.json");
     }
@@ -121,6 +142,8 @@ class FlowDesignPatchMergerTest {
      * 期望：过滤后无 addNodes，仅保留边 8001。
      */
     @Test
+    @Order(9)
+    @DisplayName("按 accepted 过滤仅保留勾选边")
     void filterPatchByAccepted_onlyIncludesCheckedItems() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-edge-only.json");
         FlowDesignPatch patch = fixture.getObject("patch", FlowDesignPatch.class);
@@ -138,6 +161,8 @@ class FlowDesignPatchMergerTest {
      * 期望：过滤后仍保留 sc2。
      */
     @Test
+    @Order(10)
+    @DisplayName("过滤保留 activeScenarioId")
     void filterPatchByAccepted_scenarioActiveScenarioId() {
         FlowDesignPatch patch = new FlowDesignPatch();
         FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
@@ -156,6 +181,8 @@ class FlowDesignPatchMergerTest {
      * 期望：浅合并后 name=新名，并写入 callMode。
      */
     @Test
+    @Order(11)
+    @DisplayName("applyNodeUpdate 浅合并 data")
     void applyNodeUpdate_mergesData() {
         GraphNode existing = GraphNode.builder()
                 .id("1001")
@@ -178,6 +205,8 @@ class FlowDesignPatchMergerTest {
      * 期望：节点 1002 消失，边列表清空。
      */
     @Test
+    @Order(12)
+    @DisplayName("删除节点级联清空边")
     void deleteNode_cascadesEdges() {
         GraphJson base = GraphJson.builder()
                 .nodes(new ArrayList<>(List.of(

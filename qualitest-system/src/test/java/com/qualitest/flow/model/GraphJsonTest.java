@@ -2,6 +2,7 @@ package com.qualitest.flow.model;
 
 import com.alibaba.fastjson2.JSON;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -13,14 +14,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 GraphJson：demo-graph.json 反序列化、场景字段、condition 分支 target、serialize 往返。
- * 边界：仅 classpath 夹具；存量 begin/end 保留。
+ * 边界：仅 classpath 夹具；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphJsonTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -59,8 +57,8 @@ class GraphJsonTest {
      */
     @Test
     @Order(1)
+    @DisplayName("demo-graph 反序列化节点边场景")
     void demoGraph_deserializesFromFixture() {
-        begin("demoGraph_deserializesFromFixture");
         assertNotNull(demoGraph);
         assertNotNull(demoGraph.getNodes());
         assertNotNull(demoGraph.getEdges());
@@ -69,8 +67,6 @@ class GraphJsonTest {
         assertEquals(11, demoGraph.getEdges().size());
         assertNotNull(demoGraph.getMeta().getScenarios());
         assertEquals(3, demoGraph.getMeta().getScenarios().size());
-        log("nodes=11, edges=11, scenarios=3");
-        end("demoGraph_deserializesFromFixture");
     }
 
     /**
@@ -79,11 +75,10 @@ class GraphJsonTest {
      */
     @Test
     @Order(2)
+    @DisplayName("场景字段齐全且预发 bizId 正确")
     void demoGraph_metaRunFieldsPresent() {
-        begin("demoGraph_metaRunFieldsPresent");
         GraphMeta meta = demoGraph.getMeta();
         assertEquals(SCENARIO_DEFAULT, meta.getActiveScenarioId());
-        log("activeScenarioId=" + meta.getActiveScenarioId());
 
         for (GraphRunScenario scenario : meta.getScenarios()) {
             assertNotNull(scenario.getId(), "scenario.id");
@@ -93,7 +88,6 @@ class GraphJsonTest {
             assertNotNull(scenario.getFlowSeed(), "scenario.flowSeed");
             assertFalse(scenario.getFlowSeed().isEmpty(), "scenario.flowSeed 非空");
             assertNotNull(scenario.getRemark(), "scenario.remark");
-            log("scenario " + scenario.getId() + " -> envId=" + scenario.getTestProjectEnvId());
         }
 
         GraphRunScenario staging = meta.getScenarios().stream()
@@ -102,8 +96,6 @@ class GraphJsonTest {
                 .orElseThrow();
         assertEquals("rpt-99", staging.getFlowSeed().get("bizId"));
         assertEquals("2042000000000000002", staging.getTestProjectEnvId());
-        log("staging.flowSeed.bizId=rpt-99");
-        end("demoGraph_metaRunFieldsPresent");
     }
 
     /**
@@ -112,8 +104,8 @@ class GraphJsonTest {
      */
     @Test
     @Order(3)
+    @DisplayName("condition 分支含 id 与 target")
     void demoGraph_conditionBranchesHaveTarget() {
-        begin("demoGraph_conditionBranchesHaveTarget");
         long conditionCount = demoGraph.getNodes().stream()
                 .filter(n -> "condition".equals(n.getType()))
                 .peek(n -> {
@@ -124,12 +116,10 @@ class GraphJsonTest {
                     for (Map<String, Object> branch : branches) {
                         assertNotNull(branch.get("id"), "branch.id");
                         assertNotNull(branch.get("target"), "branch.target");
-                        log("condition " + n.getId() + " branch " + branch.get("id") + " -> " + branch.get("target"));
                     }
                 })
                 .count();
         assertEquals(2, conditionCount);
-        end("demoGraph_conditionBranchesHaveTarget");
     }
 
     /**
@@ -138,8 +128,8 @@ class GraphJsonTest {
      */
     @Test
     @Order(4)
+    @DisplayName("serialize 往返保持图结构")
     void serializeRoundTrip_preservesGraph() {
-        begin("serializeRoundTrip_preservesGraph");
         GraphJson roundTripped = GraphJson.parse(demoGraph.toJsonString());
 
         assertEquals(
@@ -147,7 +137,6 @@ class GraphJsonTest {
                 JSON.toJSONString(roundTripped.getMeta().getScenarios())
         );
         assertEquals(SCENARIO_DEFAULT, roundTripped.getMeta().getActiveScenarioId());
-        log("scenarios preserved, activeScenarioId=" + SCENARIO_DEFAULT);
 
         Set<String> originalNodeIds = demoGraph.getNodes().stream()
                 .map(GraphNode::getId)
@@ -156,7 +145,6 @@ class GraphJsonTest {
                 .map(GraphNode::getId)
                 .collect(Collectors.toSet());
         assertEquals(originalNodeIds, roundTripNodeIds);
-        log("node ids preserved: " + originalNodeIds.size());
 
         for (int i = 0; i < demoGraph.getEdges().size(); i++) {
             GraphEdge original = demoGraph.getEdges().get(i);
@@ -165,7 +153,5 @@ class GraphJsonTest {
             assertEquals(original.getSource(), copied.getSource());
             assertEquals(original.getTarget(), copied.getTarget());
         }
-        log("edges preserved: " + demoGraph.getEdges().size());
-        end("serializeRoundTrip_preservesGraph");
     }
 }

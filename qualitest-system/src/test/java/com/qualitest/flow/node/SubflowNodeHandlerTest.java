@@ -4,7 +4,6 @@ import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.migrate.GraphMigrator;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
 import com.qualitest.flow.node.impl.SubflowNodeHandler;
 import com.qualitest.flow.run.FlowGraphRunner;
@@ -13,6 +12,7 @@ import com.qualitest.flow.validate.FlowNodeType;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.service.ITestFlowService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -24,9 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -34,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 SubflowNodeHandler：子流加载、inputs/outputs、跨项目与深度限制。
- * 边界：Mock ITestFlowService；子图用 assign 桩；存量 begin/end 保留。
+ * 边界：Mock ITestFlowService；子图用 assign 桩。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -74,8 +71,8 @@ class SubflowNodeHandlerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("子流：outputs 合并进父 flow")
     void execute_subflow_mergesOutputs() {
-        begin("execute_subflow_mergesOutputs");
         GraphNode node = subflowNode(nodeData(
                 "name", "调用子流",
                 "subflowId", String.valueOf(SUBFLOW_ID),
@@ -93,9 +90,6 @@ class SubflowNodeHandlerTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> childSteps = (List<Map<String, Object>>) result.getSubflow().get("childSteps");
         assertFalse(childSteps.isEmpty());
-        log("outputs merged parentToken=" + parentCtx.getFlow().get("parentToken")
-                + " childSteps=" + childSteps.size());
-        end("execute_subflow_mergesOutputs");
     }
 
     /**
@@ -104,8 +98,8 @@ class SubflowNodeHandlerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("子流：空 outputs 回退 meta.flowOutputs")
     void execute_emptyOutputs_usesFlowOutputsDefault() {
-        begin("execute_emptyOutputs_usesFlowOutputsDefault");
         GraphNode node = subflowNode(nodeData(
                 "name", "默认输出映射",
                 "subflowId", String.valueOf(SUBFLOW_ID),
@@ -118,8 +112,6 @@ class SubflowNodeHandlerTest {
 
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertEquals("ok", parentCtx.getFlow().get("childOut"));
-        log("childOut=" + parentCtx.getFlow().get("childOut"));
-        end("execute_emptyOutputs_usesFlowOutputsDefault");
     }
 
     /**
@@ -128,14 +120,12 @@ class SubflowNodeHandlerTest {
      */
     @Test
     @Order(3)
+    @DisplayName("子流：缺少 subflowId 返回 TF_SUBFLOW_INVALID")
     void execute_missingSubflowId_fails() {
-        begin("execute_missingSubflowId_fails");
         GraphNode node = subflowNode(nodeData("name", "坏节点"));
         StepResult result = handler.execute(parentCtx, node, null);
         assertEquals(StepResult.STATUS_FAILED, result.getStatus());
         assertEquals(FlowErrorCode.TF_SUBFLOW_INVALID.getCode(), result.getError().getCode());
-        log("error=" + result.getError().getMessage());
-        end("execute_missingSubflowId_fails");
     }
 
     /**
@@ -144,8 +134,8 @@ class SubflowNodeHandlerTest {
      */
     @Test
     @Order(4)
+    @DisplayName("子流：同项目任意测试流可执行")
     void execute_anyTestFlow_passes() {
-        begin("execute_anyTestFlow_passes");
         GraphNode node = subflowNode(nodeData(
                 "name", "引用普通测试流",
                 "subflowId", String.valueOf(SUBFLOW_ID),
@@ -157,8 +147,6 @@ class SubflowNodeHandlerTest {
         StepResult result = handler.execute(parentCtx, node, null);
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertEquals("ok", parentCtx.getFlow().get("parentToken"));
-        log("parentToken=" + parentCtx.getFlow().get("parentToken"));
-        end("execute_anyTestFlow_passes");
     }
 
     /**
@@ -167,8 +155,8 @@ class SubflowNodeHandlerTest {
      */
     @Test
     @Order(5)
+    @DisplayName("子流：跨项目拒绝")
     void execute_crossProject_fails() {
-        begin("execute_crossProject_fails");
         subflow.setTestProjectId(99L);
         GraphNode node = subflowNode(nodeData(
                 "name", "跨项目子流",
@@ -182,8 +170,6 @@ class SubflowNodeHandlerTest {
         assertEquals(StepResult.STATUS_FAILED, result.getStatus());
         assertEquals(FlowErrorCode.TF_SUBFLOW_INVALID.getCode(), result.getError().getCode());
         assertTrue(result.getError().getMessage().contains("不属于当前项目"));
-        log("error=" + result.getError().getMessage());
-        end("execute_crossProject_fails");
     }
 
     /**
@@ -192,8 +178,8 @@ class SubflowNodeHandlerTest {
      */
     @Test
     @Order(6)
+    @DisplayName("子流：子步失败向上传播")
     void execute_childStepFails_propagatesError() {
-        begin("execute_childStepFails_propagatesError");
         handler = new SubflowNodeHandler(testFlowService, flowGraphRunner, failingDelayRegistry(), new GraphMigrator());
         subflow.setGraphJson(loadResource("flow/subflow-child-delay-graph.json"));
         GraphNode node = subflowNode(nodeData(
@@ -213,8 +199,6 @@ class SubflowNodeHandlerTest {
         assertEquals(1, childSteps.size());
         assertEquals("failed", childSteps.get(0).get("status"));
         assertNotNull(result.getError());
-        log("childError=" + result.getError().getMessage());
-        end("execute_childStepFails_propagatesError");
     }
 
     /**
@@ -223,8 +207,8 @@ class SubflowNodeHandlerTest {
      */
     @Test
     @Order(7)
+    @DisplayName("子流：嵌套超限返回 TF_SUBFLOW_NESTED")
     void execute_depthExceeded_fails() {
-        begin("execute_depthExceeded_fails");
         parentCtx.setSubflowDepth(SubflowDepth.MAX_DEPTH);
         GraphNode node = subflowNode(nodeData(
                 "name", "嵌套过深",
@@ -238,8 +222,6 @@ class SubflowNodeHandlerTest {
         assertEquals(StepResult.STATUS_FAILED, result.getStatus());
         assertEquals(FlowErrorCode.TF_SUBFLOW_NESTED.getCode(), result.getError().getCode());
         assertTrue(result.getError().getMessage().contains("嵌套超过上限"));
-        log("error=" + result.getError().getCode());
-        end("execute_depthExceeded_fails");
     }
 
     private static NodeHandlerRegistry passingAssignRegistry() {

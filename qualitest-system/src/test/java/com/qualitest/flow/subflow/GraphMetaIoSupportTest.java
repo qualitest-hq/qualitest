@@ -3,6 +3,7 @@ package com.qualitest.flow.subflow;
 import com.qualitest.flow.model.GraphFlowOutput;
 import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphRunScenario;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -12,15 +13,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
-import static com.qualitest.flow.support.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 GraphMetaIoSupport：子流 inputs/outputs 默认映射与 flowOutput 名称提取。
- * 边界：activeScenario flowSeed；存量 begin/end 保留。
+ * 边界：activeScenario flowSeed；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphMetaIoSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -32,8 +29,8 @@ class GraphMetaIoSupportTest {
      */
     @Test
     @Order(1)
+    @DisplayName("默认 outputs：来自 meta.flowOutputs")
     void defaultOutputMappings_fromFlowOutputs() {
-        begin("defaultOutputMappings_fromFlowOutputs");
         GraphMeta meta = GraphMeta.builder()
                 .flowOutputs(List.of(
                         GraphFlowOutput.builder().name("token").description("访问令牌").build(),
@@ -48,8 +45,6 @@ class GraphMetaIoSupportTest {
         assertEquals("token", mappings.get(0).get("flowKey"));
         assertEquals("refreshToken", mappings.get(1).get("name"));
         assertEquals("refreshToken", mappings.get(1).get("flowKey"));
-        log("mappings=" + mappings.size() + " first=" + quote(mappings.get(0).get("flowKey")));
-        end("defaultOutputMappings_fromFlowOutputs");
     }
 
     /**
@@ -58,8 +53,8 @@ class GraphMetaIoSupportTest {
      */
     @Test
     @Order(2)
+    @DisplayName("建议 inputs：来自 activeScenario.flowSeed")
     void suggestInputMappings_fromActiveScenarioFlowSeed() {
-        begin("suggestInputMappings_fromActiveScenarioFlowSeed");
         GraphRunScenario scenario = GraphRunScenario.builder()
                 .id("s1")
                 .name("默认")
@@ -76,8 +71,6 @@ class GraphMetaIoSupportTest {
         assertEquals(1, inputs.size());
         assertEquals("loginUser", inputs.get(0).get("name"));
         assertEquals("{{flow.loginUser}}", inputs.get(0).get("value"));
-        log("input=" + quote(inputs.get(0).get("value")));
-        end("suggestInputMappings_fromActiveScenarioFlowSeed");
     }
 
     /**
@@ -86,14 +79,12 @@ class GraphMetaIoSupportTest {
      */
     @Test
     @Order(3)
+    @DisplayName("提取：flowOutput 名称列表")
     void flowOutputNames_extractsNames() {
-        begin("flowOutputNames_extractsNames");
         GraphMeta meta = GraphMeta.builder()
                 .flowOutputs(List.of(GraphFlowOutput.builder().name("token").build()))
                 .build();
 
         assertEquals(List.of("token"), GraphMetaIoSupport.flowOutputNames(meta));
-        log("names=" + GraphMetaIoSupport.flowOutputNames(meta));
-        end("flowOutputNames_extractsNames");
     }
 }

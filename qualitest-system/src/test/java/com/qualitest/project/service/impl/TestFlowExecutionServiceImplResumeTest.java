@@ -26,6 +26,7 @@ import com.qualitest.project.service.ITestProjectEnvService;
 import com.qualitest.project.service.ITestProjectMemberService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -37,9 +38,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -106,8 +104,8 @@ class TestFlowExecutionServiceImplResumeTest {
      */
     @Test
     @Order(1)
+    @DisplayName("paused Run 详情含 pauseInfo 与快照栈")
     void getRunDetail_buildsPauseInfoWithSnapshotStackItems() {
-        begin("getRunDetail_buildsPauseInfoWithSnapshotStackItems");
         Date pausedAt = DateUtils.getNowDate();
         RunExecutionState state = RunExecutionState.builder()
                 .pauseReason(RunExecutionState.PAUSE_REASON_NODE_FAILURE)
@@ -141,8 +139,6 @@ class TestFlowExecutionServiceImplResumeTest {
         assertEquals("snap-1", pauseInfo.getSnapshotStack().get(0).getSnapshotId());
         assertEquals(pausedAt, pauseInfo.getPausedAt());
         assertTrue(pauseInfo.getAvailableDecisions().contains(ResumeDecision.RESTORE_AND_RETRY));
-        log("pauseNodeId=n2 stackSize=1 decisions=" + pauseInfo.getAvailableDecisions());
-        end("getRunDetail_buildsPauseInfoWithSnapshotStackItems");
     }
 
     /**
@@ -151,8 +147,8 @@ class TestFlowExecutionServiceImplResumeTest {
      */
     @Test
     @Order(2)
+    @DisplayName("非 paused 时 pauseInfo 为 null")
     void getRunDetail_pauseInfoNullWhenNotPaused() {
-        begin("getRunDetail_pauseInfoNullWhenNotPaused");
         TestFlowRunResult run = TestFlowRunResult.builder()
                 .testFlowRunId(11L)
                 .testFlowId(1L)
@@ -167,8 +163,6 @@ class TestFlowExecutionServiceImplResumeTest {
         TestFlowRunDetailResult detail = service.getRunDetail(11L);
 
         assertNull(detail.getPauseInfo());
-        log("pauseInfo=null");
-        end("getRunDetail_pauseInfoNullWhenNotPaused");
     }
 
     /**
@@ -177,8 +171,8 @@ class TestFlowExecutionServiceImplResumeTest {
      */
     @Test
     @Order(3)
+    @DisplayName("非 paused resume 返回幂等结果")
     void resumeRun_idempotentWhenNotPaused() {
-        begin("resumeRun_idempotentWhenNotPaused");
         TestFlowRun run = TestFlowRun.builder()
                 .testFlowRunId(20L)
                 .testFlowId(2L)
@@ -203,8 +197,5 @@ class TestFlowExecutionServiceImplResumeTest {
         assertEquals(FlowErrorCode.TF_RUN_NOT_PAUSED.getCode(), result.getErrorCode());
         assertEquals(RunStatus.PASSED, result.getStatus());
         verify(testFlowExecutor).resume(eq(20L), any(ResumeDecision.class), eq(env));
-        log("idempotent=true errorCode=" + result.getErrorCode());
-        end("resumeRun_idempotentWhenNotPaused");
     }
 }
-

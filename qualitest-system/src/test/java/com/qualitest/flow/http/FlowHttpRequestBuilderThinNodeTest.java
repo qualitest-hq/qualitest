@@ -4,7 +4,11 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.support.TestProjectApiEffectiveConfigResolver;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -14,10 +18,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 薄节点运行时：以 API 有效配置为底，叠 requestValueOverrides；忽略残留 requestConfig。
- * <p>
+ * 测 FlowHttpRequestBuilder 薄节点：以 API 有效配置为底叠 requestValueOverrides。
+ * 边界：内存 API/节点；忽略残留厚 requestConfig；无网络。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowHttpRequestBuilderThinNodeTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowHttpRequestBuilderThinNodeTest {
 
     /**
@@ -25,6 +30,8 @@ class FlowHttpRequestBuilderThinNodeTest {
      * 期望：以 API 结构为底叠覆盖层，method 仍为 GET，忽略残留 POST 配置。
      */
     @Test
+    @Order(1)
+    @DisplayName("薄节点叠 overrides 且忽略厚配置")
     void build_usesApiStructure_andNodeOverrides() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
@@ -84,6 +91,8 @@ class FlowHttpRequestBuilderThinNodeTest {
      * 期望：overlay 后 JSON 含覆盖后的参数值与 body 示例字段。
      */
     @Test
+    @Order(2)
+    @DisplayName("overlay 应用参数与 body 示例")
     void overlayRequestValuesFromOverrides_appliesParamAndBody() {
         String base = """
                 {"method":"POST","queryParams":[{"name":"q","value":""}],"pathParams":[],"declaredHeaders":[],

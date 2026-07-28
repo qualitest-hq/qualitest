@@ -1,6 +1,7 @@
 package com.qualitest.flow.context;
 
 import com.qualitest.project.domain.TestProjectEnv;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -8,13 +9,12 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * 测 FlowRunContextBuilder / EnvUrlSupport：组装 env/asset/flow 与多模块 envUrl。
- * 边界：无协议 host 补 http；存量 begin/end 保留。
+ * 边界：无协议 host 补 http；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowRunContextBuilderTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -26,8 +26,8 @@ class FlowRunContextBuilderTest {
      */
     @Test
     @Order(1)
+    @DisplayName("build：注入 env baseUrl 与 asset 作用域")
     void build_injectsEnvBaseUrlAndAssetScope() {
-        begin("build_injectsEnvBaseUrlAndAssetScope");
         TestProjectEnv env = TestProjectEnv.builder()
                 .envUrl("http://localhost:8080")
                 .envVariables("[{\"id\":1,\"key\":\"timeout\",\"assets\":{\"timeout\":5000}}]")
@@ -45,12 +45,6 @@ class FlowRunContextBuilderTest {
         Map<String, Object> defaults = (Map<String, Object>) ctx.getAsset().get("defaults");
         assertNotNull(defaults);
         assertEquals("app-1", defaults.get("clientId"));
-
-        log("env.baseUrl=" + ctx.getEnv().get("baseUrl"));
-        log("env.timeout=" + ctx.getEnv().get("timeout"));
-        log("flow.loginUser=" + ctx.getFlow().get("loginUser"));
-        log("asset.defaults.clientId=" + defaults.get("clientId"));
-        end("build_injectsEnvBaseUrlAndAssetScope");
     }
 
     /**
@@ -59,15 +53,12 @@ class FlowRunContextBuilderTest {
      */
     @Test
     @Order(2)
+    @DisplayName("EnvUrl：多模块 JSON 解析并补 http 协议")
     void envUrlSupport_resolvesJsonModule() {
-        begin("envUrlSupport_resolvesJsonModule");
         String json = "{\"默认模块\":\"https://api.example.com\",\"other\":\"https://other.example.com\"}";
         String resolved = EnvUrlSupport.resolveEnvBaseUrlForRequest(json);
         String withScheme = EnvUrlSupport.ensureHttpSchemeForRequest("api.example.com");
         assertEquals("https://api.example.com", resolved);
         assertEquals("http://api.example.com", withScheme);
-        log("resolveEnvBaseUrlForRequest -> " + resolved);
-        log("ensureHttpSchemeForRequest(api.example.com) -> " + withScheme);
-        end("envUrlSupport_resolvesJsonModule");
     }
 }

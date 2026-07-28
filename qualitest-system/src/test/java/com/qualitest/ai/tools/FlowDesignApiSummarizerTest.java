@@ -4,6 +4,10 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.util.ApiConfigV2TestFixtures;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -14,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 边界：纯函数，不访问 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignApiSummarizerTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowDesignApiSummarizerTest {
 
     /**
@@ -21,6 +26,8 @@ class FlowDesignApiSummarizerTest {
      * 期望：摘要含 page query 与 Authorization header。
      */
     @Test
+    @Order(1)
+    @DisplayName("摘要含 query 与 Authorization")
     void summarizeRequest_readsQueryParamsAndObjectHeaders() {
         var out = FlowDesignApiSummarizer.summarizeRequest(
                 ApiConfigV2TestFixtures.REQUEST_POST_WITH_QUERY,
@@ -36,6 +43,8 @@ class FlowDesignApiSummarizerTest {
      * 期望：摘要保留类型与约束，不含 enum。
      */
     @Test
+    @Order(2)
+    @DisplayName("保留类型与约束不含 enum")
     void summarizeRequest_includesTypeAndConstraints() {
         String requestConfig = """
                 {"configVersion":1,"method":"GET","queryParams":[{"name":"mobile","type":"string","required":true,"pattern":"^1\\\\d{10}$","maxLength":11,"value":"{{asset.demo.mobile}}"}],"pathParams":[],"declaredHeaders":[],"body":{"mode":"none","json":{"schema":null,"example":null}}}
@@ -54,6 +63,8 @@ class FlowDesignApiSummarizerTest {
      * 期望：bodyParams 含 page。
      */
     @Test
+    @Order(3)
+    @DisplayName("读出 urlencoded bodyParams")
     void summarizeRequest_readsUrlencodedBodyParams() {
         String requestConfig = """
                 {"configVersion":1,"method":"POST","queryParams":[],"pathParams":[],"declaredHeaders":[],"body":{"mode":"x-www-form-urlencoded","urlencoded":[{"name":"page","required":true}]}}
@@ -68,6 +79,8 @@ class FlowDesignApiSummarizerTest {
      * 期望：bodySchemaLeaves 压成 path=user.mobile。
      */
     @Test
+    @Order(4)
+    @DisplayName("body schema 压成叶子路径")
     void summarizeRequest_bodySchemaLeaves() {
         String requestConfig = """
                 {"configVersion":1,"method":"POST","queryParams":[],"pathParams":[],"declaredHeaders":[],"body":{"mode":"json","json":{"schema":{"type":"object","properties":{"user":{"type":"object","properties":{"mobile":{"type":"string","pattern":"^1"}}}}},"example":null}}}
@@ -85,6 +98,8 @@ class FlowDesignApiSummarizerTest {
      * 期望：优先读出 code=integer。
      */
     @Test
+    @Order(5)
+    @DisplayName("V2 response 优先读 schema leaves")
     void summarizeResponse_prefersResponsesSchemaLeaves() {
         var out = FlowDesignApiSummarizer.summarizeResponse(ApiConfigV2TestFixtures.RESPONSE_WITH_CODE_SCHEMA);
         assertFalse(out.isEmpty());
@@ -96,6 +111,8 @@ class FlowDesignApiSummarizerTest {
      * 期望：摘要为空。
      */
     @Test
+    @Order(6)
+    @DisplayName("非 V2 形状摘要为空")
     void summarizeResponse_ignoresNonV2Shape() {
         var out = FlowDesignApiSummarizer.summarizeResponse("{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"integer\"}}}");
         assertTrue(out.isEmpty());
@@ -106,6 +123,8 @@ class FlowDesignApiSummarizerTest {
      * 期望：摘要带出 mobile 默认值、bodyExample、exampleId。
      */
     @Test
+    @Order(7)
+    @DisplayName("测值配置带出默认值与示例")
     void summarizeTestValueConfig_readsParamDefaults() {
         String tv = """
                 {"request":{"paramDefaults":{"mobile":"{{asset.demo.mobile}}"},"bodyExample":"{\\"a\\":1}"},"response":{"examplesById":{"resp-1":{"ok":true}}}}
@@ -122,6 +141,8 @@ class FlowDesignApiSummarizerTest {
      * 期望：suggestExtracts 只建议 data 下字段，expr 为 $.data.xxx。
      */
     @Test
+    @Order(8)
+    @DisplayName("仅建议 data 下 extracts")
     void suggestExtracts_fromDataPathFields() {
         var summary = new JSONObject();
         summary.put("code", "number");

@@ -3,17 +3,23 @@ package com.qualitest.flow.migrate;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.project.domain.TestProjectApi;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 厚节点 → 薄节点变换单测：抽测值、删 requestConfig / apiPath、跳过 external。
- * <p>
+/**
+ * 测 HttpNodeThinTransform：厚 HTTP 节点 → 薄节点（抽测值、删 requestConfig）。
+ * 边界：内存图与 API；跳过 external；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpNodeThinTransformTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class HttpNodeThinTransformTest {
 
     /**
@@ -21,6 +27,8 @@ class HttpNodeThinTransformTest {
      * 期望：抽取测值到 requestValueOverrides，移除 requestConfig/apiPath，标记 changed。
      */
     @Test
+    @Order(1)
+    @DisplayName("厚节点抽取测值并移除 requestConfig")
     void transform_extractsValuesAndRemovesRequestConfig() {
         String graph = """
                 {
@@ -75,6 +83,8 @@ class HttpNodeThinTransformTest {
      * 期望：不做变换，changed 为 false，requestConfig 保留。
      */
     @Test
+    @Order(2)
+    @DisplayName("external 节点跳过变换")
     void transform_skipsExternalNodes() {
         String graph = """
                 {
@@ -103,6 +113,8 @@ class HttpNodeThinTransformTest {
      * 期望：再次变换无变更，changed 为 false。
      */
     @Test
+    @Order(3)
+    @DisplayName("薄节点再次变换幂等")
     void transform_idempotentOnThinNode() {
         String graph = """
                 {

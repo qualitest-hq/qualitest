@@ -4,7 +4,11 @@ import com.alibaba.fastjson2.JSON;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -16,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * 边界：纯函数，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphJsonHashUtilTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class GraphJsonHashUtilTest {
 
     /**
@@ -23,6 +28,8 @@ class GraphJsonHashUtilTest {
      * 期望：哈希非空、长度 16，且两次相等。
      */
     @Test
+    @Order(1)
+    @DisplayName("哈希：同图深拷贝结果一致")
     void computeBaseGraphHash_sameGraph_producesSameHash() {
         GraphJson graph = sampleGraph();
         String hash1 = GraphJsonHashUtil.computeBaseGraphHash(graph);
@@ -37,6 +44,8 @@ class GraphJsonHashUtilTest {
      * 期望：哈希相同。
      */
     @Test
+    @Order(2)
+    @DisplayName("哈希：节点列表顺序无关")
     void computeBaseGraphHash_nodeOrderIgnored() {
         GraphJson graphA = sampleGraph();
         GraphJson graphB = JSON.parseObject(JSON.toJSONString(graphA), GraphJson.class);
@@ -53,6 +62,8 @@ class GraphJsonHashUtilTest {
      * 期望：哈希不同。
      */
     @Test
+    @Order(3)
+    @DisplayName("哈希：边变更后结果不同")
     void computeBaseGraphHash_changedEdge_producesDifferentHash() {
         GraphJson base = sampleGraph();
         GraphJson changed = JSON.parseObject(JSON.toJSONString(base), GraphJson.class);
@@ -68,6 +79,8 @@ class GraphJsonHashUtilTest {
      * 期望：返回稳定非空哈希，且两者相等。
      */
     @Test
+    @Order(4)
+    @DisplayName("哈希：null/空图返回稳定非空值")
     void computeBaseGraphHash_nullGraph_returnsStableHash() {
         String hash = GraphJsonHashUtil.computeBaseGraphHash(null);
         assertNotNull(hash);

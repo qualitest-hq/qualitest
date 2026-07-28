@@ -6,6 +6,7 @@ import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.node.impl.AssignNodeHandler;
 import com.qualitest.flow.node.impl.ConditionNodeHandler;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -14,14 +15,11 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 GraphWalker：找开始节点、resolveNext（condition target / 唯一出边）。
- * 边界：branch-graph 与 linear-run-graph；存量 begin/end 保留。
+ * 边界：branch-graph 与 linear-run-graph 夹具；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphWalkerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -33,8 +31,8 @@ class GraphWalkerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("condition 命中 IF 时下一跳 n_ok")
     void resolveNext_conditionIfBranch() {
-        begin("resolveNext_conditionIfBranch");
         GraphJson graph = loadGraph("flow/branch-graph.json");
         GraphWalker walker = new GraphWalker(graph);
         assertEquals("n_start", walker.findUniqueStartNodeId());
@@ -49,8 +47,6 @@ class GraphWalkerTest {
         String next = walker.resolveNextNodeId(condNode, condResult);
         assertEquals("n_ok", next);
         assertEquals("e_if", walker.findEdgeId("n_cond", next));
-        log("next=" + next + " edge=" + walker.findEdgeId("n_cond", next));
-        end("resolveNext_conditionIfBranch");
     }
 
     /**
@@ -59,8 +55,8 @@ class GraphWalkerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("assign 清零后 condition 命中 IF")
     void resolveNext_assignThenConditionIf() {
-        begin("resolveNext_assignThenConditionIf");
         GraphJson graph = loadGraph("flow/branch-graph.json");
         GraphWalker walker = new GraphWalker(graph);
 
@@ -80,8 +76,6 @@ class GraphWalkerTest {
 
         String next = walker.resolveNextNodeId(condNode, condResult);
         assertEquals("n_ok", next);
-        log("afterAssign=" + afterAssign + " next=" + next);
-        end("resolveNext_assignThenConditionIf");
     }
 
     /**
@@ -90,15 +84,13 @@ class GraphWalkerTest {
      */
     @Test
     @Order(3)
+    @DisplayName("唯一出边时 resolveNext 为 n2")
     void resolveNext_linearSingleOutEdge() {
-        begin("resolveNext_linearSingleOutEdge");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         GraphWalker walker = new GraphWalker(graph);
         GraphNode n1 = walker.getNode("n1");
         StepResult stub = StepResult.builder().status(StepResult.STATUS_PASSED).build();
         assertEquals("n2", walker.resolveNextNodeId(n1, stub));
-        log("n1 -> n2");
-        end("resolveNext_linearSingleOutEdge");
     }
 
     /** 从 classpath 加载夹具图 JSON */

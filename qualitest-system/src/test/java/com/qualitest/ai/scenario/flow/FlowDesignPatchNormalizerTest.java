@@ -13,6 +13,7 @@ import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
@@ -22,18 +23,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.formatPosition;
-import static com.qualitest.flow.support.FlowTestSections.log;
-import static com.qualitest.flow.support.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
  * 测 FlowDesignPatchNormalizer：AI 流程补丁规范化（补 id/position、API 绑定、summary）与预合并校验。
- * 边界：Mock TestProjectApiMapper，不访问数据库；存量 begin/end 保留。
+ * 边界：Mock TestProjectApiMapper，不访问数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignPatchNormalizerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -57,8 +53,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("缺 id 时补雪花 id 与默认坐标")
     void normalize_assignsSnowflakeIdsAndPosition() {
-        begin("normalize_assignsSnowflakeIdsAndPosition");
         GraphNode httpNode = GraphNode.builder()
                 .type("http")
                 .data(new HashMap<>(Map.of("callMode", "project", "name", "登录")))
@@ -83,12 +79,6 @@ class FlowDesignPatchNormalizerTest {
         GraphEdge normalizedEdge = result.patch().getAddEdges().get(0);
         assertEquals(normalizedNode.getId(), normalizedEdge.getSource());
         assertEquals("bad2", normalizedEdge.getTarget());
-        log("nodeId=" + normalizedNode.getId()
-                + " edgeId=" + normalizedEdge.getId()
-                + " edgeSource=" + normalizedEdge.getSource()
-                + " edgeTarget=" + normalizedEdge.getTarget()
-                + " position=" + formatPosition(position));
-        end("normalize_assignsSnowflakeIdsAndPosition");
     }
 
     /**
@@ -97,8 +87,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("新节点坐标跟随基图网格右移")
     void normalize_addNodePosition_followsGridFromBaseGraph() {
-        begin("normalize_addNodePosition_followsGridFromBaseGraph");
         GraphNode existing = GraphNode.builder()
                 .id("1001")
                 .type("http")
@@ -122,7 +112,6 @@ class FlowDesignPatchNormalizerTest {
         assertNotNull(position);
         assertEquals(420.0, position.getX());
         assertEquals(80.0, position.getY());
-        end("normalize_addNodePosition_followsGridFromBaseGraph");
     }
 
     /**
@@ -131,8 +120,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(3)
+    @DisplayName("非法 API id 置空并告警")
     void normalize_invalidApiId_clearedWithWarning() {
-        begin("normalize_invalidApiId_clearedWithWarning");
         Map<String, Object> data = new HashMap<>();
         data.put("name", "非法API");
         data.put("callMode", "project");
@@ -151,9 +140,6 @@ class FlowDesignPatchNormalizerTest {
         assertNull(result.patch().getAddNodes().get(0).getData().get("testProjectApiId"));
         assertTrue(result.validation().getWarnings().stream()
                 .anyMatch(w -> w.contains("testProjectApiId 无效")));
-        log("testProjectApiId=" + quote(result.patch().getAddNodes().get(0).getData().get("testProjectApiId"))
-                + " warnings=" + result.validation().getWarnings());
-        end("normalize_invalidApiId_clearedWithWarning");
     }
 
     /**
@@ -162,8 +148,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(4)
+    @DisplayName("合法 API 补全字段与 summary")
     void normalize_validApi_enrichesSummaryAndFields() {
-        begin("normalize_validApi_enrichesSummaryAndFields");
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
@@ -191,10 +177,6 @@ class FlowDesignPatchNormalizerTest {
         assertEquals("用户登录", normalized.get("apiName"));
         assertEquals("/api/auth/login", normalized.get("apiPath"));
         assertEquals("POST /api/auth/login", normalized.get("summary"));
-        log("apiName=" + quote(normalized.get("apiName"))
-                + " apiPath=" + quote(normalized.get("apiPath"))
-                + " summary=" + quote(normalized.get("summary")));
-        end("normalize_validApi_enrichesSummaryAndFields");
     }
 
     /**
@@ -203,8 +185,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(5)
+    @DisplayName("线性补丁校验通过并生成 assert summary")
     void normalize_linearPatch_mergedGraphHasSingleStartNode() {
-        begin("normalize_linearPatch_mergedGraphHasSingleStartNode");
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
@@ -246,10 +228,6 @@ class FlowDesignPatchNormalizerTest {
         assertTrue(result.validation().isOk(), () -> String.join("; ", result.validation().getErrors()));
         assertEquals(2, result.patch().getAddNodes().size());
         assertEquals("http.body.data.code eq 0", result.patch().getAddNodes().get(1).getData().get("summary"));
-        log("validationOk=" + result.validation().isOk()
-                + " nodes=" + result.patch().getAddNodes().size()
-                + " assertSummary=" + quote(result.patch().getAddNodes().get(1).getData().get("summary")));
-        end("normalize_linearPatch_mergedGraphHasSingleStartNode");
     }
 
     /**
@@ -258,8 +236,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(6)
+    @DisplayName("更新节点跨项目 API 置空告警")
     void normalize_updateNodeInvalidApiId_clearedWithWarning() {
-        begin("normalize_updateNodeInvalidApiId_clearedWithWarning");
         GraphNode existingHttp = GraphNode.builder()
                 .id("9101")
                 .type("http")
@@ -288,8 +266,6 @@ class FlowDesignPatchNormalizerTest {
         assertNull(result.patch().getUpdateNodes().get(0).getData().get("testProjectApiId"));
         assertTrue(result.validation().getWarnings().stream()
                 .anyMatch(w -> w.contains("不属于当前项目")));
-        log("warnings=" + result.validation().getWarnings());
-        end("normalize_updateNodeInvalidApiId_clearedWithWarning");
     }
 
     /**
@@ -298,8 +274,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(7)
+    @DisplayName("suggestedDeletes 预合并校验通过")
     void normalize_suggestedDeletes_removedFromMergedGraph() {
-        begin("normalize_suggestedDeletes_removedFromMergedGraph");
         String httpId = "9101";
         String assertId = "9102";
         GraphNode http = GraphNode.builder()
@@ -325,8 +301,6 @@ class FlowDesignPatchNormalizerTest {
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, base, PROJECT_ID);
 
         assertTrue(result.validation().isOk(), () -> String.join("; ", result.validation().getErrors()));
-        log("validationOk=" + result.validation().isOk());
-        end("normalize_suggestedDeletes_removedFromMergedGraph");
     }
 
     /**
@@ -335,8 +309,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(8)
+    @DisplayName("更新节点合法 API 补全字段")
     void normalize_updateNodeValidApi_enrichesFields() {
-        begin("normalize_updateNodeValidApi_enrichesFields");
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
@@ -367,8 +341,6 @@ class FlowDesignPatchNormalizerTest {
         Map<String, Object> normalized = result.patch().getUpdateNodes().get(0).getData();
         assertEquals("用户登录", normalized.get("apiName"));
         assertEquals("/api/auth/login", normalized.get("apiPath"));
-        log("apiName=" + quote(normalized.get("apiName")));
-        end("normalize_updateNodeValidApi_enrichesFields");
     }
 
     /**
@@ -377,8 +349,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(9)
+    @DisplayName("新增场景补 id 且校验通过")
     void normalize_addScenarios_assignsIdAndValidates() {
-        begin("normalize_addScenarios_assignsIdAndValidates");
         GraphRunScenario newScenario = GraphRunScenario.builder()
                 .name("异常路径")
                 .testProjectEnvId("")
@@ -395,8 +367,6 @@ class FlowDesignPatchNormalizerTest {
         GraphRunScenario normalized = result.patch().getScenarioPatch().getAddScenarios().get(0);
         assertTrue(normalized.getId().matches("\\d+"));
         assertTrue(result.validation().isOk(), () -> String.join("; ", result.validation().getErrors()));
-        log("scenarioId=" + normalized.getId() + " name=" + quote(normalized.getName()));
-        end("normalize_addScenarios_assignsIdAndValidates");
     }
 
     /**
@@ -405,8 +375,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(10)
+    @DisplayName("更新场景浅合并 flowSeed")
     void mergeScenarioPatch_updateScenario_mergesFlowSeed() {
-        begin("mergeScenarioPatch_updateScenario_mergesFlowSeed");
         String scenarioId = "2042000000000000101";
         GraphMeta base = graphWithMeta().getMeta();
         base.getScenarios().get(0).setFlowSeed(new HashMap<>(Map.of("loginUser", "admin")));
@@ -426,8 +396,6 @@ class FlowDesignPatchNormalizerTest {
                 .orElseThrow();
         assertEquals("admin", scenario.getFlowSeed().get("loginUser"));
         assertEquals(1, scenario.getFlowSeed().get("pollAttempt"));
-        log("loginUser=admin pollAttempt=1");
-        end("mergeScenarioPatch_updateScenario_mergesFlowSeed");
     }
 
     /**
@@ -436,8 +404,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(11)
+    @DisplayName("删除场景至少保留一条")
     void mergeScenarioPatch_deleteScenario_keepsAtLeastOne() {
-        begin("mergeScenarioPatch_deleteScenario_keepsAtLeastOne");
         String keepId = "2042000000000000101";
         String removeId = "2042000000000000102";
         GraphMeta base = graphWithMeta().getMeta();
@@ -455,8 +423,6 @@ class FlowDesignPatchNormalizerTest {
 
         assertEquals(1, merged.getScenarios().size());
         assertEquals(keepId, merged.getScenarios().get(0).getId());
-        log("remainingScenarios=1 keepId=" + keepId);
-        end("mergeScenarioPatch_deleteScenario_keepsAtLeastOne");
     }
 
     /**
@@ -465,8 +431,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(12)
+    @DisplayName("非法 activeScenarioId 告警且不变")
     void normalize_invalidActiveScenarioId_warning() {
-        begin("normalize_invalidActiveScenarioId_warning");
         FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
         scenarioPatch.setActiveScenarioId("9999999999");
         FlowDesignPatch patch = new FlowDesignPatch();
@@ -479,8 +445,6 @@ class FlowDesignPatchNormalizerTest {
         assertTrue(result.validation().getWarnings().stream()
                 .anyMatch(w -> w.contains("activeScenarioId")));
         assertEquals(originalActive, base.getMeta().getActiveScenarioId());
-        log("warnings=" + result.validation().getWarnings().size());
-        end("normalize_invalidActiveScenarioId_warning");
     }
 
     /**
@@ -489,8 +453,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(13)
+    @DisplayName("外联 HTTP 生成外部 summary")
     void normalize_externalHttp_buildsExternalSummary() {
-        begin("normalize_externalHttp_buildsExternalSummary");
         Map<String, Object> data = new HashMap<>();
         data.put("name", "OAuth");
         data.put("callMode", "external");
@@ -513,8 +477,6 @@ class FlowDesignPatchNormalizerTest {
         assertEquals("external", normalized.get("callMode"));
         assertEquals("POST", normalized.get("httpMethod"));
         assertTrue(result.validation().isOk());
-        log("summary=" + quote(summary));
-        end("normalize_externalHttp_buildsExternalSummary");
     }
 
     /**
@@ -523,8 +485,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(14)
+    @DisplayName("外联缺 URL 产生 warning")
     void normalize_externalHttp_missingExternalUrl_producesWarning() {
-        begin("normalize_externalHttp_missingExternalUrl_producesWarning");
         Map<String, Object> data = new HashMap<>();
         data.put("name", "OAuth");
         data.put("callMode", "external");
@@ -542,9 +504,6 @@ class FlowDesignPatchNormalizerTest {
 
         assertTrue(result.validation().getWarnings().stream()
                 .anyMatch(w -> w.contains("外联模式缺少 externalUrl")));
-        log("warnings=" + result.validation().getWarnings()
-                + " errors=" + result.validation().getErrors());
-        end("normalize_externalHttp_missingExternalUrl_producesWarning");
     }
 
     /**
@@ -553,8 +512,8 @@ class FlowDesignPatchNormalizerTest {
      */
     @Test
     @Order(15)
+    @DisplayName("子流节点生成子流 summary")
     void normalize_subflow_buildsSubflowSummary() {
-        begin("normalize_subflow_buildsSubflowSummary");
         Map<String, Object> data = new HashMap<>();
         data.put("name", "登录子流");
         data.put("subflowName", "登录子流");
@@ -576,8 +535,6 @@ class FlowDesignPatchNormalizerTest {
         assertEquals("登录子流 → token", summary);
         assertEquals("3001", normalized.get("subflowId"));
         assertTrue(result.validation().isOk());
-        log("summary=" + quote(summary));
-        end("normalize_subflow_buildsSubflowSummary");
     }
 
     private static GraphJson emptyGraph() {

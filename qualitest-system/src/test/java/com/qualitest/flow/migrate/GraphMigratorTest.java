@@ -5,7 +5,11 @@ import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,10 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * {@link GraphMigrator} 单元测试。
- * <p>
+ * 测 GraphMigrator：图 schema 版本解析与升级判定。
+ * 边界：纯函数/内存图；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphMigratorTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class GraphMigratorTest {
 
     private GraphMigrator migrator;
@@ -33,6 +38,8 @@ class GraphMigratorTest {
      * 期望：resolveVersion 返回 DEFAULT 与 V1。
      */
     @Test
+    @Order(1)
+    @DisplayName("缺 meta 时版本默认为 V1")
     void resolveVersion_missingMeta_defaultsToV1() {
         GraphJson graph = GraphJson.builder().build();
         assertEquals(GraphSchemaVersions.DEFAULT, migrator.resolveVersion(graph));
@@ -44,6 +51,8 @@ class GraphMigratorTest {
      * 期望：needsUpgrade 返回 false。
      */
     @Test
+    @Order(2)
+    @DisplayName("缺 schemaVersion 无需升级")
     void needsUpgrade_missingSchemaVersion_returnsFalse() {
         assertFalse(migrator.needsUpgrade(minimalGraph()));
     }
@@ -53,6 +62,8 @@ class GraphMigratorTest {
      * 期望：migrateToLatest 无实质变更，版本仍为 V1。
      */
     @Test
+    @Order(3)
+    @DisplayName("V1 图 migrateToLatest 无变更")
     void migrateToLatest_v1Graph_isNoOp() {
         GraphJson graph = v1Graph();
         GraphJson migrated = migrator.migrateToLatest(graph);
@@ -65,6 +76,8 @@ class GraphMigratorTest {
      * 期望：previewUpgrade 报告 upgradeAvailable=false，from/to 版本正确。
      */
     @Test
+    @Order(4)
+    @DisplayName("V1 图 previewUpgrade 不可用")
     void previewUpgrade_v1Graph_notAvailable() {
         GraphUpgradePreview preview = migrator.previewUpgrade(v1Graph());
         assertFalse(preview.isUpgradeAvailable());
@@ -77,6 +90,8 @@ class GraphMigratorTest {
      * 期望：stampCurrentVersion 写入 CURRENT 版本号。
      */
     @Test
+    @Order(5)
+    @DisplayName("stampCurrentVersion 写入 CURRENT")
     void stampCurrentVersion_writesSchemaVersion() {
         GraphJson graph = minimalGraph();
         migrator.stampCurrentVersion(graph);

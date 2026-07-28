@@ -14,6 +14,7 @@ import com.qualitest.flow.script.ScriptRuntime;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.service.ITestProjectApiService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -23,9 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -33,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 HttpNodeHandler：绑定 API / 外联转发、extracts、preScript、业务码与 RunSession Cookie。
- * 边界：依赖 Mock，不发真实网络；存量 begin/end 保留。
+ * 边界：依赖 Mock，不发真实网络。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -64,8 +62,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(1)
+    @DisplayName("项目 API：成功提取 flow 变量")
     void execute_success_extractsFlow() {
-        begin("execute_success_extractsFlow");
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
@@ -91,10 +89,6 @@ class HttpNodeHandlerTest {
         assertEquals("tok-1", ctx.getFlow().get("token"));
         assertEquals(0L, ((Number) ctx.getFlow().get("code")).longValue());
         assertNotNull(result.getHttp());
-
-        log("status=" + result.getStatus() + " flow.token=" + ctx.getFlow().get("token")
-                + " flow.code=" + ctx.getFlow().get("code"));
-        end("execute_success_extractsFlow");
     }
 
     /**
@@ -103,8 +97,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(2)
+    @DisplayName("项目 API：非 2xx 返回 TF_HTTP_STATUS")
     void execute_non2xx_fails() {
-        begin("execute_non2xx_fails");
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
@@ -124,8 +118,6 @@ class HttpNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(StepResult.STATUS_FAILED, result.getStatus());
         assertEquals(FlowErrorCode.TF_HTTP_STATUS.getCode(), result.getError().getCode());
-        log("status=" + result.getStatus() + " error=" + result.getError().getCode());
-        end("execute_non2xx_fails");
     }
 
     /**
@@ -134,15 +126,13 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(3)
+    @DisplayName("项目 API：未绑定 apiId 返回 TF_HTTP_UNBOUND")
     void execute_unboundApiId_fails() {
-        begin("execute_unboundApiId_fails");
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
         GraphNode node = GraphNode.builder().id("n1").type("http").data(data).build();
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(FlowErrorCode.TF_HTTP_UNBOUND.getCode(), result.getError().getCode());
-        log("error=" + result.getError().getCode() + " message=" + result.getError().getMessage());
-        end("execute_unboundApiId_fails");
     }
 
     /**
@@ -151,8 +141,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(4)
+    @DisplayName("项目 API：前置脚本可添加请求头")
     void execute_preScriptAddsHeader() {
-        begin("execute_preScriptAddsHeader");
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
@@ -177,7 +167,6 @@ class HttpNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertNotNull(result.getHttp().get("preScript"));
-        end("execute_preScriptAddsHeader");
     }
 
     /**
@@ -186,8 +175,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(5)
+    @DisplayName("外联：授权后成功并写入 extracts")
     void execute_external_success() {
-        begin("execute_external_success");
         when(forwardService.forward(any())).thenReturn(
                 DebugHttpForwardResult.success(200, "OK", Map.of("Content-Type", "application/json"),
                         "{\"access_token\":\"tok-ext\"}")
@@ -207,8 +196,6 @@ class HttpNodeHandlerTest {
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertEquals("tok-ext", ctx.getFlow().get("token"));
         assertEquals("external", result.getHttp().get("callMode"));
-        log("flow.token=" + ctx.getFlow().get("token") + " callMode=external");
-        end("execute_external_success");
     }
 
     /**
@@ -217,8 +204,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(6)
+    @DisplayName("外联：未授权时返回 TF_HTTP_EXTERNAL_DENIED")
     void execute_external_deniedWhenNoPermission() {
-        begin("execute_external_deniedWhenNoPermission");
         ctx.setExternalHttpPermitted(false);
 
         Map<String, Object> data = new HashMap<>();
@@ -230,8 +217,6 @@ class HttpNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(StepResult.STATUS_FAILED, result.getStatus());
         assertEquals(FlowErrorCode.TF_HTTP_EXTERNAL_DENIED.getCode(), result.getError().getCode());
-        log("error=" + result.getError().getCode());
-        end("execute_external_deniedWhenNoPermission");
     }
 
     /**
@@ -240,8 +225,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(7)
+    @DisplayName("外联：前置脚本可添加请求头")
     void execute_external_preScriptAddsHeader() {
-        begin("execute_external_preScriptAddsHeader");
         when(forwardService.forward(any())).thenAnswer(invocation -> {
             DebugHttpForwardParams params = invocation.getArgument(0);
             boolean hasHeader = params.getHeaders() != null && params.getHeaders().stream()
@@ -260,8 +245,6 @@ class HttpNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertNotNull(result.getHttp().get("preScript"));
-        log("preScript recorded=true");
-        end("execute_external_preScriptAddsHeader");
     }
 
     /**
@@ -270,8 +253,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(8)
+    @DisplayName("会话：useRunSession 吸收 Set-Cookie")
     void execute_useRunSession_absorbsCookies() {
-        begin("execute_useRunSession_absorbsCookies");
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
@@ -293,8 +276,6 @@ class HttpNodeHandlerTest {
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertNotNull(result.getHttp().get("runSessionCookies"));
         assertFalse(ctx.getRunSession().isEmpty());
-        log("runSessionEmpty=false cookies=" + result.getHttp().get("runSessionCookies"));
-        end("execute_useRunSession_absorbsCookies");
     }
 
     /**
@@ -303,8 +284,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(9)
+    @DisplayName("业务码：失败码导致步骤失败")
     void execute_bizCodeFail_failsStep() {
-        begin("execute_bizCodeFail_failsStep");
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
@@ -331,8 +312,6 @@ class HttpNodeHandlerTest {
         assertNotNull(bizCheck);
         assertEquals(false, bizCheck.get("passed"));
         assertEquals(500, ((Number) bizCheck.get("actualCode")).intValue());
-        log("error=" + result.getError().getCode() + " msg=" + result.getError().getMessage());
-        end("execute_bizCodeFail_failsStep");
     }
 
     /**
@@ -341,8 +320,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(10)
+    @DisplayName("业务码：successCheck=off 时跳过校验")
     void execute_successCheckOff_skipsBizCode() {
-        begin("execute_successCheckOff_skipsBizCode");
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
@@ -363,8 +342,6 @@ class HttpNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertNull(result.getHttp().get("bizCheck"));
-        log("status=" + result.getStatus());
-        end("execute_successCheckOff_skipsBizCode");
     }
 
     /**
@@ -373,8 +350,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(11)
+    @DisplayName("外联：默认不校验业务码")
     void execute_external_skipsBizCodeByDefault() {
-        begin("execute_external_skipsBizCodeByDefault");
         when(forwardService.forward(any())).thenReturn(
                 DebugHttpForwardResult.success(200, "OK", Map.of(),
                         "{\"code\":500,\"msg\":\"fail\"}")
@@ -389,8 +366,6 @@ class HttpNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertNull(result.getHttp().get("bizCheck"));
-        log("status=" + result.getStatus());
-        end("execute_external_skipsBizCodeByDefault");
     }
 
     /**
@@ -399,8 +374,8 @@ class HttpNodeHandlerTest {
      */
     @Test
     @Order(12)
+    @DisplayName("业务码：API 配置 successValues 覆盖默认")
     void execute_apiBizCodeConfig_overridesDefault() {
-        begin("execute_apiBizCodeConfig_overridesDefault");
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
@@ -434,7 +409,5 @@ class HttpNodeHandlerTest {
         StepResult fail = handler.execute(ctx, nodeFail, null);
         assertEquals(StepResult.STATUS_FAILED, fail.getStatus());
         assertEquals(FlowErrorCode.TF_BIZ_CODE.getCode(), fail.getError().getCode());
-        log("ok=" + ok.getStatus() + " fail=" + fail.getStatus());
-        end("execute_apiBizCodeConfig_overridesDefault");
     }
 }

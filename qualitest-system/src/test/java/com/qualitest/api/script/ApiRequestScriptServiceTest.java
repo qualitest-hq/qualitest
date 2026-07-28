@@ -3,6 +3,7 @@ package com.qualitest.api.script;
 import com.qualitest.api.params.DebugHttpForwardParams;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.script.ScriptRuntime;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 ApiRequestScriptService：调试/流程 HTTP 的前后置脚本。
- * 边界：forwardService=null；空脚本跳过；存量 begin/end 保留。
+ * 边界：forwardService=null；空脚本跳过。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiRequestScriptServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -30,6 +31,7 @@ class ApiRequestScriptServiceTest {
      */
     @Test
     @Order(1)
+    @DisplayName("前置脚本：可添加自定义请求头")
     void preScript_addHeader() {
         DebugHttpForwardParams params = DebugHttpForwardParams.builder()
                 .method("GET")
@@ -56,6 +58,7 @@ class ApiRequestScriptServiceTest {
      */
     @Test
     @Order(2)
+    @DisplayName("前置脚本：可写入 variables")
     void preScript_setVariable() {
         Map<String, Object> variables = new HashMap<>();
         DebugHttpForwardParams params = DebugHttpForwardParams.builder()
@@ -79,6 +82,7 @@ class ApiRequestScriptServiceTest {
      */
     @Test
     @Order(3)
+    @DisplayName("后置脚本：断言通过时 success 且记录 passed")
     void postScript_assertPass() {
         ApiScriptContext.ResponseSnapshot response = ApiScriptSupport.fromForwardResult(
                 200, "OK", Map.of("Content-Type", "application/json"), "{\"ok\":true}", 10L);
@@ -109,6 +113,7 @@ class ApiRequestScriptServiceTest {
      */
     @Test
     @Order(4)
+    @DisplayName("后置脚本：断言失败时返回 TF_ASSERT_FAILED")
     void postScript_assertFail() {
         ApiScriptContext.ResponseSnapshot response = ApiScriptSupport.fromForwardResult(
                 500, "Error", Map.of(), "{}", 10L);
@@ -134,6 +139,7 @@ class ApiRequestScriptServiceTest {
      */
     @Test
     @Order(5)
+    @DisplayName("空脚本：跳过执行且不改上下文")
     void blankScript_skips() {
         ApiScriptContext context = new ApiScriptContext();
         context.mergeScopeMaps(new HashMap<>(Map.of("token", "abc")), new HashMap<>(), new HashMap<>());

@@ -17,6 +17,7 @@ import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.service.ITestFlowRunService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -28,9 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -109,8 +107,8 @@ class TestFlowExecutorResumePathsTest {
      */
     @Test
     @Order(1)
+    @DisplayName("非暂停态续跑幂等返回 TF_RUN_NOT_PAUSED")
     void resume_idempotentWhenNotPaused() {
-        begin("resume_idempotentWhenNotPaused");
         pausedRun = TestFlowRun.builder().testFlowRunId(1L).status(RunStatus.PASSED).build();
         when(runService.selectTestFlowRunById(1L)).thenReturn(pausedRun);
 
@@ -120,8 +118,6 @@ class TestFlowExecutorResumePathsTest {
 
         assertTrue(outcome.isIdempotent());
         assertEquals(FlowErrorCode.TF_RUN_NOT_PAUSED.getCode(), outcome.getErrorCode());
-        log("idempotent=true errorCode=" + outcome.getErrorCode());
-        end("resume_idempotentWhenNotPaused");
     }
 
     /**
@@ -130,8 +126,8 @@ class TestFlowExecutorResumePathsTest {
      */
     @Test
     @Order(2)
+    @DisplayName("abort 决策将运行标记为 aborted")
     void resume_abort_marksAborted() {
-        begin("resume_abort_marksAborted");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         pausedRun = buildPausedRun(2L, graph, "n4");
         when(runService.selectTestFlowRunById(2L)).thenReturn(pausedRun);
@@ -142,8 +138,6 @@ class TestFlowExecutorResumePathsTest {
 
         assertTrue(outcome.isAborted());
         assertEquals(RunStatus.ABORTED, pausedRun.getStatus());
-        log("status=aborted");
-        end("resume_abort_marksAborted");
     }
 
     /**
@@ -152,8 +146,8 @@ class TestFlowExecutorResumePathsTest {
      */
     @Test
     @Order(3)
+    @DisplayName("skip 决策跳过暂停节点并跑完")
     void resume_skip_completesRun() {
-        begin("resume_skip_completesRun");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         pausedRun = buildPausedRun(3L, graph, "n4");
         when(runService.selectTestFlowRunById(3L)).thenReturn(pausedRun);
@@ -164,8 +158,6 @@ class TestFlowExecutorResumePathsTest {
 
         assertTrue(outcome.isPassed());
         assertEquals(RunStatus.PASSED, pausedRun.getStatus());
-        log("status=passed");
-        end("resume_skip_completesRun");
     }
 
     /**
@@ -174,8 +166,8 @@ class TestFlowExecutorResumePathsTest {
      */
     @Test
     @Order(4)
+    @DisplayName("restoreAndRetry 从快照重跑通过")
     void resume_restoreAndRetry_completesRun() {
-        begin("resume_restoreAndRetry_completesRun");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         graph.setNodes(graph.getNodes().subList(0, 2));
         graph.setEdges(graph.getEdges().subList(0, 1));
@@ -196,8 +188,6 @@ class TestFlowExecutorResumePathsTest {
 
         assertTrue(outcome.isPassed());
         assertEquals(RunStatus.PASSED, pausedRun.getStatus());
-        log("status=passed restore=snap-1");
-        end("resume_restoreAndRetry_completesRun");
     }
 
     /**
@@ -206,8 +196,8 @@ class TestFlowExecutorResumePathsTest {
      */
     @Test
     @Order(5)
+    @DisplayName("禁止破坏性还原时跳过 restore 仍通过")
     void resume_restoreAndRetry_skipsRestoreWhenEnvDeniesReset() {
-        begin("resume_restoreAndRetry_skipsRestoreWhenEnvDeniesReset");
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         graph.setNodes(graph.getNodes().subList(0, 2));
         graph.setEdges(graph.getEdges().subList(0, 1));
@@ -248,8 +238,6 @@ class TestFlowExecutorResumePathsTest {
 
         assertTrue(outcome.isPassed());
         assertEquals(RunStatus.PASSED, pausedRun.getStatus());
-        log("status=passed restoreSkipped=true");
-        end("resume_restoreAndRetry_skipsRestoreWhenEnvDeniesReset");
     }
 
     private static TestFlowRun buildPausedRun(Long runId, GraphJson graph, String pauseNodeId) {

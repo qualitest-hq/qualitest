@@ -10,7 +10,11 @@ import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
 import com.qualitest.flow.node.impl.AssertNodeHandler;
 import com.qualitest.flow.validate.FlowNodeType;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 边界：Stub handler + 夹具 flow/linear-run-graph.json；hook 手写返回。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphRunnerSnapshotHookTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowGraphRunnerSnapshotHookTest {
 
     /**
@@ -33,6 +38,8 @@ class FlowGraphRunnerSnapshotHookTest {
      * 期望：首步为 snapshot，次步为 http，整体通过。
      */
     @Test
+    @Order(1)
+    @DisplayName("hook 在节点前插入 snapshot 步")
     void preExecuteHook_insertsSnapshotStepBeforeNode() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         graph.getNodes().get(0).getData().put("snapshotBefore", true);
@@ -79,6 +86,8 @@ class FlowGraphRunnerSnapshotHookTest {
      * 期望：未通过，错误码 TF_SNAPSHOT_FAILED。
      */
     @Test
+    @Order(2)
+    @DisplayName("hook abort 时停止图执行")
     void preExecuteHook_abortStopsGraph() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         FlowNodePreExecuteHook hook = node -> FlowNodePreExecuteHook.PreExecuteOutcome.abort(
@@ -103,6 +112,8 @@ class FlowGraphRunnerSnapshotHookTest {
      * 期望：outcome 暂停，pauseNodeId=n1。
      */
     @Test
+    @Order(3)
+    @DisplayName("hook pause 时挂起图执行")
     void preExecuteHook_pauseSuspendsGraph() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         FlowNodePreExecuteHook hook = node -> FlowNodePreExecuteHook.PreExecuteOutcome.pause(

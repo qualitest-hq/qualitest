@@ -1,18 +1,15 @@
 package com.qualitest.flow.snapshot;
 
 import com.qualitest.flow.model.GraphNode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,8 +28,8 @@ class GraphNodeSnapshotSupportTest {
      */
     @Test
     @Order(1)
+    @DisplayName("解析 snapshotBefore 布尔与字符串")
     void isSnapshotBefore_parsesBooleanAndString() {
-        begin("isSnapshotBefore_parsesBooleanAndString");
         GraphNode boolNode = node(Map.of(GraphNodeSnapshotSupport.KEY_SNAPSHOT_BEFORE, true));
         assertTrue(GraphNodeSnapshotSupport.isSnapshotBefore(boolNode));
 
@@ -41,8 +38,6 @@ class GraphNodeSnapshotSupportTest {
 
         assertFalse(GraphNodeSnapshotSupport.isSnapshotBefore(null));
         assertFalse(GraphNodeSnapshotSupport.isSnapshotBefore(node(Map.of())));
-        log("bool=true str=true default=false");
-        end("isSnapshotBefore_parsesBooleanAndString");
     }
 
     /**
@@ -51,13 +46,11 @@ class GraphNodeSnapshotSupportTest {
      */
     @Test
     @Order(2)
+    @DisplayName("缺省 scope 为 tables 空表")
     void resolveScope_defaultsWhenMissing() {
-        begin("resolveScope_defaultsWhenMissing");
         SnapshotScope scope = GraphNodeSnapshotSupport.resolveScope(node(Map.of()));
         assertEquals(SnapshotScope.SCOPE_TABLES, scope.getScope());
         assertTrue(scope.getTables().isEmpty());
-        log("scope=tables tables=[]");
-        end("resolveScope_defaultsWhenMissing");
     }
 
     /**
@@ -66,8 +59,8 @@ class GraphNodeSnapshotSupportTest {
      */
     @Test
     @Order(3)
+    @DisplayName("解析 tables 并 trim 空白")
     void resolveScope_parsesTables() {
-        begin("resolveScope_parsesTables");
         Map<String, Object> snapshotScope = Map.of(
                 "scope", "tables",
                 "tables", List.of("t_order", " t_user ", "")
@@ -77,8 +70,6 @@ class GraphNodeSnapshotSupportTest {
 
         assertEquals(SnapshotScope.SCOPE_TABLES, scope.getScope());
         assertEquals(List.of("t_order", "t_user"), scope.getTables());
-        log("tables=" + scope.getTables());
-        end("resolveScope_parsesTables");
     }
 
     /**
@@ -87,12 +78,10 @@ class GraphNodeSnapshotSupportTest {
      */
     @Test
     @Order(4)
+    @DisplayName("读取节点 data.name")
     void nodeName_readsDataName() {
-        begin("nodeName_readsDataName");
         assertEquals("下单", GraphNodeSnapshotSupport.nodeName(node(Map.of("name", "下单"))));
         assertEquals("", GraphNodeSnapshotSupport.nodeName(null));
-        log("nodeName=下单");
-        end("nodeName_readsDataName");
     }
 
     private static GraphNode node(Map<String, Object> data) {

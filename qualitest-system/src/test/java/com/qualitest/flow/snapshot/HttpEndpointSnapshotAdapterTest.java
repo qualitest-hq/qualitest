@@ -5,7 +5,11 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 import java.util.Map;
@@ -18,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * 边界：MockWebServer，不连真实环境。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpEndpointSnapshotAdapterTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class HttpEndpointSnapshotAdapterTest {
 
     private MockWebServer server;
@@ -40,6 +45,8 @@ class HttpEndpointSnapshotAdapterTest {
      * 期望：解析 snapshotId；POST 路径与 body 字段正确。
      */
     @Test
+    @Order(1)
+    @DisplayName("snapshot POST 契约并解析响应")
     void snapshot_postsContractAndParsesResponse() throws Exception {
         server.enqueue(new MockResponse()
                 .setResponseCode(200)
@@ -73,6 +80,8 @@ class HttpEndpointSnapshotAdapterTest {
      * 期望：两次均不抛错，服务端收到 2 次请求。
      */
     @Test
+    @Order(2)
+    @DisplayName("restore 幂等且不抛错")
     void restore_postsSnapshotId_andIsIdempotent() {
         server.enqueue(new MockResponse()
                 .setResponseCode(200)

@@ -3,21 +3,19 @@ package com.qualitest.api.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qualitest.project.domain.TestProjectApi;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测 ApiImportMergeService：导入结构合并（参数默认值、响应 example、soft merge）。
- * 边界：本地 vs 上传包差异；存量 begin/end 保留。
+ * 边界：本地 vs 上传包差异；纯函数，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiImportMergeServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -32,8 +30,8 @@ class ApiImportMergeServiceTest {
      */
     @Test
     @Order(1)
+    @DisplayName("合并：参数默认值迁入 test_value，并记录新增 query")
     void merge_migratesParamDefaultsAndAddsQueryParam() {
-        begin("merge_migratesParamDefaultsAndAddsQueryParam");
         TestProjectApi existing = TestProjectApi.builder()
                 .requestConfig("""
                         {
@@ -87,8 +85,6 @@ class ApiImportMergeServiceTest {
         assertFalse(result.getRequestConfig().contains("13800000001"));
         assertTrue(result.getMergeSummary().getQueryParamsAdded().contains("pageNum"));
         assertTrue(result.getMergeSummary().isSchemaUpdated());
-        log("paramDefault migrated; pageNum added");
-        end("merge_migratesParamDefaultsAndAddsQueryParam");
     }
 
     /**
@@ -97,8 +93,8 @@ class ApiImportMergeServiceTest {
      */
     @Test
     @Order(2)
+    @DisplayName("合并：同 response id 时保留用户 example")
     void merge_preservesResponseExampleWhenIdMatches() {
-        begin("merge_preservesResponseExampleWhenIdMatches");
         String responseId = "resp-abc123";
         TestProjectApi existing = TestProjectApi.builder()
                 .requestConfig("""
@@ -133,8 +129,6 @@ class ApiImportMergeServiceTest {
                 || result.getTestValueConfig().contains("\"code\":14"));
         assertTrue(result.getMergeSummary().getUserPreserved().stream()
                 .anyMatch(s -> s.startsWith("responseExample")));
-        log("response example preserved for id=" + responseId);
-        end("merge_preservesResponseExampleWhenIdMatches");
     }
 
     /**
@@ -143,8 +137,8 @@ class ApiImportMergeServiceTest {
      */
     @Test
     @Order(3)
+    @DisplayName("合并：记录已删除 query 参数并保留默认值")
     void merge_tracksRemovedQueryParams() {
-        begin("merge_tracksRemovedQueryParams");
         TestProjectApi existing = TestProjectApi.builder()
                 .requestConfig("""
                         {
@@ -186,8 +180,6 @@ class ApiImportMergeServiceTest {
         assertTrue(result.getMergeSummary().getQueryParamsRemoved().contains("legacyKey"));
         assertTrue(result.getTestValueConfig().contains("legacyKey"));
         assertFalse(result.getRequestConfig().contains("legacyKey"));
-        log("legacyKey removed from structure, tracked in summary");
-        end("merge_tracksRemovedQueryParams");
     }
 
     /**
@@ -196,8 +188,8 @@ class ApiImportMergeServiceTest {
      */
     @Test
     @Order(4)
+    @DisplayName("合并：body example 迁入 test_value_config")
     void merge_migratesBodyExampleToTestValueConfig() {
-        begin("merge_migratesBodyExampleToTestValueConfig");
         TestProjectApi existing = TestProjectApi.builder()
                 .requestConfig("""
                         {
@@ -245,8 +237,6 @@ class ApiImportMergeServiceTest {
         assertTrue(result.getTestValueConfig().contains("admin"));
         assertTrue(result.getMergeSummary().getUserPreserved().contains("bodyExample"));
         assertFalse(result.getRequestConfig().contains("\"example\":\"{\\\"user\\\":\\\"admin\\\"}\""));
-        log("bodyExample migrated to test_value_config");
-        end("merge_migratesBodyExampleToTestValueConfig");
     }
 
     /**
@@ -255,8 +245,8 @@ class ApiImportMergeServiceTest {
      */
     @Test
     @Order(5)
+    @DisplayName("合并：类型未变时保留参数约束并写入 description")
     void merge_preservesParamConstraintsWhenTypeUnchanged() throws Exception {
-        begin("merge_preservesParamConstraintsWhenTypeUnchanged");
         TestProjectApi existing = TestProjectApi.builder()
                 .requestConfig("""
                         {
@@ -296,8 +286,6 @@ class ApiImportMergeServiceTest {
         assertEquals("^1\\d{10}$", mobile.get("pattern").asText());
         assertEquals(11, mobile.get("maxLength").asInt());
         assertEquals("手机号", mobile.get("description").asText());
-        log("mobile pattern/maxLength preserved; description from incoming");
-        end("merge_preservesParamConstraintsWhenTypeUnchanged");
     }
 
     /**
@@ -306,8 +294,8 @@ class ApiImportMergeServiceTest {
      */
     @Test
     @Order(6)
+    @DisplayName("合并：类型变更时丢弃旧类型约束")
     void merge_dropsParamConstraintsWhenTypeChanged() throws Exception {
-        begin("merge_dropsParamConstraintsWhenTypeChanged");
         TestProjectApi existing = TestProjectApi.builder()
                 .requestConfig("""
                         {
@@ -348,8 +336,6 @@ class ApiImportMergeServiceTest {
         assertFalse(age.has("pattern"));
         assertFalse(age.has("minLength"));
         assertEquals("年龄", age.get("description").asText());
-        log("age type changed to integer; string constraints dropped");
-        end("merge_dropsParamConstraintsWhenTypeChanged");
     }
 
     /**
@@ -358,8 +344,8 @@ class ApiImportMergeServiceTest {
      */
     @Test
     @Order(7)
+    @DisplayName("合并：body schema soft merge 保留约束并增属性")
     void merge_softMergesBodySchemaConstraints() throws Exception {
-        begin("merge_softMergesBodySchemaConstraints");
         TestProjectApi existing = TestProjectApi.builder()
                 .requestConfig("""
                         {
@@ -421,8 +407,6 @@ class ApiImportMergeServiceTest {
         assertEquals("手机号", props.path("mobile").path("description").asText());
         assertTrue(props.has("username"));
         assertEquals("string", props.path("username").path("type").asText());
-        log("body schema mobile constraints preserved; username added");
-        end("merge_softMergesBodySchemaConstraints");
     }
 
     /**
@@ -431,8 +415,8 @@ class ApiImportMergeServiceTest {
      */
     @Test
     @Order(8)
+    @DisplayName("合并：response schema soft merge 并删除已移除属性")
     void merge_softMergesResponseSchemaAndDropsRemovedProperty() throws Exception {
-        begin("merge_softMergesResponseSchemaAndDropsRemovedProperty");
         String responseId = "resp-soft";
         TestProjectApi existing = TestProjectApi.builder()
                 .requestConfig("""
@@ -490,8 +474,6 @@ class ApiImportMergeServiceTest {
         assertEquals("业务码", props.path("code").path("description").asText());
         assertTrue(props.has("msg"));
         assertFalse(props.has("legacy"));
-        log("response schema code.minimum preserved; legacy removed; msg added");
-        end("merge_softMergesResponseSchemaAndDropsRemovedProperty");
     }
 
     private JsonNode findQueryParam(String requestConfigJson, String name) throws Exception {

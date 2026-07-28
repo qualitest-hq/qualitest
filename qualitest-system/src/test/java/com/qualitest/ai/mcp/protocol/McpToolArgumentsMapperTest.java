@@ -2,6 +2,7 @@ package com.qualitest.ai.mcp.protocol;
 
 import com.qualitest.api.params.McpToolInvokeParams;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -11,9 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.common.test.FlowTestSections.begin;
-import static com.qualitest.common.test.FlowTestSections.end;
-import static com.qualitest.common.test.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -21,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测 McpToolArgumentsMapper：MCP tools/call arguments 拆信封字段与业务参数。
- * 边界：纯映射；存量 begin/end 保留。
+ * 边界：纯映射，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=McpToolArgumentsMapperTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -40,8 +38,8 @@ class McpToolArgumentsMapperTest {
      */
     @Test
     @Order(1)
+    @DisplayName("拆分信封字段与业务参数")
     void fromToolArguments_splitsEnvelopeAndBusinessArgs() {
-        begin("fromToolArguments_splitsEnvelopeAndBusinessArgs");
         Map<String, Object> raw = new LinkedHashMap<>();
         raw.put("testFlowId", "1001");
         raw.put("scopeApiIds", List.of("1", "2"));
@@ -54,8 +52,6 @@ class McpToolArgumentsMapperTest {
         assertEquals(List.of("1", "2"), params.getScopeApiIds());
         assertEquals("login", params.getArguments().get("keyword"));
         assertEquals(10, params.getArguments().get("limit"));
-        log("testFlowId=1001 scopeApiIds=2 businessArgs=2");
-        end("fromToolArguments_splitsEnvelopeAndBusinessArgs");
     }
 
     /**
@@ -64,8 +60,8 @@ class McpToolArgumentsMapperTest {
      */
     @Test
     @Order(2)
+    @DisplayName("解析 graphJson 对象")
     void fromToolArguments_parsesGraphJson() {
-        begin("fromToolArguments_parsesGraphJson");
         Map<String, Object> graphJson = Map.of(
                 "nodes", List.of(),
                 "edges", List.of());
@@ -73,8 +69,6 @@ class McpToolArgumentsMapperTest {
 
         assertNotNull(params.getGraphJson());
         assertTrue(params.getGraphJson().getNodes().isEmpty());
-        log("graphJsonNodes=0");
-        end("fromToolArguments_parsesGraphJson");
     }
 
     /**
@@ -83,13 +77,11 @@ class McpToolArgumentsMapperTest {
      */
     @Test
     @Order(3)
+    @DisplayName("arguments 为 null 返回空 params")
     void fromToolArguments_null_returnsEmptyParams() {
-        begin("fromToolArguments_null_returnsEmptyParams");
         McpToolInvokeParams params = mapper.fromToolArguments(null);
 
         assertNull(params.getTestProjectId());
         assertNull(params.getArguments());
-        log("emptyParams=true");
-        end("fromToolArguments_null_returnsEmptyParams");
     }
 }

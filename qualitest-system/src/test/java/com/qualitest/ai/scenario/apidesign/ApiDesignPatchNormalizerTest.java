@@ -2,7 +2,11 @@ package com.qualitest.ai.scenario.apidesign;
 
 import com.qualitest.ai.scenario.apidesign.model.ApiDesignPatch;
 import com.qualitest.ai.scenario.apidesign.model.ApiDesignPatchChange;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -17,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 边界：纯函数 Normalizer，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiDesignPatchNormalizerTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiDesignPatchNormalizerTest {
 
     private final ApiDesignPatchNormalizer normalizer = new ApiDesignPatchNormalizer();
@@ -26,6 +31,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：校验通过；unitId 归一为 script:pre。
      */
     @Test
+    @Order(1)
+    @DisplayName("合法 pre 脚本 update 时通过并归一 unitId")
     void normalize_validScriptUpdate_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("生成签名脚本");
@@ -47,6 +54,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：校验通过，action 仍为 clear。
      */
     @Test
+    @Order(2)
+    @DisplayName("clear post 脚本时校验通过")
     void normalize_clearPost_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("清空后置");
@@ -67,6 +76,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：校验失败。
      */
     @Test
+    @Order(3)
+    @DisplayName("脚本含 forbidden import 时校验失败")
     void normalize_forbiddenImport_fails() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("bad");
@@ -86,6 +97,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：校验通过（约束补丁合法）。
      */
     @Test
+    @Order(4)
+    @DisplayName("合法 updateConstraints 时校验通过")
     void normalize_constraintUpdate_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("补手机号 pattern");
@@ -111,6 +124,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：校验失败，错误信息含 enum。
      */
     @Test
+    @Order(5)
+    @DisplayName("约束含 enum 时校验失败")
     void normalize_enumRejected() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("bad enum");
@@ -134,6 +149,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：通过但剥掉 pattern，保留 minValue，并有 warning。
      */
     @Test
+    @Order(6)
+    @DisplayName("integer 带 pattern 时剥掉并告警")
     void normalize_integerWithPattern_strippedOrFails() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("type mismatch");
@@ -160,6 +177,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：校验失败。
      */
     @Test
+    @Order(7)
+    @DisplayName("schema 误用 minValue 时校验失败")
     void normalize_schemaRejectsMinValue() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("wrong key name");
@@ -182,6 +201,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：校验通过。
      */
     @Test
+    @Order(8)
+    @DisplayName("testValue set 时校验通过")
     void normalize_testValueSet_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("默认测值");
@@ -202,6 +223,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：校验失败（测值与约束不可混用）。
      */
     @Test
+    @Order(9)
+    @DisplayName("testValue 混用 constraints 时失败")
     void normalize_testValueWithConstraints_fails() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("bad mix");
@@ -224,6 +247,8 @@ class ApiDesignPatchNormalizerTest {
      * 期望：通过；unitId 为 meta:apiDescription。
      */
     @Test
+    @Order(10)
+    @DisplayName("meta.apiDescription update 时通过")
     void normalize_metaDescription_ok() {
         ApiDesignPatch patch = new ApiDesignPatch();
         patch.setSummary("补说明");

@@ -9,6 +9,7 @@ import com.qualitest.ai.result.AiLlmModelResolveResult;
 import com.qualitest.ai.result.AiModelsListResult;
 import com.qualitest.common.exception.ServiceException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -16,10 +17,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
-import static com.qualitest.flow.support.FlowTestSections.quote;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,7 +25,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 AiLlmModelServiceImpl：resolve 组装配置、按厂商分组列表、内置模型删除保护。
- * 边界：Mapper/Config Mock；存量 begin/end 保留。
+ * 边界：Mapper/Config Mock；无真实 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiLlmModelServiceImplTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -60,8 +57,8 @@ class AiLlmModelServiceImplTest {
      */
     @Test
     @Order(1)
+    @DisplayName("启用模型 resolve 返回完整配置")
     void resolve_enabledModel_returnsConfig() {
-        begin("resolve_enabledModel_returnsConfig");
         AiLlmModelResolveResult row = AiLlmModelResolveResult.builder()
                 .aiLlmModelId(1001L)
                 .aiLlmVendorId(2001L)
@@ -83,11 +80,6 @@ class AiLlmModelServiceImplTest {
         assertEquals("gpt-4o-mini", cfg.getModelName());
         assertEquals("https://api.openai.com/v1", cfg.getBaseUrl());
         assertEquals(8192, cfg.getMaxTokens());
-        log("modelId=" + cfg.getAiLlmModelId()
-                + " modelName=" + quote(cfg.getModelName())
-                + " baseUrl=" + quote(cfg.getBaseUrl())
-                + " maxTokens=" + cfg.getMaxTokens());
-        end("resolve_enabledModel_returnsConfig");
     }
 
     /**
@@ -96,8 +88,8 @@ class AiLlmModelServiceImplTest {
      */
     @Test
     @Order(2)
+    @DisplayName("未启用模型抛 LlmClientException")
     void resolve_disabledModel_throws() {
-        begin("resolve_disabledModel_throws");
         when(mapper.selectAiLlmModelResolve(1002L)).thenReturn(AiLlmModelResolveResult.builder()
                 .modelEnableStatus(0)
                 .vendorEnableStatus(1)
@@ -107,8 +99,6 @@ class AiLlmModelServiceImplTest {
 
         LlmClientException ex = assertThrows(LlmClientException.class, () -> service.resolve(1002L));
         assertTrue(ex.getMessage().contains("未启用"));
-        log("error=" + quote(ex.getMessage()));
-        end("resolve_disabledModel_throws");
     }
 
     /**
@@ -117,8 +107,8 @@ class AiLlmModelServiceImplTest {
      */
     @Test
     @Order(3)
+    @DisplayName("按厂商分组列出模型")
     void listModelsGrouped_groupsByVendor() {
-        begin("listModelsGrouped_groupsByVendor");
         when(mapper.selectEnabledAiLlmModelsWithVendor()).thenReturn(List.of(
                 AiLlmModelResolveResult.builder()
                         .aiLlmModelId(1001L)
@@ -144,10 +134,6 @@ class AiLlmModelServiceImplTest {
         assertEquals("OpenAI", result.getVendors().get(0).getVendorName());
         assertEquals(1001L, result.getDefaultModelId());
         assertEquals(1, result.getVendors().get(0).getModels().size());
-        log("vendors=" + result.getVendors().size()
-                + " firstVendor=" + quote(result.getVendors().get(0).getVendorName())
-                + " defaultModelId=" + result.getDefaultModelId());
-        end("listModelsGrouped_groupsByVendor");
     }
 
     /**
@@ -156,8 +142,8 @@ class AiLlmModelServiceImplTest {
      */
     @Test
     @Order(4)
+    @DisplayName("内置模型禁止删除")
     void delete_builtinModel_throws() {
-        begin("delete_builtinModel_throws");
         when(mapper.selectAiLlmModelById(9001L)).thenReturn(AiLlmModel.builder()
                 .aiLlmModelId(9001L)
                 .builtinStatus(1)
@@ -165,8 +151,6 @@ class AiLlmModelServiceImplTest {
 
         ServiceException ex = assertThrows(ServiceException.class, () -> service.deleteAiLlmModelById(9001L));
         assertTrue(ex.getMessage().contains("内置"));
-        log("error=" + quote(ex.getMessage()));
-        end("delete_builtinModel_throws");
     }
 
     /**
@@ -175,8 +159,8 @@ class AiLlmModelServiceImplTest {
      */
     @Test
     @Order(5)
+    @DisplayName("自定义模型允许删除")
     void delete_customModel_allowed() {
-        begin("delete_customModel_allowed");
         when(mapper.selectAiLlmModelById(9002L)).thenReturn(AiLlmModel.builder()
                 .aiLlmModelId(9002L)
                 .builtinStatus(0)
@@ -184,7 +168,5 @@ class AiLlmModelServiceImplTest {
         when(mapper.deleteAiLlmModelById(9002L)).thenReturn(1);
 
         assertEquals(1, service.deleteAiLlmModelById(9002L));
-        log("deletedModelId=9002");
-        end("delete_customModel_allowed");
     }
 }

@@ -2,7 +2,11 @@ package com.qualitest.ai.llm;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 import java.util.Map;
@@ -14,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 边界：纯函数，不发 HTTP。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AnthropicPayloadBuilderTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AnthropicPayloadBuilderTest {
 
     /**
@@ -21,6 +26,8 @@ class AnthropicPayloadBuilderTest {
      * 期望：system 提取到 systemBlockList；messages 含 assistant tool_use 与合并的 user tool_result。
      */
     @Test
+    @Order(1)
+    @DisplayName("消息转换为 Anthropic system/tool_use/tool_result")
     void toAnthropicMessages_convertsSystemToolAndAssistantToolUse() {
         java.util.ArrayList<JSONObject> systemBlockList = new java.util.ArrayList<>();
         JSONArray messages = AnthropicPayloadBuilder.toAnthropicMessages(List.of(
@@ -56,6 +63,8 @@ class AnthropicPayloadBuilderTest {
      * 期望：toAnthropicToolChoice 返回 type=tool、name=search_apis。
      */
     @Test
+    @Order(2)
+    @DisplayName("指定工具名生成 tool choice")
     void toAnthropicToolChoice_supportsNamedTool() {
         JSONObject choice = AnthropicPayloadBuilder.toAnthropicToolChoice("search_apis");
         assertEquals("tool", choice.getString("type"));
@@ -67,6 +76,8 @@ class AnthropicPayloadBuilderTest {
      * 期望：body 含 output_format/thinking/system 数组，stream=true，beta headers 非空。
      */
     @Test
+    @Order(3)
+    @DisplayName("构建 body 含结构化输出与 thinking")
     void buildBody_appliesStructuredOutputThinkingAndCaching() {
         LlmModelConfig cfg = LlmModelConfig.builder()
                 .modelName("claude-test")
@@ -95,6 +106,8 @@ class AnthropicPayloadBuilderTest {
      * 期望：parseResponse 提取 content、thinkingContent、toolCalls、finishReason 及 usage。
      */
     @Test
+    @Order(4)
+    @DisplayName("解析响应提取 text/thinking/tool_use/usage")
     void parseResponse_readsTextThinkingToolUseAndUsage() {
         String responseBody = """
                 {

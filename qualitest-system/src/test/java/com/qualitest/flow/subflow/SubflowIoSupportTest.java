@@ -4,6 +4,7 @@ import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -13,14 +14,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.begin;
-import static com.qualitest.flow.support.FlowTestSections.end;
-import static com.qualitest.flow.support.FlowTestSections.log;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 SubflowIoSupport：inputs 种子、outputs 合并、childSteps 摘要与空映射判定。
- * 边界：占位符与类型推断；存量 begin/end 保留。
+ * 边界：占位符与类型推断；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowIoSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -32,8 +30,8 @@ class SubflowIoSupportTest {
      */
     @Test
     @Order(1)
+    @DisplayName("inputs：占位符解析与类型推断")
     void resolveInputSeed_placeholderAndCoercion() {
-        begin("resolveInputSeed_placeholderAndCoercion");
         Map<String, Object> flow = new HashMap<>();
         flow.put("token", "abc");
         flow.put("retry", "3");
@@ -49,8 +47,6 @@ class SubflowIoSupportTest {
         assertEquals("abc", seed.get("childIn"));
         assertEquals(3L, seed.get("maxRetry"));
         assertEquals(true, seed.get("enabled"));
-        log("seed=" + seed);
-        end("resolveInputSeed_placeholderAndCoercion");
     }
 
     /**
@@ -59,8 +55,8 @@ class SubflowIoSupportTest {
      */
     @Test
     @Order(2)
+    @DisplayName("outputs：子 flow 合并到父 flow")
     void applyOutputs_mapsChildToParent() {
-        begin("applyOutputs_mapsChildToParent");
         FlowRunContext parent = FlowRunContext.builder().flow(new HashMap<>()).build();
         Map<String, Object> childFlow = new HashMap<>();
         childFlow.put("accessToken", "tok-9");
@@ -72,8 +68,6 @@ class SubflowIoSupportTest {
 
         assertEquals("tok-9", parent.getFlow().get("parentToken"));
         assertEquals("tok-9", merged.get("parentToken"));
-        log("parentToken=" + parent.getFlow().get("parentToken"));
-        end("applyOutputs_mapsChildToParent");
     }
 
     /**
@@ -82,8 +76,8 @@ class SubflowIoSupportTest {
      */
     @Test
     @Order(3)
+    @DisplayName("摘要：childSteps 含失败错误码")
     void toChildStepSummaries_includesError() {
-        begin("toChildStepSummaries_includesError");
         StepResult failed = StepResult.builder()
                 .nodeId("n1")
                 .nodeType("assert")
@@ -100,8 +94,6 @@ class SubflowIoSupportTest {
         Map<String, Object> err = (Map<String, Object>) rows.get(0).get("error");
         assertNotNull(err);
         assertEquals(FlowErrorCode.TF_ASSERT_FAILED.getCode(), err.get("code"));
-        log("childStep error=" + err.get("message"));
-        end("toChildStepSummaries_includesError");
     }
 
     /**
@@ -110,13 +102,11 @@ class SubflowIoSupportTest {
      */
     @Test
     @Order(4)
+    @DisplayName("判定：空映射列表识别")
     void isEmptyMappingList_detectsEmpty() {
-        begin("isEmptyMappingList_detectsEmpty");
         assertTrue(SubflowIoSupport.isEmptyMappingList(null));
         assertTrue(SubflowIoSupport.isEmptyMappingList(List.of()));
         assertFalse(SubflowIoSupport.isEmptyMappingList(List.of(outputRow("token", "token"))));
-        log("null=true empty=true nonEmpty=false");
-        end("isEmptyMappingList_detectsEmpty");
     }
 
     private static Map<String, Object> inputRow(String name, String value) {

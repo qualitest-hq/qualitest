@@ -7,6 +7,10 @@ import com.qualitest.project.service.ITestFlowService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -23,6 +27,7 @@ import static org.mockito.Mockito.when;
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphContextResolverTest
  */
 @ExtendWith(MockitoExtension.class)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowGraphContextResolverTest {
 
     private static final Long PROJECT_ID = 100L;
@@ -47,6 +52,8 @@ class FlowGraphContextResolverTest {
      * 期望：失败，错误 JSON 含 error 与 hint。
      */
     @Test
+    @Order(1)
+    @DisplayName("缺图与 flowId 返回错误")
     void resolve_missingGraphAndFlowId_returnsError() {
         FlowGraphContextResolver.ResolvedGraph resolved = resolver.resolve(Map.of(), context);
         assertFalse(resolved.isOk());
@@ -59,6 +66,8 @@ class FlowGraphContextResolverTest {
      * 期望：解析成功，节点 n1 存在。
      */
     @Test
+    @Order(2)
+    @DisplayName("按 testFlowId 自动加载图")
     void resolve_autoLoadByTestFlowId_returnsGraph() {
         when(testFlowService.selectTestFlowResult(FLOW_ID)).thenReturn(
                 TestFlowResult.builder()
@@ -80,6 +89,8 @@ class FlowGraphContextResolverTest {
      * 期望：失败（项目不匹配）。
      */
     @Test
+    @Order(3)
+    @DisplayName("跨项目流解析失败")
     void resolve_wrongProject_returnsError() {
         when(testFlowService.selectTestFlowResult(FLOW_ID)).thenReturn(
                 TestFlowResult.builder()
@@ -99,6 +110,8 @@ class FlowGraphContextResolverTest {
      * 期望：优先用上下文图，解析成功。
      */
     @Test
+    @Order(4)
+    @DisplayName("优先使用上下文 graphJson")
     void resolve_prefersContextGraphJson() {
         GraphJson graph = GraphJson.builder().build();
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()

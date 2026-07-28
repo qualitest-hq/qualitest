@@ -1,6 +1,10 @@
 package com.qualitest.flow.diagnose;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 
@@ -8,10 +12,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * 告警 code 聚合逻辑单测：空值、去重保序、超长截断。
- * <p>
+ * 测 ApiFlowHealthPersistService.aggregateCodes：告警 code 聚合。
+ * 边界：纯函数；空值、去重保序、超长截断。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiFlowHealthPersistServiceTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiFlowHealthPersistServiceTest {
 
     /**
@@ -19,6 +24,8 @@ class ApiFlowHealthPersistServiceTest {
      * 期望：返回 null。
      */
     @Test
+    @Order(1)
+    @DisplayName("空入参 aggregateCodes 返回 null")
     void aggregateCodes_nullOrEmpty_returnsNull() {
         assertNull(ApiFlowHealthPersistService.aggregateCodes(null));
         assertNull(ApiFlowHealthPersistService.aggregateCodes(List.of()));
@@ -29,6 +36,8 @@ class ApiFlowHealthPersistServiceTest {
      * 期望：去重后按首次出现顺序拼接为 API_MISSING,ORPHAN_PARAM。
      */
     @Test
+    @Order(2)
+    @DisplayName("告警 code 去重保序拼接")
     void aggregateCodes_dedupesInOrder() {
         HttpNodeApiHealthWarning a = HttpNodeApiHealthWarning.of(
                 "API_MISSING", "n1", "N1", 1L, "m1", null);
@@ -45,6 +54,8 @@ class ApiFlowHealthPersistServiceTest {
      * 期望：拼接结果被截断至 WARNING_CODES_MAX_LEN。
      */
     @Test
+    @Order(3)
+    @DisplayName("超长 code 截断至上限")
     void aggregateCodes_truncatesToMaxLen() {
         String longCode = "A".repeat(300);
         HttpNodeApiHealthWarning w = HttpNodeApiHealthWarning.of(

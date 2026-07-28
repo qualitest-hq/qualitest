@@ -1,6 +1,10 @@
 package com.qualitest.flow.snapshot;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 边界：纯内存结构，无 DB / HTTP。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowRunSnapshotStateTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowRunSnapshotStateTest {
 
     /**
@@ -17,6 +22,8 @@ class FlowRunSnapshotStateTest {
      * 期望：truncateAfter(snap-2) 后仅保留到 snap-2。
      */
     @Test
+    @Order(1)
+    @DisplayName("截断：保留到指定 snapshot 并去掉其后条目")
     void truncateAfter_removesLaterEntries() {
         FlowRunSnapshotState state = new FlowRunSnapshotState();
         state.push("n1", "snap-1");
@@ -33,6 +40,8 @@ class FlowRunSnapshotStateTest {
      * 期望：条目数与 snapshotId 一致。
      */
     @Test
+    @Order(2)
+    @DisplayName("JSON 往返：条目数与 snapshotId 一致")
     void jsonRoundTrip() {
         FlowRunSnapshotState state = new FlowRunSnapshotState();
         state.push("n1", "snap-a");

@@ -1,6 +1,10 @@
 package com.qualitest.flow.diagnose;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,10 +12,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * 导入影响汇总中，受影响流排序与条数截断的单元测试。
- * <p>
+ * 测 ApiFlowReferenceScanService.sortAndLimitFlows：受影响流排序与条数截断。
+ * 边界：纯函数，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiSyncImpactSortTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiSyncImpactSortTest {
 
     /**
@@ -19,6 +24,8 @@ class ApiSyncImpactSortTest {
      * 期望：按告警数降序、同数按名称排序，顺序为 2→3→4→1。
      */
     @Test
+    @Order(1)
+    @DisplayName("按告警数与名称排序")
     void sortAndLimitFlows_ordersByWarningThenName() {
         List<AffectedFlowSummary> flows = new ArrayList<>();
         flows.add(flow(1L, "beta", 1, 0));
@@ -35,6 +42,8 @@ class ApiSyncImpactSortTest {
      * 期望：截断至上限条数，且告警数最多的流仍排首位。
      */
     @Test
+    @Order(2)
+    @DisplayName("超限时截断并保留高告警")
     void sortAndLimitFlows_truncatesToLimit() {
         List<AffectedFlowSummary> flows = new ArrayList<>();
         for (int i = 0; i < ApiFlowReferenceScanService.SYNC_IMPACT_FLOW_LIMIT + 5; i++) {

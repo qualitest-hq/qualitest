@@ -4,7 +4,11 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -15,13 +19,11 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * {@link ExtractApplicator} 单元测试：HTTP 响应变量提取逻辑。
- * <p>
- * 覆盖 extracts 配置（from=body/header/status、expr、scope、name）从响应快照
- * 提取值并写入 env / flow / asset 作用域；含 JsonPath 提取、regex 未实现返回 null 等边界。
- * <p>
+ * 测 ExtractApplicator：HTTP 响应变量提取写入 env/flow/asset。
+ * 边界：fixture compare-extract-cases.json；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ExtractApplicatorTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ExtractApplicatorTest {
 
     /**
@@ -52,6 +54,8 @@ class ExtractApplicatorTest {
      * 期望：每条 case 的 applied 条目及 flow/env/asset 副作用与 expected 一致。
      */
     @Test
+    @Order(1)
+    @DisplayName("提取：fixture 各 case 写入 scope 与 applied 一致")
     void apply_fixtureCases() {
         for (int i = 0; i < extractCases.size(); i++) {
             JSONObject c = extractCases.getJSONObject(i);

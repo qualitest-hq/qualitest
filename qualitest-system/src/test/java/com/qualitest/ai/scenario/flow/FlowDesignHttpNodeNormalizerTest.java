@@ -3,7 +3,11 @@ package com.qualitest.ai.scenario.flow;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.project.domain.TestProjectApi;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 边界：纯函数，依赖传入的 TestProjectApi，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignHttpNodeNormalizerTest
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowDesignHttpNodeNormalizerTest {
 
     /**
@@ -27,6 +32,8 @@ class FlowDesignHttpNodeNormalizerTest {
      * 期望：去掉 requestBody/requestConfig/apiPath；写入 httpMethod 与 bodyExample overrides；successCheck=inherit。
      */
     @Test
+    @Order(1)
+    @DisplayName("requestBody 写入 overrides 并剥厚字段")
     void normalize_writesRequestBodyToOverrides_notRequestConfig() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(2001L)
@@ -62,6 +69,8 @@ class FlowDesignHttpNodeNormalizerTest {
      * 期望：剥掉 requestConfig，仅保留与默认的 diff overrides。
      */
     @Test
+    @Order(2)
+    @DisplayName("厚 requestConfig 仅保留 diff overrides")
     void normalize_stripsThickRequestConfig_keepsDiffOverrides() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
@@ -99,6 +108,8 @@ class FlowDesignHttpNodeNormalizerTest {
      * 期望：剥掉 requestConfig，且不产生 requestValueOverrides。
      */
     @Test
+    @Order(3)
+    @DisplayName("与资产默认相同则不产生 overrides")
     void normalize_sameAsAssetDefaults_noOverrides() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
@@ -128,6 +139,8 @@ class FlowDesignHttpNodeNormalizerTest {
      * 期望：转为 expr=$.data.mobile、from=body、scope=flow，并去掉 value。
      */
     @Test
+    @Order(4)
+    @DisplayName("旧 extracts value 转为 $.data 表达式")
     void normalize_extractsValueConvertedToExprWithDataPrefix() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
@@ -150,6 +163,8 @@ class FlowDesignHttpNodeNormalizerTest {
      * 期望：统一成 $. 路径。
      */
     @Test
+    @Order(5)
+    @DisplayName("旧式提取表达式统一为 $. 路径")
     void convertLegacyExtractExpr_handlesCommonPrefixes() {
         assertEquals("$.mobile", FlowDesignHttpNodeNormalizer.convertLegacyExtractExpr("responses.mobile"));
         assertEquals("$.data.token", FlowDesignHttpNodeNormalizer.convertLegacyExtractExpr("http.body.data.token"));
@@ -161,6 +176,8 @@ class FlowDesignHttpNodeNormalizerTest {
      * 期望：业务字段补 $.data. 前缀；根字段与已有前缀保持不变。
      */
     @Test
+    @Order(6)
+    @DisplayName("业务字段补 $.data 前缀根字段不变")
     void ensureDataPathPrefix_shallowAndRootFields() {
         assertEquals("$.data.mobile", FlowDesignHttpNodeNormalizer.ensureDataPathPrefix("$.mobile"));
         assertEquals("$.data.token", FlowDesignHttpNodeNormalizer.ensureDataPathPrefix("$.data.token"));
@@ -174,6 +191,8 @@ class FlowDesignHttpNodeNormalizerTest {
      * 期望：successCheck.mode=off。
      */
     @Test
+    @Order(7)
+    @DisplayName("external 模式默认 successCheck 为 off")
     void normalize_external_defaultsSuccessCheckOff() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "external");

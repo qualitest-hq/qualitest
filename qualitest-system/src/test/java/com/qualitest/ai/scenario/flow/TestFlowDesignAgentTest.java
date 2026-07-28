@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.qualitest.flow.support.FlowTestSections.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -116,15 +115,14 @@ class TestFlowDesignAgentTest {
      */
     @Test
     @Order(1)
+    @DisplayName("空 prompt 抛异常且不调 Runner")
     void design_missingPrompt_throws() {
-        begin("design_missingPrompt_throws");
         TestFlowDesignRequest request = baseRequest();
         request.setPrompt("");
 
         LlmClientException ex = assertThrows(LlmClientException.class, () -> agent.design(request, USER_ID));
         assertTrue(ex.getMessage().contains("设计描述"));
         verifyNoInteractions(agentRunner);
-        end("design_missingPrompt_throws");
     }
 
     /**
@@ -133,8 +131,8 @@ class TestFlowDesignAgentTest {
      */
     @Test
     @Order(2)
+    @DisplayName("submit 成功返回 patch 并落库")
     void design_submitReturnsPatch_success() {
-        begin("design_submitReturnsPatch_success");
         TestFlowDesignRequest request = baseRequest();
         FlowDesignPatch rawPatch = patchWithLoginNode();
         FlowDesignPatch normalizedPatch = patchWithLoginNode();
@@ -159,7 +157,6 @@ class TestFlowDesignAgentTest {
         verify(conversationService).appendAssistantMessage(
                 eq(SESSION_ID), eq("登录链路"), contains("\"patchJson\""), eq(1001L), isNull());
         verify(summaryService).maybeRefreshSummaryAsync(eq(SESSION_ID), eq(1001L));
-        end("design_submitReturnsPatch_success");
     }
 
     /**
@@ -168,8 +165,8 @@ class TestFlowDesignAgentTest {
      */
     @Test
     @Order(3)
+    @DisplayName("仅自然语言时 explainOnly")
     void design_summaryOnly_explainOnly() {
-        begin("design_summaryOnly_explainOnly");
         TestFlowDesignRequest request = baseRequest();
         request.setPrompt("解释一下这个流程");
 
@@ -183,7 +180,6 @@ class TestFlowDesignAgentTest {
         assertTrue(result.isExplainOnly());
         assertNull(result.getPatch());
         verify(toolExecutor, never()).executeTool(eq(FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH), anyString(), any());
-        end("design_summaryOnly_explainOnly");
     }
 
     /**
@@ -192,8 +188,8 @@ class TestFlowDesignAgentTest {
      */
     @Test
     @Order(4)
+    @DisplayName("空 content 仍返回已 submit 的 patch")
     void design_submitWithEmptyContent_success() {
-        begin("design_submitWithEmptyContent_success");
         TestFlowDesignRequest request = baseRequest();
         FlowDesignPatch normalizedPatch = patchWithLoginNode();
         DesignValidationResult validation = DesignValidationResult.builder()
@@ -225,7 +221,6 @@ class TestFlowDesignAgentTest {
         assertEquals("登录链路", result.getSummary());
         verify(conversationService).appendAssistantMessage(
                 eq(SESSION_ID), eq("登录链路"), contains("\"patchJson\""), eq(1001L), isNull());
-        end("design_submitWithEmptyContent_success");
     }
 
     /**
@@ -234,8 +229,8 @@ class TestFlowDesignAgentTest {
      */
     @Test
     @Order(5)
+    @DisplayName("Agent 失败包装为可读异常")
     void design_agentFailure_throws() {
-        begin("design_agentFailure_throws");
         when(agentRunner.run(any())).thenReturn(AiAgentRunner.AgentRunResult.builder()
                 .error("步数超限")
                 .stepsUsed(8)
@@ -243,7 +238,6 @@ class TestFlowDesignAgentTest {
 
         LlmClientException ex = assertThrows(LlmClientException.class, () -> agent.design(baseRequest(), USER_ID));
         assertEquals("步数超限", ex.getMessage());
-        end("design_agentFailure_throws");
     }
 
     private static TestFlowDesignRequest baseRequest() {
