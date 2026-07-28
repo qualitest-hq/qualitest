@@ -427,7 +427,6 @@ scripts\quick-start.bat
 ## ⚙️ 详细部署
 
 - Compose 全栈：[docs/deploy.md](./docs/deploy.md)
-- 变更记录：[CHANGELOG.md](./CHANGELOG.md)
 - Cursor MCP：[docs/mcp.md](./docs/mcp.md)
 - AI 提示集（demo）：[ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
 - 本机命令见下方环境要求 / 后端 / 前端。

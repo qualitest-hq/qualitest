@@ -6,8 +6,8 @@
 
 | 版本 | 状态 |
 |------|------|
-| `main` / 最新 Release | 接受安全修复 |
-| 更旧的 tag | 视影响面决定是否回溯 |
+| `main` / 当前稳定线 | 接受安全修复 |
+| 更旧的提交 / 分支 | 视影响面决定是否回溯 |
 
 覆盖本仓库（后端 + `qualitest-ui/`）。靶场 [`qualitest-demo`](https://github.com/qualitest-hq/qualitest-demo)、IDEA 插件 [`qualitest-intellij-plugin`](https://github.com/qualitest-hq/qualitest-intellij-plugin) 的同类问题请在对应仓库报告，或一并说明。
 
@@ -17,7 +17,7 @@
 2. 若暂不可用，请发邮件至维护者（以 Org / README 公布为准），主题标明 `[SECURITY]`。  
 3. 请尽量包含：影响版本 / commit、复现步骤、预期与实际行为、是否已在公网被利用。
 
-我们会在精力允许时尽快确认收到（通常若干个工作日内，忙时可能更久），并在修复与披露节奏上与报告人协调（通常先私下修复，再发 Advisory / Release）。请勿期待即时响应。
+我们会在精力允许时尽快确认收到（通常若干个工作日内，忙时可能更久），并在修复与披露节奏上与报告人协调（通常先私下修复，再视情况发 Advisory）。请勿期待即时响应。
 
 ## 生产部署必读
 
