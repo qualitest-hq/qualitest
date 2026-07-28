@@ -4,7 +4,7 @@
 
 ## 环境要求
 
-- Node.js 18+（建议与团队 CI 一致）
+- Node.js 20+（与 CI / happy-dom 要求一致）
 - Yarn 1.x（Classic）
 - 开发联调时需先启动质衡后端（默认 `http://localhost:8080`），与 `apps/web` 下 Vite 代理配置一致
 

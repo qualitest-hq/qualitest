@@ -24,7 +24,7 @@ Bug、文档笔误、小体验改进、大功能设想、甚至「有点怪但�
 
 ## 开发环境（摘要）
 
-- JDK 17+、Maven 3+、MySQL 8+、Redis 3+、Node 18+、Yarn 1.x  
+- JDK 17+、Maven 3+、MySQL 8+、Redis 3+、Node 20+、Yarn 1.x  
 - 复制 [`.env.example`](./.env.example) 为 `.env`（勿提交），或改 `application-dev.yml`  
 - 后端：`mvn clean package` 后按根目录 `qualitest.bat` / `qualitest.sh` 启动  
 - 前端：`cd qualitest-ui && yarn install && yarn dev`  

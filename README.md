@@ -323,7 +323,7 @@ flowchart LR
 
 ### 前置条件（一次性）
 
-JDK 17+、MySQL 8+、Redis 3+、Maven 3+、Node 18+、Yarn 1.x。数据库账号改各自 `application-dev.yml` 或复制根目录 [`.env.example`](./.env.example) 为 `.env` 后通过环境变量覆盖即可。
+JDK 17+、MySQL 8+、Redis 3+、Maven 3+、Node 20+、Yarn 1.x。数据库账号改各自 `application-dev.yml` 或复制根目录 [`.env.example`](./.env.example) 为 `.env` 后通过环境变量覆盖即可。
 
 > **安全提示（生产必读）**：仓库内 `dev` 默认口令（如库密码 `123456`、弱 `TOKEN_SECRET`）仅便于本地体验。**生产 / 公网部署必须**通过环境变量注入强随机 `TOKEN_SECRET`、数据库与 Redis 口令，并使用 `prod` 或 `docker` profile（`docker` 已关闭 Druid 控制台，上传目录默认 `/data/upload`）。切勿把真实云 API Key、个人 `.env`、`application-local.yml` 提交进 Git。
 
@@ -410,7 +410,7 @@ Swagger：**http://localhost:8081/swagger-ui.html**
 
 | 环境 | 要求 |
 |:-----|:-----|
-| **开发** | Windows 10+、JDK 17+、MySQL 8.0+、Maven 3.0+、Redis 3.0+、Node 18+ |
+| **开发** | Windows 10+、JDK 17+、MySQL 8.0+、Maven 3.0+、Redis 3.0+、Node 20+ |
 | **生产** | CentOS 7+、同上 JDK / MySQL / Redis 等要求 |
 
 ### 后端
