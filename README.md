@@ -36,7 +36,7 @@
 
 <br/>
 
-**Qualitest** is an enterprise API testing / quality platform: sync APIs from IntelliJ, debug in-project, orchestrate flows on a canvas, design with AI (**diff before merge**), and let Cursor **read** the same project via MCP.
+**Qualitest** is an enterprise API testing / quality platform: sync APIs from IntelliJ, debug in-project, orchestrate flows on a canvas, design with AI (**diff before merge**), and let MCP-capable AI editors (e.g. Cursor) **read** the same project.
 
 | Piece | Role |
 |:------|:-----|
@@ -78,7 +78,7 @@ flowchart LR
     A["💻 IDEA 插件<br/>接口同步"] --> B["🔌 接口调试台<br/>多环境切换"]
     B --> C["🎨 测试流编排<br/>画布拖拽"]
     C --> D["🤖 AI 辅助设计<br/>Diff 预览合并"]
-    D --> E["🔗 MCP 接入<br/>Cursor / CI"]
+    D --> E["🔗 MCP 接入<br/>AI 编辑器 / CI"]
     E -.-> A
 
     style A fill:#e8f4fd,stroke:#409eff
@@ -152,17 +152,17 @@ flowchart LR
 <tr>
 <td width="50%" valign="top">
 
-### 🔗 用 Cursor 写代码的人
+### 🔗 用 AI 编辑器写代码的人
 
 **IDE 也能读懂你的测试项目**
 
-项目设置里生成 Token，复制 MCP 配置到 Cursor 的 `mcp.json`。
+质衡暴露标准 **MCP**（Model Context Protocol）只读服务，凡支持 MCP 的 AI 编辑器 / Agent（如 Cursor、VS Code 生态、Claude Code 等）均可接入。项目设置里生成 Token，按客户端要求粘贴配置即可（Cursor 示例为 `mcp.json`）。
 
 MCP 提供 **只读** 工具：查接口、列举/勘察测试流、读 Run 失败现场、看子流模板与拓扑摘要等。**改画布须在 Web 端 AI 面板** 预览 Diff 后合并，MCP 不会直接写库。
 
 典型用法：`list_flows` 选定测试流 → 带 `testFlowId` 问「这条流有哪些节点？」「上次跑挂在哪？」—— AI 读到的是平台上的 **真数据**，不是瞎猜。
 
-→ 配置模板与示例提问见 [`docs/mcp.md`](./docs/mcp.md)。
+→ 配置模板与示例提问见 [`docs/mcp.md`](./docs/mcp.md)（以 Cursor 为示例，其它客户端同协议）。
 
 </td>
 <td width="50%" valign="top">
@@ -213,7 +213,7 @@ MCP 提供 **只读** 工具：查接口、列举/勘察测试流、读 Run 失�
 -->
 <img src="docs/images/demo-ai-diff.gif" alt="AI 辅助设计：自然语言生成修改建议，Diff 预览后合并" width="820"/>
 
-### 🔗 MCP 接入 Cursor · IDE 直接读懂测试项目
+### 🔗 MCP 接入 · IDE / AI 编辑器直接读懂测试项目
 
 <!--
   录制规格：在 Cursor 中接入 MCP，选定 qualitest-demo 项目测试流 → list_flows → 带 testFlowId 提问「这条流有哪些节点？/ 上次跑挂在哪？」→ 返回平台真数据
@@ -311,7 +311,7 @@ flowchart TB
 flowchart LR
     Plugin["IDEA 插件"] -->|上传接口| Platform["质衡"]
     Platform -->|调试 / 编排| Demo["qualitest-demo"]
-    Cursor["Cursor MCP"] -.->|只读勘察| Platform
+    McpClient["MCP 客户端<br/>Cursor 等"] -.->|只读勘察| Platform
 ```
 
 ### ① 启动质衡
@@ -352,7 +352,7 @@ Swagger 一般为 **http://localhost:8081/swagger-ui.html**。
 | **调接口** | 接口调试台 → 选环境 → 发请求 |
 | **编排用例** | 测试流 → 拖 HTTP / 断言 → 运行 |
 | **AI 辅助** | AI 面板 → 描述需求 → **先看 Diff 再合并** |
-| **Cursor 联读** | 项目设置复制 MCP 到 `mcp.json` → [`docs/mcp.md`](./docs/mcp.md) |
+| **MCP 联读** | 项目设置复制 MCP 配置到 AI 编辑器 → [`docs/mcp.md`](./docs/mcp.md) |
 | **AI 造流（靶场）** | [AI 测试流提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) |
 
 更多文档：[部署说明](./docs/deploy.md) · [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)

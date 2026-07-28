@@ -1,6 +1,7 @@
-# MCP 接入（Cursor）
+# MCP 接入（以 Cursor 为例）
 
-质衡通过 **Streamable HTTP** 暴露项目级 MCP 服务，供 Cursor 等 IDE **只读**查询本项目的接口、测试流与 Run 现场。  
+质衡通过 **Streamable HTTP** 暴露项目级 MCP 服务，供 **支持 MCP 的 AI 编辑器 / Agent**（Cursor、VS Code 生态、Claude Code 等）**只读**查询本项目的接口、测试流与 Run 现场。  
+下文配置以 **Cursor `mcp.json`** 为例；其它客户端只要支持同协议的 HTTP MCP + 自定义 Header，即可按同等字段接入。  
 **改画布请走 Web 端 AI 面板**（先 Diff 再合并）；MCP **不会**写库，也不提供 `submit_*` 类工具。
 
 ---

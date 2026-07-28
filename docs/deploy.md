@@ -183,4 +183,5 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 - [`deploy/nginx/default.conf`](../deploy/nginx/default.conf)
 - [`.env.example`](../.env.example)
 - [`application-docker.yml`](../qualitest-admin/src/main/resources/application-docker.yml)
+- [`docs/flyway.md`](./flyway.md)（库表版本迁移；路线图 4.1，**尚未接入**；当前仍靠 `sql/qualitest_*.sql` + initdb）
 - 靶场部署：[qualitest-demo/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)
