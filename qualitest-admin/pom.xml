@@ -36,6 +36,16 @@
             <artifactId>mysql-connector-j</artifactId>
         </dependency>
 
+        <!-- Flyway 库表版本迁移（MySQL 8 需 flyway-mysql） -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
+
         <!-- 核心模块-->
         <dependency>
             <groupId>com.qualitest</groupId>

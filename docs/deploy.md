@@ -24,7 +24,8 @@ docker compose up -d --build
 ```
 
 - 浏览器：**http://localhost**（`WEB_PORT` 非 80 时带端口）
-- 默认账号：**`admin` / `admin123`**（种子 SQL；上公网前务必改掉）
+- 默认账号：**`admin` / `admin123`**（Flyway V1 种子；上公网前务必改掉）
+- 首次以 **app 健康 / 日志 Flyway migrate 成功** 为准（不再依赖 initdb 整库 dump）
 - IDEA 插件服务器地址：Compose 填 **`http://localhost/prod-api`**；本机后端填 **`http://localhost:8080`**
 
 首次 `--build` 会拉基础镜像并编译前后端，可能较慢，属正常。
@@ -48,7 +49,7 @@ mvn -pl qualitest-admin -am -DskipTests package
 cd qualitest-ui && yarn install && yarn dev
 ```
 
-浏览器：**http://localhost:5173**。库需已导入 `sql/qualitest_*.sql`（取最新一份），或依赖 Compose MySQL 首次初始化卷。
+浏览器：**http://localhost:5173**。MySQL 只需空库 `qualitest`（Compose `mysql` 服务会建）；启动后端后由 **Flyway** 自动执行 `db/migration`（含种子），日志出现 migrate 成功即可登录。
 
 ---
 
@@ -114,9 +115,9 @@ REDIS_PORT=63790
 
 | 服务 | 容器名 | 说明 |
 |------|--------|------|
-| mysql | qualitest-mysql | 初始化：`sql/qualitest_*.sql` → `/docker-entrypoint-initdb.d/`（仅空卷首次） |
+| mysql | qualitest-mysql | 仅建空库 `MYSQL_DATABASE=qualitest`；表结构与种子由 app 启动时 Flyway 迁移 |
 | redis | qualitest-redis | 缓存 / 会话 |
-| app | qualitest-app | Spring Boot，`SPRING_PROFILES_ACTIVE=docker`，上传 `/data/upload` |
+| app | qualitest-app | Spring Boot，`SPRING_PROFILES_ACTIVE=docker`，上传 `/data/upload`；启动时 Flyway migrate |
 | web | qualitest-web | Nginx 静态资源 + `/prod-api` → `app:8080` |
 
 ---
@@ -169,7 +170,9 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 | 首次启动很慢 / 构建失败 | 确认 Docker 资源与网络；重试 `docker compose build --no-cache app`（或 `web`） |
 | 打不开页面但容器在跑 | `docker compose ps`；`logs -f web` / `logs -f app`；确认访问的是 `WEB_PORT` |
 | 登录失败 / 401 | 确认种子账号；若改过 `TOKEN_SECRET` 需重新登录；查 `app` 日志 |
-| MySQL 初始化没进库 | 初始化只在**空数据卷首次**执行；改 SQL 后需 `down -v` 再 `up`（会丢数据） |
+| 空库启动后无表 / 登录失败 | 看 `app` 日志是否 Flyway migrate 成功；确认 `spring.flyway.enabled=true` 且 url 与 master 一致 |
+| 存量库报 `Found non-empty schema without metadata` | 见下文「存量库接入 Flyway」；勿对已有库直接跑完整 V1 |
+| 改完 migration 旧卷仍不对 | 可丢数据时用 `down -v` 再 `up`；生产用增量 `V{n}`，禁止改已执行脚本 |
 | 插件连不上 | Compose 用 `http://localhost/prod-api`；本机用 `http://localhost:8080`；勿混用 |
 | 与 demo 端口冲突 | demo 默认 8081/8082/3307/6380，一般不冲突；若自改过主仓端口再核对 |
 
@@ -183,5 +186,20 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 - [`deploy/nginx/default.conf`](../deploy/nginx/default.conf)
 - [`.env.example`](../.env.example)
 - [`application-docker.yml`](../qualitest-admin/src/main/resources/application-docker.yml)
-- [`docs/flyway.md`](./flyway.md)（库表版本迁移；路线图 4.1，**尚未接入**；当前仍靠 `sql/qualitest_*.sql` + initdb）
+- [`docs/flyway.md`](./flyway.md)（库表版本迁移；已接入，脚本在 `qualitest-admin/.../db/migration/`）
 - 靶场部署：[qualitest-demo/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)
+
+---
+
+## 存量库接入 Flyway
+
+**禁止**对已有业务库直接执行完整 `V1__baseline.sql`（含 `DROP` / 重复 `CREATE`）。
+
+1. 备份库（`sql/backup_db.bat` 或 mysqldump）
+2. 确认当前结构 ≈ V1 所描述结构
+3. 临时设置 `spring.flyway.baseline-on-migrate: true`（`baseline-version: 1` 已配置）
+4. 启动一次 → `flyway_schema_history` 出现 baseline 记录（版本 1），**不**执行 V1 文件体
+5. 改回 `baseline-on-migrate: false`
+6. 之后只通过新增 `V2`、`V3`… 升级
+
+根目录 `sql/qualitest_*.sql` 可作灾难备份 / 离线导出原料；**新变更只加 migration，禁止只改 dump。** 详见 [`docs/flyway.md`](./flyway.md)。

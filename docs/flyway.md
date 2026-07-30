@@ -1,6 +1,6 @@
 # Flyway 详解与质衡接入指南
 
-> **状态**：设计 / 实施手册（路线图 **4.1**，**尚未接入代码**）。  
+> **状态**：已接入（路线图 **4.1**）。迁移脚本：`qualitest-admin/src/main/resources/db/migration/`。  
 > 读者：要给质衡接库表版本管理、或想搞懂「为什么别再靠手工 `upgrade_*.sql`」的人。  
 > 关联：[部署说明](./deploy.md) · [开源路线图 §7 / 4.1](./质衡开源与工程路线图.md)
 
@@ -11,7 +11,7 @@
 **Flyway = 数据库结构的 Git。**  
 每个库结构变更是一份带版本号的 SQL（或 Java）脚本；应用启动时只跑「还没执行过」的脚本，并在库里记账。
 
-| 维度 | 没有 Flyway（质衡现状） | 有 Flyway（目标） |
+| 维度 | 没有 Flyway（历史做法） | 有 Flyway（当前） |
 |------|-------------------------|-------------------|
 | 新环境 | Compose 挂 `sql/qualitest_*.sql` 进 `initdb.d`，或人肉导入 | 空库启动应用 → 自动迁到最新 |
 | 已有环境升级 | 找文档 / 找同事要增量 SQL，顺序易错 | 拉代码重启 → 自动跑增量 |
@@ -87,7 +87,7 @@ ORDER BY installed_rank;
 
 ## 3. 质衡现状与目标形态
 
-### 3.1 现状（v1.0 Compose）
+### 3.1 历史做法（接入前）
 
 ```text
 sql/qualitest_20260722_135127.sql     ← 整库 dump（结构 + 种子数据）
@@ -103,15 +103,14 @@ docker-compose.yml
 - 生产 / 老库无法「再跑一遍 dump」。  
 - 路线图里写的历史 `upgrade_*.sql` 若再出现，仍靠人执行。
 
-### 3.2 目标（阶段 4.1 落地后）
+### 3.2 当前形态（阶段 4.1 已落地）
 
 ```text
 qualitest-admin/src/main/resources/db/migration/
-  V1__baseline.sql          ← 由当前 dump 整理而来（结构 + 必要种子）
+  V1__baseline.sql          ← 由 dump qualitest_20260722_135127 整理（结构 + 必要种子）
   V2__….sql                 ← 之后每个功能只加增量
-  V3__….sql
 应用启动（Spring Boot + Flyway）→ migrate → 库对齐代码版本
-Compose：MySQL 只建空库（或仅 CREATE DATABASE），不再把巨型 dump 塞进 initdb.d
+Compose：MySQL 只建空库（MYSQL_DATABASE），不再把巨型 dump 塞进 initdb.d
 sql/qualitest_*.sql         ← 可保留作「灾难备份 / 离线导出」，不再作为唯一升级路径
 ```
 
@@ -187,7 +186,7 @@ docker compose up -d mysql redis
 # 库是空的 → 再启动 qualitest-admin，由 Flyway 灌结构
 ```
 
-`docs/deploy.md` 在 4.1 完成后应改成上述表述（替换「请导入 sql/qualitest_*.sql」）。
+`docs/deploy.md` 已改为上述表述（空库 + 应用 Flyway，不再要求手导 dump 为唯一路径）。
 
 ---
 
@@ -352,15 +351,15 @@ Flyway Community **没有**自动 down 脚本（那是 Flyway Teams 等能力，
 
 ## 11. 实施任务拆分（可当 4.1 工单）
 
-- [ ] admin 引入 `flyway-core` + `flyway-mysql`  
-- [ ] 各 profile 配置 `spring.flyway.*`（**显式 url/user/password**）  
-- [ ] 从当前 `sql/qualitest_*.sql` 整理 `V1__baseline.sql`  
-- [ ] 空库启动验证 + 登录冒烟  
-- [ ] Compose 去掉 initdb 整库挂载；文档同步  
-- [ ] 写清存量库 baseline 步骤（本文 §7，可缩写进 deploy）  
-- [ ] 约定：新功能只加 `V{n}`；PR 模板可加一句「是否含 DB migration」  
+- [x] admin 引入 `flyway-core` + `flyway-mysql`  
+- [x] 各 profile 配置 `spring.flyway.*`（**显式 url/user/password**）  
+- [x] 从当前 `sql/qualitest_*.sql` 整理 `V1__baseline.sql`  
+- [x] 空库启动验证 + 登录冒烟  
+- [x] Compose 去掉 initdb 整库挂载；文档同步  
+- [x] 写清存量库 baseline 步骤（本文 §7，可缩写进 deploy）  
+- [x] 约定：新功能只加 `V{n}`；PR 模板可加一句「是否含 DB migration」  
 - [ ] （可选）CI 起 MySQL 服务跑一次 migrate（与单元测试 Job 分离）  
-- [ ] 路线图 4.1 / checklist 勾选；deploy 去掉「必须手导 dump」为唯一路径  
+- [x] 路线图 4.1 / checklist 勾选；deploy 去掉「必须手导 dump」为唯一路径  
 
 ---
 
@@ -395,4 +394,4 @@ Flyway Community **没有**自动 down 脚本（那是 Flyway Teams 等能力，
 质衡坑  → Druid master 必须给 Flyway 单独配 url/user/password
 ```
 
-*文档版本：2026-07-28 · 对应路线图任务 4.1 · 代码未接入前以本文 + 当时 dump 为准*
+*文档版本：2026-07-30 · 对应路线图任务 4.1 · 已接入；基线原料 `sql/qualitest_20260722_135127.sql`*

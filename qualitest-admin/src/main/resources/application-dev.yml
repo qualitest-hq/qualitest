@@ -70,6 +70,18 @@ spring:
           max-idle: 8
           max-active: 8
           max-wait: -1ms
+  flyway:
+    enabled: true
+    # Druid 多数据源时须显式指定，与 master 一致
+    url: ${SPRING_DATASOURCE_DRUID_MASTER_URL:jdbc:mysql://localhost:3306/qualitest?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8}
+    user: ${SPRING_DATASOURCE_DRUID_MASTER_USERNAME:root}
+    password: ${SPRING_DATASOURCE_DRUID_MASTER_PASSWORD:123456}
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    baseline-version: 1
+    validate-on-migrate: true
+    encoding: UTF-8
+    out-of-order: false
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driverClassName: com.mysql.cj.jdbc.Driver

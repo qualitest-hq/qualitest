@@ -63,8 +63,8 @@ docker compose logs -f mysql
 
 **预期（mysql）：**
 
-- 首次启动会执行 `sql/qualitest_20260722_135127.sql` 初始化
-- 若数据卷已存在则**不会**重复导入（见文末「清库重来」）
+- Compose MySQL **只建空库**；表结构与种子由 **app 启动时 Flyway** 迁移（`db/migration/V1__baseline.sql`）
+- 已有脏卷若结构不对：可丢数据时用文末「清库重来」`down -v`；存量有数据见 `docs/flyway.md` §7 baseline
 
 ### 1.3 浏览器验收
 

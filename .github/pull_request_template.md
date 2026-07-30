@@ -11,6 +11,7 @@
 <!-- 自测路径：Compose / 本机 / 相关接口或页面；有 CI 看 Actions 是否绿 -->
 
 - [ ] 已在本地验证相关路径（或说明为何无法本地验证）
+- [ ] 若含库表变更：已新增 `db/migration/V{n}__….sql`（勿改已执行过的 migration / 勿只改根目录 dump）
 - [ ] 行为有变时已更新 README / 对应 `docs/`（如适用）
 - [ ] 未提交密钥、`.env`、本地绝对路径、`target/` / `node_modules/` 等
 

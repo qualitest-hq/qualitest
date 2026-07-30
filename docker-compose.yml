@@ -22,9 +22,10 @@ services:
       - --default-authentication-plugin=mysql_native_password
     ports:
       - "${MYSQL_PORT:-3306}:3306"
+    # 仅建空库 MYSQL_DATABASE=qualitest；表结构与种子由 app 启动时 Flyway 迁移
+    # 已有脏卷若需重建：docker compose down -v（会丢数据）或对存量库走 baseline（见 docs/flyway.md §7）
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./sql/qualitest_20260722_135127.sql:/docker-entrypoint-initdb.d/01-qualitest.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s
