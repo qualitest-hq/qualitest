@@ -12,7 +12,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "~/*": ["./*"]
+      "~/*": ["./*"],
+      "@flow-fixtures/*": [
+        "../../../qualitest-system/src/test/resources/flow/*"
+      ]
     }
   },
   "include": ["src/**/*.ts"]

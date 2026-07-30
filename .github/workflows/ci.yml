@@ -52,6 +52,8 @@ jobs:
             frontend:
               - '.github/workflows/ci.yml'
               - 'qualitest-ui/**'
+              # 共享 flow fixture 权威目录；改此处需跑前端 Vitest
+              - 'qualitest-system/src/test/resources/flow/**'
 
   backend:
     name: backend

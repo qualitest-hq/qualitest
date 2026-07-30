@@ -12,7 +12,7 @@ import {
   toGraphJson,
 } from '@/views/project/testFlow/graphAdapter';
 
-import demoGraph from './fixtures/demo-graph.json';
+import demoGraph from '@flow-fixtures/demo-graph.json';
 
 describe('createEmptyGraph', () => {
   it('包含默认 viewport 与至少一条 run 场景', () => {

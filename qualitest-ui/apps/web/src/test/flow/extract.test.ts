@@ -1,6 +1,6 @@
 /**
  * 测 applyExtracts：HTTP 响应变量提取（与后端 ExtractApplicator 对齐）。
- * 边界：纯函数；用例来自 fixtures/compare-extract-cases.json。
+ * 边界：纯函数；用例来自 @flow-fixtures/compare-extract-cases.json。
  * 单跑：yarn test extract   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
@@ -9,7 +9,7 @@ import { applyExtracts } from '@/utils/flow/extract';
 import type { ExtractTarget } from '@/utils/flow/extract';
 import type { FlowRunContext, HttpResponseSnapshot } from '@/utils/flow/types';
 
-import fixture from './fixtures/compare-extract-cases.json';
+import fixture from '@flow-fixtures/compare-extract-cases.json';
 
 const baseCtx = fixture.mockContext as FlowRunContext;
 

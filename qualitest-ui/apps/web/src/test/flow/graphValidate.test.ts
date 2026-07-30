@@ -1,25 +1,25 @@
 /**
  * 测 validateGraphJson / validateStartNodes：流程图 JSON 结构与业务规则校验。
- * 边界：纯函数；manifest 用例来自 fixtures/graph-validate-cases.json。
+ * 边界：纯函数；manifest 用例来自 @flow-fixtures/graph-validate-cases.json。
  * 单跑：yarn test graphValidate   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 
 import { validateGraphJson, validateStartNodes } from '@/utils/flow/graphValidate';
 
-import demoGraph from './fixtures/demo-graph.json';
-import graphValidateCases from './fixtures/graph-validate-cases.json';
-import duplicateNodeId from './fixtures/invalid-duplicate-node-id.json';
-import edgeExtraField from './fixtures/invalid-edge-extra-field.json';
-import httpUnbound from './fixtures/invalid-http-unbound.json';
-import invalidHttpMissingCallmode from './fixtures/invalid-http-missing-callmode.json';
-import missingMetaRun from './fixtures/invalid-missing-meta-run.json';
-import multiStart from './fixtures/invalid-multi-start.json';
-import invalidNodeType from './fixtures/invalid-node-type.json';
-import invalidScriptEmptySource from './fixtures/invalid-script-empty-source.json';
-import invalidScriptLanguage from './fixtures/invalid-script-language.json';
-import invalidSubflowMissingId from './fixtures/invalid-subflow-missing-id.json';
-import noStart from './fixtures/invalid-no-start.json';
+import demoGraph from '@flow-fixtures/demo-graph.json';
+import graphValidateCases from '@flow-fixtures/graph-validate-cases.json';
+import duplicateNodeId from '@flow-fixtures/invalid-duplicate-node-id.json';
+import edgeExtraField from '@flow-fixtures/invalid-edge-extra-field.json';
+import httpUnbound from '@flow-fixtures/invalid-http-unbound.json';
+import invalidHttpMissingCallmode from '@flow-fixtures/invalid-http-missing-callmode.json';
+import missingMetaRun from '@flow-fixtures/invalid-missing-meta-run.json';
+import multiStart from '@flow-fixtures/invalid-multi-start.json';
+import invalidNodeType from '@flow-fixtures/invalid-node-type.json';
+import invalidScriptEmptySource from '@flow-fixtures/invalid-script-empty-source.json';
+import invalidScriptLanguage from '@flow-fixtures/invalid-script-language.json';
+import invalidSubflowMissingId from '@flow-fixtures/invalid-subflow-missing-id.json';
+import noStart from '@flow-fixtures/invalid-no-start.json';
 
 const fixtureMap: Record<string, unknown> = {
   'demo-graph.json': demoGraph,

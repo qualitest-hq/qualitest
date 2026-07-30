@@ -59,7 +59,7 @@ src/test/
   flow/          测试流 / staging / 图工具
   project/       项目 / API 设计补丁等
   ai/            AI 消息选择器等
-  */fixtures/    夹具 JSON（与后端 resources 同名对齐时需同步）
+  flow/fixtures/ README 占位（共享 JSON 勿再放此处）
 
 src/utils/flow/            纯函数内核
 src/views/project/testFlow/  画布、适配器、stores、composables
@@ -70,22 +70,27 @@ src/views/project/testFlow/  画布、适配器、stores、composables
 - 框架：Vitest（`describe` / `it` / `expect`）。
 - 文件头：测谁、边界、`yarn test <片段>`。
 - 每条 `it`：两行「前提 / 期望」；标题优先中文短句。
-- 数据驱动用例优先读 `fixtures/*.json`，与后端 `qualitest-system/src/test/resources/flow/` 同名文件保持同步。
+- 共享 flow 夹具通过别名 `@flow-fixtures` 引用权威目录（见下），勿再复制到 `src/test/flow/fixtures/`。
 - 测试环境为 Node，不启动浏览器；画布交互、正式 Run API 暂无自动化覆盖。
 
-## 与后端对齐
+## 共享 flow fixture（单一来源）
 
-以下 fixtures 与后端同名，修改时需同步：
+权威目录（后端 JUnit 与前端 Vitest 共用）：
 
-| fixtures | 后端路径 |
-|---|---|
-| `placeholder-cases.json` | `qualitest-system/src/test/resources/flow/placeholder-cases.json` |
-| `compare-extract-cases.json` | `qualitest-system/src/test/resources/flow/compare-extract-cases.json` |
-| `graph-validate-cases.json` | `qualitest-system/src/test/resources/flow/graph-validate-cases.json` |
-| `demo-graph.json` | `qualitest-system/src/test/resources/flow/demo-graph.json` |
-| `invalid-*.json` | 同上 |
+`qualitest-system/src/test/resources/flow/`
 
-跨端一致性校验示例：
+前端配置：
+
+- Vite alias：`@flow-fixtures` → 上述目录（见 `vite.config.js`）
+- TypeScript：`tsconfig.json` 的 `paths["@flow-fixtures/*"]`
+
+```ts
+import demoGraph from '@flow-fixtures/demo-graph.json';
+```
+
+只改权威目录即可；改该路径下文件时 CI 会同时触发 frontend Vitest。
+
+跨端抽测示例：
 
 ```bash
 # 后端（qualitest 目录）

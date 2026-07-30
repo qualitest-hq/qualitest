@@ -25,7 +25,12 @@ export default defineConfig(({ mode, command }) => {
         // 设置路径
         '~': path.resolve(__dirname, './'),
         // 设置别名
-        '@': path.resolve(__dirname, './src')
+        '@': path.resolve(__dirname, './src'),
+        // 测试流共享 fixture：权威目录在 qualitest-system（与后端 JUnit 同源）
+        '@flow-fixtures': path.resolve(
+          __dirname,
+          '../../../qualitest-system/src/test/resources/flow'
+        )
       },
       // https://cn.vitejs.dev/config/#resolve-extensions
       extensions: ['.mjs', '.ts', '.tsx', '.js', '.jsx', '.json', '.vue']
@@ -52,6 +57,12 @@ export default defineConfig(({ mode, command }) => {
       strictPort: true,
       host: true,
       open: false,
+      // Vitest 经 alias 读取仓内后端 test resources
+      fs: {
+        allow: [
+          path.resolve(__dirname, '../../../qualitest-system/src/test/resources/flow'),
+        ],
+      },
       proxy: {
         // https://cn.vitejs.dev/config/#server-proxy
         '/dev-api': {
