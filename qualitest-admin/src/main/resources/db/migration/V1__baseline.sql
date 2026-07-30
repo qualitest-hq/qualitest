@@ -1,6 +1,6 @@
 -- Flyway V1 baseline from sql/qualitest_20260722_135127.sql
 -- Connected DB is target; no CREATE DATABASE / USE in script
--- Empty DB: migrate; existing DB: baseline-on-migrate (see docs/flyway.md)
+-- Empty DB: migrate; existing DB: baseline-on-migrate (see docs/deploy.md)
 
 -- MySQL dump 10.13  Distrib 8.0.41, for Win64 (x86_64)
 --

@@ -64,7 +64,7 @@ docker compose logs -f mysql
 **预期（mysql）：**
 
 - Compose MySQL **只建空库**；表结构与种子由 **app 启动时 Flyway** 迁移（`db/migration/V1__baseline.sql`）
-- 已有脏卷若结构不对：可丢数据时用文末「清库重来」`down -v`；存量有数据见 `docs/flyway.md` §7 baseline
+- 已有脏卷若结构不对：可丢数据时用文末「清库重来」`down -v`；存量有数据见 `docs/deploy.md`「库表迁移」baseline
 
 ### 1.3 浏览器验收
 

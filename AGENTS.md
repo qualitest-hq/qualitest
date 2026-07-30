@@ -14,8 +14,7 @@
 | [README.md](./README.md) | 快速开始与模块说明（含 English Summary） |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | 贡献方式 |
 | [SECURITY.md](./SECURITY.md) | 安全披露 |
-| [docs/deploy.md](./docs/deploy.md) | 部署 / Compose |
-| [docs/flyway.md](./docs/flyway.md) | Flyway 概念与质衡接入（阶段 4.1 **已接入**） |
+| [docs/deploy.md](./docs/deploy.md) | 部署 / Compose / Flyway 运维约定 |
 | [docs/mcp.md](./docs/mcp.md) | MCP 配置与示例提问（以 Cursor 为例） |
 | [docs/v1.0-首发文草稿.md](./docs/v1.0-首发文草稿.md) | 掘金 / 知乎 / V2EX 首发文大纲与底稿 |
 

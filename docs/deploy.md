@@ -57,7 +57,7 @@ cd qualitest-demo && ./scripts/quick-start.sh
 | 两边都在本机进程（`mvn` / `yarn`），或仅浏览器直连宿主机端口 | 种子默认 **`http://localhost:8081`** |
 | **质衡 app 在 Compose 容器内**，demo 映射在宿主机 **8081** | 容器内 `localhost` 打不到靶场，改为 **`http://host.docker.internal:8081`**（Docker Desktop：Windows / macOS）。Linux 可加 compose `extra_hosts: ["host.docker.internal:host-gateway"]`，或改为本机跑质衡后端 |
 
-靶场库表用 initdb dump + 场景 seed，**不接 Flyway**；质衡自身迁移见下文与 [`docs/flyway.md`](./flyway.md)。
+靶场库表用 initdb dump + 场景 seed，**不接 Flyway**；质衡自身迁移见下文「库表迁移（Flyway）」。
 
 ---
 
@@ -199,8 +199,9 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 | 首次启动很慢 / 构建失败 | 确认 Docker 资源与网络；重试 `docker compose build --no-cache app`（或 `web`） |
 | 打不开页面但容器在跑 | `docker compose ps`；`logs -f web` / `logs -f app`；确认访问的是 `WEB_PORT` |
 | 登录失败 / 401 | 确认种子账号；若改过 `TOKEN_SECRET` 需重新登录；查 `app` 日志 |
-| 空库启动后无表 / 登录失败 | 看 `app` 日志是否 Flyway migrate 成功；确认 `spring.flyway.enabled=true` 且 url 与 master 一致 |
-| 存量库报 `Found non-empty schema without metadata` | 见下文「存量库接入 Flyway」；勿对已有库直接跑完整 V1 |
+| 空库启动后无表 / 登录失败 | 看 `app` 日志是否 Flyway migrate 成功；确认 `spring.flyway.enabled=true` 且 **url/user/password 与 Druid master 一致**（质衡非默认 `spring.datasource`） |
+| 存量库报 `Found non-empty schema without metadata` | 见下文「库表迁移」存量 baseline；勿对已有库直接跑完整 V1 |
+| `Checksum mismatch` | 改了已执行过的 migration 文件；应还原文件，用新的 `V{n}` 正向修复 |
 | 改完 migration 旧卷仍不对 | 可丢数据时用 `down -v` 再 `up`；生产用增量 `V{n}`，禁止改已执行脚本 |
 | 插件连不上 | Compose 用 `http://localhost/prod-api`；本机用 `http://localhost:8080`；勿混用 |
 | 与 demo 端口冲突 | demo 默认 8081/8082/3307/6380，一般不冲突；若自改过主仓端口再核对 |
@@ -216,12 +217,32 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 - [`deploy/nginx/default.conf`](../deploy/nginx/default.conf)
 - [`.env.example`](../.env.example)
 - [`application-docker.yml`](../qualitest-admin/src/main/resources/application-docker.yml)
-- [`docs/flyway.md`](./flyway.md)（库表版本迁移；已接入，脚本在 `qualitest-admin/.../db/migration/`）
+- 迁移脚本：[`qualitest-admin/.../db/migration/`](../qualitest-admin/src/main/resources/db/migration/)
 - 靶场部署：[qualitest-demo/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)
 
 ---
 
-## 存量库接入 Flyway
+## 库表迁移（Flyway）
+
+质衡（**仅主仓**）用 Flyway：空库启动应用自动 migrate；之后改表只加增量脚本。脚本目录：`qualitest-admin/src/main/resources/db/migration/`。
+
+| 约定 | 说明 |
+|------|------|
+| 命名 | `V{n}__short_desc.sql`（两个下划线），如 `V2__add_api_group_index.sql` |
+| 空库 | Compose 只建空库 `qualitest` → app 启动跑 `V1`…`Vn` |
+| 新功能 | **只加**新的 `V{n}`；禁止改已执行文件、禁止只改根目录 `sql/qualitest_*.sql` 当升级路径 |
+| 配置 | Druid master 下须显式配 `spring.flyway.url` / `user` / `password`（见各 `application-*.yml`） |
+| 生产 | 禁止 `clean`；回滚靠新版本正向修复或备份还原（Community 无自动 down） |
+
+查当前版本：
+
+```sql
+SELECT version, description, installed_on, success
+FROM flyway_schema_history
+ORDER BY installed_rank;
+```
+
+### 存量库接入（本地有数据 / 将来生产）
 
 **禁止**对已有业务库直接执行完整 `V1__baseline.sql`（含 `DROP` / 重复 `CREATE`）。
 
@@ -232,4 +253,4 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 5. 改回 `baseline-on-migrate: false`
 6. 之后只通过新增 `V2`、`V3`… 升级
 
-根目录 `sql/qualitest_*.sql` 可作灾难备份 / 离线导出原料；**新变更只加 migration，禁止只改 dump。** 详见 [`docs/flyway.md`](./flyway.md)。
+根目录 `sql/qualitest_*.sql` 可作灾难备份 / 离线导出原料；**新变更只加 migration。**
