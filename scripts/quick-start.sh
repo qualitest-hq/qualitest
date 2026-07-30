@@ -17,7 +17,7 @@ usage() {
 
 仅依赖:     docker compose up -d mysql redis
 停止:       docker compose down
-靶场/RustFS: 独立仓 qualitest-demo
+靶场/RustFS: 独立仓 qualitest-demo（另起 Compose；本仓无 --profile demo）
 EOF
 }
 
@@ -65,5 +65,5 @@ echo " 浏览器打开: http://localhost:${WEB_PORT:-80}"
 echo " 默认账号:   admin / admin123"
 echo " 停止:       docker compose down"
 echo " 仅依赖:     docker compose up -d mysql redis"
-echo " 靶场/RustFS: 见 qualitest-demo（./scripts/quick-start.sh）"
+echo " 靶场/RustFS: 见 qualitest-demo（另起 Compose；本仓无 --profile demo）"
 echo "=============================================="

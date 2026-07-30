@@ -3,7 +3,7 @@
 #   docker compose up -d --build     # 全栈（MySQL + Redis + 后端 + Nginx）
 #   docker compose up -d mysql redis # 仅依赖（本机跑 mvn / yarn）
 # 一键脚本见 scripts/quick-start.sh|.bat
-# 靶场 / RustFS 见独立仓 qualitest-demo
+# 靶场：独立仓 qualitest-demo 另起 Compose（本文件无 --profile demo；见 docs/deploy.md）
 
 name: qualitest
 

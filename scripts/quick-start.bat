@@ -4,7 +4,7 @@ REM 用法：
 REM   scripts\quick-start.bat           启动 MySQL + Redis + 后端 + Nginx
 REM   scripts\quick-start.bat -h        显示本说明
 REM 说明：从任意目录调用即可（脚本会切到仓库根）；依赖 Docker Desktop + Compose V2
-REM 靶场 / RustFS：见独立仓 qualitest-demo
+REM 靶场 / RustFS：独立仓 qualitest-demo 另起 Compose（本仓无 --profile demo）
 chcp 65001 >nul
 setlocal
 cd /d "%~dp0.."
@@ -49,7 +49,7 @@ echo  浏览器打开: http://localhost
 echo  默认账号:   admin / admin123
 echo  停止:       docker compose down
 echo  仅依赖:     docker compose up -d mysql redis
-echo  靶场/RustFS: 见 qualitest-demo（scripts\quick-start.bat）
+echo  靶场/RustFS: 见 qualitest-demo（另起 Compose；本仓无 --profile demo）
 echo ==============================================
 endlocal
 exit /b 0
@@ -61,5 +61,5 @@ echo   scripts\quick-start.bat -h        显示本说明
 echo.
 echo 仅依赖:     docker compose up -d mysql redis
 echo 停止:       docker compose down
-echo 靶场/RustFS: 独立仓 qualitest-demo
+echo 靶场/RustFS: 独立仓 qualitest-demo（另起 Compose；本仓无 --profile demo）
 exit /b 0

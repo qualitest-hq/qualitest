@@ -41,7 +41,7 @@
 | Piece | Role |
 |:------|:-----|
 | This repo | Platform + Web (`qualitest-ui/`) |
-| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | Optional shop API target |
+| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | Optional shop API target (separate Compose; not mixed into this repo) |
 | [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | Upload Controllers → platform |
 
 ```bash
@@ -328,7 +328,8 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 ### ② 启动靶场（可选）
 
-已有自己的被测服务可跳过；靶场用于零配置体验演示场景与 AI 提示集。启动与端口见 [demo 部署说明](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)。
+已有自己的被测服务可跳过；靶场用于零配置体验演示场景与 AI 提示集。  
+**与质衡是两套独立 Compose**（主仓不会 `--profile demo` 拉起靶场）。启动与端口见 [demo 部署说明](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)；双栈联调与 `baseUrl` 注意点见 [deploy.md · 与靶场联调](./docs/deploy.md#与靶场联调可选--双仓各起)。
 
 ```bash
 cd qualitest-demo
@@ -343,7 +344,7 @@ Swagger 一般为 **http://localhost:8081/swagger-ui.html**。
 1. 登录质衡 → **测试项目** → 新建 → **项目设置** 复制 **Project Token**。
 2. IDEA 安装 [Qualitest Helper](https://github.com/qualitest-hq/qualitest-intellij-plugin)：服务器地址 Compose 填 `http://localhost/prod-api`，本机填 `http://localhost:8080`；粘贴 Token。
 3. 打开 `qualitest-demo`（或自有工程）→ **Tools → Qualitest Helper → 项目级上传**。
-4. Web **接口管理** 应有接口；**环境** `baseUrl` 指向被测服务（靶场多为 `http://localhost:8081`）。
+4. Web **接口管理** 应有接口；**环境** `baseUrl` 指向被测服务（靶场本机多为 `http://localhost:8081`；质衡在 Compose 容器内联调见 [deploy.md](./docs/deploy.md#与靶场联调可选--双仓各起)）。
 
 ### ④ 跑通一条主链路（任选）
 

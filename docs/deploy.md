@@ -2,7 +2,7 @@
 
 面向 Compose 全栈与本机开发的端口、环境变量与生产加固。快速上手摘要见根目录 [README](../README.md)；安全披露见 [SECURITY.md](../SECURITY.md)。
 
-靶场 / RustFS 不在本仓 Compose 内，见独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) 的 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)。
+**靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**。一般人只起本仓即可体验质衡。
 
 ---
 
@@ -29,6 +29,35 @@ docker compose up -d --build
 - IDEA 插件服务器地址：Compose 填 **`http://localhost/prod-api`**；本机后端填 **`http://localhost:8080`**
 
 首次 `--build` 会拉基础镜像并编译前后端，可能较慢，属正常。
+
+---
+
+## 与靶场联调（可选 · 双仓各起）
+
+主仓与 demo **各自一套 Compose**，端口已错开，可并行：
+
+```bash
+# 终端 1 — 质衡（本仓）
+cd qualitest && ./scripts/quick-start.sh   # Windows: scripts\quick-start.bat
+
+# 终端 2 — 靶场（另 clone 后）
+cd qualitest-demo && ./scripts/quick-start.sh
+```
+
+| 项 | 地址 |
+|----|------|
+| 质衡 Web | http://localhost |
+| 靶场 API / Swagger | http://localhost:8081 （Swagger：`/swagger-ui.html`） |
+| 靶场 UI | http://localhost:8082 |
+
+**环境 `baseUrl`（项目 → 环境管理）**
+
+| 跑法 | 建议 `baseUrl` |
+|------|----------------|
+| 两边都在本机进程（`mvn` / `yarn`），或仅浏览器直连宿主机端口 | 种子默认 **`http://localhost:8081`** |
+| **质衡 app 在 Compose 容器内**，demo 映射在宿主机 **8081** | 容器内 `localhost` 打不到靶场，改为 **`http://host.docker.internal:8081`**（Docker Desktop：Windows / macOS）。Linux 可加 compose `extra_hosts: ["host.docker.internal:host-gateway"]`，或改为本机跑质衡后端 |
+
+靶场库表用 initdb dump + 场景 seed，**不接 Flyway**；质衡自身迁移见下文与 [`docs/flyway.md`](./flyway.md)。
 
 ---
 
@@ -61,7 +90,7 @@ cd qualitest-ui && yarn install && yarn dev
 | 质衡 API | 容器内 **8080**（默认不映射宿主机） | **8080** | 浏览器走 Nginx **`/prod-api`**；插件 Compose 填 `http://localhost/prod-api` |
 | MySQL | **`MYSQL_PORT` → 默认 3306** | 本机或同上 | 库名 `qualitest` |
 | Redis | **`REDIS_PORT` → 默认 6379** | 本机或同上 | Compose 内 app 用库号 `0`；本机 `.env.example` 示例多为 `10` |
-| 靶场 API（demo） | **8081** | 同左 | 独立仓；可与主仓同时跑 |
+| 靶场 API（demo） | **8081** | 同左 | **独立仓**另起 Compose；本仓不混入 |
 | 靶场 UI（demo Compose） | **8082** | 按 demo 文档 | demo MySQL/Redis 默认 **3307 / 6380** |
 
 ### 改端口（最小示例）
@@ -175,6 +204,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 | 改完 migration 旧卷仍不对 | 可丢数据时用 `down -v` 再 `up`；生产用增量 `V{n}`，禁止改已执行脚本 |
 | 插件连不上 | Compose 用 `http://localhost/prod-api`；本机用 `http://localhost:8080`；勿混用 |
 | 与 demo 端口冲突 | demo 默认 8081/8082/3307/6380，一般不冲突；若自改过主仓端口再核对 |
+| 调试/测试流连不上靶场 | 确认 demo 已另起；Compose 内质衡 app 勿用 `localhost:8081`，改用 `host.docker.internal:8081`（见上文「与靶场联调」） |
 
 ---
 
