@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.params.DebugHttpForwardParams;
+import com.qualitest.common.config.QualitestConfig;
 import com.qualitest.flow.context.EnvUrlSupport;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.context.PlaceholderResolver;
@@ -16,7 +17,10 @@ import lombok.Getter;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -409,8 +413,154 @@ public final class FlowHttpRequestBuilder {
             case "json" -> buildJsonBody(body, ctx, headers);
             case "x-www-form-urlencoded", "urlencoded" -> buildUrlencodedBody(body, ctx, headers);
             case "text", "xml" -> buildRawBody(body, ctx, mode, headers);
+            case "form-data", "formData", "multipart" -> buildFormDataBody(body, ctx);
+            case "binary" -> buildBinaryBody(body, ctx, headers);
             default -> null;
         };
+    }
+
+    private static final int MAX_FILE_BYTES = 2 * 1024 * 1024;
+
+    private static DebugHttpForwardParams.DebugBodySpec buildFormDataBody(JSONObject body, FlowRunContext ctx) {
+        JSONArray rows = body.getJSONArray("formData");
+        List<List<String>> fields = new ArrayList<>();
+        List<DebugHttpForwardParams.DebugBodySpec.FormFile> files = new ArrayList<>();
+        if (rows != null) {
+            for (int i = 0; i < rows.size(); i++) {
+                JSONObject row = rows.getJSONObject(i);
+                if (row == null || Boolean.FALSE.equals(row.getBoolean("_enabled"))) {
+                    continue;
+                }
+                String name = row.getString("name");
+                if (name == null || name.isBlank()) {
+                    continue;
+                }
+                String type = row.getString("type");
+                String rawVal = String.valueOf(row.getOrDefault("value", ""));
+                String resolved = STRICT.resolve(rawVal, ctx);
+                if (type != null && "file".equalsIgnoreCase(type.trim())) {
+                    files.add(loadFormFile(name, resolved));
+                } else {
+                    fields.add(List.of(name, resolved));
+                }
+            }
+        }
+        DebugHttpForwardParams.DebugBodySpec spec = new DebugHttpForwardParams.DebugBodySpec();
+        spec.setKind("formData");
+        spec.setFields(fields);
+        spec.setFiles(files);
+        return spec;
+    }
+
+    private static DebugHttpForwardParams.DebugBodySpec buildBinaryBody(
+            JSONObject body, FlowRunContext ctx, Map<String, String> headers) {
+        JSONObject binary = body.getJSONObject("binary");
+        String pathValue = "";
+        if (binary != null) {
+            Object v = binary.get("value");
+            if (v == null) {
+                v = binary.get("filePath");
+            }
+            if (v != null) {
+                pathValue = String.valueOf(v);
+            }
+        }
+        if (pathValue.isBlank()) {
+            pathValue = body.getString("text");
+        }
+        if (pathValue == null) {
+            pathValue = "";
+        }
+        String resolved = STRICT.resolve(pathValue, ctx);
+        Path file = resolveReadableFile(resolved);
+        byte[] data = readFileBytes(file);
+        String fileName = file.getFileName().toString();
+        String contentType = guessFileContentType(fileName);
+        if (!hasHeader(headers, "Content-Type")) {
+            headers.put("Content-Type", contentType);
+        }
+        DebugHttpForwardParams.DebugBodySpec spec = new DebugHttpForwardParams.DebugBodySpec();
+        spec.setKind("binary");
+        spec.setFileName(fileName);
+        spec.setContentType(contentType);
+        spec.setRaw(Base64.getEncoder().encodeToString(data));
+        return spec;
+    }
+
+    private static DebugHttpForwardParams.DebugBodySpec.FormFile loadFormFile(String fieldName, String resolvedPath) {
+        if (resolvedPath == null || resolvedPath.isBlank()) {
+            throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR,
+                    "form-data 文件字段 " + fieldName + " 未配置路径");
+        }
+        Path file = resolveReadableFile(resolvedPath.trim());
+        byte[] data = readFileBytes(file);
+        String fileName = file.getFileName().toString();
+        DebugHttpForwardParams.DebugBodySpec.FormFile formFile =
+                new DebugHttpForwardParams.DebugBodySpec.FormFile();
+        formFile.setName(fieldName);
+        formFile.setFileName(fileName);
+        formFile.setContentType(guessFileContentType(fileName));
+        formFile.setBase64(Base64.getEncoder().encodeToString(data));
+        return formFile;
+    }
+
+    private static Path resolveReadableFile(String resolvedPath) {
+        Path direct = Path.of(resolvedPath);
+        if (Files.isRegularFile(direct)) {
+            return direct.toAbsolutePath().normalize();
+        }
+        String profile = QualitestConfig.getProfile();
+        if (profile != null && !profile.isBlank()) {
+            Path underProfile = Path.of(profile, resolvedPath);
+            if (Files.isRegularFile(underProfile)) {
+                return underProfile.toAbsolutePath().normalize();
+            }
+            Path underUpload = Path.of(QualitestConfig.getUploadPath(), resolvedPath);
+            if (Files.isRegularFile(underUpload)) {
+                return underUpload.toAbsolutePath().normalize();
+            }
+        }
+        throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR,
+                "找不到上传文件：" + resolvedPath);
+    }
+
+    private static byte[] readFileBytes(Path file) {
+        try {
+            byte[] data = Files.readAllBytes(file);
+            if (data.length > MAX_FILE_BYTES) {
+                throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR,
+                        "文件超过 " + (MAX_FILE_BYTES / 1024 / 1024) + "MB 限制：" + file);
+            }
+            return data;
+        } catch (FlowExecutionException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR,
+                    "读取上传文件失败：" + file + " — " + e.getMessage());
+        }
+    }
+
+    private static String guessFileContentType(String fileName) {
+        String lower = fileName != null ? fileName.toLowerCase() : "";
+        if (lower.endsWith(".png")) {
+            return "image/png";
+        }
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        if (lower.endsWith(".gif")) {
+            return "image/gif";
+        }
+        if (lower.endsWith(".webp")) {
+            return "image/webp";
+        }
+        if (lower.endsWith(".mp4")) {
+            return "video/mp4";
+        }
+        if (lower.endsWith(".avi")) {
+            return "video/x-msvideo";
+        }
+        return "application/octet-stream";
     }
 
     private static DebugHttpForwardParams.DebugBodySpec buildJsonBody(
