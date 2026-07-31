@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "qualitest.webFullname" . }}-nginx
+  labels:
+    {{- include "qualitest.labels" . | nindent 4 }}
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+        charset utf-8;
+        client_max_body_size 50m;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /prod-api/ {
+            proxy_pass http://{{ include "qualitest.appFullname" . }}:{{ .Values.app.service.port }}/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 300s;
+            proxy_read_timeout 300s;
+        }
+
+        location = /healthz {
+            proxy_pass http://{{ include "qualitest.appFullname" . }}:{{ .Values.app.service.port }}/captchaImage;
+            proxy_connect_timeout 5s;
+        }
+    }

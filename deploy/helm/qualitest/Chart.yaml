@@ -1,0 +1,18 @@
+# Helm chart for Qualitest（质衡）
+# 安装示例见 Chart 内 NOTES / docs/deploy.md「Kubernetes / Helm」
+apiVersion: v2
+name: qualitest
+description: Qualitest — enterprise API testing platform (app + web; optional MySQL/Redis)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - qualitest
+  - api-testing
+  - test-automation
+home: https://github.com/qualitest-hq/qualitest
+sources:
+  - https://github.com/qualitest-hq/qualitest
+maintainers:
+  - name: qualitest-hq
+    url: https://github.com/qualitest-hq

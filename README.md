@@ -17,6 +17,7 @@
 
 <br/>
 
+[English](./README.en.md) ·
 [English Summary](#english-summary) ·
 [项目亮点](#-项目亮点) ·
 [核心能力](#-核心能力) ·
@@ -26,13 +27,14 @@
 [5 分钟快速开始](#-5-分钟快速开始) ·
 [部署说明](./docs/deploy.md) ·
 [MCP](./docs/mcp.md) ·
+[测试流节点](./docs/test-flow-nodes.md) ·
 [AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
 
 <br/>
 
 <a id="english-summary"></a>
 <details>
-<summary><strong>English Summary</strong> — value prop &amp; quick start (full docs in Chinese below)</summary>
+<summary><strong>English Summary</strong> — value prop &amp; quick start · <a href="./README.en.md">full English README</a></summary>
 
 <br/>
 
@@ -50,7 +52,7 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open **http://localhost**, login **`admin` / `admin123`**. Ports, env vars, production hardening: [docs/deploy.md](./docs/deploy.md). MCP: [docs/mcp.md](./docs/mcp.md). AI prompts (demo): [ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
+Open **http://localhost**, login **`admin` / `admin123`**. Full English docs: [README.en.md](./README.en.md) · [deploy.en.md](./docs/deploy.en.md) · [mcp.en.md](./docs/mcp.en.md) · [test-flow-nodes.en.md](./docs/test-flow-nodes.en.md). AI prompts (demo): [ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
 
 </details>
 
@@ -324,7 +326,7 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-打开 **http://localhost**，登录 **`admin` / `admin123`**。本机 `mvn` / `yarn` 开发见 [deploy.md](./docs/deploy.md)。
+打开 **http://localhost**，登录 **`admin` / `admin123`**。本机热更：[`scripts/dev-deps-up`](./scripts/dev-deps-up.sh) + `mvn` / `yarn`（见 [deploy.md](./docs/deploy.md#仅依赖本机开发--热更)）。
 
 ### ② 启动靶场（可选）
 
@@ -356,7 +358,7 @@ Swagger 一般为 **http://localhost:8081/swagger-ui.html**。
 | **MCP 联读** | 项目设置复制 MCP 配置到 AI 编辑器 → [`docs/mcp.md`](./docs/mcp.md) |
 | **AI 造流（靶场）** | [AI 测试流提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) |
 
-更多文档：[部署说明](./docs/deploy.md) · [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)
+更多文档：[部署说明](./docs/deploy.md) · [测试流节点](./docs/test-flow-nodes.md) · [English](./README.en.md) · [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)
 
 ---
 

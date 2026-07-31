@@ -4,6 +4,8 @@
 下文配置以 **Cursor `mcp.json`** 为例；其它客户端只要支持同协议的 HTTP MCP + 自定义 Header，即可按同等字段接入。  
 **改画布请走 Web 端 AI 面板**（先 Diff 再合并）；MCP **不会**写库，也不提供 `submit_*` 类工具。
 
+English: [mcp.en.md](./mcp.en.md)
+
 ---
 
 ## 1. 准备

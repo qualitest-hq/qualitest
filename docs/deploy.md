@@ -4,6 +4,8 @@
 
 **靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**。一般人只起本仓即可体验质衡。
 
+English: [deploy.en.md](./deploy.en.md)
+
 ---
 
 ## 一键全栈（推荐）
@@ -61,10 +63,21 @@ cd qualitest-demo && ./scripts/quick-start.sh
 
 ---
 
-## 仅依赖（本机开发）
+## 仅依赖（本机开发 · 热更）
+
+Compose 只起 MySQL + Redis；后端 / 前端在宿主机跑，便于 **devtools / JRebel / Vite HMR**。
 
 ```bash
-docker compose up -d mysql redis
+# Linux / macOS
+./scripts/dev-deps-up.sh
+# 停止（保留数据卷）: ./scripts/dev-deps-down.sh
+
+# Windows
+scripts\dev-deps-up.bat
+# 停止: scripts\dev-deps-down.bat
+
+# 等价手动命令
+# docker compose up -d mysql redis
 ```
 
 然后本机：
@@ -79,6 +92,8 @@ cd qualitest-ui && yarn install && yarn dev
 ```
 
 浏览器：**http://localhost:5173**。MySQL 只需空库 `qualitest`（Compose `mysql` 服务会建）；启动后端后由 **Flyway** 自动执行 `db/migration`（含种子），日志出现 migrate 成功即可登录。
+
+> **JRebel**：与 `spring-boot-devtools` 热重启不要同时开。用 JRebel 时设 `spring.devtools.restart.enabled=false`（或去掉 / 可选依赖）。
 
 ---
 
@@ -103,9 +118,66 @@ MYSQL_PORT=33066
 REDIS_PORT=63790
 ```
 
-更复杂的本机覆盖（挂载、额外服务等）可用 `docker-compose.override.yml`（勿提交含密钥的内容；正式模板见路线图阶段 4）。
+更复杂的本机覆盖（挂载、额外服务等）可用 `docker-compose.override.yml`（勿提交含密钥的内容；正式模板见路线图阶段 2）。
 
 调试需宿主机直连后端时，可在 `docker-compose.yml` 的 `app` 服务解开 `ports: "8080:8080"` 注释后重建。
+
+---
+
+## Kubernetes / Helm（可选 · 社区自测）
+
+> **状态**：仓库提供 `deploy/helm/qualitest` Chart 骨架，**维护者未在真实集群做端到端验证**。安装、排障、生产加固由使用者自行验证；问题欢迎提 Issue。  
+> 日常试用请优先 **Compose**；本 Chart 面向「已有 K8s / 私有化要进集群」的场景。
+
+### 目录
+
+```text
+deploy/helm/qualitest/
+├── Chart.yaml
+├── values.yaml
+└── templates/          # app / web / 可选 mysql·redis / Ingress / Secret
+```
+
+### 准备镜像
+
+Chart 默认镜像名与 Compose 一致（`qualitest-hq/qualitest-app` / `qualitest-web`）。需先构建并推到集群能拉到的仓库（官方 GHCR 发布见路线图阶段 2）：
+
+```bash
+docker compose build app web
+# kind 示例
+# kind load docker-image qualitest-hq/qualitest-app:latest
+# kind load docker-image qualitest-hq/qualitest-web:latest
+# 或 docker tag + push 到你们的 registry，再用 --set image.*.repository=...
+```
+
+### 安装
+
+```bash
+helm upgrade --install qualitest ./deploy/helm/qualitest \
+  --namespace qualitest --create-namespace \
+  --set secrets.tokenSecret='<strong-random-32+>' \
+  --set secrets.mysqlRootPassword='<strong-password>'
+```
+
+未开 Ingress 时：
+
+```bash
+kubectl -n qualitest port-forward svc/qualitest-web 8080:80
+# 浏览器 http://127.0.0.1:8080 ；默认 admin / admin123（立刻改掉）
+# Service 名随 Release：{{ release }}-web；上例 Release 名为 qualitest
+```
+
+### 常用开关
+
+| 需求 | 示例 |
+|------|------|
+| 开 Ingress | `--set ingress.enabled=true --set ingress.hosts[0].host=qualitest.example.com` |
+| 外置 MySQL/Redis | `--set mysql.enabled=false --set redis.enabled=false`，并设置 `app.external.*` |
+| 改镜像仓库 | `--set image.app.repository=ghcr.io/you/qualitest-app --set image.web.repository=...` |
+
+默认内置 MySQL/Redis **仅适合 PoC**；生产请用托管库 / 已有中间件，并换强密钥、配 TLS Ingress。
+
+安装后终端 NOTES 有完整提示；参数见 [`deploy/helm/qualitest/values.yaml`](../deploy/helm/qualitest/values.yaml)。
 
 ---
 
@@ -211,6 +283,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 
 ## 相关文件
 
+- [`deploy/helm/qualitest/`](../deploy/helm/qualitest/)（Helm Chart；社区自测）
 - [`docker-compose.yml`](../docker-compose.yml)
 - [`Dockerfile`](../Dockerfile)（后端）
 - [`deploy/docker/Dockerfile.web`](../deploy/docker/Dockerfile.web)（前端）

@@ -1,0 +1,42 @@
+1. 本 Chart 由维护者提供骨架，**未在真实集群做端到端验证**；请在自有环境（kind / k3s / 云 K8s）自行验证后再用于生产。
+
+2. 准备镜像（在仓库根目录）:
+
+   docker compose build app web
+   docker tag qualitest-hq/qualitest-app:latest <your-registry>/qualitest-app:latest
+   docker tag qualitest-hq/qualitest-web:latest <your-registry>/qualitest-web:latest
+   docker push ...
+
+   kind 示例: kind load docker-image qualitest-hq/qualitest-app:latest
+
+3. 安装:
+
+   helm upgrade --install qualitest ./deploy/helm/qualitest \
+     --namespace qualitest --create-namespace \
+     --set image.app.repository=<your-registry>/qualitest-app \
+     --set image.web.repository=<your-registry>/qualitest-web \
+     --set secrets.tokenSecret='<strong-random>' \
+     --set secrets.mysqlRootPassword='<strong-password>'
+
+4. 访问 Web（未开 Ingress 时）:
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "qualitest.webFullname" . }} 8080:{{ .Values.web.service.port }}
+
+   浏览器打开 http://127.0.0.1:8080 ，默认账号 admin / admin123（Flyway 种子；请立刻修改）。
+
+{{- if .Values.ingress.enabled }}
+
+5. Ingress 已启用，请配置 DNS 指向入口控制器:
+{{- range .Values.ingress.hosts }}
+   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- end }}
+
+6. 外置 MySQL/Redis:
+
+   --set mysql.enabled=false --set redis.enabled=false \
+   --set app.external.jdbcUrl='jdbc:mysql://...' \
+   --set app.external.password='...' \
+   --set app.external.redisHost='...'
+
+文档: docs/deploy.md「Kubernetes / Helm」

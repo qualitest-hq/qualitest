@@ -1,0 +1,167 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "qualitest.appFullname" . }}
+  labels:
+    {{- include "qualitest.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  replicas: {{ .Values.app.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "qualitest.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: app
+  template:
+    metadata:
+      labels:
+        {{- include "qualitest.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: app
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.mysql.enabled .Values.redis.enabled }}
+      initContainers:
+        {{- if .Values.mysql.enabled }}
+        - name: wait-mysql
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "qualitest.mysqlFullname" . }} 3306; do
+                echo waiting for mysql; sleep 2;
+              done
+        {{- end }}
+        {{- if .Values.redis.enabled }}
+        - name: wait-redis
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "qualitest.redisFullname" . }} 6379; do
+                echo waiting for redis; sleep 2;
+              done
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: app
+          image: "{{ .Values.image.app.repository }}:{{ .Values.image.app.tag }}"
+          imagePullPolicy: {{ .Values.image.app.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.service.port }}
+          env:
+            - name: JAVA_OPTS
+              value: {{ .Values.app.javaOpts | quote }}
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.app.springProfilesActive | quote }}
+            - name: SERVER_PORT
+              value: {{ .Values.app.service.port | quote }}
+            - name: QUALITEST_PROFILE
+              value: {{ .Values.app.uploadPath | quote }}
+            - name: TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "qualitest.secretName" . }}
+                  key: TOKEN_SECRET
+            - name: SPRING_DATASOURCE_DRUID_MASTER_URL
+              value: {{ include "qualitest.jdbcUrl" . | quote }}
+            - name: SPRING_DATASOURCE_DRUID_MASTER_USERNAME
+              value: {{ ternary "root" .Values.app.external.username .Values.mysql.enabled | quote }}
+            - name: SPRING_DATASOURCE_DRUID_MASTER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "qualitest.secretName" . }}
+                  {{- if and (not .Values.mysql.enabled) .Values.app.external.password }}
+                  key: EXTERNAL_MYSQL_PASSWORD
+                  {{- else }}
+                  key: MYSQL_ROOT_PASSWORD
+                  {{- end }}
+            - name: SPRING_DATA_REDIS_HOST
+              value: {{ include "qualitest.redisHost" . | quote }}
+            - name: SPRING_DATA_REDIS_PORT
+              value: {{ ternary "6379" .Values.app.external.redisPort .Values.redis.enabled | quote }}
+            - name: SPRING_DATA_REDIS_DATABASE
+              value: {{ ternary "0" .Values.app.external.redisDatabase .Values.redis.enabled | quote }}
+            - name: SPRING_DATA_REDIS_PASSWORD
+              {{- if and (not .Values.redis.enabled) .Values.app.external.redisPassword }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "qualitest.secretName" . }}
+                  key: EXTERNAL_REDIS_PASSWORD
+              {{- else }}
+              value: ""
+              {{- end }}
+            - name: LOGGING_LEVEL_COM_QUALITEST
+              value: {{ .Values.app.loggingLevel | quote }}
+          volumeMounts:
+            - name: upload
+              mountPath: {{ .Values.app.uploadPath }}
+          livenessProbe:
+            httpGet:
+              path: /captchaImage
+              port: http
+            initialDelaySeconds: {{ .Values.app.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.probes.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /captchaImage
+              port: http
+            initialDelaySeconds: {{ .Values.app.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.probes.failureThreshold }}
+          {{- with .Values.app.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: upload
+          {{- if .Values.app.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "qualitest.appFullname" . }}-upload
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qualitest.appFullname" . }}
+  labels:
+    {{- include "qualitest.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  type: {{ .Values.app.service.type }}
+  ports:
+    - port: {{ .Values.app.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "qualitest.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+{{- if .Values.app.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "qualitest.appFullname" . }}-upload
+  labels:
+    {{- include "qualitest.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.app.persistence.size }}
+  {{- if .Values.app.persistence.storageClass }}
+  storageClassName: {{ .Values.app.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}

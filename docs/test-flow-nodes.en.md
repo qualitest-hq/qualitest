@@ -1,0 +1,123 @@
+# Test-flow nodes
+
+The canvas supports exactly **seven** node types (`FlowNodeType`). Custom `type` values are rejected. Persisted codes are lowercase; UI labels are English.
+
+Chinese: [test-flow-nodes.md](./test-flow-nodes.md)
+
+---
+
+## Overview
+
+| type | Label | Role |
+|------|-------|------|
+| `http` | HTTP | Call a project API or external URL |
+| `assert` | Assert | Compare rules against context (AND) |
+| `condition` | Condition | IF / ELIF / ELSE branches |
+| `assign` | Assign | Write `flow` variables |
+| `delay` | Delay | Wait |
+| `script` | Script | GraalVM sandbox (JS / Python) |
+| `subflow` | Subflow | Run another project flow as one step |
+
+Runs may also record audit steps (not drag-and-drop nodes): `run_config`, `snapshot` / `restore`, etc. — see Run details.
+
+---
+
+## HTTP (`http`)
+
+Two paths via `data.callMode`, sharing forward + `extracts`:
+
+| callMode | Behavior |
+|----------|----------|
+| `project` | Bind `testProjectApiId`; merge project API assets; pre/post scripts from the API definition |
+| `external` | Use `externalUrl` / `httpMethod` / `headers` / `requestBody`; external-URL permission checks; sensitive fields redacted in step reports |
+
+Common features:
+
+- Placeholder resolution on params / body (`flow` / `env` / `session`, …)
+- Optional `useRunSession=true`: Run-level Cookie Jar inject / capture
+- Success checks: non-2xx HTTP status fails first; optional business-code allowlist (`successCheck`)
+- On success: write `lastResponse`, then run `extracts`
+
+**Mutating calls:** enable **snapshot before** (`snapshotBefore`) on the node. On failure the run can pause; the user may restore SUT data and retry / retry in place / skip / abort. The SUT must expose `/test-support`. With env `allowDestructiveReset=0` (production default), checkpoint/restore are skipped silently. **When restore is enabled, run that environment serially.**
+
+---
+
+## Assert (`assert`)
+
+Evaluates `data.rules[]` one by one (`CompareRuleEvaluator`); **all must pass**.  
+Does not check HTTP status (that is the HTTP step). Typical rule fields: `left`, `operator` (default `eq`), `right` (placeholders allowed).
+
+---
+
+## Condition (`condition`)
+
+Scans `data.branches[]` in order IF → ELIF → ELSE:
+
+- **if / elif**: hit when every entry in `conditions[]` is true (AND)
+- **else**: fallback when nothing earlier matched
+
+Matched branch must have a non-empty `target` (next node id). Result is stored on the step as `branchTaken` (`branchId` / `kind`).
+
+---
+
+## Assign (`assign`)
+
+Applies `data.assignments[]` to the **`flow` scope only**:
+
+| op | Behavior |
+|----|----------|
+| `set` | Resolve placeholders in value, then overwrite |
+| `add` / `sub` / `mul` / `div` | Arithmetic from current value or `ifMissing`, by `step` |
+
+Before/after per assignment is recorded on the step. Formal Runs use **strict** placeholders: undefined tokens fail the step.
+
+---
+
+## Delay (`delay`)
+
+Blocks the worker thread for `data.ms`. Cap: **60_000 ms** per step.
+
+---
+
+## Script (`script`)
+
+| Field | Meaning |
+|-------|---------|
+| `language` | `javascript` (default) or `python` |
+| `source` | Script body |
+| `timeoutMs` | Timeout (normalized to a safe range) |
+
+Runs in a GraalVM sandbox: read/write `flow` and `session`; read `env` / `asset`; optional controlled `ctx.http`. `ctx.setFlow` merges into the current Run. Failures surface as step error code + message.
+
+Use for project-specific signing or field assembly when declarative nodes are not enough; prefer HTTP / Assign / Assert when they suffice.
+
+---
+
+## Subflow (`subflow`)
+
+Collapses another flow in the same project into one step:
+
+1. Load by `subflowId` (must share `testProjectId`)
+2. Resolve `inputs` placeholders into the child `flow` context
+3. Run the child graph in memory (fail-fast); nesting is capped (parent → child → grandchild, max **2** subflow levels)
+4. Merge `outputs` (or child `meta.flowOutputs`) back into the parent `flow`
+5. Attach `subflow.childSteps` for Run UI and MCP `get_run_failure`
+
+| versionPolicy | Behavior |
+|---------------|----------|
+| `latest` | Each Run loads the child’s current graph |
+| `pinned` | Prefer node `pinnedGraphJson` snapshot |
+
+Platform **subflow templates** (login / OAuth / captcha, …) can be forked and parameterized.
+
+---
+
+## Design tips
+
+1. **Happy path:** HTTP (`project`) → Assert; variables via extracts / Assign.
+2. **Branches:** wire Condition arms carefully before merge; extract complex arms into subflows.
+3. **Reuse:** multi-step auth → Subflow; parent only maps inputs/outputs.
+4. **Escape hatch:** signing / dynamic assembly → Script; keep scripts short and testable.
+5. **Destructive writes:** `snapshotBefore` + env allows restore; don’t parallelize the same env.
+
+See also: [deploy.en.md](./deploy.en.md), [mcp.en.md](./mcp.en.md), [demo AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).

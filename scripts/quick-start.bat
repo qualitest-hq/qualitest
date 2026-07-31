@@ -48,7 +48,7 @@ echo  质衡已启动
 echo  浏览器打开: http://localhost
 echo  默认账号:   admin / admin123
 echo  停止:       docker compose down
-echo  仅依赖:     docker compose up -d mysql redis
+echo  仅依赖:     scripts\dev-deps-up.bat
 echo  靶场/RustFS: 见 qualitest-demo（另起 Compose；本仓无 --profile demo）
 echo ==============================================
 endlocal
@@ -59,7 +59,7 @@ echo 用法:
 echo   scripts\quick-start.bat           启动全栈（MySQL + Redis + 后端 + Nginx）
 echo   scripts\quick-start.bat -h        显示本说明
 echo.
-echo 仅依赖:     docker compose up -d mysql redis
-echo 停止:       docker compose down
+echo 仅依赖:     scripts\dev-deps-up.bat （停：scripts\dev-deps-down.bat）
+echo 停止全栈:   docker compose down
 echo 靶场/RustFS: 独立仓 qualitest-demo（另起 Compose；本仓无 --profile demo）
 exit /b 0

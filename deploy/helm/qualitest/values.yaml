@@ -1,0 +1,113 @@
+# Qualitest Helm values
+# 镜像需自行构建并推到可达仓库（GHCR 尚未作为官方制品发布时可本地 load 到 kind/k3s）。
+# 默认口令仅便于 PoC；上生产前务必改 secrets / mysql.auth。
+
+nameOverride: ""
+fullnameOverride: ""
+
+# --- 镜像（与 docker-compose 构建产物同名时可改 tag / registry）---
+image:
+  app:
+    repository: qualitest-hq/qualitest-app
+    tag: latest
+    pullPolicy: IfNotPresent
+  web:
+    repository: qualitest-hq/qualitest-web
+    tag: latest
+    pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# --- 密钥（生产用 --set / Secret / sealed-secrets 注入）---
+secrets:
+  # JWT；至少 32 字符随机串
+  tokenSecret: "qualitest-compose-dev-change-me-32chars!!"
+  # 内置 MySQL root 密码（mysql.enabled=true 时）
+  mysqlRootPassword: "qualitest"
+
+# --- 应用（后端）---
+app:
+  replicaCount: 1
+  javaOpts: "-Xms256m -Xmx1024m -Duser.timezone=Asia/Shanghai"
+  springProfilesActive: docker
+  uploadPath: /data/upload
+  # 日志级别
+  loggingLevel: info
+  # 外置数据源时填（mysql.enabled=false）
+  # jdbcUrl 例：jdbc:mysql://my-mysql:3306/qualitest?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
+  external:
+    jdbcUrl: ""
+    username: root
+    password: ""
+    redisHost: ""
+    redisPort: "6379"
+    redisDatabase: "0"
+    redisPassword: ""
+  resources: {}
+  # resources:
+  #   requests:
+  #     cpu: 250m
+  #     memory: 512Mi
+  #   limits:
+  #     cpu: "2"
+  #     memory: 1536Mi
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  service:
+    type: ClusterIP
+    port: 8080
+  probes:
+    # 与 Dockerfile HEALTHCHECK 一致；冷启动含 Flyway，startPeriod 宜长
+    initialDelaySeconds: 60
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 20
+
+# --- 前端（Nginx 静态 + /prod-api 反代）---
+web:
+  replicaCount: 1
+  resources: {}
+  service:
+    type: ClusterIP
+    port: 80
+
+# --- 内置 MySQL（PoC；生产建议关并用云 RDS / 已有库）---
+mysql:
+  enabled: true
+  image: mysql:8.0
+  database: qualitest
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources: {}
+
+# --- 内置 Redis ---
+redis:
+  enabled: true
+  image: redis:7-alpine
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+  resources: {}
+
+# --- Ingress（可选；TLS 由集群 cert-manager / 入口控制器配置）---
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: qualitest.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: qualitest-tls
+  #    hosts:
+  #      - qualitest.local
+
+# 未提供 ServiceMonitor 等；需要监控时自行加 sidecar / 注解

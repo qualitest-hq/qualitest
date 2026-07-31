@@ -15,8 +15,8 @@ usage() {
   ./scripts/quick-start.sh           启动全栈（MySQL + Redis + 后端 + Nginx）
   ./scripts/quick-start.sh -h        显示本说明
 
-仅依赖:     docker compose up -d mysql redis
-停止:       docker compose down
+仅依赖:     ./scripts/dev-deps-up.sh （停：./scripts/dev-deps-down.sh）
+停止全栈:   docker compose down
 靶场/RustFS: 独立仓 qualitest-demo（另起 Compose；本仓无 --profile demo）
 EOF
 }
@@ -64,6 +64,6 @@ echo " 质衡已启动"
 echo " 浏览器打开: http://localhost:${WEB_PORT:-80}"
 echo " 默认账号:   admin / admin123"
 echo " 停止:       docker compose down"
-echo " 仅依赖:     docker compose up -d mysql redis"
+echo " 仅依赖:     ./scripts/dev-deps-up.sh"
 echo " 靶场/RustFS: 见 qualitest-demo（另起 Compose；本仓无 --profile demo）"
 echo "=============================================="
