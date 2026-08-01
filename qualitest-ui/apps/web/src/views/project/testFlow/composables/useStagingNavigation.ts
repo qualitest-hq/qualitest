@@ -1,8 +1,8 @@
 /**
  * Staging 单元在画布与左栏之间的定位导航。
  *
- * 图类型单元（节点/连线）通过 useFlowViewport 移动视口；
- * 场景类型单元切换左栏 Tab 与当前活动场景。
+ * 图类型单元：视口聚焦并 selectItem 打开右栏对照（关闭 AI）；
+ * 场景类型单元：切换左栏运行场景 Tab 并打开右栏运行配置（关闭 AI）。
  */
 import type { Edge } from '@vue-flow/core';
 
@@ -11,34 +11,33 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useFlowViewport } from './useFlowViewport';
 import { collectStagingConfirmHighlightIds } from '../utils/mergeHighlight';
-import { graphObjectIdFromUnit, isGraphStagingKind } from '../utils/stagingUnitIds';
+import {
+  graphObjectIdFromUnit,
+  isGraphStagingKind,
+  isScenarioStagingKind,
+} from '../utils/stagingUnitIds';
 
-/**
- * 将视口移动到指定 Staging 图单元（不修改紫色高亮状态）。
- * 用于确认成功后自动跳到下一待确认项，避免覆盖已累积的确认高亮。
- */
-export function navigateGraphStagingUnit(unit: AiStagingUnit, edges: Edge[]) {
+function resolveUnitHighlightNodeIds(unit: AiStagingUnit, edges: Edge[]): string[] {
   const stagingStore = useAiStagingStore();
-  const viewport = useFlowViewport();
   const patch = stagingStore.getPatchForMessage(unit.messageId);
-  const nodeIds = collectStagingConfirmHighlightIds(unit.unitId, unit.kind, edges, patch);
-  if (nodeIds.length) {
-    void viewport.focusNodeIds(nodeIds);
-  }
+  return collectStagingConfirmHighlightIds(unit.unitId, unit.kind, edges, patch);
 }
 
 /**
- * 侧栏用户点击「定位到画布」：临时紫色高亮目标节点，并移动视口到该单元。
+ * 侧栏「定位到画布」或新设计 Staging 到达时：高亮 + 视口，并选中节点/边打开右栏对照（关闭 AI）。
  */
 export function focusGraphStagingUnit(unit: AiStagingUnit, edges: Edge[]) {
   const store = useFlowCanvasStore();
-  const stagingStore = useAiStagingStore();
-  const viewport = useFlowViewport();
-  const patch = stagingStore.getPatchForMessage(unit.messageId);
-  const nodeIds = collectStagingConfirmHighlightIds(unit.unitId, unit.kind, edges, patch);
+  const nodeIds = resolveUnitHighlightNodeIds(unit, edges);
   if (nodeIds.length) {
     store.setAiHighlightFocus(nodeIds);
-    void viewport.focusNodeIds(nodeIds);
+    void useFlowViewport().focusNodeIds(nodeIds);
+  }
+  const { nodeId, edgeId } = graphObjectIdFromUnit(unit);
+  if (nodeId) {
+    store.selectItem('node', nodeId);
+  } else if (edgeId) {
+    store.selectItem('edge', edgeId);
   }
 }
 
@@ -55,45 +54,28 @@ export function focusScenarioStagingUnit(scenarioId: string) {
 }
 
 /**
- * 收集当前所有 pending 图类型 Staging 单元涉及的节点 id（去重）。
- * 连线类单元会展开为 source/target 节点 id。
+ * 进入确认态：优先打开首个图单元右栏对照，否则打开场景运行配置对照（均关闭 AI）。
+ * 由新设计 patch 灌入后显式调用（勿对 pendingCount 做 watch，以免 session 重灌误触发）。
  */
-export function collectPendingStagingNodeIds(
-  stagingStore: ReturnType<typeof useAiStagingStore>,
-  edges: Edge[],
-): string[] {
-  const ids = new Set<string>();
-  for (const unit of Object.values(stagingStore.unitsById)) {
-    if (unit.status !== 'pending' || !isGraphStagingKind(unit.kind)) continue;
-    const patch = stagingStore.getPatchForMessage(unit.messageId);
-    for (const nodeId of collectStagingConfirmHighlightIds(unit.unitId, unit.kind, edges, patch)) {
-      ids.add(nodeId);
-    }
+export function openPendingStagingReview(edges: Edge[]) {
+  const stagingStore = useAiStagingStore();
+  const pending = Object.values(stagingStore.unitsById) as AiStagingUnit[];
+  const graphUnit = findFirstPendingGraphUnit(pending);
+  if (graphUnit) {
+    focusGraphStagingUnit(graphUnit, edges);
+    return;
   }
-  return [...ids];
-}
-
-/**
- * 首次出现 Staging 待确认项时，将视口移动到所有 pending 图单元的并集区域。
- * 由 FlowCanvasLayout 在 pendingCount 增加时调用。
- */
-export function focusPendingStagingGraph(
-  stagingStore: ReturnType<typeof useAiStagingStore>,
-  edges: Edge[],
-) {
-  const nodeIds = collectPendingStagingNodeIds(stagingStore, edges);
-  if (!nodeIds.length) return;
-  void useFlowViewport().focusNodeIds(nodeIds);
+  const scenarioUnit = findFirstPendingScenarioUnit(pending);
+  if (!scenarioUnit) return;
+  const scenarioId = resolveScenarioIdFromUnit(scenarioUnit);
+  if (scenarioId) {
+    focusScenarioStagingUnit(scenarioId);
+  }
 }
 
 /** 从场景类 Staging 单元解析目标 scenarioId */
 export function resolveScenarioIdFromUnit(unit: AiStagingUnit): string | null {
-  if (unit.kind === 'setActiveScenario') {
-    const { scenarioId } = graphObjectIdFromUnit(unit);
-    return scenarioId ?? null;
-  }
-  const { scenarioId } = graphObjectIdFromUnit(unit);
-  return scenarioId ?? null;
+  return graphObjectIdFromUnit(unit).scenarioId ?? null;
 }
 
 /** 在单元列表中查找第一个 pending 的图类型 Staging 单元 */
@@ -103,12 +85,5 @@ export function findFirstPendingGraphUnit(units: AiStagingUnit[]): AiStagingUnit
 
 /** 在单元列表中查找第一个 pending 的场景类 Staging 单元 */
 export function findFirstPendingScenarioUnit(units: AiStagingUnit[]): AiStagingUnit | undefined {
-  return units.find(
-    (unit) =>
-      unit.status === 'pending' &&
-      (unit.kind === 'setActiveScenario' ||
-        unit.kind === 'addScenario' ||
-        unit.kind === 'updateScenario' ||
-        unit.kind === 'deleteScenario'),
-  );
+  return units.find((unit) => unit.status === 'pending' && isScenarioStagingKind(unit.kind));
 }

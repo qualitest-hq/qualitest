@@ -242,7 +242,6 @@ import { useFlowScenarioRun } from './composables/useFlowScenarioRun'
 import { useFlowCanvasPermissions } from './composables/useFlowCanvasPermissions'
 import { useAiStagingCanvas } from './composables/useAiStagingCanvas'
 import { useAiStagingScenario } from './composables/useAiStagingScenario'
-import { focusPendingStagingGraph } from './composables/useStagingNavigation'
 import { useFlowViewport } from './composables/useFlowViewport'
 import { useAiStagingStore } from './stores/aiStagingStore'
 import { useFlowCanvasStore } from './stores/flowCanvasStore'
@@ -301,32 +300,6 @@ const aiAssistantTitle = computed(() => {
   }
   return '打开 AI 设计助手'
 })
-
-/** 上次触发 Staging 初始聚焦的时间戳，用于 400ms 内防抖避免重复聚焦 */
-let lastStagingFocusToken = 0
-
-/**
- * AI 返回新 patch 导致 pendingCount 增加时，自动将视口移到所有 pending 图单元区域。
- * 仅在 count 增加时触发（确认减少 pending 时不重复聚焦，由 confirm 流程自行导航）。
- */
-watch(
-  () => stagingStore.pendingCount,
-  async (count, prevCount) => {
-    if (count <= 0) return
-    if (prevCount != null && count < prevCount) return
-
-    const token = Date.now()
-    if (token - lastStagingFocusToken < 400) return
-    lastStagingFocusToken = token
-
-    await nextTick()
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve))
-    })
-    focusPendingStagingGraph(stagingStore, store.edges)
-  },
-  { flush: 'post' },
-)
 
 function handleOpenAiDesign() {
   if (!canUseAiDesign.value) {

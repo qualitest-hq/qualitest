@@ -44,6 +44,7 @@ import {
 import type { ComposerDoc } from '../types/mentionTypes';
 import { COMPOSER_DOC_VERSION } from '../types/mentionTypes';
 import { createAiStagingHydration } from './useAiStagingHydration';
+import { openPendingStagingReview } from './useStagingNavigation';
 import { buildFlowGraphInput } from '../utils/stagingGraphInput';
 import {
   clearAllStagingState,
@@ -407,7 +408,9 @@ export function useAiDesign() {
 
     if (patch && !explainOnly) {
       ensureStagingAcceptanceEntry(messageId);
-      void stagingHydration.hydrateStagingForMessage(messageId, patch);
+      void stagingHydration.hydrateStagingForMessage(messageId, patch).then(() => {
+        openPendingStagingReview(store.edges);
+      });
     }
   }
 

@@ -294,6 +294,8 @@ export function useAiChatSession<TMessage extends AiChatMessageBase>(
   async function loadSession(sessionId: string): Promise<boolean> {
     const nextId = String(sessionId).trim();
     if (!nextId) return false;
+    // 同一会话已在内存中：跳过重拉，避免 clear+重灌 Staging 导致画布节点/场景卡片闪烁
+    if (nextId === loadedSessionId.value) return true;
     clearMessageMetaCache();
     resetMessagePagination();
     try {
@@ -359,6 +361,9 @@ export function useAiChatSession<TMessage extends AiChatMessageBase>(
     await loadSessions();
     if (sessions.value.length > 0) {
       await loadSession(sessions.value[0].aiChatSessionId);
+    } else if (activeSessionId.value === DRAFT_SESSION_ID) {
+      // 内存草稿已打开过：保留消息与 Staging，勿 startNewConversation 清空画布
+      return;
     } else {
       startNewConversation();
     }
