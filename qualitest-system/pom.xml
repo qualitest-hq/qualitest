@@ -49,6 +49,12 @@
             <type>pom</type>
         </dependency>
 
+        <!-- Jayway JsonPath：测试流 extracts / http.body -->
+        <dependency>
+            <groupId>com.jayway.jsonpath</groupId>
+            <artifactId>json-path</artifactId>
+        </dependency>
+
         <!-- OkHttp：LLM chat/completions + SSE -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>

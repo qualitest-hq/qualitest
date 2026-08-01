@@ -26,7 +26,11 @@
         "data": {
           "code": 0,
           "token": "body-token",
-          "items": [1, 2, 3]
+          "items": [1, 2, 3],
+          "cart": [
+            { "cartId": 5001, "skuId": "SKU-A" },
+            { "cartId": 5002, "skuId": "SKU-B" }
+          ]
         }
       }
     }
@@ -45,7 +49,17 @@
     { "id": "exists-missing", "rule": { "left": "flow.missing", "operator": "exists", "right": "" }, "expected": false },
     { "id": "right-placeholder", "rule": { "left": "http.body.data.token", "operator": "eq", "right": "{{flow.token}}" }, "expected": false },
     { "id": "duration-gt", "rule": { "left": "http.duration", "operator": "gt", "right": "100" }, "expected": true },
-    { "id": "asset-nested", "rule": { "left": "asset.defaults.nested.x", "operator": "eq", "right": "1" }, "expected": true }
+    { "id": "asset-nested", "rule": { "left": "asset.defaults.nested.x", "operator": "eq", "right": "1" }, "expected": true },
+    { "id": "index-item0", "rule": { "left": "http.body.data.items[0]", "operator": "eq", "right": "1" }, "expected": true },
+    { "id": "filter-cart-exists", "rule": { "left": "http.body.data.cart[?(@.cartId==5001)]", "operator": "exists", "right": "" }, "expected": true },
+    { "id": "filter-cart-missing", "rule": { "left": "http.body.data.cart[?(@.cartId==9999)]", "operator": "exists", "right": "" }, "expected": false },
+    { "id": "notempty-alias", "rule": { "left": "http.body.data.cart[?(@.cartId==5001)]", "operator": "notempty", "right": "" }, "expected": true },
+    { "id": "dollar-left-shorthand", "rule": { "left": "$.data.code", "operator": "eq", "right": "0" }, "expected": true },
+    { "id": "eq-filter-unbox-one", "rule": { "left": "http.body.data.cart[?(@.cartId==5001)].skuId", "operator": "eq", "right": "SKU-A" }, "expected": true },
+    { "id": "eq-multi-fail", "rule": { "left": "http.body.data.items[*]", "operator": "eq", "right": "1" }, "expected": false },
+    { "id": "contains-list-any", "rule": { "left": "http.body.data.items[*]", "operator": "contains", "right": "2" }, "expected": true },
+    { "id": "length-fn", "rule": { "left": "http.body.data.items.length()", "operator": "eq", "right": "3" }, "expected": true },
+    { "id": "exists-empty-filter", "rule": { "left": "http.body.data.cart[?(@.skuId=='NOPE')]", "operator": "exists", "right": "" }, "expected": false }
   ],
   "extractCases": [
     {
@@ -83,6 +97,26 @@
       "extracts": [{ "from": "regex", "expr": "token", "scope": "flow", "name": "rx" }],
       "expected": [{ "name": "rx", "scope": "flow", "value": null }],
       "flowAfter": { "rx": null }
+    },
+    {
+      "id": "filter-extract-sku",
+      "extracts": [{ "from": "body", "expr": "$.data.cart[?(@.cartId==5001)].skuId", "scope": "flow", "name": "sku" }],
+      "expected": [{ "name": "sku", "scope": "flow", "value": ["SKU-A"] }],
+      "flowAfter": { "sku": ["SKU-A"] }
+    },
+    {
+      "id": "index-extract",
+      "extracts": [{ "from": "body", "expr": "$.data.items[0]", "scope": "flow", "name": "firstItem" }],
+      "expected": [{ "name": "firstItem", "scope": "flow", "value": 1 }],
+      "flowAfter": { "firstItem": 1 }
     }
+  ],
+  "jsonPathContractCases": [
+    { "id": "dot-token", "expr": "$.data.token", "expected": "body-token" },
+    { "id": "index-0", "expr": "$.data.items[0]", "expected": 1 },
+    { "id": "wildcard", "expr": "$.data.items[*]", "expected": [1, 2, 3] },
+    { "id": "filter-one", "expr": "$.data.cart[?(@.cartId==5001)].skuId", "expected": ["SKU-A"] },
+    { "id": "length", "expr": "$.data.items.length()", "expected": 3 },
+    { "id": "missing-leaf", "expr": "$.data.noSuchField", "expected": null }
   ]
 }

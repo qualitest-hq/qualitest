@@ -47,6 +47,24 @@ Common features:
 Evaluates `data.rules[]` one by one (`CompareRuleEvaluator`); **all must pass**.  
 Does not check HTTP status (that is the HTTP step). Typical rule fields: `left`, `operator` (default `eq`), `right` (placeholders allowed).
 
+### Path dialects
+
+| Use | Form | Notes |
+|-----|------|--------|
+| Assert / condition left | `http.body.data.code`, `http.body.data.items[?(@.cartId==5001)]` | Relative to last HTTP body; supports index, filter, `[*]`, `length()` |
+| Shorthand (normalized) | `$.data.code` | Becomes `http.body.data.code` at design-time and runtime |
+| Extract / biz-code field | `$.data.token` | **Must start with `$`**, relative to body root |
+| Other context | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` | **Not** JsonPath |
+
+Forbidden: `http.body.$.…` (Confirm / save fails).
+
+### Operators
+
+UI: `eq/ne/gt/gte/lt/lte/contains/not_contains/exists`.  
+Aliases: `equals`/`==` → `eq`; `notempty`/`not_empty` → `exists` (do not invent `notempty` in UI).
+
+Collection semantics: `exists` requires non-empty collection; `eq` unboxes only when size is exactly 1; `contains` on a list passes if **any** element matches. Prefer filter + `exists` for “cart contains cartId”.
+
 ---
 
 ## Condition (`condition`)

@@ -104,4 +104,19 @@ describe('applyExtracts', () => {
     const applied = applyExtracts(c.extracts as ExtractTarget[], ctx, response);
     expect(applied).toEqual(c.expected);
   });
+
+  it.each(
+    fixture.extractCases
+      .filter((c) => c.id === 'filter-extract-sku' || c.id === 'index-extract')
+      .map((c) => [c.id, c] as const),
+  )('JsonPath 扩展 extract：%s', (_id, c) => {
+    const ctx = cloneCtx();
+    const applied = applyExtracts(c.extracts as ExtractTarget[], ctx, response);
+    expect(applied).toEqual(c.expected);
+    if (c.flowAfter) {
+      for (const [k, v] of Object.entries(c.flowAfter)) {
+        expect(ctx.flow[k]).toEqual(v);
+      }
+    }
+  });
 });

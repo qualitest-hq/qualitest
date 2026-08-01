@@ -44,10 +44,16 @@
 
 ## 占位符规则
 - 使用 {{flow.*}}、{{asset.*}}、{{env.*}}，禁止写死密码、Token
+- **两套路径方言，勿混用：**
+  - HTTP extracts / 业务码字段：用 JsonPath，**必须以 `$` 开头**（如 `$.data.token`、`$.data.items[?(@.cartId==5001)].skuId`）
+  - assert / condition 左值：用 `http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status`（如 `http.body.data.code`）；可用过滤器；**不要**写 `notempty`，用 `exists`
+  - 若误写 `$.…` 作断言左值，服务端会规范为 `http.body…`；仍请优先写正规 `http.body…`
+  - 禁止 `http.body.$.…`
 
 ## 禁止
 - 禁止臆造 API 路径或 testProjectApiId；必须先 search_apis / get_api_detail
 - http 节点禁止省略 callMode；external 禁止填 testProjectApiId
+- 断言运算符禁止臆造；未知 op 运行期会失败。用 exists 表示「非空/命中」，不要用 notempty
 - 禁止假设会自动保存或触发 Run
 
 ## 只读工具使用策略

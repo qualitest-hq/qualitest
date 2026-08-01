@@ -101,13 +101,14 @@ public class FlowDesignPatchNormalizer {
         normalizeScenarioPatch(patch);
         validateApiBindings(patch, baseGraph, testProjectId, warnings);
         normalizeAssertNodes(patch);
+        normalizeConditionNodes(patch);
         fillSummaries(patch);
         return patch;
     }
 
     /**
-     * 规范化 patch 中 assert 节点：把 equals 等别名改成 eq，去掉 left/right 上的 {{}} 包裹。
-     * addNodes 按 type=assert 处理；updateNodes 在 type 为 assert 或 data 含 rules 时处理。
+     * 规范化 patch 中 assert 节点 rules：运算符别名、去 {{}}、{@code $…} 左值改成 {@code http.body…}。
+     * addNodes 看 type=assert；updateNodes 在 type=assert 或 data 含 rules 时处理。
      */
     private static void normalizeAssertNodes(FlowDesignPatch patch) {
         if (patch.getAddNodes() != null) {
@@ -128,6 +129,33 @@ public class FlowDesignPatchNormalizer {
                 }
                 if (isAssert) {
                     FlowDesignAssertNodeNormalizer.normalize(node.getData());
+                }
+            }
+        }
+    }
+
+    /**
+     * 规范化 condition 节点 {@code branches[].conditions[]}（运算符、{{}}、{@code $} 左值）。
+     */
+    private static void normalizeConditionNodes(FlowDesignPatch patch) {
+        if (patch.getAddNodes() != null) {
+            for (GraphNode node : patch.getAddNodes()) {
+                if (node != null && "condition".equals(node.getType()) && node.getData() != null) {
+                    FlowDesignAssertNodeNormalizer.normalizeConditionBranches(node.getData());
+                }
+            }
+        }
+        if (patch.getUpdateNodes() != null) {
+            for (GraphNode node : patch.getUpdateNodes()) {
+                if (node == null || node.getData() == null) {
+                    continue;
+                }
+                boolean isCondition = "condition".equals(node.getType());
+                if (!isCondition && node.getData().containsKey("branches")) {
+                    isCondition = true;
+                }
+                if (isCondition) {
+                    FlowDesignAssertNodeNormalizer.normalizeConditionBranches(node.getData());
                 }
             }
         }

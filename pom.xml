@@ -37,6 +37,7 @@
         <lombok.version>1.18.30</lombok.version>
         <hutool.version>5.8.36</hutool.version>
         <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
+        <json-path.version>2.9.0</json-path.version>
         <skipTests>true</skipTests>
     </properties>
 
@@ -145,6 +146,13 @@
                 <groupId>com.alibaba.fastjson2</groupId>
                 <artifactId>fastjson2</artifactId>
                 <version>${fastjson.version}</version>
+            </dependency>
+
+            <!-- Jayway JsonPath：测试流 extracts / http.body 求值 -->
+            <dependency>
+                <groupId>com.jayway.jsonpath</groupId>
+                <artifactId>json-path</artifactId>
+                <version>${json-path.version}</version>
             </dependency>
 
             <!-- Token生成与解析-->

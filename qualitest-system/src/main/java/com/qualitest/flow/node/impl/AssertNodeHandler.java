@@ -1,5 +1,6 @@
 package com.qualitest.flow.node.impl;
 
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.CompareRuleEvaluator;
@@ -19,8 +20,9 @@ import java.util.Map;
 /**
  * Assert 节点执行器。
  * <p>
- * 对 {@code data.rules[]} 逐条调用 {@link com.qualitest.flow.context.CompareRuleEvaluator}，
- * 多条规则为 AND 关系；不负责 HTTP 状态码校验（由 HttpNodeHandler 在 HTTP 步完成）。
+ * 对 {@code data.rules[]} 逐条比较，全部通过才算本步通过（AND）。
+ * 每条结果写入 {@code leftActual}（左值实测），便于报告排查。
+ * 不校验 HTTP 状态码（由 HTTP 节点处理）。
  */
 @Component
 public class AssertNodeHandler extends AbstractStubNodeHandler {
@@ -45,14 +47,15 @@ public class AssertNodeHandler extends AbstractStubNodeHandler {
                 if (rule == null) {
                     continue;
                 }
-                boolean passed = CompareRuleEvaluator.eval(rule, ctx);
+                CompareRuleEvaluator.EvalDetail detail = CompareRuleEvaluator.evalDetailed(rule, ctx);
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("left", rule.getString("left"));
                 row.put("operator", rule.getOrDefault("operator", "eq"));
                 row.put("right", rule.getString("right"));
-                row.put("passed", passed);
+                row.put("passed", detail.passed());
+                row.put("leftActual", serializeLeftActual(detail.leftActual()));
                 ruleResults.add(row);
-                if (!passed) {
+                if (!detail.passed()) {
                     allPassed = false;
                 }
             }
@@ -87,6 +90,23 @@ public class AssertNodeHandler extends AbstractStubNodeHandler {
                 .build();
     }
 
+    /**
+     * 把左值实测写成步骤报告可序列化的形态：标量原样；集合/对象转 JSON 结构。
+     */
+    static Object serializeLeftActual(Object leftActual) {
+        if (leftActual == null) {
+            return null;
+        }
+        if (leftActual instanceof String || leftActual instanceof Number || leftActual instanceof Boolean) {
+            return leftActual;
+        }
+        try {
+            return JSON.parse(JSON.toJSONString(leftActual));
+        } catch (RuntimeException e) {
+            return String.valueOf(leftActual);
+        }
+    }
+
     private static JSONArray toRulesArray(Object raw) {
         if (raw == null) {
             return new JSONArray();
@@ -95,8 +115,8 @@ public class AssertNodeHandler extends AbstractStubNodeHandler {
             return arr;
         }
         if (raw instanceof List<?> list) {
-            return JSONArray.parseArray(com.alibaba.fastjson2.JSON.toJSONString(list));
+            return JSONArray.parseArray(JSON.toJSONString(list));
         }
-        return JSONArray.parseArray(com.alibaba.fastjson2.JSON.toJSONString(raw));
+        return JSONArray.parseArray(JSON.toJSONString(raw));
     }
 }

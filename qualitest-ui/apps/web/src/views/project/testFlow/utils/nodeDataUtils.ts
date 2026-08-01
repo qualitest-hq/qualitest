@@ -37,6 +37,19 @@ export function formatAssertRule(rule: Record<string, unknown>) {
   return `${left} ${condOpLabel(String(rule.operator))}${right}`;
 }
 
+/** Run 详情展示：规则文案后追加左值实测（leftActual） */
+export function formatAssertRuleWithActual(rule: Record<string, unknown>) {
+  const base = formatAssertRule(rule);
+  if (!('leftActual' in rule)) return base;
+  let actual: string;
+  try {
+    actual = JSON.stringify(rule.leftActual);
+  } catch {
+    actual = String(rule.leftActual);
+  }
+  return `${base}（实际: ${actual}）`;
+}
+
 export function formatAssertSummary(data: Record<string, unknown>) {
   const rules = getAssertRules(data).filter((r) => String(r.left || '').trim());
   if (!rules.length) return '点击配置断言';

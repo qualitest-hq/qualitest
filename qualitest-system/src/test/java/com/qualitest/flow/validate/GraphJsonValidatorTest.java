@@ -159,6 +159,57 @@ class GraphJsonValidatorTest {
         assertEquals(2, result.getWarnings().size());
     }
 
+    @Test
+    @Order(9)
+    @DisplayName("assert 空 left / 非法 http.body.$ 产生 error")
+    void assertBadLeft_producesError() {
+        String json = """
+                {
+                  "nodes": [
+                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"","operator":"eq","right":"0"}]}}
+                  ],
+                  "edges":[{"id":"e1","source":"1","target":"2"}]
+                }
+                """;
+        GraphValidationResult emptyLeft = validator.validateJson(json);
+        assertFalse(emptyLeft.isOk());
+        assertTrue(emptyLeft.getErrors().stream().anyMatch(e -> e.contains("left 不能为空")));
+
+        String json2 = """
+                {
+                  "nodes": [
+                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"http.body.$.data.code","operator":"eq","right":"0"}]}}
+                  ],
+                  "edges":[{"id":"e1","source":"1","target":"2"}]
+                }
+                """;
+        GraphValidationResult badPath = validator.validateJson(json2);
+        assertFalse(badPath.isOk());
+        assertTrue(badPath.getErrors().stream().anyMatch(e -> e.contains("http.body.$.…")));
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("http extract 坏 JsonPath 产生 error")
+    void httpExtractBadJsonPath_producesError() {
+        String json = """
+                {
+                  "nodes": [
+                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{
+                      "name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET",
+                      "extracts":[{"from":"body","expr":"$.data[","scope":"flow","name":"x"}]
+                    }}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("JsonPath 无法解析")));
+    }
+
     private static String loadResource(String path) {
         InputStream in = GraphJsonValidatorTest.class.getClassLoader().getResourceAsStream(path);
         assertNotNull(in, "missing resource: " + path);

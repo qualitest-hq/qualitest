@@ -24,6 +24,7 @@
         <template v-else>
           <DebugAssertEditor
               :model-value="branch.conditions || []"
+              :trial-body="trialBody"
               @update:model-value="(val) => updateBranchConditions(branch.id, val)"
           />
         </template>
@@ -38,14 +39,14 @@
     >
       + ELIF
     </button>
-    <div class="field__hint">左值可用 flow.* / env.* / asset.*；同分支内多条条件为 AND</div>
+    <div class="field__hint">左值可用 flow.* / env.* / asset.* / http.body…；同分支内多条条件为 AND</div>
   </div>
 </template>
 
 <script setup>
 /**
- * condition 节点右栏属性区。
- * 编辑 branches[].conditions，支持增删 ELIF；变更同步到节点 data 与关联边。
+ * condition 节点属性区：编辑各分支 conditions，支持增删 ELIF；
+ * 条件编辑器可对最近 HTTP 响应试算左值。
  */
 import { computed } from 'vue'
 
@@ -54,6 +55,7 @@ import { emptyCompareRule } from '@/utils/flow/compareRule'
 
 import { useFlowCanvasStore } from '../../stores/flowCanvasStore'
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import { useFlowTrialBody } from '../../composables/useFlowTrialBody'
 import {
   branchKindLabel,
   canAddElifBranch,
@@ -67,6 +69,7 @@ const props = defineProps({
 
 const store = useFlowCanvasStore()
 const { patchNodeData } = useFlowNodes()
+const { trialBody } = useFlowTrialBody()
 
 const branches = computed(() => getConditionBranches(props.node.data))
 

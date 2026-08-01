@@ -30,6 +30,9 @@
           class="debug-extract-expr"
           clearable
       />
+      <div v-if="row.from === 'body' && trialPreview(row.expr)" class="debug-extract-trial">
+        {{ trialPreview(row.expr) }}
+      </div>
       <div :class="['debug-extract-row__dest', isSimpleScope(row.scope) ? 'is-single' : 'is-pair']">
         <template v-if="isSimpleScope(row.scope)">
           <el-input v-model="row.name" clearable placeholder="变量名"/>
@@ -40,35 +43,52 @@
         </template>
       </div>
     </div>
-    <p class="debug-extract-hint">flow → {{flowHint}} · env/asset 写入后可用 {{scopeHint}}</p>
+    <p class="debug-extract-hint">
+      flow → {{flowHint}} · env/asset 写入后可用 {{scopeHint}}
+      · body 表达式用 JsonPath（如 $.data.items[0].id）
+      <template v-if="!hasTrialBody"> · 选中一次含 HTTP 响应的 Run 后可试算</template>
+    </p>
   </div>
 </template>
 
 <script setup>
-/** http 节点 data.extracts[] 列表编辑器，供测试流画布属性面板使用 */
+/**
+ * HTTP 节点 extracts[] 列表编辑器。
+ * from=body 时可对 expr（须以 $ 开头的 JsonPath）对着 trialBody 试算。
+ */
+import { computed } from 'vue'
 import { EXTRACT_FROM_OPTIONS, EXTRACT_SCOPES, emptyExtractTarget } from '@/utils/flow/extract'
+import { previewExtractExpr } from '@/views/project/testFlow/utils/jsonPathTrial'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
-  /** 为 false 时不自动塞入空行（测试流画布：无提取项即显示空态） */
+  /** 为 false 时不自动塞入空行（画布上无提取项显示空态） */
   autoSeedRow: { type: Boolean, default: true },
+  /** 最近一次 HTTP 响应 body，用于 body 表达式试算 */
+  trialBody: { type: [Object, Array, String, Number, Boolean], default: undefined },
 })
 
 const emit = defineEmits(['update:modelValue'])
 
 const flowHint = '{{flow.name}}'
 const scopeHint = '{{env.key}} / {{asset.key.field}}'
+const hasTrialBody = computed(() => props.trialBody !== undefined && props.trialBody !== null)
 
 function isSimpleScope(scope) {
   return scope === 'flow' || scope === 'env'
 }
 
 function exprPlaceholder(from) {
-  if (from === 'body') return '$.data.token'
+  if (from === 'body') return '$.data.token / $.data.items[?(@.id==1)]'
   if (from === 'header') return 'X-Request-Id'
   if (from === 'status') return '（无需填写）'
   if (from === 'regex') return '正则（暂未支持执行）'
   return ''
+}
+
+/** body 表达式试算文案 */
+function trialPreview(expr) {
+  return previewExtractExpr(props.trialBody, expr)
 }
 
 function onScopeChange(row) {
@@ -168,5 +188,12 @@ if (!props.modelValue.length && props.autoSeedRow) {
   color: var(--el-text-color-secondary);
   margin: 0;
   line-height: 1.45;
+}
+
+.debug-extract-trial {
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--el-color-primary);
+  word-break: break-all;
 }
 </style>

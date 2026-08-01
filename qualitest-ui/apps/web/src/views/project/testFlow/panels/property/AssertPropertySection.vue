@@ -11,24 +11,26 @@
         {{ p.label }}
       </button>
     </div>
-    <DebugAssertEditor v-model="rulesModel" />
+    <DebugAssertEditor v-model="rulesModel" :trial-body="trialBody" />
   </div>
 </template>
 
 <script setup>
-/** 断言节点：快捷预设 + 规则编辑器 */
+/** 断言节点属性区：快捷预设 + 规则编辑（可对最近 HTTP 响应试算左值） */
 import { computed } from 'vue'
 
 import DebugAssertEditor from '@/views/project/testProject/components/DebugAssertEditor.vue'
 
 import { ASSERT_PRESETS } from '../../constants/nodeTypes'
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import { useFlowTrialBody } from '../../composables/useFlowTrialBody'
 
 const props = defineProps({
   node: { type: Object, required: true },
 })
 
 const { patchNodeData } = useFlowNodes()
+const { trialBody } = useFlowTrialBody()
 
 const rulesModel = computed({
   get() {

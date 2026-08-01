@@ -150,7 +150,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { resumeTestFlowRun } from '@/api/project/testFlowRun'
-import { formatAssertRule } from '../utils/nodeDataUtils'
+import { formatAssertRuleWithActual } from '../utils/nodeDataUtils'
 import { toGraphJson } from '../graphAdapter'
 import { isGraphStructurallyStale } from '../utils/graphFingerprint'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
@@ -428,7 +428,7 @@ const summaryHtml = computed(() => {
     html += '<div style="margin-top:8px">断言:</div><ul style="margin:4px 0 0 16px">'
     step.assert.rules.forEach((r) => {
       const color = r.passed ? '#166534' : '#b91c1c'
-      html += `<li style="color:${color}">${escapeHtml(formatAssertRule(r))}</li>`
+      html += `<li style="color:${color}">${escapeHtml(formatAssertRuleWithActual(r))}</li>`
     })
     html += '</ul>'
   }

@@ -14,8 +14,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * 测 FlowDesignAssertNodeNormalizer：断言节点规则归一化（运算符别名、去 mustache）。
- * 边界：纯函数，改写 data Map。
+ * 测断言规则规范化：运算符别名、去 mustache、{@code $} 左值改 http.body、condition branches。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignAssertNodeNormalizerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -58,6 +57,8 @@ class FlowDesignAssertNodeNormalizerTest {
         assertEquals("eq", FlowDesignAssertNodeNormalizer.normalizeOperator("=="));
         assertEquals("ne", FlowDesignAssertNodeNormalizer.normalizeOperator("!="));
         assertEquals("gt", FlowDesignAssertNodeNormalizer.normalizeOperator("gt"));
+        assertEquals("exists", FlowDesignAssertNodeNormalizer.normalizeOperator("notempty"));
+        assertEquals("exists", FlowDesignAssertNodeNormalizer.normalizeOperator("not_empty"));
     }
 
     /**
@@ -71,5 +72,58 @@ class FlowDesignAssertNodeNormalizerTest {
         assertEquals("flow.x", FlowDesignAssertNodeNormalizer.stripMustache("{{flow.x}}"));
         assertEquals("{{flow.x}} suffix", FlowDesignAssertNodeNormalizer.stripMustache("{{flow.x}} suffix"));
         assertEquals(12, FlowDesignAssertNodeNormalizer.stripMustache(12));
+    }
+
+    /**
+     * 前提：左值为 $.data.code，operator 为 notempty。
+     * 期望：left → http.body.data.code；operator → exists。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("$ 左值与 notempty 规范化")
+    void normalize_dollarLeft_andNotempty() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("rules", List.of(Map.of(
+                "left", "$.data.items[?(@.cartId==5001)]",
+                "operator", "notempty",
+                "right", ""
+        )));
+
+        FlowDesignAssertNodeNormalizer.normalize(data);
+
+        @SuppressWarnings("unchecked")
+        List<JSONObject> rules = (List<JSONObject>) (List<?>) data.get("rules");
+        JSONObject rule = rules.get(0);
+        assertEquals("http.body.data.items[?(@.cartId==5001)]", rule.getString("left"));
+        assertEquals("exists", rule.getString("operator"));
+    }
+
+    /**
+     * 前提：condition branches 含 $ 左值。
+     * 期望：conditions 同步规范化。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("condition branches conditions 规范化")
+    void normalizeConditionBranches_dollarLeft() {
+        Map<String, Object> data = new HashMap<>();
+        Map<String, Object> branch = new HashMap<>();
+        branch.put("id", "if-1");
+        branch.put("kind", "if");
+        branch.put("conditions", List.of(Map.of(
+                "left", "$.data.code",
+                "operator", "equals",
+                "right", "0"
+        )));
+        data.put("branches", List.of(branch));
+
+        FlowDesignAssertNodeNormalizer.normalizeConditionBranches(data);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> branches = (List<Map<String, Object>>) data.get("branches");
+        @SuppressWarnings("unchecked")
+        List<JSONObject> conditions = (List<JSONObject>) (List<?>) branches.get(0).get("conditions");
+        assertEquals("http.body.data.code", conditions.get(0).getString("left"));
+        assertEquals("eq", conditions.get(0).getString("operator"));
     }
 }

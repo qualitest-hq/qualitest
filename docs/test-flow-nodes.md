@@ -47,6 +47,30 @@
 对 `data.rules[]` 逐条求值（`CompareRuleEvaluator`），**全部通过才算通过**。  
 不负责 HTTP 状态码（由 HTTP 节点在本步处理）。规则字段常见：`left`、`operator`（默认 `eq`）、`right`（可含占位符）。
 
+### 路径方言
+
+| 场景 | 写法 | 说明 |
+|------|------|------|
+| 断言 / 条件左值 | `http.body.data.code`、`http.body.data.items[?(@.cartId==5001)]` | 相对上一步响应 body；支持下标、过滤器、`[*]`、`length()` |
+| 简写（会规范化） | `$.data.code` | 设计态 / 运行态规范为 `http.body.data.code` |
+| Extract / 业务码 | `$.data.token` | **必须以 `$` 开头**，相对 body 根 |
+| 其它上下文 | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` | **不走 JsonPath** |
+
+禁止：`http.body.$.…`（Confirm / 保存会失败）。
+
+### 运算符
+
+UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。  
+别名：`equals`/`==` → `eq`；`notempty`/`not_empty` → `exists`（勿再写 `notempty`）。
+
+集合语义：
+
+- `exists`：非 null、非空串；列表/数组非空才通过  
+- `eq`：多元素列表仅当恰好 1 个元素时拆箱再比，否则失败  
+- `contains`：左值为列表时**任一**元素包含右值即可  
+
+购物车「是否含某 cartId」推荐：`http.body.data.items[?(@.cartId==5001)]` + `exists`。
+
 ---
 
 ## Condition（`condition`）

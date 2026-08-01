@@ -133,7 +133,7 @@
 
   <div class="field http-prop-extracts">
     <label>响应提取</label>
-    <DebugExtractEditor v-model="extractsModel" :auto-seed-row="false" />
+    <DebugExtractEditor v-model="extractsModel" :auto-seed-row="false" :trial-body="trialBody" />
   </div>
 
   <SnapshotPropertySection :node="node" />
@@ -149,6 +149,7 @@ import ApiScriptWorkbench from '@/components/script/ApiScriptWorkbench.vue'
 import DebugKvSheet from '../../components/DebugKvSheet.vue'
 import SnapshotPropertySection from './SnapshotPropertySection.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import { useFlowTrialBody } from '../../composables/useFlowTrialBody'
 import { getMethodBadgeClass } from '../../constants/flowConfig'
 import { useApiHealthStore } from '../../stores/apiHealthStore'
 import { countHttpParamStats, emptyKVRow, HTTP_METHODS } from '../../utils/httpWorkbenchUtils'
@@ -158,6 +159,8 @@ import { updateSummary } from '../../utils/nodeDataUtils'
 const props = defineProps({
   node: { type: Object, required: true },
 })
+
+const { trialBody } = useFlowTrialBody()
 
 const emit = defineEmits(['open-http-config'])
 

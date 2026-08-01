@@ -8,25 +8,23 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 占位符解析：{@code {{scope.path}}}
+ * 占位符与运行时路径解析。
  * <p>
- * 持久 scope：{@code env.*}、{@code flow.*}、{@code asset.*}；
- * 上一步 HTTP 快照：{@code http.body.*}、{@code http.status}、{@code http.duration}、{@code http.header.*}。
- * <p>
- * LENIENT：未定义占位符 → 空串；STRICT：未定义 → {@link FlowErrorCode#TF_PLACEHOLDER_UNDEFINED}
+ * 模板形态：{@code {{scope.path}}}。<br>
+ * 持久变量：{@code env.*}、{@code flow.*}、{@code asset.*}。<br>
+ * 上一步 HTTP：{@code http.body} / {@code http.body.<JsonPath相对路径>}、
+ * {@code http.status}、{@code http.duration}、{@code http.header.*}。<br>
+ * LENIENT：未定义占位符替换为空串；STRICT：未定义则抛
+ * {@link FlowErrorCode#TF_PLACEHOLDER_UNDEFINED}。
  */
 public record PlaceholderResolver(ResolveMode mode) {
 
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{([^}]+)\\}\\}");
 
     public enum ResolveMode {
-        /**
-         * 场景运行 / Mock：未定义占位符 → 空字符串
-         */
+        /** 未定义占位符 → 空字符串（调试 / Mock） */
         LENIENT,
-        /**
-         * 正式 Run：未定义 → 抛错
-         */
+        /** 未定义占位符 → 抛错（正式 Run） */
         STRICT
     }
 
@@ -38,9 +36,7 @@ public record PlaceholderResolver(ResolveMode mode) {
         return new PlaceholderResolver(ResolveMode.STRICT);
     }
 
-    /**
-     * 替换模板中全部 {@code {{…}}} 占位符
-     */
+    /** 替换模板中全部 {@code {{…}}}。 */
     public String resolve(String template, FlowRunContext ctx) {
         if (template == null) {
             return "";
@@ -68,13 +64,14 @@ public record PlaceholderResolver(ResolveMode mode) {
     }
 
     /**
-     * 单段路径求值：占位符 inner、断言左值、条件左值共用。
+     * 单段路径求值：占位符内部、断言左值、条件左值共用。
+     * 若写成纯 {@code $…}，会先改成 {@code http.body…} 再解析。
      */
     public Object resolvePathSegment(FlowRunContext ctx, String path) {
         if (ctx == null || path == null) {
             return null;
         }
-        String p = path.trim();
+        String p = normalizeAssertLeftPath(path.trim());
         if (p.isEmpty()) {
             return null;
         }
@@ -87,7 +84,6 @@ public record PlaceholderResolver(ResolveMode mode) {
         if (p.startsWith("asset.")) {
             return resolveAssetPath(ctx.getAsset(), p.substring(6));
         }
-        // 上一步 HTTP 快照
         if (p.startsWith("http.")) {
             return resolveHttpPath(ctx, p.substring(5));
         }
@@ -95,7 +91,33 @@ public record PlaceholderResolver(ResolveMode mode) {
     }
 
     /**
-     * {@code http.*} 路径：body / status / duration / header(s)
+     * 把以 {@code $} 开头的路径改成带 scope 的写法，便于断言左值统一处理。
+     * {@code $} → {@code http.body}；{@code $.data.x} → {@code http.body.data.x}；
+     * {@code $[0]} → {@code http.body[0]}。其它原样返回。
+     */
+    public static String normalizeAssertLeftPath(String path) {
+        if (path == null) {
+            return "";
+        }
+        String p = path.trim();
+        if (p.isEmpty()) {
+            return "";
+        }
+        if ("$".equals(p)) {
+            return "http.body";
+        }
+        if (p.startsWith("$.")) {
+            return "http.body." + p.substring(2);
+        }
+        if (p.startsWith("$[")) {
+            return "http.body" + p.substring(1);
+        }
+        return p;
+    }
+
+    /**
+     * 解析 {@code http.*}：整 body、body 上 JsonPath、状态码、耗时、响应头。
+     * {@code http.body.$.…} 视为非法，返回 null。
      */
     private static Object resolveHttpPath(FlowRunContext ctx, String rest) {
         if (rest == null || rest.isEmpty()) {
@@ -108,11 +130,18 @@ public record PlaceholderResolver(ResolveMode mode) {
         if ("status".equals(rest)) {
             return last == null ? null : last.getStatus();
         }
+        if ("body".equals(rest)) {
+            return last == null ? null : last.getBody();
+        }
         if (rest.startsWith("body.")) {
             if (last == null || last.getBody() == null) {
                 return null;
             }
-            return navigate(last.getBody(), rest.substring(5));
+            String relative = rest.substring(5);
+            if (relative.startsWith("$")) {
+                return null;
+            }
+            return JsonPathFacade.eval(last.getBody(), JsonPathFacade.toAbsolutePath(relative));
         }
         if (rest.startsWith("header.")) {
             return resolveHttpHeader(ctx, rest.substring(7));
@@ -134,6 +163,7 @@ public record PlaceholderResolver(ResolveMode mode) {
         return last.getHeaders().get(name);
     }
 
+    /** {@code asset.key} 或 {@code asset.key.a.b}：先取条目，再按点分键逐级下钻。 */
     private static Object resolveAssetPath(Map<String, Object> asset, String rest) {
         if (rest == null || rest.isEmpty()) {
             return null;
@@ -145,22 +175,20 @@ public record PlaceholderResolver(ResolveMode mode) {
         if (sub.isEmpty()) {
             return val;
         }
-        return navigate(val, sub);
+        return navigateMap(val, sub);
     }
 
     /**
-     * 简化 JsonPath：仅支持 {@code $.a.b.c} 点分路径。
-     * 用于 HTTP extracts 与业务码字段读取。
+     * 对响应 body 求 JsonPath（须以 {@code $} 开头）。
+     * 供 HTTP extracts、业务码字段等读取。
      */
     public static Object simpleJsonPath(Object body, String expr) {
-        if (expr == null || !expr.startsWith("$.")) {
-            return null;
-        }
-        return navigate(body, expr.substring(2));
+        return JsonPathFacade.eval(body, expr);
     }
 
+    /** 仅按 {@code .} 在 Map 上逐级取值（素材嵌套字段，不做 JsonPath）。 */
     @SuppressWarnings("unchecked")
-    static Object navigate(Object root, String dotPath) {
+    static Object navigateMap(Object root, String dotPath) {
         if (root == null || dotPath == null || dotPath.isEmpty()) {
             return root;
         }

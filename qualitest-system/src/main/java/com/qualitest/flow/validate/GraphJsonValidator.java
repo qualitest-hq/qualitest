@@ -3,6 +3,9 @@ package com.qualitest.flow.validate;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.flow.context.CompareRuleEvaluator;
+import com.qualitest.flow.context.JsonPathFacade;
+import com.qualitest.flow.context.PlaceholderResolver;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
@@ -12,6 +15,7 @@ import com.qualitest.flow.model.GraphNodePosition;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -20,19 +24,13 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
- * 测试流画布 graph_json 结构校验（保存前、AI submit 预合并后、运行前均可调用）。
+ * 测试流画布 graph_json 结构校验（保存、确认合并、运行前）。
  * <p>
- * 图级：节点/边存在性、唯一开始节点、condition 分支 target 与出边一致性。
- * <p>
- * HTTP 节点（{@link FlowNodeType#HTTP}）：
- * <ul>
- *   <li>缺少 {@code callMode} → error（不做缺省当 project）</li>
- *   <li>{@code project} — 无 {@code testProjectApiId} → warning</li>
- *   <li>{@code external} — 无 {@code externalUrl}/{@code httpMethod} → error；出现 {@code testProjectApiId} → error</li>
- * </ul>
- * 子流节点（{@link FlowNodeType#SUBFLOW}）：缺少 {@code subflowId} → error；{@code inputs}/{@code outputs} 为空 → warning。
- * <p>
- * 返回 {@link GraphValidationResult}：{@code ok=true} 当且仅当 errors 为空。
+ * 图级：节点/边、唯一开始节点、condition 分支与出边。<br>
+ * HTTP：callMode、外联必填项；extracts 中 body 表达式须为可解析的 {@code $…} JsonPath。<br>
+ * Assert / Condition：规则 left 非空、作用域合法、禁止 {@code http.body.$.…}、http.body 后缀 JsonPath 可解析。<br>
+ * Subflow：缺 subflowId 为 error。<br>
+ * {@code ok=true} 当且仅当 errors 为空。
  */
 @Component
 public class GraphJsonValidator {
@@ -263,15 +261,160 @@ public class GraphJsonValidator {
         if (FlowNodeType.HTTP.matches(type)) {
             validateHttpNodeFields(p, id, data, errors, warnings);
         }
+        if (FlowNodeType.ASSERT.matches(type)) {
+            validateAssertNodeFields(p, id, data, errors);
+        }
         if (FlowNodeType.CONDITION.matches(type)) {
             Object branches = data != null ? data.get("branches") : null;
             if (!(branches instanceof List<?> list) || list.isEmpty()) {
                 String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
                 warnings.add("条件节点「" + name + "」缺少 branches，请配置 IF/ELSE 分支");
+            } else {
+                validateConditionNodeFields(p, id, data, errors);
             }
         }
         validateScriptNodeFields(p, id, type, data, errors, warnings);
         validateSubflowNodeFields(p, id, type, data, errors, warnings);
+    }
+
+    /** 校验 assert 节点每条 rules 的 left / JsonPath。 */
+    private void validateAssertNodeFields(
+            String p,
+            String id,
+            Map<String, Object> data,
+            List<String> errors
+    ) {
+        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        Object rulesRaw = data != null ? data.get("rules") : null;
+        if (!(rulesRaw instanceof List<?> rules) || rules.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < rules.size(); i++) {
+            Object item = rules.get(i);
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            validateCompareRule(p + " 断言节点「" + name + "」rules[" + i + "]", map, errors);
+        }
+    }
+
+    /** 校验 condition 各分支 conditions 的 left / JsonPath。 */
+    private void validateConditionNodeFields(
+            String p,
+            String id,
+            Map<String, Object> data,
+            List<String> errors
+    ) {
+        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        Object branchesRaw = data.get("branches");
+        if (!(branchesRaw instanceof List<?> branches)) {
+            return;
+        }
+        for (int bi = 0; bi < branches.size(); bi++) {
+            Object branchItem = branches.get(bi);
+            if (!(branchItem instanceof Map<?, ?> branch)) {
+                continue;
+            }
+            Object conditionsRaw = branch.get("conditions");
+            if (!(conditionsRaw instanceof List<?> conditions)) {
+                continue;
+            }
+            for (int ci = 0; ci < conditions.size(); ci++) {
+                Object cond = conditions.get(ci);
+                if (!(cond instanceof Map<?, ?> map)) {
+                    continue;
+                }
+                validateCompareRule(
+                        p + " 条件节点「" + name + "」branches[" + bi + "].conditions[" + ci + "]",
+                        map,
+                        errors
+                );
+            }
+        }
+    }
+
+    /**
+     * 校验单条比较规则：left 非空；作用域合法；禁止 {@code http.body.$.…}；
+     * {@code http.body.} 后缀须为可解析的 JsonPath。
+     */
+    private void validateCompareRule(String prefix, Map<?, ?> rule, List<String> errors) {
+        Object leftRaw = rule.get("left");
+        String left = leftRaw == null ? "" : String.valueOf(leftRaw).trim();
+        if (left.isEmpty()) {
+            errors.add(prefix + " left 不能为空");
+            return;
+        }
+        left = CompareRuleEvaluator.stripMustache(left);
+        String normalized = PlaceholderResolver.normalizeAssertLeftPath(left);
+        if (!isAllowedCompareLeftScope(normalized)) {
+            errors.add(prefix + " left 作用域非法（须为 flow./env./asset./http. 或 $.…）：" + left);
+            return;
+        }
+        if (normalized.startsWith("http.body.$")) {
+            errors.add(prefix + " left 不可写成 http.body.$.…，请用 http.body.data… 或 $.data…：" + left);
+            return;
+        }
+        if ("http.body".equals(normalized)) {
+            return;
+        }
+        if (normalized.startsWith("http.body.")) {
+            String relative = normalized.substring("http.body.".length());
+            String abs = JsonPathFacade.toAbsolutePath(relative);
+            if (!JsonPathFacade.isValidPath(abs)) {
+                errors.add(prefix + " left JsonPath 无法解析：" + left);
+            }
+        }
+    }
+
+    /** left 允许的作用域前缀：flow / env / asset / http（含整段 http.body）。 */
+    private static boolean isAllowedCompareLeftScope(String left) {
+        if (left == null || left.isEmpty()) {
+            return false;
+        }
+        return left.startsWith("flow.")
+                || left.startsWith("env.")
+                || left.startsWith("asset.")
+                || left.startsWith("http.")
+                || "http.body".equals(left);
+    }
+
+    /**
+     * 校验 HTTP extracts：from=body 时 expr 非空、须以 {@code $} 开头且 JsonPath 可解析。
+     */
+    private void validateHttpExtracts(
+            String p,
+            String name,
+            Map<String, Object> data,
+            List<String> errors
+    ) {
+        Object extractsRaw = data != null ? data.get("extracts") : null;
+        if (!(extractsRaw instanceof List<?> extracts) || extracts.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < extracts.size(); i++) {
+            Object item = extracts.get(i);
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Object fromObj = map.get("from");
+            String from = fromObj == null ? "body" : String.valueOf(fromObj).trim().toLowerCase(Locale.ROOT);
+            if (!"body".equals(from)) {
+                continue;
+            }
+            Object exprObj = map.get("expr");
+            String expr = exprObj == null ? "" : String.valueOf(exprObj).trim();
+            if (expr.isEmpty()) {
+                errors.add(p + " HTTP 节点「" + name + "」extracts[" + i + "] body 表达式不能为空");
+                continue;
+            }
+            if (!expr.startsWith("$")) {
+                errors.add(p + " HTTP 节点「" + name + "」extracts[" + i + "] body 表达式须以 $ 开头：" + expr);
+                continue;
+            }
+            if (!JsonPathFacade.isValidPath(expr)) {
+                errors.add(p + " HTTP 节点「" + name + "」extracts[" + i + "] JsonPath 无法解析：" + expr);
+            }
+        }
     }
 
     private void validateSubflowNodeFields(
@@ -330,6 +473,7 @@ public class GraphJsonValidator {
             if (!hasTestProjectApiId(data)) {
                 warnings.add("HTTP 节点「" + name + "」未绑定 testProjectApiId");
             }
+            validateHttpExtracts(p, name, data, errors);
             return;
         }
         Object externalUrl = data.get("externalUrl");
@@ -343,6 +487,7 @@ public class GraphJsonValidator {
         if (hasTestProjectApiId(data)) {
             errors.add(p + " HTTP 节点「" + name + "」外联模式不可填写 testProjectApiId");
         }
+        validateHttpExtracts(p, name, data, errors);
     }
 
     /** script 节点：非法 language 为 error，空 source 为 warning */
