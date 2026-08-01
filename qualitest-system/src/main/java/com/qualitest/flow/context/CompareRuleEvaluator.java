@@ -52,10 +52,7 @@ public final class CompareRuleEvaluator {
         }
 
         Object left = coerceComparable(leftUnboxed);
-        Object right = coerceComparable(LENIENT.resolve(
-                rule.getString("right") != null ? rule.getString("right") : "",
-                ctx
-        ));
+        Object right = coerceComparable(resolveRightValue(rule.getString("right"), ctx));
 
         boolean passed = switch (op) {
             case "eq" -> compareEquals(left, right);
@@ -91,6 +88,10 @@ public final class CompareRuleEvaluator {
             case "equals", "equal", "==" -> "eq";
             case "notequals", "not_equals", "neq", "!=" -> "ne";
             case "notempty", "not_empty", "isnotempty", "is_not_empty" -> "exists";
+            case "lessthan", "less_than", "<" -> "lt";
+            case "lessthanorequal", "less_than_or_equal", "ltequal", "<=" -> "lte";
+            case "greaterthan", "greater_than", ">" -> "gt";
+            case "greaterthanorequal", "greater_than_or_equal", "gtequal", ">=" -> "gte";
             default -> lower;
         };
     }
@@ -201,6 +202,42 @@ public final class CompareRuleEvaluator {
         return false;
     }
 
+    /**
+     * 右值解析：支持 {@code {{flow.x}}} 占位符，也支持裸写 {@code flow.x} / {@code env.x} /
+     * {@code asset.x} / {@code http…} / {@code $…}（与左值路径同语义）。
+     */
+    static Object resolveRightValue(String rightRaw, FlowRunContext ctx) {
+        if (rightRaw == null) {
+            return "";
+        }
+        String trimmed = rightRaw.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        // 整段为作用域路径时按左值同款解析，避免 flow.balanceBefore 被当成字面量
+        String asPath = stripMustache(trimmed);
+        if (looksLikeScopePath(asPath)) {
+            Object pathValue = LENIENT.resolvePathSegment(ctx, asPath);
+            if (pathValue != null) {
+                return pathValue;
+            }
+        }
+        return LENIENT.resolve(trimmed, ctx);
+    }
+
+    /** 是否像可解析的作用域路径（裸写右值场景）。 */
+    static boolean looksLikeScopePath(String path) {
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+        String p = path.trim();
+        return p.startsWith("flow.")
+                || p.startsWith("env.")
+                || p.startsWith("asset.")
+                || p.startsWith("http.")
+                || p.startsWith("$");
+    }
+
     private static boolean compareEquals(Object left, Object right) {
         if (left == null && right == null) {
             return true;
@@ -208,7 +245,14 @@ public final class CompareRuleEvaluator {
         if (left == null || right == null) {
             return false;
         }
-        return left.equals(right) || String.valueOf(left).equals(String.valueOf(right));
+        if (left.equals(right)) {
+            return true;
+        }
+        // JSON 金额常为 Double(195.0)，断言右值常为整型/整数字符串 → 按数值比较
+        if (left instanceof Number || right instanceof Number) {
+            return Double.compare(toDouble(left), toDouble(right)) == 0;
+        }
+        return String.valueOf(left).equals(String.valueOf(right));
     }
 
     /**

@@ -36,6 +36,11 @@ import {
   isPersistedSessionId,
 } from '@/utils/ai/aiChatSession';
 import { buildComposerPayloadFromUserMessage } from '@/utils/ai/buildComposerPayloadFromUser';
+import {
+  resolveAssistantContent,
+  resolveFailedAssistantFields,
+  resolveThinkingContent,
+} from '@/utils/ai/assistantMessageContent';
 import type { ComposerDoc } from '../types/mentionTypes';
 import { COMPOSER_DOC_VERSION } from '../types/mentionTypes';
 import { createAiStagingHydration } from './useAiStagingHydration';
@@ -363,7 +368,10 @@ export function useAiDesign() {
       if (e instanceof DOMException && e.name === 'AbortError') {
         appendLocalSystemMessage('已取消设计');
       } else {
-        designError.value = e instanceof Error ? e.message : 'AI 助手请求失败';
+        const msg = e instanceof Error ? e.message : 'AI 助手请求失败';
+        designError.value = msg;
+        // 失败也必须在对话里留下助手气泡，避免「有提问、无回复」
+        appendFailedAssistantMessage(msg);
       }
     } finally {
       designing.value = false;
@@ -381,8 +389,13 @@ export function useAiDesign() {
     const assistantMessage: AiDesignMessageView = {
       id: messageId,
       role: 'assistant',
-      content: data.summary ?? streamText.value ?? '',
-      thinkingContent: data.thinkingContent?.trim() || streamThinking.value.trim() || undefined,
+      content: resolveAssistantContent({
+        summary: data.summary,
+        streamText: streamText.value,
+        hasPatch: Boolean(patch && !explainOnly),
+        emptyPatchPlaceholder: '已生成流程变更建议，请在画布上逐项确认。',
+      }),
+      thinkingContent: resolveThinkingContent(data.thinkingContent, streamThinking.value),
       aiLlmModelId: data.aiLlmModelId,
       vendorName: data.vendorName,
       modelName: data.modelName,
@@ -396,6 +409,22 @@ export function useAiDesign() {
       ensureStagingAcceptanceEntry(messageId);
       void stagingHydration.hydrateStagingForMessage(messageId, patch);
     }
+  }
+
+  /** 设计失败时写入助手回复（保留已流式输出的思考过程） */
+  function appendFailedAssistantMessage(errorMessage: string) {
+    messages.value = [
+      ...messages.value,
+      {
+        id: createClientMessageId(),
+        role: 'assistant',
+        ...resolveFailedAssistantFields({
+          errorMessage,
+          streamText: streamText.value,
+          streamThinking: streamThinking.value,
+        }),
+      },
+    ];
   }
 
   return {

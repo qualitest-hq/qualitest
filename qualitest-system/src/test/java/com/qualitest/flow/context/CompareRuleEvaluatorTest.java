@@ -63,6 +63,47 @@ class CompareRuleEvaluatorTest {
     }
 
     /**
+     * 前提：左值为 JSON 金额 Double(195.0)，右值为整型字面量 195。
+     * 期望：eq 按数值相等通过（避免 String.valueOf(195.0)="195.0" 与 "195" 不相等）。
+     */
+    @Test
+    @Order(2)
+    @DisplayName("eq：Double 金额与整型右值数值相等")
+    void eq_doubleAmountEqualsIntegerRight() {
+        FlowRunContext amountCtx = FlowRunContext.builder()
+                .lastResponse(FlowRunContext.HttpResponseSnapshot.builder()
+                        .status(200)
+                        .body(JSON.parseObject("{\"data\":{\"payAmount\":195.0}}"))
+                        .build())
+                .build();
+        JSONObject rule = JSON.parseObject(
+                "{\"left\":\"http.body.data.payAmount\",\"operator\":\"eq\",\"right\":195}");
+        assertEquals(true, CompareRuleEvaluator.eval(rule, amountCtx));
+    }
+
+    /**
+     * 前提：支付后余额 805.0，flow.balanceBefore=1000；右值裸写 flow.balanceBefore。
+     * 期望：lt 通过（右值按作用域路径解析，而非字面量字符串）。
+     */
+    @Test
+    @Order(3)
+    @DisplayName("lt：右值裸写 flow.xxx 按路径解析")
+    void lt_bareFlowPathOnRight() {
+        Map<String, Object> flow = new HashMap<>();
+        flow.put("balanceBefore", 1000.0);
+        FlowRunContext amountCtx = FlowRunContext.builder()
+                .flow(flow)
+                .lastResponse(FlowRunContext.HttpResponseSnapshot.builder()
+                        .status(200)
+                        .body(JSON.parseObject("{\"data\":{\"balance\":805.0}}"))
+                        .build())
+                .build();
+        JSONObject rule = JSON.parseObject(
+                "{\"left\":\"http.body.data.balance\",\"operator\":\"lt\",\"right\":\"flow.balanceBefore\"}");
+        assertEquals(true, CompareRuleEvaluator.eval(rule, amountCtx));
+    }
+
+    /**
      * 将夹具 JSON 中的 mockContext 转为 {@link FlowRunContext}
      */
     private static FlowRunContext buildContext(JSONObject mock) {

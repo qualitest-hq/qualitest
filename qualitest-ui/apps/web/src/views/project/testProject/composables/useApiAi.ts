@@ -14,6 +14,11 @@ import {
   useAiChatSession,
 } from '@/composables/ai/useAiChatSession';
 import { createClientMessageId, isPersistedSessionId } from '@/utils/ai/aiChatSession';
+import {
+  resolveAssistantContent,
+  resolveFailedAssistantFields,
+  resolveThinkingContent,
+} from '@/utils/ai/assistantMessageContent';
 import { parseAiChatSessionMessages } from '@/utils/ai/parseAiChatSessionMessages';
 import { useLazyPatchHydration } from '@/composables/ai/useLazyPatchHydration';
 
@@ -94,8 +99,13 @@ export function useApiAi(
     const assistantMessage: ApiDesignMessageView = {
       id: messageId,
       role: 'assistant',
-      content: data.summary ?? streamText.value ?? '',
-      thinkingContent: data.thinkingContent?.trim() || streamThinking.value.trim() || undefined,
+      content: resolveAssistantContent({
+        summary: data.summary,
+        streamText: streamText.value,
+        hasPatch: Boolean(patch && !explainOnly),
+        emptyPatchPlaceholder: '已生成接口变更建议，请勾选后合并到工作台。',
+      }),
+      thinkingContent: resolveThinkingContent(data.thinkingContent, streamThinking.value),
       aiLlmModelId: data.aiLlmModelId,
       vendorName: data.vendorName,
       modelName: data.modelName,
@@ -112,6 +122,22 @@ export function useApiAi(
         [messageId]: new Set(items.map((i) => i.id)),
       };
     }
+  }
+
+  /** 设计失败时写入助手回复（保留已流式输出的思考过程） */
+  function appendFailedAssistantMessage(errorMessage: string) {
+    messages.value = [
+      ...messages.value,
+      {
+        id: createClientMessageId(),
+        role: 'assistant',
+        ...resolveFailedAssistantFields({
+          errorMessage,
+          streamText: streamText.value,
+          streamThinking: streamThinking.value,
+        }),
+      },
+    ];
   }
 
   const chat = useAiChatSession<ApiDesignMessageView>({
@@ -158,7 +184,9 @@ export function useApiAi(
           { id: createClientMessageId(), role: 'system', content: '已取消生成' },
         ];
       } else {
-        designError.value = e instanceof Error ? e.message : 'AI 助手请求失败';
+        const msg = e instanceof Error ? e.message : 'AI 助手请求失败';
+        designError.value = msg;
+        appendFailedAssistantMessage(msg);
       }
     } finally {
       designing.value = false;

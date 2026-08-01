@@ -96,11 +96,11 @@ export async function consumeAuthenticatedSsePost<
         const doneResult = dispatchSseEvent(event, handlers, defaultErrorMessage);
         if (doneResult !== null) finalResult = doneResult;
       } catch (e) {
-        if (e instanceof Error && e.message !== defaultErrorMessage) {
-          // 忽略非业务错误的 JSON 解析失败
-        } else {
-          throw e;
+        // SyntaxError：半包/脏行，忽略；其余（含 type=error 业务失败）必须上抛
+        if (e instanceof SyntaxError) {
+          continue;
         }
+        throw e;
       }
     }
   };
