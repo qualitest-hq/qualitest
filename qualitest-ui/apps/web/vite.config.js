@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, searchForWorkspaceRoot } from 'vite'
 import path from 'path'
 import { fileURLToPath } from 'node:url'
 import createVitePlugins from './vite/plugins'
@@ -57,9 +57,10 @@ export default defineConfig(({ mode, command }) => {
       strictPort: true,
       host: true,
       open: false,
-      // Vitest 经 alias 读取仓内后端 test resources
+      // 指定 allow 会覆盖 Vite 默认白名单，需保留 workspace 根，再额外放行后端 flow fixture
       fs: {
         allow: [
+          searchForWorkspaceRoot(__dirname),
           path.resolve(__dirname, '../../../qualitest-system/src/test/resources/flow'),
         ],
       },
