@@ -2,6 +2,8 @@ package com.qualitest.flow.context;
 
 import com.alibaba.fastjson2.JSONObject;
 
+import java.util.Locale;
+
 /**
  * 断言与条件分支的比较规则求值。
  * <p>
@@ -26,12 +28,9 @@ public final class CompareRuleEvaluator {
         if (rule == null) {
             return false;
         }
-        String leftKey = String.valueOf(rule.getOrDefault("left", "")).trim();
+        String leftKey = stripMustache(String.valueOf(rule.getOrDefault("left", "")).trim());
         Object leftRaw = LENIENT.resolvePathSegment(ctx, leftKey);
-        String op = rule.getString("operator");
-        if (op == null || op.isEmpty()) {
-            op = "eq";
-        }
+        String op = normalizeOperator(rule.getString("operator"));
 
         if ("exists".equals(op)) {
             return leftRaw != null && !"".equals(String.valueOf(leftRaw));
@@ -54,6 +53,31 @@ public final class CompareRuleEvaluator {
             case "not_contains" -> !String.valueOf(left).contains(String.valueOf(right));
             default -> false;
         };
+    }
+
+    /** 与设计态断言规范化一致：equals/== → eq，不等别名 → ne。 */
+    static String normalizeOperator(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "eq";
+        }
+        String lower = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (lower) {
+            case "equals", "equal", "==" -> "eq";
+            case "notequals", "not_equals", "neq", "!=" -> "ne";
+            default -> lower;
+        };
+    }
+
+    /** {{flow.mobile}} → flow.mobile */
+    static String stripMustache(String text) {
+        if (text == null) {
+            return "";
+        }
+        String trimmed = text.trim();
+        if (trimmed.startsWith("{{") && trimmed.endsWith("}}") && trimmed.length() >= 4) {
+            return trimmed.substring(2, trimmed.length() - 2).trim();
+        }
+        return trimmed;
     }
 
     private static boolean compareEquals(Object left, Object right) {

@@ -217,7 +217,7 @@
             <if test="stepIndex != null">
                 step_index,
             </if>
-            <if test="nodeId != null and nodeId != ''">
+            <if test="nodeId != null">
                 node_id,
             </if>
             <if test="nodeType != null and nodeType != ''">
@@ -258,7 +258,7 @@
             <if test="stepIndex != null">
                 #{stepIndex},
             </if>
-            <if test="nodeId != null and nodeId != ''">
+            <if test="nodeId != null">
                 #{nodeId},
             </if>
             <if test="nodeType != null and nodeType != ''">
@@ -300,7 +300,7 @@
             <if test="stepIndex != null">
                 step_index = #{stepIndex},
             </if>
-            <if test="nodeId != null and nodeId != ''">
+            <if test="nodeId != null">
                 node_id = #{nodeId},
             </if>
             <if test="nodeType != null and nodeType != ''">

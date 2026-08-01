@@ -1246,7 +1246,7 @@ CREATE TABLE `test_flow_run_step` (
   `test_flow_run_step_id` bigint NOT NULL COMMENT '步骤ID',
   `test_flow_run_id` bigint NOT NULL COMMENT '运行ID',
   `step_index` int NOT NULL COMMENT '步骤序号',
-  `node_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '节点ID',
+  `node_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '节点ID',
   `node_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '节点类型',
   `node_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '节点名称',
   `status` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '步骤状态（passed成功 failed失败 skipped未执行）',
