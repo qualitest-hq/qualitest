@@ -10,8 +10,11 @@ import { useFlowCanvasStore } from '@/views/project/testFlow/stores/flowCanvasSt
 import { useAiStagingStore } from '@/views/project/testFlow/stores/aiStagingStore';
 import {
   applyConfirmResultWithHashGuard,
+  applyConfirmedGraph,
+  mergePendingStagingIntoConfirmedGraph,
   requestConfirmOnce,
 } from '@/views/project/testFlow/composables/stagingConfirmRequest';
+import { fromGraphJson } from '@/views/project/testFlow/graphAdapter';
 
 const computeBaseGraphHashMock = vi.fn();
 
@@ -86,5 +89,61 @@ describe('applyConfirmResultWithHashGuard', () => {
     expect(applied).toBe(true);
     expect(onHashConflict).not.toHaveBeenCalled();
     expect(canvasStore.nodes.some((n) => n.id === '9001')).toBe(true);
+  });
+
+  it('确认落盘时保留其它 pending Staging 节点，避免短暂消失像平移', async () => {
+    // 前提：画布上同时有已确认节点 A 与 pending 节点 B；服务端只返回 A
+    // 期望：applyConfirmedGraph 后 B 仍在画布，坐标不变
+    const canvasStore = useFlowCanvasStore();
+    const stagingStore = useAiStagingStore();
+    canvasStore.testProjectId = '10';
+    canvasStore.nodes = [
+      { id: '9001', type: 'http', position: { x: 0, y: 0 }, data: { name: 'A' } },
+      { id: '9002', type: 'http', position: { x: 380, y: 0 }, data: { name: 'B' } },
+    ];
+    canvasStore.edges = [];
+    canvasStore.runConfig = {
+      activeScenarioId: 'sc1',
+      scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+    };
+
+    stagingStore.hydrateStagingFromPatch(
+      'msg-1',
+      {
+        addNodes: [
+          { id: '9001', type: 'http', position: { x: 0, y: 0 }, data: { name: 'A' } },
+          { id: '9002', type: 'http', position: { x: 380, y: 0 }, data: { name: 'B' } },
+        ],
+      },
+      { nodes: [], edges: [], runConfig: canvasStore.runConfig },
+    );
+    stagingStore.markConfirmed('addNode:9001');
+    expect(stagingStore.getUnit('addNode:9002')?.status).toBe('pending');
+
+    const applied = fromGraphJson({
+      nodes: [{ id: '9001', type: 'http', position: { x: 0, y: 0 }, data: { name: 'A' } }],
+      edges: [],
+      meta: {
+        activeScenarioId: 'sc1',
+        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+      },
+    });
+    const merged = mergePendingStagingIntoConfirmedGraph(applied, canvasStore, stagingStore);
+    expect(merged.nodes.map((n) => n.id).sort()).toEqual(['9001', '9002']);
+    expect(merged.nodes.find((n) => n.id === '9002')?.position).toEqual({ x: 380, y: 0 });
+
+    await applyConfirmedGraph(
+      {
+        nodes: [{ id: '9001', type: 'http', position: { x: 0, y: 0 }, data: { name: 'A' } }],
+        edges: [],
+        meta: {
+          activeScenarioId: 'sc1',
+          scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+        },
+      },
+      canvasStore,
+      stagingStore,
+    );
+    expect(canvasStore.nodes.find((n) => n.id === '9002')?.position).toEqual({ x: 380, y: 0 });
   });
 });

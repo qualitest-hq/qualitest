@@ -28,8 +28,29 @@ describe('buildNodeStagingFieldRows', () => {
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].key).toBe('data.name');
+    expect(rows[0].label).toBe('节点名称');
     expect(rows[0].baselineText).toBe('登录');
     expect(rows[0].draftValue).toBe('登录V2');
+  });
+
+  it('extracts 变更带中文标签且标记为多行', () => {
+    const rows = buildNodeStagingFieldRows(
+      {
+        type: 'http',
+        position: { x: 100, y: 200 },
+        data: { extracts: [{ name: 'a', expr: '$.data.items.cartId' }] },
+      },
+      {
+        type: 'http',
+        position: { x: 100, y: 200 },
+        data: { extracts: [{ name: 'a', expr: "$.data[?(@.cartId=='5001')].cartId" }] },
+      },
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].key).toBe('data.extracts');
+    expect(rows[0].label).toBe('抽取配置');
+    expect(rows[0].multiline).toBe(true);
+    expect(rows[0].draftValue).toContain('\n');
   });
 });
 
@@ -68,6 +89,17 @@ describe('applyStagingFieldToDraft', () => {
       '新名称',
     );
     expect((next.data as Record<string, unknown>).name).toBe('新名称');
+  });
+
+  it('写回 extracts JSON 时还原为对象', () => {
+    const next = applyStagingFieldToDraft(
+      { data: { extracts: [] } },
+      'data.extracts',
+      '[{"from":"body","expr":"$.data[0].cartId","name":"cartId1"}]',
+    );
+    const extracts = (next.data as Record<string, unknown>).extracts as Array<Record<string, string>>;
+    expect(Array.isArray(extracts)).toBe(true);
+    expect(extracts[0].expr).toBe('$.data[0].cartId');
   });
 
   it('写回场景 name 字段', () => {

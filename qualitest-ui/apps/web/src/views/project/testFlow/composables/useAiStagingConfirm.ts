@@ -37,6 +37,13 @@ import {
  */
 let confirmApplyTail: Promise<void> = Promise.resolve();
 
+/**
+ * 已进入 confirm 流程、尚未走到 finally 的 unitId。
+ * 须在首个 await 之前同步登记，避免快速连点时多个 unit 同时通过
+ * `!confirmInFlight` 检查后全部置 inFlight，最终卡死按钮。
+ */
+const confirmEntryLocks = new Set<string>();
+
 /** 将一次 confirm 的完整流程（请求、落盘、入历史、自动保存）排进串行队列 */
 function enqueueConfirmApply<T>(fn: () => Promise<T>): Promise<T> {
   const next = confirmApplyTail.then(() => fn());
@@ -109,144 +116,151 @@ export function useAiStagingConfirm() {
   async function submitConfirmUnit(unitId: string) {
     const unit = stagingStore.getUnit(unitId);
     if (!unit || unit.status !== 'pending' || unit.confirmInFlight) return;
-
-    const patch = stagingStore.getPatchForMessage(unit.messageId);
-    if (!patch) {
-      ElMessage.warning('找不到对应的 AI patch');
-      return;
-    }
-
-    const confirmedIds = new Set(stagingStore.listConfirmedUnitIds());
-    const dependency = resolveStagingConfirmDependency(unitId, patch, confirmedIds);
-    if (dependency.blocked) {
-      ElMessage.warning(dependency.blockTitle);
-      return;
-    }
-
-    stagingStore.setConfirmInFlight(unitId, true);
+    // 同步占坑：必须在任何 await 之前，堵住连点竞态
+    if (confirmEntryLocks.has(unitId)) return;
+    confirmEntryLocks.add(unitId);
 
     try {
-      const deleteOk = await confirmDeleteStagingUnit(unit);
-      if (!deleteOk) return;
-
-      const projectId = store.testProjectId?.trim();
-      if (!projectId) {
-        ElMessage.warning('缺少测试项目 id');
+      const patch = stagingStore.getPatchForMessage(unit.messageId);
+      if (!patch) {
+        ElMessage.warning('找不到对应的 AI patch');
         return;
       }
 
-      await enqueueConfirmApply(async () => {
-        const { result, requestBaseHash, attempts } = await requestConfirmWithAutoRetry(
-          unitId,
-          patch,
-          projectId,
-          stagingStore,
-          store,
-        );
-        const dependencyHints = result.dependencyHints ?? [];
+      const confirmedIds = new Set(stagingStore.listConfirmedUnitIds());
+      const dependency = resolveStagingConfirmDependency(unitId, patch, confirmedIds);
+      if (dependency.blocked) {
+        ElMessage.warning(dependency.blockTitle);
+        return;
+      }
 
-        if (!result.validation.ok || !result.graphJson) {
-          const errors = dependencyHints.length
-            ? dependencyHints
-            : result.validation.errors.length
-              ? result.validation.errors
-              : ['确认失败'];
-          if (attempts > 1 && !dependencyHints.length) {
-            errors.push(`已自动重试 ${attempts} 次`);
-          }
-          markConfirmFailure(
+      stagingStore.setConfirmInFlight(unitId, true);
+
+      try {
+        const deleteOk = await confirmDeleteStagingUnit(unit);
+        if (!deleteOk) return;
+
+        const projectId = store.testProjectId?.trim();
+        if (!projectId) {
+          ElMessage.warning('缺少测试项目 id');
+          return;
+        }
+
+        await enqueueConfirmApply(async () => {
+          const { result, requestBaseHash, attempts } = await requestConfirmWithAutoRetry(
             unitId,
-            dependencyHints,
-            errors,
-            result.validation.warnings,
+            patch,
+            projectId,
+            stagingStore,
+            store,
           );
-          return;
-        }
+          const dependencyHints = result.dependencyHints ?? [];
 
-        const applied = await applyConfirmResultWithHashGuard(
-          unitId,
-          result,
-          requestBaseHash,
-          patch,
-          projectId,
-          stagingStore,
-          store,
-          () => markConfirmFailure(
+          if (!result.validation.ok || !result.graphJson) {
+            const errors = dependencyHints.length
+              ? dependencyHints
+              : result.validation.errors.length
+                ? result.validation.errors
+                : ['确认失败'];
+            if (attempts > 1 && !dependencyHints.length) {
+              errors.push(`已自动重试 ${attempts} 次`);
+            }
+            markConfirmFailure(
+              unitId,
+              dependencyHints,
+              errors,
+              result.validation.warnings,
+            );
+            return;
+          }
+
+          const applied = await applyConfirmResultWithHashGuard(
             unitId,
-            undefined,
-            ['画布在确认期间已变更，请再次点击确认或重试'],
-          ),
-        );
-        if (!applied) {
-          return;
-        }
+            result,
+            requestBaseHash,
+            patch,
+            projectId,
+            stagingStore,
+            store,
+            () => markConfirmFailure(
+              unitId,
+              undefined,
+              ['画布在确认期间已变更，请再次点击确认或重试'],
+            ),
+          );
+          if (!applied) {
+            return;
+          }
 
-        stagingStore.markConfirmed(unitId);
-        recordStagingUnitConfirmed(unit.messageId, unitId);
+          stagingStore.markConfirmed(unitId);
+          recordStagingUnitConfirmed(unit.messageId, unitId);
 
-        if (unit.kind === 'deleteNode') {
-          rejectRelatedAddEdges(unit.messageId, objectIdFromUnitId(unitId));
-        }
+          if (unit.kind === 'deleteNode') {
+            rejectRelatedAddEdges(unit.messageId, objectIdFromUnitId(unitId));
+          }
 
-        const fitIds = collectStagingConfirmHighlightIds(unitId, unit.kind, store.edges);
-        if (fitIds.length) {
-          store.addAiConfirmHighlight(fitIds);
-        }
-        maybeFinalizeStagingHighlight();
+          const fitIds = collectStagingConfirmHighlightIds(unitId, unit.kind, store.edges);
+          if (fitIds.length) {
+            store.addAiConfirmHighlight(fitIds);
+          }
+          maybeFinalizeStagingHighlight();
 
-        // --- 视口聚焦编排：等画布稳定 → 聚焦下一单元 → 等动画结束 → 入撤销栈 ---
-        // 必须在节点尺寸测量与边灌入完成后再移动视角，否则后续布局变化会干扰视口。
-        await viewport.waitForCanvasReady();
+          // --- 视口聚焦编排：等画布稳定 → 聚焦下一单元 → 等动画结束 → 入撤销栈 ---
+          // 必须在节点尺寸测量与边灌入完成后再移动视角，否则后续布局变化会干扰视口。
+          await viewport.waitForCanvasReady();
 
-        const confirmedIds = new Set(stagingStore.listConfirmedUnitIds());
-        // 优先聚焦同消息内下一个待确认单元（节点→连线→节点顺序）
-        let nextUnit = resolveNextStagingFocusUnit(
-          unit,
-          patch,
-          stagingStore.listUnitsForMessage(unit.messageId),
-          confirmedIds,
-          store.edges,
-        );
-        // 本消息已无图单元时，退而聚焦全局第一个 pending 图单元
-        if (!nextUnit) {
-          nextUnit = findFirstPendingGraphUnit(Object.values(stagingStore.unitsById));
-        }
-        if (nextUnit) {
-          const patchForNext = stagingStore.getPatchForMessage(nextUnit.messageId);
-          const nodeIds = collectStagingConfirmHighlightIds(
-            nextUnit.unitId,
-            nextUnit.kind,
+          const confirmedIds = new Set(stagingStore.listConfirmedUnitIds());
+          // 优先聚焦同消息内下一个待确认单元（节点→连线→节点顺序）
+          let nextUnit = resolveNextStagingFocusUnit(
+            unit,
+            patch,
+            stagingStore.listUnitsForMessage(unit.messageId),
+            confirmedIds,
             store.edges,
-            patchForNext,
           );
-          if (nodeIds.length) {
-            await viewport.focusNodeIds(nodeIds);
+          // 本消息已无图单元时，退而聚焦全局第一个 pending 图单元
+          if (!nextUnit) {
+            nextUnit = findFirstPendingGraphUnit(Object.values(stagingStore.unitsById));
           }
-        } else if (store.aiHighlightNodeIds.length) {
-          // 无下一单元但仍有紫色高亮时，保持当前高亮区域在视野内
-          await viewport.focusNodeIds([...store.aiHighlightNodeIds]);
-        }
+          if (nextUnit) {
+            const patchForNext = stagingStore.getPatchForMessage(nextUnit.messageId);
+            const nodeIds = collectStagingConfirmHighlightIds(
+              nextUnit.unitId,
+              nextUnit.kind,
+              store.edges,
+              patchForNext,
+            );
+            if (nodeIds.length) {
+              await viewport.focusNodeIds(nodeIds);
+            }
+          } else if (store.aiHighlightNodeIds.length) {
+            // 无下一单元但仍有紫色高亮时，保持当前高亮区域在视野内
+            await viewport.focusNodeIds([...store.aiHighlightNodeIds]);
+          }
 
-        // 动画结束后再 pushHistory，确保撤销栈记录的是最终视口
-        await viewport.waitForViewportSettled();
-        pushHistory();
+          // 动画结束后再 pushHistory，确保撤销栈记录的是最终视口
+          await viewport.waitForViewportSettled();
+          pushHistory();
 
-        await maybeAutoSaveAfterConfirm();
-        if (attempts > 1) {
-          ElMessage.success(`已确认变更（第 ${attempts} 次尝试成功）`);
-        } else {
-          ElMessage.success('已确认变更');
-        }
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '确认请求失败';
-      markConfirmFailure(
-        unitId,
-        undefined,
-        [message, `已自动重试 ${CONFIRM_UNIT_AUTO_RETRY_MAX} 次`],
-      );
+          await maybeAutoSaveAfterConfirm();
+          if (attempts > 1) {
+            ElMessage.success(`已确认变更（第 ${attempts} 次尝试成功）`);
+          } else {
+            ElMessage.success('已确认变更');
+          }
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '确认请求失败';
+        markConfirmFailure(
+          unitId,
+          undefined,
+          [message, `已自动重试 ${CONFIRM_UNIT_AUTO_RETRY_MAX} 次`],
+        );
+      } finally {
+        stagingStore.setConfirmInFlight(unitId, false);
+      }
     } finally {
-      stagingStore.setConfirmInFlight(unitId, false);
+      confirmEntryLocks.delete(unitId);
     }
   }
 

@@ -100,6 +100,12 @@
               </template>
               <template #extra>
                 <div
+                    v-if="shouldShowExplainOnlyHint(msg as AiDesignMessageView, streamingMessageId)"
+                    class="ai-design-explain-only"
+                >
+                  本轮未提交画布修改（无 Staging）。若本意是改节点/断言，请点重新生成，或更明确写出要改的节点。
+                </div>
+                <div
                     v-if="shouldShowStagingSummary(msg as AiDesignMessageView)"
                     class="ai-design-staging-extra"
                 >
@@ -186,7 +192,7 @@ import AiMentionComposer from './AiMentionComposer.vue';
 import AiPromptTemplateStrip from '@/components/ai/AiPromptTemplateStrip.vue';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import type { AiDesignMessageView, AiDesignSystemAction } from '../types/aiDesignTypes';
-import { shouldShowStagingSummary } from '../utils/stagingMessage';
+import { shouldShowExplainOnlyHint, shouldShowStagingSummary } from '../utils/stagingMessage';
 
 const store = useFlowCanvasStore();
 const { saveFlow } = useFlowGraph();
@@ -440,6 +446,17 @@ function close() {
   font-size: 13px;
   color: var(--pd-text-secondary);
   padding: 8px 0;
+}
+
+.ai-design-explain-only {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, #d97706 35%, var(--pd-border-subtle));
+  background: color-mix(in srgb, #d97706 10%, var(--pd-surface-elevated));
+  font-size: 12px;
+  line-height: 1.45;
+  color: #92400e;
 }
 
 /* el-select 下拉 teleported 到 body，需高于侧栏 */

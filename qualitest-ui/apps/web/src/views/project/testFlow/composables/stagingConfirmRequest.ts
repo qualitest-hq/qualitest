@@ -105,17 +105,57 @@ export async function requestConfirmOnce(
   return { result, requestBaseHash, graphInput };
 }
 
-/** 将服务端返回的 graph_json 写入画布 store，保留用户当前视口不变 */
+/**
+ * 确认落盘时保留仍 pending 的 Staging 增项。
+ *
+ * 单单元 confirm 的 graph_json 不含其它未确认 addNode/addEdge；若整表替换画布，
+ * 未确认节点会在 inFlight 期间短暂消失，配合视口聚焦会看起来像「节点平移」。
+ */
+export function mergePendingStagingIntoConfirmedGraph(
+  applied: ReturnType<typeof fromGraphJson>,
+  canvasStore: ReturnType<typeof useFlowCanvasStore>,
+  stagingStore: ReturnType<typeof useAiStagingStore>,
+) {
+  const confirmedNodeIds = new Set(applied.nodes.map((n) => n.id));
+  const confirmedEdgeIds = new Set(applied.edges.map((e) => e.id));
+
+  const pendingNodeIds = new Set<string>();
+  const pendingEdgeIds = new Set<string>();
+  for (const unit of Object.values(stagingStore.unitsById)) {
+    if (unit.status !== 'pending') continue;
+    if (unit.kind === 'addNode') {
+      pendingNodeIds.add(objectIdFromUnitId(unit.unitId));
+    } else if (unit.kind === 'addEdge') {
+      pendingEdgeIds.add(objectIdFromUnitId(unit.unitId));
+    }
+  }
+
+  const preservedNodes = canvasStore.nodes.filter(
+    (n) => pendingNodeIds.has(n.id) && !confirmedNodeIds.has(n.id),
+  );
+  const preservedEdges = canvasStore.edges.filter(
+    (e) => pendingEdgeIds.has(e.id) && !confirmedEdgeIds.has(e.id),
+  );
+
+  return {
+    nodes: [...applied.nodes, ...preservedNodes],
+    edges: [...applied.edges, ...preservedEdges],
+  };
+}
+
+/** 将服务端返回的 graph_json 写入画布 store，保留用户当前视口与未确认 Staging */
 export async function applyConfirmedGraph(
   graphJson: NonNullable<ConfirmRequestResult['graphJson']>,
   canvasStore: ReturnType<typeof useFlowCanvasStore>,
+  stagingStore: ReturnType<typeof useAiStagingStore> = useAiStagingStore(),
 ) {
   // 进入灌入模式：暂停脏标记，避免中间态触发「未保存」
   canvasStore.beginCanvasHydration();
   const applied = fromGraphJson(graphJson);
+  const merged = mergePendingStagingIntoConfirmedGraph(applied, canvasStore, stagingStore);
   // 先写 nodes，边暂存 pendingEdges，待节点就绪后由灌入逻辑写入
-  canvasStore.setPendingEdges(applied.edges);
-  canvasStore.nodes = applied.nodes;
+  canvasStore.setPendingEdges(merged.edges);
+  canvasStore.nodes = merged.nodes;
   canvasStore.edges = [];
   canvasStore.runConfig = applied.runConfig;
   canvasStore.flowOutputs = applied.flowOutputs;
@@ -159,10 +199,10 @@ export async function applyConfirmResultWithHashGuard(
       onHashConflict();
       return false;
     }
-    await applyConfirmedGraph(retry.result.graphJson, canvasStore);
+    await applyConfirmedGraph(retry.result.graphJson, canvasStore, stagingStore);
     return true;
   }
 
-  await applyConfirmedGraph(result.graphJson, canvasStore);
+  await applyConfirmedGraph(result.graphJson, canvasStore, stagingStore);
   return true;
 }

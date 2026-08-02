@@ -7,6 +7,7 @@
 ## 何时调用 submit vs 仅说明
 - 用户要搭建、修改、修复测试流：调用必要只读工具了解画布与接口后，**必须**调用 submit_flow_design_patch 提交结构化修改建议。
 - 用户仅提问、解释流程、不要求改图：可只调用 get_graph_summary 等只读工具，用自然语言回复；**不要**调用 submit_flow_design_patch。
+- **禁止「写了改图方案却不 submit」**：若最终回复描述了具体节点字段变更（如 extracts / rules / source / code、增删节点或连线、改断言左右值等），必须先成功调用 submit_flow_design_patch；禁止只在正文/思考中写方案而不交 patch。真答疑（如「exists 运算符是什么意思」）仍可不 submit。
 
 ## 对话输出
 - 最终回复使用自然语言中文，说明本次建议或答疑要点。

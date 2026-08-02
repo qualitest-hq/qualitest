@@ -5,7 +5,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { boundsFromNodeIds } from '@/views/project/testFlow/utils/stagingViewportFocus';
+import {
+  boundsFromNodeIds,
+  isBoundsVisibleInViewport,
+} from '@/views/project/testFlow/utils/stagingViewportFocus';
 
 describe('stagingViewportFocus', () => {
   it('boundsFromNodeIds 计算包围盒', () => {
@@ -39,5 +42,35 @@ describe('stagingViewportFocus', () => {
       width: 700,
       height: 208,
     });
+  });
+
+  it('isBoundsVisibleInViewport：与视野相交为 true，完全偏出为 false', () => {
+    // 前提：视口覆盖 flow (0,0)-(800,600)，目标部分在视野内 / 远在右侧
+    // 期望：相交可见，完全偏出不可见
+    const viewport = { x: 0, y: 0, zoom: 1 };
+    const visible = isBoundsVisibleInViewport(
+      { x: 100, y: 100, width: 300, height: 108 },
+      viewport,
+      800,
+      600,
+      { marginPx: 0 },
+    );
+    const partial = isBoundsVisibleInViewport(
+      { x: 700, y: 100, width: 300, height: 108 },
+      viewport,
+      800,
+      600,
+      { marginPx: 0 },
+    );
+    const offscreen = isBoundsVisibleInViewport(
+      { x: 2000, y: 100, width: 300, height: 108 },
+      viewport,
+      800,
+      600,
+      { marginPx: 0 },
+    );
+    expect(visible).toBe(true);
+    expect(partial).toBe(true);
+    expect(offscreen).toBe(false);
   });
 });

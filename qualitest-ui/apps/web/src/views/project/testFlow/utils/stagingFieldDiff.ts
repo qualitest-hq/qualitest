@@ -7,6 +7,8 @@ export interface StagingFieldRow {
   label: string;
   baselineText: string;
   draftValue: string;
+  /** 对象 / 长文本用多行编辑，避免 JSON 挤在单行 input */
+  multiline?: boolean;
 }
 
 const NODE_DATA_LABELS: Record<string, string> = {
@@ -16,6 +18,10 @@ const NODE_DATA_LABELS: Record<string, string> = {
   callMode: '调用模式',
   summary: '摘要',
   script: '脚本',
+  source: '脚本 source',
+  code: '脚本 code',
+  extracts: '抽取配置',
+  rules: '断言规则',
   expression: '表达式',
   waitMs: '等待(ms)',
   remark: '备注',
@@ -23,12 +29,30 @@ const NODE_DATA_LABELS: Record<string, string> = {
 
 function formatDisplayValue(value: unknown): string {
   if (value === undefined || value === null) return '';
-  if (typeof value === 'object') return JSON.stringify(value);
+  if (typeof value === 'object') return JSON.stringify(value, null, 2);
   return String(value);
+}
+
+function isMultilineValue(value: unknown, text: string): boolean {
+  if (value !== null && typeof value === 'object') return true;
+  return text.includes('\n') || text.length > 72;
 }
 
 function valuesEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** 现值框里的 JSON 文本写回对象；解析失败则保留原字符串 */
+function parseJsonOrRaw(rawValue: string): unknown {
+  const trimmed = rawValue.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return rawValue;
+  }
+  try {
+    return JSON.parse(rawValue);
+  } catch {
+    return rawValue;
+  }
 }
 
 function pushRow(
@@ -39,11 +63,16 @@ function pushRow(
   draftValue: unknown,
 ) {
   if (valuesEqual(baselineValue, draftValue)) return;
+  const baselineText = formatDisplayValue(baselineValue);
+  const draftText = formatDisplayValue(draftValue);
   rows.push({
     key,
     label,
-    baselineText: formatDisplayValue(baselineValue),
-    draftValue: formatDisplayValue(draftValue),
+    baselineText,
+    draftValue: draftText,
+    multiline:
+      isMultilineValue(baselineValue, baselineText)
+      || isMultilineValue(draftValue, draftText),
   });
 }
 
@@ -170,7 +199,7 @@ export function applyStagingFieldToDraft(
   if (fieldKey.startsWith('data.')) {
     const field = fieldKey.slice(5);
     const data = { ...((next.data as Record<string, unknown> | undefined) ?? {}) };
-    data[field] = rawValue;
+    data[field] = parseJsonOrRaw(rawValue);
     next.data = data;
     return next;
   }
@@ -181,11 +210,7 @@ export function applyStagingFieldToDraft(
   }
 
   if (fieldKey === 'flowSeed') {
-    try {
-      next.flowSeed = JSON.parse(rawValue);
-    } catch {
-      next.flowSeed = rawValue;
-    }
+    next.flowSeed = parseJsonOrRaw(rawValue);
     return next;
   }
 

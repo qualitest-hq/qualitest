@@ -24,7 +24,7 @@ import {
   resolveAiDockOverlapPx,
   resolveStagingFocusZoom,
 } from '../utils/stagingFocusTransform';
-import { boundsFromNodeIds } from '../utils/stagingViewportFocus';
+import { boundsFromNodeIds, isBoundsVisibleInViewport } from '../utils/stagingViewportFocus';
 
 /** Staging 聚焦与 fitView 的默认动画时长（毫秒） */
 const STAGING_ANIM_MS = 320;
@@ -142,9 +142,13 @@ export function useFlowViewport() {
   /**
    * 将视口平移到指定节点（或连线两端节点）所在区域。
    * 在扣除 AI 侧栏后的可见区内居中；缩放只缩小不放大，上限默认 90%。
+   * @param options.onlyIfOffscreen 目标已在可见区内时跳过平移（Staging 连续确认默认开启）
    * @returns 是否成功计算出目标并应用视口
    */
-  async function focusNodeIds(nodeIds: string[], options?: { zoomCap?: number }) {
+  async function focusNodeIds(
+    nodeIds: string[],
+    options?: { zoomCap?: number; onlyIfOffscreen?: boolean },
+  ) {
     if (!nodeIds.length) return false;
 
     const bounds = boundsFromNodeIds(nodeIds, store.nodes);
@@ -152,13 +156,22 @@ export function useFlowViewport() {
     const paneH = dimensions.value.height;
     if (!bounds || paneW <= 0 || paneH <= 0) return false;
 
+    const dockOverlapPx = resolveDockOverlap();
+    // 总览缩放或目标已在视野内：不再自动平移（连续确认时整图滑动极易被当成「节点在跑」）
+    if (options?.onlyIfOffscreen !== false) {
+      if (store.viewport.zoom <= 0.4) return false;
+      if (isBoundsVisibleInViewport(bounds, store.viewport, paneW, paneH, { dockOverlapPx })) {
+        return false;
+      }
+    }
+
     const cap = options?.zoomCap ?? STAGING_FOCUS_ZOOM;
     const zoom = resolveStagingFocusZoom(store.viewport.zoom, cap);
     const vp = computeStagingFocusViewport({
       bounds,
       paneWidth: paneW,
       paneHeight: paneH,
-      dockOverlapPx: resolveDockOverlap(),
+      dockOverlapPx,
       zoom,
     });
     await applyViewport(vp);

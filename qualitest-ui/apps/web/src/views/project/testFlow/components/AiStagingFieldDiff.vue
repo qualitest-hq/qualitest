@@ -12,15 +12,29 @@
     <table v-if="fieldRows.length" class="ai-staging-field-diff__table">
       <thead>
         <tr>
+          <th class="ai-staging-field-diff__col-field">字段</th>
           <th>原值</th>
           <th>现值（可编辑）</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="row in fieldRows" :key="row.key">
-          <td class="ai-staging-field-diff__baseline">{{ row.baselineText || '—' }}</td>
+          <td class="ai-staging-field-diff__field">{{ row.label }}</td>
+          <td class="ai-staging-field-diff__baseline">
+            <pre v-if="row.multiline" class="ai-staging-field-diff__pre">{{ row.baselineText || '—' }}</pre>
+            <span v-else>{{ row.baselineText || '—' }}</span>
+          </td>
           <td>
+            <textarea
+                v-if="row.multiline"
+                :value="row.draftValue"
+                class="ai-staging-field-diff__input ai-staging-field-diff__input--multiline"
+                rows="6"
+                spellcheck="false"
+                @input="onFieldInput(row.key, $event)"
+            />
             <input
+                v-else
                 :value="row.draftValue"
                 class="ai-staging-field-diff__input"
                 type="text"
@@ -178,9 +192,32 @@ function onFieldInput(fieldKey, event) {
   }
 }
 
+.ai-staging-field-diff__col-field {
+  width: 22%;
+}
+
+.ai-staging-field-diff__field {
+  font-weight: 600;
+  color: var(--pd-text);
+  word-break: break-word;
+}
+
 .ai-staging-field-diff__baseline {
   color: var(--pd-text-muted);
-  max-width: 42%;
+  max-width: 34%;
+  word-break: break-all;
+}
+
+.ai-staging-field-diff__pre,
+.ai-staging-field-diff__input--multiline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.ai-staging-field-diff__pre {
+  margin: 0;
+  white-space: pre-wrap;
   word-break: break-all;
 }
 
@@ -199,6 +236,11 @@ function onFieldInput(fieldKey, event) {
     outline: none;
     border-color: #0b6edc;
     box-shadow: 0 0 0 1px #0b6edc inset;
+  }
+
+  &--multiline {
+    min-height: 96px;
+    resize: vertical;
   }
 }
 </style>
