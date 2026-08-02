@@ -6,6 +6,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.util.ApiConfigBodyModes;
 import com.qualitest.project.domain.TestProjectApi;
 
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 
@@ -148,6 +149,24 @@ public final class FlowDesignApiSummarizer {
             // ignore
         }
         return summary;
+    }
+
+    /**
+     * 首个响应 schema 的叶路径集合（去空白）；无 schema 时为空集。
+     * 供断言门禁 / extract 健康检查做路径比对。
+     */
+    public static Set<String> summarizeResponsePaths(String responseConfig) {
+        JSONObject summary = summarizeResponse(responseConfig);
+        if (summary == null || summary.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> paths = new LinkedHashSet<>();
+        for (String path : summary.keySet()) {
+            if (path != null && !path.isBlank()) {
+                paths.add(path.trim());
+            }
+        }
+        return paths;
     }
 
     /**

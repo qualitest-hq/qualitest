@@ -76,6 +76,35 @@ public final class FlowDesignPatchUnitIds {
         return false;
     }
 
+    /**
+     * 断言试算预览用的 acceptedIds：未拒绝的 add/update 节点与边（不含 delete*）。
+     */
+    public static Set<String> assertPreviewAcceptedIds(
+            FlowDesignPatch patch,
+            Set<String> rejectedUnitIds,
+            String confirmingUnitId) {
+        Set<String> accepted = new LinkedHashSet<>();
+        for (String id : enumerate(patch)) {
+            if (id == null || id.isBlank() || id.startsWith("delete")) {
+                continue;
+            }
+            if (!(id.startsWith("addNode:")
+                    || id.startsWith("updateNode:")
+                    || id.startsWith("addEdge:")
+                    || id.startsWith("updateEdge:"))) {
+                continue;
+            }
+            if (rejectedUnitIds != null && rejectedUnitIds.contains(id)) {
+                continue;
+            }
+            accepted.add(id);
+        }
+        if (confirmingUnitId != null && !confirmingUnitId.isBlank()) {
+            accepted.add(confirmingUnitId.trim());
+        }
+        return accepted;
+    }
+
     private static void addNodes(Set<String> unitIds, List<GraphNode> nodes, String prefix) {
         if (nodes == null) {
             return;

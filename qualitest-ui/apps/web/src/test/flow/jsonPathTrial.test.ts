@@ -1,5 +1,5 @@
 /**
- * 属性面板 JsonPath 试算：未命中判定、响应示例提取、上游 HTTP 回溯、断言左值预览。
+ * 属性面板 JsonPath 试算 + 设计期 schema 门禁。
  * 单跑：yarn test jsonPathTrial
  */
 import { describe, expect, it } from 'vitest';
@@ -7,9 +7,11 @@ import { describe, expect, it } from 'vitest';
 import {
   collectAssertPathDesignErrors,
   extractResponseExample,
+  extractResponseSchemaPaths,
   findUpstreamProjectHttpNode,
   isTrialMissPreview,
   isTrialMissValue,
+  pathMatchesSchema,
   previewAssertLeft,
   resolveTrialApiId,
 } from '@/views/project/testFlow/utils/jsonPathTrial';
@@ -20,6 +22,32 @@ const cartBody = {
   data: [{ cartId: '5001', quantity: 3, subtotal: 147 }],
 };
 
+const cartResponseConfig = JSON.stringify({
+  responses: [
+    {
+      id: 'r1',
+      schema: {
+        type: 'object',
+        properties: {
+          code: { type: 'integer' },
+          data: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                cartId: { type: 'integer' },
+                quantity: { type: 'integer' },
+                subtotal: { type: 'number' },
+              },
+            },
+          },
+        },
+      },
+      example: { code: 0, data: [{ cartId: 0, quantity: 0, subtotal: 0 }] },
+    },
+  ],
+});
+
 describe('jsonPathTrial design gate helpers', () => {
   it('isTrialMissValue 识别 undefined / null / []', () => {
     expect(isTrialMissValue(undefined)).toBe(true);
@@ -29,7 +57,7 @@ describe('jsonPathTrial design gate helpers', () => {
     expect(isTrialMissValue([3])).toBe(false);
   });
 
-  it('误写 data.items 试算为空；正确过滤器能取出 quantity', () => {
+  it('软试算：误写 data.items 为空；正确过滤器能取出 quantity', () => {
     const bad = previewAssertLeft(cartBody, "http.body.data.items[?(@.cartId=='5001')].quantity");
     const good = previewAssertLeft(cartBody, "http.body.data[?(@.cartId=='5001')].quantity");
     expect(isTrialMissPreview(bad)).toBe(true);
@@ -46,6 +74,13 @@ describe('jsonPathTrial design gate helpers', () => {
     expect(example).toEqual(cartBody);
   });
 
+  it('extractResponseSchemaPaths / pathMatchesSchema 认过滤器', () => {
+    const paths = extractResponseSchemaPaths(cartResponseConfig);
+    expect(paths.some((p) => p.includes('quantity'))).toBe(true);
+    expect(pathMatchesSchema("data[?(@.cartId=='5001')].quantity", paths)).toBe(true);
+    expect(pathMatchesSchema('data[0].notAField', paths)).toBe(false);
+  });
+
   it('findUpstreamProjectHttpNode / resolveTrialApiId 能回溯到上游接口 id', () => {
     const nodes = [
       { id: 'h1', type: 'http', data: { testProjectApiId: '99', callMode: 'project' } },
@@ -57,7 +92,7 @@ describe('jsonPathTrial design gate helpers', () => {
     expect(resolveTrialApiId(nodes[0], nodes, edges)).toBe('99');
   });
 
-  it('collectAssertPathDesignErrors 对空试算硬拦；无 example 跳过', () => {
+  it('collectAssertPathDesignErrors：.items 硬拦；过滤器不因占位 example 失败；无 schema 跳过', () => {
     const graph = {
       nodes: [
         { id: 'h1', type: 'http', data: { testProjectApiId: '99', callMode: 'project' } },
@@ -69,12 +104,30 @@ describe('jsonPathTrial design gate helpers', () => {
             rules: [{ left: "http.body.data.items[?(@.cartId=='5001')].quantity", operator: 'eq', right: '3' }],
           },
         },
+        {
+          id: 'a2',
+          type: 'assert',
+          data: {
+            name: '好断言',
+            rules: [{ left: "http.body.data[?(@.cartId=='5001')].quantity", operator: 'eq', right: '3' }],
+          },
+        },
       ],
-      edges: [{ id: 'e1', source: 'h1', target: 'a1' }],
+      edges: [
+        { id: 'e1', source: 'h1', target: 'a1' },
+        { id: 'e2', source: 'h1', target: 'a2' },
+      ],
     };
-    const hit = collectAssertPathDesignErrors(graph, new Map([['99', cartBody]]));
-    expect(hit.some((e) => e.includes('试算未命中'))).toBe(true);
-    const skip = collectAssertPathDesignErrors(graph, new Map());
-    expect(skip).toHaveLength(0);
+    const schemaPaths = extractResponseSchemaPaths(cartResponseConfig);
+    const hit = collectAssertPathDesignErrors(graph, new Map([['99', schemaPaths]]));
+    expect(hit.some((e) => e.includes('.items'))).toBe(true);
+    expect(hit.some((e) => e.includes('好断言'))).toBe(false);
+
+    const goodOnly = {
+      nodes: [graph.nodes[0], graph.nodes[2]],
+      edges: [graph.edges[1]],
+    };
+    expect(collectAssertPathDesignErrors(goodOnly, new Map([['99', schemaPaths]]))).toHaveLength(0);
+    expect(collectAssertPathDesignErrors(graph, new Map())).toHaveLength(0);
   });
 });

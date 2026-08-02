@@ -1,6 +1,6 @@
 /**
  * 测试流持久化读写：对接后端 testFlow API，与 flowCanvasStore 同步。
- * 保存前执行图结构校验与断言路径试算门禁，errors 阻断提交。
+ * 保存前执行图结构校验与断言路径 schema 门禁，errors 阻断提交。
  */
 import { nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -16,7 +16,7 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import {
   collectAssertPathDesignErrors,
-  extractResponseExample,
+  extractResponseSchemaPaths,
   resolveTrialApiId,
 } from '../utils/jsonPathTrial';
 
@@ -210,7 +210,7 @@ export function useFlowGraph() {
   return { loadFlow, saveFlow, importGraph };
 }
 
-/** 拉取 assert/condition 上游接口响应示例，做保存前路径试算门禁 */
+/** 拉取 assert/condition 上游接口响应 schema，做保存前路径门禁（example 不参与硬拦） */
 async function loadAssertPathDesignErrors(graph: {
   nodes?: Array<Record<string, unknown>>;
   edges?: Array<Record<string, unknown>>;
@@ -228,17 +228,17 @@ async function loadAssertPathDesignErrors(graph: {
     );
     if (apiId) apiIds.add(apiId);
   }
-  const exampleByApiId = new Map<string, unknown>();
+  const schemaPathsByApiId = new Map<string, string[]>();
   await Promise.all(
     [...apiIds].map(async (apiId) => {
       try {
         const res = await getTestProjectApi(apiId);
         const detail = res?.data ?? res;
-        exampleByApiId.set(apiId, extractResponseExample(detail?.responseConfig));
+        schemaPathsByApiId.set(apiId, extractResponseSchemaPaths(detail?.responseConfig));
       } catch {
-        exampleByApiId.set(apiId, undefined);
+        schemaPathsByApiId.set(apiId, []);
       }
     }),
   );
-  return collectAssertPathDesignErrors(graph, exampleByApiId);
+  return collectAssertPathDesignErrors(graph, schemaPathsByApiId);
 }

@@ -71,7 +71,7 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 
 购物车「是否含某 cartId」推荐：`http.body.data[?(@.cartId=='5001')]` + `exists`（若 `data` 直接是数组；勿写成 `data.items[…]`）。
 
-设计期：Staging ✓ / AI submit / **保存** 会用上游接口响应示例试算 `http.body…` 左值，空或 `[]` 则硬拦；属性面板无 Run 时也可对照接口示例试算（空结果标红）。无上游 project HTTP / 无 example 时跳过不报错。正式 **Run** 只跑图结构校验，不对示例缺失的错路径做设计期试算硬拦。
+设计期：Staging ✓ 确认 **assert/condition 节点**时，会在含尚未确认 Staging 上下游的**预览图**上按上游接口**响应 schema** 校验 `http.body…` 左值（禁 `.items`；过滤器与 `data[*].字段` 对齐）；预览图仍无上游 project HTTP 则硬拦。错误挂在该断言/条件单元，**不会**因路径问题拦住边确认。AI submit / **保存** 仍对全图跑同一门禁。响应 **example 只给人看**，属性面板可对照 example 软试算（空结果标红），**不参与硬拦**。无 schema 时跳过不报错。正式 **Run** 只跑图结构校验。
 
 ---
 

@@ -37,7 +37,8 @@ import java.util.Set;
  *   <li>依赖校验（如 addEdge 须先 confirm 端点 addNode）</li>
  *   <li>按 unitId 过滤出单单元增量子集并合并到 graph_json 副本</li>
  *   <li>运行全图结构校验，汇总 errors 与 warnings</li>
- *   <li>用上游接口响应示例试算 assert/condition 的 http.body 左值；未命中则确认失败</li>
+ *   <li>仅当确认 assert/condition 节点时：在含 pending Staging 的预览图上按 schema 校验该节点 http.body 左值；
+ *       边及其它单元确认不跑断言门禁（避免错误挂在边上）</li>
  * </ol>
  * 不写库；成功时返回 graphJson 供前端落盘并清除 Staging 标记。
  */
@@ -104,8 +105,9 @@ public class FlowDesignPatchConfirmService {
         List<String> allWarnings = new ArrayList<>(warnings);
         allWarnings.addAll(validation.getWarnings());
 
-        // 设计期门禁：上游接口响应示例上试算 http.body 左值，空/[] 则不允许 Staging 确认
-        List<String> assertGateErrors = AssertPathDesignGate.validate(merged, this::loadApi);
+        // 断言门禁：仅拦正在确认的 assert/condition；预览图含未拒绝的 pending 节点/边（schema 校验）
+        List<String> assertGateErrors = collectScopedAssertGateErrors(
+                baseGraph, patch, unitId, rejectedUnitIds, request.getDraftOverride(), warnings);
         List<String> allErrors = new ArrayList<>(validation.getErrors());
         allErrors.addAll(assertGateErrors);
         boolean ok = allErrors.isEmpty();
@@ -139,6 +141,76 @@ public class FlowDesignPatchConfirmService {
             return null;
         }
         return testProjectApiMapper.selectTestProjectApiById(apiId);
+    }
+
+    /**
+     * 仅当 unit 为 assert/condition 的 add/updateNode 时跑断言门禁（schema，非 example 试算）。
+     * 预览图 = base ∪ 未拒绝的 add/update 节点与边（不含 delete），用于找上游；错误只归属本节点。
+     */
+    private List<String> collectScopedAssertGateErrors(
+            GraphJson baseGraph,
+            FlowDesignPatch patch,
+            String unitId,
+            Set<String> rejectedUnitIds,
+            Object draftOverride,
+            List<String> warnings) {
+        GraphNode target = resolveConfirmingAssertOrConditionNode(baseGraph, patch, unitId);
+        if (target == null || target.getId() == null) {
+            return List.of();
+        }
+        Set<String> previewIds = FlowDesignPatchUnitIds.assertPreviewAcceptedIds(patch, rejectedUnitIds, unitId);
+        GraphJson previewBase = FlowDesignPatchMerger.cloneGraph(baseGraph);
+        List<String> previewWarnings = new ArrayList<>();
+        GraphJson previewGraph = patchMerger.merge(previewBase, patch, previewIds, previewWarnings);
+        // merge 对「画布已注入的 add 节点」可能跳过；再叠一次 draft，与正式 confirm 路径一致
+        applyUnitDraftToGraph(previewGraph, patch, unitId, draftOverride);
+        if (warnings != null && !previewWarnings.isEmpty()) {
+            warnings.addAll(previewWarnings);
+        }
+        return AssertPathDesignGate.validate(previewGraph, this::loadApi, Set.of(target.getId()));
+    }
+
+    /**
+     * 当前确认单元若是 assert/condition 的 addNode/updateNode，返回 patch 中的节点；否则 null。
+     * updateNode 缺 type 时回落基准图节点 type。
+     */
+    private static GraphNode resolveConfirmingAssertOrConditionNode(
+            GraphJson baseGraph,
+            FlowDesignPatch patch,
+            String unitId) {
+        if (unitId == null || patch == null) {
+            return null;
+        }
+        boolean add = unitId.startsWith("addNode:");
+        boolean update = unitId.startsWith("updateNode:");
+        if (!add && !update) {
+            return null;
+        }
+        String nodeId = unitId.substring(unitId.indexOf(':') + 1).trim();
+        if (nodeId.isEmpty()) {
+            return null;
+        }
+        List<GraphNode> candidates = add ? patch.getAddNodes() : patch.getUpdateNodes();
+        if (candidates == null) {
+            return null;
+        }
+        for (GraphNode node : candidates) {
+            if (node == null || !nodeId.equals(node.getId())) {
+                continue;
+            }
+            String type = node.getType() != null ? node.getType().trim().toLowerCase() : "";
+            if (type.isEmpty() && baseGraph != null) {
+                GraphNode existing = GraphLookupUtils.findNode(baseGraph.getNodes(), nodeId);
+                if (existing != null && existing.getType() != null) {
+                    type = existing.getType().trim().toLowerCase();
+                }
+            }
+            if ("assert".equals(type) || "condition".equals(type)) {
+                return node;
+            }
+            return null;
+        }
+        return null;
     }
 
     private static FlowDesignPatchConfirmResult failureResult(

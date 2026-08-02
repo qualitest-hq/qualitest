@@ -3,9 +3,10 @@
  *
  * 职责：
  * 1. 从选中 Run 的步骤里取出最近一次 HTTP 响应 body
- * 2. 从接口 responseConfig 取出首个响应 example，供尚未 Run 时试算
+ * 2. 从接口 responseConfig 取出首个响应 example，供尚未 Run 时软试算展示
  * 3. 按画布边回溯上游 project HTTP，解析试算用的 testProjectApiId
  * 4. 把断言左值 / 提取表达式格式化成「试算：…」展示文案，并判断是否未命中
+ * 5. 保存前路径门禁：按响应 schema 校验（example 不参与硬拦）
  */
 import type { Edge, Node } from '@vue-flow/core';
 
@@ -214,13 +215,111 @@ export function previewAssertLeft(trialBody: unknown, left: string): string {
   return formatTrialResult(result.value);
 }
 
+/** 路径段 items：JSON Schema 关键字，断言左值不应出现（与后端 AssertPathDesignGate 一致） */
+const SCHEMA_ITEMS_SEGMENT = /(^|\.)items(\.|\[|$)/;
+
 /**
- * 保存前设计期断言路径门禁（与后端 AssertPathDesignGate 文案对齐）。
- * exampleByApiId 无条目或值为 undefined 时跳过该节点（与后端「无 example 不报错」一致）。
+ * 从 responseConfig 收集首个响应 schema 的叶路径（如 data[*].quantity）。
+ * 无 schema 时返回空数组。
+ */
+export function extractResponseSchemaPaths(responseConfig: unknown): string[] {
+  const { ok, bundle } = parseResponseConfigInput(
+    typeof responseConfig === 'string' || responseConfig == null
+      ? responseConfig
+      : JSON.stringify(responseConfig),
+  );
+  if (!ok || !bundle?.responses?.length) return [];
+  const schema = bundle.responses[0]?.schema;
+  if (!schema || typeof schema !== 'object') return [];
+  const out: string[] = [];
+  collectSchemaLeaves(schema as Record<string, unknown>, '', out);
+  return out;
+}
+
+function collectSchemaLeaves(schema: Record<string, unknown>, prefix: string, out: string[]): void {
+  const type = String(schema.type ?? '').toLowerCase();
+  if (type === 'object' || schema.properties) {
+    const props = schema.properties as Record<string, unknown> | undefined;
+    if (!props || typeof props !== 'object') {
+      if (prefix) out.push(prefix);
+      return;
+    }
+    for (const [key, child] of Object.entries(props)) {
+      if (!child || typeof child !== 'object') continue;
+      const next = prefix ? `${prefix}.${key}` : key;
+      collectSchemaLeaves(child as Record<string, unknown>, next, out);
+    }
+    return;
+  }
+  if (type === 'array' || schema.items) {
+    const items = schema.items;
+    const next = prefix ? `${prefix}[*]` : '[*]';
+    if (items && typeof items === 'object' && !Array.isArray(items)) {
+      collectSchemaLeaves(items as Record<string, unknown>, next, out);
+    } else if (prefix) {
+      out.push(prefix);
+    }
+    return;
+  }
+  if (prefix) out.push(prefix);
+}
+
+/** 与后端 HttpNodeApiHealthChecker.normalizeStructuralPath 对齐 */
+export function normalizeStructuralPath(path: string): string {
+  let p = String(path ?? '').trim();
+  if (p.startsWith('$.')) p = p.slice(2);
+  else if (p.startsWith('$')) {
+    p = p.slice(1);
+    if (p.startsWith('.')) p = p.slice(1);
+  }
+  if (p.startsWith('http.body.')) p = p.slice('http.body.'.length);
+  else if (p === 'http.body') return '';
+  let out = '';
+  for (let i = 0; i < p.length; ) {
+    if (p[i] === '[') {
+      const close = p.indexOf(']', i);
+      if (close < 0) {
+        out += p[i];
+        i++;
+        continue;
+      }
+      i = close + 1;
+      continue;
+    }
+    out += p[i];
+    i++;
+  }
+  p = out.replace(/(?<=^|\.)items(?=\.|$)/g, '');
+  p = p.replace(/\.{2,}/g, '.');
+  if (p.startsWith('.')) p = p.slice(1);
+  if (p.endsWith('.')) p = p.slice(0, -1);
+  return p;
+}
+
+export function pathMatchesSchema(path: string, schemaPaths: Iterable<string>): boolean {
+  const p = normalizeStructuralPath(path);
+  if (!p) return false;
+  for (const schemaPath of schemaPaths) {
+    if (!schemaPath) continue;
+    const s = normalizeStructuralPath(schemaPath);
+    if (!s) continue;
+    if (s === p || p.startsWith(`${s}.`) || s.startsWith(`${p}.`)) return true;
+  }
+  return false;
+}
+
+export function containsJsonSchemaItemsSegment(relativePath: string): boolean {
+  return SCHEMA_ITEMS_SEGMENT.test(String(relativePath ?? '').trim());
+}
+
+/**
+ * 保存前设计期断言路径门禁（与后端 AssertPathDesignGate 对齐：schema + 禁 .items）。
+ * schemaPathsByApiId 无条目或空数组时跳过该节点（与后端「无 schema 不报错」一致）。
+ * 响应 example 不参与硬拦。
  */
 export function collectAssertPathDesignErrors(
   graph: { nodes?: Array<Record<string, unknown>>; edges?: Array<Record<string, unknown>> } | null | undefined,
-  exampleByApiId: Map<string, unknown> | Record<string, unknown>,
+  schemaPathsByApiId: Map<string, string[]> | Record<string, string[]>,
 ): string[] {
   const errors: string[] = [];
   const nodes = (graph?.nodes ?? []) as Array<{
@@ -229,18 +328,18 @@ export function collectAssertPathDesignErrors(
     data?: Record<string, unknown>;
   }>;
   const edges = (graph?.edges ?? []) as Edge[];
-  const exampleMap =
-    exampleByApiId instanceof Map
-      ? exampleByApiId
-      : new Map(Object.entries(exampleByApiId ?? {}));
+  const schemaMap =
+    schemaPathsByApiId instanceof Map
+      ? schemaPathsByApiId
+      : new Map(Object.entries(schemaPathsByApiId ?? {}));
 
   for (const node of nodes) {
     const type = String(node.type ?? '').trim().toLowerCase();
     if (type !== 'assert' && type !== 'condition') continue;
     const apiId = resolveTrialApiId(node, nodes as Node[], edges);
-    if (!apiId || !exampleMap.has(apiId)) continue;
-    const body = exampleMap.get(apiId);
-    if (body === undefined || body === null) continue;
+    if (!apiId || !schemaMap.has(apiId)) continue;
+    const schemaPaths = schemaMap.get(apiId) ?? [];
+    if (!schemaPaths.length) continue;
 
     const nodeName =
       node.data?.name != null && String(node.data.name).trim()
@@ -250,7 +349,7 @@ export function collectAssertPathDesignErrors(
 
     if (type === 'assert') {
       const rules = Array.isArray(node.data?.rules) ? (node.data!.rules as Array<Record<string, unknown>>) : [];
-      appendTrialMissErrors(errors, kindLabel, nodeName, 'rules', rules, body);
+      appendSchemaPathErrors(errors, kindLabel, nodeName, 'rules', rules, schemaPaths);
     } else {
       const branches = Array.isArray(node.data?.branches)
         ? (node.data!.branches as Array<Record<string, unknown>>)
@@ -259,13 +358,13 @@ export function collectAssertPathDesignErrors(
         const conditions = Array.isArray(branch?.conditions)
           ? (branch.conditions as Array<Record<string, unknown>>)
           : [];
-        appendTrialMissErrors(
+        appendSchemaPathErrors(
           errors,
           kindLabel,
           nodeName,
           `branches[${bi}].conditions`,
           conditions,
-          body,
+          schemaPaths,
         );
       });
     }
@@ -273,29 +372,39 @@ export function collectAssertPathDesignErrors(
   return errors;
 }
 
-function appendTrialMissErrors(
+function appendSchemaPathErrors(
   errors: string[],
   kindLabel: string,
   nodeName: string,
   fieldName: string,
   rules: Array<Record<string, unknown>>,
-  body: unknown,
+  schemaPaths: string[],
 ): void {
   rules.forEach((rule, i) => {
-    const left = rule?.left == null ? '' : String(rule.left).trim();
-    if (!left) return;
-    const result = evalAssertLeftDetailed(body, left);
-    if (!result.ok) {
-      if (result.reason === 'out_of_scope') return;
-      // 坏路径与后端试算未命中同拦（结构校验通常已先拦 http.body.$）
+    const rawLeft = rule?.left == null ? '' : String(rule.left).trim();
+    if (!rawLeft) return;
+    const left = normalizeAssertLeftPath(rawLeft);
+    if (!left.startsWith('http.body')) return;
+    if (left === 'http.body') return;
+    if (!left.startsWith('http.body.')) return;
+    const relative = left.slice('http.body.'.length);
+    if (!relative) return;
+    if (relative.startsWith('$')) {
       errors.push(
-        `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」在上游接口响应示例上试算未命中（空或 []）。`,
+        `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」不可写成 http.body.$.…`,
       );
       return;
     }
-    if (!isTrialMissValue(result.value)) return;
-    errors.push(
-      `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」在上游接口响应示例上试算未命中（空或 []）。`,
-    );
+    if (containsJsonSchemaItemsSegment(relative)) {
+      errors.push(
+        `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」误含 JSON Schema 关键字 .items；数组请用 data[0]、data[*] 或 data[?(@.field==…)]`,
+      );
+      return;
+    }
+    if (!pathMatchesSchema(relative, schemaPaths)) {
+      errors.push(
+        `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」在上游接口响应 schema 中未找到对应字段`,
+      );
+    }
   });
 }

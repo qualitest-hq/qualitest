@@ -4,10 +4,13 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmRequest;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
+import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.project.domain.TestProjectApi;
+import com.qualitest.project.mapper.TestProjectApiMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +19,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 测 FlowDesignPatchConfirmService：单 Staging 单元 confirm（合并、依赖、图校验、幂等）。
@@ -360,6 +367,112 @@ class FlowDesignPatchConfirmServiceTest {
         assertEquals("continue", merged.getOnSnapshotFailure());
     }
 
+    /**
+     * 前提：patch 含上游 HTTP + 入边 + 误写 .items 的断言；仅 confirm 断言（边仍 pending）。
+     * 期望：预览图含 pending 上游，schema 门禁失败，错误归属断言。
+     */
+    @Test
+    @Order(16)
+    @DisplayName("确认断言时 pending 上游参与 schema 校验且失败归属断言")
+    void confirm_assertWithPendingUpstream_failsOnSchemaItems() {
+        FlowDesignPatchConfirmService gated = confirmServiceWithCartApi();
+        FlowDesignPatch patch = cartAssertPatch("http.body.data.items[0].quantity");
+
+        FlowDesignPatchConfirmRequest request = new FlowDesignPatchConfirmRequest();
+        request.setGraphJson(emptyBaseWithScenario());
+        request.setPatch(patch);
+        request.setUnitId("addNode:9002");
+        request.setTestProjectId(100L);
+
+        FlowDesignPatchConfirmResult result = gated.confirmUnit(request);
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains(".items")),
+                () -> "errors=" + result.getErrors());
+    }
+
+    /**
+     * 前提：base 已有 HTTP + 坏路径断言；patch 仅补入边。
+     * 期望：确认边成功（边不背断言门禁）。
+     */
+    @Test
+    @Order(17)
+    @DisplayName("确认入边不因已有坏断言试算失败")
+    void confirm_addEdge_ignoresAssertGateOnBase() {
+        FlowDesignPatchConfirmService gated = confirmServiceWithCartApi();
+
+        Map<String, Object> httpData = projectHttpData();
+        Map<String, Object> assertData = new HashMap<>();
+        assertData.put("name", "断言数量");
+        assertData.put("rules", List.of(Map.of(
+                "left", "http.body.data.items[0].quantity",
+                "operator", "eq",
+                "right", "3")));
+
+        GraphJson base = emptyBaseWithScenario();
+        base.setNodes(List.of(
+                GraphNode.builder()
+                        .id("9001")
+                        .type("http")
+                        .position(com.qualitest.flow.model.GraphNodePosition.builder().x(40).y(80).build())
+                        .data(httpData)
+                        .build(),
+                GraphNode.builder()
+                        .id("9002")
+                        .type("assert")
+                        .position(com.qualitest.flow.model.GraphNodePosition.builder().x(420).y(80).build())
+                        .data(assertData)
+                        .build()));
+        base.getMeta().setStartNodeId("9001");
+
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.getAddEdges().add(GraphEdge.builder().id("8001").source("9001").target("9002").build());
+
+        FlowDesignPatchConfirmRequest request = new FlowDesignPatchConfirmRequest();
+        request.setGraphJson(base);
+        request.setPatch(patch);
+        request.setUnitId("addEdge:8001");
+
+        FlowDesignPatchConfirmResult result = gated.confirmUnit(request);
+        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
+        assertEquals(1, result.getGraphJson().getEdges().size());
+    }
+
+    /**
+     * 前提：仅 addNode 断言，无上游 HTTP/边。
+     * 期望：confirm 失败，错误含「尚无上游」。
+     */
+    @Test
+    @Order(18)
+    @DisplayName("确认孤立断言无上游时硬拦")
+    void confirm_assertWithoutUpstream_failsWithHint() {
+        FlowDesignPatchConfirmService gated = confirmServiceWithCartApi();
+
+        Map<String, Object> assertData = new HashMap<>();
+        assertData.put("name", "孤立断言");
+        assertData.put("rules", List.of(Map.of(
+                "left", "http.body.data[0].quantity",
+                "operator", "eq",
+                "right", "3")));
+
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.getAddNodes().add(GraphNode.builder()
+                .id("9002")
+                .type("assert")
+                .position(com.qualitest.flow.model.GraphNodePosition.builder().x(40).y(80).build())
+                .data(assertData)
+                .build());
+
+        FlowDesignPatchConfirmRequest request = new FlowDesignPatchConfirmRequest();
+        request.setGraphJson(emptyBaseWithScenario());
+        request.setPatch(patch);
+        request.setUnitId("addNode:9002");
+
+        FlowDesignPatchConfirmResult result = gated.confirmUnit(request);
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("尚无上游")),
+                () -> "errors=" + result.getErrors());
+    }
+
     /** 单单元 fixture：acceptedIds 仅一项时直接 confirm */
     private void runSingleUnitFixture(String classpath) throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture(classpath);
@@ -378,5 +491,70 @@ class FlowDesignPatchConfirmServiceTest {
         assertNotNull(result);
         assertTrue(result.isOk());
         FlowMergeFixtureTestSupport.assertMergedGraphExpectations(fixture, result.getGraphJson());
+    }
+
+    private static FlowDesignPatchConfirmService confirmServiceWithCartApi() {
+        TestProjectApiMapper mapper = mock(TestProjectApiMapper.class);
+        when(mapper.selectTestProjectApiById(anyLong())).thenReturn(TestProjectApi.builder()
+                .testProjectApiId(1L)
+                .testProjectId(100L)
+                .responseConfig("""
+                        {"responses":[{"id":"r1","schema":{"type":"object","properties":{"code":{"type":"integer"},"data":{"type":"array","items":{"type":"object","properties":{"cartId":{"type":"integer"},"quantity":{"type":"integer"},"subtotal":{"type":"number"}}}}}},"example":{"code":0,"data":[{"cartId":0,"quantity":0,"subtotal":0}]}}]}
+                        """)
+                .build());
+        FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
+        FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(mapper, new GraphJsonValidator(), merger);
+        return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), mapper);
+    }
+
+    private static GraphJson emptyBaseWithScenario() {
+        return GraphJson.builder()
+                .nodes(List.of())
+                .edges(List.of())
+                .meta(com.qualitest.flow.model.GraphMeta.builder()
+                        .layout("manual")
+                        .activeScenarioId("sc1")
+                        .scenarios(List.of(GraphRunScenario.builder()
+                                .id("sc1")
+                                .name("默认")
+                                .testProjectEnvId("")
+                                .flowSeed(Map.of())
+                                .build()))
+                        .flowOutputs(List.of())
+                        .build())
+                .build();
+    }
+
+    private static Map<String, Object> projectHttpData() {
+        Map<String, Object> httpData = new HashMap<>();
+        httpData.put("name", "我的购物车");
+        httpData.put("callMode", "project");
+        httpData.put("testProjectApiId", "1");
+        return httpData;
+    }
+
+    /** HTTP + 入边 + 断言 的完整 pending patch（数字 id，避免 preparePatch 重写） */
+    private static FlowDesignPatch cartAssertPatch(String assertLeft) {
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.getAddNodes().add(GraphNode.builder()
+                .id("9001")
+                .type("http")
+                .position(com.qualitest.flow.model.GraphNodePosition.builder().x(40).y(80).build())
+                .data(projectHttpData())
+                .build());
+        Map<String, Object> assertData = new HashMap<>();
+        assertData.put("name", "断言数量");
+        assertData.put("rules", List.of(Map.of(
+                "left", assertLeft,
+                "operator", "eq",
+                "right", "3")));
+        patch.getAddNodes().add(GraphNode.builder()
+                .id("9002")
+                .type("assert")
+                .position(com.qualitest.flow.model.GraphNodePosition.builder().x(420).y(80).build())
+                .data(assertData)
+                .build());
+        patch.getAddEdges().add(GraphEdge.builder().id("8001").source("9001").target("9002").build());
+        return patch;
     }
 }

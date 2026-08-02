@@ -107,8 +107,8 @@ public class HttpNodeApiHealthChecker {
         Set<String> paramNames = collectParamNames(effective.getRequestConfig(), effective.getHeaders());
         warnings.addAll(checkOrphanParams(nodeId, nodeName, apiId, data, paramNames));
 
-        JSONObject schemaSummary = FlowDesignApiSummarizer.summarizeResponse(effective.getResponseConfig());
-        warnings.addAll(checkExtracts(nodeId, nodeName, apiId, data, schemaSummary));
+        Set<String> schemaPaths = FlowDesignApiSummarizer.summarizeResponsePaths(effective.getResponseConfig());
+        warnings.addAll(checkExtracts(nodeId, nodeName, apiId, data, schemaPaths));
         return warnings;
     }
 
@@ -160,7 +160,7 @@ public class HttpNodeApiHealthChecker {
             String nodeName,
             Long apiId,
             JSONObject data,
-            JSONObject schemaSummary) {
+            Set<String> schemaPaths) {
         List<HttpNodeApiHealthWarning> warnings = new ArrayList<>();
         Object raw = data.get("extracts");
         JSONArray extractsArr = null;
@@ -173,14 +173,8 @@ public class HttpNodeApiHealthChecker {
         if (extractsArr == null || extractsArr.isEmpty()) {
             return warnings;
         }
-        if (schemaSummary == null || schemaSummary.isEmpty()) {
+        if (schemaPaths == null || schemaPaths.isEmpty()) {
             return warnings;
-        }
-        Set<String> schemaPaths = new HashSet<>();
-        for (String path : schemaSummary.keySet()) {
-            if (path != null && !path.isBlank()) {
-                schemaPaths.add(path.trim());
-            }
         }
         for (int i = 0; i < extractsArr.size(); i++) {
             Object item = extractsArr.get(i);
@@ -254,7 +248,7 @@ public class HttpNodeApiHealthChecker {
      * 比对前会把双方都收成点分结构路径（去掉下标、过滤器、[*]，并去掉误写的 items 段）。
      * 命中：结构路径相等，或一方是另一方的父路径（点号分隔）。
      */
-    static boolean pathMatchesSchema(String path, Set<String> schemaPaths) {
+    public static boolean pathMatchesSchema(String path, Set<String> schemaPaths) {
         if (path == null || path.isBlank() || schemaPaths == null || schemaPaths.isEmpty()) {
             return false;
         }
