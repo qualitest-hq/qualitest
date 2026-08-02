@@ -52,7 +52,7 @@ public class AiLlmModel extends BaseEntity {
     private String displayName;
 
     /**
-     * 内置状态（0自定义 1内置）；内置记录由系统预置，不可删除
+     * 内置状态（0自定义 1内置）；内置记录由系统预置，可删除后重新获取
      */
     private Integer builtinStatus;
 

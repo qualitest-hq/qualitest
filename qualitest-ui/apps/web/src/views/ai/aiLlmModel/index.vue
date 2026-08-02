@@ -137,7 +137,6 @@
         <template #default="scope">
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['ai:aiLlmModel:edit']">修改</el-button>
           <el-button
-            v-if="scope.row.builtinStatus !== 1"
             link
             type="primary"
             icon="Delete"

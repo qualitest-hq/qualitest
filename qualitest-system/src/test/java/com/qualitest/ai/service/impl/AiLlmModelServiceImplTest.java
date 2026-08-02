@@ -1,13 +1,11 @@
 package com.qualitest.ai.service.impl;
 
 import com.qualitest.ai.config.AiLlmConfigService;
-import com.qualitest.ai.domain.AiLlmModel;
 import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.llm.LlmModelConfig;
 import com.qualitest.ai.mapper.AiLlmModelMapper;
 import com.qualitest.ai.result.AiLlmModelResolveResult;
 import com.qualitest.ai.result.AiModelsListResult;
-import com.qualitest.common.exception.ServiceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -24,7 +22,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 AiLlmModelServiceImpl：resolve 组装配置、按厂商分组列表、内置模型删除保护。
+ * 测 AiLlmModelServiceImpl：resolve 组装配置、按厂商分组列表、模型删除（含内置）。
  * 边界：Mapper/Config Mock；无真实 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiLlmModelServiceImplTest
  */
@@ -137,20 +135,16 @@ class AiLlmModelServiceImplTest {
     }
 
     /**
-     * 前提：模型 builtin_status=1。
-     * 期望：deleteById 抛 ServiceException（消息含「内置」）。
+     * 前提：模型 builtin_status=1；Mapper 删除返回 1。
+     * 期望：内置模型也可删除，返回 1。
      */
     @Test
     @Order(4)
-    @DisplayName("内置模型禁止删除")
-    void delete_builtinModel_throws() {
-        when(mapper.selectAiLlmModelById(9001L)).thenReturn(AiLlmModel.builder()
-                .aiLlmModelId(9001L)
-                .builtinStatus(1)
-                .build());
+    @DisplayName("内置模型允许删除")
+    void delete_builtinModel_allowed() {
+        when(mapper.deleteAiLlmModelById(9001L)).thenReturn(1);
 
-        ServiceException ex = assertThrows(ServiceException.class, () -> service.deleteAiLlmModelById(9001L));
-        assertTrue(ex.getMessage().contains("内置"));
+        assertEquals(1, service.deleteAiLlmModelById(9001L));
     }
 
     /**
@@ -161,10 +155,6 @@ class AiLlmModelServiceImplTest {
     @Order(5)
     @DisplayName("自定义模型允许删除")
     void delete_customModel_allowed() {
-        when(mapper.selectAiLlmModelById(9002L)).thenReturn(AiLlmModel.builder()
-                .aiLlmModelId(9002L)
-                .builtinStatus(0)
-                .build());
         when(mapper.deleteAiLlmModelById(9002L)).thenReturn(1);
 
         assertEquals(1, service.deleteAiLlmModelById(9002L));

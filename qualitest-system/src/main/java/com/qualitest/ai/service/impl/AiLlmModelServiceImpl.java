@@ -2,7 +2,6 @@ package com.qualitest.ai.service.impl;
 
 import cn.hutool.core.util.IdUtil;
 import com.qualitest.ai.result.*;
-import com.qualitest.common.exception.ServiceException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -110,7 +109,7 @@ public class AiLlmModelServiceImpl implements IAiLlmModelService {
     }
 
     /**
-     * 批量物理删除模型；内置模型（builtin_status=1）拒绝。
+     * 批量物理删除模型（含内置；过期模型可删后重新获取）。
      *
      * @param aiLlmModelIdList 需要删除的 AI 模型主键集合
      * @return 结果
@@ -120,56 +119,40 @@ public class AiLlmModelServiceImpl implements IAiLlmModelService {
         if (aiLlmModelIdList == null || aiLlmModelIdList.isEmpty()) {
             return 0;
         }
-        for (Long id : aiLlmModelIdList) {
-            assertDeletable(id);
-        }
         return aiLlmModelMapper.deleteAiLlmModelByIdList(aiLlmModelIdList);
     }
 
     /**
-     * 物理删除模型；内置模型（builtin_status=1）拒绝。
+     * 物理删除模型（含内置；过期模型可删后重新获取）。
      *
      * @param aiLlmModelId AI 模型主键
      * @return 结果
      */
     @Override
     public int deleteAiLlmModelById(Long aiLlmModelId) {
-        assertDeletable(aiLlmModelId);
         return aiLlmModelMapper.deleteAiLlmModelById(aiLlmModelId);
     }
 
     /**
-     * 逻辑删除模型；内置模型（builtin_status=1）拒绝。
+     * 逻辑删除模型（含内置；过期模型可删后重新获取）。
      *
      * @param aiLlmModelId AI 模型主键
      * @return 结果
      */
     @Override
     public int logicDeleteAiLlmModelById(Long aiLlmModelId) {
-        assertDeletable(aiLlmModelId);
         return aiLlmModelMapper.logicDeleteAiLlmModelById(aiLlmModelId);
     }
 
     /**
-     * 批量逻辑删除模型；内置模型（builtin_status=1）拒绝。
+     * 批量逻辑删除模型（含内置；过期模型可删后重新获取）。
      *
      * @param aiLlmModelIdList AI 模型主键集合
      * @return 结果
      */
     @Override
     public int logicDeleteAiLlmModelByIdList(List<Long> aiLlmModelIdList) {
-        for (Long id : aiLlmModelIdList) {
-            assertDeletable(id);
-        }
         return aiLlmModelMapper.logicDeleteAiLlmModelByIdList(aiLlmModelIdList);
-    }
-
-    /** 内置模型（builtin_status=1）不可删除 */
-    private void assertDeletable(Long aiLlmModelId) {
-        AiLlmModel row = aiLlmModelMapper.selectAiLlmModelById(aiLlmModelId);
-        if (row != null && row.getBuiltinStatus() != null && row.getBuiltinStatus() == 1) {
-            throw new ServiceException("内置配置不可删除，可改为禁用");
-        }
     }
 
     /**
