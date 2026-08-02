@@ -78,11 +78,12 @@
  * Assign 节点属性区：编辑 assignments 列表，支持预设、运算符切换与增删行。
  * 变更经 patchNodeData 写回节点 data 并刷新 summary。
  */
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 
 import {
   assignOpCategory,
   ASSIGN_OPS,
+  defaultAssignments,
   emptyAssignment,
   normalizeAssignNodeData,
 } from '@/utils/flow/assign'
@@ -98,6 +99,16 @@ const props = defineProps({
 const { patchNodeData } = useFlowNodes()
 
 const valuePlaceholder = '0 / {{flow.x}}'
+
+/** 打开属性时若缺 assignments，补默认一行，避免 Staging/保存报空 */
+onMounted(() => {
+  const list = props.node?.data?.assignments
+  if (!Array.isArray(list) || !list.length) {
+    const data = { assignments: defaultAssignments() }
+    normalizeAssignNodeData(data)
+    patchNodeData(props.node.id, { assignments: data.assignments })
+  }
+})
 
 /** 按运算符类别返回行内提示文案 */
 function rowHint(op) {

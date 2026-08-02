@@ -45,6 +45,8 @@ export const SCRIPT_DEFAULT_TIMEOUT_MS = 5000;
 export const SCRIPT_MAX_TIMEOUT_MS = 30000;
 export const SCRIPT_MAX_SOURCE_BYTES = 32768;
 
+export { DELAY_DEFAULT_MS, DELAY_MAX_MS } from '@/utils/flow/delayConstants';
+
 /** 参数库 flow/env/asset 作用域显示文案 */
 export const SCOPE_LABELS: Record<string, string> = {
   flow: 'flow',

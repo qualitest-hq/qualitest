@@ -1,10 +1,11 @@
 /**
  * 测试流持久化读写：对接后端 testFlow API，与 flowCanvasStore 同步。
- * 保存前执行图结构校验，errors 阻断提交。
+ * 保存前执行图结构校验与断言路径试算门禁，errors 阻断提交。
  */
 import { nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
+import { getTestProjectApi } from '@/api/project/testProjectApi';
 import { getTestFlow, updateTestFlow, upgradeTestFlowGraph, type TestFlowRecord } from '@/api/project/testFlow';
 import { validateGraphJson } from '@/utils/flow/graphValidate';
 
@@ -13,6 +14,11 @@ import { refreshSavedBaseline, refreshSavedBaselineIfPristine } from '../utils/r
 import { useFlowHistory } from './useFlowHistory';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
+import {
+  collectAssertPathDesignErrors,
+  extractResponseExample,
+  resolveTrialApiId,
+} from '../utils/jsonPathTrial';
 
 export interface SaveFlowOptions {
   /** 为 true 时不弹出「尚有待确认 AI 变更」提示（用于确认后自动保存） */
@@ -155,6 +161,13 @@ export function useFlowGraph() {
       ElMessage.error(validation.errors[0] ?? '图校验失败');
       return false;
     }
+
+    const assertPathErrors = await loadAssertPathDesignErrors(graph);
+    if (assertPathErrors.length) {
+      ElMessage.error(assertPathErrors[0]);
+      return false;
+    }
+
     store.loading = true;
     try {
       await updateTestFlow({
@@ -195,4 +208,37 @@ export function useFlowGraph() {
   }
 
   return { loadFlow, saveFlow, importGraph };
+}
+
+/** 拉取 assert/condition 上游接口响应示例，做保存前路径试算门禁 */
+async function loadAssertPathDesignErrors(graph: {
+  nodes?: Array<Record<string, unknown>>;
+  edges?: Array<Record<string, unknown>>;
+}): Promise<string[]> {
+  const nodes = graph.nodes ?? [];
+  const edges = graph.edges ?? [];
+  const apiIds = new Set<string>();
+  for (const node of nodes) {
+    const type = String(node.type ?? '').trim().toLowerCase();
+    if (type !== 'assert' && type !== 'condition') continue;
+    const apiId = resolveTrialApiId(
+      node as { id?: string; type?: string; data?: Record<string, unknown> },
+      nodes as never,
+      edges as never,
+    );
+    if (apiId) apiIds.add(apiId);
+  }
+  const exampleByApiId = new Map<string, unknown>();
+  await Promise.all(
+    [...apiIds].map(async (apiId) => {
+      try {
+        const res = await getTestProjectApi(apiId);
+        const detail = res?.data ?? res;
+        exampleByApiId.set(apiId, extractResponseExample(detail?.responseConfig));
+      } catch {
+        exampleByApiId.set(apiId, undefined);
+      }
+    }),
+  );
+  return collectAssertPathDesignErrors(graph, exampleByApiId);
 }

@@ -210,6 +210,59 @@ class GraphJsonValidatorTest {
         assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("JsonPath 无法解析")));
     }
 
+    @Test
+    @Order(11)
+    @DisplayName("assert 空 rules / condition 空 branches / assign 空 / delay 超限 为 error")
+    void hardenedNodeFields_produceErrors() {
+        String emptyAssert = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"assert","position":{"x":0,"y":0},"data":{"name":"a","rules":[]}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult a = validator.validateJson(emptyAssert);
+        assertTrue(a.getErrors().stream().anyMatch(e -> e.contains("rules 不能为空")));
+
+        String emptyCond = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[]}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult c = validator.validateJson(emptyCond);
+        assertTrue(c.getErrors().stream().anyMatch(e -> e.contains("缺少 branches")));
+
+        String emptyAssign = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"assign","position":{"x":0,"y":0},"data":{"name":"as","assignments":[]}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult as = validator.validateJson(emptyAssign);
+        assertTrue(as.getErrors().stream().anyMatch(e -> e.contains("assignments 不能为空")));
+
+        String delayOver = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"delay","position":{"x":0,"y":0},"data":{"name":"d","ms":70000}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult d = validator.validateJson(delayOver);
+        assertTrue(d.getErrors().stream().anyMatch(e -> e.contains("ms 超过上限")));
+    }
+
     private static String loadResource(String path) {
         InputStream in = GraphJsonValidatorTest.class.getClassLoader().getResourceAsStream(path);
         assertNotNull(in, "missing resource: " + path);

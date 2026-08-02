@@ -9,10 +9,18 @@
  * yarn test graphValidate
  * ```
  */
+import {
+  isValidJsonPath,
+  normalizeAssertLeftPath,
+  toAbsoluteJsonPath,
+} from './placeholder';
 import { isKnownNodeType, nodeTypeLabel } from './nodeTypes';
 import type { GraphEdge, GraphJson, GraphNode } from './graphTypes';
+import { DELAY_MAX_MS } from './delayConstants';
 
 const ALLOWED_EDGE_KEYS = new Set(['id', 'source', 'target', 'label']);
+
+const ASSIGN_OPS = new Set(['set', 'add', 'sub', 'mul', 'div']);
 
 /** 图校验结果；ok 为 true 当且仅当 errors 为空 */
 export interface GraphValidationResult {
@@ -91,6 +99,35 @@ function hasTestProjectApiId(data: Record<string, unknown> | undefined): boolean
 
 const HTTP_CALL_MODES = new Set(['project', 'external']);
 
+function validateHttpExtracts(
+  p: string,
+  name: string | undefined,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+): void {
+  const extracts = data?.extracts;
+  if (!Array.isArray(extracts) || !extracts.length) return;
+  extracts.forEach((item, i) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+    const row = item as Record<string, unknown>;
+    const fromRaw = row.from;
+    const from = fromRaw == null ? 'body' : String(fromRaw).trim().toLowerCase();
+    if (from !== 'body') return;
+    const expr = row.expr == null ? '' : String(row.expr).trim();
+    if (!expr) {
+      errors.push(`${p} HTTP 节点「${name}」extracts[${i}] body 表达式不能为空`);
+      return;
+    }
+    if (!expr.startsWith('$')) {
+      errors.push(`${p} HTTP 节点「${name}」extracts[${i}] body 表达式须以 $ 开头：${expr}`);
+      return;
+    }
+    if (!isValidJsonPath(expr)) {
+      errors.push(`${p} HTTP 节点「${name}」extracts[${i}] JsonPath 无法解析：${expr}`);
+    }
+  });
+}
+
 function validateHttpNodeFields(
   p: string,
   id: string | undefined,
@@ -113,6 +150,7 @@ function validateHttpNodeFields(
     if (!hasTestProjectApiId(data)) {
       warnings.push(`HTTP 节点「${name}」未绑定 testProjectApiId`);
     }
+    validateHttpExtracts(p, name, data, errors);
     return;
   }
   const externalUrl = data?.externalUrl;
@@ -125,6 +163,151 @@ function validateHttpNodeFields(
   }
   if (hasTestProjectApiId(data)) {
     errors.push(`${p} HTTP 节点「${name}」外联模式不可填写 testProjectApiId`);
+  }
+  validateHttpExtracts(p, name, data, errors);
+}
+
+function isAllowedCompareLeftScope(left: string): boolean {
+  return (
+    left.startsWith('flow.')
+    || left.startsWith('env.')
+    || left.startsWith('asset.')
+    || left.startsWith('http.')
+    || left === 'http.body'
+  );
+}
+
+function stripMustache(raw: string): string {
+  const s = String(raw ?? '').trim();
+  const m = s.match(/^\{\{\s*(.+?)\s*\}\}$/);
+  return m ? m[1].trim() : s;
+}
+
+function validateCompareRule(prefix: string, rule: Record<string, unknown>, errors: string[]): void {
+  const leftRaw = rule.left;
+  let left = leftRaw == null ? '' : String(leftRaw).trim();
+  if (!left) {
+    errors.push(`${prefix} left 不能为空`);
+    return;
+  }
+  left = stripMustache(left);
+  const normalized = normalizeAssertLeftPath(left);
+  if (!isAllowedCompareLeftScope(normalized)) {
+    errors.push(`${prefix} left 作用域非法（须为 flow./env./asset./http. 或 $.…）：${left}`);
+    return;
+  }
+  if (normalized.startsWith('http.body.$')) {
+    errors.push(`${prefix} left 不可写成 http.body.$.…，请用 http.body.data… 或 $.data…：${left}`);
+    return;
+  }
+  if (normalized === 'http.body') return;
+  if (normalized.startsWith('http.body.')) {
+    const relative = normalized.slice('http.body.'.length);
+    const abs = toAbsoluteJsonPath(relative);
+    if (!isValidJsonPath(abs)) {
+      errors.push(`${prefix} left JsonPath 无法解析：${left}`);
+    }
+  }
+}
+
+function validateAssertNodeFields(
+  p: string,
+  id: string | undefined,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+): void {
+  const name = data?.name != null ? String(data.name) : id;
+  const rules = data?.rules;
+  if (!Array.isArray(rules) || !rules.length) {
+    errors.push(`${p} 断言节点「${name}」rules 不能为空`);
+    return;
+  }
+  rules.forEach((item, i) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+    validateCompareRule(`${p} 断言节点「${name}」rules[${i}]`, item as Record<string, unknown>, errors);
+  });
+}
+
+function validateConditionNodeFields(
+  p: string,
+  id: string | undefined,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+): void {
+  const name = data?.name != null ? String(data.name) : id;
+  const branches = data?.branches;
+  if (!Array.isArray(branches)) return;
+  branches.forEach((branchItem, bi) => {
+    if (!branchItem || typeof branchItem !== 'object' || Array.isArray(branchItem)) return;
+    const branch = branchItem as Record<string, unknown>;
+    const conditions = branch.conditions;
+    if (!Array.isArray(conditions)) return;
+    conditions.forEach((cond, ci) => {
+      if (!cond || typeof cond !== 'object' || Array.isArray(cond)) return;
+      validateCompareRule(
+        `${p} 条件节点「${name}」branches[${bi}].conditions[${ci}]`,
+        cond as Record<string, unknown>,
+        errors,
+      );
+    });
+  });
+}
+
+function validateAssignNodeFields(
+  p: string,
+  id: string | undefined,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+): void {
+  const name = data?.name != null ? String(data.name) : id;
+  const assignments = data?.assignments;
+  if (!Array.isArray(assignments) || !assignments.length) {
+    errors.push(`${p} Assign 节点「${name}」assignments 不能为空`);
+    return;
+  }
+  assignments.forEach((item, i) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      errors.push(`${p} Assign 节点「${name}」assignments[${i}] 不是有效对象`);
+      return;
+    }
+    const row = item as Record<string, unknown>;
+    const varName = row.name == null ? '' : String(row.name).trim();
+    if (!varName) {
+      errors.push(`${p} Assign 节点「${name}」assignments[${i}] name 不能为空`);
+    }
+    const op = row.op == null ? '' : String(row.op).trim();
+    if (!op) {
+      errors.push(`${p} Assign 节点「${name}」assignments[${i}] op 无效：(空)`);
+    } else if (!ASSIGN_OPS.has(op)) {
+      errors.push(`${p} Assign 节点「${name}」assignments[${i}] op 无效：${op}`);
+    }
+  });
+}
+
+function tryParseDelayMs(raw: unknown): number | null {
+  if (raw == null) return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return Math.trunc(raw);
+  const s = String(raw).trim();
+  if (!s) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
+}
+
+function validateDelayNodeFields(
+  p: string,
+  id: string | undefined,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+): void {
+  const name = data?.name != null ? String(data.name) : id;
+  const ms = tryParseDelayMs(data?.ms);
+  if (ms == null) {
+    errors.push(`${p} Delay 节点「${name}」缺少 ms 或无法解析`);
+    return;
+  }
+  if (ms > DELAY_MAX_MS) {
+    errors.push(`${p} Delay 节点「${name}」ms 超过上限 ${DELAY_MAX_MS}`);
   }
 }
 
@@ -216,15 +399,26 @@ function validateNodeFields(
   if (type === 'http') {
     validateHttpNodeFields(p, id, node.data, errors, warnings);
   }
-  if (type === 'subflow') {
-    validateSubflowNodeFields(p, id, node.data, errors, warnings);
+  if (type === 'assert') {
+    validateAssertNodeFields(p, id, node.data, errors);
   }
   if (type === 'condition') {
     const branches = node.data?.branches;
     if (!Array.isArray(branches) || !branches.length) {
       const name = node.data?.name != null ? String(node.data.name) : id;
-      warnings.push(`条件节点「${name}」缺少 branches，导入后将补默认 IF/ELSE`);
+      errors.push(`条件节点「${name}」缺少 branches，请配置 IF/ELSE 分支`);
+    } else {
+      validateConditionNodeFields(p, id, node.data, errors);
     }
+  }
+  if (type === 'assign') {
+    validateAssignNodeFields(p, id, node.data, errors);
+  }
+  if (type === 'delay') {
+    validateDelayNodeFields(p, id, node.data, errors);
+  }
+  if (type === 'subflow') {
+    validateSubflowNodeFields(p, id, node.data, errors, warnings);
   }
   if (type === 'script') {
     validateScriptNodeFields(p, id, node.data, errors, warnings);

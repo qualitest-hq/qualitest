@@ -91,7 +91,7 @@ public class FlowDesignPatchNormalizer {
     /**
      * normalize 与 preparePatch 共用的 patch 初始化与规范化步骤。
      * 依次：suggestedDeletes、雪花 id / position、scenarioPatch、
-     * HTTP API 绑定校验、assert 规则规范化、节点 summary。
+     * HTTP API 绑定校验、按 type 规范化节点 data、节点 summary。
      */
     private FlowDesignPatch initAndNormalizePatch(
             FlowDesignPatch patch,
@@ -107,65 +107,57 @@ public class FlowDesignPatchNormalizer {
         normalizeIds(patch, baseGraph);
         normalizeScenarioPatch(patch);
         validateApiBindings(patch, baseGraph, testProjectId, warnings);
-        normalizeAssertNodes(patch);
-        normalizeConditionNodes(patch);
+        normalizeTypedNodeData(patch, baseGraph);
         fillSummaries(patch);
         return patch;
     }
 
     /**
-     * 规范化 patch 中 assert 节点 rules：运算符别名、去 {{}}、{@code $…} 左值改成 {@code http.body…}。
-     * addNodes 看 type=assert；updateNodes 在 type=assert 或 data 含 rules 时处理。
+     * 按节点 type 规范化 data（无 API 上下文）。
+     * HTTP 已在 {@link #validateApiBindings} 中走 API-aware 规范化，此处跳过。
+     * updateNodes 缺 type 时从基准图解析，避免 containsKey 启发式误伤。
      */
-    private static void normalizeAssertNodes(FlowDesignPatch patch) {
+    private static void normalizeTypedNodeData(FlowDesignPatch patch, GraphJson baseGraph) {
         if (patch.getAddNodes() != null) {
             for (GraphNode node : patch.getAddNodes()) {
-                if (node != null && "assert".equals(node.getType()) && node.getData() != null) {
-                    FlowDesignAssertNodeNormalizer.normalize(node.getData());
-                }
-            }
-        }
-        if (patch.getUpdateNodes() != null) {
-            for (GraphNode node : patch.getUpdateNodes()) {
                 if (node == null || node.getData() == null) {
                     continue;
                 }
-                boolean isAssert = "assert".equals(node.getType());
-                if (!isAssert && node.getData().containsKey("rules")) {
-                    isAssert = true;
+                String type = trimType(node.getType());
+                if (type.isEmpty() || "http".equalsIgnoreCase(type)) {
+                    continue;
                 }
-                if (isAssert) {
-                    FlowDesignAssertNodeNormalizer.normalize(node.getData());
+                FlowDesignNodeDataNormalizer.normalize(type, node.getData());
+            }
+        }
+        if (patch.getUpdateNodes() != null) {
+            for (GraphNode update : patch.getUpdateNodes()) {
+                if (update == null || update.getData() == null) {
+                    continue;
                 }
+                String type = resolveEffectiveNodeType(baseGraph, update);
+                if (type.isEmpty() || "http".equalsIgnoreCase(type)) {
+                    continue;
+                }
+                FlowDesignNodeDataNormalizer.normalize(type, update.getData());
             }
         }
     }
 
-    /**
-     * 规范化 condition 节点 {@code branches[].conditions[]}（运算符、{{}}、{@code $} 左值）。
-     */
-    private static void normalizeConditionNodes(FlowDesignPatch patch) {
-        if (patch.getAddNodes() != null) {
-            for (GraphNode node : patch.getAddNodes()) {
-                if (node != null && "condition".equals(node.getType()) && node.getData() != null) {
-                    FlowDesignAssertNodeNormalizer.normalizeConditionBranches(node.getData());
-                }
-            }
+    /** update 缺 type 时回落基准图节点 type。 */
+    private static String resolveEffectiveNodeType(GraphJson baseGraph, GraphNode update) {
+        if (update.getType() != null && !update.getType().isBlank()) {
+            return update.getType().trim();
         }
-        if (patch.getUpdateNodes() != null) {
-            for (GraphNode node : patch.getUpdateNodes()) {
-                if (node == null || node.getData() == null) {
-                    continue;
-                }
-                boolean isCondition = "condition".equals(node.getType());
-                if (!isCondition && node.getData().containsKey("branches")) {
-                    isCondition = true;
-                }
-                if (isCondition) {
-                    FlowDesignAssertNodeNormalizer.normalizeConditionBranches(node.getData());
-                }
-            }
+        if (update.getId() == null || baseGraph == null || baseGraph.getNodes() == null) {
+            return "";
         }
+        GraphNode existing = GraphLookupUtils.findNode(baseGraph.getNodes(), update.getId());
+        return existing != null && existing.getType() != null ? existing.getType().trim() : "";
+    }
+
+    private static String trimType(String type) {
+        return type != null ? type.trim() : "";
     }
 
     /**

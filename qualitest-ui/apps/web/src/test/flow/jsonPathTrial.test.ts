@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  collectAssertPathDesignErrors,
   extractResponseExample,
   findUpstreamProjectHttpNode,
   isTrialMissPreview,
@@ -54,5 +55,26 @@ describe('jsonPathTrial design gate helpers', () => {
     expect(findUpstreamProjectHttpNode('a1', nodes, edges)?.id).toBe('h1');
     expect(resolveTrialApiId(nodes[1], nodes, edges)).toBe('99');
     expect(resolveTrialApiId(nodes[0], nodes, edges)).toBe('99');
+  });
+
+  it('collectAssertPathDesignErrors 对空试算硬拦；无 example 跳过', () => {
+    const graph = {
+      nodes: [
+        { id: 'h1', type: 'http', data: { testProjectApiId: '99', callMode: 'project' } },
+        {
+          id: 'a1',
+          type: 'assert',
+          data: {
+            name: '断言',
+            rules: [{ left: "http.body.data.items[?(@.cartId=='5001')].quantity", operator: 'eq', right: '3' }],
+          },
+        },
+      ],
+      edges: [{ id: 'e1', source: 'h1', target: 'a1' }],
+    };
+    const hit = collectAssertPathDesignErrors(graph, new Map([['99', cartBody]]));
+    expect(hit.some((e) => e.includes('试算未命中'))).toBe(true);
+    const skip = collectAssertPathDesignErrors(graph, new Map());
+    expect(skip).toHaveLength(0);
   });
 });

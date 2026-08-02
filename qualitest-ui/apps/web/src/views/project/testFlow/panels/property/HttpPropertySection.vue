@@ -141,7 +141,7 @@
 
 <script setup>
 /** HTTP 节点属性：调用模式、接口/外联、超时、业务码、响应提取；提取表达式可对 Run 响应或本接口响应示例试算 */
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 
 import DebugExtractEditor from '@/views/project/testProject/components/DebugExtractEditor.vue'
 
@@ -166,6 +166,14 @@ const emit = defineEmits(['open-http-config'])
 
 const { patchNodeData, replaceNodeData } = useFlowNodes()
 const apiHealth = useApiHealthStore()
+
+/** 打开属性时若缺 callMode，补 project（与 AI Normalizer / 拖拽默认一致） */
+onMounted(() => {
+  const raw = props.node?.data?.callMode
+  if (raw == null || String(raw).trim() === '') {
+    patchNodeData(props.node.id, { callMode: 'project' })
+  }
+})
 
 /** 当前选中节点上的语义告警（孤儿测值、抽取路径等） */
 const nodeHealthWarnings = computed(() => apiHealth.warningsForNode(props.node?.id))

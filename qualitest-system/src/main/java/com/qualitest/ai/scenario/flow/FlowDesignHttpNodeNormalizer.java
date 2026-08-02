@@ -44,6 +44,32 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
+     * 空 {@code callMode} → {@code project}（对齐 UI 拖拽默认；非法非空串留给图校验）。
+     */
+    public static void ensureCallModeDefault(Map<String, Object> data) {
+        if (data == null) {
+            return;
+        }
+        Object raw = data.get("callMode");
+        if (raw == null || String.valueOf(raw).trim().isEmpty()) {
+            data.put("callMode", FlowHttpCallMode.PROJECT);
+        }
+    }
+
+    /**
+     * 无 API 上下文时的轻量规范化：callMode / extracts / successCheck。
+     * Staging draft 再规范化时使用，不做 overrides 差分。
+     */
+    public static void normalizeWithoutApi(Map<String, Object> data) {
+        if (data == null) {
+            return;
+        }
+        ensureCallModeDefault(data);
+        normalizeExtracts(data);
+        ensureSuccessCheckDefault(data);
+    }
+
+    /**
      * 规范化 HTTP 节点 data（就地修改）。
      *
      * @param data 节点 data
@@ -53,6 +79,7 @@ public final class FlowDesignHttpNodeNormalizer {
         if (data == null) {
             return;
         }
+        ensureCallModeDefault(data);
         normalizeExtracts(data);
         ensureSuccessCheckDefault(data);
 

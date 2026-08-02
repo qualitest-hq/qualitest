@@ -177,6 +177,26 @@ export function previewExtractExpr(trialBody: unknown, expr: string): string {
 }
 
 /**
+ * 断言 / 条件左值试算结果（内部共用）。
+ * out_of_scope：非 http.body，面板不展示；bad_*：展示「试算失败」；ok：可 format。
+ */
+type AssertLeftEval =
+  | { ok: true; value: unknown }
+  | { ok: false; reason: 'out_of_scope' | 'bad_body_dollar' | 'bad_jsonpath'; detail?: string };
+
+function evalAssertLeftDetailed(trialBody: unknown, left: string): AssertLeftEval {
+  const normalized = normalizeAssertLeftPath(String(left ?? '').trim());
+  if (!normalized) return { ok: false, reason: 'out_of_scope' };
+  if (normalized === 'http.body') return { ok: true, value: trialBody };
+  if (!normalized.startsWith('http.body.')) return { ok: false, reason: 'out_of_scope' };
+  const relative = normalized.slice('http.body.'.length);
+  if (relative.startsWith('$')) return { ok: false, reason: 'bad_body_dollar' };
+  const abs = toAbsoluteJsonPath(relative);
+  if (!isValidJsonPath(abs)) return { ok: false, reason: 'bad_jsonpath', detail: abs };
+  return { ok: true, value: evalJsonPath(trialBody, abs) };
+}
+
+/**
  * 断言 / 条件左值试算。
  * 仅处理 http.body 与规范化后的 $ → http.body 方言；
  * 禁止写成 http.body.$.…；flow.* / env.* 等其它 scope 返回空串（不展示试算）。
@@ -185,20 +205,97 @@ export function previewAssertLeft(trialBody: unknown, left: string): string {
   if (trialBody === undefined || trialBody === null) return '';
   const raw = String(left ?? '').trim();
   if (!raw) return '';
-  const normalized = normalizeAssertLeftPath(raw);
-  if (normalized === 'http.body') {
-    return formatTrialResult(trialBody);
+  const result = evalAssertLeftDetailed(trialBody, raw);
+  if (!result.ok) {
+    if (result.reason === 'out_of_scope') return '';
+    if (result.reason === 'bad_body_dollar') return '试算失败：不可写成 http.body.$.…';
+    return `试算失败：JsonPath 无法解析 ${result.detail ?? ''}`;
   }
-  if (!normalized.startsWith('http.body.')) {
-    return '';
+  return formatTrialResult(result.value);
+}
+
+/**
+ * 保存前设计期断言路径门禁（与后端 AssertPathDesignGate 文案对齐）。
+ * exampleByApiId 无条目或值为 undefined 时跳过该节点（与后端「无 example 不报错」一致）。
+ */
+export function collectAssertPathDesignErrors(
+  graph: { nodes?: Array<Record<string, unknown>>; edges?: Array<Record<string, unknown>> } | null | undefined,
+  exampleByApiId: Map<string, unknown> | Record<string, unknown>,
+): string[] {
+  const errors: string[] = [];
+  const nodes = (graph?.nodes ?? []) as Array<{
+    id?: string;
+    type?: string;
+    data?: Record<string, unknown>;
+  }>;
+  const edges = (graph?.edges ?? []) as Edge[];
+  const exampleMap =
+    exampleByApiId instanceof Map
+      ? exampleByApiId
+      : new Map(Object.entries(exampleByApiId ?? {}));
+
+  for (const node of nodes) {
+    const type = String(node.type ?? '').trim().toLowerCase();
+    if (type !== 'assert' && type !== 'condition') continue;
+    const apiId = resolveTrialApiId(node, nodes as Node[], edges);
+    if (!apiId || !exampleMap.has(apiId)) continue;
+    const body = exampleMap.get(apiId);
+    if (body === undefined || body === null) continue;
+
+    const nodeName =
+      node.data?.name != null && String(node.data.name).trim()
+        ? String(node.data.name)
+        : node.id ?? '?';
+    const kindLabel = type === 'assert' ? '断言' : '条件';
+
+    if (type === 'assert') {
+      const rules = Array.isArray(node.data?.rules) ? (node.data!.rules as Array<Record<string, unknown>>) : [];
+      appendTrialMissErrors(errors, kindLabel, nodeName, 'rules', rules, body);
+    } else {
+      const branches = Array.isArray(node.data?.branches)
+        ? (node.data!.branches as Array<Record<string, unknown>>)
+        : [];
+      branches.forEach((branch, bi) => {
+        const conditions = Array.isArray(branch?.conditions)
+          ? (branch.conditions as Array<Record<string, unknown>>)
+          : [];
+        appendTrialMissErrors(
+          errors,
+          kindLabel,
+          nodeName,
+          `branches[${bi}].conditions`,
+          conditions,
+          body,
+        );
+      });
+    }
   }
-  const relative = normalized.slice('http.body.'.length);
-  if (relative.startsWith('$')) {
-    return '试算失败：不可写成 http.body.$.…';
-  }
-  const abs = toAbsoluteJsonPath(relative);
-  if (!isValidJsonPath(abs)) {
-    return `试算失败：JsonPath 无法解析 ${abs}`;
-  }
-  return formatTrialResult(evalJsonPath(trialBody, abs));
+  return errors;
+}
+
+function appendTrialMissErrors(
+  errors: string[],
+  kindLabel: string,
+  nodeName: string,
+  fieldName: string,
+  rules: Array<Record<string, unknown>>,
+  body: unknown,
+): void {
+  rules.forEach((rule, i) => {
+    const left = rule?.left == null ? '' : String(rule.left).trim();
+    if (!left) return;
+    const result = evalAssertLeftDetailed(body, left);
+    if (!result.ok) {
+      if (result.reason === 'out_of_scope') return;
+      // 坏路径与后端试算未命中同拦（结构校验通常已先拦 http.body.$）
+      errors.push(
+        `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」在上游接口响应示例上试算未命中（空或 []）。`,
+      );
+      return;
+    }
+    if (!isTrialMissValue(result.value)) return;
+    errors.push(
+      `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」在上游接口响应示例上试算未命中（空或 []）。`,
+    );
+  });
 }

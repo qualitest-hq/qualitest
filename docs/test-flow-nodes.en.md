@@ -63,7 +63,7 @@ Forbidden: `http.body.$.…` (Confirm / save fails).
 UI: `eq/ne/gt/gte/lt/lte/contains/not_contains/exists`.  
 Aliases: `equals`/`==` → `eq`; `notempty`/`not_empty` → `exists` (do not invent `notempty` in UI).
 
-Collection semantics: `exists` requires non-empty collection; `eq` unboxes only when size is exactly 1; `contains` on a list passes if **any** element matches. Prefer `http.body.data[?(@.cartId=='5001')]` + `exists` when `data` is already an array (never `data.items[…]`). Design-time Staging / AI submit hard-blocks empty trial results on `http.body…` lefts against the upstream API response example.
+Collection semantics: `exists` requires non-empty collection; `eq` unboxes only when size is exactly 1; `contains` on a list passes if **any** element matches. Prefer `http.body.data[?(@.cartId=='5001')]` + `exists` when `data` is already an array (never `data.items[…]`). Design-time Staging / AI submit / **save** hard-block empty trial results on `http.body…` lefts against the upstream API response example (skip when no upstream / no example). Formal Run does not apply this example trial gate.
 
 ---
 

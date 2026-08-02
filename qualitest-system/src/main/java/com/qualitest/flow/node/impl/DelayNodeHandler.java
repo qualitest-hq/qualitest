@@ -1,6 +1,7 @@
 package com.qualitest.flow.node.impl;
 
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.delay.DelayConstants;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.model.GraphNode;
@@ -16,9 +17,6 @@ import java.util.Map;
  */
 @Component
 public class DelayNodeHandler extends AbstractStubNodeHandler {
-
-    /** 单步最大等待毫秒数，防止配置过大拖垮执行线程 */
-    private static final long MAX_DELAY_MS = 60_000L;
 
     public DelayNodeHandler() {
         super(FlowNodeType.DELAY);
@@ -58,21 +56,15 @@ public class DelayNodeHandler extends AbstractStubNodeHandler {
     }
 
     private static long resolveDelayMs(Object raw) {
-        long ms = 1000L;
-        if (raw instanceof Number n) {
-            ms = n.longValue();
-        } else if (raw != null) {
-            try {
-                ms = Long.parseLong(String.valueOf(raw).trim());
-            } catch (NumberFormatException ignored) {
-                ms = 1000L;
-            }
-        }
+        Long parsed = DelayConstants.tryParseMs(raw);
+        long ms = parsed != null ? parsed : DelayConstants.DEFAULT_DELAY_MS;
         if (ms < 0) {
             ms = 0;
         }
-        if (ms > MAX_DELAY_MS) {
-            throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR, "Delay 超过上限 " + MAX_DELAY_MS + "ms");
+        if (ms > DelayConstants.MAX_DELAY_MS) {
+            throw new FlowExecutionException(
+                    FlowErrorCode.TF_STEP_ERROR,
+                    "Delay 超过上限 " + DelayConstants.MAX_DELAY_MS + "ms");
         }
         return ms;
     }

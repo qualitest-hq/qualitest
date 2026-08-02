@@ -1,6 +1,7 @@
 package com.qualitest.ai.scenario.flow;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.flow.context.CompareRuleEvaluator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -69,9 +70,9 @@ class FlowDesignAssertNodeNormalizerTest {
     @Order(3)
     @DisplayName("仅整段 mustache 被剥掉")
     void stripMustache_onlyFullWrap() {
-        assertEquals("flow.x", FlowDesignAssertNodeNormalizer.stripMustache("{{flow.x}}"));
-        assertEquals("{{flow.x}} suffix", FlowDesignAssertNodeNormalizer.stripMustache("{{flow.x}} suffix"));
-        assertEquals(12, FlowDesignAssertNodeNormalizer.stripMustache(12));
+        assertEquals("flow.x", CompareRuleEvaluator.stripMustache("{{flow.x}}"));
+        assertEquals("{{flow.x}} suffix", CompareRuleEvaluator.stripMustache("{{flow.x}} suffix"));
+        assertEquals(12, CompareRuleEvaluator.stripMustache(12));
     }
 
     /**

@@ -216,6 +216,37 @@ describe('validateGraphJson', () => {
     expect(result.errors).toHaveLength(spec.expectErrors);
     expect(result.warnings).toHaveLength(spec.expectWarnings);
   });
+
+  it('assert 空 rules / assign 空 assignments / delay 超限 产生 error', () => {
+    const base = {
+      meta: { scenarios: [{ id: 's1', name: '默认' }] },
+      edges: [] as unknown[],
+    };
+    expect(
+      validateGraphJson({
+        ...base,
+        nodes: [{ id: '1', type: 'assert', position: { x: 0, y: 0 }, data: { name: 'a', rules: [] } }],
+      }).errors.some((e) => e.includes('rules 不能为空')),
+    ).toBe(true);
+    expect(
+      validateGraphJson({
+        ...base,
+        nodes: [{ id: '1', type: 'assign', position: { x: 0, y: 0 }, data: { name: 'as', assignments: [] } }],
+      }).errors.some((e) => e.includes('assignments 不能为空')),
+    ).toBe(true);
+    expect(
+      validateGraphJson({
+        ...base,
+        nodes: [{ id: '1', type: 'delay', position: { x: 0, y: 0 }, data: { name: 'd', ms: 70000 } }],
+      }).errors.some((e) => e.includes('ms 超过上限')),
+    ).toBe(true);
+    expect(
+      validateGraphJson({
+        ...base,
+        nodes: [{ id: '1', type: 'condition', position: { x: 0, y: 0 }, data: { name: 'c', branches: [] } }],
+      }).errors.some((e) => e.includes('缺少 branches')),
+    ).toBe(true);
+  });
 });
 
 describe('validateStartNodes', () => {

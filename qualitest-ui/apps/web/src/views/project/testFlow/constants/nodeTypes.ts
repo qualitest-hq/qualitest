@@ -6,6 +6,9 @@
  * flow/env/asset 作用域色仅用于属性面板编辑区（FlowScopeBadge），不在画布节点内混色。
  */
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId';
+import { DELAY_DEFAULT_MS } from '@/utils/flow/delayConstants';
+import { SCRIPT_DEFAULT_TIMEOUT_MS } from './flowConfig';
+
 /** 各节点类型的主题色（画布单色来源） */
 export const NODE_COLORS = {
   http: '#0b6edc',
@@ -61,8 +64,8 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     desc: '等待毫秒',
     defaults: {
       name: '等待',
-      ms: 1000,
-      summary: '1000 ms',
+      ms: DELAY_DEFAULT_MS,
+      summary: `${DELAY_DEFAULT_MS} ms`,
     },
   },
   condition: {
@@ -96,7 +99,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
       name: '脚本',
       language: 'javascript',
       source: "ctx.setFlow('demo', ctx.jsonStringify({ ok: true }));",
-      timeoutMs: 5000,
+      timeoutMs: SCRIPT_DEFAULT_TIMEOUT_MS,
       summary: 'JavaScript · 未配置源码',
     },
   },

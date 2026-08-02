@@ -71,7 +71,7 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 
 购物车「是否含某 cartId」推荐：`http.body.data[?(@.cartId=='5001')]` + `exists`（若 `data` 直接是数组；勿写成 `data.items[…]`）。
 
-设计期：Staging ✓ / AI submit 会用上游接口响应示例试算 `http.body…` 左值，空或 `[]` 则硬拦；属性面板无 Run 时也可对照接口示例试算（空结果标红）。普通保存 / Run 对存量错路径不硬拦。
+设计期：Staging ✓ / AI submit / **保存** 会用上游接口响应示例试算 `http.body…` 左值，空或 `[]` 则硬拦；属性面板无 Run 时也可对照接口示例试算（空结果标红）。无上游 project HTTP / 无 example 时跳过不报错。正式 **Run** 只跑图结构校验，不对示例缺失的错路径做设计期试算硬拦。
 
 ---
 

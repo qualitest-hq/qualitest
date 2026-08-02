@@ -276,6 +276,10 @@ public class FlowDesignPatchConfirmService {
                 }
             }
             applyGraphNodeDraft(graphNode, draftOverride);
+            // draft 可能冲掉 preparePatch 补全；按 type 再规范化一次
+            if (graphNode.getData() != null) {
+                FlowDesignNodeDataNormalizer.normalize(graphNode.getType(), graphNode.getData());
+            }
             return;
         }
 

@@ -52,8 +52,8 @@
 </template>
 
 <script setup>
-/** 脚本节点属性：语言切换、源码编辑器、超时 */
-import { computed } from 'vue'
+/** 脚本节点属性：语言切换、源码编辑器、超时；缺 language 时写入默认 javascript 并同步 Staging draft */
+import { computed, onMounted } from 'vue'
 
 import ScriptSourceEditor from '@/components/script/ScriptSourceEditor.vue'
 import ScriptCtxHelpPanel from '@/components/script/ScriptCtxHelpPanel.vue'
@@ -76,6 +76,7 @@ const languageOptions = [
   { value: 'python', label: 'Python' },
 ]
 
+/** 展示用语言：data.language 缺失时按 javascript 渲染 */
 const currentLanguage = computed(() => {
   const lang = String(props.node.data.language || 'javascript')
   return lang === 'python' ? 'python' : 'javascript'
@@ -85,9 +86,14 @@ const languageBadge = computed(() =>
   currentLanguage.value === 'python' ? 'Python' : 'JS',
 )
 
+/**
+ * 切换语言并写入节点 data。
+ * 即使当前展示已是该语言，只要 data.language 仍为空/不一致，也要落盘（避免 Staging 确认仍报空）。
+ */
 function setLanguage(value) {
-  if (value === currentLanguage.value) return
-  patchNodeData(props.node.id, { language: value })
+  const next = value === 'python' ? 'python' : 'javascript'
+  if (String(props.node.data?.language || '') === next) return
+  patchNodeData(props.node.id, { language: next })
 }
 
 function onSourceChange(value) {
@@ -99,6 +105,14 @@ function onTimeoutInput(e) {
   const ms = Number.isFinite(raw) && raw > 0 ? Math.min(raw, SCRIPT_MAX_TIMEOUT_MS) : SCRIPT_DEFAULT_TIMEOUT_MS
   patchNodeData(props.node.id, { timeoutMs: ms })
 }
+
+/** 打开属性时若缺 language，补默认值，使 Staging draft 带上合法字段 */
+onMounted(() => {
+  const raw = props.node?.data?.language
+  if (raw == null || String(raw).trim() === '') {
+    patchNodeData(props.node.id, { language: 'javascript' })
+  }
+})
 </script>
 
 <style scoped lang="scss">

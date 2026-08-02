@@ -28,8 +28,10 @@ import org.springframework.stereotype.Component;
  * <p>
  * 图级：节点/边、唯一开始节点、condition 分支与出边。<br>
  * HTTP：callMode、外联必填项；extracts 中 body 表达式须为可解析的 {@code $…} JsonPath。<br>
- * Assert / Condition：规则 left 非空、作用域合法、禁止 {@code http.body.$.…}、http.body 后缀 JsonPath 可解析。<br>
- * Subflow：缺 subflowId 为 error。<br>
+ * Assert / Condition：rules/branches 不可空；规则 left 非空、作用域合法、禁止 {@code http.body.$.…}、http.body 后缀 JsonPath 可解析。<br>
+ * Assign：assignments 非空，name/op 合法。<br>
+ * Delay：ms 可解析且不超过上限。<br>
+ * Script / Subflow：language、subflowId 等。<br>
  * {@code ok=true} 当且仅当 errors 为空。
  */
 @Component
@@ -268,16 +270,22 @@ public class GraphJsonValidator {
             Object branches = data != null ? data.get("branches") : null;
             if (!(branches instanceof List<?> list) || list.isEmpty()) {
                 String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
-                warnings.add("条件节点「" + name + "」缺少 branches，请配置 IF/ELSE 分支");
+                errors.add("条件节点「" + name + "」缺少 branches，请配置 IF/ELSE 分支");
             } else {
                 validateConditionNodeFields(p, id, data, errors);
             }
+        }
+        if (FlowNodeType.ASSIGN.matches(type)) {
+            validateAssignNodeFields(p, id, data, errors);
+        }
+        if (FlowNodeType.DELAY.matches(type)) {
+            validateDelayNodeFields(p, id, data, errors);
         }
         validateScriptNodeFields(p, id, type, data, errors, warnings);
         validateSubflowNodeFields(p, id, type, data, errors, warnings);
     }
 
-    /** 校验 assert 节点每条 rules 的 left / JsonPath。 */
+    /** 校验 assert 节点：rules 非空；每条 left / JsonPath。 */
     private void validateAssertNodeFields(
             String p,
             String id,
@@ -287,6 +295,7 @@ public class GraphJsonValidator {
         String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
         Object rulesRaw = data != null ? data.get("rules") : null;
         if (!(rulesRaw instanceof List<?> rules) || rules.isEmpty()) {
+            errors.add(p + " 断言节点「" + name + "」rules 不能为空");
             return;
         }
         for (int i = 0; i < rules.size(); i++) {
@@ -295,6 +304,65 @@ public class GraphJsonValidator {
                 continue;
             }
             validateCompareRule(p + " 断言节点「" + name + "」rules[" + i + "]", map, errors);
+        }
+    }
+
+    /** assign：assignments 非空；每条 name 非空且 op 合法。 */
+    private void validateAssignNodeFields(
+            String p,
+            String id,
+            Map<String, Object> data,
+            List<String> errors
+    ) {
+        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        Object raw = data != null ? data.get("assignments") : null;
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            errors.add(p + " Assign 节点「" + name + "」assignments 不能为空");
+            return;
+        }
+        for (int i = 0; i < list.size(); i++) {
+            Object item = list.get(i);
+            if (!(item instanceof Map<?, ?> map)) {
+                errors.add(p + " Assign 节点「" + name + "」assignments[" + i + "] 不是有效对象");
+                continue;
+            }
+            Object nameObj = map.get("name");
+            String varName = nameObj == null ? "" : String.valueOf(nameObj).trim();
+            if (varName.isEmpty()) {
+                errors.add(p + " Assign 节点「" + name + "」assignments[" + i + "] name 不能为空");
+            }
+            Object opObj = map.get("op");
+            String op = opObj == null ? "" : String.valueOf(opObj).trim();
+            if (op.isEmpty()) {
+                errors.add(p + " Assign 节点「" + name + "」assignments[" + i + "] op 无效：(空)");
+            } else if (!isSupportedAssignOp(op)) {
+                errors.add(p + " Assign 节点「" + name + "」assignments[" + i + "] op 无效：" + op);
+            }
+        }
+    }
+
+    private static boolean isSupportedAssignOp(String op) {
+        return "set".equals(op) || "add".equals(op) || "sub".equals(op)
+                || "mul".equals(op) || "div".equals(op);
+    }
+
+    /** delay：ms 可解析且不超过上限。 */
+    private void validateDelayNodeFields(
+            String p,
+            String id,
+            Map<String, Object> data,
+            List<String> errors
+    ) {
+        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        Object raw = data != null ? data.get("ms") : null;
+        Long ms = com.qualitest.flow.delay.DelayConstants.tryParseMs(raw);
+        if (ms == null) {
+            errors.add(p + " Delay 节点「" + name + "」缺少 ms 或无法解析");
+            return;
+        }
+        if (ms > com.qualitest.flow.delay.DelayConstants.MAX_DELAY_MS) {
+            errors.add(p + " Delay 节点「" + name + "」ms 超过上限 "
+                    + com.qualitest.flow.delay.DelayConstants.MAX_DELAY_MS);
         }
     }
 

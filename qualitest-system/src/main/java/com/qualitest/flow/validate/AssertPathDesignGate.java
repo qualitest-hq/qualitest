@@ -26,7 +26,7 @@ import java.util.function.Function;
 /**
  * 设计期断言路径门禁。
  * <p>
- * 在 Staging 单单元确认、AI 提交 patch 预合并校验时调用：
+ * 在 Staging 单单元确认、AI 提交 patch 预合并校验、以及写库保存 graph_json 时调用：
  * 找到 assert / condition 上游绑定项目接口的 HTTP 节点，用该接口响应示例（无示例时按 schema 生成）
  * 对每条 {@code http.body…} 左值做 JsonPath 试算。
  * 试算结果为 {@code null} 或空数组时记为错误，阻止错路径（例如把 Schema 关键字 {@code items}
@@ -36,7 +36,7 @@ import java.util.function.Function;
  * <ul>
  *   <li>仅检查左值以 {@code http.body} 开头的规则；{@code flow.*} / {@code env.*} 等跳过</li>
  *   <li>找不到上游 project HTTP、接口加载失败、无 example 且无法从 schema 生成时跳过，不报错</li>
- *   <li>普通保存与正式 Run 不经过本门禁</li>
+ *   <li>正式 Run 不经过本门禁（仅图结构校验）</li>
  * </ul>
  */
 public final class AssertPathDesignGate {

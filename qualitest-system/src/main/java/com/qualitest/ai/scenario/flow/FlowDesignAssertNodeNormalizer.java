@@ -98,11 +98,6 @@ public final class FlowDesignAssertNodeNormalizer {
         return CompareRuleEvaluator.normalizeOperator(String.valueOf(raw));
     }
 
-    /** 去掉整段 {@code {{…}}} 外壳。 */
-    static Object stripMustache(Object raw) {
-        return CompareRuleEvaluator.stripMustache(raw);
-    }
-
     private static JSONObject toRuleObject(Object raw) {
         if (raw instanceof JSONObject obj) {
             return new JSONObject(obj);

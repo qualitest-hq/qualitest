@@ -4,15 +4,20 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.common.exception.ServiceException;
-import com.qualitest.common.utils.SecurityUtils;
+import com.qualitest.common.utils.DateUtils;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import com.qualitest.common.utils.DateUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.qualitest.project.mapper.TestFlowMapper;
+import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.domain.TestFlow;
+import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
+import com.qualitest.flow.validate.AssertPathDesignGate;
+import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
 import com.qualitest.project.params.TestFlowParams;
 import com.qualitest.project.result.TestFlowResult;
@@ -29,6 +34,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class TestFlowServiceImpl implements ITestFlowService {
     @Autowired
     private TestFlowMapper testFlowMapper;
+
+    @Autowired
+    private GraphJsonValidator graphJsonValidator;
+
+    @Autowired
+    private TestProjectApiMapper testProjectApiMapper;
 
     /**
      * 查询测试流列表
@@ -86,6 +97,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
         if (Objects.isNull(testFlow.getTestFlowId())) {
             testFlow.setTestFlowId(IdUtil.getSnowflakeNextId());
         }
+        validateGraphJsonForPersist(testFlow.getGraphJson());
         testFlow.setCreateTime(DateUtils.getNowDate());
         return testFlowMapper.insertTestFlow(testFlow);
     }
@@ -99,8 +111,31 @@ public class TestFlowServiceImpl implements ITestFlowService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateTestFlow(TestFlow testFlow) {
+        validateGraphJsonForPersist(testFlow.getGraphJson());
         testFlow.setUpdateTime(DateUtils.getNowDate());
         return testFlowMapper.updateTestFlow(testFlow);
+    }
+
+    /**
+     * 写库前校验 graph_json：结构规则 + 设计期断言路径试算（有 example 才硬拦，与 Staging 同口径）。
+     * graphJson 为空时跳过（仅改名称等元数据）。
+     */
+    private void validateGraphJsonForPersist(String graphJson) {
+        if (StrUtil.isBlank(graphJson)) {
+            return;
+        }
+        GraphJson graph;
+        try {
+            graph = GraphJson.parse(graphJson);
+        } catch (Exception e) {
+            throw new ServiceException("graph_json 无法解析：" + e.getMessage());
+        }
+        GraphValidationResult validation = graphJsonValidator.validate(graph);
+        List<String> errors = new ArrayList<>(validation.getErrors());
+        errors.addAll(AssertPathDesignGate.validate(graph, testProjectApiMapper::selectTestProjectApiById));
+        if (!errors.isEmpty()) {
+            throw new ServiceException(errors.get(0));
+        }
     }
 
     /**
