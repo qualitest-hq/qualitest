@@ -7,8 +7,10 @@ import com.qualitest.api.util.ApiConfigJsonSupport;
 import com.qualitest.project.domain.TestProjectApi;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 测试流 HTTP 节点上的测值覆盖字段 {@code requestValueOverrides} 的读写辅助。
@@ -19,11 +21,17 @@ import java.util.Objects;
  *   <li>{@code bodyExample}：覆盖 JSON body 测值</li>
  * </ul>
  * 用途：从旧版整份 requestConfig 抽测值、相对资产默认值做差分、写成可落盘的 Map。
+ * <p>
+ * AI 偶发把 body 字段写在 overrides 顶层（如 {@code cartIds}/{@code addressId}），
+ * 运行时只读 {@code bodyExample} 会静默忽略；{@link #normalizeOverridesShape} 负责纠正。
  */
 public final class HttpNodeRequestValueOverridesSupport {
 
     /** 请求结构里可带 value 的参数数组字段名 */
     private static final String[] PARAM_ARRAY_FIELDS = {"queryParams", "pathParams", "declaredHeaders"};
+
+    /** 合法的 overrides 顶层键；其余视为误放的 body 字段 */
+    private static final Set<String> KNOWN_OVERRIDE_KEYS = Set.of("paramDefaults", "bodyExample");
 
     private HttpNodeRequestValueOverridesSupport() {
     }
@@ -87,9 +95,57 @@ public final class HttpNodeRequestValueOverridesSupport {
         mergeOverrides(merged, toJsonObject(existingOverridesRaw));
         mergeOverrides(merged, extractFromRequestConfig(requestConfigRaw));
         applyRequestBodyAsBodyExample(merged, requestBodyRaw);
+        // 合并完成后再纠正一次：覆盖「AI 把 body 字段写在顶层」的错误形状
+        normalizeOverridesShapeInPlace(merged);
 
         JSONObject assetDefaults = assetRequestValueDefaults(api);
         return diffAgainstDefaults(merged, assetDefaults);
+    }
+
+    /**
+     * 纠正错误的 overrides 形状：把顶层「非 paramDefaults/bodyExample」键提升进 bodyExample。
+     * <p>
+     * 接受 JSONObject / Map / JSON 字符串；返回新对象（不修改入参）。
+     * 已有 bodyExample 为对象时，误放字段合并进去（同名以误放值为准）；
+     * bodyExample 缺失时整段误放对象成为 bodyExample；
+     * bodyExample 为非对象（如字符串）时保留原值，丢弃无法安全合并的误放字段。
+     */
+    public static JSONObject normalizeOverridesShape(Object raw) {
+        JSONObject source = toJsonObject(raw);
+        if (source == null) {
+            return null;
+        }
+        JSONObject copy = new JSONObject(source);
+        normalizeOverridesShapeInPlace(copy);
+        return copy;
+    }
+
+    /** 就地纠正形状错误（仅内部与测试使用）。 */
+    static void normalizeOverridesShapeInPlace(JSONObject overrides) {
+        if (overrides == null || overrides.isEmpty()) {
+            return;
+        }
+        JSONObject stray = new JSONObject();
+        for (String key : List.copyOf(overrides.keySet())) {
+            if (!KNOWN_OVERRIDE_KEYS.contains(key)) {
+                stray.put(key, overrides.remove(key));
+            }
+        }
+        if (stray.isEmpty()) {
+            return;
+        }
+        Object existingBody = overrides.get("bodyExample");
+        if (existingBody instanceof Map<?, ?> map) {
+            // JSONObject 实现 Map；统一转成 JSONObject 再合并
+            JSONObject bodyObj = existingBody instanceof JSONObject jo ? jo : new JSONObject(map);
+            bodyObj.putAll(stray);
+            overrides.put("bodyExample", bodyObj);
+            return;
+        }
+        if (existingBody == null) {
+            overrides.put("bodyExample", stray);
+        }
+        // bodyExample 已是字符串等非对象：保留原值，丢弃 stray
     }
 
     /**
@@ -165,16 +221,17 @@ public final class HttpNodeRequestValueOverridesSupport {
      * 空对象返回 null，调用方应删除该字段。
      */
     public static Map<String, Object> toPersistMap(JSONObject overrides) {
-        if (overrides == null || overrides.isEmpty()) {
+        JSONObject normalized = normalizeOverridesShape(overrides);
+        if (normalized == null || normalized.isEmpty()) {
             return null;
         }
         Map<String, Object> map = new LinkedHashMap<>();
-        JSONObject params = overrides.getJSONObject("paramDefaults");
+        JSONObject params = normalized.getJSONObject("paramDefaults");
         if (params != null && !params.isEmpty()) {
             map.put("paramDefaults", new LinkedHashMap<>(params));
         }
-        if (overrides.containsKey("bodyExample")) {
-            map.put("bodyExample", overrides.get("bodyExample"));
+        if (normalized.containsKey("bodyExample")) {
+            map.put("bodyExample", normalized.get("bodyExample"));
         }
         return map.isEmpty() ? null : map;
     }

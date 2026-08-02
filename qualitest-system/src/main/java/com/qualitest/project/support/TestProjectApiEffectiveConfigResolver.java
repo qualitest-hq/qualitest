@@ -1,11 +1,13 @@
 package com.qualitest.project.support;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.qualitest.api.util.ApiConfigJsonSupport;
+import com.qualitest.flow.http.HttpNodeRequestValueOverridesSupport;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.result.TestProjectApiResult;
 import lombok.Builder;
@@ -114,16 +116,27 @@ public final class TestProjectApiEffectiveConfigResolver {
      * 把节点 data.requestValueOverrides 叠到请求配置上。
      * overrides 为 null 或空时原样返回 rawRequestConfig（空则 "{}"）。
      * 支持 Map、JSON 字符串、JsonNode。
+     * <p>
+     * 叠层前纠正「body 字段误放在 overrides 顶层」的形状，避免测值静默失效。
      */
     public static String overlayRequestValuesFromOverrides(String rawRequestConfig, Object overridesRaw) {
-        ObjectNode overrides = toObjectNode(overridesRaw);
-        if (overrides == null || overrides.isEmpty()) {
+        // JsonNode 先落到可解析文本，再交给 Support（统一 fastjson 形状纠正，避免 Jackson↔Map 往返）
+        Object coerceTarget = overridesRaw;
+        if (overridesRaw instanceof JsonNode jn) {
+            if (!jn.isObject() || jn.isEmpty()) {
+                return rawRequestConfig != null ? rawRequestConfig : "{}";
+            }
+            coerceTarget = jn.toString();
+        }
+        JSONObject normalized = HttpNodeRequestValueOverridesSupport.normalizeOverridesShape(coerceTarget);
+        if (normalized == null || normalized.isEmpty()) {
             return rawRequestConfig != null ? rawRequestConfig : "{}";
         }
+        ObjectNode shaped = toObjectNode(normalized);
         return overlayRequestValues(
                 rawRequestConfig,
-                ApiConfigJsonSupport.objectOrEmpty(overrides.get("paramDefaults")),
-                overrides.get("bodyExample"));
+                ApiConfigJsonSupport.objectOrEmpty(shaped != null ? shaped.get("paramDefaults") : null),
+                shaped != null ? shaped.get("bodyExample") : null);
     }
 
     /**

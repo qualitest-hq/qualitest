@@ -140,11 +140,41 @@ class TestProjectApiEffectiveConfigResolverTest {
     }
 
     /**
+     * 前提：节点 overrides 把 cartIds/addressId 误放在顶层（无 bodyExample）。
+     * 期望：叠层后请求体 example 含这些字段（纠正后生效，不再静默丢弃）。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("overlayOverrides：顶层误放 body 字段仍能叠进请求体")
+    void overlayRequestValuesFromOverrides_liftsStrayBodyFields() {
+        String base = """
+                {
+                  "configVersion": 1,
+                  "method": "POST",
+                  "queryParams": [],
+                  "pathParams": [],
+                  "declaredHeaders": [],
+                  "body": {"mode": "json", "json": {"example": {"items":[{"skuId":0}],"cartIds":[0]}}}
+                }
+                """;
+        var overrides = java.util.Map.of(
+                "cartIds", java.util.List.of(5001, 5002),
+                "addressId", 4001
+        );
+
+        String overlaid = TestProjectApiEffectiveConfigResolver.overlayRequestValuesFromOverrides(base, overrides);
+
+        assertTrue(overlaid.contains("5001"));
+        assertTrue(overlaid.contains("4001"));
+        assertTrue(overlaid.contains("addressId"));
+    }
+
+    /**
      * 前提：源 API 含身份字段与 testValueConfig 默认值。
      * 期望：toApiView 保留 id/path/headers，requestConfig 为有效配置（含 hello）。
      */
     @Test
-    @Order(5)
+    @Order(6)
     @DisplayName("toApiView：保留身份字段并用有效配置")
     void toApiView_usesEffectiveRequestAndResponse() {
         TestProjectApi source = TestProjectApi.builder()
