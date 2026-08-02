@@ -36,6 +36,7 @@ import { computed } from 'vue'
 
 import { useAiStagingConfirm } from '../composables/useAiStagingConfirm'
 import { useStagingConfirmAvailability } from '../composables/useStagingConfirmAvailability'
+import { isDeleteStagingUnit } from '../utils/stagingUnitIds'
 
 const props = defineProps({
   unitId: { type: String, required: true },
@@ -51,9 +52,14 @@ const {
   confirmDisabled,
 } = useStagingConfirmAvailability(() => props.unitId);
 
+const isDelete = computed(() => isDeleteStagingUnit(unit.value));
+
 const confirmLabel = computed(() => {
   if (confirming.value) return '…';
-  return props.size === 'full' ? '✓ 确认' : '✓';
+  if (props.size === 'full') {
+    return isDelete.value ? '✓ 确认删除' : '✓ 确认';
+  }
+  return '✓';
 });
 
 const retryLabel = computed(() => {
@@ -63,6 +69,9 @@ const retryLabel = computed(() => {
 
 const confirmTitle = computed(() => {
   if (confirmBlockTitle.value) return confirmBlockTitle.value;
+  if (isDelete.value) {
+    return props.size === 'full' ? '确认删除本项' : '确认删除';
+  }
   return props.size === 'full' ? '确认本项变更' : '确认';
 });
 

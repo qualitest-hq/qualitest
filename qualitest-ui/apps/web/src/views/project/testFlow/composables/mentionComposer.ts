@@ -780,16 +780,52 @@ export function useMentionEditor(options: {
     options.onDocChange?.();
   }
 
-  /** 在光标处插入纯文本 */
-  function insertText(text: string) {
+  /** 将选区落到编辑器末尾（预填 / 光标在编辑器外时使用） */
+  function placeCaretAtEnd(root: HTMLElement) {
     const sel = getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    const range = sel.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(document.createTextNode(text));
+    if (!sel) return;
+    const range = document.createRange();
+    range.selectNodeContents(root);
     range.collapse(false);
     sel.removeAllRanges();
     sel.addRange(range);
+  }
+
+  /**
+   * 在光标处插入纯文本。
+   * 光标不在编辑器内时（例如从 Run 详情点「AI 修复」预填）落到末尾再插，
+   * 避免 insertNode 污染运行库列表等其它 DOM。
+   */
+  function insertText(text: string) {
+    const root = options.getRoot();
+    if (!root || !text) return;
+
+    const sel = getSelection();
+    const inRoot = !!sel?.anchorNode && root.contains(sel.anchorNode);
+    if (!inRoot) {
+      root.focus();
+      placeCaretAtEnd(root);
+    }
+
+    const active = getSelection();
+    if (!active || active.rangeCount === 0 || !root.contains(active.anchorNode)) {
+      root.appendChild(document.createTextNode(text));
+      options.onDocChange?.();
+      return;
+    }
+
+    const range = active.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) {
+      root.appendChild(document.createTextNode(text));
+      options.onDocChange?.();
+      return;
+    }
+
+    range.deleteContents();
+    range.insertNode(document.createTextNode(text));
+    range.collapse(false);
+    active.removeAllRanges();
+    active.addRange(range);
     options.onDocChange?.();
   }
 

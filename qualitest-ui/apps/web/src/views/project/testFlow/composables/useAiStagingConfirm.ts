@@ -12,8 +12,7 @@ import { collectStagingConfirmHighlightIds } from '../utils/mergeHighlight';
 import { resolveStagingConfirmDependency } from '../utils/stagingDependencyHints';
 import { revertStagingUnitOnCanvas } from '../utils/stagingCanvasRevert';
 import { resolveNextStagingFocusUnit } from '../utils/stagingFocusNavigation';
-import { objectIdFromUnitId } from '../utils/stagingUnitIds';
-import { confirmDeleteStagingUnit } from './stagingConfirmDialog';
+import { isDeleteStagingUnit, objectIdFromUnitId } from '../utils/stagingUnitIds';
 import { findFirstPendingGraphUnit } from './useStagingNavigation';
 import { useFlowViewport } from './useFlowViewport';
 import {
@@ -38,11 +37,17 @@ import {
 let confirmApplyTail: Promise<void> = Promise.resolve();
 
 /**
- * 已进入 confirm 流程、尚未走到 finally 的 unitId。
- * 须在首个 await 之前同步登记，避免快速连点时多个 unit 同时通过
- * `!confirmInFlight` 检查后全部置 inFlight，最终卡死按钮。
+ * 当前占坑中的 confirm unitId；非 null 时拒绝其它 unit 进入。
+ * 全局单飞：避免连点多个 ✓ 并行进入（昔日 MessageBox 叠层闪烁同源）。
+ * 须在首个 await 之前同步登记。
  */
-const confirmEntryLocks = new Set<string>();
+let confirmBusyUnitId: string | null = null;
+
+/** Vitest：清空全局 confirm 单飞状态，避免用例间串扰 */
+export function resetStagingConfirmGatesForTests() {
+  confirmBusyUnitId = null;
+  confirmApplyTail = Promise.resolve();
+}
 
 /** 将一次 confirm 的完整流程（请求、落盘、入历史、自动保存）排进串行队列 */
 function enqueueConfirmApply<T>(fn: () => Promise<T>): Promise<T> {
@@ -116,9 +121,9 @@ export function useAiStagingConfirm() {
   async function submitConfirmUnit(unitId: string) {
     const unit = stagingStore.getUnit(unitId);
     if (!unit || unit.status !== 'pending' || unit.confirmInFlight) return;
-    // 同步占坑：必须在任何 await 之前，堵住连点竞态
-    if (confirmEntryLocks.has(unitId)) return;
-    confirmEntryLocks.add(unitId);
+    // 同步占坑：全局单飞，必须在任何 await 之前
+    if (confirmBusyUnitId != null) return;
+    confirmBusyUnitId = unitId;
 
     try {
       const patch = stagingStore.getPatchForMessage(unit.messageId);
@@ -137,9 +142,6 @@ export function useAiStagingConfirm() {
       stagingStore.setConfirmInFlight(unitId, true);
 
       try {
-        const deleteOk = await confirmDeleteStagingUnit(unit);
-        if (!deleteOk) return;
-
         const projectId = store.testProjectId?.trim();
         if (!projectId) {
           ElMessage.warning('缺少测试项目 id');
@@ -243,10 +245,11 @@ export function useAiStagingConfirm() {
           pushHistory();
 
           await maybeAutoSaveAfterConfirm();
+          const doneLabel = isDeleteStagingUnit(unit) ? '已确认删除' : '已确认变更';
           if (attempts > 1) {
-            ElMessage.success(`已确认变更（第 ${attempts} 次尝试成功）`);
+            ElMessage.success(`${doneLabel}（第 ${attempts} 次尝试成功）`);
           } else {
-            ElMessage.success('已确认变更');
+            ElMessage.success(doneLabel);
           }
         });
       } catch (error) {
@@ -260,7 +263,7 @@ export function useAiStagingConfirm() {
         stagingStore.setConfirmInFlight(unitId, false);
       }
     } finally {
-      confirmEntryLocks.delete(unitId);
+      if (confirmBusyUnitId === unitId) confirmBusyUnitId = null;
     }
   }
 

@@ -325,11 +325,12 @@ function onAutoSaveAfterConfirmChange(enabled: boolean) {
   setAutoSaveAfterConfirm(enabled);
 }
 
-/** Run 修复入口：预插 run chip 与提示文案 */
+/** Run 修复入口：预插 run chip 与提示文案（先 focus，避免 insertText 落到运行库 DOM） */
 function applyPendingRunToComposer() {
   const pending = consumePendingRunContext();
   if (!pending || !composerRef.value) return;
   nextTick(() => {
+    composerRef.value?.focus();
     composerRef.value?.appendRunMention(pending.runId, 'failed');
     if (pending.prompt) {
       composerRef.value?.appendText(pending.prompt);

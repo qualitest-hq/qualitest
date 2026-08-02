@@ -250,8 +250,11 @@ function appendNodeMention(node: { id: string; type?: string; data?: { name?: st
 }
 
 function appendText(text: string) {
+  // 预填场景：先确保焦点在编辑器，再插入（insertText 亦会校验选区是否在 root 内）
+  editorRef.value?.focus();
   editor.insertText(text);
   empty.value = editor.isEmpty();
+  emit('change', editor.getDoc());
 }
 
 watch(() => menu.value.open, (open) => {

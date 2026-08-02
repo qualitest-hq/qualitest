@@ -54,6 +54,12 @@ export function stagingKindToCanvasMode(kind: AiStagingUnit['kind']): AiStagingC
   return null;
 }
 
+/** 是否为删除类 Staging 单元（节点 / 边 / 运行场景） */
+export function isDeleteStagingUnit(unit: Pick<AiStagingUnit, 'kind'> | null | undefined): boolean {
+  if (!unit) return false;
+  return stagingKindToCanvasMode(unit.kind) === 'delete';
+}
+
 /** 从 unitId 提取对象 id（不含 kind 前缀） */
 export function objectIdFromUnitId(unitId: string): string {
   if (unitId === 'scenario:activeScenarioId') return '';

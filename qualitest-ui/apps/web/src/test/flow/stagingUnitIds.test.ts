@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import type { AiStagingUnit } from '@/views/project/testFlow/types/aiStagingTypes';
 import {
   graphObjectIdFromUnit,
+  isDeleteStagingUnit,
   isGraphStagingKind,
   isScenarioStagingKind,
   objectIdFromUnitId,
@@ -18,6 +19,7 @@ function unit(partial: Partial<AiStagingUnit> & Pick<AiStagingUnit, 'unitId' | '
   return {
     messageId: 'msg-1',
     status: 'pending',
+    label: partial.unitId,
     patchSlice: {},
     ...partial,
   };
@@ -47,6 +49,17 @@ describe('stagingUnitIds', () => {
     expect(stagingKindToCanvasMode('addNode')).toBe('add');
     expect(stagingKindToCanvasMode('updateEdge')).toBe('update');
     expect(stagingKindToCanvasMode('deleteScenario')).toBe('delete');
+  });
+
+  it('isDeleteStagingUnit 仅识别删除类 kind', () => {
+    // 前提：混合 add/update/delete kind
+    // 期望：仅 delete* 为 true
+    expect(isDeleteStagingUnit(unit({ unitId: 'deleteEdge:e1', kind: 'deleteEdge' }))).toBe(true);
+    expect(isDeleteStagingUnit(unit({ unitId: 'deleteNode:n1', kind: 'deleteNode' }))).toBe(true);
+    expect(isDeleteStagingUnit(unit({ unitId: 'deleteScenario:s1', kind: 'deleteScenario' }))).toBe(true);
+    expect(isDeleteStagingUnit(unit({ unitId: 'addEdge:e1', kind: 'addEdge' }))).toBe(false);
+    expect(isDeleteStagingUnit(unit({ unitId: 'updateNode:n1', kind: 'updateNode' }))).toBe(false);
+    expect(isDeleteStagingUnit(null)).toBe(false);
   });
 
   it('graphObjectIdFromUnit 按 kind 返回 node/edge/scenarioId', () => {
