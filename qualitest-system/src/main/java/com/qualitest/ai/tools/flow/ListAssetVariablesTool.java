@@ -11,10 +11,16 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 
-/** list_asset_variables：列举素材库 key/备注/子字段名（不含明文）；API 设计侧经委托复用 */
+/**
+ * 测试流 AI 工具：列举当前项目素材库。
+ * <p>
+ * 返回各条目的 key、备注、子字段名与占位提示，不含字段明文值。
+ * 编写或选用 {{asset.key.field}} 前应先调用本工具确认已有键。
+ */
 @RequiredArgsConstructor
 public class ListAssetVariablesTool implements QualitestTool {
 
+    /** 读取项目 asset_variables 列 */
     private final TestProjectMapper testProjectMapper;
 
     @Override
@@ -22,6 +28,13 @@ public class ListAssetVariablesTool implements QualitestTool {
         return FlowDesignToolNames.LIST_ASSET_VARIABLES.getId();
     }
 
+    /**
+     * 读取项目素材库 JSON，组装为仅含元数据的 items 列表。
+     *
+     * @param arguments 无业务入参
+     * @param ctx       须带 testProjectId
+     * @return JSON：items、truncated；失败时含 error
+     */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
         Long projectId = ctx.getTestProjectId();

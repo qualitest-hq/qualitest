@@ -48,6 +48,12 @@ public class FlowDesignPatchNormalizer {
     private static final double GRID_X = 380.0;
     private static final double DEFAULT_X = 40.0;
     private static final double DEFAULT_Y = 80.0;
+    /** 与前端 flowConfig NODE_W / NODE_MIN_H 对齐，用于 AABB 避让 */
+    private static final double NODE_W = 300.0;
+    private static final double NODE_MIN_H = 108.0;
+    /** 单次右移 / 下移行尝试上限；用尽后兜底落点，避免死循环 */
+    private static final int MAX_SHIFT = 40;
+    private static final double ROW_STEP = NODE_MIN_H + 40.0;
 
     private final TestProjectApiMapper testProjectApiMapper;
     private final GraphJsonValidator graphJsonValidator;
@@ -163,11 +169,12 @@ public class FlowDesignPatchNormalizer {
     /**
      * 规范化新增节点与连线的 id。
      * <p>
-     * 缺 id 或非数字 id 时生成雪花 id；缺 position 时按基准图末节点网格推算坐标。
+     * 缺 id 或非数字 id 时生成雪花 id；缺 position 或与底图/同批已放节点 AABB 重叠时按网格错开。
      * 节点 id 被替换时，同步将 addEdges 的 source/target 映射到新 id，避免连线端点悬空。
      */
     private void normalizeIds(FlowDesignPatch patch, GraphJson baseGraph) {
         Map<String, String> idRemap = new HashMap<>();
+        List<GraphNodePosition> obstacles = collectBaseObstacles(baseGraph);
         if (patch.getAddNodes() != null) {
             int index = 0;
             for (GraphNode node : patch.getAddNodes()) {
@@ -179,9 +186,12 @@ public class FlowDesignPatchNormalizer {
                     }
                     node.setId(newId);
                 }
-                if (node.getPosition() == null) {
-                    node.setPosition(defaultAddPosition(baseGraph, index));
-                }
+                GraphNodePosition preferred = node.getPosition() != null
+                        ? node.getPosition()
+                        : defaultAddPosition(baseGraph, index);
+                GraphNodePosition resolved = resolveAddPosition(obstacles, preferred);
+                node.setPosition(resolved);
+                obstacles.add(resolved);
                 index++;
             }
         }
@@ -199,6 +209,65 @@ public class FlowDesignPatchNormalizer {
                 }
             }
         }
+    }
+
+    /** 收集基准图全部节点 position，作为避让障碍起点。 */
+    private static List<GraphNodePosition> collectBaseObstacles(GraphJson baseGraph) {
+        List<GraphNodePosition> obstacles = new ArrayList<>();
+        if (baseGraph == null || baseGraph.getNodes() == null) {
+            return obstacles;
+        }
+        for (GraphNode n : baseGraph.getNodes()) {
+            if (n != null && n.getPosition() != null) {
+                obstacles.add(n.getPosition());
+            }
+        }
+        return obstacles;
+    }
+
+    /**
+     * 相对障碍物为候选点找空位：缺坐标已在调用方补 preferred；有坐标但重叠时同样错开。
+     * 优先沿 x 网格右移，用尽后 y 下移再继续。
+     */
+    static GraphNodePosition resolveAddPosition(List<GraphNodePosition> obstacles, GraphNodePosition preferred) {
+        double baseX = preferred != null ? preferred.getX() : DEFAULT_X;
+        double baseY = preferred != null ? preferred.getY() : DEFAULT_Y;
+        for (int row = 0; row < MAX_SHIFT; row++) {
+            double y = baseY + row * ROW_STEP;
+            for (int i = 0; i < MAX_SHIFT; i++) {
+                double x = baseX + i * GRID_X;
+                if (!overlapsAny(x, y, obstacles)) {
+                    return GraphNodePosition.builder().x(x).y(y).build();
+                }
+            }
+        }
+        // 与前端一致：兜底落在扫过范围的右下角外侧
+        return GraphNodePosition.builder()
+                .x(baseX + MAX_SHIFT * GRID_X)
+                .y(baseY + MAX_SHIFT * ROW_STEP)
+                .build();
+    }
+
+    private static boolean overlapsAny(double x, double y, List<GraphNodePosition> obstacles) {
+        if (obstacles == null || obstacles.isEmpty()) {
+            return false;
+        }
+        for (GraphNodePosition o : obstacles) {
+            if (o == null) {
+                continue;
+            }
+            if (boxesOverlap(x, y, o.getX(), o.getY())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean boxesOverlap(double ax, double ay, double bx, double by) {
+        return !(ax + NODE_W <= bx
+                || bx + NODE_W <= ax
+                || ay + NODE_MIN_H <= by
+                || by + NODE_MIN_H <= ay);
     }
 
     /**

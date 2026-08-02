@@ -21,12 +21,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 加载 Web Agent 与 MCP 的 OpenAI function 定义（JSON Schema）。
+ * 加载 Web 助手与 MCP 的 OpenAI function 定义（名称、描述、参数 Schema）。
  * <p>
- * Web：{@code ai/flow-design-tools.json}（12 个工具，含 submit、get_flow_api_health、list_asset_variables）+ 运行时注入 patch schema。<br>
- * MCP：主 JSON 中允许 MCP 调用的工具 + {@code ai/flow-design-mcp-extra-tools.json}（list_flows、get_flow），共 13 个只读工具。
+ * Web：主工具 JSON 中 webAgent 工具共 13 个（含画布提交、素材列举与写入），运行时注入 patch schema。<br>
+ * MCP：主 JSON 中允许 MCP 的工具 + 额外「列流 / 读流」定义，共 13 个只读（不含画布提交、不含素材写入）。
  * <p>
- * 启动时核对：工具名枚举、执行器已注册工具、JSON 定义里的工具名三者集合相同，避免漏注册或多余工具。
+ * 启动时校验：工具名枚举、执行器已注册名、JSON 定义名三者集合相同。
  */
 @Slf4j
 @Service

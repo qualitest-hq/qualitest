@@ -7,11 +7,12 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * 列举项目素材库 key / 备注 / 子字段名（不含明文值）；委托画布侧实现。
+ * API 设计 AI 工具：列举当前项目素材库的 key、备注、子字段名（不含明文值）。
  */
 @RequiredArgsConstructor
 public class ListAssetVariablesForDesignTool implements ApiDesignTool {
 
+    /** 实际执行列举逻辑的实现 */
     private final ListAssetVariablesTool delegate;
 
     @Override

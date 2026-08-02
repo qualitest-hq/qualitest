@@ -19,6 +19,7 @@ import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.project.service.ITestFlowRunStepService;
+import com.qualitest.project.service.ITestProjectAssetService;
 import com.qualitest.project.service.ITestProjectEnvService;
 import com.qualitest.flow.diagnose.HttpNodeApiHealthChecker;
 import com.qualitest.flow.model.GraphEdge;
@@ -61,6 +62,7 @@ class FlowDesignToolExecutorTest {
     private ITestFlowRunService runService;
     private ITestFlowRunStepService runStepService;
     private FlowDesignPatchNormalizer normalizer;
+    private ITestProjectAssetService assetService;
     private FlowDesignToolExecutor executor;
     private FlowDesignToolContext context;
 
@@ -73,9 +75,10 @@ class FlowDesignToolExecutorTest {
         runService = mock(ITestFlowRunService.class);
         runStepService = mock(ITestFlowRunStepService.class);
         normalizer = mock(FlowDesignPatchNormalizer.class);
+        assetService = mock(ITestProjectAssetService.class);
         executor = new FlowDesignToolExecutor(
                 mapper, projectMapper, envService, flowService, runService, runStepService, normalizer,
-                new HttpNodeApiHealthChecker());
+                new HttpNodeApiHealthChecker(), assetService);
         context = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
                 .testFlowId(3001L)

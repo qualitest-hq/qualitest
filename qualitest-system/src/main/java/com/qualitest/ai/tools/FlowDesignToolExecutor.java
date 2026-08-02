@@ -17,12 +17,14 @@ import com.qualitest.ai.tools.flow.GetSubflowDetailTool;
 import com.qualitest.ai.tools.flow.ListSubflowTemplatesTool;
 import com.qualitest.ai.tools.flow.SearchApisTool;
 import com.qualitest.ai.tools.flow.SubmitFlowDesignPatchTool;
+import com.qualitest.ai.tools.flow.UpsertAssetVariablesTool;
 import com.qualitest.flow.diagnose.HttpNodeApiHealthChecker;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.project.service.ITestFlowRunStepService;
 import com.qualitest.project.service.ITestFlowService;
+import com.qualitest.project.service.ITestProjectAssetService;
 import com.qualitest.project.service.ITestProjectEnvService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -35,17 +37,15 @@ import java.util.stream.Collectors;
 /**
  * 测试流 AI 设计 Function Calling 统一执行器。
  * <p>
- * Web Agent 与 MCP 网关共用本类调度 {@link QualitestTool} 实现：
+ * Web 助手与 MCP 网关都经本类按工具名调度具体实现：
  * <ul>
- *   <li><b>项目资产只读</b> — search_apis、get_api_detail、list_project_envs、list_asset_variables</li>
- *   <li><b>画布/测试流只读</b> — get_graph_summary、get_flow_meta、get_node_detail、get_run_failure、
- *       get_flow_api_health（检查 HTTP 节点 API 语义告警）、list_subflow_templates、get_subflow_detail；
- *       MCP 额外提供 list_flows、get_flow</li>
- *   <li><b>Web 写入建议</b> — submit_flow_design_patch：经 {@link FlowDesignPatchNormalizer} 校验，
- *       结果供前端 Diff 合并，不写库（MCP 拒绝调用）</li>
+ *   <li>项目只读：搜接口、读接口详情、列环境、列素材库 key/字段名</li>
+ *   <li>素材写入：upsert_asset_variables — 按 key 新建/更新素材并落盘（仅 Web；MCP 拒绝）</li>
+ *   <li>画布/流只读：图摘要、场景 meta、节点详情、Run 失败、HTTP 节点 API 健康、子流模板与详情；
+ *       MCP 另有按项目列流、读完整流</li>
+ *   <li>画布建议写入：submit_flow_design_patch — 校验后返回 patch 供前端 Staging，不直接写库（仅 Web）</li>
  * </ul>
- * 工具返回 JSON 字符串；顶层 {@code error} 字段表示业务失败（Web/MCP 共用此约定）。
- * 结果超限时附 {@code truncated} 与 {@code hint}。
+ * 工具返回 JSON 字符串；顶层 error 表示业务失败；超长结果带 truncated 与 hint。
  */
 @Slf4j
 @Component
@@ -56,8 +56,10 @@ public class FlowDesignToolExecutor {
     public static final String GET_GRAPH_SUMMARY = FlowDesignToolNames.GET_GRAPH_SUMMARY.getId();
     public static final String GET_FLOW_META = FlowDesignToolNames.GET_FLOW_META.getId();
     public static final String LIST_PROJECT_ENVS = FlowDesignToolNames.LIST_PROJECT_ENVS.getId();
-    /** 项目素材库 key/字段名（不含明文） */
+    /** 工具名：列举项目素材库 key / 字段名 / 占位提示，不含明文 */
     public static final String LIST_ASSET_VARIABLES = FlowDesignToolNames.LIST_ASSET_VARIABLES.getId();
+    /** 工具名：按 key 新增或更新素材并落盘；回执不含明文；仅 Web */
+    public static final String UPSERT_ASSET_VARIABLES = FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId();
     public static final String GET_NODE_DETAIL = FlowDesignToolNames.GET_NODE_DETAIL.getId();
     public static final String GET_RUN_FAILURE = FlowDesignToolNames.GET_RUN_FAILURE.getId();
     /**
@@ -82,7 +84,8 @@ public class FlowDesignToolExecutor {
                                   ITestFlowRunService testFlowRunService,
                                   ITestFlowRunStepService testFlowRunStepService,
                                   FlowDesignPatchNormalizer flowDesignPatchNormalizer,
-                                  HttpNodeApiHealthChecker httpNodeApiHealthChecker) {
+                                  HttpNodeApiHealthChecker httpNodeApiHealthChecker,
+                                  ITestProjectAssetService testProjectAssetService) {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         Map<String, QualitestTool> map = new HashMap<>();
         map.put(SEARCH_APIS, new SearchApisTool(testProjectApiMapper));
@@ -94,7 +97,9 @@ public class FlowDesignToolExecutor {
         map.put(GET_GRAPH_SUMMARY, new GetGraphSummaryTool(graphResolver));
         map.put(GET_FLOW_META, new GetFlowMetaTool(graphResolver));
         map.put(LIST_PROJECT_ENVS, new ListProjectEnvsTool(testProjectEnvService));
+        // 素材库：列举（只读）与按 key 写入（仅 Web）
         map.put(LIST_ASSET_VARIABLES, new ListAssetVariablesTool(testProjectMapper));
+        map.put(UPSERT_ASSET_VARIABLES, new UpsertAssetVariablesTool(testProjectAssetService));
         map.put(GET_NODE_DETAIL, new GetNodeDetailTool(graphResolver));
         map.put(GET_RUN_FAILURE, new GetRunFailureTool(testFlowRunService, testFlowRunStepService));
         // 语义健康：优先用注入的检查器，单测未注入时 new 一个默认实例

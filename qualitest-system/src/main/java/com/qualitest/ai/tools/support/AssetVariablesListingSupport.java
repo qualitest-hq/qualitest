@@ -9,19 +9,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 项目素材库列举：仅 key / 备注 / 子字段名，不含明文值。
- * Web 画布 AI 与 API 设计 AI 共用，避免密钥进入对话上下文。
+ * 项目素材库「安全视图」组装：只暴露 key、备注、子字段名与占位提示，不带字段明文值。
+ * 供 AI 工具返回给模型，避免口令等进入对话上下文。
  */
 public final class AssetVariablesListingSupport {
 
-    /** 单次最多返回的素材条数 */
+    /** 单次列举最多返回的素材条数，超出则 truncated=true */
     public static final int MAX_ITEMS = 200;
 
     private AssetVariablesListingSupport() {
     }
 
     /**
-     * 将 asset_variables JSON 转为工具返回体（items + truncated）。
+     * 解析项目里的 asset_variables JSON，生成列举结果。
+     * 返回体含 items（安全摘要数组）与 truncated（是否因条数上限截断）。
      */
     public static JSONObject buildListResult(String assetVariablesJson) {
         List<TestProjectAsset> entries = TestProjectAssetSupport.parseEntries(assetVariablesJson);
@@ -35,15 +36,7 @@ public final class AssetVariablesListingSupport {
                 truncated = true;
                 break;
             }
-            String key = entry.getKey().trim();
-            JSONObject item = new JSONObject();
-            item.put("key", key);
-            if (entry.getRemark() != null && !entry.getRemark().isBlank()) {
-                item.put("remark", entry.getRemark().trim());
-            }
-            item.put("fields", extractFieldKeys(entry));
-            item.put("placeholderHint", "{{asset." + key + ".<field>}}");
-            items.add(item);
+            items.add(toSafeItem(entry));
         }
         JSONObject result = new JSONObject();
         result.put("items", items);
@@ -52,10 +45,27 @@ public final class AssetVariablesListingSupport {
     }
 
     /**
-     * 取出素材条目的子字段名。
-     * 常规结构：assets 下以 key 为名的一层 object，其属性名为字段。
+     * 将单条素材转为安全摘要对象。
+     * 字段：key、remark（有则带）、fields（仅字段名）、placeholderHint（如 {{asset.clientAuth.字段名}}）。
      */
-    static JSONArray extractFieldKeys(TestProjectAsset entry) {
+    public static JSONObject toSafeItem(TestProjectAsset entry) {
+        String key = entry.getKey().trim();
+        JSONObject item = new JSONObject();
+        item.put("key", key);
+        if (entry.getRemark() != null && !entry.getRemark().isBlank()) {
+            item.put("remark", entry.getRemark().trim());
+        }
+        item.put("fields", extractFieldKeys(entry));
+        item.put("placeholderHint", "{{asset." + key + ".<field>}}");
+        return item;
+    }
+
+    /**
+     * 取出素材条目的子字段名列表（不含值）。
+     * 常规落盘结构：assets 下以本条 key 为名的一层 object，其属性名即为字段；
+     * 若无该包装层，则退回 assets 顶层键名。
+     */
+    public static JSONArray extractFieldKeys(TestProjectAsset entry) {
         JSONArray fields = new JSONArray();
         Map<String, Object> assets = entry.getAssets();
         if (assets == null || assets.isEmpty()) {
@@ -71,6 +81,7 @@ public final class AssetVariablesListingSupport {
         return fields;
     }
 
+    /** 把键名去空白后追加到 fields；空名跳过 */
     private static void appendTrimmedKeys(JSONArray fields, Iterable<?> keys) {
         for (Object k : keys) {
             if (k == null) {

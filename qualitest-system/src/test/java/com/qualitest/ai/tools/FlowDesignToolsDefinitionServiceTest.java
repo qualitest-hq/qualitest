@@ -1,14 +1,14 @@
 package com.qualitest.ai.tools;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 import java.util.Set;
@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 FlowDesignToolsDefinitionService：Web / MCP 工具清单差异。
+ * 测 FlowDesignToolsDefinitionService：Web / MCP 工具清单内容与数量。
  * 边界：Mock FlowDesignToolExecutor.registeredToolNames，不启真实 Agent。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolsDefinitionServiceTest
  */
@@ -41,12 +41,12 @@ class FlowDesignToolsDefinitionServiceTest {
     }
 
     /**
-     * 前提：registeredToolNames 为全部声明工具。
-     * 期望：Web 列表含 submit、get_flow_api_health；不含 list_flows / get_flow。
+     * 前提：执行器已注册全部声明工具；加载 Web 工具定义。
+     * 期望：共 13 个；含 submit、upsert、list_asset、get_flow_api_health；不含 list_flows、get_flow。
      */
     @Test
     @Order(1)
-    @DisplayName("Web 清单含 submit 不含 list_flows")
+    @DisplayName("Web 清单含 submit/upsert，不含 list_flows")
     void loadToolsDefinition_containsSubmit_notListFlows() {
         List<String> names = service.loadToolsDefinition().stream()
                 .map(tool -> {
@@ -57,8 +57,10 @@ class FlowDesignToolsDefinitionServiceTest {
                     return null;
                 })
                 .toList();
-        assertEquals(12, names.size());
+
+        assertEquals(13, names.size());
         assertTrue(names.contains(FlowDesignToolNames.SUBMIT_FLOW_DESIGN_PATCH.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW_API_HEALTH.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_ASSET_VARIABLES.getId()));
         assertFalse(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
@@ -66,18 +68,20 @@ class FlowDesignToolsDefinitionServiceTest {
     }
 
     /**
-     * 前提：registeredToolNames 为全部声明工具。
-     * 期望：MCP 列表 13 个、含 list_flows/get_flow/get_flow_api_health/list_asset_variables，不含 submit。
+     * 前提：执行器已注册全部声明工具；加载 MCP 工具定义。
+     * 期望：共 13 个；含 list_flows、get_flow、list_asset、get_flow_api_health；不含 submit、upsert。
      */
     @Test
     @Order(2)
-    @DisplayName("MCP 十三工具不含 submit")
+    @DisplayName("MCP 十三工具不含 submit/upsert")
     void loadMcpProtocolTools_hasThirteenTools_excludesSubmit() {
         List<String> names = service.loadMcpProtocolTools().stream()
                 .map(tool -> String.valueOf(tool.get("name")))
                 .toList();
+
         assertEquals(13, names.size());
         assertFalse(names.contains(FlowDesignToolNames.SUBMIT_FLOW_DESIGN_PATCH.getId()));
+        assertFalse(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW_API_HEALTH.getId()));
@@ -85,16 +89,17 @@ class FlowDesignToolsDefinitionServiceTest {
     }
 
     /**
-     * 前提：加载 MCP 工具列表。
-     * 期望：名称集合与 FlowDesignToolNames.mcpAllowedToolIds() 一致。
+     * 前提：已加载 MCP 工具定义。
+     * 期望：名称集合等于枚举中 mcpAllowed=true 的全部 id。
      */
     @Test
     @Order(3)
-    @DisplayName("MCP 工具 id 与枚举一致")
+    @DisplayName("MCP 工具 id 等于枚举 mcpAllowed 集合")
     void mcpToolIds_matchEnum() {
         Set<String> mcpNames = service.loadMcpProtocolTools().stream()
                 .map(tool -> String.valueOf(tool.get("name")))
                 .collect(Collectors.toSet());
+
         assertEquals(FlowDesignToolNames.mcpAllowedToolIds(), mcpNames);
     }
 }

@@ -47,7 +47,7 @@ Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根�
 
 ## 3. 只读工具（摘要）
 
-MCP 侧共 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow`，无提交类工具）。
+MCP 侧共 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow`，无 `submit_*` / `upsert_asset_variables`）。
 
 | 工具 | 用途 |
 |:-----|:-----|
@@ -60,7 +60,7 @@ MCP 侧共 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` / `g
 | `get_flow_api_health` | HTTP 节点绑定 / API 语义告警 |
 | `search_apis` / `get_api_detail` | 查项目接口 |
 | `list_project_envs` | 环境列表 |
-| `list_asset_variables` | 项目素材库（参数资产）key/字段名，不含明文 |
+| `list_asset_variables` | 项目素材库（参数资产）key/字段名，不含明文；**写入请走 Web AI 的 `upsert_asset_variables`** |
 | `list_subflow_templates` | 平台子流模板 |
 
 典型勘察顺序：`list_flows` → 记下 `testFlowId` → `get_graph_summary` / `get_run_failure`。

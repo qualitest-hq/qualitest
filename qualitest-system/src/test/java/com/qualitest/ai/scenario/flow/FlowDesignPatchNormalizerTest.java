@@ -538,6 +538,71 @@ class FlowDesignPatchNormalizerTest {
         assertTrue(result.validation().isOk());
     }
 
+    /**
+     * 前提：空底图，AI 同批两个 addNodes 都写死 position=(40,80)。
+     * 期望：第一颗保留 (40,80)，第二颗错开到 (420,80)。
+     */
+    @Test
+    @Order(16)
+    @DisplayName("同批两节点同位时第二颗网格错开")
+    void normalize_sameBatchDuplicatePosition_secondShifted() {
+        GraphNode a = GraphNode.builder()
+                .type("http")
+                .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
+                .data(new HashMap<>(Map.of("name", "A", "callMode", "external", "externalUrl", "http://x")))
+                .build();
+        GraphNode b = GraphNode.builder()
+                .type("http")
+                .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
+                .data(new HashMap<>(Map.of("name", "B", "callMode", "external", "externalUrl", "http://y")))
+                .build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setAddNodes(new ArrayList<>(List.of(a, b)));
+
+        FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, emptyGraph(), PROJECT_ID);
+
+        GraphNodePosition p0 = result.patch().getAddNodes().get(0).getPosition();
+        GraphNodePosition p1 = result.patch().getAddNodes().get(1).getPosition();
+        assertEquals(40.0, p0.getX());
+        assertEquals(80.0, p0.getY());
+        assertEquals(420.0, p1.getX());
+        assertEquals(80.0, p1.getY());
+    }
+
+    /**
+     * 前提：底图已有节点 (40,80)，addNode 也写死 (40,80)。
+     * 期望：即使已有 position 也错开到 (420,80)。
+     */
+    @Test
+    @Order(17)
+    @DisplayName("相对底图重叠时有坐标也错开")
+    void normalize_overlapWithBase_shiftsEvenWithExplicitPosition() {
+        GraphNode existing = GraphNode.builder()
+                .id("1001")
+                .type("http")
+                .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
+                .data(new HashMap<>(Map.of("name", "登录")))
+                .build();
+        GraphJson base = GraphJson.builder()
+                .nodes(new ArrayList<>(List.of(existing)))
+                .edges(new ArrayList<>())
+                .build();
+        GraphNode add = GraphNode.builder()
+                .type("http")
+                .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
+                .data(new HashMap<>(Map.of("name", "下一步", "callMode", "external", "externalUrl", "http://z")))
+                .build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setAddNodes(new ArrayList<>(List.of(add)));
+
+        FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, base, PROJECT_ID);
+
+        GraphNodePosition position = result.patch().getAddNodes().get(0).getPosition();
+        assertNotNull(position);
+        assertEquals(420.0, position.getX());
+        assertEquals(80.0, position.getY());
+    }
+
     private static GraphJson emptyGraph() {
         return GraphJson.builder()
                 .nodes(new ArrayList<>())

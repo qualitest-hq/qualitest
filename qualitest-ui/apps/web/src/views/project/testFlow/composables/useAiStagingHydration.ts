@@ -17,19 +17,13 @@ import {
   rejectedStagingUnitIds,
 } from '../utils/stagingAcceptance';
 import { preparePatchForStaging } from '../utils/preparePatchForStaging';
+import {
+  obstaclesFromCanvasNodes,
+  spreadStagingAddPositions,
+} from '../utils/spreadStagingAddPositions';
 
 export function createAiStagingHydration(messages: Ref<AiDesignMessageView[]>) {
   const stagingStore = useAiStagingStore();
-
-  /** 读取当前画布拓扑与运行场景，作为构建 Staging 单元的上下文 */
-  function stagingBuildContext() {
-    const store = useFlowCanvasStore();
-    return {
-      nodes: store.nodes,
-      edges: store.edges,
-      runConfig: store.runConfig,
-    };
-  }
 
   function acceptanceOptionsForMessage(messageId: string) {
     return {
@@ -41,10 +35,28 @@ export function createAiStagingHydration(messages: Ref<AiDesignMessageView[]>) {
   /** 将单条消息的 patch 灌入 Staging store 并同步到画布 */
   async function hydrateStagingForMessage(messageId: string, patch: FlowDesignPatch) {
     const prepared = await preparePatchForStaging(patch);
-    stagingStore.hydrateStagingFromPatch(messageId, prepared, stagingBuildContext(), {
-      onConflict: (text: string) => ElMessage.info(text),
-      ...acceptanceOptionsForMessage(messageId),
-    });
+    const store = useFlowCanvasStore();
+    const excludeIds = new Set(
+      (prepared.addNodes ?? []).map((n) => n.id).filter((id): id is string => !!id),
+    );
+    // 确认前避让：相对正式节点及其它 pending，错开本轮 addNodes 坐标
+    const spread = spreadStagingAddPositions(
+      prepared,
+      obstaclesFromCanvasNodes(store.nodes, excludeIds),
+    );
+    stagingStore.hydrateStagingFromPatch(
+      messageId,
+      spread,
+      {
+        nodes: store.nodes,
+        edges: store.edges,
+        runConfig: store.runConfig,
+      },
+      {
+        onConflict: (text: string) => ElMessage.info(text),
+        ...acceptanceOptionsForMessage(messageId),
+      },
+    );
   }
 
   /** 遍历当前会话所有 assistant patch 消息，逐条灌入 Staging */
