@@ -13,6 +13,7 @@ import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
+import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.project.domain.TestProjectApi;
@@ -27,15 +28,16 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * AI 产出 {@link FlowDesignPatch} 的服务端规范化器。
+ * AI 产出流程补丁的服务端规范化器。
  * <p>
- * {@code submit_flow_design_patch} 与 Web Diff 合并前依次执行：
+ * 在 AI submit 与 Web Diff 合并前依次执行：
  * <ol>
  *   <li>为 addNodes/addEdges 补雪花 id 与默认 position</li>
- *   <li>校验 HTTP(project) 节点 {@code testProjectApiId} 属于当前项目；external 节点跳过 API 归属校验</li>
- *   <li>补 {@code data.summary}：project 为 {@code METHOD /path}，external 为 {@code POST ↗ host/path}，subflow 为子流摘要</li>
+ *   <li>校验 HTTP(project) 节点 testProjectApiId 属于当前项目；external 跳过 API 归属校验</li>
+ *   <li>补 data.summary（project / external / subflow 各自格式）</li>
  *   <li>规范化 scenarioPatch（场景 id、flowSeed 键名等）</li>
- *   <li>预合并到基准图副本，运行 {@link GraphJsonValidator} 得到 errors/warnings 回传模型</li>
+ *   <li>预合并到基准图副本，跑图结构校验，得到 errors/warnings</li>
+ *   <li>用上游接口响应示例试算 assert/condition 的 http.body 左值；未命中记入 errors 回传模型</li>
  * </ol>
  * 不写库；用户在前端 Diff 确认后才持久化 graph_json。
  */
@@ -53,7 +55,7 @@ public class FlowDesignPatchNormalizer {
 
     /**
      * 全量规范化并预合并校验：用于 AI submit 工具回调。
-     * 合并全部 patch 项后运行图校验，将 errors 回传模型自我修正。
+     * 合并全部 patch 后跑图结构校验，再用响应示例试算断言路径；错误回传模型以便自我修正。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId) {
         List<String> normWarnings = new ArrayList<>();
@@ -64,9 +66,14 @@ public class FlowDesignPatchNormalizer {
         List<String> warnings = new ArrayList<>(normWarnings);
         warnings.addAll(validation.getWarnings());
 
+        List<String> errors = new ArrayList<>(validation.getErrors());
+        // 设计期门禁：AI 提交的坏断言路径（试算空/[]）直接进 errors，进不了 Staging
+        errors.addAll(AssertPathDesignGate.validate(merged,
+                testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById));
+
         DesignValidationResult planValidation = DesignValidationResult.builder()
-                .ok(validation.isOk())
-                .errors(validation.getErrors())
+                .ok(errors.isEmpty())
+                .errors(errors)
                 .warnings(warnings)
                 .build();
 

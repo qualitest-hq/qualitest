@@ -28,8 +28,7 @@ class HttpNodeApiHealthCheckerTest {
     private final HttpNodeApiHealthChecker checker = new HttpNodeApiHealthChecker();
 
     /**
-     * 前提：schema 路径集合含 code、data.token、msg。
-     * 期望：精确/前缀匹配返回 true，无关路径返回 false。
+     * pathMatchesSchema：精确路径、父路径前缀均可命中；无关路径不命中。
      */
     @Test
     @Order(1)
@@ -43,11 +42,27 @@ class HttpNodeApiHealthCheckerTest {
     }
 
     /**
+     * 数组路径比对：下标、[*]、过滤器、误写的 .items 都会收成同一结构路径后与 data[*].xxx 叶子匹配。
+     */
+    @Test
+    @Order(2)
+    @DisplayName("数组下标/过滤器/.items 与 data[*] 叶子对齐")
+    void pathMatchesSchema_arrayIndexFilterAndLegacyItems() {
+        Set<String> paths = Set.of("data[*].quantity", "data[*].cartId");
+        assertTrue(HttpNodeApiHealthChecker.pathMatchesSchema("data[0].quantity", paths));
+        assertTrue(HttpNodeApiHealthChecker.pathMatchesSchema("data[*].quantity", paths));
+        assertTrue(HttpNodeApiHealthChecker.pathMatchesSchema("data[?(@.cartId=='5001')].quantity", paths));
+        assertTrue(HttpNodeApiHealthChecker.pathMatchesSchema("data.items.quantity", paths));
+        assertTrue(HttpNodeApiHealthChecker.pathMatchesSchema("http.body.data[?(@.cartId==5001)].quantity", paths));
+        assertFalse(HttpNodeApiHealthChecker.pathMatchesSchema("data.items.missing", paths));
+    }
+
+    /**
      * 前提：节点 overrides 含 API 未定义的参数 gone。
      * 期望：产生 ORPHAN_PARAM 告警，detail 含 gone。
      */
     @Test
-    @Order(2)
+    @Order(9)
     @DisplayName("孤儿参数产生 ORPHAN_PARAM")
     void orphanParam_warnsWhenNameMissingFromApi() {
         TestProjectApi api = TestProjectApi.builder()

@@ -140,7 +140,7 @@
 </template>
 
 <script setup>
-/** HTTP 节点属性：调用模式、接口/外联配置、超时、业务码校验、响应提取；项目接口模式下展示本节点语义健康告警 */
+/** HTTP 节点属性：调用模式、接口/外联、超时、业务码、响应提取；提取表达式可对 Run 响应或本接口响应示例试算 */
 import { computed } from 'vue'
 
 import DebugExtractEditor from '@/views/project/testProject/components/DebugExtractEditor.vue'
@@ -160,7 +160,7 @@ const props = defineProps({
   node: { type: Object, required: true },
 })
 
-const { trialBody } = useFlowTrialBody()
+const { trialBody } = useFlowTrialBody({ node: () => props.node })
 
 const emit = defineEmits(['open-http-config'])
 

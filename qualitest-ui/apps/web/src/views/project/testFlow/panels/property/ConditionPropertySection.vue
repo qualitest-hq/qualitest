@@ -25,6 +25,7 @@
           <DebugAssertEditor
               :model-value="branch.conditions || []"
               :trial-body="trialBody"
+              :trial-source="trialSource"
               @update:model-value="(val) => updateBranchConditions(branch.id, val)"
           />
         </template>
@@ -45,8 +46,8 @@
 
 <script setup>
 /**
- * condition 节点属性区：编辑各分支 conditions，支持增删 ELIF；
- * 条件编辑器可对最近 HTTP 响应试算左值。
+ * condition 节点属性区：编辑各分支 conditions，支持增删 ELIF。
+ * 条件左值试算优先用选中 Run 的 HTTP 响应，否则用上游接口响应示例。
  */
 import { computed } from 'vue'
 
@@ -69,7 +70,7 @@ const props = defineProps({
 
 const store = useFlowCanvasStore()
 const { patchNodeData } = useFlowNodes()
-const { trialBody } = useFlowTrialBody()
+const { trialBody, trialSource } = useFlowTrialBody({ node: () => props.node })
 
 const branches = computed(() => getConditionBranches(props.node.data))
 

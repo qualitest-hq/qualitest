@@ -12,7 +12,8 @@ import java.util.Set;
 /**
  * 项目 API 请求/响应配置的语义摘要。
  * <p>
- * 参数摘要含 type 与结构约束子集；schema 叶节点按 JSON Schema properties/items 展开；不含 enum/const。
+ * 参数摘要含 type 与结构约束子集；schema 叶节点按 properties 展开对象字段，
+ * 按数组通配 {@code [*]} 展开数组元素（不把 Schema 关键字 items 拼进路径）；不含 enum/const。
  */
 public final class FlowDesignApiSummarizer {
 
@@ -283,7 +284,8 @@ public final class FlowDesignApiSummarizer {
     }
 
     /**
-     * 将 JSON Schema 展开为叶节点数组：path / type / 约束子集（不含 enum）。
+     * 将 JSON Schema 展开为叶节点数组：每项含 path / type / 约束子集（不含 enum）。
+     * 对象走 properties 键名；数组在路径上追加 [*] 再展开元素 schema。
      */
     public static JSONArray summarizeSchemaLeaves(Object schemaRoot) {
         JSONArray leaves = new JSONArray();
@@ -291,6 +293,10 @@ public final class FlowDesignApiSummarizer {
         return leaves;
     }
 
+    /**
+     * 递归展开 schema。
+     * 对象：path 追加属性名；数组：path 追加 [*]（真实 JSON 用下标/通配访问元素，没有 items 键）。
+     */
     private static void walkSchemaLeaves(Object node, String prefix, int depth, int maxDepth,
                                          JSONArray leaves, int maxLeaves) {
         if (node == null || depth > maxDepth || leaves.size() >= maxLeaves) {
@@ -314,7 +320,8 @@ public final class FlowDesignApiSummarizer {
             return;
         }
         if ("array".equals(type) && items != null) {
-            String path = prefix.isEmpty() ? "items" : prefix + ".items";
+            // 数组路径用 [*]：例如 data[*].quantity，而不是 data.items.quantity
+            String path = prefix.isEmpty() ? "[*]" : prefix + "[*]";
             walkSchemaLeaves(items, path, depth + 1, maxDepth, leaves, maxLeaves);
             return;
         }

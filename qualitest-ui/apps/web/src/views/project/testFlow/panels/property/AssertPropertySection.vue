@@ -11,12 +11,12 @@
         {{ p.label }}
       </button>
     </div>
-    <DebugAssertEditor v-model="rulesModel" :trial-body="trialBody" />
+    <DebugAssertEditor v-model="rulesModel" :trial-body="trialBody" :trial-source="trialSource" />
   </div>
 </template>
 
 <script setup>
-/** 断言节点属性区：快捷预设 + 规则编辑（可对最近 HTTP 响应试算左值） */
+/** 断言节点属性区：快捷预设 + 规则编辑；试算优先用选中 Run 的响应，否则用上游接口响应示例 */
 import { computed } from 'vue'
 
 import DebugAssertEditor from '@/views/project/testProject/components/DebugAssertEditor.vue'
@@ -30,7 +30,7 @@ const props = defineProps({
 })
 
 const { patchNodeData } = useFlowNodes()
-const { trialBody } = useFlowTrialBody()
+const { trialBody, trialSource } = useFlowTrialBody({ node: () => props.node })
 
 const rulesModel = computed({
   get() {

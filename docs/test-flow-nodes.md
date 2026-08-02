@@ -51,7 +51,7 @@
 
 | 场景 | 写法 | 说明 |
 |------|------|------|
-| 断言 / 条件左值 | `http.body.data.code`、`http.body.data.items[?(@.cartId==5001)]` | 相对上一步响应 body；支持下标、过滤器、`[*]`、`length()` |
+| 断言 / 条件左值 | `http.body.data.code`、`http.body.data[?(@.cartId=='5001')].quantity` | 相对上一步响应 body；支持下标、过滤器、`[*]`、`length()`。**数组字段不要写 JSON Schema 关键字 `.items`**（真实 JSON 无此层） |
 | 简写（会规范化） | `$.data.code` | 设计态 / 运行态规范为 `http.body.data.code` |
 | Extract / 业务码 | `$.data.token` | **必须以 `$` 开头**，相对 body 根 |
 | 其它上下文 | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` | **不走 JsonPath** |
@@ -69,7 +69,9 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 - `eq`：多元素列表仅当恰好 1 个元素时拆箱再比，否则失败  
 - `contains`：左值为列表时**任一**元素包含右值即可  
 
-购物车「是否含某 cartId」推荐：`http.body.data.items[?(@.cartId==5001)]` + `exists`。
+购物车「是否含某 cartId」推荐：`http.body.data[?(@.cartId=='5001')]` + `exists`（若 `data` 直接是数组；勿写成 `data.items[…]`）。
+
+设计期：Staging ✓ / AI submit 会用上游接口响应示例试算 `http.body…` 左值，空或 `[]` 则硬拦；属性面板无 Run 时也可对照接口示例试算（空结果标红）。普通保存 / Run 对存量错路径不硬拦。
 
 ---
 

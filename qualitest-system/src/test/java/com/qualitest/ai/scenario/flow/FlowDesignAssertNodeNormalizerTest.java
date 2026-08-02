@@ -84,7 +84,7 @@ class FlowDesignAssertNodeNormalizerTest {
     void normalize_dollarLeft_andNotempty() {
         Map<String, Object> data = new HashMap<>();
         data.put("rules", List.of(Map.of(
-                "left", "$.data.items[?(@.cartId==5001)]",
+                "left", "$.data[?(@.cartId==5001)]",
                 "operator", "notempty",
                 "right", ""
         )));
@@ -94,7 +94,7 @@ class FlowDesignAssertNodeNormalizerTest {
         @SuppressWarnings("unchecked")
         List<JSONObject> rules = (List<JSONObject>) (List<?>) data.get("rules");
         JSONObject rule = rules.get(0);
-        assertEquals("http.body.data.items[?(@.cartId==5001)]", rule.getString("left"));
+        assertEquals("http.body.data[?(@.cartId==5001)]", rule.getString("left"));
         assertEquals("exists", rule.getString("operator"));
     }
 

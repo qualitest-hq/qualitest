@@ -46,8 +46,8 @@
 ## 占位符规则
 - 使用 {{flow.*}}、{{asset.*}}、{{env.*}}，禁止写死密码、Token
 - **两套路径方言，勿混用：**
-  - HTTP extracts / 业务码字段：用 JsonPath，**必须以 `$` 开头**（如 `$.data.token`、`$.data.items[?(@.cartId==5001)].skuId`）
-  - assert / condition 左值：用 `http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status`（如 `http.body.data.code`）；可用过滤器；**不要**写 `notempty`，用 `exists`
+  - HTTP extracts / 业务码字段：用 JsonPath，**必须以 `$` 开头**（如 `$.data.token`、`$.data[?(@.cartId=='5001')].skuId`）。若响应里 `data` 已是数组，写 `$.data[?…]` / `$.data[*].…`，**禁止**把 JSON Schema 关键字写成 `$.data.items[…]`
+  - assert / condition 左值：用 `http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status`（如 `http.body.data.code`、`http.body.data[?(@.cartId=='5001')].quantity`）；可用过滤器；**不要**写 `notempty`，用 `exists`；同样禁止误写 `.items`
   - 若误写 `$.…` 作断言左值，服务端会规范为 `http.body…`；仍请优先写正规 `http.body…`
   - 禁止 `http.body.$.…`
 

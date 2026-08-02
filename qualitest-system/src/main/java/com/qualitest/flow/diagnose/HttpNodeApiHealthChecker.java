@@ -250,22 +250,90 @@ public class HttpNodeApiHealthChecker {
     }
 
     /**
-     * 抽取路径是否落在响应结构摘要内。
-     * 命中条件：路径相等，或一方是另一方的父路径（带点号分隔）。
+     * 抽取路径是否落在响应 schema 叶路径集合内。
+     * 比对前会把双方都收成点分结构路径（去掉下标、过滤器、[*]，并去掉误写的 items 段）。
+     * 命中：结构路径相等，或一方是另一方的父路径（点号分隔）。
      */
     static boolean pathMatchesSchema(String path, Set<String> schemaPaths) {
         if (path == null || path.isBlank() || schemaPaths == null || schemaPaths.isEmpty()) {
             return false;
         }
-        String p = path.trim();
+        String p = normalizeStructuralPath(path);
+        if (p.isEmpty()) {
+            return false;
+        }
         for (String schemaPath : schemaPaths) {
-            if (schemaPath.equals(p)
-                    || p.startsWith(schemaPath + ".")
-                    || schemaPath.startsWith(p + ".")) {
+            if (schemaPath == null || schemaPath.isBlank()) {
+                continue;
+            }
+            String s = normalizeStructuralPath(schemaPath);
+            if (s.isEmpty()) {
+                continue;
+            }
+            if (s.equals(p)
+                    || p.startsWith(s + ".")
+                    || s.startsWith(p + ".")) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * 把 JsonPath 或 schema 叶路径收成「点分结构路径」，便于和 schema 摘要比对。
+     * <ul>
+     *   <li>去掉 {@code $.} / {@code http.body.} 前缀</li>
+     *   <li>去掉 {@code [0]}、{@code [*]}、{@code [?(…)]} 等下标与过滤器段</li>
+     *   <li>去掉路径里误写的 {@code items} 段（Schema 描述数组元素时的关键字，真实 JSON 无此键）
+     *       例如 {@code data.items.qty} → {@code data.qty}；{@code data[0].qty} → {@code data.qty}</li>
+     * </ul>
+     */
+    public static String normalizeStructuralPath(String path) {
+        if (path == null) {
+            return "";
+        }
+        String p = path.trim();
+        if (p.startsWith("$.")) {
+            p = p.substring(2);
+        } else if (p.startsWith("$")) {
+            p = p.substring(1);
+            if (p.startsWith(".")) {
+                p = p.substring(1);
+            }
+        }
+        if (p.startsWith("http.body.")) {
+            p = p.substring("http.body.".length());
+        } else if ("http.body".equals(p)) {
+            return "";
+        }
+        // 去掉 [?(...)] / [n] / [*]
+        StringBuilder out = new StringBuilder(p.length());
+        for (int i = 0; i < p.length(); ) {
+            char c = p.charAt(i);
+            if (c == '[') {
+                int close = p.indexOf(']', i);
+                if (close < 0) {
+                    out.append(c);
+                    i++;
+                    continue;
+                }
+                i = close + 1;
+                continue;
+            }
+            out.append(c);
+            i++;
+        }
+        p = out.toString();
+        // 去掉路径中的 items 段：JSON Schema 用 items 描述数组元素类型，真实响应没有这一层键
+        p = p.replaceAll("(?<=^|\\.)items(?=\\.|$)", "");
+        p = p.replaceAll("\\.{2,}", ".");
+        if (p.startsWith(".")) {
+            p = p.substring(1);
+        }
+        if (p.endsWith(".")) {
+            p = p.substring(0, p.length() - 1);
+        }
+        return p;
     }
 
     /**

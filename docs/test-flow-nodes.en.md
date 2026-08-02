@@ -51,7 +51,7 @@ Does not check HTTP status (that is the HTTP step). Typical rule fields: `left`,
 
 | Use | Form | Notes |
 |-----|------|--------|
-| Assert / condition left | `http.body.data.code`, `http.body.data.items[?(@.cartId==5001)]` | Relative to last HTTP body; supports index, filter, `[*]`, `length()` |
+| Assert / condition left | `http.body.data.code`, `http.body.data[?(@.cartId=='5001')].quantity` | Relative to last HTTP body; supports index, filter, `[*]`, `length()`. Do **not** write JSON Schema keyword `.items` into paths when `data` is already an array |
 | Shorthand (normalized) | `$.data.code` | Becomes `http.body.data.code` at design-time and runtime |
 | Extract / biz-code field | `$.data.token` | **Must start with `$`**, relative to body root |
 | Other context | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` | **Not** JsonPath |
@@ -63,7 +63,7 @@ Forbidden: `http.body.$.…` (Confirm / save fails).
 UI: `eq/ne/gt/gte/lt/lte/contains/not_contains/exists`.  
 Aliases: `equals`/`==` → `eq`; `notempty`/`not_empty` → `exists` (do not invent `notempty` in UI).
 
-Collection semantics: `exists` requires non-empty collection; `eq` unboxes only when size is exactly 1; `contains` on a list passes if **any** element matches. Prefer filter + `exists` for “cart contains cartId”.
+Collection semantics: `exists` requires non-empty collection; `eq` unboxes only when size is exactly 1; `contains` on a list passes if **any** element matches. Prefer `http.body.data[?(@.cartId=='5001')]` + `exists` when `data` is already an array (never `data.items[…]`). Design-time Staging / AI submit hard-blocks empty trial results on `http.body…` lefts against the upstream API response example.
 
 ---
 

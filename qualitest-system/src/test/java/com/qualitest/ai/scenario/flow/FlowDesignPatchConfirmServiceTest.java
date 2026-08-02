@@ -39,7 +39,7 @@ class FlowDesignPatchConfirmServiceTest {
     void setUp() {
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(null, new GraphJsonValidator(), merger);
-        confirmService = new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator());
+        confirmService = new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), null);
     }
 
     /**

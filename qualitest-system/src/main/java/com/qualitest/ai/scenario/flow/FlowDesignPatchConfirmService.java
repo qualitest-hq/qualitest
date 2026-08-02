@@ -11,9 +11,12 @@ import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphRunScenario;
+import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
+import com.qualitest.project.domain.TestProjectApi;
+import com.qualitest.project.mapper.TestProjectApiMapper;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +37,7 @@ import java.util.Set;
  *   <li>依赖校验（如 addEdge 须先 confirm 端点 addNode）</li>
  *   <li>按 unitId 过滤出单单元增量子集并合并到 graph_json 副本</li>
  *   <li>运行全图结构校验，汇总 errors 与 warnings</li>
+ *   <li>用上游接口响应示例试算 assert/condition 的 http.body 左值；未命中则确认失败</li>
  * </ol>
  * 不写库；成功时返回 graphJson 供前端落盘并清除 Staging 标记。
  */
@@ -46,6 +50,7 @@ public class FlowDesignPatchConfirmService {
     private final FlowDesignPatchNormalizer patchNormalizer;
     private final FlowDesignPatchMerger patchMerger;
     private final GraphJsonValidator graphJsonValidator;
+    private final TestProjectApiMapper testProjectApiMapper;
 
     /**
      * 确认单个 Staging 单元。
@@ -99,12 +104,18 @@ public class FlowDesignPatchConfirmService {
         List<String> allWarnings = new ArrayList<>(warnings);
         allWarnings.addAll(validation.getWarnings());
 
-        logConfirmMetrics(startedAt, unitId, validation.isOk());
+        // 设计期门禁：上游接口响应示例上试算 http.body 左值，空/[] 则不允许 Staging 确认
+        List<String> assertGateErrors = AssertPathDesignGate.validate(merged, this::loadApi);
+        List<String> allErrors = new ArrayList<>(validation.getErrors());
+        allErrors.addAll(assertGateErrors);
+        boolean ok = allErrors.isEmpty();
 
-        if (!validation.isOk()) {
+        logConfirmMetrics(startedAt, unitId, ok);
+
+        if (!ok) {
             return FlowDesignPatchConfirmResult.builder()
                     .ok(false)
-                    .errors(validation.getErrors())
+                    .errors(allErrors)
                     .warnings(allWarnings)
                     .graphJson(null)
                     .dependencyHints(List.of())
@@ -120,6 +131,14 @@ public class FlowDesignPatchConfirmService {
                 .dependencyHints(List.of())
                 .baseGraphHash(baseGraphHash)
                 .build();
+    }
+
+    /** 按 id 加载项目接口；mapper 为空或 id 为空时返回 null（门禁将跳过该节点） */
+    private TestProjectApi loadApi(Long apiId) {
+        if (apiId == null || testProjectApiMapper == null) {
+            return null;
+        }
+        return testProjectApiMapper.selectTestProjectApiById(apiId);
     }
 
     private static FlowDesignPatchConfirmResult failureResult(

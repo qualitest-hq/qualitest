@@ -167,4 +167,27 @@ class FlowDesignApiSummarizerTest {
         assertTrue(hasToken);
         assertTrue(hasMobile);
     }
+
+    /**
+     * data 为 array 时，叶路径写成 data[*].quantity，不会出现 data.items.quantity。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("数组响应用 data[*] 叶路径")
+    void summarizeResponse_arrayUsesStarIndexNotItemsKeyword() {
+        String responseConfig = """
+                {"responses":[{"schema":{"type":"object","properties":{
+                  "code":{"type":"integer"},
+                  "data":{"type":"array","items":{"type":"object","properties":{
+                    "cartId":{"type":"string"},
+                    "quantity":{"type":"integer"}
+                  }}}
+                }}}]}
+                """;
+        var out = FlowDesignApiSummarizer.summarizeResponse(responseConfig);
+        assertEquals("integer", out.getString("data[*].quantity"));
+        assertEquals("string", out.getString("data[*].cartId"));
+        assertFalse(out.containsKey("data.items.quantity"));
+        assertFalse(out.containsKey("data.items.cartId"));
+    }
 }
