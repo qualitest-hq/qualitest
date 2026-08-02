@@ -82,7 +82,7 @@ describe('useFlowViewport', () => {
   });
 
   it('focusNodeIds 一次算出视口并应用', async () => {
-    // 前提：画布有节点且 AI 侧栏打开
+    // 前提：画布有节点且 AI 侧栏打开；强制聚焦（关闭 onlyIfOffscreen）
     // 期望：聚焦成功，缩放只缩不放，视口偏移至节点
     const store = useFlowCanvasStore();
     store.viewport = { x: 0, y: 0, zoom: 1.2 };
@@ -92,7 +92,7 @@ describe('useFlowViewport', () => {
     ] as never[];
 
     const viewport = useFlowViewport();
-    const ok = await viewport.focusNodeIds(['n1']);
+    const ok = await viewport.focusNodeIds(['n1'], { onlyIfOffscreen: false });
 
     expect(ok).toBe(true);
     expect(setViewportMock).toHaveBeenCalled();
@@ -101,5 +101,22 @@ describe('useFlowViewport', () => {
     expect(applied.zoom).toBe(1);
     expect(applied.x).not.toBe(0);
     expect(applied.y).not.toBe(0);
+  });
+
+  it('focusNodeIds 默认仅离屏才平移', async () => {
+    // 前提：目标节点已在当前视野内
+    // 期望：跳过聚焦，不调用 setViewport
+    const store = useFlowCanvasStore();
+    store.viewport = { x: 0, y: 0, zoom: 1 };
+    store.aiDesignPanelOpen = false;
+    store.nodes = [
+      { id: 'n1', position: { x: 100, y: 200 } },
+    ] as never[];
+
+    const viewport = useFlowViewport();
+    const ok = await viewport.focusNodeIds(['n1']);
+
+    expect(ok).toBe(false);
+    expect(setViewportMock).not.toHaveBeenCalled();
   });
 });
