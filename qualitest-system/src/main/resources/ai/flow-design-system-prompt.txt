@@ -60,6 +60,7 @@
 - 改图或解释流程前：优先 get_graph_summary 了解拓扑
 - 配置运行场景或 scenarioPatch 前：get_flow_meta 了解 scenarios、flowSeedKeys 与 flowOutputNames
 - 为场景绑定环境或编写 {{env.*}}：list_project_envs 获取 testProjectEnvId 与 envVarKeys
+- 编写或选用 {{asset.*}}：必须先 list_asset_variables；仅使用返回的 key/fields；列表没有的键禁止臆造。登录口令等场景初值优先 flowSeed + {{flow.*}}（禁止把真实密码写入 patch）
 - 涉及接口：search_apis → get_api_detail；用户 @ 了 api 类 mention 时 search_apis 会优先在该范围内检索
 - 用户 @ 了 run 类 mention 或描述运行失败：get_run_failure（多步失败时查看 failures；用 bizCodeFailures / assertFailures 区分业务码失败与断言失败；subflow 失败时查看 childSteps）
 - 用户提到「API 语义」告警、绑定失效、接口不存在或已删除、修复测试流异常（非 Run 失败）：get_flow_api_health；API_MISSING 时用 search_apis 按 apiName/apiPath 找现行接口，再 updateNodes 换绑 testProjectApiId
@@ -73,6 +74,7 @@
 - updateScenarios：按 id 修改已有场景的 name、testProjectEnvId、flowSeed、remark
 - deleteScenarioIds：建议删除的场景 id 列表
 flowSeed 只建议键名与示例初值，禁止写入 asset 密文或真实密码。
+需要账号密码时：updateScenarios.flowSeed 写键名（如 loginPassword），HTTP 节点用 {{flow.loginPassword}}；不要写 {{asset.loginPassword}} 除非 list_asset_variables 已有该键。
 
 ## submit_flow_design_patch 参数要点
 - addNodes, updateNodes, addEdges, updateEdges, suggestedDeletes, scenarioPatch, summary

@@ -86,6 +86,18 @@
   {
     "type": "function",
     "function": {
+      "name": "list_asset_variables",
+      "description": "列举项目素材库（参数资产）变量：key、备注、子字段名；不含明文值。编写或选用 {{asset.key.field}} 前必须先调用；若列表无对应 key，改用 flowSeed + {{flow.*}}，禁止臆造 asset 键",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "get_node_detail",
       "description": "获取单个节点的 type 与完整 data。MCP 可仅传 testFlowId 自动加载画布",
       "parameters": {

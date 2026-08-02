@@ -201,6 +201,114 @@ export function unwrapOuterDataExampleJson(value) {
   return inner
 }
 
+function isPlainJsonObject(v) {
+  return v != null && typeof v === 'object' && !Array.isArray(v)
+}
+
+function normalizeSchemaType(type) {
+  if (Array.isArray(type)) {
+    return String(type.filter((x) => x !== 'null')[0] || '').toLowerCase()
+  }
+  return String(type || '').toLowerCase()
+}
+
+function cloneJsonValue(v) {
+  if (v == null || typeof v !== 'object') return v
+  try {
+    return JSON.parse(JSON.stringify(v))
+  } catch {
+    return v
+  }
+}
+
+/**
+ * 从 JSON Schema 的 `default` 生成调试用示例片段。
+ * @param {object} [schema]
+ * @param {{ onlyExplicitDefaults?: boolean }} [options]
+ *        onlyExplicitDefaults=true 时仅输出带 `default` 的叶子/节点（供回写请求示例，避免空串冲掉手改 JSON）
+ */
+export function buildExampleFromSchemaDefaults(schema, options = {}) {
+  const onlyExplicit = options.onlyExplicitDefaults === true
+  if (schema == null || typeof schema !== 'object') return undefined
+
+  function walk(node) {
+    if (node == null || typeof node !== 'object') return undefined
+    const t = normalizeSchemaType(node.type)
+    const hasProps = isPlainJsonObject(node.properties)
+
+    if (t === 'object' || hasProps) {
+      const out = {}
+      const props = hasProps ? node.properties : {}
+      for (const key of Object.keys(props)) {
+        if (!String(key).trim()) continue
+        const child = props[key]
+        const nested = walk(child)
+        if (nested !== undefined) {
+          out[key] = nested
+        }
+      }
+      if (Object.keys(out).length) return out
+      if ('default' in node) return cloneJsonValue(node.default)
+      return onlyExplicit ? undefined : {}
+    }
+
+    if (t === 'array') {
+      if ('default' in node) return cloneJsonValue(node.default)
+      if (onlyExplicit) {
+        const itemVal = walk(node.items)
+        return itemVal !== undefined ? [itemVal] : undefined
+      }
+      const itemVal = walk(node.items)
+      return itemVal !== undefined ? [itemVal] : []
+    }
+
+    if ('default' in node) return cloneJsonValue(node.default)
+    if (onlyExplicit) return undefined
+    if (t === 'string' || t === 'any' || t === '') return ''
+    if (t === 'null') return null
+    return undefined
+  }
+
+  return walk(schema)
+}
+
+/**
+ * 用 filler 填补 target 空位（undefined / null / ''）；非空标量保留 target。
+ * 对象按键递归。用于发送前：请求示例空串 ← schema default。
+ */
+export function mergeJsonFillEmpty(target, filler) {
+  if (filler === undefined) return target
+  if (target === undefined || target === null || target === '') return cloneJsonValue(filler)
+  if (isPlainJsonObject(target) && isPlainJsonObject(filler)) {
+    const out = {...target}
+    for (const key of Object.keys(filler)) {
+      out[key] = mergeJsonFillEmpty(out[key], filler[key])
+    }
+    return out
+  }
+  return target
+}
+
+/**
+ * 将 filler 中出现的键写入 target（object 递归；叶子以 filler 为准）。
+ * 用于「数据结构」改参后回写「请求示例」。
+ */
+export function mergeJsonPreferFiller(target, filler) {
+  if (filler === undefined) return target
+  if (!isPlainJsonObject(filler)) return cloneJsonValue(filler)
+  const base = isPlainJsonObject(target) ? target : {}
+  const out = {...base}
+  for (const key of Object.keys(filler)) {
+    const fv = filler[key]
+    if (isPlainJsonObject(fv) && isPlainJsonObject(out[key])) {
+      out[key] = mergeJsonPreferFiller(out[key], fv)
+    } else {
+      out[key] = cloneJsonValue(fv)
+    }
+  }
+  return out
+}
+
 function copyLeafIntoRoot(root, leaf) {
   root.type = leaf.type
   root.title = leaf.title

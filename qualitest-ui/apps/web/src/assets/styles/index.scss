@@ -97,28 +97,11 @@ div:focus {
   }
 }
 
-aside {
-  background: #eef1f6;
-  padding: 8px 24px;
-  margin-bottom: 20px;
-  border-radius: 2px;
-  display: block;
-  line-height: 32px;
-  font-size: 16px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-  color: #2c3e50;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  a {
-    color: #337ab7;
-    cursor: pointer;
-
-    &:hover {
-      color: rgb(32, 160, 255);
-    }
-  }
-}
+/*
+ * 原 vue-element-admin 演示用 aside 全局样式已移除。
+ * padding/line-height/display 会污染画布左右栏、AI 助手壳层等 <aside>，
+ * 导致侧栏折叠后仍残留约 48px 宽、文字竖排挤压等问题。
+ */
 
 //main-container全局样式
 .app-container {

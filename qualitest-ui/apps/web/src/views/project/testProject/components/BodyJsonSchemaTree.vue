@@ -238,6 +238,7 @@ import DebugParamTypeCell from './DebugParamTypeCell.vue'
 import {pruneConstraintsForType} from '@/views/project/testProject/utils/fieldTypeConstraints'
 import {
   SCHEMA_JSON_BODY_TYPES,
+  buildExampleFromSchemaDefaults,
   createDefaultChildProperty,
   createEmptyRootSchema,
   createRootUiNode,
@@ -601,7 +602,17 @@ function removeNodeById(root, id) {
   return false
 }
 
-defineExpose({emitSchema: flushEmitSchema})
+/**
+ * 调试发送用：直接从当前树（含未 debounce 的参数值）生成 example 片段，
+ * 不依赖父级 v-model 是否已写回。
+ */
+function buildDebugExampleFromTree() {
+  if (!rootNode.value) return undefined
+  const schema = uiRootToSchemaJson(rootNode.value, {includeExample: props.showExampleColumn})
+  return buildExampleFromSchemaDefaults(schema, {onlyExplicitDefaults: true})
+}
+
+defineExpose({emitSchema: flushEmitSchema, buildDebugExampleFromTree})
 </script>
 
 <style lang="scss" scoped>

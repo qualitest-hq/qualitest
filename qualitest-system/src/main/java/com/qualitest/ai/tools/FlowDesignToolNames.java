@@ -3,15 +3,15 @@ package com.qualitest.ai.tools;
 import java.util.Arrays;
 
 /**
- * 测试流 AI 设计工具名注册表（13 个工具）。
+ * 测试流 AI 设计工具名注册表（14 个工具）。
  * <p>
  * 每个工具有两个暴露开关：
  * <ul>
  *   <li>{@code webAgent} — 是否出现在 Web「AI 设计」助手的 function 列表</li>
  *   <li>{@code mcpAllowed} — 是否允许经 MCP tools/call 调用</li>
  * </ul>
- * Web 共 11 个（含 submit_flow_design_patch、get_flow_api_health）；
- * MCP 共 12 个只读（含 list_flows、get_flow，不含 submit）。
+ * Web 共 12 个（含 submit_flow_design_patch、get_flow_api_health、list_asset_variables）；
+ * MCP 共 13 个只读（含 list_flows、get_flow、list_asset_variables，不含 submit）。
  * 启动时会核对枚举、执行器注册表与 JSON 定义中的工具名是否齐全且无多余项。
  */
 public enum FlowDesignToolNames {
@@ -21,6 +21,8 @@ public enum FlowDesignToolNames {
     GET_GRAPH_SUMMARY("get_graph_summary", true, true),
     GET_FLOW_META("get_flow_meta", true, true),
     LIST_PROJECT_ENVS("list_project_envs", true, true),
+    /** 列举项目素材库 key/字段名（不含明文值），写 {{asset.*}} 前应先调用 */
+    LIST_ASSET_VARIABLES("list_asset_variables", true, true),
     GET_NODE_DETAIL("get_node_detail", true, true),
     GET_RUN_FAILURE("get_run_failure", true, true),
     /**

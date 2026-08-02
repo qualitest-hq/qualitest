@@ -47,7 +47,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 
 ## 3. Read-only tools (summary)
 
-**12** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow`; no submit tools).
+**13** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow`; no submit tools).
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -60,6 +60,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `get_flow_api_health` | HTTP binding / API semantic warnings |
 | `search_apis` / `get_api_detail` | Project APIs |
 | `list_project_envs` | Environments |
+| `list_asset_variables` | Project asset variable keys/fields (no plaintext values) |
 | `list_subflow_templates` | Platform subflow templates |
 
 Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary` / `get_run_failure`.

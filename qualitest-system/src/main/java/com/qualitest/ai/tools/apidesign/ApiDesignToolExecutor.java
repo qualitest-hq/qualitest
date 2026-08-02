@@ -3,6 +3,7 @@ package com.qualitest.ai.tools.apidesign;
 import com.qualitest.ai.scenario.apidesign.ApiDesignPatchNormalizer;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.flow.GetApiDetailTool;
+import com.qualitest.ai.tools.flow.ListAssetVariablesTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
@@ -39,7 +40,8 @@ public class ApiDesignToolExecutor {
         map.put(GET_API_DESIGN_CONTEXT, new GetApiDesignContextTool(testProjectApiMapper));
         map.put(GET_API_DETAIL, new GetApiDetailForDesignTool(new GetApiDetailTool(testProjectApiMapper, testProjectMapper)));
         map.put(LIST_PROJECT_ENVS, new ListProjectEnvsForDesignTool(new ListProjectEnvsTool(testProjectEnvService)));
-        map.put(LIST_ASSET_VARIABLES, new ListAssetVariablesTool(testProjectMapper));
+        map.put(LIST_ASSET_VARIABLES, new ListAssetVariablesForDesignTool(
+                new ListAssetVariablesTool(testProjectMapper)));
         map.put(SUBMIT_API_DESIGN_PATCH, new SubmitApiDesignPatchTool(apiDesignPatchNormalizer));
         this.tools = Map.copyOf(map);
     }

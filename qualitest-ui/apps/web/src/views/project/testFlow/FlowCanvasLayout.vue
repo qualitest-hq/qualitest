@@ -773,17 +773,15 @@ function onPaneClick() {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+  /* 自包含盒模型，避免再被全局 aside 一类规则注入 padding */
+  padding: 0;
+  margin: 0;
+  line-height: normal;
+  border-radius: 0;
 
   &--left {
     width: var(--panel-w);
     min-width: var(--panel-w);
-
-    &.is-collapsed {
-      width: 0;
-      min-width: 0;
-      overflow: hidden;
-      border: none;
-    }
   }
 
   &--left,
@@ -818,13 +816,21 @@ function onPaneClick() {
     .flow-panel__head {
       padding: 8px 8px 6px;
     }
+  }
 
-    &.is-closed {
-      width: 0;
-      min-width: 0;
-      overflow: hidden;
-      border: none;
-    }
+  /* 左栏折叠 / 右栏关闭共用：彻底收起，勿留 padding 残宽 */
+  &--left.is-collapsed,
+  &--right.is-closed,
+  &.panel--right.is-closed {
+    width: 0;
+    min-width: 0;
+    max-width: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    border: none;
+    visibility: hidden;
+    pointer-events: none;
   }
 }
 

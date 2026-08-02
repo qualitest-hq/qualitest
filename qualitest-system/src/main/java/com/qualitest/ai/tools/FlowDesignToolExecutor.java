@@ -10,6 +10,7 @@ import com.qualitest.ai.tools.flow.GetFlowTool;
 import com.qualitest.ai.tools.flow.GetGraphSummaryTool;
 import com.qualitest.ai.tools.flow.GetNodeDetailTool;
 import com.qualitest.ai.tools.flow.GetRunFailureTool;
+import com.qualitest.ai.tools.flow.ListAssetVariablesTool;
 import com.qualitest.ai.tools.flow.ListFlowsTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.ai.tools.flow.GetSubflowDetailTool;
@@ -36,7 +37,7 @@ import java.util.stream.Collectors;
  * <p>
  * Web Agent 与 MCP 网关共用本类调度 {@link QualitestTool} 实现：
  * <ul>
- *   <li><b>项目资产只读</b> — search_apis、get_api_detail、list_project_envs</li>
+ *   <li><b>项目资产只读</b> — search_apis、get_api_detail、list_project_envs、list_asset_variables</li>
  *   <li><b>画布/测试流只读</b> — get_graph_summary、get_flow_meta、get_node_detail、get_run_failure、
  *       get_flow_api_health（检查 HTTP 节点 API 语义告警）、list_subflow_templates、get_subflow_detail；
  *       MCP 额外提供 list_flows、get_flow</li>
@@ -55,6 +56,8 @@ public class FlowDesignToolExecutor {
     public static final String GET_GRAPH_SUMMARY = FlowDesignToolNames.GET_GRAPH_SUMMARY.getId();
     public static final String GET_FLOW_META = FlowDesignToolNames.GET_FLOW_META.getId();
     public static final String LIST_PROJECT_ENVS = FlowDesignToolNames.LIST_PROJECT_ENVS.getId();
+    /** 项目素材库 key/字段名（不含明文） */
+    public static final String LIST_ASSET_VARIABLES = FlowDesignToolNames.LIST_ASSET_VARIABLES.getId();
     public static final String GET_NODE_DETAIL = FlowDesignToolNames.GET_NODE_DETAIL.getId();
     public static final String GET_RUN_FAILURE = FlowDesignToolNames.GET_RUN_FAILURE.getId();
     /**
@@ -91,6 +94,7 @@ public class FlowDesignToolExecutor {
         map.put(GET_GRAPH_SUMMARY, new GetGraphSummaryTool(graphResolver));
         map.put(GET_FLOW_META, new GetFlowMetaTool(graphResolver));
         map.put(LIST_PROJECT_ENVS, new ListProjectEnvsTool(testProjectEnvService));
+        map.put(LIST_ASSET_VARIABLES, new ListAssetVariablesTool(testProjectMapper));
         map.put(GET_NODE_DETAIL, new GetNodeDetailTool(graphResolver));
         map.put(GET_RUN_FAILURE, new GetRunFailureTool(testFlowRunService, testFlowRunStepService));
         // 语义健康：优先用注入的检查器，单测未注入时 new 一个默认实例

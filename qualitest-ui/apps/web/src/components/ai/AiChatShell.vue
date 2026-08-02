@@ -304,6 +304,12 @@ defineExpose({
   box-shadow: -8px 0 32px rgba(20, 60, 120, 0.12);
   display: flex;
   flex-direction: column;
+  /* 自包含盒模型（勿依赖/继承全局 aside） */
+  padding: 0;
+  margin: 0;
+  line-height: normal;
+  border-radius: 0;
+  font-size: 14px;
 }
 
 /* ========== 标题栏 ========== */

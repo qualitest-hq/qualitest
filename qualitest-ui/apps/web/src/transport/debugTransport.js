@@ -5,6 +5,12 @@ import {normalizeDebugBodySpec} from '@/transport/debugBodySpec'
 import {classifyAxiosOrNetworkError, TransportErrorCode} from '@/transport/errorCodes'
 
 const debugAxios = axios.create({timeout: 60000, validateStatus: () => true})
+// axios 1.x 默认可能给 POST 带 application/json；FormData 必须去掉，否则会被 JSON.stringify
+for (const bag of [debugAxios.defaults.headers?.post, debugAxios.defaults.headers?.common]) {
+  if (!bag) continue
+  delete bag['Content-Type']
+  delete bag['content-type']
+}
 
 /**
  * @param {object} built
@@ -170,11 +176,22 @@ export async function executeDebugRequest(built, options) {
   }
 
   try {
+    // FormData 时勿带 Content-Type，交由浏览器写 multipart boundary
+    const reqHeaders = {...(headers || {})}
+    const payload = ['GET', 'HEAD'].includes(String(method).toUpperCase()) ? undefined : data
+    const isFormData = typeof FormData !== 'undefined' && payload instanceof FormData
+    if (isFormData) {
+      for (const hk of Object.keys(reqHeaders)) {
+        if (hk.toLowerCase() === 'content-type') delete reqHeaders[hk]
+      }
+      // 显式 false：阻止 axios 用默认 application/json 把 FormData 序列化成 "{}" / 字段 JSON
+      reqHeaders['Content-Type'] = false
+    }
     const res = await debugAxios.request({
       url: fullUrl,
       method,
-      headers,
-      data: ['GET', 'HEAD'].includes(String(method).toUpperCase()) ? undefined : data,
+      headers: reqHeaders,
+      data: payload,
       validateStatus: () => true
     })
     const dt = Math.round(performance.now() - t0)
