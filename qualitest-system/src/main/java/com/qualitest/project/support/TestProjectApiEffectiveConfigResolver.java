@@ -195,7 +195,28 @@ public final class TestProjectApiEffectiveConfigResolver {
     }
 
     /**
-     * 把 bodyExample 写入 body.json.example；没有 body 对象则跳过。
+     * 去掉 request 配置里 {@code body.json.example}。
+     * <p>
+     * 跑测试流时调用：不把接口资产 TV / 结构层的 body 默认带进发出去的请求；
+     * 节点 {@code requestValueOverrides.bodyExample} 随后可整段写回。
+     * 接口调试 / Web 详情仍走 {@link #resolve}，不受本方法影响。
+     */
+    public static String stripBodyExample(String rawRequestConfig) {
+        ObjectNode root = ApiConfigJsonSupport.parseObjectOrEmpty(rawRequestConfig);
+        JsonNode body = root.get("body");
+        if (body != null && body.isObject()) {
+            ObjectNode bodyObj = (ObjectNode) body;
+            JsonNode json = bodyObj.get("json");
+            if (json != null && json.isObject()) {
+                ((ObjectNode) json).remove("example");
+            }
+        }
+        return ApiConfigJsonSupport.writeCompact(root);
+    }
+
+    /**
+     * 把 bodyExample 整段写入 body.json.example（替换，不与旧 example 字段级深合并）；
+     * 没有 body 对象则跳过。
      */
     private static void applyBodyExampleNode(ObjectNode root, JsonNode bodyExample) {
         if (bodyExample == null || bodyExample.isNull()) {

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -170,11 +171,54 @@ class TestProjectApiEffectiveConfigResolverTest {
     }
 
     /**
+     * 前提：request 含 body.json.example 脏默认。
+     * 期望：stripBodyExample 后 example 被移除；resolve 仍叠回 TV body（调试路径不变）。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("stripBodyExample：剥掉 example；resolve 仍叠 TV body")
+    void stripBodyExample_removesExample_resolveStillOverlaysTvBody() {
+        String withExample = """
+                {
+                  "configVersion": 1,
+                  "method": "POST",
+                  "queryParams": [],
+                  "pathParams": [],
+                  "declaredHeaders": [],
+                  "body": {"mode": "json", "json": {"example": {"items":[{"skuId":0}],"cartIds":[0]}}}
+                }
+                """;
+        String stripped = TestProjectApiEffectiveConfigResolver.stripBodyExample(withExample);
+        assertFalse(stripped.contains("items"));
+        assertFalse(stripped.contains("cartIds"));
+        assertFalse(stripped.contains("\"example\""));
+
+        TestProjectApi api = TestProjectApi.builder()
+                .requestConfig("""
+                        {
+                          "configVersion": 1,
+                          "method": "POST",
+                          "queryParams": [],
+                          "pathParams": [],
+                          "declaredHeaders": [],
+                          "body": {"mode": "json", "json": {"schema": null, "example": "{}"}}
+                        }
+                        """)
+                .testValueConfig("""
+                        {"request":{"bodyExample":{"addressId":4001,"cartIds":[5001],"items":[{"skuId":0}]}}}
+                        """)
+                .build();
+        var effective = TestProjectApiEffectiveConfigResolver.resolve(api);
+        assertTrue(effective.getRequestConfig().contains("cartIds"));
+        assertTrue(effective.getRequestConfig().contains("items"));
+    }
+
+    /**
      * 前提：源 API 含身份字段与 testValueConfig 默认值。
      * 期望：toApiView 保留 id/path/headers，requestConfig 为有效配置（含 hello）。
      */
     @Test
-    @Order(6)
+    @Order(7)
     @DisplayName("toApiView：保留身份字段并用有效配置")
     void toApiView_usesEffectiveRequestAndResponse() {
         TestProjectApi source = TestProjectApi.builder()
