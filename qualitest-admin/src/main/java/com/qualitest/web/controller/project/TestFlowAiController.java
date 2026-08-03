@@ -4,7 +4,10 @@ import com.alibaba.fastjson2.JSON;
 import com.qualitest.ai.llm.AgentRunListener;
 import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.scenario.flow.TestFlowDesignAgent;
+import com.qualitest.ai.scenario.flow.AssetUpsertProposalService;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchConfirmService;
+import com.qualitest.ai.scenario.flow.model.AssetUpsertProposalDecisionRequest;
+import com.qualitest.ai.scenario.flow.model.AssetUpsertProposalDecisionResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmRequest;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignRequest;
@@ -46,6 +49,7 @@ public class TestFlowAiController extends BaseController {
 
     private final TestFlowDesignAgent testFlowDesignAgent;
     private final FlowDesignPatchConfirmService flowDesignPatchConfirmService;
+    private final AssetUpsertProposalService assetUpsertProposalService;
     private final ITestProjectMemberService testProjectMemberService;
     private final TestFlowDesignAccessValidator testFlowDesignAccessValidator;
     private final IAiPromptTemplateService aiPromptTemplateService;
@@ -77,6 +81,39 @@ public class TestFlowAiController extends BaseController {
             testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());
         }
         FlowDesignPatchConfirmResult result = flowDesignPatchConfirmService.confirmUnit(request);
+        return AjaxResult.success(result);
+    }
+
+    /**
+     * 确认素材库写入提案：校验项目成员后，把提案 fields 写入项目素材库。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @PostMapping("/assetProposal/confirm")
+    public AjaxResult confirmAssetProposal(@RequestBody AssetUpsertProposalDecisionRequest request) {
+        return decideAssetProposal(request, true);
+    }
+
+    /**
+     * 拒绝素材库写入提案：校验项目成员后，只改消息元数据状态，不写素材库。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @PostMapping("/assetProposal/reject")
+    public AjaxResult rejectAssetProposal(@RequestBody AssetUpsertProposalDecisionRequest request) {
+        return decideAssetProposal(request, false);
+    }
+
+    /**
+     * 确认或拒绝素材提案的共用入口：成员校验后调用业务服务。
+     *
+     * @param confirm true 确认落盘，false 拒绝
+     */
+    private AjaxResult decideAssetProposal(AssetUpsertProposalDecisionRequest request, boolean confirm) {
+        if (request.getTestProjectId() != null) {
+            testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());
+        }
+        AssetUpsertProposalDecisionResult result = confirm
+                ? assetUpsertProposalService.confirm(request, getUserId())
+                : assetUpsertProposalService.reject(request, getUserId());
         return AjaxResult.success(result);
     }
 

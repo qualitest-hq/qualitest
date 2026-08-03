@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * Web 助手与 MCP 网关都经本类按工具名调度具体实现：
  * <ul>
  *   <li>项目只读：搜接口、读接口详情、列环境、列素材库 key/字段名</li>
- *   <li>素材写入：upsert_asset_variables — 按 key 新建/更新素材并落盘（仅 Web；MCP 拒绝）</li>
+ *   <li>素材提案：upsert_asset_variables — 按 key 提出新建/更新素材，待用户确认后写入项目素材库（仅 Web）</li>
  *   <li>画布/流只读：图摘要、场景 meta、节点详情、Run 失败、HTTP 节点 API 健康、子流模板与详情；
  *       MCP 另有按项目列流、读完整流</li>
  *   <li>画布建议写入：submit_flow_design_patch — 校验后返回 patch 供前端 Staging，不直接写库（仅 Web）</li>

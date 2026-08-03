@@ -87,7 +87,7 @@
     "type": "function",
     "function": {
       "name": "list_asset_variables",
-      "description": "列举项目素材库（参数资产）变量：key、备注、子字段名；不含明文值。编写或选用 {{asset.key.field}} 前必须先调用；若列表无对应 key，调用 upsert_asset_variables 写入后再引用，禁止臆造 asset 键",
+      "description": "列举项目素材库（参数资产）变量：key、备注、子字段名；不含明文值。编写或选用 {{asset.key.field}} 前必须先调用；若列表无对应 key，调用 upsert_asset_variables 提出写入提案（待用户确认后落盘）后再引用，禁止臆造 asset 键",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -99,7 +99,7 @@
     "type": "function",
     "function": {
       "name": "upsert_asset_variables",
-      "description": "按 key 新增或更新项目素材库条目（直接落盘）。fields 为扁平字段对象；返回 key/字段名/action，不含明文。登录口令等优先写入如 clientAuth（mobile/password）后在 HTTP 中引用 {{asset.clientAuth.password}}。仅 Web；勿在助手正文复述明文",
+      "description": "按 key 提出新增或更新项目素材库条目（提案，不立即落盘；用户在聊天侧确认后才写入）。fields 为扁平字段对象；返回 key/字段名/action/status=pending，不含明文。登录口令等优先提案如 clientAuth（mobile/password），节点中可先引用 {{asset.clientAuth.password}}，并提醒用户确认素材后再 Run。仅 Web；勿在助手正文复述明文",
       "parameters": {
         "type": "object",
         "properties": {

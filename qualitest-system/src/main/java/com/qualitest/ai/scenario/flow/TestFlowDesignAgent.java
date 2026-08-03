@@ -19,6 +19,8 @@ import com.qualitest.ai.scenario.flow.model.TestFlowDesignResult;
 import com.qualitest.ai.service.AiChatConversationService;
 import com.qualitest.ai.service.AiChatSessionSummaryService;
 import com.qualitest.ai.service.IAiLlmModelService;
+import com.qualitest.ai.tools.AssetUpsertCapture;
+import com.qualitest.ai.tools.AssetUpsertProposal;
 import com.qualitest.ai.tools.FlowDesignPatchStats;
 import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
@@ -35,16 +37,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 测试流 AI 设计场景编排服务。
+ * 测试流 AI 设计编排：跑 Agent、收集画布修改建议与素材库写入提案、落库助手消息并返回结果。
  * <p>
- * 职责：
- * <ul>
- *   <li>加载 system prompt、工具定义与会话历史，驱动 {@link AiAgentRunner} 多轮 Tool Calling</li>
- *   <li>结构化修改建议仅经 {@link FlowDesignToolExecutor#SUBMIT_FLOW_DESIGN_PATCH} 获取，
- *       不从 assistant 对话正文解析 JSON</li>
- *   <li>根据本轮是否调用 submit 判定 {@code explainOnly}；组装 {@link TestFlowDesignResult} 并落库会话消息</li>
- * </ul>
- * 不自动保存 graph_json，不触发 Run；用户在前端 Diff 确认后手动合并并保存。
+ * 画布建议与素材提案都不自动写业务库；需用户在前端确认后再落盘。不自动触发 Run。
  */
 @Service
 @RequiredArgsConstructor
@@ -79,8 +74,8 @@ public class TestFlowDesignAgent {
     /**
      * 执行一轮 AI 设计的核心流程。
      * <p>
-     * 顺序：校验请求 → 加载/创建会话 → 构建工具上下文与 submit 捕获器 → Agent 循环 →
-     * 从捕获器读取 patch → 生成 summary 与元数据 → 落库 assistant 消息 → 返回结果。
+     * 顺序：校验请求 → 加载/创建会话 → 构建工具上下文（含画布 patch 捕获器与素材提案捕获器）→ Agent 循环 →
+     * 读取 patch 与素材提案 → 生成 summary 与元数据 → 落库助手消息 → 返回结果。
      */
     private TestFlowDesignResult executeDesign(TestFlowDesignRequest request,
                                                Long userId,
@@ -104,8 +99,11 @@ public class TestFlowDesignAgent {
 
         Integer sessionThinking = resolveSessionThinking(session, request);
 
+        // 本轮内存容器：画布 patch 与素材库写入提案（工具只写容器，不落业务库）
         FlowDesignSubmitCapture submitCapture = new FlowDesignSubmitCapture();
-        FlowDesignToolContext toolContext = flowDesignToolContextFactory.fromDesignRequest(request, submitCapture);
+        AssetUpsertCapture assetUpsertCapture = new AssetUpsertCapture();
+        FlowDesignToolContext toolContext = flowDesignToolContextFactory.fromDesignRequest(
+                request, submitCapture, assetUpsertCapture);
 
         List<Map<String, Object>> tools = flowDesignToolsDefinitionService.loadToolsDefinition();
         List<LlmMessage> messages = buildInitialMessages(request, session, modelConfig);
@@ -161,6 +159,12 @@ public class TestFlowDesignAgent {
 
         String summary = resolveSummary(normalizedPatch, content, explainOnly);
 
+        // 本轮 upsert 工具留下的素材提案（含明文 fields，供前端确认后落盘）
+        List<AssetUpsertProposal> assetProposals = assetUpsertCapture.hasProposals()
+                ? assetUpsertCapture.getProposals()
+                : List.of();
+
+        // 助手消息元数据：说明文案、是否仅答疑、画布 patch、素材提案、模型信息
         JSONObject meta = new JSONObject();
         meta.put("summary", summary);
         meta.put("explainOnly", explainOnly);
@@ -169,6 +173,9 @@ public class TestFlowDesignAgent {
         meta.put("modelName", modelConfig.getModelName());
         if (!explainOnly && normalizedPatch != null) {
             meta.put("patchJson", normalizedPatch);
+        }
+        if (!assetProposals.isEmpty()) {
+            meta.put("assetProposals", assetProposals);
         }
 
         aiChatConversationService.appendAssistantMessage(
@@ -192,6 +199,7 @@ public class TestFlowDesignAgent {
                 .patch(normalizedPatch)
                 .validation(validation)
                 .explainOnly(explainOnly)
+                .assetProposals(assetProposals.isEmpty() ? null : assetProposals)
                 .build();
     }
 

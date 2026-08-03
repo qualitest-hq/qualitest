@@ -1,43 +1,52 @@
 package com.qualitest.ai.scenario.flow.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.qualitest.ai.tools.AssetUpsertProposal;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.List;
+
 /**
- * 测试流 AI 设计接口响应体。
+ * 测试流 AI 设计接口的一轮响应。
  * <p>
- * 仅返回建议 patch 与校验结果，不自动写入 test_flow 表；
- * 用户在前端确认合并后仍需手动保存画布。
+ * 含自然语言说明、画布增量 patch、校验结果，以及本轮素材库写入提案（若有）。
+ * 不自动保存测试流，也不自动写入素材库；画布变更与素材提案均需用户确认后再落盘。
  */
 @Getter
 @Builder
 public class TestFlowDesignResult {
 
-    /** 会话 id；多轮会话落库功能启用后填充 */
+    /** 本轮会话 id */
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private final Long aiChatSessionId;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private final Long aiLlmModelId;
 
-    /** 本次设计使用的厂商展示名 */
+    /** 本次使用的厂商展示名 */
     private final String vendorName;
-    /** 本次设计使用的模型展示名 */
+    /** 本次使用的模型展示名 */
     private final String modelName;
 
-    /** 中文流程说明 */
+    /** 给用户看的中文说明（助手气泡正文） */
     private final String summary;
 
-    /** 模型思考过程（Extended Thinking 等），仅展示用 */
+    /** 模型思考过程全文，仅展示，不参与多轮上下文 */
     private final String thinkingContent;
 
-    /** 规范化后的增量 patch，供前端 Diff */
+    /** 画布增量修改建议；本轮未提交改图时为 null */
     private final FlowDesignPatch patch;
 
-    /** 将 patch 预合并到请求图后的校验结果 */
+    /** 把 patch 预合并到当前图后的校验摘要 */
     private final DesignValidationResult validation;
 
-    /** true 表示仅解释、不产生 patch（explain 模式） */
+    /** true 表示本轮未提交画布修改，仅说明或仅有素材提案等 */
     private final boolean explainOnly;
+
+    /**
+     * 本轮素材库写入提案列表（含 fields 明文，供前端确认卡片展示与落盘）。
+     * 无提案时为 null 或空列表。会话列表接口会对 fields 脱敏。
+     */
+    private final List<AssetUpsertProposal> assetProposals;
 }

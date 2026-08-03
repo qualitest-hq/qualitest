@@ -105,6 +105,12 @@
                 >
                   本轮未提交画布修改（无 Staging）。若本意是改节点/断言，请点重新生成，或更明确写出要改的节点。
                 </div>
+                <AiAssetProposalCard
+                    v-if="shouldShowAssetProposals(msg as AiDesignMessageView)"
+                    :message-id="(msg as AiDesignMessageView).id"
+                    :proposals="(msg as AiDesignMessageView).assetProposals ?? []"
+                    @update:proposals="(next) => onAssetProposalsUpdate((msg as AiDesignMessageView).id, next)"
+                />
                 <div
                     v-if="shouldShowStagingSummary(msg as AiDesignMessageView)"
                     class="ai-design-staging-extra"
@@ -161,12 +167,9 @@
 /**
  * 测试流 AI 助手面板。
  *
- * 壳层 UI（标题、会话、Composer、消息列表框架）由 AiChatShell 承担；
- * 本文件只处理测试流特有逻辑：
- * - Mention 编辑器输入与发送
- * - Staging 变更摘要与定位
- * - Run 失败修复 / 节点右键「添加到对话」的 Composer 预填
- * - 确认后自动保存开关
+ * 壳层 UI 由 AiChatShell 承担；本文件处理：
+ * Mention 输入与发送、画布变更摘要、素材库写入提案卡片、
+ * Run 失败修复 / 节点添加入口预填、确认后自动保存开关。
  */
 import { nextTick, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -183,6 +186,7 @@ import AiChatMessageRow from '@/components/ai/AiChatMessageRow.vue';
 import AiChatShell from '@/components/ai/AiChatShell.vue';
 import AiChatUserBubble from '@/components/ai/AiChatUserBubble.vue';
 import AiStagingChangeSummary from '../components/AiStagingChangeSummary.vue';
+import AiAssetProposalCard from '../components/AiAssetProposalCard.vue';
 import { useAiDesign } from '../composables/useAiDesign';
 import { useFlowGraph } from '../composables/useFlowGraph';
 import { isAutoSaveAfterConfirm, setAutoSaveAfterConfirm } from '../utils/aiDesignPreferences';
@@ -191,7 +195,11 @@ import { isComposerDocEmpty, MENTION_CATEGORY_TAGS } from '../composables/mentio
 import AiMentionComposer from './AiMentionComposer.vue';
 import AiPromptTemplateStrip from '@/components/ai/AiPromptTemplateStrip.vue';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
-import type { AiDesignMessageView, AiDesignSystemAction } from '../types/aiDesignTypes';
+import type {
+  AiDesignMessageView,
+  AiDesignSystemAction,
+  AssetUpsertProposalView,
+} from '../types/aiDesignTypes';
 import { shouldShowExplainOnlyHint, shouldShowStagingSummary } from '../utils/stagingMessage';
 
 const store = useFlowCanvasStore();
@@ -323,6 +331,24 @@ async function onEditUserMessage(messageId: string) {
 function onAutoSaveAfterConfirmChange(enabled: boolean) {
   autoSaveAfterConfirm.value = enabled;
   setAutoSaveAfterConfirm(enabled);
+}
+
+/** 助手消息是否带有可展示的素材库写入提案 */
+function shouldShowAssetProposals(msg: AiDesignMessageView) {
+  return msg.role === 'assistant' && Array.isArray(msg.assetProposals) && msg.assetProposals.length > 0;
+}
+
+/** 卡片确认/拒绝或懒加载 fields 后，回写该消息上的提案列表 */
+function onAssetProposalsUpdate(messageId: string, next: AssetUpsertProposalView[]) {
+  const idx = messages.value.findIndex((m) => m.id === messageId);
+  if (idx < 0) return;
+  const copy = [...messages.value];
+  copy[idx] = {
+    ...copy[idx],
+    assetProposals: next,
+    assetProposalsPending: false,
+  };
+  messages.value = copy;
 }
 
 /** Run 修复入口：预插 run chip 与提示文案（先 focus，避免 insertText 落到运行库 DOM） */

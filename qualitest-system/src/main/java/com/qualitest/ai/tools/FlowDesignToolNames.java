@@ -16,11 +16,11 @@ public enum FlowDesignToolNames {
     GET_GRAPH_SUMMARY("get_graph_summary", true, true),
     GET_FLOW_META("get_flow_meta", true, true),
     LIST_PROJECT_ENVS("list_project_envs", true, true),
-    /** 列举项目素材库：key / 字段名 / 占位提示，不含明文；写 {{asset.*}} 前先调 */
+    /** 列举项目素材库：key、字段名、占位提示，不含明文；写 {{asset.*}} 前先调 */
     LIST_ASSET_VARIABLES("list_asset_variables", true, true),
     /**
-     * 按 key 新增或更新素材库条目并立即落盘；回执不含明文。
-     * 仅 Web 助手；MCP 不可调用。
+     * 按 key 提出新增或更新素材库条目（只记提案，待用户确认后落盘）；回执不含明文。
+     * 仅 Web 助手可见；MCP 不可调用。
      */
     UPSERT_ASSET_VARIABLES("upsert_asset_variables", true, false),
     GET_NODE_DETAIL("get_node_detail", true, true),

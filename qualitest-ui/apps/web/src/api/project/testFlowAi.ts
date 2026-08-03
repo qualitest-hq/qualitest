@@ -2,8 +2,10 @@
  * 测试流 AI 设计 HTTP 客户端。
  *
  * - POST /project/testFlow/ai/design/stream — SSE 流式设计
- * - POST /project/testFlow/ai/patch/confirmUnit — 单 Staging 单元确认校验与合并
- * - GET  /project/testFlow/ai/promptTemplates — AI 设计面板提示词模板列表
+ * - POST /project/testFlow/ai/patch/confirmUnit — 确认单个画布变更单元
+ * - POST /project/testFlow/ai/assetProposal/confirm — 确认素材库写入提案并落盘
+ * - POST /project/testFlow/ai/assetProposal/reject — 拒绝素材库写入提案
+ * - GET  /project/testFlow/ai/promptTemplates — 设计面板提示词模板
  */
 import request from '@/utils/request';
 import { consumeAuthenticatedSsePost } from '@/utils/ai/consumeSseStream';
@@ -142,6 +144,58 @@ export async function confirmFlowDesignUnit(
     data,
   });
   return res.data as FlowDesignPatchConfirmResult;
+}
+
+/** 确认或拒绝素材库写入提案的请求参数 */
+export interface AssetUpsertProposalDecisionPayload {
+  /** 测试项目 id */
+  testProjectId: string;
+  /** 存有提案的助手消息 id */
+  aiChatMessageId: string;
+  /** 素材 key */
+  key: string;
+}
+
+/** 确认或拒绝素材库写入提案的响应 */
+export interface AssetUpsertProposalDecisionResult {
+  ok: boolean;
+  errors?: string[];
+  key?: string;
+  action?: string;
+  status?: string;
+  /** 字段名列表，无明文 */
+  fields?: string[];
+  placeholderHint?: string;
+}
+
+/**
+ * 确认素材库写入提案：服务端把提案 fields 写入项目素材库。
+ */
+export async function confirmAssetUpsertProposal(
+  data: AssetUpsertProposalDecisionPayload,
+): Promise<AssetUpsertProposalDecisionResult> {
+  const res = await request({
+    url: '/project/testFlow/ai/assetProposal/confirm',
+    method: 'post',
+    headers: { repeatSubmit: false },
+    data,
+  });
+  return res.data as AssetUpsertProposalDecisionResult;
+}
+
+/**
+ * 拒绝素材库写入提案：服务端只改消息元数据状态，不写素材库。
+ */
+export async function rejectAssetUpsertProposal(
+  data: AssetUpsertProposalDecisionPayload,
+): Promise<AssetUpsertProposalDecisionResult> {
+  const res = await request({
+    url: '/project/testFlow/ai/assetProposal/reject',
+    method: 'post',
+    headers: { repeatSubmit: false },
+    data,
+  });
+  return res.data as AssetUpsertProposalDecisionResult;
 }
 
 /**

@@ -382,11 +382,17 @@ export function useAiDesign() {
   }
   executeDesignRequestRef = executeDesignRequest;
 
-  /** 将设计 API 响应转为 assistant 消息并写入列表，同时灌入 Staging */
+  /**
+   * 把设计接口响应转成助手消息写入列表。
+   * 若有画布 patch 则灌入待确认单元；若有素材提案则挂在消息上供卡片展示。
+   */
   function appendAssistantMessage(data: TestFlowDesignResult) {
     const messageId = createClientMessageId();
     const explainOnly = data.explainOnly === true;
     const patch = explainOnly ? undefined : data.patch;
+    const assetProposals = Array.isArray(data.assetProposals) && data.assetProposals.length > 0
+      ? data.assetProposals
+      : undefined;
     const assistantMessage: AiDesignMessageView = {
       id: messageId,
       role: 'assistant',
@@ -403,6 +409,7 @@ export function useAiDesign() {
       patch,
       validation: data.validation,
       explainOnly,
+      assetProposals,
     };
     messages.value = [...messages.value, assistantMessage];
 

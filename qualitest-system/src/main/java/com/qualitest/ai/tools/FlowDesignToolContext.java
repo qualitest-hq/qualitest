@@ -61,10 +61,14 @@ public class FlowDesignToolContext {
     private final int maxToolResultBytes = AiLlmConfigService.DEFAULT_MAX_TOOL_RESULT_BYTES;
 
     /**
-     * 本轮 submit 结果捕获器。
-     * <p>
-     * 由编排层每轮请求新建并注入；{@code submit_flow_design_patch} 执行后写入规范化 patch。
-     * 可为 null（仅影响 capture 写入，不影响 submit 本身的校验与 tool_result 返回）。
+     * 本轮 submit_flow_design_patch 的结果捕获器。
+     * 编排层每轮新建并注入；工具执行后写入规范化 patch。可为 null。
      */
     private final FlowDesignSubmitCapture submitCapture;
+
+    /**
+     * 本轮 upsert_asset_variables 的提案捕获器。
+     * 编排层每轮新建并注入；工具只写提案不落库。为空时 upsert 工具返回错误。
+     */
+    private final AssetUpsertCapture assetUpsertCapture;
 }

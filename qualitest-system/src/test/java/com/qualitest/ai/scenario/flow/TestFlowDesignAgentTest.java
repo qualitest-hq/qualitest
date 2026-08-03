@@ -95,7 +95,7 @@ class TestFlowDesignAgentTest {
         when(conversationService.loadMessagesForLlm(eq(SESSION_ID), any(LlmModelConfig.class), any(), anyInt()))
                 .thenReturn(List.of());
         when(toolsDefinitionService.loadToolsDefinition()).thenReturn(List.of());
-        when(contextFactory.fromDesignRequest(any(), any())).thenAnswer(inv -> {
+        when(contextFactory.fromDesignRequest(any(), any(), any())).thenAnswer(inv -> {
             TestFlowDesignRequest req = inv.getArgument(0);
             FlowDesignSubmitCapture capture = inv.getArgument(1);
             return FlowDesignToolContext.builder()
@@ -105,6 +105,7 @@ class TestFlowDesignAgentTest {
                     .maxSearchApis(10)
                     .maxToolResultBytes(8192)
                     .submitCapture(capture)
+                    .assetUpsertCapture(inv.getArgument(2))
                     .build();
         });
     }

@@ -24,13 +24,20 @@ public class FlowDesignToolContextFactory {
     private final AiLlmConfigService aiLlmConfigService;
 
     /**
-     * 从 Web 设计请求构建上下文。
-     * <p>
-     * 将用户 @ 引用（mentions）解析为 scopeApiIds、contextNodeIds、contextRunId；
-     * submitCapture 由编排层注入，供 {@code submit_flow_design_patch} 写入规范化结果。
+     * 从 Web 设计请求构建工具上下文（不注入素材提案捕获器）。
+     * 解析 mentions 得到检索范围与上下文节点 / Run；submitCapture 由调用方传入。
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture) {
+        return fromDesignRequest(request, submitCapture, null);
+    }
+
+    /**
+     * 从 Web 设计请求构建工具上下文，并注入画布 patch 捕获器与素材提案捕获器。
+     */
+    public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
+                                                     FlowDesignSubmitCapture submitCapture,
+                                                     AssetUpsertCapture assetUpsertCapture) {
         AiDesignMentionSupport.ResolvedMentionContext resolved =
                 AiDesignMentionSupport.resolve(request.getMentions());
         return build(
@@ -40,14 +47,13 @@ public class FlowDesignToolContextFactory {
                 emptyToNull(resolved.getScopeApiIds()),
                 emptyToNull(resolved.getContextNodeIds()),
                 resolved.getContextRunId(),
-                submitCapture);
+                submitCapture,
+                assetUpsertCapture);
     }
 
     /**
-     * 从 MCP 调用请求构建上下文。
-     * <p>
-     * 项目 id 优先取 params.testProjectId，否则使用 Token 解析结果。
-     * MCP 只读工具不需要 submitCapture。
+     * 从 MCP 调用请求构建工具上下文。
+     * 项目 id 优先用 params.testProjectId，否则用 Token 解析出的项目 id。
      *
      * @param tokenProjectId Project Token 过滤器写入的项目 id
      */
@@ -56,7 +62,7 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 MCP 调用请求构建上下文（可注入 submitCapture，一般 MCP 路径使用无参重载）。
+     * 从 MCP 调用请求构建工具上下文；可附带 submit 捕获器。素材提案捕获器固定为 null（MCP 无写入素材工具）。
      */
     public FlowDesignToolContext fromMcpRequest(McpToolInvokeParams params,
                                                 Long tokenProjectId,
@@ -75,11 +81,12 @@ public class FlowDesignToolContextFactory {
                 parseLongIds(params.getScopeApiIds()),
                 emptyToNull(params.getContextNodeIds()),
                 params.getContextRunId(),
-                submitCapture);
+                submitCapture,
+                null);
     }
 
     /**
-     * 组装完整工具上下文，注入运行时限制参数。
+     * 组装工具上下文各字段，并填入运行时条数 / 字节上限配置。
      */
     private FlowDesignToolContext build(Long testProjectId,
                                         Long testFlowId,
@@ -87,7 +94,8 @@ public class FlowDesignToolContextFactory {
                                         List<Long> scopeApiIds,
                                         List<String> contextNodeIds,
                                         Long contextRunId,
-                                        FlowDesignSubmitCapture submitCapture) {
+                                        FlowDesignSubmitCapture submitCapture,
+                                        AssetUpsertCapture assetUpsertCapture) {
         return FlowDesignToolContext.builder()
                 .testProjectId(testProjectId)
                 .testFlowId(testFlowId)
@@ -99,6 +107,7 @@ public class FlowDesignToolContextFactory {
                 .maxListFlows(aiLlmConfigService.getMaxListFlows())
                 .maxToolResultBytes(aiLlmConfigService.getMaxToolResultBytes())
                 .submitCapture(submitCapture)
+                .assetUpsertCapture(assetUpsertCapture)
                 .build();
     }
 

@@ -2,6 +2,7 @@ package com.qualitest.ai.service;
 
 import cn.hutool.core.util.IdUtil;
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.domain.AiChatMessage;
 import com.qualitest.ai.scenario.flow.AiDesignMentionSupport;
@@ -16,6 +17,7 @@ import com.qualitest.ai.params.CreateAiChatSessionRequest;
 import com.qualitest.ai.result.AiChatMessageResult;
 import com.qualitest.ai.result.AiChatSessionDetailResult;
 import com.qualitest.ai.result.AiChatSessionResult;
+import com.qualitest.ai.tools.support.AssetUpsertSupport;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
 import lombok.RequiredArgsConstructor;
@@ -96,7 +98,8 @@ public class AiChatConversationService {
     }
 
     /**
-     * 获取会话详情及消息摘要（不含 patchJson，assistant meta 含 hasPatch 标记）。
+     * 获取会话详情及消息摘要。
+     * 摘要中去掉 patchJson 全文与素材提案 fields 明文，改标 hasPatch / hasAssetProposals。
      */
     public AiChatSessionDetailResult getSessionWithMessageSummaries(Long sessionId, Long userId) {
         return getSessionWithMessageSummaries(sessionId, userId, null, null);
@@ -163,7 +166,8 @@ public class AiChatConversationService {
     }
 
     /**
-     * 获取单条消息完整 meta（含 patchJson）。校验消息所属会话归属当前用户。
+     * 按 id 取单条消息完整元数据（含 patchJson、素材提案 fields）。
+     * 校验消息所属会话归当前用户所有。
      */
     public AiChatMessageResult getMessageMeta(Long messageId, Long userId) {
         if (messageId == null) {
@@ -178,7 +182,25 @@ public class AiChatConversationService {
     }
 
     /**
-     * assistant 消息摘要：保留 summary / explainOnly / vendor 等，移除 patchJson 并标记 hasPatch。
+     * 更新助手消息的 resultMetaJson（例如素材提案确认/拒绝后改写 status）。
+     * 须为助手角色消息，且会话归属当前用户。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateAssistantResultMeta(Long messageId, Long userId, String resultMetaJson) {
+        AiChatMessageResult message = getMessageMeta(messageId, userId);
+        if (!"assistant".equals(message.getMessageRole())) {
+            throw new ServiceException("仅可更新助手消息元数据");
+        }
+        AiChatMessage update = AiChatMessage.builder()
+                .aiChatMessageId(messageId)
+                .resultMetaJson(resultMetaJson)
+                .build();
+        aiChatMessageService.updateAiChatMessage(update);
+    }
+
+    /**
+     * 把助手消息压成列表用摘要：去掉 patchJson，标 hasPatch；
+     * 素材提案去掉 fields 明文、保留 fieldNames，标 hasAssetProposals。
      */
     static AiChatMessageResult toMessageSummary(AiChatMessageResult message) {
         if (message == null || !"assistant".equals(message.getMessageRole())) {
@@ -196,6 +218,7 @@ public class AiChatConversationService {
             if (hasPatch) {
                 meta.put("hasPatch", true);
             }
+            redactAssetProposalsForSummary(meta);
             return AiChatMessageResult.builder()
                     .aiChatMessageId(message.getAiChatMessageId())
                     .aiChatSessionId(message.getAiChatSessionId())
@@ -209,6 +232,46 @@ public class AiChatConversationService {
         } catch (Exception ignored) {
             return message;
         }
+    }
+
+    /**
+     * 列表摘要场景：assetProposals 去掉 fields 明文，只留 key、action、remark、status、fieldNames，
+     * 并设置 hasAssetProposals=true。无有效提案则移除该字段。
+     */
+    static void redactAssetProposalsForSummary(JSONObject meta) {
+        if (meta == null || !meta.containsKey("assetProposals")) {
+            return;
+        }
+        Object raw = meta.get("assetProposals");
+        if (!(raw instanceof JSONArray arr) || arr.isEmpty()) {
+            meta.remove("assetProposals");
+            return;
+        }
+        JSONArray safe = new JSONArray();
+        for (int i = 0; i < arr.size(); i++) {
+            JSONObject item = arr.getJSONObject(i);
+            if (item == null) {
+                continue;
+            }
+            JSONObject copy = new JSONObject();
+            copy.put("key", item.getString("key"));
+            if (item.getString("action") != null) {
+                copy.put("action", item.getString("action"));
+            }
+            if (item.getString("remark") != null) {
+                copy.put("remark", item.getString("remark"));
+            }
+            String status = item.getString("status");
+            copy.put("status", status != null ? status : "pending");
+            JSONArray fieldNames = AssetUpsertSupport.fieldNamesArrayFromFieldsObj(item.get("fields"));
+            if (fieldNames.isEmpty() && item.getJSONArray("fieldNames") != null) {
+                fieldNames = item.getJSONArray("fieldNames");
+            }
+            copy.put("fieldNames", fieldNames);
+            safe.add(copy);
+        }
+        meta.put("assetProposals", safe);
+        meta.put("hasAssetProposals", true);
     }
 
     /**
@@ -405,8 +468,8 @@ public class AiChatConversationService {
      * <ul>
      *   <li>{@code messageContent} — 用户可见的自然语言 summary</li>
      *   <li>{@code thinkingContent} — 模型思考过程，独立字段存储，不送入多轮 LLM</li>
-     *   <li>{@code resultMeta} — JSON，含 summary、explainOnly、patchStats、vendorName、modelName；
-     *       非 explainOnly 时另含完整 patch 对象字段 {@code patchJson}，供前端会话恢复时渲染 Diff</li>
+ *   <li>{@code resultMeta} — JSON：summary、explainOnly、patchStats、vendorName、modelName；
+ *       有画布建议时含 patchJson；有素材库写入提案时含 assetProposals（含 fields）</li>
      * </ul>
      *
      * @param messageContent  assistant 自然语言正文

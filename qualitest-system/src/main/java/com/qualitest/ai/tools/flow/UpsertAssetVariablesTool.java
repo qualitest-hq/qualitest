@@ -1,14 +1,15 @@
 package com.qualitest.ai.tools.flow;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.ai.tools.AssetUpsertCapture;
+import com.qualitest.ai.tools.AssetUpsertProposal;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.support.AssetUpsertSupport;
 import com.qualitest.ai.tools.support.AssetVariablesListingSupport;
-import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.domain.TestProjectAsset;
-import com.qualitest.project.params.TestProjectAssetSaveParams;
 import com.qualitest.project.result.TestProjectAssetResult;
 import com.qualitest.project.service.ITestProjectAssetService;
 import lombok.RequiredArgsConstructor;
@@ -17,16 +18,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 测试流 AI 工具：按 key 新增或更新项目素材库条目。
+ * 测试流 AI 工具：按 key 提出新增或更新项目素材库条目。
  * <p>
- * 入参为素材键名、可选备注、扁平字段对象（如 mobile / password）；
- * 服务端立即写入项目素材库。仅 Web「AI 设计」助手可调用，MCP 侧不开放。
- * 成功回执只含 key、字段名列表、动作（created / updated）与占位提示，不含字段明文值。
+ * 入参：key（必填）、fields 扁平字段对象（必填）、remark（可选）。
+ * 执行时只把提案写入本轮捕获器，不写素材库；用户确认后才真正落盘。
+ * 仅 Web AI 设计助手可调用；回执含 key、字段名、action、status=pending，不含字段明文。
  */
 @RequiredArgsConstructor
 public class UpsertAssetVariablesTool implements QualitestTool {
 
-    /** 项目素材库读写服务 */
+    /** 用于判断项目下是否已有该 key，从而标记 created 或 updated */
     private final ITestProjectAssetService testProjectAssetService;
 
     @Override
@@ -35,11 +36,11 @@ public class UpsertAssetVariablesTool implements QualitestTool {
     }
 
     /**
-     * 执行写入：校验入参 → 按 key 判断新建或更新 → 落盘 → 返回无明文回执。
+     * 校验入参 → 查库判定新建/更新 → 写入捕获器 → 返回无明文回执。
      *
-     * @param arguments 工具入参：key（必填）、fields（必填对象）、remark（可选）
-     * @param ctx       当前设计上下文（须带 testProjectId）
-     * @return JSON 字符串；失败时顶层含 error
+     * @param arguments 工具入参
+     * @param ctx       须含 testProjectId 与 assetUpsertCapture
+     * @return 成功为安全摘要 JSON；失败顶层含 error
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
@@ -47,11 +48,15 @@ public class UpsertAssetVariablesTool implements QualitestTool {
         if (projectId == null) {
             return FlowDesignToolSupport.errorJson("缺少 testProjectId");
         }
+        AssetUpsertCapture capture = ctx.getAssetUpsertCapture();
+        if (capture == null) {
+            return FlowDesignToolSupport.errorJson("素材提案捕获器未就绪");
+        }
         String key = FlowDesignToolSupport.stringArg(arguments.get("key"));
         if (key.isEmpty()) {
             return FlowDesignToolSupport.errorJson("缺少 key");
         }
-        Map<String, Object> fields = parseFields(arguments.get("fields"));
+        Map<String, Object> fields = AssetUpsertSupport.parseFlatFields(arguments.get("fields"));
         if (fields == null) {
             return FlowDesignToolSupport.errorJson("fields 须为非空对象，如 {\"mobile\":\"...\",\"password\":\"...\"}");
         }
@@ -60,80 +65,37 @@ public class UpsertAssetVariablesTool implements QualitestTool {
             remark = null;
         }
 
-        // assets 外层以 key 包装一层，与素材库落盘格式相同
+        TestProjectAssetResult existing = AssetUpsertSupport.findByKeyOrNull(
+                testProjectAssetService, projectId, key);
+        String action = existing == null
+                ? AssetUpsertProposal.ACTION_CREATED
+                : AssetUpsertProposal.ACTION_UPDATED;
+
+        AssetUpsertProposal proposal = AssetUpsertProposal.builder()
+                .key(key)
+                .action(action)
+                .remark(remark)
+                .fields(fields)
+                .status(AssetUpsertProposal.STATUS_PENDING)
+                .build();
+        capture.record(proposal);
+
+        return buildAck(proposal, ctx.getMaxToolResultBytes());
+    }
+
+    /**
+     * 组装给模型的成功回执：key、字段名、备注、占位提示、action、status；不含字段明文。
+     */
+    private static String buildAck(AssetUpsertProposal proposal, int maxBytes) {
         Map<String, Object> assets = new LinkedHashMap<>();
-        assets.put(key, fields);
-
-        TestProjectAssetResult existing = findByKeyOrNull(projectId, key);
-        try {
-            TestProjectAssetSaveParams.TestProjectAssetSaveParamsBuilder params = TestProjectAssetSaveParams.builder()
-                    .testProjectId(projectId)
-                    .key(key)
-                    .assets(assets);
-            TestProjectAssetResult saved;
-            String action;
-            if (existing == null) {
-                // 项目下尚无该 key：新增
-                saved = testProjectAssetService.insertTestProjectAsset(params.remark(remark).build());
-                action = "created";
-            } else {
-                // 已有条目：按 id 更新；未传 remark 时保留原备注
-                saved = testProjectAssetService.updateTestProjectAsset(params
-                        .id(existing.getId())
-                        .remark(remark != null ? remark : existing.getRemark())
-                        .build());
-                action = "updated";
-            }
-            return buildAck(saved, action, ctx.getMaxToolResultBytes());
-        } catch (ServiceException ex) {
-            return FlowDesignToolSupport.errorJson(ex.getMessage());
-        }
-    }
-
-    /**
-     * 按项目与 key 查询已有素材条目。
-     * 查不到时返回 null（随后走新增）；其它业务异常也按「不存在」处理，由后续 insert 再报错。
-     */
-    private TestProjectAssetResult findByKeyOrNull(Long projectId, String key) {
-        try {
-            return testProjectAssetService.selectTestProjectAssetResultByKey(projectId, key);
-        } catch (ServiceException ex) {
-            return null;
-        }
-    }
-
-    /**
-     * 将工具入参 fields 转为非空扁平 Map（字段名 → 值）。
-     * 非对象、空对象或有效字段名为空时返回 null。
-     */
-    private static Map<String, Object> parseFields(Object fieldsObj) {
-        if (!(fieldsObj instanceof Map<?, ?> raw) || raw.isEmpty()) {
-            return null;
-        }
-        Map<String, Object> fields = new LinkedHashMap<>();
-        for (Map.Entry<?, ?> e : raw.entrySet()) {
-            if (e.getKey() == null) {
-                continue;
-            }
-            String name = String.valueOf(e.getKey()).trim();
-            if (name.isEmpty()) {
-                continue;
-            }
-            fields.put(name, e.getValue());
-        }
-        return fields.isEmpty() ? null : fields;
-    }
-
-    /**
-     * 组装成功回执：key、字段名、备注（若有）、占位提示、action；不输出字段明文。
-     */
-    private static String buildAck(TestProjectAssetResult saved, String action, int maxBytes) {
+        assets.put(proposal.getKey(), proposal.getFields());
         JSONObject result = AssetVariablesListingSupport.toSafeItem(TestProjectAsset.builder()
-                .key(saved.getKey())
-                .remark(saved.getRemark())
-                .assets(saved.getAssets())
+                .key(proposal.getKey())
+                .remark(proposal.getRemark())
+                .assets(assets)
                 .build());
-        result.put("action", action);
+        result.put("action", proposal.getAction());
+        result.put("status", AssetUpsertProposal.STATUS_PENDING);
         return FlowDesignToolSupport.enforceByteLimit(result, maxBytes);
     }
 }

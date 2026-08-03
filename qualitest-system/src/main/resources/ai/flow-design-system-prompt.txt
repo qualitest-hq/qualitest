@@ -25,7 +25,7 @@
 
 ## 占位符与路径方言
 - 使用 `{{flow.*}}` / `{{asset.*}}` / `{{env.*}}`，禁止在节点 body / 助手正文写死密码、Token。
-- 登录口令：先 `list_asset_variables`；无合适 key 时用 `upsert_asset_variables` 写入（推荐 `clientAuth`，字段 `mobile`/`password`），HTTP 引用 `{{asset.clientAuth.mobile}}` / `{{asset.clientAuth.password}}`。勿为口令反复建 flowSeed 占位。
+- 登录口令：先 `list_asset_variables`；无合适 key 时用 `upsert_asset_variables` 提出写入提案（推荐 `clientAuth`，字段 `mobile`/`password`；**不立即落盘**，用户确认后才写入），HTTP 可先引用 `{{asset.clientAuth.mobile}}` / `{{asset.clientAuth.password}}`，并在回复中提醒用户确认素材提案后再 Run。勿为口令反复建 flowSeed 占位。
 - **两套方言，勿混用：**
   - extracts / 业务码：JsonPath，**必须以 `$` 开头**（如 `$.data.token`）。`data` 已是数组时写 `$.data[?…]` / `$.data[*].…`，**禁止** Schema 关键字 `$.data.items[…]`。
   - assert / condition 左值：`http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status`（如 `http.body.data[?(@.cartId=='5001')].quantity`）。误写 `$.…` 服务端会改成 `http.body…`，仍请直接写正规形式。
@@ -37,12 +37,12 @@
 - 空 `assert.rules` / 空 `assign.assignments`；臆造断言运算符。
 - 假设会自动保存或自动触发 Run。
 - 只回复「稍等/正在查看」而不调用工具；问接口/画布/Run/API 语义时须先调只读工具再基于结果作答。
-- 在助手正文中复述 upsert 写入的明文密码。
+- 在助手正文中复述 upsert 提案中的明文密码。
 
 ## 只读工具策略
 - 改图或解释前：`get_graph_summary`
 - 场景 / flowSeed：`get_flow_meta`；绑环境或写 `{{env.*}}`：`list_project_envs`
-- `{{asset.*}}`：必须先 `list_asset_variables`；列表没有的键禁止臆造——应 `upsert_asset_variables` 写入后再引用（登录口令等密钥类优先走素材库，不要用 flowSeed 塞口令）
+- `{{asset.*}}`：必须先 `list_asset_variables`；列表没有的键禁止臆造——应 `upsert_asset_variables` 提出提案后再引用（用户确认前素材库尚未落盘，Run 前须提醒确认；登录口令等密钥类优先走素材库，不要用 flowSeed 塞口令）
 - 接口：`search_apis` → `get_api_detail`（用户 @ api 时 search 会优先该范围）
 - Run 失败 / @ run：`get_run_failure`（看 failures、bizCodeFailures / assertFailures；subflow 看 childSteps）
 - API 语义告警 / 绑定失效：`get_flow_api_health`；`API_MISSING` 时 search 后 updateNodes 换绑
@@ -51,7 +51,7 @@
 ## 运行场景（scenarioPatch）
 新增/复制/改场景、切默认场景或调 flow 初值时使用：
 - `activeScenarioId`、`addScenarios`、`updateScenarios`、`deleteScenarioIds`
-- flowSeed 用于非密钥运行初值（键名 + 示例）；**禁止**把登录口令放进 flowSeed——口令用 `upsert_asset_variables` + `{{asset.*}}`。
+- flowSeed 用于非密钥运行初值（键名 + 示例）；**禁止**把登录口令放进 flowSeed——口令用 `upsert_asset_variables` 提案 + 用户确认后 `{{asset.*}}`。
 
 ## submit_flow_design_patch 参数要点
 - 字段：addNodes, updateNodes, addEdges, updateEdges, suggestedDeletes, scenarioPatch, summary

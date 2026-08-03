@@ -41,7 +41,7 @@ export interface FlowDesignPatch {
 /** 图结构校验摘要：ok 为 true 表示无 errors，warnings 不阻断合并 */
 export type DesignValidationResult = import('@/utils/flow/graphValidate').GraphValidationResult;
 
-/** AI 设计流式接口响应体；patch 来自 submit 工具，explainOnly 表示本轮未提交修改建议 */
+/** AI 设计流式接口一轮响应：说明文案、画布 patch、校验、素材库写入提案等 */
 export interface TestFlowDesignResult {
   aiChatSessionId?: string | null;
   aiLlmModelId?: string;
@@ -51,7 +51,34 @@ export interface TestFlowDesignResult {
   thinkingContent?: string;
   patch?: FlowDesignPatch;
   validation?: DesignValidationResult;
+  /** 本轮未提交画布修改时为 true */
   explainOnly?: boolean;
+  /** 本轮素材库写入提案；流式结束事件中通常带 fields 明文 */
+  assetProposals?: AssetUpsertProposalView[];
+}
+
+/** 素材提案处理状态：待确认 / 已确认落盘 / 已拒绝 */
+export type AssetUpsertProposalStatus = 'pending' | 'confirmed' | 'rejected';
+
+/** 提案动作：新建条目或更新已有 key */
+export type AssetUpsertProposalAction = 'created' | 'updated';
+
+/**
+ * 聊天里展示的一条素材库写入提案。
+ * 完整数据含 fields 明文；会话列表摘要可能只有 fieldNames、没有 fields。
+ */
+export interface AssetUpsertProposalView {
+  /** 素材键名 */
+  key: string;
+  /** created 或 updated */
+  action?: AssetUpsertProposalAction | string;
+  remark?: string;
+  /** 字段明文；列表摘要可能没有 */
+  fields?: Record<string, unknown>;
+  /** 仅字段名（列表摘要或由 fields 推导） */
+  fieldNames?: string[];
+  /** pending / confirmed / rejected */
+  status?: AssetUpsertProposalStatus | string;
 }
 
 /** 对话消息角色 */
@@ -78,14 +105,18 @@ export interface AiDesignMessageView {
   aiLlmModelId?: string;
   vendorName?: string;
   modelName?: string;
-  /** 结构化修改建议；explainOnly 或纯答疑轮次无此字段 */
+  /** 画布修改建议；本轮未改图时无 */
   patch?: FlowDesignPatch;
   validation?: DesignValidationResult;
   explainOnly?: boolean;
-  /** 摘要模式：patch 尚未懒加载 */
+  /** 列表摘要：有改图标记但尚未拉到完整 patch */
   patchPending?: boolean;
-  /** 正在拉取 patch meta */
+  /** 正在拉取含 patch 的完整消息元数据 */
   patchLoading?: boolean;
+  /** 本轮素材库写入提案列表 */
+  assetProposals?: AssetUpsertProposalView[];
+  /** 列表摘要：服务端标了有提案，但本条尚未解析出提案内容 */
+  assetProposalsPending?: boolean;
   /** user 消息编辑器文档，用于历史气泡中的只读 chip 渲染 */
   composerDoc?: ComposerDoc;
   /** 请求进行中，尚未收到响应 */
@@ -134,12 +165,8 @@ export function parseUserFromServer(msg: AiChatMessageItem): AiDesignMessageView
 }
 
 /**
- * 将服务端持久化的 assistant 消息还原为面板视图。
- *
- * messageContent：自然语言 summary，作为气泡正文。
- * resultMetaJson.explainOnly：本轮是否未调用 submit（纯答疑）。
- * resultMetaJson.patchJson：完整 FlowDesignPatch，用于 Staging 与 confirm。
- * patch 不从 messageContent 解析 JSON。
+ * 将服务端助手消息还原为面板视图。
+ * 正文用 summary；画布建议读 patchJson；素材库写入提案读 assetProposals。
  */
 export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessageView {
   let meta: Record<string, unknown> = {};
@@ -160,6 +187,8 @@ export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessag
   if (!explainOnly && meta.patchJson && typeof meta.patchJson === 'object') {
     patch = meta.patchJson as FlowDesignPatch;
   }
+  const assetProposals = parseAssetProposalsFromMeta(meta);
+  const hasAssetProposalsFlag = meta.hasAssetProposals === true;
   return {
     id: msg.aiChatMessageId,
     role: 'assistant',
@@ -172,5 +201,47 @@ export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessag
     patch,
     explainOnly,
     patchPending: hasPatchFlag && !patch && !explainOnly,
+    assetProposals: assetProposals.length > 0 ? assetProposals : undefined,
+    assetProposalsPending: hasAssetProposalsFlag && assetProposals.length === 0,
   };
+}
+
+/**
+ * 从消息元数据解析素材库写入提案列表。
+ * 跳过无 key 的项；有 fields 时顺带填 fieldNames。
+ */
+export function parseAssetProposalsFromMeta(meta: Record<string, unknown>): AssetUpsertProposalView[] {
+  const raw = meta.assetProposals;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out: AssetUpsertProposalView[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+    const row = item as Record<string, unknown>;
+    const key = typeof row.key === 'string' ? row.key.trim() : '';
+    if (!key) {
+      continue;
+    }
+    const fields =
+      row.fields && typeof row.fields === 'object' && !Array.isArray(row.fields)
+        ? (row.fields as Record<string, unknown>)
+        : undefined;
+    const fieldNames = Array.isArray(row.fieldNames)
+      ? row.fieldNames.filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+      : fields
+        ? Object.keys(fields)
+        : undefined;
+    out.push({
+      key,
+      action: typeof row.action === 'string' ? row.action : undefined,
+      remark: typeof row.remark === 'string' ? row.remark : undefined,
+      fields,
+      fieldNames,
+      status: typeof row.status === 'string' ? row.status : 'pending',
+    });
+  }
+  return out;
 }
