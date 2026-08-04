@@ -97,12 +97,19 @@
                     type="file"
                     @change="onFileInputChange(rows[index], $event)"
                 />
-                <el-button class="debug-kv-file-btn" size="small" type="primary" @click="triggerFilePick(index)">
+                <el-button
+                    :loading="!!rows[index]._uploading"
+                    class="debug-kv-file-btn"
+                    size="small"
+                    type="primary"
+                    @click="triggerFilePick(index)"
+                >
                   选择文件
                 </el-button>
                 <span :title="fileRowLabel(rows[index])" class="debug-kv-file-name">{{ fileRowLabel(rows[index]) }}</span>
                 <el-button
                     v-if="rows[index]._file || (rows[index].value && String(rows[index].value).trim())"
+                    :disabled="!!rows[index]._uploading"
                     class="debug-kv-file-clear"
                     link
                     size="small"
@@ -258,12 +265,19 @@
                   type="file"
                   @change="onFileInputChange(row, $event)"
               />
-              <el-button class="debug-kv-file-btn" size="small" type="primary" @click="triggerFilePick(index)">
+              <el-button
+                  :loading="!!row._uploading"
+                  class="debug-kv-file-btn"
+                  size="small"
+                  type="primary"
+                  @click="triggerFilePick(index)"
+              >
                 选择文件
               </el-button>
               <span :title="fileRowLabel(row)" class="debug-kv-file-name">{{ fileRowLabel(row) }}</span>
               <el-button
                   v-if="row._file || (row.value && String(row.value).trim())"
+                  :disabled="!!row._uploading"
                   class="debug-kv-file-clear"
                   link
                   size="small"
@@ -337,7 +351,9 @@
 
 <script setup>
 import {CirclePlus, Delete, FullScreen} from '@element-plus/icons-vue'
+import {ElMessage} from 'element-plus'
 import {useDebounceFn} from '@vueuse/core'
+import {uploadCommonFile} from '@/api/common/upload'
 
 /** 与 .debug-kv-row 单行高度对齐，用于占位计算（略大于实际单行，避免裁切） */
 const VIRTUAL_ROW_HEIGHT = 56
@@ -398,8 +414,17 @@ const props = defineProps({
     type: String,
     default: ''
   },
-  /** form-data 且类型为 file 时显示本地上传（不入库，仅调试发送） */
+  /** 类型为 file 时，值列展示「选择文件」而非普通文本框 */
   enableFileUploadForFileType: {
+    type: Boolean,
+    default: false
+  },
+  /**
+   * 选文件后的处理方式：
+   * - true：上传到服务端，value 写成可落库的存储路径（如 /profile/upload/...）
+   * - false：只把浏览器 File 挂到行上的 _file，供调试发送，不持久化
+   */
+  persistFileUpload: {
     type: Boolean,
     default: false
   },
@@ -537,33 +562,68 @@ function canAddChild(row) {
   return t === 'object' || t === 'array'
 }
 
+/** 当前行是否应显示文件选择控件 */
 function shouldShowFileUpload(row) {
   if (isValueDisabled(row)) return false
   return props.enableFileUploadForFileType && String(row?.type || '').toLowerCase() === 'file'
 }
 
+/** 文件列展示文案：上传中 / 原始文件名 / 路径 / 未选择 */
 function fileRowLabel(row) {
+  if (row._uploading) return '上传中…'
   if (row._file instanceof File) return row._file.name
+  const original = row._uploadedOriginalName != null ? String(row._uploadedOriginalName).trim() : ''
+  if (original) return original
   const v = row.value != null ? String(row.value).trim() : ''
   return v || '未选择文件'
 }
 
+/** 打开系统文件选择框（上传进行中时忽略） */
 function triggerFilePick(index) {
+  if (props.rows[index]?._uploading) return
   fileInputRefs.value[index]?.click()
 }
 
-function onFileInputChange(row, e) {
+/**
+ * 用户选中文件后的回调。
+ * persistFileUpload 开启时上传并写 value=存储路径；否则只保留内存中的 File 供当次发送。
+ */
+async function onFileInputChange(row, e) {
   const input = e.target
   const f = input?.files?.[0]
   if (!f) return
+  input.value = ''
+  if (props.persistFileUpload) {
+    row._uploading = true
+    row._file = null
+    try {
+      const res = await uploadCommonFile(f)
+      // 接口返回的 fileName 即服务端存储路径
+      const storagePath = res?.fileName != null ? String(res.fileName).trim() : ''
+      if (!storagePath) {
+        throw new Error('上传成功但未返回文件路径')
+      }
+      row.value = storagePath
+      // 保留用户看到的原始文件名，保存素材时写入 fileName 字段
+      row._uploadedOriginalName = res?.originalFilename || f.name
+    } catch (err) {
+      ElMessage.error(err?.message || '文件上传失败')
+    } finally {
+      row._uploading = false
+    }
+    return
+  }
   row._file = f
   row.value = f.name
-  input.value = ''
+  delete row._uploadedOriginalName
 }
 
+/** 清除本行已选文件、路径与上传状态 */
 function clearFileRow(row) {
   row._file = null
   row.value = ''
+  delete row._uploadedOriginalName
+  row._uploading = false
 }
 
 const clearFileOnNonFileTypeRows = useDebounceFn(() => {

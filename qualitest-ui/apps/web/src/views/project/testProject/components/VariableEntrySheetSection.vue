@@ -5,6 +5,8 @@
         :rows="rows"
         bordered-editable-fields
         :disable-value-for-composite-types="true"
+        :enable-file-upload-for-file-type="true"
+        :persist-file-upload="true"
         :show-add-child-for-composite="true"
         remark-expandable
         :show-remark-column="showRemarkColumn"
@@ -15,7 +17,7 @@
         :name-placeholder="namePlaceholder"
         remark-placeholder="备注说明"
         value-label="value"
-        value-placeholder="value"
+        value-placeholder="value 或选择文件"
         @add-child="(idx) => emit('add-child', idx)"
         @remove="(idx) => emit('remove', idx)"
     >
@@ -42,6 +44,10 @@
 </template>
 
 <script setup>
+/**
+ * 变量条目（素材库 / 环境变量）扁平行编辑表。
+ * file 类型开启选文件并上传落盘：value 存存储路径，保存时写成 { type, fileName, storagePath }。
+ */
 import DebugKvSheet from './DebugKvSheet.vue'
 import DebugParamTypeCell from './DebugParamTypeCell.vue'
 import {

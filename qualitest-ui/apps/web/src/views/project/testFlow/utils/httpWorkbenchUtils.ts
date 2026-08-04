@@ -54,7 +54,7 @@ export interface HttpWorkbenchDraft {
 
 /** 节点上保存的测值覆盖 */
 export interface RequestValueOverrides {
-  /** 按参数名覆盖 query / path 等 value */
+  /** 按参数名覆盖 query / path / form-data / urlencoded 行的 value */
   paramDefaults?: Record<string, unknown>;
   /** 覆盖 JSON body 测值 */
   bodyExample?: unknown;
@@ -98,6 +98,11 @@ export function buildWorkbenchFromApiDetail(apiDetail: Record<string, unknown> |
 /**
  * 把 requestValueOverrides 叠到草稿：按 name 改参数 value，并写 body example。
  */
+/**
+ * 把 requestValueOverrides 叠到草稿：
+ * paramDefaults 按 name 写入 query / path / form-data / urlencoded 的 value；
+ * bodyExample 写入 JSON body。
+ */
 export function applyRequestValueOverridesToWorkbench(
   draft: HttpWorkbenchDraft,
   overrides: RequestValueOverrides | null | undefined,
@@ -105,8 +110,9 @@ export function applyRequestValueOverridesToWorkbench(
   if (!overrides || typeof overrides !== 'object') return;
   const params = overrides.paramDefaults;
   if (params && typeof params === 'object') {
-    applyParamDefaultsToRows(draft.requestConfig.queryParams, params);
-    applyParamDefaultsToRows(draft.requestConfig.pathParams, params);
+    for (const rows of collectParamRowPools(draft)) {
+      applyParamDefaultsToRows(rows, params);
+    }
   }
   if (Object.prototype.hasOwnProperty.call(overrides, 'bodyExample')) {
     applyBodyExampleToDraft(draft, overrides.bodyExample);
@@ -280,21 +286,43 @@ function extractBodyExampleFromDraft(draft: HttpWorkbenchDraft): unknown | undef
 }
 
 /**
- * 相对资产基线草稿算差分：只保留草稿里与基线不同的测值，作为节点 requestValueOverrides。
- * 无差异返回 null。
+ * 草稿里可叠测值的参数行池：query、path、formData、urlencoded。
+ * 会顺带 ensureBodyShape，保证 body 子数组存在。
+ */
+function collectParamRowPools(draft: HttpWorkbenchDraft): KvRow[][] {
+  const body = ensureBodyShape(draft.requestConfig.body) as Record<string, unknown> & {
+    formData?: KvRow[];
+    urlencoded?: KvRow[];
+  };
+  draft.requestConfig.body = body as HttpWorkbenchDraft['requestConfig']['body'];
+  const pools: KvRow[][] = [
+    draft.requestConfig.queryParams,
+    draft.requestConfig.pathParams,
+  ];
+  if (Array.isArray(body.formData)) pools.push(body.formData);
+  if (Array.isArray(body.urlencoded)) pools.push(body.urlencoded);
+  return pools;
+}
+
+/** 合并各参数行池中已填的 name→value，供差分或叠层使用 */
+function collectAllFilledParamDefaults(draft: HttpWorkbenchDraft): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const rows of collectParamRowPools(draft)) {
+    Object.assign(out, collectFilledParamDefaults(rows));
+  }
+  return out;
+}
+
+/**
+ * 相对资产基线算节点测值差分：只保留与基线不同的 paramDefaults / bodyExample。
+ * 无差异返回 null。form-data、urlencoded 行也会参与对比。
  */
 export function buildRequestValueOverridesDiff(
   draft: HttpWorkbenchDraft,
   assetBaseline: HttpWorkbenchDraft,
 ): RequestValueOverrides | null {
-  const draftParams = {
-    ...collectFilledParamDefaults(draft.requestConfig.queryParams),
-    ...collectFilledParamDefaults(draft.requestConfig.pathParams),
-  };
-  const assetParams = {
-    ...collectFilledParamDefaults(assetBaseline.requestConfig.queryParams),
-    ...collectFilledParamDefaults(assetBaseline.requestConfig.pathParams),
-  };
+  const draftParams = collectAllFilledParamDefaults(draft);
+  const assetParams = collectAllFilledParamDefaults(assetBaseline);
 
   const paramDefaults: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(draftParams)) {
@@ -308,10 +336,10 @@ export function buildRequestValueOverridesDiff(
     result.paramDefaults = paramDefaults;
   }
 
-  const draftBody = extractBodyExampleFromDraft(draft);
-  const assetBody = extractBodyExampleFromDraft(assetBaseline);
-  if (draftBody !== undefined && !valueEquals(draftBody, assetBody)) {
-    result.bodyExample = draftBody;
+  const draftBodyExample = extractBodyExampleFromDraft(draft);
+  const assetBodyExample = extractBodyExampleFromDraft(assetBaseline);
+  if (draftBodyExample !== undefined && !valueEquals(draftBodyExample, assetBodyExample)) {
+    result.bodyExample = draftBodyExample;
   }
 
   return Object.keys(result).length ? result : null;

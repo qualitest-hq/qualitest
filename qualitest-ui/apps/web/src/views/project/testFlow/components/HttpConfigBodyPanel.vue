@@ -14,6 +14,31 @@
         label-key="urlencoded"
     />
 
+    <div v-else-if="bodyMode === 'form-data'" class="body-form-data-wrap">
+      <ProjectDebugKvSheet
+          :rows="formDataRows"
+          :show-type-column="true"
+          :virtual-min-rows="0"
+          name-label="参数名"
+          name-placeholder="名称"
+          value-label="参数值"
+          value-placeholder="值或 {{asset.key.storagePath}}"
+          @remove="removeFormDataRow"
+      >
+        <template #type="{ row }">
+          <DebugParamTypeCell
+              :allow-type-create="false"
+              :row="row"
+              :show-required-star="false"
+              :show-schema-gear="false"
+              :teleported="true"
+              :type-class-fn="paramTypeSelectClass"
+              :type-options="PARAM_TYPES_FORM_DATA"
+          />
+        </template>
+      </ProjectDebugKvSheet>
+    </div>
+
     <template v-else-if="bodyMode === 'json'">
       <div v-if="hasJsonSchema" class="body-json-json-shell">
         <el-tabs v-model="activeJsonTab" class="body-json-inner-tabs">
@@ -55,11 +80,19 @@
 </template>
 
 <script setup>
-/** HTTP 配置弹窗 Body 区，交互对齐项目测试面板 ApiDebugTab */
+/**
+ * HTTP 节点配置弹窗的 Body 区。
+ * 支持 none / form-data / urlencoded / JSON；
+ * form-data 可配置 type=file，value 填存储路径或素材占位符（如 {{asset.key.storagePath}}）。
+ */
 import { computed, ref, watch } from 'vue'
 
 import BodyJsonSchemaTree from '@/views/project/testProject/components/BodyJsonSchemaTree.vue'
+import DebugParamTypeCell from '@/views/project/testProject/components/DebugParamTypeCell.vue'
+import ProjectDebugKvSheet from '@/views/project/testProject/components/DebugKvSheet.vue'
 import { isEmptyObjectSchema } from '@/views/project/testProject/utils/jsonSchemaTree'
+import { paramTypeSelectClass } from '@/views/project/testProject/utils/variableEntryUtils'
+import { ensureTrailingEmptyRow, emptyKVRow } from '@/views/project/testProject/utils/apiDetailRequestWorkbench'
 
 import DebugKvSheet from './DebugKvSheet.vue'
 import { ensureBodyShape } from '../utils/httpWorkbenchUtils'
@@ -72,8 +105,20 @@ const emit = defineEmits(['update:modelValue'])
 
 const BODY_MODES = [
   { label: 'none', value: 'none' },
+  { label: 'form-data', value: 'form-data' },
   { label: 'urlencoded', value: 'urlencoded' },
   { label: 'JSON', value: 'json' },
+]
+
+/** form-data 行可选类型（含 file，跑流时按路径读文件组 multipart） */
+const PARAM_TYPES_FORM_DATA = [
+  'string',
+  'integer',
+  'number',
+  'boolean',
+  'file',
+  'object',
+  'array',
 ]
 
 const bodyJsonText = ref('')
@@ -93,6 +138,10 @@ const bodyMode = computed({
     return body.value.mode || 'none'
   },
   set(mode) {
+    if (mode === 'form-data') {
+      emit('update:modelValue', ensureFormDataBody(body.value))
+      return
+    }
     emit('update:modelValue', { ...body.value, mode })
   },
 })
@@ -105,6 +154,47 @@ const urlencodedRows = computed({
     emit('update:modelValue', { ...body.value, urlencoded: rows })
   },
 })
+
+const formDataRows = computed(() => {
+  const rows = body.value.formData
+  return Array.isArray(rows) ? rows : []
+})
+
+/** 保证 form-data 模式下有可编辑行（至少一行空行），便于继续填写 */
+function ensureFormDataBody(source) {
+  const next = { ...ensureBodyShape(source), mode: 'form-data' }
+  if (!Array.isArray(next.formData) || !next.formData.length) {
+    next.formData = [emptyKVRow()]
+  } else {
+    ensureTrailingEmptyRow(next.formData)
+  }
+  return next
+}
+
+/** 删除 form-data 一行后补齐末尾空行 */
+function removeFormDataRow(index) {
+  const current = Array.isArray(body.value.formData) ? [...body.value.formData] : []
+  current.splice(index, 1)
+  ensureTrailingEmptyRow(current)
+  emit('update:modelValue', {
+    ...body.value,
+    mode: 'form-data',
+    formData: current.length ? current : [emptyKVRow()],
+  })
+}
+
+/** 切到 form-data 或外部把 mode 设为 form-data 时，补齐行池 */
+watch(
+  () => bodyMode.value,
+  (mode) => {
+    if (mode !== 'form-data') return
+    if (Array.isArray(body.value.formData) && body.value.formData.length) {
+      ensureTrailingEmptyRow(body.value.formData)
+      return
+    }
+    emit('update:modelValue', ensureFormDataBody(body.value))
+  },
+)
 
 const jsonSchema = computed(() => body.value.json?.schema ?? null)
 
@@ -177,6 +267,18 @@ defineExpose({ applyJsonTextBeforeSave })
     flex: 1;
     min-height: 0;
     padding: 6px 6px 0;
+  }
+}
+
+.body-form-data-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+
+  :deep(.debug-kv-sheet) {
+    border: 1px solid var(--pd-border-subtle, var(--el-border-color-lighter));
+    border-radius: 8px;
   }
 }
 

@@ -208,6 +208,10 @@ const workbenchTabs = computed(() => {
   let bodyCount = 0
   if (body.mode === 'json' && String(body.json?.example || '').trim()) bodyCount = 1
   if (isUrlencodedBodyMode(body.mode)) bodyCount = countFilledRows(body.urlencoded)
+  // form-data：按已填行数显示 Body 标签角标
+  if (body.mode === 'form-data' || body.mode === 'formData' || body.mode === 'multipart') {
+    bodyCount = countFilledRows(body.formData)
+  }
   return [
     { id: 'headers', label: 'Headers', count: countFilledRows(d.headerRows) },
     { id: 'query', label: 'Query', count: countFilledRows(d.requestConfig.queryParams) },

@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -246,5 +248,43 @@ class TestProjectApiEffectiveConfigResolverTest {
         assertEquals("/api/demo", view.getApiPath());
         assertTrue(view.getRequestConfig().contains("hello"));
         assertEquals("{\"H\":\"1\"}", view.getHeaders());
+    }
+
+    /**
+     * 前提：请求体为 form-data，含空 value 的 bizType、file 行；
+     * overrides.paramDefaults 提供这两项测值。
+     * 期望：叠层后 formData 行的 value 被写入对应测值。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("overlay：paramDefaults 写入 formData.value")
+    void overlay_appliesParamDefaultsToFormData() {
+        String raw = """
+                {
+                  "configVersion": 1,
+                  "method": "POST",
+                  "queryParams": [],
+                  "pathParams": [],
+                  "declaredHeaders": [],
+                  "body": {
+                    "mode": "form-data",
+                    "formData": [
+                      {"name": "bizType", "type": "string", "value": ""},
+                      {"name": "file", "type": "file", "value": ""}
+                    ]
+                  }
+                }
+                """;
+        String overlaid = TestProjectApiEffectiveConfigResolver.overlayRequestValuesFromOverrides(
+                raw,
+                Map.of(
+                        "paramDefaults",
+                        Map.of(
+                                "bizType", "product-image",
+                                "file", "{{asset.cover.storagePath}}"
+                        )
+                ));
+        assertTrue(overlaid.contains("product-image"));
+        assertTrue(overlaid.contains("{{asset.cover.storagePath}}"));
     }
 }

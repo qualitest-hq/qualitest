@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.params.DebugHttpForwardParams;
 import com.qualitest.common.config.QualitestConfig;
+import com.qualitest.common.utils.file.FileUtils;
 import com.qualitest.flow.context.EnvUrlSupport;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.context.PlaceholderResolver;
@@ -425,6 +426,9 @@ public final class FlowHttpRequestBuilder {
 
     private static final int MAX_FILE_BYTES = 2 * 1024 * 1024;
 
+    /**
+     * 组装 form-data 请求体：普通字段进 fields；type=file 的行按路径读盘后进 files（真文件 part）。
+     */
     private static DebugHttpForwardParams.DebugBodySpec buildFormDataBody(JSONObject body, FlowRunContext ctx) {
         JSONArray rows = body.getJSONArray("formData");
         List<List<String>> fields = new ArrayList<>();
@@ -491,6 +495,9 @@ public final class FlowHttpRequestBuilder {
         return spec;
     }
 
+    /**
+     * 按已解析路径读本地文件，编成 form-data 文件 part（字段名、文件名、Content-Type、base64 内容）。
+     */
     private static DebugHttpForwardParams.DebugBodySpec.FormFile loadFormFile(String fieldName, String resolvedPath) {
         if (resolvedPath == null || resolvedPath.isBlank()) {
             throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR,
@@ -508,24 +515,54 @@ public final class FlowHttpRequestBuilder {
         return formFile;
     }
 
+    /**
+     * 把测参路径解析成可读的本地文件。
+     * 依次尝试：绝对路径 → 去掉 /profile 前缀后拼到 profile 根目录 → 相对 profile → 相对 upload 目录。
+     */
     private static Path resolveReadableFile(String resolvedPath) {
         Path direct = Path.of(resolvedPath);
         if (Files.isRegularFile(direct)) {
             return direct.toAbsolutePath().normalize();
         }
         String profile = QualitestConfig.getProfile();
-        if (profile != null && !profile.isBlank()) {
-            Path underProfile = Path.of(profile, resolvedPath);
-            if (Files.isRegularFile(underProfile)) {
-                return underProfile.toAbsolutePath().normalize();
-            }
-            Path underUpload = Path.of(QualitestConfig.getUploadPath(), resolvedPath);
-            if (Files.isRegularFile(underUpload)) {
-                return underUpload.toAbsolutePath().normalize();
-            }
+        if (profile == null || profile.isBlank()) {
+            throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR,
+                    "找不到上传文件：" + resolvedPath);
+        }
+        // 存储路径常带 /profile 前缀，需剥掉后再拼到 profile 根目录
+        Path viaProfilePrefix = tryResolveUnderProfile(profile, FileUtils.stripPrefix(resolvedPath));
+        if (viaProfilePrefix != null) {
+            return viaProfilePrefix;
+        }
+        Path underProfile = Path.of(profile, resolvedPath);
+        if (Files.isRegularFile(underProfile)) {
+            return underProfile.toAbsolutePath().normalize();
+        }
+        Path underUpload = Path.of(QualitestConfig.getUploadPath(), resolvedPath);
+        if (Files.isRegularFile(underUpload)) {
+            return underUpload.toAbsolutePath().normalize();
         }
         throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR,
                 "找不到上传文件：" + resolvedPath);
+    }
+
+    /**
+     * 在 profile 根目录下按相对路径找文件。
+     * @param stripped 已去掉 /profile 前缀的路径（可带或不带前导斜杠）
+     * @return 存在则返回规范化绝对路径，否则 null
+     */
+    private static Path tryResolveUnderProfile(String profile, String stripped) {
+        if (stripped == null || stripped.isBlank()) {
+            return null;
+        }
+        String relative = stripped.startsWith("/") || stripped.startsWith("\\")
+                ? stripped.substring(1)
+                : stripped;
+        if (relative.isBlank()) {
+            return null;
+        }
+        Path path = Path.of(profile, relative);
+        return Files.isRegularFile(path) ? path.toAbsolutePath().normalize() : null;
     }
 
     private static byte[] readFileBytes(Path file) {

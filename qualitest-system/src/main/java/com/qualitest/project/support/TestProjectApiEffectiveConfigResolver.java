@@ -93,19 +93,20 @@ public final class TestProjectApiEffectiveConfigResolver {
     }
 
     /**
-     * 把 paramDefaults、bodyExample 写进 request 结构副本后序列化。
-     * 既用于合成 API 有效配置，也用于把节点测值覆盖叠到有效配置上。
+     * 把 paramDefaults、bodyExample 写进请求结构副本后序列化。
+     * 用于合成 API 有效配置，以及把节点测值覆盖叠到请求上。
      *
      * @param rawRequestConfig 请求结构 JSON（或已含部分测值的副本）
-     * @param paramDefaults    按参数 name 写入对应项的 value；空则跳过
+     * @param paramDefaults    按参数 name 写入 query / path / header / form-data / urlencoded 的 value；空则跳过
      * @param bodyExample      写入 body.json.example；null 则跳过
      */
     public static String overlayRequestValues(String rawRequestConfig, ObjectNode paramDefaults, JsonNode bodyExample) {
         ObjectNode root = ApiConfigJsonSupport.parseObjectOrEmpty(rawRequestConfig);
         ObjectNode defaults = paramDefaults != null ? paramDefaults : JsonNodeFactory.instance.objectNode();
         for (String field : PARAM_ARRAY_FIELDS) {
-            applyParamDefaults(root, field, defaults);
+            applyParamDefaultsToArray(root.get(field), defaults);
         }
+        applyBodyParamDefaults(root, defaults);
         if (bodyExample != null && !bodyExample.isNull()) {
             applyBodyExampleNode(root, bodyExample);
         }
@@ -169,11 +170,24 @@ public final class TestProjectApiEffectiveConfigResolver {
     }
 
     /**
-     * 对指定参数数组：按 name 把 paramDefaults 中的值写入该项的 value 字段。
+     * 把 paramDefaults 按参数名写入 body.formData、body.urlencoded 各行的 value。
+     * 用于 multipart / 表单类请求体的测值叠层。
      */
-    private static void applyParamDefaults(ObjectNode root, String field, ObjectNode paramDefaults) {
-        JsonNode arrNode = root.get(field);
-        if (arrNode == null || !arrNode.isArray()) {
+    private static void applyBodyParamDefaults(ObjectNode root, ObjectNode paramDefaults) {
+        JsonNode body = root.get("body");
+        if (body == null || !body.isObject()) {
+            return;
+        }
+        ObjectNode bodyObj = (ObjectNode) body;
+        applyParamDefaultsToArray(bodyObj.get("formData"), paramDefaults);
+        applyParamDefaultsToArray(bodyObj.get("urlencoded"), paramDefaults);
+    }
+
+    /**
+     * 遍历参数数组，按 name 把 paramDefaults 中的值写入对应项的 value 字段。
+     */
+    private static void applyParamDefaultsToArray(JsonNode arrNode, ObjectNode paramDefaults) {
+        if (arrNode == null || !arrNode.isArray() || paramDefaults == null || paramDefaults.isEmpty()) {
             return;
         }
         for (JsonNode item : arrNode) {

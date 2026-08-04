@@ -13,14 +13,14 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 测试流 HTTP 节点上的测值覆盖字段 {@code requestValueOverrides} 的读写辅助。
+ * 测试流 HTTP 节点测值覆盖字段 {@code requestValueOverrides} 的读写辅助。
  * <p>
  * 节点只存测值，不存完整请求结构。字段形状：
  * <ul>
- *   <li>{@code paramDefaults}：按参数名覆盖 query / path / header 的 value</li>
+ *   <li>{@code paramDefaults}：按参数名覆盖 query / path / header / form-data / urlencoded 的 value</li>
  *   <li>{@code bodyExample}：覆盖 JSON body 测值</li>
  * </ul>
- * 用途：从旧版整份 requestConfig 抽测值、相对资产默认值做差分、写成可落盘的 Map。
+ * 用途：从整份 requestConfig 抽测值、相对资产默认值做差分、写成可落盘的 Map。
  * <p>
  * AI 偶发把 body 字段写在 overrides 顶层（如 {@code cartIds}/{@code addressId}），
  * 运行时只读 {@code bodyExample} 会静默忽略；{@link #normalizeOverridesShape} 负责纠正。
@@ -38,7 +38,8 @@ public final class HttpNodeRequestValueOverridesSupport {
 
     /**
      * 从整份 requestConfig 抽出非空参数 value 和 JSON body example，
-     * 组成 requestValueOverrides 对象（不做差分，有值就收）。
+     * 组成 requestValueOverrides（不做差分，有值就收）。
+     * 参数来源含 query / path / header，以及 body.formData、body.urlencoded。
      */
     public static JSONObject extractFromRequestConfig(Object requestConfigRaw) {
         JSONObject rc = toJsonObject(requestConfigRaw);
@@ -48,28 +49,13 @@ public final class HttpNodeRequestValueOverridesSupport {
         }
         JSONObject paramDefaults = new JSONObject();
         for (String field : PARAM_ARRAY_FIELDS) {
-            JSONArray arr = rc.getJSONArray(field);
-            if (arr == null) {
-                continue;
-            }
-            for (int i = 0; i < arr.size(); i++) {
-                JSONObject item = arr.getJSONObject(i);
-                if (item == null) {
-                    continue;
-                }
-                String name = item.getString("name");
-                if (name == null || name.isBlank()) {
-                    continue;
-                }
-                Object value = item.get("value");
-                if (value == null) {
-                    continue;
-                }
-                if (value instanceof String s && s.isBlank()) {
-                    continue;
-                }
-                paramDefaults.put(name.trim(), value);
-            }
+            collectParamValues(paramDefaults, rc.getJSONArray(field));
+        }
+        // form-data / urlencoded 行上的测值也进入 paramDefaults，供节点覆盖与跑流叠层
+        JSONObject body = rc.getJSONObject("body");
+        if (body != null) {
+            collectParamValues(paramDefaults, body.getJSONArray("formData"));
+            collectParamValues(paramDefaults, body.getJSONArray("urlencoded"));
         }
         if (!paramDefaults.isEmpty()) {
             overrides.put("paramDefaults", paramDefaults);
@@ -79,6 +65,33 @@ public final class HttpNodeRequestValueOverridesSupport {
             overrides.put("bodyExample", bodyExample);
         }
         return overrides;
+    }
+
+    /**
+     * 从参数数组收集已启用行的非空 name→value 到 paramDefaults。
+     */
+    private static void collectParamValues(JSONObject paramDefaults, JSONArray arr) {
+        if (arr == null || paramDefaults == null) {
+            return;
+        }
+        for (int i = 0; i < arr.size(); i++) {
+            JSONObject item = arr.getJSONObject(i);
+            if (item == null) {
+                continue;
+            }
+            String name = item.getString("name");
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            Object value = item.get("value");
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof String s && s.isBlank()) {
+                continue;
+            }
+            paramDefaults.put(name.trim(), value);
+        }
     }
 
     /**

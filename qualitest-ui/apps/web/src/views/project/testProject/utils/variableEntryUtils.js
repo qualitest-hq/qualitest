@@ -82,6 +82,7 @@ function scalarToDisplay(value, type) {
   if (t === 'null') return ''
   if (t === 'boolean') return String(value)
   if (t === 'integer' || t === 'number') return String(value)
+  // file 对象在表格里优先展示存储路径，便于复制与引用
   if (t === 'file' && value && typeof value === 'object') {
     return value.storagePath || value.fileName || JSON.stringify(value)
   }
@@ -89,6 +90,17 @@ function scalarToDisplay(value, type) {
   return String(value)
 }
 
+/** 从路径中取最后一段文件名（用于 file 条目缺省 fileName） */
+function fileBaseName(path) {
+  const p = String(path || '').replace(/\\/g, '/')
+  const i = p.lastIndexOf('/')
+  return i >= 0 ? p.slice(i + 1) : p
+}
+
+/**
+ * 构造一张扁平行。
+ * uploadedOriginalName：file 行的用户原始文件名，展示与回写用，不入库到行 value。
+ */
 function makeSheetRow({
   key = '',
   remark = '',
@@ -98,9 +110,10 @@ function makeSheetRow({
   rowKind = 'field',
   entryId = null,
   entryKey = '',
-  hideKey = false
+  hideKey = false,
+  uploadedOriginalName = ''
 }) {
-  return {
+  const row = {
     key: hideKey ? '' : key,
     remark: rowKind === ENTRY_ROW_KIND ? (remark ?? '') : '',
     value,
@@ -112,6 +125,22 @@ function makeSheetRow({
     _entryKey: entryKey,
     _hideKey: hideKey
   }
+  if (uploadedOriginalName) {
+    row._uploadedOriginalName = uploadedOriginalName
+  }
+  return row
+}
+
+/**
+ * 从已落库的 file 对象取出原始文件名，展开到表格行时挂到 _uploadedOriginalName，
+ * 避免只显示 storagePath 时丢失用户文件名。
+ */
+function fileMetaFromValue(value, type) {
+  if (String(type || '').toLowerCase() !== 'file' || !value || typeof value !== 'object') {
+    return {}
+  }
+  const name = value.fileName != null ? String(value.fileName).trim() : ''
+  return name ? { uploadedOriginalName: name } : {}
 }
 
 /** 按顶级 entry 行切分 [start, end) 块索引 */
@@ -187,7 +216,8 @@ function expandValueToFieldRows(inner, depth, entryId, entryKey) {
         rowKind: 'field',
         entryId,
         entryKey,
-        hideKey: true
+        hideKey: true,
+        ...fileMetaFromValue(item, type)
       })
       rows.push(row)
       if (isCompositeType(type)) {
@@ -207,7 +237,8 @@ function expandValueToFieldRows(inner, depth, entryId, entryKey) {
         depth,
         rowKind: 'field',
         entryId,
-        entryKey
+        entryKey,
+        ...fileMetaFromValue(val, type)
       })
       rows.push(row)
       if (isCompositeType(type)) {
@@ -237,7 +268,8 @@ export function entriesToSheetRows(entries) {
         depth: 0,
         rowKind: ENTRY_ROW_KIND,
         entryId: entry?.id ?? null,
-        entryKey: key
+        entryKey: key,
+        ...fileMetaFromValue(inner, type)
       })
     )
     if (isCompositeType(type)) {
@@ -324,18 +356,26 @@ function parseKvCellValue(row) {
       return s
     }
   }
+  // file：单元格 value 多为存储路径；落库形状为 { type:'file', fileName, storagePath }
   if (t === 'file') {
     const s = String(raw).trim()
-    if (!s) return { type: 'file', fileName: '', storagePath: '' }
+    const original = row?._uploadedOriginalName != null ? String(row._uploadedOriginalName).trim() : ''
+    if (!s) return { type: 'file', fileName: original, storagePath: '' }
     if (s.startsWith('{')) {
       try {
         const o = JSON.parse(s)
-        return { type: 'file', ...o }
+        const merged = { type: 'file', ...o }
+        if (original && !merged.fileName) merged.fileName = original
+        return merged
       } catch {
         /* fall through */
       }
     }
-    return { type: 'file', fileName: s, storagePath: s }
+    return {
+      type: 'file',
+      fileName: original || fileBaseName(s),
+      storagePath: s
+    }
   }
   return String(raw)
 }
