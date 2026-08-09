@@ -124,9 +124,14 @@ const PARAM_TYPES_FORM_DATA = [
 const bodyJsonText = ref('')
 const activeJsonTab = ref('raw')
 
+/**
+ * 必须返回父级草稿的同一引用。
+ * 旧实现 getter 每次 ensureBodyShape 深拷贝 formData/urlencoded，
+ * DebugKvSheet 就地改 row.value 只会改到临时副本，输入框立即被刷回空（T1.4 阻塞）。
+ */
 const body = computed({
   get() {
-    return ensureBodyShape(props.modelValue)
+    return props.modelValue
   },
   set(val) {
     emit('update:modelValue', val)
@@ -135,29 +140,43 @@ const body = computed({
 
 const bodyMode = computed({
   get() {
-    return body.value.mode || 'none'
+    return body.value?.mode || 'none'
   },
   set(mode) {
     if (mode === 'form-data') {
       emit('update:modelValue', ensureFormDataBody(body.value))
       return
     }
-    emit('update:modelValue', { ...body.value, mode })
+    emit('update:modelValue', { ...ensureBodyShape(body.value), mode })
   },
 })
 
 const urlencodedRows = computed({
   get() {
-    return body.value.urlencoded || []
+    const rows = body.value?.urlencoded
+    return Array.isArray(rows) ? rows : []
   },
   set(rows) {
-    emit('update:modelValue', { ...body.value, urlencoded: rows })
+    emit('update:modelValue', {
+      ...ensureBodyShape(body.value),
+      mode: body.value?.mode || 'urlencoded',
+      urlencoded: rows,
+    })
   },
 })
 
-const formDataRows = computed(() => {
-  const rows = body.value.formData
-  return Array.isArray(rows) ? rows : []
+const formDataRows = computed({
+  get() {
+    const rows = body.value?.formData
+    return Array.isArray(rows) ? rows : []
+  },
+  set(rows) {
+    emit('update:modelValue', {
+      ...ensureBodyShape(body.value),
+      mode: 'form-data',
+      formData: rows,
+    })
+  },
 })
 
 /** 保证 form-data 模式下有可编辑行（至少一行空行），便于继续填写 */
@@ -173,11 +192,11 @@ function ensureFormDataBody(source) {
 
 /** 删除 form-data 一行后补齐末尾空行 */
 function removeFormDataRow(index) {
-  const current = Array.isArray(body.value.formData) ? [...body.value.formData] : []
+  const current = Array.isArray(body.value?.formData) ? [...body.value.formData] : []
   current.splice(index, 1)
   ensureTrailingEmptyRow(current)
   emit('update:modelValue', {
-    ...body.value,
+    ...ensureBodyShape(body.value),
     mode: 'form-data',
     formData: current.length ? current : [emptyKVRow()],
   })
@@ -188,7 +207,7 @@ watch(
   () => bodyMode.value,
   (mode) => {
     if (mode !== 'form-data') return
-    if (Array.isArray(body.value.formData) && body.value.formData.length) {
+    if (Array.isArray(body.value?.formData) && body.value.formData.length) {
       ensureTrailingEmptyRow(body.value.formData)
       return
     }
@@ -196,7 +215,7 @@ watch(
   },
 )
 
-const jsonSchema = computed(() => body.value.json?.schema ?? null)
+const jsonSchema = computed(() => body.value?.json?.schema ?? null)
 
 const hasJsonSchema = computed(() => {
   const schema = body.value.json?.schema
@@ -204,12 +223,12 @@ const hasJsonSchema = computed(() => {
 })
 
 function setJsonSchema(schema) {
-  const json = { ...(body.value.json || {}), schema }
-  emit('update:modelValue', { ...body.value, json })
+  const json = { ...(body.value?.json || {}), schema }
+  emit('update:modelValue', { ...ensureBodyShape(body.value), json })
 }
 
 function syncBodyJsonTextFromBody() {
-  const ex = body.value.json?.example
+  const ex = body.value?.json?.example
   if (ex == null || ex === '') {
     bodyJsonText.value = ''
   } else if (typeof ex === 'string') {
@@ -227,15 +246,15 @@ function syncBodyJsonTextFromBody() {
 function applyJsonTextBeforeSave() {
   if (bodyMode.value !== 'json') return true
   const text = bodyJsonText.value.trim()
-  const json = { ...(body.value.json || {}), schema: body.value.json?.schema ?? null }
+  const json = { ...(body.value?.json || {}), schema: body.value?.json?.schema ?? null }
   if (!text) {
     json.example = ''
-    emit('update:modelValue', { ...body.value, json })
+    emit('update:modelValue', { ...ensureBodyShape(body.value), json })
     return true
   }
   try {
     json.example = JSON.parse(text)
-    emit('update:modelValue', { ...body.value, json })
+    emit('update:modelValue', { ...ensureBodyShape(body.value), json })
     return true
   } catch {
     return false
