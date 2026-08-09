@@ -356,7 +356,7 @@ async function handleRefreshAuthHeaders() {
       ElMessage.info(result.message || '当前托管鉴权头已与项目配置一致')
       return
     }
-    const pending = await hydratePatchToStaging(result.patch!, {
+    const pending = await hydratePatchToStaging(result.patch, {
       messageId: createClientMessageId(),
       openAiPanel: true,
     })

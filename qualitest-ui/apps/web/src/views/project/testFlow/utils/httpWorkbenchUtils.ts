@@ -385,11 +385,13 @@ export function applyWorkbenchToNodeData(
 /**
  * 统计节点参数数量，供属性面板摘要。
  * 优先数 requestValueOverrides；若仍有旧版 requestConfig 则也能统计。
+ * form-data / urlencoded 测值落在 paramDefaults，按资产 body 模式计入 Body（而非 Query）。
  */
 export function countHttpParamStats(data: Record<string, unknown>) {
   const overrides = (data.requestValueOverrides as RequestValueOverrides) || {};
-  const paramCount = overrides.paramDefaults ? Object.keys(overrides.paramDefaults).length : 0;
-  const bodyCount = Object.prototype.hasOwnProperty.call(overrides, 'bodyExample')
+  const paramDefaults = (overrides.paramDefaults || {}) as Record<string, unknown>;
+  const paramNames = Object.keys(paramDefaults);
+  const bodyExampleCount = Object.prototype.hasOwnProperty.call(overrides, 'bodyExample')
     && overrides.bodyExample != null
     && String(overrides.bodyExample).trim() !== ''
     ? 1
@@ -397,16 +399,51 @@ export function countHttpParamStats(data: Record<string, unknown>) {
 
   const rc = (data.requestConfig as Record<string, unknown>) || {};
   const body = (rc.body as Record<string, unknown>) || {};
+  const bodyMode = String(body.mode || '').toLowerCase();
+  const formDataNames = new Set(
+    (Array.isArray(body.formData) ? (body.formData as KvRow[]) : [])
+      .map((r) => String(r?.name || '').trim())
+      .filter(Boolean),
+  );
+  const urlencodedNames = new Set(
+    (Array.isArray(body.urlencoded) ? (body.urlencoded as KvRow[]) : [])
+      .map((r) => String(r?.name || '').trim())
+      .filter(Boolean),
+  );
+  const isFormLikeBody = bodyMode === 'form-data' || bodyMode === 'formdata' || bodyMode === 'multipart'
+    || bodyMode === 'urlencoded' || isUrlencodedBodyMode(body.mode);
+
+  // 薄节点无 body.mode：GET/HEAD 的 paramDefaults 算 Query，其余算 Body（form-data 主路径）
+  let overrideBodyParamCount = 0;
+  let overrideQueryParamCount = 0;
+  if (isFormLikeBody) {
+    overrideBodyParamCount = paramNames.length;
+  } else if (formDataNames.size || urlencodedNames.size) {
+    for (const name of paramNames) {
+      if (formDataNames.has(name) || urlencodedNames.has(name)) overrideBodyParamCount += 1;
+      else overrideQueryParamCount += 1;
+    }
+  } else if (!bodyMode && paramNames.length) {
+    const method = String(data.httpMethod || rc.method || '').toUpperCase();
+    if (method === 'GET' || method === 'HEAD') overrideQueryParamCount = paramNames.length;
+    else overrideBodyParamCount = paramNames.length;
+  } else {
+    overrideQueryParamCount = paramNames.length;
+  }
+
   let thickBody = 0;
   if (body.mode === 'json' && String((body.json as Record<string, unknown>)?.example || '').trim()) thickBody = 1;
   if (isUrlencodedBodyMode(body.mode)) thickBody = countFilledRows(body.urlencoded as KvRow[]);
+  if (bodyMode === 'form-data' || bodyMode === 'formdata' || bodyMode === 'multipart') {
+    thickBody = countFilledRows(body.formData as KvRow[]);
+  }
 
   return {
-    query: paramCount || countFilledRows(rc.queryParams as KvRow[]),
+    query: overrideQueryParamCount || countFilledRows(rc.queryParams as KvRow[]),
     path: countFilledRows(rc.pathParams as KvRow[]),
     headers: countFilledRows(data.headers as KvRow[]),
     cookies: countFilledRows(data.cookies as KvRow[]),
-    body: bodyCount || thickBody,
+    body: bodyExampleCount || overrideBodyParamCount || thickBody,
   };
 }
 
