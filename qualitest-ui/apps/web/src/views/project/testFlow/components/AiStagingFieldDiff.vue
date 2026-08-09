@@ -6,6 +6,7 @@
     </div>
 
     <AiStagingConfirmErrors :unit-id="unitId" />
+    <AiStagingConfirmWarnings :unit-id="unitId" />
 
     <p v-if="deleteHint" class="ai-staging-field-diff__delete-hint">{{ deleteHint }}</p>
 
@@ -55,6 +56,7 @@ import { computed } from 'vue'
 
 import AiStagingActionButtons from './AiStagingActionButtons.vue'
 import AiStagingConfirmErrors from './AiStagingConfirmErrors.vue'
+import AiStagingConfirmWarnings from './AiStagingConfirmWarnings.vue'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { stagingDeleteHint, stagingKindTitle } from '../utils/stagingLabels'

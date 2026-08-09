@@ -93,4 +93,39 @@ class ProjectAuthConfigSupportTest {
         assertTrue(ProjectAuthConfigSupport.isEmpty(ProjectAuthConfigSupport.parse(null)));
         assertEquals(null, ProjectAuthConfigSupport.resolveProfileId("/api/x", ProjectAuthConfigSupport.empty()));
     }
+
+    /**
+     * 前提：双端模板含 demo 匿名 path。
+     * 期望：/login exact、/test-support/snapshot prefix 命中；业务 API 不命中。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("匿名 path 命中")
+    void matchesAnonymousPath_exactAndPrefix() {
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.dualBearerTemplate();
+        assertTrue(cfg.getAnonymousPathExact().contains("/login"));
+        assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/login", cfg));
+        assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/captchaImage", cfg));
+        assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/test-support/snapshot", cfg));
+        assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/v3/api-docs", cfg));
+        assertFalse(ProjectAuthConfigSupport.matchesAnonymousPath("/api/account/auth/profile", cfg));
+        assertFalse(ProjectAuthConfigSupport.matchesAnonymousPath("/system/user/list", cfg));
+    }
+
+    /**
+     * 前提：已有 Profile 但匿名 path 列表为空。
+     * 期望：fillAnonymousPathsIfAbsent 回填且返回 true；再调一次返回 false。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("缺匿名 path 可回填")
+    void fillAnonymousPathsIfAbsent_once() {
+        ProjectAuthConfig cfg = ProjectAuthConfig.builder()
+                .defaultProfileId(ProjectAuthConfigSupport.PROFILE_ADMIN)
+                .authProfiles(ProjectAuthConfigSupport.dualBearerTemplate().getAuthProfiles())
+                .build();
+        assertTrue(ProjectAuthConfigSupport.fillAnonymousPathsIfAbsent(cfg));
+        assertFalse(cfg.getAnonymousPathExact().isEmpty());
+        assertFalse(ProjectAuthConfigSupport.fillAnonymousPathsIfAbsent(cfg));
+    }
 }

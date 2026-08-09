@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.params.DebugHttpForwardParams;
+import com.qualitest.api.util.AuthHeaderResolver;
 import com.qualitest.common.config.QualitestConfig;
 import com.qualitest.common.utils.file.FileUtils;
 import com.qualitest.flow.context.EnvUrlSupport;
@@ -345,9 +346,20 @@ public final class FlowHttpRequestBuilder {
     private static Map<String, String> mergeHeaders(TestProjectApi api, Map<String, Object> nodeData, FlowRunContext ctx) {
         Map<String, String> headers = new LinkedHashMap<>();
         appendHeaderRows(headers, parseHeaderRows(api != null ? api.getHeaders() : null), ctx);
-        appendHeaderRows(headers, parseHeaderRows(nodeData.get("headers")), ctx);
+
+        Object rawNodeHeaders = nodeData != null ? nodeData.get("headers") : null;
+        List<Map<String, Object>> nodeHeaderRows = parseHeaderRows(rawNodeHeaders);
+        if (api != null && ctx != null) {
+            AuthHeaderResolver.ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(
+                    api.getAuthConfig(),
+                    ctx.getProjectAuthConfig(),
+                    resolveApiPath(api));
+            // 按当前项目配置刷新/补齐托管头（显式非托管头不改）
+            nodeHeaderRows = AuthHeaderResolver.applyToHeaderRows(nodeHeaderRows, resolved).headers();
+        }
+        appendHeaderRows(headers, nodeHeaderRows, ctx);
         appendHeaderRows(headers, parseHeaderRows(api != null ? api.getCookies() : null), ctx);
-        appendHeaderRows(headers, parseHeaderRows(nodeData.get("cookies")), ctx);
+        appendHeaderRows(headers, parseHeaderRows(nodeData != null ? nodeData.get("cookies") : null), ctx);
         return headers;
     }
 

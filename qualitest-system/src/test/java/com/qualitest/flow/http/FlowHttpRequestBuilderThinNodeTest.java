@@ -210,4 +210,59 @@ class FlowHttpRequestBuilderThinNodeTest {
         assertTrue(body.getRaw().contains("5001"));
         assertFalse(body.getRaw().contains("items"));
     }
+
+    /**
+     * 前提：接口 inherit、项目双端配置、节点无 Authorization；flow.token 已写入。
+     * 期望：发送头含 Bearer 解析后的 token；显式非托管头不被刷新覆盖。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("Run 按项目鉴权补 Authorization 且显式头优先")
+    void build_injectsAuthHeader_andKeepsExplicit() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(21L)
+                .testProjectId(1L)
+                .apiPath("/api/account/auth/profile")
+                .authConfig("{\"mode\":\"inherit\"}")
+                .requestConfig("""
+                        {"configVersion":1,"method":"GET","queryParams":[],"pathParams":[],"body":{"mode":"none"}}
+                        """)
+                .build();
+        TestProjectApi effective = TestProjectApiEffectiveConfigResolver.resolve(api).toApiView(api);
+        String projectAuth = com.qualitest.api.util.ProjectAuthConfigSupport.toJson(
+                com.qualitest.api.util.ProjectAuthConfigSupport.dualBearerTemplate());
+
+        Map<String, Object> nodeData = new HashMap<>();
+        nodeData.put("callMode", "project");
+        nodeData.put("testProjectApiId", "21");
+
+        FlowRunContext ctx = FlowRunContext.builder()
+                .env(Map.of("baseUrl", "http://localhost:8081"))
+                .flow(new HashMap<>(Map.of("token", "tok-client")))
+                .projectAuthConfig(projectAuth)
+                .build();
+
+        FlowHttpRequestBuilder.BuiltHttpRequest built =
+                FlowHttpRequestBuilder.buildFromProject(ctx, effective, nodeData);
+        assertEquals("Bearer tok-client", built.getForwardParams().getHeaders().stream()
+                .filter(h -> "Authorization".equalsIgnoreCase(h.getName()))
+                .findFirst()
+                .orElseThrow()
+                .getValue());
+
+        Map<String, Object> explicitRow = new HashMap<>();
+        explicitRow.put("_enabled", true);
+        explicitRow.put("name", "Authorization");
+        explicitRow.put("value", "Bearer {{flow.adminToken}}");
+        nodeData.put("headers", List.of(explicitRow));
+        ctx.getFlow().put("adminToken", "tok-admin");
+
+        FlowHttpRequestBuilder.BuiltHttpRequest builtExplicit =
+                FlowHttpRequestBuilder.buildFromProject(ctx, effective, nodeData);
+        assertEquals("Bearer tok-admin", builtExplicit.getForwardParams().getHeaders().stream()
+                .filter(h -> "Authorization".equalsIgnoreCase(h.getName()))
+                .findFirst()
+                .orElseThrow()
+                .getValue());
+    }
 }

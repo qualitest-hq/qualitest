@@ -115,6 +115,17 @@
                     v-if="shouldShowStagingSummary(msg as AiDesignMessageView)"
                     class="ai-design-staging-extra"
                 >
+                  <ul
+                      v-if="authValidationWarnings(msg as AiDesignMessageView).length"
+                      class="ai-design-auth-warnings"
+                  >
+                    <li
+                        v-for="(warn, wi) in authValidationWarnings(msg as AiDesignMessageView)"
+                        :key="`${(msg as AiDesignMessageView).id}-w-${wi}`"
+                    >
+                      {{ warn }}
+                    </li>
+                  </ul>
                   <div
                       v-if="isMessagePatchPending(msg as AiDesignMessageView) || (msg as AiDesignMessageView).patchLoading"
                       class="ai-design-staging-extra__loading"
@@ -201,6 +212,7 @@ import type {
   AssetUpsertProposalView,
 } from '../types/aiDesignTypes';
 import { shouldShowExplainOnlyHint, shouldShowStagingSummary } from '../utils/stagingMessage';
+import { filterAuthRelatedWarnings } from '../utils/stagingAuthHints';
 
 const store = useFlowCanvasStore();
 const { saveFlow } = useFlowGraph();
@@ -338,6 +350,11 @@ function shouldShowAssetProposals(msg: AiDesignMessageView) {
   return msg.role === 'assistant' && Array.isArray(msg.assetProposals) && msg.assetProposals.length > 0;
 }
 
+/** 造流校验里与鉴权相关的 soft warnings（补头 / 分端缺 token） */
+function authValidationWarnings(msg: AiDesignMessageView): string[] {
+  return filterAuthRelatedWarnings(msg.validation?.warnings).slice(0, 8)
+}
+
 /** 卡片确认/拒绝或懒加载 fields 后，回写该消息上的提案列表 */
 function onAssetProposalsUpdate(messageId: string, next: AssetUpsertProposalView[]) {
   const idx = messages.value.findIndex((m) => m.id === messageId);
@@ -473,6 +490,17 @@ function close() {
   font-size: 13px;
   color: var(--pd-text-secondary);
   padding: 8px 0;
+}
+
+.ai-design-auth-warnings {
+  margin: 0 0 8px;
+  padding: 8px 10px 8px 22px;
+  border-radius: 6px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .ai-design-explain-only {

@@ -47,6 +47,26 @@
                   <span class="design-readonly-text">{{ apiDetail.apiGroup || '—' }}</span>
                 </el-form-item>
               </el-col>
+              <el-col :md="12" :span="24">
+                <el-form-item label="鉴权模式">
+                  <el-select v-model="auth.mode" class="design-w100" placeholder="inherit">
+                    <el-option label="继承项目配置 (inherit)" value="inherit"/>
+                    <el-option label="免登录 (none)" value="none"/>
+                    <el-option label="接口自定义 (override)" value="override"/>
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :md="12" :span="24">
+                <el-form-item label="鉴权 Profile">
+                  <el-input
+                      v-model="auth.authProfileId"
+                      :disabled="auth.mode === 'none'"
+                      clearable
+                      maxlength="64"
+                      placeholder="如 clientBearer / adminBearer，可空则按路径匹配"
+                  />
+                </el-form-item>
+              </el-col>
             </el-row>
           </el-form>
         </div>
@@ -111,6 +131,12 @@ const meta = reactive({
   apiStatus: '1'
 })
 
+/** 接口薄鉴权标签（落库 auth_config） */
+const auth = reactive({
+  mode: 'inherit',
+  authProfileId: ''
+})
+
 const responseConfigText = ref('')
 
 function formatJsonForEdit(raw) {
@@ -128,6 +154,31 @@ function formatJsonForEdit(raw) {
   } catch {
     return raw
   }
+}
+
+function parseAuthConfig(raw) {
+  if (raw == null || raw === '') {
+    return { mode: 'inherit', authProfileId: '' }
+  }
+  try {
+    const obj = typeof raw === 'string' ? JSON.parse(raw) : raw
+    const mode = String(obj?.mode || 'inherit').trim() || 'inherit'
+    return {
+      mode: ['none', 'inherit', 'override'].includes(mode) ? mode : 'inherit',
+      authProfileId: obj?.authProfileId != null ? String(obj.authProfileId).trim() : ''
+    }
+  } catch {
+    return { mode: 'inherit', authProfileId: '' }
+  }
+}
+
+function buildAuthConfigPayload() {
+  const mode = (auth.mode || 'inherit').trim()
+  const payload = { mode }
+  if (mode !== 'none' && auth.authProfileId?.trim()) {
+    payload.authProfileId = auth.authProfileId.trim()
+  }
+  return JSON.stringify(payload)
 }
 
 function normalizeResponseConfigForSave(text) {
@@ -148,6 +199,9 @@ function syncMetaFromDetail(d) {
   const s = d.apiStatus
   meta.apiStatus = s === '0' || s === 0 || s === false ? '0' : '1'
   responseConfigText.value = formatJsonForEdit(d.responseConfig)
+  const parsedAuth = parseAuthConfig(d.authConfig)
+  auth.mode = parsedAuth.mode
+  auth.authProfileId = parsedAuth.authProfileId
 }
 
 watch(
@@ -194,7 +248,8 @@ function handleSaveDesign() {
     cookies: part.cookies,
     responseConfig: responseConfigStr,
     preRequestScript: part.preRequestScript ?? '',
-    postRequestScript: part.postRequestScript ?? ''
+    postRequestScript: part.postRequestScript ?? '',
+    authConfig: buildAuthConfigPayload()
   }
 
   updateTestProjectApi(payload)

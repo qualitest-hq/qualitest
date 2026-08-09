@@ -142,6 +142,12 @@ class FlowDesignToolExecutorTest {
     @DisplayName("合法 API 返回语义摘要")
     void getApiDetail_validApi_returnsSemanticSummary() {
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(loginApi());
+        when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(
+                com.qualitest.project.domain.TestProject.builder()
+                        .testProjectId(PROJECT_ID)
+                        .authConfig(com.qualitest.api.util.ProjectAuthConfigSupport.toJson(
+                                com.qualitest.api.util.ProjectAuthConfigSupport.dualBearerTemplate()))
+                        .build());
 
         String json = executor.executeTool(
                 FlowDesignToolExecutor.GET_API_DETAIL,
@@ -159,6 +165,9 @@ class FlowDesignToolExecutorTest {
         assertEquals("code", root.getJSONObject("responseConvention").getString("codePath"));
         assertNotNull(root.getJSONArray("suggestedExtracts"));
         assertFalse(root.getBooleanValue("truncated"));
+        assertEquals("inherit", root.getJSONObject("auth").getString("mode"));
+        assertEquals("clientBearer", root.getJSONObject("headerHint").getString("profileId"));
+        assertEquals("token", root.getJSONObject("headerHint").getString("flowKey"));
     }
 
     /**

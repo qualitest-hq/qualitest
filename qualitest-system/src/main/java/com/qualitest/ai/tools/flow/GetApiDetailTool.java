@@ -6,6 +6,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.api.util.AuthHeaderHintSupport;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
@@ -20,7 +21,8 @@ import java.util.Map;
  * 查询单条项目接口的请求/响应摘要。
  * <p>
  * 返回方法、路径、参数与 body 示例、响应 schema 摘要；
- * 并附带项目响应约定（responseConvention）与建议 extracts（suggestedExtracts）。
+ * 并附带项目响应约定（responseConvention）、建议 extracts（suggestedExtracts），
+ * 以及鉴权摘要 {@code auth} / {@code headerHint}（与造流/Run 同一套解析）。
  * 建议 extracts 只列出业务数据包装字段（如 data）下的路径，方便生成 HTTP 节点提取规则。
  */
 @RequiredArgsConstructor
@@ -76,18 +78,21 @@ public class GetApiDetailTool implements QualitestTool {
         result.put("responseSchemaLeaves",
                 FlowDesignApiSummarizer.summarizeResponseLeaves(effective.getResponseConfig()));
 
-        // 附带项目响应约定；并按 dataPath 从 schema 推导建议 extracts
+        // 附带项目响应约定、鉴权摘要；并按 dataPath 从 schema 推导建议 extracts
         String conventionJson = null;
+        String projectAuthJson = null;
         if (ctx.getTestProjectId() != null) {
             TestProject project = testProjectMapper.selectTestProjectById(ctx.getTestProjectId());
             if (project != null) {
                 conventionJson = project.getResponseConvention();
+                projectAuthJson = project.getAuthConfig();
             }
         }
         JSONObject convention = ResponseConventionSupport.toJsonObject(conventionJson);
         result.put("responseConvention", convention);
         result.put("suggestedExtracts", FlowDesignApiSummarizer.suggestExtracts(
                 responseSchemaSummary, convention.getString("dataPath")));
+        AuthHeaderHintSupport.putAuthFields(result, api.getAuthConfig(), projectAuthJson, api.getApiPath());
         return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
     }
 }

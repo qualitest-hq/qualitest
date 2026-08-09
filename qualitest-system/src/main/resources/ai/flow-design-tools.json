@@ -3,7 +3,7 @@
     "type": "function",
     "function": {
       "name": "search_apis",
-      "description": "按关键词搜索当前测试项目下的 API 接口，返回 id、method、path、name；keyword 可省略，将列举 scopeApiIds 或项目接口",
+      "description": "按关键词搜索当前测试项目下的 API 接口，返回 id、method、path、name、精简 auth（mode/authProfileId）；keyword 可省略，将列举 scopeApiIds 或项目接口",
       "parameters": {
         "type": "object",
         "properties": {
@@ -24,7 +24,7 @@
     "type": "function",
     "function": {
       "name": "get_api_detail",
-      "description": "获取单个 API 的 path/query/header/body 参数摘要（含 required）、body 示例、响应 schema 一层摘要；另返回项目响应约定 responseConvention 与建议 extracts（suggestedExtracts）",
+      "description": "获取单个 API 的 path/query/header/body 参数摘要（含 required）、body 示例、响应 schema 一层摘要；另返回项目响应约定 responseConvention、建议 extracts（suggestedExtracts），以及鉴权 auth/headerHint（与平台补头同一套）",
       "parameters": {
         "type": "object",
         "properties": {

@@ -5,6 +5,8 @@ import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.tools.FlowDesignIds;
+import com.qualitest.api.util.AuthDesignWarningCodes;
+import com.qualitest.api.util.AuthHeaderResolver;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
@@ -14,10 +16,13 @@ import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
 import com.qualitest.flow.validate.AssertPathDesignGate;
+import com.qualitest.flow.validate.AuthTokenPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationResult;
+import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
+import com.qualitest.project.mapper.TestProjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -34,10 +39,12 @@ import java.util.Map;
  * <ol>
  *   <li>为 addNodes/addEdges 补雪花 id 与默认 position</li>
  *   <li>校验 HTTP(project) 节点 testProjectApiId 属于当前项目；external 跳过 API 归属校验</li>
+ *   <li>按接口鉴权标签与项目鉴权配置补 Authorization 等托管头（profileManaged）</li>
  *   <li>补 data.summary（project / external / subflow 各自格式）</li>
  *   <li>规范化 scenarioPatch（场景 id、flowSeed 键名等）</li>
  *   <li>预合并到基准图副本，跑图结构校验，得到 errors/warnings</li>
  *   <li>用上游接口响应示例试算 assert/condition 的 http.body 左值；未命中记入 errors 回传模型</li>
+ *   <li>分端检查托管 Bearer 所需 flow.token / flow.adminToken 来源（soft warning）</li>
  * </ol>
  * 不写库；用户在前端 Diff 确认后才持久化 graph_json。
  */
@@ -56,6 +63,7 @@ public class FlowDesignPatchNormalizer {
     private static final double ROW_STEP = NODE_MIN_H + 40.0;
 
     private final TestProjectApiMapper testProjectApiMapper;
+    private final TestProjectMapper testProjectMapper;
     private final GraphJsonValidator graphJsonValidator;
     private final FlowDesignPatchMerger patchMerger;
 
@@ -76,6 +84,7 @@ public class FlowDesignPatchNormalizer {
         // 设计期门禁：AI 提交的坏断言路径（试算空/[]）直接进 errors，进不了 Staging
         errors.addAll(AssertPathDesignGate.validate(merged,
                 testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById));
+        warnings.addAll(collectAuthTokenPresenceWarnings(merged, testProjectId));
 
         DesignValidationResult planValidation = DesignValidationResult.builder()
                 .ok(errors.isEmpty())
@@ -92,6 +101,17 @@ public class FlowDesignPatchNormalizer {
      */
     public FlowDesignPatch preparePatch(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId, List<String> warnings) {
         return initAndNormalizePatch(patch, baseGraph, testProjectId, warnings);
+    }
+
+    /**
+     * 分端缺 token soft warning：供 Staging confirm 在合并后图上复用。
+     */
+    public List<String> collectAuthTokenPresenceWarnings(GraphJson graph, Long testProjectId) {
+        String projectAuthJson = loadProjectAuthConfig(testProjectId);
+        return AuthTokenPresenceGate.warn(
+                graph,
+                projectAuthJson,
+                testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById);
     }
 
     /**
@@ -324,25 +344,34 @@ public class FlowDesignPatchNormalizer {
                 .build();
     }
 
-    /** 画布节点/边 id 须为纯数字雪花 id */
+    /** 画布节点/边 id 须为可解析的数字雪花 id */
     private static boolean isValidId(String id) {
-        return id != null && id.matches("\\d+");
+        return FlowDesignIds.parseLongId(id) != null;
     }
 
-    /** 校验 patch 中 HTTP 节点（新增或更新）绑定的 API 是否属于当前项目 */
+    /** 校验 patch 中 HTTP 节点（新增或更新）绑定的 API 是否属于当前项目，并按项目鉴权补托管头 */
     private void validateApiBindings(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId, List<String> warnings) {
+        String projectAuthJson = loadProjectAuthConfig(testProjectId);
         if (patch.getAddNodes() != null) {
             for (GraphNode node : patch.getAddNodes()) {
-                validateHttpNodeApiBinding(node, testProjectId, warnings);
+                validateHttpNodeApiBinding(node, testProjectId, projectAuthJson, warnings);
             }
         }
         if (patch.getUpdateNodes() != null) {
             for (GraphNode update : patch.getUpdateNodes()) {
                 GraphNode effective = resolveUpdateNodeForApiValidation(baseGraph, update);
-                validateHttpNodeApiBinding(effective, testProjectId, warnings);
+                validateHttpNodeApiBinding(effective, testProjectId, projectAuthJson, warnings);
                 syncApiBindingFieldsToUpdate(update, effective);
             }
         }
+    }
+
+    private String loadProjectAuthConfig(Long testProjectId) {
+        if (testProjectId == null || testProjectMapper == null) {
+            return null;
+        }
+        TestProject project = testProjectMapper.selectTestProjectById(testProjectId);
+        return project != null ? project.getAuthConfig() : null;
     }
 
     /**
@@ -375,7 +404,7 @@ public class FlowDesignPatchNormalizer {
                 .build();
     }
 
-    /** 将 API 校验结果（置空/补全）写回 updateNodes 的增量 data */
+    /** 将 API 校验结果（置空/补全/鉴权头）写回 updateNodes 的增量 data */
     private static void syncApiBindingFieldsToUpdate(GraphNode update, GraphNode effective) {
         if (update == null || effective == null || effective.getData() == null) {
             return;
@@ -393,11 +422,15 @@ public class FlowDesignPatchNormalizer {
         if (effectiveData.get("apiPath") != null) {
             updateData.put("apiPath", effectiveData.get("apiPath"));
         }
+        if (effectiveData.containsKey("headers")) {
+            updateData.put("headers", effectiveData.get("headers"));
+        }
         update.setData(updateData);
     }
 
     /** 节点 data 含 testProjectApiId 时校验归属；external 模式校验 externalUrl 并跳过 API 绑定 */
-    private void validateHttpNodeApiBinding(GraphNode node, Long testProjectId, List<String> warnings) {
+    private void validateHttpNodeApiBinding(
+            GraphNode node, Long testProjectId, String projectAuthJson, List<String> warnings) {
         if (node == null) {
             return;
         }
@@ -429,7 +462,9 @@ public class FlowDesignPatchNormalizer {
                     data.put("testProjectApiId", null);
                     warnings.add("HTTP 节点「" + nodeLabel + "」testProjectApiId 无效，已置空");
                 } else {
-                    TestProjectApi api = testProjectApiMapper.selectTestProjectApiById(apiId);
+                    TestProjectApi api = testProjectApiMapper != null
+                            ? testProjectApiMapper.selectTestProjectApiById(apiId)
+                            : null;
                     if (api == null || api.getTestProjectId() == null || !api.getTestProjectId().equals(testProjectId)) {
                         data.put("testProjectApiId", null);
                         warnings.add("HTTP 节点「" + nodeLabel + "」API 不属于当前项目，已置空");
@@ -440,12 +475,38 @@ public class FlowDesignPatchNormalizer {
                         }
                         // 不自动写入 apiPath：路径只跟资产，节点不存路径
                         boundApi = api;
+                        applyManagedAuthHeader(data, api, projectAuthJson, nodeLabel, warnings);
                     }
                 }
             }
         }
 
         FlowDesignHttpNodeNormalizer.normalize(data, boundApi);
+    }
+
+    /**
+     * 按接口鉴权标签与项目配置，为 project HTTP 节点补齐或刷新托管鉴权头。
+     */
+    private static void applyManagedAuthHeader(
+            Map<String, Object> data,
+            TestProjectApi api,
+            String projectAuthJson,
+            String nodeLabel,
+            List<String> warnings) {
+        if (data == null || api == null) {
+            return;
+        }
+        AuthHeaderResolver.ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(
+                api.getAuthConfig(),
+                projectAuthJson,
+                api.getApiPath());
+        AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(data.get("headers"), resolved);
+        data.put("headers", applied.headers());
+        if (applied.changed() && warnings != null) {
+            warnings.add(AuthDesignWarningCodes.headerManaged(
+                    nodeLabel,
+                    resolved.name() != null ? resolved.name() : "Authorization"));
+        }
     }
 
     /** 按节点类型生成画布卡片副标题 summary */

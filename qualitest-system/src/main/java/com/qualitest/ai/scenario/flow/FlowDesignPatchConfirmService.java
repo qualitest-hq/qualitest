@@ -104,6 +104,7 @@ public class FlowDesignPatchConfirmService {
         GraphValidationResult validation = graphJsonValidator.validate(merged, validationOptions);
         List<String> allWarnings = new ArrayList<>(warnings);
         allWarnings.addAll(validation.getWarnings());
+        allWarnings.addAll(patchNormalizer.collectAuthTokenPresenceWarnings(merged, request.getTestProjectId()));
 
         // 断言门禁：仅拦正在确认的 assert/condition；预览图含未拒绝的 pending 节点/边（schema 校验）
         List<String> assertGateErrors = collectScopedAssertGateErrors(

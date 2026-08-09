@@ -51,8 +51,10 @@ import java.util.stream.Collectors;
  * 新增：上传包规范化并补 example 后全量写入。<br>
  * 更新：request/response 做结构合并；headers、cookies、前后置脚本本地非空则保留；
  * biz_code_config、test_value_config 不由上传包整段替换（test_value_config 由合并服务按字段更新）；
- * 上传包若带 auth，则覆盖写入鉴权标签；inherit 且未指定 authProfileId 时按项目鉴权配置回填。
- * 若 seedProjectAuthIfEmpty=true 且项目鉴权配置为空，则写入双端 Bearer 默认模板。
+ * 上传包若带 auth，则覆盖写入鉴权标签；命中项目匿名 path 则 mode=none；
+ * inherit 且未指定 authProfileId 时按项目鉴权配置回填。
+ * 若 seedProjectAuthIfEmpty=true 且项目鉴权配置为空，则写入双端 Bearer 默认模板（含匿名 path）；
+ * 已有配置缺匿名 path 时回填 demo 默认。
  * 结束后刷新项目的 api_count 与 last_api_sync_time。
  * 若本批有更新成功的接口：扫描项目内测试流影响写入 syncImpact，并对受影响流回写 api_health_*。
  */
@@ -383,32 +385,44 @@ public class ApiImportServiceImpl implements IApiImportService {
     }
 
     /**
-     * 项目鉴权配置：上传包要求种子且当前为空时写入双端模板；否则返回已有配置（可能为空）。
+     * 项目鉴权配置：上传包要求种子且当前为空时写入双端模板；
+     * 已有配置若缺匿名 path 则回填 demo 默认（不覆盖已有非空列表）。
      */
     private ProjectAuthConfig resolveProjectAuthForImport(Long projectId, ApiImportParams params) {
         TestProject project = testProjectService.selectTestProjectById(projectId);
         ProjectAuthConfig existing = ProjectAuthConfigSupport.parse(
                 project != null ? project.getAuthConfig() : null);
-        if (!Boolean.TRUE.equals(params.getSeedProjectAuthIfEmpty())) {
-            return existing;
+        if (Boolean.TRUE.equals(params.getSeedProjectAuthIfEmpty())
+                && ProjectAuthConfigSupport.isEmpty(existing)) {
+            ProjectAuthConfig seeded = ProjectAuthConfigSupport.dualBearerTemplate();
+            persistProjectAuthConfig(projectId, seeded);
+            log.info("项目鉴权配置已写入双端 Bearer 默认模板: projectId={}", projectId);
+            return seeded;
         }
-        if (!ProjectAuthConfigSupport.isEmpty(existing)) {
+        // 已有 Profile 但缺匿名 path：回填 demo 默认，便于老项目一次上传即可生效
+        if (!ProjectAuthConfigSupport.isEmpty(existing)
+                && ProjectAuthConfigSupport.fillAnonymousPathsIfAbsent(existing)) {
+            persistProjectAuthConfig(projectId, existing);
+            log.info("项目鉴权配置已回填默认匿名 path: projectId={}", projectId);
+        } else if (Boolean.TRUE.equals(params.getSeedProjectAuthIfEmpty())
+                && !ProjectAuthConfigSupport.isEmpty(existing)) {
             log.info("项目鉴权配置已存在，跳过种子: projectId={}", projectId);
-            return existing;
         }
-        ProjectAuthConfig seeded = ProjectAuthConfigSupport.dualBearerTemplate();
+        return existing;
+    }
+
+    private void persistProjectAuthConfig(Long projectId, ProjectAuthConfig config) {
         TestProject update = new TestProject();
         update.setTestProjectId(projectId);
-        update.setAuthConfig(ProjectAuthConfigSupport.toJson(seeded));
+        update.setAuthConfig(ProjectAuthConfigSupport.toJson(config));
         update.setUpdateTime(DateUtils.getNowDate());
         testProjectService.updateTestProject(update);
-        log.info("项目鉴权配置已写入双端 Bearer 默认模板: projectId={}", projectId);
-        return seeded;
     }
 
     /**
      * 写入鉴权标签：上传包带了 auth 则覆盖库中值；未带则保持原值。
-     * mode=inherit 且未指定 authProfileId 时，按项目鉴权配置与路径回填。
+     * 已是 none 保持；否则命中项目匿名 path → none；
+     * inherit 且未指定 authProfileId 时按路径回填 Profile。
      */
     private void applyAuthConfig(
             TestProjectApi api,
@@ -420,8 +434,15 @@ public class ApiImportServiceImpl implements IApiImportService {
         }
         String mode = auth.getMode().trim();
         String profileId = StrUtil.trimToNull(auth.getAuthProfileId());
-        if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
+        if (!ApiAuthConfig.MODE_NONE.equalsIgnoreCase(mode)
+                && ProjectAuthConfigSupport.matchesAnonymousPath(item.getApiPath(), projectAuth)) {
+            mode = ApiAuthConfig.MODE_NONE;
+        } else if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
             profileId = ProjectAuthConfigSupport.resolveProfileId(item.getApiPath(), projectAuth);
+        }
+        // none 不挂 Profile（含上传本就为 none、或匿名 path 推断为 none）
+        if (ApiAuthConfig.MODE_NONE.equalsIgnoreCase(mode)) {
+            profileId = null;
         }
         ApiAuthConfig toStore = ApiAuthConfig.builder()
                 .mode(mode)

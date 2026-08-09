@@ -9,8 +9,12 @@ import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
+import com.qualitest.project.mapper.TestProjectMapper;
+import com.qualitest.api.util.AuthHeaderResolver;
+import com.qualitest.api.util.ProjectAuthConfigSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.DisplayName;
@@ -39,12 +43,18 @@ class FlowDesignPatchNormalizerTest {
     private static final Long API_ID = 2001L;
 
     private TestProjectApiMapper mapper;
+    private TestProjectMapper projectMapper;
     private FlowDesignPatchNormalizer normalizer;
 
     @BeforeEach
     void setUp() {
         mapper = mock(TestProjectApiMapper.class);
-        normalizer = new FlowDesignPatchNormalizer(mapper, new GraphJsonValidator(), new FlowDesignPatchMerger());
+        projectMapper = mock(TestProjectMapper.class);
+        when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(TestProject.builder()
+                .testProjectId(PROJECT_ID)
+                .authConfig(ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.dualBearerTemplate()))
+                .build());
+        normalizer = new FlowDesignPatchNormalizer(mapper, projectMapper, new GraphJsonValidator(), new FlowDesignPatchMerger());
     }
 
     /**
@@ -601,6 +611,94 @@ class FlowDesignPatchNormalizerTest {
         assertNotNull(position);
         assertEquals(420.0, position.getX());
         assertEquals(80.0, position.getY());
+    }
+
+    /**
+     * 前提：绑定需登录接口且节点未写 Authorization；项目已有双端 Profile。
+     * 期望：补 profileManaged Authorization=Bearer {{flow.token}}，并有鉴权补全 warning。
+     */
+    @Test
+    @Order(16)
+    @DisplayName("需登录接口缺头时补托管 Authorization")
+    void normalize_addsManagedAuthHeader() {
+        when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
+                .testProjectApiId(API_ID)
+                .testProjectId(PROJECT_ID)
+                .apiName("当前用户")
+                .apiPath("/api/account/auth/profile")
+                .authConfig("{\"mode\":\"inherit\",\"authProfileId\":\"clientBearer\"}")
+                .build());
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("name", "查资料");
+        data.put("testProjectApiId", String.valueOf(API_ID));
+        GraphNode node = GraphNode.builder()
+                .id("9301")
+                .type("http")
+                .position(GraphNodePosition.builder().x(40).y(80).build())
+                .data(data)
+                .build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setAddNodes(new ArrayList<>(List.of(node)));
+
+        FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, graphWithMeta(), PROJECT_ID);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> headers =
+                (List<Map<String, Object>>) result.patch().getAddNodes().get(0).getData().get("headers");
+        assertNotNull(headers);
+        assertFalse(headers.isEmpty());
+        Map<String, Object> auth = headers.stream()
+                .filter(h -> "Authorization".equalsIgnoreCase(String.valueOf(h.get("name"))))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(auth);
+        assertEquals("Bearer {{flow.token}}", auth.get("value"));
+        assertTrue(AuthHeaderResolver.isProfileManaged(auth));
+        assertTrue(result.validation().getWarnings().stream()
+                .anyMatch(w -> w.startsWith("AUTH_HEADER_MANAGED:")));
+    }
+
+    /**
+     * 前提：mode=none 的公开接口。
+     * 期望：不补 Authorization。
+     */
+    @Test
+    @Order(17)
+    @DisplayName("免登录接口不补鉴权头")
+    void normalize_noneMode_noAuthHeader() {
+        when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
+                .testProjectApiId(API_ID)
+                .testProjectId(PROJECT_ID)
+                .apiName("分类列表")
+                .apiPath("/api/mall/category/list")
+                .authConfig("{\"mode\":\"none\"}")
+                .build());
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("name", "分类");
+        data.put("testProjectApiId", String.valueOf(API_ID));
+        GraphNode node = GraphNode.builder()
+                .id("9302")
+                .type("http")
+                .position(GraphNodePosition.builder().x(40).y(80).build())
+                .data(data)
+                .build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setAddNodes(new ArrayList<>(List.of(node)));
+
+        FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, graphWithMeta(), PROJECT_ID);
+
+        Object headers = result.patch().getAddNodes().get(0).getData().get("headers");
+        if (headers instanceof List<?> list) {
+            boolean hasAuth = list.stream()
+                    .filter(Map.class::isInstance)
+                    .map(m -> (Map<?, ?>) m)
+                    .anyMatch(h -> "Authorization".equalsIgnoreCase(String.valueOf(h.get("name"))));
+            assertFalse(hasAuth);
+        }
+        assertTrue(result.validation().getWarnings().stream()
+                .noneMatch(w -> w.startsWith("AUTH_HEADER_MANAGED:")));
     }
 
     private static GraphJson emptyGraph() {

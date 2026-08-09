@@ -6,7 +6,13 @@ import com.qualitest.api.params.DebugHttpForwardParams.DebugBodySpec;
 import com.qualitest.api.params.DebugHttpForwardParams.HeaderPair;
 import com.qualitest.api.result.DebugHttpForwardResult;
 import com.qualitest.api.service.IDebugHttpForwardService;
+import com.qualitest.api.util.AuthHeaderResolver;
 import com.qualitest.api.util.DebugForwardUrlPolicy;
+import com.qualitest.project.domain.TestProject;
+import com.qualitest.project.domain.TestProjectApi;
+import com.qualitest.project.mapper.TestProjectApiMapper;
+import com.qualitest.project.mapper.TestProjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +27,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,10 +37,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 通过 Java HttpClient 将调试请求转发至被测 URL
+ * 通过 Java HttpClient 将调试请求转发至被测 URL。
+ * 若请求带 testProjectApiId，转发前按项目鉴权配置补齐缺失的鉴权头。
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
 
     private static final int DEFAULT_TIMEOUT_MS = 60_000;
@@ -45,11 +54,15 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
             "keep-alive", "proxy-connection", "te", "trailer", "upgrade"
     );
 
+    private final TestProjectApiMapper testProjectApiMapper;
+    private final TestProjectMapper testProjectMapper;
+
     @Override
     public DebugHttpForwardResult forward(DebugHttpForwardParams params) {
         if (params == null) {
             return DebugHttpForwardResult.policyError("请求体不能为空");
         }
+        injectAuthHeadersIfNeeded(params);
         String policyError = DebugForwardUrlPolicy.validateTargetUrl(params.getUrl());
         if (policyError != null) {
             return DebugHttpForwardResult.policyError(policyError);
@@ -92,6 +105,78 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
                     "UNKNOWN",
                     null);
         }
+    }
+
+    /**
+     * 调试台带 testProjectApiId 时：缺鉴权头则按项目配置补模板值（已有同名头不覆盖）。
+     */
+    private void injectAuthHeadersIfNeeded(DebugHttpForwardParams params) {
+        Long apiId = params.getTestProjectApiId();
+        if (apiId == null) {
+            return;
+        }
+        TestProjectApi api = testProjectApiMapper.selectTestProjectApiById(apiId);
+        if (api == null) {
+            return;
+        }
+        String projectAuthJson = null;
+        if (api.getTestProjectId() != null) {
+            TestProject project = testProjectMapper.selectTestProjectById(api.getTestProjectId());
+            if (project != null) {
+                projectAuthJson = project.getAuthConfig();
+            }
+        }
+        AuthHeaderResolver.ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(
+                api.getAuthConfig(), projectAuthJson, api.getApiPath());
+        if (resolved.skipped()) {
+            return;
+        }
+
+        List<Map<String, Object>> rows = headerPairsToRows(params.getHeaders());
+        AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(rows, resolved);
+        if (applied.changed()) {
+            params.setHeaders(rowsToHeaderPairs(applied.headers()));
+        }
+    }
+
+    private static List<Map<String, Object>> headerPairsToRows(List<HeaderPair> pairs) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        if (pairs == null) {
+            return rows;
+        }
+        for (HeaderPair pair : pairs) {
+            if (pair == null || pair.getName() == null || pair.getName().isBlank()) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("_enabled", true);
+            row.put("name", pair.getName());
+            row.put("value", pair.getValue() != null ? pair.getValue() : "");
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    private static List<HeaderPair> rowsToHeaderPairs(List<Map<String, Object>> rows) {
+        List<HeaderPair> out = new ArrayList<>();
+        if (rows == null) {
+            return out;
+        }
+        for (Map<String, Object> row : rows) {
+            if (row == null || Boolean.FALSE.equals(row.get("_enabled"))) {
+                continue;
+            }
+            Object nameObj = row.get("name");
+            if (nameObj == null || String.valueOf(nameObj).isBlank()) {
+                nameObj = row.get("key");
+            }
+            if (nameObj == null || String.valueOf(nameObj).isBlank()) {
+                continue;
+            }
+            Object value = row.get("value");
+            out.add(new HeaderPair(String.valueOf(nameObj).trim(), value != null ? String.valueOf(value) : ""));
+        }
+        return out;
     }
 
     private static String classifyIo(String msg) {

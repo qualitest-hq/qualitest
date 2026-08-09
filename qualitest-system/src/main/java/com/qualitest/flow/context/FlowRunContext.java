@@ -70,6 +70,12 @@ public class FlowRunContext {
      */
     private String responseConvention;
 
+    /**
+     * 项目鉴权配置原始 JSON（表字段 auth_config）。
+     * HTTP 节点发送前按接口鉴权标签解析是否补 Authorization 等托管头。
+     */
+    private String projectAuthConfig;
+
     @Getter
     @Setter
     @Builder

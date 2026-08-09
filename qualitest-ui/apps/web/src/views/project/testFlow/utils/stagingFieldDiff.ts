@@ -1,6 +1,8 @@
 /**
  * Staging 属性面板「原值 / 现值」对照行构建。
  */
+import { stagingHeadersFieldLabel } from './stagingAuthHints'
+
 export interface StagingFieldRow {
   /** 唯一键，如 data.name、source */
   key: string;
@@ -25,6 +27,7 @@ const NODE_DATA_LABELS: Record<string, string> = {
   expression: '表达式',
   waitMs: '等待(ms)',
   remark: '备注',
+  headers: '请求头',
 };
 
 function formatDisplayValue(value: unknown): string {
@@ -110,10 +113,13 @@ export function buildNodeStagingFieldRows(
   ];
 
   for (const field of orderedKeys) {
+    const label = field === 'headers'
+      ? stagingHeadersFieldLabel(draft)
+      : (NODE_DATA_LABELS[field] ?? field);
     pushRow(
       rows,
       `data.${field}`,
-      NODE_DATA_LABELS[field] ?? field,
+      label,
       baseData[field],
       draftData[field],
     );

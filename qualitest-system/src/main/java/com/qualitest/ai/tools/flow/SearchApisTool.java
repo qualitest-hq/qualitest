@@ -7,8 +7,11 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.api.util.AuthHeaderHintSupport;
+import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
+import com.qualitest.project.mapper.TestProjectMapper;
 import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
@@ -25,6 +28,7 @@ import java.util.stream.Collectors;
 public class SearchApisTool implements QualitestTool {
 
     private final TestProjectApiMapper testProjectApiMapper;
+    private final TestProjectMapper testProjectMapper;
 
     @Override
     public String getName() {
@@ -92,6 +96,14 @@ public class SearchApisTool implements QualitestTool {
             matched = matched.stream().limit(limit).collect(Collectors.toList());
         }
 
+        String projectAuthJson = null;
+        if (ctx.getTestProjectId() != null && testProjectMapper != null) {
+            TestProject project = testProjectMapper.selectTestProjectById(ctx.getTestProjectId());
+            if (project != null) {
+                projectAuthJson = project.getAuthConfig();
+            }
+        }
+
         JSONArray items = new JSONArray();
         for (TestProjectApi api : matched) {
             JSONObject item = new JSONObject();
@@ -99,6 +111,8 @@ public class SearchApisTool implements QualitestTool {
             item.put("method", FlowDesignApiSummarizer.resolveMethod(api));
             item.put("path", api.getApiPath());
             item.put("name", api.getApiName());
+            item.put("auth", AuthHeaderHintSupport.compactAuth(
+                    api.getAuthConfig(), projectAuthJson, api.getApiPath()));
             items.add(item);
         }
         String hint = truncated

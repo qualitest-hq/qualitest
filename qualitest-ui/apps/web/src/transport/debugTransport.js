@@ -266,7 +266,7 @@ function stringifyBody(b) {
 
 async function buildJavaForwardPayload(built) {
   const body = await normalizeDebugBodySpec(built.method, built.data)
-  return {
+  const payload = {
     method: built.method,
     url: built.fullUrl,
     headers: headersToPairs(built.headers),
@@ -276,4 +276,12 @@ async function buildJavaForwardPayload(built) {
     correlationId: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined,
     body
   }
+  const apiId = built?.testProjectApiId
+  if (apiId != null && String(apiId).trim() !== '') {
+    const n = Number(apiId)
+    if (Number.isFinite(n)) {
+      payload.testProjectApiId = n
+    }
+  }
+  return payload
 }

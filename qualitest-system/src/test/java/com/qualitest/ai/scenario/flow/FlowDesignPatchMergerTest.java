@@ -46,7 +46,7 @@ class FlowDesignPatchMergerTest {
     void setUp() {
         merger = new FlowDesignPatchMerger();
         validator = new GraphJsonValidator();
-        normalizer = new FlowDesignPatchNormalizer(null, validator, merger);
+        normalizer = new FlowDesignPatchNormalizer(null, null, validator, merger);
     }
 
     /**

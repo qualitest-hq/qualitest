@@ -14,6 +14,7 @@ import java.util.List;
  * 项目级鉴权配置。
  * <p>
  * 定义多套 Bearer（或其他头模板），按接口路径前缀匹配；未命中时用 defaultProfileId。
+ * 可选 {@code anonymousPathExact} / {@code anonymousPathPrefix} 覆盖无注解白名单路径。
  */
 @Data
 @Builder
@@ -34,6 +35,19 @@ public class ProjectAuthConfig implements Serializable {
      */
     @Builder.Default
     private List<ProjectAuthProfile> authProfiles = new ArrayList<>();
+
+    /**
+     * 免登录路径（精确匹配，规范化后全等），如 /login、/captchaImage。
+     * 命中则接口 auth.mode=none，不补 Bearer。
+     */
+    @Builder.Default
+    private List<String> anonymousPathExact = new ArrayList<>();
+
+    /**
+     * 免登录路径前缀（规范化后按段前缀匹配），如 /test-support/、/swagger-ui。
+     */
+    @Builder.Default
+    private List<String> anonymousPathPrefix = new ArrayList<>();
 
     /**
      * 单套鉴权配置（如客户端 Bearer、管理端 Bearer）。

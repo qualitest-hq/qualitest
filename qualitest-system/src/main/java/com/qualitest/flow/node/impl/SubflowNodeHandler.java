@@ -154,12 +154,13 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
         }
     }
 
-    /** 子上下文继承父级的 env/asset/session/runSession/外联权限/响应约定；flow 仅保留 inputs 种子。
-     * 继承响应约定后，子流内 HTTP 节点仍按同一套业务码规则校验。 */
+    /** 子上下文继承父级的 env/asset/session/runSession/外联权限/响应约定/鉴权配置；flow 仅保留 inputs 种子。
+     * 继承后，子流内 HTTP 节点仍按同一套业务码与鉴权头规则处理。 */
     private static FlowRunContext buildChildContext(FlowRunContext parent, Map<String, Object> childSeed) {
         return FlowRunContext.builder()
                 .testProjectId(parent.getTestProjectId())
                 .responseConvention(parent.getResponseConvention())
+                .projectAuthConfig(parent.getProjectAuthConfig())
                 .env(parent.getEnv() != null ? parent.getEnv() : Map.of())
                 .asset(parent.getAsset() != null ? parent.getAsset() : Map.of())
                 .session(parent.getSession() != null ? parent.getSession() : new HashMap<>())

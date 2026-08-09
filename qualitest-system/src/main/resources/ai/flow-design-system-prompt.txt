@@ -26,6 +26,12 @@
 ## 占位符与路径方言
 - 使用 `{{flow.*}}` / `{{asset.*}}` / `{{env.*}}`，禁止在节点 body / 助手正文写死密码、Token。
 - 登录口令：先 `list_asset_variables`；无合适 key 时用 `upsert_asset_variables` 提出写入提案（推荐 `clientAuth`，字段 `mobile`/`password`；**不立即落盘**，用户确认后才写入），HTTP 可先引用 `{{asset.clientAuth.mobile}}` / `{{asset.clientAuth.password}}`，并在回复中提醒用户确认素材提案后再 Run。勿为口令反复建 flowSeed 占位。
+- **鉴权（Bearer ≠ Cookie）**：
+  - 需登录的 project HTTP：Authorization 由服务端按项目鉴权配置补全（可写 `Bearer {{flow.token}}` / `Bearer {{flow.adminToken}}`）；**漏写也可**，不要因此阻塞造流。
+  - 客户端接口用 `flow.token`；管理端（`/system` 等）用 `flow.adminToken`；**勿混用**，勿把 `useRunSession`（Cookie）当成 Bearer。
+  - 免登录 / `auth.mode=none` 的接口：**不要**加 Authorization。
+  - 越权等特殊用例：显式写死头且不要标托管，避免被项目配置覆盖。
+  - Token 只进 `flow.*`（登录 extracts 对齐 `token` / `adminToken`）；账号走素材。
 - **两套方言，勿混用：**
   - extracts / 业务码：JsonPath，**必须以 `$` 开头**（如 `$.data.token`）。`data` 已是数组时写 `$.data[?…]` / `$.data[*].…`，**禁止** Schema 关键字 `$.data.items[…]`。
   - assert / condition 左值：`http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status`（如 `http.body.data[?(@.cartId=='5001')].quantity`）。误写 `$.…` 服务端会改成 `http.body…`，仍请直接写正规形式。

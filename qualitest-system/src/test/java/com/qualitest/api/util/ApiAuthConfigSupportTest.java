@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -71,5 +72,18 @@ class ApiAuthConfigSupportTest {
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder().mode("cookie").build()));
         assertTrue(ex.getMessage().contains("auth.mode"));
+    }
+
+    /**
+     * 前提：JSON 空白或非法。
+     * 期望：parseOrInherit 回落 inherit。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("空白 JSON 按 inherit")
+    void parseOrInherit_blankDefaultsToInherit() {
+        assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit(null).getMode());
+        assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit("").getMode());
+        assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit("{").getMode());
     }
 }

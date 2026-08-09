@@ -8,6 +8,7 @@ import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -53,7 +54,7 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * 双端 Bearer 默认模板：
+     * 双端 Bearer 默认模板（含 demo 常用匿名 path）：
      * /api/ → 客户端 token；/system|/monitor|/tool|/web/ → 管理端 adminToken；其余默认管理端。
      */
     public static ProjectAuthConfig dualBearerTemplate() {
@@ -89,7 +90,64 @@ public final class ProjectAuthConfigSupport {
                                         .build())
                                 .build()
                 ))
+                .anonymousPathExact(List.copyOf(DEMO_ANONYMOUS_PATH_EXACT))
+                .anonymousPathPrefix(List.copyOf(DEMO_ANONYMOUS_PATH_PREFIX))
                 .build();
+    }
+
+    /** demo SecurityConfig 业务向白名单（精确）。 */
+    public static final List<String> DEMO_ANONYMOUS_PATH_EXACT =
+            List.of("/login", "/register", "/captchaImage");
+
+    /** demo 业务向白名单前缀（不含纯静态资源）。 */
+    public static final List<String> DEMO_ANONYMOUS_PATH_PREFIX =
+            List.of("/test-support/", "/swagger-ui", "/v3/api-docs");
+
+    /**
+     * 若匿名 path 列表均为空，填入 demo 默认值（不改动已有非空配置）。
+     *
+     * @return true 表示发生了回填，调用方宜持久化
+     */
+    public static boolean fillAnonymousPathsIfAbsent(ProjectAuthConfig config) {
+        if (config == null) {
+            return false;
+        }
+        boolean exactEmpty = config.getAnonymousPathExact() == null || config.getAnonymousPathExact().isEmpty();
+        boolean prefixEmpty = config.getAnonymousPathPrefix() == null || config.getAnonymousPathPrefix().isEmpty();
+        if (!exactEmpty || !prefixEmpty) {
+            return false;
+        }
+        config.setAnonymousPathExact(new ArrayList<>(DEMO_ANONYMOUS_PATH_EXACT));
+        config.setAnonymousPathPrefix(new ArrayList<>(DEMO_ANONYMOUS_PATH_PREFIX));
+        return true;
+    }
+
+    /**
+     * 接口路径是否命中项目匿名 path（exact 全等或 prefix 段前缀）。
+     */
+    public static boolean matchesAnonymousPath(String apiPath, ProjectAuthConfig config) {
+        if (config == null) {
+            return false;
+        }
+        String path = normalizeApiPath(apiPath);
+        if (config.getAnonymousPathExact() != null) {
+            for (String raw : config.getAnonymousPathExact()) {
+                if (StrUtil.isBlank(raw)) {
+                    continue;
+                }
+                if (path.equals(normalizeApiPath(raw))) {
+                    return true;
+                }
+            }
+        }
+        if (config.getAnonymousPathPrefix() != null) {
+            for (String raw : config.getAnonymousPathPrefix()) {
+                if (pathMatchesNormalizedPrefix(path, raw)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -114,12 +172,10 @@ public final class ProjectAuthConfigSupport {
                 continue;
             }
             for (String rawPrefix : prefixes) {
-                if (StrUtil.isBlank(rawPrefix) || "/".equals(rawPrefix.trim())) {
-                    // 禁止用 "/" 当 match
+                String prefix = toMatchPrefix(rawPrefix);
+                if (prefix == null) {
                     continue;
                 }
-                String prefix = normalizePrefix(rawPrefix);
-                // path+/ 再比，使 /api 也能命中前缀 /api/
                 if ((path + "/").startsWith(prefix) && prefix.length() > bestLen) {
                     bestLen = prefix.length();
                     bestId = profile.getId().trim();
@@ -130,6 +186,67 @@ public final class ProjectAuthConfigSupport {
             return bestId;
         }
         return StrUtil.trimToNull(config.getDefaultProfileId());
+    }
+
+    /** 规范化后的 path 是否命中配置的前缀（禁止 match=/）。 */
+    static boolean pathMatchesNormalizedPrefix(String normalizedPath, String rawPrefix) {
+        String prefix = toMatchPrefix(rawPrefix);
+        return prefix != null && (normalizedPath + "/").startsWith(prefix);
+    }
+
+    /**
+     * 将配置前缀转为可 startsWith 的规范形式；空白或 "/" 返回 null（禁止根匹配）。
+     */
+    static String toMatchPrefix(String rawPrefix) {
+        if (StrUtil.isBlank(rawPrefix) || "/".equals(rawPrefix.trim())) {
+            return null;
+        }
+        return normalizePrefix(rawPrefix);
+    }
+
+    /**
+     * 按 id 查找 Profile；找不到返回 null。
+     */
+    public static ProjectAuthProfile findProfile(ProjectAuthConfig config, String profileId) {
+        if (config == null || config.getAuthProfiles() == null || StrUtil.isBlank(profileId)) {
+            return null;
+        }
+        for (ProjectAuthProfile p : config.getAuthProfiles()) {
+            if (p != null && profileId.equals(p.getId())) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Profile 展示名；无 name 时对双端默认 id 回落中文名。
+     */
+    public static String displayProfileName(ProjectAuthConfig config, String profileId) {
+        ProjectAuthProfile profile = findProfile(config, profileId);
+        if (profile != null && StrUtil.isNotBlank(profile.getName())) {
+            return profile.getName().trim();
+        }
+        if (PROFILE_CLIENT.equals(profileId)) {
+            return "客户端 Bearer";
+        }
+        if (PROFILE_ADMIN.equals(profileId)) {
+            return "管理端 Bearer";
+        }
+        return StrUtil.blankToDefault(profileId, "项目鉴权");
+    }
+
+    /**
+     * 登录 token 写入的 flow 变量名，只读 {@code loginHint.flowKey}。
+     * <p>
+     * 不从 {@code valueTemplate} 用正则猜：头模板形态不固定，且方案约定 flowKey 由 loginHint 显式声明。
+     * 未配置则返回 null（分端缺 token 提示 / headerHint.flowKey 会跳过）。
+     */
+    public static String resolveLoginFlowKey(ProjectAuthProfile profile) {
+        if (profile == null || profile.getLoginHint() == null) {
+            return null;
+        }
+        return StrUtil.trimToNull(profile.getLoginHint().getFlowKey());
     }
 
     /**

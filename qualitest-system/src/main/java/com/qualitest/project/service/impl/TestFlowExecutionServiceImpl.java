@@ -139,6 +139,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 externalPermitted);
         if (project != null) {
             ctx.setResponseConvention(project.getResponseConvention());
+            ctx.setProjectAuthConfig(project.getAuthConfig());
         }
 
         // 4. 深拷贝图 JSON 为 snapshot，并计算指纹供列表对比

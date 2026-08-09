@@ -1382,7 +1382,7 @@ function buildSendUrlAndOptions() {
     }
   }
 
-  return {fullUrl, method, headers, data}
+  return {fullUrl, method, headers, data, testProjectApiId: props.apiDetail?.testProjectApiId}
 }
 
 async function handleDebugSend() {

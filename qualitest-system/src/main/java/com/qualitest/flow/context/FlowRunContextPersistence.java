@@ -9,7 +9,8 @@ import java.util.Map;
  * FlowRunContext 暂停/续跑时的序列化与反序列化。
  * <p>
  * 快照包含 env / flow / asset / session / Cookie、外联权限、项目 ID、子流深度，
- * 以及项目响应约定（responseConvention），保证续跑后 HTTP 节点仍能按原约定校验业务码。
+ * 以及项目响应约定（responseConvention）、项目鉴权配置（projectAuthConfig），
+ * 保证续跑后 HTTP 节点仍能按原约定校验业务码并补鉴权头。
  */
 public final class FlowRunContextPersistence {
 
@@ -29,6 +30,7 @@ public final class FlowRunContextPersistence {
         map.put("testProjectId", ctx.getTestProjectId());
         // 写入项目响应约定，续跑后仍按原约定校验业务码
         map.put("responseConvention", ctx.getResponseConvention());
+        map.put("projectAuthConfig", ctx.getProjectAuthConfig());
         map.put("subflowDepth", ctx.getSubflowDepth());
         if (ctx.getRunSession() != null && !ctx.getRunSession().isEmpty()) {
             map.put("cookies", new HashMap<>(ctx.getRunSession().snapshot()));
@@ -72,6 +74,10 @@ public final class FlowRunContextPersistence {
         if (responseConvention != null) {
             // 恢复项目响应约定（业务码路径与成功值列表）
             builder.responseConvention(String.valueOf(responseConvention));
+        }
+        Object projectAuthConfig = map.get("projectAuthConfig");
+        if (projectAuthConfig != null) {
+            builder.projectAuthConfig(String.valueOf(projectAuthConfig));
         }
         Object depth = map.get("subflowDepth");
         if (depth instanceof Number n) {

@@ -31,6 +31,12 @@ public class DebugHttpForwardParams implements Serializable {
     private String correlationId;
     private DebugBodySpec body;
 
+    /**
+     * 可选：项目接口 ID。
+     * 有值时，转发前按接口鉴权标签与项目鉴权配置补齐缺失的托管鉴权头（已有同名头不覆盖）。
+     */
+    private Long testProjectApiId;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

@@ -88,7 +88,7 @@ public class FlowDesignToolExecutor {
                                   ITestProjectAssetService testProjectAssetService) {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         Map<String, QualitestTool> map = new HashMap<>();
-        map.put(SEARCH_APIS, new SearchApisTool(testProjectApiMapper));
+        map.put(SEARCH_APIS, new SearchApisTool(testProjectApiMapper, testProjectMapper));
         map.put(GET_API_DETAIL, new GetApiDetailTool(testProjectApiMapper, testProjectMapper));
         map.put(LIST_FLOWS, new ListFlowsTool(testFlowService));
         map.put(LIST_SUBFLOW_TEMPLATES, new ListSubflowTemplatesTool(testFlowService));

@@ -52,6 +52,28 @@ describe('buildNodeStagingFieldRows', () => {
     expect(rows[0].multiline).toBe(true);
     expect(rows[0].draftValue).toContain('\n');
   });
+
+  it('headers 含 profileManaged 时标签带按项目鉴权补全', () => {
+    // 前提：draft headers 含托管 Authorization，baseline 无
+    // 期望：字段标签为「请求头（按项目鉴权补全）」
+    const rows = buildNodeStagingFieldRows(
+      { type: 'http', data: {} },
+      {
+        type: 'http',
+        data: {
+          headers: [
+            {
+              name: 'Authorization',
+              value: 'Bearer {{flow.token}}',
+              profileManaged: true,
+            },
+          ],
+        },
+      },
+    );
+    expect(rows.some((r) => r.key === 'data.headers')).toBe(true);
+    expect(rows.find((r) => r.key === 'data.headers')?.label).toBe('请求头（按项目鉴权补全）');
+  });
 });
 
 describe('buildEdgeStagingFieldRows', () => {

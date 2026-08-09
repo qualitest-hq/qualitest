@@ -124,8 +124,8 @@ public final class AssertPathDesignGate {
             if ("assert".equals(type)) {
                 validateRules(kindLabel, nodeName, "rules", node.getData().get("rules"), schemaPaths, errors);
             } else {
-                for (Object b : asList(node.getData().get("branches"))) {
-                    Map<?, ?> branch = asMap(b);
+                for (Object b : GraphDataLists.asList(node.getData().get("branches"))) {
+                    Map<?, ?> branch = GraphDataLists.asMap(b);
                     if (branch == null) {
                         continue;
                     }
@@ -146,9 +146,9 @@ public final class AssertPathDesignGate {
             Object rulesRaw,
             Set<String> schemaPaths,
             List<String> errors) {
-        List<?> rules = asList(rulesRaw);
+        List<?> rules = GraphDataLists.asList(rulesRaw);
         for (int i = 0; i < rules.size(); i++) {
-            Map<?, ?> rule = asMap(rules.get(i));
+            Map<?, ?> rule = GraphDataLists.asMap(rules.get(i));
             if (rule == null) {
                 continue;
             }
@@ -302,25 +302,5 @@ public final class AssertPathDesignGate {
             }
         }
         return node.getId() != null ? node.getId() : "assert";
-    }
-
-    private static Map<?, ?> asMap(Object raw) {
-        if (raw instanceof Map<?, ?> map) {
-            return map;
-        }
-        if (raw instanceof JSONObject obj) {
-            return obj;
-        }
-        return null;
-    }
-
-    private static List<?> asList(Object raw) {
-        if (raw instanceof List<?> list) {
-            return list;
-        }
-        if (raw instanceof JSONArray arr) {
-            return arr;
-        }
-        return List.of();
     }
 }

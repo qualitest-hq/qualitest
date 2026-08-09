@@ -6,7 +6,7 @@ import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.common.exception.ServiceException;
 
 /**
- * 接口鉴权标签的校验与落库序列化。
+ * 接口鉴权标签的校验、解析与落库序列化。
  * <p>
  * 导入接口时把上传包里的 auth 对象转成 JSON 字符串写入数据库；
  * 未声明或 mode 为空时返回 null，表示本次导入不要改库里已有值。
@@ -14,6 +14,25 @@ import com.qualitest.common.exception.ServiceException;
 public final class ApiAuthConfigSupport {
 
     private ApiAuthConfigSupport() {}
+
+    /**
+     * 解析接口鉴权 JSON；空白或非法时按 {@code inherit}（未标注视为需登录）。
+     * 造流补头、工具摘要等共用，勿各写一份默认逻辑。
+     */
+    public static ApiAuthConfig parseOrInherit(String json) {
+        if (StrUtil.isBlank(json)) {
+            return ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
+        }
+        try {
+            ApiAuthConfig cfg = JSONUtil.toBean(json, ApiAuthConfig.class);
+            if (cfg == null || StrUtil.isBlank(cfg.getMode())) {
+                return ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
+            }
+            return cfg;
+        } catch (Exception e) {
+            return ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
+        }
+    }
 
     /**
      * 转为可写入 auth_config 列的 JSON。
