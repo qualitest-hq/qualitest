@@ -1,6 +1,6 @@
 # 鉴权注入与 Bearer 方案（定稿）
 
-> **状态**：设计定稿 · **分阶段实施**（**P0～P3 已落地**：插件免登、双端 Profile 种子、补头、Staging/工具可见、**匿名 path 上传推断 mode=none**）  
+> **状态**：设计定稿 · **分阶段实施**（**P0～P4a 已落地**：插件免登、双端 Profile 种子、补头、Staging/工具可见、匿名 path、**刷新本流托管头**；Run 遇鉴权失败走「AI 修复」对话改图，不做专用 401 启发式提案；OpenAPI / Cookie Profile 仍按需）  
 > **范围**：工作区 `qualitest-all` —— 质衡主仓 `qualitest/`、靶场 `qualitest-demo/`、扫描插件 `qualitest-intellij-plugin/`  
 > **触发**：T2 冒烟 AI 造流登录后调 `/api/account/auth/profile` 等接口 **401**（漏 `Authorization: Bearer {{flow.token}}`）  
 > **相关**：[`test-flow-nodes.md`](./test-flow-nodes.md)、[`mcp.md`](./mcp.md)、[`全面测试手册.md`](./全面测试手册.md)、`tpl_login_bearer`  
@@ -208,7 +208,7 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 | **提交时** | Normalizer 写入头，并打 `profileManaged: true`（实现可用 headers 项扩展字段或节点 data 旁路字段；UI Staging 显示「按项目鉴权补全」） |
 | **Run / 调试时** | 对 `project` HTTP：若需登录且（无头 **或** `profileManaged`）→ **按当前项目 Profile 再解析一遍**再发请求 |
 | **人手/AI 显式头** | 无 `profileManaged` → 永不被 Profile 静默改掉（越权用例安全） |
-| **可选 UI** | 「按项目鉴权刷新本流托管头」——批量重写 `profileManaged` 头，仍走保存/Staging 规范 |
+| **可选 UI** | 「按项目鉴权刷新本流托管头」——批量重写 `profileManaged` 头，仍走保存/Staging 规范；**已落地**：画布顶栏「刷新鉴权头」→ `POST /project/testFlow/refreshAuthHeaders` → Staging |
 
 这样项目改 `valueTemplate`（例如改 token 变量名）后，旧流 Run 立即跟新配置，不必全员重造流。
 
@@ -252,9 +252,11 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 
 调试发送 `project` 接口时走 §4.3，避免只修造流、调试仍 401。
 
-### 5.6 401 回写（P4）
+### 5.6 鉴权失败回写（P4）
 
-提案改 `mode` / 补头 / 插登录 → Staging；禁止自动改图。
+**不做**专用「401 启发式改图提案」。Run 详情「AI 修复」带上失败 Run；若步骤含 HTTP 401，预填鉴权排查提示，由模型 `submit_flow_design_patch` → Staging；禁止自动改图 / 自动改 `mode`。
+
+确定性批量对齐 Profile 走 §4.5「刷新鉴权头」（P4a），与是否 401 无关。
 
 ### 5.7 与有效配置合并
 
@@ -294,18 +296,21 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 | **P1 平台补头** | `qualitest` | 项目 `authProfiles` + `defaultProfileId` + §4.1 匹配；Normalizer 补头 + `profileManaged`；**Run/调试同一解析器**；Prompt 要点；可选商城项目种子 JSON | **做**漏头自动补；**不做** Staging 分端硬拦、完整 Web 编辑器、401 回写 | A1：AI 可不写 Authorization，Staging/Run 仍有 `Bearer {{flow.token}}`；免登录节点不补头 |
 | **P2 可见与门禁** | `qualitest` | 接口 `auth` Web 编辑；工具回传 `auth`/`headerHint`；Staging「按项目鉴权补全」标记；分端缺 token 检查（soft warning） | **已落地**；硬拦留给后续 | Staging 可见托管头；缺 token 分端提示 |
 | **P3 匿名 path** | `qualitest` | 项目 `anonymousPathExact` / `anonymousPathPrefix`；上传命中 → `mode=none`；缺字段回填 demo 默认 | **已落地**（无 Web 编辑器；运行时仍只认接口 mode） | 白名单 path → `mode=none` |
-| **P4 增强** | 按需 | 401 回写；刷新本流托管头；OpenAPI 导入；Cookie Profile | 非主路径 | 手册 §F 单独立项 |
+| **P4 增强** | 按需 | 刷新本流托管头；鉴权失败走 AI 修复；OpenAPI 导入；Cookie Profile | **P4a 已落地**；鉴权失败不另做 401 启发式提案；OpenAPI/Cookie 仍非主路径 | 手册 §F 单独立项 |
 
 ### 7.3 当前开工顺序
 
 1. ~~**先做 P0（插件）** → 合并 → 对 demo 重扫验 `mode`。~~ **P0 已落地**（插件 `anonymousAnnotations` + 上传 `auth`；质衡 `auth_config` 并入 baseline）。  
-2. ~~项目鉴权配置种子~~ **已落地**：项目级上传且 `auth_config` 为空时写入双端 Bearer 模板，并回填接口 `authProfileId`。  
+2. ~~项目鉴权配置种子~~ **已落地**：`uploadType=project` 的项目级上传且 `auth_config` 为空时写入双端 Bearer 模板，并回填接口 `authProfileId`。  
 3. ~~P1 剩余（Normalizer / Run / 调试补头）~~ **已落地**：`AuthHeaderResolver`；造流补托管头；Run `mergeHeaders` 按当前项目配置刷新；调试 `http-forward` 带 `testProjectApiId` 时同解析器补缺失头；Prompt 鉴权要点。  
 4. ~~P2 可见与门禁~~ **已落地**：`get_api_detail`/`search_apis` 回传 `auth`/`headerHint`；Staging Diff/聊天展示「按项目鉴权补全」；分端缺 `flow.token`/`flow.adminToken` soft warning；接口设计 Tab 可编辑 `mode`/`authProfileId`。  
 5. ~~P3 匿名 path~~ **已落地**：`anonymousPath*` 进双端种子；导入时命中 → `mode=none`；老项目缺字段则回填默认。→ 再跑 T2.A1 / `smoke-S01`；重扫后验 `/login`、`/test-support/**` 为 `none`。  
-6. P4 按需。
+6. ~~P4a 刷新本流托管头~~ **已落地**：顶栏「刷新鉴权头」→ 提案进 Staging → 确认保存。  
+7. 鉴权失败：Run「AI 修复」对话改图（含 401 预填提示）；**已砍**专用 401 Staging 启发式提案。OpenAPI / Cookie Profile 仍按需。
 
 回归基线（自 P1 补头起）：A1 流、`smoke-S01`；手册 §F。
+
+**P4 验收要点**：改项目 `valueTemplate` → 顶栏「刷新鉴权头」→ Staging Diff 见新模板 → 确认保存；造漏头流 Run 出 401 →「AI 修复」预填鉴权提示 → 模型出 patch → Staging 确认前图不变。
 
 ---
 
@@ -341,7 +346,7 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 
 | 区域 | 位置 |
 |------|------|
-| 解析器 | `AuthHeaderResolver`（Normalizer / Run / 调试 forward 共用） |
+| 解析器 | `AuthHeaderResolver`（Normalizer / Run / 调试 forward 共用）；`ManagedAuthHeaderApplier`；`FlowAuthHeaderRefreshService` |
 | 工具鉴权摘要 | `AuthHeaderHintSupport` → `get_api_detail` / `search_apis` |
 | 分端 token 软提示 | `AuthTokenPresenceGate`（Normalizer / Staging confirm → warnings） |
 | Prompt | `.../ai/flow-design-system-prompt.txt` |
@@ -353,6 +358,8 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 | 项目鉴权 | `test_project.auth_config`；种子双端模板含 `anonymousPath*`；导入 `matchesAnonymousPath` → `mode=none` |
 | Web 薄编辑 | `ApiDesignTab`：`mode` / `authProfileId` |
 | Staging 可见 | `AiStagingConfirmWarnings`；Diff headers 标签；warning 稳定码 `AUTH_HEADER_MANAGED` / `AUTH_TOKEN_MISSING` |
+| 刷新托管头 | 画布顶栏「刷新鉴权头」→ `POST /project/testFlow/refreshAuthHeaders` → Staging |
+| 鉴权失败修复 | Run 详情「AI 修复」（含 401 预填提示）→ AI patch → Staging |
 | demo 双端 | `JwtAuthenticationTokenFilter` |
 | 节点文档 | 落地后补 `test-flow-nodes.md` |
 

@@ -63,6 +63,15 @@
           <span v-if="stagingPendingCount > 0" class="flow-canvas-header__ai-badge">{{ stagingPendingCount }}</span>
         </button>
         <FlowCanvasHelpPopover v-model:open="helpOpen" />
+        <button
+            :disabled="store.loading || !canEditFlow || refreshAuthLoading"
+            :title="canEditFlow ? '按项目鉴权配置刷新本流托管头（进 Staging 确认）' : '当前账号无编辑权限'"
+            class="btn btn--ghost"
+            type="button"
+            @click="handleRefreshAuthHeaders"
+        >
+          {{ refreshAuthLoading ? '刷新中…' : '刷新鉴权头' }}
+        </button>
         <!-- dirty 时文案改为「保存更改」，并加橙色强调样式 -->
         <button
             :disabled="store.loading || !canEditFlow"
@@ -214,6 +223,13 @@ import ProjectSettingDrawer from '@/views/project/testProject/components/Project
 import { useProjectSettingDrawer } from '@/views/project/testProject/composables/useProjectSettingDrawer'
 
 import { refreshSavedBaselineIfPristine } from './utils/reconcileFlowDirty'
+import { buildCanvasPersistGraph } from './composables/buildCanvasPersistGraph'
+import {
+  flowDesignPatchHasChanges,
+  hydratePatchToStaging,
+} from './utils/hydratePatchToStaging'
+import { refreshAuthHeaders } from '@/api/project/testFlow'
+import { createClientMessageId } from '@/utils/ai/aiChatSession'
 
 import FlowCanvasHelpPopover from './components/FlowCanvasHelpPopover.vue'
 import FlowCanvasOverlay from './components/FlowCanvasOverlay.vue'
@@ -315,6 +331,41 @@ function handleSave() {
     return
   }
   emit('save')
+}
+
+const refreshAuthLoading = ref(false)
+
+async function handleRefreshAuthHeaders() {
+  if (!canEditFlow.value) {
+    ElMessage.warning('当前账号无编辑权限，无法刷新鉴权头')
+    return
+  }
+  if (!store.testProjectId) {
+    ElMessage.warning('缺少项目 id')
+    return
+  }
+  refreshAuthLoading.value = true
+  try {
+    const graph = buildCanvasPersistGraph()
+    const result = await refreshAuthHeaders({
+      testProjectId: store.testProjectId,
+      graphJson: graph,
+    })
+    const changed = Number(result.changedCount ?? 0)
+    if (changed <= 0 || !flowDesignPatchHasChanges(result.patch)) {
+      ElMessage.info(result.message || '当前托管鉴权头已与项目配置一致')
+      return
+    }
+    const pending = await hydratePatchToStaging(result.patch!, {
+      messageId: createClientMessageId(),
+      openAiPanel: true,
+    })
+    ElMessage.success(result.message || `已生成 ${pending} 项托管头刷新提案`)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '刷新鉴权头失败')
+  } finally {
+    refreshAuthLoading.value = false
+  }
 }
 
 async function handleRunScenario() {

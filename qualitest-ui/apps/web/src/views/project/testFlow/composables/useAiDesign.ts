@@ -27,6 +27,7 @@ import { toGraphJson } from '../graphAdapter';
 import { useAiDesignStream } from './useAiDesignStream';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
+import { useRunLibraryStore } from '../stores/runLibraryStore';
 import type { AiDesignMessageView, AiDesignSystemAction, FlowDesignPatch, TestFlowDesignResult } from '../types/aiDesignTypes';
 import { parseAssistantFromServer, parseUserFromServer } from '../types/aiDesignTypes';
 import type { ComposerSendPayload } from './mentionComposer';
@@ -120,7 +121,12 @@ function applyPendingRunContextModule() {
   const runId = store.pendingAiDesignRunId;
   if (!runId) return;
   designContext.pendingRunId = runId;
-  designContext.pendingPrompt = '帮我分析这次失败原因并给出修改建议';
+  const runLib = useRunLibraryStore();
+  const run = runLib.runs.find((r) => r.id === runId) ?? runLib.selectedRun;
+  const has401 = (run?.steps ?? []).some((s) => Number(s?.http?.status) === 401);
+  designContext.pendingPrompt = has401
+    ? '这次失败含 HTTP 401（未认证/凭证无效）。请结合 @run 详情检查鉴权：是否漏 Authorization/Bearer、是否缺登录抽取 flow.token 或 flow.adminToken、双端是否串用；用 submit_flow_design_patch 给出修改建议，确认前不改图。'
+    : '帮我分析这次失败原因并给出修改建议';
   store.pendingAiDesignRunId = '';
 }
 

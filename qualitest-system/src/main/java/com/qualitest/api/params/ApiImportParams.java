@@ -1,6 +1,7 @@
 package com.qualitest.api.params;
 
 import com.qualitest.api.model.ApiAuthConfig;
+import com.qualitest.api.model.ApiImportUploadType;
 import com.qualitest.api.util.ApiConfigJsonSupport;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -48,10 +49,10 @@ public class ApiImportParams implements Serializable {
     private Long testProjectId;
 
     /**
-     * 是否在项目鉴权配置为空时写入双端 Bearer 默认模板。
-     * 仅项目级全量上传应置 true；单 Controller 上传勿开，避免误改项目配置。
+     * 上传类型：项目级 / Controller 全部 / Controller 选择。
+     * 决定是否种子项目鉴权等按入口区分的策略；缺省视为未声明（不种子）。
      */
-    private Boolean seedProjectAuthIfEmpty;
+    private ApiImportUploadType uploadType;
 
     /**
      * 接口信息列表（支持批量导入）

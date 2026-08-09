@@ -141,11 +141,37 @@ class AuthHeaderResolverTest {
     }
 
     /**
+     * 前提：托管头已与当前 Profile 模板一致。
+     * 期望：changed=false，避免无意义刷新提案。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("托管头已一致时不标变更")
+    void apply_managedHeaderAlreadyCurrent_noChange() {
+        AuthHeaderResolver.ResolvedAuthHeader resolved =
+                AuthHeaderResolver.resolve(
+                        ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder().mode("inherit").build()),
+                        PROJECT_AUTH,
+                        "/api/orders");
+        List<Map<String, Object>> rows = new ArrayList<>();
+        Map<String, Object> managed = new LinkedHashMap<>();
+        managed.put("_enabled", true);
+        managed.put("name", "Authorization");
+        managed.put("value", "Bearer {{flow.token}}");
+        managed.put(AuthHeaderResolver.PROFILE_MANAGED, true);
+        rows.add(managed);
+
+        AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(rows, resolved);
+        assertFalse(applied.changed());
+        assertEquals("Bearer {{flow.token}}", applied.headers().get(0).get("value"));
+    }
+
+    /**
      * 前提：发送行无 Authorization。
      * 期望：追加托管头。
      */
     @Test
-    @Order(6)
+    @Order(7)
     @DisplayName("缺头时 apply 写入 Authorization")
     void apply_addsWhenSendRowsEmpty() {
         AuthHeaderResolver.ResolvedAuthHeader resolved =

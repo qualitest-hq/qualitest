@@ -54,7 +54,7 @@ public class TestProject extends BaseEntity {
     /**
      * 项目鉴权配置 JSON。
      * 含 defaultProfileId 与 authProfiles（多套 Bearer：路径前缀、头模板、登录抽取提示）。
-     * 项目级上传且本字段为空时可自动写入双端默认模板；已有内容不覆盖。
+     * 项目级上传（uploadType=project）且本字段为空时可自动写入双端默认模板；已有内容不覆盖。
      */
     private String authConfig;
 

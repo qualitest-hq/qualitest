@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
  * biz_code_config、test_value_config 不由上传包整段替换（test_value_config 由合并服务按字段更新）；
  * 上传包若带 auth，则覆盖写入鉴权标签；命中项目匿名 path 则 mode=none；
  * inherit 且未指定 authProfileId 时按项目鉴权配置回填。
- * 若 seedProjectAuthIfEmpty=true 且项目鉴权配置为空，则写入双端 Bearer 默认模板（含匿名 path）；
+ * 若 uploadType=project 且项目鉴权配置为空，则写入双端 Bearer 默认模板（含匿名 path）；
  * 已有配置缺匿名 path 时回填 demo 默认。
  * 结束后刷新项目的 api_count 与 last_api_sync_time。
  * 若本批有更新成功的接口：扫描项目内测试流影响写入 syncImpact，并对受影响流回写 api_health_*。
@@ -385,18 +385,20 @@ public class ApiImportServiceImpl implements IApiImportService {
     }
 
     /**
-     * 项目鉴权配置：上传包要求种子且当前为空时写入双端模板；
+     * 项目鉴权配置：项目级上传且当前为空时写入双端模板；
      * 已有配置若缺匿名 path 则回填 demo 默认（不覆盖已有非空列表）。
      */
     private ProjectAuthConfig resolveProjectAuthForImport(Long projectId, ApiImportParams params) {
         TestProject project = testProjectService.selectTestProjectById(projectId);
         ProjectAuthConfig existing = ProjectAuthConfigSupport.parse(
                 project != null ? project.getAuthConfig() : null);
-        if (Boolean.TRUE.equals(params.getSeedProjectAuthIfEmpty())
-                && ProjectAuthConfigSupport.isEmpty(existing)) {
+        boolean seedIfEmpty = params.getUploadType() != null
+                && params.getUploadType().seedProjectAuthIfEmpty();
+        if (seedIfEmpty && ProjectAuthConfigSupport.isEmpty(existing)) {
             ProjectAuthConfig seeded = ProjectAuthConfigSupport.dualBearerTemplate();
             persistProjectAuthConfig(projectId, seeded);
-            log.info("项目鉴权配置已写入双端 Bearer 默认模板: projectId={}", projectId);
+            log.info("项目鉴权配置已写入双端 Bearer 默认模板: projectId={}, uploadType={}",
+                    projectId, params.getUploadType().getCode());
             return seeded;
         }
         // 已有 Profile 但缺匿名 path：回填 demo 默认，便于老项目一次上传即可生效
@@ -404,9 +406,9 @@ public class ApiImportServiceImpl implements IApiImportService {
                 && ProjectAuthConfigSupport.fillAnonymousPathsIfAbsent(existing)) {
             persistProjectAuthConfig(projectId, existing);
             log.info("项目鉴权配置已回填默认匿名 path: projectId={}", projectId);
-        } else if (Boolean.TRUE.equals(params.getSeedProjectAuthIfEmpty())
-                && !ProjectAuthConfigSupport.isEmpty(existing)) {
-            log.info("项目鉴权配置已存在，跳过种子: projectId={}", projectId);
+        } else if (seedIfEmpty && !ProjectAuthConfigSupport.isEmpty(existing)) {
+            log.info("项目鉴权配置已存在，跳过种子: projectId={}, uploadType={}",
+                    projectId, params.getUploadType().getCode());
         }
         return existing;
     }

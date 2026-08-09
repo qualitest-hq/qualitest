@@ -6,57 +6,23 @@
  * 已确认/已取消单元从 messageAcceptedMap / messageRejectedMap 恢复状态。
  */
 import type { Ref } from 'vue';
-import { ElMessage } from 'element-plus';
 
 import type { AiDesignMessageView, FlowDesignPatch } from '../types/aiDesignTypes';
-import { useAiStagingStore } from '../stores/aiStagingStore';
-import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { clearAllStagingState } from '../utils/stagingCleanup';
 import {
   acceptedStagingUnitIds,
   rejectedStagingUnitIds,
 } from '../utils/stagingAcceptance';
-import { preparePatchForStaging } from '../utils/preparePatchForStaging';
-import {
-  obstaclesFromCanvasNodes,
-  spreadStagingAddPositions,
-} from '../utils/spreadStagingAddPositions';
+import { hydratePatchToStaging } from '../utils/hydratePatchToStaging';
 
 export function createAiStagingHydration(messages: Ref<AiDesignMessageView[]>) {
-  const stagingStore = useAiStagingStore();
-
-  function acceptanceOptionsForMessage(messageId: string) {
-    return {
-      confirmedUnitIds: acceptedStagingUnitIds(messageId),
-      rejectedUnitIds: rejectedStagingUnitIds(messageId),
-    };
-  }
-
   /** 将单条消息的 patch 灌入 Staging store 并同步到画布 */
   async function hydrateStagingForMessage(messageId: string, patch: FlowDesignPatch) {
-    const prepared = await preparePatchForStaging(patch);
-    const store = useFlowCanvasStore();
-    const excludeIds = new Set(
-      (prepared.addNodes ?? []).map((n) => n.id).filter((id): id is string => !!id),
-    );
-    // 确认前避让：相对正式节点及其它 pending，错开本轮 addNodes 坐标
-    const spread = spreadStagingAddPositions(
-      prepared,
-      obstaclesFromCanvasNodes(store.nodes, excludeIds),
-    );
-    stagingStore.hydrateStagingFromPatch(
+    await hydratePatchToStaging(patch, {
       messageId,
-      spread,
-      {
-        nodes: store.nodes,
-        edges: store.edges,
-        runConfig: store.runConfig,
-      },
-      {
-        onConflict: (text: string) => ElMessage.info(text),
-        ...acceptanceOptionsForMessage(messageId),
-      },
-    );
+      confirmedUnitIds: acceptedStagingUnitIds(messageId),
+      rejectedUnitIds: rejectedStagingUnitIds(messageId),
+    });
   }
 
   /** 遍历当前会话所有 assistant patch 消息，逐条灌入 Staging */

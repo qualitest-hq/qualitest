@@ -18,7 +18,10 @@ import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.R;
 import com.qualitest.common.enums.BusinessType;
 import com.qualitest.project.domain.TestFlow;
+import com.qualitest.ai.scenario.flow.FlowAuthHeaderRefreshService;
+import com.qualitest.ai.scenario.flow.model.RefreshAuthHeadersResult;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
+import com.qualitest.project.params.RefreshAuthHeadersParams;
 import com.qualitest.project.params.TestFlowApiHealthPreviewParams;
 import com.qualitest.project.params.TestFlowParams;
 import com.qualitest.project.params.UpgradeTestFlowGraphParams;
@@ -52,6 +55,8 @@ public class TestFlowController extends BaseController {
     private final ApiFlowHealthPersistService apiFlowHealthPersistService;
     /** 按入参 graphJson 做语义体检，不写库（画布预检用） */
     private final ApiFlowReferenceScanService apiFlowReferenceScanService;
+    /** 按项目鉴权刷新本流托管头（只提案，不写库） */
+    private final FlowAuthHeaderRefreshService flowAuthHeaderRefreshService;
 
     /**
      * 查询测试流列表
@@ -126,6 +131,21 @@ public class TestFlowController extends BaseController {
         TestFlow flow = requireAccessibleFlow(testFlowId);
         String graphJson = params != null ? params.getGraphJson() : null;
         return ok(apiFlowReferenceScanService.checkGraphHealth(flow, graphJson));
+    }
+
+    /**
+     * 按当前项目鉴权配置，为本流 project HTTP 节点刷新 profileManaged 托管头。
+     * <p>
+     * 只返回 Staging 可用的 updateNodes patch，不写 test_flow；前端确认后再保存。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
+    @PostMapping("/refreshAuthHeaders")
+    public R<RefreshAuthHeadersResult> refreshAuthHeaders(@RequestBody RefreshAuthHeadersParams params) {
+        if (params == null || params.getTestProjectId() == null) {
+            throw new ServiceException("testProjectId 不能为空");
+        }
+        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        return ok(flowAuthHeaderRefreshService.refresh(params.getTestProjectId(), params.getGraphJson()));
     }
 
     /**

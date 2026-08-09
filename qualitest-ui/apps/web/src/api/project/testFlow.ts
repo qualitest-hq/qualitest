@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
 
 export interface TestFlowListParams {
   testProjectId?: string;
@@ -128,4 +129,36 @@ export function previewTestFlowApiHealth(
     data: { graphJson: payload },
     headers: { repeatSubmit: false },
   });
+}
+
+/** 「按项目鉴权刷新本流托管头」预览结果（不写库） */
+export interface RefreshAuthHeadersResult {
+  patch?: FlowDesignPatch;
+  warnings?: string[];
+  changedCount?: number;
+  message?: string;
+}
+
+/**
+ * 按项目鉴权配置刷新本流托管头，返回 Staging 可用的 updateNodes patch。
+ * 不写 test_flow；前端确认后再保存。
+ */
+export async function refreshAuthHeaders(params: {
+  testProjectId: string | number;
+  graphJson: string | object;
+}): Promise<RefreshAuthHeadersResult> {
+  const graphJson =
+    typeof params.graphJson === 'string'
+      ? params.graphJson
+      : JSON.stringify(params.graphJson ?? {});
+  const res = await request({
+    url: '/project/testFlow/refreshAuthHeaders',
+    method: 'post',
+    data: {
+      testProjectId: params.testProjectId,
+      graphJson,
+    },
+    headers: { repeatSubmit: false },
+  });
+  return (res.data ?? res) as RefreshAuthHeadersResult;
 }

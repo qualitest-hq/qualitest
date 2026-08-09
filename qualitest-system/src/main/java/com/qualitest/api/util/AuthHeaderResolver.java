@@ -81,6 +81,9 @@ public final class AuthHeaderResolver {
             if (!isProfileManaged(existing)) {
                 return new ApplyResult(rows, false);
             }
+            if (managedRowMatches(existing, resolved)) {
+                return new ApplyResult(rows, false);
+            }
             fillManagedHeaderRow(existing, resolved);
             return new ApplyResult(rows, true);
         }
@@ -88,6 +91,15 @@ public final class AuthHeaderResolver {
         fillManagedHeaderRow(row, resolved);
         rows.add(row);
         return new ApplyResult(rows, true);
+    }
+
+    /** 托管行是否已与当前 Profile 模板一致（避免无意义刷新提案）。 */
+    private static boolean managedRowMatches(Map<String, Object> row, ResolvedAuthHeader resolved) {
+        String name = rowName(row);
+        String value = row.get("value") != null ? String.valueOf(row.get("value")).trim() : "";
+        return resolved.name().equalsIgnoreCase(name)
+                && resolved.valueTemplate().equals(value)
+                && !Boolean.FALSE.equals(row.get("_enabled"));
     }
 
     public static boolean isProfileManaged(Map<String, Object> row) {

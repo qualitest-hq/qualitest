@@ -5,8 +5,7 @@ import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.tools.FlowDesignIds;
-import com.qualitest.api.util.AuthDesignWarningCodes;
-import com.qualitest.api.util.AuthHeaderResolver;
+import com.qualitest.api.util.ManagedAuthHeaderApplier;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
@@ -475,38 +474,19 @@ public class FlowDesignPatchNormalizer {
                         }
                         // 不自动写入 apiPath：路径只跟资产，节点不存路径
                         boundApi = api;
-                        applyManagedAuthHeader(data, api, projectAuthJson, nodeLabel, warnings);
+                        ManagedAuthHeaderApplier.applyToNodeData(
+                                data,
+                                api.getAuthConfig(),
+                                projectAuthJson,
+                                api.getApiPath(),
+                                nodeLabel,
+                                warnings);
                     }
                 }
             }
         }
 
         FlowDesignHttpNodeNormalizer.normalize(data, boundApi);
-    }
-
-    /**
-     * 按接口鉴权标签与项目配置，为 project HTTP 节点补齐或刷新托管鉴权头。
-     */
-    private static void applyManagedAuthHeader(
-            Map<String, Object> data,
-            TestProjectApi api,
-            String projectAuthJson,
-            String nodeLabel,
-            List<String> warnings) {
-        if (data == null || api == null) {
-            return;
-        }
-        AuthHeaderResolver.ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(
-                api.getAuthConfig(),
-                projectAuthJson,
-                api.getApiPath());
-        AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(data.get("headers"), resolved);
-        data.put("headers", applied.headers());
-        if (applied.changed() && warnings != null) {
-            warnings.add(AuthDesignWarningCodes.headerManaged(
-                    nodeLabel,
-                    resolved.name() != null ? resolved.name() : "Authorization"));
-        }
     }
 
     /** 按节点类型生成画布卡片副标题 summary */
