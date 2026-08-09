@@ -8,8 +8,9 @@
         <result property="testProjectId" column="test_project_id"/>
         <result property="projectName" column="project_name"/>
         <result property="assetVariables" column="asset_variables"/>
-        <!-- 项目响应约定 JSON：业务码路径、成功值、消息字段、数据包装字段 -->
         <result property="responseConvention" column="response_convention"/>
+        <!-- 项目鉴权配置 JSON：多套 Bearer 等 -->
+        <result property="authConfig" column="auth_config"/>
         <result property="lastApiSyncTime" column="last_api_sync_time"/>
         <result property="apiCount" column="api_count"/>
         <result property="ownerId" column="owner_id"/>
@@ -19,7 +20,7 @@
     </resultMap>
 
     <sql id="selectTestProjectVo">
-        select test_project_id, project_name, asset_variables, response_convention, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
+        select test_project_id, project_name, asset_variables, response_convention, auth_config, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
         from test_project
     </sql>
 
@@ -28,6 +29,7 @@
                tp.project_name       as projectName,
                tp.asset_variables    as assetVariables,
                tp.response_convention as responseConvention,
+               tp.auth_config         as authConfig,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
                tp.owner_id           as ownerId,
@@ -83,6 +85,7 @@
         select tp.test_project_id    as testProjectId,
                tp.project_name       as projectName,
                tp.response_convention as responseConvention,
+               tp.auth_config         as authConfig,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
                tp.owner_id           as ownerId,
@@ -115,6 +118,7 @@
                tp.project_name,
                tp.asset_variables,
                tp.response_convention,
+               tp.auth_config,
                tp.last_api_sync_time,
                tp.api_count,
                tp.owner_id,
@@ -149,6 +153,9 @@
             <if test="responseConvention != null">
                 response_convention,
             </if>
+            <if test="authConfig != null">
+                auth_config,
+            </if>
             <if test="lastApiSyncTime != null">
                 last_api_sync_time,
             </if>
@@ -180,6 +187,9 @@
             </if>
             <if test="responseConvention != null">
                 #{responseConvention},
+            </if>
+            <if test="authConfig != null">
+                #{authConfig},
             </if>
             <if test="lastApiSyncTime != null">
                 #{lastApiSyncTime},
@@ -213,6 +223,9 @@
             </if>
             <if test="responseConvention != null">
                 response_convention = #{responseConvention},
+            </if>
+            <if test="authConfig != null">
+                auth_config = #{authConfig},
             </if>
             <if test="lastApiSyncTime != null">
                 last_api_sync_time = #{lastApiSyncTime},

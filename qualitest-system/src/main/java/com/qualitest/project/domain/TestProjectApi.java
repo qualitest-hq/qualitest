@@ -110,6 +110,14 @@ public class TestProjectApi extends BaseEntity {
     private String bizCodeConfig;
 
     /**
+     * 接口鉴权标签 JSON。
+     * 典型内容：mode（none 免登录 / inherit 需登录 / override 自定义头），
+     * 以及可选的 authProfileId（指定用哪套项目鉴权配置）。
+     * 由接口导入写入；列表与详情原样返回给前端。
+     */
+    private String authConfig;
+
+    /**
      * 前置操作脚本
      */
     private String preRequestScript;

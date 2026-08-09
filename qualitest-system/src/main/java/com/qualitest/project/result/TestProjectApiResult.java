@@ -117,6 +117,12 @@ public class TestProjectApiResult implements Serializable {
     private String bizCodeConfig;
 
     /**
+     * 接口鉴权标签 JSON。
+     * 表示该接口是否免登录、是否指定鉴权配置；详情与列表接口原样返回。
+     */
+    private String authConfig;
+
+    /**
      * 前置操作脚本
      */
     @Excel(name = "前置操作脚本")

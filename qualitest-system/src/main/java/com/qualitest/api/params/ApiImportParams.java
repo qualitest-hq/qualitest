@@ -1,5 +1,6 @@
 package com.qualitest.api.params;
 
+import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.util.ApiConfigJsonSupport;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,6 +46,12 @@ public class ApiImportParams implements Serializable {
      * 测试项目ID（从Token验证中获取，此处可选用于二次校验）
      */
     private Long testProjectId;
+
+    /**
+     * 是否在项目鉴权配置为空时写入双端 Bearer 默认模板。
+     * 仅项目级全量上传应置 true；单 Controller 上传勿开，避免误改项目配置。
+     */
+    private Boolean seedProjectAuthIfEmpty;
 
     /**
      * 接口信息列表（支持批量导入）
@@ -138,5 +145,11 @@ public class ApiImportParams implements Serializable {
          * 最后同步时间
          */
         private Date lastSyncTime;
+
+        /**
+         * 接口鉴权标签：是否免登录、选用哪套鉴权配置等。
+         * 上传包未带本字段时，不覆盖库中已有值。
+         */
+        private ApiAuthConfig auth;
     }
 }

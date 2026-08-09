@@ -22,6 +22,8 @@
         <result property="testValueConfig" column="test_value_config"/>
         <!-- 业务响应码白名单 JSON -->
         <result property="bizCodeConfig" column="biz_code_config"/>
+        <!-- 接口鉴权标签 JSON：是否免登录等 -->
+        <result property="authConfig" column="auth_config"/>
         <result property="preRequestScript" column="pre_request_script"/>
         <result property="postRequestScript" column="post_request_script"/>
         <result property="lastSyncTime" column="last_sync_time"/>
@@ -46,6 +48,7 @@
                response_config,
                test_value_config,
                biz_code_config,
+               auth_config,
                pre_request_script,
                post_request_script,
                last_sync_time,
@@ -71,6 +74,7 @@
                tpa.response_config     as responseConfig,
                tpa.test_value_config   as testValueConfig,
                tpa.biz_code_config     as bizCodeConfig,
+               tpa.auth_config         as authConfig,
                tpa.pre_request_script  as preRequestScript,
                tpa.post_request_script as postRequestScript,
                tpa.last_sync_time      as lastSyncTime,
@@ -126,6 +130,7 @@
         tpa.response_config as responseConfig,
         tpa.test_value_config as testValueConfig,
         tpa.biz_code_config as bizCodeConfig,
+        tpa.auth_config as authConfig,
         tpa.pre_request_script as preRequestScript,
         tpa.post_request_script as postRequestScript,
         tpa.last_sync_time as lastSyncTime,
@@ -171,6 +176,7 @@
                tpa.response_config     as responseConfig,
                tpa.test_value_config   as testValueConfig,
                tpa.biz_code_config     as bizCodeConfig,
+               tpa.auth_config         as authConfig,
                tpa.pre_request_script  as preRequestScript,
                tpa.post_request_script as postRequestScript,
                tpa.last_sync_time      as lastSyncTime,
@@ -223,6 +229,7 @@
                tpa.response_config,
                tpa.test_value_config,
                tpa.biz_code_config,
+               tpa.auth_config,
                tpa.pre_request_script,
                tpa.post_request_script,
                tpa.last_sync_time,
@@ -301,6 +308,9 @@
             <if test="bizCodeConfig != null and bizCodeConfig != ''">
                 biz_code_config,
             </if>
+            <if test="authConfig != null and authConfig != ''">
+                auth_config,
+            </if>
             <if test="preRequestScript != null and preRequestScript != ''">
                 pre_request_script,
             </if>
@@ -366,6 +376,9 @@
             <if test="bizCodeConfig != null and bizCodeConfig != ''">
                 #{bizCodeConfig},
             </if>
+            <if test="authConfig != null and authConfig != ''">
+                #{authConfig},
+            </if>
             <if test="preRequestScript != null and preRequestScript != ''">
                 #{preRequestScript},
             </if>
@@ -405,6 +418,7 @@
             response_config,
             test_value_config,
             biz_code_config,
+            auth_config,
             pre_request_script,
             post_request_script,
             last_sync_time,
@@ -429,6 +443,7 @@
                 #{item.responseConfig},
                 #{item.testValueConfig},
                 #{item.bizCodeConfig},
+                #{item.authConfig},
                 #{item.preRequestScript},
                 #{item.postRequestScript},
                 #{item.lastSyncTime},
@@ -483,6 +498,9 @@
             </if>
             <if test="bizCodeConfig != null">
                 biz_code_config = #{bizCodeConfig},
+            </if>
+            <if test="authConfig != null">
+                auth_config = #{authConfig},
             </if>
             <if test="preRequestScript != null and preRequestScript != ''">
                 pre_request_script = #{preRequestScript},

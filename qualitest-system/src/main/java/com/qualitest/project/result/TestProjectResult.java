@@ -47,6 +47,11 @@ public class TestProjectResult implements Serializable {
     private String responseConvention;
 
     /**
+     * 项目鉴权配置 JSON（多套 Bearer 等）；详情可读。
+     */
+    private String authConfig;
+
+    /**
      * 最新API同步时间
      */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

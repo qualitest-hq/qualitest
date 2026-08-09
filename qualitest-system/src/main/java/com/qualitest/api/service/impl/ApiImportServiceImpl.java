@@ -11,10 +11,14 @@ import com.qualitest.api.result.ApiImportResult;
 import com.qualitest.api.service.IApiImportService;
 import com.qualitest.api.result.ApiImportMergeResult;
 import com.qualitest.api.service.ApiImportMergeService;
+import com.qualitest.api.model.ApiAuthConfig;
+import com.qualitest.api.model.ProjectAuthConfig;
+import com.qualitest.api.util.ApiAuthConfigSupport;
 import com.qualitest.api.util.ApiConfigJsonSupport;
 import com.qualitest.api.util.ApiImportConfigPipeline;
 import com.qualitest.api.util.ApiImportMatchSupport;
 import com.qualitest.api.util.ApiImportUserConfigSupport;
+import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.flow.diagnose.ApiFlowReferenceScanService;
 import com.qualitest.flow.diagnose.ApiSyncImpactSummary;
@@ -46,7 +50,9 @@ import java.util.stream.Collectors;
  * <p>
  * 新增：上传包规范化并补 example 后全量写入。<br>
  * 更新：request/response 做结构合并；headers、cookies、前后置脚本本地非空则保留；
- * biz_code_config、test_value_config 不由上传包整段替换（test_value_config 由合并服务按字段更新）。
+ * biz_code_config、test_value_config 不由上传包整段替换（test_value_config 由合并服务按字段更新）；
+ * 上传包若带 auth，则覆盖写入鉴权标签；inherit 且未指定 authProfileId 时按项目鉴权配置回填。
+ * 若 seedProjectAuthIfEmpty=true 且项目鉴权配置为空，则写入双端 Bearer 默认模板。
  * 结束后刷新项目的 api_count 与 last_api_sync_time。
  * 若本批有更新成功的接口：扫描项目内测试流影响写入 syncImpact，并对受影响流回写 api_health_*。
  */
@@ -85,6 +91,9 @@ public class ApiImportServiceImpl implements IApiImportService {
 
         validateImportEnvelope(params);
 
+        // 项目级上传可在鉴权配置为空时写入双端默认模板；再供本批接口回填 authProfileId
+        ProjectAuthConfig projectAuth = resolveProjectAuthForImport(projectId, params);
+
         // 一次查出项目下全部已有 API，导入匹配走内存索引，避免按路径逐条 SELECT
         Map<String, TestProjectApi> existingDbIndex = loadExistingApiIndex(projectId);
         log.info("API导入预加载: projectId={}, 已有接口数={}", projectId, existingDbIndex.size());
@@ -104,7 +113,7 @@ public class ApiImportServiceImpl implements IApiImportService {
             try {
                 ApiImportResult.ApiImportDetail detail = prepareSingleApi(
                         projectId, userId, item, existingDbIndex, batchIdentityIndex,
-                        apiGroupCache, toInsert, toUpdate, queuedUpdateIds);
+                        apiGroupCache, toInsert, toUpdate, queuedUpdateIds, projectAuth);
                 result.addDetail(detail);
             } catch (Exception e) {
                 log.error("处理接口失败, apiPath={}, error={}", item.getApiPath(), e.getMessage(), e);
@@ -280,7 +289,8 @@ public class ApiImportServiceImpl implements IApiImportService {
             Map<String, Long> apiGroupCache,
             List<TestProjectApi> toInsert,
             List<TestProjectApi> toUpdate,
-            Set<Long> queuedUpdateIds) {
+            Set<Long> queuedUpdateIds,
+            ProjectAuthConfig projectAuth) {
         validateApiItem(item);
 
         String identity = ApiImportMatchSupport.buildIdentity(item);
@@ -310,7 +320,7 @@ public class ApiImportServiceImpl implements IApiImportService {
 
         Long apiGroupId = resolveApiGroupId(projectId, userId, item.getApiGroup(), apiGroupCache);
         // 更新：结构合并 + 覆盖层本地优先；新增：全量写入
-        applyApiFields(api, item, apiGroupId, "update".equals(action));
+        applyApiFields(api, item, apiGroupId, "update".equals(action), projectAuth);
         batchIdentityIndex.put(identity, api);
 
         return ApiImportResult.ApiImportDetail.builder()
@@ -326,13 +336,15 @@ public class ApiImportServiceImpl implements IApiImportService {
      * 将单条上传项写入实体（仍在内存，尚未落库）。
      *
      * @param isUpdate true=已有接口：合并 request/response 与 test_value_config，覆盖层本地优先；
-     *                 false=新接口：规范化后全量写入，含 headers/cookies/脚本
+     *                 false=新接口：规范化后全量写入，含 headers/cookies/脚本；
+     *                 无论新增或更新，上传包若带 auth 都会写入鉴权标签
      */
     private void applyApiFields(
             TestProjectApi api,
             ApiImportParams.ApiImportItem item,
             Long apiGroupId,
-            boolean isUpdate) {
+            boolean isUpdate,
+            ProjectAuthConfig projectAuth) {
         api.setApiGroupId(apiGroupId);
         api.setApiGroup(item.getApiGroup());
         api.setApiName(item.getApiName());
@@ -363,9 +375,62 @@ public class ApiImportServiceImpl implements IApiImportService {
             api.setPostRequestScript(item.getPostRequestScript());
         }
 
+        applyAuthConfig(api, item, projectAuth);
+
         api.setLastSyncTime(item.getLastSyncTime() != null ? item.getLastSyncTime() : new Date());
         api.setUpdateTime(DateUtils.getNowDate());
         api.setDelStatus(0);
+    }
+
+    /**
+     * 项目鉴权配置：上传包要求种子且当前为空时写入双端模板；否则返回已有配置（可能为空）。
+     */
+    private ProjectAuthConfig resolveProjectAuthForImport(Long projectId, ApiImportParams params) {
+        TestProject project = testProjectService.selectTestProjectById(projectId);
+        ProjectAuthConfig existing = ProjectAuthConfigSupport.parse(
+                project != null ? project.getAuthConfig() : null);
+        if (!Boolean.TRUE.equals(params.getSeedProjectAuthIfEmpty())) {
+            return existing;
+        }
+        if (!ProjectAuthConfigSupport.isEmpty(existing)) {
+            log.info("项目鉴权配置已存在，跳过种子: projectId={}", projectId);
+            return existing;
+        }
+        ProjectAuthConfig seeded = ProjectAuthConfigSupport.dualBearerTemplate();
+        TestProject update = new TestProject();
+        update.setTestProjectId(projectId);
+        update.setAuthConfig(ProjectAuthConfigSupport.toJson(seeded));
+        update.setUpdateTime(DateUtils.getNowDate());
+        testProjectService.updateTestProject(update);
+        log.info("项目鉴权配置已写入双端 Bearer 默认模板: projectId={}", projectId);
+        return seeded;
+    }
+
+    /**
+     * 写入鉴权标签：上传包带了 auth 则覆盖库中值；未带则保持原值。
+     * mode=inherit 且未指定 authProfileId 时，按项目鉴权配置与路径回填。
+     */
+    private void applyAuthConfig(
+            TestProjectApi api,
+            ApiImportParams.ApiImportItem item,
+            ProjectAuthConfig projectAuth) {
+        ApiAuthConfig auth = item.getAuth();
+        if (auth == null || StrUtil.isBlank(auth.getMode())) {
+            return;
+        }
+        String mode = auth.getMode().trim();
+        String profileId = StrUtil.trimToNull(auth.getAuthProfileId());
+        if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
+            profileId = ProjectAuthConfigSupport.resolveProfileId(item.getApiPath(), projectAuth);
+        }
+        ApiAuthConfig toStore = ApiAuthConfig.builder()
+                .mode(mode)
+                .authProfileId(profileId)
+                .build();
+        String json = ApiAuthConfigSupport.toStorageJson(toStore);
+        if (json != null) {
+            api.setAuthConfig(json);
+        }
     }
 
     /**
