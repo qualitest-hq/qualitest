@@ -1,6 +1,6 @@
 # 鉴权注入与 Bearer 方案（定稿）
 
-> **状态**：设计定稿 · **分阶段实施**（**P0～P4a 已落地**：插件免登、双端 Profile 种子、补头、Staging/工具可见、匿名 path、**刷新本流托管头**；Run 遇鉴权失败走「AI 修复」对话改图，不做专用 401 启发式提案；OpenAPI / Cookie Profile 仍按需）  
+> **状态**：设计定稿 · **分阶段实施**（**P0～P4a 已落地**：插件免登、通用 Bearer 种子（双端/匿名 path 为 demo 参考模板）、补头、Staging/工具可见、匿名 path 能力、**刷新本流托管头**；Run 遇鉴权失败走「AI 修复」对话改图，不做专用 401 启发式提案；OpenAPI / Cookie Profile 仍按需）  
 > **范围**：工作区 `qualitest-all` —— 质衡主仓 `qualitest/`、靶场 `qualitest-demo/`、扫描插件 `qualitest-intellij-plugin/`  
 > **触发**：T2 冒烟 AI 造流登录后调 `/api/account/auth/profile` 等接口 **401**（漏 `Authorization: Bearer {{flow.token}}`）  
 > **相关**：[`test-flow-nodes.md`](./test-flow-nodes.md)、[`mcp.md`](./mcp.md)、[`全面测试手册.md`](./全面测试手册.md)、`tpl_login_bearer`  
@@ -74,7 +74,33 @@ Postman/Apifox：集合定鉴权、请求 Inherit → 质衡 **项目 `authProfi
 
 ### 4.1 项目级 JSON（主配置）
 
-存测试项目设置。demo / 商城联调推荐默认：
+存测试项目设置。
+
+**上传自动种子**（`uploadType=project` 且 `auth_config` 为空 → `defaultBearerTemplate`）：仅单套通用 Bearer，**不分端、不写匿名 path**（上传侧只能可靠表达要不要登录）。
+
+```json
+{
+  "defaultProfileId": "defaultBearer",
+  "authProfiles": [
+    {
+      "id": "defaultBearer",
+      "name": "Bearer",
+      "header": {
+        "name": "Authorization",
+        "valueTemplate": "Bearer {{flow.token}}"
+      },
+      "loginHint": {
+        "flowKey": "token",
+        "extractJsonPath": "$.token"
+      }
+    }
+  ],
+  "anonymousPathExact": [],
+  "anonymousPathPrefix": []
+}
+```
+
+**demo / 商城联调推荐**（`dualBearerTemplate`，**不**自动种子，需手工写入项目鉴权）：
 
 ```json
 {
@@ -110,7 +136,9 @@ Postman/Apifox：集合定鉴权、请求 Inherit → 质衡 **项目 `authProfi
         "extractJsonPath": "$.token"
       }
     }
-  ]
+  ],
+  "anonymousPathExact": ["/login", "/register", "/captchaImage"],
+  "anonymousPathPrefix": ["/test-support/", "/swagger-ui", "/v3/api-docs"]
 }
 ```
 
@@ -118,19 +146,10 @@ Postman/Apifox：集合定鉴权、请求 Inherit → 质衡 **项目 `authProfi
 |------|------|
 | `authProfiles[]` | 多套 Bearer 定义；**头模板只在这里维护** |
 | `match.pathPrefix` | **具体前缀**；禁止再用 `"/"` 当 match |
-| `defaultProfileId` | 未命中任何 `match`、且需要登录时的兜底（demo 用 `adminBearer`，对齐「非 /api → 管理端」） |
+| `defaultProfileId` | 未命中任何 `match`、且需要登录时的兜底 |
 | `loginHint.flowKey` / `extractJsonPath` | 造流/AI 抽 token；**不再要**含糊的 `preferredLoginApiHint` 字符串 |
+| `anonymousPath*` | 可选；命中则导入时接口 `mode=none`（**不**随上传自动回填） |
 
-**P3 已纳入种子默认**（`dualBearerTemplate`）：
-
-```json
-{
-  "anonymousPathExact": ["/login", "/register", "/captchaImage"],
-  "anonymousPathPrefix": ["/test-support/", "/swagger-ui", "/v3/api-docs"]
-}
-```
-
-老项目若已有 Profile 但缺上述字段：任意次接口导入时会 **回填默认匿名 path**（不覆盖已有非空列表）。
 **已砍 / 不放进项目 JSON**：`anonymousAnnotations`（→ 插件）、Profile `exclude`、`confidence`、`authInferenceMode` 三态枚举（**P1** 起用下面匹配规则即可）。
 
 #### Profile 匹配算法（定死）
@@ -295,16 +314,16 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 | **P0 插件** | `qualitest-intellij-plugin`（+ 质衡侧薄 `auth` 落库若尚无） | Settings：`anonymousAnnotations[]`（可多个，短名/FQCN）；扫描方法/类注解；上传带 `auth.mode=none`（命中）或 `inherit`/省略（未命中） | **做**免登录标签进资产；**不做** Profile、Normalizer、自动补 Bearer、`anonymousPath*`、SecurityConfig 解析 | 重扫 demo：带 `@Anonymous` 的分类等 → 资产 `mode=none`；登录/下单等无注解 → 非 `none`。**不期望**单独修好 T2.A1 的 401 |
 | **P1 平台补头** | `qualitest` | 项目 `authProfiles` + `defaultProfileId` + §4.1 匹配；Normalizer 补头 + `profileManaged`；**Run/调试同一解析器**；Prompt 要点；可选商城项目种子 JSON | **做**漏头自动补；**不做** Staging 分端硬拦、完整 Web 编辑器、401 回写 | A1：AI 可不写 Authorization，Staging/Run 仍有 `Bearer {{flow.token}}`；免登录节点不补头 |
 | **P2 可见与门禁** | `qualitest` | 接口 `auth` Web 编辑；工具回传 `auth`/`headerHint`；Staging「按项目鉴权补全」标记；分端缺 token 检查（soft warning） | **已落地**；硬拦留给后续 | Staging 可见托管头；缺 token 分端提示 |
-| **P3 匿名 path** | `qualitest` | 项目 `anonymousPathExact` / `anonymousPathPrefix`；上传命中 → `mode=none`；缺字段回填 demo 默认 | **已落地**（无 Web 编辑器；运行时仍只认接口 mode） | 白名单 path → `mode=none` |
+| **P3 匿名 path** | `qualitest` | 项目 `anonymousPathExact` / `anonymousPathPrefix`；上传命中 → `mode=none` | **已落地**（能力保留；**不**随上传自动种子/回填 demo 名单） | 配了白名单后 path → `mode=none` |
 | **P4 增强** | 按需 | 刷新本流托管头；鉴权失败走 AI 修复；OpenAPI 导入；Cookie Profile | **P4a 已落地**；鉴权失败不另做 401 启发式提案；OpenAPI/Cookie 仍非主路径 | 手册 §F 单独立项 |
 
 ### 7.3 当前开工顺序
 
 1. ~~**先做 P0（插件）** → 合并 → 对 demo 重扫验 `mode`。~~ **P0 已落地**（插件 `anonymousAnnotations` + 上传 `auth`；质衡 `auth_config` 并入 baseline）。  
-2. ~~项目鉴权配置种子~~ **已落地**：`uploadType=project` 的项目级上传且 `auth_config` 为空时写入双端 Bearer 模板，并回填接口 `authProfileId`。  
+2. ~~项目鉴权配置种子~~ **已落地**：`uploadType=project` 且 `auth_config` 为空时写入**通用单套** Bearer（`defaultBearer`）；双端 / 匿名 path 用 `dualBearerTemplate` 手工配置。接口 `inherit` 回填 `authProfileId`。  
 3. ~~P1 剩余（Normalizer / Run / 调试补头）~~ **已落地**：`AuthHeaderResolver`；造流补托管头；Run `mergeHeaders` 按当前项目配置刷新；调试 `http-forward` 带 `testProjectApiId` 时同解析器补缺失头；Prompt 鉴权要点。  
 4. ~~P2 可见与门禁~~ **已落地**：`get_api_detail`/`search_apis` 回传 `auth`/`headerHint`；Staging Diff/聊天展示「按项目鉴权补全」；分端缺 `flow.token`/`flow.adminToken` soft warning；接口设计 Tab 可编辑 `mode`/`authProfileId`。  
-5. ~~P3 匿名 path~~ **已落地**：`anonymousPath*` 进双端种子；导入时命中 → `mode=none`；老项目缺字段则回填默认。→ 再跑 T2.A1 / `smoke-S01`；重扫后验 `/login`、`/test-support/**` 为 `none`。  
+5. ~~P3 匿名 path~~ **已落地**：项目可配 `anonymousPath*`；导入命中 → `mode=none`；**不再**上传自动回填 demo 名单。联调靶场请贴双端参考模板后再验 `/login` 等。  
 6. ~~P4a 刷新本流托管头~~ **已落地**：顶栏「刷新鉴权头」→ 提案进 Staging → 确认保存。  
 7. 鉴权失败：Run「AI 修复」对话改图（含 401 预填提示）；**已砍**专用 401 Staging 启发式提案。OpenAPI / Cookie Profile 仍按需。
 
@@ -355,7 +374,7 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 | 登录子流 | `ai/subflow-templates.json` |
 | 插件注解 | Settings：`anonymousAnnotations[]` → `ApiAuthExtractor` → 上传 `auth` |
 | 质衡落库 | `test_project_api.auth_config`（baseline）；导入 `ApiImportItem.auth` |
-| 项目鉴权 | `test_project.auth_config`；种子双端模板含 `anonymousPath*`；导入 `matchesAnonymousPath` → `mode=none` |
+| 项目鉴权 | `test_project.auth_config`；上传种子 `defaultBearerTemplate`；demo 参考 `dualBearerTemplate`；导入 `matchesAnonymousPath` → `mode=none` |
 | Web 薄编辑 | `ApiDesignTab`：`mode` / `authProfileId` |
 | Staging 可见 | `AiStagingConfirmWarnings`；Diff headers 标签；warning 稳定码 `AUTH_HEADER_MANAGED` / `AUTH_TOKEN_MISSING` |
 | 刷新托管头 | 画布顶栏「刷新鉴权头」→ `POST /project/testFlow/refreshAuthHeaders` → Staging |

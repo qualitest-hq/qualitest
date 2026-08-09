@@ -32,7 +32,7 @@ public enum ApiImportUploadType {
     }
 
     /**
-     * 是否在项目鉴权配置为空时写入双端 Bearer 默认模板。
+     * 是否在项目鉴权配置为空时写入通用单套 Bearer 种子。
      * 仅项目级全量上传开启，避免单 Controller 上传误改项目配置。
      */
     public boolean seedProjectAuthIfEmpty() {

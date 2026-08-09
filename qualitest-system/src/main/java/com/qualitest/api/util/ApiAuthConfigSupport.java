@@ -5,6 +5,8 @@ import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.common.exception.ServiceException;
 
+import java.util.Locale;
+
 /**
  * 接口鉴权标签的校验、解析与落库序列化。
  * <p>
@@ -47,9 +49,9 @@ public final class ApiAuthConfigSupport {
         if (auth == null || StrUtil.isBlank(auth.getMode())) {
             return null;
         }
-        String mode = auth.getMode().trim();
-        if (!isSupportedMode(mode)) {
-            throw new ServiceException("不支持的 auth.mode: " + mode + "（允许 none/inherit/override）");
+        String mode = canonicalizeMode(auth.getMode());
+        if (mode == null) {
+            throw new ServiceException("不支持的 auth.mode: " + auth.getMode() + "（允许 none/inherit/override）");
         }
         ApiAuthConfig normalized = ApiAuthConfig.builder()
                 .mode(mode)
@@ -59,7 +61,18 @@ public final class ApiAuthConfigSupport {
     }
 
     /**
-     * 是否为已支持的鉴权模式。
+     * 规范为小写 mode；不支持则返回 null。
+     */
+    public static String canonicalizeMode(String mode) {
+        if (StrUtil.isBlank(mode)) {
+            return null;
+        }
+        String normalized = mode.trim().toLowerCase(Locale.ROOT);
+        return isSupportedMode(normalized) ? normalized : null;
+    }
+
+    /**
+     * 是否为已支持的鉴权模式（须已是小写规范值）。
      */
     public static boolean isSupportedMode(String mode) {
         if (mode == null) {

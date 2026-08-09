@@ -62,11 +62,24 @@ class ApiAuthConfigSupportTest {
     }
 
     /**
+     * 前提：mode 大小写混用。
+     * 期望：规范为小写后再落库。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("mode 规范为小写")
+    void toStorageJson_canonicalizesModeCase() {
+        String json = ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder().mode("NONE").build());
+        assertTrue(json.contains("\"mode\":\"none\""));
+        assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.canonicalizeMode("Inherit"));
+    }
+
+    /**
      * 前提：mode 为不支持的值。
      * 期望：抛业务异常，提示 mode 非法。
      */
     @Test
-    @Order(4)
+    @Order(5)
     @DisplayName("非法 mode 拒绝")
     void toStorageJson_rejectsUnknownMode() {
         ServiceException ex = assertThrows(ServiceException.class,
@@ -79,7 +92,7 @@ class ApiAuthConfigSupportTest {
      * 期望：parseOrInherit 回落 inherit。
      */
     @Test
-    @Order(5)
+    @Order(6)
     @DisplayName("空白 JSON 按 inherit")
     void parseOrInherit_blankDefaultsToInherit() {
         assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit(null).getMode());

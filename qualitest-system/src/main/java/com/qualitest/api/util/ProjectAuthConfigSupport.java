@@ -8,15 +8,20 @@ import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 项目鉴权配置：解析、判空、双端默认模板、按路径解析 Profile。
+ * 项目鉴权配置：解析、判空、通用/双端模板、按路径解析 Profile。
  */
 public final class ProjectAuthConfigSupport {
 
+    /** 项目级上传空配置时的通用种子 id（单套 Bearer，不假定双端）。 */
+    public static final String PROFILE_DEFAULT = "defaultBearer";
+
+    /** demo / 商城双端模板用：客户端。 */
     public static final String PROFILE_CLIENT = "clientBearer";
+
+    /** demo / 商城双端模板用：管理端。 */
     public static final String PROFILE_ADMIN = "adminBearer";
 
     private ProjectAuthConfigSupport() {}
@@ -54,7 +59,37 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * 双端 Bearer 默认模板（含 demo 常用匿名 path）：
+     * 通用 Bearer 种子（项目级上传且 auth_config 为空时写入）。
+     * <p>
+     * 仅一套 Profile、无 pathPrefix 分端、无匿名 path——上传侧只能可靠表达「要不要登录」，
+     * 双端切分与白名单属项目特定，需手工或另贴 demo 模板。
+     */
+    public static ProjectAuthConfig defaultBearerTemplate() {
+        return ProjectAuthConfig.builder()
+                .defaultProfileId(PROFILE_DEFAULT)
+                .authProfiles(List.of(
+                        ProjectAuthProfile.builder()
+                                .id(PROFILE_DEFAULT)
+                                .name("Bearer")
+                                .header(Header.builder()
+                                        .name("Authorization")
+                                        .valueTemplate("Bearer {{flow.token}}")
+                                        .build())
+                                .loginHint(LoginHint.builder()
+                                        .flowKey("token")
+                                        .extractJsonPath("$.token")
+                                        .build())
+                                .build()
+                ))
+                .anonymousPathExact(List.of())
+                .anonymousPathPrefix(List.of())
+                .build();
+    }
+
+    /**
+     * demo / 商城双端 Bearer 参考模板（含常用匿名 path）。
+     * <p>
+     * <b>不</b>作为上传自动种子；联调靶场时可手工写入项目鉴权配置。
      * /api/ → 客户端 token；/system|/monitor|/tool|/web/ → 管理端 adminToken；其余默认管理端。
      */
     public static ProjectAuthConfig dualBearerTemplate() {
@@ -95,32 +130,13 @@ public final class ProjectAuthConfigSupport {
                 .build();
     }
 
-    /** demo SecurityConfig 业务向白名单（精确）。 */
+    /** demo SecurityConfig 业务向白名单（精确）；仅供 {@link #dualBearerTemplate()}。 */
     public static final List<String> DEMO_ANONYMOUS_PATH_EXACT =
             List.of("/login", "/register", "/captchaImage");
 
-    /** demo 业务向白名单前缀（不含纯静态资源）。 */
+    /** demo 业务向白名单前缀；仅供 {@link #dualBearerTemplate()}。 */
     public static final List<String> DEMO_ANONYMOUS_PATH_PREFIX =
             List.of("/test-support/", "/swagger-ui", "/v3/api-docs");
-
-    /**
-     * 若匿名 path 列表均为空，填入 demo 默认值（不改动已有非空配置）。
-     *
-     * @return true 表示发生了回填，调用方宜持久化
-     */
-    public static boolean fillAnonymousPathsIfAbsent(ProjectAuthConfig config) {
-        if (config == null) {
-            return false;
-        }
-        boolean exactEmpty = config.getAnonymousPathExact() == null || config.getAnonymousPathExact().isEmpty();
-        boolean prefixEmpty = config.getAnonymousPathPrefix() == null || config.getAnonymousPathPrefix().isEmpty();
-        if (!exactEmpty || !prefixEmpty) {
-            return false;
-        }
-        config.setAnonymousPathExact(new ArrayList<>(DEMO_ANONYMOUS_PATH_EXACT));
-        config.setAnonymousPathPrefix(new ArrayList<>(DEMO_ANONYMOUS_PATH_PREFIX));
-        return true;
-    }
 
     /**
      * 接口路径是否命中项目匿名 path（exact 全等或 prefix 段前缀）。
@@ -226,6 +242,9 @@ public final class ProjectAuthConfigSupport {
         ProjectAuthProfile profile = findProfile(config, profileId);
         if (profile != null && StrUtil.isNotBlank(profile.getName())) {
             return profile.getName().trim();
+        }
+        if (PROFILE_DEFAULT.equals(profileId)) {
+            return "Bearer";
         }
         if (PROFILE_CLIENT.equals(profileId)) {
             return "客户端 Bearer";

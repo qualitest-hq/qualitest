@@ -4,7 +4,7 @@
  * 职责：
  * - 加载模型与会话列表，刷新后恢复历史消息
  * - SSE 流式设计，支持取消
- * - patch 到达 → hydrateStagingFromPatch（画布就地确认）
+ * - patch 到达 → hydratePatchToStaging / createAiStagingHydration（画布就地确认）
  */
 import { reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
