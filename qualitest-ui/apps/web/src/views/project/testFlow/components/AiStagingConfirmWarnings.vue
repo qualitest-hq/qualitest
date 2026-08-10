@@ -14,8 +14,8 @@
 
 <script setup>
 /**
- * Staging 鉴权相关 soft warnings（不阻断确认）。
- * 来源：单元 lastValidation.warnings，或草稿 headers 上的 profileManaged 托管头。
+ * Staging 单元旁的鉴权提示条（不阻断确认）。
+ * 展示：校验 warnings 里的「已补托管头」文案，以及草稿 headers 上 profileManaged 托管头的兜底提示。
  */
 import { computed } from 'vue'
 

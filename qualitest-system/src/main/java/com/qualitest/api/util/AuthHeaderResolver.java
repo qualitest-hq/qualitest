@@ -35,8 +35,7 @@ public final class AuthHeaderResolver {
             return ResolvedAuthHeader.skip();
         }
         if (ApiAuthConfig.MODE_OVERRIDE.equalsIgnoreCase(StrUtil.trim(apiAuth.getMode()))) {
-            // 薄标签尚未存自定义头模板时，override 不自动补头
-            return ResolvedAuthHeader.skip();
+            return resolveOverride(apiAuth);
         }
 
         ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
@@ -63,6 +62,17 @@ public final class AuthHeaderResolver {
             return ResolvedAuthHeader.skip();
         }
         return new ResolvedAuthHeader(false, name, valueTemplate.trim(), profileId);
+    }
+
+    /** 接口自定义头：读 auth.header；缺字段则不加头。 */
+    private static ResolvedAuthHeader resolveOverride(ApiAuthConfig apiAuth) {
+        ApiAuthConfig.Header header = apiAuth.getHeader();
+        String name = header != null ? StrUtil.trimToNull(header.getName()) : null;
+        String valueTemplate = header != null ? StrUtil.trimToNull(header.getValueTemplate()) : null;
+        if (name == null || valueTemplate == null) {
+            return ResolvedAuthHeader.skip();
+        }
+        return new ResolvedAuthHeader(false, name, valueTemplate, null);
     }
 
     /**

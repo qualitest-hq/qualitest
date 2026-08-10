@@ -12,10 +12,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.qualitest.project.mapper.TestFlowMapper;
 import com.qualitest.project.mapper.TestProjectApiMapper;
+import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.domain.TestFlow;
+import com.qualitest.project.domain.TestProject;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
 import com.qualitest.flow.validate.AssertPathDesignGate;
+import com.qualitest.flow.validate.AuthTokenPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
@@ -40,6 +43,10 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     @Autowired
     private TestProjectApiMapper testProjectApiMapper;
+
+    /** 读取项目鉴权配置（auth_config），供保存前检查 token 来源 */
+    @Autowired
+    private TestProjectMapper testProjectMapper;
 
     /**
      * 查询测试流列表
@@ -97,7 +104,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
         if (Objects.isNull(testFlow.getTestFlowId())) {
             testFlow.setTestFlowId(IdUtil.getSnowflakeNextId());
         }
-        validateGraphJsonForPersist(testFlow.getGraphJson());
+        validateGraphJsonForPersist(testFlow.getGraphJson(), testFlow.getTestProjectId());
         testFlow.setCreateTime(DateUtils.getNowDate());
         return testFlowMapper.insertTestFlow(testFlow);
     }
@@ -111,16 +118,25 @@ public class TestFlowServiceImpl implements ITestFlowService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateTestFlow(TestFlow testFlow) {
-        validateGraphJsonForPersist(testFlow.getGraphJson());
+        // 请求体可能未带 testProjectId，从已有流记录补全，以便做鉴权 token 来源检查
+        Long projectId = testFlow.getTestProjectId();
+        if (projectId == null && testFlow.getTestFlowId() != null) {
+            TestFlow existing = testFlowMapper.selectTestFlowById(testFlow.getTestFlowId());
+            if (existing != null) {
+                projectId = existing.getTestProjectId();
+            }
+        }
+        validateGraphJsonForPersist(testFlow.getGraphJson(), projectId);
         testFlow.setUpdateTime(DateUtils.getNowDate());
         return testFlowMapper.updateTestFlow(testFlow);
     }
 
     /**
-     * 写库前校验 graph_json：结构规则 + 设计期断言路径试算（有 example 才硬拦，与 Staging 同口径）。
-     * graphJson 为空时跳过（仅改名称等元数据）。
+     * 写库前校验 graph_json：
+     * 图结构规则、断言路径合法性、以及需登录节点是否已有对应端 token 来源。
+     * 任一检查失败则抛错，拒绝落库。graphJson 为空时跳过（仅改名称等元数据）。
      */
-    private void validateGraphJsonForPersist(String graphJson) {
+    private void validateGraphJsonForPersist(String graphJson, Long testProjectId) {
         if (StrUtil.isBlank(graphJson)) {
             return;
         }
@@ -133,9 +149,23 @@ public class TestFlowServiceImpl implements ITestFlowService {
         GraphValidationResult validation = graphJsonValidator.validate(graph);
         List<String> errors = new ArrayList<>(validation.getErrors());
         errors.addAll(AssertPathDesignGate.validate(graph, testProjectApiMapper::selectTestProjectApiById));
+        errors.addAll(AuthTokenPresenceGate.validate(
+                graph, loadProjectAuthConfig(testProjectId), testProjectApiMapper::selectTestProjectApiById));
         if (!errors.isEmpty()) {
             throw new ServiceException(errors.get(0));
         }
+    }
+
+    /**
+     * 读取测试项目的鉴权配置 JSON（auth_config）。
+     * 无项目 id 或项目不存在时返回 null，此时不做 token 来源检查。
+     */
+    private String loadProjectAuthConfig(Long testProjectId) {
+        if (testProjectId == null) {
+            return null;
+        }
+        TestProject project = testProjectMapper.selectTestProjectById(testProjectId);
+        return project != null ? project.getAuthConfig() : null;
     }
 
     /**

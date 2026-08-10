@@ -24,36 +24,42 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * 设计期鉴权 token 来源软提示（不硬拦）。
+ * 设计期检查：图中需要登录的 project HTTP，是否已有对应端的 flow 变量来源。
  * <p>
- * 扫描图中需登录的 project HTTP：按命中 Profile 的 {@code loginHint.flowKey}
- * 检查图中是否有对应来源。未配置 loginHint 则跳过该节点（不猜头模板）。
- * 客户端 / 管理端分端检查，禁止「有任一 token 即过」。
+ * 对每个需鉴权的 project HTTP，解析其命中的鉴权 Profile，读取 loginHint.flowKey
+ *（如 token、adminToken）。未配置 loginHint 的 Profile 跳过，不根据头模板猜测。
+ * 再扫描整图是否已产出该 flowKey：HTTP extracts（scope=flow）、assign 赋值、
+ * 子流 flowOutputs、场景 flowSeed。客户端与管理端分开检查，有一端 token 不能代替另一端。
+ * <p>
+ * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING），调用方应拒绝造流提交、Staging 确认或保存。
+ * 项目未配置鉴权 Profile 时不做检查。
  */
 public final class AuthTokenPresenceGate {
 
     private AuthTokenPresenceGate() {}
 
     /**
-     * @param graph           合并后的图
-     * @param projectAuthJson 项目鉴权配置 JSON
-     * @param apiResolver     按 id 加载接口
-     * @return soft warnings；空列表表示无需提示或已满足
+     * 检查合并后流程图的鉴权 token 来源是否齐全。
+     *
+     * @param graph           待检查的流程图
+     * @param projectAuthJson 项目鉴权配置 JSON（authProfiles 等）
+     * @param apiResolver     按接口 id 加载接口定义（含 path、auth 标签）
+     * @return 错误列表；每条形如「AUTH_TOKEN_MISSING: …」；空列表表示无需检查或已满足
      */
-    public static List<String> warn(
+    public static List<String> validate(
             GraphJson graph,
             String projectAuthJson,
             Function<Long, TestProjectApi> apiResolver) {
-        List<String> warnings = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
         if (graph == null || apiResolver == null) {
-            return warnings;
+            return errors;
         }
         ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
         if (ProjectAuthConfigSupport.isEmpty(projectAuth)) {
-            return warnings;
+            return errors;
         }
 
-        // flowKey → 展示用 profile 名（多节点复用同一 key 时保留首次）
+        // flowKey → Profile 展示名（同一 key 被多节点需要时只保留首次）
         Map<String, String> requiredKeys = new LinkedHashMap<>();
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
         for (GraphNode node : nodes) {
@@ -91,7 +97,7 @@ public final class AuthTokenPresenceGate {
         }
 
         if (requiredKeys.isEmpty()) {
-            return warnings;
+            return errors;
         }
 
         Set<String> produced = collectProducedFlowKeys(graph);
@@ -99,11 +105,15 @@ public final class AuthTokenPresenceGate {
             if (produced.contains(entry.getKey())) {
                 continue;
             }
-            warnings.add(AuthDesignWarningCodes.tokenMissing(entry.getValue(), entry.getKey()));
+            errors.add(AuthDesignWarningCodes.tokenMissing(entry.getValue(), entry.getKey()));
         }
-        return warnings;
+        return errors;
     }
 
+    /**
+     * 收集图中已声明会写入 flow 作用域的变量名。
+     * 来源：HTTP extracts、assign 节点、subflow 输出、场景 flowSeed 的键。
+     */
     static Set<String> collectProducedFlowKeys(GraphJson graph) {
         Set<String> keys = new LinkedHashSet<>();
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
@@ -145,6 +155,7 @@ public final class AuthTokenPresenceGate {
         return keys;
     }
 
+    /** 从 HTTP extracts 收集 scope=flow（或缺省 scope）的 name。 */
     private static void collectFromExtracts(Object raw, Set<String> keys) {
         for (Object item : GraphDataLists.asList(raw)) {
             Map<?, ?> row = GraphDataLists.asMap(item);
@@ -160,6 +171,7 @@ public final class AuthTokenPresenceGate {
         }
     }
 
+    /** 从 assign 列表收集 name 或 key。 */
     private static void collectNameOrKey(Object raw, Set<String> keys) {
         for (Object item : GraphDataLists.asList(raw)) {
             Map<?, ?> row = GraphDataLists.asMap(item);
@@ -174,6 +186,7 @@ public final class AuthTokenPresenceGate {
         }
     }
 
+    /** 从对象列表收集指定字段值。 */
     private static void collectField(Object raw, String field, Set<String> keys) {
         for (Object item : GraphDataLists.asList(raw)) {
             Map<?, ?> row = GraphDataLists.asMap(item);

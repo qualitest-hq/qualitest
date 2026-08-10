@@ -34,9 +34,27 @@
 常用能力：
 
 - 占位符解析请求参数 / 体（`flow` / `env` / `session` 等）
-- **项目鉴权补头**：`project` 模式按接口 `auth` + 项目 `authProfiles` 补/刷新托管头（`profileManaged`）；可为 `Authorization: Bearer {{flow.token}}` 或 `Cookie: …={{flow.*}}`；`auth.mode=none` 不加头；人手显式头不覆盖。登录抽凭证用 extracts（`from=body` 或 `from=setCookie`），与 Profile `loginHint.from/expr` 对齐。**不要**再写节点 `useRunSession`（已忽略）。画布顶栏「刷新鉴权头」可按当前项目配置批量提案写回托管头（经 Staging 确认）；Run 鉴权失败用「AI 修复」对话改图。详见 [鉴权注入与Bearer方案.md](./鉴权注入与Bearer方案.md)
+- **项目鉴权补头**（见下方「项目鉴权」）
 - 成功判定：先 HTTP 状态码非 2xx 失败；再可选业务码白名单（`successCheck`）
 - 通过后写入 `lastResponse`，再执行 `extracts`
+
+### 项目鉴权
+
+配置挂**测试项目**（设置抽屉「项目鉴权」），不挂环境。造流 Normalizer、Run、调试台共用同一解析器。
+
+| 层级 | 要点 |
+|------|------|
+| 项目 `authProfiles` | 头模板只在此维护；`defaultProfileId` 兜底；可选 `anonymousPathExact` / `anonymousPathPrefix`（导入命中 → 接口 `mode=none`） |
+| 接口 `auth.mode` | `inherit` 按项目 Profile；`none` 不加头；`override` 用本接口 `header.name` + `valueTemplate` |
+| 节点 headers | 托管头带 `profileManaged`，Run 时按**当前**项目/接口配置刷新；无该标记的显式头永不被静默改掉 |
+
+**Profile 匹配**：接口已指定 `authProfileId` 则用之；否则在 `authProfiles` 中取命中的最长 `pathPrefix`；无人命中用 `defaultProfileId`。**禁止** `pathPrefix="/"`。
+
+**登录抽凭证**：extracts 的 `from`+`expr`（`body`+JSONPath 或 `setCookie`+Cookie 名）与 Profile `loginHint` 对齐，写入 `flow.token` / `flow.adminToken` 等。**不要**再写节点 `useRunSession`（已忽略）。
+
+**门禁与操作**：缺对应端 `flow.token` / `flow.adminToken` 来源时，AI submit / Staging 确认 / 保存硬拦（`AUTH_TOKEN_MISSING`）；托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。画布顶栏「刷新鉴权头」批量提案写回托管头（经 Staging）。Run 鉴权失败用「AI 修复」（含 401 预填）。
+
+**种子**：项目级上传且 `auth_config` 为空 → 通用单套 Bearer；demo 双端可在设置里「套用双端（demo）」（`/api/` → `flow.token`，`/system/` 等 → `flow.adminToken`）。
 
 **写操作建议**：节点可勾选 **执行前快照**（`snapshotBefore`）。失败可暂停，并由用户选择还原被测数据再重试 / 原地重试 / 跳过 / 中止。被测方需提供 `/test-support`；环境 `allowDestructiveReset=0`（生产默认）时 checkpoint/restore 静默跳过。**开启数据还原时，同一环境请串行跑。**
 

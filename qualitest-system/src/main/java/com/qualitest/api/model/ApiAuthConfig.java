@@ -44,6 +44,31 @@ public class ApiAuthConfig implements Serializable {
     /**
      * 项目鉴权配置 id。
      * 可空：为空时按接口路径匹配；有值则固定使用该配置。
+     * mode=override 时不使用。
      */
     private String authProfileId;
+
+    /**
+     * 本接口自定义鉴权头（仅 mode=override 时使用）。
+     */
+    private Header header;
+
+    /**
+     * 接口级自定义鉴权头模板。
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Header implements Serializable {
+
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        /** 头名称，通常为 Authorization。 */
+        private String name;
+
+        /** 头值模板，如 Bearer {{flow.token}} 或 Bearer invalid-token。 */
+        private String valueTemplate;
+    }
 }

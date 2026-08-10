@@ -3,6 +3,7 @@ package com.qualitest.api.util;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
+import com.qualitest.api.model.ApiAuthConfig.Header;
 import com.qualitest.common.exception.ServiceException;
 
 import java.util.Locale;
@@ -37,10 +38,35 @@ public final class ApiAuthConfigSupport {
     }
 
     /**
+     * 规范化用户提交的接口鉴权 JSON 并写库。
+     * <p>
+     * 空白 → 默认 inherit；非法 JSON / 规则失败 → {@link ServiceException}。
+     */
+    public static String normalizeToJson(String raw) {
+        if (StrUtil.isBlank(raw)) {
+            return JSONUtil.toJsonStr(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build());
+        }
+        ApiAuthConfig parsed;
+        try {
+            parsed = JSONUtil.toBean(raw.trim(), ApiAuthConfig.class);
+        } catch (Exception e) {
+            throw new ServiceException("接口鉴权配置不是合法 JSON");
+        }
+        if (parsed == null || StrUtil.isBlank(parsed.getMode())) {
+            parsed = ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
+        }
+        String stored = toStorageJson(parsed);
+        if (stored == null) {
+            return JSONUtil.toJsonStr(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build());
+        }
+        return stored;
+    }
+
+    /**
      * 转为可写入 auth_config 列的 JSON。
      * <p>
      * 返回 null：上传包未带 auth，或 mode 为空 → 调用方应跳过覆盖。
-     * 非法 mode：抛业务异常。
+     * 非法 mode / override 缺头：抛业务异常。
      *
      * @param auth 上传项中的鉴权对象
      * @return JSON 字符串，或 null
@@ -53,11 +79,26 @@ public final class ApiAuthConfigSupport {
         if (mode == null) {
             throw new ServiceException("不支持的 auth.mode: " + auth.getMode() + "（允许 none/inherit/override）");
         }
-        ApiAuthConfig normalized = ApiAuthConfig.builder()
-                .mode(mode)
-                .authProfileId(StrUtil.trimToNull(auth.getAuthProfileId()))
-                .build();
-        return JSONUtil.toJsonStr(normalized);
+        ApiAuthConfig.ApiAuthConfigBuilder builder = ApiAuthConfig.builder().mode(mode);
+        if (ApiAuthConfig.MODE_OVERRIDE.equals(mode)) {
+            Header header = normalizeOverrideHeader(auth.getHeader());
+            builder.header(header);
+        } else if (ApiAuthConfig.MODE_INHERIT.equals(mode)) {
+            builder.authProfileId(StrUtil.trimToNull(auth.getAuthProfileId()));
+        }
+        return JSONUtil.toJsonStr(builder.build());
+    }
+
+    /**
+     * 校验并清理 override 头模板。
+     */
+    private static Header normalizeOverrideHeader(Header header) {
+        String name = header != null ? StrUtil.trimToNull(header.getName()) : null;
+        String valueTemplate = header != null ? StrUtil.trimToNull(header.getValueTemplate()) : null;
+        if (name == null || valueTemplate == null) {
+            throw new ServiceException("auth.mode=override 须配置 header.name 与 header.valueTemplate");
+        }
+        return Header.builder().name(name).valueTemplate(valueTemplate).build();
     }
 
     /**

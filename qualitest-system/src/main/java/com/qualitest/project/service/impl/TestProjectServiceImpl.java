@@ -3,6 +3,7 @@ package com.qualitest.project.service.impl;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.common.utils.DateUtils;
+import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.project.constant.TestProjectConstants;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.mapper.TestProjectMapper;
@@ -94,6 +95,10 @@ public class TestProjectServiceImpl implements ITestProjectService {
             testProject.setResponseConvention(
                     ResponseConventionSupport.normalizeToJson(testProject.getResponseConvention()));
         }
+        // 调用方已传鉴权配置时规范化后写入；空白则保持 null（上传种子另写）
+        if (testProject.getAuthConfig() != null) {
+            testProject.setAuthConfig(ProjectAuthConfigSupport.normalizeToJson(testProject.getAuthConfig()));
+        }
         testProject.setCreateTime(DateUtils.getNowDate());
         return testProjectMapper.insertTestProject(testProject);
     }
@@ -113,6 +118,10 @@ public class TestProjectServiceImpl implements ITestProjectService {
         if (StrUtil.isNotBlank(testProject.getResponseConvention())) {
             testProject.setResponseConvention(
                     ResponseConventionSupport.normalizeToJson(testProject.getResponseConvention()));
+        }
+        // 本次提交含 authConfig（含空串清空）时规范化后写入；未提交（null）则不改动该列
+        if (testProject.getAuthConfig() != null) {
+            testProject.setAuthConfig(ProjectAuthConfigSupport.normalizeToJson(testProject.getAuthConfig()));
         }
         testProject.setUpdateTime(DateUtils.getNowDate());
         return testProjectMapper.updateTestProject(testProject);

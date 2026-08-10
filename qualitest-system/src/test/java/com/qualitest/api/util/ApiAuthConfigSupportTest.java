@@ -9,13 +9,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测谁：鉴权标签转落库 JSON 的校验与序列化。
- * 边界：未声明 auth、合法 none/inherit、非法 mode。
+ * 边界：未声明 auth、合法 none/inherit/override、非法 mode、缺 header。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiAuthConfigSupportTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -98,5 +99,78 @@ class ApiAuthConfigSupportTest {
         assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit(null).getMode());
         assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit("").getMode());
         assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit("{").getMode());
+    }
+
+    /**
+     * 前提：mode=override 且含 header。
+     * 期望：JSON 含 mode 与 header，不含 authProfileId。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("override 落库含 header")
+    void toStorageJson_overrideWithHeader() {
+        String json = ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder()
+                .mode("override")
+                .authProfileId("shouldDrop")
+                .header(ApiAuthConfig.Header.builder()
+                        .name("Authorization")
+                        .valueTemplate("Bearer {{flow.adminToken}}")
+                        .build())
+                .build());
+        assertTrue(json.contains("\"mode\":\"override\""));
+        assertTrue(json.contains("Authorization"));
+        assertTrue(json.contains("adminToken"));
+        assertFalse(json.contains("shouldDrop"));
+        assertFalse(json.contains("authProfileId"));
+    }
+
+    /**
+     * 前提：mode=override 缺 header。
+     * 期望：ServiceException。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("override 缺 header 拒绝")
+    void toStorageJson_overrideRequiresHeader() {
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder().mode("override").build()));
+        assertTrue(ex.getMessage().contains("header"));
+    }
+
+    /**
+     * 前提：inherit 误带 header。
+     * 期望：落库不含 header 字段。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("inherit 不残留 header")
+    void toStorageJson_inheritDropsHeader() {
+        String json = ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder()
+                .mode("inherit")
+                .header(ApiAuthConfig.Header.builder()
+                        .name("Authorization")
+                        .valueTemplate("Bearer x")
+                        .build())
+                .build());
+        assertTrue(json.contains("\"mode\":\"inherit\""));
+        assertFalse(json.contains("header"));
+        assertFalse(json.contains("Bearer"));
+    }
+
+    /**
+     * 前提：合法 override JSON 字符串。
+     * 期望：normalizeToJson 产出可解析的 override。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("normalizeToJson 规范化 override")
+    void normalizeToJson_override() {
+        String stored = ApiAuthConfigSupport.normalizeToJson("""
+                {"mode":"override","header":{"name":"Authorization","valueTemplate":"Bearer bad"}}
+                """);
+        ApiAuthConfig cfg = ApiAuthConfigSupport.parseOrInherit(stored);
+        assertEquals(ApiAuthConfig.MODE_OVERRIDE, cfg.getMode());
+        assertEquals("Authorization", cfg.getHeader().getName());
+        assertEquals("Bearer bad", cfg.getHeader().getValueTemplate());
     }
 }

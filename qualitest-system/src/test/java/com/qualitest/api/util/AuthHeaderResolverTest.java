@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测谁：鉴权头解析与托管头写入。
- * 边界：none / inherit / 显式头不覆盖 / profileManaged 刷新 / 项目配置空。
+ * 边界：none / inherit / 显式头不覆盖 / profileManaged 刷新 / override / 项目配置空。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AuthHeaderResolverTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -234,5 +234,46 @@ class AuthHeaderResolverTest {
         assertTrue(applied.changed());
         assertEquals(true, applied.headers().get(0).get(AuthHeaderResolver.PROFILE_MANAGED));
         assertEquals("Cookie", applied.headers().get(0).get("name"));
+    }
+
+    /**
+     * 前提：mode=override 且配置了自定义头。
+     * 期望：按接口模板补头，无 profileId。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("override 按接口自定义头补全")
+    void resolve_override_usesApiHeader() {
+        String apiAuth = ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder()
+                .mode("override")
+                .header(ApiAuthConfig.Header.builder()
+                        .name("Authorization")
+                        .valueTemplate("Bearer invalid-token")
+                        .build())
+                .build());
+        AuthHeaderResolver.ResolvedAuthHeader resolved =
+                AuthHeaderResolver.resolve(apiAuth, PROJECT_AUTH, "/api/account/auth/profile");
+        assertFalse(resolved.skipped());
+        assertEquals("Authorization", resolved.name());
+        assertEquals("Bearer invalid-token", resolved.valueTemplate());
+        assertEquals(null, resolved.profileId());
+        AuthHeaderResolver.ApplyResult applied =
+                AuthHeaderResolver.applyToHeaderRows(new ArrayList<>(), resolved);
+        assertTrue(applied.changed());
+        assertTrue(AuthHeaderResolver.isProfileManaged(applied.headers().get(0)));
+    }
+
+    /**
+     * 前提：mode=override 但缺 header。
+     * 期望：resolve skip（落库侧会拒绝，解析侧兜底不加头）。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("override 缺 header 则 skip")
+    void resolve_overrideWithoutHeader_skips() {
+        AuthHeaderResolver.ResolvedAuthHeader resolved =
+                AuthHeaderResolver.resolve(
+                        "{\"mode\":\"override\"}", PROJECT_AUTH, "/api/orders");
+        assertTrue(resolved.skipped());
     }
 }

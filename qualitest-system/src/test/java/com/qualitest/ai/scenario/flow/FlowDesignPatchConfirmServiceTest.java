@@ -4,13 +4,16 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmRequest;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
+import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
+import com.qualitest.project.mapper.TestProjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -473,6 +476,73 @@ class FlowDesignPatchConfirmServiceTest {
                 () -> "errors=" + result.getErrors());
     }
 
+    /**
+     * 前提：项目已配双端鉴权；确认一个需登录的客户端 HTTP，图中无 token 写入来源。
+     * 期望：确认失败，errors 含 AUTH_TOKEN_MISSING 与 flow.token。
+     */
+    @Test
+    @Order(19)
+    @DisplayName("确认需登录 HTTP 缺 token 时硬拦")
+    void confirm_projectHttpMissingToken_hardBlocks() {
+        FlowDesignPatchConfirmResult result = confirmDualBearerHttpNode(
+                "9501", "资料", null);
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
+                () -> "errors=" + result.getErrors());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("flow.token")),
+                () -> "errors=" + result.getErrors());
+    }
+
+    /**
+     * 前提：同上，但该 HTTP 的 extracts 已声明写出 flow.token。
+     * 期望：确认成功，errors 不含 AUTH_TOKEN_MISSING。
+     */
+    @Test
+    @Order(20)
+    @DisplayName("确认需登录 HTTP 已有 token extracts 时通过")
+    void confirm_projectHttpWithTokenExtract_ok() {
+        FlowDesignPatchConfirmResult result = confirmDualBearerHttpNode(
+                "9502",
+                "登录",
+                List.of(Map.of(
+                        "name", "token",
+                        "scope", "flow",
+                        "expr", "$.data.token")));
+        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
+        assertTrue(result.getErrors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")));
+    }
+
+    /**
+     * 构造并确认单个 project HTTP 的 addNode（可选 extracts）。
+     * 使用双端 Bearer 项目鉴权与 /api 路径接口，便于测 token 来源检查。
+     */
+    private static FlowDesignPatchConfirmResult confirmDualBearerHttpNode(
+            String nodeId, String name, List<Map<String, String>> extracts) {
+        FlowDesignPatchConfirmService gated = confirmServiceWithDualBearerAuth();
+        Map<String, Object> httpData = new HashMap<>();
+        httpData.put("name", name);
+        httpData.put("callMode", "project");
+        httpData.put("testProjectApiId", "501");
+        if (extracts != null) {
+            httpData.put("extracts", extracts);
+        }
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.getAddNodes().add(GraphNode.builder()
+                .id(nodeId)
+                .type("http")
+                .position(com.qualitest.flow.model.GraphNodePosition.builder().x(40).y(80).build())
+                .data(httpData)
+                .build());
+        GraphJson base = emptyBaseWithScenario();
+        base.getMeta().setStartNodeId(nodeId);
+        FlowDesignPatchConfirmRequest request = new FlowDesignPatchConfirmRequest();
+        request.setGraphJson(base);
+        request.setPatch(patch);
+        request.setUnitId("addNode:" + nodeId);
+        request.setTestProjectId(100L);
+        return gated.confirmUnit(request);
+    }
+
     /** 单单元 fixture：acceptedIds 仅一项时直接 confirm */
     private void runSingleUnitFixture(String classpath) throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture(classpath);
@@ -505,6 +575,29 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(mapper, null, new GraphJsonValidator(), merger);
         return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), mapper);
+    }
+
+    /** 装配带双端 Bearer 项目鉴权与 /api 接口的 ConfirmService，供缺 token / 有 extracts 用例使用 */
+    private static FlowDesignPatchConfirmService confirmServiceWithDualBearerAuth() {
+        TestProjectApiMapper apiMapper = mock(TestProjectApiMapper.class);
+        when(apiMapper.selectTestProjectApiById(anyLong())).thenAnswer(inv -> {
+            Long id = inv.getArgument(0);
+            return TestProjectApi.builder()
+                    .testProjectApiId(id)
+                    .testProjectId(100L)
+                    .apiPath("/api/account/auth/profile")
+                    .authConfig("{\"mode\":\"inherit\"}")
+                    .build();
+        });
+        TestProjectMapper projectMapper = mock(TestProjectMapper.class);
+        when(projectMapper.selectTestProjectById(anyLong())).thenReturn(TestProject.builder()
+                .testProjectId(100L)
+                .authConfig(ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.dualBearerTemplate()))
+                .build());
+        FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
+        FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(
+                apiMapper, projectMapper, new GraphJsonValidator(), merger);
+        return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), apiMapper);
     }
 
     private static GraphJson emptyBaseWithScenario() {

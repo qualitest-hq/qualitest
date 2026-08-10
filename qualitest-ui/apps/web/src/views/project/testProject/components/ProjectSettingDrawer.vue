@@ -5,7 +5,7 @@
       class="project-setting-drawer"
       destroy-on-close
       direction="rtl"
-      size="480px"
+      size="560px"
       @opened="$emit('opened')"
   >
     <div v-loading="settingLoading" class="project-setting">
@@ -65,6 +65,144 @@
           <div class="project-setting__actions">
             <el-button :loading="conventionSaving" type="primary" @click="saveResponseConvention">
               保存响应约定
+            </el-button>
+          </div>
+        </section>
+
+        <section class="project-setting__card">
+          <header class="project-setting__card-head">
+            <h3 class="project-setting__card-title">项目鉴权</h3>
+            <p class="project-setting__card-desc">
+              定义多套 Bearer / Cookie 头模板（authProfiles），按路径前缀匹配；改配置后托管头 Run 时跟新。
+              pathPrefix 禁止写 <code>/</code>。
+            </p>
+          </header>
+
+          <div class="project-setting__auth-toolbar">
+            <el-button size="small" @click="applyDefaultBearerTemplate">套用通用 Bearer</el-button>
+            <el-button size="small" @click="applyDualBearerTemplate">套用双端（demo）</el-button>
+            <el-button size="small" @click="addAuthProfile">添加 Profile</el-button>
+          </div>
+
+          <div class="project-setting__conv-field project-setting__auth-default">
+            <label>默认 Profile</label>
+            <el-select
+                v-model="authForm.defaultProfileId"
+                allow-create
+                clearable
+                filterable
+                placeholder="未命中 pathPrefix 时使用"
+            >
+              <el-option
+                  v-for="pid in authProfileIdOptions"
+                  :key="pid"
+                  :label="pid"
+                  :value="pid"
+              />
+            </el-select>
+          </div>
+
+          <el-collapse v-if="authForm.profiles.length" v-model="authCollapseNames" class="project-setting__auth-collapse">
+            <el-collapse-item
+                v-for="(row, idx) in authForm.profiles"
+                :key="'auth-p-' + idx"
+                :name="String(idx)"
+            >
+              <template #title>
+                <span class="project-setting__auth-collapse-title">
+                  {{ row.id || row.name || `Profile ${idx + 1}` }}
+                </span>
+                <el-button
+                    class="project-setting__auth-remove"
+                    link
+                    size="small"
+                    type="danger"
+                    @click.stop="removeAuthProfile(idx)"
+                >
+                  删除
+                </el-button>
+              </template>
+              <div class="project-setting__conv-grid">
+                <div class="project-setting__conv-field">
+                  <label>id</label>
+                  <el-input v-model="row.id" maxlength="64" placeholder="如 clientBearer" />
+                </div>
+                <div class="project-setting__conv-field">
+                  <label>名称</label>
+                  <el-input v-model="row.name" maxlength="64" placeholder="展示名" />
+                </div>
+                <div class="project-setting__conv-field project-setting__conv-field--full">
+                  <label>pathPrefix（每行一条，禁止 /）</label>
+                  <el-input
+                      v-model="row.pathPrefixText"
+                      :rows="2"
+                      placeholder="/api/"
+                      type="textarea"
+                  />
+                </div>
+                <div class="project-setting__conv-field">
+                  <label>头名称</label>
+                  <el-input v-model="row.headerName" placeholder="Authorization" />
+                </div>
+                <div class="project-setting__conv-field">
+                  <label>值模板</label>
+                  <el-input v-model="row.valueTemplate" placeholder="Bearer {{flow.token}}" />
+                </div>
+                <div class="project-setting__conv-field">
+                  <label>loginHint.flowKey</label>
+                  <el-input v-model="row.loginFlowKey" placeholder="token" />
+                </div>
+                <div class="project-setting__conv-field">
+                  <label>loginHint.from</label>
+                  <el-select v-model="row.loginFrom" clearable placeholder="body">
+                    <el-option
+                        v-for="opt in LOGIN_HINT_FROM_OPTIONS"
+                        :key="opt.value"
+                        :label="opt.label"
+                        :value="opt.value"
+                    />
+                  </el-select>
+                </div>
+                <div class="project-setting__conv-field project-setting__conv-field--full">
+                  <label>loginHint.expr</label>
+                  <el-input v-model="row.loginExpr" placeholder="$.token 或 Cookie 名" />
+                </div>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+          <div v-else class="project-setting__empty-box project-setting__empty-box--compact">
+            尚未配置 Profile，可套用模板或手动添加
+          </div>
+
+          <div class="project-setting__conv-grid project-setting__auth-anon">
+            <div class="project-setting__conv-field project-setting__conv-field--full">
+              <label>匿名 path（精确，每行一条）</label>
+              <el-input
+                  v-model="authForm.anonymousPathExactText"
+                  :rows="2"
+                  placeholder="/login"
+                  type="textarea"
+              />
+            </div>
+            <div class="project-setting__conv-field project-setting__conv-field--full">
+              <label>匿名 path（前缀，每行一条，禁止 /）</label>
+              <el-input
+                  v-model="authForm.anonymousPathPrefixText"
+                  :rows="2"
+                  placeholder="/test-support/"
+                  type="textarea"
+              />
+            </div>
+          </div>
+
+          <pre class="project-setting__preview-block"><code>{{ authPreview }}</code></pre>
+          <p class="project-setting__hint">
+            保存后造流 / Run / 调试按此配置补托管头；旧流可用画布「刷新鉴权头」。
+          </p>
+
+          <div class="project-setting__actions">
+            <el-button :loading="authSaving" type="primary" @click="saveProjectAuth">
+              保存项目鉴权
             </el-button>
           </div>
         </section>
@@ -144,11 +282,21 @@
 
 <script setup>
 /**
- * 项目设置侧栏：响应约定（业务 Code 库）、API 调试传输方式、项目 Token、Cursor MCP 配置。
- * 响应约定写入项目 response_convention，供 HTTP 节点默认校验 body 业务码。
+ * 项目设置侧栏：响应约定、项目鉴权、API 调试传输方式、项目 Token、Cursor MCP 配置。
  */
 import { computed, getCurrentInstance, reactive, ref, watch } from 'vue'
 import { buildCursorMcpConfig } from '../utils/mcpClientConfig'
+import {
+  applyTemplateToForm,
+  buildAuthConfigPayload,
+  DEFAULT_BEARER_TEMPLATE,
+  DUAL_BEARER_TEMPLATE,
+  emptyAuthForm,
+  emptyProfileRow,
+  formatAuthConfigPreview,
+  LOGIN_HINT_FROM_OPTIONS,
+  parseAuthConfig,
+} from '../utils/projectAuthConfig'
 import { getTestProject, updateTestProject } from '@/api/project/testProject'
 
 const visible = defineModel('visible', { type: Boolean, default: false })
@@ -198,6 +346,26 @@ const conventionForm = reactive({
   dataPath: 'data',
 })
 
+const authSaving = ref(false)
+const authForm = reactive(emptyAuthForm())
+const authCollapseNames = ref([])
+
+const authProfileIdOptions = computed(() =>
+  (authForm.profiles || [])
+    .map((p) => String(p.id || '').trim())
+    .filter(Boolean),
+)
+
+const authPreview = computed(() => formatAuthConfigPreview(authForm))
+
+function resolveProjectId() {
+  return props.testProjectId || props.settingForm?.testProjectId
+}
+
+function syncAuthCollapse() {
+  authCollapseNames.value = authForm.profiles.map((_, i) => String(i))
+}
+
 /** 把库中的 responseConvention JSON 填入表单 */
 function applyConvention(raw) {
   let obj = null
@@ -217,6 +385,14 @@ function applyConvention(raw) {
   conventionForm.successValuesText = values.join(',')
 }
 
+function applyAuthForm(next) {
+  authForm.defaultProfileId = next.defaultProfileId || ''
+  authForm.profiles = Array.isArray(next.profiles) ? next.profiles.map((p) => ({ ...p })) : []
+  authForm.anonymousPathExactText = next.anonymousPathExactText || ''
+  authForm.anonymousPathPrefixText = next.anonymousPathPrefixText || ''
+  syncAuthCollapse()
+}
+
 /** 解析成功业务码输入框（逗号/空白分隔），空则默认 [200] */
 function parseSuccessValuesText(text) {
   const values = String(text || '')
@@ -228,28 +404,102 @@ function parseSuccessValuesText(text) {
   return values.length ? values : [200]
 }
 
-/** 打开抽屉后拉取项目详情中的响应约定 */
-function loadConvention() {
-  const pid = props.testProjectId || props.settingForm?.testProjectId
+/** 打开抽屉后拉取项目详情中的响应约定与鉴权配置 */
+function loadProjectSettings() {
+  const pid = resolveProjectId()
   if (!pid) {
     applyConvention(null)
+    applyAuthForm(emptyAuthForm())
     return
   }
   getTestProject(pid)
     .then((res) => {
       applyConvention(res.data?.responseConvention)
+      applyAuthForm(parseAuthConfig(res.data?.authConfig))
     })
-    .catch(() => applyConvention(null))
+    .catch(() => {
+      applyConvention(null)
+      applyAuthForm(emptyAuthForm())
+    })
 }
 
 watch(
   () => [visible.value, props.settingContext, props.testProjectId],
   () => {
     if (visible.value && props.settingContext !== null) {
-      loadConvention()
+      loadProjectSettings()
     }
   },
 )
+
+function addAuthProfile() {
+  authForm.profiles.push(emptyProfileRow())
+  syncAuthCollapse()
+}
+
+function removeAuthProfile(idx) {
+  authForm.profiles.splice(idx, 1)
+  if (authForm.defaultProfileId && !authProfileIdOptions.value.includes(authForm.defaultProfileId)) {
+    authForm.defaultProfileId = authProfileIdOptions.value[0] || ''
+  }
+  syncAuthCollapse()
+}
+
+async function confirmOverwriteAuth(message) {
+  if (!proxy?.$modal?.confirm) {
+    return true
+  }
+  try {
+    await proxy.$modal.confirm(message)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function applyAuthTemplate(template, label) {
+  const ok = await confirmOverwriteAuth(`将用「${label}」覆盖当前项目鉴权表单，是否继续？`)
+  if (!ok) return
+  applyAuthForm(applyTemplateToForm(template))
+}
+
+function applyDefaultBearerTemplate() {
+  return applyAuthTemplate(DEFAULT_BEARER_TEMPLATE, '通用 Bearer')
+}
+
+function applyDualBearerTemplate() {
+  return applyAuthTemplate(DUAL_BEARER_TEMPLATE, '双端 demo')
+}
+
+/** 保存项目鉴权到 auth_config */
+function saveProjectAuth() {
+  const pid = resolveProjectId()
+  if (!pid) {
+    proxy?.$modal?.msgError?.('缺少项目 ID')
+    return
+  }
+  let authConfig
+  try {
+    authConfig = buildAuthConfigPayload(authForm)
+  } catch (e) {
+    proxy?.$modal?.msgError?.(e.message || '鉴权配置无效')
+    return
+  }
+  authSaving.value = true
+  updateTestProject({ testProjectId: pid, authConfig })
+    .then((res) => {
+      if (res.code === 200) {
+        proxy?.$modal?.msgSuccess?.('项目鉴权已保存')
+        applyAuthForm(parseAuthConfig(authConfig))
+      } else {
+        proxy?.$modal?.msgError?.(res.msg || '保存失败')
+      }
+    })
+    .catch((err) => proxy?.$modal?.msgError?.(err?.message || err?.msg || '保存失败'))
+    .finally(() => {
+      authSaving.value = false
+    })
+}
 
 /** 预览：用示例失败响应演示当前约定下是否判定通过 */
 const conventionPreview = computed(() => {
@@ -278,7 +528,7 @@ const conventionPreview = computed(() => {
 
 /** 保存响应约定到项目：规范化字段后调用 updateTestProject 写库 */
 function saveResponseConvention() {
-  const pid = props.testProjectId || props.settingForm?.testProjectId
+  const pid = resolveProjectId()
   if (!pid) {
     proxy?.$modal?.msgError?.('缺少项目 ID')
     return
@@ -482,6 +732,57 @@ const mcpConfigText = computed(() => {
     font-size: 12px;
     color: var(--el-text-color-secondary);
   }
+
+  &--full {
+    grid-column: 1 / -1;
+  }
+}
+
+.project-setting__auth-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.project-setting__auth-default {
+  margin-bottom: 12px;
+}
+
+.project-setting__auth-collapse {
+  border: none;
+
+  :deep(.el-collapse-item__header) {
+    height: auto;
+    min-height: 40px;
+    padding: 0 4px;
+    line-height: 1.4;
+  }
+
+  :deep(.el-collapse-item__wrap) {
+    border-bottom: none;
+  }
+
+  :deep(.el-collapse-item__content) {
+    padding: 8px 4px 12px;
+  }
+}
+
+.project-setting__auth-collapse-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.project-setting__auth-remove {
+  margin-right: 8px;
+}
+
+.project-setting__auth-anon {
+  margin-top: 12px;
 }
 
 .project-setting__preview-block {

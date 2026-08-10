@@ -37,6 +37,7 @@ import java.util.Set;
  *   <li>依赖校验（如 addEdge 须先 confirm 端点 addNode）</li>
  *   <li>按 unitId 过滤出单单元增量子集并合并到 graph_json 副本</li>
  *   <li>运行全图结构校验，汇总 errors 与 warnings</li>
+ *   <li>检查需登录节点所需的 flow.token / flow.adminToken 等是否已有来源；缺则不可确认</li>
  *   <li>仅当确认 assert/condition 节点时：在含 pending Staging 的预览图上按 schema 校验该节点 http.body 左值；
  *       边及其它单元确认不跑断言门禁（避免错误挂在边上）</li>
  * </ol>
@@ -104,13 +105,14 @@ public class FlowDesignPatchConfirmService {
         GraphValidationResult validation = graphJsonValidator.validate(merged, validationOptions);
         List<String> allWarnings = new ArrayList<>(warnings);
         allWarnings.addAll(validation.getWarnings());
-        allWarnings.addAll(patchNormalizer.collectAuthTokenPresenceWarnings(merged, request.getTestProjectId()));
 
-        // 断言门禁：仅拦正在确认的 assert/condition；预览图含未拒绝的 pending 节点/边（schema 校验）
+        // 断言路径：仅拦正在确认的 assert/condition；预览图含尚未拒绝的 pending 节点/边
         List<String> assertGateErrors = collectScopedAssertGateErrors(
                 baseGraph, patch, unitId, rejectedUnitIds, request.getDraftOverride(), warnings);
         List<String> allErrors = new ArrayList<>(validation.getErrors());
         allErrors.addAll(assertGateErrors);
+        // 需登录却缺少对应端 token 来源：整图检查，缺则不可确认本单元
+        allErrors.addAll(patchNormalizer.collectAuthTokenPresenceErrors(merged, request.getTestProjectId()));
         boolean ok = allErrors.isEmpty();
 
         logConfirmMetrics(startedAt, unitId, ok);

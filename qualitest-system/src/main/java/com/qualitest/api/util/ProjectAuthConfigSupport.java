@@ -7,11 +7,15 @@ import com.qualitest.api.model.ProjectAuthConfig.Header;
 import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
+import com.qualitest.common.exception.ServiceException;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * 项目鉴权配置：解析、判空、通用/双端模板、按路径解析 Profile。
+ * 项目鉴权配置：解析、判空、通用/双端模板、按路径解析 Profile、写入规范化。
  */
 public final class ProjectAuthConfigSupport {
 
@@ -23,6 +27,13 @@ public final class ProjectAuthConfigSupport {
 
     /** demo / 商城双端模板用：管理端。 */
     public static final String PROFILE_ADMIN = "adminBearer";
+
+    /** 空配置落库 JSON（无 Profile；Mapper 需非 null 才能清空列）。 */
+    public static final String EMPTY_JSON = "{}";
+
+    /** loginHint.from 允许值。 */
+    private static final Set<String> LOGIN_HINT_FROM =
+            Set.of("body", "setCookie", "header");
 
     private ProjectAuthConfigSupport() {}
 
@@ -43,6 +54,193 @@ public final class ProjectAuthConfigSupport {
 
     public static String toJson(ProjectAuthConfig config) {
         return JSONUtil.toJsonStr(config != null ? config : empty());
+    }
+
+    /**
+     * 规范化用户提交的鉴权配置并序列化为 JSON，用于写库。
+     * <p>
+     * 空白、或无 Profile 且无匿名 path → {@link #EMPTY_JSON}；
+     * 非法 JSON / 规则不通过 → {@link ServiceException}。
+     */
+    public static String normalizeToJson(String raw) {
+        if (StrUtil.isBlank(raw)) {
+            return EMPTY_JSON;
+        }
+        ProjectAuthConfig parsed;
+        try {
+            parsed = JSONUtil.toBean(raw.trim(), ProjectAuthConfig.class);
+        } catch (Exception e) {
+            throw new ServiceException("项目鉴权配置不是合法 JSON");
+        }
+        if (parsed == null) {
+            return EMPTY_JSON;
+        }
+        ProjectAuthConfig normalized = normalize(parsed);
+        if (isFullyEmpty(normalized)) {
+            return EMPTY_JSON;
+        }
+        return toJson(normalized);
+    }
+
+    /**
+     * 校验并清理配置对象（Web 保存 / 服务端写库共用）。
+     */
+    public static ProjectAuthConfig normalize(ProjectAuthConfig input) {
+        if (input == null) {
+            return empty();
+        }
+        List<ProjectAuthProfile> profiles = normalizeProfiles(input.getAuthProfiles());
+        List<String> exact = normalizeExactPaths(input.getAnonymousPathExact());
+        List<String> prefix = normalizePrefixPaths(input.getAnonymousPathPrefix(), "anonymousPathPrefix");
+
+        String defaultId = null;
+        if (!profiles.isEmpty()) {
+            defaultId = StrUtil.trimToNull(input.getDefaultProfileId());
+            if (defaultId == null) {
+                defaultId = profiles.get(0).getId();
+            } else {
+                final String want = defaultId;
+                boolean found = profiles.stream().anyMatch(p -> want.equals(p.getId()));
+                if (!found) {
+                    throw new ServiceException("defaultProfileId 不在 authProfiles 中: " + defaultId);
+                }
+            }
+        }
+        return ProjectAuthConfig.builder()
+                .defaultProfileId(defaultId)
+                .authProfiles(profiles)
+                .anonymousPathExact(exact)
+                .anonymousPathPrefix(prefix)
+                .build();
+    }
+
+    /** 无 Profile 且无匿名 path。 */
+    private static boolean isFullyEmpty(ProjectAuthConfig config) {
+        return isEmpty(config)
+                && (config.getAnonymousPathExact() == null || config.getAnonymousPathExact().isEmpty())
+                && (config.getAnonymousPathPrefix() == null || config.getAnonymousPathPrefix().isEmpty());
+    }
+
+    private static List<ProjectAuthProfile> normalizeProfiles(List<ProjectAuthProfile> raw) {
+        List<ProjectAuthProfile> out = new ArrayList<>();
+        if (raw == null) {
+            return out;
+        }
+        Set<String> ids = new HashSet<>();
+        for (int i = 0; i < raw.size(); i++) {
+            ProjectAuthProfile profile = raw.get(i);
+            if (profile == null) {
+                continue;
+            }
+            String id = StrUtil.trimToNull(profile.getId());
+            if (id == null) {
+                throw new ServiceException("authProfiles[" + i + "].id 不能为空");
+            }
+            if (!ids.add(id)) {
+                throw new ServiceException("authProfiles.id 重复: " + id);
+            }
+            Header header = profile.getHeader();
+            String headerName = header != null ? StrUtil.trimToNull(header.getName()) : null;
+            String valueTemplate = header != null ? StrUtil.trimToNull(header.getValueTemplate()) : null;
+            if (headerName == null || valueTemplate == null) {
+                throw new ServiceException("Profile「" + id + "」须配置 header.name 与 header.valueTemplate");
+            }
+            List<String> pathPrefixes = null;
+            if (profile.getMatch() != null && profile.getMatch().getPathPrefix() != null) {
+                pathPrefixes = normalizePrefixPaths(profile.getMatch().getPathPrefix(),
+                        "Profile「" + id + "」.match.pathPrefix");
+            }
+            Match match = (pathPrefixes != null && !pathPrefixes.isEmpty())
+                    ? Match.builder().pathPrefix(pathPrefixes).build()
+                    : null;
+            out.add(ProjectAuthProfile.builder()
+                    .id(id)
+                    .name(StrUtil.trimToNull(profile.getName()))
+                    .match(match)
+                    .header(Header.builder().name(headerName).valueTemplate(valueTemplate).build())
+                    .loginHint(normalizeLoginHint(profile.getLoginHint(), id))
+                    .build());
+        }
+        return out;
+    }
+
+    private static LoginHint normalizeLoginHint(LoginHint hint, String profileId) {
+        if (hint == null) {
+            return null;
+        }
+        String flowKey = StrUtil.trimToNull(hint.getFlowKey());
+        String from = StrUtil.trimToNull(hint.getFrom());
+        String expr = StrUtil.trimToNull(hint.getExpr());
+        String legacy = StrUtil.trimToNull(hint.getExtractJsonPath());
+        if (from == null && legacy != null) {
+            from = "body";
+            if (expr == null) {
+                expr = legacy;
+            }
+        }
+        if (from != null) {
+            String canonical = canonicalLoginFrom(from);
+            if (canonical == null) {
+                throw new ServiceException(
+                        "Profile「" + profileId + "」.loginHint.from 仅支持 body / setCookie / header");
+            }
+            from = canonical;
+        }
+        if (flowKey == null && from == null && expr == null) {
+            return null;
+        }
+        return LoginHint.builder()
+                .flowKey(flowKey)
+                .from(from)
+                .expr(expr)
+                .build();
+    }
+
+    /** 将 from 规范为允许值；不识别则返回 null。 */
+    private static String canonicalLoginFrom(String from) {
+        for (String allowed : LOGIN_HINT_FROM) {
+            if (allowed.equalsIgnoreCase(from)) {
+                return allowed;
+            }
+        }
+        return null;
+    }
+
+    private static List<String> normalizeExactPaths(List<String> raw) {
+        List<String> out = new ArrayList<>();
+        if (raw == null) {
+            return out;
+        }
+        for (String item : raw) {
+            if (StrUtil.isBlank(item)) {
+                continue;
+            }
+            out.add(normalizeApiPath(item.trim()));
+        }
+        return out;
+    }
+
+    /**
+     * 规范化前缀列表；空白跳过；值为 {@code /} 时拒绝（禁止根匹配）。
+     */
+    private static List<String> normalizePrefixPaths(List<String> raw, String fieldLabel) {
+        List<String> out = new ArrayList<>();
+        if (raw == null) {
+            return out;
+        }
+        for (String item : raw) {
+            if (StrUtil.isBlank(item)) {
+                continue;
+            }
+            String trimmed = item.trim();
+            if ("/".equals(trimmed)) {
+                throw new ServiceException(fieldLabel + " 禁止使用 \"/\"（须写具体前缀，如 /api/）");
+            }
+            // 落库保留用户写法，仅保证有前导 /
+            String stored = trimmed.startsWith("/") ? trimmed : "/" + trimmed;
+            out.add(stored);
+        }
+        return out;
     }
 
     public static ProjectAuthConfig empty() {

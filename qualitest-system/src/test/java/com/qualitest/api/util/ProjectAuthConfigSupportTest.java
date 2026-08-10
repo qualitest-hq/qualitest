@@ -1,6 +1,7 @@
 package com.qualitest.api.util;
 
 import com.qualitest.api.model.ProjectAuthConfig;
+import com.qualitest.common.exception.ServiceException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -9,11 +10,12 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测谁：项目鉴权配置模板、判空、按路径解析 Profile。
- * 边界：通用种子 vs demo 双端、禁止 match=/、空配置。
+ * 测谁：项目鉴权配置模板、判空、按路径解析 Profile、写入规范化。
+ * 边界：通用种子 vs demo 双端、禁止 match=/、空配置、normalize 校验。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ProjectAuthConfigSupportTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -162,5 +164,91 @@ class ProjectAuthConfigSupportTest {
                 .build();
         assertEquals("setCookie", ProjectAuthConfigSupport.resolveLoginExtractFrom(cookie));
         assertEquals("JSESSIONID", ProjectAuthConfigSupport.resolveLoginExtractExpr(cookie));
+    }
+
+    /**
+     * 前提：双端模板 JSON。
+     * 期望：normalizeToJson 保留两套 Profile 与 default=adminBearer。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("normalize：合法双端模板可落库")
+    void normalizeToJson_dualOk() {
+        String json = ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.dualBearerTemplate());
+        String stored = ProjectAuthConfigSupport.normalizeToJson(json);
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(stored);
+        assertEquals(ProjectAuthConfigSupport.PROFILE_ADMIN, cfg.getDefaultProfileId());
+        assertEquals(2, cfg.getAuthProfiles().size());
+        assertTrue(cfg.getAnonymousPathExact().contains("/login"));
+    }
+
+    /**
+     * 前提：pathPrefix 为 "/"。
+     * 期望：ServiceException，文案含禁止。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("normalize：禁止 pathPrefix=/")
+    void normalizeToJson_rejectsRootPrefix() {
+        String raw = """
+                {"defaultProfileId":"p1","authProfiles":[
+                  {"id":"p1","name":"x","match":{"pathPrefix":["/"]},
+                   "header":{"name":"Authorization","valueTemplate":"Bearer {{flow.token}}"}}
+                ]}
+                """;
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> ProjectAuthConfigSupport.normalizeToJson(raw));
+        assertTrue(ex.getMessage().contains("禁止"));
+    }
+
+    /**
+     * 前提：两个 Profile 同 id。
+     * 期望：ServiceException 含「重复」。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("normalize：拒绝重复 Profile id")
+    void normalizeToJson_rejectsDuplicateId() {
+        String raw = """
+                {"authProfiles":[
+                  {"id":"same","header":{"name":"Authorization","valueTemplate":"Bearer a"}},
+                  {"id":"same","header":{"name":"Authorization","valueTemplate":"Bearer b"}}
+                ]}
+                """;
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> ProjectAuthConfigSupport.normalizeToJson(raw));
+        assertTrue(ex.getMessage().contains("重复"));
+    }
+
+    /**
+     * 前提：defaultProfileId 不在 profiles 中。
+     * 期望：ServiceException。
+     */
+    @Test
+    @Order(12)
+    @DisplayName("normalize：defaultProfileId 必须存在")
+    void normalizeToJson_rejectsMissingDefault() {
+        String raw = """
+                {"defaultProfileId":"missing","authProfiles":[
+                  {"id":"p1","header":{"name":"Authorization","valueTemplate":"Bearer {{flow.token}}"}}
+                ]}
+                """;
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> ProjectAuthConfigSupport.normalizeToJson(raw));
+        assertTrue(ex.getMessage().contains("defaultProfileId"));
+    }
+
+    /**
+     * 前提：空白 / 无 profiles。
+     * 期望：落库 EMPTY_JSON，isEmpty 为 true。
+     */
+    @Test
+    @Order(13)
+    @DisplayName("normalize：空配置落 {}")
+    void normalizeToJson_empty() {
+        assertEquals(ProjectAuthConfigSupport.EMPTY_JSON, ProjectAuthConfigSupport.normalizeToJson(""));
+        assertEquals(ProjectAuthConfigSupport.EMPTY_JSON, ProjectAuthConfigSupport.normalizeToJson("{}"));
+        assertTrue(ProjectAuthConfigSupport.isEmpty(
+                ProjectAuthConfigSupport.parse(ProjectAuthConfigSupport.normalizeToJson("{\"authProfiles\":[]}"))));
     }
 }

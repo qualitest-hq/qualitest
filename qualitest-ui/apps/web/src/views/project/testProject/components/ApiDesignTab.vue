@@ -60,13 +60,35 @@
                 <el-form-item label="鉴权 Profile">
                   <el-input
                       v-model="auth.authProfileId"
-                      :disabled="auth.mode === 'none'"
+                      :disabled="auth.mode !== 'inherit'"
                       clearable
                       maxlength="64"
                       placeholder="如 clientBearer / adminBearer，可空则按路径匹配"
                   />
                 </el-form-item>
               </el-col>
+              <template v-if="auth.mode === 'override'">
+                <el-col :md="12" :span="24">
+                  <el-form-item label="自定义头名" required>
+                    <el-input
+                        v-model="auth.headerName"
+                        clearable
+                        maxlength="128"
+                        placeholder="Authorization"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :md="12" :span="24">
+                  <el-form-item label="头值模板" required>
+                    <el-input
+                        v-model="auth.valueTemplate"
+                        clearable
+                        maxlength="512"
+                        placeholder="Bearer {{flow.token}} 或 Bearer invalid-token"
+                    />
+                  </el-form-item>
+                </el-col>
+              </template>
             </el-row>
           </el-form>
         </div>
@@ -134,7 +156,9 @@ const meta = reactive({
 /** 接口薄鉴权标签（落库 auth_config） */
 const auth = reactive({
   mode: 'inherit',
-  authProfileId: ''
+  authProfileId: '',
+  headerName: 'Authorization',
+  valueTemplate: ''
 })
 
 const responseConfigText = ref('')
@@ -156,27 +180,48 @@ function formatJsonForEdit(raw) {
   }
 }
 
+function emptyAuthParsed() {
+  return {
+    mode: 'inherit',
+    authProfileId: '',
+    headerName: 'Authorization',
+    valueTemplate: ''
+  }
+}
+
 function parseAuthConfig(raw) {
   if (raw == null || raw === '') {
-    return { mode: 'inherit', authProfileId: '' }
+    return emptyAuthParsed()
   }
   try {
     const obj = typeof raw === 'string' ? JSON.parse(raw) : raw
     const mode = String(obj?.mode || 'inherit').trim() || 'inherit'
     return {
       mode: ['none', 'inherit', 'override'].includes(mode) ? mode : 'inherit',
-      authProfileId: obj?.authProfileId != null ? String(obj.authProfileId).trim() : ''
+      authProfileId: obj?.authProfileId != null ? String(obj.authProfileId).trim() : '',
+      headerName: obj?.header?.name != null && String(obj.header.name).trim()
+          ? String(obj.header.name).trim()
+          : 'Authorization',
+      valueTemplate: obj?.header?.valueTemplate != null ? String(obj.header.valueTemplate).trim() : ''
     }
   } catch {
-    return { mode: 'inherit', authProfileId: '' }
+    return emptyAuthParsed()
   }
 }
 
 function buildAuthConfigPayload() {
   const mode = (auth.mode || 'inherit').trim()
   const payload = { mode }
-  if (mode !== 'none' && auth.authProfileId?.trim()) {
+  if (mode === 'inherit' && auth.authProfileId?.trim()) {
     payload.authProfileId = auth.authProfileId.trim()
+  }
+  if (mode === 'override') {
+    const name = (auth.headerName || '').trim()
+    const valueTemplate = (auth.valueTemplate || '').trim()
+    if (!name || !valueTemplate) {
+      throw new Error('接口自定义鉴权须填写头名称与头值模板')
+    }
+    payload.header = { name, valueTemplate }
   }
   return JSON.stringify(payload)
 }
@@ -202,6 +247,8 @@ function syncMetaFromDetail(d) {
   const parsedAuth = parseAuthConfig(d.authConfig)
   auth.mode = parsedAuth.mode
   auth.authProfileId = parsedAuth.authProfileId
+  auth.headerName = parsedAuth.headerName
+  auth.valueTemplate = parsedAuth.valueTemplate
 }
 
 watch(
@@ -232,6 +279,14 @@ function handleSaveDesign() {
     return
   }
 
+  let authConfigStr
+  try {
+    authConfigStr = buildAuthConfigPayload()
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '鉴权配置无效')
+    return
+  }
+
   saving.value = true
   const payload = {
     testProjectApiId: props.apiDetail.testProjectApiId,
@@ -249,7 +304,7 @@ function handleSaveDesign() {
     responseConfig: responseConfigStr,
     preRequestScript: part.preRequestScript ?? '',
     postRequestScript: part.postRequestScript ?? '',
-    authConfig: buildAuthConfigPayload()
+    authConfig: authConfigStr
   }
 
   updateTestProjectApi(payload)

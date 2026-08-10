@@ -350,7 +350,7 @@ function shouldShowAssetProposals(msg: AiDesignMessageView) {
   return msg.role === 'assistant' && Array.isArray(msg.assetProposals) && msg.assetProposals.length > 0;
 }
 
-/** 造流校验里与鉴权相关的 soft warnings（补头 / 分端缺 token） */
+/** 造流结果里「已补托管鉴权头」类提示文案（仅提示，不阻断） */
 function authValidationWarnings(msg: AiDesignMessageView): string[] {
   return filterAuthRelatedWarnings(msg.validation?.warnings).slice(0, 8)
 }

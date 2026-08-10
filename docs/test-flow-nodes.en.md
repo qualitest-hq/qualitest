@@ -34,9 +34,23 @@ Two paths via `data.callMode`, sharing forward + `extracts`:
 Common features:
 
 - Placeholder resolution on params / body (`flow` / `env` / `session`, …)
-- Optional project auth managed headers (`profileManaged`): Bearer or Cookie via project `authProfiles`; login extracts may use `from=setCookie`. Node `useRunSession` is retired (ignored).
+- **Project auth** (see below)
 - Success checks: non-2xx HTTP status fails first; optional business-code allowlist (`successCheck`)
 - On success: write `lastResponse`, then run `extracts`
+
+### Project auth
+
+Configured on the **test project** (settings drawer), not on environments. Flow Normalizer, Run, and debug share one resolver.
+
+| Layer | Notes |
+|-------|--------|
+| Project `authProfiles` | Header templates live here; `defaultProfileId` fallback; optional `anonymousPath*` → import sets API `mode=none` |
+| API `auth.mode` | `inherit` → project Profile; `none` → no auth header; `override` → API `header.name` + `valueTemplate` |
+| Node headers | Managed rows use `profileManaged` and refresh from **current** config at Run; explicit headers without that flag are never silently changed |
+
+**Match:** use `authProfileId` if set; else longest matching `pathPrefix`; else `defaultProfileId`. **`pathPrefix="/"` is forbidden.**
+
+Login extracts (`from`+`expr`, including `setCookie`) should align with Profile `loginHint` (`flow.token` / `flow.adminToken`, …). Node `useRunSession` is retired (ignored). Missing per-side token sources hard-block AI submit / Staging confirm / save (`AUTH_TOKEN_MISSING`). Canvas **Refresh auth headers** proposes managed-header updates via Staging.
 
 **Mutating calls:** enable **snapshot before** (`snapshotBefore`) on the node. On failure the run can pause; the user may restore SUT data and retry / retry in place / skip / abort. The SUT must expose `/test-support`. With env `allowDestructiveReset=0` (production default), checkpoint/restore are skipped silently. **When restore is enabled, run that environment serially.**
 

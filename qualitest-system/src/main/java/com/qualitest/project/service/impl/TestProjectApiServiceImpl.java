@@ -1,6 +1,8 @@
 package com.qualitest.project.service.impl;
 
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.StrUtil;
+import com.qualitest.api.util.ApiAuthConfigSupport;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.project.domain.TestProjectApi;
@@ -94,6 +96,7 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
         if (Objects.isNull(testProjectApi.getTestProjectApiId())) {
             testProjectApi.setTestProjectApiId(IdUtil.getSnowflakeNextId());
         }
+        normalizeAuthConfigIfPresent(testProjectApi);
         testProjectApi.setCreateTime(DateUtils.getNowDate());
         int rows = testProjectApiMapper.insertTestProjectApi(testProjectApi);
         refreshProjectApiCount(testProjectApi.getTestProjectId());
@@ -136,8 +139,22 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateTestProjectApi(TestProjectApi testProjectApi) {
+        normalizeAuthConfigIfPresent(testProjectApi);
         testProjectApi.setUpdateTime(DateUtils.getNowDate());
         return testProjectApiMapper.updateTestProjectApi(testProjectApi);
+    }
+
+    /** 本次提交含 authConfig 时规范化后写入；未提交（null）则不改动。 */
+    private static void normalizeAuthConfigIfPresent(TestProjectApi api) {
+        if (api == null || api.getAuthConfig() == null) {
+            return;
+        }
+        // 空串也规范化为默认 inherit，避免脏 JSON 落库
+        if (StrUtil.isBlank(api.getAuthConfig())) {
+            api.setAuthConfig(ApiAuthConfigSupport.normalizeToJson("{}"));
+            return;
+        }
+        api.setAuthConfig(ApiAuthConfigSupport.normalizeToJson(api.getAuthConfig()));
     }
 
     /**

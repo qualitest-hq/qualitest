@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测谁：{@link AuthTokenPresenceGate} 分端缺 token soft warning。
- * 边界：仅 client / 仅 admin / 两端都缺 / extracts 已提供 / 有任一端不代表另一端过。
+ * 测谁：AuthTokenPresenceGate——图中需登录却缺对应端 flow 变量来源时返回错误。
+ * 边界：仅缺 client / 仅缺 admin / 有一端不能代替另一端 / extracts 与 flowSeed 可满足 / mode=none 不检查。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AuthTokenPresenceGateTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -31,32 +31,32 @@ class AuthTokenPresenceGateTest {
             ProjectAuthConfigSupport.dualBearerTemplate());
 
     /**
-     * 前提：图中仅有需 clientBearer 的 HTTP，无 token 来源。
-     * 期望：一条提示含 flow.token，不含 adminToken。
+     * 前提：图中仅有需客户端鉴权的 HTTP，无任何 token 写入来源。
+     * 期望：一条 AUTH_TOKEN_MISSING，文案含 flow.token，不含 adminToken。
      */
     @Test
     @Order(1)
-    @DisplayName("缺 client token 单独提示")
-    void warn_missingClientToken_only() {
+    @DisplayName("缺 client token 单独硬拦")
+    void validate_missingClientToken_only() {
         GraphJson graph = GraphJson.builder()
                 .nodes(List.of(httpNode("n1", 101L)))
                 .build();
-        List<String> warnings = AuthTokenPresenceGate.warn(
+        List<String> errors = AuthTokenPresenceGate.validate(
                 graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/profile", "inherit"));
-        assertEquals(1, warnings.size());
-        assertTrue(warnings.get(0).startsWith("AUTH_TOKEN_MISSING:"));
-        assertTrue(warnings.get(0).contains("flow.token"));
-        assertTrue(warnings.stream().noneMatch(w -> w.contains("adminToken")));
+        assertEquals(1, errors.size());
+        assertTrue(errors.get(0).startsWith("AUTH_TOKEN_MISSING:"));
+        assertTrue(errors.get(0).contains("flow.token"));
+        assertTrue(errors.stream().noneMatch(e -> e.contains("adminToken")));
     }
 
     /**
-     * 前提：同时有 client 与 admin HTTP，且仅 extracts 出 token。
-     * 期望：仍提示缺 adminToken（不可「有任一 token 即过」）。
+     * 前提：同时有客户端与管理端 HTTP，仅 extracts 写出 token。
+     * 期望：仍报缺 adminToken（有客户端 token 不能代替管理端）。
      */
     @Test
     @Order(2)
-    @DisplayName("有 client token 仍提示缺 admin")
-    void warn_hasClientButMissingAdmin_stillWarns() {
+    @DisplayName("有 client token 仍硬拦缺 admin")
+    void validate_hasClientButMissingAdmin_stillFails() {
         GraphNode login = httpNode("login", 201L);
         login.getData().put("extracts", List.of(Map.of(
                 "name", "token",
@@ -66,25 +66,25 @@ class AuthTokenPresenceGateTest {
         GraphJson graph = GraphJson.builder()
                 .nodes(List.of(login, httpNode("admin", 202L), httpNode("profile", 203L)))
                 .build();
-        List<String> warnings = AuthTokenPresenceGate.warn(graph, PROJECT_AUTH, id -> {
+        List<String> errors = AuthTokenPresenceGate.validate(graph, PROJECT_AUTH, id -> {
             if (id == 201L || id == 203L) {
                 return api(id, "/api/account/auth/profile", "inherit");
             }
             return api(id, "/system/user/list", "inherit");
         });
-        assertEquals(1, warnings.size());
-        assertTrue(warnings.get(0).startsWith("AUTH_TOKEN_MISSING:"));
-        assertTrue(warnings.get(0).contains("adminToken"));
+        assertEquals(1, errors.size());
+        assertTrue(errors.get(0).startsWith("AUTH_TOKEN_MISSING:"));
+        assertTrue(errors.get(0).contains("adminToken"));
     }
 
     /**
-     * 前提：flowSeed 已有 adminToken，HTTP 仅管理端。
-     * 期望：无 warning。
+     * 前提：场景 flowSeed 已有 adminToken，图中只有管理端 HTTP。
+     * 期望：无错误。
      */
     @Test
     @Order(3)
     @DisplayName("flowSeed 提供 adminToken 则通过")
-    void warn_flowSeedProvidesAdminToken_ok() {
+    void validate_flowSeedProvidesAdminToken_ok() {
         GraphRunScenario scenario = GraphRunScenario.builder()
                 .id("s1")
                 .name("默认")
@@ -94,25 +94,25 @@ class AuthTokenPresenceGateTest {
                 .nodes(List.of(httpNode("admin", 301L)))
                 .meta(GraphMeta.builder().scenarios(List.of(scenario)).build())
                 .build();
-        List<String> warnings = AuthTokenPresenceGate.warn(
+        List<String> errors = AuthTokenPresenceGate.validate(
                 graph, PROJECT_AUTH, id -> api(id, "/system/user/list", "inherit"));
-        assertTrue(warnings.isEmpty());
+        assertTrue(errors.isEmpty());
     }
 
     /**
-     * 前提：接口 mode=none。
-     * 期望：不要求 token。
+     * 前提：接口鉴权 mode=none（免登录）。
+     * 期望：不要求 token，无错误。
      */
     @Test
     @Order(4)
-    @DisplayName("免登录不提示")
-    void warn_modeNone_noWarning() {
+    @DisplayName("免登录不硬拦")
+    void validate_modeNone_ok() {
         GraphJson graph = GraphJson.builder()
                 .nodes(List.of(httpNode("anon", 401L)))
                 .build();
-        List<String> warnings = AuthTokenPresenceGate.warn(
+        List<String> errors = AuthTokenPresenceGate.validate(
                 graph, PROJECT_AUTH, id -> api(id, "/api/catalog/list", "none"));
-        assertTrue(warnings.isEmpty());
+        assertTrue(errors.isEmpty());
     }
 
     private static GraphNode httpNode(String id, Long apiId) {

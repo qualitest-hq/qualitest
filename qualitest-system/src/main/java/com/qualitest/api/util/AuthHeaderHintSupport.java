@@ -16,7 +16,7 @@ public final class AuthHeaderHintSupport {
     /**
      * 写入接口鉴权摘要字段。
      * <ul>
-     *   <li>{@code auth}：mode + 可选 authProfileId</li>
+     *   <li>{@code auth}：mode + 可选 authProfileId / header</li>
      *   <li>{@code headerHint}：需登录时的头名、模板、profileId、可选 flowKey</li>
      * </ul>
      */
@@ -56,7 +56,7 @@ public final class AuthHeaderHintSupport {
     }
 
     /**
-     * search_apis 用：只回精简 auth（mode + 解析后的 authProfileId），控制体积。
+     * search_apis 用：只回精简 auth（mode + 解析后的 authProfileId / override header），控制体积。
      */
     public static JSONObject compactAuth(String apiAuthJson, String projectAuthJson, String apiPath) {
         return buildAuthObject(apiAuthJson, projectAuthJson, apiPath, true);
@@ -69,7 +69,19 @@ public final class AuthHeaderHintSupport {
             String apiAuthJson, String projectAuthJson, String apiPath, boolean fillResolvedProfileId) {
         ApiAuthConfig apiAuth = ApiAuthConfigSupport.parseOrInherit(apiAuthJson);
         JSONObject auth = new JSONObject();
-        auth.put("mode", StrUtil.blankToDefault(StrUtil.trim(apiAuth.getMode()), ApiAuthConfig.MODE_INHERIT));
+        String mode = StrUtil.blankToDefault(StrUtil.trim(apiAuth.getMode()), ApiAuthConfig.MODE_INHERIT);
+        auth.put("mode", mode);
+        if (ApiAuthConfig.MODE_OVERRIDE.equalsIgnoreCase(mode) && apiAuth.getHeader() != null) {
+            String name = StrUtil.trimToNull(apiAuth.getHeader().getName());
+            String valueTemplate = StrUtil.trimToNull(apiAuth.getHeader().getValueTemplate());
+            if (name != null && valueTemplate != null) {
+                JSONObject header = new JSONObject();
+                header.put("name", name);
+                header.put("valueTemplate", valueTemplate);
+                auth.put("header", header);
+            }
+            return auth;
+        }
         String profileId = StrUtil.trimToNull(apiAuth.getAuthProfileId());
         if (profileId == null && fillResolvedProfileId) {
             ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(apiAuthJson, projectAuthJson, apiPath);

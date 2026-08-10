@@ -43,7 +43,7 @@ import java.util.Map;
  *   <li>规范化 scenarioPatch（场景 id、flowSeed 键名等）</li>
  *   <li>预合并到基准图副本，跑图结构校验，得到 errors/warnings</li>
  *   <li>用上游接口响应示例试算 assert/condition 的 http.body 左值；未命中记入 errors 回传模型</li>
- *   <li>分端检查托管 Bearer 所需 flow.token / flow.adminToken 来源（soft warning）</li>
+ *   <li>检查需登录节点所需的 flow.token / flow.adminToken 等是否已有来源；缺则记入 errors，本次造流不可进入 Staging</li>
  * </ol>
  * 不写库；用户在前端 Diff 确认后才持久化 graph_json。
  */
@@ -80,10 +80,11 @@ public class FlowDesignPatchNormalizer {
         warnings.addAll(validation.getWarnings());
 
         List<String> errors = new ArrayList<>(validation.getErrors());
-        // 设计期门禁：AI 提交的坏断言路径（试算空/[]）直接进 errors，进不了 Staging
+        // 断言路径不合法：记入 errors，本次造流不可进入 Staging
         errors.addAll(AssertPathDesignGate.validate(merged,
                 testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById));
-        warnings.addAll(collectAuthTokenPresenceWarnings(merged, testProjectId));
+        // 需登录却缺少对应端 token 来源：记入 errors，本次造流不可进入 Staging
+        errors.addAll(collectAuthTokenPresenceErrors(merged, testProjectId));
 
         DesignValidationResult planValidation = DesignValidationResult.builder()
                 .ok(errors.isEmpty())
@@ -103,11 +104,12 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 分端缺 token soft warning：供 Staging confirm 在合并后图上复用。
+     * 检查图中需登录的 project HTTP 是否已有对应端 flow 变量来源（如 token、adminToken）。
+     * 缺来源时返回错误文案列表；项目未配鉴权或无需登录时返回空列表。
      */
-    public List<String> collectAuthTokenPresenceWarnings(GraphJson graph, Long testProjectId) {
+    public List<String> collectAuthTokenPresenceErrors(GraphJson graph, Long testProjectId) {
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        return AuthTokenPresenceGate.warn(
+        return AuthTokenPresenceGate.validate(
                 graph,
                 projectAuthJson,
                 testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById);
@@ -365,6 +367,10 @@ public class FlowDesignPatchNormalizer {
         }
     }
 
+    /**
+     * 读取当前测试项目的鉴权配置 JSON。
+     * 无项目 id、无 mapper 或项目不存在时返回 null。
+     */
     private String loadProjectAuthConfig(Long testProjectId) {
         if (testProjectId == null || testProjectMapper == null) {
             return null;
