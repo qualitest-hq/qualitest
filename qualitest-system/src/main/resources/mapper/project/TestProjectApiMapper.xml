@@ -22,6 +22,8 @@
         <result property="testValueConfig" column="test_value_config"/>
         <!-- 业务响应码白名单 JSON -->
         <result property="bizCodeConfig" column="biz_code_config"/>
+        <!-- 造流设计提示 JSON：人机可维护，导入不覆盖 -->
+        <result property="designHints" column="design_hints"/>
         <!-- 接口鉴权标签 JSON：是否免登录等 -->
         <result property="authConfig" column="auth_config"/>
         <result property="preRequestScript" column="pre_request_script"/>
@@ -48,6 +50,7 @@
                response_config,
                test_value_config,
                biz_code_config,
+               design_hints,
                auth_config,
                pre_request_script,
                post_request_script,
@@ -74,6 +77,7 @@
                tpa.response_config     as responseConfig,
                tpa.test_value_config   as testValueConfig,
                tpa.biz_code_config     as bizCodeConfig,
+               tpa.design_hints        as designHints,
                tpa.auth_config         as authConfig,
                tpa.pre_request_script  as preRequestScript,
                tpa.post_request_script as postRequestScript,
@@ -130,6 +134,7 @@
         tpa.response_config as responseConfig,
         tpa.test_value_config as testValueConfig,
         tpa.biz_code_config as bizCodeConfig,
+        tpa.design_hints as designHints,
         tpa.auth_config as authConfig,
         tpa.pre_request_script as preRequestScript,
         tpa.post_request_script as postRequestScript,
@@ -176,6 +181,7 @@
                tpa.response_config     as responseConfig,
                tpa.test_value_config   as testValueConfig,
                tpa.biz_code_config     as bizCodeConfig,
+               tpa.design_hints        as designHints,
                tpa.auth_config         as authConfig,
                tpa.pre_request_script  as preRequestScript,
                tpa.post_request_script as postRequestScript,
@@ -229,6 +235,7 @@
                tpa.response_config,
                tpa.test_value_config,
                tpa.biz_code_config,
+               tpa.design_hints,
                tpa.auth_config,
                tpa.pre_request_script,
                tpa.post_request_script,
@@ -308,6 +315,9 @@
             <if test="bizCodeConfig != null and bizCodeConfig != ''">
                 biz_code_config,
             </if>
+            <if test="designHints != null and designHints != ''">
+                design_hints,
+            </if>
             <if test="authConfig != null and authConfig != ''">
                 auth_config,
             </if>
@@ -376,6 +386,9 @@
             <if test="bizCodeConfig != null and bizCodeConfig != ''">
                 #{bizCodeConfig},
             </if>
+            <if test="designHints != null and designHints != ''">
+                #{designHints},
+            </if>
             <if test="authConfig != null and authConfig != ''">
                 #{authConfig},
             </if>
@@ -418,6 +431,7 @@
             response_config,
             test_value_config,
             biz_code_config,
+            design_hints,
             auth_config,
             pre_request_script,
             post_request_script,
@@ -443,6 +457,7 @@
                 #{item.responseConfig},
                 #{item.testValueConfig},
                 #{item.bizCodeConfig},
+                #{item.designHints},
                 #{item.authConfig},
                 #{item.preRequestScript},
                 #{item.postRequestScript},
@@ -498,6 +513,9 @@
             </if>
             <if test="bizCodeConfig != null">
                 biz_code_config = #{bizCodeConfig},
+            </if>
+            <if test="designHints != null">
+                design_hints = #{designHints},
             </if>
             <if test="authConfig != null">
                 auth_config = #{authConfig},

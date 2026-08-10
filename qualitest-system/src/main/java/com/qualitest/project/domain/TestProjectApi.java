@@ -110,8 +110,15 @@ public class TestProjectApi extends BaseEntity {
     private String bizCodeConfig;
 
     /**
+     * 造流设计提示 JSON。
+     * 典型字段：hints（短文本列表）、source、updatedAt。
+     * 人机均可维护；插件/API 批量导入不读写本列。
+     */
+    private String designHints;
+
+    /**
      * 接口鉴权标签 JSON。
-     * 典型内容：mode（none 免登录 / inherit 需登录 / override 自定义头），
+     * 典型内容：mode（none 可不登录 / inherit 需登录 / override 自定义头），
      * 以及可选的 authProfileId（指定用哪套项目鉴权配置）。
      * 由接口导入写入；列表与详情原样返回给前端。
      */

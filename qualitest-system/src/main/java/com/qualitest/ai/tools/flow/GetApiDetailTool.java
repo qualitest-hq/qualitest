@@ -12,6 +12,7 @@ import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.support.ResponseConventionSupport;
+import com.qualitest.project.support.TestProjectApiDesignHintsService;
 import com.qualitest.project.support.TestProjectApiEffectiveConfigResolver;
 import lombok.RequiredArgsConstructor;
 
@@ -22,6 +23,7 @@ import java.util.Map;
  * <p>
  * 返回方法、路径、参数与 body 示例、响应 schema 摘要；
  * 并附带项目响应约定（responseConvention）、建议 extracts（suggestedExtracts），
+ * 造流设计提示 designHints（人机维护，导入不覆盖），
  * 以及鉴权摘要 {@code auth} / {@code headerHint}（与造流/Run 同一套解析）。
  * 建议 extracts 只列出业务数据包装字段（如 data）下的路径，方便生成 HTTP 节点提取规则。
  */
@@ -59,6 +61,7 @@ public class GetApiDetailTool implements QualitestTool {
         result.put("path", api.getApiPath());
         result.put("name", api.getApiName());
         result.put("description", api.getApiDescription() != null ? api.getApiDescription() : "");
+        result.put("designHints", TestProjectApiDesignHintsService.readHintList(api.getDesignHints()));
         if (api.getApiGroupId() != null) {
             result.put("apiGroupId", String.valueOf(api.getApiGroupId()));
         }

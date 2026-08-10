@@ -34,6 +34,18 @@
                   />
                 </el-form-item>
               </el-col>
+              <el-col :span="24">
+                <el-form-item label="造流设计提示">
+                  <el-input
+                      v-model="designHintsText"
+                      :rows="3"
+                      maxlength="2000"
+                      placeholder="每行一条；人机可维护，接口导入不会覆盖"
+                      type="textarea"
+                  />
+                  <div class="design-hints-tip">用于造流 AI 读取业务约定；随本页「保存」一并写入（导入不会覆盖）</div>
+                </el-form-item>
+              </el-col>
               <el-col :md="12" :span="24">
                 <el-form-item label="状态">
                   <el-radio-group v-model="meta.apiStatus">
@@ -153,6 +165,9 @@ const meta = reactive({
   apiStatus: '1'
 })
 
+/** 造流设计提示：编辑区为换行分隔文本，保存时拆成 hints 数组 */
+const designHintsText = ref('')
+
 /** 接口薄鉴权标签（落库 auth_config） */
 const auth = reactive({
   mode: 'inherit',
@@ -237,12 +252,40 @@ function normalizeResponseConfigForSave(text) {
   }
 }
 
+function parseDesignHintsFromDetail(d) {
+  const raw = d?.designHints
+  if (raw == null || raw === '') return ''
+  try {
+    const obj = typeof raw === 'string' ? JSON.parse(raw) : raw
+    const hints = Array.isArray(obj?.hints) ? obj.hints : Array.isArray(obj) ? obj : []
+    return hints.map((h) => String(h ?? '').trim()).filter(Boolean).join('\n')
+  } catch {
+    return typeof raw === 'string' ? raw : ''
+  }
+}
+
+function designHintsListFromText(text) {
+  return String(text ?? '')
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+}
+
+/** 随主表单 PUT 落库的 design_hints JSON（空列表可清空） */
+function buildDesignHintsJson(text) {
+  return JSON.stringify({
+    hints: designHintsListFromText(text),
+    source: 'manual'
+  })
+}
+
 function syncMetaFromDetail(d) {
   meta.apiName = d.apiName ?? ''
   meta.apiDescription = d.apiDescription ?? ''
   meta.protocolType = d.protocolType ?? ''
   const s = d.apiStatus
   meta.apiStatus = s === '0' || s === 0 || s === false ? '0' : '1'
+  designHintsText.value = parseDesignHintsFromDetail(d)
   responseConfigText.value = formatJsonForEdit(d.responseConfig)
   const parsedAuth = parseAuthConfig(d.authConfig)
   auth.mode = parsedAuth.mode
@@ -288,6 +331,7 @@ function handleSaveDesign() {
   }
 
   saving.value = true
+  const designHintsJson = buildDesignHintsJson(designHintsText.value)
   const payload = {
     testProjectApiId: props.apiDetail.testProjectApiId,
     testProjectId: props.apiDetail.testProjectId,
@@ -304,20 +348,20 @@ function handleSaveDesign() {
     responseConfig: responseConfigStr,
     preRequestScript: part.preRequestScript ?? '',
     postRequestScript: part.postRequestScript ?? '',
-    authConfig: authConfigStr
+    authConfig: authConfigStr,
+    designHints: designHintsJson
   }
 
   updateTestProjectApi(payload)
       .then((res) => {
         if (res.code === 200) {
           proxy.$modal.msgSuccess('保存成功')
-          const merged = {...props.apiDetail, ...payload}
-          emit('saved', merged)
+          emit('saved', {...props.apiDetail, ...payload})
         } else {
           proxy.$modal.msgError(res.msg || '保存失败')
         }
       })
-      .catch(() => {})
+      .catch((err) => proxy?.$modal?.msgError?.(err?.message || err?.msg || '保存失败'))
       .finally(() => {
         saving.value = false
       })
@@ -398,6 +442,13 @@ function handleSaveDesign() {
   font-size: 12px;
   font-weight: 400;
   color: var(--pd-text-muted, #5a6b86);
+}
+
+.design-hints-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--pd-text-muted, #5a6b86);
+  line-height: 1.4;
 }
 
 .design-field-desc {

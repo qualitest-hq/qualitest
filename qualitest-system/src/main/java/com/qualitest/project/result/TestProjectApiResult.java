@@ -117,6 +117,13 @@ public class TestProjectApiResult implements Serializable {
     private String bizCodeConfig;
 
     /**
+     * 造流设计提示 JSON。
+     * 典型字段：hints（短文本列表）、source、updatedAt。
+     * 人机可维护；接口导入不覆盖。详情接口按库中原值返回。
+     */
+    private String designHints;
+
+    /**
      * 接口鉴权标签 JSON。
      * 表示该接口是否免登录、是否指定鉴权配置；详情与列表接口原样返回。
      */

@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
  * <p>
  * 新增：上传包规范化并补 example 后全量写入。<br>
  * 更新：request/response 做结构合并；headers、cookies、前后置脚本本地非空则保留；
- * biz_code_config、test_value_config 不由上传包整段替换（test_value_config 由合并服务按字段更新）；
+ * biz_code_config、design_hints、test_value_config 不由上传包整段替换（test_value_config 由合并服务按字段更新）；
  * 上传包若带 auth，则覆盖写入鉴权标签；命中项目匿名 path 则 mode=none；
  * inherit 且未指定 authProfileId 时按项目鉴权配置回填。
  * 若 uploadType=project 且项目鉴权配置为空，则写入通用单套 Bearer 种子（不分端、无匿名 path）。
@@ -457,7 +457,7 @@ public class ApiImportServiceImpl implements IApiImportService {
 
     /**
      * 更新导入时处理覆盖层：headers、cookies、前后置脚本本地非空则跳过写入。
-     * biz_code_config 本方法不读写。
+     * biz_code_config、design_hints 本方法不读写。
      */
     private void applyUserLayerFieldsOnUpdate(TestProjectApi api, ApiImportParams.ApiImportItem item) {
         ApiImportUserConfigSupport.applyJsonFieldOnUpdate(

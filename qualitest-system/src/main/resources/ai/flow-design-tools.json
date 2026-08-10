@@ -24,7 +24,7 @@
     "type": "function",
     "function": {
       "name": "get_api_detail",
-      "description": "获取单个 API 的 path/query/header/body 参数摘要（含 required）、body 示例、响应 schema 一层摘要；另返回项目响应约定 responseConvention、建议 extracts（suggestedExtracts），以及鉴权 auth/headerHint（与平台补头同一套）",
+      "description": "获取单个 API 的 path/query/header/body 参数摘要（含 required）、body 示例、响应 schema 一层摘要；另返回 designHints（造流设计提示，必读）、项目响应约定 responseConvention、建议 extracts（suggestedExtracts），以及鉴权 auth/headerHint（与平台补头同一套）",
       "parameters": {
         "type": "object",
         "properties": {
@@ -34,6 +34,28 @@
           }
         },
         "required": ["testProjectApiId"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "append_api_design_hints",
+      "description": "向接口 design_hints 追加造流设计提示并直接落库（人机均可维护；导入不覆盖）。确认业务约定（如 body 字段二选一、金额符号）后调用；勿写入 apiDescription。每条尽量短（≤200 字）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testProjectApiId": {
+            "type": "string",
+            "description": "项目 API ID"
+          },
+          "hints": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "待追加的短提示列表"
+          }
+        },
+        "required": ["testProjectApiId", "hints"]
       }
     }
   },

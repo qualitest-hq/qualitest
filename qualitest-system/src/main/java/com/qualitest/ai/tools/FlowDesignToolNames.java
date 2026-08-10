@@ -3,10 +3,10 @@ package com.qualitest.ai.tools;
 import java.util.Arrays;
 
 /**
- * 测试流 AI 设计工具名注册表（共 15 个）。
+ * 测试流 AI 设计工具名注册表（共 16 个）。
  * <p>
  * 每个工具两个开关：webAgent（Web「AI 设计」助手是否可见）、mcpAllowed（MCP 是否可调用）。
- * Web 暴露 13 个（含画布提交与素材写入）；MCP 暴露 13 个只读（含按项目列流、读流，不含画布提交与素材写入）。
+ * Web 暴露 14 个（含画布提交、素材写入、设计提示 append）；MCP 暴露 13 个只读（含按项目列流、读流，不含写类工具）。
  * 启动时校验：本枚举、执行器注册表、工具 JSON 定义三者工具名集合相同。
  */
 public enum FlowDesignToolNames {
@@ -23,6 +23,11 @@ public enum FlowDesignToolNames {
      * 仅 Web 助手可见；MCP 不可调用。
      */
     UPSERT_ASSET_VARIABLES("upsert_asset_variables", true, false),
+    /**
+     * 向接口 design_hints 追加造流设计提示（直接落库）。
+     * 仅 Web 助手可见；MCP 不可调用（只读经 get_api_detail）。
+     */
+    APPEND_API_DESIGN_HINTS("append_api_design_hints", true, false),
     GET_NODE_DETAIL("get_node_detail", true, true),
     GET_RUN_FAILURE("get_run_failure", true, true),
     /**

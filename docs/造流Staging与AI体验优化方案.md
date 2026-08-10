@@ -1,7 +1,7 @@
 # 造流 Staging 与 AI 体验优化方案
 
 > 来源：全面测试手册 **T1** 冒烟（`smoke-S01` §10.1 等）现场摩擦。  
-> 状态：**H2 已落地**（pending 保存挡板）；其余项待落地。  
+> 状态：**H2 / H4(design_hints) 已落地**；H1 已有批量确认；H3 与 H4 其余项待落地。  
 > 相关：`docs/全面测试手册.md` §F #11 / #17 / #18 / #19；项目鉴权补头见 `docs/test-flow-nodes.md`「项目鉴权」。
 
 ---
@@ -179,7 +179,7 @@ pending > 0 且非 skipPendingWarning
 
 ---
 
-## 5. H4 · 业务语义约束（少让模型猜）
+## 5. H4 · 业务语义约束（踩坑沉淀，非自动预知）
 
 ### 5.1 现场案例
 
@@ -190,36 +190,23 @@ pending > 0 且非 skipPendingWarning
 
 代码侧已有部分兜底：`normalizeOverridesShape`、资产默认 body 修正（§F #13/#18）。断言符号仍靠模型（§F #19）。
 
-### 5.2 推荐方案
+**定位**：平台无法「提前获取」任意业务语义；H4 落地为**人机可写、导入不覆盖**的接口 `design_hints`，供下次 `get_api_detail` 必读。
 
-**A. 项目级「造流约定」短文（只读注入）**
+### 5.2 已落地：`design_hints`
 
-- 存在项目设置或 `test_project` 扩展字段 / 文档资产：`aiFlowConventions`（≤2KB 纯文本）。
-- Demo 种子写入商城约定摘要（结算二选一、流水符号、客户端 Bearer 用 `{{flow.token}}` 等）。
-- `TestFlowDesignAgent` system 或首条 tool result 注入该约定。
+- 表列 `test_project_api.design_hints`（JSON：`hints` / `source` / `updatedAt`）。
+- **插件/OpenAPI 导入不读写**（对齐 `biz_code_config`）；**勿**写入 `apiDescription`（导入会盖掉）。
+- 造流工具 `append_api_design_hints`（Web，直接 append 落库）；详情页手改随主表单 `PUT` 一并写 `designHints`（不另开接口）。
+- `get_api_detail` 返回 `designHints` 字符串数组。
 
-**B. 接口资产注释 / OpenAPI extension（更准）**
-
-- 在易错 API（结算预览、创建订单、余额流水）的 description 或 `x-qualitest-hints` 写 1～3 条：
-  - `body: cartIds XOR items`
-  - `changeAmount is absolute; sign via changeType`
-- `get_api_detail` 摘要**必须带上** hints。
-
-**C. 设计期轻量校验（提交 Staging 前）**
-
-- Normalizer / `submit_flow_design_patch` 校验：
-  - 若 body 同时含非空 `cartIds` 与 `items` → **warning 或 error**（建议 warning + 自动删 `items` 若意图为 cart 结算，需产品拍板）。
-- 不在引擎 Run 期才首次发现。
-
-**D. 提示集同步**
-
-- `qualitest-demo/docs/ai-test-flow-prompts.md` §10.1 等正文补一句流水约定，避免下轮冒烟再踩。
+未纳入本轮：项目级长文约定、submit 期双字段自动删 `items`、Demo 种子批量灌入。
 
 ### 5.3 验收
 
-- [ ] 不写特殊提示时，从零搭 S01 购物流：结算/下单 body 无双字段；余额断言用正数金额。
-- [ ] 故意双传时，submit 阶段有明确 warning/error。
-- [ ] §F #18/#19 保持关闭；约定变更时只改种子/文档。
+- [x] 接口详情可编辑造流设计提示；保存后再次打开仍在；重新导入 OpenAPI 不丢。
+- [x] `get_api_detail` 带出 `designHints`；工具可 append。
+- [ ] Demo/冒烟约定可逐步写入相关 API 的 design_hints（人工或修复轮）。
+- [ ] 双字段 submit warning / 自动删 items：仍待产品拍板。
 
 ---
 
@@ -253,4 +240,4 @@ pending > 0 且非 skipPendingWarning
 | H2 默认挡还是默认「仅保存已确认」 | **默认挡 + 三选一**（去确认 / 仅保存已确认 / 取消）；偏好 `blockWhenStagingPending` 默认关可强制先确认 | 2026-08-10 |
 | H1 是否要 Phase C 一键信任 | | |
 | H3 未 submit 是硬失败还是自动收束 1 轮 | | |
-| H4 双字段是 warning 还是自动删 items | | |
+| H4 双字段是 warning 还是自动删 items | **暂缓**；本轮先落地接口 `design_hints`（人机可写、导入不覆盖），不作自动删字段 | 2026-08-10 |

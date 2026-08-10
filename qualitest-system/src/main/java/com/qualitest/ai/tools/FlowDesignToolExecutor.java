@@ -2,6 +2,7 @@ package com.qualitest.ai.tools;
 
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
+import com.qualitest.ai.tools.flow.AppendApiDesignHintsTool;
 import com.qualitest.ai.tools.flow.FlowGraphContextResolver;
 import com.qualitest.ai.tools.flow.GetApiDetailTool;
 import com.qualitest.ai.tools.flow.GetFlowApiHealthTool;
@@ -26,6 +27,7 @@ import com.qualitest.project.service.ITestFlowRunStepService;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectAssetService;
 import com.qualitest.project.service.ITestProjectEnvService;
+import com.qualitest.project.support.TestProjectApiDesignHintsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -60,6 +62,8 @@ public class FlowDesignToolExecutor {
     public static final String LIST_ASSET_VARIABLES = FlowDesignToolNames.LIST_ASSET_VARIABLES.getId();
     /** 工具名：按 key 新增或更新素材并落盘；回执不含明文；仅 Web */
     public static final String UPSERT_ASSET_VARIABLES = FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId();
+    /** 工具名：向接口 design_hints 追加造流提示；直接落库；仅 Web */
+    public static final String APPEND_API_DESIGN_HINTS = FlowDesignToolNames.APPEND_API_DESIGN_HINTS.getId();
     public static final String GET_NODE_DETAIL = FlowDesignToolNames.GET_NODE_DETAIL.getId();
     public static final String GET_RUN_FAILURE = FlowDesignToolNames.GET_RUN_FAILURE.getId();
     /**
@@ -85,7 +89,8 @@ public class FlowDesignToolExecutor {
                                   ITestFlowRunStepService testFlowRunStepService,
                                   FlowDesignPatchNormalizer flowDesignPatchNormalizer,
                                   HttpNodeApiHealthChecker httpNodeApiHealthChecker,
-                                  ITestProjectAssetService testProjectAssetService) {
+                                  ITestProjectAssetService testProjectAssetService,
+                                  TestProjectApiDesignHintsService designHintsService) {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         Map<String, QualitestTool> map = new HashMap<>();
         map.put(SEARCH_APIS, new SearchApisTool(testProjectApiMapper, testProjectMapper));
@@ -100,6 +105,7 @@ public class FlowDesignToolExecutor {
         // 素材库：列举（只读）与按 key 写入（仅 Web）
         map.put(LIST_ASSET_VARIABLES, new ListAssetVariablesTool(testProjectMapper));
         map.put(UPSERT_ASSET_VARIABLES, new UpsertAssetVariablesTool(testProjectAssetService));
+        map.put(APPEND_API_DESIGN_HINTS, new AppendApiDesignHintsTool(testProjectApiMapper, designHintsService));
         map.put(GET_NODE_DETAIL, new GetNodeDetailTool(graphResolver));
         map.put(GET_RUN_FAILURE, new GetRunFailureTool(testFlowRunService, testFlowRunStepService));
         // 语义健康：优先用注入的检查器，单测未注入时 new 一个默认实例
