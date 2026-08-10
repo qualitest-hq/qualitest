@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 HttpNodeHandler：绑定 API / 外联转发、extracts、preScript、业务码与 RunSession Cookie。
+ * 测 HttpNodeHandler：绑定 API / 外联转发、extracts（含 setCookie）、preScript、业务码。
  * 边界：依赖 Mock，不发真实网络。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpNodeHandlerTest
  */
@@ -248,13 +248,13 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * 前提：useRunSession=true；响应含 Set-Cookie。
-     * 期望：passed；runSession 非空；result.http 含 runSessionCookies。
+     * 前提：登录响应含 Set-Cookie；节点 extracts 用 from=setCookie。
+     * 期望：passed；flow 写入 Cookie 值。
      */
     @Test
     @Order(8)
-    @DisplayName("会话：useRunSession 吸收 Set-Cookie")
-    void execute_useRunSession_absorbsCookies() {
+    @DisplayName("提取：setCookie 写入 flow")
+    void execute_setCookieExtract_writesFlow() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
@@ -263,19 +263,27 @@ class HttpNodeHandlerTest {
         when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
         when(forwardService.forward(any())).thenReturn(
                 DebugHttpForwardResult.success(200, "OK",
-                        Map.of("Set-Cookie", "sid=abc; Path=/"), "{\"code\":200}")
+                        Map.of("Set-Cookie", "JSESSIONID=abc; Path=/"), "{\"code\":200}")
         );
 
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("extracts", List.of(Map.of(
+                "from", "setCookie",
+                "expr", "JSESSIONID",
+                "name", "sid",
+                "scope", "flow"
+        )));
         GraphNode node = GraphNode.builder()
                 .id("n-cookie")
                 .type("http")
-                .data(Map.of("callMode", "project", "testProjectApiId", "1001", "useRunSession", true))
+                .data(data)
                 .build();
 
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
-        assertNotNull(result.getHttp().get("runSessionCookies"));
-        assertFalse(ctx.getRunSession().isEmpty());
+        assertEquals("abc", ctx.getFlow().get("sid"));
     }
 
     /**

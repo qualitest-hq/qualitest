@@ -55,6 +55,8 @@ class AuthHeaderHintSupportTest {
         assertEquals("Bearer {{flow.token}}", hint.getString("valueTemplate"));
         assertEquals("clientBearer", hint.getString("profileId"));
         assertEquals("token", hint.getString("flowKey"));
+        assertEquals("body", hint.getString("from"));
+        assertEquals("$.data.token", hint.getString("expr"));
     }
 
     /**

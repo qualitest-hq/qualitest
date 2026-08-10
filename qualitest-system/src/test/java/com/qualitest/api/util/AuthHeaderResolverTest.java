@@ -191,7 +191,7 @@ class AuthHeaderResolverTest {
      * 期望：skip。
      */
     @Test
-    @Order(7)
+    @Order(8)
     @DisplayName("项目鉴权空则 skip")
     void resolve_emptyProjectAuth_skips() {
         AuthHeaderResolver.ResolvedAuthHeader resolved =
@@ -200,5 +200,39 @@ class AuthHeaderResolverTest {
                         null,
                         "/api/orders");
         assertTrue(resolved.skipped());
+    }
+
+    /**
+     * 前提：项目 Profile 托管 Cookie 头；接口 inherit。
+     * 期望：补 Cookie: name={{flow.sid}}，与 Authorization 同一套 apply。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("Cookie Profile 补托管 Cookie 头")
+    void resolve_cookieProfile_appliesCookieHeader() {
+        String projectAuth = """
+                {
+                  "defaultProfileId":"sessionCookie",
+                  "authProfiles":[{
+                    "id":"sessionCookie",
+                    "name":"会话 Cookie",
+                    "header":{"name":"Cookie","valueTemplate":"JSESSIONID={{flow.sid}}"},
+                    "loginHint":{"flowKey":"sid","from":"setCookie","expr":"JSESSIONID"}
+                  }]
+                }
+                """;
+        AuthHeaderResolver.ResolvedAuthHeader resolved =
+                AuthHeaderResolver.resolve(
+                        ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder().mode("inherit").build()),
+                        projectAuth,
+                        "/app/home");
+        assertFalse(resolved.skipped());
+        assertEquals("Cookie", resolved.name());
+        assertEquals("JSESSIONID={{flow.sid}}", resolved.valueTemplate());
+        AuthHeaderResolver.ApplyResult applied =
+                AuthHeaderResolver.applyToHeaderRows(List.of(), resolved);
+        assertTrue(applied.changed());
+        assertEquals(true, applied.headers().get(0).get(AuthHeaderResolver.PROFILE_MANAGED));
+        assertEquals("Cookie", applied.headers().get(0).get("name"));
     }
 }

@@ -8,8 +8,8 @@ import java.util.Map;
 /**
  * 单次 Run 运行时上下文。
  * <p>
- * 持有 env / flow / asset / session、Cookie Jar、外联权限、项目 ID，
- * 以及项目响应约定（responseConvention），供 HTTP 节点校验 body 业务码。
+ * 持有 env / flow / asset / session、外联权限、项目 ID，
+ * 以及项目响应约定（responseConvention）、项目鉴权配置（projectAuthConfig）。
  */
 @Getter
 @Setter
@@ -35,12 +35,6 @@ public class FlowRunContext {
      */
     @Builder.Default
     private Map<String, Object> session = new HashMap<>();
-
-    /**
-     * Run 级 Cookie Jar，多步 HTTP 共享（useRunSession）。
-     */
-    @Builder.Default
-    private com.qualitest.flow.session.FlowRunSession runSession = new com.qualitest.flow.session.FlowRunSession();
 
     /**
      * 当前执行所处的子流深度：主流程 0，每进入一层子流 +1。

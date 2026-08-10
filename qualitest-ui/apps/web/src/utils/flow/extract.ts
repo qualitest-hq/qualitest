@@ -1,5 +1,5 @@
 /**
- * HTTP 响应提取：从 body/header/status 取值并写入 flow / env / asset。
+ * HTTP 响应提取：从 body/header/status/setCookie 取值并写入 flow / env / asset。
  * http 节点 data.extracts[] 的配置与执行均经此模块。
  */
 import type { FlowRunContext, HttpResponseSnapshot } from './types';
@@ -7,9 +7,9 @@ import { simpleJsonPath } from './placeholder';
 
 /** 单条提取配置（对应 http 节点 data.extracts[] 元素） */
 export interface ExtractTarget {
-  /** 提取来源：body | header | status | regex（regex 暂未实现） */
+  /** 提取来源：body | header | status | setCookie | regex（regex 暂未实现） */
   from?: string;
-  /** body 时为 $. 开头的 JsonPath；header 时为头名称 */
+  /** body 时为 $. 开头的 JsonPath；header 时为头名称；setCookie 时为 Cookie 名 */
   expr?: string;
   /** 写入作用域：flow | env | asset */
   scope?: string;
@@ -39,6 +39,7 @@ export const EXTRACT_SCOPES = [
 export const EXTRACT_FROM_OPTIONS = [
   { value: 'body', label: 'Body · JsonPath' },
   { value: 'header', label: 'Header' },
+  { value: 'setCookie', label: 'Set-Cookie' },
   { value: 'regex', label: 'Regex' },
   { value: 'status', label: 'Status 状态码' },
 ] as const;
@@ -95,6 +96,29 @@ function resolveHeaderValue(
   return undefined;
 }
 
+/** 从 Set-Cookie 按 Cookie 名取值（忽略 Path/HttpOnly 等属性） */
+function resolveSetCookieValue(
+  headers: Record<string, unknown> | undefined,
+  cookieName: string,
+): unknown {
+  if (!headers || !cookieName) return undefined;
+  for (const [k, v] of Object.entries(headers)) {
+    if (!k || k.toLowerCase() !== 'set-cookie') continue;
+    const raws = Array.isArray(v) ? v : [v];
+    for (const raw of raws) {
+      if (raw == null) continue;
+      const first = String(raw).split(';', 2)[0].trim();
+      const eq = first.indexOf('=');
+      if (eq <= 0) continue;
+      const name = first.slice(0, eq).trim();
+      if (name === cookieName) {
+        return first.slice(eq + 1).trim();
+      }
+    }
+  }
+  return undefined;
+}
+
 /** 按 scope 将提取值写入 ctx；未取到值时存 null */
 function writeExtractValue(
   ctx: FlowRunContext,
@@ -138,6 +162,8 @@ export function applyExtracts(
       val = simpleJsonPath(response.body, ex.expr ?? '');
     } else if (ex.from === 'header') {
       val = resolveHeaderValue(response.headers, ex.expr ?? '');
+    } else if (ex.from === 'setCookie') {
+      val = resolveSetCookieValue(response.headers, ex.expr ?? '');
     } else if (ex.from === 'status') {
       val = response.status;
     } else {

@@ -34,7 +34,7 @@ Two paths via `data.callMode`, sharing forward + `extracts`:
 Common features:
 
 - Placeholder resolution on params / body (`flow` / `env` / `session`, …)
-- Optional `useRunSession=true`: Run-level Cookie Jar inject / capture
+- Optional project auth managed headers (`profileManaged`): Bearer or Cookie via project `authProfiles`; login extracts may use `from=setCookie`. Node `useRunSession` is retired (ignored).
 - Success checks: non-2xx HTTP status fails first; optional business-code allowlist (`successCheck`)
 - On success: write `lastResponse`, then run `extracts`
 

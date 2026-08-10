@@ -17,10 +17,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * 测 ExtractApplicator：HTTP 响应变量提取写入 env/flow/asset。
- * 边界：fixture compare-extract-cases.json；无 DB。
+ * 边界：fixture compare-extract-cases.json；setCookie；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ExtractApplicatorTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -78,6 +79,63 @@ class ExtractApplicatorTest {
             // flow / env / asset 写入结果
             assertScopeAfter(c, ctx, id);
         }
+    }
+
+    /**
+     * 前提：响应 Set-Cookie 含 Path/HttpOnly，头名大小写混用。
+     * 期望：from=setCookie 按 Cookie 名写入 flow，忽略属性段。
+     */
+    @Test
+    @Order(2)
+    @DisplayName("提取：setCookie 解析名值并写入 flow")
+    void apply_setCookie_writesFlow() {
+        FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>()).build();
+        Map<String, Object> headers = new HashMap<>();
+        headers.put("Set-Cookie", "JSESSIONID=abc123; Path=/; HttpOnly");
+        FlowRunContext.HttpResponseSnapshot snap = FlowRunContext.HttpResponseSnapshot.builder()
+                .status(200)
+                .headers(headers)
+                .body("{}")
+                .build();
+
+        JSONArray extracts = JSON.parseArray("""
+                [{"from":"setCookie","expr":"JSESSIONID","name":"sid","scope":"flow"}]
+                """);
+        List<JSONObject> applied = ExtractApplicator.apply(extracts, ctx, snap);
+
+        assertEquals(1, applied.size());
+        assertEquals("abc123", applied.get(0).get("value"));
+        assertEquals("abc123", ctx.getFlow().get("sid"));
+    }
+
+    /**
+     * 前提：Set-Cookie 头名小写；expr 指向不存在的 Cookie。
+     * 期望：值为 null，仍写入 applied（与其它 from 缺值行为一致）。
+     */
+    @Test
+    @Order(3)
+    @DisplayName("提取：setCookie 缺名或头名大小写不敏感")
+    void apply_setCookie_missingName_null() {
+        FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>()).build();
+        Map<String, Object> headers = new HashMap<>();
+        headers.put("set-cookie", "sid=xyz; Path=/");
+        FlowRunContext.HttpResponseSnapshot snap = FlowRunContext.HttpResponseSnapshot.builder()
+                .status(200)
+                .headers(headers)
+                .body("{}")
+                .build();
+
+        JSONArray ok = JSON.parseArray("""
+                [{"from":"setCookie","expr":"sid","name":"sid","scope":"flow"}]
+                """);
+        assertEquals("xyz", ExtractApplicator.apply(ok, ctx, snap).get(0).get("value"));
+
+        FlowRunContext ctx2 = FlowRunContext.builder().flow(new HashMap<>()).build();
+        JSONArray missing = JSON.parseArray("""
+                [{"from":"setCookie","expr":"other","name":"other","scope":"flow"}]
+                """);
+        assertNull(ExtractApplicator.apply(missing, ctx2, snap).get(0).get("value"));
+        assertNull(ctx2.getFlow().get("other"));
     }
 
     /**

@@ -77,7 +77,8 @@ public final class ProjectAuthConfigSupport {
                                         .build())
                                 .loginHint(LoginHint.builder()
                                         .flowKey("token")
-                                        .extractJsonPath("$.token")
+                                        .from("body")
+                                        .expr("$.token")
                                         .build())
                                 .build()
                 ))
@@ -106,7 +107,8 @@ public final class ProjectAuthConfigSupport {
                                         .build())
                                 .loginHint(LoginHint.builder()
                                         .flowKey("token")
-                                        .extractJsonPath("$.data.token")
+                                        .from("body")
+                                        .expr("$.data.token")
                                         .build())
                                 .build(),
                         ProjectAuthProfile.builder()
@@ -121,7 +123,8 @@ public final class ProjectAuthConfigSupport {
                                         .build())
                                 .loginHint(LoginHint.builder()
                                         .flowKey("adminToken")
-                                        .extractJsonPath("$.token")
+                                        .from("body")
+                                        .expr("$.token")
                                         .build())
                                 .build()
                 ))
@@ -266,6 +269,38 @@ public final class ProjectAuthConfigSupport {
             return null;
         }
         return StrUtil.trimToNull(profile.getLoginHint().getFlowKey());
+    }
+
+    /**
+     * 登录抽取来源（与 extracts.from 对齐）。
+     * 仅有旧字段 {@code extractJsonPath} 时视为 {@code body}。
+     */
+    public static String resolveLoginExtractFrom(LoginHint hint) {
+        if (hint == null) {
+            return null;
+        }
+        String from = StrUtil.trimToNull(hint.getFrom());
+        if (from != null) {
+            return from;
+        }
+        if (StrUtil.isNotBlank(hint.getExtractJsonPath())) {
+            return "body";
+        }
+        return null;
+    }
+
+    /**
+     * 登录抽取表达式：优先 {@code expr}；否则回退旧 {@code extractJsonPath}。
+     */
+    public static String resolveLoginExtractExpr(LoginHint hint) {
+        if (hint == null) {
+            return null;
+        }
+        String expr = StrUtil.trimToNull(hint.getExpr());
+        if (expr != null) {
+            return expr;
+        }
+        return StrUtil.trimToNull(hint.getExtractJsonPath());
     }
 
     /**

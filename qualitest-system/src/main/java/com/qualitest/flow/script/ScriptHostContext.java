@@ -31,7 +31,7 @@ import java.util.UUID;
  * <b>外联 HTTP</b>：{@code ctx.http({method, url, headers?, body?, timeoutMs?})}，组装规则与 external HTTP 节点相同，
  * 单步调用次数上限见 {@link ScriptConstants#MAX_HTTP_CALLS_PER_SCRIPT}。
  * <p>
- * <b>Run 会话</b>：{@code ctx.session.get/set}，与 HTTP {@code useRunSession} 共用 {@link com.qualitest.flow.session.FlowRunSession}。
+ * <b>Run 会话</b>：{@code ctx.session.get/set}，读写 {@link FlowRunContext#getSession()}（通用 KV，非 HTTP Cookie Jar）。
  * 每次 {@code setFlow} 记录 key/before/after 到 {@link #getWrites()} 供步骤报告展示。
  */
 public class ScriptHostContext implements ProxyObject {

@@ -60,7 +60,6 @@ public final class FlowRunContextBuilder {
                 .flow(flow)
                 .testProjectId(testProjectId)
                 .externalHttpPermitted(externalHttpPermitted)
-                .runSession(new com.qualitest.flow.session.FlowRunSession())
                 .build();
     }
 

@@ -42,6 +42,16 @@ public final class AuthHeaderHintSupport {
         if (StrUtil.isNotBlank(flowKey)) {
             hint.put("flowKey", flowKey);
         }
+        if (profile != null && profile.getLoginHint() != null) {
+            String from = ProjectAuthConfigSupport.resolveLoginExtractFrom(profile.getLoginHint());
+            String expr = ProjectAuthConfigSupport.resolveLoginExtractExpr(profile.getLoginHint());
+            if (StrUtil.isNotBlank(from)) {
+                hint.put("from", from);
+            }
+            if (StrUtil.isNotBlank(expr)) {
+                hint.put("expr", expr);
+            }
+        }
         target.put("headerHint", hint);
     }
 

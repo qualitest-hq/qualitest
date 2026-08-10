@@ -1,6 +1,5 @@
 package com.qualitest.flow.context;
 
-import com.qualitest.flow.session.FlowRunSession;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -10,7 +9,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * 测 FlowRunContextPersistence：上下文 Map 往返序列化。
@@ -21,20 +19,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 class FlowRunContextPersistenceTest {
 
     /**
-     * 前提：ctx 含 flow / env / cookies / testProjectId。
-     * 期望：toMap → fromMap 后字段完整保留，会话非空。
+     * 前提：ctx 含 flow / env / session / testProjectId。
+     * 期望：toMap → fromMap 后字段完整保留。
      */
     @Test
     @Order(1)
-    @DisplayName("往返：保留 flow、env、cookies 与项目 id")
-    void roundTrip_preservesFlowAndCookies() {
-        FlowRunSession session = new FlowRunSession();
-        session.getCookies().put("sid", "abc");
-
+    @DisplayName("往返：保留 flow、env、session 与项目 id")
+    void roundTrip_preservesScopes() {
         FlowRunContext ctx = FlowRunContext.builder()
                 .flow(Map.of("code", 0))
                 .env(Map.of("baseUrl", "http://localhost"))
-                .runSession(session)
+                .session(Map.of("cached", "token-1"))
                 .testProjectId(42L)
                 .build();
 
@@ -42,7 +37,6 @@ class FlowRunContextPersistenceTest {
         assertEquals(0, restored.getFlow().get("code"));
         assertEquals("http://localhost", restored.getEnv().get("baseUrl"));
         assertEquals(42L, restored.getTestProjectId());
-        assertEquals("abc", restored.getRunSession().getCookies().get("sid"));
-        assertFalse(restored.getRunSession().isEmpty());
+        assertEquals("token-1", restored.getSession().get("cached"));
     }
 }

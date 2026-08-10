@@ -34,8 +34,7 @@
 常用能力：
 
 - 占位符解析请求参数 / 体（`flow` / `env` / `session` 等）
-- 可选 `useRunSession=true`：Run 级 Cookie Jar 注入与吸收（**不能**代替 Bearer）
-- **项目鉴权补头**：`project` 模式按接口 `auth` + 项目 `authProfiles` 补/刷新托管头（`profileManaged`）；客户端 `Bearer {{flow.token}}`、管理端 `Bearer {{flow.adminToken}}`；`auth.mode=none` 不加头；人手显式头不覆盖。画布顶栏「刷新鉴权头」可按当前项目配置批量提案写回托管头（经 Staging 确认）；Run 鉴权失败用「AI 修复」对话改图。详见 [鉴权注入与Bearer方案.md](./鉴权注入与Bearer方案.md)
+- **项目鉴权补头**：`project` 模式按接口 `auth` + 项目 `authProfiles` 补/刷新托管头（`profileManaged`）；可为 `Authorization: Bearer {{flow.token}}` 或 `Cookie: …={{flow.*}}`；`auth.mode=none` 不加头；人手显式头不覆盖。登录抽凭证用 extracts（`from=body` 或 `from=setCookie`），与 Profile `loginHint.from/expr` 对齐。**不要**再写节点 `useRunSession`（已忽略）。画布顶栏「刷新鉴权头」可按当前项目配置批量提案写回托管头（经 Staging 确认）；Run 鉴权失败用「AI 修复」对话改图。详见 [鉴权注入与Bearer方案.md](./鉴权注入与Bearer方案.md)
 - 成功判定：先 HTTP 状态码非 2xx 失败；再可选业务码白名单（`successCheck`）
 - 通过后写入 `lastResponse`，再执行 `extracts`
 

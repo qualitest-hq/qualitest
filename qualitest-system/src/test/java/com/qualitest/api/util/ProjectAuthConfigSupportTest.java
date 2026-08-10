@@ -134,4 +134,33 @@ class ProjectAuthConfigSupportTest {
         assertFalse(ProjectAuthConfigSupport.matchesAnonymousPath("/api/account/auth/profile", cfg));
         assertFalse(ProjectAuthConfigSupport.matchesAnonymousPath("/system/user/list", cfg));
     }
+
+    /**
+     * 前提：种子 loginHint 使用 from+expr。
+     * 期望：resolve 读出 body + JSONPath；旧 extractJsonPath  alone 可回退。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("loginHint：from+expr 与旧 extractJsonPath 兼容")
+    void resolveLoginExtract_fromExpr_andLegacy() {
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.defaultBearerTemplate();
+        var hint = cfg.getAuthProfiles().get(0).getLoginHint();
+        assertEquals("body", ProjectAuthConfigSupport.resolveLoginExtractFrom(hint));
+        assertEquals("$.token", ProjectAuthConfigSupport.resolveLoginExtractExpr(hint));
+
+        var legacy = ProjectAuthConfig.LoginHint.builder()
+                .flowKey("token")
+                .extractJsonPath("$.data.token")
+                .build();
+        assertEquals("body", ProjectAuthConfigSupport.resolveLoginExtractFrom(legacy));
+        assertEquals("$.data.token", ProjectAuthConfigSupport.resolveLoginExtractExpr(legacy));
+
+        var cookie = ProjectAuthConfig.LoginHint.builder()
+                .flowKey("sid")
+                .from("setCookie")
+                .expr("JSESSIONID")
+                .build();
+        assertEquals("setCookie", ProjectAuthConfigSupport.resolveLoginExtractFrom(cookie));
+        assertEquals("JSESSIONID", ProjectAuthConfigSupport.resolveLoginExtractExpr(cookie));
+    }
 }

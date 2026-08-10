@@ -12,7 +12,7 @@ import java.util.Set;
  * Script 节点 {@code ctx.session} 的 GraalVM 代理。
  * <p>
  * {@code session.get(key)} / {@code session.set(key, value)} 读写 {@link FlowRunContext#getSession()}，
- * 与 HTTP 节点 {@code useRunSession} 的 Cookie Jar 同属 Run 级状态，跨步骤共享。
+ * 为 Run 级通用 KV（与 HTTP Cookie 鉴权无关；Cookie 走 extracts + 项目 Profile）。
  */
 public final class ScriptSessionHost implements ProxyObject {
 

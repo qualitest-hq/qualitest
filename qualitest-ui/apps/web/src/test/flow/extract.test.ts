@@ -119,4 +119,22 @@ describe('applyExtracts', () => {
       }
     }
   });
+
+  it('从 Set-Cookie 按名提取写入 flow', () => {
+    // 前提：响应 Set-Cookie 含 JSESSIONID；from=setCookie
+    // 期望：flow.sid 为 cookie 值
+    const ctx = cloneCtx();
+    const snap: HttpResponseSnapshot = {
+      status: 200,
+      headers: { 'Set-Cookie': 'JSESSIONID=abc123; Path=/; HttpOnly' },
+      body: {},
+    };
+    const applied = applyExtracts(
+      [{ from: 'setCookie', expr: 'JSESSIONID', name: 'sid', scope: 'flow' }],
+      ctx,
+      snap,
+    );
+    expect(applied[0].value).toBe('abc123');
+    expect(ctx.flow.sid).toBe('abc123');
+  });
 });

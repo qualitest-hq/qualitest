@@ -1,14 +1,12 @@
 package com.qualitest.flow.context;
 
-import com.qualitest.flow.session.FlowRunSession;
-
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * FlowRunContext 暂停/续跑时的序列化与反序列化。
  * <p>
- * 快照包含 env / flow / asset / session / Cookie、外联权限、项目 ID、子流深度，
+ * 快照包含 env / flow / asset / session、外联权限、项目 ID、子流深度，
  * 以及项目响应约定（responseConvention）、项目鉴权配置（projectAuthConfig），
  * 保证续跑后 HTTP 节点仍能按原约定校验业务码并补鉴权头。
  */
@@ -28,15 +26,9 @@ public final class FlowRunContextPersistence {
         map.put("session", ctx.getSession() != null ? new HashMap<>(ctx.getSession()) : new HashMap<>());
         map.put("externalHttpPermitted", ctx.isExternalHttpPermitted());
         map.put("testProjectId", ctx.getTestProjectId());
-        // 写入项目响应约定，续跑后仍按原约定校验业务码
         map.put("responseConvention", ctx.getResponseConvention());
         map.put("projectAuthConfig", ctx.getProjectAuthConfig());
         map.put("subflowDepth", ctx.getSubflowDepth());
-        if (ctx.getRunSession() != null && !ctx.getRunSession().isEmpty()) {
-            map.put("cookies", new HashMap<>(ctx.getRunSession().snapshot()));
-        } else {
-            map.put("cookies", new HashMap<>());
-        }
         return map;
     }
 
@@ -72,7 +64,6 @@ public final class FlowRunContextPersistence {
         }
         Object responseConvention = map.get("responseConvention");
         if (responseConvention != null) {
-            // 恢复项目响应约定（业务码路径与成功值列表）
             builder.responseConvention(String.valueOf(responseConvention));
         }
         Object projectAuthConfig = map.get("projectAuthConfig");
@@ -83,16 +74,6 @@ public final class FlowRunContextPersistence {
         if (depth instanceof Number n) {
             builder.subflowDepth(n.intValue());
         }
-        FlowRunSession runSession = new FlowRunSession();
-        Object cookies = map.get("cookies");
-        if (cookies instanceof Map<?, ?> cookieMap) {
-            cookieMap.forEach((k, v) -> {
-                if (k != null) {
-                    runSession.getCookies().put(String.valueOf(k), v != null ? String.valueOf(v) : "");
-                }
-            });
-        }
-        builder.runSession(runSession);
         return builder.build();
     }
 }

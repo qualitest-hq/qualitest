@@ -15,7 +15,7 @@
 
 ## 节点类型（必填 / 默认 / 硬拦）
 优先声明式节点：HTTP → Assert / Assign；分支用 Condition；复用用 Subflow；Script 仅作短胶水。
-- **http**：必填 `callMode`=`project`|`external`（空缺服务端默认 project）。project 须真实 `testProjectApiId`；external 须 `externalUrl`+`httpMethod`，禁止 `testProjectApiId`。可选 `useRunSession` 共享 Run Cookie；external 可选 pre/postScript。
+- **http**：必填 `callMode`=`project`|`external`（空缺服务端默认 project）。project 须真实 `testProjectApiId`；external 须 `externalUrl`+`httpMethod`，禁止 `testProjectApiId`。external 可选 pre/postScript。
 - **assert**：`rules` **不得为空**；左值见下方路径方言；operator 白名单见 submit 节。
 - **condition**：须有 `branches`（空缺服务端补默认 IF/ELSE）；IF/ELIF 的 conditions 规则同 assert。
 - **assign**：`assignments` **不得为空**；op∈`set|add|sub|mul|div`（空 op 默认 set）；只写 flow。
@@ -26,14 +26,15 @@
 ## 占位符与路径方言
 - 使用 `{{flow.*}}` / `{{asset.*}}` / `{{env.*}}`，禁止在节点 body / 助手正文写死密码、Token。
 - 登录口令：先 `list_asset_variables`；无合适 key 时用 `upsert_asset_variables` 提出写入提案（推荐 `clientAuth`，字段 `mobile`/`password`；**不立即落盘**，用户确认后才写入），HTTP 可先引用 `{{asset.clientAuth.mobile}}` / `{{asset.clientAuth.password}}`，并在回复中提醒用户确认素材提案后再 Run。勿为口令反复建 flowSeed 占位。
-- **鉴权（Bearer ≠ Cookie）**：
-  - 需登录的 project HTTP：Authorization 由服务端按项目鉴权配置补全（可写 `Bearer {{flow.token}}` / `Bearer {{flow.adminToken}}`）；**漏写也可**，不要因此阻塞造流。
-  - 客户端接口用 `flow.token`；管理端（`/system` 等）用 `flow.adminToken`；**勿混用**，勿把 `useRunSession`（Cookie）当成 Bearer。
-  - 免登录 / `auth.mode=none` 的接口：**不要**加 Authorization。
+- **鉴权（Bearer 与 Cookie 同一模型）**：
+  - 需登录的 project HTTP：鉴权头由服务端按项目 Profile 补全（`Authorization: Bearer {{flow.token}}` 或 `Cookie: …={{flow.*}}`）；**漏写也可**，不要因此阻塞造流。
+  - 客户端接口用 `flow.token`；管理端（`/system` 等）用 `flow.adminToken`；**勿混用**。
+  - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 `flow.*`；后续靠 Profile 托管 `Cookie` 头。**禁止**再写节点级会话勾选（旧字段 `useRunSession` 已忽略）。
+  - 免登录 / `auth.mode=none` 的接口：**不要**加鉴权托管头。
   - 越权等特殊用例：显式写死头且不要标托管，避免被项目配置覆盖。
-  - Token 只进 `flow.*`（登录 extracts 对齐 `token` / `adminToken`）；账号走素材。
+  - 凭证只进 `flow.*`（登录 extracts 对齐 Profile `loginHint.flowKey` / `from`+`expr`）；账号走素材。
 - **两套方言，勿混用：**
-  - extracts / 业务码：JsonPath，**必须以 `$` 开头**（如 `$.data.token`）。`data` 已是数组时写 `$.data[?…]` / `$.data[*].…`，**禁止** Schema 关键字 `$.data.items[…]`。
+  - extracts / 业务码：JsonPath，**必须以 `$` 开头**（如 `$.data.token`）；`from=setCookie` 时 `expr` 为 Cookie 名。`data` 已是数组时写 `$.data[?…]` / `$.data[*].…`，**禁止** Schema 关键字 `$.data.items[…]`。
   - assert / condition 左值：`http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status`（如 `http.body.data[?(@.cartId=='5001')].quantity`）。误写 `$.…` 服务端会改成 `http.body…`，仍请直接写正规形式。
   - 禁止 `http.body.$.…`；集合「是否命中」用 `exists`，不要用 `notempty`。
 
@@ -68,8 +69,8 @@
   - 删节点时 suggestedDeletes 尽量带上孤立边（或依赖系统级联）
 - 空画布：addNodes/addEdges 搭线性链，position.x 步进约 380
 - 已有流程：以 updateNodes、suggestedDeletes 为主
-- **http project**：callMode, name, testProjectApiId, apiName, httpMethod（可选）, **requestValueOverrides**（仅相对资产默认的测值）, extracts, successCheck, headers, timeoutMs, useRunSession, summary；**不要**整份 requestConfig；**不要**写 apiPath（路径跟所绑 API；路径变更须换绑）
-- **http external**：callMode, externalUrl, httpMethod, headers, requestBody, preScript, postScript, extracts, timeoutMs, useRunSession, summary；须 `flow:http:external` 权限；URL 常用 `{{env.*}}`；OAuth/验证码等优先子流模板
+- **http project**：callMode, name, testProjectApiId, apiName, httpMethod（可选）, **requestValueOverrides**（仅相对资产默认的测值）, extracts, successCheck, headers, timeoutMs, summary；**不要**整份 requestConfig；**不要**写 apiPath（路径跟所绑 API；路径变更须换绑）
+- **http external**：callMode, externalUrl, httpMethod, headers, requestBody, preScript, postScript, extracts, timeoutMs, summary；须 `flow:http:external` 权限；URL 常用 `{{env.*}}`；OAuth/验证码等优先子流模板
 - project 可用临时 `requestBody` → 写入 overrides.bodyExample 后由系统删除
 - **assert**：name, rules[{left, operator, right}], summary；operator∈`eq|ne|gt|gte|lt|lte|contains|not_contains|exists`（别名如 equals→eq、notempty→exists 服务端会归一，仍请写白名单）
 - **assign / delay / script / subflow**：按「节点类型」必填项写全；script 须显式 language

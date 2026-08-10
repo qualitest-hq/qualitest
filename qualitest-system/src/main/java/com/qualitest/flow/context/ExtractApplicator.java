@@ -2,6 +2,7 @@ package com.qualitest.flow.context;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.flow.session.SetCookieParser;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,6 +59,8 @@ public final class ExtractApplicator {
 
     /**
      * 按 from 字段从响应解析原始值；regex 暂未实现，返回 null。
+     * <p>
+     * {@code setCookie}：{@code expr} 为 Cookie 名，从 {@code Set-Cookie} 解析 value。
      */
     private static Object resolveExtractValue(JSONObject ex, FlowRunContext.HttpResponseSnapshot response) {
         String from = ex.getString("from");
@@ -67,6 +70,7 @@ public final class ExtractApplicator {
         return switch (from) {
             case "body" -> PlaceholderResolver.simpleJsonPath(response.getBody(), ex.getString("expr"));
             case "header" -> resolveHeaderValue(response.getHeaders(), ex.getString("expr"));
+            case "setCookie" -> SetCookieParser.findCookieValue(response.getHeaders(), ex.getString("expr"));
             case "status" -> response.getStatus();
             default -> null;
         };

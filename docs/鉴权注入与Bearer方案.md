@@ -1,6 +1,6 @@
 # 鉴权注入与 Bearer 方案（定稿）
 
-> **状态**：设计定稿 · **分阶段实施**（**P0～P4a 已落地**：插件免登、通用 Bearer 种子（双端/匿名 path 为 demo 参考模板）、补头、Staging/工具可见、匿名 path 能力、**刷新本流托管头**；Run 遇鉴权失败走「AI 修复」对话改图，不做专用 401 启发式提案；OpenAPI / Cookie Profile 仍按需）  
+> **状态**：设计定稿 · **分阶段实施**（**P0～P4a 已落地**；**Cookie 已并入 Profile**：`extracts.from=setCookie` + 托管 `Cookie` 头，`useRunSession` 退役；硬拦 / 项目鉴权 UI / OpenAPI 仍后续）  
 > **范围**：工作区 `qualitest-all` —— 质衡主仓 `qualitest/`、靶场 `qualitest-demo/`、扫描插件 `qualitest-intellij-plugin/`  
 > **触发**：T2 冒烟 AI 造流登录后调 `/api/account/auth/profile` 等接口 **401**（漏 `Authorization: Bearer {{flow.token}}`）  
 > **相关**：[`test-flow-nodes.md`](./test-flow-nodes.md)、[`mcp.md`](./mcp.md)、[`全面测试手册.md`](./全面测试手册.md)、`tpl_login_bearer`  
@@ -29,7 +29,7 @@
 | 能力 | 现状 | 缺口 |
 |------|------|------|
 | HTTP 节点 `headers` | AI/手工可写 Bearer | 模型常漏，无自动补全 |
-| `useRunSession` | Run 级 **Cookie** | **不能**代替 Bearer |
+| `useRunSession` | **已退役**（节点字段忽略） | Cookie 改走 extracts `setCookie` + Profile 托管头 |
 | 素材库 | `{{asset.clientAuth.*}}` 等 | 管账号，不管 Authorization |
 | 登录子流 | `tpl_login_bearer` 等 | 不保证后续节点带头 |
 | `FlowDesignPatchNormalizer` | 规范化节点 | **已**按鉴权补 `profileManaged` 托管头 + warning |
@@ -54,7 +54,7 @@
 | # | 原则 |
 |---|------|
 | 1 | **项目级定义 Profile，接口继承**；不在每个 API 复制头模板 |
-| 2 | **Bearer ≠ Cookie** |
+| 2 | **Bearer / Cookie 同一模型**：登录 extracts → `flow.*` → Profile 托管头；禁止节点 Cookie Jar 勾选 |
 | 3 | **双端两套 Profile / 两套 `flow.*`**：`token` vs `adminToken` |
 | 4 | 免登录注解在 **插件**；项目管 Profile +（可选）匿名 path |
 | 5 | 补头 **Staging 可见**；MCP 不写库 |
@@ -91,7 +91,8 @@ Postman/Apifox：集合定鉴权、请求 Inherit → 质衡 **项目 `authProfi
       },
       "loginHint": {
         "flowKey": "token",
-        "extractJsonPath": "$.token"
+        "from": "body",
+        "expr": "$.token"
       }
     }
   ],
@@ -118,7 +119,8 @@ Postman/Apifox：集合定鉴权、请求 Inherit → 质衡 **项目 `authProfi
       },
       "loginHint": {
         "flowKey": "token",
-        "extractJsonPath": "$.data.token"
+        "from": "body",
+        "expr": "$.data.token"
       }
     },
     {
@@ -133,7 +135,8 @@ Postman/Apifox：集合定鉴权、请求 Inherit → 质衡 **项目 `authProfi
       },
       "loginHint": {
         "flowKey": "adminToken",
-        "extractJsonPath": "$.token"
+        "from": "body",
+        "expr": "$.token"
       }
     }
   ],
@@ -147,7 +150,7 @@ Postman/Apifox：集合定鉴权、请求 Inherit → 质衡 **项目 `authProfi
 | `authProfiles[]` | 多套 Bearer 定义；**头模板只在这里维护** |
 | `match.pathPrefix` | **具体前缀**；禁止再用 `"/"` 当 match |
 | `defaultProfileId` | 未命中任何 `match`、且需要登录时的兜底 |
-| `loginHint.flowKey` / `extractJsonPath` | 造流/AI 抽 token；**不再要**含糊的 `preferredLoginApiHint` 字符串 |
+| `loginHint.flowKey` / `from`+`expr` | 造流/AI 抽凭证；与 extracts 同形（`body`+JSONPath 或 `setCookie`+Cookie 名）；旧键 `extractJsonPath` 读作 `from=body` |
 | `anonymousPath*` | 可选；命中则导入时接口 `mode=none`（**不**随上传自动回填） |
 
 **已砍 / 不放进项目 JSON**：`anonymousAnnotations`（→ 插件）、Profile `exclude`、`confidence`、`authInferenceMode` 三态枚举（**P1** 起用下面匹配规则即可）。
@@ -218,7 +221,8 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 | 环境 | `baseUrl` / 还原等，**不放** Profile |
 | 素材库 | 登录账号 |
 | HTTP 节点 `headers` | 落盘；Profile 托管头带标记 |
-| `useRunSession` | 仅 Cookie 场景 |
+| HTTP 节点 `extracts` | 登录抽凭证（含 `from=setCookie`）；与 `loginHint.from/expr` 对齐 |
+| `useRunSession` | **已退役**；禁止节点级 Cookie Jar 勾选 |
 
 ### 4.5 改 Profile 之后，旧流怎么办（定死）
 
@@ -315,7 +319,7 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 | **P1 平台补头** | `qualitest` | 项目 `authProfiles` + `defaultProfileId` + §4.1 匹配；Normalizer 补头 + `profileManaged`；**Run/调试同一解析器**；Prompt 要点；可选商城项目种子 JSON | **做**漏头自动补；**不做** Staging 分端硬拦、完整 Web 编辑器、401 回写 | A1：AI 可不写 Authorization，Staging/Run 仍有 `Bearer {{flow.token}}`；免登录节点不补头 |
 | **P2 可见与门禁** | `qualitest` | 接口 `auth` Web 编辑；工具回传 `auth`/`headerHint`；Staging「按项目鉴权补全」标记；分端缺 token 检查（soft warning） | **已落地**；硬拦留给后续 | Staging 可见托管头；缺 token 分端提示 |
 | **P3 匿名 path** | `qualitest` | 项目 `anonymousPathExact` / `anonymousPathPrefix`；上传命中 → `mode=none` | **已落地**（能力保留；**不**随上传自动种子/回填 demo 名单） | 配了白名单后 path → `mode=none` |
-| **P4 增强** | 按需 | 刷新本流托管头；鉴权失败走 AI 修复；OpenAPI 导入；Cookie Profile | **P4a 已落地**；鉴权失败不另做 401 启发式提案；OpenAPI/Cookie 仍非主路径 | 手册 §F 单独立项 |
+| **P4 增强** | 按需 | 刷新本流托管头；鉴权失败走 AI 修复；OpenAPI 导入；Cookie 并入 Profile | **P4a 已落地**；**Cookie=extracts+Profile 已落地**（`useRunSession` 退役）；OpenAPI 仍非主路径 | 手册 §F 单独立项 |
 
 ### 7.3 当前开工顺序
 
@@ -325,7 +329,7 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 4. ~~P2 可见与门禁~~ **已落地**：`get_api_detail`/`search_apis` 回传 `auth`/`headerHint`；Staging Diff/聊天展示「按项目鉴权补全」；分端缺 `flow.token`/`flow.adminToken` soft warning；接口设计 Tab 可编辑 `mode`/`authProfileId`。  
 5. ~~P3 匿名 path~~ **已落地**：项目可配 `anonymousPath*`；导入命中 → `mode=none`；**不再**上传自动回填 demo 名单。联调靶场请贴双端参考模板后再验 `/login` 等。  
 6. ~~P4a 刷新本流托管头~~ **已落地**：顶栏「刷新鉴权头」→ 提案进 Staging → 确认保存。  
-7. 鉴权失败：Run「AI 修复」对话改图（含 401 预填提示）；**已砍**专用 401 Staging 启发式提案。OpenAPI / Cookie Profile 仍按需。
+7. 鉴权失败：Run「AI 修复」对话改图（含 401 预填提示）；**已砍**专用 401 Staging 启发式提案。Cookie：`from=setCookie` + Profile 托管头（**已落地**）；OpenAPI 仍按需。
 
 回归基线（自 P1 补头起）：A1 流、`smoke-S01`；手册 §F。
 
@@ -336,7 +340,7 @@ P0 至少落 `mode`；`authProfileId` / `source` 可空，**P1** 再按路径回
 ## 8. 非目标
 
 - 引擎隐式加签却不在节点/Staging 展示  
-- `useRunSession` 冒充 Bearer  
+- 节点级 `useRunSession` Cookie Jar 勾选（Cookie 须 extracts + Profile）  
 - 项目 JSON 维护注解列表  
 - Profile `match: ["/"]`  
 - MCP 写配置/改图  

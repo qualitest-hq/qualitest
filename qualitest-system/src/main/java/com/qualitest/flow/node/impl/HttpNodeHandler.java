@@ -21,7 +21,6 @@ import com.qualitest.flow.http.SuccessCheckResolver;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
-import com.qualitest.flow.session.RunSessionSupport;
 import com.qualitest.flow.validate.FlowNodeType;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.service.ITestProjectApiService;
@@ -42,7 +41,8 @@ import java.util.Map;
  *   <li><b>external</b> — 使用节点 externalUrl / httpMethod / headers / requestBody；
  *       运行前校验外联权限与 URL；pre/post 脚本来自节点 data；步骤报告会脱敏敏感字段</li>
  * </ul>
- * 可选 useRunSession=true：在 Run 级 Cookie Jar 中注入与吸收 Cookie。
+ * Cookie 鉴权与 Bearer 相同：登录 extracts（含 {@code from=setCookie}）写入 flow.*，
+ * 后续由项目 Profile 托管头带上；不再使用节点 {@code useRunSession}。
  * <p>
  * 成功判定顺序：
  * <ol>
@@ -116,10 +116,6 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             }
         }
 
-        if (RunSessionSupport.isUseRunSession(data)) {
-            RunSessionSupport.applyToForward(built.getForwardParams(), ctx.getRunSession());
-        }
-
         DebugHttpForwardResult forwardResult = debugHttpForwardService.forward(built.getForwardParams());
         long durationMs = System.currentTimeMillis() - t0;
 
@@ -135,9 +131,6 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
 
         int status = forwardResult.getStatus() != null ? forwardResult.getStatus() : 0;
         Map<String, Object> responseHeaders = toObjectHeaders(forwardResult.getResponseHeaders());
-        if (RunSessionSupport.isUseRunSession(data)) {
-            ctx.getRunSession().absorbSetCookieHeaders(forwardResult.getResponseHeaders());
-        }
         Object body = parseResponseBody(forwardResult.getBodyText());
 
         FlowRunContext.HttpResponseSnapshot snapshot = FlowRunContext.HttpResponseSnapshot.builder()
@@ -193,10 +186,6 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             }
         }
 
-        if (RunSessionSupport.isUseRunSession(data)) {
-            RunSessionSupport.applyToForward(built.getForwardParams(), ctx.getRunSession());
-        }
-
         DebugHttpForwardResult forwardResult = debugHttpForwardService.forward(built.getForwardParams());
         long durationMs = System.currentTimeMillis() - t0;
 
@@ -212,9 +201,6 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
 
         int status = forwardResult.getStatus() != null ? forwardResult.getStatus() : 0;
         Map<String, Object> responseHeaders = toObjectHeaders(forwardResult.getResponseHeaders());
-        if (RunSessionSupport.isUseRunSession(data)) {
-            ctx.getRunSession().absorbSetCookieHeaders(forwardResult.getResponseHeaders());
-        }
         Object body = parseResponseBody(forwardResult.getBodyText());
 
         FlowRunContext.HttpResponseSnapshot snapshot = FlowRunContext.HttpResponseSnapshot.builder()
@@ -285,9 +271,6 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
         if (FlowHttpCallMode.isExternal(built.getCallMode())) {
             httpDetails = HttpStepDetailsDesensitizer.desensitize(httpDetails);
-        }
-        if (RunSessionSupport.isUseRunSession(data) && ctx.getRunSession() != null && !ctx.getRunSession().isEmpty()) {
-            httpDetails.put("runSessionCookies", ctx.getRunSession().snapshot());
         }
 
         // HTTP 状态码不在 2xx：传输层失败

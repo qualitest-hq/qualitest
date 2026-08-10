@@ -81,6 +81,7 @@ function isSimpleScope(scope) {
 function exprPlaceholder(from) {
   if (from === 'body') return '$.data.token / $.data.items[?(@.id==1)]'
   if (from === 'header') return 'X-Request-Id'
+  if (from === 'setCookie') return 'JSESSIONID / 会话 Cookie 名'
   if (from === 'status') return '（无需填写）'
   if (from === 'regex') return '正则（暂未支持执行）'
   return ''

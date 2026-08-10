@@ -112,7 +112,7 @@ public class ProjectAuthConfig implements Serializable {
     }
 
     /**
-     * 登录响应中抽取 token 的提示。
+     * 登录响应中抽取凭证的提示（与节点 extracts 同形：from + expr）。
      */
     @Data
     @Builder
@@ -126,7 +126,20 @@ public class ProjectAuthConfig implements Serializable {
         /** 写入 flow 上下文的变量名，如 token / adminToken。 */
         private String flowKey;
 
-        /** 从登录响应取 token 的 JSONPath。 */
+        /**
+         * 抽取来源，与 extracts.from 对齐：{@code body} / {@code setCookie} / {@code header}。
+         * 空且仅有旧字段 {@link #extractJsonPath} 时按 body 读。
+         */
+        private String from;
+
+        /**
+         * 抽取表达式：body 时为 JSONPath；setCookie 时为 Cookie 名。
+         */
+        private String expr;
+
+        /**
+         * 旧字段：等价于 {@code from=body} + {@code expr}。读路径兼容；新写入请用 from/expr。
+         */
         private String extractJsonPath;
     }
 }

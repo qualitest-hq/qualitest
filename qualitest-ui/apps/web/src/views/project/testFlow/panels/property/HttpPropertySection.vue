@@ -110,18 +110,6 @@
     <div class="field__hint">单次 HTTP 请求最长等待；留空则执行时沿用环境配置</div>
   </div>
 
-  <div class="field">
-    <label class="http-run-session-label">
-      <input
-          :checked="useRunSession"
-          type="checkbox"
-          @change="onUseRunSessionChange"
-      />
-      共享 Run 会话 Cookie（useRunSession）
-    </label>
-    <div class="field__hint">开启后自动注入/吸收 Cookie，适用于登录后多步请求</div>
-  </div>
-
   <div v-if="callMode === 'project'" class="field">
     <label>业务 Code 校验</label>
     <select :value="successCheckMode" @change="onSuccessCheckModeChange">
@@ -199,8 +187,6 @@ const timeoutVal = computed(() => {
   const v = props.node?.data?.timeoutMs
   return v != null && v !== '' ? v : ''
 })
-
-const useRunSession = computed(() => Boolean(props.node?.data?.useRunSession))
 
 /** 当前节点业务码校验模式。
  * inherit：按项目响应约定校验 body 业务码；
@@ -291,10 +277,6 @@ function onRequestBodyInput(e) {
 function onTimeoutInput(e) {
   const raw = e.target.value
   applyPatch({ timeoutMs: raw === '' ? null : Number(raw) })
-}
-
-function onUseRunSessionChange(e) {
-  applyPatch({ useRunSession: e.target.checked })
 }
 
 function onPreScriptChange(val) {
@@ -431,14 +413,6 @@ textarea {
   font-family: ui-monospace, Consolas, monospace;
   resize: vertical;
   box-sizing: border-box;
-}
-
-.http-run-session-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  cursor: pointer;
 }
 
 .http-prop-scripts {
