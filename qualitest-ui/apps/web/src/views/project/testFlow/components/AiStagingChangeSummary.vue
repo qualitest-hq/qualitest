@@ -5,7 +5,25 @@
     <p class="ai-staging-summary__counts">
       待确认 {{ summary.pending }} · 已确认 {{ summary.confirmed }} · 已取消 {{ summary.rejected }}
     </p>
-    <div v-if="hasGraphPending || hasScenarioPending" class="ai-staging-summary__actions">
+    <div v-if="hasGraphPending || hasScenarioPending || readyPendingCount > 0 || batchPausedOnUnitId" class="ai-staging-summary__actions">
+      <button
+          v-if="readyPendingCount > 0"
+          :disabled="batchConfirmBusy"
+          class="btn btn--ghost btn--sm"
+          type="button"
+          @click="onConfirmAllReady"
+      >
+        {{ batchConfirmBusy ? '确认中…' : `确认全部就绪 (${readyPendingCount})` }}
+      </button>
+      <button
+          v-if="batchPausedOnUnitId"
+          :disabled="batchConfirmBusy"
+          class="btn btn--ghost btn--sm"
+          type="button"
+          @click="onResumeConfirmAllReady"
+      >
+        跳过失败继续
+      </button>
       <button
           v-if="hasGraphPending"
           class="btn btn--ghost btn--sm"
@@ -27,9 +45,10 @@
 </template>
 
 <script setup lang="ts">
-/** 会话内 Staging 变更摘要：统计、计数与定位 */
+/** 会话内 Staging 变更摘要：统计、计数与定位；含「确认全部就绪」入口 */
 import { computed } from 'vue'
 
+import { useAiStagingConfirm } from '../composables/useAiStagingConfirm'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import {
@@ -48,6 +67,13 @@ const props = defineProps({
 
 const stagingStore = useAiStagingStore()
 const canvasStore = useFlowCanvasStore()
+const {
+  confirmAllReady,
+  resumeConfirmAllReady,
+  readyPendingCount,
+  batchConfirmBusy,
+  batchPausedOnUnitId,
+} = useAiStagingConfirm()
 
 const units = computed(() => stagingStore.listUnitsForMessage(props.messageId))
 const summary = computed(() => stagingStore.buildMessageSummary(props.messageId))
@@ -63,6 +89,16 @@ const hasScenarioPending = computed(() =>
 )
 
 const breakdownText = computed(() => formatMessageSummaryBreakdown(summary.value))
+
+async function onConfirmAllReady() {
+  if (batchConfirmBusy.value || readyPendingCount.value === 0) return
+  await confirmAllReady()
+}
+
+async function onResumeConfirmAllReady() {
+  if (batchConfirmBusy.value || !batchPausedOnUnitId.value) return
+  await resumeConfirmAllReady()
+}
 
 function locateCanvas() {
   const unit = findFirstPendingGraphUnit(units.value)

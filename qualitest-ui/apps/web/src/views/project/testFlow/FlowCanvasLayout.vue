@@ -62,6 +62,26 @@
           AI 助手
           <span v-if="stagingPendingCount > 0" class="flow-canvas-header__ai-badge">{{ stagingPendingCount }}</span>
         </button>
+        <button
+            v-if="stagingPendingCount > 0 && canEditFlow"
+            :disabled="stagingBatchBusy || stagingReadyPendingCount === 0"
+            :title="stagingConfirmAllTitle"
+            class="btn btn--ghost"
+            type="button"
+            @click="handleConfirmAllReady"
+        >
+          {{ stagingConfirmAllLabel }}
+        </button>
+        <button
+            v-if="stagingBatchPausedOnUnitId && canEditFlow"
+            :disabled="stagingBatchBusy"
+            class="btn btn--ghost"
+            title="跳过失败项，继续确认其余就绪变更"
+            type="button"
+            @click="handleResumeConfirmAllReady"
+        >
+          跳过失败继续
+        </button>
         <FlowCanvasHelpPopover v-model:open="helpOpen" />
         <button
             :disabled="store.loading || !canEditFlow || refreshAuthLoading"
@@ -257,6 +277,7 @@ import { useFlowNodes } from './composables/useFlowNodes'
 import { useFlowScenarioRun } from './composables/useFlowScenarioRun'
 import { useFlowCanvasPermissions } from './composables/useFlowCanvasPermissions'
 import { useAiStagingCanvas } from './composables/useAiStagingCanvas'
+import { useAiStagingConfirm } from './composables/useAiStagingConfirm'
 import { useAiStagingScenario } from './composables/useAiStagingScenario'
 import { useFlowViewport } from './composables/useFlowViewport'
 import { useAiStagingStore } from './stores/aiStagingStore'
@@ -280,6 +301,30 @@ const router = useRouter()
 const store = useFlowCanvasStore()
 const stagingStore = useAiStagingStore()
 const stagingPendingCount = computed(() => stagingStore.pendingCount)
+const {
+  confirmAllReady,
+  resumeConfirmAllReady,
+  readyPendingCount: stagingReadyPendingCount,
+  batchConfirmBusy: stagingBatchBusy,
+  batchPausedOnUnitId: stagingBatchPausedOnUnitId,
+} = useAiStagingConfirm()
+const stagingConfirmAllLabel = computed(() => {
+  if (stagingBatchBusy.value) return '确认中…'
+  return `确认全部就绪 (${stagingReadyPendingCount.value})`
+})
+const stagingConfirmAllTitle = computed(() => {
+  if (stagingBatchBusy.value) return '正在按依赖顺序确认就绪项'
+  if (stagingReadyPendingCount.value === 0) return '当前没有可确认项（可能仍有依赖未满足）'
+  return `按依赖顺序确认 ${stagingReadyPendingCount.value} 项就绪变更`
+})
+async function handleConfirmAllReady() {
+  if (!canEditFlow.value || stagingBatchBusy.value || stagingReadyPendingCount.value === 0) return
+  await confirmAllReady()
+}
+async function handleResumeConfirmAllReady() {
+  if (!canEditFlow.value || stagingBatchBusy.value || !stagingBatchPausedOnUnitId.value) return
+  await resumeConfirmAllReady()
+}
 const {
   projectSettingDrawerVisible,
   activeTestProjectId,
