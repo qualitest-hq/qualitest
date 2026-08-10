@@ -1,7 +1,7 @@
 # 造流 Staging 与 AI 体验优化方案
 
 > 来源：全面测试手册 **T1** 冒烟（`smoke-S01` §10.1 等）现场摩擦。  
-> 状态：**待落地**（本文只定方案，不改产品代码）。  
+> 状态：**H2 已落地**（pending 保存挡板）；其余项待落地。  
 > 相关：`docs/全面测试手册.md` §F #11 / #17 / #18 / #19；项目鉴权补头见 `docs/test-flow-nodes.md`「项目鉴权」。
 
 ---
@@ -114,9 +114,9 @@ pending > 0 且非 skipPendingWarning
 
 ### 3.4 验收
 
-- [ ] pending>0 点保存：未选「仅保存已确认」前不发 update API。
-- [ ] 选「仅保存已确认」后行为与今日一致；toast 写明排除数。
-- [ ] 「确认后自动保存」仍 `skipPendingWarning`，不弹 Box。
+- [x] pending>0 点保存：未选「仅保存已确认」前不发 update API。
+- [x] 选「仅保存已确认」后行为与今日一致；toast 写明排除数。
+- [x] 「确认后自动保存」仍 `skipPendingWarning`，不弹 Box。
 
 ---
 
@@ -250,7 +250,7 @@ pending > 0 且非 skipPendingWarning
 
 | 项 | 决议 | 日期 |
 |----|------|------|
-| H2 默认挡还是默认「仅保存已确认」 | | |
+| H2 默认挡还是默认「仅保存已确认」 | **默认挡 + 三选一**（去确认 / 仅保存已确认 / 取消）；偏好 `blockWhenStagingPending` 默认关可强制先确认 | 2026-08-10 |
 | H1 是否要 Phase C 一键信任 | | |
 | H3 未 submit 是硬失败还是自动收束 1 轮 | | |
 | H4 双字段是 warning 还是自动删 items | | |

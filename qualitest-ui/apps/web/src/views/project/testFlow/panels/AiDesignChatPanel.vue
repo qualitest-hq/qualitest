@@ -167,7 +167,14 @@
             class="ai-design-chat-panel__auto-save"
             inline-prompt
             size="small"
-            @change="onAutoSaveAfterConfirmChange"
+        />
+        <el-switch
+            v-model="blockWhenStagingPending"
+            active-text="保存须先确认"
+            class="ai-design-chat-panel__auto-save"
+            inline-prompt
+            size="small"
+            title="开启后 pending 未清零不可「仅保存已确认」"
         />
       </template>
     </AiChatShell>
@@ -200,7 +207,7 @@ import AiStagingChangeSummary from '../components/AiStagingChangeSummary.vue';
 import AiAssetProposalCard from '../components/AiAssetProposalCard.vue';
 import { useAiDesign } from '../composables/useAiDesign';
 import { useFlowGraph } from '../composables/useFlowGraph';
-import { isAutoSaveAfterConfirm, setAutoSaveAfterConfirm } from '../utils/aiDesignPreferences';
+import { isAutoSaveAfterConfirm, isBlockWhenStagingPending, setAutoSaveAfterConfirm, setBlockWhenStagingPending } from '../utils/aiDesignPreferences';
 import type { ComposerDoc, ComposerSendPayload } from '../composables/mentionComposer';
 import { isComposerDocEmpty, MENTION_CATEGORY_TAGS } from '../composables/mentionComposer';
 import AiMentionComposer from './AiMentionComposer.vue';
@@ -259,6 +266,10 @@ const composerRef = ref<InstanceType<typeof AiMentionComposer> | null>(null);
 const composerEmpty = ref(true);
 /** 「合并后保存」开关，持久化到 localStorage */
 const autoSaveAfterConfirm = ref(isAutoSaveAfterConfirm());
+/** pending 保存强挡：隐藏「仅保存已确认」 */
+const blockWhenStagingPending = ref(isBlockWhenStagingPending());
+watch(autoSaveAfterConfirm, setAutoSaveAfterConfirm);
+watch(blockWhenStagingPending, setBlockWhenStagingPending);
 
 const {
   items: promptTemplates,
@@ -338,11 +349,6 @@ async function onEditUserMessage(messageId: string) {
   composerRef.value.setDoc(doc);
   composerRef.value.focus();
   composerEmpty.value = isComposerDocEmpty(doc);
-}
-
-function onAutoSaveAfterConfirmChange(enabled: boolean) {
-  autoSaveAfterConfirm.value = enabled;
-  setAutoSaveAfterConfirm(enabled);
 }
 
 /** 助手消息是否带有可展示的素材库写入提案 */

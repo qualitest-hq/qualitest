@@ -11,7 +11,10 @@ import { validateGraphJson } from '@/utils/flow/graphValidate';
 
 import { fromGraphJson, toGraphJson, type FromGraphJsonResult } from '../graphAdapter';
 import { refreshSavedBaseline, refreshSavedBaselineIfPristine } from '../utils/reconcileFlowDirty';
+import { isBlockWhenStagingPending } from '../utils/aiDesignPreferences';
+import { promptStagingPendingSave } from '../utils/promptStagingPendingSave';
 import { useFlowHistory } from './useFlowHistory';
+import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import {
@@ -21,7 +24,7 @@ import {
 } from '../utils/jsonPathTrial';
 
 export interface SaveFlowOptions {
-  /** 为 true 时不弹出「尚有待确认 AI 变更」提示（用于确认后自动保存） */
+  /** 为 true 时跳过 pending 保存门禁（用于确认后自动保存） */
   skipPendingWarning?: boolean;
 }
 
@@ -134,18 +137,27 @@ export function useFlowGraph() {
 
   /**
    * 将当前画布序列化为 graph_json 并提交保存。
-   * - 有待确认 Staging 时提示用户本次不会保存这些内容（可 skip）
+   * - pending>0 时默认弹门禁（去确认 / 仅保存已确认 / 取消），可 skipPendingWarning
    * - 序列化排除未 confirm 的 Staging 对象
    * - 校验失败阻断提交
    */
   async function saveFlow(options?: SaveFlowOptions) {
     await store.ensureEdgesHydrated();
 
-    const pending = stagingStore.pendingCount;
-    if (pending > 0 && !options?.skipPendingWarning) {
-      ElMessage.warning(
-        `尚有 ${pending} 项 AI 变更待确认，本次保存不会包含这些内容`,
-      );
+    const pendingUnits = Object.values(stagingStore.unitsById).filter((u) => u.status === 'pending');
+    const excludedPending = pendingUnits.length;
+    if (excludedPending > 0 && !options?.skipPendingWarning) {
+      const choice = await promptStagingPendingSave({
+        pendingLabels: pendingUnits.map((u) => u.label),
+        blockWhenStagingPending: isBlockWhenStagingPending(),
+      });
+      if (choice === 'focus') {
+        openPendingStagingReview(store.edges);
+        return false;
+      }
+      if (choice === 'cancel') {
+        return false;
+      }
     }
 
     const graph = toGraphJson({
@@ -177,7 +189,11 @@ export function useFlowGraph() {
         graphJson: JSON.stringify(graph),
       });
       await refreshSavedBaseline(store);
-      ElMessage.success('保存成功');
+      if (excludedPending > 0) {
+        ElMessage.success(`已保存（已排除 ${excludedPending} 项未确认 Staging）`);
+      } else {
+        ElMessage.success('保存成功');
+      }
       return true;
     } catch (e: unknown) {
       ElMessage.error(e instanceof Error ? e.message : '保存失败');

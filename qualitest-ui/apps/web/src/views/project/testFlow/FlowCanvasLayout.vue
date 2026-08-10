@@ -92,15 +92,16 @@
         >
           {{ refreshAuthLoading ? '刷新中…' : '刷新鉴权头' }}
         </button>
-        <!-- dirty 时文案改为「保存更改」，并加橙色强调样式 -->
+        <!-- dirty 时文案改为「保存更改」，并加橙色强调样式；pending 时角标提示 -->
         <button
             :disabled="store.loading || !canEditFlow"
-            :title="canEditFlow ? (store.dirty ? '有未保存的修改，点击保存' : undefined) : '当前账号无编辑权限，无法保存'"
+            :title="saveButtonTitle"
             :class="['btn', 'btn--primary', { 'is-dirty': store.dirty && !store.loading }]"
             type="button"
             @click="handleSave"
         >
           {{ store.loading ? '保存中…' : (store.dirty ? '保存更改' : '保存') }}
+          <span v-if="stagingPendingCount > 0" class="flow-canvas-header__ai-badge">{{ stagingPendingCount }}</span>
         </button>
       </div>
     </header>
@@ -282,6 +283,7 @@ import { useAiStagingScenario } from './composables/useAiStagingScenario'
 import { useFlowViewport } from './composables/useFlowViewport'
 import { useAiStagingStore } from './stores/aiStagingStore'
 import { useFlowCanvasStore } from './stores/flowCanvasStore'
+import { stagingPendingSaveTooltip } from './utils/promptStagingPendingSave'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -360,6 +362,15 @@ const aiAssistantTitle = computed(() => {
     return `打开 AI 设计助手（${stagingPendingCount.value} 项待确认）`
   }
   return '打开 AI 设计助手'
+})
+
+const saveButtonTitle = computed(() => {
+  if (!canEditFlow.value) return '当前账号无编辑权限，无法保存'
+  if (stagingPendingCount.value > 0) {
+    return stagingPendingSaveTooltip(stagingPendingCount.value)
+  }
+  if (store.dirty) return '有未保存的修改，点击保存'
+  return undefined
 })
 
 function handleOpenAiDesign() {
