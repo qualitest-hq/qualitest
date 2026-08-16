@@ -20,11 +20,17 @@ import java.util.function.BooleanSupplier;
  *   <li>模型返回 toolCalls → 执行工具 → 追加 tool 消息 → 继续下一轮</li>
  *   <li>模型返回非空文本 → 视为最终答案并结束</li>
  *   <li>超出 maxSteps → 返回可读错误信息</li>
+ *   <li>造流场景（有终态探针）且剩余步数 ≤2 且尚未 submit → 注入催提交提示</li>
  * </ul>
  */
 @Component
 @RequiredArgsConstructor
 public class AiAgentRunner {
+
+    /** 造流 Agent 步数将尽时追加的 user 提示（与终态探针配套） */
+    static final String SUBMIT_NUDGE_CONTENT =
+            "剩余工具步数不足（≤2）。若本轮要改画布，请立刻调用 submit_flow_design_patch；"
+                    + "若仅答疑可不提交。禁止再反复拉取接口详情。";
 
     private final LlmProvider llmProvider;
     private final AiLlmConfigService aiLlmConfigService;
@@ -69,6 +75,7 @@ public class AiAgentRunner {
                 if (isTerminalSuccess(options)) {
                     return buildTerminalToolSuccess(thinkingAccumulator, steps);
                 }
+                maybeAppendSubmitNudge(messages, options, steps, maxSteps);
                 continue;
             }
             String content = response.getContent();
@@ -83,12 +90,13 @@ public class AiAgentRunner {
             if (isTerminalSuccess(options)) {
                 return buildTerminalToolSuccess(thinkingAccumulator, steps);
             }
+            maybeAppendSubmitNudge(messages, options, steps, maxSteps);
         }
         if (isTerminalSuccess(options)) {
             return buildTerminalToolSuccess(thinkingAccumulator, steps);
         }
         return AgentRunResult.builder()
-                .error("Agent 已达最大步数上限（" + maxSteps + "），请缩小查询范围或简化需求")
+                .error(maxStepsExceededMessage(maxSteps, options))
                 .stepsUsed(steps)
                 .build();
     }
@@ -166,6 +174,39 @@ public class AiAgentRunner {
     private static boolean isTerminalSuccess(AgentRunOptions options) {
         BooleanSupplier probe = options.getTerminalSuccessProbe();
         return probe != null && probe.getAsBoolean();
+    }
+
+    /**
+     * 造流场景：剩余步数 ≤2 且尚未达成终态时，追加催 submit 的 user 提示（同内容不重复追加）。
+     */
+    static void maybeAppendSubmitNudge(
+            List<LlmMessage> messages, AgentRunOptions options, int steps, int maxSteps) {
+        if (options.getTerminalSuccessProbe() == null) {
+            return;
+        }
+        if (isTerminalSuccess(options)) {
+            return;
+        }
+        if (steps >= maxSteps || maxSteps - steps > 2) {
+            return;
+        }
+        if (!messages.isEmpty()) {
+            LlmMessage last = messages.get(messages.size() - 1);
+            if ("user".equals(last.getRole()) && SUBMIT_NUDGE_CONTENT.equals(last.getContent())) {
+                return;
+            }
+        }
+        messages.add(LlmMessage.user(SUBMIT_NUDGE_CONTENT));
+    }
+
+    /** 达步数上限时的错误文案；造流场景额外提示 submit。 */
+    static String maxStepsExceededMessage(int maxSteps, AgentRunOptions options) {
+        if (options.getTerminalSuccessProbe() != null) {
+            return "Agent 已达最大步数上限（" + maxSteps + "）。"
+                    + "若本轮要改画布，请缩小检索范围并尽快调用 submit_flow_design_patch；"
+                    + "或结束本轮后重新发送更短的改图需求。";
+        }
+        return "Agent 已达最大步数上限（" + maxSteps + "），请缩小查询范围或简化需求";
     }
 
     private static AgentRunResult buildTerminalToolSuccess(StringBuilder thinkingAccumulator, int stepsUsed) {

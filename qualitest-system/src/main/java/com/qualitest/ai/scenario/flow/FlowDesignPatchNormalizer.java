@@ -16,6 +16,7 @@ import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
 import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.AuthTokenPresenceGate;
+import com.qualitest.flow.validate.LoginExtractPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.project.domain.TestProject;
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * AI 产出流程补丁的服务端规范化器。
@@ -67,8 +69,7 @@ public class FlowDesignPatchNormalizer {
     private final FlowDesignPatchMerger patchMerger;
 
     /**
-     * 全量规范化并预合并校验：用于 AI submit 工具回调。
-     * 合并全部 patch 后跑图结构校验，再用响应示例试算断言路径；错误回传模型以便自我修正。
+     * 全量规范化并预合并校验：合并 patch 后跑图结构校验与断言路径门禁，错误回传模型以便自我修正。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId) {
         List<String> normWarnings = new ArrayList<>();
@@ -80,11 +81,18 @@ public class FlowDesignPatchNormalizer {
         warnings.addAll(validation.getWarnings());
 
         List<String> errors = new ArrayList<>(validation.getErrors());
-        // 断言路径不合法：记入 errors，本次造流不可进入 Staging
-        errors.addAll(AssertPathDesignGate.validate(merged,
-                testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById));
-        // 需登录却缺少对应端 token 来源：记入 errors，本次造流不可进入 Staging
-        errors.addAll(collectAuthTokenPresenceErrors(merged, testProjectId));
+        // 断言路径：结构错误进 errors；schema 缺字段进 warnings（不阻断 Staging）
+        AssertPathDesignGate.AssertPathGateResult assertPath =
+                AssertPathDesignGate.validate(merged,
+                        testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById);
+        errors.addAll(assertPath.errors());
+        warnings.addAll(assertPath.warnings());
+        String projectAuthJson = loadProjectAuthConfig(testProjectId);
+        Function<Long, TestProjectApi> apiResolver = testProjectApiMapper == null
+                ? id -> null
+                : testProjectApiMapper::selectTestProjectApiById;
+        errors.addAll(AuthTokenPresenceGate.validate(merged, projectAuthJson, apiResolver));
+        errors.addAll(LoginExtractPresenceGate.validate(merged, projectAuthJson, apiResolver));
 
         DesignValidationResult planValidation = DesignValidationResult.builder()
                 .ok(errors.isEmpty())
@@ -110,6 +118,18 @@ public class FlowDesignPatchNormalizer {
     public List<String> collectAuthTokenPresenceErrors(GraphJson graph, Long testProjectId) {
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
         return AuthTokenPresenceGate.validate(
+                graph,
+                projectAuthJson,
+                testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById);
+    }
+
+    /**
+     * 检查图中登录/注册类 project HTTP 是否已配置期望的 flow 变量 extract。
+     * 缺 extract 时返回错误文案；非登录口或已配置时返回空列表。
+     */
+    public List<String> collectLoginExtractPresenceErrors(GraphJson graph, Long testProjectId) {
+        String projectAuthJson = loadProjectAuthConfig(testProjectId);
+        return LoginExtractPresenceGate.validate(
                 graph,
                 projectAuthJson,
                 testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById);
@@ -453,7 +473,7 @@ public class FlowDesignPatchNormalizer {
                 String nodeLabel = String.valueOf(data.getOrDefault("name", node.getId() != null ? node.getId() : "HTTP 节点"));
                 warnings.add("HTTP 节点「" + nodeLabel + "」外联模式缺少 externalUrl");
             }
-            FlowDesignHttpNodeNormalizer.normalize(data, null);
+            FlowDesignHttpNodeNormalizer.normalize(data, null, projectAuthJson);
             return;
         }
 
@@ -492,7 +512,7 @@ public class FlowDesignPatchNormalizer {
             }
         }
 
-        FlowDesignHttpNodeNormalizer.normalize(data, boundApi);
+        FlowDesignHttpNodeNormalizer.normalize(data, boundApi, projectAuthJson);
     }
 
     /** 按节点类型生成画布卡片副标题 summary */

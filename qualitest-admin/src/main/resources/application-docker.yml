@@ -113,7 +113,7 @@ spring:
 token:
   header: Authorization
   secret: ${TOKEN_SECRET:}
-  expireTime: ${TOKEN_EXPIRE_TIME:1440}
+  expireTime: ${TOKEN_EXPIRE_TIME:10080}  # Token 有效期（分钟，默认 7 天）
 
 mybatis:
   typeAliasesPackage: com.qualitest.**.domain,com.qualitest.**.params,com.qualitest.**.result

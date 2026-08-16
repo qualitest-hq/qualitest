@@ -4,8 +4,8 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
-import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
@@ -15,9 +15,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * {@code get_graph_summary} 工具实现。
+ * 返回当前画布的节点摘要与边列表。
  * <p>
- * 基于当前画布 {@link GraphJson} 返回节点摘要与边列表；MCP 可仅传 testFlowId 自动加载。
+ * 节点数超过 FULL_NODE_LIMIT 时压缩：只保留计数，以及上下文指定的节点与相关边。
+ * 返回前按拓扑结果形状做字节上限裁剪（先清空 edges，再减 nodes）。
  */
 public class GetGraphSummaryTool implements QualitestTool {
 
@@ -49,7 +50,7 @@ public class GetGraphSummaryTool implements QualitestTool {
             result.put("nodes", new JSONArray());
             result.put("edges", new JSONArray());
             result.put("compressed", false);
-            return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+            return ToolResultByteFit.fitGraphTopology(result, ctx.getMaxToolResultBytes());
         }
         int nodeCount = graph.getNodes().size();
         int edgeCount = graph.getEdges() != null ? graph.getEdges().size() : 0;
@@ -109,6 +110,6 @@ public class GetGraphSummaryTool implements QualitestTool {
         if (ctx.getContextNodeIds() != null && !ctx.getContextNodeIds().isEmpty()) {
             result.put("contextNodeIds", ctx.getContextNodeIds());
         }
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitGraphTopology(result, ctx.getMaxToolResultBytes());
     }
 }

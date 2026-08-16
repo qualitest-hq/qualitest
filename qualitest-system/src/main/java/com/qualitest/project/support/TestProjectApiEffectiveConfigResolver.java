@@ -299,13 +299,15 @@ public final class TestProjectApiEffectiveConfigResolver {
         private final String testValueConfig;
 
         /**
-         * 复制源 API 的 id、项目 id、路径，其余请求/响应/覆盖层字段使用本快照中的有效值。
+         * 复制源 API 的 id、项目 id、路径与鉴权标签，其余请求/响应/覆盖层字段使用本快照中的有效值。
+         * authConfig 必须原样带回：跑流 mergeHeaders 依此判断 none/inherit，丢失会把免登录接口当成 inherit。
          */
         public TestProjectApi toApiView(TestProjectApi source) {
             TestProjectApi view = new TestProjectApi();
             view.setTestProjectApiId(source.getTestProjectApiId());
             view.setTestProjectId(source.getTestProjectId());
             view.setApiPath(source.getApiPath());
+            view.setAuthConfig(source.getAuthConfig());
             view.setRequestConfig(requestConfig);
             view.setResponseConfig(responseConfig);
             view.setHeaders(headers);

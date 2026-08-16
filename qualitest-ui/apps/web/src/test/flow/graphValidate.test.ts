@@ -5,7 +5,13 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { validateGraphJson, validateStartNodes } from '@/utils/flow/graphValidate';
+import {
+  DEFERRED_MULTI_START_WARNING,
+  DEFERRED_NO_START_WARNING,
+  rewriteStartNodeErrorForPendingEdges,
+  validateGraphJson,
+  validateStartNodes,
+} from '@/utils/flow/graphValidate';
 
 import demoGraph from '@flow-fixtures/demo-graph.json';
 import graphValidateCases from '@flow-fixtures/graph-validate-cases.json';
@@ -54,6 +60,24 @@ describe('validateGraphJson', () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toContain('开始节点');
+  });
+
+  /** O7：Staging 延后拓扑时多开始降为警告 */
+  it('deferTopologyStructureRules 时多开始进 warnings 不硬拦', () => {
+    const result = validateGraphJson(multiStart, { deferTopologyStructureRules: true });
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toContain(DEFERRED_MULTI_START_WARNING);
+  });
+
+  it('rewriteStartNodeErrorForPendingEdges 改写多开始/无开始文案', () => {
+    expect(
+      rewriteStartNodeErrorForPendingEdges('流程只能有一个开始节点，当前有 2 个：A、B'),
+    ).toBe(DEFERRED_MULTI_START_WARNING);
+    expect(rewriteStartNodeErrorForPendingEdges('未找到开始节点（每个节点都有入边）')).toBe(
+      DEFERRED_NO_START_WARNING,
+    );
+    expect(rewriteStartNodeErrorForPendingEdges('其它错误')).toBe('其它错误');
   });
 
   /** HTTP 节点未绑定 testProjectApiId 时产生 warning，但不阻断校验（ok 仍为 true） */

@@ -103,7 +103,7 @@
                     v-if="shouldShowExplainOnlyHint(msg as AiDesignMessageView, streamingMessageId)"
                     class="ai-design-explain-only"
                 >
-                  本轮未提交画布修改（无 Staging）。若本意是改节点/断言，请点重新生成，或更明确写出要改的节点。
+                  本轮未提交 Staging（未调用 submit_flow_design_patch）。若要改画布请重新生成并明确要求提交修改。
                 </div>
                 <AiAssetProposalCard
                     v-if="shouldShowAssetProposals(msg as AiDesignMessageView)"

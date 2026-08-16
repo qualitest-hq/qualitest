@@ -3,6 +3,7 @@ package com.qualitest.ai.scenario.flow;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.api.util.LoginExtractSuggestor;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpNodePathSupport;
 import com.qualitest.flow.http.HttpNodeRequestValueOverridesSupport;
@@ -37,7 +38,11 @@ public final class FlowDesignHttpNodeNormalizer {
     private static final Set<String> ROOT_CONVENTION_FIELDS = Set.of(
             ResponseConventionSupport.DEFAULT_CODE_PATH,
             ResponseConventionSupport.DEFAULT_MESSAGE_PATH,
-            ResponseConventionSupport.DEFAULT_DATA_PATH
+            ResponseConventionSupport.DEFAULT_DATA_PATH,
+            // 管理端登录等根级 token，禁止被补成 $.data.token
+            "token",
+            "accessToken",
+            "adminToken"
     );
 
     private FlowDesignHttpNodeNormalizer() {
@@ -72,14 +77,16 @@ public final class FlowDesignHttpNodeNormalizer {
     /**
      * 规范化 HTTP 节点 data（就地修改）。
      *
-     * @param data 节点 data
-     * @param api  已绑定的项目接口；未绑定或外联时为 null
+     * @param data            节点 data
+     * @param api             已绑定的项目接口；未绑定或外联时为 null
+     * @param projectAuthJson 项目鉴权 JSON；用于登录口空 extracts 自动补齐
      */
-    public static void normalize(Map<String, Object> data, TestProjectApi api) {
+    public static void normalize(Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
         if (data == null) {
             return;
         }
         ensureCallModeDefault(data);
+        ensureLoginExtractIfEmpty(data, api, projectAuthJson);
         normalizeExtracts(data);
         ensureSuccessCheckDefault(data);
 
@@ -108,6 +115,32 @@ public final class FlowDesignHttpNodeNormalizer {
         data.remove("requestConfig");
         data.remove("requestBody");
         FlowHttpNodePathSupport.stripNodeApiPath(data);
+    }
+
+    /** 无项目鉴权 JSON 时规范化：不自动补登录 extract。 */
+    public static void normalize(Map<String, Object> data, TestProjectApi api) {
+        normalize(data, api, null);
+    }
+
+    /**
+     * 登录/注册类接口且 extracts 为空时，按项目鉴权 loginHint 或路径兜底补一条 token extract；
+     * 已有 extracts 不覆盖。
+     */
+    static void ensureLoginExtractIfEmpty(
+            Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
+        if (data == null || api == null || !LoginExtractSuggestor.isLoginLikeApi(api.getApiPath())) {
+            return;
+        }
+        Object raw = data.get("extracts");
+        if (raw instanceof List<?> list && !list.isEmpty()) {
+            return;
+        }
+        LoginExtractSuggestor.Suggestion suggestion = LoginExtractSuggestor.suggest(
+                projectAuthJson, api.getApiPath(), null);
+        if (suggestion == null) {
+            return;
+        }
+        data.put("extracts", List.of(suggestion.toExtractRow()));
     }
 
     /**

@@ -321,7 +321,8 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchConfirmResult secondResult = confirmService.confirmUnit(secondRequest);
         assertTrue(secondResult.isOk(), () -> "errors=" + secondResult.getErrors());
         assertEquals(2, secondResult.getGraphJson().getNodes().size());
-        assertTrue(secondResult.getWarnings().stream().anyMatch(w -> w.contains("开始节点")));
+        assertTrue(secondResult.getWarnings().stream()
+                .anyMatch(w -> w.contains("未确认的连线") || w.contains("开始节点")));
     }
 
     /**

@@ -15,7 +15,8 @@
 <script setup>
 /**
  * 测试流画布页入口。
- * 负责加载/保存流、挂载 API 语义预检、全屏与离开页未保存拦截。
+ * 负责加载/保存流、挂载 API 语义预检、全屏与离开页未保存拦截；
+ * 进入页隐藏全局侧栏，离开恢复。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -45,7 +46,7 @@ const { loadProjectName } = useProjectTabTitle(
   () => String(store.flowName || '').trim() || '测试流画布',
 )
 
-/** 是否全屏编辑（隐藏侧栏） */
+/** 是否全屏编辑（整页 fixed 覆盖；全局侧栏由进/出画布页统一隐藏） */
 const isFullscreen = ref(false)
 /** 路由上的测试流 id，驱动预检调度 */
 const testFlowIdRef = computed(() => String(route.params.testFlowId ?? ''))
@@ -66,7 +67,7 @@ async function handleSave() {
 
 function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
-  appStore.toggleSideBarHide(isFullscreen.value)
+  // 全局侧栏在画布页始终隐藏；全屏只切换整页覆盖样式
   document.body.classList.toggle('fullscreen-detail-mode', isFullscreen.value)
 }
 
@@ -108,16 +109,16 @@ async function initFlow() {
 }
 
 onMounted(() => {
+  // 进入画布即藏全局侧栏，避免遮挡 Staging ✓
+  appStore.toggleSideBarHide(true)
   window.addEventListener('beforeunload', onBeforeUnload)
   initFlow()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', onBeforeUnload)
-  if (isFullscreen.value) {
-    appStore.toggleSideBarHide(false)
-    document.body.classList.remove('fullscreen-detail-mode')
-  }
+  appStore.toggleSideBarHide(false)
+  document.body.classList.remove('fullscreen-detail-mode')
 })
 
 /** 路由切换到另一条测试流时重新初始化 */

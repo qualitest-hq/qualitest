@@ -2,6 +2,7 @@ package com.qualitest.ai.llm;
 
 import com.qualitest.ai.config.AiLlmConfigService;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 
@@ -97,6 +98,41 @@ class AiAgentRunnerTest {
         assertFalse(result.isOk());
         assertTrue(result.getError().contains("最大步数"));
         assertEquals(2, result.getStepsUsed());
+    }
+
+    /**
+     * 前提：maxSteps=3，连续 tool_call，终态探针始终 false。
+     * 期望：第 2 轮 LLM 请求的 messages 末尾含催 submit 文案；达上限错误亦提示 submit。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("步数将尽时注入催 submit 提示")
+    void run_nearMaxSteps_appendsSubmitNudge() {
+        LlmToolCall toolCall = LlmToolCall.builder()
+                .id("call_loop")
+                .name("search_apis")
+                .argumentsJson("{}")
+                .build();
+        when(llmProvider.chat(eq(modelConfig), any()))
+                .thenReturn(LlmChatResponse.builder().toolCalls(List.of(toolCall)).build());
+
+        ArgumentCaptor<LlmChatRequest> requestCaptor = ArgumentCaptor.forClass(LlmChatRequest.class);
+        AiAgentRunner.AgentRunResult result = runner.run(AiAgentRunner.AgentRunOptions.builder()
+                .modelConfig(modelConfig)
+                .initialMessages(List.of(LlmMessage.user("plan")))
+                .toolExecutor((name, args) -> "{}")
+                .maxSteps(3)
+                .terminalSuccessProbe(() -> false)
+                .build());
+
+        verify(llmProvider, times(3)).chat(eq(modelConfig), requestCaptor.capture());
+        List<LlmChatRequest> requests = requestCaptor.getAllValues();
+        // 第 2、3 轮请求应已带上催 submit（第 1 轮 tool 后 steps=1，剩余 2）
+        boolean secondHasNudge = requests.get(1).getMessages().stream()
+                .anyMatch(m -> AiAgentRunner.SUBMIT_NUDGE_CONTENT.equals(m.getContent()));
+        assertTrue(secondHasNudge);
+        assertFalse(result.isOk());
+        assertTrue(result.getError().contains("submit_flow_design_patch"));
     }
 
     /**

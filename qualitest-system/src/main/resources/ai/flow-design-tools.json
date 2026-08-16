@@ -23,17 +23,18 @@
   {
     "type": "function",
     "function": {
-      "name": "get_api_detail",
-      "description": "获取单个 API 的 path/query/header/body 参数摘要（含 required）、body 示例、响应 schema 一层摘要；另返回 designHints（造流设计提示，必读）、项目响应约定 responseConvention、建议 extracts（suggestedExtracts），以及鉴权 auth/headerHint（与平台补头同一套）",
+      "name": "get_api_details",
+      "description": "批量获取 API 造流摘要（单条也用本工具）。每条含 path/query/header/body 参数摘要、body 示例、响应 schema 摘要、designHints、responseConvention、suggestedExtracts（登录口会前置按端 loginHint）、鉴权 auth/headerHint。一次传入本流关键 testProjectApiId（去重后最多 5 条）；不够再调第二次。超字节会从尾部暂缓部分 id（deferredIds），不会整包清空",
       "parameters": {
         "type": "object",
         "properties": {
-          "testProjectApiId": {
-            "type": "string",
-            "description": "项目 API ID"
+          "testProjectApiIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "项目 API ID 列表；单条也请传长度为 1 的数组；去重后最多 5 条"
           }
         },
-        "required": ["testProjectApiId"]
+        "required": ["testProjectApiIds"]
       }
     }
   },

@@ -6,6 +6,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
@@ -16,10 +17,9 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * {@code get_subflow_detail} 工具实现。
+ * 按测试流 ID 加载其 graph_json，返回拓扑摘要（nodes/edges）与对外输出声明。
  * <p>
- * 按测试流 ID 加载其当前 {@code graph_json}，返回拓扑摘要与对外输出声明，
- * 无需 graphJson 信封。
+ * 返回前按拓扑形状做字节上限裁剪。
  */
 @RequiredArgsConstructor
 public class GetSubflowDetailTool implements QualitestTool {
@@ -77,6 +77,6 @@ public class GetSubflowDetailTool implements QualitestTool {
         result.put("nodes", nodes);
         result.put("edges", FlowGraphSummarySupport.buildEdgeArray(graph.getEdges()));
         result.put("hint", "无需 graphJson 信封；查看单节点完整 data 请用 get_flow 或带 testFlowId 的 get_node_detail");
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitGraphTopology(result, ctx.getMaxToolResultBytes());
     }
 }

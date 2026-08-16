@@ -5,6 +5,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.ai.tools.support.AssetVariablesListingSupport;
 import com.qualitest.project.mapper.TestProjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -12,10 +13,9 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * 测试流 AI 工具：列举当前项目素材库。
+ * 列举当前项目素材库：各条目的 key、备注、子字段名与占位提示，不含字段明文。
  * <p>
- * 返回各条目的 key、备注、子字段名与占位提示，不含字段明文值。
- * 编写或选用 {{asset.key.field}} 前应先调用本工具确认已有键。
+ * 返回前按 items 列表形状做字节上限裁剪。
  */
 @RequiredArgsConstructor
 public class ListAssetVariablesTool implements QualitestTool {
@@ -43,6 +43,6 @@ public class ListAssetVariablesTool implements QualitestTool {
         }
         String json = testProjectMapper.selectAssetVariablesByTestProjectId(projectId);
         JSONObject result = AssetVariablesListingSupport.buildListResult(json);
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitItemsList(result, ctx.getMaxToolResultBytes());
     }
 }

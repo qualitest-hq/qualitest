@@ -3,6 +3,7 @@ package com.qualitest.ai.tools;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.ai.tools.flow.GetApiDetailsTool;
 import com.qualitest.api.util.ApiConfigV2TestFixtures;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
@@ -136,13 +137,13 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * 前提：get_api_detail 传入本项目合法 testProjectApiId。
-     * 期望：返回 method/path/bodyParams（含 username）等语义摘要，truncated=false。
+     * 前提：get_api_details 传入本项目合法 testProjectApiIds（单元素数组）。
+     * 期望：apis[0] 含 method/path/bodyParams（含 username）等语义摘要。
      */
     @Test
     @Order(3)
     @DisplayName("合法 API 返回语义摘要")
-    void getApiDetail_validApi_returnsSemanticSummary() {
+    void getApiDetails_validApi_returnsSemanticSummary() {
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(loginApi());
         when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(
                 com.qualitest.project.domain.TestProject.builder()
@@ -152,44 +153,154 @@ class FlowDesignToolExecutorTest {
                         .build());
 
         String json = executor.executeTool(
-                FlowDesignToolExecutor.GET_API_DETAIL,
-                "{\"testProjectApiId\":\"" + API_ID + "\"}",
+                FlowDesignToolExecutor.GET_API_DETAILS,
+                "{\"testProjectApiIds\":[\"" + API_ID + "\"]}",
                 context);
 
         JSONObject root = JSON.parseObject(json);
-        assertEquals(String.valueOf(API_ID), root.getString("testProjectApiId"));
-        assertEquals("POST", root.getString("method"));
-        assertEquals("/api/auth/login", root.getString("path"));
-        assertTrue(paramSummariesContainName(root.getJSONArray("bodyParams"), "username"));
-        assertTrue(root.getString("bodyExample").contains("username"));
-        assertNotNull(root.getJSONObject("responseSchemaSummary"));
-        assertNotNull(root.getJSONObject("responseConvention"));
-        assertEquals("code", root.getJSONObject("responseConvention").getString("codePath"));
-        assertNotNull(root.getJSONArray("suggestedExtracts"));
+        JSONArray apis = root.getJSONArray("apis");
+        assertEquals(1, apis.size());
+        JSONObject detail = apis.getJSONObject(0);
+        assertEquals(String.valueOf(API_ID), detail.getString("testProjectApiId"));
+        assertEquals("POST", detail.getString("method"));
+        assertEquals("/api/auth/login", detail.getString("path"));
+        assertTrue(paramSummariesContainName(detail.getJSONArray("bodyParams"), "username"));
+        assertTrue(detail.getString("bodyExample").contains("username"));
+        assertNotNull(detail.getJSONObject("responseSchemaSummary"));
+        assertNotNull(detail.getJSONObject("responseConvention"));
+        assertEquals("code", detail.getJSONObject("responseConvention").getString("codePath"));
+        assertNotNull(detail.getJSONArray("suggestedExtracts"));
         assertFalse(root.getBooleanValue("truncated"));
-        assertEquals("inherit", root.getJSONObject("auth").getString("mode"));
-        assertEquals("clientBearer", root.getJSONObject("headerHint").getString("profileId"));
-        assertEquals("token", root.getJSONObject("headerHint").getString("flowKey"));
+        assertEquals("inherit", detail.getJSONObject("auth").getString("mode"));
+        assertEquals("clientBearer", detail.getJSONObject("headerHint").getString("profileId"));
+        assertEquals("token", detail.getJSONObject("headerHint").getString("flowKey"));
     }
 
     /**
      * 前提：API 属于其它项目。
-     * 期望：error=「接口不属于当前项目」，不泄露详情。
+     * 期望：apis 空，missingIds 含该 id。
      */
     @Test
     @Order(4)
-    @DisplayName("跨项目 API 返回归属错误")
-    void getApiDetail_wrongProject_returnsError() {
+    @DisplayName("跨项目 API 记入 missingIds")
+    void getApiDetails_wrongProject_listedInMissing() {
         TestProjectApi otherProject = loginApi();
         otherProject.setTestProjectId(999L);
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(otherProject);
 
         String json = executor.executeTool(
-                FlowDesignToolExecutor.GET_API_DETAIL,
-                "{\"testProjectApiId\":\"" + API_ID + "\"}",
+                FlowDesignToolExecutor.GET_API_DETAILS,
+                "{\"testProjectApiIds\":[\"" + API_ID + "\"]}",
                 context);
 
-        assertEquals("接口不属于当前项目", JSON.parseObject(json).getString("error"));
+        JSONObject root = JSON.parseObject(json);
+        assertEquals(0, root.getJSONArray("apis").size());
+        assertTrue(root.getJSONArray("missingIds").contains(String.valueOf(API_ID)));
+    }
+
+    @Test
+    @Order(41)
+    @DisplayName("批量两个合法 id 返回两条")
+    void getApiDetails_twoIds_returnsBoth() {
+        Long secondId = 2002L;
+        when(mapper.selectTestProjectApiById(API_ID)).thenReturn(loginApi());
+        TestProjectApi second = loginApi();
+        second.setTestProjectApiId(secondId);
+        second.setApiPath("/api/cart");
+        second.setApiName("购物车");
+        when(mapper.selectTestProjectApiById(secondId)).thenReturn(second);
+        when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(
+                com.qualitest.project.domain.TestProject.builder().testProjectId(PROJECT_ID).build());
+
+        String json = executor.executeTool(
+                FlowDesignToolExecutor.GET_API_DETAILS,
+                "{\"testProjectApiIds\":[\"" + API_ID + "\",\"" + secondId + "\"]}",
+                context);
+
+        JSONArray apis = JSON.parseObject(json).getJSONArray("apis");
+        assertEquals(2, apis.size());
+        assertEquals(String.valueOf(API_ID), apis.getJSONObject(0).getString("testProjectApiId"));
+        assertEquals(String.valueOf(secondId), apis.getJSONObject(1).getString("testProjectApiId"));
+    }
+
+    @Test
+    @Order(42)
+    @DisplayName("超过 5 个 id 截断并标记 truncated")
+    void getApiDetails_overMax_truncated() {
+        when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(
+                com.qualitest.project.domain.TestProject.builder().testProjectId(PROJECT_ID).build());
+        StringBuilder ids = new StringBuilder("[");
+        for (int i = 1; i <= 7; i++) {
+            long id = 3000L + i;
+            if (i > 1) {
+                ids.append(',');
+            }
+            ids.append('"').append(id).append('"');
+            TestProjectApi api = loginApi();
+            api.setTestProjectApiId(id);
+            when(mapper.selectTestProjectApiById(id)).thenReturn(api);
+        }
+        ids.append(']');
+
+        String json = executor.executeTool(
+                FlowDesignToolExecutor.GET_API_DETAILS,
+                "{\"testProjectApiIds\":" + ids + "}",
+                context);
+
+        JSONObject root = JSON.parseObject(json);
+        assertTrue(root.getBooleanValue("truncated"));
+        assertEquals(5, root.getJSONArray("apis").size());
+    }
+
+    @Test
+    @Order(45)
+    @DisplayName("字节超限时从尾部裁条并保留至少 1 条")
+    void getApiDetails_byteLimit_keepsAtLeastOne() {
+        when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(
+                com.qualitest.project.domain.TestProject.builder().testProjectId(PROJECT_ID).build());
+        JSONArray apis = new JSONArray();
+        for (int i = 0; i < 3; i++) {
+            JSONObject row = new JSONObject();
+            row.put("testProjectApiId", String.valueOf(4000 + i));
+            row.put("method", "POST");
+            row.put("path", "/p" + i);
+            row.put("name", "n" + i);
+            // 故意做大，迫使裁条
+            row.put("bodyExample", "x".repeat(4000));
+            apis.add(row);
+        }
+        JSONObject result = new JSONObject();
+        result.put("apis", apis);
+        String json = GetApiDetailsTool.fitToByteLimit(result, new ArrayList<>(), 5000);
+        JSONObject root = JSON.parseObject(json);
+        assertTrue(root.getJSONArray("apis").size() >= 1);
+        assertTrue(root.getBooleanValue("truncated"));
+        assertNotNull(root.getJSONArray("deferredIds"));
+        assertFalse(root.getJSONArray("deferredIds").isEmpty());
+    }
+
+    @Test
+    @Order(43)
+    @DisplayName("旧名 get_api_detail 返回迁移错误")
+    void getApiDetail_legacyName_returnsMigrationError() {
+        String json = executor.executeTool(
+                FlowDesignToolExecutor.GET_API_DETAIL_LEGACY,
+                "{\"testProjectApiId\":\"" + API_ID + "\"}",
+                context);
+        String error = JSON.parseObject(json).getString("error");
+        assertTrue(error.contains("已废弃"));
+        assertTrue(error.contains("get_api_details"));
+    }
+
+    @Test
+    @Order(44)
+    @DisplayName("空 testProjectApiIds 返回错误")
+    void getApiDetails_emptyIds_returnsError() {
+        String json = executor.executeTool(
+                FlowDesignToolExecutor.GET_API_DETAILS,
+                "{\"testProjectApiIds\":[]}",
+                context);
+        assertTrue(JSON.parseObject(json).getString("error").contains("testProjectApiIds"));
     }
 
     /**

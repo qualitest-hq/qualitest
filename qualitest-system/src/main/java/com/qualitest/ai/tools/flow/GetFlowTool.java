@@ -5,12 +5,17 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.project.service.ITestFlowService;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 
-/** get_flow：读取单条测试流含 graphJson */
+/**
+ * 读取单条测试流元数据与 graphJson。
+ * <p>
+ * 返回前按流记录形状做字节上限裁剪（优先去掉 graphJson）。
+ */
 @RequiredArgsConstructor
 public class GetFlowTool implements QualitestTool {
 
@@ -40,6 +45,6 @@ public class GetFlowTool implements QualitestTool {
         result.put("graphJson", FlowDesignToolSupport.parseGraphJsonField(flow.getGraphJson()));
         result.put("hint", "浏览拓扑优先 get_subflow_detail 或带 testFlowId 的 get_graph_summary；"
                 + "需完整 data 编辑时可将 graphJson 放入信封后调用 get_node_detail");
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitFlowRecord(result, ctx.getMaxToolResultBytes());
     }
 }

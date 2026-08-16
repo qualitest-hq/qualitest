@@ -149,12 +149,12 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
         if (api == null || api.getAuthConfig() == null) {
             return;
         }
-        // 空串也规范化为默认 inherit，避免脏 JSON 落库
-        if (StrUtil.isBlank(api.getAuthConfig())) {
-            api.setAuthConfig(ApiAuthConfigSupport.normalizeToJson("{}"));
-            return;
-        }
-        api.setAuthConfig(ApiAuthConfigSupport.normalizeToJson(api.getAuthConfig()));
+        // 空串也规范化为默认 inherit，再按内置免登 path 可能改为 none
+        String normalized = StrUtil.isBlank(api.getAuthConfig())
+                ? ApiAuthConfigSupport.normalizeToJson("{}")
+                : ApiAuthConfigSupport.normalizeToJson(api.getAuthConfig());
+        api.setAuthConfig(ApiAuthConfigSupport.coerceInheritToNoneIfBuiltinPath(
+                normalized, api.getApiPath()));
     }
 
     /**

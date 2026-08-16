@@ -4,13 +4,13 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * Flow Design 工具公共辅助：参数解析、错误响应、结果截断与列表封装。
+ * Flow Design 工具公共辅助：参数解析、错误响应与列表封装。
  * <p>
- * 工具失败约定：返回 JSON 对象含顶层 {@code error} 字段；Web Agent 与 MCP 均据此判定 tool 失败。
+ * 工具失败时返回 JSON 顶层含 {@code error} 字段。
+ * 列表类结果组装后会按字节上限裁剪 items。
  */
 public final class FlowDesignToolSupport {
 
@@ -23,7 +23,6 @@ public final class FlowDesignToolSupport {
 
     /**
      * 工具返回 JSON 是否表示业务失败（顶层含 {@code error} 字段）。
-     * Web Agent 与 MCP 共用此约定。
      */
     public static boolean isErrorResult(String resultJson) {
         if (resultJson == null || resultJson.isBlank()) {
@@ -96,6 +95,14 @@ public final class FlowDesignToolSupport {
         return result.toJSONString();
     }
 
+    /**
+     * 组装 items 列表结果（含条数截断标记），再按字节上限裁剪 items。
+     *
+     * @param items     业务条目
+     * @param truncated 是否因条数上限已截断
+     * @param hint      条数截断说明，可空
+     * @param maxBytes  返回 JSON 字节上限
+     */
     public static String buildItemsResult(JSONArray items, boolean truncated, String hint, int maxBytes) {
         JSONObject result = new JSONObject();
         result.put("items", items);
@@ -103,32 +110,7 @@ public final class FlowDesignToolSupport {
         if (truncated && hint != null && !hint.isBlank()) {
             result.put("hint", hint);
         }
-        return enforceByteLimit(result, maxBytes);
-    }
-
-    public static String enforceByteLimit(JSONObject result, int maxBytes) {
-        boolean countTruncated = Boolean.TRUE.equals(result.getBoolean("truncated"));
-        String countHint = result.getString("hint");
-        String json = result.toJSONString();
-        if (json.getBytes(StandardCharsets.UTF_8).length <= maxBytes) {
-            result.put("truncated", countTruncated);
-            return json;
-        }
-        result.put("truncated", true);
-        String byteHint = "结果过大，请缩小查询范围或使用 get_api_detail 查看单条";
-        if (countHint != null && !countHint.isBlank()) {
-            result.put("hint", countHint + "；" + byteHint);
-        } else {
-            result.put("hint", byteHint);
-        }
-        String trimmed = JSON.toJSONString(result);
-        if (trimmed.getBytes(StandardCharsets.UTF_8).length > maxBytes) {
-            JSONObject minimal = new JSONObject();
-            minimal.put("truncated", true);
-            minimal.put("hint", result.getString("hint"));
-            return minimal.toJSONString();
-        }
-        return trimmed;
+        return ToolResultByteFit.fitItemsList(result, maxBytes);
     }
 
     /**

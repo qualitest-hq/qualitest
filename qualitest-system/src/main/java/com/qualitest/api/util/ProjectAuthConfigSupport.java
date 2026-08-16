@@ -259,8 +259,8 @@ public final class ProjectAuthConfigSupport {
     /**
      * 通用 Bearer 种子（项目级上传且 auth_config 为空时写入）。
      * <p>
-     * 仅一套 Profile、无 pathPrefix 分端、无匿名 path——上传侧只能可靠表达「要不要登录」，
-     * 双端切分与白名单属项目特定，需手工或另贴 demo 模板。
+     * 仅一套 Profile、无 pathPrefix 分端；匿名 path 写入内置免登启发式（/login 等），
+     * 避免登录口被 inherit 成 Bearer。双端切分仍属项目特定，需手工或另贴 demo 模板。
      */
     public static ProjectAuthConfig defaultBearerTemplate() {
         return ProjectAuthConfig.builder()
@@ -280,7 +280,7 @@ public final class ProjectAuthConfigSupport {
                                         .build())
                                 .build()
                 ))
-                .anonymousPathExact(List.of())
+                .anonymousPathExact(List.copyOf(BUILTIN_ANONYMOUS_AUTH_PATH_EXACT))
                 .anonymousPathPrefix(List.of())
                 .build();
     }
@@ -326,18 +326,51 @@ public final class ProjectAuthConfigSupport {
                                         .build())
                                 .build()
                 ))
-                .anonymousPathExact(List.copyOf(DEMO_ANONYMOUS_PATH_EXACT))
+                .anonymousPathExact(List.copyOf(BUILTIN_ANONYMOUS_AUTH_PATH_EXACT))
                 .anonymousPathPrefix(List.copyOf(DEMO_ANONYMOUS_PATH_PREFIX))
                 .build();
     }
 
-    /** demo SecurityConfig 业务向白名单（精确）；仅供 {@link #dualBearerTemplate()}。 */
-    public static final List<String> DEMO_ANONYMOUS_PATH_EXACT =
-            List.of("/login", "/register", "/captchaImage");
+    /**
+     * 内置免登鉴权路径启发式（精确，忽略尾斜杠）。
+     * <p>
+     * 导入/同步在 auth 为空或 inherit 时写入 mode=none；造流补头亦按此短路。
+     * 与项目 {@code anonymousPath*} 叠加；用户显式 override 不改。
+     * demo 双端模板的 exact 白名单与此同源，勿再维护第二份清单。
+     */
+    public static final List<String> BUILTIN_ANONYMOUS_AUTH_PATH_EXACT = List.of(
+            "/login",
+            "/register",
+            "/captchaImage",
+            "/api/account/auth/login",
+            "/api/account/auth/register");
+
+    /** demo 双端模板用的精确匿名 path；与 {@link #BUILTIN_ANONYMOUS_AUTH_PATH_EXACT} 同一份列表。 */
+    public static final List<String> DEMO_ANONYMOUS_PATH_EXACT = BUILTIN_ANONYMOUS_AUTH_PATH_EXACT;
 
     /** demo 业务向白名单前缀；仅供 {@link #dualBearerTemplate()}。 */
     public static final List<String> DEMO_ANONYMOUS_PATH_PREFIX =
             List.of("/test-support/", "/swagger-ui", "/v3/api-docs");
+
+    /**
+     * 路径是否命中内置免登启发式（与项目 anonymous 配置无关）。
+     */
+    public static boolean matchesBuiltinAnonymousAuthPath(String apiPath) {
+        String path = normalizeApiPath(apiPath);
+        for (String raw : BUILTIN_ANONYMOUS_AUTH_PATH_EXACT) {
+            if (path.equals(normalizeApiPath(raw))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 是否应按免登处理：内置启发式或项目 anonymousPath 命中。
+     */
+    public static boolean shouldTreatAsAnonymousAuth(String apiPath, ProjectAuthConfig config) {
+        return matchesBuiltinAnonymousAuthPath(apiPath) || matchesAnonymousPath(apiPath, config);
+    }
 
     /**
      * 接口路径是否命中项目匿名 path（exact 全等或 prefix 段前缀）。

@@ -102,6 +102,28 @@ public final class ApiAuthConfigSupport {
     }
 
     /**
+     * 落库用的 {@code {"mode":"none"}}；不应返回 null。
+     */
+    public static String noneStorageJson() {
+        return JSONUtil.toJsonStr(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).build());
+    }
+
+    /**
+     * 内置免登 path 上若仍为 inherit（或等价空），改为 none；override / 已是 none 不改。
+     * 导入与单条增改共用，避免两处各写一遍。
+     */
+    public static String coerceInheritToNoneIfBuiltinPath(String authJson, String apiPath) {
+        if (!ProjectAuthConfigSupport.matchesBuiltinAnonymousAuthPath(apiPath)) {
+            return authJson;
+        }
+        ApiAuthConfig parsed = parseOrInherit(authJson);
+        if (!ApiAuthConfig.MODE_INHERIT.equalsIgnoreCase(StrUtil.trim(parsed.getMode()))) {
+            return authJson;
+        }
+        return noneStorageJson();
+    }
+
+    /**
      * 规范为小写 mode；不支持则返回 null。
      */
     public static String canonicalizeMode(String mode) {

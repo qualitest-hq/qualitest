@@ -216,8 +216,8 @@ class TestProjectApiEffectiveConfigResolverTest {
     }
 
     /**
-     * 前提：源 API 含身份字段与 testValueConfig 默认值。
-     * 期望：toApiView 保留 id/path/headers，requestConfig 为有效配置（含 hello）。
+     * 前提：源 API 含身份字段、鉴权标签 none 与 testValueConfig 默认值。
+     * 期望：toApiView 保留 id/path/headers/authConfig，requestConfig 为有效配置（含 hello）。
      */
     @Test
     @Order(7)
@@ -227,6 +227,7 @@ class TestProjectApiEffectiveConfigResolverTest {
                 .testProjectApiId(100L)
                 .testProjectId(200L)
                 .apiPath("/api/demo")
+                .authConfig("{\"mode\":\"none\"}")
                 .requestConfig("""
                         {
                           "configVersion": 1,
@@ -246,6 +247,7 @@ class TestProjectApiEffectiveConfigResolverTest {
 
         assertEquals(100L, view.getTestProjectApiId());
         assertEquals("/api/demo", view.getApiPath());
+        assertEquals("{\"mode\":\"none\"}", view.getAuthConfig());
         assertTrue(view.getRequestConfig().contains("hello"));
         assertEquals("{\"H\":\"1\"}", view.getHeaders());
     }

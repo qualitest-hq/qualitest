@@ -116,7 +116,7 @@ public class SearchApisTool implements QualitestTool {
             items.add(item);
         }
         String hint = truncated
-                ? "匹配结果超过 limit=" + limit + "，请缩小关键词或使用 get_api_detail"
+                ? "匹配结果超过 limit=" + limit + "，请缩小关键词或使用 get_api_details"
                 : null;
         return FlowDesignToolSupport.buildItemsResult(items, truncated, hint, ctx.getMaxToolResultBytes());
     }

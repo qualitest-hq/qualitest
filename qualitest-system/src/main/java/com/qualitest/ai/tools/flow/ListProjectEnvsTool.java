@@ -7,6 +7,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.service.ITestProjectEnvService;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,11 @@ import lombok.RequiredArgsConstructor;
 import java.util.List;
 import java.util.Map;
 
-/** list_project_envs：列举项目环境 id/name/url，环境变量仅返回键名 */
+/**
+ * 列举项目环境 id/name/url；环境变量仅返回键名，不含值。
+ * <p>
+ * 返回前按 items 列表形状做字节上限裁剪（超限可先去掉 envVarKeys）。
+ */
 @RequiredArgsConstructor
 public class ListProjectEnvsTool implements QualitestTool {
 
@@ -52,7 +57,7 @@ public class ListProjectEnvsTool implements QualitestTool {
         }
         JSONObject result = new JSONObject();
         result.put("items", items);
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitItemsList(result, ctx.getMaxToolResultBytes());
     }
 
     private static JSONArray extractEnvVarKeys(String envVariablesJson) {

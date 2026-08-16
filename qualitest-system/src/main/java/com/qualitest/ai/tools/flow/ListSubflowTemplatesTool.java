@@ -6,6 +6,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
 import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
@@ -14,9 +15,9 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * {@code list_subflow_templates} 工具实现。
+ * 汇总平台内置子流模板与项目内可引用测试流摘要，供 subflow 节点选型。
  * <p>
- * 汇总平台内置模板与项目内测试流摘要，供 subflow 节点选型。
+ * 返回前按模板列表形状做字节上限裁剪（先裁项目流，再裁平台模板）。
  */
 @RequiredArgsConstructor
 public class ListSubflowTemplatesTool implements QualitestTool {
@@ -63,6 +64,6 @@ public class ListSubflowTemplatesTool implements QualitestTool {
             hint += "；projectSubflows 超过 limit=" + limit + "，请传入 keyword 缩小范围";
         }
         result.put("hint", hint);
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitSubflowTemplates(result, ctx.getMaxToolResultBytes());
     }
 }

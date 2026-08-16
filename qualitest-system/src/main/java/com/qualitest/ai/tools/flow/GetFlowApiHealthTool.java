@@ -4,8 +4,8 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
-import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.flow.diagnose.HttpNodeApiHealthChecker;
 import com.qualitest.flow.diagnose.HttpNodeApiHealthWarning;
 import com.qualitest.flow.model.GraphJson;
@@ -20,16 +20,12 @@ import java.util.Map;
 import java.util.TreeSet;
 
 /**
- * AI 只读工具 get_flow_api_health：检查测试流画布上「项目接口」模式 HTTP 节点的 API 语义健康。
+ * 检查画布上「项目接口」HTTP 节点的 API 语义健康。
  * <p>
- * 功能：
- * <ul>
- *   <li>解析当前上下文中的画布图（优先草稿 graphJson，否则按 testFlowId 加载）</li>
- *   <li>对每个绑定了项目 API 的 HTTP 节点检查：接口是否仍存在、测值参数是否孤儿、抽取路径是否还能对上响应结构</li>
- *   <li>不写库、不改节点</li>
- * </ul>
- * 返回字段含 healthy、warningCount、warningCodes、warnings；
- * 每条告警可带节点残留的 apiName / apiPath / httpMethod，方便后续换绑。
+ * 解析当前画布（优先草稿 graphJson，否则按 testFlowId 加载），检查绑定接口是否仍在、
+ * 测值参数是否孤儿、抽取路径是否还能对上响应结构。不写库。
+ * 返回 healthy、warningCount、warningCodes、warnings（可带残留 apiName/path/method）。
+ * 返回前按体检结果形状做字节上限裁剪。
  */
 public class GetFlowApiHealthTool implements QualitestTool {
 
@@ -110,9 +106,9 @@ public class GetFlowApiHealthTool implements QualitestTool {
             // 给模型的修复指引：缺接口则换绑，孤儿测值/抽取失效则对照接口详情调整
             result.put("hint", "API_MISSING 时用 search_apis 按 apiName/apiPath 找现行接口，"
                     + "再 submit_flow_design_patch updateNodes 换绑 testProjectApiId；"
-                    + "ORPHAN_PARAM / EXTRACT_PATH_MISSING 时对照 get_api_detail 调整测值或抽取");
+                    + "ORPHAN_PARAM / EXTRACT_PATH_MISSING 时对照 get_api_details 调整测值或抽取");
         }
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitApiHealth(result, ctx.getMaxToolResultBytes());
     }
 
     /**

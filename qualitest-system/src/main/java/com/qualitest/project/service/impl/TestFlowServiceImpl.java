@@ -19,6 +19,7 @@ import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
 import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.AuthTokenPresenceGate;
+import com.qualitest.flow.validate.LoginExtractPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
@@ -148,9 +149,13 @@ public class TestFlowServiceImpl implements ITestFlowService {
         }
         GraphValidationResult validation = graphJsonValidator.validate(graph);
         List<String> errors = new ArrayList<>(validation.getErrors());
-        errors.addAll(AssertPathDesignGate.validate(graph, testProjectApiMapper::selectTestProjectApiById));
+        // schema 缺字段仅为警告，保存不拦截
+        errors.addAll(AssertPathDesignGate.validate(graph, testProjectApiMapper::selectTestProjectApiById).errors());
+        String projectAuthJson = loadProjectAuthConfig(testProjectId);
         errors.addAll(AuthTokenPresenceGate.validate(
-                graph, loadProjectAuthConfig(testProjectId), testProjectApiMapper::selectTestProjectApiById));
+                graph, projectAuthJson, testProjectApiMapper::selectTestProjectApiById));
+        errors.addAll(LoginExtractPresenceGate.validate(
+                graph, projectAuthJson, testProjectApiMapper::selectTestProjectApiById));
         if (!errors.isEmpty()) {
             throw new ServiceException(errors.get(0));
         }

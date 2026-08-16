@@ -7,6 +7,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.ai.tools.support.AssetUpsertSupport;
 import com.qualitest.ai.tools.support.AssetVariablesListingSupport;
 import com.qualitest.project.domain.TestProjectAsset;
@@ -18,11 +19,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 测试流 AI 工具：按 key 提出新增或更新项目素材库条目。
+ * 按 key 提出新增或更新项目素材库条目。
  * <p>
- * 入参：key（必填）、fields 扁平字段对象（必填）、remark（可选）。
- * 执行时只把提案写入本轮捕获器，不写素材库；用户确认后才真正落盘。
- * 仅 Web AI 设计助手可调用；回执含 key、字段名、action、status=pending，不含字段明文。
+ * 入参：key、fields（扁平字段对象）、可选 remark。
+ * 只把提案写入本轮捕获器，不写库；用户确认后才落盘。
+ * 回执含 key、字段名、action、status=pending，不含字段明文。
+ * 返回前按小回执形状做字节上限裁剪。
  */
 @RequiredArgsConstructor
 public class UpsertAssetVariablesTool implements QualitestTool {
@@ -96,6 +98,6 @@ public class UpsertAssetVariablesTool implements QualitestTool {
                 .build());
         result.put("action", proposal.getAction());
         result.put("status", AssetUpsertProposal.STATUS_PENDING);
-        return FlowDesignToolSupport.enforceByteLimit(result, maxBytes);
+        return ToolResultByteFit.fitAck(result, maxBytes);
     }
 }

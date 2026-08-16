@@ -11,7 +11,7 @@ import type { Edge } from '@vue-flow/core';
 import type { AiStagingUnit } from '../types/aiStagingTypes';
 import type { FlowDesignPatch } from '../types/aiDesignTypes';
 import { isStagingConfirmBlockedByDependencies } from './stagingDependencyHints';
-import { isGraphStagingKind, objectIdFromUnitId } from './stagingUnitIds';
+import { isEdgeStagingKind, isGraphStagingKind, objectIdFromUnitId } from './stagingUnitIds';
 
 /** 按 patch 内对象出现顺序枚举全部 Staging 单元 id */
 export function enumeratePatchUnitIds(patch: FlowDesignPatch): string[] {
@@ -73,7 +73,7 @@ function isPatchAddNodeConfirmed(
 
 /** 是否为连线类单元（聚焦时需包含 source/target 节点） */
 export function isEdgeFocusUnit(unit: Pick<AiStagingUnit, 'kind'>): boolean {
-  return unit.kind === 'addEdge' || unit.kind === 'updateEdge' || unit.kind === 'deleteEdge';
+  return isEdgeStagingKind(unit.kind);
 }
 
 /**

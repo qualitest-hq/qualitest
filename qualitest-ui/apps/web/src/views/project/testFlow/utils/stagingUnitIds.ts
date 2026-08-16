@@ -36,6 +36,26 @@ export function isGraphStagingKind(kind: DiffItemKind | string): boolean {
   return GRAPH_KINDS.has(kind as DiffItemKind);
 }
 
+/** 连线类 Staging（增/改/删边，会影响开始节点拓扑判断） */
+const EDGE_STAGING_KINDS = new Set<DiffItemKind>(['addEdge', 'updateEdge', 'deleteEdge']);
+
+/** 是否为连线类 Staging kind */
+export function isEdgeStagingKind(kind: DiffItemKind | string): boolean {
+  return EDGE_STAGING_KINDS.has(kind as DiffItemKind);
+}
+
+/** 是否存在 status=pending 的连线类 Staging 单元 */
+export function hasPendingStagingEdgeUnits(
+  units: Iterable<Pick<AiStagingUnit, 'status' | 'kind'>>,
+): boolean {
+  for (const u of units) {
+    if (u.status === 'pending' && isEdgeStagingKind(u.kind)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function isScenarioStagingKind(kind: DiffItemKind | string): boolean {
   return SCENARIO_KINDS.has(kind as DiffItemKind);
 }

@@ -100,6 +100,7 @@ public final class AuthTokenPresenceGate {
             return errors;
         }
 
+        // 合并图（含 Staging pending）上的 extracts / assign / 子流输出 / flowSeed 均算来源
         Set<String> produced = collectProducedFlowKeys(graph);
         for (Map.Entry<String, String> entry : requiredKeys.entrySet()) {
             if (produced.contains(entry.getKey())) {

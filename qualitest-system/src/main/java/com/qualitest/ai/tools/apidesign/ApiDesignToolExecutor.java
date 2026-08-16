@@ -2,7 +2,7 @@ package com.qualitest.ai.tools.apidesign;
 
 import com.qualitest.ai.scenario.apidesign.ApiDesignPatchNormalizer;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
-import com.qualitest.ai.tools.flow.GetApiDetailTool;
+import com.qualitest.ai.tools.flow.GetApiDetailsTool;
 import com.qualitest.ai.tools.flow.ListAssetVariablesTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.project.mapper.TestProjectApiMapper;
@@ -25,7 +25,7 @@ import java.util.Set;
 public class ApiDesignToolExecutor {
 
     public static final String GET_API_DESIGN_CONTEXT = ApiDesignToolNames.GET_API_DESIGN_CONTEXT.getId();
-    public static final String GET_API_DETAIL = ApiDesignToolNames.GET_API_DETAIL.getId();
+    public static final String GET_API_DETAILS = ApiDesignToolNames.GET_API_DETAILS.getId();
     public static final String LIST_PROJECT_ENVS = ApiDesignToolNames.LIST_PROJECT_ENVS.getId();
     public static final String LIST_ASSET_VARIABLES = ApiDesignToolNames.LIST_ASSET_VARIABLES.getId();
     public static final String SUBMIT_API_DESIGN_PATCH = ApiDesignToolNames.SUBMIT_API_DESIGN_PATCH.getId();
@@ -38,7 +38,8 @@ public class ApiDesignToolExecutor {
                                  ApiDesignPatchNormalizer apiDesignPatchNormalizer) {
         Map<String, ApiDesignTool> map = new HashMap<>();
         map.put(GET_API_DESIGN_CONTEXT, new GetApiDesignContextTool(testProjectApiMapper));
-        map.put(GET_API_DETAIL, new GetApiDetailForDesignTool(new GetApiDetailTool(testProjectApiMapper, testProjectMapper)));
+        map.put(GET_API_DETAILS, new GetApiDetailsForDesignTool(
+                new GetApiDetailsTool(testProjectApiMapper, testProjectMapper)));
         map.put(LIST_PROJECT_ENVS, new ListProjectEnvsForDesignTool(new ListProjectEnvsTool(testProjectEnvService)));
         map.put(LIST_ASSET_VARIABLES, new ListAssetVariablesForDesignTool(
                 new ListAssetVariablesTool(testProjectMapper)));
@@ -64,6 +65,10 @@ public class ApiDesignToolExecutor {
      * @param context        本轮上下文
      */
     public String executeTool(String name, String argumentsJson, ApiDesignToolContext context) {
+        if ("get_api_detail".equals(name)) {
+            return FlowDesignToolSupport.errorJson(
+                    "工具 get_api_detail 已废弃，请改用 get_api_details（参数 testProjectApiIds 为字符串数组）");
+        }
         ApiDesignTool tool = tools.get(name);
         if (tool == null) {
             return FlowDesignToolSupport.errorJson("未知工具: " + name);

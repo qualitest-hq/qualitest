@@ -23,17 +23,18 @@ class ProjectAuthConfigSupportTest {
 
     /**
      * 前提：通用上传种子。
-     * 期望：单 Profile、无匿名 path；任意路径回落到 defaultBearer。
+     * 期望：单 Profile；含内置免登 path（/login 等）；业务路径仍回落 defaultBearer。
      */
     @Test
     @Order(1)
-    @DisplayName("通用种子：单套 Bearer、无匿名 path")
+    @DisplayName("通用种子：单套 Bearer、含内置免登 path")
     void defaultBearerTemplate_conservative() {
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.defaultBearerTemplate();
         assertFalse(ProjectAuthConfigSupport.isEmpty(cfg));
         assertEquals(ProjectAuthConfigSupport.PROFILE_DEFAULT, cfg.getDefaultProfileId());
         assertEquals(1, cfg.getAuthProfiles().size());
-        assertTrue(cfg.getAnonymousPathExact() == null || cfg.getAnonymousPathExact().isEmpty());
+        assertTrue(cfg.getAnonymousPathExact().contains("/login"));
+        assertTrue(cfg.getAnonymousPathExact().contains("/api/account/auth/login"));
         assertTrue(cfg.getAnonymousPathPrefix() == null || cfg.getAnonymousPathPrefix().isEmpty());
         assertEquals(
                 ProjectAuthConfigSupport.PROFILE_DEFAULT,
@@ -41,7 +42,10 @@ class ProjectAuthConfigSupportTest {
         assertEquals(
                 ProjectAuthConfigSupport.PROFILE_DEFAULT,
                 ProjectAuthConfigSupport.resolveProfileId("/system/user/list", cfg));
-        assertFalse(ProjectAuthConfigSupport.matchesAnonymousPath("/login", cfg));
+        assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/login", cfg));
+        assertTrue(ProjectAuthConfigSupport.matchesBuiltinAnonymousAuthPath("/login"));
+        assertTrue(ProjectAuthConfigSupport.matchesBuiltinAnonymousAuthPath("/api/account/auth/register/"));
+        assertFalse(ProjectAuthConfigSupport.matchesBuiltinAnonymousAuthPath("/api/account/auth/profile"));
     }
 
     /**
@@ -131,6 +135,7 @@ class ProjectAuthConfigSupportTest {
         assertTrue(cfg.getAnonymousPathExact().contains("/login"));
         assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/login", cfg));
         assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/captchaImage", cfg));
+        assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/api/account/auth/login", cfg));
         assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/test-support/snapshot", cfg));
         assertTrue(ProjectAuthConfigSupport.matchesAnonymousPath("/v3/api-docs", cfg));
         assertFalse(ProjectAuthConfigSupport.matchesAnonymousPath("/api/account/auth/profile", cfg));

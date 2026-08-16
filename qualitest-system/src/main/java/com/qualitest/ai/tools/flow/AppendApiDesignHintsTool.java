@@ -6,6 +6,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.support.TestProjectApiDesignHintsService;
@@ -18,7 +19,8 @@ import java.util.Map;
 /**
  * 向接口 design_hints 追加造流设计提示（直接落库）。
  * <p>
- * 仅 Web 助手可用；用于沉淀业务约定（如 body 二选一），勿写入 apiDescription（导入会覆盖）。
+ * 仅 Web 助手可用；用于沉淀业务约定（如 body 二选一），不要写进 apiDescription（导入会覆盖）。
+ * 返回前按小回执形状做字节上限裁剪。
  */
 @RequiredArgsConstructor
 public class AppendApiDesignHintsTool implements QualitestTool {
@@ -54,7 +56,7 @@ public class AppendApiDesignHintsTool implements QualitestTool {
         result.put("testProjectApiId", String.valueOf(apiId));
         result.put("designHints", TestProjectApiDesignHintsService.readHintList(json));
         result.put("ok", true);
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitAck(result, ctx.getMaxToolResultBytes());
     }
 
     private static List<String> parseHintsArg(Object raw) {

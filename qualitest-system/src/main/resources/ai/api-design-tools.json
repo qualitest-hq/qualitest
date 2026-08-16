@@ -14,14 +14,15 @@
   {
     "type": "function",
     "function": {
-      "name": "get_api_detail",
-      "description": "获取单个 API 的 path/query/header/body 参数摘要（含 type/约束）、body 示例与响应 schema 摘要。查询*其他*接口时使用；当前接口优先 get_api_design_context",
+      "name": "get_api_details",
+      "description": "批量获取 API 摘要（单条也用本工具）。查询*其他*接口时使用；当前接口优先 get_api_design_context。参数 testProjectApiIds 为字符串数组，可省略则用当前上下文接口",
       "parameters": {
         "type": "object",
         "properties": {
-          "testProjectApiId": {
-            "type": "string",
-            "description": "项目 API ID；可省略，将使用当前上下文中的接口"
+          "testProjectApiIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "项目 API ID 列表；可省略，将使用当前上下文中的接口"
           }
         },
         "required": []

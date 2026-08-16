@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  collectAssertPathDesignErrors,
+  collectAssertPathDesignIssues,
   extractResponseExample,
   extractResponseSchemaPaths,
   findUpstreamProjectHttpNode,
@@ -92,7 +92,7 @@ describe('jsonPathTrial design gate helpers', () => {
     expect(resolveTrialApiId(nodes[0], nodes, edges)).toBe('99');
   });
 
-  it('collectAssertPathDesignErrors：.items 硬拦；过滤器不因占位 example 失败；无 schema 跳过', () => {
+  it('collectAssertPathDesignIssues：.items 硬拦；缺字段警告；无 schema 警告；过滤器通过', () => {
     const graph = {
       nodes: [
         { id: 'h1', type: 'http', data: { testProjectApiId: '99', callMode: 'project' } },
@@ -112,22 +112,37 @@ describe('jsonPathTrial design gate helpers', () => {
             rules: [{ left: "http.body.data[?(@.cartId=='5001')].quantity", operator: 'eq', right: '3' }],
           },
         },
+        {
+          id: 'a3',
+          type: 'assert',
+          data: {
+            name: '缺字段',
+            rules: [{ left: 'http.body.data[0].notAField', operator: 'eq', right: '3' }],
+          },
+        },
       ],
       edges: [
         { id: 'e1', source: 'h1', target: 'a1' },
         { id: 'e2', source: 'h1', target: 'a2' },
+        { id: 'e3', source: 'h1', target: 'a3' },
       ],
     };
     const schemaPaths = extractResponseSchemaPaths(cartResponseConfig);
-    const hit = collectAssertPathDesignErrors(graph, new Map([['99', schemaPaths]]));
-    expect(hit.some((e) => e.includes('.items'))).toBe(true);
-    expect(hit.some((e) => e.includes('好断言'))).toBe(false);
+    const hit = collectAssertPathDesignIssues(graph, new Map([['99', schemaPaths]]));
+    expect(hit.errors.some((e) => e.includes('.items'))).toBe(true);
+    expect(hit.errors.some((e) => e.includes('好断言'))).toBe(false);
+    expect(hit.warnings.some((w) => w.includes('缺字段') && w.includes('schema'))).toBe(true);
 
     const goodOnly = {
       nodes: [graph.nodes[0], graph.nodes[2]],
       edges: [graph.edges[1]],
     };
-    expect(collectAssertPathDesignErrors(goodOnly, new Map([['99', schemaPaths]]))).toHaveLength(0);
-    expect(collectAssertPathDesignErrors(graph, new Map())).toHaveLength(0);
+    expect(collectAssertPathDesignIssues(goodOnly, new Map([['99', schemaPaths]]))).toEqual({
+      errors: [],
+      warnings: [],
+    });
+    const noSchema = collectAssertPathDesignIssues(graph, new Map([['99', []]]));
+    expect(noSchema.errors).toHaveLength(0);
+    expect(noSchema.warnings.some((w) => w.includes('无响应 schema'))).toBe(true);
   });
 });

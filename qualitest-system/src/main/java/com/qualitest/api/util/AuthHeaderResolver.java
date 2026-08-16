@@ -39,6 +39,10 @@ public final class AuthHeaderResolver {
         }
 
         ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
+        // inherit 且命中内置/项目免登 path：不加托管头（登录口常见误标 inherit）
+        if (ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(apiPath, projectAuth)) {
+            return ResolvedAuthHeader.skip();
+        }
         if (ProjectAuthConfigSupport.isEmpty(projectAuth)) {
             return ResolvedAuthHeader.skip();
         }

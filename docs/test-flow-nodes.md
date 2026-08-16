@@ -50,9 +50,18 @@
 
 **Profile 匹配**：接口已指定 `authProfileId` 则用之；否则在 `authProfiles` 中取命中的最长 `pathPrefix`；无人命中用 `defaultProfileId`。**禁止** `pathPrefix="/"`。
 
-**登录抽凭证**：extracts 的 `from`+`expr`（`body`+JSONPath 或 `setCookie`+Cookie 名）与 Profile `loginHint` 对齐，写入 `flow.token` / `flow.adminToken` 等。**不要**再写节点 `useRunSession`（已忽略）。
+**登录抽凭证**：extracts 的 `from`+`expr`（`body`+JSONPath 或 `setCookie`+Cookie 名）与 Profile `loginHint` 对齐，写入 `flow.token` / `flow.adminToken` 等。**不要**再写节点 `useRunSession`（已忽略）。造流时登录口空 extracts 会按 `loginHint` / 路径自动补；缺对应 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。
+
+**同流复用**：业务流开头登录一次（或挂登录子流），后续 HTTP 靠托管 Bearer 复用 `flow.*`；勿每个步骤再登录。调试可用 flowSeed 预置 token；口令仍走素材库。
 
 **门禁与操作**：缺对应端 `flow.token` / `flow.adminToken` 来源时，AI submit / Staging 确认 / 保存硬拦（`AUTH_TOKEN_MISSING`）；托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。画布顶栏「刷新鉴权头」批量提案写回托管头（经 Staging）。Run 鉴权失败用「AI 修复」（含 401 预填）。
+
+**按端 JsonPath（demo）**：
+
+| 端 | 典型 path | extract |
+| --- | --- | --- |
+| 客户端 | `/api/account/auth/login` | `$.data.token` → `flow.token` |
+| 管理端 | `/login` | `$.token` → `flow.adminToken` |
 
 **种子**：项目级上传且 `auth_config` 为空 → 通用单套 Bearer；demo 双端可在设置里「套用双端（demo）」（`/api/` → `flow.token`，`/system/` 等 → `flow.adminToken`）。
 
@@ -89,7 +98,7 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 
 购物车「是否含某 cartId」推荐：`http.body.data[?(@.cartId=='5001')]` + `exists`（若 `data` 直接是数组；勿写成 `data.items[…]`）。
 
-设计期：Staging ✓ 确认 **assert/condition 节点**时，会在含尚未确认 Staging 上下游的**预览图**上按上游接口**响应 schema** 校验 `http.body…` 左值（禁 `.items`；过滤器与 `data[*].字段` 对齐）；预览图仍无上游 project HTTP 则硬拦。错误挂在该断言/条件单元，**不会**因路径问题拦住边确认。AI submit / **保存** 仍对全图跑同一门禁。响应 **example 只给人看**，属性面板可对照 example 软试算（空结果标红），**不参与硬拦**。无 schema 时跳过不报错。正式 **Run** 只跑图结构校验。
+设计期：Staging ✓ 确认 **assert/condition 节点**时，会在含尚未确认 Staging 上下游的**预览图**上按上游接口**响应 schema** 校验 `http.body…` 左值（禁 `.items` / `http.body.$.…` 等结构错误 → **硬拦**；schema 缺字段或无 schema → **警告**，允许确认与保存；过滤器与 `data[*].字段` 对齐）；预览图仍无上游 project HTTP 则硬拦。错误挂在该断言/条件单元，**不会**因路径问题拦住边确认。AI submit / **保存** 仍对全图跑同一门禁。响应 **example 只给人看**，属性面板可对照 example 软试算（空结果标红），**不参与硬拦**。正式 **Run** 只跑图结构校验。
 
 ---
 

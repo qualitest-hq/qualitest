@@ -1,13 +1,7 @@
 /**
- * 测试流图 JSON 结构校验（设计态 TS）。
+ * 测试流图 JSON 结构校验（设计态）。
  *
- * 规则与后端 GraphJsonValidator 对齐，
- * 消息文案逐字一致，保证前后端 error/warning 条数相同。
- *
- * 运行方式（在 `qualitest-ui/apps/web` 目录）：
- * ```bash
- * yarn test graphValidate
- * ```
+ * 检查节点类型、边、开始节点、HTTP 绑定、条件分支等结构问题，产出 errors / warnings。
  */
 import {
   isValidJsonPath,
@@ -36,6 +30,40 @@ export interface StartNodesValidation {
   message: string;
 }
 
+/**
+ * 存在未确认连线时，开始节点「看起来像多个入口」的提示文案（降为 warning，不硬拦保存预览）。
+ */
+export const DEFERRED_MULTI_START_WARNING =
+  '尚有未确认的连线；确认边之后将只保留一个开始节点（当前看起来像多个入口）。';
+
+/**
+ * 存在未确认连线时，开始节点「看起来缺失」的提示文案（降为 warning）。
+ */
+export const DEFERRED_NO_START_WARNING =
+  '尚有未确认的连线；确认边之后再校验开始节点（当前每个节点都有入边或图不完整）。';
+
+/**
+ * 保存路径：若错误文案涉及开始节点，且业务上属于「pending 连线导致的假象」，则改写成延后提示文案。
+ * 不匹配则原样返回。
+ */
+export function rewriteStartNodeErrorForPendingEdges(error: string): string {
+  const text = String(error ?? '').trim();
+  if (!/开始节点/.test(text)) return text;
+  return /只能有一个开始节点/.test(text)
+    ? DEFERRED_MULTI_START_WARNING
+    : DEFERRED_NO_START_WARNING;
+}
+
+export type ValidateGraphJsonOptions = {
+  /** 导入弹窗传入；当前无额外分支，保留入参兼容 */
+  forImport?: boolean;
+  /**
+   * 为 true 时：开始节点唯一性失败写入 warnings 而非 errors。
+   * 用于 Staging 尚有未确认连线、落盘过滤图拓扑暂不可信的场景。
+   */
+  deferTopologyStructureRules?: boolean;
+};
+
 /** 从 graph_json / graphJson 包装中取出图对象 */
 export function unwrapGraphPayload(raw: Record<string, unknown>): Record<string, unknown> {
   if (raw.graph_json != null && typeof raw.graph_json === 'object' && !Array.isArray(raw.graph_json)) {
@@ -47,7 +75,7 @@ export function unwrapGraphPayload(raw: Record<string, unknown>): Record<string,
   return raw;
 }
 
-/** 列出无入边节点 id（候选开始节点；同一 id 只计一次，与 Java GraphJsonValidator 一致） */
+/** 列出无入边节点 id（候选开始节点；同一 id 只计一次） */
 export function findStartNodeIds(graph: Pick<GraphJson, 'nodes' | 'edges'>): string[] {
   const nodes = graph.nodes ?? [];
   const edges = graph.edges ?? [];
@@ -458,9 +486,14 @@ function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): v
 }
 
 /** 校验测试流图 JSON 结构，返回 errors / warnings 列表 */
-export function validateGraphJson(raw: unknown): GraphValidationResult {
+export function validateGraphJson(
+  raw: unknown,
+  options?: ValidateGraphJsonOptions,
+): GraphValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const deferTopology = options?.deferTopologyStructureRules === true;
+  void options?.forImport;
 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, errors: ['根对象必须是 JSON 对象'], warnings };
@@ -514,7 +547,15 @@ export function validateGraphJson(raw: unknown): GraphValidationResult {
   validateConditionBranches(nodes as GraphNode[], edges as GraphEdge[], warnings);
 
   const startCheck = validateStartNodes({ nodes: nodes as GraphNode[], edges: edges as GraphEdge[] });
-  if (!startCheck.ok) errors.push(startCheck.message);
+  if (!startCheck.ok) {
+    if (deferTopology) {
+      warnings.push(
+        startCheck.ids.length > 1 ? DEFERRED_MULTI_START_WARNING : DEFERRED_NO_START_WARNING,
+      );
+    } else {
+      errors.push(startCheck.message);
+    }
+  }
 
   appendMetaRunError(graph, errors);
 

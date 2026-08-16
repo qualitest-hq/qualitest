@@ -7,6 +7,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.project.params.TestFlowRunStepParams;
 import com.qualitest.project.result.TestFlowRunResult;
 import com.qualitest.project.result.TestFlowRunStepResult;
@@ -18,15 +19,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * get_run_failure：查询失败 Run 的全部 failed 步骤现场。
+ * 查询失败 Run 的全部 failed 步骤现场。
  * <p>
- * 输出：
- * <ul>
- *   <li>failures：全部失败步骤（含 failureCategory、errorCode、bizCheck、子流 childSteps 等）</li>
- *   <li>bizCodeFailures / assertFailures / otherFailures：按失败类型分区的列表与计数</li>
- * </ul>
- * failureCategory 取值：bizCode（业务码失败）、assert（断言失败）、other（HTTP 状态码等其他）。
- * 仅一条失败时，额外把 nodeId、stepDetails、failureCategory 提到顶层便于阅读。
+ * 输出 failures（含 failureCategory、errorCode、bizCheck、子流 childSteps 等），
+ * 以及按类型分区的列表与计数。failureCategory：bizCode / assert / other。
+ * 仅一条失败时，额外把 nodeId、stepDetails、failureCategory 提到顶层。
+ * 返回前按失败现场形状做字节上限裁剪（去分区重复数组，再压缩/减少 failures）。
  */
 @RequiredArgsConstructor
 public class GetRunFailureTool implements QualitestTool {
@@ -104,7 +102,7 @@ public class GetRunFailureTool implements QualitestTool {
         if (failures.isEmpty()) {
             result.put("failed", false);
             result.put("message", "未找到失败步骤");
-            return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+            return ToolResultByteFit.fitRunFailure(result, ctx.getMaxToolResultBytes());
         }
         result.put("failed", true);
         result.put("failureCount", failures.size());
@@ -125,7 +123,7 @@ public class GetRunFailureTool implements QualitestTool {
             result.put("stepDetails", first.getString("stepDetails"));
             result.put("failureCategory", first.getString("failureCategory"));
         }
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitRunFailure(result, ctx.getMaxToolResultBytes());
     }
 
     /**

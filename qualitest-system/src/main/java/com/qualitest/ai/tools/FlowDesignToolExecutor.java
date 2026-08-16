@@ -4,7 +4,7 @@ import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.tools.flow.AppendApiDesignHintsTool;
 import com.qualitest.ai.tools.flow.FlowGraphContextResolver;
-import com.qualitest.ai.tools.flow.GetApiDetailTool;
+import com.qualitest.ai.tools.flow.GetApiDetailsTool;
 import com.qualitest.ai.tools.flow.GetFlowApiHealthTool;
 import com.qualitest.ai.tools.flow.GetFlowMetaTool;
 import com.qualitest.ai.tools.flow.GetFlowTool;
@@ -54,7 +54,9 @@ import java.util.stream.Collectors;
 public class FlowDesignToolExecutor {
 
     public static final String SEARCH_APIS = FlowDesignToolNames.SEARCH_APIS.getId();
-    public static final String GET_API_DETAIL = FlowDesignToolNames.GET_API_DETAIL.getId();
+    public static final String GET_API_DETAILS = FlowDesignToolNames.GET_API_DETAILS.getId();
+    /** @deprecated 已删除；调用时返回迁移提示 */
+    public static final String GET_API_DETAIL_LEGACY = "get_api_detail";
     public static final String GET_GRAPH_SUMMARY = FlowDesignToolNames.GET_GRAPH_SUMMARY.getId();
     public static final String GET_FLOW_META = FlowDesignToolNames.GET_FLOW_META.getId();
     public static final String LIST_PROJECT_ENVS = FlowDesignToolNames.LIST_PROJECT_ENVS.getId();
@@ -94,7 +96,7 @@ public class FlowDesignToolExecutor {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         Map<String, QualitestTool> map = new HashMap<>();
         map.put(SEARCH_APIS, new SearchApisTool(testProjectApiMapper, testProjectMapper));
-        map.put(GET_API_DETAIL, new GetApiDetailTool(testProjectApiMapper, testProjectMapper));
+        map.put(GET_API_DETAILS, new GetApiDetailsTool(testProjectApiMapper, testProjectMapper));
         map.put(LIST_FLOWS, new ListFlowsTool(testFlowService));
         map.put(LIST_SUBFLOW_TEMPLATES, new ListSubflowTemplatesTool(testFlowService));
         map.put(GET_SUBFLOW_DETAIL, new GetSubflowDetailTool(testFlowService));
@@ -138,6 +140,10 @@ public class FlowDesignToolExecutor {
      * 按工具名执行一次调用，返回 JSON 字符串（成功为数据对象，失败含 error 字段）。
      */
     public String executeTool(String name, String argumentsJson, FlowDesignToolContext context) {
+        if (GET_API_DETAIL_LEGACY.equals(name)) {
+            return FlowDesignToolSupport.errorJson(
+                    "工具 get_api_detail 已废弃，请改用 get_api_details（参数 testProjectApiIds 为字符串数组，单条也传 [id]）");
+        }
         QualitestTool tool = tools.get(name);
         if (tool == null) {
             return FlowDesignToolSupport.errorJson("未知工具: " + name);

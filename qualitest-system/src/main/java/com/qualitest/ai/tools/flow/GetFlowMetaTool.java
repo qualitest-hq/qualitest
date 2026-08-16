@@ -4,8 +4,8 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
-import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphRunScenario;
@@ -13,7 +13,11 @@ import com.qualitest.flow.subflow.GraphMetaIoSupport;
 
 import java.util.Map;
 
-/** get_flow_meta：返回 graphJson.meta 运行场景、flowOutputs 与 startNodeId 摘要；MCP 可仅传 testFlowId 自动加载。 */
+/**
+ * 返回画布 meta：运行场景列表、flow 输出名、startNodeId、activeScenarioId。
+ * <p>
+ * 返回前按 meta 形状做字节上限裁剪（瘦 scenarios，必要时清空 flowOutputNames）。
+ */
 public class GetFlowMetaTool implements QualitestTool {
 
     private final FlowGraphContextResolver graphResolver;
@@ -40,7 +44,7 @@ public class GetFlowMetaTool implements QualitestTool {
         result.put("flowOutputNames", new JSONArray());
         result.put("startNodeId", "");
         if (graph.getMeta() == null) {
-            return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+            return ToolResultByteFit.fitFlowMeta(result, ctx.getMaxToolResultBytes());
         }
         GraphMeta meta = graph.getMeta();
         if (meta.getStartNodeId() != null) {
@@ -71,6 +75,6 @@ public class GetFlowMetaTool implements QualitestTool {
         }
         result.put("scenarios", scenarios);
         result.put("flowOutputNames", GraphMetaIoSupport.flowOutputNames(meta));
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitFlowMeta(result, ctx.getMaxToolResultBytes());
     }
 }

@@ -40,7 +40,18 @@ public class GraphJsonValidator {
     private static final Set<String> ALLOWED_EDGE_KEYS = Set.of("id", "source", "target", "label");
 
     /**
-     * 校验已解析的 {@link GraphJson}。
+     * 存在未确认连线时：开始节点「看起来像多个入口」的延后提示（写入 warnings，不硬拦）。
+     */
+    static final String DEFERRED_MULTI_START_WARNING =
+            "尚有未确认的连线；确认边之后将只保留一个开始节点（当前看起来像多个入口）。";
+    /**
+     * 存在未确认连线时：开始节点「看起来缺失」的延后提示（写入 warnings）。
+     */
+    static final String DEFERRED_NO_START_WARNING =
+            "尚有未确认的连线；确认边之后再校验开始节点（当前每个节点都有入边或图不完整）。";
+
+    /**
+     * 校验已解析的图结构（完整规则）。
      */
     public GraphValidationResult validate(GraphJson graph) {
         return validate(graph, GraphValidationOptions.full());
@@ -728,11 +739,11 @@ public class GraphJsonValidator {
         }
         List<String> ids = findStartNodeIds(collectNodeIds(nodes), collectTypedEdgeTargets(edges));
         if (ids.isEmpty()) {
-            warnings.add("本批 AI 建议尚有未确认项，开始节点校验将在全部确认或取消后进行");
+            warnings.add(DEFERRED_NO_START_WARNING);
             return;
         }
         if (ids.size() > 1) {
-            warnings.add("本批 AI 建议尚有未确认项，开始节点唯一性将在全部确认或取消后校验");
+            warnings.add(DEFERRED_MULTI_START_WARNING);
         }
     }
 

@@ -38,7 +38,7 @@
 
 ## 只读工具
 - 改当前接口前优先 get_api_design_context（含 type/约束/测值预览与 schema 叶节点）
-- get_api_detail：仅当需要查询**另一个** testProjectApiId 时使用；当前接口勿重复调用
+- get_api_details：需要查询**其他** testProjectApiId 时一次传入 id 数组；当前接口勿重复调用（优先 get_api_design_context）
 - 环境键名：list_project_envs
 - 选用 {{asset.*}}：list_asset_variables（仅 key/子字段，无明文值）
 - 用户说「只改后置」时，patch 仅含 phase=post

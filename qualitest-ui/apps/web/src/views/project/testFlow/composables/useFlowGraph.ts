@@ -7,18 +7,22 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 
 import { getTestProjectApi } from '@/api/project/testProjectApi';
 import { getTestFlow, updateTestFlow, upgradeTestFlowGraph, type TestFlowRecord } from '@/api/project/testFlow';
-import { validateGraphJson } from '@/utils/flow/graphValidate';
+import {
+  rewriteStartNodeErrorForPendingEdges,
+  validateGraphJson,
+} from '@/utils/flow/graphValidate';
 
 import { fromGraphJson, toGraphJson, type FromGraphJsonResult } from '../graphAdapter';
 import { refreshSavedBaseline, refreshSavedBaselineIfPristine } from '../utils/reconcileFlowDirty';
 import { isBlockWhenStagingPending } from '../utils/aiDesignPreferences';
 import { promptStagingPendingSave } from '../utils/promptStagingPendingSave';
+import { hasPendingStagingEdgeUnits } from '../utils/stagingUnitIds';
 import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import {
-  collectAssertPathDesignErrors,
+  collectAssertPathDesignIssues,
   extractResponseSchemaPaths,
   resolveTrialApiId,
 } from '../utils/jsonPathTrial';
@@ -170,14 +174,21 @@ export function useFlowGraph() {
     });
     const validation = validateGraphJson(graph);
     if (!validation.ok) {
-      ElMessage.error(validation.errors[0] ?? '图校验失败');
+      const first = validation.errors[0] ?? '图校验失败';
+      const message = hasPendingStagingEdgeUnits(Object.values(stagingStore.unitsById))
+        ? rewriteStartNodeErrorForPendingEdges(first)
+        : first;
+      ElMessage.error(message);
       return false;
     }
 
-    const assertPathErrors = await loadAssertPathDesignErrors(graph);
-    if (assertPathErrors.length) {
-      ElMessage.error(assertPathErrors[0]);
+    const assertPath = await loadAssertPathDesignIssues(graph);
+    if (assertPath.errors.length) {
+      ElMessage.error(assertPath.errors[0]);
       return false;
+    }
+    if (assertPath.warnings.length) {
+      ElMessage.warning(assertPath.warnings[0]);
     }
 
     store.loading = true;
@@ -227,10 +238,10 @@ export function useFlowGraph() {
 }
 
 /** 拉取 assert/condition 上游接口响应 schema，做保存前路径门禁（example 不参与硬拦） */
-async function loadAssertPathDesignErrors(graph: {
+async function loadAssertPathDesignIssues(graph: {
   nodes?: Array<Record<string, unknown>>;
   edges?: Array<Record<string, unknown>>;
-}): Promise<string[]> {
+}): Promise<{ errors: string[]; warnings: string[] }> {
   const nodes = graph.nodes ?? [];
   const edges = graph.edges ?? [];
   const apiIds = new Set<string>();
@@ -256,5 +267,5 @@ async function loadAssertPathDesignErrors(graph: {
       }
     }),
   );
-  return collectAssertPathDesignErrors(graph, schemaPathsByApiId);
+  return collectAssertPathDesignIssues(graph, schemaPathsByApiId);
 }

@@ -215,7 +215,7 @@ export function previewAssertLeft(trialBody: unknown, left: string): string {
   return formatTrialResult(result.value);
 }
 
-/** 路径段 items：JSON Schema 关键字，断言左值不应出现（与后端 AssertPathDesignGate 一致） */
+/** 路径段 items：JSON Schema 描述数组元素的关键字，断言左值中不应出现 */
 const SCHEMA_ITEMS_SEGMENT = /(^|\.)items(\.|\[|$)/;
 
 /**
@@ -264,7 +264,7 @@ function collectSchemaLeaves(schema: Record<string, unknown>, prefix: string, ou
   if (prefix) out.push(prefix);
 }
 
-/** 与后端 HttpNodeApiHealthChecker.normalizeStructuralPath 对齐 */
+/** 去掉 JsonPath / http.body 前缀与下标，得到可与 schema 叶路径比对的结构路径 */
 export function normalizeStructuralPath(path: string): string {
   let p = String(path ?? '').trim();
   if (p.startsWith('$.')) p = p.slice(2);
@@ -296,6 +296,7 @@ export function normalizeStructuralPath(path: string): string {
   return p;
 }
 
+/** 规范化后的路径是否落在任一 schema 叶路径上（前缀匹配） */
 export function pathMatchesSchema(path: string, schemaPaths: Iterable<string>): boolean {
   const p = normalizeStructuralPath(path);
   if (!p) return false;
@@ -308,20 +309,24 @@ export function pathMatchesSchema(path: string, schemaPaths: Iterable<string>): 
   return false;
 }
 
+/** 相对路径是否含 Schema 关键字段 items */
 export function containsJsonSchemaItemsSegment(relativePath: string): boolean {
   return SCHEMA_ITEMS_SEGMENT.test(String(relativePath ?? '').trim());
 }
 
 /**
- * 保存前设计期断言路径门禁（与后端 AssertPathDesignGate 对齐：schema + 禁 .items）。
- * schemaPathsByApiId 无条目或空数组时跳过该节点（与后端「无 schema 不报错」一致）。
+ * 设计期断言路径门禁（保存前前端预检）。
+ * 扫描 assert / condition 的 http.body 左值：
+ * 结构错误（.items、http.body.$.）→ errors；
+ * schema 缺字段或无 schema → warnings。
  * 响应 example 不参与硬拦。
  */
-export function collectAssertPathDesignErrors(
+export function collectAssertPathDesignIssues(
   graph: { nodes?: Array<Record<string, unknown>>; edges?: Array<Record<string, unknown>> } | null | undefined,
   schemaPathsByApiId: Map<string, string[]> | Record<string, string[]>,
-): string[] {
+): { errors: string[]; warnings: string[] } {
   const errors: string[] = [];
+  const warnings: string[] = [];
   const nodes = (graph?.nodes ?? []) as Array<{
     id?: string;
     type?: string;
@@ -339,17 +344,22 @@ export function collectAssertPathDesignErrors(
     const apiId = resolveTrialApiId(node, nodes as Node[], edges);
     if (!apiId || !schemaMap.has(apiId)) continue;
     const schemaPaths = schemaMap.get(apiId) ?? [];
-    if (!schemaPaths.length) continue;
-
     const nodeName =
       node.data?.name != null && String(node.data.name).trim()
         ? String(node.data.name)
         : node.id ?? '?';
     const kindLabel = type === 'assert' ? '断言' : '条件';
 
+    if (!schemaPaths.length) {
+      if (hasHttpBodyLeftToCheck(type, node.data)) {
+        warnings.push(`${kindLabel}节点「${nodeName}」上游接口无响应 schema，未做字段校验`);
+      }
+      continue;
+    }
+
     if (type === 'assert') {
       const rules = Array.isArray(node.data?.rules) ? (node.data!.rules as Array<Record<string, unknown>>) : [];
-      appendSchemaPathErrors(errors, kindLabel, nodeName, 'rules', rules, schemaPaths);
+      appendSchemaPathIssues(errors, warnings, kindLabel, nodeName, 'rules', rules, schemaPaths);
     } else {
       const branches = Array.isArray(node.data?.branches)
         ? (node.data!.branches as Array<Record<string, unknown>>)
@@ -358,8 +368,9 @@ export function collectAssertPathDesignErrors(
         const conditions = Array.isArray(branch?.conditions)
           ? (branch.conditions as Array<Record<string, unknown>>)
           : [];
-        appendSchemaPathErrors(
+        appendSchemaPathIssues(
           errors,
+          warnings,
           kindLabel,
           nodeName,
           `branches[${bi}].conditions`,
@@ -369,11 +380,37 @@ export function collectAssertPathDesignErrors(
       });
     }
   }
-  return errors;
+  return { errors, warnings };
 }
 
-function appendSchemaPathErrors(
+function hasHttpBodyLeftToCheck(
+  type: string,
+  data: Record<string, unknown> | undefined,
+): boolean {
+  if (!data) return false;
+  if (type === 'assert') {
+    return rulesHaveHttpBodyLeft(Array.isArray(data.rules) ? (data.rules as Array<Record<string, unknown>>) : []);
+  }
+  const branches = Array.isArray(data.branches) ? (data.branches as Array<Record<string, unknown>>) : [];
+  return branches.some((branch) =>
+    rulesHaveHttpBodyLeft(
+      Array.isArray(branch?.conditions) ? (branch.conditions as Array<Record<string, unknown>>) : [],
+    ),
+  );
+}
+
+function rulesHaveHttpBodyLeft(rules: Array<Record<string, unknown>>): boolean {
+  return rules.some((rule) => {
+    const rawLeft = rule?.left == null ? '' : String(rule.left).trim();
+    if (!rawLeft) return false;
+    const left = normalizeAssertLeftPath(rawLeft);
+    return left.startsWith('http.body.') && left.length > 'http.body.'.length;
+  });
+}
+
+function appendSchemaPathIssues(
   errors: string[],
+  warnings: string[],
   kindLabel: string,
   nodeName: string,
   fieldName: string,
@@ -402,7 +439,7 @@ function appendSchemaPathErrors(
       return;
     }
     if (!pathMatchesSchema(relative, schemaPaths)) {
-      errors.push(
+      warnings.push(
         `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」在上游接口响应 schema 中未找到对应字段`,
       );
     }

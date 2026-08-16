@@ -23,7 +23,7 @@ import java.util.Set;
  * <p>
  * 列内存 JSON：hints（短文本列表）、source、updatedAt。
  * 人机均可维护；插件/API 批量导入不修改本列。
- * get_api_detail 将 hints 注入造流模型。
+ * get_api_details 将 hints 注入造流模型。
  */
 @Service
 @RequiredArgsConstructor

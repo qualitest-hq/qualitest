@@ -12,7 +12,8 @@ import java.util.Arrays;
 public enum FlowDesignToolNames {
 
     SEARCH_APIS("search_apis", true, true),
-    GET_API_DETAIL("get_api_detail", true, true),
+    /** 按 id 数组批量拉取接口造流摘要（单条也传长度为 1 的数组） */
+    GET_API_DETAILS("get_api_details", true, true),
     GET_GRAPH_SUMMARY("get_graph_summary", true, true),
     GET_FLOW_META("get_flow_meta", true, true),
     LIST_PROJECT_ENVS("list_project_envs", true, true),
@@ -25,7 +26,7 @@ public enum FlowDesignToolNames {
     UPSERT_ASSET_VARIABLES("upsert_asset_variables", true, false),
     /**
      * 向接口 design_hints 追加造流设计提示（直接落库）。
-     * 仅 Web 助手可见；MCP 不可调用（只读经 get_api_detail）。
+     * 仅 Web 助手可见；MCP 不可调用。
      */
     APPEND_API_DESIGN_HINTS("append_api_design_hints", true, false),
     GET_NODE_DETAIL("get_node_detail", true, true),

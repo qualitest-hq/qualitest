@@ -58,7 +58,7 @@ MCP 侧共 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` / `g
 | `get_node_detail` | 单个节点配置 |
 | `get_run_failure` | 失败 Run 的步骤现场 |
 | `get_flow_api_health` | HTTP 节点绑定 / API 语义告警 |
-| `search_apis` / `get_api_detail` | 查项目接口 |
+| `search_apis` / `get_api_details` | 查项目接口（详情支持一次传多个 id） |
 | `list_project_envs` | 环境列表 |
 | `list_asset_variables` | 项目素材库（参数资产）key/字段名，不含明文；**写入请走 Web AI 的 `upsert_asset_variables`（聊天侧提案确认后落盘）** |
 | `list_subflow_templates` | 平台子流模板 |
@@ -100,6 +100,7 @@ testFlowId 用 <上一步拿到的 id>。
 - Token 等同项目凭证：勿提交进 Git / 截图外传；泄露后立即在项目设置刷新。
 - MCP **只读**：设计改动请在 Web **AI 助手**里预览 Diff 后合并。
 - 靶场联调、自然语言造流示例见：[qualitest-demo · AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)。
+- IDEA / OpenAPI 同步后：检查登录口（`/login`、`/api/account/auth/login` 等）资产的 `auth.mode` 应为 `none`；若仍为 `inherit`，造流可能误补 `Bearer {{flow.token}}`。存量可用 `sql/fix_anonymous_auth_builtin_paths.sql` 预览后修复。
 
 ---
 

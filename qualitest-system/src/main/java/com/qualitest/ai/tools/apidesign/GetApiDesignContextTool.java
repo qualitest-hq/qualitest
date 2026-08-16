@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignApiSummarizer;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.support.TestProjectApiEffectiveConfigResolver;
@@ -13,9 +14,10 @@ import java.util.Map;
 
 /**
  * 汇总当前接口给模型阅读的上下文：
- * method/path/说明、参数 type+约束+测值预览、body/response schema 叶节点、脚本预览等。
+ * method/path/说明、参数约束与测值预览、body/response schema 叶节点、脚本预览等。
  * <p>
- * 读取时会叠加测值层到有效配置；脚本预览优先用请求里的草稿。
+ * 读取时叠加测值层到有效配置；脚本预览优先用请求里的草稿。
+ * 返回前按设计上下文形状做字节上限裁剪（先删大体量字段，再裁参数数组）。
  */
 @RequiredArgsConstructor
 public class GetApiDesignContextTool implements ApiDesignTool {
@@ -79,7 +81,7 @@ public class GetApiDesignContextTool implements ApiDesignTool {
             result.put("workbenchSnapshot", tryParseOrRaw(ctx.getWorkbenchSnapshot()));
         }
 
-        return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+        return ToolResultByteFit.fitApiDesignContext(result, ctx.getMaxToolResultBytes());
     }
 
     /** 优先草稿，否则库内脚本 */

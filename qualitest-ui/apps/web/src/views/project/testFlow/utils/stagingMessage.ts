@@ -8,7 +8,7 @@ export function shouldShowStagingSummary(msg: AiDesignMessageView): boolean {
 }
 
 /**
- * 本轮未调用 submit：明示无 Staging，避免用户以为已改图。
+ * 本轮未调用 submit_flow_design_patch：明示无 Staging，避免用户以为已改图。
  * @param streamingMessageId 流式中的消息 id；传入时对该条不展示，避免闪一下
  */
 export function shouldShowExplainOnlyHint(

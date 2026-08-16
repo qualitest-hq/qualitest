@@ -12,8 +12,8 @@ public enum ApiDesignToolNames {
     /** 读取当前接口结构、约束、测值预览、脚本摘要 */
     GET_API_DESIGN_CONTEXT("get_api_design_context"),
 
-    /** 按 id 读取某个接口详情（通常用于查看其他接口） */
-    GET_API_DETAIL("get_api_detail"),
+    /** 按 id 列表读取接口详情（通常用于查看其他接口；单条也传数组） */
+    GET_API_DETAILS("get_api_details"),
 
     /** 列出项目环境及环境变量键名（不含值） */
     LIST_PROJECT_ENVS("list_project_envs"),

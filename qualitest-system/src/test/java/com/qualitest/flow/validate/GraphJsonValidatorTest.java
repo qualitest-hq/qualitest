@@ -263,6 +263,23 @@ class GraphJsonValidatorTest {
         assertTrue(d.getErrors().stream().anyMatch(e -> e.contains("ms 超过上限")));
     }
 
+    /**
+     * 前提：图含多个无入边节点；Staging 分批确认延后拓扑。
+     * 期望：ok；errors 空；warnings 含 O7「未确认的连线」文案。
+     */
+    @Test
+    @Order(12)
+    @DisplayName("延后拓扑时多开始降为 O7 警告")
+    void multiStartNode_deferredAsWarning() {
+        String json = loadResource("flow/invalid-multi-start.json");
+        GraphJson graph = GraphJson.parse(json);
+        GraphValidationResult result = validator.validate(graph, GraphValidationOptions.stagingPartialConfirm());
+        assertTrue(result.isOk());
+        assertTrue(result.getErrors().isEmpty());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("未确认的连线")));
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("开始节点")));
+    }
+
     private static String loadResource(String path) {
         InputStream in = GraphJsonValidatorTest.class.getClassLoader().getResourceAsStream(path);
         assertNotNull(in, "missing resource: " + path);

@@ -416,8 +416,8 @@ public class ApiImportServiceImpl implements IApiImportService {
     }
 
     /**
-     * 写入鉴权标签：上传包带了 auth 则覆盖库中值；未带则保持原值。
-     * 已是 none 保持；否则命中项目匿名 path → none；
+     * 写入鉴权标签：上传包带了 auth 则覆盖库中值；未带则仅在命中免登 path 时写入 none。
+     * 项目匿名 path：非 none 一律改 none；内置启发式（/login 等）：仅空或 inherit 改 none；
      * inherit 且未指定 authProfileId 时按路径回填 Profile。
      */
     private void applyAuthConfig(
@@ -425,7 +425,14 @@ public class ApiImportServiceImpl implements IApiImportService {
             ApiImportParams.ApiImportItem item,
             ProjectAuthConfig projectAuth) {
         ApiAuthConfig auth = item.getAuth();
+        boolean projectAnon = ProjectAuthConfigSupport.matchesAnonymousPath(item.getApiPath(), projectAuth);
+        boolean builtinAnon = ProjectAuthConfigSupport.matchesBuiltinAnonymousAuthPath(item.getApiPath());
+
         if (auth == null || StrUtil.isBlank(auth.getMode())) {
+            if (!projectAnon && !builtinAnon) {
+                return;
+            }
+            api.setAuthConfig(ApiAuthConfigSupport.noneStorageJson());
             return;
         }
         String mode = ApiAuthConfigSupport.canonicalizeMode(auth.getMode());
@@ -435,8 +442,9 @@ public class ApiImportServiceImpl implements IApiImportService {
             return;
         }
         String profileId = StrUtil.trimToNull(auth.getAuthProfileId());
-        if (!ApiAuthConfig.MODE_NONE.equals(mode)
-                && ProjectAuthConfigSupport.matchesAnonymousPath(item.getApiPath(), projectAuth)) {
+        if (!ApiAuthConfig.MODE_NONE.equals(mode) && projectAnon) {
+            mode = ApiAuthConfig.MODE_NONE;
+        } else if (ApiAuthConfig.MODE_INHERIT.equals(mode) && builtinAnon) {
             mode = ApiAuthConfig.MODE_NONE;
         } else if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
             profileId = ProjectAuthConfigSupport.resolveProfileId(item.getApiPath(), projectAuth);

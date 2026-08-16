@@ -16,7 +16,7 @@
 | [SECURITY.md](./SECURITY.md) | 安全披露 |
 | [docs/deploy.md](./docs/deploy.md) | 部署 / Compose / Flyway 运维约定 |
 | [docs/mcp.md](./docs/mcp.md) | MCP 配置与示例提问（以 Cursor 为例） |
-| [docs/全面测试手册.md](./docs/全面测试手册.md) | 系统化验收：自动测（T1/T2/T3） |
+| [docs/全面测试手册.md](./docs/全面测试手册.md) | 系统化验收：自动测（T1/T2/T3）；§F 含现场问题闭环 |
 | [docs/v1.0-首发文草稿.md](./docs/v1.0-首发文草稿.md) | 掘金 / 知乎 / V2EX 首发文大纲与底稿 |
 
 回复与用户可见说明默认使用中文。

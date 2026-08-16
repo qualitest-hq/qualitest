@@ -276,4 +276,26 @@ class AuthHeaderResolverTest {
                         "{\"mode\":\"override\"}", PROJECT_AUTH, "/api/orders");
         assertTrue(resolved.skipped());
     }
+
+    /**
+     * 前提：/login 标 inherit，项目配置无 anonymousPath。
+     * 期望：内置启发式仍 skip，不补 Bearer。
+     */
+    @Test
+    @Order(12)
+    @DisplayName("内置免登 path：inherit 的 /login 不加头")
+    void resolve_builtinAnonymousLogin_skips() {
+        String projectAuth = """
+                {"defaultProfileId":"defaultBearer","authProfiles":[{
+                  "id":"defaultBearer","name":"Bearer",
+                  "header":{"name":"Authorization","valueTemplate":"Bearer {{flow.token}}"},
+                  "loginHint":{"flowKey":"token","from":"body","expr":"$.token"}
+                }],"anonymousPathExact":[],"anonymousPathPrefix":[]}
+                """;
+        String apiAuth = ApiAuthConfigSupport.toStorageJson(
+                ApiAuthConfig.builder().mode("inherit").build());
+        AuthHeaderResolver.ResolvedAuthHeader resolved =
+                AuthHeaderResolver.resolve(apiAuth, projectAuth, "/login");
+        assertTrue(resolved.skipped());
+    }
 }

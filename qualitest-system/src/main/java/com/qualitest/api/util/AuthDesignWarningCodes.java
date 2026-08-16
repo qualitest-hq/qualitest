@@ -7,6 +7,8 @@ package com.qualitest.api.util;
  * 前端按第一个「: 」之前的 CODE 识别类型，不要用中文关键词匹配。
  * <ul>
  *   <li>AUTH_HEADER_MANAGED — 造流已自动补上托管鉴权头，仅作提示，不阻断操作</li>
+ *   <li>AUTH_LOGIN_NO_BEARER — 登录/免登口剥离了误补的托管头，仅提示</li>
+ *   <li>AUTH_LOGIN_EXTRACT_MISSING — 登录口未抽取 token 到 flow，应阻断造流提交、确认与保存</li>
  *   <li>AUTH_TOKEN_MISSING — 图中需要某端 token 但缺少变量来源，应阻断造流提交、确认与保存</li>
  * </ul>
  */
@@ -14,6 +16,12 @@ public final class AuthDesignWarningCodes {
 
     /** 造流已按项目鉴权配置补上托管请求头（如 Authorization），仅提示 */
     public static final String HEADER_MANAGED = "AUTH_HEADER_MANAGED";
+
+    /** 登录口 / 免登口不需要 Bearer，已剥离误补的托管头 */
+    public static final String LOGIN_NO_BEARER = "AUTH_LOGIN_NO_BEARER";
+
+    /** 登录类接口未配置写出 token 的 extracts */
+    public static final String LOGIN_EXTRACT_MISSING = "AUTH_LOGIN_EXTRACT_MISSING";
 
     /** 需要某端登录凭证（如 flow.token）但图中找不到写入来源，应硬拦 */
     public static final String TOKEN_MISSING = "AUTH_TOKEN_MISSING";
@@ -35,6 +43,33 @@ public final class AuthDesignWarningCodes {
                 + "HTTP 节点「" + nodeLabel + "」已按项目鉴权补全 "
                 + name
                 + "（托管头，Run 时随项目配置刷新）";
+    }
+
+    /**
+     * 生成「登录口勿补 Bearer」提示文案。
+     *
+     * @param nodeLabel  节点展示名
+     * @param headerName 被剥离的头名
+     */
+    public static String loginNoBearer(String nodeLabel, String headerName) {
+        String name = headerName != null && !headerName.isBlank() ? headerName : "Authorization";
+        return LOGIN_NO_BEARER + CODE_SEP
+                + "HTTP 节点「" + nodeLabel + "」为登录/免登口，已去掉托管 "
+                + name
+                + "（本节点才产出 token，无需 Bearer）";
+    }
+
+    /**
+     * 生成「登录口缺 extract」错误文案。
+     *
+     * @param nodeLabel 节点展示名
+     * @param flowKey   应收录的 flow 变量名
+     */
+    public static String loginExtractMissing(String nodeLabel, String flowKey) {
+        String key = flowKey != null && !flowKey.isBlank() ? flowKey.trim() : "token";
+        return LOGIN_EXTRACT_MISSING + CODE_SEP
+                + "HTTP 节点「" + nodeLabel + "」为登录口，但未抽取 flow." + key
+                + "（请按该端 loginHint / 响应结构补 extracts，如客户端 $.data.token、管理端 $.token）";
     }
 
     /**

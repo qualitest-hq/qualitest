@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测设计期断言路径门禁：按响应 schema 校验 http.body 左值（example 不参与硬拦）。
- * 覆盖：误写 .items、过滤器路径、占位 example、无 schema 跳过、condition、scoped。
+ * 测设计期断言路径门禁：结构错误硬拦；schema 缺字段降为警告。
+ * 覆盖：误写 .items、过滤器路径、占位 example、无 schema 警告、condition、scoped。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AssertPathDesignGateTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -32,14 +32,21 @@ class AssertPathDesignGateTest {
             {"responses":[{"id":"r1","schema":{"type":"object","properties":{"code":{"type":"integer"},"data":{"type":"array","items":{"type":"object","properties":{"cartId":{"type":"integer"},"quantity":{"type":"integer"},"subtotal":{"type":"number"}}}}}},"example":{"code":0,"data":[{"cartId":0,"quantity":0,"subtotal":0}]}}]}
             """;
 
+    /** 残缺 getInfo：仅有 code，无 user.userName */
+    private static final String SPARSE_GET_INFO = """
+            {"responses":[{"id":"r1","schema":{"type":"object","properties":{"code":{"type":"integer"},"msg":{"type":"string"}}}}]}
+            """;
+
     @Test
     @Order(1)
     @DisplayName("左值误含 data.items 时硬拦")
     void validate_rejectsLegacyItemsPath() {
         GraphJson graph = cartFlow("http.body.data.items[?(@.cartId=='5001')].quantity");
-        List<String> errors = AssertPathDesignGate.validate(graph, id -> cartApi());
-        assertFalse(errors.isEmpty());
-        assertTrue(errors.get(0).contains(".items"));
+        AssertPathDesignGate.AssertPathGateResult result =
+                AssertPathDesignGate.validate(graph, id -> cartApi());
+        assertFalse(result.errors().isEmpty());
+        assertTrue(result.errors().get(0).contains(".items"));
+        assertTrue(result.warnings().isEmpty());
     }
 
     @Test
@@ -47,20 +54,24 @@ class AssertPathDesignGateTest {
     @DisplayName("正确的 data[?] 过滤器路径通过门禁（不因占位 example 失败）")
     void validate_acceptsArrayFilterPathDespitePlaceholderExample() {
         GraphJson graph = cartFlow("http.body.data[?(@.cartId=='5001')].quantity");
-        List<String> errors = AssertPathDesignGate.validate(graph, id -> cartApi());
-        assertEquals(List.of(), errors);
+        AssertPathDesignGate.AssertPathGateResult result =
+                AssertPathDesignGate.validate(graph, id -> cartApi());
+        assertEquals(List.of(), result.errors());
+        assertEquals(List.of(), result.warnings());
     }
 
     @Test
     @Order(3)
-    @DisplayName("接口无 schema 时跳过门禁")
-    void validate_skipsWhenNoSchema() {
+    @DisplayName("接口无 schema 时不硬拦，发未校验警告")
+    void validate_warnsWhenNoSchema() {
         GraphJson graph = cartFlow("http.body.data.missing.field");
-        List<String> errors = AssertPathDesignGate.validate(graph, id -> TestProjectApi.builder()
+        AssertPathDesignGate.AssertPathGateResult result = AssertPathDesignGate.validate(graph, id -> TestProjectApi.builder()
                 .testProjectApiId(1L)
                 .responseConfig("{\"responses\":[{\"example\":{\"code\":0}}]}")
                 .build());
-        assertEquals(List.of(), errors);
+        assertEquals(List.of(), result.errors());
+        assertFalse(result.warnings().isEmpty());
+        assertTrue(result.warnings().get(0).contains("无响应 schema"));
     }
 
     @Test
@@ -101,11 +112,12 @@ class AssertPathDesignGateTest {
                 .edges(List.of(GraphEdge.builder().id("e1").source("h1").target("c1").build()))
                 .build();
 
-        List<String> errors = AssertPathDesignGate.validate(graph, id -> cartApi());
-        assertFalse(errors.isEmpty());
-        assertTrue(errors.get(0).contains("条件节点"));
-        assertTrue(errors.get(0).contains("conditions[0]"));
-        assertTrue(errors.get(0).contains(".items"));
+        AssertPathDesignGate.AssertPathGateResult result =
+                AssertPathDesignGate.validate(graph, id -> cartApi());
+        assertFalse(result.errors().isEmpty());
+        assertTrue(result.errors().get(0).contains("条件节点"));
+        assertTrue(result.errors().get(0).contains("conditions[0]"));
+        assertTrue(result.errors().get(0).contains(".items"));
     }
 
     @Test
@@ -140,12 +152,15 @@ class AssertPathDesignGateTest {
                         GraphEdge.builder().id("e2").source("h1").target("good").build()))
                 .build();
 
-        List<String> onlyGood = AssertPathDesignGate.validate(graph, id -> cartApi(), Set.of("good"));
-        assertEquals(List.of(), onlyGood);
+        AssertPathDesignGate.AssertPathGateResult onlyGood =
+                AssertPathDesignGate.validate(graph, id -> cartApi(), Set.of("good"));
+        assertEquals(List.of(), onlyGood.errors());
+        assertEquals(List.of(), onlyGood.warnings());
 
-        List<String> onlyBad = AssertPathDesignGate.validate(graph, id -> cartApi(), Set.of("bad"));
-        assertFalse(onlyBad.isEmpty());
-        assertTrue(onlyBad.get(0).contains("坏断言"));
+        AssertPathDesignGate.AssertPathGateResult onlyBad =
+                AssertPathDesignGate.validate(graph, id -> cartApi(), Set.of("bad"));
+        assertFalse(onlyBad.errors().isEmpty());
+        assertTrue(onlyBad.errors().get(0).contains("坏断言"));
     }
 
     @Test
@@ -164,23 +179,43 @@ class AssertPathDesignGateTest {
                 .edges(List.of())
                 .build();
 
-        List<String> fullSkip = AssertPathDesignGate.validate(graph, id -> cartApi());
-        assertEquals(List.of(), fullSkip);
+        AssertPathDesignGate.AssertPathGateResult fullSkip =
+                AssertPathDesignGate.validate(graph, id -> cartApi());
+        assertEquals(List.of(), fullSkip.errors());
+        assertEquals(List.of(), fullSkip.warnings());
 
-        List<String> scoped = AssertPathDesignGate.validate(graph, id -> cartApi(), Set.of("a1"));
-        assertFalse(scoped.isEmpty());
-        assertTrue(scoped.get(0).contains("尚无上游"));
-        assertTrue(scoped.get(0).contains("孤立断言"));
+        AssertPathDesignGate.AssertPathGateResult scoped =
+                AssertPathDesignGate.validate(graph, id -> cartApi(), Set.of("a1"));
+        assertFalse(scoped.errors().isEmpty());
+        assertTrue(scoped.errors().get(0).contains("尚无上游"));
+        assertTrue(scoped.errors().get(0).contains("孤立断言"));
     }
 
     @Test
     @Order(8)
-    @DisplayName("schema 中不存在的字段硬拦")
-    void validate_rejectsUnknownField() {
+    @DisplayName("schema 中不存在的字段降为警告（可确认/可保存）")
+    void validate_unknownFieldIsWarning() {
         GraphJson graph = cartFlow("http.body.data[0].notAField");
-        List<String> errors = AssertPathDesignGate.validate(graph, id -> cartApi());
-        assertFalse(errors.isEmpty());
-        assertTrue(errors.get(0).contains("schema"));
+        AssertPathDesignGate.AssertPathGateResult result =
+                AssertPathDesignGate.validate(graph, id -> cartApi());
+        assertEquals(List.of(), result.errors());
+        assertFalse(result.warnings().isEmpty());
+        assertTrue(result.warnings().get(0).contains("schema"));
+        assertTrue(result.warnings().get(0).contains("未找到对应字段"));
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("残缺 schema + user.userName：仅警告不硬拦")
+    void validate_sparseSchemaMissingUserIsWarning() {
+        GraphJson graph = cartFlow("http.body.user.userName");
+        AssertPathDesignGate.AssertPathGateResult result = AssertPathDesignGate.validate(graph, id -> TestProjectApi.builder()
+                .testProjectApiId(1L)
+                .responseConfig(SPARSE_GET_INFO)
+                .build());
+        assertEquals(List.of(), result.errors());
+        assertFalse(result.warnings().isEmpty());
+        assertTrue(result.warnings().get(0).contains("user.userName"));
     }
 
     private static TestProjectApi cartApi() {

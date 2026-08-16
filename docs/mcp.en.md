@@ -58,7 +58,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `get_node_detail` | Single node config |
 | `get_run_failure` | Failed Run step context |
 | `get_flow_api_health` | HTTP binding / API semantic warnings |
-| `search_apis` / `get_api_detail` | Project APIs |
+| `search_apis` / `get_api_details` | Project APIs (batch detail by id list) |
 | `list_project_envs` | Environments |
 | `list_asset_variables` | Project asset variable keys/fields (no plaintext values); **writes via Web AI `upsert_asset_variables` (proposal → user confirm)** |
 | `list_subflow_templates` | Platform subflow templates |

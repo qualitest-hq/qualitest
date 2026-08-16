@@ -106,13 +106,15 @@ public class FlowDesignPatchConfirmService {
         List<String> allWarnings = new ArrayList<>(warnings);
         allWarnings.addAll(validation.getWarnings());
 
-        // 断言路径：仅拦正在确认的 assert/condition；预览图含尚未拒绝的 pending 节点/边
-        List<String> assertGateErrors = collectScopedAssertGateErrors(
+        // 断言路径：仅拦正在确认的 assert/condition；缺字段进 warnings，结构错误进 errors
+        AssertPathDesignGate.AssertPathGateResult assertGate = collectScopedAssertGate(
                 baseGraph, patch, unitId, rejectedUnitIds, request.getDraftOverride(), warnings);
+        allWarnings.addAll(assertGate.warnings());
         List<String> allErrors = new ArrayList<>(validation.getErrors());
-        allErrors.addAll(assertGateErrors);
+        allErrors.addAll(assertGate.errors());
         // 需登录却缺少对应端 token 来源：整图检查，缺则不可确认本单元
         allErrors.addAll(patchNormalizer.collectAuthTokenPresenceErrors(merged, request.getTestProjectId()));
+        allErrors.addAll(patchNormalizer.collectLoginExtractPresenceErrors(merged, request.getTestProjectId()));
         boolean ok = allErrors.isEmpty();
 
         logConfirmMetrics(startedAt, unitId, ok);
@@ -148,9 +150,9 @@ public class FlowDesignPatchConfirmService {
 
     /**
      * 仅当 unit 为 assert/condition 的 add/updateNode 时跑断言门禁（schema，非 example 试算）。
-     * 预览图 = base ∪ 未拒绝的 add/update 节点与边（不含 delete），用于找上游；错误只归属本节点。
+     * 预览图 = base ∪ 未拒绝的 add/update 节点与边（不含 delete），用于找上游；结果只归属本节点。
      */
-    private List<String> collectScopedAssertGateErrors(
+    private AssertPathDesignGate.AssertPathGateResult collectScopedAssertGate(
             GraphJson baseGraph,
             FlowDesignPatch patch,
             String unitId,
@@ -159,13 +161,13 @@ public class FlowDesignPatchConfirmService {
             List<String> warnings) {
         GraphNode target = resolveConfirmingAssertOrConditionNode(baseGraph, patch, unitId);
         if (target == null || target.getId() == null) {
-            return List.of();
+            return AssertPathDesignGate.AssertPathGateResult.empty();
         }
         Set<String> previewIds = FlowDesignPatchUnitIds.assertPreviewAcceptedIds(patch, rejectedUnitIds, unitId);
         GraphJson previewBase = FlowDesignPatchMerger.cloneGraph(baseGraph);
         List<String> previewWarnings = new ArrayList<>();
         GraphJson previewGraph = patchMerger.merge(previewBase, patch, previewIds, previewWarnings);
-        // merge 对「画布已注入的 add 节点」可能跳过；再叠一次 draft，与正式 confirm 路径一致
+        // merge 对「画布已注入的 add 节点」可能跳过；再叠一次 draft，保证预览图含当前确认节点内容
         applyUnitDraftToGraph(previewGraph, patch, unitId, draftOverride);
         if (warnings != null && !previewWarnings.isEmpty()) {
             warnings.addAll(previewWarnings);

@@ -5,12 +5,17 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 
 import java.util.Map;
 
-/** get_node_detail：按 nodeId 返回节点 type 与 data；MCP 可仅传 testFlowId 自动加载画布。 */
+/**
+ * 按 nodeId 返回节点 type 与完整 data。
+ * <p>
+ * 返回前按节点详情形状做字节上限裁剪（压缩脚本/body 等大字段）。
+ */
 public class GetNodeDetailTool implements QualitestTool {
 
     private final FlowGraphContextResolver graphResolver;
@@ -47,7 +52,7 @@ public class GetNodeDetailTool implements QualitestTool {
                 if (node.getPosition() != null) {
                     result.put("position", node.getPosition());
                 }
-                return FlowDesignToolSupport.enforceByteLimit(result, ctx.getMaxToolResultBytes());
+                return ToolResultByteFit.fitNodeDetail(result, ctx.getMaxToolResultBytes());
             }
         }
         return FlowDesignToolSupport.errorJson("节点不存在: " + nodeId);

@@ -6,6 +6,10 @@
 export const AUTH_WARNING_CODES = {
   /** 已自动补上托管鉴权头，仅提示 */
   HEADER_MANAGED: 'AUTH_HEADER_MANAGED',
+  /** 登录/免登口已剥离误补托管头，仅提示 */
+  LOGIN_NO_BEARER: 'AUTH_LOGIN_NO_BEARER',
+  /** 登录口缺少 token extract，应硬拦 */
+  LOGIN_EXTRACT_MISSING: 'AUTH_LOGIN_EXTRACT_MISSING',
   /** 缺对应端 token 来源，应硬拦（出现在 errors） */
   TOKEN_MISSING: 'AUTH_TOKEN_MISSING',
 } as const
@@ -82,14 +86,19 @@ export function displayAuthCodedMessage(raw: unknown): string {
 }
 
 /**
- * 从校验 warnings 中筛出「已补托管头」类提示（AUTH_HEADER_MANAGED），并去掉 CODE 前缀。
+ * 从校验 warnings 中筛出鉴权托管相关提示（补头 / 登录口剥离），并去掉 CODE 前缀。
  */
 export function filterAuthRelatedWarnings(warnings: unknown[] | undefined | null): string[] {
   if (!Array.isArray(warnings)) return []
   const out: string[] = []
   for (const w of warnings) {
     const parsed = parseAuthWarning(w)
-    if (parsed?.code === AUTH_WARNING_CODES.HEADER_MANAGED) out.push(parsed.message)
+    if (
+      parsed?.code === AUTH_WARNING_CODES.HEADER_MANAGED
+      || parsed?.code === AUTH_WARNING_CODES.LOGIN_NO_BEARER
+    ) {
+      out.push(parsed.message)
+    }
   }
   return out
 }
