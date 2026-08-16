@@ -282,4 +282,22 @@
             #{testProjectMemberId}
         </foreach>
     </update>
+
+    <update id="demoteOtherOwnersToAdmin">
+        update test_project_member
+        set member_role = 'admin',
+            update_time = now()
+        where test_project_id = #{testProjectId}
+          and member_role = 'owner'
+          and del_status = 0
+          and user_id != #{excludeUserId}
+    </update>
+
+    <select id="countOwners" resultType="int">
+        select count(1)
+        from test_project_member
+        where test_project_id = #{testProjectId}
+          and member_role = 'owner'
+          and del_status = 0
+    </select>
 </mapper>

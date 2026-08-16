@@ -94,7 +94,7 @@
           <el-button v-if="canSelectMemberRow(scope.row)" v-hasPermi="['project:testProjectMember:edit']" icon="Edit" link
                      type="primary" @click="handleUpdate(scope.row)">修改
           </el-button>
-          <el-button v-if="canSelectMemberRow(scope.row)" v-hasPermi="['project:testProjectMember:remove']" icon="Delete" link
+          <el-button v-if="canDeleteMemberRow(scope.row)" v-hasPermi="['project:testProjectMember:remove']" icon="Delete" link
                      type="primary" @click="handleDelete(scope.row)">删除
           </el-button>
         </template>
@@ -126,7 +126,12 @@
           />
         </el-form-item>
         <el-form-item label="成员角色" prop="memberRole">
-          <el-select v-model="form.memberRole" placeholder="请选择成员角色" style="width: 100%">
+          <el-select
+              v-model="form.memberRole"
+              :disabled="editingCurrentOwner"
+              placeholder="请选择成员角色"
+              style="width: 100%"
+          >
             <el-option
                 v-for="item in dialogMemberRoleOptions"
                 :key="item.value"
@@ -134,6 +139,12 @@
                 :value="item.value"
             ></el-option>
           </el-select>
+          <div v-if="editingCurrentOwner" style="color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.5; padding-top: 4px;">
+            当前为项目所有者，不可降级；请先将所有权转让给其他成员
+          </div>
+          <div v-else-if="form.memberRole === 'owner' && hasOtherOwner" style="color: var(--el-color-warning); font-size: 12px; line-height: 1.5; padding-top: 4px;">
+            指定后，原所有者将降为管理员
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -242,6 +253,11 @@ function canSelectMemberRow(row) {
   return true
 }
 
+// 所有者不可删除，须先转让
+function canDeleteMemberRow(row) {
+  return canSelectMemberRow(row) && row.memberRole !== 'owner'
+}
+
 function findRowByMemberId(memberId) {
   return testProjectMemberList.value.find((r) => r.testProjectMemberId === memberId)
 }
@@ -256,11 +272,24 @@ const toolbarDeleteDisabled = computed(() => {
   if (!ids.value.length) return true
   return ids.value.some((id) => {
     const row = findRowByMemberId(id)
-    return !row || !canSelectMemberRow(row)
+    return !row || !canDeleteMemberRow(row)
   })
 })
 
+const hasOtherOwner = computed(() => {
+  const currentId = form.value.testProjectMemberId
+  return testProjectMemberList.value.some(
+      (r) => r.memberRole === 'owner' && r.testProjectMemberId !== currentId
+  )
+})
+
+const editingCurrentOwner = computed(() => editOriginal.value?.memberRole === 'owner')
+
 const dialogMemberRoleOptions = computed(() => {
+  // 编辑现任所有者：角色锁定为所有者
+  if (editingCurrentOwner.value) {
+    return memberRoleOptions.value.filter((o) => o.value === 'owner')
+  }
   // 项目管理员不能指定成员为所有者
   if (selfMemberRole.value === 'admin' && !isSysAdmin()) {
     return memberRoleOptions.value.filter((o) => o.value !== 'owner')
@@ -371,16 +400,12 @@ function submitForm() {
   proxy.$refs["testProjectMemberRef"].validate(valid => {
     if (!valid) return
     const isAdd = form.value.testProjectMemberId == null
-    // 新增：项目管理员不能把新成员设为所有者
-    if (isAdd) {
-      if (!isSysAdmin() && selfMemberRole.value === 'admin' && form.value.memberRole === 'owner') {
+    if (!isSysAdmin() && selfMemberRole.value === 'admin') {
+      if (form.value.memberRole === 'owner') {
         proxy.$modal.msgError('项目管理员不能指定成员为所有者')
         return
       }
-    } else if (editOriginal.value) {
-      const newRole = form.value.memberRole || editOriginal.value.memberRole
-      // 修改：项目管理员不能改所有者、不能改其他管理员、不能把角色改为所有者
-      if (!isSysAdmin() && selfMemberRole.value === 'admin') {
+      if (!isAdd && editOriginal.value) {
         if (editOriginal.value.memberRole === 'owner') {
           proxy.$modal.msgError('项目管理员不能操作所有者')
           return
@@ -389,25 +414,30 @@ function submitForm() {
           proxy.$modal.msgError('项目管理员不能操作其他管理员')
           return
         }
-        if (newRole === 'owner') {
-          proxy.$modal.msgError('项目管理员不能指定成员为所有者')
-          return
-        }
       }
     }
-    if (!isAdd) {
-      updateTestProjectMember(form.value).then(() => {
-        proxy.$modal.msgSuccess("修改成功")
-        open.value = false
-        getList()
-      })
-    } else {
-      addTestProjectMember(form.value).then(() => {
-        proxy.$modal.msgSuccess("新增成功")
+    if (!isAdd && editingCurrentOwner.value && form.value.memberRole !== 'owner') {
+      proxy.$modal.msgError('项目必须保留一名所有者，请先将所有权转让给其他成员')
+      return
+    }
+
+    const doSubmit = () => {
+      const req = isAdd ? addTestProjectMember(form.value) : updateTestProjectMember(form.value)
+      req.then(() => {
+        proxy.$modal.msgSuccess(isAdd ? "新增成功" : "修改成功")
         open.value = false
         getList()
       })
     }
+
+    if (form.value.memberRole === 'owner' && hasOtherOwner.value) {
+      proxy.$modal.confirm('指定后，原所有者将降为管理员，是否继续？').then(() => {
+        doSubmit()
+      }).catch(() => {
+      })
+      return
+    }
+    doSubmit()
   })
 }
 
@@ -417,10 +447,14 @@ function handleDelete(row) {
     proxy.$modal.msgWarning('请选择要删除的数据')
     return
   }
-  // 删除：当前列表里能匹配到的成员先校验是否允许删
   for (const id of idList) {
     const r = findRowByMemberId(id)
-    if (r && !canSelectMemberRow(r)) {
+    if (!r) continue
+    if (r.memberRole === 'owner') {
+      proxy.$modal.msgWarning('不能删除所有者，请先将所有权转让给其他成员')
+      return
+    }
+    if (!canDeleteMemberRow(r)) {
       proxy.$modal.msgWarning('存在无权删除的成员')
       return
     }

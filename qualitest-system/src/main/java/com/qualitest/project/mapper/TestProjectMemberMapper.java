@@ -120,4 +120,19 @@ public interface TestProjectMemberMapper {
      * @return user_id 列表，无成员时为空列表
      */
     List<Long> selectMemberUserIdsByTestProjectId(@Param("testProjectId") Long testProjectId);
+
+    /**
+     * 将项目下其他有效所有者降为管理员（排除新所有者用户）。
+     *
+     * @param testProjectId   测试项目 ID
+     * @param excludeUserId   不降级的用户 ID（新所有者）
+     * @return 更新行数
+     */
+    int demoteOtherOwnersToAdmin(@Param("testProjectId") Long testProjectId,
+                                 @Param("excludeUserId") Long excludeUserId);
+
+    /**
+     * 统计项目下有效所有者人数
+     */
+    int countOwners(@Param("testProjectId") Long testProjectId);
 }

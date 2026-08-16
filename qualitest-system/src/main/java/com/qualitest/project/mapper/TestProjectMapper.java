@@ -132,4 +132,9 @@ public interface TestProjectMapper {
      */
     int refreshApiCount(Long testProjectId);
 
+    /**
+     * 仅更新项目所有者
+     */
+    int updateOwnerId(@Param("testProjectId") Long testProjectId, @Param("ownerId") Long ownerId);
+
 }

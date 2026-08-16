@@ -302,5 +302,13 @@
         where tp.test_project_id = #{testProjectId}
           and tp.del_status = 0
     </update>
+
+    <update id="updateOwnerId">
+        update test_project
+        set owner_id    = #{ownerId},
+            update_time = now()
+        where test_project_id = #{testProjectId}
+          and del_status = 0
+    </update>
     
 </mapper>

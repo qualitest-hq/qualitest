@@ -35,23 +35,26 @@ public enum TestProjectMemberRole {
     }
 
     /**
-     * 是否可管理项目成员
+     * 是否可管理项目成员（系统管理员、所有者、项目管理员）
      */
     public static boolean canManageMember(String memberRoleCode) {
         if (memberRoleCode == null) {
             return false;
         }
-        return OWNER.code.equals(memberRoleCode) || ADMIN.code.equals(memberRoleCode);
+        return SYS_ADMIN.code.equals(memberRoleCode)
+                || OWNER.code.equals(memberRoleCode)
+                || ADMIN.code.equals(memberRoleCode);
     }
 
     /**
-     * 是否可使用项目 Token
+     * 是否可使用项目 Token（系统管理员、所有者、项目管理员、开发者）
      */
     public static boolean canUseProjectToken(String memberRoleCode) {
         if (memberRoleCode == null) {
             return false;
         }
-        return OWNER.code.equals(memberRoleCode)
+        return SYS_ADMIN.code.equals(memberRoleCode)
+                || OWNER.code.equals(memberRoleCode)
                 || ADMIN.code.equals(memberRoleCode)
                 || DEVELOPER.code.equals(memberRoleCode);
     }

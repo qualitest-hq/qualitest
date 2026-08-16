@@ -92,9 +92,7 @@ public class TestProjectMemberController extends BaseController {
             throw new ServiceException("请指定测试项目");
         }
         TestProjectMemberRole memberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
-        if (!TestProjectMemberRole.canManageMember(memberRole.getCode())) {
-            throw new ServiceException("您无权管理项目成员");
-        }
+        assertCanManageMembers(memberRole);
         List<Long> exclude = testProjectMemberService.listMemberUserIdsByTestProjectId(testProjectId);
         if (retainUserId != null) {
             exclude.remove(retainUserId);
@@ -115,16 +113,8 @@ public class TestProjectMemberController extends BaseController {
     public R<Void> add(@RequestBody TestProjectMember testProjectMember) {
         Long testProjectId = testProjectMember.getTestProjectId();
         TestProjectMemberRole loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
-        if (!TestProjectMemberRole.canManageMember(loginMemberRole.getCode())) {
-            throw new ServiceException("您无权管理项目成员");
-        }
-        if (!TestProjectMemberRole.SYS_ADMIN.equals(loginMemberRole)) {
-            if (TestProjectMemberRole.ADMIN.equals(loginMemberRole)) {
-                if (TestProjectMemberRole.OWNER.getCode().equals(testProjectMember.getMemberRole())) {
-                    throw new ServiceException("项目管理员不能指定成员为所有者");
-                }
-            }
-        }
+        assertCanManageMembers(loginMemberRole);
+        assertProjectAdminMayNotAssignOwner(loginMemberRole, testProjectMember.getMemberRole());
         return toR(testProjectMemberService.insertTestProjectMember(testProjectMember));
     }
 
@@ -141,29 +131,14 @@ public class TestProjectMemberController extends BaseController {
             throw new ServiceException("成员不存在");
         }
         TestProjectMemberRole loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
-        if (!TestProjectMemberRole.canManageMember(loginMemberRole.getCode())) {
-            throw new ServiceException("您无权管理项目成员");
-        }
+        assertCanManageMembers(loginMemberRole);
         testProjectMember.setTestProjectId(existing.getTestProjectId());
         testProjectMember.setUserId(existing.getUserId());
         String newRole = testProjectMember.getMemberRole();
         if (newRole == null || newRole.isEmpty()) {
             newRole = existing.getMemberRole();
         }
-        if (!TestProjectMemberRole.SYS_ADMIN.equals(loginMemberRole)) {
-            if (TestProjectMemberRole.ADMIN.equals(loginMemberRole)) {
-                if (TestProjectMemberRole.OWNER.getCode().equals(existing.getMemberRole())) {
-                    throw new ServiceException("项目管理员不能操作所有者");
-                }
-                if (TestProjectMemberRole.ADMIN.getCode().equals(existing.getMemberRole())
-                        && !Objects.equals(existing.getUserId(), SecurityUtils.getUserId())) {
-                    throw new ServiceException("项目管理员不能操作其他管理员");
-                }
-                if (TestProjectMemberRole.OWNER.getCode().equals(newRole)) {
-                    throw new ServiceException("项目管理员不能指定成员为所有者");
-                }
-            }
-        }
+        assertProjectAdminMayManageTarget(loginMemberRole, existing, newRole);
         return toR(testProjectMemberService.updateTestProjectMember(testProjectMember));
     }
 
@@ -183,24 +158,47 @@ public class TestProjectMemberController extends BaseController {
                 continue;
             }
             Long testProjectId = member.getTestProjectId();
+            TestProjectMemberRole loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
             if (managedProjectIds.add(testProjectId)) {
-                TestProjectMemberRole loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
-                if (!TestProjectMemberRole.canManageMember(loginMemberRole.getCode())) {
-                    throw new ServiceException("您无权管理项目成员");
-                }
-                if (!TestProjectMemberRole.SYS_ADMIN.equals(loginMemberRole)) {
-                    if (TestProjectMemberRole.ADMIN.equals(loginMemberRole)) {
-                        if (TestProjectMemberRole.OWNER.getCode().equals(member.getMemberRole())) {
-                            throw new ServiceException("项目管理员不能操作所有者");
-                        }
-                        if (TestProjectMemberRole.ADMIN.getCode().equals(member.getMemberRole())
-                                && !Objects.equals(member.getUserId(), SecurityUtils.getUserId())) {
-                            throw new ServiceException("项目管理员不能操作其他管理员");
-                        }
-                    }
-                }
+                assertCanManageMembers(loginMemberRole);
             }
+            // 每条都校验：项目管理员不能删所有者 / 其他管理员
+            assertProjectAdminMayManageTarget(loginMemberRole, member, member.getMemberRole());
         }
         return toR(testProjectMemberService.logicDeleteTestProjectMemberByIdList(idList));
+    }
+
+    private void assertCanManageMembers(TestProjectMemberRole loginMemberRole) {
+        if (!TestProjectMemberRole.canManageMember(loginMemberRole.getCode())) {
+            throw new ServiceException("您无权管理项目成员");
+        }
+    }
+
+    private void assertProjectAdminMayNotAssignOwner(TestProjectMemberRole loginMemberRole, String memberRole) {
+        if (TestProjectMemberRole.ADMIN.equals(loginMemberRole)
+                && TestProjectMemberRole.OWNER.getCode().equals(memberRole)) {
+            throw new ServiceException("项目管理员不能指定成员为所有者");
+        }
+    }
+
+    /**
+     * 项目管理员：不能操作所有者、不能操作其他管理员、不能指定为所有者。
+     */
+    private void assertProjectAdminMayManageTarget(
+            TestProjectMemberRole loginMemberRole,
+            TestProjectMember target,
+            String newRole
+    ) {
+        if (!TestProjectMemberRole.ADMIN.equals(loginMemberRole)) {
+            return;
+        }
+        if (TestProjectMemberRole.OWNER.getCode().equals(target.getMemberRole())) {
+            throw new ServiceException("项目管理员不能操作所有者");
+        }
+        if (TestProjectMemberRole.ADMIN.getCode().equals(target.getMemberRole())
+                && !Objects.equals(target.getUserId(), SecurityUtils.getUserId())) {
+            throw new ServiceException("项目管理员不能操作其他管理员");
+        }
+        assertProjectAdminMayNotAssignOwner(loginMemberRole, newRole);
     }
 }

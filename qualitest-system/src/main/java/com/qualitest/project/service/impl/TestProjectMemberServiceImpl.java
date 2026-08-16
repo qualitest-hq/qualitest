@@ -9,6 +9,7 @@ import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.domain.TestProjectMember;
 import com.qualitest.project.domain.TestProjectUserSetting;
 import com.qualitest.project.enums.TestProjectMemberRole;
+import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.mapper.TestProjectMemberMapper;
 import com.qualitest.project.params.TestProjectMemberParams;
 import com.qualitest.project.result.TestProjectMemberResult;
@@ -30,14 +31,23 @@ import java.util.List;
 @Service
 public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
 
+    private static final String KEEP_ONE_OWNER_MSG = "项目必须保留一名所有者，请先将所有权转让给其他成员";
+
     @Autowired
     private TestProjectMemberMapper testProjectMemberMapper;
+
+    @Autowired
+    private TestProjectMapper testProjectMapper;
 
     @Autowired
     private ITestProjectUserSettingService testProjectUserSettingService;
 
     @Autowired
     private ITestProjectEnvService testProjectEnvService;
+
+    private static boolean isOwnerRole(String memberRole) {
+        return TestProjectMemberRole.OWNER.getCode().equals(memberRole);
+    }
 
     /**
      * 查询测试项目成员列表
@@ -92,14 +102,21 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int insertTestProjectMember(TestProjectMember testProjectMember) {
-        // 检查是否已存在
+        if (testProjectMember.getTestProjectId() == null) {
+            throw new ServiceException("请指定测试项目");
+        }
+        if (testProjectMember.getUserId() == null) {
+            throw new ServiceException("请选择用户");
+        }
         TestProjectMember oldMember = this.selectTestProjectMemberOne(TestProjectMemberParams.builder()
-                .testProjectMemberId(testProjectMember.getTestProjectMemberId())
                 .testProjectId(testProjectMember.getTestProjectId())
+                .userId(testProjectMember.getUserId())
                 .build());
         if (oldMember != null) {
             throw new ServiceException("该用户已是本项目成员");
         }
+        transferProjectOwner(testProjectMember.getTestProjectId(), testProjectMember.getUserId(),
+                testProjectMember.getMemberRole());
         if (testProjectMember.getTestProjectMemberId() == null) {
             testProjectMember.setTestProjectMemberId(IdUtil.getSnowflakeNextId());
         }
@@ -136,6 +153,9 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
         if (settingFlag <= 0) {
             throw new ServiceException("创建用户设置失败");
         }
+        if (isOwnerRole(testProjectMember.getMemberRole())) {
+            assertExactlyOneOwner(testProjectMember.getTestProjectId());
+        }
         return memberFlag;
     }
 
@@ -148,8 +168,55 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateTestProjectMember(TestProjectMember testProjectMember) {
+        TestProjectMember existing = testProjectMemberMapper.selectTestProjectMemberById(
+                testProjectMember.getTestProjectMemberId());
+        if (existing == null) {
+            throw new ServiceException("成员不存在");
+        }
+        String newRole = testProjectMember.getMemberRole();
+        if (newRole == null || newRole.isEmpty()) {
+            newRole = existing.getMemberRole();
+            testProjectMember.setMemberRole(newRole);
+        }
+        if (isOwnerRole(existing.getMemberRole()) && !isOwnerRole(newRole)) {
+            throw new ServiceException(KEEP_ONE_OWNER_MSG);
+        }
+        Long testProjectId = existing.getTestProjectId();
+        Long userId = existing.getUserId();
+        testProjectMember.setTestProjectId(testProjectId);
+        testProjectMember.setUserId(userId);
+        transferProjectOwner(testProjectId, userId, newRole);
         testProjectMember.setUpdateTime(DateUtils.getNowDate());
-        return testProjectMemberMapper.updateTestProjectMember(testProjectMember);
+        int flag = testProjectMemberMapper.updateTestProjectMember(testProjectMember);
+        if (isOwnerRole(newRole)) {
+            assertExactlyOneOwner(testProjectId);
+        }
+        return flag;
+    }
+
+    /**
+     * 指定新所有者时，按 userId 将项目下其他有效 owner 降为 admin，并回写 test_project.owner_id。
+     * 创建项目写入首位 owner、或角色不是 owner 时不处理。
+     */
+    private void transferProjectOwner(Long testProjectId, Long newOwnerUserId, String memberRole) {
+        if (!isOwnerRole(memberRole) || testProjectId == null || newOwnerUserId == null) {
+            return;
+        }
+        testProjectMemberMapper.demoteOtherOwnersToAdmin(testProjectId, newOwnerUserId);
+        testProjectMapper.updateOwnerId(testProjectId, newOwnerUserId);
+    }
+
+    private void assertExactlyOneOwner(Long testProjectId) {
+        int ownerCount = testProjectMemberMapper.countOwners(testProjectId);
+        if (ownerCount != 1) {
+            throw new ServiceException("一个项目必须恰好有一名所有者");
+        }
+    }
+
+    private void assertNotOwner(TestProjectMember member) {
+        if (member != null && isOwnerRole(member.getMemberRole())) {
+            throw new ServiceException(KEEP_ONE_OWNER_MSG);
+        }
     }
 
     /**
@@ -183,17 +250,7 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int logicDeleteTestProjectMemberById(Long testProjectMemberId) {
-        TestProjectMember member = testProjectMemberMapper.selectTestProjectMemberById(testProjectMemberId);
-        int memberFlag = testProjectMemberMapper.logicDeleteTestProjectMemberById(testProjectMemberId);
-        if (memberFlag <= 0) {
-            throw new ServiceException("删除成员失败");
-        }
-        int settingFlag = testProjectUserSettingService.logicDeleteTestProjectUserSettingByProjectIdAndUserId(
-                member.getTestProjectId(), member.getUserId());
-        if (settingFlag <= 0) {
-            throw new ServiceException("删除用户设置失败");
-        }
-        return memberFlag;
+        return logicDeleteTestProjectMemberByIdList(List.of(testProjectMemberId));
     }
 
     /**
@@ -211,6 +268,9 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
         List<TestProjectMember> memberList = this.selectTestProjectMemberList(TestProjectMember.builder()
                 .testProjectMemberIdList(testProjectMemberIdList)
                 .build());
+        for (TestProjectMember row : memberList) {
+            assertNotOwner(row);
+        }
         int memberFlag = testProjectMemberMapper.logicDeleteTestProjectMemberByIdList(testProjectMemberIdList);
         if (memberFlag <= 0) {
             throw new ServiceException("删除成员失败");
