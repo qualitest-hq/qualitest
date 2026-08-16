@@ -265,4 +265,46 @@ class FlowHttpRequestBuilderThinNodeTest {
                 .orElseThrow()
                 .getValue());
     }
+
+    /**
+     * 前提：query 含有值 pageNum 与空值 params（RuoYi BaseEntity 常见）。
+     * 期望：URL 仅带 pageNum，不出现 params=（避免被测端 Map 绑定 500）。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("跑流：跳过空值 query（含 params）")
+    void build_skipsBlankQueryParams() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(30L)
+                .testProjectId(1L)
+                .apiPath("/web/mall/mallOrder/list")
+                .requestConfig("""
+                        {
+                          "configVersion":1,
+                          "method":"GET",
+                          "queryParams":[
+                            {"name":"pageNum","type":"string","value":"1","_enabled":true},
+                            {"name":"params","type":"string","value":"","_enabled":true}
+                          ],
+                          "pathParams":[],
+                          "declaredHeaders":[],
+                          "body":{"mode":"none"}
+                        }
+                        """)
+                .build();
+
+        Map<String, Object> nodeData = new HashMap<>();
+        nodeData.put("callMode", "project");
+        nodeData.put("testProjectApiId", "30");
+
+        FlowRunContext ctx = FlowRunContext.builder()
+                .env(Map.of("baseUrl", "http://localhost:8081"))
+                .build();
+
+        FlowHttpRequestBuilder.BuiltHttpRequest built =
+                FlowHttpRequestBuilder.buildFromProject(ctx, api, nodeData);
+
+        assertTrue(built.getUrl().contains("pageNum=1"));
+        assertFalse(built.getUrl().contains("params="));
+    }
 }
