@@ -66,10 +66,31 @@ public final class AuthDesignWarningCodes {
      * @param flowKey   应收录的 flow 变量名
      */
     public static String loginExtractMissing(String nodeLabel, String flowKey) {
-        String key = flowKey != null && !flowKey.isBlank() ? flowKey.trim() : "token";
         return LOGIN_EXTRACT_MISSING + CODE_SEP
-                + "HTTP 节点「" + nodeLabel + "」为登录口，但未抽取 flow." + key
-                + "（请按该端 loginHint / 响应结构补 extracts，如客户端 $.data.token、管理端 $.token）";
+                + "HTTP 节点「" + nodeLabel + "」为登录口，但未抽取 flow." + flowKeyOrToken(flowKey)
+                + "（请按该端 loginHint / 响应结构补 extracts）";
+    }
+
+    /**
+     * 生成「登录抽取路径与 loginHint/schema 不一致」错误文案。
+     *
+     * @param nodeLabel     节点展示名
+     * @param flowKey       应收录的 flow 变量名
+     * @param expectedExpr  期望 JsonPath
+     * @param actualExpr    当前 JsonPath，可空
+     */
+    public static String loginExtractExprMismatch(
+            String nodeLabel, String flowKey, String expectedExpr, String actualExpr) {
+        String expected = expectedExpr != null ? expectedExpr.trim() : "";
+        String actual = actualExpr != null && !actualExpr.isBlank() ? actualExpr.trim() : "空";
+        return LOGIN_EXTRACT_MISSING + CODE_SEP
+                + "HTTP 节点「" + nodeLabel + "」登录抽取路径应为 "
+                + expected + " → " + flowKeyOrToken(flowKey)
+                + "，当前为 " + actual;
+    }
+
+    private static String flowKeyOrToken(String flowKey) {
+        return flowKey != null && !flowKey.isBlank() ? flowKey.trim() : "token";
     }
 
     /**

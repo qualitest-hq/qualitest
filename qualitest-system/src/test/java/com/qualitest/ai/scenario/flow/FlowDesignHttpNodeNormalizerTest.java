@@ -136,12 +136,12 @@ class FlowDesignHttpNodeNormalizerTest {
 
     /**
      * 前提：extracts 使用旧字段 value=responses.mobile。
-     * 期望：转为 expr=$.data.mobile、from=body、scope=flow，并去掉 value。
+     * 期望：转为 expr=$.mobile（不补 data 前缀）、from=body、scope=flow，并去掉 value。
      */
     @Test
     @Order(4)
-    @DisplayName("旧 extracts value 转为 $.data 表达式")
-    void normalize_extractsValueConvertedToExprWithDataPrefix() {
+    @DisplayName("旧 extracts value 转为 $. 表达式且不补 data")
+    void normalize_extractsValueConvertedToExprWithoutDataPrefix() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
         data.put("extracts", List.of(Map.of("name", "mobile", "value", "responses.mobile")));
@@ -151,7 +151,7 @@ class FlowDesignHttpNodeNormalizerTest {
         JSONArray extracts = (JSONArray) data.get("extracts");
         assertEquals(1, extracts.size());
         JSONObject row = extracts.getJSONObject(0);
-        assertEquals("$.data.mobile", row.getString("expr"));
+        assertEquals("$.mobile", row.getString("expr"));
         assertEquals("body", row.getString("from"));
         assertEquals("flow", row.getString("scope"));
         assertEquals("mobile", row.getString("name"));
@@ -172,18 +172,27 @@ class FlowDesignHttpNodeNormalizerTest {
     }
 
     /**
-     * 前提：浅层 $.mobile、已有 $.data、根字段 $.code/$.msg。
-     * 期望：业务字段补 $.data. 前缀；根字段与已有前缀保持不变。
+     * 前提：单段 $.token、$.mobile 与已有 $.data.token。
+     * 期望：规范化不改写这些路径。
      */
     @Test
     @Order(6)
-    @DisplayName("业务字段补 $.data 前缀根字段不变")
-    void ensureDataPathPrefix_shallowAndRootFields() {
-        assertEquals("$.data.mobile", FlowDesignHttpNodeNormalizer.ensureDataPathPrefix("$.mobile"));
-        assertEquals("$.data.token", FlowDesignHttpNodeNormalizer.ensureDataPathPrefix("$.data.token"));
-        assertEquals("$.code", FlowDesignHttpNodeNormalizer.ensureDataPathPrefix("$.code"));
-        assertEquals("$.msg", FlowDesignHttpNodeNormalizer.ensureDataPathPrefix("$.msg"));
-        assertEquals("$.data", FlowDesignHttpNodeNormalizer.ensureDataPathPrefix("$.data"));
+    @DisplayName("提取路径保持原样不补 data")
+    void normalizeExtracts_keepsExprUnchanged() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("extracts", List.of(
+                Map.of("name", "adminToken", "expr", "$.token"),
+                Map.of("name", "token", "expr", "$.data.token"),
+                Map.of("name", "mobile", "expr", "$.mobile")
+        ));
+
+        FlowDesignHttpNodeNormalizer.normalizeExtracts(data);
+
+        JSONArray extracts = (JSONArray) data.get("extracts");
+        assertEquals("$.token", extracts.getJSONObject(0).getString("expr"));
+        assertEquals("$.data.token", extracts.getJSONObject(1).getString("expr"));
+        assertEquals("$.mobile", extracts.getJSONObject(2).getString("expr"));
     }
 
     /**

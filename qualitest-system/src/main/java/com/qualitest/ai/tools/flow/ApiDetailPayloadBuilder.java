@@ -10,6 +10,9 @@ import com.qualitest.project.support.ResponseConventionSupport;
 import com.qualitest.project.support.TestProjectApiDesignHintsService;
 import com.qualitest.project.support.TestProjectApiEffectiveConfigResolver;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 组装单条项目接口的造流摘要对象。
  * <p>
@@ -33,7 +36,13 @@ final class ApiDetailPayloadBuilder {
         result.put("path", api.getApiPath());
         result.put("name", api.getApiName());
         result.put("description", api.getApiDescription() != null ? api.getApiDescription() : "");
-        result.put("designHints", TestProjectApiDesignHintsService.readHintList(api.getDesignHints()));
+        List<String> designHints = new ArrayList<>(
+                TestProjectApiDesignHintsService.readHintList(api.getDesignHints()));
+        JSONObject responseSchemaSummary = FlowDesignApiSummarizer.summarizeResponse(effective.getResponseConfig());
+        LoginExtractSuggestor.Suggestion loginSuggestion =
+                LoginExtractSuggestor.suggest(projectAuthJson, api.getApiPath(), responseSchemaSummary);
+        prependLoginDesignHint(designHints, api.getApiPath(), loginSuggestion);
+        result.put("designHints", designHints);
         if (api.getApiGroupId() != null) {
             result.put("apiGroupId", String.valueOf(api.getApiGroupId()));
         }
@@ -48,7 +57,6 @@ final class ApiDetailPayloadBuilder {
         result.put("bodyParams", requestSummary.getJSONArray("bodyParams"));
         result.put("bodyExample", requestSummary.getString("bodyExample"));
         result.put("bodySchemaLeaves", requestSummary.getJSONArray("bodySchemaLeaves"));
-        JSONObject responseSchemaSummary = FlowDesignApiSummarizer.summarizeResponse(effective.getResponseConfig());
         result.put("responseSchemaSummary", responseSchemaSummary);
         result.put("responseSchemaLeaves",
                 FlowDesignApiSummarizer.summarizeResponseLeaves(effective.getResponseConfig()));
@@ -59,8 +67,6 @@ final class ApiDetailPayloadBuilder {
         JSONArray schemaSuggested = FlowDesignApiSummarizer.suggestExtracts(
                 responseSchemaSummary, convention.getString("dataPath"));
         // 登录/注册口：优先按项目鉴权配置给出 token extract，并置于 suggestedExtracts 首位
-        LoginExtractSuggestor.Suggestion loginSuggestion =
-                LoginExtractSuggestor.suggest(projectAuthJson, api.getApiPath(), responseSchemaSummary);
         if (loginSuggestion != null) {
             JSONArray merged = new JSONArray();
             merged.add(new JSONObject(loginSuggestion.toExtractRow()));
@@ -81,5 +87,28 @@ final class ApiDetailPayloadBuilder {
         }
         AuthHeaderHintSupport.putAuthFields(result, api.getAuthConfig(), projectAuthJson, api.getApiPath());
         return result;
+    }
+
+    static final String LOGIN_EXTRACT_HINT_UNKNOWN =
+            "响应结构不足以确定 token 路径，跑一次后按真实 body 再改";
+
+    /**
+     * 登录口在 designHints 首部补一条抽取说明；已有相同文案不重复。
+     */
+    static void prependLoginDesignHint(
+            List<String> hints, String apiPath, LoginExtractSuggestor.Suggestion suggestion) {
+        if (hints == null || !LoginExtractSuggestor.isLoginLikeApi(apiPath)) {
+            return;
+        }
+        String extra;
+        if (suggestion != null) {
+            extra = "登录抽取请用 " + suggestion.expr() + " → " + suggestion.name() + "，不要套用另一端路径";
+        } else {
+            extra = LOGIN_EXTRACT_HINT_UNKNOWN;
+        }
+        if (hints.contains(extra)) {
+            return;
+        }
+        hints.add(0, extra);
     }
 }

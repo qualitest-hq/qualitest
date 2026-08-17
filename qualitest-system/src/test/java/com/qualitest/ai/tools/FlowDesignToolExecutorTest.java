@@ -170,6 +170,7 @@ class FlowDesignToolExecutorTest {
         assertNotNull(detail.getJSONObject("responseConvention"));
         assertEquals("code", detail.getJSONObject("responseConvention").getString("codePath"));
         assertNotNull(detail.getJSONArray("suggestedExtracts"));
+        assertTrue(detail.getJSONArray("designHints").toJSONString().contains("登录抽取"));
         assertFalse(root.getBooleanValue("truncated"));
         assertEquals("inherit", detail.getJSONObject("auth").getString("mode"));
         assertEquals("clientBearer", detail.getJSONObject("headerHint").getString("profileId"));

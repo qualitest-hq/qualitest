@@ -20,12 +20,10 @@ import {
 
 type JsonRecord = Record<string, unknown>;
 
-/** 业务响应根字段；浅路径补 data 前缀时跳过 */
-const ROOT_CONVENTION_FIELDS = new Set(['code', 'msg', 'data']);
-
 /**
  * 旧式提取路径转成 $.a.b。
  * 识别前缀：http.body. / responses. / response. / body.；已是 $. 则不动。
+ * 不根据单段路径猜测补 $.data。
  */
 export function convertLegacyExtractExpr(raw: string): string {
   const text = raw.trim();
@@ -40,20 +38,8 @@ export function convertLegacyExtractExpr(raw: string): string {
 }
 
 /**
- * 单段浅路径补 $.data. 前缀，例如 $.mobile → $.data.mobile。
- * 多段路径或根字段 code/msg/data 不改。
- */
-export function ensureDataPathPrefix(expr: string): string {
-  const text = String(expr ?? '').trim();
-  if (!text.startsWith('$.')) return text;
-  const rest = text.slice(2);
-  if (!rest || rest.includes('.')) return text;
-  if (ROOT_CONVENTION_FIELDS.has(rest)) return text;
-  return `$.data.${rest}`;
-}
-
-/**
- * 规范化 extracts：旧字段 value/path 转 expr，补 data 前缀，输出标准行。
+ * 规范化 extracts：旧字段 value/path 转 expr，输出标准行。
+ * 路径保持原样，不自动补 $.data。
  */
 export function normalizeHttpNodeExtracts(
   extracts: Array<Record<string, unknown>> | undefined,
@@ -73,7 +59,6 @@ export function normalizeHttpNodeExtracts(
       expr = convertLegacyExtractExpr(expr);
     }
     if (!name || !expr) continue;
-    expr = ensureDataPathPrefix(expr);
     rows.push({
       from: String(row.from ?? 'body'),
       expr,

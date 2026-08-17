@@ -69,9 +69,9 @@ describe('patchHttpNodeNormalize', () => {
     expect(data.requestValueOverrides).toBeUndefined();
   });
 
-  it('extracts.value 转为 expr/from/scope', () => {
+  it('extracts.value 转为 expr/from/scope，不补 data 前缀', () => {
     // 前提：extracts 使用 legacy value 字段
-    // 期望：转为 expr/from/scope，value 清除
+    // 期望：转为 expr/from/scope，路径保持 $.mobile，不改成 $.data.mobile
     const data = normalizeHttpNodeData({
       callMode: 'project',
       extracts: [{ name: 'mobile', value: 'responses.mobile' }],
@@ -79,10 +79,26 @@ describe('patchHttpNodeNormalize', () => {
 
     const extracts = data.extracts as Array<Record<string, unknown>>;
     expect(extracts).toHaveLength(1);
-    expect(extracts[0].expr).toBe('$.data.mobile');
+    expect(extracts[0].expr).toBe('$.mobile');
     expect(extracts[0].from).toBe('body');
     expect(extracts[0].scope).toBe('flow');
     expect(extracts[0].value).toBeUndefined();
+  });
+
+  it('单段 $.token 与已有 $.data.token 都原样保留', () => {
+    // 前提：两条 extract 分别为根级 token 与 data.token
+    // 期望：规范化不改写路径
+    const data = normalizeHttpNodeData({
+      callMode: 'project',
+      extracts: [
+        { name: 'adminToken', expr: '$.token' },
+        { name: 'token', expr: '$.data.token' },
+      ],
+    });
+
+    const extracts = data.extracts as Array<Record<string, unknown>>;
+    expect(extracts[0].expr).toBe('$.token');
+    expect(extracts[1].expr).toBe('$.data.token');
   });
 
   it('缺失 successCheck 时按 callMode 补默认 mode', () => {
