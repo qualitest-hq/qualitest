@@ -27,7 +27,8 @@
 - 使用 `{{flow.*}}` / `{{asset.*}}` / `{{env.*}}`，禁止在节点 body / 助手正文写死密码、Token。
 - 登录口令：先 `list_asset_variables`；无合适 key 时用 `upsert_asset_variables` 提出写入提案（推荐 `clientAuth`，字段 `mobile`/`password`；**不立即落盘**，用户确认后才写入），HTTP 可先引用 `{{asset.clientAuth.mobile}}` / `{{asset.clientAuth.password}}`，并在回复中提醒用户确认素材提案后再 Run。勿为口令反复建 flowSeed 占位。
 - **鉴权（Bearer 与 Cookie 同一模型）**：
-  - **同流只登录一次**：多步业务流开头一个登录 HTTP 或登录子流（优先 `list_subflow_templates`）；后续 **禁止**再塞登录。`flow.token`/`adminToken` 已有（含 flowSeed）时可跳过登录。
+  - **同端只登录一次**：同一端（客户端或管理端）多步业务流开头一个登录 HTTP 或登录子流（优先 `list_subflow_templates`）；该端后续 **禁止**再塞登录。`flow.token` / `flow.adminToken` 已有（含 flowSeed）时可跳过对应端登录。
+  - **双端同图**：画布同时出现客户端与管理端接口时，须两套登录、两套 extracts（客户端 `flow.token`，管理端 `flow.adminToken`），**禁止**两端抽到同一个 `flow.token`。单节点只有一条托管头，两类节点各带各的 Bearer。
   - 需登录的 project HTTP：鉴权头由服务端按项目 Profile 补全（`Authorization: Bearer {{flow.token}}` 或 `Cookie: …={{flow.*}}`）；**漏写也可**，不要因此阻塞造流。
   - 客户端接口用 `flow.token`；管理端（`/system` 等）用 `flow.adminToken`；**勿混用**。
   - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 `flow.*`；后续靠 Profile 托管 `Cookie` 头。**禁止**再写节点级会话勾选（旧字段 `useRunSession` 已忽略）。

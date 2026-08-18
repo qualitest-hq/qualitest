@@ -116,6 +116,96 @@ class LoginExtractPresenceGateTest {
         assertTrue(errors.isEmpty());
     }
 
+    /**
+     * 前提：双端模板；客户端登录口无 extracts。
+     * 期望：硬拦，文案含 token。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("客户端登录口无 extract 硬拦")
+    void clientLogin_missingExtract_fails() {
+        GraphJson graph = GraphJson.builder()
+                .nodes(List.of(httpNode("clientLogin", 2L)))
+                .build();
+
+        List<String> errors = LoginExtractPresenceGate.validate(
+                graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/login"));
+
+        assertEquals(1, errors.size());
+        assertTrue(errors.get(0).startsWith("AUTH_LOGIN_EXTRACT_MISSING:"));
+        assertTrue(errors.get(0).contains("token"));
+    }
+
+    /**
+     * 前提：双端模板；客户端登录已抽取 token / $.data.token。
+     * 期望：通过。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("客户端登录口有正确 extract 通过")
+    void clientLogin_hasMatchingExtract_ok() {
+        GraphNode n = httpNode("clientLogin", 2L);
+        n.getData().put("extracts", List.of(Map.of(
+                "name", "token",
+                "scope", "flow",
+                "expr", "$.data.token"
+        )));
+        GraphJson graph = GraphJson.builder().nodes(List.of(n)).build();
+
+        assertTrue(LoginExtractPresenceGate.validate(
+                graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/login")).isEmpty());
+    }
+
+    /**
+     * 前提：管理端与客户端登录口都抽出 token。
+     * 期望：AUTH_LOGIN_FLOWKEY_COLLISION。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("两端登录都抽 token 硬拦碰撞")
+    void dualLogin_sameFlowKey_collision() {
+        GraphNode admin = httpNode("adminLogin", 1L);
+        admin.getData().put("extracts", List.of(
+                Map.of("name", "adminToken", "scope", "flow", "expr", "$.token"),
+                Map.of("name", "token", "scope", "flow", "expr", "$.token")
+        ));
+        GraphNode client = httpNode("clientLogin", 2L);
+        client.getData().put("extracts", List.of(Map.of(
+                "name", "token",
+                "scope", "flow",
+                "expr", "$.data.token"
+        )));
+        GraphJson graph = GraphJson.builder().nodes(List.of(admin, client)).build();
+
+        List<String> errors = LoginExtractPresenceGate.validate(
+                graph, PROJECT_AUTH, id -> api(id, id == 1L ? "/login" : "/api/account/auth/login"));
+
+        assertTrue(errors.stream().anyMatch(e -> e.startsWith("AUTH_LOGIN_FLOWKEY_COLLISION:")));
+        assertTrue(errors.stream().anyMatch(e -> e.contains("adminToken") || e.contains("token")));
+    }
+
+    /**
+     * 前提：两个相同 path 的客户端登录都抽 token。
+     * 期望：不算跨端覆盖，不报 COLLISION。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("同一登录口重复节点不报碰撞")
+    void sameEndpoint_twoNodes_noCollision() {
+        GraphNode a = httpNode("loginA", 2L);
+        a.getData().put("extracts", List.of(Map.of(
+                "name", "token", "scope", "flow", "expr", "$.data.token")));
+        GraphNode b = httpNode("loginB", 3L);
+        b.getData().put("extracts", List.of(Map.of(
+                "name", "token", "scope", "flow", "expr", "$.data.token")));
+        GraphJson graph = GraphJson.builder().nodes(List.of(a, b)).build();
+
+        List<String> errors = LoginExtractPresenceGate.validate(
+                graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/login"));
+
+        assertTrue(errors.stream().noneMatch(e -> e.startsWith("AUTH_LOGIN_FLOWKEY_COLLISION:")));
+    }
+
     private static GraphNode httpNode(String id, Long apiId) {
         Map<String, Object> data = new HashMap<>();
         data.put("name", id);

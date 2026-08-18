@@ -36,15 +36,15 @@ describe('classifyStagingConfirmErrors', () => {
     expect(lines[0].source).toBe('unit');
   });
 
-  it('AUTH_TOKEN_MISSING 剥掉 CODE 后归为本单元校验', () => {
-    // 前提：errors 含 AUTH_TOKEN_MISSING: 文案
+  it('AUTH_LOGIN_FLOWKEY_COLLISION 剥掉 CODE 后归为本单元校验', () => {
+    // 前提：errors 含 AUTH_LOGIN_FLOWKEY_COLLISION: 文案
     // 期望：展示无 CODE 前缀，source 为 unit
     const lines = classifyStagingConfirmErrors([], [
-      'AUTH_TOKEN_MISSING: 图中使用了客户端 Bearer（flow.token），但未找到该变量来源',
+      'AUTH_LOGIN_FLOWKEY_COLLISION: 图中至少两套不同登录口都抽出了 flow.token',
     ]);
     expect(lines).toHaveLength(1);
     expect(lines[0].source).toBe('unit');
-    expect(lines[0].message).toBe('图中使用了客户端 Bearer（flow.token），但未找到该变量来源');
+    expect(lines[0].message).toBe('图中至少两套不同登录口都抽出了 flow.token');
   });
 });
 

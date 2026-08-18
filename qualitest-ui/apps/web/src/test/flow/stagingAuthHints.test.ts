@@ -53,6 +53,7 @@ describe('stagingAuthHints', () => {
     expect(hasProfileManagedHeaders(draft)).toBe(true);
     expect(stagingHeadersFieldLabel(draft)).toBe('请求头（按项目鉴权补全）');
     expect(collectAuthManagedHeaderHints(draft)[0]).toContain('Authorization');
+    expect(collectAuthManagedHeaderHints(draft)[0]).toContain('flow.token');
   });
 
   it('按 AUTH_* 筛 soft 提示，并剥掉 CODE 前缀', () => {
@@ -86,5 +87,9 @@ describe('stagingAuthHints', () => {
     });
     expect(parseAuthWarning('UNKNOWN: x')).toBeNull();
     expect(parseAuthWarning('无分隔符')).toBeNull();
+    expect(parseAuthWarning(`${AUTH_WARNING_CODES.LOGIN_FLOWKEY_COLLISION}: 两端都抽 token`)).toEqual({
+      code: AUTH_WARNING_CODES.LOGIN_FLOWKEY_COLLISION,
+      message: '两端都抽 token',
+    });
   });
 });

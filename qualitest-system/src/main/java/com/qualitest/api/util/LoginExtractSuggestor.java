@@ -4,7 +4,9 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -135,6 +137,26 @@ public final class LoginExtractSuggestor {
     }
 
     /**
+     * 列出 extracts 中写入 flow 作用域的变量名（去重、保序）。
+     */
+    public static List<String> listFlowExtractKeys(Object rawExtracts) {
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        if (!(rawExtracts instanceof Iterable<?> list)) {
+            return List.of();
+        }
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> row) || !isFlowScopeRow(row)) {
+                continue;
+            }
+            Object name = row.get("name");
+            if (name != null && !String.valueOf(name).isBlank()) {
+                keys.add(String.valueOf(name).trim());
+            }
+        }
+        return new ArrayList<>(keys);
+    }
+
+    /**
      * 指定 flow 变量名对应 extract 行的 expr；没有该行返回 null。
      */
     public static String extractExprForFlowKey(Object rawExtracts, String flowKey) {
@@ -153,12 +175,7 @@ public final class LoginExtractSuggestor {
         }
         String want = flowKey.trim();
         for (Object item : list) {
-            if (!(item instanceof Map<?, ?> row)) {
-                continue;
-            }
-            Object scope = row.get("scope");
-            if (scope != null && !String.valueOf(scope).isBlank()
-                    && !"flow".equalsIgnoreCase(String.valueOf(scope).trim())) {
+            if (!(item instanceof Map<?, ?> row) || !isFlowScopeRow(row)) {
                 continue;
             }
             Object name = row.get("name");
@@ -167,6 +184,13 @@ public final class LoginExtractSuggestor {
             }
         }
         return null;
+    }
+
+    /** scope 为空或 flow 均视为 flow 作用域。 */
+    private static boolean isFlowScopeRow(Map<?, ?> row) {
+        Object scope = row.get("scope");
+        return scope == null || String.valueOf(scope).isBlank()
+                || "flow".equalsIgnoreCase(String.valueOf(scope).trim());
     }
 
     /** extracts 是否已包含任一候选 flow 变量名。 */

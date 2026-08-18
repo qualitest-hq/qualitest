@@ -40,7 +40,8 @@ function str(v, fallback = '') {
   return v != null && String(v).trim() !== '' ? String(v) : fallback
 }
 
-function splitPathLines(text) {
+/** pathPrefix 多行/逗号文本 → 非空列表 */
+export function splitPathLines(text) {
   return String(text || '')
     .split(/[\n,，]+/)
     .map((s) => s.trim())
@@ -52,7 +53,8 @@ function joinPathLines(list) {
   return list.map((s) => String(s).trim()).filter(Boolean).join('\n')
 }
 
-function parseJsonMaybe(raw) {
+/** JSON 字符串或对象；非法则 null */
+export function parseJsonMaybe(raw) {
   if (raw == null || raw === '') return null
   if (typeof raw === 'object') return raw
   if (typeof raw === 'string') {

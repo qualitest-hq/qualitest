@@ -11,8 +11,9 @@
         <div class="debug-kv-cell">
           <input v-model="row._enabled" class="debug-kv-check" type="checkbox" />
         </div>
-        <div class="debug-kv-cell">
+        <div class="debug-kv-cell debug-kv-cell--name">
           <input v-model="row.name" :placeholder="labels.namePh" class="debug-kv-field-input" type="text" />
+          <span v-if="isProfileManagedRow(row)" class="debug-kv-managed" title="项目鉴权托管头，Run 时随配置刷新">托管</span>
         </div>
         <div class="debug-kv-cell">
           <input
@@ -43,6 +44,7 @@
 /** HTTP 配置弹窗内的键值表（Headers / Query / Path 等） */
 import { computed } from 'vue'
 
+import { isProfileManagedRow } from '../utils/authHeaderRow'
 import { emptyKVRow, ensureTrailingEmptyRow, KV_SHEET_LABELS } from '../utils/httpWorkbenchUtils'
 
 const props = defineProps({
@@ -123,6 +125,23 @@ function removeRow(idx) {
   font-size: 10px;
   color: var(--pd-text-muted, #5a6b86);
   font-weight: 600;
+}
+
+.debug-kv-cell--name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.debug-kv-managed {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--pd-primary, #0b6edc);
+  background: color-mix(in srgb, var(--pd-primary, #0b6edc) 12%, transparent);
 }
 
 .debug-kv-check {

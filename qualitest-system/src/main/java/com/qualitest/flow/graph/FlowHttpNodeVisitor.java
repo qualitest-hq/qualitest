@@ -4,6 +4,10 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.http.FlowHttpCallMode;
+import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.model.GraphNode;
+
+import java.util.List;
 
 /**
  * 遍历测试流 graph_json 里的 HTTP 节点。
@@ -79,6 +83,49 @@ public final class FlowHttpNodeVisitor {
         }
         visit(root, consumer);
         return null;
+    }
+
+    /**
+     * 已绑定项目接口的 HTTP 节点回调。
+     */
+    @FunctionalInterface
+    public interface ProjectBoundHttpConsumer {
+        /**
+         * @param node  图节点
+         * @param data  节点 data 快照
+         * @param apiId 已解析的 testProjectApiId
+         */
+        void accept(GraphNode node, JSONObject data, Long apiId);
+    }
+
+    /**
+     * 遍历 GraphJson 中 project 绑定的 HTTP 节点。
+     * <p>
+     * 判定与 {@link #visit(JSONObject, HttpNodeConsumer)} 相同：type 为空或 http，且 {@link #isProjectBoundHttp}。
+     */
+    public static void visitProjectBound(GraphJson graph, ProjectBoundHttpConsumer consumer) {
+        if (graph == null || consumer == null) {
+            return;
+        }
+        List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
+        for (GraphNode node : nodes) {
+            if (node == null || node.getData() == null) {
+                continue;
+            }
+            String type = node.getType() != null ? node.getType().trim().toLowerCase() : "";
+            if (!type.isEmpty() && !"http".equals(type)) {
+                continue;
+            }
+            JSONObject data = new JSONObject(node.getData());
+            if (!isProjectBoundHttp(data)) {
+                continue;
+            }
+            Long apiId = parseTestProjectApiId(data.get("testProjectApiId"));
+            if (apiId == null) {
+                continue;
+            }
+            consumer.accept(node, data, apiId);
+        }
     }
 
     /**

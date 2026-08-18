@@ -223,6 +223,7 @@
         :test-project-id="activeTestProjectId"
         @opened="getSettingOnDrawerOpen"
         @refresh-token="handleRefreshToken"
+        @auth-changed="store.loadProjectAuthConfig"
     />
   </div>
 </template>

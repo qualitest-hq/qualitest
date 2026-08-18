@@ -356,7 +356,7 @@ const props = defineProps({
   },
 })
 
-defineEmits(['opened', 'refresh-token'])
+const emit = defineEmits(['opened', 'refresh-token', 'auth-changed'])
 
 const conventionSaving = ref(false)
 /** 响应约定表单：业务码路径、成功值、消息路径、数据包装路径 */
@@ -470,6 +470,7 @@ function confirmApplyTemplates() {
         proxy?.$modal?.msgSuccess?.('模板已添加到项目')
         templatePickerVisible.value = false
         loadProjectSettings()
+        emit('auth-changed')
       } else {
         proxy?.$modal?.msgError?.(res.msg || '添加失败')
       }
@@ -519,6 +520,7 @@ function saveProjectAuth() {
       if (res.code === 200) {
         proxy?.$modal?.msgSuccess?.('项目鉴权已保存')
         loadProjectSettings()
+        emit('auth-changed')
       } else {
         proxy?.$modal?.msgError?.(res.msg || '保存失败')
       }

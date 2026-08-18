@@ -8,7 +8,10 @@
           class="auth-template-checkbox-list__item"
       >
         <span class="auth-template-checkbox-list__name">{{ tpl.templateName }}</span>
-        <span class="auth-template-checkbox-list__meta">{{ tpl.headerName }} · {{ tpl.headerValueTemplate }}</span>
+        <span class="auth-template-checkbox-list__meta">
+          {{ tpl.headerName }} · {{ tpl.headerValueTemplate }}
+          <template v-if="pathPrefixHint(tpl)"> · {{ pathPrefixHint(tpl) }}</template>
+        </span>
       </el-checkbox>
     </el-checkbox-group>
     <el-empty
@@ -23,6 +26,8 @@
 /**
  * 启用模板勾选列表：新建项目、设置页「从模板库添加」共用。
  */
+import { formatPathPrefixHint } from '../../testProjectTemplate/utils/templateForm'
+
 defineProps({
   templates: {
     type: Array,
@@ -43,6 +48,10 @@ defineProps({
 })
 
 const selectedIds = defineModel({ type: Array, default: () => [] })
+
+function pathPrefixHint(tpl) {
+  return formatPathPrefixHint(tpl?.matchConfig)
+}
 </script>
 
 <style scoped lang="scss">

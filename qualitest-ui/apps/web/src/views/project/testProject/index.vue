@@ -134,7 +134,9 @@
         </el-form-item>
         <el-form-item v-if="!form.testProjectId" label="鉴权模板" prop="templateIds">
           <div class="test-project-template-field">
-            <p class="test-project-template-tip">新建项目须至少勾选一套鉴权模板，用于登录口免登与凭证抽取。</p>
+            <p class="test-project-template-tip">
+              新建项目须至少勾选一套鉴权模板，用于登录口免登与凭证抽取。商城双端建议先勾「管理端 Bearer」，再勾「客户端 Bearer」。
+            </p>
             <AuthTemplateCheckboxList
                 v-model="form.templateIds"
                 :loading="templateLoading"

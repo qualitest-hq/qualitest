@@ -129,6 +129,7 @@ export const ASSIGN_PRESETS = [
 export const ASSERT_PRESETS = [
   { id: 'code0', label: 'Body code = 0', rule: { left: 'http.body.data.code', operator: 'eq', right: '0' } },
   { id: 'token', label: 'flow.token 存在', rule: { left: 'flow.token', operator: 'exists', right: '' } },
+  { id: 'adminToken', label: 'flow.adminToken 存在', rule: { left: 'flow.adminToken', operator: 'exists', right: '' } },
   { id: 'duration', label: '耗时 < 3s', rule: { left: 'http.duration', operator: 'lt', right: '3000' } },
 ];
 

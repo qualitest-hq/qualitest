@@ -9,6 +9,8 @@ import { computed, nextTick } from 'vue';
 
 import type { GraphFlowOutput, GraphScenarioConfig, GraphViewport } from '@/utils/flow/graphTypes';
 
+import { getTestProject } from '@/api/project/testProject';
+
 import { createDefaultRunConfig, DEFAULT_VIEWPORT } from '../graphAdapter';
 import { AI_CONFIRM_HIGHLIGHT_CLEAR_MS } from '../constants/flowConfig';
 import { useAiStagingStore } from './aiStagingStore';
@@ -64,6 +66,8 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const testFlowId = ref('');
   const testProjectId = ref('');
   const flowName = ref('');
+  /** 项目 auth_config JSON 字符串，供画布解析双端凭证变量 */
+  const projectAuthConfig = ref('');
   const dirty = ref(false);
   const loading = ref(false);
   const selected = ref<FlowSelection | null>(null);
@@ -154,6 +158,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     testFlowId.value = '';
     testProjectId.value = '';
     flowName.value = '';
+    projectAuthConfig.value = '';
     dirty.value = false;
     loading.value = false;
     selected.value = null;
@@ -332,6 +337,21 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     aiDesignPanelOpen.value = false;
   }
 
+  /** 拉取项目 auth_config，供节点卡片解析凭证作用域 */
+  async function loadProjectAuthConfig() {
+    const id = testProjectId.value;
+    if (!id) {
+      projectAuthConfig.value = '';
+      return;
+    }
+    try {
+      const res = await getTestProject(id);
+      projectAuthConfig.value = res.data?.authConfig || '';
+    } catch {
+      projectAuthConfig.value = '';
+    }
+  }
+
   /** 右栏是否实际展示：属性模式需有选中项 */
   const isRightPanelVisible = computed(() => {
     if (!ui.value.rightOpen) return false;
@@ -348,6 +368,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     testFlowId,
     testProjectId,
     flowName,
+    projectAuthConfig,
     dirty,
     loading,
     selected,
@@ -387,6 +408,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     setMinimapVisible,
     openAiDesignPanel,
     closeAiDesignPanel,
+    loadProjectAuthConfig,
     isRightPanelVisible,
   };
 });

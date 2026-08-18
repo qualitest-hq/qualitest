@@ -2,6 +2,8 @@
  * Staging 鉴权相关的纯展示工具：识别托管头、解析机器码、剥 code 前缀。
  */
 
+import { isProfileManagedRow, parseFlowPlaceholderKey } from './authHeaderRow'
+
 /** 鉴权提示/错误机器码常量 */
 export const AUTH_WARNING_CODES = {
   /** 已自动补上托管鉴权头，仅提示 */
@@ -10,6 +12,8 @@ export const AUTH_WARNING_CODES = {
   LOGIN_NO_BEARER: 'AUTH_LOGIN_NO_BEARER',
   /** 登录口缺少 token extract，应硬拦 */
   LOGIN_EXTRACT_MISSING: 'AUTH_LOGIN_EXTRACT_MISSING',
+  /** 两套不同登录口抽出同一个 flow 变量，应硬拦 */
+  LOGIN_FLOWKEY_COLLISION: 'AUTH_LOGIN_FLOWKEY_COLLISION',
   /** 缺对应端 token 来源，应硬拦（出现在 errors） */
   TOKEN_MISSING: 'AUTH_TOKEN_MISSING',
 } as const
@@ -20,13 +24,6 @@ const AUTH_WARNING_CODE_SET = new Set<string>(Object.values(AUTH_WARNING_CODES))
 function draftHeaders(draft?: Record<string, unknown>): Record<string, unknown>[] {
   const data = draft?.data as Record<string, unknown> | undefined
   return Array.isArray(data?.headers) ? (data!.headers as Record<string, unknown>[]) : []
-}
-
-/** 是否为项目鉴权自动写入的托管头行（profileManaged） */
-function isProfileManagedRow(row: Record<string, unknown> | null | undefined): boolean {
-  if (!row || typeof row !== 'object') return false
-  const managed = row.profileManaged
-  return managed === true || managed === 'true'
 }
 
 /** 列出草稿中的托管鉴权头行 */
@@ -50,10 +47,16 @@ export function collectAuthManagedHeaderHints(draft?: Record<string, unknown>): 
     .map((row) => String(row.name || row.key || 'Authorization').trim())
     .filter(Boolean)
   const unique = [...new Set(names)]
-  if (!unique.length) {
-    return ['已按项目鉴权补全托管头（Run 时随项目配置刷新）']
-  }
-  return [`已按项目鉴权补全 ${unique.join('、')}（托管头，Run 时随项目配置刷新）`]
+  const flowKeys = [...new Set(
+    managed
+      .map((row) => {
+        const key = parseFlowPlaceholderKey(row.value)
+        return key ? `flow.${key}` : ''
+      })
+      .filter(Boolean),
+  )]
+  const keyHint = flowKeys.length ? `，凭证 ${flowKeys.join('、')}` : ''
+  return [`已按项目鉴权补全 ${unique.join('、')}（托管头，Run 时随项目配置刷新${keyHint}）`]
 }
 
 /** Diff 里 headers 字段的展示标签：有托管头时标明「按项目鉴权补全」 */

@@ -33,9 +33,20 @@
           <span class="api-preview__path">{{ node.data.apiPath || '—' }}</span>
         </div>
         <div class="api-preview__name">{{ node.data.apiName || '未命名接口' }}</div>
+        <div
+            v-if="authLabel"
+            :class="{ 'http-prop-auth--conflict': authScope.conflict }"
+            class="http-prop-auth"
+        >
+          {{ authLabel }}
+          <span v-if="authScope.conflict"> · {{ authScope.conflictReason }}</span>
+        </div>
       </div>
       <div v-else class="api-preview is-empty">尚未绑定项目接口</div>
       <div class="http-prop-meta">{{ httpMeta }}</div>
+      <p v-if="authLabel && authScope.kind === 'inherit'" class="field__hint">
+        未命中 pathPrefix 时用数组第一条 Profile。
+      </p>
       <ul v-if="nodeHealthWarnings.length" class="http-prop-health">
         <li v-for="(w, i) in nodeHealthWarnings" :key="i">{{ w.message || w.detail || w.code }}</li>
       </ul>
@@ -140,6 +151,7 @@ import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowTrialBody } from '../../composables/useFlowTrialBody'
 import { getMethodBadgeClass } from '../../constants/flowConfig'
 import { useApiHealthStore } from '../../stores/apiHealthStore'
+import { useNodeAuthScope } from '../../composables/useNodeAuthScope'
 import { countHttpParamStats, emptyKVRow, HTTP_METHODS } from '../../utils/httpWorkbenchUtils'
 import { isExternalCallMode } from '../../utils/httpSummary'
 import { updateSummary } from '../../utils/nodeDataUtils'
@@ -154,6 +166,8 @@ const emit = defineEmits(['open-http-config'])
 
 const { patchNodeData, replaceNodeData } = useFlowNodes()
 const apiHealth = useApiHealthStore()
+
+const { authScope, authLabel } = useNodeAuthScope(() => props.node?.data)
 
 /** 打开属性时若缺 callMode，补 project（与 AI Normalizer / 拖拽默认一致） */
 onMounted(() => {
@@ -341,6 +355,18 @@ function onPostScriptChange(val) {
   margin-top: 6px;
   font-size: 11px;
   color: var(--pd-text-muted);
+}
+
+.http-prop-auth {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--pd-text-muted);
+  line-height: 1.4;
+}
+
+.http-prop-auth--conflict {
+  color: var(--el-color-danger, #f56c6c);
+  font-weight: 600;
 }
 
 .http-prop-meta {

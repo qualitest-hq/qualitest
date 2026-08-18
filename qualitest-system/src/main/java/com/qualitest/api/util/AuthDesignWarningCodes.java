@@ -9,6 +9,7 @@ package com.qualitest.api.util;
  *   <li>AUTH_HEADER_MANAGED — 造流已自动补上托管鉴权头，仅作提示，不阻断操作</li>
  *   <li>AUTH_LOGIN_NO_BEARER — 登录/免登口剥离了误补的托管头，仅提示</li>
  *   <li>AUTH_LOGIN_EXTRACT_MISSING — 登录口未抽取 token 到 flow，应阻断造流提交、确认与保存</li>
+ *   <li>AUTH_LOGIN_FLOWKEY_COLLISION — 两套不同登录口抽出同一个 flow 变量，应阻断造流提交、确认与保存</li>
  *   <li>AUTH_TOKEN_MISSING — 图中需要某端 token 但缺少变量来源，应阻断造流提交、确认与保存</li>
  * </ul>
  */
@@ -22,6 +23,9 @@ public final class AuthDesignWarningCodes {
 
     /** 登录类接口未配置写出 token 的 extracts */
     public static final String LOGIN_EXTRACT_MISSING = "AUTH_LOGIN_EXTRACT_MISSING";
+
+    /** 两套不同登录口抽出同一个 flow 变量，应硬拦 */
+    public static final String LOGIN_FLOWKEY_COLLISION = "AUTH_LOGIN_FLOWKEY_COLLISION";
 
     /** 需要某端登录凭证（如 flow.token）但图中找不到写入来源，应硬拦 */
     public static final String TOKEN_MISSING = "AUTH_TOKEN_MISSING";
@@ -91,6 +95,17 @@ public final class AuthDesignWarningCodes {
 
     private static String flowKeyOrToken(String flowKey) {
         return flowKey != null && !flowKey.isBlank() ? flowKey.trim() : "token";
+    }
+
+    /**
+     * 生成「两端登录抽到同一 flow 变量」错误文案。
+     *
+     * @param flowKey 被两套登录口同时写出的变量名
+     */
+    public static String loginFlowKeyCollision(String flowKey) {
+        return LOGIN_FLOWKEY_COLLISION + CODE_SEP
+                + "图中至少两套不同登录口都抽出了 flow." + flowKeyOrToken(flowKey)
+                + "；客户端请用 token，管理端请用 adminToken，禁止互相覆盖";
     }
 
     /**

@@ -40,7 +40,7 @@
 
 ### 项目鉴权
 
-配置挂**测试项目**（设置抽屉「项目鉴权」），不挂环境。造流 Normalizer、Run、调试台共用同一解析器。项目模板表 + 预制 `apis` 见 [全面测试-未修复与可优化项.md](./全面测试-未修复与可优化项.md) §8（**后端已落地，前端勾选页未做**）。
+配置挂**测试项目**（设置抽屉「项目鉴权」），不挂环境。造流 Normalizer、Run、调试台共用同一解析器。项目模板表 + 预制 `apis` 见 [全面测试-未修复与可优化项.md](./全面测试-未修复与可优化项.md) §8（**已关闭**）。
 
 | 层级 | 要点 |
 |------|------|
@@ -52,9 +52,9 @@
 
 **登录抽凭证**：extracts 的 `from`+`expr`（`body`+JSONPath 或 `setCookie`+Cookie 名）与 **Profile.`loginHint`** 对齐（接口须命中该条 `credentialApi`），写入 `flow.token` / `flow.adminToken` 等。注册/验证码不抽凭证。**不要**再写节点 `useRunSession`（已忽略）。造流时凭证口空 extracts 会按 `loginHint` 补；缺对应 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。配置完全空时才暂留 builtin `/login` 等启发式。上传/OpenAPI 只改接口行 schema 与 mode，不改项目 Profile hint。
 
-**同流复用**：业务流开头登录一次（或挂登录子流），后续 HTTP 靠托管 Bearer 复用 `flow.*`；勿每个步骤再登录。调试可用 flowSeed 预置 token；口令仍走素材库。
+**同流复用**：同一端开头只登录一次（或挂登录子流），后续 HTTP 靠托管 Bearer 复用 `flow.*`；勿每个步骤再登录。**双端同图**允许两套登录：客户端抽出 `flow.token`，管理端抽出 `flow.adminToken`，禁止两端覆盖同一个变量。调试可用 flowSeed 预置 token；口令仍走素材库。
 
-**门禁与操作**：缺对应端 `flow.token` / `flow.adminToken` 来源时，AI submit / Staging 确认 / 保存硬拦（`AUTH_TOKEN_MISSING`）；托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。画布顶栏「刷新鉴权头」批量提案写回托管头（经 Staging）。Run 鉴权失败用「AI 修复」（含 401 预填）。
+**门禁与操作**：缺对应端 `flow.token` / `flow.adminToken` 来源时，AI submit / Staging 确认 / 保存硬拦（`AUTH_TOKEN_MISSING`）；两套登录口写出同一 flowKey 硬拦（`AUTH_LOGIN_FLOWKEY_COLLISION`）；托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。画布顶栏「刷新鉴权头」批量提案写回托管头（经 Staging）。Run 鉴权失败用「AI 修复」（含 401 预填）。
 
 **按端 JsonPath（demo）**：
 

@@ -91,6 +91,7 @@ async function initFlow() {
   store.testProjectId = testProjectId
   try {
     await loadFlow(testFlowId)
+    await store.loadProjectAuthConfig()
     await loadProjectName(testProjectId)
     await loadProjectEnvs()
     await runLib.loadRuns(testFlowId)
