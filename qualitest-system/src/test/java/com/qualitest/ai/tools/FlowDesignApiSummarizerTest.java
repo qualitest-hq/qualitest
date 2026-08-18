@@ -11,6 +11,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -189,5 +190,36 @@ class FlowDesignApiSummarizerTest {
         assertEquals("string", out.getString("data[*].cartId"));
         assertFalse(out.containsKey("data.items.quantity"));
         assertFalse(out.containsKey("data.items.cartId"));
+    }
+
+    /**
+     * 前提：schema 在对象级 required 数组标了 name，字段节点上没有 required 布尔。
+     * 期望：叶子 path=name 带 required=true；note 不标必填。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("对象级 required 数组标到叶子")
+    void summarizeRequest_objectRequiredArrayMarksLeaf() {
+        String requestConfig = """
+                {"configVersion":1,"method":"POST","queryParams":[],"pathParams":[],"declaredHeaders":[],"body":{"mode":"json","json":{"schema":{"type":"object","required":["name"],"properties":{"name":{"type":"string"},"note":{"type":"string"}}},"example":null}}}
+                """;
+        var out = FlowDesignApiSummarizer.summarizeRequest(requestConfig, null);
+        JSONArray leaves = out.getJSONArray("bodySchemaLeaves");
+        assertEquals(2, leaves.size());
+        JSONObject name = null;
+        JSONObject note = null;
+        for (int i = 0; i < leaves.size(); i++) {
+            JSONObject leaf = leaves.getJSONObject(i);
+            if ("name".equals(leaf.getString("path"))) {
+                name = leaf;
+            }
+            if ("note".equals(leaf.getString("path"))) {
+                note = leaf;
+            }
+        }
+        assertNotNull(name);
+        assertNotNull(note);
+        assertTrue(Boolean.TRUE.equals(name.getBoolean("required")));
+        assertFalse(Boolean.TRUE.equals(note.getBoolean("required")));
     }
 }

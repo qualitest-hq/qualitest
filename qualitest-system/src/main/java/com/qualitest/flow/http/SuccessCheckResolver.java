@@ -65,6 +65,15 @@ public final class SuccessCheckResolver {
         return new Resolved(true, convention.codePath(), convention.messagePath(), successValues);
     }
 
+    /**
+     * 节点是否关闭业务码校验（successCheck.mode=off）。
+     * 没写 mode 时返回 false。
+     */
+    public static boolean isOff(Map<String, Object> nodeData) {
+        String mode = readMode(nodeData);
+        return mode != null && MODE_OFF.equalsIgnoreCase(mode.trim());
+    }
+
     /** 读取节点 data.successCheck.mode */
     private static String readMode(Map<String, Object> nodeData) {
         if (nodeData == null) {

@@ -16,6 +16,7 @@ import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
 import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.AuthTokenPresenceGate;
+import com.qualitest.flow.validate.HttpRequiredParamGate;
 import com.qualitest.flow.validate.LoginExtractPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationResult;
@@ -46,6 +47,7 @@ import java.util.function.Function;
  *   <li>预合并到基准图副本，跑图结构校验，得到 errors/warnings</li>
  *   <li>用上游接口响应示例试算 assert/condition 的 http.body 左值；未命中记入 errors 回传模型</li>
  *   <li>检查需登录节点所需的 flow.token / flow.adminToken 等是否已有来源；缺则记入 errors，本次造流不可进入 Staging</li>
+ *   <li>成功路径 HTTP 缺必填测值则记入 errors，本次造流不可进入 Staging</li>
  * </ol>
  * 不写库；用户在前端 Diff 确认后才持久化 graph_json。
  */
@@ -83,16 +85,15 @@ public class FlowDesignPatchNormalizer {
         List<String> errors = new ArrayList<>(validation.getErrors());
         // 断言路径：结构错误进 errors；schema 缺字段进 warnings（不阻断 Staging）
         AssertPathDesignGate.AssertPathGateResult assertPath =
-                AssertPathDesignGate.validate(merged,
-                        testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById);
+                AssertPathDesignGate.validate(merged, apiResolver());
         errors.addAll(assertPath.errors());
         warnings.addAll(assertPath.warnings());
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        Function<Long, TestProjectApi> apiResolver = testProjectApiMapper == null
-                ? id -> null
-                : testProjectApiMapper::selectTestProjectApiById;
+        Function<Long, TestProjectApi> apiResolver = apiResolver();
         errors.addAll(AuthTokenPresenceGate.validate(merged, projectAuthJson, apiResolver));
         errors.addAll(LoginExtractPresenceGate.validate(merged, projectAuthJson, apiResolver));
+        // 成功路径 HTTP 缺必填测值，本次造流不可进入 Staging
+        errors.addAll(HttpRequiredParamGate.validate(merged, apiResolver));
 
         DesignValidationResult planValidation = DesignValidationResult.builder()
                 .ok(errors.isEmpty())
@@ -117,10 +118,7 @@ public class FlowDesignPatchNormalizer {
      */
     public List<String> collectAuthTokenPresenceErrors(GraphJson graph, Long testProjectId) {
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        return AuthTokenPresenceGate.validate(
-                graph,
-                projectAuthJson,
-                testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById);
+        return AuthTokenPresenceGate.validate(graph, projectAuthJson, apiResolver());
     }
 
     /**
@@ -129,10 +127,20 @@ public class FlowDesignPatchNormalizer {
      */
     public List<String> collectLoginExtractPresenceErrors(GraphJson graph, Long testProjectId) {
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        return LoginExtractPresenceGate.validate(
-                graph,
-                projectAuthJson,
-                testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById);
+        return LoginExtractPresenceGate.validate(graph, projectAuthJson, apiResolver());
+    }
+
+    /**
+     * 检查成功路径上的项目 HTTP 是否缺少必填测值。
+     * 缺字段返回错误文案；节点关掉业务码校验或没有必填时返回空列表。
+     */
+    public List<String> collectHttpRequiredParamErrors(GraphJson graph) {
+        return HttpRequiredParamGate.validate(graph, apiResolver());
+    }
+
+    /** 按接口 id 加载项目接口；mapper 未注入时一律返回 null。 */
+    private Function<Long, TestProjectApi> apiResolver() {
+        return testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById;
     }
 
     /**

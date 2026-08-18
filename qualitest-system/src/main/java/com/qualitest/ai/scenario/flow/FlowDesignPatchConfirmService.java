@@ -38,6 +38,7 @@ import java.util.Set;
  *   <li>按 unitId 过滤出单单元增量子集并合并到 graph_json 副本</li>
  *   <li>运行全图结构校验，汇总 errors 与 warnings</li>
  *   <li>检查需登录节点所需的 flow.token / flow.adminToken 等是否已有来源；缺则不可确认</li>
+ *   <li>成功路径 HTTP 缺必填测值则不可确认</li>
  *   <li>仅当确认 assert/condition 节点时：在含 pending Staging 的预览图上按 schema 校验该节点 http.body 左值；
  *       边及其它单元确认不跑断言门禁（避免错误挂在边上）</li>
  * </ol>
@@ -115,6 +116,8 @@ public class FlowDesignPatchConfirmService {
         // 需登录却缺少对应端 token 来源：整图检查，缺则不可确认本单元
         allErrors.addAll(patchNormalizer.collectAuthTokenPresenceErrors(merged, request.getTestProjectId()));
         allErrors.addAll(patchNormalizer.collectLoginExtractPresenceErrors(merged, request.getTestProjectId()));
+        // 成功路径 HTTP 缺必填测值：整图检查，缺则不可确认本单元
+        allErrors.addAll(patchNormalizer.collectHttpRequiredParamErrors(merged));
         boolean ok = allErrors.isEmpty();
 
         logConfirmMetrics(startedAt, unitId, ok);

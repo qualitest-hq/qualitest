@@ -34,7 +34,8 @@
   - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 `flow.*`；后续靠 Profile 托管 `Cookie` 头。**禁止**再写节点级会话勾选（旧字段 `useRunSession` 已忽略）。
   - 免除登录 / `auth.mode=none` / 登录口（`/login`、`/api/account/auth/login` 等）：**不要**加鉴权托管头；登录节点 **必须** extracts 写出 `flow.token` / `flow.adminToken`。
   - **按端 JsonPath**：以 `get_api_details` 的 `headerHint` / `suggestedExtracts` 与 Profile `loginHint` 为准——客户端常见 `$.data.token→token`，管理端 `/login` 常见 `$.token→adminToken`；**禁止**两端混用路径。
-  - **预期业务拒绝**（停用账号、权限不足等）：HTTP 须 `successCheck.mode=off`（**禁止**对该节点 inherit 业务成功码），再用 assert 校验 `http.body.code` 不等于成功值或 `msg` 含拒绝文案；否则 Run 会在业务码校验处失败、断言执行不到。
+  - **预期业务拒绝**（停用账号、权限不足等）：HTTP 须 `successCheck.mode=off`（**禁止**对该节点 inherit 业务成功码），再用 assert 校验 `http.body.code` 不等于成功值或 `msg` 含拒绝文案；否则 Run 会在业务码校验处失败、断言执行不到。`mode=off` 时允许故意缺 schema 必填字段。
+  - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。成功路径缺必填时按 validation.errors **补节点** `requestValueOverrides`（`bodyExample` / `paramDefaults`），**不要**改接口资产的 required，也**不要**把 schema example 里的 `0`/`""` 当成默认值拷进节点。`designHints` 写明的业务必填（如退款 apply 的 items）即使 schema 未标 required 也要写入节点 body。
   - 越权等特殊用例：显式写死头且不要标托管，避免被项目配置覆盖。
   - 凭证只进 `flow.*`（对齐 `loginHint`）；账号走素材；**禁止** flowSeed 塞口令（调试预置 token 可以）。
 - **两套方言，勿混用：**
@@ -78,7 +79,7 @@
 - project 可用临时 `requestBody` → 写入 overrides.bodyExample 后由系统删除
 - **assert**：name, rules[{left, operator, right}], summary；operator∈`eq|ne|gt|gte|lt|lte|contains|not_contains|exists`（别名如 equals→eq、notempty→exists 服务端会归一，仍请写白名单）
 - **assign / delay / script / subflow**：按「节点类型」必填项写全；script 须显式 language
-- validation 报错时按 errors 修正后再次 submit
+- validation 报错时按 errors 修正后再次 submit；缺少必填 query/path/body 字段时只改节点测值，不要去改接口 required
 
 ## validation 常见失败速查
 - `language 无效/(空)` → script 写 `language: javascript`（或 python）
@@ -87,4 +88,5 @@
 - `left 试算未命中（空或 []）` / 路径含 `.items` → 按上游响应示例改写：`data` 为数组时用 `http.body.data[?(@.…)]`，勿写 `data.items`
 - `left 不可写成 http.body.$.…` → 改为 `http.body.data…` 或 extracts 用 `$.data…`
 - `缺少 subflowId` → 先 list_subflow_templates 再填真实 id
+- `缺少必填 … 字段` → 在节点 `requestValueOverrides` 补测值；勿改接口 required，勿用 example 的 0 当默认
 - addEdge 端点未确认 → 先确认依赖的 addNode，或同轮 patch 内带齐节点

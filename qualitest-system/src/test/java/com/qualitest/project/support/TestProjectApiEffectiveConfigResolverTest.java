@@ -289,4 +289,25 @@ class TestProjectApiEffectiveConfigResolverTest {
         assertTrue(overlaid.contains("product-image"));
         assertTrue(overlaid.contains("{{asset.cover.storagePath}}"));
     }
+
+    /**
+     * 前提：接口资产 body.example 带默认对象，节点没写 overrides。
+     * 期望：合成结果里不再带 example。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("issuedRequestConfig：无节点 body 时不退回资产 example")
+    void issuedRequestConfig_stripsAssetExampleWithoutOverrides() {
+        TestProjectApi api = TestProjectApi.builder()
+                .requestConfig("""
+                        {"configVersion":1,"method":"POST","queryParams":[],"pathParams":[],"declaredHeaders":[],
+                         "body":{"mode":"json","json":{"example":{"items":[{"skuId":0}]},"schema":{"type":"object"}}}}
+                        """)
+                .build();
+
+        var issued = TestProjectApiEffectiveConfigResolver.issuedRequestConfig(api, Map.of());
+
+        var json = issued.getJSONObject("body").getJSONObject("json");
+        assertFalse(json.containsKey("example"));
+    }
 }

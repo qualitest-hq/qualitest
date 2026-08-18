@@ -8,6 +8,7 @@ import com.qualitest.common.utils.DateUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.qualitest.project.mapper.TestFlowMapper;
@@ -15,10 +16,12 @@ import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestProject;
+import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
 import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.AuthTokenPresenceGate;
+import com.qualitest.flow.validate.HttpRequiredParamGate;
 import com.qualitest.flow.validate.LoginExtractPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationResult;
@@ -134,7 +137,8 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     /**
      * 写库前校验 graph_json：
-     * 图结构规则、断言路径合法性、以及需登录节点是否已有对应端 token 来源。
+     * 图结构规则、断言路径合法性、需登录节点是否已有对应端 token 来源、
+     * 成功路径 HTTP 是否缺少必填测值。
      * 任一检查失败则抛错，拒绝落库。graphJson 为空时跳过（仅改名称等元数据）。
      */
     private void validateGraphJsonForPersist(String graphJson, Long testProjectId) {
@@ -149,13 +153,14 @@ public class TestFlowServiceImpl implements ITestFlowService {
         }
         GraphValidationResult validation = graphJsonValidator.validate(graph);
         List<String> errors = new ArrayList<>(validation.getErrors());
+        Function<Long, TestProjectApi> apiResolver = testProjectApiMapper::selectTestProjectApiById;
         // schema 缺字段仅为警告，保存不拦截
-        errors.addAll(AssertPathDesignGate.validate(graph, testProjectApiMapper::selectTestProjectApiById).errors());
+        errors.addAll(AssertPathDesignGate.validate(graph, apiResolver).errors());
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        errors.addAll(AuthTokenPresenceGate.validate(
-                graph, projectAuthJson, testProjectApiMapper::selectTestProjectApiById));
-        errors.addAll(LoginExtractPresenceGate.validate(
-                graph, projectAuthJson, testProjectApiMapper::selectTestProjectApiById));
+        errors.addAll(AuthTokenPresenceGate.validate(graph, projectAuthJson, apiResolver));
+        errors.addAll(LoginExtractPresenceGate.validate(graph, projectAuthJson, apiResolver));
+        // 成功路径 HTTP 缺必填测值则拒绝保存
+        errors.addAll(HttpRequiredParamGate.validate(graph, apiResolver));
         if (!errors.isEmpty()) {
             throw new ServiceException(errors.get(0));
         }

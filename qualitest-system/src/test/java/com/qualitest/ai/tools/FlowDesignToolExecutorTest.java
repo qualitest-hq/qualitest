@@ -279,9 +279,14 @@ class FlowDesignToolExecutorTest {
         assertFalse(root.getJSONArray("deferredIds").isEmpty());
     }
 
+    /**
+     * 前提：调用已删除的旧工具名 get_api_detail。
+     * 期望：返回错误，提示改用 get_api_details。
+     */
     @Test
     @Order(43)
     @DisplayName("旧名 get_api_detail 返回迁移错误")
+    @SuppressWarnings("deprecation")
     void getApiDetail_legacyName_returnsMigrationError() {
         String json = executor.executeTool(
                 FlowDesignToolExecutor.GET_API_DETAIL_LEGACY,

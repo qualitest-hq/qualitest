@@ -1,10 +1,9 @@
 package com.qualitest.api.util;
 
 /**
- * 请求体 {@code body.mode} 取值判断。
- * <p>
- * 表单 urlencoded 模式的标准取值为 {@link #URLENCODED}；
- * {@link #URLENCODED_SHORT} 为流程节点内嵌配置里可能出现的简写，判断时一并视为 urlencoded。
+ * 判断请求体 body.mode。
+ * urlencoded 认 x-www-form-urlencoded 和简写 urlencoded。
+ * form-data 认 form-data、formdata、multipart。
  */
 public final class ApiConfigBodyModes {
 
@@ -22,5 +21,19 @@ public final class ApiConfigBodyModes {
      */
     public static boolean isUrlencoded(String mode) {
         return URLENCODED.equals(mode) || URLENCODED_SHORT.equals(mode);
+    }
+
+    /**
+     * 是否为 multipart / form-data 请求体。
+     * 接受 form-data、formdata、multipart，大小写不敏感；空串返回 false。
+     */
+    public static boolean isFormData(String mode) {
+        if (mode == null || mode.isBlank()) {
+            return false;
+        }
+        String normalized = mode.trim();
+        return "form-data".equalsIgnoreCase(normalized)
+                || "formdata".equalsIgnoreCase(normalized)
+                || "multipart".equalsIgnoreCase(normalized);
     }
 }

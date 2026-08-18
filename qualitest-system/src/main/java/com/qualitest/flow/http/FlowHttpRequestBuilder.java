@@ -76,7 +76,8 @@ public final class FlowHttpRequestBuilder {
             throw new FlowExecutionException(FlowErrorCode.TF_HTTP_UNBOUND, "未绑定 testProjectApiId");
         }
 
-        JSONObject requestConfig = resolveRequestConfig(api, nodeData);
+        // 去掉接口资产默认 body，再叠节点测值，得到真正发出的请求配置
+        JSONObject requestConfig = TestProjectApiEffectiveConfigResolver.issuedRequestConfig(api, nodeData);
         String method = resolveMethod(requestConfig, nodeData);
         String apiPath = resolveApiPath(api);
 
@@ -254,25 +255,6 @@ public final class FlowHttpRequestBuilder {
         } catch (Exception e) {
             return method + " ↗ " + (externalUrl != null ? externalUrl : "—");
         }
-    }
-
-    /**
-     * 合成真正发出的 requestConfig：
-     * 以 API 有效配置为底（先剥掉 body.json.example，避免退回接口默认 body），
-     * 再叠节点 requestValueOverrides（可整段写入 bodyExample）。
-     * 忽略节点上残留的整份 requestConfig。
-     */
-    private static JSONObject resolveRequestConfig(TestProjectApi api, Map<String, Object> nodeData) {
-        String base = "{}";
-        if (api != null && api.getRequestConfig() != null && !api.getRequestConfig().isBlank()) {
-            base = api.getRequestConfig();
-        }
-        // 跑流不退回接口 TV / 结构层 body 默认；场景 body 只认节点 overrides
-        base = TestProjectApiEffectiveConfigResolver.stripBodyExample(base);
-        Object overrides = nodeData != null ? nodeData.get("requestValueOverrides") : null;
-        String overlaid = TestProjectApiEffectiveConfigResolver.overlayRequestValuesFromOverrides(base, overrides);
-        JSONObject parsed = parseJsonObject(overlaid);
-        return parsed != null ? parsed : new JSONObject();
     }
 
     private static String resolveMethod(JSONObject requestConfig, Map<String, Object> nodeData) {

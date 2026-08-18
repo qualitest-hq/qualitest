@@ -104,8 +104,7 @@ public final class FlowDesignApiSummarizer {
                     }
                 } else if (ApiConfigBodyModes.isUrlencoded(mode)) {
                     out.put("bodyParams", paramSummaries(body.getJSONArray("urlencoded"), true));
-                } else if ("formdata".equalsIgnoreCase(mode) || "form-data".equalsIgnoreCase(mode)
-                        || "multipart".equalsIgnoreCase(mode)) {
+                } else if (ApiConfigBodyModes.isFormData(mode)) {
                     out.put("bodyParams", paramSummaries(body.getJSONArray("formData"), true));
                 }
             }
@@ -313,11 +312,20 @@ public final class FlowDesignApiSummarizer {
     }
 
     /**
-     * 递归展开 schema。
-     * 对象：path 追加属性名；数组：path 追加 [*]（真实 JSON 用下标/通配访问元素，没有 items 键）。
+     * 递归展开 schema 成叶子列表。
+     * 对象 path 追加属性名；数组 path 追加 [*]（真实 JSON 用下标或通配访问元素，没有 items 键）。
+     * 父对象 required 数组里的字段名，会在对应叶子上标 required=true。
      */
     private static void walkSchemaLeaves(Object node, String prefix, int depth, int maxDepth,
                                          JSONArray leaves, int maxLeaves) {
+        walkSchemaLeaves(node, prefix, depth, maxDepth, leaves, maxLeaves, false);
+    }
+
+    /**
+     * 递归展开 schema。fieldRequired 表示当前节点是否被父对象 required 数组点名。
+     */
+    private static void walkSchemaLeaves(Object node, String prefix, int depth, int maxDepth,
+                                         JSONArray leaves, int maxLeaves, boolean fieldRequired) {
         if (node == null || depth > maxDepth || leaves.size() >= maxLeaves) {
             return;
         }
@@ -329,29 +337,64 @@ public final class FlowDesignApiSummarizer {
         Object items = obj.get("items");
 
         if ("object".equals(type) && properties != null && !properties.isEmpty()) {
+            if (!prefix.isEmpty() && fieldRequired) {
+                // 必填的 object 容器本身也出一片叶子，避免只看到子字段
+                emitSchemaLeaf(obj, prefix, type, true, leaves);
+            }
+            Set<String> requiredKeys = readRequiredNames(obj);
             for (String key : properties.keySet()) {
                 if (key == null || key.isBlank()) {
                     continue;
                 }
-                String path = prefix.isEmpty() ? key.trim() : prefix + "." + key.trim();
-                walkSchemaLeaves(properties.get(key), path, depth + 1, maxDepth, leaves, maxLeaves);
+                String name = key.trim();
+                String path = prefix.isEmpty() ? name : prefix + "." + name;
+                walkSchemaLeaves(properties.get(key), path, depth + 1, maxDepth, leaves, maxLeaves,
+                        requiredKeys.contains(name));
             }
             return;
         }
         if ("array".equals(type) && items != null) {
-            // 数组路径用 [*]：例如 data[*].quantity，而不是 data.items.quantity
+            if (!prefix.isEmpty() && fieldRequired) {
+                // 必填的 array 容器本身也出一片叶子
+                emitSchemaLeaf(obj, prefix, type, true, leaves);
+            }
             String path = prefix.isEmpty() ? "[*]" : prefix + "[*]";
-            walkSchemaLeaves(items, path, depth + 1, maxDepth, leaves, maxLeaves);
+            walkSchemaLeaves(items, path, depth + 1, maxDepth, leaves, maxLeaves, false);
             return;
         }
         if (prefix.isEmpty()) {
             return;
         }
+        boolean required = fieldRequired || Boolean.TRUE.equals(obj.getBoolean("required"));
+        emitSchemaLeaf(obj, prefix, type, required, leaves);
+    }
+
+    /** 读取当前对象 schema 上的 required 字段名，去掉空串。 */
+    private static Set<String> readRequiredNames(JSONObject obj) {
+        Set<String> names = new LinkedHashSet<>();
+        if (obj == null) {
+            return names;
+        }
+        JSONArray arr = obj.getJSONArray("required");
+        if (arr == null || arr.isEmpty()) {
+            return names;
+        }
+        for (int i = 0; i < arr.size(); i++) {
+            String name = arr.getString(i);
+            if (name != null && !name.isBlank()) {
+                names.add(name.trim());
+            }
+        }
+        return names;
+    }
+
+    /** 写出一片 schema 叶子：path、type、约束、是否必填、描述。 */
+    private static void emitSchemaLeaf(JSONObject obj, String prefix, String type, boolean required, JSONArray leaves) {
         JSONObject leaf = new JSONObject();
         leaf.put("path", prefix);
         leaf.put("type", type != null && !type.isBlank() ? type : "any");
         copyConstraintKeys(obj, leaf, SCHEMA_CONSTRAINT_KEYS);
-        if (Boolean.TRUE.equals(obj.getBoolean("required"))) {
+        if (required) {
             leaf.put("required", true);
         }
         String description = obj.getString("description");

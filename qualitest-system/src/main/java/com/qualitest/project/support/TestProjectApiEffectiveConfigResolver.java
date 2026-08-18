@@ -1,5 +1,6 @@
 package com.qualitest.project.support;
 
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -209,11 +210,8 @@ public final class TestProjectApiEffectiveConfigResolver {
     }
 
     /**
-     * 去掉 request 配置里 {@code body.json.example}。
-     * <p>
-     * 跑测试流时调用：不把接口资产 TV / 结构层的 body 默认带进发出去的请求；
-     * 节点 {@code requestValueOverrides.bodyExample} 随后可整段写回。
-     * 接口调试 / Web 详情仍走 {@link #resolve}，不受本方法影响。
+     * 去掉 request 配置里 body.json.example。
+     * 发出请求时不带接口资产上的默认 body；节点测值里的 bodyExample 可以随后整段写回。
      */
     public static String stripBodyExample(String rawRequestConfig) {
         ObjectNode root = ApiConfigJsonSupport.parseObjectOrEmpty(rawRequestConfig);
@@ -226,6 +224,36 @@ public final class TestProjectApiEffectiveConfigResolver {
             }
         }
         return ApiConfigJsonSupport.writeCompact(root);
+    }
+
+    /**
+     * 合成实际发出的 requestConfig：先去掉接口资产的 body.json.example，再叠节点 requestValueOverrides。
+     * nodeData 是节点 data（Map 或 JSONObject），可为 null。
+     * 解析失败返回空对象。
+     */
+    public static JSONObject issuedRequestConfig(TestProjectApi api, Object nodeData) {
+        String base = "{}";
+        if (api != null && api.getRequestConfig() != null && !api.getRequestConfig().isBlank()) {
+            base = api.getRequestConfig();
+        }
+        base = stripBodyExample(base);
+        Object overrides = null;
+        if (nodeData instanceof JSONObject obj) {
+            overrides = obj.get("requestValueOverrides");
+        } else if (nodeData instanceof Map<?, ?> map) {
+            overrides = map.get("requestValueOverrides");
+        }
+        // 把节点测值叠回去；没有 overrides 则只保留剥掉 example 后的结构
+        String overlaid = overlayRequestValuesFromOverrides(base, overrides);
+        if (overlaid == null || overlaid.isBlank()) {
+            return new JSONObject();
+        }
+        try {
+            JSONObject parsed = JSON.parseObject(overlaid);
+            return parsed != null ? parsed : new JSONObject();
+        } catch (Exception e) {
+            return new JSONObject();
+        }
     }
 
     /**
