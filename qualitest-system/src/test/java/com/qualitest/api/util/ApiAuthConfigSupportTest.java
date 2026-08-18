@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测谁：鉴权标签转落库 JSON 的校验与序列化。
- * 边界：未声明 auth、合法 none/inherit/override、非法 mode、缺 header。
+ * 测谁：鉴权标签转落库 JSON 的校验与序列化、更新导入合并。
+ * 边界：未声明 auth、合法 none/inherit/override、非法 mode、缺 header；更新时 hint 本地优先。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiAuthConfigSupportTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -172,5 +172,69 @@ class ApiAuthConfigSupportTest {
         assertEquals(ApiAuthConfig.MODE_OVERRIDE, cfg.getMode());
         assertEquals("Authorization", cfg.getHeader().getName());
         assertEquals("Bearer bad", cfg.getHeader().getValueTemplate());
+    }
+
+    /**
+     * 前提：本地登录口已有完整 loginHint；上传包 mode=none 且不带 hint。
+     * 期望：mode 仍为 none，hint 不被冲掉。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("更新导入：上传 none 不冲本地 loginHint")
+    void mergeOnImportUpdate_noneKeepsLocalHint() {
+        String local = "{\"mode\":\"none\",\"loginHint\":{\"flowKey\":\"token\",\"from\":\"body\",\"expr\":\"$.token\"}}";
+        ApiAuthConfig incoming = ApiAuthConfig.builder().mode("none").build();
+
+        String merged = ApiAuthConfigSupport.mergeOnImportUpdate(local, incoming, true, null);
+
+        assertTrue(merged.contains("\"none\""));
+        assertTrue(merged.contains("token"));
+        assertTrue(merged.contains("$.token"));
+    }
+
+    /**
+     * 前提：本地免登口已有 hint；上传 inherit。
+     * 期望：强制 none，且保留本地 hint。
+     */
+    @Test
+    @Order(12)
+    @DisplayName("更新导入：上传 inherit 对免登口强制 none 且保留 hint")
+    void mergeOnImportUpdate_inheritAnonymousForcesNoneKeepsHint() {
+        String local = "{\"mode\":\"none\",\"loginHint\":{\"flowKey\":\"adminToken\",\"from\":\"body\",\"expr\":\"$.token\"}}";
+        ApiAuthConfig incoming = ApiAuthConfig.builder().mode("inherit").build();
+
+        String merged = ApiAuthConfigSupport.mergeOnImportUpdate(local, incoming, true, "p1");
+
+        assertTrue(merged.contains("\"none\""));
+        assertTrue(merged.contains("adminToken"));
+        assertFalse(merged.contains("inherit"));
+    }
+
+    /**
+     * 前提：非免登口；上传未带 auth。
+     * 期望：返回 null，表示不改库中已有值。
+     */
+    @Test
+    @Order(13)
+    @DisplayName("更新导入：未带 auth 且非免登则不改")
+    void mergeOnImportUpdate_noAuthNonAnonymous_skips() {
+        assertNull(ApiAuthConfigSupport.mergeOnImportUpdate(
+                "{\"mode\":\"inherit\"}", null, false, "p1"));
+    }
+
+    /**
+     * 前提：免登口本地已有 hint；上传未带 auth。
+     * 期望：补 none，且保留 hint。
+     */
+    @Test
+    @Order(14)
+    @DisplayName("更新导入：未带 auth 的免登口补 none 并保留 hint")
+    void mergeOnImportUpdate_noAuthAnonymous_writesNoneKeepsHint() {
+        String local = "{\"mode\":\"none\",\"loginHint\":{\"flowKey\":\"token\",\"from\":\"body\",\"expr\":\"$.token\"}}";
+
+        String merged = ApiAuthConfigSupport.mergeOnImportUpdate(local, null, true, null);
+
+        assertTrue(merged.contains("\"none\""));
+        assertTrue(merged.contains("token"));
     }
 }

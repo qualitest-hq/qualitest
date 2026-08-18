@@ -98,7 +98,7 @@ public class ApiImportServiceImpl implements IApiImportService {
 
         validateImportEnvelope(params);
 
-        // 项目级上传且鉴权配置为空时，写入默认 Bearer 三口，再给本批接口回填 authProfileId
+        // 项目级上传且鉴权配置为空时，写入 RuoYi Bearer 三口，再给本批接口回填 authProfileId
         ProjectAuthConfig projectAuth = resolveProjectAuthForImport(projectId, params);
 
         // 一次查出项目下全部已有 API，导入匹配走内存索引，避免按路径逐条 SELECT
@@ -383,7 +383,7 @@ public class ApiImportServiceImpl implements IApiImportService {
             api.setPostRequestScript(item.getPostRequestScript());
         }
 
-        applyAuthConfig(api, item, projectAuth);
+        applyAuthConfig(api, item, projectAuth, isUpdate);
 
         api.setLastSyncTime(item.getLastSyncTime() != null ? item.getLastSyncTime() : new Date());
         api.setUpdateTime(DateUtils.getNowDate());
@@ -391,7 +391,7 @@ public class ApiImportServiceImpl implements IApiImportService {
     }
 
     /**
-     * 项目级上传且当前为空时写入默认 Bearer 三口；已有配置不覆盖。
+     * 项目级上传且当前为空时写入 RuoYi Bearer 三口；已有配置不覆盖。
      */
     private ProjectAuthConfig resolveProjectAuthForImport(Long projectId, ApiImportParams params) {
         TestProject project = testProjectService.selectTestProjectById(projectId);
@@ -400,10 +400,10 @@ public class ApiImportServiceImpl implements IApiImportService {
         boolean seedIfEmpty = params.getUploadType() != null
                 && params.getUploadType().seedProjectAuthIfEmpty();
         if (seedIfEmpty && ProjectAuthConfigSupport.isEmpty(existing)) {
-            ProjectAuthConfig seeded = ProjectAuthConfigSupport.defaultBearerTemplate();
+            ProjectAuthConfig seeded = ProjectAuthConfigSupport.ruoyiBearerTemplate();
             persistProjectAuthConfig(projectId, seeded);
             projectAuthTemplateApplyService.seedPrefabricatedApis(projectId, seeded);
-            log.info("项目鉴权配置已写入通用 Bearer 种子: projectId={}, uploadType={}",
+            log.info("项目鉴权配置已写入 RuoYi Bearer 种子: projectId={}, uploadType={}",
                     projectId, params.getUploadType().getCode());
             return seeded;
         }
@@ -414,7 +414,7 @@ public class ApiImportServiceImpl implements IApiImportService {
         return existing;
     }
 
-    /** 把规范化后的鉴权 JSON 写回项目。 */
+    /** 把规范化后的鉴权 JSON 写回项目。仅空配置种子时调用，不覆盖已有 Profile.loginHint。 */
     private void persistProjectAuthConfig(Long projectId, ProjectAuthConfig config) {
         TestProject update = new TestProject();
         update.setTestProjectId(projectId);
@@ -425,18 +425,28 @@ public class ApiImportServiceImpl implements IApiImportService {
     }
 
     /**
-     * 写入鉴权标签：上传包带了 auth 则覆盖库中值；未带则仅在免登口写入 none。
-     * 免登口（预制 mode=none，配置空时用内置 /login 等路径）：非 none 一律改成 none。
-     * inherit 且未指定 authProfileId 时按路径回填 Profile。
+     * 写入鉴权标签：只碰接口行 mode（及 override 头）。不写 loginHint——凭证规则在项目 Profile。
+     * 更新时免登强制 none；存量接口行上的 loginHint 本地优先（过渡）。
      */
     private void applyAuthConfig(
             TestProjectApi api,
             ApiImportParams.ApiImportItem item,
-            ProjectAuthConfig projectAuth) {
+            ProjectAuthConfig projectAuth,
+            boolean isUpdate) {
         ApiAuthConfig auth = item.getAuth();
         String method = ApiImportMatchSupport.extractHttpMethod(item.getRequestConfig());
         boolean anon = ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
                 method, item.getApiPath(), projectAuth);
+        String inheritProfileId = ProjectAuthConfigSupport.resolveProfileId(item.getApiPath(), projectAuth);
+
+        if (isUpdate) {
+            String json = ApiAuthConfigSupport.mergeOnImportUpdate(
+                    api.getAuthConfig(), auth, anon, inheritProfileId);
+            if (json != null) {
+                api.setAuthConfig(json);
+            }
+            return;
+        }
 
         if (auth == null || StrUtil.isBlank(auth.getMode())) {
             if (!anon) {
@@ -454,17 +464,18 @@ public class ApiImportServiceImpl implements IApiImportService {
         if (!ApiAuthConfig.MODE_NONE.equals(mode) && anon) {
             mode = ApiAuthConfig.MODE_NONE;
         } else if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
-            profileId = ProjectAuthConfigSupport.resolveProfileId(item.getApiPath(), projectAuth);
+            profileId = inheritProfileId;
         }
         if (ApiAuthConfig.MODE_NONE.equals(mode)) {
             profileId = null;
         }
-        ApiAuthConfig toStore = ApiAuthConfig.builder()
+        ApiAuthConfig.ApiAuthConfigBuilder toStore = ApiAuthConfig.builder()
                 .mode(mode)
-                .authProfileId(profileId)
-                .loginHint(auth.getLoginHint())
-                .build();
-        String json = ApiAuthConfigSupport.toStorageJson(toStore);
+                .authProfileId(profileId);
+        if (ApiAuthConfig.MODE_OVERRIDE.equals(mode)) {
+            toStore.header(auth.getHeader());
+        }
+        String json = ApiAuthConfigSupport.toStorageJson(toStore.build());
         if (json != null) {
             api.setAuthConfig(json);
         }

@@ -15,7 +15,7 @@ import java.util.List;
  * <p>
  * 按接口路径选一套 Profile：命中最长 pathPrefix 的那条；都没命中则用数组第一条。
  * 免登只看预制接口 authConfig.mode=none。
- * 登录口在同一份 authConfig 上带 loginHint，标明从响应哪抽取凭证、写入哪个 flow 变量。
+ * 抽凭证规则挂在 Profile：credentialApi 标明哪一口登录，loginHint 标明写入哪个 flow 变量。
  */
 @Data
 @Builder
@@ -78,6 +78,18 @@ public class ProjectAuthConfig implements Serializable {
         /** 鉴权头值，如 Bearer {{flow.token}}。 */
         private String headerValueTemplate;
 
+        /**
+         * 本套发凭证的接口，通常是 POST /login。
+         * 造流只对这一口按 loginHint 补 extracts。
+         */
+        private CredentialApi credentialApi;
+
+        /**
+         * 本套凭证抽取：从登录响应哪取值、写入哪个 flow 变量。
+         * 权威在 Profile；预制口 authConfig 不再带 loginHint。
+         */
+        private LoginHint loginHint;
+
         /** 本套预制接口：登录、注册、验证码等。 */
         @Builder.Default
         private List<PrefabricatedApi> apis = new ArrayList<>();
@@ -87,16 +99,30 @@ public class ProjectAuthConfig implements Serializable {
          * 解析时拍平到 headerName、headerValueTemplate，写出时删除。
          */
         private Header header;
-
-        /**
-         * 历史字段：整套 Profile 曾经挂的登录抽取。
-         * 解析时挂到登录口 apis[].authConfig.loginHint，写出时删除。
-         */
-        private LoginHint loginHint;
     }
 
     /**
-     * 预制接口。字段含义同项目接口资产，但不带库主键。
+     * 发凭证接口的 method + path。
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CredentialApi implements Serializable {
+
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        /** HTTP 方法，如 POST。 */
+        private String method;
+
+        /** 接口路径，如 /login。 */
+        private String path;
+    }
+
+    /**
+     * 预制接口。业务字段与 test_project_api 同名同义，但不带库主键与项目归属。
+     * JSON 对象列在模板里保持对象，种子时再序列化成库列字符串。
      */
     @Data
     @Builder
@@ -122,14 +148,38 @@ public class ProjectAuthConfig implements Serializable {
         /** 接口状态，默认 normal。 */
         private String apiStatus;
 
+        /** 接口详细描述。 */
+        private String apiDescription;
+
         /** 请求配置（method、body.example 等）。 */
         private Object requestConfig;
 
-        /** 鉴权标签；登录口常为 mode=none 并带 loginHint。 */
+        /** 请求头配置。 */
+        private Object headers;
+
+        /** Cookie 配置。 */
+        private Object cookies;
+
+        /** 响应配置。 */
+        private Object responseConfig;
+
+        /** 测试值层。 */
+        private Object testValueConfig;
+
+        /** 业务 code 白名单。 */
+        private Object bizCodeConfig;
+
+        /** 鉴权标签，预制口一般只写 mode（none / inherit）。 */
         private ApiAuthConfig authConfig;
 
         /** 造流提示，如 {hints:[...]}。 */
         private Object designHints;
+
+        /** 前置操作脚本。 */
+        private String preRequestScript;
+
+        /** 后置操作脚本。 */
+        private String postRequestScript;
     }
 
     /**

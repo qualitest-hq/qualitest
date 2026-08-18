@@ -109,7 +109,7 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 登录/注册类接口：仅当 loginHint 或响应 schema 能确定 name+expr 时，
+     * 登录凭证口：仅当 Profile.loginHint 或响应 schema 能确定 name+expr 时，
      * 空 extracts 补一行；已有「凭证类」行（token 名 + token 路径）则对齐到建议。
      * 自定义路径不改；无法确定 expr 时不编 JsonPath。
      */

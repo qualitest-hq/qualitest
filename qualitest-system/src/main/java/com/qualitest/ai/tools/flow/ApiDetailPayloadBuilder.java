@@ -93,7 +93,7 @@ final class ApiDetailPayloadBuilder {
             "响应结构不足以确定 token 路径，跑一次后按真实 body 再改";
 
     /**
-     * 凭证口（预制 loginHint）在 designHints 首部补一条抽取说明；已有相同文案不重复。
+     * 凭证口（Profile.loginHint / credentialApi）在 designHints 首部补一条抽取说明；已有相同文案不重复。
      */
     static void prependLoginDesignHint(
             List<String> hints,

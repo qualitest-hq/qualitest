@@ -11,13 +11,13 @@ export const LOGIN_HINT_FROM_OPTIONS = [
 
 const LOGIN_HINT_FROM_VALUES = LOGIN_HINT_FROM_OPTIONS.map((o) => o.value)
 
-/** 上传空配置时的通用单套 Bearer（与后端 defaultBearerTemplate 一致） */
-export const DEFAULT_BEARER_TEMPLATE = Object.freeze({
-  defaultProfileId: 'defaultBearer',
+/** 上传空配置时的 RuoYi 单套 Bearer（与后端 ruoyiBearerTemplate 一致） */
+export const RUOYI_BEARER_TEMPLATE = Object.freeze({
+  defaultProfileId: 'ruoyiBearer',
   authProfiles: [
     {
-      id: 'defaultBearer',
-      name: 'Bearer',
+      id: 'ruoyiBearer',
+      name: 'RuoYi Bearer',
       header: {
         name: 'Authorization',
         valueTemplate: 'Bearer {{flow.token}}',
@@ -33,7 +33,7 @@ export const DEFAULT_BEARER_TEMPLATE = Object.freeze({
   anonymousPathPrefix: [],
 })
 
-/** demo / 商城双端参考模板（与后端 dualBearerTemplate 一致） */
+/** demo / 商城双端参考模板（与后端双端测试夹具一致） */
 export const DUAL_BEARER_TEMPLATE = Object.freeze({
   defaultProfileId: 'adminBearer',
   authProfiles: [
@@ -159,7 +159,7 @@ export function parseAuthConfig(raw) {
  * 模板对象 → 表单（深拷贝，避免改到 frozen 模板）。
  */
 export function applyTemplateToForm(template) {
-  return parseAuthConfig(JSON.parse(JSON.stringify(template || DEFAULT_BEARER_TEMPLATE)))
+  return parseAuthConfig(JSON.parse(JSON.stringify(template || RUOYI_BEARER_TEMPLATE)))
 }
 
 /**

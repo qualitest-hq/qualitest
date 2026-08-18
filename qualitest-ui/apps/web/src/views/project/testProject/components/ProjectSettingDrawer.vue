@@ -79,7 +79,7 @@
           </header>
 
           <div class="project-setting__auth-toolbar">
-            <el-button size="small" @click="applyDefaultBearerTemplate">套用通用 Bearer</el-button>
+            <el-button size="small" @click="applyDefaultBearerTemplate">套用 RuoYi Bearer</el-button>
             <el-button size="small" @click="applyDualBearerTemplate">套用双端（demo）</el-button>
             <el-button size="small" @click="addAuthProfile">添加 Profile</el-button>
           </div>
@@ -289,7 +289,7 @@ import { buildCursorMcpConfig } from '../utils/mcpClientConfig'
 import {
   applyTemplateToForm,
   buildAuthConfigPayload,
-  DEFAULT_BEARER_TEMPLATE,
+  RUOYI_BEARER_TEMPLATE,
   DUAL_BEARER_TEMPLATE,
   emptyAuthForm,
   emptyProfileRow,
@@ -464,7 +464,7 @@ async function applyAuthTemplate(template, label) {
 }
 
 function applyDefaultBearerTemplate() {
-  return applyAuthTemplate(DEFAULT_BEARER_TEMPLATE, '通用 Bearer')
+  return applyAuthTemplate(RUOYI_BEARER_TEMPLATE, 'RuoYi Bearer')
 }
 
 function applyDualBearerTemplate() {

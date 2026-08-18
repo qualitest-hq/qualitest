@@ -5,6 +5,7 @@ import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ApiAuthConfig.Header;
 import com.qualitest.api.model.ProjectAuthConfig;
+import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.common.exception.ServiceException;
 
 import java.util.Locale;
@@ -101,6 +102,77 @@ public final class ApiAuthConfigSupport {
     /** 落库用的 {"mode":"none"}。 */
     public static String noneStorageJson() {
         return JSONUtil.toJsonStr(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).build());
+    }
+
+    /**
+     * 更新导入时合并鉴权：免登口强制 mode=none；loginHint 本地已有则保留，上传包空 hint 不覆盖。
+     *
+     * @param localAuthJson 库中已有 auth_config
+     * @param incoming      上传包 auth，可为 null
+     * @param anonymous     是否为项目预制免登口
+     * @param inheritProfileId inherit 且上传未指定 profile 时回填
+     * @return 可落库 JSON；非免登且上传未带 mode 时返回 null 表示不改
+     */
+    public static String mergeOnImportUpdate(
+            String localAuthJson,
+            ApiAuthConfig incoming,
+            boolean anonymous,
+            String inheritProfileId) {
+        LoginHint localHint = readLoginHint(localAuthJson);
+        if (incoming == null || StrUtil.isBlank(incoming.getMode())) {
+            if (!anonymous) {
+                return null;
+            }
+            return toStorageJson(ApiAuthConfig.builder()
+                    .mode(ApiAuthConfig.MODE_NONE)
+                    .loginHint(localHint)
+                    .build());
+        }
+        String mode = canonicalizeMode(incoming.getMode());
+        if (mode == null) {
+            toStorageJson(incoming);
+            return null;
+        }
+        String profileId = StrUtil.trimToNull(incoming.getAuthProfileId());
+        if (!ApiAuthConfig.MODE_NONE.equals(mode) && anonymous) {
+            mode = ApiAuthConfig.MODE_NONE;
+        } else if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
+            profileId = StrUtil.trimToNull(inheritProfileId);
+        }
+        if (ApiAuthConfig.MODE_NONE.equals(mode)) {
+            profileId = null;
+        }
+        LoginHint hint = hasCompleteLoginHint(localHint)
+                ? localHint
+                : (hasCompleteLoginHint(incoming.getLoginHint()) ? incoming.getLoginHint() : localHint);
+        ApiAuthConfig.ApiAuthConfigBuilder builder = ApiAuthConfig.builder()
+                .mode(mode)
+                .authProfileId(profileId)
+                .loginHint(hint);
+        if (ApiAuthConfig.MODE_OVERRIDE.equals(mode)) {
+            builder.header(incoming.getHeader());
+        }
+        return toStorageJson(builder.build());
+    }
+
+    /** flowKey 与 expr 都有才视为完整 loginHint。 */
+    public static boolean hasCompleteLoginHint(LoginHint hint) {
+        return hint != null
+                && StrUtil.isNotBlank(hint.getFlowKey())
+                && StrUtil.isNotBlank(hint.getExpr());
+    }
+
+    /** 从接口行 JSON 读出 loginHint，解析失败返回 null。 */
+    public static LoginHint readLoginHint(String authJson) {
+        if (StrUtil.isBlank(authJson)) {
+            return null;
+        }
+        try {
+            ApiAuthConfig parsed = JSONUtil.toBean(authJson, ApiAuthConfig.class);
+            return parsed != null ? parsed.getLoginHint() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

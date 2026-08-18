@@ -44,13 +44,13 @@ Configured on the **test project** (settings drawer), not on environments. Flow 
 
 | Layer | Notes |
 |-------|--------|
-| Project `authProfiles` | Header templates + prefabricated `apis[]`; unmatched `pathPrefix` uses the **first array item**; anonymous = `apis[].authConfig.mode=none` |
-| API `auth.mode` | `inherit` → project Profile; `none` → no auth header; `override` → API `header.name` + `valueTemplate` |
+| Project `authProfiles` | Header templates + `credentialApi` + `loginHint` + prefabricated `apis[]`; unmatched `pathPrefix` uses the **first array item**; anonymous = `apis[].authConfig.mode=none` |
+| API `auth.mode` | `inherit` → project Profile; `none` → no auth header; `override` → API `header.name` + `valueTemplate`. API rows do not store `loginHint` |
 | Node headers | Managed rows use `profileManaged` and refresh from **current** config at Run; explicit headers without that flag are never silently changed |
 
 **Match:** use `authProfileId` if set; else longest matching `pathPrefix`; else the first profile. **`pathPrefix="/"` is forbidden.**
 
-Login extracts (`from`+`expr`, including `setCookie`) should align with `apis[].authConfig.loginHint` (`flow.token` / `flow.adminToken`, …). Node `useRunSession` is retired (ignored). Missing per-side token sources hard-block AI submit / Staging confirm / save (`AUTH_TOKEN_MISSING`). Canvas **Refresh auth headers** proposes managed-header updates via Staging. Builtin `/login` heuristics apply only when project auth is completely empty.
+Login extracts (`from`+`expr`, including `setCookie`) should align with **Profile.`loginHint`** when the API matches that profile's `credentialApi` (`flow.token` / `flow.adminToken`, …). Register/captcha do not extract credentials. Node `useRunSession` is retired (ignored). Missing per-side token sources hard-block AI submit / Staging confirm / save (`AUTH_TOKEN_MISSING`). Canvas **Refresh auth headers** proposes managed-header updates via Staging. Builtin `/login` heuristics apply only when project auth is completely empty. Uploads change API schema/`mode` only and do not overwrite Profile hints.
 
 **Mutating calls:** enable **snapshot before** (`snapshotBefore`) on the node. On failure the run can pause; the user may restore SUT data and retry / retry in place / skip / abort. The SUT must expose `/test-support`. With env `allowDestructiveReset=0` (production default), checkpoint/restore are skipped silently. **When restore is enabled, run that environment serially.**
 

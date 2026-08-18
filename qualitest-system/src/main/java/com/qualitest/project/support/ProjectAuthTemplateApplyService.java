@@ -3,6 +3,7 @@ package com.qualitest.project.support;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
+import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
@@ -229,14 +230,19 @@ public class ProjectAuthTemplateApplyService {
                     .apiStatus(StrUtil.blankToDefault(prefab.getApiStatus(), "normal"))
                     .apiGroup(StrUtil.blankToDefault(prefab.getApiGroup(), "默认分组"))
                     .apiName(StrUtil.blankToDefault(prefab.getApiName(), prefab.getApiPath()))
+                    .apiDescription(StrUtil.trimToNull(prefab.getApiDescription()))
                     .apiPath(ProjectAuthConfigSupport.normalizeApiPath(prefab.getApiPath()))
                     .protocolType(StrUtil.blankToDefault(prefab.getProtocolType(), "http"))
                     .requestConfig(requestJson)
-                    .headers("{}")
-                    .cookies("{}")
-                    .responseConfig(EMPTY_RESPONSE_CONFIG)
+                    .headers(serializeJsonColumn(prefab.getHeaders(), "{}"))
+                    .cookies(serializeJsonColumn(prefab.getCookies(), "{}"))
+                    .responseConfig(serializeJsonColumn(prefab.getResponseConfig(), EMPTY_RESPONSE_CONFIG))
+                    .testValueConfig(serializeJsonObject(prefab.getTestValueConfig()))
+                    .bizCodeConfig(serializeJsonObject(prefab.getBizCodeConfig()))
                     .authConfig(serializeAuthConfig(prefab))
                     .designHints(serializeJsonObject(prefab.getDesignHints()))
+                    .preRequestScript(StrUtil.trimToNull(prefab.getPreRequestScript()))
+                    .postRequestScript(StrUtil.trimToNull(prefab.getPostRequestScript()))
                     .delStatus(0)
                     .build();
             api.setCreateTime(now);
@@ -262,13 +268,25 @@ public class ProjectAuthTemplateApplyService {
         return RequestConfigImportNormalizer.normalize(raw);
     }
 
-    /** 预制口鉴权转落库 JSON；缺省为 mode=none。 */
+    /** 预制口鉴权转落库 JSON；只写 mode，不把 loginHint 落到接口行。 */
     private String serializeAuthConfig(PrefabricatedApi prefab) {
-        if (prefab.getAuthConfig() == null) {
+        if (prefab.getAuthConfig() == null || StrUtil.isBlank(prefab.getAuthConfig().getMode())) {
             return ApiAuthConfigSupport.noneStorageJson();
         }
-        String json = ApiAuthConfigSupport.toStorageJson(prefab.getAuthConfig());
+        ApiAuthConfig auth = prefab.getAuthConfig();
+        ApiAuthConfig stored = ApiAuthConfig.builder()
+                .mode(auth.getMode())
+                .authProfileId(auth.getAuthProfileId())
+                .header(auth.getHeader())
+                .build();
+        String json = ApiAuthConfigSupport.toStorageJson(stored);
         return json != null ? json : ApiAuthConfigSupport.noneStorageJson();
+    }
+
+    /** 对象或 JSON 字符串转成可写库的 JSON；空则用缺省。 */
+    private String serializeJsonColumn(Object value, String defaultJson) {
+        String json = serializeJsonObject(value);
+        return json != null ? json : defaultJson;
     }
 
     /** 对象或 JSON 字符串转成可写库的 JSON；空则 null。 */

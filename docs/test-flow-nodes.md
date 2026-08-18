@@ -44,13 +44,13 @@
 
 | 层级 | 要点 |
 |------|------|
-| 项目 `authProfiles` | 头模板 + 预制 `apis[]`；未命中 `pathPrefix` 用**数组第一条**；免登认 `apis[].authConfig.mode=none` |
-| 接口 `auth.mode` | `inherit` 按项目 Profile；`none` 不加头；`override` 用本接口 `header.name` + `valueTemplate` |
+| 项目 `authProfiles` | 头模板 + `credentialApi` + `loginHint` + 预制 `apis[]`；未命中 `pathPrefix` 用**数组第一条**；免登认 `apis[].authConfig.mode=none` |
+| 接口 `auth.mode` | `inherit` 按项目 Profile；`none` 不加头；`override` 用本接口 `header.name` + `valueTemplate`。接口行不写 `loginHint` |
 | 节点 headers | 托管头带 `profileManaged`，Run 时按**当前**项目/接口配置刷新；无该标记的显式头永不被静默改掉 |
 
 **Profile 匹配**：接口已指定 `authProfileId` 则用之；否则在 `authProfiles` 中取命中的最长 `pathPrefix`；无人命中用数组第一条。**禁止** `pathPrefix="/"`。
 
-**登录抽凭证**：extracts 的 `from`+`expr`（`body`+JSONPath 或 `setCookie`+Cookie 名）与预制口 `apis[].authConfig.loginHint` 对齐，写入 `flow.token` / `flow.adminToken` 等。**不要**再写节点 `useRunSession`（已忽略）。造流时凭证口空 extracts 会按 `loginHint` 补；缺对应 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。配置完全空时才暂留 builtin `/login` 等启发式。
+**登录抽凭证**：extracts 的 `from`+`expr`（`body`+JSONPath 或 `setCookie`+Cookie 名）与 **Profile.`loginHint`** 对齐（接口须命中该条 `credentialApi`），写入 `flow.token` / `flow.adminToken` 等。注册/验证码不抽凭证。**不要**再写节点 `useRunSession`（已忽略）。造流时凭证口空 extracts 会按 `loginHint` 补；缺对应 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。配置完全空时才暂留 builtin `/login` 等启发式。上传/OpenAPI 只改接口行 schema 与 mode，不改项目 Profile hint。
 
 **同流复用**：业务流开头登录一次（或挂登录子流），后续 HTTP 靠托管 Bearer 复用 `flow.*`；勿每个步骤再登录。调试可用 flowSeed 预置 token；口令仍走素材库。
 
@@ -63,7 +63,7 @@
 | 客户端 | `/api/account/auth/login` | `$.data.token` → `flow.token` |
 | 管理端 | `/login` | `$.token` → `flow.adminToken` |
 
-**种子**：新建须勾选 `test_project_template`（商城先勾管理端再客户端）；项目级上传且 `auth_config` 为空 → 种「默认 Bearer」三口。旧 `anonymousPath*` / `defaultProfileId` 读兼容，写出为 `apis` + 扁平头。
+**种子**：新建须勾选 `test_project_template`（商城先勾管理端再客户端）；项目级上传且 `auth_config` 为空 → 种「RuoYi Bearer」三口。旧 `anonymousPath*` / `defaultProfileId` 读兼容，写出为 `apis` + 扁平头。
 
 **写操作建议**：节点可勾选 **执行前快照**（`snapshotBefore`）。失败可暂停，并由用户选择还原被测数据再重试 / 原地重试 / 跳过 / 中止。被测方需提供 `/test-support`；环境 `allowDestructiveReset=0`（生产默认）时 checkpoint/restore 静默跳过。**开启数据还原时，同一环境请串行跑。**
 

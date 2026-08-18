@@ -136,4 +136,19 @@ class LoginExtractSuggestorTest {
         assertTrue(LoginExtractSuggestor.extractsContainFlowKey(List.of(row), "token"));
         assertFalse(LoginExtractSuggestor.extractsContainFlowKey(List.of(row), "adminToken"));
     }
+
+    /**
+     * 前提：双端模板。
+     * 期望：仅 credentialApi 有 hint；注册口没有。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("hasCredentialLoginHint 只认发凭证口")
+    void hasCredentialLoginHint_onlyCredentialApi() {
+        assertTrue(LoginExtractSuggestor.hasCredentialLoginHint(DUAL, "POST", "/login"));
+        assertFalse(LoginExtractSuggestor.hasCredentialLoginHint(DUAL, "POST", "/register"));
+        assertFalse(LoginExtractSuggestor.hasCredentialLoginHint(DUAL, "GET", "/captchaImage"));
+        assertTrue(LoginExtractSuggestor.hasCredentialLoginHint(
+                DUAL, "POST", "/api/account/auth/login"));
+    }
 }

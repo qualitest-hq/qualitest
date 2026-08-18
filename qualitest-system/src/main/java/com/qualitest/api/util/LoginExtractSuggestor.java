@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 /**
  * 为登录/注册类接口推荐 token 抽取（extract）配置。
  * <p>
- * 优先使用项目鉴权预制口 {@code apis[].authConfig.loginHint}（按 method+apiPath）；
+ * 优先使用项目 Profile {@code loginHint}（接口须在该 Profile.apis 中且命中 {@code credentialApi}）；
  * 未配置时根据响应 schema 叶路径嗅探 token 字段。
  * 两者都没有时不编 JsonPath（交给跑流后按真实响应再改）。
  */
@@ -51,7 +51,7 @@ public final class LoginExtractSuggestor {
 
     /**
      * 是否视为登录或注册接口（path 以 /login 或 /register 结尾）。
-     * 造流硬拦只认预制口 loginHint，用 hasCredentialLoginHint。
+     * 造流硬拦只认 Profile.loginHint（credentialApi），用 hasCredentialLoginHint。
      */
     public static boolean isLoginLikeApi(String apiPath) {
         String path = ProjectAuthConfigSupport.normalizeApiPath(apiPath).toLowerCase(Locale.ROOT);
@@ -59,7 +59,7 @@ public final class LoginExtractSuggestor {
     }
 
     /**
-     * 优先用预制口 loginHint，没有再按响应 schema 嗅探 token 字段。
+     * 优先用 Profile.loginHint，没有再按响应 schema 嗅探 token 字段。
      */
     public static Suggestion suggest(
             String projectAuthJson,
@@ -96,7 +96,7 @@ public final class LoginExtractSuggestor {
     }
 
     /**
-     * 项目预制口是否声明了该 path 的 loginHint（凭证口）。
+     * 该 method+path 是否为本套 Profile 的发凭证口（credentialApi + loginHint）。
      */
     public static boolean hasCredentialLoginHint(String projectAuthJson, String method, String apiPath) {
         LoginHint hint = ProjectAuthConfigSupport.findLoginHint(
@@ -228,13 +228,13 @@ public final class LoginExtractSuggestor {
     }
 
     /**
-     * 读预制口 loginHint 上的 flow 变量名；没有则返回 null。
+     * 读 Profile.loginHint 上的 flow 变量名；没有则返回 null。
      */
     public static String resolveExpectedFlowKey(String projectAuthJson, String apiPath) {
         return resolveExpectedFlowKey(projectAuthJson, null, apiPath);
     }
 
-    /** 带 method 时按 method+path 读 loginHint.flowKey。 */
+    /** 带 method 时按 credentialApi 读 Profile.loginHint.flowKey。 */
     public static String resolveExpectedFlowKey(String projectAuthJson, String method, String apiPath) {
         LoginHint hint = ProjectAuthConfigSupport.findLoginHint(
                 ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath);

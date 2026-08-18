@@ -29,7 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 测谁：新建拒绝空鉴权；项目级上传空配置仍种默认 Bearer。
+ * 测谁：新建拒绝空鉴权；项目级上传空配置仍种 RuoYi Bearer。
  * 边界：无 templateIds、auth 空或 {}；uploadType=project 且项目配置空。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TestProjectAuthTemplateGateTest}
  */
@@ -70,11 +70,11 @@ class TestProjectAuthTemplateGateTest {
 
     /**
      * 前提：项目级上传，当前 auth_config 为空。
-     * 期望：写入默认 Bearer 并种子三口。
+     * 期望：写入 RuoYi Bearer 并种子三口。
      */
     @Test
     @Order(2)
-    @DisplayName("项目级上传空配置仍种默认 Bearer")
+    @DisplayName("项目级上传空配置仍种 RuoYi Bearer")
     void projectUpload_emptyAuth_seedsDefaultBearer() {
         ApiImportServiceImpl importService = new ApiImportServiceImpl();
         ReflectionTestUtils.setField(importService, "testProjectService", testProjectService);
@@ -91,11 +91,11 @@ class TestProjectAuthTemplateGateTest {
         ProjectAuthConfig seeded = ReflectionTestUtils.invokeMethod(
                 importService, "resolveProjectAuthForImport", 9L, params);
 
-        assertEquals("默认 Bearer", seeded.getAuthProfiles().get(0).getName());
+        assertEquals("RuoYi Bearer", seeded.getAuthProfiles().get(0).getName());
         assertEquals(3, seeded.getAuthProfiles().get(0).getApis().size());
         ArgumentCaptor<TestProject> update = ArgumentCaptor.forClass(TestProject.class);
         verify(testProjectService).updateTestProject(update.capture());
-        assertTrue(update.getValue().getAuthConfig().contains("默认 Bearer"));
+        assertTrue(update.getValue().getAuthConfig().contains("RuoYi Bearer"));
         verify(applyService).seedPrefabricatedApis(eq(9L), any(ProjectAuthConfig.class));
     }
 }

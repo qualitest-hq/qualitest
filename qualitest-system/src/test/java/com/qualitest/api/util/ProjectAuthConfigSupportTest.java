@@ -27,29 +27,38 @@ class ProjectAuthConfigSupportTest {
 
     /**
      * 前提：通用上传种子。
-     * 期望：单 Profile 名「默认 Bearer」；含 POST /login none + loginHint；不含客户端 path。
+     * 期望：单 Profile 名「RuoYi Bearer」；hint 在 Profile；登录口 none 且带测值/响应 example；不含客户端 path。
      */
     @Test
     @Order(1)
-    @DisplayName("通用种子：默认 Bearer 三口、无客户端 path")
-    void defaultBearerTemplate_conservative() {
-        ProjectAuthConfig cfg = ProjectAuthConfigSupport.defaultBearerTemplate();
+    @DisplayName("通用种子：RuoYi Bearer 三口、无客户端 path")
+    void ruoyiBearerTemplate_conservative() {
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.ruoyiBearerTemplate();
 
         assertFalse(ProjectAuthConfigSupport.isEmpty(cfg));
         assertEquals(1, cfg.getAuthProfiles().size());
-        assertEquals("默认 Bearer", cfg.getAuthProfiles().get(0).getName());
+        assertEquals("RuoYi Bearer", cfg.getAuthProfiles().get(0).getName());
         assertEquals("Authorization", cfg.getAuthProfiles().get(0).getHeaderName());
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("GET", "/captchaImage", cfg));
         assertFalse(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
                 "POST", "/api/account/auth/login", cfg));
         assertEquals(
-                ProjectAuthConfigSupport.PROFILE_DEFAULT,
+                ProjectAuthConfigSupport.PROFILE_RUOYI,
                 ProjectAuthConfigSupport.resolveProfileId("/system/user/list", cfg));
         PrefabricatedApi login = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
         assertNotNull(login);
-        assertEquals("token", login.getAuthConfig().getLoginHint().getFlowKey());
-        assertEquals("$.token", login.getAuthConfig().getLoginHint().getExpr());
+        assertEquals("none", login.getAuthConfig().getMode());
+        assertNull(login.getAuthConfig().getLoginHint());
+        assertTrue(String.valueOf(login.getTestValueConfig()).contains("admin"));
+        assertTrue(String.valueOf(login.getResponseConfig()).contains("token"));
+        assertEquals("token", cfg.getAuthProfiles().get(0).getLoginHint().getFlowKey());
+        assertEquals("$.token", cfg.getAuthProfiles().get(0).getLoginHint().getExpr());
+        assertEquals("POST", cfg.getAuthProfiles().get(0).getCredentialApi().getMethod());
+        assertEquals("/login", cfg.getAuthProfiles().get(0).getCredentialApi().getPath());
+        ProjectAuthConfig roundtrip = ProjectAuthConfigSupport.parse(ProjectAuthConfigSupport.toJson(cfg));
+        assertEquals("token", roundtrip.getAuthProfiles().get(0).getLoginHint().getFlowKey());
+        assertNull(roundtrip.getAuthProfiles().get(0).getApis().get(0).getAuthConfig().getLoginHint());
     }
 
     /**
@@ -149,10 +158,13 @@ class ProjectAuthConfigSupportTest {
                 "POST", "/api/account/auth/login", cfg));
         assertFalse(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("GET", "/test-support/snapshot", cfg));
         PrefabricatedApi adminLogin = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
-        assertEquals("adminToken", adminLogin.getAuthConfig().getLoginHint().getFlowKey());
+        assertEquals("none", adminLogin.getAuthConfig().getMode());
+        assertNull(adminLogin.getAuthConfig().getLoginHint());
+        assertEquals("adminToken", cfg.getAuthProfiles().get(0).getLoginHint().getFlowKey());
         PrefabricatedApi clientLogin = ProjectAuthConfigSupport.findPrefabricatedApi(
                 cfg, "POST", "/api/account/auth/login");
-        assertEquals("$.data.token", clientLogin.getAuthConfig().getLoginHint().getExpr());
+        assertNull(clientLogin.getAuthConfig().getLoginHint());
+        assertEquals("$.data.token", cfg.getAuthProfiles().get(1).getLoginHint().getExpr());
     }
 
     /**
@@ -178,8 +190,11 @@ class ProjectAuthConfigSupportTest {
         assertFalse(stored.contains("\"header\":"));
         assertTrue(stored.contains("headerName"));
         assertTrue(stored.contains("\"apis\""));
+        assertTrue(stored.contains("credentialApi"));
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(stored);
         assertEquals("Authorization", cfg.getAuthProfiles().get(0).getHeaderName());
+        assertEquals("token", cfg.getAuthProfiles().get(0).getLoginHint().getFlowKey());
+        assertNull(cfg.getAuthProfiles().get(0).getApis().get(0).getAuthConfig().getLoginHint());
     }
 
     /**
@@ -190,7 +205,7 @@ class ProjectAuthConfigSupportTest {
     @Order(7)
     @DisplayName("loginHint：from+expr 与旧 extractJsonPath 兼容")
     void resolveLoginExtract_fromExpr_andLegacy() {
-        ProjectAuthConfig cfg = ProjectAuthConfigSupport.defaultBearerTemplate();
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.ruoyiBearerTemplate();
         var hint = ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/login");
         assertEquals("body", ProjectAuthConfigSupport.resolveLoginExtractFrom(hint));
         assertEquals("$.token", ProjectAuthConfigSupport.resolveLoginExtractExpr(hint));
@@ -263,9 +278,91 @@ class ProjectAuthConfigSupportTest {
     @Order(11)
     @DisplayName("预制 none 口：/login 免登")
     void noneApi_skipsLogin() {
-        ProjectAuthConfig cfg = ProjectAuthConfigSupport.defaultBearerTemplate();
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.ruoyiBearerTemplate();
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
         assertEquals(ApiAuthConfig.MODE_NONE,
                 ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login").getAuthConfig().getMode());
+    }
+
+    /**
+     * 前提：预制口带描述、头、响应、测值、脚本。
+     * 期望：normalize 写出后再 parse，这些字段还在。
+     */
+    @Test
+    @Order(12)
+    @DisplayName("normalize：预制口同名字段透传")
+    void normalizeToJson_keepsPrefabBusinessFields() {
+        String raw = """
+                {"authProfiles":[{
+                  "id":"p1","name":"x",
+                  "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                  "apis":[{
+                    "apiName":"登录","apiPath":"/login","apiGroup":"系统.登录",
+                    "protocolType":"http","apiStatus":"normal",
+                    "apiDescription":"管理端登录",
+                    "requestConfig":{"configVersion":1,"method":"POST"},
+                    "headers":{"X-Client":"qualitest"},
+                    "cookies":{"sid":"1"},
+                    "responseConfig":{"configVersion":1,"responses":[{"id":"ok"}]},
+                    "testValueConfig":{"bodyExample":{"username":"admin"}},
+                    "bizCodeConfig":{"successValues":[200]},
+                    "authConfig":{"mode":"none","loginHint":{"flowKey":"token","from":"body","expr":"$.token"}},
+                    "designHints":{"hints":["token 在 $.token"]},
+                    "preRequestScript":"pre()",
+                    "postRequestScript":"post()"
+                  }]
+                }]}
+                """;
+
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(
+                ProjectAuthConfigSupport.normalizeToJson(raw));
+        PrefabricatedApi api = cfg.getAuthProfiles().get(0).getApis().get(0);
+
+        assertEquals("管理端登录", api.getApiDescription());
+        assertEquals("pre()", api.getPreRequestScript());
+        assertEquals("post()", api.getPostRequestScript());
+        assertTrue(String.valueOf(api.getHeaders()).contains("X-Client"));
+        assertTrue(String.valueOf(api.getCookies()).contains("sid"));
+        assertTrue(String.valueOf(api.getResponseConfig()).contains("ok"));
+        assertTrue(String.valueOf(api.getTestValueConfig()).contains("admin"));
+        assertTrue(String.valueOf(api.getBizCodeConfig()).contains("200"));
+        assertTrue(String.valueOf(api.getDesignHints()).contains("$.token"));
+        assertEquals("token", cfg.getAuthProfiles().get(0).getLoginHint().getFlowKey());
+        assertEquals("/login", cfg.getAuthProfiles().get(0).getCredentialApi().getPath());
+        assertNull(api.getAuthConfig().getLoginHint());
+    }
+
+    /**
+     * 前提：Profile 级 loginHint + credentialApi=POST /login。
+     * 期望：登录口能读 hint，注册口没有。
+     */
+    @Test
+    @Order(13)
+    @DisplayName("findLoginHint：只认 credentialApi")
+    void findLoginHint_onlyCredentialApi() {
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.ruoyiBearerTemplate();
+
+        assertEquals("token", ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/login").getFlowKey());
+        assertNull(ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/register"));
+        assertNull(ProjectAuthConfigSupport.findLoginHint(cfg, "GET", "/captchaImage"));
+    }
+
+    /**
+     * 前提：管理端在前的双端夹具。
+     * 期望：两端 loginHint 不同；写出 JSON 无 apis.loginHint。
+     */
+    @Test
+    @Order(14)
+    @DisplayName("双端 Profile 各有 loginHint，apis 不含 hint")
+    void dualProfiles_hintOnProfileNotApis() {
+        String stored = ProjectAuthConfigSupport.toJson(AuthProfileTestFixtures.adminThenClient());
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(stored);
+
+        assertTrue(stored.contains("credentialApi"));
+        assertEquals("adminToken", ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/login").getFlowKey());
+        assertEquals("$.data.token",
+                ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/api/account/auth/login").getExpr());
+        assertNull(cfg.getAuthProfiles().get(0).getApis().get(0).getAuthConfig().getLoginHint());
+        assertNull(cfg.getAuthProfiles().get(1).getApis().get(0).getAuthConfig().getLoginHint());
     }
 }

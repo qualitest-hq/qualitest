@@ -54,8 +54,8 @@ public class ApiAuthConfig implements Serializable {
     private Header header;
 
     /**
-     * 登录口的抽取提示：从响应哪取凭证、写入哪个 flow 变量。
-     * 挂在预制接口的 authConfig 上，登录口一般为 mode=none。
+     * 接口行上的历史抽取提示。新配置写在项目 Profile.loginHint；
+     * 导入更新时若本地已有则保留，上传包空 hint 不得覆盖。
      */
     private ProjectAuthConfig.LoginHint loginHint;
 
