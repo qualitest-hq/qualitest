@@ -1,6 +1,6 @@
 /**
- * 项目级鉴权配置（auth_config）表单解析 / 组装 / 模板 / 轻量校验。
- * 字段与后端 ProjectAuthConfig 对齐。
+ * 项目级鉴权配置（auth_config）表单解析 / 组装 / 轻量校验。
+ * 对齐后端 ProjectAuthConfig：扁平头 + credentialApi + loginHint + apis[]。
  */
 
 export const LOGIN_HINT_FROM_OPTIONS = [
@@ -11,74 +11,11 @@ export const LOGIN_HINT_FROM_OPTIONS = [
 
 const LOGIN_HINT_FROM_VALUES = LOGIN_HINT_FROM_OPTIONS.map((o) => o.value)
 
-/** 上传空配置时的 RuoYi 单套 Bearer（与后端 ruoyiBearerTemplate 一致） */
-export const RUOYI_BEARER_TEMPLATE = Object.freeze({
-  defaultProfileId: 'ruoyiBearer',
-  authProfiles: [
-    {
-      id: 'ruoyiBearer',
-      name: 'RuoYi Bearer',
-      header: {
-        name: 'Authorization',
-        valueTemplate: 'Bearer {{flow.token}}',
-      },
-      loginHint: {
-        flowKey: 'token',
-        from: 'body',
-        expr: '$.token',
-      },
-    },
-  ],
-  anonymousPathExact: [],
-  anonymousPathPrefix: [],
-})
-
-/** demo / 商城双端参考模板（与后端双端测试夹具一致） */
-export const DUAL_BEARER_TEMPLATE = Object.freeze({
-  defaultProfileId: 'adminBearer',
-  authProfiles: [
-    {
-      id: 'clientBearer',
-      name: '客户端 Bearer',
-      match: { pathPrefix: ['/api/'] },
-      header: {
-        name: 'Authorization',
-        valueTemplate: 'Bearer {{flow.token}}',
-      },
-      loginHint: {
-        flowKey: 'token',
-        from: 'body',
-        expr: '$.data.token',
-      },
-    },
-    {
-      id: 'adminBearer',
-      name: '管理端 Bearer',
-      match: {
-        pathPrefix: ['/system/', '/monitor/', '/tool/', '/web/'],
-      },
-      header: {
-        name: 'Authorization',
-        valueTemplate: 'Bearer {{flow.adminToken}}',
-      },
-      loginHint: {
-        flowKey: 'adminToken',
-        from: 'body',
-        expr: '$.token',
-      },
-    },
-  ],
-  anonymousPathExact: ['/login', '/register', '/captchaImage'],
-  anonymousPathPrefix: ['/test-support/', '/swagger-ui', '/v3/api-docs'],
-})
-
 /** 空表单（无 Profile） */
 export function emptyAuthForm() {
   return {
-    defaultProfileId: '',
     profiles: [],
-    anonymousPathExactText: '',
-    anonymousPathPrefixText: '',
+    needsAuthTemplateHint: false,
   }
 }
 
@@ -90,9 +27,12 @@ export function emptyProfileRow() {
     pathPrefixText: '',
     headerName: 'Authorization',
     valueTemplate: 'Bearer {{flow.token}}',
+    credentialMethod: 'POST',
+    credentialPath: '',
     loginFlowKey: '',
     loginFrom: 'body',
     loginExpr: '',
+    apis: [],
   }
 }
 
@@ -112,54 +52,94 @@ function joinPathLines(list) {
   return list.map((s) => String(s).trim()).filter(Boolean).join('\n')
 }
 
+function parseJsonMaybe(raw) {
+  if (raw == null || raw === '') return null
+  if (typeof raw === 'object') return raw
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+function resolveHeaderName(p) {
+  return str(p?.headerName, str(p?.header?.name, 'Authorization'))
+}
+
+function resolveHeaderValueTemplate(p) {
+  return str(p?.headerValueTemplate, str(p?.header?.valueTemplate))
+}
+
+function resolveLoginHint(p) {
+  if (p?.loginHint && typeof p.loginHint === 'object') {
+    return p.loginHint
+  }
+  const apis = Array.isArray(p?.apis) ? p.apis : []
+  for (const api of apis) {
+    const hint = api?.authConfig?.loginHint
+    if (hint && typeof hint === 'object') {
+      return hint
+    }
+  }
+  return null
+}
+
+function resolveApiMethod(api) {
+  const cfg = parseJsonMaybe(api?.requestConfig)
+  return str(cfg?.method, 'GET').toUpperCase()
+}
+
+function apiToRow(api) {
+  return {
+    method: resolveApiMethod(api),
+    apiPath: str(api?.apiPath),
+    apiName: str(api?.apiName),
+    authMode: str(api?.authConfig?.mode, 'inherit'),
+  }
+}
+
 function profileToRow(p) {
-  const hint = p?.loginHint
+  const hint = resolveLoginHint(p)
+  const credential = p?.credentialApi || {}
+  const apis = Array.isArray(p?.apis) ? p.apis.map(apiToRow) : []
   return {
     id: str(p?.id),
     name: str(p?.name),
     pathPrefixText: joinPathLines(p?.match?.pathPrefix),
-    headerName: str(p?.header?.name, 'Authorization'),
-    valueTemplate: str(p?.header?.valueTemplate),
+    headerName: resolveHeaderName(p),
+    valueTemplate: resolveHeaderValueTemplate(p),
+    credentialMethod: str(credential?.method, 'POST').toUpperCase(),
+    credentialPath: str(credential?.path),
     loginFlowKey: str(hint?.flowKey),
     loginFrom: str(hint?.from, 'body'),
     loginExpr: str(hint?.expr ?? hint?.extractJsonPath),
+    apis,
   }
 }
 
 /**
  * 把库中 authConfig（JSON 字符串或对象）填入表单结构。
  */
-export function parseAuthConfig(raw) {
+export function parseAuthConfig(raw, options = {}) {
   const form = emptyAuthForm()
-  let obj = null
-  if (raw == null || raw === '') {
-    return form
-  }
-  if (typeof raw === 'string') {
-    try {
-      obj = JSON.parse(raw)
-    } catch {
-      return form
-    }
-  } else if (typeof raw === 'object') {
-    obj = raw
-  }
+  form.needsAuthTemplateHint = !!options.needsAuthTemplateHint
+
+  const obj = parseJsonMaybe(raw)
   if (!obj || typeof obj !== 'object') {
     return form
   }
+
   const profiles = Array.isArray(obj.authProfiles) ? obj.authProfiles.map(profileToRow) : []
   form.profiles = profiles
-  form.defaultProfileId = str(obj.defaultProfileId, profiles[0]?.id || '')
-  form.anonymousPathExactText = joinPathLines(obj.anonymousPathExact)
-  form.anonymousPathPrefixText = joinPathLines(obj.anonymousPathPrefix)
-  return form
-}
 
-/**
- * 模板对象 → 表单（深拷贝，避免改到 frozen 模板）。
- */
-export function applyTemplateToForm(template) {
-  return parseAuthConfig(JSON.parse(JSON.stringify(template || RUOYI_BEARER_TEMPLATE)))
+  if (!form.needsAuthTemplateHint && profiles.length) {
+    form.needsAuthTemplateHint = profiles.some((p) => !p.apis?.length)
+  }
+
+  return form
 }
 
 /**
@@ -190,15 +170,63 @@ export function validateAuthForm(form) {
     if (from && !LOGIN_HINT_FROM_VALUES.includes(from)) {
       return `Profile「${id}」的 loginHint.from 仅支持 body / setCookie / header`
     }
-  }
-  if (splitPathLines(form?.anonymousPathPrefixText).some((x) => x === '/')) {
-    return 'anonymousPathPrefix 禁止使用 "/"'
-  }
-  const defaultId = String(form?.defaultProfileId || '').trim()
-  if (profiles.length && defaultId && !ids.has(defaultId)) {
-    return `defaultProfileId 不在 authProfiles 中: ${defaultId}`
+    const credentialPath = String(p?.credentialPath || '').trim()
+    if (credentialPath && !String(p?.credentialMethod || '').trim()) {
+      return `Profile「${id}」填写 credentialApi.path 时须同时填写 method`
+    }
   }
   return null
+}
+
+function rowToProfile(p) {
+  const id = String(p.id || '').trim()
+  const name = String(p.name || '').trim()
+  const prefixes = splitPathLines(p.pathPrefixText)
+  const headerName = String(p.headerName || '').trim()
+  const valueTemplate = String(p.valueTemplate || '').trim()
+  const flowKey = String(p.loginFlowKey || '').trim()
+  const from = String(p.loginFrom || '').trim()
+  const expr = String(p.loginExpr || '').trim()
+  const credentialMethod = String(p.credentialMethod || '').trim().toUpperCase()
+  const credentialPath = String(p.credentialPath || '').trim()
+
+  const row = {
+    id,
+    headerName,
+    headerValueTemplate: valueTemplate,
+  }
+  if (name) row.name = name
+  if (prefixes.length) {
+    row.match = { pathPrefix: prefixes }
+  }
+  if (credentialPath) {
+    row.credentialApi = {
+      method: credentialMethod || 'POST',
+      path: credentialPath,
+    }
+  }
+  if (flowKey || from || expr) {
+    row.loginHint = {}
+    if (flowKey) row.loginHint.flowKey = flowKey
+    if (from) row.loginHint.from = from
+    if (expr) row.loginHint.expr = expr
+  }
+  if (Array.isArray(p.apis) && p.apis.length) {
+    row.apis = p.apis
+      .filter((api) => String(api?.apiPath || '').trim())
+      .map((api) => ({
+        apiName: String(api.apiName || '').trim() || undefined,
+        apiPath: String(api.apiPath || '').trim(),
+        authConfig: {
+          mode: String(api.authMode || 'inherit').trim() || 'inherit',
+        },
+        requestConfig: {
+          configVersion: 1,
+          method: String(api.method || 'GET').trim().toUpperCase() || 'GET',
+        },
+      }))
+  }
+  return row
 }
 
 /**
@@ -210,49 +238,14 @@ export function buildAuthConfigObject(form) {
     throw new Error(err)
   }
   const profiles = (form?.profiles || [])
-    .map((p) => {
-      const id = String(p.id || '').trim()
-      const name = String(p.name || '').trim()
-      const prefixes = splitPathLines(p.pathPrefixText)
-      const headerName = String(p.headerName || '').trim()
-      const valueTemplate = String(p.valueTemplate || '').trim()
-      const flowKey = String(p.loginFlowKey || '').trim()
-      const from = String(p.loginFrom || '').trim()
-      const expr = String(p.loginExpr || '').trim()
-      const row = {
-        id,
-        header: { name: headerName, valueTemplate },
-      }
-      if (name) row.name = name
-      if (prefixes.length) {
-        row.match = { pathPrefix: prefixes }
-      }
-      if (flowKey || from || expr) {
-        row.loginHint = {}
-        if (flowKey) row.loginHint.flowKey = flowKey
-        if (from) row.loginHint.from = from
-        if (expr) row.loginHint.expr = expr
-      }
-      return row
-    })
+    .map(rowToProfile)
     .filter((p) => p.id)
 
-  const exact = splitPathLines(form?.anonymousPathExactText)
-  const prefix = splitPathLines(form?.anonymousPathPrefixText)
-
-  if (!profiles.length && !exact.length && !prefix.length) {
+  if (!profiles.length) {
     return null
   }
 
-  const payload = {
-    authProfiles: profiles,
-    anonymousPathExact: exact,
-    anonymousPathPrefix: prefix,
-  }
-  if (profiles.length) {
-    payload.defaultProfileId = String(form?.defaultProfileId || '').trim() || profiles[0].id
-  }
-  return payload
+  return { authProfiles: profiles }
 }
 
 /**
@@ -271,4 +264,12 @@ export function formatAuthConfigPreview(form) {
   } catch (e) {
     return String(e?.message || e)
   }
+}
+
+/** 预制接口 authMode 展示文案 */
+export function formatAuthModeLabel(mode) {
+  const m = String(mode || 'inherit').trim().toLowerCase()
+  if (m === 'none') return '免登录'
+  if (m === 'override') return '自定义'
+  return '继承'
 }

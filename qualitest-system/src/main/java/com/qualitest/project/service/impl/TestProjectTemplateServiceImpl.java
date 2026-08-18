@@ -28,6 +28,16 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
     }
 
     @Override
+    public List<TestProjectTemplate> selectTestProjectTemplateList(TestProjectTemplate entity) {
+        return testProjectTemplateMapper.selectTestProjectTemplateList(entity);
+    }
+
+    @Override
+    public TestProjectTemplate selectTestProjectTemplateById(Long testProjectTemplateId) {
+        return testProjectTemplateMapper.selectTestProjectTemplateById(testProjectTemplateId);
+    }
+
+    @Override
     public List<TestProjectTemplateResult> selectTestProjectTemplateResultList(TestProjectTemplateParams params) {
         return testProjectTemplateMapper.selectTestProjectTemplateResultList(params);
     }
@@ -35,16 +45,6 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
     @Override
     public TestProjectTemplateResult selectTestProjectTemplateResult(Long testProjectTemplateId) {
         return testProjectTemplateMapper.selectTestProjectTemplateResult(testProjectTemplateId);
-    }
-
-    @Override
-    public List<TestProjectTemplateResult> selectEnabledList() {
-        return testProjectTemplateMapper.selectEnabledTestProjectTemplateList();
-    }
-
-    @Override
-    public TestProjectTemplate selectTestProjectTemplateById(Long testProjectTemplateId) {
-        return testProjectTemplateMapper.selectTestProjectTemplateById(testProjectTemplateId);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -91,17 +91,57 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
 
     @Transactional(rollbackFor = Exception.class)
     @Override
+    public int deleteTestProjectTemplateByIdList(List<Long> idList) {
+        if (idList == null || idList.isEmpty()) {
+            return 0;
+        }
+        assertCustomDeletable(idList);
+        return testProjectTemplateMapper.deleteTestProjectTemplateByIdList(idList);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int deleteTestProjectTemplateById(Long testProjectTemplateId) {
+        if (testProjectTemplateId == null) {
+            return 0;
+        }
+        assertCustomDeletable(testProjectTemplateId);
+        return testProjectTemplateMapper.deleteTestProjectTemplateById(testProjectTemplateId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int logicDeleteTestProjectTemplateById(Long testProjectTemplateId) {
+        if (testProjectTemplateId == null) {
+            return 0;
+        }
+        assertCustomDeletable(testProjectTemplateId);
+        return testProjectTemplateMapper.logicDeleteTestProjectTemplateById(testProjectTemplateId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
     public int logicDeleteTestProjectTemplateByIdList(List<Long> idList) {
         if (idList == null || idList.isEmpty()) {
             return 0;
         }
-        for (Long id : idList) {
-            TestProjectTemplate existing = requireExisting(id);
-            if (isBuiltin(existing)) {
-                throw new ServiceException("内置模板不可删除");
-            }
-        }
+        assertCustomDeletable(idList);
         return testProjectTemplateMapper.logicDeleteTestProjectTemplateByIdList(idList);
+    }
+
+    @Override
+    public int selectTestProjectTemplateCount(TestProjectTemplateParams params) {
+        return testProjectTemplateMapper.selectTestProjectTemplateCount(params);
+    }
+
+    @Override
+    public TestProjectTemplate selectTestProjectTemplateOne(TestProjectTemplateParams params) {
+        return testProjectTemplateMapper.selectTestProjectTemplateOne(params);
+    }
+
+    @Override
+    public List<TestProjectTemplateResult> selectEnabledList() {
+        return testProjectTemplateMapper.selectEnabledTestProjectTemplateList();
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -133,6 +173,19 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
             throw new ServiceException("模板不存在");
         }
         return existing;
+    }
+
+    /** 存在且非内置才允许删除。 */
+    private void assertCustomDeletable(Long id) {
+        if (isBuiltin(requireExisting(id))) {
+            throw new ServiceException("内置模板不可删除");
+        }
+    }
+
+    private void assertCustomDeletable(List<Long> idList) {
+        for (Long id : idList) {
+            assertCustomDeletable(id);
+        }
     }
 
     /** 校验名称、头、预制接口非空，且名称在未删除范围内不重复。 */

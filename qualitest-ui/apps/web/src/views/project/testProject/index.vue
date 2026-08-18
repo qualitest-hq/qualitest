@@ -127,10 +127,20 @@
     />
 
     <!-- 添加或修改测试项目对话框 -->
-    <el-dialog v-model="open" :title="title" append-to-body width="500px">
+    <el-dialog v-model="open" :title="title" append-to-body width="560px">
       <el-form ref="testProjectRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="项目名" prop="projectName">
           <el-input v-model="form.projectName" placeholder="请输入项目名"/>
+        </el-form-item>
+        <el-form-item v-if="!form.testProjectId" label="鉴权模板" prop="templateIds">
+          <div class="test-project-template-field">
+            <p class="test-project-template-tip">新建项目须至少勾选一套鉴权模板，用于登录口免登与凭证抽取。</p>
+            <AuthTemplateCheckboxList
+                v-model="form.templateIds"
+                :loading="templateLoading"
+                :templates="enabledTemplates"
+            />
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -166,7 +176,9 @@ import {
   updateTestProject
 } from "@/api/project/testProject";
 import ProjectSettingDrawer from './components/ProjectSettingDrawer.vue'
+import AuthTemplateCheckboxList from './components/AuthTemplateCheckboxList.vue'
 import { useProjectSettingDrawer } from './composables/useProjectSettingDrawer'
+import { toTemplateIds, useEnabledAuthTemplates } from './composables/useEnabledAuthTemplates'
 import {useRouter} from 'vue-router'
 
 const {proxy} = getCurrentInstance()
@@ -186,6 +198,12 @@ const {
   getSettingOnDrawerOpen,
   handleRefreshToken,
 } = useProjectSettingDrawer(() => proxy)
+
+const {
+  templateLoading,
+  enabledTemplates,
+  loadEnabledTemplates,
+} = useEnabledAuthTemplates()
 
 const testProjectList = ref([])
 const open = ref(false)
@@ -228,6 +246,22 @@ const data = reactive({
     projectName: [
       {required: true, message: "项目名不能为空", trigger: "blur"}
     ],
+    templateIds: [
+      {
+        validator: (_rule, value, callback) => {
+          if (form.value.testProjectId != null) {
+            callback()
+            return
+          }
+          if (!Array.isArray(value) || value.length === 0) {
+            callback(new Error('请至少勾选一套鉴权模板'))
+            return
+          }
+          callback()
+        },
+        trigger: 'change',
+      },
+    ],
   }
 })
 
@@ -256,6 +290,7 @@ function reset() {
     projectName: null,
     lastApiSyncTime: null,
     ownerId: null,
+    templateIds: [],
   }
   proxy.resetForm("testProjectRef")
 }
@@ -282,6 +317,7 @@ function handleSelectionChange(selection) {
 /** 新增按钮操作 */
 function handleAdd() {
   reset()
+  loadEnabledTemplates()
   open.value = true
   title.value = "添加测试项目"
 }
@@ -308,7 +344,11 @@ function submitForm() {
           getList()
         })
       } else {
-        addTestProject(form.value).then(response => {
+        const payload = {
+          projectName: form.value.projectName,
+          templateIds: toTemplateIds(form.value.templateIds),
+        }
+        addTestProject(payload).then(response => {
           proxy.$modal.msgSuccess("新增成功")
           open.value = false
           getList()
@@ -361,6 +401,17 @@ getList()
 </script>
 
 <style scoped lang="scss">
+.test-project-template-field {
+  width: 100%;
+}
+
+.test-project-template-tip {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
 .test-project-op-btn {
   :deep(.svg-icon) {
     margin-right: 6px;

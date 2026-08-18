@@ -73,33 +73,25 @@
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">项目鉴权</h3>
             <p class="project-setting__card-desc">
-              定义多套 Bearer / Cookie 头模板（authProfiles），按路径前缀匹配；改配置后托管头 Run 时跟新。
+              从模板库勾选开源/靶场 Profile；免登由预制接口 <code>authConfig.mode=none</code> 决定，不再维护匿名 path 清单。
               pathPrefix 禁止写 <code>/</code>。
             </p>
           </header>
 
-          <div class="project-setting__auth-toolbar">
-            <el-button size="small" @click="applyDefaultBearerTemplate">套用 RuoYi Bearer</el-button>
-            <el-button size="small" @click="applyDualBearerTemplate">套用双端（demo）</el-button>
-            <el-button size="small" @click="addAuthProfile">添加 Profile</el-button>
-          </div>
+          <el-alert
+              v-if="authForm.needsAuthTemplateHint"
+              class="project-setting__auth-hint"
+              show-icon
+              title="当前有 Profile 但缺少预制接口，请从模板库添加以补齐登录/注册/验证码等免登口。"
+              type="warning"
+              :closable="false"
+          />
 
-          <div class="project-setting__conv-field project-setting__auth-default">
-            <label>默认 Profile</label>
-            <el-select
-                v-model="authForm.defaultProfileId"
-                allow-create
-                clearable
-                filterable
-                placeholder="未命中 pathPrefix 时使用"
-            >
-              <el-option
-                  v-for="pid in authProfileIdOptions"
-                  :key="pid"
-                  :label="pid"
-                  :value="pid"
-              />
-            </el-select>
+          <div class="project-setting__auth-toolbar">
+            <el-button :loading="templateApplying" size="small" type="primary" @click="openTemplatePicker">
+              从模板库添加
+            </el-button>
+            <el-button size="small" @click="addAuthProfile">手动添加 Profile</el-button>
           </div>
 
           <el-collapse v-if="authForm.profiles.length" v-model="authCollapseNames" class="project-setting__auth-collapse">
@@ -110,7 +102,7 @@
             >
               <template #title>
                 <span class="project-setting__auth-collapse-title">
-                  {{ row.id || row.name || `Profile ${idx + 1}` }}
+                  {{ row.name || row.id || `Profile ${idx + 1}` }}
                 </span>
                 <el-button
                     class="project-setting__auth-remove"
@@ -149,6 +141,14 @@
                   <el-input v-model="row.valueTemplate" placeholder="Bearer {{flow.token}}" />
                 </div>
                 <div class="project-setting__conv-field">
+                  <label>credentialApi.method</label>
+                  <el-input v-model="row.credentialMethod" placeholder="POST" />
+                </div>
+                <div class="project-setting__conv-field">
+                  <label>credentialApi.path</label>
+                  <el-input v-model="row.credentialPath" placeholder="/login" />
+                </div>
+                <div class="project-setting__conv-field">
                   <label>loginHint.flowKey</label>
                   <el-input v-model="row.loginFlowKey" placeholder="token" />
                 </div>
@@ -168,36 +168,32 @@
                   <el-input v-model="row.loginExpr" placeholder="$.token 或 Cookie 名" />
                 </div>
               </div>
+
+              <div v-if="row.apis?.length" class="project-setting__apis-block">
+                <label class="project-setting__apis-label">预制接口</label>
+                <el-table :data="row.apis" border size="small" class="project-setting__apis-table">
+                  <el-table-column label="方法" prop="method" width="72" />
+                  <el-table-column label="路径" min-width="140" prop="apiPath" show-overflow-tooltip />
+                  <el-table-column label="名称" min-width="100" prop="apiName" show-overflow-tooltip />
+                  <el-table-column label="鉴权" width="88">
+                    <template #default="{ row: apiRow }">
+                      {{ formatAuthModeLabel(apiRow.authMode) }}
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+              <p v-else class="project-setting__hint project-setting__hint--inline">
+                暂无预制接口；请从模板库添加，或保存后由后端种子接口。
+              </p>
             </el-collapse-item>
           </el-collapse>
           <div v-else class="project-setting__empty-box project-setting__empty-box--compact">
-            尚未配置 Profile，可套用模板或手动添加
-          </div>
-
-          <div class="project-setting__conv-grid project-setting__auth-anon">
-            <div class="project-setting__conv-field project-setting__conv-field--full">
-              <label>匿名 path（精确，每行一条）</label>
-              <el-input
-                  v-model="authForm.anonymousPathExactText"
-                  :rows="2"
-                  placeholder="/login"
-                  type="textarea"
-              />
-            </div>
-            <div class="project-setting__conv-field project-setting__conv-field--full">
-              <label>匿名 path（前缀，每行一条，禁止 /）</label>
-              <el-input
-                  v-model="authForm.anonymousPathPrefixText"
-                  :rows="2"
-                  placeholder="/test-support/"
-                  type="textarea"
-              />
-            </div>
+            尚未配置 Profile，请从模板库添加或手动添加
           </div>
 
           <pre class="project-setting__preview-block"><code>{{ authPreview }}</code></pre>
           <p class="project-setting__hint">
-            保存后造流 / Run / 调试按此配置补托管头；旧流可用画布「刷新鉴权头」。
+            模板追加会写入项目 auth_config 并种子尚未存在的预制接口；手动保存仅更新当前表单中的 Profile。
           </p>
 
           <div class="project-setting__actions">
@@ -206,6 +202,31 @@
             </el-button>
           </div>
         </section>
+
+        <el-dialog v-model="templatePickerVisible" append-to-body title="从模板库添加" width="520px">
+          <div class="project-setting__template-picker">
+            <p class="project-setting__hint">
+              勾选后追加到当前项目；同名 Profile 整份跳过，已有 method+path 的预制口不会覆盖。
+            </p>
+            <AuthTemplateCheckboxList
+                v-model="selectedTemplateIds"
+                :empty-size="64"
+                :loading="templateLoading"
+                :templates="enabledTemplates"
+            />
+          </div>
+          <template #footer>
+            <el-button @click="templatePickerVisible = false">取消</el-button>
+            <el-button
+                :disabled="!selectedTemplateIds.length"
+                :loading="templateApplying"
+                type="primary"
+                @click="confirmApplyTemplates"
+            >
+              添加所选模板
+            </el-button>
+          </template>
+        </el-dialog>
 
         <section class="project-setting__card">
           <header class="project-setting__card-head">
@@ -287,17 +308,17 @@
 import { computed, getCurrentInstance, reactive, ref, watch } from 'vue'
 import { buildCursorMcpConfig } from '../utils/mcpClientConfig'
 import {
-  applyTemplateToForm,
   buildAuthConfigPayload,
-  RUOYI_BEARER_TEMPLATE,
-  DUAL_BEARER_TEMPLATE,
   emptyAuthForm,
   emptyProfileRow,
   formatAuthConfigPreview,
+  formatAuthModeLabel,
   LOGIN_HINT_FROM_OPTIONS,
   parseAuthConfig,
 } from '../utils/projectAuthConfig'
-import { getTestProject, updateTestProject } from '@/api/project/testProject'
+import { applyAuthTemplates, getTestProject, updateTestProject } from '@/api/project/testProject'
+import AuthTemplateCheckboxList from './AuthTemplateCheckboxList.vue'
+import { toTemplateIds, useEnabledAuthTemplates } from '../composables/useEnabledAuthTemplates'
 
 const visible = defineModel('visible', { type: Boolean, default: false })
 const httpTransport = defineModel('httpTransport', { type: String, default: 'browser' })
@@ -349,12 +370,14 @@ const conventionForm = reactive({
 const authSaving = ref(false)
 const authForm = reactive(emptyAuthForm())
 const authCollapseNames = ref([])
-
-const authProfileIdOptions = computed(() =>
-  (authForm.profiles || [])
-    .map((p) => String(p.id || '').trim())
-    .filter(Boolean),
-)
+const templatePickerVisible = ref(false)
+const templateApplying = ref(false)
+const selectedTemplateIds = ref([])
+const {
+  templateLoading,
+  enabledTemplates,
+  loadEnabledTemplates,
+} = useEnabledAuthTemplates()
 
 const authPreview = computed(() => formatAuthConfigPreview(authForm))
 
@@ -386,10 +409,8 @@ function applyConvention(raw) {
 }
 
 function applyAuthForm(next) {
-  authForm.defaultProfileId = next.defaultProfileId || ''
-  authForm.profiles = Array.isArray(next.profiles) ? next.profiles.map((p) => ({ ...p })) : []
-  authForm.anonymousPathExactText = next.anonymousPathExactText || ''
-  authForm.anonymousPathPrefixText = next.anonymousPathPrefixText || ''
+  authForm.profiles = Array.isArray(next.profiles) ? next.profiles.map((p) => ({ ...p, apis: [...(p.apis || [])] })) : []
+  authForm.needsAuthTemplateHint = !!next.needsAuthTemplateHint
   syncAuthCollapse()
 }
 
@@ -415,11 +436,47 @@ function loadProjectSettings() {
   getTestProject(pid)
     .then((res) => {
       applyConvention(res.data?.responseConvention)
-      applyAuthForm(parseAuthConfig(res.data?.authConfig))
+      applyAuthForm(parseAuthConfig(res.data?.authConfig, {
+        needsAuthTemplateHint: res.data?.needsAuthTemplateHint,
+      }))
     })
     .catch(() => {
       applyConvention(null)
       applyAuthForm(emptyAuthForm())
+    })
+}
+
+function openTemplatePicker() {
+  selectedTemplateIds.value = []
+  templatePickerVisible.value = true
+  loadEnabledTemplates()
+}
+
+function confirmApplyTemplates() {
+  const pid = resolveProjectId()
+  if (!pid) {
+    proxy?.$modal?.msgError?.('缺少项目 ID')
+    return
+  }
+  const templateIds = toTemplateIds(selectedTemplateIds.value)
+  if (!templateIds.length) {
+    proxy?.$modal?.msgWarning?.('请至少选择一个模板')
+    return
+  }
+  templateApplying.value = true
+  applyAuthTemplates(pid, templateIds)
+    .then((res) => {
+      if (res.code === 200) {
+        proxy?.$modal?.msgSuccess?.('模板已添加到项目')
+        templatePickerVisible.value = false
+        loadProjectSettings()
+      } else {
+        proxy?.$modal?.msgError?.(res.msg || '添加失败')
+      }
+    })
+    .catch((err) => proxy?.$modal?.msgError?.(err?.message || err?.msg || '添加失败'))
+    .finally(() => {
+      templateApplying.value = false
     })
 }
 
@@ -439,36 +496,7 @@ function addAuthProfile() {
 
 function removeAuthProfile(idx) {
   authForm.profiles.splice(idx, 1)
-  if (authForm.defaultProfileId && !authProfileIdOptions.value.includes(authForm.defaultProfileId)) {
-    authForm.defaultProfileId = authProfileIdOptions.value[0] || ''
-  }
   syncAuthCollapse()
-}
-
-async function confirmOverwriteAuth(message) {
-  if (!proxy?.$modal?.confirm) {
-    return true
-  }
-  try {
-    await proxy.$modal.confirm(message)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function applyAuthTemplate(template, label) {
-  const ok = await confirmOverwriteAuth(`将用「${label}」覆盖当前项目鉴权表单，是否继续？`)
-  if (!ok) return
-  applyAuthForm(applyTemplateToForm(template))
-}
-
-function applyDefaultBearerTemplate() {
-  return applyAuthTemplate(RUOYI_BEARER_TEMPLATE, 'RuoYi Bearer')
-}
-
-function applyDualBearerTemplate() {
-  return applyAuthTemplate(DUAL_BEARER_TEMPLATE, '双端 demo')
 }
 
 /** 保存项目鉴权到 auth_config */
@@ -490,7 +518,7 @@ function saveProjectAuth() {
     .then((res) => {
       if (res.code === 200) {
         proxy?.$modal?.msgSuccess?.('项目鉴权已保存')
-        applyAuthForm(parseAuthConfig(authConfig))
+        loadProjectSettings()
       } else {
         proxy?.$modal?.msgError?.(res.msg || '保存失败')
       }
@@ -745,8 +773,32 @@ const mcpConfigText = computed(() => {
   margin-bottom: 12px;
 }
 
-.project-setting__auth-default {
+.project-setting__auth-hint {
   margin-bottom: 12px;
+}
+
+.project-setting__apis-block {
+  margin-top: 12px;
+}
+
+.project-setting__apis-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.project-setting__apis-table {
+  width: 100%;
+}
+
+.project-setting__hint--inline {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.project-setting__template-picker {
+  min-height: 120px;
 }
 
 .project-setting__auth-collapse {
@@ -779,10 +831,6 @@ const mcpConfigText = computed(() => {
 
 .project-setting__auth-remove {
   margin-right: 8px;
-}
-
-.project-setting__auth-anon {
-  margin-top: 12px;
 }
 
 .project-setting__preview-block {

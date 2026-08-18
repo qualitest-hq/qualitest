@@ -51,3 +51,12 @@ export function myProjectContext(testProjectId) {
     params: { testProjectId }
   })
 }
+
+/** 从模板库追加鉴权 Profile，并种子尚未存在的预制接口 */
+export function applyAuthTemplates(testProjectId, templateIds) {
+  return request({
+    url: `/project/testProject/${testProjectId}/applyAuthTemplates`,
+    method: 'post',
+    data: { templateIds },
+  })
+}

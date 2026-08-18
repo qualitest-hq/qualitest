@@ -26,28 +26,23 @@
         from test_project_template
     </sql>
 
-    <select id="selectTestProjectTemplateById" parameterType="Long" resultMap="TestProjectTemplateResultMap">
-        <include refid="selectVo"/>
-        where test_project_template_id = #{testProjectTemplateId}
-    </select>
+    <sql id="selectResultColumns">
+        tpt.test_project_template_id as testProjectTemplateId,
+        tpt.template_name as templateName,
+        tpt.header_name as headerName,
+        tpt.header_value_template as headerValueTemplate,
+        tpt.match_config as matchConfig,
+        tpt.apis as apis,
+        tpt.builtin_status as builtinStatus,
+        tpt.enable_status as enableStatus,
+        tpt.sort_num as sortNum,
+        tpt.remark as remark,
+        tpt.del_status as delStatus,
+        tpt.create_time as createTime,
+        tpt.update_time as updateTime
+    </sql>
 
-    <select id="selectTestProjectTemplateResultList" parameterType="TestProjectTemplateParams"
-            resultType="TestProjectTemplateResult">
-        select
-            tpt.test_project_template_id as testProjectTemplateId,
-            tpt.template_name as templateName,
-            tpt.header_name as headerName,
-            tpt.header_value_template as headerValueTemplate,
-            tpt.match_config as matchConfig,
-            tpt.apis as apis,
-            tpt.builtin_status as builtinStatus,
-            tpt.enable_status as enableStatus,
-            tpt.sort_num as sortNum,
-            tpt.remark as remark,
-            tpt.del_status as delStatus,
-            tpt.create_time as createTime,
-            tpt.update_time as updateTime
-        from test_project_template tpt
+    <sql id="undeletedParamsWhere">
         where tpt.del_status = 0
         <if test="templateName != null and templateName != ''">
             and tpt.template_name like concat('%', #{templateName}, '%')
@@ -58,24 +53,61 @@
         <if test="enableStatus != null">
             and tpt.enable_status = #{enableStatus}
         </if>
+    </sql>
+
+    <select id="selectTestProjectTemplateList" parameterType="TestProjectTemplate" resultMap="TestProjectTemplateResultMap">
+        <include refid="selectVo"/>
+        <where>
+            <if test="templateName != null and templateName != ''">
+                and template_name = #{templateName}
+            </if>
+            <if test="builtinStatus != null">
+                and builtin_status = #{builtinStatus}
+            </if>
+            <if test="enableStatus != null">
+                and enable_status = #{enableStatus}
+            </if>
+            <if test="delStatus != null">
+                and del_status = #{delStatus}
+            </if>
+        </where>
+        order by sort_num asc, test_project_template_id asc
+    </select>
+
+    <select id="selectTestProjectTemplateById" parameterType="Long" resultMap="TestProjectTemplateResultMap">
+        <include refid="selectVo"/>
+        where test_project_template_id = #{testProjectTemplateId}
+    </select>
+
+    <select id="selectTestProjectTemplateResultList" parameterType="TestProjectTemplateParams"
+            resultType="TestProjectTemplateResult">
+        select
+        <include refid="selectResultColumns"/>
+        from test_project_template tpt
+        <include refid="undeletedParamsWhere"/>
         order by tpt.sort_num asc, tpt.test_project_template_id asc
+    </select>
+
+    <select id="selectTestProjectTemplateCount" parameterType="TestProjectTemplateParams" resultType="int">
+        select count(1)
+        from test_project_template tpt
+        <include refid="undeletedParamsWhere"/>
+    </select>
+
+    <select id="selectTestProjectTemplateOne" parameterType="TestProjectTemplateParams"
+            resultMap="TestProjectTemplateResultMap">
+        select
+            tpt.test_project_template_id, tpt.template_name, tpt.header_name, tpt.header_value_template, tpt.match_config, tpt.apis,
+            tpt.builtin_status, tpt.enable_status, tpt.sort_num, tpt.remark, tpt.del_status, tpt.create_time, tpt.update_time
+        from test_project_template tpt
+        <include refid="undeletedParamsWhere"/>
+        order by tpt.sort_num asc, tpt.test_project_template_id asc
+        limit 1
     </select>
 
     <select id="selectTestProjectTemplateResult" parameterType="Long" resultType="TestProjectTemplateResult">
         select
-            tpt.test_project_template_id as testProjectTemplateId,
-            tpt.template_name as templateName,
-            tpt.header_name as headerName,
-            tpt.header_value_template as headerValueTemplate,
-            tpt.match_config as matchConfig,
-            tpt.apis as apis,
-            tpt.builtin_status as builtinStatus,
-            tpt.enable_status as enableStatus,
-            tpt.sort_num as sortNum,
-            tpt.remark as remark,
-            tpt.del_status as delStatus,
-            tpt.create_time as createTime,
-            tpt.update_time as updateTime
+        <include refid="selectResultColumns"/>
         from test_project_template tpt
         where tpt.del_status = 0 and tpt.test_project_template_id = #{testProjectTemplateId}
         limit 1
@@ -83,19 +115,7 @@
 
     <select id="selectEnabledTestProjectTemplateList" resultType="TestProjectTemplateResult">
         select
-            tpt.test_project_template_id as testProjectTemplateId,
-            tpt.template_name as templateName,
-            tpt.header_name as headerName,
-            tpt.header_value_template as headerValueTemplate,
-            tpt.match_config as matchConfig,
-            tpt.apis as apis,
-            tpt.builtin_status as builtinStatus,
-            tpt.enable_status as enableStatus,
-            tpt.sort_num as sortNum,
-            tpt.remark as remark,
-            tpt.del_status as delStatus,
-            tpt.create_time as createTime,
-            tpt.update_time as updateTime
+        <include refid="selectResultColumns"/>
         from test_project_template tpt
         where tpt.del_status = 0 and tpt.enable_status = 1
         order by tpt.sort_num asc, tpt.test_project_template_id asc
@@ -160,6 +180,17 @@
         </trim>
         where test_project_template_id = #{testProjectTemplateId}
     </update>
+
+    <delete id="deleteTestProjectTemplateById" parameterType="Long">
+        delete from test_project_template where test_project_template_id = #{testProjectTemplateId}
+    </delete>
+
+    <delete id="deleteTestProjectTemplateByIdList" parameterType="java.util.List">
+        delete from test_project_template where test_project_template_id in
+        <foreach item="id" collection="list" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
 
     <update id="logicDeleteTestProjectTemplateById" parameterType="Long">
         update test_project_template set del_status = 1 where test_project_template_id = #{testProjectTemplateId}
