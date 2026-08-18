@@ -3,22 +3,17 @@ package com.qualitest.api.util;
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
-import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.api.util.AuthHeaderResolver.ResolvedAuthHeader;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 将项目鉴权托管头写入 HTTP 节点 {@code data.headers}（造流 Normalizer / 批量刷新共用）。
- * <p>
- * 登录口 / 免登 path / 本节点正抽取 token 时：不补 Authorization，并剥离已有托管头。
- * 「是否免登」与 {@link AuthHeaderResolver#resolve} 共用
- * {@link ProjectAuthConfigSupport#shouldTreatAsAnonymousAuth}，本类额外负责剥离与 token 生产者短路。
- */
+    /**
+     * 将项目鉴权托管头写入 HTTP 节点 headers。
+     * 登录口、免登口、本节点正抽取 token 时：不补 Authorization，并去掉已有托管头。
+     */
 public final class ManagedAuthHeaderApplier {
 
     private ManagedAuthHeaderApplier() {}
@@ -40,17 +35,18 @@ public final class ManagedAuthHeaderApplier {
         }
 
         ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
+        String method = data.get("httpMethod") != null ? String.valueOf(data.get("httpMethod")) : null;
         // token 生产者 resolve 不一定 skip（path 非免登），须先短路
         if (producesLoginFlowKey(data, projectAuth)) {
             return stripManagedAuthHeaders(data, nodeLabel, warnings);
         }
 
-        ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(apiAuthJson, projectAuthJson, apiPath);
+        ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(apiAuthJson, projectAuthJson, apiPath, method);
         if (resolved == null || resolved.skipped()) {
-            // resolve 已对 mode=none / 免登 path skip；若仍有误补托管头则剥掉
+            // resolve 已对 mode=none / 免登口 skip；若仍有误补托管头则剥掉
             ApiAuthConfig apiAuth = ApiAuthConfigSupport.parseOrInherit(apiAuthJson);
             boolean anonOrNone = ApiAuthConfig.MODE_NONE.equalsIgnoreCase(StrUtil.trim(apiAuth.getMode()))
-                    || ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(apiPath, projectAuth);
+                    || ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(method, apiPath, projectAuth);
             return anonOrNone && stripManagedAuthHeaders(data, nodeLabel, warnings);
         }
 
@@ -77,20 +73,7 @@ public final class ManagedAuthHeaderApplier {
     }
 
     private static Set<String> collectLoginFlowKeys(ProjectAuthConfig projectAuth) {
-        Set<String> keys = new LinkedHashSet<>();
-        if (projectAuth == null || projectAuth.getAuthProfiles() == null) {
-            return keys;
-        }
-        for (ProjectAuthProfile profile : projectAuth.getAuthProfiles()) {
-            if (profile == null) {
-                continue;
-            }
-            String flowKey = ProjectAuthConfigSupport.resolveLoginFlowKey(profile);
-            if (StrUtil.isNotBlank(flowKey)) {
-                keys.add(flowKey.trim());
-            }
-        }
-        return keys;
+        return ProjectAuthConfigSupport.collectLoginFlowKeys(projectAuth);
     }
 
     /**

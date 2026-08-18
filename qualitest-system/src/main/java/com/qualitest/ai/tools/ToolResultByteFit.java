@@ -12,6 +12,7 @@ import java.util.Map;
  * AI 工具返回 JSON 的字节上限适配。
  * <p>
  * 每种结果形状用独立方法裁剪；共享的只有长度计算、截断标记、尾部删条等小原语。
+ * 裁剪始终改原对象：不另起一份 JSON，不删数组键（空数组也保留）。
  * 有业务数组时尽量至少保留 1 条，避免结果退化成只有 truncated/hint。
  */
 public final class ToolResultByteFit {
@@ -24,19 +25,15 @@ public final class ToolResultByteFit {
     }
 
     /**
-     * 标记 truncated=true，并追加 hint（已有相同文案则不重复拼接）。
+     * 标记 truncated=true，并写入 hint。
+     * 只保留当前这一条，不把多步文案拼在一起。
      */
     public static void markTruncated(JSONObject result, String hint) {
         result.put("truncated", true);
         if (hint == null || hint.isBlank()) {
             return;
         }
-        String prev = result.getString("hint");
-        if (prev == null || prev.isBlank()) {
-            result.put("hint", hint);
-        } else if (!prev.contains(hint)) {
-            result.put("hint", prev + "；" + hint);
-        }
+        result.put("hint", hint);
     }
 
     /**
@@ -74,7 +71,7 @@ public final class ToolResultByteFit {
         maxBytes = effectiveMax(maxBytes);
         JSONArray items = result.getJSONArray("items");
         if (items == null) {
-            return finalizeOrPass(result, maxBytes);
+            return shrinkStringsInPlace(result, maxBytes);
         }
         // 去掉环境变量键名列表
         for (int i = 0; i < items.size(); i++) {
@@ -106,7 +103,7 @@ public final class ToolResultByteFit {
                 markTruncated(result, "结果过大，已从尾部减少 " + n + " 条 items，请缩小范围");
             }
         }
-        return finalizeOrPass(result, maxBytes);
+        return shrinkStringsInPlace(result, maxBytes);
     }
 
     /**
@@ -128,11 +125,12 @@ public final class ToolResultByteFit {
                 markTruncated(result, "结果过大，已裁剪 platformTemplates");
             }
         }
-        return finalizeOrPass(result, maxBytes);
+        return shrinkStringsInPlace(result, maxBytes);
     }
 
     /**
      * 适配图拓扑摘要：超限时先清空 edges，再从尾部减少 nodes；nodeCount/edgeCount 计数字段保留。
+     * 减到 1 个 node 仍超限时去掉节点 name，只留 id；不删 nodes/edges 键。
      */
     public static String fitGraphTopology(JSONObject result, int maxBytes) {
         maxBytes = effectiveMax(maxBytes);
@@ -146,7 +144,20 @@ public final class ToolResultByteFit {
             nodes.remove(nodes.size() - 1);
             markTruncated(result, "结果过大，已从尾部减少 nodes");
         }
-        return finalizeOrPass(result, maxBytes);
+        if (nodes != null && over(result, maxBytes)) {
+            for (int i = 0; i < nodes.size(); i++) {
+                JSONObject node = nodes.getJSONObject(i);
+                if (node == null || !node.containsKey("name")) {
+                    continue;
+                }
+                node.remove("name");
+                markTruncated(result, "结果过大，节点已只保留 id");
+                if (!over(result, maxBytes)) {
+                    break;
+                }
+            }
+        }
+        return shrinkStringsInPlace(result, maxBytes);
     }
 
     /**
@@ -213,7 +224,7 @@ public final class ToolResultByteFit {
         if (over(result, maxBytes)) {
             result.put("flowDescription", "");
         }
-        return finalizeOrPass(result, maxBytes);
+        return shrinkStringsInPlace(result, maxBytes);
     }
 
     /**
@@ -241,7 +252,7 @@ public final class ToolResultByteFit {
             outputs.clear();
             markTruncated(result, "已省略 flowOutputNames");
         }
-        return finalizeOrPass(result, maxBytes);
+        return shrinkStringsInPlace(result, maxBytes);
     }
 
     /**
@@ -282,7 +293,7 @@ public final class ToolResultByteFit {
             result.remove("stepDetails");
             result.remove("nodeName");
         }
-        return finalizeOrPass(result, maxBytes);
+        return shrinkStringsInPlace(result, maxBytes);
     }
 
     /**
@@ -305,7 +316,7 @@ public final class ToolResultByteFit {
                 markTruncated(result, "结果过大，已裁剪 warnings");
             }
         }
-        return finalizeOrPass(result, maxBytes);
+        return shrinkStringsInPlace(result, maxBytes);
     }
 
     /**
@@ -337,7 +348,7 @@ public final class ToolResultByteFit {
                 markTruncated(result, "已裁剪 " + arrKey);
             }
         }
-        return finalizeOrPass(result, maxBytes);
+        return shrinkStringsInPlace(result, maxBytes);
     }
 
     /**
@@ -356,46 +367,61 @@ public final class ToolResultByteFit {
             }
         }
         result.remove("remark");
-        return finalizeOrPass(result, maxBytes);
+        return shrinkStringsInPlace(result, maxBytes);
     }
 
     /**
-     * 裁剪后仍超限时的兜底：保留标量字段与 truncated/hint；
-     * 若空间允许，再塞入第一个非空数组的首条元素。
+     * 结构裁完仍超限：在原对象上压缩字符串，不另起 JSON、不删数组键。
+     * 先缩短 hint，再把嵌套对象里过长的字符串截断（id 不截）。
      */
-    private static String finalizeOrPass(JSONObject result, int maxBytes) {
+    private static String shrinkStringsInPlace(JSONObject result, int maxBytes) {
         if (!over(result, maxBytes)) {
             return result.toJSONString();
         }
-        markTruncated(result, "结果仍偏大，已尽量裁剪");
-        if (!over(result, maxBytes)) {
-            return result.toJSONString();
-        }
-        JSONObject keep = new JSONObject();
-        keep.put("truncated", true);
-        keep.put("hint", result.getString("hint"));
-        for (String key : result.keySet()) {
-            Object v = result.get(key);
-            if (v instanceof JSONArray || v instanceof Map) {
-                continue;
+        String hint = result.getString("hint");
+        if (hint != null && !hint.isBlank()) {
+            while (over(result, maxBytes) && hint.length() > 12) {
+                hint = hint.substring(0, Math.max(12, hint.length() / 2));
+                result.put("hint", hint);
             }
-            if ("truncated".equals(key) || "hint".equals(key)) {
-                continue;
+            if (over(result, maxBytes)) {
+                result.put("hint", "结果过大");
             }
-            keep.put(key, v);
         }
-        for (String key : result.keySet()) {
-            Object v = result.get(key);
-            if (v instanceof JSONArray arr && !arr.isEmpty()) {
-                JSONArray one = new JSONArray();
-                one.add(arr.get(0));
-                keep.put(key, one);
-                if (utf8Len(keep) <= maxBytes) {
-                    break;
+        int cap = 64;
+        while (over(result, maxBytes) && cap >= 1) {
+            truncateLongStrings(result, cap);
+            if (cap == 1) {
+                break;
+            }
+            cap = Math.max(1, cap / 2);
+        }
+        return result.toJSONString();
+    }
+
+    /** 把对象树里长度超过 maxLen 的字符串截到 maxLen；跳过 truncated 与 id。 */
+    private static void truncateLongStrings(Object node, int maxLen) {
+        if (node instanceof JSONObject obj) {
+            for (String key : List.copyOf(obj.keySet())) {
+                if ("truncated".equals(key) || "id".equals(key)) {
+                    continue;
                 }
-                keep.remove(key);
+                Object v = obj.get(key);
+                if (v instanceof String s && s.length() > maxLen) {
+                    obj.put(key, s.substring(0, maxLen));
+                } else {
+                    truncateLongStrings(v, maxLen);
+                }
+            }
+        } else if (node instanceof JSONArray arr) {
+            for (int i = 0; i < arr.size(); i++) {
+                Object v = arr.get(i);
+                if (v instanceof String s && s.length() > maxLen) {
+                    arr.set(i, s.substring(0, maxLen));
+                } else {
+                    truncateLongStrings(v, maxLen);
+                }
             }
         }
-        return keep.toJSONString();
     }
 }

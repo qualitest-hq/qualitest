@@ -56,7 +56,8 @@ public final class LoginExtractPresenceGate {
                 continue;
             }
             TestProjectApi api = apiResolver.apply(apiId);
-            if (api == null || !LoginExtractSuggestor.isLoginLikeApi(api.getApiPath())) {
+            if (api == null || !LoginExtractSuggestor.hasCredentialLoginHint(
+                    projectAuthJson, null, api.getApiPath())) {
                 continue;
             }
             String flowKey = LoginExtractSuggestor.resolveExpectedFlowKey(projectAuthJson, api.getApiPath());

@@ -6,6 +6,7 @@ import com.qualitest.api.params.DebugHttpForwardParams.DebugBodySpec;
 import com.qualitest.api.params.DebugHttpForwardParams.HeaderPair;
 import com.qualitest.api.result.DebugHttpForwardResult;
 import com.qualitest.api.service.IDebugHttpForwardService;
+import com.qualitest.api.util.ApiImportMatchSupport;
 import com.qualitest.api.util.AuthHeaderResolver;
 import com.qualitest.api.util.DebugForwardUrlPolicy;
 import com.qualitest.project.domain.TestProject;
@@ -127,7 +128,10 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
             }
         }
         AuthHeaderResolver.ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(
-                api.getAuthConfig(), projectAuthJson, api.getApiPath());
+                api.getAuthConfig(),
+                projectAuthJson,
+                api.getApiPath(),
+                ApiImportMatchSupport.extractHttpMethod(api.getRequestConfig()));
         if (resolved.skipped()) {
             return;
         }

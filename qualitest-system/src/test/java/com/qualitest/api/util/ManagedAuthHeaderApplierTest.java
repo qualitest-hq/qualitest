@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ManagedAuthHeaderApplierTest {
 
     private static final String PROJECT_AUTH = ProjectAuthConfigSupport.toJson(
-            ProjectAuthConfigSupport.dualBearerTemplate());
+            AuthProfileTestFixtures.adminThenClient());
 
     @Test
     @DisplayName("登录 path 不补托管头")

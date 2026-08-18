@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AuthHeaderHintSupportTest {
 
     private static final String PROJECT_AUTH = ProjectAuthConfigSupport.toJson(
-            ProjectAuthConfigSupport.dualBearerTemplate());
+            AuthProfileTestFixtures.adminThenClient());
 
     /**
      * 前提：接口 mode=none。

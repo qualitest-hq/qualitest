@@ -112,7 +112,7 @@ class FlowDesignToolExecutorTest {
         assertEquals(1, items.size());
         assertEquals(String.valueOf(API_ID), items.getJSONObject(0).getString("id"));
         assertEquals("POST", items.getJSONObject(0).getString("method"));
-        assertEquals("/api/auth/login", items.getJSONObject(0).getString("path"));
+        assertEquals("/api/account/auth/login", items.getJSONObject(0).getString("path"));
         assertFalse(root.getBooleanValue("truncated"));
     }
 
@@ -149,7 +149,7 @@ class FlowDesignToolExecutorTest {
                 com.qualitest.project.domain.TestProject.builder()
                         .testProjectId(PROJECT_ID)
                         .authConfig(com.qualitest.api.util.ProjectAuthConfigSupport.toJson(
-                                com.qualitest.api.util.ProjectAuthConfigSupport.dualBearerTemplate()))
+                                com.qualitest.api.util.AuthProfileTestFixtures.adminThenClient()))
                         .build());
 
         String json = executor.executeTool(
@@ -163,7 +163,7 @@ class FlowDesignToolExecutorTest {
         JSONObject detail = apis.getJSONObject(0);
         assertEquals(String.valueOf(API_ID), detail.getString("testProjectApiId"));
         assertEquals("POST", detail.getString("method"));
-        assertEquals("/api/auth/login", detail.getString("path"));
+        assertEquals("/api/account/auth/login", detail.getString("path"));
         assertTrue(paramSummariesContainName(detail.getJSONArray("bodyParams"), "username"));
         assertTrue(detail.getString("bodyExample").contains("username"));
         assertNotNull(detail.getJSONObject("responseSchemaSummary"));
@@ -172,9 +172,8 @@ class FlowDesignToolExecutorTest {
         assertNotNull(detail.getJSONArray("suggestedExtracts"));
         assertTrue(detail.getJSONArray("designHints").toJSONString().contains("登录抽取"));
         assertFalse(root.getBooleanValue("truncated"));
-        assertEquals("inherit", detail.getJSONObject("auth").getString("mode"));
-        assertEquals("clientBearer", detail.getJSONObject("headerHint").getString("profileId"));
-        assertEquals("token", detail.getJSONObject("headerHint").getString("flowKey"));
+        assertEquals("none", detail.getJSONObject("auth").getString("mode"));
+        assertNull(detail.get("headerHint"));
     }
 
     /**
@@ -1021,11 +1020,12 @@ class FlowDesignToolExecutorTest {
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
                 .apiName("用户登录")
-                .apiPath("/api/auth/login")
+                .apiPath("/api/account/auth/login")
                 .apiDescription("用户登录接口")
                 .apiGroup("认证")
                 .apiGroupId(3L)
                 .delStatus(0)
+                .authConfig("{\"mode\":\"none\"}")
                 .requestConfig("""
                         %s
                         """.formatted(ApiConfigV2TestFixtures.LOGIN_REQUEST_CONFIG.trim()))

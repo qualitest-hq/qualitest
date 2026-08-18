@@ -1,5 +1,6 @@
 package com.qualitest.ai.scenario.flow;
 
+import com.qualitest.api.util.AuthProfileTestFixtures;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.project.domain.TestProjectApi;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +41,7 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
                 .authConfig("{\"mode\":\"none\"}")
                 .build();
         String projectAuth = ProjectAuthConfigSupport.toJson(
-                ProjectAuthConfigSupport.dualBearerTemplate());
+                AuthProfileTestFixtures.adminThenClient());
 
         FlowDesignHttpNodeNormalizer.normalize(data, api, projectAuth);
 
@@ -74,7 +75,7 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
                 .build();
 
         FlowDesignHttpNodeNormalizer.normalize(
-                data, api, ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.dualBearerTemplate()));
+                data, api, AuthProfileTestFixtures.adminThenClientJson());
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> extracts = (List<Map<String, Object>>) data.get("extracts");
@@ -104,7 +105,7 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
                 .build();
 
         FlowDesignHttpNodeNormalizer.normalize(
-                data, api, ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.dualBearerTemplate()));
+                data, api, AuthProfileTestFixtures.adminThenClientJson());
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> extracts = (List<Map<String, Object>>) data.get("extracts");

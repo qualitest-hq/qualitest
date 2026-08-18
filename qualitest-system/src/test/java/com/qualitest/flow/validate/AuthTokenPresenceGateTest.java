@@ -1,5 +1,6 @@
 package com.qualitest.flow.validate;
 
+import com.qualitest.api.util.AuthProfileTestFixtures;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphMeta;
@@ -28,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AuthTokenPresenceGateTest {
 
     private static final String PROJECT_AUTH = ProjectAuthConfigSupport.toJson(
-            ProjectAuthConfigSupport.dualBearerTemplate());
+            AuthProfileTestFixtures.adminThenClient());
 
     /**
      * 前提：图中仅有需客户端鉴权的 HTTP，无任何 token 写入来源。

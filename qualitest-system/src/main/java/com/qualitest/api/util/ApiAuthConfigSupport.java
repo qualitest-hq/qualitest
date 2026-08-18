@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ApiAuthConfig.Header;
+import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.common.exception.ServiceException;
 
 import java.util.Locale;
@@ -19,8 +20,7 @@ public final class ApiAuthConfigSupport {
     private ApiAuthConfigSupport() {}
 
     /**
-     * 解析接口鉴权 JSON；空白或非法时按 {@code inherit}（未标注视为需登录）。
-     * 造流补头、工具摘要等共用，勿各写一份默认逻辑。
+     * 解析接口鉴权 JSON。空白或非法按 inherit（未标注视为要登录）。
      */
     public static ApiAuthConfig parseOrInherit(String json) {
         if (StrUtil.isBlank(json)) {
@@ -38,9 +38,7 @@ public final class ApiAuthConfigSupport {
     }
 
     /**
-     * 规范化用户提交的接口鉴权 JSON 并写库。
-     * <p>
-     * 空白 → 默认 inherit；非法 JSON / 规则失败 → {@link ServiceException}。
+     * 规范化接口鉴权 JSON 并写库。空白写成 inherit；非法 JSON 或规则失败抛业务异常。
      */
     public static String normalizeToJson(String raw) {
         if (StrUtil.isBlank(raw)) {
@@ -63,13 +61,9 @@ public final class ApiAuthConfigSupport {
     }
 
     /**
-     * 转为可写入 auth_config 列的 JSON。
-     * <p>
-     * 返回 null：上传包未带 auth，或 mode 为空 → 调用方应跳过覆盖。
-     * 非法 mode / override 缺头：抛业务异常。
-     *
-     * @param auth 上传项中的鉴权对象
-     * @return JSON 字符串，或 null
+     * 转成可写入接口 auth_config 列的 JSON。
+     * 未带 auth 或 mode 为空返回 null，调用方应跳过覆盖。
+     * 非法 mode、override 缺头时抛业务异常。
      */
     public static String toStorageJson(ApiAuthConfig auth) {
         if (auth == null || StrUtil.isBlank(auth.getMode())) {
@@ -86,6 +80,9 @@ public final class ApiAuthConfigSupport {
         } else if (ApiAuthConfig.MODE_INHERIT.equals(mode)) {
             builder.authProfileId(StrUtil.trimToNull(auth.getAuthProfileId()));
         }
+        if (auth.getLoginHint() != null) {
+            builder.loginHint(ProjectAuthConfigSupport.normalizeLoginHint(auth.getLoginHint(), "authConfig"));
+        }
         return JSONUtil.toJsonStr(builder.build());
     }
 
@@ -101,19 +98,19 @@ public final class ApiAuthConfigSupport {
         return Header.builder().name(name).valueTemplate(valueTemplate).build();
     }
 
-    /**
-     * 落库用的 {@code {"mode":"none"}}；不应返回 null。
-     */
+    /** 落库用的 {"mode":"none"}。 */
     public static String noneStorageJson() {
         return JSONUtil.toJsonStr(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).build());
     }
 
     /**
-     * 内置免登 path 上若仍为 inherit（或等价空），改为 none；override / 已是 none 不改。
-     * 导入与单条增改共用，避免两处各写一遍。
+     * inherit 且该接口是免登口时改成 none。override 和已是 none 不改。
+     * 项目有 Profile 时只认预制 mode=none；配置空才用内置 /login 等路径。
      */
-    public static String coerceInheritToNoneIfBuiltinPath(String authJson, String apiPath) {
-        if (!ProjectAuthConfigSupport.matchesBuiltinAnonymousAuthPath(apiPath)) {
+    public static String coerceInheritToNoneIfAnonymous(
+            String authJson, String apiPath, String method, String projectAuthJson) {
+        ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
+        if (!ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(method, apiPath, projectAuth)) {
             return authJson;
         }
         ApiAuthConfig parsed = parseOrInherit(authJson);

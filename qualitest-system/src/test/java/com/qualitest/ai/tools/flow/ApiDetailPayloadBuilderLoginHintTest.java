@@ -1,5 +1,6 @@
 package com.qualitest.ai.tools.flow;
 
+import com.qualitest.api.util.AuthProfileTestFixtures;
 import com.qualitest.api.util.LoginExtractSuggestor;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import org.junit.jupiter.api.DisplayName;
@@ -31,12 +32,13 @@ class ApiDetailPayloadBuilderLoginHintTest {
     @DisplayName("有 loginHint 时写入具体抽取说明")
     void prepend_whenHintKnown() {
         LoginExtractSuggestor.Suggestion suggestion = LoginExtractSuggestor.suggest(
-                ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.dualBearerTemplate()),
+                AuthProfileTestFixtures.adminThenClientJson(),
                 "/login",
                 null);
         List<String> hints = new ArrayList<>();
 
-        ApiDetailPayloadBuilder.prependLoginDesignHint(hints, "/login", suggestion);
+        ApiDetailPayloadBuilder.prependLoginDesignHint(
+                hints, AuthProfileTestFixtures.adminThenClientJson(), "/login", suggestion);
 
         assertEquals(1, hints.size());
         assertTrue(hints.get(0).contains("$.token"));
@@ -53,7 +55,8 @@ class ApiDetailPayloadBuilderLoginHintTest {
     void prepend_whenExprUnknown() {
         List<String> hints = new ArrayList<>();
 
-        ApiDetailPayloadBuilder.prependLoginDesignHint(hints, "/login", null);
+        ApiDetailPayloadBuilder.prependLoginDesignHint(
+                hints, AuthProfileTestFixtures.adminThenClientJson(), "/login", null);
 
         assertEquals(List.of(ApiDetailPayloadBuilder.LOGIN_EXTRACT_HINT_UNKNOWN), hints);
     }
@@ -68,7 +71,8 @@ class ApiDetailPayloadBuilderLoginHintTest {
     void prepend_skipsNonLogin() {
         List<String> hints = new ArrayList<>();
 
-        ApiDetailPayloadBuilder.prependLoginDesignHint(hints, "/system/user/list", null);
+        ApiDetailPayloadBuilder.prependLoginDesignHint(
+                hints, AuthProfileTestFixtures.adminThenClientJson(), "/system/user/list", null);
 
         assertTrue(hints.isEmpty());
     }

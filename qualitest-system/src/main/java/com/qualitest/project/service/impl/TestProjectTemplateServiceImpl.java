@@ -1,0 +1,175 @@
+package com.qualitest.project.service.impl;
+
+import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.StrUtil;
+import com.qualitest.common.exception.ServiceException;
+import com.qualitest.common.utils.DateUtils;
+import com.qualitest.project.domain.TestProjectTemplate;
+import com.qualitest.project.mapper.TestProjectTemplateMapper;
+import com.qualitest.project.params.TestProjectTemplateParams;
+import com.qualitest.project.result.TestProjectTemplateResult;
+import com.qualitest.project.service.ITestProjectTemplateService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * 鉴权模板业务：内置只读可克隆；自定义名称在未删除范围内唯一。
+ */
+@Service
+public class TestProjectTemplateServiceImpl implements ITestProjectTemplateService {
+
+    private final TestProjectTemplateMapper testProjectTemplateMapper;
+
+    public TestProjectTemplateServiceImpl(TestProjectTemplateMapper testProjectTemplateMapper) {
+        this.testProjectTemplateMapper = testProjectTemplateMapper;
+    }
+
+    @Override
+    public List<TestProjectTemplateResult> selectTestProjectTemplateResultList(TestProjectTemplateParams params) {
+        return testProjectTemplateMapper.selectTestProjectTemplateResultList(params);
+    }
+
+    @Override
+    public TestProjectTemplateResult selectTestProjectTemplateResult(Long testProjectTemplateId) {
+        return testProjectTemplateMapper.selectTestProjectTemplateResult(testProjectTemplateId);
+    }
+
+    @Override
+    public List<TestProjectTemplateResult> selectEnabledList() {
+        return testProjectTemplateMapper.selectEnabledTestProjectTemplateList();
+    }
+
+    @Override
+    public TestProjectTemplate selectTestProjectTemplateById(Long testProjectTemplateId) {
+        return testProjectTemplateMapper.selectTestProjectTemplateById(testProjectTemplateId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int insertTestProjectTemplate(TestProjectTemplate entity) {
+        if (entity == null) {
+            throw new ServiceException("模板不能为空");
+        }
+        entity.setBuiltinStatus(0);
+        if (entity.getEnableStatus() == null) {
+            entity.setEnableStatus(1);
+        }
+        if (entity.getSortNum() == null) {
+            entity.setSortNum(0);
+        }
+        if (entity.getDelStatus() == null) {
+            entity.setDelStatus(0);
+        }
+        validateWritable(entity, null);
+        if (Objects.isNull(entity.getTestProjectTemplateId())) {
+            entity.setTestProjectTemplateId(IdUtil.getSnowflakeNextId());
+        }
+        entity.setCreateTime(DateUtils.getNowDate());
+        return testProjectTemplateMapper.insertTestProjectTemplate(entity);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int updateTestProjectTemplate(TestProjectTemplate entity) {
+        if (entity == null || entity.getTestProjectTemplateId() == null) {
+            throw new ServiceException("模板不存在");
+        }
+        TestProjectTemplate existing = requireExisting(entity.getTestProjectTemplateId());
+        if (isBuiltin(existing)) {
+            throw new ServiceException("内置模板只读，请克隆后修改");
+        }
+        if (entity.getBuiltinStatus() != null && entity.getBuiltinStatus() == 1) {
+            throw new ServiceException("不可将自定义模板标记为内置");
+        }
+        validateWritable(entity, existing.getTestProjectTemplateId());
+        entity.setUpdateTime(DateUtils.getNowDate());
+        return testProjectTemplateMapper.updateTestProjectTemplate(entity);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int logicDeleteTestProjectTemplateByIdList(List<Long> idList) {
+        if (idList == null || idList.isEmpty()) {
+            return 0;
+        }
+        for (Long id : idList) {
+            TestProjectTemplate existing = requireExisting(id);
+            if (isBuiltin(existing)) {
+                throw new ServiceException("内置模板不可删除");
+            }
+        }
+        return testProjectTemplateMapper.logicDeleteTestProjectTemplateByIdList(idList);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public Long cloneTestProjectTemplate(Long testProjectTemplateId) {
+        TestProjectTemplate source = requireExisting(testProjectTemplateId);
+        TestProjectTemplate copy = TestProjectTemplate.builder()
+                .testProjectTemplateId(IdUtil.getSnowflakeNextId())
+                .templateName(uniqueCloneName(source.getTemplateName()))
+                .headerName(source.getHeaderName())
+                .headerValueTemplate(source.getHeaderValueTemplate())
+                .matchConfig(source.getMatchConfig())
+                .apis(source.getApis())
+                .builtinStatus(0)
+                .enableStatus(1)
+                .sortNum(source.getSortNum() != null ? source.getSortNum() : 0)
+                .delStatus(0)
+                .build();
+        copy.setRemark(source.getRemark());
+        copy.setCreateTime(DateUtils.getNowDate());
+        testProjectTemplateMapper.insertTestProjectTemplate(copy);
+        return copy.getTestProjectTemplateId();
+    }
+
+    /** 未删除才返回，否则抛「模板不存在」。 */
+    private TestProjectTemplate requireExisting(Long id) {
+        TestProjectTemplate existing = testProjectTemplateMapper.selectTestProjectTemplateById(id);
+        if (existing == null || (existing.getDelStatus() != null && existing.getDelStatus() == 1)) {
+            throw new ServiceException("模板不存在");
+        }
+        return existing;
+    }
+
+    /** 校验名称、头、预制接口非空，且名称在未删除范围内不重复。 */
+    private void validateWritable(TestProjectTemplate entity, Long excludeId) {
+        if (StrUtil.isBlank(entity.getTemplateName())) {
+            throw new ServiceException("模板名称不能为空");
+        }
+        if (StrUtil.isBlank(entity.getHeaderName()) || StrUtil.isBlank(entity.getHeaderValueTemplate())) {
+            throw new ServiceException("须配置鉴权头名称与值模板");
+        }
+        if (StrUtil.isBlank(entity.getApis()) || "[]".equals(entity.getApis().trim())) {
+            throw new ServiceException("预制接口不能为空");
+        }
+        String name = entity.getTemplateName().trim();
+        entity.setTemplateName(name);
+        if (testProjectTemplateMapper.countByTemplateName(name, excludeId) > 0) {
+            throw new ServiceException("模板名称已存在: " + name);
+        }
+    }
+
+    /** 生成克隆名称：原名 +「 (副本)」，重名则再加序号。 */
+    private String uniqueCloneName(String sourceName) {
+        String base = StrUtil.blankToDefault(sourceName, "模板") + " (副本)";
+        if (testProjectTemplateMapper.countByTemplateName(base, null) == 0) {
+            return base;
+        }
+        for (int i = 2; i < 100; i++) {
+            String candidate = base + i;
+            if (testProjectTemplateMapper.countByTemplateName(candidate, null) == 0) {
+                return candidate;
+            }
+        }
+        return base + IdUtil.getSnowflakeNextIdStr();
+    }
+
+    /** 是否内置模板。 */
+    private boolean isBuiltin(TestProjectTemplate row) {
+        return row != null && row.getBuiltinStatus() != null && row.getBuiltinStatus() == 1;
+    }
+}

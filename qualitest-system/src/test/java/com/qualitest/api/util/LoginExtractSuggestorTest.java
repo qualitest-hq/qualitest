@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LoginExtractSuggestorTest {
 
     private static final String DUAL = ProjectAuthConfigSupport.toJson(
-            ProjectAuthConfigSupport.dualBearerTemplate());
+            AuthProfileTestFixtures.adminThenClient());
 
     /**
      * 前提：双端模板；客户端登录 path。

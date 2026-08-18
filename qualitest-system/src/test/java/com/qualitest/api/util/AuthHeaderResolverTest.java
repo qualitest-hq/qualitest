@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AuthHeaderResolverTest {
 
     private static final String PROJECT_AUTH = ProjectAuthConfigSupport.toJson(
-            ProjectAuthConfigSupport.dualBearerTemplate());
+            AuthProfileTestFixtures.adminThenClient());
 
     /**
      * 前提：接口 mode=none。
@@ -278,13 +278,13 @@ class AuthHeaderResolverTest {
     }
 
     /**
-     * 前提：/login 标 inherit，项目配置无 anonymousPath。
-     * 期望：内置启发式仍 skip，不补 Bearer。
+     * 前提：旧 JSON 含 Profile 级 loginHint，parse 迁成 /login none 口。
+     * 期望：inherit 的 /login 不加 Bearer。
      */
     @Test
     @Order(12)
-    @DisplayName("内置免登 path：inherit 的 /login 不加头")
-    void resolve_builtinAnonymousLogin_skips() {
+    @DisplayName("预制 none 口：inherit 的 /login 不加头")
+    void resolve_prefabricatedNoneLogin_skips() {
         String projectAuth = """
                 {"defaultProfileId":"defaultBearer","authProfiles":[{
                   "id":"defaultBearer","name":"Bearer",

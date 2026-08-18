@@ -4,7 +4,6 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmRequest;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
@@ -593,7 +592,7 @@ class FlowDesignPatchConfirmServiceTest {
         TestProjectMapper projectMapper = mock(TestProjectMapper.class);
         when(projectMapper.selectTestProjectById(anyLong())).thenReturn(TestProject.builder()
                 .testProjectId(100L)
-                .authConfig(ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.dualBearerTemplate()))
+                .authConfig(com.qualitest.api.util.AuthProfileTestFixtures.adminThenClientJson())
                 .build());
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(

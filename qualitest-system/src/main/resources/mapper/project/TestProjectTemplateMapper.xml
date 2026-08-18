@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestProjectTemplateMapper">
+
+    <resultMap type="TestProjectTemplate" id="TestProjectTemplateResultMap">
+        <result property="testProjectTemplateId" column="test_project_template_id"/>
+        <result property="templateName" column="template_name"/>
+        <result property="headerName" column="header_name"/>
+        <result property="headerValueTemplate" column="header_value_template"/>
+        <result property="matchConfig" column="match_config"/>
+        <result property="apis" column="apis"/>
+        <result property="builtinStatus" column="builtin_status"/>
+        <result property="enableStatus" column="enable_status"/>
+        <result property="sortNum" column="sort_num"/>
+        <result property="remark" column="remark"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectVo">
+        select test_project_template_id, template_name, header_name, header_value_template, match_config, apis,
+               builtin_status, enable_status, sort_num, remark, del_status, create_time, update_time
+        from test_project_template
+    </sql>
+
+    <select id="selectTestProjectTemplateById" parameterType="Long" resultMap="TestProjectTemplateResultMap">
+        <include refid="selectVo"/>
+        where test_project_template_id = #{testProjectTemplateId}
+    </select>
+
+    <select id="selectTestProjectTemplateResultList" parameterType="TestProjectTemplateParams"
+            resultType="TestProjectTemplateResult">
+        select
+            tpt.test_project_template_id as testProjectTemplateId,
+            tpt.template_name as templateName,
+            tpt.header_name as headerName,
+            tpt.header_value_template as headerValueTemplate,
+            tpt.match_config as matchConfig,
+            tpt.apis as apis,
+            tpt.builtin_status as builtinStatus,
+            tpt.enable_status as enableStatus,
+            tpt.sort_num as sortNum,
+            tpt.remark as remark,
+            tpt.del_status as delStatus,
+            tpt.create_time as createTime,
+            tpt.update_time as updateTime
+        from test_project_template tpt
+        where tpt.del_status = 0
+        <if test="templateName != null and templateName != ''">
+            and tpt.template_name like concat('%', #{templateName}, '%')
+        </if>
+        <if test="builtinStatus != null">
+            and tpt.builtin_status = #{builtinStatus}
+        </if>
+        <if test="enableStatus != null">
+            and tpt.enable_status = #{enableStatus}
+        </if>
+        order by tpt.sort_num asc, tpt.test_project_template_id asc
+    </select>
+
+    <select id="selectTestProjectTemplateResult" parameterType="Long" resultType="TestProjectTemplateResult">
+        select
+            tpt.test_project_template_id as testProjectTemplateId,
+            tpt.template_name as templateName,
+            tpt.header_name as headerName,
+            tpt.header_value_template as headerValueTemplate,
+            tpt.match_config as matchConfig,
+            tpt.apis as apis,
+            tpt.builtin_status as builtinStatus,
+            tpt.enable_status as enableStatus,
+            tpt.sort_num as sortNum,
+            tpt.remark as remark,
+            tpt.del_status as delStatus,
+            tpt.create_time as createTime,
+            tpt.update_time as updateTime
+        from test_project_template tpt
+        where tpt.del_status = 0 and tpt.test_project_template_id = #{testProjectTemplateId}
+        limit 1
+    </select>
+
+    <select id="selectEnabledTestProjectTemplateList" resultType="TestProjectTemplateResult">
+        select
+            tpt.test_project_template_id as testProjectTemplateId,
+            tpt.template_name as templateName,
+            tpt.header_name as headerName,
+            tpt.header_value_template as headerValueTemplate,
+            tpt.match_config as matchConfig,
+            tpt.apis as apis,
+            tpt.builtin_status as builtinStatus,
+            tpt.enable_status as enableStatus,
+            tpt.sort_num as sortNum,
+            tpt.remark as remark,
+            tpt.del_status as delStatus,
+            tpt.create_time as createTime,
+            tpt.update_time as updateTime
+        from test_project_template tpt
+        where tpt.del_status = 0 and tpt.enable_status = 1
+        order by tpt.sort_num asc, tpt.test_project_template_id asc
+    </select>
+
+    <select id="countByTemplateName" resultType="int">
+        select count(1) from test_project_template
+        where del_status = 0 and template_name = #{templateName}
+        <if test="excludeId != null">
+            and test_project_template_id != #{excludeId}
+        </if>
+    </select>
+
+    <insert id="insertTestProjectTemplate" parameterType="TestProjectTemplate">
+        insert into test_project_template
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectTemplateId != null">test_project_template_id,</if>
+            <if test="templateName != null and templateName != ''">template_name,</if>
+            <if test="headerName != null and headerName != ''">header_name,</if>
+            <if test="headerValueTemplate != null and headerValueTemplate != ''">header_value_template,</if>
+            <if test="matchConfig != null">match_config,</if>
+            <if test="apis != null">apis,</if>
+            <if test="builtinStatus != null">builtin_status,</if>
+            <if test="enableStatus != null">enable_status,</if>
+            <if test="sortNum != null">sort_num,</if>
+            <if test="remark != null">remark,</if>
+            <if test="delStatus != null">del_status,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectTemplateId != null">#{testProjectTemplateId},</if>
+            <if test="templateName != null and templateName != ''">#{templateName},</if>
+            <if test="headerName != null and headerName != ''">#{headerName},</if>
+            <if test="headerValueTemplate != null and headerValueTemplate != ''">#{headerValueTemplate},</if>
+            <if test="matchConfig != null">#{matchConfig},</if>
+            <if test="apis != null">#{apis},</if>
+            <if test="builtinStatus != null">#{builtinStatus},</if>
+            <if test="enableStatus != null">#{enableStatus},</if>
+            <if test="sortNum != null">#{sortNum},</if>
+            <if test="remark != null">#{remark},</if>
+            <if test="delStatus != null">#{delStatus},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateTestProjectTemplate" parameterType="TestProjectTemplate">
+        update test_project_template
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="templateName != null and templateName != ''">template_name = #{templateName},</if>
+            <if test="headerName != null and headerName != ''">header_name = #{headerName},</if>
+            <if test="headerValueTemplate != null and headerValueTemplate != ''">header_value_template = #{headerValueTemplate},</if>
+            <if test="matchConfig != null">match_config = #{matchConfig},</if>
+            <if test="apis != null">apis = #{apis},</if>
+            <if test="builtinStatus != null">builtin_status = #{builtinStatus},</if>
+            <if test="enableStatus != null">enable_status = #{enableStatus},</if>
+            <if test="sortNum != null">sort_num = #{sortNum},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            <if test="delStatus != null">del_status = #{delStatus},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where test_project_template_id = #{testProjectTemplateId}
+    </update>
+
+    <update id="logicDeleteTestProjectTemplateById" parameterType="Long">
+        update test_project_template set del_status = 1 where test_project_template_id = #{testProjectTemplateId}
+    </update>
+
+    <update id="logicDeleteTestProjectTemplateByIdList" parameterType="java.util.List">
+        update test_project_template set del_status = 1 where test_project_template_id in
+        <foreach item="id" collection="list" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+</mapper>

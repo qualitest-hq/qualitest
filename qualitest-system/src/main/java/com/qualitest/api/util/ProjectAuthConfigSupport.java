@@ -2,43 +2,53 @@ package com.qualitest.api.util;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
+import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.Header;
 import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
+import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.common.exception.ServiceException;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * 项目鉴权配置：解析、判空、通用/双端模板、按路径解析 Profile、写入规范化。
+ * 项目鉴权配置的解析、校验、写出和运行期查询。
+ * <p>
+ * 解析时把历史 JSON 迁成当前结构；写出只含 authProfiles（扁平头 + 预制接口）。
+ * 免登：配置为空时用内置 /login 等路径；有 Profile 后只认预制口 mode=none。
  */
 public final class ProjectAuthConfigSupport {
 
-    /** 项目级上传空配置时的通用种子 id（单套 Bearer，不假定双端）。 */
+    /** 默认 Bearer 种子的 Profile id。 */
     public static final String PROFILE_DEFAULT = "defaultBearer";
 
-    /** demo / 商城双端模板用：客户端。 */
+    /** 客户端 Bearer 的 Profile id。 */
     public static final String PROFILE_CLIENT = "clientBearer";
 
-    /** demo / 商城双端模板用：管理端。 */
+    /** 管理端 Bearer 的 Profile id。 */
     public static final String PROFILE_ADMIN = "adminBearer";
 
-    /** 空配置落库 JSON（无 Profile；Mapper 需非 null 才能清空列）。 */
+    /** 无 Profile 时落库的空 JSON。 */
     public static final String EMPTY_JSON = "{}";
 
-    /** loginHint.from 允许值。 */
+    /** loginHint.from 允许的取值。 */
     private static final Set<String> LOGIN_HINT_FROM =
             Set.of("body", "setCookie", "header");
 
     private ProjectAuthConfigSupport() {}
 
     /**
-     * 从库中 JSON 解析；空白或非法时返回空配置（不含 profiles）。
+     * 解析库中 JSON。空白或非法返回空配置。
+     * 会把历史字段迁到当前结构：拍平头、loginHint 挂到登录口、免登路径变成 none 预制口。
      */
     public static ProjectAuthConfig parse(String json) {
         if (StrUtil.isBlank(json)) {
@@ -46,21 +56,126 @@ public final class ProjectAuthConfigSupport {
         }
         try {
             ProjectAuthConfig cfg = JSONUtil.toBean(json, ProjectAuthConfig.class);
-            return cfg != null ? cfg : empty();
+            if (cfg == null) {
+                return empty();
+            }
+            migrateLegacyInPlace(cfg);
+            return cfg;
         } catch (Exception e) {
             return empty();
         }
     }
 
+    /**
+     * 序列化成当前结构 JSON：根只有 authProfiles。
+     * 不含 defaultProfileId、anonymousPath、嵌套 header、Profile 级 loginHint。
+     */
     public static String toJson(ProjectAuthConfig config) {
-        return JSONUtil.toJsonStr(config != null ? config : empty());
+        if (isEmpty(config)) {
+            return EMPTY_JSON;
+        }
+        List<Map<String, Object>> profiles = new ArrayList<>();
+        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
+            if (profile != null) {
+                profiles.add(writeProfile(profile));
+            }
+        }
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("authProfiles", profiles);
+        return JSONUtil.toJsonStr(root);
+    }
+
+    /** 写出一条 Profile：id、name、match、扁平头、apis。 */
+    private static Map<String, Object> writeProfile(ProjectAuthProfile profile) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", profile.getId());
+        if (StrUtil.isNotBlank(profile.getName())) {
+            map.put("name", profile.getName());
+        }
+        if (profile.getMatch() != null && profile.getMatch().getPathPrefix() != null
+                && !profile.getMatch().getPathPrefix().isEmpty()) {
+            Map<String, Object> match = new LinkedHashMap<>();
+            match.put("pathPrefix", profile.getMatch().getPathPrefix());
+            map.put("match", match);
+        }
+        map.put("headerName", profile.getHeaderName());
+        map.put("headerValueTemplate", profile.getHeaderValueTemplate());
+        map.put("apis", writeApis(profile.getApis()));
+        return map;
+    }
+
+    /** 写出预制接口列表，跳过没有 path 的项。 */
+    private static List<Map<String, Object>> writeApis(List<PrefabricatedApi> apis) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (apis == null) {
+            return out;
+        }
+        for (PrefabricatedApi api : apis) {
+            if (api == null || StrUtil.isBlank(api.getApiPath())) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            if (StrUtil.isNotBlank(api.getApiName())) {
+                row.put("apiName", api.getApiName());
+            }
+            row.put("apiPath", api.getApiPath());
+            if (StrUtil.isNotBlank(api.getApiGroup())) {
+                row.put("apiGroup", api.getApiGroup());
+            }
+            if (StrUtil.isNotBlank(api.getProtocolType())) {
+                row.put("protocolType", api.getProtocolType());
+            }
+            if (StrUtil.isNotBlank(api.getApiStatus())) {
+                row.put("apiStatus", api.getApiStatus());
+            }
+            if (api.getRequestConfig() != null) {
+                row.put("requestConfig", api.getRequestConfig());
+            }
+            if (api.getAuthConfig() != null) {
+                row.put("authConfig", writeAuthConfig(api.getAuthConfig()));
+            }
+            if (api.getDesignHints() != null) {
+                row.put("designHints", api.getDesignHints());
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    /** 写出接口鉴权，loginHint 只带 flowKey/from/expr。 */
+    private static Map<String, Object> writeAuthConfig(ApiAuthConfig auth) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        if (StrUtil.isNotBlank(auth.getMode())) {
+            map.put("mode", auth.getMode());
+        }
+        if (StrUtil.isNotBlank(auth.getAuthProfileId())) {
+            map.put("authProfileId", auth.getAuthProfileId());
+        }
+        if (auth.getHeader() != null) {
+            map.put("header", auth.getHeader());
+        }
+        LoginHint hint = auth.getLoginHint();
+        if (hint != null) {
+            Map<String, Object> hintMap = new LinkedHashMap<>();
+            if (StrUtil.isNotBlank(hint.getFlowKey())) {
+                hintMap.put("flowKey", hint.getFlowKey());
+            }
+            if (StrUtil.isNotBlank(hint.getFrom())) {
+                hintMap.put("from", hint.getFrom());
+            }
+            if (StrUtil.isNotBlank(hint.getExpr())) {
+                hintMap.put("expr", hint.getExpr());
+            }
+            if (!hintMap.isEmpty()) {
+                map.put("loginHint", hintMap);
+            }
+        }
+        return map;
     }
 
     /**
-     * 规范化用户提交的鉴权配置并序列化为 JSON，用于写库。
-     * <p>
-     * 空白、或无 Profile 且无匿名 path → {@link #EMPTY_JSON}；
-     * 非法 JSON / 规则不通过 → {@link ServiceException}。
+     * 校验并序列化用户提交的 JSON，用于写库。
+     * 空白或没有 Profile 写成 {}；非法 JSON 或规则失败抛业务异常。
      */
     public static String normalizeToJson(String raw) {
         if (StrUtil.isBlank(raw)) {
@@ -76,51 +191,186 @@ public final class ProjectAuthConfigSupport {
             return EMPTY_JSON;
         }
         ProjectAuthConfig normalized = normalize(parsed);
-        if (isFullyEmpty(normalized)) {
+        if (isEmpty(normalized)) {
             return EMPTY_JSON;
         }
         return toJson(normalized);
     }
 
     /**
-     * 校验并清理配置对象（Web 保存 / 服务端写库共用）。
+     * 校验并清理配置对象：迁完历史字段后只保留当前结构。
      */
     public static ProjectAuthConfig normalize(ProjectAuthConfig input) {
         if (input == null) {
             return empty();
         }
+        migrateLegacyInPlace(input);
         List<ProjectAuthProfile> profiles = normalizeProfiles(input.getAuthProfiles());
-        List<String> exact = normalizeExactPaths(input.getAnonymousPathExact());
-        List<String> prefix = normalizePrefixPaths(input.getAnonymousPathPrefix(), "anonymousPathPrefix");
-
-        String defaultId = null;
-        if (!profiles.isEmpty()) {
-            defaultId = StrUtil.trimToNull(input.getDefaultProfileId());
-            if (defaultId == null) {
-                defaultId = profiles.get(0).getId();
-            } else {
-                final String want = defaultId;
-                boolean found = profiles.stream().anyMatch(p -> want.equals(p.getId()));
-                if (!found) {
-                    throw new ServiceException("defaultProfileId 不在 authProfiles 中: " + defaultId);
-                }
-            }
-        }
         return ProjectAuthConfig.builder()
-                .defaultProfileId(defaultId)
                 .authProfiles(profiles)
-                .anonymousPathExact(exact)
-                .anonymousPathPrefix(prefix)
                 .build();
     }
 
-    /** 无 Profile 且无匿名 path。 */
-    private static boolean isFullyEmpty(ProjectAuthConfig config) {
-        return isEmpty(config)
-                && (config.getAnonymousPathExact() == null || config.getAnonymousPathExact().isEmpty())
-                && (config.getAnonymousPathPrefix() == null || config.getAnonymousPathPrefix().isEmpty());
+    /**
+     * 把历史字段迁到当前结构：拍平头、免登精确路径变成 none 口、loginHint 挂到登录口、指定默认条调到第一。
+     * 不抛业务异常。
+     */
+    static void migrateLegacyInPlace(ProjectAuthConfig config) {
+        if (config == null || config.getAuthProfiles() == null) {
+            return;
+        }
+        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
+            flattenHeader(profile);
+        }
+        moveDefaultProfileFirst(config);
+        distributeExactAnonymousApis(config);
+        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
+            attachLegacyLoginHint(profile);
+            profile.setHeader(null);
+            profile.setLoginHint(null);
+        }
+        config.setDefaultProfileId(null);
+        config.setAnonymousPathExact(null);
+        config.setAnonymousPathPrefix(null);
     }
 
+    /** 嵌套 header 拍平到 headerName、headerValueTemplate。 */
+    private static void flattenHeader(ProjectAuthProfile profile) {
+        if (profile == null) {
+            return;
+        }
+        if (StrUtil.isBlank(profile.getHeaderName()) && profile.getHeader() != null) {
+            profile.setHeaderName(StrUtil.trimToNull(profile.getHeader().getName()));
+        }
+        if (StrUtil.isBlank(profile.getHeaderValueTemplate()) && profile.getHeader() != null) {
+            profile.setHeaderValueTemplate(StrUtil.trimToNull(profile.getHeader().getValueTemplate()));
+        }
+        profile.setHeaderName(StrUtil.trimToNull(profile.getHeaderName()));
+        profile.setHeaderValueTemplate(StrUtil.trimToNull(profile.getHeaderValueTemplate()));
+    }
+
+    /** 把 defaultProfileId 对应的那条调到数组第一位。 */
+    private static void moveDefaultProfileFirst(ProjectAuthConfig config) {
+        String defaultId = StrUtil.trimToNull(config.getDefaultProfileId());
+        List<ProjectAuthProfile> profiles = config.getAuthProfiles();
+        if (defaultId == null || profiles == null || profiles.size() < 2) {
+            return;
+        }
+        int idx = -1;
+        for (int i = 0; i < profiles.size(); i++) {
+            ProjectAuthProfile p = profiles.get(i);
+            if (p != null && defaultId.equals(p.getId())) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx > 0) {
+            ProjectAuthProfile first = profiles.remove(idx);
+            profiles.add(0, first);
+        }
+    }
+
+    /**
+     * 把历史免登精确路径变成 path-only、mode=none 的预制口。
+     * 按 pathPrefix 分到对应 Profile，未命中进第一条。历史 prefix 列表不处理。
+     */
+    private static void distributeExactAnonymousApis(ProjectAuthConfig config) {
+        List<String> exact = config.getAnonymousPathExact();
+        if (exact == null || exact.isEmpty() || config.getAuthProfiles().isEmpty()) {
+            return;
+        }
+        for (String raw : exact) {
+            if (StrUtil.isBlank(raw)) {
+                continue;
+            }
+            String path = normalizeApiPath(raw.trim());
+            if (findPrefabricatedApi(config, null, path) != null) {
+                continue;
+            }
+            String profileId = resolveProfileIdByPrefixOnly(path, config);
+            ProjectAuthProfile target = findProfile(config, profileId);
+            if (target == null) {
+                target = config.getAuthProfiles().get(0);
+            }
+            ensureApisList(target).add(PrefabricatedApi.builder()
+                    .apiName(path)
+                    .apiPath(path)
+                    .protocolType("http")
+                    .apiStatus("normal")
+                    .authConfig(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).build())
+                    .build());
+        }
+    }
+
+    /** 把 Profile 级 loginHint 挂到登录口；没有登录口则补一条 POST /login。 */
+    private static void attachLegacyLoginHint(ProjectAuthProfile profile) {
+        if (profile == null) {
+            return;
+        }
+        LoginHint hint = normalizeLoginHintQuiet(profile.getLoginHint());
+        if (hint == null) {
+            return;
+        }
+        PrefabricatedApi loginApi = findLoginLikeApiOnProfile(profile);
+        if (loginApi == null) {
+            loginApi = PrefabricatedApi.builder()
+                    .apiName("登录")
+                    .apiPath("/login")
+                    .apiGroup("系统.登录")
+                    .protocolType("http")
+                    .apiStatus("normal")
+                    .requestConfig(minimalRequestConfig("POST", null))
+                    .authConfig(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).loginHint(hint).build())
+                    .build();
+            ensureApisList(profile).add(0, loginApi);
+            return;
+        }
+        ApiAuthConfig auth = loginApi.getAuthConfig();
+        if (auth == null) {
+            auth = ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).build();
+            loginApi.setAuthConfig(auth);
+        }
+        if (auth.getLoginHint() == null) {
+            auth.setLoginHint(hint);
+        }
+        if (StrUtil.isBlank(auth.getMode())) {
+            auth.setMode(ApiAuthConfig.MODE_NONE);
+        }
+        if (prefabricatedHttpMethod(loginApi) == null) {
+            loginApi.setRequestConfig(minimalRequestConfig("POST", loginApi.getRequestConfig()));
+        }
+    }
+
+    /** 在本 Profile 的 apis 里找 path 以 /login 结尾的口，没有则找 /register。 */
+    private static PrefabricatedApi findLoginLikeApiOnProfile(ProjectAuthProfile profile) {
+        if (profile == null || profile.getApis() == null) {
+            return null;
+        }
+        PrefabricatedApi register = null;
+        for (PrefabricatedApi api : profile.getApis()) {
+            if (api == null || StrUtil.isBlank(api.getApiPath())) {
+                continue;
+            }
+            String path = normalizeApiPath(api.getApiPath()).toLowerCase(Locale.ROOT);
+            if (path.endsWith("/login")) {
+                return api;
+            }
+            if (register == null && path.endsWith("/register")) {
+                register = api;
+            }
+        }
+        return register;
+    }
+
+    /** 确保 Profile.apis 非 null。 */
+    private static List<PrefabricatedApi> ensureApisList(ProjectAuthProfile profile) {
+        if (profile.getApis() == null) {
+            profile.setApis(new ArrayList<>());
+        }
+        return profile.getApis();
+    }
+
+    /** 校验 Profile：id 非空且不重复，必须有头名称和值模板，禁止 pathPrefix=/。 */
     private static List<ProjectAuthProfile> normalizeProfiles(List<ProjectAuthProfile> raw) {
         List<ProjectAuthProfile> out = new ArrayList<>();
         if (raw == null) {
@@ -139,11 +389,10 @@ public final class ProjectAuthConfigSupport {
             if (!ids.add(id)) {
                 throw new ServiceException("authProfiles.id 重复: " + id);
             }
-            Header header = profile.getHeader();
-            String headerName = header != null ? StrUtil.trimToNull(header.getName()) : null;
-            String valueTemplate = header != null ? StrUtil.trimToNull(header.getValueTemplate()) : null;
+            String headerName = StrUtil.trimToNull(profile.getHeaderName());
+            String valueTemplate = StrUtil.trimToNull(profile.getHeaderValueTemplate());
             if (headerName == null || valueTemplate == null) {
-                throw new ServiceException("Profile「" + id + "」须配置 header.name 与 header.valueTemplate");
+                throw new ServiceException("Profile「" + id + "」须配置 headerName 与 headerValueTemplate");
             }
             List<String> pathPrefixes = null;
             if (profile.getMatch() != null && profile.getMatch().getPathPrefix() != null) {
@@ -157,14 +406,66 @@ public final class ProjectAuthConfigSupport {
                     .id(id)
                     .name(StrUtil.trimToNull(profile.getName()))
                     .match(match)
-                    .header(Header.builder().name(headerName).valueTemplate(valueTemplate).build())
-                    .loginHint(normalizeLoginHint(profile.getLoginHint(), id))
+                    .headerName(headerName)
+                    .headerValueTemplate(valueTemplate)
+                    .apis(normalizePrefabricatedApis(profile.getApis(), id))
                     .build());
         }
         return out;
     }
 
-    private static LoginHint normalizeLoginHint(LoginHint hint, String profileId) {
+    /** 校验预制接口：path 去重，补默认 protocol/status，规范 auth.mode。 */
+    private static List<PrefabricatedApi> normalizePrefabricatedApis(List<PrefabricatedApi> raw, String profileId) {
+        List<PrefabricatedApi> out = new ArrayList<>();
+        if (raw == null) {
+            return out;
+        }
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < raw.size(); i++) {
+            PrefabricatedApi api = raw.get(i);
+            if (api == null || StrUtil.isBlank(api.getApiPath())) {
+                continue;
+            }
+            String path = normalizeApiPath(api.getApiPath().trim());
+            String method = prefabricatedHttpMethod(api);
+            String identity = (method != null ? method : "") + " " + path;
+            if (!seen.add(identity)) {
+                continue;
+            }
+            ApiAuthConfig auth = api.getAuthConfig();
+            if (auth == null || StrUtil.isBlank(auth.getMode())) {
+                auth = ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
+            } else {
+                String mode = ApiAuthConfigSupport.canonicalizeMode(auth.getMode());
+                if (mode == null) {
+                    throw new ServiceException(
+                            "Profile「" + profileId + "」.apis[" + i + "].authConfig.mode 不支持: " + auth.getMode());
+                }
+                auth = ApiAuthConfig.builder()
+                        .mode(mode)
+                        .authProfileId(StrUtil.trimToNull(auth.getAuthProfileId()))
+                        .header(auth.getHeader())
+                        .loginHint(normalizeLoginHint(auth.getLoginHint(), profileId))
+                        .build();
+            }
+            out.add(PrefabricatedApi.builder()
+                    .apiName(StrUtil.blankToDefault(StrUtil.trimToNull(api.getApiName()), path))
+                    .apiPath(path)
+                    .apiGroup(StrUtil.trimToNull(api.getApiGroup()))
+                    .protocolType(StrUtil.blankToDefault(StrUtil.trimToNull(api.getProtocolType()), "http"))
+                    .apiStatus(StrUtil.blankToDefault(StrUtil.trimToNull(api.getApiStatus()), "normal"))
+                    .requestConfig(api.getRequestConfig())
+                    .authConfig(auth)
+                    .designHints(api.getDesignHints())
+                    .build());
+        }
+        return out;
+    }
+
+    /**
+     * 整理 loginHint：from 只允许 body/setCookie/header；历史 extractJsonPath 当作 body+expr。
+     */
+    static LoginHint normalizeLoginHint(LoginHint hint, String profileId) {
         if (hint == null) {
             return null;
         }
@@ -196,7 +497,7 @@ public final class ProjectAuthConfigSupport {
                 .build();
     }
 
-    /** 将 from 规范为允许值；不识别则返回 null。 */
+    /** 把 from 规范成允许的小写取值，不认识则返回 null。 */
     private static String canonicalLoginFrom(String from) {
         for (String allowed : LOGIN_HINT_FROM) {
             if (allowed.equalsIgnoreCase(from)) {
@@ -206,23 +507,7 @@ public final class ProjectAuthConfigSupport {
         return null;
     }
 
-    private static List<String> normalizeExactPaths(List<String> raw) {
-        List<String> out = new ArrayList<>();
-        if (raw == null) {
-            return out;
-        }
-        for (String item : raw) {
-            if (StrUtil.isBlank(item)) {
-                continue;
-            }
-            out.add(normalizeApiPath(item.trim()));
-        }
-        return out;
-    }
-
-    /**
-     * 规范化前缀列表；空白跳过；值为 {@code /} 时拒绝（禁止根匹配）。
-     */
+    /** 整理 pathPrefix：去空、补前导斜杠，单独的 / 拒绝。 */
     private static List<String> normalizePrefixPaths(List<String> raw, String fieldLabel) {
         List<String> out = new ArrayList<>();
         if (raw == null) {
@@ -236,19 +521,19 @@ public final class ProjectAuthConfigSupport {
             if ("/".equals(trimmed)) {
                 throw new ServiceException(fieldLabel + " 禁止使用 \"/\"（须写具体前缀，如 /api/）");
             }
-            // 落库保留用户写法，仅保证有前导 /
             String stored = trimmed.startsWith("/") ? trimmed : "/" + trimmed;
             out.add(stored);
         }
         return out;
     }
 
+    /** 空配置：没有 Profile。 */
     public static ProjectAuthConfig empty() {
         return ProjectAuthConfig.builder().authProfiles(List.of()).build();
     }
 
     /**
-     * 是否尚未配置可用 Profile（应触发种子写入）。
+     * 是否还没有可用 Profile。
      */
     public static boolean isEmpty(ProjectAuthConfig config) {
         return config == null
@@ -257,86 +542,140 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * 通用 Bearer 种子（项目级上传且 auth_config 为空时写入）。
-     * <p>
-     * 仅一套 Profile、无 pathPrefix 分端；匿名 path 写入内置免登启发式（/login 等），
-     * 避免登录口被 inherit 成 Bearer。双端切分仍属项目特定，需手工或另贴 demo 模板。
+     * 已有 Profile 但预制接口全空时为 true，需要提示去勾选模板。
+     */
+    public static boolean needsAuthTemplateHint(ProjectAuthConfig config) {
+        if (isEmpty(config)) {
+            return false;
+        }
+        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
+            if (profile != null && profile.getApis() != null && !profile.getApis().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 通用 Bearer 种子：名称「默认 Bearer」，含登录/注册/验证码三口，均为免登。
+     * 登录口从 $.token 抽到 flow.token。不含客户端 /api/account/auth 路径。
      */
     public static ProjectAuthConfig defaultBearerTemplate() {
         return ProjectAuthConfig.builder()
-                .defaultProfileId(PROFILE_DEFAULT)
                 .authProfiles(List.of(
                         ProjectAuthProfile.builder()
                                 .id(PROFILE_DEFAULT)
-                                .name("Bearer")
-                                .header(Header.builder()
-                                        .name("Authorization")
-                                        .valueTemplate("Bearer {{flow.token}}")
-                                        .build())
-                                .loginHint(LoginHint.builder()
-                                        .flowKey("token")
-                                        .from("body")
-                                        .expr("$.token")
-                                        .build())
+                                .name("默认 Bearer")
+                                .headerName("Authorization")
+                                .headerValueTemplate("Bearer {{flow.token}}")
+                                .apis(defaultBearerApis("token", "$.token"))
                                 .build()
                 ))
-                .anonymousPathExact(List.copyOf(BUILTIN_ANONYMOUS_AUTH_PATH_EXACT))
-                .anonymousPathPrefix(List.of())
                 .build();
     }
 
     /**
-     * demo / 商城双端 Bearer 参考模板（含常用匿名 path）。
-     * <p>
-     * <b>不</b>作为上传自动种子；联调靶场时可手工写入项目鉴权配置。
-     * /api/ → 客户端 token；/system|/monitor|/tool|/web/ → 管理端 adminToken；其余默认管理端。
+     * 默认 Bearer 与管理端共用的三口：POST /login、POST /register、GET /captchaImage。
+     * flowKey 用来区分写入 token 还是 adminToken。
      */
-    public static ProjectAuthConfig dualBearerTemplate() {
-        return ProjectAuthConfig.builder()
-                .defaultProfileId(PROFILE_ADMIN)
-                .authProfiles(List.of(
-                        ProjectAuthProfile.builder()
-                                .id(PROFILE_CLIENT)
-                                .name("客户端 Bearer")
-                                .match(Match.builder().pathPrefix(List.of("/api/")).build())
-                                .header(Header.builder()
-                                        .name("Authorization")
-                                        .valueTemplate("Bearer {{flow.token}}")
-                                        .build())
-                                .loginHint(LoginHint.builder()
-                                        .flowKey("token")
-                                        .from("body")
-                                        .expr("$.data.token")
-                                        .build())
-                                .build(),
-                        ProjectAuthProfile.builder()
-                                .id(PROFILE_ADMIN)
-                                .name("管理端 Bearer")
-                                .match(Match.builder()
-                                        .pathPrefix(List.of("/system/", "/monitor/", "/tool/", "/web/"))
-                                        .build())
-                                .header(Header.builder()
-                                        .name("Authorization")
-                                        .valueTemplate("Bearer {{flow.adminToken}}")
-                                        .build())
-                                .loginHint(LoginHint.builder()
-                                        .flowKey("adminToken")
-                                        .from("body")
-                                        .expr("$.token")
-                                        .build())
-                                .build()
-                ))
-                .anonymousPathExact(List.copyOf(BUILTIN_ANONYMOUS_AUTH_PATH_EXACT))
-                .anonymousPathPrefix(List.copyOf(DEMO_ANONYMOUS_PATH_PREFIX))
+    public static List<PrefabricatedApi> defaultBearerApis(String flowKey, String tokenExpr) {
+        LoginHint hint = LoginHint.builder().flowKey(flowKey).from("body").expr(tokenExpr).build();
+        String design = "token".equals(flowKey)
+                ? "token 在 " + tokenExpr + "，不要写成 $.data.token"
+                : "管理端 token 在 " + tokenExpr + " → " + flowKey + "，不要写成 $.data.token";
+        List<PrefabricatedApi> apis = new ArrayList<>();
+        apis.add(prefabricatedNone(
+                "登录", "/login", "系统.登录", "POST",
+                Map.of("username", "", "password", "", "code", "", "uuid", ""),
+                hint, design));
+        apis.add(prefabricatedNone(
+                "注册", "/register", "系统.登录", "POST",
+                Map.of("username", "", "password", ""),
+                null, null));
+        apis.add(prefabricatedNone(
+                "验证码", "/captchaImage", "系统.登录", "GET",
+                null, null, null));
+        return apis;
+    }
+
+    /** 客户端两口：POST /api/account/auth/login（$.data.token→token）和 register。 */
+    public static List<PrefabricatedApi> clientBearerApis() {
+        LoginHint hint = LoginHint.builder().flowKey("token").from("body").expr("$.data.token").build();
+        List<PrefabricatedApi> apis = new ArrayList<>();
+        apis.add(prefabricatedNone(
+                "登录", "/api/account/auth/login", "客户端.账号", "POST",
+                Map.of("mobile", "", "password", ""),
+                hint, "客户端 token 在 $.data.token，不要写成 $.token"));
+        apis.add(prefabricatedNone(
+                "注册", "/api/account/auth/register", "客户端.账号", "POST",
+                Map.of("mobile", "", "password", ""),
+                null, null));
+        return apis;
+    }
+
+    /** 组装一条免登预制口。 */
+    private static PrefabricatedApi prefabricatedNone(
+            String apiName,
+            String apiPath,
+            String apiGroup,
+            String method,
+            Map<String, Object> bodyExample,
+            LoginHint loginHint,
+            String designHint) {
+        ApiAuthConfig auth = ApiAuthConfig.builder()
+                .mode(ApiAuthConfig.MODE_NONE)
+                .loginHint(loginHint)
+                .build();
+        Object designHints = null;
+        if (StrUtil.isNotBlank(designHint)) {
+            designHints = Map.of("hints", List.of(designHint));
+        }
+        return PrefabricatedApi.builder()
+                .apiName(apiName)
+                .apiPath(apiPath)
+                .apiGroup(apiGroup)
+                .protocolType("http")
+                .apiStatus("normal")
+                .requestConfig(minimalRequestConfig(method, bodyExample))
+                .authConfig(auth)
+                .designHints(designHints)
                 .build();
     }
 
     /**
-     * 内置免登鉴权路径启发式（精确，忽略尾斜杠）。
-     * <p>
-     * 导入/同步在 auth 为空或 inherit 时写入 mode=none；造流补头亦按此短路。
-     * 与项目 {@code anonymousPath*} 叠加；用户显式 override 不改。
-     * demo 双端模板的 exact 白名单与此同源，勿再维护第二份清单。
+     * 最小 requestConfig：补齐 version、method、空参数数组和 body。
+     * 已有完整配置则只改 method；传入 example Map 则写成 json body。
+     */
+    public static Object minimalRequestConfig(String method, Object existingOrExample) {
+        Map<String, Object> body;
+        if (existingOrExample instanceof Map<?, ?> existing && existing.containsKey("configVersion")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> copied = new LinkedHashMap<>((Map<String, Object>) existing);
+            if (StrUtil.isNotBlank(method)) {
+                copied.put("method", method.toUpperCase(Locale.ROOT));
+            }
+            return copied;
+        }
+        if (existingOrExample instanceof Map<?, ?> example && !example.containsKey("configVersion")) {
+            body = Map.of("mode", "json", "json", Map.of("example", example));
+        } else if ("GET".equalsIgnoreCase(method) || existingOrExample == null) {
+            body = Map.of("mode", "none");
+        } else {
+            body = Map.of("mode", "json", "json", Map.of("example", existingOrExample));
+        }
+        Map<String, Object> rc = new LinkedHashMap<>();
+        rc.put("configVersion", 1);
+        rc.put("method", method != null ? method.toUpperCase(Locale.ROOT) : "GET");
+        rc.put("queryParams", List.of());
+        rc.put("pathParams", List.of());
+        rc.put("declaredHeaders", List.of());
+        rc.put("body", body);
+        return rc;
+    }
+
+    /**
+     * 配置完全空时使用的免登路径（去尾斜杠后精确比）。
+     * 有 Profile 之后不再用这份列表。
      */
     public static final List<String> BUILTIN_ANONYMOUS_AUTH_PATH_EXACT = List.of(
             "/login",
@@ -345,15 +684,8 @@ public final class ProjectAuthConfigSupport {
             "/api/account/auth/login",
             "/api/account/auth/register");
 
-    /** demo 双端模板用的精确匿名 path；与 {@link #BUILTIN_ANONYMOUS_AUTH_PATH_EXACT} 同一份列表。 */
-    public static final List<String> DEMO_ANONYMOUS_PATH_EXACT = BUILTIN_ANONYMOUS_AUTH_PATH_EXACT;
-
-    /** demo 业务向白名单前缀；仅供 {@link #dualBearerTemplate()}。 */
-    public static final List<String> DEMO_ANONYMOUS_PATH_PREFIX =
-            List.of("/test-support/", "/swagger-ui", "/v3/api-docs");
-
     /**
-     * 路径是否命中内置免登启发式（与项目 anonymous 配置无关）。
+     * 路径是否命中内置免登列表。只给空配置兜底用。
      */
     public static boolean matchesBuiltinAnonymousAuthPath(String apiPath) {
         String path = normalizeApiPath(apiPath);
@@ -366,47 +698,98 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * 是否应按免登处理：内置启发式或项目 anonymousPath 命中。
+     * 是否应按免登处理：配置空则 builtin；有 Profile 则只认预制 mode=none 口。
      */
-    public static boolean shouldTreatAsAnonymousAuth(String apiPath, ProjectAuthConfig config) {
-        return matchesBuiltinAnonymousAuthPath(apiPath) || matchesAnonymousPath(apiPath, config);
+    public static boolean shouldTreatAsAnonymousAuth(String method, String apiPath, ProjectAuthConfig config) {
+        if (isEmpty(config)) {
+            return matchesBuiltinAnonymousAuthPath(apiPath);
+        }
+        PrefabricatedApi api = findPrefabricatedApi(config, method, apiPath);
+        if (api == null || api.getAuthConfig() == null) {
+            return false;
+        }
+        return ApiAuthConfig.MODE_NONE.equalsIgnoreCase(StrUtil.trim(api.getAuthConfig().getMode()));
     }
 
     /**
-     * 接口路径是否命中项目匿名 path（exact 全等或 prefix 段前缀）。
+     * 按 method+apiPath 查找预制接口；method 空或预制口 method 空时只比 path。
      */
-    public static boolean matchesAnonymousPath(String apiPath, ProjectAuthConfig config) {
-        if (config == null) {
-            return false;
+    public static PrefabricatedApi findPrefabricatedApi(ProjectAuthConfig config, String method, String apiPath) {
+        if (config == null || config.getAuthProfiles() == null || StrUtil.isBlank(apiPath)) {
+            return null;
         }
         String path = normalizeApiPath(apiPath);
-        if (config.getAnonymousPathExact() != null) {
-            for (String raw : config.getAnonymousPathExact()) {
-                if (StrUtil.isBlank(raw)) {
+        String wantMethod = StrUtil.trimToNull(method);
+        if (wantMethod != null) {
+            wantMethod = wantMethod.toUpperCase(Locale.ROOT);
+        }
+        PrefabricatedApi pathOnly = null;
+        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
+            if (profile == null || profile.getApis() == null) {
+                continue;
+            }
+            for (PrefabricatedApi api : profile.getApis()) {
+                if (api == null || StrUtil.isBlank(api.getApiPath())) {
                     continue;
                 }
-                if (path.equals(normalizeApiPath(raw))) {
-                    return true;
+                if (!path.equals(normalizeApiPath(api.getApiPath()))) {
+                    continue;
+                }
+                String apiMethod = prefabricatedHttpMethod(api);
+                if (apiMethod == null || wantMethod == null) {
+                    if (pathOnly == null) {
+                        pathOnly = api;
+                    }
+                    if (apiMethod == null && wantMethod == null) {
+                        return api;
+                    }
+                    continue;
+                }
+                if (apiMethod.equals(wantMethod)) {
+                    return api;
                 }
             }
         }
-        if (config.getAnonymousPathPrefix() != null) {
-            for (String raw : config.getAnonymousPathPrefix()) {
-                if (pathMatchesNormalizedPrefix(path, raw)) {
-                    return true;
-                }
+        return pathOnly;
+    }
+
+    /**
+     * 预制口 HTTP 方法；requestConfig.method 缺失则返回 null（path-only）。
+     */
+    public static String prefabricatedHttpMethod(PrefabricatedApi api) {
+        if (api == null || api.getRequestConfig() == null) {
+            return null;
+        }
+        Object rc = api.getRequestConfig();
+        if (rc instanceof Map<?, ?> map) {
+            Object m = map.get("method");
+            if (m != null && StrUtil.isNotBlank(String.valueOf(m))) {
+                return String.valueOf(m).trim().toUpperCase(Locale.ROOT);
             }
         }
-        return false;
+        return null;
     }
 
     /**
      * 按接口路径解析应使用的 Profile id。
-     * 最长 pathPrefix 命中优先；无人命中则用 defaultProfileId。
+     * 最长 pathPrefix 命中优先；无人命中则用数组第一条。
      *
      * @return profile id，配置为空时可能为 null
      */
     public static String resolveProfileId(String apiPath, ProjectAuthConfig config) {
+        if (isEmpty(config)) {
+            return null;
+        }
+        String byPrefix = resolveProfileIdByPrefixOnly(apiPath, config);
+        if (byPrefix != null) {
+            return byPrefix;
+        }
+        ProjectAuthProfile first = config.getAuthProfiles().get(0);
+        return first != null ? StrUtil.trimToNull(first.getId()) : null;
+    }
+
+    /** 只按 pathPrefix 选 Profile，未命中返回 null（不回落到第一条）。 */
+    private static String resolveProfileIdByPrefixOnly(String apiPath, ProjectAuthConfig config) {
         if (isEmpty(config)) {
             return null;
         }
@@ -432,21 +815,10 @@ public final class ProjectAuthConfigSupport {
                 }
             }
         }
-        if (bestId != null) {
-            return bestId;
-        }
-        return StrUtil.trimToNull(config.getDefaultProfileId());
+        return bestId;
     }
 
-    /** 规范化后的 path 是否命中配置的前缀（禁止 match=/）。 */
-    static boolean pathMatchesNormalizedPrefix(String normalizedPath, String rawPrefix) {
-        String prefix = toMatchPrefix(rawPrefix);
-        return prefix != null && (normalizedPath + "/").startsWith(prefix);
-    }
-
-    /**
-     * 将配置前缀转为可 startsWith 的规范形式；空白或 "/" 返回 null（禁止根匹配）。
-     */
+    /** 把前缀整理成可匹配形式；空或单独 / 返回 null。 */
     static String toMatchPrefix(String rawPrefix) {
         if (StrUtil.isBlank(rawPrefix) || "/".equals(rawPrefix.trim())) {
             return null;
@@ -454,9 +826,7 @@ public final class ProjectAuthConfigSupport {
         return normalizePrefix(rawPrefix);
     }
 
-    /**
-     * 按 id 查找 Profile；找不到返回 null。
-     */
+    /** 按 id 查找 Profile。 */
     public static ProjectAuthProfile findProfile(ProjectAuthConfig config, String profileId) {
         if (config == null || config.getAuthProfiles() == null || StrUtil.isBlank(profileId)) {
             return null;
@@ -470,7 +840,7 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * Profile 展示名；无 name 时对双端默认 id 回落中文名。
+     * Profile 展示名。没有 name 时按常见 id 回落中文。
      */
     public static String displayProfileName(ProjectAuthConfig config, String profileId) {
         ProjectAuthProfile profile = findProfile(config, profileId);
@@ -478,7 +848,7 @@ public final class ProjectAuthConfigSupport {
             return profile.getName().trim();
         }
         if (PROFILE_DEFAULT.equals(profileId)) {
-            return "Bearer";
+            return "默认 Bearer";
         }
         if (PROFILE_CLIENT.equals(profileId)) {
             return "客户端 Bearer";
@@ -489,23 +859,100 @@ public final class ProjectAuthConfigSupport {
         return StrUtil.blankToDefault(profileId, "项目鉴权");
     }
 
-    /**
-     * 登录 token 写入的 flow 变量名，只读 {@code loginHint.flowKey}。
-     * <p>
-     * 不从 {@code valueTemplate} 用正则猜：头模板形态不固定，且方案约定 flowKey 由 loginHint 显式声明。
-     * 未配置则返回 null（分端缺 token 提示 / headerHint.flowKey 会跳过）。
-     */
-    public static String resolveLoginFlowKey(ProjectAuthProfile profile) {
-        if (profile == null || profile.getLoginHint() == null) {
+    /** 读扁平头名称，没有则读历史嵌套 header.name。 */
+    public static String resolveHeaderName(ProjectAuthProfile profile) {
+        if (profile == null) {
             return null;
         }
-        return StrUtil.trimToNull(profile.getLoginHint().getFlowKey());
+        String name = StrUtil.trimToNull(profile.getHeaderName());
+        if (name != null) {
+            return name;
+        }
+        Header header = profile.getHeader();
+        return header != null ? StrUtil.trimToNull(header.getName()) : null;
+    }
+
+    /** 读扁平头值模板，没有则读历史嵌套 header.valueTemplate。 */
+    public static String resolveHeaderValueTemplate(ProjectAuthProfile profile) {
+        if (profile == null) {
+            return null;
+        }
+        String value = StrUtil.trimToNull(profile.getHeaderValueTemplate());
+        if (value != null) {
+            return value;
+        }
+        Header header = profile.getHeader();
+        return header != null ? StrUtil.trimToNull(header.getValueTemplate()) : null;
     }
 
     /**
-     * 登录抽取来源（与 extracts.from 对齐）。
-     * 仅有旧字段 {@code extractJsonPath} 时视为 {@code body}。
+     * 该 Profile 第一条带 loginHint 的预制口上的 flowKey。
      */
+    public static String resolveLoginFlowKey(ProjectAuthProfile profile) {
+        LoginHint hint = firstLoginHintOnProfile(profile);
+        return hint != null ? StrUtil.trimToNull(hint.getFlowKey()) : null;
+    }
+
+    /** 本 Profile 第一条有效 loginHint；预制口没有则读历史 Profile 级字段。 */
+    public static LoginHint firstLoginHintOnProfile(ProjectAuthProfile profile) {
+        if (profile == null) {
+            return null;
+        }
+        if (profile.getApis() != null) {
+            for (PrefabricatedApi api : profile.getApis()) {
+                if (api != null && api.getAuthConfig() != null && api.getAuthConfig().getLoginHint() != null) {
+                    LoginHint hint = normalizeLoginHintQuiet(api.getAuthConfig().getLoginHint());
+                    if (hint != null) {
+                        return hint;
+                    }
+                }
+            }
+        }
+        return normalizeLoginHintQuiet(profile.getLoginHint());
+    }
+
+    /** 收集配置里所有 loginHint.flowKey。 */
+    public static Set<String> collectLoginFlowKeys(ProjectAuthConfig config) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (config == null || config.getAuthProfiles() == null) {
+            return keys;
+        }
+        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
+            if (profile == null || profile.getApis() == null) {
+                continue;
+            }
+            for (PrefabricatedApi api : profile.getApis()) {
+                if (api == null || api.getAuthConfig() == null || api.getAuthConfig().getLoginHint() == null) {
+                    continue;
+                }
+                String flowKey = StrUtil.trimToNull(api.getAuthConfig().getLoginHint().getFlowKey());
+                if (flowKey != null) {
+                    keys.add(flowKey);
+                }
+            }
+        }
+        return keys;
+    }
+
+    /** 按 method+path 找预制口上的 loginHint。 */
+    public static LoginHint findLoginHint(ProjectAuthConfig config, String method, String apiPath) {
+        PrefabricatedApi api = findPrefabricatedApi(config, method, apiPath);
+        if (api == null || api.getAuthConfig() == null) {
+            return null;
+        }
+        return normalizeLoginHintQuiet(api.getAuthConfig().getLoginHint());
+    }
+
+    /** 整理 loginHint，非法 from 时不抛异常。 */
+    private static LoginHint normalizeLoginHintQuiet(LoginHint hint) {
+        try {
+            return normalizeLoginHint(hint, "parse");
+        } catch (ServiceException e) {
+            return hint;
+        }
+    }
+
+    /** 抽取来源：优先 from，没有则历史 extractJsonPath 视为 body。 */
     public static String resolveLoginExtractFrom(LoginHint hint) {
         if (hint == null) {
             return null;
@@ -520,9 +967,7 @@ public final class ProjectAuthConfigSupport {
         return null;
     }
 
-    /**
-     * 登录抽取表达式：优先 {@code expr}；否则回退旧 {@code extractJsonPath}。
-     */
+    /** 抽取表达式：优先 expr，没有则用历史 extractJsonPath。 */
     public static String resolveLoginExtractExpr(LoginHint hint) {
         if (hint == null) {
             return null;
@@ -551,9 +996,7 @@ public final class ProjectAuthConfigSupport {
         return p;
     }
 
-    /**
-     * 规范化 pathPrefix：补前导 /；若不以 / 结尾则补上，便于 startsWith 匹配段边界。
-     */
+    /** 路径前缀匹配用：补前导 /，并保证以 / 结尾。 */
     static String normalizePrefix(String prefix) {
         String p = prefix.trim();
         if (!p.startsWith("/")) {

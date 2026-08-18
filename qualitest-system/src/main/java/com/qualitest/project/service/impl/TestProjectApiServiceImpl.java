@@ -3,6 +3,7 @@ package com.qualitest.project.service.impl;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.api.util.ApiAuthConfigSupport;
+import com.qualitest.api.util.ApiImportMatchSupport;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.project.domain.TestProjectApi;
@@ -145,16 +146,23 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
     }
 
     /** 本次提交含 authConfig 时规范化后写入；未提交（null）则不改动。 */
-    private static void normalizeAuthConfigIfPresent(TestProjectApi api) {
+    private void normalizeAuthConfigIfPresent(TestProjectApi api) {
         if (api == null || api.getAuthConfig() == null) {
             return;
         }
-        // 空串也规范化为默认 inherit，再按内置免登 path 可能改为 none
         String normalized = StrUtil.isBlank(api.getAuthConfig())
                 ? ApiAuthConfigSupport.normalizeToJson("{}")
                 : ApiAuthConfigSupport.normalizeToJson(api.getAuthConfig());
-        api.setAuthConfig(ApiAuthConfigSupport.coerceInheritToNoneIfBuiltinPath(
-                normalized, api.getApiPath()));
+        String projectAuthJson = null;
+        if (api.getTestProjectId() != null) {
+            var project = testProjectService.selectTestProjectById(api.getTestProjectId());
+            if (project != null) {
+                projectAuthJson = project.getAuthConfig();
+            }
+        }
+        String method = ApiImportMatchSupport.extractHttpMethod(api.getRequestConfig());
+        api.setAuthConfig(ApiAuthConfigSupport.coerceInheritToNoneIfAnonymous(
+                normalized, api.getApiPath(), method, projectAuthJson));
     }
 
     /**

@@ -12,6 +12,7 @@ import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectMember;
 import com.qualitest.project.domain.TestProjectUserSetting;
 import com.qualitest.project.enums.TestProjectMemberRole;
+import com.qualitest.project.params.ApplyAuthTemplatesParams;
 import com.qualitest.project.params.TestProjectParams;
 import com.qualitest.project.result.TestProjectResult;
 import com.qualitest.project.result.TestProjectUserContextResult;
@@ -19,6 +20,7 @@ import com.qualitest.project.result.TestProjectUserSettingResult;
 import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.project.service.ITestProjectService;
 import com.qualitest.project.service.ITestProjectUserSettingService;
+import com.qualitest.project.support.ProjectAuthTemplateApplyService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -41,6 +43,7 @@ public class TestProjectController extends BaseController {
     private final ITestProjectService testProjectService;
     private final ITestProjectMemberService testProjectMemberService;
     private final ITestProjectUserSettingService testProjectUserSettingService;
+    private final ProjectAuthTemplateApplyService projectAuthTemplateApplyService;
 
     /**
      * 查询测试项目列表
@@ -115,6 +118,20 @@ public class TestProjectController extends BaseController {
     @PutMapping
     public R<Void> edit(@RequestBody TestProject testProject) {
         return toR(testProjectService.updateTestProject(testProject));
+    }
+
+    /**
+     * 从模板库追加鉴权 Profile，并种子尚未存在的预制接口。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
+    @Log(title = "测试项目鉴权模板", businessType = BusinessType.UPDATE)
+    @PostMapping("/{testProjectId}/applyAuthTemplates")
+    public R<Void> applyAuthTemplates(
+            @PathVariable Long testProjectId,
+            @RequestBody ApplyAuthTemplatesParams params) {
+        projectAuthTemplateApplyService.apply(
+                testProjectId, params != null ? params.getTemplateIds() : null);
+        return ok();
     }
 
     /**

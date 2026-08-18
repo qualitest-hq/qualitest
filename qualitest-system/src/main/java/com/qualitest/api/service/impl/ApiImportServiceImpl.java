@@ -24,12 +24,14 @@ import com.qualitest.flow.diagnose.ApiFlowReferenceScanService;
 import com.qualitest.flow.diagnose.ApiSyncImpactSummary;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
-import com.qualitest.project.domain.TestProjectApiGroup;
 import com.qualitest.project.service.ITestProjectApiGroupService;
 import com.qualitest.project.service.ITestProjectApiService;
 import com.qualitest.project.service.ITestProjectService;
+import com.qualitest.project.support.ProjectAuthTemplateApplyService;
+import com.qualitest.project.support.TestProjectApiGroupResolveSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,6 +72,10 @@ public class ApiImportServiceImpl implements IApiImportService {
     @Autowired
     private ITestProjectService testProjectService;
 
+    @Autowired
+    @Lazy
+    private ProjectAuthTemplateApplyService projectAuthTemplateApplyService;
+
     /** 已有 API 更新时做 request/response 结构合并 */
     @Autowired
     private ApiImportMergeService apiImportMergeService;
@@ -92,7 +98,7 @@ public class ApiImportServiceImpl implements IApiImportService {
 
         validateImportEnvelope(params);
 
-        // 项目级上传可在鉴权配置为空时写入双端默认模板；再供本批接口回填 authProfileId
+        // 项目级上传且鉴权配置为空时，写入默认 Bearer 三口，再给本批接口回填 authProfileId
         ProjectAuthConfig projectAuth = resolveProjectAuthForImport(projectId, params);
 
         // 一次查出项目下全部已有 API，导入匹配走内存索引，避免按路径逐条 SELECT
@@ -319,7 +325,8 @@ public class ApiImportServiceImpl implements IApiImportService {
             action = "insert";
         }
 
-        Long apiGroupId = resolveApiGroupId(projectId, userId, item.getApiGroup(), apiGroupCache);
+        Long apiGroupId = TestProjectApiGroupResolveSupport.resolve(
+                testProjectApiGroupService, projectId, item.getApiGroup(), apiGroupCache);
         // 更新：结构合并 + 覆盖层本地优先；新增：全量写入
         applyApiFields(api, item, apiGroupId, "update".equals(action), projectAuth);
         batchIdentityIndex.put(identity, api);
@@ -384,8 +391,7 @@ public class ApiImportServiceImpl implements IApiImportService {
     }
 
     /**
-     * 项目鉴权配置：项目级上传且当前为空时写入通用单套 Bearer 种子；
-     * 已有配置不覆盖（双端 / 匿名 path 属项目特定，需手工配置）。
+     * 项目级上传且当前为空时写入默认 Bearer 三口；已有配置不覆盖。
      */
     private ProjectAuthConfig resolveProjectAuthForImport(Long projectId, ApiImportParams params) {
         TestProject project = testProjectService.selectTestProjectById(projectId);
@@ -396,6 +402,7 @@ public class ApiImportServiceImpl implements IApiImportService {
         if (seedIfEmpty && ProjectAuthConfigSupport.isEmpty(existing)) {
             ProjectAuthConfig seeded = ProjectAuthConfigSupport.defaultBearerTemplate();
             persistProjectAuthConfig(projectId, seeded);
+            projectAuthTemplateApplyService.seedPrefabricatedApis(projectId, seeded);
             log.info("项目鉴权配置已写入通用 Bearer 种子: projectId={}, uploadType={}",
                     projectId, params.getUploadType().getCode());
             return seeded;
@@ -407,17 +414,19 @@ public class ApiImportServiceImpl implements IApiImportService {
         return existing;
     }
 
+    /** 把规范化后的鉴权 JSON 写回项目。 */
     private void persistProjectAuthConfig(Long projectId, ProjectAuthConfig config) {
         TestProject update = new TestProject();
         update.setTestProjectId(projectId);
-        update.setAuthConfig(ProjectAuthConfigSupport.toJson(config));
+        update.setAuthConfig(ProjectAuthConfigSupport.toJson(
+                ProjectAuthConfigSupport.normalize(config)));
         update.setUpdateTime(DateUtils.getNowDate());
         testProjectService.updateTestProject(update);
     }
 
     /**
-     * 写入鉴权标签：上传包带了 auth 则覆盖库中值；未带则仅在命中免登 path 时写入 none。
-     * 项目匿名 path：非 none 一律改 none；内置启发式（/login 等）：仅空或 inherit 改 none；
+     * 写入鉴权标签：上传包带了 auth 则覆盖库中值；未带则仅在免登口写入 none。
+     * 免登口（预制 mode=none，配置空时用内置 /login 等路径）：非 none 一律改成 none。
      * inherit 且未指定 authProfileId 时按路径回填 Profile。
      */
     private void applyAuthConfig(
@@ -425,11 +434,12 @@ public class ApiImportServiceImpl implements IApiImportService {
             ApiImportParams.ApiImportItem item,
             ProjectAuthConfig projectAuth) {
         ApiAuthConfig auth = item.getAuth();
-        boolean projectAnon = ProjectAuthConfigSupport.matchesAnonymousPath(item.getApiPath(), projectAuth);
-        boolean builtinAnon = ProjectAuthConfigSupport.matchesBuiltinAnonymousAuthPath(item.getApiPath());
+        String method = ApiImportMatchSupport.extractHttpMethod(item.getRequestConfig());
+        boolean anon = ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
+                method, item.getApiPath(), projectAuth);
 
         if (auth == null || StrUtil.isBlank(auth.getMode())) {
-            if (!projectAnon && !builtinAnon) {
+            if (!anon) {
                 return;
             }
             api.setAuthConfig(ApiAuthConfigSupport.noneStorageJson());
@@ -437,25 +447,22 @@ public class ApiImportServiceImpl implements IApiImportService {
         }
         String mode = ApiAuthConfigSupport.canonicalizeMode(auth.getMode());
         if (mode == null) {
-            // 复用统一校验文案（必然抛 ServiceException）
             ApiAuthConfigSupport.toStorageJson(auth);
             return;
         }
         String profileId = StrUtil.trimToNull(auth.getAuthProfileId());
-        if (!ApiAuthConfig.MODE_NONE.equals(mode) && projectAnon) {
-            mode = ApiAuthConfig.MODE_NONE;
-        } else if (ApiAuthConfig.MODE_INHERIT.equals(mode) && builtinAnon) {
+        if (!ApiAuthConfig.MODE_NONE.equals(mode) && anon) {
             mode = ApiAuthConfig.MODE_NONE;
         } else if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
             profileId = ProjectAuthConfigSupport.resolveProfileId(item.getApiPath(), projectAuth);
         }
-        // none 不挂 Profile（含上传本就为 none、或匿名 path 推断为 none）
         if (ApiAuthConfig.MODE_NONE.equals(mode)) {
             profileId = null;
         }
         ApiAuthConfig toStore = ApiAuthConfig.builder()
                 .mode(mode)
                 .authProfileId(profileId)
+                .loginHint(auth.getLoginHint())
                 .build();
         String json = ApiAuthConfigSupport.toStorageJson(toStore);
         if (json != null) {
@@ -487,103 +494,6 @@ public class ApiImportServiceImpl implements IApiImportService {
         return ApiImportUserConfigSupport.isNonEmptyUserJson(jsonStr)
                 ? validateAndSetJson(jsonStr, "json")
                 : "{}";
-    }
-
-    /**
-     * 解析并处理多级分组，例如 "用户相关.用户登录" 会逐级查找或创建分组。
-     */
-    private Long resolveApiGroupId(Long projectId, Long userId, String apiGroup, Map<String, Long> apiGroupCache) {
-        if (StrUtil.isBlank(apiGroup)) {
-            return getDefaultApiGroupId(projectId, userId, apiGroupCache);
-        }
-
-        if (!apiGroup.contains(".")) {
-            return findOrCreateApiGroup(projectId, userId, apiGroup, 0L, apiGroupCache);
-        }
-
-        String[] levels = apiGroup.split("\\.");
-        Long parentId = 0L;
-        String ancestors = "";
-
-        for (int i = 0; i < levels.length; i++) {
-            String groupName = levels[i].trim();
-            if (StrUtil.isBlank(groupName)) {
-                continue;
-            }
-
-            Long groupId = findOrCreateApiGroup(projectId, userId, groupName, parentId, apiGroupCache);
-
-            if (i == 0) {
-                ancestors = String.valueOf(groupId);
-            } else {
-                ancestors = ancestors + "," + groupId;
-            }
-
-            parentId = groupId;
-            updateGroupAncestors(groupId, ancestors);
-        }
-
-        return parentId;
-    }
-
-    /**
-     * 按父分组 ID 与分组名查找；不存在则创建并写入缓存。
-     */
-    private Long findOrCreateApiGroup(Long projectId, Long userId, String groupName, Long parentId,
-                                      Map<String, Long> apiGroupCache) {
-        String cacheKey = parentId + ":" + groupName;
-        Long cached = apiGroupCache.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
-
-        List<TestProjectApiGroup> groupList = testProjectApiGroupService.selectTestProjectApiGroupList(
-                TestProjectApiGroup.builder()
-                        .testProjectId(projectId)
-                        .parentId(parentId)
-                        .groupName(groupName)
-                        .delStatus(0)
-                        .build()
-        );
-
-        if (groupList != null && !groupList.isEmpty()) {
-            Long groupId = groupList.get(0).getApiGroupId();
-            apiGroupCache.put(cacheKey, groupId);
-            return groupId;
-        }
-
-        TestProjectApiGroup newGroup = TestProjectApiGroup.builder()
-                .apiGroupId(IdUtil.getSnowflakeNextId())
-                .testProjectId(projectId)
-                .parentId(parentId)
-                .groupName(groupName)
-                .sortNum(0)
-                .delStatus(0)
-                .createTime(DateUtils.getNowDate())
-                .build();
-
-        testProjectApiGroupService.insertTestProjectApiGroup(newGroup);
-        apiGroupCache.put(cacheKey, newGroup.getApiGroupId());
-        return newGroup.getApiGroupId();
-    }
-
-    /**
-     * 更新分组的祖先路径
-     */
-    private void updateGroupAncestors(Long groupId, String ancestors) {
-        TestProjectApiGroup group = testProjectApiGroupService.selectTestProjectApiGroupById(groupId);
-        if (group != null) {
-            group.setAncestors(ancestors);
-            group.setUpdateTime(DateUtils.getNowDate());
-            testProjectApiGroupService.updateTestProjectApiGroup(group);
-        }
-    }
-
-    /**
-     * 获取默认分组ID
-     */
-    private Long getDefaultApiGroupId(Long projectId, Long userId, Map<String, Long> apiGroupCache) {
-        return findOrCreateApiGroup(projectId, userId, "默认分组", 0L, apiGroupCache);
     }
 
     /**

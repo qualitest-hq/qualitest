@@ -14,7 +14,6 @@ import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.api.util.AuthHeaderResolver;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.DisplayName;
@@ -52,7 +51,7 @@ class FlowDesignPatchNormalizerTest {
         projectMapper = mock(TestProjectMapper.class);
         when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(TestProject.builder()
                 .testProjectId(PROJECT_ID)
-                .authConfig(ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.dualBearerTemplate()))
+                .authConfig(com.qualitest.api.util.AuthProfileTestFixtures.adminThenClientJson())
                 .build());
         normalizer = new FlowDesignPatchNormalizer(mapper, projectMapper, new GraphJsonValidator(), new FlowDesignPatchMerger());
     }
@@ -165,7 +164,7 @@ class FlowDesignPatchNormalizerTest {
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
                 .apiName("用户登录")
-                .apiPath("/api/auth/login")
+                .apiPath("/api/account/auth/login")
                 .requestConfig("{\"method\":\"POST\"}")
                 .build());
 
@@ -202,7 +201,7 @@ class FlowDesignPatchNormalizerTest {
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
                 .apiName("用户登录")
-                .apiPath("/api/auth/login")
+                .apiPath("/api/account/auth/login")
                 .build());
 
         String httpId = "9101";
@@ -216,7 +215,7 @@ class FlowDesignPatchNormalizerTest {
                         "name", "登录",
                         "testProjectApiId", String.valueOf(API_ID),
                         "requestConfig", Map.of("method", "POST"),
-                        "apiPath", "/api/auth/login"
+                        "apiPath", "/api/account/auth/login"
                 )))
                 .build();
         GraphNode assertNode = GraphNode.builder()
@@ -257,7 +256,7 @@ class FlowDesignPatchNormalizerTest {
                         "callMode", "project",
                         "name", "登录",
                         "testProjectApiId", String.valueOf(API_ID),
-                        "apiPath", "/api/auth/login"
+                        "apiPath", "/api/account/auth/login"
                 )))
                 .build();
         GraphJson base = graphWithMeta();
@@ -326,7 +325,7 @@ class FlowDesignPatchNormalizerTest {
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
                 .apiName("用户登录")
-                .apiPath("/api/auth/login")
+                .apiPath("/api/account/auth/login")
                 .build());
 
         GraphNode existingHttp = GraphNode.builder()

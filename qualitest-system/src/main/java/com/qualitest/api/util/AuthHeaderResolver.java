@@ -3,7 +3,6 @@ package com.qualitest.api.util;
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
-import com.qualitest.api.model.ProjectAuthConfig.Header;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 
 import java.util.ArrayList;
@@ -12,12 +11,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 按接口鉴权标签与项目鉴权配置，决定是否补 Authorization 等托管头。
+ * 按接口鉴权标签和项目配置，决定要不要加托管鉴权头。
  * <p>
- * 规则：none 不加头；inherit 按路径匹配 Profile 取头模板；
- * 节点已有同名头且未标 profileManaged 时不覆盖（视为人手/AI 显式写入）；
- * 无头或 profileManaged 时按当前项目配置写入/刷新。
- * 造流规范化与 Run/调试发送共用本逻辑。
+ * none 不加头。inherit 按路径选 Profile 取头模板。
+ * 节点已有同名头且未标 profileManaged 时不覆盖。
+ * 无头或带 profileManaged 时按当前项目配置写入或刷新。
  */
 public final class AuthHeaderResolver {
 
@@ -27,9 +25,17 @@ public final class AuthHeaderResolver {
     private AuthHeaderResolver() {}
 
     /**
-     * 解析出应使用的鉴权头模板；skipped=true 表示不加/不改鉴权头。
+     * 解析应使用的鉴权头。skipped=true 表示不加、不改。method 为空时只按 path 判断免登口。
      */
     public static ResolvedAuthHeader resolve(String apiAuthJson, String projectAuthJson, String apiPath) {
+        return resolve(apiAuthJson, projectAuthJson, apiPath, null);
+    }
+
+    /**
+     * 按 method+path 解析应使用的鉴权头。skipped=true 表示不加、不改。
+     */
+    public static ResolvedAuthHeader resolve(
+            String apiAuthJson, String projectAuthJson, String apiPath, String method) {
         ApiAuthConfig apiAuth = ApiAuthConfigSupport.parseOrInherit(apiAuthJson);
         if (ApiAuthConfig.MODE_NONE.equalsIgnoreCase(StrUtil.trim(apiAuth.getMode()))) {
             return ResolvedAuthHeader.skip();
@@ -39,8 +45,8 @@ public final class AuthHeaderResolver {
         }
 
         ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
-        // inherit 且命中内置/项目免登 path：不加托管头（登录口常见误标 inherit）
-        if (ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(apiPath, projectAuth)) {
+        // inherit 且该路径是免登口：不加托管头
+        if (ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(method, apiPath, projectAuth)) {
             return ResolvedAuthHeader.skip();
         }
         if (ProjectAuthConfigSupport.isEmpty(projectAuth)) {
@@ -56,12 +62,8 @@ public final class AuthHeaderResolver {
         }
 
         ProjectAuthProfile profile = ProjectAuthConfigSupport.findProfile(projectAuth, profileId);
-        if (profile == null || profile.getHeader() == null) {
-            return ResolvedAuthHeader.skip();
-        }
-        Header header = profile.getHeader();
-        String name = StrUtil.trimToNull(header.getName());
-        String valueTemplate = header.getValueTemplate();
+        String name = ProjectAuthConfigSupport.resolveHeaderName(profile);
+        String valueTemplate = ProjectAuthConfigSupport.resolveHeaderValueTemplate(profile);
         if (name == null || StrUtil.isBlank(valueTemplate)) {
             return ResolvedAuthHeader.skip();
         }
@@ -80,10 +82,7 @@ public final class AuthHeaderResolver {
     }
 
     /**
-     * 基于原 headers 产出新行列表：按需追加或刷新托管头。
-     * 造流落盘、Run 发送前、调试 forward 共用此入口。
-     *
-     * @return 结果含新行列表与是否发生变更（供 warning）
+     * 按解析结果追加或刷新托管头行。
      */
     public static ApplyResult applyToHeaderRows(Object rawHeaders, ResolvedAuthHeader resolved) {
         List<Map<String, Object>> rows = copyRows(rawHeaders);
@@ -107,7 +106,7 @@ public final class AuthHeaderResolver {
         return new ApplyResult(rows, true);
     }
 
-    /** 托管行是否已与当前 Profile 模板一致（避免无意义刷新提案）。 */
+    /** 托管行的头名和值已等于当前模板，且未禁用。 */
     private static boolean managedRowMatches(Map<String, Object> row, ResolvedAuthHeader resolved) {
         String name = rowName(row);
         String value = row.get("value") != null ? String.valueOf(row.get("value")).trim() : "";
@@ -116,6 +115,7 @@ public final class AuthHeaderResolver {
                 && !Boolean.FALSE.equals(row.get("_enabled"));
     }
 
+    /** 该行是否标了 profileManaged（由项目鉴权托管，可按最新模板刷新）。 */
     public static boolean isProfileManaged(Map<String, Object> row) {
         if (row == null) {
             return false;
@@ -124,6 +124,7 @@ public final class AuthHeaderResolver {
         return Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
     }
 
+    /** 把解析结果写入一行：启用、头名、值模板、profileManaged。 */
     private static void fillManagedHeaderRow(Map<String, Object> row, ResolvedAuthHeader resolved) {
         row.put("_enabled", true);
         row.put("name", resolved.name());
@@ -131,6 +132,7 @@ public final class AuthHeaderResolver {
         row.put(PROFILE_MANAGED, true);
     }
 
+    /** 复制 headers 列表，每行拷一份 Map，避免改到原节点数据。 */
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> copyRows(Object raw) {
         List<Map<String, Object>> out = new ArrayList<>();
@@ -145,6 +147,7 @@ public final class AuthHeaderResolver {
         return out;
     }
 
+    /** 按头名（忽略大小写）找已启用的那一行。 */
     private static Map<String, Object> findHeaderRow(List<Map<String, Object>> rows, String headerName) {
         if (rows == null || headerName == null) {
             return null;
@@ -161,6 +164,7 @@ public final class AuthHeaderResolver {
         return null;
     }
 
+    /** 读行上头名：优先 name，没有则用 key。 */
     private static String rowName(Map<String, Object> row) {
         if (row.get("name") != null && !String.valueOf(row.get("name")).isBlank()) {
             return String.valueOf(row.get("name")).trim();
@@ -172,10 +176,7 @@ public final class AuthHeaderResolver {
     }
 
     /**
-     * @param skipped       true=不加鉴权头
-     * @param name          头名
-     * @param valueTemplate 头值模板（可含占位符）
-     * @param profileId     命中的 Profile id
+     * 解析结果。skipped=true 表示不加鉴权头；否则带上头名、值模板和命中的 Profile id。
      */
     public record ResolvedAuthHeader(boolean skipped, String name, String valueTemplate, String profileId) {
         public static ResolvedAuthHeader skip() {
@@ -184,8 +185,7 @@ public final class AuthHeaderResolver {
     }
 
     /**
-     * @param headers 应用后的 headers 行
-     * @param changed 是否新增或刷新了托管头
+     * 写回头列表。changed=true 表示新增或刷新了托管头。
      */
     public record ApplyResult(List<Map<String, Object>> headers, boolean changed) {}
 }

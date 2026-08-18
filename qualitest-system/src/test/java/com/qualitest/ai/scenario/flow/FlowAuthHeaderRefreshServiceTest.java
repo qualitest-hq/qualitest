@@ -50,7 +50,7 @@ class FlowAuthHeaderRefreshServiceTest {
         service = new FlowAuthHeaderRefreshService(apiMapper, projectMapper);
         when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(TestProject.builder()
                 .testProjectId(PROJECT_ID)
-                .authConfig(ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.dualBearerTemplate()))
+                .authConfig(com.qualitest.api.util.AuthProfileTestFixtures.adminThenClientJson())
                 .build());
     }
 

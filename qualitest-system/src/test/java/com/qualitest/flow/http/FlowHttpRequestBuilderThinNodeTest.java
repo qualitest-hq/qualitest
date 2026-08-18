@@ -230,7 +230,7 @@ class FlowHttpRequestBuilderThinNodeTest {
                 .build();
         TestProjectApi effective = TestProjectApiEffectiveConfigResolver.resolve(api).toApiView(api);
         String projectAuth = com.qualitest.api.util.ProjectAuthConfigSupport.toJson(
-                com.qualitest.api.util.ProjectAuthConfigSupport.dualBearerTemplate());
+                com.qualitest.api.util.AuthProfileTestFixtures.adminThenClient());
 
         Map<String, Object> nodeData = new HashMap<>();
         nodeData.put("callMode", "project");

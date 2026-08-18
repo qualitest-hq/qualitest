@@ -3,22 +3,19 @@ package com.qualitest.api.util;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
+import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.api.util.AuthHeaderResolver.ResolvedAuthHeader;
 
 /**
- * 为 AI 工具拼装精简 {@code auth} / {@code headerHint}，与 {@link AuthHeaderResolver} 同一套解析。
+ * 为 AI 工具拼装接口鉴权摘要：auth（mode 等）和 headerHint（需登录时的头模板）。
  */
 public final class AuthHeaderHintSupport {
 
     private AuthHeaderHintSupport() {}
 
     /**
-     * 写入接口鉴权摘要字段。
-     * <ul>
-     *   <li>{@code auth}：mode + 可选 authProfileId / header</li>
-     *   <li>{@code headerHint}：需登录时的头名、模板、profileId、可选 flowKey</li>
-     * </ul>
+     * 写入 auth；需要加鉴权头时再写 headerHint（头名、值模板、profileId、flowKey）。
      */
     public static void putAuthFields(JSONObject target, String apiAuthJson, String projectAuthJson, String apiPath) {
         if (target == null) {
@@ -42,9 +39,10 @@ public final class AuthHeaderHintSupport {
         if (StrUtil.isNotBlank(flowKey)) {
             hint.put("flowKey", flowKey);
         }
-        if (profile != null && profile.getLoginHint() != null) {
-            String from = ProjectAuthConfigSupport.resolveLoginExtractFrom(profile.getLoginHint());
-            String expr = ProjectAuthConfigSupport.resolveLoginExtractExpr(profile.getLoginHint());
+        LoginHint loginHint = ProjectAuthConfigSupport.firstLoginHintOnProfile(profile);
+        if (loginHint != null) {
+            String from = ProjectAuthConfigSupport.resolveLoginExtractFrom(loginHint);
+            String expr = ProjectAuthConfigSupport.resolveLoginExtractExpr(loginHint);
             if (StrUtil.isNotBlank(from)) {
                 hint.put("from", from);
             }
@@ -56,14 +54,14 @@ public final class AuthHeaderHintSupport {
     }
 
     /**
-     * search_apis 用：只回精简 auth（mode + 解析后的 authProfileId / override header），控制体积。
+     * 只返回精简 auth（mode，以及解析出的 authProfileId 或 override 头），给接口搜索用。
      */
     public static JSONObject compactAuth(String apiAuthJson, String projectAuthJson, String apiPath) {
         return buildAuthObject(apiAuthJson, projectAuthJson, apiPath, true);
     }
 
     /**
-     * @param fillResolvedProfileId true 时若接口未写 authProfileId，按路径解析补上
+     * 组装 auth 对象。fillResolvedProfileId 为 true 且接口没写 authProfileId 时，按路径补上。
      */
     private static JSONObject buildAuthObject(
             String apiAuthJson, String projectAuthJson, String apiPath, boolean fillResolvedProfileId) {

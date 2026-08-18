@@ -40,17 +40,17 @@
 
 ### 项目鉴权
 
-配置挂**测试项目**（设置抽屉「项目鉴权」），不挂环境。造流 Normalizer、Run、调试台共用同一解析器。下一代「项目模板表 + 预制 `apis`、不再全局猜 `/login`」口径见 [全面测试-未修复与可优化项.md](./全面测试-未修复与可优化项.md) §8（**未落地**，下文仍为现状）。
+配置挂**测试项目**（设置抽屉「项目鉴权」），不挂环境。造流 Normalizer、Run、调试台共用同一解析器。项目模板表 + 预制 `apis` 见 [全面测试-未修复与可优化项.md](./全面测试-未修复与可优化项.md) §8（**后端已落地，前端勾选页未做**）。
 
 | 层级 | 要点 |
 |------|------|
-| 项目 `authProfiles` | 头模板只在此维护；`defaultProfileId` 兜底；可选 `anonymousPathExact` / `anonymousPathPrefix`（导入命中 → 接口 `mode=none`） |
+| 项目 `authProfiles` | 头模板 + 预制 `apis[]`；未命中 `pathPrefix` 用**数组第一条**；免登认 `apis[].authConfig.mode=none` |
 | 接口 `auth.mode` | `inherit` 按项目 Profile；`none` 不加头；`override` 用本接口 `header.name` + `valueTemplate` |
 | 节点 headers | 托管头带 `profileManaged`，Run 时按**当前**项目/接口配置刷新；无该标记的显式头永不被静默改掉 |
 
-**Profile 匹配**：接口已指定 `authProfileId` 则用之；否则在 `authProfiles` 中取命中的最长 `pathPrefix`；无人命中用 `defaultProfileId`。**禁止** `pathPrefix="/"`。
+**Profile 匹配**：接口已指定 `authProfileId` 则用之；否则在 `authProfiles` 中取命中的最长 `pathPrefix`；无人命中用数组第一条。**禁止** `pathPrefix="/"`。
 
-**登录抽凭证**：extracts 的 `from`+`expr`（`body`+JSONPath 或 `setCookie`+Cookie 名）与 Profile `loginHint` 对齐，写入 `flow.token` / `flow.adminToken` 等。**不要**再写节点 `useRunSession`（已忽略）。造流时登录口空 extracts 会按 `loginHint` / 路径自动补；缺对应 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。
+**登录抽凭证**：extracts 的 `from`+`expr`（`body`+JSONPath 或 `setCookie`+Cookie 名）与预制口 `apis[].authConfig.loginHint` 对齐，写入 `flow.token` / `flow.adminToken` 等。**不要**再写节点 `useRunSession`（已忽略）。造流时凭证口空 extracts 会按 `loginHint` 补；缺对应 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。配置完全空时才暂留 builtin `/login` 等启发式。
 
 **同流复用**：业务流开头登录一次（或挂登录子流），后续 HTTP 靠托管 Bearer 复用 `flow.*`；勿每个步骤再登录。调试可用 flowSeed 预置 token；口令仍走素材库。
 
@@ -63,7 +63,7 @@
 | 客户端 | `/api/account/auth/login` | `$.data.token` → `flow.token` |
 | 管理端 | `/login` | `$.token` → `flow.adminToken` |
 
-**种子**：项目级上传且 `auth_config` 为空 → 通用单套 Bearer；demo 双端可在设置里「套用双端（demo）」（`/api/` → `flow.token`，`/system/` 等 → `flow.adminToken`）。
+**种子**：新建须勾选 `test_project_template`（商城先勾管理端再客户端）；项目级上传且 `auth_config` 为空 → 种「默认 Bearer」三口。旧 `anonymousPath*` / `defaultProfileId` 读兼容，写出为 `apis` + 扁平头。
 
 **写操作建议**：节点可勾选 **执行前快照**（`snapshotBefore`）。失败可暂停，并由用户选择还原被测数据再重试 / 原地重试 / 跳过 / 中止。被测方需提供 `/test-support`；环境 `allowDestructiveReset=0`（生产默认）时 checkpoint/restore 静默跳过。**开启数据还原时，同一环境请串行跑。**
 

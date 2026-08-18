@@ -35,7 +35,7 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 空 {@code callMode} → {@code project}（对齐 UI 拖拽默认；非法非空串留给图校验）。
+     * 空 callMode 写成 project；非法非空串留给图校验。
      */
     public static void ensureCallModeDefault(Map<String, Object> data) {
         if (data == null) {
@@ -115,7 +115,8 @@ public final class FlowDesignHttpNodeNormalizer {
      */
     static void alignLoginExtract(
             Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
-        if (data == null || api == null || !LoginExtractSuggestor.isLoginLikeApi(api.getApiPath())) {
+        if (data == null || api == null
+                || !LoginExtractSuggestor.hasCredentialLoginHint(projectAuthJson, null, api.getApiPath())) {
             return;
         }
         JSONObject schema = FlowDesignApiSummarizer.summarizeResponse(api.getResponseConfig());

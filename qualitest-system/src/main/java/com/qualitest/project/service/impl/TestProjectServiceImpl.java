@@ -2,6 +2,7 @@ package com.qualitest.project.service.impl;
 
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
+import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.project.constant.TestProjectConstants;
@@ -10,8 +11,10 @@ import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.params.TestProjectParams;
 import com.qualitest.project.result.TestProjectResult;
 import com.qualitest.project.service.ITestProjectService;
+import com.qualitest.project.support.ProjectAuthTemplateApplyService;
 import com.qualitest.project.support.ResponseConventionSupport;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +31,10 @@ import java.util.Objects;
 public class TestProjectServiceImpl implements ITestProjectService {
     @Autowired
     private TestProjectMapper testProjectMapper;
+
+    @Autowired
+    @Lazy
+    private ProjectAuthTemplateApplyService projectAuthTemplateApplyService;
 
     /**
      * 查询测试项目列表
@@ -70,7 +77,13 @@ public class TestProjectServiceImpl implements ITestProjectService {
      */
     @Override
     public TestProjectResult selectTestProjectResult(Long testProjectId) {
-        return testProjectMapper.selectTestProjectResult(testProjectId);
+        TestProjectResult result = testProjectMapper.selectTestProjectResult(testProjectId);
+        if (result != null) {
+            // 有 Profile 但预制接口全空时，提示去勾选模板
+            result.setNeedsAuthTemplateHint(ProjectAuthConfigSupport.needsAuthTemplateHint(
+                    ProjectAuthConfigSupport.parse(result.getAuthConfig())));
+        }
+        return result;
     }
 
     /**
@@ -95,12 +108,27 @@ public class TestProjectServiceImpl implements ITestProjectService {
             testProject.setResponseConvention(
                     ResponseConventionSupport.normalizeToJson(testProject.getResponseConvention()));
         }
-        // 调用方已传鉴权配置时规范化后写入；空白则保持 null（上传种子另写）
-        if (testProject.getAuthConfig() != null) {
-            testProject.setAuthConfig(ProjectAuthConfigSupport.normalizeToJson(testProject.getAuthConfig()));
+        // 勾了模板：先空着 auth_config，插入后再按勾选顺序拷贝
+        // 没勾模板：必须自带非空 Profile，否则拒绝新建
+        List<Long> templateIds = testProject.getTemplateIds();
+        boolean hasTemplates = templateIds != null && templateIds.stream().anyMatch(Objects::nonNull);
+        if (hasTemplates) {
+            testProject.setAuthConfig(null);
+        } else if (testProject.getAuthConfig() != null) {
+            String normalized = ProjectAuthConfigSupport.normalizeToJson(testProject.getAuthConfig());
+            if (ProjectAuthConfigSupport.isEmpty(ProjectAuthConfigSupport.parse(normalized))) {
+                throw new ServiceException("新建项目须至少勾选一套鉴权模板");
+            }
+            testProject.setAuthConfig(normalized);
+        } else {
+            throw new ServiceException("新建项目须至少勾选一套鉴权模板");
         }
         testProject.setCreateTime(DateUtils.getNowDate());
-        return testProjectMapper.insertTestProject(testProject);
+        int rows = testProjectMapper.insertTestProject(testProject);
+        if (rows > 0 && hasTemplates) {
+            projectAuthTemplateApplyService.apply(testProject.getTestProjectId(), templateIds);
+        }
+        return rows;
     }
 
     /**

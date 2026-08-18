@@ -2,9 +2,7 @@ package com.qualitest.api.util;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
-import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,7 +14,7 @@ import java.util.stream.Collectors;
 /**
  * 为登录/注册类接口推荐 token 抽取（extract）配置。
  * <p>
- * 优先使用项目鉴权 Profile 中的 loginHint（按端匹配）；
+ * 优先使用项目鉴权预制口 {@code apis[].authConfig.loginHint}（按 method+apiPath）；
  * 未配置时根据响应 schema 叶路径嗅探 token 字段。
  * 两者都没有时不编 JsonPath（交给跑流后按真实响应再改）。
  */
@@ -52,8 +50,8 @@ public final class LoginExtractSuggestor {
     private LoginExtractSuggestor() {}
 
     /**
-     * 是否视为登录或注册接口（需要写出 token extract）。
-     * path 以 /login 或 /register 结尾即算（含 /auth/login 等）。
+     * 是否视为登录或注册接口（path 以 /login 或 /register 结尾）。
+     * 造流硬拦只认预制口 loginHint，用 hasCredentialLoginHint。
      */
     public static boolean isLoginLikeApi(String apiPath) {
         String path = ProjectAuthConfigSupport.normalizeApiPath(apiPath).toLowerCase(Locale.ROOT);
@@ -61,42 +59,52 @@ public final class LoginExtractSuggestor {
     }
 
     /**
-     * 推荐一条登录 extract；非登录类接口或无法确定 expr 时返回 null。
-     * 返回值若非 null，则 name 与 expr 均已填好。
-     * <p>
-     * 有 loginHint 的 name+expr 时直接采用；否则用 schema 嗅探。不按 URL 编路径。
-     *
-     * @param projectAuthJson       项目鉴权配置 JSON，可空
-     * @param apiPath               接口路径
-     * @param responseSchemaSummary 响应 schema 叶路径→类型（无 $ 前缀），可空
+     * 优先用预制口 loginHint，没有再按响应 schema 嗅探 token 字段。
      */
     public static Suggestion suggest(
             String projectAuthJson,
             String apiPath,
             JSONObject responseSchemaSummary) {
-        if (!isLoginLikeApi(apiPath)) {
-            return null;
-        }
-        LoginSide side = resolveLoginSide(projectAuthJson, apiPath);
-        LoginHint hint = side.hint();
+        return suggest(projectAuthJson, null, apiPath, responseSchemaSummary);
+    }
+
+    /**
+     * 推荐一条登录 extract。有 loginHint 的 name+expr 时直接采用；否则 schema 嗅探。
+     * 不按 URL 猜变量名或 JsonPath。
+     */
+    public static Suggestion suggest(
+            String projectAuthJson,
+            String method,
+            String apiPath,
+            JSONObject responseSchemaSummary) {
+        LoginHint hint = ProjectAuthConfigSupport.findLoginHint(
+                ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath);
         String from = ProjectAuthConfigSupport.resolveLoginExtractFrom(hint);
         String expr = ProjectAuthConfigSupport.resolveLoginExtractExpr(hint);
-        if (StrUtil.isNotBlank(side.flowKey()) && StrUtil.isNotBlank(expr)) {
-            return new Suggestion(
-                    side.flowKey(),
-                    StrUtil.blankToDefault(from, "body"),
-                    expr.trim());
+        String flowKey = hint != null ? StrUtil.trimToNull(hint.getFlowKey()) : null;
+        if (StrUtil.isNotBlank(flowKey) && StrUtil.isNotBlank(expr)) {
+            return new Suggestion(flowKey, StrUtil.blankToDefault(from, "body"), expr.trim());
         }
         String sniffed = sniffTokenJsonPath(responseSchemaSummary);
-        if (StrUtil.isNotBlank(side.flowKey()) && sniffed != null) {
-            return new Suggestion(side.flowKey(), "body", sniffed);
+        if (StrUtil.isNotBlank(flowKey) && sniffed != null) {
+            return new Suggestion(flowKey, "body", sniffed);
+        }
+        if (hint == null && sniffed != null && isLoginLikeApi(apiPath)) {
+            return new Suggestion("token", "body", sniffed);
         }
         return null;
     }
 
     /**
-     * 从响应 schema 叶路径中按优先级找 token 字段，返回带 {@code $.} 前缀的 JsonPath；找不到返回 null。
+     * 项目预制口是否声明了该 path 的 loginHint（凭证口）。
      */
+    public static boolean hasCredentialLoginHint(String projectAuthJson, String method, String apiPath) {
+        LoginHint hint = ProjectAuthConfigSupport.findLoginHint(
+                ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath);
+        return hint != null && StrUtil.isNotBlank(hint.getFlowKey());
+    }
+
+    /** 从响应 schema 叶路径中按优先级找 token 字段，返回带 $. 前缀的 JsonPath；找不到返回 null。 */
     static String sniffTokenJsonPath(JSONObject responseSchemaSummary) {
         if (responseSchemaSummary == null || responseSchemaSummary.isEmpty()) {
             return null;
@@ -109,6 +117,7 @@ public final class LoginExtractSuggestor {
         return null;
     }
 
+    /** schema 叶子里是否有该点分路径（忽略大小写）。 */
     private static boolean hasPath(JSONObject summary, String path) {
         for (String key : summary.keySet()) {
             if (key != null && path.equalsIgnoreCase(key.trim())) {
@@ -116,22 +125,6 @@ public final class LoginExtractSuggestor {
             }
         }
         return false;
-    }
-
-    /**
-     * 按路径前缀推断默认 flow 变量名：/api/ 多为 token，管理端路径多为 adminToken。
-     */
-    static String defaultFlowKeyForPath(String apiPath) {
-        String path = ProjectAuthConfigSupport.normalizeApiPath(apiPath);
-        if (path.startsWith("/api/")) {
-            return "token";
-        }
-        if (path.startsWith("/system/") || path.startsWith("/monitor/")
-                || path.startsWith("/tool/") || path.startsWith("/web/")
-                || "/login".equals(path) || "/register".equals(path)) {
-            return "adminToken";
-        }
-        return "token";
     }
 
     /**
@@ -153,6 +146,7 @@ public final class LoginExtractSuggestor {
         return expr != null && !String.valueOf(expr).isBlank() ? String.valueOf(expr).trim() : null;
     }
 
+    /** 在 extracts 列表里找指定 flow 变量名的那一行。 */
     private static Map<?, ?> findFlowKeyRow(Object rawExtracts, String flowKey) {
         if (flowKey == null || flowKey.isBlank() || !(rawExtracts instanceof Iterable<?> list)) {
             return null;
@@ -215,6 +209,7 @@ public final class LoginExtractSuggestor {
         return TOKEN_LIKE_EXPR.contains(normalized);
     }
 
+    /** 把 JsonPath 整理成 $.a.b 形式，便于比较。 */
     static String normalizeExpr(String expr) {
         if (expr == null) {
             return "";
@@ -233,25 +228,16 @@ public final class LoginExtractSuggestor {
     }
 
     /**
-     * 解析该登录口期望的 flow 变量名：优先 Profile loginFlowKey，否则按路径默认。
+     * 读预制口 loginHint 上的 flow 变量名；没有则返回 null。
      */
     public static String resolveExpectedFlowKey(String projectAuthJson, String apiPath) {
-        return resolveLoginSide(projectAuthJson, apiPath).flowKey();
+        return resolveExpectedFlowKey(projectAuthJson, null, apiPath);
     }
 
-    private record LoginSide(String flowKey, LoginHint hint) {}
-
-    private static LoginSide resolveLoginSide(String projectAuthJson, String apiPath) {
-        ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
-        String profileId = ProjectAuthConfigSupport.resolveProfileId(apiPath, projectAuth);
-        ProjectAuthProfile profile = ProjectAuthConfigSupport.findProfile(projectAuth, profileId);
-        String flowKey = ProjectAuthConfigSupport.resolveLoginFlowKey(profile);
-        if (StrUtil.isBlank(flowKey)) {
-            flowKey = defaultFlowKeyForPath(apiPath);
-        } else {
-            flowKey = flowKey.trim();
-        }
-        LoginHint hint = profile != null ? profile.getLoginHint() : null;
-        return new LoginSide(flowKey, hint);
+    /** 带 method 时按 method+path 读 loginHint.flowKey。 */
+    public static String resolveExpectedFlowKey(String projectAuthJson, String method, String apiPath) {
+        LoginHint hint = ProjectAuthConfigSupport.findLoginHint(
+                ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath);
+        return hint != null ? StrUtil.trimToNull(hint.getFlowKey()) : null;
     }
 }
