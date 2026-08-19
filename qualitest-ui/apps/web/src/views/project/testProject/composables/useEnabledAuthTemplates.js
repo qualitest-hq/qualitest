@@ -31,9 +31,9 @@ export function useEnabledAuthTemplates() {
   }
 }
 
-/** checkbox 选中值 → 后端 templateIds */
+/** checkbox 选中值 → 后端 templateIds（保留长整型字符串，避免 JS Number 精度丢失） */
 export function toTemplateIds(ids) {
   return (ids || [])
-    .map((id) => Number(id))
-    .filter((id) => Number.isFinite(id) && id > 0)
+    .map((id) => String(id ?? '').trim())
+    .filter((id) => /^\d+$/.test(id) && id !== '0')
 }

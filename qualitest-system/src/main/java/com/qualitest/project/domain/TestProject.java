@@ -7,6 +7,7 @@ import org.apache.ibatis.type.Alias;
 
 import java.io.Serial;
 import java.util.Date;
+import java.util.List;
 
 /**
  * 测试项目对象 test_project
@@ -60,7 +61,8 @@ public class TestProject extends BaseEntity {
     /**
      * 新建时勾选的模板 id 列表（不落库；Apply 后写入 authConfig）。
      */
-    private java.util.List<Long> templateIds;
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private List<Long> templateIds;
 
     /**
      * 最新API同步时间
