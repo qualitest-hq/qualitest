@@ -2,7 +2,8 @@
 
 The canvas supports exactly **seven** node types (`FlowNodeType`). Custom `type` values are rejected. Persisted codes are lowercase; UI labels are English.
 
-Chinese: [test-flow-nodes.md](./test-flow-nodes.md)
+Chinese: [test-flow-nodes.md](./test-flow-nodes.md)  
+Product concepts / project auth: [project-summary.en.md](./project-summary.en.md)
 
 ---
 
@@ -33,26 +34,13 @@ Two paths via `data.callMode`, sharing forward + `extracts`:
 
 Common features:
 
-- Placeholder resolution on params / body (`flow` / `env` / `session`, …)
-- **Project auth** (see below)
+- Placeholder resolution on params / body (`flow` / `env` / `asset` / `session`, …)
+- **Project auth headers** (Profiles / `loginHint` / dual-side tokens → [project-summary.en.md §4](./project-summary.en.md))
 - Success checks: non-2xx HTTP status fails first; optional business-code allowlist (`successCheck`)
 - On success: write `lastResponse`, then run `extracts`
+- Optional **snapshot before** (`snapshotBefore`) for mutating calls (see concept map §4)
 
-### Project auth
-
-Configured on the **test project** (settings drawer), not on environments. Flow Normalizer, Run, and debug share one resolver. Project templates + prefabricated `apis`：backend landed; UI picker is next.
-
-| Layer | Notes |
-|-------|--------|
-| Project `authProfiles` | Header templates + `credentialApi` + `loginHint` + prefabricated `apis[]`; unmatched `pathPrefix` uses the **first array item**; anonymous = `apis[].authConfig.mode=none` |
-| API `auth.mode` | `inherit` → project Profile; `none` → no auth header; `override` → API `header.name` + `valueTemplate`. API rows do not store `loginHint` |
-| Node headers | Managed rows use `profileManaged` and refresh from **current** config at Run; explicit headers without that flag are never silently changed |
-
-**Match:** use `authProfileId` if set; else longest matching `pathPrefix`; else the first profile. **`pathPrefix="/"` is forbidden.**
-
-Login extracts (`from`+`expr`, including `setCookie`) should align with **Profile.`loginHint`** when the API matches that profile's `credentialApi` (`flow.token` / `flow.adminToken`, …). Register/captcha do not extract credentials. Node `useRunSession` is retired (ignored). Missing per-side token sources hard-block AI submit / Staging confirm / save (`AUTH_TOKEN_MISSING`). Canvas **Refresh auth headers** proposes managed-header updates via Staging. Builtin `/login` heuristics apply only when project auth is completely empty. Uploads change API schema/`mode` only and do not overwrite Profile hints.
-
-**Mutating calls:** enable **snapshot before** (`snapshotBefore`) on the node. On failure the run can pause; the user may restore SUT data and retry / retry in place / skip / abort. The SUT must expose `/test-support`. With env `allowDestructiveReset=0` (production default), checkpoint/restore are skipped silently. **When restore is enabled, run that environment serially.**
+Managed auth header rows use `profileManaged` and refresh from current config at Run; unmarked headers are never silently changed. The canvas may show which `flow.token` / `flow.adminToken` a node will use or produce.
 
 ---
 
@@ -148,8 +136,8 @@ Platform **subflow templates** (login / OAuth / captcha, …) can be forked and 
 
 1. **Happy path:** HTTP (`project`) → Assert; variables via extracts / Assign.
 2. **Branches:** wire Condition arms carefully before merge; extract complex arms into subflows.
-3. **Reuse:** multi-step auth → Subflow; parent only maps inputs/outputs.
+3. **Reuse:** multi-step auth → Subflow; parent only maps inputs/outputs (auth model: [project-summary.en.md](./project-summary.en.md)).
 4. **Escape hatch:** signing / dynamic assembly → Script; keep scripts short and testable.
 5. **Destructive writes:** `snapshotBefore` + env allows restore; don’t parallelize the same env.
 
-See also: [deploy.en.md](./deploy.en.md), [mcp.en.md](./mcp.en.md), [demo AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
+See also: [project-summary.en.md](./project-summary.en.md) · [ai-staging.en.md](./ai-staging.en.md) · [flow-variables-and-values.en.md](./flow-variables-and-values.en.md) · [deploy.en.md](./deploy.en.md) · [mcp.en.md](./mcp.en.md) · [demo AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).

@@ -98,7 +98,7 @@ and suggest what to change on the canvas (advice only — do not write the DB).
 ## 5. Security & limits
 
 - A Token is a project credential: keep it out of Git and screenshots; rotate in Project settings if leaked.
-- MCP is **read-only**; design changes go through Web **AI assistant** (Diff then merge).
+- MCP is **read-only**; design changes go through Web **AI assistant** (Diff then merge). Rules: [ai-staging.en.md](./ai-staging.en.md). Stuck: [faq.en.md](./faq.en.md).
 - Demo target + NL flow prompts: [qualitest-demo · AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
 
 ---

@@ -2,7 +2,8 @@
 
 画布固定 **7** 种节点类型（`FlowNodeType`），不可自定义 `type`。持久化值为小写 code；UI 展示用英文 label。
 
-英文版：[test-flow-nodes.en.md](./test-flow-nodes.en.md)
+英文版：[test-flow-nodes.en.md](./test-flow-nodes.en.md)  
+产品概念 / 项目鉴权：[project-summary.md](./project-summary.md)
 
 ---
 
@@ -33,39 +34,13 @@
 
 常用能力：
 
-- 占位符解析请求参数 / 体（`flow` / `env` / `session` 等）
-- **项目鉴权补头**（见下方「项目鉴权」）
+- 占位符解析请求参数 / 体（`flow` / `env` / `asset` / `session` 等）
+- **项目鉴权补头**（Profile / loginHint / 双端 token → 见 [project-summary.md §4](./project-summary.md)）
 - 成功判定：先 HTTP 状态码非 2xx 失败；再可选业务码白名单（`successCheck`）
 - 通过后写入 `lastResponse`，再执行 `extracts`
+- 可选 **执行前快照**（`snapshotBefore`）：写库失败可暂停并还原被测数据（环境允许还原时；详见概念地图 §4.4）
 
-### 项目鉴权
-
-配置挂**测试项目**（设置抽屉「项目鉴权」），不挂环境。造流 Normalizer、Run、调试台共用同一解析器。项目模板表 + 预制 `apis` 见 [全面测试-未修复与可优化项.md](./全面测试-未修复与可优化项.md) §8（**已关闭**）。
-
-| 层级 | 要点 |
-|------|------|
-| 项目 `authProfiles` | 头模板 + `credentialApi` + `loginHint` + 预制 `apis[]`；未命中 `pathPrefix` 用**数组第一条**；免登认 `apis[].authConfig.mode=none` |
-| 接口 `auth.mode` | `inherit` 按项目 Profile；`none` 不加头；`override` 用本接口 `header.name` + `valueTemplate`。接口行不写 `loginHint` |
-| 节点 headers | 托管头带 `profileManaged`，Run 时按**当前**项目/接口配置刷新；无该标记的显式头永不被静默改掉 |
-
-**Profile 匹配**：接口已指定 `authProfileId` 则用之；否则在 `authProfiles` 中取命中的最长 `pathPrefix`；无人命中用数组第一条。**禁止** `pathPrefix="/"`。
-
-**登录抽凭证**：extracts 的 `from`+`expr`（`body`+JSONPath 或 `setCookie`+Cookie 名）与 **Profile.`loginHint`** 对齐（接口须命中该条 `credentialApi`），写入 `flow.token` / `flow.adminToken` 等。注册/验证码不抽凭证。**不要**再写节点 `useRunSession`（已忽略）。造流时凭证口空 extracts 会按 `loginHint` 补；缺对应 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。配置完全空时才暂留 builtin `/login` 等启发式。上传/OpenAPI 只改接口行 schema 与 mode，不改项目 Profile hint。
-
-**同流复用**：同一端开头只登录一次（或挂登录子流），后续 HTTP 靠托管 Bearer 复用 `flow.*`；勿每个步骤再登录。**双端同图**允许两套登录：客户端抽出 `flow.token`，管理端抽出 `flow.adminToken`，禁止两端覆盖同一个变量。调试可用 flowSeed 预置 token；口令仍走素材库。
-
-**门禁与操作**：缺对应端 `flow.token` / `flow.adminToken` 来源时，AI submit / Staging 确认 / 保存硬拦（`AUTH_TOKEN_MISSING`）；两套登录口写出同一 flowKey 硬拦（`AUTH_LOGIN_FLOWKEY_COLLISION`）；托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。画布顶栏「刷新鉴权头」批量提案写回托管头（经 Staging）。Run 鉴权失败用「AI 修复」（含 401 预填）。
-
-**按端 JsonPath（demo）**：
-
-| 端 | 典型 path | extract |
-| --- | --- | --- |
-| 客户端 | `/api/account/auth/login` | `$.data.token` → `flow.token` |
-| 管理端 | `/login` | `$.token` → `flow.adminToken` |
-
-**种子**：新建须勾选 `test_project_template`（商城先勾管理端再客户端）；项目级上传且 `auth_config` 为空 → 种「RuoYi Bearer」三口。旧 `anonymousPath*` / `defaultProfileId` 读兼容，写出为 `apis` + 扁平头。
-
-**写操作建议**：节点可勾选 **执行前快照**（`snapshotBefore`）。失败可暂停，并由用户选择还原被测数据再重试 / 原地重试 / 跳过 / 中止。被测方需提供 `/test-support`；环境 `allowDestructiveReset=0`（生产默认）时 checkpoint/restore 静默跳过。**开启数据还原时，同一环境请串行跑。**
+节点上托管鉴权头带 `profileManaged`，Run 时按当前项目/接口配置刷新；无该标记的显式头永不被静默改掉。画布可显示将使用/产出的 `flow.token` / `flow.adminToken`。
 
 ---
 
@@ -169,8 +144,8 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 
 1. **主路径**：HTTP（project）→ Assert；变量用 extracts / Assign。
 2. **分支**：Condition 后各臂汇合前注意合并语义；复杂逻辑可拆子流。
-3. **复用**：登录、鉴权等多步 → Subflow，父流只传输入输出。
+3. **复用**：登录、鉴权等多步 → Subflow，父流只传输入输出（鉴权口径见 [project-summary.md](./project-summary.md)）。
 4. **兜底**：签名、动态拼装 → Script；保持脚本短小、可测。
 5. **破坏性写**：开 `snapshotBefore` + 环境允许还原；并行勿抢同一环境。
 
-更多：部署见 [deploy.md](./deploy.md)；MCP 勘察见 [mcp.md](./mcp.md)；靶场造流提示见 [qualitest-demo AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)。
+更多：[project-summary.md](./project-summary.md) · [ai-staging.md](./ai-staging.md) · [flow-variables-and-values.md](./flow-variables-and-values.md) · [deploy.md](./deploy.md) · [mcp.md](./mcp.md) · [Demo AI 提示集](../../qualitest-demo/docs/ai-test-flow-prompts.md)

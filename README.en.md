@@ -26,6 +26,7 @@ Sync APIs, debug in-project, orchestrate flows, and design with AI — in one pl
 [5-minute Quick Start](#5-minute-quick-start) ·
 [Deploy](./docs/deploy.en.md) ·
 [MCP](./docs/mcp.en.md) ·
+[Concepts](./docs/project-summary.en.md) ·
 [Flow nodes](./docs/test-flow-nodes.en.md) ·
 [AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
 
@@ -144,7 +145,7 @@ Typical path: `list_flows` → pick a `testFlowId` → ask “what nodes are on 
 </tr>
 </table>
 
-Node reference: [`docs/test-flow-nodes.en.md`](./docs/test-flow-nodes.en.md).
+Node reference: [`docs/test-flow-nodes.en.md`](./docs/test-flow-nodes.en.md). Concepts / auth: [`docs/project-summary.en.md`](./docs/project-summary.en.md).
 
 ---
 
@@ -281,7 +282,7 @@ Swagger is usually **http://localhost:8081/swagger-ui.html**.
 | **MCP** | Copy MCP config from project settings → [`docs/mcp.en.md`](./docs/mcp.en.md) |
 | **AI + demo** | [AI test-flow prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) |
 
-More: [Deploy](./docs/deploy.en.md) · [Flow nodes](./docs/test-flow-nodes.en.md) · [UI / desktop](./qualitest-ui/README.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
+More: [Deploy](./docs/deploy.en.md) · [Concepts](./docs/project-summary.en.md) · [FAQ](./docs/faq.en.md) · [Flow nodes](./docs/test-flow-nodes.en.md) · [UI / desktop](./qualitest-ui/README.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
 
 ---
 

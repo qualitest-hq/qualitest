@@ -98,7 +98,7 @@ testFlowId 用 <上一步拿到的 id>。
 ## 5. 安全与限制
 
 - Token 等同项目凭证：勿提交进 Git / 截图外传；泄露后立即在项目设置刷新。
-- MCP **只读**：设计改动请在 Web **AI 助手**里预览 Diff 后合并。
+- MCP **只读**：设计改动请在 Web **AI 助手**里预览 Diff 后合并（规则见 [ai-staging.md](./ai-staging.md)）。卡住见 [faq.md](./faq.md)。
 - 靶场联调、自然语言造流示例见：[qualitest-demo · AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)。
 - IDEA / OpenAPI 同步后：检查登录口（`/login`、`/api/account/auth/login` 等）资产的 `auth.mode` 应为 `none`；若仍为 `inherit`，造流可能误补 `Bearer {{flow.token}}`。存量可用 `sql/fix_anonymous_auth_builtin_paths.sql` 预览后修复。
 

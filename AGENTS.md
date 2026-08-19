@@ -16,6 +16,11 @@
 | [SECURITY.md](./SECURITY.md) | 安全披露 |
 | [docs/deploy.md](./docs/deploy.md) | 部署 / Compose / Flyway 运维约定 |
 | [docs/mcp.md](./docs/mcp.md) | MCP 配置与示例提问（以 Cursor 为例） |
+| [docs/project-summary.md](./docs/project-summary.md) | 产品概念 / 鉴权 |
+| [docs/ai-staging.md](./docs/ai-staging.md) | AI Staging / Diff |
+| [docs/flow-variables-and-values.md](./docs/flow-variables-and-values.md) | 跑流变量与 HTTP 测值 |
+| [docs/assets.md](./docs/assets.md) | 素材库 |
+| [docs/faq.md](./docs/faq.md) | 日常使用 FAQ（冒烟/靶场见测试手册 §F） |
 | [docs/全面测试手册.md](./docs/全面测试手册.md) | 系统化验收：自动测（T1/T2/T3）；§F 含现场问题闭环 |
 | [docs/v1.0-首发文草稿.md](./docs/v1.0-首发文草稿.md) | 掘金 / 知乎 / V2EX 首发文大纲与底稿 |
 

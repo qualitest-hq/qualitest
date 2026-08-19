@@ -27,6 +27,7 @@
 [5 分钟快速开始](#-5-分钟快速开始) ·
 [部署说明](./docs/deploy.md) ·
 [MCP](./docs/mcp.md) ·
+[产品概念](./docs/project-summary.md) ·
 [测试流节点](./docs/test-flow-nodes.md) ·
 [AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
 
@@ -52,7 +53,7 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open **http://localhost**, login **`admin` / `admin123`**. Full English docs: [README.en.md](./README.en.md) · [deploy.en.md](./docs/deploy.en.md) · [mcp.en.md](./docs/mcp.en.md) · [test-flow-nodes.en.md](./docs/test-flow-nodes.en.md). AI prompts (demo): [ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
+Open **http://localhost**, login **`admin` / `admin123`**. Full English docs: [README.en.md](./README.en.md) · [deploy.en.md](./docs/deploy.en.md) · [mcp.en.md](./docs/mcp.en.md) · [project-summary.en.md](./docs/project-summary.en.md) · [test-flow-nodes.en.md](./docs/test-flow-nodes.en.md). AI prompts (demo): [ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
 
 </details>
 
@@ -358,7 +359,7 @@ Swagger 一般为 **http://localhost:8081/swagger-ui.html**。
 | **MCP 联读** | 项目设置复制 MCP 配置到 AI 编辑器 → [`docs/mcp.md`](./docs/mcp.md) |
 | **AI 造流（靶场）** | [AI 测试流提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) |
 
-更多文档：[部署说明](./docs/deploy.md) · [测试流节点](./docs/test-flow-nodes.md) · [English](./README.en.md) · [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)
+更多文档：[部署说明](./docs/deploy.md) · [产品概念](./docs/project-summary.md) · [FAQ](./docs/faq.md) · [测试流节点](./docs/test-flow-nodes.md) · [English](./README.en.md) · [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)
 
 ---
 
