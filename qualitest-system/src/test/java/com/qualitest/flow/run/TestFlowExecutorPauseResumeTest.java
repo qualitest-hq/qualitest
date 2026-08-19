@@ -138,7 +138,7 @@ class TestFlowExecutorPauseResumeTest {
                 .testFlowId(1L)
                 .testProjectEnvId(100L)
                 .runScenarioId("sc-default")
-                .status(TestFlowExecutor.RUN_STATUS_RUNNING)
+                .status(RunStatus.RUNNING)
                 .graphJsonSnapshot(graph.toJsonString())
                 .build();
 
@@ -158,10 +158,10 @@ class TestFlowExecutorPauseResumeTest {
                 runId, graph, FlowRunContext.builder().flow(new HashMap<>()).build(), bootstrap);
 
         assertTrue(first.isPaused());
-        assertEquals(TestFlowExecutor.RUN_STATUS_PAUSED, pausedRun.getStatus());
+        assertEquals(RunStatus.PAUSED, pausedRun.getStatus());
         assertTrue(pausedRun.getRunExecutionState() != null && pausedRun.getRunExecutionState().contains("n2"));
 
-        pausedRun.setStatus(TestFlowExecutor.RUN_STATUS_PAUSED);
+        pausedRun.setStatus(RunStatus.PAUSED);
         ExecutionOutcome resumed = executor.resume(
                 runId,
                 ResumeDecision.builder().decision(ResumeDecision.RETRY_IN_PLACE).operator("tester").build(),
@@ -169,7 +169,7 @@ class TestFlowExecutorPauseResumeTest {
         );
 
         assertTrue(resumed.isPassed());
-        assertEquals(TestFlowExecutor.RUN_STATUS_PASSED, pausedRun.getStatus());
+        assertEquals(RunStatus.PASSED, pausedRun.getStatus());
     }
 
     private static GraphJson loadGraph(String path) {

@@ -54,7 +54,7 @@ class FlowGraphRunnerTest {
                 {
                   "nodes":[{"id":"d1","type":"delay","position":{"x":0,"y":0},"data":{"name":"等待","ms":1}}],
                   "edges":[],
-                  "meta":{"run":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}}
+                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
                 }
                 """;
         GraphJson graph = GraphJson.parse(json);

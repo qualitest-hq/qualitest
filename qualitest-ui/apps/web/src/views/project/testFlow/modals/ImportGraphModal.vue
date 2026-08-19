@@ -148,7 +148,7 @@ function refreshPreview() {
     let data = JSON.parse(text)
     if (typeof data === 'string') data = JSON.parse(data)
     const unwrapped = unwrapGraphPayload(data)
-    const result = validateGraphJson(unwrapped, { forImport: true })
+    const result = validateGraphJson(unwrapped)
     validationResult.value = {
       ...result,
       graph: unwrapped,

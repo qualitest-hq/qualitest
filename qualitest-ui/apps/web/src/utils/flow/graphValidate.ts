@@ -55,8 +55,6 @@ export function rewriteStartNodeErrorForPendingEdges(error: string): string {
 }
 
 export type ValidateGraphJsonOptions = {
-  /** 导入弹窗传入；当前无额外分支，保留入参兼容 */
-  forImport?: boolean;
   /**
    * 为 true 时：开始节点唯一性失败写入 warnings 而非 errors。
    * 用于 Staging 尚有未确认连线、落盘过滤图拓扑暂不可信的场景。
@@ -493,7 +491,6 @@ export function validateGraphJson(
   const errors: string[] = [];
   const warnings: string[] = [];
   const deferTopology = options?.deferTopologyStructureRules === true;
-  void options?.forImport;
 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, errors: ['根对象必须是 JSON 对象'], warnings };

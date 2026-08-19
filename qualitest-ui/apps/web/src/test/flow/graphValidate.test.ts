@@ -191,7 +191,7 @@ describe('validateGraphJson', () => {
     expect(result.warnings).toHaveLength(spec.expectWarnings);
   });
 
-  it('manifest：缺少 meta.run 配置，errors=1 warnings=0', () => {
+  it('manifest：缺少 meta.scenarios 配置，errors=1 warnings=0', () => {
     // 前提：manifest missing-meta-run fixture
     // 期望：errors=1，warnings=0
     const spec = graphValidateCases.cases.find((x) => x.id === 'missing-meta-run')!;

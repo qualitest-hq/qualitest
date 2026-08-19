@@ -1,7 +1,7 @@
 {
   "name": "qualitest-ui",
   "private": true,
-  "version": "3.9.1",
+  "version": "1.0.0",
   "description": "质衡前端 workspace（Web + Electron）",
   "license": "Apache-2.0",
   "workspaces": [

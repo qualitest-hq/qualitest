@@ -20,7 +20,7 @@ import java.util.List;
 public class GraphMeta {
 
     /**
-     * 图 schema 版本；缺失视为 {@link GraphSchemaVersions#DEFAULT}（当前为 1）。
+     * 图 schema 版本；当前写入 {@link GraphSchemaVersions#CURRENT}（为 1）。
      */
     private Integer schemaVersion;
 

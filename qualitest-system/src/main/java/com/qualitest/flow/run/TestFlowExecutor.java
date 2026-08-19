@@ -31,18 +31,6 @@ import java.util.Date;
 @RequiredArgsConstructor
 public class TestFlowExecutor {
 
-    /** 兼容旧代码，请用 RunStatus */
-    @Deprecated
-    public static final String RUN_STATUS_PASSED = RunStatus.PASSED;
-    @Deprecated
-    public static final String RUN_STATUS_FAILED = RunStatus.FAILED;
-    @Deprecated
-    public static final String RUN_STATUS_RUNNING = RunStatus.RUNNING;
-    @Deprecated
-    public static final String RUN_STATUS_PAUSED = RunStatus.PAUSED;
-    @Deprecated
-    public static final String RUN_STATUS_ABORTED = RunStatus.ABORTED;
-
     private final NodeHandlerRegistry nodeHandlerRegistry;
     private final FlowGraphRunner flowGraphRunner;
     private final ITestFlowRunService testFlowRunService;

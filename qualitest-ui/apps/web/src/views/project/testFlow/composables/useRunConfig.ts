@@ -1,5 +1,5 @@
 /**
- * 运行场景配置：管理 graph_json.meta.run 中的场景列表与当前激活场景。
+ * 运行场景配置：管理 graph_json.meta.scenarios 中的场景列表与当前激活场景。
  * 提供场景增删改查、项目环境下拉数据、flowSeed 键值行转换。
  */
 import { computed, ref } from 'vue';

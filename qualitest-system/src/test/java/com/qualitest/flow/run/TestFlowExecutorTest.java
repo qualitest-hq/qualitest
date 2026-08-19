@@ -155,7 +155,7 @@ class TestFlowExecutorTest {
         ArgumentCaptor<TestFlowRun> runCaptor = ArgumentCaptor.forClass(TestFlowRun.class);
         verify(runPersistenceService).updateRun(runCaptor.capture());
         TestFlowRun finished = runCaptor.getValue();
-        assertEquals(TestFlowExecutor.RUN_STATUS_PASSED, finished.getStatus());
+        assertEquals(RunStatus.PASSED, finished.getStatus());
         assertNotNull(finished.getFlowSnapshot());
         assertTrue(finished.getFlowSnapshot().contains("code"));
 
@@ -194,7 +194,7 @@ class TestFlowExecutorTest {
         assertEquals(StepResult.STATUS_FAILED, persistedSteps.get(4).getStatus());
 
         verify(runPersistenceService).updateRun(argThat((TestFlowRun r) ->
-                TestFlowExecutor.RUN_STATUS_FAILED.equals(r.getStatus())
+                RunStatus.FAILED.equals(r.getStatus())
                         && r.getErrorCode() != null
         ));
     }

@@ -5,7 +5,7 @@
 </template>
 
 <script setup>
-const url = ref('http://doc.ruoyi.vip/ruoyi-vue')
+const url = ref('https://github.com/qualitest-hq/qualitest/blob/main/README.md')
 
 function goto() {
   window.open(url.value)
