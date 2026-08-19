@@ -258,7 +258,7 @@ function setCallMode(mode) {
     replaceNodeData(props.node.id, data)
     return
   }
-  // 切回项目接口：清掉外联字段与旧版整份 requestConfig
+  // 切回项目接口：清掉外联字段与节点上误写的整份 requestConfig
   const data = {
     ...props.node.data,
     callMode: 'project',

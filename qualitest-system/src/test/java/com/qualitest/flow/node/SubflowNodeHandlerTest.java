@@ -2,7 +2,6 @@ package com.qualitest.flow.node;
 
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
-import com.qualitest.flow.migrate.GraphMigrator;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
 import com.qualitest.flow.node.impl.SubflowNodeHandler;
@@ -52,7 +51,7 @@ class SubflowNodeHandlerTest {
         testFlowService = mock(ITestFlowService.class);
         flowGraphRunner = new FlowGraphRunner();
         childRegistry = passingAssignRegistry();
-        handler = new SubflowNodeHandler(testFlowService, flowGraphRunner, childRegistry, new GraphMigrator());
+        handler = new SubflowNodeHandler(testFlowService, flowGraphRunner, childRegistry);
 
         Map<String, Object> flow = new HashMap<>();
         flow.put("seedIn", "parent-val");
@@ -180,7 +179,7 @@ class SubflowNodeHandlerTest {
     @Order(6)
     @DisplayName("子流：子步失败向上传播")
     void execute_childStepFails_propagatesError() {
-        handler = new SubflowNodeHandler(testFlowService, flowGraphRunner, failingDelayRegistry(), new GraphMigrator());
+        handler = new SubflowNodeHandler(testFlowService, flowGraphRunner, failingDelayRegistry());
         subflow.setGraphJson(loadResource("flow/subflow-child-delay-graph.json"));
         GraphNode node = subflowNode(nodeData(
                 "name", "子流失败",

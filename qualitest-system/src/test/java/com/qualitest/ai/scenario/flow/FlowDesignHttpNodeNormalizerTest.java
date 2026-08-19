@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,13 +64,13 @@ class FlowDesignHttpNodeNormalizerTest {
     }
 
     /**
-     * 前提：节点带厚 requestConfig，query 值与 API 默认不同。
+     * 前提：节点带 requestValueOverrides.query，与 API 默认不同。
      * 期望：剥掉 requestConfig，仅保留与默认的 diff overrides。
      */
     @Test
     @Order(2)
-    @DisplayName("厚 requestConfig 仅保留 diff overrides")
-    void normalize_stripsThickRequestConfig_keepsDiffOverrides() {
+    @DisplayName("节点测值覆盖仅保留 diff overrides")
+    void normalize_keepsDiffOverrides_stripsRequestConfig() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1L)
                 .apiPath("/api/demo")
@@ -86,12 +85,8 @@ class FlowDesignHttpNodeNormalizerTest {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
         data.put("testProjectApiId", "1");
-        data.put("requestConfig", Map.of(
-                "method", "GET",
-                "queryParams", List.of(Map.of("name", "mobile", "value", "{{flow.mobile}}")),
-                "pathParams", List.of(),
-                "body", Map.of("mode", "none")
-        ));
+        data.put("requestValueOverrides", Map.of("paramDefaults", Map.of("mobile", "{{flow.mobile}}")));
+        data.put("requestConfig", Map.of("method", "GET"));
 
         FlowDesignHttpNodeNormalizer.normalize(data, api);
 
@@ -104,7 +99,7 @@ class FlowDesignHttpNodeNormalizerTest {
     }
 
     /**
-     * 前提：节点 query 值与资产默认相同。
+     * 前提：节点 query 覆盖值与资产默认相同。
      * 期望：剥掉 requestConfig，且不产生 requestValueOverrides。
      */
     @Test
@@ -124,9 +119,8 @@ class FlowDesignHttpNodeNormalizerTest {
 
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
-        data.put("requestConfig", Map.of(
-                "queryParams", List.of(Map.of("name", "q", "value", "hello"))
-        ));
+        data.put("requestValueOverrides", Map.of("paramDefaults", Map.of("q", "hello")));
+        data.put("requestConfig", Map.of("queryParams", List.of(Map.of("name", "q", "value", "hello"))));
 
         FlowDesignHttpNodeNormalizer.normalize(data, api);
 
@@ -135,16 +129,16 @@ class FlowDesignHttpNodeNormalizerTest {
     }
 
     /**
-     * 前提：extracts 使用旧字段 value=responses.mobile。
-     * 期望：转为 expr=$.mobile（不补 data 前缀）、from=body、scope=flow，并去掉 value。
+     * 前提：extracts.expr 使用 responses.mobile。
+     * 期望：转为 expr=$.mobile（不补 data 前缀）、from=body、scope=flow。
      */
     @Test
     @Order(4)
-    @DisplayName("旧 extracts value 转为 $. 表达式且不补 data")
-    void normalize_extractsValueConvertedToExprWithoutDataPrefix() {
+    @DisplayName("extracts expr 转为 $. 表达式且不补 data")
+    void normalize_extractsExprConvertedToJsonPathWithoutDataPrefix() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
-        data.put("extracts", List.of(Map.of("name", "mobile", "value", "responses.mobile")));
+        data.put("extracts", List.of(Map.of("name", "mobile", "expr", "responses.mobile")));
 
         FlowDesignHttpNodeNormalizer.normalize(data, null);
 
@@ -155,7 +149,6 @@ class FlowDesignHttpNodeNormalizerTest {
         assertEquals("body", row.getString("from"));
         assertEquals("flow", row.getString("scope"));
         assertEquals("mobile", row.getString("name"));
-        assertFalse(row.containsKey("value"));
     }
 
     /**
@@ -165,10 +158,10 @@ class FlowDesignHttpNodeNormalizerTest {
     @Test
     @Order(5)
     @DisplayName("旧式提取表达式统一为 $. 路径")
-    void convertLegacyExtractExpr_handlesCommonPrefixes() {
-        assertEquals("$.mobile", FlowDesignHttpNodeNormalizer.convertLegacyExtractExpr("responses.mobile"));
-        assertEquals("$.data.token", FlowDesignHttpNodeNormalizer.convertLegacyExtractExpr("http.body.data.token"));
-        assertEquals("$.token", FlowDesignHttpNodeNormalizer.convertLegacyExtractExpr("$.token"));
+    void normalizeExtractExprPath_handlesCommonPrefixes() {
+        assertEquals("$.mobile", FlowDesignHttpNodeNormalizer.normalizeExtractExprPath("responses.mobile"));
+        assertEquals("$.data.token", FlowDesignHttpNodeNormalizer.normalizeExtractExprPath("http.body.data.token"));
+        assertEquals("$.token", FlowDesignHttpNodeNormalizer.normalizeExtractExprPath("$.token"));
     }
 
     /**

@@ -68,23 +68,16 @@ export function parseJsonMaybe(raw) {
 }
 
 function resolveHeaderName(p) {
-  return str(p?.headerName, str(p?.header?.name, 'Authorization'))
+  return str(p?.headerName, 'Authorization')
 }
 
 function resolveHeaderValueTemplate(p) {
-  return str(p?.headerValueTemplate, str(p?.header?.valueTemplate))
+  return str(p?.headerValueTemplate)
 }
 
 function resolveLoginHint(p) {
   if (p?.loginHint && typeof p.loginHint === 'object') {
     return p.loginHint
-  }
-  const apis = Array.isArray(p?.apis) ? p.apis : []
-  for (const api of apis) {
-    const hint = api?.authConfig?.loginHint
-    if (hint && typeof hint === 'object') {
-      return hint
-    }
   }
   return null
 }
@@ -117,7 +110,7 @@ function profileToRow(p) {
     credentialPath: str(credential?.path),
     loginFlowKey: str(hint?.flowKey),
     loginFrom: str(hint?.from, 'body'),
-    loginExpr: str(hint?.expr ?? hint?.extractJsonPath),
+    loginExpr: str(hint?.expr),
     apis,
   }
 }

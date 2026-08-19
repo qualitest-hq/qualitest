@@ -2,7 +2,7 @@ package com.qualitest.ai.tools;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.api.util.ApiConfigV2TestFixtures;
+import com.qualitest.api.util.ApiConfigTestFixtures;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FlowDesignApiSummarizerTest {
 
     /**
-     * 前提：V2 request 含 queryParams；headers 为对象形式 Authorization。
+     * 前提：当前 requestConfig 含 queryParams；headers 为对象形式 Authorization。
      * 期望：摘要含 page query 与 Authorization header。
      */
     @Test
@@ -31,7 +31,7 @@ class FlowDesignApiSummarizerTest {
     @DisplayName("摘要含 query 与 Authorization")
     void summarizeRequest_readsQueryParamsAndObjectHeaders() {
         var out = FlowDesignApiSummarizer.summarizeRequest(
-                ApiConfigV2TestFixtures.REQUEST_POST_WITH_QUERY,
+                ApiConfigTestFixtures.REQUEST_POST_WITH_QUERY,
                 "{\"Authorization\":\"Bearer x\"}");
         assertEquals(1, out.getJSONArray("queryParams").size());
         assertEquals("page", out.getJSONArray("queryParams").getJSONObject(0).getString("name"));
@@ -95,26 +95,26 @@ class FlowDesignApiSummarizerTest {
     }
 
     /**
-     * 前提：V2 response 含 code schema。
+     * 前提：当前 responseConfig 含 code schema。
      * 期望：优先读出 code=integer。
      */
     @Test
     @Order(5)
-    @DisplayName("V2 response 优先读 schema leaves")
+    @DisplayName("responseConfig 优先读 schema leaves")
     void summarizeResponse_prefersResponsesSchemaLeaves() {
-        var out = FlowDesignApiSummarizer.summarizeResponse(ApiConfigV2TestFixtures.RESPONSE_WITH_CODE_SCHEMA);
+        var out = FlowDesignApiSummarizer.summarizeResponse(ApiConfigTestFixtures.RESPONSE_WITH_CODE_SCHEMA);
         assertFalse(out.isEmpty());
         assertEquals("integer", out.getString("code"));
     }
 
     /**
-     * 前提：非 V2 形状的裸 JSON Schema。
+     * 前提：非当前 responseConfig 形状的裸 JSON Schema。
      * 期望：摘要为空。
      */
     @Test
     @Order(6)
-    @DisplayName("非 V2 形状摘要为空")
-    void summarizeResponse_ignoresNonV2Shape() {
+    @DisplayName("非当前形状摘要为空")
+    void summarizeResponse_ignoresNonCurrentShape() {
         var out = FlowDesignApiSummarizer.summarizeResponse("{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"integer\"}}}");
         assertTrue(out.isEmpty());
     }

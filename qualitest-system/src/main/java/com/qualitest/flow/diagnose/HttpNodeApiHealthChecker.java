@@ -218,7 +218,7 @@ public class HttpNodeApiHealthChecker {
 
     /**
      * 把单条 extract 规范化成 $.a.b 形式后取出 expr，不写回节点。
-     * 会处理旧字段 value/path，不猜测补 data 前缀。
+     * 不猜测补 data 前缀。
      */
     static String normalizeExtractExpr(JSONObject row) {
         if (row == null) {

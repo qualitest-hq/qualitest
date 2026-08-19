@@ -10,7 +10,7 @@ import {
   canonicalGraphJsonString,
   canonicalizeGraphJsonForHash,
   computeBaseGraphHashFromGraphJson,
-  shouldBlockMergeByBaseGraphHash,
+  shouldBlockConfirmByBaseGraphHash,
   stableStringify,
 } from '@/views/project/testFlow/utils/computeBaseGraphHash';
 
@@ -78,23 +78,23 @@ describe('computeBaseGraphHash', () => {
   });
 });
 
-describe('shouldBlockMergeByBaseGraphHash', () => {
+describe('shouldBlockConfirmByBaseGraphHash', () => {
   it('无 preview hash 时不阻断', () => {
     // 前提：preview hash 为 undefined 或空
-    // 期望：不阻断 merge
-    expect(shouldBlockMergeByBaseGraphHash(undefined, 'abc')).toBe(false);
-    expect(shouldBlockMergeByBaseGraphHash('', 'abc')).toBe(false);
+    // 期望：不阻断 confirm
+    expect(shouldBlockConfirmByBaseGraphHash(undefined, 'abc')).toBe(false);
+    expect(shouldBlockConfirmByBaseGraphHash('', 'abc')).toBe(false);
   });
 
   it('hash 不一致时阻断', () => {
     // 前提：preview 与 current hash 不同
-    // 期望：阻断 merge
-    expect(shouldBlockMergeByBaseGraphHash('aaa', 'bbb')).toBe(true);
+    // 期望：阻断 confirm
+    expect(shouldBlockConfirmByBaseGraphHash('aaa', 'bbb')).toBe(true);
   });
 
   it('hash 一致时不阻断', () => {
     // 前提：preview 与 current hash 相同
-    // 期望：不阻断 merge
-    expect(shouldBlockMergeByBaseGraphHash('samehashprefix12', 'samehashprefix12')).toBe(false);
+    // 期望：不阻断 confirm
+    expect(shouldBlockConfirmByBaseGraphHash('samehashprefix12', 'samehashprefix12')).toBe(false);
   });
 });

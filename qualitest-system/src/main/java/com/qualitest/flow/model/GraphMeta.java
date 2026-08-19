@@ -20,7 +20,7 @@ import java.util.List;
 public class GraphMeta {
 
     /**
-     * 图 schema 版本；缺失视为 1。低于 {@link com.qualitest.flow.migrate.GraphSchemaVersions#CURRENT} 时可升级。
+     * 图 schema 版本；缺失视为 {@link GraphSchemaVersions#DEFAULT}（当前为 1）。
      */
     private Integer schemaVersion;
 

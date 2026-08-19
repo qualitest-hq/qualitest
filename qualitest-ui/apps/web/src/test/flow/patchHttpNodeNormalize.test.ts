@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  convertLegacyExtractExpr,
+  normalizeExtractExprPath,
   normalizeFlowDesignPatchHttpNodes,
   normalizeHttpNodeData,
 } from '@/views/project/testFlow/utils/patchHttpNodeNormalize';
@@ -47,14 +47,13 @@ describe('patchHttpNodeNormalize', () => {
   });
 
   it('与资产默认相同的测值不写入 overrides', () => {
-    // 前提：query 值与 API 默认一致
+    // 前提：query 覆盖值与 API 默认一致
     // 期望：不生成 requestConfig 与 overrides
     const data = normalizeHttpNodeData(
       {
         callMode: 'project',
-        requestConfig: {
-          queryParams: [{ name: 'q', value: 'hello' }],
-        },
+        requestValueOverrides: { paramDefaults: { q: 'hello' } },
+        requestConfig: { queryParams: [{ name: 'q', value: 'hello' }] },
       },
       {
         requestConfig: {
@@ -69,12 +68,12 @@ describe('patchHttpNodeNormalize', () => {
     expect(data.requestValueOverrides).toBeUndefined();
   });
 
-  it('extracts.value 转为 expr/from/scope，不补 data 前缀', () => {
-    // 前提：extracts 使用 legacy value 字段
-    // 期望：转为 expr/from/scope，路径保持 $.mobile，不改成 $.data.mobile
+  it('extracts.expr 转为 $. 路径，不补 data 前缀', () => {
+    // 前提：extracts.expr 为 responses.mobile
+    // 期望：转为 $.mobile，不改成 $.data.mobile
     const data = normalizeHttpNodeData({
       callMode: 'project',
-      extracts: [{ name: 'mobile', value: 'responses.mobile' }],
+      extracts: [{ name: 'mobile', expr: 'responses.mobile' }],
     });
 
     const extracts = data.extracts as Array<Record<string, unknown>>;
@@ -112,7 +111,7 @@ describe('patchHttpNodeNormalize', () => {
   });
 
   it('normalizeFlowDesignPatchHttpNodes 处理 addNodes', () => {
-    // 前提：patch addNodes 含 legacy extracts
+    // 前提：patch addNodes 含 responses.* 路径的 extracts
     // 期望：addNodes 内 extracts expr 已规范化
     const patch = normalizeFlowDesignPatchHttpNodes({
       addNodes: [
@@ -122,7 +121,7 @@ describe('patchHttpNodeNormalize', () => {
           position: { x: 0, y: 0 },
           data: {
             callMode: 'project',
-            extracts: [{ name: 'token', value: 'response.data.token' }],
+            extracts: [{ name: 'token', expr: 'response.data.token' }],
           },
         },
       ],
@@ -132,10 +131,10 @@ describe('patchHttpNodeNormalize', () => {
     expect(extracts[0].expr).toBe('$.data.token');
   });
 
-  it('旧式提取路径统一转换为 $. 前缀写法', () => {
-    // 前提：legacy responses.* / http.body.* 路径
+  it('非标准提取路径统一规范为 $. 前缀写法', () => {
+    // 前提：LLM 常见的 responses.* / http.body.* 路径
     // 期望：转为 $. 前缀 JsonPath
-    expect(convertLegacyExtractExpr('responses.mobile')).toBe('$.mobile');
-    expect(convertLegacyExtractExpr('http.body.code')).toBe('$.code');
+    expect(normalizeExtractExprPath('responses.mobile')).toBe('$.mobile');
+    expect(normalizeExtractExprPath('http.body.code')).toBe('$.code');
   });
 });

@@ -7,10 +7,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   isAutoSaveAfterConfirm,
-  isAutoSaveAfterMerge,
   isBlockWhenStagingPending,
   setAutoSaveAfterConfirm,
-  setAutoSaveAfterMerge,
   setBlockWhenStagingPending,
 } from '@/views/project/testFlow/utils/aiDesignPreferences';
 
@@ -27,14 +25,6 @@ describe('aiDesignPreferences', () => {
     expect(isAutoSaveAfterConfirm()).toBe(true);
     setAutoSaveAfterConfirm(false);
     expect(isAutoSaveAfterConfirm()).toBe(false);
-  });
-
-  it('兼容 legacy autoSaveAfterMerge key', () => {
-    // 前提：localStorage 仅存 legacy autoSaveAfterMerge=1
-    // 期望：isAutoSaveAfterConfirm 与 isAutoSaveAfterMerge 均为 true
-    localStorage.setItem('qualitest.aiDesign.autoSaveAfterMerge', '1');
-    expect(isAutoSaveAfterConfirm()).toBe(true);
-    expect(isAutoSaveAfterMerge()).toBe(true);
   });
 
   it('blockWhenStagingPending 默认关闭可开关', () => {

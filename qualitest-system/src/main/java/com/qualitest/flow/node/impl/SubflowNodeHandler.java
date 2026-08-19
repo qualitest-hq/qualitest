@@ -3,7 +3,6 @@ package com.qualitest.flow.node.impl;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
-import com.qualitest.flow.migrate.GraphMigrator;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.NodeHandlerRegistry;
@@ -36,8 +35,6 @@ import java.util.Map;
  *   <li>步骤 {@code subflow.childSteps} 附带内层步骤摘要，供 Run 详情展开与 AI {@code get_run_failure} 分析</li>
  * </ol>
  * {@code versionPolicy}：{@code latest} 每次 Run 取子流当前图；{@code pinned} 优先用节点 {@code pinnedGraphJson} 固化快照。
- * <p>
- * pinned 子图快照不参与父流 schema 升级写回；运行期仅在内存中 migrate 以保证可执行，不改变父节点固化内容。
  */
 @Component
 public class SubflowNodeHandler extends AbstractStubNodeHandler {
@@ -48,17 +45,14 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
     private final ITestFlowService testFlowService;
     private final FlowGraphRunner flowGraphRunner;
     private final NodeHandlerRegistry nodeHandlerRegistry;
-    private final GraphMigrator graphMigrator;
 
     public SubflowNodeHandler(ITestFlowService testFlowService,
                               FlowGraphRunner flowGraphRunner,
-                              @Lazy NodeHandlerRegistry nodeHandlerRegistry,
-                              GraphMigrator graphMigrator) {
+                              @Lazy NodeHandlerRegistry nodeHandlerRegistry) {
         super(FlowNodeType.SUBFLOW);
         this.testFlowService = testFlowService;
         this.flowGraphRunner = flowGraphRunner;
         this.nodeHandlerRegistry = nodeHandlerRegistry;
-        this.graphMigrator = graphMigrator;
     }
 
     @Override
@@ -92,9 +86,6 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
             if (childGraph == null) {
                 return failed(node, incomingEdgeId, nodeName, t0, ctx,
                         FlowErrorCode.TF_SUBFLOW_INVALID, "子流图解析失败", data, subflowId, List.of());
-            }
-            if (graphMigrator.needsUpgrade(childGraph)) {
-                childGraph = graphMigrator.migrateToLatest(childGraph);
             }
 
             Map<String, Object> childSeed = SubflowIoSupport.resolveInputSeed(ctx, data.get("inputs"));

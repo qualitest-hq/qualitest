@@ -44,8 +44,6 @@ public class AiChatConversationService {
     /** AI API 助手场景（接口设计：约束/测值/脚本统一） */
     public static final String SCENE_TEST_API_DESIGN = "test_api_design";
 
-    private static final int DEFAULT_LLM_HISTORY_LIMIT = 10;
-
     /** 前端会话消息分页默认条数 */
     public static final int DEFAULT_MESSAGE_PAGE_SIZE = 40;
 
@@ -480,21 +478,6 @@ public class AiChatConversationService {
     public void appendAssistantMessage(Long sessionId, String messageContent, String resultMeta, Long modelId,
                                        String thinkingContent) {
         insertMessage(sessionId, "assistant", messageContent, thinkingContent, resultMeta, modelId);
-    }
-
-    /**
-     * 加载送入 LLM 的多轮历史（兼容旧调用：仅按条数截断）。
-     *
-     * @deprecated 请使用 {@link #loadMessagesForLlm(Long, LlmModelConfig, HistoryWindowPolicy, int)}
-     */
-    @Deprecated
-    public List<LlmMessage> loadMessagesForLlm(Long sessionId, int limit) {
-        List<LlmMessage> full = buildFullLlmHistory(sessionId);
-        int effectiveLimit = limit > 0 ? limit : DEFAULT_LLM_HISTORY_LIMIT;
-        if (full.size() <= effectiveLimit) {
-            return full;
-        }
-        return new ArrayList<>(full.subList(full.size() - effectiveLimit, full.size()));
     }
 
     /**

@@ -73,7 +73,7 @@ public class ApiImportMergeService {
 
     /**
      * 合并请求结构：以上传包为形状基线，按参数名 soft merge 三类参数数组，
-     * 再对 body.json.schema 做字段级 soft merge，并处理 body 示例迁移。
+     * 再对 body.json.schema 做字段级 soft merge，并从结构层剥离已写入 test_value_config 的 body 示例。
      */
     private static ObjectNode mergeRequestConfig(
             ObjectNode existing,
@@ -88,7 +88,7 @@ public class ApiImportMergeService {
         mergeParamArray(FIELD_HEADERS, existing, incoming, out, testRequest, summary);
 
         mergeBodySchema(existing, out);
-        mergeBodyExample(existing, out, testRequest, summary);
+        mergeBodyExample(out, testRequest, summary);
         return out;
     }
 
@@ -170,19 +170,12 @@ public class ApiImportMergeService {
     }
 
     /**
-     * 把本地 body.json.example 迁到 test_value_config.request.bodyExample；
      * 有 bodyExample 时从结构层删掉 example，避免两处重复存同一份示例。
      */
     private static void mergeBodyExample(
-            ObjectNode existing,
             ObjectNode out,
             ObjectNode testRequest,
             ApiImportMergeSummary summary) {
-        String legacyExample = extractBodyExample(existing.get("body"));
-        if (legacyExample != null && !testRequest.has("bodyExample")) {
-            testRequest.put("bodyExample", legacyExample);
-        }
-
         if (testRequest.has("bodyExample")) {
             summary.addUserPreserved("bodyExample");
             stripBodyExampleFromStructure(out);
@@ -311,24 +304,6 @@ public class ApiImportMergeService {
         if (jsonPart != null && jsonPart.isObject()) {
             ((ObjectNode) jsonPart).remove("example");
         }
-    }
-
-    /**
-     * 读取 body.json.example：文本则原样返回，对象/数组则序列化为紧凑 JSON；无 example 返回 null。
-     */
-    private static String extractBodyExample(JsonNode body) {
-        if (body == null || !body.isObject()) {
-            return null;
-        }
-        JsonNode jsonPart = body.get("json");
-        if (jsonPart == null || !jsonPart.isObject()) {
-            return null;
-        }
-        JsonNode example = jsonPart.get("example");
-        if (example == null || example.isNull()) {
-            return null;
-        }
-        return example.isTextual() ? example.asText() : ApiConfigJsonSupport.writeCompact(example);
     }
 
     /** 按参数 name 建索引；同名后者覆盖。 */

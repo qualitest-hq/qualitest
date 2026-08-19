@@ -212,11 +212,11 @@ class AuthHeaderResolverTest {
     void resolve_cookieProfile_appliesCookieHeader() {
         String projectAuth = """
                 {
-                  "defaultProfileId":"sessionCookie",
                   "authProfiles":[{
                     "id":"sessionCookie",
                     "name":"会话 Cookie",
-                    "header":{"name":"Cookie","valueTemplate":"JSESSIONID={{flow.sid}}"},
+                    "headerName":"Cookie",
+                    "headerValueTemplate":"JSESSIONID={{flow.sid}}",
                     "loginHint":{"flowKey":"sid","from":"setCookie","expr":"JSESSIONID"}
                   }]
                 }
@@ -278,7 +278,7 @@ class AuthHeaderResolverTest {
     }
 
     /**
-     * 前提：旧 JSON 含 Profile 级 loginHint，parse 迁成 /login none 口。
+     * 前提：当前 JSON 含 Profile 级 loginHint 与 /login none 口。
      * 期望：inherit 的 /login 不加 Bearer。
      */
     @Test
@@ -286,11 +286,14 @@ class AuthHeaderResolverTest {
     @DisplayName("预制 none 口：inherit 的 /login 不加头")
     void resolve_prefabricatedNoneLogin_skips() {
         String projectAuth = """
-                {"defaultProfileId":"defaultBearer","authProfiles":[{
+                {"authProfiles":[{
                   "id":"defaultBearer","name":"Bearer",
-                  "header":{"name":"Authorization","valueTemplate":"Bearer {{flow.token}}"},
-                  "loginHint":{"flowKey":"token","from":"body","expr":"$.token"}
-                }],"anonymousPathExact":[],"anonymousPathPrefix":[]}
+                  "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                  "credentialApi":{"method":"POST","path":"/login"},
+                  "loginHint":{"flowKey":"token","from":"body","expr":"$.token"},
+                  "apis":[{"apiPath":"/login","authConfig":{"mode":"none"},
+                    "requestConfig":{"configVersion":1,"method":"POST"}}]
+                }]}
                 """;
         String apiAuth = ApiAuthConfigSupport.toStorageJson(
                 ApiAuthConfig.builder().mode("inherit").build());

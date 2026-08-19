@@ -88,7 +88,6 @@ public final class FlowDesignHttpNodeNormalizer {
 
         JSONObject overrides = HttpNodeRequestValueOverridesSupport.buildDiffOverrides(
                 data.get("requestValueOverrides"),
-                data.get("requestConfig"),
                 data.get("requestBody"),
                 api);
         Map<String, Object> persist = HttpNodeRequestValueOverridesSupport.toPersistMap(overrides);
@@ -201,7 +200,7 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 规范化 extracts 列表：补全 from/scope/name，把旧字段 value/path 转成 expr。
+     * 规范化 extracts 列表：补全 from/scope/name，对 expr 做 LLM 路径规范化。
      * 不猜测补 $.data 前缀。语义健康检查比对抽取路径前也会调用。
      */
     public static void normalizeExtracts(Map<String, Object> data) {
@@ -228,16 +227,8 @@ public final class FlowDesignHttpNodeNormalizer {
     private static JSONObject normalizeExtractRow(JSONObject row) {
         String name = defaultString(row.getString("name"), row.getString("entryKey"));
         String expr = row.getString("expr");
-        if (expr == null || expr.isBlank()) {
-            Object legacy = row.get("value");
-            if (legacy == null) {
-                legacy = row.get("path");
-            }
-            if (legacy != null && !String.valueOf(legacy).isBlank()) {
-                expr = convertLegacyExtractExpr(String.valueOf(legacy));
-            }
-        } else {
-            expr = convertLegacyExtractExpr(expr);
+        if (expr != null && !expr.isBlank()) {
+            expr = normalizeExtractExprPath(expr);
         }
         if (name == null || name.isBlank() || expr == null || expr.isBlank()) {
             return null;
@@ -263,9 +254,10 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 将旧式提取路径转为 $.a.b 形式。
+     * 将 LLM 等非标准提取路径规范为 $.a.b 形式。
+     * 识别前缀：http.body. / responses. / response. / body.；已是 $. 则不动。
      */
-    static String convertLegacyExtractExpr(String raw) {
+    static String normalizeExtractExprPath(String raw) {
         if (raw == null) {
             return "";
         }

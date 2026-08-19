@@ -15,17 +15,16 @@ import {
   applyRequestValueOverridesToWorkbench,
   buildRequestValueOverridesDiff,
   buildWorkbenchFromApiDetail,
-  mergeThickConfigValues,
 } from './httpWorkbenchUtils';
 
 type JsonRecord = Record<string, unknown>;
 
 /**
- * 旧式提取路径转成 $.a.b。
+ * 将 LLM 等非标准提取路径规范为 $.a.b。
  * 识别前缀：http.body. / responses. / response. / body.；已是 $. 则不动。
  * 不根据单段路径猜测补 $.data。
  */
-export function convertLegacyExtractExpr(raw: string): string {
+export function normalizeExtractExprPath(raw: string): string {
   const text = raw.trim();
   if (!text) return '';
   if (text.startsWith('$.')) return text;
@@ -38,7 +37,7 @@ export function convertLegacyExtractExpr(raw: string): string {
 }
 
 /**
- * 规范化 extracts：旧字段 value/path 转 expr，输出标准行。
+ * 规范化 extracts：对 expr 做 LLM 路径规范化，输出标准行。
  * 路径保持原样，不自动补 $.data。
  */
 export function normalizeHttpNodeExtracts(
@@ -50,13 +49,8 @@ export function normalizeHttpNodeExtracts(
   for (const row of extracts) {
     const name = String(row.name ?? row.entryKey ?? '').trim();
     let expr = String(row.expr ?? '').trim();
-    if (!expr) {
-      const legacy = row.value ?? row.path;
-      if (legacy != null && String(legacy).trim()) {
-        expr = convertLegacyExtractExpr(String(legacy));
-      }
-    } else {
-      expr = convertLegacyExtractExpr(expr);
+    if (expr) {
+      expr = normalizeExtractExprPath(expr);
     }
     if (!name || !expr) continue;
     rows.push({
@@ -105,7 +99,7 @@ function syncHttpMethod(data: JsonRecord, apiDetail?: JsonRecord | null) {
 }
 
 /**
- * 汇总已有 overrides、厚 requestConfig、临时 requestBody，相对 API 有效默认做差分，
+ * 汇总已有 overrides、临时 requestBody，相对 API 有效默认做差分，
  * 得到应落盘的 requestValueOverrides。
  */
 function buildThinOverrides(
@@ -118,9 +112,6 @@ function buildThinOverrides(
     draft,
     (data.requestValueOverrides as Record<string, unknown>) || null,
   );
-  if (data.requestConfig && typeof data.requestConfig === 'object') {
-    mergeThickConfigValues(draft, data.requestConfig as Record<string, unknown>);
-  }
   applyRequestBodyTextToDraft(draft, data.requestBody);
   return buildRequestValueOverridesDiff(draft, assetBaseline);
 }

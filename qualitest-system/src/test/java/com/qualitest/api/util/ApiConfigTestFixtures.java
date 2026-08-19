@@ -3,7 +3,7 @@ package com.qualitest.api.util;
 /**
  * 单元测试用的 API 配置 JSON 样例（{@code configVersion: 1}）。
  */
-public final class ApiConfigV2TestFixtures {
+public final class ApiConfigTestFixtures {
 
     public static final int CONFIG_VERSION = ApiConfigJsonSupport.CONFIG_VERSION;
 
@@ -42,6 +42,6 @@ public final class ApiConfigV2TestFixtures {
             {"configVersion":1,"method":"POST","queryParams":[],"pathParams":[],"declaredHeaders":[],"body":{"mode":"json","json":{"schema":null,"example":"{\\"username\\":\\"{{flow.user}}\\",\\"password\\":\\"{{asset.pwd}}\\"}"}}}
             """;
 
-    private ApiConfigV2TestFixtures() {
+    private ApiConfigTestFixtures() {
     }
 }

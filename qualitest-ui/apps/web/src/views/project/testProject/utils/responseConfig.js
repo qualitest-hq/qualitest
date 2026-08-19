@@ -3,10 +3,10 @@
  * 结构：{ configVersion: 1, responses: [ { id, name, httpStatus, contentType, schema, example, ... } ] }
  */
 
-import { RESPONSE_CONFIG_VERSION } from './apiConfigV2Constants'
+import { RESPONSE_CONFIG_VERSION } from './apiConfigConstants'
 import {sanitizeBodyJsonSchemaForPersist} from '@/views/project/testProject/utils/jsonSchemaTree'
 
-export { RESPONSE_CONFIG_VERSION } from './apiConfigV2Constants'
+export { RESPONSE_CONFIG_VERSION } from './apiConfigConstants'
 
 /** 生成 Web 端新建响应项时使用的 id */
 export function genResponseEntryId() {

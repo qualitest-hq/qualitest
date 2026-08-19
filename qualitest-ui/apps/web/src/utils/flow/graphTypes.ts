@@ -39,7 +39,7 @@ export interface GraphScenarioConfig {
   scenarios: GraphRunScenario[];
 }
 
-/** 当前 graph_json schema 版本，与后端 GraphSchemaVersions.CURRENT 对齐；缺失时前后端均视为 1 */
+/** 当前 graph_json schema 版本；缺失时前后端均视为 1 */
 export const CURRENT_GRAPH_SCHEMA_VERSION = 1;
 
 /** 图元数据 */

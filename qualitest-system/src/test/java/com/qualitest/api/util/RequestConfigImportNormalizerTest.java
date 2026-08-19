@@ -21,13 +21,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RequestConfigImportNormalizerTest {
 
     /**
-     * 前提：合法 v2 requestConfig JSON（含 configVersion、queryParams）。
+     * 前提：合法 requestConfig JSON（含 configVersion、queryParams）。
      * 期望：normalize 成功；输出含 configVersion 与 queryParams，无 params 键。
      */
     @Test
     @Order(1)
-    @DisplayName("规范化：接受合法 v2 结构")
-    void normalize_acceptsV2Shape() throws Exception {
+    @DisplayName("规范化：接受合法 requestConfig 结构")
+    void normalize_acceptsCurrentShape() throws Exception {
         String raw = """
                 {
                   "configVersion": 1,

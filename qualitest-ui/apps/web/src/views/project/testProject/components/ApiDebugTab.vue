@@ -739,7 +739,7 @@ import {
   emptyKVRow,
   ensureTrailingEmptyRow,
 } from '@/views/project/testProject/utils/apiDetailRequestWorkbench'
-import { REQUEST_CONFIG_VERSION } from '@/views/project/testProject/utils/apiConfigV2Constants'
+import { REQUEST_CONFIG_VERSION } from '@/views/project/testProject/utils/apiConfigConstants'
 import { HTTP_METHODS, getApiHttpMethodBadgeClass } from '@/views/project/testProject/utils/httpMethodMeta'
 import {executeDebugRequest} from '@/transport/debugTransport'
 import {useApiDebugScript, runPostScript, runPreScript} from '@/views/project/testProject/composables/useApiDebugScript'

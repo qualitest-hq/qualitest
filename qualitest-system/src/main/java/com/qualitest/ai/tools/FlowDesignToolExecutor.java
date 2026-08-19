@@ -55,9 +55,6 @@ public class FlowDesignToolExecutor {
 
     public static final String SEARCH_APIS = FlowDesignToolNames.SEARCH_APIS.getId();
     public static final String GET_API_DETAILS = FlowDesignToolNames.GET_API_DETAILS.getId();
-    /** 已删除的旧工具名 get_api_detail；调用时返回请改用 get_api_details 的提示 */
-    @Deprecated
-    public static final String GET_API_DETAIL_LEGACY = "get_api_detail";
     public static final String GET_GRAPH_SUMMARY = FlowDesignToolNames.GET_GRAPH_SUMMARY.getId();
     public static final String GET_FLOW_META = FlowDesignToolNames.GET_FLOW_META.getId();
     public static final String LIST_PROJECT_ENVS = FlowDesignToolNames.LIST_PROJECT_ENVS.getId();
@@ -141,11 +138,6 @@ public class FlowDesignToolExecutor {
      * 按工具名执行一次调用，返回 JSON 字符串（成功为数据对象，失败含 error 字段）。
      */
     public String executeTool(String name, String argumentsJson, FlowDesignToolContext context) {
-        // 旧工具名：不再执行查询，只提示改用 get_api_details
-        if ("get_api_detail".equals(name)) {
-            return FlowDesignToolSupport.errorJson(
-                    "工具 get_api_detail 已废弃，请改用 get_api_details（参数 testProjectApiIds 为字符串数组，单条也传 [id]）");
-        }
         QualitestTool tool = tools.get(name);
         if (tool == null) {
             return FlowDesignToolSupport.errorJson("未知工具: " + name);

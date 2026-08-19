@@ -8,7 +8,6 @@ import { filterFilledExtracts } from '@/utils/flow/extract';
 
 export { formatAssignAssignment, getAssignAssignments } from '@/utils/flow/assign';
 
-import { isUrlencodedBodyMode } from '@/views/project/testProject/utils/bodyModeUtils';
 import { ASSERT_LEFT_LABELS, defaultConditionBranches, NODE_TYPES } from '../constants/nodeTypes';
 import { formatConditionSummary } from './conditionUtils';
 import { formatExternalSummary, isExternalCallMode } from './httpSummary';
@@ -99,18 +98,6 @@ export function formatHttpRequestLine(data: Record<string, unknown>) {
       && String(overrides.bodyExample).trim() !== ''
       ? 1
       : 0);
-  // 旧版整份 requestConfig 仍在时，按结构统计参数数
-  const rc = (data.requestConfig as Record<string, unknown>) || {};
-  if (!Object.keys(paramDefaults).length && rc) {
-    const body = (rc.body as Record<string, unknown>) || {};
-    paramCount =
-      countFilledRows(rc.queryParams as Array<Record<string, unknown>>) +
-      countFilledRows(rc.pathParams as Array<Record<string, unknown>>) +
-      countFilledRows(data.headers as Array<Record<string, unknown>>) +
-      countFilledRows(data.cookies as Array<Record<string, unknown>>) +
-      (body.mode === 'json' && String((body.json as Record<string, unknown>)?.example || '').trim() ? 1 : 0) +
-      (isUrlencodedBodyMode(body.mode) ? countFilledRows(body.urlencoded as Array<Record<string, unknown>>) : 0);
-  }
   if (paramCount) line += ` · ${paramCount} 项参数`;
   const timeoutMs = data.timeoutMs;
   if (timeoutMs != null && timeoutMs !== '') line += ` · ${timeoutMs}ms`;

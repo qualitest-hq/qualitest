@@ -47,31 +47,6 @@ describe('parseAuthConfig', () => {
     expect(form.profiles[0].apis[0].authMode).toBe('none')
   })
 
-  it('兼容旧 apis[].authConfig.loginHint 上提到 Profile 行', () => {
-    // 前提：loginHint 仍在预制口 authConfig 内
-    const raw = {
-      authProfiles: [{
-        id: 'clientBearer',
-        headerName: 'Authorization',
-        headerValueTemplate: 'Bearer {{flow.token}}',
-        apis: [{
-          apiPath: '/api/account/auth/login',
-          authConfig: {
-            mode: 'none',
-            loginHint: { flowKey: 'token', from: 'body', expr: '$.data.token' },
-          },
-          requestConfig: { method: 'POST' },
-        }],
-      }],
-    }
-
-    const form = parseAuthConfig(raw)
-
-    // 期望：读取时能拿到 loginHint 字段
-    expect(form.profiles[0].loginFlowKey).toBe('token')
-    expect(form.profiles[0].loginExpr).toBe('$.data.token')
-  })
-
   it('有 Profile 但 apis 为空时 needsAuthTemplateHint 为 true', () => {
     // 前提：存量仅有 Profile 无预制口
     const raw = {

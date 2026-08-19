@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.FlowDesignPromptResources;
+import com.qualitest.flow.model.GraphSchemaVersions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,7 +107,7 @@ public final class SubflowTemplateCatalog {
             }
         }
         meta.put("flowOutputs", flowOutputs);
-        meta.put("schemaVersion", 1);
+        meta.put("schemaVersion", GraphSchemaVersions.CURRENT);
         return graph.toJSONString();
     }
 }

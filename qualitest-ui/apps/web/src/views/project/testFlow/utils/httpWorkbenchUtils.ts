@@ -5,7 +5,7 @@
  * 保存时只把相对资产默认不同的测值写入 requestValueOverrides，
  * 不写整份 requestConfig，也不写 apiPath（路径只读展示资产路径）。
  */
-import { REQUEST_CONFIG_VERSION } from '@/views/project/testProject/utils/apiConfigV2Constants'
+import { REQUEST_CONFIG_VERSION } from '@/views/project/testProject/utils/apiConfigConstants'
 import {
   emptyKVRow,
   ensureBodyShape,
@@ -13,7 +13,6 @@ import {
   headersCookiesToRows,
   parseFlexibleJson,
 } from '@/views/project/testProject/utils/apiDetailRequestWorkbench'
-import { isUrlencodedBodyMode } from '@/views/project/testProject/utils/bodyModeUtils'
 import { HTTP_METHODS } from '@/views/project/testProject/utils/httpMethodMeta'
 
 export { emptyKVRow, ensureBodyShape, ensureTrailingEmptyRow, HTTP_METHODS };
@@ -168,7 +167,7 @@ export function applyRequestBodyTextToDraft(draft: HttpWorkbenchDraft, requestBo
 
 /**
  * 用 API 有效配置 + 节点 data 拼编辑草稿。
- * 路径用资产；测值叠 requestValueOverrides；若仍有旧版 requestConfig 则先叠其 value。
+ * 路径用资产；测值叠 requestValueOverrides。
  */
 export function buildWorkbenchFromApiAndNode(
   apiDetail: Record<string, unknown> | null,
@@ -186,10 +185,6 @@ export function buildWorkbenchFromApiAndNode(
     draft.requestConfig.method = String(nodeData.httpMethod).toUpperCase();
   }
 
-  if (nodeData.requestConfig && typeof nodeData.requestConfig === 'object') {
-    mergeThickConfigValues(draft, nodeData.requestConfig as Record<string, unknown>);
-  }
-
   applyRequestValueOverridesToWorkbench(
     draft,
     (nodeData.requestValueOverrides as RequestValueOverrides) || null,
@@ -202,32 +197,6 @@ export function buildWorkbenchFromApiAndNode(
     draft.cookieRows = normalizeKvRows(nodeData.cookies as KvRow[]);
   }
   return draft;
-}
-
-/**
- * 把旧版整份 requestConfig 里的测值叠进草稿（参数 value、body）。
- * 洗库前打开旧节点、或 AI 残留厚配置时用。
- */
-export function mergeThickConfigValues(draft: HttpWorkbenchDraft, rc: Record<string, unknown>) {
-  if (rc.method) draft.requestConfig.method = String(rc.method).toUpperCase();
-  const overlayValues = (target: KvRow[], src: unknown) => {
-    if (!Array.isArray(src)) return;
-    for (const item of src) {
-      if (!item || typeof item !== 'object') continue;
-      const name = String((item as KvRow).name || '').trim();
-      const value = (item as KvRow).value;
-      if (!name || value == null || String(value).trim() === '') continue;
-      const row = target.find((r) => String(r.name || '').trim() === name);
-      if (row) row.value = value as string;
-      else target.push({ ...emptyKVRow(), name, value: value as string, _enabled: true });
-    }
-    ensureTrailingEmptyRow(target);
-  };
-  overlayValues(draft.requestConfig.queryParams, rc.queryParams);
-  overlayValues(draft.requestConfig.pathParams, rc.pathParams);
-  if (rc.body && typeof rc.body === 'object') {
-    draft.requestConfig.body = ensureBodyShape(rc.body as Record<string, unknown>);
-  }
 }
 
 /** 两个测值是否相等（JSON 字符串与对象视为可等价） */
@@ -384,8 +353,7 @@ export function applyWorkbenchToNodeData(
 
 /**
  * 统计节点参数数量，供属性面板摘要。
- * 优先数 requestValueOverrides；若仍有旧版 requestConfig 则也能统计。
- * form-data / urlencoded 测值落在 paramDefaults，按资产 body 模式计入 Body（而非 Query）。
+ * 数 requestValueOverrides；GET/HEAD 的 paramDefaults 算 Query，其余算 Body。
  */
 export function countHttpParamStats(data: Record<string, unknown>) {
   const overrides = (data.requestValueOverrides as RequestValueOverrides) || {};
@@ -397,53 +365,20 @@ export function countHttpParamStats(data: Record<string, unknown>) {
     ? 1
     : 0;
 
-  const rc = (data.requestConfig as Record<string, unknown>) || {};
-  const body = (rc.body as Record<string, unknown>) || {};
-  const bodyMode = String(body.mode || '').toLowerCase();
-  const formDataNames = new Set(
-    (Array.isArray(body.formData) ? (body.formData as KvRow[]) : [])
-      .map((r) => String(r?.name || '').trim())
-      .filter(Boolean),
-  );
-  const urlencodedNames = new Set(
-    (Array.isArray(body.urlencoded) ? (body.urlencoded as KvRow[]) : [])
-      .map((r) => String(r?.name || '').trim())
-      .filter(Boolean),
-  );
-  const isFormLikeBody = bodyMode === 'form-data' || bodyMode === 'formdata' || bodyMode === 'multipart'
-    || bodyMode === 'urlencoded' || isUrlencodedBodyMode(body.mode);
-
-  // 薄节点无 body.mode：GET/HEAD 的 paramDefaults 算 Query，其余算 Body（form-data 主路径）
+  const method = String(data.httpMethod || '').toUpperCase();
   let overrideBodyParamCount = 0;
   let overrideQueryParamCount = 0;
-  if (isFormLikeBody) {
-    overrideBodyParamCount = paramNames.length;
-  } else if (formDataNames.size || urlencodedNames.size) {
-    for (const name of paramNames) {
-      if (formDataNames.has(name) || urlencodedNames.has(name)) overrideBodyParamCount += 1;
-      else overrideQueryParamCount += 1;
-    }
-  } else if (!bodyMode && paramNames.length) {
-    const method = String(data.httpMethod || rc.method || '').toUpperCase();
+  if (paramNames.length) {
     if (method === 'GET' || method === 'HEAD') overrideQueryParamCount = paramNames.length;
     else overrideBodyParamCount = paramNames.length;
-  } else {
-    overrideQueryParamCount = paramNames.length;
-  }
-
-  let thickBody = 0;
-  if (body.mode === 'json' && String((body.json as Record<string, unknown>)?.example || '').trim()) thickBody = 1;
-  if (isUrlencodedBodyMode(body.mode)) thickBody = countFilledRows(body.urlencoded as KvRow[]);
-  if (bodyMode === 'form-data' || bodyMode === 'formdata' || bodyMode === 'multipart') {
-    thickBody = countFilledRows(body.formData as KvRow[]);
   }
 
   return {
-    query: overrideQueryParamCount || countFilledRows(rc.queryParams as KvRow[]),
-    path: countFilledRows(rc.pathParams as KvRow[]),
+    query: overrideQueryParamCount,
+    path: 0,
     headers: countFilledRows(data.headers as KvRow[]),
     cookies: countFilledRows(data.cookies as KvRow[]),
-    body: bodyExampleCount || overrideBodyParamCount || thickBody,
+    body: bodyExampleCount || overrideBodyParamCount,
   };
 }
 

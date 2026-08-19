@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测谁：项目鉴权配置新形态、旧 JSON 读兼容、免登只认预制 none 口。
- * 边界：空配置 builtin、有 Profile 不再猜 /login、defaultProfile 调到第一、忽略旧 prefix。
+ * 测谁：项目鉴权配置当前形态、免登只认预制 none 口。
+ * 边界：空配置 builtin、有 Profile 不再猜 /login。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ProjectAuthConfigSupportTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -127,36 +127,37 @@ class ProjectAuthConfigSupportTest {
     }
 
     /**
-     * 前提：旧 JSON（嵌套 header、Profile loginHint、anonymousPathExact、defaultProfileId=admin）。
-     * 期望：拍平头；admin 调到第一；/login 与客户端 login 成为 none 口并带 hint；忽略 prefix。
+     * 前提：当前结构双端 JSON（扁平头、credentialApi、loginHint、none 登录口）。
+     * 期望：/login 与客户端 login 免登；未命中前缀走第一条。
      */
     @Test
     @Order(5)
-    @DisplayName("parse 读兼容旧双端 JSON")
-    void parse_migratesLegacyDualJson() {
+    @DisplayName("parse 当前双端 JSON")
+    void parse_currentDualJson() {
         String raw = """
-                {"defaultProfileId":"adminBearer","authProfiles":[
-                  {"id":"clientBearer","name":"客户端 Bearer","match":{"pathPrefix":["/api/"]},
-                   "header":{"name":"Authorization","valueTemplate":"Bearer {{flow.token}}"},
-                   "loginHint":{"flowKey":"token","from":"body","expr":"$.data.token"}},
+                {"authProfiles":[
                   {"id":"adminBearer","name":"管理端 Bearer",
                    "match":{"pathPrefix":["/system/","/monitor/","/tool/","/web/"]},
-                   "header":{"name":"Authorization","valueTemplate":"Bearer {{flow.adminToken}}"},
-                   "loginHint":{"flowKey":"adminToken","from":"body","expr":"$.token"}}
-                ],"anonymousPathExact":["/login","/register","/captchaImage",
-                  "/api/account/auth/login","/api/account/auth/register"],
-                 "anonymousPathPrefix":["/test-support/","/swagger-ui"]}
+                   "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.adminToken}}",
+                   "credentialApi":{"method":"POST","path":"/login"},
+                   "loginHint":{"flowKey":"adminToken","from":"body","expr":"$.token"},
+                   "apis":[{"apiPath":"/login","authConfig":{"mode":"none"},
+                     "requestConfig":{"configVersion":1,"method":"POST"}}]},
+                  {"id":"clientBearer","name":"客户端 Bearer","match":{"pathPrefix":["/api/"]},
+                   "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                   "credentialApi":{"method":"POST","path":"/api/account/auth/login"},
+                   "loginHint":{"flowKey":"token","from":"body","expr":"$.data.token"},
+                   "apis":[{"apiPath":"/api/account/auth/login","authConfig":{"mode":"none"},
+                     "requestConfig":{"configVersion":1,"method":"POST"}}]}
+                ]}
                 """;
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(raw);
 
         assertEquals("adminBearer", cfg.getAuthProfiles().get(0).getId());
         assertEquals("Authorization", cfg.getAuthProfiles().get(0).getHeaderName());
-        assertNull(cfg.getDefaultProfileId());
-        assertNull(cfg.getAnonymousPathExact());
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
                 "POST", "/api/account/auth/login", cfg));
-        assertFalse(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("GET", "/test-support/snapshot", cfg));
         PrefabricatedApi adminLogin = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
         assertEquals("none", adminLogin.getAuthConfig().getMode());
         assertNull(adminLogin.getAuthConfig().getLoginHint());
@@ -168,25 +169,27 @@ class ProjectAuthConfigSupportTest {
     }
 
     /**
-     * 前提：旧 JSON 写入 normalizeToJson。
-     * 期望：落库无 defaultProfileId / anonymousPath / 嵌套 header。
+     * 前提：当前结构写入 normalizeToJson。
+     * 期望：落库含扁平头与 credentialApi，不含嵌套 header。
      */
     @Test
     @Order(6)
-    @DisplayName("normalize 只写出新形态")
+    @DisplayName("normalize 只写出当前形态")
     void normalizeToJson_writesFlatShape() {
         String raw = """
-                {"defaultProfileId":"p1","authProfiles":[
+                {"authProfiles":[
                   {"id":"p1","name":"x",
-                   "header":{"name":"Authorization","valueTemplate":"Bearer {{flow.token}}"},
-                   "loginHint":{"flowKey":"token","from":"body","expr":"$.token"}}
-                ],"anonymousPathExact":["/login"]}
+                   "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                   "credentialApi":{"method":"POST","path":"/login"},
+                   "loginHint":{"flowKey":"token","from":"body","expr":"$.token"},
+                   "apis":[{"apiPath":"/login","authConfig":{"mode":"none"},
+                     "requestConfig":{"configVersion":1,"method":"POST"}}]}
+                ]}
                 """;
         String stored = ProjectAuthConfigSupport.normalizeToJson(raw);
 
         assertFalse(stored.contains("defaultProfileId"));
         assertFalse(stored.contains("anonymousPathExact"));
-        assertFalse(stored.contains("anonymousPathPrefix"));
         assertFalse(stored.contains("\"header\":"));
         assertTrue(stored.contains("headerName"));
         assertTrue(stored.contains("\"apis\""));
@@ -198,24 +201,17 @@ class ProjectAuthConfigSupportTest {
     }
 
     /**
-     * 前提：loginHint 使用 from+expr；旧 extractJsonPath。
+     * 前提：loginHint 使用 from+expr。
      * 期望：resolve 读出 body + JSONPath。
      */
     @Test
     @Order(7)
-    @DisplayName("loginHint：from+expr 与旧 extractJsonPath 兼容")
-    void resolveLoginExtract_fromExpr_andLegacy() {
+    @DisplayName("loginHint：from+expr")
+    void resolveLoginExtract_fromExpr() {
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.ruoyiBearerTemplate();
         var hint = ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/login");
         assertEquals("body", ProjectAuthConfigSupport.resolveLoginExtractFrom(hint));
         assertEquals("$.token", ProjectAuthConfigSupport.resolveLoginExtractExpr(hint));
-
-        var legacy = ProjectAuthConfig.LoginHint.builder()
-                .flowKey("token")
-                .extractJsonPath("$.data.token")
-                .build();
-        assertEquals("body", ProjectAuthConfigSupport.resolveLoginExtractFrom(legacy));
-        assertEquals("$.data.token", ProjectAuthConfigSupport.resolveLoginExtractExpr(legacy));
     }
 
     /**
@@ -296,6 +292,8 @@ class ProjectAuthConfigSupportTest {
                 {"authProfiles":[{
                   "id":"p1","name":"x",
                   "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                  "credentialApi":{"method":"POST","path":"/login"},
+                  "loginHint":{"flowKey":"token","from":"body","expr":"$.token"},
                   "apis":[{
                     "apiName":"登录","apiPath":"/login","apiGroup":"系统.登录",
                     "protocolType":"http","apiStatus":"normal",
@@ -306,7 +304,7 @@ class ProjectAuthConfigSupportTest {
                     "responseConfig":{"configVersion":1,"responses":[{"id":"ok"}]},
                     "testValueConfig":{"bodyExample":{"username":"admin"}},
                     "bizCodeConfig":{"successValues":[200]},
-                    "authConfig":{"mode":"none","loginHint":{"flowKey":"token","from":"body","expr":"$.token"}},
+                    "authConfig":{"mode":"none"},
                     "designHints":{"hints":["token 在 $.token"]},
                     "preRequestScript":"pre()",
                     "postRequestScript":"post()"

@@ -10,7 +10,6 @@ import com.qualitest.flow.context.ResolvedRunScenario;
 import com.qualitest.flow.context.RunScenarioBootstrap;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
-import com.qualitest.flow.migrate.GraphMigrator;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.common.utils.SecurityUtils;
 import com.qualitest.flow.run.ExecutionOutcome;
@@ -71,7 +70,6 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     private final TestProjectMapper testProjectMapper;
     private final TestFlowExecutor testFlowExecutor;
     private final StepResultWriter stepResultWriter;
-    private final GraphMigrator graphMigrator;
     private final GraphJsonValidator graphJsonValidator = new GraphJsonValidator();
 
     @Override
@@ -100,11 +98,6 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             }
         } catch (Exception e) {
             throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID, "图解析失败: " + e.getMessage());
-        }
-
-        // 旧版 schema 在内存中迁移后执行，不写回 test_flow（须用户确认升级才持久化）
-        if (graphMigrator.needsUpgrade(graph)) {
-            graph = graphMigrator.migrateToLatest(graph);
         }
 
         GraphValidationResult validation = graphJsonValidator.validate(graph);

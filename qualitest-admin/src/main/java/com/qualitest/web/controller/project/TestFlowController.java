@@ -24,11 +24,9 @@ import com.qualitest.project.params.CreateSubflowFromTemplateParams;
 import com.qualitest.project.params.RefreshAuthHeadersParams;
 import com.qualitest.project.params.TestFlowApiHealthPreviewParams;
 import com.qualitest.project.params.TestFlowParams;
-import com.qualitest.project.params.UpgradeTestFlowGraphParams;
 import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectMemberService;
-import com.qualitest.project.service.TestFlowGraphUpgradeService;
 import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.flow.diagnose.ApiFlowReferenceScanService;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
@@ -50,7 +48,6 @@ public class TestFlowController extends BaseController {
 
     private final ITestFlowService testFlowService;
     private final ITestProjectMemberService testProjectMemberService;
-    private final TestFlowGraphUpgradeService testFlowGraphUpgradeService;
     /** 保存流或主动刷新时，把语义告警条数写回 test_flow.api_health_* */
     private final ApiFlowHealthPersistService apiFlowHealthPersistService;
     /** 按入参 graphJson 做语义体检，不写库（画布预检用） */
@@ -96,9 +93,6 @@ public class TestFlowController extends BaseController {
         TestFlowResult result = testFlowService.selectTestFlowResult(testFlowId);
         if (result != null && result.getTestProjectId() != null) {
             testProjectMemberService.getCheckProjectMemberRole(result.getTestProjectId());
-        }
-        if (result != null) {
-            testFlowGraphUpgradeService.enrichUpgradeMeta(result);
         }
         return ok(result);
     }
@@ -160,24 +154,6 @@ public class TestFlowController extends BaseController {
         }
         testProjectMemberService.getCheckProjectMemberRole(flow.getTestProjectId());
         return flow;
-    }
-
-    /**
-     * 将测试流 graph_json 迁移到当前 schema 版本并持久化。
-     */
-    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
-    @Log(title = "测试流", businessType = BusinessType.UPDATE)
-    @PostMapping("/upgradeGraph")
-    public R<TestFlowResult> upgradeGraph(@RequestBody UpgradeTestFlowGraphParams params) {
-        if (params == null || params.getTestFlowId() == null) {
-            throw new ServiceException("testFlowId 不能为空");
-        }
-        TestFlow flow = testFlowService.selectTestFlowById(params.getTestFlowId());
-        if (flow == null || (flow.getDelStatus() != null && flow.getDelStatus() != 0)) {
-            throw new ServiceException("测试流不存在");
-        }
-        testProjectMemberService.getCheckProjectMemberRole(flow.getTestProjectId());
-        return ok(testFlowGraphUpgradeService.upgradeGraph(flow, testFlowService));
     }
 
     /**

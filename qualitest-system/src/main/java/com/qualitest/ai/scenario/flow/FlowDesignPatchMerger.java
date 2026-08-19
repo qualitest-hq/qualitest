@@ -7,7 +7,6 @@ import com.qualitest.flow.graph.ConditionBranchMergeHelper;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpNodePathSupport;
-import com.qualitest.flow.migrate.GraphMigrator;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphMeta;
@@ -25,8 +24,6 @@ import java.util.Set;
 /**
  * 将 AI 增量 patch 合并进基准图副本。
  * <p>
- * 合并前对基准图执行内存 schema 迁移（{@link GraphMigrator#migrateToLatest}），保证 AI 操作基准与当前版本一致。
- * <p>
  * 在内存中操作图结构，不写库。合并顺序：新增节点 → 更新节点 → 新增边 → 更新边 →
  * 按 suggestedDeletes 删节点/边（删节点时级联移除关联边）→ 合并 scenarioPatch 到 meta。
  * condition 出边增删改时会同步源节点 data.branches[].target。
@@ -40,15 +37,6 @@ import java.util.Set;
 @Component
 public class FlowDesignPatchMerger {
 
-    private final GraphMigrator graphMigrator;
-
-    public FlowDesignPatchMerger() {
-        this(new GraphMigrator());
-    }
-
-    public FlowDesignPatchMerger(GraphMigrator graphMigrator) {
-        this.graphMigrator = graphMigrator;
-    }
     /**
      * 全量合并：将 patch 中全部增量项写入基准图副本。
      *
@@ -187,7 +175,7 @@ public class FlowDesignPatchMerger {
      * 已存在 id 的 add 操作跳过；update 目标不存在时跳过。
      */
     private GraphJson mergePatch(GraphJson baseGraph, FlowDesignPatch patch, List<String> warnings) {
-        GraphJson graph = graphMigrator.migrateToLatest(baseGraph);
+        GraphJson graph = baseGraph == null ? GraphJson.builder().build() : baseGraph.copy();
         List<GraphNode> nodes = graph.getNodes();
         List<GraphEdge> edges = graph.getEdges();
 

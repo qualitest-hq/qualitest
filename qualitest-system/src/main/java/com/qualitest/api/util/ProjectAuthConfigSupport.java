@@ -5,7 +5,6 @@ import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
-import com.qualitest.api.model.ProjectAuthConfig.Header;
 import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
@@ -24,7 +23,7 @@ import java.util.Set;
 /**
  * 项目鉴权配置的解析、校验、写出和运行期查询。
  * <p>
- * 解析时把历史 JSON 迁成当前结构；写出含 authProfiles（扁平头 + credentialApi + loginHint + 预制接口）。
+ * 写出含 authProfiles（扁平头 + credentialApi + loginHint + 预制接口）。
  * 免登：配置为空时用内置 /login 等路径；有 Profile 后只认预制口 mode=none。
  * 抽凭证只认 Profile.loginHint，且仅 credentialApi 那一口。
  */
@@ -50,7 +49,6 @@ public final class ProjectAuthConfigSupport {
 
     /**
      * 解析库中 JSON。空白或非法返回空配置。
-     * 会把历史字段迁到当前结构：拍平头、免登路径变成 none 预制口、apis 上的 loginHint 上提到 Profile。
      */
     public static ProjectAuthConfig parse(String json) {
         if (StrUtil.isBlank(json)) {
@@ -61,7 +59,6 @@ public final class ProjectAuthConfigSupport {
             if (cfg == null) {
                 return empty();
             }
-            migrateLegacyInPlace(cfg);
             return cfg;
         } catch (Exception e) {
             return empty();
@@ -70,7 +67,7 @@ public final class ProjectAuthConfigSupport {
 
     /**
      * 序列化成当前结构 JSON：根只有 authProfiles。
-     * 不含 defaultProfileId、anonymousPath、嵌套 header；apis 的 auth 不含 loginHint。
+     * 不含嵌套 header；apis 的 auth 不含 loginHint。
      */
     public static String toJson(ProjectAuthConfig config) {
         if (isEmpty(config)) {
@@ -225,174 +222,16 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * 校验并清理配置对象：迁完历史字段后只保留当前结构。
+     * 校验并清理配置对象，只保留当前结构。
      */
     public static ProjectAuthConfig normalize(ProjectAuthConfig input) {
         if (input == null) {
             return empty();
         }
-        migrateLegacyInPlace(input);
         List<ProjectAuthProfile> profiles = normalizeProfiles(input.getAuthProfiles());
         return ProjectAuthConfig.builder()
                 .authProfiles(profiles)
                 .build();
-    }
-
-    /**
-     * 把历史字段迁到当前结构：拍平头、免登精确路径变成 none 口、loginHint 上提到 Profile。
-     * 不抛业务异常。
-     */
-    static void migrateLegacyInPlace(ProjectAuthConfig config) {
-        if (config == null || config.getAuthProfiles() == null) {
-            return;
-        }
-        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
-            flattenHeader(profile);
-        }
-        moveDefaultProfileFirst(config);
-        distributeExactAnonymousApis(config);
-        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
-            liftCredentialToProfile(profile);
-            profile.setHeader(null);
-        }
-        config.setDefaultProfileId(null);
-        config.setAnonymousPathExact(null);
-        config.setAnonymousPathPrefix(null);
-    }
-
-    /** 嵌套 header 拍平到 headerName、headerValueTemplate。 */
-    private static void flattenHeader(ProjectAuthProfile profile) {
-        if (profile == null) {
-            return;
-        }
-        if (StrUtil.isBlank(profile.getHeaderName()) && profile.getHeader() != null) {
-            profile.setHeaderName(StrUtil.trimToNull(profile.getHeader().getName()));
-        }
-        if (StrUtil.isBlank(profile.getHeaderValueTemplate()) && profile.getHeader() != null) {
-            profile.setHeaderValueTemplate(StrUtil.trimToNull(profile.getHeader().getValueTemplate()));
-        }
-        profile.setHeaderName(StrUtil.trimToNull(profile.getHeaderName()));
-        profile.setHeaderValueTemplate(StrUtil.trimToNull(profile.getHeaderValueTemplate()));
-    }
-
-    /** 把 defaultProfileId 对应的那条调到数组第一位。 */
-    private static void moveDefaultProfileFirst(ProjectAuthConfig config) {
-        String defaultId = StrUtil.trimToNull(config.getDefaultProfileId());
-        List<ProjectAuthProfile> profiles = config.getAuthProfiles();
-        if (defaultId == null || profiles == null || profiles.size() < 2) {
-            return;
-        }
-        int idx = -1;
-        for (int i = 0; i < profiles.size(); i++) {
-            ProjectAuthProfile p = profiles.get(i);
-            if (p != null && defaultId.equals(p.getId())) {
-                idx = i;
-                break;
-            }
-        }
-        if (idx > 0) {
-            ProjectAuthProfile first = profiles.remove(idx);
-            profiles.add(0, first);
-        }
-    }
-
-    /**
-     * 把历史免登精确路径变成 path-only、mode=none 的预制口。
-     * 按 pathPrefix 分到对应 Profile，未命中进第一条。历史 prefix 列表不处理。
-     */
-    private static void distributeExactAnonymousApis(ProjectAuthConfig config) {
-        List<String> exact = config.getAnonymousPathExact();
-        if (exact == null || exact.isEmpty() || config.getAuthProfiles().isEmpty()) {
-            return;
-        }
-        for (String raw : exact) {
-            if (StrUtil.isBlank(raw)) {
-                continue;
-            }
-            String path = normalizeApiPath(raw.trim());
-            if (findPrefabricatedApi(config, null, path) != null) {
-                continue;
-            }
-            String profileId = resolveProfileIdByPrefixOnly(path, config);
-            ProjectAuthProfile target = findProfile(config, profileId);
-            if (target == null) {
-                target = config.getAuthProfiles().get(0);
-            }
-            ensureApisList(target).add(PrefabricatedApi.builder()
-                    .apiName(path)
-                    .apiPath(path)
-                    .protocolType("http")
-                    .apiStatus("normal")
-                    .authConfig(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).build())
-                    .build());
-        }
-    }
-
-    /**
-     * 把 loginHint / credentialApi 提到 Profile：优先已有 Profile 字段，否则从预制口上提。
-     * 有 hint 但没有登录口时补一条 POST /login（mode=none）。预制口上的 loginHint 清掉。
-     */
-    private static void liftCredentialToProfile(ProjectAuthProfile profile) {
-        if (profile == null) {
-            return;
-        }
-        LoginHint hint = normalizeLoginHintQuiet(profile.getLoginHint());
-        PrefabricatedApi hintedApi = null;
-        if (profile.getApis() != null) {
-            for (PrefabricatedApi api : profile.getApis()) {
-                if (api == null || api.getAuthConfig() == null || api.getAuthConfig().getLoginHint() == null) {
-                    continue;
-                }
-                LoginHint fromApi = normalizeLoginHintQuiet(api.getAuthConfig().getLoginHint());
-                if (fromApi == null) {
-                    continue;
-                }
-                if (hint == null) {
-                    hint = fromApi;
-                }
-                if (hintedApi == null) {
-                    hintedApi = api;
-                }
-            }
-        }
-        PrefabricatedApi loginLike = findLoginLikeApiOnProfile(profile);
-        CredentialApi cred = normalizeCredentialApi(profile.getCredentialApi());
-        if (cred == null) {
-            PrefabricatedApi src = hintedApi != null ? hintedApi : loginLike;
-            if (src == null && hint != null) {
-                src = PrefabricatedApi.builder()
-                        .apiName("登录")
-                        .apiPath("/login")
-                        .apiGroup("系统.登录")
-                        .protocolType("http")
-                        .apiStatus("normal")
-                        .requestConfig(minimalRequestConfig("POST", null))
-                        .authConfig(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).build())
-                        .build();
-                ensureApisList(profile).add(0, src);
-            }
-            if (src != null) {
-                String method = prefabricatedHttpMethod(src);
-                if (method == null && hint != null) {
-                    method = "POST";
-                    src.setRequestConfig(minimalRequestConfig("POST", src.getRequestConfig()));
-                }
-                cred = CredentialApi.builder()
-                        .method(method)
-                        .path(normalizeApiPath(src.getApiPath()))
-                        .build();
-            }
-        }
-        profile.setLoginHint(hint);
-        profile.setCredentialApi(cred);
-        if (profile.getApis() == null) {
-            return;
-        }
-        for (PrefabricatedApi api : profile.getApis()) {
-            if (api != null && api.getAuthConfig() != null) {
-                api.getAuthConfig().setLoginHint(null);
-            }
-        }
     }
 
     /** 整理 credentialApi：path 必填，method 转大写。 */
@@ -408,35 +247,6 @@ public final class ProjectAuthConfigSupport {
                 .method(method)
                 .path(normalizeApiPath(raw.getPath()))
                 .build();
-    }
-
-    /** 在本 Profile 的 apis 里找 path 以 /login 结尾的口，没有则找 /register。 */
-    private static PrefabricatedApi findLoginLikeApiOnProfile(ProjectAuthProfile profile) {
-        if (profile == null || profile.getApis() == null) {
-            return null;
-        }
-        PrefabricatedApi register = null;
-        for (PrefabricatedApi api : profile.getApis()) {
-            if (api == null || StrUtil.isBlank(api.getApiPath())) {
-                continue;
-            }
-            String path = normalizeApiPath(api.getApiPath()).toLowerCase(Locale.ROOT);
-            if (path.endsWith("/login")) {
-                return api;
-            }
-            if (register == null && path.endsWith("/register")) {
-                register = api;
-            }
-        }
-        return register;
-    }
-
-    /** 确保 Profile.apis 非 null。 */
-    private static List<PrefabricatedApi> ensureApisList(ProjectAuthProfile profile) {
-        if (profile.getApis() == null) {
-            profile.setApis(new ArrayList<>());
-        }
-        return profile.getApis();
     }
 
     /** 校验 Profile：id 非空且不重复，必须有头名称和值模板，禁止 pathPrefix=/。 */
@@ -541,7 +351,7 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * 整理 loginHint：from 只允许 body/setCookie/header；历史 extractJsonPath 当作 body+expr。
+     * 整理 loginHint：from 只允许 body/setCookie/header。
      */
     static LoginHint normalizeLoginHint(LoginHint hint, String profileId) {
         if (hint == null) {
@@ -550,13 +360,6 @@ public final class ProjectAuthConfigSupport {
         String flowKey = StrUtil.trimToNull(hint.getFlowKey());
         String from = StrUtil.trimToNull(hint.getFrom());
         String expr = StrUtil.trimToNull(hint.getExpr());
-        String legacy = StrUtil.trimToNull(hint.getExtractJsonPath());
-        if (from == null && legacy != null) {
-            from = "body";
-            if (expr == null) {
-                expr = legacy;
-            }
-        }
         if (from != null) {
             String canonical = canonicalLoginFrom(from);
             if (canonical == null) {
@@ -968,30 +771,20 @@ public final class ProjectAuthConfigSupport {
         return StrUtil.blankToDefault(profileId, "项目鉴权");
     }
 
-    /** 读扁平头名称，没有则读历史嵌套 header.name。 */
+    /** 读扁平头名称。 */
     public static String resolveHeaderName(ProjectAuthProfile profile) {
         if (profile == null) {
             return null;
         }
-        String name = StrUtil.trimToNull(profile.getHeaderName());
-        if (name != null) {
-            return name;
-        }
-        Header header = profile.getHeader();
-        return header != null ? StrUtil.trimToNull(header.getName()) : null;
+        return StrUtil.trimToNull(profile.getHeaderName());
     }
 
-    /** 读扁平头值模板，没有则读历史嵌套 header.valueTemplate。 */
+    /** 读扁平头值模板。 */
     public static String resolveHeaderValueTemplate(ProjectAuthProfile profile) {
         if (profile == null) {
             return null;
         }
-        String value = StrUtil.trimToNull(profile.getHeaderValueTemplate());
-        if (value != null) {
-            return value;
-        }
-        Header header = profile.getHeader();
-        return header != null ? StrUtil.trimToNull(header.getValueTemplate()) : null;
+        return StrUtil.trimToNull(profile.getHeaderValueTemplate());
     }
 
     /**
@@ -1002,26 +795,12 @@ public final class ProjectAuthConfigSupport {
         return hint != null ? StrUtil.trimToNull(hint.getFlowKey()) : null;
     }
 
-    /** 本 Profile 的 loginHint；没有则回退扫预制口上的历史字段。 */
+    /** 本 Profile 的 loginHint。 */
     public static LoginHint firstLoginHintOnProfile(ProjectAuthProfile profile) {
         if (profile == null) {
             return null;
         }
-        LoginHint hint = normalizeLoginHintQuiet(profile.getLoginHint());
-        if (hint != null) {
-            return hint;
-        }
-        if (profile.getApis() != null) {
-            for (PrefabricatedApi api : profile.getApis()) {
-                if (api != null && api.getAuthConfig() != null && api.getAuthConfig().getLoginHint() != null) {
-                    LoginHint fromApi = normalizeLoginHintQuiet(api.getAuthConfig().getLoginHint());
-                    if (fromApi != null) {
-                        return fromApi;
-                    }
-                }
-            }
-        }
-        return null;
+        return normalizeLoginHintQuiet(profile.getLoginHint());
     }
 
     /** 收集各 Profile.loginHint.flowKey。 */
@@ -1113,31 +892,20 @@ public final class ProjectAuthConfigSupport {
         }
     }
 
-    /** 抽取来源：优先 from，没有则历史 extractJsonPath 视为 body。 */
+    /** 抽取来源。 */
     public static String resolveLoginExtractFrom(LoginHint hint) {
         if (hint == null) {
             return null;
         }
-        String from = StrUtil.trimToNull(hint.getFrom());
-        if (from != null) {
-            return from;
-        }
-        if (StrUtil.isNotBlank(hint.getExtractJsonPath())) {
-            return "body";
-        }
-        return null;
+        return StrUtil.trimToNull(hint.getFrom());
     }
 
-    /** 抽取表达式：优先 expr，没有则用历史 extractJsonPath。 */
+    /** 抽取表达式。 */
     public static String resolveLoginExtractExpr(LoginHint hint) {
         if (hint == null) {
             return null;
         }
-        String expr = StrUtil.trimToNull(hint.getExpr());
-        if (expr != null) {
-            return expr;
-        }
-        return StrUtil.trimToNull(hint.getExtractJsonPath());
+        return StrUtil.trimToNull(hint.getExpr());
     }
 
     /**

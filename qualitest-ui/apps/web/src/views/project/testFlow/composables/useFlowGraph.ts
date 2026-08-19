@@ -3,10 +3,10 @@
  * 保存前执行图结构校验与断言路径 schema 门禁，errors 阻断提交。
  */
 import { nextTick } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 
 import { getTestProjectApi } from '@/api/project/testProjectApi';
-import { getTestFlow, updateTestFlow, upgradeTestFlowGraph, type TestFlowRecord } from '@/api/project/testFlow';
+import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
 import {
   rewriteStartNodeErrorForPendingEdges,
   validateGraphJson,
@@ -87,38 +87,6 @@ export function useFlowGraph() {
     return adapted;
   }
 
-  function formatUpgradeSummary(summary: string[] | undefined): string {
-    if (!summary?.length) {
-      return '将流程图升级到最新格式，以获得完整兼容性与校验支持。';
-    }
-    return summary.map((line) => `· ${line}`).join('\n');
-  }
-
-  /** 旧版 schema 时提示用户确认升级；确认后持久化并无感刷新画布 */
-  async function promptGraphUpgradeIfNeeded(data: TestFlowRecord): Promise<TestFlowRecord> {
-    if (!data.upgradeAvailable) {
-      return data;
-    }
-    try {
-      await ElMessageBox.confirm(formatUpgradeSummary(data.upgradeSummary), '升级流程图格式', {
-        confirmButtonText: '立即升级',
-        cancelButtonText: '暂不升级',
-        type: 'info',
-        distinguishCancelAndClose: true,
-      });
-    } catch {
-      ElMessage.warning('当前为旧版图格式，建议升级以获得完整兼容性');
-      return data;
-    }
-    const upgraded = await upgradeTestFlowGraph(data.testFlowId!);
-    const next = upgraded.data as TestFlowRecord | undefined;
-    if (!next?.graphJson) {
-      throw new Error('图升级失败');
-    }
-    ElMessage.success('流程图已升级到最新格式');
-    return next;
-  }
-
   /** 按 testFlowId 拉取 graph_json 并灌入画布 store */
   async function loadFlow(testFlowId: string) {
     store.loading = true;
@@ -129,8 +97,7 @@ export function useFlowGraph() {
       if (!data) {
         throw new Error('测试流不存在');
       }
-      const record = await promptGraphUpgradeIfNeeded(data);
-      return await hydrateFlowRecord(record);
+      return await hydrateFlowRecord(data);
     } catch (error) {
       store.endCanvasHydration();
       throw error;

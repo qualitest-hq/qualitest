@@ -83,8 +83,7 @@ class TestFlowExecutionServiceImplResumeTest {
                 testProjectMemberService,
                 null,
                 testFlowExecutor,
-                stepResultWriter,
-                null
+                stepResultWriter
         );
 
         LoginUser loginUser = mock(LoginUser.class);

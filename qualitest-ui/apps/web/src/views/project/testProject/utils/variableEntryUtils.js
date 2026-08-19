@@ -9,9 +9,6 @@ export const VARIABLE_ENTRY_PARAM_TYPES = [
   'file'
 ]
 
-/** @deprecated 使用 VARIABLE_ENTRY_PARAM_TYPES */
-export const ASSET_PARAM_TYPES = VARIABLE_ENTRY_PARAM_TYPES
-
 const COMPOSITE_TYPES = new Set(['object', 'array'])
 const ENTRY_ROW_KIND = 'entry'
 
@@ -32,9 +29,6 @@ export function extractEntryInner(data) {
   }
   return undefined
 }
-
-/** @deprecated 使用 extractEntryInner */
-export const extractAssetInner = extractEntryInner
 
 export function wrapAssetsPayload(key, inner) {
   const k = (key || '').trim()
@@ -161,9 +155,6 @@ export function collectEntryBlocks(rows) {
   }
   return blocks
 }
-
-/** @deprecated 使用 collectEntryBlocks */
-export const collectAssetBlocks = collectEntryBlocks
 
 export function indexOfSheetRow(rows, row) {
   if (!row) return -1
@@ -292,9 +283,6 @@ export function createEmptyEntryRow() {
     entryKey: ''
   })
 }
-
-/** @deprecated 使用 createEmptyEntryRow */
-export const createEmptyAssetRow = createEmptyEntryRow
 
 export function removeSheetRowAt(rows, index) {
   if (index < 0 || index >= rows.length) return

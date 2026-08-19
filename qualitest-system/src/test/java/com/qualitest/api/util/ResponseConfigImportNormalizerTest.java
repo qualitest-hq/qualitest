@@ -19,13 +19,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ResponseConfigImportNormalizerTest {
 
     /**
-     * 前提：合法 v2 responseConfig 含 responses 数组。
+     * 前提：合法 responseConfig 含 responses 数组。
      * 期望：normalize 成功；输出含 configVersion、responses 与 resp id。
      */
     @Test
     @Order(1)
-    @DisplayName("规范化：接受合法 v2 responses 数组")
-    void normalize_acceptsV2ResponsesArray() {
+    @DisplayName("规范化：接受合法 responses 数组")
+    void normalize_acceptsResponsesArray() {
         String raw = """
                 {
                   "configVersion": 1,

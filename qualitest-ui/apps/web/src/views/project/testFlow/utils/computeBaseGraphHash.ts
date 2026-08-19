@@ -71,6 +71,3 @@ export function shouldBlockConfirmByBaseGraphHash(
   if (!expected) return false;
   return expected !== currentHash;
 }
-
-/** @deprecated 使用 shouldBlockConfirmByBaseGraphHash */
-export const shouldBlockMergeByBaseGraphHash = shouldBlockConfirmByBaseGraphHash;

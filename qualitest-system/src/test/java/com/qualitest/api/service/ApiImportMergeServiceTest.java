@@ -183,63 +183,6 @@ class ApiImportMergeServiceTest {
     }
 
     /**
-     * 前提：本地 body.json 含 example 字符串。
-     * 期望：example 迁入 test_value_config.bodyExample，结构层不含 example。
-     */
-    @Test
-    @Order(4)
-    @DisplayName("合并：body example 迁入 test_value_config")
-    void merge_migratesBodyExampleToTestValueConfig() {
-        TestProjectApi existing = TestProjectApi.builder()
-                .requestConfig("""
-                        {
-                          "configVersion": 1,
-                          "method": "POST",
-                          "queryParams": [],
-                          "pathParams": [],
-                          "declaredHeaders": [],
-                          "body": {
-                            "mode": "json",
-                            "json": {
-                              "schema": {"type": "object"},
-                              "example": "{\\"user\\":\\"admin\\"}"
-                            }
-                          }
-                        }
-                        """)
-                .responseConfig("""
-                        {"configVersion":1,"responses":[
-                          {"id":"r1","name":"成功","httpStatus":200,"contentType":"json","schema":null}
-                        ]}
-                        """)
-                .build();
-
-        String incomingRequest = """
-                {
-                  "configVersion": 1,
-                  "method": "POST",
-                  "queryParams": [],
-                  "pathParams": [],
-                  "declaredHeaders": [],
-                  "body": {
-                    "mode": "json",
-                    "json": {
-                      "schema": {"type": "object", "properties": {"user": {"type": "string"}}},
-                      "example": null
-                    }
-                  }
-                }
-                """;
-        String incomingResponse = existing.getResponseConfig();
-
-        var result = service.merge(existing, incomingRequest, incomingResponse);
-
-        assertTrue(result.getTestValueConfig().contains("admin"));
-        assertTrue(result.getMergeSummary().getUserPreserved().contains("bodyExample"));
-        assertFalse(result.getRequestConfig().contains("\"example\":\"{\\\"user\\\":\\\"admin\\\"}\""));
-    }
-
-    /**
      * 前提：同名 mobile 参数类型未变，本地含 pattern/maxLength，上传包含 description。
      * 期望：合并后保留 pattern/maxLength，写入 description。
      */

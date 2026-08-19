@@ -27,29 +27,10 @@ public class ProjectAuthConfig implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 历史字段：曾经表示「未命中前缀时用哪条 Profile」。
-     * 解析时把该条调到数组第一位，写出时删除。
-     */
-    private String defaultProfileId;
-
-    /**
      * 多套鉴权。数组顺序就是勾选顺序，未命中前缀时用下标 0。
      */
     @Builder.Default
     private List<ProjectAuthProfile> authProfiles = new ArrayList<>();
-
-    /**
-     * 历史字段：曾经列出免登精确路径。
-     * 解析时转成 path-only、mode=none 的预制接口，写出时删除。
-     */
-    @Builder.Default
-    private List<String> anonymousPathExact = new ArrayList<>();
-
-    /**
-     * 历史字段：曾经列出免登路径前缀。解析时忽略，写出时删除。
-     */
-    @Builder.Default
-    private List<String> anonymousPathPrefix = new ArrayList<>();
 
     /**
      * 一套鉴权：请求头模板 + 若干预制接口。
@@ -93,12 +74,6 @@ public class ProjectAuthConfig implements Serializable {
         /** 本套预制接口：登录、注册、验证码等。 */
         @Builder.Default
         private List<PrefabricatedApi> apis = new ArrayList<>();
-
-        /**
-         * 历史字段：嵌套形态的头。
-         * 解析时拍平到 headerName、headerValueTemplate，写出时删除。
-         */
-        private Header header;
     }
 
     /**
@@ -199,25 +174,6 @@ public class ProjectAuthConfig implements Serializable {
     }
 
     /**
-     * 历史嵌套头：name + valueTemplate。
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Header implements Serializable {
-
-        @Serial
-        private static final long serialVersionUID = 1L;
-
-        /** 头名称。 */
-        private String name;
-
-        /** 头值模板。 */
-        private String valueTemplate;
-    }
-
-    /**
      * 登录响应里怎么抽出凭证。
      */
     @Data
@@ -234,7 +190,6 @@ public class ProjectAuthConfig implements Serializable {
 
         /**
          * 抽取来源：body、setCookie、header。
-         * 未填且只有 extractJsonPath 时按 body 处理。
          */
         private String from;
 
@@ -242,10 +197,5 @@ public class ProjectAuthConfig implements Serializable {
          * 抽取表达式。body 时为 JSONPath；setCookie 时为 Cookie 名。
          */
         private String expr;
-
-        /**
-         * 历史字段：等价于 from=body 且 expr 取本值。写出时不再带。
-         */
-        private String extractJsonPath;
     }
 }

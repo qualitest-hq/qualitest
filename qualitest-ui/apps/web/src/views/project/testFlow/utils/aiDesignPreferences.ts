@@ -2,7 +2,6 @@
  * AI Staging confirm 相关用户偏好。
  */
 const AUTO_SAVE_AFTER_CONFIRM_KEY = 'qualitest.aiDesign.autoSaveAfterConfirm';
-const LEGACY_AUTO_SAVE_AFTER_MERGE_KEY = 'qualitest.aiDesign.autoSaveAfterMerge';
 const BLOCK_WHEN_STAGING_PENDING_KEY = 'qualitest.aiDesign.blockWhenStagingPending';
 
 function readBoolFlag(key: string): boolean | null {
@@ -26,10 +25,7 @@ function writeBoolFlag(key: string, enabled: boolean): void {
 
 /** 确认后是否自动保存 test_flow，未设置时为 false */
 export function isAutoSaveAfterConfirm(): boolean {
-  const direct = readBoolFlag(AUTO_SAVE_AFTER_CONFIRM_KEY);
-  if (direct != null) return direct;
-  const legacy = readBoolFlag(LEGACY_AUTO_SAVE_AFTER_MERGE_KEY);
-  return legacy === true;
+  return readBoolFlag(AUTO_SAVE_AFTER_CONFIRM_KEY) === true;
 }
 
 export function setAutoSaveAfterConfirm(enabled: boolean): void {
@@ -46,14 +42,4 @@ export function isBlockWhenStagingPending(): boolean {
 
 export function setBlockWhenStagingPending(enabled: boolean): void {
   writeBoolFlag(BLOCK_WHEN_STAGING_PENDING_KEY, enabled);
-}
-
-/** @deprecated 旧合并链路别名，Step 9 删除 */
-export function isAutoSaveAfterMerge(): boolean {
-  return isAutoSaveAfterConfirm();
-}
-
-/** @deprecated 旧合并链路别名，Step 9 删除 */
-export function setAutoSaveAfterMerge(enabled: boolean): void {
-  setAutoSaveAfterConfirm(enabled);
 }

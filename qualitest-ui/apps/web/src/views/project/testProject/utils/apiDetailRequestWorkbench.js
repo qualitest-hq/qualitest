@@ -6,9 +6,9 @@
  * 调试 headers/cookies（object 键值转 KV 行）、参数行规范化与 body 结构补齐。
  */
 
-import { REQUEST_CONFIG_VERSION } from './apiConfigV2Constants'
+import { REQUEST_CONFIG_VERSION } from './apiConfigConstants'
 
-export { REQUEST_CONFIG_VERSION } from './apiConfigV2Constants'
+export { REQUEST_CONFIG_VERSION } from './apiConfigConstants'
 
 const DISALLOWED_URLENC_TYPES = ['file', 'object', 'array', 'any', 'null']
 

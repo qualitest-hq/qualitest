@@ -50,4 +50,11 @@ public class GraphJson {
     public String toJsonString() {
         return JSON.toJSONString(this);
     }
+
+    /**
+     * 深拷贝，供 AI patch 合并等不修改入参的场景使用。
+     */
+    public GraphJson copy() {
+        return JSON.parseObject(JSON.toJSONString(this), GraphJson.class);
+    }
 }

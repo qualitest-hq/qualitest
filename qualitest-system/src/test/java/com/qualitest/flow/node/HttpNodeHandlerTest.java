@@ -1,6 +1,6 @@
 package com.qualitest.flow.node;
 
-import com.qualitest.api.util.ApiConfigV2TestFixtures;
+import com.qualitest.api.util.ApiConfigTestFixtures;
 
 import com.qualitest.api.params.DebugHttpForwardParams;
 import com.qualitest.api.result.DebugHttpForwardResult;
@@ -67,7 +67,7 @@ class HttpNodeHandlerTest {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
-                .requestConfig(ApiConfigV2TestFixtures.REQUEST_JSON_BODY)
+                .requestConfig(ApiConfigTestFixtures.REQUEST_JSON_BODY)
                 .build();
         when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
         when(forwardService.forward(any())).thenReturn(
@@ -102,7 +102,7 @@ class HttpNodeHandlerTest {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
-                .requestConfig(ApiConfigV2TestFixtures.REQUEST_NONE_BODY)
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
                 .build();
         when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
         when(forwardService.forward(any())).thenReturn(
@@ -147,7 +147,7 @@ class HttpNodeHandlerTest {
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
                 .preRequestScript("api.request.headers.add({key:'X-Flow', value:'yes'});")
-                .requestConfig(ApiConfigV2TestFixtures.REQUEST_NONE_BODY)
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
                 .build();
         when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
         when(forwardService.forward(any())).thenAnswer(invocation -> {
@@ -258,7 +258,7 @@ class HttpNodeHandlerTest {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
-                .requestConfig(ApiConfigV2TestFixtures.REQUEST_NONE_BODY)
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
                 .build();
         when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
         when(forwardService.forward(any())).thenReturn(
@@ -297,7 +297,7 @@ class HttpNodeHandlerTest {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
-                .requestConfig(ApiConfigV2TestFixtures.REQUEST_NONE_BODY)
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
                 .build();
         when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
         when(forwardService.forward(any())).thenReturn(
@@ -333,7 +333,7 @@ class HttpNodeHandlerTest {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
-                .requestConfig(ApiConfigV2TestFixtures.REQUEST_NONE_BODY)
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
                 .build();
         when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
         when(forwardService.forward(any())).thenReturn(
@@ -387,7 +387,7 @@ class HttpNodeHandlerTest {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(1001L)
                 .apiPath("/api/login")
-                .requestConfig(ApiConfigV2TestFixtures.REQUEST_NONE_BODY)
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
                 .bizCodeConfig("{\"successValues\":[0]}")
                 .build();
         when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);

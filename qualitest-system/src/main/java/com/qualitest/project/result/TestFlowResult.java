@@ -3,12 +3,10 @@ package com.qualitest.project.result;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.*;
 import org.apache.ibatis.type.Alias;
-import java.util.Date;
-import java.util.List;
-import java.math.BigDecimal;
 import com.qualitest.common.annotation.Excel;
 
 import java.io.Serializable;
+import java.util.Date;
 
 /**
  * 测试流 Result 对象
@@ -56,24 +54,36 @@ public class TestFlowResult implements Serializable {
     private String graphJson;
 
     /**
-     * 图 schema 是否可升级（由服务层根据 graphJson 计算，非库表字段）
+     * API 语义健康告警条数
      */
-    private Boolean upgradeAvailable;
+    private Integer apiHealthWarningCount;
 
     /**
-     * 当前图 schema 版本（缺失视为 1）
+     * 最近一次写入 API 语义健康结果的时间
      */
-    private Integer upgradeFromVersion;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date apiHealthCheckedAt;
 
     /**
-     * 升级目标 schema 版本
+     * 告警类型摘要
      */
-    private Integer upgradeToVersion;
+    private String apiHealthWarningCodes;
 
     /**
-     * 升级变更摘要，供确认弹窗展示
+     * 删除状态（0正常 1删除）
      */
-    private List<String> upgradeSummary;
+    private Integer delStatus;
 
+    /**
+     * 创建时间
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date createTime;
+
+    /**
+     * 更新时间
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date updateTime;
 
 }

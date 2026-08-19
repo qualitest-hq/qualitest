@@ -4,7 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.flow.GetApiDetailsTool;
-import com.qualitest.api.util.ApiConfigV2TestFixtures;
+import com.qualitest.api.util.ApiConfigTestFixtures;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
@@ -277,24 +277,6 @@ class FlowDesignToolExecutorTest {
         assertTrue(root.getBooleanValue("truncated"));
         assertNotNull(root.getJSONArray("deferredIds"));
         assertFalse(root.getJSONArray("deferredIds").isEmpty());
-    }
-
-    /**
-     * 前提：调用已删除的旧工具名 get_api_detail。
-     * 期望：返回错误，提示改用 get_api_details。
-     */
-    @Test
-    @Order(43)
-    @DisplayName("旧名 get_api_detail 返回迁移错误")
-    @SuppressWarnings("deprecation")
-    void getApiDetail_legacyName_returnsMigrationError() {
-        String json = executor.executeTool(
-                FlowDesignToolExecutor.GET_API_DETAIL_LEGACY,
-                "{\"testProjectApiId\":\"" + API_ID + "\"}",
-                context);
-        String error = JSON.parseObject(json).getString("error");
-        assertTrue(error.contains("已废弃"));
-        assertTrue(error.contains("get_api_details"));
     }
 
     @Test
@@ -1033,9 +1015,9 @@ class FlowDesignToolExecutorTest {
                 .authConfig("{\"mode\":\"none\"}")
                 .requestConfig("""
                         %s
-                        """.formatted(ApiConfigV2TestFixtures.LOGIN_REQUEST_CONFIG.trim()))
+                        """.formatted(ApiConfigTestFixtures.LOGIN_REQUEST_CONFIG.trim()))
                 .headers("{\"Content-Type\":\"application/json\"}")
-                .responseConfig(ApiConfigV2TestFixtures.MIN_RESPONSE_CONFIG)
+                .responseConfig(ApiConfigTestFixtures.MIN_RESPONSE_CONFIG)
                 .build();
     }
 }

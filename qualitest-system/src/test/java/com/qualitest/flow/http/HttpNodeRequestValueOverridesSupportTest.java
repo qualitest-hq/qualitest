@@ -108,32 +108,4 @@ class HttpNodeRequestValueOverridesSupportTest {
         Map<String, Object> body = (Map<String, Object>) persisted.get("bodyExample");
         assertEquals(4001, body.get("addressId"));
     }
-
-    /**
-     * 前提：requestConfig.body.formData 中 file 行已有非空 value。
-     * 期望：抽取出的 paramDefaults 含该 name→value，便于写入节点测值覆盖。
-     */
-    @Test
-    @Order(5)
-    @DisplayName("extract：formData value 进入 paramDefaults")
-    void extractFromRequestConfig_includesFormDataValues() {
-        JSONObject rc = JSONObject.parseObject("""
-                {
-                  "queryParams": [],
-                  "pathParams": [],
-                  "declaredHeaders": [],
-                  "body": {
-                    "mode": "form-data",
-                    "formData": [
-                      {"name": "file", "type": "file", "value": "{{asset.cover.storagePath}}"}
-                    ]
-                  }
-                }
-                """);
-
-        JSONObject overrides = HttpNodeRequestValueOverridesSupport.extractFromRequestConfig(rc);
-
-        assertEquals("{{asset.cover.storagePath}}",
-                overrides.getJSONObject("paramDefaults").getString("file"));
-    }
 }

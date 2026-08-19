@@ -65,10 +65,6 @@ public class ApiDesignToolExecutor {
      * @param context        本轮上下文
      */
     public String executeTool(String name, String argumentsJson, ApiDesignToolContext context) {
-        if ("get_api_detail".equals(name)) {
-            return FlowDesignToolSupport.errorJson(
-                    "工具 get_api_detail 已废弃，请改用 get_api_details（参数 testProjectApiIds 为字符串数组）");
-        }
         ApiDesignTool tool = tools.get(name);
         if (tool == null) {
             return FlowDesignToolSupport.errorJson("未知工具: " + name);

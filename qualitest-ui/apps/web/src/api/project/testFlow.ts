@@ -15,10 +15,6 @@ export interface TestFlowRecord {
   flowDescription?: string;
   graphJson?: string;
   updateTime?: string;
-  upgradeAvailable?: boolean;
-  upgradeFromVersion?: number;
-  upgradeToVersion?: number;
-  upgradeSummary?: string[];
   [key: string]: unknown;
 }
 
@@ -50,14 +46,6 @@ export function updateTestFlow(data: Partial<TestFlowRecord>) {
     url: '/project/testFlow',
     method: 'put',
     data,
-  });
-}
-
-export function upgradeTestFlowGraph(testFlowId: string | number) {
-  return request({
-    url: '/project/testFlow/upgradeGraph',
-    method: 'post',
-    data: { testFlowId },
   });
 }
 
