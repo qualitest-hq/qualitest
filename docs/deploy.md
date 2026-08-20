@@ -290,9 +290,10 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 
 1. 三仓改为 **Public**
 2. 主仓 Settings → Pages → Source = **GitHub Actions**
-3. Actions → **Deploy Pages** → Run workflow（或 push `site/`）
-4. About → Website 填上述 URL
-5. 浏览器确认落地页可打开（无 `overview.gif` 时 Hero 会显示链路 SVG）
+3. 主仓 Settings → Secrets and variables → Actions → Variables：新增 **`ENABLE_PAGES_DEPLOY=true`**（未设时 CI 只 build 不 deploy，避免 Private 下红叉）
+4. Actions → **Deploy Pages** → Run workflow（或 push `site/`）
+5. About → Website 填上述 URL
+6. 浏览器确认落地页可打开（无 `overview.gif` 时 Hero 会显示链路 SVG）
 
 本地预览：`cd site && npm ci && npm run build && npm run preview` → `http://127.0.0.1:4321/qualitest/`。
 

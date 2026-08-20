@@ -282,9 +282,10 @@ Source: [`site/`](../site/). URL: `https://qualitest-hq.github.io/qualitest/`.
 
 1. Make the three repos **Public**
 2. Repo Settings → Pages → Source = **GitHub Actions**
-3. Actions → **Deploy Pages** → Run workflow (or push `site/`)
-4. About → Website = the URL above
-5. Verify the landing page loads
+3. Repo Settings → Secrets and variables → Actions → Variables: set **`ENABLE_PAGES_DEPLOY=true`** (without it, CI only builds and skips deploy)
+4. Actions → **Deploy Pages** → Run workflow (or push `site/`)
+5. About → Website = the URL above
+6. Verify the landing page loads
 
 Local: `cd site && npm ci && npm run build && npm run preview` → `http://127.0.0.1:4321/qualitest/`.
 

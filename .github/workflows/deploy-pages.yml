@@ -1,5 +1,11 @@
 # Deploy GitHub Pages（落地页 site/）
-# Private + Free Org 时 Pages 可能无法对外访问；公开日：Settings → Pages → Source = GitHub Actions，再 workflow_dispatch 一次。
+#
+# - push / workflow_dispatch：始终 build，校验 site/ 可构建
+# - deploy：仅当仓库变量 ENABLE_PAGES_DEPLOY=true 时执行
+#   公开日：Settings → Pages → Source = GitHub Actions
+#           Settings → Secrets and variables → Actions → Variables
+#           新增 ENABLE_PAGES_DEPLOY = true
+#           再跑本 workflow（或 push site/）
 
 name: Deploy Pages
 
@@ -43,13 +49,15 @@ jobs:
           npm run build
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        if: ${{ vars.ENABLE_PAGES_DEPLOY == 'true' }}
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site/dist
 
   deploy:
     name: deploy
     needs: build
+    if: ${{ vars.ENABLE_PAGES_DEPLOY == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -58,4 +66,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
