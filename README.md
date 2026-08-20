@@ -17,6 +17,7 @@
 
 <br/>
 
+[官网](https://qualitest-hq.github.io/qualitest/)（源码 [`site/`](./site/)；**公开日后** Settings → Pages → GitHub Actions 启用，见 [site/README](./site/README.md)） ·
 [English](./README.en.md) ·
 [English Summary](#english-summary) ·
 [项目亮点](#-项目亮点) ·

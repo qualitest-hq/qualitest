@@ -1,0 +1,111 @@
+---
+const steps = [
+  { title: "IDEA 插件", desc: "扫描 Controller，项目级或按组上传到平台" },
+  { title: "接口调试", desc: "多环境切换、鉴权注入，在项目里直接发请求" },
+  { title: "测试流", desc: "画布编排节点，串起登录、业务与断言" },
+  { title: "AI Diff", desc: "自然语言改流，预览 Diff 后再合并" },
+  { title: "MCP", desc: "Cursor 等编辑器只读勘察流与失败现场" },
+];
+---
+
+<section class="section capabilities">
+  <div class="wrap">
+    <h2 class="section-title">同一项目里的闭环</h2>
+    <p class="section-lead">从接口从哪来，到怎么调、怎么串、谁帮你设计 —— 少折腾工具切换。</p>
+
+    <ol class="rail">
+      {
+        steps.map((step, i) => (
+          <li>
+            <span class="idx">{String(i + 1).padStart(2, "0")}</span>
+            <strong>{step.title}</strong>
+            <p>{step.desc}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
+
+<style>
+  .capabilities {
+    position: relative;
+    border-block: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.28));
+  }
+
+  .rail {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1.75rem 1.35rem;
+  }
+
+  @media (min-width: 900px) {
+    .rail {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 1.1rem;
+      position: relative;
+    }
+
+    .rail::before {
+      content: "";
+      position: absolute;
+      top: 0.95rem;
+      left: 6%;
+      right: 6%;
+      height: 2px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(20, 184, 166, 0.15),
+        rgba(15, 118, 110, 0.55),
+        rgba(20, 184, 166, 0.15),
+        transparent
+      );
+      pointer-events: none;
+    }
+  }
+
+  .rail li {
+    position: relative;
+    margin: 0;
+    padding: 0.15rem 0 0;
+  }
+
+  .idx {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.85rem;
+    height: 1.85rem;
+    margin-bottom: 0.85rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: var(--surface-strong);
+    border: 1px solid rgba(15, 118, 110, 0.25);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--accent-deep);
+  }
+
+  strong {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.08rem;
+    font-weight: 650;
+    margin-bottom: 0.4rem;
+    letter-spacing: -0.01em;
+  }
+
+  p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.93rem;
+    line-height: 1.55;
+  }
+</style>

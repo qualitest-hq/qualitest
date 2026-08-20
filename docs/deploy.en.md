@@ -275,17 +275,26 @@ docker compose up -d --build # rebuild after code / Dockerfile changes
 
 ---
 
+## GitHub Pages landing (public launch day)
+
+Source: [`site/`](../site/). URL: `https://qualitest-hq.github.io/qualitest/`.  
+**Private + Free Org cannot serve Pages publicly** — enable on public day. Steps: [`site/README.md`](../site/README.md).
+
+1. Make the three repos **Public**
+2. Repo Settings → Pages → Source = **GitHub Actions**
+3. Actions → **Deploy Pages** → Run workflow (or push `site/`)
+4. About → Website = the URL above
+5. Verify the landing page loads
+
+Local: `cd site && npm ci && npm run build && npm run preview` → `http://127.0.0.1:4321/qualitest/`.
+
+---
+
 ## Related files
 
+- [`site/`](../site/) (GitHub Pages landing; launch-day steps in its README)
 - [`deploy/helm/qualitest/`](../deploy/helm/qualitest/) (Helm Chart; community-tested)
 - [`docker-compose.yml`](../docker-compose.yml)
-- [`Dockerfile`](../Dockerfile) (backend)
-- [`deploy/docker/Dockerfile.web`](../deploy/docker/Dockerfile.web) (frontend)
-- [`deploy/nginx/default.conf`](../deploy/nginx/default.conf)
-- [`.env.example`](../.env.example)
-- [`application-docker.yml`](../qualitest-admin/src/main/resources/application-docker.yml)
-- Migrations: [`qualitest-admin/.../db/migration/`](../qualitest-admin/src/main/resources/db/migration/)
-- Demo deploy: [qualitest-demo/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)
 - [`Dockerfile`](../Dockerfile) (backend)
 - [`deploy/docker/Dockerfile.web`](../deploy/docker/Dockerfile.web) (frontend)
 - [`deploy/nginx/default.conf`](../deploy/nginx/default.conf)

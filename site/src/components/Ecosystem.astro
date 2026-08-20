@@ -1,0 +1,110 @@
+---
+const repos = [
+  {
+    name: "qualitest",
+    role: "主平台 · 后端 + Web",
+    href: "https://github.com/qualitest-hq/qualitest",
+  },
+  {
+    name: "qualitest-demo",
+    role: "接口靶场 · 独立 Compose",
+    href: "https://github.com/qualitest-hq/qualitest-demo",
+  },
+  {
+    name: "qualitest-intellij-plugin",
+    role: "IDEA 插件 · 接口同步",
+    href: "https://github.com/qualitest-hq/qualitest-intellij-plugin",
+  },
+];
+---
+
+<section class="section" id="ecosystem">
+  <div class="wrap">
+    <h2 class="section-title">生态仓库</h2>
+    <p class="section-lead">三个独立仓，联调时一起用；主仓不混入靶场代码。</p>
+
+    <ul class="repos">
+      {
+        repos.map((repo) => (
+          <li>
+            <a href={repo.href}>
+              <span class="meta">
+                <span class="name">{repo.name}</span>
+                <span class="role">{repo.role}</span>
+              </span>
+              <span class="go" aria-hidden="true">→</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .repos {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .repos a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.15rem 0.35rem;
+    border-bottom: 1px solid var(--line);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.2s ease, padding-left 0.25s var(--ease);
+  }
+
+  .repos a:hover {
+    background: rgba(255, 255, 255, 0.45);
+    padding-left: 0.55rem;
+  }
+
+  .repos a:hover .name {
+    color: var(--accent-deep);
+  }
+
+  .repos a:hover .go {
+    color: var(--accent);
+    transform: translateX(4px);
+  }
+
+  .meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  @media (min-width: 720px) {
+    .meta {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 1.25rem;
+    }
+  }
+
+  .name {
+    font-family: var(--font-display);
+    font-weight: 650;
+    font-size: 1.08rem;
+    letter-spacing: -0.01em;
+    transition: color 0.2s ease;
+  }
+
+  .role {
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+
+  .go {
+    color: var(--muted);
+    font-size: 1.15rem;
+    transition: transform 0.25s var(--ease), color 0.2s ease;
+  }
+</style>

@@ -1,0 +1,94 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href={base}>
+      <span class="mark" aria-hidden="true"></span>
+      质衡
+    </a>
+    <nav class="links" aria-label="主导航">
+      <a href="https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.md">文档</a>
+      <a href="https://github.com/qualitest-hq/qualitest-demo">Demo</a>
+      <a href="https://github.com/qualitest-hq/qualitest-intellij-plugin">插件</a>
+      <a class="gh" href="https://github.com/qualitest-hq/qualitest">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(14px) saturate(1.2);
+    background: rgba(241, 245, 244, 0.72);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 3.75rem;
+    gap: 1rem;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.18rem;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .mark {
+    width: 0.72rem;
+    height: 0.72rem;
+    border-radius: 2px;
+    background: linear-gradient(145deg, var(--accent-bright), var(--accent-deep));
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .brand:hover {
+    color: var(--accent-deep);
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.15rem;
+    font-size: 0.94rem;
+  }
+
+  .links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 550;
+    padding: 0.35rem 0.7rem;
+    border-radius: 6px;
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+
+  .links a:hover {
+    color: var(--accent-deep);
+    background: var(--accent-soft);
+  }
+
+  .links .gh {
+    margin-left: 0.25rem;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.5);
+    color: var(--ink);
+  }
+
+  .links .gh:hover {
+    border-color: rgba(15, 118, 110, 0.35);
+  }
+</style>

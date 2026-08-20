@@ -1,0 +1,270 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="copy">
+      <p class="eyebrow rise">企业级自动化测试与质量保障</p>
+      <h1 class="brand-title rise rise-delay-1">
+        质衡
+        <span lang="en">Qualitest</span>
+      </h1>
+      <p class="headline rise rise-delay-2">接口同步、调试、编排与 AI，同一项目闭环</p>
+      <p class="support rise rise-delay-3">
+        少切换工具，少重复录入 —— 从 IDEA 同步接口，到调试台、测试流画布、AI Diff 与 MCP，一条链路走完。
+      </p>
+      <div class="cta rise rise-delay-4">
+        <a class="btn btn-primary" href="https://github.com/qualitest-hq/qualitest">Star on GitHub</a>
+        <a class="btn btn-ghost" href="#quick-start">5 分钟 Quick Start</a>
+      </div>
+    </div>
+
+    <div class="visual rise rise-delay-2">
+      <figure class="stage">
+        <div class="glow" aria-hidden="true"></div>
+        <img
+          class="overview"
+          src={`${base}images/overview.gif`}
+          alt="质衡 Qualitest 功能概览：接口同步 → 调试 → 编排 → AI 辅助"
+          width="860"
+          height="480"
+          hidden
+        />
+        <div class="pipeline">
+          <svg viewBox="0 0 640 300" role="img" aria-label="质衡主链路示意：IDEA、调试、画布、AI、MCP">
+            <defs>
+              <linearGradient id="pipe" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#14b8a6" stop-opacity="0.2" />
+                <stop offset="55%" stop-color="#0f766e" stop-opacity="0.85" />
+                <stop offset="100%" stop-color="#0a5c56" stop-opacity="0.95" />
+              </linearGradient>
+              <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0f766e" flood-opacity="0.18" />
+              </filter>
+            </defs>
+            <rect x="16" y="24" width="608" height="252" rx="18" fill="#f8fafb" stroke="rgba(12,18,34,0.06)" />
+            <path
+              class="path-line"
+              d="M64 168 H130 Q170 168 190 130 T280 96 H340 Q390 96 410 140 T500 178 H576"
+              fill="none"
+              stroke="url(#pipe)"
+              stroke-width="3.5"
+              stroke-linecap="round"
+            />
+            <g class="node n1" filter="url(#soft)">
+              <circle cx="64" cy="168" r="22" fill="#fff" stroke="#0f766e" stroke-width="2.2" />
+              <text x="64" y="172" text-anchor="middle" font-size="11" font-weight="600" fill="#0c1222">IDEA</text>
+            </g>
+            <g class="node n2" filter="url(#soft)">
+              <circle cx="190" cy="130" r="22" fill="#fff" stroke="#0f766e" stroke-width="2.2" />
+              <text x="190" y="134" text-anchor="middle" font-size="12" font-weight="600" fill="#0c1222">调试</text>
+            </g>
+            <g class="node n3" filter="url(#soft)">
+              <circle cx="340" cy="96" r="22" fill="#fff" stroke="#0f766e" stroke-width="2.2" />
+              <text x="340" y="100" text-anchor="middle" font-size="12" font-weight="600" fill="#0c1222">画布</text>
+            </g>
+            <g class="node n4" filter="url(#soft)">
+              <circle cx="500" cy="178" r="22" fill="#fff" stroke="#0f766e" stroke-width="2.2" />
+              <text x="500" y="182" text-anchor="middle" font-size="12" font-weight="600" fill="#0c1222">AI</text>
+            </g>
+            <g class="node n5" filter="url(#soft)">
+              <circle cx="576" cy="178" r="22" fill="#0f766e" stroke="#0f766e" stroke-width="2.2" />
+              <text x="576" y="182" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">MCP</text>
+            </g>
+          </svg>
+          <figcaption class="cap-fallback">主链路示意 · overview.gif 就绪后自动替换</figcaption>
+        </div>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    min-height: calc(100vh - 3.75rem);
+    display: flex;
+    align-items: center;
+    padding: 3.25rem 0 4.5rem;
+  }
+
+  .hero-grid {
+    display: grid;
+    gap: 2.75rem;
+    align-items: center;
+  }
+
+  @media (min-width: 920px) {
+    .hero-grid {
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 3.25rem;
+    }
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0 0 1rem;
+    padding: 0.28rem 0.7rem;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+  }
+
+  .brand-title {
+    margin: 0 0 1rem;
+    font-family: var(--font-display);
+    font-size: clamp(2.85rem, 6.5vw, 4.1rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+  }
+
+  .brand-title span {
+    display: block;
+    margin-top: 0.15rem;
+    font-weight: 550;
+    color: var(--muted);
+    font-size: 0.42em;
+    letter-spacing: 0.04em;
+  }
+
+  .headline {
+    margin: 0 0 0.9rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.2rem, 2.3vw, 1.48rem);
+    font-weight: 560;
+    line-height: 1.4;
+    max-width: 18em;
+  }
+
+  .support {
+    margin: 0 0 1.9rem;
+    color: var(--muted);
+    max-width: 34rem;
+    font-size: 1.05rem;
+  }
+
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+  }
+
+  .stage {
+    position: relative;
+    margin: 0;
+    padding: 1.1rem;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 251, 0.75));
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+  }
+
+  .glow {
+    position: absolute;
+    width: 60%;
+    height: 50%;
+    right: -8%;
+    top: -12%;
+    background: radial-gradient(circle, rgba(20, 184, 166, 0.22), transparent 70%);
+    pointer-events: none;
+  }
+
+  .overview {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    border-radius: 10px;
+    background: #e2e8f0;
+  }
+
+  .pipeline {
+    position: relative;
+    z-index: 1;
+    padding: 0.35rem 0.15rem 0.1rem;
+  }
+
+  .pipeline svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .cap-fallback {
+    margin: 0.7rem 0 0;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+
+  .path-line {
+    stroke-dasharray: 780;
+    stroke-dashoffset: 780;
+    animation: draw 1.7s var(--ease) forwards 0.3s;
+  }
+
+  .node {
+    opacity: 0;
+    animation: rise 0.5s var(--ease) forwards;
+  }
+
+  .n1 {
+    animation-delay: 0.4s;
+  }
+  .n2 {
+    animation-delay: 0.58s;
+  }
+  .n3 {
+    animation-delay: 0.76s;
+  }
+  .n4 {
+    animation-delay: 0.94s;
+  }
+  .n5 {
+    animation-delay: 1.12s;
+  }
+
+  @keyframes draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .path-line,
+    .node {
+      animation: none;
+      opacity: 1;
+      stroke-dashoffset: 0;
+    }
+  }
+</style>
+
+<script>
+  const img = document.querySelector(".overview");
+  const fallback = document.querySelector(".pipeline");
+
+  function showGif() {
+    if (!(img instanceof HTMLImageElement) || !(fallback instanceof HTMLElement)) return;
+    img.hidden = false;
+    fallback.hidden = true;
+  }
+
+  if (img instanceof HTMLImageElement) {
+    const probe = new Image();
+    probe.onload = () => {
+      img.src = probe.src;
+      showGif();
+    };
+    probe.src = img.getAttribute("src") ?? "";
+  }
+</script>

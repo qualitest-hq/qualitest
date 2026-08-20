@@ -281,8 +281,26 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 
 ---
 
+## GitHub Pages 落地页（公开日）
+
+项目门面站源码在 [`site/`](../site/)，目标 URL：`https://qualitest-hq.github.io/qualitest/`。  
+**Private + Free Org 无法对外访问 Pages**；公开日再开。完整步骤见 [`site/README.md`](../site/README.md)。
+
+公开日 checklist（与路线图一致）：
+
+1. 三仓改为 **Public**
+2. 主仓 Settings → Pages → Source = **GitHub Actions**
+3. Actions → **Deploy Pages** → Run workflow（或 push `site/`）
+4. About → Website 填上述 URL
+5. 浏览器确认落地页可打开（无 `overview.gif` 时 Hero 会显示链路 SVG）
+
+本地预览：`cd site && npm ci && npm run build && npm run preview` → `http://127.0.0.1:4321/qualitest/`。
+
+---
+
 ## 相关文件
 
+- [`site/`](../site/)（GitHub Pages 落地页；公开日上线步骤见其 README）
 - [`deploy/helm/qualitest/`](../deploy/helm/qualitest/)（Helm Chart；社区自测）
 - [`docker-compose.yml`](../docker-compose.yml)
 - [`Dockerfile`](../Dockerfile)（后端）

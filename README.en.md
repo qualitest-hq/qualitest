@@ -17,6 +17,7 @@ Sync APIs, debug in-project, orchestrate flows, and design with AI — in one pl
 
 <br/>
 
+[Website](https://qualitest-hq.github.io/qualitest/) (source [`site/`](./site/); enable on public day — Settings → Pages → GitHub Actions; see [site/README](./site/README.md)) ·
 [中文 README](./README.md) ·
 [Highlights](#highlights) ·
 [Capabilities](#capabilities) ·

@@ -1,0 +1,179 @@
+---
+const winCmd = `scripts\\quick-start.bat`;
+const unixCmd = `chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh`;
+---
+
+<section class="section" id="quick-start">
+  <div class="wrap">
+    <h2 class="section-title">5 分钟 Quick Start</h2>
+    <p class="section-lead">
+      Clone 主仓后用 Compose 一键拉起。打开
+      <a href="http://localhost">http://localhost</a>，账号
+      <code class="inline">admin</code> / <code class="inline">admin123</code>。生产环境务必更换默认口令与
+      <code class="inline">token.secret</code>。
+    </p>
+
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="label">Windows</span>
+          <button type="button" class="copy" data-copy={winCmd}>复制</button>
+        </div>
+        <pre><code><span class="prompt">PS&gt;</span> {winCmd}</code></pre>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="label">Linux / macOS</span>
+          <button type="button" class="copy" data-copy={unixCmd}>复制</button>
+        </div>
+        <pre><code><span class="prompt">$</span> {unixCmd}</code></pre>
+      </div>
+    </div>
+
+    <p class="more">
+      靶场联调见
+      <a href="https://github.com/qualitest-hq/qualitest-demo">qualitest-demo</a>
+      ；部署细节见
+      <a href="https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.md">docs/deploy.md</a>。
+    </p>
+  </div>
+</section>
+
+<style>
+  .inline {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+  }
+
+  .panels {
+    display: grid;
+    gap: 1.1rem;
+  }
+
+  @media (min-width: 800px) {
+    .panels {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .panel {
+    border: 1px solid rgba(12, 18, 34, 0.2);
+    border-radius: 12px;
+    background: linear-gradient(165deg, #152033 0%, #0c1222 100%);
+    color: #e2e8f0;
+    overflow: hidden;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .dots {
+    display: inline-flex;
+    gap: 0.28rem;
+  }
+
+  .dots i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: #475569;
+  }
+
+  .dots i:nth-child(1) {
+    background: #f87171;
+  }
+  .dots i:nth-child(2) {
+    background: #fbbf24;
+  }
+  .dots i:nth-child(3) {
+    background: #34d399;
+  }
+
+  .label {
+    flex: 1;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    color: #94a3b8;
+    letter-spacing: 0.02em;
+  }
+
+  .copy {
+    appearance: none;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(255, 255, 255, 0.04);
+    color: #cbd5e1;
+    border-radius: 6px;
+    padding: 0.22rem 0.6rem;
+    font-size: 0.76rem;
+    font-family: var(--font-display);
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  }
+
+  .copy:hover,
+  .copy.done {
+    border-color: rgba(45, 212, 191, 0.55);
+    color: #5eead4;
+    background: rgba(20, 184, 166, 0.1);
+  }
+
+  pre {
+    margin: 0;
+    padding: 1.05rem 1rem 1.2rem;
+    overflow-x: auto;
+  }
+
+  pre code {
+    color: #f1f5f9;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .prompt {
+    color: #2dd4bf;
+    margin-right: 0.45rem;
+    user-select: none;
+  }
+
+  .more {
+    margin: 1.35rem 0 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+</style>
+
+<script>
+  document.querySelectorAll(".copy").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const text = btn.getAttribute("data-copy") ?? "";
+      try {
+        await navigator.clipboard.writeText(text);
+        const prev = btn.textContent;
+        btn.textContent = "已复制";
+        btn.classList.add("done");
+        setTimeout(() => {
+          btn.textContent = prev;
+          btn.classList.remove("done");
+        }, 1600);
+      } catch {
+        btn.textContent = "失败";
+      }
+    });
+  });
+</script>
