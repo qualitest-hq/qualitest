@@ -1,13 +1,46 @@
-# Docker Compose 端口 / 密钥覆盖示例
-# 复制为 docker-compose.override.yml 后生效（该文件已在 .gitignore 建议中，勿提交密钥）
+# 质衡 Qualitest — Compose 本机覆盖示例
+#
+# 用法：
+#   copy docker-compose.override.yml.example docker-compose.override.yml   # Windows
+#   cp docker-compose.override.yml.example docker-compose.override.yml     # Linux / macOS
+#   # 按需取消注释后：docker compose up -d
+#
+# 说明：
+# - `docker compose up` 会自动合并同目录的 docker-compose.override.yml
+# - 真正的 override 已在 .gitignore，勿提交含密钥 / 本机路径的文件
+# - 只改端口时优先用 .env（见 .env.example），不必建 override
+#
+# 与 .env 分工：
+# - .env          → WEB_PORT / MYSQL_PORT / REDIS_PORT / TOKEN_SECRET 等
+# - override.yml  → 暴露 app:8080、改挂载、调日志级别、临时关服务等 YAML 结构
+
+name: qualitest
 
 services:
-  mysql:
-    ports:
-      - "3307:3306"
-  redis:
-    ports:
-      - "6380:6379"
-  web:
-    ports:
-      - "8088:80"
+  # --- 宿主机直连后端（插件 / curl / 调试）---
+  # 浏览器仍走 Nginx（WEB_PORT）；插件本机后端可填 http://localhost:8080
+  # app:
+  #   ports:
+  #     - "8080:8080"
+
+  # --- 调高业务日志（排障）---
+  # app:
+  #   environment:
+  #     LOGGING_LEVEL_COM_QUALITEST: debug
+
+  # --- 上传目录挂到宿主机（方便看落盘文件）---
+  # app:
+  #   volumes:
+  #     - ./data/upload:/data/upload
+  #     # Windows 也可：D:/qualitest/upload:/data/upload
+
+  # --- 仅起依赖，不跑容器内 app/web（本机 mvn / yarn）---
+  # 更常用：scripts/dev-deps-up.sh|.bat
+  # app:
+  #   profiles: ["full"]
+  # web:
+  #   profiles: ["full"]
+
+  # --- 本机已有 MySQL / Redis 时 ---
+  # 优先改 .env 的 MYSQL_PORT / REDIS_PORT，避免与宿主机服务抢端口。
+  # 仅依赖本机开发：scripts/dev-deps-up 或 docker compose up -d mysql redis

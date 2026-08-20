@@ -118,9 +118,18 @@ MYSQL_PORT=33066
 REDIS_PORT=63790
 ```
 
-更复杂的本机覆盖（挂载、额外服务等）可用 `docker-compose.override.yml`（勿提交含密钥的内容；正式模板见路线图阶段 2）。
+更复杂的本机覆盖（挂载、暴露 app:8080、调日志等）：
 
-调试需宿主机直连后端时，可在 `docker-compose.yml` 的 `app` 服务解开 `ports: "8080:8080"` 注释后重建。
+```bash
+# Windows
+copy docker-compose.override.yml.example docker-compose.override.yml
+# Linux / macOS
+cp docker-compose.override.yml.example docker-compose.override.yml
+```
+
+按需取消注释后 `docker compose up -d`。真正的 `docker-compose.override.yml` **勿提交**（已在 `.gitignore`）。模板见 [`docker-compose.override.yml.example`](../docker-compose.override.yml.example)。
+
+调试需宿主机直连后端时：在 override 里解开 `app.ports: "8080:8080"`（勿改仓库内 `docker-compose.yml` 再提交）。
 
 ---
 
@@ -304,6 +313,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 - [`site/`](../site/)（GitHub Pages 落地页；公开日上线步骤见其 README）
 - [`deploy/helm/qualitest/`](../deploy/helm/qualitest/)（Helm Chart；社区自测）
 - [`docker-compose.yml`](../docker-compose.yml)
+- [`docker-compose.override.yml.example`](../docker-compose.override.yml.example)（本机 YAML 覆盖模板；真实 override 勿提交）
 - [`Dockerfile`](../Dockerfile)（后端）
 - [`deploy/docker/Dockerfile.web`](../deploy/docker/Dockerfile.web)（前端）
 - [`deploy/nginx/default.conf`](../deploy/nginx/default.conf)

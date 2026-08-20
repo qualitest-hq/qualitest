@@ -118,9 +118,18 @@ MYSQL_PORT=33066
 REDIS_PORT=63790
 ```
 
-Richer local overrides: `docker-compose.override.yml` (never commit secrets).
+Richer local overrides (mounts, expose `app:8080`, log level, …):
 
-To hit the backend from the host while debugging, uncomment `ports: "8080:8080"` on `app` in `docker-compose.yml` and recreate.
+```bash
+# Windows
+copy docker-compose.override.yml.example docker-compose.override.yml
+# Linux / macOS
+cp docker-compose.override.yml.example docker-compose.override.yml
+```
+
+Uncomment what you need, then `docker compose up -d`. Real `docker-compose.override.yml` is **gitignored** — do not commit secrets. Template: [`docker-compose.override.yml.example`](../docker-compose.override.yml.example).
+
+To hit the backend from the host: uncomment `app.ports: "8080:8080"` in the override (do not commit edits to `docker-compose.yml`).
 
 ---
 
@@ -296,6 +305,7 @@ Local: `cd site && npm ci && npm run build && npm run preview` → `http://127.0
 - [`site/`](../site/) (GitHub Pages landing; launch-day steps in its README)
 - [`deploy/helm/qualitest/`](../deploy/helm/qualitest/) (Helm Chart; community-tested)
 - [`docker-compose.yml`](../docker-compose.yml)
+- [`docker-compose.override.yml.example`](../docker-compose.override.yml.example) (local YAML override template; real override is gitignored)
 - [`Dockerfile`](../Dockerfile) (backend)
 - [`deploy/docker/Dockerfile.web`](../deploy/docker/Dockerfile.web) (frontend)
 - [`deploy/nginx/default.conf`](../deploy/nginx/default.conf)

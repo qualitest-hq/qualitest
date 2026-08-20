@@ -5,6 +5,7 @@
 # 一键全栈：scripts/quick-start.sh|.bat
 # 仅依赖：  scripts/dev-deps-up.sh|.bat  /  scripts/dev-deps-down.sh|.bat
 # 靶场：独立仓 qualitest-demo 另起 Compose（本文件无 --profile demo；见 docs/deploy.md）
+# 本机 YAML 覆盖：复制 docker-compose.override.yml.example → docker-compose.override.yml（勿提交）
 
 name: qualitest
 
