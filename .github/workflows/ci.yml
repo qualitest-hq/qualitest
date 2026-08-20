@@ -1,14 +1,16 @@
 # 质衡主仓 CI（不依赖 qualitest-demo）
 # 触发：push / PR 到 main；按路径只跑相关 Job
 #
-# - 仅 docs / 社区文件等：detect-changes 后 backend、frontend 均跳过
-# - 仅 qualitest-ui：只跑 frontend
-# - 仅后端模块 / pom：只跑 backend
-# - 改本 workflow：两端都跑
+# - 仅 docs / 社区文件等：detect-changes 后各 Job 跳过
+# - 仅 qualitest-ui：frontend（+ 可能 docker-web）
+# - 仅后端模块 / pom：backend（+ 可能 docker-app）
+# - Dockerfile / Compose / deploy：docker 镜像只 build 不 push
+# - 改本 workflow：backend、frontend、docker 都跑
 #
 # 说明：
 # - 根 pom 默认 skipTests=true；backend 先做编译校验（package -DskipTests）
 # - frontend 跑 Vitest（qualitest-ui → yarn test）
+# - docker：校验 Dockerfile / Dockerfile.web 可构建，不推镜像（GHCR 见路线图 2.2）
 # - qualitest-system 全量单测仍有存量失败，修绿后把 backend 的 package 换成：
 #     mvn -B test -DskipTests=false -pl qualitest-system -am
 
@@ -31,6 +33,8 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      docker_app: ${{ steps.filter.outputs.docker_app }}
+      docker_web: ${{ steps.filter.outputs.docker_web }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -54,6 +58,23 @@ jobs:
               - 'qualitest-ui/**'
               # 共享 flow fixture 权威目录；改此处需跑前端 Vitest
               - 'qualitest-system/src/test/resources/flow/**'
+            docker_app:
+              - '.github/workflows/ci.yml'
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+              - 'pom.xml'
+              - 'qualitest-admin/**'
+              - 'qualitest-common/**'
+              - 'qualitest-framework/**'
+              - 'qualitest-generator/**'
+              - 'qualitest-quartz/**'
+              - 'qualitest-system/**'
+            docker_web:
+              - '.github/workflows/ci.yml'
+              - 'deploy/docker/**'
+              - 'deploy/nginx/**'
+              - 'docker-compose.yml'
+              - 'qualitest-ui/**'
 
   backend:
     name: backend
@@ -100,3 +121,51 @@ jobs:
 
       - name: Test @qualitest/web
         run: yarn test
+
+  docker-app:
+    name: docker-app
+    needs: changes
+    if: needs.changes.outputs.docker_app == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build app image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: false
+          tags: qualitest-hq/qualitest-app:ci
+          cache-from: type=gha,scope=qualitest-app
+          cache-to: type=gha,mode=max,scope=qualitest-app
+
+  docker-web:
+    name: docker-web
+    needs: changes
+    if: needs.changes.outputs.docker_web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build web image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./deploy/docker/Dockerfile.web
+          push: false
+          load: false
+          tags: qualitest-hq/qualitest-web:ci
+          cache-from: type=gha,scope=qualitest-web
+          cache-to: type=gha,mode=max,scope=qualitest-web

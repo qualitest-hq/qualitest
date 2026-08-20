@@ -2,6 +2,8 @@
 
 Ports, env vars, and production hardening for Compose full stack and local development. Quick start: [README.en.md](../README.en.md). Security disclosure: [SECURITY.md](../SECURITY.md).
 
+CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dockerfiles or related paths change. Publishing images is roadmap item 2.2 (GHCR).
+
 **The demo target is not in this repo’s Compose** (no `--profile demo` mixed stack). To run the shop demo, clone [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) and start it with its own [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start`. Most users only need this repo to try Qualitest.
 
 中文版：[deploy.md](./deploy.md)

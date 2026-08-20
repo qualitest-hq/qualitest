@@ -2,6 +2,8 @@
 
 面向 Compose 全栈与本机开发的端口、环境变量与生产加固。快速上手摘要见根目录 [README](../README.md)；安全披露见 [SECURITY.md](../SECURITY.md)。
 
+CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker-app` / `docker-web` 镜像构建校验（只 build 不 push）**；正式推镜像见路线图阶段 2.2 GHCR。
+
 **靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**。一般人只起本仓即可体验质衡。
 
 English: [deploy.en.md](./deploy.en.md)
