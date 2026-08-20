@@ -1,31 +1,22 @@
 ---
-const repos = [
-  {
-    name: "qualitest",
-    role: "主平台 · 后端 + Web",
-    href: "https://github.com/qualitest-hq/qualitest",
-  },
-  {
-    name: "qualitest-demo",
-    role: "接口靶场 · 独立 Compose",
-    href: "https://github.com/qualitest-hq/qualitest-demo",
-  },
-  {
-    name: "qualitest-intellij-plugin",
-    role: "IDEA 插件 · 接口同步",
-    href: "https://github.com/qualitest-hq/qualitest-intellij-plugin",
-  },
-];
+import { type Lang, useTranslations } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
 ---
 
 <section class="section" id="ecosystem">
   <div class="wrap">
-    <h2 class="section-title">生态仓库</h2>
-    <p class="section-lead">三个独立仓，联调时一起用；主仓不混入靶场代码。</p>
+    <h2 class="section-title">{t.ecoTitle}</h2>
+    <p class="section-lead">{t.ecoLead}</p>
 
     <ul class="repos">
       {
-        repos.map((repo) => (
+        t.ecoRepos.map((repo) => (
           <li>
             <a href={repo.href}>
               <span class="meta">

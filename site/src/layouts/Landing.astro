@@ -1,0 +1,54 @@
+---
+import SiteNav from "../components/SiteNav.astro";
+import Hero from "../components/Hero.astro";
+import QuickStart from "../components/QuickStart.astro";
+import Capabilities from "../components/Capabilities.astro";
+import Ecosystem from "../components/Ecosystem.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { type Lang, useTranslations, pathForLang } from "../i18n/ui";
+import "../styles/tokens.css";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+const base = import.meta.env.BASE_URL;
+const siteOrigin = "https://qualitest-hq.github.io";
+const canonical = `${siteOrigin}${pathForLang(lang, base)}`;
+const zhUrl = `${siteOrigin}${pathForLang("zh", base)}`;
+const enUrl = `${siteOrigin}${pathForLang("en", base)}`;
+const htmlLang = lang === "zh" ? "zh-CN" : "en";
+---
+
+<!doctype html>
+<html lang={htmlLang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={t.metaDescription} />
+    <meta name="theme-color" content="#0d9488" />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="zh-CN" href={zhUrl} />
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="x-default" href={zhUrl} />
+    <title>{t.metaTitle}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Sora:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <SiteNav lang={lang} />
+    <main>
+      <Hero lang={lang} />
+      <QuickStart lang={lang} />
+      <Capabilities lang={lang} />
+      <Ecosystem lang={lang} />
+    </main>
+    <SiteFooter lang={lang} />
+  </body>
+</html>

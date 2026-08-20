@@ -1,22 +1,29 @@
 ---
+import { type Lang, useTranslations } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
 const base = import.meta.env.BASE_URL;
+const [n1, n2, n3, n4, n5] = t.heroPipelineNodes;
 ---
 
 <section class="hero">
   <div class="wrap hero-grid">
     <div class="copy">
-      <p class="eyebrow rise">企业级自动化测试与质量保障</p>
+      <p class="eyebrow rise">{t.heroEyebrow}</p>
       <h1 class="brand-title rise rise-delay-1">
-        质衡
-        <span lang="en">Qualitest</span>
+        {t.heroBrandPrimary}
+        <span lang={lang === "zh" ? "en" : "zh-CN"}>{t.heroBrandSecondary}</span>
       </h1>
-      <p class="headline rise rise-delay-2">接口同步、调试、编排与 AI，同一项目闭环</p>
-      <p class="support rise rise-delay-3">
-        少切换工具，少重复录入 —— 从 IDEA 同步接口，到调试台、测试流画布、AI Diff 与 MCP，一条链路走完。
-      </p>
+      <p class="headline rise rise-delay-2">{t.heroHeadline}</p>
+      <p class="support rise rise-delay-3">{t.heroSupport}</p>
       <div class="cta rise rise-delay-4">
-        <a class="btn btn-primary" href="https://github.com/qualitest-hq/qualitest">Star on GitHub</a>
-        <a class="btn btn-ghost" href="#quick-start">5 分钟 Quick Start</a>
+        <a class="btn btn-primary" href="https://github.com/qualitest-hq/qualitest">{t.heroCtaPrimary}</a>
+        <a class="btn btn-ghost" href="#quick-start">{t.heroCtaSecondary}</a>
       </div>
     </div>
 
@@ -26,13 +33,13 @@ const base = import.meta.env.BASE_URL;
         <img
           class="overview"
           src={`${base}images/overview.gif`}
-          alt="质衡 Qualitest 功能概览：接口同步 → 调试 → 编排 → AI 辅助"
+          alt={t.heroImgAlt}
           width="860"
           height="480"
           hidden
         />
         <div class="pipeline">
-          <svg viewBox="0 0 640 300" role="img" aria-label="质衡主链路示意：IDEA、调试、画布、AI、MCP">
+          <svg viewBox="0 0 640 300" role="img" aria-label={t.heroPipelineAria}>
             <defs>
               <linearGradient id="pipe" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stop-color="#14b8a6" stop-opacity="0.2" />
@@ -54,26 +61,26 @@ const base = import.meta.env.BASE_URL;
             />
             <g class="node n1" filter="url(#soft)">
               <circle cx="64" cy="168" r="22" fill="#fff" stroke="#0f766e" stroke-width="2.2" />
-              <text x="64" y="172" text-anchor="middle" font-size="11" font-weight="600" fill="#0c1222">IDEA</text>
+              <text x="64" y="172" text-anchor="middle" font-size="11" font-weight="600" fill="#0c1222">{n1}</text>
             </g>
             <g class="node n2" filter="url(#soft)">
               <circle cx="190" cy="130" r="22" fill="#fff" stroke="#0f766e" stroke-width="2.2" />
-              <text x="190" y="134" text-anchor="middle" font-size="12" font-weight="600" fill="#0c1222">调试</text>
+              <text x="190" y="134" text-anchor="middle" font-size={lang === "en" ? "10" : "12"} font-weight="600" fill="#0c1222">{n2}</text>
             </g>
             <g class="node n3" filter="url(#soft)">
               <circle cx="340" cy="96" r="22" fill="#fff" stroke="#0f766e" stroke-width="2.2" />
-              <text x="340" y="100" text-anchor="middle" font-size="12" font-weight="600" fill="#0c1222">画布</text>
+              <text x="340" y="100" text-anchor="middle" font-size={lang === "en" ? "10" : "12"} font-weight="600" fill="#0c1222">{n3}</text>
             </g>
             <g class="node n4" filter="url(#soft)">
               <circle cx="500" cy="178" r="22" fill="#fff" stroke="#0f766e" stroke-width="2.2" />
-              <text x="500" y="182" text-anchor="middle" font-size="12" font-weight="600" fill="#0c1222">AI</text>
+              <text x="500" y="182" text-anchor="middle" font-size="12" font-weight="600" fill="#0c1222">{n4}</text>
             </g>
             <g class="node n5" filter="url(#soft)">
               <circle cx="576" cy="178" r="22" fill="#0f766e" stroke="#0f766e" stroke-width="2.2" />
-              <text x="576" y="182" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">MCP</text>
+              <text x="576" y="182" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">{n5}</text>
             </g>
           </svg>
-          <figcaption class="cap-fallback">主链路示意 · overview.gif 就绪后自动替换</figcaption>
+          <figcaption class="cap-fallback">{t.heroPipelineCap}</figcaption>
         </div>
       </figure>
     </div>
@@ -140,7 +147,7 @@ const base = import.meta.env.BASE_URL;
     font-size: clamp(1.2rem, 2.3vw, 1.48rem);
     font-weight: 560;
     line-height: 1.4;
-    max-width: 18em;
+    max-width: 22em;
   }
 
   .support {

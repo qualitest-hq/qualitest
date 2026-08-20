@@ -2,12 +2,15 @@
 
 Astro 静态站，部署到 `https://qualitest-hq.github.io/qualitest/`。
 
+- 中文：`/qualitest/`
+- English：`/qualitest/en/`（导航栏 **中文 / EN** 切换）
+
 ## 本地
 
 ```bash
 cd site
 npm ci
-npm run dev      # http://localhost:4321/qualitest/
+npm run dev      # http://localhost:4321/qualitest/ 与 /qualitest/en/
 npm run build
 npm run preview
 ```

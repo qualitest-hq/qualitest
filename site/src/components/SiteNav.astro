@@ -1,18 +1,33 @@
 ---
+import { type Lang, pathForLang, useTranslations } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
 const base = import.meta.env.BASE_URL;
+const home = pathForLang(lang, base);
+const zhHref = pathForLang("zh", base);
+const enHref = pathForLang("en", base);
 ---
 
 <header class="nav">
   <div class="wrap nav-inner">
-    <a class="brand" href={base}>
+    <a class="brand" href={home}>
       <span class="mark" aria-hidden="true"></span>
-      质衡
+      {t.navBrand}
     </a>
-    <nav class="links" aria-label="主导航">
-      <a href="https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.md">文档</a>
-      <a href="https://github.com/qualitest-hq/qualitest-demo">Demo</a>
-      <a href="https://github.com/qualitest-hq/qualitest-intellij-plugin">插件</a>
-      <a class="gh" href="https://github.com/qualitest-hq/qualitest">GitHub</a>
+    <nav class="links" aria-label={t.navAria}>
+      <a href={t.docsHref}>{t.navDocs}</a>
+      <a href="https://github.com/qualitest-hq/qualitest-demo">{t.navDemo}</a>
+      <a href="https://github.com/qualitest-hq/qualitest-intellij-plugin">{t.navPlugin}</a>
+      <a class="gh" href="https://github.com/qualitest-hq/qualitest">{t.navGitHub}</a>
+      <span class="lang" role="group" aria-label={t.langSwitchAria}>
+        <a class:list={[{ active: lang === "zh" }]} href={zhHref} hreflang="zh-CN" lang="zh-CN">中文</a>
+        <a class:list={[{ active: lang === "en" }]} href={enHref} hreflang="en" lang="en">EN</a>
+      </span>
     </nav>
   </div>
 </header>
@@ -90,5 +105,28 @@ const base = import.meta.env.BASE_URL;
 
   .links .gh:hover {
     border-color: rgba(15, 118, 110, 0.35);
+  }
+
+  .lang {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.35rem;
+    padding: 0.12rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.45);
+  }
+
+  .lang a {
+    padding: 0.28rem 0.55rem;
+    font-size: 0.8rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .lang a.active {
+    color: var(--accent-deep);
+    background: var(--accent-soft);
   }
 </style>

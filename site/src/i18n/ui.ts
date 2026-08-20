@@ -1,0 +1,161 @@
+export const languages = {
+  zh: "中文",
+  en: "English",
+} as const;
+
+export type Lang = keyof typeof languages;
+
+export const defaultLang: Lang = "zh";
+
+export const ui = {
+  zh: {
+    metaTitle: "质衡 Qualitest — 企业级自动化测试与质量保障平台",
+    metaDescription:
+      "让接口同步、调试、编排与 AI 辅助设计在同一项目里闭环。Compose 五分钟起栈，配套 demo 靶场与 IDEA 插件。",
+    navAria: "主导航",
+    navBrand: "质衡",
+    navDocs: "文档",
+    navDemo: "Demo",
+    navPlugin: "插件",
+    navGitHub: "GitHub",
+    langSwitchAria: "语言",
+    heroEyebrow: "企业级自动化测试与质量保障",
+    heroBrandPrimary: "质衡",
+    heroBrandSecondary: "Qualitest",
+    heroHeadline: "接口同步、调试、编排与 AI，同一项目闭环",
+    heroSupport:
+      "少切换工具，少重复录入 —— 从 IDEA 同步接口，到调试台、测试流画布、AI Diff 与 MCP，一条链路走完。",
+    heroCtaPrimary: "Star on GitHub",
+    heroCtaSecondary: "5 分钟 Quick Start",
+    heroImgAlt: "质衡 Qualitest 功能概览：接口同步 → 调试 → 编排 → AI 辅助",
+    heroPipelineAria: "质衡主链路示意：IDEA、调试、画布、AI、MCP",
+    heroPipelineNodes: ["IDEA", "调试", "画布", "AI", "MCP"] as const,
+    heroPipelineCap: "主链路示意 · overview.gif 就绪后自动替换",
+    qsTitle: "5 分钟 Quick Start",
+    qsLeadBefore: "Clone 主仓后用 Compose 一键拉起。打开",
+    qsLeadMid: "，账号",
+    qsLeadAfter: "。生产环境务必更换默认口令与",
+    qsLeadToken: "。",
+    qsCopy: "复制",
+    qsCopied: "已复制",
+    qsCopyFail: "失败",
+    qsMoreBefore: "靶场联调见",
+    qsMoreMid: "；部署细节见",
+    qsMoreAfter: "。",
+    qsDeployHref: "https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.md",
+    qsDeployLabel: "docs/deploy.md",
+    docsHref: "https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.md",
+    capTitle: "同一项目里的闭环",
+    capLead: "从接口从哪来，到怎么调、怎么串、谁帮你设计 —— 少折腾工具切换。",
+    capSteps: [
+      { title: "IDEA 插件", desc: "扫描 Controller，项目级或按组上传到平台" },
+      { title: "接口调试", desc: "多环境切换、鉴权注入，在项目里直接发请求" },
+      { title: "测试流", desc: "画布编排节点，串起登录、业务与断言" },
+      { title: "AI Diff", desc: "自然语言改流，预览 Diff 后再合并" },
+      { title: "MCP", desc: "Cursor 等编辑器只读勘察流与失败现场" },
+    ],
+    ecoTitle: "生态仓库",
+    ecoLead: "三个独立仓，联调时一起用；主仓不混入靶场代码。",
+    ecoRepos: [
+      {
+        name: "qualitest",
+        role: "主平台 · 后端 + Web",
+        href: "https://github.com/qualitest-hq/qualitest",
+      },
+      {
+        name: "qualitest-demo",
+        role: "接口靶场 · 独立 Compose",
+        href: "https://github.com/qualitest-hq/qualitest-demo",
+      },
+      {
+        name: "qualitest-intellij-plugin",
+        role: "IDEA 插件 · 接口同步",
+        href: "https://github.com/qualitest-hq/qualitest-intellij-plugin",
+      },
+    ],
+    footTagline: "质衡 Qualitest",
+    footReadmeZh: "中文 README",
+    footReadmeEn: "English README",
+    footSecurity: "Security",
+  },
+  en: {
+    metaTitle: "Qualitest — Enterprise API testing & quality platform",
+    metaDescription:
+      "API sync, debugging, flow orchestration, and AI-assisted design in one project. Compose up in minutes, with a demo target and IntelliJ plugin.",
+    navAria: "Primary",
+    navBrand: "Qualitest",
+    navDocs: "Docs",
+    navDemo: "Demo",
+    navPlugin: "Plugin",
+    navGitHub: "GitHub",
+    langSwitchAria: "Language",
+    heroEyebrow: "Enterprise API testing & quality assurance",
+    heroBrandPrimary: "Qualitest",
+    heroBrandSecondary: "质衡",
+    heroHeadline: "Sync, debug, orchestrate, and AI — closed loop in one project",
+    heroSupport:
+      "Fewer tool switches, less re-entry — from IntelliJ API sync to the debugger, flow canvas, AI Diff, and MCP, one continuous path.",
+    heroCtaPrimary: "Star on GitHub",
+    heroCtaSecondary: "5-min Quick Start",
+    heroImgAlt: "Qualitest overview: API sync → debug → orchestrate → AI assist",
+    heroPipelineAria: "Qualitest pipeline: IDEA, Debug, Canvas, AI, MCP",
+    heroPipelineNodes: ["IDEA", "Debug", "Canvas", "AI", "MCP"] as const,
+    heroPipelineCap: "Pipeline sketch · replaced when overview.gif is ready",
+    qsTitle: "5-minute Quick Start",
+    qsLeadBefore: "Clone the main repo and bring the stack up with Compose. Open",
+    qsLeadMid: ", sign in as",
+    qsLeadAfter: ". For production, change the default password and",
+    qsLeadToken: ".",
+    qsCopy: "Copy",
+    qsCopied: "Copied",
+    qsCopyFail: "Failed",
+    qsMoreBefore: "For the demo target, see",
+    qsMoreMid: "; deployment details in",
+    qsMoreAfter: ".",
+    qsDeployHref: "https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.en.md",
+    qsDeployLabel: "docs/deploy.en.md",
+    docsHref: "https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.en.md",
+    capTitle: "Closed loop in one project",
+    capLead:
+      "Where APIs come from, how you debug them, how you chain them, and who helps design — without juggling tools.",
+    capSteps: [
+      { title: "IntelliJ plugin", desc: "Scan Controllers; upload by project or group" },
+      { title: "API debugger", desc: "Multi-env switching and auth injection in-project" },
+      { title: "Test flows", desc: "Canvas nodes for login, business steps, and asserts" },
+      { title: "AI Diff", desc: "Edit flows in natural language; preview Diff before merge" },
+      { title: "MCP", desc: "Read-only flow and failure context from Cursor and similar IDEs" },
+    ],
+    ecoTitle: "Ecosystem",
+    ecoLead: "Three separate repos that work together; the main repo stays free of demo-target code.",
+    ecoRepos: [
+      {
+        name: "qualitest",
+        role: "Core platform · backend + Web",
+        href: "https://github.com/qualitest-hq/qualitest",
+      },
+      {
+        name: "qualitest-demo",
+        role: "API demo target · own Compose",
+        href: "https://github.com/qualitest-hq/qualitest-demo",
+      },
+      {
+        name: "qualitest-intellij-plugin",
+        role: "IntelliJ plugin · API sync",
+        href: "https://github.com/qualitest-hq/qualitest-intellij-plugin",
+      },
+    ],
+    footTagline: "质衡 Qualitest",
+    footReadmeZh: "中文 README",
+    footReadmeEn: "English README",
+    footSecurity: "Security",
+  },
+} as const;
+
+export function useTranslations(lang: Lang) {
+  return ui[lang];
+}
+
+export function pathForLang(lang: Lang, base: string) {
+  const root = base.endsWith("/") ? base : `${base}/`;
+  return lang === "zh" ? root : `${root}en/`;
+}

@@ -1,22 +1,30 @@
 ---
+import { type Lang, useTranslations } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
 ---
 
 <footer class="foot">
   <div class="wrap foot-inner">
     <p class="brand-line">
       <span class="mark" aria-hidden="true"></span>
-      <strong>质衡 Qualitest</strong>
+      <strong>{t.footTagline}</strong>
       <span class="sep">·</span>
       Apache License 2.0
       <span class="sep">·</span>
       <a href="https://github.com/qualitest-hq">qualitest-hq</a>
     </p>
     <p class="links">
-      <a href="https://github.com/qualitest-hq/qualitest/blob/main/README.md">中文 README</a>
+      <a href="https://github.com/qualitest-hq/qualitest/blob/main/README.md">{t.footReadmeZh}</a>
       <span class="sep">·</span>
-      <a href="https://github.com/qualitest-hq/qualitest/blob/main/README.en.md">English README</a>
+      <a href="https://github.com/qualitest-hq/qualitest/blob/main/README.en.md">{t.footReadmeEn}</a>
       <span class="sep">·</span>
-      <a href="https://github.com/qualitest-hq/qualitest/blob/main/SECURITY.md">Security</a>
+      <a href="https://github.com/qualitest-hq/qualitest/blob/main/SECURITY.md">{t.footSecurity}</a>
     </p>
   </div>
 </footer>

@@ -1,21 +1,22 @@
 ---
-const steps = [
-  { title: "IDEA 插件", desc: "扫描 Controller，项目级或按组上传到平台" },
-  { title: "接口调试", desc: "多环境切换、鉴权注入，在项目里直接发请求" },
-  { title: "测试流", desc: "画布编排节点，串起登录、业务与断言" },
-  { title: "AI Diff", desc: "自然语言改流，预览 Diff 后再合并" },
-  { title: "MCP", desc: "Cursor 等编辑器只读勘察流与失败现场" },
-];
+import { type Lang, useTranslations } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
 ---
 
 <section class="section capabilities">
   <div class="wrap">
-    <h2 class="section-title">同一项目里的闭环</h2>
-    <p class="section-lead">从接口从哪来，到怎么调、怎么串、谁帮你设计 —— 少折腾工具切换。</p>
+    <h2 class="section-title">{t.capTitle}</h2>
+    <p class="section-lead">{t.capLead}</p>
 
     <ol class="rail">
       {
-        steps.map((step, i) => (
+        t.capSteps.map((step, i) => (
           <li>
             <span class="idx">{String(i + 1).padStart(2, "0")}</span>
             <strong>{step.title}</strong>

@@ -1,16 +1,30 @@
 ---
+import { type Lang, useTranslations } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
 const winCmd = `scripts\\quick-start.bat`;
 const unixCmd = `chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh`;
 ---
 
 <section class="section" id="quick-start">
   <div class="wrap">
-    <h2 class="section-title">5 分钟 Quick Start</h2>
+    <h2 class="section-title">{t.qsTitle}</h2>
     <p class="section-lead">
-      Clone 主仓后用 Compose 一键拉起。打开
-      <a href="http://localhost">http://localhost</a>，账号
-      <code class="inline">admin</code> / <code class="inline">admin123</code>。生产环境务必更换默认口令与
-      <code class="inline">token.secret</code>。
+      {t.qsLeadBefore}
+      {" "}
+      <a href="http://localhost">http://localhost</a>
+      {t.qsLeadMid}
+      {" "}
+      <code class="inline">admin</code> / <code class="inline">admin123</code>
+      {t.qsLeadAfter}
+      {" "}
+      <code class="inline">token.secret</code>
+      {t.qsLeadToken}
     </p>
 
     <div class="panels">
@@ -18,7 +32,9 @@ const unixCmd = `chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh`;
         <div class="panel-head">
           <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
           <span class="label">Windows</span>
-          <button type="button" class="copy" data-copy={winCmd}>复制</button>
+          <button type="button" class="copy" data-copy={winCmd} data-label={t.qsCopy} data-done={t.qsCopied} data-fail={t.qsCopyFail}>
+            {t.qsCopy}
+          </button>
         </div>
         <pre><code><span class="prompt">PS&gt;</span> {winCmd}</code></pre>
       </div>
@@ -26,17 +42,22 @@ const unixCmd = `chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh`;
         <div class="panel-head">
           <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
           <span class="label">Linux / macOS</span>
-          <button type="button" class="copy" data-copy={unixCmd}>复制</button>
+          <button type="button" class="copy" data-copy={unixCmd} data-label={t.qsCopy} data-done={t.qsCopied} data-fail={t.qsCopyFail}>
+            {t.qsCopy}
+          </button>
         </div>
         <pre><code><span class="prompt">$</span> {unixCmd}</code></pre>
       </div>
     </div>
 
     <p class="more">
-      靶场联调见
+      {t.qsMoreBefore}
+      {" "}
       <a href="https://github.com/qualitest-hq/qualitest-demo">qualitest-demo</a>
-      ；部署细节见
-      <a href="https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.md">docs/deploy.md</a>。
+      {t.qsMoreMid}
+      {" "}
+      <a href={t.qsDeployHref}>{t.qsDeployLabel}</a>
+      {t.qsMoreAfter}
     </p>
   </div>
 </section>
@@ -162,17 +183,19 @@ const unixCmd = `chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh`;
   document.querySelectorAll(".copy").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const text = btn.getAttribute("data-copy") ?? "";
+      const label = btn.getAttribute("data-label") ?? "Copy";
+      const done = btn.getAttribute("data-done") ?? "Copied";
+      const fail = btn.getAttribute("data-fail") ?? "Failed";
       try {
         await navigator.clipboard.writeText(text);
-        const prev = btn.textContent;
-        btn.textContent = "已复制";
+        btn.textContent = done;
         btn.classList.add("done");
         setTimeout(() => {
-          btn.textContent = prev;
+          btn.textContent = label;
           btn.classList.remove("done");
         }, 1600);
       } catch {
-        btn.textContent = "失败";
+        btn.textContent = fail;
       }
     });
   });
