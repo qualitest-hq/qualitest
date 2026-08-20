@@ -29,7 +29,8 @@ Sync APIs, debug in-project, orchestrate flows, and design with AI — in one pl
 [MCP](./docs/mcp.en.md) ·
 [Concepts](./docs/project-summary.en.md) ·
 [Flow nodes](./docs/test-flow-nodes.en.md) ·
-[AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
+[AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) ·
+[QQ group](https://qm.qq.com/q/FBa9jDRhm) (`1105468427`)
 
 <br/>
 
@@ -289,7 +290,7 @@ More: [Deploy](./docs/deploy.en.md) · [Concepts](./docs/project-summary.en.md) 
 
 <div align="center">
 
-**Qualitest** · [Apache-2.0](LICENSE) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+**Qualitest** · [Apache-2.0](LICENSE) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [QQ group](https://qm.qq.com/q/FBa9jDRhm) (`1105468427`)
 
 <sub>Deployment details: [`docs/deploy.en.md`](./docs/deploy.en.md) · Chinese docs: [`README.md`](./README.md)</sub>
 

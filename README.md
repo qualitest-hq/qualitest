@@ -30,7 +30,8 @@
 [MCP](./docs/mcp.md) ·
 [产品概念](./docs/project-summary.md) ·
 [测试流节点](./docs/test-flow-nodes.md) ·
-[AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
+[AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) ·
+[QQ 交流群](https://qm.qq.com/q/FBa9jDRhm)（`1105468427`）
 
 <br/>
 
@@ -366,7 +367,7 @@ Swagger 一般为 **http://localhost:8081/swagger-ui.html**。
 
 <div align="center">
 
-**质衡 Qualitest** · 让质量保障更高效 · [Apache-2.0](LICENSE) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md)
+**质衡 Qualitest** · 让质量保障更高效 · [Apache-2.0](LICENSE) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [QQ 交流群](https://qm.qq.com/q/FBa9jDRhm)（`1105468427`）
 
 <sub>部署细节以 [`docs/deploy.md`](./docs/deploy.md) 为准</sub>
 
