@@ -243,17 +243,27 @@ Dirty demo scenario → snapshotBefore → pause on write failure → timeline s
 
 ## Try it
 
-Requires Docker + Compose V2. First build is slow.
+Requires Docker + Compose V2. First build is slow; **containers up ≠ ready to log in** — wait until the backend is healthy / Flyway finishes (`docker compose logs -f app`).
+
+**Windows**
+
+```bat
+cd qualitest
+scripts\quick-start.bat
+```
+
+**Linux / macOS**
 
 ```bash
 cd qualitest
-# Windows: scripts\quick-start.bat
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open **http://localhost**, sign in **`admin` / `admin123`**.
+Open **http://localhost** (default host port **80**; if busy, set `WEB_PORT=8088` in `.env` and open **http://localhost:8088**).
 
-Full loop (demo target + IDEA sync + AI / MCP): see [`docs/deploy.en.md`](./docs/deploy.en.md), [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo), [IDEA plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin). **Never use default passwords on the public internet.**
+Username **`admin`**, password **`admin123`**. Do not use on the public internet.
+
+Full loop (demo target + IDEA sync + AI / MCP): see [`docs/deploy.en.md`](./docs/deploy.en.md), [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo), [IDEA plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin).
 
 <details>
 <summary>More docs</summary>

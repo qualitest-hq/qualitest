@@ -38,14 +38,23 @@ if not exist ".env" (
   )
 )
 
+set "WEB_PORT=80"
+if exist ".env" (
+  for /f "usebackq tokens=1,* delims==" %%A in (`findstr /b /c:"WEB_PORT=" ".env"`) do set "WEB_PORT=%%B"
+)
+
 echo [info] 构建并启动 MySQL + Redis + 后端 + Nginx ...
 docker compose up -d --build
 if errorlevel 1 exit /b 1
 
 echo.
 echo ==============================================
-echo  质衡已启动
-echo  浏览器打开: http://localhost
+echo  质衡已启动（请稍等后端健康 / Flyway 完成后再登录）
+if "%WEB_PORT%"=="80" (
+  echo  浏览器打开: http://localhost
+) else (
+  echo  浏览器打开: http://localhost:%WEB_PORT%
+)
 echo  默认账号:   admin / admin123
 echo  停止:       docker compose down
 echo  仅依赖:     scripts\dev-deps-up.bat
