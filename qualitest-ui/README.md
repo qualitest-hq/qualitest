@@ -4,7 +4,7 @@
 
 ## 环境要求
 
-- Node.js 20+（与 CI / happy-dom 要求一致）
+- Node.js 22+（与 CI / pnpm 11 要求一致，建议 ≥ 22.13）
 - pnpm 11.x（推荐 Corepack：`corepack enable`）
 - 开发联调时需先启动质衡后端（默认 `http://localhost:8080`），与 `apps/web` 下 Vite 代理配置一致
 

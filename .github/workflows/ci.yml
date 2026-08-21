@@ -114,10 +114,10 @@ jobs:
         with:
           version: 11.22.0
 
-      - name: Set up Node 20
+      - name: Set up Node 22
         uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: qualitest-ui/pnpm-lock.yaml
 

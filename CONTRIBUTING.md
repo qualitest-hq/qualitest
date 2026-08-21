@@ -26,7 +26,7 @@ GitHub 上「New issue」可选表单（Bug / 想法 / 提问）；空白 Issue 
 
 ## 开发环境（摘要）
 
-- JDK 17+、Maven 3+、MySQL 8+、Redis 3+、Node 20+、pnpm 11.x  
+- JDK 17+、Maven 3+、MySQL 8+、Redis 3+、Node 22+、pnpm 11.x  
 - 复制 [`.env.example`](./.env.example) 为 `.env`（勿提交），或改 `application-dev.yml`  
 - 后端：`mvn clean package` 后按根目录 `qualitest.bat` / `qualitest.sh` 启动  
 - 前端：`cd qualitest-ui && pnpm install && pnpm dev`  
