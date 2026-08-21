@@ -1,7 +1,7 @@
 /**
  * 测 patchHttpNodeNormalize：HTTP 节点 patch 数据规范化。
  * 边界：纯函数，fixture 节点与 API 资产。
- * 单跑：yarn test patchHttpNodeNormalize   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test patchHttpNodeNormalize   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

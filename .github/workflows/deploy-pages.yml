@@ -35,18 +35,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
       - name: Set up Node 22
         uses: actions/setup-node@v5
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: site/package-lock.json
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
 
       - name: Install and build
         working-directory: site
         run: |
-          npm ci
-          npm run build
+          pnpm install --frozen-lockfile
+          pnpm build
 
       - name: Upload Pages artifact
         if: ${{ vars.ENABLE_PAGES_DEPLOY == 'true' }}

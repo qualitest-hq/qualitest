@@ -1,7 +1,7 @@
 /**
  * 测 useFlowViewport：视口写入、Flow 回写忽略与节点聚焦。
  * 边界：mock @vue-flow/core；Pinia 内存态。
- * 单跑：yarn test useFlowViewport   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test useFlowViewport   （在 qualitest-ui 或 apps/web 下）
  */
 import { ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';

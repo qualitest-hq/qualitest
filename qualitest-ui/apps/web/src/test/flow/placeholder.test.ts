@@ -1,7 +1,7 @@
 /**
  * 测 resolvePlaceholderString / resolvePathSegment：{{scope.path}} 占位符解析。
  * 边界：纯函数；用例来自 @flow-fixtures/placeholder-cases.json（与后端同源）。
- * 单跑：yarn test placeholder   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test placeholder   （在 qualitest-ui 或 apps/web 下）
  * @vitest-environment happy-dom
  */
 import { describe, expect, it } from 'vitest';

@@ -1,7 +1,7 @@
 /**
  * 测 stagingAuthHints：托管头识别、Diff 标签、鉴权机器码解析与展示剥前缀。
  * 边界：无 headers / 显式头 / profileManaged；只认 AUTH_* CODE；TOKEN_MISSING 不进 soft warnings。
- * 单跑：yarn test stagingAuthHints   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingAuthHints   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

@@ -1,7 +1,7 @@
 /**
  * 测 renderMarkdown：GFM 渲染与 XSS 防护。
  * 边界：纯函数，Node 环境字符串处理。
- * 单跑：yarn test markdown   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test markdown   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

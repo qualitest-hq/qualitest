@@ -1,7 +1,7 @@
 /**
  * 测 jsonSchemaTree：从 schema default 生成示例，并与请求示例合并。
  * 边界：仅显式 default、空串填充、手改 JSON 不被空 default 冲掉。
- * 单跑：yarn test jsonSchemaExampleSync
+ * 单跑：pnpm test jsonSchemaExampleSync
  */
 import { describe, expect, it } from 'vitest'
 

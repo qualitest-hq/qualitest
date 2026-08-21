@@ -1,7 +1,7 @@
 /**
  * 测 resolveNextStagingFocusUnit：确认后下一聚焦单元解析。
  * 边界：纯函数，仅 fixture 单元列表。
- * 单跑：yarn test stagingFocusNavigation   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingFocusNavigation   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

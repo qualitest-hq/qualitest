@@ -69,11 +69,11 @@ function createWindow() {
 <h1 style="margin-top:0">无法连接到 Web 开发服务</h1>
 <p>请求地址：<code style="word-break:break-all">${devUrl}</code></p>
 <p><strong>推荐：</strong>在 <code>qualitest-ui</code> 根目录一条命令同时启动 Vite 与桌面壳：</p>
-<pre style="background:#f5f5f5;padding:12px;border-radius:8px">yarn dev:desktop</pre>
+<pre style="background:#f5f5f5;padding:12px;border-radius:8px">pnpm dev:desktop</pre>
 <p>若你只用了「仅 Electron」命令，请<strong>另开终端</strong>先执行：</p>
-<pre style="background:#f5f5f5;padding:12px;border-radius:8px">yarn dev:web</pre>
-<p>再运行 <code>yarn dev:desktop:only</code>。</p>
-<p>若 Vite 实际监听在其它端口，请设置环境变量 <code>QUALITEST_WEB_DEV_URL</code>（与 Vite 终端里 Local 地址一致）后重新运行 <code>yarn dev:desktop</code>。</p>
+<pre style="background:#f5f5f5;padding:12px;border-radius:8px">pnpm dev:web</pre>
+<p>再运行 <code>pnpm dev:desktop:only</code>。</p>
+<p>若 Vite 实际监听在其它端口，请设置环境变量 <code>QUALITEST_WEB_DEV_URL</code>（与 Vite 终端里 Local 地址一致）后重新运行 <code>pnpm dev:desktop</code>。</p>
 <p style="color:#666;font-size:14px">错误码 ${errorCode}：${String(errorDescription || '')}</p>
 </body></html>`
       win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))

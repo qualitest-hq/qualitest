@@ -1,7 +1,7 @@
 /**
  * 测 aiPatchMessageSelectors：patch 消息懒加载、Diff 展示与活跃 patch 定位。
  * 边界：纯函数，fixture 消息对象。
- * 单跑：yarn test aiPatchMessageSelectors   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test aiPatchMessageSelectors   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

@@ -1,7 +1,7 @@
 /**
  * 测 applyConfirmResultWithHashGuard：hash 不一致但画布未变时仍落盘。
  * 边界：mock computeBaseGraphHash 与 confirm API；Pinia 内存态。
- * 单跑：yarn test stagingConfirmRequest   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingConfirmRequest   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

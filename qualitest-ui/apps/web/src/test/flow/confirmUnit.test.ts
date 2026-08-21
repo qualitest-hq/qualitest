@@ -1,7 +1,7 @@
 /**
  * 测 requestConfirmFlowDesignUnit：mock 服务端 confirm API，含失败重试。
  * 边界：mock confirmFlowDesignUnit；Pinia 内存态，无真实后端。
- * 单跑：yarn test confirmUnit   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test confirmUnit   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';

@@ -1,7 +1,7 @@
 /**
  * 测 stagingConfirmRetry：confirm 自动重试策略。
  * 边界：mock requestConfirmOnce；fake timers。
- * 单跑：yarn test stagingConfirmRetry   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingConfirmRetry   （在 qualitest-ui 或 apps/web 下）
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

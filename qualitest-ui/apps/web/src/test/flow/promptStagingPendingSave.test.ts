@@ -1,7 +1,7 @@
 /**
  * 测 promptStagingPendingSave：门禁文案与三选一/强挡行为。
  * 边界：MessageBox mock；无真实 DOM。
- * 单跑：yarn test promptStagingPendingSave
+ * 单跑：pnpm test promptStagingPendingSave
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

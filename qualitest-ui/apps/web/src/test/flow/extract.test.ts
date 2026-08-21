@@ -1,7 +1,7 @@
 /**
  * 测 applyExtracts：HTTP 响应变量提取（与后端 ExtractApplicator 对齐）。
  * 边界：纯函数；用例来自 @flow-fixtures/compare-extract-cases.json。
- * 单跑：yarn test extract   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test extract   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

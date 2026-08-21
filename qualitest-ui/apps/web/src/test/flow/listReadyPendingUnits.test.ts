@@ -1,7 +1,7 @@
 /**
  * 测 listReadyPendingUnitIds：按依赖筛可确认 pending，并稳定排序。
  * 边界：纯函数；多消息、skipUnitIds、链式 addNode+addEdge。
- * 单跑：yarn test listReadyPendingUnits   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test listReadyPendingUnits   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

@@ -1,7 +1,7 @@
 /**
  * 测 evalCompareRule：比较规则求值（与后端 CompareRuleEvaluator 对齐）。
  * 边界：纯函数；用例来自 @flow-fixtures/compare-extract-cases.json。
- * 单跑：yarn test compareRule   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test compareRule   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

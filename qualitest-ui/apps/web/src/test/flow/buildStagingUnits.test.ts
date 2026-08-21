@@ -1,7 +1,7 @@
 /**
  * 测 buildStagingUnits：patch 转 Staging 单元与 baseline/draft。
  * 边界：纯函数，fixture patch 与 ctx。
- * 单跑：yarn test buildStagingUnits   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test buildStagingUnits   （在 qualitest-ui 或 apps/web 下）
  */
 import type { Edge, Node } from '@vue-flow/core';
 import { describe, expect, it } from 'vitest';

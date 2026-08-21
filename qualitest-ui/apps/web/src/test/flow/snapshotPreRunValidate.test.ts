@@ -1,7 +1,7 @@
 /**
  * 测 snapshotPreRunValidate / resolveResetBaseUrl：快照前置节点重置端点静态校验。
  * 边界：纯函数，fixture 图与环境 URL。
- * 单跑：yarn test snapshotPreRunValidate   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test snapshotPreRunValidate   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

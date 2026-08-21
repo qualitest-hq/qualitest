@@ -1,7 +1,7 @@
 /**
  * 测 stagingFieldDiff：节点/边/场景字段差异行与写回。
  * 边界：纯函数，无 store 依赖。
- * 单跑：yarn test stagingFieldDiff   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingFieldDiff   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

@@ -58,7 +58,7 @@ cd qualitest-demo && ./scripts/quick-start.sh
 
 | 跑法 | 建议 `baseUrl` |
 |------|----------------|
-| 两边都在本机进程（`mvn` / `yarn`），或仅浏览器直连宿主机端口 | 种子默认 **`http://localhost:8081`** |
+| 两边都在本机进程（`mvn` / `pnpm`），或仅浏览器直连宿主机端口 | 种子默认 **`http://localhost:8081`** |
 | **质衡 app 在 Compose 容器内**，demo 映射在宿主机 **8081** | 容器内 `localhost` 打不到靶场，改为 **`http://host.docker.internal:8081`**（Docker Desktop：Windows / macOS）。Linux 可加 compose `extra_hosts: ["host.docker.internal:host-gateway"]`，或改为本机跑质衡后端 |
 
 靶场库表用 initdb dump + 场景 seed，**不接 Flyway**；质衡自身迁移见下文「库表迁移（Flyway）」。
@@ -90,7 +90,7 @@ mvn -pl qualitest-admin -am -DskipTests package
 # 按根目录 qualitest.bat / qualitest.sh 或 spring-boot:run 启动
 
 # 前端
-cd qualitest-ui && yarn install && yarn dev
+cd qualitest-ui && pnpm install && pnpm dev
 ```
 
 浏览器：**http://localhost:5173**。MySQL 只需空库 `qualitest`（Compose `mysql` 服务会建）；启动后端后由 **Flyway** 自动执行 `db/migration`（含种子），日志出现 migrate 成功即可登录。
@@ -306,7 +306,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 5. About → Website 填上述 URL
 6. 浏览器确认落地页可打开（无 `overview.gif` 时 Hero 会显示链路 SVG）
 
-本地预览：`cd site && npm ci && npm run build && npm run preview` → `http://127.0.0.1:4321/qualitest/`。
+本地预览：`cd site && pnpm install && pnpm build && pnpm preview` → `http://127.0.0.1:4321/qualitest/`。
 
 ---
 

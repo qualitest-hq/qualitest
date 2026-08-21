@@ -1,7 +1,7 @@
 /**
  * 测 stagingAcceptance：messageAcceptedMap 与 Staging 重灌恢复 confirmed。
  * 边界：Pinia 内存态，ref 模拟 accepted map。
- * 单跑：yarn test stagingAcceptance   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingAcceptance   （在 qualitest-ui 或 apps/web 下）
  */
 import { ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';

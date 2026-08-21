@@ -1,7 +1,7 @@
 /**
  * 测 stagingLabels：Staging 种类标题、删除提示与摘要拼接。
  * 边界：纯函数，fixture 摘要对象。
- * 单跑：yarn test stagingLabels   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingLabels   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

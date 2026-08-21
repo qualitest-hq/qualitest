@@ -1,7 +1,7 @@
 /**
  * 测 mentionComposer：文档序列化、去重与发送 payload 构建。
  * 边界：纯函数；happy-dom 环境（文件头标注）。
- * 单跑：yarn test mentionSerialize   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test mentionSerialize   （在 qualitest-ui 或 apps/web 下）
  * @vitest-environment happy-dom
  */
 import { describe, expect, it } from 'vitest';

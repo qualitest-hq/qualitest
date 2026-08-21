@@ -1,6 +1,6 @@
 /**
  * 测 stagingMessage：Staging 摘要 / explainOnly 提示显隐。
- * 单跑：yarn test stagingMessage --run
+ * 单跑：pnpm test stagingMessage --run
  */
 import { describe, expect, it } from 'vitest';
 

@@ -3,12 +3,17 @@
   "type": "module",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=11"
+  },
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview"
   },
   "dependencies": {
-    "astro": "^5.13.2"
+    "astro": "5.13.2"
   }
 }

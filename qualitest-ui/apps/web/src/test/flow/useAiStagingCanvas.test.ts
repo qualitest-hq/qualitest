@@ -1,7 +1,7 @@
 /**
  * 测 applyStagingCanvasToStore：Staging 画布写入 store 时边进 pendingEdges。
  * 边界：Pinia 内存态，无真实 Vue Flow 实例。
- * 单跑：yarn test useAiStagingCanvas   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test useAiStagingCanvas   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';

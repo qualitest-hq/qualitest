@@ -1,6 +1,6 @@
 /**
  * 属性面板 JsonPath 试算 + 设计期 schema 门禁。
- * 单跑：yarn test jsonPathTrial
+ * 单跑：pnpm test jsonPathTrial
  */
 import { describe, expect, it } from 'vitest';
 

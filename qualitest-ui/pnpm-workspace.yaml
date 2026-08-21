@@ -1,0 +1,24 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+overrides:
+  quill: 2.0.2
+
+allowBuilds:
+  electron: true
+  esbuild: true
+  sharp: true
+  '@parcel/watcher': true
+  vue-demi: true
+
+publicHoistPattern:
+  - '*electron*'
+  - '*electron-builder*'
+
+strictPeerDependencies: false
+
+# pnpm 11 默认拒绝「过新」发布包；暂关闭以免锁文件里的近期传递依赖装不上
+minimumReleaseAge: 0
+
+confirmModulesPurge: false

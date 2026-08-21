@@ -9,11 +9,13 @@ Astro 静态站，部署到 `https://qualitest-hq.github.io/qualitest/`。
 
 ```bash
 cd site
-npm ci
-npm run dev      # http://localhost:4321/qualitest/ 与 /qualitest/en/
-npm run build
-npm run preview
+pnpm install
+pnpm dev      # http://localhost:4321/qualitest/ 与 /qualitest/en/
+pnpm build
+pnpm preview
 ```
+
+镜像源由本目录 `.npmrc` 统一配置（默认 npmmirror）。
 
 ## CI 行为
 

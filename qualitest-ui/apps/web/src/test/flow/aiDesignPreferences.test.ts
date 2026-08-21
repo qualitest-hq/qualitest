@@ -1,7 +1,7 @@
 /**
  * 测 aiDesignPreferences：confirm 后自动保存 / pending 保存强挡偏好读写。
  * 边界：localStorage 内存模拟，无后端。
- * 单跑：yarn test aiDesignPreferences   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test aiDesignPreferences   （在 qualitest-ui 或 apps/web 下）
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 

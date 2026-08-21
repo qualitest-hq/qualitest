@@ -58,7 +58,7 @@ cd qualitest-demo && ./scripts/quick-start.sh
 
 | Setup | Suggested `baseUrl` |
 |-------|---------------------|
-| Both as host processes (`mvn` / `yarn`), or browser hits host ports | Seed default **`http://localhost:8081`** |
+| Both as host processes (`mvn` / `pnpm`), or browser hits host ports | Seed default **`http://localhost:8081`** |
 | **Qualitest app inside Compose**, demo mapped on host **8081** | Container `localhost` cannot reach the demo — use **`http://host.docker.internal:8081`** (Docker Desktop: Windows / macOS). On Linux add `extra_hosts: ["host.docker.internal:host-gateway"]`, or run Qualitest backend on the host |
 
 Demo schema uses initdb dump + scenario seed — **no Flyway**. Qualitest migrations: see [Schema migration (Flyway)](#schema-migration-flyway).
@@ -90,7 +90,7 @@ mvn -pl qualitest-admin -am -DskipTests package
 # Start via qualitest.bat / qualitest.sh or spring-boot:run
 
 # Frontend
-cd qualitest-ui && yarn install && yarn dev
+cd qualitest-ui && pnpm install && pnpm dev
 ```
 
 Browser: **http://localhost:5173**. MySQL only needs empty DB `qualitest` (Compose `mysql` creates it). On backend start, **Flyway** runs `db/migration` (including seed). Login once migrate succeeds in logs.
@@ -298,7 +298,7 @@ Source: [`site/`](../site/). URL: `https://qualitest-hq.github.io/qualitest/`.
 5. About → Website = the URL above
 6. Verify the landing page loads
 
-Local: `cd site && npm ci && npm run build && npm run preview` → `http://127.0.0.1:4321/qualitest/`.
+Local: `cd site && pnpm install && pnpm build && pnpm preview` → `http://127.0.0.1:4321/qualitest/`.
 
 ---
 

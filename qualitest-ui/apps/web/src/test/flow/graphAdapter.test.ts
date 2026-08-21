@@ -1,7 +1,7 @@
 /**
  * 测 graphAdapter：GraphJson 与 Vue Flow 画布状态双向转换。
  * 边界：纯函数；demo-graph fixture，无 Pinia。
- * 单跑：yarn test graphAdapter   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test graphAdapter   （在 qualitest-ui 或 apps/web 下）
  */
 import type { Node } from '@vue-flow/core';
 import { describe, expect, it } from 'vitest';

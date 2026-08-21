@@ -1,7 +1,7 @@
 /**
  * 测 aiStagingStore：CRUD、摘要、保存过滤与 message 迁移。
  * 边界：Pinia 内存态，无 API 依赖。
- * 单跑：yarn test aiStagingStore   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test aiStagingStore   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';

@@ -1,7 +1,7 @@
 /**
  * 测 buildFlowGraphInput + stagingFilter：AI 设计请求排除未 confirm 的 Staging。
  * 边界：Pinia 内存态，无真实 API 调用。
- * 单跑：yarn test useAiDesign.staging   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test useAiDesign.staging   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';

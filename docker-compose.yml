@@ -1,7 +1,7 @@
 # 质衡 Qualitest — Docker Compose 全栈
 # 用法：
 #   docker compose up -d --build     # 全栈（MySQL + Redis + 后端 + Nginx）
-#   docker compose up -d mysql redis # 仅依赖（本机跑 mvn / yarn）
+#   docker compose up -d mysql redis # 仅依赖（本机跑 mvn / pnpm）
 # 一键全栈：scripts/quick-start.sh|.bat
 # 仅依赖：  scripts/dev-deps-up.sh|.bat  /  scripts/dev-deps-down.sh|.bat
 # 靶场：独立仓 qualitest-demo 另起 Compose（本文件无 --profile demo；见 docs/deploy.md）

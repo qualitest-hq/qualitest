@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: true
+  sharp: true
+
+minimumReleaseAge: 0
+confirmModulesPurge: false

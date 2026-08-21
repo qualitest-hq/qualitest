@@ -1,7 +1,7 @@
 /**
  * 测 validateGraphJson / validateStartNodes：流程图 JSON 结构与业务规则校验。
  * 边界：纯函数；manifest 用例来自 @flow-fixtures/graph-validate-cases.json。
- * 单跑：yarn test graphValidate   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test graphValidate   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

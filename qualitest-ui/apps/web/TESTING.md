@@ -7,7 +7,7 @@
 ## 环境要求
 
 - Node.js（与项目 Vite 版本匹配）
-- Yarn 或 npm
+- pnpm 或 npm
 - 所有命令在 **`qualitest-ui/apps/web`** 目录执行（或在 `qualitest-ui` 根目录用 workspace 脚本）
 
 ## 运行方式
@@ -16,30 +16,30 @@
 
 ```bash
 cd qualitest-ui/apps/web
-yarn test
+pnpm test
 ```
 
 ### 按文件名过滤（Vitest 模式匹配）
 
 ```bash
-yarn test graphValidate
-yarn test placeholder
-yarn test graphAdapter
-yarn test compareRule
-yarn test extract
-yarn test snowflakeId
+pnpm test graphValidate
+pnpm test placeholder
+pnpm test graphAdapter
+pnpm test compareRule
+pnpm test extract
+pnpm test snowflakeId
 ```
 
 ### 监听模式（保存后自动重跑）
 
 ```bash
-yarn test:watch
+pnpm test:watch
 ```
 
 ### 指定文件
 
 ```bash
-yarn test src/test/flow/compareRule.test.ts src/test/flow/extract.test.ts
+pnpm test src/test/flow/compareRule.test.ts src/test/flow/extract.test.ts
 ```
 
 ## 配置
@@ -68,7 +68,7 @@ src/views/project/testFlow/  画布、适配器、stores、composables
 ## 约定摘要（细则见主文档）
 
 - 框架：Vitest（`describe` / `it` / `expect`）。
-- 文件头：测谁、边界、`yarn test <片段>`。
+- 文件头：测谁、边界、`pnpm test <片段>`。
 - 每条 `it`：两行「前提 / 期望」；标题优先中文短句。
 - 共享 flow 夹具通过别名 `@flow-fixtures` 引用权威目录（见下），勿再复制到 `src/test/flow/fixtures/`。
 - 测试环境为 Node，不启动浏览器；画布交互、正式 Run API 暂无自动化覆盖。
@@ -98,7 +98,7 @@ mvn test -DskipTests=false -pl qualitest-system -am "-Dtest=CompareRuleEvaluator
 
 # 前端
 cd qualitest-ui/apps/web
-yarn test compareRule extract placeholder
+pnpm test compareRule extract placeholder
 ```
 
 ## 未覆盖范围（手动验证）

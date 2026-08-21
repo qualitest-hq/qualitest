@@ -1,7 +1,7 @@
 /**
  * 测 applyApiDesignChangesToDetail：AI API 设计 patch 合并进 apiDetail 草稿。
  * 边界：纯函数，内存 detail 对象，不落库。
- * 单跑：yarn test applyApiDesignPatch   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test applyApiDesignPatch   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest'
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 质衡开发依赖：仅启动 MySQL + Redis（本机 mvn / yarn 热更）
+# 质衡开发依赖：仅启动 MySQL + Redis（本机 mvn / pnpm 热更）
 #
 # 用法：
 #   ./scripts/dev-deps-up.sh           # 启动并等待 healthy
@@ -97,7 +97,7 @@ echo " 本机后端（profile=dev，Flyway 会自动迁库）:"
 echo "   mvn -pl qualitest-admin -am -DskipTests package"
 echo "   再 qualitest.bat / qualitest.sh 或 spring-boot:run"
 echo " 本机前端:"
-echo "   cd qualitest-ui && yarn install && yarn dev"
+echo "   cd qualitest-ui && pnpm install && pnpm dev"
 echo "   浏览器 http://localhost:5173"
 echo
 echo " 默认账号: admin / admin123（首启后端迁库后）"

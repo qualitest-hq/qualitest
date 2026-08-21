@@ -1,6 +1,6 @@
 /**
  * 前后端共用夹具中的 JsonPath 用例（下标、过滤器、通配、length、缺叶）。
- * 单跑：yarn test jsonPathContract
+ * 单跑：pnpm test jsonPathContract
  */
 import { describe, expect, it } from 'vitest';
 

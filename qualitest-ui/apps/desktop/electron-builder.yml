@@ -2,8 +2,8 @@ appId: com.qualitest.desktop
 productName: Qualitest
 copyright: Copyright © Qualitest
 forceCodeSigning: false
-# 使用 yarn 已安装的 Electron，避免打包时再从 GitHub 下载 ~100MB
-electronDist: ../../node_modules/electron/dist
+# 使用 pnpm 已安装的 Electron，避免打包时再从 GitHub 下载 ~100MB
+electronDist: node_modules/electron/dist
 electronVersion: 34.2.0
 directories:
   buildResources: build

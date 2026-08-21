@@ -1,7 +1,7 @@
 /**
  * 测 stagingLocate：摘要定位辅助（首个 pending 单元与场景 id 解析）。
  * 边界：纯函数，fixture 单元列表。
- * 单跑：yarn test stagingLocate   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingLocate   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

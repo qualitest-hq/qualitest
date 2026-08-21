@@ -1,7 +1,7 @@
 /**
  * 测 useFlowHistory：undo 时恢复 Staging 单元状态。
  * 边界：mock element-plus；Pinia 内存态。
- * 单跑：yarn test useFlowHistory.staging   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test useFlowHistory.staging   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

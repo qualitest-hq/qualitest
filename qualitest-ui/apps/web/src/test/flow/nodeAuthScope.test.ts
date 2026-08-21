@@ -1,7 +1,7 @@
 /**
  * 测 nodeAuthScope：按 pathPrefix 解析凭证变量、登录抽错名、托管头串端。
  * 边界：纯函数，无 UI。
- * 单跑：yarn test nodeAuthScope   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test nodeAuthScope   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest'
 

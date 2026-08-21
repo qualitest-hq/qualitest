@@ -1,7 +1,7 @@
 /**
  * 测 nextSnowflakeId / generateNodeId：流程节点雪花 ID 生成。
  * 边界：纯函数，无持久化。
- * 单跑：yarn test snowflakeId   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test snowflakeId   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

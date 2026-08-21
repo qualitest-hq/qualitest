@@ -1,7 +1,7 @@
 /**
  * 测 parseAssetProposalsFromMeta：从消息元数据还原素材库写入提案。
  * 边界：缺 key、仅有字段名、含明文 fields。
- * 单跑：yarn test parseAssetProposals
+ * 单跑：pnpm test parseAssetProposals
  */
 import { describe, expect, it } from 'vitest';
 

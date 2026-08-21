@@ -1,7 +1,7 @@
 /**
  * 测 stagingFocusTransform：侧栏遮挡、缩放策略与聚焦 viewport 计算。
  * 边界：纯函数，无 Vue Flow 实例。
- * 单跑：yarn test stagingFocusTransform   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingFocusTransform   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

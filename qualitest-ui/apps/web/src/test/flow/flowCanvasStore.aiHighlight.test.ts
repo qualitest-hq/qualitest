@@ -1,7 +1,7 @@
 /**
  * 测 flowCanvasStore AI 确认高亮：累积、finalize 清除与 reset。
  * 边界：Pinia 内存态；fake timers 测延迟清除。
- * 单跑：yarn test flowCanvasStore.aiHighlight   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test flowCanvasStore.aiHighlight   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

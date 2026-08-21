@@ -1,7 +1,7 @@
 /**
  * 测 projectAuthConfig：auth_config 表单 parse / build / validate。
  * 边界：纯函数，无 UI / 持久化层。
- * 单跑：yarn test projectAuthConfig   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test projectAuthConfig   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest'
 

@@ -1,7 +1,7 @@
 /**
  * 测 stagingDependencyHints：Staging 确认依赖提示与阻断判定。
  * 边界：纯函数，无 Pinia / 画布。
- * 单跑：yarn test stagingDependencyHints   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingDependencyHints   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

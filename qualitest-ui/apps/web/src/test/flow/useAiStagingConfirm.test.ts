@@ -2,7 +2,7 @@
  * 测 useAiStagingConfirm：deleteNode confirm 后关联 pending addEdge 应 reject；
  * 全局单飞确认（连点多 deleteEdge 只进一笔）；确认全部就绪波次串行 / 失败停顿 / resume。
  * 边界：mock confirm API、viewport、history 等；Pinia 内存态。
- * 单跑：yarn test useAiStagingConfirm   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test useAiStagingConfirm   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

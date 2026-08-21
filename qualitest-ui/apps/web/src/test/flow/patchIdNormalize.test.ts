@@ -1,7 +1,7 @@
 /**
  * 测 normalizeFlowDesignPatchIds：patch id 规范化与边端点重连。
  * 边界：纯函数，无 store 依赖。
- * 单跑：yarn test patchIdNormalize   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test patchIdNormalize   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

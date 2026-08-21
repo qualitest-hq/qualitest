@@ -1,7 +1,7 @@
 /**
  * 测 aiStagingStore：跨 message 节点冲突时回滚画布旧 Staging。
  * 边界：mock revertStagingUnitOnCanvas；Pinia 内存态。
- * 单跑：yarn test aiStagingStore.conflict   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test aiStagingStore.conflict   （在 qualitest-ui 或 apps/web 下）
  */
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

@@ -1,7 +1,7 @@
 /**
  * 测 stagingUnitIds：unitId 解析与 kind 分类映射。
  * 边界：纯函数，fixture 单元对象。
- * 单跑：yarn test stagingUnitIds   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingUnitIds   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

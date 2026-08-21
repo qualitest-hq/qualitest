@@ -1,11 +1,11 @@
 # qualitest-ui（质衡前端）
 
-本目录为 **Yarn 1 workspace 根**，包含浏览器端 Vue SPA（`apps/web`）、Electron 桌面应用（`apps/desktop`）与共享契约包（`packages/transport-types`）。被测 HTTP：浏览器经 Vite 代理与 axios（`ApiDebugTab`）；桌面端经 Electron 主进程 IPC。
+本目录为 **pnpm workspace 根**，包含浏览器端 Vue SPA（`apps/web`）、Electron 桌面应用（`apps/desktop`）与共享契约包（`packages/transport-types`）。被测 HTTP：浏览器经 Vite 代理与 axios（`ApiDebugTab`）；桌面端经 Electron 主进程 IPC。
 
 ## 环境要求
 
 - Node.js 20+（与 CI / happy-dom 要求一致）
-- Yarn 1.x（Classic）
+- pnpm 11.x（推荐 Corepack：`corepack enable`）
 - 开发联调时需先启动质衡后端（默认 `http://localhost:8080`），与 `apps/web` 下 Vite 代理配置一致
 
 ## 安装依赖
@@ -13,10 +13,10 @@
 在 **`qualitest-ui`** 根目录执行：
 
 ```bash
-yarn install
+pnpm install
 ```
 
-Windows 也可使用仓库内脚本：`bin\package.bat`（在 `qualitest-ui` 根执行 `yarn`）。
+镜像源由本目录 `.npmrc` 统一配置（默认 npmmirror）；海外可改该文件或覆盖本地配置。
 
 ## 常用命令
 
@@ -31,13 +31,13 @@ Windows 也可使用仓库内脚本：`bin\package.bat`（在 `qualitest-ui` 根
 
 | 命令 | 说明 |
 |------|------|
-| `yarn dev` 或 `yarn dev:web` | 启动 Web 开发服务（Vite，默认端口 **5173**，可用环境变量 `VITE_DEV_SERVER_PORT` 覆盖） |
-| `yarn build` 或 `yarn build:web` | 生产构建 Web，产物目录 **`apps/web/dist`** |
-| `yarn build:stage` | 使用 staging 模式构建 Web |
-| `yarn preview` | 本地预览已构建的 Web 静态资源 |
-| `yarn dev:desktop` | **推荐**：一条命令并行启动 Vite（`dev:web`）与 Electron；关掉任一进程会结束本次开发会话（`concurrently -k`） |
-| `yarn dev:desktop:only` | 仅启动 Electron 壳（需本机 **已有** 在跑的 `yarn dev:web`，用于单独调试主进程） |
-| `yarn build:desktop` | 先执行 `build:web`，再打包桌面应用（`electron-builder --dir`） |
+| `pnpm dev` 或 `pnpm dev:web` | 启动 Web 开发服务（Vite，默认端口 **5173**，可用环境变量 `VITE_DEV_SERVER_PORT` 覆盖） |
+| `pnpm build` 或 `pnpm build:web` | 生产构建 Web，产物目录 **`apps/web/dist`** |
+| `pnpm build:stage` | 使用 staging 模式构建 Web |
+| `pnpm preview` | 本地预览已构建的 Web 静态资源 |
+| `pnpm dev:desktop` | **推荐**：一条命令并行启动 Vite（`dev:web`）与 Electron；关掉任一进程会结束本次开发会话（`concurrently -k`） |
+| `pnpm dev:desktop:only` | 仅启动 Electron 壳（需本机 **已有** 在跑的 `pnpm dev:web`，用于单独调试主进程） |
+| `pnpm build:desktop` | 先执行 `build:web`，再打包桌面应用（`electron-builder --dir`） |
 
 ## apps 与 packages
 
@@ -56,7 +56,6 @@ Windows 也可使用仓库内脚本：`bin\package.bat`（在 `qualitest-ui` 根
 | `apps/web/src/transport` | HTTP 传输抽象（浏览器直连 / Java 转发 / Electron IPC） |
 | `apps/desktop` | Electron 主进程与 preload，包名 `@qualitest/desktop` |
 | `packages/transport-types` | 传输层契约，包名 `@qualitest/transport-types` |
-| `bin/` | Windows 批处理：`run-web.bat`、`build.bat`、`package.bat` |
 
 ## 环境变量（Web）
 
@@ -84,7 +83,7 @@ Electron 下是否走主进程由 preload 注入的 `window.__QUALITEST_ELECTRON
 | 变量 | 说明 |
 |------|------|
 | `QUALITEST_BACKEND_BASE_URL` | 质衡后端绝对地址，默认 `http://127.0.0.1:8080`（主进程治理 HTTP 使用） |
-| `QUALITEST_WEB_DEV_URL` | 开发时加载的 Web 地址，默认 `http://127.0.0.1:5173`（须与 `yarn dev:web` 终端里 Local 地址一致） |
+| `QUALITEST_WEB_DEV_URL` | 开发时加载的 Web 地址，默认 `http://127.0.0.1:5173`（须与 `pnpm dev:web` 终端里 Local 地址一致） |
 | `QUALITEST_DEV_API_PREFIX` | 与 Web 的 `VITE_APP_BASE_API` 一致的前缀，默认 `/dev-api` |
 
 桌面打包产物默认在 **`apps/desktop/release/`**（已在 `.gitignore` 中忽略）。Windows 下若遇 electron-builder 与签名相关错误，当前脚本已设置 `CSC_IDENTITY_AUTO_DISCOVERY=false` 并关闭可执行文件签名，便于本地出包。

@@ -1,7 +1,7 @@
 /**
  * 测 collectStagingConfirmHighlightIds：confirm 后高亮节点 id 收集。
  * 边界：纯函数，仅 fixture 边列表。
- * 单跑：yarn test mergeHighlight   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test mergeHighlight   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

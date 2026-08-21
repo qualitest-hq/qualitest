@@ -4,27 +4,27 @@
   "version": "1.0.0",
   "description": "质衡前端 workspace（Web + Electron）",
   "license": "Apache-2.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=11"
+  },
   "devDependencies": {
     "concurrently": "9.1.2",
-    "cross-env": "7.0.3",
     "wait-on": "8.0.1"
   },
   "scripts": {
-    "dev": "yarn dev:web",
-    "dev:web": "yarn workspace @qualitest/web dev",
-    "build": "yarn build:web",
-    "build:web": "yarn workspace @qualitest/web build:prod",
-    "build:prod": "yarn build:web",
-    "build:stage": "yarn workspace @qualitest/web build:stage",
-    "preview": "yarn workspace @qualitest/web preview",
-    "test": "yarn workspace @qualitest/web test",
-    "test:watch": "yarn workspace @qualitest/web test:watch",
-    "dev:desktop": "concurrently -k -n web,desk -c blue,magenta \"yarn dev:web\" \"node ./node_modules/wait-on/bin/wait-on http://127.0.0.1:5173 && yarn workspace @qualitest/desktop dev\"",
-    "dev:desktop:only": "yarn workspace @qualitest/desktop dev",
-    "build:desktop": "yarn workspace @qualitest/web build:desktop && yarn workspace @qualitest/desktop build"
+    "dev": "pnpm run dev:web",
+    "dev:web": "pnpm --filter @qualitest/web dev",
+    "build": "pnpm run build:web",
+    "build:web": "pnpm --filter @qualitest/web build:prod",
+    "build:prod": "pnpm run build:web",
+    "build:stage": "pnpm --filter @qualitest/web build:stage",
+    "preview": "pnpm --filter @qualitest/web preview",
+    "test": "pnpm --filter @qualitest/web test",
+    "test:watch": "pnpm --filter @qualitest/web test:watch",
+    "dev:desktop": "concurrently -k -n web,desk -c blue,magenta \"pnpm run dev:web\" \"pnpm exec wait-on http://127.0.0.1:5173 && pnpm --filter @qualitest/desktop dev\"",
+    "dev:desktop:only": "pnpm --filter @qualitest/desktop dev",
+    "build:desktop": "pnpm --filter @qualitest/web build:desktop && pnpm --filter @qualitest/desktop build"
   }
 }

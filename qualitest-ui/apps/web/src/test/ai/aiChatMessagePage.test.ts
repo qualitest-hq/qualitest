@@ -1,7 +1,7 @@
 /**
  * 测 aiChatMessagePage：会话分页与虚拟滚动相关常量。
  * 边界：纯常量断言，无 DOM / API。
- * 单跑：yarn test aiChatMessagePage   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test aiChatMessagePage   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

@@ -1,7 +1,7 @@
 /**
  * 测 computeBaseGraphHash：稳定序列化与 merge 门禁。
  * 边界：纯函数 / 异步 hash，无网络。
- * 单跑：yarn test computeBaseGraphHash   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test computeBaseGraphHash   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 

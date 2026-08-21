@@ -9,7 +9,7 @@
 #
 # 说明：
 # - 根 pom 默认 skipTests=true；backend 先做编译校验（package -DskipTests）
-# - frontend 跑 Vitest（qualitest-ui → yarn test）
+# - frontend 跑 Vitest（qualitest-ui → pnpm test）
 # - docker：校验 Dockerfile / Dockerfile.web 可构建，不推镜像（GHCR 见路线图 2.2）
 # - qualitest-system 全量单测仍有存量失败，修绿后把 backend 的 package 换成：
 #     mvn -B test -DskipTests=false -pl qualitest-system -am
@@ -109,18 +109,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
       - name: Set up Node 20
         uses: actions/setup-node@v5
         with:
           node-version: "20"
-          cache: yarn
-          cache-dependency-path: qualitest-ui/yarn.lock
+          cache: pnpm
+          cache-dependency-path: qualitest-ui/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Test @qualitest/web
-        run: yarn test
+        run: pnpm test
 
   docker-app:
     name: docker-app

@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 
-# 锁文件须提交（勿忽略）：yarn.lock 用于团队与 CI 可复现安装，见 README / Yarn 文档。
+# 锁文件须提交（勿忽略）：pnpm-lock.yaml 用于团队与 CI 可复现安装。
 
 # Build output
 dist/

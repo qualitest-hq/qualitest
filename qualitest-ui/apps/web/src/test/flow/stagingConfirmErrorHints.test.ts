@@ -1,7 +1,7 @@
 /**
  * 测 stagingConfirmErrorHints：确认失败错误的分类、分组、格式化，以及鉴权 CODE 前缀剥离。
  * 边界：纯函数，无 API。
- * 单跑：yarn test stagingConfirmErrorHints   （在 qualitest-ui 或 apps/web 下）
+ * 单跑：pnpm test stagingConfirmErrorHints   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 
