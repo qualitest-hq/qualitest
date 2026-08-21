@@ -38,7 +38,7 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open **http://localhost** (default host port **80**; if busy, set `WEB_PORT` in `.env`). Sign in **`admin`** / **`admin123`** after the backend is healthy. Docs: [README.en.md](./README.en.md) · [deploy.en.md](./docs/deploy.en.md).
+Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.env`). Sign in **`admin`** / **`admin123`** after the backend is healthy. Docs: [README.en.md](./README.en.md) · [deploy.en.md](./docs/deploy.en.md).
 
 </details>
 
@@ -309,11 +309,11 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-浏览器打开 **http://localhost**（默认映射宿主机 **80**；若被占用，在 `.env` 设 `WEB_PORT=8088` 之类，则打开 **http://localhost:8088**）。
+浏览器打开 `http://localhost`（默认映射宿主机 **80**；若被占用，在 `.env` 设 `WEB_PORT=8088` 之类，则打开 `http://localhost:8088`）。
 
 登录账号 **`admin`**，密码 **`admin123`**。勿用于公网。
 
-想完整体验（靶场 + IDEA 同步 + AI / MCP）：见 [`docs/deploy.md`](./docs/deploy.md)、[qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)、[IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
+想完整体验（靶场 + IDEA 同步 + AI / MCP）：见 [部署说明](./docs/deploy.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
 
 <details>
 <summary>更多文档</summary>
