@@ -8,46 +8,29 @@
 
 <br/>
 
-[![Java](https://img.shields.io/badge/Java-17-orange?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
-[![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white)](https://vuejs.org/)
-[![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![Redis](https://img.shields.io/badge/Redis-3.0+-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
+[![Website](https://img.shields.io/badge/Website-qualitest-0ea5e9?style=for-the-badge)](https://qualitest-hq.github.io/qualitest/)
+[![QQ](https://img.shields.io/badge/QQ%20群-1105468427-12b7f5?style=for-the-badge)](https://qm.qq.com/q/FBa9jDRhm)
 
 <br/>
 
-[官网](https://qualitest-hq.github.io/qualitest/)（源码 [`site/`](./site/)；**公开日后** Settings → Pages → GitHub Actions 启用，见 [site/README](./site/README.md)） ·
+[官网](https://qualitest-hq.github.io/qualitest/) ·
 [English](./README.en.md) ·
-[English Summary](#english-summary) ·
-[项目亮点](#-项目亮点) ·
-[核心能力](#-核心能力) ·
+[为什么需要](#-为什么需要质衡) ·
+[主链路](#-一条链路走完) ·
+[谁适合用](#-谁适合用) ·
 [功能演示](#-功能演示) ·
-[技术架构](#-技术架构) ·
-[模块结构](#-模块结构) ·
-[5 分钟快速开始](#-5-分钟快速开始) ·
-[部署说明](./docs/deploy.md) ·
-[MCP](./docs/mcp.md) ·
-[产品概念](./docs/project-summary.md) ·
-[测试流节点](./docs/test-flow-nodes.md) ·
-[AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) ·
-[QQ 交流群](https://qm.qq.com/q/FBa9jDRhm)（`1105468427`）
+[试一把](#-试一把) ·
+[QQ 交流群](https://qm.qq.com/q/FBa9jDRhm)
 
 <br/>
 
-<a id="english-summary"></a>
 <details>
 <summary><strong>English Summary</strong> — value prop &amp; quick start · <a href="./README.en.md">full English README</a></summary>
 
 <br/>
 
-**Qualitest** is an enterprise API testing / quality platform: sync APIs from IntelliJ, debug in-project, orchestrate flows on a canvas, design with AI (**diff before merge**), and let MCP-capable AI editors (e.g. Cursor) **read** the same project.
-
-| Piece | Role |
-|:------|:-----|
-| This repo | Platform + Web (`qualitest-ui/`) |
-| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | Optional shop API target (separate Compose; not mixed into this repo) |
-| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | Upload Controllers → platform |
+**Qualitest** connects API sync, in-project debug, canvas orchestration, and AI design (**diff before merge**) — plus MCP so AI editors can **read** the same project.
 
 ```bash
 cd qualitest
@@ -55,7 +38,7 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open **http://localhost**, login **`admin` / `admin123`**. Full English docs: [README.en.md](./README.en.md) · [deploy.en.md](./docs/deploy.en.md) · [mcp.en.md](./docs/mcp.en.md) · [project-summary.en.md](./docs/project-summary.en.md) · [test-flow-nodes.en.md](./docs/test-flow-nodes.en.md). AI prompts (demo): [ai-test-flow-prompts.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
+Open **http://localhost**, login **`admin` / `admin123`**. Docs: [README.en.md](./README.en.md) · [deploy.en.md](./docs/deploy.en.md).
 
 </details>
 
@@ -74,110 +57,106 @@ Open **http://localhost**, login **`admin` / `admin123`**. Full English docs: [R
 
 ---
 
-## ✨ 项目亮点
+## 😩 为什么需要质衡
 
-> **一句话：** 在 IDEA 里写的接口，到平台上就能调、能编排、能让 AI 帮你补用例 —— 团队和 IDE 工具都接得上。
+测接口这件事，团队里往往碎成一地：
 
-```mermaid
-flowchart LR
-    A["💻 IDEA 插件<br/>接口同步"] --> B["🔌 接口调试台<br/>多环境切换"]
-    B --> C["🎨 测试流编排<br/>画布拖拽"]
-    C --> D["🤖 AI 辅助设计<br/>Diff 预览合并"]
-    D --> E["🔗 MCP 接入<br/>AI 编辑器 / CI"]
-    E -.-> A
+| 以前 | 现在（质衡） |
+|:-----|:-------------|
+| 接口路径手抄进 Postman，各维护一份集合 | IDEA 插件一键同步，团队共用同一份清单 |
+| 测试 / 预发 / 生产环境切换靠改 URL | 项目内调试台，一键切环境再发请求 |
+| 多步用例靠长脚本，改一处查半天 | 画布拖拽编排，断点与断言一眼可见 |
+| AI 改流程心里没底，怕悄悄写乱 | 自然语言出建议，**先看 Diff 再合并** |
 
-    style A fill:#e8f4fd,stroke:#409eff
-    style B fill:#e8f4fd,stroke:#409eff
-    style C fill:#f0f9eb,stroke:#67c23a
-    style D fill:#fdf6ec,stroke:#e6a23c
-    style E fill:#f4f4f5,stroke:#909399
-```
-
-质衡把 **「接口从哪来 → 怎么调 → 怎么串 → 谁帮你设计」** 连成一条链路。你专注测什么，平台负责少折腾。
+一句话：你专注「测什么」，平台负责少折腾。
 
 ---
 
-## 🚀 核心能力
+## 🔗 一条链路走完
+
+> **从哪来 → 怎么调 → 怎么串 → 谁帮设计**，连成闭环。
+
+| ① | ② | ③ | ④ | ⑤ |
+|:---:|:---:|:---:|:---:|:---:|
+| **IDEA 同步** | **调试台** | **测试流编排** | **AI 辅助** | **MCP 接入** |
+| 接口从代码来 | 多环境自测 | 画布拖拽串联 | Diff 再合并 | IDE 可读项目 |
+
+<p align="center"><sub>闭环 · 少切换 · 少重复录入</sub></p>
+
+| 仓库 | 角色 |
+|:-----|:-----|
+| **本仓** | 质衡平台 + Web（`qualitest-ui/`） |
+| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | 可选靶场，零配置体验演示场景 |
+| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA 插件：Controller → 平台 |
+
+---
+
+## 👥 谁适合用
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### 💻 写接口的人
+### 写接口的人
 
-**不用手抄第二遍**
+**不用手抄第二遍，顺手就能自测**
 
-在 IntelliJ IDEA 安装质衡插件，工程里的接口定义一键同步到平台。
-
-从此团队共享同一份接口清单，不用各自维护 Postman 集合，也不用问「这个接口路径到底是多少」。
+装上 IntelliJ 插件，工程里的接口定义一键同步到平台。团队共享同一份清单；自己也能在调试台立刻验一遍，再也不用问「这个路径到底是多少」。
 
 </td>
 <td width="50%" valign="top">
 
-### 🧪 测接口的人
+### 测接口的人
 
 **调试台就长在项目里**
 
-- 选中接口即可发请求，**一键切换测试 / 预发 / 生产** 等环境
-- 参数、请求体、响应一目了然，支持浏览器直连或服务端代理（**自动绕过 CORS**）
-- 单接口验证在这里完成；断言、变量传递、多步串联交给「测试流」
+选中接口即可发请求，一键切换测试 / 预发 / 生产。参数、请求体、响应当场看清；单接口验证在这里完成，多步串联交给测试流。
 
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
-### 🎨 编排用例的人
+### 编排用例的人
 
 **画布拖拽，比写脚本直观**
 
-用流程图画出测试步骤：先后依赖、分支判断、多接口串联，拖一拖就能搭出一套可反复执行的测试流。
+用流程图画出先后依赖、分支与多接口串联。登录、OAuth 等常见步骤可收成子流复用；哪里断了、哪里要加断言，一眼看清。
 
-支持 **HTTP（项目接口 / 外联 URL）**、断言、条件分支、脚本、**子流**（把登录、OAuth 等多步收成一块复用）等节点；平台内置登录 / OAuth / 验证码等 **子流模板**，fork 后改参数即可。项目特有签名、字段拼装可用 **Script** 节点（含受控 `ctx.http`）兜底。
-
-写操作流可在节点勾选 **执行前快照**，失败后暂停并可 **还原被测数据再重试**（被测方提供 `/test-support` 端点；生产环境默认禁止开启）。**开启数据还原时，同一环境请串行跑**，避免并行 Run 互相覆盖被测库。
-
-改流程不用翻长篇脚本，画布上哪里断了、哪里要加断言，一眼看清。
+→ 节点说明见 [`docs/test-flow-nodes.md`](./docs/test-flow-nodes.md)
 
 </td>
 <td width="50%" valign="top">
 
-### ⚡ 想省时间的人
+### 想省时间的人
 
 **AI 当助手，你来拍板**
 
-在测试流旁打开 AI 助手面板，用自然语言描述「我想测登录失败再重试」—— AI 会结合 **本项目真实接口** 和当前流程给出修改建议。
+用自然语言描述意图——AI 结合**本项目真实接口**给出修改建议。**先预览 Diff，确认后再合并**，不会悄悄改乱你的流程。
 
-**先预览 Diff，确认后再合并**，不会悄悄把你的流程改乱。管理员可在后台接入多家大模型，团队按需选用。
-
-可直接粘贴的业务意图示例（配合靶场场景）：[qualitest-demo · AI 测试流提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)。
+→ 靶场提示集：[AI 测试流提示](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
 
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
-### 🔗 用 AI 编辑器写代码的人
+### 用 AI 编辑器写代码的人
 
 **IDE 也能读懂你的测试项目**
 
-质衡暴露标准 **MCP**（Model Context Protocol）只读服务，凡支持 MCP 的 AI 编辑器 / Agent（如 Cursor、VS Code 生态、Claude Code 等）均可接入。项目设置里生成 Token，按客户端要求粘贴配置即可（Cursor 示例为 `mcp.json`）。
+通过标准 MCP 只读接入（Cursor 等均可）。问「这条流有哪些节点？」「上次跑挂在哪？」——答案来自平台**真数据**。改画布仍在 Web 端 Diff 后合并。
 
-MCP 提供 **只读** 工具：查接口、列举/勘察测试流、读 Run 失败现场、看子流模板与拓扑摘要等。**改画布须在 Web 端 AI 面板** 预览 Diff 后合并，MCP 不会直接写库。
-
-典型用法：`list_flows` 选定测试流 → 带 `testFlowId` 问「这条流有哪些节点？」「上次跑挂在哪？」—— AI 读到的是平台上的 **真数据**，不是瞎猜。
-
-→ 配置模板与示例提问见 [`docs/mcp.md`](./docs/mcp.md)（以 Cursor 为示例，其它客户端同协议）。
+→ 配置见 [`docs/mcp.md`](./docs/mcp.md)
 
 </td>
 <td width="50%" valign="top">
 
-### 👥 带团队的人
+### 带团队的人
 
-**协作与接入都按项目隔离**
+**协作按项目隔离**
 
-- 按项目邀请成员、分配角色，大家在同一项目里协作
-- 为插件、CI 流水线单独签发 **项目 Token**，工具接入不共用个人密码，权限边界清晰
+按项目邀请成员、分配角色；为插件与 CI 单独签发 Token，工具接入不共用个人密码，边界清晰。
 
 </td>
 </tr>
@@ -187,11 +166,7 @@ MCP 提供 **只读** 工具：查接口、列举/勘察测试流、读 Run 失�
 
 ## 🎬 功能演示
 
-> 每个 GIF 只演示一个核心动作，建议宽度 ≤ 900px、帧率 8~10fps、时长 ≤ 8s，统一放在 `docs/images/`。
-> 录制时建议以 **[qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)** 为示例工程（端口 8081），主平台调试台 / 测试流 / AI / MCP 等演示均可在该靶场项目上完成，无需单独为靶场录 GIF。
-> 体积偏大时用 `gifsicle -O3 --colors 128 in.gif -o out.gif` 压缩；完整流程超过 15s 的，改录 `.mp4` 拖进 README 编辑框。
-
-### 🧪 接口调试台 · 选中即调、一键切环境
+### 接口调试台 · 选中即调、一键切环境
 
 <!--
   录制规格：在 qualitest-demo 对应主平台项目中选中一个接口 → 切换 测试/预发 环境 → 发请求 → 展开响应
@@ -200,7 +175,7 @@ MCP 提供 **只读** 工具：查接口、列举/勘察测试流、读 Run 失�
 -->
 <img src="docs/images/demo-api-console.gif" alt="接口调试台：选中接口、切换环境、发起请求并查看响应" width="820"/>
 
-### 🎨 测试流编排 · 画布拖拽搭建用例
+### 测试流编排 · 画布拖拽搭建用例
 
 <!--
   录制规格：基于 qualitest-demo 项目接口，从节点面板拖出 HTTP / 断言节点 → 连线 → 运行测试流看结果
@@ -209,7 +184,7 @@ MCP 提供 **只读** 工具：查接口、列举/勘察测试流、读 Run 失�
 -->
 <img src="docs/images/demo-flow-canvas.gif" alt="测试流编排：在画布上拖拽节点、连线并运行" width="820"/>
 
-### ⚡ AI 辅助设计 · 自然语言描述、先看 Diff 再合并
+### AI 辅助设计 · 自然语言描述、先看 Diff 再合并
 
 <!--
   录制规格：在 qualitest-demo 项目测试流旁打开 AI 面板 → 输入「测登录失败再重试」→ 展示 Diff 预览 → 点击合并
@@ -218,110 +193,107 @@ MCP 提供 **只读** 工具：查接口、列举/勘察测试流、读 Run 失�
 -->
 <img src="docs/images/demo-ai-diff.gif" alt="AI 辅助设计：自然语言生成修改建议，Diff 预览后合并" width="820"/>
 
-### 🔗 MCP 接入 · IDE / AI 编辑器直接读懂测试项目
+### MCP 接入 · IDE / AI 编辑器直接读懂测试项目
 
 <!--
-  录制规格：在 Cursor 中接入 MCP，选定 qualitest-demo 项目测试流 → list_flows → 带 testFlowId 提问「这条流有哪些节点？/ 上次跑挂在哪？」→ 返回平台真数据
+  录制规格：在 Cursor 中接入 MCP，选定 qualitest-demo 项目测试流 → list_flows → 带 testFlowId 提问 → 返回平台真数据
   宽度 ≤ 900px · 8~10fps · ≤ 10s · 目标 < 1MB
   文件占位：docs/images/demo-mcp-cursor.gif
 -->
 <img src="docs/images/demo-mcp-cursor.gif" alt="MCP 接入 Cursor：只读勘察测试流、节点拓扑与 Run 失败现场" width="820"/>
 
----
+### 周边：IDEA 插件（独立仓库）
 
-### 🧩 周边生态演示
-
-> 以下为独立仓库 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) 的演示；插件同步的示例工程建议使用 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)。
-
-#### 💻 IDEA 插件 · 项目级上传（qualitest-intellij-plugin）
+演示来自 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin)；示例工程建议用 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)。
 
 <!--
-  录制规格：在 IDEA 打开 qualitest-demo 工程 → 质衡插件选择「项目级上传」→ 平台项目接口列表批量出现
-  宽度 ≤ 900px · 8~10fps · ≤ 8s · 目标 < 600KB
-  文件占位：docs/images/demo-idea-sync-project.gif
+  录制规格：项目级上传 / Controller 全部上传 / Controller 选择上传
+  文件占位：docs/images/demo-idea-sync-*.gif
 -->
 <img src="docs/images/demo-idea-sync-project.gif" alt="IDEA 插件：项目级上传，整工程接口同步到平台" width="820"/>
 
-#### 💻 IDEA 插件 · Controller 全部上传（qualitest-intellij-plugin）
-
-<!--
-  录制规格：在 qualitest-demo 中选中一个 Controller → 插件「全部上传」→ 该 Controller 下所有接口出现在平台
-  宽度 ≤ 900px · 8~10fps · ≤ 8s · 目标 < 600KB
-  文件占位：docs/images/demo-idea-sync-controller-all.gif
--->
 <img src="docs/images/demo-idea-sync-controller-all.gif" alt="IDEA 插件：选中 Controller 后全部上传" width="820"/>
 
-#### 💻 IDEA 插件 · Controller 选择上传（qualitest-intellij-plugin）
-
-<!--
-  录制规格：在 qualitest-demo 中选中一个 Controller → 插件「选择上传」→ 勾选部分接口 → 仅选中项同步到平台
-  宽度 ≤ 900px · 8~10fps · ≤ 8s · 目标 < 600KB
-  文件占位：docs/images/demo-idea-sync-controller-pick.gif
--->
 <img src="docs/images/demo-idea-sync-controller-pick.gif" alt="IDEA 插件：选中 Controller 后勾选部分接口上传" width="820"/>
 
-> 📌 GIF 暂未录制时，上方图片会显示为「图裂占位」，不影响其他内容渲染；录制完成后将文件按上述命名放入 `docs/images/` 即可自动生效。
+---
+
+### 复杂演示 · 分片讲述
+
+> 下面两条故事 **10 秒讲不完**，拆成短片连着看。统一：宽度 ≤ 900px · 8~10fps · 单片 ≤ 10s · 放 `docs/images/`。  
+> 建议以 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) 为被测；插件片依赖 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
+
+#### 完整主链路 · 从同步到再跑绿
+
+同步 → 调试 → 挂登录子流 → 编排业务 → AI 补断言 → Run → 失败则 AI 修 → 再绿。
+
+##### A · 插件同步 + 调试台验通
+
+<!--
+  录制：IDEA 打开 demo → 项目级上传 → 切回质衡接口列表出现 → 调试台选环境发通一个接口
+  文件：docs/images/demo-story-main-a.gif · 目标 < 800KB
+-->
+<img src="docs/images/demo-story-main-a.gif" alt="主链路 A：IDEA 同步接口后在调试台发通" width="820"/>
+
+##### B · 鉴权模板 + 登录子流挂上主流
+
+<!--
+  录制：项目鉴权已有 Bearer（或建项勾模板）→ 画布拖 Subflow → 从平台模板创建 Bearer 登录 → 主流 Start→Subflow→业务 HTTP
+  文件：docs/images/demo-story-main-b.gif · 目标 < 800KB
+-->
+<img src="docs/images/demo-story-main-b.gif" alt="主链路 B：登录子流模板挂入主流" width="820"/>
+
+##### C · 画布串业务 + 首次 Run
+
+<!--
+  录制：补断言/条件 → 点运行 → 时间线展开（可含 childSteps）→ 故意留一处会挂的断言或场景，为 D 铺垫
+  文件：docs/images/demo-story-main-c.gif · 目标 < 800KB
+-->
+<img src="docs/images/demo-story-main-c.gif" alt="主链路 C：编排业务并首次运行" width="820"/>
+
+##### D · 失败 → AI 修复 → 再跑绿
+
+<!--
+  录制：打开失败 Run → 失败分类跳到断言步 → AI 修复 → Staging ✓ → 保存 → 再 Run 变绿
+  文件：docs/images/demo-story-main-d.gif · 目标 < 1MB
+-->
+<img src="docs/images/demo-story-main-d.gif" alt="主链路 D：Run 失败后 AI 修复再跑绿" width="820"/>
+
+#### 写库可回滚 · 快照、暂停与还原
+
+靶场脏场景 → 节点勾执行前快照 → Run 写库失败暂停 → 时间线 snapshot → 还原并重试 → restore 审计。
+
+##### A · 加载失败场景 + 勾快照开跑
+
+<!--
+  录制：demo-ui 失败场景（如 F01）点「加载此场景」→ 质衡环境开「允许还原」→ 写库 HTTP 勾「执行前快照」→ 点运行
+  依赖：靶场 /test-support；文件：docs/images/demo-story-restore-a.gif
+-->
+<img src="docs/images/demo-story-restore-a.gif" alt="回滚故事 A：加载靶场场景并勾快照开跑" width="820"/>
+
+##### B · 暂停决策面板
+
+<!--
+  录制：Run 进入 paused → 决策面板可见「还原并重试 / 原地重试 / 跳过 / 中止」→ 点「还原并重试」
+  文件：docs/images/demo-story-restore-b.gif · 目标 < 600KB
+-->
+<img src="docs/images/demo-story-restore-b.gif" alt="回滚故事 B：失败暂停后的决策面板" width="820"/>
+
+##### C · 时间线审计：snapshot → restore → 重试
+
+<!--
+  录制：Run 详情时间线依次出现 snapshot、失败步、restore、重试成功；可短停各步标签
+  文件：docs/images/demo-story-restore-c.gif · 目标 < 800KB
+-->
+<img src="docs/images/demo-story-restore-c.gif" alt="回滚故事 C：时间线 snapshot / restore / 重试审计" width="820"/>
+
+> GIF 暂未录制时可能显示为占位；录制后按上述文件名放入 `docs/images/` 即可。
 
 ---
 
-## 🏗 技术架构
+## ⚡ 试一把
 
-前后端分离，通过 **REST / JSON** 通信；业务集中在 `qualitest-system`（接口、测试流、AI、MCP 等），框架能力封装在 `qualitest-framework`。
-
-```mermaid
-flowchart TB
-    UI["qualitest-ui<br/>Vue 3 · Vite · Vue Flow"]
-    Admin["qualitest-admin<br/>Spring Boot 3 · Security"]
-    Mod["framework · system · quartz · generator"]
-    Com["qualitest-common"]
-    Store[("MySQL 8 · Redis")]
-
-    UI -->|REST / JSON| Admin
-    Admin --> Mod
-    Mod --> Com
-    Com --> Store
-```
-
-| 分类 | 技术选型 |
-|:-----|:---------|
-| **前端** | Vue 3.5、Vite、Element Plus、Vue Flow、Axios |
-| **后端** | Java 17、Spring Boot 3.5、Spring Security、MyBatis、PageHelper、Druid |
-| **测试流** | GraalVM Polyglot（script 节点）、Vue Flow 画布编排 |
-| **周边** | Quartz 定时任务、SpringDoc API 文档、Velocity 代码生成 |
-| **存储** | MySQL 8.x、Redis 3+ |
-| **构建** | Maven（后端）、Yarn（前端） |
-
----
-
-## 📦 模块结构
-
-| 模块 | 说明 |
-|:-----|:-----|
-| `qualitest-admin` | 后台管理系统入口，打包为可部署 JAR |
-| `qualitest-ui` | 前端 Yarn workspace（本仓目录 `qualitest-ui/`，含 Web / Electron） |
-| `qualitest-framework` | 框架核心封装（安全、配置、通用切面等） |
-| `qualitest-system` | 系统与业务模块（接口、测试流、AI、MCP 等） |
-| `qualitest-common` | 通用工具与公共组件 |
-| `qualitest-quartz` | 定时任务模块 |
-| `qualitest-generator` | 代码生成器（Velocity 模板） |
-
----
-
-## ⚡ 5 分钟快速开始
-
-> 建议在 `qualitest-all` 下并列 clone **三仓**：本仓库（含 `qualitest-ui/`）、[靶场](https://github.com/qualitest-hq/qualitest-demo)、[IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)。  
-> 端口、环境变量、本机开发、生产加固与排障见 **[`docs/deploy.md`](./docs/deploy.md)**（勿把默认口令用于公网）。
-
-```mermaid
-flowchart LR
-    Plugin["IDEA 插件"] -->|上传接口| Platform["质衡"]
-    Platform -->|调试 / 编排| Demo["qualitest-demo"]
-    McpClient["MCP 客户端<br/>Cursor 等"] -.->|只读勘察| Platform
-```
-
-### ① 启动质衡
-
-需 Docker + Compose V2。首次 `--build` 较慢。
+需 Docker + Compose V2。首次构建较慢。
 
 ```bash
 cd qualitest
@@ -329,39 +301,19 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-打开 **http://localhost**，登录 **`admin` / `admin123`**。本机热更：[`scripts/dev-deps-up`](./scripts/dev-deps-up.sh) + `mvn` / `yarn`（见 [deploy.md](./docs/deploy.md#仅依赖本机开发--热更)）。
+打开 **http://localhost**，登录 **`admin` / `admin123`**。
 
-### ② 启动靶场（可选）
+想完整体验（靶场 + IDEA 同步 + AI / MCP）：见 [`docs/deploy.md`](./docs/deploy.md)、[qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)、[IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)。**勿把默认口令用于公网。**
 
-已有自己的被测服务可跳过；靶场用于零配置体验演示场景与 AI 提示集。  
-**与质衡是两套独立 Compose**（主仓不会 `--profile demo` 拉起靶场）。启动与端口见 [demo 部署说明](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)；双栈联调与 `baseUrl` 注意点见 [deploy.md · 与靶场联调](./docs/deploy.md#与靶场联调可选--双仓各起)。
+<details>
+<summary>更多文档</summary>
 
-```bash
-cd qualitest-demo
-scripts\quick-start.bat
-# chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
-```
+- [部署说明](./docs/deploy.md) · [产品概念](./docs/project-summary.md) · [FAQ](./docs/faq.md)
+- [测试流节点](./docs/test-flow-nodes.md) · [MCP](./docs/mcp.md)
+- [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)
+- [English README](./README.en.md)
 
-Swagger 一般为 **http://localhost:8081/swagger-ui.html**。
-
-### ③ 建项目并同步接口
-
-1. 登录质衡 → **测试项目** → 新建 → **项目设置** 复制 **Project Token**。
-2. IDEA 安装 [Qualitest Helper](https://github.com/qualitest-hq/qualitest-intellij-plugin)：服务器地址 Compose 填 `http://localhost/prod-api`，本机填 `http://localhost:8080`；粘贴 Token。
-3. 打开 `qualitest-demo`（或自有工程）→ **Tools → Qualitest Helper → 项目级上传**。
-4. Web **接口管理** 应有接口；**环境** `baseUrl` 指向被测服务（靶场本机多为 `http://localhost:8081`；质衡在 Compose 容器内联调见 [deploy.md](./docs/deploy.md#与靶场联调可选--双仓各起)）。
-
-### ④ 跑通一条主链路（任选）
-
-| 你想试什么 | 怎么做 |
-|:-----------|:-------|
-| **调接口** | 接口调试台 → 选环境 → 发请求 |
-| **编排用例** | 测试流 → 拖 HTTP / 断言 → 运行 |
-| **AI 辅助** | AI 面板 → 描述需求 → **先看 Diff 再合并** |
-| **MCP 联读** | 项目设置复制 MCP 配置到 AI 编辑器 → [`docs/mcp.md`](./docs/mcp.md) |
-| **AI 造流（靶场）** | [AI 测试流提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) |
-
-更多文档：[部署说明](./docs/deploy.md) · [产品概念](./docs/project-summary.md) · [FAQ](./docs/faq.md) · [测试流节点](./docs/test-flow-nodes.md) · [English](./README.en.md) · [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)
+</details>
 
 ---
 
