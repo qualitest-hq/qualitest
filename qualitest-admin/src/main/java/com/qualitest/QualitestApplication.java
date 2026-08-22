@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 /**
  * 启动程序
  *
- * @author ruoyi
+ * @author qualitest
  */
 @SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})
 public class QualitestApplication {

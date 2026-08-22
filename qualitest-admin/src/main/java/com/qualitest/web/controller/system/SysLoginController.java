@@ -28,7 +28,7 @@ import java.util.Set;
 /**
  * 登录验证
  *
- * @author ruoyi
+ * @author qualitest
  */
 @RestController
 public class SysLoginController {

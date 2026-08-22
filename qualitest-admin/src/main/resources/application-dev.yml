@@ -10,7 +10,7 @@ qualitest:
   name: Qualitest
   version: 1.0.0
   copyrightYear: 2026
-  profile: ${QUALITEST_PROFILE:D:/ruoyi/uploadPath}    # 本地上传文件落盘根目录；可用环境变量覆盖
+  profile: ${QUALITEST_PROFILE:D:/qualitest/uploadPath}    # 本地上传文件落盘根目录；可用环境变量覆盖
   addressEnabled: false           # 登录日志是否解析 IP 所在地
   captchaType: math             # 登录验证码类型
 
@@ -114,7 +114,7 @@ spring:
         enabled: true
         allow:
         url-pattern: /druid/*
-        login-username: ${DRUID_STAT_USERNAME:ruoyi}
+        login-username: ${DRUID_STAT_USERNAME:qualitest}
         login-password: ${DRUID_STAT_PASSWORD:123456}
       filter:
         stat:

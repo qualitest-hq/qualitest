@@ -15,7 +15,7 @@ import java.util.Set;
 /**
  * 角色表 sys_role
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Getter
 @Setter

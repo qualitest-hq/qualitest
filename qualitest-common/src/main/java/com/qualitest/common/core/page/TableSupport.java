@@ -6,7 +6,7 @@ import com.qualitest.common.utils.ServletUtils;
 /**
  * 表格数据处理
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class TableSupport {
     /**

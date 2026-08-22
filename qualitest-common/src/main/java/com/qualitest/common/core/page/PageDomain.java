@@ -5,7 +5,7 @@ import com.qualitest.common.utils.StringUtils;
 /**
  * 分页数据
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class PageDomain {
     /**

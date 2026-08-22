@@ -34,7 +34,7 @@
 
 <script setup>
 import {computed} from 'vue'
-import {parseTime} from '@/utils/ruoyi'
+import {parseTime} from '@/utils/qualitest'
 
 const props = defineProps({
   isFullscreen: {

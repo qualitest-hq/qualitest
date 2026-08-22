@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 /**
  * 注册校验方法
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Component
 public class SysRegisterService {

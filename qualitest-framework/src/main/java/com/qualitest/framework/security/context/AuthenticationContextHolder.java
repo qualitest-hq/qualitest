@@ -5,7 +5,7 @@ import org.springframework.security.core.Authentication;
 /**
  * 身份验证信息
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class AuthenticationContextHolder {
     private static final ThreadLocal<Authentication> contextHolder = new ThreadLocal<>();

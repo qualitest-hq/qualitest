@@ -20,7 +20,7 @@ import java.util.Map;
 /**
  * 业务表 gen_table
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Alias("GenTable")
 public class GenTable extends BaseEntity {

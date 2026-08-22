@@ -5,7 +5,7 @@ import com.qualitest.common.utils.StringUtils;
 /**
  * 缓存信息
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class SysCache {
     /**

@@ -235,7 +235,7 @@ import {
   isEmptyObjectSchema,
   schemaJsonToUiRoot
 } from '@/views/project/testProject/utils/jsonSchemaTree'
-import {parseTime} from '@/utils/ruoyi'
+import {parseTime} from '@/utils/qualitest'
 import DocPreviewDataTable from './DocPreviewDataTable.vue'
 
 const props = defineProps({

@@ -5,7 +5,7 @@ import com.qualitest.common.utils.StringUtils;
 /**
  * 字符串格式化
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class StrFormatter {
     public static final String EMPTY_JSON = "{}";

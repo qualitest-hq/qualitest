@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * Mybatis支持*匹配扫描包
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Configuration
 public class MyBatisConfig {

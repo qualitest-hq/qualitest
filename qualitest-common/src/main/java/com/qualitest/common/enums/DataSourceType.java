@@ -3,7 +3,7 @@ package com.qualitest.common.enums;
 /**
  * 数据源
  *
- * @author ruoyi
+ * @author qualitest
  */
 public enum DataSourceType {
     /**

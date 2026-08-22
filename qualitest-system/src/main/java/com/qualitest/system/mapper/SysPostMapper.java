@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * 岗位信息 数据层
  *
- * @author ruoyi
+ * @author qualitest
  */
 public interface SysPostMapper {
     /**

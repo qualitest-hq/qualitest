@@ -3,7 +3,7 @@ package com.qualitest.common.utils.uuid;
 /**
  * ID生成器工具类
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class IdUtils {
     /**

@@ -22,7 +22,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 /**
  * 全局异常处理器
  *
- * @author ruoyi
+ * @author qualitest
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {

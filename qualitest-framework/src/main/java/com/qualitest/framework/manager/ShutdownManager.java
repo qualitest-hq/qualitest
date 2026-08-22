@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 /**
  * 确保应用退出时能关闭后台线程
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Component
 public class ShutdownManager {

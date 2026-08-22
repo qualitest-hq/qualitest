@@ -3,7 +3,7 @@ package com.qualitest.common.constant;
 /**
  * 用户常量信息
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class UserConstants {
     /**

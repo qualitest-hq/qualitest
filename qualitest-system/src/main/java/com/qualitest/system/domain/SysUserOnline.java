@@ -3,7 +3,7 @@ package com.qualitest.system.domain;
 /**
  * 当前在线会话
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class SysUserOnline {
     /**

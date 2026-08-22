@@ -321,7 +321,7 @@ public final class FlowHttpRequestBuilder {
                 continue;
             }
             String val = STRICT.resolve(String.valueOf(row.getOrDefault("value", "")), ctx);
-            // 跳过空值：RuoYi 等框架常把 BaseEntity.params(Map) 暴露为 query，空串会触发类型转换 500
+            // 跳过空值：部分框架常把 BaseEntity.params(Map) 暴露为 query，空串会触发类型转换 500
             if (val == null || val.isBlank()) {
                 continue;
             }

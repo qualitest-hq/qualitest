@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 /**
  * 代码生成通用常量
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class GenConstants {
     /**

@@ -3,7 +3,7 @@ package com.qualitest.common.enums;
 /**
  * 限流类型
  *
- * @author ruoyi
+ * @author qualitest
  */
 
 public enum LimitType {

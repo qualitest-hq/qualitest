@@ -14,7 +14,7 @@ import java.util.*;
 /**
  * 模板处理工具类
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class VelocityUtils {
     /**

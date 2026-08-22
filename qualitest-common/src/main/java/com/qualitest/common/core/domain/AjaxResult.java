@@ -10,7 +10,7 @@ import java.util.Objects;
 /**
  * 操作消息提醒
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class AjaxResult extends HashMap<String, Object> {
     /**

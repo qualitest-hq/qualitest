@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * 防盗链过滤器
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class RefererFilter implements Filter {
     /**

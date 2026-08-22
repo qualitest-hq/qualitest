@@ -3,7 +3,7 @@ package com.qualitest.framework.web.domain.server;
 /**
  * 系统相关信息
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class Sys {
     /**

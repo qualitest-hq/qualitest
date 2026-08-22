@@ -3,7 +3,7 @@ package com.qualitest.common.constant;
 /**
  * 返回状态码
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class HttpStatus {
     /**

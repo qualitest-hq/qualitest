@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * Entity基类
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Getter
 @Setter

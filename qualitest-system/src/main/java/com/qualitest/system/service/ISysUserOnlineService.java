@@ -6,7 +6,7 @@ import com.qualitest.system.domain.SysUserOnline;
 /**
  * 在线用户 服务层
  *
- * @author ruoyi
+ * @author qualitest
  */
 public interface ISysUserOnlineService {
     /**

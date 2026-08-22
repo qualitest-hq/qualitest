@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * 业务字段 数据层
  *
- * @author ruoyi
+ * @author qualitest
  */
 public interface GenTableColumnMapper {
     /**

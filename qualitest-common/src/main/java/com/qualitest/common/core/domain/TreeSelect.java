@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 /**
  * Treeselect树结构实体类
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Getter
 @Setter

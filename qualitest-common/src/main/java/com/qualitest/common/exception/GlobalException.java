@@ -3,7 +3,7 @@ package com.qualitest.common.exception;
 /**
  * 全局异常
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class GlobalException extends RuntimeException {
     private static final long serialVersionUID = 1L;

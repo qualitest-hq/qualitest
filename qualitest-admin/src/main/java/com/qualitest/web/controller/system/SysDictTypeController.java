@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * 数据字典信息
  *
- * @author ruoyi
+ * @author qualitest
  */
 @RestController
 @RequestMapping("/system/dict/type")

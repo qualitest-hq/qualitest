@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 /**
  * Excel相关处理
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class ExcelUtil<T> {
     public static final String SEPARATOR = ",";

@@ -6,7 +6,7 @@ import com.qualitest.common.utils.StringUtils;
 /**
  * 基础异常
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class BaseException extends RuntimeException {
     private static final long serialVersionUID = 1L;

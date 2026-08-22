@@ -14,7 +14,7 @@ import java.io.Serial;
 /**
  * 字典类型表 sys_dict_type
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Getter
 @Setter

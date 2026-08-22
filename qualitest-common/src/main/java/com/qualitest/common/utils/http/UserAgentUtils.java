@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 /**
  * UserAgent解析工具类
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class UserAgentUtils {
     public static final String UNKNOWN = "";

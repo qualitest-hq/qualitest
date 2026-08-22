@@ -769,7 +769,7 @@ CREATE TABLE `sys_notice`
 -- ----------------------------
 -- Records of sys_notice
 -- ----------------------------
-INSERT INTO `sys_notice` VALUES (1, '温馨提醒：2018-07-01 若依新版本发布啦', '2', 0xE696B0E78988E69CACE58685E5AEB9, '0', 'admin', '2026-01-20 15:38:28', '', NULL, '管理员'),(2, '维护通知：2018-07-01 若依系统凌晨维护', '1', 0xE7BBB4E68AA4E58685E5AEB9, '0', 'admin', '2026-01-20 15:38:28', '', NULL, '管理员');
+INSERT INTO `sys_notice` VALUES (1, '温馨提醒：质衡系统已就绪', '2', 0xE696B0E78988E69CACE58685E5AEB9, '0', 'admin', '2026-01-20 15:38:28', '', NULL, '管理员'),(2, '维护通知：质衡系统计划维护', '1', 0xE7BBB4E68AA4E58685E5AEB9, '0', 'admin', '2026-01-20 15:38:28', '', NULL, '管理员');
 
 -- ----------------------------
 -- Table structure for sys_oper_log

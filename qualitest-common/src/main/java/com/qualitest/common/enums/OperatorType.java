@@ -3,7 +3,7 @@ package com.qualitest.common.enums;
 /**
  * 操作人类别
  *
- * @author ruoyi
+ * @author qualitest
  */
 public enum OperatorType {
     /**

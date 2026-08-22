@@ -12,9 +12,9 @@ import org.springframework.util.CollectionUtils;
 import java.util.Set;
 
 /**
- * RuoYi首创 自定义权限实现，ss取自SpringSecurity首字母
+ * 自定义权限实现，ss 取自 SpringSecurity 首字母
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Service("ss")
 public class PermissionService {

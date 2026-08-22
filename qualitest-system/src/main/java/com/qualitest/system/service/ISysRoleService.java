@@ -9,7 +9,7 @@ import java.util.Set;
 /**
  * 角色业务层
  *
- * @author ruoyi
+ * @author qualitest
  */
 public interface ISysRoleService {
     /**

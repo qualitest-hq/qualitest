@@ -267,7 +267,7 @@ class FlowHttpRequestBuilderThinNodeTest {
     }
 
     /**
-     * 前提：query 含有值 pageNum 与空值 params（RuoYi BaseEntity 常见）。
+     * 前提：query 含有值 pageNum 与空值 params（部分框架 BaseEntity 常见）。
      * 期望：URL 仅带 pageNum，不出现 params=（避免被测端 Map 绑定 500）。
      */
     @Test

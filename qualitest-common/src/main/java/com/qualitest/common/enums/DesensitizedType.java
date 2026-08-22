@@ -7,7 +7,7 @@ import java.util.function.Function;
 /**
  * 脱敏类型
  *
- * @author ruoyi
+ * @author qualitest
  */
 public enum DesensitizedType {
     /**

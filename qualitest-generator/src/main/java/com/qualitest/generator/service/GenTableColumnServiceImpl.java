@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * 业务字段 服务层实现
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Service
 public class GenTableColumnServiceImpl implements IGenTableColumnService {

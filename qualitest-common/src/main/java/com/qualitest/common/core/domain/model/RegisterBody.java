@@ -3,7 +3,7 @@ package com.qualitest.common.core.domain.model;
 /**
  * 用户注册对象
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class RegisterBody extends LoginBody {
 

@@ -5,7 +5,7 @@ import com.qualitest.common.utils.Arith;
 /**
  * 內存相关信息
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class Mem {
     /**

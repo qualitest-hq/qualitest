@@ -3,7 +3,7 @@ package com.qualitest.common.exception.user;
 /**
  * 黑名单IP异常类
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class BlackListException extends UserException {
     private static final long serialVersionUID = 1L;

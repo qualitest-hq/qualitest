@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Swagger2的接口配置
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Configuration
 public class SwaggerConfig {
@@ -22,7 +22,7 @@ public class SwaggerConfig {
      * 系统基础配置
      */
     @Autowired
-    private QualitestConfig ruoyiConfig;
+    private QualitestConfig qualitestConfig;
 
     /**
      * 自定义的 OpenAPI 对象
@@ -55,8 +55,8 @@ public class SwaggerConfig {
                 // 描述
                 .description("描述：用于管理集团旗下公司的人员信息,具体包括XXX,XXX模块...")
                 // 作者信息
-                .contact(new Contact().name(ruoyiConfig.getName()))
+                .contact(new Contact().name(qualitestConfig.getName()))
                 // 版本
-                .version("版本号:" + ruoyiConfig.getVersion());
+                .version("版本号:" + qualitestConfig.getVersion());
     }
 }

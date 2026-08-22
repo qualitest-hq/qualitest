@@ -5,7 +5,7 @@ import com.qualitest.common.utils.StringUtils;
 /**
  * 路由显示信息
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class MetaVo {
     /**

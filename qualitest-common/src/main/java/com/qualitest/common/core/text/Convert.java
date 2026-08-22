@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 /**
  * 类型转换器
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class Convert {
     /**

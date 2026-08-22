@@ -6,7 +6,7 @@ import lombok.Setter;
 /**
  * 用户登录对象
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Getter
 @Setter

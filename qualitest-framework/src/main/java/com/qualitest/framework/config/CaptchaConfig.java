@@ -12,7 +12,7 @@ import static com.google.code.kaptcha.Constants.*;
 /**
  * 验证码配置
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Configuration
 public class CaptchaConfig {

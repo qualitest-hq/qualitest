@@ -15,7 +15,7 @@ import java.util.regex.Matcher;
 /**
  * 代码生成业务字段表 gen_table_column
  *
- * @author ruoyi
+ * @author qualitest
  */
 @Alias("GenTableColumn")
 public class GenTableColumn extends BaseEntity {

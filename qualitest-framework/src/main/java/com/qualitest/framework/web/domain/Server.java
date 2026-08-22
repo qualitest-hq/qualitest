@@ -22,7 +22,7 @@ import java.util.Properties;
 /**
  * 服务器相关信息
  *
- * @author ruoyi
+ * @author qualitest
  */
 public class Server {
     private static final int OSHI_WAIT_SECOND = 1000;

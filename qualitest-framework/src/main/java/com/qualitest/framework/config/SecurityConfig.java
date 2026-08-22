@@ -26,7 +26,7 @@ import jakarta.servlet.DispatcherType;
 /**
  * spring security配置
  *
- * @author ruoyi
+ * @author qualitest
  */
 @EnableMethodSecurity(securedEnabled = true)
 @Configuration
