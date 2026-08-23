@@ -3,9 +3,9 @@
  * 边界：mock computeBaseGraphHash 与 confirm API；Pinia 内存态。
  * 单跑：pnpm test stagingConfirmRequest   （在 qualitest-ui 或 apps/web 下）
  */
-import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { setupFreshPinia } from '@/test/helpers/pinia';
 import { useFlowCanvasStore } from '@/views/project/testFlow/stores/flowCanvasStore';
 import { useAiStagingStore } from '@/views/project/testFlow/stores/aiStagingStore';
 import {
@@ -40,7 +40,7 @@ vi.mock('@/views/project/testFlow/utils/confirmFlowDesignUnit', () => ({
 
 describe('applyConfirmResultWithHashGuard', () => {
   beforeEach(() => {
-    setActivePinia(createPinia());
+    setupFreshPinia();
     computeBaseGraphHashMock.mockReset();
     computeBaseGraphHashMock.mockResolvedValue('client-request-hash');
   });

@@ -3,9 +3,9 @@
  * 边界：Pinia 内存态，无真实画布渲染。
  * 单跑：pnpm test stagingCanvasSync   （在 qualitest-ui 或 apps/web 下）
  */
-import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { setupFreshPinia } from '@/test/helpers/pinia';
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
 import {
   computeStagingCanvasSync,
@@ -29,7 +29,7 @@ const patch: FlowDesignPatch = {
 
 describe('stagingCanvasSync', () => {
   beforeEach(() => {
-    setActivePinia(createPinia());
+    setupFreshPinia();
   });
 
   /** 3 节点 3 连线 hydrate 后，sync 应产出 3 个节点与 3 条有效边。 */

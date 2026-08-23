@@ -3,15 +3,13 @@
  * 边界：Pinia 内存态，无 API 依赖。
  * 单跑：pnpm test aiStagingScenario   （在 qualitest-ui 或 apps/web 下）
  */
-import { beforeEach, describe, expect, it } from 'vitest';
-import { createPinia, setActivePinia } from 'pinia';
+import { describe, expect, it } from 'vitest';
 
+import { withFreshPinia } from '@/test/helpers/pinia';
 import { useAiStagingStore } from '@/views/project/testFlow/stores/aiStagingStore';
 
 describe('aiStagingStore stagingByScenarioId', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia());
-  });
+  withFreshPinia();
 
   it('pending addScenario 映射到 scenarioId', () => {
     // 前提：patch 含 addScenarios

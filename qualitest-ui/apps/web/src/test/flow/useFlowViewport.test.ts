@@ -4,9 +4,9 @@
  * 单跑：pnpm test useFlowViewport   （在 qualitest-ui 或 apps/web 下）
  */
 import { ref } from 'vue';
-import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { setupFreshPinia } from '@/test/helpers/pinia';
 import { useFlowCanvasStore } from '@/views/project/testFlow/stores/flowCanvasStore';
 
 const setViewportMock = vi.fn(async () => undefined);
@@ -26,7 +26,7 @@ import { useFlowViewport } from '@/views/project/testFlow/composables/useFlowVie
 
 describe('useFlowViewport', () => {
   beforeEach(() => {
-    setActivePinia(createPinia());
+    setupFreshPinia();
     setViewportMock.mockClear();
     getViewportMock.mockReturnValue({ x: 10, y: 20, zoom: 1.1 });
     dimensionsRef.value = { width: 1200, height: 800 };

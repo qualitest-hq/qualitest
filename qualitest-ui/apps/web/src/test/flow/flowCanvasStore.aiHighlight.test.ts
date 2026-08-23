@@ -3,9 +3,9 @@
  * 边界：Pinia 内存态；fake timers 测延迟清除。
  * 单跑：pnpm test flowCanvasStore.aiHighlight   （在 qualitest-ui 或 apps/web 下）
  */
-import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { setupFreshPinia } from '@/test/helpers/pinia';
 import {
   AI_CONFIRM_HIGHLIGHT_CLEAR_MS,
   useFlowCanvasStore,
@@ -14,7 +14,7 @@ import {
 describe('flowCanvasStore ai confirm highlight', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    setActivePinia(createPinia());
+    setupFreshPinia();
   });
 
   afterEach(() => {

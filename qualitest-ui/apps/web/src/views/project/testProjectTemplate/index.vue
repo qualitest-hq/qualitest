@@ -228,12 +228,13 @@
       @pagination="getList"
     />
 
-    <el-dialog
+    <el-drawer
       v-model="open"
       :title="title"
       append-to-body
-      class="test-project-template-dialog"
-      width="720px"
+      class="test-project-template-drawer"
+      destroy-on-close
+      size="960px"
     >
       <el-alert
         v-if="isReadonlyForm"
@@ -247,92 +248,98 @@
         ref="templateRef"
         :model="form"
         :rules="rules"
+        class="tpl-drawer-form"
         label-width="108px"
       >
-        <el-form-item label="模板名称" prop="templateName">
-          <el-input
-            v-model="form.templateName"
-            :disabled="isReadonlyForm"
-            maxlength="100"
-            placeholder="拷贝到项目后作为 Profile 名称"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item label="鉴权头名称" prop="headerName">
-          <el-input
-            v-model="form.headerName"
-            :disabled="isReadonlyForm"
-            maxlength="64"
-            placeholder="Authorization"
-          />
-        </el-form-item>
-        <el-form-item label="鉴权头值模板" prop="headerValueTemplate">
-          <el-input
-            v-model="form.headerValueTemplate"
-            :disabled="isReadonlyForm"
-            maxlength="512"
-            placeholder="Bearer {{flow.token}}"
-          />
-        </el-form-item>
-        <el-form-item label="pathPrefix" prop="pathPrefixText">
-          <el-input
-            v-model="form.pathPrefixText"
-            :disabled="isReadonlyForm"
-            :rows="2"
-            placeholder="每行一条，如 /api/；禁止单独 /"
-            type="textarea"
-          />
-        </el-form-item>
-        <el-form-item label="预制接口 apis" prop="apisJson">
-          <el-input
-            v-model="form.apisJson"
-            :disabled="isReadonlyForm"
-            :rows="12"
-            placeholder="JSON 数组，形状对齐 test_project_api"
-            type="textarea"
-          />
-          <div v-if="!isReadonlyForm" class="tpl-form-actions">
-            <el-button link type="primary" @click="formatApisField">格式化 JSON</el-button>
-          </div>
-        </el-form-item>
-        <el-form-item v-if="apisPreviewRows.length" label="接口预览">
-          <el-table :data="apisPreviewRows" border size="small" class="tpl-apis-preview">
-            <el-table-column label="方法" prop="method" width="72" />
-            <el-table-column label="路径" min-width="140" prop="apiPath" show-overflow-tooltip />
-            <el-table-column label="名称" min-width="100" prop="apiName" show-overflow-tooltip />
-            <el-table-column label="鉴权" prop="authModeLabel" width="88" />
-          </el-table>
-        </el-form-item>
-        <el-form-item label="启用状态" prop="enableStatus">
-          <el-radio-group v-model="form.enableStatus" :disabled="isReadonlyForm">
-            <el-radio
-              v-for="item in enableStatusOptions"
-              :key="item.value"
-              :value="item.value"
-            >{{ item.label }}</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="排序" prop="sortNum">
-          <el-input-number
-            v-model="form.sortNum"
-            :disabled="isReadonlyForm"
-            :min="0"
-            controls-position="right"
-          />
-        </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input
-            v-model="form.remark"
-            :disabled="isReadonlyForm"
-            :rows="2"
-            maxlength="256"
-            placeholder="可选"
-            type="textarea"
+        <div class="tpl-section-title">基本信息</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="模板名称" prop="templateName">
+              <el-input
+                v-model="form.templateName"
+                :disabled="isReadonlyForm"
+                maxlength="100"
+                placeholder="拷贝到项目后作为 Profile 名称"
+                show-word-limit
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="鉴权头名称" prop="headerName">
+              <el-input
+                v-model="form.headerName"
+                :disabled="isReadonlyForm"
+                maxlength="64"
+                placeholder="Authorization"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="鉴权头值模板" prop="headerValueTemplate">
+              <el-input
+                v-model="form.headerValueTemplate"
+                :disabled="isReadonlyForm"
+                maxlength="512"
+                placeholder="Bearer {{flow.token}}"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="pathPrefix" prop="pathPrefixText">
+              <el-input
+                v-model="form.pathPrefixText"
+                :disabled="isReadonlyForm"
+                :rows="2"
+                placeholder="每行一条，如 /api/；禁止单独 /"
+                type="textarea"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="启用状态" prop="enableStatus">
+              <el-radio-group v-model="form.enableStatus" :disabled="isReadonlyForm">
+                <el-radio
+                  v-for="item in enableStatusOptions"
+                  :key="item.value"
+                  :value="item.value"
+                >{{ item.label }}</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="排序" prop="sortNum">
+              <el-input-number
+                v-model="form.sortNum"
+                :disabled="isReadonlyForm"
+                :min="0"
+                controls-position="right"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="备注" prop="remark">
+              <el-input
+                v-model="form.remark"
+                :disabled="isReadonlyForm"
+                :rows="2"
+                maxlength="256"
+                placeholder="可选"
+                type="textarea"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item prop="apis" class="tpl-apis-form-item" label-width="0">
+          <PrefabricatedApiPanel
+            ref="apiPanelRef"
+            v-model="form.apis"
+            :read-only="isReadonlyForm"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <div class="dialog-footer">
+        <div class="tpl-drawer-footer">
           <el-button
             v-if="isReadonlyForm"
             v-hasPermi="['project:testProjectTemplate:add']"
@@ -343,7 +350,7 @@
           <el-button @click="cancel">{{ isReadonlyForm ? '关 闭' : '取 消' }}</el-button>
         </div>
       </template>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
@@ -356,14 +363,13 @@ import {
   listTestProjectTemplate,
   updateTestProjectTemplate,
 } from '@/api/project/testProjectTemplate'
+import PrefabricatedApiPanel from './components/PrefabricatedApiPanel.vue'
 import {
-  apisToPreviewRows,
   emptyTemplateForm,
-  formatApisJson,
   formatPathPrefixSummary,
   formToPayload,
   templateToForm,
-  validateAndFormatApisJson,
+  validateApis,
 } from './utils/templateForm'
 
 const { proxy } = getCurrentInstance()
@@ -428,20 +434,22 @@ const data = reactive({
     templateName: [{ required: true, message: '模板名称不能为空', trigger: 'blur' }],
     headerName: [{ required: true, message: '鉴权头名称不能为空', trigger: 'blur' }],
     headerValueTemplate: [{ required: true, message: '鉴权头值模板不能为空', trigger: 'blur' }],
-    apisJson: [{ required: true, message: '预制接口不能为空', trigger: 'blur' }],
+    apis: [{
+      validator: (_rule, value, callback) => {
+        try {
+          validateApis(value)
+          callback()
+        } catch (e) {
+          callback(new Error(String(e?.message || e)))
+        }
+      },
+      trigger: 'change',
+    }],
   },
 })
 
 const { queryParams, form, rules } = toRefs(data)
-
-const apisPreviewRows = computed(() => {
-  try {
-    const formatted = validateAndFormatApisJson(form.value.apisJson)
-    return apisToPreviewRows(formatted)
-  } catch {
-    return apisToPreviewRows(form.value.apisJson)
-  }
-})
+const apiPanelRef = ref(null)
 
 function getList() {
   loading.value = true
@@ -510,8 +518,7 @@ function handleUpdate(row) {
   })
 }
 
-function handleClone(row) {
-  const id = row?.testProjectTemplateId
+function cloneTemplateAndEdit(id) {
   if (!id) return
   cloneTestProjectTemplate(id).then((res) => {
     proxy.$modal.msgSuccess('克隆成功')
@@ -522,31 +529,22 @@ function handleClone(row) {
       openDialog('edit', res.data)
     }
   })
+}
+
+function handleClone(row) {
+  cloneTemplateAndEdit(row?.testProjectTemplateId)
 }
 
 function handleCloneFromDialog() {
-  const id = form.value.testProjectTemplateId
-  if (!id) return
-  cloneTestProjectTemplate(id).then((res) => {
-    proxy.$modal.msgSuccess('克隆成功')
-    getList()
-    return getTestProjectTemplate(res.data)
-  }).then((res) => {
-    if (res?.data) {
-      openDialog('edit', res.data)
-    }
-  })
-}
-
-function formatApisField() {
-  try {
-    form.value.apisJson = formatApisJson(validateAndFormatApisJson(form.value.apisJson))
-  } catch (e) {
-    proxy.$modal.msgError(String(e?.message || e))
-  }
+  cloneTemplateAndEdit(form.value.testProjectTemplateId)
 }
 
 function submitForm() {
+  const panelResult = apiPanelRef.value?.validate?.()
+  if (panelResult && !panelResult.valid) {
+    proxy.$modal.msgError(panelResult.message)
+    return
+  }
   proxy.$refs.templateRef.validate((valid) => {
     if (!valid) return
     let payload
@@ -596,11 +594,26 @@ getList()
   margin-bottom: 16px;
 }
 
-.tpl-form-actions {
-  margin-top: 4px;
+.tpl-drawer-form {
+  padding-right: 8px;
 }
 
-.tpl-apis-preview {
-  width: 100%;
+.tpl-section-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.tpl-apis-form-item {
+  :deep(.el-form-item__content) {
+    display: block;
+  }
+}
+
+.tpl-drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

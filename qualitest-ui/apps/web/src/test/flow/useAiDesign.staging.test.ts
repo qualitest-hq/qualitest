@@ -3,9 +3,9 @@
  * 边界：Pinia 内存态，无真实 API 调用。
  * 单跑：pnpm test useAiDesign.staging   （在 qualitest-ui 或 apps/web 下）
  */
-import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { setupFreshPinia } from '@/test/helpers/pinia';
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
 import { toGraphJson } from '@/views/project/testFlow/graphAdapter';
 import { useAiStagingStore } from '@/views/project/testFlow/stores/aiStagingStore';
@@ -14,7 +14,7 @@ import { buildFlowGraphInput } from '@/views/project/testFlow/utils/stagingGraph
 
 describe('AI design graph_json staging filter', () => {
   beforeEach(() => {
-    setActivePinia(createPinia());
+    setupFreshPinia();
   });
 
   it('pending addNode 不出现在设计请求 graph_json 中', () => {

@@ -1,5 +1,10 @@
 <template>
-  <div ref="rootRef" class="script-source-editor" :style="rootStyle" />
+  <div
+    ref="rootRef"
+    class="script-source-editor"
+    :class="{ 'script-source-editor--invalid': invalid }"
+    :style="rootStyle"
+  />
 </template>
 
 <script setup>
@@ -12,12 +17,14 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 const props = defineProps({
   /** 脚本源码 */
   modelValue: { type: String, default: '' },
-  /** 脚本语言：javascript | python */
+  /** 脚本语言：javascript | python | json */
   language: { type: String, default: 'javascript' },
   /** 只读模式 */
   readOnly: { type: Boolean, default: false },
   /** 编辑器最小高度（像素） */
   minHeight: { type: Number, default: 160 },
+  /** 校验失败时高亮边框 */
+  invalid: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -121,6 +128,17 @@ defineExpose({ insertSnippet })
     box-shadow:
       inset 0 1px 2px rgba(15, 23, 42, 0.04),
       0 0 0 2px rgba(8, 145, 178, 0.12);
+  }
+
+  &--invalid {
+    border-color: var(--el-color-danger);
+
+    &:focus-within {
+      border-color: var(--el-color-danger);
+      box-shadow:
+        inset 0 1px 2px rgba(15, 23, 42, 0.04),
+        0 0 0 2px rgba(245, 108, 108, 0.2);
+    }
   }
 
   :deep(.cm-editor) {

@@ -2,6 +2,11 @@ import { defineConfig, loadEnv, searchForWorkspaceRoot } from 'vite'
 import path from 'path'
 import { fileURLToPath } from 'node:url'
 import createVitePlugins from './vite/plugins'
+import {
+  vitestJsdomInclude,
+  vitestTestInclude,
+  vitestTestShared,
+} from './vitest.test-shared.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const baseUrl = 'http://127.0.0.1:8080' // 后端接口（避免 localhost 解析为 ::1 导致 ECONNREFUSED）
@@ -95,10 +100,27 @@ export default defineConfig(({ mode, command }) => {
       }
     },
     test: {
-      environment: 'node',
-      include: ['src/test/**/*.test.ts', 'src/test/**/*.spec.ts'],
-      setupFiles: ['./src/test/vitest-setup.ts'],
-      reporters: ['verbose'],
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'node',
+            environment: 'node',
+            include: vitestTestInclude,
+            exclude: ['src/test/utils/**'],
+            ...vitestTestShared,
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'jsdom',
+            environment: 'jsdom',
+            include: vitestJsdomInclude,
+            ...vitestTestShared,
+          },
+        },
+      ],
     }
   }
 })

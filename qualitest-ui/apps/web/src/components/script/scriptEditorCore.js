@@ -1,5 +1,5 @@
 /**
- * CodeMirror 6 编辑器封装：动态加载核心与语言包，供 ScriptSourceEditor 使用。
+ * CodeMirror 6 编辑器封装：动态加载核心与语言包，供 ScriptSourceEditor 等使用。
  */
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorState } from '@codemirror/state'
@@ -9,6 +9,7 @@ import { tags } from '@lezer/highlight'
 
 let jsLangPromise = null
 let pyLangPromise = null
+let jsonLangPromise = null
 
 /** 与画布右栏一致的浅色编辑器主题 */
 const flowEditorTheme = EditorView.theme(
@@ -58,6 +59,12 @@ export async function languageExtension(language) {
       pyLangPromise = import('@codemirror/lang-python').then((m) => m.python())
     }
     return pyLangPromise
+  }
+  if (language === 'json') {
+    if (!jsonLangPromise) {
+      jsonLangPromise = import('@codemirror/lang-json').then((m) => m.json())
+    }
+    return jsonLangPromise
   }
   if (!jsLangPromise) {
     jsLangPromise = import('@codemirror/lang-javascript').then((m) => m.javascript())

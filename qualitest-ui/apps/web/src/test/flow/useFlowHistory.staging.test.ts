@@ -3,8 +3,9 @@
  * 边界：mock element-plus；Pinia 内存态。
  * 单跑：pnpm test useFlowHistory.staging   （在 qualitest-ui 或 apps/web 下）
  */
-import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { withFreshPinia } from '@/test/helpers/pinia';
 
 vi.mock('element-plus', () => ({
   ElMessage: {
@@ -19,9 +20,7 @@ import { useFlowCanvasStore } from '@/views/project/testFlow/stores/flowCanvasSt
 import { useFlowHistory } from '@/views/project/testFlow/composables/useFlowHistory';
 
 describe('useFlowHistory staging snapshot', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia());
-  });
+  withFreshPinia();
 
   const patch: FlowDesignPatch = {
     addNodes: [{ id: '9001', type: 'http', data: { name: '新节点' } }],

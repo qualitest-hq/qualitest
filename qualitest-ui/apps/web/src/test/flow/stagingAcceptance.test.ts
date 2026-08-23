@@ -4,9 +4,9 @@
  * 单跑：pnpm test stagingAcceptance   （在 qualitest-ui 或 apps/web 下）
  */
 import { ref } from 'vue';
-import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { setupFreshPinia } from '@/test/helpers/pinia';
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
 import { useAiStagingStore } from '@/views/project/testFlow/stores/aiStagingStore';
 import {
@@ -18,7 +18,7 @@ import {
 
 describe('stagingAcceptance', () => {
   beforeEach(() => {
-    setActivePinia(createPinia());
+    setupFreshPinia();
     const accepted = ref<Record<string, Set<string>>>({});
     const rejected = ref<Record<string, Set<string>>>({});
     bindStagingAcceptanceMaps(accepted, rejected);

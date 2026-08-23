@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
+import { buildAdminBearerProfile, buildLoginApi } from '@/test/project/helpers/buildTemplateRow'
 import {
   buildAuthConfigObject,
   buildAuthConfigPayload,
@@ -19,20 +20,7 @@ describe('parseAuthConfig', () => {
   it('解析扁平头、credentialApi 与 Profile 级 loginHint', () => {
     // 前提：库中为新版 authProfiles 结构
     const raw = {
-      authProfiles: [{
-        id: 'adminBearer',
-        name: '管理端 Bearer',
-        headerName: 'Authorization',
-        headerValueTemplate: 'Bearer {{flow.adminToken}}',
-        match: { pathPrefix: ['/system/'] },
-        credentialApi: { method: 'POST', path: '/login' },
-        loginHint: { flowKey: 'adminToken', from: 'body', expr: '$.token' },
-        apis: [{
-          apiPath: '/login',
-          authConfig: { mode: 'none' },
-          requestConfig: { method: 'POST' },
-        }],
-      }],
+      authProfiles: [buildAdminBearerProfile()],
     }
 
     const form = parseAuthConfig(raw)
@@ -84,11 +72,7 @@ describe('buildAuthConfigPayload', () => {
         headerValueTemplate: 'Bearer {{flow.token}}',
         credentialApi: { method: 'POST', path: '/login' },
         loginHint: { flowKey: 'token', from: 'body', expr: '$.token' },
-        apis: [{
-          apiPath: '/login',
-          authConfig: { mode: 'none' },
-          requestConfig: { method: 'POST' },
-        }],
+        apis: [buildLoginApi()],
       }],
     })
 

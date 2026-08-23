@@ -3,10 +3,10 @@
  * 边界：Pinia 内存态，无真实 Vue Flow 实例。
  * 单跑：pnpm test useAiStagingCanvas   （在 qualitest-ui 或 apps/web 下）
  */
-import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { setupFreshPinia } from '@/test/helpers/pinia';
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
 import { applyStagingCanvasToStore } from '@/views/project/testFlow/composables/useAiStagingCanvas';
 import { useAiStagingStore } from '@/views/project/testFlow/stores/aiStagingStore';
@@ -32,7 +32,7 @@ const patch: FlowDesignPatch = {
 
 describe('applyStagingCanvasToStore', () => {
   beforeEach(() => {
-    setActivePinia(createPinia());
+    setupFreshPinia();
   });
 
   /** 节点与边同时新增时，边写入 pendingEdges 并触发灌入计数，不直接覆盖 edges。 */

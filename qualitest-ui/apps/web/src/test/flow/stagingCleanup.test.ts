@@ -3,9 +3,9 @@
  * 边界：mock revertStagingUnitOnCanvas；Pinia 内存态。
  * 单跑：pnpm test stagingCleanup   （在 qualitest-ui 或 apps/web 下）
  */
-import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { setupFreshPinia } from '@/test/helpers/pinia';
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
 import { useAiStagingStore } from '@/views/project/testFlow/stores/aiStagingStore';
 import { useFlowCanvasStore } from '@/views/project/testFlow/stores/flowCanvasStore';
@@ -24,7 +24,7 @@ import {
 
 describe('stagingCleanup', () => {
   beforeEach(() => {
-    setActivePinia(createPinia());
+    setupFreshPinia();
     revertMock.mockReset();
   });
 

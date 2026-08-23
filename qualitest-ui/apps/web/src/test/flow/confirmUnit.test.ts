@@ -4,8 +4,8 @@
  * 单跑：pnpm test confirmUnit   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { createPinia, setActivePinia } from 'pinia';
 
+import { setupFreshPinia } from '@/test/helpers/pinia';
 import type { GraphJson } from '@/utils/flow/graphTypes';
 import { requestConfirmFlowDesignUnit } from '@/views/project/testFlow/utils/confirmFlowDesignUnit';
 import { useAiStagingStore } from '@/views/project/testFlow/stores/aiStagingStore';
@@ -98,7 +98,7 @@ describe('requestConfirmFlowDesignUnit', () => {
   it('失败 → 改 draft → 再请求可由 false 变 true', async () => {
     // 前提：首次 confirm 校验失败，修正 draft 后再次请求
     // 期望：第二次 ok 为 true，单元标记 confirmed 并清除 lastValidation
-    setActivePinia(createPinia());
+    setupFreshPinia();
     const stagingStore = useAiStagingStore();
     stagingStore.hydrateStagingFromPatch('msg-1', baseInput.patch, {
       nodes: [],
