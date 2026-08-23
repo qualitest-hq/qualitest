@@ -4,6 +4,7 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.api.util.ApiAuthConfigSupport;
 import com.qualitest.api.util.ApiImportMatchSupport;
+import com.qualitest.api.util.ApiTestValuePeelSupport;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.project.domain.TestProjectApi;
@@ -98,6 +99,7 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
             testProjectApi.setTestProjectApiId(IdUtil.getSnowflakeNextId());
         }
         normalizeAuthConfigIfPresent(testProjectApi);
+        peelStructureTestValues(testProjectApi, null);
         testProjectApi.setCreateTime(DateUtils.getNowDate());
         int rows = testProjectApiMapper.insertTestProjectApi(testProjectApi);
         refreshProjectApiCount(testProjectApi.getTestProjectId());
@@ -122,6 +124,7 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
             if (api.getCreateTime() == null) {
                 api.setCreateTime(now);
             }
+            peelStructureTestValues(api, null);
         }
         int total = 0;
         for (int i = 0; i < testProjectApiList.size(); i += INSERT_BATCH_SIZE) {
@@ -141,8 +144,42 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
     @Override
     public int updateTestProjectApi(TestProjectApi testProjectApi) {
         normalizeAuthConfigIfPresent(testProjectApi);
+        TestProjectApi existing = null;
+        if (testProjectApi.getTestProjectApiId() != null
+                && (testProjectApi.getRequestConfig() != null || testProjectApi.getResponseConfig() != null)
+                && testProjectApi.getTestValueConfig() == null) {
+            existing = testProjectApiMapper.selectTestProjectApiById(testProjectApi.getTestProjectApiId());
+        }
+        peelStructureTestValues(testProjectApi, existing != null ? existing.getTestValueConfig() : null);
         testProjectApi.setUpdateTime(DateUtils.getNowDate());
         return testProjectApiMapper.updateTestProjectApi(testProjectApi);
+    }
+
+    /**
+     * 保存前：若本次带了 request/response，把其中的测值拆进 test_value_config，结构列只留定义。
+     * 只改写本次提交的列；未传的结构列不动。未传测值时用库里已有测值作合并底稿。
+     */
+    private void peelStructureTestValues(TestProjectApi api, String existingTestValueJson) {
+        if (api == null) {
+            return;
+        }
+        boolean peelReq = api.getRequestConfig() != null;
+        boolean peelResp = api.getResponseConfig() != null;
+        if (!peelReq && !peelResp) {
+            return;
+        }
+        String baseTv = api.getTestValueConfig() != null ? api.getTestValueConfig() : existingTestValueJson;
+        ApiTestValuePeelSupport.PeelResult peeled = ApiTestValuePeelSupport.peel(
+                peelReq ? api.getRequestConfig() : "{}",
+                peelResp ? api.getResponseConfig() : "{}",
+                baseTv);
+        if (peelReq) {
+            api.setRequestConfig(peeled.getRequestConfig());
+        }
+        if (peelResp) {
+            api.setResponseConfig(peeled.getResponseConfig());
+        }
+        api.setTestValueConfig(peeled.getTestValueConfig());
     }
 
     /** 本次提交含 authConfig 时规范化后写入；未提交（null）则不改动。 */

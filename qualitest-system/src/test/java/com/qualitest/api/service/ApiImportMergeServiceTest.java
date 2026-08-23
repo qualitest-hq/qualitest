@@ -14,9 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 ApiImportMergeService：导入结构合并（参数默认值、响应 example、soft merge）。
- * 边界：本地 vs 上传包差异；纯函数，无 DB。
- * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiImportMergeServiceTest
+ * 导入合并：参数/响应测值保留、结构 soft merge、删除参数记账。无 DB。
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiImportMergeServiceTest {
@@ -25,12 +23,12 @@ class ApiImportMergeServiceTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     /**
-     * 前提：本地 query 参数含 value，上传包新增 pageNum。
-     * 期望：默认值迁入 test_value_config，结构层无 value，summary 记录 pageNum 新增。
+     * 本地测值已有 mobile 默认值，上传包新增 pageNum。
+     * 期望：测值保留，结构无 value，摘要记录 pageNum 新增。
      */
     @Test
     @Order(1)
-    @DisplayName("合并：参数默认值迁入 test_value，并记录新增 query")
+    @DisplayName("合并：参数默认值在测值层保留，并记录新增 query")
     void merge_migratesParamDefaultsAndAddsQueryParam() {
         TestProjectApi existing = TestProjectApi.builder()
                 .requestConfig("""
@@ -38,7 +36,7 @@ class ApiImportMergeServiceTest {
                           "configVersion": 1,
                           "method": "GET",
                           "queryParams": [
-                            {"name": "mobile", "type": "string", "value": "13800000001"}
+                            {"name": "mobile", "type": "string"}
                           ],
                           "pathParams": [],
                           "declaredHeaders": [],
@@ -52,6 +50,9 @@ class ApiImportMergeServiceTest {
                             {"id": "resp-old", "name": "成功", "httpStatus": 200, "contentType": "json", "schema": null}
                           ]
                         }
+                        """)
+                .testValueConfig("""
+                        {"request":{"paramDefaults":{"mobile":"13800000001"}}}
                         """)
                 .build();
 
@@ -88,8 +89,8 @@ class ApiImportMergeServiceTest {
     }
 
     /**
-     * 前提：同 response id，本地含用户 example，上传包更新 schema。
-     * 期望：example 保留于合并结果，summary.userPreserved 含 responseExample。
+     * 同 response id：测值已有用户 example，上传包只改 schema。
+     * 期望：example 仍在测值，结构无 example 字段。
      */
     @Test
     @Order(2)
@@ -106,10 +107,12 @@ class ApiImportMergeServiceTest {
                           "configVersion": 1,
                           "responses": [
                             {"id": "%s", "name": "成功", "httpStatus": 200, "contentType": "json",
-                             "schema": {"type":"object"},
-                             "example": {"code": 14, "msg": "custom"}}
+                             "schema": {"type":"object"}}
                           ]
                         }
+                        """, responseId))
+                .testValueConfig(String.format("""
+                        {"response":{"examplesById":{"%s":{"code":14,"msg":"custom"}}}}
                         """, responseId))
                 .build();
 
@@ -125,15 +128,15 @@ class ApiImportMergeServiceTest {
 
         var result = service.merge(existing, existing.getRequestConfig(), incomingResponse);
 
-        assertTrue(result.getResponseConfig().contains("\"code\":14")
-                || result.getTestValueConfig().contains("\"code\":14"));
+        assertTrue(result.getTestValueConfig().contains("\"code\":14"));
+        assertFalse(result.getResponseConfig().contains("\"example\""));
         assertTrue(result.getMergeSummary().getUserPreserved().stream()
                 .anyMatch(s -> s.startsWith("responseExample")));
     }
 
     /**
-     * 前提：本地含 legacyKey 参数，上传包 queryParams 为空。
-     * 期望：summary 记录 queryParamsRemoved，默认值保留于 test_value_config。
+     * 测值有 legacyKey 默认值，上传包 query 为空。
+     * 期望：摘要记录删除，默认值仍在测值。
      */
     @Test
     @Order(3)
@@ -145,7 +148,7 @@ class ApiImportMergeServiceTest {
                           "configVersion": 1,
                           "method": "GET",
                           "queryParams": [
-                            {"name": "legacyKey", "type": "string", "value": "old-val"}
+                            {"name": "legacyKey", "type": "string"}
                           ],
                           "pathParams": [],
                           "declaredHeaders": [],
@@ -156,6 +159,9 @@ class ApiImportMergeServiceTest {
                         {"configVersion":1,"responses":[
                           {"id":"r1","name":"成功","httpStatus":200,"contentType":"json","schema":null}
                         ]}
+                        """)
+                .testValueConfig("""
+                        {"request":{"paramDefaults":{"legacyKey":"old-val"}}}
                         """)
                 .build();
 

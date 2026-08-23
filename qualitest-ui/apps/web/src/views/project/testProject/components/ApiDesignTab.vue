@@ -304,21 +304,22 @@ watch(
 
 function handleSaveDesign() {
   if (!props.apiDetail?.testProjectApiId) return
-  const part = debugTabRef.value?.buildPersistPayload?.()
-  if (!part) {
-    proxy.$modal.msgError('无法读取请求配置')
-    return
-  }
-  if (part.error) {
-    proxy.$modal.msgError(part.error)
-    return
-  }
   responseConfigPanelRef.value?.flushPendingModelEmit?.()
   let responseConfigStr = ''
   try {
     responseConfigStr = normalizeResponseConfigForSave(responseConfigText.value)
   } catch (e) {
     proxy.$modal.msgError(e.message || '响应配置 JSON 无效')
+    return
+  }
+  // 用设计页当前响应稿一起拆测值，避免仍用详情里过期的 responseConfig
+  const part = debugTabRef.value?.buildPersistPayload?.(responseConfigStr)
+  if (!part) {
+    proxy.$modal.msgError('无法读取请求配置')
+    return
+  }
+  if (part.error) {
+    proxy.$modal.msgError(part.error)
     return
   }
 
@@ -345,7 +346,8 @@ function handleSaveDesign() {
     requestConfig: part.requestConfig,
     headers: part.headers,
     cookies: part.cookies,
-    responseConfig: responseConfigStr,
+    responseConfig: part.responseConfig,
+    testValueConfig: part.testValueConfig,
     preRequestScript: part.preRequestScript ?? '',
     postRequestScript: part.postRequestScript ?? '',
     authConfig: authConfigStr,

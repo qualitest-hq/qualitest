@@ -1,17 +1,17 @@
 /**
- * 预制接口 ↔ 请求/响应工作台适配（对象草稿，无项目 ID）。
+ * 预制接口与请求/响应工作台之间的适配（对象草稿，无项目 ID）。
  */
 
 import { parseFlexibleJson } from '../../testProject/utils/apiDetailRequestWorkbench'
 
-/** 解析 JSON 字符串列为对象；已是对象则深拷贝；失败返回 fallback */
+/** 把 JSON 字符串或对象解析成对象；失败返回 fallback */
 export function parsePersistJsonColumn(raw, fallback = {}) {
   const parsed = parseFlexibleJson(raw)
   if (parsed && typeof parsed === 'object') return parsed
   return fallback
 }
 
-/** 预制对象 → 工作台 apiDetail（不造假 ID） */
+/** 预制接口对象转成工作台用的 apiDetail 形状（不造假主键） */
 export function prefabToWorkbenchDetail(api) {
   if (!api || typeof api !== 'object') {
     return {
@@ -43,7 +43,8 @@ export function prefabToWorkbenchDetail(api) {
 }
 
 /**
- * 把 buildPersistPayload 的字符串列合并进预制口。
+ * 把工作台保存结果写回预制接口对象。
+ * 要求 payload 已含拆好的 testValueConfig（结构里不再带调试测值）。
  * @returns {{ ok: true, api: object } | { ok: false, error: string }}
  */
 export function applyWorkbenchPersistToPrefab(api, persistPart) {
@@ -56,20 +57,29 @@ export function applyWorkbenchPersistToPrefab(api, persistPart) {
   if (persistPart.error) {
     return { ok: false, error: String(persistPart.error) }
   }
-
-  const next = {
-    ...api,
-    apiPath: persistPart.apiPath != null ? String(persistPart.apiPath) : api.apiPath,
-    requestConfig: parsePersistJsonColumn(persistPart.requestConfig, {}),
-    headers: parsePersistJsonColumn(persistPart.headers, {}),
-    cookies: parsePersistJsonColumn(persistPart.cookies, {}),
-    preRequestScript: persistPart.preRequestScript ?? api.preRequestScript ?? null,
-    postRequestScript: persistPart.postRequestScript ?? api.postRequestScript ?? null,
+  if (persistPart.testValueConfig == null) {
+    return { ok: false, error: '缺少 testValueConfig（须先 peel）' }
   }
-  return { ok: true, api: next }
+
+  return {
+    ok: true,
+    api: {
+      ...api,
+      apiPath: persistPart.apiPath != null ? String(persistPart.apiPath) : api.apiPath,
+      requestConfig: parsePersistJsonColumn(persistPart.requestConfig, {}),
+      responseConfig: persistPart.responseConfig != null
+        ? parsePersistJsonColumn(persistPart.responseConfig, {})
+        : (api.responseConfig ?? {}),
+      testValueConfig: parsePersistJsonColumn(persistPart.testValueConfig, {}),
+      headers: parsePersistJsonColumn(persistPart.headers, {}),
+      cookies: parsePersistJsonColumn(persistPart.cookies, {}),
+      preRequestScript: persistPart.preRequestScript ?? api.preRequestScript ?? null,
+      postRequestScript: persistPart.postRequestScript ?? api.postRequestScript ?? null,
+    },
+  }
 }
 
-/** responseConfig 对象 → 面板用的 JSON 字符串 */
+/** responseConfig 对象格式化为编辑器里的缩进 JSON 文本 */
 export function responseConfigToEditorText(responseConfig) {
   const obj = parseFlexibleJson(responseConfig)
   if (!obj || typeof obj !== 'object') {
@@ -79,7 +89,7 @@ export function responseConfigToEditorText(responseConfig) {
 }
 
 /**
- * 面板 JSON 字符串写回预制 responseConfig 对象。
+ * 编辑器 JSON 文本解析成 responseConfig 对象。
  * @returns {{ ok: true, value: object } | { ok: false, error: string }}
  */
 export function parseResponseConfigEditorText(text) {

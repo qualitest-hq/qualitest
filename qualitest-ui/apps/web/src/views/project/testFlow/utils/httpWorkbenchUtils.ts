@@ -1,11 +1,10 @@
 /**
- * HTTP 节点请求配置工作台。
- * <p>
- * 编辑时展示「API 有效请求 ⊕ 节点测值覆盖」的完整样子；
- * 保存时只把相对资产默认不同的测值写入 requestValueOverrides，
- * 不写整份 requestConfig，也不写 apiPath（路径只读展示资产路径）。
+ * HTTP 节点请求工作台。
+ * 编辑时展示「资产有效请求 + 节点测值覆盖」合成结果；
+ * 保存时只把相对资产默认不同的差分写入 requestValueOverrides，不写整份 requestConfig，路径只读。
  */
 import { REQUEST_CONFIG_VERSION } from '@/views/project/testProject/utils/apiConfigConstants'
+import type { NodeRequestValueOverrides } from '@/views/project/testProject/utils/apiConfigTypes'
 import {
   emptyKVRow,
   ensureBodyShape,
@@ -16,6 +15,7 @@ import {
 import { HTTP_METHODS } from '@/views/project/testProject/utils/httpMethodMeta'
 
 export { emptyKVRow, ensureBodyShape, ensureTrailingEmptyRow, HTTP_METHODS };
+export type { NodeRequestValueOverrides };
 
 export type KvRow = ReturnType<typeof emptyKVRow>;
 
@@ -51,13 +51,8 @@ export interface HttpWorkbenchDraft {
   cookieRows: KvRow[];
 }
 
-/** 节点上保存的测值覆盖 */
-export interface RequestValueOverrides {
-  /** 按参数名覆盖 query / path / form-data / urlencoded 行的 value */
-  paramDefaults?: Record<string, unknown>;
-  /** 覆盖 JSON body 测值 */
-  bodyExample?: unknown;
-}
+/** 节点测值覆盖类型（相对资产默认的差分） */
+// 见本文件上方 import 的 NodeRequestValueOverrides
 
 /** 从 API 详情构建编辑草稿（详情里的 requestConfig 已是有效配置） */
 export function buildWorkbenchFromApiDetail(apiDetail: Record<string, unknown> | null): HttpWorkbenchDraft {
@@ -95,16 +90,13 @@ export function buildWorkbenchFromApiDetail(apiDetail: Record<string, unknown> |
 }
 
 /**
- * 把 requestValueOverrides 叠到草稿：按 name 改参数 value，并写 body example。
- */
-/**
  * 把 requestValueOverrides 叠到草稿：
  * paramDefaults 按 name 写入 query / path / form-data / urlencoded 的 value；
  * bodyExample 写入 JSON body。
  */
 export function applyRequestValueOverridesToWorkbench(
   draft: HttpWorkbenchDraft,
-  overrides: RequestValueOverrides | null | undefined,
+  overrides: NodeRequestValueOverrides | null | undefined,
 ) {
   if (!overrides || typeof overrides !== 'object') return;
   const params = overrides.paramDefaults;
@@ -187,7 +179,7 @@ export function buildWorkbenchFromApiAndNode(
 
   applyRequestValueOverridesToWorkbench(
     draft,
-    (nodeData.requestValueOverrides as RequestValueOverrides) || null,
+    (nodeData.requestValueOverrides as NodeRequestValueOverrides) || null,
   );
 
   if (Array.isArray(nodeData.headers) && nodeData.headers.length) {
@@ -289,7 +281,7 @@ function collectAllFilledParamDefaults(draft: HttpWorkbenchDraft): Record<string
 export function buildRequestValueOverridesDiff(
   draft: HttpWorkbenchDraft,
   assetBaseline: HttpWorkbenchDraft,
-): RequestValueOverrides | null {
+): NodeRequestValueOverrides | null {
   const draftParams = collectAllFilledParamDefaults(draft);
   const assetParams = collectAllFilledParamDefaults(assetBaseline);
 
@@ -300,7 +292,7 @@ export function buildRequestValueOverridesDiff(
     }
   }
 
-  const result: RequestValueOverrides = {};
+  const result: NodeRequestValueOverrides = {};
   if (Object.keys(paramDefaults).length) {
     result.paramDefaults = paramDefaults;
   }
@@ -356,7 +348,7 @@ export function applyWorkbenchToNodeData(
  * 数 requestValueOverrides；GET/HEAD 的 paramDefaults 算 Query，其余算 Body。
  */
 export function countHttpParamStats(data: Record<string, unknown>) {
-  const overrides = (data.requestValueOverrides as RequestValueOverrides) || {};
+  const overrides = (data.requestValueOverrides as NodeRequestValueOverrides) || {};
   const paramDefaults = (overrides.paramDefaults || {}) as Record<string, unknown>;
   const paramNames = Object.keys(paramDefaults);
   const bodyExampleCount = Object.prototype.hasOwnProperty.call(overrides, 'bodyExample')

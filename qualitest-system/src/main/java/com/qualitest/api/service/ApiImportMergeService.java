@@ -10,6 +10,7 @@ import com.qualitest.api.result.ApiImportMergeSummary;
 import com.qualitest.api.util.ApiConfigJsonSupport;
 import com.qualitest.api.util.ApiImportConfigPipeline;
 import com.qualitest.api.util.ApiSchemaSoftMergeSupport;
+import com.qualitest.api.util.ApiTestValuePeelSupport;
 import com.qualitest.project.domain.TestProjectApi;
 import org.springframework.stereotype.Service;
 
@@ -19,10 +20,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 已有 API 重复上传时的 request/response 结构合并。
+ * 已有接口再次导入时：合并请求/响应结构，并把上传包里的调试测值写入测值配置。
  * <p>
- * 上传包决定参数列表与 schema 形状；同名字段且类型未变时保留本地 pattern/min/max 等约束；
- * 用户调试默认值、body/响应 example 写入 test_value_config。新增接口不走本类，由导入入口直接全量落库。
+ * 参数列表与 schema 形状以上传包为准；同名字段类型未变时保留本地约束（pattern、min/max 等）；
+ * 用户已有测值不覆盖。全新接口不走这里。
  */
 @Service
 public class ApiImportMergeService {
@@ -35,17 +36,17 @@ public class ApiImportMergeService {
     private static final String FIELD_HEADERS = "declaredHeaders";
 
     /**
-     * 对库中已有 API 做一次结构合并。
+     * 合并一次：规范化上传包 → 合并 request/response → 测值进 test_value_config。
      *
-     * @param existing            库中当前 API（含 request_config、response_config、test_value_config）
-     * @param incomingRequestRaw  上传包 requestConfig 原始 JSON
-     * @param incomingResponseRaw 上传包 responseConfig 原始 JSON
-     * @return 合并后的 request_config、response_config、test_value_config（及单测用摘要）
+     * @param existing            库中当前接口行
+     * @param incomingRequestRaw  上传包请求 JSON
+     * @param incomingResponseRaw 上传包响应 JSON
+     * @return 合并后的三份配置 JSON 与摘要
      */
     public ApiImportMergeResult merge(TestProjectApi existing, String incomingRequestRaw, String incomingResponseRaw) {
         ApiImportMergeSummary summary = ApiImportMergeSummary.builder().build();
 
-        // 上传包先规范化并补缺失 example，再参与合并
+        // 上传包先规范化，缺 example 时按 schema 补一份再参与合并
         ObjectNode incomingRequest = ApiConfigJsonSupport.parseObjectOrEmpty(
                 ApiImportConfigPipeline.normalizeAndEnrichRequest(incomingRequestRaw));
         ObjectNode incomingResponse = ApiConfigJsonSupport.parseObjectOrEmpty(
@@ -72,8 +73,8 @@ public class ApiImportMergeService {
     }
 
     /**
-     * 合并请求结构：以上传包为形状基线，按参数名 soft merge 三类参数数组，
-     * 再对 body.json.schema 做字段级 soft merge，并从结构层剥离已写入 test_value_config 的 body 示例。
+     * 合并请求结构：上传包定参数与 body 形状，本地约束 soft merge；
+     * 最后把结构里残留的 value / body.example 拆进测值（已有 bodyExample 不覆盖）。
      */
     private static ObjectNode mergeRequestConfig(
             ObjectNode existing,
@@ -88,17 +89,27 @@ public class ApiImportMergeService {
         mergeParamArray(FIELD_HEADERS, existing, incoming, out, testRequest, summary);
 
         mergeBodySchema(existing, out);
-        mergeBodyExample(out, testRequest, summary);
+        // 拆测值前先保住本地已有 bodyExample，避免被上传包示例盖掉
+        JsonNode preservedBodyExample =
+                testRequest.has("bodyExample") ? testRequest.get("bodyExample").deepCopy() : null;
+        ApiTestValuePeelSupport.peelRequest(out, testRequest);
+        if (preservedBodyExample != null) {
+            testRequest.set("bodyExample", preservedBodyExample);
+        }
+        if (testRequest.has("bodyExample")) {
+            summary.addUserPreserved("bodyExample");
+        }
         return out;
     }
 
     /**
-     * 按参数 name 对齐一组参数数组。
+     * 按参数 name 合并一组参数数组。
      * <ul>
-     *   <li>上传有、本地无：记为新增，结构层采用上传项（去掉 value）</li>
-     *   <li>上传无、本地有：默认值写入 paramDefaults，参数名记入 removedParams，结构层不再保留该参数</li>
-     *   <li>两边都有且类型未变：结构用上传项 + 本地用户约束；类型变更则仅用上传项</li>
+     *   <li>上传有、本地无：记新增，结构用上传项（去掉 value）</li>
+     *   <li>上传无、本地有：记删除，参数名写入 removedParams</li>
+     *   <li>两边都有且类型未变：结构用上传项 + 本地用户约束；类型变了则只用上传项</li>
      * </ul>
+     * 测值只认测值配置列，不从本地结构 value 回填。
      */
     private static void mergeParamArray(
             String field,
@@ -116,7 +127,7 @@ public class ApiImportMergeService {
         removedNames.removeAll(incomingByName.keySet());
 
         for (String removed : removedNames) {
-            captureParamValue(existingByName.get(removed), removed, testRequest);
+            // 结构已删的参数名记入 removedParams；测值仍留在测值配置里
             trackParamRemoved(summary, field, removed);
             appendRemovedParam(testRequest, removed);
         }
@@ -134,7 +145,6 @@ public class ApiImportMergeService {
                 trackParamAdded(summary, field, name);
                 mergedArr.add(stripped);
             } else {
-                captureParamValue(localParam, name, testRequest);
                 mergedArr.add(ApiSchemaSoftMergeSupport.mergeParamNode(localParam, stripped));
             }
         }
@@ -170,22 +180,9 @@ public class ApiImportMergeService {
     }
 
     /**
-     * 有 bodyExample 时从结构层删掉 example，避免两处重复存同一份示例。
-     */
-    private static void mergeBodyExample(
-            ObjectNode out,
-            ObjectNode testRequest,
-            ApiImportMergeSummary summary) {
-        if (testRequest.has("bodyExample")) {
-            summary.addUserPreserved("bodyExample");
-            stripBodyExampleFromStructure(out);
-        }
-    }
-
-    /**
-     * 合并响应结构：按响应 id（或 httpStatus+name）对齐。
-     * 用户 example 写入 examplesById，合并结果里按 id 回填；
-     * 上传包已删除的响应，其 example 归档到 archivedExamples。
+     * 合并响应结构：按 id（或 httpStatus+name）对齐条目与 schema。
+     * 上传包带的 example 写入 examplesById（已有不覆盖）；结构里不留 example。
+     * 上传包删掉的条目，其测值挪到 archivedExamples。
      */
     private static ObjectNode mergeResponseConfig(
             ObjectNode existing,
@@ -203,13 +200,14 @@ public class ApiImportMergeService {
         Map<String, JsonNode> existingByKey = indexResponses(existingResponses);
         Map<String, JsonNode> incomingByKey = indexResponses(incomingResponses);
 
-        // 上传包不再包含的响应：把 example 归档
+        // 上传包已去掉的响应：把测值配置里对应示例挪到归档
         for (String key : existingByKey.keySet()) {
             if (!incomingByKey.containsKey(key)) {
                 JsonNode old = existingByKey.get(key);
                 String id = ApiConfigJsonSupport.textField(old, "id");
-                if (id != null && old.has("example") && !old.get("example").isNull()) {
-                    archivedExamples.set(id, old.get("example").deepCopy());
+                if (id != null && examplesById.has(id)) {
+                    archivedExamples.set(id, examplesById.get(id).deepCopy());
+                    examplesById.remove(id);
                 }
             }
         }
@@ -222,17 +220,17 @@ public class ApiImportMergeService {
 
             JsonNode oldEntry = existingByKey.get(key);
             if (oldEntry != null) {
-                captureResponseExample(oldEntry, id, examplesById);
                 ApiSchemaSoftMergeSupport.setOrNull(
                         mergedEntry,
                         "schema",
                         ApiSchemaSoftMergeSupport.mergeSchema(
                                 oldEntry.get("schema"), incomingEntry.get("schema")));
             }
-
-            // 用户已有 example 时回填到结构层，调试/设计页可直接看到
+            // 上传包结构里的 example → 测值（已有同 id 不覆盖）
+            captureResponseExample(incomingEntry, id, examplesById);
+            // 结构只留契约，去掉 example
+            mergedEntry.remove("example");
             if (id != null && examplesById.has(id)) {
-                mergedEntry.set("example", examplesById.get(id).deepCopy());
                 summary.addUserPreserved("responseExample:" + id);
             }
             mergedResponses.add(mergedEntry);
@@ -242,26 +240,7 @@ public class ApiImportMergeService {
     }
 
     /**
-     * 把参数上的非空 value 写入 test_value_config.request.paramDefaults。
-     * 无 value 或空串时不写。
-     */
-    private static void captureParamValue(JsonNode param, String name, ObjectNode testRequest) {
-        if (param == null || name == null) {
-            return;
-        }
-        JsonNode valueNode = param.get("value");
-        if (valueNode == null || valueNode.isNull()) {
-            return;
-        }
-        String value = valueNode.isTextual() ? valueNode.asText() : ApiConfigJsonSupport.writeCompact(valueNode);
-        if (StrUtil.isBlank(value)) {
-            return;
-        }
-        ApiConfigJsonSupport.ensureObject(testRequest, "paramDefaults").put(name, value);
-    }
-
-    /**
-     * 把响应项上的 example 写入 examplesById；同 id 已存在时不覆盖（保留用户值）。
+     * 把响应条目上的 example 写入 examplesById；同 id 已有则跳过。
      */
     private static void captureResponseExample(JsonNode entry, String id, ObjectNode examplesById) {
         if (id == null || entry == null || !entry.has("example") || entry.get("example").isNull()) {
@@ -292,18 +271,6 @@ public class ApiImportMergeService {
         ObjectNode copy = param.deepCopy();
         copy.remove("value");
         return copy;
-    }
-
-    /** 从 request 结构中删除 body.json.example。 */
-    private static void stripBodyExampleFromStructure(ObjectNode request) {
-        JsonNode body = request.get("body");
-        if (body == null || !body.isObject()) {
-            return;
-        }
-        JsonNode jsonPart = body.get("json");
-        if (jsonPart != null && jsonPart.isObject()) {
-            ((ObjectNode) jsonPart).remove("example");
-        }
     }
 
     /** 按参数 name 建索引；同名后者覆盖。 */

@@ -740,6 +740,7 @@ import {
   ensureTrailingEmptyRow,
 } from '@/views/project/testProject/utils/apiDetailRequestWorkbench'
 import { REQUEST_CONFIG_VERSION } from '@/views/project/testProject/utils/apiConfigConstants'
+import { peelTestValuesFromStructure } from '@/views/project/testProject/utils/peelTestValueConfig'
 import { HTTP_METHODS, getApiHttpMethodBadgeClass } from '@/views/project/testProject/utils/httpMethodMeta'
 import {executeDebugRequest} from '@/transport/debugTransport'
 import {useApiDebugScript, runPostScript, runPreScript} from '@/views/project/testProject/composables/useApiDebugScript'
@@ -1532,17 +1533,27 @@ async function handleDebugSend() {
   }
 }
 
-/** 收集请求草稿：返回路径、requestConfig、headers、cookies 字符串；失败返回 { error }。不要求已落库 ID。 */
-function buildPersistPayload() {
+/**
+ * 收集当前调试草稿并拆测值：结构只留定义，测值进 testValueConfig。
+ * @param responseConfigOverride 可选；设计页/预制口传入当前响应稿，否则用详情里的 responseConfig
+ */
+function buildPersistPayload(responseConfigOverride) {
   try {
     applyBodyJsonToDraftBeforeSave()
   } catch {
     return {error: '请求体 JSON 格式无效'}
   }
   const rc = cloneRequestConfigForSave(draftRequestConfig.value)
+  const peeled = peelTestValuesFromStructure(
+      rc,
+      responseConfigOverride !== undefined ? responseConfigOverride : props.apiDetail?.responseConfig,
+      props.apiDetail?.testValueConfig,
+  )
   return {
     apiPath: draftApiPath.value,
-    requestConfig: JSON.stringify(rc),
+    requestConfig: JSON.stringify(peeled.requestConfig),
+    responseConfig: JSON.stringify(peeled.responseConfig),
+    testValueConfig: JSON.stringify(peeled.testValueConfig),
     headers: JSON.stringify(rowsToKeyValueObject(draftHeaderRows.value)),
     cookies: JSON.stringify(rowsToKeyValueObject(draftCookieRows.value)),
     preRequestScript: draftPreRequestScript.value ?? '',
@@ -1574,7 +1585,8 @@ function handleSaveApiDebug() {
     requestConfig: part.requestConfig,
     headers: part.headers,
     cookies: part.cookies,
-    responseConfig: props.apiDetail.responseConfig,
+    responseConfig: part.responseConfig ?? props.apiDetail.responseConfig,
+    testValueConfig: part.testValueConfig,
     preRequestScript:
         part.preRequestScript !== undefined ? part.preRequestScript : props.apiDetail.preRequestScript,
     postRequestScript:

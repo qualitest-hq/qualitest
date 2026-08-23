@@ -496,13 +496,15 @@ public final class ProjectAuthConfigSupport {
         return apis;
     }
 
-    /** 组装一条免登预制口；抽凭证不写在 authConfig。 */
+    /**
+     * 组装一条免登预制接口：请求结构只有 schema；响应 example 拆进测值配置。
+     */
     private static PrefabricatedApi prefabricatedNone(
             String apiName,
             String apiPath,
             String apiGroup,
             String method,
-            Map<String, Object> bodyExample,
+            Map<String, Object> bodySkeleton,
             Object testValueConfig,
             Object responseConfig,
             String designHint) {
@@ -510,26 +512,33 @@ public final class ProjectAuthConfigSupport {
         if (StrUtil.isNotBlank(designHint)) {
             designHints = Map.of("hints", List.of(designHint));
         }
+        Map<String, Object> tv = new LinkedHashMap<>();
+        if (testValueConfig instanceof Map<?, ?> existingTv) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cast = (Map<String, Object>) existingTv;
+            tv.putAll(cast);
+        }
+        Object responseOut = peelPrefabResponseIntoTestValue(responseConfig, tv);
         return PrefabricatedApi.builder()
                 .apiName(apiName)
                 .apiPath(apiPath)
                 .apiGroup(apiGroup)
                 .protocolType("http")
                 .apiStatus("normal")
-                .requestConfig(minimalRequestConfig(method, bodyExample))
-                .testValueConfig(testValueConfig)
-                .responseConfig(responseConfig)
+                .requestConfig(minimalRequestConfigStructure(method, bodySkeleton))
+                .testValueConfig(tv.isEmpty() ? null : tv)
+                .responseConfig(responseOut)
                 .authConfig(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).build())
                 .designHints(designHints)
                 .build();
     }
 
-    /** 测值层：调试默认登录 body，走 test_value_config.request.bodyExample。 */
+    /** 测值：调试用默认登录 body，形状为 request.bodyExample。 */
     private static Map<String, Object> requestBodyTestValue(Map<String, Object> bodyExample) {
         return Map.of("request", Map.of("bodyExample", bodyExample));
     }
 
-    /** 登录口响应 example，供 schema 嗅探；抽凭证仍以 Profile.loginHint 为准。 */
+    /** 登录响应草稿：带 schema 与 example；组装时会把 example 拆进测值。 */
     private static Map<String, Object> loginResponseConfig(Map<String, Object> example) {
         return Map.of(
                 "configVersion", 1,
@@ -538,7 +547,79 @@ public final class ProjectAuthConfigSupport {
                         "name", "成功",
                         "httpStatus", 200,
                         "contentType", "json",
+                        "schema", inferObjectSchema(example),
                         "example", example)));
+    }
+
+    /**
+     * 把响应里的 example 拆进测值 Map，返回去掉 example 后的响应对象。
+     */
+    @SuppressWarnings("unchecked")
+    private static Object peelPrefabResponseIntoTestValue(Object responseConfig, Map<String, Object> tv) {
+        if (responseConfig == null) {
+            return null;
+        }
+        String tvJson = (tv == null || tv.isEmpty()) ? null : JSONUtil.toJsonStr(tv);
+        ApiTestValuePeelSupport.PeelResult peeled = ApiTestValuePeelSupport.peel(
+                "{}", JSONUtil.toJsonStr(responseConfig), tvJson);
+        if (tv != null) {
+            tv.clear();
+            Map<String, Object> nextTv = JSONUtil.toBean(peeled.getTestValueConfig(), Map.class);
+            if (nextTv != null && !nextTv.isEmpty()) {
+                tv.putAll(nextTv);
+            }
+        }
+        return JSONUtil.toBean(peeled.getResponseConfig(), Map.class);
+    }
+
+    /** 预制请求结构：只有 method / 空参数数组 / body.schema，不含 example。 */
+    private static Object minimalRequestConfigStructure(String method, Map<String, Object> bodySkeleton) {
+        Map<String, Object> body;
+        if ("GET".equalsIgnoreCase(method) || bodySkeleton == null || bodySkeleton.isEmpty()) {
+            body = Map.of("mode", "none");
+        } else {
+            body = Map.of("mode", "json", "json", Map.of("schema", inferObjectSchema(bodySkeleton)));
+        }
+        Map<String, Object> rc = new LinkedHashMap<>();
+        rc.put("configVersion", 1);
+        rc.put("method", method != null ? method.toUpperCase(Locale.ROOT) : "GET");
+        rc.put("queryParams", List.of());
+        rc.put("pathParams", List.of());
+        rc.put("declaredHeaders", List.of());
+        rc.put("body", body);
+        return rc;
+    }
+
+    private static Map<String, Object> inferObjectSchema(Map<String, Object> example) {
+        Map<String, Object> props = new LinkedHashMap<>();
+        if (example != null) {
+            for (Map.Entry<String, Object> e : example.entrySet()) {
+                props.put(e.getKey(), Map.of("type", schemaTypeOf(e.getValue())));
+            }
+        }
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", props);
+        return schema;
+    }
+
+    private static String schemaTypeOf(Object v) {
+        if (v instanceof Boolean) {
+            return "boolean";
+        }
+        if (v instanceof Integer || v instanceof Long) {
+            return "integer";
+        }
+        if (v instanceof Number) {
+            return "number";
+        }
+        if (v instanceof Map<?, ?>) {
+            return "object";
+        }
+        if (v instanceof List<?>) {
+            return "array";
+        }
+        return "string";
     }
 
     /** 发凭证口：method + 规范化 path。 */

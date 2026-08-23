@@ -95,10 +95,8 @@ public class TestProjectApi extends BaseEntity {
     private String responseConfig;
 
     /**
-     * 测试值层 JSON：与 request/response 结构分列存储。
-     * 典型内容：paramDefaults（参数默认值）、bodyExample（请求体示例）、
-     * response.examplesById（按响应 id 存的 example）、removedParams（结构已删参数名归档）。
-     * 导入更新时按字段合并写入，不整段清空用户已填内容。
+     * 测值配置 JSON：调试默认参数、请求体示例、按响应 id 存的示例等。
+     * 与 request_config / response_config 分列；保存时从结构里拆出测值写入本列，读详情再叠回去展示。
      */
     private String testValueConfig;
 

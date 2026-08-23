@@ -49,18 +49,20 @@
           <template v-else>
             <div v-if="showDeclaredHeadersSection" class="doc-subblock">
               <h3 class="doc-subblock-title">
-                <span class="doc-subblock-title__text">声明 Headers</span>
+                <span class="doc-subblock-title__text">声明 Headers（契约）</span>
                 <span class="doc-subblock-count">{{ declaredHeaderRows.length }}</span>
               </h3>
+              <p class="doc-subblock-hint">描述请求头参数定义，不直接作为调试发出的请求头。</p>
               <div class="doc-kv-table-wrap">
                 <DocPreviewDataTable :rows="declaredHeaderRows" variant="kv5"/>
               </div>
             </div>
             <div v-if="showHeadersSection" class="doc-subblock">
               <h3 class="doc-subblock-title">
-                <span class="doc-subblock-title__text">Headers</span>
+                <span class="doc-subblock-title__text">调试 Headers（发出）</span>
                 <span class="doc-subblock-count">{{ headersRows.length }}</span>
               </h3>
+              <p class="doc-subblock-hint">实际调试/跑流发送时使用的请求头键值。</p>
               <div class="doc-kv-table-wrap">
                 <DocPreviewDataTable :rows="headersRows" variant="kv4"/>
               </div>
@@ -700,6 +702,14 @@ const currentResponseExampleText = computed(() => {
   font-weight: 600;
   color: var(--pd-text-tab, #334c6e);
   background: rgba(11, 110, 220, 0.1);
+}
+
+.doc-subblock-hint {
+  margin: -4px 0 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
 }
 
 .doc-body-hint {

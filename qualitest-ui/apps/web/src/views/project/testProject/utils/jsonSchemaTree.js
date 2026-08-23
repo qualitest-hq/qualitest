@@ -344,7 +344,7 @@ function copyLeafExtrasBetween(from, to) {
   }
 }
 
-/** Body 单列「参数值」：仅 default 缺省时用 example 填满 mock，避免旧数据只含 example 时不显示 */
+/** Body 单列「参数值」：mock 为空时用 schema.example 填满，方便只写了 example 的字段也能编辑 */
 function mergeExampleIntoMockWhenDefaultMissing(node) {
   if (!node) return
   const t = String(node.type || '').toLowerCase()

@@ -231,8 +231,8 @@ class ProjectAuthTemplateApplyServiceTest {
     }
 
     /**
-     * 前提：模板登录口带 loginHint。
-     * 期望：接口行只写 mode=none；项目 Profile 上有 loginHint 与 credentialApi。
+     * 模板登录口带 loginHint。
+     * 期望：Profile 上有 loginHint 与 credentialApi；接口行只写 mode=none；测值在 testValueConfig，响应结构无 example。
      */
     @Test
     @Order(6)
@@ -261,7 +261,8 @@ class ProjectAuthTemplateApplyServiceTest {
         assertFalse(authJson.contains("adminToken"));
         assertFalse(authJson.contains("loginHint"));
         assertTrue(inserts.getValue().get(0).getTestValueConfig().contains("admin"));
-        assertTrue(inserts.getValue().get(0).getResponseConfig().contains("token"));
+        assertTrue(inserts.getValue().get(0).getTestValueConfig().contains("token"));
+        assertFalse(inserts.getValue().get(0).getResponseConfig().contains("\"example\""));
     }
 
     private void stubEmptyProject() {
@@ -303,8 +304,9 @@ class ProjectAuthTemplateApplyServiceTest {
         return "[{\"apiName\":\"登录\",\"apiPath\":\"/login\",\"apiGroup\":\"登录\","
                 + "\"protocolType\":\"http\",\"apiStatus\":\"normal\","
                 + "\"requestConfig\":{\"configVersion\":1,\"method\":\"POST\"},"
-                + "\"testValueConfig\":{\"request\":{\"bodyExample\":{\"username\":\"admin\",\"password\":\"admin123\"}}},"
-                + "\"responseConfig\":{\"configVersion\":1,\"responses\":[{\"httpStatus\":200,\"example\":{\"code\":200,\"token\":\"...\"}}]},"
+                + "\"testValueConfig\":{\"request\":{\"bodyExample\":{\"username\":\"admin\",\"password\":\"admin123\"}},"
+                + "\"response\":{\"examplesById\":{\"ok\":{\"code\":200,\"token\":\"...\"}}}},"
+                + "\"responseConfig\":{\"configVersion\":1,\"responses\":[{\"id\":\"ok\",\"httpStatus\":200}]},"
                 + "\"authConfig\":{\"mode\":\"none\",\"loginHint\":{\"flowKey\":\""
                 + flowKey + "\",\"from\":\"body\",\"expr\":\"$.token\"}}}]";
     }

@@ -5,6 +5,8 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
+import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
+import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
@@ -150,7 +152,8 @@ public class ProjectAuthTemplateApplyService {
     }
 
     /**
-     * 模板转成一条 Profile：新 id、名称取模板名；path 已存在的预制口丢掉不写入。
+     * 模板转成一条项目鉴权 Profile：新 id、名称用模板名；path 已存在的预制口跳过。
+     * 预制口 auth 上的 loginHint 提到 Profile，并据此写出 credentialApi（发凭证的那一口）。
      */
     private ProjectAuthProfile toProfile(
             TestProjectTemplate template, Set<String> apiIdentities, List<PrefabricatedApi> toSeed) {
@@ -175,12 +178,30 @@ public class ProjectAuthTemplateApplyService {
             kept.add(api);
             toSeed.add(api);
         }
+        // 把预制口上的 loginHint 提到 Profile，并记下对应 method+path 为发凭证口
+        LoginHint loginHint = null;
+        CredentialApi credentialApi = null;
+        for (PrefabricatedApi api : kept) {
+            if (api.getAuthConfig() == null || api.getAuthConfig().getLoginHint() == null) {
+                continue;
+            }
+            LoginHint hint = api.getAuthConfig().getLoginHint();
+            if (StrUtil.isBlank(hint.getFlowKey())) {
+                continue;
+            }
+            loginHint = hint;
+            credentialApi = ProjectAuthConfigSupport.credentialApi(
+                    ProjectAuthConfigSupport.prefabricatedHttpMethod(api), api.getApiPath());
+            break;
+        }
         return ProjectAuthProfile.builder()
                 .id(String.valueOf(IdUtil.getSnowflakeNextId()))
                 .name(template.getTemplateName().trim())
                 .match(match)
                 .headerName(template.getHeaderName())
                 .headerValueTemplate(template.getHeaderValueTemplate())
+                .credentialApi(credentialApi)
+                .loginHint(loginHint)
                 .apis(kept)
                 .build();
     }
@@ -268,7 +289,7 @@ public class ProjectAuthTemplateApplyService {
         return RequestConfigImportNormalizer.normalize(raw);
     }
 
-    /** 预制口鉴权转落库 JSON；只写 mode，不把 loginHint 落到接口行。 */
+    /** 预制口鉴权落库：只写 mode / profileId / 自定义头，不写 loginHint（抽凭证规则在 Profile 上）。 */
     private String serializeAuthConfig(PrefabricatedApi prefab) {
         if (prefab.getAuthConfig() == null || StrUtil.isBlank(prefab.getAuthConfig().getMode())) {
             return ApiAuthConfigSupport.noneStorageJson();

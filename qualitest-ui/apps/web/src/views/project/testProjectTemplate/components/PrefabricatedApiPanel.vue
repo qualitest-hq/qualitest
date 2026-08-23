@@ -250,6 +250,7 @@ import {
   readAuthOverrideHeader,
   responseConfigToEditorText,
 } from '../utils/prefabApiWorkbench'
+import { peelTestValuesFromStructure } from '@/views/project/testProject/utils/peelTestValueConfig'
 
 const props = defineProps({
   readOnly: { type: Boolean, default: false },
@@ -368,6 +369,7 @@ function setCurrentTableRow() {
   })
 }
 
+/** 把当前工作台请求/响应草稿拆测值后写回选中的预制接口 */
 function flushWorkbenchToModel() {
   if (props.readOnly) {
     return { ok: true, message: '' }
@@ -378,7 +380,12 @@ function flushWorkbenchToModel() {
 
   responseConfigPanelRef.value?.flushPendingModelEmit?.()
 
-  const part = debugTabRef.value?.buildPersistPayload?.()
+  const respParsed = parseResponseConfigEditorText(responseConfigText.value)
+  if (!respParsed.ok) {
+    return { ok: false, message: respParsed.error || '响应配置无效' }
+  }
+
+  const part = debugTabRef.value?.buildPersistPayload?.(respParsed.value)
   if (!part) {
     return { ok: false, message: '无法读取请求配置' }
   }
@@ -387,13 +394,7 @@ function flushWorkbenchToModel() {
     return { ok: false, message: applied.error || '请求配置无效' }
   }
 
-  let nextApi = applied.api
-  const respParsed = parseResponseConfigEditorText(responseConfigText.value)
-  if (!respParsed.ok) {
-    return { ok: false, message: respParsed.error || '响应配置无效' }
-  }
-  nextApi = { ...nextApi, responseConfig: respParsed.value }
-  replaceApisAt(selectedIndex.value, nextApi)
+  replaceApisAt(selectedIndex.value, applied.api)
   return { ok: true, message: '' }
 }
 
@@ -459,15 +460,23 @@ function handleMove(delta) {
   selectedIndex.value = to
 }
 
+/** 响应 JSON 编辑即时：拆 example 进测值，结构只留定义 */
 function onResponseConfigTextChange(text) {
   if (props.readOnly) return
   responseConfigText.value = text
   if (selectedIndex.value < 0 || !selectedApi.value) return
   const parsed = parseResponseConfigEditorText(text)
   if (!parsed.ok) return
+  const peeled = peelTestValuesFromStructure(
+    selectedApi.value.requestConfig,
+    parsed.value,
+    selectedApi.value.testValueConfig,
+  )
   replaceApisAt(selectedIndex.value, {
     ...selectedApi.value,
-    responseConfig: parsed.value,
+    requestConfig: peeled.requestConfig,
+    responseConfig: peeled.responseConfig,
+    testValueConfig: peeled.testValueConfig,
   })
 }
 

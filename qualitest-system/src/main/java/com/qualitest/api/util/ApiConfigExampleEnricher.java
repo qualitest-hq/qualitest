@@ -8,10 +8,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 按 JSON Schema 为 requestConfig / responseConfig 补全 example 字段。
+ * 按 JSON Schema 给请求/响应补全 example。
  * <p>
- * 导入流水线在规范化之后调用：请求侧只处理 body.mode=json；
- * 响应侧只处理 responses 中 contentType=json 的项。
+ * 请求：仅 body.mode=json 且缺 example 时生成；响应：仅 contentType=json 且缺 example 的条目生成。
+ * 已有非空 example 一律不改。
  */
 @Slf4j
 public final class ApiConfigExampleEnricher {
@@ -20,8 +20,7 @@ public final class ApiConfigExampleEnricher {
     }
 
     /**
-     * 当 body.mode 为 json 且存在 schema 时，生成 body.json.example。
-     * 解析失败或非 json 模式时原样返回入参。
+     * 给请求 body.json 补 example：有 schema、缺 example 时生成；已有样例原样返回。
      */
     public static String enrichRequestConfig(String requestConfigJson) {
         if (StrUtil.isBlank(requestConfigJson)) {
@@ -47,6 +46,9 @@ public final class ApiConfigExampleEnricher {
                 return requestConfigJson;
             }
             ObjectNode jsonBodyObj = (ObjectNode) jsonBody;
+            if (!exampleMissing(jsonBodyObj.get("example"))) {
+                return requestConfigJson;
+            }
             JsonNode schema = jsonBodyObj.get("schema");
             JsonNode generated = JsonSchemaExampleGenerator.generate(schema);
             if (generated != null) {
@@ -60,8 +62,7 @@ public final class ApiConfigExampleEnricher {
     }
 
     /**
-     * 为 responses 列表中 contentType=json 的每一项按 schema 生成 example。
-     * 无变更时原样返回入参字符串。
+     * 给响应列表中缺 example 的 json 条目按 schema 生成 example；已有样例不改。
      */
     public static String enrichResponseConfig(String responseConfigJson) {
         if (StrUtil.isBlank(responseConfigJson)) {
@@ -88,6 +89,9 @@ public final class ApiConfigExampleEnricher {
                 if (!"json".equalsIgnoreCase(ct)) {
                     continue;
                 }
+                if (!exampleMissing(entry.get("example"))) {
+                    continue;
+                }
                 JsonNode schema = entry.get("schema");
                 JsonNode generated = JsonSchemaExampleGenerator.generate(schema);
                 if (generated != null) {
@@ -100,5 +104,16 @@ public final class ApiConfigExampleEnricher {
             log.warn("enrichResponseConfig 失败，保留原配置: {}", e.getMessage());
             return responseConfigJson;
         }
+    }
+
+    /** 判断 example 是否可补全：缺失、null 或空白字符串。 */
+    static boolean exampleMissing(JsonNode example) {
+        if (example == null || example.isNull()) {
+            return true;
+        }
+        if (example.isTextual()) {
+            return StrUtil.isBlank(example.asText());
+        }
+        return false;
     }
 }
