@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 
-/** 鉴权模板分页列表 */
+/** 项目模板分页列表 */
 export function listTestProjectTemplate(query) {
   return request({
     url: '/project/testProjectTemplate/list',
@@ -9,7 +9,7 @@ export function listTestProjectTemplate(query) {
   })
 }
 
-/** 鉴权模板详情 */
+/** 项目模板详情 */
 export function getTestProjectTemplate(testProjectTemplateId) {
   return request({
     url: '/project/testProjectTemplate/' + testProjectTemplateId,
@@ -17,7 +17,7 @@ export function getTestProjectTemplate(testProjectTemplateId) {
   })
 }
 
-/** 新增自定义鉴权模板 */
+/** 新增自定义项目模板 */
 export function addTestProjectTemplate(data) {
   return request({
     url: '/project/testProjectTemplate',
@@ -26,7 +26,7 @@ export function addTestProjectTemplate(data) {
   })
 }
 
-/** 修改自定义鉴权模板 */
+/** 修改自定义项目模板 */
 export function updateTestProjectTemplate(data) {
   return request({
     url: '/project/testProjectTemplate',
@@ -35,7 +35,7 @@ export function updateTestProjectTemplate(data) {
   })
 }
 
-/** 逻辑删除自定义鉴权模板 */
+/** 逻辑删除自定义项目模板 */
 export function delTestProjectTemplate(testProjectTemplateIds) {
   return request({
     url: '/project/testProjectTemplate/' + testProjectTemplateIds,
@@ -51,7 +51,7 @@ export function cloneTestProjectTemplate(testProjectTemplateId) {
   })
 }
 
-/** 已启用鉴权模板列表（新建/设置勾选） */
+/** 已启用项目模板列表（新建/设置勾选） */
 export function listEnabledTestProjectTemplate() {
   return request({
     url: '/project/testProjectTemplate/enabledList',

@@ -73,7 +73,7 @@
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">项目鉴权</h3>
             <p class="project-setting__card-desc">
-              从模板库勾选开源/靶场 Profile；免登由预制接口 <code>authConfig.mode=none</code> 决定，不再维护匿名 path 清单。
+              从项目模板勾选开源/靶场 Profile；免登由预制接口 <code>authConfig.mode=none</code> 决定，不再维护匿名 path 清单。
               pathPrefix 禁止写 <code>/</code>。
             </p>
           </header>
@@ -82,14 +82,14 @@
               v-if="authForm.needsAuthTemplateHint"
               class="project-setting__auth-hint"
               show-icon
-              title="当前有 Profile 但缺少预制接口，请从模板库添加以补齐登录/注册/验证码等免登口。"
+              title="当前有 Profile 但缺少预制接口，请从项目模板添加以补齐登录/注册/验证码等免登口。"
               type="warning"
               :closable="false"
           />
 
           <div class="project-setting__auth-toolbar">
             <el-button :loading="templateApplying" size="small" type="primary" @click="openTemplatePicker">
-              从模板库添加
+              从项目模板添加
             </el-button>
             <el-button size="small" @click="addAuthProfile">手动添加 Profile</el-button>
           </div>
@@ -183,12 +183,12 @@
                 </el-table>
               </div>
               <p v-else class="project-setting__hint project-setting__hint--inline">
-                暂无预制接口；请从模板库添加，或保存后由后端种子接口。
+                暂无预制接口；请从项目模板添加，或保存后由后端种子接口。
               </p>
             </el-collapse-item>
           </el-collapse>
           <div v-else class="project-setting__empty-box project-setting__empty-box--compact">
-            尚未配置 Profile，请从模板库添加或手动添加
+            尚未配置 Profile，请从项目模板添加或手动添加
           </div>
 
           <pre class="project-setting__preview-block"><code>{{ authPreview }}</code></pre>
@@ -203,7 +203,7 @@
           </div>
         </section>
 
-        <el-dialog v-model="templatePickerVisible" append-to-body title="从模板库添加" width="520px">
+        <el-dialog v-model="templatePickerVisible" append-to-body title="从项目模板添加" width="520px">
           <div class="project-setting__template-picker">
             <p class="project-setting__hint">
               勾选后追加到当前项目；同名 Profile 整份跳过，已有 method+path 的预制口不会覆盖。

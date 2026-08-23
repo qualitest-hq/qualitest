@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { listEnabledTestProjectTemplate } from '@/api/project/testProjectTemplate'
 
 /**
- * 已启用鉴权模板列表：新建项目勾选、设置页追加共用。
+ * 已启用项目模板列表：新建项目勾选、设置页追加共用。
  */
 export function useEnabledAuthTemplates() {
   const templateLoading = ref(false)

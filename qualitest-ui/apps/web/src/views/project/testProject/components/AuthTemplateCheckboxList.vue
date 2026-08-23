@@ -24,7 +24,7 @@
 
 <script setup>
 /**
- * 启用模板勾选列表：新建项目、设置页「从模板库添加」共用。
+ * 启用模板勾选列表：新建项目、设置页「从项目模板添加」共用。
  */
 import { formatPathPrefixHint } from '../../testProjectTemplate/utils/templateForm'
 

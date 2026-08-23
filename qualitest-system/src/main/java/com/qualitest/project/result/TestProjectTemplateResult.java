@@ -14,7 +14,7 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * 鉴权模板查询结果。
+ * 项目模板查询结果。
  */
 @Getter
 @Setter

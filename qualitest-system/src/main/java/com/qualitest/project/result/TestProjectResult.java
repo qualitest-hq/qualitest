@@ -52,7 +52,7 @@ public class TestProjectResult implements Serializable {
     private String authConfig;
 
     /**
-     * 有 Profile 但预制 apis 全空时为 true，前端提示从模板库添加。
+     * 有 Profile 但预制 apis 全空时为 true，前端提示从项目模板添加。
      */
     private Boolean needsAuthTemplateHint;
 

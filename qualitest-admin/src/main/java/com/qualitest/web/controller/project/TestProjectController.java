@@ -121,10 +121,10 @@ public class TestProjectController extends BaseController {
     }
 
     /**
-     * 从模板库追加鉴权 Profile，并种子尚未存在的预制接口。
+     * 从项目模板追加鉴权 Profile，并种子尚未存在的预制接口。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
-    @Log(title = "测试项目鉴权模板", businessType = BusinessType.UPDATE)
+    @Log(title = "测试项目模板", businessType = BusinessType.UPDATE)
     @PostMapping("/{testProjectId}/applyAuthTemplates")
     public R<Void> applyAuthTemplates(
             @PathVariable Long testProjectId,

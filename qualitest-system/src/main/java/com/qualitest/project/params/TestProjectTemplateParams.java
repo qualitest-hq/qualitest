@@ -12,7 +12,7 @@ import org.apache.ibatis.type.Alias;
 import java.io.Serializable;
 
 /**
- * 鉴权模板列表查询条件。
+ * 项目模板列表查询条件。
  */
 @Getter
 @Setter

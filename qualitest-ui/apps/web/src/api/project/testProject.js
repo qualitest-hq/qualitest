@@ -52,7 +52,7 @@ export function myProjectContext(testProjectId) {
   })
 }
 
-/** 从模板库追加鉴权 Profile，并种子尚未存在的预制接口 */
+/** 从项目模板追加鉴权 Profile，并种子尚未存在的预制接口 */
 export function applyAuthTemplates(testProjectId, templateIds) {
   return request({
     url: `/project/testProject/${testProjectId}/applyAuthTemplates`,

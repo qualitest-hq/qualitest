@@ -13,7 +13,7 @@ import org.apache.ibatis.type.Alias;
 import java.io.Serial;
 
 /**
- * 鉴权模板表 test_project_template。
+ * 项目模板表 test_project_template。
  * 一行模板对应一套 Profile：头模板 + 预制接口。勾选后拷贝进项目 auth_config。
  */
 @Getter

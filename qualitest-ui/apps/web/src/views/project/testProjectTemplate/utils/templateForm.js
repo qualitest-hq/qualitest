@@ -1,5 +1,5 @@
 /**
- * 鉴权模板库表单：matchConfig / apis JSON 与 pathPrefix 文本互转。
+ * 项目模板表单：matchConfig / apis JSON 与 pathPrefix 文本互转。
  */
 
 import { formatAuthModeLabel, parseJsonMaybe, splitPathLines } from '../../testProject/utils/projectAuthConfig'

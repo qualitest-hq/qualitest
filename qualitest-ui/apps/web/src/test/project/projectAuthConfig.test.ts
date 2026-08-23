@@ -60,7 +60,7 @@ describe('parseAuthConfig', () => {
 
     const form = parseAuthConfig(raw)
 
-    // 期望：提示用户从模板库补齐预制接口
+    // 期望：提示用户从项目模板补齐预制接口
     expect(form.needsAuthTemplateHint).toBe(true)
   })
 

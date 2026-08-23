@@ -485,8 +485,8 @@ function openDialog(mode, row) {
   if (row) {
     form.value = templateToForm(row)
   }
-  const titles = { add: '新增鉴权模板', edit: '修改鉴权模板', view: '查看鉴权模板' }
-  title.value = titles[mode] || '鉴权模板'
+  const titles = { add: '新增项目模板', edit: '修改项目模板', view: '查看项目模板' }
+  title.value = titles[mode] || '项目模板'
   open.value = true
 }
 
@@ -576,7 +576,7 @@ function handleDelete(row) {
     proxy.$modal.msgWarning('内置模板不可删除')
     return
   }
-  proxy.$modal.confirm('是否确认删除所选鉴权模板？').then(() => {
+  proxy.$modal.confirm('是否确认删除所选项目模板？').then(() => {
     return delTestProjectTemplate(idList.join(','))
   }).then(() => {
     getList()

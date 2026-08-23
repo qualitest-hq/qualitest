@@ -46,7 +46,7 @@ class TestProjectAuthTemplateGateTest {
 
     /**
      * 前提：新建未勾模板且 auth 空 / {}。
-     * 期望：ServiceException 含「鉴权模板」。
+     * 期望：ServiceException 含「项目模板」。
      */
     @Test
     @Order(1)
@@ -59,13 +59,13 @@ class TestProjectAuthTemplateGateTest {
         TestProject blank = new TestProject();
         blank.setProjectName("demo");
         ServiceException ex = assertThrows(ServiceException.class, () -> service.insertTestProject(blank));
-        assertTrue(ex.getMessage().contains("鉴权模板"));
+        assertTrue(ex.getMessage().contains("项目模板"));
 
         TestProject emptyJson = new TestProject();
         emptyJson.setProjectName("demo");
         emptyJson.setAuthConfig("{}");
         ex = assertThrows(ServiceException.class, () -> service.insertTestProject(emptyJson));
-        assertTrue(ex.getMessage().contains("鉴权模板"));
+        assertTrue(ex.getMessage().contains("项目模板"));
     }
 
     /**

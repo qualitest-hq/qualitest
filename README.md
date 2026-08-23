@@ -235,7 +235,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 -->
 <img src="docs/images/demo-story-main-a.gif" alt="主链路 A：IDEA 同步接口后在调试台发通" width="820"/>
 
-##### B · 鉴权模板 + 登录子流挂上主流
+##### B · 项目模板 + 登录子流挂上主流
 
 <!--
   录制：项目鉴权已有 Bearer（或建项勾模板）→ 画布拖 Subflow → 从平台模板创建 Bearer 登录 → 主流 Start→Subflow→业务 HTTP

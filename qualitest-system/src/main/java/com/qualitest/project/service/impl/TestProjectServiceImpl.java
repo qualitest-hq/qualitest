@@ -117,11 +117,11 @@ public class TestProjectServiceImpl implements ITestProjectService {
         } else if (testProject.getAuthConfig() != null) {
             String normalized = ProjectAuthConfigSupport.normalizeToJson(testProject.getAuthConfig());
             if (ProjectAuthConfigSupport.isEmpty(ProjectAuthConfigSupport.parse(normalized))) {
-                throw new ServiceException("新建项目须至少勾选一套鉴权模板");
+                throw new ServiceException("新建项目须至少勾选一套项目模板");
             }
             testProject.setAuthConfig(normalized);
         } else {
-            throw new ServiceException("新建项目须至少勾选一套鉴权模板");
+            throw new ServiceException("新建项目须至少勾选一套项目模板");
         }
         testProject.setCreateTime(DateUtils.getNowDate());
         int rows = testProjectMapper.insertTestProject(testProject);

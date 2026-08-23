@@ -14,7 +14,7 @@
 
 1. 登录节点 **extract 路径写错**（管理端 `/login` 用 `$.token`→`adminToken`，客户端用 `$.data.token`→`token`）。
 2. 图里用了 Bearer，但**没有**对应端的登录抽取 / assign / 子流输出。
-3. 登录口应是免登（`mode=none`），却仍被补了 `Bearer {{flow.token}}`——查项目鉴权模板与接口 `auth.mode`。
+3. 登录口应是免登（`mode=none`），却仍被补了 `Bearer {{flow.token}}`——查项目模板与接口 `auth.mode`。
 
 → [project-summary.md §4](./project-summary.md) · [flow-variables-and-values.md](./flow-variables-and-values.md)
 
@@ -87,8 +87,8 @@ Staging **全部 ✕** 取消坏提案，或**新建一条流**重来。不要�
 
 → [deploy.md](./deploy.md) · [mcp.md §6](./mcp.md)
 
-### 新建项目时为什么要勾「鉴权模板」
+### 新建项目时为什么要勾「项目模板」
 
 模板写入 Profile、登录口免登与**预制登录口**；不勾无法创建。**业务 API** 仍须 IDEA 插件上传（手册 **T1.3**）。商城类双端项目建议勾「管理端 Bearer」+「客户端 Bearer」。
 
-→ [project-summary.md §4.1](./project-summary.md) · 手册 **T1.2**（鉴权模板）· **T1.3**（插件上传）
+→ [project-summary.md §4.1](./project-summary.md) · 手册 **T1.2**（项目模板）· **T1.3**（插件上传）

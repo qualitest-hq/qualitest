@@ -10,7 +10,7 @@ import lombok.Setter;
 import java.util.List;
 
 /**
- * 给已有项目追加鉴权模板时的请求体。
+ * 给已有项目追加项目模板时的请求体。
  */
 @Getter
 @Setter

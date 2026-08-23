@@ -9,7 +9,7 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * 鉴权模板表访问。
+ * 项目模板表访问。
  */
 @Mapper
 public interface TestProjectTemplateMapper {

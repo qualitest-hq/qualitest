@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 鉴权模板业务：内置只读可克隆；自定义名称在未删除范围内唯一。
+ * 项目模板业务：内置只读可克隆；自定义名称在未删除范围内唯一。
  */
 @Service
 public class TestProjectTemplateServiceImpl implements ITestProjectTemplateService {

@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 把勾选的鉴权模板拷进项目 auth_config，并按预制接口插入尚未存在的项目接口。
+ * 把勾选的项目模板拷进项目 auth_config，并按预制接口插入尚未存在的项目接口。
  * <p>
  * 同名 Profile 整份跳过；method+path 已存在的预制口不写入该条、也不改已有接口。
  * Profile id 新生成，不沿用模板主键。跑流只读项目里这份副本。
@@ -76,7 +76,7 @@ public class ProjectAuthTemplateApplyService {
         }
         List<Long> ids = uniqueKeepOrder(templateIds);
         if (ids.isEmpty()) {
-            throw new ServiceException("须至少勾选一套鉴权模板");
+            throw new ServiceException("须至少勾选一套项目模板");
         }
         TestProject project = testProjectMapper.selectTestProjectById(testProjectId);
         if (project == null) {
@@ -122,7 +122,7 @@ public class ProjectAuthTemplateApplyService {
 
         ProjectAuthConfig normalized = ProjectAuthConfigSupport.normalize(current);
         if (ProjectAuthConfigSupport.isEmpty(normalized)) {
-            throw new ServiceException("须至少勾选一套鉴权模板");
+            throw new ServiceException("须至少勾选一套项目模板");
         }
         TestProject update = new TestProject();
         update.setTestProjectId(testProjectId);

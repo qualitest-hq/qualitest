@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 鉴权模板库接口：列表、详情、增改删、克隆、启用列表。
+ * 项目模板接口：列表、详情、增改删、克隆、启用列表。
  */
 @RestController
 @RequestMapping("/project/testProjectTemplate")
