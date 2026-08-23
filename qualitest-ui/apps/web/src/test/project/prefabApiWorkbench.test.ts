@@ -42,14 +42,18 @@ describe('prefabToWorkbenchDetail', () => {
 
 describe('applyWorkbenchPersistToPrefab', () => {
   it('无 ID 的 persist 字符串列可合并回对象', () => {
-    // 前提：工作台返回字符串列（与设计页一致）
+    // 前提：工作台已拆测值，带 testValueConfig 字符串列
     const api = buildLoginApi()
     const persistPart = {
       apiPath: '/api/login',
       requestConfig: JSON.stringify({
         method: 'PUT',
         configVersion: 1,
-        body: { mode: 'json', json: { example: { a: 1 } } },
+        body: { mode: 'json', json: { schema: { type: 'object' } } },
+      }),
+      responseConfig: JSON.stringify({ configVersion: 1, responses: [] }),
+      testValueConfig: JSON.stringify({
+        request: { bodyExample: { a: 1 } },
       }),
       headers: JSON.stringify({ Authorization: 'Bearer x' }),
       cookies: JSON.stringify({}),
@@ -59,11 +63,13 @@ describe('applyWorkbenchPersistToPrefab', () => {
 
     const result = applyWorkbenchPersistToPrefab(api, persistPart)
 
-    // 期望：路径与对象列已写回，无 ID 依赖
+    // 期望：路径与对象列已写回，测值在 testValueConfig
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.api.apiPath).toBe('/api/login')
       expect(result.api.requestConfig.method).toBe('PUT')
+      expect(result.api.requestConfig.body?.json?.example).toBeUndefined()
+      expect(result.api.testValueConfig.request.bodyExample).toEqual({ a: 1 })
       expect(result.api.headers).toEqual({ Authorization: 'Bearer x' })
       expect(result.api.cookies).toEqual({})
       expect(result.api.postRequestScript).toBe('return true')
@@ -83,13 +89,26 @@ describe('applyWorkbenchPersistToPrefab', () => {
     if (!result.ok) expect(result.error).toMatch(/请求体/)
   })
 
+  it('缺少 testValueConfig 时拒绝', () => {
+    const result = applyWorkbenchPersistToPrefab(buildLoginApi(), {
+      apiPath: '/login',
+      requestConfig: '{}',
+      headers: '{}',
+      cookies: '{}',
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toMatch(/testValueConfig/)
+  })
+
   it('非法 requestConfig JSON 回退为空对象仍合并成功', () => {
-    // 前提：persist 列不是合法 JSON（工作台正常不会产出；适配层容错）
+    // 前提：requestConfig 不是合法 JSON，但已有 testValueConfig
     const result = applyWorkbenchPersistToPrefab(buildLoginApi(), {
       apiPath: '/login',
       requestConfig: '{',
       headers: '{}',
       cookies: '{}',
+      testValueConfig: '{}',
+      responseConfig: '{}',
     })
 
     // 期望：parse 失败用 {}，整次合并仍 ok
