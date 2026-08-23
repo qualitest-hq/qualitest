@@ -43,9 +43,65 @@
 
     <div v-if="selectedIndex >= 0 && selectedApi" class="prefab-api-panel__detail">
       <el-form
-        :disabled="readOnly"
+        v-if="readOnly"
+        class="prefab-api-panel__fields prefab-api-panel__fields--readonly"
+        label-width="88px"
+        size="small"
+      >
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="名称">
+              <span class="prefab-api-panel__text">{{ selectedApi.apiName || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="路径">
+              <span class="prefab-api-panel__text">{{ selectedApi.apiPath || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="分组">
+              <span class="prefab-api-panel__text">{{ selectedApi.apiGroup || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="方法">
+              <span class="prefab-api-panel__text">{{ selectedMethod }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="鉴权">
+              <span class="prefab-api-panel__text">{{ selectedAuthModeLabel }}</span>
+            </el-form-item>
+          </el-col>
+          <template v-if="selectedAuthMode === 'override'">
+            <el-col :span="12">
+              <el-form-item label="自定义头名">
+                <span class="prefab-api-panel__text">{{ selectedAuthHeaderName || '—' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="头值模板">
+                <span class="prefab-api-panel__text">{{ selectedAuthValueTemplate || '—' }}</span>
+              </el-form-item>
+            </el-col>
+          </template>
+          <el-col :span="24">
+            <el-form-item label="描述">
+              <span class="prefab-api-panel__text">{{ selectedApi.apiDescription || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="造流提示">
+              <span class="prefab-api-panel__text prefab-api-panel__text--pre">{{ selectedDesignHintsText || '—' }}</span>
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <el-form
+        v-else
         class="prefab-api-panel__fields"
-        label-width="72px"
+        label-width="88px"
         size="small"
       >
         <el-row :gutter="12">
@@ -56,7 +112,11 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="路径">
-              <el-input v-model="selectedApi.apiPath" placeholder="如 /login" />
+              <el-input
+                :model-value="selectedApi.apiPath"
+                placeholder="如 /login"
+                @update:model-value="onFormPathChange"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -85,27 +145,77 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <template v-if="selectedAuthMode === 'override'">
+            <el-col :span="12">
+              <el-form-item label="自定义头名">
+                <el-input v-model="selectedAuthHeaderName" placeholder="Authorization" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="头值模板">
+                <el-input
+                  v-model="selectedAuthValueTemplate"
+                  placeholder="Bearer {{flow.token}}"
+                />
+              </el-form-item>
+            </el-col>
+          </template>
+          <el-col :span="24">
+            <el-form-item label="描述">
+              <el-input
+                v-model="selectedApi.apiDescription"
+                :rows="2"
+                placeholder="接口说明（可选）"
+                type="textarea"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="造流提示">
+              <el-input
+                v-model="selectedDesignHintsText"
+                :rows="2"
+                placeholder="每行一条；人机可维护"
+                type="textarea"
+              />
+            </el-form-item>
+          </el-col>
         </el-row>
       </el-form>
 
-      <el-tabs v-model="activeJsonTab" class="prefab-api-panel__tabs">
-        <el-tab-pane
-          v-for="tab in JSON_DRAFT_TAB_LABELS"
-          :key="tab.name"
-          :label="tab.label"
-          :name="tab.name"
-        >
-          <ScriptSourceEditor
-            v-model="jsonDrafts[tab.name]"
-            :invalid="!!jsonErrors[tab.name]"
-            language="json"
-            :min-height="jsonEditorHeight"
-            :read-only="readOnly"
-            @update:model-value="(val) => onJsonDraftChange(tab.name, val)"
-          />
-          <p v-if="jsonErrors[tab.name]" class="prefab-api-panel__error">{{ jsonErrors[tab.name] }}</p>
-        </el-tab-pane>
-      </el-tabs>
+      <div class="prefab-api-panel__section-title">
+        <span>请求设计</span>
+        <span v-if="readOnly" class="prefab-api-panel__hint">只读浏览，可切换 Tab 查看</span>
+      </div>
+      <div
+        class="prefab-api-panel__workbench"
+        :class="{ 'prefab-api-panel__chrome--readonly': readOnly }"
+      >
+        <ApiDebugTab
+          :key="'dbg-' + selectedIndex"
+          ref="debugTabRef"
+          :api-detail="workbenchDetail"
+          :embed-in-design="true"
+          :env-list="[]"
+          :test-project-env-id="null"
+        />
+      </div>
+
+      <div class="prefab-api-panel__section-title">
+        <span>响应配置</span>
+        <span v-if="readOnly" class="prefab-api-panel__hint">只读浏览</span>
+      </div>
+      <div
+        class="prefab-api-panel__response"
+        :class="{ 'prefab-api-panel__chrome--readonly': readOnly }"
+      >
+        <ResponseConfigPanel
+          :key="'resp-' + selectedIndex"
+          ref="responseConfigPanelRef"
+          :model-value="responseConfigText"
+          @update:model-value="onResponseConfigTextChange"
+        />
+      </div>
     </div>
 
     <el-empty
@@ -119,7 +229,8 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import ScriptSourceEditor from '@/components/script/ScriptSourceEditor.vue'
+import ApiDebugTab from '@/views/project/testProject/components/ApiDebugTab.vue'
+import ResponseConfigPanel from '@/views/project/testProject/components/ResponseConfigPanel.vue'
 import {
   HTTP_METHODS,
   apisToPreviewRows,
@@ -128,41 +239,48 @@ import {
   resolveApiMethod,
   setApiMethod,
 } from '../utils/templateForm'
+import { formatAuthModeLabel } from '@/views/project/testProject/utils/projectAuthConfig'
 import {
-  JSON_DRAFT_TAB_LABELS,
-  apiToJsonDrafts,
-  applyPrefabJsonDraftChange,
-  emptyJsonDraftState,
-  validatePrefabApiDrafts,
-} from '../utils/prefabApiDrafts'
+  applyWorkbenchPersistToPrefab,
+  designHintsFromText,
+  designHintsToText,
+  patchAuthConfigMode,
+  prefabToWorkbenchDetail,
+  parseResponseConfigEditorText,
+  readAuthOverrideHeader,
+  responseConfigToEditorText,
+} from '../utils/prefabApiWorkbench'
 
-defineProps({
+const props = defineProps({
   readOnly: { type: Boolean, default: false },
 })
 
 const apis = defineModel({ type: Array, default: () => [] })
 
 const selectedIndex = ref(-1)
-const activeJsonTab = ref('request')
-const jsonEditorHeight = 200
+const responseConfigText = ref('')
 
-const { drafts: initialDrafts, errors: initialErrors } = emptyJsonDraftState()
-const jsonDrafts = ref({ ...initialDrafts })
-const jsonErrors = ref({ ...initialErrors })
+const tableRef = ref(null)
+const debugTabRef = ref(null)
+const responseConfigPanelRef = ref(null)
 
 const tableRows = computed(() =>
   apisToPreviewRows(apis.value).map((row, index) => ({ ...row, _index: index })),
 )
-
-const tableRef = ref(null)
 
 const selectedApi = computed(() => {
   if (selectedIndex.value < 0 || selectedIndex.value >= apis.value.length) return null
   return apis.value[selectedIndex.value]
 })
 
+const workbenchDetail = computed(() => prefabToWorkbenchDetail(selectedApi.value))
+
 function replaceApisAt(index, next) {
   apis.value = apis.value.map((item, idx) => (idx === index ? next : item))
+}
+
+function syncResponseTextFromApi() {
+  responseConfigText.value = responseConfigToEditorText(selectedApi.value?.responseConfig)
 }
 
 const selectedMethod = computed({
@@ -171,9 +289,8 @@ const selectedMethod = computed({
     return resolveApiMethod(selectedApi.value)
   },
   set(method) {
-    if (!selectedApi.value || selectedIndex.value < 0) return
+    if (!selectedApi.value || selectedIndex.value < 0 || props.readOnly) return
     replaceApisAt(selectedIndex.value, setApiMethod(selectedApi.value, method))
-    refreshJsonDrafts()
   },
 })
 
@@ -182,26 +299,66 @@ const selectedAuthMode = computed({
     return String(selectedApi.value?.authConfig?.mode || 'inherit').trim() || 'inherit'
   },
   set(mode) {
-    if (!selectedApi.value || selectedIndex.value < 0) return
+    if (!selectedApi.value || selectedIndex.value < 0 || props.readOnly) return
+    const override = readAuthOverrideHeader(selectedApi.value.authConfig)
     replaceApisAt(selectedIndex.value, {
       ...selectedApi.value,
-      authConfig: {
-        ...(selectedApi.value.authConfig || {}),
-        mode: String(mode || 'inherit').trim() || 'inherit',
-      },
+      authConfig: patchAuthConfigMode(selectedApi.value.authConfig, mode, override),
     })
-    refreshJsonDrafts()
   },
 })
 
-function refreshJsonDrafts() {
-  const { drafts, errors } = emptyJsonDraftState()
-  if (selectedApi.value) {
-    jsonDrafts.value = apiToJsonDrafts(selectedApi.value)
-  } else {
-    jsonDrafts.value = drafts
+const selectedAuthModeLabel = computed(() => formatAuthModeLabel(selectedAuthMode.value))
+
+function patchSelectedAuthOverride(partial) {
+  if (!selectedApi.value || selectedIndex.value < 0 || props.readOnly) return
+  const override = {
+    ...readAuthOverrideHeader(selectedApi.value.authConfig),
+    ...partial,
   }
-  jsonErrors.value = errors
+  replaceApisAt(selectedIndex.value, {
+    ...selectedApi.value,
+    authConfig: patchAuthConfigMode(selectedApi.value.authConfig, 'override', override),
+  })
+}
+
+const selectedAuthHeaderName = computed({
+  get() {
+    return readAuthOverrideHeader(selectedApi.value?.authConfig).headerName
+  },
+  set(name) {
+    patchSelectedAuthOverride({ headerName: name })
+  },
+})
+
+const selectedAuthValueTemplate = computed({
+  get() {
+    return readAuthOverrideHeader(selectedApi.value?.authConfig).valueTemplate
+  },
+  set(valueTemplate) {
+    patchSelectedAuthOverride({ valueTemplate })
+  },
+})
+
+const selectedDesignHintsText = computed({
+  get() {
+    return designHintsToText(selectedApi.value?.designHints)
+  },
+  set(text) {
+    if (!selectedApi.value || selectedIndex.value < 0 || props.readOnly) return
+    replaceApisAt(selectedIndex.value, {
+      ...selectedApi.value,
+      designHints: designHintsFromText(text),
+    })
+  },
+})
+
+function onFormPathChange(path) {
+  if (!selectedApi.value || selectedIndex.value < 0 || props.readOnly) return
+  replaceApisAt(selectedIndex.value, {
+    ...selectedApi.value,
+    apiPath: path,
+  })
 }
 
 function setCurrentTableRow() {
@@ -211,43 +368,72 @@ function setCurrentTableRow() {
   })
 }
 
+function flushWorkbenchToModel() {
+  if (props.readOnly) {
+    return { ok: true, message: '' }
+  }
+  if (selectedIndex.value < 0 || !selectedApi.value) {
+    return { ok: true, message: '' }
+  }
+
+  responseConfigPanelRef.value?.flushPendingModelEmit?.()
+
+  const part = debugTabRef.value?.buildPersistPayload?.()
+  if (!part) {
+    return { ok: false, message: '无法读取请求配置' }
+  }
+  const applied = applyWorkbenchPersistToPrefab(selectedApi.value, part)
+  if (!applied.ok) {
+    return { ok: false, message: applied.error || '请求配置无效' }
+  }
+
+  let nextApi = applied.api
+  const respParsed = parseResponseConfigEditorText(responseConfigText.value)
+  if (!respParsed.ok) {
+    return { ok: false, message: respParsed.error || '响应配置无效' }
+  }
+  nextApi = { ...nextApi, responseConfig: respParsed.value }
+  replaceApisAt(selectedIndex.value, nextApi)
+  return { ok: true, message: '' }
+}
+
 function ensureSelection() {
   if (!apis.value.length) {
     selectedIndex.value = -1
-    refreshJsonDrafts()
+    syncResponseTextFromApi()
     setCurrentTableRow()
     return
   }
   if (selectedIndex.value < 0 || selectedIndex.value >= apis.value.length) {
     selectedIndex.value = 0
   }
-  refreshJsonDrafts()
+  syncResponseTextFromApi()
   setCurrentTableRow()
 }
 
 watch(() => apis.value.length, ensureSelection, { immediate: true })
-watch(() => selectedIndex.value, refreshJsonDrafts)
 
 watch(
-  () => selectedApi.value,
-  (api) => {
-    if (!api || activeJsonTab.value !== 'raw' || jsonErrors.value.raw) return
-    jsonDrafts.value.raw = JSON.stringify(api, null, 2)
+  () => selectedIndex.value,
+  () => {
+    syncResponseTextFromApi()
   },
-  { deep: true },
 )
 
 function handleRowClick(row) {
   if (row?._index == null || row._index < 0) return
+  if (row._index === selectedIndex.value) return
+  flushWorkbenchToModel()
   selectedIndex.value = row._index
+  setCurrentTableRow()
 }
 
 function handleAdd() {
+  flushWorkbenchToModel()
   const next = [...parseApis(apis.value), emptyPrefabricatedApi()]
   apis.value = next
   selectedIndex.value = next.length - 1
-  activeJsonTab.value = 'request'
-  refreshJsonDrafts()
+  syncResponseTextFromApi()
 }
 
 function handleRemove() {
@@ -265,6 +451,7 @@ function handleMove(delta) {
   const from = selectedIndex.value
   const to = from + delta
   if (from < 0 || to < 0 || to >= apis.value.length) return
+  flushWorkbenchToModel()
   const next = parseApis(apis.value)
   const [item] = next.splice(from, 1)
   next.splice(to, 0, item)
@@ -272,35 +459,30 @@ function handleMove(delta) {
   selectedIndex.value = to
 }
 
-function onJsonDraftChange(tab, text) {
-  jsonDrafts.value[tab] = text
-  const result = applyPrefabJsonDraftChange({
-    tab,
-    text,
-    apis: apis.value,
-    selectedIndex: selectedIndex.value,
-  })
-  jsonErrors.value = result.errors
-  if (!result.ok) return
-
-  apis.value = result.apis
-  if (result.draftPatch) {
-    Object.assign(jsonDrafts.value, result.draftPatch)
-  }
-  if (tab === 'raw') {
-    nextTick(refreshJsonDrafts)
-  }
-}
-
-function validate() {
-  return validatePrefabApiDrafts({
-    apis: apis.value,
-    jsonDrafts: jsonDrafts.value,
-    jsonErrors: jsonErrors.value,
+function onResponseConfigTextChange(text) {
+  if (props.readOnly) return
+  responseConfigText.value = text
+  if (selectedIndex.value < 0 || !selectedApi.value) return
+  const parsed = parseResponseConfigEditorText(text)
+  if (!parsed.ok) return
+  replaceApisAt(selectedIndex.value, {
+    ...selectedApi.value,
+    responseConfig: parsed.value,
   })
 }
 
-defineExpose({ validate })
+function flushAndValidate() {
+  const flushed = flushWorkbenchToModel()
+  if (!flushed.ok) {
+    return { valid: false, message: flushed.message }
+  }
+  if (!Array.isArray(apis.value) || !apis.value.length) {
+    return { valid: false, message: '预制接口不能为空' }
+  }
+  return { valid: true, message: '' }
+}
+
+defineExpose({ flushAndValidate })
 </script>
 
 <style scoped lang="scss">
@@ -340,18 +522,85 @@ defineExpose({ validate })
 
   &__fields {
     margin-bottom: 8px;
-  }
 
-  &__tabs {
-    :deep(.el-tabs__content) {
-      padding-top: 4px;
+    &--readonly {
+      :deep(.el-form-item) {
+        margin-bottom: 10px;
+      }
     }
   }
 
-  &__error {
-    margin: 6px 0 0;
+  &__text {
+    display: inline-block;
+    min-height: 22px;
+    line-height: 22px;
+    font-size: 13px;
+    color: var(--el-text-color-primary);
+    word-break: break-all;
+
+    &--pre {
+      white-space: pre-wrap;
+    }
+  }
+
+  &__section-title {
+    margin: 12px 0 8px;
+    padding: 6px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    background: var(--el-fill-color-light);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__hint {
     font-size: 12px;
-    color: var(--el-color-danger);
+    font-weight: 400;
+    color: var(--el-text-color-secondary);
+  }
+
+  &__workbench {
+    display: flex;
+    flex-direction: column;
+    height: clamp(320px, 44vh, 600px);
+    min-height: 320px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 6px;
+    background: var(--el-fill-color-blank);
+
+    :deep(.api-debug-workbench) {
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+    }
+  }
+
+  &__response {
+    margin-bottom: 8px;
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  /* 只读：可点 Tab / 滚动查看；禁掉输入与按钮编辑 */
+  &__chrome--readonly {
+    :deep(input),
+    :deep(textarea),
+    :deep(.el-input),
+    :deep(.el-textarea),
+    :deep(.el-select),
+    :deep(.el-checkbox),
+    :deep(.el-radio),
+    :deep(.el-button),
+    :deep(.el-input-number),
+    :deep(.el-switch) {
+      pointer-events: none;
+    }
   }
 
   &__empty {

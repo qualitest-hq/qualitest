@@ -195,7 +195,8 @@ export function formToPayload(form) {
     payload.matchConfig = matchConfig
   }
   if (form.testProjectTemplateId != null && form.testProjectTemplateId !== '') {
-    payload.testProjectTemplateId = Number(form.testProjectTemplateId)
+    // 雪花 ID 超过 Number.MAX_SAFE_INTEGER，须保持字符串交给后端
+    payload.testProjectTemplateId = String(form.testProjectTemplateId)
   }
   return payload
 }

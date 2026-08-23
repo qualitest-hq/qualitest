@@ -33,7 +33,7 @@ pnpm test:utils
 ```bash
 pnpm test graphValidate
 pnpm test templateForm
-pnpm test prefabApiDrafts
+pnpm test prefabApiWorkbench
 pnpm test markdown
 ```
 

@@ -131,6 +131,20 @@ describe('templateToForm / formToPayload', () => {
     const parsed = JSON.parse(payload.apis)
     expect(parsed[0].apiPath).toBe('/login')
     expect(payload.templateName).toBe('测试模板')
+    // 雪花 ID 保持字符串，避免 Number 精度丢失
+    expect(payload.testProjectTemplateId).toBe('1')
+  })
+
+  it('雪花 ID 不以 Number 提交', () => {
+    // 前提：克隆模板 ID 超过 MAX_SAFE_INTEGER
+    const snowflake = '2091427833602859008'
+    const form = templateToForm(buildTemplateRow({ testProjectTemplateId: snowflake }))
+
+    const payload = formToPayload(form)
+
+    // 期望：原样字符串，Number() 会变成错误值
+    expect(payload.testProjectTemplateId).toBe(snowflake)
+    expect(payload.testProjectTemplateId).not.toBe(String(Number(snowflake)))
   })
 
   it('pathPrefix 非法时 formToPayload 失败', () => {

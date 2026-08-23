@@ -768,11 +768,40 @@ const {scriptState, buildEnvironmentMap, applyServerState} = useApiDebugScript((
   envList: props.envList
 }))
 
+/** 行是否算「有值」（启用且有名称） */
+function namedEnabledRowCount(rows) {
+  return (rows || []).filter((r) => r?._enabled !== false && String(r?.name || '').trim()).length
+}
+
+/**
+ * 默认请求页签：优先有内容的 Tab。
+ * 顺序 body → query → path → cookies → headers → 前后置脚本；全空则 headers。
+ */
+function pickDefaultRequestTab() {
+  const body = draftRequestConfig.value?.body
+  const bodyMode = String(body?.mode || 'none')
+  const bodyHasContent =
+      (bodyMode !== 'none' && bodyMode !== '') ||
+      namedEnabledRowCount(body?.formData) > 0 ||
+      namedEnabledRowCount(body?.urlencoded) > 0 ||
+      String(bodyJsonText.value || '').trim().length > 0 ||
+      String(body?.text || '').trim().length > 0 ||
+      binaryBodyFile.value instanceof File
+  if (bodyHasContent) return 'body'
+  if (namedEnabledRowCount(draftRequestConfig.value?.queryParams) > 0) return 'query'
+  if (namedEnabledRowCount(draftRequestConfig.value?.pathParams) > 0) return 'path'
+  if (namedEnabledRowCount(draftCookieRows.value) > 0) return 'cookies'
+  if (namedEnabledRowCount(draftHeaderRows.value) > 0) return 'headers'
+  if (String(draftPreRequestScript.value || '').trim()) return 'preScript'
+  if (String(draftPostRequestScript.value || '').trim()) return 'postScript'
+  return 'headers'
+}
+
 function applySavedDebugUiTabs(detail) {
   const apiId = detail?.testProjectApiId
   const projectId = detail?.testProjectId
   if (apiId == null || projectId == null) {
-    activeDebugRequestTab.value = 'headers'
+    activeDebugRequestTab.value = pickDefaultRequestTab()
     activeRespTab.value = 'body'
     return
   }
@@ -781,7 +810,7 @@ function applySavedDebugUiTabs(detail) {
   const rt = saved?.requestTab
   const rst = saved?.respTab
   const allowReq = VALID_REQUEST_TABS_WITH_SCRIPTS
-  activeDebugRequestTab.value = rt && allowReq.includes(rt) ? rt : 'headers'
+  activeDebugRequestTab.value = rt && allowReq.includes(rt) ? rt : pickDefaultRequestTab()
   activeRespTab.value =
       rst && VALID_RESP_TABS.includes(rst) ? rst : 'body'
 }
@@ -1503,18 +1532,15 @@ async function handleDebugSend() {
   }
 }
 
-/** 供设计页组合保存：返回路径、requestConfig、headers、cookies 字符串；失败返回 { error } */
+/** 收集请求草稿：返回路径、requestConfig、headers、cookies 字符串；失败返回 { error }。不要求已落库 ID。 */
 function buildPersistPayload() {
-  if (!props.apiDetail?.testProjectApiId) {
-    return {error: '缺少 API 信息'}
-  }
   try {
     applyBodyJsonToDraftBeforeSave()
   } catch {
     return {error: '请求体 JSON 格式无效'}
   }
   const rc = cloneRequestConfigForSave(draftRequestConfig.value)
-  const base = {
+  return {
     apiPath: draftApiPath.value,
     requestConfig: JSON.stringify(rc),
     headers: JSON.stringify(rowsToKeyValueObject(draftHeaderRows.value)),
@@ -1522,10 +1548,13 @@ function buildPersistPayload() {
     preRequestScript: draftPreRequestScript.value ?? '',
     postRequestScript: draftPostRequestScript.value ?? ''
   }
-  return base
 }
 
 function handleSaveApiDebug() {
+  if (!props.apiDetail?.testProjectApiId) {
+    proxy.$modal.msgError('缺少 API 信息')
+    return
+  }
   const part = buildPersistPayload()
   if (part.error) {
     proxy.$modal.msgError(part.error)

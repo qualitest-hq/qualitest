@@ -234,7 +234,7 @@
       append-to-body
       class="test-project-template-drawer"
       destroy-on-close
-      size="960px"
+      size="72vw"
     >
       <el-alert
         v-if="isReadonlyForm"
@@ -252,12 +252,48 @@
         label-width="108px"
       >
         <div class="tpl-section-title">基本信息</div>
-        <el-row :gutter="16">
+        <el-row v-if="isReadonlyForm" :gutter="16" class="tpl-readonly-meta">
+          <el-col :span="12">
+            <el-form-item label="模板名称">
+              <span class="tpl-readonly-text">{{ form.templateName || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="鉴权头名称">
+              <span class="tpl-readonly-text">{{ form.headerName || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="鉴权头值模板">
+              <span class="tpl-readonly-text">{{ form.headerValueTemplate || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="pathPrefix">
+              <span class="tpl-readonly-text">{{ form.pathPrefixText || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="启用状态">
+              <span class="tpl-readonly-text">{{ enableStatusLabel(form.enableStatus) }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="排序">
+              <span class="tpl-readonly-text">{{ form.sortNum ?? '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="备注">
+              <span class="tpl-readonly-text">{{ form.remark || '—' }}</span>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row v-else :gutter="16">
           <el-col :span="12">
             <el-form-item label="模板名称" prop="templateName">
               <el-input
                 v-model="form.templateName"
-                :disabled="isReadonlyForm"
                 maxlength="100"
                 placeholder="拷贝到项目后作为 Profile 名称"
                 show-word-limit
@@ -268,7 +304,6 @@
             <el-form-item label="鉴权头名称" prop="headerName">
               <el-input
                 v-model="form.headerName"
-                :disabled="isReadonlyForm"
                 maxlength="64"
                 placeholder="Authorization"
               />
@@ -278,7 +313,6 @@
             <el-form-item label="鉴权头值模板" prop="headerValueTemplate">
               <el-input
                 v-model="form.headerValueTemplate"
-                :disabled="isReadonlyForm"
                 maxlength="512"
                 placeholder="Bearer {{flow.token}}"
               />
@@ -288,7 +322,6 @@
             <el-form-item label="pathPrefix" prop="pathPrefixText">
               <el-input
                 v-model="form.pathPrefixText"
-                :disabled="isReadonlyForm"
                 :rows="2"
                 placeholder="每行一条，如 /api/；禁止单独 /"
                 type="textarea"
@@ -297,7 +330,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="启用状态" prop="enableStatus">
-              <el-radio-group v-model="form.enableStatus" :disabled="isReadonlyForm">
+              <el-radio-group v-model="form.enableStatus">
                 <el-radio
                   v-for="item in enableStatusOptions"
                   :key="item.value"
@@ -310,7 +343,6 @@
             <el-form-item label="排序" prop="sortNum">
               <el-input-number
                 v-model="form.sortNum"
-                :disabled="isReadonlyForm"
                 :min="0"
                 controls-position="right"
               />
@@ -320,7 +352,6 @@
             <el-form-item label="备注" prop="remark">
               <el-input
                 v-model="form.remark"
-                :disabled="isReadonlyForm"
                 :rows="2"
                 maxlength="256"
                 placeholder="可选"
@@ -420,6 +451,11 @@ const selectedHasBuiltin = computed(() => {
 })
 
 const isReadonlyForm = computed(() => dialogMode.value === 'view')
+
+function enableStatusLabel(status) {
+  const found = enableStatusOptions.find((item) => item.value === status)
+  return found?.label || '—'
+}
 
 const data = reactive({
   form: emptyTemplateForm(),
@@ -526,7 +562,9 @@ function cloneTemplateAndEdit(id) {
     return getTestProjectTemplate(res.data)
   }).then((res) => {
     if (res?.data) {
-      openDialog('edit', res.data)
+      // 查看抽屉已打开时需先关再开，否则 destroy-on-close 不会重建且标题/只读态可能卡住
+      open.value = false
+      nextTick(() => openDialog('edit', res.data))
     }
   })
 }
@@ -540,7 +578,7 @@ function handleCloneFromDialog() {
 }
 
 function submitForm() {
-  const panelResult = apiPanelRef.value?.validate?.()
+  const panelResult = apiPanelRef.value?.flushAndValidate?.()
   if (panelResult && !panelResult.valid) {
     proxy.$modal.msgError(panelResult.message)
     return
@@ -603,6 +641,22 @@ getList()
   font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.tpl-readonly-text {
+  display: inline-block;
+  min-height: 22px;
+  line-height: 22px;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.tpl-readonly-meta {
+  :deep(.el-form-item) {
+    margin-bottom: 12px;
+  }
 }
 
 .tpl-apis-form-item {
