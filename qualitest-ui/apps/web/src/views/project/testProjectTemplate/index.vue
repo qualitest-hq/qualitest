@@ -63,14 +63,16 @@
           :disabled="!single || !selectedBuiltin"
           content="内置模板只读，请克隆后修改"
         >
-          <el-button
-            v-hasPermi="['project:testProjectTemplate:edit']"
-            :disabled="single || selectedBuiltin"
-            icon="Edit"
-            plain
-            type="success"
-            @click="handleUpdate()"
-          >修改</el-button>
+          <span class="tpl-op-tip-wrap">
+            <el-button
+              v-hasPermi="['project:testProjectTemplate:edit']"
+              :disabled="single || selectedBuiltin"
+              icon="Edit"
+              plain
+              type="success"
+              @click="handleUpdate()"
+            >修改</el-button>
+          </span>
         </el-tooltip>
       </el-col>
       <el-col :span="1.5">
@@ -78,14 +80,16 @@
           :disabled="!multiple || !selectedHasBuiltin"
           content="内置模板不可删除"
         >
-          <el-button
-            v-hasPermi="['project:testProjectTemplate:remove']"
-            :disabled="multiple || selectedHasBuiltin"
-            icon="Delete"
-            plain
-            type="danger"
-            @click="handleDelete()"
-          >删除</el-button>
+          <span class="tpl-op-tip-wrap">
+            <el-button
+              v-hasPermi="['project:testProjectTemplate:remove']"
+              :disabled="multiple || selectedHasBuiltin"
+              icon="Delete"
+              plain
+              type="danger"
+              @click="handleDelete()"
+            >删除</el-button>
+          </span>
         </el-tooltip>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" :columns="columns" @queryTable="getList" />
@@ -187,14 +191,16 @@
             :disabled="scope.row.builtinStatus !== 1"
             content="内置模板只读，请克隆后修改"
           >
-            <el-button
-              v-hasPermi="['project:testProjectTemplate:edit']"
-              :disabled="scope.row.builtinStatus === 1"
-              icon="Edit"
-              link
-              type="primary"
-              @click="handleUpdate(scope.row)"
-            >修改</el-button>
+            <span class="tpl-op-tip-wrap">
+              <el-button
+                v-hasPermi="['project:testProjectTemplate:edit']"
+                :disabled="scope.row.builtinStatus === 1"
+                icon="Edit"
+                link
+                type="primary"
+                @click="handleUpdate(scope.row)"
+              >修改</el-button>
+            </span>
           </el-tooltip>
           <el-button
             v-hasPermi="['project:testProjectTemplate:add']"
@@ -203,19 +209,14 @@
             type="primary"
             @click="handleClone(scope.row)"
           >克隆</el-button>
-          <el-tooltip
-            :disabled="scope.row.builtinStatus !== 1"
-            content="内置模板不可删除"
-          >
-            <el-button
-              v-if="scope.row.builtinStatus !== 1"
-              v-hasPermi="['project:testProjectTemplate:remove']"
-              icon="Delete"
-              link
-              type="primary"
-              @click="handleDelete(scope.row)"
-            >删除</el-button>
-          </el-tooltip>
+          <el-button
+            v-if="scope.row.builtinStatus !== 1"
+            v-hasPermi="['project:testProjectTemplate:remove']"
+            icon="Delete"
+            link
+            type="primary"
+            @click="handleDelete(scope.row)"
+          >删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -626,6 +627,11 @@ getList()
 <style scoped lang="scss">
 .tpl-builtin-tag {
   margin-left: 6px;
+}
+
+.tpl-op-tip-wrap {
+  display: inline-flex;
+  vertical-align: middle;
 }
 
 .tpl-readonly-alert {
