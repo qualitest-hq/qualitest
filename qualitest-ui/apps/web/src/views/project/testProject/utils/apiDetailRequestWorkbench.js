@@ -7,6 +7,7 @@
  */
 
 import { REQUEST_CONFIG_VERSION } from './apiConfigConstants'
+import { applyTestValuesToStructure } from './peelTestValueConfig'
 
 export { REQUEST_CONFIG_VERSION } from './apiConfigConstants'
 
@@ -258,6 +259,8 @@ export function buildRequestWorkbenchStateFromDetail(detail) {
     declaredHeaders: Array.isArray(rc?.declaredHeaders) ? rc.declaredHeaders.map(normalizeParamRow) : [],
     body: ensureBodyShape(rc?.body)
   }
+  // 测值叠回草稿，再补空行（否则 body 徽章 / 参数值会丢）
+  applyTestValuesToStructure(draftRequestConfig, detail.testValueConfig)
   if (!draftRequestConfig.queryParams.length) draftRequestConfig.queryParams = [emptyKVRow()]
   else ensureTrailingEmptyRow(draftRequestConfig.queryParams)
   if (!draftRequestConfig.pathParams.length) draftRequestConfig.pathParams = [emptyKVRow()]

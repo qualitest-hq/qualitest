@@ -13,6 +13,7 @@ import {
   parseFlexibleJson,
 } from '@/views/project/testProject/utils/apiDetailRequestWorkbench'
 import { HTTP_METHODS } from '@/views/project/testProject/utils/httpMethodMeta'
+import { applyTestValuesToStructure } from '@/views/project/testProject/utils/peelTestValueConfig'
 
 export { emptyKVRow, ensureBodyShape, ensureTrailingEmptyRow, HTTP_METHODS };
 export type { NodeRequestValueOverrides };
@@ -93,57 +94,24 @@ export function buildWorkbenchFromApiDetail(apiDetail: Record<string, unknown> |
  * 把 requestValueOverrides 叠到草稿：
  * paramDefaults 按 name 写入 query / path / form-data / urlencoded 的 value；
  * bodyExample 写入 JSON body。
+ * 内核委托 peelTestValueConfig.applyTestValuesToStructure，避免两套叠回逻辑。
  */
 export function applyRequestValueOverridesToWorkbench(
   draft: HttpWorkbenchDraft,
   overrides: NodeRequestValueOverrides | null | undefined,
 ) {
   if (!overrides || typeof overrides !== 'object') return;
-  const params = overrides.paramDefaults;
-  if (params && typeof params === 'object') {
-    for (const rows of collectParamRowPools(draft)) {
-      applyParamDefaultsToRows(rows, params);
-    }
-  }
-  if (Object.prototype.hasOwnProperty.call(overrides, 'bodyExample')) {
-    applyBodyExampleToDraft(draft, overrides.bodyExample);
+  collectParamRowPools(draft);
+  applyTestValuesToStructure(draft.requestConfig, { request: overrides });
+  for (const rows of collectParamRowPools(draft)) {
+    ensureTrailingEmptyRow(rows);
   }
 }
 
-/** 按参数名把 defaults 写进 KV 行；没有对应行则追加 */
-function applyParamDefaultsToRows(rows: KvRow[], params: Record<string, unknown>) {
-  for (const [name, value] of Object.entries(params)) {
-    if (!name) continue;
-    const row = rows.find((r) => String(r.name || '').trim() === name);
-    if (row) {
-      row.value = value as string;
-      row._enabled = true;
-    } else {
-      rows.push({
-        ...emptyKVRow(),
-        name,
-        value: value as string,
-        _enabled: true,
-      });
-    }
-  }
-  ensureTrailingEmptyRow(rows);
-}
-
-/** 把 bodyExample 写入草稿 JSON body */
+/** 把 bodyExample 写入草稿 JSON body（委托统一叠回） */
 export function applyBodyExampleToDraft(draft: HttpWorkbenchDraft, bodyExample: unknown) {
-  const body = ensureBodyShape(draft.requestConfig.body) as Record<string, unknown> & {
-    mode?: string;
-    json?: { example?: unknown; schema?: unknown };
-  };
-  if (!body.mode || body.mode === 'none') body.mode = 'json';
-  if (body.mode === 'json') {
-    body.json = {
-      ...(body.json || { example: '', schema: null }),
-      example: bodyExample as string | Record<string, unknown> | unknown[],
-    };
-    draft.requestConfig.body = body as HttpWorkbenchDraft['requestConfig']['body'];
-  }
+  draft.requestConfig.body = ensureBodyShape(draft.requestConfig.body);
+  applyTestValuesToStructure(draft.requestConfig, { request: { bodyExample } });
 }
 
 /** 临时 requestBody 字符串写入草稿 body example（能 parse 则存对象） */

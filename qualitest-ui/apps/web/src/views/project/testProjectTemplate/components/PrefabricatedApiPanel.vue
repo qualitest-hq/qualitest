@@ -26,6 +26,7 @@
     </div>
 
     <el-table
+      v-if="tableRows.length"
       ref="tableRef"
       :data="tableRows"
       border
@@ -39,184 +40,16 @@
       <el-table-column label="路径" min-width="140" prop="apiPath" show-overflow-tooltip />
       <el-table-column label="名称" min-width="100" prop="apiName" show-overflow-tooltip />
       <el-table-column label="鉴权" prop="authModeLabel" width="88" />
+      <el-table-column align="center" label="操作" width="72">
+        <template #default="scope">
+          <el-button
+            link
+            type="primary"
+            @click.stop="openDetail(scope.row._index)"
+          >{{ readOnly ? '查看' : '编辑' }}</el-button>
+        </template>
+      </el-table-column>
     </el-table>
-
-    <div v-if="selectedIndex >= 0 && selectedApi" class="prefab-api-panel__detail">
-      <el-form
-        v-if="readOnly"
-        class="prefab-api-panel__fields prefab-api-panel__fields--readonly"
-        label-width="88px"
-        size="small"
-      >
-        <el-row :gutter="12">
-          <el-col :span="12">
-            <el-form-item label="名称">
-              <span class="prefab-api-panel__text">{{ selectedApi.apiName || '—' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="路径">
-              <span class="prefab-api-panel__text">{{ selectedApi.apiPath || '—' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="分组">
-              <span class="prefab-api-panel__text">{{ selectedApi.apiGroup || '—' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="方法">
-              <span class="prefab-api-panel__text">{{ selectedMethod }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="鉴权">
-              <span class="prefab-api-panel__text">{{ selectedAuthModeLabel }}</span>
-            </el-form-item>
-          </el-col>
-          <template v-if="selectedAuthMode === 'override'">
-            <el-col :span="12">
-              <el-form-item label="自定义头名">
-                <span class="prefab-api-panel__text">{{ selectedAuthHeaderName || '—' }}</span>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="头值模板">
-                <span class="prefab-api-panel__text">{{ selectedAuthValueTemplate || '—' }}</span>
-              </el-form-item>
-            </el-col>
-          </template>
-          <el-col :span="24">
-            <el-form-item label="描述">
-              <span class="prefab-api-panel__text">{{ selectedApi.apiDescription || '—' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="造流提示">
-              <span class="prefab-api-panel__text prefab-api-panel__text--pre">{{ selectedDesignHintsText || '—' }}</span>
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <el-form
-        v-else
-        class="prefab-api-panel__fields"
-        label-width="88px"
-        size="small"
-      >
-        <el-row :gutter="12">
-          <el-col :span="12">
-            <el-form-item label="名称">
-              <el-input v-model="selectedApi.apiName" placeholder="如 登录" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="路径">
-              <el-input
-                :model-value="selectedApi.apiPath"
-                placeholder="如 /login"
-                @update:model-value="onFormPathChange"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="分组">
-              <el-input v-model="selectedApi.apiGroup" placeholder="如 系统.登录" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="方法">
-              <el-select v-model="selectedMethod" style="width: 100%">
-                <el-option
-                  v-for="item in HTTP_METHODS"
-                  :key="item"
-                  :label="item"
-                  :value="item"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="鉴权">
-              <el-select v-model="selectedAuthMode" style="width: 100%">
-                <el-option label="免登录" value="none" />
-                <el-option label="继承" value="inherit" />
-                <el-option label="自定义" value="override" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <template v-if="selectedAuthMode === 'override'">
-            <el-col :span="12">
-              <el-form-item label="自定义头名">
-                <el-input v-model="selectedAuthHeaderName" placeholder="Authorization" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="头值模板">
-                <el-input
-                  v-model="selectedAuthValueTemplate"
-                  placeholder="Bearer {{flow.token}}"
-                />
-              </el-form-item>
-            </el-col>
-          </template>
-          <el-col :span="24">
-            <el-form-item label="描述">
-              <el-input
-                v-model="selectedApi.apiDescription"
-                :rows="2"
-                placeholder="接口说明（可选）"
-                type="textarea"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="造流提示">
-              <el-input
-                v-model="selectedDesignHintsText"
-                :rows="2"
-                placeholder="每行一条；人机可维护"
-                type="textarea"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-
-      <div class="prefab-api-panel__section-title">
-        <span>请求设计</span>
-        <span v-if="readOnly" class="prefab-api-panel__hint">只读浏览，可切换 Tab 查看</span>
-      </div>
-      <div
-        class="prefab-api-panel__workbench"
-        :class="{ 'prefab-api-panel__chrome--readonly': readOnly }"
-      >
-        <ApiDebugTab
-          :key="'dbg-' + selectedIndex"
-          ref="debugTabRef"
-          :api-detail="workbenchDetail"
-          :embed-in-design="true"
-          :env-list="[]"
-          :test-project-env-id="null"
-        />
-      </div>
-
-      <div class="prefab-api-panel__section-title">
-        <span>响应配置</span>
-        <span v-if="readOnly" class="prefab-api-panel__hint">只读浏览</span>
-      </div>
-      <div
-        class="prefab-api-panel__response"
-        :class="{ 'prefab-api-panel__chrome--readonly': readOnly }"
-      >
-        <ResponseConfigPanel
-          :key="'resp-' + selectedIndex"
-          ref="responseConfigPanelRef"
-          :model-value="responseConfigText"
-          @update:model-value="onResponseConfigTextChange"
-        />
-      </div>
-    </div>
 
     <el-empty
       v-else
@@ -224,11 +57,207 @@
       class="prefab-api-panel__empty"
       description="暂无预制接口，请点击新增"
     />
+
+    <el-dialog
+      v-model="detailVisible"
+      :before-close="beforeDetailClose"
+      :close-on-click-modal="false"
+      :title="detailTitle"
+      :z-index="10000"
+      append-to-body
+      class="prefab-api-detail-dialog"
+      destroy-on-close
+      top="4vh"
+      width="80vw"
+    >
+      <div v-if="selectedIndex >= 0 && selectedApi" class="prefab-api-panel__detail">
+        <el-form
+          v-if="readOnly"
+          class="prefab-api-panel__fields prefab-api-panel__fields--readonly"
+          label-width="88px"
+          size="small"
+        >
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item label="名称">
+                <span class="prefab-api-panel__text">{{ selectedApi.apiName || '—' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="路径">
+                <span class="prefab-api-panel__text">{{ selectedApi.apiPath || '—' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="分组">
+                <span class="prefab-api-panel__text">{{ selectedApi.apiGroup || '—' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="方法">
+                <span class="prefab-api-panel__text">{{ selectedMethod }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="鉴权">
+                <span class="prefab-api-panel__text">{{ selectedAuthModeLabel }}</span>
+              </el-form-item>
+            </el-col>
+            <template v-if="selectedAuthMode === 'override'">
+              <el-col :span="12">
+                <el-form-item label="自定义头名">
+                  <span class="prefab-api-panel__text">{{ selectedAuthHeaderName || '—' }}</span>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="头值模板">
+                  <span class="prefab-api-panel__text">{{ selectedAuthValueTemplate || '—' }}</span>
+                </el-form-item>
+              </el-col>
+            </template>
+            <el-col :span="24">
+              <el-form-item label="描述">
+                <span class="prefab-api-panel__text">{{ selectedApi.apiDescription || '—' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="24">
+              <el-form-item label="造流提示">
+                <span class="prefab-api-panel__text prefab-api-panel__text--pre">{{ selectedDesignHintsText || '—' }}</span>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </el-form>
+        <el-form
+          v-else
+          class="prefab-api-panel__fields"
+          label-width="88px"
+          size="small"
+        >
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item label="名称">
+                <el-input v-model="selectedApi.apiName" placeholder="如 登录" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="路径">
+                <el-input
+                  :model-value="selectedApi.apiPath"
+                  placeholder="如 /login"
+                  @update:model-value="onFormPathChange"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="分组">
+                <el-input v-model="selectedApi.apiGroup" placeholder="如 系统.登录" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="方法">
+                <el-select v-model="selectedMethod" style="width: 100%">
+                  <el-option
+                    v-for="item in HTTP_METHODS"
+                    :key="item"
+                    :label="item"
+                    :value="item"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="鉴权">
+                <el-select v-model="selectedAuthMode" style="width: 100%">
+                  <el-option label="免登录" value="none" />
+                  <el-option label="继承" value="inherit" />
+                  <el-option label="自定义" value="override" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <template v-if="selectedAuthMode === 'override'">
+              <el-col :span="12">
+                <el-form-item label="自定义头名">
+                  <el-input v-model="selectedAuthHeaderName" placeholder="Authorization" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="头值模板">
+                  <el-input
+                    v-model="selectedAuthValueTemplate"
+                    placeholder="Bearer {{flow.token}}"
+                  />
+                </el-form-item>
+              </el-col>
+            </template>
+            <el-col :span="24">
+              <el-form-item label="描述">
+                <el-input
+                  v-model="selectedApi.apiDescription"
+                  :rows="2"
+                  placeholder="接口说明（可选）"
+                  type="textarea"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="24">
+              <el-form-item label="造流提示">
+                <el-input
+                  v-model="selectedDesignHintsText"
+                  :rows="2"
+                  placeholder="每行一条；人机可维护"
+                  type="textarea"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </el-form>
+
+        <div class="prefab-api-panel__section-title">
+          <span>请求设计</span>
+          <span v-if="readOnly" class="prefab-api-panel__hint">只读浏览，可切换 Tab 查看</span>
+        </div>
+        <div
+          class="prefab-api-panel__workbench"
+          :class="{ 'prefab-api-panel__chrome--readonly': readOnly }"
+        >
+          <ApiDebugTab
+            :key="'dbg-' + selectedIndex"
+            ref="debugTabRef"
+            :api-detail="workbenchDetail"
+            :embed-in-design="true"
+            :env-list="[]"
+            :test-project-env-id="null"
+          />
+        </div>
+
+        <div class="prefab-api-panel__section-title">
+          <span>响应配置</span>
+          <span v-if="readOnly" class="prefab-api-panel__hint">只读浏览</span>
+        </div>
+        <div
+          class="prefab-api-panel__response"
+          :class="{ 'prefab-api-panel__chrome--readonly': readOnly }"
+        >
+          <ResponseConfigPanel
+            :key="'resp-' + selectedIndex"
+            ref="responseConfigPanelRef"
+            :model-value="responseConfigText"
+            @update:model-value="onResponseConfigTextChange"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <div class="prefab-api-panel__dialog-footer">
+          <el-button v-if="!readOnly" type="primary" @click="confirmDetail">确 定</el-button>
+          <el-button @click="closeDetail">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, getCurrentInstance, nextTick, ref, watch } from 'vue'
 import ApiDebugTab from '@/views/project/testProject/components/ApiDebugTab.vue'
 import ResponseConfigPanel from '@/views/project/testProject/components/ResponseConfigPanel.vue'
 import {
@@ -256,10 +285,15 @@ const props = defineProps({
   readOnly: { type: Boolean, default: false },
 })
 
+const { proxy } = getCurrentInstance()
+
 const apis = defineModel({ type: Array, default: () => [] })
 
 const selectedIndex = ref(-1)
+const detailVisible = ref(false)
 const responseConfigText = ref('')
+/** 确定已成功 flush 时跳过 before-close 再 flush */
+const skipFlushOnClose = ref(false)
 
 const tableRef = ref(null)
 const debugTabRef = ref(null)
@@ -275,6 +309,18 @@ const selectedApi = computed(() => {
 })
 
 const workbenchDetail = computed(() => prefabToWorkbenchDetail(selectedApi.value))
+
+const detailTitle = computed(() => {
+  const prefix = props.readOnly ? '查看预制接口' : '编辑预制接口'
+  const api = selectedApi.value
+  if (!api) return prefix
+  const name = String(api.apiName || '').trim()
+  if (name) return `${prefix} · ${name}`
+  const method = resolveApiMethod(api)
+  const path = String(api.apiPath || '').trim()
+  if (method || path) return `${prefix} · ${method} ${path}`.trim()
+  return prefix
+})
 
 function replaceApisAt(index, next) {
   apis.value = apis.value.map((item, idx) => (idx === index ? next : item))
@@ -377,6 +423,10 @@ function flushWorkbenchToModel() {
   if (selectedIndex.value < 0 || !selectedApi.value) {
     return { ok: true, message: '' }
   }
+  // 弹框未挂载 / destroy-on-close 后无工作台，无需 flush
+  if (!debugTabRef.value) {
+    return { ok: true, message: '' }
+  }
 
   responseConfigPanelRef.value?.flushPendingModelEmit?.()
 
@@ -401,6 +451,7 @@ function flushWorkbenchToModel() {
 function ensureSelection() {
   if (!apis.value.length) {
     selectedIndex.value = -1
+    detailVisible.value = false
     syncResponseTextFromApi()
     setCurrentTableRow()
     return
@@ -424,21 +475,79 @@ watch(
 function handleRowClick(row) {
   if (row?._index == null || row._index < 0) return
   if (row._index === selectedIndex.value) return
-  flushWorkbenchToModel()
   selectedIndex.value = row._index
   setCurrentTableRow()
 }
 
+function openDetail(index) {
+  if (index == null || index < 0 || index >= apis.value.length) return
+  if (detailVisible.value && index !== selectedIndex.value) {
+    const flushed = flushWorkbenchToModel()
+    if (!flushed.ok) {
+      proxy.$modal.msgError(flushed.message)
+      return
+    }
+  }
+  selectedIndex.value = index
+  syncResponseTextFromApi()
+  setCurrentTableRow()
+  detailVisible.value = true
+}
+
+function closeDetail() {
+  detailVisible.value = false
+}
+
+function confirmDetail() {
+  const flushed = flushWorkbenchToModel()
+  if (!flushed.ok) {
+    proxy.$modal.msgError(flushed.message)
+    return
+  }
+  skipFlushOnClose.value = true
+  detailVisible.value = false
+}
+
+/** 关闭前 flush 工作台（refs 尚在）；失败则拦截关闭 */
+function beforeDetailClose(done) {
+  if (skipFlushOnClose.value) {
+    skipFlushOnClose.value = false
+    done()
+    return
+  }
+  const flushed = flushWorkbenchToModel()
+  if (!flushed.ok) {
+    proxy.$modal.msgError(flushed.message)
+    return
+  }
+  done()
+}
+
 function handleAdd() {
-  flushWorkbenchToModel()
+  if (detailVisible.value) {
+    const flushed = flushWorkbenchToModel()
+    if (!flushed.ok) {
+      proxy.$modal.msgError(flushed.message)
+      return
+    }
+  }
   const next = [...parseApis(apis.value), emptyPrefabricatedApi()]
   apis.value = next
-  selectedIndex.value = next.length - 1
+  const newIndex = next.length - 1
+  selectedIndex.value = newIndex
   syncResponseTextFromApi()
+  setCurrentTableRow()
+  // 等表格行渲染后再打开，避免与 length watch 同拍导致弹框未挂载
+  nextTick(() => {
+    detailVisible.value = true
+  })
 }
 
 function handleRemove() {
   if (selectedIndex.value < 0) return
+  if (detailVisible.value) {
+    detailVisible.value = false
+  }
   const next = parseApis(apis.value)
   next.splice(selectedIndex.value, 1)
   apis.value = next
@@ -452,12 +561,19 @@ function handleMove(delta) {
   const from = selectedIndex.value
   const to = from + delta
   if (from < 0 || to < 0 || to >= apis.value.length) return
-  flushWorkbenchToModel()
+  if (detailVisible.value) {
+    const flushed = flushWorkbenchToModel()
+    if (!flushed.ok) {
+      proxy.$modal.msgError(flushed.message)
+      return
+    }
+  }
   const next = parseApis(apis.value)
   const [item] = next.splice(from, 1)
   next.splice(to, 0, item)
   apis.value = next
   selectedIndex.value = to
+  setCurrentTableRow()
 }
 
 /** 响应 JSON 编辑即时：拆 example 进测值，结构只留定义 */
@@ -523,10 +639,7 @@ defineExpose({ flushAndValidate })
   }
 
   &__detail {
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 8px;
-    padding: 12px;
-    background: var(--el-fill-color-blank);
+    padding: 0 4px;
   }
 
   &__fields {
@@ -574,7 +687,7 @@ defineExpose({ flushAndValidate })
   &__workbench {
     display: flex;
     flex-direction: column;
-    height: clamp(320px, 44vh, 600px);
+    height: clamp(320px, 50vh, 640px);
     min-height: 320px;
     margin-bottom: 8px;
     overflow: hidden;
@@ -614,6 +727,12 @@ defineExpose({ flushAndValidate })
 
   &__empty {
     padding: 24px 0;
+  }
+
+  &__dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
   }
 }
 </style>

@@ -1,6 +1,8 @@
 /**
  * 把请求/响应结构里的调试测值拆到 testValueConfig，结构只留定义。
  * 用于调试保存、设计保存、预制口编辑等写路径。
+ * 读路径用 applyTestValuesToStructure 把测值叠回结构（对称）。
+ * 画布侧 applyRequestValueOverridesToWorkbench 亦委托本函数，避免双份叠回逻辑。
  */
 import { parseFlexibleJson } from './apiDetailRequestWorkbench'
 
@@ -30,6 +32,36 @@ export function peelTestValuesFromStructure(requestConfig, responseConfig, exist
     responseConfig: response,
     testValueConfig: testRoot,
   }
+}
+
+/**
+ * peel 的逆操作：把 testValueConfig.request 叠回 requestConfig（就地修改）。
+ * paramDefaults → 各参数数组 value；bodyExample → body.json.example。
+ * @param {object|null} requestConfig 工作台草稿 requestConfig
+ * @param {object|string|null} testValueConfig
+ * @returns {object} 同一份 requestConfig（无测值时原样返回）
+ */
+export function applyTestValuesToStructure(requestConfig, testValueConfig) {
+  const request = asObject(requestConfig)
+  if (!request) return requestConfig
+  const testRoot = asObject(parseFlexibleJson(testValueConfig))
+  const testRequest = asObject(testRoot?.request)
+  if (!testRequest) return request
+
+  const params = asObject(testRequest.paramDefaults)
+  if (params && Object.keys(params).length) {
+    for (const field of PARAM_ARRAY_FIELDS) {
+      applyParamDefaultsToArray(ensureParamArray(request, field), params)
+    }
+    const body = ensureObj(request, 'body')
+    applyParamDefaultsToArray(ensureParamArray(body, 'formData'), params)
+    applyParamDefaultsToArray(ensureParamArray(body, 'urlencoded'), params)
+  }
+
+  if (Object.prototype.hasOwnProperty.call(testRequest, 'bodyExample')) {
+    applyBodyExampleToRequest(request, testRequest.bodyExample)
+  }
+  return request
 }
 
 /** 非数组普通对象，否则 null */
@@ -105,4 +137,45 @@ function cloneJson(v) {
   } catch {
     return v
   }
+}
+
+/** 保证 parent[key] 是数组并返回 */
+function ensureParamArray(parent, key) {
+  if (!Array.isArray(parent[key])) {
+    parent[key] = []
+  }
+  return parent[key]
+}
+
+/** 按参数名把 defaults 写进 KV 行；没有对应行则追加 */
+function applyParamDefaultsToArray(rows, params) {
+  if (!Array.isArray(rows) || !params) return
+  for (const [name, value] of Object.entries(params)) {
+    const key = String(name || '').trim()
+    if (!key) continue
+    const row = rows.find((r) => r && String(r.name || '').trim() === key)
+    if (row) {
+      row.value = value
+      if (row._enabled === false) row._enabled = true
+    } else {
+      rows.push({
+        name: key,
+        value,
+        type: 'string',
+        _enabled: true,
+      })
+    }
+  }
+}
+
+/** 把 bodyExample 写入 body.json.example；mode 为 none/空时切到 json */
+function applyBodyExampleToRequest(request, bodyExample) {
+  const body = ensureObj(request, 'body')
+  if (!body.mode || body.mode === 'none') {
+    body.mode = 'json'
+  }
+  if (body.mode !== 'json') return
+  const jsonPart = asObject(body.json) || {}
+  jsonPart.example = cloneJson(bodyExample)
+  body.json = jsonPart
 }
