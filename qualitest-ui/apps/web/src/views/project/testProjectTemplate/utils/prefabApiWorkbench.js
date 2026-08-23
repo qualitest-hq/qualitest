@@ -1,5 +1,6 @@
 /**
- * 预制接口与请求/响应工作台之间的适配（对象草稿，无项目 ID）。
+ * 预制接口与请求/响应工作台之间的适配（对象草稿，不依赖项目主键）。
+ * 负责：预制接口 ↔ 工作台详情形状互转、鉴权 mode 补丁、设计提示文本互转、响应配置编辑文本。
  */
 
 import { parseFlexibleJson } from '../../testProject/utils/apiDetailRequestWorkbench'
@@ -123,7 +124,7 @@ export function designHintsFromText(text) {
   return { hints }
 }
 
-/** 鉴权 override 头字段读写（与设计页结构一致：authConfig.header） */
+/** 读写鉴权 mode=override 时的自定义头（name / valueTemplate）。 */
 export function readAuthOverrideHeader(authConfig) {
   const cfg = parseFlexibleJson(authConfig) || {}
   const header = cfg.header && typeof cfg.header === 'object' ? cfg.header : {}
@@ -135,6 +136,7 @@ export function readAuthOverrideHeader(authConfig) {
   }
 }
 
+/** 更新鉴权 mode；override 时写入自定义头，其它 mode 清掉头；预制接口不写 authProfileId。 */
 export function patchAuthConfigMode(authConfig, mode, overrideHeader) {
   const prev = parseFlexibleJson(authConfig) || {}
   const nextMode = String(mode || 'inherit').trim() || 'inherit'
@@ -146,7 +148,7 @@ export function patchAuthConfigMode(authConfig, mode, overrideHeader) {
   } else if (nextMode !== 'override') {
     delete next.header
   }
-  // 预制口不写 authProfileId
+  // 预制接口不挂项目 Profile id
   delete next.authProfileId
   return next
 }

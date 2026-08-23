@@ -9,8 +9,7 @@
       >
         <span class="auth-template-checkbox-list__name">{{ tpl.templateName }}</span>
         <span class="auth-template-checkbox-list__meta">
-          {{ tpl.headerName }} · {{ tpl.headerValueTemplate }}
-          <template v-if="pathPrefixHint(tpl)"> · {{ pathPrefixHint(tpl) }}</template>
+          {{ templateMeta(tpl) }}
         </span>
       </el-checkbox>
     </el-checkbox-group>
@@ -24,11 +23,13 @@
 
 <script setup>
 /**
- * 启用模板勾选列表：新建项目、设置页「从项目模板添加」共用。
+ * 启用中的项目模板勾选列表。
+ * 副标题展示 pathPrefix 与预制测试流条数；无匹配信息时提示托管头由登录流生成。
  */
-import { formatPathPrefixHint } from '../../testProjectTemplate/utils/templateForm'
+import { formatPathPrefixHint, parseFlows } from '../../testProjectTemplate/utils/templateForm'
 
 defineProps({
+  /** 可选模板列表。 */
   templates: {
     type: Array,
     default: () => [],
@@ -47,10 +48,17 @@ defineProps({
   },
 })
 
+/** 已勾选的模板 id 字符串数组。 */
 const selectedIds = defineModel({ type: Array, default: () => [] })
 
-function pathPrefixHint(tpl) {
-  return formatPathPrefixHint(tpl?.matchConfig)
+/** 勾选项副标题文案。 */
+function templateMeta(tpl) {
+  const parts = []
+  const hint = formatPathPrefixHint(tpl?.matchConfig)
+  if (hint) parts.push(hint)
+  const flowCount = parseFlows(tpl?.templateFlows).length
+  if (flowCount > 0) parts.push(`${flowCount} 条预制流`)
+  return parts.length ? parts.join(' · ') : '托管头由登录流生成'
 }
 </script>
 

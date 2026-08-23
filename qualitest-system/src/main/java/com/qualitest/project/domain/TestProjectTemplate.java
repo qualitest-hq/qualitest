@@ -13,8 +13,11 @@ import org.apache.ibatis.type.Alias;
 import java.io.Serial;
 
 /**
- * 项目模板表 test_project_template。
- * 一行模板对应一套 Profile：头模板 + 预制接口。勾选后拷贝进项目 auth_config。
+ * 项目模板（表 test_project_template）。
+ * <p>
+ * 一行模板描述一套可勾选进项目的鉴权与预制资产：
+ * 预制接口（必填）、预制参数（可选）、预制测试流（可选）。
+ * 不存托管请求头；勾选进项目时由系统根据预制测试流里的抽取规则生成头与凭证规则。
  */
 @Getter
 @Setter
@@ -32,28 +35,42 @@ public class TestProjectTemplate extends BaseEntity {
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long testProjectTemplateId;
 
-    /** 模板名称，未删除范围内唯一。拷贝到项目后作为 Profile 名。 */
+    /** 模板名称；未删除范围内唯一；勾选进项目后用作鉴权 Profile 名称。 */
     private String templateName;
 
-    /** 鉴权头名称，如 Authorization、Cookie。 */
-    private String headerName;
-
-    /** 鉴权头值模板，如 Bearer {{flow.token}}。 */
-    private String headerValueTemplate;
-
-    /** 路径匹配 JSON，如 {"pathPrefix":["/api/"]}；空表示不按前缀切分。 */
+    /**
+     * 路径匹配 JSON。
+     * 常见形态：{"pathPrefix":["/api/"]}；空表示不做路径前缀匹配。
+     */
     private String matchConfig;
 
-    /** 预制接口 JSON 数组。 */
-    private String apis;
+    /**
+     * 预制接口 JSON 数组（必填，不能为空数组）。
+     * 勾选进项目时写入鉴权 Profile，并按 method+path 种子到项目接口表（已存在则跳过）。
+     */
+    private String templateApis;
 
-    /** 是否内置：0 自定义可改可删，1 内置只读可克隆。 */
+    /**
+     * 预制参数 JSON 数组（可空，缺省按 []）。
+     * kind=value：叠进对应接口测值（同名键不覆盖）；
+     * kind=extract 且 credential=true：在没有预制测试流时，用来生成凭证规则与托管头。
+     */
+    private String templateParams;
+
+    /**
+     * 预制测试流 JSON 数组（可空，缺省按 []）。
+     * 勾选进项目时按 flowName 种子测试流（同名跳过）；
+     * 流内 HTTP 节点的 extracts 优先用于生成凭证规则与托管头。
+     */
+    private String templateFlows;
+
+    /** 内置标记：0 自定义（可改可删），1 内置（只读，可克隆为自定义）。 */
     private Integer builtinStatus;
 
-    /** 是否启用：0 禁用，1 启用。禁用的不能勾选到项目。 */
+    /** 启用标记：0 禁用（不可勾选进项目），1 启用。 */
     private Integer enableStatus;
 
-    /** 列表排序，越小越靠前。 */
+    /** 列表排序，数值越小越靠前。 */
     private Integer sortNum;
 
     /** 删除标记：0 正常，1 已删。 */

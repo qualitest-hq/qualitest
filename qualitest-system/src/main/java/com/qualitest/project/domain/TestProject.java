@@ -59,7 +59,8 @@ public class TestProject extends BaseEntity {
     private String authConfig;
 
     /**
-     * 新建时勾选的模板 id 列表（不落库；Apply 后写入 authConfig）。
+     * 新建项目时勾选的模板主键列表。
+     * 仅请求入参、不落库；创建时据此写入 authConfig 并种子预制资产。
      */
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private List<Long> templateIds;

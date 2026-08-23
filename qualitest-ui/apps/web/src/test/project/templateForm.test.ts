@@ -1,7 +1,6 @@
 /**
- * 测 templateForm：项目模板 apis 解析、method 同步与提交校验。
- * 边界：纯函数，无 UI / 持久化层。
- * 单跑：pnpm test templateForm   （在 qualitest-ui 或 apps/web 下）
+ * 项目模板表单工具单测：解析、method 同步、提交校验。
+ * 纯函数，无 UI / 持久化。
  */
 import { describe, expect, it } from 'vitest'
 
@@ -22,7 +21,7 @@ import {
 
 describe('parseApis', () => {
   it('解析 JSON 字符串为对象数组', () => {
-    // 前提：库列 apis 为 JSON 字符串
+    // 前提：库列 template_apis 为 JSON 字符串
     const raw = JSON.stringify([buildLoginApi()])
 
     const list = parseApis(raw)
@@ -108,29 +107,34 @@ describe('validateApis', () => {
 })
 
 describe('emptyTemplateForm', () => {
-  it('默认 apis 为空数组', () => {
+  it('默认 templateApis/templateParams/templateFlows 为空数组', () => {
     // 前提：新增模板
     const form = emptyTemplateForm()
 
-    // 期望：由面板引导用户新增预制口
-    expect(form.apis).toEqual([])
+    // 期望：由面板引导用户新增预制口；参数与流可空
+    expect(form.templateApis).toEqual([])
+    expect(form.templateParams).toEqual([])
+    expect(form.templateFlows).toEqual([])
   })
 })
 
 describe('templateToForm / formToPayload', () => {
-  it('round-trip 保留 apis 数组', () => {
+  it('round-trip 保留 templateApis 数组且不强制 header', () => {
     // 前提：详情含一条登录口
     const row = buildTemplateRow()
 
     const form = templateToForm(row)
     const payload = formToPayload(form)
 
-    // 期望：提交体 apis 仍为合法 JSON 字符串
-    expect(form.apis).toHaveLength(1)
+    // 期望：提交体 templateApis 仍为合法 JSON 字符串；params/flows 为数组 JSON
+    expect(form.templateApis).toHaveLength(1)
     expect(form.pathPrefixText).toBe('/api/')
-    const parsed = JSON.parse(payload.apis)
+    const parsed = JSON.parse(payload.templateApis)
     expect(parsed[0].apiPath).toBe('/login')
     expect(payload.templateName).toBe('测试模板')
+    expect(JSON.parse(payload.templateParams)).toEqual([])
+    expect(JSON.parse(payload.templateFlows)).toEqual([])
+    expect(payload.headerName).toBeUndefined()
     // 雪花 ID 保持字符串，避免 Number 精度丢失
     expect(payload.testProjectTemplateId).toBe('1')
   })

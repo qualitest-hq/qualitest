@@ -3,6 +3,8 @@ package com.qualitest.project.support;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
@@ -16,14 +18,19 @@ import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.api.util.RequestConfigImportNormalizer;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
+import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.domain.TestProjectTemplate;
 import com.qualitest.project.mapper.TestProjectMapper;
+import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectApiGroupService;
 import com.qualitest.project.service.ITestProjectApiService;
 import com.qualitest.project.service.ITestProjectService;
 import com.qualitest.project.service.ITestProjectTemplateService;
+import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.DerivedCredential;
+import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabFlow;
+import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabParam;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,16 +39,23 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * 把勾选的项目模板拷进项目 auth_config，并按预制接口插入尚未存在的项目接口。
+ * 把勾选的项目模板写入项目鉴权配置，并种子尚未存在的接口 / 测值 / 测试流。
  * <p>
- * 同名 Profile 整份跳过；method+path 已存在的预制口不写入该条、也不改已有接口。
- * Profile id 新生成，不沿用模板主键。跑流只读项目里这份副本。
+ * 规则简述：
+ * <ul>
+ *   <li>同名 Profile 整份跳过；</li>
+ *   <li>预制接口按 method+path 去重，已有则不插入、不改已有行；</li>
+ *   <li>托管头与凭证规则优先由预制测试流 extracts 生成，其次预制参数凭证抽取，再次接口上残留的 loginHint；</li>
+ *   <li>预制测试流按 flowName 去重后写入项目测试流，并尽量绑定项目接口 id。</li>
+ * </ul>
  */
 @Service
 public class ProjectAuthTemplateApplyService {
@@ -54,22 +68,26 @@ public class ProjectAuthTemplateApplyService {
     private final ITestProjectApiService testProjectApiService;
     private final ITestProjectApiGroupService testProjectApiGroupService;
     private final ITestProjectService testProjectService;
+    private final ITestFlowService testFlowService;
 
     public ProjectAuthTemplateApplyService(
             ITestProjectTemplateService testProjectTemplateService,
             TestProjectMapper testProjectMapper,
             ITestProjectApiService testProjectApiService,
             ITestProjectApiGroupService testProjectApiGroupService,
-            @Lazy ITestProjectService testProjectService) {
+            @Lazy ITestProjectService testProjectService,
+            @Lazy ITestFlowService testFlowService) {
         this.testProjectTemplateService = testProjectTemplateService;
         this.testProjectMapper = testProjectMapper;
         this.testProjectApiService = testProjectApiService;
         this.testProjectApiGroupService = testProjectApiGroupService;
         this.testProjectService = testProjectService;
+        this.testFlowService = testFlowService;
     }
 
     /**
-     * 按勾选顺序把模板拷进项目：组装 Profile、写 auth_config、种子接口。
+     * 按勾选顺序把模板写入项目。
+     * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 叠测值参数 → 种子测试流。
      */
     @Transactional(rollbackFor = Exception.class)
     public void apply(Long testProjectId, List<Long> templateIds) {
@@ -102,6 +120,7 @@ public class ProjectAuthTemplateApplyService {
         }
 
         List<PrefabricatedApi> toSeed = new ArrayList<>();
+        List<TestProjectTemplate> appliedTemplates = new ArrayList<>();
         for (Long templateId : ids) {
             TestProjectTemplate template = testProjectTemplateService.selectTestProjectTemplateById(templateId);
             if (template == null || (template.getDelStatus() != null && template.getDelStatus() == 1)) {
@@ -120,6 +139,7 @@ public class ProjectAuthTemplateApplyService {
             ProjectAuthProfile profile = toProfile(template, apiIdentities, toSeed);
             current.getAuthProfiles().add(profile);
             existingNames.add(name);
+            appliedTemplates.add(template);
         }
 
         ProjectAuthConfig normalized = ProjectAuthConfigSupport.normalize(current);
@@ -133,10 +153,15 @@ public class ProjectAuthTemplateApplyService {
         testProjectMapper.updateTestProject(update);
 
         seedApis(testProjectId, toSeed);
+        for (TestProjectTemplate template : appliedTemplates) {
+            overlayParams(testProjectId, template);
+            seedFlows(testProjectId, template);
+        }
     }
 
     /**
-     * 按配置里的预制接口插入项目接口。库里已有相同 method+path 的整条跳过。
+     * 仅按鉴权配置里的预制接口插入项目接口（已有 method+path 跳过）。
+     * 不处理预制参数、不处理预制测试流。
      */
     @Transactional(rollbackFor = Exception.class)
     public void seedPrefabricatedApis(Long testProjectId, ProjectAuthConfig config) {
@@ -152,8 +177,9 @@ public class ProjectAuthTemplateApplyService {
     }
 
     /**
-     * 模板转成一条项目鉴权 Profile：新 id、名称用模板名；path 已存在的预制口跳过。
-     * 预制口 auth 上的 loginHint 提到 Profile，并据此写出 credentialApi（发凭证的那一口）。
+     * 把一条模板转成项目鉴权 Profile。
+     * 生成新 Profile id；名称用模板名；path 已存在的预制接口不放入 Profile、也不再种子；
+     * 托管头与凭证优先由预制测试流 / 预制参数派生。
      */
     private ProjectAuthProfile toProfile(
             TestProjectTemplate template, Set<String> apiIdentities, List<PrefabricatedApi> toSeed) {
@@ -178,47 +204,80 @@ public class ProjectAuthTemplateApplyService {
             kept.add(api);
             toSeed.add(api);
         }
-        // 把预制口上的 loginHint 提到 Profile，并记下对应 method+path 为发凭证口
+
+        // 先在本次保留的接口里找残留 loginHint；找不到再扫模板全量接口（含因 path 冲突被跳过的）
+        LoginHint legacyHint = null;
+        CredentialApi legacyCred = null;
+        PrefabricatedApi legacyApi = firstApiWithLoginHint(kept);
+        if (legacyApi == null) {
+            legacyApi = firstApiWithLoginHint(apis);
+        }
+        if (legacyApi != null) {
+            legacyHint = legacyApi.getAuthConfig().getLoginHint();
+            legacyCred = ProjectAuthConfigSupport.credentialApi(
+                    ProjectAuthConfigSupport.prefabricatedHttpMethod(legacyApi), legacyApi.getApiPath());
+        }
+
+        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(
+                template.getTemplateFlows(), template.getTemplateParams(), legacyHint, legacyCred);
+
+        String headerName;
+        String headerValueTemplate;
         LoginHint loginHint = null;
         CredentialApi credentialApi = null;
-        for (PrefabricatedApi api : kept) {
-            if (api.getAuthConfig() == null || api.getAuthConfig().getLoginHint() == null) {
-                continue;
-            }
-            LoginHint hint = api.getAuthConfig().getLoginHint();
-            if (StrUtil.isBlank(hint.getFlowKey())) {
-                continue;
-            }
-            loginHint = hint;
-            credentialApi = ProjectAuthConfigSupport.credentialApi(
-                    ProjectAuthConfigSupport.prefabricatedHttpMethod(api), api.getApiPath());
-            break;
+        if (derived != null) {
+            loginHint = derived.getLoginHint();
+            credentialApi = derived.getCredentialApi();
+            headerName = derived.getHeaderName();
+            headerValueTemplate = derived.getHeaderValueTemplate();
+        } else {
+            // 没有任何凭证来源时写弱默认头，避免后续规范化因缺头失败
+            headerName = "Authorization";
+            headerValueTemplate = "Bearer {{flow.token}}";
         }
+
         return ProjectAuthProfile.builder()
                 .id(String.valueOf(IdUtil.getSnowflakeNextId()))
                 .name(template.getTemplateName().trim())
                 .match(match)
-                .headerName(template.getHeaderName())
-                .headerValueTemplate(template.getHeaderValueTemplate())
+                .headerName(headerName)
+                .headerValueTemplate(headerValueTemplate)
                 .credentialApi(credentialApi)
                 .loginHint(loginHint)
                 .apis(kept)
                 .build();
     }
 
-    /** 解析模板 apis JSON 数组。 */
+    /** 解析模板上的预制接口 JSON；非法则抛业务异常。 */
     private List<PrefabricatedApi> parseApis(TestProjectTemplate template) {
-        if (StrUtil.isBlank(template.getApis())) {
+        if (StrUtil.isBlank(template.getTemplateApis())) {
             return List.of();
         }
         try {
-            return JSONUtil.toList(JSONUtil.parseArray(template.getApis()), PrefabricatedApi.class);
+            return JSONUtil.toList(JSONUtil.parseArray(template.getTemplateApis()), PrefabricatedApi.class);
         } catch (Exception e) {
-            throw new ServiceException("模板 apis 不是合法 JSON: " + template.getTemplateName());
+            throw new ServiceException("模板预制接口不是合法 JSON: " + template.getTemplateName());
         }
     }
 
-    /** 把预制接口插入 test_project_api；已有 method+path 跳过，不改已有行。 */
+    /** 取第一条带有效 loginHint.flowKey 的预制接口。 */
+    private PrefabricatedApi firstApiWithLoginHint(List<PrefabricatedApi> apis) {
+        if (apis == null) {
+            return null;
+        }
+        for (PrefabricatedApi api : apis) {
+            if (api == null || api.getAuthConfig() == null || api.getAuthConfig().getLoginHint() == null) {
+                continue;
+            }
+            if (StrUtil.isBlank(api.getAuthConfig().getLoginHint().getFlowKey())) {
+                continue;
+            }
+            return api;
+        }
+        return null;
+    }
+
+    /** 把预制接口插入项目接口表；已有相同 method+path 则整条跳过。 */
     private void seedApis(Long testProjectId, List<PrefabricatedApi> toSeed) {
         if (toSeed == null || toSeed.isEmpty()) {
             return;
@@ -276,7 +335,150 @@ public class ProjectAuthTemplateApplyService {
         }
     }
 
-    /** 预制口 requestConfig 转成规范化后的 JSON 字符串。 */
+    /**
+     * 把预制参数里 kind=value 的项叠进对应项目接口的测值配置。
+     * 按 bind 的 method+path 定位接口；同名键已存在则不覆盖。
+     */
+    private void overlayParams(Long testProjectId, TestProjectTemplate template) {
+        List<PrefabParam> params = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams());
+        if (params.isEmpty()) {
+            return;
+        }
+        List<TestProjectApi> dbList = testProjectApiService.selectTestProjectApiList(
+                TestProjectApi.builder().testProjectId(testProjectId).delStatus(0).build());
+        if (dbList == null || dbList.isEmpty()) {
+            return;
+        }
+        Map<String, TestProjectApi> byIdentity = new HashMap<>();
+        for (TestProjectApi api : dbList) {
+            byIdentity.putIfAbsent(ApiImportMatchSupport.buildIdentity(api), api);
+        }
+        for (PrefabParam param : params) {
+            if (!"value".equals(param.getKind()) || param.getValue() == null || StrUtil.isBlank(param.getName())) {
+                continue;
+            }
+            String method = StrUtil.blankToDefault(param.getMethod(), "POST").toUpperCase(Locale.ROOT);
+            String path = param.getPath();
+            if (StrUtil.isBlank(path)) {
+                continue;
+            }
+            String identity = method + " " + ProjectAuthConfigSupport.normalizeApiPath(path);
+            TestProjectApi api = byIdentity.get(identity);
+            if (api == null) {
+                continue;
+            }
+            String nextTv = mergeParamValue(api.getTestValueConfig(), param.getName(), param.getValue());
+            if (nextTv == null || nextTv.equals(api.getTestValueConfig())) {
+                continue;
+            }
+            TestProjectApi patch = new TestProjectApi();
+            patch.setTestProjectApiId(api.getTestProjectApiId());
+            patch.setTestValueConfig(nextTv);
+            patch.setUpdateTime(DateUtils.getNowDate());
+            testProjectApiService.updateTestProjectApi(patch);
+            api.setTestValueConfig(nextTv);
+        }
+    }
+
+    /**
+     * 合并单个测值：优先写入 request.bodyExample；没有 bodyExample 时写入 request.paramDefaults。
+     * 目标键已存在则原样返回，不覆盖。
+     */
+    private String mergeParamValue(String testValueConfig, String name, Object value) {
+        JSONObject root;
+        try {
+            root = StrUtil.isBlank(testValueConfig) ? new JSONObject() : JSON.parseObject(testValueConfig);
+        } catch (Exception e) {
+            root = new JSONObject();
+        }
+        if (root == null) {
+            root = new JSONObject();
+        }
+        JSONObject request = root.getJSONObject("request");
+        if (request == null) {
+            request = new JSONObject();
+            root.put("request", request);
+        }
+        Object bodyExample = request.get("bodyExample");
+        if (bodyExample instanceof JSONObject bodyObj) {
+            if (!bodyObj.containsKey(name)) {
+                bodyObj.put(name, value);
+                return root.toJSONString();
+            }
+            return testValueConfig;
+        }
+        JSONObject defaults = request.getJSONObject("paramDefaults");
+        if (defaults == null) {
+            defaults = new JSONObject();
+            request.put("paramDefaults", defaults);
+        }
+        if (defaults.containsKey(name)) {
+            return testValueConfig;
+        }
+        defaults.put(name, value);
+        return root.toJSONString();
+    }
+
+    /**
+     * 按预制测试流种子项目测试流。
+     * 已有同名 flowName 跳过；写入前按 method+path 尽量填上节点的项目接口 id。
+     */
+    private void seedFlows(Long testProjectId, TestProjectTemplate template) {
+        List<PrefabFlow> flows = PrefabricatedTemplateExtrasSupport.parseFlows(template.getTemplateFlows());
+        if (flows.isEmpty()) {
+            return;
+        }
+        Set<String> existingNames = new HashSet<>();
+        List<TestFlow> existing = testFlowService.selectTestFlowList(
+                TestFlow.builder().testProjectId(testProjectId).delStatus(0).build());
+        if (existing != null) {
+            for (TestFlow flow : existing) {
+                if (flow != null && StrUtil.isNotBlank(flow.getFlowName())) {
+                    existingNames.add(flow.getFlowName().trim());
+                }
+            }
+        }
+        Map<String, Long> apiIdByIdentity = loadApiIdIndex(testProjectId);
+        Date now = DateUtils.getNowDate();
+        for (PrefabFlow prefab : flows) {
+            if (existingNames.contains(prefab.getFlowName())) {
+                continue;
+            }
+            String graphJson = PrefabricatedTemplateExtrasSupport.bindGraphApis(
+                    prefab.getGraphJson(),
+                    (method, path) -> apiIdByIdentity.get(method + " " + path));
+            TestFlow flow = new TestFlow();
+            flow.setTestFlowId(IdUtil.getSnowflakeNextId());
+            flow.setTestProjectId(testProjectId);
+            flow.setFlowName(prefab.getFlowName());
+            flow.setFlowDescription(prefab.getDescription());
+            flow.setGraphJson(graphJson);
+            flow.setDelStatus(0);
+            flow.setCreateTime(now);
+            testFlowService.insertTestFlow(flow);
+            existingNames.add(prefab.getFlowName());
+        }
+    }
+
+    /** 构建项目内「METHOD 规范化路径 → 接口主键」索引，供种子流绑接口。 */
+    private Map<String, Long> loadApiIdIndex(Long testProjectId) {
+        Map<String, Long> index = new LinkedHashMap<>();
+        List<TestProjectApi> dbList = testProjectApiService.selectTestProjectApiList(
+                TestProjectApi.builder().testProjectId(testProjectId).delStatus(0).build());
+        if (dbList == null) {
+            return index;
+        }
+        for (TestProjectApi api : dbList) {
+            if (api == null) {
+                continue;
+            }
+            String identity = ApiImportMatchSupport.buildIdentity(api);
+            index.putIfAbsent(identity, api.getTestProjectApiId());
+        }
+        return index;
+    }
+
+    /** 预制接口的 requestConfig 规范化后写成可落库 JSON。 */
     private String serializeRequestConfig(PrefabricatedApi prefab) {
         String raw;
         if (prefab.getRequestConfig() instanceof String s && StrUtil.isNotBlank(s)) {
@@ -289,7 +491,7 @@ public class ProjectAuthTemplateApplyService {
         return RequestConfigImportNormalizer.normalize(raw);
     }
 
-    /** 预制口鉴权落库：只写 mode / profileId / 自定义头，不写 loginHint（抽凭证规则在 Profile 上）。 */
+    /** 预制接口鉴权落库：只保留 mode / profileId / 自定义头，不落 loginHint。 */
     private String serializeAuthConfig(PrefabricatedApi prefab) {
         if (prefab.getAuthConfig() == null || StrUtil.isBlank(prefab.getAuthConfig().getMode())) {
             return ApiAuthConfigSupport.noneStorageJson();
@@ -304,13 +506,13 @@ public class ProjectAuthTemplateApplyService {
         return json != null ? json : ApiAuthConfigSupport.noneStorageJson();
     }
 
-    /** 对象或 JSON 字符串转成可写库的 JSON；空则用缺省。 */
+    /** 对象或 JSON 字符串转成可写库 JSON；空则用缺省值。 */
     private String serializeJsonColumn(Object value, String defaultJson) {
         String json = serializeJsonObject(value);
         return json != null ? json : defaultJson;
     }
 
-    /** 对象或 JSON 字符串转成可写库的 JSON；空则 null。 */
+    /** 对象或 JSON 字符串转成可写库 JSON；空则 null。 */
     private String serializeJsonObject(Object value) {
         if (value == null) {
             return null;
@@ -321,7 +523,7 @@ public class ProjectAuthTemplateApplyService {
         return JSONUtil.toJsonStr(value);
     }
 
-    /** 收集该 Profile 下已有预制口的 method+path。 */
+    /** 收集某 Profile 下已有预制接口的 method+path，用于去重。 */
     private void collectApiIdentities(ProjectAuthProfile profile, Set<String> identities) {
         if (profile == null || profile.getApis() == null) {
             return;
@@ -333,7 +535,7 @@ public class ProjectAuthTemplateApplyService {
         }
     }
 
-    /** 预制口去重键：METHOD + 规范化路径；缺 method 按 GET。 */
+    /** 预制接口去重键：METHOD + 规范化路径；缺 method 按 GET。 */
     private String prefabricatedIdentity(PrefabricatedApi api) {
         String method = ProjectAuthConfigSupport.prefabricatedHttpMethod(api);
         String path = ProjectAuthConfigSupport.normalizeApiPath(api.getApiPath());

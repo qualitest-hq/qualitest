@@ -89,7 +89,7 @@ IDEA 插件上传接口
 | 概念                      | 要点                                                                          |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `test_project_template` | 一行模板 = 一条 Profile；内置 RuoYi Bearer / Session、客户端 Bearer、管理端 Bearer           |
-| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `apis[]` 插入预制接口（已有 method+path **跳过**） |
+| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**）；可选种子 `templateParams` / `templateFlows`（同名流跳过）；托管头与 `loginHint` 优先从登录流 extracts **派生** |
 | 新建项目                    | **至少勾一套**；商城双端建议先「管理端 Bearer」再「客户端 Bearer」                                  |
 | 免登                      | 认预制 `apis[].authConfig.mode=none`；**不再**维护项目级匿名 path 清单                     |
 | 空配置                     | 才暂留 builtin `/login` 等启发式；有 Profile 但 apis 空 → 设置页黄条提示补模板                   |

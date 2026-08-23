@@ -1,23 +1,34 @@
 /**
- * 项目模板表单：matchConfig / apis 与 pathPrefix 文本互转。
+ * 项目模板表单工具：路径匹配、预制接口 / 参数 / 测试流的解析、校验与提交组装。
+ * 托管请求头不在模板表单提交；勾选进项目时由后端按预制测试流抽取规则生成。
  */
 
 import { formatAuthModeLabel, parseJsonMaybe, splitPathLines } from '../../testProject/utils/projectAuthConfig'
 
+/** 模板编辑里可选的 HTTP 方法。 */
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
+/** 深拷贝 JSON 可序列化对象，避免表单与提交互相污染。 */
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+/** 从 matchConfig 取出 pathPrefix 字符串列表。 */
 function listPathPrefixes(matchConfig) {
   const obj = parseJsonMaybe(matchConfig)
   const list = Array.isArray(obj?.pathPrefix) ? obj.pathPrefix : []
   return list.map((s) => String(s).trim()).filter(Boolean)
 }
 
-/** matchConfig JSON → pathPrefix 多行文本 */
+/** matchConfig JSON → 多行 pathPrefix 文本（编辑框用）。 */
 export function matchConfigToPathPrefixText(matchConfig) {
   return listPathPrefixes(matchConfig).join('\n')
 }
 
-/** pathPrefix 多行文本 → matchConfig JSON 字符串；空则 null */
+/**
+ * 多行 pathPrefix 文本 → matchConfig JSON 字符串。
+ * 空内容返回 null；单独写「/」禁止。
+ */
 export function pathPrefixTextToMatchConfig(text) {
   const prefixes = splitPathLines(text)
   if (!prefixes.length) return null
@@ -27,7 +38,10 @@ export function pathPrefixTextToMatchConfig(text) {
   return JSON.stringify({ pathPrefix: prefixes })
 }
 
-/** 新建预制接口默认结构 */
+/**
+ * 新建一条预制接口的默认结构。
+ * 默认 POST + authConfig.mode=none（登录口免登常见默认）。
+ */
 export function emptyPrefabricatedApi() {
   return {
     apiName: '',
@@ -58,33 +72,132 @@ export function emptyPrefabricatedApi() {
   }
 }
 
-/** 解析 apis（字符串或数组）为对象数组 */
-export function parseApis(apis) {
-  if (Array.isArray(apis)) {
-    return apis.map((item) => (item && typeof item === 'object' ? { ...item } : {}))
+/**
+ * 新建一条预制参数默认行。
+ * kind=value 表示测值；可改为 extract 并勾选 credential 做凭证抽取。
+ */
+export function emptyPrefabParam() {
+  return {
+    kind: 'value',
+    name: '',
+    bind: { method: 'POST', path: '' },
+    value: '',
+    from: 'body',
+    expr: '',
+    credential: false,
   }
-  const parsed = parseJsonMaybe(apis)
+}
+
+/** 新建一条预制测试流默认行（单 HTTP 登录节点骨架）。 */
+export function emptyPrefabFlow() {
+  return {
+    flowName: '',
+    description: '',
+    graphJson: buildLoginGraphJson({
+      method: 'POST',
+      apiPath: '',
+      from: 'body',
+      expr: '$.token',
+      flowKey: 'token',
+    }),
+  }
+}
+
+/**
+ * 组装单节点登录画布 graphJson。
+ * 含一个 HTTP 节点、一条 extracts、以及对应的 flowOutputs。
+ */
+export function buildLoginGraphJson({ method, apiPath, from, expr, flowKey }) {
+  const key = String(flowKey || 'token').trim() || 'token'
+  return {
+    nodes: [
+      {
+        id: 'login_http',
+        type: 'http',
+        position: { x: 40, y: 80 },
+        data: {
+          name: '登录',
+          callMode: 'project',
+          httpMethod: String(method || 'POST').trim().toUpperCase() || 'POST',
+          apiPath: String(apiPath || '').trim(),
+          extracts: [
+            {
+              from: from || 'body',
+              expr: String(expr || '').trim(),
+              scope: 'flow',
+              name: key,
+            },
+          ],
+          summary: '登录',
+        },
+      },
+    ],
+    edges: [],
+    meta: {
+      schemaVersion: 1,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      flowOutputs: [{ name: key }],
+    },
+  }
+}
+
+/**
+ * 把 JSON 字符串或数组解析成对象数组。
+ * 非数组 / 非法 JSON 返回 []；非对象元素落成 {}。
+ */
+export function parseJsonObjectArray(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map((item) => (item && typeof item === 'object' ? { ...item } : {}))
+  }
+  const parsed = parseJsonMaybe(raw)
   if (!Array.isArray(parsed)) return []
   return parsed.map((item) => (item && typeof item === 'object' ? { ...item } : {}))
 }
 
-/** 校验 apis 数组；通过返回深拷贝数组，失败抛错 */
+/** 解析预制接口字段。 */
+export function parseApis(apis) {
+  return parseJsonObjectArray(apis)
+}
+
+/** 解析预制参数字段。 */
+export function parseParams(params) {
+  return parseJsonObjectArray(params)
+}
+
+/** 解析预制测试流字段。 */
+export function parseFlows(flows) {
+  return parseJsonObjectArray(flows)
+}
+
+/** 校验预制接口：必须非空数组；返回深拷贝。 */
 export function validateApis(apis) {
   const list = parseApis(apis)
   if (!list.length) {
     throw new Error('预制接口须为非空数组')
   }
-  return list.map((api) => JSON.parse(JSON.stringify(api)))
+  return list.map((api) => cloneJson(api))
 }
 
-/** 从 requestConfig 读取 HTTP 方法 */
+/** 校验预制参数：可空；返回深拷贝。 */
+export function validateParams(params) {
+  return parseParams(params).map((row) => cloneJson(row))
+}
+
+/** 校验预制测试流：可空；丢掉没有 flowName 的行；返回深拷贝。 */
+export function validateFlows(flows) {
+  return parseFlows(flows)
+    .filter((row) => String(row?.flowName || '').trim())
+    .map((row) => cloneJson(row))
+}
+
+/** 从 requestConfig 读取 HTTP 方法；非法则 GET。 */
 export function resolveApiMethod(api) {
   const cfg = parseJsonMaybe(api?.requestConfig)
   const method = String(cfg?.method || 'GET').trim().toUpperCase()
   return HTTP_METHODS.includes(method) ? method : 'GET'
 }
 
-/** 写入 requestConfig.method */
+/** 写入 requestConfig.method，返回新对象。 */
 export function setApiMethod(api, method) {
   const nextMethod = String(method || 'GET').trim().toUpperCase()
   const cfg = parseJsonMaybe(api?.requestConfig) || {}
@@ -97,7 +210,7 @@ export function setApiMethod(api, method) {
   }
 }
 
-/** requestConfig JSON 变更后若含 method 则同步到 api */
+/** requestConfig 编辑后若含合法 method，同步回接口对象。 */
 export function syncMethodFromRequestConfig(api, requestConfig) {
   const cfg = parseJsonMaybe(requestConfig)
   if (!cfg || typeof cfg !== 'object') return api
@@ -106,7 +219,7 @@ export function syncMethodFromRequestConfig(api, requestConfig) {
   return { ...api, requestConfig: { ...cfg, method } }
 }
 
-/** 用整条对象替换 apis 中指定下标 */
+/** 用整条对象替换预制接口数组中指定下标。 */
 export function replaceApiAtIndex(apis, index, nextApi) {
   const list = parseApis(apis)
   if (index < 0 || index >= list.length) {
@@ -116,11 +229,11 @@ export function replaceApiAtIndex(apis, index, nextApi) {
     throw new Error('预制接口须为 JSON 对象')
   }
   const cloned = validateApis(list)
-  cloned[index] = JSON.parse(JSON.stringify(nextApi))
+  cloned[index] = cloneJson(nextApi)
   return cloned
 }
 
-/** apis → 预览表格行 */
+/** 预制接口 → 列表预览行（方法、路径、名称、鉴权模式标签）。 */
 export function apisToPreviewRows(apis) {
   const list = parseApis(apis)
   return list.map((api) => ({
@@ -132,7 +245,7 @@ export function apisToPreviewRows(apis) {
   }))
 }
 
-/** 列表展示：pathPrefix 摘要 */
+/** 模板列表：pathPrefix 摘要；过长截断。 */
 export function formatPathPrefixSummary(matchConfig) {
   const list = listPathPrefixes(matchConfig)
   if (!list.length) return '—'
@@ -140,21 +253,38 @@ export function formatPathPrefixSummary(matchConfig) {
   return text.length > 48 ? text.slice(0, 48) + '…' : text
 }
 
-/** 勾选列表副标题：pathPrefix 提示 */
+/** 勾选列表副标题：有 pathPrefix 时显示「匹配 xxx」。 */
 export function formatPathPrefixHint(matchConfig) {
   const list = listPathPrefixes(matchConfig)
   if (!list.length) return ''
   return '匹配 ' + list.join('、')
 }
 
+/** 预制测试流摘要：流名 + 首个 HTTP 节点的方法 / 路径 / 抽取标签。 */
+export function summarizePrefabFlow(flow) {
+  const graph = parseJsonMaybe(flow?.graphJson) || flow?.graphJson || {}
+  const node = Array.isArray(graph?.nodes) ? graph.nodes.find((n) => n?.type === 'http') : null
+  const data = node?.data || {}
+  const extract = Array.isArray(data.extracts) && data.extracts[0] ? data.extracts[0] : null
+  return {
+    flowName: String(flow?.flowName || '').trim(),
+    method: String(data.httpMethod || 'POST').trim().toUpperCase(),
+    apiPath: String(data.apiPath || '').trim(),
+    extractLabel: extract
+      ? `${extract.expr || ''} → ${extract.name || ''}`
+      : '—',
+  }
+}
+
+/** 空模板表单（新增抽屉初始值）。 */
 export function emptyTemplateForm() {
   return {
     testProjectTemplateId: undefined,
     templateName: '',
-    headerName: 'Authorization',
-    headerValueTemplate: 'Bearer {{flow.token}}',
     pathPrefixText: '',
-    apis: [],
+    templateApis: [],
+    templateParams: [],
+    templateFlows: [],
     enableStatus: 1,
     sortNum: 0,
     remark: '',
@@ -162,15 +292,15 @@ export function emptyTemplateForm() {
   }
 }
 
-/** 详情 → 表单 */
+/** 详情接口行 → 编辑表单（JSON 字段解析成数组）。 */
 export function templateToForm(row) {
   return {
     testProjectTemplateId: row?.testProjectTemplateId,
     templateName: row?.templateName || '',
-    headerName: row?.headerName || 'Authorization',
-    headerValueTemplate: row?.headerValueTemplate || '',
     pathPrefixText: matchConfigToPathPrefixText(row?.matchConfig),
-    apis: parseApis(row?.apis),
+    templateApis: parseApis(row?.templateApis),
+    templateParams: parseParams(row?.templateParams),
+    templateFlows: parseFlows(row?.templateFlows),
     enableStatus: row?.enableStatus ?? 1,
     sortNum: row?.sortNum ?? 0,
     remark: row?.remark || '',
@@ -178,15 +308,21 @@ export function templateToForm(row) {
   }
 }
 
-/** 表单 → 提交体 */
+/**
+ * 编辑表单 → 提交体。
+ * 写出 templateApis / templateParams / templateFlows 的 JSON 字符串；
+ * 不提交托管头字段；雪花 id 保持字符串。
+ */
 export function formToPayload(form) {
   const matchConfig = pathPrefixTextToMatchConfig(form.pathPrefixText)
-  const apis = JSON.stringify(validateApis(form.apis))
+  const templateApis = JSON.stringify(validateApis(form.templateApis))
+  const templateParams = JSON.stringify(validateParams(form.templateParams))
+  const templateFlows = JSON.stringify(validateFlows(form.templateFlows))
   const payload = {
     templateName: String(form.templateName || '').trim(),
-    headerName: String(form.headerName || '').trim(),
-    headerValueTemplate: String(form.headerValueTemplate || '').trim(),
-    apis,
+    templateApis,
+    templateParams,
+    templateFlows,
     enableStatus: form.enableStatus ?? 1,
     sortNum: form.sortNum ?? 0,
     remark: form.remark || '',
@@ -195,10 +331,9 @@ export function formToPayload(form) {
     payload.matchConfig = matchConfig
   }
   if (form.testProjectTemplateId != null && form.testProjectTemplateId !== '') {
-    // 雪花 ID 超过 Number.MAX_SAFE_INTEGER，须保持字符串交给后端
     payload.testProjectTemplateId = String(form.testProjectTemplateId)
   }
   return payload
 }
 
-export { HTTP_METHODS }
+export { HTTP_METHODS, parseJsonMaybe }

@@ -8,6 +8,7 @@ import java.util.List;
 
 /**
  * 项目模板：增删改查、克隆、列出启用项。
+ * 模板字段含预制接口 / 预制参数 / 预制测试流；托管头不在此维护。
  */
 public interface ITestProjectTemplateService {
 

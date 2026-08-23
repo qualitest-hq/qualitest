@@ -1,9 +1,9 @@
 /**
- * 项目模板 / 预制接口测试夹具 builder。
- * 边界：仅构造内存对象，不发 HTTP。
+ * 项目模板 / 预制接口测试夹具。
+ * 只构造内存对象，不发 HTTP。
  */
 
-/** 最小登录口 PrefabricatedApi */
+/** 最小登录口预制接口（免登）。 */
 export function buildLoginApi(overrides: Record<string, unknown> = {}) {
   return {
     apiName: '登录',
@@ -15,26 +15,33 @@ export function buildLoginApi(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/** 库行 → templateToForm 输入（apis 为 JSON 字符串） */
+/**
+ * 构造模板详情行（给 templateToForm 用）。
+ * templateApis / templateParams / templateFlows 写成 JSON 字符串。
+ */
 export function buildTemplateRow(overrides: Record<string, unknown> = {}) {
-  const apis = overrides.apis ?? [buildLoginApi()]
-  const apisValue = typeof apis === 'string' ? apis : JSON.stringify(apis)
+  const templateApis = overrides.templateApis ?? [buildLoginApi()]
+  const templateApisValue = typeof templateApis === 'string' ? templateApis : JSON.stringify(templateApis)
+  const templateParams = overrides.templateParams ?? []
+  const templateParamsValue = typeof templateParams === 'string' ? templateParams : JSON.stringify(templateParams)
+  const templateFlows = overrides.templateFlows ?? []
+  const templateFlowsValue = typeof templateFlows === 'string' ? templateFlows : JSON.stringify(templateFlows)
   return {
     testProjectTemplateId: 1,
     templateName: '测试模板',
-    headerName: 'Authorization',
-    headerValueTemplate: 'Bearer {{flow.token}}',
     matchConfig: '{"pathPrefix":["/api/"]}',
     enableStatus: 1,
     sortNum: 10,
     remark: '',
     builtinStatus: 0,
     ...overrides,
-    apis: apisValue,
+    templateApis: templateApisValue,
+    templateParams: templateParamsValue,
+    templateFlows: templateFlowsValue,
   }
 }
 
-/** 管理端 Bearer 风格 Profile（供 projectAuthConfig 复用） */
+/** 管理端 Bearer 风格的项目鉴权 Profile（含预制登录口）。 */
 export function buildAdminBearerProfile(overrides: Record<string, unknown> = {}) {
   return {
     id: 'adminBearer',

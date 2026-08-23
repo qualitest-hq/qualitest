@@ -7,6 +7,7 @@ import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.domain.TestProjectApiGroup;
 import com.qualitest.project.domain.TestProjectTemplate;
 import com.qualitest.project.mapper.TestProjectMapper;
+import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectApiGroupService;
 import com.qualitest.project.service.ITestProjectApiService;
 import com.qualitest.project.service.ITestProjectService;
@@ -36,9 +37,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 测谁：Apply 把模板拷进项目 Profile 并种子接口。
- * 边界：同名整份跳过、method+path 跨条去重、库内已有不覆盖、全字段拷贝、瘦 JSON 填缺省。
- * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ProjectAuthTemplateApplyServiceTest}
+ * ProjectAuthTemplateApplyService：勾选模板写入项目鉴权 Profile，并种子接口 / 测值 / 测试流。
+ * 覆盖：同名 Profile 跳过、method+path 去重、库内已有不覆盖、字段拷贝、瘦 JSON 补缺省。
  */
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -58,6 +58,8 @@ class ProjectAuthTemplateApplyServiceTest {
     private ITestProjectApiGroupService testProjectApiGroupService;
     @Mock
     private ITestProjectService testProjectService;
+    @Mock
+    private ITestFlowService testFlowService;
 
     private ProjectAuthTemplateApplyService service;
 
@@ -68,7 +70,8 @@ class ProjectAuthTemplateApplyServiceTest {
                 testProjectMapper,
                 testProjectApiService,
                 testProjectApiGroupService,
-                testProjectService);
+                testProjectService,
+                testFlowService);
     }
 
     /**
@@ -265,6 +268,41 @@ class ProjectAuthTemplateApplyServiceTest {
         assertFalse(inserts.getValue().get(0).getResponseConfig().contains("\"example\""));
     }
 
+    /**
+     * 前提：模板带 flows 登录流。
+     * 期望：从 extracts 派生 hint/头；插入同名测试流一次。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("种子：flows 派生 hint 并插入登录流")
+    void apply_seedsFlowAndDerivesHint() {
+        stubEmptyProject();
+        stubGroupCreate();
+        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
+        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        when(testFlowService.selectTestFlowList(any())).thenReturn(List.of());
+        when(testFlowService.insertTestFlow(any())).thenReturn(1);
+        String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
+                "RuoYi Bearer 登录", "POST", "/login", "token", "body", "$.token");
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplateFlows(flows);
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<TestProject> update = ArgumentCaptor.forClass(TestProject.class);
+        verify(testProjectMapper).updateTestProject(update.capture());
+        ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(update.getValue().getAuthConfig());
+        assertEquals("token", stored.getAuthProfiles().get(0).getLoginHint().getFlowKey());
+        assertEquals("Bearer {{flow.token}}", stored.getAuthProfiles().get(0).getHeaderValueTemplate());
+
+        ArgumentCaptor<com.qualitest.project.domain.TestFlow> flowCap =
+                ArgumentCaptor.forClass(com.qualitest.project.domain.TestFlow.class);
+        verify(testFlowService).insertTestFlow(flowCap.capture());
+        assertEquals("RuoYi Bearer 登录", flowCap.getValue().getFlowName());
+        assertTrue(flowCap.getValue().getGraphJson().contains("$.token"));
+    }
+
     private void stubEmptyProject() {
         TestProject project = new TestProject();
         project.setTestProjectId(PROJECT_ID);
@@ -285,9 +323,7 @@ class ProjectAuthTemplateApplyServiceTest {
         return TestProjectTemplate.builder()
                 .testProjectTemplateId(id)
                 .templateName(name)
-                .headerName("Authorization")
-                .headerValueTemplate("Bearer {{flow.token}}")
-                .apis(apis)
+                .templateApis(apis)
                 .enableStatus(1)
                 .delStatus(0)
                 .build();

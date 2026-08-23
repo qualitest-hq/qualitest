@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 项目模板业务：内置只读可克隆；自定义名称在未删除范围内唯一。
+ * 项目模板业务。
+ * 内置模板只读可克隆；自定义模板可改可删；名称在未删除范围内唯一。
+ * 保存时预制接口必填；预制参数 / 预制测试流缺省写成 []。
  */
 @Service
 public class TestProjectTemplateServiceImpl implements ITestProjectTemplateService {
@@ -144,6 +146,10 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         return testProjectTemplateMapper.selectEnabledTestProjectTemplateList();
     }
 
+    /**
+     * 克隆模板为自定义副本。
+     * 复制路径匹配、预制接口、预制参数、预制测试流；名称加「 (副本)」后缀并去重。
+     */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public Long cloneTestProjectTemplate(Long testProjectTemplateId) {
@@ -151,10 +157,10 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         TestProjectTemplate copy = TestProjectTemplate.builder()
                 .testProjectTemplateId(IdUtil.getSnowflakeNextId())
                 .templateName(uniqueCloneName(source.getTemplateName()))
-                .headerName(source.getHeaderName())
-                .headerValueTemplate(source.getHeaderValueTemplate())
                 .matchConfig(source.getMatchConfig())
-                .apis(source.getApis())
+                .templateApis(source.getTemplateApis())
+                .templateParams(source.getTemplateParams())
+                .templateFlows(source.getTemplateFlows())
                 .builtinStatus(0)
                 .enableStatus(1)
                 .sortNum(source.getSortNum() != null ? source.getSortNum() : 0)
@@ -188,16 +194,22 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         }
     }
 
-    /** 校验名称、头、预制接口非空，且名称在未删除范围内不重复。 */
+    /**
+     * 写入前校验：名称非空且未删范围内唯一；预制接口非空；
+     * 预制参数 / 预制测试流为空时写成 []。不校验托管头（勾选进项目时再生成）。
+     */
     private void validateWritable(TestProjectTemplate entity, Long excludeId) {
         if (StrUtil.isBlank(entity.getTemplateName())) {
             throw new ServiceException("模板名称不能为空");
         }
-        if (StrUtil.isBlank(entity.getHeaderName()) || StrUtil.isBlank(entity.getHeaderValueTemplate())) {
-            throw new ServiceException("须配置鉴权头名称与值模板");
-        }
-        if (StrUtil.isBlank(entity.getApis()) || "[]".equals(entity.getApis().trim())) {
+        if (StrUtil.isBlank(entity.getTemplateApis()) || "[]".equals(entity.getTemplateApis().trim())) {
             throw new ServiceException("预制接口不能为空");
+        }
+        if (StrUtil.isBlank(entity.getTemplateParams())) {
+            entity.setTemplateParams("[]");
+        }
+        if (StrUtil.isBlank(entity.getTemplateFlows())) {
+            entity.setTemplateFlows("[]");
         }
         String name = entity.getTemplateName().trim();
         entity.setTemplateName(name);

@@ -116,22 +116,6 @@
         </template>
       </el-table-column>
       <el-table-column
-        v-if="columnVisible.headerName"
-        key="headerName"
-        label="鉴权头"
-        prop="headerName"
-        width="120"
-        show-overflow-tooltip
-      />
-      <el-table-column
-        v-if="columnVisible.headerValueTemplate"
-        key="headerValueTemplate"
-        label="值模板"
-        min-width="180"
-        prop="headerValueTemplate"
-        show-overflow-tooltip
-      />
-      <el-table-column
         v-if="columnVisible.matchConfig"
         key="matchConfig"
         label="pathPrefix"
@@ -140,6 +124,17 @@
       >
         <template #default="scope">
           {{ formatPathPrefixSummary(scope.row.matchConfig) }}
+        </template>
+      </el-table-column>
+      <el-table-column
+        v-if="columnVisible.templateFlows"
+        key="templateFlows"
+        label="预制流"
+        width="80"
+        align="center"
+      >
+        <template #default="scope">
+          {{ countJsonArray(scope.row.templateFlows) }}
         </template>
       </el-table-column>
       <el-table-column
@@ -260,16 +255,6 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="鉴权头名称">
-              <span class="tpl-readonly-text">{{ form.headerName || '—' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="鉴权头值模板">
-              <span class="tpl-readonly-text">{{ form.headerValueTemplate || '—' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
             <el-form-item label="pathPrefix">
               <span class="tpl-readonly-text">{{ form.pathPrefixText || '—' }}</span>
             </el-form-item>
@@ -298,24 +283,6 @@
                 maxlength="100"
                 placeholder="拷贝到项目后作为 Profile 名称"
                 show-word-limit
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="鉴权头名称" prop="headerName">
-              <el-input
-                v-model="form.headerName"
-                maxlength="64"
-                placeholder="Authorization"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="鉴权头值模板" prop="headerValueTemplate">
-              <el-input
-                v-model="form.headerValueTemplate"
-                maxlength="512"
-                placeholder="Bearer {{flow.token}}"
               />
             </el-form-item>
           </el-col>
@@ -362,10 +329,22 @@
           </el-col>
         </el-row>
 
-        <el-form-item prop="apis" class="tpl-apis-form-item" label-width="0">
+        <el-form-item prop="templateApis" class="tpl-apis-form-item" label-width="0">
           <PrefabricatedApiPanel
             ref="apiPanelRef"
-            v-model="form.apis"
+            v-model="form.templateApis"
+            :read-only="isReadonlyForm"
+          />
+        </el-form-item>
+        <el-form-item class="tpl-apis-form-item" label-width="0">
+          <PrefabricatedParamPanel
+            v-model="form.templateParams"
+            :read-only="isReadonlyForm"
+          />
+        </el-form-item>
+        <el-form-item class="tpl-apis-form-item" label-width="0">
+          <PrefabricatedFlowPanel
+            v-model="form.templateFlows"
             :read-only="isReadonlyForm"
           />
         </el-form-item>
@@ -387,6 +366,10 @@
 </template>
 
 <script setup name="TestProjectTemplate">
+/**
+ * 项目模板管理页：列表、启用开关、增改查克隆。
+ * 表单含路径匹配、预制接口、预制参数、预制测试流；不编辑托管请求头。
+ */
 import {
   addTestProjectTemplate,
   cloneTestProjectTemplate,
@@ -396,10 +379,13 @@ import {
   updateTestProjectTemplate,
 } from '@/api/project/testProjectTemplate'
 import PrefabricatedApiPanel from './components/PrefabricatedApiPanel.vue'
+import PrefabricatedFlowPanel from './components/PrefabricatedFlowPanel.vue'
+import PrefabricatedParamPanel from './components/PrefabricatedParamPanel.vue'
 import {
   emptyTemplateForm,
   formatPathPrefixSummary,
   formToPayload,
+  parseFlows,
   templateToForm,
   validateApis,
 } from './utils/templateForm'
@@ -425,9 +411,8 @@ const dialogMode = ref('add')
 
 const columns = ref([
   { key: 'templateName', label: '模板名称', visible: true },
-  { key: 'headerName', label: '鉴权头', visible: true },
-  { key: 'headerValueTemplate', label: '值模板', visible: true },
   { key: 'matchConfig', label: 'pathPrefix', visible: true },
+  { key: 'templateFlows', label: '预制流', visible: true },
   { key: 'enableStatus', label: '启用', visible: true },
   { key: 'sortNum', label: '排序', visible: true },
   { key: 'remark', label: '备注', visible: false },
@@ -469,9 +454,7 @@ const data = reactive({
   },
   rules: {
     templateName: [{ required: true, message: '模板名称不能为空', trigger: 'blur' }],
-    headerName: [{ required: true, message: '鉴权头名称不能为空', trigger: 'blur' }],
-    headerValueTemplate: [{ required: true, message: '鉴权头值模板不能为空', trigger: 'blur' }],
-    apis: [{
+    templateApis: [{
       validator: (_rule, value, callback) => {
         try {
           validateApis(value)
@@ -487,6 +470,17 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data)
 const apiPanelRef = ref(null)
+
+/** 列表「预制流」列：统计 JSON 数组长度。 */
+function countJsonArray(raw) {
+  try {
+    if (Array.isArray(raw)) return raw.length
+    const list = parseFlows(raw)
+    return list.length
+  } catch {
+    return 0
+  }
+}
 
 function getList() {
   loading.value = true

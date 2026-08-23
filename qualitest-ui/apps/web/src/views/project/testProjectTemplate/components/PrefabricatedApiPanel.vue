@@ -257,6 +257,10 @@
 </template>
 
 <script setup>
+/**
+ * 预制接口面板：编辑模板的 templateApis。
+ * 列表预览 + 详情抽屉（请求 / 响应 / 鉴权 / 测值等）；登录口常用 authConfig.mode=none。
+ */
 import { computed, getCurrentInstance, nextTick, ref, watch } from 'vue'
 import ApiDebugTab from '@/views/project/testProject/components/ApiDebugTab.vue'
 import ResponseConfigPanel from '@/views/project/testProject/components/ResponseConfigPanel.vue'
