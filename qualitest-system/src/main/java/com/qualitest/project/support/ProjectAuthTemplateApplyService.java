@@ -3,8 +3,6 @@ package com.qualitest.project.support;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
-import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
@@ -21,16 +19,20 @@ import com.qualitest.common.utils.DateUtils;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
+import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.domain.TestProjectTemplate;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectApiGroupService;
 import com.qualitest.project.service.ITestProjectApiService;
+import com.qualitest.project.service.ITestProjectEnvService;
 import com.qualitest.project.service.ITestProjectService;
 import com.qualitest.project.service.ITestProjectTemplateService;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.DerivedCredential;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabFlow;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabParam;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,23 +44,25 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * 把勾选的项目模板写入项目鉴权配置，并种子尚未存在的接口 / 测值 / 测试流。
+ * 把勾选的项目模板写入项目鉴权配置，并种子尚未存在的接口 / 参数 / 测试流。
  * <p>
  * 规则简述：
  * <ul>
  *   <li>同名 Profile 整份跳过；</li>
  *   <li>预制接口按 method+path 去重，已有则不插入、不改已有行；</li>
- *   <li>托管头与凭证规则优先由预制测试流 extracts 生成，其次预制参数凭证抽取，再次接口上残留的 loginHint；</li>
+ *   <li>托管头与凭证规则由预制测试流 extracts 生成，其次接口上残留的 loginHint；</li>
+ *   <li>预制参数：flow→场景 flowSeed，env→项目环境变量，asset→项目素材库；</li>
  *   <li>预制测试流按 flowName 去重后写入项目测试流，并尽量绑定项目接口 id。</li>
  * </ul>
  */
 @Service
 public class ProjectAuthTemplateApplyService {
+
+    private static final Logger log = LoggerFactory.getLogger(ProjectAuthTemplateApplyService.class);
 
     /** 空响应配置，种子接口时写入 response_config。 */
     private static final String EMPTY_RESPONSE_CONFIG = "{\"configVersion\":1,\"responses\":[]}";
@@ -69,6 +73,7 @@ public class ProjectAuthTemplateApplyService {
     private final ITestProjectApiGroupService testProjectApiGroupService;
     private final ITestProjectService testProjectService;
     private final ITestFlowService testFlowService;
+    private final ITestProjectEnvService testProjectEnvService;
 
     public ProjectAuthTemplateApplyService(
             ITestProjectTemplateService testProjectTemplateService,
@@ -76,18 +81,20 @@ public class ProjectAuthTemplateApplyService {
             ITestProjectApiService testProjectApiService,
             ITestProjectApiGroupService testProjectApiGroupService,
             @Lazy ITestProjectService testProjectService,
-            @Lazy ITestFlowService testFlowService) {
+            @Lazy ITestFlowService testFlowService,
+            ITestProjectEnvService testProjectEnvService) {
         this.testProjectTemplateService = testProjectTemplateService;
         this.testProjectMapper = testProjectMapper;
         this.testProjectApiService = testProjectApiService;
         this.testProjectApiGroupService = testProjectApiGroupService;
         this.testProjectService = testProjectService;
         this.testFlowService = testFlowService;
+        this.testProjectEnvService = testProjectEnvService;
     }
 
     /**
      * 按勾选顺序把模板写入项目。
-     * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 叠测值参数 → 种子测试流。
+     * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 种子测试流（含 flowSeed）→ 种子环境/素材变量。
      */
     @Transactional(rollbackFor = Exception.class)
     public void apply(Long testProjectId, List<Long> templateIds) {
@@ -154,8 +161,9 @@ public class ProjectAuthTemplateApplyService {
 
         seedApis(testProjectId, toSeed);
         for (TestProjectTemplate template : appliedTemplates) {
-            overlayParams(testProjectId, template);
             seedFlows(testProjectId, template);
+            seedEnvParams(testProjectId, template);
+            seedAssetParams(testProjectId, template);
         }
     }
 
@@ -179,7 +187,7 @@ public class ProjectAuthTemplateApplyService {
     /**
      * 把一条模板转成项目鉴权 Profile。
      * 生成新 Profile id；名称用模板名；path 已存在的预制接口不放入 Profile、也不再种子；
-     * 托管头与凭证优先由预制测试流 / 预制参数派生。
+     * 托管头与凭证优先由预制测试流 extracts 派生。
      */
     private ProjectAuthProfile toProfile(
             TestProjectTemplate template, Set<String> apiIdentities, List<PrefabricatedApi> toSeed) {
@@ -219,7 +227,7 @@ public class ProjectAuthTemplateApplyService {
         }
 
         DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(
-                template.getTemplateFlows(), template.getTemplateParams(), legacyHint, legacyCred);
+                template.getTemplateFlows(), legacyHint, legacyCred);
 
         String headerName;
         String headerValueTemplate;
@@ -336,94 +344,15 @@ public class ProjectAuthTemplateApplyService {
     }
 
     /**
-     * 把预制参数里 kind=value 的项叠进对应项目接口的测值配置。
-     * 按 bind 的 method+path 定位接口；同名键已存在则不覆盖。
-     */
-    private void overlayParams(Long testProjectId, TestProjectTemplate template) {
-        List<PrefabParam> params = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams());
-        if (params.isEmpty()) {
-            return;
-        }
-        List<TestProjectApi> dbList = testProjectApiService.selectTestProjectApiList(
-                TestProjectApi.builder().testProjectId(testProjectId).delStatus(0).build());
-        if (dbList == null || dbList.isEmpty()) {
-            return;
-        }
-        Map<String, TestProjectApi> byIdentity = new HashMap<>();
-        for (TestProjectApi api : dbList) {
-            byIdentity.putIfAbsent(ApiImportMatchSupport.buildIdentity(api), api);
-        }
-        for (PrefabParam param : params) {
-            if (!"value".equals(param.getKind()) || param.getValue() == null || StrUtil.isBlank(param.getName())) {
-                continue;
-            }
-            String method = StrUtil.blankToDefault(param.getMethod(), "POST").toUpperCase(Locale.ROOT);
-            String path = param.getPath();
-            if (StrUtil.isBlank(path)) {
-                continue;
-            }
-            String identity = method + " " + ProjectAuthConfigSupport.normalizeApiPath(path);
-            TestProjectApi api = byIdentity.get(identity);
-            if (api == null) {
-                continue;
-            }
-            String nextTv = mergeParamValue(api.getTestValueConfig(), param.getName(), param.getValue());
-            if (nextTv == null || nextTv.equals(api.getTestValueConfig())) {
-                continue;
-            }
-            TestProjectApi patch = new TestProjectApi();
-            patch.setTestProjectApiId(api.getTestProjectApiId());
-            patch.setTestValueConfig(nextTv);
-            patch.setUpdateTime(DateUtils.getNowDate());
-            testProjectApiService.updateTestProjectApi(patch);
-            api.setTestValueConfig(nextTv);
-        }
-    }
-
-    /**
-     * 合并单个测值：优先写入 request.bodyExample；没有 bodyExample 时写入 request.paramDefaults。
-     * 目标键已存在则原样返回，不覆盖。
-     */
-    private String mergeParamValue(String testValueConfig, String name, Object value) {
-        JSONObject root;
-        try {
-            root = StrUtil.isBlank(testValueConfig) ? new JSONObject() : JSON.parseObject(testValueConfig);
-        } catch (Exception e) {
-            root = new JSONObject();
-        }
-        if (root == null) {
-            root = new JSONObject();
-        }
-        JSONObject request = root.getJSONObject("request");
-        if (request == null) {
-            request = new JSONObject();
-            root.put("request", request);
-        }
-        Object bodyExample = request.get("bodyExample");
-        if (bodyExample instanceof JSONObject bodyObj) {
-            if (!bodyObj.containsKey(name)) {
-                bodyObj.put(name, value);
-                return root.toJSONString();
-            }
-            return testValueConfig;
-        }
-        JSONObject defaults = request.getJSONObject("paramDefaults");
-        if (defaults == null) {
-            defaults = new JSONObject();
-            request.put("paramDefaults", defaults);
-        }
-        if (defaults.containsKey(name)) {
-            return testValueConfig;
-        }
-        defaults.put(name, value);
-        return root.toJSONString();
-    }
-
-    /**
-     * 按预制测试流种子项目测试流。
+     * 按预制测试流种子项目测试流，并把同模板的 flow 参数写进默认场景 flowSeed。
      * 已有同名 flowName 跳过；写入前按 method+path 尽量填上节点的项目接口 id。
      */
     private void seedFlows(Long testProjectId, TestProjectTemplate template) {
+        List<PrefabParam> flowParams = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams())
+                .stream()
+                .filter(p -> "flow".equals(p.getKind()))
+                .toList();
+
         List<PrefabFlow> flows = PrefabricatedTemplateExtrasSupport.parseFlows(template.getTemplateFlows());
         if (flows.isEmpty()) {
             return;
@@ -440,12 +369,18 @@ public class ProjectAuthTemplateApplyService {
         }
         Map<String, Long> apiIdByIdentity = loadApiIdIndex(testProjectId);
         Date now = DateUtils.getNowDate();
+        boolean firstSeeded = false;
         for (PrefabFlow prefab : flows) {
             if (existingNames.contains(prefab.getFlowName())) {
                 continue;
             }
-            String graphJson = PrefabricatedTemplateExtrasSupport.bindGraphApis(
-                    prefab.getGraphJson(),
+            String graphJson = prefab.getGraphJson();
+            if (!firstSeeded) {
+                graphJson = PrefabricatedTemplateExtrasSupport.mergeFlowSeedIntoGraph(graphJson, flowParams);
+                firstSeeded = true;
+            }
+            graphJson = PrefabricatedTemplateExtrasSupport.bindGraphApis(
+                    graphJson,
                     (method, path) -> apiIdByIdentity.get(method + " " + path));
             TestFlow flow = new TestFlow();
             flow.setTestFlowId(IdUtil.getSnowflakeNextId());
@@ -458,6 +393,83 @@ public class ProjectAuthTemplateApplyService {
             testFlowService.insertTestFlow(flow);
             existingNames.add(prefab.getFlowName());
         }
+    }
+
+    /**
+     * 把预制参数 kind=env 合并进项目默认/首个环境的 envVariables（同 key 不覆盖）。
+     * baseUrl 且环境尚无有效 envUrl 时写入 envUrl。
+     */
+    private void seedEnvParams(Long testProjectId, TestProjectTemplate template) {
+        List<PrefabParam> envParams = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams())
+                .stream()
+                .filter(p -> "env".equals(p.getKind()))
+                .toList();
+        if (envParams.isEmpty()) {
+            return;
+        }
+        List<TestProjectEnv> envs = testProjectEnvService.selectTestProjectEnvList(
+                TestProjectEnv.builder().testProjectId(testProjectId).delStatus(0).build());
+        if (envs == null || envs.isEmpty()) {
+            log.warn("模板「{}」有 env 预制参数但项目无环境，跳过", template.getTemplateName());
+            return;
+        }
+        TestProjectEnv target = envs.get(0);
+        String nextVars = PrefabricatedTemplateExtrasSupport.mergeEnvVariables(
+                target.getEnvVariables(), envParams);
+        boolean varsChanged = nextVars != null && !nextVars.equals(target.getEnvVariables());
+        String nextUrl = target.getEnvUrl();
+        boolean urlChanged = false;
+        for (PrefabParam param : envParams) {
+            if (param == null || !"baseUrl".equals(param.getName())) {
+                continue;
+            }
+            if (StrUtil.isNotBlank(target.getEnvUrl())) {
+                break;
+            }
+            String value = param.getValue() != null ? String.valueOf(param.getValue()).trim() : "";
+            if (StrUtil.isBlank(value)) {
+                break;
+            }
+            nextUrl = value;
+            urlChanged = true;
+            break;
+        }
+        if (!varsChanged && !urlChanged) {
+            return;
+        }
+        TestProjectEnv patch = new TestProjectEnv();
+        patch.setTestProjectEnvId(target.getTestProjectEnvId());
+        if (varsChanged) {
+            patch.setEnvVariables(nextVars);
+        }
+        if (urlChanged) {
+            patch.setEnvUrl(nextUrl);
+        }
+        patch.setUpdateTime(DateUtils.getNowDate());
+        testProjectEnvService.updateTestProjectEnv(patch);
+    }
+
+    /**
+     * 把预制参数 kind=asset 合并进项目 asset_variables（同 key 不覆盖）。
+     */
+    private void seedAssetParams(Long testProjectId, TestProjectTemplate template) {
+        List<PrefabParam> assetParams = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams())
+                .stream()
+                .filter(p -> "asset".equals(p.getKind()))
+                .toList();
+        if (assetParams.isEmpty()) {
+            return;
+        }
+        String existing = testProjectMapper.selectAssetVariablesByTestProjectId(testProjectId);
+        String next = PrefabricatedTemplateExtrasSupport.mergeAssetVariables(existing, assetParams);
+        if (next == null || next.equals(existing)) {
+            return;
+        }
+        TestProject patch = new TestProject();
+        patch.setTestProjectId(testProjectId);
+        patch.setAssetVariables(next);
+        patch.setUpdateTime(DateUtils.getNowDate());
+        testProjectMapper.updateAssetVariables(patch);
     }
 
     /** 构建项目内「METHOD 规范化路径 → 接口主键」索引，供种子流绑接口。 */

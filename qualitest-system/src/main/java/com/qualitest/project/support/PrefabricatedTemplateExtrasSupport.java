@@ -1,5 +1,6 @@
 package com.qualitest.project.support;
 
+import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
@@ -13,12 +14,13 @@ import lombok.Getter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * 项目模板「预制参数 / 预制测试流」解析，以及凭证规则与托管头的派生。
  * <p>
- * 派生优先级：预制测试流 extracts → 预制参数里标记为凭证的抽取项 → 预制接口上残留的 loginHint。
- * 托管头不存模板表：Bearer 用 Authorization，Session Cookie 用 Cookie。
+ * 预制参数 kind 仅认 flow / env / assert（对齐测试流场景初值、环境变量、断言规则）。
+ * 凭证派生只认预制测试流 extracts，其次接口上残留的 loginHint；托管头不存模板表。
  */
 public final class PrefabricatedTemplateExtrasSupport {
 
@@ -55,28 +57,19 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
-     * 一条预制参数。
-     * kind=value：测值默认；kind=extract：抽取规则；credential=true 表示用于生成凭证。
+     * 一条预制参数（flow / env / asset）。
      */
     @Getter
     @Builder
     public static class PrefabParam {
-        /** value（测值）或 extract（抽取）。 */
+        /** flow（场景初值）/ env（环境变量）/ asset（项目素材）。 */
         private final String kind;
-        /** 参数名 / flow 变量名。 */
+        /** 变量名 / 素材 key。 */
         private final String name;
-        /** 绑定接口方法（来自 bind.method）。 */
-        private final String method;
-        /** 绑定接口路径（来自 bind.path，已规范化）。 */
-        private final String path;
-        /** kind=value 时的默认值。 */
+        /** 值；asset 可为对象或标量。 */
         private final Object value;
-        /** kind=extract 时的来源：body / setCookie / header。 */
-        private final String from;
-        /** kind=extract 时的表达式或 Cookie 名。 */
-        private final String expr;
-        /** 是否作为凭证抽取（用于生成 loginHint 与托管头）。 */
-        private final boolean credential;
+        /** 备注。 */
+        private final String remark;
     }
 
     /**
@@ -125,7 +118,7 @@ public final class PrefabricatedTemplateExtrasSupport {
 
     /**
      * 解析预制参数 JSON。
-     * 无 name 的条目跳过；非法 JSON 返回空列表。
+     * 只认 kind=flow|env|asset；其它形态整行跳过（不做旧 value/extract/assert 映射）。
      */
     public static List<PrefabParam> parseParams(String paramsJson) {
         List<PrefabParam> out = new ArrayList<>();
@@ -142,23 +135,19 @@ public final class PrefabricatedTemplateExtrasSupport {
                 if (row == null) {
                     continue;
                 }
-                String kind = StrUtil.blankToDefault(row.getString("kind"), "value").trim().toLowerCase(Locale.ROOT);
+                String kind = StrUtil.blankToDefault(row.getString("kind"), "").trim().toLowerCase(Locale.ROOT);
+                if (!"flow".equals(kind) && !"env".equals(kind) && !"asset".equals(kind)) {
+                    continue;
+                }
                 String name = StrUtil.trimToNull(row.getString("name"));
                 if (name == null) {
                     continue;
                 }
-                JSONObject bind = row.getJSONObject("bind");
-                String method = bind != null ? StrUtil.trimToNull(bind.getString("method")) : null;
-                String path = bind != null ? StrUtil.trimToNull(bind.getString("path")) : null;
                 out.add(PrefabParam.builder()
                         .kind(kind)
                         .name(name)
-                        .method(method != null ? method.toUpperCase(Locale.ROOT) : null)
-                        .path(path != null ? ProjectAuthConfigSupport.normalizeApiPath(path) : null)
-                        .value(row.get("value"))
-                        .from(StrUtil.trimToNull(row.getString("from")))
-                        .expr(StrUtil.trimToNull(row.getString("expr")))
-                        .credential(Boolean.TRUE.equals(row.getBoolean("credential")))
+                        .value(normalizeParamValue(row.get("value")))
+                        .remark(StrUtil.trimToNull(row.getString("remark")))
                         .build());
             }
         } catch (Exception ignored) {
@@ -167,20 +156,35 @@ public final class PrefabricatedTemplateExtrasSupport {
         return out;
     }
 
+    /** 字符串若是 JSON 对象/数组则解析，便于素材嵌套字段落盘。 */
+    private static Object normalizeParamValue(Object raw) {
+        if (!(raw instanceof String s)) {
+            return raw;
+        }
+        String text = s.trim();
+        if (text.isEmpty()) {
+            return "";
+        }
+        if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"))) {
+            try {
+                return JSON.parse(text);
+            } catch (Exception ignored) {
+                return raw;
+            }
+        }
+        return raw;
+    }
+
     /**
      * 派生凭证规则与托管头。
-     * 优先读预制测试流；其次读预制参数中的凭证抽取；最后用预制接口上残留的 loginHint。
-     * 三者都没有则返回 null。
+     * 优先读预制测试流 extracts；其次用预制接口上残留的 loginHint。
+     * 二者都没有则返回 null（不再读预制参数）。
      */
     public static DerivedCredential deriveCredential(
-            String flowsJson, String paramsJson, LoginHint legacyHint, CredentialApi legacyCredential) {
+            String flowsJson, LoginHint legacyHint, CredentialApi legacyCredential) {
         DerivedCredential fromFlows = deriveFromFlows(flowsJson);
         if (fromFlows != null) {
             return fromFlows;
-        }
-        DerivedCredential fromParams = deriveFromParams(paramsJson);
-        if (fromParams != null) {
-            return fromParams;
         }
         if (legacyHint == null || StrUtil.isBlank(legacyHint.getFlowKey())) {
             return null;
@@ -220,30 +224,6 @@ public final class PrefabricatedTemplateExtrasSupport {
                 }
                 return buildDerived(ProjectAuthConfigSupport.credentialApi(method, path), hint);
             }
-        }
-        return null;
-    }
-
-    /** 遍历预制参数，取第一条 credential extract 生成凭证。 */
-    private static DerivedCredential deriveFromParams(String paramsJson) {
-        for (PrefabParam param : parseParams(paramsJson)) {
-            if (!"extract".equals(param.getKind()) || !param.isCredential()) {
-                continue;
-            }
-            if (StrUtil.isBlank(param.getName()) || StrUtil.isBlank(param.getExpr())) {
-                continue;
-            }
-            LoginHint hint = LoginHint.builder()
-                    .flowKey(param.getName())
-                    .from(StrUtil.blankToDefault(param.getFrom(), "body"))
-                    .expr(param.getExpr())
-                    .build();
-            CredentialApi cred = null;
-            if (StrUtil.isNotBlank(param.getPath())) {
-                cred = ProjectAuthConfigSupport.credentialApi(
-                        StrUtil.blankToDefault(param.getMethod(), "POST"), param.getPath());
-            }
-            return buildDerived(cred, hint);
         }
         return null;
     }
@@ -351,8 +331,128 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
+     * 把 flow 预制参数合并进画布默认场景的 flowSeed（同名键不覆盖）。
+     * 无 scenarios 时补一条默认场景。
+     */
+    public static String mergeFlowSeedIntoGraph(String graphJson, List<PrefabParam> flowParams) {
+        if (StrUtil.isBlank(graphJson) || flowParams == null || flowParams.isEmpty()) {
+            return graphJson;
+        }
+        JSONObject graph = JSON.parseObject(graphJson);
+        if (graph == null) {
+            return graphJson;
+        }
+        JSONObject meta = graph.getJSONObject("meta");
+        if (meta == null) {
+            meta = new JSONObject();
+            graph.put("meta", meta);
+        }
+        ensureDefaultScenario(meta);
+        JSONArray scenarios = meta.getJSONArray("scenarios");
+        JSONObject scenario = scenarios.getJSONObject(0);
+        JSONObject flowSeed = scenario.getJSONObject("flowSeed");
+        if (flowSeed == null) {
+            flowSeed = new JSONObject();
+            scenario.put("flowSeed", flowSeed);
+        }
+        boolean changed = false;
+        for (PrefabParam param : flowParams) {
+            if (param == null || !"flow".equals(param.getKind()) || StrUtil.isBlank(param.getName())) {
+                continue;
+            }
+            if (flowSeed.containsKey(param.getName())) {
+                continue;
+            }
+            flowSeed.put(param.getName(), param.getValue() != null ? param.getValue() : "");
+            changed = true;
+        }
+        return changed ? graph.toJSONString() : graphJson;
+    }
+
+    /**
+     * 把变量条目合并进 envVariables / asset_variables 同形 JSON（同 key 不覆盖）。
+     * @param expectedKind env 或 asset，只合并该 kind 的参数行
+     */
+    public static String mergeVariableEntries(String existingJson, List<PrefabParam> params, String expectedKind) {
+        if (params == null || params.isEmpty() || StrUtil.isBlank(expectedKind)) {
+            return existingJson;
+        }
+        List<com.qualitest.project.domain.TestProjectAsset> entries;
+        try {
+            entries = new ArrayList<>(TestProjectVariableEntrySupport.parseEntries(
+                    StrUtil.blankToDefault(existingJson, "[]"), false));
+        } catch (Exception e) {
+            entries = new ArrayList<>();
+        }
+        boolean changed = false;
+        for (PrefabParam param : params) {
+            if (param == null || !expectedKind.equals(param.getKind()) || StrUtil.isBlank(param.getName())) {
+                continue;
+            }
+            if (TestProjectVariableEntrySupport.findByKey(entries, param.getName()) != null) {
+                continue;
+            }
+            Map<String, Object> assets = new java.util.LinkedHashMap<>();
+            assets.put(param.getName(), param.getValue() != null ? param.getValue() : "");
+            entries.add(com.qualitest.project.domain.TestProjectAsset.builder()
+                    .id(IdUtil.getSnowflakeNextId())
+                    .key(param.getName())
+                    .remark(param.getRemark())
+                    .updateTime(TestProjectVariableEntrySupport.nowUpdateTime())
+                    .assets(assets)
+                    .build());
+            changed = true;
+        }
+        if (!changed) {
+            return existingJson;
+        }
+        return TestProjectVariableEntrySupport.toJson(
+                TestProjectVariableEntrySupport.normalizeEntriesForPersist(entries));
+    }
+
+    /** 合并进环境 envVariables。 */
+    public static String mergeEnvVariables(String existingJson, List<PrefabParam> envParams) {
+        return mergeVariableEntries(existingJson, envParams, "env");
+    }
+
+    /** 合并进项目素材 asset_variables。 */
+    public static String mergeAssetVariables(String existingJson, List<PrefabParam> assetParams) {
+        return mergeVariableEntries(existingJson, assetParams, "asset");
+    }
+
+    private static void ensureDefaultScenario(JSONObject meta) {
+        JSONArray scenarios = meta.getJSONArray("scenarios");
+        if (scenarios != null && !scenarios.isEmpty()) {
+            if (StrUtil.isBlank(meta.getString("activeScenarioId"))) {
+                JSONObject first = scenarios.getJSONObject(0);
+                if (first != null && StrUtil.isNotBlank(first.getString("id"))) {
+                    meta.put("activeScenarioId", first.getString("id"));
+                }
+            }
+            return;
+        }
+        String scenarioId = String.valueOf(IdUtil.getSnowflakeNextId());
+        JSONObject scenario = new JSONObject();
+        scenario.put("id", scenarioId);
+        scenario.put("name", "默认（冒烟）");
+        scenario.put("testProjectEnvId", "");
+        scenario.put("flowSeed", new JSONObject());
+        scenario.put("remark", "");
+        scenarios = new JSONArray();
+        scenarios.add(scenario);
+        meta.put("scenarios", scenarios);
+        meta.put("activeScenarioId", scenarioId);
+        if (!meta.containsKey("layout")) {
+            meta.put("layout", "manual");
+        }
+        if (!meta.containsKey("schemaVersion")) {
+            meta.put("schemaVersion", 1);
+        }
+    }
+
+    /**
      * 组装内置模板用的「单条登录流」JSON 数组字符串。
-     * 画布含一个 HTTP 登录节点，并按入参写入 extracts / flowOutputs。
+     * 画布含一个 HTTP 登录节点，并按入参写入 extracts / flowOutputs / 默认场景。
      */
     public static String builtinLoginFlowJson(
             String flowName, String method, String apiPath, String flowKey, String from, String expr) {
@@ -361,12 +461,18 @@ public final class PrefabricatedTemplateExtrasSupport {
         extract.put("expr", expr);
         extract.put("scope", "flow");
         extract.put("name", flowKey);
+        extract.put("entryKey", "");
+        extract.put("fieldPath", "");
 
         JSONObject data = new JSONObject();
         data.put("name", "登录");
         data.put("callMode", "project");
         data.put("httpMethod", method);
         data.put("apiPath", apiPath);
+        data.put("timeoutMs", 30000);
+        JSONObject successCheck = new JSONObject();
+        successCheck.put("mode", "inherit");
+        data.put("successCheck", successCheck);
         data.put("extracts", List.of(extract));
         data.put("summary", "登录");
 
@@ -383,13 +489,25 @@ public final class PrefabricatedTemplateExtrasSupport {
         output.put("name", flowKey);
 
         JSONObject viewport = new JSONObject();
-        viewport.put("x", 0);
-        viewport.put("y", 0);
+        viewport.put("x", 40);
+        viewport.put("y", 40);
         viewport.put("zoom", 1);
+
+        String scenarioId = String.valueOf(IdUtil.getSnowflakeNextId());
+        JSONObject scenario = new JSONObject();
+        scenario.put("id", scenarioId);
+        scenario.put("name", "默认（冒烟）");
+        scenario.put("testProjectEnvId", "");
+        scenario.put("flowSeed", new JSONObject());
+        scenario.put("remark", "");
+
         JSONObject meta = new JSONObject();
         meta.put("schemaVersion", 1);
+        meta.put("layout", "manual");
         meta.put("flowOutputs", List.of(output));
         meta.put("viewport", viewport);
+        meta.put("activeScenarioId", scenarioId);
+        meta.put("scenarios", List.of(scenario));
 
         JSONObject graph = new JSONObject();
         graph.put("nodes", List.of(node));

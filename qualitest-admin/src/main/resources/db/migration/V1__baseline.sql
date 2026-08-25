@@ -1477,8 +1477,8 @@ CREATE TABLE `test_project_template`
     `template_name`            varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '模板名称',
     `match_config`             json                                                          NULL COMMENT '路径匹配JSON，如pathPrefix',
     `template_apis`            json                                                          NOT NULL COMMENT '预制接口JSON数组，勾选进项目时种子接口',
-    `template_params`          json                                                          NULL COMMENT '预制参数JSON数组，可选测值或凭证抽取',
-    `template_flows`           json                                                          NULL COMMENT '预制测试流JSON数组，可选；勾选时种子流并派生托管头',
+    `template_params`          json                                                          NULL COMMENT '预制参数JSON数组：flow/env/asset',
+    `template_flows`           json                                                          NULL COMMENT '预制测试流JSON数组；勾选时种子流并从extracts派生托管头',
     `builtin_status`           tinyint                                                       NOT NULL DEFAULT 0 COMMENT '内置状态（0自定义 1内置）',
     `enable_status`            tinyint                                                       NOT NULL DEFAULT 1 COMMENT '启用状态（0禁用 1启用）',
     `sort_num`                 int                                                           NOT NULL DEFAULT 0 COMMENT '排序',
@@ -1491,7 +1491,7 @@ CREATE TABLE `test_project_template`
     INDEX `idx_builtin_sort` (`builtin_status` ASC, `enable_status` ASC, `sort_num` ASC) USING BTREE
 ) ENGINE = InnoDB
   CHARACTER SET = utf8mb4
-  COLLATE = utf8mb4_general_ci COMMENT = '测试项目模板：预制接口/参数/测试流，勾选进项目'
+  COLLATE = utf8mb4_general_ci COMMENT = '测试项目模板：预制接口/参数(flow·env·asset)/测试流，勾选进项目'
   ROW_FORMAT = Dynamic;
 
 -- ----------------------------

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 
 import { buildLoginApi, buildTemplateRow } from '@/test/project/helpers/buildTemplateRow'
 import {
+  buildLoginGraphJson,
   emptyPrefabricatedApi,
   emptyTemplateForm,
   formToPayload,
@@ -17,6 +18,7 @@ import {
   syncMethodFromRequestConfig,
   templateToForm,
   validateApis,
+  validateParams,
 } from '@/views/project/testProjectTemplate/utils/templateForm'
 
 describe('parseApis', () => {
@@ -103,6 +105,46 @@ describe('validateApis', () => {
   it('空数组拒绝提交', () => {
     // 前提：未配置任何预制口
     expect(() => validateApis([])).toThrow('预制接口须为非空数组')
+  })
+})
+
+describe('validateParams', () => {
+  it('只保留 flow/env/asset，丢弃旧 value/extract/assert', () => {
+    // 前提：混有新口径与旧行
+    const rows = [
+      { kind: 'flow', name: 'token', value: '' },
+      { kind: 'env', name: 'timeout', value: '5000' },
+      { kind: 'asset', name: 'clientAuth', value: { mobile: '13800000001' } },
+      { kind: 'assert', left: 'http.body.code', operator: 'eq', right: '0' },
+      { kind: 'value', name: 'username', value: 'admin', bind: { method: 'POST', path: '/login' } },
+    ]
+
+    const next = validateParams(rows)
+
+    // 期望：仅三项新口径
+    expect(next).toHaveLength(3)
+    expect(next.map((r) => r.kind)).toEqual(['flow', 'env', 'asset'])
+  })
+})
+
+describe('buildLoginGraphJson', () => {
+  it('补齐 timeoutMs / successCheck / scenarios，并保留 apiPath', () => {
+    // 前提：组装登录骨架
+    const graph = buildLoginGraphJson({
+      method: 'POST',
+      apiPath: '/login',
+      from: 'body',
+      expr: '$.token',
+      flowKey: 'token',
+    })
+
+    // 期望：与真实 HTTP 节点默认字段对齐，且种子仍能用 apiPath
+    expect(graph.nodes[0].data.apiPath).toBe('/login')
+    expect(graph.nodes[0].data.timeoutMs).toBe(30000)
+    expect(graph.nodes[0].data.successCheck).toEqual({ mode: 'inherit' })
+    expect(graph.meta.layout).toBe('manual')
+    expect(graph.meta.scenarios).toHaveLength(1)
+    expect(graph.meta.viewport).toEqual({ x: 40, y: 40, zoom: 1 })
   })
 })
 

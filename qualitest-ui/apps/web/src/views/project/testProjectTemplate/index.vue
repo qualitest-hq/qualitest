@@ -346,6 +346,7 @@
           <PrefabricatedFlowPanel
             v-model="form.templateFlows"
             :read-only="isReadonlyForm"
+            :template-apis="form.templateApis"
           />
         </el-form-item>
       </el-form>
@@ -368,7 +369,7 @@
 <script setup name="TestProjectTemplate">
 /**
  * 项目模板管理页：列表、启用开关、增改查克隆。
- * 表单含路径匹配、预制接口、预制参数、预制测试流；不编辑托管请求头。
+ * 表单含路径匹配、预制接口、预制参数（flow/env/asset）、预制测试流；不编辑托管请求头。
  */
 import {
   addTestProjectTemplate,

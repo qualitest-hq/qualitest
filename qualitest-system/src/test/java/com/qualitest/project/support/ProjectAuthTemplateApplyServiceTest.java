@@ -10,6 +10,7 @@ import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectApiGroupService;
 import com.qualitest.project.service.ITestProjectApiService;
+import com.qualitest.project.service.ITestProjectEnvService;
 import com.qualitest.project.service.ITestProjectService;
 import com.qualitest.project.service.ITestProjectTemplateService;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +61,8 @@ class ProjectAuthTemplateApplyServiceTest {
     private ITestProjectService testProjectService;
     @Mock
     private ITestFlowService testFlowService;
+    @Mock
+    private ITestProjectEnvService testProjectEnvService;
 
     private ProjectAuthTemplateApplyService service;
 
@@ -71,7 +74,8 @@ class ProjectAuthTemplateApplyServiceTest {
                 testProjectApiService,
                 testProjectApiGroupService,
                 testProjectService,
-                testFlowService);
+                testFlowService,
+                testProjectEnvService);
     }
 
     /**

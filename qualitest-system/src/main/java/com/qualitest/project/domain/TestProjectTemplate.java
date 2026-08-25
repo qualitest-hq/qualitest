@@ -16,7 +16,7 @@ import java.io.Serial;
  * 项目模板（表 test_project_template）。
  * <p>
  * 一行模板描述一套可勾选进项目的鉴权与预制资产：
- * 预制接口（必填）、预制参数（可选）、预制测试流（可选）。
+ * 预制接口（必填）、预制参数 flow/env/asset（可选）、预制测试流（可选）。
  * 不存托管请求头；勾选进项目时由系统根据预制测试流里的抽取规则生成头与凭证规则。
  */
 @Getter
@@ -52,15 +52,16 @@ public class TestProjectTemplate extends BaseEntity {
 
     /**
      * 预制参数 JSON 数组（可空，缺省按 []）。
-     * kind=value：叠进对应接口测值（同名键不覆盖）；
-     * kind=extract 且 credential=true：在没有预制测试流时，用来生成凭证规则与托管头。
+     * kind=flow：叠进种子流默认场景 flowSeed；
+     * kind=env：合并进项目环境 envVariables；
+     * kind=asset：合并进项目素材库 asset_variables。
      */
     private String templateParams;
 
     /**
      * 预制测试流 JSON 数组（可空，缺省按 []）。
      * 勾选进项目时按 flowName 种子测试流（同名跳过）；
-     * 流内 HTTP 节点的 extracts 优先用于生成凭证规则与托管头。
+     * 流内 HTTP 节点的 extracts 用于生成凭证规则与托管头。
      */
     private String templateFlows;
 

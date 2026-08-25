@@ -2,172 +2,176 @@
   <div class="prefab-param-panel">
     <div class="prefab-param-panel__toolbar">
       <span class="prefab-param-panel__title">预制参数</span>
-      <div v-if="!readOnly" class="prefab-param-panel__actions">
-        <el-button icon="Plus" size="small" type="primary" @click="handleAdd">新增</el-button>
-        <el-button :disabled="selectedIndex < 0" icon="Delete" size="small" @click="handleRemove">删除</el-button>
-      </div>
     </div>
-    <el-table
-      v-if="rows.length"
-      :data="rows"
-      border
-      highlight-current-row
-      row-key="_index"
-      size="small"
-      @current-change="onCurrentChange"
-    >
-      <el-table-column label="类型" prop="kindLabel" width="88" />
-      <el-table-column label="名称" min-width="100" prop="name" show-overflow-tooltip />
-      <el-table-column label="绑定" min-width="140" prop="bindLabel" show-overflow-tooltip />
-      <el-table-column label="说明" min-width="160" prop="detail" show-overflow-tooltip />
-      <el-table-column v-if="!readOnly" align="center" label="操作" width="72">
-        <template #default="scope">
-          <el-button link type="primary" @click.stop="openEdit(scope.row._index)">编辑</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-    <el-empty v-else :image-size="48" description="可选：测值或凭证抽取参数" />
+    <el-tabs v-model="activeTab" class="prefab-param-panel__tabs">
+      <el-tab-pane label="流程变量" name="flow">
+        <p class="prefab-param-panel__hint">
+          勾选模板时写入种子流默认场景的 flowSeed；适合调试预置 token，勿塞口令。
+        </p>
+        <FlowKeyValueEditor
+          v-if="!readOnly"
+          :add-label="FLOW_SEED_ADD_LABEL"
+          :columns="FLOW_SEED_COLUMNS"
+          :min-rows="0"
+          :rows="flowRows"
+          @update:rows="onFlowRowsChange"
+        />
+        <el-table v-else-if="flowRows.some((r) => r.key)" :data="flowRows.filter((r) => r.key)" border size="small">
+          <el-table-column label="变量名" min-width="120" prop="key" />
+          <el-table-column label="初值" min-width="160" prop="value" show-overflow-tooltip />
+        </el-table>
+        <el-empty v-else :image-size="40" description="暂无流程变量" />
+      </el-tab-pane>
 
-    <el-dialog
-      v-model="dialogVisible"
-      :close-on-click-modal="false"
-      append-to-body
-      destroy-on-close
-      title="编辑预制参数"
-      width="520px"
-    >
-      <el-form v-if="draft" label-width="96px" size="small">
-        <el-form-item label="类型">
-          <el-radio-group v-model="draft.kind">
-            <el-radio value="value">测值</el-radio>
-            <el-radio value="extract">抽取</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="名称">
-          <el-input v-model="draft.name" :placeholder="draft.kind === 'extract' ? 'flow 变量名，如 token' : '参数名'" />
-        </el-form-item>
-        <el-form-item label="方法">
-          <el-select v-model="draft.bind.method" style="width: 120px">
-            <el-option v-for="m in HTTP_METHODS" :key="m" :label="m" :value="m" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="路径">
-          <el-input v-model="draft.bind.path" placeholder="/login" />
-        </el-form-item>
-        <el-form-item v-if="draft.kind === 'value'" label="值">
-          <el-input v-model="draft.value" placeholder="默认测值" />
-        </el-form-item>
-        <template v-else>
-          <el-form-item label="from">
-            <el-select v-model="draft.from" style="width: 140px">
-              <el-option label="body" value="body" />
-              <el-option label="setCookie" value="setCookie" />
-              <el-option label="header" value="header" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="expr">
-            <el-input v-model="draft.expr" placeholder="$.token 或 Cookie 名" />
-          </el-form-item>
-          <el-form-item label="凭证">
-            <el-switch v-model="draft.credential" />
-            <span class="prefab-param-panel__hint">开启后勾选模板时会生成凭证规则与托管请求头</span>
-          </el-form-item>
-        </template>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveDraft">确定</el-button>
-      </template>
-    </el-dialog>
+      <el-tab-pane label="环境变量" name="env">
+        <p class="prefab-param-panel__hint">
+          勾选模板时合并进项目默认环境的 envVariables（同名不覆盖）；baseUrl 可写入 envUrl。
+        </p>
+        <FlowKeyValueEditor
+          v-if="!readOnly"
+          add-label="＋ 添加变量"
+          :columns="ENV_COLUMNS"
+          :min-rows="0"
+          :rows="envRows"
+          @update:rows="onEnvRowsChange"
+        />
+        <el-table v-else-if="envRows.some((r) => r.key)" :data="envRows.filter((r) => r.key)" border size="small">
+          <el-table-column label="变量名" min-width="120" prop="key" />
+          <el-table-column label="值" min-width="160" prop="value" show-overflow-tooltip />
+        </el-table>
+        <el-empty v-else :image-size="40" description="暂无环境变量" />
+      </el-tab-pane>
+
+      <el-tab-pane label="素材变量" name="asset">
+        <p class="prefab-param-panel__hint">
+          勾选模板时合并进项目素材库 asset_variables（同 key 不覆盖）。对象可用 JSON，如
+          <code>{{ assetJsonExample }}</code>，引用写法 <code>{{ assetPlaceholderHint }}</code>。
+        </p>
+        <FlowKeyValueEditor
+          v-if="!readOnly"
+          add-label="＋ 添加素材"
+          :columns="ASSET_COLUMNS"
+          :min-rows="0"
+          :rows="assetRows"
+          @update:rows="onAssetRowsChange"
+        />
+        <el-table v-else-if="assetRows.some((r) => r.key)" :data="assetRows.filter((r) => r.key)" border size="small">
+          <el-table-column label="key" min-width="120" prop="key" />
+          <el-table-column label="值" min-width="200" prop="value" show-overflow-tooltip />
+        </el-table>
+        <el-empty v-else :image-size="40" description="暂无素材变量" />
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
 <script setup>
 /**
- * 预制参数面板：编辑模板的 templateParams。
- * kind=value 叠测值；kind=extract 且「凭证」开启时，勾选模板可用来生成凭证规则与托管头。
+ * 预制参数面板：编辑 templateParams（flow / env / asset）。
+ * 控件对齐测试流场景 flowSeed、环境变量、项目素材库。
  */
-import { computed, ref, watch } from 'vue'
-import { emptyPrefabParam, HTTP_METHODS, parseParams } from '../utils/templateForm'
+import { computed, ref } from 'vue'
+import FlowKeyValueEditor from '@/views/project/testFlow/components/FlowKeyValueEditor.vue'
+import {
+  FLOW_SEED_ADD_LABEL,
+  FLOW_SEED_COLUMNS,
+} from '@/views/project/testFlow/constants/runConfigEditors'
+import { parseParams } from '../utils/templateForm'
 
-const props = defineProps({
-  /** 预制参数数组（v-model）。 */
-  modelValue: { type: Array, default: () => [] },
+const ENV_COLUMNS = [
+  { field: 'key', label: '变量名', placeholder: '如 timeout' },
+  { field: 'value', label: '值', placeholder: '如 5000' },
+]
+
+const ASSET_COLUMNS = [
+  { field: 'key', label: 'key', placeholder: '如 clientAuth' },
+  { field: 'value', label: '值 / JSON', placeholder: '标量或 {"mobile":"..."}' },
+]
+
+/** 提示文案放脚本里，避免模板把 {{…}} / JSON 花括号当表达式。 */
+const assetJsonExample = '{"mobile":"13800000001","password":"Test@123456"}'
+const assetPlaceholderHint = '{{asset.key.field}}'
+
+defineProps({
   /** 内置模板查看时只读。 */
   readOnly: { type: Boolean, default: false },
 })
-const emit = defineEmits(['update:modelValue'])
 
-/** 当前选中行下标，-1 表示未选。 */
-const selectedIndex = ref(-1)
-const dialogVisible = ref(false)
-/** 编辑弹窗草稿。 */
-const draft = ref(null)
-/** 正在编辑的行下标。 */
-const editIndex = ref(-1)
+const list = defineModel({ type: Array, default: () => [] })
 
-const list = computed(() => parseParams(props.modelValue))
+const activeTab = ref('flow')
 
-/** 表格展示行。 */
-const rows = computed(() =>
-  list.value.map((row, index) => ({
-    _index: index,
-    kindLabel: row.kind === 'extract' ? '抽取' : '测值',
-    name: row.name || '—',
-    bindLabel: `${row.bind?.method || 'POST'} ${row.bind?.path || ''}`.trim(),
-    detail:
-      row.kind === 'extract'
-        ? `${row.from || 'body'} ${row.expr || ''}${row.credential ? ' · 凭证' : ''}`
-        : String(row.value ?? ''),
-  })),
-)
+const parsed = computed(() => parseParams(list.value))
 
-watch(
-  () => props.modelValue,
-  () => {
-    if (selectedIndex.value >= list.value.length) selectedIndex.value = -1
-  },
-)
-
-/** 回写 v-model。 */
-function commit(next) {
-  emit('update:modelValue', next)
+function toKvRows(kind) {
+  const rows = parsed.value
+    .filter((p) => p.kind === kind)
+    .map((p) => ({
+      key: String(p.name || ''),
+      value: formatValue(p.value),
+    }))
+  return rows.length ? rows : [{ key: '', value: '' }]
 }
 
-/** 新增一行并打开编辑。 */
-function handleAdd() {
-  const next = [...list.value, emptyPrefabParam()]
-  commit(next)
-  openEdit(next.length - 1)
+function formatValue(value) {
+  if (value == null) return ''
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
 }
 
-/** 删除当前选中行。 */
-function handleRemove() {
-  if (selectedIndex.value < 0) return
-  const next = list.value.filter((_, i) => i !== selectedIndex.value)
-  selectedIndex.value = -1
-  commit(next)
+const flowRows = computed(() => toKvRows('flow'))
+const envRows = computed(() => toKvRows('env'))
+const assetRows = computed(() => toKvRows('asset'))
+
+function parseStoredValue(raw) {
+  const text = String(raw ?? '').trim()
+  if (!text) return ''
+  if ((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']'))) {
+    try {
+      return JSON.parse(text)
+    } catch {
+      return text
+    }
+  }
+  return text
 }
 
-function onCurrentChange(row) {
-  selectedIndex.value = row?._index ?? -1
+function rebuildList({ flow, env, asset }) {
+  const next = []
+  for (const row of flow || []) {
+    const name = String(row.key || '').trim()
+    if (!name) continue
+    next.push({ kind: 'flow', name, value: row.value ?? '', remark: '' })
+  }
+  for (const row of env || []) {
+    const name = String(row.key || '').trim()
+    if (!name) continue
+    next.push({ kind: 'env', name, value: row.value ?? '', remark: '' })
+  }
+  for (const row of asset || []) {
+    const name = String(row.key || '').trim()
+    if (!name) continue
+    next.push({ kind: 'asset', name, value: parseStoredValue(row.value), remark: '' })
+  }
+  list.value = next
 }
 
-/** 打开编辑弹窗并拷贝草稿。 */
-function openEdit(index) {
-  editIndex.value = index
-  draft.value = JSON.parse(JSON.stringify(list.value[index] || emptyPrefabParam()))
-  if (!draft.value.bind) draft.value.bind = { method: 'POST', path: '' }
-  dialogVisible.value = true
+function onFlowRowsChange(rows) {
+  rebuildList({ flow: rows, env: envRows.value, asset: assetRows.value })
 }
 
-/** 保存草稿回列表。 */
-function saveDraft() {
-  if (!draft.value) return
-  const next = [...list.value]
-  next[editIndex.value] = JSON.parse(JSON.stringify(draft.value))
-  commit(next)
-  dialogVisible.value = false
+function onEnvRowsChange(rows) {
+  rebuildList({ flow: flowRows.value, env: rows, asset: assetRows.value })
+}
+
+function onAssetRowsChange(rows) {
+  rebuildList({ flow: flowRows.value, env: envRows.value, asset: rows })
 }
 </script>
 
@@ -176,14 +180,18 @@ function saveDraft() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .prefab-param-panel__title {
   font-weight: 600;
 }
 .prefab-param-panel__hint {
-  margin-left: 8px;
+  margin: 0 0 10px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
+  line-height: 1.5;
+}
+.prefab-param-panel__tabs {
+  width: 100%;
 }
 </style>
