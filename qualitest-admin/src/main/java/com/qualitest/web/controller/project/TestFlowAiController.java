@@ -57,14 +57,17 @@ public class TestFlowAiController extends BaseController {
     /**
      * AI 设计面板：查询可用的提示词模板（平台级 + 当前项目级）。
      */
-    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @GetMapping("/promptTemplates")
     public AjaxResult listPromptTemplates(
-            @RequestParam Long testProjectId,
+            @RequestParam(required = false) Long testProjectId,
             @RequestParam(required = false) String sessionScene) {
-        testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        if (testProjectId != null) {
+            testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        }
         String scene = sessionScene != null ? sessionScene : AiChatConversationService.SCENE_TEST_FLOW_DESIGN;
-        List<AiPromptTemplateResult> list = aiPromptTemplateService.listForDesignPanel(testProjectId, scene);
+        List<AiPromptTemplateResult> list = aiPromptTemplateService.listForDesignPanel(
+                testProjectId != null ? testProjectId : null, scene);
         return AjaxResult.success(list);
     }
 
@@ -74,7 +77,7 @@ public class TestFlowAiController extends BaseController {
      * 在内存中完成单单元合并与全图校验；不写 test_flow、不触发 Run。
      * 成功时返回 graphJson 供前端落盘；失败时保持该单元 Staging 态并展示 errors。
      */
-    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @PostMapping("/patch/confirmUnit")
     public AjaxResult confirmPatchUnit(@RequestBody FlowDesignPatchConfirmRequest request) {
         if (request.getTestProjectId() != null) {
@@ -121,7 +124,7 @@ public class TestFlowAiController extends BaseController {
      * 流式设计：SSE 推送 token、tool 事件与最终 TestFlowDesignResult。
      * 事件 data 为 JSON：type=token|thinking|tool_start|tool_end|done|error。
      */
-    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @PostMapping(value = "/design/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter designStream(@RequestBody TestFlowDesignRequest request) {
         validateDesignAccess(request);

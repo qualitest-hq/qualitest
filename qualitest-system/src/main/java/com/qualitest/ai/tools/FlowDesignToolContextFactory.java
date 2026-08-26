@@ -43,6 +43,8 @@ public class FlowDesignToolContextFactory {
         return build(
                 request.getTestProjectId(),
                 request.getTestFlowId(),
+                request.isTemplateDesignMode() ? "template" : null,
+                request.isTemplateDesignMode() ? request.getTemplateApis() : null,
                 request.getGraphJson(),
                 emptyToNull(resolved.getScopeApiIds()),
                 emptyToNull(resolved.getContextNodeIds()),
@@ -77,6 +79,8 @@ public class FlowDesignToolContextFactory {
         return build(
                 projectId,
                 params.getTestFlowId(),
+                null,
+                null,
                 params.getGraphJson(),
                 parseLongIds(params.getScopeApiIds()),
                 emptyToNull(params.getContextNodeIds()),
@@ -90,6 +94,8 @@ public class FlowDesignToolContextFactory {
      */
     private FlowDesignToolContext build(Long testProjectId,
                                         Long testFlowId,
+                                        String designMode,
+                                        com.alibaba.fastjson2.JSONArray templateApis,
                                         GraphJson graphJson,
                                         List<Long> scopeApiIds,
                                         List<String> contextNodeIds,
@@ -99,6 +105,8 @@ public class FlowDesignToolContextFactory {
         return FlowDesignToolContext.builder()
                 .testProjectId(testProjectId)
                 .testFlowId(testFlowId)
+                .designMode(designMode)
+                .templateApis(templateApis)
                 .graphJson(graphJson)
                 .scopeApiIds(scopeApiIds)
                 .contextNodeIds(contextNodeIds)

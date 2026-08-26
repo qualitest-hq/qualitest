@@ -4,6 +4,7 @@
         :is-fullscreen="isFullscreen"
         :is-scenario-run-active="isScenarioRunActive"
         :minimap-visible="minimapVisible"
+        :run-disabled="runDisabled"
         :zoom-percent="zoomPercent"
         @abort-scenario-run="emit('abort-scenario-run')"
         @fit-view="fitView"
@@ -47,6 +48,10 @@ defineProps({
   minimapVisible: {
     type: Boolean,
     default: true,
+  },
+  runDisabled: {
+    type: Boolean,
+    default: false,
   },
 })
 

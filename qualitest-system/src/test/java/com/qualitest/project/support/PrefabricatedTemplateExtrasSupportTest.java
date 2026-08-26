@@ -1,6 +1,5 @@
 package com.qualitest.project.support;
 
-import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.DerivedCredential;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabParam;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * PrefabricatedTemplateExtrasSupport：凭证派生、画布绑接口、flow/assert/env 合并。
  * 覆盖：流优先、setCookie→Cookie、无来源返回 null、旧 params 不再生效。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=PrefabricatedTemplateExtrasSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class PrefabricatedTemplateExtrasSupportTest {
@@ -29,22 +29,19 @@ class PrefabricatedTemplateExtrasSupportTest {
      */
     @Test
     @Order(1)
-    @DisplayName("flows extracts 派生 Bearer 与 hint")
+    @DisplayName("flows extracts 派生 Bearer 与 asset 头")
     void derive_fromFlows_bearer() {
-        // 前提：内置登录流含 body extract
+        // 前提：内置登录流含 body extract → asset.adminAuth.token
         String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
-                "管理端登录", "POST", "/login", "adminToken", "body", "$.token");
+                "管理端登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
 
-        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(
-                flows, null, null);
+        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(flows);
 
-        // 期望：Bearer 托管头与 loginHint
+        // 期望：Bearer 托管头指向 asset
         assertNotNull(derived);
-        assertEquals("adminToken", derived.getLoginHint().getFlowKey());
-        assertEquals("$.token", derived.getLoginHint().getExpr());
         assertEquals("/login", derived.getCredentialApi().getPath());
         assertEquals("Authorization", derived.getHeaderName());
-        assertEquals("Bearer {{flow.adminToken}}", derived.getHeaderValueTemplate());
+        assertEquals("Bearer {{asset.adminAuth.token}}", derived.getHeaderValueTemplate());
     }
 
     /** setCookie 抽取 → Cookie 托管头。 */
@@ -52,17 +49,16 @@ class PrefabricatedTemplateExtrasSupportTest {
     @Order(2)
     @DisplayName("setCookie 派生 Cookie 头")
     void derive_fromFlows_session() {
-        // 前提：setCookie extract
+        // 前提：setCookie extract → asset.adminAuth.jsessionId
         String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
-                "Session 登录", "POST", "/login", "jsessionId", "setCookie", "JSESSIONID");
+                "Session 登录", "POST", "/login", "adminAuth", "jsessionId", "setCookie", "JSESSIONID");
 
-        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(
-                flows, null, null);
+        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(flows);
 
         // 期望：Cookie 托管头
         assertNotNull(derived);
         assertEquals("Cookie", derived.getHeaderName());
-        assertEquals("JSESSIONID={{flow.jsessionId}}", derived.getHeaderValueTemplate());
+        assertEquals("JSESSIONID={{asset.adminAuth.jsessionId}}", derived.getHeaderValueTemplate());
     }
 
     /** 旧 kind=extract 预制参数不再参与凭证派生。 */
@@ -75,42 +71,25 @@ class PrefabricatedTemplateExtrasSupportTest {
                 + "\"from\":\"body\",\"expr\":\"$.data.token\",\"credential\":true}]";
 
         assertTrue(PrefabricatedTemplateExtrasSupport.parseParams(legacyParams).isEmpty());
-        assertNull(PrefabricatedTemplateExtrasSupport.deriveCredential("[]", null, null));
-    }
-
-    /** 无流无参数时，回退接口上残留的 loginHint。 */
-    @Test
-    @Order(4)
-    @DisplayName("回退接口 loginHint")
-    void derive_legacyHint() {
-        // 前提：仅有接口残留 hint
-        LoginHint legacy = LoginHint.builder().flowKey("token").from("body").expr("$.token").build();
-
-        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(
-                null, legacy, null);
-
-        // 期望：用 hint 拼 Bearer
-        assertNotNull(derived);
-        assertEquals("token", derived.getLoginHint().getFlowKey());
-        assertTrue(derived.getHeaderValueTemplate().contains("flow.token"));
+        assertNull(PrefabricatedTemplateExtrasSupport.deriveCredential("[]"));
     }
 
     /** 没有任何凭证来源时返回 null。 */
     @Test
-    @Order(5)
+    @Order(4)
     @DisplayName("无凭证来源返回 null")
     void derive_empty() {
-        assertNull(PrefabricatedTemplateExtrasSupport.deriveCredential("[]", null, null));
+        assertNull(PrefabricatedTemplateExtrasSupport.deriveCredential("[]"));
     }
 
     /** 按 method+path 给画布 HTTP 节点写入项目接口 id。 */
     @Test
-    @Order(6)
+    @Order(5)
     @DisplayName("bindGraphApis 写入 apiId")
     void bindGraphApis() {
         // 前提：登录图画布
         String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
-                "登录", "POST", "/login", "token", "body", "$.token");
+                "登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
         String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
 
         String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(
@@ -122,12 +101,12 @@ class PrefabricatedTemplateExtrasSupportTest {
 
     /** flow 参数写入默认场景 flowSeed。 */
     @Test
-    @Order(7)
+    @Order(6)
     @DisplayName("mergeFlowSeedIntoGraph")
     void mergeFlowSeed() {
         // 前提：空 flowSeed 登录图 + flow 参数
         String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
-                "登录", "POST", "/login", "token", "body", "$.token");
+                "登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
         String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
         List<PrefabParam> params = PrefabricatedTemplateExtrasSupport.parseParams(
                 "[{\"kind\":\"flow\",\"name\":\"token\",\"value\":\"debug\"}]");
@@ -140,7 +119,7 @@ class PrefabricatedTemplateExtrasSupportTest {
 
     /** asset 合并进素材库。 */
     @Test
-    @Order(8)
+    @Order(7)
     @DisplayName("mergeAssetVariables")
     void mergeAsset() {
         // 前提：空素材库 + asset 参数（对象值）
@@ -157,7 +136,7 @@ class PrefabricatedTemplateExtrasSupportTest {
 
     /** env 合并同 key 不覆盖。 */
     @Test
-    @Order(9)
+    @Order(8)
     @DisplayName("mergeEnvVariables 同名不覆盖")
     void mergeEnv() {
         // 前提：已有 timeout；模板再给 timeout 与新键

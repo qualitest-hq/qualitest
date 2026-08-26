@@ -4,7 +4,8 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.util.AuthDesignWarningCodes;
-import com.qualitest.api.util.LoginExtractSuggestor;
+import com.qualitest.api.util.CredentialTargetSupport;
+import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
@@ -20,10 +21,10 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * 设计期门禁：两套不同登录口不得写出同一个 flow 变量。
+ * 设计期门禁：两套不同登录口不得写出同一个凭证目标。
  * <p>
- * 扫描命中 credentialApi 的 project HTTP；按实际 extracts 收集 flowKey。
- * 同一 flowKey 被至少两个不同 method+path 写出时硬拦。
+ * 扫描命中 credentialApi 的 project HTTP；按实际 extracts 收集 asset / flow 凭证目标。
+ * 同一 identityKey 被至少两个不同 method+path 写出时硬拦。
  */
 public final class LoginFlowKeyCollisionGate {
 
@@ -40,18 +41,21 @@ public final class LoginFlowKeyCollisionGate {
             String projectAuthJson,
             Function<Long, TestProjectApi> apiResolver) {
         List<String> errors = new ArrayList<>();
-        // flowKey → 写出该 key 的登录口 method+path
+        // identityKey → 写出该目标的登录口 method+path
         Map<String, Set<String>> keyToEndpoints = new LinkedHashMap<>();
+        Map<String, String> keyToDisplayPath = new LinkedHashMap<>();
         CredentialLoginHttpVisitor.visit(graph, projectAuthJson, apiResolver, (node, ignored, api) -> {
             String endpoint = resolveEndpoint(node, api);
             Object extracts = node.getData().get("extracts");
-            for (String flowKey : LoginExtractSuggestor.listFlowExtractKeys(extracts)) {
-                keyToEndpoints.computeIfAbsent(flowKey, k -> new LinkedHashSet<>()).add(endpoint);
+            for (CredentialTarget target : CredentialTargetSupport.listProducedTargets(extracts)) {
+                keyToEndpoints.computeIfAbsent(target.identityKey(), k -> new LinkedHashSet<>()).add(endpoint);
+                keyToDisplayPath.putIfAbsent(target.identityKey(), target.displayPath());
             }
         });
         for (Map.Entry<String, Set<String>> entry : keyToEndpoints.entrySet()) {
             if (entry.getValue().size() >= 2) {
-                errors.add(AuthDesignWarningCodes.loginFlowKeyCollision(entry.getKey()));
+                errors.add(AuthDesignWarningCodes.loginFlowKeyCollision(
+                        keyToDisplayPath.get(entry.getKey())));
             }
         }
         return errors;

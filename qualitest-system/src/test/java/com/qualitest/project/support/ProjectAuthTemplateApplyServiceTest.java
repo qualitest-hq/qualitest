@@ -117,7 +117,7 @@ class ProjectAuthTemplateApplyServiceTest {
         when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
         when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
         when(templateService.selectTestProjectTemplateById(TPL_ADMIN)).thenReturn(
-                template(TPL_ADMIN, "管理端 Bearer", loginOnlyApis("adminToken")));
+                template(TPL_ADMIN, "管理端 Bearer", loginOnlyApis()));
         when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(
                 template(TPL_DEFAULT, "RuoYi Bearer", loginAndCaptchaApis()));
 
@@ -152,7 +152,7 @@ class ProjectAuthTemplateApplyServiceTest {
     void apply_skipsExistingDbApi() {
         stubEmptyProject();
         when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(
-                template(TPL_DEFAULT, "RuoYi Bearer", loginOnlyApis("token")));
+                template(TPL_DEFAULT, "RuoYi Bearer", loginOnlyApis()));
         TestProjectApi existing = TestProjectApi.builder()
                 .apiPath("/login")
                 .requestConfig("{\"method\":\"POST\"}")
@@ -238,34 +238,35 @@ class ProjectAuthTemplateApplyServiceTest {
     }
 
     /**
-     * 模板登录口带 loginHint。
-     * 期望：Profile 上有 loginHint 与 credentialApi；接口行只写 mode=none；测值在 testValueConfig，响应结构无 example。
+     * 模板登录口无 flows 时写弱默认 asset 头。
+     * 期望：Profile 有 Bearer {{asset.adminAuth.token}}；接口行只写 mode=none；测值在 testValueConfig。
      */
     @Test
     @Order(6)
-    @DisplayName("种子：hint 在 Profile，接口行只有 none")
-    void apply_seedsLoginModeNoneHintOnProfile() {
+    @DisplayName("种子：无 flows 时弱默认 asset 头，接口行只有 none")
+    void apply_seedsLoginModeNoneDefaultAssetHeader() {
         stubEmptyProject();
         stubGroupCreate();
         when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
         when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
         when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(
-                template(TPL_DEFAULT, "RuoYi Bearer", loginOnlyApis("adminToken")));
+                template(TPL_DEFAULT, "RuoYi Bearer", loginOnlyApis()));
 
         service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
 
         ArgumentCaptor<TestProject> update = ArgumentCaptor.forClass(TestProject.class);
         verify(testProjectMapper).updateTestProject(update.capture());
         ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(update.getValue().getAuthConfig());
-        assertEquals("adminToken", stored.getAuthProfiles().get(0).getLoginHint().getFlowKey());
-        assertEquals("/login", stored.getAuthProfiles().get(0).getCredentialApi().getPath());
+        assertNull(stored.getAuthProfiles().get(0).getLoginHint());
+        assertEquals("Bearer {{asset.adminAuth.token}}",
+                stored.getAuthProfiles().get(0).getHeaderValueTemplate());
+        assertNull(stored.getAuthProfiles().get(0).getCredentialApi());
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<TestProjectApi>> inserts = ArgumentCaptor.forClass(List.class);
         verify(testProjectApiService).batchInsertTestProjectApi(inserts.capture());
         String authJson = inserts.getValue().get(0).getAuthConfig();
         assertTrue(authJson.contains("\"none\""));
-        assertFalse(authJson.contains("adminToken"));
         assertFalse(authJson.contains("loginHint"));
         assertTrue(inserts.getValue().get(0).getTestValueConfig().contains("admin"));
         assertTrue(inserts.getValue().get(0).getTestValueConfig().contains("token"));
@@ -274,12 +275,12 @@ class ProjectAuthTemplateApplyServiceTest {
 
     /**
      * 前提：模板带 flows 登录流。
-     * 期望：从 extracts 派生 hint/头；插入同名测试流一次。
+     * 期望：从 extracts 派生 asset 头；插入同名测试流一次。
      */
     @Test
     @Order(7)
-    @DisplayName("种子：flows 派生 hint 并插入登录流")
-    void apply_seedsFlowAndDerivesHint() {
+    @DisplayName("种子：flows 派生 asset 头并插入登录流")
+    void apply_seedsFlowAndDerivesAssetHeader() {
         stubEmptyProject();
         stubGroupCreate();
         when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
@@ -287,7 +288,7 @@ class ProjectAuthTemplateApplyServiceTest {
         when(testFlowService.selectTestFlowList(any())).thenReturn(List.of());
         when(testFlowService.insertTestFlow(any())).thenReturn(1);
         String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
-                "RuoYi Bearer 登录", "POST", "/login", "token", "body", "$.token");
+                "RuoYi Bearer 登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
         TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
         tpl.setTemplateFlows(flows);
         when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
@@ -297,14 +298,17 @@ class ProjectAuthTemplateApplyServiceTest {
         ArgumentCaptor<TestProject> update = ArgumentCaptor.forClass(TestProject.class);
         verify(testProjectMapper).updateTestProject(update.capture());
         ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(update.getValue().getAuthConfig());
-        assertEquals("token", stored.getAuthProfiles().get(0).getLoginHint().getFlowKey());
-        assertEquals("Bearer {{flow.token}}", stored.getAuthProfiles().get(0).getHeaderValueTemplate());
+        assertNull(stored.getAuthProfiles().get(0).getLoginHint());
+        assertEquals("Bearer {{asset.adminAuth.token}}",
+                stored.getAuthProfiles().get(0).getHeaderValueTemplate());
+        assertEquals("/login", stored.getAuthProfiles().get(0).getCredentialApi().getPath());
 
         ArgumentCaptor<com.qualitest.project.domain.TestFlow> flowCap =
                 ArgumentCaptor.forClass(com.qualitest.project.domain.TestFlow.class);
         verify(testFlowService).insertTestFlow(flowCap.capture());
         assertEquals("RuoYi Bearer 登录", flowCap.getValue().getFlowName());
         assertTrue(flowCap.getValue().getGraphJson().contains("$.token"));
+        assertTrue(flowCap.getValue().getGraphJson().contains("adminAuth"));
     }
 
     private void stubEmptyProject() {
@@ -340,23 +344,21 @@ class ProjectAuthTemplateApplyServiceTest {
                 + "\"authConfig\":{\"mode\":\"none\"}}]";
     }
 
-    private static String loginOnlyApis(String flowKey) {
+    private static String loginOnlyApis() {
         return "[{\"apiName\":\"登录\",\"apiPath\":\"/login\",\"apiGroup\":\"登录\","
                 + "\"protocolType\":\"http\",\"apiStatus\":\"normal\","
                 + "\"requestConfig\":{\"configVersion\":1,\"method\":\"POST\"},"
                 + "\"testValueConfig\":{\"request\":{\"bodyExample\":{\"username\":\"admin\",\"password\":\"admin123\"}},"
                 + "\"response\":{\"examplesById\":{\"ok\":{\"code\":200,\"token\":\"...\"}}}},"
                 + "\"responseConfig\":{\"configVersion\":1,\"responses\":[{\"id\":\"ok\",\"httpStatus\":200}]},"
-                + "\"authConfig\":{\"mode\":\"none\",\"loginHint\":{\"flowKey\":\""
-                + flowKey + "\",\"from\":\"body\",\"expr\":\"$.token\"}}}]";
+                + "\"authConfig\":{\"mode\":\"none\"}}]";
     }
 
     private static String loginAndCaptchaApis() {
         return "[{\"apiName\":\"登录\",\"apiPath\":\"/login\",\"apiGroup\":\"登录\","
                 + "\"protocolType\":\"http\",\"apiStatus\":\"normal\","
                 + "\"requestConfig\":{\"configVersion\":1,\"method\":\"POST\"},"
-                + "\"authConfig\":{\"mode\":\"none\",\"loginHint\":{\"flowKey\":\"token\","
-                + "\"from\":\"body\",\"expr\":\"$.token\"}}},"
+                + "\"authConfig\":{\"mode\":\"none\"}},"
                 + "{\"apiName\":\"验证码\",\"apiPath\":\"/captchaImage\",\"apiGroup\":\"登录\","
                 + "\"protocolType\":\"http\",\"apiStatus\":\"normal\","
                 + "\"requestConfig\":{\"configVersion\":1,\"method\":\"GET\"},"
@@ -374,7 +376,7 @@ class ProjectAuthTemplateApplyServiceTest {
                   "responseConfig":{"configVersion":1,"responses":[{"id":"ok"}]},
                   "testValueConfig":{"bodyExample":{"username":"admin"}},
                   "bizCodeConfig":{"successValues":[200]},
-                  "authConfig":{"mode":"none","loginHint":{"flowKey":"token","from":"body","expr":"$.token"}},
+                  "authConfig":{"mode":"none"},
                   "designHints":{"hints":["token 在 $.token"]},
                   "preRequestScript":"pre()","postRequestScript":"post()"}]
                 """;

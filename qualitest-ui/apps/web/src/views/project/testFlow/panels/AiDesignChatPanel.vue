@@ -277,6 +277,9 @@ const {
   load: loadPromptTemplates,
 } = useAiPromptTemplates(async () => {
   const projectId = store.testProjectId?.trim();
+  if (store.canvasMode === 'template') {
+    return listAiDesignPromptTemplates(null);
+  }
   if (!projectId) return [];
   return listAiDesignPromptTemplates(projectId);
 });

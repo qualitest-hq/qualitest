@@ -48,7 +48,7 @@ class AuthHeaderResolverTest {
 
     /**
      * 前提：inherit、路径 /api/、项目有双端模板。
-     * 期望：clientBearer，值为 Bearer {{flow.token}}。
+     * 期望：clientBearer，值为 Bearer {{asset.clientAuth.token}}。
      */
     @Test
     @Order(2)
@@ -60,7 +60,7 @@ class AuthHeaderResolverTest {
                 AuthHeaderResolver.resolve(apiAuth, PROJECT_AUTH, "/api/account/auth/profile");
         assertFalse(resolved.skipped());
         assertEquals("Authorization", resolved.name());
-        assertEquals("Bearer {{flow.token}}", resolved.valueTemplate());
+        assertEquals("Bearer {{asset.clientAuth.token}}", resolved.valueTemplate());
         assertEquals(ProjectAuthConfigSupport.PROFILE_CLIENT, resolved.profileId());
     }
 
@@ -83,7 +83,7 @@ class AuthHeaderResolverTest {
         assertEquals(1, applied.headers().size());
         Map<String, Object> row = applied.headers().get(0);
         assertEquals("Authorization", row.get("name"));
-        assertEquals("Bearer {{flow.token}}", row.get("value"));
+        assertEquals("Bearer {{asset.clientAuth.token}}", row.get("value"));
         assertTrue(AuthHeaderResolver.isProfileManaged(row));
     }
 
@@ -104,12 +104,12 @@ class AuthHeaderResolverTest {
         Map<String, Object> explicit = new LinkedHashMap<>();
         explicit.put("_enabled", true);
         explicit.put("name", "Authorization");
-        explicit.put("value", "Bearer {{flow.adminToken}}");
+        explicit.put("value", "Bearer {{asset.adminAuth.token}}");
         rows.add(explicit);
 
         AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(rows, resolved);
         assertFalse(applied.changed());
-        assertEquals("Bearer {{flow.adminToken}}", applied.headers().get(0).get("value"));
+        assertEquals("Bearer {{asset.adminAuth.token}}", applied.headers().get(0).get("value"));
         assertFalse(AuthHeaderResolver.isProfileManaged(applied.headers().get(0)));
     }
 
@@ -136,7 +136,7 @@ class AuthHeaderResolverTest {
 
         AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(rows, resolved);
         assertTrue(applied.changed());
-        assertEquals("Bearer {{flow.token}}", applied.headers().get(0).get("value"));
+        assertEquals("Bearer {{asset.clientAuth.token}}", applied.headers().get(0).get("value"));
         assertTrue(AuthHeaderResolver.isProfileManaged(applied.headers().get(0)));
     }
 
@@ -157,13 +157,13 @@ class AuthHeaderResolverTest {
         Map<String, Object> managed = new LinkedHashMap<>();
         managed.put("_enabled", true);
         managed.put("name", "Authorization");
-        managed.put("value", "Bearer {{flow.token}}");
+        managed.put("value", "Bearer {{asset.clientAuth.token}}");
         managed.put(AuthHeaderResolver.PROFILE_MANAGED, true);
         rows.add(managed);
 
         AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(rows, resolved);
         assertFalse(applied.changed());
-        assertEquals("Bearer {{flow.token}}", applied.headers().get(0).get("value"));
+        assertEquals("Bearer {{asset.clientAuth.token}}", applied.headers().get(0).get("value"));
     }
 
     /**
@@ -183,7 +183,7 @@ class AuthHeaderResolverTest {
                 AuthHeaderResolver.applyToHeaderRows(List.of(), resolved);
         assertTrue(applied.changed());
         assertEquals("Authorization", applied.headers().get(0).get("name"));
-        assertEquals("Bearer {{flow.adminToken}}", applied.headers().get(0).get("value"));
+        assertEquals("Bearer {{asset.adminAuth.token}}", applied.headers().get(0).get("value"));
     }
 
     /**
@@ -204,7 +204,7 @@ class AuthHeaderResolverTest {
 
     /**
      * 前提：项目 Profile 托管 Cookie 头；接口 inherit。
-     * 期望：补 Cookie: name={{flow.sid}}，与 Authorization 同一套 apply。
+     * 期望：补 Cookie: name={{asset…}}，与 Authorization 同一套 apply。
      */
     @Test
     @Order(9)
@@ -216,8 +216,7 @@ class AuthHeaderResolverTest {
                     "id":"sessionCookie",
                     "name":"会话 Cookie",
                     "headerName":"Cookie",
-                    "headerValueTemplate":"JSESSIONID={{flow.sid}}",
-                    "loginHint":{"flowKey":"sid","from":"setCookie","expr":"JSESSIONID"}
+                    "headerValueTemplate":"JSESSIONID={{asset.adminAuth.jsessionId}}"
                   }]
                 }
                 """;
@@ -228,7 +227,7 @@ class AuthHeaderResolverTest {
                         "/app/home");
         assertFalse(resolved.skipped());
         assertEquals("Cookie", resolved.name());
-        assertEquals("JSESSIONID={{flow.sid}}", resolved.valueTemplate());
+        assertEquals("JSESSIONID={{asset.adminAuth.jsessionId}}", resolved.valueTemplate());
         AuthHeaderResolver.ApplyResult applied =
                 AuthHeaderResolver.applyToHeaderRows(List.of(), resolved);
         assertTrue(applied.changed());
@@ -278,7 +277,7 @@ class AuthHeaderResolverTest {
     }
 
     /**
-     * 前提：当前 JSON 含 Profile 级 loginHint 与 /login none 口。
+     * 前提：当前 JSON 含 credentialApi 与 /login none 口。
      * 期望：inherit 的 /login 不加 Bearer。
      */
     @Test
@@ -288,9 +287,8 @@ class AuthHeaderResolverTest {
         String projectAuth = """
                 {"authProfiles":[{
                   "id":"defaultBearer","name":"Bearer",
-                  "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                  "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
                   "credentialApi":{"method":"POST","path":"/login"},
-                  "loginHint":{"flowKey":"token","from":"body","expr":"$.token"},
                   "apis":[{"apiPath":"/login","authConfig":{"mode":"none"},
                     "requestConfig":{"configVersion":1,"method":"POST"}}]
                 }]}

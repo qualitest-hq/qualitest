@@ -160,6 +160,7 @@ const chat = useAiChatSession<AiDesignMessageView>({
   state: chatState,
   listSessions: async () => {
     const store = useFlowCanvasStore();
+    if (store.canvasMode === 'template') return [];
     if (!store.testFlowId || !store.testProjectId) return [];
     const res = await listAiChatSessions(store.testProjectId, store.testFlowId);
     return (res.rows ?? []) as AiChatSessionItem[];
@@ -320,9 +321,10 @@ export function useAiDesign() {
       ...buildFlowGraphInput(store),
       stagingFilter: stagingStore.buildPersistFilter(),
     });
-    return {
+    const isTemplate = store.canvasMode === 'template';
+    const base: TestFlowDesignRequestPayload = {
       testFlowId: store.testFlowId,
-      testProjectId: store.testProjectId,
+      testProjectId: store.testProjectId || undefined,
       aiLlmModelId: selectedModelId.value,
       aiChatSessionId: isPersistedSessionId(activeSessionId.value) ? activeSessionId.value : null,
       prompt: payload.prompt,
@@ -331,6 +333,17 @@ export function useAiDesign() {
       graphJson,
       thinkingEnabled: thinkingEnabled.value,
     };
+    if (isTemplate) {
+      base.designMode = 'template';
+      base.testFlowId = '0';
+      base.testProjectId = undefined;
+      base.templateFlowKey = store.testFlowId || undefined;
+      base.templateApis = (store.templateApiCatalog || []).map((e) => ({
+        ...(e.api || {}),
+        testProjectApiId: e.syntheticId,
+      }));
+    }
+    return base;
   }
 
   /**

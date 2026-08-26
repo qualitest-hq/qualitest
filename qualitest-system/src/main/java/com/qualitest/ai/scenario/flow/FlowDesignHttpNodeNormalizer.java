@@ -65,7 +65,7 @@ public final class FlowDesignHttpNodeNormalizer {
      *
      * @param data            节点 data
      * @param api             已绑定的项目接口；未绑定或外联时为 null
-     * @param projectAuthJson 项目鉴权 JSON；用于按 loginHint / 可用 schema 对齐登录 extract
+     * @param projectAuthJson 项目鉴权 JSON；用于按托管头凭证目标 / 可用 schema 对齐登录 extract
      */
     public static void normalize(Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
         if (data == null) {
@@ -108,14 +108,14 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 登录凭证口：仅当 Profile.loginHint 或响应 schema 能确定 name+expr 时，
-     * 空 extracts 补一行；已有「凭证类」行（token 名 + token 路径）则对齐到建议。
+     * 登录凭证口：仅当托管头凭证目标或响应 schema 能确定目标+expr 时，
+     * 空 extracts 补一行；已有「凭证类」行则对齐到 {@link LoginExtractSuggestor#suggest}。
      * 自定义路径不改；无法确定 expr 时不编 JsonPath。
      */
     static void alignLoginExtract(
             Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
         if (data == null || api == null
-                || !LoginExtractSuggestor.hasCredentialLoginHint(projectAuthJson, null, api.getApiPath())) {
+                || !LoginExtractSuggestor.isCredentialApiEndpoint(projectAuthJson, null, api.getApiPath())) {
             return;
         }
         JSONObject schema = FlowDesignApiSummarizer.summarizeResponse(api.getResponseConfig());

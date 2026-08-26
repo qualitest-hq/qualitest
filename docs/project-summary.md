@@ -89,7 +89,7 @@ IDEA 插件上传接口
 | 概念                      | 要点                                                                          |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `test_project_template` | 一行模板 = 一条 Profile；内置 RuoYi Bearer / Session、客户端 Bearer、管理端 Bearer           |
-| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**）；可选种子 `templateParams`（flow→场景 flowSeed / env→环境变量 / asset→素材库）与 `templateFlows`（同名流跳过）；托管头与 `loginHint` 从登录流 extracts **派生** |
+| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**）；可选种子 `templateParams`（flow→场景 flowSeed / env→环境变量 / asset→素材库）与 `templateFlows`（同名流跳过）；托管头与 `credentialApi` 从登录流 extracts **派生**（不再写 `loginHint`） |
 | 新建项目                    | **至少勾一套**；商城双端建议先「管理端 Bearer」再「客户端 Bearer」                                  |
 | 免登                      | 认预制 `apis[].authConfig.mode=none`；**不再**维护项目级匿名 path 清单                     |
 | 空配置                     | 才暂留 builtin `/login` 等启发式；有 Profile 但 apis 空 → 设置页黄条提示补模板                   |
@@ -102,29 +102,29 @@ IDEA 插件上传接口
 
 | 层级                | 要点                                                                            |
 | ----------------- | ----------------------------------------------------------------------------- |
-| 项目 `authProfiles` | 头模板 + `credentialApi` + `loginHint` + 预制 `apis[]`；未命中 `pathPrefix` 用**数组第一条** |
-| 接口 `auth.mode`    | `inherit` → 项目 Profile；`none` 不加头；`override` 用本接口头模板。接口行**不写** `loginHint`    |
+| 项目 `authProfiles` | 头模板 + `credentialApi` + 预制 `apis[]`；未命中 `pathPrefix` 用**数组第一条**。**已废弃** `loginHint` |
+| 接口 `auth.mode`    | `inherit` → 项目 Profile；`none` 不加头；`override` 用本接口头模板 |
 | 节点 headers        | 托管头带 `profileManaged`，Run 按**当前**配置刷新；无该标记的显式头永不被静默改掉                         |
 
 
 **匹配**：接口指定 `authProfileId` 优先；否则最长 `pathPrefix`；无人命中用数组第一条。**禁止** `pathPrefix="/"`。
 
-**登录抽凭证**：extracts 的 `from`+`expr` 对齐 **Profile.**`loginHint`（接口须命中该条 `credentialApi`），写入 `flow.token` / `flow.adminToken` 等。注册/验证码不抽凭证。造流时空 extracts 会按 hint 补；缺对应 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。上传/OpenAPI 只改接口行 schema 与 mode，**不改**项目 Profile hint。
+**登录抽凭证**：登录流 HTTP `extracts`（通常 `scope=asset`）写素材库；Profile 托管头引用 `{{asset.adminAuth.token}}` 等。须命中 `credentialApi`。造流时空 extracts 按托管头占位符 + schema 补；缺 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。上传/OpenAPI 只改接口行 schema 与 mode。
 
 ### 4.3 双端与门禁
 
 
 | 端   | 典型 path                   | extract                       |
 | --- | ------------------------- | ----------------------------- |
-| 客户端 | `/api/account/auth/login` | `$.data.token` → `flow.token` |
-| 管理端 | `/login`                  | `$.token` → `flow.adminToken` |
+| 客户端 | `/api/account/auth/login` | `$.data.token` → `asset.clientAuth.token` |
+| 管理端 | `/login`                  | `$.token` → `asset.adminAuth.token`       |
 
 
-- **同端**：开头只登录一次（或挂登录子流），后续靠托管 Bearer 复用 `flow.`*。
-- **双端同图**：两套登录、两套 extracts；**禁止**覆盖同一个 `flow.token`（硬拦 `AUTH_LOGIN_FLOWKEY_COLLISION`）。
-- **其它硬拦**：缺对应端 token 来源 → `AUTH_TOKEN_MISSING`（AI submit / Staging / 保存）。托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。
+- **同端**：开头只登录一次（或挂登录子流），后续靠托管 Bearer 复用 `asset.*`（HTTP 成功后 extract 落盘，跨 Run 可探活）。
+- **双端同图**：两套登录、两套 extracts；**禁止**覆盖同一凭证路径（硬拦 `AUTH_LOGIN_FLOWKEY_COLLISION`）。
+- **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（AI submit / Staging / 保存）。托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。
 - 画布顶栏「刷新鉴权头」、HTTP 节点凭证行提示；Run 鉴权失败可用「AI 修复」。
-- 调试可用 flowSeed 预置 token；**口令仍走素材库**，勿 flowSeed 塞密码。
+- 调试可用 flowSeed 预置旧版 `flow.*` token；**口令与正式凭证走素材库**，勿 flowSeed 塞密码。
 
 验收步骤见手册 **T1.2**（项目模板）、**T1.8**（登录子流）、§F #21/#24。
 

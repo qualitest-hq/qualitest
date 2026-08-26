@@ -215,7 +215,14 @@ class FlowDesignPatchNormalizerTest {
                         "name", "登录",
                         "testProjectApiId", String.valueOf(API_ID),
                         "requestConfig", Map.of("method", "POST"),
-                        "apiPath", "/api/account/auth/login"
+                        "apiPath", "/api/account/auth/login",
+                        "extracts", List.of(Map.of(
+                                "name", "token",
+                                "scope", "asset",
+                                "entryKey", "clientAuth",
+                                "fieldPath", "token",
+                                "expr", "$.data.token",
+                                "from", "body"))
                 )))
                 .build();
         GraphNode assertNode = GraphNode.builder()
@@ -614,7 +621,7 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：绑定需登录接口且节点未写 Authorization；项目已有双端 Profile。
-     * 期望：补 profileManaged Authorization=Bearer {{flow.token}}，并有鉴权补全 warning。
+     * 期望：补 profileManaged Authorization=Bearer {{asset.clientAuth.token}}，并有鉴权补全 warning。
      */
     @Test
     @Order(16)
@@ -652,7 +659,7 @@ class FlowDesignPatchNormalizerTest {
                 .findFirst()
                 .orElse(null);
         assertNotNull(auth);
-        assertEquals("Bearer {{flow.token}}", auth.get("value"));
+        assertEquals("Bearer {{asset.clientAuth.token}}", auth.get("value"));
         assertTrue(AuthHeaderResolver.isProfileManaged(auth));
         assertTrue(result.validation().getWarnings().stream()
                 .anyMatch(w -> w.startsWith("AUTH_HEADER_MANAGED:")));

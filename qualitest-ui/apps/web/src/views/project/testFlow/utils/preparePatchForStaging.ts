@@ -7,6 +7,7 @@ import type { FlowDesignPatch } from '../types/aiDesignTypes';
 import {
   enrichFlowDesignPatchHttpNodes,
 } from './patchHttpNodeNormalize';
+import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -34,8 +35,15 @@ function normalizeApiDetail(detail: JsonRecord): JsonRecord {
 }
 
 export async function preparePatchForStaging(patch: FlowDesignPatch): Promise<FlowDesignPatch> {
+  const store = useFlowCanvasStore();
   return enrichFlowDesignPatchHttpNodes(patch, async (apiId) => {
     try {
+      if (store.canvasMode === 'template') {
+        const found = (store.templateApiCatalog || []).find(
+          (e) => String(e.syntheticId) === String(apiId),
+        );
+        return found?.api ? normalizeApiDetail(found.api) : null;
+      }
       const res = await getTestProjectApi(apiId);
       const detail = (res?.data ?? res) as JsonRecord | undefined;
       return detail ? normalizeApiDetail(detail) : null;

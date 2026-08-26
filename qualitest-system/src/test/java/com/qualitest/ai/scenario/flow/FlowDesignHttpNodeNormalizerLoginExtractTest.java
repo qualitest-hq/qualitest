@@ -20,25 +20,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测 FlowDesignHttpNodeNormalizer 登录 extract 对齐。
- * 边界：有 loginHint 才补/纠；Map schema 不编路径；自定义 expr 不改。
+ * 边界：有托管头凭证目标 + schema 才补/纠；Map schema 不编路径；自定义 expr 不改。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignHttpNodeNormalizerLoginExtractTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowDesignHttpNodeNormalizerLoginExtractTest {
 
     /**
-     * 前提：双端模板；客户端登录；extracts 为空。
-     * 期望：补 token / $.data.token。
+     * 前提：双端模板；客户端登录；extracts 为空；响应 schema 含 data.token。
+     * 期望：补 asset.clientAuth.token / $.data.token。
      */
     @Test
     @Order(1)
-    @DisplayName("空 extracts 时按 loginHint 补登录 extract")
-    void alignLoginExtract_whenEmpty_fillsFromHint() {
+    @DisplayName("空 extracts 时按 asset 目标补登录 extract")
+    void alignLoginExtract_whenEmpty_fillsFromTarget() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
         TestProjectApi api = TestProjectApi.builder()
                 .apiPath("/api/account/auth/login")
                 .authConfig("{\"mode\":\"none\"}")
+                .responseConfig("""
+                        {"responses":[{"schema":{"type":"object","properties":{
+                          "data":{"type":"object","properties":{"token":{"type":"string"}}}
+                        }}}]}
+                        """)
                 .build();
         String projectAuth = ProjectAuthConfigSupport.toJson(
                 AuthProfileTestFixtures.adminThenClient());
@@ -50,17 +55,19 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> extracts = (List<Map<String, Object>>) raw;
         assertEquals(1, extracts.size());
-        assertEquals("token", extracts.get(0).get("name"));
+        assertEquals("asset", extracts.get(0).get("scope"));
+        assertEquals("clientAuth", extracts.get(0).get("entryKey"));
+        assertEquals("token", extracts.get(0).get("fieldPath"));
         assertEquals("$.data.token", extracts.get(0).get("expr"));
     }
 
     /**
-     * 前提：双端模板；管理端 /login；AI 写成 token + $.data.token。
-     * 期望：纠成 adminToken + $.token。
+     * 前提：双端模板；管理端 /login；AI 写成 flow token + $.data.token；schema 含 token。
+     * 期望：纠成 asset.adminAuth.token + $.token。
      */
     @Test
     @Order(2)
-    @DisplayName("管理端错误凭证行按 hint 纠正")
+    @DisplayName("管理端错误凭证行按目标纠正")
     void alignLoginExtract_rewritesWrongAdminPath() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
@@ -72,6 +79,11 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
         )));
         TestProjectApi api = TestProjectApi.builder()
                 .apiPath("/login")
+                .responseConfig("""
+                        {"responses":[{"schema":{"type":"object","properties":{
+                          "token":{"type":"string"}
+                        }}}]}
+                        """)
                 .build();
 
         FlowDesignHttpNodeNormalizer.normalize(
@@ -80,13 +92,15 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> extracts = (List<Map<String, Object>>) data.get("extracts");
         assertEquals(1, extracts.size());
-        assertEquals("adminToken", extracts.get(0).get("name"));
+        assertEquals("asset", extracts.get(0).get("scope"));
+        assertEquals("adminAuth", extracts.get(0).get("entryKey"));
+        assertEquals("token", extracts.get(0).get("fieldPath"));
         assertEquals("$.token", extracts.get(0).get("expr"));
     }
 
     /**
      * 前提：双端模板；管理端 /login；extract 名为 token、expr 为 $.custom。
-     * 期望：不改自定义路径。
+     * 期望：不改自定义路径（非凭证类 expr）。
      */
     @Test
     @Order(3)
@@ -120,7 +134,7 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
      */
     @Test
     @Order(4)
-    @DisplayName("Map schema 无 hint 时不改 extracts")
+    @DisplayName("Map schema 无目标时不改 extracts")
     void alignLoginExtract_mapSchema_doesNotInventPath() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");

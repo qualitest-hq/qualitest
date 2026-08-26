@@ -138,7 +138,7 @@
                 </div>
                 <div class="project-setting__conv-field">
                   <label>值模板</label>
-                  <el-input v-model="row.valueTemplate" placeholder="Bearer {{flow.token}}" />
+                  <el-input v-model="row.valueTemplate" placeholder="Bearer {{asset.adminAuth.token}}" />
                 </div>
                 <div class="project-setting__conv-field">
                   <label>credentialApi.method</label>
@@ -147,25 +147,6 @@
                 <div class="project-setting__conv-field">
                   <label>credentialApi.path</label>
                   <el-input v-model="row.credentialPath" placeholder="/login" />
-                </div>
-                <div class="project-setting__conv-field">
-                  <label>loginHint.flowKey</label>
-                  <el-input v-model="row.loginFlowKey" placeholder="token" />
-                </div>
-                <div class="project-setting__conv-field">
-                  <label>loginHint.from</label>
-                  <el-select v-model="row.loginFrom" clearable placeholder="body">
-                    <el-option
-                        v-for="opt in LOGIN_HINT_FROM_OPTIONS"
-                        :key="opt.value"
-                        :label="opt.label"
-                        :value="opt.value"
-                    />
-                  </el-select>
-                </div>
-                <div class="project-setting__conv-field project-setting__conv-field--full">
-                  <label>loginHint.expr</label>
-                  <el-input v-model="row.loginExpr" placeholder="$.token 或 Cookie 名" />
                 </div>
               </div>
 
@@ -313,7 +294,6 @@ import {
   emptyProfileRow,
   formatAuthConfigPreview,
   formatAuthModeLabel,
-  LOGIN_HINT_FROM_OPTIONS,
   parseAuthConfig,
 } from '../utils/projectAuthConfig'
 import { applyAuthTemplates, getTestProject, updateTestProject } from '@/api/project/testProject'

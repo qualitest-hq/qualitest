@@ -414,7 +414,7 @@ public class ApiImportServiceImpl implements IApiImportService {
         return existing;
     }
 
-    /** 把规范化后的鉴权 JSON 写回项目。仅空配置种子时调用，不覆盖已有 Profile.loginHint。 */
+    /** 把规范化后的鉴权 JSON 写回项目。仅空配置种子时调用，不覆盖已有 authProfiles。 */
     private void persistProjectAuthConfig(Long projectId, ProjectAuthConfig config) {
         TestProject update = new TestProject();
         update.setTestProjectId(projectId);

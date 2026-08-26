@@ -78,7 +78,7 @@ class FlowAuthHeaderRefreshServiceTest {
                 .filter(h -> "Authorization".equalsIgnoreCase(String.valueOf(h.get("name"))))
                 .findFirst()
                 .orElseThrow();
-        assertEquals("Bearer {{flow.token}}", auth.get("value"));
+        assertEquals("Bearer {{asset.clientAuth.token}}", auth.get("value"));
         assertTrue(AuthHeaderResolver.isProfileManaged(auth));
         assertTrue(result.getWarnings().stream().anyMatch(w -> w.startsWith("AUTH_HEADER_MANAGED:")));
     }
@@ -127,7 +127,7 @@ class FlowAuthHeaderRefreshServiceTest {
         Map<String, Object> current = new HashMap<>();
         current.put("_enabled", true);
         current.put("name", "Authorization");
-        current.put("value", "Bearer {{flow.token}}");
+        current.put("value", "Bearer {{asset.clientAuth.token}}");
         current.put(AuthHeaderResolver.PROFILE_MANAGED, true);
 
         GraphJson graph = graphWithHttp("n1", "查资料", API_ID, List.of(current));

@@ -247,35 +247,29 @@
         class="tpl-drawer-form"
         label-width="108px"
       >
-        <div class="tpl-section-title">基本信息</div>
-        <el-row v-if="isReadonlyForm" :gutter="16" class="tpl-readonly-meta">
-          <el-col :span="12">
-            <el-form-item label="模板名称">
-              <span class="tpl-readonly-text">{{ form.templateName || '—' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="pathPrefix">
-              <span class="tpl-readonly-text">{{ form.pathPrefixText || '—' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="启用状态">
-              <span class="tpl-readonly-text">{{ enableStatusLabel(form.enableStatus) }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="排序">
-              <span class="tpl-readonly-text">{{ form.sortNum ?? '—' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="备注">
-              <span class="tpl-readonly-text">{{ form.remark || '—' }}</span>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row v-else :gutter="16">
+        <div class="tpl-prefab-section">
+          <div class="tpl-prefab-section__head">
+            <span class="tpl-prefab-section__title">基本信息</span>
+          </div>
+          <div class="tpl-prefab-section__body">
+            <el-descriptions
+              v-if="isReadonlyForm"
+              :column="2"
+              border
+              class="tpl-prefab-section__desc"
+              size="small"
+            >
+              <el-descriptions-item label="模板名称">{{ form.templateName || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="启用状态">{{ enableStatusLabel(form.enableStatus) }}</el-descriptions-item>
+              <el-descriptions-item :span="2" label="pathPrefix">
+                <span class="tpl-readonly-multiline">{{ form.pathPrefixText || '—' }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="排序">{{ form.sortNum ?? '—' }}</el-descriptions-item>
+              <el-descriptions-item label="备注">
+                <span class="tpl-readonly-multiline">{{ form.remark || '—' }}</span>
+              </el-descriptions-item>
+            </el-descriptions>
+            <el-row v-else :gutter="16">
           <el-col :span="12">
             <el-form-item label="模板名称" prop="templateName">
               <el-input
@@ -328,6 +322,8 @@
             </el-form-item>
           </el-col>
         </el-row>
+          </div>
+        </div>
 
         <el-form-item prop="templateApis" class="tpl-apis-form-item" label-width="0">
           <PrefabricatedApiPanel
@@ -347,6 +343,7 @@
             v-model="form.templateFlows"
             :read-only="isReadonlyForm"
             :template-apis="form.templateApis"
+            @open-canvas="handleOpenFlowCanvas"
           />
         </el-form-item>
       </el-form>
@@ -371,6 +368,8 @@
  * 项目模板管理页：列表、启用开关、增改查克隆。
  * 表单含路径匹配、预制接口、预制参数（flow/env/asset）、预制测试流；不编辑托管请求头。
  */
+import { onMounted, onActivated } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   addTestProjectTemplate,
   cloneTestProjectTemplate,
@@ -382,6 +381,7 @@ import {
 import PrefabricatedApiPanel from './components/PrefabricatedApiPanel.vue'
 import PrefabricatedFlowPanel from './components/PrefabricatedFlowPanel.vue'
 import PrefabricatedParamPanel from './components/PrefabricatedParamPanel.vue'
+import { useTemplateFlowDraftStore } from './stores/templateFlowDraftStore'
 import {
   emptyTemplateForm,
   formatPathPrefixSummary,
@@ -392,6 +392,8 @@ import {
 } from './utils/templateForm'
 
 const { proxy } = getCurrentInstance()
+const router = useRouter()
+const draftStore = useTemplateFlowDraftStore()
 
 const enableStatusOptions = [
   { label: '启用', value: 1, elTagType: 'success' },
@@ -517,6 +519,40 @@ function resetFormState() {
 function cancel() {
   open.value = false
   resetFormState()
+  draftStore.clear()
+}
+
+/** 打开预制流全画布：先把未提交表单写入草稿桥，再路由跳转 */
+function handleOpenFlowCanvas({ flowIndex }) {
+  const id = form.value.testProjectTemplateId
+  const templateId = id != null && id !== '' ? String(id) : 'new'
+  draftStore.openCanvas({
+    templateId,
+    dialogMode: dialogMode.value,
+    flowIndex,
+    title: title.value,
+    form: JSON.parse(JSON.stringify(form.value)),
+  })
+  // 跳转前关掉抽屉，避免与画布叠层；回程由 restoreDraftFromCanvas 重开
+  open.value = false
+  router.push(`/project/template-flow/${templateId}/${flowIndex}`)
+}
+
+/** 从画布返回：合并草稿到抽屉表单（尚未点确定落库） */
+function restoreDraftFromCanvas() {
+  const draft = draftStore.getDraft()
+  if (!draft?.form) return
+  dialogMode.value = draft.dialogMode || 'edit'
+  form.value = {
+    ...emptyTemplateForm(),
+    ...JSON.parse(JSON.stringify(draft.form)),
+  }
+  title.value = draft.title || (dialogMode.value === 'add' ? '新增项目模板' : '修改项目模板')
+  if (dialogMode.value === 'view') {
+    title.value = draft.title || '查看项目模板'
+  }
+  open.value = true
+  draftStore.clearCanvasDirtyFlag()
 }
 
 function openDialog(mode, row) {
@@ -593,6 +629,7 @@ function submitForm() {
     req.then(() => {
       proxy.$modal.msgSuccess(isEdit ? '修改成功' : '新增成功')
       open.value = false
+      draftStore.clear()
       getList()
     })
   })
@@ -617,7 +654,20 @@ function handleDelete(row) {
 }
 
 getList()
+
+function tryRestoreDraft() {
+  const draft = draftStore.getDraft()
+  if (!draft?.form) return
+  restoreDraftFromCanvas()
+}
+
+onMounted(tryRestoreDraft)
+onActivated(tryRestoreDraft)
 </script>
+
+<style lang="scss">
+@use './styles/templatePrefabPanel.scss';
+</style>
 
 <style scoped lang="scss">
 .tpl-builtin-tag {
@@ -633,37 +683,9 @@ getList()
   margin-bottom: 16px;
 }
 
-.tpl-drawer-form {
-  padding-right: 8px;
-}
-
-.tpl-section-title {
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.tpl-readonly-text {
-  display: inline-block;
-  min-height: 22px;
-  line-height: 22px;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  word-break: break-all;
+.tpl-readonly-multiline {
   white-space: pre-wrap;
-}
-
-.tpl-readonly-meta {
-  :deep(.el-form-item) {
-    margin-bottom: 12px;
-  }
-}
-
-.tpl-apis-form-item {
-  :deep(.el-form-item__content) {
-    display: block;
-  }
+  word-break: break-all;
 }
 
 .tpl-drawer-footer {

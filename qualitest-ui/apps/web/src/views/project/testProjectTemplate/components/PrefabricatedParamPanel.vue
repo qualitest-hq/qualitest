@@ -1,67 +1,102 @@
 <template>
-  <div class="prefab-param-panel">
-    <div class="prefab-param-panel__toolbar">
-      <span class="prefab-param-panel__title">预制参数</span>
+  <div class="tpl-prefab-section prefab-param-panel">
+    <div class="tpl-prefab-section__head">
+      <span class="tpl-prefab-section__title">预制参数</span>
     </div>
-    <el-tabs v-model="activeTab" class="prefab-param-panel__tabs">
-      <el-tab-pane label="流程变量" name="flow">
-        <p class="prefab-param-panel__hint">
-          勾选模板时写入种子流默认场景的 flowSeed；适合调试预置 token，勿塞口令。
-        </p>
-        <FlowKeyValueEditor
-          v-if="!readOnly"
-          :add-label="FLOW_SEED_ADD_LABEL"
-          :columns="FLOW_SEED_COLUMNS"
-          :min-rows="0"
-          :rows="flowRows"
-          @update:rows="onFlowRowsChange"
-        />
-        <el-table v-else-if="flowRows.some((r) => r.key)" :data="flowRows.filter((r) => r.key)" border size="small">
-          <el-table-column label="变量名" min-width="120" prop="key" />
-          <el-table-column label="初值" min-width="160" prop="value" show-overflow-tooltip />
-        </el-table>
-        <el-empty v-else :image-size="40" description="暂无流程变量" />
-      </el-tab-pane>
+    <div class="tpl-prefab-section__body">
+      <el-tabs v-model="activeTab" class="tpl-prefab-section__tabs">
+        <el-tab-pane label="流程变量" name="flow">
+          <p class="tpl-prefab-section__hint">
+            勾选模板时写入种子流默认场景的 flowSeed；适合调试预置 token，勿塞口令。
+          </p>
+          <FlowKeyValueEditor
+            v-if="!readOnly"
+            :add-label="FLOW_SEED_ADD_LABEL"
+            :columns="FLOW_SEED_COLUMNS"
+            :min-rows="0"
+            :rows="flowRows"
+            @update:rows="onFlowRowsChange"
+          />
+          <el-table
+            v-else-if="flowRows.some((r) => r.key)"
+            :data="flowRows.filter((r) => r.key)"
+            border
+            class="tpl-prefab-section__table"
+            size="small"
+          >
+            <el-table-column label="变量名" min-width="120" prop="key" />
+            <el-table-column label="初值" min-width="160" prop="value" show-overflow-tooltip />
+          </el-table>
+          <el-empty
+            v-else
+            :class="readOnly ? 'tpl-prefab-section__empty--compact' : 'tpl-prefab-section__empty'"
+            :image-size="40"
+            description="暂无流程变量"
+          />
+        </el-tab-pane>
 
-      <el-tab-pane label="环境变量" name="env">
-        <p class="prefab-param-panel__hint">
-          勾选模板时合并进项目默认环境的 envVariables（同名不覆盖）；baseUrl 可写入 envUrl。
-        </p>
-        <FlowKeyValueEditor
-          v-if="!readOnly"
-          add-label="＋ 添加变量"
-          :columns="ENV_COLUMNS"
-          :min-rows="0"
-          :rows="envRows"
-          @update:rows="onEnvRowsChange"
-        />
-        <el-table v-else-if="envRows.some((r) => r.key)" :data="envRows.filter((r) => r.key)" border size="small">
-          <el-table-column label="变量名" min-width="120" prop="key" />
-          <el-table-column label="值" min-width="160" prop="value" show-overflow-tooltip />
-        </el-table>
-        <el-empty v-else :image-size="40" description="暂无环境变量" />
-      </el-tab-pane>
+        <el-tab-pane label="环境变量" name="env">
+          <p class="tpl-prefab-section__hint">
+            勾选模板时合并进项目默认环境的 envVariables（同名不覆盖）；baseUrl 可写入 envUrl。
+          </p>
+          <FlowKeyValueEditor
+            v-if="!readOnly"
+            add-label="＋ 添加变量"
+            :columns="ENV_COLUMNS"
+            :min-rows="0"
+            :rows="envRows"
+            @update:rows="onEnvRowsChange"
+          />
+          <el-table
+            v-else-if="envRows.some((r) => r.key)"
+            :data="envRows.filter((r) => r.key)"
+            border
+            class="tpl-prefab-section__table"
+            size="small"
+          >
+            <el-table-column label="变量名" min-width="120" prop="key" />
+            <el-table-column label="值" min-width="160" prop="value" show-overflow-tooltip />
+          </el-table>
+          <el-empty
+            v-else
+            :class="readOnly ? 'tpl-prefab-section__empty--compact' : 'tpl-prefab-section__empty'"
+            :image-size="40"
+            description="暂无环境变量"
+          />
+        </el-tab-pane>
 
-      <el-tab-pane label="素材变量" name="asset">
-        <p class="prefab-param-panel__hint">
-          勾选模板时合并进项目素材库 asset_variables（同 key 不覆盖）。对象可用 JSON，如
-          <code>{{ assetJsonExample }}</code>，引用写法 <code>{{ assetPlaceholderHint }}</code>。
-        </p>
-        <FlowKeyValueEditor
-          v-if="!readOnly"
-          add-label="＋ 添加素材"
-          :columns="ASSET_COLUMNS"
-          :min-rows="0"
-          :rows="assetRows"
-          @update:rows="onAssetRowsChange"
-        />
-        <el-table v-else-if="assetRows.some((r) => r.key)" :data="assetRows.filter((r) => r.key)" border size="small">
-          <el-table-column label="key" min-width="120" prop="key" />
-          <el-table-column label="值" min-width="200" prop="value" show-overflow-tooltip />
-        </el-table>
-        <el-empty v-else :image-size="40" description="暂无素材变量" />
-      </el-tab-pane>
-    </el-tabs>
+        <el-tab-pane label="素材变量" name="asset">
+          <p class="tpl-prefab-section__hint">
+            勾选模板时合并进项目素材库 asset_variables（同 key 不覆盖）。对象可用 JSON，如
+            <code>{{ assetJsonExample }}</code>，引用写法 <code>{{ assetPlaceholderHint }}</code>。
+          </p>
+          <FlowKeyValueEditor
+            v-if="!readOnly"
+            add-label="＋ 添加素材"
+            :columns="ASSET_COLUMNS"
+            :min-rows="0"
+            :rows="assetRows"
+            @update:rows="onAssetRowsChange"
+          />
+          <el-table
+            v-else-if="assetRows.some((r) => r.key)"
+            :data="assetRows.filter((r) => r.key)"
+            border
+            class="tpl-prefab-section__table"
+            size="small"
+          >
+            <el-table-column label="key" min-width="120" prop="key" />
+            <el-table-column label="值" min-width="200" prop="value" show-overflow-tooltip />
+          </el-table>
+          <el-empty
+            v-else
+            :class="readOnly ? 'tpl-prefab-section__empty--compact' : 'tpl-prefab-section__empty'"
+            :image-size="40"
+            description="暂无素材变量"
+          />
+        </el-tab-pane>
+      </el-tabs>
+    </div>
   </div>
 </template>
 
@@ -175,23 +210,6 @@ function onAssetRowsChange(rows) {
 }
 </script>
 
-<style scoped>
-.prefab-param-panel__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.prefab-param-panel__title {
-  font-weight: 600;
-}
-.prefab-param-panel__hint {
-  margin: 0 0 10px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.prefab-param-panel__tabs {
-  width: 100%;
-}
+<style lang="scss">
+@use '../styles/templatePrefabPanel.scss';
 </style>

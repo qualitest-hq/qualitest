@@ -1,0 +1,137 @@
+/**
+ * 项目模板抽屉内各区块（基本信息 / 预制接口 / 参数 / 测试流）共用样式。
+ */
+.tpl-prefab-section {
+  margin-bottom: 16px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--el-border-color-extra-light);
+  }
+
+  &__title {
+    margin: 0;
+    padding-left: 10px;
+    border-left: 3px solid var(--el-color-primary);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--el-text-color-primary);
+  }
+
+  &__actions {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__body {
+    min-height: 0;
+  }
+
+  &__hint {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--el-text-color-secondary);
+    background: var(--el-fill-color-light);
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--el-font-family-mono, ui-monospace, monospace);
+      color: var(--el-text-color-regular);
+      background: var(--el-fill-color);
+    }
+  }
+
+  &__table {
+    width: 100%;
+
+    .el-table__header th.el-table__cell {
+      background: var(--el-fill-color-light) !important;
+      font-weight: 600;
+      color: var(--el-text-color-regular);
+    }
+  }
+
+  &__empty {
+    padding: 20px 0;
+
+    .el-empty__description {
+      margin-top: 8px;
+      font-size: 13px;
+    }
+  }
+
+  &__empty--compact {
+    padding: 10px 0;
+
+    .el-empty__image {
+      display: none;
+    }
+
+    .el-empty__description {
+      margin-top: 0;
+      font-size: 13px;
+      color: var(--el-text-color-secondary);
+    }
+  }
+
+  &__tabs {
+    .el-tabs__header {
+      margin-bottom: 10px;
+    }
+
+    .el-tabs__item {
+      font-size: 13px;
+    }
+  }
+
+  &__desc {
+    .el-descriptions__label {
+      width: 108px;
+      font-weight: 500;
+      color: var(--el-text-color-secondary);
+    }
+
+    .el-descriptions__content {
+      color: var(--el-text-color-primary);
+      word-break: break-all;
+    }
+  }
+}
+
+.test-project-template-drawer {
+  .el-drawer__body {
+    padding-top: 8px;
+  }
+
+  .tpl-drawer-form {
+    padding-right: 4px;
+  }
+
+  .tpl-apis-form-item {
+    .el-form-item__content {
+      display: block;
+      margin-left: 0 !important;
+    }
+  }
+}

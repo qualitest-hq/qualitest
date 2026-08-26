@@ -37,7 +37,7 @@ public final class ManagedAuthHeaderApplier {
         ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
         String method = data.get("httpMethod") != null ? String.valueOf(data.get("httpMethod")) : null;
         // token 生产者 resolve 不一定 skip（path 非免登），须先短路
-        if (producesLoginFlowKey(data, projectAuth)) {
+        if (producesCredentialTarget(data, projectAuth)) {
             return stripManagedAuthHeaders(data, nodeLabel, warnings);
         }
 
@@ -61,19 +61,22 @@ public final class ManagedAuthHeaderApplier {
     }
 
     /**
-     * 本节点 extracts 是否写入项目 loginHint 中的任一 flowKey（如 token / adminToken）。
+     * 本节点 extracts 是否写出项目托管头上的任一凭证目标（asset.* / flow.*）。
      */
-    static boolean producesLoginFlowKey(Map<String, Object> data, ProjectAuthConfig projectAuth) {
-        Set<String> loginKeys = collectLoginFlowKeys(projectAuth);
-        if (loginKeys.isEmpty()) {
-            loginKeys = Set.of("token", "adminToken");
+    static boolean producesCredentialTarget(Map<String, Object> data, ProjectAuthConfig projectAuth) {
+        Set<String> required = ProjectAuthConfigSupport.collectCredentialIdentityKeys(projectAuth);
+        Object extracts = data != null ? data.get("extracts") : null;
+        if (required.isEmpty()) {
+            return LoginExtractSuggestor.extractsContainAnyFlowKey(
+                    extracts, Set.of("token", "adminToken"));
         }
-        return LoginExtractSuggestor.extractsContainAnyFlowKey(
-                data != null ? data.get("extracts") : null, loginKeys);
-    }
-
-    private static Set<String> collectLoginFlowKeys(ProjectAuthConfig projectAuth) {
-        return ProjectAuthConfigSupport.collectLoginFlowKeys(projectAuth);
+        for (CredentialTargetSupport.CredentialTarget produced :
+                CredentialTargetSupport.listProducedTargets(extracts)) {
+            if (produced != null && required.contains(produced.identityKey())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 测试流 AI 设计入口权限与资源归属校验（成员 + testFlow 属于 testProject）。
+ * 模板模式跳过项目成员与流归属校验（由控制器权限字控制）。
  */
 @Component
 @RequiredArgsConstructor
@@ -21,6 +22,9 @@ public class TestFlowDesignAccessValidator {
     public void validateMemberAndFlow(TestFlowDesignRequest request) {
         if (request == null) {
             throw new ServiceException("请求不能为空");
+        }
+        if (request.isTemplateDesignMode()) {
+            return;
         }
         if (request.getTestProjectId() != null) {
             testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());

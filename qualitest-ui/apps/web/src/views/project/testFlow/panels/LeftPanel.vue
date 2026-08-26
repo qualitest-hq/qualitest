@@ -50,12 +50,18 @@ const emit = defineEmits(['run-scenario'])
 
 const store = useFlowCanvasStore()
 
-const tabs = [
-  { id: 'runConfig', label: '运行场景' },
-  { id: 'nodes', label: '节点库' },
-  { id: 'params', label: '参数库' },
-  { id: 'runs', label: '运行库' },
-]
+const tabs = computed(() => {
+  const all = [
+    { id: 'runConfig', label: '运行场景' },
+    { id: 'nodes', label: '节点库' },
+    { id: 'params', label: '参数库' },
+    { id: 'runs', label: '运行库' },
+  ]
+  if (store.canvasMode === 'template') {
+    return all.filter((t) => t.id !== 'runs')
+  }
+  return all
+})
 
 const meta = {
   runConfig: { title: '运行场景', desc: '选择要运行的场景 · 右侧编辑运行配置' },

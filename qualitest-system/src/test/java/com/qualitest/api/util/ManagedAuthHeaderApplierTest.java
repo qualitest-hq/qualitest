@@ -46,20 +46,23 @@ class ManagedAuthHeaderApplierTest {
 
     @Test
     @Order(2)
-    @DisplayName("extracts 写出 token 时剥离误补托管头")
+    @DisplayName("extracts 写出凭证目标时剥离误补托管头")
     void apply_tokenProducer_stripsManaged() {
         Map<String, Object> managed = new LinkedHashMap<>();
         managed.put("_enabled", true);
         managed.put("name", "Authorization");
-        managed.put("value", "Bearer {{flow.token}}");
+        managed.put("value", "Bearer {{asset.clientAuth.token}}");
         managed.put(AuthHeaderResolver.PROFILE_MANAGED, true);
 
         Map<String, Object> data = new HashMap<>();
         data.put("headers", new ArrayList<>(List.of(managed)));
         data.put("extracts", List.of(Map.of(
                 "name", "token",
-                "scope", "flow",
-                "expr", "$.data.token"
+                "scope", "asset",
+                "entryKey", "clientAuth",
+                "fieldPath", "token",
+                "expr", "$.data.token",
+                "from", "body"
         )));
         List<String> warnings = new ArrayList<>();
         String apiAuth = ApiAuthConfigSupport.toStorageJson(
@@ -74,7 +77,7 @@ class ManagedAuthHeaderApplierTest {
 
     /**
      * 前提：双端模板；/api 与 /system 两个 inherit 节点各自补头。
-     * 期望：客户端 Bearer {{flow.token}}，管理端 Bearer {{flow.adminToken}}，互不覆盖。
+     * 期望：客户端 / 管理端各写 asset 模板，互不覆盖。
      */
     @Test
     @Order(3)
@@ -95,8 +98,8 @@ class ManagedAuthHeaderApplierTest {
 
         assertTrue(clientChanged);
         assertTrue(adminChanged);
-        assertEquals("Bearer {{flow.token}}", headerValue(client));
-        assertEquals("Bearer {{flow.adminToken}}", headerValue(admin));
+        assertEquals("Bearer {{asset.clientAuth.token}}", headerValue(client));
+        assertEquals("Bearer {{asset.adminAuth.token}}", headerValue(admin));
     }
 
     @SuppressWarnings("unchecked")

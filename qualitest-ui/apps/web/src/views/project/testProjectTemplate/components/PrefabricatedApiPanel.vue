@@ -1,8 +1,8 @@
 <template>
-  <div class="prefab-api-panel">
-    <div class="prefab-api-panel__toolbar">
-      <span class="prefab-api-panel__title">预制接口</span>
-      <div v-if="!readOnly" class="prefab-api-panel__actions">
+  <div class="tpl-prefab-section prefab-api-panel">
+    <div class="tpl-prefab-section__head">
+      <span class="tpl-prefab-section__title">预制接口</span>
+      <div v-if="!readOnly" class="tpl-prefab-section__actions">
         <el-button icon="Plus" size="small" type="primary" @click="handleAdd">新增</el-button>
         <el-button
           :disabled="selectedIndex < 0"
@@ -25,12 +25,13 @@
       </div>
     </div>
 
+    <div class="tpl-prefab-section__body">
     <el-table
       v-if="tableRows.length"
       ref="tableRef"
       :data="tableRows"
       border
-      class="prefab-api-panel__table"
+      class="tpl-prefab-section__table"
       highlight-current-row
       row-key="_index"
       size="small"
@@ -54,9 +55,10 @@
     <el-empty
       v-else
       :image-size="56"
-      class="prefab-api-panel__empty"
+      class="tpl-prefab-section__empty"
       description="暂无预制接口，请点击新增"
     />
+    </div>
 
     <el-dialog
       v-model="detailVisible"
@@ -614,33 +616,13 @@ function flushAndValidate() {
 defineExpose({ flushAndValidate })
 </script>
 
+<style lang="scss">
+@use '../styles/templatePrefabPanel.scss';
+</style>
+
 <style scoped lang="scss">
 .prefab-api-panel {
   width: 100%;
-
-  &__toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-
-  &__title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-  }
-
-  &__actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  &__table {
-    width: 100%;
-    margin-bottom: 12px;
-  }
 
   &__detail {
     padding: 0 4px;

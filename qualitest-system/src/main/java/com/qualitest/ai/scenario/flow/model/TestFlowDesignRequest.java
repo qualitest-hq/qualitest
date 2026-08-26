@@ -1,5 +1,6 @@
 package com.qualitest.ai.scenario.flow.model;
 
+import com.alibaba.fastjson2.JSONArray;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.qualitest.flow.model.GraphJson;
 import lombok.Getter;
@@ -23,6 +24,22 @@ public class TestFlowDesignRequest {
 
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long testProjectId;
+
+    /**
+     * 设计模式：空或 project 为项目测试流；template 为项目模板预制流（内联 templateApis，无真实项目成员校验）。
+     */
+    private String designMode;
+
+    /**
+     * designMode=template 时内联的预制接口列表（与模板 templateApis 同形）。
+     * 每项可含 testProjectApiId（合成 id，如 tpl-0）、apiPath、requestConfig 等。
+     */
+    private JSONArray templateApis;
+
+    /**
+     * 模板模式下的会话锚点字符串（非雪花 id）；落库 biz_ref 使用。
+     */
+    private String templateFlowKey;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long aiLlmModelId;
@@ -51,4 +68,9 @@ public class TestFlowDesignRequest {
      * 已落库会话以库中 thinking_enabled 为准；草稿会话首次发送时写入新会话。
      */
     private Boolean thinkingEnabled;
+
+    /** 是否为模板预制流设计模式 */
+    public boolean isTemplateDesignMode() {
+        return designMode != null && "template".equalsIgnoreCase(designMode.trim());
+    }
 }

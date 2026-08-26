@@ -13,7 +13,7 @@
                 stroke-width="2"
             />
           </svg>
-          返回列表
+          {{ backLabel }}
         </button>
         <div class="flow-canvas-header__title-wrap">
           <span class="flow-canvas-header__title">{{ store.flowName || '测试流' }}</span>
@@ -30,6 +30,7 @@
       </div>
       <div class="flow-canvas-header__actions">
         <button
+            v-if="!isTemplateCanvas"
             type="button"
             class="flow-canvas-header__icon-btn"
             title="项目设置"
@@ -39,6 +40,7 @@
           <svg-icon class="flow-canvas-header__header-icon" icon-class="system"/>
         </button>
         <button
+            v-if="!isTemplateCanvas"
             type="button"
             class="flow-canvas-header__icon-btn"
             title="API"
@@ -84,6 +86,7 @@
         </button>
         <FlowCanvasHelpPopover v-model:open="helpOpen" />
         <button
+            v-if="!isTemplateCanvas"
             :disabled="store.loading || !canEditFlow || refreshAuthLoading"
             :title="canEditFlow ? '按项目鉴权配置刷新本流托管头（进 Staging 确认）' : '当前账号无编辑权限'"
             class="btn btn--ghost"
@@ -190,6 +193,7 @@
             :is-fullscreen="isFullscreen"
             :is-scenario-run-active="isScenarioRunActive"
             :minimap-visible="store.ui.minimapVisible"
+            :run-disabled="isTemplateCanvas"
             @abort-scenario-run="abortScenarioRun"
             @start-scenario-run="handleRunScenario"
             @toggle-fullscreen="emit('toggle-fullscreen')"
@@ -212,6 +216,7 @@
         @delete="onDeleteNodeFromMenu"
     />
     <ProjectSettingDrawer
+        v-if="!isTemplateCanvas"
         v-model:visible="projectSettingDrawerVisible"
         v-model:http-transport="projectHttpTransport"
         :drawer-title="drawerTitle"
@@ -290,10 +295,15 @@ import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/minimap/dist/style.css'
 
-defineProps({
+const props = defineProps({
   isFullscreen: {
     type: Boolean,
     default: false,
+  },
+  /** 顶栏返回按钮文案 */
+  backLabel: {
+    type: String,
+    default: '返回列表',
   },
 })
 
@@ -302,6 +312,8 @@ const emit = defineEmits(['back', 'save', 'toggle-fullscreen'])
 const { proxy } = getCurrentInstance()
 const router = useRouter()
 const store = useFlowCanvasStore()
+const isTemplateCanvas = computed(() => store.canvasMode === 'template')
+const backLabel = computed(() => props.backLabel)
 const stagingStore = useAiStagingStore()
 const stagingPendingCount = computed(() => stagingStore.pendingCount)
 const {
@@ -426,6 +438,10 @@ async function handleRefreshAuthHeaders() {
 }
 
 async function handleRunScenario() {
+  if (isTemplateCanvas.value) {
+    ElMessage.warning('模板画布不支持运行场景')
+    return
+  }
   if (!canEditFlow.value) {
     ElMessage.warning('当前账号无编辑权限，无法运行场景')
     return

@@ -19,6 +19,13 @@ export { AI_CONFIRM_HIGHLIGHT_CLEAR_MS };
 
 export type LeftPanelTab = 'runConfig' | 'nodes' | 'params' | 'runs';
 export type RightPanelMode = 'props' | 'run' | 'scenario';
+/** project=真实项目测试流；template=项目模板预制流（无真实 projectId） */
+export type FlowCanvasMode = 'project' | 'template';
+
+export interface TemplateApiCatalogEntry {
+  syntheticId: string;
+  api: Record<string, unknown>;
+}
 
 export interface FlowSelection {
   kind: 'node' | 'edge';
@@ -66,6 +73,13 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const testFlowId = ref('');
   const testProjectId = ref('');
   const flowName = ref('');
+  /** 画布上下文：模板预制流时为 template */
+  const canvasMode = ref<FlowCanvasMode>('project');
+  /** 模板模式下由 templateApis 合成的接口目录（供 Http 配置 / Staging 富化） */
+  const templateApiCatalog = ref<TemplateApiCatalogEntry[]>([]);
+  const templateApiTree = ref<unknown[]>([]);
+  /** 模板查看态：禁止保存 */
+  const templateReadOnly = ref(false);
   /** 项目 auth_config JSON 字符串，供画布解析双端凭证变量 */
   const projectAuthConfig = ref('');
   const dirty = ref(false);
@@ -158,6 +172,10 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     testFlowId.value = '';
     testProjectId.value = '';
     flowName.value = '';
+    canvasMode.value = 'project';
+    templateApiCatalog.value = [];
+    templateApiTree.value = [];
+    templateReadOnly.value = false;
     projectAuthConfig.value = '';
     dirty.value = false;
     loading.value = false;
@@ -339,6 +357,10 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
 
   /** 拉取项目 auth_config，供节点卡片解析凭证作用域 */
   async function loadProjectAuthConfig() {
+    if (canvasMode.value === 'template') {
+      projectAuthConfig.value = '';
+      return;
+    }
     const id = testProjectId.value;
     if (!id) {
       projectAuthConfig.value = '';
@@ -350,6 +372,12 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     } catch {
       projectAuthConfig.value = '';
     }
+  }
+
+  function setTemplateApiContext(tree: unknown[], catalog: TemplateApiCatalogEntry[]) {
+    canvasMode.value = 'template';
+    templateApiTree.value = tree;
+    templateApiCatalog.value = catalog;
   }
 
   /** 右栏是否实际展示：属性模式需有选中项 */
@@ -368,6 +396,10 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     testFlowId,
     testProjectId,
     flowName,
+    canvasMode,
+    templateApiCatalog,
+    templateApiTree,
+    templateReadOnly,
     projectAuthConfig,
     dirty,
     loading,
@@ -409,6 +441,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     openAiDesignPanel,
     closeAiDesignPanel,
     loadProjectAuthConfig,
+    setTemplateApiContext,
     isRightPanelVisible,
   };
 });

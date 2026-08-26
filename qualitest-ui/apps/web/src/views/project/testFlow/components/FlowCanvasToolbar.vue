@@ -60,8 +60,8 @@
       </button>
       <button
           v-if="!isScenarioRunActive"
-          :disabled="!canEditFlow || isSimulateActive || isReplayActive"
-          :title="canEditFlow ? `运行场景「${activeScenarioName}」` : '当前账号无编辑权限，无法运行场景'"
+          :disabled="!canEditFlow || isSimulateActive || isReplayActive || runDisabled || isTemplateCanvas"
+          :title="scenarioRunTitle"
           class="btn btn--ghost flow-canvas-toolbar__scenario-run-btn"
           type="button"
           @click="emit('start-scenario-run')"
@@ -127,11 +127,13 @@ import { useFlowCanvasPermissions } from '../composables/useFlowCanvasPermission
 import { useFlowSimulate } from '../composables/useFlowSimulate'
 import { usePlayback } from '../composables/usePlayback'
 
-defineProps({
+const props = defineProps({
   zoomPercent: { type: Number, default: 100 },
   isFullscreen: { type: Boolean, default: false },
   isScenarioRunActive: { type: Boolean, default: false },
   minimapVisible: { type: Boolean, default: true },
+  /** 模板画布等场景强制禁用真实 Run */
+  runDisabled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -145,7 +147,7 @@ const emit = defineEmits([
   'toggle-minimap',
 ])
 
-const { canEditFlow } = useFlowCanvasPermissions()
+const { canEditFlow, isTemplateCanvas } = useFlowCanvasPermissions()
 
 const {
   statusText,
@@ -168,6 +170,12 @@ const {
 } = usePlayback()
 
 const { activeScenarioName } = useRunConfig()
+
+const scenarioRunTitle = computed(() => {
+  if (props.runDisabled || isTemplateCanvas.value) return '模板画布不支持运行场景'
+  if (!canEditFlow.value) return '当前账号无编辑权限，无法运行场景'
+  return `运行场景「${activeScenarioName.value}」`
+})
 
 /** 路径模拟或回放进行中时，步进与暂停按钮可用 */
 const isTransportActive = computed(() => isSimulateActive.value || isReplayActive.value)

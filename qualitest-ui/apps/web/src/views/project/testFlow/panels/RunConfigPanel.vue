@@ -2,8 +2,8 @@
   <div class="run-config">
     <div class="run-config__toolbar">
       <button
-          :disabled="!canEditFlow"
-          :title="canEditFlow ? `运行场景「${activeScenarioName}」` : '当前账号无编辑权限，无法运行场景'"
+          :disabled="!canEditFlow || isTemplateCanvas"
+          :title="runButtonTitle"
           class="btn btn--primary run-config__scenario-run-btn"
           type="button"
           @click="emit('run-scenario')"
@@ -63,7 +63,7 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 
 const emit = defineEmits(['run-scenario']);
 
-const { canEditFlow } = useFlowCanvasPermissions();
+const { canEditFlow, isTemplateCanvas } = useFlowCanvasPermissions();
 
 const store = useFlowCanvasStore();
 const stagingStore = useAiStagingStore();
@@ -76,6 +76,12 @@ const {
   duplicateScenario,
   deleteScenario,
 } = useRunConfig();
+
+const runButtonTitle = computed(() => {
+  if (isTemplateCanvas.value) return '模板画布不支持运行场景';
+  if (!canEditFlow.value) return '当前账号无编辑权限，无法运行场景';
+  return `运行场景「${activeScenarioName.value}」`;
+});
 
 const scenarios = computed(() => store.runConfig.scenarios);
 const activeScenarioId = computed(() => store.runConfig.activeScenarioId);

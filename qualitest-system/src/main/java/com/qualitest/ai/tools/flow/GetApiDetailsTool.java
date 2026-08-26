@@ -46,6 +46,9 @@ public class GetApiDetailsTool implements QualitestTool {
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
+        if (ctx != null && ctx.isTemplateDesignMode()) {
+            return executeTemplateDetails(arguments, ctx);
+        }
         List<Long> requested = parseApiIds(arguments != null ? arguments.get("testProjectApiIds") : null);
         if (requested.isEmpty()) {
             return FlowDesignToolSupport.errorJson("缺少 testProjectApiIds（字符串数组，单条也请传 [id]）");
@@ -88,6 +91,61 @@ public class GetApiDetailsTool implements QualitestTool {
             hints.add("testProjectApiIds 超过上限 " + MAX_IDS + "，已截断；请缩小范围或分批再调");
         }
         return fitToByteLimit(result, hints, ctx.getMaxToolResultBytes());
+    }
+
+    private String executeTemplateDetails(Map<String, Object> arguments, FlowDesignToolContext ctx) {
+        List<String> requested = parseApiIdStrings(arguments != null ? arguments.get("testProjectApiIds") : null);
+        if (requested.isEmpty()) {
+            return FlowDesignToolSupport.errorJson("缺少 testProjectApiIds（字符串数组，单条也请传 [id]）");
+        }
+        boolean countTruncated = requested.size() > MAX_IDS;
+        List<String> ids = countTruncated ? requested.subList(0, MAX_IDS) : requested;
+
+        JSONArray apis = new JSONArray();
+        JSONArray missingIds = new JSONArray();
+        for (String apiId : ids) {
+            JSONObject raw = TemplateApiCatalogSupport.findById(ctx.getTemplateApis(), apiId);
+            if (raw == null) {
+                missingIds.add(apiId);
+                continue;
+            }
+            apis.add(TemplateApiCatalogSupport.buildDetail(raw, apiId));
+        }
+        JSONObject result = new JSONObject();
+        result.put("apis", apis);
+        if (!missingIds.isEmpty()) {
+            result.put("missingIds", missingIds);
+        }
+        List<String> hints = new ArrayList<>();
+        if (countTruncated) {
+            hints.add("testProjectApiIds 超过上限 " + MAX_IDS + "，已截断；请缩小范围或分批再调");
+        }
+        return fitToByteLimit(result, hints, ctx.getMaxToolResultBytes());
+    }
+
+    private static List<String> parseApiIdStrings(Object raw) {
+        List<String> out = new ArrayList<>();
+        if (raw instanceof JSONArray arr) {
+            for (int i = 0; i < arr.size(); i++) {
+                String id = arr.getString(i);
+                if (id != null && !id.isBlank()) {
+                    out.add(id.trim());
+                }
+            }
+            return out;
+        }
+        if (raw instanceof List<?> list) {
+            for (Object item : list) {
+                if (item == null) {
+                    continue;
+                }
+                String id = String.valueOf(item).trim();
+                if (!id.isEmpty()) {
+                    out.add(id);
+                }
+            }
+        }
+        return out;
     }
 
     /**

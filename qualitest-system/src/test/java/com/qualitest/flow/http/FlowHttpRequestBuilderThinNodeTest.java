@@ -212,7 +212,7 @@ class FlowHttpRequestBuilderThinNodeTest {
     }
 
     /**
-     * 前提：接口 inherit、项目双端配置、节点无 Authorization；flow.token 已写入。
+     * 前提：接口 inherit、项目双端配置、节点无 Authorization；asset.clientAuth.token 已写入。
      * 期望：发送头含 Bearer 解析后的 token；显式非托管头不被刷新覆盖。
      */
     @Test
@@ -238,7 +238,8 @@ class FlowHttpRequestBuilderThinNodeTest {
 
         FlowRunContext ctx = FlowRunContext.builder()
                 .env(Map.of("baseUrl", "http://localhost:8081"))
-                .flow(new HashMap<>(Map.of("token", "tok-client")))
+                .flow(new HashMap<>())
+                .asset(new HashMap<>(Map.of("clientAuth", Map.of("token", "tok-client"))))
                 .projectAuthConfig(projectAuth)
                 .build();
 

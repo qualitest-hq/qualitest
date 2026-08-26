@@ -6,7 +6,9 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
-import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
+import com.qualitest.api.util.CredentialTargetSupport;
+import com.qualitest.api.util.CredentialTargetSupport.CredentialExtract;
+import com.qualitest.api.util.CredentialTargetSupport.ManagedHeaderTemplate;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import lombok.Builder;
 import lombok.Getter;
@@ -19,26 +21,24 @@ import java.util.Map;
 /**
  * 项目模板「预制参数 / 预制测试流」解析，以及凭证规则与托管头的派生。
  * <p>
- * 预制参数 kind 仅认 flow / env / assert（对齐测试流场景初值、环境变量、断言规则）。
- * 凭证派生只认预制测试流 extracts，其次接口上残留的 loginHint；托管头不存模板表。
+ * 预制参数 kind 仅认 flow / env / asset。
+ * 凭证派生只认预制测试流 extracts（优先 scope=asset）；托管头不存模板表，不再写 loginHint。
  */
 public final class PrefabricatedTemplateExtrasSupport {
 
     private PrefabricatedTemplateExtrasSupport() {}
 
     /**
-     * 派生结果：抽凭证的接口定位、loginHint、以及写入项目 Profile 的托管头。
+     * 派生结果：抽凭证的接口定位、以及写入项目 Profile 的托管头。
      */
     @Getter
     @Builder
     public static class DerivedCredential {
         /** 抽凭证的 HTTP 接口（method + path）；可空。 */
         private final CredentialApi credentialApi;
-        /** 抽凭证规则（flow 变量名、from、expr）。 */
-        private final LoginHint loginHint;
         /** 托管请求头名，如 Authorization / Cookie。 */
         private final String headerName;
-        /** 托管请求头值模板，如 Bearer {{flow.token}}。 */
+        /** 托管请求头值模板，如 Bearer {{asset.adminAuth.token}}。 */
         private final String headerValueTemplate;
     }
 
@@ -177,19 +177,10 @@ public final class PrefabricatedTemplateExtrasSupport {
 
     /**
      * 派生凭证规则与托管头。
-     * 优先读预制测试流 extracts；其次用预制接口上残留的 loginHint。
-     * 二者都没有则返回 null（不再读预制参数）。
+     * 只读预制测试流 extracts（优先 asset，其次 flow）；无则返回 null。
      */
-    public static DerivedCredential deriveCredential(
-            String flowsJson, LoginHint legacyHint, CredentialApi legacyCredential) {
-        DerivedCredential fromFlows = deriveFromFlows(flowsJson);
-        if (fromFlows != null) {
-            return fromFlows;
-        }
-        if (legacyHint == null || StrUtil.isBlank(legacyHint.getFlowKey())) {
-            return null;
-        }
-        return buildDerived(legacyCredential, legacyHint);
+    public static DerivedCredential deriveCredential(String flowsJson) {
+        return deriveFromFlows(flowsJson);
     }
 
     /** 遍历预制测试流，取第一个带有效 extracts 的 HTTP 节点生成凭证。 */
@@ -212,9 +203,8 @@ public final class PrefabricatedTemplateExtrasSupport {
                 if (data == null) {
                     continue;
                 }
-                JSONArray extracts = data.getJSONArray("extracts");
-                LoginHint hint = firstCredentialExtract(extracts);
-                if (hint == null) {
+                CredentialExtract extract = CredentialTargetSupport.firstCredentialExtract(data.getJSONArray("extracts"));
+                if (extract == null) {
                     continue;
                 }
                 String method = StrUtil.blankToDefault(data.getString("httpMethod"), "POST").trim().toUpperCase(Locale.ROOT);
@@ -222,67 +212,26 @@ public final class PrefabricatedTemplateExtrasSupport {
                 if (StrUtil.isBlank(path)) {
                     continue;
                 }
-                return buildDerived(ProjectAuthConfigSupport.credentialApi(method, path), hint);
+                return buildDerived(
+                        ProjectAuthConfigSupport.credentialApi(method, path), extract);
             }
         }
         return null;
     }
 
-    /**
-     * 从 extracts 数组取第一条可用于凭证的行。
-     * 要求：有 name、有 expr、scope 为 flow（或缺省为 flow）。
-     */
-    static LoginHint firstCredentialExtract(JSONArray extracts) {
-        if (extracts == null || extracts.isEmpty()) {
+    private static DerivedCredential buildDerived(CredentialApi credentialApi, CredentialExtract extract) {
+        if (extract == null) {
             return null;
         }
-        for (int i = 0; i < extracts.size(); i++) {
-            JSONObject row = extracts.getJSONObject(i);
-            if (row == null) {
-                continue;
-            }
-            String name = StrUtil.trimToNull(row.getString("name"));
-            String expr = StrUtil.trimToNull(row.getString("expr"));
-            if (name == null || expr == null) {
-                continue;
-            }
-            String scope = StrUtil.blankToDefault(row.getString("scope"), "flow").trim();
-            if (!"flow".equalsIgnoreCase(scope)) {
-                continue;
-            }
-            return LoginHint.builder()
-                    .flowKey(name)
-                    .from(StrUtil.blankToDefault(row.getString("from"), "body"))
-                    .expr(expr)
-                    .build();
-        }
-        return null;
-    }
-
-    /**
-     * 根据 loginHint 拼托管头：
-     * from 为 setCookie / set_cookie → Cookie: 名={{flow.xxx}}；
-     * 其它 → Authorization: Bearer {{flow.xxx}}。
-     */
-    private static DerivedCredential buildDerived(CredentialApi credentialApi, LoginHint loginHint) {
-        String flowKey = StrUtil.trimToNull(loginHint.getFlowKey());
-        String from = StrUtil.blankToDefault(loginHint.getFrom(), "body").trim().toLowerCase(Locale.ROOT);
-        String expr = StrUtil.trimToNull(loginHint.getExpr());
-        String headerName;
-        String headerValueTemplate;
-        if ("setcookie".equals(from) || "set_cookie".equals(from)) {
-            String cookieName = StrUtil.blankToDefault(expr, "JSESSIONID");
-            headerName = "Cookie";
-            headerValueTemplate = cookieName + "={{flow." + flowKey + "}}";
-        } else {
-            headerName = "Authorization";
-            headerValueTemplate = "Bearer {{flow." + flowKey + "}}";
+        ManagedHeaderTemplate header = CredentialTargetSupport.managedHeaderFor(
+                extract.target(), extract.from(), extract.expr());
+        if (header == null) {
+            return null;
         }
         return DerivedCredential.builder()
                 .credentialApi(credentialApi)
-                .loginHint(loginHint)
-                .headerName(headerName)
-                .headerValueTemplate(headerValueTemplate)
+                .headerName(header.headerName())
+                .headerValueTemplate(header.headerValueTemplate())
                 .build();
     }
 
@@ -452,17 +401,23 @@ public final class PrefabricatedTemplateExtrasSupport {
 
     /**
      * 组装内置模板用的「单条登录流」JSON 数组字符串。
-     * 画布含一个 HTTP 登录节点，并按入参写入 extracts / flowOutputs / 默认场景。
+     * extract 写入 asset.{entryKey}.{fieldPath}。
      */
     public static String builtinLoginFlowJson(
-            String flowName, String method, String apiPath, String flowKey, String from, String expr) {
+            String flowName,
+            String method,
+            String apiPath,
+            String entryKey,
+            String fieldPath,
+            String from,
+            String expr) {
         JSONObject extract = new JSONObject();
         extract.put("from", from);
         extract.put("expr", expr);
-        extract.put("scope", "flow");
-        extract.put("name", flowKey);
-        extract.put("entryKey", "");
-        extract.put("fieldPath", "");
+        extract.put("scope", "asset");
+        extract.put("name", fieldPath);
+        extract.put("entryKey", entryKey);
+        extract.put("fieldPath", fieldPath);
 
         JSONObject data = new JSONObject();
         data.put("name", "登录");
@@ -486,7 +441,7 @@ public final class PrefabricatedTemplateExtrasSupport {
         node.put("data", data);
 
         JSONObject output = new JSONObject();
-        output.put("name", flowKey);
+        output.put("name", entryKey + "." + fieldPath);
 
         JSONObject viewport = new JSONObject();
         viewport.put("x", 40);
@@ -516,7 +471,7 @@ public final class PrefabricatedTemplateExtrasSupport {
 
         JSONObject flow = new JSONObject();
         flow.put("flowName", flowName);
-        flow.put("description", "登录并抽出 " + flowKey);
+        flow.put("description", "登录并抽出 asset." + entryKey + "." + fieldPath);
         flow.put("graphJson", graph);
         return JSON.toJSONString(List.of(flow));
     }

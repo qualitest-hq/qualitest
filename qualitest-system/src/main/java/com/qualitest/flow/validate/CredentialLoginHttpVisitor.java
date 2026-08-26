@@ -32,7 +32,7 @@ final class CredentialLoginHttpVisitor {
         }
         FlowHttpNodeVisitor.visitProjectBound(graph, (node, data, apiId) -> {
             TestProjectApi api = apiResolver.apply(apiId);
-            if (api == null || !LoginExtractSuggestor.hasCredentialLoginHint(
+            if (api == null || !LoginExtractSuggestor.isCredentialApiEndpoint(
                     projectAuthJson, null, api.getApiPath())) {
                 return;
             }

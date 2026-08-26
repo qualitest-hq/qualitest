@@ -17,20 +17,20 @@ import {
 } from '@/views/project/testProject/utils/projectAuthConfig'
 
 describe('parseAuthConfig', () => {
-  it('解析扁平头、credentialApi 与 Profile 级 loginHint', () => {
-    // 前提：库中为新版 authProfiles 结构
+  it('解析扁平头、credentialApi 与值模板中的 asset 占位', () => {
+    // 前提：库中为新版 authProfiles 结构（无 loginHint）
     const raw = {
       authProfiles: [buildAdminBearerProfile()],
     }
 
     const form = parseAuthConfig(raw)
 
-    // 期望：表单行含 pathPrefix、credential 与 loginHint 字段
+    // 期望：表单行含 pathPrefix、credential 与 asset 值模板；不含 loginHint 字段
     expect(form.profiles).toHaveLength(1)
     expect(form.profiles[0].headerName).toBe('Authorization')
     expect(form.profiles[0].credentialPath).toBe('/login')
-    expect(form.profiles[0].loginFlowKey).toBe('adminToken')
-    expect(form.profiles[0].loginExpr).toBe('$.token')
+    expect(form.profiles[0].valueTemplate).toBe('Bearer {{asset.adminAuth.token}}')
+    expect(form.profiles[0].loginFlowKey).toBeUndefined()
     expect(form.profiles[0].pathPrefixText).toBe('/system/')
     expect(form.profiles[0].apis[0].authMode).toBe('none')
   })
@@ -41,7 +41,7 @@ describe('parseAuthConfig', () => {
       authProfiles: [{
         id: 'legacy',
         headerName: 'Authorization',
-        headerValueTemplate: 'Bearer {{flow.token}}',
+        headerValueTemplate: 'Bearer {{asset.adminAuth.token}}',
         apis: [],
       }],
     }
@@ -62,24 +62,24 @@ describe('parseAuthConfig', () => {
 })
 
 describe('buildAuthConfigPayload', () => {
-  it('round-trip 保留 authProfiles 核心字段', () => {
-    // 前提：完整表单行
+  it('round-trip 保留 authProfiles 核心字段且不写 loginHint', () => {
+    // 前提：完整表单行（值模板用 asset 占位）
     const form = parseAuthConfig({
       authProfiles: [{
         id: 'ruoyiBearer',
         name: 'RuoYi Bearer',
         headerName: 'Authorization',
-        headerValueTemplate: 'Bearer {{flow.token}}',
+        headerValueTemplate: 'Bearer {{asset.adminAuth.token}}',
         credentialApi: { method: 'POST', path: '/login' },
-        loginHint: { flowKey: 'token', from: 'body', expr: '$.token' },
         apis: [buildLoginApi()],
       }],
     })
 
     const obj = buildAuthConfigObject(form)
 
-    // 期望：写出仅含 authProfiles，且 loginHint 在 Profile 级
-    expect(obj.authProfiles[0].loginHint.expr).toBe('$.token')
+    // 期望：写出仅含 authProfiles，无 loginHint
+    expect(obj.authProfiles[0].loginHint).toBeUndefined()
+    expect(obj.authProfiles[0].headerValueTemplate).toBe('Bearer {{asset.adminAuth.token}}')
     expect(obj.authProfiles[0].credentialApi.path).toBe('/login')
     expect(JSON.parse(buildAuthConfigPayload(form)).authProfiles[0].id).toBe('ruoyiBearer')
   })
@@ -92,12 +92,9 @@ describe('buildAuthConfigPayload', () => {
       name: '',
       pathPrefixText: '/',
       headerName: 'Authorization',
-      valueTemplate: 'Bearer {{flow.token}}',
+      valueTemplate: 'Bearer {{asset.adminAuth.token}}',
       credentialMethod: 'POST',
       credentialPath: '',
-      loginFlowKey: '',
-      loginFrom: 'body',
-      loginExpr: '',
       apis: [],
     })
 

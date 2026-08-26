@@ -6,7 +6,6 @@ import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
-import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
@@ -54,7 +53,7 @@ import java.util.Set;
  * <ul>
  *   <li>同名 Profile 整份跳过；</li>
  *   <li>预制接口按 method+path 去重，已有则不插入、不改已有行；</li>
- *   <li>托管头与凭证规则由预制测试流 extracts 生成，其次接口上残留的 loginHint；</li>
+ *   <li>托管头与凭证目标由预制测试流 extracts 派生（优先 asset，如 Bearer {{asset.x.y}}）；</li>
  *   <li>预制参数：flow→场景 flowSeed，env→项目环境变量，asset→项目素材库；</li>
  *   <li>预制测试流按 flowName 去重后写入项目测试流，并尽量绑定项目接口 id。</li>
  * </ul>
@@ -213,35 +212,20 @@ public class ProjectAuthTemplateApplyService {
             toSeed.add(api);
         }
 
-        // 先在本次保留的接口里找残留 loginHint；找不到再扫模板全量接口（含因 path 冲突被跳过的）
-        LoginHint legacyHint = null;
-        CredentialApi legacyCred = null;
-        PrefabricatedApi legacyApi = firstApiWithLoginHint(kept);
-        if (legacyApi == null) {
-            legacyApi = firstApiWithLoginHint(apis);
-        }
-        if (legacyApi != null) {
-            legacyHint = legacyApi.getAuthConfig().getLoginHint();
-            legacyCred = ProjectAuthConfigSupport.credentialApi(
-                    ProjectAuthConfigSupport.prefabricatedHttpMethod(legacyApi), legacyApi.getApiPath());
-        }
-
         DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(
-                template.getTemplateFlows(), legacyHint, legacyCred);
+                template.getTemplateFlows());
 
         String headerName;
         String headerValueTemplate;
-        LoginHint loginHint = null;
         CredentialApi credentialApi = null;
         if (derived != null) {
-            loginHint = derived.getLoginHint();
             credentialApi = derived.getCredentialApi();
             headerName = derived.getHeaderName();
             headerValueTemplate = derived.getHeaderValueTemplate();
         } else {
             // 没有任何凭证来源时写弱默认头，避免后续规范化因缺头失败
             headerName = "Authorization";
-            headerValueTemplate = "Bearer {{flow.token}}";
+            headerValueTemplate = "Bearer {{asset.adminAuth.token}}";
         }
 
         return ProjectAuthProfile.builder()
@@ -251,7 +235,6 @@ public class ProjectAuthTemplateApplyService {
                 .headerName(headerName)
                 .headerValueTemplate(headerValueTemplate)
                 .credentialApi(credentialApi)
-                .loginHint(loginHint)
                 .apis(kept)
                 .build();
     }
@@ -266,23 +249,6 @@ public class ProjectAuthTemplateApplyService {
         } catch (Exception e) {
             throw new ServiceException("模板预制接口不是合法 JSON: " + template.getTemplateName());
         }
-    }
-
-    /** 取第一条带有效 loginHint.flowKey 的预制接口。 */
-    private PrefabricatedApi firstApiWithLoginHint(List<PrefabricatedApi> apis) {
-        if (apis == null) {
-            return null;
-        }
-        for (PrefabricatedApi api : apis) {
-            if (api == null || api.getAuthConfig() == null || api.getAuthConfig().getLoginHint() == null) {
-                continue;
-            }
-            if (StrUtil.isBlank(api.getAuthConfig().getLoginHint().getFlowKey())) {
-                continue;
-            }
-            return api;
-        }
-        return null;
     }
 
     /** 把预制接口插入项目接口表；已有相同 method+path 则整条跳过。 */

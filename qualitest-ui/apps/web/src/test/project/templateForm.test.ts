@@ -128,8 +128,33 @@ describe('validateParams', () => {
 })
 
 describe('buildLoginGraphJson', () => {
-  it('补齐 timeoutMs / successCheck / scenarios，并保留 apiPath', () => {
-    // 前提：组装登录骨架
+  it('补齐 timeoutMs / successCheck / scenarios，并默认抽到 asset', () => {
+    // 前提：组装登录骨架（不传 flowKey，走内置 asset 口径）
+    const graph = buildLoginGraphJson({
+      method: 'POST',
+      apiPath: '/login',
+      from: 'body',
+      expr: '$.token',
+    })
+
+    // 期望：与真实 HTTP 节点默认字段对齐，抽取写 asset.adminAuth.token
+    expect(graph.nodes[0].data.apiPath).toBe('/login')
+    expect(graph.nodes[0].data.timeoutMs).toBe(30000)
+    expect(graph.nodes[0].data.successCheck).toEqual({ mode: 'inherit' })
+    expect(graph.nodes[0].data.extracts[0]).toMatchObject({
+      scope: 'asset',
+      entryKey: 'adminAuth',
+      fieldPath: 'token',
+      expr: '$.token',
+    })
+    expect(graph.meta.layout).toBe('manual')
+    expect(graph.meta.scenarios).toHaveLength(1)
+    expect(graph.meta.viewport).toEqual({ x: 40, y: 40, zoom: 1 })
+    expect(graph.meta.flowOutputs).toEqual([])
+  })
+
+  it('显式 flowKey 时仍可写出 flow 抽取', () => {
+    // 前提：兼容旧调用传 flowKey
     const graph = buildLoginGraphJson({
       method: 'POST',
       apiPath: '/login',
@@ -138,13 +163,12 @@ describe('buildLoginGraphJson', () => {
       flowKey: 'token',
     })
 
-    // 期望：与真实 HTTP 节点默认字段对齐，且种子仍能用 apiPath
-    expect(graph.nodes[0].data.apiPath).toBe('/login')
-    expect(graph.nodes[0].data.timeoutMs).toBe(30000)
-    expect(graph.nodes[0].data.successCheck).toEqual({ mode: 'inherit' })
-    expect(graph.meta.layout).toBe('manual')
-    expect(graph.meta.scenarios).toHaveLength(1)
-    expect(graph.meta.viewport).toEqual({ x: 40, y: 40, zoom: 1 })
+    // 期望：scope=flow，name=token
+    expect(graph.nodes[0].data.extracts[0]).toMatchObject({
+      scope: 'flow',
+      name: 'token',
+    })
+    expect(graph.meta.flowOutputs).toEqual([{ name: 'token' }])
   })
 })
 

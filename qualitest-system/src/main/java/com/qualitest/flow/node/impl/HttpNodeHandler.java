@@ -9,6 +9,7 @@ import com.qualitest.api.script.ApiScriptContext;
 import com.qualitest.api.script.ApiScriptExecutionResult;
 import com.qualitest.api.script.ApiScriptSupport;
 import com.qualitest.api.service.IDebugHttpForwardService;
+import com.qualitest.flow.context.AssetExtractPersistService;
 import com.qualitest.flow.context.ExtractApplicator;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.context.PlaceholderResolver;
@@ -58,14 +59,17 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
     private final ITestProjectApiService testProjectApiService;
     private final IDebugHttpForwardService debugHttpForwardService;
     private final ApiRequestScriptService apiRequestScriptService;
+    private final AssetExtractPersistService assetExtractPersistService;
 
     public HttpNodeHandler(ITestProjectApiService testProjectApiService,
                            IDebugHttpForwardService debugHttpForwardService,
-                           ApiRequestScriptService apiRequestScriptService) {
+                           ApiRequestScriptService apiRequestScriptService,
+                           AssetExtractPersistService assetExtractPersistService) {
         super(FlowNodeType.HTTP);
         this.testProjectApiService = testProjectApiService;
         this.debugHttpForwardService = debugHttpForwardService;
         this.apiRequestScriptService = apiRequestScriptService;
+        this.assetExtractPersistService = assetExtractPersistService;
     }
 
     @Override
@@ -250,6 +254,9 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
 
         JSONArray extractsConfig = toExtractsArray(data.get("extracts"));
         List<JSONObject> appliedExtracts = ExtractApplicator.apply(extractsConfig, ctx, snapshot);
+        if (status >= 200 && status < 300) {
+            assetExtractPersistService.persistFromExtractConfig(ctx, extractsConfig, appliedExtracts);
+        }
 
         Map<String, Object> httpDetails = new LinkedHashMap<>();
         httpDetails.put("callMode", built.getCallMode());

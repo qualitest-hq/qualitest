@@ -37,14 +37,14 @@ describe('stagingAuthHints', () => {
   });
 
   it('profileManaged 头生成提示与标签', () => {
-    // 前提：含 profileManaged Authorization
-    // 期望：标签带「按项目鉴权补全」，提示含 Authorization
+    // 前提：含 profileManaged Authorization（asset 占位）
+    // 期望：标签带「按项目鉴权补全」，提示含 Authorization 与 asset 路径
     const draft = {
       data: {
         headers: [
           {
             name: 'Authorization',
-            value: 'Bearer {{flow.token}}',
+            value: 'Bearer {{asset.adminAuth.token}}',
             profileManaged: true,
           },
         ],
@@ -53,7 +53,7 @@ describe('stagingAuthHints', () => {
     expect(hasProfileManagedHeaders(draft)).toBe(true);
     expect(stagingHeadersFieldLabel(draft)).toBe('请求头（按项目鉴权补全）');
     expect(collectAuthManagedHeaderHints(draft)[0]).toContain('Authorization');
-    expect(collectAuthManagedHeaderHints(draft)[0]).toContain('flow.token');
+    expect(collectAuthManagedHeaderHints(draft)[0]).toContain('asset.adminAuth.token');
   });
 
   it('按 AUTH_* 筛 soft 提示，并剥掉 CODE 前缀', () => {

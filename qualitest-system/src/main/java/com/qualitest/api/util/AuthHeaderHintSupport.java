@@ -3,19 +3,19 @@ package com.qualitest.api.util;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
-import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.api.util.AuthHeaderResolver.ResolvedAuthHeader;
+import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
 
 /**
- * 为 AI 工具拼装接口鉴权摘要：auth（mode 等）和 headerHint（需登录时的头模板）。
+ * 为 AI 工具拼装接口鉴权摘要：auth（mode 等）和 headerHint（需登录时的头模板与凭证目标）。
  */
 public final class AuthHeaderHintSupport {
 
     private AuthHeaderHintSupport() {}
 
     /**
-     * 写入 auth；需要加鉴权头时再写 headerHint（头名、值模板、profileId、flowKey）。
+     * 写入 auth；需要加鉴权头时再写 headerHint（头名、值模板、profileId、凭证目标）。
      */
     public static void putAuthFields(JSONObject target, String apiAuthJson, String projectAuthJson, String apiPath) {
         if (target == null) {
@@ -35,19 +35,22 @@ public final class AuthHeaderHintSupport {
         }
         ProjectAuthProfile profile = ProjectAuthConfigSupport.findProfile(
                 ProjectAuthConfigSupport.parse(projectAuthJson), resolved.profileId());
-        String flowKey = ProjectAuthConfigSupport.resolveLoginFlowKey(profile);
-        if (StrUtil.isNotBlank(flowKey)) {
-            hint.put("flowKey", flowKey);
-        }
-        LoginHint loginHint = ProjectAuthConfigSupport.firstLoginHintOnProfile(profile);
-        if (loginHint != null) {
-            String from = ProjectAuthConfigSupport.resolveLoginExtractFrom(loginHint);
-            String expr = ProjectAuthConfigSupport.resolveLoginExtractExpr(loginHint);
-            if (StrUtil.isNotBlank(from)) {
-                hint.put("from", from);
+        CredentialTarget credentialTarget = CredentialTargetSupport.primaryTarget(profile);
+        if (credentialTarget != null) {
+            JSONObject ct = new JSONObject();
+            ct.put("displayPath", credentialTarget.displayPath());
+            ct.put("scope", credentialTarget.scope());
+            if (credentialTarget.isAsset()) {
+                ct.put("entryKey", credentialTarget.entryKey());
+                ct.put("fieldPath", credentialTarget.fieldPath());
+            } else if (credentialTarget.isFlow()) {
+                ct.put("flowKey", credentialTarget.flowKey());
             }
-            if (StrUtil.isNotBlank(expr)) {
-                hint.put("expr", expr);
+            hint.put("credentialTarget", ct);
+            // 顶层兼容：AI/前端仍可读 flowKey / displayPath
+            hint.put("displayPath", credentialTarget.displayPath());
+            if (credentialTarget.isFlow()) {
+                hint.put("flowKey", credentialTarget.flowKey());
             }
         }
         target.put("headerHint", hint);

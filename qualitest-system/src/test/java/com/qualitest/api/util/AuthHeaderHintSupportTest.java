@@ -40,7 +40,7 @@ class AuthHeaderHintSupportTest {
 
     /**
      * 前提：/api 路径 inherit、项目双端模板。
-     * 期望：headerHint 指向 clientBearer 与 flow.token。
+     * 期望：headerHint 指向 clientBearer 与 asset.clientAuth.token。
      */
     @Test
     @Order(2)
@@ -52,11 +52,16 @@ class AuthHeaderHintSupportTest {
         assertEquals("inherit", target.getJSONObject("auth").getString("mode"));
         JSONObject hint = target.getJSONObject("headerHint");
         assertEquals("Authorization", hint.getString("name"));
-        assertEquals("Bearer {{flow.token}}", hint.getString("valueTemplate"));
+        assertEquals("Bearer {{asset.clientAuth.token}}", hint.getString("valueTemplate"));
         assertEquals("clientBearer", hint.getString("profileId"));
-        assertEquals("token", hint.getString("flowKey"));
-        assertEquals("body", hint.getString("from"));
-        assertEquals("$.data.token", hint.getString("expr"));
+        assertEquals("asset.clientAuth.token", hint.getString("displayPath"));
+        assertFalse(hint.containsKey("flowKey"));
+        assertFalse(hint.containsKey("from"));
+        assertFalse(hint.containsKey("expr"));
+        JSONObject ct = hint.getJSONObject("credentialTarget");
+        assertEquals("asset", ct.getString("scope"));
+        assertEquals("clientAuth", ct.getString("entryKey"));
+        assertEquals("token", ct.getString("fieldPath"));
     }
 
     /**
@@ -76,23 +81,25 @@ class AuthHeaderHintSupportTest {
 
     /**
      * 前提：管理端路径。
-     * 期望：adminBearer + adminToken。
+     * 期望：adminBearer + asset.adminAuth.token。
      */
     @Test
     @Order(4)
-    @DisplayName("admin 路径回传 adminToken")
-    void putAuthFields_adminPath_returnsAdminToken() {
+    @DisplayName("admin 路径回传 asset 凭证目标")
+    void putAuthFields_adminPath_returnsAdminAsset() {
         JSONObject target = new JSONObject();
         AuthHeaderHintSupport.putAuthFields(
                 target, null, PROJECT_AUTH, "/system/user/list");
-        assertEquals("adminBearer", target.getJSONObject("headerHint").getString("profileId"));
-        assertEquals("adminToken", target.getJSONObject("headerHint").getString("flowKey"));
-        assertTrue(target.getJSONObject("headerHint").getString("valueTemplate").contains("adminToken"));
+        JSONObject hint = target.getJSONObject("headerHint");
+        assertEquals("adminBearer", hint.getString("profileId"));
+        assertEquals("asset.adminAuth.token", hint.getString("displayPath"));
+        assertTrue(hint.getString("valueTemplate").contains("asset.adminAuth.token"));
+        assertEquals("adminAuth", hint.getJSONObject("credentialTarget").getString("entryKey"));
     }
 
     /**
      * 前提：mode=override 自定义无效 Bearer。
-     * 期望：headerHint 用接口模板；auth 含 header；无 profileId/flowKey。
+     * 期望：headerHint 用接口模板；auth 含 header；无 profileId/credentialTarget。
      */
     @Test
     @Order(5)
@@ -110,5 +117,6 @@ class AuthHeaderHintSupportTest {
         assertEquals("Bearer invalid-token", hint.getString("valueTemplate"));
         assertFalse(hint.containsKey("profileId"));
         assertFalse(hint.containsKey("flowKey"));
+        assertFalse(hint.containsKey("credentialTarget"));
     }
 }

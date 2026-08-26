@@ -69,9 +69,9 @@ AI **不直接写库**。Web 助手调 `submit_flow_design_patch` 后，前端�
 
 | CODE | 硬拦？ | 含义 |
 | ---- | ------ | ---- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | 是 | 登录口未抽出 Profile.`loginHint` 对应的 flow 变量 |
-| `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | 两套不同登录口写出同一个 `flow.token`（等） |
-| `AUTH_TOKEN_MISSING` | 是 | 图要用某端 Bearer，但 extracts / assign / 子流输出 / **flowSeed** 都没有该键 |
+| `AUTH_LOGIN_EXTRACT_MISSING` | 是 | 登录口未抽出托管头所需凭证（`{{asset.*}}` / 存量 `{{flow.*}}`） |
+| `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | 两套不同登录口写出同一凭证路径 |
+| `AUTH_TOKEN_MISSING` | 是 | 图要用某托管 Bearer，但 extracts / assign / 子流输出 / **flowSeed(仅 flow)** 都没有该目标 |
 | `AUTH_HEADER_MANAGED` | 否（soft） | 已按项目鉴权补托管头 |
 | `AUTH_LOGIN_NO_BEARER` | 否（soft） | 登录/免登口剥掉了误补的托管头 |
 | 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | 见节点文档；schema 缺字段多为警告 |

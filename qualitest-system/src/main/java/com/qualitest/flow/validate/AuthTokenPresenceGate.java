@@ -1,12 +1,13 @@
 package com.qualitest.flow.validate;
 
-import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.api.util.AuthDesignWarningCodes;
 import com.qualitest.api.util.AuthHeaderResolver;
 import com.qualitest.api.util.AuthHeaderResolver.ResolvedAuthHeader;
+import com.qualitest.api.util.CredentialTargetSupport;
+import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.graph.FlowHttpNodeVisitor;
 import com.qualitest.flow.model.GraphJson;
@@ -24,12 +25,13 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * 设计期检查：图中需要登录的 project HTTP，是否已有对应端的 flow 变量来源。
+ * 设计期检查：图中需要登录的 project HTTP，是否已有对应端的凭证来源。
  * <p>
- * 对每个需鉴权的 project HTTP，解析其命中的鉴权 Profile，读取 loginHint.flowKey
- *（如 token、adminToken）。未配置 loginHint 的 Profile 跳过，不根据头模板猜测。
- * 再扫描整图是否已产出该 flowKey：HTTP extracts（scope=flow）、assign 赋值、
- * 子流 flowOutputs、场景 flowSeed。客户端与管理端分开检查，有一端 token 不能代替另一端。
+ * 对每个需鉴权的 project HTTP，解析其命中的鉴权 Profile，读取托管头上的
+ * {@link CredentialTarget}（如 asset.adminAuth.token、flow.token）。
+ * 未解析出凭证目标的 Profile 跳过。再扫描整图是否已产出该目标：
+ * HTTP extracts（flow / asset）、assign 赋值、子流 flowOutputs、场景 flowSeed（仅 flow）。
+ * 客户端与管理端分开检查，有一端凭证不能代替另一端。
  * <p>
  * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING），调用方应拒绝造流提交、Staging 确认或保存。
  * 项目未配置鉴权 Profile 时不做检查。
@@ -39,7 +41,7 @@ public final class AuthTokenPresenceGate {
     private AuthTokenPresenceGate() {}
 
     /**
-     * 检查合并后流程图的鉴权 token 来源是否齐全。
+     * 检查合并后流程图的鉴权凭证来源是否齐全。
      *
      * @param graph           待检查的流程图
      * @param projectAuthJson 项目鉴权配置 JSON（authProfiles 等）
@@ -59,8 +61,9 @@ public final class AuthTokenPresenceGate {
             return errors;
         }
 
-        // flowKey → Profile 展示名（同一 key 被多节点需要时只保留首次）
-        Map<String, String> requiredKeys = new LinkedHashMap<>();
+        // identityKey → (displayPath, Profile 展示名)；同一目标被多节点需要时只保留首次
+        Map<String, String> requiredDisplayPaths = new LinkedHashMap<>();
+        Map<String, String> requiredProfileNames = new LinkedHashMap<>();
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
         for (GraphNode node : nodes) {
             if (node == null || node.getData() == null) {
@@ -88,34 +91,38 @@ public final class AuthTokenPresenceGate {
                 continue;
             }
             ProjectAuthProfile profile = ProjectAuthConfigSupport.findProfile(projectAuth, resolved.profileId());
-            String flowKey = ProjectAuthConfigSupport.resolveLoginFlowKey(profile);
-            if (StrUtil.isBlank(flowKey)) {
+            List<CredentialTarget> targets = CredentialTargetSupport.targetsOnProfile(profile);
+            if (targets.isEmpty()) {
                 continue;
             }
-            requiredKeys.putIfAbsent(
-                    flowKey, ProjectAuthConfigSupport.displayProfileName(projectAuth, resolved.profileId()));
+            String profileName = ProjectAuthConfigSupport.displayProfileName(projectAuth, resolved.profileId());
+            for (CredentialTarget target : targets) {
+                if (requiredDisplayPaths.putIfAbsent(target.identityKey(), target.displayPath()) == null) {
+                    requiredProfileNames.put(target.identityKey(), profileName);
+                }
+            }
         }
 
-        if (requiredKeys.isEmpty()) {
+        if (requiredDisplayPaths.isEmpty()) {
             return errors;
         }
 
-        // 合并图（含 Staging pending）上的 extracts / assign / 子流输出 / flowSeed 均算来源
-        Set<String> produced = collectProducedFlowKeys(graph);
-        for (Map.Entry<String, String> entry : requiredKeys.entrySet()) {
+        Set<String> produced = collectProducedIdentityKeys(graph);
+        for (Map.Entry<String, String> entry : requiredDisplayPaths.entrySet()) {
             if (produced.contains(entry.getKey())) {
                 continue;
             }
-            errors.add(AuthDesignWarningCodes.tokenMissing(entry.getValue(), entry.getKey()));
+            errors.add(AuthDesignWarningCodes.tokenMissing(
+                    requiredProfileNames.get(entry.getKey()), entry.getValue()));
         }
         return errors;
     }
 
     /**
-     * 收集图中已声明会写入 flow 作用域的变量名。
-     * 来源：HTTP extracts、assign 节点、subflow 输出、场景 flowSeed 的键。
+     * 收集图中已声明会写入的凭证 identityKey。
+     * 来源：HTTP extracts（flow + asset）、assign、subflow 输出、场景 flowSeed（仅 flow）。
      */
-    static Set<String> collectProducedFlowKeys(GraphJson graph) {
+    static Set<String> collectProducedIdentityKeys(GraphJson graph) {
         Set<String> keys = new LinkedHashSet<>();
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
         for (GraphNode node : nodes) {
@@ -123,21 +130,23 @@ public final class AuthTokenPresenceGate {
                 continue;
             }
             Map<String, Object> data = node.getData();
-            collectFromExtracts(data.get("extracts"), keys);
+            for (CredentialTarget target : CredentialTargetSupport.listProducedTargets(data.get("extracts"))) {
+                keys.add(target.identityKey());
+            }
             String type = node.getType() != null ? node.getType().trim().toLowerCase() : "";
             if ("assign".equals(type)) {
                 Object raw = data.get("assignments");
                 if (raw == null) {
                     raw = data.get("items");
                 }
-                collectNameOrKey(raw, keys);
+                collectFlowNames(raw, keys);
             }
             if ("subflow".equals(type)) {
                 Object raw = data.get("flowOutputs");
                 if (raw == null) {
                     raw = data.get("outputs");
                 }
-                collectField(raw, "flowKey", keys);
+                collectFlowField(raw, "flowKey", keys);
             }
         }
         GraphMeta meta = graph.getMeta();
@@ -147,8 +156,9 @@ public final class AuthTokenPresenceGate {
                     continue;
                 }
                 for (String seedKey : scenario.getFlowSeed().keySet()) {
-                    if (StrUtil.isNotBlank(seedKey)) {
-                        keys.add(seedKey.trim());
+                    CredentialTarget flowTarget = CredentialTarget.flow(seedKey);
+                    if (flowTarget != null) {
+                        keys.add(flowTarget.identityKey());
                     }
                 }
             }
@@ -156,24 +166,8 @@ public final class AuthTokenPresenceGate {
         return keys;
     }
 
-    /** 从 HTTP extracts 收集 scope=flow（或缺省 scope）的 name。 */
-    private static void collectFromExtracts(Object raw, Set<String> keys) {
-        for (Object item : GraphDataLists.asList(raw)) {
-            Map<?, ?> row = GraphDataLists.asMap(item);
-            if (row == null) {
-                continue;
-            }
-            Object scope = row.get("scope");
-            if (scope != null && !String.valueOf(scope).isBlank()
-                    && !"flow".equalsIgnoreCase(String.valueOf(scope).trim())) {
-                continue;
-            }
-            addTrimmed(keys, row.get("name"));
-        }
-    }
-
-    /** 从 assign 列表收集 name 或 key。 */
-    private static void collectNameOrKey(Object raw, Set<String> keys) {
+    /** 从 assign 列表收集 name/key，按 flow 目标写入 identityKey。 */
+    private static void collectFlowNames(Object raw, Set<String> keys) {
         for (Object item : GraphDataLists.asList(raw)) {
             Map<?, ?> row = GraphDataLists.asMap(item);
             if (row == null) {
@@ -183,24 +177,28 @@ public final class AuthTokenPresenceGate {
             if (name == null) {
                 name = row.get("key");
             }
-            addTrimmed(keys, name);
+            addFlowIdentity(keys, name);
         }
     }
 
-    /** 从对象列表收集指定字段值。 */
-    private static void collectField(Object raw, String field, Set<String> keys) {
+    /** 从对象列表收集指定字段值，按 flow 目标写入 identityKey。 */
+    private static void collectFlowField(Object raw, String field, Set<String> keys) {
         for (Object item : GraphDataLists.asList(raw)) {
             Map<?, ?> row = GraphDataLists.asMap(item);
             if (row == null) {
                 continue;
             }
-            addTrimmed(keys, row.get(field));
+            addFlowIdentity(keys, row.get(field));
         }
     }
 
-    private static void addTrimmed(Set<String> keys, Object value) {
-        if (value != null && !String.valueOf(value).isBlank()) {
-            keys.add(String.valueOf(value).trim());
+    private static void addFlowIdentity(Set<String> keys, Object value) {
+        if (value == null || String.valueOf(value).isBlank()) {
+            return;
+        }
+        CredentialTarget target = CredentialTarget.flow(String.valueOf(value).trim());
+        if (target != null) {
+            keys.add(target.identityKey());
         }
     }
 }

@@ -3,6 +3,7 @@ package com.qualitest.api.util;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
+import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
 import com.qualitest.common.exception.ServiceException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -19,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测谁：项目鉴权配置当前形态、免登只认预制 none 口。
- * 边界：空配置 builtin、有 Profile 不再猜 /login。
+ * 边界：空配置 builtin、有 Profile 不再猜 /login；凭证目标在托管头。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ProjectAuthConfigSupportTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -27,11 +28,11 @@ class ProjectAuthConfigSupportTest {
 
     /**
      * 前提：通用上传种子。
-     * 期望：单 Profile 名「RuoYi Bearer」；hint 在 Profile；登录口 none 且带测值/响应 example；不含客户端 path。
+     * 期望：单 Profile 名「RuoYi Bearer」；loginHint 为 null；托管头 asset.adminAuth.token；登录口 none。
      */
     @Test
     @Order(1)
-    @DisplayName("通用种子：RuoYi Bearer 三口、无客户端 path")
+    @DisplayName("通用种子：RuoYi Bearer 三口、asset 头、无客户端 path")
     void ruoyiBearerTemplate_conservative() {
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.ruoyiBearerTemplate();
 
@@ -39,6 +40,9 @@ class ProjectAuthConfigSupportTest {
         assertEquals(1, cfg.getAuthProfiles().size());
         assertEquals("RuoYi Bearer", cfg.getAuthProfiles().get(0).getName());
         assertEquals("Authorization", cfg.getAuthProfiles().get(0).getHeaderName());
+        assertEquals("Bearer {{asset.adminAuth.token}}",
+                cfg.getAuthProfiles().get(0).getHeaderValueTemplate());
+        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("GET", "/captchaImage", cfg));
         assertFalse(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
@@ -52,12 +56,12 @@ class ProjectAuthConfigSupportTest {
         assertNull(login.getAuthConfig().getLoginHint());
         assertTrue(String.valueOf(login.getTestValueConfig()).contains("admin"));
         assertTrue(String.valueOf(login.getResponseConfig()).contains("token"));
-        assertEquals("token", cfg.getAuthProfiles().get(0).getLoginHint().getFlowKey());
-        assertEquals("$.token", cfg.getAuthProfiles().get(0).getLoginHint().getExpr());
         assertEquals("POST", cfg.getAuthProfiles().get(0).getCredentialApi().getMethod());
         assertEquals("/login", cfg.getAuthProfiles().get(0).getCredentialApi().getPath());
         ProjectAuthConfig roundtrip = ProjectAuthConfigSupport.parse(ProjectAuthConfigSupport.toJson(cfg));
-        assertEquals("token", roundtrip.getAuthProfiles().get(0).getLoginHint().getFlowKey());
+        assertNull(roundtrip.getAuthProfiles().get(0).getLoginHint());
+        assertEquals("Bearer {{asset.adminAuth.token}}",
+                roundtrip.getAuthProfiles().get(0).getHeaderValueTemplate());
         assertNull(roundtrip.getAuthProfiles().get(0).getApis().get(0).getAuthConfig().getLoginHint());
     }
 
@@ -115,7 +119,7 @@ class ProjectAuthConfigSupportTest {
         String json = """
                 {"authProfiles":[{
                   "id":"p1","name":"Bearer",
-                  "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                  "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
                   "apis":[]
                 }]}
                 """;
@@ -127,8 +131,8 @@ class ProjectAuthConfigSupportTest {
     }
 
     /**
-     * 前提：当前结构双端 JSON（扁平头、credentialApi、loginHint、none 登录口）。
-     * 期望：/login 与客户端 login 免登；未命中前缀走第一条。
+     * 前提：当前结构双端 JSON（扁平头、credentialApi、asset 头、none 登录口；可读残留 loginHint）。
+     * 期望：免登；写出后 loginHint 为 null；头模板为 asset。
      */
     @Test
     @Order(5)
@@ -138,15 +142,13 @@ class ProjectAuthConfigSupportTest {
                 {"authProfiles":[
                   {"id":"adminBearer","name":"管理端 Bearer",
                    "match":{"pathPrefix":["/system/","/monitor/","/tool/","/web/"]},
-                   "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.adminToken}}",
+                   "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
                    "credentialApi":{"method":"POST","path":"/login"},
-                   "loginHint":{"flowKey":"adminToken","from":"body","expr":"$.token"},
                    "apis":[{"apiPath":"/login","authConfig":{"mode":"none"},
                      "requestConfig":{"configVersion":1,"method":"POST"}}]},
                   {"id":"clientBearer","name":"客户端 Bearer","match":{"pathPrefix":["/api/"]},
-                   "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                   "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.clientAuth.token}}",
                    "credentialApi":{"method":"POST","path":"/api/account/auth/login"},
-                   "loginHint":{"flowKey":"token","from":"body","expr":"$.data.token"},
                    "apis":[{"apiPath":"/api/account/auth/login","authConfig":{"mode":"none"},
                      "requestConfig":{"configVersion":1,"method":"POST"}}]}
                 ]}
@@ -161,16 +163,20 @@ class ProjectAuthConfigSupportTest {
         PrefabricatedApi adminLogin = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
         assertEquals("none", adminLogin.getAuthConfig().getMode());
         assertNull(adminLogin.getAuthConfig().getLoginHint());
-        assertEquals("adminToken", cfg.getAuthProfiles().get(0).getLoginHint().getFlowKey());
+        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
+        assertEquals("Bearer {{asset.adminAuth.token}}",
+                cfg.getAuthProfiles().get(0).getHeaderValueTemplate());
         PrefabricatedApi clientLogin = ProjectAuthConfigSupport.findPrefabricatedApi(
                 cfg, "POST", "/api/account/auth/login");
         assertNull(clientLogin.getAuthConfig().getLoginHint());
-        assertEquals("$.data.token", cfg.getAuthProfiles().get(1).getLoginHint().getExpr());
+        assertNull(cfg.getAuthProfiles().get(1).getLoginHint());
+        assertEquals("Bearer {{asset.clientAuth.token}}",
+                cfg.getAuthProfiles().get(1).getHeaderValueTemplate());
     }
 
     /**
      * 前提：当前结构写入 normalizeToJson。
-     * 期望：落库含扁平头与 credentialApi，不含嵌套 header。
+     * 期望：落库含扁平头与 credentialApi，不含嵌套 header / loginHint。
      */
     @Test
     @Order(6)
@@ -179,7 +185,7 @@ class ProjectAuthConfigSupportTest {
         String raw = """
                 {"authProfiles":[
                   {"id":"p1","name":"x",
-                   "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                   "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
                    "credentialApi":{"method":"POST","path":"/login"},
                    "loginHint":{"flowKey":"token","from":"body","expr":"$.token"},
                    "apis":[{"apiPath":"/login","authConfig":{"mode":"none"},
@@ -191,27 +197,33 @@ class ProjectAuthConfigSupportTest {
         assertFalse(stored.contains("defaultProfileId"));
         assertFalse(stored.contains("anonymousPathExact"));
         assertFalse(stored.contains("\"header\":"));
+        assertFalse(stored.contains("loginHint"));
         assertTrue(stored.contains("headerName"));
         assertTrue(stored.contains("\"apis\""));
         assertTrue(stored.contains("credentialApi"));
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(stored);
         assertEquals("Authorization", cfg.getAuthProfiles().get(0).getHeaderName());
-        assertEquals("token", cfg.getAuthProfiles().get(0).getLoginHint().getFlowKey());
+        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
+        assertEquals("Bearer {{asset.adminAuth.token}}",
+                cfg.getAuthProfiles().get(0).getHeaderValueTemplate());
         assertNull(cfg.getAuthProfiles().get(0).getApis().get(0).getAuthConfig().getLoginHint());
     }
 
     /**
-     * 前提：loginHint 使用 from+expr。
-     * 期望：resolve 读出 body + JSONPath。
+     * 前提：托管头含 asset 占位符。
+     * 期望：primaryTarget 解析出 entry/field。
      */
     @Test
     @Order(7)
-    @DisplayName("loginHint：from+expr")
-    void resolveLoginExtract_fromExpr() {
+    @DisplayName("primaryTarget：asset 托管头")
+    void primaryTarget_fromAssetHeader() {
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.ruoyiBearerTemplate();
-        var hint = ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/login");
-        assertEquals("body", ProjectAuthConfigSupport.resolveLoginExtractFrom(hint));
-        assertEquals("$.token", ProjectAuthConfigSupport.resolveLoginExtractExpr(hint));
+        CredentialTarget target = CredentialTargetSupport.primaryTarget(cfg.getAuthProfiles().get(0));
+        assertNotNull(target);
+        assertTrue(target.isAsset());
+        assertEquals("adminAuth", target.entryKey());
+        assertEquals("token", target.fieldPath());
+        assertEquals("asset.adminAuth.token", target.displayPath());
     }
 
     /**
@@ -225,7 +237,7 @@ class ProjectAuthConfigSupportTest {
         String raw = """
                 {"authProfiles":[
                   {"id":"p1","name":"x","match":{"pathPrefix":["/"]},
-                   "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}"}
+                   "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}"}
                 ]}
                 """;
         ServiceException ex = assertThrows(ServiceException.class,
@@ -282,7 +294,7 @@ class ProjectAuthConfigSupportTest {
 
     /**
      * 前提：预制口带描述、头、响应、测值、脚本。
-     * 期望：normalize 写出后再 parse，这些字段还在。
+     * 期望：normalize 写出后再 parse，这些字段还在；loginHint 丢弃。
      */
     @Test
     @Order(12)
@@ -291,7 +303,7 @@ class ProjectAuthConfigSupportTest {
         String raw = """
                 {"authProfiles":[{
                   "id":"p1","name":"x",
-                  "headerName":"Authorization","headerValueTemplate":"Bearer {{flow.token}}",
+                  "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
                   "credentialApi":{"method":"POST","path":"/login"},
                   "loginHint":{"flowKey":"token","from":"body","expr":"$.token"},
                   "apis":[{
@@ -325,42 +337,51 @@ class ProjectAuthConfigSupportTest {
         assertTrue(String.valueOf(api.getTestValueConfig()).contains("admin"));
         assertTrue(String.valueOf(api.getBizCodeConfig()).contains("200"));
         assertTrue(String.valueOf(api.getDesignHints()).contains("$.token"));
-        assertEquals("token", cfg.getAuthProfiles().get(0).getLoginHint().getFlowKey());
+        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
         assertEquals("/login", cfg.getAuthProfiles().get(0).getCredentialApi().getPath());
         assertNull(api.getAuthConfig().getLoginHint());
     }
 
     /**
-     * 前提：Profile 级 loginHint + credentialApi=POST /login。
-     * 期望：登录口能读 hint，注册口没有。
+     * 前提：Profile 托管头 + credentialApi=POST /login。
+     * 期望：登录口能找 Profile，注册口没有。
      */
     @Test
     @Order(13)
-    @DisplayName("findLoginHint：只认 credentialApi")
-    void findLoginHint_onlyCredentialApi() {
+    @DisplayName("findCredentialProfile：只认 credentialApi")
+    void findCredentialProfile_onlyCredentialApi() {
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.ruoyiBearerTemplate();
 
-        assertEquals("token", ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/login").getFlowKey());
-        assertNull(ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/register"));
-        assertNull(ProjectAuthConfigSupport.findLoginHint(cfg, "GET", "/captchaImage"));
+        assertNotNull(ProjectAuthConfigSupport.findCredentialProfile(cfg, "POST", "/login"));
+        assertEquals("asset.adminAuth.token",
+                CredentialTargetSupport.primaryTarget(
+                        ProjectAuthConfigSupport.findCredentialProfile(cfg, "POST", "/login")).displayPath());
+        assertNull(ProjectAuthConfigSupport.findCredentialProfile(cfg, "POST", "/register"));
+        assertNull(ProjectAuthConfigSupport.findCredentialProfile(cfg, "GET", "/captchaImage"));
     }
 
     /**
      * 前提：管理端在前的双端夹具。
-     * 期望：两端 loginHint 不同；写出 JSON 无 apis.loginHint。
+     * 期望：两端 primaryTarget 不同；写出 JSON 无 loginHint。
      */
     @Test
     @Order(14)
-    @DisplayName("双端 Profile 各有 loginHint，apis 不含 hint")
-    void dualProfiles_hintOnProfileNotApis() {
+    @DisplayName("双端 Profile 各有 asset 目标，apis 不含 hint")
+    void dualProfiles_assetTargetOnProfileNotApis() {
         String stored = ProjectAuthConfigSupport.toJson(AuthProfileTestFixtures.adminThenClient());
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(stored);
 
         assertTrue(stored.contains("credentialApi"));
-        assertEquals("adminToken", ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/login").getFlowKey());
-        assertEquals("$.data.token",
-                ProjectAuthConfigSupport.findLoginHint(cfg, "POST", "/api/account/auth/login").getExpr());
+        assertFalse(stored.contains("loginHint"));
+        CredentialTarget admin = CredentialTargetSupport.primaryTarget(
+                ProjectAuthConfigSupport.findCredentialProfile(cfg, "POST", "/login"));
+        CredentialTarget client = CredentialTargetSupport.primaryTarget(
+                ProjectAuthConfigSupport.findCredentialProfile(cfg, "POST", "/api/account/auth/login"));
+        assertEquals("asset.adminAuth.token", admin.displayPath());
+        assertEquals("asset.clientAuth.token", client.displayPath());
         assertNull(cfg.getAuthProfiles().get(0).getApis().get(0).getAuthConfig().getLoginHint());
         assertNull(cfg.getAuthProfiles().get(1).getApis().get(0).getAuthConfig().getLoginHint());
+        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
+        assertNull(cfg.getAuthProfiles().get(1).getLoginHint());
     }
 }

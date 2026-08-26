@@ -8,13 +8,13 @@
 
 ## 鉴权与 token
 
-### Run 报 `{{flow.token}}` 或 `{{flow.adminToken}}` 未定义
+### Run 报 `{{asset.*.token}}` 或旧 `{{flow.token}}` 未定义
 
 常见原因：
 
-1. 登录节点 **extract 路径写错**（管理端 `/login` 用 `$.token`→`adminToken`，客户端用 `$.data.token`→`token`）。
-2. 图里用了 Bearer，但**没有**对应端的登录抽取 / assign / 子流输出。
-3. 登录口应是免登（`mode=none`），却仍被补了 `Bearer {{flow.token}}`——查项目模板与接口 `auth.mode`。
+1. 登录节点 **extract 路径写错**（管理端 `/login` 用 `$.token`→`asset.adminAuth.token`，客户端用 `$.data.token`→`asset.clientAuth.token`）。
+2. 图里用了 Bearer，但**没有**对应端的登录抽取 / 已落盘素材。
+3. 登录口应是免登（`mode=none`），却仍被补了托管 Bearer——查项目模板与接口 `auth.mode`。
 
 → [project-summary.md §4](./project-summary.md) · [flow-variables-and-values.md](./flow-variables-and-values.md)
 
@@ -22,9 +22,9 @@
 
 | 码 | 含义 | 处理 |
 | --- | --- | --- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | 登录口没抽出 Profile 要求的 flow 变量 | 补 extracts 或让 AI 按 `loginHint` 补 |
-| `AUTH_TOKEN_MISSING` | 后续 HTTP 要用 token，但图里没有来源 | 同端补登录或 flowSeed **只预置 token** |
-| `AUTH_LOGIN_FLOWKEY_COLLISION` | 两套登录都写进同一个 `flow.token` | 双端用 `token` + `adminToken` 两套 |
+| `AUTH_LOGIN_EXTRACT_MISSING` | 登录口没抽出托管头所需凭证（asset/flow） | 补 extracts 或让 AI 按托管头占位符补 |
+| `AUTH_TOKEN_MISSING` | 后续 HTTP 要用凭证，但图里没有来源 | 同端补登录 extract（或存量 flowSeed 仅对 flow 目标） |
+| `AUTH_LOGIN_FLOWKEY_COLLISION` | 两套登录写出同一凭证路径 | 双端分用 `adminAuth` / `clientAuth` |
 | `AUTH_HEADER_MANAGED` | 已自动补托管头 | 提示，不拦 |
 
 → [ai-staging.md §5](./ai-staging.md)
@@ -89,6 +89,6 @@ Staging **全部 ✕** 取消坏提案，或**新建一条流**重来。不要�
 
 ### 新建项目时为什么要勾「项目模板」
 
-模板写入 Profile、登录口免登、**预制登录口**，以及可选的**预制参数（flow/env/asset）/ 预制测试流**（登录流 extracts 会派生托管头与 `loginHint`）；不勾无法创建。**业务 API** 仍须 IDEA 插件上传（手册 **T1.3**）。商城类双端项目建议勾「管理端 Bearer」+「客户端 Bearer」。
+模板写入 Profile、登录口免登、**预制登录口**，以及可选的**预制参数（flow/env/asset）/ 预制测试流**（登录流 extracts 派生托管头与 `credentialApi`，**不再**写 `loginHint`）；不勾无法创建。**业务 API** 仍须 IDEA 插件上传（手册 **T1.3**）。商城类双端项目建议勾「管理端 Bearer」+「客户端 Bearer」。
 
 → [project-summary.md §4.1](./project-summary.md) · 手册 **T1.2**（项目模板）· **T1.3**（插件上传）

@@ -189,6 +189,20 @@ export const dynamicRoutes = [
         meta: { title: '项目成员', activeMenu: '/project/testProject' }
       }
     ]
+  },
+  {
+    path: '/project/template-flow',
+    component: Layout,
+    hidden: true,
+    permissions: ['project:testProjectTemplate:list', 'project:testProjectTemplate:edit', 'project:testProjectTemplate:query'],
+    children: [
+      {
+        path: ':templateId/:flowIndex',
+        component: () => import('@/views/project/testProjectTemplate/TemplateFlowCanvasView.vue'),
+        name: 'TemplateFlowCanvas',
+        meta: { title: '模板测试流画布', activeMenu: '/project/testProjectTemplate' }
+      }
+    ]
   }
 ]
 

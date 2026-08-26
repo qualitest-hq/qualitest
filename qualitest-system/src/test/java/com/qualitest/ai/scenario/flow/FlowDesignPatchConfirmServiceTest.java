@@ -478,7 +478,7 @@ class FlowDesignPatchConfirmServiceTest {
 
     /**
      * 前提：项目已配双端鉴权；确认一个需登录的客户端 HTTP，图中无 token 写入来源。
-     * 期望：确认失败，errors 含 AUTH_TOKEN_MISSING 与 flow.token。
+     * 期望：确认失败，errors 含 AUTH_TOKEN_MISSING 与 asset.clientAuth.token。
      */
     @Test
     @Order(19)
@@ -489,12 +489,12 @@ class FlowDesignPatchConfirmServiceTest {
         assertFalse(result.isOk());
         assertTrue(result.getErrors().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
                 () -> "errors=" + result.getErrors());
-        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("flow.token")),
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("asset.clientAuth.token")),
                 () -> "errors=" + result.getErrors());
     }
 
     /**
-     * 前提：同上，但该 HTTP 的 extracts 已声明写出 flow.token。
+     * 前提：同上，但该 HTTP 的 extracts 已声明写出 asset.clientAuth.token。
      * 期望：确认成功，errors 不含 AUTH_TOKEN_MISSING。
      */
     @Test
@@ -506,8 +506,11 @@ class FlowDesignPatchConfirmServiceTest {
                 "登录",
                 List.of(Map.of(
                         "name", "token",
-                        "scope", "flow",
-                        "expr", "$.data.token")));
+                        "scope", "asset",
+                        "entryKey", "clientAuth",
+                        "fieldPath", "token",
+                        "expr", "$.data.token",
+                        "from", "body")));
         assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
         assertTrue(result.getErrors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")));
     }
@@ -517,7 +520,7 @@ class FlowDesignPatchConfirmServiceTest {
      * 使用双端 Bearer 项目鉴权与 /api 路径接口，便于测 token 来源检查。
      */
     private static FlowDesignPatchConfirmResult confirmDualBearerHttpNode(
-            String nodeId, String name, List<Map<String, String>> extracts) {
+            String nodeId, String name, List<? extends Map<String, ?>> extracts) {
         FlowDesignPatchConfirmService gated = confirmServiceWithDualBearerAuth();
         Map<String, Object> httpData = new HashMap<>();
         httpData.put("name", name);

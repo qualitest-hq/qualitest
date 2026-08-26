@@ -15,7 +15,8 @@ import java.util.List;
  * <p>
  * 按接口路径选一套 Profile：命中最长 pathPrefix 的那条；都没命中则用数组第一条。
  * 免登只看预制接口 authConfig.mode=none。
- * 抽凭证规则挂在 Profile：credentialApi 标明哪一口登录，loginHint 标明写入哪个 flow 变量。
+ * 抽凭证：credentialApi 标明哪一口登录；托管头占位符（{{asset.*}} / {{flow.*}}）标明写入目标。
+ * 抽取 from/expr 只活在登录流 extracts，不再使用 Profile.loginHint。
  */
 @Data
 @Builder
@@ -56,19 +57,19 @@ public class ProjectAuthConfig implements Serializable {
         /** 鉴权头名称，如 Authorization、Cookie。 */
         private String headerName;
 
-        /** 鉴权头值，如 Bearer {{flow.token}}。 */
+        /** 鉴权头值，如 Bearer {{asset.adminAuth.token}}。 */
         private String headerValueTemplate;
 
         /**
          * 本套发凭证的接口，通常是 POST /login。
-         * 造流只对这一口按 loginHint 补 extracts。
+         * 造流只对这一口按托管头占位符补 extracts。
          */
         private CredentialApi credentialApi;
 
         /**
-         * 本套凭证抽取：从登录响应哪取值、写入哪个 flow 变量。
-         * 权威在 Profile；预制口 authConfig 不再带 loginHint。
+         * 已废弃：读库可出现，写出与规范化时丢弃。凭证目标以 headerValueTemplate 为准。
          */
+        @Deprecated
         private LoginHint loginHint;
 
         /** 本套预制接口：登录、注册、验证码等。 */
@@ -174,8 +175,11 @@ public class ProjectAuthConfig implements Serializable {
     }
 
     /**
-     * 登录响应里怎么抽出凭证。
+     * 登录响应里怎么抽出凭证（历史 JSON 字段，仅反序列化兼容）。
+     *
+     * @deprecated 凭证目标以 Profile.headerValueTemplate 占位符为准；写出与规范化时丢弃。
      */
+    @Deprecated
     @Data
     @Builder
     @NoArgsConstructor

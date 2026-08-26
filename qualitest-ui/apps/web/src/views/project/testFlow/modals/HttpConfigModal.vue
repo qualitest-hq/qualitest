@@ -223,6 +223,10 @@ const workbenchTabs = computed(() => {
 
 
 async function loadApiTree() {
+  if (store.canvasMode === 'template') {
+    apiTree.value = store.templateApiTree || []
+    return
+  }
   if (!store.testProjectId) return
   try {
     const res = await getTestProjectApiTree({ testProjectId: store.testProjectId })
@@ -234,12 +238,26 @@ async function loadApiTree() {
 
 async function selectApi(apiId) {
   try {
-    const res = await getTestProjectApi(apiId)
-    const detail = res?.data ?? res
+    let detail
+    if (store.canvasMode === 'template') {
+      const found = (store.templateApiCatalog || []).find(
+        (e) => String(e.syntheticId) === String(apiId),
+      )
+      detail = found?.api ?? null
+      if (!detail) {
+        ElMessage.error('未找到预制接口')
+        return
+      }
+    } else {
+      const res = await getTestProjectApi(apiId)
+      detail = res?.data ?? res
+    }
     const baseline = buildWorkbenchFromApiDetail(detail)
     assetBaseline.value = baseline
     const node = store.nodes.find((n) => n.id === props.nodeId)
-    const nodeData = node?.data ? { ...node.data, testProjectApiId: String(apiId) } : { testProjectApiId: String(apiId) }
+    const nodeData = node?.data
+      ? { ...node.data, testProjectApiId: String(apiId), apiPath: detail.apiPath || node.data.apiPath }
+      : { testProjectApiId: String(apiId), apiPath: detail.apiPath || '' }
     draft.value = buildWorkbenchFromApiAndNode(detail, nodeData)
     // 换绑 API 时以资产路径为准展示
     draft.value.apiPath = baseline.apiPath
@@ -263,8 +281,22 @@ async function openForNode(nodeId) {
     return
   }
   try {
-    const res = await getTestProjectApi(apiId)
-    const detail = res?.data ?? res
+    let detail
+    if (store.canvasMode === 'template') {
+      const found = (store.templateApiCatalog || []).find(
+        (e) => String(e.syntheticId) === String(apiId),
+      )
+      detail = found?.api ?? null
+      if (!detail) {
+        // 无合成 id 时仍可用节点本地 apiPath 打开
+        draft.value = buildWorkbenchFromApiAndNode(null, node.data || {})
+        assetBaseline.value = buildWorkbenchFromApiDetail(null)
+        return
+      }
+    } else {
+      const res = await getTestProjectApi(apiId)
+      detail = res?.data ?? res
+    }
     assetBaseline.value = buildWorkbenchFromApiDetail(detail)
     draft.value = buildWorkbenchFromApiAndNode(detail, node.data || {})
   } catch {

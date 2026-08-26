@@ -23,8 +23,14 @@ import type {
 export interface TestFlowDesignRequestPayload {
   /** 当前测试流 id */
   testFlowId: string;
-  /** 所属测试项目 id */
-  testProjectId: string;
+  /** 所属测试项目 id；模板模式可空 */
+  testProjectId?: string | null;
+  /** project（默认）| template（项目模板预制流） */
+  designMode?: 'project' | 'template';
+  /** designMode=template 时内联的预制接口列表 */
+  templateApis?: unknown[];
+  /** 模板模式会话锚点（非雪花 id） */
+  templateFlowKey?: string;
   /** 选用的 LLM 模型 id */
   aiLlmModelId: string;
   /** 多轮会话 id；空则服务端创建新会话 */
@@ -101,13 +107,16 @@ export interface AiPromptTemplateItem {
  * 查询 AI 设计面板可用提示词模板（平台级 + 当前项目级）。
  */
 export async function listAiDesignPromptTemplates(
-  testProjectId: string,
+  testProjectId?: string | null,
   sessionScene = 'test_flow_design',
 ): Promise<AiPromptTemplateItem[]> {
   const res = await request({
     url: '/project/testFlow/ai/promptTemplates',
     method: 'get',
-    params: { testProjectId, sessionScene },
+    params: {
+      ...(testProjectId && testProjectId !== '0' ? { testProjectId } : {}),
+      sessionScene,
+    },
   });
   return (res.data ?? []) as AiPromptTemplateItem[];
 }

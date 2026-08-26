@@ -93,14 +93,14 @@ final class ApiDetailPayloadBuilder {
             "响应结构不足以确定 token 路径，跑一次后按真实 body 再改";
 
     /**
-     * 凭证口（Profile.loginHint / credentialApi）在 designHints 首部补一条抽取说明；已有相同文案不重复。
+     * 凭证口（credentialApi + 托管头占位符）在 designHints 首部补一条抽取说明；已有相同文案不重复。
      */
     static void prependLoginDesignHint(
             List<String> hints,
             String projectAuthJson,
             String apiPath,
             LoginExtractSuggestor.Suggestion suggestion) {
-        if (hints == null || !LoginExtractSuggestor.hasCredentialLoginHint(projectAuthJson, null, apiPath)) {
+        if (hints == null || !LoginExtractSuggestor.isCredentialApiEndpoint(projectAuthJson, null, apiPath)) {
             return;
         }
         String extra;

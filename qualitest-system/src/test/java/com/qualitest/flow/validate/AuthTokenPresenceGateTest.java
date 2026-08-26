@@ -3,9 +3,7 @@ package com.qualitest.flow.validate;
 import com.qualitest.api.util.AuthProfileTestFixtures;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.project.domain.TestProjectApi;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -21,8 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测谁：AuthTokenPresenceGate——图中需登录却缺对应端 flow 变量来源时返回错误。
- * 边界：仅缺 client / 仅缺 admin / 有一端不能代替另一端 / extracts 与 flowSeed 可满足 / mode=none 不检查。
+ * 测谁：AuthTokenPresenceGate——图中需登录却缺对应端凭证来源时返回错误。
+ * 边界：仅缺 client / 仅缺 admin / 有一端不能代替另一端 / extracts 可满足 / mode=none 不检查。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AuthTokenPresenceGateTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -32,8 +30,8 @@ class AuthTokenPresenceGateTest {
             AuthProfileTestFixtures.adminThenClient());
 
     /**
-     * 前提：图中仅有需客户端鉴权的 HTTP，无任何 token 写入来源。
-     * 期望：一条 AUTH_TOKEN_MISSING，文案含 flow.token，不含 adminToken。
+     * 前提：图中仅有需客户端鉴权的 HTTP，无任何凭证写入来源。
+     * 期望：一条 AUTH_TOKEN_MISSING，文案含 asset.clientAuth.token，不含 adminAuth。
      */
     @Test
     @Order(1)
@@ -46,13 +44,13 @@ class AuthTokenPresenceGateTest {
                 graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/profile", "inherit"));
         assertEquals(1, errors.size());
         assertTrue(errors.get(0).startsWith("AUTH_TOKEN_MISSING:"));
-        assertTrue(errors.get(0).contains("flow.token"));
-        assertTrue(errors.stream().noneMatch(e -> e.contains("adminToken")));
+        assertTrue(errors.get(0).contains("asset.clientAuth.token"));
+        assertTrue(errors.stream().noneMatch(e -> e.contains("adminAuth")));
     }
 
     /**
-     * 前提：同时有客户端与管理端 HTTP，仅 extracts 写出 token。
-     * 期望：仍报缺 adminToken（有客户端 token 不能代替管理端）。
+     * 前提：同时有客户端与管理端 HTTP，仅 extracts 写出 clientAuth.token。
+     * 期望：仍报缺 asset.adminAuth.token（有客户端不能代替管理端）。
      */
     @Test
     @Order(2)
@@ -61,8 +59,11 @@ class AuthTokenPresenceGateTest {
         GraphNode login = httpNode("login", 201L);
         login.getData().put("extracts", List.of(Map.of(
                 "name", "token",
-                "scope", "flow",
-                "expr", "$.data.token"
+                "scope", "asset",
+                "entryKey", "clientAuth",
+                "fieldPath", "token",
+                "expr", "$.data.token",
+                "from", "body"
         )));
         GraphJson graph = GraphJson.builder()
                 .nodes(List.of(login, httpNode("admin", 202L), httpNode("profile", 203L)))
@@ -75,28 +76,35 @@ class AuthTokenPresenceGateTest {
         });
         assertEquals(1, errors.size());
         assertTrue(errors.get(0).startsWith("AUTH_TOKEN_MISSING:"));
-        assertTrue(errors.get(0).contains("adminToken"));
+        assertTrue(errors.get(0).contains("asset.adminAuth.token"));
     }
 
     /**
-     * 前提：场景 flowSeed 已有 adminToken，图中只有管理端 HTTP。
+     * 前提：图中 extracts 已写出 asset.adminAuth.token，只有管理端 HTTP。
      * 期望：无错误。
      */
     @Test
     @Order(3)
-    @DisplayName("flowSeed 提供 adminToken 则通过")
-    void validate_flowSeedProvidesAdminToken_ok() {
-        GraphRunScenario scenario = GraphRunScenario.builder()
-                .id("s1")
-                .name("默认")
-                .flowSeed(new HashMap<>(Map.of("adminToken", "seed")))
-                .build();
+    @DisplayName("extract 提供 adminAuth.token 则通过")
+    void validate_extractProvidesAdminToken_ok() {
+        GraphNode login = httpNode("login", 301L);
+        login.getData().put("extracts", List.of(Map.of(
+                "name", "token",
+                "scope", "asset",
+                "entryKey", "adminAuth",
+                "fieldPath", "token",
+                "expr", "$.token",
+                "from", "body"
+        )));
         GraphJson graph = GraphJson.builder()
-                .nodes(List.of(httpNode("admin", 301L)))
-                .meta(GraphMeta.builder().scenarios(List.of(scenario)).build())
+                .nodes(List.of(login, httpNode("admin", 302L)))
                 .build();
-        List<String> errors = AuthTokenPresenceGate.validate(
-                graph, PROJECT_AUTH, id -> api(id, "/system/user/list", "inherit"));
+        List<String> errors = AuthTokenPresenceGate.validate(graph, PROJECT_AUTH, id -> {
+            if (id == 301L) {
+                return api(id, "/login", "none");
+            }
+            return api(id, "/system/user/list", "inherit");
+        });
         assertTrue(errors.isEmpty());
     }
 

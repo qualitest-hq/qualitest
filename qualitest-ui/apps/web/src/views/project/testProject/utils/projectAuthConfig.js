@@ -1,15 +1,8 @@
 /**
  * 项目级鉴权配置（auth_config）表单解析 / 组装 / 轻量校验。
- * 对齐后端 ProjectAuthConfig：扁平头 + credentialApi + loginHint + apis[]。
+ * 对齐后端 ProjectAuthConfig：扁平头 + credentialApi + apis[]；
+ * 凭证目标写在 headerValueTemplate 的 {{asset.*}} / {{flow.*}} 占位符中。
  */
-
-export const LOGIN_HINT_FROM_OPTIONS = [
-  { label: 'body', value: 'body' },
-  { label: 'setCookie', value: 'setCookie' },
-  { label: 'header', value: 'header' },
-]
-
-const LOGIN_HINT_FROM_VALUES = LOGIN_HINT_FROM_OPTIONS.map((o) => o.value)
 
 /** 空表单（无 Profile） */
 export function emptyAuthForm() {
@@ -26,12 +19,9 @@ export function emptyProfileRow() {
     name: '',
     pathPrefixText: '',
     headerName: 'Authorization',
-    valueTemplate: 'Bearer {{flow.token}}',
+    valueTemplate: 'Bearer {{asset.adminAuth.token}}',
     credentialMethod: 'POST',
     credentialPath: '',
-    loginFlowKey: '',
-    loginFrom: 'body',
-    loginExpr: '',
     apis: [],
   }
 }
@@ -75,13 +65,6 @@ function resolveHeaderValueTemplate(p) {
   return str(p?.headerValueTemplate)
 }
 
-function resolveLoginHint(p) {
-  if (p?.loginHint && typeof p.loginHint === 'object') {
-    return p.loginHint
-  }
-  return null
-}
-
 function resolveApiMethod(api) {
   const cfg = parseJsonMaybe(api?.requestConfig)
   return str(cfg?.method, 'GET').toUpperCase()
@@ -97,7 +80,6 @@ function apiToRow(api) {
 }
 
 function profileToRow(p) {
-  const hint = resolveLoginHint(p)
   const credential = p?.credentialApi || {}
   const apis = Array.isArray(p?.apis) ? p.apis.map(apiToRow) : []
   return {
@@ -108,9 +90,6 @@ function profileToRow(p) {
     valueTemplate: resolveHeaderValueTemplate(p),
     credentialMethod: str(credential?.method, 'POST').toUpperCase(),
     credentialPath: str(credential?.path),
-    loginFlowKey: str(hint?.flowKey),
-    loginFrom: str(hint?.from, 'body'),
-    loginExpr: str(hint?.expr),
     apis,
   }
 }
@@ -161,10 +140,6 @@ export function validateAuthForm(form) {
     if (splitPathLines(p?.pathPrefixText).some((x) => x === '/')) {
       return `Profile「${id}」的 pathPrefix 禁止使用 "/"`
     }
-    const from = String(p?.loginFrom || '').trim()
-    if (from && !LOGIN_HINT_FROM_VALUES.includes(from)) {
-      return `Profile「${id}」的 loginHint.from 仅支持 body / setCookie / header`
-    }
     const credentialPath = String(p?.credentialPath || '').trim()
     if (credentialPath && !String(p?.credentialMethod || '').trim()) {
       return `Profile「${id}」填写 credentialApi.path 时须同时填写 method`
@@ -179,9 +154,6 @@ function rowToProfile(p) {
   const prefixes = splitPathLines(p.pathPrefixText)
   const headerName = String(p.headerName || '').trim()
   const valueTemplate = String(p.valueTemplate || '').trim()
-  const flowKey = String(p.loginFlowKey || '').trim()
-  const from = String(p.loginFrom || '').trim()
-  const expr = String(p.loginExpr || '').trim()
   const credentialMethod = String(p.credentialMethod || '').trim().toUpperCase()
   const credentialPath = String(p.credentialPath || '').trim()
 
@@ -199,12 +171,6 @@ function rowToProfile(p) {
       method: credentialMethod || 'POST',
       path: credentialPath,
     }
-  }
-  if (flowKey || from || expr) {
-    row.loginHint = {}
-    if (flowKey) row.loginHint.flowKey = flowKey
-    if (from) row.loginHint.from = from
-    if (expr) row.loginHint.expr = expr
   }
   if (Array.isArray(p.apis) && p.apis.length) {
     row.apis = p.apis

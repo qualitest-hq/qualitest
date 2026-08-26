@@ -51,6 +51,16 @@ public final class ExtractApplicator {
             String label = name != null && !name.isEmpty() ? name : ex.getString("entryKey");
             row.put("name", label != null ? label : "");
             row.put("scope", scope);
+            if ("asset".equals(scope)) {
+                String entryKey = ex.getString("entryKey");
+                if (entryKey != null) {
+                    row.put("entryKey", entryKey);
+                }
+                String fp = ex.getString("fieldPath");
+                if (fp != null && !fp.isEmpty()) {
+                    row.put("fieldPath", fp);
+                }
+            }
             row.put("value", val);
             applied.add(row);
         }

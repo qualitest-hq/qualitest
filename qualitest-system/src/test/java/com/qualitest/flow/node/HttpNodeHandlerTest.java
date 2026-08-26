@@ -6,6 +6,7 @@ import com.qualitest.api.params.DebugHttpForwardParams;
 import com.qualitest.api.result.DebugHttpForwardResult;
 import com.qualitest.api.script.ApiRequestScriptService;
 import com.qualitest.api.service.IDebugHttpForwardService;
+import com.qualitest.flow.context.AssetExtractPersistService;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
@@ -47,7 +48,8 @@ class HttpNodeHandlerTest {
         apiService = mock(ITestProjectApiService.class);
         forwardService = mock(IDebugHttpForwardService.class);
         ApiRequestScriptService scriptService = new ApiRequestScriptService(new ScriptRuntime(forwardService), forwardService);
-        handler = new HttpNodeHandler(apiService, forwardService, scriptService);
+        AssetExtractPersistService assetPersist = mock(AssetExtractPersistService.class);
+        handler = new HttpNodeHandler(apiService, forwardService, scriptService, assetPersist);
 
         Map<String, Object> env = new HashMap<>();
         env.put("baseUrl", "http://localhost:8080");

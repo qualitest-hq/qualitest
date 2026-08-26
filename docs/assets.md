@@ -26,6 +26,8 @@
 
 引用：`{{asset.clientAuth.mobile}}`、`{{asset.clientAuth.password}}`。
 
+登录凭证也走素材：内置模板登录流 extract 到 `asset.adminAuth.token` / `asset.clientAuth.token`（或 Session 的 `jsessionId`）；HTTP 成功后落盘，跨 Run 探活可读到。Profile 托管头形如 `Bearer {{asset.adminAuth.token}}`。
+
 ---
 
 ## 2. 字段类型

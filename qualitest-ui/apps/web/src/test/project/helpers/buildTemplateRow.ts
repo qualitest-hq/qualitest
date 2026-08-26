@@ -47,10 +47,9 @@ export function buildAdminBearerProfile(overrides: Record<string, unknown> = {})
     id: 'adminBearer',
     name: '管理端 Bearer',
     headerName: 'Authorization',
-    headerValueTemplate: 'Bearer {{flow.adminToken}}',
+    headerValueTemplate: 'Bearer {{asset.adminAuth.token}}',
     match: { pathPrefix: ['/system/'] },
     credentialApi: { method: 'POST', path: '/login' },
-    loginHint: { flowKey: 'adminToken', from: 'body', expr: '$.token' },
     apis: [buildLoginApi()],
     ...overrides,
   }

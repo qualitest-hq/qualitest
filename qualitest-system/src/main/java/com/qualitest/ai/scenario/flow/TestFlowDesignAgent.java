@@ -86,11 +86,11 @@ public class TestFlowDesignAgent {
         }
         LlmModelConfig modelConfig = aiLlmModelService.resolve(request.getAiLlmModelId());
 
-        String bizRef = buildBizRefJson(request.getTestFlowId());
+        String bizRef = buildBizRefJson(request);
         AiChatSession session = aiChatConversationService.loadOrCreate(
                 request.getAiChatSessionId(),
                 AiChatConversationService.SCENE_TEST_FLOW_DESIGN,
-                request.getTestProjectId(),
+                request.isTemplateDesignMode() ? null : request.getTestProjectId(),
                 bizRef,
                 userId,
                 request.getAiLlmModelId(),
@@ -101,7 +101,8 @@ public class TestFlowDesignAgent {
 
         // 本轮内存容器：画布 patch 与素材库写入提案（工具只写容器，不落业务库）
         FlowDesignSubmitCapture submitCapture = new FlowDesignSubmitCapture();
-        AssetUpsertCapture assetUpsertCapture = new AssetUpsertCapture();
+        // 模板模式禁用素材 upsert（无真实项目素材库）
+        AssetUpsertCapture assetUpsertCapture = request.isTemplateDesignMode() ? null : new AssetUpsertCapture();
         FlowDesignToolContext toolContext = flowDesignToolContextFactory.fromDesignRequest(
                 request, submitCapture, assetUpsertCapture);
 
@@ -218,6 +219,15 @@ public class TestFlowDesignAgent {
     }
 
     private void validateRequest(TestFlowDesignRequest request) {
+        if (request.isTemplateDesignMode()) {
+            if (request.getAiLlmModelId() == null) {
+                throw new LlmClientException("请选择 AI 模型");
+            }
+            if (request.getPrompt() == null || request.getPrompt().isBlank()) {
+                throw new LlmClientException("请输入设计描述");
+            }
+            return;
+        }
         if (request.getTestProjectId() == null) {
             throw new LlmClientException("缺少 testProjectId");
         }
@@ -230,6 +240,24 @@ public class TestFlowDesignAgent {
         if (request.getPrompt() == null || request.getPrompt().isBlank()) {
             throw new LlmClientException("请输入设计描述");
         }
+    }
+
+    private static String buildBizRefJson(TestFlowDesignRequest request) {
+        if (request.isTemplateDesignMode()) {
+            String key = request.getTemplateFlowKey();
+            if (key == null || key.isBlank()) {
+                key = request.getTestFlowId() != null ? String.valueOf(request.getTestFlowId()) : "template";
+            }
+            return "{\"designMode\":\"template\",\"templateFlowKey\":\"" + escapeJson(key) + "\"}";
+        }
+        return buildBizRefJson(request.getTestFlowId());
+    }
+
+    private static String escapeJson(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static String buildBizRefJson(Long testFlowId) {

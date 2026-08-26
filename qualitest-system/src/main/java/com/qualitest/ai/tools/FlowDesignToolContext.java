@@ -1,5 +1,6 @@
 package com.qualitest.ai.tools;
 
+import com.alibaba.fastjson2.JSONArray;
 import com.qualitest.ai.config.AiLlmConfigService;
 import com.qualitest.flow.model.GraphJson;
 import lombok.Builder;
@@ -22,6 +23,16 @@ public class FlowDesignToolContext {
 
     /** 当前测试流 id，用于 Run 失败查询时的归属校验 */
     private final Long testFlowId;
+
+    /**
+     * 设计模式：空/project 或 template。
+     */
+    private final String designMode;
+
+    /**
+     * 模板模式下内联的预制接口列表；非模板模式为 null。
+     */
+    private final JSONArray templateApis;
 
     /**
      * 当前画布 graph_json。
@@ -71,4 +82,9 @@ public class FlowDesignToolContext {
      * 编排层每轮新建并注入；工具只写提案不落库。为空时 upsert 工具返回错误。
      */
     private final AssetUpsertCapture assetUpsertCapture;
+
+    /** 是否为模板预制流设计模式 */
+    public boolean isTemplateDesignMode() {
+        return designMode != null && "template".equalsIgnoreCase(designMode.trim());
+    }
 }

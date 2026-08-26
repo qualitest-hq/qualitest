@@ -86,7 +86,7 @@ export function emptyPrefabParam(kind = 'flow') {
   return { kind: 'flow', name: '', value: '', remark: '' }
 }
 
-/** 新建一条预制测试流默认行（单 HTTP 登录节点骨架）。 */
+/** 新建一条预制测试流默认行（单 HTTP 登录节点骨架，默认抽到 asset.adminAuth.token）。 */
 export function emptyPrefabFlow() {
   return {
     flowName: '',
@@ -96,7 +96,9 @@ export function emptyPrefabFlow() {
       apiPath: '',
       from: 'body',
       expr: '$.token',
-      flowKey: 'token',
+      scope: 'asset',
+      entryKey: 'adminAuth',
+      fieldPath: 'token',
     }),
   }
 }
@@ -104,6 +106,7 @@ export function emptyPrefabFlow() {
 /**
  * 组装单节点登录画布 graphJson。
  * 字段对齐真实 HTTP 节点默认值；保留 apiPath 供种子时绑定接口。
+ * 默认把 token 抽到 asset.adminAuth.token（内置模板口径）；也可显式传 flowKey 写 flow 变量。
  */
 export function buildLoginGraphJson({
   method,
@@ -111,24 +114,45 @@ export function buildLoginGraphJson({
   extracts,
   from,
   expr,
+  scope,
+  entryKey,
+  fieldPath,
   flowKey,
   timeoutMs = 30000,
   successCheckMode = 'inherit',
   nodeName = '登录',
 }) {
+  const extractScope = String(scope || (flowKey ? 'flow' : 'asset')).trim().toLowerCase() || 'asset'
+  const assetEntry = String(entryKey || 'adminAuth').trim() || 'adminAuth'
+  const assetField = String(fieldPath || 'token').trim() || 'token'
   const key = String(flowKey || 'token').trim() || 'token'
-  let extractList = Array.isArray(extracts) ? extracts.filter((e) => e && (e.expr || e.name)) : null
+  let extractList = Array.isArray(extracts)
+    ? extracts.filter((e) => e && (e.expr || e.name || e.entryKey))
+    : null
   if (!extractList || !extractList.length) {
-    extractList = [
-      {
-        from: from || 'body',
-        expr: String(expr || '').trim(),
-        scope: 'flow',
-        name: key,
-        entryKey: '',
-        fieldPath: '',
-      },
-    ]
+    if (extractScope === 'flow') {
+      extractList = [
+        {
+          from: from || 'body',
+          expr: String(expr || '').trim(),
+          scope: 'flow',
+          name: key,
+          entryKey: '',
+          fieldPath: '',
+        },
+      ]
+    } else {
+      extractList = [
+        {
+          from: from || 'body',
+          expr: String(expr || '').trim() || '$.token',
+          scope: 'asset',
+          name: '',
+          entryKey: assetEntry,
+          fieldPath: assetField,
+        },
+      ]
+    }
   } else {
     extractList = extractList.map((e) => ({
       from: e.from || 'body',
@@ -166,7 +190,7 @@ export function buildLoginGraphJson({
       schemaVersion: 1,
       layout: 'manual',
       viewport: { x: 40, y: 40, zoom: 1 },
-      flowOutputs: flowOutputs.length ? flowOutputs : key ? [{ name: key }] : [],
+      flowOutputs: flowOutputs.length ? flowOutputs : [],
       activeScenarioId: scenarioId,
       scenarios: [
         {
@@ -331,12 +355,22 @@ export function summarizePrefabFlow(flow) {
   const node = Array.isArray(graph?.nodes) ? graph.nodes.find((n) => n?.type === 'http') : null
   const data = node?.data || {}
   const extract = Array.isArray(data.extracts) && data.extracts[0] ? data.extracts[0] : null
+  let extractTarget = ''
+  if (extract) {
+    const scope = String(extract.scope || 'flow').trim().toLowerCase()
+    if (scope === 'asset' && extract.entryKey) {
+      const field = extract.fieldPath || extract.name || ''
+      extractTarget = field ? `asset.${extract.entryKey}.${field}` : `asset.${extract.entryKey}`
+    } else if (extract.name) {
+      extractTarget = `${scope || 'flow'}.${extract.name}`
+    }
+  }
   return {
     flowName: String(flow?.flowName || '').trim(),
     method: String(data.httpMethod || 'POST').trim().toUpperCase(),
     apiPath: String(data.apiPath || '').trim(),
     extractLabel: extract
-      ? `${extract.expr || ''} → ${extract.name || ''}`
+      ? `${extract.expr || ''} → ${extractTarget || '—'}`
       : '—',
   }
 }

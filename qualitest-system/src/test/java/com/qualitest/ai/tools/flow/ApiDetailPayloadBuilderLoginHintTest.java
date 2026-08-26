@@ -1,8 +1,8 @@
 package com.qualitest.ai.tools.flow;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.util.AuthProfileTestFixtures;
 import com.qualitest.api.util.LoginExtractSuggestor;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -17,24 +17,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测 ApiDetailPayloadBuilder 登录口 designHints 文案。
- * 边界：有 hint 时写具体路径；无法确定时写「跑一次再改」。
+ * 边界：有建议时写具体路径；无法确定时写「跑一次再改」。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiDetailPayloadBuilderLoginHintTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiDetailPayloadBuilderLoginHintTest {
 
     /**
-     * 前提：双端模板管理端建议；hints 为空。
-     * 期望：首条为 $.token → adminToken。
+     * 前提：双端模板管理端建议（schema 含 token）；hints 为空。
+     * 期望：首条含 $.token → token（asset 写入）。
      */
     @Test
     @Order(1)
-    @DisplayName("有 loginHint 时写入具体抽取说明")
-    void prepend_whenHintKnown() {
+    @DisplayName("有凭证建议时写入具体抽取说明")
+    void prepend_whenSuggestionKnown() {
+        JSONObject schema = new JSONObject();
+        schema.put("token", "string");
         LoginExtractSuggestor.Suggestion suggestion = LoginExtractSuggestor.suggest(
                 AuthProfileTestFixtures.adminThenClientJson(),
                 "/login",
-                null);
+                schema);
         List<String> hints = new ArrayList<>();
 
         ApiDetailPayloadBuilder.prependLoginDesignHint(
@@ -42,7 +44,7 @@ class ApiDetailPayloadBuilderLoginHintTest {
 
         assertEquals(1, hints.size());
         assertTrue(hints.get(0).contains("$.token"));
-        assertTrue(hints.get(0).contains("adminToken"));
+        assertTrue(hints.get(0).contains("token"));
     }
 
     /**

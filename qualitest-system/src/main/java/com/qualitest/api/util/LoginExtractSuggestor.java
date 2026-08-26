@@ -2,11 +2,11 @@ package com.qualitest.api.util;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
+import com.qualitest.api.model.ProjectAuthConfig;
+import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
+import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -14,15 +14,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 为登录/注册类接口推荐 token 抽取（extract）配置。
+ * 为登录类接口推荐 token 抽取（extract）配置。
  * <p>
- * 优先使用项目 Profile {@code loginHint}（接口须在该 Profile.apis 中且命中 {@code credentialApi}）；
- * 未配置时根据响应 schema 叶路径嗅探 token 字段。
+ * 优先按 Profile 托管头占位符（须命中 {@code credentialApi}）确定写入目标；
+ * from/expr：Cookie 托管头用 setCookie；否则按响应 schema 嗅探 token 字段。
  * 两者都没有时不编 JsonPath（交给跑流后按真实响应再改）。
  */
 public final class LoginExtractSuggestor {
 
-    private static final Set<String> CREDENTIAL_NAMES = Set.of("token", "admintoken", "accesstoken");
+    private static final Set<String> CREDENTIAL_NAMES = Set.of("token", "admintoken", "accesstoken", "jsessionid");
 
     private static final List<String> TOKEN_SCHEMA_PATHS = List.of(
             "data.token",
@@ -35,17 +35,48 @@ public final class LoginExtractSuggestor {
             .collect(Collectors.toUnmodifiableSet());
 
     /**
-     * 一条抽取建议：变量名、来源（默认 body）、JsonPath 表达式。
+     * 一条抽取建议：目标作用域、来源、表达式。
      */
-    public record Suggestion(String name, String from, String expr) {
-        /** 转成节点 extracts 行：from / expr / scope=flow / name。 */
+    public record Suggestion(
+            String name,
+            String from,
+            String expr,
+            String scope,
+            String entryKey,
+            String fieldPath) {
+
+        public static Suggestion flow(String name, String from, String expr) {
+            return new Suggestion(name, from, expr, "flow", null, null);
+        }
+
+        public static Suggestion asset(String entryKey, String fieldPath, String from, String expr) {
+            return new Suggestion(fieldPath, from, expr, "asset", entryKey, fieldPath);
+        }
+
+        /** 转成节点 extracts 行。 */
         public Map<String, Object> toExtractRow() {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("from", from != null ? from : "body");
             row.put("expr", expr);
-            row.put("scope", "flow");
-            row.put("name", name);
+            String sc = scope != null ? scope : "flow";
+            row.put("scope", sc);
+            if ("asset".equalsIgnoreCase(sc)) {
+                row.put("entryKey", entryKey);
+                row.put("fieldPath", fieldPath);
+                row.put("name", name != null ? name : fieldPath);
+            } else {
+                row.put("name", name);
+                row.put("entryKey", "");
+                row.put("fieldPath", "");
+            }
             return row;
+        }
+
+        public CredentialTarget toTarget() {
+            if ("asset".equalsIgnoreCase(scope)) {
+                return CredentialTarget.asset(entryKey, fieldPath);
+            }
+            return CredentialTarget.flow(name);
         }
     }
 
@@ -53,7 +84,7 @@ public final class LoginExtractSuggestor {
 
     /**
      * 是否视为登录或注册接口（path 以 /login 或 /register 结尾）。
-     * 造流硬拦只认 Profile.loginHint（credentialApi），用 hasCredentialLoginHint。
+     * 造流硬拦只认 credentialApi，用 {@link #isCredentialApiEndpoint}。
      */
     public static boolean isLoginLikeApi(String apiPath) {
         String path = ProjectAuthConfigSupport.normalizeApiPath(apiPath).toLowerCase(Locale.ROOT);
@@ -61,7 +92,7 @@ public final class LoginExtractSuggestor {
     }
 
     /**
-     * 优先用 Profile.loginHint，没有再按响应 schema 嗅探 token 字段。
+     * 优先用托管头目标 + schema 嗅探。
      */
     public static Suggestion suggest(
             String projectAuthJson,
@@ -71,39 +102,53 @@ public final class LoginExtractSuggestor {
     }
 
     /**
-     * 推荐一条登录 extract。有 loginHint 的 name+expr 时直接采用；否则 schema 嗅探。
-     * 不按 URL 猜变量名或 JsonPath。
+     * 推荐一条登录 extract。有 credential 口托管头目标时按目标写；expr 来自 Cookie 名或 schema。
      */
     public static Suggestion suggest(
             String projectAuthJson,
             String method,
             String apiPath,
             JSONObject responseSchemaSummary) {
-        LoginHint hint = ProjectAuthConfigSupport.findLoginHint(
+        ProjectAuthProfile profile = ProjectAuthConfigSupport.findCredentialProfile(
                 ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath);
-        String from = ProjectAuthConfigSupport.resolveLoginExtractFrom(hint);
-        String expr = ProjectAuthConfigSupport.resolveLoginExtractExpr(hint);
-        String flowKey = hint != null ? StrUtil.trimToNull(hint.getFlowKey()) : null;
-        if (StrUtil.isNotBlank(flowKey) && StrUtil.isNotBlank(expr)) {
-            return new Suggestion(flowKey, StrUtil.blankToDefault(from, "body"), expr.trim());
+        CredentialTarget target = profile != null ? CredentialTargetSupport.primaryTarget(profile) : null;
+        String cookieName = profile != null
+                ? CredentialTargetSupport.cookieNameFromHeader(
+                        profile.getHeaderName(), profile.getHeaderValueTemplate())
+                : null;
+
+        if (target != null && cookieName != null) {
+            return toSuggestion(target, "setCookie", cookieName);
         }
+
         String sniffed = sniffTokenJsonPath(responseSchemaSummary);
-        if (StrUtil.isNotBlank(flowKey) && sniffed != null) {
-            return new Suggestion(flowKey, "body", sniffed);
+        if (target != null && sniffed != null) {
+            return toSuggestion(target, "body", sniffed);
         }
-        if (hint == null && sniffed != null && isLoginLikeApi(apiPath)) {
-            return new Suggestion("token", "body", sniffed);
+        if (target != null && target.isFlow() && sniffed == null && isLoginLikeApi(apiPath)) {
+            // 有目标但无 schema：仍返回目标，expr 留给门禁/跑流后补；造流对齐需要 expr 时不硬编
+            return null;
+        }
+        if (target == null && sniffed != null && isLoginLikeApi(apiPath)) {
+            return Suggestion.flow("token", "body", sniffed);
         }
         return null;
     }
 
-    /**
-     * 该 method+path 是否为本套 Profile 的发凭证口（credentialApi + loginHint）。
-     */
-    public static boolean hasCredentialLoginHint(String projectAuthJson, String method, String apiPath) {
-        LoginHint hint = ProjectAuthConfigSupport.findLoginHint(
-                ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath);
-        return hint != null && StrUtil.isNotBlank(hint.getFlowKey());
+    private static Suggestion toSuggestion(CredentialTarget target, String from, String expr) {
+        if (target == null || StrUtil.isBlank(expr)) {
+            return null;
+        }
+        if (target.isAsset()) {
+            return Suggestion.asset(target.entryKey(), target.fieldPath(), from, expr);
+        }
+        return Suggestion.flow(target.flowKey(), from, expr);
+    }
+
+    /** 该 method+path 是否为本套 Profile 的发凭证口（credentialApi）。 */
+    public static boolean isCredentialApiEndpoint(String projectAuthJson, String method, String apiPath) {
+        return ProjectAuthConfigSupport.findCredentialProfile(
+                ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath) != null;
     }
 
     /** 从响应 schema 叶路径中按优先级找 token 字段，返回带 $. 前缀的 JsonPath；找不到返回 null。 */
@@ -119,7 +164,6 @@ public final class LoginExtractSuggestor {
         return null;
     }
 
-    /** schema 叶子里是否有该点分路径（忽略大小写）。 */
     private static boolean hasPath(JSONObject summary, String path) {
         for (String key : summary.keySet()) {
             if (key != null && path.equalsIgnoreCase(key.trim())) {
@@ -129,36 +173,11 @@ public final class LoginExtractSuggestor {
         return false;
     }
 
-    /**
-     * 节点 extracts 中是否已存在指定 flow 作用域变量名（scope 为空或 flow 均算）。
-     */
+    /** 节点 extracts 中是否已存在指定 flow 作用域变量名。 */
     public static boolean extractsContainFlowKey(Object rawExtracts, String flowKey) {
         return findFlowKeyRow(rawExtracts, flowKey) != null;
     }
 
-    /**
-     * 列出 extracts 中写入 flow 作用域的变量名（去重、保序）。
-     */
-    public static List<String> listFlowExtractKeys(Object rawExtracts) {
-        LinkedHashSet<String> keys = new LinkedHashSet<>();
-        if (!(rawExtracts instanceof Iterable<?> list)) {
-            return List.of();
-        }
-        for (Object item : list) {
-            if (!(item instanceof Map<?, ?> row) || !isFlowScopeRow(row)) {
-                continue;
-            }
-            Object name = row.get("name");
-            if (name != null && !String.valueOf(name).isBlank()) {
-                keys.add(String.valueOf(name).trim());
-            }
-        }
-        return new ArrayList<>(keys);
-    }
-
-    /**
-     * 指定 flow 变量名对应 extract 行的 expr；没有该行返回 null。
-     */
     public static String extractExprForFlowKey(Object rawExtracts, String flowKey) {
         Map<?, ?> row = findFlowKeyRow(rawExtracts, flowKey);
         if (row == null) {
@@ -168,7 +187,6 @@ public final class LoginExtractSuggestor {
         return expr != null && !String.valueOf(expr).isBlank() ? String.valueOf(expr).trim() : null;
     }
 
-    /** 在 extracts 列表里找指定 flow 变量名的那一行。 */
     private static Map<?, ?> findFlowKeyRow(Object rawExtracts, String flowKey) {
         if (flowKey == null || flowKey.isBlank() || !(rawExtracts instanceof Iterable<?> list)) {
             return null;
@@ -186,14 +204,12 @@ public final class LoginExtractSuggestor {
         return null;
     }
 
-    /** scope 为空或 flow 均视为 flow 作用域。 */
     private static boolean isFlowScopeRow(Map<?, ?> row) {
         Object scope = row.get("scope");
         return scope == null || String.valueOf(scope).isBlank()
                 || "flow".equalsIgnoreCase(String.valueOf(scope).trim());
     }
 
-    /** extracts 是否已包含任一候选 flow 变量名。 */
     public static boolean extractsContainAnyFlowKey(Object rawExtracts, Iterable<String> flowKeys) {
         if (flowKeys == null) {
             return false;
@@ -206,22 +222,32 @@ public final class LoginExtractSuggestor {
         return false;
     }
 
-    /**
-     * 是否像登录凭证行：变量名为 token/adminToken/accessToken，且 expr 为常见 token JsonPath。
-     */
+    /** 是否像登录凭证行：token 类名，或 asset 写入 token/jsessionId 字段。 */
     public static boolean isCredentialLikeExtract(Map<?, ?> row) {
         if (row == null) {
             return false;
+        }
+        Object scope = row.get("scope");
+        String scopeText = scope == null || String.valueOf(scope).isBlank()
+                ? "flow"
+                : String.valueOf(scope).trim().toLowerCase(Locale.ROOT);
+        if ("asset".equals(scopeText)) {
+            Object field = row.get("fieldPath");
+            if (field == null || String.valueOf(field).isBlank()) {
+                field = row.get("name");
+            }
+            return field != null
+                    && CREDENTIAL_NAMES.contains(String.valueOf(field).trim().toLowerCase(Locale.ROOT));
         }
         Object name = row.get("name");
         if (name == null || !CREDENTIAL_NAMES.contains(String.valueOf(name).trim().toLowerCase(Locale.ROOT))) {
             return false;
         }
         Object expr = row.get("expr");
-        return isTokenLikeExpr(expr != null ? String.valueOf(expr) : null);
+        return isTokenLikeExpr(expr != null ? String.valueOf(expr) : null)
+                || "setCookie".equalsIgnoreCase(String.valueOf(row.get("from")));
     }
 
-    /** 两条 JsonPath 是否视为同一提取路径（忽略大小写与首尾空白）。 */
     public static boolean exprsMatch(String expected, String actual) {
         String a = normalizeExpr(expected);
         String b = normalizeExpr(actual);
@@ -233,7 +259,6 @@ public final class LoginExtractSuggestor {
         return TOKEN_LIKE_EXPR.contains(normalized);
     }
 
-    /** 把 JsonPath 整理成 $.a.b 形式，便于比较。 */
     static String normalizeExpr(String expr) {
         if (expr == null) {
             return "";
@@ -251,17 +276,10 @@ public final class LoginExtractSuggestor {
         return text;
     }
 
-    /**
-     * 读 Profile.loginHint 上的 flow 变量名；没有则返回 null。
-     */
-    public static String resolveExpectedFlowKey(String projectAuthJson, String apiPath) {
-        return resolveExpectedFlowKey(projectAuthJson, null, apiPath);
-    }
-
-    /** 带 method 时按 credentialApi 读 Profile.loginHint.flowKey。 */
-    public static String resolveExpectedFlowKey(String projectAuthJson, String method, String apiPath) {
-        LoginHint hint = ProjectAuthConfigSupport.findLoginHint(
+    /** 该登录口应对齐的凭证目标。 */
+    public static CredentialTarget resolveExpectedTarget(String projectAuthJson, String method, String apiPath) {
+        ProjectAuthProfile profile = ProjectAuthConfigSupport.findCredentialProfile(
                 ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath);
-        return hint != null ? StrUtil.trimToNull(hint.getFlowKey()) : null;
+        return CredentialTargetSupport.primaryTarget(profile);
     }
 }

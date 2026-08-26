@@ -5,7 +5,6 @@ import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
-import com.qualitest.api.model.ProjectAuthConfig.LoginHint;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
@@ -23,9 +22,9 @@ import java.util.Set;
 /**
  * 项目鉴权配置的解析、校验、写出和运行期查询。
  * <p>
- * 写出含 authProfiles（扁平头 + credentialApi + loginHint + 预制接口）。
+ * 写出含 authProfiles（扁平头 + credentialApi + 预制接口）；不写 loginHint。
  * 免登：配置为空时用内置 /login 等路径；有 Profile 后只认预制口 mode=none。
- * 抽凭证只认 Profile.loginHint，且仅 credentialApi 那一口。
+ * 抽凭证：credentialApi 标明登录口；托管头占位符标明写入目标。
  */
 public final class ProjectAuthConfigSupport {
 
@@ -40,10 +39,6 @@ public final class ProjectAuthConfigSupport {
 
     /** 无 Profile 时落库的空 JSON。 */
     public static final String EMPTY_JSON = "{}";
-
-    /** loginHint.from 允许的取值。 */
-    private static final Set<String> LOGIN_HINT_FROM =
-            Set.of("body", "setCookie", "header");
 
     private ProjectAuthConfigSupport() {}
 
@@ -67,7 +62,7 @@ public final class ProjectAuthConfigSupport {
 
     /**
      * 序列化成当前结构 JSON：根只有 authProfiles。
-     * 不含嵌套 header；apis 的 auth 不含 loginHint。
+     * 不含嵌套 header、loginHint；apis 的 auth 不含 loginHint。
      */
     public static String toJson(ProjectAuthConfig config) {
         if (isEmpty(config)) {
@@ -84,7 +79,7 @@ public final class ProjectAuthConfigSupport {
         return JSONUtil.toJsonStr(root);
     }
 
-    /** 写出一条 Profile：id、name、match、扁平头、credentialApi、loginHint、apis。 */
+    /** 写出一条 Profile：id、name、match、扁平头、credentialApi、apis（不写 loginHint）。 */
     private static Map<String, Object> writeProfile(ProjectAuthProfile profile) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", profile.getId());
@@ -107,13 +102,6 @@ public final class ProjectAuthConfigSupport {
             }
             credMap.put("path", cred.getPath());
             map.put("credentialApi", credMap);
-        }
-        LoginHint hint = profile.getLoginHint();
-        if (hint != null) {
-            Map<String, Object> hintMap = writeLoginHintMap(hint);
-            if (!hintMap.isEmpty()) {
-                map.put("loginHint", hintMap);
-            }
         }
         map.put("apis", writeApis(profile.getApis()));
         return map;
@@ -180,21 +168,6 @@ public final class ProjectAuthConfigSupport {
             map.put("header", auth.getHeader());
         }
         return map;
-    }
-
-    /** 写出 loginHint 的 flowKey / from / expr。 */
-    private static Map<String, Object> writeLoginHintMap(LoginHint hint) {
-        Map<String, Object> hintMap = new LinkedHashMap<>();
-        if (StrUtil.isNotBlank(hint.getFlowKey())) {
-            hintMap.put("flowKey", hint.getFlowKey());
-        }
-        if (StrUtil.isNotBlank(hint.getFrom())) {
-            hintMap.put("from", hint.getFrom());
-        }
-        if (StrUtil.isNotBlank(hint.getExpr())) {
-            hintMap.put("expr", hint.getExpr());
-        }
-        return hintMap;
     }
 
     /**
@@ -288,7 +261,7 @@ public final class ProjectAuthConfigSupport {
                     .headerName(headerName)
                     .headerValueTemplate(valueTemplate)
                     .credentialApi(normalizeCredentialApi(profile.getCredentialApi()))
-                    .loginHint(normalizeLoginHint(profile.getLoginHint(), id))
+                    .loginHint(null)
                     .apis(normalizePrefabricatedApis(profile.getApis(), id))
                     .build());
         }
@@ -350,44 +323,6 @@ public final class ProjectAuthConfigSupport {
         return out;
     }
 
-    /**
-     * 整理 loginHint：from 只允许 body/setCookie/header。
-     */
-    static LoginHint normalizeLoginHint(LoginHint hint, String profileId) {
-        if (hint == null) {
-            return null;
-        }
-        String flowKey = StrUtil.trimToNull(hint.getFlowKey());
-        String from = StrUtil.trimToNull(hint.getFrom());
-        String expr = StrUtil.trimToNull(hint.getExpr());
-        if (from != null) {
-            String canonical = canonicalLoginFrom(from);
-            if (canonical == null) {
-                throw new ServiceException(
-                        "Profile「" + profileId + "」.loginHint.from 仅支持 body / setCookie / header");
-            }
-            from = canonical;
-        }
-        if (flowKey == null && from == null && expr == null) {
-            return null;
-        }
-        return LoginHint.builder()
-                .flowKey(flowKey)
-                .from(from)
-                .expr(expr)
-                .build();
-    }
-
-    /** 把 from 规范成允许的小写取值，不认识则返回 null。 */
-    private static String canonicalLoginFrom(String from) {
-        for (String allowed : LOGIN_HINT_FROM) {
-            if (allowed.equalsIgnoreCase(from)) {
-                return allowed;
-            }
-        }
-        return null;
-    }
-
     /** 整理 pathPrefix：去空、补前导斜杠，单独的 / 拒绝。 */
     private static List<String> normalizePrefixPaths(List<String> raw, String fieldLabel) {
         List<String> out = new ArrayList<>();
@@ -439,7 +374,7 @@ public final class ProjectAuthConfigSupport {
 
     /**
      * RuoYi Bearer 种子：含登录/注册/验证码三口，均为免登。
-     * 登录口从 $.token 抽到 flow.token。不含客户端 /api/account/auth 路径。
+     * 登录抽凭证写 asset.adminAuth.token（见内置登录流）。不含客户端 /api/account/auth 路径。
      */
     public static ProjectAuthConfig ruoyiBearerTemplate() {
         return ProjectAuthConfig.builder()
@@ -448,9 +383,8 @@ public final class ProjectAuthConfigSupport {
                                 .id(PROFILE_RUOYI)
                                 .name("RuoYi Bearer")
                                 .headerName("Authorization")
-                                .headerValueTemplate("Bearer {{flow.token}}")
+                                .headerValueTemplate("Bearer {{asset.adminAuth.token}}")
                                 .credentialApi(credentialApi("POST", "/login"))
-                                .loginHint(bodyLoginHint("token", "$.token"))
                                 .apis(ruoyiBearerApis())
                                 .build()
                 ))
@@ -628,11 +562,6 @@ public final class ProjectAuthConfigSupport {
                 .method(StrUtil.trimToNull(method) != null ? method.trim().toUpperCase(Locale.ROOT) : null)
                 .path(normalizeApiPath(path))
                 .build();
-    }
-
-    /** body 抽取 loginHint。 */
-    public static LoginHint bodyLoginHint(String flowKey, String expr) {
-        return LoginHint.builder().flowKey(flowKey).from("body").expr(expr).build();
     }
 
     /**
@@ -868,24 +797,8 @@ public final class ProjectAuthConfigSupport {
         return StrUtil.trimToNull(profile.getHeaderValueTemplate());
     }
 
-    /**
-     * 该 Profile 的 loginHint.flowKey。
-     */
-    public static String resolveLoginFlowKey(ProjectAuthProfile profile) {
-        LoginHint hint = firstLoginHintOnProfile(profile);
-        return hint != null ? StrUtil.trimToNull(hint.getFlowKey()) : null;
-    }
-
-    /** 本 Profile 的 loginHint。 */
-    public static LoginHint firstLoginHintOnProfile(ProjectAuthProfile profile) {
-        if (profile == null) {
-            return null;
-        }
-        return normalizeLoginHintQuiet(profile.getLoginHint());
-    }
-
-    /** 收集各 Profile.loginHint.flowKey。 */
-    public static Set<String> collectLoginFlowKeys(ProjectAuthConfig config) {
+    /** 收集各 Profile 托管头上的凭证 identityKey。 */
+    public static Set<String> collectCredentialIdentityKeys(ProjectAuthConfig config) {
         Set<String> keys = new LinkedHashSet<>();
         if (config == null || config.getAuthProfiles() == null) {
             return keys;
@@ -894,19 +807,17 @@ public final class ProjectAuthConfigSupport {
             if (profile == null) {
                 continue;
             }
-            LoginHint hint = firstLoginHintOnProfile(profile);
-            String flowKey = hint != null ? StrUtil.trimToNull(hint.getFlowKey()) : null;
-            if (flowKey != null) {
-                keys.add(flowKey);
+            for (CredentialTargetSupport.CredentialTarget target : CredentialTargetSupport.targetsOnProfile(profile)) {
+                keys.add(target.identityKey());
             }
         }
         return keys;
     }
 
     /**
-     * 按 method+path 找抽凭证规则：接口须在某 Profile.apis 中，且命中该条 credentialApi。
+     * 按 method+path 找发凭证 Profile：接口须在某 Profile.apis 中，且命中该条 credentialApi。
      */
-    public static LoginHint findLoginHint(ProjectAuthConfig config, String method, String apiPath) {
+    public static ProjectAuthProfile findCredentialProfile(ProjectAuthConfig config, String method, String apiPath) {
         if (isEmpty(config) || StrUtil.isBlank(apiPath)) {
             return null;
         }
@@ -916,7 +827,7 @@ public final class ProjectAuthConfigSupport {
                 continue;
             }
             if (matchesCredential(profile, method, path)) {
-                return normalizeLoginHintQuiet(profile.getLoginHint());
+                return profile;
             }
             return null;
         }
@@ -962,31 +873,6 @@ public final class ProjectAuthConfigSupport {
             return true;
         }
         return credMethod.equalsIgnoreCase(wantMethod);
-    }
-
-    /** 整理 loginHint，非法 from 时不抛异常。 */
-    private static LoginHint normalizeLoginHintQuiet(LoginHint hint) {
-        try {
-            return normalizeLoginHint(hint, "parse");
-        } catch (ServiceException e) {
-            return hint;
-        }
-    }
-
-    /** 抽取来源。 */
-    public static String resolveLoginExtractFrom(LoginHint hint) {
-        if (hint == null) {
-            return null;
-        }
-        return StrUtil.trimToNull(hint.getFrom());
-    }
-
-    /** 抽取表达式。 */
-    public static String resolveLoginExtractExpr(LoginHint hint) {
-        if (hint == null) {
-            return null;
-        }
-        return StrUtil.trimToNull(hint.getExpr());
     }
 
     /**

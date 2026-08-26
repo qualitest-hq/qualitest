@@ -1,7 +1,11 @@
 <template>
-  <div v-if="proposals.length > 0" class="ai-asset-proposals">
+    <div v-if="proposals.length > 0" class="ai-asset-proposals">
     <div class="ai-asset-proposals__title">素材库提案</div>
-    <p class="ai-asset-proposals__hint">确认后写入项目素材库；拒绝则丢弃。Run 前请确认所需条目。</p>
+    <p class="ai-asset-proposals__hint">
+      {{ isTemplateCanvas
+        ? '模板画布不支持写入项目素材库；请忽略此类提案，或在真实项目画布中再确认。'
+        : '确认后写入项目素材库；拒绝则丢弃。Run 前请确认所需条目。' }}
+    </p>
     <div
         v-for="item in proposals"
         :key="item.key"
@@ -36,7 +40,7 @@
         >
           {{ revealMap[item.key] ? '隐藏' : '显示' }}
         </button>
-        <template v-if="!item.status || item.status === 'pending'">
+        <template v-if="(!item.status || item.status === 'pending') && !isTemplateCanvas">
           <button
               class="btn btn--primary btn--sm"
               type="button"
@@ -95,6 +99,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useFlowCanvasStore()
+const isTemplateCanvas = computed(() => store.canvasMode === 'template')
 /** key → 是否正在显示明文 */
 const revealMap = reactive<Record<string, boolean>>({})
 /** key → 操作失败文案 */

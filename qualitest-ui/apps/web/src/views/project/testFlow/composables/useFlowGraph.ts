@@ -2,7 +2,6 @@
  * 测试流持久化读写：对接后端 testFlow API，与 flowCanvasStore 同步。
  * 保存前执行图结构校验与断言路径 schema 门禁，errors 阻断提交。
  */
-import { nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 
 import { getTestProjectApi } from '@/api/project/testProjectApi';
@@ -12,8 +11,8 @@ import {
   validateGraphJson,
 } from '@/utils/flow/graphValidate';
 
-import { fromGraphJson, toGraphJson, type FromGraphJsonResult } from '../graphAdapter';
-import { refreshSavedBaseline, refreshSavedBaselineIfPristine } from '../utils/reconcileFlowDirty';
+import { fromGraphJson, toGraphJson } from '../graphAdapter';
+import { refreshSavedBaseline } from '../utils/reconcileFlowDirty';
 import { isBlockWhenStagingPending } from '../utils/aiDesignPreferences';
 import { promptStagingPendingSave } from '../utils/promptStagingPendingSave';
 import { hasPendingStagingEdgeUnits } from '../utils/stagingUnitIds';
@@ -21,6 +20,10 @@ import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
+import {
+  applyAdaptedGraphToStore,
+  finalizeCanvasHistoryBaseline,
+} from './useCanvasGraphHydration';
 import {
   collectAssertPathDesignIssues,
   extractResponseSchemaPaths,
@@ -32,42 +35,13 @@ export interface SaveFlowOptions {
   skipPendingWarning?: boolean;
 }
 
-/** 将 fromGraphJson 结果写入 store：先 nodes、待灌边，节点就绪后再 flush edges */
-async function applyAdaptedGraphToStore(store: ReturnType<typeof useFlowCanvasStore>, adapted: FromGraphJsonResult) {
-  store.setPendingEdges(adapted.edges);
-  store.viewport = adapted.viewport;
-  store.runConfig = adapted.runConfig;
-  store.flowOutputs = adapted.flowOutputs;
-  store.nodes = adapted.nodes;
-  store.edges = [];
-  store.selected = null;
-  store.ui.rightMode = 'props';
-  store.clearRunHighlight();
-  await nextTick();
-  store.flushPendingEdges();
-  await nextTick();
-  if (store.pendingEdges?.length && store.edges.length === 0) {
-    store.flushPendingEdges();
-  } else if (store.edges.length > 0) {
-    store.pendingEdges = null;
-  }
-}
-
 export function useFlowGraph() {
   const store = useFlowCanvasStore();
   const stagingStore = useAiStagingStore();
   const { scheduleHistoryReset, resetHistory } = useFlowHistory();
 
-  /** 空图画布无 onNodesInitialized，需立即建立撤销基线 */
   async function finalizeHistoryBaseline() {
-    await nextTick();
-    store.flushPendingEdges();
-    if (!store.nodes.length) {
-      resetHistory();
-      store.pendingHistoryReset = false;
-      store.endCanvasHydration();
-      await refreshSavedBaselineIfPristine(store);
-    }
+    await finalizeCanvasHistoryBaseline(store, resetHistory);
   }
 
   /** 将 API 返回的测试流记录灌入画布 store */

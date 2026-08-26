@@ -35,7 +35,7 @@
 常用能力：
 
 - 占位符解析请求参数 / 体（`flow` / `env` / `asset` / `session` 等）
-- **项目鉴权补头**（Profile / loginHint / 双端 token → 见 [project-summary.md §4](./project-summary.md)）
+- **项目鉴权补头**（Profile 托管头 `{{asset.*}}` / `{{flow.*}}` → 见 [project-summary.md §4](./project-summary.md)）
 - 成功判定：先 HTTP 状态码非 2xx 失败；再可选业务码白名单（`successCheck`）
 - 通过后写入 `lastResponse`，再执行 `extracts`
 - 可选 **执行前快照**（`snapshotBefore`）：写库失败可暂停并还原被测数据（环境允许还原时；详见概念地图 §4.4）

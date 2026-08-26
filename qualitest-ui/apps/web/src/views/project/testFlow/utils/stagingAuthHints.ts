@@ -2,7 +2,7 @@
  * Staging 鉴权相关的纯展示工具：识别托管头、解析机器码、剥 code 前缀。
  */
 
-import { isProfileManagedRow, parseFlowPlaceholderKey } from './authHeaderRow'
+import { isProfileManagedRow, parseCredentialDisplayPath } from './authHeaderRow'
 
 /** 鉴权提示/错误机器码常量 */
 export const AUTH_WARNING_CODES = {
@@ -47,15 +47,12 @@ export function collectAuthManagedHeaderHints(draft?: Record<string, unknown>): 
     .map((row) => String(row.name || row.key || 'Authorization').trim())
     .filter(Boolean)
   const unique = [...new Set(names)]
-  const flowKeys = [...new Set(
+  const credentialPaths = [...new Set(
     managed
-      .map((row) => {
-        const key = parseFlowPlaceholderKey(row.value)
-        return key ? `flow.${key}` : ''
-      })
+      .map((row) => parseCredentialDisplayPath(row.value))
       .filter(Boolean),
   )]
-  const keyHint = flowKeys.length ? `，凭证 ${flowKeys.join('、')}` : ''
+  const keyHint = credentialPaths.length ? `，凭证 ${credentialPaths.join('、')}` : ''
   return [`已按项目鉴权补全 ${unique.join('、')}（托管头，Run 时随项目配置刷新${keyHint}）`]
 }
 

@@ -46,6 +46,9 @@ public class UpsertAssetVariablesTool implements QualitestTool {
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
+        if (ctx != null && ctx.isTemplateDesignMode()) {
+            return FlowDesignToolSupport.errorJson("模板画布不支持写入项目素材库");
+        }
         Long projectId = ctx.getTestProjectId();
         if (projectId == null) {
             return FlowDesignToolSupport.errorJson("缺少 testProjectId");

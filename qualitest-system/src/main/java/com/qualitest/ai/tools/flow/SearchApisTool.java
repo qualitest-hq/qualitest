@@ -37,6 +37,9 @@ public class SearchApisTool implements QualitestTool {
 
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
+        if (ctx != null && ctx.isTemplateDesignMode()) {
+            return executeTemplateSearch(arguments, ctx);
+        }
         String keyword = FlowDesignToolSupport.stringArg(arguments.get("keyword"));
         int limit = FlowDesignToolSupport.resolveSearchLimit(arguments.get("limit"), ctx.getMaxSearchApis());
         List<TestProjectApi> matched = new ArrayList<>();
@@ -118,6 +121,23 @@ public class SearchApisTool implements QualitestTool {
         String hint = truncated
                 ? "匹配结果超过 limit=" + limit + "，请缩小关键词或使用 get_api_details"
                 : null;
+        return FlowDesignToolSupport.buildItemsResult(items, truncated, hint, ctx.getMaxToolResultBytes());
+    }
+
+    private String executeTemplateSearch(Map<String, Object> arguments, FlowDesignToolContext ctx) {
+        String keyword = FlowDesignToolSupport.stringArg(arguments != null ? arguments.get("keyword") : null);
+        int limit = FlowDesignToolSupport.resolveSearchLimit(
+                arguments != null ? arguments.get("limit") : null, ctx.getMaxSearchApis());
+        List<JSONObject> matched = TemplateApiCatalogSupport.search(ctx.getTemplateApis(), keyword);
+        boolean truncated = matched.size() > limit;
+        if (truncated) {
+            matched = matched.subList(0, limit);
+        }
+        JSONArray items = new JSONArray();
+        items.addAll(matched);
+        String hint = truncated
+                ? "匹配结果超过 limit=" + limit + "，请缩小关键词或使用 get_api_details"
+                : (matched.isEmpty() ? "当前模板无可用预制接口，请先在模板中添加 templateApis" : null);
         return FlowDesignToolSupport.buildItemsResult(items, truncated, hint, ctx.getMaxToolResultBytes());
     }
 
