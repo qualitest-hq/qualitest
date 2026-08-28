@@ -12,37 +12,35 @@
       <div
           v-for="branch in branches"
           :key="branch.id"
-          :data-branch-row="branch.id"
           class="cond-node__row"
       >
-        <div class="cond-node__row-label">{{ branchKindLabel(branch) }}</div>
-        <div
-            :class="{ 'is-muted': branch.kind === 'else' || isMutedSummary(branch) }"
-            class="cond-node__row-expr"
-        >
-          {{ formatBranchSummary(branch) }}
+        <!-- Handle 与文案拆开，避免进 grid 后包含块变成芯片格 -->
+        <div class="cond-node__row-main">
+          <div class="cond-node__row-label">{{ branchKindLabel(branch) }}</div>
+          <div
+              :class="{ 'is-muted': branch.kind === 'else' || isMutedSummary(branch) }"
+              class="cond-node__row-expr"
+          >
+            {{ formatBranchSummary(branch) }}
+          </div>
         </div>
+        <!-- 行内 Handle：Vue Flow top:50%/right:0 相对行（Issue #1767） -->
+        <Handle
+            v-if="!isTerminalBranch(branch)"
+            :id="`out-${branch.id}`"
+            :position="Position.Right"
+            class="handle handle--out handle--out-branch"
+            type="source"
+        />
       </div>
     </div>
-
-    <template #source-handles>
-      <Handle
-          v-for="branch in wiredBranches"
-          :id="`out-${branch.id}`"
-          :key="branch.id"
-          :position="Position.Right"
-          :style="handleStyle(branch.id)"
-          class="handle handle--out handle--out-branch"
-          type="source"
-      />
-    </template>
   </BaseFlowNode>
 </template>
 
 <script setup>
 /**
  * condition 节点画布卡片。
- * 按 branches 渲染多行 IF/ELIF/ELSE，每行右侧对应独立出边锚点 out-<branchId>。
+ * 按 branches 渲染多行 IF/ELIF/ELSE；非 terminal 行内挂出边锚点 out-<branchId>。
  */
 import { Handle, Position } from '@vue-flow/core'
 import { computed, ref } from 'vue'
@@ -66,15 +64,8 @@ const baseNodeRef = ref(null)
 const rootEl = computed(() => baseNodeRef.value?.rootEl ?? null)
 
 const branches = computed(() => getConditionBranches(props.data))
-const wiredBranches = computed(() => branches.value.filter((b) => !isTerminalBranch(b)))
 
-const { handleTops } = useConditionHandleLayout(props.id, branches, rootEl)
-
-function handleStyle(branchId) {
-  const top = handleTops.value[branchId]
-  if (top == null) return undefined
-  return { top: `${top}px` }
-}
+useConditionHandleLayout(props.id, branches, rootEl)
 
 function isMutedSummary(branch) {
   if (isTerminalBranch(branch)) return false
@@ -83,16 +74,6 @@ function isMutedSummary(branch) {
 </script>
 
 <style scoped lang="scss">
-/* 类名挂在 BaseFlowNode 根元素，需 :deep 穿透子组件 */
-:deep(.flow-node--condition) {
-  width: var(--node-cond-w);
-  min-height: calc(var(--node-head-h) + var(--node-cond-row-h) + 12px);
-}
-
-:deep(.flow-node--condition .flow-node__body) {
-  padding: 0 12px 6px;
-}
-
 .cond-node__branches {
   display: flex;
   flex-direction: column;
@@ -100,17 +81,23 @@ function isMutedSummary(branch) {
 }
 
 .cond-node__row {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 6px;
-  align-items: center;
+  position: relative;
   min-height: var(--node-cond-row-h);
-  padding: 4px 6px 4px 0;
   border-top: 1px solid var(--pd-divider);
 
   &:first-child {
     border-top: none;
   }
+}
+
+.cond-node__row-main {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 6px;
+  align-items: center;
+  min-height: var(--node-cond-row-h);
+  padding: 4px 12px;
+  box-sizing: border-box;
 }
 
 .cond-node__row-label {
@@ -149,9 +136,5 @@ function isMutedSummary(branch) {
     font-family: inherit;
     font-size: var(--node-font-body);
   }
-}
-
-:deep(.handle--out-branch) {
-  margin-top: 0;
 }
 </style>

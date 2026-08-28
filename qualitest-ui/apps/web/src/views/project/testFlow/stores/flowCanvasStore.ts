@@ -14,6 +14,7 @@ import { getTestProject } from '@/api/project/testProject';
 import { partitionTemplateParams } from '../../testProjectTemplate/utils/templateParamUtils';
 import { createDefaultRunConfig, DEFAULT_VIEWPORT } from '../graphAdapter';
 import { AI_CONFIRM_HIGHLIGHT_CLEAR_MS } from '../constants/flowConfig';
+import { waitDoubleAnimationFrame } from '../utils/waitDoubleAnimationFrame';
 import { useAiStagingStore } from './aiStagingStore';
 
 export { AI_CONFIRM_HIGHLIGHT_CLEAR_MS };
@@ -255,14 +256,17 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     for (let attempt = 0; attempt < 12; attempt++) {
       bumpStagingEdgeFlushToken();
       await nextTick();
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      });
+      await waitDoubleAnimationFrame();
       if (edges.value.length > 0) return;
     }
 
     // 兜底：至少保证落盘/撤销栈有边数据（画布可能仍待 refresh）
-    if (pendingEdges.value?.length && edges.value.length === 0) {
+    // 灌入期间禁止强行写 edges，避免 condition handle 未就绪时连线错位
+    if (
+      !suppressDirty.value &&
+      pendingEdges.value?.length &&
+      edges.value.length === 0
+    ) {
       edges.value = pendingEdges.value.map((e) => ({ ...e }));
     }
   }

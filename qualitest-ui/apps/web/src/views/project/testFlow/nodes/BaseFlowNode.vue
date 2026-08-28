@@ -114,6 +114,8 @@ defineExpose({ rootEl })
   @include flow.flow-node-accent-derivatives;
   width: var(--node-w);
   min-height: var(--node-min-h);
+  /* 覆盖 Vue Flow theme .vue-flow__node-default 的 padding:10px，否则行内 Handle 贴不到节点边 */
+  padding: 0;
   border-radius: var(--pd-radius-sm);
   border: 1px solid var(--pd-border-subtle);
   background: var(--pd-surface-elevated);
@@ -124,6 +126,7 @@ defineExpose({ rootEl })
   user-select: none;
   text-align: left;
   transition: box-shadow 0.15s, border-color 0.15s;
+  box-sizing: border-box;
 
   &:hover {
     border-color: color-mix(in srgb, var(--node-accent, var(--pd-primary)) 50%, var(--pd-border-subtle));
@@ -232,6 +235,16 @@ defineExpose({ rootEl })
     box-shadow:
       0 0 0 2px rgba(220, 38, 38, 0.45),
       0 0 0 6px rgba(220, 38, 38, 0.12);
+  }
+
+  /* condition：加宽；body 去水平 padding，供行内 Handle 贴右缘（须压过下方默认 body padding） */
+  &.flow-node--condition {
+    width: var(--node-cond-w);
+    min-height: calc(var(--node-head-h) + var(--node-cond-row-h) + 12px);
+
+    > .flow-node__body {
+      padding: 0 0 6px;
+    }
   }
 }
 

@@ -1,43 +1,76 @@
 /**
- * condition handle 行实测工具单测。
+ * 测 useConditionHandleLayout：行布局变化后刷新 Vue Flow internals。
+ * 边界：mock @vue-flow/core；jsdom + stub rAF / ResizeObserver。
+ * 单跑：pnpm test useConditionHandleLayout   （在 qualitest-ui 或 apps/web 下）
  * @vitest-environment jsdom
  */
-import { describe, expect, it } from 'vitest';
+import { createApp, defineComponent, nextTick, ref } from 'vue';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { measureConditionHandleTops } from '@/views/project/testFlow/composables/useConditionHandleLayout';
+const updateNodeInternalsMock = vi.fn();
 
-describe('measureConditionHandleTops', () => {
-  it('按分支行 DOM 测算相对节点根的 top', () => {
+vi.mock('@vue-flow/core', () => ({
+  useVueFlow: () => ({
+    updateNodeInternals: updateNodeInternalsMock,
+  }),
+}));
+
+import { useConditionHandleLayout } from '@/views/project/testFlow/composables/useConditionHandleLayout';
+
+describe('useConditionHandleLayout', () => {
+  beforeEach(() => {
+    updateNodeInternalsMock.mockClear();
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('挂载与 remeasure 时调用 updateNodeInternals', async () => {
+    // 前提：condition 节点有 branches 容器
+    // 期望：挂载后与手动 remeasure 均刷新该节点 internals
     const root = document.createElement('div');
-    root.style.position = 'relative';
-    root.style.width = '340px';
-    document.body.appendChild(root);
-
     const branchesEl = document.createElement('div');
     branchesEl.className = 'cond-node__branches';
     root.appendChild(branchesEl);
+    document.body.appendChild(root);
 
-    const rowIf = document.createElement('div');
-    rowIf.dataset.branchRow = 'b_if';
-    rowIf.style.height = '40px';
-    branchesEl.appendChild(rowIf);
+    let remeasure: (() => Promise<void>) | null = null;
+    const Host = defineComponent({
+      setup() {
+        const rootEl = ref(root);
+        const branches = ref([{ id: 'b_else', kind: 'else' as const }]);
+        const api = useConditionHandleLayout('cond_alive', branches, rootEl);
+        remeasure = api.remeasure;
+        return () => null;
+      },
+    });
 
-    const rowElse = document.createElement('div');
-    rowElse.dataset.branchRow = 'b_else';
-    rowElse.style.height = '48px';
-    branchesEl.appendChild(rowElse);
+    const mountEl = document.createElement('div');
+    const app = createApp(Host);
+    app.mount(mountEl);
+    await nextTick();
+    await Promise.resolve();
 
-    const tops = measureConditionHandleTops(root, [
-      { id: 'b_if', kind: 'if' },
-      { id: 'b_else', kind: 'else' },
-      { id: 'b_term', kind: 'if', terminal: true },
-    ]);
+    expect(updateNodeInternalsMock).toHaveBeenCalledWith(['cond_alive']);
 
-    expect(tops.b_if).toBeDefined();
-    expect(tops.b_else).toBeDefined();
-    expect(tops.b_else!).toBeGreaterThanOrEqual(tops.b_if!);
-    expect(tops.b_term).toBeUndefined();
+    updateNodeInternalsMock.mockClear();
+    await remeasure!();
+    expect(updateNodeInternalsMock).toHaveBeenCalledWith(['cond_alive']);
 
+    app.unmount();
     document.body.removeChild(root);
   });
 });

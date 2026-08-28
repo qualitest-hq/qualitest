@@ -250,6 +250,7 @@ import ProjectSettingDrawer from '@/views/project/testProject/components/Project
 import { useProjectSettingDrawer } from '@/views/project/testProject/composables/useProjectSettingDrawer'
 
 import { refreshSavedBaselineIfPristine } from './utils/reconcileFlowDirty'
+import { waitDoubleAnimationFrame } from './utils/waitDoubleAnimationFrame'
 import { buildCanvasPersistGraph } from './composables/buildCanvasPersistGraph'
 import {
   flowDesignPatchHasChanges,
@@ -555,17 +556,27 @@ function onGraphChange() {
   store.markDirty()
 }
 
+function conditionNodeIds() {
+  return store.nodes.filter((n) => n.type === 'condition').map((n) => n.id)
+}
+
 /**
  * Vue Flow 节点初始化完成后的收尾：
- * 刷新 handle → 灌入待处理边 → 建立撤销基线 → 结束灌入模式 → 恢复视口。
+ * 刷新 handle → 灌入待处理边 → 再刷 condition handle → 恢复视口。
  */
 async function onNodesInitialized() {
   commitHistoryResetIfPending()
   store.endCanvasHydration()
   await nextTick()
-  refreshAllNodeInternals(store.nodes.map((n) => n.id))
+  await waitDoubleAnimationFrame()
+  const condIds = conditionNodeIds()
+  refreshAllNodeInternals(condIds.length ? condIds : store.nodes.map((n) => n.id))
   await nextTick()
   await store.ensureEdgesHydrated()
+  await waitDoubleAnimationFrame()
+  if (condIds.length) {
+    refreshAllNodeInternals(condIds)
+  }
   await viewport.restoreFromStore()
   await refreshSavedBaselineIfPristine(store)
 }

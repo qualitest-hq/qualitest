@@ -151,12 +151,12 @@ function resolveLoadedEdges(adaptedEdges) {
   return adaptedEdges
 }
 
-async function applyHydratedGraphDraft(graphDraft) {
+function applyHydratedGraphDraft(graphDraft) {
   const { nodes, edges } = rehydrateCanvasSnapshot(graphDraft.nodes, graphDraft.edges)
   store.setPendingEdges(edges)
   store.nodes = nodes
   store.edges = []
-  await store.ensureEdgesHydrated()
+  store.bumpStagingEdgeFlushToken()
 }
 
 async function initFromDraft() {
