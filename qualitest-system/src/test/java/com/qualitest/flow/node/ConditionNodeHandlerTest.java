@@ -83,6 +83,29 @@ class ConditionNodeHandlerTest {
         assertNotNull(result.getError());
     }
 
+    /**
+     * 前提：IF 条件成立且 terminal=true，无 target。
+     * 期望：passed；branchTaken 含 terminal。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("执行：terminal IF 分支无 target 时通过")
+    void execute_passesTerminalBranchWithoutTarget() {
+        JSONObject ifBranch = branch("b_if", "if", null);
+        ifBranch.put("terminal", true);
+        ifBranch.put("conditions", conditions("flow.flag", "eq", "1"));
+        JSONObject elseBranch = branch("b_else", "else", "n_fail");
+        GraphNode node = nodeWithBranches(ifBranch, elseBranch);
+
+        FlowRunContext ctx = new FlowRunContext();
+        ctx.getFlow().put("flag", 1);
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals("b_if", result.getBranchTaken().get("branchId"));
+        assertEquals(Boolean.TRUE, result.getBranchTaken().get("terminal"));
+    }
+
     /** 构造含 IF/ELSE 两分支的 condition 节点 */
     private static GraphNode conditionNode(String ifId, String ifTarget, String elseId, String elseTarget) {
         JSONObject ifBranch = branch(ifId, "if", ifTarget);

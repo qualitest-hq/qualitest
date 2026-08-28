@@ -121,13 +121,32 @@
     <div class="field__hint">单次 HTTP 请求最长等待；留空则执行时沿用环境配置</div>
   </div>
 
-  <div v-if="callMode === 'project'" class="field">
-    <label>业务 Code 校验</label>
-    <select :value="successCheckMode" @change="onSuccessCheckModeChange">
-      <option value="inherit">继承项目响应约定</option>
-      <option value="off">关闭（仅校验 HTTP 状态码）</option>
-    </select>
-    <div class="field__hint">默认按项目设置中的 code 路径与成功值校验；无 code 字段的接口可选关闭</div>
+  <div v-if="callMode === 'project'" class="field-group">
+    <div class="field-group__title">成功判定</div>
+    <div class="field">
+      <label>HTTP 状态校验</label>
+      <select :value="statusCheckMode" @change="onStatusCheckModeChange">
+        <option value="2xx">仅 2xx（默认）</option>
+        <option value="whitelist">白名单（如 200,401）</option>
+        <option value="off">关闭（任意状态码继续）</option>
+      </select>
+      <div class="field__hint">探活再登录选白名单 200/401，再用 Condition 看 http.status</div>
+      <input
+          v-if="statusCheckMode === 'whitelist'"
+          class="field__inline"
+          :value="statusCheckValuesText"
+          placeholder="200,401"
+          @change="onStatusCheckValuesChange"
+      />
+    </div>
+    <div class="field">
+      <label>业务 Code 校验</label>
+      <select :value="successCheckMode" @change="onSuccessCheckModeChange">
+        <option value="inherit">继承项目响应约定</option>
+        <option value="off">关闭（不校验业务码）</option>
+      </select>
+      <div class="field__hint">先 HTTP 状态、后业务码；无 code 字段或探活节点可选关闭</div>
+    </div>
   </div>
 
   <div class="field http-prop-extracts">
@@ -204,13 +223,26 @@ const timeoutVal = computed(() => {
 
 /** 当前节点业务码校验模式。
  * inherit：按项目响应约定校验 body 业务码；
- * off：关闭业务码校验，只看 HTTP 状态码。
+ * off：关闭业务码校验。
  * 未配置时按 inherit 展示。
  */
 const successCheckMode = computed(() => {
   const mode = props.node?.data?.successCheck?.mode
   if (mode === 'off') return 'off'
   return 'inherit'
+})
+
+/** HTTP 状态门禁：2xx（默认）/ whitelist / off */
+const statusCheckMode = computed(() => {
+  const mode = props.node?.data?.statusCheck?.mode
+  if (mode === 'off' || mode === 'whitelist') return mode
+  return '2xx'
+})
+
+const statusCheckValuesText = computed(() => {
+  const values = props.node?.data?.statusCheck?.values
+  if (!Array.isArray(values) || !values.length) return '200,401'
+  return values.join(',')
 })
 
 const extractsModel = computed({
@@ -271,9 +303,41 @@ function setCallMode(mode) {
   replaceNodeData(props.node.id, data)
 }
 
-/** 切换业务码校验：inherit 按项目约定校验；off 关闭，仅校验 HTTP 状态码 */
+/** 切换业务码校验：inherit 按项目约定校验；off 关闭 */
 function onSuccessCheckModeChange(e) {
   applyPatch({ successCheck: { mode: e.target.value === 'off' ? 'off' : 'inherit' } })
+}
+
+/** 切换 HTTP 状态门禁 */
+function onStatusCheckModeChange(e) {
+  const mode = e.target.value
+  if (mode === 'off') {
+    applyPatch({ statusCheck: { mode: 'off' } })
+    return
+  }
+  if (mode === 'whitelist') {
+    const existing = props.node?.data?.statusCheck?.values
+    const values =
+      Array.isArray(existing) && existing.length ? existing : [200, 401]
+    applyPatch({ statusCheck: { mode: 'whitelist', values } })
+    return
+  }
+  applyPatch({ statusCheck: { mode: '2xx' } })
+}
+
+/** 白名单状态码文本，如 200,401 */
+function onStatusCheckValuesChange(e) {
+  const raw = String(e.target.value || '')
+  const values = raw
+    .split(/[,，\s]+/)
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0)
+  applyPatch({
+    statusCheck: {
+      mode: 'whitelist',
+      values: values.length ? values : [200, 401],
+    },
+  })
 }
 
 function onExternalMethodChange(e) {
@@ -320,6 +384,29 @@ function onPostScriptChange(val) {
   gap: 6px;
   font-size: 12px;
   cursor: pointer;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.field-group__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pd-text);
+}
+
+.field__inline {
+  margin-top: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--pd-border-subtle);
+  font-size: 12px;
 }
 
 .api-preview {

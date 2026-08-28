@@ -1,5 +1,6 @@
 <template>
   <BaseFlowNode
+      ref="baseNodeRef"
       :id="id"
       :data="data"
       :selected="selected"
@@ -9,7 +10,7 @@
   >
     <div class="cond-node__branches">
       <div
-          v-for="(branch, idx) in branches"
+          v-for="branch in branches"
           :key="branch.id"
           :data-branch-row="branch.id"
           class="cond-node__row"
@@ -26,11 +27,11 @@
 
     <template #source-handles>
       <Handle
-          v-for="(branch, idx) in branches"
+          v-for="branch in wiredBranches"
           :id="`out-${branch.id}`"
           :key="branch.id"
           :position="Position.Right"
-          :style="{ top: `${handleTop(idx)}px` }"
+          :style="handleStyle(branch.id)"
           class="handle handle--out handle--out-branch"
           type="source"
       />
@@ -44,13 +45,14 @@
  * 按 branches 渲染多行 IF/ELIF/ELSE，每行右侧对应独立出边锚点 out-<branchId>。
  */
 import { Handle, Position } from '@vue-flow/core'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
-import { COND_ROW_H, NODE_HEAD_H } from '../constants/flowConfig'
+import { useConditionHandleLayout } from '../composables/useConditionHandleLayout'
 import {
   branchKindLabel,
   formatBranchSummary,
   getConditionBranches,
+  isTerminalBranch,
 } from '../utils/conditionUtils'
 import BaseFlowNode from './BaseFlowNode.vue'
 
@@ -60,14 +62,22 @@ const props = defineProps({
   selected: { type: Boolean, default: false },
 })
 
-const branches = computed(() => getConditionBranches(props.data))
+const baseNodeRef = ref(null)
+const rootEl = computed(() => baseNodeRef.value?.rootEl ?? null)
 
-/** 分支锚点垂直居中位置：顶栏高度 + 行索引 * 行高 + 半行高 */
-function handleTop(idx) {
-  return NODE_HEAD_H + idx * COND_ROW_H + COND_ROW_H / 2
+const branches = computed(() => getConditionBranches(props.data))
+const wiredBranches = computed(() => branches.value.filter((b) => !isTerminalBranch(b)))
+
+const { handleTops } = useConditionHandleLayout(props.id, branches, rootEl)
+
+function handleStyle(branchId) {
+  const top = handleTops.value[branchId]
+  if (top == null) return undefined
+  return { top: `${top}px` }
 }
 
 function isMutedSummary(branch) {
+  if (isTerminalBranch(branch)) return false
   return branch.kind !== 'else' && formatBranchSummary(branch) === '点击配置条件'
 }
 </script>
@@ -90,7 +100,6 @@ function isMutedSummary(branch) {
 }
 
 .cond-node__row {
-  position: relative;
   display: grid;
   grid-template-columns: 44px 1fr;
   gap: 6px;
@@ -143,7 +152,6 @@ function isMutedSummary(branch) {
 }
 
 :deep(.handle--out-branch) {
-  /* 不覆盖 vue-flow 的 translate(50%, -50%)，仅用 top 定位各行 */
   margin-top: 0;
 }
 </style>

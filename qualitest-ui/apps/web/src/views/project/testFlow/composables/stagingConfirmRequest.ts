@@ -160,7 +160,6 @@ export async function applyConfirmedGraph(
   canvasStore.runConfig = applied.runConfig;
   canvasStore.flowOutputs = applied.flowOutputs;
   // 不写入 applied.viewport：确认落盘不应改变用户当前视角
-  canvasStore.flushPendingEdges();
   canvasStore.bumpStagingEdgeFlushToken();
   canvasStore.endCanvasHydration();
   canvasStore.markDirty();

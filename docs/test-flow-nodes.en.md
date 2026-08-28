@@ -34,10 +34,12 @@ Two paths via `data.callMode`, sharing forward + `extracts`:
 
 Common features:
 
+- Success checks (two layers, not merged):
+  - **HTTP status** `statusCheck`: default `mode=2xx` (non-2xx fails); `whitelist` + `values` allows listed statuses (probe often `[200,401]`); `off` passes any status. Response is written to `lastResponse` so Condition can read `http.status`
+  - **Business code** `successCheck`: optional body-code allowlist after **2xx** only; `mode=off` disables
 - Placeholder resolution on params / body (`flow` / `env` / `asset` / `session`, …)
-- **Project auth headers** (Profiles / `loginHint` / dual-side tokens → [project-summary.en.md §4](./project-summary.en.md))
-- Success checks: non-2xx HTTP status fails first; optional business-code allowlist (`successCheck`)
-- On success: write `lastResponse`, then run `extracts`
+- **Project auth headers** (Profiles / managed `{{asset.*}}` / `{{flow.*}}` → [project-summary.en.md §4](./project-summary.en.md))
+- Then run `extracts`; asset persistence still only on 2xx
 - Optional **snapshot before** (`snapshotBefore`) for mutating calls (see concept map §4)
 
 Managed auth header rows use `profileManaged` and refresh from current config at Run; unmarked headers are never silently changed. The canvas may show which `flow.token` / `flow.adminToken` a node will use or produce.

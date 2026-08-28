@@ -113,6 +113,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { getTestProjectApi, getTestProjectApiTree } from '@/api/project/testProjectApi'
+import { findTemplateApiDetail } from '@/views/project/testProjectTemplate/utils/synthesizeTemplateApiTree'
 
 import DebugKvSheet from '../components/DebugKvSheet.vue'
 import HttpConfigBodyPanel from '../components/HttpConfigBodyPanel.vue'
@@ -240,10 +241,7 @@ async function selectApi(apiId) {
   try {
     let detail
     if (store.canvasMode === 'template') {
-      const found = (store.templateApiCatalog || []).find(
-        (e) => String(e.syntheticId) === String(apiId),
-      )
-      detail = found?.api ?? null
+      detail = findTemplateApiDetail(store.templateApiCatalog, apiId)
       if (!detail) {
         ElMessage.error('未找到预制接口')
         return
@@ -283,10 +281,7 @@ async function openForNode(nodeId) {
   try {
     let detail
     if (store.canvasMode === 'template') {
-      const found = (store.templateApiCatalog || []).find(
-        (e) => String(e.syntheticId) === String(apiId),
-      )
-      detail = found?.api ?? null
+      detail = findTemplateApiDetail(store.templateApiCatalog, apiId)
       if (!detail) {
         // 无合成 id 时仍可用节点本地 apiPath 打开
         draft.value = buildWorkbenchFromApiAndNode(null, node.data || {})

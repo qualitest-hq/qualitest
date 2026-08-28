@@ -34,10 +34,12 @@
 
 常用能力：
 
+- 成功判定（两层，不合并）：
+  - **HTTP 状态** `statusCheck`：默认 `mode=2xx`（非 2xx → 失败）；`whitelist` + `values` 仅放行列表内状态码（探活常用 `[200,401]`）；`off` 任意状态码步骤仍 passed。有响应即写入 `lastResponse`，后续 Condition 可读 `http.status`
+  - **业务码** `successCheck`：仅在 **2xx** 后可选校验 body 业务码白名单；`mode=off` 关闭
 - 占位符解析请求参数 / 体（`flow` / `env` / `asset` / `session` 等）
 - **项目鉴权补头**（Profile 托管头 `{{asset.*}}` / `{{flow.*}}` → 见 [project-summary.md §4](./project-summary.md)）
-- 成功判定：先 HTTP 状态码非 2xx 失败；再可选业务码白名单（`successCheck`）
-- 通过后写入 `lastResponse`，再执行 `extracts`
+- 通过后执行 `extracts`；asset 落盘仍仅 2xx
 - 可选 **执行前快照**（`snapshotBefore`）：写库失败可暂停并还原被测数据（环境允许还原时；详见概念地图 §4.4）
 
 节点上托管鉴权头带 `profileManaged`，Run 时按当前项目/接口配置刷新；无该标记的显式头永不被静默改掉。画布可显示将使用/产出的 `flow.token` / `flow.adminToken`。
@@ -84,7 +86,7 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 - **if / elif**：`conditions[]` 全部成立则命中（AND）
 - **else**：前序均未命中时兜底
 
-命中分支须有非空 `target`（下一节点 id）；结果写入步骤 `branchTaken`（`branchId` / `kind`）。
+命中分支须有非空 `target`（下一节点 id），或 IF/ELIF 设 `terminal: true` 结束流程；结果写入步骤 `branchTaken`（`branchId` / `kind` / 可选 `terminal`）。
 
 ---
 

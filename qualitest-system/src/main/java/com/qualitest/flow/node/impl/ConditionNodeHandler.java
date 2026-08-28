@@ -8,6 +8,7 @@ import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
+import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
 import com.qualitest.flow.validate.FlowNodeType;
 import org.springframework.stereotype.Component;
 
@@ -22,7 +23,7 @@ import java.util.Map;
  *   <li>if/elif：{@code conditions[]} 全部成立则命中（AND）</li>
  *   <li>else：前序均未命中时兜底</li>
  * </ul>
- * 命中后校验 {@code target} 非空，将 branchId/kind 写入 {@code StepResult.branchTaken}；
+ * 命中后校验 {@code target} 非空（{@code terminal} 分支除外），将 branchId/kind 写入 {@code StepResult.branchTaken}；
  * 下一跳节点 id 由遍历器读取 target 字段。
  */
 @Component
@@ -66,8 +67,14 @@ public class ConditionNodeHandler extends AbstractStubNodeHandler {
                     "未命中任何条件分支");
         }
 
+        boolean terminal = ConditionBranchTerminalSupport.isTerminalBranch(matched);
         String target = matched.getString("target");
-        if (target == null || target.isBlank()) {
+        if (terminal) {
+            if (target != null && !target.isBlank()) {
+                return failed(node, incomingEdgeId, nodeName, t0, ctx,
+                        "terminal 分支不可同时配置 target");
+            }
+        } else if (target == null || target.isBlank()) {
             return failed(node, incomingEdgeId, nodeName, t0, ctx,
                     FlowErrorCode.TF_BRANCH_UNWIRED.getDefaultMessage());
         }
@@ -75,6 +82,9 @@ public class ConditionNodeHandler extends AbstractStubNodeHandler {
         Map<String, Object> branchTaken = new LinkedHashMap<>();
         branchTaken.put("branchId", matched.getString("id"));
         branchTaken.put("kind", matched.getString("kind"));
+        if (terminal) {
+            branchTaken.put("terminal", true);
+        }
 
         return StepResult.builder()
                 .nodeId(node.getId())

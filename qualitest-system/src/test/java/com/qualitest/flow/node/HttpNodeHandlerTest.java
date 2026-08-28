@@ -420,4 +420,98 @@ class HttpNodeHandlerTest {
         assertEquals(StepResult.STATUS_FAILED, fail.getStatus());
         assertEquals(FlowErrorCode.TF_BIZ_CODE.getCode(), fail.getError().getCode());
     }
+
+    /**
+     * 前提：转发 401；节点 statusCheck.whitelist=[200,401]，successCheck=off。
+     * 期望：步骤 passed；lastResponse.status=401；可供后续 Condition。
+     */
+    @Test
+    @Order(13)
+    @DisplayName("statusCheck=whitelist：401 仍 passed")
+    void execute_whitelist_allows401() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/getInfo")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(401, "Unauthorized", Map.of(), "{\"msg\":\"auth\"}")
+        );
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("statusCheck", Map.of("mode", "whitelist", "values", List.of(200, 401)));
+        data.put("successCheck", Map.of("mode", "off"));
+        GraphNode node = GraphNode.builder().id("n-probe").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertNull(result.getError());
+        assertEquals(401, ctx.getLastResponse().getStatus());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sc = (Map<String, Object>) result.getHttp().get("statusCheck");
+        assertEquals("whitelist", sc.get("mode"));
+        assertEquals(true, sc.get("passed"));
+    }
+
+    /**
+     * 前提：转发 500；节点 statusCheck.whitelist=[200,401]。
+     * 期望：failed；TF_HTTP_STATUS。
+     */
+    @Test
+    @Order(14)
+    @DisplayName("statusCheck=whitelist：500 仍失败")
+    void execute_whitelist_rejects500() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/getInfo")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(500, "Error", Map.of(), "{\"msg\":\"err\"}")
+        );
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("statusCheck", Map.of("mode", "whitelist", "values", List.of(200, 401)));
+        GraphNode node = GraphNode.builder().id("n-probe").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(FlowErrorCode.TF_HTTP_STATUS.getCode(), result.getError().getCode());
+    }
+
+    /**
+     * 前提：转发 503；节点 statusCheck.mode=off。
+     * 期望：passed。
+     */
+    @Test
+    @Order(15)
+    @DisplayName("statusCheck=off：非 2xx 仍 passed")
+    void execute_statusCheckOff_passes() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/getInfo")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(503, "Unavailable", Map.of(), "{}")
+        );
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("statusCheck", Map.of("mode", "off"));
+        data.put("successCheck", Map.of("mode", "off"));
+        GraphNode node = GraphNode.builder().id("n-off").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(503, ctx.getLastResponse().getStatus());
+    }
 }

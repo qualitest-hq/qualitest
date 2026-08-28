@@ -263,6 +263,63 @@ class GraphJsonValidatorTest {
         assertTrue(d.getErrors().stream().anyMatch(e -> e.contains("ms 超过上限")));
     }
 
+    @Test
+    @Order(13)
+    @DisplayName("condition terminal 分支无 target 警告；terminal+target 为 error")
+    void conditionTerminalBranchValidation() {
+        String terminalOk = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
+                      {"id":"b_if","kind":"if","terminal":true,"conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
+                      {"id":"b_else","kind":"else","target":"n2"}
+                    ]}}
+                  ],
+                  "edges":[{"id":"e1","source":"c1","target":"n2"}]
+                }
+                """;
+        GraphValidationResult ok = validator.validateJson(terminalOk);
+        assertFalse(ok.getWarnings().stream().anyMatch(w -> w.contains("未绑定 target")));
+
+        String terminalConflict = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
+                      {"id":"b_if","kind":"if","terminal":true,"target":"n2","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
+                      {"id":"b_else","kind":"else","target":"n3"}
+                    ]}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult conflict = validator.validateJson(terminalConflict);
+        assertTrue(conflict.getErrors().stream().anyMatch(e -> e.contains("terminal 与 target 不可同时配置")));
+    }
+
+    @Test
+    @Order(13)
+    @DisplayName("graph_json 边含 sourceHandle 字段时报错")
+    void conditionEdgeSourceHandle_forbiddenInGraphJson() {
+        String json = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
+                      {"id":"b_if","kind":"if","target":"n2","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]}
+                    ]}},
+                    {"id":"n2","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"project"}}
+                  ],
+                  "edges":[
+                    {"id":"e1","source":"c1","target":"n2","sourceHandle":"out-b_if"}
+                  ]
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("sourceHandle")));
+    }
+
     /**
      * 前提：图含多个无入边节点；Staging 分批确认延后拓扑。
      * 期望：ok；errors 空；warnings 含 O7「未确认的连线」文案。

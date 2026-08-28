@@ -127,15 +127,7 @@ export function fromGraphJson(raw: unknown): FromGraphJsonResult {
     ? JSON.parse(JSON.stringify(meta.flowOutputs))
     : [];
 
-  const nodes: Node[] = graph.nodes.map(
-    (n) =>
-      markRaw({
-        id: n.id,
-        type: n.type,
-        position: { x: n.position.x, y: n.position.y },
-        data: JSON.parse(JSON.stringify(n.data)),
-      }) as Node,
-  );
+  const nodes = buildVueFlowNodes(graph.nodes);
 
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   const edges = buildVueFlowEdges(nodeById, graph.edges);
@@ -143,29 +135,16 @@ export function fromGraphJson(raw: unknown): FromGraphJsonResult {
   return { nodes, edges, viewport, runConfig, flowOutputs };
 }
 
-/**
- * 将历史快照或 JSON 中的裸节点/边数据还原为 vue-flow 可渲染的编辑态。
- * 节点组件引用需 markRaw；condition 出边需补全 type 与 sourceHandle。
- */
-export function rehydrateCanvasSnapshot(
-  rawNodes: Array<{
-    id: string;
-    type: string;
-    position: { x: number; y: number };
-    data?: Record<string, unknown>;
-  }>,
-  rawEdges: Array<{
-    id: string;
-    source: string;
-    target: string;
-    label?: string;
-    type?: string;
-    sourceHandle?: string | null;
-  }>,
-): { nodes: Node[]; edges: Edge[] } {
-  const nodeById = new Map(rawNodes.map((n) => [n.id, n]));
+type RawNodeLike = {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data?: Record<string, unknown>;
+};
 
-  const nodes: Node[] = rawNodes.map(
+/** 裸节点数据 → vue-flow Node（markRaw 避免响应式包装组件引用） */
+function buildVueFlowNodes(rawNodes: RawNodeLike[]): Node[] {
+  return rawNodes.map(
     (n) =>
       markRaw({
         id: n.id,
@@ -174,8 +153,26 @@ export function rehydrateCanvasSnapshot(
         data: JSON.parse(JSON.stringify(n.data ?? {})),
       }) as Node,
   );
+}
 
-  const edges = buildVueFlowEdges(nodeById, rawEdges);
+/**
+ * 将历史快照或 JSON 中的裸节点/边数据还原为 vue-flow 可渲染的编辑态。
+ * condition 出边需补全 type 与 sourceHandle。
+ */
+export function rehydrateCanvasSnapshot(
+  rawNodes: RawNodeLike[],
+  rawEdges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    label?: string;
+    sourceHandle?: string | null;
+  }>,
+): { nodes: Node[]; edges: Edge[] } {
+  const nodeById = new Map(rawNodes.map((n) => [n.id, n]));
+  const nodes = buildVueFlowNodes(rawNodes);
+
+  const edges = buildVueFlowEdges(nodeById, rawEdges, { allowPersistedSourceHandle: true });
 
   return { nodes, edges };
 }
@@ -188,10 +185,11 @@ type RawEdgeLike = {
   sourceHandle?: string | null;
 };
 
-/** 裸边数据 → vue-flow Edge，condition 出边补全 type 与 sourceHandle */
+/** 裸边数据 → vue-flow Edge，condition 出边补全 type 与 sourceHandle（运行时反推或撤销快照） */
 function buildVueFlowEdges(
   nodeById: Map<string, { type?: string; data?: Record<string, unknown> }>,
   rawEdges: RawEdgeLike[],
+  options?: { allowPersistedSourceHandle?: boolean },
 ): Edge[] {
   return rawEdges.map((e) => {
     const edge: Edge = {
@@ -202,7 +200,10 @@ function buildVueFlowEdges(
     if (e.label != null && String(e.label).trim()) {
       edge.label = String(e.label).trim();
     }
-    applyConditionEdgeProps(edge, nodeById.get(e.source), e);
+    const rawForProps = options?.allowPersistedSourceHandle
+      ? e
+      : { target: e.target, label: e.label };
+    applyConditionEdgeProps(edge, nodeById.get(e.source), rawForProps);
     return edge;
   });
 }

@@ -20,14 +20,7 @@ export async function applyAdaptedGraphToStore(store: FlowCanvasStore, adapted: 
   store.selected = null
   store.ui.rightMode = 'props'
   store.clearRunHighlight()
-  await nextTick()
-  store.flushPendingEdges()
-  await nextTick()
-  if (store.pendingEdges?.length && store.edges.length === 0) {
-    store.flushPendingEdges()
-  } else if (store.edges.length > 0) {
-    store.pendingEdges = null
-  }
+  store.bumpStagingEdgeFlushToken()
 }
 
 /** 空图画布无 onNodesInitialized，需立即建立撤销基线 */
@@ -36,7 +29,7 @@ export async function finalizeCanvasHistoryBaseline(
   resetHistory: () => void,
 ) {
   await nextTick()
-  store.flushPendingEdges()
+  store.bumpStagingEdgeFlushToken()
   if (!store.nodes.length) {
     resetHistory()
     store.pendingHistoryReset = false

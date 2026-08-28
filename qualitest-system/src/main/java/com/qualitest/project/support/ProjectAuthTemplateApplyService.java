@@ -311,7 +311,7 @@ public class ProjectAuthTemplateApplyService {
 
     /**
      * 按预制测试流种子项目测试流，并把同模板的 flow 参数写进默认场景 flowSeed。
-     * 已有同名 flowName 跳过；写入前按 method+path 尽量填上节点的项目接口 id。
+     * 已有同名 flowName 跳过；写入前将合成 testProjectApiId remap 为项目接口 id（legacy 仍按 method+path）。
      */
     private void seedFlows(Long testProjectId, TestProjectTemplate template) {
         List<PrefabParam> flowParams = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams())
@@ -334,6 +334,7 @@ public class ProjectAuthTemplateApplyService {
             }
         }
         Map<String, Long> apiIdByIdentity = loadApiIdIndex(testProjectId);
+        Map<String, Long> synthToProjectId = buildSynthApiIdMap(template, apiIdByIdentity);
         Date now = DateUtils.getNowDate();
         boolean firstSeeded = false;
         for (PrefabFlow prefab : flows) {
@@ -347,7 +348,8 @@ public class ProjectAuthTemplateApplyService {
             }
             graphJson = PrefabricatedTemplateExtrasSupport.bindGraphApis(
                     graphJson,
-                    (method, path) -> apiIdByIdentity.get(method + " " + path));
+                    (method, path) -> apiIdByIdentity.get(method + " " + path),
+                    synthToProjectId);
             TestFlow flow = new TestFlow();
             flow.setTestFlowId(IdUtil.getSnowflakeNextId());
             flow.setTestProjectId(testProjectId);
@@ -359,6 +361,27 @@ public class ProjectAuthTemplateApplyService {
             testFlowService.insertTestFlow(flow);
             existingNames.add(prefab.getFlowName());
         }
+    }
+
+    /**
+     * 模板合成 id → 项目接口主键（按 method+path 在项目索引中解析）。
+     */
+    private Map<String, Long> buildSynthApiIdMap(TestProjectTemplate template, Map<String, Long> apiIdByIdentity) {
+        Map<String, Long> map = new LinkedHashMap<>();
+        for (PrefabricatedApi api : parseApis(template)) {
+            if (api == null || StrUtil.isBlank(api.getApiPath())) {
+                continue;
+            }
+            String synth = StrUtil.trimToNull(api.getTestProjectApiId());
+            if (!PrefabricatedTemplateExtrasSupport.isTemplateSyntheticApiId(synth)) {
+                continue;
+            }
+            Long projectId = apiIdByIdentity.get(prefabricatedIdentity(api));
+            if (projectId != null) {
+                map.put(synth, projectId);
+            }
+        }
+        return map;
     }
 
     /**

@@ -109,6 +109,12 @@ public class ProjectAuthConfig implements Serializable {
         @Serial
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 模板内稳定合成 id（如 tpl_ab_login），供预制流 HTTP 节点绑定；
+         * Apply 时 remap 为项目真实 test_project_api 主键。
+         */
+        private String testProjectApiId;
+
         /** 接口名称。 */
         private String apiName;
 

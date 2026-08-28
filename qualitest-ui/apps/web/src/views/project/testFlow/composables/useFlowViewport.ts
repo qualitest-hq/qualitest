@@ -122,7 +122,6 @@ export function useFlowViewport() {
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
-    store.flushPendingEdges();
     store.bumpStagingEdgeFlushToken();
     await nextTick();
     await new Promise<void>((resolve) => {

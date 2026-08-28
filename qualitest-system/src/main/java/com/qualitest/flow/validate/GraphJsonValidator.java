@@ -6,6 +6,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.CompareRuleEvaluator;
 import com.qualitest.flow.context.JsonPathFacade;
 import com.qualitest.flow.context.PlaceholderResolver;
+import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
@@ -394,6 +395,18 @@ public class GraphJsonValidator {
             if (!(branchItem instanceof Map<?, ?> branch)) {
                 continue;
             }
+            boolean terminal = ConditionBranchTerminalSupport.isTerminalBranch(branch);
+            Object kindObj = branch.get("kind");
+            String kind = kindObj != null ? String.valueOf(kindObj).trim() : "";
+            Object targetObj = branch.get("target");
+            String target = targetObj != null ? String.valueOf(targetObj).trim() : "";
+            if (terminal) {
+                if ("else".equals(kind)) {
+                    errors.add(p + " 条件节点「" + name + "」ELSE 分支不可设为结束流程");
+                } else if (!target.isEmpty()) {
+                    errors.add(p + " 条件节点「" + name + "」branches[" + bi + "] terminal 与 target 不可同时配置");
+                }
+            }
             Object conditionsRaw = branch.get("conditions");
             if (!(conditionsRaw instanceof List<?> conditions)) {
                 continue;
@@ -661,6 +674,9 @@ public class GraphJsonValidator {
                 }
                 Object branchId = branch.get("id");
                 Object target = branch.get("target");
+                if (ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
+                    continue;
+                }
                 if (target == null || String.valueOf(target).isBlank()) {
                     warnings.add("条件节点 " + node.getId() + " 分支 " + (branchId != null ? branchId : "?") + " 未绑定 target");
                 } else if (!hasOutgoingEdge(edges, node.getId(), String.valueOf(target))) {
@@ -692,6 +708,9 @@ public class GraphJsonValidator {
                 }
                 String branchId = branch.getString("id");
                 String target = branch.getString("target");
+                if (ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
+                    continue;
+                }
                 if (target == null || target.isBlank()) {
                     warnings.add("条件节点 " + nodeId + " 分支 " + (branchId != null ? branchId : "?") + " 未绑定 target");
                 } else if (!hasRawOutgoingEdge(edgesArr, nodeId, target)) {

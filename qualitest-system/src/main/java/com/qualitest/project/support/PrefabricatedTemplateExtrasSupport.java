@@ -236,10 +236,24 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
-     * 给画布里 callMode=project 的 HTTP 节点写入 testProjectApiId。
-     * 按 method+path 查项目接口；查不到的节点保持未绑定。
+     * 给画布里 callMode=project 的 HTTP 节点写入/重写 testProjectApiId。
+     * 优先：合成 id（tpl_… / 历史 tpl-…）经 synthToProjectId remap；
+     * 已是数字项目 id → 跳过；
+     * legacy：无可用合成映射时按 method+path 查项目接口。
      */
-    public static String bindGraphApis(String graphJson, java.util.function.BiFunction<String, String, Long> apiIdResolver) {
+    public static String bindGraphApis(
+            String graphJson,
+            java.util.function.BiFunction<String, String, Long> apiIdResolver) {
+        return bindGraphApis(graphJson, apiIdResolver, null);
+    }
+
+    /**
+     * @param synthToProjectId 模板合成 id → 项目接口主键；可空（仅 legacy path）
+     */
+    public static String bindGraphApis(
+            String graphJson,
+            java.util.function.BiFunction<String, String, Long> apiIdResolver,
+            Map<String, Long> synthToProjectId) {
         if (StrUtil.isBlank(graphJson) || apiIdResolver == null) {
             return graphJson;
         }
@@ -264,6 +278,16 @@ public final class PrefabricatedTemplateExtrasSupport {
             if (!"project".equalsIgnoreCase(StrUtil.blankToDefault(data.getString("callMode"), "project"))) {
                 continue;
             }
+            String rawId = StrUtil.trimToNull(data.getString("testProjectApiId"));
+            if (rawId != null && isNumericProjectApiId(rawId)) {
+                continue;
+            }
+            if (rawId != null && isTemplateSyntheticApiId(rawId)
+                    && synthToProjectId != null && synthToProjectId.containsKey(rawId)) {
+                data.put("testProjectApiId", String.valueOf(synthToProjectId.get(rawId)));
+                changed = true;
+                continue;
+            }
             String method = StrUtil.blankToDefault(data.getString("httpMethod"), "GET").trim().toUpperCase(Locale.ROOT);
             String path = ProjectAuthConfigSupport.normalizeApiPath(data.getString("apiPath"));
             if (StrUtil.isBlank(path)) {
@@ -277,6 +301,32 @@ public final class PrefabricatedTemplateExtrasSupport {
             changed = true;
         }
         return changed ? graph.toJSONString() : graphJson;
+    }
+
+    /** 是否为模板合成接口 id（tpl_… 或历史 tpl-{index}），非纯数字项目主键。 */
+    public static boolean isTemplateSyntheticApiId(String raw) {
+        if (StrUtil.isBlank(raw)) {
+            return false;
+        }
+        String id = raw.trim();
+        if (isNumericProjectApiId(id)) {
+            return false;
+        }
+        return id.startsWith("tpl_") || id.startsWith("tpl-");
+    }
+
+    /** 项目接口主键（纯数字字符串）。 */
+    public static boolean isNumericProjectApiId(String raw) {
+        if (StrUtil.isBlank(raw)) {
+            return false;
+        }
+        String id = raw.trim();
+        for (int i = 0; i < id.length(); i++) {
+            if (!Character.isDigit(id.charAt(i))) {
+                return false;
+            }
+        }
+        return !id.isEmpty();
     }
 
     /**
@@ -400,8 +450,8 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
-     * 组装内置模板用的「单条登录流」JSON 数组字符串。
-     * extract 写入 asset.{entryKey}.{fieldPath}。
+     * 组装内置模板用的「探活再登录」流 JSON 数组字符串。
+     * 默认探活 GET /getInfo；extract 写入 asset.{entryKey}.{fieldPath}。
      */
     public static String builtinLoginFlowJson(
             String flowName,
@@ -411,6 +461,58 @@ public final class PrefabricatedTemplateExtrasSupport {
             String fieldPath,
             String from,
             String expr) {
+        return builtinLoginFlowJson(flowName, method, apiPath, entryKey, fieldPath, from, expr,
+                "GET", "/getInfo", null, null, null, null);
+    }
+
+    /**
+     * 组装内置模板用的「探活再登录」流 JSON 数组字符串。
+     * 图：Condition(asset 凭证 exists) → 探活(statusCheck whitelist 200/401)
+     * → Condition(http.status=200) 否则登录；extract 写入 asset.{entryKey}.{fieldPath}。
+     */
+    public static String builtinLoginFlowJson(
+            String flowName,
+            String method,
+            String apiPath,
+            String entryKey,
+            String fieldPath,
+            String from,
+            String expr,
+            String probeMethod,
+            String probePath) {
+        return builtinLoginFlowJson(flowName, method, apiPath, entryKey, fieldPath, from, expr,
+                probeMethod, probePath, null, null, null, null);
+    }
+
+    /**
+     * @param loginApiId   预制登录口合成 id（可空，兼容旧图）
+     * @param probeApiId   预制探活口合成 id（可空）
+     * @param loginApiName 登录口展示名
+     * @param probeApiName 探活口展示名
+     */
+    public static String builtinLoginFlowJson(
+            String flowName,
+            String method,
+            String apiPath,
+            String entryKey,
+            String fieldPath,
+            String from,
+            String expr,
+            String probeMethod,
+            String probePath,
+            String loginApiId,
+            String probeApiId,
+            String loginApiName,
+            String probeApiName) {
+        String assetPath = "asset." + entryKey + "." + fieldPath;
+        String safeProbeMethod = StrUtil.blankToDefault(probeMethod, "GET").trim().toUpperCase(Locale.ROOT);
+        String safeProbePath = ProjectAuthConfigSupport.normalizeApiPath(
+                StrUtil.blankToDefault(probePath, "/getInfo"));
+        String safeLoginMethod = StrUtil.blankToDefault(method, "POST").trim().toUpperCase(Locale.ROOT);
+        String safeLoginPath = ProjectAuthConfigSupport.normalizeApiPath(apiPath);
+        String probeName = StrUtil.blankToDefault(probeApiName, "探活");
+        String loginName = StrUtil.blankToDefault(loginApiName, "登录");
+
         JSONObject extract = new JSONObject();
         extract.put("from", from);
         extract.put("expr", expr);
@@ -419,34 +521,100 @@ public final class PrefabricatedTemplateExtrasSupport {
         extract.put("entryKey", entryKey);
         extract.put("fieldPath", fieldPath);
 
-        JSONObject data = new JSONObject();
-        data.put("name", "登录");
-        data.put("callMode", "project");
-        data.put("httpMethod", method);
-        data.put("apiPath", apiPath);
-        data.put("timeoutMs", 30000);
-        JSONObject successCheck = new JSONObject();
-        successCheck.put("mode", "inherit");
-        data.put("successCheck", successCheck);
-        data.put("extracts", List.of(extract));
-        data.put("summary", "登录");
+        // —— 节点 ——
+        JSONObject condToken = new JSONObject();
+        condToken.put("id", "cond_token");
+        condToken.put("type", "condition");
+        condToken.put("position", pos(80, 260));
+        JSONObject condTokenData = new JSONObject();
+        condTokenData.put("name", "凭证是否存在");
+        condTokenData.put("summary", "凭证是否存在");
+        condTokenData.put("branches", List.of(
+                branch("b_token_if", "if", "probe_http", List.of(
+                        condition(assetPath, "exists", ""))),
+                branch("b_token_else", "else", "login_http", List.of())
+        ));
+        condToken.put("data", condTokenData);
 
-        JSONObject position = new JSONObject();
-        position.put("x", 40);
-        position.put("y", 80);
-        JSONObject node = new JSONObject();
-        node.put("id", "login_http");
-        node.put("type", "http");
-        node.put("position", position);
-        node.put("data", data);
+        JSONObject probeHttp = new JSONObject();
+        probeHttp.put("id", "probe_http");
+        probeHttp.put("type", "http");
+        probeHttp.put("position", pos(480, 60));
+        JSONObject probeData = new JSONObject();
+        probeData.put("name", "探活");
+        probeData.put("callMode", "project");
+        probeData.put("httpMethod", safeProbeMethod);
+        probeData.put("apiPath", safeProbePath);
+        if (StrUtil.isNotBlank(probeApiId)) {
+            probeData.put("testProjectApiId", probeApiId.trim());
+            probeData.put("apiName", probeName);
+        }
+        probeData.put("timeoutMs", 30000);
+        JSONObject statusCheck = new JSONObject();
+        statusCheck.put("mode", "whitelist");
+        statusCheck.put("values", List.of(200, 401));
+        probeData.put("statusCheck", statusCheck);
+        JSONObject probeSuccess = new JSONObject();
+        probeSuccess.put("mode", "off");
+        probeData.put("successCheck", probeSuccess);
+        probeData.put("extracts", List.of());
+        probeData.put("summary", StrUtil.isNotBlank(probeApiId)
+                ? safeProbeMethod + " " + probeName
+                : "探活");
+        probeHttp.put("data", probeData);
+
+        JSONObject condAlive = new JSONObject();
+        condAlive.put("id", "cond_alive");
+        condAlive.put("type", "condition");
+        condAlive.put("position", pos(960, 60));
+        JSONObject condAliveData = new JSONObject();
+        condAliveData.put("name", "凭证是否有效");
+        condAliveData.put("summary", "凭证是否有效");
+        condAliveData.put("branches", List.of(
+                terminalBranch("b_alive_if", "if", List.of(
+                        condition("http.status", "eq", "200"))),
+                branch("b_alive_else", "else", "login_http", List.of())
+        ));
+        condAlive.put("data", condAliveData);
+
+        JSONObject loginHttp = new JSONObject();
+        loginHttp.put("id", "login_http");
+        loginHttp.put("type", "http");
+        loginHttp.put("position", pos(680, 440));
+        JSONObject loginData = new JSONObject();
+        loginData.put("name", "登录");
+        loginData.put("callMode", "project");
+        loginData.put("httpMethod", safeLoginMethod);
+        loginData.put("apiPath", safeLoginPath);
+        if (StrUtil.isNotBlank(loginApiId)) {
+            loginData.put("testProjectApiId", loginApiId.trim());
+            loginData.put("apiName", loginName);
+        }
+        loginData.put("timeoutMs", 30000);
+        JSONObject loginSuccess = new JSONObject();
+        loginSuccess.put("mode", "inherit");
+        loginData.put("successCheck", loginSuccess);
+        loginData.put("extracts", List.of(extract));
+        loginData.put("summary", StrUtil.isNotBlank(loginApiId)
+                ? safeLoginMethod + " " + loginName
+                : "登录");
+        loginHttp.put("data", loginData);
+
+        // —— 边（与 branches.target 对齐，供画布展示） ——
+        List<JSONObject> edges = List.of(
+                edge("e_token_if", "cond_token", "probe_http"),
+                edge("e_token_else", "cond_token", "login_http"),
+                edge("e_probe", "probe_http", "cond_alive"),
+                edge("e_alive_else", "cond_alive", "login_http")
+        );
 
         JSONObject output = new JSONObject();
         output.put("name", entryKey + "." + fieldPath);
 
         JSONObject viewport = new JSONObject();
-        viewport.put("x", 40);
-        viewport.put("y", 40);
-        viewport.put("zoom", 1);
+        viewport.put("x", 0);
+        viewport.put("y", 0);
+        viewport.put("zoom", 0.85);
 
         String scenarioId = String.valueOf(IdUtil.getSnowflakeNextId());
         JSONObject scenario = new JSONObject();
@@ -465,14 +633,56 @@ public final class PrefabricatedTemplateExtrasSupport {
         meta.put("scenarios", List.of(scenario));
 
         JSONObject graph = new JSONObject();
-        graph.put("nodes", List.of(node));
-        graph.put("edges", List.of());
+        graph.put("nodes", List.of(condToken, probeHttp, condAlive, loginHttp));
+        graph.put("edges", edges);
         graph.put("meta", meta);
 
         JSONObject flow = new JSONObject();
         flow.put("flowName", flowName);
-        flow.put("description", "登录并抽出 asset." + entryKey + "." + fieldPath);
+        flow.put("description", "探活复用或登录，抽出 asset." + entryKey + "." + fieldPath);
         flow.put("graphJson", graph);
         return JSON.toJSONString(List.of(flow));
+    }
+
+    private static JSONObject pos(int x, int y) {
+        JSONObject p = new JSONObject();
+        p.put("x", x);
+        p.put("y", y);
+        return p;
+    }
+
+    private static JSONObject condition(String left, String operator, String right) {
+        JSONObject c = new JSONObject();
+        c.put("left", left);
+        c.put("operator", operator);
+        c.put("right", right);
+        return c;
+    }
+
+    private static JSONObject branch(String id, String kind, String target, List<JSONObject> conditions) {
+        JSONObject b = new JSONObject();
+        b.put("id", id);
+        b.put("kind", kind);
+        b.put("target", target);
+        b.put("conditions", conditions);
+        return b;
+    }
+
+    /** IF/ELIF 结束流程分支（无 target）。 */
+    private static JSONObject terminalBranch(String id, String kind, List<JSONObject> conditions) {
+        JSONObject b = new JSONObject();
+        b.put("id", id);
+        b.put("kind", kind);
+        b.put("terminal", true);
+        b.put("conditions", conditions);
+        return b;
+    }
+
+    private static JSONObject edge(String id, String source, String target) {
+        JSONObject e = new JSONObject();
+        e.put("id", id);
+        e.put("source", source);
+        e.put("target", target);
+        return e;
     }
 }

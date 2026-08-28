@@ -11,6 +11,7 @@ import {
 import { isKnownNodeType, nodeTypeLabel } from './nodeTypes';
 import type { GraphEdge, GraphJson, GraphNode } from './graphTypes';
 import { DELAY_MAX_MS } from './delayConstants';
+import { isTerminalBranch } from './conditionBranch';
 
 const ALLOWED_EDGE_KEYS = new Set(['id', 'source', 'target', 'label']);
 
@@ -266,6 +267,16 @@ function validateConditionNodeFields(
   branches.forEach((branchItem, bi) => {
     if (!branchItem || typeof branchItem !== 'object' || Array.isArray(branchItem)) return;
     const branch = branchItem as Record<string, unknown>;
+    const terminal = isTerminalBranch(branch as { terminal?: boolean });
+    const kind = String(branch.kind || '').trim();
+    const target = branch.target != null ? String(branch.target).trim() : '';
+    if (terminal) {
+      if (kind === 'else') {
+        errors.push(`${p} 条件节点「${name}」ELSE 分支不可设为结束流程`);
+      } else if (target) {
+        errors.push(`${p} 条件节点「${name}」branches[${bi}] terminal 与 target 不可同时配置`);
+      }
+    }
     const conditions = branch.conditions;
     if (!Array.isArray(conditions)) return;
     conditions.forEach((cond, ci) => {
@@ -462,6 +473,7 @@ function validateConditionBranches(
     branches.forEach((b) => {
       const branchId = b.id;
       const target = b.target;
+      if (isTerminalBranch(b as { terminal?: boolean })) return;
       if (!target || String(target).trim() === '') {
         warnings.push(`条件节点 ${n.id} 分支 ${branchId ?? '?'} 未绑定 target`);
       } else if (!hasOutgoingEdge(edges, n.id, String(target))) {

@@ -3,6 +3,7 @@
  * 负责 branches 规范化、摘要格式化，以及边与分支锚点之间的映射。
  */
 import type { CompareRule } from '@/utils/flow/compareRule';
+import { isTerminalBranch as isTerminalBranchFlag } from '@/utils/flow/conditionBranch';
 import { condOpLabel, evalCompareRule } from '@/utils/flow/compareRule';
 import type { FlowRunContext } from '@/utils/flow/types';
 
@@ -17,7 +18,14 @@ export interface ConditionBranch {
   id: string;
   kind: 'if' | 'elif' | 'else';
   target?: string;
+  /** 命中后结束流程（不可与 target 同存；else 不可用） */
+  terminal?: boolean;
   conditions?: CompareRule[];
+}
+
+/** 分支是否为结束流程出口 */
+export function isTerminalBranch(branch: Pick<ConditionBranch, 'terminal'> | null | undefined): boolean {
+  return isTerminalBranchFlag(branch);
 }
 
 /** 创建默认 else 分支（id 为雪花数字串） */
@@ -69,6 +77,7 @@ export function formatCondRule(rule: CompareRule | Record<string, unknown> | nul
 
 /** 单条分支在节点卡片上的摘要 */
 export function formatBranchSummary(branch: ConditionBranch): string {
+  if (isTerminalBranch(branch)) return '→ 结束';
   if (branch.kind === 'else') return '默认分支';
   const rules = (branch.conditions || []).filter((r) => String(r.left || '').trim());
   if (!rules.length) return '点击配置条件';
@@ -103,6 +112,7 @@ export function pickConditionEdge(
   const branches = getConditionBranches(node.data);
   for (const branch of branches) {
     if (!evalBranchConditions(branch, ctx)) continue;
+    if (isTerminalBranch(branch)) return { edge: null, branch };
     const targetId = branch.target;
     if (!targetId) return { edge: null, branch };
     const edge = edges.find((e) => e.source === node.id && e.target === targetId);
@@ -141,8 +151,14 @@ export function getConditionEdgeHandle(
 ): string {
   if (srcNode?.type !== 'condition') return 'out';
   const branches = getConditionBranches(srcNode.data);
-  const branch = branches.find((b) => b.target === edge.target);
-  return branch ? `out-${branch.id}` : 'out';
+  const byTarget = branches.find((b) => b.target === edge.target);
+  if (byTarget) return `out-${byTarget.id}`;
+  // 多 handle 节点不存在 id=out；回退到首条可连线分支，避免边因无效 handle 不渲染
+  const wired = branches.filter((b) => !isTerminalBranch(b));
+  const unbound = wired.find((b) => !b.target);
+  if (unbound) return `out-${unbound.id}`;
+  const fallback = wired[0] ?? branches[0];
+  return fallback ? `out-${fallback.id}` : 'out';
 }
 
 /** 统计当前 ELIF 分支数量 */
@@ -179,13 +195,36 @@ export function bindConditionBranchTarget(
   let branchId = resolveBranchFromHandle(edge.sourceHandle);
   if (!branchId) {
     if (branches.some((b) => b.target === edge.target)) return false;
-    const unbound = branches.find((b) => !b.target);
+    const unbound = branches.find((b) => !b.target && !isTerminalBranch(b));
     if (!unbound) return false;
     branchId = unbound.id;
   }
   const branch = branches.find((b) => b.id === branchId);
   if (!branch || branch.target === edge.target) return false;
   branch.target = edge.target;
+  branch.terminal = false;
+  nodeData.branches = branches;
+  return true;
+}
+
+/**
+ * 设置 IF/ELIF 分支为结束流程或恢复为可连线。
+ * terminal=true 时清空 target。
+ */
+export function setBranchTerminal(
+  nodeData: Record<string, unknown>,
+  branchId: string,
+  terminal: boolean,
+): boolean {
+  const branches = getConditionBranches(nodeData).map((b) => ({ ...b }));
+  const branch = branches.find((b) => b.id === branchId);
+  if (!branch || branch.kind === 'else') return false;
+  if (terminal) {
+    branch.terminal = true;
+    delete branch.target;
+  } else {
+    delete branch.terminal;
+  }
   nodeData.branches = branches;
   return true;
 }
@@ -207,23 +246,4 @@ export function clearConditionBranchTarget(nodeData: Record<string, unknown>, ta
   });
   if (changed) nodeData.branches = branches;
   return changed;
-}
-
-/**
- * 解析 condition 出边应关联的分支 id。
- *
- * 解析顺序：sourceHandle 中的 branchId → 已绑定相同 target 的分支 → 首条未绑定 target 的分支。
- * 用于合并 patch 时判断应更新哪条分支、以及清理旧出边。
- */
-export function resolveConditionBranchIdForEdge(
-  nodeData: Record<string, unknown>,
-  edge: { target?: string; sourceHandle?: string | null },
-): string | null {
-  const fromHandle = resolveBranchFromHandle(edge.sourceHandle);
-  if (fromHandle) return fromHandle;
-  const branches = getConditionBranches(nodeData);
-  if (edge.target && branches.some((b) => b.target === edge.target)) {
-    return branches.find((b) => b.target === edge.target)?.id ?? null;
-  }
-  return branches.find((b) => !b.target)?.id ?? null;
 }

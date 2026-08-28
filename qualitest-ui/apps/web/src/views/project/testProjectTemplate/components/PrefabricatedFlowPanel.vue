@@ -62,7 +62,7 @@ const props = defineProps({
   readOnly: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['open-canvas'])
+const emit = defineEmits(['open-canvas', 'update:templateApis'])
 
 const list = defineModel({ type: Array, default: () => [] })
 
@@ -89,8 +89,13 @@ function commit(next) {
 }
 
 function handleAdd() {
-  const next = [...flows.value, emptyPrefabFlow()]
+  const created = emptyPrefabFlow(props.templateApis)
+  const { ensuredApis, ...flow } = created
+  const next = [...flows.value, flow]
   commit(next)
+  if (ensuredApis?.length) {
+    emit('update:templateApis', ensuredApis)
+  }
   openCanvas(next.length - 1)
 }
 

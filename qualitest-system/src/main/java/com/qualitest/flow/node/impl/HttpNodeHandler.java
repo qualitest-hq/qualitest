@@ -18,6 +18,7 @@ import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
 import com.qualitest.flow.http.HttpStepDetailsDesensitizer;
+import com.qualitest.flow.http.StatusCheckResolver;
 import com.qualitest.flow.http.SuccessCheckResolver;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepError;
@@ -45,13 +46,14 @@ import java.util.Map;
  * Cookie 鉴权与 Bearer 相同：登录 extracts（含 {@code from=setCookie}）写入 flow.*，
  * 后续由项目 Profile 托管头带上；不再使用节点 {@code useRunSession}。
  * <p>
- * 成功判定顺序：
+ * 成功判定顺序（statusCheck 与 successCheck 并列，不合并）：
  * <ol>
- *   <li>HTTP 状态码非 2xx → 步骤失败，错误码 TF_HTTP_STATUS</li>
+ *   <li>HTTP 状态码：默认 statusCheck.mode=2xx，非 2xx → TF_HTTP_STATUS；
+ *       whitelist 时仅 values 内通过；off 时任意状态码通过（连接失败仍失败）</li>
  *   <li>2xx 后若开启业务码校验（节点 successCheck.mode 非 off）→ 读取 body 中业务码；
  *       不在成功白名单内则步骤失败，错误码 TF_BIZ_CODE，并在步骤 http.bizCheck 写入实际码与消息</li>
  * </ol>
- * 通过后写入 lastResponse，再执行 extracts。
+ * 有响应即写入 lastResponse（含非 2xx），再执行 extracts；asset 落盘仍仅 2xx。
  */
 @Component
 public class HttpNodeHandler extends AbstractStubNodeHandler {
@@ -280,8 +282,17 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             httpDetails = HttpStepDetailsDesensitizer.desensitize(httpDetails);
         }
 
-        // HTTP 状态码不在 2xx：传输层失败
-        if (status < 200 || status >= 300) {
+        // HTTP 状态门禁：默认 2xx；whitelist/off 供探活等场景放行非 2xx 供后续 Condition
+        StatusCheckResolver.Resolved statusCheck = StatusCheckResolver.resolve(data);
+        Map<String, Object> statusCheckReport = new LinkedHashMap<>();
+        statusCheckReport.put("mode", statusCheck.getMode());
+        if (!statusCheck.getValues().isEmpty()) {
+            statusCheckReport.put("values", statusCheck.getValues());
+        }
+        statusCheckReport.put("passed", statusCheck.passes(status));
+        httpDetails.put("statusCheck", statusCheckReport);
+
+        if (!statusCheck.passes(status)) {
             return StepResult.builder()
                     .nodeId(node.getId())
                     .nodeType(FlowNodeType.HTTP.getCode())
@@ -293,6 +304,21 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                     .extracts(appliedExtracts)
                     .flowAfter(copyFlow(ctx))
                     .error(StepError.of(FlowErrorCode.TF_HTTP_STATUS, "HTTP " + status))
+                    .build();
+        }
+
+        // 仅 2xx 后按 successCheck 校验业务码；whitelist 放行的 401 等跳过业务码
+        if (status < 200 || status >= 300) {
+            return StepResult.builder()
+                    .nodeId(node.getId())
+                    .nodeType(FlowNodeType.HTTP.getCode())
+                    .nodeName(nodeName)
+                    .edgeId(incomingEdgeId)
+                    .status(StepResult.STATUS_PASSED)
+                    .durationMs(durationMs)
+                    .http(httpDetails)
+                    .extracts(appliedExtracts)
+                    .flowAfter(copyFlow(ctx))
                     .build();
         }
 

@@ -22,10 +22,11 @@
 import { useVueFlow } from '@vue-flow/core';
 import { nextTick, onMounted, watch } from 'vue';
 
+import { FLOW_VUE_FLOW_ID } from '../constants/flowConfig';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 
 const store = useFlowCanvasStore();
-const { findNode, setEdges, onNodesInitialized } = useVueFlow();
+const { findNode, setEdges, updateNodeInternals, onNodesInitialized } = useVueFlow(FLOW_VUE_FLOW_ID);
 
 /** 检查 pending 边两端节点是否已在 Vue Flow 内注册，就绪则灌入并清空 pending。 */
 async function tryFlushPendingEdges() {
@@ -34,6 +35,19 @@ async function tryFlushPendingEdges() {
 
   const ready = pending.every((e) => findNode(e.source) && findNode(e.target));
   if (!ready) return;
+
+  const conditionSourceIds = [
+    ...new Set(
+      pending
+        .map((e) => findNode(e.source))
+        .filter((n) => n?.type === 'condition')
+        .map((n) => n!.id),
+    ),
+  ];
+  if (conditionSourceIds.length) {
+    updateNodeInternals(conditionSourceIds);
+    await nextTick();
+  }
 
   setEdges(pending.map((e) => ({ ...e })));
   await nextTick();

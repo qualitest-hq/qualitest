@@ -34,7 +34,7 @@ public final class ConditionBranchMergeHelper {
             return;
         }
         Map<String, Object> data = ensureMutableData(source);
-        String branchId = resolveConditionBranchIdForEdge(data, edge.getTarget(), null, edge.getSource(), edges);
+        String branchId = resolveConditionBranchIdForEdge(data, edge.getTarget(), edge.getSource(), edges);
         if (branchId != null) {
             String staleTarget = findBranchTarget(data, branchId);
             if (staleTarget != null && !staleTarget.equals(edge.getTarget())) {
@@ -44,8 +44,7 @@ public final class ConditionBranchMergeHelper {
                         && staleTarget.equals(e.getTarget()));
             }
         }
-        String sourceHandle = branchId != null ? "out-" + branchId : null;
-        bindConditionBranchTarget(data, edge.getTarget(), sourceHandle);
+        bindConditionBranchTarget(data, edge.getTarget(), branchId);
         source.setData(data);
     }
 
@@ -69,11 +68,11 @@ public final class ConditionBranchMergeHelper {
     /**
      * 将出边 target 写入 branches[].target。
      * <p>
-     * 绑定规则：若已有分支指向同一 target 则跳过；否则写入第一条尚未设置 target 的分支。
+     * 绑定规则：branchId 非空时写入对应分支；否则若已有分支指向同一 target 则跳过，否则写入首条未绑定分支。
      *
      * @return 是否修改了 branches
      */
-    static boolean bindConditionBranchTarget(Map<String, Object> nodeData, String target, String sourceHandle) {
+    static boolean bindConditionBranchTarget(Map<String, Object> nodeData, String target, String branchId) {
         if (target == null || target.isBlank() || nodeData == null) {
             return false;
         }
@@ -81,13 +80,13 @@ public final class ConditionBranchMergeHelper {
         if (branches.isEmpty()) {
             return false;
         }
-        String branchId = resolveBranchFromHandle(sourceHandle);
-        if (branchId == null) {
+        if (branchId == null || branchId.isBlank()) {
             if (branches.stream().anyMatch(b -> target.equals(stringValue(b.get("target"))))) {
                 return false;
             }
             Map<String, Object> unbound = branches.stream()
-                    .filter(b -> isBlank(b.get("target")))
+                    .filter(b -> isBlank(b.get("target"))
+                            && !ConditionBranchTerminalSupport.isTerminalBranch(b))
                     .findFirst()
                     .orElse(null);
             if (unbound == null) {
@@ -101,6 +100,7 @@ public final class ConditionBranchMergeHelper {
                     return false;
                 }
                 branch.put("target", target);
+                branch.remove("terminal");
                 nodeData.put("branches", branches);
                 return true;
             }
@@ -134,19 +134,14 @@ public final class ConditionBranchMergeHelper {
 
     /**
      * 解析出边应关联的分支 id。
-     * 顺序：sourceHandle → 已绑定相同 target 的分支 → 画布上存在旧出边的已绑定分支（改连）→ 首条未绑定分支。
+     * 顺序：已绑定相同 target 的分支 → 画布上存在旧出边的已绑定分支（改连）→ 首条未绑定分支。
      */
     static String resolveConditionBranchIdForEdge(
             Map<String, Object> nodeData,
             String target,
-            String sourceHandle,
             String source,
             List<GraphEdge> edges
     ) {
-        String fromHandle = resolveBranchFromHandle(sourceHandle);
-        if (fromHandle != null) {
-            return fromHandle;
-        }
         List<Map<String, Object>> branches = readBranches(nodeData);
         if (target != null && !target.isBlank()) {
             for (Map<String, Object> branch : branches) {
@@ -182,19 +177,12 @@ public final class ConditionBranchMergeHelper {
             }
         }
         for (Map<String, Object> branch : branches) {
-            if (isBlank(branch.get("target"))) {
+            if (isBlank(branch.get("target"))
+                    && !ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
                 return stringValue(branch.get("id"));
             }
         }
         return null;
-    }
-
-    private static String resolveBranchFromHandle(String handle) {
-        if (handle == null || !handle.startsWith("out-")) {
-            return null;
-        }
-        String id = handle.substring(4);
-        return id.isBlank() ? null : id;
     }
 
     private static String findBranchTarget(Map<String, Object> nodeData, String branchId) {

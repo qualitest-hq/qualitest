@@ -84,6 +84,17 @@ describe('fromGraphJson / toGraphJson', () => {
     expect(elseEdge?.sourceHandle).toBe('out-b_else');
   });
 
+  it('condition 出边保存时不持久化 sourceHandle', () => {
+    const adapted = fromGraphJson(demoGraph);
+    const saved = toGraphJson(adapted);
+    const condId = '2040354743931883503';
+    saved.edges
+      .filter((e) => e.source === condId)
+      .forEach((e) => {
+        expect(Object.prototype.hasOwnProperty.call(e, 'sourceHandle')).toBe(false);
+      });
+  });
+
   it('空图往返保留 meta 场景', () => {
     // 前提：空图设置 viewport 与 testProjectEnvId 后往返
     // 期望：meta viewport 与 envId 保留

@@ -1,5 +1,6 @@
 /**
  * 左栏参数库：聚合项目 env/asset 静态变量与图中 HTTP extracts 动态 flow 变量。
+ * 模板画布读 templateParamContext / flowSeed，不请求项目变量接口。
  * 支持按 scope 过滤、关键字搜索、复制 {{placeholder}}。
  */
 import type { Node } from '@vue-flow/core';
@@ -13,6 +14,9 @@ import {
   fetchProjectEnvRows,
   parseJsonSafe,
 } from './useProjectVariables';
+import {
+  templateAssetParamEntries,
+} from '../../testProjectTemplate/utils/templateParamUtils';
 import { formatExtractTargetDest } from '../utils/nodeDataUtils';
 
 export interface ParamLibraryItem {
@@ -57,8 +61,12 @@ export function useParamLibrary() {
   const envEntries = ref<Array<{ key: string; remark?: string; value?: unknown }>>([]);
   const assetEntries = ref<Array<{ key: string; remark?: string; assets?: Record<string, unknown> }>>([]);
 
-  /** 拉取当前 testProjectId 下的环境与素材条目 */
+  /** 拉取当前 testProjectId 下的环境与素材条目；模板模式用水合上下文 */
   async function loadProjectVariables() {
+    if (store.canvasMode === 'template') {
+      hydrateFromTemplateContext();
+      return;
+    }
     const projectId = store.testProjectId;
     if (!projectId) return;
     try {
@@ -84,6 +92,22 @@ export function useParamLibrary() {
       envEntries.value = [];
       assetEntries.value = [];
     }
+  }
+
+  /** 模板画布：用 templateParams 填充 env/asset 预览 */
+  function hydrateFromTemplateContext() {
+    const ctx = store.templateParamContext;
+    if (!ctx) {
+      envEntries.value = [];
+      assetEntries.value = [];
+      return;
+    }
+    envEntries.value = (ctx.env || []).map((row) => ({
+      key: row.name,
+      remark: row.remark || row.name,
+      value: row.value,
+    }));
+    assetEntries.value = templateAssetParamEntries(ctx.asset || []);
   }
 
   /** 扫描图中 http extracts 与 assign 写入项，生成 flow/asset 动态占位符条目 */
@@ -127,6 +151,42 @@ export function useParamLibrary() {
     return items;
   }
 
+  /** 当前场景 flowSeed + 模板 flow 初值（同名不重复） */
+  function buildFlowSeedItems(exclude: Set<string>): ParamLibraryItem[] {
+    const items: ParamLibraryItem[] = [];
+    const scenario =
+      store.runConfig.scenarios?.find((s) => s.id === store.runConfig.activeScenarioId)
+      ?? store.runConfig.scenarios?.[0];
+    const seed = (scenario?.flowSeed || {}) as Record<string, unknown>;
+    Object.entries(seed).forEach(([key, value]) => {
+      const path = `flow.${key}`;
+      if (!key || exclude.has(path)) return;
+      items.push({
+        scope: 'flow',
+        path,
+        placeholder: `{{${path}}}`,
+        remark: '场景初值',
+        sample: value == null ? '' : String(value),
+      });
+    });
+    if (store.canvasMode === 'template' && store.templateParamContext?.flow) {
+      store.templateParamContext.flow.forEach((row) => {
+        const path = `flow.${row.name}`;
+        if (!row.name || exclude.has(path) || Object.prototype.hasOwnProperty.call(seed, row.name)) {
+          return;
+        }
+        items.push({
+          scope: 'flow',
+          path,
+          placeholder: `{{${path}}}`,
+          remark: row.remark || '模板 flow 初值',
+          sample: row.value == null ? '' : String(row.value),
+        });
+      });
+    }
+    return items;
+  }
+
   function buildEnvParamItems(): ParamLibraryItem[] {
     return envEntries.value.flatMap((entry) => {
       if (!entry.key) return [];
@@ -160,10 +220,12 @@ export function useParamLibrary() {
   function getAllItems(): ParamLibraryItem[] {
     const dynamic = collectDynamicParamsFromGraph(store.nodes);
     const dynamicPaths = new Set(dynamic.map((i) => i.path));
+    const flowSeedItems = buildFlowSeedItems(dynamicPaths);
+    const staticPaths = new Set([...dynamicPaths, ...flowSeedItems.map((i) => i.path)]);
     const staticItems = [...buildEnvParamItems(), ...buildAssetParamItems()].filter(
-      (i) => !dynamicPaths.has(i.path),
+      (i) => !staticPaths.has(i.path),
     );
-    return [...dynamic, ...staticItems];
+    return [...dynamic, ...flowSeedItems, ...staticItems];
   }
 
   function filteredItems(): ParamLibraryItem[] {

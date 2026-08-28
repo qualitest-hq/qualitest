@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -85,18 +86,109 @@ class PrefabricatedTemplateExtrasSupportTest {
     /** 按 method+path 给画布 HTTP 节点写入项目接口 id。 */
     @Test
     @Order(5)
-    @DisplayName("bindGraphApis 写入 apiId")
+    @DisplayName("bindGraphApis 写入探活与登录 apiId")
     void bindGraphApis() {
-        // 前提：登录图画布
+        // 前提：探活再登录图
         String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
                 "登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
         String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
 
-        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(
-                graph, (method, path) -> "POST".equals(method) && "/login".equals(path) ? 99L : null);
+        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(graph, (method, path) -> {
+            if ("POST".equals(method) && "/login".equals(path)) {
+                return 99L;
+            }
+            if ("GET".equals(method) && "/getInfo".equals(path)) {
+                return 88L;
+            }
+            return null;
+        });
 
-        // 期望：写入 testProjectApiId
+        // 期望：探活与登录均写入 testProjectApiId
         assertTrue(bound.contains("\"testProjectApiId\":\"99\""));
+        assertTrue(bound.contains("\"testProjectApiId\":\"88\""));
+        assertTrue(bound.contains("\"statusCheck\"") || bound.contains("statusCheck"));
+    }
+
+    /** 合成 id 优先 remap，不再依赖 path（薄节点可无 apiPath）。 */
+    @Test
+    @Order(5)
+    @DisplayName("bindGraphApis 合成 id remap")
+    void bindGraphApis_synthRemap() {
+        // 前提：节点仅有合成 id，无 path
+        String graph = """
+                {"nodes":[{"id":"login_http","type":"http","data":{
+                  "callMode":"project","httpMethod":"POST","testProjectApiId":"tpl_ab_login"
+                }},{"id":"probe_http","type":"http","data":{
+                  "callMode":"project","httpMethod":"GET","testProjectApiId":"tpl_ab_getInfo"
+                }}],"edges":[],"meta":{}}
+                """;
+        Map<String, Long> synth = Map.of("tpl_ab_login", 101L, "tpl_ab_getInfo", 102L);
+
+        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(
+                graph, (method, path) -> null, synth);
+
+        assertTrue(bound.contains("\"testProjectApiId\":\"101\""));
+        assertTrue(bound.contains("\"testProjectApiId\":\"102\""));
+        assertFalse(bound.contains("tpl_ab_login"));
+    }
+
+    /** 已是数字项目 id 时跳过；legacy 无 id 仍按 path。 */
+    @Test
+    @Order(5)
+    @DisplayName("bindGraphApis legacy path 与数字 id 跳过")
+    void bindGraphApis_legacyAndNumeric() {
+        String graph = """
+                {"nodes":[
+                  {"id":"a","type":"http","data":{"callMode":"project","httpMethod":"POST","apiPath":"/login"}},
+                  {"id":"b","type":"http","data":{"callMode":"project","httpMethod":"GET","testProjectApiId":"55"}}
+                ],"edges":[],"meta":{}}
+                """;
+
+        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(graph, (method, path) -> {
+            if ("POST".equals(method) && "/login".equals(path)) {
+                return 77L;
+            }
+            return 999L;
+        }, Map.of());
+
+        assertTrue(bound.contains("\"testProjectApiId\":\"77\""));
+        assertTrue(bound.contains("\"testProjectApiId\":\"55\""));
+        assertFalse(bound.contains("\"999\""));
+    }
+
+    /** 内置登录图可写入合成 id。 */
+    @Test
+    @Order(9)
+    @DisplayName("builtinLoginFlowJson 写入合成 apiId")
+    void builtinLoginFlow_writesSynthIds() {
+        String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
+                "管理端登录", "POST", "/login", "adminAuth", "token", "body", "$.token",
+                "GET", "/getInfo", "tpl_ab_login", "tpl_ab_getInfo", "登录", "获取用户信息");
+        String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
+
+        assertTrue(graph.contains("tpl_ab_login"));
+        assertTrue(graph.contains("tpl_ab_getInfo"));
+        assertTrue(graph.contains("获取用户信息"));
+    }
+
+    /** 探活再登录图含 Condition + 探活 whitelist。 */
+    @Test
+    @Order(9)
+    @DisplayName("builtinLoginFlowJson 含探活分支")
+    void builtinLoginFlow_hasProbeBranches() {
+        // 前提：默认探活 /getInfo
+        String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
+                "管理端登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
+        String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
+
+        // 期望：存在凭证 Condition、探活 whitelist、登录 extract
+        assertTrue(graph.contains("cond_token"));
+        assertTrue(graph.contains("probe_http"));
+        assertTrue(graph.contains("cond_alive"));
+        assertTrue(graph.contains("login_http"));
+        assertTrue(graph.contains("whitelist"));
+        assertTrue(graph.contains("asset.adminAuth.token"));
+        assertTrue(graph.contains("/getInfo"));
     }
 
     /** flow 参数写入默认场景 flowSeed。 */

@@ -1,5 +1,6 @@
 <template>
   <div
+      ref="rootEl"
       :class="nodeClasses"
       :style="{ '--node-accent': color }"
       class="flow-node vue-flow__node-default"
@@ -29,11 +30,12 @@
 
 <script setup>
 /** 节点卡片外壳：顶栏色条、标题、场景运行高亮、连接锚点 */
-import { Handle, Position } from '@vue-flow/core'
-import { computed, inject, toRef } from 'vue'
+import { Handle, Position, useVueFlow } from '@vue-flow/core'
+import { computed, inject, onBeforeUnmount, onMounted, ref, toRef } from 'vue'
 
 import AiStagingChrome from '../components/AiStagingChrome.vue'
 import { useStagingMark, useStagingUnitByMark } from '../composables/usePendingStagingUnit'
+import { FLOW_VUE_FLOW_ID } from '../constants/flowConfig'
 import { NODE_TYPES } from '../constants/nodeTypes'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { useFlowNodes } from '../composables/useFlowNodes'
@@ -79,6 +81,29 @@ function onDblClick() {
     openHttpConfig(props.id)
   }
 }
+
+const rootEl = ref(null)
+const { updateNodeInternals } = useVueFlow(FLOW_VUE_FLOW_ID)
+let resizeObserver = null
+
+function refreshNodeInternals() {
+  updateNodeInternals([props.id])
+}
+
+onMounted(() => {
+  if (!rootEl.value) return
+  resizeObserver = new ResizeObserver(() => {
+    refreshNodeInternals()
+  })
+  resizeObserver.observe(rootEl.value)
+  refreshNodeInternals()
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+})
+
+defineExpose({ rootEl })
 </script>
 
 <style scoped lang="scss">

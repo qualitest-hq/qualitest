@@ -60,7 +60,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
   delay: {
     label: 'Delay',
     color: NODE_COLORS.delay,
-    icon: 'DEL',
+    icon: 'Delay',
     desc: '等待毫秒',
     defaults: {
       name: '等待',

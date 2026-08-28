@@ -5,7 +5,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-const STORAGE_KEY = 'qualitest.templateFlowDraft.v1'
+const STORAGE_KEY = 'qualitest.templateFlowDraft.v2'
 
 export type TemplateDialogMode = 'add' | 'edit' | 'view'
 
@@ -97,6 +97,18 @@ export const useTemplateFlowDraftStore = defineStore('templateFlowDraft', () => 
     return null
   }
 
+  /** 画布内联改草稿表单字段（如补齐 templateApis 合成 id） */
+  function patchForm(partial: Partial<TemplateFlowDraft['form']>) {
+    const current = getDraft()
+    if (!current) return false
+    persist({
+      ...current,
+      form: { ...current.form, ...partial },
+      updatedAt: Date.now(),
+    })
+    return true
+  }
+
   /** 画布保存：写回指定下标的 graphJson（可选同步流名） */
   function saveFlowGraph(
     flowIndex: number,
@@ -138,6 +150,7 @@ export const useTemplateFlowDraftStore = defineStore('templateFlowDraft', () => 
     draft,
     openCanvas,
     getDraft,
+    patchForm,
     saveFlowGraph,
     clearCanvasDirtyFlag,
     clear,

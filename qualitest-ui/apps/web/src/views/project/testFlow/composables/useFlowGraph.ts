@@ -24,6 +24,7 @@ import {
   applyAdaptedGraphToStore,
   finalizeCanvasHistoryBaseline,
 } from './useCanvasGraphHydration';
+import { recoverLoginFlowEdgesIfMissing } from '../../testProjectTemplate/utils/templateCanvasHydrate';
 import {
   collectAssertPathDesignIssues,
   extractResponseSchemaPaths,
@@ -49,7 +50,10 @@ export function useFlowGraph() {
     store.testFlowId = String(data.testFlowId);
     store.testProjectId = String(data.testProjectId);
     store.flowName = data.flowName ?? '';
-    const raw = data.graphJson ? JSON.parse(data.graphJson) : null;
+    const raw = data.graphJson ? JSON.parse(data.graphJson) : null
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      raw.edges = recoverLoginFlowEdgesIfMissing(raw.nodes, raw.edges);
+    }
     const adapted = fromGraphJson(raw);
     await applyAdaptedGraphToStore(store, adapted);
     store.markClean();
@@ -107,7 +111,7 @@ export function useFlowGraph() {
 
     const graph = toGraphJson({
       nodes: store.nodes,
-      edges: store.edges,
+      edges: store.getEffectiveEdges(),
       viewport: store.viewport,
       runConfig: store.runConfig,
       flowOutputs: store.flowOutputs,

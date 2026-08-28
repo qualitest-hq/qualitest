@@ -69,7 +69,7 @@ export interface GraphNode {
   data: Record<string, unknown>;
 }
 
-/** 节点间有向边（持久化仅允许 id / source / target / label） */
+/** 节点间有向边（持久化仅 id / source / target / label） */
 export interface GraphEdge {
   id: string;
   source: string;

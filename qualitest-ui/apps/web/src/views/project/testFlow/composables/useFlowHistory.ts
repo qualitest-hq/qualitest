@@ -30,7 +30,7 @@ interface CanvasSnapshot {
     source: string;
     target: string;
     label?: string;
-    type?: string;
+    /** condition 出边撤销保真；恢复时优先于 branches[].target 反推 */
     sourceHandle?: string | null;
   }>;
   viewport: GraphViewport;
@@ -64,10 +64,9 @@ function stripEdgeForSnapshot(edge: Edge) {
   if (edge.label != null && String(edge.label).trim()) {
     out.label = String(edge.label).trim();
   }
-  // condition 出边需保留 type 与 sourceHandle，撤销后才能挂回正确分支锚点
-  if (edge.type === 'condition') {
-    out.type = 'condition';
-    out.sourceHandle = edge.sourceHandle ?? null;
+  // condition 出边保留 sourceHandle，撤销后才能挂回正确分支锚点
+  if (edge.type === 'condition' && edge.sourceHandle) {
+    out.sourceHandle = edge.sourceHandle;
   }
   return out;
 }
@@ -80,9 +79,10 @@ function captureStagingUnits(): Record<string, AiStagingUnit> {
 
 /** 深拷贝当前画布拓扑、视口、运行场景与 Staging 单元 */
 function captureSnapshot(store: ReturnType<typeof useFlowCanvasStore>): CanvasSnapshot {
+  const edgeSource = store.getEffectiveEdges();
   return {
     nodes: store.nodes.map(stripNodeForSnapshot),
-    edges: store.edges.map(stripEdgeForSnapshot),
+    edges: edgeSource.map(stripEdgeForSnapshot),
     viewport: normalizeViewport({ ...store.viewport }),
     runConfig: JSON.parse(JSON.stringify(store.runConfig)) as GraphScenarioConfig,
     stagingUnits: captureStagingUnits(),
@@ -104,13 +104,7 @@ async function applySnapshot(store: ReturnType<typeof useFlowCanvasStore>, snap:
   }
   store.selected = null;
   await nextTick();
-  store.flushPendingEdges();
-  await nextTick();
-  if (store.pendingEdges?.length && store.edges.length === 0) {
-    store.flushPendingEdges();
-  } else if (store.edges.length > 0) {
-    store.pendingEdges = null;
-  }
+  await store.ensureEdgesHydrated();
   await reconcileFlowDirtyState(store);
 
   // 恢复快照中的 Staging 单元状态（pending / confirmed / rejected 等）

@@ -25,7 +25,7 @@ import { ElMessage } from 'element-plus'
 import useAppStore from '@/store/modules/app'
 
 import FlowCanvasLayout from '../testFlow/FlowCanvasLayout.vue'
-import { fromGraphJson, toGraphJson } from '../testFlow/graphAdapter'
+import { fromGraphJson, rehydrateCanvasSnapshot, toGraphJson } from '../testFlow/graphAdapter'
 import { useFlowHistory } from '../testFlow/composables/useFlowHistory'
 import {
   applyAdaptedGraphToStore,
@@ -38,7 +38,14 @@ import { validateGraphJson } from '@/utils/flow/graphValidate'
 
 import { useTemplateFlowDraftStore } from './stores/templateFlowDraftStore'
 import { synthesizeTemplateApiCatalog } from './utils/synthesizeTemplateApiTree'
-import { parseJsonMaybe } from './utils/templateForm'
+import { parseJsonMaybe, validateTemplateGraphApiBindings, partitionTemplateParams, mergeFlowSeedFromTemplateParams } from './utils/templateForm'
+import { ensureTemplateApiIds } from './utils/templateApiId'
+import {
+  hydrateTemplateFlowGraph,
+  isLoginFlowSkeleton,
+  LOGIN_FLOW_VIEWPORT,
+  recoverLoginFlowEdgesIfMissing,
+} from './utils/templateCanvasHydrate'
 
 const route = useRoute()
 const router = useRouter()
@@ -68,7 +75,7 @@ async function handleSave() {
   await store.ensureEdgesHydrated()
   const graph = toGraphJson({
     nodes: store.nodes,
-    edges: store.edges,
+    edges: store.getEffectiveEdges(),
     viewport: store.viewport,
     runConfig: store.runConfig,
     flowOutputs: store.flowOutputs,
@@ -77,6 +84,11 @@ async function handleSave() {
   const validation = validateGraphJson(graph)
   if (!validation.ok) {
     ElMessage.error(validation.errors[0] ?? '图校验失败')
+    return
+  }
+  const bindCheck = validateTemplateGraphApiBindings(graph, store.templateApiCatalog)
+  if (!bindCheck.ok) {
+    ElMessage.error(bindCheck.message)
     return
   }
   const ok = draftStore.saveFlowGraph(flowIndex.value, graph, {
@@ -102,6 +114,51 @@ function onBeforeUnload(event) {
   event.returnValue = ''
 }
 
+/** 空 flowSeed 时灌入 templateParams 的 flow 初值（同名不覆盖） */
+function hydrateFlowSeedFromTemplateParams(templateParams) {
+  const { flow } = partitionTemplateParams(templateParams)
+  if (!flow.length) return
+  const scenarios = store.runConfig?.scenarios
+  if (!Array.isArray(scenarios) || !scenarios.length) return
+  const activeId = store.runConfig.activeScenarioId
+  const scenario = scenarios.find((s) => s.id === activeId) || scenarios[0]
+  if (!scenario) return
+  const { seed, changed } = mergeFlowSeedFromTemplateParams(scenario.flowSeed, flow)
+  if (changed) scenario.flowSeed = seed
+}
+
+function stripNodeForDraft(node) {
+  return {
+    id: node.id,
+    type: node.type,
+    position: { x: node.position?.x ?? 0, y: node.position?.y ?? 0 },
+    data: JSON.parse(JSON.stringify(node.data ?? {})),
+  }
+}
+
+function stripEdgeForDraft(edge) {
+  const out = { id: edge.id, source: edge.source, target: edge.target }
+  const label = edge.label != null ? String(edge.label).trim() : ''
+  if (label) out.label = label
+  if (edge.sourceHandle) out.sourceHandle = edge.sourceHandle
+  return out
+}
+
+/** 灌入后 store.edges 可能仍在 pending，取当前可用边列表 */
+function resolveLoadedEdges(adaptedEdges) {
+  if (store.edges.length) return store.edges
+  if (store.pendingEdges?.length) return store.pendingEdges
+  return adaptedEdges
+}
+
+async function applyHydratedGraphDraft(graphDraft) {
+  const { nodes, edges } = rehydrateCanvasSnapshot(graphDraft.nodes, graphDraft.edges)
+  store.setPendingEdges(edges)
+  store.nodes = nodes
+  store.edges = []
+  await store.ensureEdgesHydrated()
+}
+
 async function initFromDraft() {
   const draft = draftStore.getDraft()
   const idx = Number(route.params.flowIndex)
@@ -119,10 +176,15 @@ async function initFromDraft() {
   }
 
   store.reset()
-  store.canvasMode = 'template'
   store.templateReadOnly = draft.dialogMode === 'view'
-  const { tree, catalog } = synthesizeTemplateApiCatalog(draft.form.templateApis || [])
+  const { apis: ensuredApis, changed: apisChanged } = ensureTemplateApiIds(draft.form.templateApis || [])
+  if (apisChanged) {
+    draftStore.patchForm({ templateApis: ensuredApis })
+    draft.form.templateApis = ensuredApis
+  }
+  const { tree, catalog } = synthesizeTemplateApiCatalog(ensuredApis)
   store.setTemplateApiContext(tree, catalog)
+  store.setTemplateParamContext(draft.form.templateParams || [])
 
   const flow = flows[flowIndex.value] || {}
   const templateId = String(draft.templateId || 'new')
@@ -134,9 +196,35 @@ async function initFromDraft() {
   store.loading = true
   store.beginCanvasHydration()
   try {
-    const raw = parseJsonMaybe(flow.graphJson) ?? flow.graphJson ?? null
-    const adapted = fromGraphJson(raw)
+    const rawGraph = parseJsonMaybe(flow.graphJson) ?? flow.graphJson ?? null
+    if (rawGraph && typeof rawGraph === 'object' && !Array.isArray(rawGraph)) {
+      rawGraph.edges = recoverLoginFlowEdgesIfMissing(rawGraph.nodes, rawGraph.edges)
+    }
+    const adapted = fromGraphJson(rawGraph)
     await applyAdaptedGraphToStore(store, adapted)
+    const graphDraft = {
+      nodes: store.nodes.map(stripNodeForDraft),
+      edges: resolveLoadedEdges(adapted.edges).map(stripEdgeForDraft),
+    }
+    const hydrated = hydrateTemplateFlowGraph(graphDraft, catalog)
+    if (hydrated) {
+      await applyHydratedGraphDraft(graphDraft)
+    }
+    if (isLoginFlowSkeleton(store.nodes)) {
+      store.viewport = { ...LOGIN_FLOW_VIEWPORT }
+    }
+    if (hydrated) {
+      const graph = toGraphJson({
+        nodes: store.nodes,
+        edges: store.getEffectiveEdges(),
+        viewport: store.viewport,
+        runConfig: store.runConfig,
+        flowOutputs: store.flowOutputs,
+        stagingFilter: stagingStore.buildPersistFilter(),
+      })
+      draftStore.saveFlowGraph(flowIndex.value, graph, { flowName: store.flowName })
+    }
+    hydrateFlowSeedFromTemplateParams(draft.form.templateParams || [])
     store.markClean()
     scheduleHistoryReset()
     await finalizeCanvasHistoryBaseline(store, resetHistory)

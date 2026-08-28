@@ -1,21 +1,23 @@
 /**
  * 将模板 templateApis 合成 HttpConfigModal / AI 可用的 API 树与目录。
- * 合成 id 形如 tpl-0（无真实 testProjectApiId）。
+ * 合成 id 读行上 testProjectApiId；缺则 ensure 后生成稳定 tpl_*。
  */
 import { resolveApiMethod } from './templateForm'
+import { ensureTemplateApiIds, resolveTemplateApiId } from './templateApiId'
 
 /**
  * @param {unknown[]} templateApis
  * @returns {{ tree: object[], catalog: Array<{ syntheticId: string, api: object }> }}
  */
 export function synthesizeTemplateApiCatalog(templateApis) {
+  const { apis: list } = ensureTemplateApiIds(Array.isArray(templateApis) ? templateApis : [])
   const catalog = []
-  const list = Array.isArray(templateApis) ? templateApis : []
-  list.forEach((api, index) => {
+  list.forEach((api) => {
     if (!api || typeof api !== 'object') return
     const path = String(api.apiPath || '').trim()
     if (!path) return
-    const syntheticId = `tpl-${index}`
+    const syntheticId = resolveTemplateApiId(api)
+    if (!syntheticId) return
     catalog.push({
       syntheticId,
       api: {

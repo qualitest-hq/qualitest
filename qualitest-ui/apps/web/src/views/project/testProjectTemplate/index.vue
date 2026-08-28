@@ -344,6 +344,7 @@
             :read-only="isReadonlyForm"
             :template-apis="form.templateApis"
             @open-canvas="handleOpenFlowCanvas"
+            @update:template-apis="form.templateApis = $event"
           />
         </el-form-item>
       </el-form>

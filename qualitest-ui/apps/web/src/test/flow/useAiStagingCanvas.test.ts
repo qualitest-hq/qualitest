@@ -76,10 +76,10 @@ describe('applyStagingCanvasToStore', () => {
     expect(store.stagingEdgeFlushToken).toBeGreaterThan(0);
   });
 
-  /** 端点节点尚不存在时，flushPendingEdges 应失败并保留 pending。 */
+  /** 端点未就绪时 bump 不清空 pendingEdges。 */
   it('端点未就绪时保留 pendingEdges', async () => {
     // 前提：pendingEdges 端点节点尚未在 nodes 中
-    // 期望：flush 失败，pending 保留且 edges 仍为空
+    // 期望：bump 后 pending 保留且 edges 仍为空
     const store = useFlowCanvasStore();
 
     store.setPendingEdges([
@@ -87,7 +87,7 @@ describe('applyStagingCanvasToStore', () => {
     ]);
     store.nodes = [];
 
-    expect(store.flushPendingEdges()).toBe(false);
+    store.bumpStagingEdgeFlushToken();
     expect(store.pendingEdges).not.toBeNull();
     expect(store.edges).toHaveLength(0);
   });

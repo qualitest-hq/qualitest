@@ -14,6 +14,10 @@ import {
   parseAssetVarKeys,
   parseEnvVarKeys,
 } from './useProjectVariables';
+import {
+  templateAssetMentionItems,
+  templateFlowMentionItems,
+} from '../../testProjectTemplate/utils/templateParamUtils';
 import type {
   AiDesignMention,
   ComposerDoc,
@@ -461,6 +465,7 @@ const MENTION_PROVIDERS: MentionProvider[] = [
         ?? store.runConfig.scenarios?.[0];
 
       if (varSubtype === 'flow') {
+        const seedKeys = new Set(Object.keys(scenario?.flowSeed ?? {}));
         items = Object.keys(scenario?.flowSeed ?? {}).map((key) => ({
           type: 'var',
           subtype: 'flow',
@@ -468,40 +473,71 @@ const MENTION_PROVIDERS: MentionProvider[] = [
           label: `flow.${key}`,
           detail: '运行场景初值',
         }));
+        if (store.canvasMode === 'template') {
+          items.push(
+            ...templateFlowMentionItems(store.templateParamContext?.flow || [], seedKeys).map((row) => ({
+              type: 'var' as const,
+              subtype: 'flow' as const,
+              id: row.id,
+              label: row.label,
+              detail: row.detail,
+            })),
+          );
+        }
       } else if (varSubtype === 'env') {
-        const envId = scenario?.testProjectEnvId;
-        if (envId && store.testProjectId) {
+        if (store.canvasMode === 'template') {
+          items = (store.templateParamContext?.env || []).map((row) => ({
+            type: 'var' as const,
+            subtype: 'env' as const,
+            id: row.name,
+            label: `env.${row.name}`,
+            detail: row.remark || '模板 env',
+          }));
+        } else {
+          const envId = scenario?.testProjectEnvId;
+          if (envId && store.testProjectId) {
+            try {
+              const { getTestProjectEnv } = await import('@/api/project/testProjectEnv');
+              const res = await getTestProjectEnv(envId);
+              const row = (res as { data?: Record<string, unknown> })?.data ?? res;
+              items = parseEnvVarKeys(row?.envVariables).map((key) => ({
+                type: 'var',
+                subtype: 'env',
+                id: key,
+                label: `env.${key}`,
+                envId: String(envId),
+                detail: '环境变量',
+              }));
+            } catch {
+              items = [];
+            }
+          }
+        }
+      } else if (varSubtype === 'asset') {
+        if (store.canvasMode === 'template') {
+          items = templateAssetMentionItems(store.templateParamContext?.asset || []).map((row) => ({
+            type: 'var' as const,
+            subtype: 'asset' as const,
+            id: row.id,
+            label: row.label,
+            detail: row.detail,
+          }));
+        } else if (store.testProjectId) {
           try {
-            const { getTestProjectEnv } = await import('@/api/project/testProjectEnv');
-            const res = await getTestProjectEnv(envId);
-            const row = (res as { data?: Record<string, unknown> })?.data ?? res;
-            items = parseEnvVarKeys(row?.envVariables).map((key) => ({
-              type: 'var',
-              subtype: 'env',
-              id: key,
-              label: `env.${key}`,
-              envId: String(envId),
-              detail: '环境变量',
-            }));
+            const rows = await fetchProjectAssetRows(store.testProjectId);
+            items = rows.flatMap((row) => {
+              const assetKey = String(row.assetKey ?? row.key ?? '').trim();
+              return parseAssetVarKeys(row.assetVariables ?? row.assets).map((key) => ({
+                type: 'var',
+                subtype: 'asset',
+                id: assetKey ? `${assetKey}.${key}` : key,
+                label: assetKey ? `asset.${assetKey}.${key}` : `asset.${key}`,
+                detail: String(row.remark ?? row.assetName ?? '素材变量'),
+              }));
+            });
           } catch {
             items = [];
           }
-        }
-      } else if (varSubtype === 'asset' && store.testProjectId) {
-        try {
-          const rows = await fetchProjectAssetRows(store.testProjectId);
-          items = rows.flatMap((row) => {
-            const assetKey = String(row.assetKey ?? row.key ?? '').trim();
-            return parseAssetVarKeys(row.assetVariables ?? row.assets).map((key) => ({
-              type: 'var',
-              subtype: 'asset',
-              id: assetKey ? `${assetKey}.${key}` : key,
-              label: assetKey ? `asset.${assetKey}.${key}` : `asset.${key}`,
-              detail: String(row.remark ?? row.assetName ?? '素材变量'),
-            }));
-          });
-        } catch {
-          items = [];
         }
       }
       return filterByQuery(items, query, ['label', 'detail']);

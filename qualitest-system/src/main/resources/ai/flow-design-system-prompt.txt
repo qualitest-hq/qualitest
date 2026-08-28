@@ -69,7 +69,7 @@
 - 字段：addNodes, updateNodes, addEdges, updateEdges, suggestedDeletes, scenarioPatch, summary
 - **原子变更包**（同轮须自洽）：
   - addEdge 的 source/target 须已在画布或本轮 addNodes
-  - condition：addEdges 与 `branches[].target` 同时给出，branchId 与 sourceHandle 一致
+  - condition：addEdges 与 `branches[].target` 同时给出，edge.target 须与对应分支 target 一致
   - updateNodes 中 rules / branches / extracts 等数组须交**完整数组**
   - 删节点时 suggestedDeletes 尽量带上孤立边（或依赖系统级联）
 - 空画布：addNodes/addEdges 搭线性链，position.x 步进约 380

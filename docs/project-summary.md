@@ -89,7 +89,7 @@ IDEA 插件上传接口
 | 概念                      | 要点                                                                          |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `test_project_template` | 一行模板 = 一条 Profile；内置 RuoYi Bearer / Session、客户端 Bearer、管理端 Bearer           |
-| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**）；可选种子 `templateParams`（flow→场景 flowSeed / env→环境变量 / asset→素材库）与 `templateFlows`（同名流跳过）；托管头与 `credentialApi` 从登录流 extracts **派生**（不再写 `loginHint`） |
+| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**）；可选种子 `templateParams`（flow→场景 flowSeed / env→环境变量 / asset→素材库）与 `templateFlows`（同名流跳过；HTTP 合成 `tpl_*` **remap** 为项目 apiId，legacy 仅 path 仍按 method+path 绑）；托管头与 `credentialApi` 从登录流 extracts **派生**（不再写 `loginHint`） |
 | 新建项目                    | **至少勾一套**；商城双端建议先「管理端 Bearer」再「客户端 Bearer」                                  |
 | 免登                      | 认预制 `apis[].authConfig.mode=none`；**不再**维护项目级匿名 path 清单                     |
 | 空配置                     | 才暂留 builtin `/login` 等启发式；有 Profile 但 apis 空 → 设置页黄条提示补模板                   |
@@ -120,7 +120,7 @@ IDEA 插件上传接口
 | 管理端 | `/login`                  | `$.token` → `asset.adminAuth.token`       |
 
 
-- **同端**：开头只登录一次（或挂登录子流），后续靠托管 Bearer 复用 `asset.*`（HTTP 成功后 extract 落盘，跨 Run 可探活）。
+- **同端**：开头只登录一次（或挂登录子流），后续靠托管 Bearer 复用 `asset.*`（HTTP 成功后 extract 落盘，跨 Run 可探活）。内置预制登录流为 **探活再登录**：`statusCheck.whitelist [200,401]` 探活 + Condition，有效则跳过登录。
 - **双端同图**：两套登录、两套 extracts；**禁止**覆盖同一凭证路径（硬拦 `AUTH_LOGIN_FLOWKEY_COLLISION`）。
 - **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（AI submit / Staging / 保存）。托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。
 - 画布顶栏「刷新鉴权头」、HTTP 节点凭证行提示；Run 鉴权失败可用「AI 修复」。

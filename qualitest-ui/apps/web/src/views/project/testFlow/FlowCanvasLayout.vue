@@ -276,6 +276,7 @@ import { NODE_REGISTRY, getRegisteredNodeTypes } from './constants/nodeRegistry'
 import { FLOW_VUE_FLOW_ID } from './constants/flowConfig'
 import { useAiDesign } from './composables/useAiDesign'
 import { useFlowConnect } from './composables/useFlowConnect'
+import { useFlowNodeInternalsRefresh } from './composables/useFlowNodeInternalsRefresh'
 import { useFlowDelete } from './composables/useFlowDelete'
 import { useFlowHistory } from './composables/useFlowHistory'
 import { useFlowKeyboard } from './composables/useFlowKeyboard'
@@ -355,6 +356,7 @@ const {
   handleRefreshToken,
 } = useProjectSettingDrawer(() => proxy)
 const { onConnect, onEdgesChange } = useFlowConnect()
+const { refreshAllNodeInternals } = useFlowNodeInternalsRefresh()
 const { canUndo, undo, pushHistory, commitHistoryResetIfPending } = useFlowHistory()
 /** 画布视口控制器，供节点初始化后与 Staging 首次进入时恢复/聚焦视角 */
 const viewport = useFlowViewport()
@@ -555,14 +557,15 @@ function onGraphChange() {
 
 /**
  * Vue Flow 节点初始化完成后的收尾：
- * 灌入待处理边 → 建立撤销基线 → 结束灌入模式 → 恢复 store 视口 → 刷新已保存快照。
+ * 刷新 handle → 灌入待处理边 → 建立撤销基线 → 结束灌入模式 → 恢复视口。
  */
 async function onNodesInitialized() {
-  store.flushPendingEdges()
   commitHistoryResetIfPending()
   store.endCanvasHydration()
   await nextTick()
-  // 节点就绪后把 store 视口写回 Vue Flow，防止灌图过程中视口被内部重置
+  refreshAllNodeInternals(store.nodes.map((n) => n.id))
+  await nextTick()
+  await store.ensureEdgesHydrated()
   await viewport.restoreFromStore()
   await refreshSavedBaselineIfPristine(store)
 }

@@ -22,12 +22,22 @@
           <div class="cond-case__desc">用于定义当 IF / ELIF 条件均不满足时应执行的逻辑。</div>
         </template>
         <template v-else>
+          <label class="cond-case__terminal">
+            <input
+                :checked="branch.terminal === true"
+                type="checkbox"
+                @change="toggleTerminal(branch.id, $event.target.checked)"
+            />
+            <span>结束流程（不连线）</span>
+          </label>
           <DebugAssertEditor
+              v-if="!branch.terminal"
               :model-value="branch.conditions || []"
               :trial-body="trialBody"
               :trial-source="trialSource"
               @update:model-value="(val) => updateBranchConditions(branch.id, val)"
           />
+          <div v-else class="cond-case__desc">命中此分支后子流正常结束，无需连接下游节点。</div>
         </template>
       </div>
     </div>
@@ -62,6 +72,7 @@ import {
   canAddElifBranch,
   createElifBranchId,
   getConditionBranches,
+  setBranchTerminal,
 } from '../../utils/conditionUtils'
 
 const props = defineProps({
@@ -110,6 +121,18 @@ function removeElifBranch(branchId) {
 
   const next = branches.value.filter((b) => b.id !== branchId).map((b) => ({ ...b }))
   patchNodeData(props.node.id, { branches: next })
+}
+
+/** 切换 IF/ELIF 分支为结束流程；开启时移除该分支出边 */
+function toggleTerminal(branchId, terminal) {
+  const data = { ...props.node.data }
+  if (!setBranchTerminal(data, branchId, terminal)) return
+  if (terminal) {
+    store.edges = store.edges.filter(
+      (e) => !(e.source === props.node.id && e.sourceHandle === `out-${branchId}`),
+    )
+  }
+  patchNodeData(props.node.id, { branches: data.branches })
 }
 </script>
 
@@ -160,6 +183,20 @@ function removeElifBranch(branchId) {
   font-size: 12px;
   color: var(--pd-text-muted);
   line-height: 1.6;
+}
+
+.cond-case__terminal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--pd-text);
+  cursor: pointer;
+
+  input {
+    margin: 0;
+  }
 }
 
 .cond-add-elif {

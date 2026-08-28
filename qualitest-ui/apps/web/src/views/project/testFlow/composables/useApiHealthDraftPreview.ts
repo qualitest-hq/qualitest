@@ -54,8 +54,12 @@ export function useApiHealthDraftPreview(testFlowId: Ref<string>) {
    */
   async function runPreview() {
     clearTimer()
+    if (store.canvasMode === 'template') {
+      apiHealth.clear()
+      return
+    }
     const id = String(testFlowId.value || store.testFlowId || '').trim()
-    if (!id) {
+    if (!id || id.startsWith('tpl-')) {
       apiHealth.clear()
       return
     }
@@ -85,7 +89,9 @@ export function useApiHealthDraftPreview(testFlowId: Ref<string>) {
     ],
     () => {
       if (suspended) return
-      if (!String(testFlowId.value || '').trim()) return
+      if (store.canvasMode === 'template') return
+      const id = String(testFlowId.value || store.testFlowId || '').trim()
+      if (!id || id.startsWith('tpl-')) return
       schedulePreview()
     },
     { deep: true },

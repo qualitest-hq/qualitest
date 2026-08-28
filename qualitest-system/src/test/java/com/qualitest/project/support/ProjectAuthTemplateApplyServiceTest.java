@@ -309,6 +309,8 @@ class ProjectAuthTemplateApplyServiceTest {
         assertEquals("RuoYi Bearer 登录", flowCap.getValue().getFlowName());
         assertTrue(flowCap.getValue().getGraphJson().contains("$.token"));
         assertTrue(flowCap.getValue().getGraphJson().contains("adminAuth"));
+        assertTrue(flowCap.getValue().getGraphJson().contains("probe_http")
+                || flowCap.getValue().getGraphJson().contains("statusCheck"));
     }
 
     private void stubEmptyProject() {

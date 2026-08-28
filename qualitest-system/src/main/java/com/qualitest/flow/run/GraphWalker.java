@@ -8,6 +8,7 @@ import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepResult;
+import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
 import com.qualitest.flow.validate.FlowNodeType;
 
 import java.util.ArrayList;
@@ -156,7 +157,8 @@ public class GraphWalker {
 
     /**
      * 从 condition 步骤结果的 branchTaken 反查 branches[].target。
-     * target 为空、节点不存在或 branchId 无匹配时抛 FlowExecutionException。
+     * target 为空、节点不存在或 branchId 无匹配时抛 FlowExecutionException；
+     * {@code terminal} 分支返回 null 表示流程结束。
      */
     private String resolveConditionTarget(GraphNode node, StepResult stepResult) {
         if (stepResult == null || stepResult.getBranchTaken() == null) {
@@ -190,6 +192,9 @@ public class GraphWalker {
             }
             if (!branchId.equals(branch.getString("id"))) {
                 continue;
+            }
+            if (ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
+                return null;
             }
             String target = branch.getString("target");
             if (target == null || target.isBlank()) {
