@@ -9,7 +9,7 @@
     </div>
     <div class="tpl-prefab-section__body">
       <p v-if="!readOnly" class="tpl-prefab-section__hint">
-        登录等测试流可在此维护；勾选模板时种子到项目，extracts 用于派生托管头与 credentialApi。
+        勾选时种子到项目；登录流的抽取会派生托管头。
       </p>
       <el-table
         v-if="rows.length"
@@ -21,10 +21,12 @@
         size="small"
         @current-change="onCurrentChange"
       >
-        <el-table-column label="流名称" min-width="140" prop="flowName" show-overflow-tooltip />
-        <el-table-column label="方法" prop="method" width="72" />
-        <el-table-column label="路径" min-width="140" prop="apiPath" show-overflow-tooltip />
-        <el-table-column label="抽取" min-width="160" prop="extractLabel" show-overflow-tooltip />
+        <el-table-column label="流名称" min-width="160" prop="flowName" show-overflow-tooltip />
+        <el-table-column label="说明" min-width="220" prop="description" show-overflow-tooltip>
+          <template #default="scope">
+            {{ scope.row.description || '—' }}
+          </template>
+        </el-table-column>
         <el-table-column align="center" label="操作" width="100">
           <template #default="scope">
             <el-button link type="primary" @click.stop="openCanvas(scope.row._index)">
@@ -49,11 +51,7 @@
  * 主操作「打开画布」进入完整画布；小 Dialog 已去掉，避免双通道。
  */
 import { computed, ref, watch } from 'vue'
-import {
-  emptyPrefabFlow,
-  parseFlows,
-  summarizePrefabFlow,
-} from '../utils/templateForm'
+import { emptyPrefabFlow, parseFlows } from '../utils/templateForm'
 
 const props = defineProps({
   /** 同模板预制接口，供画布合成 API 树（由父级写入草稿）。 */
@@ -73,7 +71,8 @@ const flows = computed(() => parseFlows(list.value))
 const rows = computed(() =>
   flows.value.map((flow, index) => ({
     _index: index,
-    ...summarizePrefabFlow(flow),
+    flowName: String(flow?.flowName || '').trim(),
+    description: String(flow?.description || '').trim(),
   })),
 )
 

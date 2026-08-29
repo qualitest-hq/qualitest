@@ -1,13 +1,16 @@
 <template>
-  <div class="variable-entry-sheet-wrap" :class="wrapClass">
+  <div
+      class="variable-entry-sheet-wrap"
+      :class="[wrapClass, { 'is-readonly': readOnly }]"
+  >
     <DebugKvSheet
         v-if="rows.length"
         :rows="rows"
         bordered-editable-fields
         :disable-value-for-composite-types="true"
-        :enable-file-upload-for-file-type="true"
-        :persist-file-upload="true"
-        :show-add-child-for-composite="true"
+        :enable-file-upload-for-file-type="enableFileUpload"
+        :persist-file-upload="persistFileUpload"
+        :show-add-child-for-composite="!readOnly"
         remark-expandable
         :show-remark-column="showRemarkColumn"
         :show-type-column="true"
@@ -17,9 +20,9 @@
         :name-placeholder="namePlaceholder"
         remark-placeholder="备注说明"
         value-label="value"
-        value-placeholder="value 或选择文件"
-        @add-child="(idx) => emit('add-child', idx)"
-        @remove="(idx) => emit('remove', idx)"
+        :value-placeholder="valuePlaceholder"
+        @add-child="onAddChild"
+        @remove="onRemove"
     >
       <template #type="{ row }">
         <DebugParamTypeCell
@@ -31,7 +34,7 @@
             :teleported="true"
             :type-class-fn="paramTypeSelectClass"
             :type-options="VARIABLE_ENTRY_PARAM_TYPES"
-            @type-change="emit('type-change', row)"
+            @type-change="onTypeChange(row)"
         />
       </template>
     </DebugKvSheet>
@@ -46,7 +49,7 @@
 <script setup>
 /**
  * 变量条目（素材库 / 环境变量）扁平行编辑表。
- * file 类型开启选文件并上传落盘：value 存存储路径，保存时写成 { type, fileName, storagePath }。
+ * 默认 file 类型可上传落盘；模板预制等场景可关上传。
  */
 import DebugKvSheet from './DebugKvSheet.vue'
 import DebugParamTypeCell from './DebugParamTypeCell.vue'
@@ -55,7 +58,7 @@ import {
   VARIABLE_ENTRY_PARAM_TYPES
 } from '@/views/project/testProject/utils/variableEntryUtils'
 
-defineProps({
+const props = defineProps({
   rows: {
     type: Array,
     default: () => []
@@ -87,10 +90,44 @@ defineProps({
   typePopperClass: {
     type: String,
     default: 'variable-entry-type-select-popper'
+  },
+  /** 是否允许 file 类型选文件上传；模板预制等无 projectId 场景应关闭。 */
+  enableFileUpload: {
+    type: Boolean,
+    default: true
+  },
+  /** 选文件后是否走平台上传落盘。 */
+  persistFileUpload: {
+    type: Boolean,
+    default: true
+  },
+  valuePlaceholder: {
+    type: String,
+    default: 'value 或选择文件'
+  },
+  /** 只读：禁止增删改交互（查看内置模板）。 */
+  readOnly: {
+    type: Boolean,
+    default: false
   }
 })
 
 const emit = defineEmits(['add-child', 'remove', 'type-change'])
+
+function onAddChild(idx) {
+  if (props.readOnly) return
+  emit('add-child', idx)
+}
+
+function onRemove(idx) {
+  if (props.readOnly) return
+  emit('remove', idx)
+}
+
+function onTypeChange(row) {
+  if (props.readOnly) return
+  emit('type-change', row)
+}
 </script>
 
 <style lang="scss" scoped>
@@ -112,6 +149,14 @@ const emit = defineEmits(['add-child', 'remove', 'type-change'])
 
   :deep(.debug-kv-sheet) {
     border-radius: var(--pd-radius, 10px);
+  }
+
+  &.is-readonly {
+    pointer-events: none;
+
+    :deep(.debug-kv-cell--action) {
+      visibility: hidden;
+    }
   }
 }
 

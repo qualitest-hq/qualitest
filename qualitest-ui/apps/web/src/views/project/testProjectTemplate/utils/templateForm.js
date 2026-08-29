@@ -80,17 +80,17 @@ export function emptyPrefabricatedApi() {
 }
 
 /**
- * 新建一条预制参数：flow / env / asset 之一。
+ * 新建一条预制参数：env / asset（默认 asset）；kind=flow 仅兼容存量，面板不再新建。
  * @param {'flow'|'env'|'asset'} kind
  */
-export function emptyPrefabParam(kind = 'flow') {
+export function emptyPrefabParam(kind = 'asset') {
   if (kind === 'env') {
     return { kind: 'env', name: '', value: '', remark: '' }
   }
-  if (kind === 'asset') {
-    return { kind: 'asset', name: '', value: '', remark: '' }
+  if (kind === 'flow') {
+    return { kind: 'flow', name: '', value: '', remark: '' }
   }
-  return { kind: 'flow', name: '', value: '', remark: '' }
+  return { kind: 'asset', name: '', value: '', remark: '' }
 }
 
 /** 按 method + apiPath 在 templateApis 中查找预制口。 */
@@ -477,32 +477,6 @@ export function formatPathPrefixHint(matchConfig) {
   const list = listPathPrefixes(matchConfig)
   if (!list.length) return ''
   return '匹配 ' + list.join('、')
-}
-
-/** 预制测试流摘要：流名 + 首个 HTTP 节点的方法 / 路径 / 抽取标签。 */
-export function summarizePrefabFlow(flow) {
-  const graph = parseJsonMaybe(flow?.graphJson) || flow?.graphJson || {}
-  const node = Array.isArray(graph?.nodes) ? graph.nodes.find((n) => n?.type === 'http') : null
-  const data = node?.data || {}
-  const extract = Array.isArray(data.extracts) && data.extracts[0] ? data.extracts[0] : null
-  let extractTarget = ''
-  if (extract) {
-    const scope = String(extract.scope || 'flow').trim().toLowerCase()
-    if (scope === 'asset' && extract.entryKey) {
-      const field = extract.fieldPath || extract.name || ''
-      extractTarget = field ? `asset.${extract.entryKey}.${field}` : `asset.${extract.entryKey}`
-    } else if (extract.name) {
-      extractTarget = `${scope || 'flow'}.${extract.name}`
-    }
-  }
-  return {
-    flowName: String(flow?.flowName || '').trim(),
-    method: String(data.httpMethod || 'POST').trim().toUpperCase(),
-    apiPath: String(data.apiPath || '').trim(),
-    extractLabel: extract
-      ? `${extract.expr || ''} → ${extractTarget || '—'}`
-      : '—',
-  }
 }
 
 /** 空模板表单（新增抽屉初始值）。 */

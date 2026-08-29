@@ -52,9 +52,8 @@ public class TestProjectTemplate extends BaseEntity {
 
     /**
      * 预制参数 JSON 数组（可空，缺省按 []）。
-     * kind=flow：叠进种子流默认场景 flowSeed；
-     * kind=env：合并进项目环境 envVariables；
-     * kind=asset：合并进项目素材库 asset_variables。
+     * 面板主路径为 kind=env（环境变量）与 kind=asset（素材库）；
+     * kind=flow 仍兼容：叠进种子流默认场景 flowSeed（仅调试用，勿塞口令）。
      */
     private String templateParams;
 
