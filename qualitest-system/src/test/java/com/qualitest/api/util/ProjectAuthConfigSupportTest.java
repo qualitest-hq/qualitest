@@ -307,7 +307,7 @@ class ProjectAuthConfigSupportTest {
                   "credentialApi":{"method":"POST","path":"/login"},
                   "loginHint":{"flowKey":"token","from":"body","expr":"$.token"},
                   "apis":[{
-                    "apiName":"登录","apiPath":"/login","apiGroup":"系统.登录",
+                    "apiName":"登录","apiPath":"/login","apiGroup":"管理端.系统.登录",
                     "protocolType":"http","apiStatus":"normal",
                     "apiDescription":"管理端登录",
                     "requestConfig":{"configVersion":1,"method":"POST"},

@@ -157,7 +157,7 @@
             </el-col>
             <el-col :span="12">
               <el-form-item label="分组">
-                <el-input v-model="selectedApi.apiGroup" placeholder="如 系统.登录" />
+                <el-input v-model="selectedApi.apiGroup" placeholder="如 管理端.系统.登录" />
               </el-form-item>
             </el-col>
             <el-col :span="12">

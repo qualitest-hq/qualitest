@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * 按父分组和名称查找或创建 API 分组。
- * 分组名带点号时逐级创建，如 系统.登录。
+ * 分组名带点号时逐级创建，如 管理端.系统.登录。
  */
 public final class TestProjectApiGroupResolveSupport {
 

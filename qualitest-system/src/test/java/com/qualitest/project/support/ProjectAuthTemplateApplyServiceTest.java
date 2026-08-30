@@ -393,7 +393,7 @@ class ProjectAuthTemplateApplyServiceTest {
 
     private static String fullLoginPrefabApis() {
         return """
-                [{"apiName":"登录","apiPath":"/login","apiGroup":"系统.登录",
+                [{"apiName":"登录","apiPath":"/login","apiGroup":"管理端.系统.登录",
                   "protocolType":"http","apiStatus":"normal",
                   "apiDescription":"管理端登录",
                   "requestConfig":{"configVersion":1,"method":"POST"},

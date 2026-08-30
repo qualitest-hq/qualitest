@@ -121,7 +121,7 @@ public class ProjectAuthConfig implements Serializable {
         /** 接口路径。 */
         private String apiPath;
 
-        /** 分组名，可用点号表示多级，如 系统.登录。 */
+        /** 分组名，可用点号表示多级，如 管理端.系统.登录。 */
         private String apiGroup;
 
         /** 协议，默认 http。 */

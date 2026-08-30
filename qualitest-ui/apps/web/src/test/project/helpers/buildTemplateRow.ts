@@ -8,7 +8,7 @@ export function buildLoginApi(overrides: Record<string, unknown> = {}) {
   return {
     apiName: '登录',
     apiPath: '/login',
-    apiGroup: '系统.登录',
+    apiGroup: '管理端.系统.登录',
     requestConfig: { method: 'POST', configVersion: 1 },
     authConfig: { mode: 'none' },
     ...overrides,

@@ -409,17 +409,17 @@ public final class ProjectAuthConfigSupport {
     public static List<PrefabricatedApi> ruoyiBearerApis() {
         List<PrefabricatedApi> apis = new ArrayList<>();
         apis.add(prefabricatedNone(
-                "登录", "/login", "系统.登录", "POST",
+                "登录", "/login", "管理端.系统.登录", "POST",
                 Map.of("username", "", "password", "", "code", "", "uuid", ""),
                 requestBodyTestValue(Map.of("username", "admin", "password", "admin123")),
                 loginResponseConfig(Map.of("code", 200, "msg", "操作成功", "token", "...")),
                 "token 在 $.token，不要写成 $.data.token"));
         apis.add(prefabricatedNone(
-                "注册", "/register", "系统.登录", "POST",
+                "注册", "/register", "管理端.系统.登录", "POST",
                 Map.of("username", "", "password", ""),
                 null, null, null));
         apis.add(prefabricatedNone(
-                "验证码", "/captchaImage", "系统.登录", "GET",
+                "验证码", "/captchaImage", "管理端.系统.登录", "GET",
                 null, null, null, null));
         return apis;
     }
