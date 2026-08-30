@@ -54,9 +54,6 @@
         无匹配参数<br/>可切换分类或清空搜索
       </div>
     </div>
-    <div class="param-lib__foot">
-      点击条目复制 <code>{{ placeholderHint }}</code>；条件分支左值可用不带花括号的 path
-    </div>
   </div>
 </template>
 
