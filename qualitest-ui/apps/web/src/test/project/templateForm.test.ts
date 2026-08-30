@@ -20,6 +20,7 @@ import {
   syncMethodFromRequestConfig,
   templateToForm,
   validateApis,
+  validateEnvs,
   validateParams,
   validatePrompts,
   validateTemplateGraphApiBindings,
@@ -271,13 +272,14 @@ describe('validateTemplateGraphApiBindings', () => {
 })
 
 describe('emptyTemplateForm', () => {
-  it('默认 templateApis/templateParams/templateFlows/templatePrompts 为空数组', () => {
+  it('默认 templateApis/templateParams/templateEnvs/templateFlows/templatePrompts 为空数组', () => {
     // 前提：新增模板
     const form = emptyTemplateForm()
 
-    // 期望：由面板引导用户新增预制口；参数、流、提示词可空
+    // 期望：由面板引导用户新增预制口；参数、环境、流、提示词可空
     expect(form.templateApis).toEqual([])
     expect(form.templateParams).toEqual([])
+    expect(form.templateEnvs).toEqual([])
     expect(form.templateFlows).toEqual([])
     expect(form.templatePrompts).toEqual([])
   })
@@ -316,6 +318,7 @@ describe('templateToForm / formToPayload', () => {
     expect(parsed[0].apiPath).toBe('/login')
     expect(payload.templateName).toBe('测试模板')
     expect(JSON.parse(payload.templateParams)).toEqual([])
+    expect(JSON.parse(payload.templateEnvs)).toEqual([])
     expect(JSON.parse(payload.templateFlows)).toEqual([])
     expect(JSON.parse(payload.templatePrompts)).toEqual([])
     expect(payload.headerName).toBeUndefined()
@@ -354,6 +357,59 @@ describe('templateToForm / formToPayload', () => {
     // 期望：原样字符串，Number() 会变成错误值
     expect(payload.testProjectTemplateId).toBe(snowflake)
     expect(payload.testProjectTemplateId).not.toBe(String(Number(snowflake)))
+  })
+
+  it('存量 kind=env 迁入 templateEnvs，不进 templateParams', () => {
+    const row = buildTemplateRow({
+      templateParams: [
+        { kind: 'asset', name: 'adminAuth', value: { username: 'admin' } },
+        { kind: 'env', name: 'timeout', value: '5000', remark: '毫秒' },
+        { kind: 'flow', name: 'debugToken', value: 'x' },
+      ],
+    })
+
+    const form = templateToForm(row)
+    const payload = formToPayload(form)
+
+    const params = JSON.parse(payload.templateParams)
+    const envs = JSON.parse(payload.templateEnvs)
+    expect(params.map((r) => r.kind).sort()).toEqual(['asset', 'flow'])
+    expect(form.templateParams.some((r) => r.kind === 'env')).toBe(false)
+    expect(envs).toHaveLength(1)
+    expect(envs[0].envVariables).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'timeout',
+          remark: '毫秒',
+        }),
+      ]),
+    )
+  })
+
+  it('round-trip 保留 templateEnvs 名称与 URL', () => {
+    const row = buildTemplateRow({
+      templateEnvs: [
+        {
+          envName: '默认环境',
+          envUrl: 'http://localhost:8081',
+          envVariables: [{ key: 'region', remark: '', assets: { region: 'cn' } }],
+        },
+      ],
+    })
+
+    const form = templateToForm(row)
+    const payload = formToPayload(form)
+
+    expect(form.templateEnvs[0].envUrl).toBe('http://localhost:8081')
+    expect(JSON.parse(payload.templateEnvs)[0]).toMatchObject({
+      envName: '默认环境',
+      envUrl: 'http://localhost:8081',
+    })
+    expect(JSON.parse(payload.templateEnvs)[0].envVariables[0].key).toBe('region')
+  })
+
+  it('validateEnvs 丢掉全空行', () => {
+    expect(validateEnvs([{ envName: '', envUrl: '', envVariables: [] }])).toEqual([])
   })
 
   it('pathPrefix 非法时 formToPayload 失败', () => {

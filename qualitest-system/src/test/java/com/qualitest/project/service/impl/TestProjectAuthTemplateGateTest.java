@@ -54,7 +54,6 @@ class TestProjectAuthTemplateGateTest {
     void insert_emptyAuthWithoutTemplates_rejects() {
         TestProjectServiceImpl service = new TestProjectServiceImpl();
         ReflectionTestUtils.setField(service, "testProjectMapper", testProjectMapper);
-        ReflectionTestUtils.setField(service, "projectAuthTemplateApplyService", applyService);
 
         TestProject blank = new TestProject();
         blank.setProjectName("demo");

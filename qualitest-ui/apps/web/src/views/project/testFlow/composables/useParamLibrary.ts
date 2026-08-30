@@ -94,7 +94,7 @@ export function useParamLibrary() {
     }
   }
 
-  /** 模板画布：用 templateParams 填充 env/asset 预览 */
+  /** 模板画布：用 templateEnvs + 存量 templateParams env 填充预览 */
   function hydrateFromTemplateContext() {
     const ctx = store.templateParamContext;
     if (!ctx) {

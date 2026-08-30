@@ -10,6 +10,8 @@ import com.qualitest.api.util.CredentialTargetSupport;
 import com.qualitest.api.util.CredentialTargetSupport.CredentialExtract;
 import com.qualitest.api.util.CredentialTargetSupport.ManagedHeaderTemplate;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.constant.TestProjectConstants;
+import com.qualitest.project.domain.TestProjectAsset;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -19,9 +21,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 项目模板「预制参数 / 预制测试流 / 预制提示词」解析，以及凭证规则与托管头的派生。
+ * 项目模板「预制参数 / 预制环境 / 预制测试流 / 预制提示词」解析，以及凭证规则与托管头的派生。
  * <p>
- * 预制参数 kind 仅认 flow / env / asset。
+ * 预制参数 kind 仅认 flow / env / asset（env 为存量兼容）。
  * 凭证派生只认预制测试流 extracts（优先 scope=asset）；托管头不存模板表，不再写 loginHint。
  */
 public final class PrefabricatedTemplateExtrasSupport {
@@ -70,6 +72,20 @@ public final class PrefabricatedTemplateExtrasSupport {
         private final Object value;
         /** 备注。 */
         private final String remark;
+    }
+
+    /**
+     * 一条预制环境（名称 + baseUrl + 环境变量条目）。
+     */
+    @Getter
+    @Builder
+    public static class PrefabEnv {
+        /** 环境名称；可空。 */
+        private final String envName;
+        /** 被测 baseUrl。 */
+        private final String envUrl;
+        /** 与项目 env_variables 同形的 JSON 数组字符串。 */
+        private final String envVariablesJson;
     }
 
     /**
@@ -177,6 +193,95 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
+     * 解析预制环境 JSON。
+     * 名称、URL、变量都空的条目跳过；非法 JSON 返回空列表。
+     */
+    public static List<PrefabEnv> parseEnvs(String envsJson) {
+        List<PrefabEnv> out = new ArrayList<>();
+        if (StrUtil.isBlank(envsJson)) {
+            return out;
+        }
+        try {
+            JSONArray arr = JSON.parseArray(envsJson);
+            if (arr == null) {
+                return out;
+            }
+            for (int i = 0; i < arr.size(); i++) {
+                JSONObject row = arr.getJSONObject(i);
+                if (row == null) {
+                    continue;
+                }
+                String envName = StrUtil.trimToNull(row.getString("envName"));
+                String envUrl = StrUtil.trimToNull(row.getString("envUrl"));
+                String varsJson = envVariablesToJson(row.get("envVariables"));
+                boolean hasVars = StrUtil.isNotBlank(varsJson) && !"[]".equals(varsJson.trim());
+                if (envName == null && envUrl == null && !hasVars) {
+                    continue;
+                }
+                out.add(PrefabEnv.builder()
+                        .envName(envName)
+                        .envUrl(envUrl)
+                        .envVariablesJson(varsJson)
+                        .build());
+            }
+        } catch (Exception ignored) {
+            return List.of();
+        }
+        return out;
+    }
+
+    /** envVariables 字段转 JSON 数组字符串。 */
+    private static String envVariablesToJson(Object raw) {
+        if (raw == null) {
+            return "[]";
+        }
+        if (raw instanceof String s) {
+            return StrUtil.blankToDefault(s.trim(), "[]");
+        }
+        return JSON.toJSONString(raw);
+    }
+
+    /**
+     * 建项默认 URL 或空串视为占位，Apply 时可被预制环境覆盖。
+     */
+    public static boolean isPlaceholderEnvUrl(String envUrl) {
+        String url = StrUtil.trimToEmpty(envUrl);
+        return url.isEmpty() || TestProjectConstants.DEFAULT_ENV_URL_PLACEHOLDER.equalsIgnoreCase(url);
+    }
+
+    /**
+     * 把预制环境 envVariables（变量条目数组）转成 kind=env 的 PrefabParam，供 mergeEnvVariables。
+     */
+    public static List<PrefabParam> paramsFromEnvVariablesJson(String envVariablesJson) {
+        if (StrUtil.isBlank(envVariablesJson) || "[]".equals(envVariablesJson.trim())) {
+            return List.of();
+        }
+        List<TestProjectAsset> entries;
+        try {
+            entries = TestProjectVariableEntrySupport.parseEntries(envVariablesJson, false);
+        } catch (Exception ignored) {
+            return List.of();
+        }
+        List<PrefabParam> out = new ArrayList<>();
+        for (TestProjectAsset entry : entries) {
+            if (entry == null || StrUtil.isBlank(entry.getKey())) {
+                continue;
+            }
+            Object inner = "";
+            if (entry.getAssets() != null && entry.getAssets().containsKey(entry.getKey())) {
+                inner = entry.getAssets().get(entry.getKey());
+            }
+            out.add(PrefabParam.builder()
+                    .kind("env")
+                    .name(entry.getKey())
+                    .value(inner != null ? inner : "")
+                    .remark(StrUtil.trimToNull(entry.getRemark()))
+                    .build());
+        }
+        return out;
+    }
+
+    /**
      * 解析预制 AI 提示词 JSON。
      * 缺 title 或 content 的条目跳过；非法 JSON 返回空列表。
      */
@@ -244,11 +349,6 @@ public final class PrefabricatedTemplateExtrasSupport {
      * 只读预制测试流 extracts（优先 asset，其次 flow）；无则返回 null。
      */
     public static DerivedCredential deriveCredential(String flowsJson) {
-        return deriveFromFlows(flowsJson);
-    }
-
-    /** 遍历预制测试流，取第一个带有效 extracts 的 HTTP 节点生成凭证。 */
-    private static DerivedCredential deriveFromFlows(String flowsJson) {
         for (PrefabFlow flow : parseFlows(flowsJson)) {
             JSONObject graph = JSON.parseObject(flow.getGraphJson());
             if (graph == null) {
@@ -521,6 +621,7 @@ public final class PrefabricatedTemplateExtrasSupport {
      * 组装内置模板用的「探活再登录」流 JSON 数组字符串。
      * 图：Condition(asset 凭证 exists) → 探活(statusCheck whitelist 200/401)
      * → Condition(http.status=200) 否则登录；extract 写入 asset.{entryKey}.{fieldPath}。
+     * 登录 body 引用同 key 的预制口令（adminAuth.username/password 或 clientAuth.mobile/password）。
      */
     public static String builtinLoginFlowJson(
             String flowName,
@@ -647,6 +748,7 @@ public final class PrefabricatedTemplateExtrasSupport {
         loginSuccess.put("mode", "inherit");
         loginData.put("successCheck", loginSuccess);
         loginData.put("extracts", List.of(extract));
+        loginData.put("requestValueOverrides", loginBodyOverrides(entryKey));
         loginData.put("summary", StrUtil.isNotBlank(loginApiId)
                 ? safeLoginMethod + " " + loginName
                 : "登录");
@@ -694,6 +796,24 @@ public final class PrefabricatedTemplateExtrasSupport {
         flow.put("description", "探活复用或登录，抽出 asset." + entryKey + "." + fieldPath);
         flow.put("graphJson", graph);
         return JSON.toJSONString(List.of(flow));
+    }
+
+    /**
+     * 登录节点测值：clientAuth 用 mobile/password，其余（如 adminAuth）用 username/password。
+     */
+    private static JSONObject loginBodyOverrides(String entryKey) {
+        String key = StrUtil.blankToDefault(entryKey, "adminAuth").trim();
+        JSONObject body = new JSONObject();
+        if ("clientAuth".equals(key)) {
+            body.put("mobile", "{{asset.clientAuth.mobile}}");
+            body.put("password", "{{asset.clientAuth.password}}");
+        } else {
+            body.put("username", "{{asset." + key + ".username}}");
+            body.put("password", "{{asset." + key + ".password}}");
+        }
+        JSONObject overrides = new JSONObject();
+        overrides.put("bodyExample", body);
+        return overrides;
     }
 
     private static JSONObject pos(int x, int y) {

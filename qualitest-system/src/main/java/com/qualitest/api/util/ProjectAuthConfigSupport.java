@@ -411,7 +411,9 @@ public final class ProjectAuthConfigSupport {
         apis.add(prefabricatedNone(
                 "登录", "/login", "管理端.系统.登录", "POST",
                 Map.of("username", "", "password", "", "code", "", "uuid", ""),
-                requestBodyTestValue(Map.of("username", "admin", "password", "admin123")),
+                requestBodyTestValue(Map.of(
+                        "username", "{{asset.adminAuth.username}}",
+                        "password", "{{asset.adminAuth.password}}")),
                 loginResponseConfig(Map.of("code", 200, "msg", "操作成功", "token", "...")),
                 "token 在 $.token，不要写成 $.data.token"));
         apis.add(prefabricatedNone(
@@ -430,7 +432,9 @@ public final class ProjectAuthConfigSupport {
         apis.add(prefabricatedNone(
                 "登录", "/api/account/auth/login", "客户端.账号", "POST",
                 Map.of("mobile", "", "password", ""),
-                requestBodyTestValue(Map.of("mobile", "13800000001", "password", "Test@123456")),
+                requestBodyTestValue(Map.of(
+                        "mobile", "{{asset.clientAuth.mobile}}",
+                        "password", "{{asset.clientAuth.password}}")),
                 loginResponseConfig(Map.of("code", 200, "msg", "操作成功",
                         "data", Map.of("token", "..."))),
                 "客户端 token 在 $.data.token，不要写成 $.token"));
@@ -478,7 +482,7 @@ public final class ProjectAuthConfigSupport {
                 .build();
     }
 
-    /** 测值：调试用默认登录 body，形状为 request.bodyExample。 */
+    /** 测值：登录 body 引用预制素材口令，形状为 request.bodyExample。 */
     private static Map<String, Object> requestBodyTestValue(Map<String, Object> bodyExample) {
         return Map.of("request", Map.of("bodyExample", bodyExample));
     }

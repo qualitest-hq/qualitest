@@ -148,7 +148,7 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
 
     /**
      * 克隆模板为自定义副本。
-     * 复制路径匹配、预制接口、预制参数、预制测试流、预制提示词；名称加「 (副本)」后缀并去重。
+     * 复制路径匹配、预制接口、预制参数、预制环境、预制测试流、预制提示词；名称加「 (副本)」后缀并去重。
      */
     @Transactional(rollbackFor = Exception.class)
     @Override
@@ -160,6 +160,7 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
                 .matchConfig(source.getMatchConfig())
                 .templateApis(source.getTemplateApis())
                 .templateParams(source.getTemplateParams())
+                .templateEnvs(source.getTemplateEnvs())
                 .templateFlows(source.getTemplateFlows())
                 .templatePrompts(source.getTemplatePrompts())
                 .builtinStatus(0)
@@ -197,7 +198,7 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
 
     /**
      * 写入前校验：名称非空且未删范围内唯一；预制接口非空；
-     * 预制参数 / 预制测试流 / 预制提示词为空时写成 []。不校验托管头（勾选进项目时再生成）。
+     * 预制参数 / 预制环境 / 预制测试流 / 预制提示词为空时写成 []。不校验托管头（勾选进项目时再生成）。
      */
     private void validateWritable(TestProjectTemplate entity, Long excludeId) {
         if (StrUtil.isBlank(entity.getTemplateName())) {
@@ -208,6 +209,9 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         }
         if (StrUtil.isBlank(entity.getTemplateParams())) {
             entity.setTemplateParams("[]");
+        }
+        if (StrUtil.isBlank(entity.getTemplateEnvs())) {
+            entity.setTemplateEnvs("[]");
         }
         if (StrUtil.isBlank(entity.getTemplateFlows())) {
             entity.setTemplateFlows("[]");

@@ -23,6 +23,7 @@ import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.domain.TestProjectEnv;
+import com.qualitest.project.constant.TestProjectConstants;
 import com.qualitest.project.domain.TestProjectTemplate;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.service.ITestFlowService;
@@ -32,6 +33,7 @@ import com.qualitest.project.service.ITestProjectEnvService;
 import com.qualitest.project.service.ITestProjectService;
 import com.qualitest.project.service.ITestProjectTemplateService;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.DerivedCredential;
+import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabEnv;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabFlow;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabParam;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabPrompt;
@@ -59,7 +61,7 @@ import java.util.Set;
  *   <li>同名 Profile 整份跳过；</li>
  *   <li>预制接口按 method+path 去重，已有则不插入、不改已有行；</li>
  *   <li>托管头与凭证目标由预制测试流 extracts 派生（优先 asset，如 Bearer {{asset.x.y}}）；</li>
- *   <li>预制参数：flow→场景 flowSeed，env→项目环境变量，asset→项目素材库；</li>
+ *   <li>预制参数：flow→场景 flowSeed，env→项目环境变量，asset→项目素材库（Profile 同名跳过仍补种子）；</li>
  *   <li>预制测试流按 flowName 去重后写入项目测试流，并尽量绑定项目接口 id；</li>
  *   <li>预制提示词写入项目级 ai_prompt_template（同 sessionScene+title 跳过；Profile 已存在仍会补种子）。</li>
  * </ul>
@@ -102,7 +104,8 @@ public class ProjectAuthTemplateApplyService {
 
     /**
      * 按勾选顺序把模板写入项目。
-     * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 种子测试流（含 flowSeed）→ 种子环境/素材变量 → 种子 AI 提示词。
+     * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 种子测试流（含 flowSeed）
+     * → 种子预制环境 / 存量 kind=env / 素材口令 / AI 提示词（后四项 Profile 已存在仍补）。
      */
     @Transactional(rollbackFor = Exception.class)
     public void apply(Long testProjectId, List<Long> templateIds) {
@@ -172,11 +175,11 @@ public class ProjectAuthTemplateApplyService {
         seedApis(testProjectId, toSeed);
         for (TestProjectTemplate template : appliedTemplates) {
             seedFlows(testProjectId, template);
-            seedEnvParams(testProjectId, template);
-            seedAssetParams(testProjectId, template);
         }
         Set<String> existingPromptKeys = loadProjectPromptKeys(testProjectId);
         for (TestProjectTemplate template : promptSourceTemplates) {
+            seedProjectEnvFromTemplate(testProjectId, template);
+            seedAssetParams(testProjectId, template);
             seedPrompts(testProjectId, template, existingPromptKeys);
         }
     }
@@ -402,45 +405,70 @@ public class ProjectAuthTemplateApplyService {
     }
 
     /**
-     * 把预制参数 kind=env 合并进项目默认/首个环境的 envVariables（同 key 不覆盖）。
-     * baseUrl 且环境尚无有效 envUrl 时写入 envUrl。
+     * 把模板预制环境写入项目第一条环境（仅用 parseEnvs 第一条）。
+     * 合并 templateEnvs 与存量 kind=env；占位 URL 才覆盖；变量同 key 不覆盖。
+     * Profile 同名跳过仍会调用。不新建环境行，不改 allowDestructiveReset。
+     * 建项须先有默认环境再 Apply（Controller：插项目 → 建成员/环境 → apply），否则此处无行可写。
      */
-    private void seedEnvParams(Long testProjectId, TestProjectTemplate template) {
-        List<PrefabParam> envParams = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams())
+    private void seedProjectEnvFromTemplate(Long testProjectId, TestProjectTemplate template) {
+        List<PrefabEnv> prefabEnvs = PrefabricatedTemplateExtrasSupport.parseEnvs(template.getTemplateEnvs());
+        PrefabEnv prefab = prefabEnvs.isEmpty() ? null : prefabEnvs.get(0);
+        List<PrefabParam> legacyEnvParams = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams())
                 .stream()
                 .filter(p -> "env".equals(p.getKind()))
                 .toList();
-        if (envParams.isEmpty()) {
+        if (prefab == null && legacyEnvParams.isEmpty()) {
             return;
         }
-        List<TestProjectEnv> envs = testProjectEnvService.selectTestProjectEnvList(
-                TestProjectEnv.builder().testProjectId(testProjectId).delStatus(0).build());
-        if (envs == null || envs.isEmpty()) {
-            log.warn("模板「{}」有 env 预制参数但项目无环境，跳过", template.getTemplateName());
+        TestProjectEnv target = firstProjectEnv(testProjectId);
+        if (target == null) {
+            log.warn("模板「{}」有预制环境但项目无环境，跳过（建项须先建默认环境再 Apply）",
+                    template.getTemplateName());
             return;
         }
-        TestProjectEnv target = envs.get(0);
+        List<PrefabParam> varParams = new ArrayList<>();
+        if (prefab != null) {
+            varParams.addAll(PrefabricatedTemplateExtrasSupport.paramsFromEnvVariablesJson(
+                    prefab.getEnvVariablesJson()));
+        }
+        varParams.addAll(legacyEnvParams);
         String nextVars = PrefabricatedTemplateExtrasSupport.mergeEnvVariables(
-                target.getEnvVariables(), envParams);
+                target.getEnvVariables(), varParams);
         boolean varsChanged = nextVars != null && !nextVars.equals(target.getEnvVariables());
-        String nextUrl = target.getEnvUrl();
+
         boolean urlChanged = false;
-        for (PrefabParam param : envParams) {
-            if (param == null || !"baseUrl".equals(param.getName())) {
-                continue;
+        String nextUrl = target.getEnvUrl();
+        if (PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl(target.getEnvUrl())) {
+            if (prefab != null && StrUtil.isNotBlank(prefab.getEnvUrl())) {
+                nextUrl = prefab.getEnvUrl();
+                urlChanged = true;
+            } else {
+                for (PrefabParam param : legacyEnvParams) {
+                    if (param == null || !"baseUrl".equals(param.getName())) {
+                        continue;
+                    }
+                    String value = param.getValue() != null ? String.valueOf(param.getValue()).trim() : "";
+                    if (StrUtil.isBlank(value)) {
+                        break;
+                    }
+                    nextUrl = value;
+                    urlChanged = true;
+                    break;
+                }
             }
-            if (StrUtil.isNotBlank(target.getEnvUrl())) {
-                break;
-            }
-            String value = param.getValue() != null ? String.valueOf(param.getValue()).trim() : "";
-            if (StrUtil.isBlank(value)) {
-                break;
-            }
-            nextUrl = value;
-            urlChanged = true;
-            break;
         }
-        if (!varsChanged && !urlChanged) {
+
+        boolean nameChanged = false;
+        String nextName = target.getEnvName();
+        if (prefab != null
+                && StrUtil.isNotBlank(prefab.getEnvName())
+                && (StrUtil.isBlank(target.getEnvName())
+                        || TestProjectConstants.DEFAULT_ENV_NAME.equals(target.getEnvName()))
+                && !prefab.getEnvName().equals(StrUtil.trimToEmpty(target.getEnvName()))) {
+            nextName = prefab.getEnvName();
+            nameChanged = true;
+        }
+        if (!varsChanged && !urlChanged && !nameChanged) {
             return;
         }
         TestProjectEnv patch = new TestProjectEnv();
@@ -451,12 +479,26 @@ public class ProjectAuthTemplateApplyService {
         if (urlChanged) {
             patch.setEnvUrl(nextUrl);
         }
+        if (nameChanged) {
+            patch.setEnvName(nextName);
+        }
         patch.setUpdateTime(DateUtils.getNowDate());
         testProjectEnvService.updateTestProjectEnv(patch);
     }
 
+    /** 项目环境列表第一条（sort_num asc）；无则 null。 */
+    private TestProjectEnv firstProjectEnv(Long testProjectId) {
+        List<TestProjectEnv> envs = testProjectEnvService.selectTestProjectEnvList(
+                TestProjectEnv.builder().testProjectId(testProjectId).delStatus(0).build());
+        if (envs == null || envs.isEmpty()) {
+            return null;
+        }
+        return envs.get(0);
+    }
+
     /**
      * 把预制参数 kind=asset 合并进项目 asset_variables（同 key 不覆盖）。
+     * Profile 同名跳过仍会调用，便于存量项目补口令。
      */
     private void seedAssetParams(Long testProjectId, TestProjectTemplate template) {
         List<PrefabParam> assetParams = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams())

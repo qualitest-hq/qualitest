@@ -350,6 +350,12 @@
           />
         </el-form-item>
         <el-form-item class="tpl-apis-form-item" label-width="0">
+          <PrefabricatedEnvPanel
+            v-model="form.templateEnvs"
+            :read-only="isReadonlyForm"
+          />
+        </el-form-item>
+        <el-form-item class="tpl-apis-form-item" label-width="0">
           <PrefabricatedFlowPanel
             v-model="form.templateFlows"
             :read-only="isReadonlyForm"
@@ -384,7 +390,7 @@
 <script setup name="TestProjectTemplate">
 /**
  * 项目模板管理页：列表、启用开关、增改查克隆。
- * 表单含路径匹配、预制接口、预制参数（env/asset；flow 仅兼容存量）、预制测试流、预制提示词；不编辑托管请求头。
+ * 表单含路径匹配、预制接口、预制环境、预制参数（素材；flow 仅兼容存量）、预制测试流、预制提示词；不编辑托管请求头。
  */
 import { onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
@@ -397,6 +403,7 @@ import {
   updateTestProjectTemplate,
 } from '@/api/project/testProjectTemplate'
 import PrefabricatedApiPanel from './components/PrefabricatedApiPanel.vue'
+import PrefabricatedEnvPanel from './components/PrefabricatedEnvPanel.vue'
 import PrefabricatedFlowPanel from './components/PrefabricatedFlowPanel.vue'
 import PrefabricatedParamPanel from './components/PrefabricatedParamPanel.vue'
 import PrefabricatedPromptPanel from './components/PrefabricatedPromptPanel.vue'

@@ -190,7 +190,7 @@ async function initFromDraft() {
   }
   const { tree, catalog } = synthesizeTemplateApiCatalog(ensuredApis)
   store.setTemplateApiContext(tree, catalog)
-  store.setTemplateParamContext(draft.form.templateParams || [])
+  store.setTemplateParamContext(draft.form.templateParams || [], draft.form.templateEnvs || [])
 
   const flow = flows[flowIndex.value] || {}
   const templateId = String(draft.templateId || 'new')

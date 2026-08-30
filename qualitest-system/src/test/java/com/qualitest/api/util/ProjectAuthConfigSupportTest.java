@@ -54,7 +54,7 @@ class ProjectAuthConfigSupportTest {
         assertNotNull(login);
         assertEquals("none", login.getAuthConfig().getMode());
         assertNull(login.getAuthConfig().getLoginHint());
-        assertTrue(String.valueOf(login.getTestValueConfig()).contains("admin"));
+        assertTrue(String.valueOf(login.getTestValueConfig()).contains("{{asset.adminAuth.username}}"));
         assertTrue(String.valueOf(login.getResponseConfig()).contains("token"));
         assertEquals("POST", cfg.getAuthProfiles().get(0).getCredentialApi().getMethod());
         assertEquals("/login", cfg.getAuthProfiles().get(0).getCredentialApi().getPath());

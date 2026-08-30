@@ -86,7 +86,8 @@ public class TestProjectController extends BaseController {
     }
 
     /**
-     * 新增测试项目
+     * 新增测试项目。
+     * 顺序：插项目 → 建 Owner/默认环境 → 再 Apply 模板（预制环境依赖已有环境行，才能把占位 URL 写成 demo）。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:add')")
     @Log(title = "测试项目", businessType = BusinessType.INSERT)
@@ -106,6 +107,10 @@ public class TestProjectController extends BaseController {
                 .build());
         if (ownerFlag <= 0) {
             throw new RuntimeException("新增项目成员失败");
+        }
+        List<Long> templateIds = testProject.getTemplateIds();
+        if (templateIds != null && !templateIds.isEmpty()) {
+            projectAuthTemplateApplyService.apply(testProject.getTestProjectId(), templateIds);
         }
         return ok();
     }

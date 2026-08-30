@@ -22,6 +22,8 @@ Assets live on the **test project**, not the environment. Unique `key`, optional
 
 Reference: `{{asset.clientAuth.password}}`.
 
+Built-in templates seed `adminAuth` (`admin` / `admin123`) or `clientAuth` (`13800000001` / `Test@123456`) on Apply. Login extract writes `asset.*.token` (or Session `jsessionId`). Login `bodyExample` and prefab login-flow body use `{{asset.*}}`.
+
 ---
 
 ## 2. Field types

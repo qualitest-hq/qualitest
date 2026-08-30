@@ -5,6 +5,7 @@
 
 import {
   extractEntryInner,
+  parseVariableEntries,
   wrapAssetsPayload,
 } from '@/views/project/testProject/utils/variableEntryUtils'
 
@@ -85,21 +86,107 @@ export function variableEntriesToTemplateParamRows(entries, kind) {
 }
 
 /**
- * 合并写出 templateParams：保留存量 flow，再接 env / asset。
+ * 用编辑后的 asset 条目重建 templateParams（保留存量 flow；不再写回 kind=env）。
+ * env 清理由 migrateEnvParamsIntoTemplateEnvs / formToPayload 负责。
  * @param {unknown[]} existingParams
- * @param {{ envEntries?: VariableEntry[], assetEntries?: VariableEntry[] }} parts
+ * @param {{ assetEntries?: VariableEntry[] }} parts
  */
 export function rebuildTemplateParamsFromVariableEntries(existingParams, parts = {}) {
-  const { flow } = partitionTemplateParams(existingParams)
-  const next = flow.map((row) => ({
+  const partitioned = partitionTemplateParams(existingParams)
+  const next = partitioned.flow.map((row) => ({
     kind: 'flow',
     name: row.name,
     value: row.value ?? '',
     remark: row.remark || '',
   }))
-  next.push(...variableEntriesToTemplateParamRows(parts.envEntries || [], 'env'))
   next.push(...variableEntriesToTemplateParamRows(parts.assetEntries || [], 'asset'))
   return next
+}
+
+/**
+ * 规范化预制环境 envVariables 为变量条目数组。
+ * @param {unknown} raw
+ * @returns {VariableEntry[]}
+ */
+export function normalizeEnvVariableEntries(raw) {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((item) => item && typeof item === 'object' && String(item.key || '').trim())
+      .map((item) => ({
+        id: item.id != null ? item.id : null,
+        key: String(item.key).trim(),
+        remark: item.remark != null ? String(item.remark) : '',
+        assets:
+          item.assets && typeof item.assets === 'object'
+            ? item.assets
+            : wrapAssetsPayload(String(item.key).trim(), ''),
+      }))
+  }
+  if (typeof raw === 'string') {
+    return parseVariableEntries(raw)
+  }
+  return []
+}
+
+/**
+ * 提交/落库用的 envVariables：去掉 id，只留 key/remark/assets。
+ * @param {unknown} raw
+ */
+export function persistEnvVariableEntries(raw) {
+  return normalizeEnvVariableEntries(raw).map((item) => ({
+    key: item.key,
+    remark: item.remark || '',
+    assets: item.assets && typeof item.assets === 'object'
+      ? item.assets
+      : wrapAssetsPayload(item.key, ''),
+  }))
+}
+
+/**
+ * templateEnvs → 参数库 env 预览行（含 envUrl 合成的 baseUrl）。
+ * @param {unknown[]} envs
+ */
+export function templateEnvsToEnvParamRows(envs) {
+  const list = Array.isArray(envs) ? envs : []
+  const rows = []
+  const seen = new Set()
+  for (const env of list) {
+    if (!env || typeof env !== 'object') continue
+    const url = String(env.envUrl || '').trim()
+    if (url && !seen.has('baseUrl')) {
+      seen.add('baseUrl')
+      rows.push({ name: 'baseUrl', value: url, remark: '环境前置 URL' })
+    }
+    for (const entry of normalizeEnvVariableEntries(env.envVariables)) {
+      const key = String(entry.key || '').trim()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      rows.push({
+        name: key,
+        value: extractEntryInner(entry) ?? '',
+        remark: entry.remark != null ? String(entry.remark) : '',
+      })
+    }
+  }
+  return rows
+}
+
+/**
+ * 画布 env 预览：templateEnvs 优先，存量 kind=env 按 key 补漏。
+ * @param {Array<{ name: string, value?: unknown, remark?: string }>} fromEnvs
+ * @param {Array<{ name: string, value?: unknown, remark?: string }>} fromParams
+ */
+export function mergeEnvPreviewRows(fromEnvs, fromParams) {
+  const byKey = new Map()
+  for (const row of fromEnvs || []) {
+    const name = String(row?.name || '').trim()
+    if (name) byKey.set(name, row)
+  }
+  for (const row of fromParams || []) {
+    const name = String(row?.name || '').trim()
+    if (name && !byKey.has(name)) byKey.set(name, row)
+  }
+  return [...byKey.values()]
 }
 
 /**

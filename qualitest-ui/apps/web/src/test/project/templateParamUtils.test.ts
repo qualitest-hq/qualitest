@@ -12,6 +12,7 @@ import {
 } from '@/views/project/testProject/utils/variableEntryUtils'
 import {
   rebuildTemplateParamsFromVariableEntries,
+  templateEnvsToEnvParamRows,
   templateParamsToVariableEntries,
   variableEntriesToTemplateParamRows,
 } from '@/views/project/testProjectTemplate/utils/templateParamUtils'
@@ -58,9 +59,8 @@ describe('templateParams ↔ 变量条目', () => {
 
     const rebuilt = rebuildTemplateParamsFromVariableEntries(params, {
       assetEntries: backEntries,
-      envEntries: [],
     })
-    // 期望：存量 flow 保留，asset 正确
+    // 期望：存量 flow 保留，asset 正确；kind=env 不再写回
     expect(rebuilt).toEqual([
       { kind: 'flow', name: 'legacyToken', value: 'debug', remark: '' },
       {
@@ -70,6 +70,29 @@ describe('templateParams ↔ 变量条目', () => {
         remark: '主测号',
       },
     ])
+  })
+
+  it('rebuild 丢弃存量 kind=env（env 由 migrate 负责）', () => {
+    // 前提：params 含 flow / env / asset
+    const params = [
+      { kind: 'flow', name: 'token', value: 'x', remark: '' },
+      { kind: 'env', name: 'timeout', value: '5000', remark: '' },
+      { kind: 'asset', name: 'adminAuth', value: { username: 'admin' }, remark: '' },
+    ]
+    const assetEntries = templateParamsToVariableEntries(params, 'asset')
+
+    // 期望：rebuild 只保留 flow + 传入的 asset，不再写回 env
+    const rebuilt = rebuildTemplateParamsFromVariableEntries(params, { assetEntries })
+    expect(rebuilt).toEqual([
+      { kind: 'flow', name: 'token', value: 'x', remark: '' },
+      {
+        kind: 'asset',
+        name: 'adminAuth',
+        value: { username: 'admin' },
+        remark: '',
+      },
+    ])
+    expect(rebuilt.every((row) => row.kind !== 'env')).toBe(true)
   })
 
   it('扁平行编辑 object 子字段后仍能压回 templateParams', () => {
@@ -95,5 +118,19 @@ describe('templateParams ↔ 变量条目', () => {
     // 期望：改过的 mobile 写回 value
     expect(next[0].value.mobile).toBe('13900000002')
     expect(next[0].value.password).toBe('Test@123456')
+  })
+})
+
+describe('templateEnvs → 参数库预览', () => {
+  it('envUrl 合成 baseUrl，变量按 key 去重', () => {
+    const rows = templateEnvsToEnvParamRows([
+      {
+        envName: '默认环境',
+        envUrl: 'http://localhost:8081',
+        envVariables: [{ key: 'timeout', remark: '毫秒', assets: { timeout: 5000 } }],
+      },
+    ])
+    expect(rows[0]).toMatchObject({ name: 'baseUrl', value: 'http://localhost:8081' })
+    expect(rows[1]).toMatchObject({ name: 'timeout', value: 5000, remark: '毫秒' })
   })
 })

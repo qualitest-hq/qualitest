@@ -4,66 +4,38 @@
       <span class="tpl-prefab-section__title">预制参数</span>
     </div>
     <div class="tpl-prefab-section__body">
-      <el-tabs v-model="activeTab" class="tpl-prefab-section__tabs">
-        <el-tab-pane label="素材变量" name="asset">
-          <p class="tpl-prefab-section__hint">
-            勾选模板时写入项目素材库；项目已有同 key 则跳过，不冲掉你改过的口令等。登录成功后的 token
-            仍会写入同一 key（如 adminAuth），不会另开多条。
-          </p>
-          <div v-if="!readOnly" class="prefab-param-panel__toolbar">
-            <el-button link type="primary" @click="addAssetRow">＋ 添加素材</el-button>
-          </div>
-          <VariableEntrySheetSection
-            :rows="assetSheetRows"
-            :read-only="readOnly"
-            :enable-file-upload="false"
-            :persist-file-upload="false"
-            value-placeholder="value"
-            name-placeholder="如 clientAuth"
-            wrap-class="prefab-param-sheet"
-            type-popper-class="prefab-param-type-select-popper"
-            :show-empty="!assetSheetRows.length"
-            :empty-text="readOnly ? '暂无素材变量' : '暂无素材，点击「添加素材」'"
-            @add-child="onAssetAddChild"
-            @remove="onAssetRemove"
-            @type-change="onAssetTypeChange"
-          />
-        </el-tab-pane>
-
-        <el-tab-pane label="环境变量" name="env">
-          <p class="tpl-prefab-section__hint">
-            勾选模板时写入项目环境变量；项目已有同名则跳过，不冲掉你改过的值。
-          </p>
-          <div v-if="!readOnly" class="prefab-param-panel__toolbar">
-            <el-button link type="primary" @click="addEnvRow">＋ 添加变量</el-button>
-          </div>
-          <VariableEntrySheetSection
-            :rows="envSheetRows"
-            :read-only="readOnly"
-            :enable-file-upload="false"
-            :persist-file-upload="false"
-            value-placeholder="value"
-            name-placeholder="如 timeout"
-            wrap-class="prefab-param-sheet"
-            type-popper-class="prefab-param-type-select-popper"
-            :show-empty="!envSheetRows.length"
-            :empty-text="readOnly ? '暂无环境变量' : '暂无环境变量，点击「添加变量」'"
-            @add-child="onEnvAddChild"
-            @remove="onEnvRemove"
-            @type-change="onEnvTypeChange"
-          />
-        </el-tab-pane>
-      </el-tabs>
+      <p class="tpl-prefab-section__hint">
+        勾选模板时写入项目素材库；项目已有同 key 则跳过，不冲掉你改过的口令等。登录成功后的 token
+        仍会写入同一 key（如 adminAuth），不会另开多条。环境变量请在下方「预制环境」编辑。
+      </p>
+      <div v-if="!readOnly" class="prefab-param-panel__toolbar">
+        <el-button link type="primary" @click="addAssetRow">＋ 添加素材</el-button>
+      </div>
+      <VariableEntrySheetSection
+        :rows="assetSheetRows"
+        :read-only="readOnly"
+        :enable-file-upload="false"
+        :persist-file-upload="false"
+        value-placeholder="value"
+        name-placeholder="如 clientAuth"
+        wrap-class="prefab-param-sheet"
+        type-popper-class="prefab-param-type-select-popper"
+        :show-empty="!assetSheetRows.length"
+        :empty-text="readOnly ? '暂无素材变量' : '暂无素材，点击「添加素材」'"
+        @add-child="onAssetAddChild"
+        @remove="onAssetRemove"
+        @type-change="onAssetTypeChange"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
 /**
- * 预制参数面板：编辑 templateParams（env / asset）。
- * 复用项目变量扁平行表（含类型）；存量 kind=flow 保存时保留。
+ * 预制参数面板：编辑 templateParams 素材（kind=asset）。
+ * 存量 kind=flow 保存时保留；kind=env 由表单迁入 templateEnvs。
  */
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, watch } from 'vue'
 import VariableEntrySheetSection from '@/views/project/testProject/components/VariableEntrySheetSection.vue'
 import { useVariableEntrySheet } from '@/views/project/testProject/composables/useVariableEntrySheet'
 import {
@@ -78,8 +50,6 @@ const props = defineProps({
 
 const list = defineModel({ type: Array, default: () => [] })
 
-const activeTab = ref('asset')
-
 const {
   sheetRows: assetSheetRows,
   loadFromEntryList: loadAssetEntries,
@@ -90,16 +60,6 @@ const {
   buildEntriesForSave: buildAssetEntries,
 } = useVariableEntrySheet()
 
-const {
-  sheetRows: envSheetRows,
-  loadFromEntryList: loadEnvEntries,
-  addEntryRow: addEnvEntryRow,
-  onAddChildRowAt: envAddChildAt,
-  onRemoveRowAt: envRemoveAt,
-  onRowTypeChange: envTypeChange,
-  buildEntriesForSave: buildEnvEntries,
-} = useVariableEntrySheet()
-
 /** 避免 list ↔ sheet 双向同步形成环。 */
 let syncingFromList = false
 let syncingFromSheet = false
@@ -107,7 +67,6 @@ let syncingFromSheet = false
 function loadSheetsFromList() {
   syncingFromList = true
   loadAssetEntries(templateParamsToVariableEntries(list.value, 'asset'))
-  loadEnvEntries(templateParamsToVariableEntries(list.value, 'env'))
   nextTick(() => {
     syncingFromList = false
   })
@@ -116,7 +75,6 @@ function loadSheetsFromList() {
 function commitSheetsToList() {
   if (props.readOnly || syncingFromList) return
   const next = rebuildTemplateParamsFromVariableEntries(list.value, {
-    envEntries: buildEnvEntries(),
     assetEntries: buildAssetEntries(),
   })
   if (JSON.stringify(next) === JSON.stringify(list.value || [])) return
@@ -145,22 +103,8 @@ watch(
   { deep: true },
 )
 
-watch(
-  envSheetRows,
-  () => {
-    if (syncingFromList || props.readOnly) return
-    commitSheetsToList()
-  },
-  { deep: true },
-)
-
 function addAssetRow() {
   addAssetEntryRow()
-  commitSheetsToList()
-}
-
-function addEnvRow() {
-  addEnvEntryRow()
   commitSheetsToList()
 }
 
@@ -176,21 +120,6 @@ function onAssetRemove(idx) {
 
 function onAssetTypeChange(row) {
   assetTypeChange(row)
-  commitSheetsToList()
-}
-
-function onEnvAddChild(idx) {
-  envAddChildAt(idx)
-  commitSheetsToList()
-}
-
-function onEnvRemove(idx) {
-  envRemoveAt(idx)
-  commitSheetsToList()
-}
-
-function onEnvTypeChange(row) {
-  envTypeChange(row)
   commitSheetsToList()
 }
 </script>

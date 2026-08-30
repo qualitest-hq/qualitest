@@ -28,6 +28,7 @@ export interface TemplateFlowDraft {
     builtinStatus?: number
     templateApis: unknown[]
     templateParams: unknown[]
+    templateEnvs?: unknown[]
     templateFlows: Array<{
       flowName?: string
       description?: string

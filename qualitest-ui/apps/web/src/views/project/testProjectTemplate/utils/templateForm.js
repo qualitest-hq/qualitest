@@ -1,11 +1,11 @@
 /**
- * 项目模板表单工具：路径匹配、预制接口 / 参数(flow·env·asset) / 测试流 / 提示词的解析、校验与提交组装。
+ * 项目模板表单工具：路径匹配、预制接口 / 参数(asset；flow·env 存量) / 环境 / 测试流 / 提示词的解析、校验与提交组装。
  * 托管请求头不在模板表单提交；勾选进项目时由后端按预制测试流抽取规则生成。
  */
 
 import { formatAuthModeLabel, parseJsonMaybe, splitPathLines } from '../../testProject/utils/projectAuthConfig'
 import { ensureTemplateApiIds, newTemplateApiId } from './templateApiId'
-import { mergeFlowSeedFromTemplateParams, partitionTemplateParams } from './templateParamUtils'
+import { mergeFlowSeedFromTemplateParams, partitionTemplateParams, persistEnvVariableEntries, templateParamRowToVariableEntry } from './templateParamUtils'
 import { LOGIN_FLOW_NODE_LAYOUT, LOGIN_FLOW_EDGES, hydrateTemplateFlowsGraphs } from './templateCanvasHydrate'
 import { synthesizeTemplateApiCatalog } from './synthesizeTemplateApiTree'
 
@@ -78,20 +78,6 @@ export function emptyPrefabricatedApi() {
     preRequestScript: null,
     postRequestScript: null,
   }
-}
-
-/**
- * 新建一条预制参数：env / asset（默认 asset）；kind=flow 仅兼容存量，面板不再新建。
- * @param {'flow'|'env'|'asset'} kind
- */
-export function emptyPrefabParam(kind = 'asset') {
-  if (kind === 'env') {
-    return { kind: 'env', name: '', value: '', remark: '' }
-  }
-  if (kind === 'flow') {
-    return { kind: 'flow', name: '', value: '', remark: '' }
-  }
-  return { kind: 'asset', name: '', value: '', remark: '' }
 }
 
 /** 按 method + apiPath 在 templateApis 中查找预制口。 */
@@ -358,6 +344,11 @@ export function parseParams(params) {
   return parseJsonObjectArray(params)
 }
 
+/** 解析预制环境字段。 */
+export function parseEnvs(envs) {
+  return parseJsonObjectArray(envs)
+}
+
 /** 解析预制测试流字段。 */
 export function parseFlows(flows) {
   return parseJsonObjectArray(flows)
@@ -428,6 +419,53 @@ export function validateFlows(flows) {
   return parseFlows(flows)
     .filter((row) => String(row?.flowName || '').trim())
     .map((row) => cloneJson(row))
+}
+
+/** 校验预制环境：可空；丢掉名称、URL、变量都空的行。 */
+export function validateEnvs(envs) {
+  return parseEnvs(envs)
+    .map((row) => cloneJson(row))
+    .map((row) => {
+      const envName = String(row?.envName || '').trim()
+      const envUrl = String(row?.envUrl || '').trim()
+      const envVariables = persistEnvVariableEntries(row?.envVariables)
+      return { envName, envUrl, envVariables }
+    })
+    .filter((row) => row.envName || row.envUrl || row.envVariables.length)
+}
+
+/**
+ * 把 templateParams 里存量 kind=env 迁入 templateEnvs[0].envVariables（同 key 不覆盖）。
+ * 无环境行则补一条只含变量。
+ */
+export function migrateEnvParamsIntoTemplateEnvs(params, envs) {
+  const list = parseParams(params)
+  const envParamRows = list.filter(
+    (row) => String(row?.kind || '').trim() === 'env' && String(row?.name || '').trim(),
+  )
+  const restParams = list.filter((row) => String(row?.kind || '').trim() !== 'env')
+  const envList = parseEnvs(envs).map((row) => cloneJson(row))
+  if (!envParamRows.length) {
+    return { templateParams: restParams, templateEnvs: envList }
+  }
+  if (!envList.length) {
+    envList.push({ envName: '', envUrl: '', envVariables: [] })
+  }
+  const first = envList[0] && typeof envList[0] === 'object' ? envList[0] : { envName: '', envUrl: '', envVariables: [] }
+  const existingVars = persistEnvVariableEntries(first.envVariables)
+  const keys = new Set(existingVars.map((e) => e.key))
+  for (const row of envParamRows) {
+    const entry = templateParamRowToVariableEntry(row)
+    if (!entry?.key || keys.has(entry.key)) continue
+    keys.add(entry.key)
+    const persisted = persistEnvVariableEntries([entry])[0]
+    if (persisted) existingVars.push(persisted)
+  }
+  envList[0] = {
+    ...first,
+    envVariables: existingVars,
+  }
+  return { templateParams: restParams, templateEnvs: envList }
 }
 
 /**
@@ -530,6 +568,7 @@ export function emptyTemplateForm() {
     pathPrefixText: '',
     templateApis: [],
     templateParams: [],
+    templateEnvs: [],
     templateFlows: [],
     templatePrompts: [],
     enableStatus: 1,
@@ -544,12 +583,14 @@ export function templateToForm(row) {
   const { apis } = ensureTemplateApiIds(parseApis(row?.templateApis))
   const { catalog } = synthesizeTemplateApiCatalog(apis)
   const { flows: hydratedFlows } = hydrateTemplateFlowsGraphs(parseFlows(row?.templateFlows), catalog)
+  const migrated = migrateEnvParamsIntoTemplateEnvs(parseParams(row?.templateParams), parseEnvs(row?.templateEnvs))
   return {
     testProjectTemplateId: row?.testProjectTemplateId,
     templateName: row?.templateName || '',
     pathPrefixText: matchConfigToPathPrefixText(row?.matchConfig),
     templateApis: apis,
-    templateParams: parseParams(row?.templateParams),
+    templateParams: migrated.templateParams,
+    templateEnvs: migrated.templateEnvs,
     templateFlows: hydratedFlows,
     templatePrompts: parsePrompts(row?.templatePrompts),
     enableStatus: row?.enableStatus ?? 1,
@@ -588,19 +629,22 @@ export function validateTemplateGraphApiBindings(graph, catalog) {
 
 /**
  * 编辑表单 → 提交体。
- * 写出 templateApis / templateParams / templateFlows / templatePrompts 的 JSON 字符串；
- * 不提交托管头字段；雪花 id 保持字符串。
+ * 写出 templateApis / templateParams / templateEnvs / templateFlows / templatePrompts 的 JSON 字符串；
+ * 不提交托管头字段；雪花 id 保持字符串。存量 kind=env 迁入 templateEnvs 后从 params 去掉。
  */
 export function formToPayload(form) {
   const matchConfig = pathPrefixTextToMatchConfig(form.pathPrefixText)
+  const migrated = migrateEnvParamsIntoTemplateEnvs(form.templateParams, form.templateEnvs)
   const templateApis = JSON.stringify(validateApis(form.templateApis))
-  const templateParams = JSON.stringify(validateParams(form.templateParams))
+  const templateParams = JSON.stringify(validateParams(migrated.templateParams))
+  const templateEnvs = JSON.stringify(validateEnvs(migrated.templateEnvs))
   const templateFlows = JSON.stringify(validateFlows(form.templateFlows))
   const templatePrompts = JSON.stringify(validatePrompts(form.templatePrompts))
   const payload = {
     templateName: String(form.templateName || '').trim(),
     templateApis,
     templateParams,
+    templateEnvs,
     templateFlows,
     templatePrompts,
     enableStatus: form.enableStatus ?? 1,

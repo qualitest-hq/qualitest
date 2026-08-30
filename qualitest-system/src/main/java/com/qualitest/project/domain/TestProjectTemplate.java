@@ -16,7 +16,7 @@ import java.io.Serial;
  * 项目模板（表 test_project_template）。
  * <p>
  * 一行模板描述一套可勾选进项目的鉴权与预制资产：
- * 预制接口（必填）、预制参数 flow/env/asset（可选）、预制测试流（可选）、预制 AI 提示词（可选）。
+ * 预制接口（必填）、预制参数（可选，主路径 asset）、预制环境（可选）、预制测试流（可选）、预制 AI 提示词（可选）。
  * 不存托管请求头；勾选进项目时由系统根据预制测试流里的抽取规则生成头与凭证规则。
  */
 @Getter
@@ -52,10 +52,16 @@ public class TestProjectTemplate extends BaseEntity {
 
     /**
      * 预制参数 JSON 数组（可空，缺省按 []）。
-     * 面板主路径为 kind=env（环境变量）与 kind=asset（素材库）；
+     * 面板主路径为 kind=asset（素材库）；kind=env 仅兼容存量（保存时迁入 templateEnvs）；
      * kind=flow 仍兼容：叠进种子流默认场景 flowSeed（仅调试用，勿塞口令）。
      */
     private String templateParams;
+
+    /**
+     * 预制环境 JSON 数组（可空，缺省按 []）。
+     * 勾选进项目时填建项占位环境的 envUrl，并合并 envVariables（同 key 不覆盖）。
+     */
+    private String templateEnvs;
 
     /**
      * 预制测试流 JSON 数组（可空，缺省按 []）。

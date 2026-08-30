@@ -11,7 +11,7 @@ import type { GraphFlowOutput, GraphScenarioConfig, GraphViewport } from '@/util
 
 import { getTestProject } from '@/api/project/testProject';
 
-import { partitionTemplateParams } from '../../testProjectTemplate/utils/templateParamUtils';
+import { partitionTemplateParams, mergeEnvPreviewRows, templateEnvsToEnvParamRows } from '../../testProjectTemplate/utils/templateParamUtils';
 import { createDefaultRunConfig, DEFAULT_VIEWPORT } from '../graphAdapter';
 import { AI_CONFIRM_HIGHLIGHT_CLEAR_MS } from '../constants/flowConfig';
 import { waitDoubleAnimationFrame } from '../utils/waitDoubleAnimationFrame';
@@ -87,7 +87,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   /** 模板模式下由 templateApis 合成的接口目录（供 Http 配置 / Staging 富化） */
   const templateApiCatalog = ref<TemplateApiCatalogEntry[]>([]);
   const templateApiTree = ref<unknown[]>([]);
-  /** 模板模式下 templateParams 水合（flow/env/asset 预览，不请求项目变量接口） */
+  /** 模板模式下 templateParams + templateEnvs 水合（flow/env/asset 预览，不请求项目变量接口） */
   const templateParamContext = ref<TemplateParamContext | null>(null);
   /** 模板查看态：禁止保存 */
   const templateReadOnly = ref(false);
@@ -398,8 +398,13 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   }
 
   /** 写入模板预制参数上下文（flow/env/asset） */
-  function setTemplateParamContext(params: unknown[]) {
-    templateParamContext.value = partitionTemplateParams(params);
+  function setTemplateParamContext(params: unknown[], envs: unknown[] = []) {
+    const partitioned = partitionTemplateParams(params);
+    templateParamContext.value = {
+      flow: partitioned.flow,
+      env: mergeEnvPreviewRows(templateEnvsToEnvParamRows(envs), partitioned.env),
+      asset: partitioned.asset,
+    };
   }
 
   /** 右栏是否实际展示：属性模式需有选中项 */

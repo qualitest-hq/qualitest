@@ -89,7 +89,7 @@ IDEA 插件上传接口
 | 概念                      | 要点                                                                          |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `test_project_template` | 一行模板 = 一条 Profile；内置 RuoYi Bearer / Session、客户端 Bearer、管理端 Bearer           |
-| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**；作者期 `testProjectApiId` 为雪花字符串，种子时换新主键）；可选种子 `templateParams`（**主路径** env→环境变量 / asset→素材库；`kind=flow` 仍可叠场景 flowSeed，面板不再编辑）与 `templateFlows`（同名流跳过；HTTP 作者期雪花 id **remap** 为项目 apiId，历史 `tpl_*` 兼容，legacy 仅 path 仍按 method+path 绑）；托管头与 `credentialApi` 从登录流 extracts **派生**（不再写 `loginHint`） |
+| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**；作者期 `testProjectApiId` 为雪花字符串，种子时换新主键）；可选种子 `templateEnvs`（填建项占位环境 URL，已定制不覆盖；`envVariables` 同 key 不覆盖；**Profile 同名跳过仍补**）与 `templateParams`（**主路径** asset→素材库，**Profile 同名跳过仍补 asset**；内置管理端 `adminAuth`、客户端 `clientAuth`；存量 `kind=env` 仍合并进第一条环境；`kind=flow` 仍可叠场景 flowSeed，面板不再编辑）与 `templateFlows`（同名流跳过；HTTP 作者期雪花 id **remap** 为项目 apiId，历史 `tpl_*` 兼容，legacy 仅 path 仍按 method+path 绑；登录 HTTP body 引用 `{{asset.*}}`）；托管头与 `credentialApi` 从登录流 extracts **派生**（不再写 `loginHint`） |
 | 新建项目                    | **至少勾一套**；商城双端建议先「管理端 Bearer」再「客户端 Bearer」                                  |
 | 免登                      | 认预制 `apis[].authConfig.mode=none`；**不再**维护项目级匿名 path 清单                     |
 | 空配置                     | 才暂留 builtin `/login` 等启发式；有 Profile 但 apis 空 → 设置页黄条提示补模板                   |

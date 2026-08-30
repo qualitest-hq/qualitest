@@ -42,6 +42,9 @@ public class TestProjectTemplateResult implements Serializable {
     /** 预制参数 JSON 数组。 */
     private String templateParams;
 
+    /** 预制环境 JSON 数组。 */
+    private String templateEnvs;
+
     /** 预制测试流 JSON 数组。 */
     private String templateFlows;
 

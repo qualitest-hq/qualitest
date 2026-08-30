@@ -203,14 +203,32 @@ class PrefabricatedTemplateExtrasSupportTest {
                 "管理端登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
         String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
 
-        // 期望：存在凭证 Condition、探活 whitelist、登录 extract
+        // 期望：存在凭证 Condition、探活 whitelist、登录 extract 与口令占位符
         assertTrue(graph.contains("cond_token"));
         assertTrue(graph.contains("probe_http"));
         assertTrue(graph.contains("cond_alive"));
         assertTrue(graph.contains("login_http"));
         assertTrue(graph.contains("whitelist"));
         assertTrue(graph.contains("asset.adminAuth.token"));
+        assertTrue(graph.contains("{{asset.adminAuth.username}}"));
         assertTrue(graph.contains("/getInfo"));
+    }
+
+    /** 客户端登录图 body 绑 mobile/password 素材。 */
+    @Test
+    @Order(10)
+    @DisplayName("builtinLoginFlowJson 客户端绑 mobile 口令")
+    void builtinLoginFlow_clientAuthBody() {
+        // 前提：entryKey=clientAuth
+        String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
+                "客户端登录", "POST", "/api/account/auth/login", "clientAuth", "token", "body", "$.data.token",
+                "GET", "/api/account/auth/profile");
+        String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
+
+        // 期望：登录 body 引用 clientAuth 口令，不用 username
+        assertTrue(graph.contains("{{asset.clientAuth.mobile}}"));
+        assertTrue(graph.contains("{{asset.clientAuth.password}}"));
+        assertFalse(graph.contains("username"));
     }
 
     /** flow 参数写入默认场景 flowSeed。 */
@@ -265,5 +283,41 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertTrue(next.contains("\"timeout\":1000") || next.contains("\"timeout\": 1000"));
         assertTrue(next.contains("region"));
         assertFalse(next.contains("9999"));
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("parseEnvs 读名称/URL/变量；空条目跳过")
+    void parseEnvs() {
+        List<PrefabricatedTemplateExtrasSupport.PrefabEnv> envs = PrefabricatedTemplateExtrasSupport.parseEnvs(
+                "[{\"envName\":\"默认环境\",\"envUrl\":\"http://localhost:8081\",\"envVariables\":[]},"
+                        + "{\"envName\":\"\",\"envUrl\":\"\",\"envVariables\":[]}]");
+        assertEquals(1, envs.size());
+        assertEquals("默认环境", envs.get(0).getEnvName());
+        assertEquals("http://localhost:8081", envs.get(0).getEnvUrl());
+        assertEquals("[]", envs.get(0).getEnvVariablesJson());
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("isPlaceholderEnvUrl 认空串与 127.0.0.1")
+    void isPlaceholderEnvUrl() {
+        assertTrue(PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl(null));
+        assertTrue(PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl(""));
+        assertTrue(PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl("http://127.0.0.1"));
+        assertFalse(PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl("http://localhost:8081"));
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("paramsFromEnvVariablesJson 转 kind=env")
+    void paramsFromEnvVariablesJson() {
+        List<PrefabParam> params = PrefabricatedTemplateExtrasSupport.paramsFromEnvVariablesJson(
+                "[{\"key\":\"timeout\",\"remark\":\"毫秒\",\"assets\":{\"timeout\":5000}}]");
+        assertEquals(1, params.size());
+        assertEquals("env", params.get(0).getKind());
+        assertEquals("timeout", params.get(0).getName());
+        assertEquals(5000, params.get(0).getValue());
+        assertEquals("毫秒", params.get(0).getRemark());
     }
 }

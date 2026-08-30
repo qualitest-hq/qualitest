@@ -23,7 +23,7 @@ function asJsonField(value: unknown, fallback: unknown): string {
 
 /**
  * 构造模板详情行（给 templateToForm 用）。
- * templateApis / templateParams / templateFlows / templatePrompts 写成 JSON 字符串。
+ * templateApis / templateParams / templateEnvs / templateFlows / templatePrompts 写成 JSON 字符串。
  */
 export function buildTemplateRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -37,6 +37,7 @@ export function buildTemplateRow(overrides: Record<string, unknown> = {}) {
     ...overrides,
     templateApis: asJsonField(overrides.templateApis, [buildLoginApi()]),
     templateParams: asJsonField(overrides.templateParams, []),
+    templateEnvs: asJsonField(overrides.templateEnvs, []),
     templateFlows: asJsonField(overrides.templateFlows, []),
     templatePrompts: asJsonField(overrides.templatePrompts, []),
   }

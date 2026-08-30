@@ -11,10 +11,8 @@ import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.params.TestProjectParams;
 import com.qualitest.project.result.TestProjectResult;
 import com.qualitest.project.service.ITestProjectService;
-import com.qualitest.project.support.ProjectAuthTemplateApplyService;
 import com.qualitest.project.support.ResponseConventionSupport;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,10 +29,6 @@ import java.util.Objects;
 public class TestProjectServiceImpl implements ITestProjectService {
     @Autowired
     private TestProjectMapper testProjectMapper;
-
-    @Autowired
-    @Lazy
-    private ProjectAuthTemplateApplyService projectAuthTemplateApplyService;
 
     /**
      * 查询测试项目列表
@@ -108,7 +102,7 @@ public class TestProjectServiceImpl implements ITestProjectService {
             testProject.setResponseConvention(
                     ResponseConventionSupport.normalizeToJson(testProject.getResponseConvention()));
         }
-        // 勾了模板：先空着 auth_config，插入后再按勾选顺序拷贝
+        // 勾了模板：auth_config 先空着；Apply 须在默认环境建好后由 Controller 调用（seedEnvs 依赖已有环境行）
         // 没勾模板：必须自带非空 Profile，否则拒绝新建
         List<Long> templateIds = testProject.getTemplateIds();
         boolean hasTemplates = templateIds != null && templateIds.stream().anyMatch(Objects::nonNull);
@@ -124,11 +118,7 @@ public class TestProjectServiceImpl implements ITestProjectService {
             throw new ServiceException("新建项目须至少勾选一套项目模板");
         }
         testProject.setCreateTime(DateUtils.getNowDate());
-        int rows = testProjectMapper.insertTestProject(testProject);
-        if (rows > 0 && hasTemplates) {
-            projectAuthTemplateApplyService.apply(testProject.getTestProjectId(), templateIds);
-        }
-        return rows;
+        return testProjectMapper.insertTestProject(testProject);
     }
 
     /**

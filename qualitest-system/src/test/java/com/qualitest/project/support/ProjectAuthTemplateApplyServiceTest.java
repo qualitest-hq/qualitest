@@ -7,6 +7,7 @@ import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.domain.TestProjectApiGroup;
+import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.domain.TestProjectTemplate;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.service.ITestFlowService;
@@ -41,8 +42,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * ProjectAuthTemplateApplyService：勾选模板写入项目鉴权 Profile，并种子接口 / 测值 / 测试流。
- * 覆盖：同名 Profile 跳过、method+path 去重、库内已有不覆盖、字段拷贝、瘦 JSON 补缺省。
+ * ProjectAuthTemplateApplyService：勾选模板写入项目鉴权 Profile，并种子接口 / 测值 / 测试流 / 环境。
+ * 覆盖：同名 Profile 跳过、method+path 去重、库内已有不覆盖、字段拷贝、瘦 JSON 补缺省；
+ * 预制环境占位 URL→8081、已定制不覆盖、无环境行跳过（建项须先建默认环境再 Apply）。
+ * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ProjectAuthTemplateApplyServiceTest}
  */
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -378,6 +381,272 @@ class ProjectAuthTemplateApplyServiceTest {
         verify(testProjectApiService, never()).batchInsertTestProjectApi(any());
     }
 
+    /**
+     * 前提：空项目；模板带 adminAuth 口令。
+     * 期望：素材库写入 adminAuth。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("种子：templateParams asset 写入素材库")
+    void apply_seedsAssetParams() {
+        stubEmptyProject();
+        stubGroupCreate();
+        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
+        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        when(testProjectMapper.selectAssetVariablesByTestProjectId(PROJECT_ID)).thenReturn("[]");
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplateParams(
+                "[{\"kind\":\"asset\",\"name\":\"adminAuth\",\"value\":{\"username\":\"admin\",\"password\":\"admin123\"}}]");
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<TestProject> patch = ArgumentCaptor.forClass(TestProject.class);
+        verify(testProjectMapper).updateAssetVariables(patch.capture());
+        assertTrue(patch.getValue().getAssetVariables().contains("adminAuth"));
+        assertTrue(patch.getValue().getAssetVariables().contains("admin123"));
+    }
+
+    /**
+     * 前提：项目已有同名 Profile；模板带 asset 口令，素材库为空。
+     * 期望：不插接口；仍把 adminAuth 写入素材库。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("Profile 同名跳过仍种子 asset 口令")
+    void apply_seedsAssetParamsEvenWhenProfileSkipped() {
+        TestProject project = new TestProject();
+        project.setTestProjectId(PROJECT_ID);
+        project.setAuthConfig(ProjectAuthConfigSupport.toJson(
+                ProjectAuthConfigSupport.ruoyiBearerTemplate()));
+        when(testProjectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(project);
+        when(testProjectMapper.selectAssetVariablesByTestProjectId(PROJECT_ID)).thenReturn("[]");
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplateParams(
+                "[{\"kind\":\"asset\",\"name\":\"adminAuth\",\"value\":{\"username\":\"admin\",\"password\":\"admin123\"}}]");
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<TestProject> patch = ArgumentCaptor.forClass(TestProject.class);
+        verify(testProjectMapper).updateAssetVariables(patch.capture());
+        assertTrue(patch.getValue().getAssetVariables().contains("adminAuth"));
+        assertTrue(patch.getValue().getAssetVariables().contains("admin123"));
+        verify(testProjectApiService, never()).batchInsertTestProjectApi(any());
+    }
+
+    /**
+     * 前提：建项占位 URL；模板预制环境 8081。
+     * 期望：第一条环境 envUrl 写成 localhost:8081。
+     */
+    @Test
+    @Order(12)
+    @DisplayName("预制环境：占位 URL 写成 8081")
+    void apply_seedsEnvUrlWhenPlaceholder() {
+        stubEmptyProject();
+        stubGroupCreate();
+        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
+        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        when(testProjectEnvService.selectTestProjectEnvList(any())).thenReturn(List.of(placeholderEnv()));
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplateEnvs(demoEnvsJson());
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<TestProjectEnv> patch = ArgumentCaptor.forClass(TestProjectEnv.class);
+        verify(testProjectEnvService).updateTestProjectEnv(patch.capture());
+        assertEquals("http://localhost:8081", patch.getValue().getEnvUrl());
+        assertNull(patch.getValue().getAllowDestructiveReset());
+    }
+
+    /**
+     * 前提：环境 URL 已定制；模板再给 8081 与同 key 变量。
+     * 期望：URL 不改；timeout 不覆盖；补新 key。
+     */
+    @Test
+    @Order(13)
+    @DisplayName("预制环境：已定制 URL 不覆盖，变量同 key 不覆盖")
+    void apply_keepsCustomEnvUrlAndMergesVars() {
+        stubEmptyProject();
+        stubGroupCreate();
+        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
+        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        TestProjectEnv env = TestProjectEnv.builder()
+                .testProjectEnvId(10L)
+                .envName("默认环境")
+                .envUrl("http://custom:9")
+                .envVariables("[{\"key\":\"timeout\",\"assets\":{\"timeout\":1000}}]")
+                .build();
+        when(testProjectEnvService.selectTestProjectEnvList(any())).thenReturn(List.of(env));
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplateEnvs(
+                "[{\"envName\":\"默认环境\",\"envUrl\":\"http://localhost:8081\","
+                        + "\"envVariables\":[{\"key\":\"timeout\",\"assets\":{\"timeout\":9999}},"
+                        + "{\"key\":\"region\",\"assets\":{\"region\":\"cn\"}}]}]");
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<TestProjectEnv> patch = ArgumentCaptor.forClass(TestProjectEnv.class);
+        verify(testProjectEnvService).updateTestProjectEnv(patch.capture());
+        assertNull(patch.getValue().getEnvUrl());
+        assertTrue(patch.getValue().getEnvVariables().contains("timeout"));
+        assertTrue(patch.getValue().getEnvVariables().contains("1000"));
+        assertTrue(patch.getValue().getEnvVariables().contains("region"));
+        assertFalse(patch.getValue().getEnvVariables().contains("9999"));
+    }
+
+    /**
+     * 前提：两套模板都带 8081；第二套多一个变量。
+     * 期望：URL 只在占位时写一次；变量按 key 去重合并。
+     */
+    @Test
+    @Order(14)
+    @DisplayName("双模板共用第一条环境：URL 一次、变量去重")
+    void apply_twoTemplatesShareFirstEnv() {
+        stubEmptyProject();
+        stubGroupCreate();
+        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
+        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        TestProjectEnv afterFirst = TestProjectEnv.builder()
+                .testProjectEnvId(10L)
+                .envName("默认环境")
+                .envUrl("http://localhost:8081")
+                .envVariables("[{\"key\":\"timeout\",\"assets\":{\"timeout\":\"5000\"}}]")
+                .build();
+        when(testProjectEnvService.selectTestProjectEnvList(any()))
+                .thenReturn(List.of(placeholderEnv()))
+                .thenReturn(List.of(afterFirst));
+        TestProjectTemplate admin = template(TPL_ADMIN, "管理端 Bearer", slimLoginApis());
+        admin.setTemplateEnvs(
+                "[{\"envName\":\"默认环境\",\"envUrl\":\"http://localhost:8081\","
+                        + "\"envVariables\":[{\"key\":\"timeout\",\"assets\":{\"timeout\":\"5000\"}}]}]");
+        TestProjectTemplate ruoyi = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        ruoyi.setTemplateEnvs(
+                "[{\"envName\":\"默认环境\",\"envUrl\":\"http://localhost:8081\","
+                        + "\"envVariables\":[{\"key\":\"timeout\",\"assets\":{\"timeout\":\"9999\"}},"
+                        + "{\"key\":\"region\",\"assets\":{\"region\":\"cn\"}}]}]");
+        when(templateService.selectTestProjectTemplateById(TPL_ADMIN)).thenReturn(admin);
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(ruoyi);
+
+        service.apply(PROJECT_ID, List.of(TPL_ADMIN, TPL_DEFAULT));
+
+        ArgumentCaptor<TestProjectEnv> patch = ArgumentCaptor.forClass(TestProjectEnv.class);
+        verify(testProjectEnvService, times(2)).updateTestProjectEnv(patch.capture());
+        List<TestProjectEnv> patches = patch.getAllValues();
+        assertEquals("http://localhost:8081", patches.get(0).getEnvUrl());
+        assertNull(patches.get(1).getEnvUrl());
+        assertTrue(patches.get(1).getEnvVariables().contains("region"));
+        assertFalse(patches.get(1).getEnvVariables().contains("9999"));
+    }
+
+    /**
+     * 前提：项目已有同名 Profile；环境仍是占位。
+     * 期望：不插接口；仍把 URL 写成 8081。
+     */
+    @Test
+    @Order(15)
+    @DisplayName("Profile 同名跳过仍补环境 URL")
+    void apply_seedsEnvEvenWhenProfileSkipped() {
+        TestProject project = new TestProject();
+        project.setTestProjectId(PROJECT_ID);
+        project.setAuthConfig(ProjectAuthConfigSupport.toJson(
+                ProjectAuthConfigSupport.ruoyiBearerTemplate()));
+        when(testProjectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(project);
+        when(testProjectEnvService.selectTestProjectEnvList(any())).thenReturn(List.of(placeholderEnv()));
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplateEnvs(demoEnvsJson());
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<TestProjectEnv> patch = ArgumentCaptor.forClass(TestProjectEnv.class);
+        verify(testProjectEnvService).updateTestProjectEnv(patch.capture());
+        assertEquals("http://localhost:8081", patch.getValue().getEnvUrl());
+        verify(testProjectApiService, never()).batchInsertTestProjectApi(any());
+    }
+
+    /**
+     * 前提：无 templateEnvs；存量 kind=env 含 baseUrl + timeout；环境为占位。
+     * 期望：占位时可写 envUrl，并合并变量。
+     */
+    @Test
+    @Order(16)
+    @DisplayName("存量 kind=env：占位时可写 baseUrl")
+    void apply_legacyEnvParamBaseUrlWhenPlaceholder() {
+        stubEmptyProject();
+        stubGroupCreate();
+        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
+        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        when(testProjectEnvService.selectTestProjectEnvList(any())).thenReturn(List.of(placeholderEnv()));
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplateParams(
+                "[{\"kind\":\"env\",\"name\":\"baseUrl\",\"value\":\"http://localhost:8081\"},"
+                        + "{\"kind\":\"env\",\"name\":\"timeout\",\"value\":\"5000\"}]");
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<TestProjectEnv> patch = ArgumentCaptor.forClass(TestProjectEnv.class);
+        verify(testProjectEnvService).updateTestProjectEnv(patch.capture());
+        assertEquals("http://localhost:8081", patch.getValue().getEnvUrl());
+        assertTrue(patch.getValue().getEnvVariables().contains("timeout"));
+    }
+
+    /**
+     * 前提：环境 URL 已定制；存量 kind=env 再给 baseUrl。
+     * 期望：不改 URL。
+     */
+    @Test
+    @Order(17)
+    @DisplayName("存量 kind=env：已定制 URL 不覆盖")
+    void apply_legacyEnvParamBaseUrlSkipsCustomUrl() {
+        stubEmptyProject();
+        stubGroupCreate();
+        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
+        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        TestProjectEnv env = TestProjectEnv.builder()
+                .testProjectEnvId(10L)
+                .envName("默认环境")
+                .envUrl("http://custom:9")
+                .envVariables("[]")
+                .build();
+        when(testProjectEnvService.selectTestProjectEnvList(any())).thenReturn(List.of(env));
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplateParams(
+                "[{\"kind\":\"env\",\"name\":\"baseUrl\",\"value\":\"http://localhost:8081\"}]");
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<TestProjectEnv> patch = ArgumentCaptor.forClass(TestProjectEnv.class);
+        verify(testProjectEnvService).updateTestProjectEnv(patch.capture());
+        assertNull(patch.getValue().getEnvUrl());
+    }
+
+    /**
+     * 前提：项目尚无环境行（建项若先 Apply 再加成员会出现）；模板带 8081。
+     * 期望：不 update 环境（契约：须先建默认环境再 Apply，否则预制 URL 写不进）。
+     */
+    @Test
+    @Order(18)
+    @DisplayName("预制环境：无环境行则跳过（建项须先建环境再 Apply）")
+    void apply_skipsEnvSeedWhenNoProjectEnv() {
+        stubEmptyProject();
+        stubGroupCreate();
+        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
+        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        when(testProjectEnvService.selectTestProjectEnvList(any())).thenReturn(List.of());
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplateEnvs(demoEnvsJson());
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        verify(testProjectEnvService, never()).updateTestProjectEnv(any());
+    }
+
     private void stubEmptyProject() {
         TestProject project = new TestProject();
         project.setTestProjectId(PROJECT_ID);
@@ -392,6 +661,20 @@ class ProjectAuthTemplateApplyServiceTest {
             group.setApiGroupId(100L);
             return 1;
         });
+    }
+
+    private static String demoEnvsJson() {
+        return "[{\"envName\":\"默认环境\",\"envUrl\":\"http://localhost:8081\",\"envVariables\":[]}]";
+    }
+
+    private static TestProjectEnv placeholderEnv() {
+        return TestProjectEnv.builder()
+                .testProjectEnvId(10L)
+                .testProjectId(PROJECT_ID)
+                .envName("默认环境")
+                .envUrl("http://127.0.0.1")
+                .envVariables("[]")
+                .build();
     }
 
     private static TestProjectTemplate template(Long id, String name, String apis) {

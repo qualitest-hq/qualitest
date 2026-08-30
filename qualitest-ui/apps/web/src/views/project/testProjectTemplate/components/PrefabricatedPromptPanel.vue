@@ -9,7 +9,7 @@
     </div>
     <div class="tpl-prefab-section__body">
       <p v-if="!readOnly" class="tpl-prefab-section__hint">
-        勾选模板时种子为项目级 AI 快捷词（同场景+标题已存在则跳过）。业务芯片默认假设主流已挂登录子流，勿再写登录句。
+        勾选模板时种子为项目级 AI 快捷词（同场景+标题已存在则跳过）。说明会显示在造流胶囊悬停。业务芯片默认假设主流已挂登录子流，勿再写登录句。
       </p>
       <el-table
         v-if="rows.length"
@@ -39,13 +39,13 @@
               v-if="!readOnly"
               v-model="list[scope.row._index].description"
               maxlength="200"
-              placeholder="可选"
+              placeholder="胶囊悬停，可选"
               size="small"
             />
             <span v-else>{{ scope.row.description || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="正文" min-width="240" prop="content" show-overflow-tooltip>
+        <el-table-column label="正文" min-width="280" prop="content" show-overflow-tooltip>
           <template #default="scope">
             <el-input
               v-if="!readOnly"
@@ -68,18 +68,6 @@
               size="small"
             />
             <span v-else>{{ scope.row.sortNum ?? 0 }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="备注" min-width="80" prop="remark" show-overflow-tooltip>
-          <template #default="scope">
-            <el-input
-              v-if="!readOnly"
-              v-model="list[scope.row._index].remark"
-              maxlength="64"
-              placeholder="如 S01"
-              size="small"
-            />
-            <span v-else>{{ scope.row.remark || '—' }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -119,7 +107,6 @@ const rows = computed(() =>
     description: String(row?.description || '').trim(),
     content: String(row?.content || '').trim(),
     sortNum: row?.sortNum ?? 0,
-    remark: String(row?.remark || '').trim(),
   })),
 )
 

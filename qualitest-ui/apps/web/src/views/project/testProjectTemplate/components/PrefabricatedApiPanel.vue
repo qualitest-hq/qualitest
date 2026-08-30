@@ -4,24 +4,6 @@
       <span class="tpl-prefab-section__title">预制接口</span>
       <div v-if="!readOnly" class="tpl-prefab-section__actions">
         <el-button icon="Plus" size="small" type="primary" @click="handleAdd">新增</el-button>
-        <el-button
-          :disabled="selectedIndex < 0"
-          icon="Delete"
-          size="small"
-          @click="handleRemove"
-        >删除</el-button>
-        <el-button
-          :disabled="selectedIndex <= 0"
-          icon="Top"
-          size="small"
-          @click="handleMove(-1)"
-        >上移</el-button>
-        <el-button
-          :disabled="selectedIndex < 0 || selectedIndex >= apis.length - 1"
-          icon="Bottom"
-          size="small"
-          @click="handleMove(1)"
-        >下移</el-button>
       </div>
     </div>
 
@@ -41,13 +23,32 @@
       <el-table-column label="路径" min-width="140" prop="apiPath" show-overflow-tooltip />
       <el-table-column label="名称" min-width="100" prop="apiName" show-overflow-tooltip />
       <el-table-column label="鉴权" prop="authModeLabel" width="88" />
-      <el-table-column align="center" label="操作" width="72">
+      <el-table-column align="center" label="操作" :width="readOnly ? 72 : 200">
         <template #default="scope">
           <el-button
             link
             type="primary"
             @click.stop="openDetail(scope.row._index)"
           >{{ readOnly ? '查看' : '编辑' }}</el-button>
+          <template v-if="!readOnly">
+            <el-button
+              link
+              type="danger"
+              @click.stop="handleRemove(scope.row._index)"
+            >删除</el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="scope.row._index <= 0"
+              @click.stop="handleMove(scope.row._index, -1)"
+            >上移</el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="scope.row._index >= apis.length - 1"
+              @click.stop="handleMove(scope.row._index, 1)"
+            >下移</el-button>
+          </template>
         </template>
       </el-table-column>
     </el-table>
@@ -585,22 +586,23 @@ function handleAdd() {
   })
 }
 
-function handleRemove() {
-  if (selectedIndex.value < 0) return
+function handleRemove(index) {
+  if (props.readOnly || index == null || index < 0 || index >= apis.value.length) return
   if (detailVisible.value) {
     detailVisible.value = false
   }
   const next = parseApis(apis.value)
-  next.splice(selectedIndex.value, 1)
+  next.splice(index, 1)
   apis.value = next
-  if (selectedIndex.value >= next.length) {
-    selectedIndex.value = next.length - 1
+  if (selectedIndex.value === index) {
+    selectedIndex.value = next.length ? Math.min(index, next.length - 1) : -1
+  } else if (selectedIndex.value > index) {
+    selectedIndex.value -= 1
   }
   ensureSelection()
 }
 
-function handleMove(delta) {
-  const from = selectedIndex.value
+function handleMove(from, delta) {
   const to = from + delta
   if (from < 0 || to < 0 || to >= apis.value.length) return
   if (detailVisible.value) {
