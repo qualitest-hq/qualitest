@@ -9,7 +9,7 @@
     </div>
     <div class="tpl-prefab-section__body">
       <p v-if="!readOnly" class="tpl-prefab-section__hint">
-        勾选模板时种子为项目级 AI 快捷词（同场景+标题已存在则跳过）。说明会显示在造流胶囊悬停。业务芯片默认假设主流已挂登录子流，勿再写登录句。
+        可选。勾选模板时若有条目则种子为项目级 AI 快捷词（同场景+标题已存在则跳过）。鉴权模板可留空；靶场业务步骤与测值放在提示集/项目自建芯片，勿写进通用登录模板。
       </p>
       <el-table
         v-if="rows.length"

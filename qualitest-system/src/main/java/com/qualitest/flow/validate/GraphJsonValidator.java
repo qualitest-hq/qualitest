@@ -294,7 +294,7 @@ public class GraphJsonValidator {
             validateDelayNodeFields(p, id, data, errors);
         }
         validateScriptNodeFields(p, id, type, data, errors, warnings);
-        validateSubflowNodeFields(p, id, type, data, errors);
+        validateSubflowNodeFields(p, id, type, data, errors, warnings);
     }
 
     /** 校验 assert 节点：rules 非空；每条 left / JsonPath。 */
@@ -514,7 +514,8 @@ public class GraphJsonValidator {
             String id,
             String type,
             Map<String, Object> data,
-            List<String> errors
+            List<String> errors,
+            List<String> warnings
     ) {
         if (!FlowNodeType.SUBFLOW.matches(type)) {
             return;

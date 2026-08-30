@@ -142,7 +142,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 
 | 主题      | 口径                                                     |
 | ------- | ------------------------------------------------------ |
-| 提示词三层   | **平台**造流动词（`ai_prompt_template` scope=platform）· **项目芯片**随鉴权模板 `template_prompts` Apply 进项目（scope=project，同 title 跳过）· **接口** `designHints` 仅短提示；业务正文默认已挂登录子流，勿再写登录句；详见 demo [ai-test-flow-prompts.md](../../qualitest-demo/docs/ai-test-flow-prompts.md) |
+| 提示词三层   | **平台**造流动词 · **项目芯片**可选（鉴权模板 `template_prompts` 默认可为空；**不**内置靶场业务步骤）· **接口** `designHints` 仅短提示；商城业务正文与测值见 demo [ai-test-flow-prompts.md](../../qualitest-demo/docs/ai-test-flow-prompts.md)，勿再写登录句 |
 | 造流      | 提示集 + 真实 apiId；长流**新对话 + 短提示**；「本轮未提交 Staging」= 未落盘   |
 | Staging | 全部 ✓ 再保存；删除 ✓ 无二次弹窗；MCP 不能 `submit`                     |
 | 失败路径    | 「预期业务拒绝」+ 字面量；成功路径才用 `{{asset.*}}`                     |

@@ -354,6 +354,7 @@ function validateSubflowNodeFields(
   id: string | undefined,
   data: Record<string, unknown> | undefined,
   errors: string[],
+  _warnings: string[],
 ): void {
   const name = data?.name != null ? String(data.name) : id;
   const subflowId = data?.subflowId;
@@ -447,7 +448,7 @@ function validateNodeFields(
     validateDelayNodeFields(p, id, node.data, errors);
   }
   if (type === 'subflow') {
-    validateSubflowNodeFields(p, id, node.data, errors);
+    validateSubflowNodeFields(p, id, node.data, errors, warnings);
   }
   if (type === 'script') {
     validateScriptNodeFields(p, id, node.data, errors, warnings);
