@@ -294,7 +294,7 @@ public class GraphJsonValidator {
             validateDelayNodeFields(p, id, data, errors);
         }
         validateScriptNodeFields(p, id, type, data, errors, warnings);
-        validateSubflowNodeFields(p, id, type, data, errors, warnings);
+        validateSubflowNodeFields(p, id, type, data, errors);
     }
 
     /** 校验 assert 节点：rules 非空；每条 left / JsonPath。 */
@@ -514,13 +514,12 @@ public class GraphJsonValidator {
             String id,
             String type,
             Map<String, Object> data,
-            List<String> errors,
-            List<String> warnings
+            List<String> errors
     ) {
         if (!FlowNodeType.SUBFLOW.matches(type)) {
             return;
         }
-        // subflowId 缺失阻断保存/运行；inputs/outputs 为空仅告警（允许逐步配置）
+        // subflowId 缺失阻断保存/运行；inputs/outputs 空映射合法（asset 跨流 / meta.flowOutputs 回退）
         String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
         Object subflowId = data != null ? data.get("subflowId") : null;
         if (subflowId == null || String.valueOf(subflowId).isBlank()) {
@@ -532,14 +531,6 @@ public class GraphJsonValidator {
             if (!"pinned".equals(pv) && !"latest".equals(pv)) {
                 errors.add(p + " 子流节点「" + name + "」versionPolicy 无效：" + pv);
             }
-        }
-        Object inputs = data != null ? data.get("inputs") : null;
-        if (!(inputs instanceof List<?> list) || list.isEmpty()) {
-            warnings.add("子流节点「" + name + "」inputs 为空");
-        }
-        Object outputs = data != null ? data.get("outputs") : null;
-        if (!(outputs instanceof List<?> outList) || outList.isEmpty()) {
-            warnings.add("子流节点「" + name + "」outputs 为空");
         }
     }
 

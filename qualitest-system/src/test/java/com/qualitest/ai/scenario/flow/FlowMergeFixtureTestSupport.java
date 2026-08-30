@@ -40,7 +40,7 @@ final class FlowMergeFixtureTestSupport {
      */
     static GraphJson buildStagingCanvas(JSONObject fixture) {
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
-        FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(null, null, new GraphJsonValidator(), merger);
+        FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(null, null, null, new GraphJsonValidator(), merger);
         GraphJson base = fixture.getObject("baseGraph", GraphJson.class);
         FlowDesignPatch patch = JSON.parseObject(
                 JSON.toJSONString(fixture.getObject("patch", FlowDesignPatch.class)),

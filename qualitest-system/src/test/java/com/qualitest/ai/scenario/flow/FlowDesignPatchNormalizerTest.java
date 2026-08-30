@@ -53,7 +53,7 @@ class FlowDesignPatchNormalizerTest {
                 .testProjectId(PROJECT_ID)
                 .authConfig(com.qualitest.api.util.AuthProfileTestFixtures.adminThenClientJson())
                 .build());
-        normalizer = new FlowDesignPatchNormalizer(mapper, projectMapper, new GraphJsonValidator(), new FlowDesignPatchMerger());
+        normalizer = new FlowDesignPatchNormalizer(mapper, projectMapper, null, new GraphJsonValidator(), new FlowDesignPatchMerger());
     }
 
     /**

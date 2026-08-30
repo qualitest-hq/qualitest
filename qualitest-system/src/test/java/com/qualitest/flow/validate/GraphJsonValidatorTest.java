@@ -145,18 +145,18 @@ class GraphJsonValidatorTest {
 
     /**
      * 前提：subflow 缺 subflowId，且未配 inputs/outputs。
-     * 期望：error + inputs/outputs 相关 warning。
+     * 期望：仅 subflowId error；空 inputs/outputs 不再告警。
      */
     @Test
     @Order(8)
-    @DisplayName("subflow 缺 id 产生 error 与 warning")
+    @DisplayName("subflow 缺 id 产生 error，空 IO 无 warning")
     void subflowMissingId_producesErrorAndWarnings() {
         String json = loadResource("flow/invalid-subflow-missing-id.json");
         GraphValidationResult result = validator.validateJson(json);
         assertFalse(result.isOk());
         assertEquals(1, result.getErrors().size());
         assertTrue(result.getErrors().get(0).contains("subflowId"));
-        assertEquals(2, result.getWarnings().size());
+        assertEquals(0, result.getWarnings().size());
     }
 
     @Test

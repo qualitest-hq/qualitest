@@ -120,15 +120,15 @@ describe('validateGraphJson', () => {
     expect(result.errors[0]).toContain('callMode');
   });
 
-  /** 子流节点缺少 subflowId 时产生 error 与 warnings */
+  /** 子流节点缺少 subflowId 时产生 error；空 inputs/outputs 不再告警 */
   it('子流节点缺少 subflowId 时产生 error 与 warnings', () => {
     // 前提：subflow 节点缺 subflowId
-    // 期望：1 条 error、2 条 warnings
+    // 期望：1 条 error、0 条 warnings
     const result = validateGraphJson(invalidSubflowMissingId);
     expect(result.ok).toBe(false);
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toContain('subflowId');
-    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings).toHaveLength(0);
   });
 
   it('manifest：demo-graph 结构合规，errors=0 warnings=0', () => {
@@ -231,9 +231,9 @@ describe('validateGraphJson', () => {
     expect(result.warnings).toHaveLength(spec.expectWarnings);
   });
 
-  it('manifest：子流节点缺少 subflowId，errors=1 warnings=2', () => {
+  it('manifest：子流节点缺少 subflowId，errors=1 warnings=0', () => {
     // 前提：manifest subflow-missing-id fixture
-    // 期望：errors=1，warnings=2
+    // 期望：errors=1，warnings=0
     const spec = graphValidateCases.cases.find((x) => x.id === 'subflow-missing-id')!;
     const raw = fixtureMap[spec.fixture];
     const result = validateGraphJson(raw);

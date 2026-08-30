@@ -30,7 +30,9 @@ import java.util.function.Function;
  * 对每个需鉴权的 project HTTP，解析其命中的鉴权 Profile，读取托管头上的
  * {@link CredentialTarget}（如 asset.adminAuth.token、flow.token）。
  * 未解析出凭证目标的 Profile 跳过。再扫描整图是否已产出该目标：
- * HTTP extracts（flow / asset）、assign 赋值、子流 flowOutputs、场景 flowSeed（仅 flow）。
+ * HTTP extracts（flow / asset）、assign 赋值、子流 flowOutputs（flow 作用域）、
+ * 子流引用图内的 extracts（子上下文与父共享 asset，登录子流写 asset.* 对本图有效）、
+ * 场景 flowSeed（仅 flow）。
  * 客户端与管理端分开检查，有一端凭证不能代替另一端。
  * <p>
  * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING），调用方应拒绝造流提交、Staging 确认或保存。
@@ -38,10 +40,13 @@ import java.util.function.Function;
  */
 public final class AuthTokenPresenceGate {
 
+    /** 递归展开子流引用图的深度上限，避免环引用死循环。 */
+    private static final int MAX_SUBFLOW_DEPTH = 3;
+
     private AuthTokenPresenceGate() {}
 
     /**
-     * 检查合并后流程图的鉴权凭证来源是否齐全。
+     * 检查合并后流程图的鉴权凭证来源是否齐全（不展开子流引用图）。
      *
      * @param graph           待检查的流程图
      * @param projectAuthJson 项目鉴权配置 JSON（authProfiles 等）
@@ -52,6 +57,23 @@ public final class AuthTokenPresenceGate {
             GraphJson graph,
             String projectAuthJson,
             Function<Long, TestProjectApi> apiResolver) {
+        return validate(graph, projectAuthJson, apiResolver, null);
+    }
+
+    /**
+     * 检查合并后流程图的鉴权凭证来源是否齐全。
+     *
+     * @param graph                待检查的流程图
+     * @param projectAuthJson      项目鉴权配置 JSON（authProfiles 等）
+     * @param apiResolver          按接口 id 加载接口定义（含 path、auth 标签）
+     * @param subflowGraphResolver 按子流 id 加载子图；为 null 时仅认本图 extracts / 子流 flow 输出
+     * @return 错误列表；每条形如「AUTH_TOKEN_MISSING: …」；空列表表示无需检查或已满足
+     */
+    public static List<String> validate(
+            GraphJson graph,
+            String projectAuthJson,
+            Function<Long, TestProjectApi> apiResolver,
+            Function<Long, GraphJson> subflowGraphResolver) {
         List<String> errors = new ArrayList<>();
         if (graph == null || apiResolver == null) {
             return errors;
@@ -107,7 +129,7 @@ public final class AuthTokenPresenceGate {
             return errors;
         }
 
-        Set<String> produced = collectProducedIdentityKeys(graph);
+        Set<String> produced = collectProducedIdentityKeys(graph, subflowGraphResolver, 0);
         for (Map.Entry<String, String> entry : requiredDisplayPaths.entrySet()) {
             if (produced.contains(entry.getKey())) {
                 continue;
@@ -120,10 +142,23 @@ public final class AuthTokenPresenceGate {
 
     /**
      * 收集图中已声明会写入的凭证 identityKey。
-     * 来源：HTTP extracts（flow + asset）、assign、subflow 输出、场景 flowSeed（仅 flow）。
+     * 来源：HTTP extracts（flow + asset）、assign、subflow 输出、子流引用图 extracts、场景 flowSeed（仅 flow）。
      */
     static Set<String> collectProducedIdentityKeys(GraphJson graph) {
+        return collectProducedIdentityKeys(graph, null, 0);
+    }
+
+    /**
+     * 收集图中已声明会写入的凭证 identityKey（可展开子流引用图）。
+     */
+    static Set<String> collectProducedIdentityKeys(
+            GraphJson graph,
+            Function<Long, GraphJson> subflowGraphResolver,
+            int depth) {
         Set<String> keys = new LinkedHashSet<>();
+        if (graph == null) {
+            return keys;
+        }
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
         for (GraphNode node : nodes) {
             if (node == null || node.getData() == null) {
@@ -147,6 +182,12 @@ public final class AuthTokenPresenceGate {
                     raw = data.get("outputs");
                 }
                 collectFlowField(raw, "flowKey", keys);
+                if (depth < MAX_SUBFLOW_DEPTH) {
+                    GraphJson child = resolveSubflowGraph(data, subflowGraphResolver);
+                    if (child != null) {
+                        keys.addAll(collectProducedIdentityKeys(child, subflowGraphResolver, depth + 1));
+                    }
+                }
             }
         }
         GraphMeta meta = graph.getMeta();
@@ -164,6 +205,40 @@ public final class AuthTokenPresenceGate {
             }
         }
         return keys;
+    }
+
+    /**
+     * 解析子流节点绑定的子图：优先节点内 pinned graphJson，否则按 subflowId 走解析器。
+     */
+    private static GraphJson resolveSubflowGraph(
+            Map<String, Object> data,
+            Function<Long, GraphJson> subflowGraphResolver) {
+        Object pinned = data.get("graphJson");
+        if (pinned instanceof String text && !text.isBlank()) {
+            try {
+                return GraphJson.parse(text);
+            } catch (Exception ignored) {
+                // 回落 subflowId
+            }
+        } else if (pinned != null && !(pinned instanceof String)) {
+            try {
+                return GraphJson.parse(JSONObject.toJSONString(pinned));
+            } catch (Exception ignored) {
+                // 回落 subflowId
+            }
+        }
+        if (subflowGraphResolver == null) {
+            return null;
+        }
+        Long subflowId = FlowHttpNodeVisitor.parseTestProjectApiId(data.get("subflowId"));
+        if (subflowId == null) {
+            return null;
+        }
+        try {
+            return subflowGraphResolver.apply(subflowId);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     /** 从 assign 列表收集 name/key，按 flow 目标写入 identityKey。 */

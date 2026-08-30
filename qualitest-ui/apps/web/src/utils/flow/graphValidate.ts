@@ -348,12 +348,12 @@ function validateDelayNodeFields(
   }
 }
 
+/** subflowId 缺失为 error；inputs/outputs 空映射合法（asset 跨流 / meta.flowOutputs 回退） */
 function validateSubflowNodeFields(
   p: string,
   id: string | undefined,
   data: Record<string, unknown> | undefined,
   errors: string[],
-  warnings: string[],
 ): void {
   const name = data?.name != null ? String(data.name) : id;
   const subflowId = data?.subflowId;
@@ -366,14 +366,6 @@ function validateSubflowNodeFields(
     if (pv !== 'pinned' && pv !== 'latest') {
       errors.push(`${p} 子流节点「${name}」versionPolicy 无效：${pv}`);
     }
-  }
-  const inputs = data?.inputs;
-  if (!Array.isArray(inputs) || inputs.length === 0) {
-    warnings.push(`子流节点「${name}」inputs 为空`);
-  }
-  const outputs = data?.outputs;
-  if (!Array.isArray(outputs) || outputs.length === 0) {
-    warnings.push(`子流节点「${name}」outputs 为空`);
   }
 }
 
@@ -455,7 +447,7 @@ function validateNodeFields(
     validateDelayNodeFields(p, id, node.data, errors);
   }
   if (type === 'subflow') {
-    validateSubflowNodeFields(p, id, node.data, errors, warnings);
+    validateSubflowNodeFields(p, id, node.data, errors);
   }
   if (type === 'script') {
     validateScriptNodeFields(p, id, node.data, errors, warnings);

@@ -157,7 +157,18 @@ public class TestFlowServiceImpl implements ITestFlowService {
         // schema 缺字段仅为警告，保存不拦截
         errors.addAll(AssertPathDesignGate.validate(graph, apiResolver).errors());
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        errors.addAll(AuthTokenPresenceGate.validate(graph, projectAuthJson, apiResolver));
+        Function<Long, GraphJson> subflowResolver = id -> {
+            TestFlow sub = testFlowMapper.selectTestFlowById(id);
+            if (sub == null || StrUtil.isBlank(sub.getGraphJson())) {
+                return null;
+            }
+            try {
+                return GraphJson.parse(sub.getGraphJson());
+            } catch (Exception e) {
+                return null;
+            }
+        };
+        errors.addAll(AuthTokenPresenceGate.validate(graph, projectAuthJson, apiResolver, subflowResolver));
         errors.addAll(LoginExtractPresenceGate.validate(graph, projectAuthJson, apiResolver));
         // 成功路径 HTTP 缺必填测值则拒绝保存
         errors.addAll(HttpRequiredParamGate.validate(graph, apiResolver));

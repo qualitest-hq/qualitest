@@ -64,7 +64,7 @@
       "id": "subflow-missing-id",
       "fixture": "invalid-subflow-missing-id.json",
       "expectErrors": 1,
-      "expectWarnings": 2
+      "expectWarnings": 0
     }
   ]
 }

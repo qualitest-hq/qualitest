@@ -124,6 +124,75 @@ class AuthTokenPresenceGateTest {
         assertTrue(errors.isEmpty());
     }
 
+    /**
+     * 前提：父图 Subflow 引用登录子流（子图 extracts 写 asset.clientAuth.token），业务 HTTP 需客户端 Bearer。
+     * 期望：展开子流图后无 AUTH_TOKEN_MISSING。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("子流引用图内 asset extract 可满足父图托管头")
+    void validate_subflowChildAssetExtract_ok() {
+        GraphNode login = httpNode("login", 501L);
+        login.getData().put("extracts", List.of(Map.of(
+                "name", "token",
+                "scope", "asset",
+                "entryKey", "clientAuth",
+                "fieldPath", "token",
+                "expr", "$.data.token",
+                "from", "body"
+        )));
+        GraphJson child = GraphJson.builder().nodes(List.of(login)).build();
+        GraphNode sub = GraphNode.builder()
+                .id("sf1")
+                .type("subflow")
+                .data(new HashMap<>(Map.of(
+                        "name", "客户端 Bearer 登录",
+                        "subflowId", "9001",
+                        "outputs", List.of(Map.of("name", "clientAuth.token", "flowKey", "clientAuth.token"))
+                )))
+                .build();
+        GraphJson parent = GraphJson.builder()
+                .nodes(List.of(sub, httpNode("biz", 502L)))
+                .build();
+        List<String> errors = AuthTokenPresenceGate.validate(
+                parent,
+                PROJECT_AUTH,
+                id -> {
+                    if (id == 501L) {
+                        return api(id, "/api/account/auth/login", "none");
+                    }
+                    return api(id, "/api/cart/list", "inherit");
+                },
+                id -> id == 9001L ? child : null);
+        assertTrue(errors.isEmpty(), () -> "errors=" + errors);
+    }
+
+    /**
+     * 前提：父图仅有 Subflow，无子流解析器，业务 HTTP 需客户端 Bearer。
+     * 期望：仍报缺 asset.clientAuth.token。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("无子流解析器时仅 flowOutputs 不满足 asset 托管头")
+    void validate_subflowWithoutResolver_stillMissingAsset() {
+        GraphNode sub = GraphNode.builder()
+                .id("sf1")
+                .type("subflow")
+                .data(new HashMap<>(Map.of(
+                        "name", "客户端 Bearer 登录",
+                        "subflowId", "9001",
+                        "outputs", List.of(Map.of("name", "clientAuth.token", "flowKey", "clientAuth.token"))
+                )))
+                .build();
+        GraphJson parent = GraphJson.builder()
+                .nodes(List.of(sub, httpNode("biz", 602L)))
+                .build();
+        List<String> errors = AuthTokenPresenceGate.validate(
+                parent, PROJECT_AUTH, id -> api(id, "/api/cart/list", "inherit"));
+        assertEquals(1, errors.size());
+        assertTrue(errors.get(0).contains("asset.clientAuth.token"));
+    }
+
     private static GraphNode httpNode(String id, Long apiId) {
         Map<String, Object> data = new HashMap<>();
         data.put("name", id);

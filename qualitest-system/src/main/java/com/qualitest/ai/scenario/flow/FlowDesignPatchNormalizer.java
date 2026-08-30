@@ -20,8 +20,10 @@ import com.qualitest.flow.validate.HttpRequiredParamGate;
 import com.qualitest.flow.validate.LoginExtractPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationResult;
+import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
+import com.qualitest.project.mapper.TestFlowMapper;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -67,6 +69,7 @@ public class FlowDesignPatchNormalizer {
 
     private final TestProjectApiMapper testProjectApiMapper;
     private final TestProjectMapper testProjectMapper;
+    private final TestFlowMapper testFlowMapper;
     private final GraphJsonValidator graphJsonValidator;
     private final FlowDesignPatchMerger patchMerger;
 
@@ -90,7 +93,8 @@ public class FlowDesignPatchNormalizer {
         warnings.addAll(assertPath.warnings());
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
         Function<Long, TestProjectApi> apiResolver = apiResolver();
-        errors.addAll(AuthTokenPresenceGate.validate(merged, projectAuthJson, apiResolver));
+        errors.addAll(AuthTokenPresenceGate.validate(
+                merged, projectAuthJson, apiResolver, subflowGraphResolver()));
         errors.addAll(LoginExtractPresenceGate.validate(merged, projectAuthJson, apiResolver));
         // 成功路径 HTTP 缺必填测值，本次造流不可进入 Staging
         errors.addAll(HttpRequiredParamGate.validate(merged, apiResolver));
@@ -118,7 +122,26 @@ public class FlowDesignPatchNormalizer {
      */
     public List<String> collectAuthTokenPresenceErrors(GraphJson graph, Long testProjectId) {
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        return AuthTokenPresenceGate.validate(graph, projectAuthJson, apiResolver());
+        return AuthTokenPresenceGate.validate(
+                graph, projectAuthJson, apiResolver(), subflowGraphResolver());
+    }
+
+    /** 按子流 id 加载 graph_json；mapper 未注入或解析失败时返回 null。 */
+    private Function<Long, GraphJson> subflowGraphResolver() {
+        if (testFlowMapper == null) {
+            return id -> null;
+        }
+        return id -> {
+            TestFlow sub = testFlowMapper.selectTestFlowById(id);
+            if (sub == null || sub.getGraphJson() == null || sub.getGraphJson().isBlank()) {
+                return null;
+            }
+            try {
+                return GraphJson.parse(sub.getGraphJson());
+            } catch (Exception e) {
+                return null;
+            }
+        };
     }
 
     /**

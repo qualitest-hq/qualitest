@@ -47,7 +47,7 @@ class FlowDesignPatchConfirmServiceTest {
     @BeforeEach
     void setUp() {
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
-        FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(null, null, new GraphJsonValidator(), merger);
+        FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(null, null, null, new GraphJsonValidator(), merger);
         confirmService = new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), null);
     }
 
@@ -576,7 +576,7 @@ class FlowDesignPatchConfirmServiceTest {
                         """)
                 .build());
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
-        FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(mapper, null, new GraphJsonValidator(), merger);
+        FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(mapper, null, null, new GraphJsonValidator(), merger);
         return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), mapper);
     }
 
@@ -599,7 +599,7 @@ class FlowDesignPatchConfirmServiceTest {
                 .build());
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(
-                apiMapper, projectMapper, new GraphJsonValidator(), merger);
+                apiMapper, projectMapper, null, new GraphJsonValidator(), merger);
         return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), apiMapper);
     }
 
