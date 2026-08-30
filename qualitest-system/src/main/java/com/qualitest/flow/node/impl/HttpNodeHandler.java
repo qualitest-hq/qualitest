@@ -103,7 +103,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             return failed(node, incomingEdgeId, nodeName, t0, ctx,
                     FlowErrorCode.TF_HTTP_UNBOUND, "API 不存在: " + apiId);
         }
-        // 叠 paramDefaults / 响应 example 等有效配置；跑流 body 不退回接口默认（见 FlowHttpRequestBuilder）
+        // 叠测值与响应 example；发出 body 由 issuedRequestConfig 再按 测值→节点 叠层
         TestProjectApi effectiveApi = TestProjectApiEffectiveConfigResolver.resolve(api).toApiView(api);
 
         FlowHttpRequestBuilder.BuiltHttpRequest built = FlowHttpRequestBuilder.buildFromProject(ctx, effectiveApi, data);

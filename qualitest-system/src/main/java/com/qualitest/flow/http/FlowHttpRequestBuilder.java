@@ -33,8 +33,8 @@ import java.util.Map;
  * <p>
  * <b>project 模式</b>（{@link FlowHttpCallMode#PROJECT}）：
  * URL = env.baseUrl + 所绑 API 的 apiPath；
- * method / query / path 以 API 有效配置为底（可含 paramDefaults），再叠节点 data.requestValueOverrides；
- * <b>body 测值不退回</b>接口资产的 bodyExample / 结构层 example，仅节点 overrides 可写入；
+ * method / query / path / body 以接口测值（test_value_config）为底，再叠节点 data.requestValueOverrides；
+ * 结构层 body.json.example（OpenAPI 残留）不发出；节点 bodyExample 整段替换接口测值；
  * 不读节点上的整份 requestConfig，也不读节点 apiPath。
  * <p>
  * <b>external 模式</b>（{@link FlowHttpCallMode#EXTERNAL}）：
@@ -76,7 +76,7 @@ public final class FlowHttpRequestBuilder {
             throw new FlowExecutionException(FlowErrorCode.TF_HTTP_UNBOUND, "未绑定 testProjectApiId");
         }
 
-        // 去掉接口资产默认 body，再叠节点测值，得到真正发出的请求配置
+        // 剥结构 example → 叠接口测值 → 叠节点差分
         JSONObject requestConfig = TestProjectApiEffectiveConfigResolver.issuedRequestConfig(api, nodeData);
         String method = resolveMethod(requestConfig, nodeData);
         String apiPath = resolveApiPath(api);

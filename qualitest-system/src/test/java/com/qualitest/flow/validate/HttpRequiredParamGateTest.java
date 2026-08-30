@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测必填测值门禁：成功路径缺必填时硬拦。
- * 无 bodyExample 视为空对象；数字 0 和 false 算已填；空数组算缺；关掉业务码校验时不拦。
+ * 无 bodyExample 视为空对象；接口测值与节点测值都计入；数字 0 和 false 算已填；空数组算缺；关掉业务码校验时不拦。
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class HttpRequiredParamGateTest {
@@ -150,11 +150,30 @@ class HttpRequiredParamGateTest {
     }
 
     /**
+     * 前提：接口 TV bodyExample 含 name=alice，节点无 overrides。
+     * 期望：通过（issued 叠接口测值）。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("接口测值补上 body 时通过")
+    void apiTestValueBody_ok() {
+        GraphJson graph = GraphJson.builder().nodes(List.of(httpNode("n", 1L, null))).build();
+        TestProjectApi withTv = TestProjectApi.builder()
+                .testProjectApiId(1L)
+                .apiPath("/demo")
+                .requestConfig(JSON_NAME_REQUIRED)
+                .testValueConfig("{\"request\":{\"bodyExample\":{\"name\":\"alice\"}}}")
+                .build();
+
+        assertTrue(HttpRequiredParamGate.validate(graph, id -> withTv).isEmpty());
+    }
+
+    /**
      * 前提：节点 bodyExample 写 enabled=false。
      * 期望：布尔 false 算已填。
      */
     @Test
-    @Order(8)
+    @Order(9)
     @DisplayName("布尔 false 算已填")
     void booleanFalse_countsAsFilled() {
         String schema = """

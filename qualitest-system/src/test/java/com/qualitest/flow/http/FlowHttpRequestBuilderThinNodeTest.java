@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测 FlowHttpRequestBuilder 薄节点：以 API 有效配置为底叠 requestValueOverrides；
- * 跑流不退回接口 body 默认。
+ * 无节点覆盖时发出接口 bodyExample；节点 body 整段替换。
  * 边界：内存 API/节点；忽略残留厚 requestConfig；无网络。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowHttpRequestBuilderThinNodeTest
  */
@@ -112,13 +112,13 @@ class FlowHttpRequestBuilderThinNodeTest {
     }
 
     /**
-     * 前提：有效配置已叠入脏 TV body（items+cartIds），节点未写 bodyExample。
-     * 期望：跑流不退回接口 body 默认，发出去的 JSON body 为空对象。
+     * 前提：有效配置已叠入 TV body（含 cartIds），节点未写 bodyExample。
+     * 期望：跑流发出接口测值 JSON，含 cartIds。
      */
     @Test
     @Order(3)
-    @DisplayName("跑流：节点无 body 不退回接口默认")
-    void build_withoutNodeBody_doesNotFallbackToApiBodyExample() {
+    @DisplayName("跑流：节点无 body 时发出接口测值")
+    void build_withoutNodeBody_usesApiBodyExample() {
         TestProjectApi api = TestProjectApi.builder()
                 .testProjectApiId(10L)
                 .testProjectId(1L)
@@ -134,11 +134,11 @@ class FlowHttpRequestBuilderThinNodeTest {
                         }
                         """)
                 .testValueConfig("""
-                        {"request":{"bodyExample":{"addressId":4001,"cartIds":[5001],"items":[{"skuId":1}]}}}
+                        {"request":{"bodyExample":{"addressId":4001,"cartIds":[5001]}}}
                         """)
                 .build();
         TestProjectApi effective = TestProjectApiEffectiveConfigResolver.resolve(api).toApiView(api);
-        assertTrue(effective.getRequestConfig().contains("items"));
+        assertTrue(effective.getRequestConfig().contains("cartIds"));
 
         Map<String, Object> nodeData = new HashMap<>();
         nodeData.put("callMode", "project");
@@ -154,9 +154,9 @@ class FlowHttpRequestBuilderThinNodeTest {
         DebugHttpForwardParams.DebugBodySpec body = built.getForwardParams().getBody();
         assertNotNull(body);
         assertEquals("json", body.getKind());
-        assertEquals("{}", body.getRaw());
-        assertFalse(body.getRaw().contains("items"));
-        assertFalse(body.getRaw().contains("cartIds"));
+        assertTrue(body.getRaw().contains("4001"));
+        assertTrue(body.getRaw().contains("5001"));
+        assertTrue(body.getRaw().contains("cartIds"));
     }
 
     /**

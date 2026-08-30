@@ -55,7 +55,7 @@
 
 节点里合法顶层键只有 **`paramDefaults`**、**`bodyExample`**。别把 `cartIds` 这类字段直接写在 overrides 根上（运行时会忽略）。
 
-与默认相同的字段**不必**在节点重复写。
+与默认相同的字段**不必**在节点重复写。跑流与调试台同一叠层；结构层 `request_config.body.json.example`（OpenAPI 残留）不发出，层 ① 是 `test_value_config`。
 
 ---
 

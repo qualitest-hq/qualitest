@@ -20,10 +20,10 @@ import java.util.function.Function;
 /**
  * 检查成功路径上的项目 HTTP 节点是否缺少必填测值。
  * <p>
- * JSON body 只看节点 requestValueOverrides.bodyExample，没有则当成空对象。
+ * JSON body 看 issued 配置（接口测值叠加节点 overrides）；没有则当成空对象。
  * query、path、表单字段看叠层后的 value。
  * successCheck.mode=off 时不检查（故意缺字段的失败场景）。
- * 不会把接口资产 example 里的默认值写进节点。
+ * 结构层 OpenAPI example 不计入已填；接口 test_value_config 与节点测值计入。
  */
 public final class HttpRequiredParamGate {
 

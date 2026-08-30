@@ -291,12 +291,12 @@ class TestProjectApiEffectiveConfigResolverTest {
     }
 
     /**
-     * 前提：接口资产 body.example 带默认对象，节点没写 overrides。
-     * 期望：合成结果里不再带 example。
+     * 前提：接口资产 body.example 带默认对象，无 test_value_config，节点没写 overrides。
+     * 期望：合成结果里不再带结构层 example。
      */
     @Test
-    @Order(8)
-    @DisplayName("issuedRequestConfig：无节点 body 时不退回资产 example")
+    @Order(9)
+    @DisplayName("issuedRequestConfig：无 TV、无节点时不发结构 example")
     void issuedRequestConfig_stripsAssetExampleWithoutOverrides() {
         TestProjectApi api = TestProjectApi.builder()
                 .requestConfig("""
@@ -309,5 +309,56 @@ class TestProjectApiEffectiveConfigResolverTest {
 
         var json = issued.getJSONObject("body").getJSONObject("json");
         assertFalse(json.containsKey("example"));
+    }
+
+    /**
+     * 前提：接口 test_value_config 含登录 bodyExample，节点没写 overrides。
+     * 期望：发出配置里带 {{asset.clientAuth.mobile}}。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("issuedRequestConfig：无节点覆盖时发出接口测值 body")
+    void issuedRequestConfig_withoutOverrides_usesAssetBodyExample() {
+        TestProjectApi api = TestProjectApi.builder()
+                .requestConfig("""
+                        {"configVersion":1,"method":"POST","queryParams":[],"pathParams":[],"declaredHeaders":[],
+                         "body":{"mode":"json","json":{"schema":{"type":"object"}}}}
+                        """)
+                .testValueConfig("""
+                        {"request":{"bodyExample":{"mobile":"{{asset.clientAuth.mobile}}","password":"{{asset.clientAuth.password}}"}}}
+                        """)
+                .build();
+
+        var issued = TestProjectApiEffectiveConfigResolver.issuedRequestConfig(api, Map.of());
+
+        String compact = issued.toJSONString();
+        assertTrue(compact.contains("asset.clientAuth.mobile"));
+        assertTrue(compact.contains("asset.clientAuth.password"));
+    }
+
+    /**
+     * 前提：先 resolve 烤进 example，再 issuedRequestConfig；节点无 overrides。
+     * 期望：仍发出 TV body，而不是剥空。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("issuedRequestConfig：传入 resolve 视图仍叠 TV")
+    void issuedRequestConfig_resolvedView_stillUsesTvBody() {
+        TestProjectApi source = TestProjectApi.builder()
+                .requestConfig("""
+                        {"configVersion":1,"method":"POST","queryParams":[],"pathParams":[],"declaredHeaders":[],
+                         "body":{"mode":"json","json":{"example":{"username":"openapi"},"schema":{"type":"object"}}}}
+                        """)
+                .testValueConfig("""
+                        {"request":{"bodyExample":{"mobile":"{{asset.clientAuth.mobile}}"}}}
+                        """)
+                .build();
+        TestProjectApi view = TestProjectApiEffectiveConfigResolver.resolve(source).toApiView(source);
+
+        var issued = TestProjectApiEffectiveConfigResolver.issuedRequestConfig(view, Map.of());
+
+        String compact = issued.toJSONString();
+        assertTrue(compact.contains("asset.clientAuth.mobile"));
+        assertFalse(compact.contains("openapi"));
     }
 }
