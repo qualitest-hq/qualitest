@@ -3,6 +3,10 @@ package com.qualitest.project.support;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
+import com.qualitest.ai.domain.AiPromptTemplate;
+import com.qualitest.ai.params.AiPromptTemplateParams;
+import com.qualitest.ai.result.AiPromptTemplateResult;
+import com.qualitest.ai.service.IAiPromptTemplateService;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
@@ -30,6 +34,7 @@ import com.qualitest.project.service.ITestProjectTemplateService;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.DerivedCredential;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabFlow;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabParam;
+import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabPrompt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -47,7 +52,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 把勾选的项目模板写入项目鉴权配置，并种子尚未存在的接口 / 参数 / 测试流。
+ * 把勾选的项目模板写入项目鉴权配置，并种子尚未存在的接口 / 参数 / 测试流 / AI 提示词。
  * <p>
  * 规则简述：
  * <ul>
@@ -55,7 +60,8 @@ import java.util.Set;
  *   <li>预制接口按 method+path 去重，已有则不插入、不改已有行；</li>
  *   <li>托管头与凭证目标由预制测试流 extracts 派生（优先 asset，如 Bearer {{asset.x.y}}）；</li>
  *   <li>预制参数：flow→场景 flowSeed，env→项目环境变量，asset→项目素材库；</li>
- *   <li>预制测试流按 flowName 去重后写入项目测试流，并尽量绑定项目接口 id。</li>
+ *   <li>预制测试流按 flowName 去重后写入项目测试流，并尽量绑定项目接口 id；</li>
+ *   <li>预制提示词写入项目级 ai_prompt_template（同 sessionScene+title 跳过；Profile 已存在仍会补种子）。</li>
  * </ul>
  */
 @Service
@@ -73,6 +79,7 @@ public class ProjectAuthTemplateApplyService {
     private final ITestProjectService testProjectService;
     private final ITestFlowService testFlowService;
     private final ITestProjectEnvService testProjectEnvService;
+    private final IAiPromptTemplateService aiPromptTemplateService;
 
     public ProjectAuthTemplateApplyService(
             ITestProjectTemplateService testProjectTemplateService,
@@ -81,7 +88,8 @@ public class ProjectAuthTemplateApplyService {
             ITestProjectApiGroupService testProjectApiGroupService,
             @Lazy ITestProjectService testProjectService,
             @Lazy ITestFlowService testFlowService,
-            ITestProjectEnvService testProjectEnvService) {
+            ITestProjectEnvService testProjectEnvService,
+            IAiPromptTemplateService aiPromptTemplateService) {
         this.testProjectTemplateService = testProjectTemplateService;
         this.testProjectMapper = testProjectMapper;
         this.testProjectApiService = testProjectApiService;
@@ -89,11 +97,12 @@ public class ProjectAuthTemplateApplyService {
         this.testProjectService = testProjectService;
         this.testFlowService = testFlowService;
         this.testProjectEnvService = testProjectEnvService;
+        this.aiPromptTemplateService = aiPromptTemplateService;
     }
 
     /**
      * 按勾选顺序把模板写入项目。
-     * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 种子测试流（含 flowSeed）→ 种子环境/素材变量。
+     * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 种子测试流（含 flowSeed）→ 种子环境/素材变量 → 种子 AI 提示词。
      */
     @Transactional(rollbackFor = Exception.class)
     public void apply(Long testProjectId, List<Long> templateIds) {
@@ -127,6 +136,7 @@ public class ProjectAuthTemplateApplyService {
 
         List<PrefabricatedApi> toSeed = new ArrayList<>();
         List<TestProjectTemplate> appliedTemplates = new ArrayList<>();
+        List<TestProjectTemplate> promptSourceTemplates = new ArrayList<>();
         for (Long templateId : ids) {
             TestProjectTemplate template = testProjectTemplateService.selectTestProjectTemplateById(templateId);
             if (template == null || (template.getDelStatus() != null && template.getDelStatus() == 1)) {
@@ -139,6 +149,7 @@ public class ProjectAuthTemplateApplyService {
             if (name == null) {
                 throw new ServiceException("模板名称不能为空");
             }
+            promptSourceTemplates.add(template);
             if (existingNames.contains(name)) {
                 continue;
             }
@@ -163,6 +174,10 @@ public class ProjectAuthTemplateApplyService {
             seedFlows(testProjectId, template);
             seedEnvParams(testProjectId, template);
             seedAssetParams(testProjectId, template);
+        }
+        Set<String> existingPromptKeys = loadProjectPromptKeys(testProjectId);
+        for (TestProjectTemplate template : promptSourceTemplates) {
+            seedPrompts(testProjectId, template, existingPromptKeys);
         }
     }
 
@@ -461,6 +476,65 @@ public class ProjectAuthTemplateApplyService {
         patch.setAssetVariables(next);
         patch.setUpdateTime(DateUtils.getNowDate());
         testProjectMapper.updateAssetVariables(patch);
+    }
+
+    /**
+     * 种子项目级 AI 提示词：同 sessionScene + title 已存在则跳过。
+     * Profile 同名跳过时仍会调用本方法，便于存量项目补芯片。
+     */
+    private void seedPrompts(Long testProjectId, TestProjectTemplate template, Set<String> existingKeys) {
+        List<PrefabPrompt> prompts = PrefabricatedTemplateExtrasSupport.parsePrompts(template.getTemplatePrompts());
+        if (prompts.isEmpty()) {
+            return;
+        }
+        Date now = DateUtils.getNowDate();
+        for (PrefabPrompt prompt : prompts) {
+            String key = promptKey(prompt.getSessionScene(), prompt.getTitle());
+            if (!existingKeys.add(key)) {
+                continue;
+            }
+            AiPromptTemplate row = AiPromptTemplate.builder()
+                    .aiPromptTemplateId(IdUtil.getSnowflakeNextId())
+                    .templateScope("project")
+                    .testProjectId(testProjectId)
+                    .sessionScene(prompt.getSessionScene())
+                    .templateTitle(prompt.getTitle())
+                    .templateDescription(prompt.getDescription())
+                    .templateContent(prompt.getContent())
+                    .builtinStatus(0)
+                    .enableStatus(1)
+                    .sortNum(prompt.getSortNum() != null ? prompt.getSortNum() : 0)
+                    .delStatus(0)
+                    .build();
+            row.setRemark(prompt.getRemark());
+            row.setCreateTime(now);
+            aiPromptTemplateService.insertAiPromptTemplate(row);
+        }
+    }
+
+    /** 加载项目下未删提示词的 scene+title 去重键。 */
+    private Set<String> loadProjectPromptKeys(Long testProjectId) {
+        Set<String> keys = new HashSet<>();
+        List<AiPromptTemplateResult> rows = aiPromptTemplateService.selectAiPromptTemplateResultList(
+                AiPromptTemplateParams.builder()
+                        .templateScope("project")
+                        .testProjectId(testProjectId)
+                        .build());
+        if (rows == null) {
+            return keys;
+        }
+        for (AiPromptTemplateResult row : rows) {
+            if (row == null || StrUtil.isBlank(row.getTemplateTitle())) {
+                continue;
+            }
+            String scene = StrUtil.blankToDefault(row.getSessionScene(), "test_flow_design");
+            keys.add(promptKey(scene, row.getTemplateTitle().trim()));
+        }
+        return keys;
+    }
+
+    private static String promptKey(String sessionScene, String title) {
+        return StrUtil.blankToDefault(sessionScene, "test_flow_design") + "\0" + title.trim();
     }
 
     /** 构建项目内「METHOD 规范化路径 → 接口主键」索引，供种子流绑接口。 */

@@ -45,6 +45,9 @@ public class TestProjectTemplateResult implements Serializable {
     /** 预制测试流 JSON 数组。 */
     private String templateFlows;
 
+    /** 预制 AI 提示词 JSON 数组。 */
+    private String templatePrompts;
+
     /** 内置标记：0 自定义，1 内置。 */
     @Excel(name = "内置状态", readConverterExp = "0=自定义,1=内置")
     private Integer builtinStatus;

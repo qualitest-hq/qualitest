@@ -2,7 +2,7 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- 项目模板表 CRUD：含 template_apis / template_params / template_flows -->
+<!-- 项目模板表 CRUD：含 template_apis / template_params / template_flows / template_prompts -->
 <mapper namespace="com.qualitest.project.mapper.TestProjectTemplateMapper">
 
     <resultMap type="TestProjectTemplate" id="TestProjectTemplateResultMap">
@@ -12,6 +12,7 @@
         <result property="templateApis" column="template_apis"/>
         <result property="templateParams" column="template_params"/>
         <result property="templateFlows" column="template_flows"/>
+        <result property="templatePrompts" column="template_prompts"/>
         <result property="builtinStatus" column="builtin_status"/>
         <result property="enableStatus" column="enable_status"/>
         <result property="sortNum" column="sort_num"/>
@@ -23,7 +24,7 @@
 
     <sql id="selectVo">
         select test_project_template_id, template_name, match_config, template_apis,
-               template_params, template_flows, builtin_status, enable_status, sort_num, remark, del_status, create_time, update_time
+               template_params, template_flows, template_prompts, builtin_status, enable_status, sort_num, remark, del_status, create_time, update_time
         from test_project_template
     </sql>
 
@@ -34,6 +35,7 @@
         tpt.template_apis as templateApis,
         tpt.template_params as templateParams,
         tpt.template_flows as templateFlows,
+        tpt.template_prompts as templatePrompts,
         tpt.builtin_status as builtinStatus,
         tpt.enable_status as enableStatus,
         tpt.sort_num as sortNum,
@@ -99,7 +101,7 @@
             resultMap="TestProjectTemplateResultMap">
         select
             tpt.test_project_template_id, tpt.template_name, tpt.match_config, tpt.template_apis,
-            tpt.template_params, tpt.template_flows, tpt.builtin_status, tpt.enable_status, tpt.sort_num, tpt.remark, tpt.del_status, tpt.create_time, tpt.update_time
+            tpt.template_params, tpt.template_flows, tpt.template_prompts, tpt.builtin_status, tpt.enable_status, tpt.sort_num, tpt.remark, tpt.del_status, tpt.create_time, tpt.update_time
         from test_project_template tpt
         <include refid="undeletedParamsWhere"/>
         order by tpt.sort_num asc, tpt.test_project_template_id asc
@@ -139,6 +141,7 @@
             <if test="templateApis != null">template_apis,</if>
             <if test="templateParams != null">template_params,</if>
             <if test="templateFlows != null">template_flows,</if>
+            <if test="templatePrompts != null">template_prompts,</if>
             <if test="builtinStatus != null">builtin_status,</if>
             <if test="enableStatus != null">enable_status,</if>
             <if test="sortNum != null">sort_num,</if>
@@ -154,6 +157,7 @@
             <if test="templateApis != null">#{templateApis},</if>
             <if test="templateParams != null">#{templateParams},</if>
             <if test="templateFlows != null">#{templateFlows},</if>
+            <if test="templatePrompts != null">#{templatePrompts},</if>
             <if test="builtinStatus != null">#{builtinStatus},</if>
             <if test="enableStatus != null">#{enableStatus},</if>
             <if test="sortNum != null">#{sortNum},</if>
@@ -172,6 +176,7 @@
             <if test="templateApis != null">template_apis = #{templateApis},</if>
             <if test="templateParams != null">template_params = #{templateParams},</if>
             <if test="templateFlows != null">template_flows = #{templateFlows},</if>
+            <if test="templatePrompts != null">template_prompts = #{templatePrompts},</if>
             <if test="builtinStatus != null">builtin_status = #{builtinStatus},</if>
             <if test="enableStatus != null">enable_status = #{enableStatus},</if>
             <if test="sortNum != null">sort_num = #{sortNum},</if>

@@ -138,6 +138,17 @@
         </template>
       </el-table-column>
       <el-table-column
+        v-if="columnVisible.templatePrompts"
+        key="templatePrompts"
+        label="提示词"
+        width="80"
+        align="center"
+      >
+        <template #default="scope">
+          {{ countJsonArray(scope.row.templatePrompts) }}
+        </template>
+      </el-table-column>
+      <el-table-column
         v-if="columnVisible.enableStatus"
         align="center"
         key="enableStatus"
@@ -347,6 +358,12 @@
             @update:template-apis="form.templateApis = $event"
           />
         </el-form-item>
+        <el-form-item class="tpl-apis-form-item" label-width="0">
+          <PrefabricatedPromptPanel
+            v-model="form.templatePrompts"
+            :read-only="isReadonlyForm"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <div class="tpl-drawer-footer">
@@ -367,7 +384,7 @@
 <script setup name="TestProjectTemplate">
 /**
  * 项目模板管理页：列表、启用开关、增改查克隆。
- * 表单含路径匹配、预制接口、预制参数（env/asset；flow 仅兼容存量）、预制测试流；不编辑托管请求头。
+ * 表单含路径匹配、预制接口、预制参数（env/asset；flow 仅兼容存量）、预制测试流、预制提示词；不编辑托管请求头。
  */
 import { onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
@@ -382,6 +399,7 @@ import {
 import PrefabricatedApiPanel from './components/PrefabricatedApiPanel.vue'
 import PrefabricatedFlowPanel from './components/PrefabricatedFlowPanel.vue'
 import PrefabricatedParamPanel from './components/PrefabricatedParamPanel.vue'
+import PrefabricatedPromptPanel from './components/PrefabricatedPromptPanel.vue'
 import { useTemplateFlowDraftStore } from './stores/templateFlowDraftStore'
 import {
   emptyTemplateForm,
@@ -417,6 +435,7 @@ const columns = ref([
   { key: 'templateName', label: '模板名称', visible: true },
   { key: 'matchConfig', label: 'pathPrefix', visible: true },
   { key: 'templateFlows', label: '预制流', visible: true },
+  { key: 'templatePrompts', label: '提示词', visible: true },
   { key: 'enableStatus', label: '启用', visible: true },
   { key: 'sortNum', label: '排序', visible: true },
   { key: 'remark', label: '备注', visible: false },

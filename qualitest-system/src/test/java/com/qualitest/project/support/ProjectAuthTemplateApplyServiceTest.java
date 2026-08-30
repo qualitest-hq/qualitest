@@ -1,5 +1,7 @@
 package com.qualitest.project.support;
 
+import com.qualitest.ai.domain.AiPromptTemplate;
+import com.qualitest.ai.service.IAiPromptTemplateService;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.project.domain.TestProject;
@@ -34,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,6 +66,8 @@ class ProjectAuthTemplateApplyServiceTest {
     private ITestFlowService testFlowService;
     @Mock
     private ITestProjectEnvService testProjectEnvService;
+    @Mock
+    private IAiPromptTemplateService aiPromptTemplateService;
 
     private ProjectAuthTemplateApplyService service;
 
@@ -75,7 +80,8 @@ class ProjectAuthTemplateApplyServiceTest {
                 testProjectApiGroupService,
                 testProjectService,
                 testFlowService,
-                testProjectEnvService);
+                testProjectEnvService,
+                aiPromptTemplateService);
     }
 
     /**
@@ -335,6 +341,41 @@ class ProjectAuthTemplateApplyServiceTest {
         ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(update.getValue().getAuthConfig());
         assertEquals(1, stored.getAuthProfiles().size());
         assertEquals("RuoYi Bearer", stored.getAuthProfiles().get(0).getName());
+    }
+
+    /**
+     * 前提：项目已有同名 Profile；模板带两条预制提示词，库中尚无项目芯片。
+     * 期望：Profile 跳过仍种子提示词；同 title 再 Apply 不重复插入。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("Profile 同名跳过仍种子提示词且按 title 去重")
+    void apply_seedsPromptsEvenWhenProfileSkipped() {
+        TestProject project = new TestProject();
+        project.setTestProjectId(PROJECT_ID);
+        project.setAuthConfig(ProjectAuthConfigSupport.toJson(
+                ProjectAuthConfigSupport.ruoyiBearerTemplate()));
+        when(testProjectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(project);
+        when(aiPromptTemplateService.selectAiPromptTemplateResultList(any())).thenReturn(List.of());
+        when(aiPromptTemplateService.insertAiPromptTemplate(any())).thenReturn(1);
+        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
+        tpl.setTemplatePrompts("""
+                [{"title":"S01 购物车","content":"已挂子流，勿再登录。查车。","sessionScene":"test_flow_design","sortNum":1},
+                 {"title":"S01 购物车","content":"重复标题应跳过","sessionScene":"test_flow_design","sortNum":2}]
+                """);
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<AiPromptTemplate> insert = ArgumentCaptor.forClass(AiPromptTemplate.class);
+        verify(aiPromptTemplateService, times(1)).insertAiPromptTemplate(insert.capture());
+        AiPromptTemplate row = insert.getValue();
+        assertEquals("project", row.getTemplateScope());
+        assertEquals(PROJECT_ID, row.getTestProjectId());
+        assertEquals("S01 购物车", row.getTemplateTitle());
+        assertEquals("test_flow_design", row.getSessionScene());
+        assertTrue(row.getTemplateContent().contains("勿再登录"));
+        verify(testProjectApiService, never()).batchInsertTestProjectApi(any());
     }
 
     private void stubEmptyProject() {

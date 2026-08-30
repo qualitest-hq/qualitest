@@ -19,7 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 项目模板「预制参数 / 预制测试流」解析，以及凭证规则与托管头的派生。
+ * 项目模板「预制参数 / 预制测试流 / 预制提示词」解析，以及凭证规则与托管头的派生。
  * <p>
  * 预制参数 kind 仅认 flow / env / asset。
  * 凭证派生只认预制测试流 extracts（优先 scope=asset）；托管头不存模板表，不再写 loginHint。
@@ -69,6 +69,26 @@ public final class PrefabricatedTemplateExtrasSupport {
         /** 值；asset 可为对象或标量。 */
         private final Object value;
         /** 备注。 */
+        private final String remark;
+    }
+
+    /**
+     * 一条预制 AI 提示词（种子为项目级 ai_prompt_template）。
+     */
+    @Getter
+    @Builder
+    public static class PrefabPrompt {
+        /** 标题；同项目同场景下按此去重。 */
+        private final String title;
+        /** 说明（胶囊副文案）。 */
+        private final String description;
+        /** 正文。 */
+        private final String content;
+        /** 会话场景，默认 test_flow_design。 */
+        private final String sessionScene;
+        /** 排序。 */
+        private final Integer sortNum;
+        /** 备注（如场景 ID）。 */
         private final String remark;
     }
 
@@ -147,6 +167,50 @@ public final class PrefabricatedTemplateExtrasSupport {
                         .kind(kind)
                         .name(name)
                         .value(normalizeParamValue(row.get("value")))
+                        .remark(StrUtil.trimToNull(row.getString("remark")))
+                        .build());
+            }
+        } catch (Exception ignored) {
+            return List.of();
+        }
+        return out;
+    }
+
+    /**
+     * 解析预制 AI 提示词 JSON。
+     * 缺 title 或 content 的条目跳过；非法 JSON 返回空列表。
+     */
+    public static List<PrefabPrompt> parsePrompts(String promptsJson) {
+        List<PrefabPrompt> out = new ArrayList<>();
+        if (StrUtil.isBlank(promptsJson)) {
+            return out;
+        }
+        try {
+            JSONArray arr = JSON.parseArray(promptsJson);
+            if (arr == null) {
+                return out;
+            }
+            for (int i = 0; i < arr.size(); i++) {
+                JSONObject row = arr.getJSONObject(i);
+                if (row == null) {
+                    continue;
+                }
+                String title = StrUtil.trimToNull(row.getString("title"));
+                String content = StrUtil.trimToNull(row.getString("content"));
+                if (title == null || content == null) {
+                    continue;
+                }
+                String scene = StrUtil.blankToDefault(row.getString("sessionScene"), "test_flow_design").trim();
+                if (scene.isEmpty()) {
+                    scene = "test_flow_design";
+                }
+                Integer sortNum = row.getInteger("sortNum");
+                out.add(PrefabPrompt.builder()
+                        .title(title)
+                        .description(StrUtil.trimToNull(row.getString("description")))
+                        .content(content)
+                        .sessionScene(scene)
+                        .sortNum(sortNum != null ? sortNum : 0)
                         .remark(StrUtil.trimToNull(row.getString("remark")))
                         .build());
             }

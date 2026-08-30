@@ -9,6 +9,7 @@ import {
   buildLoginGraphJson,
   emptyPrefabricatedApi,
   emptyPrefabFlow,
+  emptyPrefabPrompt,
   emptyTemplateForm,
   formToPayload,
   parseApis,
@@ -20,6 +21,7 @@ import {
   templateToForm,
   validateApis,
   validateParams,
+  validatePrompts,
   validateTemplateGraphApiBindings,
 } from '@/views/project/testProjectTemplate/utils/templateForm'
 import { synthesizeTemplateApiCatalog } from '@/views/project/testProjectTemplate/utils/synthesizeTemplateApiTree'
@@ -269,14 +271,33 @@ describe('validateTemplateGraphApiBindings', () => {
 })
 
 describe('emptyTemplateForm', () => {
-  it('默认 templateApis/templateParams/templateFlows 为空数组', () => {
+  it('默认 templateApis/templateParams/templateFlows/templatePrompts 为空数组', () => {
     // 前提：新增模板
     const form = emptyTemplateForm()
 
-    // 期望：由面板引导用户新增预制口；参数与流可空
+    // 期望：由面板引导用户新增预制口；参数、流、提示词可空
     expect(form.templateApis).toEqual([])
     expect(form.templateParams).toEqual([])
     expect(form.templateFlows).toEqual([])
+    expect(form.templatePrompts).toEqual([])
+  })
+})
+
+describe('validatePrompts', () => {
+  it('丢掉缺 title/content 的行并补默认 sessionScene', () => {
+    const list = validatePrompts([
+      { title: 'S01', content: '查车', sortNum: 1 },
+      { title: '空正文', content: '  ' },
+      emptyPrefabPrompt(),
+    ])
+
+    expect(list).toHaveLength(1)
+    expect(list[0]).toMatchObject({
+      title: 'S01',
+      content: '查车',
+      sessionScene: 'test_flow_design',
+      sortNum: 1,
+    })
   })
 })
 
@@ -288,7 +309,7 @@ describe('templateToForm / formToPayload', () => {
     const form = templateToForm(row)
     const payload = formToPayload(form)
 
-    // 期望：提交体 templateApis 仍为合法 JSON 字符串；params/flows 为数组 JSON
+    // 期望：提交体 templateApis 仍为合法 JSON 字符串；params/flows/prompts 为数组 JSON
     expect(form.templateApis).toHaveLength(1)
     expect(form.pathPrefixText).toBe('/api/')
     const parsed = JSON.parse(payload.templateApis)
@@ -296,9 +317,31 @@ describe('templateToForm / formToPayload', () => {
     expect(payload.templateName).toBe('测试模板')
     expect(JSON.parse(payload.templateParams)).toEqual([])
     expect(JSON.parse(payload.templateFlows)).toEqual([])
+    expect(JSON.parse(payload.templatePrompts)).toEqual([])
     expect(payload.headerName).toBeUndefined()
     // 雪花 ID 保持字符串，避免 Number 精度丢失
     expect(payload.testProjectTemplateId).toBe('1')
+  })
+
+  it('round-trip 保留预制提示词', () => {
+    const row = buildTemplateRow({
+      templatePrompts: [
+        {
+          title: 'S01 购物车',
+          description: '场景 S01',
+          content: '已挂子流。查车下单。',
+          sessionScene: 'test_flow_design',
+          sortNum: 501,
+          remark: 'S01',
+        },
+      ],
+    })
+
+    const form = templateToForm(row)
+    const payload = formToPayload(form)
+
+    expect(form.templatePrompts).toHaveLength(1)
+    expect(JSON.parse(payload.templatePrompts)[0].title).toBe('S01 购物车')
   })
 
   it('雪花 ID 不以 Number 提交', () => {

@@ -15,17 +15,17 @@ export function buildLoginApi(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** 已是字符串则原样，否则 JSON.stringify（模拟库列形态）。 */
+function asJsonField(value: unknown, fallback: unknown): string {
+  const raw = value ?? fallback
+  return typeof raw === 'string' ? raw : JSON.stringify(raw)
+}
+
 /**
  * 构造模板详情行（给 templateToForm 用）。
- * templateApis / templateParams / templateFlows 写成 JSON 字符串。
+ * templateApis / templateParams / templateFlows / templatePrompts 写成 JSON 字符串。
  */
 export function buildTemplateRow(overrides: Record<string, unknown> = {}) {
-  const templateApis = overrides.templateApis ?? [buildLoginApi()]
-  const templateApisValue = typeof templateApis === 'string' ? templateApis : JSON.stringify(templateApis)
-  const templateParams = overrides.templateParams ?? []
-  const templateParamsValue = typeof templateParams === 'string' ? templateParams : JSON.stringify(templateParams)
-  const templateFlows = overrides.templateFlows ?? []
-  const templateFlowsValue = typeof templateFlows === 'string' ? templateFlows : JSON.stringify(templateFlows)
   return {
     testProjectTemplateId: 1,
     templateName: '测试模板',
@@ -35,9 +35,10 @@ export function buildTemplateRow(overrides: Record<string, unknown> = {}) {
     remark: '',
     builtinStatus: 0,
     ...overrides,
-    templateApis: templateApisValue,
-    templateParams: templateParamsValue,
-    templateFlows: templateFlowsValue,
+    templateApis: asJsonField(overrides.templateApis, [buildLoginApi()]),
+    templateParams: asJsonField(overrides.templateParams, []),
+    templateFlows: asJsonField(overrides.templateFlows, []),
+    templatePrompts: asJsonField(overrides.templatePrompts, []),
   }
 }
 

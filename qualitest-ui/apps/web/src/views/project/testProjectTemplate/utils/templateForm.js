@@ -1,5 +1,5 @@
 /**
- * 项目模板表单工具：路径匹配、预制接口 / 参数(flow·env·asset) / 测试流的解析、校验与提交组装。
+ * 项目模板表单工具：路径匹配、预制接口 / 参数(flow·env·asset) / 测试流 / 提示词的解析、校验与提交组装。
  * 托管请求头不在模板表单提交；勾选进项目时由后端按预制测试流抽取规则生成。
  */
 
@@ -363,6 +363,26 @@ export function parseFlows(flows) {
   return parseJsonObjectArray(flows)
 }
 
+/** 解析预制 AI 提示词字段。 */
+export function parsePrompts(prompts) {
+  return parseJsonObjectArray(prompts)
+}
+
+/**
+ * 新建一条预制提示词默认行。
+ * 默认 sessionScene=test_flow_design（造流设计面板）。
+ */
+export function emptyPrefabPrompt() {
+  return {
+    title: '',
+    description: '',
+    content: '',
+    sessionScene: 'test_flow_design',
+    sortNum: 0,
+    remark: '',
+  }
+}
+
 /** 校验预制接口：必须非空数组；补齐稳定合成 id；返回深拷贝。 */
 export function validateApis(apis) {
   const list = parseApis(apis)
@@ -408,6 +428,28 @@ export function validateFlows(flows) {
   return parseFlows(flows)
     .filter((row) => String(row?.flowName || '').trim())
     .map((row) => cloneJson(row))
+}
+
+/**
+ * 校验预制提示词：可空；须有 title + content；缺省 sessionScene。
+ * 返回规范化深拷贝。
+ */
+export function validatePrompts(prompts) {
+  return parsePrompts(prompts)
+    .map((row) => cloneJson(row))
+    .filter((row) => String(row?.title || '').trim() && String(row?.content || '').trim())
+    .map((row) => {
+      const scene = String(row.sessionScene || 'test_flow_design').trim() || 'test_flow_design'
+      const sortRaw = Number(row.sortNum)
+      return {
+        title: String(row.title).trim(),
+        description: row.description != null ? String(row.description) : '',
+        content: String(row.content).trim(),
+        sessionScene: scene,
+        sortNum: Number.isFinite(sortRaw) ? sortRaw : 0,
+        remark: row.remark != null ? String(row.remark) : '',
+      }
+    })
 }
 
 /** 从 requestConfig 读取 HTTP 方法；非法则 GET。 */
@@ -489,6 +531,7 @@ export function emptyTemplateForm() {
     templateApis: [],
     templateParams: [],
     templateFlows: [],
+    templatePrompts: [],
     enableStatus: 1,
     sortNum: 0,
     remark: '',
@@ -508,6 +551,7 @@ export function templateToForm(row) {
     templateApis: apis,
     templateParams: parseParams(row?.templateParams),
     templateFlows: hydratedFlows,
+    templatePrompts: parsePrompts(row?.templatePrompts),
     enableStatus: row?.enableStatus ?? 1,
     sortNum: row?.sortNum ?? 0,
     remark: row?.remark || '',
@@ -544,7 +588,7 @@ export function validateTemplateGraphApiBindings(graph, catalog) {
 
 /**
  * 编辑表单 → 提交体。
- * 写出 templateApis / templateParams / templateFlows 的 JSON 字符串；
+ * 写出 templateApis / templateParams / templateFlows / templatePrompts 的 JSON 字符串；
  * 不提交托管头字段；雪花 id 保持字符串。
  */
 export function formToPayload(form) {
@@ -552,11 +596,13 @@ export function formToPayload(form) {
   const templateApis = JSON.stringify(validateApis(form.templateApis))
   const templateParams = JSON.stringify(validateParams(form.templateParams))
   const templateFlows = JSON.stringify(validateFlows(form.templateFlows))
+  const templatePrompts = JSON.stringify(validatePrompts(form.templatePrompts))
   const payload = {
     templateName: String(form.templateName || '').trim(),
     templateApis,
     templateParams,
     templateFlows,
+    templatePrompts,
     enableStatus: form.enableStatus ?? 1,
     sortNum: form.sortNum ?? 0,
     remark: form.remark || '',
