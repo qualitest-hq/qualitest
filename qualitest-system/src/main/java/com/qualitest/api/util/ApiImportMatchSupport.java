@@ -53,6 +53,13 @@ public final class ApiImportMatchSupport {
         return buildIdentity(api.getRequestConfig(), api.getApiPath());
     }
 
+    /**
+     * 是否开启上传保护：sync_protected=1 时导入整条跳过。
+     */
+    public static boolean isSyncProtected(TestProjectApi api) {
+        return api != null && Integer.valueOf(1).equals(api.getSyncProtected());
+    }
+
     /** 判断库内记录与导入项是否为同一路径且同一 HTTP 方法 */
     public static boolean matches(TestProjectApi api, ApiImportParams.ApiImportItem item) {
         if (api == null || item == null) {

@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 ApiImportMatchSupport：导入时用「HTTP 方法 + apiPath」识别接口，并从 requestConfig 解析 method。
+ * 测 ApiImportMatchSupport：导入时用「HTTP 方法 + apiPath」识别接口，并从 requestConfig 解析 method；上传保护判定。
  * 边界：纯函数，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiImportMatchSupportTest
  */
@@ -86,5 +86,19 @@ class ApiImportMatchSupportTest {
                 .requestConfig("{\"method\":\"DELETE\"}")
                 .build();
         assertEquals("DELETE /api/foo", ApiImportMatchSupport.buildIdentity(api));
+    }
+
+    /**
+     * 前提：syncProtected 为 1 / 0 / null。
+     * 期望：仅 1 视为开启上传保护。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("上传保护：仅 syncProtected=1 为真")
+    void isSyncProtected_onlyWhenOne() {
+        assertFalse(ApiImportMatchSupport.isSyncProtected(null));
+        assertFalse(ApiImportMatchSupport.isSyncProtected(TestProjectApi.builder().syncProtected(0).build()));
+        assertFalse(ApiImportMatchSupport.isSyncProtected(TestProjectApi.builder().syncProtected(null).build()));
+        assertTrue(ApiImportMatchSupport.isSyncProtected(TestProjectApi.builder().syncProtected(1).build()));
     }
 }

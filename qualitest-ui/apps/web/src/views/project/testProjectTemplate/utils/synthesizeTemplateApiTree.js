@@ -1,6 +1,6 @@
 /**
  * 将模板 templateApis 合成 HttpConfigModal / AI 可用的 API 树与目录。
- * 合成 id 读行上 testProjectApiId；缺则 ensure 后生成稳定 tpl_*。
+ * 行上 testProjectApiId 为作者期雪花字符串；缺则 ensure 后生成。
  */
 import { resolveApiMethod } from './templateForm'
 import { ensureTemplateApiIds, resolveTemplateApiId } from './templateApiId'

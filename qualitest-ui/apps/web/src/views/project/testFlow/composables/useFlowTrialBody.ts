@@ -2,12 +2,11 @@
  * 属性面板试算用响应 body。
  *
  * 优先：当前选中 Run 里最近一次 HTTP 响应 body（真实跑过的数据）。
- * 否则：按当前节点解析 testProjectApiId，请求接口详情，取 responseConfig 首个 example。
+ * 否则：按当前节点解析 testProjectApiId，经 resolveCanvasApiDetail 取 responseConfig 首个 example
+ *（模板画布只读 catalog，不打项目 Long 详情）。
  * 返回 trialBody（实际用于试算）、trialSource（run | api-example）、hasTrialBody。
  */
 import { computed, ref, toValue, watch, type MaybeRefOrGetter } from 'vue';
-
-import { getTestProjectApi } from '@/api/project/testProjectApi';
 
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
@@ -17,6 +16,7 @@ import {
   trialBodyFromSelectedRun,
   type TrialBodySource,
 } from '../utils/jsonPathTrial';
+import { resolveCanvasApiDetail } from '../utils/resolveCanvasApiDetail';
 
 /** 属性面板当前节点（用于回溯上游 HTTP / 取自身 apiId） */
 type TrialNode = {
@@ -56,19 +56,11 @@ export function useFlowTrialBody(opts?: { node?: MaybeRefOrGetter<TrialNode> }) 
         apiExampleBody.value = apiExampleCache.get(apiId);
         return;
       }
-      try {
-        const res = await getTestProjectApi(apiId);
-        const detail = res?.data ?? res;
-        const example = extractResponseExample(detail?.responseConfig);
-        apiExampleCache.set(apiId, example);
-        if (targetApiId.value === apiId) {
-          apiExampleBody.value = example;
-        }
-      } catch {
-        apiExampleCache.set(apiId, undefined);
-        if (targetApiId.value === apiId) {
-          apiExampleBody.value = undefined;
-        }
+      const detail = await resolveCanvasApiDetail(apiId);
+      const example = extractResponseExample(detail?.responseConfig);
+      apiExampleCache.set(apiId, example);
+      if (targetApiId.value === apiId) {
+        apiExampleBody.value = example;
       }
     },
     { immediate: true },

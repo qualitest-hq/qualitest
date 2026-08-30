@@ -130,6 +130,11 @@ public class TestProjectApiResult implements Serializable {
     private String authConfig;
 
     /**
+     * 上传保护：1=导入跳过；0=允许覆盖。详情与列表原样返回。
+     */
+    private Integer syncProtected;
+
+    /**
      * 前置操作脚本
      */
     @Excel(name = "前置操作脚本")

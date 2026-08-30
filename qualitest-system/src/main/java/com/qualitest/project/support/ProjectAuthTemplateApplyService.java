@@ -295,6 +295,7 @@ public class ProjectAuthTemplateApplyService {
                     .bizCodeConfig(serializeJsonObject(prefab.getBizCodeConfig()))
                     .authConfig(serializeAuthConfig(prefab))
                     .designHints(serializeJsonObject(prefab.getDesignHints()))
+                    .syncProtected(Integer.valueOf(1).equals(prefab.getSyncProtected()) ? 1 : 0)
                     .preRequestScript(StrUtil.trimToNull(prefab.getPreRequestScript()))
                     .postRequestScript(StrUtil.trimToNull(prefab.getPostRequestScript()))
                     .delStatus(0)
@@ -364,7 +365,8 @@ public class ProjectAuthTemplateApplyService {
     }
 
     /**
-     * 模板合成 id → 项目接口主键（按 method+path 在项目索引中解析）。
+     * 模板作者期 apiId → 项目接口主键（按 method+path 在项目索引中解析）。
+     * 凡非空 testProjectApiId（雪花数字或历史 tpl_*）均入表。
      */
     private Map<String, Long> buildSynthApiIdMap(TestProjectTemplate template, Map<String, Long> apiIdByIdentity) {
         Map<String, Long> map = new LinkedHashMap<>();
@@ -373,7 +375,7 @@ public class ProjectAuthTemplateApplyService {
                 continue;
             }
             String synth = StrUtil.trimToNull(api.getTestProjectApiId());
-            if (!PrefabricatedTemplateExtrasSupport.isTemplateSyntheticApiId(synth)) {
+            if (synth == null) {
                 continue;
             }
             Long projectId = apiIdByIdentity.get(prefabricatedIdentity(api));

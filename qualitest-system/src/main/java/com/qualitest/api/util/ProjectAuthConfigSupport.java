@@ -118,6 +118,7 @@ public final class ProjectAuthConfigSupport {
                 continue;
             }
             Map<String, Object> row = new LinkedHashMap<>();
+            putIfNotBlank(row, "testProjectApiId", api.getTestProjectApiId());
             putIfNotBlank(row, "apiName", api.getApiName());
             row.put("apiPath", api.getApiPath());
             putIfNotBlank(row, "apiGroup", api.getApiGroup());
@@ -134,6 +135,9 @@ public final class ProjectAuthConfigSupport {
                 row.put("authConfig", writeAuthConfig(api.getAuthConfig()));
             }
             putIfNotNull(row, "designHints", api.getDesignHints());
+            if (Integer.valueOf(1).equals(api.getSyncProtected())) {
+                row.put("syncProtected", 1);
+            }
             putIfNotBlank(row, "preRequestScript", api.getPreRequestScript());
             putIfNotBlank(row, "postRequestScript", api.getPostRequestScript());
             out.add(row);
@@ -302,6 +306,7 @@ public final class ProjectAuthConfigSupport {
                         .build();
             }
             out.add(PrefabricatedApi.builder()
+                    .testProjectApiId(StrUtil.trimToNull(api.getTestProjectApiId()))
                     .apiName(StrUtil.blankToDefault(StrUtil.trimToNull(api.getApiName()), path))
                     .apiPath(path)
                     .apiGroup(StrUtil.trimToNull(api.getApiGroup()))
@@ -316,11 +321,17 @@ public final class ProjectAuthConfigSupport {
                     .bizCodeConfig(api.getBizCodeConfig())
                     .authConfig(auth)
                     .designHints(api.getDesignHints())
+                    .syncProtected(normalizeSyncProtected(api.getSyncProtected()))
                     .preRequestScript(StrUtil.trimToNull(api.getPreRequestScript()))
                     .postRequestScript(StrUtil.trimToNull(api.getPostRequestScript()))
                     .build());
         }
         return out;
+    }
+
+    /** 仅保留 1；其它（含 0/null）视为未开，不落盘。 */
+    private static Integer normalizeSyncProtected(Integer raw) {
+        return Integer.valueOf(1).equals(raw) ? 1 : null;
     }
 
     /** 整理 pathPrefix：去空、补前导斜杠，单独的 / 拒绝。 */

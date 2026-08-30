@@ -26,6 +26,8 @@
         <result property="designHints" column="design_hints"/>
         <!-- 接口鉴权标签 JSON：是否免登录等 -->
         <result property="authConfig" column="auth_config"/>
+        <!-- 上传保护：1=导入跳过 -->
+        <result property="syncProtected" column="sync_protected"/>
         <result property="preRequestScript" column="pre_request_script"/>
         <result property="postRequestScript" column="post_request_script"/>
         <result property="lastSyncTime" column="last_sync_time"/>
@@ -52,6 +54,7 @@
                biz_code_config,
                design_hints,
                auth_config,
+               sync_protected,
                pre_request_script,
                post_request_script,
                last_sync_time,
@@ -79,6 +82,7 @@
                tpa.biz_code_config     as bizCodeConfig,
                tpa.design_hints        as designHints,
                tpa.auth_config         as authConfig,
+               tpa.sync_protected      as syncProtected,
                tpa.pre_request_script  as preRequestScript,
                tpa.post_request_script as postRequestScript,
                tpa.last_sync_time      as lastSyncTime,
@@ -321,6 +325,9 @@
             <if test="authConfig != null and authConfig != ''">
                 auth_config,
             </if>
+            <if test="syncProtected != null">
+                sync_protected,
+            </if>
             <if test="preRequestScript != null and preRequestScript != ''">
                 pre_request_script,
             </if>
@@ -392,6 +399,9 @@
             <if test="authConfig != null and authConfig != ''">
                 #{authConfig},
             </if>
+            <if test="syncProtected != null">
+                #{syncProtected},
+            </if>
             <if test="preRequestScript != null and preRequestScript != ''">
                 #{preRequestScript},
             </if>
@@ -433,6 +443,7 @@
             biz_code_config,
             design_hints,
             auth_config,
+            sync_protected,
             pre_request_script,
             post_request_script,
             last_sync_time,
@@ -459,6 +470,7 @@
                 #{item.bizCodeConfig},
                 #{item.designHints},
                 #{item.authConfig},
+                #{item.syncProtected},
                 #{item.preRequestScript},
                 #{item.postRequestScript},
                 #{item.lastSyncTime},
@@ -519,6 +531,9 @@
             </if>
             <if test="authConfig != null">
                 auth_config = #{authConfig},
+            </if>
+            <if test="syncProtected != null">
+                sync_protected = #{syncProtected},
             </if>
             <if test="preRequestScript != null and preRequestScript != ''">
                 pre_request_script = #{preRequestScript},

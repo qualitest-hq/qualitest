@@ -55,6 +55,12 @@
                 </el-form-item>
               </el-col>
               <el-col :md="12" :span="24">
+                <el-form-item label="上传保护">
+                  <el-switch v-model="meta.syncProtected" inline-prompt active-text="开" inactive-text="关"/>
+                  <div class="design-hints-tip">开启后插件/批量导入不会覆盖本接口；需要同步时先关闭，上传后再打开</div>
+                </el-form-item>
+              </el-col>
+              <el-col :md="12" :span="24">
                 <el-form-item label="API 分组">
                   <span class="design-readonly-text">{{ apiDetail.apiGroup || '—' }}</span>
                 </el-form-item>
@@ -162,7 +168,8 @@ const meta = reactive({
   apiName: '',
   apiDescription: '',
   protocolType: '',
-  apiStatus: '1'
+  apiStatus: '1',
+  syncProtected: false
 })
 
 /** 造流设计提示：编辑区为换行分隔文本，保存时拆成 hints 数组 */
@@ -285,6 +292,7 @@ function syncMetaFromDetail(d) {
   meta.protocolType = d.protocolType ?? ''
   const s = d.apiStatus
   meta.apiStatus = s === '0' || s === 0 || s === false ? '0' : '1'
+  meta.syncProtected = d.syncProtected === 1 || d.syncProtected === true || d.syncProtected === '1'
   designHintsText.value = parseDesignHintsFromDetail(d)
   responseConfigText.value = formatJsonForEdit(d.responseConfig)
   const parsedAuth = parseAuthConfig(d.authConfig)
@@ -351,7 +359,8 @@ function handleSaveDesign() {
     preRequestScript: part.preRequestScript ?? '',
     postRequestScript: part.postRequestScript ?? '',
     authConfig: authConfigStr,
-    designHints: designHintsJson
+    designHints: designHintsJson,
+    syncProtected: meta.syncProtected ? 1 : 0
   }
 
   updateTestProjectApi(payload)

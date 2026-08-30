@@ -112,8 +112,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
-import { getTestProjectApi, getTestProjectApiTree } from '@/api/project/testProjectApi'
-import { findTemplateApiDetail } from '@/views/project/testProjectTemplate/utils/synthesizeTemplateApiTree'
+import { getTestProjectApiTree } from '@/api/project/testProjectApi'
 
 import DebugKvSheet from '../components/DebugKvSheet.vue'
 import HttpConfigBodyPanel from '../components/HttpConfigBodyPanel.vue'
@@ -128,6 +127,7 @@ import {
   countFilledRows,
   HTTP_METHODS,
 } from '../utils/httpWorkbenchUtils'
+import { resolveCanvasApiDetail } from '../utils/resolveCanvasApiDetail'
 import { updateSummary } from '../utils/nodeDataUtils'
 import { getMethodBadgeClass } from '../constants/flowConfig'
 
@@ -239,16 +239,10 @@ async function loadApiTree() {
 
 async function selectApi(apiId) {
   try {
-    let detail
-    if (store.canvasMode === 'template') {
-      detail = findTemplateApiDetail(store.templateApiCatalog, apiId)
-      if (!detail) {
-        ElMessage.error('未找到预制接口')
-        return
-      }
-    } else {
-      const res = await getTestProjectApi(apiId)
-      detail = res?.data ?? res
+    const detail = await resolveCanvasApiDetail(apiId)
+    if (!detail) {
+      ElMessage.error(store.canvasMode === 'template' ? '未找到预制接口' : '加载接口详情失败')
+      return
     }
     const baseline = buildWorkbenchFromApiDetail(detail)
     assetBaseline.value = baseline
@@ -279,18 +273,12 @@ async function openForNode(nodeId) {
     return
   }
   try {
-    let detail
-    if (store.canvasMode === 'template') {
-      detail = findTemplateApiDetail(store.templateApiCatalog, apiId)
-      if (!detail) {
-        // 无合成 id 时仍可用节点本地 apiPath 打开
-        draft.value = buildWorkbenchFromApiAndNode(null, node.data || {})
-        assetBaseline.value = buildWorkbenchFromApiDetail(null)
-        return
-      }
-    } else {
-      const res = await getTestProjectApi(apiId)
-      detail = res?.data ?? res
+    const detail = await resolveCanvasApiDetail(apiId)
+    if (!detail) {
+      // 模板无合成 id 时仍可用节点本地 apiPath 打开
+      draft.value = buildWorkbenchFromApiAndNode(null, node.data || {})
+      assetBaseline.value = buildWorkbenchFromApiDetail(null)
+      return
     }
     assetBaseline.value = buildWorkbenchFromApiDetail(detail)
     draft.value = buildWorkbenchFromApiAndNode(detail, node.data || {})

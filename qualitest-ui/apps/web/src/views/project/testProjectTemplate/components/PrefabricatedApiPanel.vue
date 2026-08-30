@@ -105,6 +105,11 @@
                 <span class="prefab-api-panel__text">{{ selectedAuthModeLabel }}</span>
               </el-form-item>
             </el-col>
+            <el-col :span="12">
+              <el-form-item label="上传保护">
+                <span class="prefab-api-panel__text">{{ isSyncProtectedOn(selectedApi) ? '开' : '关' }}</span>
+              </el-form-item>
+            </el-col>
             <template v-if="selectedAuthMode === 'override'">
               <el-col :span="12">
                 <el-form-item label="自定义头名">
@@ -174,6 +179,19 @@
                   <el-option label="继承" value="inherit" />
                   <el-option label="自定义" value="override" />
                 </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="上传保护">
+                <el-switch
+                  v-model="selectedSyncProtected"
+                  inline-prompt
+                  active-text="开"
+                  inactive-text="关"
+                />
+                <div class="prefab-api-panel__hint">
+                  开启后种子到项目的接口默认受保护，插件导入会跳过
+                </div>
               </el-form-item>
             </el-col>
             <template v-if="selectedAuthMode === 'override'">
@@ -360,6 +378,24 @@ const selectedAuthMode = computed({
     })
   },
 })
+
+const selectedSyncProtected = computed({
+  get() {
+    return isSyncProtectedOn(selectedApi.value)
+  },
+  set(on) {
+    if (!selectedApi.value || selectedIndex.value < 0 || props.readOnly) return
+    replaceApisAt(selectedIndex.value, {
+      ...selectedApi.value,
+      syncProtected: on ? 1 : 0,
+    })
+  },
+})
+
+function isSyncProtectedOn(api) {
+  const v = api?.syncProtected
+  return v === 1 || v === true || v === '1'
+}
 
 const selectedAuthModeLabel = computed(() => formatAuthModeLabel(selectedAuthMode.value))
 

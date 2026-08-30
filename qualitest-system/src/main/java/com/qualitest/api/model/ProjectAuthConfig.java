@@ -110,7 +110,7 @@ public class ProjectAuthConfig implements Serializable {
         private static final long serialVersionUID = 1L;
 
         /**
-         * 模板内稳定合成 id（如 tpl_ab_login），供预制流 HTTP 节点绑定；
+         * 作者期雪花 id（十进制字符串，与正式接口 JSON 同形）；
          * Apply 时 remap 为项目真实 test_project_api 主键。
          */
         private String testProjectApiId;
@@ -156,6 +156,11 @@ public class ProjectAuthConfig implements Serializable {
 
         /** 造流提示，如 {hints:[...]}。 */
         private Object designHints;
+
+        /**
+         * 可选上传保护：1=种子到项目后导入跳过；0/缺省=不保护。
+         */
+        private Integer syncProtected;
 
         /** 前置操作脚本。 */
         private String preRequestScript;

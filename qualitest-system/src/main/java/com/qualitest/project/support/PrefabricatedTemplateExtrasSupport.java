@@ -237,9 +237,9 @@ public final class PrefabricatedTemplateExtrasSupport {
 
     /**
      * 给画布里 callMode=project 的 HTTP 节点写入/重写 testProjectApiId。
-     * 优先：合成 id（tpl_… / 历史 tpl-…）经 synthToProjectId remap；
-     * 已是数字项目 id → 跳过；
-     * legacy：无可用合成映射时按 method+path 查项目接口。
+     * 优先：模板作者期 id（雪花数字或历史 tpl_*）经 synthToProjectId remap；
+     * 已是数字且不在 map → 视为项目主键跳过；
+     * legacy：无可用映射时按 method+path 查项目接口。
      */
     public static String bindGraphApis(
             String graphJson,
@@ -279,13 +279,13 @@ public final class PrefabricatedTemplateExtrasSupport {
                 continue;
             }
             String rawId = StrUtil.trimToNull(data.getString("testProjectApiId"));
-            if (rawId != null && isNumericProjectApiId(rawId)) {
-                continue;
-            }
-            if (rawId != null && isTemplateSyntheticApiId(rawId)
-                    && synthToProjectId != null && synthToProjectId.containsKey(rawId)) {
+            // 模板作者期 id（雪花或历史 tpl_*）优先经 map remap；勿把数字模板 id 当成已是项目主键
+            if (rawId != null && synthToProjectId != null && synthToProjectId.containsKey(rawId)) {
                 data.put("testProjectApiId", String.valueOf(synthToProjectId.get(rawId)));
                 changed = true;
+                continue;
+            }
+            if (rawId != null && isNumericProjectApiId(rawId)) {
                 continue;
             }
             String method = StrUtil.blankToDefault(data.getString("httpMethod"), "GET").trim().toUpperCase(Locale.ROOT);
@@ -303,19 +303,7 @@ public final class PrefabricatedTemplateExtrasSupport {
         return changed ? graph.toJSONString() : graphJson;
     }
 
-    /** 是否为模板合成接口 id（tpl_… 或历史 tpl-{index}），非纯数字项目主键。 */
-    public static boolean isTemplateSyntheticApiId(String raw) {
-        if (StrUtil.isBlank(raw)) {
-            return false;
-        }
-        String id = raw.trim();
-        if (isNumericProjectApiId(id)) {
-            return false;
-        }
-        return id.startsWith("tpl_") || id.startsWith("tpl-");
-    }
-
-    /** 项目接口主键（纯数字字符串）。 */
+    /** 纯数字字符串（项目主键，或未命中 remap 表时的作者期雪花 id）。 */
     public static boolean isNumericProjectApiId(String raw) {
         if (StrUtil.isBlank(raw)) {
             return false;

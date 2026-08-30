@@ -132,9 +132,31 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertFalse(bound.contains("tpl_ab_login"));
     }
 
+    /**
+     * 前提：节点挂作者期雪花数字 id，map 指向项目主键。
+     * 期望：优先 remap，不被「纯数字=项目主键」短路。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("bindGraphApis 数字作者期 id 也 remap")
+    void bindGraphApis_numericAuthoringIdRemap() {
+        String graph = """
+                {"nodes":[{"id":"login_http","type":"http","data":{
+                  "callMode":"project","httpMethod":"POST","testProjectApiId":"2100000000000004101"
+                }}],"edges":[],"meta":{}}
+                """;
+        Map<String, Long> synth = Map.of("2100000000000004101", 501L);
+
+        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(
+                graph, (method, path) -> null, synth);
+
+        assertTrue(bound.contains("\"testProjectApiId\":\"501\""));
+        assertFalse(bound.contains("2100000000000004101"));
+    }
+
     /** 已是数字项目 id 时跳过；legacy 无 id 仍按 path。 */
     @Test
-    @Order(5)
+    @Order(7)
     @DisplayName("bindGraphApis legacy path 与数字 id 跳过")
     void bindGraphApis_legacyAndNumeric() {
         String graph = """
@@ -193,7 +215,7 @@ class PrefabricatedTemplateExtrasSupportTest {
 
     /** flow 参数写入默认场景 flowSeed。 */
     @Test
-    @Order(6)
+    @Order(8)
     @DisplayName("mergeFlowSeedIntoGraph")
     void mergeFlowSeed() {
         // 前提：空 flowSeed 登录图 + flow 参数

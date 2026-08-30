@@ -1,11 +1,12 @@
 /**
- * 模板预制 API 稳定合成 id：读行上已有 id，缺则生成 tpl_<随机>。
+ * 模板预制 API 作者期 id：与正式接口同形的雪花十进制字符串；Apply 时 remap 为项目主键。
  */
 
-/** 新预制接口默认合成 id */
+import { nextSnowflakeId } from '@/utils/flow/snowflakeId'
+
+/** 新预制接口默认雪花 id（字符串） */
 export function newTemplateApiId() {
-  const rand = Math.random().toString(36).slice(2, 10)
-  return `tpl_${Date.now().toString(36)}_${rand}`
+  return nextSnowflakeId()
 }
 
 /** 读行上 testProjectApiId；无则空串（调用方应先 ensureTemplateApiIds）。 */

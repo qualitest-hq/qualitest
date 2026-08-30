@@ -123,6 +123,11 @@ public class TestProjectApi extends BaseEntity {
     private String authConfig;
 
     /**
+     * 上传保护：1=插件/批量导入跳过本接口；0=允许合并更新。缺省 0。
+     */
+    private Integer syncProtected;
+
+    /**
      * 前置操作脚本
      */
     private String preRequestScript;

@@ -73,6 +73,7 @@ export function emptyPrefabricatedApi() {
     testValueConfig: {},
     bizCodeConfig: {},
     authConfig: { mode: 'none' },
+    syncProtected: 0,
     designHints: { hints: [] },
     preRequestScript: null,
     postRequestScript: null,

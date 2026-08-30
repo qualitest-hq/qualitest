@@ -4,7 +4,6 @@
  */
 import { ElMessage } from 'element-plus';
 
-import { getTestProjectApi } from '@/api/project/testProjectApi';
 import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
 import {
   rewriteStartNodeErrorForPendingEdges,
@@ -16,6 +15,7 @@ import { refreshSavedBaseline } from '../utils/reconcileFlowDirty';
 import { isBlockWhenStagingPending } from '../utils/aiDesignPreferences';
 import { promptStagingPendingSave } from '../utils/promptStagingPendingSave';
 import { hasPendingStagingEdgeUnits } from '../utils/stagingUnitIds';
+import { resolveCanvasApiDetail } from '../utils/resolveCanvasApiDetail';
 import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
@@ -203,13 +203,8 @@ async function loadAssertPathDesignIssues(graph: {
   const schemaPathsByApiId = new Map<string, string[]>();
   await Promise.all(
     [...apiIds].map(async (apiId) => {
-      try {
-        const res = await getTestProjectApi(apiId);
-        const detail = res?.data ?? res;
-        schemaPathsByApiId.set(apiId, extractResponseSchemaPaths(detail?.responseConfig));
-      } catch {
-        schemaPathsByApiId.set(apiId, []);
-      }
+      const detail = await resolveCanvasApiDetail(apiId);
+      schemaPathsByApiId.set(apiId, extractResponseSchemaPaths(detail?.responseConfig));
     }),
   );
   return collectAssertPathDesignIssues(graph, schemaPathsByApiId);

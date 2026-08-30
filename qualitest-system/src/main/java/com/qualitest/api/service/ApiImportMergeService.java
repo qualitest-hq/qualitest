@@ -24,6 +24,7 @@ import java.util.Set;
  * <p>
  * 参数列表与 schema 形状以上传包为准；同名字段类型未变时保留本地约束（pattern、min/max 等）；
  * 用户已有测值不覆盖。全新接口不走这里。
+ * 整条跳过由接口行 sync_protected 在导入服务侧处理，本类不感知。
  */
 @Service
 public class ApiImportMergeService {

@@ -43,11 +43,12 @@ describe('emptyPrefabricatedApi', () => {
     // 前提：新建预制接口
     const api = emptyPrefabricatedApi()
 
-    // 期望：登录口常用默认值 + 稳定合成 id
+    // 期望：登录口常用默认值 + 雪花 id；上传保护默认关
     expect(resolveApiMethod(api)).toBe('POST')
     expect(api.authConfig.mode).toBe('none')
     expect(api.requestConfig.body.mode).toBe('json')
-    expect(api.testProjectApiId).toMatch(/^tpl_/)
+    expect(api.testProjectApiId).toMatch(/^\d+$/)
+    expect(api.syncProtected).toBe(0)
   })
 })
 
@@ -173,29 +174,29 @@ describe('buildLoginGraphJson', () => {
       apiPath: '/login',
       from: 'body',
       expr: '$.token',
-      loginApiId: 'tpl_ab_login',
-      probeApiId: 'tpl_ab_getInfo',
+      loginApiId: '2100000000000004101',
+      probeApiId: '2100000000000004104',
       loginApiName: '登录',
       probeApiName: '获取用户信息',
     })
 
     // 期望：探活/登录节点绑定合成 id
     const byId = Object.fromEntries(graph.nodes.map((n) => [n.id, n]))
-    expect(byId.probe_http.data.testProjectApiId).toBe('tpl_ab_getInfo')
-    expect(byId.login_http.data.testProjectApiId).toBe('tpl_ab_login')
+    expect(byId.probe_http.data.testProjectApiId).toBe('2100000000000004104')
+    expect(byId.login_http.data.testProjectApiId).toBe('2100000000000004101')
     expect(byId.probe_http.data.apiName).toBe('获取用户信息')
   })
 
   it('emptyPrefabFlow 按 templateApis 自动绑登录/探活', () => {
     const apis = [
       {
-        testProjectApiId: 'tpl_ab_login',
+        testProjectApiId: '2100000000000004101',
         apiName: '登录',
         apiPath: '/login',
         requestConfig: { method: 'POST' },
       },
       {
-        testProjectApiId: 'tpl_ab_getInfo',
+        testProjectApiId: '2100000000000004104',
         apiName: '获取用户信息',
         apiPath: '/getInfo',
         requestConfig: { method: 'GET' },
@@ -203,8 +204,8 @@ describe('buildLoginGraphJson', () => {
     ]
     const { graphJson, ensuredApis } = emptyPrefabFlow(apis)
     const byId = Object.fromEntries(graphJson.nodes.map((n) => [n.id, n]))
-    expect(byId.login_http.data.testProjectApiId).toBe('tpl_ab_login')
-    expect(byId.probe_http.data.testProjectApiId).toBe('tpl_ab_getInfo')
+    expect(byId.login_http.data.testProjectApiId).toBe('2100000000000004101')
+    expect(byId.probe_http.data.testProjectApiId).toBe('2100000000000004104')
     expect(ensuredApis).toHaveLength(2)
   })
 
@@ -234,31 +235,31 @@ describe('validateApis / synthesize', () => {
     const list = validateApis([{ apiName: '登录', apiPath: '/login', requestConfig: { method: 'POST' } }])
 
     // 期望：落库前已有稳定 id
-    expect(list[0].testProjectApiId).toMatch(/^tpl_/)
+    expect(list[0].testProjectApiId).toMatch(/^\d+$/)
   })
 
   it('合成 catalog 读行上 id，不因下标漂移', () => {
     const { tree, catalog } = synthesizeTemplateApiCatalog([
-      { testProjectApiId: 'tpl_ab_login', apiName: '登录', apiPath: '/login', requestConfig: { method: 'POST' } },
-      { testProjectApiId: 'tpl_ab_getInfo', apiName: '获取用户信息', apiPath: '/getInfo', requestConfig: { method: 'GET' } },
+      { testProjectApiId: '2100000000000004101', apiName: '登录', apiPath: '/login', requestConfig: { method: 'POST' } },
+      { testProjectApiId: '2100000000000004104', apiName: '获取用户信息', apiPath: '/getInfo', requestConfig: { method: 'GET' } },
     ])
 
-    expect(catalog.map((c) => c.syntheticId)).toEqual(['tpl_ab_login', 'tpl_ab_getInfo'])
-    expect(tree[0].children[0].testProjectApiId).toBe('tpl_ab_login')
+    expect(catalog.map((c) => c.syntheticId)).toEqual(['2100000000000004101', '2100000000000004104'])
+    expect(tree[0].children[0].testProjectApiId).toBe('2100000000000004101')
   })
 })
 
 describe('validateTemplateGraphApiBindings', () => {
   it('硬拦未绑定或 catalog 外合成 id', () => {
-    const catalog = [{ syntheticId: 'tpl_ab_login', api: {} }]
+    const catalog = [{ syntheticId: '2100000000000004101', api: {} }]
     const unbound = {
       nodes: [{ id: 'n1', type: 'http', data: { callMode: 'project', name: '登录' } }],
     }
     const foreign = {
-      nodes: [{ id: 'n1', type: 'http', data: { callMode: 'project', name: '登录', testProjectApiId: 'tpl_x' } }],
+      nodes: [{ id: 'n1', type: 'http', data: { callMode: 'project', name: '登录', testProjectApiId: '2100000000000004999' } }],
     }
     const ok = {
-      nodes: [{ id: 'n1', type: 'http', data: { callMode: 'project', name: '登录', testProjectApiId: 'tpl_ab_login' } }],
+      nodes: [{ id: 'n1', type: 'http', data: { callMode: 'project', name: '登录', testProjectApiId: '2100000000000004101' } }],
     }
 
     expect(validateTemplateGraphApiBindings(unbound, catalog).ok).toBe(false)

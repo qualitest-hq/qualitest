@@ -14,9 +14,9 @@ import {
 
 const catalog = [
   {
-    syntheticId: 'tpl_ab_login',
+    syntheticId: '2100000000000004101',
     api: {
-      testProjectApiId: 'tpl_ab_login',
+      testProjectApiId: '2100000000000004101',
       apiName: '登录',
       apiPath: '/login',
       httpMethod: 'POST',
@@ -24,9 +24,9 @@ const catalog = [
     },
   },
   {
-    syntheticId: 'tpl_ab_getInfo',
+    syntheticId: '2100000000000004104',
     api: {
-      testProjectApiId: 'tpl_ab_getInfo',
+      testProjectApiId: '2100000000000004104',
       apiName: '获取用户信息',
       apiPath: '/getInfo',
       httpMethod: 'GET',
@@ -71,7 +71,7 @@ describe('syncTemplateHttpNodesFromCatalog', () => {
     const changed = syncTemplateHttpNodesFromCatalog(nodes, catalog)
 
     expect(changed).toBe(true)
-    expect(nodes[0].data.testProjectApiId).toBe('tpl_ab_login')
+    expect(nodes[0].data.testProjectApiId).toBe('2100000000000004101')
     expect(nodes[0].data.apiName).toBe('登录')
     expect(nodes[0].data.summary).toContain('POST')
   })
@@ -133,8 +133,8 @@ describe('hydrateTemplateFlowsGraphs', () => {
     const graph = next[0].graphJson as { nodes: Array<{ id: string; data: Record<string, unknown>; position: { x: number; y: number } }> }
     const probe = graph.nodes.find((n) => n.id === 'probe_http')
     const login = graph.nodes.find((n) => n.id === 'login_http')
-    expect(probe?.data.testProjectApiId).toBe('tpl_ab_getInfo')
-    expect(login?.data.testProjectApiId).toBe('tpl_ab_login')
+    expect(probe?.data.testProjectApiId).toBe('2100000000000004104')
+    expect(login?.data.testProjectApiId).toBe('2100000000000004101')
     expect(probe?.position).toEqual({ x: 480, y: 60 })
     expect(login?.position).toEqual({ x: 680, y: 440 })
   })
@@ -194,7 +194,7 @@ describe('hydrateTemplateFlowGraph', () => {
             httpMethod: 'POST',
             apiPath: '/login',
             apiName: '登录',
-            testProjectApiId: 'tpl_ab_login',
+            testProjectApiId: '2100000000000004101',
             summary: 'POST 登录',
           },
         },
