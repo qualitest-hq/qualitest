@@ -27,6 +27,7 @@ import useAppStore from '@/store/modules/app'
 import FlowCanvasLayout from '../testFlow/FlowCanvasLayout.vue'
 import { fromGraphJson, rehydrateCanvasSnapshot, toGraphJson } from '../testFlow/graphAdapter'
 import { useFlowHistory } from '../testFlow/composables/useFlowHistory'
+import { useProjectTabTitle } from '../testFlow/composables/useProjectTabTitle'
 import {
   applyAdaptedGraphToStore,
   finalizeCanvasHistoryBaseline,
@@ -55,6 +56,11 @@ const store = useFlowCanvasStore()
 const stagingStore = useAiStagingStore()
 const draftStore = useTemplateFlowDraftStore()
 const { scheduleHistoryReset, resetHistory } = useFlowHistory()
+useProjectTabTitle(
+  route,
+  () => '预制测试流',
+  () => String(store.flowName || '').trim(),
+)
 
 const isFullscreen = ref(false)
 const flowIndex = ref(0)

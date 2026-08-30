@@ -343,9 +343,9 @@ public final class ProjectAuthConfigSupport {
         return out;
     }
 
-    /** 空配置：没有 Profile。 */
+    /** 空配置：没有 Profile。列表可变，调用方可追加。 */
     public static ProjectAuthConfig empty() {
-        return ProjectAuthConfig.builder().authProfiles(List.of()).build();
+        return ProjectAuthConfig.builder().authProfiles(new ArrayList<>()).build();
     }
 
     /**

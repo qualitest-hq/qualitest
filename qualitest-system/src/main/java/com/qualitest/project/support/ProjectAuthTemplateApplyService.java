@@ -109,9 +109,9 @@ public class ProjectAuthTemplateApplyService {
             throw new ServiceException("项目不存在");
         }
         ProjectAuthConfig current = ProjectAuthConfigSupport.parse(project.getAuthConfig());
-        if (current.getAuthProfiles() == null) {
-            current.setAuthProfiles(new ArrayList<>());
-        }
+        current.setAuthProfiles(current.getAuthProfiles() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(current.getAuthProfiles()));
 
         Set<String> existingNames = new HashSet<>();
         Set<String> apiIdentities = new LinkedHashSet<>();

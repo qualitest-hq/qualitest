@@ -313,10 +313,34 @@ class ProjectAuthTemplateApplyServiceTest {
                 || flowCap.getValue().getGraphJson().contains("statusCheck"));
     }
 
+    /**
+     * 前提：项目 auth_config 为空（新建勾选模板后先插入再 apply）。
+     * 期望：能写入 Profile，不因不可变空列表抛 UnsupportedOperationException。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("空 auth_config 可追加 Profile")
+    void apply_blankAuthConfig_addsProfile() {
+        stubEmptyProject();
+        stubGroupCreate();
+        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
+        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(
+                template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis()));
+
+        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
+
+        ArgumentCaptor<TestProject> update = ArgumentCaptor.forClass(TestProject.class);
+        verify(testProjectMapper).updateTestProject(update.capture());
+        ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(update.getValue().getAuthConfig());
+        assertEquals(1, stored.getAuthProfiles().size());
+        assertEquals("RuoYi Bearer", stored.getAuthProfiles().get(0).getName());
+    }
+
     private void stubEmptyProject() {
         TestProject project = new TestProject();
         project.setTestProjectId(PROJECT_ID);
-        project.setAuthConfig("{}");
+        project.setAuthConfig(null);
         when(testProjectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(project);
     }
 
