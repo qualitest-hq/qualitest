@@ -1,0 +1,49 @@
+{
+  "templateName": "Demo Session",
+  "authStyle": "session",
+  "credential": {
+    "asset": "adminAuth",
+    "cookieName": "Admin-Token",
+    "extract": {
+      "from": "header",
+      "expr": "Set-Cookie"
+    }
+  },
+  "assets": {
+    "adminAuth": {
+      "username": "admin",
+      "password": "admin123"
+    }
+  },
+  "env": {
+    "envUrl": "http://127.0.0.1:8080"
+  },
+  "apis": [
+    {
+      "name": "登录",
+      "method": "POST",
+      "path": "/login",
+      "authMode": "none",
+      "bodyMode": "json",
+      "body": {
+        "username": "{{asset.adminAuth.username}}",
+        "password": "{{asset.adminAuth.password}}"
+      },
+      "response": {
+        "code": 200,
+        "msg": "操作成功"
+      }
+    },
+    {
+      "name": "获取用户信息",
+      "method": "GET",
+      "path": "/getInfo",
+      "authMode": "inherit",
+      "response": {
+        "code": 200,
+        "user": {},
+        "roles": []
+      }
+    }
+  ]
+}

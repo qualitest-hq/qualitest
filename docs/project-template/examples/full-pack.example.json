@@ -1,0 +1,46 @@
+{
+  "formatVersion": 1,
+  "templateName": "Demo Full Pack",
+  "remark": "完整包示例：字段与库内一致；可含 templateFlows",
+  "enableStatus": 1,
+  "sortNum": 100,
+  "matchConfig": {
+    "pathPrefix": ["/api/"]
+  },
+  "templateApis": [
+    {
+      "apiName": "登录",
+      "apiPath": "/login",
+      "apiGroup": "",
+      "protocolType": "http",
+      "apiStatus": "normal",
+      "requestConfig": {
+        "configVersion": 1,
+        "method": "POST",
+        "queryParams": [],
+        "pathParams": [],
+        "declaredHeaders": [],
+        "body": { "mode": "json", "json": { "schema": { "type": "object", "properties": {} } } }
+      },
+      "authConfig": { "mode": "none" },
+      "syncProtected": 1
+    }
+  ],
+  "templateParams": [
+    {
+      "kind": "asset",
+      "name": "adminAuth",
+      "value": { "username": "admin", "password": "admin123" },
+      "remark": ""
+    }
+  ],
+  "templateEnvs": [
+    {
+      "envName": "默认环境",
+      "envUrl": "http://127.0.0.1:8080",
+      "envVariables": []
+    }
+  ],
+  "templateFlows": [],
+  "templatePrompts": []
+}

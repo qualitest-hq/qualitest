@@ -10,7 +10,11 @@ import com.qualitest.project.domain.TestProjectTemplate;
 import com.qualitest.project.params.TestProjectTemplateParams;
 import com.qualitest.project.result.TestProjectTemplateResult;
 import com.qualitest.project.service.ITestProjectTemplateService;
+import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.ImportRequest;
+import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.PackOpResult;
+import com.qualitest.project.support.templatepack.ProjectTemplatePackService;
 import lombok.AllArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +26,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
- * 项目模板接口：列表、详情、增改删、克隆、启用列表。
+ * 项目模板 HTTP 接口。
+ * CRUD / 克隆 / 启用列表，以及完整包与精简包的 Schema、提示词、校验、导入、导出。
  */
 @RestController
 @RequestMapping("/project/testProjectTemplate")
@@ -32,6 +38,7 @@ import java.util.List;
 public class TestProjectTemplateController extends BaseController {
 
     private final ITestProjectTemplateService testProjectTemplateService;
+    private final ProjectTemplatePackService projectTemplatePackService;
 
     /** 分页列表。 */
     @PreAuthorize("@ss.hasPermi('project:testProjectTemplate:list')")
@@ -42,11 +49,47 @@ public class TestProjectTemplateController extends BaseController {
         return getDataTable(list);
     }
 
-    /** 已启用模板，给新建项目或设置页勾选。 */
+    /** 已启用模板列表，供新建项目或项目设置勾选。 */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/enabledList")
     public R<List<TestProjectTemplateResult>> enabledList() {
         return ok(testProjectTemplateService.selectEnabledList());
+    }
+
+    /** 返回精简包 JSON Schema 原文。 */
+    @PreAuthorize("@ss.hasPermi('project:testProjectTemplate:add')")
+    @GetMapping(value = "/schema", produces = MediaType.APPLICATION_JSON_VALUE)
+    public String schema() {
+        return projectTemplatePackService.loadSchemaJson();
+    }
+
+    /** 返回可复制给 AI 的精简包生成提示词正文。 */
+    @PreAuthorize("@ss.hasPermi('project:testProjectTemplate:add')")
+    @GetMapping("/aiPrompt")
+    public R<String> aiPrompt() {
+        return ok(projectTemplatePackService.loadAiPromptText());
+    }
+
+    /** 校验完整包或精简包，返回摘要与预览，不写库。 */
+    @PreAuthorize("@ss.hasPermi('project:testProjectTemplate:add')")
+    @PostMapping("/validate")
+    public R<PackOpResult> validate(@RequestBody com.fasterxml.jackson.databind.JsonNode template) {
+        return ok(projectTemplatePackService.validate(template));
+    }
+
+    /** 导入完整包或精简包为自定义模板。 */
+    @PreAuthorize("@ss.hasPermi('project:testProjectTemplate:add')")
+    @Log(title = "测试项目模板导入", businessType = BusinessType.INSERT)
+    @PostMapping("/import")
+    public R<PackOpResult> importTemplate(@RequestBody ImportRequest request) {
+        return ok(projectTemplatePackService.importTemplate(request));
+    }
+
+    /** 按 id 导出完整包 JSON（含预制测试流等）。 */
+    @PreAuthorize("@ss.hasPermi('project:testProjectTemplate:query')")
+    @GetMapping("/{testProjectTemplateId}/export")
+    public R<Map<String, Object>> export(@PathVariable Long testProjectTemplateId) {
+        return ok(projectTemplatePackService.exportPack(testProjectTemplateId));
     }
 
     /** 模板详情。 */

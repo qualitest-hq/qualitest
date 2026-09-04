@@ -59,6 +59,15 @@
         >新增</el-button>
       </el-col>
       <el-col :span="1.5">
+        <el-button
+          v-hasPermi="['project:testProjectTemplate:add']"
+          icon="Upload"
+          plain
+          type="primary"
+          @click="openImportDialog"
+        >导入</el-button>
+      </el-col>
+      <el-col :span="1.5">
         <el-tooltip
           :disabled="!single || !selectedBuiltin"
           content="内置模板只读，请克隆后修改"
@@ -184,7 +193,7 @@
         prop="updateTime"
         width="160"
       />
-      <el-table-column align="center" class-name="small-padding fixed-width" label="操作" width="200">
+      <el-table-column align="center" class-name="small-padding fixed-width" label="操作" width="260">
         <template #default="scope">
           <el-button
             v-hasPermi="['project:testProjectTemplate:query']"
@@ -208,6 +217,13 @@
               >修改</el-button>
             </span>
           </el-tooltip>
+          <el-button
+            v-hasPermi="['project:testProjectTemplate:query']"
+            icon="Download"
+            link
+            type="primary"
+            @click="handleExportTemplate(scope.row)"
+          >导出</el-button>
           <el-button
             v-hasPermi="['project:testProjectTemplate:add']"
             icon="CopyDocument"
@@ -384,13 +400,55 @@
         </div>
       </template>
     </el-drawer>
+
+    <!-- 导入：粘贴/上传完整包或精简包 JSON；可复制 AI 提示词生成精简包 -->
+    <el-dialog
+      v-model="importOpen"
+      append-to-body
+      destroy-on-close
+      title="导入模板 JSON"
+      width="720px"
+      @closed="resetImportDialog"
+    >
+      <el-input
+        v-model="importJsonText"
+        :rows="18"
+        class="tpl-import-json"
+        placeholder='粘贴项目模板 JSON，例如：{ "formatVersion": 1, "templateName": "...", "templateApis": [...], "templateFlows": [...], ... }'
+        type="textarea"
+      />
+      <div class="tpl-import-actions">
+        <el-upload
+          :auto-upload="false"
+          :show-file-list="false"
+          accept=".json,application/json"
+          @change="onImportFileChange"
+        >
+          <el-button>选择文件</el-button>
+        </el-upload>
+        <el-button @click="copyAiPrompt">复制提示词</el-button>
+        <el-checkbox v-model="importOverwrite">同名则覆盖自定义模板</el-checkbox>
+      </div>
+      <div v-if="importWarnings.length" class="tpl-import-warnings">
+        <div class="tpl-import-warnings__title">预览 warnings</div>
+        <ul>
+          <li v-for="(w, i) in importWarnings" :key="i">{{ w }}</li>
+        </ul>
+      </div>
+      <div v-if="importSummaryText" class="tpl-import-summary">{{ importSummaryText }}</div>
+      <template #footer>
+        <el-button :loading="importValidating" @click="previewImport">预览校验</el-button>
+        <el-button :loading="importSubmitting" type="primary" @click="confirmImport">确认导入</el-button>
+        <el-button @click="importOpen = false">取 消</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="TestProjectTemplate">
 /**
- * 项目模板管理页：列表、启用开关、增改查克隆。
- * 表单含路径匹配、预制接口、预制环境、预制参数（素材；flow 仅兼容存量）、预制测试流、预制提示词；不编辑托管请求头。
+ * 项目模板管理页：列表、启用开关、增改查克隆、完整包/精简包导入导出。
+ * 表单含路径匹配、预制接口、环境、参数（素材）、测试流、提示词；不编辑托管请求头。
  */
 import { onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
@@ -398,9 +456,13 @@ import {
   addTestProjectTemplate,
   cloneTestProjectTemplate,
   delTestProjectTemplate,
+  exportTestProjectTemplatePack,
   getTestProjectTemplate,
+  getTestProjectTemplateAiPrompt,
+  importTestProjectTemplatePack,
   listTestProjectTemplate,
   updateTestProjectTemplate,
+  validateTestProjectTemplatePack,
 } from '@/api/project/testProjectTemplate'
 import PrefabricatedApiPanel from './components/PrefabricatedApiPanel.vue'
 import PrefabricatedEnvPanel from './components/PrefabricatedEnvPanel.vue'
@@ -416,6 +478,7 @@ import {
   templateToForm,
   validateApis,
 } from './utils/templateForm'
+import { copyTemplateAiPrompt, prefetchTemplateAiPrompt } from './utils/templateAiPrompt'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -437,6 +500,16 @@ const multiple = ref(true)
 const total = ref(0)
 const title = ref('')
 const dialogMode = ref('add')
+
+const importOpen = ref(false)
+/** 导入弹窗中的 JSON 文本 */
+const importJsonText = ref('')
+/** 同名自定义模板是否覆盖更新 */
+const importOverwrite = ref(false)
+const importWarnings = ref([])
+const importSummaryText = ref('')
+const importValidating = ref(false)
+const importSubmitting = ref(false)
 
 const columns = ref([
   { key: 'templateName', label: '模板名称', visible: true },
@@ -680,6 +753,136 @@ function handleDelete(row) {
   }).catch(() => {})
 }
 
+/** 打开导入弹窗，并后台预取 AI 提示词。 */
+function openImportDialog() {
+  resetImportDialog()
+  importOpen.value = true
+  prefetchTemplateAiPrompt(getTestProjectTemplateAiPrompt)
+}
+
+/** 清空导入弹窗表单与预览状态。 */
+function resetImportDialog() {
+  importJsonText.value = ''
+  importOverwrite.value = false
+  importWarnings.value = []
+  importSummaryText.value = ''
+  importValidating.value = false
+  importSubmitting.value = false
+}
+
+/** 复制精简包生成提示词到剪贴板。 */
+function copyAiPrompt() {
+  copyTemplateAiPrompt(getTestProjectTemplateAiPrompt).then((status) => {
+    if (status === 'ok') {
+      proxy.$modal.msgSuccess('已复制精简生成提示词')
+      return
+    }
+    if (status === 'empty') {
+      proxy.$modal.msgError('提示词为空')
+      return
+    }
+    proxy.$modal.msgError('获取或复制提示词失败')
+  })
+}
+
+/** 解析导入框中的 JSON；空或非法则抛错。 */
+function parseImportJson() {
+  const text = String(importJsonText.value || '').trim()
+  if (!text) {
+    throw new Error('请先粘贴或上传 JSON')
+  }
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error('JSON 格式无效')
+  }
+}
+
+/** 把校验/导入结果写到 warnings 与摘要行。 */
+function applyImportPreview(data) {
+  const warnings = Array.isArray(data?.warnings) ? data.warnings : []
+  importWarnings.value = warnings
+  const summary = data?.expandedSummary || {}
+  importSummaryText.value = [
+    `形态 ${summary.kind || data?.kind || '—'}`,
+    `接口 ${summary.apiCount ?? 0} 条`,
+    `素材 ${summary.assetCount ?? 0} 个`,
+    `环境 ${summary.envCount ?? 0} 个`,
+    `测试流 ${summary.flowCount ?? 0} 条`,
+  ].join(' · ')
+}
+
+/** 仅校验不写库，展示预览。 */
+function previewImport() {
+  let template
+  try {
+    template = parseImportJson()
+  } catch (e) {
+    proxy.$modal.msgError(String(e?.message || e))
+    return
+  }
+  importValidating.value = true
+  validateTestProjectTemplatePack(template).then((res) => {
+    applyImportPreview(res.data || {})
+    proxy.$modal.msgSuccess('校验通过，请查看预览后确认导入')
+  }).finally(() => {
+    importValidating.value = false
+  })
+}
+
+/** 确认导入：按勾选决定是否覆盖同名自定义模板。 */
+function confirmImport() {
+  let template
+  try {
+    template = parseImportJson()
+  } catch (e) {
+    proxy.$modal.msgError(String(e?.message || e))
+    return
+  }
+  importSubmitting.value = true
+  importTestProjectTemplatePack({
+    dryRun: false,
+    overwriteByName: importOverwrite.value,
+    template,
+  }).then((res) => {
+    applyImportPreview(res.data || {})
+    proxy.$modal.msgSuccess('导入成功')
+    importOpen.value = false
+    getList()
+  }).finally(() => {
+    importSubmitting.value = false
+  })
+}
+
+/** 选择本地 .json 文件填入导入框。 */
+function onImportFileChange(uploadFile) {
+  const raw = uploadFile?.raw
+  if (!raw) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    importJsonText.value = String(reader.result || '')
+  }
+  reader.readAsText(raw)
+}
+
+/** 导出当前行模板为完整包 .template.json 并下载。 */
+function handleExportTemplate(row) {
+  const id = row?.testProjectTemplateId
+  if (!id) return
+  exportTestProjectTemplatePack(id).then((res) => {
+    const pack = res.data || {}
+    const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const name = String(pack.templateName || id).replace(/[\\/:*?"<>|]/g, '_')
+    a.href = url
+    a.download = `${name}.template.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    proxy.$modal.msgSuccess('已导出完整包')
+  })
+}
+
 getList()
 
 function tryRestoreDraft() {
@@ -705,6 +908,46 @@ onActivated(tryRestoreDraft)
   display: inline-flex;
   vertical-align: middle;
 }
+
+.tpl-import-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+/* 导入 JSON 文本框：等宽字体便于阅读完整结构 */
+.tpl-import-json :deep(textarea) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tpl-import-warnings {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  font-size: 13px;
+
+  &__title {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+}
+
+.tpl-import-summary {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
 
 .tpl-readonly-alert {
   margin-bottom: 16px;

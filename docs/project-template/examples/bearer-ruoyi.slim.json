@@ -1,0 +1,53 @@
+{
+  "templateName": "Demo Bearer",
+  "authStyle": "bearer",
+  "pathPrefix": ["/api/"],
+  "credential": {
+    "asset": "adminAuth",
+    "extract": "$.token"
+  },
+  "assets": {
+    "adminAuth": {
+      "username": "admin",
+      "password": "admin123"
+    }
+  },
+  "env": {
+    "envUrl": "http://127.0.0.1:8080",
+    "variables": {
+      "clientId": "demo"
+    }
+  },
+  "apis": [
+    {
+      "name": "登录",
+      "method": "POST",
+      "path": "/login",
+      "authMode": "none",
+      "bodyMode": "json",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "username": "{{asset.adminAuth.username}}",
+        "password": "{{asset.adminAuth.password}}"
+      },
+      "response": {
+        "code": 200,
+        "msg": "操作成功",
+        "token": "eyJhbGciOi..."
+      }
+    },
+    {
+      "name": "获取用户信息",
+      "method": "GET",
+      "path": "/getInfo",
+      "authMode": "inherit",
+      "response": {
+        "code": 200,
+        "user": {},
+        "roles": []
+      }
+    }
+  ]
+}
