@@ -35,7 +35,7 @@ function getAppIcon() {
 }
 
 function getWebDevServerUrl() {
-  return process.env.QUALITEST_WEB_DEV_URL || 'http://127.0.0.1:5173'
+  return process.env.QUALITEST_WEB_DEV_URL || 'http://127.0.0.1:5180'
 }
 
 function createWindow() {

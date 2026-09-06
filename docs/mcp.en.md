@@ -14,7 +14,7 @@ Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + 
 2. Generate / copy the **Project Token** (refresh invalidates the old token immediately).
 3. The “Cursor MCP” card can copy a full `mcp.json` snippet; or use the template below.
 
-Local default backend: `http://127.0.0.1:8080`.  
+Local default backend: `http://127.0.0.1:8800`.  
 With full-stack Compose (Nginx), set `url` to the API root your browser can reach (often `http://localhost/api/project/mcp`). Prefer the snippet from Project settings.
 
 ---
@@ -27,7 +27,7 @@ Merge into Cursor’s MCP config (user or project). Replace `X-Project-Token` wi
 {
   "mcpServers": {
     "qualitest": {
-      "url": "http://127.0.0.1:8080/api/project/mcp",
+      "url": "http://127.0.0.1:8800/api/project/mcp",
       "headers": {
         "X-Project-Token": "<YOUR_PROJECT_TOKEN>"
       }

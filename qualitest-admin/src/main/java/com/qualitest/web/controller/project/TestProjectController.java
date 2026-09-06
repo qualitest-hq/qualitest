@@ -13,6 +13,7 @@ import com.qualitest.project.domain.TestProjectMember;
 import com.qualitest.project.domain.TestProjectUserSetting;
 import com.qualitest.project.enums.TestProjectMemberRole;
 import com.qualitest.project.params.ApplyAuthTemplatesParams;
+import com.qualitest.project.params.SaveAsAuthTemplateParams;
 import com.qualitest.project.params.TestProjectParams;
 import com.qualitest.project.result.TestProjectResult;
 import com.qualitest.project.result.TestProjectUserContextResult;
@@ -21,6 +22,8 @@ import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.project.service.ITestProjectService;
 import com.qualitest.project.service.ITestProjectUserSettingService;
 import com.qualitest.project.support.ProjectAuthTemplateApplyService;
+import com.qualitest.project.support.templatepack.ProjectTemplateFromProjectService;
+import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.PackOpResult;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -44,6 +47,7 @@ public class TestProjectController extends BaseController {
     private final ITestProjectMemberService testProjectMemberService;
     private final ITestProjectUserSettingService testProjectUserSettingService;
     private final ProjectAuthTemplateApplyService projectAuthTemplateApplyService;
+    private final ProjectTemplateFromProjectService projectTemplateFromProjectService;
 
     /**
      * 查询测试项目列表
@@ -137,6 +141,18 @@ public class TestProjectController extends BaseController {
         projectAuthTemplateApplyService.apply(
                 testProjectId, params != null ? params.getTemplateIds() : null);
         return ok();
+    }
+
+    /**
+     * 从本项目另存为自定义鉴权项目模板（完整包：流关联接口/素材必带，其余可追加）。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProjectTemplate:add')")
+    @Log(title = "另存项目模板", businessType = BusinessType.INSERT)
+    @PostMapping("/{testProjectId}/saveAsAuthTemplate")
+    public R<PackOpResult> saveAsAuthTemplate(
+            @PathVariable Long testProjectId,
+            @RequestBody SaveAsAuthTemplateParams params) {
+        return ok(projectTemplateFromProjectService.saveAsAuthTemplate(testProjectId, params));
     }
 
     /**

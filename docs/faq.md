@@ -84,8 +84,8 @@ Staging **全部 ✕** 取消坏提案，或**新建一条流**重来。不要�
 
 HTTP 步骤连不上被测地址。常见：
 
-1. 项目环境 `baseUrl` 仍是建项占位 `http://127.0.0.1`（无端口 → 打 80）——应改为 demo 的 `http://localhost:8081`（勾内置模板新建应自动对齐；存量可环境管理手改，或「从项目模板添加」再 Apply 补种占位 URL）。
-2. demo API（默认 **8081**）未启动。
+1. 项目环境 `baseUrl` 仍是建项占位 `http://127.0.0.1`（无端口 → 打 80）——应改为 demo 的 `http://localhost:8801`（勾内置模板新建应自动对齐；存量可环境管理手改，或「从项目模板添加」再 Apply 补种占位 URL）。
+2. demo API（默认 **8801**）未启动。
 
 画布选环境：左栏「运行场景」→ 选中场景 → 右栏「环境」下拉。
 
@@ -93,13 +93,13 @@ HTTP 步骤连不上被测地址。常见：
 
 ### 连不上平台 / MCP 401
 
-- 后端是否已起；MCP `url` 是否与浏览器访问的 API 一致（本地常见 `http://127.0.0.1:8080/api/project/mcp`）。
+- 后端是否已起；MCP `url` 是否与浏览器访问的 API 一致（本地常见 `http://127.0.0.1:8800/api/project/mcp`）。
 - Project Token 是否过期；Header 是否为 `X-Project-Token`。
 
 → [deploy.md](./deploy.md) · [mcp.md §6](./mcp.md)
 
 ### 新建项目时为什么要勾「项目模板」
 
-模板写入 Profile、登录口免登、**预制登录口**，以及**预制环境（URL + 变量）/ 预制参数（主路径 asset 口令；flow 仅兼容存量）/ 预制测试流**（内置模板种子 `adminAuth` / `clientAuth`，占位环境写成 `http://localhost:8081`；登录流 extracts 派生托管头与 `credentialApi`，**不再**写 `loginHint`）；`template_prompts` 默认可为空（靶场业务提示见 demo 提示集，不进鉴权模板）。不勾无法创建。**业务 API** 仍须 IDEA 插件上传（手册 **T1.3**）。商城类双端项目建议勾「管理端 Bearer」+「客户端 Bearer」。
+模板写入 Profile、登录口免登、**预制登录口**，以及**预制环境（URL + 变量）/ 预制参数（主路径 asset 口令；flow 仅兼容存量）/ 预制测试流**（内置模板种子 `adminAuth` / `clientAuth`，占位环境写成 `http://localhost:8801`；登录流 extracts 派生托管头与 `credentialApi`，**不再**写 `loginHint`）；`template_prompts` 默认可为空（靶场业务提示见 demo 提示集，不进鉴权模板）。不勾无法创建。**业务 API** 仍须 IDEA 插件上传（手册 **T1.3**）。商城类双端项目建议勾「管理端 Bearer」+「客户端 Bearer」。
 
 → [project-summary.md §4.1](./project-summary.md) · 手册 **T1.2**（项目模板）· **T1.3**（插件上传）

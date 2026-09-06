@@ -16,9 +16,13 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 项目模板「预制参数 / 预制环境 / 预制测试流 / 预制提示词」解析，以及凭证规则与托管头的派生。
@@ -27,6 +31,10 @@ import java.util.Map;
  * 凭证派生只认预制测试流 extracts（优先 scope=asset）；托管头不存模板表，不再写 loginHint。
  */
 public final class PrefabricatedTemplateExtrasSupport {
+
+    /** 匹配 {{asset.entryKey...}} 中的素材入口名。 */
+    private static final Pattern ASSET_ENTRY_KEY_PATTERN =
+            Pattern.compile("\\{\\{\\s*asset\\.([a-zA-Z0-9_]+)");
 
     private PrefabricatedTemplateExtrasSupport() {}
 
@@ -418,7 +426,172 @@ public final class PrefabricatedTemplateExtrasSupport {
             String graphJson,
             java.util.function.BiFunction<String, String, Long> apiIdResolver,
             Map<String, Long> synthToProjectId) {
-        if (StrUtil.isBlank(graphJson) || apiIdResolver == null) {
+        if (apiIdResolver == null) {
+            return graphJson;
+        }
+        return mutateProjectHttpNodes(graphJson, data -> {
+            String rawId = StrUtil.trimToNull(data.getString("testProjectApiId"));
+            // 模板作者期 id（雪花或历史 tpl_*）优先经 map remap；勿把数字模板 id 当成已是项目主键
+            if (rawId != null && synthToProjectId != null && synthToProjectId.containsKey(rawId)) {
+                data.put("testProjectApiId", String.valueOf(synthToProjectId.get(rawId)));
+                return true;
+            }
+            if (rawId != null && isNumericProjectApiId(rawId)) {
+                return false;
+            }
+            String method = StrUtil.blankToDefault(data.getString("httpMethod"), "GET").trim().toUpperCase(Locale.ROOT);
+            String path = ProjectAuthConfigSupport.normalizeApiPath(data.getString("apiPath"));
+            if (StrUtil.isBlank(path)) {
+                return false;
+            }
+            Long apiId = apiIdResolver.apply(method, path);
+            if (apiId == null) {
+                return false;
+            }
+            data.put("testProjectApiId", String.valueOf(apiId));
+            return true;
+        });
+    }
+
+    /** 纯数字字符串（项目主键，或未命中 remap 表时的作者期雪花 id）。 */
+    public static boolean isNumericProjectApiId(String raw) {
+        if (StrUtil.isBlank(raw)) {
+            return false;
+        }
+        String id = raw.trim();
+        for (int i = 0; i < id.length(); i++) {
+            if (!Character.isDigit(id.charAt(i))) {
+                return false;
+            }
+        }
+        return !id.isEmpty();
+    }
+
+    /**
+     * 将画布 HTTP 节点上的项目接口主键改回模板合成 id（{@link #bindGraphApis} 的逆操作）。
+     * 仅处理 callMode=project 且 testProjectApiId 落在 projectIdToSynthId 中的节点。
+     *
+     * @param projectIdToSynthId 项目接口主键字符串 → 模板合成 id 字符串
+     */
+    public static String unbindGraphApis(String graphJson, Map<String, String> projectIdToSynthId) {
+        if (projectIdToSynthId == null || projectIdToSynthId.isEmpty()) {
+            return graphJson;
+        }
+        return mutateProjectHttpNodes(graphJson, data -> {
+            String rawId = StrUtil.trimToNull(data.getString("testProjectApiId"));
+            if (rawId == null) {
+                return false;
+            }
+            String synth = projectIdToSynthId.get(rawId);
+            if (synth == null) {
+                return false;
+            }
+            data.put("testProjectApiId", synth);
+            return true;
+        });
+    }
+
+    /**
+     * 收集画布中 callMode=project 的 HTTP 节点所绑定的项目接口 id（去重、保序）。
+     */
+    public static List<String> collectGraphHttpApiIds(String graphJson) {
+        List<String> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        forEachProjectHttpData(graphJson, data -> {
+            String rawId = StrUtil.trimToNull(data.getString("testProjectApiId"));
+            if (rawId != null && seen.add(rawId)) {
+                out.add(rawId);
+            }
+        });
+        return out;
+    }
+
+    /**
+     * 判断预制流图中是否存在任意 HTTP extracts（用于另存时 warning）。
+     */
+    public static boolean graphHasHttpExtracts(String graphJson) {
+        if (StrUtil.isBlank(graphJson)) {
+            return false;
+        }
+        JSONObject graph = JSON.parseObject(graphJson);
+        if (graph == null) {
+            return false;
+        }
+        JSONArray nodes = graph.getJSONArray("nodes");
+        if (nodes == null) {
+            return false;
+        }
+        for (int i = 0; i < nodes.size(); i++) {
+            JSONObject node = nodes.getJSONObject(i);
+            if (node == null || !"http".equalsIgnoreCase(StrUtil.blankToDefault(node.getString("type"), ""))) {
+                continue;
+            }
+            JSONObject data = node.getJSONObject("data");
+            if (data == null) {
+                continue;
+            }
+            JSONArray extracts = data.getJSONArray("extracts");
+            if (extracts != null && !extracts.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 从文本中收集 {@code {{asset.key...}}} 的素材入口 key（去重写入 into）。
+     */
+    public static void collectAssetKeys(String text, Set<String> into) {
+        if (StrUtil.isBlank(text) || into == null) {
+            return;
+        }
+        Matcher matcher = ASSET_ENTRY_KEY_PATTERN.matcher(text);
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            if (StrUtil.isNotBlank(key)) {
+                into.add(key);
+            }
+        }
+    }
+
+    /**
+     * 遍历画布中 type=http 且 callMode=project（缺省 project）的节点 data。
+     */
+    private static void forEachProjectHttpData(String graphJson, java.util.function.Consumer<JSONObject> consumer) {
+        if (StrUtil.isBlank(graphJson) || consumer == null) {
+            return;
+        }
+        JSONObject graph = JSON.parseObject(graphJson);
+        if (graph == null) {
+            return;
+        }
+        JSONArray nodes = graph.getJSONArray("nodes");
+        if (nodes == null) {
+            return;
+        }
+        for (int i = 0; i < nodes.size(); i++) {
+            JSONObject node = nodes.getJSONObject(i);
+            if (node == null || !"http".equalsIgnoreCase(StrUtil.blankToDefault(node.getString("type"), ""))) {
+                continue;
+            }
+            JSONObject data = node.getJSONObject("data");
+            if (data == null) {
+                continue;
+            }
+            if (!"project".equalsIgnoreCase(StrUtil.blankToDefault(data.getString("callMode"), "project"))) {
+                continue;
+            }
+            consumer.accept(data);
+        }
+    }
+
+    /**
+     * 可变遍历 project HTTP 节点；visitor 返回 true 表示改写了 data。
+     * 有改写时返回新 JSON，否则原样返回 graphJson。
+     */
+    private static String mutateProjectHttpNodes(
+            String graphJson, java.util.function.Function<JSONObject, Boolean> visitor) {
+        if (StrUtil.isBlank(graphJson) || visitor == null) {
             return graphJson;
         }
         JSONObject graph = JSON.parseObject(graphJson);
@@ -442,43 +615,12 @@ public final class PrefabricatedTemplateExtrasSupport {
             if (!"project".equalsIgnoreCase(StrUtil.blankToDefault(data.getString("callMode"), "project"))) {
                 continue;
             }
-            String rawId = StrUtil.trimToNull(data.getString("testProjectApiId"));
-            // 模板作者期 id（雪花或历史 tpl_*）优先经 map remap；勿把数字模板 id 当成已是项目主键
-            if (rawId != null && synthToProjectId != null && synthToProjectId.containsKey(rawId)) {
-                data.put("testProjectApiId", String.valueOf(synthToProjectId.get(rawId)));
+            Boolean mutated = visitor.apply(data);
+            if (Boolean.TRUE.equals(mutated)) {
                 changed = true;
-                continue;
             }
-            if (rawId != null && isNumericProjectApiId(rawId)) {
-                continue;
-            }
-            String method = StrUtil.blankToDefault(data.getString("httpMethod"), "GET").trim().toUpperCase(Locale.ROOT);
-            String path = ProjectAuthConfigSupport.normalizeApiPath(data.getString("apiPath"));
-            if (StrUtil.isBlank(path)) {
-                continue;
-            }
-            Long apiId = apiIdResolver.apply(method, path);
-            if (apiId == null) {
-                continue;
-            }
-            data.put("testProjectApiId", String.valueOf(apiId));
-            changed = true;
         }
         return changed ? graph.toJSONString() : graphJson;
-    }
-
-    /** 纯数字字符串（项目主键，或未命中 remap 表时的作者期雪花 id）。 */
-    public static boolean isNumericProjectApiId(String raw) {
-        if (StrUtil.isBlank(raw)) {
-            return false;
-        }
-        String id = raw.trim();
-        for (int i = 0; i < id.length(); i++) {
-            if (!Character.isDigit(id.charAt(i))) {
-                return false;
-            }
-        }
-        return !id.isEmpty();
     }
 
     /**

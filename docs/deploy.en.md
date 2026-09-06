@@ -30,7 +30,7 @@ docker compose up -d --build
 - Browser: **http://localhost** (include port if `WEB_PORT` ≠ 80)
 - Default login: **`admin` / `admin123`** (Flyway V1 seed — change before public exposure)
 - First boot: wait for **app healthy / Flyway migrate success** in logs (no full initdb dump)
-- IDEA plugin server URL: Compose → **`http://localhost/prod-api`**; local backend → **`http://localhost:8080`**
+- IDEA plugin server URL: Compose → **`http://localhost/prod-api`**; local backend → **`http://localhost:8800`**
 
 First `--build` pulls base images and compiles front/back — expect a longer wait.
 
@@ -51,15 +51,15 @@ cd qualitest-demo && ./scripts/quick-start.sh
 | Item | URL |
 |------|-----|
 | Qualitest Web | http://localhost |
-| Demo API / Swagger | http://localhost:8081 (`/swagger-ui.html`) |
-| Demo UI | http://localhost:8082 |
+| Demo API / Swagger | http://localhost:8801 (`/swagger-ui.html`) |
+| Demo UI | http://localhost:5181 |
 
 **Environment `baseUrl` (Project → Environments)**
 
 | Setup | Suggested `baseUrl` |
 |-------|---------------------|
-| Both as host processes (`mvn` / `pnpm`), or browser hits host ports | Seed default **`http://localhost:8081`** |
-| **Qualitest app inside Compose**, demo mapped on host **8081** | Container `localhost` cannot reach the demo — use **`http://host.docker.internal:8081`** (Docker Desktop: Windows / macOS). On Linux add `extra_hosts: ["host.docker.internal:host-gateway"]`, or run Qualitest backend on the host |
+| Both as host processes (`mvn` / `pnpm`), or browser hits host ports | Seed default **`http://localhost:8801`** |
+| **Qualitest app inside Compose**, demo mapped on host **8801** | Container `localhost` cannot reach the demo — use **`http://host.docker.internal:8801`** (Docker Desktop: Windows / macOS). On Linux add `extra_hosts: ["host.docker.internal:host-gateway"]`, or run Qualitest backend on the host |
 
 Demo schema uses initdb dump + scenario seed — **no Flyway**. Qualitest migrations: see [Schema migration (Flyway)](#schema-migration-flyway).
 
@@ -93,7 +93,7 @@ mvn -pl qualitest-admin -am -DskipTests package
 cd qualitest-ui && pnpm install && pnpm dev
 ```
 
-Browser: **http://localhost:5173**. MySQL only needs empty DB `qualitest` (Compose `mysql` creates it). On backend start, **Flyway** runs `db/migration` (including seed). Login once migrate succeeds in logs.
+Browser: **http://localhost:5180**. MySQL only needs empty DB `qualitest` (Compose `mysql` creates it). On backend start, **Flyway** runs `db/migration` (including seed). Login once migrate succeeds in logs.
 
 > **JRebel:** do not combine with `spring-boot-devtools` restart. Set `spring.devtools.restart.enabled=false` (or drop the optional dependency) when using JRebel.
 
@@ -103,12 +103,12 @@ Browser: **http://localhost:5173**. MySQL only needs empty DB `qualitest` (Compo
 
 | Item | Compose full stack | Local dev | Notes |
 |------|--------------------|-----------|-------|
-| Qualitest Web | **`WEB_PORT` → default 80** | Vite **5173** | Compose serves static via Nginx |
-| Qualitest API | **8080** in container (usually not published) | **8080** | Browser uses Nginx **`/prod-api`**; plugin Compose URL `http://localhost/prod-api` |
+| Qualitest Web | **`WEB_PORT` → default 80** | Vite **5180** | Compose serves static via Nginx |
+| Qualitest API | **8800** in container (usually not published) | **8800** | Browser uses Nginx **`/prod-api`**; plugin Compose URL `http://localhost/prod-api` |
 | MySQL | **`MYSQL_PORT` → 3306** | Host or same | DB name `qualitest` |
 | Redis | **`REDIS_PORT` → 6379** | Host or same | Compose app uses DB `0`; local `.env.example` often `10` |
-| Demo API | **8081** | Same | **Separate repo** Compose; not mixed here |
-| Demo UI | **8082** | See demo docs | Demo MySQL/Redis default **3307 / 6380** |
+| Demo API | **8801** | Same | **Separate repo** Compose; not mixed here |
+| Demo UI | **5181** | See demo docs | Demo MySQL/Redis default **3307 / 6380** |
 
 ### Change ports (minimal)
 
@@ -120,7 +120,7 @@ MYSQL_PORT=33066
 REDIS_PORT=63790
 ```
 
-Richer local overrides (mounts, expose `app:8080`, log level, …):
+Richer local overrides (mounts, expose `app:8800`, log level, …):
 
 ```bash
 # Windows
@@ -131,7 +131,7 @@ cp docker-compose.override.yml.example docker-compose.override.yml
 
 Uncomment what you need, then `docker compose up -d`. Real `docker-compose.override.yml` is **gitignored** — do not commit secrets. Template: [`docker-compose.override.yml.example`](../docker-compose.override.yml.example).
 
-To hit the backend from the host: uncomment `app.ports: "8080:8080"` in the override (do not commit edits to `docker-compose.yml`).
+To hit the backend from the host: uncomment `app.ports: "8800:8800"` in the override (do not commit edits to `docker-compose.yml`).
 
 ---
 
@@ -171,8 +171,8 @@ helm upgrade --install qualitest ./deploy/helm/qualitest \
 Without Ingress:
 
 ```bash
-kubectl -n qualitest port-forward svc/qualitest-web 8080:80
-# http://127.0.0.1:8080 — default admin / admin123 (change immediately)
+kubectl -n qualitest port-forward svc/qualitest-web 5180:80
+# http://127.0.0.1:5180 — default admin / admin123 (change immediately)
 # Service name follows Release: <release>-web (example Release name: qualitest)
 ```
 
@@ -196,7 +196,7 @@ Authoritative list: [`.env.example`](../.env.example). Compose injects some into
 | `MYSQL_ROOT_PASSWORD` | MySQL root; also Compose datasource password | **Change in production**; default `qualitest` is local-only |
 | `TOKEN_SECRET` | JWT signing key | **Strong random string in production** |
 | `TOKEN_EXPIRE_TIME` | Token TTL (minutes) | Optional |
-| `SERVER_PORT` | Backend listen port | Fixed 8080 in Compose |
+| `SERVER_PORT` | Backend listen port | Fixed 8800 in Compose |
 | `QUALITEST_PROFILE` | Upload directory | Compose / docker profile default `/data/upload` (volume `upload_data`) |
 | `SPRING_DATASOURCE_DRUID_MASTER_*` | JDBC URL / user / password | Compose points at service `mysql`; local → localhost |
 | `SPRING_DATA_REDIS_*` | Redis host / port / database / password | Compose host=`redis` |
@@ -211,7 +211,7 @@ Authoritative list: [`.env.example`](../.env.example). Compose injects some into
 ```text
 ┌─────────────┐     /prod-api      ┌──────────────────┐
 │   nginx     │ ─────────────────► │ qualitest-admin  │
-│  (static)   │                    │   (8080)         │
+│  (static)   │                    │   (8800)         │
 └─────────────┘                    └────────┬─────────┘
                                             │
                                    ┌────────┴────────┐
@@ -224,7 +224,7 @@ Authoritative list: [`.env.example`](../.env.example). Compose injects some into
 | mysql | qualitest-mysql | Empty DB `MYSQL_DATABASE=qualitest`; schema + seed via Flyway on app start |
 | redis | qualitest-redis | Cache / session |
 | app | qualitest-app | Spring Boot, `SPRING_PROFILES_ACTIVE=docker`, upload `/data/upload`; Flyway migrate on start |
-| web | qualitest-web | Nginx static + `/prod-api` → `app:8080` |
+| web | qualitest-web | Nginx static + `/prod-api` → `app:8800` |
 
 ---
 
@@ -280,9 +280,9 @@ docker compose up -d --build # rebuild after code / Dockerfile changes
 | `Found non-empty schema without metadata` | See [existing DB baseline](#existing-databases-local-data--future-production); do not run full V1 on a filled DB |
 | `Checksum mismatch` | An already-applied migration file was edited — restore it; fix forward with a new `V{n}` |
 | Old volume still wrong after migration edits | If data is disposable: `down -v` then `up`; in production only add incremental `V{n}` |
-| Plugin can’t connect | Compose: `http://localhost/prod-api`; local: `http://localhost:8080` — don’t mix |
-| Port clash with demo | Demo defaults 8081/8082/3307/6380; re-check if you remapped this repo |
-| Debug / flow can’t reach demo | Demo started separately? Compose Qualitest app must not use `localhost:8081` — use `host.docker.internal:8081` (see [demo target](#optional-demo-target--two-compose-stacks)) |
+| Plugin can’t connect | Compose: `http://localhost/prod-api`; local: `http://localhost:8800` — don’t mix |
+| Port clash with demo | Demo defaults 8801/5181/3307/6380; re-check if you remapped this repo |
+| Debug / flow can’t reach demo | Demo started separately? Compose Qualitest app must not use `localhost:8801` — use `host.docker.internal:8801` (see [demo target](#optional-demo-target--two-compose-stacks)) |
 
 ---
 

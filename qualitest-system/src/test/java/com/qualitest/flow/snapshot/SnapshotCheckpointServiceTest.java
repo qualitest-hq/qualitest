@@ -117,7 +117,7 @@ class SnapshotCheckpointServiceTest {
         GraphNode node = GraphNode.builder().id("n1").type("http").data(data).build();
 
         CheckpointAttempt attempt = service.maybeCheckpoint(
-                node, 1L, TestProjectEnv.builder().envUrl("http://localhost:8081").allowDestructiveReset(0).build(),
+                node, 1L, TestProjectEnv.builder().envUrl("http://localhost:8801").allowDestructiveReset(0).build(),
                 RunSnapshotPolicy.defaults(), new FlowRunSnapshotState());
 
         assertNull(attempt);
@@ -125,7 +125,7 @@ class SnapshotCheckpointServiceTest {
 
     private static TestProjectEnv env() {
         return TestProjectEnv.builder()
-                .envUrl("http://localhost:8081")
+                .envUrl("http://localhost:8801")
                 .envName("test")
                 .allowDestructiveReset(1)
                 .build();

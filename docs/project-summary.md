@@ -16,7 +16,7 @@
 | `qualitest-intellij-plugin/` | IDEA 插件：扫描 Controller → 上传接口资产             |
 
 
-前后端经 REST/JSON 通信；跑流与调试默认打项目环境的 `baseUrl`（Demo 常见 `http://localhost:8081`）。
+前后端经 REST/JSON 通信；跑流与调试默认打项目环境的 `baseUrl`（Demo 常见 `http://localhost:8801`）。
 
 ---
 

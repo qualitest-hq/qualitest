@@ -171,7 +171,7 @@ class ProjectTemplateSlimExpanderTest {
                   "pathPrefix": ["/api/"],
                   "credential": {"asset": "adminAuth", "extract": "$.token"},
                   "assets": {"adminAuth": {"username": "admin", "password": "admin123"}},
-                  "env": {"envUrl": "http://127.0.0.1:8080", "variables": {"clientId": "demo"}},
+                  "env": {"envUrl": "http://127.0.0.1:8800", "variables": {"clientId": "demo"}},
                   "apis": [
                     {
                       "name": "登录",

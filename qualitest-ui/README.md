@@ -6,7 +6,7 @@
 
 - Node.js 22+（与 CI / pnpm 11 要求一致，建议 ≥ 22.13）
 - pnpm 11.x（推荐 Corepack：`corepack enable`）
-- 开发联调时需先启动质衡后端（默认 `http://localhost:8080`），与 `apps/web` 下 Vite 代理配置一致
+- 开发联调时需先启动质衡后端（默认 `http://localhost:8800`），与 `apps/web` 下 Vite 代理配置一致
 
 ## 安装依赖
 
@@ -31,7 +31,7 @@ pnpm install
 
 | 命令 | 说明 |
 |------|------|
-| `pnpm dev` 或 `pnpm dev:web` | 启动 Web 开发服务（Vite，默认端口 **5173**，可用环境变量 `VITE_DEV_SERVER_PORT` 覆盖） |
+| `pnpm dev` 或 `pnpm dev:web` | 启动 Web 开发服务（Vite，默认端口 **5180**，可用环境变量 `VITE_DEV_SERVER_PORT` 覆盖） |
 | `pnpm build` 或 `pnpm build:web` | 生产构建 Web，产物目录 **`apps/web/dist`** |
 | `pnpm build:stage` | 使用 staging 模式构建 Web |
 | `pnpm preview` | 本地预览已构建的 Web 静态资源 |
@@ -64,7 +64,7 @@ pnpm install
 | 变量 | 说明 |
 |------|------|
 | `VITE_APP_BASE_API` | 治理类接口同源前缀（如 `/dev-api`），开发时由 Vite 代理到后端 |
-| `VITE_DEV_SERVER_PORT` | 可选：本地开发服务器端口（默认 `5173`），改端口时请同步设置桌面端 `QUALITEST_WEB_DEV_URL` |
+| `VITE_DEV_SERVER_PORT` | 可选：本地开发服务器端口（默认 `5180`），改端口时请同步设置桌面端 `QUALITEST_WEB_DEV_URL` |
 | `VITE_QUALITEST_HTTP_TRANSPORT` | 可选：构建默认调试传输模式；**项目设置中的切换优先于此项** |
 | `VITE_HTTP_FORWARD_API` | 与 `VITE_APP_BASE_API` 同源的 Java 转发路径，如 `/dev-api/test/http-forward`（对应后端 `POST /test/http-forward`，需登录 JWT；实现见 `qualitest-admin` `TestHttpForwardController`） |
 
@@ -82,8 +82,8 @@ Electron 下是否走主进程由 preload 注入的 `window.__QUALITEST_ELECTRON
 
 | 变量 | 说明 |
 |------|------|
-| `QUALITEST_BACKEND_BASE_URL` | 质衡后端绝对地址，默认 `http://127.0.0.1:8080`（主进程治理 HTTP 使用） |
-| `QUALITEST_WEB_DEV_URL` | 开发时加载的 Web 地址，默认 `http://127.0.0.1:5173`（须与 `pnpm dev:web` 终端里 Local 地址一致） |
+| `QUALITEST_BACKEND_BASE_URL` | 质衡后端绝对地址，默认 `http://127.0.0.1:8800`（主进程治理 HTTP 使用） |
+| `QUALITEST_WEB_DEV_URL` | 开发时加载的 Web 地址，默认 `http://127.0.0.1:5180`（须与 `pnpm dev:web` 终端里 Local 地址一致） |
 | `QUALITEST_DEV_API_PREFIX` | 与 Web 的 `VITE_APP_BASE_API` 一致的前缀，默认 `/dev-api` |
 
 桌面打包产物默认在 **`apps/desktop/release/`**（已在 `.gitignore` 中忽略）。Windows 下若遇 electron-builder 与签名相关错误，当前脚本已设置 `CSC_IDENTITY_AUTO_DISCOVERY=false` 并关闭可执行文件签名，便于本地出包。

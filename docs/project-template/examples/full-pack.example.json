@@ -37,7 +37,7 @@
   "templateEnvs": [
     {
       "envName": "默认环境",
-      "envUrl": "http://127.0.0.1:8080",
+      "envUrl": "http://127.0.0.1:8800",
       "envVariables": []
     }
   ],

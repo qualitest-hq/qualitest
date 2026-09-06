@@ -36,7 +36,7 @@ class SnapshotRestoreServiceTest {
     void restore_success() {
         doNothing().when(adapter).restore(anyString(), anyString(), anyLong());
         TestProjectEnv env = TestProjectEnv.builder()
-                .envUrl("http://localhost:8081")
+                .envUrl("http://localhost:8801")
                 .allowDestructiveReset(1)
                 .build();
 
@@ -54,7 +54,7 @@ class SnapshotRestoreServiceTest {
     @DisplayName("不允许还原时静默跳过")
     void restore_silentSkipWhenNotAllowed() {
         TestProjectEnv env = TestProjectEnv.builder()
-                .envUrl("http://localhost:8081")
+                .envUrl("http://localhost:8801")
                 .allowDestructiveReset(0)
                 .build();
         assertNull(service.restore(env, 1L, "snap-1", "n1"));

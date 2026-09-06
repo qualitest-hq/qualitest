@@ -15,7 +15,7 @@
 | `qualitest-intellij-plugin/` | IDEA plugin: scan Controllers → upload API assets |
 | `qualitest-all/` | Local aggregate workspace (no own Git) |
 
-REST/JSON between UI and API; Run/debug hit the project env `baseUrl` (Demo often `http://localhost:8081`).
+REST/JSON between UI and API; Run/debug hit the project env `baseUrl` (Demo often `http://localhost:8801`).
 
 ---
 

@@ -180,7 +180,7 @@ class TestFlowExecutorResumePathsTest {
 
         when(snapshotRestoreService.restore(any(), any(), any(), any()))
                 .thenReturn(new StepResultWriter().toRestoreStepResult(
-                        "n1", "snap-1", "http://localhost:8081/test-support", 1));
+                        "n1", "snap-1", "http://localhost:8801/test-support", 1));
 
         ExecutionOutcome outcome = executor.resume(4L,
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).snapshotId("snap-1").build(),
@@ -234,7 +234,7 @@ class TestFlowExecutorResumePathsTest {
 
         ExecutionOutcome outcome = executor.resume(5L,
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).snapshotId("snap-1").build(),
-                TestProjectEnv.builder().envUrl("http://localhost:8081").allowDestructiveReset(0).build());
+                TestProjectEnv.builder().envUrl("http://localhost:8801").allowDestructiveReset(0).build());
 
         assertTrue(outcome.isPassed());
         assertEquals(RunStatus.PASSED, pausedRun.getStatus());
@@ -259,7 +259,7 @@ class TestFlowExecutorResumePathsTest {
     }
 
     private static TestProjectEnv env() {
-        return TestProjectEnv.builder().envUrl("http://localhost:8081").allowDestructiveReset(1).build();
+        return TestProjectEnv.builder().envUrl("http://localhost:8801").allowDestructiveReset(1).build();
     }
 
     private static GraphJson loadGraph(String path) {

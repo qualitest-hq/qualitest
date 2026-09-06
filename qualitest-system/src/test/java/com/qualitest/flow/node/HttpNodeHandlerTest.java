@@ -52,7 +52,7 @@ class HttpNodeHandlerTest {
         handler = new HttpNodeHandler(apiService, forwardService, scriptService, assetPersist);
 
         Map<String, Object> env = new HashMap<>();
-        env.put("baseUrl", "http://localhost:8080");
+        env.put("baseUrl", "http://localhost:8800");
         Map<String, Object> flow = new HashMap<>();
         flow.put("loginUser", "admin");
         ctx = FlowRunContext.builder().env(env).flow(flow).build();

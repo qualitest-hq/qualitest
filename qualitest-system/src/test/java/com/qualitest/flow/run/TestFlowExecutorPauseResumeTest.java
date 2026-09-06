@@ -151,7 +151,7 @@ class TestFlowExecutorPauseResumeTest {
                         .onNodeFailure(RunSnapshotPolicy.ON_NODE_FAILURE_PROMPT)
                         .build(),
                 "test",
-                TestProjectEnv.builder().envUrl("http://localhost:8081").allowDestructiveReset(1).build()
+                TestProjectEnv.builder().envUrl("http://localhost:8801").allowDestructiveReset(1).build()
         );
 
         ExecutionOutcome first = executor.execute(
@@ -165,7 +165,7 @@ class TestFlowExecutorPauseResumeTest {
         ExecutionOutcome resumed = executor.resume(
                 runId,
                 ResumeDecision.builder().decision(ResumeDecision.RETRY_IN_PLACE).operator("tester").build(),
-                TestProjectEnv.builder().envUrl("http://localhost:8081").allowDestructiveReset(1).build()
+                TestProjectEnv.builder().envUrl("http://localhost:8801").allowDestructiveReset(1).build()
         );
 
         assertTrue(resumed.isPassed());

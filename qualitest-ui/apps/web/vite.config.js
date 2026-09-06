@@ -9,7 +9,7 @@ import {
 } from './vitest.test-shared.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const baseUrl = 'http://127.0.0.1:8080' // 后端接口（避免 localhost 解析为 ::1 导致 ECONNREFUSED）
+const baseUrl = 'http://127.0.0.1:8800' // 后端接口（避免 localhost 解析为 ::1 导致 ECONNREFUSED）
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
@@ -58,7 +58,7 @@ export default defineConfig(({ mode, command }) => {
     // vite 相关配置
     server: {
       // 避免 Windows 上占用 80 需管理员权限导致 dev 起不来，与 apps/desktop 默认 QUALITEST_WEB_DEV_URL 一致
-      port: Number(process.env.VITE_DEV_SERVER_PORT) || 5173,
+      port: Number(process.env.VITE_DEV_SERVER_PORT) || 5180,
       strictPort: true,
       host: true,
       open: false,

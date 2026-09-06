@@ -60,3 +60,12 @@ export function applyAuthTemplates(testProjectId, templateIds) {
     data: { templateIds },
   })
 }
+
+/** 从本项目另存为自定义鉴权项目模板（完整包） */
+export function saveAsAuthTemplate(testProjectId, data) {
+  return request({
+    url: `/project/testProject/${testProjectId}/saveAsAuthTemplate`,
+    method: 'post',
+    data,
+  })
+}

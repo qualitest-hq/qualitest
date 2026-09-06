@@ -126,11 +126,11 @@ describe('templateEnvs → 参数库预览', () => {
     const rows = templateEnvsToEnvParamRows([
       {
         envName: '默认环境',
-        envUrl: 'http://localhost:8081',
+        envUrl: 'http://localhost:8801',
         envVariables: [{ key: 'timeout', remark: '毫秒', assets: { timeout: 5000 } }],
       },
     ])
-    expect(rows[0]).toMatchObject({ name: 'baseUrl', value: 'http://localhost:8081' })
+    expect(rows[0]).toMatchObject({ name: 'baseUrl', value: 'http://localhost:8801' })
     expect(rows[1]).toMatchObject({ name: 'timeout', value: 5000, remark: '毫秒' })
   })
 })

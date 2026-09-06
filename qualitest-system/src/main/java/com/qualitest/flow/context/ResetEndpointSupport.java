@@ -18,7 +18,7 @@ public final class ResetEndpointSupport {
      * 解析快照服务根地址。
      *
      * @param envUrl 环境 URL，支持纯字符串或多模块 JSON（取默认模块的 baseUrl）
-     * @return 完整根地址，例如 http://host:8081/test-support；无法解析时返回空串
+     * @return 完整根地址，例如 http://host:8801/test-support；无法解析时返回空串
      */
     public static String resolve(String envUrl) {
         String base = EnvUrlSupport.resolveEnvBaseUrlForRequest(envUrl);

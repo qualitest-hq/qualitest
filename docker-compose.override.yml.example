@@ -12,16 +12,16 @@
 #
 # 与 .env 分工：
 # - .env          → WEB_PORT / MYSQL_PORT / REDIS_PORT / TOKEN_SECRET 等
-# - override.yml  → 暴露 app:8080、改挂载、调日志级别、临时关服务等 YAML 结构
+# - override.yml  → 暴露 app:8800、改挂载、调日志级别、临时关服务等 YAML 结构
 
 name: qualitest
 
 services:
   # --- 宿主机直连后端（插件 / curl / 调试）---
-  # 浏览器仍走 Nginx（WEB_PORT）；插件本机后端可填 http://localhost:8080
+  # 浏览器仍走 Nginx（WEB_PORT）；插件本机后端可填 http://localhost:8800
   # app:
   #   ports:
-  #     - "8080:8080"
+  #     - "8800:8800"
 
   # --- 调高业务日志（排障）---
   # app:

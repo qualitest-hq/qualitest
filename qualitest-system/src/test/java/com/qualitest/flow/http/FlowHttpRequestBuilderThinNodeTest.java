@@ -73,7 +73,7 @@ class FlowHttpRequestBuilderThinNodeTest {
         ));
 
         FlowRunContext ctx = FlowRunContext.builder()
-                .env(Map.of("baseUrl", "http://localhost:8080"))
+                .env(Map.of("baseUrl", "http://localhost:8800"))
                 .flow(Map.of("mobile", "13800001111"))
                 .build();
 
@@ -145,7 +145,7 @@ class FlowHttpRequestBuilderThinNodeTest {
         nodeData.put("testProjectApiId", "10");
 
         FlowRunContext ctx = FlowRunContext.builder()
-                .env(Map.of("baseUrl", "http://localhost:8081"))
+                .env(Map.of("baseUrl", "http://localhost:8801"))
                 .build();
 
         FlowHttpRequestBuilder.BuiltHttpRequest built =
@@ -198,7 +198,7 @@ class FlowHttpRequestBuilderThinNodeTest {
         ));
 
         FlowRunContext ctx = FlowRunContext.builder()
-                .env(Map.of("baseUrl", "http://localhost:8081"))
+                .env(Map.of("baseUrl", "http://localhost:8801"))
                 .build();
 
         FlowHttpRequestBuilder.BuiltHttpRequest built =
@@ -237,7 +237,7 @@ class FlowHttpRequestBuilderThinNodeTest {
         nodeData.put("testProjectApiId", "21");
 
         FlowRunContext ctx = FlowRunContext.builder()
-                .env(Map.of("baseUrl", "http://localhost:8081"))
+                .env(Map.of("baseUrl", "http://localhost:8801"))
                 .flow(new HashMap<>())
                 .asset(new HashMap<>(Map.of("clientAuth", Map.of("token", "tok-client"))))
                 .projectAuthConfig(projectAuth)
@@ -299,7 +299,7 @@ class FlowHttpRequestBuilderThinNodeTest {
         nodeData.put("testProjectApiId", "30");
 
         FlowRunContext ctx = FlowRunContext.builder()
-                .env(Map.of("baseUrl", "http://localhost:8081"))
+                .env(Map.of("baseUrl", "http://localhost:8801"))
                 .build();
 
         FlowHttpRequestBuilder.BuiltHttpRequest built =

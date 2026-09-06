@@ -33,21 +33,21 @@ function graphWithSnapshotBefore(enabled: boolean): Pick<GraphJson, 'nodes'> {
 
 describe('resolveResetBaseUrl', () => {
   it('普通 http 基址会自动补上 /test-support', () => {
-    // 前提：基址为 http://host:8081
+    // 前提：基址为 http://host:8801
     // 期望：末尾补上 /test-support
-    expect(resolveResetBaseUrl('http://host:8081')).toBe('http://host:8081/test-support');
+    expect(resolveResetBaseUrl('http://host:8801')).toBe('http://host:8801/test-support');
   });
 
   it('无协议时补 http 并挂上 /test-support', () => {
-    // 前提：基址为 localhost:8081（无协议）
+    // 前提：基址为 localhost:8801（无协议）
     // 期望：补 http 并挂 /test-support
-    expect(resolveResetBaseUrl('localhost:8081')).toBe('http://localhost:8081/test-support');
+    expect(resolveResetBaseUrl('localhost:8801')).toBe('http://localhost:8801/test-support');
   });
 
   it('基址末尾斜杠会被规范化后再拼路径', () => {
     // 前提：基址末尾有斜杠
     // 期望：规范化后拼 /test-support
-    expect(resolveResetBaseUrl('http://host:8081/')).toBe('http://host:8081/test-support');
+    expect(resolveResetBaseUrl('http://host:8801/')).toBe('http://host:8801/test-support');
   });
 
   it('空环境 URL 时还原基址为空串', () => {
@@ -66,8 +66,8 @@ describe('resolveResetBaseUrl', () => {
   it('多模块 JSON 取默认模块 URL', () => {
     // 前提：环境 URL 为多模块 JSON
     // 期望：取默认模块 URL 并拼 /test-support
-    const envUrl = JSON.stringify({ [DEFAULT_ENV_MODULE_NAME]: 'http://demo:8081' });
-    expect(resolveResetBaseUrl(envUrl)).toBe('http://demo:8081/test-support');
+    const envUrl = JSON.stringify({ [DEFAULT_ENV_MODULE_NAME]: 'http://demo:8801' });
+    expect(resolveResetBaseUrl(envUrl)).toBe('http://demo:8801/test-support');
   });
 });
 
@@ -116,7 +116,7 @@ describe('validateSnapshotResetEndpointStatic', () => {
     // 期望：校验通过
     const result = validateSnapshotResetEndpointStatic(graphWithSnapshotBefore(true), {
       allowDestructiveReset: 1,
-      envUrl: 'http://host:8081',
+      envUrl: 'http://host:8801',
     });
     expect(result.ok).toBe(true);
   });
@@ -151,7 +151,7 @@ describe('validateSnapshotResetEndpointStatic', () => {
   it('多模块环境 URL 解析成功时校验通过', () => {
     // 前提：多模块 JSON envUrl 含默认模块
     // 期望：校验通过
-    const envUrl = JSON.stringify({ [DEFAULT_ENV_MODULE_NAME]: 'http://demo:8081' });
+    const envUrl = JSON.stringify({ [DEFAULT_ENV_MODULE_NAME]: 'http://demo:8801' });
     const result = validateSnapshotResetEndpointStatic(graphWithSnapshotBefore(true), {
       allowDestructiveReset: 1,
       envUrl,

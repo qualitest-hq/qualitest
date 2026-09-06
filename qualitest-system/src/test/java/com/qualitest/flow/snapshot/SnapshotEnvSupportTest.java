@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SnapshotEnvSupportTest {
 
     /**
-     * 前提：allowDestructiveReset=1，envUrl=http://localhost:8081。
+     * 前提：allowDestructiveReset=1，envUrl=http://localhost:8801。
      * 期望：isResetAllowed=true；resolveResetBase=envUrl+/test-support。
      */
     @Test
@@ -28,12 +28,12 @@ class SnapshotEnvSupportTest {
     @DisplayName("允许重置时拼接 /test-support 根路径")
     void isResetAllowed_flagEnabled() {
         TestProjectEnv env = TestProjectEnv.builder()
-                .envUrl("http://localhost:8081")
+                .envUrl("http://localhost:8801")
                 .allowDestructiveReset(1)
                 .build();
         assertTrue(SnapshotEnvSupport.isResetAllowed(env), "allowDestructiveReset=1 时应允许重置");
         String base = SnapshotEnvSupport.resolveResetBase(env);
-        assertEquals("http://localhost:8081/test-support", base, "重置根地址应为 envUrl + /test-support");
+        assertEquals("http://localhost:8801/test-support", base, "重置根地址应为 envUrl + /test-support");
     }
 
     /**

@@ -18,7 +18,7 @@ qualitest:
 # 内嵌 Tomcat
 # -----------------------------------------------------------------------------
 server:
-  port: ${SERVER_PORT:8080}                    # HTTP 端口
+  port: ${SERVER_PORT:8800}                    # HTTP 端口
   servlet:
     context-path: /
   tomcat:

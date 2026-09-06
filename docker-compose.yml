@@ -63,7 +63,7 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SERVER_PORT: "8080"
+      SERVER_PORT: "8800"
       QUALITEST_PROFILE: /data/upload
       SPRING_DATASOURCE_DRUID_MASTER_URL: jdbc:mysql://mysql:3306/qualitest?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
       SPRING_DATASOURCE_DRUID_MASTER_USERNAME: root
@@ -78,7 +78,7 @@ services:
       - upload_data:/data/upload
     # 调试时可解开：宿主机直连后端
     # ports:
-    #   - "8080:8080"
+    #   - "8800:8800"
 
   web:
     build:

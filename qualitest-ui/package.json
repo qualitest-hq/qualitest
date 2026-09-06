@@ -27,7 +27,7 @@
     "test:project": "pnpm --filter @qualitest/web test:project",
     "test:ai": "pnpm --filter @qualitest/web test:ai",
     "test:utils": "pnpm --filter @qualitest/web test:utils",
-    "dev:desktop": "concurrently -k -n web,desk -c blue,magenta \"pnpm run dev:web\" \"pnpm exec wait-on http://127.0.0.1:5173 && pnpm --filter @qualitest/desktop dev\"",
+    "dev:desktop": "concurrently -k -n web,desk -c blue,magenta \"pnpm run dev:web\" \"pnpm exec wait-on http://127.0.0.1:5180 && pnpm --filter @qualitest/desktop dev\"",
     "dev:desktop:only": "pnpm --filter @qualitest/desktop dev",
     "build:desktop": "pnpm --filter @qualitest/web build:desktop && pnpm --filter @qualitest/desktop build"
   }

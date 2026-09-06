@@ -52,7 +52,7 @@ class ResumeContinuationPlannerTest {
         RunExecutionState state = RunExecutionState.builder().pauseNodeId("n2").build();
         ResumeContinuationPlanner.PlannedResume planned = planner.plan(
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).snapshotId("snap-1").build(),
-                state, graph, stack, TestProjectEnv.builder().allowDestructiveReset(1).envUrl("http://localhost:8081").build(), 99L);
+                state, graph, stack, TestProjectEnv.builder().allowDestructiveReset(1).envUrl("http://localhost:8801").build(), 99L);
 
         assertNotNull(planned.getRestoreStep());
         assertEquals("n1", planned.getContinuation().getStartNodeId());
@@ -80,7 +80,7 @@ class ResumeContinuationPlannerTest {
         ResumeContinuationPlanner.PlannedResume planned = localPlanner.plan(
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).snapshotId("snap-1").build(),
                 state, graph, stack,
-                TestProjectEnv.builder().allowDestructiveReset(0).envUrl("http://localhost:8081").build(), 99L);
+                TestProjectEnv.builder().allowDestructiveReset(0).envUrl("http://localhost:8801").build(), 99L);
 
         assertNull(planned.getRestoreStep());
         assertEquals("n1", planned.getContinuation().getStartNodeId());

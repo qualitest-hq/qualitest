@@ -32,7 +32,7 @@ GitHub 上「New issue」可选表单（Bug / 想法 / 提问）；空白 Issue 
 - 前端：`cd qualitest-ui && pnpm install && pnpm dev`  
 - 一键依赖 / 全栈：见 README「5 分钟快速开始」与 `docker compose`
 
-本地联调靶场时，环境 `baseUrl` 一般为 `http://localhost:8081`。
+本地联调靶场时，环境 `baseUrl` 一般为 `http://localhost:8801`。
 
 ## Pull Request
 

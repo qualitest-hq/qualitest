@@ -30,7 +30,7 @@ docker compose up -d --build
 - 浏览器：**http://localhost**（`WEB_PORT` 非 80 时带端口）
 - 默认账号：**`admin` / `admin123`**（Flyway V1 种子；上公网前务必改掉）
 - 首次以 **app 健康 / 日志 Flyway migrate 成功** 为准（不再依赖 initdb 整库 dump）
-- IDEA 插件服务器地址：Compose 填 **`http://localhost/prod-api`**；本机后端填 **`http://localhost:8080`**
+- IDEA 插件服务器地址：Compose 填 **`http://localhost/prod-api`**；本机后端填 **`http://localhost:8800`**
 
 首次 `--build` 会拉基础镜像并编译前后端，可能较慢，属正常。
 
@@ -51,15 +51,15 @@ cd qualitest-demo && ./scripts/quick-start.sh
 | 项 | 地址 |
 |----|------|
 | 质衡 Web | http://localhost |
-| 靶场 API / Swagger | http://localhost:8081 （Swagger：`/swagger-ui.html`） |
-| 靶场 UI | http://localhost:8082 |
+| 靶场 API / Swagger | http://localhost:8801 （Swagger：`/swagger-ui.html`） |
+| 靶场 UI | http://localhost:5181 |
 
 **环境 `baseUrl`（项目 → 环境管理）**
 
 | 跑法 | 建议 `baseUrl` |
 |------|----------------|
-| 两边都在本机进程（`mvn` / `pnpm`），或仅浏览器直连宿主机端口 | 种子默认 **`http://localhost:8081`** |
-| **质衡 app 在 Compose 容器内**，demo 映射在宿主机 **8081** | 容器内 `localhost` 打不到靶场，改为 **`http://host.docker.internal:8081`**（Docker Desktop：Windows / macOS）。Linux 可加 compose `extra_hosts: ["host.docker.internal:host-gateway"]`，或改为本机跑质衡后端 |
+| 两边都在本机进程（`mvn` / `pnpm`），或仅浏览器直连宿主机端口 | 种子默认 **`http://localhost:8801`** |
+| **质衡 app 在 Compose 容器内**，demo 映射在宿主机 **8801** | 容器内 `localhost` 打不到靶场，改为 **`http://host.docker.internal:8801`**（Docker Desktop：Windows / macOS）。Linux 可加 compose `extra_hosts: ["host.docker.internal:host-gateway"]`，或改为本机跑质衡后端 |
 
 靶场库表用 initdb dump + 场景 seed，**不接 Flyway**；质衡自身迁移见下文「库表迁移（Flyway）」。
 
@@ -93,7 +93,7 @@ mvn -pl qualitest-admin -am -DskipTests package
 cd qualitest-ui && pnpm install && pnpm dev
 ```
 
-浏览器：**http://localhost:5173**。MySQL 只需空库 `qualitest`（Compose `mysql` 服务会建）；启动后端后由 **Flyway** 自动执行 `db/migration`（含种子），日志出现 migrate 成功即可登录。
+浏览器：**http://localhost:5180**。MySQL 只需空库 `qualitest`（Compose `mysql` 服务会建）；启动后端后由 **Flyway** 自动执行 `db/migration`（含种子），日志出现 migrate 成功即可登录。
 
 > **JRebel**：与 `spring-boot-devtools` 热重启不要同时开。用 JRebel 时设 `spring.devtools.restart.enabled=false`（或去掉 / 可选依赖）。
 
@@ -103,12 +103,12 @@ cd qualitest-ui && pnpm install && pnpm dev
 
 | 项 | Compose 全栈 | 本机开发 | 说明 |
 |----|--------------|----------|------|
-| 质衡 Web | **`WEB_PORT` → 默认 80** | Vite **5173** | Compose 经 Nginx 提供静态页 |
-| 质衡 API | 容器内 **8080**（默认不映射宿主机） | **8080** | 浏览器走 Nginx **`/prod-api`**；插件 Compose 填 `http://localhost/prod-api` |
+| 质衡 Web | **`WEB_PORT` → 默认 80** | Vite **5180** | Compose 经 Nginx 提供静态页 |
+| 质衡 API | 容器内 **8800**（默认不映射宿主机） | **8800** | 浏览器走 Nginx **`/prod-api`**；插件 Compose 填 `http://localhost/prod-api` |
 | MySQL | **`MYSQL_PORT` → 默认 3306** | 本机或同上 | 库名 `qualitest` |
 | Redis | **`REDIS_PORT` → 默认 6379** | 本机或同上 | Compose 内 app 用库号 `0`；本机 `.env.example` 示例多为 `10` |
-| 靶场 API（demo） | **8081** | 同左 | **独立仓**另起 Compose；本仓不混入 |
-| 靶场 UI（demo Compose） | **8082** | 按 demo 文档 | demo MySQL/Redis 默认 **3307 / 6380** |
+| 靶场 API（demo） | **8801** | 同左 | **独立仓**另起 Compose；本仓不混入 |
+| 靶场 UI（demo Compose） | **5181** | 按 demo 文档 | demo MySQL/Redis 默认 **3307 / 6380** |
 
 ### 改端口（最小示例）
 
@@ -120,7 +120,7 @@ MYSQL_PORT=33066
 REDIS_PORT=63790
 ```
 
-更复杂的本机覆盖（挂载、暴露 app:8080、调日志等）：
+更复杂的本机覆盖（挂载、暴露 app:8800、调日志等）：
 
 ```bash
 # Windows
@@ -131,7 +131,7 @@ cp docker-compose.override.yml.example docker-compose.override.yml
 
 按需取消注释后 `docker compose up -d`。真正的 `docker-compose.override.yml` **勿提交**（已在 `.gitignore`）。模板见 [`docker-compose.override.yml.example`](../docker-compose.override.yml.example)。
 
-调试需宿主机直连后端时：在 override 里解开 `app.ports: "8080:8080"`（勿改仓库内 `docker-compose.yml` 再提交）。
+调试需宿主机直连后端时：在 override 里解开 `app.ports: "8800:8800"`（勿改仓库内 `docker-compose.yml` 再提交）。
 
 ---
 
@@ -173,8 +173,8 @@ helm upgrade --install qualitest ./deploy/helm/qualitest \
 未开 Ingress 时：
 
 ```bash
-kubectl -n qualitest port-forward svc/qualitest-web 8080:80
-# 浏览器 http://127.0.0.1:8080 ；默认 admin / admin123（立刻改掉）
+kubectl -n qualitest port-forward svc/qualitest-web 5180:80
+# 浏览器 http://127.0.0.1:5180 ；默认 admin / admin123（立刻改掉）
 # Service 名随 Release：{{ release }}-web；上例 Release 名为 qualitest
 ```
 
@@ -202,7 +202,7 @@ kubectl -n qualitest port-forward svc/qualitest-web 8080:80
 | `MYSQL_ROOT_PASSWORD` | MySQL root；同时作为 Compose 内数据源密码 | **生产必改**；默认 `qualitest` 仅本地 |
 | `TOKEN_SECRET` | JWT 签名密钥 | **生产必改**为强随机长串 |
 | `TOKEN_EXPIRE_TIME` | Token 有效期（分钟） | 可选 |
-| `SERVER_PORT` | 后端监听端口 | Compose 内固定 8080 |
+| `SERVER_PORT` | 后端监听端口 | Compose 内固定 8800 |
 | `QUALITEST_PROFILE` | 上传文件目录 | Compose / docker profile 默认 `/data/upload`（卷 `upload_data`） |
 | `SPRING_DATASOURCE_DRUID_MASTER_*` | JDBC URL / 用户 / 密码 | Compose 已写死连服务名 `mysql`；本机改 localhost |
 | `SPRING_DATA_REDIS_*` | Redis host / port / database / password | Compose 内 host=`redis` |
@@ -217,7 +217,7 @@ kubectl -n qualitest port-forward svc/qualitest-web 8080:80
 ```text
 ┌─────────────┐     /prod-api      ┌──────────────────┐
 │   nginx     │ ─────────────────► │ qualitest-admin  │
-│  (静态 dist) │                    │   (8080)         │
+│  (静态 dist) │                    │   (8800)         │
 └─────────────┘                    └────────┬─────────┘
                                             │
                                    ┌────────┴────────┐
@@ -230,7 +230,7 @@ kubectl -n qualitest port-forward svc/qualitest-web 8080:80
 | mysql | qualitest-mysql | 仅建空库 `MYSQL_DATABASE=qualitest`；表结构与种子由 app 启动时 Flyway 迁移 |
 | redis | qualitest-redis | 缓存 / 会话 |
 | app | qualitest-app | Spring Boot，`SPRING_PROFILES_ACTIVE=docker`，上传 `/data/upload`；启动时 Flyway migrate |
-| web | qualitest-web | Nginx 静态资源 + `/prod-api` → `app:8080` |
+| web | qualitest-web | Nginx 静态资源 + `/prod-api` → `app:8800` |
 
 ---
 
@@ -286,9 +286,9 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 | 存量库报 `Found non-empty schema without metadata` | 见下文「库表迁移」存量 baseline；勿对已有库直接跑完整 V1 |
 | `Checksum mismatch` | 改了已执行过的 migration 文件；应还原文件，用新的 `V{n}` 正向修复 |
 | 改完 migration 旧卷仍不对 | 可丢数据时用 `down -v` 再 `up`；生产用增量 `V{n}`，禁止改已执行脚本 |
-| 插件连不上 | Compose 用 `http://localhost/prod-api`；本机用 `http://localhost:8080`；勿混用 |
-| 与 demo 端口冲突 | demo 默认 8081/8082/3307/6380，一般不冲突；若自改过主仓端口再核对 |
-| 调试/测试流连不上靶场 | 确认 demo 已另起；Compose 内质衡 app 勿用 `localhost:8081`，改用 `host.docker.internal:8081`（见上文「与靶场联调」） |
+| 插件连不上 | Compose 用 `http://localhost/prod-api`；本机用 `http://localhost:8800`；勿混用 |
+| 与 demo 端口冲突 | demo 默认 8801/5181/3307/6380，一般不冲突；若自改过主仓端口再核对 |
+| 调试/测试流连不上靶场 | 确认 demo 已另起；Compose 内质衡 app 勿用 `localhost:8801`，改用 `host.docker.internal:8801`（见上文「与靶场联调」） |
 
 ---
 

@@ -25,8 +25,8 @@ class ResetEndpointSupportTest {
     @DisplayName("resolve：普通 http 基址补上 /test-support")
     void resolve_httpBase_appendsTestSupport() {
         assertEquals(
-                "http://localhost:8081/test-support",
-                ResetEndpointSupport.resolve("http://localhost:8081")
+                "http://localhost:8801/test-support",
+                ResetEndpointSupport.resolve("http://localhost:8801")
         );
     }
 
@@ -39,8 +39,8 @@ class ResetEndpointSupportTest {
     @DisplayName("resolve：末尾斜杠归一后仍补 /test-support")
     void resolve_trimsTrailingSlash() {
         assertEquals(
-                "http://localhost:8081/test-support",
-                ResetEndpointSupport.resolve("http://localhost:8081/")
+                "http://localhost:8801/test-support",
+                ResetEndpointSupport.resolve("http://localhost:8801/")
         );
     }
 
@@ -52,8 +52,8 @@ class ResetEndpointSupportTest {
     @Order(3)
     @DisplayName("resolve：多模块 JSON 取默认模块基址")
     void resolve_jsonModuleUsesDefaultModule() {
-        String json = "{\"默认模块\":\"http://demo:8081\",\"其他\":\"http://other:9000\"}";
-        assertEquals("http://demo:8081/test-support", ResetEndpointSupport.resolve(json));
+        String json = "{\"默认模块\":\"http://demo:8801\",\"其他\":\"http://other:9000\"}";
+        assertEquals("http://demo:8801/test-support", ResetEndpointSupport.resolve(json));
     }
 
     /**

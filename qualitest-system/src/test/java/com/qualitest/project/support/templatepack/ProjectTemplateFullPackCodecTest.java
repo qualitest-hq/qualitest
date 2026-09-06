@@ -42,7 +42,7 @@ class ProjectTemplateFullPackCodecTest {
                 .matchConfig("{\"pathPrefix\":[\"/api/\"]}")
                 .templateApis("[{\"apiName\":\"登录\",\"apiPath\":\"/login\"}]")
                 .templateParams("[{\"kind\":\"asset\",\"name\":\"adminAuth\",\"value\":{\"username\":\"a\"}}]")
-                .templateEnvs("[{\"envName\":\"local\",\"envUrl\":\"http://127.0.0.1:8080\"}]")
+                .templateEnvs("[{\"envName\":\"local\",\"envUrl\":\"http://127.0.0.1:8800\"}]")
                 .templateFlows("[{\"flowName\":\"登录\",\"graphJson\":{\"nodes\":[],\"edges\":[]}}]")
                 .templatePrompts("[]")
                 .enableStatus(1)

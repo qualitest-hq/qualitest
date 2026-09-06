@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {app} from 'electron'
 
-export const DEFAULT_BACKEND_BASE_URL = 'http://127.0.0.1:8080'
+export const DEFAULT_BACKEND_BASE_URL = 'http://127.0.0.1:8800'
 
 const CONFIG_FILE_NAME = 'backend-config.json'
 

@@ -38,9 +38,9 @@ ENV JAVA_OPTS="-Xms256m -Xmx1024m -Duser.timezone=Asia/Shanghai" \
 
 RUN mkdir -p /data/upload
 
-EXPOSE 8080
+EXPOSE 8800
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=10 \
-  CMD curl -fsS "http://127.0.0.1:8080/captchaImage" >/dev/null || exit 1
+  CMD curl -fsS "http://127.0.0.1:8800/captchaImage" >/dev/null || exit 1
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

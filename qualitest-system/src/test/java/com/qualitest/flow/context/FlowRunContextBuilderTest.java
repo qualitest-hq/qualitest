@@ -29,7 +29,7 @@ class FlowRunContextBuilderTest {
     @DisplayName("build：注入 env baseUrl 与 asset 作用域")
     void build_injectsEnvBaseUrlAndAssetScope() {
         TestProjectEnv env = TestProjectEnv.builder()
-                .envUrl("http://localhost:8080")
+                .envUrl("http://localhost:8800")
                 .envVariables("[{\"id\":1,\"key\":\"timeout\",\"assets\":{\"timeout\":5000}}]")
                 .build();
 
@@ -37,7 +37,7 @@ class FlowRunContextBuilderTest {
 
         FlowRunContext ctx = FlowRunContextBuilder.build(env, assetJson, Map.of("loginUser", "admin"));
 
-        assertEquals("http://localhost:8080", ctx.getEnv().get("baseUrl"));
+        assertEquals("http://localhost:8800", ctx.getEnv().get("baseUrl"));
         assertEquals(5000, ctx.getEnv().get("timeout"));
         assertEquals("admin", ctx.getFlow().get("loginUser"));
 

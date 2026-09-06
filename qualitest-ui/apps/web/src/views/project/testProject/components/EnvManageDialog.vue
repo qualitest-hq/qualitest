@@ -171,7 +171,7 @@
               <el-input
                   v-model="baseUrl"
                   class="env-url-input"
-                  placeholder="https://api.example.com、localhost:8080 等"
+                  placeholder="https://api.example.com、localhost:8800 等"
                   @blur="trimBaseUrl"
               />
             </section>

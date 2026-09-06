@@ -391,7 +391,7 @@ describe('templateToForm / formToPayload', () => {
       templateEnvs: [
         {
           envName: '默认环境',
-          envUrl: 'http://localhost:8081',
+          envUrl: 'http://localhost:8801',
           envVariables: [{ key: 'region', remark: '', assets: { region: 'cn' } }],
         },
       ],
@@ -400,10 +400,10 @@ describe('templateToForm / formToPayload', () => {
     const form = templateToForm(row)
     const payload = formToPayload(form)
 
-    expect(form.templateEnvs[0].envUrl).toBe('http://localhost:8081')
+    expect(form.templateEnvs[0].envUrl).toBe('http://localhost:8801')
     expect(JSON.parse(payload.templateEnvs)[0]).toMatchObject({
       envName: '默认环境',
-      envUrl: 'http://localhost:8081',
+      envUrl: 'http://localhost:8801',
     })
     expect(JSON.parse(payload.templateEnvs)[0].envVariables[0].key).toBe('region')
   })

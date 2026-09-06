@@ -290,11 +290,11 @@ class PrefabricatedTemplateExtrasSupportTest {
     @DisplayName("parseEnvs 读名称/URL/变量；空条目跳过")
     void parseEnvs() {
         List<PrefabricatedTemplateExtrasSupport.PrefabEnv> envs = PrefabricatedTemplateExtrasSupport.parseEnvs(
-                "[{\"envName\":\"默认环境\",\"envUrl\":\"http://localhost:8081\",\"envVariables\":[]},"
+                "[{\"envName\":\"默认环境\",\"envUrl\":\"http://localhost:8801\",\"envVariables\":[]},"
                         + "{\"envName\":\"\",\"envUrl\":\"\",\"envVariables\":[]}]");
         assertEquals(1, envs.size());
         assertEquals("默认环境", envs.get(0).getEnvName());
-        assertEquals("http://localhost:8081", envs.get(0).getEnvUrl());
+        assertEquals("http://localhost:8801", envs.get(0).getEnvUrl());
         assertEquals("[]", envs.get(0).getEnvVariablesJson());
     }
 
@@ -305,7 +305,7 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertTrue(PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl(null));
         assertTrue(PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl(""));
         assertTrue(PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl("http://127.0.0.1"));
-        assertFalse(PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl("http://localhost:8081"));
+        assertFalse(PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl("http://localhost:8801"));
     }
 
     @Test
@@ -319,5 +319,24 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertEquals("timeout", params.get(0).getName());
         assertEquals(5000, params.get(0).getValue());
         assertEquals("毫秒", params.get(0).getRemark());
+    }
+
+    @Test
+    @Order(12)
+    @DisplayName("unbindGraphApis 把项目 apiId 改回合成 id")
+    void unbindGraphApis_rewritesProjectIds() {
+        // 前提：图内 HTTP 绑项目主键 101
+        String graph = "{\"nodes\":[{\"id\":\"h1\",\"type\":\"http\",\"data\":{"
+                + "\"callMode\":\"project\",\"testProjectApiId\":\"101\",\"apiPath\":\"/login\"}}],\"edges\":[]}";
+
+        String unbound = PrefabricatedTemplateExtrasSupport.unbindGraphApis(
+                graph, Map.of("101", "900001"));
+
+        // 期望：换成合成 id；collect 仍能读到
+        assertTrue(unbound.contains("900001"));
+        assertFalse(unbound.contains("\"101\""));
+        assertEquals(List.of("101"), PrefabricatedTemplateExtrasSupport.collectGraphHttpApiIds(graph));
+        assertTrue(PrefabricatedTemplateExtrasSupport.graphHasHttpExtracts(
+                "{\"nodes\":[{\"type\":\"http\",\"data\":{\"extracts\":[{\"expr\":\"$.token\"}]}}]}"));
     }
 }

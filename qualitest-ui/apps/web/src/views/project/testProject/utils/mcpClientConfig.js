@@ -16,11 +16,11 @@ const MCP_SERVER_KEY = 'qualitest'
  * 优先级：
  * <ol>
  *   <li>{@code VITE_MCP_BASE_URL}：显式指定后端根地址（不含路径），适用于自定义部署</li>
- *   <li>开发模式：固定 {@code http://127.0.0.1:8080}，因 IDE 进程不经过 Vite 开发代理</li>
+ *   <li>开发模式：固定 {@code http://127.0.0.1:8800}，因 IDE 进程不经过 Vite 开发代理</li>
  *   <li>生产模式：当前页面 origin + {@code VITE_APP_BASE_API} 前缀拼出 API 根地址</li>
  * </ol>
  *
- * @returns 例如 {@code http://127.0.0.1:8080/api/project/mcp}
+ * @returns 例如 {@code http://127.0.0.1:8800/api/project/mcp}
  */
 export function resolveMcpEndpointUrl() {
   const explicit = import.meta.env.VITE_MCP_BASE_URL
@@ -28,7 +28,7 @@ export function resolveMcpEndpointUrl() {
     return joinUrl(explicit, MCP_PATH)
   }
   if (import.meta.env.DEV) {
-    return `http://127.0.0.1:8080${MCP_PATH}`
+    return `http://127.0.0.1:8800${MCP_PATH}`
   }
   const baseApi = import.meta.env.VITE_APP_BASE_API || ''
   if (baseApi.startsWith('http://') || baseApi.startsWith('https://')) {

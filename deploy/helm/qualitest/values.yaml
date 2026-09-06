@@ -57,7 +57,7 @@ app:
     storageClass: ""
   service:
     type: ClusterIP
-    port: 8080
+    port: 8800
   probes:
     # 与 Dockerfile HEALTHCHECK 一致；冷启动含 Flyway，startPeriod 宜长
     initialDelaySeconds: 60

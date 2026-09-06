@@ -24,7 +24,7 @@
           <el-input
             v-if="!readOnly"
             v-model="envUrl"
-            placeholder="如 http://localhost:8081"
+            placeholder="如 http://localhost:8801"
           />
           <span v-else class="prefab-env-panel__text prefab-env-panel__text--url">{{ envUrl || '—' }}</span>
         </div>

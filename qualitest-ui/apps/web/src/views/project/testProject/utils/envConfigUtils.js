@@ -96,7 +96,7 @@ export const TEST_SUPPORT_PATH = '/test-support'
 /**
  * 从 envUrl 派生 test-support 根地址（静态，不发 HTTP）。
  * @param {string|null|undefined} envUrl
- * @returns {string} 如 http://host:8081/test-support；无法派生时返回 ''
+ * @returns {string} 如 http://host:8801/test-support；无法派生时返回 ''
  */
 export function resolveResetBaseUrl(envUrl) {
   const base = ensureHttpSchemeForRequest(resolveEnvBaseUrlForRequest(envUrl))
@@ -110,7 +110,7 @@ export function resolveResetBaseUrl(envUrl) {
 }
 
 /**
- * 前置 URL 格式校验：不强制 http(s) 前缀，允许无协议（如 localhost:8080）、占位符、相对路径等。
+ * 前置 URL 格式校验：不强制 http(s) 前缀，允许无协议（如 localhost:8800）、占位符、相对路径等。
  * 始终视为可接受，具体拼接与合法性由调试请求等环节处理。
  */
 export function isLikelyValidHttpUrl() {

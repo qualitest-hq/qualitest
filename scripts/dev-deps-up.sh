@@ -98,7 +98,7 @@ echo "   mvn -pl qualitest-admin -am -DskipTests package"
 echo "   再 qualitest.bat / qualitest.sh 或 spring-boot:run"
 echo " 本机前端:"
 echo "   cd qualitest-ui && pnpm install && pnpm dev"
-echo "   浏览器 http://localhost:5173"
+echo "   浏览器 http://localhost:5180"
 echo
 echo " 默认账号: admin / admin123（首启后端迁库后）"
 echo " 停止依赖: ./scripts/dev-deps-down.sh"

@@ -91,6 +91,13 @@
             <el-button :loading="templateApplying" size="small" type="primary" @click="openTemplatePicker">
               从项目模板添加
             </el-button>
+            <el-button
+              v-hasPermi="['project:testProjectTemplate:add']"
+              size="small"
+              @click="saveAsTemplateVisible = true"
+            >
+              另存为项目模板
+            </el-button>
             <el-button size="small" @click="addAuthProfile">手动添加 Profile</el-button>
           </div>
 
@@ -209,6 +216,13 @@
           </template>
         </el-dialog>
 
+        <SaveAsAuthTemplateDialog
+          v-if="resolveProjectId()"
+          v-model:visible="saveAsTemplateVisible"
+          :profiles="authForm.profiles"
+          :test-project-id="resolveProjectId()"
+        />
+
         <section class="project-setting__card">
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">项目 Token</h3>
@@ -298,6 +312,7 @@ import {
 } from '../utils/projectAuthConfig'
 import { applyAuthTemplates, getTestProject, updateTestProject } from '@/api/project/testProject'
 import AuthTemplateCheckboxList from './AuthTemplateCheckboxList.vue'
+import SaveAsAuthTemplateDialog from './SaveAsAuthTemplateDialog.vue'
 import { toTemplateIds, useEnabledAuthTemplates } from '../composables/useEnabledAuthTemplates'
 
 const visible = defineModel('visible', { type: Boolean, default: false })
@@ -351,6 +366,7 @@ const authSaving = ref(false)
 const authForm = reactive(emptyAuthForm())
 const authCollapseNames = ref([])
 const templatePickerVisible = ref(false)
+const saveAsTemplateVisible = ref(false)
 const templateApplying = ref(false)
 const selectedTemplateIds = ref([])
 const {
