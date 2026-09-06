@@ -3,8 +3,8 @@
  * 持久化 JSON 中 type 为字符串；校验层用 isKnownNodeType 判断是否合法。
  */
 
-/** MVP 可执行节点 type */
-export const KNOWN_NODE_TYPES = ['http', 'assert', 'delay', 'condition', 'assign', 'script', 'subflow'] as const;
+/** MVP 可执行节点 type（含 input：运行时暂停等人填） */
+export const KNOWN_NODE_TYPES = ['http', 'assert', 'delay', 'condition', 'assign', 'script', 'subflow', 'input'] as const;
 
 export type KnownNodeType = (typeof KNOWN_NODE_TYPES)[number];
 
@@ -17,6 +17,7 @@ export const NODE_TYPE_LABELS: Record<KnownNodeType, string> = {
   assign: 'Assign',
   script: 'Script',
   subflow: 'Subflow',
+  input: 'Input',
 };
 
 /** 是否为 MVP 可执行 type */

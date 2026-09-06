@@ -24,6 +24,18 @@
     ]
   },
   {
+    "templateId": "tpl_login_captcha_manual",
+    "name": "验证码登录（手动）",
+    "description": "取验证码图 → Input 人工填码 → 登录",
+    "inputs": [
+      { "name": "username", "description": "登录用户名" },
+      { "name": "password", "description": "登录密码" }
+    ],
+    "outputs": [
+      { "name": "token", "description": "Bearer Token" }
+    ]
+  },
+  {
     "templateId": "tpl_oauth_client_credentials",
     "name": "OAuth Client Credentials",
     "description": "HTTP(external) 获取 access_token",

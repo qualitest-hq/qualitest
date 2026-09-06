@@ -28,6 +28,12 @@ public class StepResult {
     /** 步骤失败 */
     public static final String STATUS_FAILED = "failed";
 
+    /**
+     * 步骤主动暂停（当前仅 Input：等待人工输入）。
+     * 图遍历器据此将 Run 置为 paused，pauseReason=await_input。
+     */
+    public static final String STATUS_PAUSED = "paused";
+
     /** 图内节点 id */
     private String nodeId;
 
@@ -40,7 +46,7 @@ public class StepResult {
     /** 入边 id；开始节点为 null */
     private String edgeId;
 
-    /** {@link #STATUS_PASSED} 或 {@link #STATUS_FAILED} */
+    /** {@link #STATUS_PASSED} / {@link #STATUS_FAILED} / {@link #STATUS_PAUSED} */
     private String status;
 
     /** 本步耗时（毫秒） */
@@ -69,8 +75,8 @@ public class StepResult {
     private Map<String, Object> branchTaken;
 
     /**
-     * assign 节点赋值结果列表，写入 step_details.assigns。
-     * 每项含 scope、name、op、before、after。
+     * assign / input 等写入结果列表，落入 step_details.assigns。
+     * 每项通常含 scope、name、op、before、after。
      */
     private Object assigns;
 

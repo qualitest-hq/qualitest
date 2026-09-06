@@ -10,6 +10,8 @@ import com.qualitest.flow.context.ResolvedRunScenario;
 import com.qualitest.flow.context.RunScenarioBootstrap;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
+import com.qualitest.flow.graph.GraphLookupUtils;
+import com.qualitest.flow.input.InputFieldTypes;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.common.utils.SecurityUtils;
 import com.qualitest.flow.run.ExecutionOutcome;
@@ -228,6 +230,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         ResumeDecision decision = ResumeDecision.builder()
                 .decision(params != null ? params.getDecision() : null)
                 .snapshotId(params != null ? params.getSnapshotId() : null)
+                .inputs(params != null ? params.getInputs() : null)
                 .operator(SecurityUtils.getUsername())
                 .build();
 
@@ -244,7 +247,10 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     }
 
     /**
-     * 从 paused 的 Run 记录组装 API 用的暂停信息；非 paused 返回 null。
+     * 组装 paused Run 的 pauseInfo。
+     * await_input：决策仅 continueWithInput / abort，并填入节点 prompt 与 fields；
+     * 其它暂停：四决策（还原重试 / 原地重试 / 跳过 / 中止）。
+     * 非 paused 返回 null。
      */
     private RunPauseInfo buildPauseInfo(TestFlowRunResult run) {
         if (run == null || !RunStatus.PAUSED.equals(run.getStatus())) {
@@ -261,18 +267,55 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                     .snapshotId(entry.getSnapshotId())
                     .build()));
         }
-        return RunPauseInfo.builder()
+        RunPauseInfo.RunPauseInfoBuilder builder = RunPauseInfo.builder()
                 .pauseReason(state.getPauseReason())
                 .pauseNodeId(state.getPauseNodeId())
                 .currentNodeId(state.getCurrentNodeId())
                 .snapshotStack(stackItems)
-                .pausedAt(run.getPausedAt())
-                .availableDecisions(Arrays.asList(
-                        ResumeDecision.RESTORE_AND_RETRY,
-                        ResumeDecision.RETRY_IN_PLACE,
-                        ResumeDecision.SKIP,
-                        ResumeDecision.ABORT
-                ))
-                .build();
+                .pausedAt(run.getPausedAt());
+
+        if (RunExecutionState.PAUSE_REASON_AWAIT_INPUT.equals(state.getPauseReason())) {
+            builder.availableDecisions(Arrays.asList(
+                    ResumeDecision.CONTINUE_WITH_INPUT,
+                    ResumeDecision.ABORT
+            ));
+            fillAwaitInputFields(builder, run, state.getPauseNodeId());
+        } else {
+            builder.availableDecisions(Arrays.asList(
+                    ResumeDecision.RESTORE_AND_RETRY,
+                    ResumeDecision.RETRY_IN_PLACE,
+                    ResumeDecision.SKIP,
+                    ResumeDecision.ABORT
+            ));
+        }
+        return builder.build();
+    }
+
+    /**
+     * 从 Run 的 graph 快照读取暂停节点 data.prompt / data.fields，写入 pauseInfo。
+     * 解析失败时不影响基础 pauseInfo。
+     */
+    private void fillAwaitInputFields(RunPauseInfo.RunPauseInfoBuilder builder, TestFlowRunResult run, String pauseNodeId) {
+        if (run == null || pauseNodeId == null || run.getGraphJsonSnapshot() == null) {
+            return;
+        }
+        try {
+            GraphJson graph = GraphJson.parse(run.getGraphJsonSnapshot());
+            if (graph == null) {
+                return;
+            }
+            var node = GraphLookupUtils.findNode(graph.getNodes(), pauseNodeId);
+            if (node == null) {
+                return;
+            }
+            java.util.Map<String, Object> data = node.getData() != null ? node.getData() : java.util.Map.of();
+            Object prompt = data.get("prompt");
+            if (prompt != null) {
+                builder.prompt(String.valueOf(prompt));
+            }
+            builder.fields(InputFieldTypes.parseFields(data.get("fields")));
+        } catch (Exception ignored) {
+            // 解析失败时仍返回基础 pauseInfo
+        }
     }
 }

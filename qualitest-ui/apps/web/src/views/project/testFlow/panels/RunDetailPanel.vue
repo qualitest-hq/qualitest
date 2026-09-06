@@ -41,11 +41,92 @@
     </div>
 
     <div v-if="run.status === 'paused' && run.pauseInfo" class="run-pause-panel">
-      <div class="run-pause-panel__title">运行已暂停，请选择后续操作</div>
+      <div class="run-pause-panel__title">
+        {{ isAwaitInput ? '等待人工输入' : '运行已暂停，请选择后续操作' }}
+      </div>
       <div class="run-pause-panel__meta">
         <span>原因：{{ pauseReasonLabel(run.pauseInfo.pauseReason) }}</span>
         <span v-if="run.pauseInfo.pauseNodeId"> · 节点：{{ run.pauseInfo.pauseNodeId }}</span>
         <span v-if="run.pauseInfo.pausedAt || run.pausedAt"> · {{ formatPauseTime(run.pauseInfo.pausedAt || run.pausedAt) }}</span>
+      </div>
+      <div v-if="isAwaitInput && run.pauseInfo.prompt" class="run-pause-prompt">
+        {{ run.pauseInfo.prompt }}
+      </div>
+      <div v-if="isAwaitInput && awaitInputFields.length" class="run-await-input-form">
+        <div
+            v-for="field in awaitInputFields"
+            :key="field.name"
+            class="run-await-field"
+        >
+          <label>
+            {{ field.label || field.name }}
+            <span v-if="field.required" class="run-await-field__req">*</span>
+          </label>
+          <textarea
+              v-if="normalizeInputFieldType(field.type) === 'textarea'"
+              v-model="awaitInputs[field.name]"
+              :placeholder="field.placeholder || ''"
+              rows="3"
+          />
+          <input
+              v-else-if="normalizeInputFieldType(field.type) === 'password'"
+              v-model="awaitInputs[field.name]"
+              :placeholder="field.placeholder || ''"
+              type="password"
+          />
+          <input
+              v-else-if="normalizeInputFieldType(field.type) === 'number'"
+              v-model.number="awaitInputs[field.name]"
+              :placeholder="field.placeholder || ''"
+              type="number"
+          />
+          <label v-else-if="normalizeInputFieldType(field.type) === 'boolean'" class="run-await-field__bool">
+            <input v-model="awaitInputs[field.name]" type="checkbox" />
+            {{ field.placeholder || '是' }}
+          </label>
+          <select
+              v-else-if="normalizeInputFieldType(field.type) === 'select'"
+              v-model="awaitInputs[field.name]"
+          >
+            <option disabled value="">请选择</option>
+            <option
+                v-for="opt in field.options || []"
+                :key="String(opt.value)"
+                :value="opt.value"
+            >
+              {{ opt.label || opt.value }}
+            </option>
+          </select>
+          <select
+              v-else-if="normalizeInputFieldType(field.type) === 'multiselect'"
+              v-model="awaitInputs[field.name]"
+              multiple
+          >
+            <option
+                v-for="opt in field.options || []"
+                :key="String(opt.value)"
+                :value="opt.value"
+            >
+              {{ opt.label || opt.value }}
+            </option>
+          </select>
+          <input
+              v-else-if="normalizeInputFieldType(field.type) === 'date'"
+              v-model="awaitInputs[field.name]"
+              type="date"
+          />
+          <input
+              v-else-if="normalizeInputFieldType(field.type) === 'datetime'"
+              v-model="awaitInputs[field.name]"
+              type="datetime-local"
+          />
+          <input
+              v-else
+              v-model="awaitInputs[field.name]"
+              :placeholder="field.placeholder || ''"
+              type="text"
+          />
+        </div>
       </div>
       <div v-if="run.pauseInfo.snapshotStack?.length" class="run-pause-stack">
         <div class="run-pause-stack__label">快照栈</div>
@@ -151,12 +232,13 @@
 </template>
 
 <script setup>
-/** 右栏运行详情：失败分类分区、步骤时间线、摘要/HTTP/流程变量 Inspector、paused 续跑决策 */
+/** 右栏运行详情：失败分区、步骤时间线、摘要/HTTP/变量 Inspector；paused 时展示续跑决策或人工输入表单 */
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { resumeTestFlowRun } from '@/api/project/testFlowRun'
 import ResponseMediaPreview from '@/components/ResponseMediaPreview/index.vue'
+import { normalizeInputFieldType } from '@/utils/flow/inputFields'
 import { formatAssertRuleWithActual } from '../utils/nodeDataUtils'
 import { toGraphJson } from '../graphAdapter'
 import { isGraphStructurallyStale } from '../utils/graphFingerprint'
@@ -167,14 +249,30 @@ const runLib = useRunLibraryStore()
 const canvasStore = useFlowCanvasStore()
 const staleWarning = ref('')
 const resumeLoading = ref(false)
+/** 人工输入表单的本地值：字段 name → 当前填写内容 */
+const awaitInputs = ref({})
 
+/** 各续跑决策按钮文案与样式 */
 const DECISION_META = {
   restoreAndRetry: { label: '还原并重试', btnClass: 'btn--primary' },
   retryInPlace: { label: '原地重试', btnClass: 'btn--ghost' },
   skip: { label: '跳过', btnClass: 'btn--ghost' },
   abort: { label: '中止', btnClass: 'btn--danger' },
+  continueWithInput: { label: '提交并继续', btnClass: 'btn--primary' },
 }
 
+const run = computed(() => runLib.selectedRun)
+
+/** 是否因等待人工输入而暂停 */
+const isAwaitInput = computed(() => run.value?.pauseInfo?.pauseReason === 'await_input')
+
+/** 暂停面板要渲染的字段列表（来自 pauseInfo.fields） */
+const awaitInputFields = computed(() => {
+  const fields = run.value?.pauseInfo?.fields
+  return Array.isArray(fields) ? fields.filter((f) => f?.name) : []
+})
+
+/** 按 pauseInfo.availableDecisions 过滤后的可点决策按钮 */
 const visibleDecisions = computed(() => {
   const info = run.value?.pauseInfo
   const available = info?.availableDecisions?.length
@@ -188,6 +286,7 @@ const visibleDecisions = computed(() => {
 function pauseReasonLabel(reason) {
   if (reason === 'node_failure') return '节点失败'
   if (reason === 'snapshot_failure') return '快照失败'
+  if (reason === 'await_input') return '等待人工输入'
   return reason || '未知'
 }
 
@@ -204,6 +303,58 @@ function topSnapshotId() {
   return stack[stack.length - 1]?.snapshotId
 }
 
+/** 用 pauseInfo.fields 的 defaultValue 初始化本地表单 */
+function initAwaitInputsFromPauseInfo() {
+  const fields = awaitInputFields.value
+  const next = {}
+  for (const field of fields) {
+    const name = field.name
+    const type = normalizeInputFieldType(field.type)
+    let def = field.defaultValue
+    if (def === undefined || def === null) {
+      if (type === 'boolean') def = false
+      else if (type === 'multiselect') def = []
+      else def = ''
+    }
+    if (type === 'datetime' && typeof def === 'string' && def.includes('T') && def.length > 16) {
+      // datetime-local 用 YYYY-MM-DDTHH:mm
+      def = def.slice(0, 16)
+    }
+    next[name] = def
+  }
+  awaitInputs.value = next
+}
+
+watch(
+  () => [run.value?.testFlowRunId, run.value?.pauseInfo?.pauseReason, run.value?.pauseInfo?.fields],
+  () => {
+    if (isAwaitInput.value) {
+      initAwaitInputsFromPauseInfo()
+    } else {
+      awaitInputs.value = {}
+    }
+  },
+  { immediate: true, deep: true },
+)
+
+/** 组装 continueWithInput 的 inputs（datetime 补秒；number 转数值） */
+function buildContinueInputs() {
+  const out = {}
+  for (const field of awaitInputFields.value) {
+    const name = field.name
+    const type = normalizeInputFieldType(field.type)
+    let val = awaitInputs.value[name]
+    if (type === 'datetime' && typeof val === 'string' && val && val.length === 16) {
+      val = `${val}:00`
+    }
+    if (type === 'number' && val !== '' && val != null) {
+      val = Number(val)
+    }
+    out[name] = val
+  }
+  return out
+}
+
 async function handleResume(decision) {
   const r = run.value
   if (!r?.testFlowRunId || resumeLoading.value) return
@@ -214,6 +365,9 @@ async function handleResume(decision) {
       const snapId = topSnapshotId()
       if (snapId) body.snapshotId = snapId
     }
+    if (decision === 'continueWithInput') {
+      body.inputs = buildContinueInputs()
+    }
     const res = await resumeTestFlowRun(r.testFlowRunId, body)
     const data = res?.data ?? res
     if (data?.errorCode && !data?.idempotent) {
@@ -222,6 +376,8 @@ async function handleResume(decision) {
     await runLib.fetchRunDetail(r.testFlowRunId)
     if (data?.status === 'running') {
       ElMessage.success('已继续运行')
+    } else if (data?.status === 'passed') {
+      ElMessage.success('运行已完成')
     } else if (data?.status) {
       ElMessage.info(`运行状态：${data.status}`)
     }
@@ -235,8 +391,6 @@ async function handleResume(decision) {
 function goToStep(idx) {
   runLib.selectInspectorStep(idx)
 }
-
-const run = computed(() => runLib.selectedRun)
 
 const hasFailedStep = computed(() => {
   const r = run.value
@@ -289,7 +443,7 @@ const inspectorTabs = [
 
 /** 步骤时间线左侧节点类型缩写图标 */
 function stepIcon(type) {
-  const m = { http: 'H', assert: 'A', delay: 'D', condition: 'C', assign: 'S', script: 'P', subflow: 'F', runConfig: '⚙' }
+  const m = { http: 'H', assert: 'A', delay: 'D', condition: 'C', assign: 'S', script: 'P', subflow: 'F', input: 'I', runConfig: '⚙' }
   return m[type] || '?'
 }
 
@@ -330,6 +484,12 @@ function summarizeStep(step) {
     return failed.length ? `断言失败 ${failed.length} 条` : '断言通过'
   }
   if (step.nodeType === 'delay') return `等待 ${step.durationMs}ms`
+  if (step.nodeType === 'input' && step.assigns?.length) {
+    return step.assigns.map((a) => `${a.name}: ${JSON.stringify(a.after)}`).join(' · ')
+  }
+  if (step.nodeType === 'input' && step.status === 'paused') {
+    return '等待人工输入'
+  }
   if (step.nodeType === 'assign' && step.assigns?.length) {
     return step.assigns.map((a) => `${a.name}: ${JSON.stringify(a.before)} → ${JSON.stringify(a.after)}`).join(' · ')
   }
@@ -673,6 +833,53 @@ function escapeHtml(s) {
   font-size: 11px;
   color: var(--pd-text-muted);
   margin-bottom: 8px;
+}
+
+.run-pause-prompt {
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: #78350f;
+}
+
+.run-await-input-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.run-await-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.run-await-field label {
+  font-weight: 600;
+  color: #78350f;
+}
+
+.run-await-field__req {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.run-await-field__bool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400 !important;
+}
+
+.run-await-field input,
+.run-await-field textarea,
+.run-await-field select {
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid #fcd34d;
+  border-radius: 4px;
+  background: #fff;
 }
 
 .run-pause-stack {

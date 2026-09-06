@@ -4,31 +4,51 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
- * 用户对 paused Run 提交的续跑决策（引擎内部模型）。
+ * paused Run 的续跑决策（引擎内部模型，由 API 参数映射而来）。
  */
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ResumeDecision {
 
-    /** 先还原到指定快照，再从该节点重试 */
+    /** 还原到指定快照后再从该节点重试 */
     public static final String RESTORE_AND_RETRY = "restoreAndRetry";
     /** 不还原，从暂停节点原地重试 */
     public static final String RETRY_IN_PLACE = "retryInPlace";
     /** 跳过暂停节点，沿出边继续 */
     public static final String SKIP = "skip";
-    /** 中止 Run */
+    /** 中止本次 Run */
     public static final String ABORT = "abort";
+    /** 提交人工输入后完成 Input 节点并继续（仅 await_input） */
+    public static final String CONTINUE_WITH_INPUT = "continueWithInput";
 
+    /** 决策字符串，见上方常量 */
     private String decision;
 
-    /** restoreAndRetry 时指定要还原的 snapshotId；可空，由引擎按暂停节点回退 */
+    /**
+     * restoreAndRetry 指定的快照 id。
+     * 可空：引擎按暂停节点或快照栈顶回退。
+     */
     private String snapshotId;
 
-    /** 操作者用户名，写入决策审计步 */
+    /**
+     * continueWithInput 时客户端提交的字段值：字段 name → 值
+     * （string / number / boolean / 数组）。
+     */
+    private java.util.Map<String, Object> inputs;
+
+    /**
+     * continueWithInput 校验写入 flow 后的 assigns 明细。
+     * 由执行器在调用续跑规划前填入，不来自 API。
+     */
+    private Object completionAssigns;
+
+    /** 操作者用户名，写入 resume 决策审计步 */
     private String operator;
 
     public boolean isAbort() {
@@ -45,5 +65,9 @@ public class ResumeDecision {
 
     public boolean isSkip() {
         return SKIP.equalsIgnoreCase(decision);
+    }
+
+    public boolean isContinueWithInput() {
+        return CONTINUE_WITH_INPUT.equalsIgnoreCase(decision);
     }
 }

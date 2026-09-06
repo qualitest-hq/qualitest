@@ -27,7 +27,7 @@ public class GraphNode {
     private String id;
 
     /**
-     * 节点类型：{@code http} / {@code assert} / {@code delay} / {@code condition} / {@code assign}
+     * 节点类型：http / assert / delay / condition / assign / script / subflow / input
      */
     private String type;
 

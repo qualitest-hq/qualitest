@@ -12,6 +12,7 @@ import { isKnownNodeType, nodeTypeLabel } from './nodeTypes';
 import type { GraphEdge, GraphJson, GraphNode } from './graphTypes';
 import { DELAY_MAX_MS } from './delayConstants';
 import { isTerminalBranch } from './conditionBranch';
+import { isKnownInputFieldType, requiresOptions } from './inputFields';
 
 const ALLOWED_EDGE_KEYS = new Set(['id', 'source', 'target', 'label']);
 
@@ -348,6 +349,59 @@ function validateDelayNodeFields(
   }
 }
 
+/** input：fields 非空；name 唯一；type 合法；select/multiselect 须有 options 且 value 非空 */
+function validateInputNodeFields(
+  p: string,
+  id: string | undefined,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+): void {
+  const name = data?.name != null ? String(data.name) : id;
+  const raw = data?.fields;
+  if (!Array.isArray(raw) || !raw.length) {
+    errors.push(`${p} Input 节点「${name}」fields 不能为空`);
+    return;
+  }
+  const fieldNames = new Set<string>();
+  raw.forEach((item, i) => {
+    const prefix = `${p} Input 节点「${name}」fields[${i}]`;
+    if (!item || typeof item !== 'object') {
+      errors.push(`${prefix} 不是有效对象`);
+      return;
+    }
+    const row = item as Record<string, unknown>;
+    const fieldName = row.name != null ? String(row.name).trim() : '';
+    if (!fieldName) {
+      errors.push(`${prefix} name 不能为空`);
+    } else if (fieldNames.has(fieldName)) {
+      errors.push(`${prefix} name 重复：${fieldName}`);
+    } else {
+      fieldNames.add(fieldName);
+    }
+    const type = row.type != null ? String(row.type).trim() : '';
+    if (type && !isKnownInputFieldType(type)) {
+      errors.push(`${prefix} type 无效：${type}`);
+    }
+    if (requiresOptions(type || 'text')) {
+      const options = row.options;
+      if (!Array.isArray(options) || !options.length) {
+        errors.push(`${prefix} options 不能为空`);
+      } else {
+        options.forEach((opt, oi) => {
+          if (!opt || typeof opt !== 'object') {
+            errors.push(`${prefix} options[${oi}] 不是有效对象`);
+            return;
+          }
+          const value = (opt as Record<string, unknown>).value;
+          if (value == null || String(value).trim() === '') {
+            errors.push(`${prefix} options[${oi}] value 不能为空`);
+          }
+        });
+      }
+    }
+  });
+}
+
 /** subflowId 缺失为 error；inputs/outputs 空映射合法（asset 跨流 / meta.flowOutputs 回退） */
 function validateSubflowNodeFields(
   p: string,
@@ -446,6 +500,9 @@ function validateNodeFields(
   }
   if (type === 'delay') {
     validateDelayNodeFields(p, id, node.data, errors);
+  }
+  if (type === 'input') {
+    validateInputNodeFields(p, id, node.data, errors);
   }
   if (type === 'subflow') {
     validateSubflowNodeFields(p, id, node.data, errors, warnings);

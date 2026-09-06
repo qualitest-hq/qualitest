@@ -16,9 +16,9 @@ import java.util.List;
  * 元数据：{@code ai/subflow-templates.json}（templateId、名称、inputs/outputs 说明）。<br>
  * 图骨架：{@code ai/subflow-templates/{templateId}.graph.json}。
  * <p>
- * 内置模板：{@code tpl_login_bearer}（Bearer 登录）、{@code tpl_login_captcha}（验证码登录）、
- * {@code tpl_oauth_client_credentials}（OAuth Client Credentials）、{@code tpl_oauth_refresh}（OAuth 刷新）、
- * {@code tpl_dual_login}（双身份登录）。
+ * 内置模板：tpl_login_bearer（Bearer 登录）、tpl_login_captcha（取验证码图后外联打码再登录）、
+ * tpl_login_captcha_manual（取验证码图后人工填码再登录）、tpl_oauth_client_credentials、
+ * tpl_oauth_refresh、tpl_dual_login。
  * 用户可在画布「从平台模板创建」为项目内测试流，再在主流程 subflow 节点引用。
  */
 public final class SubflowTemplateCatalog {

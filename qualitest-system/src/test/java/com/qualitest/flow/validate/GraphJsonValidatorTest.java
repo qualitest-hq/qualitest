@@ -261,6 +261,32 @@ class GraphJsonValidatorTest {
                 """;
         GraphValidationResult d = validator.validateJson(delayOver);
         assertTrue(d.getErrors().stream().anyMatch(e -> e.contains("ms 超过上限")));
+
+        String emptyInput = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"input","position":{"x":0,"y":0},"data":{"name":"in","fields":[]}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult in = validator.validateJson(emptyInput);
+        assertTrue(in.getErrors().stream().anyMatch(e -> e.contains("fields 不能为空")));
+
+        String badInputType = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"input","position":{"x":0,"y":0},"data":{"name":"in","fields":[
+                      {"name":"x","type":"file"}
+                    ]}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult badType = validator.validateJson(badInputType);
+        assertTrue(badType.getErrors().stream().anyMatch(e -> e.contains("type 无效")));
     }
 
     @Test

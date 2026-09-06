@@ -1,6 +1,6 @@
 # Test-flow nodes
 
-The canvas supports exactly **seven** node types (`FlowNodeType`). Custom `type` values are rejected. Persisted codes are lowercase; UI labels are English.
+The canvas supports exactly **eight** node types (`FlowNodeType`). Custom `type` values are rejected. Persisted codes are lowercase; UI labels are English.
 
 Chinese: [test-flow-nodes.md](./test-flow-nodes.md)  
 Product concepts / project auth: [project-summary.en.md](./project-summary.en.md)
@@ -18,6 +18,7 @@ Product concepts / project auth: [project-summary.en.md](./project-summary.en.md
 | `delay` | Delay | Wait |
 | `script` | Script | GraalVM sandbox (JS / Python) |
 | `subflow` | Subflow | Run another project flow as one step |
+| `input` | Input | Pause for human input, write `flow`, continue |
 
 Runs may also record audit steps (not drag-and-drop nodes): `run_config`, `snapshot` / `restore`, etc. — see Run details.
 
@@ -98,6 +99,21 @@ Before/after per assignment is recorded on the step. Formal Runs use **strict** 
 ## Delay (`delay`)
 
 Blocks the worker thread for `data.ms`. Cap: **60_000 ms** per step.
+
+---
+
+## Input (`input`)
+
+Pauses the run for human values, writes them to `flow`, then continues from the next node. No media-preview config (open the previous HTTP step to view images).
+
+| Field | Meaning |
+|-------|---------|
+| `prompt` | Message shown on the pause panel |
+| `fields[]` | Inputs: `name` / `label` / `type` / `required` / `placeholder` / `defaultValue`; `select`/`multiselect` need static `options` |
+
+`type` defaults to `text`. Allowed: `text` / `textarea` / `password` / `number` / `boolean` / `select` / `multiselect` / `date` / `datetime`. Unknown types are rejected on save.
+
+Pause reason `await_input`; decisions: `continueWithInput` (with `inputs`) and `abort`. Unattended/CI runs pause here; use `tpl_login_captcha` for external OCR or `tpl_login_captcha_manual` for manual entry.
 
 ---
 

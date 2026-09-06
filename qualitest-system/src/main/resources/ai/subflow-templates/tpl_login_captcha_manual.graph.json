@@ -1,0 +1,125 @@
+{
+  "nodes": [
+    {
+      "id": "captcha_image",
+      "type": "http",
+      "position": {
+        "x": 40,
+        "y": 60
+      },
+      "data": {
+        "name": "获取验证码",
+        "callMode": "project",
+        "testProjectApiId": "",
+        "httpMethod": "GET",
+        "apiPath": "/api/captchaImage",
+        "extracts": [
+          {
+            "from": "body",
+            "expr": "$.img",
+            "scope": "flow",
+            "name": "captchaImageBase64"
+          },
+          {
+            "from": "body",
+            "expr": "$.uuid",
+            "scope": "flow",
+            "name": "captchaUuid"
+          }
+        ],
+        "summary": "请选择验证码图片接口"
+      }
+    },
+    {
+      "id": "captcha_input",
+      "type": "input",
+      "position": {
+        "x": 320,
+        "y": 60
+      },
+      "data": {
+        "name": "填写验证码",
+        "prompt": "请查看上一步验证码图片后填写",
+        "fields": [
+          {
+            "name": "captchaCode",
+            "label": "验证码",
+            "type": "text",
+            "required": true,
+            "placeholder": "",
+            "defaultValue": "",
+            "options": []
+          }
+        ],
+        "summary": "请查看上一步验证码图片后填写 · 1 字段 · captchaCode"
+      }
+    },
+    {
+      "id": "login_http",
+      "type": "http",
+      "position": {
+        "x": 600,
+        "y": 60
+      },
+      "data": {
+        "name": "验证码登录",
+        "callMode": "project",
+        "testProjectApiId": "",
+        "httpMethod": "POST",
+        "apiPath": "/api/login",
+        "requestConfig": {
+          "method": "POST",
+          "body": {
+            "mode": "json",
+            "json": {
+              "example": "{\"username\":\"{{flow.username}}\",\"password\":\"{{flow.password}}\",\"code\":\"{{flow.captchaCode}}\",\"uuid\":\"{{flow.captchaUuid}}\"}"
+            }
+          }
+        },
+        "extracts": [
+          {
+            "from": "body",
+            "expr": "$.data.token",
+            "scope": "flow",
+            "name": "token"
+          }
+        ],
+        "summary": "请选择登录接口"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "captcha_image",
+      "target": "captcha_input"
+    },
+    {
+      "id": "e2",
+      "source": "captcha_input",
+      "target": "login_http"
+    }
+  ],
+  "meta": {
+    "schemaVersion": 1,
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "activeScenarioId": "tpl_sc_default",
+    "scenarios": [
+      {
+        "id": "tpl_sc_default",
+        "name": "模板默认",
+        "testProjectEnvId": "",
+        "flowSeed": {
+          "username": "",
+          "password": ""
+        },
+        "remark": "手动填验证码登录子流模板"
+      }
+    ],
+    "flowOutputs": []
+  }
+}

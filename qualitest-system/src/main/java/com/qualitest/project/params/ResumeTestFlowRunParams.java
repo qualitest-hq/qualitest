@@ -7,9 +7,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.io.Serializable;
+import java.util.Map;
 
 /**
- * 恢复 paused Run 的请求参数。
+ * 恢复 paused Run 的 HTTP 请求体。
  */
 @Getter
 @Setter
@@ -19,12 +20,17 @@ import java.io.Serializable;
 public class ResumeTestFlowRunParams implements Serializable {
 
     /**
-     * restoreAndRetry / retryInPlace / skip / abort
+     * 决策：restoreAndRetry / retryInPlace / skip / abort / continueWithInput。
      */
     private String decision;
 
     /**
-     * restoreAndRetry 时指定快照 id；缺省时取失败节点或栈顶 checkpoint
+     * restoreAndRetry 时的快照 id；缺省由引擎按暂停节点或栈顶选取。
      */
     private String snapshotId;
+
+    /**
+     * continueWithInput 时提交的人工输入：字段 name → 值。
+     */
+    private Map<String, Object> inputs;
 }

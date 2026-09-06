@@ -7,7 +7,10 @@ import com.qualitest.flow.context.ResolvedRunScenario;
 import com.qualitest.flow.context.RunScenarioBootstrap;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
+import com.qualitest.flow.graph.GraphLookupUtils;
+import com.qualitest.flow.input.InputFieldTypes;
 import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.snapshot.FlowRunSnapshotState;
@@ -20,6 +23,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 测试流 Run 执行器（薄编排）。
@@ -60,8 +65,8 @@ public class TestFlowExecutor {
     }
 
     /**
-     * 续跑 paused 的 Run：记决策审计步 → 按 decision 规划续跑 → 恢复图遍历。
-     * 非 paused 状态直接返回幂等结果；参数/状态非法时抛 {@link FlowExecutionException}。
+     * 续跑 paused 的 Run：记决策审计步 →（人工输入则先写 flow）→ 按 decision 规划 → 恢复图遍历。
+     * 非 paused 返回幂等结果；参数非法抛异常。
      */
     public ExecutionOutcome resume(Long testFlowRunId, ResumeDecision decision, TestProjectEnv env) {
         TestFlowRun run = testFlowRunService.selectTestFlowRunById(testFlowRunId);
@@ -94,6 +99,10 @@ public class TestFlowExecutor {
         FlowRunContext ctx = FlowRunContextPersistence.fromMap(state.getContext());
         RunBootstrapMeta bootstrap = buildBootstrapFromRun(run, env);
 
+        if (decision.isContinueWithInput()) {
+            applyContinueWithInput(decision, state, graph, ctx);
+        }
+
         ResumeContinuationPlanner.PlannedResume planned = resumeContinuationPlanner.plan(
                 decision, state, graph, snapshotState, env, testFlowRunId);
         if (planned.getRestoreStep() != null) {
@@ -110,6 +119,32 @@ public class TestFlowExecutor {
         return runWithExceptionGuard(testFlowRunId, run.getStartedAt(), runT0, ctx, () ->
                 advanceRun(testFlowRunId, graph, ctx, bootstrap, planned.getContinuation(), snapshotState,
                         resumeFromStepIndex, run.getStartedAt(), runT0));
+    }
+
+    /**
+     * continueWithInput：按暂停节点 fields 校验 inputs，写入 ctx.flow，
+     * 并把 assigns 明细放到 decision.completionAssigns 供 COMPLETE_NODE 落库。
+     */
+    private void applyContinueWithInput(
+            ResumeDecision decision,
+            RunExecutionState state,
+            GraphJson graph,
+            FlowRunContext ctx
+    ) {
+        if (!RunExecutionState.PAUSE_REASON_AWAIT_INPUT.equals(state.getPauseReason())) {
+            throw new FlowExecutionException(FlowErrorCode.TF_RUN_RESUME_INVALID,
+                    "continueWithInput 仅用于 await_input 暂停");
+        }
+        GraphNode pauseNode = graph != null
+                ? GraphLookupUtils.findNode(graph.getNodes(), state.getPauseNodeId())
+                : null;
+        if (pauseNode == null) {
+            throw new FlowExecutionException(FlowErrorCode.TF_RUN_RESUME_INVALID, "暂停节点不存在");
+        }
+        Map<String, Object> data = pauseNode.getData() != null ? pauseNode.getData() : Map.of();
+        List<Map<String, Object>> fields = InputFieldTypes.parseFields(data.get("fields"));
+        List<Map<String, Object>> assigns = InputFieldTypes.validateAndApply(fields, decision.getInputs(), ctx.getFlow());
+        decision.setCompletionAssigns(assigns);
     }
 
     /** 图遍历主循环：checkpoint 钩子 → 落库步骤 → 更新 Run 终态或 paused */
@@ -146,6 +181,10 @@ public class TestFlowExecutor {
             String errorMessage = outcome.getError() != null
                     ? outcome.getError().getMessage()
                     : "步骤失败";
+            if (RunExecutionState.PAUSE_REASON_AWAIT_INPUT.equals(outcome.getPauseReason())) {
+                errorCode = FlowErrorCode.TF_AWAIT_INPUT.getCode();
+                errorMessage = "等待人工输入";
+            }
             runStatusUpdater.markPaused(testFlowRunId, startedAt, runT0, ctx, snapshotState, stepIndex,
                     outcome.getPauseNodeId(), outcome.getPauseReason(),
                     outcome.getCurrentNodeId(), outcome.getIncomingEdgeId(),

@@ -5,6 +5,7 @@
 import { formatAssignSummary, formatAssignAssignment, getAssignAssignments } from '@/utils/flow/assign';
 import { condOpLabel } from '@/utils/flow/compareRule';
 import { filterFilledExtracts } from '@/utils/flow/extract';
+import { formatInputSummary } from '@/utils/flow/inputFields';
 
 export { formatAssignAssignment, getAssignAssignments } from '@/utils/flow/assign';
 
@@ -148,6 +149,9 @@ export function updateSummary(type: string, data: Record<string, unknown>) {
       break;
     case 'subflow':
       data.summary = formatSubflowSummary(data);
+      break;
+    case 'input':
+      data.summary = formatInputSummary(data);
       break;
     default:
       break;

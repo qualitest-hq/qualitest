@@ -18,6 +18,9 @@ import java.util.List;
 
 /**
  * 内存图遍历执行器：按边顺序执行节点 Handler，支持续跑与暂停。
+ * <p>
+ * 暂停来源：节点返回 failed 且策略要求暂停、checkpoint 钩子失败、节点返回 paused（人工输入）。
+ * 续跑模式含重试、跳过、完成当前节点（人工输入已写入后记 passed）等。
  */
 @Component
 public class FlowGraphRunner {
@@ -39,6 +42,8 @@ public class FlowGraphRunner {
         String incomingEdgeId;
         boolean skipCurrentNode = continuation != null
                 && continuation.getResumeMode() == RunContinuation.ResumeMode.SKIP_NODE;
+        boolean completeCurrentNode = continuation != null
+                && continuation.getResumeMode() == RunContinuation.ResumeMode.COMPLETE_NODE;
 
         if (continuation != null && !continuation.isFreshStart()) {
             currentId = continuation.getStartNodeId();
@@ -74,7 +79,7 @@ public class FlowGraphRunner {
                 return Outcome.failed(steps, ctx, StepError.of(ex.getErrorCode(), ex.getMessage()), steps.size());
             }
 
-            if (!skipCurrentNode && preExecuteHook != null && preExecuteHook != FlowNodePreExecuteHook.NONE) {
+            if (!skipCurrentNode && !completeCurrentNode && preExecuteHook != null && preExecuteHook != FlowNodePreExecuteHook.NONE) {
                 FlowNodePreExecuteHook.PreExecuteOutcome pre = preExecuteHook.beforeNode(node);
                 if (pre != null) {
                     for (StepResult prelude : pre.preludeSteps()) {
@@ -99,20 +104,28 @@ public class FlowGraphRunner {
 
             StepResult result;
             if (skipCurrentNode) {
-                result = StepResult.builder()
-                        .nodeId(node.getId())
-                        .nodeType(node.getType())
-                        .nodeName(node.getId())
-                        .edgeId(incomingEdgeId)
-                        .status(StepResultWriter.STATUS_SKIPPED)
-                        .durationMs(0L)
-                        .flowAfter(new HashMap<>(ctx.getFlow()))
-                        .build();
+                result = syntheticStep(node, incomingEdgeId, ctx,
+                        StepResultWriter.STATUS_SKIPPED, null, node.getId());
                 skipCurrentNode = false;
+            } else if (completeCurrentNode) {
+                result = syntheticStep(node, incomingEdgeId, ctx,
+                        StepResult.STATUS_PASSED,
+                        continuation != null ? continuation.getCompletionAssigns() : null,
+                        resolveDisplayName(node));
+                completeCurrentNode = false;
             } else {
                 result = registry.execute(ctx, node, incomingEdgeId);
             }
             steps.add(result);
+
+            if (StepResult.STATUS_PAUSED.equals(result.getStatus())) {
+                StepError error = result.getError() != null
+                        ? result.getError()
+                        : StepError.of(FlowErrorCode.TF_AWAIT_INPUT, "等待人工输入");
+                return Outcome.paused(steps, ctx, error, node.getId(),
+                        RunExecutionState.PAUSE_REASON_AWAIT_INPUT, steps.size(),
+                        currentId, incomingEdgeId);
+            }
 
             if (StepResult.STATUS_FAILED.equals(result.getStatus())) {
                 StepError error = result.getError() != null
@@ -133,6 +146,38 @@ public class FlowGraphRunner {
         }
 
         return Outcome.passed(steps, ctx, steps.size());
+    }
+
+    /** 跳过或完成节点时不跑 Handler，直接合成一步（skipped 或 passed） */
+    private static StepResult syntheticStep(
+            GraphNode node,
+            String incomingEdgeId,
+            FlowRunContext ctx,
+            String status,
+            Object assigns,
+            String nodeName
+    ) {
+        return StepResult.builder()
+                .nodeId(node.getId())
+                .nodeType(node.getType())
+                .nodeName(nodeName)
+                .edgeId(incomingEdgeId)
+                .status(status)
+                .durationMs(0L)
+                .flowAfter(new HashMap<>(ctx.getFlow()))
+                .assigns(assigns)
+                .build();
+    }
+
+    /** 优先 data.name，否则用节点 id */
+    private static String resolveDisplayName(GraphNode node) {
+        if (node.getData() != null && node.getData().get("name") != null) {
+            String name = String.valueOf(node.getData().get("name")).trim();
+            if (!name.isEmpty()) {
+                return name;
+            }
+        }
+        return node.getId();
     }
 
     @Getter

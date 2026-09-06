@@ -241,7 +241,7 @@ describe('validateGraphJson', () => {
     expect(result.warnings).toHaveLength(spec.expectWarnings);
   });
 
-  it('assert 空 rules / assign 空 assignments / delay 超限 产生 error', () => {
+  it('assert 空 rules / assign 空 assignments / delay 超限 / input 空 fields 产生 error', () => {
     const base = {
       meta: { scenarios: [{ id: 's1', name: '默认' }] },
       edges: [] as unknown[],
@@ -269,6 +269,23 @@ describe('validateGraphJson', () => {
         ...base,
         nodes: [{ id: '1', type: 'condition', position: { x: 0, y: 0 }, data: { name: 'c', branches: [] } }],
       }).errors.some((e) => e.includes('缺少 branches')),
+    ).toBe(true);
+    expect(
+      validateGraphJson({
+        ...base,
+        nodes: [{ id: '1', type: 'input', position: { x: 0, y: 0 }, data: { name: 'in', fields: [] } }],
+      }).errors.some((e) => e.includes('fields 不能为空')),
+    ).toBe(true);
+    expect(
+      validateGraphJson({
+        ...base,
+        nodes: [{
+          id: '1',
+          type: 'input',
+          position: { x: 0, y: 0 },
+          data: { name: 'in', fields: [{ name: 'x', type: 'file' }] },
+        }],
+      }).errors.some((e) => e.includes('type 无效')),
     ).toBe(true);
   });
 

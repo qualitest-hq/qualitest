@@ -17,7 +17,7 @@ import java.util.Optional;
 /**
  * 将用户 resume 决策翻译为续跑计划。
  * <p>
- * 输出：从哪个节点继续、入边、续跑模式（重试/跳过），以及可选的还原审计步。
+ * 输出：续跑起点节点、入边、模式（重试 / 跳过 / 完成人工输入节点），以及可选的还原审计步。
  */
 @Component
 @RequiredArgsConstructor
@@ -26,10 +26,14 @@ public class ResumeContinuationPlanner {
     private final SnapshotRestoreService snapshotRestoreService;
 
     /**
-     * 根据 decision 生成续跑计划。
-     * restoreAndRetry：还原（环境允许时）→ 截断快照栈 → 从快照节点重试。
-     * retryInPlace：从暂停节点原地重试。
-     * skip：跳过暂停节点，沿出边继续。
+     * 根据 decision 与当前暂停状态生成续跑计划。
+     * <ul>
+     *   <li>restoreAndRetry：按需还原快照、截断栈，从快照节点 RETRY_NODE</li>
+     *   <li>retryInPlace：从暂停节点 RETRY_NODE</li>
+     *   <li>skip：从暂停节点 SKIP_NODE</li>
+     *   <li>continueWithInput：仅当 pauseReason=await_input；COMPLETE_NODE（flow 须已由调用方写好）</li>
+     * </ul>
+     * await_input 下除 continueWithInput / abort 外的决策一律拒绝。
      */
     public PlannedResume plan(
             ResumeDecision decision,
@@ -39,6 +43,27 @@ public class ResumeContinuationPlanner {
             TestProjectEnv env,
             Long testFlowRunId
     ) {
+        if (RunExecutionState.PAUSE_REASON_AWAIT_INPUT.equals(state.getPauseReason())
+                && !decision.isContinueWithInput()
+                && !decision.isAbort()) {
+            throw new FlowExecutionException(FlowErrorCode.TF_RUN_RESUME_INVALID,
+                    "await_input 仅支持 continueWithInput 或 abort");
+        }
+        if (decision.isContinueWithInput()) {
+            if (!RunExecutionState.PAUSE_REASON_AWAIT_INPUT.equals(state.getPauseReason())) {
+                throw new FlowExecutionException(FlowErrorCode.TF_RUN_RESUME_INVALID,
+                        "continueWithInput 仅用于 await_input 暂停");
+            }
+            if (state.getPauseNodeId() == null || state.getPauseNodeId().isBlank()) {
+                throw new FlowExecutionException(FlowErrorCode.TF_RUN_RESUME_INVALID, "缺少 pauseNodeId");
+            }
+            return PlannedResume.of(RunContinuation.builder()
+                    .startNodeId(state.getPauseNodeId())
+                    .incomingEdgeId(state.getIncomingEdgeId())
+                    .resumeMode(RunContinuation.ResumeMode.COMPLETE_NODE)
+                    .completionAssigns(decision.getCompletionAssigns())
+                    .build(), null);
+        }
         if (decision.isRestoreAndRetry()) {
             String snapshotId = resolveSnapshotId(decision, snapshotState, state.getPauseNodeId());
             SnapshotStackEntry entry = snapshotState.findBySnapshotId(snapshotId)

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -121,6 +122,56 @@ class ResumeContinuationPlannerTest {
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).build(),
                 stack, "n2");
         assertEquals("snap-b", id);
+    }
+
+    /**
+     * 前提：await_input + continueWithInput。
+     * 期望：COMPLETE_NODE；带 completionAssigns。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("continueWithInput 使用 COMPLETE_NODE")
+    void plan_continueWithInput_usesCompleteNode() {
+        RunExecutionState state = RunExecutionState.builder()
+                .pauseNodeId("in1")
+                .incomingEdgeId("e0")
+                .pauseReason(RunExecutionState.PAUSE_REASON_AWAIT_INPUT)
+                .build();
+        List<?> assigns = java.util.List.of(java.util.Map.of("name", "code", "after", "1"));
+        ResumeContinuationPlanner.PlannedResume planned = planner.plan(
+                ResumeDecision.builder()
+                        .decision(ResumeDecision.CONTINUE_WITH_INPUT)
+                        .completionAssigns(assigns)
+                        .build(),
+                state, loadGraph("flow/linear-run-graph.json"), new FlowRunSnapshotState(),
+                TestProjectEnv.builder().build(), 1L);
+
+        assertNull(planned.getRestoreStep());
+        assertEquals(RunContinuation.ResumeMode.COMPLETE_NODE, planned.getContinuation().getResumeMode());
+        assertEquals("in1", planned.getContinuation().getStartNodeId());
+        assertEquals(assigns, planned.getContinuation().getCompletionAssigns());
+    }
+
+    /**
+     * 前提：await_input 但 decision=skip。
+     * 期望：TF_RUN_RESUME_INVALID。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("await_input 拒绝 skip")
+    void plan_awaitInput_rejectsSkip() {
+        RunExecutionState state = RunExecutionState.builder()
+                .pauseNodeId("in1")
+                .pauseReason(RunExecutionState.PAUSE_REASON_AWAIT_INPUT)
+                .build();
+        com.qualitest.flow.exception.FlowExecutionException ex =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        com.qualitest.flow.exception.FlowExecutionException.class,
+                        () -> planner.plan(
+                                ResumeDecision.builder().decision(ResumeDecision.SKIP).build(),
+                                state, loadGraph("flow/linear-run-graph.json"), new FlowRunSnapshotState(),
+                                TestProjectEnv.builder().build(), 1L));
+        assertEquals(com.qualitest.flow.exception.FlowErrorCode.TF_RUN_RESUME_INVALID, ex.getErrorCode());
     }
 
     private static GraphJson loadGraph(String path) {

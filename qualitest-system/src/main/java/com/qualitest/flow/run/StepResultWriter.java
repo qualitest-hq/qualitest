@@ -222,6 +222,7 @@ public class StepResultWriter {
 
     /**
      * resume 决策审计步：记录 decision、snapshotId、operator。
+     * continueWithInput 时额外写入 inputs 摘要（key 名含 password 的值脱敏为 ***）。
      */
     public StepResult toResumeDecisionStepResult(ResumeDecision decision) {
         Map<String, Object> details = new LinkedHashMap<>();
@@ -232,6 +233,9 @@ public class StepResultWriter {
         if (decision.getOperator() != null) {
             details.put("operator", decision.getOperator());
         }
+        if (decision.isContinueWithInput() && decision.getInputs() != null) {
+            details.put("inputs", sanitizeInputsSummary(decision.getInputs()));
+        }
         return StepResult.builder()
                 .nodeId("")
                 .nodeType(NODE_TYPE_RESUME_DECISION)
@@ -240,6 +244,22 @@ public class StepResultWriter {
                 .durationMs(0L)
                 .snapshot(details)
                 .build();
+    }
+
+    /**
+     * 审计摘要脱敏：字段名（忽略大小写）包含 password 时值改为 ***。
+     */
+    private static Map<String, Object> sanitizeInputsSummary(Map<String, Object> inputs) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : inputs.entrySet()) {
+            String key = e.getKey() != null ? e.getKey() : "";
+            if (key.toLowerCase().contains("password")) {
+                out.put(key, "***");
+            } else {
+                out.put(key, e.getValue());
+            }
+        }
+        return out;
     }
 
     /**

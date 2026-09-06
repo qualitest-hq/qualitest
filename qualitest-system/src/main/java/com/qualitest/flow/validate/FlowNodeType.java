@@ -10,17 +10,18 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 测试流画布节点 type 枚举（固定 7 种，不支持用户自定义 type）。
+ * 测试流画布节点 type 枚举（固定 8 种，不支持用户自定义 type）。
  * <ul>
- *   <li>{@link #HTTP} — 调 HTTP；{@code data.callMode} 为 {@code project}（项目接口）或 {@code external}（外联 URL）</li>
- *   <li>{@link #ASSERT} — 对上一步 HTTP 响应断言</li>
- *   <li>{@link #CONDITION} — IF / ELIF / ELSE 分支</li>
- *   <li>{@link #ASSIGN} — 写入 {@code flow} 变量</li>
- *   <li>{@link #DELAY} — 等待</li>
- *   <li>{@link #SCRIPT} — GraalVM 沙箱脚本；可读写 {@code flow}、{@code session}，可读 {@code env}/{@code asset}，可选 {@code ctx.http}</li>
- *   <li>{@link #SUBFLOW} — 引用同项目另一张测试流图，折叠为单节点，经 inputs/outputs 与父 flow 交换变量</li>
+ *   <li>HTTP — 调 HTTP；data.callMode 为 project（项目接口）或 external（外联 URL）</li>
+ *   <li>ASSERT — 对上下文做比较断言</li>
+ *   <li>CONDITION — IF / ELIF / ELSE 分支</li>
+ *   <li>ASSIGN — 写入 flow 变量（设计期定值，运行自动执行）</li>
+ *   <li>DELAY — 等待</li>
+ *   <li>SCRIPT — GraalVM 沙箱脚本；可读写 flow、session，可读 env/asset，可选受控 HTTP</li>
+ *   <li>SUBFLOW — 引用同项目另一张测试流，折叠为单节点，经 inputs/outputs 交换变量</li>
+ *   <li>INPUT — 暂停等待人工填写，校验后写入 flow 再继续</li>
  * </ul>
- * {@code code} 对应 {@link GraphNode#getType()} 持久化值；{@code label} 用于校验消息与 UI 展示。
+ * code 为图 JSON 中 nodes[].type 持久化值；label 用于校验消息与 UI。
  */
 @Getter
 public enum FlowNodeType {
@@ -31,7 +32,9 @@ public enum FlowNodeType {
     CONDITION("condition", "Condition"),
     ASSIGN("assign", "Assign"),
     SCRIPT("script", "Script"),
-    SUBFLOW("subflow", "Subflow");
+    SUBFLOW("subflow", "Subflow"),
+    /** 人工输入：运行暂停，人填后写入 flow */
+    INPUT("input", "Input");
 
     private static final Map<String, FlowNodeType> BY_CODE = Arrays.stream(values())
             .collect(Collectors.toMap(FlowNodeType::getCode, t -> t));

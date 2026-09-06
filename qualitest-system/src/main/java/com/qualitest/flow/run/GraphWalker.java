@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
  * 供 {@link TestFlowExecutor} 在单步执行后解析下一节点 id；
  * 不预展开全路径，支持回边构成的轮询子图。
  * <ul>
- *   <li>普通节点（http/assert/delay/assign）：必须仅有一条出边，沿该边 target 前进</li>
+ *   <li>普通节点（http/assert/delay/assign/script/subflow/input）：必须仅有一条出边，沿该边 target 前进</li>
  *   <li>condition 节点：读取本步 {@link com.qualitest.flow.node.StepResult#getBranchTaken()}，
  *       在 {@code data.branches} 中匹配 branchId 后取 target</li>
  * </ul>

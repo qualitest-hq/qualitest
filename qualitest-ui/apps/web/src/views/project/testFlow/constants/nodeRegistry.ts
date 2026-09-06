@@ -1,6 +1,6 @@
 /**
- * 节点类型注册表：映射 type → 画布 SFC + 右栏属性区 SFC。
- * 新增节点类型时在此登记，FlowCanvasLayout 与 NodePropertyPanel 自动生效。
+ * 节点类型注册表：type → 画布组件 + 右侧属性区。
+ * 新增类型时在此登记，画布与属性面板自动生效（含 input）。
  */
 import type { Component } from 'vue';
 
@@ -18,7 +18,9 @@ import HttpPropertySection from '../panels/property/HttpPropertySection.vue';
 import ScriptPropertySection from '../panels/property/ScriptPropertySection.vue';
 import ScriptNode from '../nodes/ScriptNode.vue';
 import SubflowNode from '../nodes/SubflowNode.vue';
+import InputNode from '../nodes/InputNode.vue';
 import SubflowPropertySection from '../panels/property/SubflowPropertySection.vue';
+import InputPropertySection from '../panels/property/InputPropertySection.vue';
 
 import type { FlowNodeTypeKey } from './nodeTypes';
 
@@ -56,6 +58,10 @@ export const NODE_REGISTRY: Record<FlowNodeTypeKey, NodeRegistryEntry> = {
   subflow: {
     canvas: SubflowNode,
     property: SubflowPropertySection,
+  },
+  input: {
+    canvas: InputNode,
+    property: InputPropertySection,
   },
 };
 

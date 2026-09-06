@@ -8,6 +8,7 @@ import com.qualitest.flow.context.JsonPathFacade;
 import com.qualitest.flow.context.PlaceholderResolver;
 import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
 import com.qualitest.flow.http.FlowHttpCallMode;
+import com.qualitest.flow.input.InputFieldTypes;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Component;
  * Assert / Condition：rules/branches 不可空；规则 left 非空、作用域合法、禁止 {@code http.body.$.…}、http.body 后缀 JsonPath 可解析。<br>
  * Assign：assignments 非空，name/op 合法。<br>
  * Delay：ms 可解析且不超过上限。<br>
+ * Input：fields 非空，type/options 合法。<br>
  * Script / Subflow：language、subflowId 等。<br>
  * {@code ok=true} 当且仅当 errors 为空。
  */
@@ -293,6 +295,9 @@ public class GraphJsonValidator {
         if (FlowNodeType.DELAY.matches(type)) {
             validateDelayNodeFields(p, id, data, errors);
         }
+        if (FlowNodeType.INPUT.matches(type)) {
+            validateInputNodeFields(p, id, data, errors);
+        }
         validateScriptNodeFields(p, id, type, data, errors, warnings);
         validateSubflowNodeFields(p, id, type, data, errors, warnings);
     }
@@ -375,6 +380,64 @@ public class GraphJsonValidator {
         if (ms > com.qualitest.flow.delay.DelayConstants.MAX_DELAY_MS) {
             errors.add(p + " Delay 节点「" + name + "」ms 超过上限 "
                     + com.qualitest.flow.delay.DelayConstants.MAX_DELAY_MS);
+        }
+    }
+
+    /**
+     * Input 节点：fields 非空；每项 name 非空且节点内唯一；type 合法；
+     * select / multiselect 的 options 非空且每项 value 非空。
+     */
+    private void validateInputNodeFields(
+            String p,
+            String id,
+            Map<String, Object> data,
+            List<String> errors
+    ) {
+        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        Object raw = data != null ? data.get("fields") : null;
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            errors.add(p + " Input 节点「" + name + "」fields 不能为空");
+            return;
+        }
+        Set<String> fieldNames = new HashSet<>();
+        for (int i = 0; i < list.size(); i++) {
+            Object item = list.get(i);
+            String prefix = p + " Input 节点「" + name + "」fields[" + i + "]";
+            if (!(item instanceof Map<?, ?> map)) {
+                errors.add(prefix + " 不是有效对象");
+                continue;
+            }
+            Object nameObj = map.get("name");
+            String fieldName = nameObj == null ? "" : String.valueOf(nameObj).trim();
+            if (fieldName.isEmpty()) {
+                errors.add(prefix + " name 不能为空");
+            } else if (!fieldNames.add(fieldName)) {
+                errors.add(prefix + " name 重复：" + fieldName);
+            }
+            Object typeObj = map.get("type");
+            String type = typeObj == null ? "" : String.valueOf(typeObj).trim();
+            if (!type.isEmpty() && !InputFieldTypes.isKnownType(type)) {
+                errors.add(prefix + " type 无效：" + type);
+            }
+            String normalized = InputFieldTypes.normalizeType(type);
+            if (InputFieldTypes.requiresOptions(normalized)) {
+                Object optionsRaw = map.get("options");
+                if (!(optionsRaw instanceof List<?> options) || options.isEmpty()) {
+                    errors.add(prefix + " options 不能为空");
+                } else {
+                    for (int oi = 0; oi < options.size(); oi++) {
+                        Object opt = options.get(oi);
+                        if (!(opt instanceof Map<?, ?> optMap)) {
+                            errors.add(prefix + " options[" + oi + "] 不是有效对象");
+                            continue;
+                        }
+                        Object value = optMap.get("value");
+                        if (value == null || String.valueOf(value).trim().isEmpty()) {
+                            errors.add(prefix + " options[" + oi + "] value 不能为空");
+                        }
+                    }
+                }
+            }
         }
     }
 

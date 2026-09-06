@@ -1,6 +1,6 @@
 # 测试流节点说明
 
-画布固定 **7** 种节点类型（`FlowNodeType`），不可自定义 `type`。持久化值为小写 code；UI 展示用英文 label。
+画布固定 **8** 种节点类型（`FlowNodeType`），不可自定义 `type`。持久化值为小写 code；UI 展示用英文 label。
 
 英文版：[test-flow-nodes.en.md](./test-flow-nodes.en.md)  
 产品概念 / 项目鉴权：[project-summary.md](./project-summary.md)
@@ -18,6 +18,7 @@
 | `delay` | Delay | 等待一段时间 |
 | `script` | Script | GraalVM 沙箱脚本（JS / Python） |
 | `subflow` | Subflow | 引用同项目另一张测试流，折叠为单节点 |
+| `input` | Input | 暂停等待人工输入，写入 `flow` 后继续 |
 
 执行时还有审计步（非画布拖拽节点）：`run_config`、`snapshot` / `restore` 等，见 Run 详情。
 
@@ -106,6 +107,21 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 ## Delay（`delay`）
 
 按 `data.ms` 阻塞当前执行线程。单步上限 **60_000 ms**，防止配置过大拖垮线程。
+
+---
+
+## Input（`input`）
+
+运行时暂停等待人工填写，将值写入 `flow` 后从下一节点继续。无媒体预览配置（看图请打开上一步 HTTP 步骤）。
+
+| 字段 | 说明 |
+|------|------|
+| `prompt` | 暂停面板提示文案 |
+| `fields[]` | 输入项；每项含 `name` / `label` / `type` / `required` / `placeholder` / `defaultValue`；`select`/`multiselect` 另需静态 `options` |
+
+`type` 缺省 `text`；合法值：`text` / `textarea` / `password` / `number` / `boolean` / `select` / `multiselect` / `date` / `datetime`。未知 type 保存硬拦。
+
+暂停原因 `await_input`；可用决策 `continueWithInput`（提交 `inputs`）与 `abort`。CI / 无人值守碰到即 paused；自动化主路径可用外联打码子流 `tpl_login_captcha`，人手填码可用 `tpl_login_captcha_manual`。
 
 ---
 

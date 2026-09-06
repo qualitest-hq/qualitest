@@ -26,7 +26,7 @@ REST/JSON between UI and API; Run/debug hit the project env `baseUrl` (Demo ofte
 | **Test project** | Isolation boundary: members, tokens, APIs, flows, assets, auth |
 | **Environment** | SUT `baseUrl`; optional “allow destructive restore” (then serial Runs on that env) |
 | **API asset** | method/path/schema/test values/auth mode; from plugin or template prefab |
-| **Test flow** | Canvas graph (exactly 7 node types); edits via AI Staging or property panel |
+| **Test flow** | Canvas graph (exactly 8 node types); edits via AI Staging or property panel |
 | **Asset library** | Reusable values; login secrets prefer `{{asset.*}}`; files use `storagePath` → multipart |
 | **Run** | One execution; details include timeline, HTTP, audit steps (`run_config` / `snapshot` / `restore`) |
 

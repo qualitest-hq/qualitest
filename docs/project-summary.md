@@ -41,7 +41,7 @@ flowchart TB
 | **测试项目** | 隔离边界：成员、Token、接口、流、素材、鉴权都挂项目                                |
 | **环境**   | 被测 `baseUrl`；可选「允许还原被测数据」（开则同环境串行 Run）                      |
 | **接口资产** | method/path/schema/测值/鉴权 mode；来自插件上传或模板预制                   |
-| **测试流**  | 画布图（固定 7 种节点）；改图走 AI Staging 或属性面板                          |
+| **测试流**  | 画布图（固定 8 种节点）；改图走 AI Staging 或属性面板                          |
 | **素材库**  | 可复用测值；登录口令优先 `{{asset.*}}`；文件走 `storagePath` → multipart    |
 | **Run**  | 一次执行；详情含时间线、HTTP、审计步（`run_config` / `snapshot` / `restore`） |
 
@@ -160,7 +160,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | 文档                                                               | 何时看             |
 | ---------------------------------------------------------------- | --------------- |
 | **本文** | 概念、鉴权、主链路 |
-| [test-flow-nodes.md](./test-flow-nodes.md) | 7 种节点与断言方言 |
+| [test-flow-nodes.md](./test-flow-nodes.md) | 8 种节点与断言方言 |
 | [ai-staging.md](./ai-staging.md) | AI Diff / Staging 确认 |
 | [flow-variables-and-values.md](./flow-variables-and-values.md) | 跑流变量与 HTTP 测值 |
 | [assets.md](./assets.md) | 素材库与测参文件 |

@@ -197,4 +197,46 @@ class TestFlowExecutionServiceImplResumeTest {
         assertEquals(RunStatus.PASSED, result.getStatus());
         verify(testFlowExecutor).resume(eq(20L), any(ResumeDecision.class), eq(env));
     }
+
+    /**
+     * 前提：await_input 暂停，graph 含 Input 节点 fields。
+     * 期望：availableDecisions 仅 continueWithInput+abort；带回 prompt/fields。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("await_input pauseInfo 仅 continue+abort 且带 fields")
+    void getRunDetail_awaitInputPauseInfo() {
+        RunExecutionState state = RunExecutionState.builder()
+                .pauseReason(RunExecutionState.PAUSE_REASON_AWAIT_INPUT)
+                .pauseNodeId("in1")
+                .currentNodeId("in1")
+                .build();
+        String graphJson = """
+                {"nodes":[{"id":"in1","type":"input","position":{"x":0,"y":0},"data":{
+                  "name":"填码","prompt":"请填写","fields":[{"name":"captchaCode","label":"验证码","type":"text","required":true}]
+                }}],"edges":[]}
+                """;
+
+        TestFlowRunResult run = TestFlowRunResult.builder()
+                .testFlowRunId(12L)
+                .testFlowId(1L)
+                .status(RunStatus.PAUSED)
+                .runExecutionState(state.toJson())
+                .graphJsonSnapshot(graphJson)
+                .build();
+
+        when(testFlowRunService.selectTestFlowRunResult(12L)).thenReturn(run);
+        when(testFlowService.selectTestFlowById(1L)).thenReturn(TestFlow.builder().testProjectId(99L).build());
+        when(testFlowRunStepService.selectTestFlowRunStepResultList(any(TestFlowRunStepParams.class)))
+                .thenReturn(Collections.emptyList());
+
+        RunPauseInfo pauseInfo = service.getRunDetail(12L).getPauseInfo();
+        assertNotNull(pauseInfo);
+        assertEquals(RunExecutionState.PAUSE_REASON_AWAIT_INPUT, pauseInfo.getPauseReason());
+        assertEquals("请填写", pauseInfo.getPrompt());
+        assertEquals(1, pauseInfo.getFields().size());
+        assertEquals("captchaCode", pauseInfo.getFields().get(0).get("name"));
+        assertEquals(List.of(ResumeDecision.CONTINUE_WITH_INPUT, ResumeDecision.ABORT),
+                pauseInfo.getAvailableDecisions());
+    }
 }

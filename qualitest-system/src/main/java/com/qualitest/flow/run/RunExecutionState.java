@@ -27,6 +27,11 @@ public class RunExecutionState {
     public static final String PAUSE_REASON_NODE_FAILURE = "node_failure";
     /** checkpoint 失败且策略为 prompt 导致暂停 */
     public static final String PAUSE_REASON_SNAPSHOT_FAILURE = "snapshot_failure";
+    /**
+     * Input 节点等待人工输入。
+     * 可用决策仅为 continueWithInput（提交字段值）与 abort。
+     */
+    public static final String PAUSE_REASON_AWAIT_INPUT = "await_input";
 
     /** 下一落库步的 step_index */
     private long nextStepIndex;
@@ -37,7 +42,7 @@ public class RunExecutionState {
     /** 续跑时该节点的入边 id */
     private String incomingEdgeId;
 
-    /** 暂停原因：node_failure / snapshot_failure */
+    /** 暂停原因：node_failure / snapshot_failure / await_input */
     private String pauseReason;
 
     /** 触发暂停的节点 id，通常与 currentNodeId 相同 */

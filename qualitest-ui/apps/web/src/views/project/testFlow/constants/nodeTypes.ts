@@ -7,6 +7,7 @@
  */
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId';
 import { DELAY_DEFAULT_MS } from '@/utils/flow/delayConstants';
+import { defaultInputFields, formatInputSummary } from '@/utils/flow/inputFields';
 import { SCRIPT_DEFAULT_TIMEOUT_MS } from './flowConfig';
 
 /** 各节点类型的主题色（画布单色来源） */
@@ -18,6 +19,7 @@ export const NODE_COLORS = {
   assign: '#9333ea',
   script: '#0891b2',
   subflow: '#6366f1',
+  input: '#d97706',
 } as const;
 
 export interface NodeTypeConfig {
@@ -29,7 +31,7 @@ export interface NodeTypeConfig {
 }
 
 /** 画布节点类型 key，须与 nodeRegistry 保持一致 */
-export type FlowNodeTypeKey = 'http' | 'assert' | 'delay' | 'condition' | 'assign' | 'script' | 'subflow';
+export type FlowNodeTypeKey = 'http' | 'assert' | 'delay' | 'condition' | 'assign' | 'script' | 'subflow' | 'input';
 
 export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
   http: {
@@ -115,6 +117,21 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
       inputs: [],
       outputs: [],
       summary: '请选择子流',
+    },
+  },
+  input: {
+    label: 'Input',
+    color: NODE_COLORS.input,
+    icon: 'IN',
+    desc: '暂停等待人工输入 · 写入 flow',
+    defaults: {
+      name: '人工输入',
+      prompt: '请填写后继续',
+      fields: defaultInputFields(),
+      summary: formatInputSummary({
+        prompt: '请填写后继续',
+        fields: defaultInputFields(),
+      }),
     },
   },
 };

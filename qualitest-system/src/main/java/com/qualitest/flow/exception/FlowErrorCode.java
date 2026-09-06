@@ -35,7 +35,11 @@ public enum FlowErrorCode {
     /** 对非 paused 的 Run 重复调用 resume */
     TF_RUN_NOT_PAUSED("TF_RUN_NOT_PAUSED", "运行未处于暂停状态"),
     /** resume 参数无效、快照不在栈、用户主动中止等 */
-    TF_RUN_RESUME_INVALID("TF_RUN_RESUME_INVALID", "恢复决策无效");
+    TF_RUN_RESUME_INVALID("TF_RUN_RESUME_INVALID", "恢复决策无效"),
+    /** Input 节点到达：Run 进入 paused，等待人工填写（非失败） */
+    TF_AWAIT_INPUT("TF_AWAIT_INPUT", "等待人工输入"),
+    /** 人工提交的 inputs 未通过字段类型 / 必填 / options 校验 */
+    TF_INPUT_INVALID("TF_INPUT_INVALID", "人工输入校验失败");
 
     private final String code;
     private final String defaultMessage;
