@@ -514,4 +514,47 @@ class HttpNodeHandlerTest {
         assertEquals(StepResult.STATUS_PASSED, result.getStatus());
         assertEquals(503, ctx.getLastResponse().getStatus());
     }
+
+    /**
+     * 前提：Mock 返回裸 image/png（bodyEncoding=base64），不落 bodyBase64。
+     * 期望：http.response.bodyMedia.stored=false，kind=image。
+     */
+    @Test
+    @Order(20)
+    @DisplayName("裸媒体响应写入 bodyMedia 标识且不存字节")
+    void execute_binaryImage_writesBodyMediaMarker() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/captcha.png")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_JSON_BODY)
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(
+                        200, "OK",
+                        Map.of("Content-Type", "image/png"),
+                        "[binary image/png · 42 bytes]",
+                        DebugHttpForwardResult.BODY_ENCODING_BASE64,
+                        "AAAA")
+        );
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("successCheck", Map.of("mode", "off"));
+        GraphNode node = GraphNode.builder().id("n-img").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = (Map<String, Object>) result.getHttp().get("response");
+        assertNotNull(response);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> bodyMedia = (Map<String, Object>) response.get("bodyMedia");
+        assertNotNull(bodyMedia);
+        assertEquals("image", bodyMedia.get("kind"));
+        assertEquals("image/png", bodyMedia.get("mime"));
+        assertEquals(false, bodyMedia.get("stored"));
+        assertFalse(response.containsKey("bodyBase64"));
+    }
 }

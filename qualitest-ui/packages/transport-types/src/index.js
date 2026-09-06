@@ -65,3 +65,24 @@ export function classifyNodeNetError(msg) {
   }
   return TransportErrorCode.NETWORK
 }
+
+/**
+ * 可预览媒体 Content-Type → 规范化 MIME；非媒体返回 null
+ * @param {string|null|undefined} contentType
+ * @returns {string|null}
+ */
+export function mediaMimeFromContentType(contentType) {
+  const mime = String(contentType || '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase()
+  if (
+    mime.startsWith('image/') ||
+    mime.startsWith('video/') ||
+    mime.startsWith('audio/') ||
+    mime === 'application/pdf'
+  ) {
+    return mime
+  }
+  return null
+}

@@ -1,6 +1,6 @@
 # 响应媒体预览与 Input 节点方案
 
-> **状态：方案稿（未实现）**  
+> **状态：阶段 1（HTTP 响应媒体预览）已实现；阶段 2（Input 节点）仍为方案稿**  
 > 背景：若依类 `/captchaImage` 可作免登接口种子，但开验证码时登录链缺「看图」与「人手填码」能力。  
 > 相关：[`test-flow-nodes.md`](./test-flow-nodes.md)、[`project-template.md`](./project-template.md)（用法）/ [`project-template/`](./project-template/)（契约）、子流 `tpl_login_captcha`（外联打码）。
 
@@ -11,13 +11,13 @@
 | 点 | 现状 |
 |----|------|
 | `/captchaImage` | 精简模板可种子为免登 API；响应多为 JSON（`img` base64 + `uuid` + 可选 `captchaEnabled`），不是裸 `image/*` |
-| 调试 / Run 展示 | Body 当纯文本 / `JSON.stringify`；长 base64 **不渲染**为图/音视频 |
+| 调试 / Run 展示 | **已支持**媒体预览（`responseMediaPreview` + `ResponseMediaPreview`）；文本区仍保留。裸二进制走 `bodyEncoding`/`bodyBase64` |
 | 登录主路径 | 精简包不造流；内置「探活再登录」**不插** captcha（captcha 仅种子） |
 | 自动化绕过 | 子流 `tpl_login_captcha`：取图 → **外联打码** `env.captchaApiUrl` → 登录 |
 | 画布节点 | 固定 7 种：`http` / `assert` / `condition` / `assign` / `delay` / `script` / `subflow` |
 | 暂停 / 续跑 | `paused` 服务节点失败 / 快照失败；`ResumeTestFlowRunParams` 仅有 `decision` + `snapshotId`，**不能注入** `flow.*` |
 
-结论：接口能调通，开验证码时仍「用不完」——缺 **HTTP 响应侧媒体预览** 与 **交互式人工输入节点**。
+结论：媒体预览已落地；开验证码人手填码仍缺 **交互式 Input 节点**（阶段 2）。
 
 ---
 
@@ -53,14 +53,15 @@ sequenceDiagram
 
 ---
 
-## 3. 阶段 1：HTTP 响应媒体预览
+## 3. 阶段 1：HTTP 响应媒体预览（已实现）
 
-### 3.1 工具 `responseMediaPreview`（新建）
+### 3.1 工具 `responseMediaPreview`
 
-- 建议路径：`qualitest-ui/.../utils/responseMediaPreview.ts`
+- 路径：`qualitest-ui/apps/web/src/utils/responseMediaPreview.ts`
+- 组件：`qualitest-ui/apps/web/src/components/ResponseMediaPreview/index.vue`
 - 输入：`body` / `bodyText` / `headers` / `bodyBase64`（及截断标记）
 - 输出：`{ kind, src, mime, truncated? }` 或 `null`
-- UI 组件建议：`ResponseMediaPreview.vue`，按 `kind` 渲染
+- UI 按 `kind` 渲染；无识别结果不展示预览区
 
 ### 3.2 支持矩阵
 
@@ -80,19 +81,23 @@ sequenceDiagram
 
 **裸二进制响应**
 
-现状：`DebugHttpForwardServiceImpl.decodeBodyPreview` 一律 UTF-8，会损坏 `image/*` / `video/*`。
-
-调试转发结果拟增加：
+调试转发（Java / Electron / browser `arraybuffer`）对媒体 CT 填充：
 
 | 字段 | 含义 |
 |------|------|
 | `bodyEncoding` | `text` \| `base64` |
-| `bodyBase64` | CT 为 `image/*` \| `video/*` \| `audio/*` \| `application/pdf`（及可识别的 `octet-stream`）时填充 |
-| `bodyText` | 二进制时可改为短提示，如 `[binary image/png · N bytes]` |
+| `bodyBase64` | CT 为 `image/*` \| `video/*` \| `audio/*` \| `application/pdf` 时填充 |
+| `bodyText` | 二进制时为短提示，如 `[binary image/png · N bytes]` |
 
 沿用 `MAX_RESPONSE_BYTES` 截断；`truncated` 时预览区标明可能无法完整播放。
 
-Run HTTP Inspector：本阶段以步骤内已有 JSON/文本 body 为主（必支持 `img` / `data:`）；步骤级 `bodyBase64` 可与调试约定对齐，不强制本阶段改执行落库格式。
+Run HTTP Inspector：以步骤内已有 JSON/文本 body 为主（必支持 `img` / `data:`）。**不落** `bodyBase64`；裸媒体仅写元数据标识：
+
+```json
+"bodyMedia": { "kind": "image", "mime": "image/png", "bytes": 1234, "stored": false, "truncated": false }
+```
+
+UI 对 `stored: false` 显示「mime · N bytes（未保存预览）」，便于与普通文本区分。
 
 ### 3.3 前端挂载点
 
@@ -198,13 +203,13 @@ Run HTTP Inspector：本阶段以步骤内已有 JSON/文本 body 为主（必�
 
 ---
 
-## 5. 建议落地顺序（未开工）
+## 5. 落地顺序
 
-1. **1a** 前端 `responseMediaPreview`（JSON / `data:` / URL）→ 覆盖验证码图  
-2. **1b** 调试转发 `bodyEncoding` / `bodyBase64` → 裸二进制图 / 音视频 / PDF  
-3. **2** Input 后端契约 → 画布与暂停表单 → `tpl_login_captcha_manual` + 节点文档  
+1. **1a** 前端 `responseMediaPreview`（JSON / `data:` / URL）→ 覆盖验证码图 — **已完成**
+2. **1b** 调试转发 `bodyEncoding` / `bodyBase64` → 裸二进制图 / 音视频 / PDF — **已完成**
+3. **2** Input 后端契约 → 画布与暂停表单 → `tpl_login_captcha_manual` + 节点文档 — **未开工**
 
-**验收草稿：** API 调试可见 captcha 图；可选验证 `video/*` 或 JSON 视频 URL；Run「取图 HTTP → Input → 登录」→ 上一步看图 → 填码 → 探活成功。
+**验收草稿：** API 调试可见 captcha 图；可选验证 `video/*` 或 JSON 视频 URL；Run「取图 HTTP → Input → 登录」→ 上一步看图 → 填码 → 探活成功（后半依赖阶段 2）。
 
 ---
 
@@ -213,6 +218,10 @@ Run HTTP Inspector：本阶段以步骤内已有 JSON/文本 body 为主（必�
 | 区域 | 路径 |
 |------|------|
 | 调试转发 | `qualitest-system/.../DebugHttpForwardServiceImpl.java` |
+| 转发结果 DTO | `qualitest-system/.../DebugHttpForwardResult.java`（含 `bodyEncoding` / `bodyBase64`） |
+| Run bodyMedia | `qualitest-system/.../HttpResponseBodyMediaSupport.java` |
+| 媒体识别 | `qualitest-ui/.../utils/responseMediaPreview.ts` |
+| 媒体预览组件 | `qualitest-ui/.../components/ResponseMediaPreview/index.vue` |
 | 暂停状态 | `qualitest-system/.../RunExecutionState.java` |
 | 续跑参数 | `qualitest-system/.../ResumeTestFlowRunParams.java` |
 | 节点枚举 | `qualitest-system/.../FlowNodeType.java` |

@@ -1,7 +1,7 @@
 import axios from 'axios'
 import FormData from 'form-data'
 import https from 'node:https'
-import {TransportErrorCode, classifyNodeNetError} from '@qualitest/transport-types'
+import {TransportErrorCode, classifyNodeNetError, mediaMimeFromContentType} from '@qualitest/transport-types'
 
 /**
  * @param {string} backendBase
@@ -94,7 +94,7 @@ export async function executeDebugHttp(payload) {
   const method = (payload.method || 'GET').toUpperCase()
   const url = payload.url
   if (!url || typeof url !== 'string') {
-    return {error: '缺少 url', errorCode: TransportErrorCode.POLICY, status: null, headers: {}, bodyText: ''}
+    return {error: '缺少 url', errorCode: TransportErrorCode.POLICY, status: null, headers: {}, bodyText: '', bodyEncoding: 'text', bodyBase64: null}
   }
 
   const headers = pairsToHeaders(payload.headers)
@@ -122,13 +122,16 @@ export async function executeDebugHttp(payload) {
     const max = 8 * 1024 * 1024
     const truncated = buf.length > max
     const slice = truncated ? buf.subarray(0, max) : buf
-    const bodyText = decodeBodyPreview(slice, headers['content-type'] || res.headers['content-type'])
+    const responseCt = String(res.headers['content-type'] || '')
+    const preview = decodeBodyPreview(slice, responseCt, buf.length)
 
     return {
       status: res.status,
       statusText: res.statusText,
       headers: flattenHeaders(res.headers),
-      bodyText: truncated ? `${bodyText}\n\n… 响应体已截断（>${max} 字节）` : bodyText,
+      bodyText: truncated ? `${preview.bodyText}\n\n… 响应体已截断（>${max} 字节）` : preview.bodyText,
+      bodyEncoding: preview.bodyEncoding,
+      bodyBase64: preview.bodyBase64,
       error: null,
       errorCode: null
     }
@@ -140,18 +143,31 @@ export async function executeDebugHttp(payload) {
       statusText: '',
       headers: {},
       bodyText: '',
+      bodyEncoding: 'text',
+      bodyBase64: null,
       error: msg,
       errorCode: code
     }
   }
 }
 
-function decodeBodyPreview(buf, contentType) {
-  const ct = (contentType || '').toLowerCase()
-  if (ct.includes('json') || ct.includes('text') || ct.includes('xml') || ct.includes('javascript')) {
-    return buf.toString('utf8')
+/**
+ * @returns {{ bodyText: string, bodyEncoding: string, bodyBase64: string|null }}
+ */
+function decodeBodyPreview(buf, contentType, originalLength) {
+  const mime = mediaMimeFromContentType(contentType)
+  if (mime) {
+    return {
+      bodyText: `[binary ${mime} · ${originalLength} bytes]`,
+      bodyEncoding: 'base64',
+      bodyBase64: buf.toString('base64')
+    }
   }
-  return buf.toString('utf8')
+  return {
+    bodyText: buf.toString('utf8'),
+    bodyEncoding: 'text',
+    bodyBase64: null
+  }
 }
 
 function pairsToHeaders(pairs) {

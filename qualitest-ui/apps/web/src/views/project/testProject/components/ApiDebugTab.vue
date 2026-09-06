@@ -447,6 +447,12 @@
               </button>
             </nav>
             <div v-show="activeRespTab === 'body'" class="debug-resp-panel">
+              <ResponseMediaPreview
+                  :body-base64="debugResponse.bodyBase64"
+                  :body-encoding="debugResponse.bodyEncoding"
+                  :body-text="debugResponse.bodyText"
+                  :headers="debugResponse.headers"
+              />
               <el-input
                   :model-value="debugResponse.bodyText"
                   :rows="12"
@@ -707,6 +713,7 @@ import BodyJsonSchemaTree from './BodyJsonSchemaTree.vue'
 import DebugKvSheet from './DebugKvSheet.vue'
 import DebugParamTypeCell from './DebugParamTypeCell.vue'
 import ApiScriptWorkbench from '@/components/script/ApiScriptWorkbench.vue'
+import ResponseMediaPreview from '@/components/ResponseMediaPreview/index.vue'
 import {
   SCHEMA_JSON_BODY_TYPES,
   buildExampleFromSchemaDefaults,
@@ -851,22 +858,7 @@ const binaryFileInputRef = ref(null)
 const activeBodyJsonSubTab = ref('schema')
 const draftPreRequestScript = ref('')
 const draftPostRequestScript = ref('')
-const debugResponse = ref({
-  sent: false,
-  ok: false,
-  status: null,
-  statusText: '',
-  headers: {},
-  bodyText: '',
-  error: null,
-  errorCode: null,
-  corsHint: null,
-  durationMs: null,
-  preScriptError: null,
-  postScriptError: null,
-  scriptLogs: [],
-  scriptTests: []
-})
+const debugResponse = ref(createEmptyDebugResponse())
 const debugSending = ref(false)
 const apiDebugSaving = ref(false)
 
@@ -1172,19 +1164,29 @@ function resetDebugWorkbench() {
   activeRespTab.value = 'body'
 }
 
-function resetDebugResponse() {
-  debugResponse.value = {
+function createEmptyDebugResponse() {
+  return {
     sent: false,
     ok: false,
     status: null,
     statusText: '',
     headers: {},
     bodyText: '',
+    bodyEncoding: 'text',
+    bodyBase64: '',
     error: null,
     errorCode: null,
     corsHint: null,
-    durationMs: null
+    durationMs: null,
+    preScriptError: null,
+    postScriptError: null,
+    scriptLogs: [],
+    scriptTests: []
   }
+}
+
+function resetDebugResponse() {
+  debugResponse.value = createEmptyDebugResponse()
 }
 
 /** 保存前剥离 KV 行上的 UI 专用字段（_enabled、exampleValue 等），不入库 */
@@ -1432,22 +1434,7 @@ async function handleDebugSend() {
     environment: buildEnvironmentMap()
   }
   debugSending.value = true
-  debugResponse.value = {
-    sent: false,
-    ok: false,
-    status: null,
-    statusText: '',
-    headers: {},
-    bodyText: '',
-    error: null,
-    errorCode: null,
-    corsHint: null,
-    durationMs: null,
-    preScriptError: null,
-    postScriptError: null,
-    scriptLogs: [],
-    scriptTests: []
-  }
+  debugResponse.value = createEmptyDebugResponse()
   try {
     const preScript = draftPreRequestScript.value ?? props.apiDetail?.preRequestScript ?? ''
     const preOutcome = await runPreScript(preScript, sendBuilt, scriptSession)
@@ -1482,6 +1469,8 @@ async function handleDebugSend() {
       statusText: result.statusText || '',
       headers: result.headers || {},
       bodyText: result.bodyText,
+      bodyEncoding: result.bodyEncoding || 'text',
+      bodyBase64: result.bodyBase64 || '',
       error: result.error,
       errorCode: result.errorCode,
       corsHint: result.corsHint || null,

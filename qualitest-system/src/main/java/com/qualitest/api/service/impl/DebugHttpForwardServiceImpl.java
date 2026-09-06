@@ -9,6 +9,7 @@ import com.qualitest.api.service.IDebugHttpForwardService;
 import com.qualitest.api.util.ApiImportMatchSupport;
 import com.qualitest.api.util.AuthHeaderResolver;
 import com.qualitest.api.util.DebugForwardUrlPolicy;
+import com.qualitest.api.util.MediaContentTypes;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
@@ -412,7 +413,8 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
         byte[] slice = truncated ? java.util.Arrays.copyOf(bytes, MAX_RESPONSE_BYTES) : bytes;
 
         String contentType = response.headers().firstValue("content-type").orElse("");
-        String bodyText = decodeBodyPreview(slice, contentType);
+        BodyPreview preview = decodeBodyPreview(slice, contentType, bytes.length);
+        String bodyText = preview.bodyText();
         if (truncated) {
             bodyText = bodyText + "\n\n… 响应体已截断（>" + MAX_RESPONSE_BYTES + " 字节）";
         }
@@ -432,15 +434,25 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
                 response.statusCode(),
                 "",
                 respHeaders,
-                bodyText);
+                bodyText,
+                preview.bodyEncoding(),
+                preview.bodyBase64());
     }
 
-    private static String decodeBodyPreview(byte[] buf, String contentType) {
-        String ct = contentType != null ? contentType.toLowerCase(Locale.ROOT) : "";
-        if (ct.contains("json") || ct.contains("text") || ct.contains("xml") || ct.contains("javascript")) {
-            return new String(buf, StandardCharsets.UTF_8);
+    private record BodyPreview(String bodyText, String bodyEncoding, String bodyBase64) {
+    }
+
+    private static BodyPreview decodeBodyPreview(byte[] buf, String contentType, int originalLength) {
+        String mime = MediaContentTypes.mediaMime(contentType);
+        if (mime != null) {
+            String b64 = Base64.getEncoder().encodeToString(buf);
+            String hint = "[binary " + mime + " · " + originalLength + " bytes]";
+            return new BodyPreview(hint, DebugHttpForwardResult.BODY_ENCODING_BASE64, b64);
         }
-        return new String(buf, StandardCharsets.UTF_8);
+        return new BodyPreview(
+                new String(buf, StandardCharsets.UTF_8),
+                DebugHttpForwardResult.BODY_ENCODING_TEXT,
+                null);
     }
 
     private static Map<String, String> pairsToMap(List<HeaderPair> pairs) {

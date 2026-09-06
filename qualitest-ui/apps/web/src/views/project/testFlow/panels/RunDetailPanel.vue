@@ -134,6 +134,11 @@
               <div style="margin-bottom:4px;color:var(--pd-text-muted)">请求</div>
               <pre>{{ JSON.stringify(currentStep.http.request, null, 2) }}</pre>
               <div style="margin:8px 0 4px;color:var(--pd-text-muted)">响应</div>
+              <ResponseMediaPreview
+                  :body="currentStep.http.response?.body"
+                  :body-media="currentStep.http.response?.bodyMedia"
+                  :headers="currentStep.http.response?.headers || {}"
+              />
               <pre>{{ JSON.stringify(currentStep.http.response, null, 2) }}</pre>
             </template>
           </template>
@@ -150,6 +155,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { resumeTestFlowRun } from '@/api/project/testFlowRun'
+import ResponseMediaPreview from '@/components/ResponseMediaPreview/index.vue'
 import { formatAssertRuleWithActual } from '../utils/nodeDataUtils'
 import { toGraphJson } from '../graphAdapter'
 import { isGraphStructurallyStale } from '../utils/graphFingerprint'

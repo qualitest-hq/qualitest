@@ -17,6 +17,7 @@ import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
+import com.qualitest.flow.http.HttpResponseBodyMediaSupport;
 import com.qualitest.flow.http.HttpStepDetailsDesensitizer;
 import com.qualitest.flow.http.StatusCheckResolver;
 import com.qualitest.flow.http.SuccessCheckResolver;
@@ -170,7 +171,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
 
         return buildHttpStepResult(ctx, node, incomingEdgeId, nodeName, data, built, durationMs,
-                status, responseHeaders, body, preScriptResult, postScriptResult, effectiveApi);
+                status, responseHeaders, body, forwardResult, preScriptResult, postScriptResult, effectiveApi);
     }
 
     private StepResult executeExternal(FlowRunContext ctx, GraphNode node, String incomingEdgeId,
@@ -236,7 +237,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
 
         return buildHttpStepResult(ctx, node, incomingEdgeId, nodeName, data, built, durationMs,
-                status, responseHeaders, body, preScriptResult, postScriptResult, null);
+                status, responseHeaders, body, forwardResult, preScriptResult, postScriptResult, null);
     }
 
     private StepResult buildHttpStepResult(
@@ -244,6 +245,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             Map<String, Object> data,
             FlowHttpRequestBuilder.BuiltHttpRequest built, long durationMs,
             int status, Map<String, Object> responseHeaders, Object body,
+            DebugHttpForwardResult forwardResult,
             ApiScriptExecutionResult preScriptResult,
             ApiScriptExecutionResult postScriptResult,
             TestProjectApi api) {
@@ -270,6 +272,10 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         responseSnapshot.put("status", status);
         responseSnapshot.put("headers", responseHeaders);
         responseSnapshot.put("body", body);
+        Map<String, Object> bodyMedia = HttpResponseBodyMediaSupport.buildMarker(forwardResult);
+        if (bodyMedia != null) {
+            responseSnapshot.put("bodyMedia", bodyMedia);
+        }
         httpDetails.put("response", responseSnapshot);
         httpDetails.put("durationMs", durationMs);
         if (preScriptResult != null) {
