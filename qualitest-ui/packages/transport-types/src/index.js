@@ -48,7 +48,7 @@ export function classifyAxiosOrNetworkError(err) {
 }
 
 /**
- * Node/Electron 主进程网络错误分类（与 TransportErrorCode 对齐）
+ * Node/Electron 主进程网络错误分类，返回 TransportErrorCode 常量值。
  * @param {string} msg
  * @returns {string}
  */
@@ -67,7 +67,9 @@ export function classifyNodeNetError(msg) {
 }
 
 /**
- * 可预览媒体 Content-Type → 规范化 MIME；非媒体返回 null
+ * 判断 Content-Type 是否为可预览媒体，并返回规范化 MIME（去掉 charset 等）。
+ * 支持 image/*、video/*、audio/*、application/pdf；否则返回 null。
+ *
  * @param {string|null|undefined} contentType
  * @returns {string|null}
  */

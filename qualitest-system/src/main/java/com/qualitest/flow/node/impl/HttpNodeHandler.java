@@ -272,6 +272,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         responseSnapshot.put("status", status);
         responseSnapshot.put("headers", responseHeaders);
         responseSnapshot.put("body", body);
+        // 裸媒体：只写 bodyMedia 元数据（stored=false），不落 bodyBase64
         Map<String, Object> bodyMedia = HttpResponseBodyMediaSupport.buildMarker(forwardResult);
         if (bodyMedia != null) {
             responseSnapshot.put("bodyMedia", bodyMedia);

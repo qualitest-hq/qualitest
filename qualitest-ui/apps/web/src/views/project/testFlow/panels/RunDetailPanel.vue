@@ -134,6 +134,7 @@
               <div style="margin-bottom:4px;color:var(--pd-text-muted)">请求</div>
               <pre>{{ JSON.stringify(currentStep.http.request, null, 2) }}</pre>
               <div style="margin:8px 0 4px;color:var(--pd-text-muted)">响应</div>
+              <!-- 媒体预览：JSON 内嵌图等可渲染；裸媒体仅 bodyMedia 时显示未保存提示 -->
               <ResponseMediaPreview
                   :body="currentStep.http.response?.body"
                   :body-media="currentStep.http.response?.bodyMedia"

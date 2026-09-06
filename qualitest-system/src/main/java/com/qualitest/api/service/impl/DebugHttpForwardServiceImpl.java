@@ -407,6 +407,9 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
         return out;
     }
 
+    /**
+     * 组装成功转发结果：按 Content-Type 区分文本与媒体，媒体填 bodyBase64。
+     */
     private DebugHttpForwardResult buildSuccessResult(HttpResponse<byte[]> response) {
         byte[] bytes = response.body() != null ? response.body() : new byte[0];
         boolean truncated = bytes.length > MAX_RESPONSE_BYTES;
@@ -439,9 +442,17 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
                 preview.bodyBase64());
     }
 
+    /** 解码后的响应体预览：文本原文，或媒体短提示 + Base64 */
     private record BodyPreview(String bodyText, String bodyEncoding, String bodyBase64) {
     }
 
+    /**
+     * 按 Content-Type 解码响应体切片。
+     * 媒体类型：bodyText 为短提示，bodyEncoding=base64，填充 bodyBase64；
+     * 其它：UTF-8 文本，bodyEncoding=text。
+     *
+     * @param originalLength 截断前的完整字节数（用于提示文案）
+     */
     private static BodyPreview decodeBodyPreview(byte[] buf, String contentType, int originalLength) {
         String mime = MediaContentTypes.mediaMime(contentType);
         if (mime != null) {

@@ -447,6 +447,7 @@
               </button>
             </nav>
             <div v-show="activeRespTab === 'body'" class="debug-resp-panel">
+              <!-- Body 上方：自动识别图/音视频/PDF 并预览，下方文本保留 -->
               <ResponseMediaPreview
                   :body-base64="debugResponse.bodyBase64"
                   :body-encoding="debugResponse.bodyEncoding"
@@ -1164,6 +1165,7 @@ function resetDebugWorkbench() {
   activeRespTab.value = 'body'
 }
 
+/** 调试面板右侧「返回响应」的初始空状态（含 bodyEncoding / bodyBase64） */
 function createEmptyDebugResponse() {
   return {
     sent: false,
@@ -1172,7 +1174,9 @@ function createEmptyDebugResponse() {
     statusText: '',
     headers: {},
     bodyText: '',
+    /** text | base64；裸媒体为 base64 */
     bodyEncoding: 'text',
+    /** 裸媒体 Base64，供 Body 区上方预览 */
     bodyBase64: '',
     error: null,
     errorCode: null,

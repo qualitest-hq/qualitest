@@ -88,7 +88,10 @@ function flattenHeaders(h) {
 }
 
 /**
- * @param {object} payload debugHttpRequest payload from renderer
+ * 桌面端调试 HTTP：以 arraybuffer 收取响应，按 Content-Type 输出文本或媒体 Base64。
+ * 返回字段含 bodyText、bodyEncoding（text|base64）、bodyBase64（仅媒体）。
+ *
+ * @param {object} payload debugHttpRequest 入参
  */
 export async function executeDebugHttp(payload) {
   const method = (payload.method || 'GET').toUpperCase()
@@ -152,6 +155,10 @@ export async function executeDebugHttp(payload) {
 }
 
 /**
+ * 将响应字节解码为预览结构。
+ * 媒体：bodyText 为短提示，bodyEncoding=base64，填充 bodyBase64；
+ * 其它：UTF-8 文本，bodyEncoding=text。
+ *
  * @returns {{ bodyText: string, bodyEncoding: string, bodyBase64: string|null }}
  */
 function decodeBodyPreview(buf, contentType, originalLength) {

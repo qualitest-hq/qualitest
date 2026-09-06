@@ -4,7 +4,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * HTTP 响应媒体 Content-Type 识别（调试转发与 Run bodyMedia 共用）。
+ * 判断 HTTP 响应 Content-Type 是否为可预览媒体，并解析 MIME / 媒体种类。
+ * <p>
+ * 支持：{@code image/*}、{@code video/*}、{@code audio/*}、{@code application/pdf}。
  */
 public final class MediaContentTypes {
 
@@ -12,7 +14,9 @@ public final class MediaContentTypes {
     }
 
     /**
-     * @return 规范化 MIME（无参数）；非可预览媒体返回 null
+     * 从 Content-Type 取可预览媒体的主 MIME（去掉 charset 等参数）。
+     *
+     * @return 如 {@code image/png}；非媒体或空则 null
      */
     public static String mediaMime(String contentType) {
         if (contentType == null || contentType.isBlank()) {
@@ -29,7 +33,9 @@ public final class MediaContentTypes {
     }
 
     /**
-     * @return image / video / audio / pdf；无法识别返回 null
+     * MIME → 媒体种类字符串。
+     *
+     * @return {@code image} / {@code video} / {@code audio} / {@code pdf}；无法识别则 null
      */
     public static String kindFromMime(String mime) {
         String m = mime != null ? mime.toLowerCase(Locale.ROOT) : "";
@@ -48,7 +54,11 @@ public final class MediaContentTypes {
         return null;
     }
 
-    /** 从响应头取 Content-Type 主类型 */
+    /**
+     * 从响应头 Map 读取 Content-Type 主类型（小写、无参数）。
+     *
+     * @return 如 {@code image/png}；没有则 null
+     */
     public static String contentTypeFromHeaders(Map<String, String> headers) {
         if (headers == null || headers.isEmpty()) {
             return null;

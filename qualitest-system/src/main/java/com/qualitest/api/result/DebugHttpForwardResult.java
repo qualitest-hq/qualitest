@@ -10,7 +10,10 @@ import java.io.Serializable;
 import java.util.Map;
 
 /**
- * API 调试 HTTP 转发响应（与前端 debugTransport 约定对齐）
+ * API 调试 HTTP 转发的响应结果。
+ * <p>
+ * 文本/JSON 响应只填 {@code bodyText}；图、音视频、PDF 等裸二进制响应额外填
+ * {@code bodyEncoding=base64} 与 {@code bodyBase64}，{@code bodyText} 改为短提示。
  */
 @Data
 @Builder
@@ -21,23 +24,40 @@ public class DebugHttpForwardResult implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 文本编码常量 */
+    /** 响应体按 UTF-8 文本处理 */
     public static final String BODY_ENCODING_TEXT = "text";
-    /** Base64 编码常量（媒体二进制） */
+    /** 响应体为媒体二进制，以 Base64 给出 */
     public static final String BODY_ENCODING_BASE64 = "base64";
 
+    /** 是否已向目标 URL 发起转发（策略拒绝时为 false） */
     private boolean forwarded;
+    /** 目标 HTTP 状态码 */
     private Integer status;
+    /** 状态短语 */
     private String statusText;
+    /** 目标响应头（已去掉 hop-by-hop） */
     private Map<String, String> responseHeaders;
+    /**
+     * 文本预览：JSON/纯文本为原文；媒体二进制为
+     * {@code [binary image/png · N bytes]} 一类提示，截断时追加说明。
+     */
     private String bodyText;
-    /** text | base64；媒体响应为 base64 */
+    /**
+     * 响应体编码方式：{@code text} 或 {@code base64}。
+     * 媒体 Content-Type（image/video/audio/application/pdf）时为 base64。
+     */
     private String bodyEncoding;
-    /** bodyEncoding=base64 时的响应体切片 */
+    /**
+     * 媒体响应体的 Base64（可能已按上限截断）；文本路径为 null。
+     * 供前端拼 data URL 做预览。
+     */
     private String bodyBase64;
+    /** 转发失败或策略错误信息；成功为 null */
     private String error;
+    /** 错误分类码，如 POLICY、TIMEOUT */
     private String errorCode;
 
+    /** 策略拒绝：未真正转发 */
     public static DebugHttpForwardResult policyError(String message) {
         return DebugHttpForwardResult.builder()
                 .forwarded(false)
@@ -52,14 +72,17 @@ public class DebugHttpForwardResult implements Serializable {
                 .build();
     }
 
+    /** 成功响应（纯文本 / JSON） */
     public static DebugHttpForwardResult success(int status, String statusText,
                                                  Map<String, String> headers, String bodyText) {
         return success(status, statusText, headers, bodyText, BODY_ENCODING_TEXT, null);
     }
 
     /**
+     * 成功响应。
+     *
      * @param bodyEncoding text 或 base64
-     * @param bodyBase64   媒体响应的 Base64；文本路径传 null
+     * @param bodyBase64   媒体字节的 Base64；文本路径传 null
      */
     public static DebugHttpForwardResult success(int status, String statusText,
                                                  Map<String, String> headers, String bodyText,
@@ -77,6 +100,7 @@ public class DebugHttpForwardResult implements Serializable {
                 .build();
     }
 
+    /** 已转发但目标侧或网络出错 */
     public static DebugHttpForwardResult forwardError(String message, String errorCode, Integer status) {
         return DebugHttpForwardResult.builder()
                 .forwarded(true)

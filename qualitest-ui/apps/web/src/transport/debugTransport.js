@@ -16,6 +16,9 @@ for (const bag of [debugAxios.defaults.headers?.post, debugAxios.defaults.header
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
 /**
+ * 发起 API 调试请求（browser / java-forward / electron）。
+ * 成功时返回 status、headers、bodyText，以及可选的 bodyEncoding / bodyBase64（裸媒体）。
+ *
  * @param {object} built
  * @param {string} built.fullUrl
  * @param {string} built.method
@@ -287,8 +290,13 @@ function headerValue(headers, name) {
 }
 
 /**
+ * 浏览器直连：将 arraybuffer 响应解码为调试预览结构。
+ * 媒体类型输出 bodyEncoding=base64 + bodyBase64；文本/JSON 输出 UTF-8（JSON 会 pretty-print）。
+ * 超过 MAX_RESPONSE_BYTES 时截断并在 bodyText 追加说明。
+ *
  * @param {ArrayBuffer|Uint8Array|null|undefined} data
  * @param {string} contentType
+ * @returns {{ bodyText: string, bodyEncoding: string, bodyBase64: string|null }}
  */
 function decodeArrayBufferPreview(data, contentType) {
   const bytes = toUint8Array(data)
@@ -310,7 +318,7 @@ function decodeArrayBufferPreview(data, contentType) {
   }
 
   let text = new TextDecoder('utf-8').decode(slice)
-  // JSON 时 pretty-print，便于调试与媒体字段识别
+  // JSON pretty-print，便于阅读与识别内嵌媒体字段
   const trimmed = text.trim()
   if (
     (trimmed.startsWith('{') && trimmed.endsWith('}')) ||

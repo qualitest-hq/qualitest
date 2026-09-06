@@ -12,16 +12,16 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 HttpResponseBodyMediaSupport：媒体响应元数据标识（不落 bodyBase64）。
- * 边界：纯函数；文本路径返回 null。
+ * 测 HttpResponseBodyMediaSupport：裸媒体响应写出 bodyMedia 元数据（不存媒体字节）。
+ * 边界：纯函数；文本/JSON 返回 null。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpResponseBodyMediaSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class HttpResponseBodyMediaSupportTest {
 
     /**
-     * 前提：转发结果 bodyEncoding=base64，CT=image/png，bodyText 含 binary 提示。
-     * 期望：bodyMedia.kind=image，stored=false，bytes 解析正确。
+     * 前提：bodyEncoding=base64，Content-Type=image/png，bodyText 含 [binary …] 提示。
+     * 期望：kind=image，stored=false，bytes 从提示解析为 1234。
      */
     @Test
     @Order(1)
@@ -43,8 +43,8 @@ class HttpResponseBodyMediaSupportTest {
     }
 
     /**
-     * 前提：JSON 文本转发结果。
-     * 期望：不写 bodyMedia。
+     * 前提：application/json 文本响应。
+     * 期望：返回 null（不生成 bodyMedia）。
      */
     @Test
     @Order(2)
@@ -58,7 +58,7 @@ class HttpResponseBodyMediaSupportTest {
     }
 
     /**
-     * 前提：媒体响应且 bodyText 含截断提示。
+     * 前提：PDF 媒体响应且 bodyText 含「响应体已截断」。
      * 期望：truncated=true。
      */
     @Test

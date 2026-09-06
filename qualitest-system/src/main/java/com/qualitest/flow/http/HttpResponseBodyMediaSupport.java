@@ -9,10 +9,23 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 从调试转发结果构造 Run 步骤 {@code http.response.bodyMedia}（不落媒体本体）。
+ * 为测试流 Run 步骤构造 {@code http.response.bodyMedia} 元数据。
+ * <p>
+ * 仅当响应为裸媒体（{@code bodyEncoding=base64}）时写出标识，
+ * 不把媒体字节写入步骤详情。JSON 内嵌 base64（如验证码 {@code img} 字段）不生成此对象。
+ * <p>
+ * 字段含义：
+ * <ul>
+ *   <li>{@code kind} — image / video / audio / pdf</li>
+ *   <li>{@code mime} — 如 image/png</li>
+ *   <li>{@code bytes} — 原始字节数（能解析时）</li>
+ *   <li>{@code stored} — 固定 false，表示未落库媒体本体</li>
+ *   <li>{@code truncated} — 响应是否被截断</li>
+ * </ul>
  */
 public final class HttpResponseBodyMediaSupport {
 
+    /** 匹配 bodyText 中的 {@code [binary image/png · 1234 bytes]} 提示 */
     private static final Pattern BINARY_HINT = Pattern.compile(
             "\\[binary\\s+([^\\s]+)\\s+·\\s+(\\d+)\\s+bytes]",
             Pattern.CASE_INSENSITIVE);
@@ -21,7 +34,7 @@ public final class HttpResponseBodyMediaSupport {
     }
 
     /**
-     * 媒体响应且未落库时返回元数据；文本/JSON 返回 null。
+     * 从转发结果生成 bodyMedia；非裸媒体返回 null。
      */
     public static Map<String, Object> buildMarker(DebugHttpForwardResult forwardResult) {
         if (forwardResult == null) {

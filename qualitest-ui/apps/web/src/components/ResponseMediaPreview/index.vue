@@ -41,20 +41,36 @@
 </template>
 
 <script setup>
-/** HTTP 响应媒体预览：可渲染媒体，或展示 Run 步骤 bodyMedia.stored=false 说明 */
+/**
+ * HTTP 响应媒体预览面板。
+ * 能识别出图/音视频/PDF/外链时直接渲染；
+ * 若仅有 bodyMedia 且 stored=false（裸媒体未落库），显示「mime · N bytes（未保存预览）」。
+ * 无媒体时不渲染任何内容。
+ */
 import { computed } from 'vue'
 import { resolveResponseMediaPreview } from '@/utils/responseMediaPreview'
 
 const props = defineProps({
+  /** 已解析的响应 body（对象或字符串） */
   body: { type: [Object, Array, String, Number, Boolean], default: undefined },
+  /** 响应体文本 */
   bodyText: { type: String, default: '' },
+  /** 响应头 */
   headers: { type: Object, default: () => ({}) },
+  /** 裸媒体 Base64 */
   bodyBase64: { type: String, default: '' },
+  /** text | base64 */
   bodyEncoding: { type: String, default: '' },
+  /**
+   * Run 步骤中的媒体元数据。
+   * stored===false 时表示识别到媒体但未保存字节，用于展示提示文案。
+   */
   bodyMedia: { type: Object, default: null },
+  /** 是否截断 */
   truncated: { type: Boolean, default: false }
 })
 
+/** 可渲染的预览描述；无则 null */
 const preview = computed(() =>
   resolveResponseMediaPreview({
     body: props.body,
@@ -66,6 +82,7 @@ const preview = computed(() =>
   })
 )
 
+/** 裸媒体未落库时的一行说明；有可渲染预览时不使用 */
 const omittedLabel = computed(() => {
   const meta = props.bodyMedia
   if (!meta || typeof meta !== 'object' || meta.stored !== false) {

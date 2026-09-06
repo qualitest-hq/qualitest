@@ -516,8 +516,8 @@ class HttpNodeHandlerTest {
     }
 
     /**
-     * 前提：Mock 返回裸 image/png（bodyEncoding=base64），不落 bodyBase64。
-     * 期望：http.response.bodyMedia.stored=false，kind=image。
+     * 前提：HTTP 节点收到 Content-Type=image/png 且 bodyEncoding=base64。
+     * 期望：步骤 http.response.bodyMedia.stored=false、kind=image；响应中无 bodyBase64 字段。
      */
     @Test
     @Order(20)
