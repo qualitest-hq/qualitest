@@ -410,6 +410,16 @@
       width="720px"
       @closed="resetImportDialog"
     >
+      <div class="tpl-import-hint">
+        没有现成 JSON？可先
+        <el-tooltip
+          content="复制给 AI 的生成说明，贴到任意助手即可产出可导入的模板 JSON"
+          placement="top"
+        >
+          <el-button link type="primary" @click="copyAiPrompt">复制提示词</el-button>
+        </el-tooltip>
+        让 AI 生成后再粘贴到下方
+      </div>
       <el-input
         v-model="importJsonText"
         :rows="18"
@@ -426,7 +436,6 @@
         >
           <el-button>选择文件</el-button>
         </el-upload>
-        <el-button @click="copyAiPrompt">复制提示词</el-button>
         <el-checkbox v-model="importOverwrite">同名则覆盖自定义模板</el-checkbox>
       </div>
       <div v-if="importWarnings.length" class="tpl-import-warnings">
@@ -907,6 +916,17 @@ onActivated(tryRestoreDraft)
 .tpl-op-tip-wrap {
   display: inline-flex;
   vertical-align: middle;
+}
+
+.tpl-import-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 2px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
 }
 
 .tpl-import-actions {
