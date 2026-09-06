@@ -319,7 +319,7 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 <summary>更多文档</summary>
 
 - [部署说明](./docs/deploy.md) · [产品概念](./docs/project-summary.md) · [FAQ](./docs/faq.md)
-- [测试流节点](./docs/test-flow-nodes.md) · [MCP](./docs/mcp.md)
+- [测试流节点](./docs/test-flow-nodes.md) · [MCP](./docs/mcp.md) · [项目模板](./docs/project-template.md)
 - [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)
 - [English README](./README.en.md)
 

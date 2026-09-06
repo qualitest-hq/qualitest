@@ -2,7 +2,7 @@
 
 > **状态：方案稿（未实现）**  
 > 背景：若依类 `/captchaImage` 可作免登接口种子，但开验证码时登录链缺「看图」与「人手填码」能力。  
-> 相关：[`test-flow-nodes.md`](./test-flow-nodes.md)、[`项目模板快速配置方案.md`](./项目模板快速配置方案.md)、子流 `tpl_login_captcha`（外联打码）。
+> 相关：[`test-flow-nodes.md`](./test-flow-nodes.md)、[`project-template.md`](./project-template.md)（用法）/ [`project-template/`](./project-template/)（契约）、子流 `tpl_login_captcha`（外联打码）。
 
 ---
 
