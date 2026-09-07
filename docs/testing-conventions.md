@@ -243,7 +243,7 @@ Java 加载 classpath 资源（`/flow/...`）；共享 flow 夹具权威目录�
 
 给 AI 的提示可直接贴：
 
-> 按 `docs/测试编写约定.md` 写测试：一个用例一个故事；命名可读；AAA 结构；断言对准行为；类头三件套；每条用例写「前提 + 期望」（简单场景也要）；Java 用 `@TestMethodOrder` + `@Order`；不要为覆盖率测私有实现。
+> 按 `docs/testing-conventions.md` 写测试：一个用例一个故事；命名可读；AAA 结构；断言对准行为；类头三件套；每条用例写「前提 + 期望」（简单场景也要）；Java 用 `@TestMethodOrder` + `@Order`；不要为覆盖率测私有实现。
 
 ---
 

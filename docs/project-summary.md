@@ -168,7 +168,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | [全面测试手册.md](./全面测试手册.md) | T1→T3 验收与 §F/§G |
 | [mcp.md](./mcp.md) | MCP Token 与只读工具 |
 | [deploy.md](./deploy.md) | 部署 / Compose |
-| [测试编写约定.md](./测试编写约定.md) | 工程测试约定 |
+| [testing-conventions.md](./testing-conventions.md) | 工程测试约定 |
 | [质衡开源与工程路线图.md](./质衡开源与工程路线图.md) | 排期与待办 |
 | [Demo AI 提示集](../../qualitest-demo/docs/ai-test-flow-prompts.md) | 靶场造流提示正文 |
 

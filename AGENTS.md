@@ -4,7 +4,7 @@
 
 ## 写 / 改测试时
 
-先阅读并遵循：**[docs/测试编写约定.md](./docs/测试编写约定.md)**  
+先阅读并遵循：**[docs/testing-conventions.md](./docs/testing-conventions.md)**  
 （JUnit / Vitest；可读命名、AAA、断言对行为；生成代码必审。）
 
 ## 其它常用入口

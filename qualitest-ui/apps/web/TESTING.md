@@ -1,6 +1,6 @@
 # 前端测试说明（qualitest-ui · apps/web）
 
-编写约定以主仓 **[docs/测试编写约定.md](../../../docs/测试编写约定.md)** 为准（类/文件头三件套、每条 `it` 写「前提 + 期望」、中文标题、AAA、断言对行为）。本文只补运行方式与 flow 夹具对齐。
+编写约定以主仓 **[docs/testing-conventions.md](../../../docs/testing-conventions.md)** 为准（类/文件头三件套、每条 `it` 写「前提 + 期望」、中文标题、AAA、断言对行为）。本文只补运行方式与 flow 夹具对齐。
 
 测试统一放在 `src/test/`（按领域分子目录），被测源码在 `src/utils/`、`src/views/` 等。
 

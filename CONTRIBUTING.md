@@ -49,7 +49,7 @@ GitHub 上「New issue」可选表单（Bug / 想法 / 提问）；空白 Issue 
 ## 代码与文档（宽松约定）
 
 跟着现有风格走即可：后端是 Spring Boot 多模块，前端是 Vue 3 + Element Plus。用户可见文案以中文为主。行为有变时，顺手改一下 README 或对应 `docs/` 就行——不必为贡献专门写长文档。  
-新增/大改单测时，请参考 [`docs/测试编写约定.md`](./docs/测试编写约定.md)（测试也是给人看的）。各类 AI 助手可先看根目录 [`AGENTS.md`](./AGENTS.md)。
+新增/大改单测时，请参考 [`docs/testing-conventions.md`](./docs/testing-conventions.md)（测试也是给人看的）。各类 AI 助手可先看根目录 [`AGENTS.md`](./AGENTS.md)。
 
 ## 许可证
 
