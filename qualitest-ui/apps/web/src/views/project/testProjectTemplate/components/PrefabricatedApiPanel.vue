@@ -895,8 +895,8 @@ defineExpose({ flushAndValidate })
   }
 
   &__tree {
-    flex: 0 0 220px;
-    max-width: 280px;
+    flex: 0 0 300px;
+    max-width: 300px;
     display: flex;
     flex-direction: column;
     gap: 8px;
