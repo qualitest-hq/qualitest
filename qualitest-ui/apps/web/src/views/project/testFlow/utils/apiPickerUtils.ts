@@ -7,7 +7,7 @@ export interface FlatApiItem {
   groupPath: string;
 }
 
-/** 将项目 API 树节点递归展平为可选接口列表 */
+/** 将项目 API 树节点递归展平为可选接口列表（优先节点完整 groupPath，避免嵌套只留末级名） */
 export function flattenApiTree(nodes: unknown[], groupPath = ''): FlatApiItem[] {
   const out: FlatApiItem[] = [];
   (nodes || []).forEach((raw) => {
@@ -21,7 +21,8 @@ export function flattenApiTree(nodes: unknown[], groupPath = ''): FlatApiItem[] 
         groupPath: groupPath || String(n.groupPath || '未分组'),
       });
     } else if (Array.isArray(n.children) && n.children.length) {
-      const g = String(n.label || n.groupName || groupPath);
+      const segment = String(n.groupPath || n.label || n.groupName || '').trim();
+      const g = segment || groupPath;
       out.push(...flattenApiTree(n.children as unknown[], g));
     }
   });

@@ -810,7 +810,7 @@ CREATE TABLE `sys_menu`
     `remark`      varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '备注',
     PRIMARY KEY (`menu_id`) USING BTREE
 ) ENGINE = InnoDB
-  AUTO_INCREMENT = 2062
+  AUTO_INCREMENT = 2063
   CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_general_ci COMMENT = '菜单权限表'
   ROW_FORMAT = Dynamic;
@@ -951,6 +951,7 @@ INSERT INTO `sys_menu` VALUES (2058, 'AI 提示词模板修改', 2055, 3, '#', '
 INSERT INTO `sys_menu` VALUES (2059, 'AI 提示词模板删除', 2055, 4, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'ai:aiPromptTemplate:remove', '#', 'admin', '2026-07-04 21:17:56', '', NULL, '');
 INSERT INTO `sys_menu` VALUES (2060, 'AI 提示词模板导出', 2055, 5, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'ai:aiPromptTemplate:export', '#', 'admin', '2026-07-04 21:17:56', '', NULL, '');
 INSERT INTO `sys_menu` VALUES (2061, '项目模板删除', 2026, 4, '#', NULL, NULL, '', 1, 0, 'F', '0', '0', 'project:testProjectTemplate:remove', '#', 'admin', '2026-08-18 00:00:00', '', NULL, '');
+INSERT INTO `sys_menu` VALUES (2062, '项目模板导出', 2026, 5, '#', NULL, NULL, '', 1, 0, 'F', '0', '0', 'project:testProjectTemplate:export', '#', 'admin', '2026-09-09 00:00:00', '', NULL, '');
 
 -- ----------------------------
 -- Table structure for sys_notice
@@ -1139,6 +1140,7 @@ INSERT INTO `sys_role_menu` VALUES (2, 2027);
 INSERT INTO `sys_role_menu` VALUES (2, 2028);
 INSERT INTO `sys_role_menu` VALUES (2, 2029);
 INSERT INTO `sys_role_menu` VALUES (2, 2061);
+INSERT INTO `sys_role_menu` VALUES (2, 2062);
 
 -- ----------------------------
 -- Table structure for sys_user

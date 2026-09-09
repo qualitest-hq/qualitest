@@ -82,15 +82,13 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const testFlowId = ref('');
   const testProjectId = ref('');
   const flowName = ref('');
-  /** 画布上下文：模板预制流时为 template */
+  /** 画布上下文：project=测试项目流；template=项目模板预制流（只读浏览） */
   const canvasMode = ref<FlowCanvasMode>('project');
-  /** 模板模式下由 templateApis 合成的接口目录（供 Http 配置 / Staging 富化） */
+  /** 模板模式下由 templateApis 合成的接口目录（供 Http 配置展示绑定） */
   const templateApiCatalog = ref<TemplateApiCatalogEntry[]>([]);
   const templateApiTree = ref<unknown[]>([]);
   /** 模板模式下 templateParams + templateEnvs 水合（flow/env/asset 预览，不请求项目变量接口） */
   const templateParamContext = ref<TemplateParamContext | null>(null);
-  /** 模板查看态：禁止保存 */
-  const templateReadOnly = ref(false);
   /** 项目 auth_config JSON 字符串，供画布解析双端凭证变量 */
   const projectAuthConfig = ref('');
   const dirty = ref(false);
@@ -187,7 +185,6 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     templateApiCatalog.value = [];
     templateApiTree.value = [];
     templateParamContext.value = null;
-    templateReadOnly.value = false;
     projectAuthConfig.value = '';
     dirty.value = false;
     loading.value = false;
@@ -391,6 +388,10 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     }
   }
 
+  /**
+   * 切入模板预制流画布：标记 canvasMode=template（只读权限据此生效），
+   * 并挂上合成后的接口树/目录供 HTTP 节点展示绑定。
+   */
   function setTemplateApiContext(tree: unknown[], catalog: TemplateApiCatalogEntry[]) {
     canvasMode.value = 'template';
     templateApiTree.value = tree;
@@ -427,7 +428,6 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     templateApiCatalog,
     templateApiTree,
     templateParamContext,
-    templateReadOnly,
     projectAuthConfig,
     dirty,
     loading,

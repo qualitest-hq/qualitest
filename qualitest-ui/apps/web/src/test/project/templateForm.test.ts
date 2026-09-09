@@ -248,6 +248,8 @@ describe('validateApis / synthesize', () => {
     ])
 
     expect(catalog.map((c) => c.syntheticId)).toEqual(['2100000000000004101', '2100000000000004104'])
+    // 空分组落入「默认分组」
+    expect(tree[0].groupName).toBe('默认分组')
     expect(tree[0].children[0].testProjectApiId).toBe('2100000000000004101')
   })
 })

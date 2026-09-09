@@ -22,8 +22,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 精简冷启动模板 → 可入库的 TestProjectTemplate。
- * 展开接口、素材、环境、matchConfig；templateFlows / templatePrompts 固定为空数组。
+ * 精简冷启动 JSON → 可入库的 TestProjectTemplate。
+ *
+ * 会展开：接口、素材、环境、路径匹配（matchConfig）。
+ * 不会生成：templateFlows、templatePrompts（固定写成 []）。
+ * 若 JSON 里带了非空 flows，只进 warnings，不落库。
+ * 需要登录流时：在测试项目配好流后「另存为项目模板」，或导入带 flows 的完整包。
  */
 @Component
 public class ProjectTemplateSlimExpander {
@@ -32,17 +36,18 @@ public class ProjectTemplateSlimExpander {
     private static final Set<String> AUTH_STYLES = Set.of("bearer", "session", "header", "none", "custom");
 
     /**
-     * 校验精简包并展开。
-     * 非法必填项抛业务异常；flows / _uncertain 等只进 warnings。
+     * 校验并展开精简包。
+     * 缺必填或非法取值抛业务异常；flows、_uncertain 等只进 warnings / summary.note。
      */
     public ExpandResult expand(SlimTemplate slim) {
         if (slim == null) {
             throw new ServiceException("模板 JSON 不能为空");
         }
         List<String> warnings = new ArrayList<>();
+        // 精简包故意不落流：提示调用方去另存，而不是在模板管理里画流
         if (slim.getFlows() != null && !slim.getFlows().isNull()
                 && !(slim.getFlows().isArray() && slim.getFlows().isEmpty())) {
-            warnings.add("flows 已忽略：导入不生成预制测试流，请导入后在画布配置");
+            warnings.add("flows 已忽略：导入不生成预制测试流；登录流请从跑通项目另存为模板");
         }
         if (slim.getUncertain() != null) {
             for (String item : slim.getUncertain()) {
@@ -93,7 +98,8 @@ public class ProjectTemplateSlimExpander {
         summary.put("envCount", countEnvs(slim));
         summary.put("flowCount", 0);
         summary.put("authStyle", authStyle);
-        summary.put("note", "未生成预制测试流，请导入后在画布配置");
+        // 给导入预览用：说明本次没生成预制流
+        summary.put("note", "未生成预制测试流；登录流请从跑通项目另存为模板");
 
         Map<String, Object> preview = result.getPreview();
         preview.put("templateName", templateName);

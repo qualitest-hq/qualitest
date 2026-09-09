@@ -14,7 +14,10 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * 项目模板列表 / 详情查询结果（给前端与导出用）。
+ * 项目模板 Result 对象
+ *
+ * @author qualitest
+ * @since 2026-09-09
  */
 @Getter
 @Setter

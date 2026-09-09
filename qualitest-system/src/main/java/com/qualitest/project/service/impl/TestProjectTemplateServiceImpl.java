@@ -16,9 +16,10 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 项目模板业务。
- * 内置模板只读可克隆；自定义模板可改可删；名称在未删除范围内唯一。
- * 保存时预制接口必填；预制参数 / 预制测试流缺省写成 []。
+ * 项目模板Service业务层处理
+ *
+ * @author qualitest
+ * @date 2026-09-09
  */
 @Service
 public class TestProjectTemplateServiceImpl implements ITestProjectTemplateService {
@@ -29,29 +30,106 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         this.testProjectTemplateMapper = testProjectTemplateMapper;
     }
 
+    /**
+     * 查询项目模板列表
+     *
+     * @param testProjectTemplate 项目模板
+     * @return 项目模板
+     */
     @Override
-    public List<TestProjectTemplate> selectTestProjectTemplateList(TestProjectTemplate entity) {
-        return testProjectTemplateMapper.selectTestProjectTemplateList(entity);
+    public List<TestProjectTemplate> selectTestProjectTemplateList(TestProjectTemplate testProjectTemplate) {
+        return testProjectTemplateMapper.selectTestProjectTemplateList(testProjectTemplate);
     }
 
+    /**
+     * 查询项目模板
+     *
+     * @param testProjectTemplateId 项目模板主键
+     * @return 项目模板
+     */
     @Override
     public TestProjectTemplate selectTestProjectTemplateById(Long testProjectTemplateId) {
         return testProjectTemplateMapper.selectTestProjectTemplateById(testProjectTemplateId);
     }
 
+    /**
+     * 查询项目模板Result列表
+     *
+     * @param params 项目模板Params
+     * @return 项目模板Result集合
+     */
     @Override
     public List<TestProjectTemplateResult> selectTestProjectTemplateResultList(TestProjectTemplateParams params) {
         return testProjectTemplateMapper.selectTestProjectTemplateResultList(params);
     }
 
+    /**
+     * 获取项目模板详细信息
+     *
+     * @param testProjectTemplateId 项目模板主键
+     * @return 项目模板Result
+     */
     @Override
     public TestProjectTemplateResult selectTestProjectTemplateResult(Long testProjectTemplateId) {
         return testProjectTemplateMapper.selectTestProjectTemplateResult(testProjectTemplateId);
     }
 
+    /**
+     * 新增项目模板（管理端 CRUD：预制测试流强制为空）
+     *
+     * @param testProjectTemplate 项目模板
+     * @return 结果
+     */
     @Transactional(rollbackFor = Exception.class)
     @Override
-    public int insertTestProjectTemplate(TestProjectTemplate entity) {
+    public int insertTestProjectTemplate(TestProjectTemplate testProjectTemplate) {
+        return doInsert(testProjectTemplate, false);
+    }
+
+    /**
+     * 新增项目模板（完整包导入 / 另存：允许写入预制测试流）
+     *
+     * @param testProjectTemplate 项目模板
+     * @return 结果
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int insertTemplatePack(TestProjectTemplate testProjectTemplate) {
+        return doInsert(testProjectTemplate, true);
+    }
+
+    /**
+     * 修改项目模板（管理端 CRUD：保留库内预制测试流）
+     *
+     * @param testProjectTemplate 项目模板
+     * @return 结果
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int updateTestProjectTemplate(TestProjectTemplate testProjectTemplate) {
+        return doUpdate(testProjectTemplate, false);
+    }
+
+    /**
+     * 修改项目模板（完整包同名覆盖：允许改写预制测试流）
+     *
+     * @param testProjectTemplate 项目模板
+     * @return 结果
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int updateTemplatePack(TestProjectTemplate testProjectTemplate) {
+        return doUpdate(testProjectTemplate, true);
+    }
+
+    /**
+     * 新增落库
+     *
+     * @param entity     项目模板
+     * @param allowFlows true 保留实体上的预制流；false 强制 templateFlows=[]
+     * @return 结果
+     */
+    private int doInsert(TestProjectTemplate entity, boolean allowFlows) {
         if (entity == null) {
             throw new ServiceException("模板不能为空");
         }
@@ -65,6 +143,9 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         if (entity.getDelStatus() == null) {
             entity.setDelStatus(0);
         }
+        if (!allowFlows) {
+            entity.setTemplateFlows("[]");
+        }
         validateWritable(entity, null);
         if (Objects.isNull(entity.getTestProjectTemplateId())) {
             entity.setTestProjectTemplateId(IdUtil.getSnowflakeNextId());
@@ -73,9 +154,14 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         return testProjectTemplateMapper.insertTestProjectTemplate(entity);
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    @Override
-    public int updateTestProjectTemplate(TestProjectTemplate entity) {
+    /**
+     * 修改落库
+     *
+     * @param entity     项目模板
+     * @param allowFlows true 用请求体预制流覆盖；false 写回库内原 templateFlows
+     * @return 结果
+     */
+    private int doUpdate(TestProjectTemplate entity, boolean allowFlows) {
         if (entity == null || entity.getTestProjectTemplateId() == null) {
             throw new ServiceException("模板不存在");
         }
@@ -86,21 +172,36 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         if (entity.getBuiltinStatus() != null && entity.getBuiltinStatus() == 1) {
             throw new ServiceException("不可将自定义模板标记为内置");
         }
+        if (!allowFlows) {
+            entity.setTemplateFlows(existing.getTemplateFlows());
+        }
         validateWritable(entity, existing.getTestProjectTemplateId());
         entity.setUpdateTime(DateUtils.getNowDate());
         return testProjectTemplateMapper.updateTestProjectTemplate(entity);
     }
 
+    /**
+     * 批量删除项目模板
+     *
+     * @param testProjectTemplateIdList 需要删除的项目模板主键集合
+     * @return 结果
+     */
     @Transactional(rollbackFor = Exception.class)
     @Override
-    public int deleteTestProjectTemplateByIdList(List<Long> idList) {
-        if (idList == null || idList.isEmpty()) {
+    public int deleteTestProjectTemplateByIdList(List<Long> testProjectTemplateIdList) {
+        if (testProjectTemplateIdList == null || testProjectTemplateIdList.isEmpty()) {
             return 0;
         }
-        assertCustomDeletable(idList);
-        return testProjectTemplateMapper.deleteTestProjectTemplateByIdList(idList);
+        assertCustomDeletable(testProjectTemplateIdList);
+        return testProjectTemplateMapper.deleteTestProjectTemplateByIdList(testProjectTemplateIdList);
     }
 
+    /**
+     * 删除项目模板信息
+     *
+     * @param testProjectTemplateId 项目模板主键
+     * @return 结果
+     */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int deleteTestProjectTemplateById(Long testProjectTemplateId) {
@@ -111,6 +212,12 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         return testProjectTemplateMapper.deleteTestProjectTemplateById(testProjectTemplateId);
     }
 
+    /**
+     * 逻辑删除项目模板信息
+     *
+     * @param testProjectTemplateId 项目模板主键
+     * @return 结果
+     */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int logicDeleteTestProjectTemplateById(Long testProjectTemplateId) {
@@ -121,34 +228,59 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         return testProjectTemplateMapper.logicDeleteTestProjectTemplateById(testProjectTemplateId);
     }
 
+    /**
+     * 批量逻辑删除项目模板信息
+     *
+     * @param testProjectTemplateIdList 项目模板主键集合
+     * @return 结果
+     */
     @Transactional(rollbackFor = Exception.class)
     @Override
-    public int logicDeleteTestProjectTemplateByIdList(List<Long> idList) {
-        if (idList == null || idList.isEmpty()) {
+    public int logicDeleteTestProjectTemplateByIdList(List<Long> testProjectTemplateIdList) {
+        if (testProjectTemplateIdList == null || testProjectTemplateIdList.isEmpty()) {
             return 0;
         }
-        assertCustomDeletable(idList);
-        return testProjectTemplateMapper.logicDeleteTestProjectTemplateByIdList(idList);
+        assertCustomDeletable(testProjectTemplateIdList);
+        return testProjectTemplateMapper.logicDeleteTestProjectTemplateByIdList(testProjectTemplateIdList);
     }
 
+    /**
+     * 查询项目模板数量
+     *
+     * @param params 项目模板Params
+     * @return 数量
+     */
     @Override
     public int selectTestProjectTemplateCount(TestProjectTemplateParams params) {
         return testProjectTemplateMapper.selectTestProjectTemplateCount(params);
     }
 
+    /**
+     * 按条件查询单条项目模板
+     *
+     * @param params 项目模板Params
+     * @return 项目模板
+     */
     @Override
     public TestProjectTemplate selectTestProjectTemplateOne(TestProjectTemplateParams params) {
         return testProjectTemplateMapper.selectTestProjectTemplateOne(params);
     }
 
+    /**
+     * 查询已启用且未删除的项目模板列表
+     *
+     * @return 项目模板Result集合
+     */
     @Override
     public List<TestProjectTemplateResult> selectEnabledList() {
         return testProjectTemplateMapper.selectEnabledTestProjectTemplateList();
     }
 
     /**
-     * 克隆模板为自定义副本。
-     * 复制路径匹配、预制接口、预制参数、预制环境、预制测试流、预制提示词；名称加「 (副本)」后缀并去重。
+     * 克隆为自定义项目模板
+     *
+     * @param testProjectTemplateId 源模板主键
+     * @return 新模板主键
      */
     @Transactional(rollbackFor = Exception.class)
     @Override
@@ -174,7 +306,12 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         return copy.getTestProjectTemplateId();
     }
 
-    /** 未删除才返回，否则抛「模板不存在」。 */
+    /**
+     * 按主键取未删除模板
+     *
+     * @param id 项目模板主键
+     * @return 项目模板
+     */
     private TestProjectTemplate requireExisting(Long id) {
         TestProjectTemplate existing = testProjectTemplateMapper.selectTestProjectTemplateById(id);
         if (existing == null || (existing.getDelStatus() != null && existing.getDelStatus() == 1)) {
@@ -183,13 +320,22 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         return existing;
     }
 
-    /** 存在且非内置才允许删除。 */
+    /**
+     * 断言可删除（内置不可删）
+     *
+     * @param id 项目模板主键
+     */
     private void assertCustomDeletable(Long id) {
         if (isBuiltin(requireExisting(id))) {
             throw new ServiceException("内置模板不可删除");
         }
     }
 
+    /**
+     * 断言集合均可删除
+     *
+     * @param idList 项目模板主键集合
+     */
     private void assertCustomDeletable(List<Long> idList) {
         for (Long id : idList) {
             assertCustomDeletable(id);
@@ -197,8 +343,10 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
     }
 
     /**
-     * 写入前校验：名称非空且未删范围内唯一；预制接口非空；
-     * 预制参数 / 预制环境 / 预制测试流 / 预制提示词为空时写成 []。不校验托管头（勾选进项目时再生成）。
+     * 写入前校验：名称唯一、预制接口非空；空 JSON 列补 []
+     *
+     * @param entity    项目模板
+     * @param excludeId 改名时排除自身主键，新增传 null
      */
     private void validateWritable(TestProjectTemplate entity, Long excludeId) {
         if (StrUtil.isBlank(entity.getTemplateName())) {
@@ -226,7 +374,12 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         }
     }
 
-    /** 生成克隆名称：原名 +「 (副本)」，重名则再加序号。 */
+    /**
+     * 生成克隆名称（原名 +「 (副本)」，冲突则加序号）
+     *
+     * @param sourceName 源模板名称
+     * @return 可用名称
+     */
     private String uniqueCloneName(String sourceName) {
         String base = StrUtil.blankToDefault(sourceName, "模板") + " (副本)";
         if (testProjectTemplateMapper.countByTemplateName(base, null) == 0) {
@@ -241,7 +394,12 @@ public class TestProjectTemplateServiceImpl implements ITestProjectTemplateServi
         return base + IdUtil.getSnowflakeNextIdStr();
     }
 
-    /** 是否内置模板。 */
+    /**
+     * 是否内置模板
+     *
+     * @param row 项目模板
+     * @return true 内置
+     */
     private boolean isBuiltin(TestProjectTemplate row) {
         return row != null && row.getBuiltinStatus() != null && row.getBuiltinStatus() == 1;
     }

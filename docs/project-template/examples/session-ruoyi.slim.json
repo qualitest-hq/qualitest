@@ -23,6 +23,7 @@
       "name": "登录",
       "method": "POST",
       "path": "/login",
+      "apiGroup": "管理端.系统.登录",
       "authMode": "none",
       "bodyMode": "json",
       "body": {
@@ -38,6 +39,7 @@
       "name": "获取用户信息",
       "method": "GET",
       "path": "/getInfo",
+      "apiGroup": "管理端.系统",
       "authMode": "inherit",
       "response": {
         "code": 200,

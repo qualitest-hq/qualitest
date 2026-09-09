@@ -128,6 +128,7 @@ import {
   HTTP_METHODS,
 } from '../utils/httpWorkbenchUtils'
 import { resolveCanvasApiDetail } from '../utils/resolveCanvasApiDetail'
+import { flattenApiTree } from '../utils/apiPickerUtils'
 import { updateSummary } from '../utils/nodeDataUtils'
 import { getMethodBadgeClass } from '../constants/flowConfig'
 
@@ -152,25 +153,6 @@ const activeTab = ref('headers')
 const apiSearch = ref('')
 const apiTree = ref([])
 const bodyPanelRef = ref(null)
-
-function flattenApiTree(nodes, groupPath = '') {
-  const out = []
-  ;(nodes || []).forEach((n) => {
-    if (n.nodeType === 'api' || n.testProjectApiId) {
-      out.push({
-        testProjectApiId: n.testProjectApiId,
-        apiName: n.apiName || n.label,
-        apiPath: n.apiPath,
-        httpMethod: n.httpMethod,
-        groupPath: groupPath || n.groupPath || '未分组',
-      })
-    } else if (n.children?.length) {
-      const g = n.label || n.groupName || groupPath
-      out.push(...flattenApiTree(n.children, g))
-    }
-  })
-  return out
-}
 
 const allApis = computed(() => flattenApiTree(apiTree.value))
 

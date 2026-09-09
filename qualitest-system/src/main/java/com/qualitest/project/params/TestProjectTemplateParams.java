@@ -12,7 +12,10 @@ import org.apache.ibatis.type.Alias;
 import java.io.Serializable;
 
 /**
- * 项目模板列表查询条件。
+ * 项目模板 Params 对象
+ *
+ * @author qualitest
+ * @since 2026-09-09
  */
 @Getter
 @Setter

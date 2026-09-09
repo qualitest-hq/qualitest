@@ -3,11 +3,11 @@
       :class="{ 'flow-canvas-page--fullscreen': isFullscreen }"
       class="flow-canvas-page"
   >
+    <!-- 复用测试流布局；模板模式下保存 / AI / 改图均不可用 -->
     <FlowCanvasLayout
         :is-fullscreen="isFullscreen"
         back-label="返回模板"
         @back="handleBack"
-        @save="handleSave"
         @toggle-fullscreen="toggleFullscreen"
     />
   </div>
@@ -15,8 +15,15 @@
 
 <script setup>
 /**
- * 项目模板预制测试流画布页。
- * 从图草稿桥加载/保存 graphJson，不写 test_flow 表；合成 templateApis 供 HTTP 绑定。
+ * 项目模板「预制测试流」画布页。
+ *
+ * 能力：
+ * - 只读浏览一条预制流的 graphJson（节点、边、探活/登录骨架等）
+ * - 用模板里的预制接口合成 HTTP 绑定目录，方便看清节点绑了哪个接口
+ * - 不落库、不写回模板的 templateFlows、不写 test_flow 表
+ *
+ * 数据从哪来：打开画布前模板抽屉把整份表单写入草稿；本页按路由 flowIndex 取对应流。
+ * 返回模板：只恢复打开前的表单草稿，流图本身不会被本页改掉。
  */
 import { getCurrentInstance, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -25,7 +32,7 @@ import { ElMessage } from 'element-plus'
 import useAppStore from '@/store/modules/app'
 
 import FlowCanvasLayout from '../testFlow/FlowCanvasLayout.vue'
-import { fromGraphJson, rehydrateCanvasSnapshot, toGraphJson } from '../testFlow/graphAdapter'
+import { fromGraphJson, rehydrateCanvasSnapshot } from '../testFlow/graphAdapter'
 import { useFlowHistory } from '../testFlow/composables/useFlowHistory'
 import { useProjectTabTitle } from '../testFlow/composables/useProjectTabTitle'
 import {
@@ -33,14 +40,10 @@ import {
   finalizeCanvasHistoryBaseline,
 } from '../testFlow/composables/useCanvasGraphHydration'
 import { useFlowCanvasStore } from '../testFlow/stores/flowCanvasStore'
-import { useAiStagingStore } from '../testFlow/stores/aiStagingStore'
-import { refreshSavedBaseline } from '../testFlow/utils/reconcileFlowDirty'
-import { validateGraphJson } from '@/utils/flow/graphValidate'
 
 import { useTemplateFlowDraftStore } from './stores/templateFlowDraftStore'
 import { synthesizeTemplateApiCatalog } from './utils/synthesizeTemplateApiTree'
-import { parseJsonMaybe, validateTemplateGraphApiBindings, partitionTemplateParams, mergeFlowSeedFromTemplateParams } from './utils/templateForm'
-import { ensureTemplateApiIds } from './utils/templateApiId'
+import { parseJsonMaybe, partitionTemplateParams, mergeFlowSeedFromTemplateParams } from './utils/templateForm'
 import {
   hydrateTemplateFlowGraph,
   isLoginFlowSkeleton,
@@ -53,7 +56,6 @@ const router = useRouter()
 const { proxy } = getCurrentInstance()
 const appStore = useAppStore()
 const store = useFlowCanvasStore()
-const stagingStore = useAiStagingStore()
 const draftStore = useTemplateFlowDraftStore()
 const { scheduleHistoryReset, resetHistory } = useFlowHistory()
 useProjectTabTitle(
@@ -62,9 +64,10 @@ useProjectTabTitle(
   () => String(store.flowName || '').trim(),
 )
 
+/** 全屏时撑满视口并隐藏侧栏占用感 */
 const isFullscreen = ref(false)
-const flowIndex = ref(0)
 
+/** 优先浏览器后退；否则关当前页签 */
 function leaveCanvas() {
   if (window.history.state?.back != null) {
     router.back()
@@ -77,50 +80,15 @@ function handleBack() {
   leaveCanvas()
 }
 
-async function handleSave() {
-  await store.ensureEdgesHydrated()
-  const graph = toGraphJson({
-    nodes: store.nodes,
-    edges: store.getEffectiveEdges(),
-    viewport: store.viewport,
-    runConfig: store.runConfig,
-    flowOutputs: store.flowOutputs,
-    stagingFilter: stagingStore.buildPersistFilter(),
-  })
-  const validation = validateGraphJson(graph)
-  if (!validation.ok) {
-    ElMessage.error(validation.errors[0] ?? '图校验失败')
-    return
-  }
-  const bindCheck = validateTemplateGraphApiBindings(graph, store.templateApiCatalog)
-  if (!bindCheck.ok) {
-    ElMessage.error(bindCheck.message)
-    return
-  }
-  const ok = draftStore.saveFlowGraph(flowIndex.value, graph, {
-    flowName: store.flowName,
-  })
-  if (!ok) {
-    ElMessage.error('草稿已失效，请返回模板重新打开')
-    return
-  }
-  await refreshSavedBaseline(store)
-  ElMessage.success('已写回模板草稿（请在模板页点确定后落库）')
-  leaveCanvas()
-}
-
 function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
   document.body.classList.toggle('fullscreen-detail-mode', isFullscreen.value)
 }
 
-function onBeforeUnload(event) {
-  if (!store.dirty) return
-  event.preventDefault()
-  event.returnValue = ''
-}
-
-/** 空 flowSeed 时灌入 templateParams 的 flow 初值（同名不覆盖） */
+/**
+ * 当前场景 flowSeed 为空字段时，用模板预制参数里 kind=flow 的初值填上。
+ * 只影响本页展示，不写回模板。
+ */
 function hydrateFlowSeedFromTemplateParams(templateParams) {
   const { flow } = partitionTemplateParams(templateParams)
   if (!flow.length) return
@@ -133,6 +101,7 @@ function hydrateFlowSeedFromTemplateParams(templateParams) {
   if (changed) scenario.flowSeed = seed
 }
 
+/** 灌入前裁成可再水合的节点快照（去掉运行态多余字段） */
 function stripNodeForDraft(node) {
   return {
     id: node.id,
@@ -142,6 +111,7 @@ function stripNodeForDraft(node) {
   }
 }
 
+/** 灌入前裁成可再水合的边快照 */
 function stripEdgeForDraft(edge) {
   const out = { id: edge.id, source: edge.source, target: edge.target }
   const label = edge.label != null ? String(edge.label).trim() : ''
@@ -150,13 +120,17 @@ function stripEdgeForDraft(edge) {
   return out
 }
 
-/** 灌入后 store.edges 可能仍在 pending，取当前可用边列表 */
+/**
+ * 取当前可用的边列表。
+ * 灌入过程中边可能还在 pendingEdges，尚未进 store.edges。
+ */
 function resolveLoadedEdges(adaptedEdges) {
   if (store.edges.length) return store.edges
   if (store.pendingEdges?.length) return store.pendingEdges
   return adaptedEdges
 }
 
+/** 把水合后的节点/边写回画布 store（边先走 pending，再由布局合并） */
 function applyHydratedGraphDraft(graphDraft) {
   const { nodes, edges } = rehydrateCanvasSnapshot(graphDraft.nodes, graphDraft.edges)
   store.setPendingEdges(edges)
@@ -165,44 +139,44 @@ function applyHydratedGraphDraft(graphDraft) {
   store.bumpStagingEdgeFlushToken()
 }
 
+/**
+ * 从草稿加载指定下标的预制流并渲染。
+ * 失败则提示并退回模板列表。
+ */
 async function initFromDraft() {
   const draft = draftStore.getDraft()
   const idx = Number(route.params.flowIndex)
-  flowIndex.value = Number.isFinite(idx) ? idx : 0
+  const flowIndex = Number.isFinite(idx) ? idx : 0
   if (!draft?.form) {
     ElMessage.error('未找到模板草稿，请从模板编辑页打开画布')
     router.replace('/project/testProjectTemplate')
     return
   }
   const flows = Array.isArray(draft.form.templateFlows) ? draft.form.templateFlows : []
-  if (flowIndex.value < 0 || flowIndex.value >= flows.length) {
+  if (flowIndex < 0 || flowIndex >= flows.length) {
     ElMessage.error('预制流下标无效')
     router.replace('/project/testProjectTemplate')
     return
   }
 
   store.reset()
-  store.templateReadOnly = draft.dialogMode === 'view'
-  const { apis: ensuredApis, changed: apisChanged } = ensureTemplateApiIds(draft.form.templateApis || [])
-  if (apisChanged) {
-    draftStore.patchForm({ templateApis: ensuredApis })
-    draft.form.templateApis = ensuredApis
-  }
-  const { tree, catalog } = synthesizeTemplateApiCatalog(ensuredApis)
+  // 合成 HTTP 接口树/目录，供节点展示绑定关系；不改草稿里的 templateApis
+  const { tree, catalog } = synthesizeTemplateApiCatalog(draft.form.templateApis || [])
   store.setTemplateApiContext(tree, catalog)
   store.setTemplateParamContext(draft.form.templateParams || [], draft.form.templateEnvs || [])
 
-  const flow = flows[flowIndex.value] || {}
+  const flow = flows[flowIndex] || {}
   const templateId = String(draft.templateId || 'new')
-  // 合成会话锚点，供 AI designMode=template 使用（非真实项目/流 id）
+  // 模板画布没有真实项目/流主键；占位 id 仅作会话锚点
   store.testProjectId = ''
-  store.testFlowId = `tpl-${templateId}-${flowIndex.value}`
-  store.flowName = String(flow.flowName || '').trim() || `预制流 ${flowIndex.value + 1}`
+  store.testFlowId = `tpl-${templateId}-${flowIndex}`
+  store.flowName = String(flow.flowName || '').trim() || `预制流 ${flowIndex + 1}`
 
   store.loading = true
   store.beginCanvasHydration()
   try {
     const rawGraph = parseJsonMaybe(flow.graphJson) ?? flow.graphJson ?? null
+    // 登录骨架缺边时补全，避免只读浏览断线
     if (rawGraph && typeof rawGraph === 'object' && !Array.isArray(rawGraph)) {
       rawGraph.edges = recoverLoginFlowEdgesIfMissing(rawGraph.nodes, rawGraph.edges)
     }
@@ -212,23 +186,12 @@ async function initFromDraft() {
       nodes: store.nodes.map(stripNodeForDraft),
       edges: resolveLoadedEdges(adapted.edges).map(stripEdgeForDraft),
     }
-    const hydrated = hydrateTemplateFlowGraph(graphDraft, catalog)
-    if (hydrated) {
+    // 补齐 HTTP 节点与预制接口的展示字段（名称、method 等）
+    if (hydrateTemplateFlowGraph(graphDraft, catalog)) {
       await applyHydratedGraphDraft(graphDraft)
     }
     if (isLoginFlowSkeleton(store.nodes)) {
       store.viewport = { ...LOGIN_FLOW_VIEWPORT }
-    }
-    if (hydrated) {
-      const graph = toGraphJson({
-        nodes: store.nodes,
-        edges: store.getEffectiveEdges(),
-        viewport: store.viewport,
-        runConfig: store.runConfig,
-        flowOutputs: store.flowOutputs,
-        stagingFilter: stagingStore.buildPersistFilter(),
-      })
-      draftStore.saveFlowGraph(flowIndex.value, graph, { flowName: store.flowName })
     }
     hydrateFlowSeedFromTemplateParams(draft.form.templateParams || [])
     store.markClean()
@@ -249,12 +212,10 @@ async function initFromDraft() {
 
 onMounted(() => {
   appStore.toggleSideBarHide(true)
-  window.addEventListener('beforeunload', onBeforeUnload)
   initFromDraft()
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('beforeunload', onBeforeUnload)
   appStore.toggleSideBarHide(false)
   document.body.classList.remove('fullscreen-detail-mode')
   store.reset()

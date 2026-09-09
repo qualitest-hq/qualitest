@@ -1,25 +1,23 @@
 <template>
+  <!--
+    预制测试流列表：只读。
+    不能在此新增、删除或改图；有流时只能「查看画布」。
+  -->
   <div class="tpl-prefab-section prefab-flow-panel">
     <div class="tpl-prefab-section__head">
       <span class="tpl-prefab-section__title">预制测试流</span>
-      <div v-if="!readOnly" class="tpl-prefab-section__actions">
-        <el-button icon="Plus" size="small" type="primary" @click="handleAdd">新增</el-button>
-        <el-button :disabled="selectedIndex < 0" icon="Delete" size="small" @click="handleRemove">删除</el-button>
-      </div>
     </div>
     <div class="tpl-prefab-section__body">
-      <p v-if="!readOnly" class="tpl-prefab-section__hint">
-        勾选时种子到项目；登录流的抽取会派生托管头。
+      <p class="tpl-prefab-section__hint">
+        仅查看。预制流来自「项目另存为模板」或完整包导入；勾选模板时种子到项目，登录流抽取会派生托管头。
       </p>
       <el-table
         v-if="rows.length"
         :data="rows"
         border
         class="tpl-prefab-section__table"
-        highlight-current-row
         row-key="_index"
         size="small"
-        @current-change="onCurrentChange"
       >
         <el-table-column label="流名称" min-width="160" prop="flowName" show-overflow-tooltip />
         <el-table-column label="说明" min-width="220" prop="description" show-overflow-tooltip>
@@ -30,7 +28,7 @@
         <el-table-column align="center" label="操作" width="100">
           <template #default="scope">
             <el-button link type="primary" @click.stop="openCanvas(scope.row._index)">
-              {{ readOnly ? '查看画布' : '打开画布' }}
+              查看画布
             </el-button>
           </template>
         </el-table-column>
@@ -39,7 +37,7 @@
         v-else
         :class="readOnly ? 'tpl-prefab-section__empty--compact' : 'tpl-prefab-section__empty'"
         :image-size="48"
-        description="可选：登录等测试流，勾选模板时种子到项目"
+        description="暂无预制流；请从跑通登录的项目另存为模板，或导入含 flows 的完整包"
       />
     </div>
   </div>
@@ -47,27 +45,33 @@
 
 <script setup>
 /**
- * 预制测试流面板：编辑 templateFlows。
- * 主操作「打开画布」进入完整画布；小 Dialog 已去掉，避免双通道。
+ * 模板抽屉内的预制测试流面板。
+ *
+ * 展示 form.templateFlows；不提供增删改。
+ * 「查看画布」把当前流下标交给父组件，由父组件跳转只读画布页。
+ *
+ * 预制流内容从哪里来：测试项目「另存为项目模板」，或导入带 templateFlows 的完整包。
+ * 管理端新增/编辑模板不会在此造流。
  */
-import { computed, ref, watch } from 'vue'
-import { emptyPrefabFlow, parseFlows } from '../utils/templateForm'
+import { computed } from 'vue'
+import { parseFlows } from '../utils/templateForm'
 
-const props = defineProps({
-  /** 同模板预制接口，供画布合成 API 树（由父级写入草稿）。 */
-  templateApis: { type: Array, default: () => [] },
-  /** 内置模板查看时只读。 */
+defineProps({
+  /**
+   * 整份模板抽屉是否只读（例如内置模板「查看」）。
+   * 只影响空态样式；流列表本身无论是否只读都不能改。
+   */
   readOnly: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['open-canvas', 'update:templateApis'])
+const emit = defineEmits(['open-canvas'])
 
+/** 双向绑定：父级 form.templateFlows 数组 */
 const list = defineModel({ type: Array, default: () => [] })
-
-const selectedIndex = ref(-1)
 
 const flows = computed(() => parseFlows(list.value))
 
+/** 表格行：下标 + 名称 + 说明 */
 const rows = computed(() =>
   flows.value.map((flow, index) => ({
     _index: index,
@@ -76,41 +80,9 @@ const rows = computed(() =>
   })),
 )
 
-watch(
-  () => list.value,
-  () => {
-    if (selectedIndex.value >= flows.value.length) selectedIndex.value = -1
-  },
-)
-
-function commit(next) {
-  list.value = next
-}
-
-function handleAdd() {
-  const created = emptyPrefabFlow(props.templateApis)
-  const { ensuredApis, ...flow } = created
-  const next = [...flows.value, flow]
-  commit(next)
-  if (ensuredApis?.length) {
-    emit('update:templateApis', ensuredApis)
-  }
-  openCanvas(next.length - 1)
-}
-
-function handleRemove() {
-  if (selectedIndex.value < 0) return
-  const next = flows.value.filter((_, i) => i !== selectedIndex.value)
-  selectedIndex.value = -1
-  commit(next)
-}
-
-function onCurrentChange(row) {
-  selectedIndex.value = row?._index ?? -1
-}
-
+/** 通知父组件打开第 index 条流的只读画布 */
 function openCanvas(index) {
-  emit('open-canvas', { flowIndex: index, readOnly: props.readOnly })
+  emit('open-canvas', { flowIndex: index })
 }
 </script>
 

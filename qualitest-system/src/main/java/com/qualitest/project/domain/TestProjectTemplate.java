@@ -13,11 +13,10 @@ import org.apache.ibatis.type.Alias;
 import java.io.Serial;
 
 /**
- * 项目模板（表 test_project_template）。
- * <p>
- * 一行模板描述一套可勾选进项目的鉴权与预制资产：
- * 预制接口（必填）、预制参数（可选，主路径 asset）、预制环境（可选）、预制测试流（可选）、预制 AI 提示词（可选）。
- * 不存托管请求头；勾选进项目时由系统根据预制测试流里的抽取规则生成头与凭证规则。
+ * 项目模板对象 test_project_template
+ *
+ * @author qualitest
+ * @date 2026-09-09
  */
 @Getter
 @Setter

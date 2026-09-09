@@ -46,6 +46,7 @@
       "name": "登录",
       "method": "POST",
       "path": "/login",
+      "apiGroup": "管理端.系统.登录",
       "authMode": "none",
       "bodyMode": "json",
       "headers": {
@@ -65,6 +66,7 @@
       "name": "获取用户信息",
       "method": "GET",
       "path": "/getInfo",
+      "apiGroup": "管理端.系统",
       "authMode": "inherit",
       "response": {
         "code": 200,
@@ -139,7 +141,8 @@
 - `assets`：对象 map，不是数组
 - `env`：可含 `envUrl`、`variables`（简易 map）
 - `apis[]`：必填 `name` / `method` / `path`；建议 `authMode`、`body`、`response`；可选 `bodyMode`（默认 json）、`headers`、`query`
-- **不要**输出 `flows`、`role`、`$schemaVersion`；预制测试流在导入质衡后于画布配置
+- **`apiGroup`（建议填写）**：接口目录路径，用英文点号 `.` 表示多级，如 `"管理端.系统.登录"` / `"客户端.认证"`；导入后会按路径展开为分组树，勾选进项目时也会按同规则建目录。同一端内尽量统一前缀（如管理端都用 `管理端.…`）。省略则落入「默认分组」。**不要**单独输出目录数组；没有独立文件夹字段。
+- **不要**输出 `flows`、`role`、`$schemaVersion`；预制测试流请在跑通项目后「另存为项目模板」，或导入含 flows 的完整包（精简包导入不生成流）
 
 ## 硬性要求
 
@@ -150,3 +153,4 @@
 5. 根据真实 `response` 结构填写 `credential.extract`（如 `$.token` 或 `$.data.token`）。
 6. 单端：输出**一个** JSON 对象；多端：多个 JSON 对象，用 `---` 分隔。JSON 必须 **2 空格缩进排版**，放在 markdown 的 json 代码块中；**禁止**单行压缩。枚举结论可简短，不要长文解释。
 7. 不确定 token 路径或是否还有其它端时，在对应对象加 `"_uncertain": ["extract"]` 或 `"_uncertain": ["authSides"]`。
+8. 每条 `apis[]` **建议**带 `apiGroup` 点号路径，便于导入后目录归类；勿编造与端无关的深层空目录。

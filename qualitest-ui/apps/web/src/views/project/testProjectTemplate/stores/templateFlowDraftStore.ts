@@ -1,23 +1,33 @@
 /**
- * 模板预制流画布草稿桥：未点「确定」落库前，表单态经 Pinia + sessionStorage 与画布往返。
- * 画布只改 templateFlows[i].graphJson（及可选 flowName），回模板页再合并进抽屉表单。
+ * 模板抽屉 ↔ 预制流只读画布 的草稿桥。
+ *
+ * 打开画布前：把整份未提交表单写入 Pinia + sessionStorage，避免跳转丢表单。
+ * 画布页：只读加载 templateFlows[flowIndex].graphJson，不写回流图。
+ * 返回抽屉：用草稿恢复表单与对话框模式（新增/编辑/查看），再由用户点「确定」才落库其它字段。
  */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+/** sessionStorage 键；换结构时改版本号以免读到坏数据 */
 const STORAGE_KEY = 'qualitest.templateFlowDraft.v2'
 
+/** 模板抽屉打开方式 */
 export type TemplateDialogMode = 'add' | 'edit' | 'view'
 
-/** 与模板抽屉表单对齐的可序列化草稿 */
+/**
+ * 可序列化草稿。
+ * form 形状跟模板抽屉表单一致，便于来回合并。
+ */
 export interface TemplateFlowDraft {
-  /** 模板主键；新建未保存时用 'new' */
+  /** 模板主键；尚未保存的新建模板用 'new' */
   templateId: string
+  /** 打开画布时的抽屉模式，返回时用来还原标题与是否可编辑其它字段 */
   dialogMode: TemplateDialogMode
-  /** 打开画布时对应的 templateFlows 下标 */
+  /** 当前查看的 templateFlows 下标 */
   flowIndex: number
-  /** 抽屉标题（回显用） */
+  /** 抽屉标题文案 */
   title?: string
+  /** 整份表单快照（含 templateApis / templateFlows 等） */
   form: {
     testProjectTemplateId?: string | number | null
     templateName?: string
@@ -37,8 +47,12 @@ export interface TemplateFlowDraft {
     }>
     [key: string]: unknown
   }
-  /** 画布保存后为 true，模板页应合并并保持抽屉打开 */
+  /**
+   * 是否曾被画布改过草稿。
+   * 当前预制流画布只读，不会置为 true；字段仍保留以免旧 session 解析报错。
+   */
   dirtyFromCanvas?: boolean
+  /** 最近写入时间戳 */
   updatedAt?: number
 }
 
@@ -46,6 +60,7 @@ function cloneDraft(draft: TemplateFlowDraft): TemplateFlowDraft {
   return JSON.parse(JSON.stringify(draft)) as TemplateFlowDraft
 }
 
+/** 从 sessionStorage 读草稿；结构不对则当没有 */
 function readSession(): TemplateFlowDraft | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
@@ -59,6 +74,7 @@ function readSession(): TemplateFlowDraft | null {
   }
 }
 
+/** 写入或清空 sessionStorage；配额满时静默忽略 */
 function writeSession(draft: TemplateFlowDraft | null) {
   try {
     if (!draft) {
@@ -67,19 +83,23 @@ function writeSession(draft: TemplateFlowDraft | null) {
     }
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
   } catch {
-    // ignore quota / private mode
+    // 隐私模式 / 配额：不影响主流程
   }
 }
 
 export const useTemplateFlowDraftStore = defineStore('templateFlowDraft', () => {
   const draft = ref<TemplateFlowDraft | null>(readSession())
 
+  /** 内存 + session 双写 */
   function persist(next: TemplateFlowDraft | null) {
     draft.value = next ? cloneDraft(next) : null
     writeSession(draft.value)
   }
 
-  /** 从模板抽屉打开画布前写入完整表单草稿 */
+  /**
+   * 跳转画布前调用：固化当前表单。
+   * 返回抽屉后据此还原，避免用户在抽屉里未点确定的编辑丢失。
+   */
   function openCanvas(input: Omit<TemplateFlowDraft, 'updatedAt' | 'dirtyFromCanvas'>) {
     persist({
       ...cloneDraft(input as TemplateFlowDraft),
@@ -88,6 +108,7 @@ export const useTemplateFlowDraftStore = defineStore('templateFlowDraft', () => 
     })
   }
 
+  /** 优先内存，否则回退 session（刷新画布页仍能加载） */
   function getDraft(): TemplateFlowDraft | null {
     if (draft.value) return cloneDraft(draft.value)
     const fromSession = readSession()
@@ -98,51 +119,14 @@ export const useTemplateFlowDraftStore = defineStore('templateFlowDraft', () => 
     return null
   }
 
-  /** 画布内联改草稿表单字段（如补齐 templateApis 合成 id） */
-  function patchForm(partial: Partial<TemplateFlowDraft['form']>) {
-    const current = getDraft()
-    if (!current) return false
-    persist({
-      ...current,
-      form: { ...current.form, ...partial },
-      updatedAt: Date.now(),
-    })
-    return true
-  }
-
-  /** 画布保存：写回指定下标的 graphJson（可选同步流名） */
-  function saveFlowGraph(
-    flowIndex: number,
-    graphJson: unknown,
-    meta?: { flowName?: string; description?: string },
-  ): boolean {
-    const current = getDraft()
-    if (!current) return false
-    const flows = [...(current.form.templateFlows || [])]
-    if (flowIndex < 0 || flowIndex >= flows.length) return false
-    const prev = flows[flowIndex] || {}
-    flows[flowIndex] = {
-      ...prev,
-      graphJson,
-      ...(meta?.flowName != null ? { flowName: meta.flowName } : {}),
-      ...(meta?.description != null ? { description: meta.description } : {}),
-    }
-    persist({
-      ...current,
-      form: { ...current.form, templateFlows: flows },
-      dirtyFromCanvas: true,
-      updatedAt: Date.now(),
-    })
-    return true
-  }
-
-  /** 模板页消费草稿后清除「来自画布」脏标记（草稿本身可保留到取消/提交） */
+  /** 抽屉消费完草稿后把脏标记清掉（有旧 session 时也能清） */
   function clearCanvasDirtyFlag() {
     const current = getDraft()
     if (!current) return
     persist({ ...current, dirtyFromCanvas: false })
   }
 
+  /** 取消抽屉或提交成功后清空，避免下次误用 */
   function clear() {
     persist(null)
   }
@@ -151,8 +135,6 @@ export const useTemplateFlowDraftStore = defineStore('templateFlowDraft', () => 
     draft,
     openCanvas,
     getDraft,
-    patchForm,
-    saveFlowGraph,
     clearCanvasDirtyFlag,
     clear,
   }

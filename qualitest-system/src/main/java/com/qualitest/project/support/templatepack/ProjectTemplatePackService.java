@@ -101,6 +101,8 @@ public class ProjectTemplatePackService {
     /**
      * 导入为自定义模板（builtinStatus=0）。
      * dryRun=true 只预览不写库；overwriteByName=true 时同名自定义模板做更新。
+     * 写库走 insertTemplatePack / updateTemplatePack，因此完整包里的 templateFlows 可以落库；
+     * 精简包展开后 flows 本就为空，不受影响。
      */
     @Transactional(rollbackFor = Exception.class)
     public PackOpResult importTemplate(ImportRequest request) {
@@ -122,10 +124,12 @@ public class ProjectTemplatePackService {
                 throw new ServiceException("模板名称已存在: " + entity.getTemplateName() + "（可设 overwriteByName=true）");
             }
             entity.setTestProjectTemplateId(existingId);
-            templateService.updateTestProjectTemplate(entity);
+            // 允许覆盖写预制流（完整包同名导入）
+            templateService.updateTemplatePack(entity);
             return toOpResult(existingId, resolved);
         }
-        templateService.insertTestProjectTemplate(entity);
+        // 允许写入预制流（完整包 / 另存）
+        templateService.insertTemplatePack(entity);
         return toOpResult(entity.getTestProjectTemplateId(), resolved);
     }
 

@@ -64,7 +64,7 @@ class ProjectTemplateSlimExpanderTest {
     @Order(2)
     @DisplayName("传入 flows 与 _uncertain 仅 warning")
     void expand_flowsAndUncertain_warnOnly() throws Exception {
-        // 前提：带 flows 与 _uncertain
+        // 前提：精简 JSON 误带了 flows，以及 _uncertain
         String json = """
                 {
                   "templateName": "Warn Demo",
@@ -79,10 +79,11 @@ class ProjectTemplateSlimExpanderTest {
 
         ExpandResult result = expander.expand(slim);
 
-        // 期望：不写流，warnings 含 flows 与 uncertain
+        // 期望：落库 flows 仍为空；warnings / note 提示去另存拿登录流
         assertEquals("[]", result.getEntity().getTemplateFlows());
-        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("flows")));
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("另存为模板")));
         assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("extract")));
+        assertTrue(String.valueOf(result.getExpandedSummary().get("note")).contains("另存为模板"));
     }
 
     @Test

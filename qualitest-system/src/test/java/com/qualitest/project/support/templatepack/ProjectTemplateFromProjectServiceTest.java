@@ -35,6 +35,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -130,8 +131,8 @@ class ProjectTemplateFromProjectServiceTest {
 
         // 期望：dryRun 无 id；preview 含 1 流 1 素材；图内 apiId 已非项目主键
         assertEquals("full", result.getKind());
-        assertEquals(null, result.getTestProjectTemplateId());
-        verify(templateService, never()).insertTestProjectTemplate(any());
+        assertNull(result.getTestProjectTemplateId());
+        verify(templateService, never()).insertTemplatePack(any());
         Map<String, Object> preview = result.getPreview();
         assertNotNull(preview);
         JsonNode previewNode = objectMapper.valueToTree(preview);
@@ -197,14 +198,14 @@ class ProjectTemplateFromProjectServiceTest {
     @Order(4)
     @DisplayName("非 dryRun 会 insert 自定义模板")
     void save_write_insertsTemplate() {
-        // 前提：dryRun=false；同名不存在
+        // 前提：dryRun=false；同名不存在；走可写流的 insertTemplatePack
         stubProject();
         when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of(loginApi()));
         when(testFlowService.selectTestFlowById(FLOW_ID)).thenReturn(loginFlow(LOGIN_API_ID));
         when(testProjectMapper.selectAssetVariablesByTestProjectId(PROJECT_ID)).thenReturn(
                 "[{\"id\":1,\"key\":\"adminAuth\",\"assets\":{\"username\":\"a\"}}]");
         when(templateMapper.selectTestProjectTemplateList(any())).thenReturn(List.of());
-        when(templateService.insertTestProjectTemplate(any())).thenAnswer(inv -> {
+        when(templateService.insertTemplatePack(any())).thenAnswer(inv -> {
             TestProjectTemplate entity = inv.getArgument(0);
             entity.setTestProjectTemplateId(555L);
             return 1;
@@ -218,10 +219,10 @@ class ProjectTemplateFromProjectServiceTest {
                 .dryRun(false)
                 .build());
 
-        // 期望：返回新模板 id，且 insert 被调用
+        // 期望：返回新模板 id；落库实体带登录流（另存允许写 flows）
         assertEquals(555L, result.getTestProjectTemplateId());
         ArgumentCaptor<TestProjectTemplate> captor = ArgumentCaptor.forClass(TestProjectTemplate.class);
-        verify(templateService).insertTestProjectTemplate(captor.capture());
+        verify(templateService).insertTemplatePack(captor.capture());
         assertEquals("写入模板", captor.getValue().getTemplateName());
         assertEquals(Integer.valueOf(0), captor.getValue().getBuiltinStatus());
         assertTrue(captor.getValue().getTemplateFlows().contains("登录"));

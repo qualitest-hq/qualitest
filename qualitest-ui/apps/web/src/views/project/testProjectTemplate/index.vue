@@ -68,6 +68,15 @@
         >导入</el-button>
       </el-col>
       <el-col :span="1.5">
+        <el-button
+          v-hasPermi="['project:testProjectTemplate:export']"
+          icon="Download"
+          plain
+          type="warning"
+          @click="handleExport"
+        >导出</el-button>
+      </el-col>
+      <el-col :span="1.5">
         <el-tooltip
           :disabled="!single || !selectedBuiltin"
           content="内置模板只读，请克隆后修改"
@@ -375,9 +384,7 @@
           <PrefabricatedFlowPanel
             v-model="form.templateFlows"
             :read-only="isReadonlyForm"
-            :template-apis="form.templateApis"
             @open-canvas="handleOpenFlowCanvas"
-            @update:template-apis="form.templateApis = $event"
           />
         </el-form-item>
         <el-form-item class="tpl-apis-form-item" label-width="0">
@@ -631,23 +638,30 @@ function cancel() {
   draftStore.clear()
 }
 
-/** 打开预制流全画布：先把未提交表单写入草稿桥，再路由跳转 */
+/**
+ * 打开预制流只读画布。
+ * 先把当前抽屉表单写入草稿（含未点确定的其它字段），关掉抽屉再跳转，避免叠层。
+ * 返回时由 restoreDraftFromCanvas 按草稿重开抽屉。
+ */
 function handleOpenFlowCanvas({ flowIndex }) {
   const id = form.value.testProjectTemplateId
   const templateId = id != null && id !== '' ? String(id) : 'new'
   draftStore.openCanvas({
     templateId,
+    // 带回抽屉模式，返回后标题与是否可改其它字段才正确
     dialogMode: dialogMode.value,
     flowIndex,
     title: title.value,
     form: JSON.parse(JSON.stringify(form.value)),
   })
-  // 跳转前关掉抽屉，避免与画布叠层；回程由 restoreDraftFromCanvas 重开
   open.value = false
   router.push(`/project/template-flow/${templateId}/${flowIndex}`)
 }
 
-/** 从画布返回：合并草稿到抽屉表单（尚未点确定落库） */
+/**
+ * 从只读画布返回：用草稿恢复抽屉表单与模式。
+ * 预制流图不会被画布改写；其它字段仍是打开画布前的编辑态，需再点「确定」才落库。
+ */
 function restoreDraftFromCanvas() {
   const draft = draftStore.getDraft()
   if (!draft?.form) return
@@ -890,6 +904,15 @@ function handleExportTemplate(row) {
     URL.revokeObjectURL(url)
     proxy.$modal.msgSuccess('已导出完整包')
   })
+}
+
+/** 导出列表为 Excel（当前查询条件） */
+function handleExport() {
+  proxy.download(
+    'project/testProjectTemplate/export',
+    { ...queryParams.value },
+    `testProjectTemplate_${new Date().getTime()}.xlsx`,
+  )
 }
 
 getList()

@@ -540,6 +540,7 @@ export function apisToPreviewRows(apis) {
     method: resolveApiMethod(api),
     apiPath: String(api?.apiPath || '').trim(),
     apiName: String(api?.apiName || '').trim(),
+    apiGroup: String(api?.apiGroup || '').trim(),
     authMode: String(api?.authConfig?.mode || 'inherit').trim() || 'inherit',
     authModeLabel: formatAuthModeLabel(api?.authConfig?.mode),
   }))
