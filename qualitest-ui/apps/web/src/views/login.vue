@@ -181,16 +181,23 @@ getCookie()
 .title {
   margin: 0px auto 30px auto;
   text-align: center;
-  color: #707070;
+  color: #5a6a7a;
+  font-weight: 500;
+  letter-spacing: 2px;
 }
 
 .login-form {
-  border-radius: 6px;
-  background: #ffffff;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   width: 400px;
-  padding: 25px 25px 5px 25px;
+  padding: 28px 28px 8px 28px;
   z-index: 1;
-  border: 3px solid #000;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 8px 32px rgba(90, 130, 170, 0.12),
+    0 2px 8px rgba(90, 130, 170, 0.06);
   .el-input {
     height: 40px;
     input {
@@ -224,7 +231,7 @@ getCookie()
   bottom: 0;
   width: 100%;
   text-align: center;
-  color: #fff;
+  color: rgba(90, 110, 130, 0.65);
   font-family: Arial;
   font-size: 12px;
   letter-spacing: 1px;
