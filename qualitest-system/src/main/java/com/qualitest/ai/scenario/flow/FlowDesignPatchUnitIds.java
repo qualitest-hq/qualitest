@@ -11,7 +11,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 从 AI patch 枚举 Staging 单元 id，与前端 buildStagingUnits 键名一致。
+ * 从 AI patch 枚举 Staging 单元 id。
+ * 键名形如 addNode:{id}、addEdge:{id}、deleteNode:{id}、scenario:activeScenarioId 等。
  */
 public final class FlowDesignPatchUnitIds {
 
@@ -74,35 +75,6 @@ public final class FlowDesignPatchUnitIds {
             }
         }
         return false;
-    }
-
-    /**
-     * 断言试算预览用的 acceptedIds：未拒绝的 add/update 节点与边（不含 delete*）。
-     */
-    public static Set<String> assertPreviewAcceptedIds(
-            FlowDesignPatch patch,
-            Set<String> rejectedUnitIds,
-            String confirmingUnitId) {
-        Set<String> accepted = new LinkedHashSet<>();
-        for (String id : enumerate(patch)) {
-            if (id == null || id.isBlank() || id.startsWith("delete")) {
-                continue;
-            }
-            if (!(id.startsWith("addNode:")
-                    || id.startsWith("updateNode:")
-                    || id.startsWith("addEdge:")
-                    || id.startsWith("updateEdge:"))) {
-                continue;
-            }
-            if (rejectedUnitIds != null && rejectedUnitIds.contains(id)) {
-                continue;
-            }
-            accepted.add(id);
-        }
-        if (confirmingUnitId != null && !confirmingUnitId.isBlank()) {
-            accepted.add(confirmingUnitId.trim());
-        }
-        return accepted;
     }
 
     private static void addNodes(Set<String> unitIds, List<GraphNode> nodes, String prefix) {

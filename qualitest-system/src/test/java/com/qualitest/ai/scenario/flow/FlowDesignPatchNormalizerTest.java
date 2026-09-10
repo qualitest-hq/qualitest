@@ -744,7 +744,7 @@ class FlowDesignPatchNormalizerTest {
 
     @Test
     @Order(91)
-    @DisplayName("branches 短名与边 label 对齐；探活成功 IF 同指登录改 terminal")
+    @DisplayName("branches 短名与边 label 对齐；探活成功 IF 同指登录改无 target 结束")
     void normalize_branchAliasAndTerminalCompat() {
         Map<String, String> sessionMap = new HashMap<>();
         Map<String, Object> credData = new HashMap<>();
@@ -807,7 +807,7 @@ class FlowDesignPatchNormalizerTest {
                 .filter(b -> "b_ok".equals(String.valueOf(b.get("id"))))
                 .findFirst()
                 .orElseThrow();
-        assertEquals(true, ok.get("terminal"));
+        assertFalse(ok.containsKey("terminal"));
         assertNull(ok.get("target"));
     }
 

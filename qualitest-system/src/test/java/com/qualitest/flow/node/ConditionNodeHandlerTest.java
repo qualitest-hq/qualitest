@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 ConditionNodeHandler：按 branches 条件求值并写入 branchTaken。
- * 边界：命中 if / 落 else / target 缺失失败；无 DB。
+ * 边界：命中 if / 落 else / 无 target 结束；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ConditionNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -63,36 +63,14 @@ class ConditionNodeHandlerTest {
     }
 
     /**
-     * 前提：IF 条件成立但 target 为 null。
-     * 期望：failed；result.error 非空。
+     * 前提：IF 条件成立且无 target。
+     * 期望：passed；branchTaken 带 terminal=true（表示本流结束）。
      */
     @Test
     @Order(3)
-    @DisplayName("执行：命中分支缺 target 时失败")
-    void execute_failsWhenTargetMissing() {
+    @DisplayName("执行：无 target 的 IF 分支通过并结束")
+    void execute_passesEndBranchWithoutTarget() {
         JSONObject ifBranch = branch("b_if", "if", null);
-        ifBranch.put("conditions", conditions("flow.flag", "eq", "1"));
-        JSONObject elseBranch = branch("b_else", "else", "n_fail");
-        GraphNode node = nodeWithBranches(ifBranch, elseBranch);
-
-        FlowRunContext ctx = new FlowRunContext();
-        ctx.getFlow().put("flag", 1);
-
-        StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
-        assertNotNull(result.getError());
-    }
-
-    /**
-     * 前提：IF 条件成立且 terminal=true，无 target。
-     * 期望：passed；branchTaken 含 terminal。
-     */
-    @Test
-    @Order(4)
-    @DisplayName("执行：terminal IF 分支无 target 时通过")
-    void execute_passesTerminalBranchWithoutTarget() {
-        JSONObject ifBranch = branch("b_if", "if", null);
-        ifBranch.put("terminal", true);
         ifBranch.put("conditions", conditions("flow.flag", "eq", "1"));
         JSONObject elseBranch = branch("b_else", "else", "n_fail");
         GraphNode node = nodeWithBranches(ifBranch, elseBranch);

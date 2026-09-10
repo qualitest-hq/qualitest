@@ -114,10 +114,12 @@ export function useAiStagingConfirm() {
 
   /**
    * 用户开启「确认后自动保存」时，在 confirm 成功后触发保存。
+   * 仍有 pending Staging 时不保存，避免半成品拓扑硬拦闪红。
    * 跳过「尚有待确认项」提示，因为本次保存意图就是落盘刚确认的内容。
    */
   async function maybeAutoSaveAfterConfirm() {
     if (!isAutoSaveAfterConfirm()) return;
+    if (stagingStore.pendingCount > 0) return;
     const saved = await saveFlow({ skipPendingWarning: true });
     if (!saved) {
       ElMessage.warning('已确认变更，但自动保存失败，请手动保存');
@@ -241,6 +243,9 @@ export function useAiStagingConfirm() {
           return;
         }
 
+        // 确认瞬间 store.edges 可能仍空、完整边在 pending：先灌入再 markConfirmed，避免 sync 用空边表覆盖
+        await store.ensureEdgesHydrated();
+
         stagingStore.markConfirmed(unitId);
         recordStagingUnitConfirmed(unit.messageId, unitId);
 
@@ -293,11 +298,7 @@ export function useAiStagingConfirm() {
 
         if (!opts.quiet) {
           const doneLabel = isDeleteStagingUnit(unit) ? '已确认删除' : '已确认变更';
-          if (attempts > 1) {
-            ElMessage.success(`${doneLabel}（第 ${attempts} 次尝试成功）`);
-          } else {
-            ElMessage.success(doneLabel);
-          }
+          ElMessage.success(doneLabel);
         }
 
         outcome = 'ok';

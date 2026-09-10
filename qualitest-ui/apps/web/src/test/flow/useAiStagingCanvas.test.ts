@@ -91,4 +91,70 @@ describe('applyStagingCanvasToStore', () => {
     expect(store.pendingEdges).not.toBeNull();
     expect(store.edges).toHaveLength(0);
   });
+
+  /**
+   * 确认落盘后 edges 被清空、完整边在 pendingEdges；若仍有其它 pending addEdge，
+   * sync 必须以有效边表为底，否则会把已确认边冲掉。
+   */
+  it('确认落盘窗口 sync 不得用空 edges 覆盖 pendingEdges 中的已确认边', async () => {
+    const store = useFlowCanvasStore();
+    const stagingStore = useAiStagingStore();
+
+    store.nodes = [
+      { id: 'n1', type: 'http', position: { x: 0, y: 0 }, data: { name: '探活' } },
+      { id: 'n2', type: 'condition', position: { x: 200, y: 0 }, data: { name: '探活是否200' } },
+      { id: 'n3', type: 'http', position: { x: 200, y: 120 }, data: { name: '登录' } },
+    ];
+    // 模拟 applyConfirmedGraph：edges 清空，完整边在 pending
+    store.edges = [];
+    store.setPendingEdges([
+      { id: 'e1', type: 'default', source: 'n1', target: 'n2', label: '成功' },
+      { id: 'e2', type: 'default', source: 'n2', target: 'n3', label: '探活失败' },
+    ]);
+
+    // 仅 e2 仍为 pending Staging（手写单元，避开 hydrate 归一化）
+    stagingStore.unitsById = {
+      'addEdge:e2': {
+        unitId: 'addEdge:e2',
+        messageId: 'msg-1',
+        kind: 'addEdge',
+        status: 'pending',
+        label: '探活失败',
+        patchSlice: { id: 'e2', source: 'n2', target: 'n3', label: '探活失败' },
+        draft: { source: 'n2', target: 'n3', label: '探活失败' },
+      },
+    } as never;
+
+    const { computeStagingCanvasSync, createStagingCanvasSyncContext } = await import(
+      '@/views/project/testFlow/utils/stagingCanvasCompute'
+    );
+    const baseEdges = store.getEffectiveEdges().map((e) => ({ ...e }));
+    expect(baseEdges.map((e) => e.id).sort()).toEqual(['e1', 'e2']);
+
+    // 若误用空 store.edges 作底，e1 会丢失
+    const broken = computeStagingCanvasSync(
+      createStagingCanvasSyncContext(
+        stagingStore.unitsById,
+        store.nodes,
+        [],
+        {},
+        { e2: { unitId: 'addEdge:e2', mode: 'add' } },
+      ),
+    );
+    expect(broken.edges.map((e) => e.id)).toEqual(['e2']);
+
+    const { edges } = computeStagingCanvasSync(
+      createStagingCanvasSyncContext(
+        stagingStore.unitsById,
+        store.nodes,
+        baseEdges,
+        {},
+        { e2: { unitId: 'addEdge:e2', mode: 'add' } },
+      ),
+    );
+    await applyStagingCanvasToStore(store, store.nodes, edges, stagingStore.unitsById);
+
+    const effectiveIds = store.getEffectiveEdges().map((e) => e.id).sort();
+    expect(effectiveIds).toEqual(['e1', 'e2']);
+  });
 });

@@ -97,7 +97,7 @@ public class GraphWalker {
     }
 
     /**
-     * 根据当前节点与步骤结果解析下一节点 id；无后继时返回 null。
+     * 根据当前节点与步骤结果解析下一节点 id；无后继或命中结束分支时返回 null。
      *
      * @param node       刚执行完的节点
      * @param stepResult 该步执行结果（condition 需含 branchTaken）
@@ -156,9 +156,12 @@ public class GraphWalker {
     }
 
     /**
-     * 从 condition 步骤结果的 branchTaken 反查 branches[].target。
-     * target 为空、节点不存在或 branchId 无匹配时抛 FlowExecutionException；
-     * {@code terminal} 分支返回 null 表示流程结束。
+     * 根据 condition 步骤的 branchTaken.branchId，解析下一节点 id。
+     * <ul>
+     *   <li>命中结束分支（无有效 target）→ 返回 null，本流结束</li>
+     *   <li>命中有 target 的分支 → 返回该 target（节点须存在）</li>
+     *   <li>缺少 branchTaken / 找不到分支配置 → 抛执行异常</li>
+     * </ul>
      */
     private String resolveConditionTarget(GraphNode node, StepResult stepResult) {
         if (stepResult == null || stepResult.getBranchTaken() == null) {
@@ -194,15 +197,10 @@ public class GraphWalker {
                 continue;
             }
             if (ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
+                // 无出口：正常结束，不抛「未配置目标」
                 return null;
             }
             String target = branch.getString("target");
-            if (target == null || target.isBlank()) {
-                throw new FlowExecutionException(
-                        FlowErrorCode.TF_BRANCH_UNWIRED,
-                        "条件分支未配置目标: " + branchId
-                );
-            }
             if (!nodeById.containsKey(target)) {
                 throw new FlowExecutionException(
                         FlowErrorCode.TF_GRAPH_INVALID,

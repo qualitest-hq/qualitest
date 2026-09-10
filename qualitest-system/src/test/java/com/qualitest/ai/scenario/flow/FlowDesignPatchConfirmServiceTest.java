@@ -48,7 +48,7 @@ class FlowDesignPatchConfirmServiceTest {
     void setUp() {
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(null, null, null, new GraphJsonValidator(), merger);
-        confirmService = new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), null);
+        confirmService = new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator());
     }
 
     /**
@@ -372,12 +372,12 @@ class FlowDesignPatchConfirmServiceTest {
 
     /**
      * 前提：patch 含上游 HTTP + 入边 + 误写 .items 的断言；仅 confirm 断言（边仍 pending）。
-     * 期望：预览图含 pending 上游，schema 门禁失败，错误归属断言。
+     * 期望：确认可落盘（AssertPath schema 门禁后移到保存），errors 不含路径 schema 硬拦。
      */
     @Test
     @Order(16)
-    @DisplayName("确认断言时 pending 上游参与 schema 校验且失败归属断言")
-    void confirm_assertWithPendingUpstream_failsOnSchemaItems() {
+    @DisplayName("确认断言时不因 pending 上游 schema 失败")
+    void confirm_assertWithPendingUpstream_okWithoutAssertGate() {
         FlowDesignPatchConfirmService gated = confirmServiceWithCartApi();
         FlowDesignPatch patch = cartAssertPatch("http.body.data.items[0].quantity");
 
@@ -388,9 +388,8 @@ class FlowDesignPatchConfirmServiceTest {
         request.setTestProjectId(100L);
 
         FlowDesignPatchConfirmResult result = gated.confirmUnit(request);
-        assertFalse(result.isOk());
-        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains(".items")),
-                () -> "errors=" + result.getErrors());
+        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
+        assertNotNull(result.getGraphJson());
     }
 
     /**
@@ -442,12 +441,12 @@ class FlowDesignPatchConfirmServiceTest {
 
     /**
      * 前提：仅 addNode 断言，无上游 HTTP/边。
-     * 期望：confirm 失败，错误含「尚无上游」。
+     * 期望：确认可落盘（业务门禁后移到保存）；errors 不含「尚无上游」。
      */
     @Test
     @Order(18)
-    @DisplayName("确认孤立断言无上游时硬拦")
-    void confirm_assertWithoutUpstream_failsWithHint() {
+    @DisplayName("确认孤立断言无上游时仍可落盘")
+    void confirm_assertWithoutUpstream_okWithoutBusinessGate() {
         FlowDesignPatchConfirmService gated = confirmServiceWithCartApi();
 
         Map<String, Object> assertData = new HashMap<>();
@@ -471,25 +470,24 @@ class FlowDesignPatchConfirmServiceTest {
         request.setUnitId("addNode:9002");
 
         FlowDesignPatchConfirmResult result = gated.confirmUnit(request);
-        assertFalse(result.isOk());
-        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("尚无上游")),
+        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
+        assertNotNull(result.getGraphJson());
+        assertTrue(result.getErrors().stream().noneMatch(e -> e.contains("尚无上游")),
                 () -> "errors=" + result.getErrors());
     }
 
     /**
      * 前提：项目已配双端鉴权；确认一个需登录的客户端 HTTP，图中无 token 写入来源。
-     * 期望：确认失败，errors 含 AUTH_TOKEN_MISSING 与 asset.clientAuth.token。
+     * 期望：确认仍成功（token 门禁后移到保存）；errors 不含 AUTH_TOKEN_MISSING。
      */
     @Test
     @Order(19)
-    @DisplayName("确认需登录 HTTP 缺 token 时硬拦")
-    void confirm_projectHttpMissingToken_hardBlocks() {
+    @DisplayName("确认需登录 HTTP 缺 token 时仍可落盘")
+    void confirm_projectHttpMissingToken_okWithoutBusinessGate() {
         FlowDesignPatchConfirmResult result = confirmDualBearerHttpNode(
                 "9501", "资料", null);
-        assertFalse(result.isOk());
-        assertTrue(result.getErrors().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
-                () -> "errors=" + result.getErrors());
-        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("asset.clientAuth.token")),
+        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
+        assertTrue(result.getErrors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
                 () -> "errors=" + result.getErrors());
     }
 
@@ -577,7 +575,7 @@ class FlowDesignPatchConfirmServiceTest {
                 .build());
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(mapper, null, null, new GraphJsonValidator(), merger);
-        return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), mapper);
+        return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator());
     }
 
     /** 装配带双端 Bearer 项目鉴权与 /api 接口的 ConfirmService，供缺 token / 有 extracts 用例使用 */
@@ -600,7 +598,7 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(
                 apiMapper, projectMapper, null, new GraphJsonValidator(), merger);
-        return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator(), apiMapper);
+        return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator());
     }
 
     private static GraphJson emptyBaseWithScenario() {

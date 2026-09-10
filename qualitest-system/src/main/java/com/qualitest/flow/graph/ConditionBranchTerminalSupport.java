@@ -5,30 +5,52 @@ import com.alibaba.fastjson2.JSONObject;
 import java.util.Map;
 
 /**
- * condition 分支「结束流程」({@code terminal: true}) 读写辅助。
+ * 条件分支「是否结束本流」判定。
  * <p>
- * terminal 分支命中后遍历器返回 null，子流正常结束；不可与 target 同时配置。
+ * 有非空 target：命中后走到下游节点。<br>
+ * 无非空 target：命中后本流正常结束（旧数据里的 {@code terminal: true} 通常也无 target，同样按结束处理）。
  */
 public final class ConditionBranchTerminalSupport {
 
     private ConditionBranchTerminalSupport() {
     }
 
-    public static boolean isTerminalBranch(Map<?, ?> branch) {
+    /**
+     * 分支是否配置了有效下游 target。
+     * 空串、空白、字面量 {@code "null"} 视为无效。
+     */
+    public static boolean hasBranchTarget(Map<?, ?> branch) {
         if (branch == null) {
             return false;
         }
-        Object terminal = branch.get("terminal");
-        if (terminal instanceof Boolean b) {
-            return b;
+        Object targetObj = branch.get("target");
+        if (targetObj == null) {
+            return false;
         }
-        if (terminal != null) {
-            return "true".equalsIgnoreCase(String.valueOf(terminal).trim());
-        }
-        return false;
+        String target = String.valueOf(targetObj).trim();
+        return !target.isEmpty() && !"null".equalsIgnoreCase(target);
     }
 
+    /**
+     * 是否为结束分支：命中后不再走向下一节点。
+     * 判定依据是「没有有效 target」。
+     */
+    public static boolean isTerminalBranch(Map<?, ?> branch) {
+        return !hasBranchTarget(branch);
+    }
+
+    /** JSONObject 入参的结束分支判定。 */
     public static boolean isTerminalBranch(JSONObject branch) {
         return isTerminalBranch((Map<?, ?>) branch);
+    }
+
+    /**
+     * 删除分支上的遗留 {@code terminal} 字段。
+     * 新图只用「有无 target」表达是否结束，写入/规范化时剥掉该字段。
+     */
+    public static void stripTerminalFlag(Map<String, Object> branch) {
+        if (branch != null) {
+            branch.remove("terminal");
+        }
     }
 }

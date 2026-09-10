@@ -6,7 +6,7 @@ import { updateSummary } from '../../testFlow/utils/nodeDataUtils'
 
 /**
  * 探活再登录骨架坐标。
- * 上排：探活 → 有效性（terminal 结束）；左侧起点做凭证判断。
+ * 上排：探活 → 有效性（无出边结束）；左侧起点做凭证判断。
  * 下排：登录居中汇合两条 ELSE。
  */
 export const LOGIN_FLOW_NODE_LAYOUT = {
@@ -19,7 +19,7 @@ export const LOGIN_FLOW_NODE_LAYOUT = {
 /** 探活再登录骨架打开时的默认视口（略缩小以容纳整图） */
 export const LOGIN_FLOW_VIEWPORT = { x: 24, y: 16, zoom: 0.82 }
 
-/** 探活再登录骨架默认边（与 templateForm / Java 种子一致） */
+/** 探活再登录骨架默认边（凭证 IF→探活、ELSE→登录；探活→有效性；有效性 ELSE→登录） */
 export const LOGIN_FLOW_EDGES = [
   { id: 'e_token_if', source: 'cond_token', target: 'probe_http' },
   { id: 'e_token_else', source: 'cond_token', target: 'login_http' },
@@ -139,8 +139,8 @@ export function applyLoginFlowLayoutIfPresent(nodes) {
 }
 
 /**
- * 旧图 reuse_end delay 占位 → cond_alive IF terminal 分支。
- * @returns 是否改写 graph
+ * 旧图迁移：去掉 reuse_end 占位 delay，并把指向它的探活成功 IF 改为无 target（结束本流）。
+ * @returns 是否改写了 graph
  */
 export function migrateLoginFlowTerminalBranch(graph) {
   if (!graph || !Array.isArray(graph.nodes)) return false
@@ -154,8 +154,9 @@ export function migrateLoginFlowTerminalBranch(graph) {
     node.data.branches = branches.map((branch) => {
       if (!branch || typeof branch !== 'object') return branch
       if (branch.kind !== 'if' || branch.target !== 'reuse_end') return branch
-      const next = { ...branch, terminal: true }
+      const next = { ...branch }
       delete next.target
+      delete next.terminal
       return next
     })
   })

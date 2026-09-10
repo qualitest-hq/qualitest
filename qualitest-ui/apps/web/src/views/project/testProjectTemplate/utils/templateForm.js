@@ -270,7 +270,6 @@ export function buildLoginGraphJson({
             {
               id: 'b_alive_if',
               kind: 'if',
-              terminal: true,
               conditions: [{ left: 'http.status', operator: 'eq', right: '200' }],
             },
             { id: 'b_alive_else', kind: 'else', target: 'login_http', conditions: [] },

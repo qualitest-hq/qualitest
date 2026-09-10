@@ -291,37 +291,40 @@ class GraphJsonValidatorTest {
 
     @Test
     @Order(13)
-    @DisplayName("condition terminal 分支无 target 警告；terminal+target 为 error")
-    void conditionTerminalBranchValidation() {
-        String terminalOk = """
+    @DisplayName("condition 无 target 不警告；有 target 无出边仍警告")
+    void conditionEndBranchValidation() {
+        String endOk = """
                 {
                   "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
                   "nodes": [
                     {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
-                      {"id":"b_if","kind":"if","terminal":true,"conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
+                      {"id":"b_if","kind":"if","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
                       {"id":"b_else","kind":"else","target":"n2"}
-                    ]}}
+                    ]}},
+                    {"id":"n2","type":"http","position":{"x":1,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
                   ],
                   "edges":[{"id":"e1","source":"c1","target":"n2"}]
                 }
                 """;
-        GraphValidationResult ok = validator.validateJson(terminalOk);
+        GraphValidationResult ok = validator.validateJson(endOk);
+        assertTrue(ok.isOk(), () -> "errors=" + ok.getErrors());
         assertFalse(ok.getWarnings().stream().anyMatch(w -> w.contains("未绑定 target")));
 
-        String terminalConflict = """
+        String danglingTarget = """
                 {
                   "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
                   "nodes": [
                     {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
-                      {"id":"b_if","kind":"if","terminal":true,"target":"n2","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
-                      {"id":"b_else","kind":"else","target":"n3"}
-                    ]}}
+                      {"id":"b_if","kind":"if","target":"n2","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
+                      {"id":"b_else","kind":"else"}
+                    ]}},
+                    {"id":"n2","type":"http","position":{"x":1,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
                   ],
                   "edges":[]
                 }
                 """;
-        GraphValidationResult conflict = validator.validateJson(terminalConflict);
-        assertTrue(conflict.getErrors().stream().anyMatch(e -> e.contains("terminal 与 target 不可同时配置")));
+        GraphValidationResult dangling = validator.validateJson(danglingTarget);
+        assertTrue(dangling.getWarnings().stream().anyMatch(w -> w.contains("无对应出边")));
     }
 
     @Test

@@ -55,7 +55,8 @@ export function resolveDraftOverride(
 
   if (unit.kind === 'addEdge' || unit.kind === 'updateEdge') {
     const edgeId = objectIdFromUnitId(unitId);
-    const edge = canvasStore.edges.find((e) => e.id === edgeId);
+    // 含 pending 边，确认落盘窗口 store.edges 可能仍为空
+    const edge = canvasStore.getEffectiveEdges().find((e) => e.id === edgeId);
     if (edge) return buildDraftFromCanvasEdge(edge);
     return unit.draft;
   }
@@ -133,9 +134,10 @@ export function mergePendingStagingIntoConfirmedGraph(
   const preservedNodes = canvasStore.nodes.filter(
     (n) => pendingNodeIds.has(n.id) && !confirmedNodeIds.has(n.id),
   );
-  const preservedEdges = canvasStore.edges.filter(
+  const preservedEdges = canvasStore.getEffectiveEdges().filter(
     (e) => pendingEdgeIds.has(e.id) && !confirmedEdgeIds.has(e.id),
-  );
+  ); // 保留其它仍 pending 的新增边（含尚未灌入 store.edges 的）
+
 
   return {
     nodes: [...applied.nodes, ...preservedNodes],

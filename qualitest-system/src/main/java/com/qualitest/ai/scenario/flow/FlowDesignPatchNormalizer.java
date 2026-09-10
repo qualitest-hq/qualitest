@@ -526,7 +526,10 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 以出边为真源回填 condition branches；探活成功 IF 误指登录时改为 terminal。
+     * 用出边回填 condition 各分支的 target，并清理遗留 terminal。
+     * <p>
+     * 已有有效 target 且图中存在对应出边则保留；否则按边的 label/handle 匹配补 target；
+     * 指向不存在节点的 target 会清掉。最后对「探活成功却误连登录」做窄规则修正。
      */
     @SuppressWarnings("unchecked")
     private static void reconcileConditionBranches(FlowDesignPatch patch, GraphJson baseGraph) {
@@ -587,30 +590,30 @@ public class FlowDesignPatchNormalizer {
             Set<String> usedEdgeIds = new HashSet<>();
 
             for (Map<String, Object> branch : branches) {
-                if (ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
-                    continue;
-                }
                 String branchId = stringVal(branch.get("id"));
                 String kind = branchKind(branch);
                 String target = stringVal(branch.get("target"));
                 boolean targetOk = target != null && nodeById.containsKey(target)
                         && markUsedEdge(outs, node.getId(), target, usedEdgeIds);
                 if (targetOk) {
+                    // target 已正确：只剥旧 terminal
+                    ConditionBranchTerminalSupport.stripTerminalFlag(branch);
                     continue;
                 }
                 GraphEdge matched = matchOutEdge(outs, branchId, kind, usedEdgeIds);
                 if (matched != null) {
                     branch.put("target", matched.getTarget());
-                    branch.remove("terminal");
                     if (matched.getId() != null) {
                         usedEdgeIds.add(matched.getId());
                     }
                 } else if (target != null && !nodeById.containsKey(target)) {
+                    // 悬空 target：清掉，变成结束出口
                     branch.remove("target");
                 }
+                ConditionBranchTerminalSupport.stripTerminalFlag(branch);
             }
 
-            applyProbeSuccessTerminalCompat(branches, nodeById, outs);
+            applyProbeSuccessEndCompat(branches, nodeById, outs);
             node.getData().put("branches", branches);
         }
     }
@@ -665,9 +668,10 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 窄规则：http.status eq 200 的 IF 与 ELSE 同指某一 HTTP（登录）节点，或 IF 无独立出边 → terminal。
+     * 探活成功分支纠偏：IF（http.status eq 200）若与 ELSE 同指登录 HTTP，或没有自己的出边，
+     * 则清掉 IF 的 target（命中成功后结束本流），并删除遗留 terminal。
      */
-    private static void applyProbeSuccessTerminalCompat(
+    private static void applyProbeSuccessEndCompat(
             List<Map<String, Object>> branches,
             Map<String, GraphNode> nodeById,
             List<GraphEdge> outs) {
@@ -696,10 +700,10 @@ public class FlowDesignPatchNormalizer {
         if (hasDistinctIfEdge(outs, ifTarget, elseTarget)) {
             return;
         }
-        // IF 与 ELSE 同指登录，或 IF 无自己的出边
+        // 成功 IF 不应再连登录：清 target，本流在探活成功时结束
         if (ifTarget == null || ifTarget.equals(elseTarget)) {
-            successIf.put("terminal", true);
             successIf.remove("target");
+            ConditionBranchTerminalSupport.stripTerminalFlag(successIf);
         }
     }
 

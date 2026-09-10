@@ -1,61 +1,82 @@
 <template>
   <div v-if="hasIssues" class="flow-validation-bar">
-    <div
-        v-for="(msg, i) in validation.errors"
-        :key="'e-' + i"
-        class="flow-validation-bar__item flow-validation-bar__item--error"
-    >
-      ✗ {{ msg }}
-    </div>
-    <div
-        v-for="(msg, i) in validation.warnings"
-        :key="'w-' + i"
-        class="flow-validation-bar__item flow-validation-bar__item--warn"
-    >
-      ⚠ {{ msg }}
-    </div>
-    <div
-        v-if="apiHealthMessages.length"
-        class="flow-validation-bar__group-label"
-    >
-      API 语义
-    </div>
-    <div
-        v-for="(msg, i) in apiHealthMessages"
-        :key="'a-' + i"
-        class="flow-validation-bar__item flow-validation-bar__item--warn"
-    >
-      ⚠ {{ msg }}
-    </div>
+    <template v-for="section in sections" :key="section.key">
+      <div
+          v-if="section.label && section.items.length"
+          class="flow-validation-bar__group-label"
+      >
+        {{ section.label }}
+      </div>
+      <div
+          v-for="(issue, i) in section.items"
+          :key="section.key + '-' + i"
+          :class="[
+            'flow-validation-bar__item',
+            issue.level === 'error'
+              ? 'flow-validation-bar__item--error'
+              : 'flow-validation-bar__item--warn',
+          ]"
+      >
+        <span class="flow-validation-bar__icon">{{ issue.level === 'error' ? '✗' : '⚠' }}</span>
+        <span class="flow-validation-bar__text">{{ issue.message }}</span>
+        <template v-if="issue.nodeIds.length">
+          <span class="flow-validation-bar__sep">·</span>
+          <button
+              v-for="nodeId in issue.nodeIds"
+              :key="nodeId"
+              type="button"
+              class="flow-validation-bar__node-link"
+              @click="focusIssueNode(nodeId)"
+          >
+            {{ displayNodeName(nodeId) }}
+          </button>
+        </template>
+      </div>
+    </template>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 画布顶部校验条。
- * <p>
- * 上半：图结构错误/警告（缺开始节点、HTTP 未绑定、条件分支悬空等）。
- * 下半「API 语义」：当前页面图预检结果（绑定的 API 不存在、孤儿测值、抽取路径失效等）。
- * 两类都没有问题时整条隐藏。
+ * 展示结构问题、Staging 确认失败、API 语义告警；节点名可点击居中并高亮该节点。
  */
 import { computed } from 'vue'
 
 import { useFlowValidation } from '../composables/useFlowValidation'
-import { useApiHealthStore } from '../stores/apiHealthStore'
+import { useFlowViewport } from '../composables/useFlowViewport'
+import { useFlowCanvasStore } from '../stores/flowCanvasStore'
+import { nodeDisplayName } from '../utils/flowValidationIssues'
 
-const { validation } = useFlowValidation()
-const apiHealth = useApiHealthStore()
+const { issues } = useFlowValidation()
+const store = useFlowCanvasStore()
+const viewport = useFlowViewport()
 
-/** API 语义告警文案列表 */
-const apiHealthMessages = computed(() => apiHealth.messages)
+const sections = computed(() => [
+  {
+    key: 'main',
+    label: '',
+    items: issues.value.filter((i) => i.source === 'structure' || i.source === 'staging'),
+  },
+  {
+    key: 'api',
+    label: 'API 语义',
+    items: issues.value.filter((i) => i.source === 'apiHealth'),
+  },
+])
 
-/** 是否有任意结构问题或语义告警，决定整条是否显示 */
-const hasIssues = computed(
-  () =>
-    validation.value.errors.length > 0
-    || validation.value.warnings.length > 0
-    || apiHealthMessages.value.length > 0,
-)
+const hasIssues = computed(() => issues.value.length > 0)
+
+function displayNodeName(nodeId: string): string {
+  const node = store.nodes.find((n) => n.id === nodeId)
+  return nodeDisplayName(node, nodeId)
+}
+
+async function focusIssueNode(nodeId: string) {
+  store.setAiHighlightFocus([nodeId])
+  await viewport.waitForCanvasReady()
+  await viewport.focusNodeIds([nodeId], { onlyIfOffscreen: false })
+}
 </script>
 
 <style scoped lang="scss">
@@ -86,11 +107,46 @@ const hasIssues = computed(
   letter-spacing: 0.02em;
 }
 
+.flow-validation-bar__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+}
+
 .flow-validation-bar__item--error {
   color: #b91c1c;
 }
 
 .flow-validation-bar__item--warn {
   color: #a16207;
+}
+
+.flow-validation-bar__icon {
+  flex: none;
+}
+
+.flow-validation-bar__text {
+  min-width: 0;
+}
+
+.flow-validation-bar__sep {
+  opacity: 0.55;
+}
+
+.flow-validation-bar__node-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.85;
+  }
 }
 </style>

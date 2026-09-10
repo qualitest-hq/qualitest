@@ -33,7 +33,7 @@
   - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 Profile 模板引用的 `asset.*`/`flow.*`；后续靠 Profile 托管 `Cookie` 头。**禁止**再写节点级会话勾选（旧字段 `useRunSession` 已忽略）。
   - 免除登录 / `auth.mode=none` / 登录口： **不要**加鉴权托管头；登录节点 **必须** extracts，**目标键与 Profile `headerValueTemplate`（或 Cookie 模板）中的 `{{asset.*}}`/`{{flow.*}}` 一致**（模板写 `{{asset.adminAuth.data}}` 就抽到该字段，勿默认改成 `flow.adminToken` / `$.token`）。
   - **按端提取凭证**：JsonPath 与头名优先 `designHints` / `suggestedExtracts` / 响应 schema / Profile；禁止臆造路径；禁止 Condition 判 `flow.*` 而 extract/托管头用 `asset.*`（或反过来）——exists 左值与 extract 写入键必须同一条链。
-  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 设 `terminal: true`（不要 target、不要出边）**，ELSE 才连登录。修图用 `updateNodes`，**禁止**再 add 一套探活链。
+  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 不要 target、不要出边（无出边即结束）**，ELSE 才连登录。修图用 `updateNodes`，**禁止**再 add 一套探活链。
   - **预期业务拒绝**（停用账号、权限不足等）：HTTP 须 `successCheck.mode=off`（**禁止**对该节点 inherit 业务成功码），再用 assert 校验 `http.body.code` 不等于成功值或 `msg` 含拒绝文案；否则 Run 会在业务码校验处失败、断言执行不到。`mode=off` 时允许故意缺 schema 必填字段。
   - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。成功路径缺必填时按 validation.errors **补节点** `requestValueOverrides`（`bodyExample` / `paramDefaults`），**不要**改接口资产的 required，也**不要**把 schema example 里的 `0`/`""` 当成默认值拷进节点。`designHints` 写明的业务必填（如退款 apply 的 items）即使 schema 未标 required 也要写入节点 body。
   - 越权等特殊用例：显式写死头且不要标托管，避免被项目配置覆盖。
@@ -70,7 +70,7 @@
 - **原子变更包**（同轮须自洽）：
   - addEdge 的 source/target 须已在画布或本轮 addNodes
   - **节点/边 id**：可用短名（如 `n_probe`、`adm_login`）；同会话同一节点保持同一短名；系统映射为画布雪花。也可直接用 `get_graph_summary` 返回的雪花 id。`branches[].target` 与边端点写同一套短名或雪花即可
-  - condition：addEdges 与 `branches[].target` 同时给出（成功结束的 IF 用 `terminal: true` 且无 target/出边）；非 terminal 时 edge.target 须与对应分支 target 一致
+  - condition：需往下走的分支须 addEdges 与 `branches[].target` 同时给出且一致；**结束分支不要 target、不要出边**（勿再写 `terminal`）
   - updateNodes 中 rules / branches / extracts 等数组须交**完整数组**
   - 删节点时 suggestedDeletes 尽量带上孤立边（或依赖系统级联）
 - 空画布：addNodes/addEdges 搭线性链，position.x 步进约 380

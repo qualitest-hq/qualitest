@@ -11,10 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * condition 节点在合并 patch 时，维护出边与 data.branches[].target 的绑定关系。
+ * 合并 patch 时维护 condition 出边与 data.branches[].target 的绑定。
  * <p>
- * 运行期 {@link com.qualitest.flow.run.GraphWalker} 依赖 branches[].target 解析下一跳；
- * 合并 addEdge / updateEdge 时应回写 target，删除出边时应清除对应绑定。
+ * 遍历下一跳读的是 branches[].target；新增/更新出边时回写 target，删除出边时清掉对应绑定。
+ * 绑定成功时顺带删掉分支上的遗留 terminal 字段。
  */
 public final class ConditionBranchMergeHelper {
 
@@ -68,7 +68,9 @@ public final class ConditionBranchMergeHelper {
     /**
      * 将出边 target 写入 branches[].target。
      * <p>
-     * 绑定规则：branchId 非空时写入对应分支；否则若已有分支指向同一 target 则跳过，否则写入首条未绑定分支。
+     * branchId 非空：写入对应分支。<br>
+     * branchId 为空：若已有分支指向同一 target 则跳过；否则写入首条尚无有效 target 的分支。<br>
+     * 写入后删除该分支上的遗留 terminal 字段。
      *
      * @return 是否修改了 branches
      */
@@ -85,8 +87,7 @@ public final class ConditionBranchMergeHelper {
                 return false;
             }
             Map<String, Object> unbound = branches.stream()
-                    .filter(b -> isBlank(b.get("target"))
-                            && !ConditionBranchTerminalSupport.isTerminalBranch(b))
+                    .filter(b -> !ConditionBranchTerminalSupport.hasBranchTarget(b))
                     .findFirst()
                     .orElse(null);
             if (unbound == null) {
@@ -100,7 +101,8 @@ public final class ConditionBranchMergeHelper {
                     return false;
                 }
                 branch.put("target", target);
-                branch.remove("terminal");
+                // 有出口后不再保留旧 terminal 字段
+                ConditionBranchTerminalSupport.stripTerminalFlag(branch);
                 nodeData.put("branches", branches);
                 return true;
             }

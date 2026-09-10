@@ -106,8 +106,8 @@ class ConditionBranchMergeHelperTest {
     }
 
     /**
-     * 前提：IF 分支为 terminal 且无 target，显式指定 branchId 绑定 target。
-     * 期望：写入 target 并清除 terminal，与画布连线行为一致。
+     * 前提：IF 分支带旧字段 terminal=true 且无 target；显式指定 branchId 绑定新 target。
+     * 期望：写入 target，并删除 terminal 字段。
      */
     @Test
     @Order(4)
@@ -128,35 +128,6 @@ class ConditionBranchMergeHelperTest {
         List<Map<String, Object>> after = (List<Map<String, Object>>) data.get("branches");
         assertEquals("1002", after.get(0).get("target"));
         assertFalse(after.get(0).containsKey("terminal"));
-    }
-
-    /**
-     * 前提：IF 为 terminal 未绑定，ELSE 未绑定；新增出边无 branchId 提示。
-     * 期望：跳过 terminal 的 IF，绑定 ELSE 分支。
-     */
-    @Test
-    @Order(5)
-    @DisplayName("新增出边时跳过 terminal 分支绑定下一条未绑定分支")
-    void syncConditionEdgeToNodes_skipsTerminalWhenFindingUnboundBranch() {
-        String ifBranchId = "2071158532992012288";
-        String elseBranchId = "2071158532992012289";
-        GraphNode condition = conditionNode("1001", ifBranchId, elseBranchId);
-        Map<String, Object> data = condition.getData();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> branches = (List<Map<String, Object>>) data.get("branches");
-        branches.get(0).put("terminal", true);
-
-        GraphNode http = GraphNode.builder().id("1002").type("http").build();
-        List<GraphNode> nodes = new ArrayList<>(List.of(condition, http));
-        List<GraphEdge> edges = new ArrayList<>();
-        GraphEdge edge = GraphEdge.builder().id("2001").source("1001").target("1002").build();
-
-        ConditionBranchMergeHelper.syncConditionEdgeToNodes(nodes, edges, edge);
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> after = (List<Map<String, Object>>) nodes.get(0).getData().get("branches");
-        assertNull(after.get(0).get("target"));
-        assertEquals("1002", after.get(1).get("target"));
     }
 
     /** 构造带 IF/ELSE 两条分支、均未绑定 target 的 condition 节点 */

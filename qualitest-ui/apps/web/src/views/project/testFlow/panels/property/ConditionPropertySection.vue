@@ -18,26 +18,28 @@
         </button>
       </div>
       <div class="cond-case__body">
-        <template v-if="branch.kind === 'else'">
-          <div class="cond-case__desc">用于定义当 IF / ELIF 条件均不满足时应执行的逻辑。</div>
-        </template>
-        <template v-else>
-          <label class="cond-case__terminal">
-            <input
-                :checked="branch.terminal === true"
-                type="checkbox"
-                @change="toggleTerminal(branch.id, $event.target.checked)"
-            />
-            <span>结束流程（不连线）</span>
-          </label>
+        <div v-if="branch.kind === 'else'" class="cond-case__desc">
+          用于定义当 IF / ELIF 条件均不满足时应执行的逻辑。
+          无出口时命中后结束本流。
+        </div>
+        <label class="cond-case__terminal">
+          <input
+              :checked="!hasConditionBranchTarget(branch)"
+              type="checkbox"
+              @change="toggleTerminal(branch.id, $event.target.checked)"
+          />
+          <span>结束流程（清除出口）</span>
+        </label>
+        <template v-if="branch.kind !== 'else'">
           <DebugAssertEditor
-              v-if="!branch.terminal"
               :model-value="branch.conditions || []"
               :trial-body="trialBody"
               :trial-source="trialSource"
               @update:model-value="(val) => updateBranchConditions(branch.id, val)"
           />
-          <div v-else class="cond-case__desc">命中此分支后子流正常结束，无需连接下游节点。</div>
+          <div v-if="!hasConditionBranchTarget(branch)" class="cond-case__desc">
+            当前无出口：命中此分支后子流正常结束。连线后即可继续往下走。
+          </div>
         </template>
       </div>
     </div>
@@ -56,7 +58,7 @@
 
 <script setup>
 /**
- * condition 节点属性区：编辑各分支 conditions，支持增删 ELIF。
+ * condition 节点属性区：编辑各分支 conditions，增删 ELIF，勾选「结束流程」清除出口。
  * 条件左值试算优先用选中 Run 的 HTTP 响应，否则用上游接口响应示例。
  */
 import { computed } from 'vue'
@@ -72,6 +74,7 @@ import {
   canAddElifBranch,
   createElifBranchId,
   getConditionBranches,
+  hasConditionBranchTarget,
   setBranchTerminal,
 } from '../../utils/conditionUtils'
 
@@ -123,7 +126,7 @@ function removeElifBranch(branchId) {
   patchNodeData(props.node.id, { branches: next })
 }
 
-/** 切换 IF/ELIF 分支为结束流程；开启时移除该分支出边 */
+/** 勾选结束流程：清 target 并删该分支出边；取消勾选只剥旧 terminal，需再连线才有出口 */
 function toggleTerminal(branchId, terminal) {
   const data = { ...props.node.data }
   if (!setBranchTerminal(data, branchId, terminal)) return

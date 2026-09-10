@@ -29,12 +29,13 @@
 </template>
 
 <script setup>
-/** 节点卡片外壳：顶栏色条、标题、场景运行高亮、连接锚点 */
+/** 节点卡片外壳：顶栏色条、标题、运行高亮、校验描边、Staging 角标、连接锚点 */
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { computed, inject, onBeforeUnmount, onMounted, ref, toRef } from 'vue'
 
 import AiStagingChrome from '../components/AiStagingChrome.vue'
-import { useStagingMark, useStagingUnitByMark } from '../composables/usePendingStagingUnit'
+import { useStagingMark } from '../composables/usePendingStagingUnit'
+import { useFlowValidation } from '../composables/useFlowValidation'
 import { FLOW_VUE_FLOW_ID } from '../constants/flowConfig'
 import { NODE_TYPES } from '../constants/nodeTypes'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
@@ -53,9 +54,9 @@ const openHttpConfig = inject('openHttpConfig', null)
 
 const store = useFlowCanvasStore()
 const { isStartNode } = useFlowNodes()
+const { issueNodeIds } = useFlowValidation()
 
 const stagingMark = useStagingMark(toRef(() => props.id), 'node')
-const stagingUnit = useStagingUnitByMark(stagingMark)
 
 const cfg = computed(() => NODE_TYPES[props.type] || {})
 const color = computed(() => cfg.value.color || '#0b6edc')
@@ -73,7 +74,7 @@ const nodeClasses = computed(() => ({
   'is-ai-staging-add': stagingMark.value?.mode === 'add',
   'is-ai-staging-update': stagingMark.value?.mode === 'update',
   'is-ai-staging-delete': stagingMark.value?.mode === 'delete',
-  'is-ai-staging-error': stagingUnit.value?.lastValidation != null && !stagingUnit.value.lastValidation.ok,
+  'is-ai-staging-error': issueNodeIds.value.has(props.id),
 }))
 
 function onDblClick() {

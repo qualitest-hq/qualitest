@@ -43,12 +43,20 @@ export function removeStagingNodeFromCanvas(nodeId: string) {
   const store = useFlowCanvasStore();
   store.nodes = store.nodes.filter((n) => n.id !== nodeId);
   store.edges = store.edges.filter((e) => e.source !== nodeId && e.target !== nodeId);
+  if (store.pendingEdges?.length) {
+    store.setPendingEdges(
+      store.pendingEdges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+    );
+  }
 }
 
 /** 从画布移除指定 Staging 边。 */
 export function removeStagingEdgeFromCanvas(edgeId: string) {
   const store = useFlowCanvasStore();
   store.edges = store.edges.filter((e) => e.id !== edgeId);
+  if (store.pendingEdges?.length) {
+    store.setPendingEdges(store.pendingEdges.filter((e) => e.id !== edgeId));
+  }
 }
 
 /** 用确认前保存的 baseline 恢复节点字段（拒绝或回滚 updateNode 时调用）。 */
@@ -90,9 +98,9 @@ export function restoreEdgeFromBaseline(edgeId: string, baseline?: Record<string
 /**
  * 将 Staging 同步结果写入画布 store。
  *
- * - 节点有变化时直接更新 store.nodes
- * - 边有变化或仍存在 pending 新增连线时，写入 pendingEdges 并递增灌入计数，
- *   由画布内灌入逻辑在节点注册完成后写入 store.edges
+ * 节点有变化时更新 store.nodes。
+ * 边有变化、或仍有 pending 新增连线时：写入 pendingEdges 并递增灌入计数；
+ * 完整边表以 getEffectiveEdges（含 pending）为比较基准，避免确认落盘窗口 edges 被清空后误判丢边。
  */
 export function applyStagingCanvasToStore(
   store: ReturnType<typeof useFlowCanvasStore>,
@@ -105,7 +113,7 @@ export function applyStagingCanvasToStore(
   }
 
   const hasPendingAddEdges = listPendingStagingEdgeUnits(unitsById).length > 0;
-  const edgesChanged = JSON.stringify(edges) !== JSON.stringify(store.edges);
+  const edgesChanged = JSON.stringify(edges) !== JSON.stringify(store.getEffectiveEdges());
   if (edgesChanged || hasPendingAddEdges) {
     store.setPendingEdges(edges);
     store.bumpStagingEdgeFlushToken();
@@ -127,14 +135,22 @@ export function useAiStagingCanvas() {
       return;
     }
 
+    // 确认落盘窗口 store.edges 常被清空、完整边在 pendingEdges；必须用有效边表作底，否则会覆盖丢边
+    const baseEdges = store.getEffectiveEdges().map((e) => ({ ...e }));
+
     const ctx = createStagingCanvasSyncContext(
       stagingStore.unitsById,
       store.nodes,
-      store.edges,
+      baseEdges,
       stagingStore.stagingByNodeId,
       stagingStore.stagingByEdgeId,
       (nodeId) => {
         store.edges = store.edges.filter((e) => e.source !== nodeId && e.target !== nodeId);
+        if (store.pendingEdges?.length) {
+          store.setPendingEdges(
+            store.pendingEdges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+          );
+        }
       },
     );
     const { nodes, edges } = computeStagingCanvasSync(ctx);

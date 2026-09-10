@@ -6,7 +6,6 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.CompareRuleEvaluator;
 import com.qualitest.flow.context.JsonPathFacade;
 import com.qualitest.flow.context.PlaceholderResolver;
-import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.input.InputFieldTypes;
 import com.qualitest.flow.model.GraphEdge;
@@ -458,18 +457,7 @@ public class GraphJsonValidator {
             if (!(branchItem instanceof Map<?, ?> branch)) {
                 continue;
             }
-            boolean terminal = ConditionBranchTerminalSupport.isTerminalBranch(branch);
-            Object kindObj = branch.get("kind");
-            String kind = kindObj != null ? String.valueOf(kindObj).trim() : "";
-            Object targetObj = branch.get("target");
-            String target = targetObj != null ? String.valueOf(targetObj).trim() : "";
-            if (terminal) {
-                if ("else".equals(kind)) {
-                    errors.add(p + " 条件节点「" + name + "」ELSE 分支不可设为结束流程");
-                } else if (!target.isEmpty()) {
-                    errors.add(p + " 条件节点「" + name + "」branches[" + bi + "] terminal 与 target 不可同时配置");
-                }
-            }
+            // 无 target 表示本分支结束本流；此处只校 conditions 规则本身
             Object conditionsRaw = branch.get("conditions");
             if (!(conditionsRaw instanceof List<?> conditions)) {
                 continue;
@@ -714,6 +702,7 @@ public class GraphJsonValidator {
             List<GraphEdge> edges,
             List<String> warnings
     ) {
+        // 条件分支出口：无 target 合法结束；有 target 必须能找到对应出边
         for (GraphNode node : nodes) {
             if (node == null || !FlowNodeType.CONDITION.matches(node.getType())) {
                 continue;
@@ -729,12 +718,12 @@ public class GraphJsonValidator {
                 }
                 Object branchId = branch.get("id");
                 Object target = branch.get("target");
-                if (ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
+                // 无 target：合法结束出口，跳过
+                // 有 target：须存在对应出边，否则告警（数据不一致）
+                if (target == null || String.valueOf(target).isBlank()) {
                     continue;
                 }
-                if (target == null || String.valueOf(target).isBlank()) {
-                    warnings.add("条件节点 " + node.getId() + " 分支 " + (branchId != null ? branchId : "?") + " 未绑定 target");
-                } else if (!hasOutgoingEdge(edges, node.getId(), String.valueOf(target))) {
+                if (!hasOutgoingEdge(edges, node.getId(), String.valueOf(target))) {
                     warnings.add("条件节点 " + node.getId() + " 分支 " + branchId + " 的 target 无对应出边：" + target);
                 }
             }
@@ -763,12 +752,11 @@ public class GraphJsonValidator {
                 }
                 String branchId = branch.getString("id");
                 String target = branch.getString("target");
-                if (ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
+                // 无 target：结束出口，不告警；有 target 须能找到对应出边
+                if (target == null || target.isBlank()) {
                     continue;
                 }
-                if (target == null || target.isBlank()) {
-                    warnings.add("条件节点 " + nodeId + " 分支 " + (branchId != null ? branchId : "?") + " 未绑定 target");
-                } else if (!hasRawOutgoingEdge(edgesArr, nodeId, target)) {
+                if (!hasRawOutgoingEdge(edgesArr, nodeId, target)) {
                     warnings.add("条件节点 " + nodeId + " 分支 " + branchId + " 的 target 无对应出边：" + target);
                 }
             }

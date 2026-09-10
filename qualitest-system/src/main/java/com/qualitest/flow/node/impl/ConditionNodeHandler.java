@@ -18,13 +18,14 @@ import java.util.Map;
 /**
  * Condition 节点执行器。
  * <p>
- * 扫描 {@code data.branches[]}（顺序 IF → ELIF → ELSE）：
+ * 按 {@code data.branches[]} 顺序扫描（IF → ELIF → ELSE）：
  * <ul>
  *   <li>if/elif：{@code conditions[]} 全部成立则命中（AND）</li>
- *   <li>else：前序均未命中时兜底</li>
+ *   <li>else：前序均未命中时作为兜底</li>
  * </ul>
- * 命中后校验 {@code target} 非空（{@code terminal} 分支除外），将 branchId/kind 写入 {@code StepResult.branchTaken}；
- * 下一跳节点 id 由遍历器读取 target 字段。
+ * 命中后本步标记 passed，并把命中分支写入 {@code branchTaken}。<br>
+ * 无有效 target 时在 {@code branchTaken} 里带 {@code terminal: true}，表示本流应结束。<br>
+ * 有有效 target 时，后续步骤按 target 走到下游节点。
  */
 @Component
 public class ConditionNodeHandler extends AbstractStubNodeHandler {
@@ -67,22 +68,13 @@ public class ConditionNodeHandler extends AbstractStubNodeHandler {
                     "未命中任何条件分支");
         }
 
-        boolean terminal = ConditionBranchTerminalSupport.isTerminalBranch(matched);
-        String target = matched.getString("target");
-        if (terminal) {
-            if (target != null && !target.isBlank()) {
-                return failed(node, incomingEdgeId, nodeName, t0, ctx,
-                        "terminal 分支不可同时配置 target");
-            }
-        } else if (target == null || target.isBlank()) {
-            return failed(node, incomingEdgeId, nodeName, t0, ctx,
-                    FlowErrorCode.TF_BRANCH_UNWIRED.getDefaultMessage());
-        }
+        boolean endBranch = ConditionBranchTerminalSupport.isTerminalBranch(matched);
 
         Map<String, Object> branchTaken = new LinkedHashMap<>();
         branchTaken.put("branchId", matched.getString("id"));
         branchTaken.put("kind", matched.getString("kind"));
-        if (terminal) {
+        // 结束分支：结果快照标记 terminal，表示本流结束
+        if (endBranch) {
             branchTaken.put("terminal", true);
         }
 

@@ -11,7 +11,6 @@ import {
 import { isKnownNodeType, nodeTypeLabel } from './nodeTypes';
 import type { GraphEdge, GraphJson, GraphNode } from './graphTypes';
 import { DELAY_MAX_MS } from './delayConstants';
-import { isTerminalBranch } from './conditionBranch';
 import { isKnownInputFieldType, requiresOptions } from './inputFields';
 
 const ALLOWED_EDGE_KEYS = new Set(['id', 'source', 'target', 'label']);
@@ -268,16 +267,7 @@ function validateConditionNodeFields(
   branches.forEach((branchItem, bi) => {
     if (!branchItem || typeof branchItem !== 'object' || Array.isArray(branchItem)) return;
     const branch = branchItem as Record<string, unknown>;
-    const terminal = isTerminalBranch(branch as { terminal?: boolean });
-    const kind = String(branch.kind || '').trim();
-    const target = branch.target != null ? String(branch.target).trim() : '';
-    if (terminal) {
-      if (kind === 'else') {
-        errors.push(`${p} 条件节点「${name}」ELSE 分支不可设为结束流程`);
-      } else if (target) {
-        errors.push(`${p} 条件节点「${name}」branches[${bi}] terminal 与 target 不可同时配置`);
-      }
-    }
+    // 无 target：本分支结束本流；此处只校 conditions 规则
     const conditions = branch.conditions;
     if (!Array.isArray(conditions)) return;
     conditions.forEach((cond, ci) => {
@@ -519,15 +509,17 @@ function validateConditionBranches(
 ): void {
   nodes.forEach((n) => {
     if (n.type !== 'condition') return;
+    const name = n.data?.name != null && String(n.data.name).trim()
+      ? String(n.data.name).trim()
+      : n.id;
     const branches = (n.data?.branches as Array<Record<string, unknown>> | undefined) ?? [];
     branches.forEach((b) => {
       const branchId = b.id;
       const target = b.target;
-      if (isTerminalBranch(b as { terminal?: boolean })) return;
-      if (!target || String(target).trim() === '') {
-        warnings.push(`条件节点 ${n.id} 分支 ${branchId ?? '?'} 未绑定 target`);
-      } else if (!hasOutgoingEdge(edges, n.id, String(target))) {
-        warnings.push(`条件节点 ${n.id} 分支 ${branchId} 的 target 无对应出边：${target}`);
+      // 无 target：结束出口，不告警；有 target 须存在对应出边
+      if (!target || String(target).trim() === '') return;
+      if (!hasOutgoingEdge(edges, n.id, String(target))) {
+        warnings.push(`条件节点「${name}」分支 ${branchId} 的 target 无对应出边：${target}`);
       }
     });
   });

@@ -1,23 +1,3 @@
-@mixin ai-staging-error-panel($compact: false) {
-  border-radius: 6px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
-  text-align: left;
-
-  @if $compact {
-    max-width: 200px;
-    padding: 4px 6px;
-    font-size: 10px;
-    line-height: 1.3;
-  } @else {
-    max-width: 220px;
-    padding: 6px 8px;
-    font-size: 11px;
-    line-height: 1.35;
-  }
-}
-
 @mixin ai-staging-btn($variant: 'confirm', $compact: false) {
   border-radius: 6px;
   border: 1px solid var(--pd-border-subtle, #d1d5db);
@@ -76,15 +56,4 @@
   background: #f1f5f9;
   opacity: 1;
   box-shadow: none;
-}
-
-.ai-staging-error-line {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ai-staging-actions {
-  display: flex;
-  gap: 4px;
 }

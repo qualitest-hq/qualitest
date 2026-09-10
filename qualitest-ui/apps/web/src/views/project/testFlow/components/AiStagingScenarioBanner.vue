@@ -1,17 +1,15 @@
 <template>
   <div class="ai-staging-scenario-banner" @click.stop>
     <div class="ai-staging-scenario-banner__label">{{ bannerLabel }}</div>
-    <AiStagingConfirmErrors :unit-id="unitId" />
     <AiStagingActionButtons :unit-id="unitId" size="compact" />
   </div>
 </template>
 
 <script setup>
-/** 场景列表卡片上的 Staging 确认条 */
+/** 场景列表卡片上的 Staging 确认条（错误文案统一在画布校验条） */
 import { computed } from 'vue'
 
 import AiStagingActionButtons from './AiStagingActionButtons.vue'
-import AiStagingConfirmErrors from './AiStagingConfirmErrors.vue'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { stagingKindTitle } from '../utils/stagingLabels'
 

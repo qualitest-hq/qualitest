@@ -289,13 +289,10 @@ describe('validateGraphJson', () => {
     ).toBe(true);
   });
 
-  it('condition terminal 分支无 target 不警告；terminal+target 为 error', () => {
-    const base = {
+  it('condition 无 target 不警告；有 target 无出边仍警告', () => {
+    const endOk = validateGraphJson({
       meta: { scenarios: [{ id: 's1', name: '默认' }] },
       edges: [{ id: 'e1', source: 'c1', target: 'n2' }],
-    };
-    const terminalOk = validateGraphJson({
-      ...base,
       nodes: [
         {
           id: 'c1',
@@ -307,7 +304,6 @@ describe('validateGraphJson', () => {
               {
                 id: 'b_if',
                 kind: 'if',
-                terminal: true,
                 conditions: [{ left: 'flow.x', operator: 'eq', right: '1' }],
               },
               { id: 'b_else', kind: 'else', target: 'n2' },
@@ -317,32 +313,34 @@ describe('validateGraphJson', () => {
         { id: 'n2', type: 'delay', position: { x: 0, y: 0 }, data: { name: 'd', ms: 0 } },
       ],
     });
-    expect(terminalOk.ok).toBe(true);
-    expect(terminalOk.warnings.some((w) => w.includes('未绑定 target'))).toBe(false);
+    expect(endOk.ok).toBe(true);
+    expect(endOk.warnings.some((w) => w.includes('未绑定 target'))).toBe(false);
 
-    const conflict = validateGraphJson({
-      ...base,
+    const dangling = validateGraphJson({
+      meta: { scenarios: [{ id: 's1', name: '默认' }] },
       edges: [],
-      nodes: [{
-        id: 'c1',
-        type: 'condition',
-        position: { x: 0, y: 0 },
-        data: {
-          name: 'c',
-          branches: [
-            {
-              id: 'b_if',
-              kind: 'if',
-              terminal: true,
-              target: 'n2',
-              conditions: [{ left: 'flow.x', operator: 'eq', right: '1' }],
-            },
-            { id: 'b_else', kind: 'else', target: 'n3' },
-          ],
+      nodes: [
+        {
+          id: 'c1',
+          type: 'condition',
+          position: { x: 0, y: 0 },
+          data: {
+            name: 'c',
+            branches: [
+              {
+                id: 'b_if',
+                kind: 'if',
+                target: 'n2',
+                conditions: [{ left: 'flow.x', operator: 'eq', right: '1' }],
+              },
+              { id: 'b_else', kind: 'else' },
+            ],
+          },
         },
-      }],
+        { id: 'n2', type: 'delay', position: { x: 0, y: 0 }, data: { name: 'd', ms: 0 } },
+      ],
     });
-    expect(conflict.errors.some((e) => e.includes('terminal 与 target 不可同时配置'))).toBe(true);
+    expect(dangling.warnings.some((w) => w.includes('无对应出边'))).toBe(true);
   });
 
   it('边含 sourceHandle 字段时报错', () => {

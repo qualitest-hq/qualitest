@@ -24,9 +24,8 @@
             {{ formatBranchSummary(branch) }}
           </div>
         </div>
-        <!-- 行内 Handle：Vue Flow top:50%/right:0 相对行（Issue #1767） -->
+        <!-- 行内出边锚点：始终可连；未绑 target 时命中即结束本流 -->
         <Handle
-            v-if="!isTerminalBranch(branch)"
             :id="`out-${branch.id}`"
             :position="Position.Right"
             class="handle handle--out handle--out-branch"
@@ -40,7 +39,7 @@
 <script setup>
 /**
  * condition 节点画布卡片。
- * 按 branches 渲染多行 IF/ELIF/ELSE；非 terminal 行内挂出边锚点 out-<branchId>。
+ * 按 branches 渲染 IF/ELIF/ELSE 多行；每行右侧有出边锚点，未连线即命中后结束本流。
  */
 import { Handle, Position } from '@vue-flow/core'
 import { computed, ref } from 'vue'
@@ -50,7 +49,6 @@ import {
   branchKindLabel,
   formatBranchSummary,
   getConditionBranches,
-  isTerminalBranch,
 } from '../utils/conditionUtils'
 import BaseFlowNode from './BaseFlowNode.vue'
 
@@ -67,8 +65,8 @@ const branches = computed(() => getConditionBranches(props.data))
 
 useConditionHandleLayout(props.id, branches, rootEl)
 
+/** 「点击配置条件」用弱样式；「→ 结束」等其它文案保持正常样式 */
 function isMutedSummary(branch) {
-  if (isTerminalBranch(branch)) return false
   return branch.kind !== 'else' && formatBranchSummary(branch) === '点击配置条件'
 }
 </script>

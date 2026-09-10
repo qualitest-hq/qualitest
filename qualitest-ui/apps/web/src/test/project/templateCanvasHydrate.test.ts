@@ -141,7 +141,7 @@ describe('hydrateTemplateFlowsGraphs', () => {
 })
 
 describe('migrateLoginFlowTerminalBranch', () => {
-  it('移除 reuse_end 并将 b_alive_if 改为 terminal', () => {
+  it('移除 reuse_end 并将 b_alive_if 改为无 target 结束', () => {
     const graph = {
       nodes: [
         {
@@ -175,7 +175,8 @@ describe('migrateLoginFlowTerminalBranch', () => {
     expect(graph.nodes.some((n) => n.id === 'reuse_end')).toBe(false)
     expect(graph.edges.some((e) => e.id === 'e_alive_if')).toBe(false)
     const aliveIf = graph.nodes[0].data.branches.find((b) => b.id === 'b_alive_if')
-    expect(aliveIf?.terminal).toBe(true)
+    expect(aliveIf?.target).toBeUndefined()
+    expect(aliveIf?.terminal).toBeUndefined()
     expect(aliveIf?.target).toBeUndefined()
   })
 })

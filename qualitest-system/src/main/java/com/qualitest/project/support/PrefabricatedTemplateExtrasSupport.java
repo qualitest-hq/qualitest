@@ -866,7 +866,7 @@ public final class PrefabricatedTemplateExtrasSupport {
         condAliveData.put("name", "凭证是否有效");
         condAliveData.put("summary", "凭证是否有效");
         condAliveData.put("branches", List.of(
-                terminalBranch("b_alive_if", "if", List.of(
+                endBranch("b_alive_if", "if", List.of(
                         condition("http.status", "eq", "200"))),
                 branch("b_alive_else", "else", "login_http", List.of())
         ));
@@ -896,7 +896,7 @@ public final class PrefabricatedTemplateExtrasSupport {
                 : "登录");
         loginHttp.put("data", loginData);
 
-        // —— 边（与 branches.target 对齐，供画布展示） ——
+        // 出边：ELSE 连登录；成功 IF 无出边（结束本流）
         List<JSONObject> edges = List.of(
                 edge("e_token_if", "cond_token", "probe_http"),
                 edge("e_token_else", "cond_token", "login_http"),
@@ -982,12 +982,11 @@ public final class PrefabricatedTemplateExtrasSupport {
         return b;
     }
 
-    /** IF/ELIF 结束流程分支（无 target）。 */
-    private static JSONObject terminalBranch(String id, String kind, List<JSONObject> conditions) {
+    /** IF/ELIF 结束本流分支：只写 id/kind/conditions，不写 target、不写 terminal。 */
+    private static JSONObject endBranch(String id, String kind, List<JSONObject> conditions) {
         JSONObject b = new JSONObject();
         b.put("id", id);
         b.put("kind", kind);
-        b.put("terminal", true);
         b.put("conditions", conditions);
         return b;
     }
