@@ -68,12 +68,18 @@ function tooltipContent(item: AiPromptTemplateItem): string {
   return item.templateDescription?.trim() || item.templateTitle;
 }
 
-/** 内容超出可视宽度时，将纵向滚轮转为横向滚动 */
+/** 内容超出可视宽度时，将滚轮转为横向滚动，并阻止冒泡以免外层闪出横向滚动条 */
 function onWheel(event: WheelEvent) {
   const el = scrollRef.value;
   if (!el || el.scrollWidth <= el.clientWidth) return;
+  const absX = Math.abs(event.deltaX);
+  const absY = Math.abs(event.deltaY);
+  if (absX < 0.5 && absY < 0.5) return;
+  // 触控板横向优先用 deltaX；否则把纵向滚轮映射为左右滑
+  const dx = absX > absY ? event.deltaX : event.deltaY;
   event.preventDefault();
-  el.scrollLeft += event.deltaY;
+  event.stopPropagation();
+  el.scrollLeft += dx;
 }
 
 function onSelect(item: AiPromptTemplateItem) {
@@ -88,6 +94,9 @@ function onSelect(item: AiPromptTemplateItem) {
 .ai-prompt-template-strip {
   @include flow.flow-pd-core-vars;
   flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   padding: 0 0 8px;
   border-bottom: 1px solid var(--pd-divider);
   margin-bottom: 10px;
@@ -108,12 +117,16 @@ function onSelect(item: AiPromptTemplateItem) {
   flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
 
   &::-webkit-scrollbar {
     display: none;
+    height: 0;
   }
 }
 

@@ -173,4 +173,22 @@ public class AiChatController extends BaseController {
         aiChatConversationService.deleteSession(aiChatSessionId, getUserId());
         return R.ok();
     }
+
+    /**
+     * 按雪花 id 摘除会话内 flowDesignClientIdMap 短名（Staging 丢弃时调用）。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @PostMapping("/chat/session/{aiChatSessionId}/flow-design-id-map/prune")
+    public R<Void> pruneFlowDesignClientIdMap(
+            @PathVariable Long aiChatSessionId,
+            @RequestBody java.util.Map<String, java.util.List<String>> body) {
+        AiChatSessionDetailResult detail = aiChatConversationService.getSessionWithMessages(
+                aiChatSessionId, getUserId());
+        if (detail.getSession().getTestProjectId() != null) {
+            testProjectMemberService.getCheckProjectMemberRole(detail.getSession().getTestProjectId());
+        }
+        java.util.List<String> ids = body != null ? body.get("snowflakeIds") : null;
+        aiChatConversationService.pruneFlowDesignClientIdMap(aiChatSessionId, ids, getUserId());
+        return R.ok();
+    }
 }

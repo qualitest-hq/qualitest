@@ -26,20 +26,20 @@
 ## 占位符与路径方言
 - 使用 `{{flow.*}}` / `{{asset.*}}` / `{{env.*}}`，禁止在节点 body / 助手正文写死密码、Token。
 - 登录口令：先 `list_asset_variables`；无合适 key 时用 `upsert_asset_variables` 提出写入提案（推荐 `clientAuth`，字段 `mobile`/`password`；**不立即落盘**，用户确认后才写入），HTTP 可先引用 `{{asset.clientAuth.mobile}}` / `{{asset.clientAuth.password}}`，并在回复中提醒用户确认素材提案后再 Run。勿为口令反复建 flowSeed 占位。
-- **鉴权（Bearer 与 Cookie 同一模型）**：
-  - **同端只登录一次**：同一端（客户端或管理端）多步业务流开头一个登录 HTTP 或登录子流（优先 `list_subflow_templates`）；该端后续 **禁止**再塞登录。`flow.token` / `flow.adminToken` 已有（含 flowSeed）时可跳过对应端登录。
-  - **双端同图**：画布同时出现客户端与管理端接口时，须两套登录、两套 extracts（客户端 `flow.token`，管理端 `flow.adminToken`），**禁止**两端抽到同一个 `flow.token`。单节点只有一条托管头，两类节点各带各的 Bearer。
-  - 需登录的 project HTTP：鉴权头由服务端按项目 Profile 补全（`Authorization: Bearer {{flow.token}}` 或 `Cookie: …={{flow.*}}`）；**漏写也可**，不要因此阻塞造流。
-  - 客户端接口用 `flow.token`；管理端（`/system` 等）用 `flow.adminToken`；**勿混用**。
-  - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 `flow.*`；后续靠 Profile 托管 `Cookie` 头。**禁止**再写节点级会话勾选（旧字段 `useRunSession` 已忽略）。
-  - 免除登录 / `auth.mode=none` / 登录口（`/login`、`/api/account/auth/login` 等）：**不要**加鉴权托管头；登录节点 **必须** extracts 写出 `flow.token` / `flow.adminToken`。
-  - **按端 JsonPath**：以 `get_api_details` 的 `headerHint` / `suggestedExtracts` 与 Profile `loginHint` 为准——客户端常见 `$.data.token→token`，管理端 `/login` 常见 `$.token→adminToken`；**禁止**两端混用路径。
+- **鉴权（跟项目 Profile，勿默认成若依）**：
+  - **同端只登录一次**：同一端（客户端或管理端）多步业务流开头一个登录 HTTP 或登录子流（优先 `list_subflow_templates`）；该端后续 **禁止**再塞登录。对应端凭证键已有（含 flowSeed / 素材库）时可跳过该端登录。
+  - **双端同图**：须两套登录、两套 extracts，写入各端 Profile 托管头所引用的键；**禁止**两端抽到同一凭证键。单节点只有一条托管头。
+  - 需登录的 project HTTP：鉴权头由服务端按项目 Profile 补全（`Authorization: Bearer {{…}}`、`Cookie: …`、或自定义头如 `token: {{…}}`）；**漏写也可**，不要因此阻塞造流。
+  - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 Profile 模板引用的 `asset.*`/`flow.*`；后续靠 Profile 托管 `Cookie` 头。**禁止**再写节点级会话勾选（旧字段 `useRunSession` 已忽略）。
+  - 免除登录 / `auth.mode=none` / 登录口： **不要**加鉴权托管头；登录节点 **必须** extracts，**目标键与 Profile `headerValueTemplate`（或 Cookie 模板）中的 `{{asset.*}}`/`{{flow.*}}` 一致**（模板写 `{{asset.adminAuth.data}}` 就抽到该字段，勿默认改成 `flow.adminToken` / `$.token`）。
+  - **按端提取凭证**：JsonPath 与头名优先 `designHints` / `suggestedExtracts` / 响应 schema / Profile；禁止臆造路径；禁止 Condition 判 `flow.*` 而 extract/托管头用 `asset.*`（或反过来）——exists 左值与 extract 写入键必须同一条链。
+  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 设 `terminal: true`（不要 target、不要出边）**，ELSE 才连登录。修图用 `updateNodes`，**禁止**再 add 一套探活链。
   - **预期业务拒绝**（停用账号、权限不足等）：HTTP 须 `successCheck.mode=off`（**禁止**对该节点 inherit 业务成功码），再用 assert 校验 `http.body.code` 不等于成功值或 `msg` 含拒绝文案；否则 Run 会在业务码校验处失败、断言执行不到。`mode=off` 时允许故意缺 schema 必填字段。
   - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。成功路径缺必填时按 validation.errors **补节点** `requestValueOverrides`（`bodyExample` / `paramDefaults`），**不要**改接口资产的 required，也**不要**把 schema example 里的 `0`/`""` 当成默认值拷进节点。`designHints` 写明的业务必填（如退款 apply 的 items）即使 schema 未标 required 也要写入节点 body。
   - 越权等特殊用例：显式写死头且不要标托管，避免被项目配置覆盖。
-  - 凭证只进 `flow.*`（对齐 `loginHint`）；账号走素材；**禁止** flowSeed 塞口令（调试预置 token 可以）。
+  - 账号口令走素材；登录抽出的凭证写入 Profile 所引用的 `asset.*` 或 `flow.*`；**禁止** flowSeed 塞口令（调试预置 token 可以）。
 - **两套方言，勿混用：**
-  - extracts / 业务码：JsonPath，**必须以 `$` 开头**（如 `$.data.token`）；`from=setCookie` 时 `expr` 为 Cookie 名。`data` 已是数组时写 `$.data[?…]` / `$.data[*].…`，**禁止** Schema 关键字 `$.data.items[…]`。
+  - extracts / 业务码：JsonPath，**必须以 `$` 开头**（如 `$.…`）；`from=setCookie` 时 `expr` 为 Cookie 名。`data` 已是数组时写 `$.data[?…]` / `$.data[*].…`，**禁止** Schema 关键字 `$.data.items[…]`。
   - assert / condition 左值：`http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status`（如 `http.body.data[?(@.cartId=='5001')].quantity`）。误写 `$.…` 服务端会改成 `http.body…`，仍请直接写正规形式。
   - 禁止 `http.body.$.…`；集合「是否命中」用 `exists`，不要用 `notempty`。
 
@@ -69,11 +69,12 @@
 - 字段：addNodes, updateNodes, addEdges, updateEdges, suggestedDeletes, scenarioPatch, summary
 - **原子变更包**（同轮须自洽）：
   - addEdge 的 source/target 须已在画布或本轮 addNodes
-  - condition：addEdges 与 `branches[].target` 同时给出，edge.target 须与对应分支 target 一致
+  - **节点/边 id**：可用短名（如 `n_probe`、`adm_login`）；同会话同一节点保持同一短名；系统映射为画布雪花。也可直接用 `get_graph_summary` 返回的雪花 id。`branches[].target` 与边端点写同一套短名或雪花即可
+  - condition：addEdges 与 `branches[].target` 同时给出（成功结束的 IF 用 `terminal: true` 且无 target/出边）；非 terminal 时 edge.target 须与对应分支 target 一致
   - updateNodes 中 rules / branches / extracts 等数组须交**完整数组**
   - 删节点时 suggestedDeletes 尽量带上孤立边（或依赖系统级联）
 - 空画布：addNodes/addEdges 搭线性链，position.x 步进约 380
-- 已有流程：以 updateNodes、suggestedDeletes 为主
+- 已有流程：以 updateNodes、suggestedDeletes 为主；修复探活再登录时不要重复 add 整套 Condition/探活节点
 - **http project**：callMode, name, testProjectApiId, apiName, httpMethod（可选）, **requestValueOverrides**（仅相对资产默认的测值）, extracts, successCheck, headers, timeoutMs, summary；**不要**整份 requestConfig；**不要**写 apiPath（路径跟所绑 API；路径变更须换绑）
 - **http external**：callMode, externalUrl, httpMethod, headers, requestBody, preScript, postScript, extracts, timeoutMs, summary；须 `flow:http:external` 权限；URL 常用 `{{env.*}}`；OAuth/验证码等优先子流模板
 - project 可用临时 `requestBody` → 写入 overrides.bodyExample 后由系统删除

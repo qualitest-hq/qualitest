@@ -1,8 +1,8 @@
 /**
  * AI 设计 patch 的 id 规范化。
  *
- * 处理 AI 返回的临时节点/边 id（非纯数字），替换为雪花 id，
- * 并在节点 id 变更时同步修正连线的 source/target，避免画布找不到端点。
+ * 服务端 submit 已按会话 map 把短名落成雪花；前端 hydrate 以服务端结果为准。
+ * 本函数仅作无会话上下文时的兜底：非数字 id 发号，并同步边端点；若传入 clientIdMap 则优先复用。
  */
 import type { FlowDesignPatch } from '../types/aiDesignTypes';
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId';
@@ -15,23 +15,29 @@ function isValidNumericId(id: string | undefined | null): boolean {
 /**
  * 规范化 patch 中所有新增节点与连线的 id。
  *
- * 流程：
- * 1. 遍历 addNodes，非数字 id 替换为雪花 id，并记录旧 id → 新 id 映射
- * 2. 遍历 addEdges，非数字边 id 替换为雪花 id；source/target 若在映射中则一并替换
- * 3. 若仍有连线端点无法对应任何新增节点，尝试按常见拓扑重连
- *
- * 返回深拷贝后的 patch，不修改入参。
+ * @param clientIdMap 可选会话短名→雪花映射；有则禁止对已映射短名重新发号
  */
-export function normalizeFlowDesignPatchIds(patch: FlowDesignPatch): FlowDesignPatch {
+export function normalizeFlowDesignPatchIds(
+  patch: FlowDesignPatch,
+  clientIdMap?: Record<string, string> | Map<string, string>,
+): FlowDesignPatch {
   const next = JSON.parse(JSON.stringify(patch)) as FlowDesignPatch;
   const idRemap = new Map<string, string>();
+  const sessionMap = toMap(clientIdMap);
 
   for (const node of next.addNodes ?? []) {
-    const oldId = node.id;
+    const oldId = node.id?.trim() ?? '';
+    if (oldId && sessionMap.has(oldId)) {
+      const mapped = sessionMap.get(oldId)!;
+      idRemap.set(oldId, mapped);
+      node.id = mapped;
+      continue;
+    }
     if (!isValidNumericId(oldId)) {
       const newId = nextSnowflakeId();
-      if (oldId?.trim()) {
-        idRemap.set(oldId.trim(), newId);
+      if (oldId) {
+        idRemap.set(oldId, newId);
+        sessionMap.set(oldId, newId);
       }
       node.id = newId;
     }
@@ -43,14 +49,44 @@ export function normalizeFlowDesignPatchIds(patch: FlowDesignPatch): FlowDesignP
     }
     if (edge.source && idRemap.has(edge.source)) {
       edge.source = idRemap.get(edge.source)!;
+    } else if (edge.source && sessionMap.has(edge.source)) {
+      edge.source = sessionMap.get(edge.source)!;
     }
     if (edge.target && idRemap.has(edge.target)) {
       edge.target = idRemap.get(edge.target)!;
+    } else if (edge.target && sessionMap.has(edge.target)) {
+      edge.target = sessionMap.get(edge.target)!;
     }
   }
 
+  remapBranchTargets(next.addNodes, idRemap, sessionMap);
+  remapBranchTargets(next.updateNodes, idRemap, sessionMap);
+
   rewireAddEdgeEndpointsToAddNodes(next);
   return next;
+}
+
+function toMap(clientIdMap?: Record<string, string> | Map<string, string>): Map<string, string> {
+  if (!clientIdMap) return new Map();
+  if (clientIdMap instanceof Map) return new Map(clientIdMap);
+  return new Map(Object.entries(clientIdMap));
+}
+
+function remapBranchTargets(
+  nodes: FlowDesignPatch['addNodes'] | FlowDesignPatch['updateNodes'],
+  idRemap: Map<string, string>,
+  sessionMap: Map<string, string>,
+) {
+  for (const node of nodes ?? []) {
+    const branches = (node.data as { branches?: Array<{ target?: string }> } | undefined)?.branches;
+    if (!Array.isArray(branches)) continue;
+    for (const branch of branches) {
+      const t = branch.target?.trim();
+      if (!t) continue;
+      if (idRemap.has(t)) branch.target = idRemap.get(t);
+      else if (sessionMap.has(t)) branch.target = sessionMap.get(t);
+    }
+  }
 }
 
 /**
@@ -78,7 +114,7 @@ export function rewireAddEdgeEndpointsToAddNodes(patch: FlowDesignPatch): void {
   }
 
   if (edges.length === nodes.length - 1) {
-    for (let i = 0; i < edges.length; i += 1) {
+    for (let i = 0; i < edges.length; i++) {
       edges[i].source = nodeIds[i];
       edges[i].target = nodeIds[i + 1];
     }
@@ -86,12 +122,11 @@ export function rewireAddEdgeEndpointsToAddNodes(patch: FlowDesignPatch): void {
   }
 
   if (nodes.length === 3 && edges.length === 3) {
-    const [a, b, c] = nodeIds;
-    edges[0].source = a;
-    edges[0].target = b;
-    edges[1].source = b;
-    edges[1].target = c;
-    edges[2].source = a;
-    edges[2].target = c;
+    edges[0].source = nodeIds[0];
+    edges[0].target = nodeIds[1];
+    edges[1].source = nodeIds[1];
+    edges[1].target = nodeIds[2];
+    edges[2].source = nodeIds[0];
+    edges[2].target = nodeIds[2];
   }
 }

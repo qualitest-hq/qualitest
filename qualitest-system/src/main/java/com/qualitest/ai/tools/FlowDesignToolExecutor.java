@@ -1,5 +1,6 @@
 package com.qualitest.ai.tools;
 
+import com.qualitest.ai.service.AiChatConversationService;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.tools.flow.AppendApiDesignHintsTool;
@@ -90,7 +91,8 @@ public class FlowDesignToolExecutor {
                                   FlowDesignPatchNormalizer flowDesignPatchNormalizer,
                                   HttpNodeApiHealthChecker httpNodeApiHealthChecker,
                                   ITestProjectAssetService testProjectAssetService,
-                                  TestProjectApiDesignHintsService designHintsService) {
+                                  TestProjectApiDesignHintsService designHintsService,
+                                  AiChatConversationService aiChatConversationService) {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         Map<String, QualitestTool> map = new HashMap<>();
         map.put(SEARCH_APIS, new SearchApisTool(testProjectApiMapper, testProjectMapper));
@@ -113,7 +115,7 @@ public class FlowDesignToolExecutor {
                 graphResolver,
                 httpNodeApiHealthChecker != null ? httpNodeApiHealthChecker : new HttpNodeApiHealthChecker(),
                 testProjectApiMapper));
-        map.put(SUBMIT_FLOW_DESIGN_PATCH, new SubmitFlowDesignPatchTool(flowDesignPatchNormalizer));
+        map.put(SUBMIT_FLOW_DESIGN_PATCH, new SubmitFlowDesignPatchTool(flowDesignPatchNormalizer, aiChatConversationService));
         this.tools = Map.copyOf(map);
     }
 

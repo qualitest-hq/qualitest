@@ -31,6 +31,15 @@ describe('normalizeFlowDesignPatchIds', () => {
     expect(edge.target).toBe(nodeIds[1]);
   });
 
+  it('传入 clientIdMap 时复用已映射雪花，不重新发号', () => {
+    const patch: FlowDesignPatch = {
+      addNodes: [{ id: 'n_login', type: 'http', data: { name: '登录' } }],
+      addEdges: [],
+    };
+    const normalized = normalizeFlowDesignPatchIds(patch, { n_login: '2097000000000000001' });
+    expect(normalized.addNodes![0].id).toBe('2097000000000000001');
+  });
+
   /** 端点 id 全部无效且为 3 节点 3 边时，应重连为 A→B、B→C、A→C。 */
   it('3 节点 3 边且端点全无效时按流水线拓扑重连', () => {
     // 前提：3 节点 id 有效，3 边端点均无效

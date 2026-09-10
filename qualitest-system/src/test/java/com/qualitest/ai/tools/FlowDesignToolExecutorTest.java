@@ -81,7 +81,7 @@ class FlowDesignToolExecutorTest {
         TestProjectApiDesignHintsService designHintsService = mock(TestProjectApiDesignHintsService.class);
         executor = new FlowDesignToolExecutor(
                 mapper, projectMapper, envService, flowService, runService, runStepService, normalizer,
-                new HttpNodeApiHealthChecker(), assetService, designHintsService);
+                new HttpNodeApiHealthChecker(), assetService, designHintsService, null);
         context = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
                 .testFlowId(3001L)

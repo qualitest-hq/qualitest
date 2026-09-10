@@ -11,6 +11,7 @@ import { ElMessage } from 'element-plus';
 
 import {
   listAiChatSessions,
+  pruneFlowDesignClientIdMap,
   type AiChatSessionItem,
 } from '@/api/ai/chat';
 import type { TestFlowDesignRequestPayload } from '@/api/project/testFlowAi';
@@ -59,6 +60,8 @@ import {
   pruneStagingAcceptanceForMessages,
   resetStagingAcceptanceMaps,
 } from '../utils/stagingAcceptance';
+import { restorePendingStagingIfNeeded as restorePendingStagingFromMessages } from '../utils/stagingSessionRestore';
+import { graphObjectIdFromUnit } from '../utils/stagingUnitIds';
 
 export { createClientMessageId, DRAFT_SESSION_ID, isPersistedSessionId } from '@/utils/ai/aiChatSession';
 
@@ -81,7 +84,7 @@ const {
   sessionThinkingEnabled,
 } = chatState;
 
-/** 已取消 Staging 单元（与 messageAcceptedMap 对称，会话内重灌时恢复 rejected 状态） */
+/** 已取消的 Staging 单元 id；会话重灌时把对应单元标为 rejected，避免再次待确认 */
 const messageRejectedMap = ref<Record<string, Set<string>>>({});
 
 bindStagingAcceptanceMaps(messageAcceptedMap, messageRejectedMap);
@@ -141,10 +144,22 @@ function migrateExtraMessageIdMaps(idMap: Map<string, string>) {
 function pruneExtraMessageState(removedIds: Set<string>) {
   revertPendingStagingForMessageIds(removedIds);
   const stagingStore = useAiStagingStore();
+  const snowflakeIds: string[] = [];
   for (const id of removedIds) {
+    for (const unit of stagingStore.listUnitsForMessage(id)) {
+      const { nodeId, edgeId } = graphObjectIdFromUnit(unit);
+      if (nodeId && /^\d+$/.test(nodeId)) snowflakeIds.push(nodeId);
+      if (edgeId && /^\d+$/.test(edgeId)) snowflakeIds.push(edgeId);
+    }
     stagingStore.removeMessageUnits(id);
   }
   pruneStagingAcceptanceForMessages(removedIds);
+  const sessionId = activeSessionId.value;
+  if (isPersistedSessionId(sessionId) && snowflakeIds.length) {
+    void pruneFlowDesignClientIdMap(sessionId, [...new Set(snowflakeIds)]).catch(() => {
+      /* 映射摘除失败不阻断 UI */
+    });
+  }
 }
 
 /** 新建对话或等价「清空会话」时，撤掉画布 Staging 并重置 store */
@@ -216,6 +231,7 @@ const chat = useAiChatSession<AiDesignMessageView>({
       nodes: [{ type: 'text', text: userMsg.content }],
     } satisfies ComposerDoc),
   onBootstrapComplete: applyPendingRunContextModule,
+  // 会话消息加载完成后：拉齐活跃 patch，再按消息重建 Staging 供确认
   onAfterSessionLoaded: async (loadedMessages) => {
     await eagerLoadActivePatch(loadedMessages);
     await stagingHydration.onSessionLoaded();
@@ -289,6 +305,21 @@ export function useAiDesign() {
     designContext.pendingNodeId = '';
     pendingNodeToken.value = 0;
     stagingStore.reset();
+  }
+
+  /**
+   * 打开 AI 助手侧栏时，在 Staging 已被画布重载清空的情况下按会话消息回灌待确认变更。
+   * 若画布上仍有待确认单元则不做任何事，避免重复清空再灌入导致节点闪烁。
+   */
+  async function restorePendingStagingIfNeeded() {
+    await restorePendingStagingFromMessages({
+      pendingCount: stagingStore.pendingCount,
+      messages: messages.value,
+      // 列表消息可能只有 patchPending，需先拉齐完整 patch
+      eagerLoadActivePatch: (msgs) => eagerLoadActivePatch(msgs as AiDesignMessageView[]),
+      // 按当前消息重建 Staging，并恢复本会话内已确认/已拒绝进度
+      onSessionLoaded: () => stagingHydration.onSessionLoaded(),
+    });
   }
 
   /** 追加一条本地 system 消息；可附带操作按钮（如保存提示） */
@@ -495,5 +526,7 @@ export function useAiDesign() {
     consumePendingNodeContext,
     ensureMessagePatchLoaded,
     clearSystemMessageActions,
+    /** 侧栏打开后：Staging 已空时按会话消息回灌待确认变更 */
+    restorePendingStagingIfNeeded,
   };
 }

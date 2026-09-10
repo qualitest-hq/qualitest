@@ -2,14 +2,15 @@ package com.qualitest.ai.tools.flow;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.ai.scenario.flow.FlowDesignClientIdMapSupport;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
+import com.qualitest.ai.service.AiChatConversationService;
 import com.qualitest.ai.tools.FlowDesignPatchStats;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
-import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 
@@ -17,10 +18,20 @@ import java.util.Map;
  * submit_flow_design_patch：接收 patch、规范化校验，不写库。
  * 结果写入 {@link FlowDesignToolContext#getSubmitCapture()}（若已注入）。
  */
-@RequiredArgsConstructor
 public class SubmitFlowDesignPatchTool implements QualitestTool {
 
     private final FlowDesignPatchNormalizer normalizer;
+    private final AiChatConversationService aiChatConversationService;
+
+    public SubmitFlowDesignPatchTool(FlowDesignPatchNormalizer normalizer) {
+        this(normalizer, null);
+    }
+
+    public SubmitFlowDesignPatchTool(FlowDesignPatchNormalizer normalizer,
+                                     AiChatConversationService aiChatConversationService) {
+        this.normalizer = normalizer;
+        this.aiChatConversationService = aiChatConversationService;
+    }
 
     @Override
     public String getName() {
@@ -39,10 +50,17 @@ public class SubmitFlowDesignPatchTool implements QualitestTool {
             return FlowDesignToolSupport.errorJson("submit 参数为空");
         }
         boolean replacedPrevious = ctx.getSubmitCapture() != null && ctx.getSubmitCapture().isSubmitted();
+        Map<String, String> clientIdMap = ctx.getFlowDesignClientIdMap();
         FlowDesignPatchNormalizer.NormalizeResult normalized = normalizer.normalize(
-                patch, ctx.getGraphJson(), ctx.getTestProjectId());
+                patch, ctx.getGraphJson(), ctx.getTestProjectId(), clientIdMap);
         if (ctx.getSubmitCapture() != null) {
             ctx.getSubmitCapture().record(normalized);
+        }
+        if (normalized.validation().isOk()
+                && aiChatConversationService != null
+                && ctx.getAiChatSessionId() != null
+                && clientIdMap != null) {
+            aiChatConversationService.saveFlowDesignClientIdMap(ctx.getAiChatSessionId(), clientIdMap);
         }
         JSONObject validation = new JSONObject();
         validation.put("ok", normalized.validation().isOk());
@@ -52,6 +70,9 @@ public class SubmitFlowDesignPatchTool implements QualitestTool {
         result.put("validation", validation);
         if (replacedPrevious) {
             result.put("replacedPrevious", true);
+        }
+        if (clientIdMap != null && !clientIdMap.isEmpty()) {
+            result.put("idMap", FlowDesignClientIdMapSupport.snapshot(clientIdMap));
         }
         if (normalized.validation().isOk()) {
             result.put("received", true);

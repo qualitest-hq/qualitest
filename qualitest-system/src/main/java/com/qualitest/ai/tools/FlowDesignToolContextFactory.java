@@ -38,6 +38,17 @@ public class FlowDesignToolContextFactory {
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture,
                                                      AssetUpsertCapture assetUpsertCapture) {
+        return fromDesignRequest(request, submitCapture, assetUpsertCapture, null, null);
+    }
+
+    /**
+     * 从 Web 设计请求构建工具上下文，并注入会话 id 与 clientId 映射。
+     */
+    public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
+                                                     FlowDesignSubmitCapture submitCapture,
+                                                     AssetUpsertCapture assetUpsertCapture,
+                                                     Long aiChatSessionId,
+                                                     java.util.Map<String, String> flowDesignClientIdMap) {
         AiDesignMentionSupport.ResolvedMentionContext resolved =
                 AiDesignMentionSupport.resolve(request.getMentions());
         return build(
@@ -50,7 +61,9 @@ public class FlowDesignToolContextFactory {
                 emptyToNull(resolved.getContextNodeIds()),
                 resolved.getContextRunId(),
                 submitCapture,
-                assetUpsertCapture);
+                assetUpsertCapture,
+                aiChatSessionId,
+                flowDesignClientIdMap);
     }
 
     /**
@@ -86,6 +99,8 @@ public class FlowDesignToolContextFactory {
                 emptyToNull(params.getContextNodeIds()),
                 params.getContextRunId(),
                 submitCapture,
+                null,
+                null,
                 null);
     }
 
@@ -101,7 +116,12 @@ public class FlowDesignToolContextFactory {
                                         List<String> contextNodeIds,
                                         Long contextRunId,
                                         FlowDesignSubmitCapture submitCapture,
-                                        AssetUpsertCapture assetUpsertCapture) {
+                                        AssetUpsertCapture assetUpsertCapture,
+                                        Long aiChatSessionId,
+                                        java.util.Map<String, String> flowDesignClientIdMap) {
+        java.util.Map<String, String> idMap = flowDesignClientIdMap != null
+                ? flowDesignClientIdMap
+                : new java.util.HashMap<>();
         return FlowDesignToolContext.builder()
                 .testProjectId(testProjectId)
                 .testFlowId(testFlowId)
@@ -116,6 +136,8 @@ public class FlowDesignToolContextFactory {
                 .maxToolResultBytes(aiLlmConfigService.getMaxToolResultBytes())
                 .submitCapture(submitCapture)
                 .assetUpsertCapture(assetUpsertCapture)
+                .aiChatSessionId(aiChatSessionId)
+                .flowDesignClientIdMap(idMap)
                 .build();
     }
 

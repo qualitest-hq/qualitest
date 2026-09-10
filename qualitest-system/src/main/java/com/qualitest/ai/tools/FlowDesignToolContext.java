@@ -6,7 +6,9 @@ import com.qualitest.flow.model.GraphJson;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 测试流 AI 设计工具执行时的请求级上下文。
@@ -82,6 +84,15 @@ public class FlowDesignToolContext {
      * 编排层每轮新建并注入；工具只写提案不落库。为空时 upsert 工具返回错误。
      */
     private final AssetUpsertCapture assetUpsertCapture;
+
+    /** 当前 AI 会话 id；用于持久化 flowDesignClientIdMap。可空（MCP 无会话）。 */
+    private final Long aiChatSessionId;
+
+    /**
+     * 会话级短名→雪花映射（可变）。submit 归一化时读写；编排层负责落库。
+     */
+    @Builder.Default
+    private final Map<String, String> flowDesignClientIdMap = new HashMap<>();
 
     /** 是否为模板预制流设计模式 */
     public boolean isTemplateDesignMode() {

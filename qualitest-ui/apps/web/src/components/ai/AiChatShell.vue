@@ -310,6 +310,8 @@ defineExpose({
   line-height: normal;
   border-radius: 0;
   font-size: 14px;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 /* ========== 标题栏 ========== */
@@ -551,6 +553,8 @@ defineExpose({
 /* ========== 底部 Composer ========== */
 .ai-chat-shell__composer {
   flex-shrink: 0;
+  min-width: 0;
+  overflow-x: hidden;
   padding: 12px 14px;
   border-top: 1px solid var(--pd-divider);
   background: var(--pd-surface-elevated);

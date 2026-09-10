@@ -181,6 +181,15 @@ export function deleteAiChatSession(sessionId: string) {
   });
 }
 
+/** Staging 丢弃时摘除会话 clientId→雪花映射 */
+export function pruneFlowDesignClientIdMap(sessionId: string, snowflakeIds: string[]) {
+  return request({
+    url: `/ai/chat/session/${sessionId}/flow-design-id-map/prune`,
+    method: 'post',
+    data: { snowflakeIds },
+  });
+}
+
 /**
  * 从锚点消息起截断会话后续消息。
  * @param inclusive true 时连同锚点消息一并删除

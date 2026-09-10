@@ -258,6 +258,7 @@ const {
   hasMoreOlderMessages,
   loadingOlderMessages,
   clearSystemMessageActions,
+  restorePendingStagingIfNeeded,
 } = useAiDesign();
 
 /** Mention 编辑器实例 */
@@ -312,13 +313,20 @@ const {
   },
 });
 
-/** 面板打开时加载模型/会话，并消费 Run 修复、节点添加入口的预填数据 */
+/**
+ * 侧栏打开时：
+ * 1. 加载模型与会话列表/当前会话消息
+ * 2. 拉取造流快捷提示词芯片
+ * 3. 若 Staging 已空但会话仍有未确认造流 patch，则回灌到画布供确认
+ * 4. 消费 Run 失败修复、节点「添加到对话」预填到输入框
+ */
 watch(
   () => store.aiDesignPanelOpen,
   (open) => {
     if (open) {
-      bootstrap().then(() => {
+      bootstrap().then(async () => {
         void loadPromptTemplates();
+        await restorePendingStagingIfNeeded();
         applyPendingRunToComposer();
         applyPendingNodeToComposer();
       });

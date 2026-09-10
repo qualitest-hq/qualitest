@@ -24,10 +24,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.qualitest.ai.scenario.flow.FlowDesignClientIdMapSupport;
+
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 画布侧 AI 多轮会话业务服务。
@@ -543,6 +548,64 @@ public class AiChatConversationService {
         update.setSummaryMessageCount(coveredMessageCount);
         update.setSummaryUpdatedAt(DateUtils.getNowDate());
         aiChatSessionService.updateAiChatSession(update);
+    }
+
+    /**
+     * 持久化测试流设计会话的 clientId→snowflake 映射到 biz_ref_json。
+     * 不校验 userId（由编排层在已授权会话上调用）。
+     */
+    @Transactional
+    public void saveFlowDesignClientIdMap(Long sessionId, Map<String, String> clientIdMap) {
+        if (sessionId == null) {
+            return;
+        }
+        AiChatSession session = aiChatSessionService.selectAiChatSessionById(sessionId);
+        if (session == null) {
+            return;
+        }
+        String next = FlowDesignClientIdMapSupport.writeToBizRef(session.getBizRefJson(), clientIdMap);
+        if (session.getBizRefJson() != null && session.getBizRefJson().equals(next)) {
+            return;
+        }
+        AiChatSession update = new AiChatSession();
+        update.setAiChatSessionId(sessionId);
+        update.setBizRefJson(next);
+        aiChatSessionService.updateAiChatSession(update);
+    }
+
+    /**
+     * 按雪花 id 摘除会话映射中的短名（Staging 丢弃 / suggestedDeletes）。
+     */
+    @Transactional
+    public void pruneFlowDesignClientIdMap(Long sessionId, Collection<String> snowflakeIds, Long userId) {
+        if (sessionId == null || snowflakeIds == null || snowflakeIds.isEmpty()) {
+            return;
+        }
+        requireOwnedSession(sessionId, userId);
+        AiChatSession session = aiChatSessionService.selectAiChatSessionById(sessionId);
+        if (session == null) {
+            return;
+        }
+        Map<String, String> map = FlowDesignClientIdMapSupport.parseFromBizRef(session.getBizRefJson());
+        if (!FlowDesignClientIdMapSupport.pruneBySnowflakeIds(map, snowflakeIds)) {
+            return;
+        }
+        AiChatSession update = new AiChatSession();
+        update.setAiChatSessionId(sessionId);
+        update.setBizRefJson(FlowDesignClientIdMapSupport.writeToBizRef(session.getBizRefJson(), map));
+        aiChatSessionService.updateAiChatSession(update);
+    }
+
+    /** 读取会话内 flowDesignClientIdMap（可变副本）。 */
+    public Map<String, String> loadFlowDesignClientIdMap(Long sessionId) {
+        if (sessionId == null) {
+            return new HashMap<>();
+        }
+        AiChatSession session = aiChatSessionService.selectAiChatSessionById(sessionId);
+        if (session == null) {
+            return new HashMap<>();
+        }
+        return FlowDesignClientIdMapSupport.parseFromBizRef(session.getBizRefJson());
     }
 
     /**

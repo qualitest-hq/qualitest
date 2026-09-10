@@ -104,7 +104,9 @@ public class TestFlowDesignAgent {
         // 模板模式禁用素材 upsert（无真实项目素材库）
         AssetUpsertCapture assetUpsertCapture = request.isTemplateDesignMode() ? null : new AssetUpsertCapture();
         FlowDesignToolContext toolContext = flowDesignToolContextFactory.fromDesignRequest(
-                request, submitCapture, assetUpsertCapture);
+                request, submitCapture, assetUpsertCapture,
+                session.getAiChatSessionId(),
+                aiChatConversationService.loadFlowDesignClientIdMap(session.getAiChatSessionId()));
 
         List<Map<String, Object>> tools = flowDesignToolsDefinitionService.loadToolsDefinition();
         List<LlmMessage> messages = buildInitialMessages(request, session, modelConfig);

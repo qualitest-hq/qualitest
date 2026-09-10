@@ -6,6 +6,7 @@ import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.tools.FlowDesignIds;
 import com.qualitest.api.util.ManagedAuthHeaderApplier;
+import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
@@ -31,9 +32,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -77,8 +80,27 @@ public class FlowDesignPatchNormalizer {
      * 全量规范化并预合并校验：合并 patch 后跑图结构校验与断言路径门禁，错误回传模型以便自我修正。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId) {
+        return normalize(patch, baseGraph, testProjectId, null);
+    }
+
+    /**
+     * 全量规范化并预合并校验；{@code sessionClientIdMap} 为会话级短名→雪花映射（可 null），成功解析时就地写入。
+     */
+    public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
+                                     Map<String, String> sessionClientIdMap) {
         List<String> normWarnings = new ArrayList<>();
-        patch = initAndNormalizePatch(patch, baseGraph, testProjectId, normWarnings);
+        List<String> idErrors = new ArrayList<>();
+        Map<String, String> clientIdMap = sessionClientIdMap != null ? sessionClientIdMap : new HashMap<>();
+        patch = initAndNormalizePatch(patch, baseGraph, testProjectId, normWarnings, clientIdMap, idErrors);
+
+        if (!idErrors.isEmpty()) {
+            DesignValidationResult failed = DesignValidationResult.builder()
+                    .ok(false)
+                    .errors(idErrors)
+                    .warnings(normWarnings)
+                    .build();
+            return new NormalizeResult(patch, failed);
+        }
 
         GraphJson merged = patchMerger.mergeAll(baseGraph, patch, normWarnings);
         GraphValidationResult validation = graphJsonValidator.validate(merged);
@@ -113,7 +135,7 @@ public class FlowDesignPatchNormalizer {
      * 供部分勾选预览等在合并前单独调用规范化步骤的场景使用。
      */
     public FlowDesignPatch preparePatch(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId, List<String> warnings) {
-        return initAndNormalizePatch(patch, baseGraph, testProjectId, warnings);
+        return initAndNormalizePatch(patch, baseGraph, testProjectId, warnings, new HashMap<>(), new ArrayList<>());
     }
 
     /**
@@ -175,14 +197,21 @@ public class FlowDesignPatchNormalizer {
             FlowDesignPatch patch,
             GraphJson baseGraph,
             Long testProjectId,
-            List<String> warnings) {
+            List<String> warnings,
+            Map<String, String> clientIdMap,
+            List<String> idErrors) {
         if (patch == null) {
             patch = new FlowDesignPatch();
         }
         if (patch.getSuggestedDeletes() == null) {
             patch.setSuggestedDeletes(new FlowDesignPatch.SuggestedDeletes());
         }
-        normalizeIds(patch, baseGraph);
+        normalizeIds(patch, baseGraph, clientIdMap, idErrors);
+        if (idErrors != null && !idErrors.isEmpty()) {
+            return patch;
+        }
+        reconcileConditionBranches(patch, baseGraph);
+        pruneClientIdMapForDeletes(patch, clientIdMap);
         normalizeScenarioPatch(patch);
         validateApiBindings(patch, baseGraph, testProjectId, warnings);
         normalizeTypedNodeData(patch, baseGraph);
@@ -239,48 +268,503 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 规范化新增节点与连线的 id。
+     * 规范化节点/边 id：AI 可用短名；画布侧一律雪花。
      * <p>
-     * 缺 id 或非数字 id 时生成雪花 id；缺 position 或与底图/同批已放节点 AABB 重叠时按网格错开。
-     * 节点 id 被替换时，同步将 addEdges 的 source/target 映射到新 id，避免连线端点悬空。
+     * 会话 {@code clientIdMap} 保证同会话短名稳定映射；同步改写边端点、update 引用与 condition branches.target。
      */
-    private void normalizeIds(FlowDesignPatch patch, GraphJson baseGraph) {
+    private void normalizeIds(FlowDesignPatch patch, GraphJson baseGraph,
+                              Map<String, String> clientIdMap, List<String> idErrors) {
+        if (clientIdMap == null) {
+            clientIdMap = new HashMap<>();
+        }
+        if (idErrors == null) {
+            idErrors = new ArrayList<>();
+        }
+        Set<String> knownIds = collectKnownNodeIds(baseGraph);
         Map<String, String> idRemap = new HashMap<>();
         List<GraphNodePosition> obstacles = collectBaseObstacles(baseGraph);
+
         if (patch.getAddNodes() != null) {
             int index = 0;
             for (GraphNode node : patch.getAddNodes()) {
-                String oldId = node.getId();
-                if (node.getId() == null || node.getId().isBlank() || !isValidId(node.getId())) {
-                    String newId = String.valueOf(IdUtil.getSnowflakeNextId());
-                    if (oldId != null && !oldId.isBlank()) {
-                        idRemap.put(oldId, newId);
-                    }
-                    node.setId(newId);
+                if (node == null) {
+                    index++;
+                    continue;
                 }
+                String oldId = node.getId() != null ? node.getId().trim() : "";
+                String resolved = resolveAddNodeId(oldId, clientIdMap, idRemap);
+                node.setId(resolved);
+                knownIds.add(resolved);
                 GraphNodePosition preferred = node.getPosition() != null
                         ? node.getPosition()
                         : defaultAddPosition(baseGraph, index);
-                GraphNodePosition resolved = resolveAddPosition(obstacles, preferred);
-                node.setPosition(resolved);
-                obstacles.add(resolved);
+                GraphNodePosition resolvedPos = resolveAddPosition(obstacles, preferred);
+                node.setPosition(resolvedPos);
+                obstacles.add(resolvedPos);
                 index++;
             }
         }
-        if (patch.getAddEdges() != null) {
-            for (GraphEdge edge : patch.getAddEdges()) {
-                if (edge.getId() == null || edge.getId().isBlank() || !isValidId(edge.getId())) {
-                    edge.setId(String.valueOf(IdUtil.getSnowflakeNextId()));
+
+        if (patch.getUpdateNodes() != null) {
+            for (GraphNode update : patch.getUpdateNodes()) {
+                if (update == null) {
+                    continue;
                 }
-                // 节点 id 已替换时，将连线端点同步到新 id
-                if (edge.getSource() != null && idRemap.containsKey(edge.getSource())) {
-                    edge.setSource(idRemap.get(edge.getSource()));
-                }
-                if (edge.getTarget() != null && idRemap.containsKey(edge.getTarget())) {
-                    edge.setTarget(idRemap.get(edge.getTarget()));
+                String oldId = update.getId() != null ? update.getId().trim() : "";
+                String resolved = resolveExistingRef(oldId, clientIdMap, knownIds, idRemap);
+                if (resolved == null) {
+                    idErrors.add("updateNodes 引用未知节点 id「" + oldId + "」：请使用本会话已登记短名、画布雪花 id，或先 addNodes");
+                } else {
+                    update.setId(resolved);
                 }
             }
         }
+
+        if (patch.getAddEdges() != null) {
+            for (GraphEdge edge : patch.getAddEdges()) {
+                if (edge == null) {
+                    continue;
+                }
+                if (edge.getId() == null || edge.getId().isBlank() || !isValidId(edge.getId())) {
+                    String oldEdgeId = edge.getId() != null ? edge.getId().trim() : "";
+                    String newEdgeId = String.valueOf(IdUtil.getSnowflakeNextId());
+                    if (!oldEdgeId.isEmpty() && !isValidId(oldEdgeId)) {
+                        clientIdMap.put("edge:" + oldEdgeId, newEdgeId);
+                        idRemap.put(oldEdgeId, newEdgeId);
+                    }
+                    edge.setId(newEdgeId);
+                } else if (clientIdMap.containsKey("edge:" + edge.getId().trim())) {
+                    edge.setId(clientIdMap.get("edge:" + edge.getId().trim()));
+                }
+                edge.setSource(remapEndpoint(edge.getSource(), clientIdMap, knownIds, idRemap, idErrors, "addEdges.source"));
+                edge.setTarget(remapEndpoint(edge.getTarget(), clientIdMap, knownIds, idRemap, idErrors, "addEdges.target"));
+            }
+        }
+
+        if (patch.getUpdateEdges() != null) {
+            for (GraphEdge edge : patch.getUpdateEdges()) {
+                if (edge == null) {
+                    continue;
+                }
+                String edgeId = edge.getId() != null ? edge.getId().trim() : "";
+                if (!edgeId.isEmpty()) {
+                    String mapped = clientIdMap.get("edge:" + edgeId);
+                    if (mapped != null) {
+                        edge.setId(mapped);
+                    } else if (!isValidId(edgeId)) {
+                        idErrors.add("updateEdges 引用未知边 id「" + edgeId + "」");
+                    }
+                }
+                if (edge.getSource() != null && !edge.getSource().isBlank()) {
+                    edge.setSource(remapEndpoint(edge.getSource(), clientIdMap, knownIds, idRemap, idErrors, "updateEdges.source"));
+                }
+                if (edge.getTarget() != null && !edge.getTarget().isBlank()) {
+                    edge.setTarget(remapEndpoint(edge.getTarget(), clientIdMap, knownIds, idRemap, idErrors, "updateEdges.target"));
+                }
+            }
+        }
+
+        remapConditionBranchTargets(patch.getAddNodes(), clientIdMap, idRemap);
+        remapConditionBranchTargets(patch.getUpdateNodes(), clientIdMap, idRemap);
+
+        if (patch.getSuggestedDeletes() != null) {
+            remapDeleteIds(patch.getSuggestedDeletes().getNodeIds(), clientIdMap, idRemap);
+            remapDeleteIds(patch.getSuggestedDeletes().getEdgeIds(), clientIdMap, idRemap);
+        }
+    }
+
+    private static String resolveAddNodeId(String oldId, Map<String, String> clientIdMap,
+                                           Map<String, String> idRemap) {
+        if (oldId == null || oldId.isEmpty()) {
+            return String.valueOf(IdUtil.getSnowflakeNextId());
+        }
+        String mapped = lookupMappedId(oldId, clientIdMap, idRemap);
+        if (mapped != null) {
+            idRemap.putIfAbsent(oldId, mapped);
+            return mapped;
+        }
+        if (isValidId(oldId)) {
+            return oldId;
+        }
+        String newId = String.valueOf(IdUtil.getSnowflakeNextId());
+        clientIdMap.put(oldId, newId);
+        idRemap.put(oldId, newId);
+        return newId;
+    }
+
+    private static String resolveExistingRef(String oldId, Map<String, String> clientIdMap,
+                                             Set<String> knownIds, Map<String, String> idRemap) {
+        if (oldId == null || oldId.isEmpty()) {
+            return null;
+        }
+        String mapped = lookupMappedId(oldId, clientIdMap, idRemap);
+        if (mapped != null) {
+            return mapped;
+        }
+        return isValidId(oldId) && knownIds.contains(oldId) ? oldId : null;
+    }
+
+    private static String remapEndpoint(String raw, Map<String, String> clientIdMap, Set<String> knownIds,
+                                        Map<String, String> idRemap, List<String> idErrors, String where) {
+        if (raw == null || raw.isBlank()) {
+            idErrors.add(where + " 为空");
+            return raw;
+        }
+        String oldId = raw.trim();
+        String mapped = lookupMappedId(oldId, clientIdMap, idRemap);
+        if (mapped != null) {
+            return mapped;
+        }
+        if (knownIds.contains(oldId)) {
+            return oldId;
+        }
+        idErrors.add(where + " 引用未知节点 id「" + oldId + "」");
+        return oldId;
+    }
+
+    /** idRemap（本轮）优先，再查会话 clientIdMap。 */
+    private static String lookupMappedId(String id, Map<String, String> clientIdMap, Map<String, String> idRemap) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
+        if (idRemap != null && idRemap.containsKey(id)) {
+            return idRemap.get(id);
+        }
+        if (clientIdMap != null && clientIdMap.containsKey(id)) {
+            return clientIdMap.get(id);
+        }
+        return null;
+    }
+
+    private static void remapConditionBranchTargets(List<GraphNode> nodes, Map<String, String> clientIdMap,
+                                                    Map<String, String> idRemap) {
+        if (nodes == null) {
+            return;
+        }
+        for (GraphNode node : nodes) {
+            if (node == null || node.getData() == null) {
+                continue;
+            }
+            Object branchesObj = node.getData().get("branches");
+            if (!(branchesObj instanceof List<?> branches)) {
+                continue;
+            }
+            for (Object item : branches) {
+                if (!(item instanceof Map<?, ?> raw)) {
+                    continue;
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> branch = (Map<String, Object>) raw;
+                Object targetObj = branch.get("target");
+                if (targetObj == null) {
+                    continue;
+                }
+                String target = String.valueOf(targetObj).trim();
+                if (target.isEmpty()) {
+                    continue;
+                }
+                String mapped = lookupMappedId(target, clientIdMap, idRemap);
+                if (mapped != null) {
+                    branch.put("target", mapped);
+                }
+            }
+        }
+    }
+
+    private static void remapDeleteIds(List<String> ids, Map<String, String> clientIdMap,
+                                       Map<String, String> idRemap) {
+        if (ids == null) {
+            return;
+        }
+        for (int i = 0; i < ids.size(); i++) {
+            String id = ids.get(i);
+            if (id == null || id.isBlank()) {
+                continue;
+            }
+            String trimmed = id.trim();
+            String mapped = lookupMappedId(trimmed, clientIdMap, idRemap);
+            if (mapped != null) {
+                ids.set(i, mapped);
+            } else if (clientIdMap != null && clientIdMap.containsKey("edge:" + trimmed)) {
+                ids.set(i, clientIdMap.get("edge:" + trimmed));
+            }
+        }
+    }
+
+    private static Set<String> collectKnownNodeIds(GraphJson baseGraph) {
+        Set<String> ids = new HashSet<>();
+        if (baseGraph == null || baseGraph.getNodes() == null) {
+            return ids;
+        }
+        for (GraphNode n : baseGraph.getNodes()) {
+            if (n != null && n.getId() != null && !n.getId().isBlank()) {
+                ids.add(n.getId().trim());
+            }
+        }
+        return ids;
+    }
+
+    private static void pruneClientIdMapForDeletes(FlowDesignPatch patch, Map<String, String> clientIdMap) {
+        if (patch == null || patch.getSuggestedDeletes() == null || clientIdMap == null) {
+            return;
+        }
+        List<String> nodeIds = patch.getSuggestedDeletes().getNodeIds();
+        if (nodeIds != null && !nodeIds.isEmpty()) {
+            FlowDesignClientIdMapSupport.pruneBySnowflakeIds(clientIdMap, nodeIds);
+        }
+        List<String> edgeIds = patch.getSuggestedDeletes().getEdgeIds();
+        if (edgeIds != null && !edgeIds.isEmpty()) {
+            Set<String> edgeDrop = new HashSet<>();
+            for (String edgeId : edgeIds) {
+                if (edgeId != null && !edgeId.isBlank()) {
+                    edgeDrop.add(edgeId.trim());
+                }
+            }
+            clientIdMap.entrySet().removeIf(e ->
+                    e.getKey() != null && e.getKey().startsWith("edge:") && edgeDrop.contains(e.getValue()));
+        }
+    }
+
+    /**
+     * 以出边为真源回填 condition branches；探活成功 IF 误指登录时改为 terminal。
+     */
+    @SuppressWarnings("unchecked")
+    private static void reconcileConditionBranches(FlowDesignPatch patch, GraphJson baseGraph) {
+        if (patch == null) {
+            return;
+        }
+        Map<String, List<GraphEdge>> outEdgesBySource = new HashMap<>();
+        collectOutEdges(baseGraph != null ? baseGraph.getEdges() : null, outEdgesBySource);
+        collectOutEdges(patch.getAddEdges(), outEdgesBySource);
+
+        List<GraphNode> nodes = new ArrayList<>();
+        if (patch.getAddNodes() != null) {
+            nodes.addAll(patch.getAddNodes());
+        }
+        if (patch.getUpdateNodes() != null) {
+            nodes.addAll(patch.getUpdateNodes());
+        }
+        Map<String, GraphNode> nodeById = new HashMap<>();
+        if (baseGraph != null && baseGraph.getNodes() != null) {
+            for (GraphNode n : baseGraph.getNodes()) {
+                if (n != null && n.getId() != null) {
+                    nodeById.put(n.getId(), n);
+                }
+            }
+        }
+        for (GraphNode n : nodes) {
+            if (n != null && n.getId() != null) {
+                nodeById.put(n.getId(), n);
+            }
+        }
+
+        for (GraphNode node : nodes) {
+            if (node == null || node.getData() == null) {
+                continue;
+            }
+            String type = node.getType() != null ? node.getType().trim() : "";
+            if (!type.isEmpty() && !"condition".equalsIgnoreCase(type)) {
+                // update 可能缺 type，看 data.branches
+                if (!(node.getData().get("branches") instanceof List<?>)) {
+                    continue;
+                }
+            }
+            Object branchesObj = node.getData().get("branches");
+            if (!(branchesObj instanceof List<?> rawBranches) || rawBranches.isEmpty()) {
+                continue;
+            }
+            List<Map<String, Object>> branches = new ArrayList<>();
+            for (Object item : rawBranches) {
+                if (item instanceof Map<?, ?> m) {
+                    branches.add((Map<String, Object>) m);
+                }
+            }
+            if (branches.isEmpty()) {
+                continue;
+            }
+
+            List<GraphEdge> outs = outEdgesBySource.getOrDefault(node.getId(), List.of());
+            Set<String> usedEdgeIds = new HashSet<>();
+
+            for (Map<String, Object> branch : branches) {
+                if (ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
+                    continue;
+                }
+                String branchId = stringVal(branch.get("id"));
+                String kind = branchKind(branch);
+                String target = stringVal(branch.get("target"));
+                boolean targetOk = target != null && nodeById.containsKey(target)
+                        && markUsedEdge(outs, node.getId(), target, usedEdgeIds);
+                if (targetOk) {
+                    continue;
+                }
+                GraphEdge matched = matchOutEdge(outs, branchId, kind, usedEdgeIds);
+                if (matched != null) {
+                    branch.put("target", matched.getTarget());
+                    branch.remove("terminal");
+                    if (matched.getId() != null) {
+                        usedEdgeIds.add(matched.getId());
+                    }
+                } else if (target != null && !nodeById.containsKey(target)) {
+                    branch.remove("target");
+                }
+            }
+
+            applyProbeSuccessTerminalCompat(branches, nodeById, outs);
+            node.getData().put("branches", branches);
+        }
+    }
+
+    private static void collectOutEdges(List<GraphEdge> edges, Map<String, List<GraphEdge>> outEdgesBySource) {
+        if (edges == null) {
+            return;
+        }
+        for (GraphEdge e : edges) {
+            if (e == null || e.getSource() == null || e.getTarget() == null) {
+                continue;
+            }
+            outEdgesBySource.computeIfAbsent(e.getSource().trim(), k -> new ArrayList<>()).add(e);
+        }
+    }
+
+    private static boolean markUsedEdge(List<GraphEdge> outs, String source, String target, Set<String> used) {
+        for (GraphEdge e : outs) {
+            if (source.equals(e.getSource()) && target.equals(e.getTarget())) {
+                if (e.getId() != null) {
+                    used.add(e.getId());
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static GraphEdge matchOutEdge(List<GraphEdge> outs, String branchId, String kind, Set<String> usedEdgeIds) {
+        if (outs == null || outs.isEmpty()) {
+            return null;
+        }
+        String handle = branchId != null ? "out-" + branchId : null;
+        GraphEdge byKind = null;
+        GraphEdge firstFree = null;
+        for (GraphEdge e : outs) {
+            if (e.getId() != null && usedEdgeIds.contains(e.getId())) {
+                continue;
+            }
+            String label = e.getLabel() != null ? e.getLabel().trim() : "";
+            if (handle != null && handle.equalsIgnoreCase(label)) {
+                return e;
+            }
+            if (byKind == null && kind != null && kind.equalsIgnoreCase(label)) {
+                byKind = e;
+            }
+            if (firstFree == null) {
+                firstFree = e;
+            }
+        }
+        return byKind != null ? byKind : firstFree;
+    }
+
+    /**
+     * 窄规则：http.status eq 200 的 IF 与 ELSE 同指某一 HTTP（登录）节点，或 IF 无独立出边 → terminal。
+     */
+    private static void applyProbeSuccessTerminalCompat(
+            List<Map<String, Object>> branches,
+            Map<String, GraphNode> nodeById,
+            List<GraphEdge> outs) {
+        Map<String, Object> successIf = null;
+        Map<String, Object> elseBranch = null;
+        for (Map<String, Object> branch : branches) {
+            String kind = branchKind(branch);
+            if ("else".equals(kind)) {
+                elseBranch = branch;
+            } else if (("if".equals(kind) || "elif".equals(kind)) && isHttpStatus200(branch)) {
+                successIf = branch;
+            }
+        }
+        if (successIf == null || elseBranch == null) {
+            return;
+        }
+        String elseTarget = stringVal(elseBranch.get("target"));
+        if (elseTarget == null) {
+            return;
+        }
+        GraphNode elseNode = nodeById.get(elseTarget);
+        if (!isHttpNode(elseNode)) {
+            return;
+        }
+        String ifTarget = stringVal(successIf.get("target"));
+        if (hasDistinctIfEdge(outs, ifTarget, elseTarget)) {
+            return;
+        }
+        // IF 与 ELSE 同指登录，或 IF 无自己的出边
+        if (ifTarget == null || ifTarget.equals(elseTarget)) {
+            successIf.put("terminal", true);
+            successIf.remove("target");
+        }
+    }
+
+    private static boolean hasDistinctIfEdge(List<GraphEdge> outs, String ifTarget, String elseTarget) {
+        if (ifTarget == null || outs == null) {
+            return false;
+        }
+        for (GraphEdge e : outs) {
+            if (ifTarget.equals(e.getTarget()) && !ifTarget.equals(elseTarget)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isHttpNode(GraphNode node) {
+        return node != null && node.getType() != null && "http".equalsIgnoreCase(node.getType().trim());
+    }
+
+    private static boolean isHttpStatus200(Map<String, Object> branch) {
+        Object conditionsObj = branch.get("conditions");
+        if (!(conditionsObj instanceof List<?> conditions)) {
+            return false;
+        }
+        for (Object item : conditions) {
+            if (!(item instanceof Map<?, ?> c)) {
+                continue;
+            }
+            String left = stringVal(c.get("left"));
+            String op = stringVal(c.get("operator"));
+            Object right = c.get("right");
+            if (left == null || op == null) {
+                continue;
+            }
+            if (!"http.status".equalsIgnoreCase(left.trim())) {
+                continue;
+            }
+            if (!"eq".equalsIgnoreCase(op.trim()) && !"equals".equalsIgnoreCase(op.trim())) {
+                continue;
+            }
+            if (right == null) {
+                continue;
+            }
+            String r = String.valueOf(right).trim();
+            if ("200".equals(r)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String branchKind(Map<String, Object> branch) {
+        String kind = stringVal(branch.get("kind"));
+        if (kind == null) {
+            kind = stringVal(branch.get("type"));
+        }
+        return kind == null ? "" : kind.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String stringVal(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = String.valueOf(raw).trim();
+        return s.isEmpty() ? null : s;
     }
 
     /** 收集基准图全部节点 position，作为避让障碍起点。 */

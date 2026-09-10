@@ -707,6 +707,129 @@ class FlowDesignPatchNormalizerTest {
                 .noneMatch(w -> w.startsWith("AUTH_HEADER_MANAGED:")));
     }
 
+    @Test
+    @Order(90)
+    @DisplayName("短名节点 id 映射进会话 map，同会话 update 复用雪花")
+    void normalize_clientAlias_stableAcrossRounds() {
+        Map<String, String> sessionMap = new HashMap<>();
+        GraphNode n1 = GraphNode.builder()
+                .id("n_login")
+                .type("http")
+                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录")))
+                .build();
+        FlowDesignPatch add = new FlowDesignPatch();
+        add.setAddNodes(new ArrayList<>(List.of(n1)));
+
+        FlowDesignPatchNormalizer.NormalizeResult r1 = normalizer.normalize(add, emptyGraph(), PROJECT_ID, sessionMap);
+        assertTrue(sessionMap.containsKey("n_login"));
+        String snowflake = sessionMap.get("n_login");
+        assertEquals(snowflake, r1.patch().getAddNodes().get(0).getId());
+
+        GraphJson base = GraphJson.builder()
+                .nodes(new ArrayList<>(List.of(GraphNode.builder().id(snowflake).type("http").data(new HashMap<>()).build())))
+                .edges(new ArrayList<>())
+                .build();
+        GraphNode upd = GraphNode.builder()
+                .id("n_login")
+                .type("http")
+                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录改")))
+                .build();
+        FlowDesignPatch update = new FlowDesignPatch();
+        update.setUpdateNodes(new ArrayList<>(List.of(upd)));
+
+        FlowDesignPatchNormalizer.NormalizeResult r2 = normalizer.normalize(update, base, PROJECT_ID, sessionMap);
+        assertEquals(snowflake, r2.patch().getUpdateNodes().get(0).getId());
+        assertFalse(r2.validation().getErrors().stream().anyMatch(e -> e.contains("未知节点")));
+    }
+
+    @Test
+    @Order(91)
+    @DisplayName("branches 短名与边 label 对齐；探活成功 IF 同指登录改 terminal")
+    void normalize_branchAliasAndTerminalCompat() {
+        Map<String, String> sessionMap = new HashMap<>();
+        Map<String, Object> credData = new HashMap<>();
+        credData.put("name", "凭证");
+        credData.put("branches", new ArrayList<>(List.of(
+                new HashMap<>(Map.of(
+                        "id", "b_if",
+                        "type", "IF",
+                        "target", "n_probe",
+                        "conditions", List.of(Map.of("left", "asset.adminAuth.token", "operator", "exists")))),
+                new HashMap<>(Map.of(
+                        "id", "b_else",
+                        "type", "ELSE",
+                        "target", "n_login"))
+        )));
+        Map<String, Object> statusData = new HashMap<>();
+        statusData.put("name", "探活是否200");
+        statusData.put("branches", new ArrayList<>(List.of(
+                new HashMap<>(Map.of(
+                        "id", "b_ok",
+                        "type", "IF",
+                        "target", "n_login",
+                        "conditions", List.of(Map.of("left", "http.status", "operator", "eq", "right", "200")))),
+                new HashMap<>(Map.of(
+                        "id", "b_fail",
+                        "type", "ELSE",
+                        "target", "n_login"))
+        )));
+        GraphNode cred = GraphNode.builder().id("n_cred").type("condition").data(credData).build();
+        GraphNode probe = GraphNode.builder().id("n_probe").type("http")
+                .data(new HashMap<>(Map.of("callMode", "project", "name", "探活"))).build();
+        GraphNode status = GraphNode.builder().id("n_status").type("condition").data(statusData).build();
+        GraphNode login = GraphNode.builder().id("n_login").type("http")
+                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录"))).build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setAddNodes(new ArrayList<>(List.of(cred, probe, status, login)));
+        patch.setAddEdges(new ArrayList<>(List.of(
+                GraphEdge.builder().id("e1").source("n_cred").target("n_probe").label("IF").build(),
+                GraphEdge.builder().id("e2").source("n_cred").target("n_login").label("ELSE").build(),
+                GraphEdge.builder().id("e3").source("n_probe").target("n_status").build(),
+                GraphEdge.builder().id("e4").source("n_status").target("n_login").label("ELSE").build()
+        )));
+
+        FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, emptyGraph(), PROJECT_ID, sessionMap);
+        assertEquals(4, result.patch().getAddNodes().size());
+        String probeId = sessionMap.get("n_probe");
+        String loginId = sessionMap.get("n_login");
+        assertNotNull(probeId);
+        assertNotNull(loginId);
+
+        GraphNode statusNode = result.patch().getAddNodes().stream()
+                .filter(n -> "n_status".equals(sessionMap.entrySet().stream()
+                        .filter(e -> e.getValue().equals(n.getId())).map(Map.Entry::getKey).findFirst().orElse(null))
+                        || (n.getData() != null && "探活是否200".equals(n.getData().get("name"))))
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> branches = (List<Map<String, Object>>) statusNode.getData().get("branches");
+        Map<String, Object> ok = branches.stream()
+                .filter(b -> "b_ok".equals(String.valueOf(b.get("id"))))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(true, ok.get("terminal"));
+        assertNull(ok.get("target"));
+    }
+
+    @Test
+    @Order(92)
+    @DisplayName("updateNodes 未知短名报错且不发新号")
+    void normalize_unknownUpdateAlias_errors() {
+        Map<String, String> sessionMap = new HashMap<>();
+        GraphNode upd = GraphNode.builder()
+                .id("never_seen")
+                .type("http")
+                .data(new HashMap<>(Map.of("callMode", "project", "name", "x")))
+                .build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setUpdateNodes(new ArrayList<>(List.of(upd)));
+
+        FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, emptyGraph(), PROJECT_ID, sessionMap);
+        assertFalse(result.validation().isOk());
+        assertTrue(result.validation().getErrors().stream().anyMatch(e -> e.contains("never_seen")));
+        assertFalse(sessionMap.containsKey("never_seen"));
+    }
+
     private static GraphJson emptyGraph() {
         return GraphJson.builder()
                 .nodes(new ArrayList<>())
