@@ -3,7 +3,7 @@
     <input
         v-model="keyword"
         class="param-lib__search"
-        placeholder="搜索 flow / env / asset…"
+        placeholder="搜索 env / asset…"
         type="search"
     />
     <div class="param-lib__filters">
@@ -46,11 +46,11 @@
             </button>
           </div>
         </template>
-        <div v-else-if="group.key === 'flow' && !keyword.trim()" class="param-lib__empty is-inline">
-          暂无 flow 变量 · HTTP 响应提取或 Assign 节点写入
+        <div v-else-if="!keyword.trim()" class="param-lib__empty is-inline">
+          {{ group.emptyHint }}
         </div>
       </template>
-      <div v-if="!hasAnyVisible" class="param-lib__empty">
+      <div v-if="!hasAnyVisible && keyword.trim()" class="param-lib__empty">
         无匹配参数<br/>可切换分类或清空搜索
       </div>
     </div>
@@ -58,7 +58,7 @@
 </template>
 
 <script setup>
-/** 左栏参数库：按 scope 分组展示 flow/env/asset 占位符，点击复制 */
+/** 左栏参数库：按 scope 分组展示 env/asset 配置态叶子，点击复制 */
 import { computed, onMounted, watch } from 'vue'
 
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
@@ -70,17 +70,13 @@ const { scopeFilter, keyword, filteredItems, copyParamText, loadProjectVariables
 
 const scopes = [
   { value: 'all', label: '全部' },
-  { value: 'flow', label: 'flow' },
   { value: 'env', label: 'env' },
   { value: 'asset', label: 'asset' },
 ]
 
-const placeholderHint = '{{占位符}}'
-
 const groups = [
-  { key: 'flow', title: 'Flow 运行时' },
-  { key: 'env', title: 'Env 环境变量' },
-  { key: 'asset', title: 'Asset 项目素材' },
+  { key: 'env', title: 'Env 环境变量', emptyHint: '暂无 env · 请先为当前场景绑定环境' },
+  { key: 'asset', title: 'Asset 项目素材', emptyHint: '暂无 asset · 可在项目素材库中配置' },
 ]
 
 const groupedItems = computed(() => {
@@ -96,7 +92,15 @@ const groupedItems = computed(() => {
 const hasAnyVisible = computed(() => groupedItems.value.some((g) => g.items.length > 0))
 
 function itemMeta(item) {
-  return [item.remark, item.sample ? `示例: ${item.sample}` : ''].filter(Boolean).join(' · ')
+  return [item.remark, item.sample ? `值: ${item.sample}` : ''].filter(Boolean).join(' · ')
+}
+
+/** 当前激活场景绑定的环境 id（用于触发重载） */
+function activeScenarioEnvId() {
+  const id = store.runConfig.activeScenarioId
+  const scenarios = store.runConfig.scenarios || []
+  const scenario = scenarios.find((s) => s.id === id) ?? scenarios[0]
+  return scenario?.testProjectEnvId ?? ''
 }
 
 onMounted(() => {
@@ -104,13 +108,14 @@ onMounted(() => {
 })
 
 watch(
-  () => store.testProjectId,
+  () => [
+    store.testProjectId,
+    store.canvasMode,
+    store.runConfig.activeScenarioId,
+    activeScenarioEnvId(),
+    store.canvasMode === 'template' ? store.templateParamContext : null,
+  ],
   () => loadProjectVariables(),
-)
-
-watch(
-  () => store.nodes,
-  () => { /* reactive refresh */ },
   { deep: true },
 )
 </script>
@@ -298,22 +303,5 @@ watch(
   background: var(--pd-primary-soft);
   border-color: var(--pd-primary);
   color: var(--pd-primary);
-}
-
-.param-lib__foot {
-  font-size: 11px;
-  color: var(--pd-text-muted);
-  line-height: 1.45;
-  padding-top: 0;
-  border-top: 1px dashed var(--pd-divider);
-  flex-shrink: 0;
-
-  code {
-    padding: 0;
-    background: transparent;
-    font-family: "Cascadia Code", "Consolas", monospace;
-    font-size: 11px;
-    color: inherit;
-  }
 }
 </style>
