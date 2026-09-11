@@ -9,12 +9,13 @@ import lombok.Getter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 测试流 AI 设计工具执行时的请求级上下文。
  * <p>
- * Web「AI 设计」与 MCP 网关共用本对象：承载项目、测试流、画布、检索范围及运行时限制。
- * MCP 侧通常在 {@code get_flow} 后将 graphJson 填入本对象，再调用依赖画布的工具。
+ * Web 造流与 MCP 共用：项目、测试流、基准画布、检索范围、结果字节上限，
+ * 以及本轮 submit 累积器、素材提案累积器、短名映射、内存工作图。
  */
 @Getter
 @Builder
@@ -26,70 +27,64 @@ public class FlowDesignToolContext {
     /** 当前测试流 id，用于 Run 失败查询时的归属校验 */
     private final Long testFlowId;
 
-    /**
-     * 设计模式：空/project 或 template。
-     */
+    /** 设计模式：空/project 为项目流；template 为模板预制流 */
     private final String designMode;
 
-    /**
-     * 模板模式下内联的预制接口列表；非模板模式为 null。
-     */
+    /** 模板模式下内联的预制接口列表；项目模式为 null */
     private final JSONArray templateApis;
 
     /**
-     * 当前画布 graph_json。
-     * Web 由设计面板传入；MCP 通常由 {@code get_flow} 取得后写入请求信封。
-     * 供图摘要、节点详情读取；submit 时作为预合并与校验的基准图。
+     * 用户请求带来的基准画布（本轮开始时的图）。
+     * Web 由设计面板传入；MCP 可由信封或 get_flow 写入。
      */
     private final GraphJson graphJson;
 
     /**
-     * 用户在面板 @ 选中的 API id 列表。
-     * {@code search_apis} 优先在此范围内匹配。
+     * 本轮已接受 submit 单元合并后的工作图。
+     * 每次单元校验成功后更新；只读查图工具优先读这里，使后续步骤能看到本轮已搭内容。
      */
+    @Builder.Default
+    private final AtomicReference<GraphJson> workingGraphRef = new AtomicReference<>();
+
+    /** 用户在面板 @ 选中的 API id；search_apis 优先在此范围匹配 */
     private final List<Long> scopeApiIds;
 
-    /**
-     * 用户在画布选中的节点 id 列表。
-     * 提示模型可对相关节点调用 {@code get_node_detail}。
-     */
+    /** 用户在画布选中的节点 id；供提示模型先查这些节点详情 */
     private final List<String> contextNodeIds;
 
-    /**
-     * 从 Run 详情「AI 修复」入口传入的失败 Run id。
-     * {@code get_run_failure} 在未显式传 runId 时回退使用此值。
-     */
+    /** 「AI 修复」入口带入的失败 Run id；get_run_failure 未显式传 runId 时回退使用 */
     private final Long contextRunId;
 
-    /** {@code search_apis} 单次返回的最大条数 */
+    /** search_apis 单次返回条数上限 */
     @Builder.Default
     private final int maxSearchApis = AiLlmConfigService.DEFAULT_MAX_SEARCH_APIS;
 
-    /** {@code list_flows} / {@code list_subflow_templates} 单次返回的最大条数 */
+    /** list_flows / list_subflow_templates 单次返回条数上限 */
     @Builder.Default
     private final int maxListFlows = AiLlmConfigService.DEFAULT_MAX_LIST_FLOWS;
 
-    /** 只读工具返回 JSON 的字节上限；超出时附 {@code truncated} 与 {@code hint} */
+    /** 只读工具返回 JSON 字节上限；超出时附 truncated 与 hint */
     @Builder.Default
     private final int maxToolResultBytes = AiLlmConfigService.DEFAULT_MAX_TOOL_RESULT_BYTES;
 
     /**
-     * 本轮 submit_flow_design_patch 的结果捕获器。
-     * 编排层每轮新建并注入；工具执行后写入规范化 patch。可为 null。
+     * 本轮 submit_* 成功单元的累积器。
+     * 编排层每轮新建；可为 null（如纯 MCP 读图，无提交）。
      */
     private final FlowDesignSubmitCapture submitCapture;
 
     /**
-     * 本轮 upsert_asset_variables 的提案捕获器。
-     * 编排层每轮新建并注入；工具只写提案不落库。为空时 upsert 工具返回错误。
+     * 本轮 upsert_asset_variables 提案累积器。
+     * 工具只写提案不落素材库；为空时 upsert 工具直接报错。
      */
     private final AssetUpsertCapture assetUpsertCapture;
 
-    /** 当前 AI 会话 id；用于持久化 flowDesignClientIdMap。可空（MCP 无会话）。 */
+    /** 当前 AI 会话 id；用于把短名映射落会话。MCP 可空 */
     private final Long aiChatSessionId;
 
     /**
-     * 会话级短名→雪花映射（可变）。submit 归一化时读写；编排层负责落库。
+     * 会话级短名→雪花 id 映射（可变 Map）。
+     * 单单元规范化时读写，成功后由提交逻辑落会话。
      */
     @Builder.Default
     private final Map<String, String> flowDesignClientIdMap = new HashMap<>();
@@ -97,5 +92,20 @@ public class FlowDesignToolContext {
     /** 是否为模板预制流设计模式 */
     public boolean isTemplateDesignMode() {
         return designMode != null && "template".equalsIgnoreCase(designMode.trim());
+    }
+
+    /**
+     * 工具实际读写的画布：有工作图用工作图，否则用基准 graphJson。
+     */
+    public GraphJson resolveGraphJson() {
+        GraphJson working = workingGraphRef != null ? workingGraphRef.get() : null;
+        return working != null ? working : graphJson;
+    }
+
+    /** 单元 submit 成功后写入新的内存工作图（不写业务库） */
+    public void advanceWorkingGraph(GraphJson next) {
+        if (workingGraphRef != null && next != null) {
+            workingGraphRef.set(next);
+        }
     }
 }

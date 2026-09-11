@@ -13,9 +13,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 构建 {@link FlowDesignToolContext} 的工厂。
+ * 组装造流工具请求上下文的工厂。
  * <p>
- * Web「AI 设计」与 MCP 网关均通过本工厂组装上下文字段（项目 id、画布、检索范围、字节上限等）。
+ * Web：注入 SubmitCapture、素材提案容器、会话短名映射与基准画布。
+ * MCP：只读信封（项目/流/画布），不注入素材写入容器。
  */
 @Component
 @RequiredArgsConstructor
@@ -24,8 +25,8 @@ public class FlowDesignToolContextFactory {
     private final AiLlmConfigService aiLlmConfigService;
 
     /**
-     * 从 Web 设计请求构建工具上下文（不注入素材提案捕获器）。
-     * 解析 mentions 得到检索范围与上下文节点 / Run；submitCapture 由调用方传入。
+     * 从 Web 设计请求构建上下文（不注入素材提案容器）。
+     * 解析 mentions 得到检索 API 范围与上下文节点 / Run；submitCapture 由调用方传入。
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture) {
@@ -33,7 +34,7 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 Web 设计请求构建工具上下文，并注入画布 patch 捕获器与素材提案捕获器。
+     * 从 Web 设计请求构建上下文，并注入画布 SubmitCapture 与素材提案容器。
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture,
@@ -42,7 +43,7 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 Web 设计请求构建工具上下文，并注入会话 id 与 clientId 映射。
+     * 从 Web 设计请求构建完整上下文：含会话 id 与短名→雪花映射（可空映射则内部新建）。
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture,

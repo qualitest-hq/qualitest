@@ -15,22 +15,24 @@ import java.util.function.BooleanSupplier;
 /**
  * 通用 Agent 循环执行器。
  * <p>
- * 反复调用 {@link LlmProvider#chat}，处理 tool 调用闭环，直到模型返回最终文本或达到步数上限。
+ * 反复调模型 chat，处理 tool 调用闭环，直到返回最终文本或达到步数上限：
  * <ul>
- *   <li>模型返回 toolCalls → 执行工具 → 追加 tool 消息 → 继续下一轮</li>
- *   <li>模型返回非空文本 → 视为最终答案并结束</li>
- *   <li>超出 maxSteps → 返回可读错误信息</li>
- *   <li>造流场景（有终态探针）且剩余步数 ≤2 且尚未 submit → 注入催提交提示</li>
+ *   <li>返回 toolCalls → 执行工具 → 追加 tool 消息 → 继续</li>
+ *   <li>返回非空文本 → 视为最终答案并结束</li>
+ *   <li>超出 maxSteps → 返回可读错误（造流场景会提示尽快 submit_*）</li>
+ *   <li>designSubmitNudgeEnabled 且剩余步数 ≤2 → 注入催促继续 submit 或收尾总结</li>
  * </ul>
+ * 造流默认不启用终态探针：任意单次 submit 成功不立刻结束循环，由模型收尾总结；
+ * 累积结果由 SubmitCapture 在编排层读取。
  */
 @Component
 @RequiredArgsConstructor
 public class AiAgentRunner {
 
-    /** 造流 Agent 步数将尽时追加的 user 提示（与终态探针配套） */
+    /** 造流步数将尽时追加的 user 提示：催促 submit_* 或停止拉详情并总结 */
     static final String SUBMIT_NUDGE_CONTENT =
-            "剩余工具步数不足（≤2）。若本轮要改画布，请立刻调用 submit_flow_design_patch；"
-                    + "若仅答疑可不提交。禁止再反复拉取接口详情。";
+            "剩余工具步数不足（≤2）。若本轮要改画布，请继续调用对应的 submit_* 单元工具；"
+                    + "若已完成请停止调工具并给出中文总结。禁止再反复拉取接口详情。";
 
     private final LlmProvider llmProvider;
     private final AiLlmConfigService aiLlmConfigService;
@@ -167,21 +169,24 @@ public class AiAgentRunner {
         return accumulator.toString().trim();
     }
 
+    /** 工具结果是否为错误 JSON（顶层含 error），供消息标记 */
     static boolean isToolErrorResult(String result) {
         return FlowDesignToolSupport.isErrorResult(result);
     }
 
+    /** 可选终态探针为 true 时提前成功结束（造流通常不设） */
     private static boolean isTerminalSuccess(AgentRunOptions options) {
         BooleanSupplier probe = options.getTerminalSuccessProbe();
         return probe != null && probe.getAsBoolean();
     }
 
     /**
-     * 造流场景：剩余步数 ≤2 且尚未达成终态时，追加催 submit 的 user 提示（同内容不重复追加）。
+     * 造流：剩余步数 ≤2 时追加催促提示（同内容不重复追加）。
+     * 已终态成功则不再催。
      */
     static void maybeAppendSubmitNudge(
             List<LlmMessage> messages, AgentRunOptions options, int steps, int maxSteps) {
-        if (options.getTerminalSuccessProbe() == null) {
+        if (!options.isDesignSubmitNudgeEnabled()) {
             return;
         }
         if (isTerminalSuccess(options)) {
@@ -199,16 +204,17 @@ public class AiAgentRunner {
         messages.add(LlmMessage.user(SUBMIT_NUDGE_CONTENT));
     }
 
-    /** 达步数上限时的错误文案；造流场景额外提示 submit。 */
+    /** 达步数上限时的错误文案；造流额外提示缩小范围并尽快 submit_*。 */
     static String maxStepsExceededMessage(int maxSteps, AgentRunOptions options) {
-        if (options.getTerminalSuccessProbe() != null) {
+        if (options.isDesignSubmitNudgeEnabled() || options.getTerminalSuccessProbe() != null) {
             return "Agent 已达最大步数上限（" + maxSteps + "）。"
-                    + "若本轮要改画布，请缩小检索范围并尽快调用 submit_flow_design_patch；"
+                    + "若本轮要改画布，请缩小检索范围并尽快调用对应 submit_* 单元工具；"
                     + "或结束本轮后重新发送更短的改图需求。";
         }
         return "Agent 已达最大步数上限（" + maxSteps + "），请缩小查询范围或简化需求";
     }
 
+    /** 终态探针触发时的成功结果（可无自然语言正文）。 */
     private static AgentRunResult buildTerminalToolSuccess(StringBuilder thinkingAccumulator, int stepsUsed) {
         return AgentRunResult.builder()
                 .terminalViaTool(true)
@@ -238,10 +244,15 @@ public class AiAgentRunner {
         /** 会话思考开关：0 关、1 开、null 跟随模型默认 */
         private final Integer sessionThinkingEnabled;
         /**
-         * 可选：探测业务是否已通过工具达成终态（如无正文但 submit 已成功）。
-         * 返回 true 时视为成功，{@link AgentRunResult#isOk()} 为 true。
+         * 可选：探测业务是否已通过工具达成终态。
+         * 返回 true 时立刻成功结束循环。造流分类型单单元提交通常不设，改由模型收尾总结。
          */
         private final BooleanSupplier terminalSuccessProbe;
+        /**
+         * 造流开关：步数将尽时注入催促继续 submit_* 或收尾总结的提示。
+         */
+        @Builder.Default
+        private final boolean designSubmitNudgeEnabled = false;
     }
 
     /** 工具执行回调，由业务场景实现具体逻辑 */

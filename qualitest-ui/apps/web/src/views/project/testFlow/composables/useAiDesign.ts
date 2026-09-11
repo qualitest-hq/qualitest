@@ -128,7 +128,7 @@ function applyPendingRunContextModule() {
   const run = runLib.runs.find((r) => r.id === runId) ?? runLib.selectedRun;
   const has401 = (run?.steps ?? []).some((s) => Number(s?.http?.status) === 401);
   designContext.pendingPrompt = has401
-    ? '这次失败含 HTTP 401（未认证/凭证无效）。请结合 @run 详情检查鉴权：是否漏 Authorization/Bearer、是否缺登录抽取 flow.token 或 flow.adminToken、双端是否串用；用 submit_flow_design_patch 给出修改建议，确认前不改图。'
+    ? '这次失败含 HTTP 401（未认证/凭证无效）。请结合 @run 详情检查鉴权：是否漏 Authorization/Bearer、是否缺登录抽取 flow.token 或 flow.adminToken、双端是否串用；用对应 submit_* 单元工具给出修改建议，确认前不改图。'
     : '帮我分析这次失败原因并给出修改建议';
   store.pendingAiDesignRunId = '';
 }
@@ -434,10 +434,12 @@ export function useAiDesign() {
 
   /**
    * 把设计接口响应转成助手消息写入列表。
-   * 若有画布 patch 则灌入待确认单元；若有素材提案则挂在消息上供卡片展示。
+   * explainOnly（本轮无成功 submit_*）时不带 patch、不灌 Staging；
+   * 有 patch 则灌入待确认单元；有素材提案则挂在消息上供卡片展示。
    */
   function appendAssistantMessage(data: TestFlowDesignResult) {
     const messageId = createClientMessageId();
+    // 纯答疑：清空 patch，避免误开 Staging
     const explainOnly = data.explainOnly === true;
     const patch = explainOnly ? undefined : data.patch;
     const assetProposals = Array.isArray(data.assetProposals) && data.assetProposals.length > 0

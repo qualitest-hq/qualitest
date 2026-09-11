@@ -25,7 +25,7 @@ export function createAiStagingHydration(messages: Ref<AiDesignMessageView[]>) {
     });
   }
 
-  /** 遍历当前会话所有 assistant patch 消息，逐条灌入 Staging */
+  /** 遍历当前会话所有助手消息：跳过 explainOnly，有 patch 的逐条灌入 Staging */
   async function syncAllStagingFromMessages() {
     for (const msg of messages.value) {
       if (msg.role !== 'assistant' || !msg.patch || msg.explainOnly) continue;
@@ -33,7 +33,7 @@ export function createAiStagingHydration(messages: Ref<AiDesignMessageView[]>) {
     }
   }
 
-  /** 懒加载 patch 完成后的回调：补灌对应消息的 Staging */
+  /** 懒加载完整 patch 完成后：非答疑消息才补灌 Staging */
   async function onPatchHydrated(messageId: string) {
     const msg = messages.value.find((m) => m.id === messageId);
     if (msg?.patch && !msg.explainOnly) {

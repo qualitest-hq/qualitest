@@ -30,11 +30,15 @@
         "properties": {
           "testProjectApiIds": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "项目 API ID 列表；单条也请传长度为 1 的数组；去重后最多 5 条"
           }
         },
-        "required": ["testProjectApiIds"]
+        "required": [
+          "testProjectApiIds"
+        ]
       }
     }
   },
@@ -52,11 +56,16 @@
           },
           "hints": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "待追加的短提示列表"
           }
         },
-        "required": ["testProjectApiId", "hints"]
+        "required": [
+          "testProjectApiId",
+          "hints"
+        ]
       }
     }
   },
@@ -64,7 +73,7 @@
     "type": "function",
     "function": {
       "name": "get_graph_summary",
-      "description": "获取测试流画布的节点与边摘要。Web 使用当前画布；MCP 可在 arguments 或信封中仅传 testFlowId，无需 graphJson",
+      "description": "获取测试流画布的节点与边摘要。单节点用 get_node_detail，单边用 get_edge_detail。Web 使用当前画布；MCP 可仅传 testFlowId",
       "parameters": {
         "type": "object",
         "properties": {
@@ -81,7 +90,7 @@
     "type": "function",
     "function": {
       "name": "get_flow_meta",
-      "description": "获取画布 meta：运行场景、flowOutputNames、startNodeId。MCP 可仅传 testFlowId 自动加载",
+      "description": "获取画布 meta：运行场景列表摘要、flowOutputNames、startNodeId。单场景详情用 get_scenario_detail。MCP 可仅传 testFlowId",
       "parameters": {
         "type": "object",
         "properties": {
@@ -140,7 +149,10 @@
             "additionalProperties": true
           }
         },
-        "required": ["key", "fields"]
+        "required": [
+          "key",
+          "fields"
+        ]
       }
     }
   },
@@ -161,7 +173,55 @@
             "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
           }
         },
-        "required": ["nodeId"]
+        "required": [
+          "nodeId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_edge_detail",
+      "description": "获取单条边完整字段（id/source/target/label）。改边或删边前优先调用；MCP 可仅传 testFlowId",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "edgeId": {
+            "type": "string",
+            "description": "边 id"
+          },
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": [
+          "edgeId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_scenario_detail",
+      "description": "获取单个运行场景配置（含 flowSeed 键名，不含明文）。改场景前优先调用；MCP 可仅传 testFlowId",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scenarioId": {
+            "type": "string",
+            "description": "场景 id"
+          },
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": [
+          "scenarioId"
+        ]
       }
     }
   },
@@ -240,11 +300,985 @@
   {
     "type": "function",
     "function": {
-      "name": "submit_flow_design_patch",
-      "description": "提交测试流画布增量修改建议（FlowDesignPatch）。改图或修复流程时必须调用；仅答疑时不要调用。参数须为原子变更包（见 schema description）。校验后向用户展示 Diff，不会自动保存。",
+      "name": "submit_add_http_node",
+      "description": "新增单个HTTP 节点（恰好 1 个 Staging 单元 addNode）。校验失败按 errors 再调本工具修正。",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "callMode"
+            ],
+            "properties": {
+              "callMode": {
+                "type": "string",
+                "enum": [
+                  "project",
+                  "external"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "testProjectApiId": {
+                "type": "string"
+              },
+              "externalUrl": {
+                "type": "string"
+              },
+              "httpMethod": {
+                "type": "string"
+              },
+              "headers": {
+                "type": "array"
+              },
+              "requestBody": {
+                "type": "string"
+              },
+              "requestValueOverrides": {
+                "type": "object"
+              },
+              "extracts": {
+                "type": "array"
+              },
+              "successCheck": {
+                "type": "object"
+              },
+              "timeoutMs": {
+                "type": "number"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_add_assert_node",
+      "description": "新增单个断言节点（恰好 1 个 Staging 单元 addNode）。校验失败按 errors 再调本工具修正。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "rules"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "rules": {
+                "type": "array"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_add_condition_node",
+      "description": "新增单个条件分支节点（恰好 1 个 Staging 单元 addNode）。校验失败按 errors 再调本工具修正。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "branches"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "branches": {
+                "type": "array"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_add_assign_node",
+      "description": "新增单个赋值节点（恰好 1 个 Staging 单元 addNode）。校验失败按 errors 再调本工具修正。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "assignments"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "assignments": {
+                "type": "array"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_add_delay_node",
+      "description": "新增单个延时节点（恰好 1 个 Staging 单元 addNode）。校验失败按 errors 再调本工具修正。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "ms": {
+                "type": "number"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_add_script_node",
+      "description": "新增单个脚本节点（恰好 1 个 Staging 单元 addNode）。校验失败按 errors 再调本工具修正。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "source"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string",
+                "enum": [
+                  "javascript",
+                  "python"
+                ]
+              },
+              "source": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_add_subflow_node",
+      "description": "新增单个子流节点（恰好 1 个 Staging 单元 addNode）。校验失败按 errors 再调本工具修正。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "subflowId"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "subflowId": {
+                "type": "string"
+              },
+              "subflowName": {
+                "type": "string"
+              },
+              "versionPolicy": {
+                "type": "string",
+                "enum": [
+                  "pinned",
+                  "latest"
+                ]
+              },
+              "inputs": {
+                "type": "array"
+              },
+              "outputs": {
+                "type": "array"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_update_http_node",
+      "description": "更新单个已有HTTP 节点（恰好 1 个 updateNode）。数组字段须交完整数组。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "callMode"
+            ],
+            "properties": {
+              "callMode": {
+                "type": "string",
+                "enum": [
+                  "project",
+                  "external"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "testProjectApiId": {
+                "type": "string"
+              },
+              "externalUrl": {
+                "type": "string"
+              },
+              "httpMethod": {
+                "type": "string"
+              },
+              "headers": {
+                "type": "array"
+              },
+              "requestBody": {
+                "type": "string"
+              },
+              "requestValueOverrides": {
+                "type": "object"
+              },
+              "extracts": {
+                "type": "array"
+              },
+              "successCheck": {
+                "type": "object"
+              },
+              "timeoutMs": {
+                "type": "number"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_update_assert_node",
+      "description": "更新单个已有断言节点（恰好 1 个 updateNode）。数组字段须交完整数组。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "rules"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "rules": {
+                "type": "array"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_update_condition_node",
+      "description": "更新单个已有条件分支节点（恰好 1 个 updateNode）。数组字段须交完整数组。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "branches"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "branches": {
+                "type": "array"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_update_assign_node",
+      "description": "更新单个已有赋值节点（恰好 1 个 updateNode）。数组字段须交完整数组。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "assignments"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "assignments": {
+                "type": "array"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_update_delay_node",
+      "description": "更新单个已有延时节点（恰好 1 个 updateNode）。数组字段须交完整数组。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "ms": {
+                "type": "number"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_update_script_node",
+      "description": "更新单个已有脚本节点（恰好 1 个 updateNode）。数组字段须交完整数组。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "source"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string",
+                "enum": [
+                  "javascript",
+                  "python"
+                ]
+              },
+              "source": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_update_subflow_node",
+      "description": "更新单个已有子流节点（恰好 1 个 updateNode）。数组字段须交完整数组。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "subflowId"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "subflowId": {
+                "type": "string"
+              },
+              "subflowName": {
+                "type": "string"
+              },
+              "versionPolicy": {
+                "type": "string",
+                "enum": [
+                  "pinned",
+                  "latest"
+                ]
+              },
+              "inputs": {
+                "type": "array"
+              },
+              "outputs": {
+                "type": "array"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_add_edge",
+      "description": "新增单条边（恰好 1 个 addEdge）。端点可用短名。condition 出口用 label=if|elif|else。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "target"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_update_edge",
+      "description": "更新单条已有边（恰好 1 个 updateEdge）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_delete_node",
+      "description": "建议删除单个节点（恰好 1 个 deleteNode）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "nodeId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_delete_edge",
+      "description": "建议删除单条边（恰好 1 个 deleteEdge）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "edgeId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "edgeId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_delete_scenario",
+      "description": "建议删除单个运行场景（恰好 1 个 deleteScenario）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scenarioId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenarioId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_add_scenario",
+      "description": "新增单个运行场景（恰好 1 个 addScenario）。不切换默认场景。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "testProjectEnvId": {
+            "type": "string"
+          },
+          "flowSeed": {
+            "type": "object"
+          },
+          "remark": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_update_scenario",
+      "description": "更新单个运行场景（恰好 1 个 updateScenario）。不切换默认场景。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "testProjectEnvId": {
+            "type": "string"
+          },
+          "flowSeed": {
+            "type": "object"
+          },
+          "remark": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
       }
     }
   }

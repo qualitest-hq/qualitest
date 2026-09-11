@@ -39,7 +39,10 @@ import java.util.Map;
 /**
  * 测试流 AI 设计编排：跑 Agent、收集画布修改建议与素材库写入提案、落库助手消息并返回结果。
  * <p>
- * 画布建议与素材提案都不自动写业务库；需用户在前端确认后再落盘。不自动触发 Run。
+ * 模型通过多次 submit_* 每次提交一个 Staging 单元；本类用 SubmitCapture 累积成功单元。
+ * 本轮无一成功单元则 explainOnly=true（纯答疑，不灌 Staging）。
+ * 步数耗尽但已有累积单元时仍返回已接受 patch，避免整轮作废。
+ * 画布建议与素材提案都不自动写业务库，也不自动触发 Run。
  */
 @Service
 @RequiredArgsConstructor
@@ -74,8 +77,9 @@ public class TestFlowDesignAgent {
     /**
      * 执行一轮 AI 设计的核心流程。
      * <p>
-     * 顺序：校验请求 → 加载/创建会话 → 构建工具上下文（含画布 patch 捕获器与素材提案捕获器）→ Agent 循环 →
-     * 读取 patch 与素材提案 → 生成 summary 与元数据 → 落库助手消息 → 返回结果。
+     * 顺序：校验请求 → 加载/创建会话 → 注入 SubmitCapture 与素材提案容器 → Agent 循环
+     * （开启步数将尽催 submit_*）→ 按是否有成功单元决定 explainOnly 与 patch →
+     * 写助手消息 meta → 返回结果。
      */
     private TestFlowDesignResult executeDesign(TestFlowDesignRequest request,
                                                Long userId,
@@ -126,17 +130,22 @@ public class TestFlowDesignAgent {
                 .maxSteps(aiLlmConfigService.getMaxSteps())
                 .listener(listener)
                 .sessionThinkingEnabled(sessionThinking)
-                .terminalSuccessProbe(() -> submitCapture.isSubmitted()
-                        && submitCapture.getNormalizedPatch() != null)
+                .designSubmitNudgeEnabled(true)
                 .build());
 
         if (!runResult.isOk()) {
-            throw new LlmClientException(runResult.getError());
+            if (submitCapture.hasAccepted()
+                    && runResult.getError() != null
+                    && runResult.getError().contains("最大步数")) {
+                // 已有累积单元：步数耗尽仍返回已接受 patch，避免整轮作废
+            } else {
+                throw new LlmClientException(runResult.getError());
+            }
         }
 
         String content = runResult.getContent();
-        // explainOnly：本轮未调用 submit_flow_design_patch，视为纯答疑，无 patch
-        boolean explainOnly = !submitCapture.isSubmitted();
+        // explainOnly：本轮未成功接受任何 submit_* 单元，视为纯答疑，无 patch
+        boolean explainOnly = !submitCapture.hasAccepted();
         FlowDesignPatch normalizedPatch = explainOnly ? null : submitCapture.getNormalizedPatch();
         DesignValidationResult validation;
 
@@ -148,7 +157,7 @@ public class TestFlowDesignAgent {
                     .build();
         } else {
             if (normalizedPatch == null) {
-                throw new LlmClientException("submit_flow_design_patch 未产生有效 patch");
+                throw new LlmClientException("submit_* 未产生有效 patch");
             }
             validation = submitCapture.getValidation();
             if (validation == null) {

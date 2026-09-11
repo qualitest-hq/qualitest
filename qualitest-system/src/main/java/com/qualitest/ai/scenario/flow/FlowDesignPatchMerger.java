@@ -22,17 +22,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 将 AI 增量 patch 合并进基准图副本。
+ * 将 AI 增量 patch 合并进基准图副本（内存操作，不写库）。
  * <p>
- * 在内存中操作图结构，不写库。合并顺序：新增节点 → 更新节点 → 新增边 → 更新边 →
+ * 合并顺序：新增节点 → 更新节点 → 新增边 → 更新边 →
  * 按 suggestedDeletes 删节点/边（删节点时级联移除关联边）→ 合并 scenarioPatch 到 meta。
  * condition 出边增删改时会同步源节点 data.branches[].target。
  * <p>
- * 支持两种模式：
- * <ul>
- *   <li>全量合并：acceptedIds 为 null，应用 patch 中全部增量项</li>
- *   <li>部分合并：仅应用 Diff 勾选项（addNode:、updateNode:、deleteEdge: 等键）</li>
- * </ul>
+ * 用途：单单元 submit 成功后推进工作图；前端确认 Staging 时把勾选单元并入正式图预览。
+ * acceptedIds 为 null 时全量应用；非 null 时只应用指定 Staging 单元键。
  */
 @Component
 public class FlowDesignPatchMerger {

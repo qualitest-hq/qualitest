@@ -20,6 +20,7 @@ import com.qualitest.flow.validate.AuthTokenPresenceGate;
 import com.qualitest.flow.validate.HttpRequiredParamGate;
 import com.qualitest.flow.validate.LoginExtractPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestProject;
@@ -40,21 +41,17 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * AI 产出流程补丁的服务端规范化器。
+ * AI 产出画布增量的服务端规范化器。
  * <p>
- * 在 AI submit 与 Web Diff 合并前依次执行：
- * <ol>
- *   <li>为 addNodes/addEdges 补雪花 id 与默认 position</li>
- *   <li>校验 HTTP(project) 节点 testProjectApiId 属于当前项目；external 跳过 API 归属校验</li>
- *   <li>按接口鉴权标签与项目鉴权配置补 Authorization 等托管头（profileManaged）</li>
- *   <li>补 data.summary（project / external / subflow 各自格式）</li>
- *   <li>规范化 scenarioPatch（场景 id、flowSeed 键名等）</li>
- *   <li>预合并到基准图副本，跑图结构校验，得到 errors/warnings</li>
- *   <li>用上游接口响应示例试算 assert/condition 的 http.body 左值；未命中记入 errors 回传模型</li>
- *   <li>检查需登录节点所需的 flow.token / flow.adminToken 等是否已有来源；缺则记入 errors，本次造流不可进入 Staging</li>
- *   <li>成功路径 HTTP 缺必填测值则记入 errors，本次造流不可进入 Staging</li>
- * </ol>
- * 不写库；用户在前端 Diff 确认后才持久化 graph_json。
+ * 在提交进 Capture / 返回前端 Staging 前依次：补雪花 id 与默认坐标、校验 HTTP 接口归属、
+ * 补鉴权托管头与节点 summary、规范化场景字段、预合并跑图结构校验与断言路径门禁等。
+ * 不写业务库；用户在前端确认后才持久化 graph_json。
+ * <p>
+ * 提供两条入口：
+ * <ul>
+ *   <li>normalize：整包严格校验（含鉴权 token 来源、登录抽取、HTTP 必填测值）</li>
+ *   <li>normalizeUnit：单 Staging 单元宽松校验（跨单元依赖延后，便于一次一单元造流）</li>
+ * </ul>
  */
 @Component
 @RequiredArgsConstructor
@@ -77,21 +74,46 @@ public class FlowDesignPatchNormalizer {
     private final FlowDesignPatchMerger patchMerger;
 
     /**
-     * 全量规范化并预合并校验：合并 patch 后跑图结构校验与断言路径门禁，错误回传模型以便自我修正。
+     * 全量规范化并预合并校验：合并后跑完整图结构校验与鉴权/必填门禁，错误回传模型。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId) {
         return normalize(patch, baseGraph, testProjectId, null);
     }
 
     /**
-     * 全量规范化并预合并校验；{@code sessionClientIdMap} 为会话级短名→雪花映射（可 null），成功解析时就地写入。
+     * 全量规范化；sessionClientIdMap 为会话短名→雪花映射（可 null），解析成功时就地写入。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
                                      Map<String, String> sessionClientIdMap) {
+        return normalizeInternal(patch, baseGraph, testProjectId, sessionClientIdMap, false);
+    }
+
+    /**
+     * 单 Staging 单元规范化（造流 submit_* 用）。
+     * <p>
+     * 与全量差异：
+     * <ul>
+     *   <li>图校验用局部确认选项（开始节点等整图硬规则放宽）</li>
+     *   <li>边端点允许前向短名（本轮稍后才会 add 的节点）</li>
+     *   <li>source/target 尚不存在的拓扑报错降为 warnings</li>
+     *   <li>断言路径只把命中本单元节点的错误当 errors</li>
+     *   <li>跳过鉴权 token 来源、登录抽取、HTTP 必填测值等跨单元门禁</li>
+     * </ul>
+     */
+    public NormalizeResult normalizeUnit(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
+                                         Map<String, String> sessionClientIdMap) {
+        return normalizeInternal(patch, baseGraph, testProjectId, sessionClientIdMap, true);
+    }
+
+    /**
+     * @param unitLocal true=单单元宽松；false=整包严格
+     */
+    private NormalizeResult normalizeInternal(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
+                                              Map<String, String> sessionClientIdMap, boolean unitLocal) {
         List<String> normWarnings = new ArrayList<>();
         List<String> idErrors = new ArrayList<>();
         Map<String, String> clientIdMap = sessionClientIdMap != null ? sessionClientIdMap : new HashMap<>();
-        patch = initAndNormalizePatch(patch, baseGraph, testProjectId, normWarnings, clientIdMap, idErrors);
+        patch = initAndNormalizePatch(patch, baseGraph, testProjectId, normWarnings, clientIdMap, idErrors, unitLocal);
 
         if (!idErrors.isEmpty()) {
             DesignValidationResult failed = DesignValidationResult.builder()
@@ -103,23 +125,48 @@ public class FlowDesignPatchNormalizer {
         }
 
         GraphJson merged = patchMerger.mergeAll(baseGraph, patch, normWarnings);
-        GraphValidationResult validation = graphJsonValidator.validate(merged);
+        GraphValidationResult validation = graphJsonValidator.validate(
+                merged, unitLocal ? GraphValidationOptions.stagingPartialConfirm() : GraphValidationOptions.full());
         List<String> warnings = new ArrayList<>(normWarnings);
         warnings.addAll(validation.getWarnings());
 
-        List<String> errors = new ArrayList<>(validation.getErrors());
+        List<String> errors = new ArrayList<>();
+        for (String err : validation.getErrors()) {
+            // 单单元造流：边端点可能指向尚未提交的节点，暂不阻断
+            if (unitLocal && isCrossUnitTopologyError(err)) {
+                warnings.add(err);
+            } else {
+                errors.add(err);
+            }
+        }
         // 断言路径：结构错误进 errors；schema 缺字段进 warnings（不阻断 Staging）
         AssertPathDesignGate.AssertPathGateResult assertPath =
                 AssertPathDesignGate.validate(merged, apiResolver());
-        errors.addAll(assertPath.errors());
-        warnings.addAll(assertPath.warnings());
-        String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        Function<Long, TestProjectApi> apiResolver = apiResolver();
-        errors.addAll(AuthTokenPresenceGate.validate(
-                merged, projectAuthJson, apiResolver, subflowGraphResolver()));
-        errors.addAll(LoginExtractPresenceGate.validate(merged, projectAuthJson, apiResolver));
-        // 成功路径 HTTP 缺必填测值，本次造流不可进入 Staging
-        errors.addAll(HttpRequiredParamGate.validate(merged, apiResolver));
+        if (unitLocal) {
+            Set<String> unitNodeIds = unitNodeIds(patch);
+            for (String err : assertPath.errors()) {
+                if (touchesUnitNode(err, unitNodeIds)) {
+                    errors.add(err);
+                } else {
+                    warnings.add(err);
+                }
+            }
+            for (String w : assertPath.warnings()) {
+                warnings.add(w);
+            }
+        } else {
+            errors.addAll(assertPath.errors());
+            warnings.addAll(assertPath.warnings());
+        }
+        if (!unitLocal) {
+            // 整包才验：token 是否有来源、登录是否抽取、必填测值是否齐
+            String projectAuthJson = loadProjectAuthConfig(testProjectId);
+            Function<Long, TestProjectApi> apiResolver = apiResolver();
+            errors.addAll(AuthTokenPresenceGate.validate(
+                    merged, projectAuthJson, apiResolver, subflowGraphResolver()));
+            errors.addAll(LoginExtractPresenceGate.validate(merged, projectAuthJson, apiResolver));
+            errors.addAll(HttpRequiredParamGate.validate(merged, apiResolver));
+        }
 
         DesignValidationResult planValidation = DesignValidationResult.builder()
                 .ok(errors.isEmpty())
@@ -130,12 +177,54 @@ public class FlowDesignPatchNormalizer {
         return new NormalizeResult(patch, planValidation);
     }
 
+    /** 边端点节点尚未在图中出现时的拓扑文案（单单元模式降为 warning）。 */
+    private static boolean isCrossUnitTopologyError(String err) {
+        if (err == null) {
+            return false;
+        }
+        return err.contains(" source 不存在：")
+                || err.contains(" target 不存在：");
+    }
+
+    /** 本单元涉及的节点 id（addNodes + updateNodes），用于裁剪断言错误归属。 */
+    private static Set<String> unitNodeIds(FlowDesignPatch patch) {
+        Set<String> ids = new HashSet<>();
+        if (patch.getAddNodes() != null) {
+            for (GraphNode n : patch.getAddNodes()) {
+                if (n != null && n.getId() != null) {
+                    ids.add(n.getId().trim());
+                }
+            }
+        }
+        if (patch.getUpdateNodes() != null) {
+            for (GraphNode n : patch.getUpdateNodes()) {
+                if (n != null && n.getId() != null) {
+                    ids.add(n.getId().trim());
+                }
+            }
+        }
+        return ids;
+    }
+
+    /** 断言错误文案是否点名本单元节点；单元无节点时默认视为相关。 */
+    private static boolean touchesUnitNode(String err, Set<String> unitNodeIds) {
+        if (err == null || unitNodeIds == null || unitNodeIds.isEmpty()) {
+            return true;
+        }
+        for (String id : unitNodeIds) {
+            if (err.contains(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 规范化 patch 字段（id、position、API 绑定、summary 等），不执行预合并校验。
      * 供部分勾选预览等在合并前单独调用规范化步骤的场景使用。
      */
     public FlowDesignPatch preparePatch(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId, List<String> warnings) {
-        return initAndNormalizePatch(patch, baseGraph, testProjectId, warnings, new HashMap<>(), new ArrayList<>());
+        return initAndNormalizePatch(patch, baseGraph, testProjectId, warnings, new HashMap<>(), new ArrayList<>(), false);
     }
 
     /**
@@ -189,9 +278,9 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * normalize 与 preparePatch 共用的 patch 初始化与规范化步骤。
-     * 依次：suggestedDeletes、雪花 id / position、scenarioPatch、
-     * HTTP API 绑定校验、按 type 规范化节点 data、节点 summary。
+     * 规范化入口编排：补 suggestedDeletes 空壳、id/坐标、Condition 分支、删映射、
+     * 场景字段、HTTP API 绑定、按 type 规范化 data、补 summary。
+     * unitLocal 会传到 id 规范化，控制边端点是否允许前向短名。
      */
     private FlowDesignPatch initAndNormalizePatch(
             FlowDesignPatch patch,
@@ -199,14 +288,15 @@ public class FlowDesignPatchNormalizer {
             Long testProjectId,
             List<String> warnings,
             Map<String, String> clientIdMap,
-            List<String> idErrors) {
+            List<String> idErrors,
+            boolean unitLocal) {
         if (patch == null) {
             patch = new FlowDesignPatch();
         }
         if (patch.getSuggestedDeletes() == null) {
             patch.setSuggestedDeletes(new FlowDesignPatch.SuggestedDeletes());
         }
-        normalizeIds(patch, baseGraph, clientIdMap, idErrors);
+        normalizeIds(patch, baseGraph, clientIdMap, idErrors, unitLocal);
         if (idErrors != null && !idErrors.isEmpty()) {
             return patch;
         }
@@ -268,12 +358,12 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 规范化节点/边 id：AI 可用短名；画布侧一律雪花。
-     * <p>
-     * 会话 {@code clientIdMap} 保证同会话短名稳定映射；同步改写边端点、update 引用与 condition branches.target。
+     * 规范化节点/边 id：模型可用短名，落盘侧一律雪花。
+     * 会话 clientIdMap 保证同会话短名稳定；同步改写边端点、update 引用与 condition branches.target。
+     * unitLocal=true 时边端点未知短名会先占位发号（前向引用），否则记入 idErrors。
      */
     private void normalizeIds(FlowDesignPatch patch, GraphJson baseGraph,
-                              Map<String, String> clientIdMap, List<String> idErrors) {
+                              Map<String, String> clientIdMap, List<String> idErrors, boolean unitLocal) {
         if (clientIdMap == null) {
             clientIdMap = new HashMap<>();
         }
@@ -336,8 +426,8 @@ public class FlowDesignPatchNormalizer {
                 } else if (clientIdMap.containsKey("edge:" + edge.getId().trim())) {
                     edge.setId(clientIdMap.get("edge:" + edge.getId().trim()));
                 }
-                edge.setSource(remapEndpoint(edge.getSource(), clientIdMap, knownIds, idRemap, idErrors, "addEdges.source"));
-                edge.setTarget(remapEndpoint(edge.getTarget(), clientIdMap, knownIds, idRemap, idErrors, "addEdges.target"));
+                edge.setSource(remapEndpoint(edge.getSource(), clientIdMap, knownIds, idRemap, idErrors, "addEdges.source", unitLocal));
+                edge.setTarget(remapEndpoint(edge.getTarget(), clientIdMap, knownIds, idRemap, idErrors, "addEdges.target", unitLocal));
             }
         }
 
@@ -356,10 +446,10 @@ public class FlowDesignPatchNormalizer {
                     }
                 }
                 if (edge.getSource() != null && !edge.getSource().isBlank()) {
-                    edge.setSource(remapEndpoint(edge.getSource(), clientIdMap, knownIds, idRemap, idErrors, "updateEdges.source"));
+                    edge.setSource(remapEndpoint(edge.getSource(), clientIdMap, knownIds, idRemap, idErrors, "updateEdges.source", unitLocal));
                 }
                 if (edge.getTarget() != null && !edge.getTarget().isBlank()) {
-                    edge.setTarget(remapEndpoint(edge.getTarget(), clientIdMap, knownIds, idRemap, idErrors, "updateEdges.target"));
+                    edge.setTarget(remapEndpoint(edge.getTarget(), clientIdMap, knownIds, idRemap, idErrors, "updateEdges.target", unitLocal));
                 }
             }
         }
@@ -404,8 +494,14 @@ public class FlowDesignPatchNormalizer {
         return isValidId(oldId) && knownIds.contains(oldId) ? oldId : null;
     }
 
+    /**
+     * 把边的 source/target 解析为已知雪花或会话映射。
+     * allowForwardRef=true（单单元）：未知短名先发雪花并记入映射，便于「先连边后补节点」顺序。
+     * allowForwardRef=false：未知 id 记入 idErrors。
+     */
     private static String remapEndpoint(String raw, Map<String, String> clientIdMap, Set<String> knownIds,
-                                        Map<String, String> idRemap, List<String> idErrors, String where) {
+                                        Map<String, String> idRemap, List<String> idErrors, String where,
+                                        boolean allowForwardRef) {
         if (raw == null || raw.isBlank()) {
             idErrors.add(where + " 为空");
             return raw;
@@ -417,6 +513,15 @@ public class FlowDesignPatchNormalizer {
         }
         if (knownIds.contains(oldId)) {
             return oldId;
+        }
+        if (allowForwardRef) {
+            if (isValidId(oldId)) {
+                return oldId;
+            }
+            String newId = String.valueOf(IdUtil.getSnowflakeNextId());
+            clientIdMap.put(oldId, newId);
+            idRemap.put(oldId, newId);
+            return newId;
         }
         idErrors.add(where + " 引用未知节点 id「" + oldId + "」");
         return oldId;

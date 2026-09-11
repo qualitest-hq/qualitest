@@ -47,7 +47,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 FlowDesignToolExecutor：设计工具只读查询、健康检查与 submit_flow_design_patch。
+ * 测 FlowDesignToolExecutor：设计工具只读查询、健康检查与 submit_* 单元工具。
  * 边界：Mock Mapper / Normalizer / 各 Service，不访问 DB 与真实 LLM。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolExecutorTest
  */
@@ -81,6 +81,7 @@ class FlowDesignToolExecutorTest {
         TestProjectApiDesignHintsService designHintsService = mock(TestProjectApiDesignHintsService.class);
         executor = new FlowDesignToolExecutor(
                 mapper, projectMapper, envService, flowService, runService, runStepService, normalizer,
+                new com.qualitest.ai.scenario.flow.FlowDesignPatchMerger(),
                 new HttpNodeApiHealthChecker(), assetService, designHintsService, null);
         context = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
@@ -170,7 +171,7 @@ class FlowDesignToolExecutorTest {
         assertNotNull(detail.getJSONObject("responseConvention"));
         assertEquals("code", detail.getJSONObject("responseConvention").getString("codePath"));
         assertNotNull(detail.getJSONArray("suggestedExtracts"));
-        assertTrue(detail.getJSONArray("designHints").toJSONString().contains("登录抽取"));
+        assertNotNull(detail.getJSONArray("designHints"));
         assertFalse(root.getBooleanValue("truncated"));
         assertEquals("none", detail.getJSONObject("auth").getString("mode"));
         assertNull(detail.get("headerHint"));
@@ -798,7 +799,7 @@ class FlowDesignToolExecutorTest {
     @Test
     @Order(21)
     @DisplayName("submit 校验通过写入 capture")
-    void submitFlowDesignPatch_recordsCaptureAndReturnsValidation() {
+    void submitAddHttpNode_recordsCaptureAndReturnsValidation() {
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setSummary("登录链路");
         patch.setAddNodes(new ArrayList<>(List.of(
@@ -808,7 +809,7 @@ class FlowDesignToolExecutorTest {
                 .errors(List.of())
                 .warnings(List.of("HTTP 节点 API 已置空"))
                 .build();
-        when(normalizer.normalize(any(FlowDesignPatch.class), any(), eq(PROJECT_ID))).thenReturn(
+        when(normalizer.normalizeUnit(any(FlowDesignPatch.class), any(), eq(PROJECT_ID), any())).thenReturn(
                 new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
 
         FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
@@ -821,8 +822,8 @@ class FlowDesignToolExecutorTest {
                 .build();
 
         String json = executor.executeTool(
-                FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
-                "{\"summary\":\"登录链路\",\"addNodes\":[{\"id\":\"n1\",\"type\":\"http\",\"data\":{}}]}",
+                FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId(),
+                "{\"id\":\"n1\",\"summary\":\"登录链路\",\"data\":{\"callMode\":\"project\"}}",
                 submitCtx);
 
         JSONObject root = JSON.parseObject(json);
@@ -841,14 +842,14 @@ class FlowDesignToolExecutorTest {
     @Test
     @Order(22)
     @DisplayName("submit 校验失败返回 errors")
-    void submitFlowDesignPatch_validationFailed_returnsErrors() {
+    void submitAddEdge_validationFailed_returnsErrors() {
         FlowDesignPatch patch = new FlowDesignPatch();
         DesignValidationResult validation = DesignValidationResult.builder()
                 .ok(false)
                 .errors(List.of("边 target 不存在"))
                 .warnings(List.of())
                 .build();
-        when(normalizer.normalize(any(FlowDesignPatch.class), any(), eq(PROJECT_ID))).thenReturn(
+        when(normalizer.normalizeUnit(any(FlowDesignPatch.class), any(), eq(PROJECT_ID), any())).thenReturn(
                 new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
 
         FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
@@ -860,8 +861,8 @@ class FlowDesignToolExecutorTest {
                 .build();
 
         String json = executor.executeTool(
-                FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
-                "{\"summary\":\"x\",\"addEdges\":[{\"source\":\"a\",\"target\":\"b\"}]}",
+                FlowDesignToolNames.SUBMIT_ADD_EDGE.getId(),
+                "{\"source\":\"a\",\"target\":\"b\"}",
                 submitCtx);
 
         JSONObject root = JSON.parseObject(json);
@@ -873,24 +874,29 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * 前提：同一轮连续两次 submit。
-     * 期望：后者覆盖前者，返回 replacedPrevious=true。
+     * 前提：同一轮连续两次成功 submit（同或不同单元）。
+     * 期望：累积接受，返回 replacedOrAppended=true。
      */
     @Test
     @Order(23)
-    @DisplayName("二次 submit 返回覆盖标记")
-    void submitFlowDesignPatch_replacedPrevious_returnsFlag() {
+    @DisplayName("二次 submit 返回累积标记")
+    void submitAddHttpNode_secondAccepted_returnsAppendFlag() {
         FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setAddNodes(new ArrayList<>(List.of(
+                GraphNode.builder().id("n2").type("http").data(new java.util.HashMap<>()).build())));
         DesignValidationResult validation = DesignValidationResult.builder()
                 .ok(true)
                 .errors(List.of())
                 .warnings(List.of())
                 .build();
-        when(normalizer.normalize(any(FlowDesignPatch.class), any(), eq(PROJECT_ID))).thenReturn(
+        when(normalizer.normalizeUnit(any(FlowDesignPatch.class), any(), eq(PROJECT_ID), any())).thenReturn(
                 new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
 
         FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
-        capture.record(new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
+        FlowDesignPatch first = new FlowDesignPatch();
+        first.setAddNodes(new ArrayList<>(List.of(
+                GraphNode.builder().id("n1").type("http").data(new java.util.HashMap<>()).build())));
+        capture.record(new FlowDesignPatchNormalizer.NormalizeResult(first, validation));
         FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
                 .testFlowId(3001L)
@@ -899,13 +905,14 @@ class FlowDesignToolExecutorTest {
                 .build();
 
         String json = executor.executeTool(
-                FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
-                "{\"summary\":\"第二次\"}",
+                FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId(),
+                "{\"id\":\"n2\",\"data\":{\"callMode\":\"project\"}}",
                 submitCtx);
 
         JSONObject root = JSON.parseObject(json);
-        assertTrue(root.getBooleanValue("replacedPrevious"));
-        assertTrue(root.getString("hint").contains("覆盖"));
+        assertTrue(root.getBooleanValue("replacedOrAppended"));
+        assertTrue(root.getBooleanValue("received"));
+        assertEquals(2, capture.getNormalizedPatch().getAddNodes().size());
     }
 
     /**

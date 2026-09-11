@@ -3,13 +3,14 @@
  */
 import type { AiDesignMessageView } from '../types/aiDesignTypes';
 
+/** 助手消息带有可灌 Staging 的 patch，且非纯答疑时展示 Staging 摘要条 */
 export function shouldShowStagingSummary(msg: AiDesignMessageView): boolean {
   return msg.role === 'assistant' && !!msg.patch && !msg.explainOnly;
 }
 
 /**
- * 本轮未调用 submit_flow_design_patch：明示无 Staging，避免用户以为已改图。
- * @param streamingMessageId 流式中的消息 id；传入时对该条不展示，避免闪一下
+ * 本轮未成功调用任何 submit_*：展示「未提交 Staging」提示，避免用户以为已改图。
+ * @param streamingMessageId 流式进行中的消息 id；传入时对该条不展示，避免闪一下
  */
 export function shouldShowExplainOnlyHint(
   msg: AiDesignMessageView,

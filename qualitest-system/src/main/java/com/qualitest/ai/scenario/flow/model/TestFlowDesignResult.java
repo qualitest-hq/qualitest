@@ -11,7 +11,8 @@ import java.util.List;
  * 测试流 AI 设计接口的一轮响应。
  * <p>
  * 含自然语言说明、画布增量 patch、校验结果，以及本轮素材库写入提案（若有）。
- * 不自动保存测试流，也不自动写入素材库；画布变更与素材提案均需用户确认后再落盘。
+ * explainOnly=true 表示本轮未成功接受任何 submit_* 单元，无画布 patch。
+ * 不自动保存测试流，也不自动写入素材库；均需用户确认后再落盘。
  */
 @Getter
 @Builder
@@ -35,13 +36,13 @@ public class TestFlowDesignResult {
     /** 模型思考过程全文，仅展示，不参与多轮上下文 */
     private final String thinkingContent;
 
-    /** 画布增量修改建议；本轮未提交改图时为 null */
+    /** 本轮累积的画布增量；explainOnly 或无成功单元时为 null */
     private final FlowDesignPatch patch;
 
-    /** 把 patch 预合并到当前图后的校验摘要 */
+    /** 最近一次成功 submit 的校验摘要；纯答疑时 ok=true 且无错误 */
     private final DesignValidationResult validation;
 
-    /** true 表示本轮未提交画布修改，仅说明或仅有素材提案等 */
+    /** true：本轮未成功调用任何 submit_*，仅说明或仅有素材提案 */
     private final boolean explainOnly;
 
     /**

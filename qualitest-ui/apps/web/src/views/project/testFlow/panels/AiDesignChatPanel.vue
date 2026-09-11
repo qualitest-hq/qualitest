@@ -99,11 +99,12 @@
                 </button>
               </template>
               <template #extra>
+                <!-- explainOnly：本轮无成功 submit_*，明示未产生 Staging -->
                 <div
                     v-if="shouldShowExplainOnlyHint(msg as AiDesignMessageView, streamingMessageId)"
                     class="ai-design-explain-only"
                 >
-                  本轮未提交 Staging（未调用 submit_flow_design_patch）。若要改画布请重新生成并明确要求提交修改。
+                  本轮未提交 Staging（未调用任何 submit_* 单元工具）。若要改画布请重新生成并明确要求提交修改。
                 </div>
                 <AiAssetProposalCard
                     v-if="shouldShowAssetProposals(msg as AiDesignMessageView)"

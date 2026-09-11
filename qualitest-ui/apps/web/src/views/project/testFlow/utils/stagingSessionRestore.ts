@@ -2,8 +2,9 @@
  * 重开造流 AI 助手侧栏时的 Staging 回灌。
  *
  * 画布重载会清空 Staging 单元表，但 AI 会话消息仍留在内存。
- * 若消息里还有未合并的造流 patch，打开侧栏后把 patch 再灌回 Staging，
+ * 若消息里还有未合并的造流 patch（多次 submit_* 累积结果），打开侧栏后把 patch 再灌回 Staging，
  * 让用户继续在画布上确认或拒绝变更。
+ * 纯答疑（explainOnly）消息不参与回灌。
  */
 
 import {

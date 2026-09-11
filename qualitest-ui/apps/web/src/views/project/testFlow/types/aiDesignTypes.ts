@@ -24,8 +24,8 @@ export interface FlowDesignScenarioPatch {
 }
 
 /**
- * AI 返回的测试流增量 patch（来自 submit_flow_design_patch 工具）。
- * 用户在画布上逐项 confirm 后写入正式图。
+ * AI 返回的测试流增量 patch（后端多次 submit_* 成功单元累积合并后下发）。
+ * 用户在画布上逐项 confirm 后才写入正式图。
  */
 export interface FlowDesignPatch {
   addNodes?: GraphNode[];
@@ -51,7 +51,7 @@ export interface TestFlowDesignResult {
   thinkingContent?: string;
   patch?: FlowDesignPatch;
   validation?: DesignValidationResult;
-  /** 本轮未提交画布修改时为 true */
+  /** 本轮未成功接受任何 submit_* 单元时为 true（纯答疑，无画布 patch） */
   explainOnly?: boolean;
   /** 本轮素材库写入提案；流式结束事件中通常带 fields 明文 */
   assetProposals?: AssetUpsertProposalView[];
@@ -105,9 +105,10 @@ export interface AiDesignMessageView {
   aiLlmModelId?: string;
   vendorName?: string;
   modelName?: string;
-  /** 画布修改建议；本轮未改图时无 */
+  /** 画布修改建议；explainOnly 或本轮未成功 submit 时无 */
   patch?: FlowDesignPatch;
   validation?: DesignValidationResult;
+  /** 本轮未成功接受任何 submit_*：纯答疑，不灌 Staging */
   explainOnly?: boolean;
   /** 列表摘要：有改图标记但尚未拉到完整 patch */
   patchPending?: boolean;
@@ -166,7 +167,9 @@ export function parseUserFromServer(msg: AiChatMessageItem): AiDesignMessageView
 
 /**
  * 将服务端助手消息还原为面板视图。
- * 正文用 summary；画布建议读 patchJson；素材库写入提案读 assetProposals。
+ * 正文用 summary；explainOnly 时不挂 patch；否则读 patchJson。
+ * patchPending：服务端标了有改图但本条尚未拉到完整 patchJson。
+ * 素材提案读 assetProposals。
  */
 export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessageView {
   let meta: Record<string, unknown> = {};
@@ -177,6 +180,7 @@ export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessag
       meta = {};
     }
   }
+  // 纯答疑：不解析 patch，避免误灌 Staging
   const explainOnly = meta.explainOnly === true;
   const summary =
     (typeof meta.summary === 'string' && meta.summary) ||

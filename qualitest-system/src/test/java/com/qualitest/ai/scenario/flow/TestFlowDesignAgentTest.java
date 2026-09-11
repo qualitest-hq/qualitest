@@ -16,6 +16,7 @@ import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolContextFactory;
 import com.qualitest.ai.tools.FlowDesignToolExecutor;
+import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolsDefinitionService;
 import com.qualitest.flow.model.*;
 import org.junit.jupiter.api.*;
@@ -94,8 +95,9 @@ class TestFlowDesignAgentTest {
                 .thenReturn(HistoryWindowPolicy.builder().countLimit(10).tokenBudget(12000).build());
         when(conversationService.loadMessagesForLlm(eq(SESSION_ID), any(LlmModelConfig.class), any(), anyInt()))
                 .thenReturn(List.of());
+        when(conversationService.loadFlowDesignClientIdMap(any())).thenReturn(new HashMap<>());
         when(toolsDefinitionService.loadToolsDefinition()).thenReturn(List.of());
-        when(contextFactory.fromDesignRequest(any(), any(), any())).thenAnswer(inv -> {
+        when(contextFactory.fromDesignRequest(any(), any(), any(), any(), any())).thenAnswer(inv -> {
             TestFlowDesignRequest req = inv.getArgument(0);
             FlowDesignSubmitCapture capture = inv.getArgument(1);
             return FlowDesignToolContext.builder()
@@ -106,6 +108,10 @@ class TestFlowDesignAgentTest {
                     .maxToolResultBytes(8192)
                     .submitCapture(capture)
                     .assetUpsertCapture(inv.getArgument(2))
+                    .aiChatSessionId(inv.getArgument(3))
+                    .flowDesignClientIdMap(inv.getArgument(4) != null
+                            ? inv.getArgument(4)
+                            : new HashMap<>())
                     .build();
         });
     }
@@ -154,7 +160,7 @@ class TestFlowDesignAgentTest {
         assertFalse(result.isExplainOnly());
         assertEquals(SESSION_ID, result.getAiChatSessionId());
         verify(agentRunner).run(any());
-        verify(toolExecutor).executeTool(eq(FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH), anyString(), any());
+        verify(toolExecutor).executeTool(eq(FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId()), anyString(), any());
         verify(conversationService).appendAssistantMessage(
                 eq(SESSION_ID), eq("登录链路"), contains("\"patchJson\""), eq(1001L), isNull());
         verify(summaryService).maybeRefreshSummaryAsync(eq(SESSION_ID), eq(1001L));
@@ -180,7 +186,7 @@ class TestFlowDesignAgentTest {
 
         assertTrue(result.isExplainOnly());
         assertNull(result.getPatch());
-        verify(toolExecutor, never()).executeTool(eq(FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH), anyString(), any());
+        verify(toolExecutor, never()).executeTool(eq(FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId()), anyString(), any());
     }
 
     /**
@@ -199,7 +205,7 @@ class TestFlowDesignAgentTest {
                 .warnings(List.of())
                 .build();
 
-        when(toolExecutor.executeTool(eq(FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH), anyString(), any()))
+        when(toolExecutor.executeTool(eq(FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId()), anyString(), any()))
                 .thenAnswer(inv -> {
                     var ctx = inv.getArgument(2, com.qualitest.ai.tools.FlowDesignToolContext.class);
                     ctx.getSubmitCapture().record(new FlowDesignPatchNormalizer.NormalizeResult(normalizedPatch, validation));
@@ -207,8 +213,8 @@ class TestFlowDesignAgentTest {
                 });
         when(agentRunner.run(any())).thenAnswer(inv -> {
             inv.getArgument(0, AiAgentRunner.AgentRunOptions.class).getToolExecutor().execute(
-                    FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
-                    "{\"summary\":\"登录链路\",\"addNodes\":[{\"id\":\"9001\",\"type\":\"http\"}],\"addEdges\":[]}");
+                    FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId(),
+                    "{\"id\":\"9001\",\"data\":{\"callMode\":\"project\",\"name\":\"登录\"}}");
             return AiAgentRunner.AgentRunResult.builder()
                     .terminalViaTool(true)
                     .stepsUsed(8)
@@ -286,7 +292,7 @@ class TestFlowDesignAgentTest {
                                         FlowDesignPatch normalizedPatch,
                                         DesignValidationResult validation,
                                         String assistantText) {
-        when(toolExecutor.executeTool(eq(FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH), anyString(), any()))
+        when(toolExecutor.executeTool(eq(FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId()), anyString(), any()))
                 .thenAnswer(inv -> {
                     var ctx = inv.getArgument(2, com.qualitest.ai.tools.FlowDesignToolContext.class);
                     ctx.getSubmitCapture().record(new FlowDesignPatchNormalizer.NormalizeResult(normalizedPatch, validation));
@@ -295,8 +301,8 @@ class TestFlowDesignAgentTest {
         when(agentRunner.run(any())).thenAnswer(inv -> {
             AiAgentRunner.AgentRunOptions opts = inv.getArgument(0);
             opts.getToolExecutor().execute(
-                    FlowDesignToolExecutor.SUBMIT_FLOW_DESIGN_PATCH,
-                    "{\"summary\":\"登录链路\",\"addNodes\":[{\"id\":\"9001\",\"type\":\"http\"}],\"addEdges\":[]}");
+                    FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId(),
+                    "{\"id\":\"9001\",\"data\":{\"callMode\":\"project\",\"name\":\"登录\"}}");
             return AiAgentRunner.AgentRunResult.builder()
                     .content(assistantText)
                     .stepsUsed(1)

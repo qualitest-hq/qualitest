@@ -9,10 +9,11 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * 解析 AI/MCP 工具执行时使用的画布 {@link GraphJson}。
+ * 解析只读查图工具使用的画布。
  * <p>
- * 优先级：上下文或 MCP 信封中的 graphJson → 按 arguments/信封中的 testFlowId 从库加载。
- * 用于 get_graph_summary、get_flow_meta、get_node_detail；加载失败时返回带 hint 的 error JSON。
+ * 优先级：上下文工作图（本轮已接受 submit 合并结果）或基准 graphJson →
+ * 再按 arguments/上下文中的 testFlowId 从库加载。
+ * 用于 graph_summary、flow_meta、node/edge/scenario 详情、api health 等。
  */
 @RequiredArgsConstructor
 public class FlowGraphContextResolver {
@@ -33,9 +34,15 @@ public class FlowGraphContextResolver {
         }
     }
 
+    /**
+     * 解析当前应读的图；失败时 errorJson 含 hint，供模型改参数重试。
+     */
     public ResolvedGraph resolve(Map<String, Object> arguments, FlowDesignToolContext ctx) {
-        if (ctx.getGraphJson() != null) {
-            return ResolvedGraph.ok(ctx.getGraphJson());
+        if (ctx.getGraphJson() != null || (ctx.resolveGraphJson() != null)) {
+            GraphJson g = ctx.resolveGraphJson();
+            if (g != null) {
+                return ResolvedGraph.ok(g);
+            }
         }
         Long flowId = FlowDesignToolSupport.longArg(arguments.get("testFlowId"));
         if (flowId == null) {

@@ -19,8 +19,8 @@ public class AiLlmConfigService {
     public static final int DEFAULT_WRITE_TIMEOUT_MS = 30000;
     /** 上游 chat/completions 默认 max_tokens */
     public static final int DEFAULT_MAX_TOKENS = 8192;
-    /** 单次 Agent 最大 tool 调用轮数（从零搭多步流常需十余轮检索+提交） */
-    public static final int DEFAULT_MAX_AGENT_STEPS = 20;
+    /** 单次 Agent 最大 tool 调用轮数（单单元多次 submit 需更多步） */
+    public static final int DEFAULT_MAX_AGENT_STEPS = 40;
     /** 单次 tool 返回 JSON 字节兜底上限（语义裁剪后仍超限才触发） */
     public static final int DEFAULT_MAX_TOOL_RESULT_BYTES = 8192;
     /** search_apis 单次返回条数上限 */

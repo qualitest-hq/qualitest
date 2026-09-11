@@ -122,7 +122,7 @@ class AiAgentRunnerTest {
                 .initialMessages(List.of(LlmMessage.user("plan")))
                 .toolExecutor((name, args) -> "{}")
                 .maxSteps(3)
-                .terminalSuccessProbe(() -> false)
+                .designSubmitNudgeEnabled(true)
                 .build());
 
         verify(llmProvider, times(3)).chat(eq(modelConfig), requestCaptor.capture());
@@ -132,7 +132,7 @@ class AiAgentRunnerTest {
                 .anyMatch(m -> AiAgentRunner.SUBMIT_NUDGE_CONTENT.equals(m.getContent()));
         assertTrue(secondHasNudge);
         assertFalse(result.isOk());
-        assertTrue(result.getError().contains("submit_flow_design_patch"));
+        assertTrue(result.getError().contains("submit_"));
     }
 
     /**
@@ -171,7 +171,7 @@ class AiAgentRunnerTest {
     void run_terminalSuccessProbe_succeedsWithoutContent() {
         LlmToolCall toolCall = LlmToolCall.builder()
                 .id("call_submit")
-                .name("submit_flow_design_patch")
+                .name("submit_add_http_node")
                 .argumentsJson("{}")
                 .build();
         when(llmProvider.chat(eq(modelConfig), any()))

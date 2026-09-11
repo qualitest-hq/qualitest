@@ -2,7 +2,6 @@ package com.qualitest.ai.tools;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
-import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.scenario.flow.FlowDesignPromptResources;
 import lombok.Getter;
@@ -21,11 +20,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 加载 Web 助手与 MCP 的 OpenAI function 定义（名称、描述、参数 Schema）。
+ * 加载 Web 造流与 MCP 的 OpenAI function 定义（名称、描述、参数 Schema）。
  * <p>
- * Web：主工具 JSON 中 webAgent 工具共 13 个（含画布提交、素材列举与写入），运行时注入 patch schema。<br>
- * MCP：主 JSON 中允许 MCP 的工具 + 额外「列流 / 读流」定义，共 13 个只读（不含画布提交、不含素材写入）。
- * <p>
+ * Web：主工具 JSON 中 webAgent 工具（含分类型 submit_*、素材列举与写入）。
+ * MCP：主 JSON 中允许 MCP 的工具 + 额外列流/读流定义（只读，不含任何 submit）。
  * 启动时校验：工具名枚举、执行器已注册名、JSON 定义名三者集合相同。
  */
 @Slf4j
@@ -99,8 +97,7 @@ public class FlowDesignToolsDefinitionService {
     /**
      * Web Agent 可见的完整工具列表。
      * <p>
-     * 从 {@code flow-design-tools.json} 加载，并将 {@code flow-design-patch-schema.json}
-     * 注入 {@code submit_flow_design_patch} 的 parameters。
+     * 从 {@code flow-design-tools.json} 加载（各 submit_* 已内联 parameters）。
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> loadToolsDefinition() {
@@ -114,16 +111,7 @@ public class FlowDesignToolsDefinitionService {
             }
             try {
                 String json = FlowDesignPromptResources.loadText(FlowDesignPromptResources.TOOLS_DEFINITION);
-                String schemaJson = FlowDesignPromptResources.loadText(FlowDesignPromptResources.PATCH_SCHEMA);
-                JSONObject patchSchema = JSON.parseObject(schemaJson);
                 JSONArray arr = JSON.parseArray(json);
-                for (int i = 0; i < arr.size(); i++) {
-                    JSONObject tool = arr.getJSONObject(i);
-                    JSONObject fn = tool.getJSONObject("function");
-                    if (fn != null && FlowDesignToolNames.SUBMIT_FLOW_DESIGN_PATCH.getId().equals(fn.getString("name"))) {
-                        fn.put("parameters", patchSchema);
-                    }
-                }
                 cachedTools = arr.stream()
                         .map(item -> (Map<String, Object>) JSON.parseObject(JSON.toJSONString(item)))
                         .toList();

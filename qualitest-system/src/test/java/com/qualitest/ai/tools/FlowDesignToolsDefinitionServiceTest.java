@@ -58,8 +58,10 @@ class FlowDesignToolsDefinitionServiceTest {
                 })
                 .toList();
 
-        assertEquals(14, names.size());
-        assertTrue(names.contains(FlowDesignToolNames.SUBMIT_FLOW_DESIGN_PATCH.getId()));
+        assertEquals(FlowDesignToolNames.webAgentToolIds().size(), names.size());
+        assertTrue(names.contains(FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.GET_EDGE_DETAIL.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.GET_SCENARIO_DETAIL.getId()));
         assertTrue(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
         assertTrue(names.contains(FlowDesignToolNames.APPEND_API_DESIGN_HINTS.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW_API_HEALTH.getId()));
@@ -70,22 +72,24 @@ class FlowDesignToolsDefinitionServiceTest {
 
     /**
      * 前提：执行器已注册全部声明工具；加载 MCP 工具定义。
-     * 期望：共 13 个；含 list_flows、get_flow、list_asset、get_flow_api_health；不含 submit、upsert、append_api_design_hints。
+     * 期望：含 list_flows、get_flow、get_edge_detail、get_scenario_detail；不含任何 submit_*、upsert、append。
      */
     @Test
     @Order(2)
-    @DisplayName("MCP 十三工具不含 submit/upsert")
-    void loadMcpProtocolTools_hasThirteenTools_excludesSubmit() {
+    @DisplayName("MCP 只读工具不含 submit/upsert")
+    void loadMcpProtocolTools_excludesSubmit() {
         List<String> names = service.loadMcpProtocolTools().stream()
                 .map(tool -> String.valueOf(tool.get("name")))
                 .toList();
 
-        assertEquals(13, names.size());
-        assertFalse(names.contains(FlowDesignToolNames.SUBMIT_FLOW_DESIGN_PATCH.getId()));
+        assertEquals(FlowDesignToolNames.mcpAllowedToolIds().size(), names.size());
+        assertFalse(names.stream().anyMatch(FlowDesignToolNames::isSubmitUnitTool));
         assertFalse(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
         assertFalse(names.contains(FlowDesignToolNames.APPEND_API_DESIGN_HINTS.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.GET_EDGE_DETAIL.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.GET_SCENARIO_DETAIL.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW_API_HEALTH.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_ASSET_VARIABLES.getId()));
     }

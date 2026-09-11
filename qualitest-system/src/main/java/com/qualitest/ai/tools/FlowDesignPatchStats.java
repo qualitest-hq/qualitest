@@ -5,10 +5,10 @@ import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 
 /**
- * FlowDesignPatch 变更数量统计。
+ * 增量 patch 变更条数统计。
  * <p>
- * 在 {@code submit_flow_design_patch} 校验通过时写入工具响应的 {@code patchStats}，
- * 也可由编排层写入会话 meta，便于前端展示本次建议的规模。
+ * submit_* 校验通过时写入工具回执的 patchStats；编排层也可写入会话 meta，
+ * 供前端展示本轮建议规模（加/改节点边、删除、是否含场景变更）。
  */
 public final class FlowDesignPatchStats {
 

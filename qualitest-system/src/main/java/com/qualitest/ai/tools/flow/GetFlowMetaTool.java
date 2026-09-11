@@ -56,21 +56,9 @@ public class GetFlowMetaTool implements QualitestTool {
         JSONArray scenarios = new JSONArray();
         if (meta.getScenarios() != null) {
             for (GraphRunScenario scenario : meta.getScenarios()) {
-                if (scenario == null) {
-                    continue;
+                if (scenario != null) {
+                    scenarios.add(FlowDesignScenarioJsonSupport.toSummary(scenario));
                 }
-                JSONObject item = new JSONObject();
-                item.put("id", scenario.getId());
-                item.put("name", scenario.getName() != null ? scenario.getName() : "");
-                item.put("testProjectEnvId",
-                        scenario.getTestProjectEnvId() != null ? scenario.getTestProjectEnvId() : "");
-                item.put("remark", scenario.getRemark() != null ? scenario.getRemark() : "");
-                JSONArray flowSeedKeys = new JSONArray();
-                if (scenario.getFlowSeed() != null) {
-                    flowSeedKeys.addAll(scenario.getFlowSeed().keySet());
-                }
-                item.put("flowSeedKeys", flowSeedKeys);
-                scenarios.add(item);
             }
         }
         result.put("scenarios", scenarios);

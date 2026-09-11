@@ -11,14 +11,18 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 从 AI patch 枚举 Staging 单元 id。
- * 键名形如 addNode:{id}、addEdge:{id}、deleteNode:{id}、scenario:activeScenarioId 等。
+ * 从增量 patch 枚举 Staging 单元 id。
+ * <p>
+ * 每个可独立确认/取消的变更对应一个 id，前缀表示类型，例如：
+ * addNode:{id}、updateEdge:{id}、deleteNode:{id}、addScenario:{id}、scenario:activeScenarioId。
+ * submit_* 要求单次调用只产生恰好一个单元；Capture 按同 id 覆盖重试。
  */
 public final class FlowDesignPatchUnitIds {
 
     private FlowDesignPatchUnitIds() {
     }
 
+    /** 枚举 patch 中全部 Staging 单元 id（保持插入顺序）。 */
     public static Set<String> enumerate(FlowDesignPatch patch) {
         Set<String> unitIds = new LinkedHashSet<>();
         if (patch == null) {
@@ -48,7 +52,8 @@ public final class FlowDesignPatchUnitIds {
     }
 
     /**
-     * 当前 patch 是否仍有未确认/未拒绝的单元（不含本次正在确认的 unitId）。
+     * 当前 patch 是否还有未确认且未拒绝的单元。
+     * confirmingUnitId 视为本轮正在确认、算已处理。
      */
     public static boolean hasUnresolvedUnits(
             FlowDesignPatch patch,

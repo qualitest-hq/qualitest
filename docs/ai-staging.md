@@ -10,12 +10,12 @@
 
 ## 1. 为什么必须 Staging
 
-AI **不直接写库**。Web 助手调 `submit_flow_design_patch` 后，前端把 patch 变成 **Staging 单元**（加节点 / 改节点 / 加边 / 删节点或边 / 场景字段等）。真人（或代点的 Agent）逐项 **✓ 确认** 或 **✕ 取消**，再点 **保存**，`graph_json` 才持久化。
+AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_add_http_node`）后，前端把累积 patch 变成 **Staging 单元**（加节点 / 改节点 / 加边 / 删节点或边 / 场景字段等）。真人（或代点的 Agent）逐项 **✓ 确认** 或 **✕ 取消**，再点 **保存**，`graph_json` 才持久化。
 
 ```text
 自然语言（或「AI 修复」）
   → 模型调工具（search_apis / get_api_details / …）
-  → submit_flow_design_patch
+  → 多次 submit_*（每次 1 个 Staging 单元）
   → 画布 Staging 黄条 / 单元
   → ✓ 确认（跑设计期门禁）
   → 保存（画布可见节点）
@@ -42,11 +42,11 @@ AI **不直接写库**。Web 助手调 `submit_flow_design_patch` 后，前端�
 
 ## 3. 本轮没有 Staging
 
-助手气泡 **「本轮未提交 Staging」**（`explainOnly`）= 模型只写了方案，**没调** `submit_flow_design_patch`。画布不会变。
+助手气泡 **「本轮未提交 Staging」**（`explainOnly`）= 模型只写了方案，**没调** 任何 `submit_*` 单元工具。画布不会变。
 
 常见原因：同会话从零搭长流、反复拉超大 `get_api_details`、步数将尽。
 
-**测法 / 用法**：新建对话 + 短提示 + 显式 API id；看到该气泡就让 AI「请 submit 落盘」，不要当已经改图。
+**测法 / 用法**：新建对话 + 短提示 + 显式 API id；看到该气泡就让 AI「请按单元 submit 落盘」，不要当已经改图。
 
 ---
 
@@ -55,7 +55,7 @@ AI **不直接写库**。Web 助手调 `submit_flow_design_patch` 后，前端�
 | | Web AI 面板 | MCP |
 | --- | --- | --- |
 | 读接口 / 流摘要 / Run 失败 | 有 | 有（另有 `list_flows` / `get_flow`） |
-| `submit_flow_design_patch` | **有** | 无 |
+| `submit_*` 单元写工具 | **有** | 无 |
 | `upsert_asset_variables` | **有**（提案，聊天侧确认后落盘） | 无 |
 | `append_api_design_hints` | 有（直接改接口 hint） | 无 |
 
