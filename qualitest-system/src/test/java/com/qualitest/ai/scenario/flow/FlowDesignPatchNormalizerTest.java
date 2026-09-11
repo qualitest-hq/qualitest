@@ -744,75 +744,97 @@ class FlowDesignPatchNormalizerTest {
 
     @Test
     @Order(91)
-    @DisplayName("branches 短名与边 label 对齐；探活成功 IF 同指登录改无 target 结束")
-    void normalize_branchAliasAndTerminalCompat() {
+    @DisplayName("出口只认边：错误 target 被边覆盖；无出边分支清 target")
+    void normalize_edgeWinsOverWrongTarget() {
         Map<String, String> sessionMap = new HashMap<>();
-        Map<String, Object> credData = new HashMap<>();
-        credData.put("name", "凭证");
-        credData.put("branches", new ArrayList<>(List.of(
+        Map<String, Object> condData = new HashMap<>();
+        condData.put("name", "分支");
+        condData.put("branches", new ArrayList<>(List.of(
                 new HashMap<>(Map.of(
                         "id", "b_if",
-                        "type", "IF",
-                        "target", "n_probe",
+                        "kind", "if",
+                        "target", "n_wrong",
                         "conditions", List.of(Map.of("left", "asset.adminAuth.token", "operator", "exists")))),
                 new HashMap<>(Map.of(
                         "id", "b_else",
-                        "type", "ELSE",
-                        "target", "n_login"))
+                        "kind", "else",
+                        "target", "n_wrong"))
         )));
+        GraphNode cond = GraphNode.builder().id("n_cond").type("condition").data(condData).build();
+        GraphNode probe = GraphNode.builder().id("n_probe").type("http")
+                .data(new HashMap<>(Map.of("callMode", "project", "name", "探活"))).build();
+        GraphNode login = GraphNode.builder().id("n_login").type("http")
+                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录"))).build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setAddNodes(new ArrayList<>(List.of(cond, probe, login)));
+        patch.setAddEdges(new ArrayList<>(List.of(
+                GraphEdge.builder().id("e1").source("n_cond").target("n_probe").label("if").build(),
+                GraphEdge.builder().id("e2").source("n_cond").target("n_login").label("else").build()
+        )));
+
+        FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, emptyGraph(), PROJECT_ID, sessionMap);
+        GraphNode condNode = nodeByDataName(result.patch().getAddNodes(), "分支");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> branches = (List<Map<String, Object>>) condNode.getData().get("branches");
+        Map<String, Object> ifBranch = branchById(branches, "b_if");
+        Map<String, Object> elseBranch = branchById(branches, "b_else");
+        assertEquals(sessionMap.get("n_probe"), ifBranch.get("target"));
+        assertEquals(sessionMap.get("n_login"), elseBranch.get("target"));
+        assertFalse(ifBranch.containsKey("terminal"));
+    }
+
+    @Test
+    @Order(92)
+    @DisplayName("无出边的分支清除 target；仅 kind 生效不读 type")
+    void normalize_noEdgeClearsTarget_ignoresTypeLabel() {
+        Map<String, String> sessionMap = new HashMap<>();
         Map<String, Object> statusData = new HashMap<>();
         statusData.put("name", "探活是否200");
         statusData.put("branches", new ArrayList<>(List.of(
                 new HashMap<>(Map.of(
                         "id", "b_ok",
-                        "type", "IF",
+                        "kind", "if",
                         "target", "n_login",
                         "conditions", List.of(Map.of("left", "http.status", "operator", "eq", "right", "200")))),
                 new HashMap<>(Map.of(
                         "id", "b_fail",
-                        "type", "ELSE",
+                        "kind", "else",
                         "target", "n_login"))
         )));
-        GraphNode cred = GraphNode.builder().id("n_cred").type("condition").data(credData).build();
-        GraphNode probe = GraphNode.builder().id("n_probe").type("http")
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "探活"))).build();
+        // type=ELSE 但无 kind 的脏分支不应被当成 else 去匹配边
+        Map<String, Object> dirty = new HashMap<>();
+        dirty.put("id", "b_dirty");
+        dirty.put("type", "ELSE");
+        dirty.put("target", "n_login");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> raw = (List<Map<String, Object>>) statusData.get("branches");
+        raw.add(dirty);
+
         GraphNode status = GraphNode.builder().id("n_status").type("condition").data(statusData).build();
         GraphNode login = GraphNode.builder().id("n_login").type("http")
                 .data(new HashMap<>(Map.of("callMode", "project", "name", "登录"))).build();
         FlowDesignPatch patch = new FlowDesignPatch();
-        patch.setAddNodes(new ArrayList<>(List.of(cred, probe, status, login)));
+        patch.setAddNodes(new ArrayList<>(List.of(status, login)));
+        // 仅 ELSE 有出边；IF 无出边应清 target
         patch.setAddEdges(new ArrayList<>(List.of(
-                GraphEdge.builder().id("e1").source("n_cred").target("n_probe").label("IF").build(),
-                GraphEdge.builder().id("e2").source("n_cred").target("n_login").label("ELSE").build(),
-                GraphEdge.builder().id("e3").source("n_probe").target("n_status").build(),
-                GraphEdge.builder().id("e4").source("n_status").target("n_login").label("ELSE").build()
+                GraphEdge.builder().id("e4").source("n_status").target("n_login").label("else").build()
         )));
 
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, emptyGraph(), PROJECT_ID, sessionMap);
-        assertEquals(4, result.patch().getAddNodes().size());
-        String probeId = sessionMap.get("n_probe");
-        String loginId = sessionMap.get("n_login");
-        assertNotNull(probeId);
-        assertNotNull(loginId);
-
-        GraphNode statusNode = result.patch().getAddNodes().stream()
-                .filter(n -> "n_status".equals(sessionMap.entrySet().stream()
-                        .filter(e -> e.getValue().equals(n.getId())).map(Map.Entry::getKey).findFirst().orElse(null))
-                        || (n.getData() != null && "探活是否200".equals(n.getData().get("name"))))
-                .findFirst()
-                .orElseThrow();
+        GraphNode statusNode = nodeByDataName(result.patch().getAddNodes(), "探活是否200");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> branches = (List<Map<String, Object>>) statusNode.getData().get("branches");
-        Map<String, Object> ok = branches.stream()
-                .filter(b -> "b_ok".equals(String.valueOf(b.get("id"))))
-                .findFirst()
-                .orElseThrow();
-        assertFalse(ok.containsKey("terminal"));
+        Map<String, Object> ok = branchById(branches, "b_ok");
+        Map<String, Object> fail = branchById(branches, "b_fail");
+        Map<String, Object> dirtyBranch = branchById(branches, "b_dirty");
         assertNull(ok.get("target"));
+        assertEquals(sessionMap.get("n_login"), fail.get("target"));
+        // 无 kind：不按 type=ELSE 匹配 label，且 else 边已被占用 → target 清空
+        assertNull(dirtyBranch.get("target"));
     }
 
     @Test
-    @Order(92)
+    @Order(93)
     @DisplayName("updateNodes 未知短名报错且不发新号")
     void normalize_unknownUpdateAlias_errors() {
         Map<String, String> sessionMap = new HashMap<>();
@@ -828,6 +850,20 @@ class FlowDesignPatchNormalizerTest {
         assertFalse(result.validation().isOk());
         assertTrue(result.validation().getErrors().stream().anyMatch(e -> e.contains("never_seen")));
         assertFalse(sessionMap.containsKey("never_seen"));
+    }
+
+    private static Map<String, Object> branchById(List<Map<String, Object>> branches, String id) {
+        return branches.stream()
+                .filter(b -> id.equals(String.valueOf(b.get("id"))))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static GraphNode nodeByDataName(List<GraphNode> nodes, String name) {
+        return nodes.stream()
+                .filter(n -> n.getData() != null && name.equals(n.getData().get("name")))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static GraphJson emptyGraph() {

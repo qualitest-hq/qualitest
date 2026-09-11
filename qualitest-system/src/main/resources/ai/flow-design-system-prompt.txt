@@ -17,7 +17,7 @@
 优先声明式节点：HTTP → Assert / Assign；分支用 Condition；复用用 Subflow；Script 仅作短胶水。
 - **http**：必填 `callMode`=`project`|`external`（空缺服务端默认 project）。project 须真实 `testProjectApiId`；external 须 `externalUrl`+`httpMethod`，禁止 `testProjectApiId`。external 可选 pre/postScript。
 - **assert**：`rules` **不得为空**；左值见下方路径方言；operator 白名单见 submit 节。
-- **condition**：须有 `branches`（空缺服务端补默认 IF/ELSE）；IF/ELIF 的 conditions 规则同 assert。
+- **condition**：须有 `branches`（空缺服务端补默认 IF/ELSE）。每条分支必填 `kind`=`if`|`elif`|`else`；**禁止**用 `name`/`type` 冒充分支类型。IF/ELIF 的 `conditions` 规则同 assert；ELSE 不要写 `conditions`。
 - **assign**：`assignments` **不得为空**；op∈`set|add|sub|mul|div`（空 op 默认 set）；只写 flow。
 - **delay**：`ms` 毫秒（空缺默认 1000，上限 60000）。
 - **script**：须 `language`=`javascript`|`python` 与 `source`（空 language 默认 javascript）。ctx API 见 tool description；优先 HTTP(external)/子流，少用 `ctx.http`。
@@ -69,8 +69,8 @@
 - 字段：addNodes, updateNodes, addEdges, updateEdges, suggestedDeletes, scenarioPatch, summary
 - **原子变更包**（同轮须自洽）：
   - addEdge 的 source/target 须已在画布或本轮 addNodes
-  - **节点/边 id**：可用短名（如 `n_probe`、`adm_login`）；同会话同一节点保持同一短名；系统映射为画布雪花。也可直接用 `get_graph_summary` 返回的雪花 id。`branches[].target` 与边端点写同一套短名或雪花即可
-  - condition：需往下走的分支须 addEdges 与 `branches[].target` 同时给出且一致；**结束分支不要 target、不要出边**（勿再写 `terminal`）
+  - **节点/边 id**：可用短名（如 `n_probe`、`adm_login`）；同会话同一节点保持同一短名；系统映射为画布雪花。也可直接用 `get_graph_summary` 返回的雪花 id
+  - condition：**不要写** `branches[].target` / `terminal`；出口只靠 `addEdges`（`label`=`if`|`elif`|`else` 或与 branchId 对应）。结束分支不要出边。服务端按边写入 target
   - updateNodes 中 rules / branches / extracts 等数组须交**完整数组**
   - 删节点时 suggestedDeletes 尽量带上孤立边（或依赖系统级联）
 - 空画布：addNodes/addEdges 搭线性链，position.x 步进约 380

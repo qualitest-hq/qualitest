@@ -526,10 +526,10 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 用出边回填 condition 各分支的 target，并清理遗留 terminal。
+     * 将 condition 节点 branches 与出边对齐：出口只认边。
      * <p>
-     * 已有有效 target 且图中存在对应出边则保留；否则按边的 label/handle 匹配补 target；
-     * 指向不存在节点的 target 会清掉。最后对「探活成功却误连登录」做窄规则修正。
+     * 每条分支按 label/handle 匹配出边写入 target；无匹配边则清除 target（结束分支）。
+     * 不保留 AI 预写的 target。
      */
     @SuppressWarnings("unchecked")
     private static void reconcileConditionBranches(FlowDesignPatch patch, GraphJson baseGraph) {
@@ -546,19 +546,6 @@ public class FlowDesignPatchNormalizer {
         }
         if (patch.getUpdateNodes() != null) {
             nodes.addAll(patch.getUpdateNodes());
-        }
-        Map<String, GraphNode> nodeById = new HashMap<>();
-        if (baseGraph != null && baseGraph.getNodes() != null) {
-            for (GraphNode n : baseGraph.getNodes()) {
-                if (n != null && n.getId() != null) {
-                    nodeById.put(n.getId(), n);
-                }
-            }
-        }
-        for (GraphNode n : nodes) {
-            if (n != null && n.getId() != null) {
-                nodeById.put(n.getId(), n);
-            }
         }
 
         for (GraphNode node : nodes) {
@@ -589,31 +576,22 @@ public class FlowDesignPatchNormalizer {
             List<GraphEdge> outs = outEdgesBySource.getOrDefault(node.getId(), List.of());
             Set<String> usedEdgeIds = new HashSet<>();
 
+            // 出口只认边：匹配出边则写 target，否则清除（结束）
             for (Map<String, Object> branch : branches) {
                 String branchId = stringVal(branch.get("id"));
                 String kind = branchKind(branch);
-                String target = stringVal(branch.get("target"));
-                boolean targetOk = target != null && nodeById.containsKey(target)
-                        && markUsedEdge(outs, node.getId(), target, usedEdgeIds);
-                if (targetOk) {
-                    // target 已正确：只剥旧 terminal
-                    ConditionBranchTerminalSupport.stripTerminalFlag(branch);
-                    continue;
-                }
                 GraphEdge matched = matchOutEdge(outs, branchId, kind, usedEdgeIds);
                 if (matched != null) {
                     branch.put("target", matched.getTarget());
                     if (matched.getId() != null) {
                         usedEdgeIds.add(matched.getId());
                     }
-                } else if (target != null && !nodeById.containsKey(target)) {
-                    // 悬空 target：清掉，变成结束出口
+                } else {
                     branch.remove("target");
                 }
                 ConditionBranchTerminalSupport.stripTerminalFlag(branch);
             }
 
-            applyProbeSuccessEndCompat(branches, nodeById, outs);
             node.getData().put("branches", branches);
         }
     }
@@ -630,23 +608,12 @@ public class FlowDesignPatchNormalizer {
         }
     }
 
-    private static boolean markUsedEdge(List<GraphEdge> outs, String source, String target, Set<String> used) {
-        for (GraphEdge e : outs) {
-            if (source.equals(e.getSource()) && target.equals(e.getTarget())) {
-                if (e.getId() != null) {
-                    used.add(e.getId());
-                }
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static GraphEdge matchOutEdge(List<GraphEdge> outs, String branchId, String kind, Set<String> usedEdgeIds) {
         if (outs == null || outs.isEmpty()) {
             return null;
         }
         String handle = branchId != null ? "out-" + branchId : null;
+        boolean kindSet = kind != null && !kind.isEmpty();
         GraphEdge byKind = null;
         GraphEdge firstFree = null;
         for (GraphEdge e : outs) {
@@ -657,109 +624,27 @@ public class FlowDesignPatchNormalizer {
             if (handle != null && handle.equalsIgnoreCase(label)) {
                 return e;
             }
-            if (byKind == null && kind != null && kind.equalsIgnoreCase(label)) {
+            if (byKind == null && kindSet && kind.equalsIgnoreCase(label)) {
                 byKind = e;
             }
-            if (firstFree == null) {
+            if (firstFree == null && label.isEmpty()) {
+                // 仅无 label 的边可作为无 kind 分支的兜底，避免 if 抢走 label=else 的边
                 firstFree = e;
             }
         }
-        return byKind != null ? byKind : firstFree;
+        if (byKind != null) {
+            return byKind;
+        }
+        // 有 kind 但未匹配到同名 label：不认边（结束或未接线）
+        if (kindSet) {
+            return null;
+        }
+        return firstFree;
     }
 
-    /**
-     * 探活成功分支纠偏：IF（http.status eq 200）若与 ELSE 同指登录 HTTP，或没有自己的出边，
-     * 则清掉 IF 的 target（命中成功后结束本流），并删除遗留 terminal。
-     */
-    private static void applyProbeSuccessEndCompat(
-            List<Map<String, Object>> branches,
-            Map<String, GraphNode> nodeById,
-            List<GraphEdge> outs) {
-        Map<String, Object> successIf = null;
-        Map<String, Object> elseBranch = null;
-        for (Map<String, Object> branch : branches) {
-            String kind = branchKind(branch);
-            if ("else".equals(kind)) {
-                elseBranch = branch;
-            } else if (("if".equals(kind) || "elif".equals(kind)) && isHttpStatus200(branch)) {
-                successIf = branch;
-            }
-        }
-        if (successIf == null || elseBranch == null) {
-            return;
-        }
-        String elseTarget = stringVal(elseBranch.get("target"));
-        if (elseTarget == null) {
-            return;
-        }
-        GraphNode elseNode = nodeById.get(elseTarget);
-        if (!isHttpNode(elseNode)) {
-            return;
-        }
-        String ifTarget = stringVal(successIf.get("target"));
-        if (hasDistinctIfEdge(outs, ifTarget, elseTarget)) {
-            return;
-        }
-        // 成功 IF 不应再连登录：清 target，本流在探活成功时结束
-        if (ifTarget == null || ifTarget.equals(elseTarget)) {
-            successIf.remove("target");
-            ConditionBranchTerminalSupport.stripTerminalFlag(successIf);
-        }
-    }
-
-    private static boolean hasDistinctIfEdge(List<GraphEdge> outs, String ifTarget, String elseTarget) {
-        if (ifTarget == null || outs == null) {
-            return false;
-        }
-        for (GraphEdge e : outs) {
-            if (ifTarget.equals(e.getTarget()) && !ifTarget.equals(elseTarget)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isHttpNode(GraphNode node) {
-        return node != null && node.getType() != null && "http".equalsIgnoreCase(node.getType().trim());
-    }
-
-    private static boolean isHttpStatus200(Map<String, Object> branch) {
-        Object conditionsObj = branch.get("conditions");
-        if (!(conditionsObj instanceof List<?> conditions)) {
-            return false;
-        }
-        for (Object item : conditions) {
-            if (!(item instanceof Map<?, ?> c)) {
-                continue;
-            }
-            String left = stringVal(c.get("left"));
-            String op = stringVal(c.get("operator"));
-            Object right = c.get("right");
-            if (left == null || op == null) {
-                continue;
-            }
-            if (!"http.status".equalsIgnoreCase(left.trim())) {
-                continue;
-            }
-            if (!"eq".equalsIgnoreCase(op.trim()) && !"equals".equalsIgnoreCase(op.trim())) {
-                continue;
-            }
-            if (right == null) {
-                continue;
-            }
-            String r = String.valueOf(right).trim();
-            if ("200".equals(r)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
+    /** 只读 {@code kind}，不做 type/name 回退。 */
     private static String branchKind(Map<String, Object> branch) {
         String kind = stringVal(branch.get("kind"));
-        if (kind == null) {
-            kind = stringVal(branch.get("type"));
-        }
         return kind == null ? "" : kind.trim().toLowerCase(Locale.ROOT);
     }
 

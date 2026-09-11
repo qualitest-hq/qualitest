@@ -33,24 +33,16 @@ export const hasConditionBranchTarget = hasBranchTarget;
 /** 是否为结束分支（无有效 target） */
 export { isTerminalBranch };
 
-/** 创建默认 else 分支（id 为雪花数字串） */
-export function defaultElseBranch(): ConditionBranch {
-  return { id: nextSnowflakeId(), kind: 'else', conditions: [] };
-}
-
 /**
  * 规范化 condition 节点 data.branches。
- * - 已有合法 branches 时补全缺失的 else
- * - 否则写入默认 IF + ELSE
+ * - 已有内容的 branches 原样保留（不再因缺 kind:else 盲目补结束 else）
+ * - 空/非法则写入默认 IF + ELSE
  */
 export function normalizeConditionBranches(data: Record<string, unknown> | null | undefined): void {
   if (!data || typeof data !== 'object') return;
 
   const branches = data.branches;
-  if (Array.isArray(branches) && branches.length >= 2) {
-    if (!(branches as ConditionBranch[]).some((b) => b.kind === 'else')) {
-      (branches as ConditionBranch[]).push(defaultElseBranch());
-    }
+  if (Array.isArray(branches) && branches.length) {
     return;
   }
 
