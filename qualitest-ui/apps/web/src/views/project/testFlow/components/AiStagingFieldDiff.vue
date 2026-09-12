@@ -89,7 +89,6 @@ const title = computed(() => {
   if (kind === 'deleteNode' || kind === 'deleteEdge' || kind === 'deleteScenario') {
     return '待确认删除'
   }
-  if (kind === 'setActiveScenario') return 'AI 建议切换默认场景'
   return 'AI 待确认变更'
 })
 
@@ -126,9 +125,6 @@ const deleteHint = computed(() => {
     return '可在下方继续编辑场景参数，确认后写入正式配置。'
   }
   if (u.kind === 'deleteScenario') return stagingDeleteHint('deleteScenario')
-  if (u.kind === 'setActiveScenario') {
-    return '确认后将切换左侧默认运行场景。'
-  }
   return ''
 })
 

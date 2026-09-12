@@ -96,16 +96,6 @@ export function rejectScenarioStagingUnit(unit: AiStagingUnit) {
       };
       break;
     }
-    case 'setActiveScenario': {
-      const baselineId = unit.baseline?.activeScenarioId;
-      if (baselineId != null) {
-        store.runConfig = {
-          ...store.runConfig,
-          activeScenarioId: String(baselineId),
-        };
-      }
-      break;
-    }
     case 'deleteScenario':
       break;
     default:
@@ -139,15 +129,6 @@ export function useAiStagingScenario() {
         onPrunedAdd: (prunedId, ctx) => {
           if (activeScenarioId === prunedId) {
             activeScenarioId = ctx.items[0]?.id ?? activeScenarioId;
-          }
-        },
-        applySideEffect: (unit) => {
-          if (unit.kind !== 'setActiveScenario') return;
-          const targetId =
-            unit.draft?.activeScenarioId ??
-            (unit.patchSlice as { activeScenarioId?: string } | undefined)?.activeScenarioId;
-          if (targetId) {
-            activeScenarioId = String(targetId);
           }
         },
       },

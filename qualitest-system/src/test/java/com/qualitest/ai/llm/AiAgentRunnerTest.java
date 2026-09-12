@@ -171,7 +171,7 @@ class AiAgentRunnerTest {
     void run_terminalSuccessProbe_succeedsWithoutContent() {
         LlmToolCall toolCall = LlmToolCall.builder()
                 .id("call_submit")
-                .name("submit_add_http_node")
+                .name("submit_http_node")
                 .argumentsJson("{}")
                 .build();
         when(llmProvider.chat(eq(modelConfig), any()))

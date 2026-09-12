@@ -9,7 +9,7 @@ See also: [project-summary.en.md](./project-summary.en.md) · [test-flow-nodes.e
 
 ## 1. Why Staging exists
 
-The model **does not write the DB**. The Web assistant calls typed `submit_*` tools (e.g. `submit_add_http_node`), one Staging unit per call; the UI merges the accumulated patch into **Staging units**. A human (or an agent clicking the UI) **✓ confirms** or **✕ cancels**, then **Save**. Only then is `graph_json` persisted.
+The model **does not write the DB**. The Web assistant calls typed `submit_*` tools (e.g. `submit_http_node` with `op=add|update`), one Staging unit per call; the UI merges the accumulated patch into **Staging units**. A human (or an agent clicking the UI) **✓ confirms** or **✕ cancels**, then **Save**. Only then is `graph_json` persisted.
 
 **MCP is read-only** — no `submit_*`, no `upsert_asset_variables`. Edit graphs on the Web AI panel.
 
@@ -55,6 +55,8 @@ Web has typed `submit_*` unit writers, `upsert_asset_variables` (proposal → co
 | `AUTH_TOKEN_MISSING` | Yes | **Save** (same) | Bearer needed but no extract / assign / subflow output / **flowSeed** |
 | `AUTH_HEADER_MANAGED` / `AUTH_LOGIN_NO_BEARER` | Soft | — | Managed header filled / stripped on anonymous login |
 | Bad assert path (`.items`, `http.body.$.…`) | Yes on that unit | Save (not on ✓) | See node docs |
+
+Before Save, the UI calls `/patch/savePrecheck` (same AUTH / login-extract / HTTP-required codes) so failures surface before the hard save. Submit tools: typed `submit_*` with `op=add|update`; unified `submit_delete` (`kind`+`id`). AI does **not** create `input` nodes or switch the default scenario.
 
 Auth model: concept map §4. Variables / flowSeed: [flow-variables-and-values.en.md](./flow-variables-and-values.en.md).
 

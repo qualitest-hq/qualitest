@@ -3,7 +3,6 @@ package com.qualitest.ai.scenario.flow;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
-import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
@@ -157,31 +156,11 @@ class FlowDesignPatchMergerTest {
     }
 
     /**
-     * 前提：scenarioPatch 仅设 activeScenarioId=sc2，accepted 含 scenario:activeScenarioId。
-     * 期望：过滤后仍保留 sc2。
-     */
-    @Test
-    @Order(10)
-    @DisplayName("过滤保留 activeScenarioId")
-    void filterPatchByAccepted_scenarioActiveScenarioId() {
-        FlowDesignPatch patch = new FlowDesignPatch();
-        FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
-        scenarioPatch.setActiveScenarioId("sc2");
-        patch.setScenarioPatch(scenarioPatch);
-
-        FlowDesignPatch filtered = merger.filterPatchByAccepted(
-                patch,
-                Set.of("scenario:activeScenarioId"));
-
-        assertEquals("sc2", filtered.getScenarioPatch().getActiveScenarioId());
-    }
-
-    /**
      * 前提：已有节点 data.name=旧名；update 带 name/callMode。
      * 期望：浅合并后 name=新名，并写入 callMode。
      */
     @Test
-    @Order(11)
+    @Order(10)
     @DisplayName("applyNodeUpdate 浅合并 data")
     void applyNodeUpdate_mergesData() {
         GraphNode existing = GraphNode.builder()

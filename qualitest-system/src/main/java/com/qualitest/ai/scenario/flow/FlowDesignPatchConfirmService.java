@@ -225,15 +225,6 @@ public class FlowDesignPatchConfirmService {
             }
             return;
         }
-
-        if ("scenario:activeScenarioId".equals(unitId) && draft.containsKey("activeScenarioId")) {
-            FlowDesignScenarioPatch scenarioPatch = patch.getScenarioPatch();
-            if (scenarioPatch == null) {
-                scenarioPatch = new FlowDesignScenarioPatch();
-                patch.setScenarioPatch(scenarioPatch);
-            }
-            scenarioPatch.setActiveScenarioId(draft.getString("activeScenarioId"));
-        }
     }
 
     /**

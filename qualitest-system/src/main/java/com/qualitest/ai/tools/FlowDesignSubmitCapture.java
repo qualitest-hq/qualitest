@@ -118,9 +118,6 @@ public class FlowDesignSubmitCapture {
                 targetSp = new FlowDesignScenarioPatch();
                 target.setScenarioPatch(targetSp);
             }
-            if (sp.getActiveScenarioId() != null && !sp.getActiveScenarioId().isBlank()) {
-                targetSp.setActiveScenarioId(sp.getActiveScenarioId());
-            }
             if (sp.getAddScenarios() != null) {
                 targetSp.getAddScenarios().addAll(sp.getAddScenarios());
             }
@@ -156,10 +153,6 @@ public class FlowDesignSubmitCapture {
         if (patch.getScenarioPatch() != null) {
             FlowDesignScenarioPatch sp = patch.getScenarioPatch();
             FlowDesignScenarioPatch out = new FlowDesignScenarioPatch();
-            if (sp.getActiveScenarioId() != null && !sp.getActiveScenarioId().isBlank()
-                    && !unitIds.contains("scenario:activeScenarioId")) {
-                out.setActiveScenarioId(sp.getActiveScenarioId());
-            }
             out.setAddScenarios(filterByUnit(sp.getAddScenarios(), unitIds, "addScenario:", GraphRunScenario::getId));
             out.setUpdateScenarios(filterByUnit(sp.getUpdateScenarios(), unitIds, "updateScenario:", GraphRunScenario::getId));
             out.setDeleteScenarioIds(filterRawIds(sp.getDeleteScenarioIds(), unitIds, "deleteScenario:"));

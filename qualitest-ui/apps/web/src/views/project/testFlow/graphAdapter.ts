@@ -228,10 +228,8 @@ function applyScenarioStagingFilter(
     if (!baseline) return scenario;
     return JSON.parse(JSON.stringify({ ...scenario, ...baseline })) as GraphRunScenario;
   });
-  const activeScenarioId =
-    filter.baselineActiveScenarioId != null ? filter.baselineActiveScenarioId : runConfig.activeScenarioId;
   return {
-    activeScenarioId,
+    activeScenarioId: runConfig.activeScenarioId,
     scenarios,
   };
 }

@@ -1,11 +1,11 @@
 /**
  * 将 AI 返回的 FlowDesignPatch 转为 Staging 单元列表。
  *
- * unitId 与 Merger 键名一致（如 addNode:9001、scenario:activeScenarioId）。
+ * unitId 与 Merger 键名一致（如 addNode:9001、updateScenario:sc1）。
  */
 import type { Edge, Node } from '@vue-flow/core';
 
-import type { GraphRunScenario, GraphScenarioConfig } from '@/utils/flow/graphTypes';
+import type { GraphRunScenario } from '@/utils/flow/graphTypes';
 
 import type { AiStagingUnit, StagingBuildContext } from '../types/aiStagingTypes';
 import type { DiffItemKind, FlowDesignPatch } from '../types/aiDesignTypes';
@@ -104,14 +104,6 @@ function enumeratePatchUnits(patch: FlowDesignPatch, ctx: StagingBuildContext): 
   }
 
   const meta = patch.scenarioPatch;
-  if (meta?.activeScenarioId) {
-    const name = findScenario(ctx.runConfig?.scenarios ?? [], meta.activeScenarioId)?.name;
-    items.push({
-      id: 'scenario:activeScenarioId',
-      kind: 'setActiveScenario',
-      label: `切换默认场景：${name || meta.activeScenarioId}`,
-    });
-  }
 
   for (const scenario of meta?.addScenarios ?? []) {
     items.push({
@@ -198,9 +190,6 @@ function extractPatchSlice(kind: DiffItemKind, unitId: string, patch: FlowDesign
   if (kind === 'deleteEdge') {
     return { edgeId: unitId.slice('deleteEdge:'.length) };
   }
-  if (kind === 'setActiveScenario') {
-    return { activeScenarioId: patch.scenarioPatch?.activeScenarioId };
-  }
   if (kind === 'addScenario') {
     const id = unitId.slice('addScenario:'.length);
     return patch.scenarioPatch?.addScenarios?.find((s) => s.id === id);
@@ -245,11 +234,6 @@ function buildDraft(
     if (!slice) return undefined;
     return { ...(baseline ?? {}), ...cloneRecord(slice as Record<string, unknown>) };
   }
-  if (kind === 'setActiveScenario') {
-    const slice = patchSlice as { activeScenarioId?: string } | undefined;
-    if (!slice?.activeScenarioId) return undefined;
-    return { activeScenarioId: slice.activeScenarioId };
-  }
   return undefined;
 }
 
@@ -266,9 +250,6 @@ function buildBaseline(
   }
   if (kind === 'updateScenario') {
     return scenarioBaseline(unitId.slice('updateScenario:'.length), ctx);
-  }
-  if (kind === 'setActiveScenario') {
-    return { activeScenarioId: ctx.runConfig?.activeScenarioId };
   }
   return undefined;
 }

@@ -3,6 +3,7 @@
  *
  * - POST /project/testFlow/ai/design/stream — SSE 流式设计
  * - POST /project/testFlow/ai/patch/confirmUnit — 确认单个画布变更单元
+ * - POST /project/testFlow/ai/patch/savePrecheck — 保存前鉴权/必填预检（不写库）
  * - POST /project/testFlow/ai/assetProposal/confirm — 确认素材库写入提案并落盘
  * - POST /project/testFlow/ai/assetProposal/reject — 拒绝素材库写入提案
  * - GET  /project/testFlow/ai/promptTemplates — 设计面板提示词模板
@@ -153,6 +154,34 @@ export async function confirmFlowDesignUnit(
     data,
   });
   return res.data as FlowDesignPatchConfirmResult;
+}
+
+/** 保存前预检请求：项目 id + 拟持久化的 graph_json 字符串 */
+export interface FlowDesignSavePrecheckPayload {
+  testProjectId: string;
+  graphJson: string;
+}
+
+/** 保存前预检响应：ok 为 false 时 errors 含鉴权凭证、登录抽取、HTTP 必填等错误文案 */
+export interface FlowDesignSavePrecheckResult {
+  ok: boolean;
+  errors?: string[];
+}
+
+/**
+ * 保存前预检：检查鉴权凭证来源、登录抽取、HTTP 必填测值。
+ * 不写库；用于在调用保存 API 前阻断并提示。
+ */
+export async function savePrecheckFlowDesign(
+  data: FlowDesignSavePrecheckPayload,
+): Promise<FlowDesignSavePrecheckResult> {
+  const res = await request({
+    url: '/project/testFlow/ai/patch/savePrecheck',
+    method: 'post',
+    headers: { repeatSubmit: false },
+    data,
+  });
+  return res.data as FlowDesignSavePrecheckResult;
 }
 
 /** 确认或拒绝素材库写入提案的请求参数 */

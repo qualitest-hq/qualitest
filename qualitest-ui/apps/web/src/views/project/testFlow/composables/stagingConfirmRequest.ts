@@ -68,10 +68,6 @@ export function resolveDraftOverride(
     return unit.draft;
   }
 
-  if (unit.kind === 'setActiveScenario') {
-    return { activeScenarioId: canvasStore.runConfig.activeScenarioId };
-  }
-
   return unit.draft;
 }
 

@@ -59,7 +59,7 @@ class FlowDesignToolsDefinitionServiceTest {
                 .toList();
 
         assertEquals(FlowDesignToolNames.webAgentToolIds().size(), names.size());
-        assertTrue(names.contains(FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_EDGE_DETAIL.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_SCENARIO_DETAIL.getId()));
         assertTrue(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));

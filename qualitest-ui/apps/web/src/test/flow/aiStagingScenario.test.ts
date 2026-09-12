@@ -29,28 +29,28 @@ describe('aiStagingStore stagingByScenarioId', () => {
     expect(stagingStore.stagingByScenarioId['sc-new']?.unitId).toBe('addScenario:sc-new');
   });
 
-  it('pending setActiveScenario 映射到目标场景', () => {
-    // 前提：patch 切换 activeScenarioId 至 sc2
-    // 期望：stagingByScenarioId['sc2'] 指向切换单元
+  it('pending updateScenario 映射到 scenarioId', () => {
+    // 前提：patch 含 updateScenarios
+    // 期望：stagingByScenarioId['sc1'] 指向 update 单元
     const stagingStore = useAiStagingStore();
     stagingStore.hydrateStagingFromPatch(
       'msg-2',
       {
-        scenarioPatch: { activeScenarioId: 'sc2' },
+        scenarioPatch: {
+          updateScenarios: [{ id: 'sc1', name: '默认V2', testProjectEnvId: '', flowSeed: {} }],
+        },
       },
       {
         nodes: [],
         edges: [],
         runConfig: {
           activeScenarioId: 'sc1',
-          scenarios: [
-            { id: 'sc1', name: 'A', testProjectEnvId: '', flowSeed: {} },
-            { id: 'sc2', name: 'B', testProjectEnvId: '', flowSeed: {} },
-          ],
+          scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
         },
       },
     );
 
-    expect(stagingStore.stagingByScenarioId['sc2']?.unitId).toBe('scenario:activeScenarioId');
+    expect(stagingStore.stagingByScenarioId['sc1']?.mode).toBe('update');
+    expect(stagingStore.stagingByScenarioId['sc1']?.unitId).toBe('updateScenario:sc1');
   });
 });

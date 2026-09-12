@@ -4,6 +4,7 @@ import cn.hutool.core.util.IdUtil;
 import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
+import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckResult;
 import com.qualitest.ai.tools.FlowDesignIds;
 import com.qualitest.api.util.ManagedAuthHeaderApplier;
 import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
@@ -272,15 +273,33 @@ public class FlowDesignPatchNormalizer {
         return HttpRequiredParamGate.validate(graph, apiResolver());
     }
 
+    /**
+     * 保存前预检：汇总鉴权凭证是否齐全、登录口是否已抽取、HTTP 必填测值是否缺失。
+     * 不写库；错误文案带 CODE 前缀，供前端在点保存前展示。
+     */
+    public FlowDesignSavePrecheckResult savePrecheck(GraphJson graph, Long testProjectId) {
+        List<String> errors = new ArrayList<>();
+        if (graph != null) {
+            errors.addAll(collectAuthTokenPresenceErrors(graph, testProjectId));
+            errors.addAll(collectLoginExtractPresenceErrors(graph, testProjectId));
+            errors.addAll(collectHttpRequiredParamErrors(graph));
+        }
+        return FlowDesignSavePrecheckResult.builder()
+                .ok(errors.isEmpty())
+                .errors(errors)
+                .build();
+    }
+
     /** 按接口 id 加载项目接口；mapper 未注入时一律返回 null。 */
     private Function<Long, TestProjectApi> apiResolver() {
         return testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById;
     }
 
     /**
-     * 规范化入口编排：补 suggestedDeletes 空壳、id/坐标、Condition 分支、删映射、
-     * 场景字段、HTTP API 绑定、按 type 规范化 data、补 summary。
-     * unitLocal 会传到 id 规范化，控制边端点是否允许前向短名。
+     * 规范化入口编排：补 suggestedDeletes 空壳、规范化 id/坐标、校验删除目标、
+     * 告警 add 撞已有 id、Condition 分支整理、删映射、场景字段、剔除未知 data 键、
+     * HTTP API 绑定、按 type 补全 data、补 summary。
+     * unitLocal 为 true 时边端点允许前向短名（本轮稍后才会提交的节点）。
      */
     private FlowDesignPatch initAndNormalizePatch(
             FlowDesignPatch patch,
@@ -297,34 +316,110 @@ public class FlowDesignPatchNormalizer {
             patch.setSuggestedDeletes(new FlowDesignPatch.SuggestedDeletes());
         }
         normalizeIds(patch, baseGraph, clientIdMap, idErrors, unitLocal);
+        validateDeleteTargets(patch, baseGraph, idErrors);
+        warnAddNodeCollisions(patch, baseGraph, warnings);
         if (idErrors != null && !idErrors.isEmpty()) {
             return patch;
         }
         reconcileConditionBranches(patch, baseGraph);
         pruneClientIdMapForDeletes(patch, clientIdMap);
         normalizeScenarioPatch(patch);
+        forEachPatchNode(patch, baseGraph, (node, type, warningsBucket) -> {
+            List<String> removed = FlowDesignNodeDataKeys.stripUnknown(type, node.getData());
+            noteStrippedKeys(warningsBucket, node.getId(), removed);
+        }, warnings);
         validateApiBindings(patch, baseGraph, testProjectId, warnings);
-        normalizeTypedNodeData(patch, baseGraph);
+        forEachPatchNode(patch, baseGraph, (node, type, warningsBucket) -> {
+            if (type.isEmpty() || "http".equalsIgnoreCase(type)) {
+                return;
+            }
+            FlowDesignNodeDataNormalizer.normalize(type, node.getData());
+        }, warnings);
         fillSummaries(patch);
         return patch;
     }
 
     /**
-     * 按节点 type 规范化 data（无 API 上下文）。
-     * HTTP 已在 {@link #validateApiBindings} 中走 API-aware 规范化，此处跳过。
-     * updateNodes 缺 type 时从基准图解析，避免 containsKey 启发式误伤。
+     * 校验删除目标是否存在于基准图（含本轮已推进的工作图）。
+     * 删不存在的节点、边或场景时写入 idErrors，阻断本单元进入 Capture。
      */
-    private static void normalizeTypedNodeData(FlowDesignPatch patch, GraphJson baseGraph) {
+    private static void validateDeleteTargets(FlowDesignPatch patch, GraphJson baseGraph, List<String> idErrors) {
+        if (patch == null || idErrors == null) {
+            return;
+        }
+        Set<String> nodeIds = collectKnownNodeIds(baseGraph);
+        Set<String> edgeIds = collectKnownEdgeIds(baseGraph);
+        Set<String> scenarioIds = collectKnownScenarioIds(baseGraph);
+        if (patch.getSuggestedDeletes() != null) {
+            addMissingIdErrors(idErrors, patch.getSuggestedDeletes().getNodeIds(), nodeIds, "deleteNode");
+            addMissingIdErrors(idErrors, patch.getSuggestedDeletes().getEdgeIds(), edgeIds, "deleteEdge");
+        }
+        FlowDesignScenarioPatch sp = patch.getScenarioPatch();
+        if (sp != null) {
+            addMissingIdErrors(idErrors, sp.getDeleteScenarioIds(), scenarioIds, "deleteScenario");
+        }
+    }
+
+    /**
+     * 若 ids 中某项不在 known 集合，向 idErrors 追加「label 引用未知 id」。
+     */
+    private static void addMissingIdErrors(List<String> idErrors, List<String> ids,
+                                           Set<String> known, String label) {
+        if (ids == null || known == null) {
+            return;
+        }
+        for (String id : ids) {
+            if (id == null || id.isBlank()) {
+                continue;
+            }
+            String trimmed = id.trim();
+            if (!known.contains(trimmed)) {
+                idErrors.add(label + " 引用未知 id「" + trimmed + "」");
+            }
+        }
+    }
+
+    /**
+     * addNodes 的 id 若已在基准图中存在，写入 warning（合并时会跳过重复加入）。
+     * 提示模型改字段应使用 op=update，而不是再次 add。
+     */
+    private static void warnAddNodeCollisions(FlowDesignPatch patch, GraphJson baseGraph, List<String> warnings) {
+        if (patch == null || patch.getAddNodes() == null || warnings == null) {
+            return;
+        }
+        Set<String> baseIds = collectKnownNodeIds(baseGraph);
+        for (GraphNode node : patch.getAddNodes()) {
+            if (node == null || node.getId() == null || node.getId().isBlank()) {
+                continue;
+            }
+            String id = node.getId().trim();
+            if (baseIds.contains(id)) {
+                warnings.add("addNode id「" + id + "」已存在，合并时不会重复加入；若要改字段请用 op=update");
+            }
+        }
+    }
+
+    /** 对单个 add/update 节点执行操作（节点与 type、warnings 桶） */
+    @FunctionalInterface
+    private interface PatchNodeAction {
+        void accept(GraphNode node, String type, List<String> warnings);
+    }
+
+    /**
+     * 遍历 patch 的 addNodes 与 updateNodes（跳过无 data 的项）。
+     * update 缺 type 时从基准图解析有效类型。
+     */
+    private static void forEachPatchNode(FlowDesignPatch patch, GraphJson baseGraph,
+                                         PatchNodeAction action, List<String> warnings) {
+        if (patch == null || action == null) {
+            return;
+        }
         if (patch.getAddNodes() != null) {
             for (GraphNode node : patch.getAddNodes()) {
                 if (node == null || node.getData() == null) {
                     continue;
                 }
-                String type = trimType(node.getType());
-                if (type.isEmpty() || "http".equalsIgnoreCase(type)) {
-                    continue;
-                }
-                FlowDesignNodeDataNormalizer.normalize(type, node.getData());
+                action.accept(node, trimType(node.getType()), warnings);
             }
         }
         if (patch.getUpdateNodes() != null) {
@@ -332,13 +427,46 @@ public class FlowDesignPatchNormalizer {
                 if (update == null || update.getData() == null) {
                     continue;
                 }
-                String type = resolveEffectiveNodeType(baseGraph, update);
-                if (type.isEmpty() || "http".equalsIgnoreCase(type)) {
-                    continue;
-                }
-                FlowDesignNodeDataNormalizer.normalize(type, update.getData());
+                action.accept(update, resolveEffectiveNodeType(baseGraph, update), warnings);
             }
         }
+    }
+
+    /** 把剔除的未知 data 键名写成一条 warning */
+    private static void noteStrippedKeys(List<String> warnings, String nodeId, List<String> removed) {
+        if (warnings == null || removed == null || removed.isEmpty()) {
+            return;
+        }
+        warnings.add("节点 " + (nodeId != null ? nodeId : "?")
+                + " 已忽略未知 data 字段：" + String.join(", ", removed));
+    }
+
+    /** 收集基准图全部边 id */
+    private static Set<String> collectKnownEdgeIds(GraphJson baseGraph) {
+        Set<String> ids = new HashSet<>();
+        if (baseGraph == null || baseGraph.getEdges() == null) {
+            return ids;
+        }
+        for (GraphEdge e : baseGraph.getEdges()) {
+            if (e != null && e.getId() != null && !e.getId().isBlank()) {
+                ids.add(e.getId().trim());
+            }
+        }
+        return ids;
+    }
+
+    /** 收集基准图 meta.scenarios 全部场景 id */
+    private static Set<String> collectKnownScenarioIds(GraphJson baseGraph) {
+        Set<String> ids = new HashSet<>();
+        if (baseGraph == null || baseGraph.getMeta() == null || baseGraph.getMeta().getScenarios() == null) {
+            return ids;
+        }
+        for (GraphRunScenario s : baseGraph.getMeta().getScenarios()) {
+            if (s != null && s.getId() != null && !s.getId().isBlank()) {
+                ids.add(s.getId().trim());
+            }
+        }
+        return ids;
     }
 
     /** update 缺 type 时回落基准图节点 type。 */

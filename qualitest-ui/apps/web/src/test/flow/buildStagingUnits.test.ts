@@ -25,7 +25,6 @@ describe('buildStagingUnits', () => {
     addEdges: [{ id: '8001', source: '1001', target: '9001' }],
     suggestedDeletes: { nodeIds: ['1002'], edgeIds: ['7001'] },
     scenarioPatch: {
-      activeScenarioId: 'sc2',
       addScenarios: [{ id: 'sc3', name: '回归', testProjectEnvId: '', flowSeed: {} }],
       updateScenarios: [{ id: 'sc1', name: '默认V2' }],
       deleteScenarioIds: ['sc9'],
@@ -61,13 +60,12 @@ describe('buildStagingUnits', () => {
     expect(unitIdsByKind('deleteEdge')).toEqual(['deleteEdge:7001']);
   });
 
-  it('场景增删改与切换默认场景各生成对应 unitId', () => {
+  it('场景增删改各生成对应 unitId', () => {
     // 前提：patch 含完整 scenarioPatch
-    // 期望：四类场景单元 unitId 正确
+    // 期望：三类场景单元 unitId 正确
     expect(unitIdsByKind('addScenario')).toEqual(['addScenario:sc3']);
     expect(unitIdsByKind('updateScenario')).toEqual(['updateScenario:sc1']);
     expect(unitIdsByKind('deleteScenario')).toEqual(['deleteScenario:sc9']);
-    expect(unitIdsByKind('setActiveScenario')).toEqual(['scenario:activeScenarioId']);
   });
 
   it('所有单元默认 status=pending 且归属同一 messageId', () => {

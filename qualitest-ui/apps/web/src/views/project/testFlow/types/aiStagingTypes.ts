@@ -84,7 +84,6 @@ export interface StagingPersistFilter {
 export interface ScenarioStagingPersistFilter {
   excludeScenarioIds: ReadonlySet<string>;
   scenarioBaselines: ReadonlyMap<string, Record<string, unknown>>;
-  baselineActiveScenarioId?: string;
 }
 
 export type { FlowDesignPatch };

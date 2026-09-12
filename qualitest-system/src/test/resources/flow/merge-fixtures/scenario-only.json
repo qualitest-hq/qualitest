@@ -1,5 +1,5 @@
 {
-  "description": "仅切换默认运行场景",
+  "description": "仅修改运行场景名称",
   "baseGraph": {
     "nodes": [
       {
@@ -39,10 +39,16 @@
   },
   "patch": {
     "scenarioPatch": {
-      "activeScenarioId": "sc2"
+      "updateScenarios": [
+        {
+          "id": "sc1",
+          "name": "默认V2",
+          "testProjectEnvId": "",
+          "flowSeed": {}
+        }
+      ]
     }
   },
-  "acceptedIds": ["scenario:activeScenarioId"],
-  "expectOk": true,
-  "expectActiveScenarioId": "sc2"
+  "acceptedIds": ["updateScenario:sc1"],
+  "expectOk": true
 }

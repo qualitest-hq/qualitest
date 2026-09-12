@@ -23,7 +23,6 @@ export function enumeratePatchUnitIds(patch: FlowDesignPatch): string[] {
   for (const nodeId of patch.suggestedDeletes?.nodeIds ?? []) ids.push(`deleteNode:${nodeId}`);
   for (const edgeId of patch.suggestedDeletes?.edgeIds ?? []) ids.push(`deleteEdge:${edgeId}`);
   const meta = patch.scenarioPatch;
-  if (meta?.activeScenarioId) ids.push('scenario:activeScenarioId');
   for (const scenario of meta?.addScenarios ?? []) ids.push(`addScenario:${scenario.id}`);
   for (const scenario of meta?.updateScenarios ?? []) ids.push(`updateScenario:${scenario.id}`);
   for (const scenarioId of meta?.deleteScenarioIds ?? []) ids.push(`deleteScenario:${scenarioId}`);

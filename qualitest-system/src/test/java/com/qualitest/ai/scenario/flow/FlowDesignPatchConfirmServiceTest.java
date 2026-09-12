@@ -174,12 +174,12 @@ class FlowDesignPatchConfirmServiceTest {
     }
 
     /**
-     * 前提：夹具 scenario-only。
-     * 期望：仅切换默认场景，成功。
+     * 前提：夹具 scenario-only（仅 updateScenario）。
+     * 期望：场景字段合并成功。
      */
     @Test
     @Order(9)
-    @DisplayName("仅切换默认场景成功")
+    @DisplayName("仅场景 patch 确认成功")
     void confirm_scenarioOnly_ok() throws IOException {
         runSingleUnitFixture("flow/merge-fixtures/scenario-only.json");
     }

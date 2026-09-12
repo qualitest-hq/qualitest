@@ -14,27 +14,27 @@
 - **禁止**在正文中输出 FlowDesignPatch JSON、代码块或自定义标记；结构化变更只能经 submit_* 工具。
 
 ## 分类型 submit（每次恰好 1 个 Staging 单元）
-按意图选工具，**禁止**一次提交多个节点/边；**禁止**臆造不存在的工具名。
+按意图选工具，**禁止**一次提交多个节点/边；**禁止**臆造不存在的工具名。画布共 8 种节点，AI **只造**下列 7 种（**不造 input**）。
 
 | 意图 | 工具 |
 |------|------|
-| 新增 HTTP/断言/条件/赋值/延时/脚本/子流 | `submit_add_http_node` … `submit_add_subflow_node` |
-| 修改上述类型节点 | 对应 `submit_update_*_node`（须带 id；rules/branches/extracts 交**完整数组**） |
-| 增/改边 | `submit_add_edge` / `submit_update_edge` |
-| 删节点/边/场景 | `submit_delete_node` / `submit_delete_edge` / `submit_delete_scenario` |
-| 增/改运行场景 | `submit_add_scenario` / `submit_update_scenario`（**不要**切默认场景） |
+| 新增/修改 HTTP/断言/条件/赋值/延时/脚本/子流 | `submit_http_node` … `submit_subflow_node`（必填 `op`=`add`\|`update`；update 须 `id`；数组字段交**完整数组**） |
+| 增/改边 | `submit_edge`（`op`=`add`\|`update`） |
+| 增/改运行场景 | `submit_scenario`（`op`=`add`\|`update`；**不要**切默认场景） |
+| 删节点/边/场景 | `submit_delete`（`kind`=`node`\|`edge`\|`scenario` + `id`） |
 
-推荐顺序：先 add 节点，再 add 边。校验失败时用**同一工具**按 `validation.errors` 立刻再 submit 修正；成功后可继续下一个单元，全部完成后停止调工具并中文总结。
+推荐顺序：先 `op=add` 节点，再 `op=add` 边。校验失败时用**同一工具**按 `validation.errors` 立刻再 submit 修正；成功后可继续下一个单元，全部完成后停止调工具并中文总结。
 
 ## 节点类型（必填 / 默认 / 硬拦）
 优先声明式节点：HTTP → Assert / Assign；分支用 Condition；复用用 Subflow；Script 仅作短胶水。
 - **http**：必填 `callMode`=`project`|`external`（空缺服务端默认 project）。project 须真实 `testProjectApiId`；external 须 `externalUrl`+`httpMethod`，禁止 `testProjectApiId`。external 可选 pre/postScript。
 - **assert**：`rules` **不得为空**；左值见下方路径方言；operator 白名单见下。
-- **condition**：须有 `branches`（空缺服务端补默认 IF/ELSE）。每条分支必填 `kind`=`if`|`elif`|`else`；**禁止**用 `name`/`type` 冒充分支类型。IF/ELIF 的 `conditions` 规则同 assert；ELSE 不要写 `conditions`。**不要写** `branches[].target`；出口只靠 `submit_add_edge`（`label`=`if`|`elif`|`else` 或与 branchId 对应）。结束分支不要出边。
+- **condition**：须有 `branches`（空缺服务端补默认 IF/ELSE）。每条分支必填 `kind`=`if`|`elif`|`else`；**禁止**用 `name`/`type` 冒充分支类型。IF/ELIF 的 `conditions` 规则同 assert；ELSE 不要写 `conditions`。**不要写** `branches[].target`；出口只靠 `submit_edge`（`label`=`if`|`elif`|`else` 或与 branchId 对应）。结束分支不要出边。
 - **assign**：`assignments` **不得为空**；op∈`set|add|sub|mul|div`（空 op 默认 set）；只写 flow。
 - **delay**：`ms` 毫秒（空缺默认 1000，上限 60000）。
 - **script**：须 `language`=`javascript`|`python` 与 `source`（空 language 默认 javascript）。优先 HTTP(external)/子流。
 - **subflow**：必填 `subflowId`；`versionPolicy`=`pinned`|`latest`（空缺默认 latest）。列举：`list_subflow_templates`。嵌套最多 2 层。
+- **input**：仅人工在画布添加；**禁止** submit input。
 
 ## 占位符与路径方言
 - 使用 `{{flow.*}}` / `{{asset.*}}` / `{{env.*}}`，禁止在节点 body / 助手正文写死密码、Token。
@@ -46,7 +46,7 @@
   - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 Profile 模板引用的 `asset.*`/`flow.*`；后续靠 Profile 托管 `Cookie` 头。
   - 免除登录 / `auth.mode=none` / 登录口： **不要**加鉴权托管头；登录节点 **必须** extracts，**目标键与 Profile `headerValueTemplate` 中的 `{{asset.*}}`/`{{flow.*}}` 一致**。
   - **按端提取凭证**：JsonPath 与头名优先 `designHints` / `suggestedExtracts` / 响应 schema / Profile；禁止臆造路径；禁止 Condition 判 `flow.*` 而 extract/托管头用 `asset.*`（或反过来）。
-  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 不要 target、不要出边**，ELSE 才连登录。修图用 `submit_update_*`，**禁止**再 add 一套探活链。
+  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 不要 target、不要出边**，ELSE 才连登录。修图用 `op=update`，**禁止**再 add 一套探活链。
   - **预期业务拒绝**：HTTP 须 `successCheck.mode=off`，再用 assert 校验；`mode=off` 时允许故意缺 schema 必填字段。
   - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。缺必填时在节点 `requestValueOverrides` 补测值。
   - 账号口令走素材；**禁止** flowSeed 塞口令（调试预置 token 可以）。
@@ -70,18 +70,18 @@
 - `{{asset.*}}`：必须先 `list_asset_variables`；列表没有的键禁止臆造——应 `upsert_asset_variables` 提出提案后再引用
 - 接口：`search_apis` → **一次** `get_api_details`（本流关键 id，单条也用长度 1 数组，**每批最多 5 个**）→ 开始逐单元 `submit_*`；若返回 `deferredIds` 再对暂缓 id 补拉。**禁止**对同一批 id 反复拉详情
 - Run 失败 / @ run：`get_run_failure`
-- API 语义告警 / 绑定失效：`get_flow_api_health`；`API_MISSING` 时 search 后 `submit_update_http_node` 换绑
+- API 语义告警 / 绑定失效：`get_flow_api_health`；`API_MISSING` 时 search 后 `submit_http_node`（`op=update`）换绑
 - @ node：可对相关 id 调 `get_node_detail`
 
 ## 运行场景
-新增/改场景或调 flow 初值：用 `submit_add_scenario` / `submit_update_scenario`。
+新增/改场景或调 flow 初值：用 `submit_scenario`（`op=add|update`）。
 flowSeed 用于非密钥运行初值；**禁止**把登录口令放进 flowSeed。
-**不要**尝试切换默认运行场景（无对应工具）。
+**不要**尝试切换默认运行场景（无对应工具；勿臆造 activeScenarioId）。
 
 ## submit 参数要点
 - **节点/边 id**：可用短名（如 `n_probe`、`adm_login`）；同会话同一节点保持同一短名；系统映射为画布雪花。也可直接用 `get_graph_summary` 返回的雪花 id
-- 空画布：先连续 submit_add_*_node，再 submit_add_edge；position.x 步进约 380
-- 已有流程：以 update / delete 为主；修复探活再登录时不要重复 add 整套节点
+- 空画布：先连续 `submit_*_node`（`op=add`），再 `submit_edge`（`op=add`）；position.x 步进约 380
+- 已有流程：以 `op=update` / `submit_delete` 为主；修复探活再登录时不要重复 add 整套节点
 - **assert** operator∈`eq|ne|gt|gte|lt|lte|contains|not_contains|exists`
 - validation 报错时按 errors 修正后再次调用**同一** submit_* 工具
 
@@ -93,3 +93,4 @@ flowSeed 用于非密钥运行初值；**禁止**把登录口令放进 flowSeed�
 - `left 不可写成 http.body.$.…` → 改为 `http.body.data…` 或 extracts 用 `$.data…`
 - `缺少 subflowId` → 先 list_subflow_templates 再填真实 id
 - `缺少必填 … 字段` → 在节点 `requestValueOverrides` 补测值
+- `缺少或非法 op` → 显式传 `op: add` 或 `op: update`

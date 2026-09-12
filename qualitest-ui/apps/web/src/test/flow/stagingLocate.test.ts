@@ -34,7 +34,7 @@ describe('stagingLocate', () => {
     // 期望：图/场景 kind 判定符合约定
     expect(isGraphStagingKind('addNode')).toBe(true);
     expect(isScenarioStagingKind('addScenario')).toBe(true);
-    expect(isGraphStagingKind('setActiveScenario')).toBe(false);
+    expect(isGraphStagingKind('updateScenario')).toBe(false);
   });
 
   it('findFirstPendingGraphUnit 跳过已确认与非图单元', () => {
@@ -47,18 +47,6 @@ describe('stagingLocate', () => {
     // 前提：含 pending addScenario
     // 期望：返回 addScenario:sc2
     expect(findFirstPendingScenarioUnit(units)?.unitId).toBe('addScenario:sc2');
-  });
-
-  it('resolveScenarioIdFromUnit 解析 setActiveScenario', () => {
-    // 前提：setActiveScenario 单元 draft 含 activeScenarioId
-    // 期望：返回 sc9
-    const activeUnit = unit({
-      unitId: 'setActiveScenario',
-      kind: 'setActiveScenario',
-      status: 'pending',
-      draft: { activeScenarioId: 'sc9' },
-    });
-    expect(resolveScenarioIdFromUnit(activeUnit)).toBe('sc9');
   });
 
   it('resolveScenarioIdFromUnit 从 unitId 解析场景 id', () => {

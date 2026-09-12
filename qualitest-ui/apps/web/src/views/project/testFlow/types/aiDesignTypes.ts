@@ -11,10 +11,8 @@ export interface FlowDesignSuggestedDeletes {
   edgeIds?: string[];
 }
 
-/** AI 对运行场景配置 meta 的增量修改建议 */
+/** AI 对运行场景配置 meta 的增量修改建议（不含切换默认场景；默认场景由界面直接改） */
 export interface FlowDesignScenarioPatch {
-  /** 切换默认运行场景 id */
-  activeScenarioId?: string;
   /** 新增运行场景 */
   addScenarios?: GraphRunScenario[];
   /** 按 id 修改已有运行场景 */
@@ -126,7 +124,7 @@ export interface AiDesignMessageView {
   actions?: AiDesignSystemAction[];
 }
 
-/** Staging 单元变更类型 */
+/** Staging 单元变更类型（前端拆 patch 用） */
 export type DiffItemKind =
   | 'addNode'
   | 'addEdge'
@@ -134,7 +132,6 @@ export type DiffItemKind =
   | 'updateEdge'
   | 'deleteNode'
   | 'deleteEdge'
-  | 'setActiveScenario'
   | 'addScenario'
   | 'updateScenario'
   | 'deleteScenario';

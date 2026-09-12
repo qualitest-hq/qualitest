@@ -32,7 +32,7 @@ public class FlowDesignPatchConfirmRequest {
      * 待确认的单个 Staging 单元 id。
      * <p>
      * 键名约定：addNode:{id}、updateNode:{id}、addEdge:{id}、updateEdge:{id}、
-     * deleteNode:{id}、deleteEdge:{id}、scenario:activeScenarioId、
+     * deleteNode:{id}、deleteEdge:{id}、
      * addScenario:{id}、updateScenario:{id}、deleteScenario:{id}。
      */
     private String unitId;

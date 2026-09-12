@@ -13,7 +13,6 @@ const PANEL_TITLES: Record<DiffItemKind, string> = {
   addEdge: '新增连线',
   updateEdge: '修改连线',
   deleteEdge: '删除连线',
-  setActiveScenario: '切换默认场景',
   addScenario: '新增场景',
   updateScenario: '修改场景',
   deleteScenario: '删除场景',
@@ -23,7 +22,6 @@ const BANNER_TITLES: Partial<Record<DiffItemKind, string>> = {
   addScenario: '待新增场景',
   updateScenario: '待修改场景',
   deleteScenario: '待删除场景',
-  setActiveScenario: '待切换默认场景',
 };
 
 export function stagingKindTitle(kind: DiffItemKind, variant: LabelVariant = 'panel'): string {

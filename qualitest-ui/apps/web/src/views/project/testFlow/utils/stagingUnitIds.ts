@@ -14,7 +14,6 @@ const GRAPH_KINDS = new Set<DiffItemKind>([
 ]);
 
 const SCENARIO_KINDS = new Set<DiffItemKind>([
-  'setActiveScenario',
   'addScenario',
   'updateScenario',
   'deleteScenario',
@@ -67,7 +66,7 @@ export function isScenarioKind(kind: DiffItemKind | string): boolean {
 
 export function stagingKindToCanvasMode(kind: AiStagingUnit['kind']): AiStagingCanvasMark['mode'] | null {
   if (kind === 'addNode' || kind === 'addEdge' || kind === 'addScenario') return 'add';
-  if (kind === 'updateNode' || kind === 'updateEdge' || kind === 'updateScenario' || kind === 'setActiveScenario') {
+  if (kind === 'updateNode' || kind === 'updateEdge' || kind === 'updateScenario') {
     return 'update';
   }
   if (kind === 'deleteNode' || kind === 'deleteEdge' || kind === 'deleteScenario') return 'delete';
@@ -82,7 +81,6 @@ export function isDeleteStagingUnit(unit: Pick<AiStagingUnit, 'kind'> | null | u
 
 /** 从 unitId 提取对象 id（不含 kind 前缀） */
 export function objectIdFromUnitId(unitId: string): string {
-  if (unitId === 'scenario:activeScenarioId') return '';
   const colon = unitId.indexOf(':');
   if (colon < 0) return unitId;
   return unitId.slice(colon + 1);
@@ -102,12 +100,6 @@ export function graphObjectIdFromUnit(unit: AiStagingUnit | Pick<AiStagingUnit, 
   }
   if (kind === 'addScenario' || kind === 'updateScenario' || kind === 'deleteScenario') {
     return { scenarioId: objectIdFromUnitId(unitId) };
-  }
-  if (kind === 'setActiveScenario') {
-    const targetId =
-      unit.draft?.activeScenarioId ??
-      (unit.patchSlice as { activeScenarioId?: string } | undefined)?.activeScenarioId;
-    return targetId ? { scenarioId: String(targetId) } : {};
   }
   return {};
 }

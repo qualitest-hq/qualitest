@@ -10,20 +10,14 @@ import java.util.List;
 /**
  * AI 对测试流运行场景配置（graph_json.meta）的增量修改建议。
  * <p>
- * 用于新增/修改/删除运行场景，或切换画布默认运行场景。
+ * 仅覆盖新增、修改、删除运行场景；不包含切换画布默认场景
+ * （默认场景由用户在界面直接改 runConfig，不经 Staging）。
  */
 @Getter
 @Setter
 public class FlowDesignScenarioPatch {
 
-    /**
-     * 切换默认运行场景 id；对应 meta.activeScenarioId
-     */
-    private String activeScenarioId;
-
-    /**
-     * 新增运行场景列表
-     */
+    /** 新增运行场景列表 */
     private List<GraphRunScenario> addScenarios = new ArrayList<>();
 
     /**
@@ -31,20 +25,13 @@ public class FlowDesignScenarioPatch {
      */
     private List<GraphRunScenario> updateScenarios = new ArrayList<>();
 
-    /**
-     * 建议删除的运行场景 id 列表
-     */
+    /** 建议删除的运行场景 id 列表 */
     private List<String> deleteScenarioIds = new ArrayList<>();
 
-    /**
-     * 判断 patch 是否包含实质运行场景变更。
-     */
+    /** 判断 patch 是否包含实质运行场景变更 */
     public static boolean hasChanges(FlowDesignScenarioPatch patch) {
         if (patch == null) {
             return false;
-        }
-        if (patch.getActiveScenarioId() != null && !patch.getActiveScenarioId().isBlank()) {
-            return true;
         }
         if (patch.getAddScenarios() != null && !patch.getAddScenarios().isEmpty()) {
             return true;

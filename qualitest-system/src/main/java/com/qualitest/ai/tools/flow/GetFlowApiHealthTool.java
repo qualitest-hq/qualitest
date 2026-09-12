@@ -103,9 +103,9 @@ public class GetFlowApiHealthTool implements QualitestTool {
         if (warnings.isEmpty()) {
             result.put("message", "当前画布无 API 语义告警");
         } else {
-            // 给模型的修复指引：缺接口则换绑，孤儿测值/抽取失效则对照接口详情调整
+            // 给模型的修复指引：缺接口则换绑；孤儿测值或抽取失效则对照接口详情调整
             result.put("hint", "API_MISSING 时用 search_apis 按 apiName/apiPath 找现行接口，"
-                    + "再 submit_update_http_node 换绑 testProjectApiId；"
+                    + "再 submit_http_node（op=update）换绑 testProjectApiId；"
                     + "ORPHAN_PARAM / EXTRACT_PATH_MISSING 时对照 get_api_details 调整测值或抽取");
         }
         return ToolResultByteFit.fitApiHealth(result, ctx.getMaxToolResultBytes());

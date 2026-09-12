@@ -62,8 +62,7 @@ public class FlowDesignPatchMerger {
      * 按 Diff 勾选项从 patch 中筛出有效增量，构造独立副本。
      * <p>
      * 勾选项键名规则：addNode:{id}、updateNode:{id}、addEdge:{id}、updateEdge:{id}、
-     * deleteNode:{id}、deleteEdge:{id}、scenario:activeScenarioId、addScenario:{id}、
-     * updateScenario:{id}、deleteScenario:{id}。
+     * deleteNode:{id}、deleteEdge:{id}、addScenario:{id}、updateScenario:{id}、deleteScenario:{id}。
      * acceptedIds 为空时返回空 patch（各列表为空）。
      */
     public FlowDesignPatch filterPatchByAccepted(FlowDesignPatch patch, Set<String> acceptedIds) {
@@ -121,14 +120,10 @@ public class FlowDesignPatchMerger {
             }
         }
 
-        // 运行场景 meta 增量（activeScenarioId / add|update|delete scenario）
+        // 运行场景 meta 增量（add|update|delete scenario）
         FlowDesignScenarioPatch scenarioPatch = patch.getScenarioPatch();
         if (FlowDesignScenarioPatch.hasChanges(scenarioPatch)) {
             FlowDesignScenarioPatch filteredScenario = new FlowDesignScenarioPatch();
-            if (scenarioPatch.getActiveScenarioId() != null
-                    && acceptedIds.contains("scenario:activeScenarioId")) {
-                filteredScenario.setActiveScenarioId(scenarioPatch.getActiveScenarioId());
-            }
             if (scenarioPatch.getAddScenarios() != null) {
                 for (GraphRunScenario scenario : scenarioPatch.getAddScenarios()) {
                     if (scenario != null && scenario.getId() != null

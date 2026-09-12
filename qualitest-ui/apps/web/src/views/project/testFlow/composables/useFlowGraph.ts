@@ -1,10 +1,11 @@
 /**
  * 测试流持久化读写：对接后端 testFlow API，与 flowCanvasStore 同步。
- * 保存前执行图结构校验与断言路径 schema 门禁，errors 阻断提交。
+ * 保存前依次做：图结构校验、断言路径门禁、鉴权/登录抽取/HTTP 必填预检；任一项 errors 阻断提交。
  */
 import { ElMessage } from 'element-plus';
 
 import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
+import { savePrecheckFlowDesign } from '@/api/project/testFlowAi';
 import {
   rewriteStartNodeErrorForPendingEdges,
   validateGraphJson,
@@ -134,6 +135,23 @@ export function useFlowGraph() {
     }
     if (assertPath.warnings.length) {
       ElMessage.warning(assertPath.warnings[0]);
+    }
+
+    // 保存前预检：鉴权凭证、登录抽取、HTTP 必填；有错则阻断，避免保存 API 才失败
+    if (store.testProjectId) {
+      try {
+        const precheck = await savePrecheckFlowDesign({
+          testProjectId: String(store.testProjectId),
+          graphJson: JSON.stringify(graph),
+        });
+        if (precheck && precheck.ok === false && precheck.errors?.length) {
+          ElMessage.error(precheck.errors[0]);
+          return false;
+        }
+      } catch (e: unknown) {
+        ElMessage.error(e instanceof Error ? e.message : '保存前预检失败');
+        return false;
+      }
     }
 
     store.loading = true;

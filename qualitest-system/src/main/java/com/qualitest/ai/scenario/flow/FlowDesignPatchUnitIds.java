@@ -13,16 +13,16 @@ import java.util.Set;
 /**
  * 从增量 patch 枚举 Staging 单元 id。
  * <p>
- * 每个可独立确认/取消的变更对应一个 id，前缀表示类型，例如：
- * addNode:{id}、updateEdge:{id}、deleteNode:{id}、addScenario:{id}、scenario:activeScenarioId。
- * submit_* 要求单次调用只产生恰好一个单元；Capture 按同 id 覆盖重试。
+ * 每个可独立确认或取消的变更对应一个 id，冒号前为类型前缀，例如：
+ * addNode:{id}、updateEdge:{id}、deleteNode:{id}、addScenario:{id}、deleteScenario:{id}。
+ * 单次 submit_* 必须恰好产出一个单元；本轮 Capture 对相同 unitId 成功提交会覆盖重试。
  */
 public final class FlowDesignPatchUnitIds {
 
     private FlowDesignPatchUnitIds() {
     }
 
-    /** 枚举 patch 中全部 Staging 单元 id（保持插入顺序）。 */
+    /** 枚举 patch 中全部 Staging 单元 id，保持插入顺序 */
     public static Set<String> enumerate(FlowDesignPatch patch) {
         Set<String> unitIds = new LinkedHashSet<>();
         if (patch == null) {
@@ -41,9 +41,6 @@ public final class FlowDesignPatchUnitIds {
 
         FlowDesignScenarioPatch scenarioPatch = patch.getScenarioPatch();
         if (scenarioPatch != null) {
-            if (scenarioPatch.getActiveScenarioId() != null && !scenarioPatch.getActiveScenarioId().isBlank()) {
-                unitIds.add("scenario:activeScenarioId");
-            }
             addScenarios(unitIds, scenarioPatch.getAddScenarios(), "addScenario:");
             addScenarios(unitIds, scenarioPatch.getUpdateScenarios(), "updateScenario:");
             addRawIds(unitIds, scenarioPatch.getDeleteScenarioIds(), "deleteScenario:");
@@ -52,7 +49,29 @@ public final class FlowDesignPatchUnitIds {
     }
 
     /**
-     * 当前 patch 是否还有未确认且未拒绝的单元。
+     * 收集 patch 中节点、边、场景的实体 id（去掉 unit 前缀）。
+     * 用于 submit 回执只回传本单元相关的短名→雪花映射。
+     */
+    public static Set<String> collectEntityIds(FlowDesignPatch patch) {
+        Set<String> ids = new LinkedHashSet<>();
+        for (String unitId : enumerate(patch)) {
+            if (unitId == null || unitId.isBlank()) {
+                continue;
+            }
+            int colon = unitId.indexOf(':');
+            if (colon < 0 || colon >= unitId.length() - 1) {
+                continue;
+            }
+            String id = unitId.substring(colon + 1).trim();
+            if (!id.isBlank()) {
+                ids.add(id);
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * 判断 patch 是否还有未确认且未拒绝的单元。
      * confirmingUnitId 视为本轮正在确认、算已处理。
      */
     public static boolean hasUnresolvedUnits(
@@ -82,6 +101,7 @@ public final class FlowDesignPatchUnitIds {
         return false;
     }
 
+    /** 把节点列表写成 prefix+id 的单元键 */
     private static void addNodes(Set<String> unitIds, List<GraphNode> nodes, String prefix) {
         if (nodes == null) {
             return;
@@ -93,6 +113,7 @@ public final class FlowDesignPatchUnitIds {
         }
     }
 
+    /** 把边列表写成 prefix+id 的单元键 */
     private static void addEdges(Set<String> unitIds, List<GraphEdge> edges, String prefix) {
         if (edges == null) {
             return;
@@ -104,6 +125,7 @@ public final class FlowDesignPatchUnitIds {
         }
     }
 
+    /** 把场景列表写成 prefix+id 的单元键 */
     private static void addScenarios(Set<String> unitIds, List<GraphRunScenario> scenarios, String prefix) {
         if (scenarios == null) {
             return;
@@ -115,6 +137,7 @@ public final class FlowDesignPatchUnitIds {
         }
     }
 
+    /** 把原始 id 列表写成 prefix+id 的单元键（删除类） */
     private static void addRawIds(Set<String> unitIds, List<String> ids, String prefix) {
         if (ids == null) {
             return;

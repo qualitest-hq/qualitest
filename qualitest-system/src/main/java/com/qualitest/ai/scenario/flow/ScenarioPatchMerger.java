@@ -16,12 +16,11 @@ import java.util.Set;
 /**
  * 运行场景（meta.scenarios）增量 patch 的合并器。
  * <p>
- * 在内存中操作 {@link GraphMeta} 副本，不写库。支持：
+ * 在内存中操作 GraphMeta 副本，不写库。支持：
  * <ul>
  *   <li>新增场景（跳过已存在 id）</li>
  *   <li>按 id 更新 name、环境、flowSeed、remark、失败策略等</li>
- *   <li>删除场景（至少保留一条；删光时回滚到原列表）</li>
- *   <li>切换 activeScenarioId（目标不存在时写入 warning 并忽略）</li>
+ *   <li>删除场景（至少保留一条；删光时回滚到原列表；若删掉当前默认则改指剩余首条）</li>
  * </ul>
  */
 public final class ScenarioPatchMerger {
@@ -34,7 +33,7 @@ public final class ScenarioPatchMerger {
      *
      * @param base     基准 meta，null 时创建含默认冒烟场景的 meta
      * @param patch    AI 返回的场景增量，无变更时直接返回克隆
-     * @param warnings 合并过程产生的非阻断提示（如 activeScenarioId 无效）
+     * @param warnings 合并过程产生的非阻断提示（如删光场景时回滚）
      * @return 合并后的 meta 副本，不修改入参 base
      */
     public static GraphMeta merge(GraphMeta base, FlowDesignScenarioPatch patch, List<String> warnings) {
@@ -70,7 +69,7 @@ public final class ScenarioPatchMerger {
             }
         }
 
-        // 删除场景：不允许删光；若当前 active 被删则切到剩余首条
+        // 删除场景：不允许删光；若当前默认被删则切到剩余首条
         if (patch.getDeleteScenarioIds() != null && !patch.getDeleteScenarioIds().isEmpty()) {
             Set<String> deleteIds = new HashSet<>(patch.getDeleteScenarioIds());
             int before = meta.getScenarios().size();
@@ -83,16 +82,6 @@ public final class ScenarioPatchMerger {
                 if (activeId != null && deleteIds.contains(activeId)) {
                     meta.setActiveScenarioId(meta.getScenarios().get(0).getId());
                 }
-            }
-        }
-
-        // 切换默认运行场景
-        if (patch.getActiveScenarioId() != null && !patch.getActiveScenarioId().isBlank()) {
-            String targetId = patch.getActiveScenarioId().trim();
-            if (findScenario(meta.getScenarios(), targetId) != null) {
-                meta.setActiveScenarioId(targetId);
-            } else {
-                warnings.add("activeScenarioId 不存在，已忽略：" + targetId);
             }
         }
 

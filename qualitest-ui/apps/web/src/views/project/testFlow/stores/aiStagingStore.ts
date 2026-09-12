@@ -94,16 +94,9 @@ function buildScenarioPersistFilter(units: AiStagingUnit[]): ScenarioStagingPers
       const id = objectIdFromUnitId(unit.unitId);
       if (unit.baseline) filter.scenarioBaselines.set(id, unit.baseline);
     }
-    if (unit.kind === 'setActiveScenario' && unit.baseline?.activeScenarioId != null) {
-      filter.baselineActiveScenarioId = String(unit.baseline.activeScenarioId);
-    }
   }
 
-  if (
-    !filter.excludeScenarioIds.size &&
-    !filter.scenarioBaselines.size &&
-    filter.baselineActiveScenarioId == null
-  ) {
+  if (!filter.excludeScenarioIds.size && !filter.scenarioBaselines.size) {
     return undefined;
   }
   return filter;

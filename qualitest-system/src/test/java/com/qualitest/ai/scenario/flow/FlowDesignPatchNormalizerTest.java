@@ -443,33 +443,11 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 前提：activeScenarioId 指向不存在的场景。
-     * 期望：warnings 含 activeScenarioId；base 上原 active 不变。
-     */
-    @Test
-    @Order(12)
-    @DisplayName("非法 activeScenarioId 告警且不变")
-    void normalize_invalidActiveScenarioId_warning() {
-        FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
-        scenarioPatch.setActiveScenarioId("9999999999");
-        FlowDesignPatch patch = new FlowDesignPatch();
-        patch.setScenarioPatch(scenarioPatch);
-        GraphJson base = graphWithMeta();
-        String originalActive = base.getMeta().getActiveScenarioId();
-
-        FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, base, PROJECT_ID);
-
-        assertTrue(result.validation().getWarnings().stream()
-                .anyMatch(w -> w.contains("activeScenarioId")));
-        assertEquals(originalActive, base.getMeta().getActiveScenarioId());
-    }
-
-    /**
      * 前提：外联 HTTP 带 externalUrl 与 POST。
      * 期望：summary=「POST ↗ oauth.example.com/token」；callMode/httpMethod 保留。
      */
     @Test
-    @Order(13)
+    @Order(12)
     @DisplayName("外联 HTTP 生成外部 summary")
     void normalize_externalHttp_buildsExternalSummary() {
         Map<String, Object> data = new HashMap<>();

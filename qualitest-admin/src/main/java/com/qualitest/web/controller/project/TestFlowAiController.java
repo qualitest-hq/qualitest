@@ -6,10 +6,13 @@ import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.scenario.flow.TestFlowDesignAgent;
 import com.qualitest.ai.scenario.flow.AssetUpsertProposalService;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchConfirmService;
+import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.AssetUpsertProposalDecisionRequest;
 import com.qualitest.ai.scenario.flow.model.AssetUpsertProposalDecisionResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmRequest;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
+import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckRequest;
+import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckResult;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignRequest;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignResult;
 import com.qualitest.ai.result.AiPromptTemplateResult;
@@ -18,6 +21,7 @@ import com.qualitest.ai.service.AiChatConversationService;
 import com.qualitest.ai.scenario.flow.TestFlowDesignAccessValidator;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.AjaxResult;
+import com.qualitest.flow.model.GraphJson;
 import com.qualitest.project.service.ITestProjectMemberService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
@@ -49,6 +53,7 @@ public class TestFlowAiController extends BaseController {
 
     private final TestFlowDesignAgent testFlowDesignAgent;
     private final FlowDesignPatchConfirmService flowDesignPatchConfirmService;
+    private final FlowDesignPatchNormalizer flowDesignPatchNormalizer;
     private final AssetUpsertProposalService assetUpsertProposalService;
     private final ITestProjectMemberService testProjectMemberService;
     private final TestFlowDesignAccessValidator testFlowDesignAccessValidator;
@@ -84,6 +89,32 @@ public class TestFlowAiController extends BaseController {
             testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());
         }
         FlowDesignPatchConfirmResult result = flowDesignPatchConfirmService.confirmUnit(request);
+        return AjaxResult.success(result);
+    }
+
+    /**
+     * 保存前预检：检查鉴权凭证来源、登录抽取、HTTP 必填测值是否齐全。
+     * 不写库；用于前端在真正保存前展示错误。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
+    @PostMapping("/patch/savePrecheck")
+    public AjaxResult savePrecheck(@RequestBody FlowDesignSavePrecheckRequest request) {
+        if (request.getTestProjectId() != null) {
+            testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());
+        }
+        GraphJson graph = null;
+        if (request.getGraphJson() != null && !request.getGraphJson().isBlank()) {
+            try {
+                graph = GraphJson.parse(request.getGraphJson());
+            } catch (Exception e) {
+                return AjaxResult.success(FlowDesignSavePrecheckResult.builder()
+                        .ok(false)
+                        .errors(List.of("graphJson 无法解析"))
+                        .build());
+            }
+        }
+        FlowDesignSavePrecheckResult result = flowDesignPatchNormalizer.savePrecheck(
+                graph, request.getTestProjectId());
         return AjaxResult.success(result);
     }
 

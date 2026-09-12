@@ -5,58 +5,72 @@ import java.util.Arrays;
 /**
  * 测试流 AI 设计工具名注册表。
  * <p>
- * 每个工具两个开关：webAgent（Web 造流助手是否可见）、mcpAllowed（MCP 是否可调用）。
- * submit_* 一律仅 Web：改图画布必须走面板 Staging 确认，MCP 只读勘察。
- * 启动时要求：本枚举工具名、执行器已注册名、工具 JSON 定义名三者集合相同。
+ * 每个工具有两个开关：webAgent（是否注入 Web 造流助手）、mcpAllowed（是否允许 MCP 调用）。
+ * 名称以 submit_ 开头的写图工具仅 Web 可见，须经面板 Staging 确认后才落库；MCP 只读。
+ * 启动时校验：本枚举、执行器注册表、工具 JSON 三者工具名集合必须相同。
  */
 public enum FlowDesignToolNames {
 
+    /** 按关键词搜索当前项目下的接口，返回 id、method、path、名称与鉴权摘要 */
     SEARCH_APIS("search_apis", true, true),
+    /** 批量拉取接口造流摘要（参数、schema、designHints、建议 extracts 等），每批最多若干条 */
     GET_API_DETAILS("get_api_details", true, true),
+    /** 获取当前画布节点与边的摘要列表 */
     GET_GRAPH_SUMMARY("get_graph_summary", true, true),
+    /** 获取画布 meta：运行场景列表、flow 输出名、开始节点、当前默认场景 id */
     GET_FLOW_META("get_flow_meta", true, true),
+    /** 列举项目环境 id、名称、URL 与环境变量键名（不含值） */
     LIST_PROJECT_ENVS("list_project_envs", true, true),
+    /** 列举项目素材库变量键与字段名（不含明文） */
     LIST_ASSET_VARIABLES("list_asset_variables", true, true),
+    /** 提出新增或更新素材库条目的提案（不立即落盘，待用户在聊天侧确认） */
     UPSERT_ASSET_VARIABLES("upsert_asset_variables", true, false),
+    /** 向接口 design_hints 追加短提示并直接落库 */
     APPEND_API_DESIGN_HINTS("append_api_design_hints", true, false),
+    /** 读取单个节点的 type 与完整 data */
     GET_NODE_DETAIL("get_node_detail", true, true),
+    /** 读取单条边的 id、source、target、label */
     GET_EDGE_DETAIL("get_edge_detail", true, true),
+    /** 读取单个运行场景配置（含 flowSeed 键名，不含明文） */
     GET_SCENARIO_DETAIL("get_scenario_detail", true, true),
+    /** 读取某次 Run 的失败步骤现场（按失败类别分区） */
     GET_RUN_FAILURE("get_run_failure", true, true),
+    /** 检查画布上项目 HTTP 节点的 API 语义健康告警（缺失、孤儿测值、抽取路径失效等） */
     GET_FLOW_API_HEALTH("get_flow_api_health", true, true),
+    /** 列举可引用的子流模板与项目内测试流摘要 */
     LIST_SUBFLOW_TEMPLATES("list_subflow_templates", true, true),
+    /** 读取指定测试流的拓扑摘要与 flowOutputs */
     GET_SUBFLOW_DETAIL("get_subflow_detail", true, true),
-    /** 仅 MCP：按项目列测试流 */
+    /** 仅 MCP：按项目列举测试流 */
     LIST_FLOWS("list_flows", false, true),
-    /** 仅 MCP：读完整流与 graphJson */
+    /** 仅 MCP：读取完整测试流与 graphJson */
     GET_FLOW("get_flow", false, true),
 
-    // —— 分类型画布提交（每次恰好 1 个 Staging 单元；仅 Web）——
-    SUBMIT_ADD_HTTP_NODE("submit_add_http_node", true, false),
-    SUBMIT_ADD_ASSERT_NODE("submit_add_assert_node", true, false),
-    SUBMIT_ADD_CONDITION_NODE("submit_add_condition_node", true, false),
-    SUBMIT_ADD_ASSIGN_NODE("submit_add_assign_node", true, false),
-    SUBMIT_ADD_DELAY_NODE("submit_add_delay_node", true, false),
-    SUBMIT_ADD_SCRIPT_NODE("submit_add_script_node", true, false),
-    SUBMIT_ADD_SUBFLOW_NODE("submit_add_subflow_node", true, false),
+    /**
+     * 以下为 Web 画布写工具：每次调用恰好产出 1 个 Staging 单元。
+     * 节点/边/场景用 upsert（参数 op=add|update）；删除用统一 submit_delete（kind+id）。
+     */
+    /** 新增或修改单个 HTTP 节点 */
+    SUBMIT_HTTP_NODE("submit_http_node", true, false),
+    /** 新增或修改单个断言节点 */
+    SUBMIT_ASSERT_NODE("submit_assert_node", true, false),
+    /** 新增或修改单个条件分支节点 */
+    SUBMIT_CONDITION_NODE("submit_condition_node", true, false),
+    /** 新增或修改单个赋值节点 */
+    SUBMIT_ASSIGN_NODE("submit_assign_node", true, false),
+    /** 新增或修改单个延时节点 */
+    SUBMIT_DELAY_NODE("submit_delay_node", true, false),
+    /** 新增或修改单个脚本节点 */
+    SUBMIT_SCRIPT_NODE("submit_script_node", true, false),
+    /** 新增或修改单个子流节点 */
+    SUBMIT_SUBFLOW_NODE("submit_subflow_node", true, false),
 
-    SUBMIT_UPDATE_HTTP_NODE("submit_update_http_node", true, false),
-    SUBMIT_UPDATE_ASSERT_NODE("submit_update_assert_node", true, false),
-    SUBMIT_UPDATE_CONDITION_NODE("submit_update_condition_node", true, false),
-    SUBMIT_UPDATE_ASSIGN_NODE("submit_update_assign_node", true, false),
-    SUBMIT_UPDATE_DELAY_NODE("submit_update_delay_node", true, false),
-    SUBMIT_UPDATE_SCRIPT_NODE("submit_update_script_node", true, false),
-    SUBMIT_UPDATE_SUBFLOW_NODE("submit_update_subflow_node", true, false),
-
-    SUBMIT_ADD_EDGE("submit_add_edge", true, false),
-    SUBMIT_UPDATE_EDGE("submit_update_edge", true, false),
-
-    SUBMIT_DELETE_NODE("submit_delete_node", true, false),
-    SUBMIT_DELETE_EDGE("submit_delete_edge", true, false),
-    SUBMIT_DELETE_SCENARIO("submit_delete_scenario", true, false),
-
-    SUBMIT_ADD_SCENARIO("submit_add_scenario", true, false),
-    SUBMIT_UPDATE_SCENARIO("submit_update_scenario", true, false);
+    /** 新增或修改单条边 */
+    SUBMIT_EDGE("submit_edge", true, false),
+    /** 新增或修改单个运行场景（不切换画布默认场景） */
+    SUBMIT_SCENARIO("submit_scenario", true, false),
+    /** 建议删除单个节点、边或运行场景 */
+    SUBMIT_DELETE("submit_delete", true, false);
 
     private final String id;
     private final boolean webAgent;
@@ -68,7 +82,7 @@ public enum FlowDesignToolNames {
         this.mcpAllowed = mcpAllowed;
     }
 
-    /** OpenAI function 名 / 执行器路由键 */
+    /** Function Calling 工具名，亦作执行器路由键 */
     public String getId() {
         return id;
     }
@@ -85,13 +99,13 @@ public enum FlowDesignToolNames {
 
     /**
      * 是否为画布单元提交类工具。
-     * 判定：名称以 submit_ 开头（含加/改/删节点边场景）。
+     * 名称以 submit_ 开头即视为写图单元工具。
      */
     public static boolean isSubmitUnitTool(String name) {
         return name != null && name.startsWith("submit_");
     }
 
-    /** 按工具名查是否允许 MCP */
+    /** 按工具名判断是否允许 MCP */
     public static boolean isMcpAllowed(String name) {
         if (name == null || name.isBlank()) {
             return false;
@@ -100,7 +114,7 @@ public enum FlowDesignToolNames {
                 .anyMatch(t -> t.id.equals(name) && t.mcpAllowed);
     }
 
-    /** 按工具名查是否属于 Web Agent */
+    /** 按工具名判断是否属于 Web Agent */
     public static boolean isWebAgent(String name) {
         if (name == null || name.isBlank()) {
             return false;

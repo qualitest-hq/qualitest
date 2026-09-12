@@ -54,7 +54,7 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 前提：调用 submit_add_http_node。
+     * 前提：调用 submit_http_node。
      * 期望：抛 ServiceException（含「不支持修改测试流」）；不委托 Executor。
      */
     @Test
@@ -63,7 +63,7 @@ class McpToolInvokeServiceTest {
     void invoke_submitUnit_rejected() {
         McpToolInvokeParams params = new McpToolInvokeParams();
         ServiceException ex = assertThrows(ServiceException.class,
-                () -> service.invoke(com.qualitest.ai.tools.FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId(), params, 100L));
+                () -> service.invoke(com.qualitest.ai.tools.FlowDesignToolNames.SUBMIT_HTTP_NODE.getId(), params, 100L));
         assertTrue(ex.getMessage().contains("不支持修改测试流"));
     }
 

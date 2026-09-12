@@ -17,8 +17,6 @@ export interface StagingSyncStrategy<TItem> {
   buildFromAddUnit: (unit: AiStagingUnit) => TItem | null;
   /** update* 类：将 draft 合并进列表 */
   applyUpdateUnit: (unit: AiStagingUnit, items: TItem[]) => TItem[] | null;
-  /** 非 add/update 的副作用（如 setActiveScenario） */
-  applySideEffect?: (unit: AiStagingUnit, ctx: StagingSyncContext<TItem>) => void;
   getItemId: (item: TItem) => string;
   getMark: (id: string) => AiStagingCanvasMark | undefined;
   /** orphan add 修剪后的回调（如 activeScenarioId 回退） */
@@ -56,8 +54,6 @@ export function runStagingItemSync<TItem>(
       items = nextItems;
       ctx.items = items;
     }
-
-    strategy.applySideEffect?.(unit, ctx);
   }
 
   for (const item of [...items]) {

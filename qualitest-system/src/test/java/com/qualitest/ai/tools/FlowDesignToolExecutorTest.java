@@ -822,8 +822,8 @@ class FlowDesignToolExecutorTest {
                 .build();
 
         String json = executor.executeTool(
-                FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId(),
-                "{\"id\":\"n1\",\"summary\":\"登录链路\",\"data\":{\"callMode\":\"project\"}}",
+                FlowDesignToolNames.SUBMIT_HTTP_NODE.getId(),
+                "{\"op\":\"add\",\"id\":\"n1\",\"summary\":\"登录链路\",\"data\":{\"callMode\":\"project\"}}",
                 submitCtx);
 
         JSONObject root = JSON.parseObject(json);
@@ -861,8 +861,8 @@ class FlowDesignToolExecutorTest {
                 .build();
 
         String json = executor.executeTool(
-                FlowDesignToolNames.SUBMIT_ADD_EDGE.getId(),
-                "{\"source\":\"a\",\"target\":\"b\"}",
+                FlowDesignToolNames.SUBMIT_EDGE.getId(),
+                "{\"op\":\"add\",\"source\":\"a\",\"target\":\"b\"}",
                 submitCtx);
 
         JSONObject root = JSON.parseObject(json);
@@ -905,8 +905,8 @@ class FlowDesignToolExecutorTest {
                 .build();
 
         String json = executor.executeTool(
-                FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE.getId(),
-                "{\"id\":\"n2\",\"data\":{\"callMode\":\"project\"}}",
+                FlowDesignToolNames.SUBMIT_HTTP_NODE.getId(),
+                "{\"op\":\"add\",\"id\":\"n2\",\"data\":{\"callMode\":\"project\"}}",
                 submitCtx);
 
         JSONObject root = JSON.parseObject(json);

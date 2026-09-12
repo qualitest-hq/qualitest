@@ -44,8 +44,8 @@ import java.util.stream.Collectors;
 /**
  * 测试流 AI 设计 Function Calling 统一执行器。
  * <p>
- * 构造时注册全部只读工具与分类型 submit_* 单元工具；按工具名路由到具体实现。
- * Web Agent 与 MCP 共用本执行器；MCP 入口另拦 submit_*。
+ * 构造时注册全部只读工具与 submit_* 写图单元工具，按工具名路由执行。
+ * Web Agent 与 MCP 共用本执行器；MCP 调用入口另行拦截 submit_*，禁止改图。
  */
 @Slf4j
 @Component
@@ -112,33 +112,29 @@ public class FlowDesignToolExecutor {
     }
 
     /**
-     * 注册全部 submit_*：每种节点类型一对 add/update，外加边、删除、场景。
-     * 节点工具把 type 闭包进 builder，保证参数里写错类型也以注册类型为准。
+     * 注册全部 submit_* 写图工具：
+     * 七种节点与边、场景各用 upsert（参数 op=add|update）；删除统一 submit_delete。
+     * 节点工具把 type 闭包进 builder，参数里写错类型也以注册类型为准。
      */
     private static void registerSubmitUnitTools(Map<String, QualitestTool> map,
                                                 FlowDesignUnitSubmitSupport unitSubmit) {
-        record NodeTool(FlowDesignToolNames add, FlowDesignToolNames update, String type) {}
+        record NodeTool(FlowDesignToolNames name, String type) {}
         NodeTool[] nodeTools = {
-                new NodeTool(FlowDesignToolNames.SUBMIT_ADD_HTTP_NODE, FlowDesignToolNames.SUBMIT_UPDATE_HTTP_NODE, "http"),
-                new NodeTool(FlowDesignToolNames.SUBMIT_ADD_ASSERT_NODE, FlowDesignToolNames.SUBMIT_UPDATE_ASSERT_NODE, "assert"),
-                new NodeTool(FlowDesignToolNames.SUBMIT_ADD_CONDITION_NODE, FlowDesignToolNames.SUBMIT_UPDATE_CONDITION_NODE, "condition"),
-                new NodeTool(FlowDesignToolNames.SUBMIT_ADD_ASSIGN_NODE, FlowDesignToolNames.SUBMIT_UPDATE_ASSIGN_NODE, "assign"),
-                new NodeTool(FlowDesignToolNames.SUBMIT_ADD_DELAY_NODE, FlowDesignToolNames.SUBMIT_UPDATE_DELAY_NODE, "delay"),
-                new NodeTool(FlowDesignToolNames.SUBMIT_ADD_SCRIPT_NODE, FlowDesignToolNames.SUBMIT_UPDATE_SCRIPT_NODE, "script"),
-                new NodeTool(FlowDesignToolNames.SUBMIT_ADD_SUBFLOW_NODE, FlowDesignToolNames.SUBMIT_UPDATE_SUBFLOW_NODE, "subflow"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_HTTP_NODE, "http"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_ASSERT_NODE, "assert"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_CONDITION_NODE, "condition"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_ASSIGN_NODE, "assign"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_DELAY_NODE, "delay"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_SCRIPT_NODE, "script"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_SUBFLOW_NODE, "subflow"),
         };
         for (NodeTool nt : nodeTools) {
             String type = nt.type();
-            putUnit(map, nt.add(), a -> SubmitFlowDesignUnitTool.addNode(type, a), unitSubmit);
-            putUnit(map, nt.update(), a -> SubmitFlowDesignUnitTool.updateNode(type, a), unitSubmit);
+            putUnit(map, nt.name(), a -> SubmitFlowDesignUnitTool.upsertNode(type, a), unitSubmit);
         }
-        putUnit(map, FlowDesignToolNames.SUBMIT_ADD_EDGE, SubmitFlowDesignUnitTool::addEdge, unitSubmit);
-        putUnit(map, FlowDesignToolNames.SUBMIT_UPDATE_EDGE, SubmitFlowDesignUnitTool::updateEdge, unitSubmit);
-        putUnit(map, FlowDesignToolNames.SUBMIT_DELETE_NODE, SubmitFlowDesignUnitTool::deleteNode, unitSubmit);
-        putUnit(map, FlowDesignToolNames.SUBMIT_DELETE_EDGE, SubmitFlowDesignUnitTool::deleteEdge, unitSubmit);
-        putUnit(map, FlowDesignToolNames.SUBMIT_DELETE_SCENARIO, SubmitFlowDesignUnitTool::deleteScenario, unitSubmit);
-        putUnit(map, FlowDesignToolNames.SUBMIT_ADD_SCENARIO, SubmitFlowDesignUnitTool::addScenario, unitSubmit);
-        putUnit(map, FlowDesignToolNames.SUBMIT_UPDATE_SCENARIO, SubmitFlowDesignUnitTool::updateScenario, unitSubmit);
+        putUnit(map, FlowDesignToolNames.SUBMIT_EDGE, SubmitFlowDesignUnitTool::upsertEdge, unitSubmit);
+        putUnit(map, FlowDesignToolNames.SUBMIT_SCENARIO, SubmitFlowDesignUnitTool::upsertScenario, unitSubmit);
+        putUnit(map, FlowDesignToolNames.SUBMIT_DELETE, SubmitFlowDesignUnitTool::delete, unitSubmit);
     }
 
     /** 把「工具枚举名 + 参数→单单元 patch 的构建器」注册为可执行工具。 */

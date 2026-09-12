@@ -10,7 +10,7 @@
 
 ## 1. 为什么必须 Staging
 
-AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_add_http_node`）后，前端把累积 patch 变成 **Staging 单元**（加节点 / 改节点 / 加边 / 删节点或边 / 场景字段等）。真人（或代点的 Agent）逐项 **✓ 确认** 或 **✕ 取消**，再点 **保存**，`graph_json` 才持久化。
+AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http_node`，`op=add|update`）后，前端把累积 patch 变成 **Staging 单元**（加节点 / 改节点 / 加边 / 删节点或边 / 场景字段等）。真人（或代点的 Agent）逐项 **✓ 确认** 或 **✕ 取消**，再点 **保存**，`graph_json` 才持久化。
 
 ```text
 自然语言（或「AI 修复」）
@@ -75,6 +75,10 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_add_
 | `AUTH_HEADER_MANAGED` | 否（soft） | — | 已按项目鉴权补托管头 |
 | `AUTH_LOGIN_NO_BEARER` | 否（soft） | — | 登录/免登口剥掉了误补的托管头 |
 | 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | 保存（确认期不拦） | 见节点文档；schema 缺字段多为警告 |
+
+保存前前端会调 `/patch/savePrecheck`（与上表 AUTH / 登录 extract / HTTP 必填同口径），提前展示错误，避免 Staging 全绿后点保存才翻车。
+
+造流 submit 工具面：节点/边/场景用 `submit_*` + `op=add|update`；删除统一 `submit_delete`（`kind`+`id`）。AI **不造** `input` 节点，**不切**默认运行场景。
 
 鉴权产品口径见 [project-summary.md §4](./project-summary.md)。跑流变量 / flowSeed 见 [flow-variables-and-values.md](./flow-variables-and-values.md)。
 
