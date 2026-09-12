@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.model.GraphNode;
 import org.junit.jupiter.api.*;
 
 import java.io.InputStream;
@@ -12,7 +13,7 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 GraphJsonValidator：开始节点、HTTP 绑定 warning、subflow 规则与 manifest 夹具。
+ * 测 GraphJsonValidator：开始节点、HTTP 绑定、persistMinimal 与 manifest 夹具。
  * 边界：demo-graph 与 graph-validate-cases；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphJsonValidatorTest
  */
@@ -64,18 +65,40 @@ class GraphJsonValidatorTest {
 
     /**
      * 前提：HTTP 节点未绑定 testProjectApiId。
-     * 期望：1 条 warning（含 testProjectApiId）；ok 仍为 true。
+     * 期望：结构校验 ok，且 warnings 不含 testProjectApiId 文案。
      */
     @Test
     @Order(3)
-    @DisplayName("未绑定 HTTP 产生 warning")
-    void httpUnbound_producesWarning() {
+    @DisplayName("未绑定 HTTP 不由结构校验告警")
+    void httpUnbound_noStructureWarning() {
         String json = loadResource("flow/invalid-http-unbound.json");
         GraphJson graph = GraphJson.parse(json);
         GraphValidationResult result = validator.validate(graph);
         assertTrue(result.isOk());
-        assertEquals(1, result.getWarnings().size());
-        assertTrue(result.getWarnings().get(0).contains("testProjectApiId"));
+        assertTrue(result.getWarnings().stream().noneMatch(w -> w.contains("testProjectApiId")));
+    }
+
+    /**
+     * 前提：图仅缺 callMode（完整校验会 error）。
+     * 期望：persistMinimal 地板通过。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("persistMinimal 允许字段级半成品")
+    void persistMinimal_allowsFieldLevelDraft() {
+        GraphNode http = GraphNode.builder()
+                .id("n1")
+                .type("http")
+                .data(new java.util.HashMap<>(java.util.Map.of("name", "半成品")))
+                .build();
+        GraphJson graph = GraphJson.builder()
+                .nodes(java.util.List.of(http))
+                .edges(java.util.List.of())
+                .build();
+        GraphValidationResult full = validator.validate(graph);
+        assertFalse(full.isOk());
+        GraphValidationResult floor = validator.validate(graph, GraphValidationOptions.persistMinimal());
+        assertTrue(floor.isOk());
     }
 
     /**
@@ -83,7 +106,7 @@ class GraphJsonValidatorTest {
      * 期望：expectErrors / expectWarnings 条数与 manifest 一致。
      */
     @Test
-    @Order(4)
+    @Order(5)
     @DisplayName("manifest 夹具错误警告条数一致")
     void validateCases_fromManifest() {
         for (int i = 0; i < validateCases.size(); i++) {
@@ -104,7 +127,7 @@ class GraphJsonValidatorTest {
      * 期望：恰有一个开始节点，校验通过。
      */
     @Test
-    @Order(5)
+    @Order(15)
     @DisplayName("demo-graph 开始节点校验通过")
     void validateStartNodes_demoGraph_ok() {
         GraphJson graph = GraphJson.parse(loadResource("flow/demo-graph.json"));

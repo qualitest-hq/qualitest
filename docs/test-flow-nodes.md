@@ -61,7 +61,7 @@
 | Extract / 业务码 | `$.data.token` | **必须以 `$` 开头**，相对 body 根 |
 | 其它上下文 | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` | **不走 JsonPath** |
 
-禁止：`http.body.$.…`（Confirm / 保存会失败）。
+禁止：`http.body.$.…`（Confirm / **运行**会失败；保存可带错落盘）。
 
 ### 运算符
 
@@ -76,7 +76,7 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 
 购物车「是否含某 cartId」推荐：`http.body.data[?(@.cartId=='5001')]` + `exists`（若 `data` 直接是数组；勿写成 `data.items[…]`）。
 
-设计期：Staging ✓ 确认 **assert/condition 节点**时，会在含尚未确认 Staging 上下游的**预览图**上按上游接口**响应 schema** 校验 `http.body…` 左值（禁 `.items` / `http.body.$.…` 等结构错误 → **硬拦**；schema 缺字段或无 schema → **警告**，允许确认与保存；过滤器与 `data[*].字段` 对齐）；预览图仍无上游 project HTTP 则硬拦。错误挂在该断言/条件单元，**不会**因路径问题拦住边确认。AI submit / **保存** 仍对全图跑同一门禁。响应 **example 只给人看**，属性面板可对照 example 软试算（空结果标红），**不参与硬拦**。正式 **Run** 只跑图结构校验。
+设计期：Staging ✓ 确认 **assert/condition 节点**时，会在含尚未确认 Staging 上下游的**预览图**上按上游接口**响应 schema** 校验 `http.body…` 左值（禁 `.items` / `http.body.$.…` 等结构错误 → **硬拦**；schema 缺字段或无 schema → **警告**，允许确认与保存；过滤器与 `data[*].字段` 对齐）；预览图仍无上游 project HTTP 则硬拦。错误挂在该断言/条件单元，**不会**因路径问题拦住边确认。AI submit 对本单元硬拦；**保存**不拦全图断言路径；**运行**对全图跑结构 + 断言路径 + AUTH/必填 readiness。响应 **example 只给人看**，属性面板可对照 example 软试算（空结果标红），**不参与硬拦**。
 
 ---
 
@@ -119,7 +119,7 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 | `prompt` | 暂停面板提示文案 |
 | `fields[]` | 输入项；每项含 `name` / `label` / `type` / `required` / `placeholder` / `defaultValue`；`select`/`multiselect` 另需静态 `options` |
 
-`type` 缺省 `text`；合法值：`text` / `textarea` / `password` / `number` / `boolean` / `select` / `multiselect` / `date` / `datetime`。未知 type 保存硬拦。
+`type` 缺省 `text`；合法值：`text` / `textarea` / `password` / `number` / `boolean` / `select` / `multiselect` / `date` / `datetime`。未知 type **运行**硬拦（保存可带错落盘）。
 
 暂停原因 `await_input`；可用决策 `continueWithInput`（提交 `inputs`）与 `abort`。CI / 无人值守碰到即 paused；自动化主路径可用外联打码子流 `tpl_login_captcha`，人手填码可用 `tpl_login_captcha_manual`。
 

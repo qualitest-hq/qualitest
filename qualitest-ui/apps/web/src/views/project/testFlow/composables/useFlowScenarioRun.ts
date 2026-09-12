@@ -1,13 +1,13 @@
 /**
- * 场景运行：调用后端 Run API 同步执行，拉取详情后按步骤动画高亮并写入运行库。
+ * 场景运行：触发正式 Run，拉取详情后按步骤动画高亮并写入运行库。
  *
- * 流程：校验开始节点 → 未保存则先保存 → POST trigger → GET 详情 → 逐步高亮 → 展示运行详情。
+ * 流程：脏图可先带错保存 → 运行就绪检查（结构/断言路径/鉴权必填）→
+ * 通过后 POST 触发 → 拉详情 → 逐步高亮。
  */
 import { computed } from 'vue';
 import { ElMessage } from 'element-plus';
 
 import { triggerTestFlowRun } from '@/api/project/testFlowRun';
-import { validateStartNodes } from '@/utils/flow/graphValidate';
 import { validateSnapshotResetEndpointStatic } from '@/utils/flow/snapshotPreRunValidate';
 
 import { SCENARIO_RUN_STEP_MS } from '../constants/flowConfig';
@@ -15,7 +15,9 @@ import { toGraphJson } from '../graphAdapter';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import type { RunRecord } from '../stores/runLibraryStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
+import { useRunRiskStore } from '../stores/runRiskStore';
 import { abortableSleep } from '../utils/abortableSleep';
+import { collectRunBlockingErrors } from '../utils/runReadiness';
 import { endRunReplay } from './usePlayback';
 import { useFlowGraph } from './useFlowGraph';
 import { useFlowSimulate } from './useFlowSimulate';
@@ -89,45 +91,52 @@ export function useFlowScenarioRun() {
   const isScenarioRunActive = computed(() => !!runLib.scenarioRunLive);
 
   /**
-   * 运行当前选中场景（正式 Run）。
+   * 运行当前选中场景。
    * 成功后打开右栏运行详情、切换左栏至运行库，并按步骤动画高亮。
+   * 就绪检查未通过则 toast 首条错误并中止，不发起 Run。
    */
   async function runActiveScenario() {
     if (runLib.scenarioRunLive) return null;
 
     await store.ensureEdgesHydrated();
-    const graph = toGraphJson({
-      nodes: store.nodes,
-      edges: store.edges,
-      viewport: store.viewport,
-      runConfig: store.runConfig,
-      flowOutputs: store.flowOutputs,
-    });
-
-    const startCheck = validateStartNodes(graph);
-    if (!startCheck.ok) {
-      ElMessage.error(startCheck.message);
-      return null;
-    }
-
     await loadProjectEnvs();
     const scenario = getActiveScenario();
     const envId = scenario?.testProjectEnvId;
     const env = envId
       ? envOptions.value.find((e) => e.testProjectEnvId === String(envId))
       : undefined;
-    const snapshotCheck = validateSnapshotResetEndpointStatic(graph, env);
+
+    // 先静默落盘（允许半成品），再统一做一次就绪检查，避免保存里再跑一遍
+    if (store.dirty) {
+      const saved = await saveFlow({ quiet: true, skipRunRiskRefresh: true });
+      if (!saved) {
+        ElMessage.warning('请先保存测试流后再运行');
+        return null;
+      }
+    }
+
+    const graphForRun = toGraphJson({
+      nodes: store.nodes,
+      edges: store.getEffectiveEdges(),
+      viewport: store.viewport,
+      runConfig: store.runConfig,
+      flowOutputs: store.flowOutputs,
+    });
+    const snapshotCheck = validateSnapshotResetEndpointStatic(graphForRun, env);
     if (!snapshotCheck.ok) {
       ElMessage.error(snapshotCheck.message);
       return null;
     }
 
-    if (store.dirty) {
-      const saved = await saveFlow();
-      if (!saved) {
-        ElMessage.warning('请先保存测试流后再运行');
-        return null;
-      }
+    const { errors: blocking, precheckErrors } = await collectRunBlockingErrors({
+      graph: graphForRun,
+      testProjectId: store.testProjectId,
+    });
+    // 把鉴权/必填子集写入校验条；结构错误已由实时结构校验展示
+    useRunRiskStore().setWarnings(precheckErrors);
+    if (blocking.length) {
+      ElMessage.error(`${blocking[0]}（详见左上角校验条）`);
+      return null;
     }
 
     if (!store.testFlowId) {

@@ -80,14 +80,26 @@ describe('validateGraphJson', () => {
     expect(rewriteStartNodeErrorForPendingEdges('其它错误')).toBe('其它错误');
   });
 
-  /** HTTP 节点未绑定 testProjectApiId 时产生 warning，但不阻断校验（ok 仍为 true） */
-  it('HTTP 节点未绑定 API 时产生 warning 但不阻断', () => {
+  /** HTTP 未绑定接口时，结构校验不再产生 testProjectApiId warning */
+  it('HTTP 节点未绑定 API 时结构校验不告警', () => {
     // 前提：HTTP 节点缺 testProjectApiId
-    // 期望：ok 仍为 true，1 条 warning
+    // 期望：ok 仍为 true，warnings 不含 testProjectApiId
     const result = validateGraphJson(httpUnbound);
     expect(result.ok).toBe(true);
-    expect(result.warnings).toHaveLength(1);
-    expect(result.warnings[0]).toContain('testProjectApiId');
+    expect(result.warnings.every((w) => !w.includes('testProjectApiId'))).toBe(true);
+  });
+
+  it('persistMinimalOnly 允许缺 callMode 的半成品落盘地板通过', () => {
+    // 前提：HTTP 缺 callMode（完整校验会 error）
+    // 期望：persistMinimal 仅查 id/边，ok 为 true
+    const raw = structuredClone(httpUnbound) as {
+      nodes: Array<{ id: string; type: string; data?: Record<string, unknown> }>
+    };
+    delete raw.nodes[0].data!.callMode;
+    const full = validateGraphJson(raw);
+    expect(full.ok).toBe(false);
+    const floor = validateGraphJson(raw, { persistMinimalOnly: true });
+    expect(floor.ok).toBe(true);
   });
 
   /** script 节点 language 非法时产生 error */
@@ -151,9 +163,9 @@ describe('validateGraphJson', () => {
     expect(result.warnings).toHaveLength(spec.expectWarnings);
   });
 
-  it('manifest：HTTP 节点未绑定，errors=0 warnings=1', () => {
-    // 前提：manifest http-unbound fixture
-    // 期望：errors=0，warnings=1
+  it('manifest：HTTP 节点未绑定，errors=0 warnings=0', () => {
+    // 前提：manifest http-unbound fixture（结构校验不对未绑定单独告警）
+    // 期望：errors=0，warnings=0
     const spec = graphValidateCases.cases.find((x) => x.id === 'http-unbound')!;
     const raw = fixtureMap[spec.fixture];
     const result = validateGraphJson(raw);

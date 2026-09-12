@@ -370,9 +370,12 @@ function shouldShowAssetProposals(msg: AiDesignMessageView) {
   return msg.role === 'assistant' && Array.isArray(msg.assetProposals) && msg.assetProposals.length > 0;
 }
 
-/** 造流结果里「已补托管鉴权头」类提示文案（仅提示，不阻断） */
+/** 造流结果里鉴权类软提示：聊天区只展示一句摘要 */
 function authValidationWarnings(msg: AiDesignMessageView): string[] {
-  return filterAuthRelatedWarnings(msg.validation?.warnings).slice(0, 8)
+  const all = filterAuthRelatedWarnings(msg.validation?.warnings)
+  if (!all.length) return []
+  if (all.length === 1) return all
+  return [`${all[0]}（另有 ${all.length - 1} 项鉴权提示，见属性 Diff）`]
 }
 
 /** 卡片确认/拒绝或懒加载 fields 后，回写该消息上的提案列表 */

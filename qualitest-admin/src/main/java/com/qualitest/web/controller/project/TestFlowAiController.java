@@ -94,8 +94,9 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 保存前预检：检查鉴权凭证来源、登录抽取、HTTP 必填测值是否齐全。
-     * 不写库；用于前端在真正保存前展示错误。
+     * 运行风险预检接口。
+     * 检查鉴权凭证来源、登录抽取、HTTP 必填测值是否齐全；不写库、不阻断保存。
+     * 返回错误列表供画布提示；正式开跑前会再次用同类规则拦截。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @PostMapping("/patch/savePrecheck")

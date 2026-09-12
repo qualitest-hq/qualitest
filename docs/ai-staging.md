@@ -29,10 +29,11 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http
 
 | 动作 | 口径 |
 | ---- | ---- |
-| ✓ 确认 | 接受该单元；跑图结构与**本单元断言路径**门禁。token 来源 / 登录 extract / HTTP 必填**不硬拦**；若本轮已无未决单元，响应可带 `saveRiskWarnings` 提示保存风险 |
+| ✓ 确认 | 接受该单元；跑图结构与**本单元断言路径**门禁。token 来源 / 登录 extract / HTTP 必填**不硬拦**；若本轮已无未决单元，响应可带 `saveRiskWarnings` 提示**运行风险** |
 | ✕ 取消 | 丢弃该单元，不落盘 |
 | 删除类 ✓ | **唯一确认**，无二次 `MessageBox`；勿对 Staging 边按键盘 Delete 当确认 |
-| 保存 | Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
+| 保存 | 可带设计期错误落盘（仅拦无法解析/最小 schema）；Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
+| 运行 | 结构 + 断言路径 + AUTH/必填 readiness 硬拦 |
 | 仅保存已确认 | 未确认项会丢，易得半截图；应先去确认或全部 ✕ 后新建流 |
 | 刷新鉴权头 | 批量改托管头，**仍进 Staging**，不是静默写库 |
 
@@ -63,22 +64,26 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http
 
 ---
 
-## 5. 设计期门禁（确认 / submit / 保存）
+## 5. 设计期门禁（确认 / submit / 保存 / 运行）
 
 错误串格式：`CODE: 人类文案`。前端认冒号前的 CODE。
 
 | CODE | 硬拦？ | 何时硬拦 | 含义 |
 | ---- | ---- | ---- | ---- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | 是 | **保存**（AI `submit_*` / Staging ✓ 跳过硬拦；**末单元 confirm 可附带 `saveRiskWarnings` 预警**） | 登录口未抽出托管头所需凭证（`{{asset.*}}` / 存量 `{{flow.*}}`） |
-| `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **保存**（同上） | 两套不同登录口写出同一凭证路径 |
-| `AUTH_TOKEN_MISSING` | 是 | **保存**（同上；末单元 confirm 可预警） | 图要用某托管 Bearer，但 extracts / assign / 子流输出 / **flowSeed(仅 flow)** 都没有该目标 |
+| `AUTH_LOGIN_EXTRACT_MISSING` | 是 | **运行**（AI `submit_*` / Staging ✓ / **保存**跳过硬拦；**末单元 confirm 可附带 `saveRiskWarnings` 作运行风险预警**） | 登录口未抽出托管头所需凭证（`{{asset.*}}` / 存量 `{{flow.*}}`） |
+| `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **运行**（同上） | 两套不同登录口写出同一凭证路径 |
+| `AUTH_TOKEN_MISSING` | 是 | **运行**（同上；末单元 confirm 可预警） | 图要用某托管 Bearer，但 extracts / assign / 子流输出 / **flowSeed(仅 flow)** 都没有该目标 |
 | `AUTH_HEADER_MANAGED` | 否（soft） | — | 已按项目鉴权补托管头 |
 | `AUTH_LOGIN_NO_BEARER` | 否（soft） | — | 登录/免登口剥掉了误补的托管头 |
-| 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | **submit 与 Staging ✓**（对本单元相关错误）；schema 缺字段多为警告 | 见节点文档 |
+| 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | **submit 与 Staging ✓**；**运行**亦拦全图；schema 缺字段多为警告；**保存不拦** | 见节点文档 |
 | update 空数组误清空（`rules` / `extracts` / `assignments`） | 是 | **submit / preparePatch** | baseline 同字段非空时，禁止用空数组整表替换 |
 | condition `branches[].target` | — | normalize **直接剔除** | 出口只认边，AI 预写 target 丢弃 |
 
-保存前前端会调 `/patch/savePrecheck`（与上表 AUTH / 登录 extract / HTTP 必填同口径），提前展示错误，避免 Staging 全绿后点保存才翻车。末单元 confirm 成功时若仍有上述保存风险，响应带 `saveRiskWarnings`（不阻断 ✓）。
+**保存**：仅拦「无法解析 / 最小 schema（节点 id、边端点）」；结构细节、断言路径、AUTH / HTTP 必填允许带错落盘，方便 AI 继续修。校验条仍红；toast 可提示「已保存，暂不可运行」。
+
+**运行**：前端与后端统一 readiness（图结构 + 断言路径错误 + `/patch/savePrecheck` 同口径的 AUTH / 登录 extract / HTTP 必填）。不过则不开跑。
+
+`/patch/savePrecheck` 与末单元 `saveRiskWarnings` 现为**运行风险**预警（不阻断 ✓ / 保存），写入画布校验条；开跑失败再 toast。
 
 造流 submit 工具面：节点/边/场景用 `submit_*` + `op=add|update`；删除统一 `submit_delete`（`kind`+`id`）。AI **不造** `input` 节点，**不切**默认运行场景。
 

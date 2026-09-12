@@ -16,7 +16,7 @@
       "id": "http-unbound",
       "fixture": "invalid-http-unbound.json",
       "expectErrors": 0,
-      "expectWarnings": 1
+      "expectWarnings": 0
     },
     {
       "id": "duplicate-node-id",

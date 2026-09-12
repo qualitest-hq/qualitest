@@ -8,6 +8,7 @@ import {
   collectIssueNodeIds,
   issuesFromApiHealthWarnings,
   issuesFromGraphValidation,
+  issuesFromRunRiskWarnings,
   issuesFromStagingConfirmFailures,
   resolveNodeIdsFromMessage,
 } from '@/views/project/testFlow/utils/flowValidationIssues'
@@ -71,6 +72,41 @@ describe('flowValidationIssues', () => {
         message: '确认失败：缺依赖',
         nodeIds: ['n2'],
         source: 'staging',
+      },
+    ])
+  })
+
+  it('issuesFromStagingConfirmFailures：多错误摘要为一条', () => {
+    // 前提：同一单元 lastValidation 有多条 errors
+    // 期望：校验条只出一条摘要，指向 Diff
+    const issues = issuesFromStagingConfirmFailures(
+      [
+        {
+          unitId: 'addNode:n2',
+          kind: 'addNode',
+          messageId: 'm1',
+          status: 'pending',
+          lastValidation: {
+            ok: false,
+            errors: ['错误甲', '错误乙', '错误丙'],
+            warnings: [],
+          },
+        } as never,
+      ],
+      [],
+    )
+    expect(issues).toHaveLength(1)
+    expect(issues[0].message).toBe('错误甲（另有 2 项，见属性 Diff）')
+  })
+
+  it('issuesFromRunRiskWarnings：运行风险进条', () => {
+    const issues = issuesFromRunRiskWarnings(['AUTH_TOKEN_MISSING: 缺 token'])
+    expect(issues).toEqual([
+      {
+        level: 'error',
+        message: 'AUTH_TOKEN_MISSING: 缺 token',
+        nodeIds: [],
+        source: 'runRisk',
       },
     ])
   })

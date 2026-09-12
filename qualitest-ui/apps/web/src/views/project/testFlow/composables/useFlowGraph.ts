@@ -1,52 +1,54 @@
 /**
- * 测试流持久化读写：对接后端 testFlow API，与 flowCanvasStore 同步。
- * 保存前依次做：图结构校验、断言路径门禁、鉴权/登录抽取/HTTP 必填预检；任一项 errors 阻断提交。
+ * 测试流持久化读写：对接后端 testFlow API，与画布 store 同步。
+ *
+ * 保存规则：只拦「无法解析 / 节点缺 id / 边缺端点」；
+ * 结构细节、断言路径、鉴权缺失等允许带错落盘，方便继续改图。
+ * 开跑前另做完整就绪检查。
  */
 import { ElMessage } from 'element-plus';
 
 import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
-import { savePrecheckFlowDesign } from '@/api/project/testFlowAi';
-import {
-  rewriteStartNodeErrorForPendingEdges,
-  validateGraphJson,
-} from '@/utils/flow/graphValidate';
+import { validateGraphJson } from '@/utils/flow/graphValidate';
 
 import { fromGraphJson, toGraphJson } from '../graphAdapter';
 import { refreshSavedBaseline } from '../utils/reconcileFlowDirty';
 import { isBlockWhenStagingPending } from '../utils/aiDesignPreferences';
 import { promptStagingPendingSave } from '../utils/promptStagingPendingSave';
-import { hasPendingStagingEdgeUnits } from '../utils/stagingUnitIds';
-import { resolveCanvasApiDetail } from '../utils/resolveCanvasApiDetail';
+import { collectRunBlockingErrors } from '../utils/runReadiness';
 import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
+import { useRunRiskStore } from '../stores/runRiskStore';
 import {
   applyAdaptedGraphToStore,
   finalizeCanvasHistoryBaseline,
 } from './useCanvasGraphHydration';
 import { recoverLoginFlowEdgesIfMissing } from '../../testProjectTemplate/utils/templateCanvasHydrate';
-import {
-  collectAssertPathDesignIssues,
-  extractResponseSchemaPaths,
-  resolveTrialApiId,
-} from '../utils/jsonPathTrial';
 
 export interface SaveFlowOptions {
-  /** 为 true 时跳过 pending 保存门禁（用于确认后自动保存） */
+  /** true：跳过「尚有未确认 Staging」提示框（确认后自动保存等场景） */
   skipPendingWarning?: boolean;
+  /** true：不弹成功/风险 toast（开跑前静默落盘等场景） */
+  quiet?: boolean;
+  /**
+   * true：保存成功后不做运行风险刷新与「暂不可运行」计数。
+   * 开跑路径会紧接着自己做一次完整就绪检查，避免重复请求。
+   */
+  skipRunRiskRefresh?: boolean;
 }
 
 export function useFlowGraph() {
   const store = useFlowCanvasStore();
   const stagingStore = useAiStagingStore();
+  const runRisk = useRunRiskStore();
   const { scheduleHistoryReset, resetHistory } = useFlowHistory();
 
   async function finalizeHistoryBaseline() {
     await finalizeCanvasHistoryBaseline(store, resetHistory);
   }
 
-  /** 将 API 返回的测试流记录灌入画布 store */
+  /** 将接口返回的测试流记录灌入画布 store */
   async function hydrateFlowRecord(data: TestFlowRecord) {
     store.testFlowId = String(data.testFlowId);
     store.testProjectId = String(data.testProjectId);
@@ -66,7 +68,7 @@ export function useFlowGraph() {
     return adapted;
   }
 
-  /** 按 testFlowId 拉取 graph_json 并灌入画布 store */
+  /** 按 testFlowId 拉取图并灌入画布 */
   async function loadFlow(testFlowId: string) {
     store.loading = true;
     store.beginCanvasHydration();
@@ -86,10 +88,10 @@ export function useFlowGraph() {
   }
 
   /**
-   * 将当前画布序列化为 graph_json 并提交保存。
-   * - pending>0 时默认弹门禁（去确认 / 仅保存已确认 / 取消），可 skipPendingWarning
-   * - 序列化排除未 confirm 的 Staging 对象
-   * - 校验失败阻断提交
+   * 序列化当前画布并提交保存。
+   * - 有未确认 Staging 时默认弹窗：去确认 / 仅保存已确认 / 取消
+   * - 序列化时排除未确认的 Staging 对象
+   * - 仅落库地板失败才阻断；其余问题可落盘，并提示尚不可运行
    */
   async function saveFlow(options?: SaveFlowOptions) {
     await store.ensureEdgesHydrated();
@@ -118,40 +120,12 @@ export function useFlowGraph() {
       flowOutputs: store.flowOutputs,
       stagingFilter: stagingStore.buildPersistFilter(),
     });
-    const validation = validateGraphJson(graph);
-    if (!validation.ok) {
-      const first = validation.errors[0] ?? '图校验失败';
-      const message = hasPendingStagingEdgeUnits(Object.values(stagingStore.unitsById))
-        ? rewriteStartNodeErrorForPendingEdges(first)
-        : first;
-      ElMessage.error(message);
-      return false;
-    }
-
-    const assertPath = await loadAssertPathDesignIssues(graph);
-    if (assertPath.errors.length) {
-      ElMessage.error(assertPath.errors[0]);
-      return false;
-    }
-    if (assertPath.warnings.length) {
-      ElMessage.warning(assertPath.warnings[0]);
-    }
-
-    // 保存前预检：鉴权凭证、登录抽取、HTTP 必填；有错则阻断，避免保存 API 才失败
-    if (store.testProjectId) {
-      try {
-        const precheck = await savePrecheckFlowDesign({
-          testProjectId: String(store.testProjectId),
-          graphJson: JSON.stringify(graph),
-        });
-        if (precheck && precheck.ok === false && precheck.errors?.length) {
-          ElMessage.error(precheck.errors[0]);
-          return false;
-        }
-      } catch (e: unknown) {
-        ElMessage.error(e instanceof Error ? e.message : '保存前预检失败');
-        return false;
+    const floor = validateGraphJson(graph, { persistMinimalOnly: true });
+    if (!floor.ok) {
+      if (!options?.quiet) {
+        ElMessage.error(floor.errors[0] ?? '图校验失败');
       }
+      return false;
     }
 
     store.loading = true;
@@ -163,14 +137,35 @@ export function useFlowGraph() {
         graphJson: JSON.stringify(graph),
       });
       await refreshSavedBaseline(store);
-      if (excludedPending > 0) {
-        ElMessage.success(`已保存（已排除 ${excludedPending} 项未确认 Staging）`);
-      } else {
-        ElMessage.success('保存成功');
+
+      if (!options?.skipRunRiskRefresh && !options?.quiet) {
+        // 刷新运行风险条：只把鉴权/必填写入 store；结构/断言仍由实时结构校验展示
+        const { errors, precheckErrors } = await collectRunBlockingErrors({
+          graph,
+          testProjectId: store.testProjectId,
+        });
+        runRisk.setWarnings(precheckErrors);
+        if (excludedPending > 0) {
+          ElMessage.success(`已保存（已排除 ${excludedPending} 项未确认 Staging）`);
+        } else if (errors.length) {
+          ElMessage.warning(
+            `已保存，尚有 ${errors.length} 项问题暂不可运行（见左上角校验条）`,
+          );
+        } else {
+          ElMessage.success('保存成功');
+        }
+      } else if (!options?.quiet) {
+        if (excludedPending > 0) {
+          ElMessage.success(`已保存（已排除 ${excludedPending} 项未确认 Staging）`);
+        } else {
+          ElMessage.success('保存成功');
+        }
       }
       return true;
     } catch (e: unknown) {
-      ElMessage.error(e instanceof Error ? e.message : '保存失败');
+      if (!options?.quiet) {
+        ElMessage.error(e instanceof Error ? e.message : '保存失败');
+      }
       return false;
     } finally {
       store.loading = false;
@@ -178,8 +173,8 @@ export function useFlowGraph() {
   }
 
   /**
-   * 将校验通过的 graph_json 灌入画布 store，覆盖当前 nodes/edges/viewport/runConfig。
-   * @returns 是否导入成功（校验失败返回 false）
+   * 导入 graph_json 覆盖当前画布。
+   * 导入走完整结构校验；失败不改 store。
    */
   async function importGraph(raw: unknown): Promise<boolean> {
     store.beginCanvasHydration();
@@ -198,32 +193,4 @@ export function useFlowGraph() {
   }
 
   return { loadFlow, saveFlow, importGraph };
-}
-
-/** 拉取 assert/condition 上游接口响应 schema，做保存前路径门禁（example 不参与硬拦） */
-async function loadAssertPathDesignIssues(graph: {
-  nodes?: Array<Record<string, unknown>>;
-  edges?: Array<Record<string, unknown>>;
-}): Promise<{ errors: string[]; warnings: string[] }> {
-  const nodes = graph.nodes ?? [];
-  const edges = graph.edges ?? [];
-  const apiIds = new Set<string>();
-  for (const node of nodes) {
-    const type = String(node.type ?? '').trim().toLowerCase();
-    if (type !== 'assert' && type !== 'condition') continue;
-    const apiId = resolveTrialApiId(
-      node as { id?: string; type?: string; data?: Record<string, unknown> },
-      nodes as never,
-      edges as never,
-    );
-    if (apiId) apiIds.add(apiId);
-  }
-  const schemaPathsByApiId = new Map<string, string[]>();
-  await Promise.all(
-    [...apiIds].map(async (apiId) => {
-      const detail = await resolveCanvasApiDetail(apiId);
-      schemaPathsByApiId.set(apiId, extractResponseSchemaPaths(detail?.responseConfig));
-    }),
-  );
-  return collectAssertPathDesignIssues(graph, schemaPathsByApiId);
 }

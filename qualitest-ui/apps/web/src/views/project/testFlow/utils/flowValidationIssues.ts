@@ -1,6 +1,7 @@
 /**
- * 画布校验条用的结构化问题：文案、严重级别、可定位节点 id、来源分类。
- * 来源含图结构校验、Staging 确认失败、API 语义告警。
+ * 画布校验条用的结构化问题。
+ * 每条含：严重级别、文案、可定位节点 id、来源分类
+ *（结构 / Staging 确认失败 / 运行风险 / API 语义）。
  */
 import type { GraphJson, GraphNode } from '@/utils/flow/graphTypes'
 import type { GraphValidationResult } from '@/utils/flow/graphValidate'
@@ -9,8 +10,8 @@ import { findStartNodeIds } from '@/utils/flow/graphValidate'
 import type { AiStagingUnit } from '../types/aiStagingTypes'
 import { objectIdFromUnitId } from './stagingUnitIds'
 
-/** 问题来源：结构校验 / Staging 确认 / API 健康探测 */
-export type FlowCanvasValidationIssueSource = 'structure' | 'staging' | 'apiHealth'
+/** 问题来源：结构校验 / Staging 确认 / 运行风险 / API 健康探测 */
+export type FlowCanvasValidationIssueSource = 'structure' | 'staging' | 'runRisk' | 'apiHealth'
 
 /** 单条画布校验问题 */
 export type FlowCanvasValidationIssue = {
@@ -78,7 +79,8 @@ export function issuesFromGraphValidation(
 
 /**
  * Staging 确认失败转问题列表。
- * 节点类单元挂到对应节点；边类单元挂到边的两端节点。
+ * 校验条每单元只出一条摘要（多条错误合并进文案）；
+ * 节点类挂到对应节点，边类挂到两端节点。
  */
 export function issuesFromStagingConfirmFailures(
   units: Iterable<AiStagingUnit>,
@@ -101,24 +103,48 @@ export function issuesFromStagingConfirmFailures(
       if (objectId) nodeIds = [objectId]
     }
     nodeIds = [...new Set(nodeIds.filter(Boolean))]
-    for (const message of unit.lastValidation.errors ?? []) {
+
+    const errors = unit.lastValidation.errors ?? []
+    const warnings = unit.lastValidation.warnings ?? []
+    if (errors.length) {
+      const first = errors[0]
+      const extra = errors.length - 1
       out.push({
         level: 'error',
-        message,
+        message:
+          extra > 0
+            ? `${first}（另有 ${extra} 项，见属性 Diff）`
+            : first,
         nodeIds,
         source: 'staging',
       })
-    }
-    for (const message of unit.lastValidation.warnings ?? []) {
+    } else if (warnings.length) {
+      const first = warnings[0]
+      const extra = warnings.length - 1
       out.push({
         level: 'warning',
-        message,
+        message:
+          extra > 0
+            ? `${first}（另有 ${extra} 项，见属性 Diff）`
+            : first,
         nodeIds,
         source: 'staging',
       })
     }
   }
   return out
+}
+
+/** 运行风险文案转问题列表（鉴权/登录抽取/HTTP 必填） */
+export function issuesFromRunRiskWarnings(messages: string[]): FlowCanvasValidationIssue[] {
+  return (messages ?? [])
+    .filter((m) => !!String(m ?? '').trim())
+    .map((message) => ({
+      level: 'error' as const,
+      message,
+      nodeIds: [] as string[],
+      source: 'runRisk' as const,
+    }))
 }
 
 /** API 健康探测告警转问题列表（有 nodeId 则可定位） */

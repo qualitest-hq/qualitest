@@ -26,12 +26,14 @@ import useAppStore from '@/store/modules/app'
 
 import FlowCanvasLayout from './FlowCanvasLayout.vue'
 import { useApiHealthDraftPreview } from './composables/useApiHealthDraftPreview'
+import { buildCanvasPersistGraph } from './composables/buildCanvasPersistGraph'
 import { useFlowGraph } from './composables/useFlowGraph'
 import { useProjectTabTitle } from './composables/useProjectTabTitle'
 import { resetProjectEnvs, useRunConfig } from './composables/useRunConfig'
 import { useApiHealthStore } from './stores/apiHealthStore'
 import { useFlowCanvasStore } from './stores/flowCanvasStore'
 import { useRunLibraryStore } from './stores/runLibraryStore'
+import { useRunRiskStore } from './stores/runRiskStore'
 
 const route = useRoute()
 const router = useRouter()
@@ -39,6 +41,7 @@ const appStore = useAppStore()
 const store = useFlowCanvasStore()
 const runLib = useRunLibraryStore()
 const apiHealth = useApiHealthStore()
+const runRisk = useRunRiskStore()
 const { loadFlow, saveFlow } = useFlowGraph()
 const { loadProjectEnvs } = useRunConfig()
 const { loadProjectName } = useProjectTabTitle(
@@ -57,11 +60,14 @@ function handleBack() {
   router.push(`/project/testProject/flows/${route.params.testProjectId}`)
 }
 
-/** 保存画布；成功后立刻再预检一次，刷新左上角 API 语义告警 */
+/** 保存画布；成功后只刷新 API 语义告警（运行风险已在 saveFlow 内写入） */
 async function handleSave() {
   const ok = await saveFlow()
   if (ok) {
-    await runPreview()
+    const id = String(store.testFlowId || '').trim()
+    if (id && !id.startsWith('tpl-') && store.canvasMode !== 'template') {
+      await apiHealth.preview(id, buildCanvasPersistGraph())
+    }
   }
 }
 
@@ -87,6 +93,7 @@ async function initFlow() {
   setSuspended(true)
   store.reset()
   apiHealth.clear()
+  runRisk.clear()
   resetProjectEnvs()
   store.testProjectId = testProjectId
   try {

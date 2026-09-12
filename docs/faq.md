@@ -18,9 +18,9 @@
 
 → [project-summary.md §4](./project-summary.md) · [flow-variables-and-values.md](./flow-variables-and-values.md)
 
-### 确认 Staging 或保存时报 `AUTH_*`
+### 确认 Staging 或运行时报 `AUTH_*`
 
-`AUTH_TOKEN_MISSING` / 登录 extract / HTTP 必填等 **只在保存硬拦**。Staging ✓ 能过、点保存才报 AUTH → 先查项目 Profile 托管头是否绑错端（如客户端误用 `adminAuth`）、再查登录 extract，不是 confirm bug。
+`AUTH_TOKEN_MISSING` / 登录 extract / HTTP 必填等 **只在运行硬拦**（保存可带错落盘）。Staging ✓ 能过、点保存也成功、点运行才报 AUTH → 先查项目 Profile 托管头是否绑错端（如客户端误用 `adminAuth`）、再查登录 extract，不是 confirm / 保存 bug。
 
 | 码 | 含义 | 处理 |
 | --- | --- | --- |

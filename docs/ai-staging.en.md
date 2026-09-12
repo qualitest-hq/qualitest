@@ -50,15 +50,16 @@ Web has typed `submit_*` unit writers, `upsert_asset_variables` (proposal → co
 
 | CODE | Hard? | When | Meaning |
 | ---- | ----- | ---- | ------- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | Yes | **Save** (submit/✓ soft; last-unit confirm may warn via `saveRiskWarnings`) | Login node missing extract for managed header target |
-| `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | **Save** (same) | Two logins write the same credential path |
-| `AUTH_TOKEN_MISSING` | Yes | **Save** (same; last-unit confirm may warn) | Bearer needed but no extract / assign / subflow output / **flowSeed** |
+| `AUTH_LOGIN_EXTRACT_MISSING` | Yes | **Run** (submit/✓/Save soft; last-unit confirm may warn via `saveRiskWarnings`) | Login node missing extract for managed header target |
+| `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | **Run** (same) | Two logins write the same credential path |
+| `AUTH_TOKEN_MISSING` | Yes | **Run** (same; last-unit confirm may warn) | Bearer needed but no extract / assign / subflow output / **flowSeed** |
 | `AUTH_HEADER_MANAGED` / `AUTH_LOGIN_NO_BEARER` | Soft | — | Managed header filled / stripped on anonymous login |
-| Bad assert path (`.items`, `http.body.$.…`) | Yes on that unit | **submit and Staging ✓** | See node docs |
+| Bad assert path (`.items`, `http.body.$.…`) | Yes on that unit | **submit and Staging ✓**; also **Run**; Save soft | See node docs |
 | Update empty array wipe (`rules`/`extracts`/`assignments`) | Yes | **submit / preparePatch** | Empty array vs non-empty baseline blocked |
 | condition `branches[].target` | — | stripped in normalize | Exits follow edges only |
 
-Before Save, the UI calls `/patch/savePrecheck`. Hydrate skips illegal units (missing id / bad type / missing update·delete target); edge rewires must surface warnings.
+**Save** only hard-blocks unparseable / minimal schema. **Run** readiness = structure + assert-path errors + `/patch/savePrecheck` (AUTH / login extract / HTTP required). Hydrate skips illegal units; edge rewires must surface warnings.
+
 
 Auth model: concept map §4. Variables / flowSeed: [flow-variables-and-values.en.md](./flow-variables-and-values.en.md).
 

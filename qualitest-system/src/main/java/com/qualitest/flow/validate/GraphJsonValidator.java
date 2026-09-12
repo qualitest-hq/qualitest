@@ -25,15 +25,11 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
- * 测试流画布 graph_json 结构校验（保存、确认合并、运行前）。
+ * 测试流画布 graph_json 结构校验。
  * <p>
- * 图级：节点/边、唯一开始节点、condition 分支与出边。<br>
- * HTTP：callMode、外联必填项；extracts 中 body 表达式须为可解析的 {@code $…} JsonPath。<br>
- * Assert / Condition：rules/branches 不可空；规则 left 非空、作用域合法、禁止 {@code http.body.$.…}、http.body 后缀 JsonPath 可解析。<br>
- * Assign：assignments 非空，name/op 合法。<br>
- * Delay：ms 可解析且不超过上限。<br>
- * Input：fields 非空，type/options 合法。<br>
- * Script / Subflow：language、subflowId 等。<br>
+ * 默认（完整）检查：节点/边形状、唯一开始节点、各节点类型字段、condition 分支出边、meta.scenarios。<br>
+ * 可选「仅落库地板」：只检查节点 id、边端点，允许半成品图写入数据库。<br>
+ * 可选「延后拓扑」：开始节点问题写入警告而非错误。<br>
  * {@code ok=true} 当且仅当 errors 为空。
  */
 @Component
@@ -60,7 +56,8 @@ public class GraphJsonValidator {
     }
 
     /**
-     * 带选项的图校验。Staging 分批确认时可延后拓扑结构规则。
+     * 按选项校验已解析的图。
+     * persistMinimalOnly 为 true 时只做落库地板；deferTopologyStructureRules 为 true 时开始节点问题降为警告。
      */
     public GraphValidationResult validate(GraphJson graph, GraphValidationOptions options) {
         GraphValidationOptions effective = options != null ? options : GraphValidationOptions.full();
@@ -68,6 +65,10 @@ public class GraphJsonValidator {
         List<String> warnings = new ArrayList<>();
         if (graph == null) {
             errors.add("根对象必须是 JSON 对象");
+            return GraphValidationResult.of(errors, warnings);
+        }
+        if (effective.isPersistMinimalOnly()) {
+            validatePersistMinimal(graph, errors, warnings);
             return GraphValidationResult.of(errors, warnings);
         }
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
@@ -85,6 +86,38 @@ public class GraphJsonValidator {
             warnings.add("nodes 为空，导入后将得到空白画布");
         }
         return GraphValidationResult.of(errors, warnings);
+    }
+
+    /**
+     * 落库地板校验：节点须有非空且不重复的 id；边须有 source/target。
+     * 不检查 callMode、开始节点、断言规则等字段级内容。
+     */
+    private void validatePersistMinimal(GraphJson graph, List<String> errors, List<String> warnings) {
+        List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
+        List<GraphEdge> edges = graph.getEdges() != null ? graph.getEdges() : List.of();
+        Set<String> ids = new HashSet<>();
+        for (int i = 0; i < nodes.size(); i++) {
+            GraphNode node = nodes.get(i);
+            String id = node != null ? node.getId() : null;
+            if (id == null || id.isBlank()) {
+                errors.add("nodes[" + i + "] 缺少 id");
+                continue;
+            }
+            if (!ids.add(id)) {
+                errors.add("nodes 存在重复 id：" + id);
+            }
+        }
+        for (int i = 0; i < edges.size(); i++) {
+            GraphEdge edge = edges.get(i);
+            if (edge == null
+                    || edge.getSource() == null || edge.getSource().isBlank()
+                    || edge.getTarget() == null || edge.getTarget().isBlank()) {
+                errors.add("edges[" + i + "] 缺少 source/target");
+            }
+        }
+        if (nodes.isEmpty()) {
+            warnings.add("nodes 为空，导入后将得到空白画布");
+        }
     }
 
     /**
@@ -274,7 +307,7 @@ public class GraphJsonValidator {
         }
 
         if (FlowNodeType.HTTP.matches(type)) {
-            validateHttpNodeFields(p, id, data, errors, warnings);
+            validateHttpNodeFields(p, id, data, errors);
         }
         if (FlowNodeType.ASSERT.matches(type)) {
             validateAssertNodeFields(p, id, data, errors);
@@ -298,7 +331,7 @@ public class GraphJsonValidator {
             validateInputNodeFields(p, id, data, errors);
         }
         validateScriptNodeFields(p, id, type, data, errors, warnings);
-        validateSubflowNodeFields(p, id, type, data, errors, warnings);
+        validateSubflowNodeFields(p, id, type, data, errors);
     }
 
     /** 校验 assert 节点：rules 非空；每条 left / JsonPath。 */
@@ -560,13 +593,15 @@ public class GraphJsonValidator {
         }
     }
 
+    /**
+     * 校验子流节点：须有 subflowId；versionPolicy 若填写须为 pinned 或 latest。
+     */
     private void validateSubflowNodeFields(
             String p,
             String id,
             String type,
             Map<String, Object> data,
-            List<String> errors,
-            List<String> warnings
+            List<String> errors
     ) {
         if (!FlowNodeType.SUBFLOW.matches(type)) {
             return;
@@ -586,12 +621,15 @@ public class GraphJsonValidator {
         }
     }
 
+    /**
+     * 校验 HTTP 节点：callMode、外联必填、extracts 的 JsonPath。
+     * project 模式未绑定接口不在此告警。
+     */
     private void validateHttpNodeFields(
             String p,
             String id,
             Map<String, Object> data,
-            List<String> errors,
-            List<String> warnings
+            List<String> errors
     ) {
         String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
         Object callModeObj = data != null ? data.get("callMode") : null;
@@ -605,9 +643,7 @@ public class GraphJsonValidator {
             return;
         }
         if (FlowHttpCallMode.isProject(callMode)) {
-            if (!hasTestProjectApiId(data)) {
-                warnings.add("HTTP 节点「" + name + "」未绑定 testProjectApiId");
-            }
+            // project 模式未绑接口不在此告警（由 API 语义健康检查另行提示）
             validateHttpExtracts(p, name, data, errors);
             return;
         }

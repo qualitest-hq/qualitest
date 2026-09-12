@@ -1,7 +1,9 @@
 /**
- * 测试流图 JSON 结构校验（设计态）。
+ * 测试流图 JSON 结构校验。
  *
- * 检查节点类型、边、开始节点、HTTP 绑定、条件分支等结构问题，产出 errors / warnings。
+ * 默认检查节点类型、边、开始节点、HTTP/断言等字段，产出 errors / warnings。
+ * 可选 persistMinimalOnly：只检查节点 id 与边端点，用于允许半成品落盘。
+ * 可选 deferTopologyStructureRules：开始节点问题降为警告。
  */
 import {
   isValidJsonPath,
@@ -57,10 +59,15 @@ export function rewriteStartNodeErrorForPendingEdges(error: string): string {
 
 export type ValidateGraphJsonOptions = {
   /**
-   * 为 true 时：开始节点唯一性失败写入 warnings 而非 errors。
-   * 用于 Staging 尚有未确认连线、落盘过滤图拓扑暂不可信的场景。
+   * true：开始节点不唯一/缺失时写入 warnings，不写入 errors。
+   * 用于尚有未确认连线、落盘过滤图拓扑暂不可信。
    */
   deferTopologyStructureRules?: boolean;
+  /**
+   * true：只做落库地板（nodes/edges 为数组、节点 id、边端点），
+   * 不检查 callMode、开始节点、断言规则等字段细节。
+   */
+  persistMinimalOnly?: boolean;
 };
 
 /** 从 graph_json / graphJson 包装中取出图对象 */
@@ -160,7 +167,6 @@ function validateHttpNodeFields(
   id: string | undefined,
   data: Record<string, unknown> | undefined,
   errors: string[],
-  warnings: string[],
 ): void {
   const name = data?.name != null ? String(data.name) : id;
   const callModeRaw = data?.callMode;
@@ -174,9 +180,7 @@ function validateHttpNodeFields(
     return;
   }
   if (callMode === 'project') {
-    if (!hasTestProjectApiId(data)) {
-      warnings.push(`HTTP 节点「${name}」未绑定 testProjectApiId`);
-    }
+    // project 模式未绑接口不在此告警（由 API 语义健康检查另行提示）
     validateHttpExtracts(p, name, data, errors);
     return;
   }
@@ -398,7 +402,6 @@ function validateSubflowNodeFields(
   id: string | undefined,
   data: Record<string, unknown> | undefined,
   errors: string[],
-  _warnings: string[],
 ): void {
   const name = data?.name != null ? String(data.name) : id;
   const subflowId = data?.subflowId;
@@ -471,7 +474,7 @@ function validateNodeFields(
   }
 
   if (type === 'http') {
-    validateHttpNodeFields(p, id, node.data, errors, warnings);
+    validateHttpNodeFields(p, id, node.data, errors);
   }
   if (type === 'assert') {
     validateAssertNodeFields(p, id, node.data, errors);
@@ -495,7 +498,7 @@ function validateNodeFields(
     validateInputNodeFields(p, id, node.data, errors);
   }
   if (type === 'subflow') {
-    validateSubflowNodeFields(p, id, node.data, errors, warnings);
+    validateSubflowNodeFields(p, id, node.data, errors);
   }
   if (type === 'script') {
     validateScriptNodeFields(p, id, node.data, errors, warnings);
@@ -537,7 +540,7 @@ function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): v
   }
 }
 
-/** 校验测试流图 JSON 结构，返回 errors / warnings 列表 */
+/** 校验测试流图 JSON；按 options 选择完整规则或仅落库地板 */
 export function validateGraphJson(
   raw: unknown,
   options?: ValidateGraphJsonOptions,
@@ -545,6 +548,7 @@ export function validateGraphJson(
   const errors: string[] = [];
   const warnings: string[] = [];
   const deferTopology = options?.deferTopologyStructureRules === true;
+  const persistMinimal = options?.persistMinimalOnly === true;
 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, errors: ['根对象必须是 JSON 对象'], warnings };
@@ -557,6 +561,40 @@ export function validateGraphJson(
   if (!Array.isArray(nodes)) errors.push('缺少 nodes 数组');
   if (!Array.isArray(edges)) errors.push('缺少 edges 数组');
   if (errors.length) return { ok: false, errors, warnings };
+
+  if (persistMinimal) {
+    const nodeIds = new Set<string>();
+    (nodes as GraphNode[]).forEach((node, i) => {
+      const p = `nodes[${i}]`;
+      if (!node || typeof node !== 'object') {
+        errors.push(`${p} 不是有效对象`);
+        return;
+      }
+      const id = node.id;
+      if (!id || typeof id !== 'string' || !id.trim()) {
+        errors.push(`${p} 缺少 id`);
+        return;
+      }
+      if (nodeIds.has(id)) {
+        errors.push(`nodes 存在重复 id：${id}`);
+      } else {
+        nodeIds.add(id);
+      }
+    });
+    (edges as GraphEdge[]).forEach((edge, i) => {
+      const p = `edges[${i}]`;
+      if (!edge || typeof edge !== 'object') {
+        errors.push(`${p} 不是有效对象`);
+        return;
+      }
+      if (!edge.source) errors.push(`${p} 缺少 source`);
+      if (!edge.target) errors.push(`${p} 缺少 target`);
+    });
+    if (!(nodes as GraphNode[]).length) {
+      warnings.push('nodes 为空，导入后将得到空白画布');
+    }
+    return { ok: errors.length === 0, errors, warnings };
+  }
 
   const nodeIds = new Set<string>();
   (nodes as GraphNode[]).forEach((node, i) => {

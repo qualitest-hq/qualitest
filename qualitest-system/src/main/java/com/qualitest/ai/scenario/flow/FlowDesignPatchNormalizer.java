@@ -18,6 +18,7 @@ import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
 import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.AuthTokenPresenceGate;
+import com.qualitest.flow.validate.DesignAuthRiskGates;
 import com.qualitest.flow.validate.HttpRequiredParamGate;
 import com.qualitest.flow.validate.LoginExtractPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
@@ -300,19 +301,20 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 保存前预检：汇总鉴权凭证是否齐全、登录口是否已抽取、HTTP 必填测值是否缺失。
-     * 不写库；错误文案带 CODE 前缀，供前端在点保存前展示。
+     * 运行风险预检：检查鉴权凭证来源、登录口抽取、HTTP 必填测值。
+     * 不写库；错误不阻断保存，只返回文案列表。
      */
     public FlowDesignSavePrecheckResult savePrecheck(GraphJson graph, Long testProjectId) {
-        List<String> errors = new ArrayList<>();
-        if (graph != null) {
-            errors.addAll(collectAuthTokenPresenceErrors(graph, testProjectId));
-            errors.addAll(collectLoginExtractPresenceErrors(graph, testProjectId));
-            errors.addAll(collectHttpRequiredParamErrors(graph));
-        }
+        List<String> errors = graph == null
+                ? List.of()
+                : DesignAuthRiskGates.collect(
+                        graph,
+                        loadProjectAuthConfig(testProjectId),
+                        apiResolver(),
+                        subflowGraphResolver());
         return FlowDesignSavePrecheckResult.builder()
                 .ok(errors.isEmpty())
-                .errors(errors)
+                .errors(new ArrayList<>(errors))
                 .build();
     }
 

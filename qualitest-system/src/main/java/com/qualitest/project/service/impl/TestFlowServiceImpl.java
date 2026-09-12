@@ -5,35 +5,27 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.function.Function;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import com.qualitest.project.mapper.TestFlowMapper;
-import com.qualitest.project.mapper.TestProjectApiMapper;
-import com.qualitest.project.mapper.TestProjectMapper;
-import com.qualitest.project.domain.TestFlow;
-import com.qualitest.project.domain.TestProject;
-import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
-import com.qualitest.flow.validate.AssertPathDesignGate;
-import com.qualitest.flow.validate.AuthTokenPresenceGate;
-import com.qualitest.flow.validate.HttpRequiredParamGate;
-import com.qualitest.flow.validate.LoginExtractPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
+import com.qualitest.project.domain.TestFlow;
+import com.qualitest.project.mapper.TestFlowMapper;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
 import com.qualitest.project.params.TestFlowParams;
 import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Objects;
 
 /**
  * 测试流Service业务层处理
- * 
+ *
  * @author qualitest
  * @date 2026-06-05
  */
@@ -44,13 +36,6 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     @Autowired
     private GraphJsonValidator graphJsonValidator;
-
-    @Autowired
-    private TestProjectApiMapper testProjectApiMapper;
-
-    /** 读取项目鉴权配置（auth_config），供保存前检查 token 来源 */
-    @Autowired
-    private TestProjectMapper testProjectMapper;
 
     /**
      * 查询测试流列表
@@ -108,7 +93,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
         if (Objects.isNull(testFlow.getTestFlowId())) {
             testFlow.setTestFlowId(IdUtil.getSnowflakeNextId());
         }
-        validateGraphJsonForPersist(testFlow.getGraphJson(), testFlow.getTestProjectId());
+        validateGraphJsonForPersist(testFlow.getGraphJson());
         testFlow.setCreateTime(DateUtils.getNowDate());
         return testFlowMapper.insertTestFlow(testFlow);
     }
@@ -122,26 +107,18 @@ public class TestFlowServiceImpl implements ITestFlowService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateTestFlow(TestFlow testFlow) {
-        // 请求体可能未带 testProjectId，从已有流记录补全，以便做鉴权 token 来源检查
-        Long projectId = testFlow.getTestProjectId();
-        if (projectId == null && testFlow.getTestFlowId() != null) {
-            TestFlow existing = testFlowMapper.selectTestFlowById(testFlow.getTestFlowId());
-            if (existing != null) {
-                projectId = existing.getTestProjectId();
-            }
-        }
-        validateGraphJsonForPersist(testFlow.getGraphJson(), projectId);
+        validateGraphJsonForPersist(testFlow.getGraphJson());
         testFlow.setUpdateTime(DateUtils.getNowDate());
         return testFlowMapper.updateTestFlow(testFlow);
     }
 
     /**
-     * 写库前校验 graph_json：
-     * 图结构规则、断言路径合法性、需登录节点是否已有对应端 token 来源、
-     * 成功路径 HTTP 是否缺少必填测值。
-     * 任一检查失败则抛错，拒绝落库。graphJson 为空时跳过（仅改名称等元数据）。
+     * 写库前校验 graph_json。
+     * 仅拒绝：无法解析、节点缺 id / id 重复、边缺 source/target。
+     * 不拒绝：开始节点异常、断言路径错误、鉴权缺失、HTTP 缺必填等（允许半成品落盘）。
+     * graphJson 为空时跳过（只改名称等元数据时可不带图）。
      */
-    private void validateGraphJsonForPersist(String graphJson, Long testProjectId) {
+    private void validateGraphJsonForPersist(String graphJson) {
         if (StrUtil.isBlank(graphJson)) {
             return;
         }
@@ -151,47 +128,19 @@ public class TestFlowServiceImpl implements ITestFlowService {
         } catch (Exception e) {
             throw new ServiceException("graph_json 无法解析：" + e.getMessage());
         }
-        GraphValidationResult validation = graphJsonValidator.validate(graph);
-        List<String> errors = new ArrayList<>(validation.getErrors());
-        Function<Long, TestProjectApi> apiResolver = testProjectApiMapper::selectTestProjectApiById;
-        // schema 缺字段仅为警告，保存不拦截
-        errors.addAll(AssertPathDesignGate.validate(graph, apiResolver).errors());
-        String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        Function<Long, GraphJson> subflowResolver = id -> {
-            TestFlow sub = testFlowMapper.selectTestFlowById(id);
-            if (sub == null || StrUtil.isBlank(sub.getGraphJson())) {
-                return null;
-            }
-            try {
-                return GraphJson.parse(sub.getGraphJson());
-            } catch (Exception e) {
-                return null;
-            }
-        };
-        errors.addAll(AuthTokenPresenceGate.validate(graph, projectAuthJson, apiResolver, subflowResolver));
-        errors.addAll(LoginExtractPresenceGate.validate(graph, projectAuthJson, apiResolver));
-        // 成功路径 HTTP 缺必填测值则拒绝保存
-        errors.addAll(HttpRequiredParamGate.validate(graph, apiResolver));
-        if (!errors.isEmpty()) {
-            throw new ServiceException(errors.get(0));
+        if (graph == null) {
+            throw new ServiceException("graph_json 无法解析：解析结果为空");
         }
-    }
-
-    /**
-     * 读取测试项目的鉴权配置 JSON（auth_config）。
-     * 无项目 id 或项目不存在时返回 null，此时不做 token 来源检查。
-     */
-    private String loadProjectAuthConfig(Long testProjectId) {
-        if (testProjectId == null) {
-            return null;
+        GraphValidationResult validation =
+                graphJsonValidator.validate(graph, GraphValidationOptions.persistMinimal());
+        if (!validation.isOk() && !validation.getErrors().isEmpty()) {
+            throw new ServiceException(validation.getErrors().get(0));
         }
-        TestProject project = testProjectMapper.selectTestProjectById(testProjectId);
-        return project != null ? project.getAuthConfig() : null;
     }
 
     /**
      * 批量删除测试流
-     * 
+     *
      * @param testFlowIdList 需要删除的测试流主键集合
      * @return 结果
      */
@@ -202,7 +151,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     /**
      * 删除测试流信息
-     * 
+     *
      * @param testFlowId 测试流主键
      * @return 结果
      */
@@ -213,7 +162,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     /**
      * 逻辑删除测试流信息
-     * 
+     *
      * @param testFlowId 测试流主键
      * @return 结果
      */
@@ -224,7 +173,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     /**
      * 批量逻辑删除测试流信息
-     * 
+     *
      * @param testFlowIdList 测试流主键集合
      * @return 结果
      */

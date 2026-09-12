@@ -9,6 +9,7 @@ import { ElMessage } from 'element-plus';
 
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
+import { useRunRiskStore } from '../stores/runRiskStore';
 import { isAutoSaveAfterConfirm } from '../utils/aiDesignPreferences';
 import { listReadyPendingUnitIds } from '../utils/listReadyPendingUnits';
 import { collectStagingConfirmHighlightIds } from '../utils/mergeHighlight';
@@ -163,7 +164,7 @@ export function useAiStagingConfirm() {
   /**
    * 单单元确认核心（须由调用方持有 busy 占坑）。
    * 返回 ok / failed / aborted（缺 patch、依赖阻断、缺项目 id 等未发起确认）。
-   * 成功且响应带保存风险文案时 toast 提示（quiet 模式除外）。
+   * 成功且响应带运行风险文案时写入校验条，不弹 toast。
    */
   async function confirmUnitCore(
     unitId: string,
@@ -225,14 +226,9 @@ export function useAiStagingConfirm() {
           return;
         }
 
-        if (result.saveRiskWarnings?.length && !opts.quiet) {
-          // 末单元确认成功但仍有保存风险：toast 提示首条及剩余条数
-          ElMessage.warning(
-            `单元已确认；保存前请留意：${result.saveRiskWarnings[0]}`
-              + (result.saveRiskWarnings.length > 1
-                ? `（另有 ${result.saveRiskWarnings.length - 1} 项）`
-                : ''),
-          );
+        if (result.saveRiskWarnings?.length) {
+          // 末单元确认成功但仍有运行风险：写入校验条，不弹 toast
+          useRunRiskStore().setWarnings(result.saveRiskWarnings);
         }
 
         const applied = await applyConfirmResultWithHashGuard(

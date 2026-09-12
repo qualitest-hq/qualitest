@@ -25,9 +25,8 @@ import com.qualitest.project.result.SnapshotStackItemResult;
 import com.qualitest.flow.run.RunBootstrapMeta;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
-import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.http.FlowExternalPermission;
-import com.qualitest.flow.validate.GraphValidationResult;
+import com.qualitest.flow.validate.FlowRunReadinessGate;
 import com.qualitest.project.enums.TestProjectMemberRole;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestFlowRun;
@@ -56,9 +55,9 @@ import java.util.stream.Collectors;
 /**
  * 测试流 Run 编排服务。
  * <p>
- * {@link #triggerRun}：校验成员与图 → 解析/校验 graph_json → 解析场景 → 固化 snapshot →
- * 创建 Run 记录 → 同步调用 {@link TestFlowExecutor}。
- * {@link #getRunDetail}：返回 Run 头 + 按 step_index 排序的步骤列表。
+ * 触发运行：校验成员 → 解析图 → 运行就绪检查（结构/断言路径/鉴权/必填）→ 解析场景与环境 →
+ * 写入 Run 快照 → 同步执行。<br>
+ * 查询详情：返回 Run 头与按 step_index 排序的步骤列表。
  */
 @Service
 @RequiredArgsConstructor
@@ -72,7 +71,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     private final TestProjectMapper testProjectMapper;
     private final TestFlowExecutor testFlowExecutor;
     private final StepResultWriter stepResultWriter;
-    private final GraphJsonValidator graphJsonValidator = new GraphJsonValidator();
+    private final FlowRunReadinessGate flowRunReadinessGate;
 
     @Override
     public Long triggerRun(TriggerTestFlowRunParams params) {
@@ -91,7 +90,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
 
         TestProjectMemberRole memberRole = testProjectMemberService.getCheckProjectMemberRole(testFlow.getTestProjectId());
 
-        // 2. 图解析与结构校验（失败则不创建 Run）
+        // 2. 解析图并做运行就绪检查；未通过则不创建 Run 记录
         GraphJson graph;
         try {
             graph = GraphJson.parse(testFlow.getGraphJson());
@@ -102,11 +101,12 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID, "图解析失败: " + e.getMessage());
         }
 
-        GraphValidationResult validation = graphJsonValidator.validate(graph);
-        if (!validation.isOk()) {
+        List<String> readinessErrors =
+                flowRunReadinessGate.collectBlockingErrors(graph, testFlow.getTestProjectId());
+        if (!readinessErrors.isEmpty()) {
             throw new FlowExecutionException(
                     FlowErrorCode.TF_GRAPH_INVALID,
-                    String.join("; ", validation.getErrors())
+                    String.join("; ", readinessErrors)
             );
         }
 

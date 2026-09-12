@@ -79,7 +79,7 @@ Configured in project settings → auth. Shared by Normalizer, Run, and debug.
 
 **Match:** `authProfileId` if set; else longest `pathPrefix`; else first profile. **`pathPrefix="/"` forbidden.**
 
-Login extracts align with **Profile.`loginHint`** when the API matches `credentialApi` → `flow.token` / `flow.adminToken`, …. Hard blocks on **Save** only (`AUTH_LOGIN_EXTRACT_MISSING`, `AUTH_TOKEN_MISSING`, `AUTH_LOGIN_FLOWKEY_COLLISION`); AI `submit_*` / Staging ✓ skip them. Uploads change API schema/`mode` only, not Profile hints.
+Login extracts align with **Profile.`loginHint`** when the API matches `credentialApi` → `flow.token` / `flow.adminToken`, …. Hard blocks on **Run** only (`AUTH_LOGIN_EXTRACT_MISSING`, `AUTH_TOKEN_MISSING`, `AUTH_LOGIN_FLOWKEY_COLLISION`); AI `submit_*` / Staging ✓ / **Save** skip them. Uploads change API schema/`mode` only, not Profile hints.
 
 | Side | Typical path | Extract |
 | ---- | ------------ | ------- |

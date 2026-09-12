@@ -63,9 +63,9 @@
                     type="text"
                 />
               </div>
-              <ul v-if="nodeHealthWarnings.length" class="http-modal__health">
-                <li v-for="(w, i) in nodeHealthWarnings" :key="i">{{ w.message || w.detail || w.code }}</li>
-              </ul>
+              <p v-if="nodeHealthWarnings.length" class="http-modal__health-hint">
+                有 {{ nodeHealthWarnings.length }} 条 API 语义告警，详见右侧属性面板
+              </p>
               <nav class="debug-inner-tablist">
                 <button
                     v-for="tab in workbenchTabs"
@@ -581,16 +581,14 @@ watch(
   flex-shrink: 0;
 }
 
-.http-modal__health {
-  /* 本节点语义告警条：孤儿测值、抽取路径等 */
-  margin: 0 0 8px;
-  padding: 8px 10px 8px 24px;
-  border-radius: 6px;
+.http-modal__health-hint {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: 4px;
   background: #fffbeb;
-  border: 1px solid #fde68a;
   color: #a16207;
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.4;
   flex-shrink: 0;
 }
 

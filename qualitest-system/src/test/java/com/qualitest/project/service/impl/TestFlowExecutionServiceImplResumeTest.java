@@ -10,6 +10,7 @@ import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
 import com.qualitest.flow.snapshot.SnapshotStackEntry;
+import com.qualitest.flow.validate.FlowRunReadinessGate;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestProjectEnv;
@@ -83,7 +84,8 @@ class TestFlowExecutionServiceImplResumeTest {
                 testProjectMemberService,
                 null,
                 testFlowExecutor,
-                stepResultWriter
+                stepResultWriter,
+                mock(FlowRunReadinessGate.class)
         );
 
         LoginUser loginUser = mock(LoginUser.class);

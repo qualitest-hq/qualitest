@@ -14,7 +14,7 @@ Usually: wrong login extract path (admin `$.token`→`adminToken`, client `$.dat
 
 ### Staging / save: `AUTH_*` codes
 
-Hard blocks for token / login-extract / HTTP-required run on **Save** only — Staging ✓ can pass and Save still fail with AUTH. Check Profile `headerValueTemplate` (wrong side e.g. client using `adminAuth`) and login extracts first; not a confirm bug.
+Hard blocks for token / login-extract / HTTP-required run on **Run** only — Staging ✓ and Save can succeed while Run still fails with AUTH. Check Profile `headerValueTemplate` (wrong side e.g. client using `adminAuth`) and login extracts first; not a confirm/save bug.
 
 | Code | Fix |
 | ---- | --- |

@@ -1,12 +1,10 @@
 /**
- * 画布 API 语义预检调度。
+ * 画布预检调度：API 语义 + 运行风险（鉴权/必填）。
  *
- * 功能：监听画布节点/边/运行配置/Staging 变化，防抖后把当前页面图发给后端预检，
- * 结果写入 apiHealthStore，从而刷新左上角「API 语义」校验条。
- * 打开画布、手动保存成功后也可立刻调用 runPreview。
- * <p>
- * 加载流期间应 setSuspended(true)，避免 loadFlow 写节点触发 watch，
- * 与 init 结束时的主动 runPreview 叠成两次相同 POST。
+ * 监听节点/边/运行配置/Staging 变化，防抖后用当前页面图请求预检，
+ * 结果分别写入 apiHealthStore 与 runRiskStore，刷新左上角校验条。
+ * 打开画布、加载完成后应主动 runPreview 一次。
+ * 加载流期间 setSuspended(true)，避免写节点触发的 watch 与主动预检叠成两次请求。
  */
 import { onBeforeUnmount, watch, type Ref } from 'vue'
 
@@ -14,8 +12,9 @@ import { buildCanvasPersistGraph } from './buildCanvasPersistGraph'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useApiHealthStore } from '../stores/apiHealthStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
+import { useRunRiskStore } from '../stores/runRiskStore'
 
-/** 防抖间隔（毫秒）：连续拖拽/编辑时合并为一次预检请求 */
+/** 防抖间隔（毫秒）：连续拖拽/编辑时合并为一次预检 */
 const PREVIEW_DEBOUNCE_MS = 400
 
 /**
@@ -25,6 +24,7 @@ export function useApiHealthDraftPreview(testFlowId: Ref<string>) {
   const store = useFlowCanvasStore()
   const stagingStore = useAiStagingStore()
   const apiHealth = useApiHealthStore()
+  const runRisk = useRunRiskStore()
 
   let timer: ReturnType<typeof setTimeout> | null = null
   /** true 时忽略 watch，避免加载期重复预检 */
@@ -49,24 +49,32 @@ export function useApiHealthDraftPreview(testFlowId: Ref<string>) {
   }
 
   /**
-   * 立刻用当前页面图做一次预检（跳过防抖，并取消已排队的定时预检）。
-   * 典型时机：画布加载完成、用户点击保存成功后。
+   * 立刻用当前页面图做一次预检（取消已排队的定时预检）。
+   * 同时刷新 API 语义告警与运行风险（鉴权/必填）列表。
    */
   async function runPreview() {
     clearTimer()
     if (store.canvasMode === 'template') {
       apiHealth.clear()
+      runRisk.clear()
       return
     }
     const id = String(testFlowId.value || store.testFlowId || '').trim()
     if (!id || id.startsWith('tpl-')) {
       apiHealth.clear()
+      runRisk.clear()
       return
     }
-    await apiHealth.preview(id, buildCanvasPersistGraph())
+    const graph = buildCanvasPersistGraph()
+    await Promise.all([
+      apiHealth.preview(id, graph),
+      store.testProjectId
+        ? runRisk.preview(String(store.testProjectId), graph)
+        : Promise.resolve(runRisk.clear()),
+    ])
   }
 
-  /** 排队一次预检：重置定时器，安静 PREVIEW_DEBOUNCE_MS 后再请求 */
+  /** 排队一次预检：安静 PREVIEW_DEBOUNCE_MS 后再请求 */
   function schedulePreview() {
     if (suspended) return
     clearTimer()
@@ -77,7 +85,7 @@ export function useApiHealthDraftPreview(testFlowId: Ref<string>) {
     }, PREVIEW_DEBOUNCE_MS)
   }
 
-  // 图结构或 Staging 待确认项变化时重新预检
+  // 图或 Staging 变化时重新预检
   watch(
     () => [
       store.nodes,
