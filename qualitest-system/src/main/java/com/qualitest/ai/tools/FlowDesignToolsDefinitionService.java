@@ -123,8 +123,9 @@ public class FlowDesignToolsDefinitionService {
     }
 
     /**
-     * Web Agent 本轮工具列表。
-     * autopilotEnabled=false 时剔除 run_test_flow。
+     * 按是否全自动返回 Web Agent 本轮可用工具定义。
+     * false：去掉 run_test_flow（半自动不能跑流）。
+     * true：保留全部 Web 工具含 run_test_flow。
      */
     public List<Map<String, Object>> loadToolsDefinition(boolean autopilotEnabled) {
         List<Map<String, Object>> all = loadToolsDefinition();

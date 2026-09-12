@@ -8,11 +8,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 单轮 AI 设计里素材库写入提案的内存容器。
+ * 单轮 AI 设计里素材库写入的内存容器。
  * <p>
- * upsert 工具只把提案记入本容器，不写数据库；
- * 本轮 Agent 结束后，编排层把提案列表写入接口响应和助手消息元数据。
- * 同一 key 多次调用时，后一次覆盖前一次。每轮设计请求新建一个实例，用完即弃。
+ * 半自动：upsert 只记提案（status=pending），不写数据库；Agent 结束后提案进入助手消息元数据，
+ * 用户在聊天侧确认后再真正 insert/update。
+ * 全自动：upsert 工具内已写库，此处记 status=confirmed，供回执与前端展示「已写入」。
+ * 同一 key 多次调用时后一次覆盖前一次。每轮设计请求新建实例。
  */
 @Getter
 public class AssetUpsertCapture {

@@ -24,9 +24,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 全自动：触发当前测试流 Run，返回状态与失败摘要。
+ * 全自动专用工具：触发当前测试流 Run，返回 runId、status、失败摘要。
  * <p>
- * 跑流前若有未落盘的 submit_* 累积，会先隐式落盘再跑（无需模型调 commit）。
+ * 仅当上下文 autopilotEnabled=true 时可调用；半自动会直接拒绝。
+ * 若本轮 SubmitCapture 仍有已接受但未写库的单元，会先隐式落盘再 triggerRun。
+ * 失败时附带 failures，提示模型用 submit_* 修复后再跑（失败后再修最多 2 轮）。
  */
 @RequiredArgsConstructor
 public class RunTestFlowTool implements QualitestTool {
@@ -45,6 +47,7 @@ public class RunTestFlowTool implements QualitestTool {
 
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
+        // 半自动：拒绝；模板流：拒绝
         if (ctx == null || !ctx.isAutopilotEnabled()) {
             return FlowDesignToolSupport.errorJson("当前为半自动，不能调用 run_test_flow；请用户切换到全自动");
         }
@@ -54,12 +57,13 @@ public class RunTestFlowTool implements QualitestTool {
         if (ctx.getTestFlowId() == null) {
             return FlowDesignToolSupport.errorJson("缺少 testFlowId");
         }
+        // 半自动遗留的 pending 素材提案会挡住跑流（全自动 upsert 应为 confirmed）
         if (ctx.getAssetUpsertCapture() != null && ctx.getAssetUpsertCapture().hasPendingProposals()) {
             return FlowDesignToolSupport.errorJson(
                     "尚有未确认的素材库提案，请先让用户确认后再 run");
         }
 
-        // 有未落盘 submit_* 时先隐式落盘，再跑库中图
+        // 有未落盘 submit_* 时先写库，再跑库中最新图
         boolean autoCommitted = false;
         if (ctx.getSubmitCapture() != null && ctx.getSubmitCapture().hasAccepted()) {
             FlowDesignAutopilotCommitSupport.CommitOutcome commit =

@@ -40,13 +40,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 测试流 AI 设计编排：跑 Agent、收集画布修改建议与素材库写入提案、落库助手消息并返回结果。
+ * 测试流 AI 设计编排：跑 Agent、收集画布单元与素材提案、写助手消息并返回结果。
  * <p>
- * 模型通过多次 submit_* 每次提交一个 Staging 单元；本类用 SubmitCapture 累积成功单元。
- * 本轮无一成功单元则 explainOnly=true（纯答疑，不灌 Staging）。
- * 步数耗尽但已有累积单元时仍返回已接受 patch，避免整轮作废。
- * 画布建议与素材提案默认不自动写业务库，也不自动触发 Run。
- * 仅当请求 autopilotEnabled 时注入 run_test_flow；落盘为隐式（run 前 / 回合结束）。
+ * 半自动（默认）：模型多次 submit_* 每次产出一个 Staging 单元，本类用 SubmitCapture 累积；
+ * 本轮无成功单元则 explainOnly=true（纯答疑，不灌 Staging）；步数耗尽但已有单元时仍返回已接受 patch。
+ * 画布与素材不自动写业务库，也不自动 Run；前端 Staging ✓ → 保存 → Run。
+ * <p>
+ * 全自动（请求 autopilotEnabled=true）：工具列表注入 run_test_flow；素材 upsert 工具内直写；
+ * 改图在 run 前或回合结束时隐式写入 test_flow；落盘失败抛 LlmClientException。
+ * 模板设计模式强制关闭全自动。
  */
 @Service
 @RequiredArgsConstructor
@@ -75,7 +77,9 @@ public class TestFlowDesignAgent {
     }
 
     /**
-     * 流式/同步共用：可选 {@link AgentRunListener} 推送 token 与 tool 事件。
+     * 流式/同步共用入口。
+     *
+     * @param listener 可选；用于推送 token、思考链、工具起止、以及全自动落盘后的 graphCommitted
      */
     public TestFlowDesignResult design(TestFlowDesignRequest request, Long userId, AgentRunListener listener) {
         return executeDesign(request, userId, listener);
@@ -157,7 +161,7 @@ public class TestFlowDesignAgent {
             }
         }
 
-        // 全自动：回合结束若仍有未落盘 submit_*，隐式落盘（直接走 Support，不经空壳工具）
+        // 全自动：回合结束若仍有未落盘 submit_*，直接隐式写库；失败则中断本轮
         if (autopilot && submitCapture.hasAccepted()) {
             FlowDesignAutopilotCommitSupport.CommitOutcome outcome =
                     FlowDesignAutopilotCommitSupport.commitIfNeeded(

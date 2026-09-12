@@ -1,5 +1,8 @@
 /**
- * AI API 助手状态与业务逻辑：patch Diff 勾选与合并写入工作台。
+ * AI API 助手状态与业务逻辑：会话、流式生成、Diff 勾选、合并进工作台草稿。
+ * <p>
+ * 半自动：用户勾选 Diff 后「应用到工作台」。
+ * 全自动：SSE 结束后自动全选并 merge；只改内存 apiDetail，不调用接口保存。
  */
 import { type Ref } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -177,7 +180,7 @@ export function useApiAi(
     onAfterSessionLoaded: eagerLoadActivePatch,
   });
 
-  /** 发起一次设计请求：流式调用、刷新会话 id 与消息列表。 */
+  /** 发起一次设计请求：流式调用、追加助手消息；全自动时立即合并 Diff 到工作台。 */
   async function executeDesignRequest(prompt: string) {
     designing.value = true;
     try {

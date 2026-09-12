@@ -10,10 +10,11 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * 接收模型提交的设计 patch：规范化校验后写入 SubmitCapture，不写库。
+ * 接收模型提交的 API 设计增量 patch：规范化校验后写入 SubmitCapture，本工具不写接口库。
  * <p>
- * 半自动：等待前端 Diff 确认；全自动：前端自动应用到工作台草稿（仍不写接口库）。
- * 校验失败时返回 errors，提示模型修正后再次 submit。
+ * 半自动：回执提示等待用户在 Diff 区确认应用。
+ * 全自动：回执提示前端将自动合并进工作台草稿，勿催用户勾选；保存接口库仍须用户在设计页操作。
+ * 同轮多次 submit 后者覆盖前者（replacedPrevious=true）。校验失败返回 errors，模型应修正后重调。
  */
 @RequiredArgsConstructor
 public class SubmitApiDesignPatchTool implements ApiDesignTool {

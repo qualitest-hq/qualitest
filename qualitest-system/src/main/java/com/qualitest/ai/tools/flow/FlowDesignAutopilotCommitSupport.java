@@ -17,9 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 全自动隐式落盘：将本轮已接受的 submit_* 工作图写入 test_flow。
+ * 全自动模式下的隐式落盘逻辑（不暴露给大模型）。
  * <p>
- * 由 {@link RunTestFlowTool} 在跑流前、以及 Agent 回合结束时调用；不再作为模型可调工具。
+ * 把本轮已接受的 submit_* 内存工作图校验后写入 test_flow.graph_json。
+ * 调用时机：run_test_flow 跑流之前；以及 Agent 一整轮对话结束仍有未落盘单元时。
+ * 半自动不走本类；模板预制流禁止落盘。
  */
 public final class FlowDesignAutopilotCommitSupport {
 
@@ -27,9 +29,18 @@ public final class FlowDesignAutopilotCommitSupport {
     }
 
     /**
-     * 尝试落盘本轮已接受单元。
+     * 尝试把本轮已接受单元写入测试流。
+     * <ol>
+     *   <li>非全自动 / 无已接受单元 → 跳过（ok=true, committed=false）</li>
+     *   <li>尚有 pending 素材提案、缺 flowId、空图、校验失败、流不存在 → 失败且不改库</li>
+     *   <li>updateTestFlow 成功 → 清空 SubmitCapture、推进内存工作图、触发 onGraphCommitted</li>
+     * </ol>
      *
-     * @return ok=true 已写库或无需写库；ok=false 校验/写库失败（未改库）
+     * @param ctx                 须 autopilotEnabled=true，并带 submitCapture / workingGraph
+     * @param testFlowService     写库
+     * @param graphJsonValidator  全图结构校验
+     * @param patchNormalizer     提供断言路径门禁所需的 API 解析器
+     * @return 落盘结果；ok=false 表示未写库
      */
     public static CommitOutcome commitIfNeeded(FlowDesignToolContext ctx,
                                                ITestFlowService testFlowService,
@@ -110,26 +121,37 @@ public final class FlowDesignAutopilotCommitSupport {
         return CommitOutcome.committed(String.valueOf(ctx.getTestFlowId()), warnings);
     }
 
-    /** 隐式落盘结果 */
+    /**
+     * 隐式落盘结果。
+     *
+     * @param ok        true=成功或跳过；false=失败未写库
+     * @param committed true=本次确实执行了 updateTestFlow
+     * @param message   人类可读说明
+     * @param errors    失败时的错误列表
+     * @param warnings  校验警告（成功也可能带）
+     */
     public record CommitOutcome(boolean ok, boolean committed, String message,
                                 List<String> errors, List<String> warnings) {
 
+        /** 无需落盘（例如半自动、或本轮没有已接受单元） */
         static CommitOutcome skip(String message) {
             return new CommitOutcome(true, false, message, List.of(), List.of());
         }
 
+        /** 已写入 test_flow */
         static CommitOutcome committed(String testFlowId, List<String> warnings) {
             return new CommitOutcome(true, true, "已落库 testFlowId=" + testFlowId,
                     List.of(), warnings != null ? warnings : List.of());
         }
 
+        /** 校验或写库失败，库未改 */
         static CommitOutcome fail(String message, List<String> errors, List<String> warnings) {
             return new CommitOutcome(false, false, message,
                     errors != null ? errors : List.of(),
                     warnings != null ? warnings : List.of());
         }
 
-        /** 转为工具/编排可读的 JSON */
+        /** 组装给工具回执或日志用的 JSON（含 ok / committed / message / errors / warnings） */
         public JSONObject toJson() {
             JSONObject o = new JSONObject();
             o.put("ok", ok);

@@ -31,7 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * 测 RunTestFlowTool：全自动触发 Run；有 pending submit 时先隐式落盘。
+ * 测 RunTestFlowTool：半自动拒绝；无 pending 时直接跑；有 pending 且校验失败则不 triggerRun。
  * 边界：Mock execution / run / flow 服务，不真实跑流。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunTestFlowToolTest
  */

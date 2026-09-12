@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 素材库写入提案相关的静态工具方法：查已有条目、解析字段对象、提取字段名列表。
+ * 素材库写入相关静态方法：按 key 查询、解析 fields、写库 insert/update、提取字段名。
+ * persistAsset 供全自动 upsert 直写与聊天侧确认落盘共用。
  */
 public final class AssetUpsertSupport {
 

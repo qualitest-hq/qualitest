@@ -5,10 +5,10 @@ import java.util.Arrays;
 /**
  * 测试流 AI 设计工具名注册表。
  * <p>
- * 每个工具有两个开关：webAgent（是否注入 Web 造流助手）、mcpAllowed（是否允许 MCP 调用）。
- * 名称以 submit_ 开头的写图工具仅 Web 可见；默认须经面板 Staging 确认后才落库。
- * run_test_flow 仅 Web，须请求 autopilotEnabled；落盘为隐式（非独立工具）；MCP 只读。
- * 启动时校验：本枚举、执行器注册表、工具 JSON 三者工具名集合必须相同。
+ * 每个工具两个开关：webAgent（是否进 Web 造流助手工具列表）、mcpAllowed（是否允许 MCP 调用）。
+ * submit_* 仅 Web：半自动经 Staging 确认后才落库；全自动由服务端隐式写库。
+ * run_test_flow 仅 Web，且仅当请求开启全自动时注入模型；MCP 始终只读。
+ * 启动时校验：本枚举、执行器注册表、flow-design-tools.json 三者工具名集合必须相同。
  */
 public enum FlowDesignToolNames {
 
@@ -112,7 +112,8 @@ public enum FlowDesignToolNames {
     }
 
     /**
-     * 是否为「全自动」注入给模型的工具（仅 run_test_flow；落盘为隐式 Support，不暴露独立工具）。
+     * 全自动才注入给模型的工具名判定。
+     * 当前仅 run_test_flow；改图落盘不通过独立工具暴露给模型。
      */
     public static boolean isAutopilotOnlyTool(String name) {
         if (name == null || name.isBlank()) {

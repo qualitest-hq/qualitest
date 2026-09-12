@@ -23,8 +23,10 @@ export interface ApiDesignRequestPayload {
   workbenchSnapshot?: string;
   thinkingEnabled?: boolean;
   /**
-   * 是否开启全自动（前端 SSE 完成后自动应用到工作台草稿）。
-   * 默认 false（半自动：Diff 勾选后应用）。不自动保存接口库。
+   * 是否开启全自动。
+   * true：前端 SSE 结束后自动把 Diff 合并进工作台草稿。
+   * false：须用户勾选 Diff 再点「应用到工作台」。
+   * 均不自动保存接口库、不自动调试发送。
    */
   autopilotEnabled?: boolean;
 }

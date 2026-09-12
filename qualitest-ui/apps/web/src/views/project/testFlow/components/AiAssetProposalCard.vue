@@ -65,7 +65,8 @@
 <script setup lang="ts">
 /**
  * 助手消息下的素材库写入卡片。
- * 半自动：待确认提案；全自动 / 已确认：展示已写入条目（无确认按钮）。
+ * 半自动：展示 pending 提案，可 ✓ 确认写库或 ✕ 拒绝。
+ * 全自动或已确认：标题改为「素材库写入」，状态「已写入」，无确认按钮。
  */
 import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'

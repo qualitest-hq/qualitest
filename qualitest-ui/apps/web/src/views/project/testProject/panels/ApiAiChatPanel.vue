@@ -1,6 +1,6 @@
 <!--
-  AI API 助手侧栏（脚本 / 约束 / 测值 / meta Diff + 应用到工作台）。
-  Teleport 到项目详情主区域右侧。
+  AI API 助手侧栏：会话聊天、脚本/约束/测值/meta Diff、应用到工作台。
+  Composer 含半自动|全自动开关；全自动时 SSE 结束后自动合并 Diff 进草稿。
 -->
 <template>
   <Teleport :disabled="teleportDisabled" :to="dockHostRef">
@@ -219,7 +219,7 @@ const teleportDisabled = computed(() => !dockHostRef.value);
 
 const composerText = ref('');
 
-/** 全自动：有 patch 时自动应用到工作台草稿；关=半自动（Diff 人审） */
+/** 全自动：有 patch 时自动合并进工作台草稿；关=半自动（Diff 勾选后人手应用） */
 const autopilotEnabled = ref(isApiAiAutopilotEnabled());
 watch(autopilotEnabled, setApiAiAutopilotEnabled);
 

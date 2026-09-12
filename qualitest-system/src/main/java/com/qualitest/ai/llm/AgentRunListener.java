@@ -22,9 +22,8 @@ public interface AgentRunListener {
     }
 
     /**
-     * 全自动：图已隐式写入 test_flow（run 前或回合结束）。
-     *
-     * @param testFlowId 测试流 id
+     * 全自动隐式落盘成功后回调。
+     * 前端据此清 Staging 并重新加载画布（testFlowId 为已写库的测试流）。
      */
     default void onGraphCommitted(Long testFlowId) {
     }

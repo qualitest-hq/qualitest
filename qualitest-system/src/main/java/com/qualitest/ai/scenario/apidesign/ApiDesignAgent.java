@@ -33,7 +33,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * AI API 助手场景编排：会话、工具调用、产出设计 patch。
+ * AI API 助手场景编排：加载会话、跑工具循环、产出 ApiDesignPatch 或纯说明。
+ * <p>
+ * 半自动：submit 只进 SubmitCapture，前端 Diff 勾选后才合并进工作台草稿，人手保存接口库。
+ * 全自动：system 追加全自动规程；submit 回执提示前端会自动应用草稿；仍不自动写接口库、不自动调试发送。
  */
 @Service
 @RequiredArgsConstructor

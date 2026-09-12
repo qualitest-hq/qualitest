@@ -58,20 +58,22 @@ public class FlowDesignToolContext {
     private final Long contextRunId;
 
     /**
-     * 是否开启全自动（请求级）。
-     * 为 true 时才允许 run_test_flow（落盘为隐式）。
+     * 是否开启全自动。
+     * true：允许 run_test_flow；素材 upsert 直写；改图由跑流前/回合结束隐式写库。
+     * false：半自动，改图进 Staging、素材须聊天侧确认。
      */
     @Builder.Default
     private final boolean autopilotEnabled = false;
 
     /**
-     * 本轮是否已至少成功 commit 一次（供 run 提示与前端同步）。
+     * 本轮是否已至少成功隐式落盘一次（写过 test_flow）。
      */
     @Builder.Default
     private final AtomicBoolean committedThisTurn = new AtomicBoolean(false);
 
     /**
-     * commit 成功后回调（testFlowId, 已落库图）；由 SSE 编排层注入，可为 null。
+     * 隐式落盘成功后的回调（参数：testFlowId、已落库图）。
+     * SSE 编排层用于推送 graphCommitted 事件；可为 null。
      */
     private final BiConsumer<Long, GraphJson> onGraphCommitted;
 
@@ -129,7 +131,7 @@ public class FlowDesignToolContext {
         }
     }
 
-    /** 标记本轮已成功 commit，并可选通知 SSE */
+    /** 标记本轮已成功隐式落盘，并调用 onGraphCommitted（若有） */
     public void notifyGraphCommitted(GraphJson saved) {
         if (committedThisTurn != null) {
             committedThisTurn.set(true);
@@ -139,7 +141,7 @@ public class FlowDesignToolContext {
         }
     }
 
-    /** 本轮是否已成功 commit 过 */
+    /** 本轮是否已成功隐式落盘过 */
     public boolean hasCommittedThisTurn() {
         return committedThisTurn != null && committedThisTurn.get();
     }

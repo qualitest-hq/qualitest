@@ -1,8 +1,12 @@
 /**
- * AI API 助手用户偏好（与造流 aiDesignPreferences 分 key，互不影响）。
+ * API 设计助手用户偏好（localStorage，key 独立于测试流面板）。
+ * <p>
+ * 全自动：SSE 完成后自动全选 Diff 并合并进工作台草稿；不自动保存接口库、不自动调试发送。
+ * 半自动（默认）：用户勾选 Diff 后点「应用到工作台」。
  */
 const AUTOPILOT_ENABLED_KEY = 'qualitest.apiAi.autopilotEnabled';
 
+/** 读布尔偏好；未设置或解析失败返回 null */
 function readBoolFlag(key: string): boolean | null {
   try {
     const raw = localStorage.getItem(key);
@@ -14,6 +18,7 @@ function readBoolFlag(key: string): boolean | null {
   return null;
 }
 
+/** 写布尔偏好（'1' / '0'） */
 function writeBoolFlag(key: string, enabled: boolean): void {
   try {
     localStorage.setItem(key, enabled ? '1' : '0');
@@ -23,8 +28,8 @@ function writeBoolFlag(key: string, enabled: boolean): void {
 }
 
 /**
- * 是否开启 API 助手全自动（SSE 完成后自动应用到工作台草稿）。
- * 未设置时为 false（半自动：Diff 勾选后应用）。不自动保存接口库。
+ * 是否开启 API 助手全自动。
+ * 未设置视为 false。
  */
 export function isApiAiAutopilotEnabled(): boolean {
   return readBoolFlag(AUTOPILOT_ENABLED_KEY) === true;

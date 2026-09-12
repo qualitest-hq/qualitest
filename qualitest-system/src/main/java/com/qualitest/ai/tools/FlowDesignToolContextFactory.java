@@ -43,7 +43,7 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 Web 设计请求构建完整上下文：含会话 id、短名映射、全自动开关与 commit 回调。
+     * 从 Web 设计请求构建完整上下文：会话 id、短名映射；全自动默认关、无落盘回调。
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture,
@@ -55,7 +55,10 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 Web 设计请求构建完整上下文（含全自动开关）。
+     * 从 Web 设计请求构建完整上下文。
+     *
+     * @param autopilotEnabled  是否全自动（允许 run_test_flow、隐式落盘、素材直写）
+     * @param onGraphCommitted  隐式落盘成功回调；SSE 层用于推送 graphCommitted
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture,

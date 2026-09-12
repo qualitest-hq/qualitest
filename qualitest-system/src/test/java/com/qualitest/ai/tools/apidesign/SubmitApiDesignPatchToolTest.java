@@ -17,7 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 SubmitApiDesignPatchTool：半自动 / 全自动 hint 差异。
+ * 测 SubmitApiDesignPatchTool：半自动 hint 含「等待用户确认」；全自动 hint 含「自动应用」；
+ * ApiDesignRequest.isAutopilotEnabledEffective 仅 true 为开。
  * 边界：真实 Normalizer，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubmitApiDesignPatchToolTest
  */

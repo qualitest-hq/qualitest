@@ -47,8 +47,9 @@ export interface TestFlowDesignRequestPayload {
   /** 对话级思考开关 */
   thinkingEnabled?: boolean;
   /**
-   * 是否开启全自动（注入 run_test_flow；submit_* 隐式落盘；upsert 直写素材库）。
-   * 默认 false（半自动：Staging / 素材人审）。
+   * 是否开启全自动。
+   * true：后端注入 run_test_flow；submit_* 在跑流前/回合结束隐式写库；upsert 直写素材库。
+   * false：半自动，Staging 与素材须人审。模板画布前端会强制为 false。
    */
   autopilotEnabled?: boolean;
   /** 限定可检索的 API id 范围（可选） */

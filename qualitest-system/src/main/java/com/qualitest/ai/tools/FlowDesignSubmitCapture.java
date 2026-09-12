@@ -59,8 +59,8 @@ public class FlowDesignSubmitCapture {
     }
 
     /**
-     * 清空本轮已接受累积（全自动 commit 落库后调用）。
-     * 之后若再有 submit_*，将重新累积未落盘单元供 Staging 或再次 commit。
+     * 清空本轮已接受累积（全自动隐式写库成功后调用）。
+     * 之后若再有 submit_*，将重新累积未落盘单元。
      */
     public void clearAccepted() {
         this.submitted = false;

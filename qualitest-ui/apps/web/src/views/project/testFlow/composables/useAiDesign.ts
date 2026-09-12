@@ -365,6 +365,7 @@ export function useAiDesign() {
       composerDoc: payload.doc,
       graphJson,
       thinkingEnabled: thinkingEnabled.value,
+      // 模板画布强制半自动；项目画布跟 localStorage 全自动开关
       autopilotEnabled: !isTemplate && isAutopilotEnabled(),
     };
     if (isTemplate) {
@@ -415,6 +416,7 @@ export function useAiDesign() {
     const { loadFlow } = useFlowGraph();
     try {
       const data = await runDesignStream(buildDesignPayload(payload), {
+        // 全自动隐式落盘成功：清 Staging 状态并重新拉库中图
         onGraphCommitted: (testFlowId) => {
           clearAllStagingState();
           resetStagingAcceptanceMaps();

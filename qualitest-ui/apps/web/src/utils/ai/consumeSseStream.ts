@@ -6,6 +6,7 @@ export interface SseStreamHandlers<TEvent, TResult> {
   onThinking?: (text: string) => void;
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool: string) => void;
+  /** 测试流全自动隐式落盘成功（SSE type=graphCommitted） */
   onGraphCommitted?: (testFlowId: string) => void;
   onDone?: (result: TResult) => void;
   onError?: (message: string) => void;
@@ -40,6 +41,7 @@ function dispatchSseEvent<
   if (event.type === 'thinking' && event.text) handlers.onThinking?.(event.text);
   if (event.type === 'tool_start' && event.tool) handlers.onToolStart?.(event.tool);
   if (event.type === 'tool_end' && event.tool) handlers.onToolEnd?.(event.tool);
+  // 全自动写库后：清 Staging 并 reload 画布
   if (event.type === 'graphCommitted' && event.testFlowId) {
     handlers.onGraphCommitted?.(event.testFlowId);
   }

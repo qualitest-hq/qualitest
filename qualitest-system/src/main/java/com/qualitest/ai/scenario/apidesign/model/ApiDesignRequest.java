@@ -6,6 +6,8 @@ import lombok.Setter;
 
 /**
  * AI API 助手流式设计请求体。
+ * <p>
+ * 携带项目/接口 id、模型、会话、自然语言需求、编辑器脚本草稿，以及本轮是否全自动。
  */
 @Getter
 @Setter
@@ -45,12 +47,14 @@ public class ApiDesignRequest {
     private Boolean thinkingEnabled;
 
     /**
-     * 是否开启全自动：true 时追加全自动规程；前端会自动应用 Diff 到工作台草稿。
-     * 默认 false（半自动：Diff 人审）。不自动保存接口库。
+     * 是否开启全自动。
+     * true：追加全自动 system 规程；前端 SSE 结束后自动把 Diff 合并进工作台草稿。
+     * false：半自动，须用户勾选 Diff 再点「应用到工作台」。
+     * 无论半自动/全自动，都不自动调用接口保存、不自动发送调试请求。
      */
     private Boolean autopilotEnabled;
 
-    /** 本请求是否启用全自动 */
+    /** true 仅当 autopilotEnabled 显式为 true */
     public boolean isAutopilotEnabledEffective() {
         return Boolean.TRUE.equals(autopilotEnabled);
     }

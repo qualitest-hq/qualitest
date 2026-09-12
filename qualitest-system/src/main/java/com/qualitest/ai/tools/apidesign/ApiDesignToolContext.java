@@ -5,7 +5,9 @@ import lombok.Builder;
 import lombok.Getter;
 
 /**
- * 单轮工具执行上下文：当前项目、当前 API、编辑器脚本草稿、submit 捕获器等。
+ * API 设计工具执行时的请求级上下文。
+ * <p>
+ * 含当前项目/接口、编辑器脚本草稿、工作台摘要、submit 捕获器，以及本轮是否全自动。
  */
 @Getter
 @Builder
@@ -33,8 +35,8 @@ public class ApiDesignToolContext {
     private final ApiDesignSubmitCapture submitCapture;
 
     /**
-     * 是否开启全自动（请求级）。
-     * 影响 submit 回执 hint 与 system 附加规程；真正 apply 在前端。
+     * 是否全自动。
+     * 影响 submit 回执文案与 system 是否追加全自动规程；真正合并进工作台由前端完成。
      */
     @Builder.Default
     private final boolean autopilotEnabled = false;

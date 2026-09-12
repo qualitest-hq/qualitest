@@ -41,8 +41,9 @@ import java.util.Map;
 /**
  * 测试流 AI 设计 HTTP 接口。
  * <p>
- * 默认：返回增量 patch 建议，不自动保存 test_flow，不触发 Run。
- * 请求 autopilotEnabled=true（全自动）时，模型可经 run_test_flow 写库（隐式）并运行。
+ * 半自动：返回增量 patch / 素材提案，不自动保存 test_flow，不触发 Run。
+ * 全自动（请求体 autopilotEnabled=true）：可经 run_test_flow 隐式写库并运行；
+ * SSE 可推送 graphCommitted，前端据此清 Staging 并 reload 画布。
  */
 @RestController
 @RequestMapping("/project/testFlow/ai")
@@ -154,8 +155,14 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 流式设计：SSE 推送 token、tool 事件与最终 TestFlowDesignResult。
-     * 事件 data 为 JSON：type=token|thinking|tool_start|tool_end|graphCommitted|done|error。
+     * 流式设计：SSE 推送过程事件与最终结果。
+     * <ul>
+     *   <li>token / thinking：模型增量文本</li>
+     *   <li>tool_start / tool_end：工具调用起止</li>
+     *   <li>graphCommitted：全自动隐式写库成功（带 testFlowId），前端应清 Staging 并 reload</li>
+     *   <li>done：整轮结束，data.result 为 TestFlowDesignResult</li>
+     *   <li>error：失败文案</li>
+     * </ul>
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @PostMapping(value = "/design/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -190,6 +197,7 @@ public class TestFlowAiController extends BaseController {
 
             @Override
             public void onGraphCommitted(Long testFlowId) {
+                // 全自动写库成功：通知前端清 Staging 并重新加载该测试流
                 if (testFlowId != null) {
                     sendStreamEvent(emitter, Map.of(
                             "type", "graphCommitted",

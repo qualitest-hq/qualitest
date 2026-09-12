@@ -279,7 +279,7 @@ const composerRef = ref<InstanceType<typeof AiMentionComposer> | null>(null);
 const composerEmpty = ref(true);
 /** 「合并后保存」开关，持久化到 localStorage */
 const autoSaveAfterConfirm = ref(isAutoSaveAfterConfirm());
-/** 全自动：注入 run_test_flow（隐式落盘）；关=半自动（Staging 人审） */
+/** 全自动：请求注入 run_test_flow、改图隐式落盘、素材直写；关=半自动（Staging / 素材人审） */
 const autopilotEnabled = ref(isAutopilotEnabled());
 /** pending 保存强挡：隐藏「仅保存已确认」 */
 const blockWhenStagingPending = ref(isBlockWhenStagingPending());

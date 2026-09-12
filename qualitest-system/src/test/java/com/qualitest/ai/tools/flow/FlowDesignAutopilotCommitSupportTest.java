@@ -25,7 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * 测 FlowDesignAutopilotCommitSupport：全自动隐式落盘门禁与成功路径。
+ * 测 FlowDesignAutopilotCommitSupport：半自动跳过；全自动有单元时写库并清空 capture。
  * 边界：Mock 流服务与校验器，不访问 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignAutopilotCommitSupportTest
  */
