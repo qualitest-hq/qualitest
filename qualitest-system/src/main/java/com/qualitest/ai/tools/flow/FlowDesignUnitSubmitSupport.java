@@ -95,7 +95,11 @@ public class FlowDesignUnitSubmitSupport {
             }
             advanceWorkingGraph(ctx, normalized.patch());
             result.put("received", true);
-            result.put("hint", "单元已接受并进入本轮累积 patch，等待用户在面板确认；可继续调用其它 submit_* 或结束并总结");
+            if (ctx.isAutopilotEnabled()) {
+                result.put("hint", "单元已接受（内存累积）；调用 run_test_flow 时会自动落盘，无需单独落盘步骤");
+            } else {
+                result.put("hint", "单元已接受并进入本轮累积 patch，等待用户在面板确认；可继续调用其它 submit_* 或结束并总结");
+            }
             result.put("patchStats", FlowDesignPatchStats.build(
                     ctx.getSubmitCapture() != null ? ctx.getSubmitCapture().getNormalizedPatch() : normalized.patch()));
         } else {

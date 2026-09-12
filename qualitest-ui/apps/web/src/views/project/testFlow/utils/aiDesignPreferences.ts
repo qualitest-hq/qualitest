@@ -3,6 +3,7 @@
  */
 const AUTO_SAVE_AFTER_CONFIRM_KEY = 'qualitest.aiDesign.autoSaveAfterConfirm';
 const BLOCK_WHEN_STAGING_PENDING_KEY = 'qualitest.aiDesign.blockWhenStagingPending';
+const AUTOPILOT_ENABLED_KEY = 'qualitest.aiDesign.autopilotEnabled';
 
 function readBoolFlag(key: string): boolean | null {
   try {
@@ -42,4 +43,16 @@ export function isBlockWhenStagingPending(): boolean {
 
 export function setBlockWhenStagingPending(enabled: boolean): void {
   writeBoolFlag(BLOCK_WHEN_STAGING_PENDING_KEY, enabled);
+}
+
+/**
+ * 是否开启 AI 全自动（run_test_flow + 隐式落盘；upsert 直写）。
+ * 未设置时为 false（半自动：Staging / 素材人审）。
+ */
+export function isAutopilotEnabled(): boolean {
+  return readBoolFlag(AUTOPILOT_ENABLED_KEY) === true;
+}
+
+export function setAutopilotEnabled(enabled: boolean): void {
+  writeBoolFlag(AUTOPILOT_ENABLED_KEY, enabled);
 }

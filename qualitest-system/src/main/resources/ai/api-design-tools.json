@@ -57,7 +57,7 @@
     "type": "function",
     "function": {
       "name": "submit_api_design_patch",
-      "description": "提交 API 设计增量修改建议（ApiDesignPatch）。生成或修复脚本/约束/测值时必须调用；仅答疑时不要调用。不会自动保存。",
+      "description": "提交 API 设计增量修改建议（ApiDesignPatch）。生成或修复脚本/约束/测值时必须调用；仅答疑时不要调用。半自动：等待用户 Diff 应用；全自动：前端自动应用到工作台草稿。均不自动保存接口库、不自动调试发送。",
       "parameters": {
         "type": "object",
         "properties": {}

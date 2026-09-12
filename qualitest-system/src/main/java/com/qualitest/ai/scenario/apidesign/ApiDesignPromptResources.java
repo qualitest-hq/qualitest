@@ -22,6 +22,9 @@ public final class ApiDesignPromptResources {
     /** OpenAI function tools 列表定义 */
     public static final String TOOLS_DEFINITION = "ai/api-design-tools.json";
 
+    /** 全自动附加规程（仅请求 autopilotEnabled 时拼到 system） */
+    public static final String AUTOPILOT_PROMPT = "ai/api-design-autopilot-prompt.txt";
+
     /** 按 classpath 路径读取 UTF-8 文本 */
     public static String loadText(String path) throws IOException {
         ClassPathResource resource = new ClassPathResource(path);

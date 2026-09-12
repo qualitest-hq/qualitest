@@ -2,7 +2,7 @@
 
 质衡通过 **Streamable HTTP** 暴露项目级 MCP 服务，供 **支持 MCP 的 AI 编辑器 / Agent**（Cursor、VS Code 生态、Claude Code 等）**只读**查询本项目的接口、测试流与 Run 现场。  
 下文配置以 **Cursor `mcp.json`** 为例；其它客户端只要支持同协议的 HTTP MCP + 自定义 Header，即可按同等字段接入。  
-**改画布请走 Web 端 AI 面板**（先 Diff 再合并）；MCP **不会**写库，也不提供 `submit_*` 类工具。
+**改画布请走 Web 端 AI 面板**（先 Diff 再合并；或切到「全自动」由 Web 助手自动落盘并 `run`）；MCP **不会**写库，也不提供 `submit_*` / `run_test_flow`。
 
 English: [mcp.en.md](./mcp.en.md)
 
@@ -47,7 +47,7 @@ Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根�
 
 ## 3. 只读工具（摘要）
 
-MCP 侧共 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow`，无 `submit_*` / `upsert_asset_variables`）。
+MCP 侧共 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow`，无 `submit_*` / `upsert_asset_variables` / `run_test_flow`）。
 
 | 工具 | 用途 |
 |:-----|:-----|
@@ -60,7 +60,7 @@ MCP 侧共 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` / `g
 | `get_flow_api_health` | HTTP 节点绑定 / API 语义告警 |
 | `search_apis` / `get_api_details` | 查项目接口（详情支持一次传多个 id） |
 | `list_project_envs` | 环境列表 |
-| `list_asset_variables` | 项目素材库（参数资产）key/字段名，不含明文；**写入请走 Web AI 的 `upsert_asset_variables`（聊天侧提案确认后落盘）** |
+| `list_asset_variables` | 项目素材库（参数资产）key/字段名，不含明文；**写入请走 Web AI 的 `upsert_asset_variables`（半自动：聊天侧确认；全自动：工具内直写）** |
 | `list_subflow_templates` | 平台子流模板 |
 
 典型勘察顺序：`list_flows` → 记下 `testFlowId` → `get_graph_summary` / `get_run_failure`。

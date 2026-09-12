@@ -53,7 +53,7 @@ UI 按行选类型（与调试台 KV 表同类）：
 | 路径 | 行为 |
 | ---- | ---- |
 | 项目「素材库」页 | 直接 CRUD；file 行选文件并持久化 |
-| Web AI `upsert_asset_variables` | **只记提案**，聊天侧确认后才落盘；回执不含明文 |
+| Web AI `upsert_asset_variables` | **半自动**：只记提案，聊天侧确认后落盘；**全自动**：工具内直写；回执不含明文 |
 | MCP `list_asset_variables` | 只读：key、字段名、`placeholderHint`；**无明文** |
 | MCP 写入 | **没有**；改素材回 Web |
 

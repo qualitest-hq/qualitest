@@ -59,6 +59,16 @@ public class FlowDesignSubmitCapture {
     }
 
     /**
+     * 清空本轮已接受累积（全自动 commit 落库后调用）。
+     * 之后若再有 submit_*，将重新累积未落盘单元供 Staging 或再次 commit。
+     */
+    public void clearAccepted() {
+        this.submitted = false;
+        this.normalizedPatch = null;
+        this.validation = null;
+    }
+
+    /**
      * 将本次 unitPatch 并入累计 base。
      * 先按 unitId 从 base 去掉同 id 切片，再追加本次内容；summary 以本次非空为准。
      */

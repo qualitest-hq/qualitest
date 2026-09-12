@@ -46,6 +46,11 @@ export interface TestFlowDesignRequestPayload {
   graphJson: GraphJson;
   /** 对话级思考开关 */
   thinkingEnabled?: boolean;
+  /**
+   * 是否开启全自动（注入 run_test_flow；submit_* 隐式落盘；upsert 直写素材库）。
+   * 默认 false（半自动：Staging / 素材人审）。
+   */
+  autopilotEnabled?: boolean;
   /** 限定可检索的 API id 范围（可选） */
   scopeApiIds?: string[];
   /** 画布上下文：选中的节点 id 列表（可选） */
@@ -60,6 +65,7 @@ export type AiDesignStreamEventType =
   | 'thinking'
   | 'tool_start'
   | 'tool_end'
+  | 'graphCommitted'
   | 'done'
   | 'error';
 
@@ -70,6 +76,8 @@ export interface AiDesignStreamEvent {
   text?: string;
   /** tool_start / tool_end 的工具名 */
   tool?: string;
+  /** graphCommitted 事件的测试流 id */
+  testFlowId?: string;
   /** error 事件的错误说明 */
   message?: string;
   /** done 事件的完整设计结果 */
@@ -83,6 +91,7 @@ export interface AiDesignStreamHandlers {
   onThinking?: (text: string) => void;
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool: string) => void;
+  onGraphCommitted?: (testFlowId: string) => void;
   onDone?: (result: TestFlowDesignResult) => void;
   onError?: (message: string) => void;
 }

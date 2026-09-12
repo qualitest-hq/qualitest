@@ -6,6 +6,7 @@ export interface SseStreamHandlers<TEvent, TResult> {
   onThinking?: (text: string) => void;
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool: string) => void;
+  onGraphCommitted?: (testFlowId: string) => void;
   onDone?: (result: TResult) => void;
   onError?: (message: string) => void;
 }
@@ -20,7 +21,14 @@ export interface ConsumeSsePostOptions<TEvent extends { type: string }, TResult>
 }
 
 function dispatchSseEvent<
-  TEvent extends { type: string; text?: string; tool?: string; message?: string; result?: TResult },
+  TEvent extends {
+    type: string;
+    text?: string;
+    tool?: string;
+    message?: string;
+    testFlowId?: string;
+    result?: TResult;
+  },
   TResult,
 >(
   event: TEvent,
@@ -32,6 +40,9 @@ function dispatchSseEvent<
   if (event.type === 'thinking' && event.text) handlers.onThinking?.(event.text);
   if (event.type === 'tool_start' && event.tool) handlers.onToolStart?.(event.tool);
   if (event.type === 'tool_end' && event.tool) handlers.onToolEnd?.(event.tool);
+  if (event.type === 'graphCommitted' && event.testFlowId) {
+    handlers.onGraphCommitted?.(event.testFlowId);
+  }
   if (event.type === 'done' && event.result !== undefined) {
     handlers.onDone?.(event.result);
     return event.result;

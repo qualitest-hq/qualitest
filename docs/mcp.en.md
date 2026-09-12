@@ -2,7 +2,7 @@
 
 Qualitest exposes a **project-scoped MCP** service over **Streamable HTTP** so **MCP-capable AI editors / agents** (Cursor, VS Code ecosystem, Claude Code, …) can **read** this project’s APIs, test flows, and Run context.  
 Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + custom headers can use the same fields.  
-**Edit the canvas via the Web AI panel** (Diff then merge). MCP **does not** write the database and has no `submit_*` tools.
+**Edit the canvas via the Web AI panel** (Diff then merge, or switch to Full-auto for Web auto-persist + `run`). MCP **does not** write the database and has no `submit_*` / `run_test_flow` tools.
 
 中文版：[mcp.md](./mcp.md)
 
@@ -47,7 +47,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 
 ## 3. Read-only tools (summary)
 
-**13** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow`; no `submit_*` / `upsert_asset_variables`).
+**13** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow`; no `submit_*` / `upsert_asset_variables` / `run_test_flow`).
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -60,7 +60,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `get_flow_api_health` | HTTP binding / API semantic warnings |
 | `search_apis` / `get_api_details` | Project APIs (batch detail by id list) |
 | `list_project_envs` | Environments |
-| `list_asset_variables` | Project asset variable keys/fields (no plaintext values); **writes via Web AI `upsert_asset_variables` (proposal → user confirm)** |
+| `list_asset_variables` | Project asset variable keys/fields (no plaintext values); **writes via Web AI `upsert_asset_variables` (Semi-auto: confirm; Full-auto: immediate)** |
 | `list_subflow_templates` | Platform subflow templates |
 
 Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary` / `get_run_failure`.

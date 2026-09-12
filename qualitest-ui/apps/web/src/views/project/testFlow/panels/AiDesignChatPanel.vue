@@ -163,6 +163,15 @@
 
       <template #composer-extra>
         <el-switch
+            v-model="autopilotEnabled"
+            active-text="全自动"
+            inactive-text="半自动"
+            class="ai-design-chat-panel__auto-save"
+            inline-prompt
+            size="small"
+            title="半自动：Staging/素材须人审；全自动：素材直写、改图隐式落盘，模型可 run_test_flow"
+        />
+        <el-switch
             v-model="autoSaveAfterConfirm"
             active-text="确认后保存"
             class="ai-design-chat-panel__auto-save"
@@ -208,7 +217,7 @@ import AiStagingChangeSummary from '../components/AiStagingChangeSummary.vue';
 import AiAssetProposalCard from '../components/AiAssetProposalCard.vue';
 import { useAiDesign } from '../composables/useAiDesign';
 import { useFlowGraph } from '../composables/useFlowGraph';
-import { isAutoSaveAfterConfirm, isBlockWhenStagingPending, setAutoSaveAfterConfirm, setBlockWhenStagingPending } from '../utils/aiDesignPreferences';
+import { isAutoSaveAfterConfirm, isAutopilotEnabled, isBlockWhenStagingPending, setAutoSaveAfterConfirm, setAutopilotEnabled, setBlockWhenStagingPending } from '../utils/aiDesignPreferences';
 import type { ComposerDoc, ComposerSendPayload } from '../composables/mentionComposer';
 import { isComposerDocEmpty, MENTION_CATEGORY_TAGS } from '../composables/mentionComposer';
 import AiMentionComposer from './AiMentionComposer.vue';
@@ -270,9 +279,12 @@ const composerRef = ref<InstanceType<typeof AiMentionComposer> | null>(null);
 const composerEmpty = ref(true);
 /** 「合并后保存」开关，持久化到 localStorage */
 const autoSaveAfterConfirm = ref(isAutoSaveAfterConfirm());
+/** 全自动：注入 run_test_flow（隐式落盘）；关=半自动（Staging 人审） */
+const autopilotEnabled = ref(isAutopilotEnabled());
 /** pending 保存强挡：隐藏「仅保存已确认」 */
 const blockWhenStagingPending = ref(isBlockWhenStagingPending());
 watch(autoSaveAfterConfirm, setAutoSaveAfterConfirm);
+watch(autopilotEnabled, setAutopilotEnabled);
 watch(blockWhenStagingPending, setBlockWhenStagingPending);
 
 const {

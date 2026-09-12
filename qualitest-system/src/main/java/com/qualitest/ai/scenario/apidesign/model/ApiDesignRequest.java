@@ -43,4 +43,15 @@ public class ApiDesignRequest {
 
     /** 本轮是否开启思考链；新建会话时写入会话配置 */
     private Boolean thinkingEnabled;
+
+    /**
+     * 是否开启全自动：true 时追加全自动规程；前端会自动应用 Diff 到工作台草稿。
+     * 默认 false（半自动：Diff 人审）。不自动保存接口库。
+     */
+    private Boolean autopilotEnabled;
+
+    /** 本请求是否启用全自动 */
+    public boolean isAutopilotEnabledEffective() {
+        return Boolean.TRUE.equals(autopilotEnabled);
+    }
 }

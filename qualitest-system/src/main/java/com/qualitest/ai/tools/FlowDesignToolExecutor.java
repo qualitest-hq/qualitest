@@ -21,12 +21,15 @@ import com.qualitest.ai.tools.flow.ListFlowsTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.ai.tools.flow.GetSubflowDetailTool;
 import com.qualitest.ai.tools.flow.ListSubflowTemplatesTool;
+import com.qualitest.ai.tools.flow.RunTestFlowTool;
 import com.qualitest.ai.tools.flow.SearchApisTool;
 import com.qualitest.ai.tools.flow.SubmitFlowDesignUnitTool;
 import com.qualitest.ai.tools.flow.UpsertAssetVariablesTool;
 import com.qualitest.flow.diagnose.HttpNodeApiHealthChecker;
+import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
+import com.qualitest.project.service.ITestFlowExecutionService;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.project.service.ITestFlowRunStepService;
 import com.qualitest.project.service.ITestFlowService;
@@ -68,6 +71,7 @@ public class FlowDesignToolExecutor {
     public static final String GET_SUBFLOW_DETAIL = FlowDesignToolNames.GET_SUBFLOW_DETAIL.getId();
     public static final String LIST_FLOWS = FlowDesignToolNames.LIST_FLOWS.getId();
     public static final String GET_FLOW = FlowDesignToolNames.GET_FLOW.getId();
+    public static final String RUN_TEST_FLOW = FlowDesignToolNames.RUN_TEST_FLOW.getId();
 
     private final Map<String, QualitestTool> tools;
 
@@ -77,8 +81,10 @@ public class FlowDesignToolExecutor {
                                   ITestFlowService testFlowService,
                                   ITestFlowRunService testFlowRunService,
                                   ITestFlowRunStepService testFlowRunStepService,
+                                  ITestFlowExecutionService testFlowExecutionService,
                                   FlowDesignPatchNormalizer flowDesignPatchNormalizer,
                                   FlowDesignPatchMerger flowDesignPatchMerger,
+                                  GraphJsonValidator graphJsonValidator,
                                   HttpNodeApiHealthChecker httpNodeApiHealthChecker,
                                   ITestProjectAssetService testProjectAssetService,
                                   TestProjectApiDesignHintsService designHintsService,
@@ -107,6 +113,9 @@ public class FlowDesignToolExecutor {
                 graphResolver,
                 httpNodeApiHealthChecker != null ? httpNodeApiHealthChecker : new HttpNodeApiHealthChecker(),
                 testProjectApiMapper));
+        map.put(RUN_TEST_FLOW, new RunTestFlowTool(
+                testFlowExecutionService, testFlowRunService, testFlowRunStepService,
+                testFlowService, graphJsonValidator, flowDesignPatchNormalizer));
         registerSubmitUnitTools(map, unitSubmit);
         this.tools = Map.copyOf(map);
     }

@@ -20,4 +20,12 @@ public interface AgentRunListener {
     /** 模型输出文本增量（通常为最终轮） */
     default void onTextDelta(String delta) {
     }
+
+    /**
+     * 全自动：图已隐式写入 test_flow（run 前或回合结束）。
+     *
+     * @param testFlowId 测试流 id
+     */
+    default void onGraphCommitted(Long testFlowId) {
+    }
 }

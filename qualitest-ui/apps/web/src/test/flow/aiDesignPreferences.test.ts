@@ -7,8 +7,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   isAutoSaveAfterConfirm,
+  isAutopilotEnabled,
   isBlockWhenStagingPending,
   setAutoSaveAfterConfirm,
+  setAutopilotEnabled,
   setBlockWhenStagingPending,
 } from '@/views/project/testFlow/utils/aiDesignPreferences';
 
@@ -25,6 +27,16 @@ describe('aiDesignPreferences', () => {
     expect(isAutoSaveAfterConfirm()).toBe(true);
     setAutoSaveAfterConfirm(false);
     expect(isAutoSaveAfterConfirm()).toBe(false);
+  });
+
+  it('全自动偏好默认关闭可开关', () => {
+    // 前提：localStorage 为空
+    // 期望：默认 false（半自动）；set true/false 生效
+    expect(isAutopilotEnabled()).toBe(false);
+    setAutopilotEnabled(true);
+    expect(isAutopilotEnabled()).toBe(true);
+    setAutopilotEnabled(false);
+    expect(isAutopilotEnabled()).toBe(false);
   });
 
   it('blockWhenStagingPending 默认关闭可开关', () => {

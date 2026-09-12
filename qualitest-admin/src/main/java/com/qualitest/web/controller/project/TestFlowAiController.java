@@ -41,8 +41,8 @@ import java.util.Map;
 /**
  * 测试流 AI 设计 HTTP 接口。
  * <p>
- * 接收用户 prompt 与当前 graph_json，返回增量 patch 建议；
- * 不自动保存 test_flow，不触发 Run。
+ * 默认：返回增量 patch 建议，不自动保存 test_flow，不触发 Run。
+ * 请求 autopilotEnabled=true（全自动）时，模型可经 run_test_flow 写库（隐式）并运行。
  */
 @RestController
 @RequestMapping("/project/testFlow/ai")
@@ -155,7 +155,7 @@ public class TestFlowAiController extends BaseController {
 
     /**
      * 流式设计：SSE 推送 token、tool 事件与最终 TestFlowDesignResult。
-     * 事件 data 为 JSON：type=token|thinking|tool_start|tool_end|done|error。
+     * 事件 data 为 JSON：type=token|thinking|tool_start|tool_end|graphCommitted|done|error。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @PostMapping(value = "/design/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -185,6 +185,15 @@ public class TestFlowAiController extends BaseController {
             public void onTextDelta(String delta) {
                 if (delta != null && !delta.isEmpty()) {
                     sendStreamEvent(emitter, Map.of("type", "token", "text", delta));
+                }
+            }
+
+            @Override
+            public void onGraphCommitted(Long testFlowId) {
+                if (testFlowId != null) {
+                    sendStreamEvent(emitter, Map.of(
+                            "type", "graphCommitted",
+                            "testFlowId", String.valueOf(testFlowId)));
                 }
             }
         };

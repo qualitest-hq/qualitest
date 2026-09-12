@@ -37,6 +37,37 @@ public final class AssetUpsertSupport {
     }
 
     /**
+     * 把提案字段写入项目素材库。
+     * 当前库中无该 key 则新增，已有则按 id 更新；备注为空时更新保留原备注。
+     */
+    public static void persistAsset(ITestProjectAssetService service,
+                                    Long projectId,
+                                    String key,
+                                    Map<String, Object> fields,
+                                    String remark) {
+        if (service == null) {
+            throw new ServiceException("素材服务未就绪");
+        }
+        Map<String, Object> assets = new LinkedHashMap<>();
+        assets.put(key, fields);
+        com.qualitest.project.params.TestProjectAssetSaveParams.TestProjectAssetSaveParamsBuilder params =
+                com.qualitest.project.params.TestProjectAssetSaveParams.builder()
+                        .testProjectId(projectId)
+                        .key(key)
+                        .assets(assets);
+
+        TestProjectAssetResult existing = findByKeyOrNull(service, projectId, key);
+        if (existing == null) {
+            service.insertTestProjectAsset(params.remark(remark).build());
+        } else {
+            service.updateTestProjectAsset(params
+                    .id(existing.getId())
+                    .remark(remark != null ? remark : existing.getRemark())
+                    .build());
+        }
+    }
+
+    /**
      * 把工具入参或提案里的 fields 转成「字段名 → 值」扁平 Map。
      * 不是 Map、为空、或没有有效字段名时返回 null。
      */

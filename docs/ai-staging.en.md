@@ -9,9 +9,11 @@ See also: [project-summary.en.md](./project-summary.en.md) · [test-flow-nodes.e
 
 ## 1. Why Staging exists
 
-The model **does not write the DB**. The Web assistant calls typed `submit_*` tools (e.g. `submit_http_node` with `op=add|update`), one Staging unit per call; the UI merges the accumulated patch into **Staging units**. A human (or an agent clicking the UI) **✓ confirms** or **✕ cancels**, then **Save**. Only then is `graph_json` persisted.
+The model **does not write the DB by default**. The Web assistant calls typed `submit_*` tools (e.g. `submit_http_node` with `op=add|update`), one Staging unit per call; the UI merges the accumulated patch into **Staging units**. A human (or an agent clicking the UI) **✓ confirms** or **✕ cancels**, then **Save**. Only then is `graph_json` persisted.
 
-**MCP is read-only** — no `submit_*`, no `upsert_asset_variables`. Edit graphs on the Web AI panel.
+**Full-auto (opt-in):** Web panel **Semi-auto | Full-auto** (default Semi-auto). With Full-auto (`autopilotEnabled`), the model gets `run_test_flow` (auto-persists pending submit_* before run / at turn end), and `upsert_asset_variables` writes immediately. No separate commit tool. Max 2 fix rounds after a failed run. MCP stays read-only.
+
+**MCP is read-only** — no `submit_*`, no `upsert_asset_variables`, no commit/run. Edit graphs on the Web AI panel.
 
 ```text
 Prompt → tools → multiple submit_* (1 unit each) → Staging → ✓ → Save (canvas has nodes)
@@ -42,7 +44,7 @@ Bubble **“no Staging submitted this turn”** (`explainOnly`) means the model 
 
 ## 4. Web vs MCP
 
-Web has typed `submit_*` unit writers, `upsert_asset_variables` (proposal → confirm), `append_api_design_hints`. MCP adds `list_flows` / `get_flow` and **cannot write** (`submit_*` rejected).
+Web has typed `submit_*` unit writers, `upsert_asset_variables` (Semi-auto: proposal → confirm; Full-auto: writes immediately), `append_api_design_hints`, and Full-auto-only `run_test_flow` (auto-persists pending submit_*). MCP adds `list_flows` / `get_flow` and **cannot write** (`submit_*` rejected).
 
 ---
 
@@ -73,4 +75,4 @@ Repeated “fix from Run” can yield two start nodes. ✕ all Staging or **new 
 
 ## 7. API-design AI
 
-A separate assistant (`submit_api_design_patch`) edits API assets. Do not mix its Diff with flow Staging when scoring tests.
+A separate assistant (`submit_api_design_patch`) edits API assets. **Semi-auto** (default): Diff → apply to workbench draft → human save. **Full-auto**: auto-applies Diff to draft (still human save; no auto debug send). Do not mix with flow Staging when scoring tests.

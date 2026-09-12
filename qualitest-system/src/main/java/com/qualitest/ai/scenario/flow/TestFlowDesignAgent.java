@@ -27,7 +27,10 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolContextFactory;
 import com.qualitest.ai.tools.FlowDesignToolExecutor;
 import com.qualitest.ai.tools.FlowDesignToolsDefinitionService;
+import com.qualitest.ai.tools.flow.FlowDesignAutopilotCommitSupport;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.project.service.ITestFlowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -42,7 +45,8 @@ import java.util.Map;
  * 模型通过多次 submit_* 每次提交一个 Staging 单元；本类用 SubmitCapture 累积成功单元。
  * 本轮无一成功单元则 explainOnly=true（纯答疑，不灌 Staging）。
  * 步数耗尽但已有累积单元时仍返回已接受 patch，避免整轮作废。
- * 画布建议与素材提案都不自动写业务库，也不自动触发 Run。
+ * 画布建议与素材提案默认不自动写业务库，也不自动触发 Run。
+ * 仅当请求 autopilotEnabled 时注入 run_test_flow；落盘为隐式（run 前 / 回合结束）。
  */
 @Service
 @RequiredArgsConstructor
@@ -57,6 +61,9 @@ public class TestFlowDesignAgent {
     private final AiChatConversationService aiChatConversationService;
     private final HistoryWindowPolicyResolver historyWindowPolicyResolver;
     private final AiChatSessionSummaryService aiChatSessionSummaryService;
+    private final ITestFlowService testFlowService;
+    private final GraphJsonValidator graphJsonValidator;
+    private final FlowDesignPatchNormalizer flowDesignPatchNormalizer;
 
     /**
      * 同步设计：执行完整 Agent 流程并返回结果。
@@ -107,13 +114,20 @@ public class TestFlowDesignAgent {
         FlowDesignSubmitCapture submitCapture = new FlowDesignSubmitCapture();
         // 模板模式禁用素材 upsert（无真实项目素材库）
         AssetUpsertCapture assetUpsertCapture = request.isTemplateDesignMode() ? null : new AssetUpsertCapture();
+        boolean autopilot = request.isAutopilotEnabledEffective();
         FlowDesignToolContext toolContext = flowDesignToolContextFactory.fromDesignRequest(
                 request, submitCapture, assetUpsertCapture,
                 session.getAiChatSessionId(),
-                aiChatConversationService.loadFlowDesignClientIdMap(session.getAiChatSessionId()));
+                aiChatConversationService.loadFlowDesignClientIdMap(session.getAiChatSessionId()),
+                autopilot,
+                (flowId, graph) -> {
+                    if (listener != null && flowId != null) {
+                        listener.onGraphCommitted(flowId);
+                    }
+                });
 
-        List<Map<String, Object>> tools = flowDesignToolsDefinitionService.loadToolsDefinition();
-        List<LlmMessage> messages = buildInitialMessages(request, session, modelConfig);
+        List<Map<String, Object>> tools = flowDesignToolsDefinitionService.loadToolsDefinition(autopilot);
+        List<LlmMessage> messages = buildInitialMessages(request, session, modelConfig, autopilot);
 
         aiChatConversationService.appendUserMessage(
                 session.getAiChatSessionId(),
@@ -143,8 +157,21 @@ public class TestFlowDesignAgent {
             }
         }
 
+        // 全自动：回合结束若仍有未落盘 submit_*，隐式落盘（直接走 Support，不经空壳工具）
+        if (autopilot && submitCapture.hasAccepted()) {
+            FlowDesignAutopilotCommitSupport.CommitOutcome outcome =
+                    FlowDesignAutopilotCommitSupport.commitIfNeeded(
+                            toolContext, testFlowService, graphJsonValidator, flowDesignPatchNormalizer);
+            if (!outcome.ok()) {
+                String detail = outcome.errors().isEmpty()
+                        ? outcome.message()
+                        : outcome.message() + " — " + String.join("; ", outcome.errors());
+                throw new LlmClientException("全自动落盘失败: " + detail);
+            }
+        }
+
         String content = runResult.getContent();
-        // explainOnly：本轮未成功接受任何 submit_* 单元，视为纯答疑，无 patch
+        // explainOnly：本轮未成功接受任何 submit_* 单元（或全自动已隐式落盘清空），视为无 Staging patch
         boolean explainOnly = !submitCapture.hasAccepted();
         FlowDesignPatch normalizedPatch = explainOnly ? null : submitCapture.getNormalizedPatch();
         DesignValidationResult validation;
@@ -286,11 +313,15 @@ public class TestFlowDesignAgent {
         return null;
     }
 
-    /** 组装首轮送入模型的消息：system + 会话摘要 + 裁剪历史 + 本轮 user */
+    /** 组装首轮送入模型的消息：system（可含全自动段）+ 会话摘要 + 裁剪历史 + 本轮 user */
     private List<LlmMessage> buildInitialMessages(TestFlowDesignRequest request, AiChatSession session,
-                                                  LlmModelConfig modelConfig) {
+                                                  LlmModelConfig modelConfig, boolean autopilot) {
         try {
             String systemPrompt = FlowDesignPromptResources.loadText(FlowDesignPromptResources.SYSTEM_PROMPT);
+            if (autopilot) {
+                systemPrompt = systemPrompt + "\n\n"
+                        + FlowDesignPromptResources.loadText(FlowDesignPromptResources.AUTOPILOT_PROMPT);
+            }
             String userContent = buildUserContent(request);
             int reservedTokens = TokenEstimator.estimateText(systemPrompt)
                     + TokenEstimator.estimateText(userContent);

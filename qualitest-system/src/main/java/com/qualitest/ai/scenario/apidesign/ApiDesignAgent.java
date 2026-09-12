@@ -83,7 +83,8 @@ public class ApiDesignAgent {
         ApiDesignToolContext toolContext = apiDesignToolContextFactory.fromDesignRequest(request, submitCapture);
 
         List<Map<String, Object>> tools = apiDesignToolsDefinitionService.loadToolsDefinition();
-        List<LlmMessage> messages = buildInitialMessages(request, session, modelConfig);
+        boolean autopilot = request.isAutopilotEnabledEffective();
+        List<LlmMessage> messages = buildInitialMessages(request, session, modelConfig, autopilot);
 
         aiChatConversationService.appendUserMessage(
                 session.getAiChatSessionId(),
@@ -212,11 +213,15 @@ public class ApiDesignAgent {
         return null;
     }
 
-    /** 组装首轮 LLM 消息：系统提示、会话摘要、历史窗口与当前用户描述。 */
+    /** 组装首轮 LLM 消息：系统提示（可含全自动段）、会话摘要、历史窗口与当前用户描述。 */
     private List<LlmMessage> buildInitialMessages(ApiDesignRequest request, AiChatSession session,
-                                                  LlmModelConfig modelConfig) {
+                                                  LlmModelConfig modelConfig, boolean autopilot) {
         try {
             String systemPrompt = ApiDesignPromptResources.loadText(ApiDesignPromptResources.SYSTEM_PROMPT);
+            if (autopilot) {
+                systemPrompt = systemPrompt + "\n\n"
+                        + ApiDesignPromptResources.loadText(ApiDesignPromptResources.AUTOPILOT_PROMPT);
+            }
             String userContent = buildUserContent(request);
             int reservedTokens = TokenEstimator.estimateText(systemPrompt)
                     + TokenEstimator.estimateText(userContent);

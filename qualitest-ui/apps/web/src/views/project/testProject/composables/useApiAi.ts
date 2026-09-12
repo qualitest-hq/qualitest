@@ -2,6 +2,7 @@
  * AI API 助手状态与业务逻辑：patch Diff 勾选与合并写入工作台。
  */
 import { type Ref } from 'vue';
+import { ElMessage } from 'element-plus';
 
 import {
   listApiDesignChatSessions,
@@ -32,6 +33,7 @@ import {
   parseAssistantMessageFromServer,
   parseUserMessageFromServer,
 } from '../types/apiDesignAiTypes';
+import { isApiAiAutopilotEnabled } from '../utils/apiAiPreferences';
 import { useApiAiStream } from './useApiAiStream';
 
 export { DRAFT_SESSION_ID, createClientMessageId, isPersistedSessionId } from '@/utils/ai/aiChatSession';
@@ -88,14 +90,19 @@ export function useApiAi(
       preRequestScript: context.preRequestScript?.value ?? '',
       postRequestScript: context.postRequestScript?.value ?? '',
       thinkingEnabled: thinkingEnabled.value,
+      autopilotEnabled: isApiAiAutopilotEnabled(),
     };
   }
 
-  /** 将流式完成结果追加为助手消息，并初始化 Diff 默认勾选。 */
-  function appendAssistantMessage(data: ApiDesignResult) {
+  /**
+   * 将流式完成结果追加为助手消息，并初始化 Diff 默认勾选。
+   * @returns 新助手消息 id（供全自动立即 merge）
+   */
+  function appendAssistantMessage(data: ApiDesignResult): string {
     const messageId = createClientMessageId();
     const explainOnly = data.explainOnly === true;
     const patch = explainOnly ? undefined : data.patch;
+    const autopilot = isApiAiAutopilotEnabled();
     const assistantMessage: ApiDesignMessageView = {
       id: messageId,
       role: 'assistant',
@@ -103,7 +110,9 @@ export function useApiAi(
         summary: data.summary,
         streamText: streamText.value,
         hasPatch: Boolean(patch && !explainOnly),
-        emptyPatchPlaceholder: '已生成接口变更建议，请勾选后合并到工作台。',
+        emptyPatchPlaceholder: autopilot
+          ? '已生成接口变更建议，将自动应用到工作台。'
+          : '已生成接口变更建议，请勾选后合并到工作台。',
       }),
       thinkingContent: resolveThinkingContent(data.thinkingContent, streamThinking.value),
       aiLlmModelId: data.aiLlmModelId,
@@ -122,6 +131,7 @@ export function useApiAi(
         [messageId]: new Set(items.map((i) => i.id)),
       };
     }
+    return messageId;
   }
 
   /** 设计失败时写入助手回复（保留已流式输出的思考过程） */
@@ -171,11 +181,22 @@ export function useApiAi(
   async function executeDesignRequest(prompt: string) {
     designing.value = true;
     try {
+      const autopilot = isApiAiAutopilotEnabled();
       const data = await runDesignStream(buildPayload(prompt));
       if (data.aiChatSessionId) {
         await chat.afterDesignSessionCreated(String(data.aiChatSessionId));
       }
-      appendAssistantMessage(data);
+      const messageId = appendAssistantMessage(data);
+      // 全自动须在 refreshServerMessageIds 前 merge，避免 client id 被替换后找不到消息
+      if (
+        autopilot
+        && data.explainOnly !== true
+        && data.patch
+      ) {
+        acceptAllForMessage(messageId);
+        await mergeMessagePatch(messageId);
+        ElMessage.success('全自动已应用到工作台（未保存到接口库）');
+      }
       await chat.refreshServerMessageIds();
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === 'AbortError') {

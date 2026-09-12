@@ -22,6 +22,11 @@ export interface ApiDesignRequestPayload {
   postRequestScript?: string;
   workbenchSnapshot?: string;
   thinkingEnabled?: boolean;
+  /**
+   * 是否开启全自动（前端 SSE 完成后自动应用到工作台草稿）。
+   * 默认 false（半自动：Diff 勾选后应用）。不自动保存接口库。
+   */
+  autopilotEnabled?: boolean;
 }
 
 /** SSE 事件类型 */

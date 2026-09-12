@@ -1,11 +1,7 @@
 <template>
     <div v-if="proposals.length > 0" class="ai-asset-proposals">
-    <div class="ai-asset-proposals__title">素材库提案</div>
-    <p class="ai-asset-proposals__hint">
-      {{ isTemplateCanvas
-        ? '模板画布不支持写入项目素材库；请忽略此类提案，或在真实项目画布中再确认。'
-        : '确认后写入项目素材库；拒绝则丢弃。Run 前请确认所需条目。' }}
-    </p>
+    <div class="ai-asset-proposals__title">{{ sectionTitle }}</div>
+    <p class="ai-asset-proposals__hint">{{ sectionHint }}</p>
     <div
         v-for="item in proposals"
         :key="item.key"
@@ -68,8 +64,8 @@
 
 <script setup lang="ts">
 /**
- * 助手消息下的素材库写入提案卡片。
- * 展示 key、动作、字段（默认脱敏）；支持显示明文、确认写入素材库、拒绝提案。
+ * 助手消息下的素材库写入卡片。
+ * 半自动：待确认提案；全自动 / 已确认：展示已写入条目（无确认按钮）。
  */
 import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -111,6 +107,32 @@ const busyAction = ref<'confirm' | 'reject' | ''>('')
 
 const proposals = computed(() => props.proposals ?? [])
 
+const hasPending = computed(() =>
+  proposals.value.some((p) => !p.status || p.status === 'pending'),
+)
+
+const allWritten = computed(() =>
+  proposals.value.length > 0
+    && proposals.value.every((p) => p.status === 'confirmed'),
+)
+
+const sectionTitle = computed(() =>
+  allWritten.value && !hasPending.value ? '素材库写入' : '素材库提案',
+)
+
+const sectionHint = computed(() => {
+  if (isTemplateCanvas.value) {
+    return '模板画布不支持写入项目素材库；请忽略此类提案，或在真实项目画布中再确认。'
+  }
+  if (allWritten.value) {
+    return '已写入项目素材库（全自动直写或人手确认）。'
+  }
+  if (!hasPending.value) {
+    return '本轮素材提案均已处理完毕。'
+  }
+  return '确认后写入项目素材库；拒绝则丢弃。Run 前请确认所需条目。'
+})
+
 /** 已有项目 id 且消息已同步为服务端 id 时才允许确认/拒绝 */
 const canDecide = computed(() => {
   const projectId = store.testProjectId?.trim()
@@ -124,7 +146,7 @@ function actionLabel(action?: string) {
 }
 
 function statusLabel(status?: string) {
-  if (status === 'confirmed') return '已确认'
+  if (status === 'confirmed') return '已写入'
   if (status === 'rejected') return '已拒绝'
   return '待确认'
 }

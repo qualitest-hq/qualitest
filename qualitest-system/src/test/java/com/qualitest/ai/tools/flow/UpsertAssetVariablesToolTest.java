@@ -31,7 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 UpsertAssetVariablesTool：提出素材库写入提案（不写库），回执不含明文。
+ * 测 UpsertAssetVariablesTool：半自动记提案；全自动直接写库；回执不含明文。
  * 边界：Mock 素材服务，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=UpsertAssetVariablesToolTest
  */
@@ -129,11 +129,46 @@ class UpsertAssetVariablesToolTest {
     }
 
     /**
+     * 前提：全自动、按 key 查询抛「不存在」。
+     * 期望：调 insert；Capture status=confirmed；回执无明文。
+     */
+    @Test
+    @Order(3)
+    @DisplayName("全自动无既有 key 时直接 insert")
+    void upsert_autopilot_persistsCreated() {
+        when(assetService.selectTestProjectAssetResultByKey(PROJECT_ID, "clientAuth"))
+                .thenThrow(new ServiceException("素材条目不存在"));
+        FlowDesignToolContext autoCtx = FlowDesignToolContext.builder()
+                .testProjectId(PROJECT_ID)
+                .maxToolResultBytes(8192)
+                .assetUpsertCapture(capture)
+                .autopilotEnabled(true)
+                .build();
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("mobile", "13800000001");
+        fields.put("password", "Test@123456");
+
+        String json = tool.execute(Map.of(
+                "key", "clientAuth",
+                "remark", "客户端登录",
+                "fields", fields), autoCtx);
+
+        JSONObject root = JSON.parseObject(json);
+        assertEquals(AssetUpsertProposal.STATUS_CONFIRMED, root.getString("status"));
+        assertEquals("created", root.getString("action"));
+        assertFalse(json.contains("Test@123456"));
+        verify(assetService).insertTestProjectAsset(any());
+        verify(assetService, never()).updateTestProjectAsset(any());
+        assertEquals(AssetUpsertProposal.STATUS_CONFIRMED, capture.getProposals().get(0).getStatus());
+    }
+
+    /**
      * 前提：工具名 upsert_asset_variables。
      * 期望：MCP 不允许调用；Web 助手可见。
      */
     @Test
-    @Order(3)
+    @Order(4)
     @DisplayName("upsert 仅 Web 可见、MCP 不可调用")
     void mcpDisallowsUpsert() {
         String id = FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId();
@@ -147,7 +182,7 @@ class UpsertAssetVariablesToolTest {
      * 期望：回执含 error，不落盘。
      */
     @Test
-    @Order(4)
+    @Order(5)
     @DisplayName("缺少 Capture 时返回错误")
     void upsert_missingCapture_returnsError() {
         FlowDesignToolContext noCapture = FlowDesignToolContext.builder()

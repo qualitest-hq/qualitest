@@ -58,6 +58,9 @@ export function useAiDesignStream() {
             activeTool.value = '';
             handlers?.onToolEnd?.();
           },
+          onGraphCommitted: (testFlowId) => {
+            handlers?.onGraphCommitted?.(testFlowId);
+          },
           onEvent: handlers?.onEvent,
           onDone: handlers?.onDone,
           onError: handlers?.onError,

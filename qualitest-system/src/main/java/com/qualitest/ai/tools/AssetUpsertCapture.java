@@ -36,6 +36,17 @@ public class AssetUpsertCapture {
         return !byKey.isEmpty();
     }
 
+    /** 本轮是否仍有待用户确认的提案（全自动落盘后为 confirmed，不算 pending） */
+    public boolean hasPendingProposals() {
+        for (AssetUpsertProposal p : byKey.values()) {
+            if (p != null && (p.getStatus() == null
+                    || AssetUpsertProposal.STATUS_PENDING.equals(p.getStatus()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 按记录顺序返回提案列表的副本，供组装响应与落库元数据。
      */

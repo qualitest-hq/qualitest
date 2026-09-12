@@ -32,6 +32,13 @@ public class ApiDesignToolContext {
      */
     private final ApiDesignSubmitCapture submitCapture;
 
+    /**
+     * 是否开启全自动（请求级）。
+     * 影响 submit 回执 hint 与 system 附加规程；真正 apply 在前端。
+     */
+    @Builder.Default
+    private final boolean autopilotEnabled = false;
+
     /** 工具返回 JSON 的最大字节数，超限会被截断 */
     @Builder.Default
     private final int maxToolResultBytes = AiLlmConfigService.DEFAULT_MAX_TOOL_RESULT_BYTES;

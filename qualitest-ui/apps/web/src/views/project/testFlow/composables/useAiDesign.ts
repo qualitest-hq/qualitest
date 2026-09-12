@@ -29,6 +29,8 @@ import { useAiDesignStream } from './useAiDesignStream';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
+import { useFlowGraph } from './useFlowGraph';
+import { isAutopilotEnabled } from '../utils/aiDesignPreferences';
 import type { AiDesignMessageView, AiDesignSystemAction, FlowDesignPatch, TestFlowDesignResult } from '../types/aiDesignTypes';
 import { parseAssistantFromServer, parseUserFromServer } from '../types/aiDesignTypes';
 import type { ComposerSendPayload } from './mentionComposer';
@@ -363,6 +365,7 @@ export function useAiDesign() {
       composerDoc: payload.doc,
       graphJson,
       thinkingEnabled: thinkingEnabled.value,
+      autopilotEnabled: !isTemplate && isAutopilotEnabled(),
     };
     if (isTemplate) {
       base.designMode = 'template';
@@ -373,6 +376,7 @@ export function useAiDesign() {
         ...(e.api || {}),
         testProjectApiId: e.syntheticId,
       }));
+      base.autopilotEnabled = false;
     }
     return base;
   }
@@ -408,8 +412,21 @@ export function useAiDesign() {
   /** 执行一轮 SSE 设计（不含追加 user 气泡） */
   async function executeDesignRequest(payload: ComposerSendPayload) {
     designing.value = true;
+    const { loadFlow } = useFlowGraph();
     try {
-      const data = await runDesignStream(buildDesignPayload(payload));
+      const data = await runDesignStream(buildDesignPayload(payload), {
+        onGraphCommitted: (testFlowId) => {
+          clearAllStagingState();
+          resetStagingAcceptanceMaps();
+          void loadFlow(testFlowId)
+            .then(() => {
+              ElMessage.success('全自动已落库，画布已同步');
+            })
+            .catch(() => {
+              ElMessage.warning('已落库，但刷新画布失败，请手动重新打开测试流');
+            });
+        },
+      });
       if (data.aiChatSessionId) {
         await chat.afterDesignSessionCreated(String(data.aiChatSessionId));
       }

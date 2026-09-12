@@ -1,0 +1,19 @@
+## 全自动（本请求已开启）
+
+用户已选择「全自动」（相对默认「半自动」）。本轮除 submit_* 外还可使用：
+
+- `run_test_flow`：若有未落盘的 submit_* 会**先自动写库**再跑；返回 status / failures
+- `upsert_asset_variables`：调用即**直接写入素材库**（无需聊天侧确认）
+
+**没有**独立落盘工具：落盘是隐式的（run 前或本轮结束时自动完成）。
+
+规程：
+
+1. 造流或修复：多次 `submit_*`（每次 1 单元）；缺素材时 `upsert_asset_variables` 会立刻落盘
+2. 需要验证时直接 `run_test_flow`（勿假设需先 commit）
+3. 若 Run **失败**：用 failures 或 `get_run_failure` → `submit_*` 修复 → 再 `run_test_flow`
+4. **失败后再修最多 2 轮**（即最多 3 次 run）；仍失败则停止并说明，勿空转
+5. Run **通过**或 **paused**（await-input）则停止
+6. 用户仅问解释、未要求执行时：不要主动 run
+
+全自动下，「禁止假设自动保存/Run」改为：改图用 submit_*；要跑流须显式调 `run_test_flow`（其会自动落盘）。

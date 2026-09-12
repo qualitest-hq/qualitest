@@ -10,15 +10,12 @@ import com.qualitest.ai.service.AiChatConversationService;
 import com.qualitest.ai.tools.AssetUpsertProposal;
 import com.qualitest.ai.tools.support.AssetUpsertSupport;
 import com.qualitest.common.exception.ServiceException;
-import com.qualitest.project.params.TestProjectAssetSaveParams;
-import com.qualitest.project.result.TestProjectAssetResult;
 import com.qualitest.project.service.ITestProjectAssetService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -132,23 +129,7 @@ public class AssetUpsertProposalService {
      * 当前库中无该 key 则新增，已有则按 id 更新；备注为空时更新保留原备注。
      */
     private void persistAsset(Long projectId, String key, Map<String, Object> fields, String remark) {
-        Map<String, Object> assets = new LinkedHashMap<>();
-        assets.put(key, fields);
-        TestProjectAssetSaveParams.TestProjectAssetSaveParamsBuilder params = TestProjectAssetSaveParams.builder()
-                .testProjectId(projectId)
-                .key(key)
-                .assets(assets);
-
-        TestProjectAssetResult existing = AssetUpsertSupport.findByKeyOrNull(
-                testProjectAssetService, projectId, key);
-        if (existing == null) {
-            testProjectAssetService.insertTestProjectAsset(params.remark(remark).build());
-        } else {
-            testProjectAssetService.updateTestProjectAsset(params
-                    .id(existing.getId())
-                    .remark(remark != null ? remark : existing.getRemark())
-                    .build());
-        }
+        AssetUpsertSupport.persistAsset(testProjectAssetService, projectId, key, fields, remark);
     }
 
     /** 校验请求必填：testProjectId、aiChatMessageId、key */

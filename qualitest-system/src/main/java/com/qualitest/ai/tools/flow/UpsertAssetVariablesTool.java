@@ -10,6 +10,7 @@ import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.ai.tools.support.AssetUpsertSupport;
 import com.qualitest.ai.tools.support.AssetVariablesListingSupport;
+import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.domain.TestProjectAsset;
 import com.qualitest.project.result.TestProjectAssetResult;
 import com.qualitest.project.service.ITestProjectAssetService;
@@ -21,15 +22,14 @@ import java.util.Map;
 /**
  * 按 key 提出新增或更新项目素材库条目。
  * <p>
- * 入参：key、fields（扁平字段对象）、可选 remark。
- * 只把提案写入本轮捕获器，不写库；用户确认后才落盘。
- * 回执含 key、字段名、action、status=pending，不含字段明文。
- * 返回前按小回执形状做字节上限裁剪。
+ * 半自动：只把提案写入本轮捕获器，不写库；用户确认后才落盘。<br>
+ * 全自动：工具内直接写库，提案状态为 confirmed。
+ * 回执含 key、字段名、action、status，不含字段明文。
  */
 @RequiredArgsConstructor
 public class UpsertAssetVariablesTool implements QualitestTool {
 
-    /** 用于判断项目下是否已有该 key，从而标记 created 或 updated */
+    /** 用于判断项目下是否已有该 key，以及全自动时落盘 */
     private final ITestProjectAssetService testProjectAssetService;
 
     @Override
@@ -38,11 +38,7 @@ public class UpsertAssetVariablesTool implements QualitestTool {
     }
 
     /**
-     * 校验入参 → 查库判定新建/更新 → 写入捕获器 → 返回无明文回执。
-     *
-     * @param arguments 工具入参
-     * @param ctx       须含 testProjectId 与 assetUpsertCapture
-     * @return 成功为安全摘要 JSON；失败顶层含 error
+     * 校验入参 → 查库判定新建/更新 → 半自动记提案 / 全自动落盘 → 返回无明文回执。
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
@@ -76,22 +72,36 @@ public class UpsertAssetVariablesTool implements QualitestTool {
                 ? AssetUpsertProposal.ACTION_CREATED
                 : AssetUpsertProposal.ACTION_UPDATED;
 
+        boolean autopilot = ctx.isAutopilotEnabled();
+        String status = AssetUpsertProposal.STATUS_PENDING;
+        if (autopilot) {
+            try {
+                AssetUpsertSupport.persistAsset(testProjectAssetService, projectId, key, fields, remark);
+            } catch (ServiceException e) {
+                return FlowDesignToolSupport.errorJson(
+                        e.getMessage() != null ? e.getMessage() : "全自动写入素材库失败");
+            } catch (Exception e) {
+                return FlowDesignToolSupport.errorJson("全自动写入素材库异常: " + e.getMessage());
+            }
+            status = AssetUpsertProposal.STATUS_CONFIRMED;
+        }
+
         AssetUpsertProposal proposal = AssetUpsertProposal.builder()
                 .key(key)
                 .action(action)
                 .remark(remark)
                 .fields(fields)
-                .status(AssetUpsertProposal.STATUS_PENDING)
+                .status(status)
                 .build();
         capture.record(proposal);
 
-        return buildAck(proposal, ctx.getMaxToolResultBytes());
+        return buildAck(proposal, ctx.getMaxToolResultBytes(), autopilot);
     }
 
     /**
      * 组装给模型的成功回执：key、字段名、备注、占位提示、action、status；不含字段明文。
      */
-    private static String buildAck(AssetUpsertProposal proposal, int maxBytes) {
+    private static String buildAck(AssetUpsertProposal proposal, int maxBytes, boolean autopilot) {
         Map<String, Object> assets = new LinkedHashMap<>();
         assets.put(proposal.getKey(), proposal.getFields());
         JSONObject result = AssetVariablesListingSupport.toSafeItem(TestProjectAsset.builder()
@@ -100,7 +110,10 @@ public class UpsertAssetVariablesTool implements QualitestTool {
                 .assets(assets)
                 .build());
         result.put("action", proposal.getAction());
-        result.put("status", AssetUpsertProposal.STATUS_PENDING);
+        result.put("status", proposal.getStatus());
+        if (autopilot) {
+            result.put("hint", "全自动已写入素材库；可继续 submit_* / run_test_flow");
+        }
         return ToolResultByteFit.fitAck(result, maxBytes);
     }
 }

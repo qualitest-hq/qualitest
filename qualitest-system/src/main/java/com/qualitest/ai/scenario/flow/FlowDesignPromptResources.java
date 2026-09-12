@@ -19,6 +19,11 @@ public final class FlowDesignPromptResources {
     public static final String SYSTEM_PROMPT = "ai/flow-design-system-prompt.txt";
 
     /**
+     * 全自动追加段：仅当请求 autopilotEnabled 时拼入 system。
+     */
+    public static final String AUTOPILOT_PROMPT = "ai/flow-design-autopilot-prompt.txt";
+
+    /**
      * Web 造流 Agent 的 function 清单：只读查询 + 分类型 submit_* 单元工具参数 Schema。
      */
     public static final String TOOLS_DEFINITION = "ai/flow-design-tools.json";

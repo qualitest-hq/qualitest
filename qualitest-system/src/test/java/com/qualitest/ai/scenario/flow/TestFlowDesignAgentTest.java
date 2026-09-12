@@ -19,6 +19,8 @@ import com.qualitest.ai.tools.FlowDesignToolExecutor;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolsDefinitionService;
 import com.qualitest.flow.model.*;
+import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.project.service.ITestFlowService;
 import org.junit.jupiter.api.*;
 
 import java.util.ArrayList;
@@ -69,7 +71,10 @@ class TestFlowDesignAgentTest {
         agent = new TestFlowDesignAgent(
                 modelService, configService, agentRunner, toolExecutor,
                 contextFactory, toolsDefinitionService, conversationService,
-                historyWindowPolicyResolver, summaryService);
+                historyWindowPolicyResolver, summaryService,
+                mock(ITestFlowService.class),
+                mock(GraphJsonValidator.class),
+                mock(FlowDesignPatchNormalizer.class));
 
         modelConfig = LlmModelConfig.builder()
                 .aiLlmModelId(1001L)
@@ -96,8 +101,8 @@ class TestFlowDesignAgentTest {
         when(conversationService.loadMessagesForLlm(eq(SESSION_ID), any(LlmModelConfig.class), any(), anyInt()))
                 .thenReturn(List.of());
         when(conversationService.loadFlowDesignClientIdMap(any())).thenReturn(new HashMap<>());
-        when(toolsDefinitionService.loadToolsDefinition()).thenReturn(List.of());
-        when(contextFactory.fromDesignRequest(any(), any(), any(), any(), any())).thenAnswer(inv -> {
+        when(toolsDefinitionService.loadToolsDefinition(anyBoolean())).thenReturn(List.of());
+        when(contextFactory.fromDesignRequest(any(), any(), any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
             TestFlowDesignRequest req = inv.getArgument(0);
             FlowDesignSubmitCapture capture = inv.getArgument(1);
             return FlowDesignToolContext.builder()
@@ -112,6 +117,7 @@ class TestFlowDesignAgentTest {
                     .flowDesignClientIdMap(inv.getArgument(4) != null
                             ? inv.getArgument(4)
                             : new HashMap<>())
+                    .autopilotEnabled(Boolean.TRUE.equals(inv.getArgument(5)))
                     .build();
         });
     }

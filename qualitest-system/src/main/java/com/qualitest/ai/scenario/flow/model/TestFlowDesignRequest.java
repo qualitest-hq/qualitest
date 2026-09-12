@@ -69,8 +69,19 @@ public class TestFlowDesignRequest {
      */
     private Boolean thinkingEnabled;
 
+    /**
+     * 是否开启全自动：true 时注入 run_test_flow（隐式落盘），并追加全自动规程。
+     * 默认 false（半自动：Staging 人审）。
+     */
+    private Boolean autopilotEnabled;
+
     /** 是否为模板预制流设计模式 */
     public boolean isTemplateDesignMode() {
         return designMode != null && "template".equalsIgnoreCase(designMode.trim());
+    }
+
+    /** 本请求是否启用全自动（模板模式强制关闭） */
+    public boolean isAutopilotEnabledEffective() {
+        return Boolean.TRUE.equals(autopilotEnabled) && !isTemplateDesignMode();
     }
 }

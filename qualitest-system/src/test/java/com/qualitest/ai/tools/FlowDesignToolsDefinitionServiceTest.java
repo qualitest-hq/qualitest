@@ -41,12 +41,12 @@ class FlowDesignToolsDefinitionServiceTest {
     }
 
     /**
-     * 前提：执行器已注册全部声明工具；加载 Web 工具定义。
-     * 期望：共 14 个；含 submit、upsert、append_api_design_hints、list_asset、get_flow_api_health；不含 list_flows、get_flow。
+     * 前提：执行器已注册全部声明工具；加载 Web JSON 清单。
+     * 期望：数量与 webAgent 枚举一致；含 submit、upsert、run；不含 list_flows、get_flow。
      */
     @Test
     @Order(1)
-    @DisplayName("Web 清单含 submit/upsert/append_hints，不含 list_flows")
+    @DisplayName("Web JSON 含 submit/upsert/run，不含 list_flows")
     void loadToolsDefinition_containsSubmit_notListFlows() {
         List<String> names = service.loadToolsDefinition().stream()
                 .map(tool -> {
@@ -66,17 +66,60 @@ class FlowDesignToolsDefinitionServiceTest {
         assertTrue(names.contains(FlowDesignToolNames.APPEND_API_DESIGN_HINTS.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW_API_HEALTH.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_ASSET_VARIABLES.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
         assertFalse(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
         assertFalse(names.contains(FlowDesignToolNames.GET_FLOW.getId()));
+        assertFalse(names.contains("commit_design_patch"));
+    }
+
+    /**
+     * 前提：加载 Web 工具且 autopilotEnabled=false。
+     * 期望：不含 run。
+     */
+    @Test
+    @Order(2)
+    @DisplayName("半自动时剔除 run")
+    void loadToolsDefinition_withoutAutopilot_excludesRun() {
+        List<String> names = service.loadToolsDefinition(false).stream()
+                .map(tool -> {
+                    Object fn = tool.get("function");
+                    if (fn instanceof java.util.Map<?, ?> fnMap) {
+                        return String.valueOf(fnMap.get("name"));
+                    }
+                    return null;
+                })
+                .toList();
+        assertFalse(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()));
+    }
+
+    /**
+     * 前提：加载 Web 工具且 autopilotEnabled=true。
+     * 期望：含 run。
+     */
+    @Test
+    @Order(3)
+    @DisplayName("全自动注入 run")
+    void loadToolsDefinition_withAutopilot_includesRun() {
+        List<String> names = service.loadToolsDefinition(true).stream()
+                .map(tool -> {
+                    Object fn = tool.get("function");
+                    if (fn instanceof java.util.Map<?, ?> fnMap) {
+                        return String.valueOf(fnMap.get("name"));
+                    }
+                    return null;
+                })
+                .toList();
+        assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
     }
 
     /**
      * 前提：执行器已注册全部声明工具；加载 MCP 工具定义。
-     * 期望：含 list_flows、get_flow、get_edge_detail、get_scenario_detail；不含任何 submit_*、upsert、append。
+     * 期望：含 list_flows、get_flow、get_edge_detail、get_scenario_detail；不含任何 submit_*、upsert、append、run。
      */
     @Test
-    @Order(2)
-    @DisplayName("MCP 只读工具不含 submit/upsert")
+    @Order(4)
+    @DisplayName("MCP 只读工具不含 submit/upsert/run")
     void loadMcpProtocolTools_excludesSubmit() {
         List<String> names = service.loadMcpProtocolTools().stream()
                 .map(tool -> String.valueOf(tool.get("name")))
@@ -86,6 +129,8 @@ class FlowDesignToolsDefinitionServiceTest {
         assertFalse(names.stream().anyMatch(FlowDesignToolNames::isSubmitUnitTool));
         assertFalse(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
         assertFalse(names.contains(FlowDesignToolNames.APPEND_API_DESIGN_HINTS.getId()));
+        assertFalse(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
+        assertFalse(names.contains("commit_design_patch"));
         assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_EDGE_DETAIL.getId()));
@@ -99,7 +144,7 @@ class FlowDesignToolsDefinitionServiceTest {
      * 期望：名称集合等于枚举中 mcpAllowed=true 的全部 id。
      */
     @Test
-    @Order(3)
+    @Order(5)
     @DisplayName("MCP 工具 id 等于枚举 mcpAllowed 集合")
     void mcpToolIds_matchEnum() {
         Set<String> mcpNames = service.loadMcpProtocolTools().stream()

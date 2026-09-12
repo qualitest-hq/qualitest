@@ -34,6 +34,7 @@ public class ApiDesignToolContextFactory {
                 .workbenchSnapshot(request.getWorkbenchSnapshot())
                 .maxToolResultBytes(aiLlmConfigService.getMaxToolResultBytes())
                 .submitCapture(submitCapture)
+                .autopilotEnabled(request.isAutopilotEnabledEffective())
                 .build();
     }
 }

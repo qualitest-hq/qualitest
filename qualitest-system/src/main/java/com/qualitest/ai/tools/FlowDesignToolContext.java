@@ -9,7 +9,9 @@ import lombok.Getter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 /**
  * 测试流 AI 设计工具执行时的请求级上下文。
@@ -55,6 +57,24 @@ public class FlowDesignToolContext {
     /** 「AI 修复」入口带入的失败 Run id；get_run_failure 未显式传 runId 时回退使用 */
     private final Long contextRunId;
 
+    /**
+     * 是否开启全自动（请求级）。
+     * 为 true 时才允许 run_test_flow（落盘为隐式）。
+     */
+    @Builder.Default
+    private final boolean autopilotEnabled = false;
+
+    /**
+     * 本轮是否已至少成功 commit 一次（供 run 提示与前端同步）。
+     */
+    @Builder.Default
+    private final AtomicBoolean committedThisTurn = new AtomicBoolean(false);
+
+    /**
+     * commit 成功后回调（testFlowId, 已落库图）；由 SSE 编排层注入，可为 null。
+     */
+    private final BiConsumer<Long, GraphJson> onGraphCommitted;
+
     /** search_apis 单次返回条数上限 */
     @Builder.Default
     private final int maxSearchApis = AiLlmConfigService.DEFAULT_MAX_SEARCH_APIS;
@@ -75,7 +95,7 @@ public class FlowDesignToolContext {
 
     /**
      * 本轮 upsert_asset_variables 提案累积器。
-     * 工具只写提案不落素材库；为空时 upsert 工具直接报错。
+     * 半自动只记提案；全自动工具内已写库后记 confirmed；为空时 upsert 工具直接报错。
      */
     private final AssetUpsertCapture assetUpsertCapture;
 
@@ -107,5 +127,20 @@ public class FlowDesignToolContext {
         if (workingGraphRef != null && next != null) {
             workingGraphRef.set(next);
         }
+    }
+
+    /** 标记本轮已成功 commit，并可选通知 SSE */
+    public void notifyGraphCommitted(GraphJson saved) {
+        if (committedThisTurn != null) {
+            committedThisTurn.set(true);
+        }
+        if (onGraphCommitted != null && testFlowId != null && saved != null) {
+            onGraphCommitted.accept(testFlowId, saved);
+        }
+    }
+
+    /** 本轮是否已成功 commit 过 */
+    public boolean hasCommittedThisTurn() {
+        return committedThisTurn != null && committedThisTurn.get();
     }
 }

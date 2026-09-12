@@ -16,7 +16,9 @@
           :display-messages="displayMessages"
           :has-more-older-messages="hasMoreOlderMessages"
           :loading-older-messages="loadingOlderMessages"
-          empty-hint="询问接口结构，或描述补约束 / 测值 / 脚本需求；有修改建议时可勾选后应用到工作台。"
+          :empty-hint="autopilotEnabled
+            ? '询问接口结构，或描述补约束 / 测值 / 脚本需求；全自动下有建议将直接应用到工作台（仍须人手保存）。'
+            : '询问接口结构，或描述补约束 / 测值 / 脚本需求；有修改建议时可勾选后应用到工作台。'"
           :design-error="designError"
           :designing="designing"
           :active-tool="activeTool"
@@ -88,7 +90,9 @@
                   <template v-else-if="hasVisiblePatchDiff(msg as ApiDesignMessageView)">
                     <div class="api-ai-diff__head">
                       <span class="api-ai-diff__title">
-                        {{ (msg as ApiDesignMessageView).merged ? '已应用变更' : '建议变更' }}
+                        {{ (msg as ApiDesignMessageView).merged
+                          ? '已应用变更'
+                          : '建议变更' }}
                       </span>
                       <button
                           v-if="!(msg as ApiDesignMessageView).merged"
@@ -154,6 +158,18 @@
               @keydown.meta.enter.prevent="submit"
           />
         </template>
+
+        <template #composer-extra>
+          <el-switch
+              v-model="autopilotEnabled"
+              active-text="全自动"
+              inactive-text="半自动"
+              class="api-ai-panel__autopilot"
+              inline-prompt
+              size="small"
+              title="半自动：Diff 勾选后应用到工作台；全自动：有建议时直接应用草稿（仍须人手保存接口库）"
+          />
+        </template>
       </AiChatShell>
     </div>
   </Teleport>
@@ -179,6 +195,10 @@ import { useAiPromptTemplates } from '@/composables/ai/useAiPromptTemplates';
 import { API_AI_DOCK_KEY } from '../constants/apiAiDock';
 import { useApiAi, type ApplyDesignChanges } from '../composables/useApiAi';
 import type { ApiDesignMessageView } from '../types/apiDesignAiTypes';
+import {
+  isApiAiAutopilotEnabled,
+  setApiAiAutopilotEnabled,
+} from '../utils/apiAiPreferences';
 
 const props = defineProps<{
   open: boolean;
@@ -198,6 +218,10 @@ const dockHostRef = inject(API_AI_DOCK_KEY, ref<HTMLElement | null>(null));
 const teleportDisabled = computed(() => !dockHostRef.value);
 
 const composerText = ref('');
+
+/** 全自动：有 patch 时自动应用到工作台草稿；关=半自动（Diff 人审） */
+const autopilotEnabled = ref(isApiAiAutopilotEnabled());
+watch(autopilotEnabled, setApiAiAutopilotEnabled);
 
 /** 快捷提示词：按项目加载 AI API 助手场景模板 */
 const {
@@ -458,5 +482,11 @@ function submit() {
 
 .api-ai-diff__merge {
   width: 100%;
+}
+
+.api-ai-panel__autopilot {
+  flex-shrink: 0;
+  align-self: flex-end;
+  margin-bottom: 2px;
 }
 </style>

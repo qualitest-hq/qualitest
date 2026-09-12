@@ -11,8 +11,9 @@ import java.util.List;
  * 测试流 AI 设计接口的一轮响应。
  * <p>
  * 含自然语言说明、画布增量 patch、校验结果，以及本轮素材库写入提案（若有）。
- * explainOnly=true 表示本轮未成功接受任何 submit_* 单元，无画布 patch。
- * 不自动保存测试流，也不自动写入素材库；均需用户确认后再落盘。
+ * explainOnly=true 表示本轮未成功接受任何 submit_* 单元，无画布 patch
+ * （全自动隐式落盘后也会为 true，因 capture 已清空）。
+ * 半自动：画布/素材须用户确认后再落盘；全自动：图隐式落盘、素材工具内直写。
  */
 @Getter
 @Builder

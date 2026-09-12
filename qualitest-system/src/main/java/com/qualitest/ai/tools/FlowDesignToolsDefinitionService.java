@@ -122,6 +122,23 @@ public class FlowDesignToolsDefinitionService {
         }
     }
 
+    /**
+     * Web Agent 本轮工具列表。
+     * autopilotEnabled=false 时剔除 run_test_flow。
+     */
+    public List<Map<String, Object>> loadToolsDefinition(boolean autopilotEnabled) {
+        List<Map<String, Object>> all = loadToolsDefinition();
+        List<Map<String, Object>> filtered = new ArrayList<>();
+        for (Map<String, Object> tool : all) {
+            String name = extractFunctionName(tool);
+            if (!autopilotEnabled && FlowDesignToolNames.isAutopilotOnlyTool(name)) {
+                continue;
+            }
+            filtered.add(tool);
+        }
+        return List.copyOf(filtered);
+    }
+
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> loadToolsDefinitionRaw() throws IOException {
         String json = FlowDesignPromptResources.loadText(FlowDesignPromptResources.TOOLS_DEFINITION);

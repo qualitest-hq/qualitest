@@ -43,13 +43,27 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 Web 设计请求构建完整上下文：含会话 id 与短名→雪花映射（可空映射则内部新建）。
+     * 从 Web 设计请求构建完整上下文：含会话 id、短名映射、全自动开关与 commit 回调。
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture,
                                                      AssetUpsertCapture assetUpsertCapture,
                                                      Long aiChatSessionId,
                                                      java.util.Map<String, String> flowDesignClientIdMap) {
+        return fromDesignRequest(request, submitCapture, assetUpsertCapture,
+                aiChatSessionId, flowDesignClientIdMap, false, null);
+    }
+
+    /**
+     * 从 Web 设计请求构建完整上下文（含全自动开关）。
+     */
+    public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
+                                                     FlowDesignSubmitCapture submitCapture,
+                                                     AssetUpsertCapture assetUpsertCapture,
+                                                     Long aiChatSessionId,
+                                                     java.util.Map<String, String> flowDesignClientIdMap,
+                                                     boolean autopilotEnabled,
+                                                     java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted) {
         AiDesignMentionSupport.ResolvedMentionContext resolved =
                 AiDesignMentionSupport.resolve(request.getMentions());
         return build(
@@ -64,7 +78,9 @@ public class FlowDesignToolContextFactory {
                 submitCapture,
                 assetUpsertCapture,
                 aiChatSessionId,
-                flowDesignClientIdMap);
+                flowDesignClientIdMap,
+                autopilotEnabled,
+                onGraphCommitted);
     }
 
     /**
@@ -102,6 +118,8 @@ public class FlowDesignToolContextFactory {
                 submitCapture,
                 null,
                 null,
+                null,
+                false,
                 null);
     }
 
@@ -119,7 +137,9 @@ public class FlowDesignToolContextFactory {
                                         FlowDesignSubmitCapture submitCapture,
                                         AssetUpsertCapture assetUpsertCapture,
                                         Long aiChatSessionId,
-                                        java.util.Map<String, String> flowDesignClientIdMap) {
+                                        java.util.Map<String, String> flowDesignClientIdMap,
+                                        boolean autopilotEnabled,
+                                        java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted) {
         java.util.Map<String, String> idMap = flowDesignClientIdMap != null
                 ? flowDesignClientIdMap
                 : new java.util.HashMap<>();
@@ -132,6 +152,8 @@ public class FlowDesignToolContextFactory {
                 .scopeApiIds(scopeApiIds)
                 .contextNodeIds(contextNodeIds)
                 .contextRunId(contextRunId)
+                .autopilotEnabled(autopilotEnabled)
+                .onGraphCommitted(onGraphCommitted)
                 .maxSearchApis(aiLlmConfigService.getMaxSearchApis())
                 .maxListFlows(aiLlmConfigService.getMaxListFlows())
                 .maxToolResultBytes(aiLlmConfigService.getMaxToolResultBytes())

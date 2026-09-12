@@ -12,6 +12,7 @@ import java.util.Map;
 /**
  * 接收模型提交的设计 patch：规范化校验后写入 SubmitCapture，不写库。
  * <p>
+ * 半自动：等待前端 Diff 确认；全自动：前端自动应用到工作台草稿（仍不写接口库）。
  * 校验失败时返回 errors，提示模型修正后再次 submit。
  */
 @RequiredArgsConstructor
@@ -51,9 +52,16 @@ public class SubmitApiDesignPatchTool implements ApiDesignTool {
         }
         if (normalized.validation().isOk()) {
             result.put("received", true);
-            result.put("hint", replacedPrevious
-                    ? "已覆盖本轮先前提交的 patch，已向用户展示修改建议，等待用户确认应用"
-                    : "已向用户展示修改建议，等待用户确认应用");
+            boolean autopilot = ctx != null && ctx.isAutopilotEnabled();
+            if (autopilot) {
+                result.put("hint", replacedPrevious
+                        ? "已覆盖本轮先前 patch；全自动将自动应用到工作台草稿，勿催用户勾选（仍须人手保存接口库）"
+                        : "全自动将自动应用到工作台草稿，勿催用户勾选（仍须人手保存接口库）");
+            } else {
+                result.put("hint", replacedPrevious
+                        ? "已覆盖本轮先前提交的 patch，已向用户展示修改建议，等待用户确认应用"
+                        : "已向用户展示修改建议，等待用户确认应用");
+            }
         } else {
             result.put("received", false);
             result.put("error", "校验未通过");

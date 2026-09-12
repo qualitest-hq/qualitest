@@ -80,8 +80,11 @@ class FlowDesignToolExecutorTest {
         assetService = mock(ITestProjectAssetService.class);
         TestProjectApiDesignHintsService designHintsService = mock(TestProjectApiDesignHintsService.class);
         executor = new FlowDesignToolExecutor(
-                mapper, projectMapper, envService, flowService, runService, runStepService, normalizer,
+                mapper, projectMapper, envService, flowService, runService, runStepService,
+                mock(com.qualitest.project.service.ITestFlowExecutionService.class),
+                normalizer,
                 new com.qualitest.ai.scenario.flow.FlowDesignPatchMerger(),
+                mock(com.qualitest.flow.validate.GraphJsonValidator.class),
                 new HttpNodeApiHealthChecker(), assetService, designHintsService, null);
         context = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)

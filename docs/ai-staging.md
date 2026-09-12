@@ -10,7 +10,7 @@
 
 ## 1. 为什么必须 Staging
 
-AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http_node`，`op=add|update`）后，前端把累积 patch 变成 **Staging 单元**（加节点 / 改节点 / 加边 / 删节点或边 / 场景字段等）。真人（或代点的 Agent）逐项 **✓ 确认** 或 **✕ 取消**，再点 **保存**，`graph_json` 才持久化。
+AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http_node`，`op=add|update`）后，前端把累积 patch 变成 **Staging 单元**（加节点 / 改节点 / 加边 / 删节点或边 / 场景字段等）。真人（或代点的 Agent）逐项 **✓ 确认** 或 **✕ 取消**，再点 **保存**，`graph_json` 才持久化。
 
 ```text
 自然语言（或「AI 修复」）
@@ -21,7 +21,9 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http
   → 保存（画布可见节点）
 ```
 
-**MCP 只读**：无 `submit_*`、无 `upsert_asset_variables`。Cursor 里改图无效；必须回 Web AI 面板。
+**例外：全自动**（AI 面板「半自动 | 全自动」，默认半自动）：请求带 `autopilotEnabled=true` 时注入 `run_test_flow`（跑前/回合结束**自动落盘**，无独立 commit 工具），且 `upsert_asset_variables` **直接写素材库**。模型可在同会话内 upsert → `submit_*` → `run_test_flow` → 失败再修（最多再修 2 轮）。落盘成功后 SSE `graphCommitted`，前端清 Staging 并 reload 画布。
+
+**MCP 只读**：无 `submit_*`、无 `upsert_asset_variables`、无 commit/run。Cursor 里改图无效；必须回 Web AI 面板。
 
 ---
 
@@ -57,8 +59,9 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http
 | --- | --- | --- |
 | 读接口 / 流摘要 / Run 失败 | 有 | 有（另有 `list_flows` / `get_flow`） |
 | `submit_*` 单元写工具 | **有** | 无 |
-| `upsert_asset_variables` | **有**（提案，聊天侧确认后落盘） | 无 |
+| `upsert_asset_variables` | **有**（半自动：提案确认后落盘；全自动：工具内直接写库） | 无 |
 | `append_api_design_hints` | 有（直接改接口 hint） | 无 |
+| `run_test_flow` | **有**（须选「全自动」；跑前自动落盘） | **无** |
 
 改图画布 = 只走 Web。MCP 用来勘察 `testFlowId` 和失败现场。
 
@@ -105,4 +108,9 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http
 
 ## 7. 和接口设计 AI 的边界
 
-测试流助手改的是 **画布图**。另有接口设计助手（`submit_api_design_patch`）改接口资产 schema/测值，同样先 Diff 再合并。两套不要混用验收口径。
+测试流助手改的是 **画布图**。另有接口设计助手（`submit_api_design_patch`）改接口资产 schema/测值：
+
+- **半自动**（默认）：Diff 勾选 →「应用到工作台」草稿 → 人手保存接口库
+- **全自动**：有 patch 时前端自动应用到工作台草稿（仍须人手保存；不自动调试发送）
+
+两套不要混用验收口径。

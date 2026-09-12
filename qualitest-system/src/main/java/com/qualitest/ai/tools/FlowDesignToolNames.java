@@ -6,7 +6,8 @@ import java.util.Arrays;
  * 测试流 AI 设计工具名注册表。
  * <p>
  * 每个工具有两个开关：webAgent（是否注入 Web 造流助手）、mcpAllowed（是否允许 MCP 调用）。
- * 名称以 submit_ 开头的写图工具仅 Web 可见，须经面板 Staging 确认后才落库；MCP 只读。
+ * 名称以 submit_ 开头的写图工具仅 Web 可见；默认须经面板 Staging 确认后才落库。
+ * run_test_flow 仅 Web，须请求 autopilotEnabled；落盘为隐式（非独立工具）；MCP 只读。
  * 启动时校验：本枚举、执行器注册表、工具 JSON 三者工具名集合必须相同。
  */
 public enum FlowDesignToolNames {
@@ -23,7 +24,7 @@ public enum FlowDesignToolNames {
     LIST_PROJECT_ENVS("list_project_envs", true, true),
     /** 列举项目素材库变量键与字段名（不含明文） */
     LIST_ASSET_VARIABLES("list_asset_variables", true, true),
-    /** 提出新增或更新素材库条目的提案（不立即落盘，待用户在聊天侧确认） */
+    /** 新增或更新素材库条目（半自动：提案待确认；全自动：工具内直写） */
     UPSERT_ASSET_VARIABLES("upsert_asset_variables", true, false),
     /** 向接口 design_hints 追加短提示并直接落库 */
     APPEND_API_DESIGN_HINTS("append_api_design_hints", true, false),
@@ -70,7 +71,12 @@ public enum FlowDesignToolNames {
     /** 新增或修改单个运行场景（不切换画布默认场景） */
     SUBMIT_SCENARIO("submit_scenario", true, false),
     /** 建议删除单个节点、边或运行场景 */
-    SUBMIT_DELETE("submit_delete", true, false);
+    SUBMIT_DELETE("submit_delete", true, false),
+
+    /**
+     * 全自动：触发当前测试流 Run 并返回结果摘要（仅 Web，须请求 autopilotEnabled；跑前自动落盘）。
+     */
+    RUN_TEST_FLOW("run_test_flow", true, false);
 
     private final String id;
     private final boolean webAgent;
@@ -103,6 +109,16 @@ public enum FlowDesignToolNames {
      */
     public static boolean isSubmitUnitTool(String name) {
         return name != null && name.startsWith("submit_");
+    }
+
+    /**
+     * 是否为「全自动」注入给模型的工具（仅 run_test_flow；落盘为隐式 Support，不暴露独立工具）。
+     */
+    public static boolean isAutopilotOnlyTool(String name) {
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+        return RUN_TEST_FLOW.id.equals(name);
     }
 
     /** 按工具名判断是否允许 MCP */
