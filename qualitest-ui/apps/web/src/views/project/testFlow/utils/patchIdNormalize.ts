@@ -1,26 +1,42 @@
 /**
- * AI 设计 patch 的 id 规范化。
- *
- * 服务端 submit 已按会话 map 把短名落成雪花；前端 hydrate 以服务端结果为准。
- * 本函数仅作无会话上下文时的兜底：非数字 id 发号，并同步边端点；若传入 clientIdMap 则优先复用。
+ * AI 设计 patch 的 id 规范化（前端 hydrate 兜底）。
+ * 非数字 id 发雪花并同步边端点；传入 clientIdMap 时优先复用已有映射。
+ * 同时删除 condition 分支上预写的 target，并对无效边端点做启发式改写（改写必返回警告文案）。
  */
 import type { FlowDesignPatch } from '../types/aiDesignTypes';
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId';
 
-/** 判断 id 是否为可用的纯数字字符串。 */
+/** id 是否为纯数字字符串（可用的雪花形态） */
 function isValidNumericId(id: string | undefined | null): boolean {
   return !!id && /^\d+$/.test(id);
 }
 
+/** 规范化结果：新 patch + 边端点改写说明 */
+export interface NormalizeFlowDesignPatchIdsResult {
+  patch: FlowDesignPatch;
+  /** 启发式改写边端点时的说明；无改写时为空数组 */
+  rewireWarnings: string[];
+}
+
 /**
- * 规范化 patch 中所有新增节点与连线的 id。
- *
- * @param clientIdMap 可选会话短名→雪花映射；有则禁止对已映射短名重新发号
+ * 规范化新增节点/边的 id，并处理分支 target 与边端点改写；只返回 patch。
+ * 可选 clientIdMap：已映射短名不再重新发号。
  */
 export function normalizeFlowDesignPatchIds(
   patch: FlowDesignPatch,
   clientIdMap?: Record<string, string> | Map<string, string>,
 ): FlowDesignPatch {
+  return normalizeFlowDesignPatchIdsWithWarnings(patch, clientIdMap).patch;
+}
+
+/**
+ * 规范化新增节点/边的 id，删除条件分支预写 target，并对无效边端点做启发式改写。
+ * 改写说明放在 rewireWarnings，供 toast 展示。
+ */
+export function normalizeFlowDesignPatchIdsWithWarnings(
+  patch: FlowDesignPatch,
+  clientIdMap?: Record<string, string> | Map<string, string>,
+): NormalizeFlowDesignPatchIdsResult {
   const next = JSON.parse(JSON.stringify(patch)) as FlowDesignPatch;
   const idRemap = new Map<string, string>();
   const sessionMap = toMap(clientIdMap);
@@ -59,11 +75,12 @@ export function normalizeFlowDesignPatchIds(
     }
   }
 
-  remapBranchTargets(next.addNodes, idRemap, sessionMap);
-  remapBranchTargets(next.updateNodes, idRemap, sessionMap);
+  // 条件出口只认连线：删掉预写的 branches.target
+  stripBranchTargets(next.addNodes);
+  stripBranchTargets(next.updateNodes);
 
-  rewireAddEdgeEndpointsToAddNodes(next);
-  return next;
+  const rewireWarnings = rewireAddEdgeEndpointsToAddNodes(next);
+  return { patch: next, rewireWarnings };
 }
 
 function toMap(clientIdMap?: Record<string, string> | Map<string, string>): Map<string, string> {
@@ -72,37 +89,32 @@ function toMap(clientIdMap?: Record<string, string> | Map<string, string>): Map<
   return new Map(Object.entries(clientIdMap));
 }
 
-function remapBranchTargets(
+/** 删除节点 data.branches 各项的 target 字段 */
+function stripBranchTargets(
   nodes: FlowDesignPatch['addNodes'] | FlowDesignPatch['updateNodes'],
-  idRemap: Map<string, string>,
-  sessionMap: Map<string, string>,
 ) {
   for (const node of nodes ?? []) {
     const branches = (node.data as { branches?: Array<{ target?: string }> } | undefined)?.branches;
     if (!Array.isArray(branches)) continue;
     for (const branch of branches) {
-      const t = branch.target?.trim();
-      if (!t) continue;
-      if (idRemap.has(t)) branch.target = idRemap.get(t);
-      else if (sessionMap.has(t)) branch.target = sessionMap.get(t);
+      if (branch && 'target' in branch) {
+        delete branch.target;
+      }
     }
   }
 }
 
 /**
- * 修正 addEdges 中仍无法指向 addNodes 的 source/target。
- *
- * 仅在存在无效端点时执行：
- * - 边数 = 节点数 - 1：按节点顺序串成链（n0→n1、n1→n2 …）
- * - 3 节点且 3 边：按 A→B、B→C、A→C 赋值
- *
- * 直接修改入参 patch。
+ * 当 addEdges 的 source/target 仍指不到本批 addNodes 时改写端点。
+ * 边数 = 节点数 - 1：按节点顺序连成链；3 节点 3 边：连成 A→B、B→C、A→C。
+ * 直接改入参 patch；有改写时返回说明文案，禁止静默改拓扑。
  */
-export function rewireAddEdgeEndpointsToAddNodes(patch: FlowDesignPatch): void {
+export function rewireAddEdgeEndpointsToAddNodes(patch: FlowDesignPatch): string[] {
+  const warnings: string[] = [];
   const nodes = patch.addNodes ?? [];
   const edges = patch.addEdges ?? [];
   if (nodes.length < 2 || !edges.length) {
-    return;
+    return warnings;
   }
 
   const nodeIds = nodes.map((n) => n.id);
@@ -110,23 +122,35 @@ export function rewireAddEdgeEndpointsToAddNodes(patch: FlowDesignPatch): void {
 
   const needsRewire = edges.some((e) => !validSet.has(e.source) || !validSet.has(e.target));
   if (!needsRewire) {
-    return;
+    return warnings;
   }
 
   if (edges.length === nodes.length - 1) {
     for (let i = 0; i < edges.length; i++) {
+      const before = `${edges[i].source}→${edges[i].target}`;
       edges[i].source = nodeIds[i];
       edges[i].target = nodeIds[i + 1];
+      warnings.push(
+        `addEdge:${edges[i].id} 端点无效，已按链式拓扑改写：${before} → ${edges[i].source}→${edges[i].target}`,
+      );
     }
-    return;
+    return warnings;
   }
 
   if (nodes.length === 3 && edges.length === 3) {
-    edges[0].source = nodeIds[0];
-    edges[0].target = nodeIds[1];
-    edges[1].source = nodeIds[1];
-    edges[1].target = nodeIds[2];
-    edges[2].source = nodeIds[0];
-    edges[2].target = nodeIds[2];
+    const plan: Array<[string, string]> = [
+      [nodeIds[0], nodeIds[1]],
+      [nodeIds[1], nodeIds[2]],
+      [nodeIds[0], nodeIds[2]],
+    ];
+    for (let i = 0; i < edges.length; i++) {
+      const before = `${edges[i].source}→${edges[i].target}`;
+      edges[i].source = plan[i][0];
+      edges[i].target = plan[i][1];
+      warnings.push(
+        `addEdge:${edges[i].id} 端点无效，已按三角拓扑改写：${before} → ${edges[i].source}→${edges[i].target}`,
+      );
+    }
   }
+  return warnings;
 }

@@ -877,6 +877,100 @@ class FlowDesignPatchNormalizerTest {
         return patch;
     }
 
+    /**
+     * 前提：updateNodes 把已有非空 rules 改成空数组。
+     * 期望：normalizeUnit 以 idErrors 阻断（疑似误清空）。
+     */
+    @Test
+    @Order(95)
+    @DisplayName("update 空 rules 相对 baseline 非空则阻断")
+    void normalizeUnit_updateEmptyRules_blocksWhenBaselineNonEmpty() {
+        GraphNode existing = GraphNode.builder()
+                .id("9101")
+                .type("assert")
+                .position(GraphNodePosition.builder().x(40).y(80).build())
+                .data(new HashMap<>(Map.of(
+                        "name", "校验",
+                        "rules", List.of(Map.of("left", "flow.code", "operator", "eq", "right", "0"))
+                )))
+                .build();
+        GraphJson base = graphWithMeta();
+        base.getNodes().add(existing);
+
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setUpdateNodes(new ArrayList<>(List.of(GraphNode.builder()
+                .id("9101")
+                .data(new HashMap<>(Map.of("rules", List.of())))
+                .build())));
+
+        FlowDesignPatchNormalizer.NormalizeResult result =
+                normalizer.normalizeUnit(patch, base, PROJECT_ID, new HashMap<>());
+        assertFalse(result.validation().isOk());
+        assertTrue(result.validation().getErrors().stream()
+                .anyMatch(e -> e.contains("data.rules") && e.contains("空数组")));
+    }
+
+    /**
+     * 前提：condition update 带 branches[].target。
+     * 期望：规范化后 target 被剔除（无匹配出边时保持无 target）。
+     */
+    @Test
+    @Order(96)
+    @DisplayName("condition 预写 target 被剔除")
+    void normalize_conditionTargetStripped() {
+        GraphNode existing = GraphNode.builder()
+                .id("9101")
+                .type("condition")
+                .position(GraphNodePosition.builder().x(40).y(80).build())
+                .data(new HashMap<>(Map.of(
+                        "name", "分支",
+                        "branches", List.of(
+                                new HashMap<>(Map.of(
+                                        "id", "b1",
+                                        "kind", "if",
+                                        "target", "ghost-node",
+                                        "conditions", List.of(Map.of(
+                                                "left", "flow.code",
+                                                "operator", "eq",
+                                                "right", "0"))
+                                )),
+                                new HashMap<>(Map.of(
+                                        "id", "b2",
+                                        "kind", "else",
+                                        "conditions", List.of()
+                                ))
+                        )
+                )))
+                .build();
+        GraphJson base = graphWithMeta();
+        base.getNodes().add(existing);
+
+        FlowDesignPatch patch = new FlowDesignPatch();
+        Map<String, Object> ifBranch = new HashMap<>();
+        ifBranch.put("id", "b1");
+        ifBranch.put("kind", "if");
+        ifBranch.put("target", "should-be-stripped");
+        ifBranch.put("conditions", List.of(Map.of("left", "flow.code", "operator", "eq", "right", "0")));
+        Map<String, Object> elseBranch = new HashMap<>();
+        elseBranch.put("id", "b2");
+        elseBranch.put("kind", "else");
+        elseBranch.put("conditions", List.of());
+        patch.setUpdateNodes(new ArrayList<>(List.of(GraphNode.builder()
+                .id("9101")
+                .type("condition")
+                .data(new HashMap<>(Map.of(
+                        "branches", new ArrayList<>(List.of(ifBranch, elseBranch))
+                )))
+                .build())));
+
+        FlowDesignPatchNormalizer.NormalizeResult result =
+                normalizer.normalizeUnit(patch, base, PROJECT_ID, new HashMap<>());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> branches =
+                (List<Map<String, Object>>) result.patch().getUpdateNodes().get(0).getData().get("branches");
+        assertFalse(branches.get(0).containsKey("target"));
+    }
+
     private static Map<String, Object> branchById(List<Map<String, Object>> branches, String id) {
         return branches.stream()
                 .filter(b -> id.equals(String.valueOf(b.get("id"))))

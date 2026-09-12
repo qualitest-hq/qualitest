@@ -96,8 +96,7 @@ public class FlowDesignToolsDefinitionService {
 
     /**
      * Web Agent 可见的完整工具列表。
-     * <p>
-     * 从 {@code flow-design-tools.json} 加载（各 submit_* 已内联 parameters）。
+     * 从 tools 定义 JSON 加载，并对每条 description 做压缩以减小 Schema 体积。
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> loadToolsDefinition() {
@@ -114,6 +113,7 @@ public class FlowDesignToolsDefinitionService {
                 JSONArray arr = JSON.parseArray(json);
                 cachedTools = arr.stream()
                         .map(item -> (Map<String, Object>) JSON.parseObject(JSON.toJSONString(item)))
+                        .map(FlowDesignToolsDefinitionService::compactToolDefinition)
                         .toList();
                 return cachedTools;
             } catch (IOException e) {
@@ -204,6 +204,37 @@ public class FlowDesignToolsDefinitionService {
     private boolean isMcpToolDefinition(Map<String, Object> tool) {
         String name = extractFunctionName(tool);
         return name != null && FlowDesignToolNames.isMcpAllowed(name);
+    }
+
+    /**
+     * 缩短工具 description 里的重复套话，减小每轮注入模型的 Schema 体积。
+     * 不改工具名与 parameters 结构。
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> compactToolDefinition(Map<String, Object> tool) {
+        Object fnObj = tool.get("function");
+        if (!(fnObj instanceof Map<?, ?>)) {
+            return tool;
+        }
+        Map<String, Object> fn = (Map<String, Object>) fnObj;
+        Object descObj = fn.get("description");
+        if (!(descObj instanceof String desc) || desc.isBlank()) {
+            return tool;
+        }
+        String compact = desc
+                .replace("AI 不造 input 节点。", "")
+                .replace("（恰好 1 个 Staging 单元）", "")
+                .replace("校验失败按 errors 再调本工具修正。", "")
+                .replaceAll("\\s{2,}", " ")
+                .trim();
+        if (!compact.equals(desc)) {
+            Map<String, Object> nextFn = new LinkedHashMap<>(fn);
+            nextFn.put("description", compact);
+            Map<String, Object> next = new LinkedHashMap<>(tool);
+            next.put("function", nextFn);
+            return next;
+        }
+        return tool;
     }
 
     /** 返回 Web Agent 工具名列表（按 tools 定义文件中的声明顺序） */

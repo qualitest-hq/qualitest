@@ -137,12 +137,18 @@ export interface FlowDesignPatchConfirmPayload {
 export interface FlowDesignPatchConfirmResult extends DesignValidationResult {
   graphJson?: GraphJson | null;
   dependencyHints?: string[];
+  /**
+   * 本轮已无未决 Staging 单元时的保存风险文案
+   *（鉴权凭证 / 登录抽取 / HTTP 必填等），不阻断本次确认
+   */
+  saveRiskWarnings?: string[];
   baseGraphHash?: string;
 }
 
 /**
- * 确认单个 Staging 变更单元：draft 合并 → 单单元过滤 → 全图校验。
- * 成功时返回 graphJson 供前端落盘；失败时 graphJson 为 null。
+ * 确认单个 Staging 变更单元：draft 合并 → 裁剪 patch → 全图校验。
+ * 成功返回 graphJson；本轮已无未决单元时可能带 saveRiskWarnings（不阻断确认）。
+ * 失败时 graphJson 为 null。
  */
 export async function confirmFlowDesignUnit(
   data: FlowDesignPatchConfirmPayload,

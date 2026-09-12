@@ -15,7 +15,8 @@ import type {
 } from '../types/aiStagingTypes';
 import type { FlowDesignPatch } from '../types/aiDesignTypes';
 import { buildStagingUnits } from '../utils/buildStagingUnits';
-import { normalizeFlowDesignPatchIds } from '../utils/patchIdNormalize';
+import { filterPatchForConfirm } from '../utils/filterPatchForConfirm';
+import { normalizeFlowDesignPatchIdsWithWarnings } from '../utils/patchIdNormalize';
 import {
   graphObjectIdFromUnit,
   isScenarioKind,
@@ -166,6 +167,7 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
   }
 
   function markConfirmed(unitId: string) {
+    const unit = unitsById.value[unitId];
     patchUnit(unitId, {
       status: 'confirmed',
       lastValidation: undefined,
@@ -173,15 +175,22 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
       confirmInFlight: false,
       confirmedAt: Date.now(),
     });
+    if (unit) {
+      pruneUnitFromMessagePatch(unit.messageId, unitId);
+    }
   }
 
   function markRejected(unitId: string) {
+    const unit = unitsById.value[unitId];
     patchUnit(unitId, {
       status: 'rejected',
       lastValidation: undefined,
       lastDependencyHints: undefined,
       confirmInFlight: false,
     });
+    if (unit) {
+      pruneUnitFromMessagePatch(unit.messageId, unitId);
+    }
   }
 
   function removeMessageUnits(messageId: string, statuses?: AiStagingUnit['status'][]) {
@@ -198,10 +207,10 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
   }
 
   /**
-   * 将一条 assistant patch 灌入 Staging。
-   * - 先规范化 patch 中的节点/边 id，并修正连线端点
-   * - 同 message 的旧 pending 单元先清掉再重建
-   * - 若与其他 message 的 pending 单元占用同一 nodeId/edgeId，回滚旧单元画布效果并替换
+   * 将一条助手 patch 灌入 Staging。
+   * 规范化 id 与边端点（改写必回调 onRewireWarning）；
+   * 同消息旧 pending 先清再重建；
+   * 与其它消息 pending 占用同一 node/edge/scenario id 时，回滚旧单元画布效果并替换。
    */
   function hydrateStagingFromPatch(
     messageId: string,
@@ -209,11 +218,16 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
     ctx: StagingBuildContext,
     options?: {
       onConflict?: (message: string) => void;
+      /** 边端点启发式改写时的警告文案 */
+      onRewireWarning?: (message: string) => void;
       confirmedUnitIds?: ReadonlySet<string>;
       rejectedUnitIds?: ReadonlySet<string>;
     },
   ) {
-    const normalizedPatch = normalizeFlowDesignPatchIds(patch);
+    const { patch: normalizedPatch, rewireWarnings } = normalizeFlowDesignPatchIdsWithWarnings(patch);
+    for (const w of rewireWarnings) {
+      options?.onRewireWarning?.(w);
+    }
     patchesByMessageId.value = { ...patchesByMessageId.value, [messageId]: normalizedPatch };
 
     const next = { ...unitsById.value };
@@ -233,7 +247,7 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
         continue;
       }
 
-      const { nodeId, edgeId } = graphObjectIdFromUnit(unit);
+      const { nodeId, edgeId, scenarioId } = graphObjectIdFromUnit(unit);
       if (nodeId) {
         const conflict = Object.values(next).find(
           (u) =>
@@ -262,10 +276,42 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
           options?.onConflict?.(`连线 ${edgeId} 有新的 AI 建议，已覆盖上一批待确认变更`);
         }
       }
+      if (scenarioId) {
+        const conflict = Object.values(next).find(
+          (u) =>
+            u.status === 'pending' &&
+            u.messageId !== messageId &&
+            graphObjectIdFromUnit(u).scenarioId === scenarioId &&
+            isScenarioKind(u.kind),
+        );
+        if (conflict) {
+          revertStagingUnitOnCanvas(conflict);
+          delete next[conflict.unitId];
+          options?.onConflict?.(`场景 ${scenarioId} 有新的 AI 建议，已覆盖上一批待确认变更`);
+        }
+      }
       next[unit.unitId] = unit;
     }
 
     unitsById.value = next;
+  }
+
+  /**
+   * 单元确认或拒绝后，从该消息缓存的 patch 里去掉该单元，减小后续 confirm 请求体。
+   * 只保留同消息仍 pending 的其它单元。
+   */
+  function pruneUnitFromMessagePatch(messageId: string, unitId: string) {
+    const patch = patchesByMessageId.value[messageId];
+    if (!patch) return;
+    const keep = new Set(
+      Object.values(unitsById.value)
+        .filter((u) => u.messageId === messageId && u.unitId !== unitId && u.status === 'pending')
+        .map((u) => u.unitId),
+    );
+    patchesByMessageId.value = {
+      ...patchesByMessageId.value,
+      [messageId]: filterPatchForConfirm(patch, keep),
+    };
   }
 
   function buildMessageSummary(messageId: string): AiStagingMessageSummary {

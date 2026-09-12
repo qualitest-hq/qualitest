@@ -1,5 +1,6 @@
 /**
  * Staging 属性面板「原值 / 现值」对照行构建。
+ * 数组字段若原值非空、现值变空，字段名旁附带「将清空 N 项」。
  */
 import { stagingHeadersFieldLabel } from './stagingAuthHints'
 
@@ -11,6 +12,8 @@ export interface StagingFieldRow {
   draftValue: string;
   /** 对象 / 长文本用多行编辑，避免 JSON 挤在单行 input */
   multiline?: boolean;
+  /** 数组整表替换且现值变空时的提示，例如「将清空 3 项」 */
+  replaceHint?: string;
 }
 
 const NODE_DATA_LABELS: Record<string, string> = {
@@ -68,15 +71,24 @@ function pushRow(
   if (valuesEqual(baselineValue, draftValue)) return;
   const baselineText = formatDisplayValue(baselineValue);
   const draftText = formatDisplayValue(draftValue);
+  const replaceHint = arrayReplaceClearHint(baselineValue, draftValue);
   rows.push({
     key,
-    label,
+    label: replaceHint ? `${label}（${replaceHint}）` : label,
     baselineText,
     draftValue: draftText,
     multiline:
       isMultilineValue(baselineValue, baselineText)
       || isMultilineValue(draftValue, draftText),
+    replaceHint,
   });
+}
+
+/** rules / extracts / assignments 等：原值非空数组、现值空数组时返回「将清空 N 项」 */
+function arrayReplaceClearHint(baselineValue: unknown, draftValue: unknown): string | undefined {
+  if (!Array.isArray(baselineValue) || baselineValue.length === 0) return undefined;
+  if (!Array.isArray(draftValue) || draftValue.length > 0) return undefined;
+  return `将清空 ${baselineValue.length} 项`;
 }
 
 /** updateNode：对比 baseline 与 draft，生成可编辑对照行 */

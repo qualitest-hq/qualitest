@@ -7,10 +7,10 @@ import lombok.Getter;
 import java.util.List;
 
 /**
- * Web 端「单 Staging 单元确认」的响应体。
+ * 单条 Staging 单元确认接口的响应体。
  * <p>
- * 确认成功时返回合并该单元后的完整 graph_json，供前端落盘；
- * 失败时 {@code ok=false} 且 {@code graphJson} 为 null，前端不得写入画布。
+ * ok=true 时 graphJson 为合并该单元后的完整图，前端用其写回编辑态；
+ * ok=false 时 graphJson 为 null，前端不得落盘该单元。
  */
 @Getter
 @Builder
@@ -19,10 +19,10 @@ public class FlowDesignPatchConfirmResult {
     /** true 表示 errors 为空，允许将该单元写入正式图层 */
     private final boolean ok;
 
-    /** 阻断确认的问题，含依赖未满足与图结构校验错误 */
+    /** 阻断确认的问题（依赖未满足、图结构错误、本单元断言路径错误等） */
     private final List<String> errors;
 
-    /** 可确认但建议用户留意的问题，不阻断 confirm */
+    /** 不阻断确认的提示（含末单元附带的保存风险文案） */
     private final List<String> warnings;
 
     /**
@@ -31,12 +31,20 @@ public class FlowDesignPatchConfirmResult {
      */
     private final GraphJson graphJson;
 
-    /** 依赖补全提示，如「确认 addEdge 需先确认 addNode:xxx」 */
+    /** 依赖未满足时的人类可读提示，例如须先确认某 addNode 再确认 addEdge */
     private final List<String> dependencyHints;
 
-    /** 请求时 base graph_json 的稳定哈希前缀，供前端 confirm 前校验画布是否被手改 */
+    /**
+     * 本轮已无待确认/待拒绝单元时附带的保存风险列表：
+     * 鉴权凭证来源缺失、登录抽取缺失、HTTP 必填测值缺失等。
+     * 不阻断本次确认；供前端提示用户保存前处理。
+     */
+    private final List<String> saveRiskWarnings;
+
+    /** 请求时底图 graph_json 的稳定哈希前缀，前端用来判断确认期间画布是否被手改 */
     private final String baseGraphHash;
 
+    /** 转成通用校验结果（仅 ok / errors / warnings） */
     public DesignValidationResult toValidationResult() {
         return DesignValidationResult.builder()
                 .ok(ok)

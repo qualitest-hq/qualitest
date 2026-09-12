@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -63,6 +64,23 @@ class FlowDesignNodeNormalizersExtraTest {
         FlowDesignConditionNodeNormalizer.normalize(data);
         Object branches = data.get("branches");
         assertTrue(branches instanceof List<?> list && list.size() == 2);
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("condition stripBranchTargets 剔除预写 target")
+    void conditionStripTargets() {
+        Map<String, Object> data = new HashMap<>();
+        List<Map<String, Object>> branches = new ArrayList<>();
+        Map<String, Object> ifBranch = new HashMap<>();
+        ifBranch.put("id", "1");
+        ifBranch.put("kind", "if");
+        ifBranch.put("target", "should-go");
+        ifBranch.put("conditions", List.of());
+        branches.add(ifBranch);
+        data.put("branches", branches);
+        FlowDesignConditionNodeNormalizer.stripBranchTargets(data);
+        assertFalse(ifBranch.containsKey("target"));
     }
 
     @Test

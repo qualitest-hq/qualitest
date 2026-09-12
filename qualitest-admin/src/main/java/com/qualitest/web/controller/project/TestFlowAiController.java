@@ -79,8 +79,9 @@ public class TestFlowAiController extends BaseController {
     /**
      * 确认单个 Staging 变更单元。
      * <p>
-     * 在内存中完成单单元合并与全图校验；不写 test_flow、不触发 Run。
-     * 成功时返回 graphJson 供前端落盘；失败时保持该单元 Staging 态并展示 errors。
+     * 内存中合并该单元并校验，不写 test_flow、不触发 Run。
+     * 成功返回 graphJson；本轮已无未决单元时还可带 saveRiskWarnings（不阻断本次确认）。
+     * 失败保持该单元 Staging 态，errors 供前端展示。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @PostMapping("/patch/confirmUnit")

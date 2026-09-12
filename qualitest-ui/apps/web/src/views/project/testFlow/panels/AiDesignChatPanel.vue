@@ -213,6 +213,7 @@ import type { ComposerDoc, ComposerSendPayload } from '../composables/mentionCom
 import { isComposerDocEmpty, MENTION_CATEGORY_TAGS } from '../composables/mentionComposer';
 import AiMentionComposer from './AiMentionComposer.vue';
 import AiPromptTemplateStrip from '@/components/ai/AiPromptTemplateStrip.vue';
+import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import type {
   AiDesignMessageView,
@@ -223,6 +224,7 @@ import { shouldShowExplainOnlyHint, shouldShowStagingSummary } from '../utils/st
 import { filterAuthRelatedWarnings } from '../utils/stagingAuthHints';
 
 const store = useFlowCanvasStore();
+const stagingStore = useAiStagingStore();
 const { saveFlow } = useFlowGraph();
 const {
   modelGroups,
@@ -386,10 +388,15 @@ function onAssetProposalsUpdate(messageId: string, next: AssetUpsertProposalView
   messages.value = copy;
 }
 
-/** Run 修复入口：预插 run chip 与提示文案（先 focus，避免 insertText 落到运行库 DOM） */
+/** Run 失败修复入口：预插 run chip；若仍有未确认 Staging 则先 toast 提醒 */
 function applyPendingRunToComposer() {
   const pending = consumePendingRunContext();
   if (!pending || !composerRef.value) return;
+  if (stagingStore.pendingCount > 0) {
+    ElMessage.warning(
+      `画布尚有 ${stagingStore.pendingCount} 项未确认 AI 变更；建议先全部确认或取消后再修复，以免叠图`,
+    );
+  }
   nextTick(() => {
     composerRef.value?.focus();
     composerRef.value?.appendRunMention(pending.runId, 'failed');

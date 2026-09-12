@@ -489,6 +489,13 @@ class FlowDesignPatchConfirmServiceTest {
         assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
         assertTrue(result.getErrors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
                 () -> "errors=" + result.getErrors());
+        // 末单元附带保存风险预警（不硬拦）
+        assertNotNull(result.getSaveRiskWarnings());
+        assertTrue(
+                result.getSaveRiskWarnings().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:"))
+                        || result.getWarnings().stream().anyMatch(w -> w.startsWith("AUTH_TOKEN_MISSING:")),
+                () -> "saveRiskWarnings=" + result.getSaveRiskWarnings()
+                        + " warnings=" + result.getWarnings());
     }
 
     /**

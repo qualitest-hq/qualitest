@@ -1,6 +1,6 @@
 /**
- * 将 FlowDesignPatch 灌入 Staging（造流 AI patch 与「刷新鉴权头」等非会话提案共用）。
- * 不写库；可选打开 AI 侧栏便于确认。
+ * 将 FlowDesignPatch 灌入 Staging。
+ * 先过滤非法项并 toast，再规范化 HTTP/坐标，最后写入 Staging store；不写库。
  */
 import { ElMessage } from 'element-plus';
 
@@ -12,28 +12,46 @@ import {
   obstaclesFromCanvasNodes,
   spreadStagingAddPositions,
 } from './spreadStagingAddPositions';
+import { validatePatchForHydrate } from './validatePatchForHydrate';
 
 export type HydratePatchToStagingOptions = {
-  /** 关联的消息 id（会话内 AI patch）；缺省由调用方传入临时 id */
+  /** 关联的助手消息 id；非会话入口可传临时 id */
   messageId: string;
-  /** 恢复该消息已确认/已拒绝单元（会话 reload 用） */
+  /** 恢复该消息已确认的单元 id */
   confirmedUnitIds?: ReadonlySet<string>;
+  /** 恢复该消息已拒绝的单元 id */
   rejectedUnitIds?: ReadonlySet<string>;
-  /** 灌入后打开 AI 侧栏（刷新鉴权头等非会话入口） */
+  /** 灌入后打开 AI 侧栏 */
   openAiPanel?: boolean;
 };
 
 /**
- * prepare → 避让坐标 → hydrateStagingFromPatch。
+ * 过滤 → prepare → 避让坐标 → 写入 Staging。
  * @returns 当前 pending Staging 单元数
  */
 export async function hydratePatchToStaging(
   patch: FlowDesignPatch,
   options: HydratePatchToStagingOptions,
 ): Promise<number> {
-  const prepared = await preparePatchForStaging(patch);
   const store = useFlowCanvasStore();
   const stagingStore = useAiStagingStore();
+
+  const existingNodeIds = new Set(store.nodes.map((n) => String(n.id)));
+  const existingEdgeIds = new Set(store.edges.map((e) => String(e.id)));
+  const existingScenarioIds = new Set(
+    (store.runConfig?.scenarios ?? []).map((s) => String(s.id)).filter(Boolean),
+  );
+
+  const gated = validatePatchForHydrate(patch, {
+    existingNodeIds,
+    existingEdgeIds,
+    existingScenarioIds,
+  });
+  for (const w of gated.warnings) {
+    ElMessage.warning(w);
+  }
+
+  const prepared = await preparePatchForStaging(gated.patch);
   const excludeIds = new Set(
     (prepared.addNodes ?? []).map((n) => n.id).filter((id): id is string => !!id),
   );
@@ -51,6 +69,7 @@ export async function hydratePatchToStaging(
     },
     {
       onConflict: (text: string) => ElMessage.info(text),
+      onRewireWarning: (text: string) => ElMessage.warning(text),
       confirmedUnitIds: options.confirmedUnitIds,
       rejectedUnitIds: options.rejectedUnitIds,
     },
@@ -61,7 +80,7 @@ export async function hydratePatchToStaging(
   return stagingStore.pendingCount;
 }
 
-/** patch 是否含任何可灌入 Staging 的变更 */
+/** patch 是否含任何可灌入 Staging 的增删改项 */
 export function flowDesignPatchHasChanges(patch: FlowDesignPatch | undefined | null): boolean {
   if (!patch) return false;
   return (patch.updateNodes?.length ?? 0) > 0

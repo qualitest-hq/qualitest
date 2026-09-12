@@ -6,7 +6,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
-import { normalizeFlowDesignPatchIds } from '@/views/project/testFlow/utils/patchIdNormalize';
+import {
+  normalizeFlowDesignPatchIds,
+  normalizeFlowDesignPatchIdsWithWarnings,
+} from '@/views/project/testFlow/utils/patchIdNormalize';
 
 describe('normalizeFlowDesignPatchIds', () => {
   /** 非数字节点 id 被替换后，连线 source/target 应指向新节点 id。 */
@@ -61,5 +64,19 @@ describe('normalizeFlowDesignPatchIds', () => {
     expect(normalized.addEdges![0]).toMatchObject({ source: '9001', target: '9002' });
     expect(normalized.addEdges![1]).toMatchObject({ source: '9002', target: '9003' });
     expect(normalized.addEdges![2]).toMatchObject({ source: '9001', target: '9003' });
+  });
+
+  it('端点改写时产出 rewireWarnings', () => {
+    const patch: FlowDesignPatch = {
+      addNodes: [
+        { id: '9001', type: 'http', data: { name: 'A' } },
+        { id: '9002', type: 'http', data: { name: 'B' } },
+      ],
+      addEdges: [{ id: '8001', source: 'x1', target: 'x2' }],
+    };
+    const { patch: normalized, rewireWarnings } = normalizeFlowDesignPatchIdsWithWarnings(patch);
+    expect(normalized.addEdges![0]).toMatchObject({ source: '9001', target: '9002' });
+    expect(rewireWarnings.length).toBeGreaterThan(0);
+    expect(rewireWarnings[0]).toContain('端点无效');
   });
 });

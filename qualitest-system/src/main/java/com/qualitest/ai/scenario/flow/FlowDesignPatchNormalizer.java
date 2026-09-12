@@ -61,7 +61,7 @@ public class FlowDesignPatchNormalizer {
     private static final double GRID_X = 380.0;
     private static final double DEFAULT_X = 40.0;
     private static final double DEFAULT_Y = 80.0;
-    /** 与前端 flowConfig NODE_W / NODE_MIN_H 对齐，用于 AABB 避让 */
+    /** 新增节点 AABB 避让用的默认宽、最小高 */
     private static final double NODE_W = 300.0;
     private static final double NODE_MIN_H = 108.0;
     /** 单次右移 / 下移行尝试上限；用尽后兜底落点，避免死循环 */
@@ -207,8 +207,8 @@ public class FlowDesignPatchNormalizer {
         return ids;
     }
 
-    /** 断言错误文案是否点名本单元节点；单元无节点时默认视为相关。 */
-    private static boolean touchesUnitNode(String err, Set<String> unitNodeIds) {
+    /** 断言错误文案是否点名给定节点 id；unitNodeIds 为空时视为相关（整单元裁剪用） */
+    static boolean touchesUnitNode(String err, Set<String> unitNodeIds) {
         if (err == null || unitNodeIds == null || unitNodeIds.isEmpty()) {
             return true;
         }
@@ -221,11 +221,37 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 规范化 patch 字段（id、position、API 绑定、summary 等），不执行预合并校验。
-     * 供部分勾选预览等在合并前单独调用规范化步骤的场景使用。
+     * 规范化 patch 字段（id、坐标、API 绑定、summary 等），不做预合并整图校验。
+     * 用于确认前单独跑规范化；第四参收集 warnings。
      */
     public FlowDesignPatch preparePatch(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId, List<String> warnings) {
-        return initAndNormalizePatch(patch, baseGraph, testProjectId, warnings, new HashMap<>(), new ArrayList<>(), false);
+        return preparePatch(patch, baseGraph, testProjectId, warnings, null);
+    }
+
+    /**
+     * 规范化 patch；idErrorsOut 非 null 时写入须阻断确认的项（如 update 空数组误清空）。
+     * 确认时底图往往已是 Staging 预览态（待删对象可能已从画布抹掉），
+     * 故 delete*「未知 id」只进 warnings，不写入 idErrorsOut。
+     */
+    public FlowDesignPatch preparePatch(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
+                                       List<String> warnings, List<String> idErrorsOut) {
+        List<String> idErrors = new ArrayList<>();
+        FlowDesignPatch out = initAndNormalizePatch(patch, baseGraph, testProjectId, warnings, new HashMap<>(), idErrors, false);
+        if (idErrorsOut != null) {
+            for (String e : idErrors) {
+                if (e == null || e.isBlank()) {
+                    continue;
+                }
+                if (e.startsWith("deleteNode ") || e.startsWith("deleteEdge ") || e.startsWith("deleteScenario ")) {
+                    if (warnings != null) {
+                        warnings.add(e);
+                    }
+                    continue;
+                }
+                idErrorsOut.add(e);
+            }
+        }
+        return out;
     }
 
     /**
@@ -290,8 +316,8 @@ public class FlowDesignPatchNormalizer {
                 .build();
     }
 
-    /** 按接口 id 加载项目接口；mapper 未注入时一律返回 null。 */
-    private Function<Long, TestProjectApi> apiResolver() {
+    /** 按接口 id 查项目接口；mapper 未注入时一律返回 null */
+    public Function<Long, TestProjectApi> apiResolver() {
         return testProjectApiMapper == null ? id -> null : testProjectApiMapper::selectTestProjectApiById;
     }
 
@@ -321,6 +347,7 @@ public class FlowDesignPatchNormalizer {
         if (idErrors != null && !idErrors.isEmpty()) {
             return patch;
         }
+        // 预写的 branches.target 已清掉；此处按出边写回各分支 target
         reconcileConditionBranches(patch, baseGraph);
         pruneClientIdMapForDeletes(patch, clientIdMap);
         normalizeScenarioPatch(patch);
@@ -328,6 +355,11 @@ public class FlowDesignPatchNormalizer {
             List<String> removed = FlowDesignNodeDataKeys.stripUnknown(type, node.getData());
             noteStrippedKeys(warningsBucket, node.getId(), removed);
         }, warnings);
+        // update 若把非空数组改成空数组，视为误清空，在补全 extracts 等之前拦截
+        validateUpdateArrayNotAccidentallyCleared(patch, baseGraph, idErrors);
+        if (idErrors != null && !idErrors.isEmpty()) {
+            return patch;
+        }
         validateApiBindings(patch, baseGraph, testProjectId, warnings);
         forEachPatchNode(patch, baseGraph, (node, type, warningsBucket) -> {
             if (type.isEmpty() || "http".equalsIgnoreCase(type)) {
@@ -582,8 +614,8 @@ public class FlowDesignPatchNormalizer {
             }
         }
 
-        remapConditionBranchTargets(patch.getAddNodes(), clientIdMap, idRemap);
-        remapConditionBranchTargets(patch.getUpdateNodes(), clientIdMap, idRemap);
+        stripConditionBranchTargets(patch.getAddNodes());
+        stripConditionBranchTargets(patch.getUpdateNodes());
 
         if (patch.getSuggestedDeletes() != null) {
             remapDeleteIds(patch.getSuggestedDeletes().getNodeIds(), clientIdMap, idRemap);
@@ -669,8 +701,11 @@ public class FlowDesignPatchNormalizer {
         return null;
     }
 
-    private static void remapConditionBranchTargets(List<GraphNode> nodes, Map<String, String> clientIdMap,
-                                                    Map<String, String> idRemap) {
+    /**
+     * 删除节点列表中每条 condition 的 branches[].target。
+     * 条件出口只认连线，预写 target 无效，稍后按出边再写回。
+     */
+    private static void stripConditionBranchTargets(List<GraphNode> nodes) {
         if (nodes == null) {
             return;
         }
@@ -678,30 +713,55 @@ public class FlowDesignPatchNormalizer {
             if (node == null || node.getData() == null) {
                 continue;
             }
-            Object branchesObj = node.getData().get("branches");
-            if (!(branchesObj instanceof List<?> branches)) {
+            FlowDesignConditionNodeNormalizer.stripBranchTargets(node.getData());
+        }
+    }
+
+    /**
+     * updateNodes 显式提交空的 rules / extracts / assignments，且底图同字段非空时，
+     * 视为误清空，写入 idErrors，本单元不得进入 Capture。
+     * 未提交该键（省略）则不检查。
+     */
+    private static void validateUpdateArrayNotAccidentallyCleared(
+            FlowDesignPatch patch, GraphJson baseGraph, List<String> idErrors) {
+        if (patch == null || patch.getUpdateNodes() == null || idErrors == null) {
+            return;
+        }
+        for (GraphNode update : patch.getUpdateNodes()) {
+            if (update == null || update.getId() == null || update.getData() == null) {
                 continue;
             }
-            for (Object item : branches) {
-                if (!(item instanceof Map<?, ?> raw)) {
+            GraphNode existing = baseGraph != null
+                    ? GraphLookupUtils.findNode(baseGraph.getNodes(), update.getId())
+                    : null;
+            if (existing == null || existing.getData() == null) {
+                continue;
+            }
+            for (String key : List.of("rules", "extracts", "assignments")) {
+                if (!update.getData().containsKey(key)) {
                     continue;
                 }
-                @SuppressWarnings("unchecked")
-                Map<String, Object> branch = (Map<String, Object>) raw;
-                Object targetObj = branch.get("target");
-                if (targetObj == null) {
+                if (!isExplicitEmptyList(update.getData().get(key))) {
                     continue;
                 }
-                String target = String.valueOf(targetObj).trim();
-                if (target.isEmpty()) {
+                if (!isNonEmptyList(existing.getData().get(key))) {
                     continue;
                 }
-                String mapped = lookupMappedId(target, clientIdMap, idRemap);
-                if (mapped != null) {
-                    branch.put("target", mapped);
-                }
+                idErrors.add("updateNode:" + update.getId().trim()
+                        + " 的 data." + key + " 为空数组，但画布上该字段非空；"
+                        + "update 须提交完整数组，禁止用空数组误清空。请重交完整 " + key + " 或省略该字段");
             }
         }
+    }
+
+    /** 值为空 List（含显式 []） */
+    private static boolean isExplicitEmptyList(Object raw) {
+        return raw instanceof List<?> list && list.isEmpty();
+    }
+
+    /** 值为非空 List */
+    private static boolean isNonEmptyList(Object raw) {
+        return raw instanceof List<?> list && !list.isEmpty();
     }
 
     private static void remapDeleteIds(List<String> ids, Map<String, String> clientIdMap,
@@ -759,10 +819,9 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 将 condition 节点 branches 与出边对齐：出口只认边。
-     * <p>
+     * 按出边回填 condition 节点各分支的 target：出口只认边。
      * 每条分支按 label/handle 匹配出边写入 target；无匹配边则清除 target（结束分支）。
-     * 不保留 AI 预写的 target。
+     * 不保留模型预写的 target。
      */
     @SuppressWarnings("unchecked")
     private static void reconcileConditionBranches(FlowDesignPatch patch, GraphJson baseGraph) {
@@ -919,7 +978,7 @@ public class FlowDesignPatchNormalizer {
                 }
             }
         }
-        // 与前端一致：兜底落在扫过范围的右下角外侧
+        // 网格试遍仍重叠：落在扫过范围的右下角外侧
         return GraphNodePosition.builder()
                 .x(baseX + MAX_SHIFT * GRID_X)
                 .y(baseY + MAX_SHIFT * ROW_STEP)

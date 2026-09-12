@@ -5,12 +5,14 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmRequest;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
+import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphRunScenario;
+import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
@@ -25,18 +27,12 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * AI 设计 patch 的单 Staging 单元确认服务。
+ * 单条 Staging 单元确认：用户点 ✓ 后在服务端合并该单元并校验，不写库。
  * <p>
- * 用户在画布上对单个变更单元点「确认」后，在服务端完成：
- * <ol>
- *   <li>把 draftOverride 合并进 patch 对应项</li>
- *   <li>规范化 patch 字段</li>
- *   <li>检查依赖（例如加边前须先确认端点节点）</li>
- *   <li>按 unitId 取出单单元增量，合并进 graph_json 副本</li>
- *   <li>跑图结构校验（分批确认时延后「开始节点」硬拦）</li>
- * </ol>
- * 业务类门禁（断言路径、登录 token 来源、HTTP 必填测值）不在确认时拦截，保存流程时再校验。<br>
- * 本服务不写库；成功时返回 graphJson，由前端落盘并清除 Staging 标记。
+ * 流程：合并 draft → 规范化 patch → 依赖检查 → 按 unitId 合并进图副本 →
+ * 图结构校验 → 对本单元节点跑断言路径校验 →
+ * 若本轮已无未决单元则附带保存风险预警（鉴权/登录抽取/HTTP 必填，不硬拦）。
+ * 成功返回 graphJson，由前端写回编辑态并清 Staging 标记。
  */
 @Service
 @RequiredArgsConstructor
@@ -51,20 +47,20 @@ public class FlowDesignPatchConfirmService {
     /**
      * 确认单个 Staging 单元。
      *
-     * @param request 当前 graph_json、完整 patch、unitId、可选 draft 与已确认单元列表
-     * @return 校验摘要 + 确认后的 graph_json；ok=false 时 graphJson 为 null
+     * @param request 当前图、patch、unitId、可选 draft、已确认/已拒绝单元 id
+     * @return ok、errors/warnings、成功时的 graphJson、可选 saveRiskWarnings 与 baseGraphHash
      */
     public FlowDesignPatchConfirmResult confirmUnit(FlowDesignPatchConfirmRequest request) {
         long startedAt = System.nanoTime();
         List<String> warnings = new ArrayList<>();
 
         if (request == null || request.getPatch() == null) {
-            return failureResult(List.of("patch 不能为空"), warnings, List.of(), "");
+            return failureResult(List.of("patch 不能为空"), warnings, List.of(), List.of(), "");
         }
 
         String unitId = normalizeUnitId(request.getUnitId());
         if (unitId == null) {
-            return failureResult(List.of("unitId 不能为空"), warnings, List.of(), "");
+            return failureResult(List.of("unitId 不能为空"), warnings, List.of(), List.of(), "");
         }
 
         GraphJson baseGraph = request.getGraphJson() != null
@@ -75,19 +71,28 @@ public class FlowDesignPatchConfirmService {
         FlowDesignPatch patch = JSON.parseObject(JSON.toJSONString(request.getPatch()), FlowDesignPatch.class);
         applyDraftOverride(patch, unitId, request.getDraftOverride());
 
-        patchNormalizer.preparePatch(patch, baseGraph, request.getTestProjectId(), warnings);
+        List<String> prepareErrors = new ArrayList<>();
+        patchNormalizer.preparePatch(patch, baseGraph, request.getTestProjectId(), warnings, prepareErrors);
+        if (!prepareErrors.isEmpty()) {
+            logConfirmMetrics(startedAt, unitId, false);
+            return failureResult(prepareErrors, warnings, List.of(), List.of(), baseGraphHash);
+        }
 
         GraphJson workingGraph = FlowDesignPatchMerger.cloneGraph(baseGraph);
         applyUnitDraftToGraph(workingGraph, patch, unitId, request.getDraftOverride());
 
         Set<String> confirmedUnitIds = normalizeConfirmedUnitIds(request.getConfirmedUnitIds());
         Set<String> rejectedUnitIds = normalizeConfirmedUnitIds(request.getRejectedUnitIds());
-        List<String> dependencyHints = computeDependencyHints(patch, unitId, confirmedUnitIds);
+        List<String> dependencyHints = computeDependencyHints(
+                patch, unitId, confirmedUnitIds, rejectedUnitIds, baseGraph);
         if (!dependencyHints.isEmpty()) {
             List<String> errors = new ArrayList<>(dependencyHints);
             logConfirmMetrics(startedAt, unitId, false);
-            return failureResult(errors, warnings, dependencyHints, baseGraphHash);
+            return failureResult(errors, warnings, dependencyHints, List.of(), baseGraphHash);
         }
+
+        // 场景未绑环境：只记 warning，不阻断确认
+        noteScenarioEnvWarning(patch, unitId, warnings);
 
         Set<String> acceptedIds = Set.of(unitId);
         GraphJson merged = patchMerger.merge(workingGraph, patch, acceptedIds, warnings);
@@ -100,8 +105,32 @@ public class FlowDesignPatchConfirmService {
         List<String> allWarnings = new ArrayList<>(warnings);
         allWarnings.addAll(validation.getWarnings());
         List<String> allErrors = new ArrayList<>(validation.getErrors());
-        boolean ok = allErrors.isEmpty();
 
+        // 对本单元节点跑断言路径校验；确认的是边/场景等时，他人断言错误只进 warnings
+        AssertPathDesignGate.AssertPathGateResult assertPath =
+                AssertPathDesignGate.validate(merged, patchNormalizer.apiResolver());
+        Set<String> touchIds = unitNodeIdsForConfirm(unitId);
+        for (String err : assertPath.errors()) {
+            if (!touchIds.isEmpty() && FlowDesignPatchNormalizer.touchesUnitNode(err, touchIds)) {
+                allErrors.add(err);
+            } else {
+                allWarnings.add(err);
+            }
+        }
+        allWarnings.addAll(assertPath.warnings());
+
+        List<String> saveRiskWarnings = List.of();
+        if (allErrors.isEmpty() && !deferTopology) {
+            // 本轮已无未决单元：跑保存预检，结果放入 saveRiskWarnings（不硬拦本次确认）
+            FlowDesignSavePrecheckResult precheck =
+                    patchNormalizer.savePrecheck(merged, request.getTestProjectId());
+            if (precheck.getErrors() != null && !precheck.getErrors().isEmpty()) {
+                saveRiskWarnings = List.copyOf(precheck.getErrors());
+                allWarnings.addAll(saveRiskWarnings);
+            }
+        }
+
+        boolean ok = allErrors.isEmpty();
         logConfirmMetrics(startedAt, unitId, ok);
 
         if (!ok) {
@@ -111,6 +140,7 @@ public class FlowDesignPatchConfirmService {
                     .warnings(allWarnings)
                     .graphJson(null)
                     .dependencyHints(List.of())
+                    .saveRiskWarnings(List.of())
                     .baseGraphHash(baseGraphHash)
                     .build();
         }
@@ -121,6 +151,7 @@ public class FlowDesignPatchConfirmService {
                 .warnings(allWarnings)
                 .graphJson(merged)
                 .dependencyHints(List.of())
+                .saveRiskWarnings(saveRiskWarnings)
                 .baseGraphHash(baseGraphHash)
                 .build();
     }
@@ -129,6 +160,7 @@ public class FlowDesignPatchConfirmService {
             List<String> errors,
             List<String> warnings,
             List<String> dependencyHints,
+            List<String> saveRiskWarnings,
             String baseGraphHash) {
         return FlowDesignPatchConfirmResult.builder()
                 .ok(false)
@@ -136,8 +168,18 @@ public class FlowDesignPatchConfirmService {
                 .warnings(warnings)
                 .graphJson(null)
                 .dependencyHints(dependencyHints)
+                .saveRiskWarnings(saveRiskWarnings)
                 .baseGraphHash(baseGraphHash)
                 .build();
+    }
+
+    /** 从 unitId 取出本单元涉及的节点 id；仅 addNode/updateNode 有值，其它 kind 返回空集 */
+    private static Set<String> unitNodeIdsForConfirm(String unitId) {
+        Set<String> ids = new HashSet<>();
+        if (unitId.startsWith("addNode:") || unitId.startsWith("updateNode:")) {
+            ids.add(unitId.substring(unitId.indexOf(':') + 1).trim());
+        }
+        return ids;
     }
 
     private void logConfirmMetrics(long startedAt, String unitId, boolean ok) {
@@ -145,6 +187,7 @@ public class FlowDesignPatchConfirmService {
         log.debug("ai_patch_confirm_ms={} unit_id={} ok={}", elapsedMs, unitId, ok);
     }
 
+    /** 空白 unitId 视为无效，返回 null */
     private static String normalizeUnitId(String unitId) {
         if (unitId == null || unitId.isBlank()) {
             return null;
@@ -152,6 +195,7 @@ public class FlowDesignPatchConfirmService {
         return unitId.trim();
     }
 
+    /** 去掉空白项，得到已确认或已拒绝的 unitId 集合 */
     private static Set<String> normalizeConfirmedUnitIds(List<String> confirmedUnitIds) {
         Set<String> normalized = new HashSet<>();
         if (confirmedUnitIds == null) {
@@ -166,7 +210,7 @@ public class FlowDesignPatchConfirmService {
     }
 
     /**
-     * 将前端 draft 合并进 patch 中 unitId 对应的节点/边/场景项。
+     * 把前端 draft 覆盖进 patch 里 unitId 对应的那一项（节点 / 边 / 场景）。
      */
     private void applyDraftOverride(FlowDesignPatch patch, String unitId, Object draftOverride) {
         if (draftOverride == null) {
@@ -251,7 +295,7 @@ public class FlowDesignPatchConfirmService {
                 }
             }
             applyGraphNodeDraft(graphNode, draftOverride);
-            // draft 可能冲掉 preparePatch 补全；按 type 再规范化一次
+            // draft 可能冲掉规范化补全的字段；按节点 type 再整理一次 data
             if (graphNode.getData() != null) {
                 FlowDesignNodeDataNormalizer.normalize(graphNode.getType(), graphNode.getData());
             }
@@ -298,28 +342,20 @@ public class FlowDesignPatchConfirmService {
     }
 
     /**
-     * 确认 addEdge 时，若端点为 patch 内 addNode 且尚未 confirm，返回人类可读提示并阻断合并。
+     * 确认依赖检查（不满足则阻断）：
+     * addEdge/updateEdge 的端点若是本 patch 未确认的 addNode，须先确认该节点；
+     * 端点不在底图也不在本 patch addNodes 时记错；
+     * deleteNode 时，本 patch 里仍 pending 且指向该节点的 addEdge 须先确认或拒绝。
      */
     private List<String> computeDependencyHints(
             FlowDesignPatch patch,
             String unitId,
-            Set<String> confirmedUnitIds) {
+            Set<String> confirmedUnitIds,
+            Set<String> rejectedUnitIds,
+            GraphJson baseGraph) {
         List<String> hints = new ArrayList<>();
-        if (!unitId.startsWith("addEdge:") || patch.getAddEdges() == null) {
-            return hints;
-        }
-
-        String edgeId = unitId.substring("addEdge:".length());
-        GraphEdge edge = null;
-        for (GraphEdge candidate : patch.getAddEdges()) {
-            if (candidate != null && edgeId.equals(candidate.getId())) {
-                edge = candidate;
-                break;
-            }
-        }
-        if (edge == null) {
-            return hints;
-        }
+        Set<String> resolved = new HashSet<>(confirmedUnitIds);
+        resolved.addAll(rejectedUnitIds);
 
         Set<String> addNodeIdsInPatch = new HashSet<>();
         if (patch.getAddNodes() != null) {
@@ -330,13 +366,118 @@ public class FlowDesignPatchConfirmService {
             }
         }
 
-        checkAddNodeDependency(hints, edgeId, edge.getSource(), addNodeIdsInPatch, confirmedUnitIds);
-        checkAddNodeDependency(hints, edgeId, edge.getTarget(), addNodeIdsInPatch, confirmedUnitIds);
+        if (unitId.startsWith("addEdge:") || unitId.startsWith("updateEdge:")) {
+            GraphEdge edge = findPatchEdge(patch, unitId);
+            if (edge != null) {
+                String edgeId = edge.getId() != null ? edge.getId().trim() : "";
+                checkAddNodeDependency(hints, unitId, edgeId, edge.getSource(), addNodeIdsInPatch, confirmedUnitIds);
+                checkAddNodeDependency(hints, unitId, edgeId, edge.getTarget(), addNodeIdsInPatch, confirmedUnitIds);
+                // 端点既不在基准图也不在本 patch addNodes
+                checkEndpointExists(hints, unitId, edge.getSource(), addNodeIdsInPatch, baseGraph, "source");
+                checkEndpointExists(hints, unitId, edge.getTarget(), addNodeIdsInPatch, baseGraph, "target");
+            }
+            return hints;
+        }
+
+        if (unitId.startsWith("deleteNode:")) {
+            String nodeId = unitId.substring("deleteNode:".length()).trim();
+            if (patch.getAddEdges() != null) {
+                for (GraphEdge edge : patch.getAddEdges()) {
+                    if (edge == null || edge.getId() == null) {
+                        continue;
+                    }
+                    String edgeKey = "addEdge:" + edge.getId().trim();
+                    if (resolved.contains(edgeKey)) {
+                        continue;
+                    }
+                    String src = edge.getSource() != null ? edge.getSource().trim() : "";
+                    String tgt = edge.getTarget() != null ? edge.getTarget().trim() : "";
+                    if (nodeId.equals(src) || nodeId.equals(tgt)) {
+                        hints.add("确认 " + unitId + " 前请先确认或拒绝仍指向该节点的 " + edgeKey);
+                    }
+                }
+            }
+        }
         return hints;
     }
 
+    /** 场景增改单元未填 testProjectEnvId 时写入 warning，不阻断确认 */
+    private static void noteScenarioEnvWarning(FlowDesignPatch patch, String unitId, List<String> warnings) {
+        if (!unitId.startsWith("addScenario:") && !unitId.startsWith("updateScenario:")) {
+            return;
+        }
+        GraphRunScenario scenario = findPatchScenario(patch, unitId);
+        if (scenario != null
+                && (scenario.getTestProjectEnvId() == null || scenario.getTestProjectEnvId().isBlank())) {
+            warnings.add("场景 " + unitId + " 未绑定 testProjectEnvId，保存后运行前请选择环境");
+        }
+    }
+
+    /** 按 unitId 从 patch 的 addEdges 或 updateEdges 取出对应边 */
+    private static GraphEdge findPatchEdge(FlowDesignPatch patch, String unitId) {
+        boolean add = unitId.startsWith("addEdge:");
+        String edgeId = unitId.substring(unitId.indexOf(':') + 1).trim();
+        List<GraphEdge> edges = add ? patch.getAddEdges() : patch.getUpdateEdges();
+        if (edges == null) {
+            return null;
+        }
+        for (GraphEdge candidate : edges) {
+            if (candidate != null && edgeId.equals(candidate.getId())) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /** 按 unitId 从 patch 的 addScenarios 或 updateScenarios 取出对应场景 */
+    private static GraphRunScenario findPatchScenario(FlowDesignPatch patch, String unitId) {
+        FlowDesignScenarioPatch sp = patch.getScenarioPatch();
+        if (sp == null) {
+            return null;
+        }
+        boolean add = unitId.startsWith("addScenario:");
+        String scenarioId = unitId.substring(unitId.indexOf(':') + 1).trim();
+        List<GraphRunScenario> list = add ? sp.getAddScenarios() : sp.getUpdateScenarios();
+        if (list == null) {
+            return null;
+        }
+        for (GraphRunScenario s : list) {
+            if (s != null && scenarioId.equals(s.getId())) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 边端点既不在底图节点里，也不在本 patch 的 addNodes 里时，写入依赖错误。
+     */
+    private static void checkEndpointExists(
+            List<String> hints,
+            String unitId,
+            String endpointId,
+            Set<String> addNodeIdsInPatch,
+            GraphJson baseGraph,
+            String role) {
+        if (endpointId == null || endpointId.isBlank()) {
+            return;
+        }
+        String trimmed = endpointId.trim();
+        if (addNodeIdsInPatch.contains(trimmed)) {
+            return;
+        }
+        if (GraphLookupUtils.findNode(baseGraph != null ? baseGraph.getNodes() : null, trimmed) != null) {
+            return;
+        }
+        hints.add("确认 " + unitId + " 的 " + role + "「" + trimmed + "」不在画布且不在本轮 addNode 中");
+    }
+
+    /**
+     * 边端点落在本 patch 的 addNode 上、且该节点尚未确认时，写入「须先确认该 addNode」提示。
+     */
     private static void checkAddNodeDependency(
             List<String> hints,
+            String unitId,
             String edgeId,
             String endpointId,
             Set<String> addNodeIdsInPatch,
@@ -350,7 +491,11 @@ public class FlowDesignPatchConfirmService {
         }
         String nodeKey = "addNode:" + trimmed;
         if (!confirmedUnitIds.contains(nodeKey)) {
-            hints.add("确认 addEdge:" + edgeId + " 需要先确认 addNode:" + trimmed);
+            if (unitId.startsWith("addEdge:") && !edgeId.isEmpty()) {
+                hints.add("确认 addEdge:" + edgeId + " 需要先确认 addNode:" + trimmed);
+            } else {
+                hints.add("确认 " + unitId + " 需要先确认 addNode:" + trimmed);
+            }
         }
     }
 }

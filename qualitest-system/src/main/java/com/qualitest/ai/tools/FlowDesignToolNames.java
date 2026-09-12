@@ -15,7 +15,7 @@ public enum FlowDesignToolNames {
     SEARCH_APIS("search_apis", true, true),
     /** 批量拉取接口造流摘要（参数、schema、designHints、建议 extracts 等），每批最多若干条 */
     GET_API_DETAILS("get_api_details", true, true),
-    /** 获取当前画布节点与边的摘要列表 */
+    /** 获取当前画布节点与边摘要，含开始节点数与异常拓扑提示 */
     GET_GRAPH_SUMMARY("get_graph_summary", true, true),
     /** 获取画布 meta：运行场景列表、flow 输出名、开始节点、当前默认场景 id */
     GET_FLOW_META("get_flow_meta", true, true),

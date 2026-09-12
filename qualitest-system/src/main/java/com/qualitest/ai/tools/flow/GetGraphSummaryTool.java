@@ -18,7 +18,8 @@ import java.util.Set;
  * 返回当前画布的节点摘要与边列表。
  * <p>
  * 节点数超过 FULL_NODE_LIMIT 时压缩：只保留计数，以及上下文指定的节点与相关边。
- * 返回前按拓扑结果形状做字节上限裁剪（先清空 edges，再减 nodes）。
+ * 另输出 startNodeCount（入度为 0 的节点数）与异常拓扑提示 topologyHint。
+ * 返回前按字节上限裁剪（先减 edges，再减 nodes）。
  */
 public class GetGraphSummaryTool implements QualitestTool {
 
@@ -107,9 +108,44 @@ public class GetGraphSummaryTool implements QualitestTool {
             }
         }
         result.put("edges", edges);
+        // 入度为 0 的节点数；不为 1 时附带 topologyHint 供模型察觉叠图/无入口
+        int startNodeCount = countStartNodes(graph);
+        result.put("startNodeCount", startNodeCount);
+        if (startNodeCount != 1 && nodeCount > 0) {
+            result.put("topologyHint", startNodeCount == 0
+                    ? "当前无开始节点（入度均为正）；造流或修复前请先理清拓扑"
+                    : "当前有 " + startNodeCount + " 个开始节点；多次修复叠图时请先清空 Staging 或新建流");
+        }
         if (ctx.getContextNodeIds() != null && !ctx.getContextNodeIds().isEmpty()) {
             result.put("contextNodeIds", ctx.getContextNodeIds());
         }
         return ToolResultByteFit.fitGraphTopology(result, ctx.getMaxToolResultBytes());
+    }
+
+    /**
+     * 统计入度为 0 的节点个数（没有被任何边指向的节点，即开始节点候选）。
+     */
+    private static int countStartNodes(GraphJson graph) {
+        if (graph.getNodes() == null || graph.getNodes().isEmpty()) {
+            return 0;
+        }
+        Set<String> targets = new HashSet<>();
+        if (graph.getEdges() != null) {
+            for (GraphEdge edge : graph.getEdges()) {
+                if (edge != null && edge.getTarget() != null && !edge.getTarget().isBlank()) {
+                    targets.add(edge.getTarget().trim());
+                }
+            }
+        }
+        int count = 0;
+        for (GraphNode node : graph.getNodes()) {
+            if (node == null || node.getId() == null || node.getId().isBlank()) {
+                continue;
+            }
+            if (!targets.contains(node.getId().trim())) {
+                count++;
+            }
+        }
+        return count;
     }
 }

@@ -29,7 +29,7 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http
 
 | 动作 | 口径 |
 | ---- | ---- |
-| ✓ 确认 | 接受该单元；跑图结构等确认期门禁。**不**跑 token 来源 / 登录 extract / HTTP 必填 / 断言路径——这些 **保存再验** |
+| ✓ 确认 | 接受该单元；跑图结构与**本单元断言路径**门禁。token 来源 / 登录 extract / HTTP 必填**不硬拦**；若本轮已无未决单元，响应可带 `saveRiskWarnings` 提示保存风险 |
 | ✕ 取消 | 丢弃该单元，不落盘 |
 | 删除类 ✓ | **唯一确认**，无二次 `MessageBox`；勿对 Staging 边按键盘 Delete 当确认 |
 | 保存 | Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
@@ -69,16 +69,20 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_http
 
 | CODE | 硬拦？ | 何时硬拦 | 含义 |
 | ---- | ---- | ---- | ---- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | 是 | **保存**（AI `submit_*` / Staging ✓ 跳过） | 登录口未抽出托管头所需凭证（`{{asset.*}}` / 存量 `{{flow.*}}`） |
+| `AUTH_LOGIN_EXTRACT_MISSING` | 是 | **保存**（AI `submit_*` / Staging ✓ 跳过硬拦；**末单元 confirm 可附带 `saveRiskWarnings` 预警**） | 登录口未抽出托管头所需凭证（`{{asset.*}}` / 存量 `{{flow.*}}`） |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **保存**（同上） | 两套不同登录口写出同一凭证路径 |
-| `AUTH_TOKEN_MISSING` | 是 | **保存**（同上） | 图要用某托管 Bearer，但 extracts / assign / 子流输出 / **flowSeed(仅 flow)** 都没有该目标 |
+| `AUTH_TOKEN_MISSING` | 是 | **保存**（同上；末单元 confirm 可预警） | 图要用某托管 Bearer，但 extracts / assign / 子流输出 / **flowSeed(仅 flow)** 都没有该目标 |
 | `AUTH_HEADER_MANAGED` | 否（soft） | — | 已按项目鉴权补托管头 |
 | `AUTH_LOGIN_NO_BEARER` | 否（soft） | — | 登录/免登口剥掉了误补的托管头 |
-| 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | 保存（确认期不拦） | 见节点文档；schema 缺字段多为警告 |
+| 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | **submit 与 Staging ✓**（对本单元相关错误）；schema 缺字段多为警告 | 见节点文档 |
+| update 空数组误清空（`rules` / `extracts` / `assignments`） | 是 | **submit / preparePatch** | baseline 同字段非空时，禁止用空数组整表替换 |
+| condition `branches[].target` | — | normalize **直接剔除** | 出口只认边，AI 预写 target 丢弃 |
 
-保存前前端会调 `/patch/savePrecheck`（与上表 AUTH / 登录 extract / HTTP 必填同口径），提前展示错误，避免 Staging 全绿后点保存才翻车。
+保存前前端会调 `/patch/savePrecheck`（与上表 AUTH / 登录 extract / HTTP 必填同口径），提前展示错误，避免 Staging 全绿后点保存才翻车。末单元 confirm 成功时若仍有上述保存风险，响应带 `saveRiskWarnings`（不阻断 ✓）。
 
 造流 submit 工具面：节点/边/场景用 `submit_*` + `op=add|update`；删除统一 `submit_delete`（`kind`+`id`）。AI **不造** `input` 节点，**不切**默认运行场景。
+
+灌入 Staging 前前端另做轻量 schema：缺 id / 未知 type / update·delete 目标不存在的项**不建 unit**；边端点启发式改写必 toast 提示。
 
 鉴权产品口径见 [project-summary.md §4](./project-summary.md)。跑流变量 / flowSeed 见 [flow-variables-and-values.md](./flow-variables-and-values.md)。
 

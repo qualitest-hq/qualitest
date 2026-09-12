@@ -23,7 +23,7 @@ Prompt → tools → multiple submit_* (1 unit each) → Staging → ✓ → Sav
 
 | Action | Rule |
 | ------ | ---- |
-| ✓ | Accept unit; structure gates may run. **Does not** run token / login-extract / HTTP-required / assert-path checks — those run on **Save** |
+| ✓ Confirm | Accept unit; graph structure + **assert-path for this unit**. AUTH / login extract / HTTP-required stay soft on ✓; last unresolved unit may return `saveRiskWarnings` |
 | ✕ | Drop unit |
 | Delete ✓ | **Only** confirm; no second dialog. Do not keyboard-Delete Staging edges |
 | Save | Staging should be empty. Banner “nodes empty” = empty graph in DB — **not** a pass |
@@ -50,13 +50,15 @@ Web has typed `submit_*` unit writers, `upsert_asset_variables` (proposal → co
 
 | CODE | Hard? | When | Meaning |
 | ---- | ----- | ---- | ------- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | Yes | **Save** (AI `submit_*` / Staging ✓ skip) | Login node missing extract for managed header target |
+| `AUTH_LOGIN_EXTRACT_MISSING` | Yes | **Save** (submit/✓ soft; last-unit confirm may warn via `saveRiskWarnings`) | Login node missing extract for managed header target |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | **Save** (same) | Two logins write the same credential path |
-| `AUTH_TOKEN_MISSING` | Yes | **Save** (same) | Bearer needed but no extract / assign / subflow output / **flowSeed** |
+| `AUTH_TOKEN_MISSING` | Yes | **Save** (same; last-unit confirm may warn) | Bearer needed but no extract / assign / subflow output / **flowSeed** |
 | `AUTH_HEADER_MANAGED` / `AUTH_LOGIN_NO_BEARER` | Soft | — | Managed header filled / stripped on anonymous login |
-| Bad assert path (`.items`, `http.body.$.…`) | Yes on that unit | Save (not on ✓) | See node docs |
+| Bad assert path (`.items`, `http.body.$.…`) | Yes on that unit | **submit and Staging ✓** | See node docs |
+| Update empty array wipe (`rules`/`extracts`/`assignments`) | Yes | **submit / preparePatch** | Empty array vs non-empty baseline blocked |
+| condition `branches[].target` | — | stripped in normalize | Exits follow edges only |
 
-Before Save, the UI calls `/patch/savePrecheck` (same AUTH / login-extract / HTTP-required codes) so failures surface before the hard save. Submit tools: typed `submit_*` with `op=add|update`; unified `submit_delete` (`kind`+`id`). AI does **not** create `input` nodes or switch the default scenario.
+Before Save, the UI calls `/patch/savePrecheck`. Hydrate skips illegal units (missing id / bad type / missing update·delete target); edge rewires must surface warnings.
 
 Auth model: concept map §4. Variables / flowSeed: [flow-variables-and-values.en.md](./flow-variables-and-values.en.md).
 
