@@ -122,7 +122,7 @@ IDEA 插件上传接口
 
 - **同端**：开头只登录一次（或挂登录子流），后续靠托管 Bearer 复用 `asset.*`（HTTP 成功后 extract 落盘，跨 Run 可探活）。内置预制登录流为 **探活再登录**：`statusCheck.whitelist [200,401]` 探活 + Condition，有效则跳过登录。
 - **双端同图**：两套登录、两套 extracts；**禁止**覆盖同一凭证路径（硬拦 `AUTH_LOGIN_FLOWKEY_COLLISION`）。
-- **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（AI submit / Staging / 保存）。托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。
+- **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（**仅保存**硬拦；AI `submit_*` / Staging ✓ 跳过，分批确认时图常不完整）。托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。
 - 画布顶栏「刷新鉴权头」、HTTP 节点凭证行提示；Run 鉴权失败可用「AI 修复」。
 - 调试可用 flowSeed 预置旧版 `flow.*` token；**口令与正式凭证走素材库**，勿 flowSeed 塞密码。
 

@@ -23,7 +23,7 @@ Prompt → tools → multiple submit_* (1 unit each) → Staging → ✓ → Sav
 
 | Action | Rule |
 | ------ | ---- |
-| ✓ | Accept unit; design-time gates run |
+| ✓ | Accept unit; structure gates may run. **Does not** run token / login-extract / HTTP-required / assert-path checks — those run on **Save** |
 | ✕ | Drop unit |
 | Delete ✓ | **Only** confirm; no second dialog. Do not keyboard-Delete Staging edges |
 | Save | Staging should be empty. Banner “nodes empty” = empty graph in DB — **not** a pass |
@@ -48,13 +48,13 @@ Web has typed `submit_*` unit writers, `upsert_asset_variables` (proposal → co
 
 ## 5. Design-time codes (`CODE: message`)
 
-| CODE | Hard? | Meaning |
-| ---- | ----- | ------- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | Yes | Login node missing extract for Profile `loginHint` |
-| `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | Two logins write the same `flow.token` |
-| `AUTH_TOKEN_MISSING` | Yes | Bearer needed but no extract / assign / subflow output / **flowSeed** |
-| `AUTH_HEADER_MANAGED` / `AUTH_LOGIN_NO_BEARER` | Soft | Managed header filled / stripped on anonymous login |
-| Bad assert path (`.items`, `http.body.$.…`) | Yes on that unit | See node docs |
+| CODE | Hard? | When | Meaning |
+| ---- | ----- | ---- | ------- |
+| `AUTH_LOGIN_EXTRACT_MISSING` | Yes | **Save** (AI `submit_*` / Staging ✓ skip) | Login node missing extract for managed header target |
+| `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | **Save** (same) | Two logins write the same credential path |
+| `AUTH_TOKEN_MISSING` | Yes | **Save** (same) | Bearer needed but no extract / assign / subflow output / **flowSeed** |
+| `AUTH_HEADER_MANAGED` / `AUTH_LOGIN_NO_BEARER` | Soft | — | Managed header filled / stripped on anonymous login |
+| Bad assert path (`.items`, `http.body.$.…`) | Yes on that unit | Save (not on ✓) | See node docs |
 
 Auth model: concept map §4. Variables / flowSeed: [flow-variables-and-values.en.md](./flow-variables-and-values.en.md).
 

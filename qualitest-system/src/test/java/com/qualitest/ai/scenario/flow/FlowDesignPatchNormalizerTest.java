@@ -852,6 +852,53 @@ class FlowDesignPatchNormalizerTest {
         assertFalse(sessionMap.containsKey("never_seen"));
     }
 
+    /**
+     * 前提：项目双端鉴权；单单元 add 需登录的客户端 project HTTP，图中无 token 来源。
+     * 期望：normalizeUnit 接受且 errors 无 AUTH_TOKEN_MISSING；同图走整包 normalize 则含该码。
+     */
+    @Test
+    @Order(94)
+    @DisplayName("normalizeUnit 跳过 AuthToken 门禁")
+    void normalizeUnit_projectHttpMissingToken_skipsAuthGate() {
+        when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
+                .testProjectApiId(API_ID)
+                .testProjectId(PROJECT_ID)
+                .apiName("资料")
+                .apiPath("/api/account/auth/profile")
+                .authConfig("{\"mode\":\"inherit\"}")
+                .requestConfig("{\"method\":\"GET\"}")
+                .build());
+
+        FlowDesignPatch unitPatch = dualBearerHttpAddPatch("9601");
+        FlowDesignPatchNormalizer.NormalizeResult unitResult =
+                normalizer.normalizeUnit(unitPatch, graphWithMeta(), PROJECT_ID, new HashMap<>());
+        assertTrue(unitResult.validation().getErrors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
+                () -> "unit errors=" + unitResult.validation().getErrors());
+
+        FlowDesignPatch fullPatch = dualBearerHttpAddPatch("9602");
+        FlowDesignPatchNormalizer.NormalizeResult fullResult =
+                normalizer.normalize(fullPatch, graphWithMeta(), PROJECT_ID);
+        assertTrue(fullResult.validation().getErrors().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
+                () -> "full errors=" + fullResult.validation().getErrors());
+    }
+
+    /** 构造绑定客户端 inherit HTTP 的 addNode 补丁（缺 token 来源）。 */
+    private static FlowDesignPatch dualBearerHttpAddPatch(String nodeId) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", "资料");
+        data.put("callMode", "project");
+        data.put("testProjectApiId", String.valueOf(API_ID));
+        GraphNode node = GraphNode.builder()
+                .id(nodeId)
+                .type("http")
+                .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
+                .data(data)
+                .build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setAddNodes(new ArrayList<>(List.of(node)));
+        return patch;
+    }
+
     private static Map<String, Object> branchById(List<Map<String, Object>> branches, String id) {
         return branches.stream()
                 .filter(b -> id.equals(String.valueOf(b.get("id"))))

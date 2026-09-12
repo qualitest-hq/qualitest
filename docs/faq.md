@@ -20,10 +20,12 @@
 
 ### 确认 Staging 或保存时报 `AUTH_*`
 
+`AUTH_TOKEN_MISSING` / 登录 extract / HTTP 必填等 **只在保存硬拦**。Staging ✓ 能过、点保存才报 AUTH → 先查项目 Profile 托管头是否绑错端（如客户端误用 `adminAuth`）、再查登录 extract，不是 confirm bug。
+
 | 码 | 含义 | 处理 |
 | --- | --- | --- |
 | `AUTH_LOGIN_EXTRACT_MISSING` | 登录口没抽出托管头所需凭证（asset/flow） | 补 extracts 或让 AI 按托管头占位符补 |
-| `AUTH_TOKEN_MISSING` | 后续 HTTP 要用凭证，但图里没有来源 | 同端补登录 extract（或存量 flowSeed 仅对 flow 目标） |
+| `AUTH_TOKEN_MISSING` | 后续 HTTP 要用凭证，但图里没有来源 | 同端补登录 extract（或存量 flowSeed 仅对 flow 目标）；核对 Profile `headerValueTemplate` |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | 两套登录写出同一凭证路径 | 双端分用 `adminAuth` / `clientAuth` |
 | `AUTH_HEADER_MANAGED` | 已自动补托管头 | 提示，不拦 |
 

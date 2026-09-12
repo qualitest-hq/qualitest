@@ -35,7 +35,8 @@ import java.util.function.Function;
  * 场景 flowSeed（仅 flow）。
  * 客户端与管理端分开检查，有一端凭证不能代替另一端。
  * <p>
- * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING），调用方应拒绝造流提交、Staging 确认或保存。
+ * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING）。保存流程时硬拦；
+ * 单单元 normalize 与 Staging 确认刻意不调用本门禁（分批确认时图常不完整）。
  * 项目未配置鉴权 Profile 时不做检查。
  */
 public final class AuthTokenPresenceGate {

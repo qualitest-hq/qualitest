@@ -14,11 +14,13 @@ Usually: wrong login extract path (admin `$.token`→`adminToken`, client `$.dat
 
 ### Staging / save: `AUTH_*` codes
 
+Hard blocks for token / login-extract / HTTP-required run on **Save** only — Staging ✓ can pass and Save still fail with AUTH. Check Profile `headerValueTemplate` (wrong side e.g. client using `adminAuth`) and login extracts first; not a confirm bug.
+
 | Code | Fix |
 | ---- | --- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | Add extract per Profile `loginHint` |
-| `AUTH_TOKEN_MISSING` | Add login / assign / subflow output, or flowSeed (tokens only) |
-| `AUTH_LOGIN_FLOWKEY_COLLISION` | Use separate `token` and `adminToken` |
+| `AUTH_LOGIN_EXTRACT_MISSING` | Add extract per managed header target |
+| `AUTH_TOKEN_MISSING` | Add login / assign / subflow output, or flowSeed (tokens only); verify Profile header template |
+| `AUTH_LOGIN_FLOWKEY_COLLISION` | Use separate `adminAuth` / `clientAuth` paths |
 | `AUTH_HEADER_MANAGED` | Info only |
 
 See [ai-staging.en.md §5](./ai-staging.en.md).

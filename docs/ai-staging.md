@@ -29,7 +29,7 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_add_
 
 | 动作 | 口径 |
 | ---- | ---- |
-| ✓ 确认 | 接受该单元；会跑设计期门禁（鉴权、断言路径等） |
+| ✓ 确认 | 接受该单元；跑图结构等确认期门禁。**不**跑 token 来源 / 登录 extract / HTTP 必填 / 断言路径——这些 **保存再验** |
 | ✕ 取消 | 丢弃该单元，不落盘 |
 | 删除类 ✓ | **唯一确认**，无二次 `MessageBox`；勿对 Staging 边按键盘 Delete 当确认 |
 | 保存 | Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
@@ -67,14 +67,14 @@ AI **不直接写库**。Web 助手按单元调用 `submit_*`（如 `submit_add_
 
 错误串格式：`CODE: 人类文案`。前端认冒号前的 CODE。
 
-| CODE | 硬拦？ | 含义 |
-| ---- | ------ | ---- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | 是 | 登录口未抽出托管头所需凭证（`{{asset.*}}` / 存量 `{{flow.*}}`） |
-| `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | 两套不同登录口写出同一凭证路径 |
-| `AUTH_TOKEN_MISSING` | 是 | 图要用某托管 Bearer，但 extracts / assign / 子流输出 / **flowSeed(仅 flow)** 都没有该目标 |
-| `AUTH_HEADER_MANAGED` | 否（soft） | 已按项目鉴权补托管头 |
-| `AUTH_LOGIN_NO_BEARER` | 否（soft） | 登录/免登口剥掉了误补的托管头 |
-| 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | 见节点文档；schema 缺字段多为警告 |
+| CODE | 硬拦？ | 何时硬拦 | 含义 |
+| ---- | ---- | ---- | ---- |
+| `AUTH_LOGIN_EXTRACT_MISSING` | 是 | **保存**（AI `submit_*` / Staging ✓ 跳过） | 登录口未抽出托管头所需凭证（`{{asset.*}}` / 存量 `{{flow.*}}`） |
+| `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **保存**（同上） | 两套不同登录口写出同一凭证路径 |
+| `AUTH_TOKEN_MISSING` | 是 | **保存**（同上） | 图要用某托管 Bearer，但 extracts / assign / 子流输出 / **flowSeed(仅 flow)** 都没有该目标 |
+| `AUTH_HEADER_MANAGED` | 否（soft） | — | 已按项目鉴权补托管头 |
+| `AUTH_LOGIN_NO_BEARER` | 否（soft） | — | 登录/免登口剥掉了误补的托管头 |
+| 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | 保存（确认期不拦） | 见节点文档；schema 缺字段多为警告 |
 
 鉴权产品口径见 [project-summary.md §4](./project-summary.md)。跑流变量 / flowSeed 见 [flow-variables-and-values.md](./flow-variables-and-values.md)。
 
