@@ -5,8 +5,7 @@
  * 提供所有 AI 对话面板的公共 UI 骨架：
  * - 标题栏与关闭按钮
  * - 多会话 Tab（新建、切换、删除）
- * - 虚拟滚动消息列表（#message 插槽由业务面板填充）
- * - 空态、错误提示、工具调用提示
+ * - 消息区：虚拟列表；用户离开底部时右下角「最新」按钮，点击滚回最底
  * - 底部 Composer：模型选择、思考/模式开关组、取消/发送
  *
  * 插槽：
@@ -44,6 +43,11 @@ const props = withDefaults(
     thinkingCapable?: boolean;
     sendDisabled?: boolean;
     selectPopperClass?: string;
+    /**
+     * 是否显示「回到最新」悬浮按钮。
+     * 一般为 !stickToBottom：用户上滑离开底部后为 true。
+     */
+    showJumpToBottom?: boolean;
   }>(),
   {
     title: 'AI 助手',
@@ -56,6 +60,7 @@ const props = withDefaults(
     thinkingCapable: false,
     sendDisabled: false,
     selectPopperClass: 'ai-chat-shell-select-popper',
+    showJumpToBottom: false,
   },
 );
 
@@ -72,6 +77,8 @@ const emit = defineEmits<{
   send: [];
   'load-older': [];
   scroll: [];
+  /** 用户点击「最新」：外层应强制贴底并恢复跟随 */
+  'jump-to-bottom': [];
 }>();
 
 const sessionScrollRef = ref<HTMLElement | null>(null);
@@ -203,20 +210,41 @@ defineExpose({
       >+</button>
     </div>
 
-    <AiChatVirtualMessageList
-        v-if="displayMessages.length > 0"
-        ref="virtualListRef"
-        class="ai-chat-shell__messages"
-        :messages="displayMessages"
-        :has-more-older="hasMoreOlderMessages"
-        :loading-older="loadingOlderMessages"
-        @load-older="emit('load-older')"
-        @scroll="emit('scroll')"
-    >
-      <template #default="{ message }">
-        <slot name="message" :message="message" />
-      </template>
-    </AiChatVirtualMessageList>
+    <!-- 有消息时：列表 + 可选「回到最新」悬浮钮（离开底部时显示） -->
+    <div v-if="displayMessages.length > 0" class="ai-chat-shell__messages-wrap">
+      <AiChatVirtualMessageList
+          ref="virtualListRef"
+          class="ai-chat-shell__messages"
+          :messages="displayMessages"
+          :has-more-older="hasMoreOlderMessages"
+          :loading-older="loadingOlderMessages"
+          @load-older="emit('load-older')"
+          @scroll="emit('scroll')"
+      >
+        <template #default="{ message }">
+          <slot name="message" :message="message" />
+        </template>
+      </AiChatVirtualMessageList>
+      <!-- 上滑离开底部后出现；点击后由外层 jumpToBottom 强制贴底 -->
+      <button
+          v-if="showJumpToBottom"
+          class="ai-chat-shell__jump-bottom"
+          type="button"
+          title="回到最新"
+          @click="emit('jump-to-bottom')"
+      >
+        <svg aria-hidden="true" class="ai-chat-shell__jump-bottom-icon" fill="none" viewBox="0 0 24 24">
+          <path
+              d="M6 9l6 6 6-6"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+          />
+        </svg>
+        <span>最新</span>
+      </button>
+    </div>
 
     <div v-if="displayMessages.length === 0" class="ai-chat-shell__empty">
       {{ emptyHint }}
@@ -510,6 +538,15 @@ defineExpose({
 }
 
 /* ========== 消息列表 / 空态 / 错误 / 工具提示 ========== */
+/* 相对定位容器：消息列表占满；「最新」按钮叠在右下角 */
+.ai-chat-shell__messages-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .ai-chat-shell__messages {
   flex: 1;
   padding: 12px 14px;
@@ -518,6 +555,43 @@ defineExpose({
 
 .ai-chat-shell__messages.ai-chat-virtual-list {
   overflow-y: auto;
+}
+
+/* 「回到最新」：离开底部时显示，点击滚回列表最底 */
+.ai-chat-shell__jump-bottom {
+  position: absolute;
+  right: 18px;
+  bottom: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border: 1px solid color-mix(in srgb, var(--pd-primary) 35%, var(--pd-border-subtle));
+  border-radius: 16px;
+  background: var(--pd-surface-elevated);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--pd-text) 14%, transparent);
+  color: var(--pd-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover {
+    background: var(--pd-primary-soft);
+    border-color: var(--pd-primary);
+  }
+}
+
+.ai-chat-shell__jump-bottom-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .ai-chat-shell__empty {

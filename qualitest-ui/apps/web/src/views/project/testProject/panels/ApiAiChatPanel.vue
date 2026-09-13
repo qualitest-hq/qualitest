@@ -28,6 +28,8 @@
           :thinking-enabled="thinkingEnabled"
           :thinking-capable="thinkingCapable"
           :send-disabled="!selectedModelId || !composerText.trim()"
+          <!-- 离开底部时显示「最新」；点击 jumpToBottom 强制贴底 -->
+          :show-jump-to-bottom="!stickToBottom"
           select-popper-class="api-ai-select-popper"
           @close="close"
           @session-change="onSessionChange"
@@ -39,6 +41,7 @@
           @send="submit"
           @load-older="onLoadOlderMessages"
           @scroll="onListScroll"
+          @jump-to-bottom="jumpToBottom"
       >
         <template #message="{ message: msg }">
           <AiChatMessageRow
@@ -282,12 +285,15 @@ const {
   ensureMessagePatchLoaded,
 } = useApiAi(context, handleApply);
 
+/** 壳层绑定：流式占位、智能贴底、「回到最新」、会话 Tab */
 const {
   shellRef,
   streamingMessageId,
   displayMessages,
+  stickToBottom,
   onListScroll,
   onLoadOlderMessages,
+  jumpToBottom,
   canShowMessageActions,
   isMessagePatchPending,
   onSessionChange,

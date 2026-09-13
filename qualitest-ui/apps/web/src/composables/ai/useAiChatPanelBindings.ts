@@ -4,7 +4,8 @@
  * 把各业务面板都要做的 UI 胶水逻辑集中在这里，包括：
  * - 绑定 AiChatShell 组件实例
  * - 流式生成时在列表末尾插入占位 assistant 消息
- * - 消息列表滚动、向上分页、patch 懒加载观察
+ * - 消息列表智能贴底、向上分页、patch 懒加载观察
+ * - 「回到最新」：jumpToBottom 强制贴底；stickToBottom 控制悬浮钮显隐
  * - 会话 Tab 切换/删除/草稿关闭
  * - 判断某条消息是否可显示「编辑」「重新生成」等操作按钮
  */
@@ -73,13 +74,21 @@ export function useAiChatPanelBindings<TMessage extends AiChatRenderableMessage>
     ];
   });
 
-  const { onListScroll, onLoadOlderMessages } = useAiChatPanelList({
+  const { onListScroll, onLoadOlderMessages, stickToBottom, scrollToBottom } = useAiChatPanelList({
     displayMessages,
     messageCount: computed(() => displayMessages.value.length),
+    designing: options.designing,
     loadOlderMessages: options.loadOlderMessages,
     ensureMessagePatchLoaded: options.ensureMessagePatchLoaded,
     shellRef,
   });
+
+  /**
+   * 「回到最新」按钮点击：强制滚到列表最底并重新打开贴底跟随。
+   */
+  function jumpToBottom() {
+    void scrollToBottom(true);
+  }
 
   // 切换会话时执行场景清理，并把当前 Tab 滚入可视区域
   watch(options.activeSessionId, () => {
@@ -121,8 +130,11 @@ export function useAiChatPanelBindings<TMessage extends AiChatRenderableMessage>
     shellRef,
     streamingMessageId,
     displayMessages,
+    /** 是否贴底跟随；模板用 !stickToBottom 控制「回到最新」显隐 */
+    stickToBottom,
     onListScroll,
     onLoadOlderMessages,
+    jumpToBottom,
     canShowMessageActions,
     isMessagePatchPending,
     onSessionChange,
