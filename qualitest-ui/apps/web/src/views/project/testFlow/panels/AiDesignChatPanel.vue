@@ -27,7 +27,6 @@
         :thinking-enabled="thinkingEnabled"
         :thinking-capable="thinkingCapable"
         :send-disabled="!selectedModelId || composerEmpty"
-        <!-- 离开底部时显示「最新」；点击 jumpToBottom 强制贴底 -->
         :show-jump-to-bottom="!stickToBottom"
         select-popper-class="ai-design-select-popper"
         @close="close"
@@ -283,7 +282,7 @@ const {
   return listAiDesignPromptTemplates(projectId);
 });
 
-/** Shell 绑定：流式占位、智能贴底滚动、「回到最新」、会话 Tab 操作 */
+/** Shell 绑定：流式占位、智能贴底（!stickToBottom 显示「最新」按钮）、会话 Tab 操作 */
 const {
   shellRef,
   streamingMessageId,

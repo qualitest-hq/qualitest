@@ -28,7 +28,6 @@
           :thinking-enabled="thinkingEnabled"
           :thinking-capable="thinkingCapable"
           :send-disabled="!selectedModelId || !composerText.trim()"
-          <!-- 离开底部时显示「最新」；点击 jumpToBottom 强制贴底 -->
           :show-jump-to-bottom="!stickToBottom"
           select-popper-class="api-ai-select-popper"
           @close="close"
@@ -285,7 +284,7 @@ const {
   ensureMessagePatchLoaded,
 } = useApiAi(context, handleApply);
 
-/** 壳层绑定：流式占位、智能贴底、「回到最新」、会话 Tab */
+/** 壳层绑定：流式占位、智能贴底（!stickToBottom 显示「最新」按钮）、会话 Tab */
 const {
   shellRef,
   streamingMessageId,
