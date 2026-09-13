@@ -1,8 +1,12 @@
 /**
  * Staging 单元确认与取消的编排入口。
  *
- * 负责依赖检查、服务端校验、画布落盘、撤销历史入栈、自动保存，以及 reject 时的画布回滚。
+ * 负责：依赖检查、服务端校验、把已确认变更写入画布内存、撤销历史入栈，
+ * 以及 reject 时把画布上的提案回滚。
  * 另提供「确认全部就绪」波次串行批量确认（失败停顿、可跳过继续）。
+ *
+ * 确认成功后不自动调用保存；半自动下须用户再点「保存」才持久化 test_flow。
+ * 全自动改图落盘由服务端隐式完成，不走本确认路径的自动保存。
  */
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -10,7 +14,6 @@ import { ElMessage } from 'element-plus';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
-import { isAutoSaveAfterConfirm } from '../utils/aiDesignPreferences';
 import { listReadyPendingUnitIds } from '../utils/listReadyPendingUnits';
 import { collectStagingConfirmHighlightIds } from '../utils/mergeHighlight';
 import { resolveStagingConfirmDependency } from '../utils/stagingDependencyHints';
@@ -27,7 +30,6 @@ import {
   requestConfirmWithAutoRetry,
 } from '../utils/stagingConfirmRetry';
 import { removeStagingEdgeFromCanvas } from './useAiStagingCanvas';
-import { useFlowGraph } from './useFlowGraph';
 import { useFlowHistory } from './useFlowHistory';
 import {
   recordStagingUnitConfirmed,
@@ -60,9 +62,10 @@ export const stagingBatchPausedOnUnitId = ref<string | null>(null);
 let batchSkipUnitIds = new Set<string>();
 
 type ConfirmUnitCoreOptions = {
+  /** true：不弹成功/失败 toast（批量确认时由外层统一提示） */
   quiet?: boolean;
+  /** true：确认后不自动平移视口到下一待确认单元（批量确认时关闭） */
   skipViewportFocus?: boolean;
-  skipAutoSave?: boolean;
 };
 
 type ConfirmUnitCoreResult = 'ok' | 'failed' | 'aborted';
@@ -76,7 +79,7 @@ export function resetStagingConfirmGatesForTests() {
   batchSkipUnitIds = new Set();
 }
 
-/** 将一次 confirm 的完整流程（请求、落盘、入历史、自动保存）排进串行队列 */
+/** 将一次 confirm 的完整流程（请求、落盘、入历史）排进串行队列 */
 function enqueueConfirmApply<T>(fn: () => Promise<T>): Promise<T> {
   const next = confirmApplyTail.then(() => fn());
   confirmApplyTail = next.then(
@@ -90,7 +93,6 @@ export function useAiStagingConfirm() {
   const store = useFlowCanvasStore();
   const stagingStore = useAiStagingStore();
   const { pushHistory } = useFlowHistory();
-  const { saveFlow } = useFlowGraph();
   const viewport = useFlowViewport();
 
   /** 本批 Staging 无待确认项时，启动统一熄灭计时 */
@@ -111,20 +113,6 @@ export function useAiStagingConfirm() {
       { ok: false, errors, warnings },
       { dependencyHints },
     );
-  }
-
-  /**
-   * 用户开启「确认后自动保存」时，在 confirm 成功后触发保存。
-   * 仍有 pending Staging 时不保存，避免半成品拓扑硬拦闪红。
-   * 跳过「尚有待确认项」提示，因为本次保存意图就是落盘刚确认的内容。
-   */
-  async function maybeAutoSaveAfterConfirm() {
-    if (!isAutoSaveAfterConfirm()) return;
-    if (stagingStore.pendingCount > 0) return;
-    const saved = await saveFlow({ skipPendingWarning: true });
-    if (!saved) {
-      ElMessage.warning('已确认变更，但自动保存失败，请手动保存');
-    }
   }
 
   /**
@@ -163,6 +151,8 @@ export function useAiStagingConfirm() {
 
   /**
    * 单单元确认核心（须由调用方持有 busy 占坑）。
+   * 跑依赖检查与服务端校验，通过后把变更写入画布内存并入撤销历史；
+   * 不调用 saveFlow，不写后端 test_flow。
    * 返回 ok / failed / aborted（缺 patch、依赖阻断、缺项目 id 等未发起确认）。
    * 成功且响应带运行风险文案时写入校验条，不弹 toast。
    */
@@ -299,10 +289,6 @@ export function useAiStagingConfirm() {
         await viewport.waitForViewportSettled();
         pushHistory();
 
-        if (!opts.skipAutoSave) {
-          await maybeAutoSaveAfterConfirm();
-        }
-
         if (!opts.quiet) {
           const doneLabel = isDeleteStagingUnit(unit) ? '已确认删除' : '已确认变更';
           ElMessage.success(doneLabel);
@@ -359,6 +345,11 @@ export function useAiStagingConfirm() {
   /** 工具条角标：当前依赖已满足的 pending 数（不含批量 skip 集） */
   const readyPendingCount = computed(() => currentReadyUnitIds(new Set()).length);
 
+  /**
+   * 波次串行确认：反复取出当前依赖已满足的 pending，逐个 confirm。
+   * 某一单元失败则停顿，等待用户跳过或处理；整批结束后统一 toast。
+   * 同样不自动保存 test_flow。
+   */
   async function runConfirmAllReadyLoop() {
     let totalOk = 0;
 
@@ -375,7 +366,6 @@ export function useAiStagingConfirm() {
         const outcome = await confirmUnitCore(unitId, {
           quiet: true,
           skipViewportFocus: true,
-          skipAutoSave: true,
         });
 
         if (outcome === 'ok') {
@@ -399,7 +389,6 @@ export function useAiStagingConfirm() {
     stagingBatchPausedOnUnitId.value = null;
     if (totalOk > 0) {
       ElMessage.success(`已确认 ${totalOk} 项`);
-      await maybeAutoSaveAfterConfirm();
     } else if (stagingStore.pendingCount > 0 && currentReadyUnitIds(batchSkipUnitIds).length === 0) {
       ElMessage.info('当前没有可确认项（可能仍有依赖未满足）');
     }

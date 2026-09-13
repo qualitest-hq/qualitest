@@ -4,6 +4,9 @@
  * 保存规则：只拦「无法解析 / 节点缺 id / 边缺端点」；
  * 结构细节、断言路径、鉴权缺失等允许带错落盘，方便继续改图。
  * 开跑前另做完整就绪检查。
+ *
+ * 半自动下 Staging ✓ 后须调用本模块的 saveFlow 才写库；
+ * 若仍有 pending，先弹门禁（去确认 / 仅保存已确认 / 取消）。
  */
 import { ElMessage } from 'element-plus';
 
@@ -12,7 +15,6 @@ import { validateGraphJson } from '@/utils/flow/graphValidate';
 
 import { fromGraphJson, toGraphJson } from '../graphAdapter';
 import { refreshSavedBaseline } from '../utils/reconcileFlowDirty';
-import { isBlockWhenStagingPending } from '../utils/aiDesignPreferences';
 import { promptStagingPendingSave } from '../utils/promptStagingPendingSave';
 import { collectRunBlockingErrors } from '../utils/runReadiness';
 import { useFlowHistory } from './useFlowHistory';
@@ -27,8 +29,6 @@ import {
 import { recoverLoginFlowEdgesIfMissing } from '../../testProjectTemplate/utils/templateCanvasHydrate';
 
 export interface SaveFlowOptions {
-  /** true：跳过「尚有未确认 Staging」提示框（确认后自动保存等场景） */
-  skipPendingWarning?: boolean;
   /** true：不弹成功/风险 toast（开跑前静默落盘等场景） */
   quiet?: boolean;
   /**
@@ -89,8 +89,8 @@ export function useFlowGraph() {
 
   /**
    * 序列化当前画布并提交保存。
-   * - 有未确认 Staging 时默认弹窗：去确认 / 仅保存已确认 / 取消
-   * - 序列化时排除未确认的 Staging 对象
+   * - 有未确认 Staging 时弹窗：去确认 / 仅保存已确认 / 取消
+   * - 序列化时排除未确认的 Staging 对象；「仅保存已确认」即走此路径
    * - 仅落库地板失败才阻断；其余问题可落盘，并提示尚不可运行
    */
   async function saveFlow(options?: SaveFlowOptions) {
@@ -98,10 +98,9 @@ export function useFlowGraph() {
 
     const pendingUnits = Object.values(stagingStore.unitsById).filter((u) => u.status === 'pending');
     const excludedPending = pendingUnits.length;
-    if (excludedPending > 0 && !options?.skipPendingWarning) {
+    if (excludedPending > 0) {
       const choice = await promptStagingPendingSave({
         pendingLabels: pendingUnits.map((u) => u.label),
-        blockWhenStagingPending: isBlockWhenStagingPending(),
       });
       if (choice === 'focus') {
         openPendingStagingReview(store.edges);

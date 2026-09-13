@@ -1,14 +1,13 @@
 /**
- * 测试流 AI 设计面板的用户偏好（localStorage）。
- * <p>
- * 含：Staging 确认后是否自动保存、pending 未清零时是否禁止「仅保存已确认」、是否开启全自动。
- * 全自动开启后：请求带 autopilotEnabled；后端注入 run_test_flow、素材 upsert 直写、改图隐式落盘。
+ * 测试流 AI 助手面板的用户偏好（localStorage）。
+ *
+ * 目前只持久化「全自动」开关：
+ * - 开：发送设计请求时带 autopilotEnabled=true；本轮可改图后直接写库、素材 upsert 直接写库，并可调用 run_test_flow。
+ * - 关（半自动，默认）：改图进入 Staging、素材进入聊天侧提案，须用户确认；确认后不自动保存测试流，须人手点保存。
  */
-const AUTO_SAVE_AFTER_CONFIRM_KEY = 'qualitest.aiDesign.autoSaveAfterConfirm';
-const BLOCK_WHEN_STAGING_PENDING_KEY = 'qualitest.aiDesign.blockWhenStagingPending';
 const AUTOPILOT_ENABLED_KEY = 'qualitest.aiDesign.autopilotEnabled';
 
-/** 读布尔偏好；未设置或解析失败返回 null */
+/** 从 localStorage 读布尔偏好；未设置或解析失败返回 null */
 function readBoolFlag(key: string): boolean | null {
   try {
     const raw = localStorage.getItem(key);
@@ -20,7 +19,7 @@ function readBoolFlag(key: string): boolean | null {
   return null;
 }
 
-/** 写布尔偏好（'1' / '0'） */
+/** 把布尔偏好写入 localStorage（值为 '1' / '0'） */
 function writeBoolFlag(key: string, enabled: boolean): void {
   try {
     localStorage.setItem(key, enabled ? '1' : '0');
@@ -29,36 +28,16 @@ function writeBoolFlag(key: string, enabled: boolean): void {
   }
 }
 
-/** Staging ✓ 成功后是否自动保存 test_flow；未设置视为 false */
-export function isAutoSaveAfterConfirm(): boolean {
-  return readBoolFlag(AUTO_SAVE_AFTER_CONFIRM_KEY) === true;
-}
-
-export function setAutoSaveAfterConfirm(enabled: boolean): void {
-  writeBoolFlag(AUTO_SAVE_AFTER_CONFIRM_KEY, enabled);
-}
-
-/**
- * 保存时若仍有未确认 Staging，是否强制先清零（隐藏「仅保存已确认」）。
- * 未设置视为 false。
- */
-export function isBlockWhenStagingPending(): boolean {
-  return readBoolFlag(BLOCK_WHEN_STAGING_PENDING_KEY) === true;
-}
-
-export function setBlockWhenStagingPending(enabled: boolean): void {
-  writeBoolFlag(BLOCK_WHEN_STAGING_PENDING_KEY, enabled);
-}
-
 /**
  * 是否开启测试流 AI 全自动。
- * true：run_test_flow + 改图隐式落盘 + 素材 upsert 直写。
- * 未设置视为 false（半自动：Staging / 素材须人审）。
+ * true：改图隐式落盘、素材直写、可 run_test_flow。
+ * 未设置或 false：半自动（Staging / 素材人审，确认后人手保存）。
  */
 export function isAutopilotEnabled(): boolean {
   return readBoolFlag(AUTOPILOT_ENABLED_KEY) === true;
 }
 
+/** 写入全自动开关；true=全自动，false=半自动 */
 export function setAutopilotEnabled(enabled: boolean): void {
   writeBoolFlag(AUTOPILOT_ENABLED_KEY, enabled);
 }

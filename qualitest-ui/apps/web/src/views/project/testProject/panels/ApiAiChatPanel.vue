@@ -160,13 +160,10 @@
         </template>
 
         <template #composer-extra>
-          <el-switch
+          <AiComposerToggle
               v-model="autopilotEnabled"
-              active-text="全自动"
-              inactive-text="半自动"
-              class="api-ai-panel__autopilot"
-              inline-prompt
-              size="small"
+              on-label="全自动"
+              off-label="半自动"
               title="半自动：Diff 勾选后应用到工作台；全自动：有建议时直接应用草稿（仍须人手保存接口库）"
           />
         </template>
@@ -189,6 +186,7 @@ import AiChatAssistantMessage from '@/components/ai/AiChatAssistantMessage.vue';
 import AiChatMessageRow from '@/components/ai/AiChatMessageRow.vue';
 import AiChatShell from '@/components/ai/AiChatShell.vue';
 import AiChatUserBubble from '@/components/ai/AiChatUserBubble.vue';
+import AiComposerToggle from '@/components/ai/AiComposerToggle.vue';
 import AiPromptTemplateStrip from '@/components/ai/AiPromptTemplateStrip.vue';
 import { useAiPromptTemplates } from '@/composables/ai/useAiPromptTemplates';
 
@@ -482,11 +480,5 @@ function submit() {
 
 .api-ai-diff__merge {
   width: 100%;
-}
-
-.api-ai-panel__autopilot {
-  flex-shrink: 0;
-  align-self: flex-end;
-  margin-bottom: 2px;
 }
 </style>

@@ -1,7 +1,9 @@
 <!--
   测试流画布 AI 助手侧栏。
   非模态停靠在画布右侧，不遮挡画布交互。
-  业务差异：Mention 输入、Staging 变更摘要与定位、确认后保存开关。
+  负责：Mention 输入、Staging 变更摘要与定位、素材提案确认、半自动|全自动开关。
+  半自动：改图/素材须人审，确认后人手保存。
+  全自动：改图隐式落盘、素材直写，模型可 run_test_flow。
 -->
 <template>
   <div v-if="store.aiDesignPanelOpen" class="ai-design-chat-dock">
@@ -99,13 +101,6 @@
                 </button>
               </template>
               <template #extra>
-                <!-- explainOnly：本轮无成功 submit_*，明示未产生 Staging -->
-                <div
-                    v-if="shouldShowExplainOnlyHint(msg as AiDesignMessageView, streamingMessageId)"
-                    class="ai-design-explain-only"
-                >
-                  本轮未提交 Staging（未调用任何 submit_* 单元工具）。若要改画布请重新生成并明确要求提交修改。
-                </div>
                 <AiAssetProposalCard
                     v-if="shouldShowAssetProposals(msg as AiDesignMessageView)"
                     :message-id="(msg as AiDesignMessageView).id"
@@ -162,29 +157,12 @@
       </template>
 
       <template #composer-extra>
-        <el-switch
+        <!-- 半自动|全自动：写入 localStorage，下一轮发送设计请求时带上 autopilotEnabled -->
+        <AiComposerToggle
             v-model="autopilotEnabled"
-            active-text="全自动"
-            inactive-text="半自动"
-            class="ai-design-chat-panel__auto-save"
-            inline-prompt
-            size="small"
-            title="半自动：Staging/素材须人审；全自动：素材直写、改图隐式落盘，模型可 run_test_flow"
-        />
-        <el-switch
-            v-model="autoSaveAfterConfirm"
-            active-text="确认后保存"
-            class="ai-design-chat-panel__auto-save"
-            inline-prompt
-            size="small"
-        />
-        <el-switch
-            v-model="blockWhenStagingPending"
-            active-text="保存须先确认"
-            class="ai-design-chat-panel__auto-save"
-            inline-prompt
-            size="small"
-            title="开启后 pending 未清零不可「仅保存已确认」"
+            on-label="全自动"
+            off-label="半自动"
+            title="半自动：Staging/素材须人审，确认后人手保存；全自动：素材直写、改图隐式落盘，模型可 run_test_flow"
         />
       </template>
     </AiChatShell>
@@ -196,8 +174,11 @@
  * 测试流 AI 助手面板。
  *
  * 壳层 UI 由 AiChatShell 承担；本文件处理：
- * Mention 输入与发送、画布变更摘要、素材库写入提案卡片、
- * Run 失败修复 / 节点添加入口预填、确认后自动保存开关。
+ * Mention 输入与发送、画布 Staging 变更摘要、素材库写入提案卡片、
+ * Run 失败修复 / 节点添加入口预填、半自动|全自动偏好开关。
+ *
+ * 半自动：改图进 Staging、素材进提案，确认后不自动保存，须人手点保存。
+ * 全自动：请求带 autopilotEnabled，服务端可隐式落盘并允许 run_test_flow。
  */
 import { nextTick, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -213,11 +194,12 @@ import AiChatAssistantMessage from '@/components/ai/AiChatAssistantMessage.vue';
 import AiChatMessageRow from '@/components/ai/AiChatMessageRow.vue';
 import AiChatShell from '@/components/ai/AiChatShell.vue';
 import AiChatUserBubble from '@/components/ai/AiChatUserBubble.vue';
+import AiComposerToggle from '@/components/ai/AiComposerToggle.vue';
 import AiStagingChangeSummary from '../components/AiStagingChangeSummary.vue';
 import AiAssetProposalCard from '../components/AiAssetProposalCard.vue';
 import { useAiDesign } from '../composables/useAiDesign';
 import { useFlowGraph } from '../composables/useFlowGraph';
-import { isAutoSaveAfterConfirm, isAutopilotEnabled, isBlockWhenStagingPending, setAutoSaveAfterConfirm, setAutopilotEnabled, setBlockWhenStagingPending } from '../utils/aiDesignPreferences';
+import { isAutopilotEnabled, setAutopilotEnabled } from '../utils/aiDesignPreferences';
 import type { ComposerDoc, ComposerSendPayload } from '../composables/mentionComposer';
 import { isComposerDocEmpty, MENTION_CATEGORY_TAGS } from '../composables/mentionComposer';
 import AiMentionComposer from './AiMentionComposer.vue';
@@ -229,7 +211,7 @@ import type {
   AiDesignSystemAction,
   AssetUpsertProposalView,
 } from '../types/aiDesignTypes';
-import { shouldShowExplainOnlyHint, shouldShowStagingSummary } from '../utils/stagingMessage';
+import { shouldShowStagingSummary } from '../utils/stagingMessage';
 import { filterAuthRelatedWarnings } from '../utils/stagingAuthHints';
 
 const store = useFlowCanvasStore();
@@ -277,15 +259,13 @@ const {
 const composerRef = ref<InstanceType<typeof AiMentionComposer> | null>(null);
 /** Composer 是否为空，用于禁用发送按钮 */
 const composerEmpty = ref(true);
-/** 「合并后保存」开关，持久化到 localStorage */
-const autoSaveAfterConfirm = ref(isAutoSaveAfterConfirm());
-/** 全自动：请求注入 run_test_flow、改图隐式落盘、素材直写；关=半自动（Staging / 素材人审） */
+/**
+ * 全自动开关（持久化到 localStorage）。
+ * 开：发送时带 autopilotEnabled，改图可隐式落盘、素材直写、可 run_test_flow。
+ * 关：半自动，Staging / 素材人审，确认后人手保存。
+ */
 const autopilotEnabled = ref(isAutopilotEnabled());
-/** pending 保存强挡：隐藏「仅保存已确认」 */
-const blockWhenStagingPending = ref(isBlockWhenStagingPending());
-watch(autoSaveAfterConfirm, setAutoSaveAfterConfirm);
 watch(autopilotEnabled, setAutopilotEnabled);
-watch(blockWhenStagingPending, setBlockWhenStagingPending);
 
 const {
   items: promptTemplates,
@@ -485,13 +465,6 @@ function close() {
   @include dock.ai-chat-dock(100);
 }
 
-/* Composer 底栏「合并后保存」开关 */
-.ai-design-chat-panel__auto-save {
-  flex-shrink: 0;
-  align-self: flex-end;
-  margin-bottom: 2px;
-}
-
 /* 用户消息中的 @节点 / @Run 等 Mention 片段展示 */
 .ai-mention-message {
   font-size: 13px;
@@ -541,17 +514,6 @@ function close() {
   color: #92400e;
   font-size: 12px;
   line-height: 1.45;
-}
-
-.ai-design-explain-only {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, #d97706 35%, var(--pd-border-subtle));
-  background: color-mix(in srgb, #d97706 10%, var(--pd-surface-elevated));
-  font-size: 12px;
-  line-height: 1.45;
-  color: #92400e;
 }
 
 /* el-select 下拉 teleported 到 body，需高于侧栏 */

@@ -1,5 +1,5 @@
 /**
- * 测 promptStagingPendingSave：门禁文案与三选一/强挡行为。
+ * 测 promptStagingPendingSave：保存门禁文案与三选一行为。
  * 边界：MessageBox mock；无真实 DOM。
  * 单跑：pnpm test promptStagingPendingSave
  */
@@ -54,15 +54,14 @@ describe('promptStagingPendingSave helpers', () => {
     expect(buildStagingPendingSavePreviewLines([''])).toEqual(['未命名变更 1']);
   });
 
-  it('默认三选一、强挡两选', () => {
-    // 前提：对照默认与 block 模式
-    // 期望：默认含仅保存；强挡不含
-    expect(buildStagingPendingSaveActions(false).map((a) => a.choice)).toEqual([
+  it('门禁固定三选一', () => {
+    // 前提：调用 buildStagingPendingSaveActions
+    // 期望：返回去确认、仅保存已确认、取消
+    expect(buildStagingPendingSaveActions().map((a) => a.choice)).toEqual([
       'focus',
       'saveConfirmedOnly',
       'cancel',
     ]);
-    expect(buildStagingPendingSaveActions(true).map((a) => a.choice)).toEqual(['focus', 'cancel']);
   });
 });
 

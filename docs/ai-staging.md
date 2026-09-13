@@ -21,7 +21,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
   → 保存（画布可见节点）
 ```
 
-**例外：全自动**（AI 面板「半自动 | 全自动」，默认半自动）：请求带 `autopilotEnabled=true` 时注入 `run_test_flow`（跑前/回合结束**自动落盘**，无独立 commit 工具），且 `upsert_asset_variables` **直接写素材库**。模型可在同会话内 upsert → `submit_*` → `run_test_flow` → 失败再修（最多再修 2 轮）。落盘成功后 SSE `graphCommitted`，前端清 Staging 并 reload 画布。
+**例外：全自动**（AI 面板「半自动 | 全自动」，默认半自动）：请求带 `autopilotEnabled=true` 时注入 `run_test_flow`（跑前/回合结束**自动落盘**，无独立 commit 工具），且 `upsert_asset_variables` **直接写素材库**。模型可在同会话内 upsert → `submit_*` → `run_test_flow` → 失败再修（最多再修 2 轮）。落盘成功后 SSE `graphCommitted`，前端清 Staging 并 reload 画布。半自动则仍走上文 Staging ✓ → **人手保存**。
 
 **MCP 只读**：无 `submit_*`、无 `upsert_asset_variables`、无 commit/run。Cursor 里改图无效；必须回 Web AI 面板。
 
@@ -45,11 +45,11 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 ## 3. 本轮没有 Staging
 
-助手气泡 **「本轮未提交 Staging」**（`explainOnly`）= 模型只写了方案，**没调** 任何 `submit_*` 单元工具。画布不会变。
+本轮助手消息下**没有** Staging 变更摘要（`explainOnly`）= 模型只写了方案，**没调** 任何 `submit_*` 单元工具。画布不会变。
 
 常见原因：同会话从零搭长流、反复拉超大 `get_api_details`、步数将尽。
 
-**测法 / 用法**：新建对话 + 短提示 + 显式 API id；看到该气泡就让 AI「请按单元 submit 落盘」，不要当已经改图。
+**测法 / 用法**：新建对话 + 短提示 + 显式 API id；无 Staging 摘要时让 AI「请按单元 submit 落盘」，不要当已经改图。
 
 ---
 

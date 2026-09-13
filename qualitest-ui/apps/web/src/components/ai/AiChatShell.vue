@@ -7,18 +7,19 @@
  * - 多会话 Tab（新建、切换、删除）
  * - 虚拟滚动消息列表（#message 插槽由业务面板填充）
  * - 空态、错误提示、工具调用提示
- * - 底部 Composer：模型选择、思考开关、取消/发送
+ * - 底部 Composer：模型选择、思考/模式开关组、取消/发送
  *
  * 插槽：
  * - #message：单条消息渲染
  * - #composer-prompt：输入区上方的提示条（如模板快捷选择）
  * - #composer-input：主输入控件（Mention 或 textarea）
- * - #composer-extra：Composer 底栏额外控件（如自动保存开关）
+ * - #composer-extra：Composer 开关组内额外控件（半自动|全自动等）
  */
 import { nextTick, ref } from 'vue';
 
 import type { AiChatSessionItem, AiModelVendorGroup } from '@/api/ai/chat';
 import AiChatVirtualMessageList from '@/components/ai/AiChatVirtualMessageList.vue';
+import AiComposerToggle from '@/components/ai/AiComposerToggle.vue';
 import { DRAFT_SESSION_ID } from '@/utils/ai/aiChatSession';
 
 const props = withDefaults(
@@ -259,16 +260,17 @@ defineExpose({
             </el-option-group>
           </el-select>
         </div>
-        <el-switch
-            :model-value="thinkingEnabled"
-            :disabled="!thinkingCapable || designing"
-            active-text="思考"
-            class="ai-chat-shell__thinking"
-            inline-prompt
-            size="small"
-            @update:model-value="onThinkingChange"
-        />
-        <slot name="composer-extra" />
+        <div class="ai-chat-shell__composer-toggles">
+          <AiComposerToggle
+              :model-value="thinkingEnabled"
+              :disabled="!thinkingCapable || designing"
+              on-label="思考"
+              off-label="思考"
+              title="开启后模型输出思考过程（需当前模型支持）；关闭则直接作答"
+              @update:model-value="onThinkingChange"
+          />
+          <slot name="composer-extra" />
+        </div>
         <div class="ai-chat-shell__composer-actions">
           <button
               v-if="designing"
@@ -571,7 +573,11 @@ defineExpose({
   flex-wrap: wrap;
 }
 
-.ai-chat-shell__thinking {
+/* Composer 底栏开关组：思考、半自动|全自动等 */
+.ai-chat-shell__composer-toggles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
   align-self: flex-end;
   margin-bottom: 2px;

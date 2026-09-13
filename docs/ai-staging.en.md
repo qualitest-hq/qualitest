@@ -11,7 +11,7 @@ See also: [project-summary.en.md](./project-summary.en.md) · [test-flow-nodes.e
 
 The model **does not write the DB by default**. The Web assistant calls typed `submit_*` tools (e.g. `submit_http_node` with `op=add|update`), one Staging unit per call; the UI merges the accumulated patch into **Staging units**. A human (or an agent clicking the UI) **✓ confirms** or **✕ cancels**, then **Save**. Only then is `graph_json` persisted.
 
-**Full-auto (opt-in):** Web panel **Semi-auto | Full-auto** (default Semi-auto). With Full-auto (`autopilotEnabled`), the model gets `run_test_flow` (auto-persists pending submit_* before run / at turn end), and `upsert_asset_variables` writes immediately. No separate commit tool. Max 2 fix rounds after a failed run. MCP stays read-only.
+**Full-auto (opt-in):** Web panel **Semi-auto | Full-auto** (default Semi-auto). With Full-auto (`autopilotEnabled`), the model gets `run_test_flow` (auto-persists pending submit_* before run / at turn end), and `upsert_asset_variables` writes immediately. No separate commit tool. Max 2 fix rounds after a failed run. Semi-auto still uses Staging ✓ then **manual Save**. MCP stays read-only.
 
 **MCP is read-only** — no `submit_*`, no `upsert_asset_variables`, no commit/run. Edit graphs on the Web AI panel.
 
@@ -38,7 +38,7 @@ If the canvas is covered: close sidebars, pan / minimap / fit, then ✓. Do not 
 
 ## 3. No Staging this turn
 
-Bubble **“no Staging submitted this turn”** (`explainOnly`) means the model never called any `submit_*` unit tool. New chat + short prompt + real api ids. Ask it to submit units; do not treat the essay as a graph change.
+Bubble with **no Staging change summary** (`explainOnly`) means the model never called any `submit_*` unit tool. New chat + short prompt + real api ids. Ask it to submit units; do not treat the essay as a graph change.
 
 ---
 
