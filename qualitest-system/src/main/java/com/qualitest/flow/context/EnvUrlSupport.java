@@ -17,7 +17,7 @@ public final class EnvUrlSupport {
     }
 
     /**
-     * 调试请求使用的 Base URL：兼容纯字符串与 JSON 对象两种存储。
+     * 调试请求使用的 Base URL：支持纯字符串与多模块 JSON 对象两种存储。
      */
     public static String resolveEnvBaseUrlForRequest(String envUrl) {
         String raw = envUrl == null ? "" : envUrl.trim();

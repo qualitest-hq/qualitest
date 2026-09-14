@@ -83,32 +83,6 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertNull(PrefabricatedTemplateExtrasSupport.deriveCredential("[]"));
     }
 
-    /** 按 method+path 给画布 HTTP 节点写入项目接口 id。 */
-    @Test
-    @Order(5)
-    @DisplayName("bindGraphApis 写入探活与登录 apiId")
-    void bindGraphApis() {
-        // 前提：探活再登录图
-        String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
-                "登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
-        String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
-
-        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(graph, (method, path) -> {
-            if ("POST".equals(method) && "/login".equals(path)) {
-                return 99L;
-            }
-            if ("GET".equals(method) && "/getInfo".equals(path)) {
-                return 88L;
-            }
-            return null;
-        });
-
-        // 期望：探活与登录均写入 testProjectApiId
-        assertTrue(bound.contains("\"testProjectApiId\":\"99\""));
-        assertTrue(bound.contains("\"testProjectApiId\":\"88\""));
-        assertTrue(bound.contains("\"statusCheck\"") || bound.contains("statusCheck"));
-    }
-
     /** 合成 id 优先 remap，不再依赖 path（薄节点可无 apiPath）。 */
     @Test
     @Order(5)
@@ -124,8 +98,7 @@ class PrefabricatedTemplateExtrasSupportTest {
                 """;
         Map<String, Long> synth = Map.of("tpl_ab_login", 101L, "tpl_ab_getInfo", 102L);
 
-        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(
-                graph, (method, path) -> null, synth);
+        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(graph, synth);
 
         assertTrue(bound.contains("\"testProjectApiId\":\"101\""));
         assertTrue(bound.contains("\"testProjectApiId\":\"102\""));
@@ -147,18 +120,18 @@ class PrefabricatedTemplateExtrasSupportTest {
                 """;
         Map<String, Long> synth = Map.of("2100000000000004101", 501L);
 
-        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(
-                graph, (method, path) -> null, synth);
+        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(graph, synth);
 
         assertTrue(bound.contains("\"testProjectApiId\":\"501\""));
         assertFalse(bound.contains("2100000000000004101"));
     }
 
-    /** 已是数字项目 id 时跳过；legacy 无 id 仍按 path。 */
+    /** 已是数字项目 id 且不在 remap 表时跳过。 */
     @Test
     @Order(7)
-    @DisplayName("bindGraphApis legacy path 与数字 id 跳过")
-    void bindGraphApis_legacyAndNumeric() {
+    @DisplayName("bindGraphApis 数字项目 id 跳过")
+    void bindGraphApis_numericProjectIdSkipped() {
+        // 前提：无合成 id、仅有数字项目主键
         String graph = """
                 {"nodes":[
                   {"id":"a","type":"http","data":{"callMode":"project","httpMethod":"POST","apiPath":"/login"}},
@@ -166,16 +139,11 @@ class PrefabricatedTemplateExtrasSupportTest {
                 ],"edges":[],"meta":{}}
                 """;
 
-        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(graph, (method, path) -> {
-            if ("POST".equals(method) && "/login".equals(path)) {
-                return 77L;
-            }
-            return 999L;
-        }, Map.of());
+        String bound = PrefabricatedTemplateExtrasSupport.bindGraphApis(graph, Map.of());
 
-        assertTrue(bound.contains("\"testProjectApiId\":\"77\""));
+        // 期望：无 id 的节点不绑定；已有数字 id 保持不变
+        assertFalse(bound.contains("\"testProjectApiId\":\"77\""));
         assertTrue(bound.contains("\"testProjectApiId\":\"55\""));
-        assertFalse(bound.contains("\"999\""));
     }
 
     /** 内置登录图可写入合成 id。 */
@@ -231,24 +199,6 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertFalse(graph.contains("username"));
     }
 
-    /** flow 参数写入默认场景 flowSeed。 */
-    @Test
-    @Order(8)
-    @DisplayName("mergeFlowSeedIntoGraph")
-    void mergeFlowSeed() {
-        // 前提：空 flowSeed 登录图 + flow 参数
-        String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
-                "登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
-        String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
-        List<PrefabParam> params = PrefabricatedTemplateExtrasSupport.parseParams(
-                "[{\"kind\":\"flow\",\"name\":\"token\",\"value\":\"debug\"}]");
-
-        String next = PrefabricatedTemplateExtrasSupport.mergeFlowSeedIntoGraph(graph, params);
-
-        // 期望：scenarios[0].flowSeed.token
-        assertTrue(next.contains("\"token\":\"debug\"") || next.contains("\"token\": \"debug\""));
-    }
-
     /** asset 合并进素材库。 */
     @Test
     @Order(7)
@@ -271,11 +221,11 @@ class PrefabricatedTemplateExtrasSupportTest {
     @Order(8)
     @DisplayName("mergeEnvVariables 同名不覆盖")
     void mergeEnv() {
-        // 前提：已有 timeout；模板再给 timeout 与新键
+        // 前提：已有 timeout；模板再给 timeout 与新键（来自 envVariables）
         String existing = "[{\"id\":1,\"key\":\"timeout\",\"assets\":{\"timeout\":1000}}]";
-        List<PrefabParam> params = PrefabricatedTemplateExtrasSupport.parseParams(
-                "[{\"kind\":\"env\",\"name\":\"timeout\",\"value\":\"9999\"},"
-                        + "{\"kind\":\"env\",\"name\":\"region\",\"value\":\"cn\"}]");
+        List<PrefabParam> params = PrefabricatedTemplateExtrasSupport.paramsFromEnvVariablesJson(
+                "[{\"key\":\"timeout\",\"assets\":{\"timeout\":\"9999\"}},"
+                        + "{\"key\":\"region\",\"assets\":{\"region\":\"cn\"}}]");
 
         String next = PrefabricatedTemplateExtrasSupport.mergeEnvVariables(existing, params);
 

@@ -7,7 +7,6 @@ import {
   applyLoginFlowLayoutIfPresent,
   hydrateTemplateFlowGraph,
   hydrateTemplateFlowsGraphs,
-  migrateLoginFlowTerminalBranch,
   recoverLoginFlowEdgesIfMissing,
   syncTemplateHttpNodesFromCatalog,
 } from '@/views/project/testProjectTemplate/utils/templateCanvasHydrate'
@@ -137,47 +136,6 @@ describe('hydrateTemplateFlowsGraphs', () => {
     expect(login?.data.testProjectApiId).toBe('2100000000000004101')
     expect(probe?.position).toEqual({ x: 480, y: 60 })
     expect(login?.position).toEqual({ x: 680, y: 440 })
-  })
-})
-
-describe('migrateLoginFlowTerminalBranch', () => {
-  it('移除 reuse_end 并将 b_alive_if 改为无 target 结束', () => {
-    const graph = {
-      nodes: [
-        {
-          id: 'cond_alive',
-          type: 'condition',
-          data: {
-            branches: [
-              {
-                id: 'b_alive_if',
-                kind: 'if',
-                target: 'reuse_end',
-                conditions: [{ left: 'http.status', operator: 'eq', right: '200' }],
-              },
-              { id: 'b_alive_else', kind: 'else', target: 'login_http', conditions: [] },
-            ],
-          },
-        },
-        {
-          id: 'reuse_end',
-          type: 'delay',
-          data: { name: '复用凭证', ms: 0 },
-        },
-      ],
-      edges: [
-        { id: 'e_alive_if', source: 'cond_alive', target: 'reuse_end' },
-        { id: 'e_alive_else', source: 'cond_alive', target: 'login_http' },
-      ],
-    }
-
-    expect(migrateLoginFlowTerminalBranch(graph)).toBe(true)
-    expect(graph.nodes.some((n) => n.id === 'reuse_end')).toBe(false)
-    expect(graph.edges.some((e) => e.id === 'e_alive_if')).toBe(false)
-    const aliveIf = graph.nodes[0].data.branches.find((b) => b.id === 'b_alive_if')
-    expect(aliveIf?.target).toBeUndefined()
-    expect(aliveIf?.terminal).toBeUndefined()
-    expect(aliveIf?.target).toBeUndefined()
   })
 })
 

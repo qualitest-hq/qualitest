@@ -1488,7 +1488,7 @@ CREATE TABLE `test_project_template`
     `template_name`            varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '模板名称',
     `match_config`             json                                                          NULL COMMENT '路径匹配JSON，如pathPrefix',
     `template_apis`            json                                                          NOT NULL COMMENT '预制接口JSON数组，勾选进项目时种子接口',
-    `template_params`          json                                                          NULL COMMENT '预制参数JSON数组：主路径 asset；kind=env 仅兼容存量；kind=flow 叠 flowSeed',
+    `template_params`          json                                                          NULL COMMENT '预制参数JSON数组：仅 kind=asset 素材',
     `template_envs`            json                                                          NULL COMMENT '预制环境JSON数组：envName/envUrl/envVariables',
     `template_flows`           json                                                          NULL COMMENT '预制测试流JSON数组；勾选时种子流并从extracts派生托管头',
     `template_prompts`         json                                                          NULL COMMENT '可选预制AI提示词；勾选时种子为项目级ai_prompt_template；鉴权模板可为空',

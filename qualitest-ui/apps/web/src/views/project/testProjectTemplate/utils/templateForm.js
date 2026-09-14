@@ -1,15 +1,15 @@
 /**
- * 项目模板表单工具：路径匹配、预制接口 / 参数(asset；flow·env 存量) / 环境 / 测试流 / 提示词的解析、校验与提交组装。
+ * 项目模板表单工具：路径匹配、预制接口 / 参数(asset) / 环境 / 测试流 / 提示词的解析、校验与提交组装。
  * 托管请求头不在模板表单提交；勾选进项目时由后端按预制测试流抽取规则生成。
  */
 
 import { formatAuthModeLabel, parseJsonMaybe, splitPathLines } from '../../testProject/utils/projectAuthConfig'
 import { ensureTemplateApiIds, newTemplateApiId } from './templateApiId'
-import { mergeFlowSeedFromTemplateParams, partitionTemplateParams, persistEnvVariableEntries, templateParamRowToVariableEntry } from './templateParamUtils'
+import { partitionTemplateParams, persistEnvVariableEntries } from './templateParamUtils'
 import { LOGIN_FLOW_NODE_LAYOUT, LOGIN_FLOW_EDGES, hydrateTemplateFlowsGraphs } from './templateCanvasHydrate'
 import { synthesizeTemplateApiCatalog } from './synthesizeTemplateApiTree'
 
-export { mergeFlowSeedFromTemplateParams, partitionTemplateParams }
+export { partitionTemplateParams }
 
 /** 模板编辑里可选的 HTTP 方法。 */
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
@@ -141,7 +141,7 @@ export function emptyPrefabFlow(templateApis = [], overrides = {}) {
 /**
  * 组装「探活再登录」画布 graphJson。
  * Condition(凭证 exists) → 探活(statusCheck whitelist) → Condition(http.status=200) 否则登录。
- * 默认把 token 抽到 asset.adminAuth.token；也可显式传 flowKey 写 flow 变量。
+ * 默认把 token 抽到 asset.{entryKey}.{fieldPath}。
  */
 export function buildLoginGraphJson({
   method,
@@ -152,7 +152,6 @@ export function buildLoginGraphJson({
   scope,
   entryKey,
   fieldPath,
-  flowKey,
   timeoutMs = 30000,
   successCheckMode = 'inherit',
   nodeName = '登录',
@@ -165,10 +164,9 @@ export function buildLoginGraphJson({
   loginApiName,
   probeApiName,
 }) {
-  const extractScope = String(scope || (flowKey ? 'flow' : 'asset')).trim().toLowerCase() || 'asset'
+  const extractScope = String(scope || 'asset').trim().toLowerCase() || 'asset'
   const assetEntry = String(entryKey || 'adminAuth').trim() || 'adminAuth'
   const assetField = String(fieldPath || 'token').trim() || 'token'
-  const key = String(flowKey || 'token').trim() || 'token'
   const assetLeft = `asset.${assetEntry}.${assetField}`
   const safeProbeMethod = String(probeMethod || 'GET').trim().toUpperCase() || 'GET'
   const safeProbePath = String(probePath || '/getInfo').trim() || '/getInfo'
@@ -176,34 +174,21 @@ export function buildLoginGraphJson({
     ? extracts.filter((e) => e && (e.expr || e.name || e.entryKey))
     : null
   if (!extractList || !extractList.length) {
-    if (extractScope === 'flow') {
-      extractList = [
-        {
-          from: from || 'body',
-          expr: String(expr || '').trim(),
-          scope: 'flow',
-          name: key,
-          entryKey: '',
-          fieldPath: '',
-        },
-      ]
-    } else {
-      extractList = [
-        {
-          from: from || 'body',
-          expr: String(expr || '').trim() || '$.token',
-          scope: 'asset',
-          name: assetField,
-          entryKey: assetEntry,
-          fieldPath: assetField,
-        },
-      ]
-    }
+    extractList = [
+      {
+        from: from || 'body',
+        expr: String(expr || '').trim() || '$.token',
+        scope: 'asset',
+        name: assetField,
+        entryKey: assetEntry,
+        fieldPath: assetField,
+      },
+    ]
   } else {
     extractList = extractList.map((e) => ({
       from: e.from || 'body',
       expr: String(e.expr || '').trim(),
-      scope: e.scope || 'flow',
+      scope: e.scope || extractScope,
       name: String(e.name || '').trim(),
       entryKey: e.entryKey != null ? String(e.entryKey) : '',
       fieldPath: e.fieldPath != null ? String(e.fieldPath) : '',
@@ -383,18 +368,17 @@ export function validateApis(apis) {
   return withIds
 }
 
-/** 校验预制参数：只保留 kind=flow|env|asset 的合法行。 */
+/** 校验预制参数：只保留 kind=asset 的合法行。 */
 export function validateParams(params) {
   return parseParams(params)
     .map((row) => cloneJson(row))
     .filter((row) => {
       const kind = String(row?.kind || '').trim()
-      return (kind === 'flow' || kind === 'env' || kind === 'asset') && String(row?.name || '').trim()
+      return kind === 'asset' && String(row?.name || '').trim()
     })
     .map((row) => {
-      const kind = String(row.kind).trim()
       let value = row.value != null ? row.value : ''
-      if (kind === 'asset' && typeof value === 'string') {
+      if (typeof value === 'string') {
         const text = value.trim()
         if ((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']'))) {
           try {
@@ -405,7 +389,7 @@ export function validateParams(params) {
         }
       }
       return {
-        kind,
+        kind: 'asset',
         name: String(row.name).trim(),
         value,
         remark: row.remark != null ? String(row.remark) : '',
@@ -431,40 +415,6 @@ export function validateEnvs(envs) {
       return { envName, envUrl, envVariables }
     })
     .filter((row) => row.envName || row.envUrl || row.envVariables.length)
-}
-
-/**
- * 把 templateParams 里存量 kind=env 迁入 templateEnvs[0].envVariables（同 key 不覆盖）。
- * 无环境行则补一条只含变量。
- */
-export function migrateEnvParamsIntoTemplateEnvs(params, envs) {
-  const list = parseParams(params)
-  const envParamRows = list.filter(
-    (row) => String(row?.kind || '').trim() === 'env' && String(row?.name || '').trim(),
-  )
-  const restParams = list.filter((row) => String(row?.kind || '').trim() !== 'env')
-  const envList = parseEnvs(envs).map((row) => cloneJson(row))
-  if (!envParamRows.length) {
-    return { templateParams: restParams, templateEnvs: envList }
-  }
-  if (!envList.length) {
-    envList.push({ envName: '', envUrl: '', envVariables: [] })
-  }
-  const first = envList[0] && typeof envList[0] === 'object' ? envList[0] : { envName: '', envUrl: '', envVariables: [] }
-  const existingVars = persistEnvVariableEntries(first.envVariables)
-  const keys = new Set(existingVars.map((e) => e.key))
-  for (const row of envParamRows) {
-    const entry = templateParamRowToVariableEntry(row)
-    if (!entry?.key || keys.has(entry.key)) continue
-    keys.add(entry.key)
-    const persisted = persistEnvVariableEntries([entry])[0]
-    if (persisted) existingVars.push(persisted)
-  }
-  envList[0] = {
-    ...first,
-    envVariables: existingVars,
-  }
-  return { templateParams: restParams, templateEnvs: envList }
 }
 
 /**
@@ -583,14 +533,13 @@ export function templateToForm(row) {
   const { apis } = ensureTemplateApiIds(parseApis(row?.templateApis))
   const { catalog } = synthesizeTemplateApiCatalog(apis)
   const { flows: hydratedFlows } = hydrateTemplateFlowsGraphs(parseFlows(row?.templateFlows), catalog)
-  const migrated = migrateEnvParamsIntoTemplateEnvs(parseParams(row?.templateParams), parseEnvs(row?.templateEnvs))
   return {
     testProjectTemplateId: row?.testProjectTemplateId,
     templateName: row?.templateName || '',
     pathPrefixText: matchConfigToPathPrefixText(row?.matchConfig),
     templateApis: apis,
-    templateParams: migrated.templateParams,
-    templateEnvs: migrated.templateEnvs,
+    templateParams: parseParams(row?.templateParams),
+    templateEnvs: parseEnvs(row?.templateEnvs),
     templateFlows: hydratedFlows,
     templatePrompts: parsePrompts(row?.templatePrompts),
     enableStatus: row?.enableStatus ?? 1,
@@ -630,14 +579,13 @@ export function validateTemplateGraphApiBindings(graph, catalog) {
 /**
  * 编辑表单 → 提交体。
  * 写出 templateApis / templateParams / templateEnvs / templateFlows / templatePrompts 的 JSON 字符串；
- * 不提交托管头字段；雪花 id 保持字符串。存量 kind=env 迁入 templateEnvs 后从 params 去掉。
+ * 不提交托管头字段；雪花 id 保持字符串。
  */
 export function formToPayload(form) {
   const matchConfig = pathPrefixTextToMatchConfig(form.pathPrefixText)
-  const migrated = migrateEnvParamsIntoTemplateEnvs(form.templateParams, form.templateEnvs)
   const templateApis = JSON.stringify(validateApis(form.templateApis))
-  const templateParams = JSON.stringify(validateParams(migrated.templateParams))
-  const templateEnvs = JSON.stringify(validateEnvs(migrated.templateEnvs))
+  const templateParams = JSON.stringify(validateParams(form.templateParams))
+  const templateEnvs = JSON.stringify(validateEnvs(form.templateEnvs))
   const templateFlows = JSON.stringify(validateFlows(form.templateFlows))
   const templatePrompts = JSON.stringify(validatePrompts(form.templatePrompts))
   const payload = {

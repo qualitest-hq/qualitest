@@ -54,13 +54,6 @@ public class ApiAuthConfig implements Serializable {
     private Header header;
 
     /**
-     * 接口行上的历史抽取提示。已废弃：凭证目标在项目 Profile 托管头占位符；
-     * 读库兼容，写出与导入不再使用。
-     */
-    @Deprecated
-    private ProjectAuthConfig.LoginHint loginHint;
-
-    /**
      * 接口级自定义鉴权头模板。
      */
     @Data

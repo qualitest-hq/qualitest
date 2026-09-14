@@ -67,7 +67,7 @@ public class AiChatController extends BaseController {
      * 获取会话详情及消息。
      *
      * @param messageDetail summary 时 assistant 消息不含 patchJson（含 hasPatch 标记）；full 返回完整 meta
-     * @param limit         分页条数；不传或 ≤0 时返回全部消息（兼容旧调用）
+     * @param limit         分页条数；不传或 ≤0 时默认 40
      * @param beforeMessageId 游标：加载该 id 之前的更早消息；为空时加载最新 limit 条
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")

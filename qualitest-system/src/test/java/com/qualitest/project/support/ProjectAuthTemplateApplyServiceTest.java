@@ -265,8 +265,9 @@ class ProjectAuthTemplateApplyServiceTest {
 
         ArgumentCaptor<TestProject> update = ArgumentCaptor.forClass(TestProject.class);
         verify(testProjectMapper).updateTestProject(update.capture());
-        ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(update.getValue().getAuthConfig());
-        assertNull(stored.getAuthProfiles().get(0).getLoginHint());
+        String authConfigJson = update.getValue().getAuthConfig();
+        assertFalse(authConfigJson.contains("loginHint"));
+        ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(authConfigJson);
         assertEquals("Bearer {{asset.adminAuth.token}}",
                 stored.getAuthProfiles().get(0).getHeaderValueTemplate());
         assertNull(stored.getAuthProfiles().get(0).getCredentialApi());
@@ -306,8 +307,9 @@ class ProjectAuthTemplateApplyServiceTest {
 
         ArgumentCaptor<TestProject> update = ArgumentCaptor.forClass(TestProject.class);
         verify(testProjectMapper).updateTestProject(update.capture());
-        ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(update.getValue().getAuthConfig());
-        assertNull(stored.getAuthProfiles().get(0).getLoginHint());
+        String authConfigJson = update.getValue().getAuthConfig();
+        assertFalse(authConfigJson.contains("loginHint"));
+        ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(authConfigJson);
         assertEquals("Bearer {{asset.adminAuth.token}}",
                 stored.getAuthProfiles().get(0).getHeaderValueTemplate());
         assertEquals("/login", stored.getAuthProfiles().get(0).getCredentialApi().getPath());
@@ -568,40 +570,13 @@ class ProjectAuthTemplateApplyServiceTest {
     }
 
     /**
-     * 前提：无 templateEnvs；存量 kind=env 含 baseUrl + timeout；环境为占位。
-     * 期望：占位时可写 envUrl，并合并变量。
+     * 前提：环境 URL 已定制；templateEnvs 再给 URL。
+     * 期望：不改 URL，且名称/变量无变化时不写库。
      */
     @Test
     @Order(16)
-    @DisplayName("存量 kind=env：占位时可写 baseUrl")
-    void apply_legacyEnvParamBaseUrlWhenPlaceholder() {
-        stubEmptyProject();
-        stubGroupCreate();
-        when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
-        when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
-        when(testProjectEnvService.selectTestProjectEnvList(any())).thenReturn(List.of(placeholderEnv()));
-        TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
-        tpl.setTemplateParams(
-                "[{\"kind\":\"env\",\"name\":\"baseUrl\",\"value\":\"http://localhost:8801\"},"
-                        + "{\"kind\":\"env\",\"name\":\"timeout\",\"value\":\"5000\"}]");
-        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
-
-        service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
-
-        ArgumentCaptor<TestProjectEnv> patch = ArgumentCaptor.forClass(TestProjectEnv.class);
-        verify(testProjectEnvService).updateTestProjectEnv(patch.capture());
-        assertEquals("http://localhost:8801", patch.getValue().getEnvUrl());
-        assertTrue(patch.getValue().getEnvVariables().contains("timeout"));
-    }
-
-    /**
-     * 前提：环境 URL 已定制；存量 kind=env 再给 baseUrl。
-     * 期望：不改 URL。
-     */
-    @Test
-    @Order(17)
-    @DisplayName("存量 kind=env：已定制 URL 不覆盖")
-    void apply_legacyEnvParamBaseUrlSkipsCustomUrl() {
+    @DisplayName("预制环境：已定制 URL 不覆盖")
+    void apply_prefabEnvSkipsCustomUrl() {
         stubEmptyProject();
         stubGroupCreate();
         when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
@@ -614,15 +589,13 @@ class ProjectAuthTemplateApplyServiceTest {
                 .build();
         when(testProjectEnvService.selectTestProjectEnvList(any())).thenReturn(List.of(env));
         TestProjectTemplate tpl = template(TPL_DEFAULT, "RuoYi Bearer", slimLoginApis());
-        tpl.setTemplateParams(
-                "[{\"kind\":\"env\",\"name\":\"baseUrl\",\"value\":\"http://localhost:8801\"}]");
+        tpl.setTemplateEnvs(
+                "[{\"envName\":\"默认环境\",\"envUrl\":\"http://localhost:8801\",\"envVariables\":[]}]");
         when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(tpl);
 
         service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
 
-        ArgumentCaptor<TestProjectEnv> patch = ArgumentCaptor.forClass(TestProjectEnv.class);
-        verify(testProjectEnvService).updateTestProjectEnv(patch.capture());
-        assertNull(patch.getValue().getEnvUrl());
+        verify(testProjectEnvService, never()).updateTestProjectEnv(any());
     }
 
     /**
@@ -630,7 +603,7 @@ class ProjectAuthTemplateApplyServiceTest {
      * 期望：不 update 环境（契约：须先建默认环境再 Apply，否则预制 URL 写不进）。
      */
     @Test
-    @Order(18)
+    @Order(17)
     @DisplayName("预制环境：无环境行则跳过（建项须先建环境再 Apply）")
     void apply_skipsEnvSeedWhenNoProjectEnv() {
         stubEmptyProject();

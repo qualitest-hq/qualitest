@@ -451,7 +451,7 @@ public class ApiImportServiceImpl implements IApiImportService {
     }
 
     /**
-     * 写入鉴权标签：只碰接口行 mode（及 override 头）。不写 loginHint——凭证规则在项目 Profile。
+     * 写入鉴权标签：只碰接口行 mode（及 override 头）。凭证规则在项目 Profile。
      * 更新时免登强制 none。
      */
     private void applyAuthConfig(

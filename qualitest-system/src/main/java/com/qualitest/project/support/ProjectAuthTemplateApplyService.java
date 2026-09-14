@@ -105,7 +105,7 @@ public class ProjectAuthTemplateApplyService {
     /**
      * 按勾选顺序把模板写入项目。
      * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 种子测试流（含 flowSeed）
-     * → 种子预制环境 / 存量 kind=env / 素材口令 / AI 提示词（后四项 Profile 已存在仍补）。
+     * → 种子预制环境 / 素材口令 / AI 提示词（后四项 Profile 已存在仍补）。
      */
     @Transactional(rollbackFor = Exception.class)
     public void apply(Long testProjectId, List<Long> templateIds) {
@@ -329,15 +329,10 @@ public class ProjectAuthTemplateApplyService {
     }
 
     /**
-     * 按预制测试流种子项目测试流，并把同模板的 flow 参数写进默认场景 flowSeed。
-     * 已有同名 flowName 跳过；写入前将合成 testProjectApiId remap 为项目接口 id（legacy 仍按 method+path）。
+     * 按预制测试流种子项目测试流。
+     * 已有同名 flowName 跳过；写入前将合成 testProjectApiId remap 为项目接口 id。
      */
     private void seedFlows(Long testProjectId, TestProjectTemplate template) {
-        List<PrefabParam> flowParams = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams())
-                .stream()
-                .filter(p -> "flow".equals(p.getKind()))
-                .toList();
-
         List<PrefabFlow> flows = PrefabricatedTemplateExtrasSupport.parseFlows(template.getTemplateFlows());
         if (flows.isEmpty()) {
             return;
@@ -355,19 +350,12 @@ public class ProjectAuthTemplateApplyService {
         Map<String, Long> apiIdByIdentity = loadApiIdIndex(testProjectId);
         Map<String, Long> synthToProjectId = buildSynthApiIdMap(template, apiIdByIdentity);
         Date now = DateUtils.getNowDate();
-        boolean firstSeeded = false;
         for (PrefabFlow prefab : flows) {
             if (existingNames.contains(prefab.getFlowName())) {
                 continue;
             }
-            String graphJson = prefab.getGraphJson();
-            if (!firstSeeded) {
-                graphJson = PrefabricatedTemplateExtrasSupport.mergeFlowSeedIntoGraph(graphJson, flowParams);
-                firstSeeded = true;
-            }
-            graphJson = PrefabricatedTemplateExtrasSupport.bindGraphApis(
-                    graphJson,
-                    (method, path) -> apiIdByIdentity.get(method + " " + path),
+            String graphJson = PrefabricatedTemplateExtrasSupport.bindGraphApis(
+                    prefab.getGraphJson(),
                     synthToProjectId);
             TestFlow flow = new TestFlow();
             flow.setTestFlowId(IdUtil.getSnowflakeNextId());
@@ -384,7 +372,7 @@ public class ProjectAuthTemplateApplyService {
 
     /**
      * 模板作者期 apiId → 项目接口主键（按 method+path 在项目索引中解析）。
-     * 凡非空 testProjectApiId（雪花数字或历史 tpl_*）均入表。
+     * 凡非空 testProjectApiId 均入表。
      */
     private Map<String, Long> buildSynthApiIdMap(TestProjectTemplate template, Map<String, Long> apiIdByIdentity) {
         Map<String, Long> map = new LinkedHashMap<>();
@@ -406,18 +394,14 @@ public class ProjectAuthTemplateApplyService {
 
     /**
      * 把模板预制环境写入项目第一条环境（仅用 parseEnvs 第一条）。
-     * 合并 templateEnvs 与存量 kind=env；占位 URL 才覆盖；变量同 key 不覆盖。
+     * 占位 URL 才覆盖；变量同 key 不覆盖。
      * Profile 同名跳过仍会调用。不新建环境行，不改 allowDestructiveReset。
      * 建项须先有默认环境再 Apply（Controller：插项目 → 建成员/环境 → apply），否则此处无行可写。
      */
     private void seedProjectEnvFromTemplate(Long testProjectId, TestProjectTemplate template) {
         List<PrefabEnv> prefabEnvs = PrefabricatedTemplateExtrasSupport.parseEnvs(template.getTemplateEnvs());
         PrefabEnv prefab = prefabEnvs.isEmpty() ? null : prefabEnvs.get(0);
-        List<PrefabParam> legacyEnvParams = PrefabricatedTemplateExtrasSupport.parseParams(template.getTemplateParams())
-                .stream()
-                .filter(p -> "env".equals(p.getKind()))
-                .toList();
-        if (prefab == null && legacyEnvParams.isEmpty()) {
+        if (prefab == null) {
             return;
         }
         TestProjectEnv target = firstProjectEnv(testProjectId);
@@ -426,42 +410,23 @@ public class ProjectAuthTemplateApplyService {
                     template.getTemplateName());
             return;
         }
-        List<PrefabParam> varParams = new ArrayList<>();
-        if (prefab != null) {
-            varParams.addAll(PrefabricatedTemplateExtrasSupport.paramsFromEnvVariablesJson(
-                    prefab.getEnvVariablesJson()));
-        }
-        varParams.addAll(legacyEnvParams);
+        List<PrefabParam> varParams = new ArrayList<>(PrefabricatedTemplateExtrasSupport.paramsFromEnvVariablesJson(
+                prefab.getEnvVariablesJson()));
         String nextVars = PrefabricatedTemplateExtrasSupport.mergeEnvVariables(
                 target.getEnvVariables(), varParams);
         boolean varsChanged = nextVars != null && !nextVars.equals(target.getEnvVariables());
 
         boolean urlChanged = false;
         String nextUrl = target.getEnvUrl();
-        if (PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl(target.getEnvUrl())) {
-            if (prefab != null && StrUtil.isNotBlank(prefab.getEnvUrl())) {
-                nextUrl = prefab.getEnvUrl();
-                urlChanged = true;
-            } else {
-                for (PrefabParam param : legacyEnvParams) {
-                    if (param == null || !"baseUrl".equals(param.getName())) {
-                        continue;
-                    }
-                    String value = param.getValue() != null ? String.valueOf(param.getValue()).trim() : "";
-                    if (StrUtil.isBlank(value)) {
-                        break;
-                    }
-                    nextUrl = value;
-                    urlChanged = true;
-                    break;
-                }
-            }
+        if (PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl(target.getEnvUrl())
+                && StrUtil.isNotBlank(prefab.getEnvUrl())) {
+            nextUrl = prefab.getEnvUrl();
+            urlChanged = true;
         }
 
         boolean nameChanged = false;
         String nextName = target.getEnvName();
-        if (prefab != null
-                && StrUtil.isNotBlank(prefab.getEnvName())
+        if (StrUtil.isNotBlank(prefab.getEnvName())
                 && (StrUtil.isBlank(target.getEnvName())
                         || TestProjectConstants.DEFAULT_ENV_NAME.equals(target.getEnvName()))
                 && !prefab.getEnvName().equals(StrUtil.trimToEmpty(target.getEnvName()))) {
@@ -610,7 +575,7 @@ public class ProjectAuthTemplateApplyService {
         return RequestConfigImportNormalizer.normalize(raw);
     }
 
-    /** 预制接口鉴权落库：只保留 mode / profileId / 自定义头，不落 loginHint。 */
+    /** 预制接口鉴权落库：只保留 mode / profileId / 自定义头。 */
     private String serializeAuthConfig(PrefabricatedApi prefab) {
         if (prefab.getAuthConfig() == null || StrUtil.isBlank(prefab.getAuthConfig().getMode())) {
             return ApiAuthConfigSupport.noneStorageJson();

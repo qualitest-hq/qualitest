@@ -117,8 +117,8 @@ describe('validateApis', () => {
 })
 
 describe('validateParams', () => {
-  it('只保留 flow/env/asset，丢弃旧 value/extract/assert', () => {
-    // 前提：混有新口径与旧行
+  it('只保留 asset，丢弃 flow/env 与旧 value/extract/assert', () => {
+    // 前提：混有 asset 与其它 kind
     const rows = [
       { kind: 'flow', name: 'token', value: '' },
       { kind: 'env', name: 'timeout', value: '5000' },
@@ -129,15 +129,15 @@ describe('validateParams', () => {
 
     const next = validateParams(rows)
 
-    // 期望：仅三项新口径
-    expect(next).toHaveLength(3)
-    expect(next.map((r) => r.kind)).toEqual(['flow', 'env', 'asset'])
+    // 期望：仅 asset
+    expect(next).toHaveLength(1)
+    expect(next.map((r) => r.kind)).toEqual(['asset'])
   })
 })
 
 describe('buildLoginGraphJson', () => {
   it('组装探活再登录图，默认抽到 asset', () => {
-    // 前提：组装登录骨架（不传 flowKey，走内置 asset 口径）
+    // 前提：组装登录骨架（默认 asset 口径）
     const graph = buildLoginGraphJson({
       method: 'POST',
       apiPath: '/login',
@@ -211,25 +211,6 @@ describe('buildLoginGraphJson', () => {
     expect(byId.login_http.data.testProjectApiId).toBe('2100000000000004101')
     expect(byId.probe_http.data.testProjectApiId).toBe('2100000000000004104')
     expect(ensuredApis).toHaveLength(2)
-  })
-
-  it('显式 flowKey 时仍可写出 flow 抽取', () => {
-    // 前提：兼容旧调用传 flowKey
-    const graph = buildLoginGraphJson({
-      method: 'POST',
-      apiPath: '/login',
-      from: 'body',
-      expr: '$.token',
-      flowKey: 'token',
-    })
-
-    // 期望：登录节点 scope=flow，name=token
-    const login = graph.nodes.find((n) => n.id === 'login_http')
-    expect(login.data.extracts[0]).toMatchObject({
-      scope: 'flow',
-      name: 'token',
-    })
-    expect(graph.meta.flowOutputs).toEqual([{ name: 'token' }])
   })
 })
 
@@ -362,29 +343,32 @@ describe('templateToForm / formToPayload', () => {
     expect(payload.testProjectTemplateId).not.toBe(String(Number(snowflake)))
   })
 
-  it('存量 kind=env 迁入 templateEnvs，不进 templateParams', () => {
+  it('formToPayload 丢弃 params 中的 kind=env/flow', () => {
+    // 前提：表单 params 误带 env/flow 行；环境在 templateEnvs
     const row = buildTemplateRow({
       templateParams: [
         { kind: 'asset', name: 'adminAuth', value: { username: 'admin' } },
         { kind: 'env', name: 'timeout', value: '5000', remark: '毫秒' },
         { kind: 'flow', name: 'debugToken', value: 'x' },
       ],
+      templateEnvs: [
+        {
+          envName: '默认环境',
+          envUrl: 'http://localhost:8801',
+          envVariables: [{ key: 'timeout', remark: '毫秒', assets: { timeout: '5000' } }],
+        },
+      ],
     })
 
     const form = templateToForm(row)
     const payload = formToPayload(form)
 
+    // 期望：params 仅 asset；env 只在 templateEnvs
     const params = JSON.parse(payload.templateParams)
-    const envs = JSON.parse(payload.templateEnvs)
-    expect(params.map((r) => r.kind).sort()).toEqual(['asset', 'flow'])
-    expect(form.templateParams.some((r) => r.kind === 'env')).toBe(false)
-    expect(envs).toHaveLength(1)
-    expect(envs[0].envVariables).toEqual(
+    expect(params.map((r) => r.kind)).toEqual(['asset'])
+    expect(JSON.parse(payload.templateEnvs)[0].envVariables).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          key: 'timeout',
-          remark: '毫秒',
-        }),
+        expect.objectContaining({ key: 'timeout' }),
       ]),
     )
   })

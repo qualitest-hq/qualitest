@@ -43,7 +43,9 @@ function parseRest(scope: 'flow' | 'asset', rest: string): CredentialPlaceholder
   }
 }
 
-/** 从头值模板解析全部凭证占位符（保序去重） */
+/**
+ * 从头值模板解析全部凭证占位符（保序去重）
+ */
 export function parseCredentialPlaceholders(value: unknown): CredentialPlaceholder[] {
   const text = String(value || '')
   const out: CredentialPlaceholder[] = []
@@ -66,15 +68,6 @@ export function parseCredentialPlaceholders(value: unknown): CredentialPlacehold
 export function parsePrimaryCredentialPlaceholder(value: unknown): CredentialPlaceholder | null {
   const list = parseCredentialPlaceholders(value)
   return list[0] || null
-}
-
-/**
- * 从头值模板解析第一个 flow 变量名（兼容旧调用）。
- * 若首条为 asset 占位则返回空串；请优先用 parsePrimaryCredentialPlaceholder。
- */
-export function parseFlowPlaceholderKey(value: unknown): string {
-  const primary = parsePrimaryCredentialPlaceholder(value)
-  return primary?.scope === 'flow' ? (primary.flowKey || '') : ''
 }
 
 /** 从头值模板解析展示路径（flow.x / asset.a.b） */

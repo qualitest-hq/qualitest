@@ -51,8 +51,7 @@ public class TestProjectTemplate extends BaseEntity {
 
     /**
      * 预制参数 JSON 数组（可空，缺省按 []）。
-     * 面板主路径为 kind=asset（素材库）；kind=env 仅兼容存量（保存时迁入 templateEnvs）；
-     * kind=flow 仍兼容：叠进种子流默认场景 flowSeed（仅调试用，勿塞口令）。
+     * 仅 kind=asset（素材库）。
      */
     private String templateParams;
 

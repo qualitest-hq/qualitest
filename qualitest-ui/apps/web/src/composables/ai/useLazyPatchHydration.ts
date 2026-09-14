@@ -13,11 +13,11 @@ export interface UseLazyPatchHydrationOptions<TMessage extends AiPatchMessageVie
   hydrateAssistant: (raw: AiChatMessageItem) => TMessage;
   /** patch 懒加载完成后的回调 */
   onHydrated?: (messageId: string) => void;
-  /** @deprecated 仅 testProject 旧 Diff 链路使用 */
+  /** 已接受 patch 节点 id 映射（testProject Diff） */
   messageAcceptedMap?: Ref<Record<string, Set<string>>>;
-  /** @deprecated 仅 testProject 旧 Diff 链路使用 */
+  /** 从水合消息构建已接受 id 集合 */
   buildAcceptedIds?: (hydrated: TMessage) => Set<string>;
-  /** @deprecated 仅 testProject 旧 Diff 链路使用 */
+  /** 合并时保留本地字段 */
   preserveLocalFields?: (current: TMessage) => Partial<TMessage>;
 }
 

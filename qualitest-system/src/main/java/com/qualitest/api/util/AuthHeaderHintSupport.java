@@ -47,11 +47,6 @@ public final class AuthHeaderHintSupport {
                 ct.put("flowKey", credentialTarget.flowKey());
             }
             hint.put("credentialTarget", ct);
-            // 顶层兼容：AI/前端仍可读 flowKey / displayPath
-            hint.put("displayPath", credentialTarget.displayPath());
-            if (credentialTarget.isFlow()) {
-                hint.put("flowKey", credentialTarget.flowKey());
-            }
         }
         target.put("headerHint", hint);
     }

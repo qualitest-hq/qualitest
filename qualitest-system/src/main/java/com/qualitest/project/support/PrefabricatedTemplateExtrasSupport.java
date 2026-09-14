@@ -27,8 +27,8 @@ import java.util.regex.Pattern;
 /**
  * 项目模板「预制参数 / 预制环境 / 预制测试流 / 预制提示词」解析，以及凭证规则与托管头的派生。
  * <p>
- * 预制参数 kind 仅认 flow / env / asset（env 为存量兼容）。
- * 凭证派生只认预制测试流 extracts（优先 scope=asset）；托管头不存模板表，不再写 loginHint。
+ * 预制参数 kind 仅认 flow / asset。
+ * 凭证派生只认预制测试流 extracts（优先 scope=asset）；托管头不存模板表。
  */
 public final class PrefabricatedTemplateExtrasSupport {
 
@@ -162,7 +162,7 @@ public final class PrefabricatedTemplateExtrasSupport {
 
     /**
      * 解析预制参数 JSON。
-     * 只认 kind=flow|env|asset；其它形态整行跳过（不做旧 value/extract/assert 映射）。
+     * 只认 kind=asset；其它形态整行跳过。
      */
     public static List<PrefabParam> parseParams(String paramsJson) {
         List<PrefabParam> out = new ArrayList<>();
@@ -180,7 +180,7 @@ public final class PrefabricatedTemplateExtrasSupport {
                     continue;
                 }
                 String kind = StrUtil.blankToDefault(row.getString("kind"), "").trim().toLowerCase(Locale.ROOT);
-                if (!"flow".equals(kind) && !"env".equals(kind) && !"asset".equals(kind)) {
+                if (!"asset".equals(kind)) {
                     continue;
                 }
                 String name = StrUtil.trimToNull(row.getString("name"));
@@ -409,62 +409,19 @@ public final class PrefabricatedTemplateExtrasSupport {
 
     /**
      * 给画布里 callMode=project 的 HTTP 节点写入/重写 testProjectApiId。
-     * 优先：模板作者期 id（雪花数字或历史 tpl_*）经 synthToProjectId remap；
-     * 已是数字且不在 map → 视为项目主键跳过；
-     * legacy：无可用映射时按 method+path 查项目接口。
+     * 模板作者期 id 经 synthToProjectId remap；已是数字且不在 map → 视为项目主键跳过。
+     *
+     * @param synthToProjectId 模板合成 id → 项目接口主键；可空
      */
-    public static String bindGraphApis(
-            String graphJson,
-            java.util.function.BiFunction<String, String, Long> apiIdResolver) {
-        return bindGraphApis(graphJson, apiIdResolver, null);
-    }
-
-    /**
-     * @param synthToProjectId 模板合成 id → 项目接口主键；可空（仅 legacy path）
-     */
-    public static String bindGraphApis(
-            String graphJson,
-            java.util.function.BiFunction<String, String, Long> apiIdResolver,
-            Map<String, Long> synthToProjectId) {
-        if (apiIdResolver == null) {
-            return graphJson;
-        }
+    public static String bindGraphApis(String graphJson, Map<String, Long> synthToProjectId) {
         return mutateProjectHttpNodes(graphJson, data -> {
             String rawId = StrUtil.trimToNull(data.getString("testProjectApiId"));
-            // 模板作者期 id（雪花或历史 tpl_*）优先经 map remap；勿把数字模板 id 当成已是项目主键
             if (rawId != null && synthToProjectId != null && synthToProjectId.containsKey(rawId)) {
                 data.put("testProjectApiId", String.valueOf(synthToProjectId.get(rawId)));
                 return true;
             }
-            if (rawId != null && isNumericProjectApiId(rawId)) {
-                return false;
-            }
-            String method = StrUtil.blankToDefault(data.getString("httpMethod"), "GET").trim().toUpperCase(Locale.ROOT);
-            String path = ProjectAuthConfigSupport.normalizeApiPath(data.getString("apiPath"));
-            if (StrUtil.isBlank(path)) {
-                return false;
-            }
-            Long apiId = apiIdResolver.apply(method, path);
-            if (apiId == null) {
-                return false;
-            }
-            data.put("testProjectApiId", String.valueOf(apiId));
-            return true;
-        });
-    }
-
-    /** 纯数字字符串（项目主键，或未命中 remap 表时的作者期雪花 id）。 */
-    public static boolean isNumericProjectApiId(String raw) {
-        if (StrUtil.isBlank(raw)) {
             return false;
-        }
-        String id = raw.trim();
-        for (int i = 0; i < id.length(); i++) {
-            if (!Character.isDigit(id.charAt(i))) {
-                return false;
-            }
-        }
-        return !id.isEmpty();
+        });
     }
 
     /**
@@ -624,45 +581,6 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
-     * 把 flow 预制参数合并进画布默认场景的 flowSeed（同名键不覆盖）。
-     * 无 scenarios 时补一条默认场景。
-     */
-    public static String mergeFlowSeedIntoGraph(String graphJson, List<PrefabParam> flowParams) {
-        if (StrUtil.isBlank(graphJson) || flowParams == null || flowParams.isEmpty()) {
-            return graphJson;
-        }
-        JSONObject graph = JSON.parseObject(graphJson);
-        if (graph == null) {
-            return graphJson;
-        }
-        JSONObject meta = graph.getJSONObject("meta");
-        if (meta == null) {
-            meta = new JSONObject();
-            graph.put("meta", meta);
-        }
-        ensureDefaultScenario(meta);
-        JSONArray scenarios = meta.getJSONArray("scenarios");
-        JSONObject scenario = scenarios.getJSONObject(0);
-        JSONObject flowSeed = scenario.getJSONObject("flowSeed");
-        if (flowSeed == null) {
-            flowSeed = new JSONObject();
-            scenario.put("flowSeed", flowSeed);
-        }
-        boolean changed = false;
-        for (PrefabParam param : flowParams) {
-            if (param == null || !"flow".equals(param.getKind()) || StrUtil.isBlank(param.getName())) {
-                continue;
-            }
-            if (flowSeed.containsKey(param.getName())) {
-                continue;
-            }
-            flowSeed.put(param.getName(), param.getValue() != null ? param.getValue() : "");
-            changed = true;
-        }
-        return changed ? graph.toJSONString() : graphJson;
-    }
-
-    /**
      * 把变量条目合并进 envVariables / asset_variables 同形 JSON（同 key 不覆盖）。
      * @param expectedKind env 或 asset，只合并该 kind 的参数行
      */
@@ -713,36 +631,6 @@ public final class PrefabricatedTemplateExtrasSupport {
         return mergeVariableEntries(existingJson, assetParams, "asset");
     }
 
-    private static void ensureDefaultScenario(JSONObject meta) {
-        JSONArray scenarios = meta.getJSONArray("scenarios");
-        if (scenarios != null && !scenarios.isEmpty()) {
-            if (StrUtil.isBlank(meta.getString("activeScenarioId"))) {
-                JSONObject first = scenarios.getJSONObject(0);
-                if (first != null && StrUtil.isNotBlank(first.getString("id"))) {
-                    meta.put("activeScenarioId", first.getString("id"));
-                }
-            }
-            return;
-        }
-        String scenarioId = String.valueOf(IdUtil.getSnowflakeNextId());
-        JSONObject scenario = new JSONObject();
-        scenario.put("id", scenarioId);
-        scenario.put("name", "默认（冒烟）");
-        scenario.put("testProjectEnvId", "");
-        scenario.put("flowSeed", new JSONObject());
-        scenario.put("remark", "");
-        scenarios = new JSONArray();
-        scenarios.add(scenario);
-        meta.put("scenarios", scenarios);
-        meta.put("activeScenarioId", scenarioId);
-        if (!meta.containsKey("layout")) {
-            meta.put("layout", "manual");
-        }
-        if (!meta.containsKey("schemaVersion")) {
-            meta.put("schemaVersion", 1);
-        }
-    }
-
     /**
      * 组装内置模板用的「探活再登录」流 JSON 数组字符串。
      * 默认探活 GET /getInfo；extract 写入 asset.{entryKey}.{fieldPath}。
@@ -780,8 +668,8 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
-     * @param loginApiId   预制登录口合成 id（可空，兼容旧图）
-     * @param probeApiId   预制探活口合成 id（可空）
+     * @param loginApiId   预制登录口合成 id
+     * @param probeApiId   预制探活口合成 id
      * @param loginApiName 登录口展示名
      * @param probeApiName 探活口展示名
      */

@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest'
 import {
   isProfileManagedRow,
   parseCredentialDisplayPath,
-  parseFlowPlaceholderKey,
   parsePrimaryCredentialPlaceholder,
 } from '@/views/project/testFlow/utils/authHeaderRow'
 import {
@@ -152,8 +151,7 @@ describe('authHeaderRow', () => {
     expect(isProfileManagedRow({ name: 'Authorization' })).toBe(false)
     expect(parseCredentialDisplayPath('Bearer {{asset.adminAuth.token}}')).toBe('asset.adminAuth.token')
     expect(parsePrimaryCredentialPlaceholder('Bearer {{flow.adminToken}}')?.flowKey).toBe('adminToken')
-    expect(parseFlowPlaceholderKey('Bearer {{flow.adminToken}}')).toBe('adminToken')
-    expect(parseFlowPlaceholderKey('Bearer {{asset.adminAuth.token}}')).toBe('')
-    expect(parseFlowPlaceholderKey('static')).toBe('')
+    expect(parsePrimaryCredentialPlaceholder('Bearer {{asset.adminAuth.token}}')?.scope).toBe('asset')
+    expect(parsePrimaryCredentialPlaceholder('static')).toBeNull()
   })
 })

@@ -19,7 +19,7 @@ import {
 
 describe('templateParams ↔ 变量条目', () => {
   it('object 素材 clientAuth 往返保持字段', () => {
-    // 前提：预制参数里有一条 object 型 clientAuth
+    // 前提：预制参数里有一条 object 型 clientAuth（及会被丢弃的 flow）
     const params = [
       {
         kind: 'flow',
@@ -60,9 +60,8 @@ describe('templateParams ↔ 变量条目', () => {
     const rebuilt = rebuildTemplateParamsFromVariableEntries(params, {
       assetEntries: backEntries,
     })
-    // 期望：存量 flow 保留，asset 正确；kind=env 不再写回
+    // 期望：只保留 asset，不再保留 flow
     expect(rebuilt).toEqual([
-      { kind: 'flow', name: 'legacyToken', value: 'debug', remark: '' },
       {
         kind: 'asset',
         name: 'clientAuth',
@@ -72,7 +71,7 @@ describe('templateParams ↔ 变量条目', () => {
     ])
   })
 
-  it('rebuild 丢弃存量 kind=env（env 由 migrate 负责）', () => {
+  it('rebuild 丢弃 params 中的 kind=flow/env', () => {
     // 前提：params 含 flow / env / asset
     const params = [
       { kind: 'flow', name: 'token', value: 'x', remark: '' },
@@ -81,10 +80,9 @@ describe('templateParams ↔ 变量条目', () => {
     ]
     const assetEntries = templateParamsToVariableEntries(params, 'asset')
 
-    // 期望：rebuild 只保留 flow + 传入的 asset，不再写回 env
+    // 期望：rebuild 只保留传入的 asset
     const rebuilt = rebuildTemplateParamsFromVariableEntries(params, { assetEntries })
     expect(rebuilt).toEqual([
-      { kind: 'flow', name: 'token', value: 'x', remark: '' },
       {
         kind: 'asset',
         name: 'adminAuth',
@@ -92,7 +90,7 @@ describe('templateParams ↔ 变量条目', () => {
         remark: '',
       },
     ])
-    expect(rebuilt.every((row) => row.kind !== 'env')).toBe(true)
+    expect(rebuilt.every((row) => row.kind === 'asset')).toBe(true)
   })
 
   it('扁平行编辑 object 子字段后仍能压回 templateParams', () => {
@@ -121,16 +119,19 @@ describe('templateParams ↔ 变量条目', () => {
   })
 })
 
-describe('templateEnvs → 参数库预览', () => {
+describe('templateEnvsToEnvParamRows', () => {
   it('envUrl 合成 baseUrl，变量按 key 去重', () => {
     const rows = templateEnvsToEnvParamRows([
       {
         envName: '默认环境',
         envUrl: 'http://localhost:8801',
-        envVariables: [{ key: 'timeout', remark: '毫秒', assets: { timeout: 5000 } }],
+        envVariables: [
+          { key: 'timeout', remark: '', assets: { timeout: '3000' } },
+          { key: 'timeout', remark: '重复', assets: { timeout: '9999' } },
+        ],
       },
     ])
     expect(rows[0]).toMatchObject({ name: 'baseUrl', value: 'http://localhost:8801' })
-    expect(rows[1]).toMatchObject({ name: 'timeout', value: 5000, remark: '毫秒' })
+    expect(rows.filter((r) => r.name === 'timeout')).toHaveLength(1)
   })
 })

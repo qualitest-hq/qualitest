@@ -126,22 +126,19 @@ public class AiChatConversationService {
             boolean summaryMode) {
         List<AiChatMessageResult> raw = loadSessionMessages(sessionId, limit, beforeMessageId);
         List<AiChatMessageResult> messages = summaryMode ? summarizeMessages(raw) : raw;
+        int pageSize = (limit == null || limit <= 0) ? 40 : limit;
         AiChatSessionDetailResult.AiChatSessionDetailResultBuilder builder = AiChatSessionDetailResult.builder()
                 .session(meta)
                 .messages(messages);
-        if (limit != null && limit > 0) {
-            int total = aiChatMessageMapper.countAiChatMessageBySessionId(sessionId);
-            builder.totalMessageCount(total);
-            builder.hasMoreOlder(resolveHasMoreOlder(sessionId, raw, limit, beforeMessageId, total));
-        }
+        int total = aiChatMessageMapper.countAiChatMessageBySessionId(sessionId);
+        builder.totalMessageCount(total);
+        builder.hasMoreOlder(resolveHasMoreOlder(sessionId, raw, pageSize, beforeMessageId, total));
         return builder.build();
     }
 
     private List<AiChatMessageResult> loadSessionMessages(Long sessionId, Integer limit, Long beforeMessageId) {
-        if (limit == null || limit <= 0) {
-            return aiChatMessageMapper.selectAiChatMessageResultListBySessionAsc(sessionId);
-        }
-        return aiChatMessageMapper.selectAiChatMessageResultPageBySession(sessionId, beforeMessageId, limit);
+        int pageSize = (limit == null || limit <= 0) ? 40 : limit;
+        return aiChatMessageMapper.selectAiChatMessageResultPageBySession(sessionId, beforeMessageId, pageSize);
     }
 
     private List<AiChatMessageResult> summarizeMessages(List<AiChatMessageResult> raw) {

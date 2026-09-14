@@ -54,12 +54,13 @@ class AuthHeaderHintSupportTest {
         assertEquals("Authorization", hint.getString("name"));
         assertEquals("Bearer {{asset.clientAuth.token}}", hint.getString("valueTemplate"));
         assertEquals("clientBearer", hint.getString("profileId"));
-        assertEquals("asset.clientAuth.token", hint.getString("displayPath"));
         assertFalse(hint.containsKey("flowKey"));
+        assertFalse(hint.containsKey("displayPath"));
         assertFalse(hint.containsKey("from"));
         assertFalse(hint.containsKey("expr"));
         JSONObject ct = hint.getJSONObject("credentialTarget");
         assertEquals("asset", ct.getString("scope"));
+        assertEquals("asset.clientAuth.token", ct.getString("displayPath"));
         assertEquals("clientAuth", ct.getString("entryKey"));
         assertEquals("token", ct.getString("fieldPath"));
     }
@@ -92,8 +93,9 @@ class AuthHeaderHintSupportTest {
                 target, null, PROJECT_AUTH, "/system/user/list");
         JSONObject hint = target.getJSONObject("headerHint");
         assertEquals("adminBearer", hint.getString("profileId"));
-        assertEquals("asset.adminAuth.token", hint.getString("displayPath"));
+        assertFalse(hint.containsKey("displayPath"));
         assertTrue(hint.getString("valueTemplate").contains("asset.adminAuth.token"));
+        assertEquals("asset.adminAuth.token", hint.getJSONObject("credentialTarget").getString("displayPath"));
         assertEquals("adminAuth", hint.getJSONObject("credentialTarget").getString("entryKey"));
     }
 

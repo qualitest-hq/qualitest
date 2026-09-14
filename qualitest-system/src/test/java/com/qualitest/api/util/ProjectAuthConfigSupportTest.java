@@ -28,7 +28,7 @@ class ProjectAuthConfigSupportTest {
 
     /**
      * 前提：通用上传种子。
-     * 期望：单 Profile 名「RuoYi Bearer」；loginHint 为 null；托管头 asset.adminAuth.token；登录口 none。
+     * 期望：单 Profile 名「RuoYi Bearer」；写出 JSON 不含 loginHint；托管头 asset.adminAuth.token；登录口 none。
      */
     @Test
     @Order(1)
@@ -42,7 +42,6 @@ class ProjectAuthConfigSupportTest {
         assertEquals("Authorization", cfg.getAuthProfiles().get(0).getHeaderName());
         assertEquals("Bearer {{asset.adminAuth.token}}",
                 cfg.getAuthProfiles().get(0).getHeaderValueTemplate());
-        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("GET", "/captchaImage", cfg));
         assertFalse(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
@@ -53,16 +52,15 @@ class ProjectAuthConfigSupportTest {
         PrefabricatedApi login = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
         assertNotNull(login);
         assertEquals("none", login.getAuthConfig().getMode());
-        assertNull(login.getAuthConfig().getLoginHint());
         assertTrue(String.valueOf(login.getTestValueConfig()).contains("{{asset.adminAuth.username}}"));
         assertTrue(String.valueOf(login.getResponseConfig()).contains("token"));
         assertEquals("POST", cfg.getAuthProfiles().get(0).getCredentialApi().getMethod());
         assertEquals("/login", cfg.getAuthProfiles().get(0).getCredentialApi().getPath());
-        ProjectAuthConfig roundtrip = ProjectAuthConfigSupport.parse(ProjectAuthConfigSupport.toJson(cfg));
-        assertNull(roundtrip.getAuthProfiles().get(0).getLoginHint());
+        String roundtripJson = ProjectAuthConfigSupport.toJson(cfg);
+        assertFalse(roundtripJson.contains("loginHint"));
+        ProjectAuthConfig roundtrip = ProjectAuthConfigSupport.parse(roundtripJson);
         assertEquals("Bearer {{asset.adminAuth.token}}",
                 roundtrip.getAuthProfiles().get(0).getHeaderValueTemplate());
-        assertNull(roundtrip.getAuthProfiles().get(0).getApis().get(0).getAuthConfig().getLoginHint());
     }
 
     /**
@@ -131,8 +129,8 @@ class ProjectAuthConfigSupportTest {
     }
 
     /**
-     * 前提：当前结构双端 JSON（扁平头、credentialApi、asset 头、none 登录口；可读残留 loginHint）。
-     * 期望：免登；写出后 loginHint 为 null；头模板为 asset。
+     * 前提：当前结构双端 JSON（扁平头、credentialApi、asset 头、none 登录口）。
+     * 期望：免登；写出 JSON 不含 loginHint；头模板为 asset。
      */
     @Test
     @Order(5)
@@ -162,16 +160,15 @@ class ProjectAuthConfigSupportTest {
                 "POST", "/api/account/auth/login", cfg));
         PrefabricatedApi adminLogin = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
         assertEquals("none", adminLogin.getAuthConfig().getMode());
-        assertNull(adminLogin.getAuthConfig().getLoginHint());
-        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
         assertEquals("Bearer {{asset.adminAuth.token}}",
                 cfg.getAuthProfiles().get(0).getHeaderValueTemplate());
         PrefabricatedApi clientLogin = ProjectAuthConfigSupport.findPrefabricatedApi(
                 cfg, "POST", "/api/account/auth/login");
-        assertNull(clientLogin.getAuthConfig().getLoginHint());
-        assertNull(cfg.getAuthProfiles().get(1).getLoginHint());
+        assertNotNull(clientLogin);
+        assertEquals("none", clientLogin.getAuthConfig().getMode());
         assertEquals("Bearer {{asset.clientAuth.token}}",
                 cfg.getAuthProfiles().get(1).getHeaderValueTemplate());
+        assertFalse(ProjectAuthConfigSupport.toJson(cfg).contains("loginHint"));
     }
 
     /**
@@ -203,10 +200,8 @@ class ProjectAuthConfigSupportTest {
         assertTrue(stored.contains("credentialApi"));
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(stored);
         assertEquals("Authorization", cfg.getAuthProfiles().get(0).getHeaderName());
-        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
         assertEquals("Bearer {{asset.adminAuth.token}}",
                 cfg.getAuthProfiles().get(0).getHeaderValueTemplate());
-        assertNull(cfg.getAuthProfiles().get(0).getApis().get(0).getAuthConfig().getLoginHint());
     }
 
     /**
@@ -294,7 +289,7 @@ class ProjectAuthConfigSupportTest {
 
     /**
      * 前提：预制口带描述、头、响应、测值、脚本。
-     * 期望：normalize 写出后再 parse，这些字段还在；loginHint 丢弃。
+     * 期望：normalize 写出后再 parse，这些字段还在；写出 JSON 不含 loginHint。
      */
     @Test
     @Order(12)
@@ -324,8 +319,9 @@ class ProjectAuthConfigSupportTest {
                 }]}
                 """;
 
-        ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(
-                ProjectAuthConfigSupport.normalizeToJson(raw));
+        String stored = ProjectAuthConfigSupport.normalizeToJson(raw);
+        assertFalse(stored.contains("loginHint"));
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(stored);
         PrefabricatedApi api = cfg.getAuthProfiles().get(0).getApis().get(0);
 
         assertEquals("管理端登录", api.getApiDescription());
@@ -337,9 +333,7 @@ class ProjectAuthConfigSupportTest {
         assertTrue(String.valueOf(api.getTestValueConfig()).contains("admin"));
         assertTrue(String.valueOf(api.getBizCodeConfig()).contains("200"));
         assertTrue(String.valueOf(api.getDesignHints()).contains("$.token"));
-        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
         assertEquals("/login", cfg.getAuthProfiles().get(0).getCredentialApi().getPath());
-        assertNull(api.getAuthConfig().getLoginHint());
     }
 
     /**
@@ -379,9 +373,5 @@ class ProjectAuthConfigSupportTest {
                 ProjectAuthConfigSupport.findCredentialProfile(cfg, "POST", "/api/account/auth/login"));
         assertEquals("asset.adminAuth.token", admin.displayPath());
         assertEquals("asset.clientAuth.token", client.displayPath());
-        assertNull(cfg.getAuthProfiles().get(0).getApis().get(0).getAuthConfig().getLoginHint());
-        assertNull(cfg.getAuthProfiles().get(1).getApis().get(0).getAuthConfig().getLoginHint());
-        assertNull(cfg.getAuthProfiles().get(0).getLoginHint());
-        assertNull(cfg.getAuthProfiles().get(1).getLoginHint());
     }
 }

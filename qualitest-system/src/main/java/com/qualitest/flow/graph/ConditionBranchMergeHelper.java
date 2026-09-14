@@ -101,8 +101,6 @@ public final class ConditionBranchMergeHelper {
                     return false;
                 }
                 branch.put("target", target);
-                // 有出口后不再保留旧 terminal 字段
-                ConditionBranchTerminalSupport.stripTerminalFlag(branch);
                 nodeData.put("branches", branches);
                 return true;
             }

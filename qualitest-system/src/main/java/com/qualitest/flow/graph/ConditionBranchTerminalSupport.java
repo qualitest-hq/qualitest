@@ -8,7 +8,7 @@ import java.util.Map;
  * 条件分支「是否结束本流」判定。
  * <p>
  * 有非空 target：命中后走到下游节点。<br>
- * 无非空 target：命中后本流正常结束（旧数据里的 {@code terminal: true} 通常也无 target，同样按结束处理）。
+ * 无非空 target：命中后本流正常结束。
  */
 public final class ConditionBranchTerminalSupport {
 
@@ -42,15 +42,5 @@ public final class ConditionBranchTerminalSupport {
     /** JSONObject 入参的结束分支判定。 */
     public static boolean isTerminalBranch(JSONObject branch) {
         return isTerminalBranch((Map<?, ?>) branch);
-    }
-
-    /**
-     * 删除分支上的遗留 {@code terminal} 字段。
-     * 新图只用「有无 target」表达是否结束，写入/规范化时剥掉该字段。
-     */
-    public static void stripTerminalFlag(Map<String, Object> branch) {
-        if (branch != null) {
-            branch.remove("terminal");
-        }
     }
 }

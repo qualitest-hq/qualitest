@@ -59,7 +59,7 @@ export function serializeEnvUrlRows(rows) {
 }
 
 /**
- * 调试请求使用的 Base URL：兼容纯字符串与 JSON 对象两种存储
+ * 调试请求使用的 Base URL：支持纯字符串与多模块 JSON 对象两种存储
  */
 export function resolveEnvBaseUrlForRequest(envUrl) {
   const raw = (envUrl || '').trim()

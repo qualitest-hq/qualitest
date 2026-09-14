@@ -1,40 +1,35 @@
 /**
- * 模板预制参数：按 kind 分组、flowSeed 合并、参数库 / mention 共用展平，
+ * 模板预制参数：按 kind 分组、参数库 / mention 共用展平，
  * 以及与变量条目扁平行（素材库同形）的互转。
  */
-
 import {
   extractEntryInner,
   parseVariableEntries,
   wrapAssetsPayload,
 } from '@/views/project/testProject/utils/variableEntryUtils'
-
 /** @typedef {{ name: string, value?: unknown, remark?: string }} TemplateParamRow */
 /** @typedef {{ id?: number|null, key: string, remark?: string, assets: object }} VariableEntry */
 
-/** 将 templateParams 拆成 flow / env / asset 三组（与 store.templateParamContext 同形）。 */
+/** 将 templateParams 拆成 asset 一组（flow 桶恒为空，供参数库上下文同形）。 */
 export function partitionTemplateParams(params) {
-  /** @type {{ flow: TemplateParamRow[], env: TemplateParamRow[], asset: TemplateParamRow[] }} */
-  const out = { flow: [], env: [], asset: [] }
+  /** @type {{ flow: TemplateParamRow[], asset: TemplateParamRow[] }} */
+  const out = { flow: [], asset: [] }
   ;(Array.isArray(params) ? params : []).forEach((row) => {
     if (!row || typeof row !== 'object') return
     const kind = String(row.kind || '').trim()
     const name = String(row.name || '').trim()
-    if (!name) return
-    const item = {
+    if (!name || kind !== 'asset') return
+    out.asset.push({
       name,
       value: row.value,
       remark: row.remark != null ? String(row.remark) : '',
-    }
-    if (kind === 'flow') out.flow.push(item)
-    else if (kind === 'env') out.env.push(item)
-    else if (kind === 'asset') out.asset.push(item)
+    })
   })
   return out
 }
 
 /**
- * 单条 templateParam（env/asset）→ 变量条目（与项目素材库同形）。
+ * 单条 templateParam（asset）→ 变量条目（与项目素材库同形）。
  * @param {TemplateParamRow} row
  * @returns {VariableEntry | null}
  */
@@ -52,7 +47,7 @@ export function templateParamRowToVariableEntry(row) {
 /**
  * templateParams 中指定 kind → 变量条目列表（供 entriesToSheetRows）。
  * @param {unknown[]} params
- * @param {'env'|'asset'} kind
+ * @param {'asset'} kind
  */
 export function templateParamsToVariableEntries(params, kind) {
   const bucket = partitionTemplateParams(params)[kind] || []
@@ -62,7 +57,7 @@ export function templateParamsToVariableEntries(params, kind) {
 /**
  * 变量条目 → templateParam 行。
  * @param {VariableEntry} entry
- * @param {'env'|'asset'} kind
+ * @param {'asset'} kind
  */
 export function variableEntryToTemplateParamRow(entry, kind) {
   const name = String(entry?.key || '').trim()
@@ -77,7 +72,7 @@ export function variableEntryToTemplateParamRow(entry, kind) {
 /**
  * 变量条目列表 → templateParam 行列表（丢掉无 key）。
  * @param {VariableEntry[]} entries
- * @param {'env'|'asset'} kind
+ * @param {'asset'} kind
  */
 export function variableEntriesToTemplateParamRows(entries, kind) {
   return (entries || [])
@@ -86,21 +81,12 @@ export function variableEntriesToTemplateParamRows(entries, kind) {
 }
 
 /**
- * 用编辑后的 asset 条目重建 templateParams（保留存量 flow；不再写回 kind=env）。
- * env 清理由 migrateEnvParamsIntoTemplateEnvs / formToPayload 负责。
+ * 用编辑后的 asset 条目重建 templateParams（只保留 asset）。
  * @param {unknown[]} existingParams
  * @param {{ assetEntries?: VariableEntry[] }} parts
  */
 export function rebuildTemplateParamsFromVariableEntries(existingParams, parts = {}) {
-  const partitioned = partitionTemplateParams(existingParams)
-  const next = partitioned.flow.map((row) => ({
-    kind: 'flow',
-    name: row.name,
-    value: row.value ?? '',
-    remark: row.remark || '',
-  }))
-  next.push(...variableEntriesToTemplateParamRows(parts.assetEntries || [], 'asset'))
-  return next
+  return variableEntriesToTemplateParamRows(parts.assetEntries || [], 'asset')
 }
 
 /**
@@ -172,38 +158,16 @@ export function templateEnvsToEnvParamRows(envs) {
 }
 
 /**
- * 画布 env 预览：templateEnvs 优先，存量 kind=env 按 key 补漏。
+ * 画布 env 预览：仅来自 templateEnvs。
  * @param {Array<{ name: string, value?: unknown, remark?: string }>} fromEnvs
- * @param {Array<{ name: string, value?: unknown, remark?: string }>} fromParams
  */
-export function mergeEnvPreviewRows(fromEnvs, fromParams) {
+export function mergeEnvPreviewRows(fromEnvs) {
   const byKey = new Map()
   for (const row of fromEnvs || []) {
     const name = String(row?.name || '').trim()
     if (name) byKey.set(name, row)
   }
-  for (const row of fromParams || []) {
-    const name = String(row?.name || '').trim()
-    if (name && !byKey.has(name)) byKey.set(name, row)
-  }
   return [...byKey.values()]
-}
-
-/**
- * 把模板 flow 初值灌入 flowSeed（同名键不覆盖）。
- * @param {Record<string, unknown>} seed
- * @param {TemplateParamRow[]} flowRows
- */
-export function mergeFlowSeedFromTemplateParams(seed, flowRows) {
-  const next = { ...(seed || {}) }
-  let changed = false
-  ;(flowRows || []).forEach((row) => {
-    const name = String(row?.name || '').trim()
-    if (!name || Object.prototype.hasOwnProperty.call(next, name)) return
-    next[name] = row.value != null ? row.value : ''
-    changed = true
-  })
-  return { seed: next, changed }
 }
 
 /** 参数库：asset 行 → { key, remark, assets } 列表 */
@@ -238,7 +202,7 @@ export function templateAssetMentionItems(assetRows) {
   })
 }
 
-/** @mention：flow 初值（排除已在 flowSeed 中的键） */
+/** @mention：flow 初值（排除已在 flowSeed 中的键）；预制参数不再提供 flow 行 */
 export function templateFlowMentionItems(flowRows, existingSeedKeys = new Set()) {
   return (flowRows || [])
     .filter((row) => row.name && !existingSeedKeys.has(row.name))

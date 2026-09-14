@@ -94,12 +94,12 @@ class GraphWalkerTest {
     }
 
     /**
-     * 前提：旧图 IF 带 terminal=true、无 target；flow.code=0 命中 IF。
-     * 期望：resolveNext 返回 null（本流结束）。
+     * 前提：IF 无 target；flow.code=0 命中 IF。
+     * 期望：resolveNext 返回 null（本流结束）；branchTaken 带 terminal=true。
      */
     @Test
     @Order(4)
-    @DisplayName("terminal IF 分支 resolveNext 为 null")
+    @DisplayName("无 target 的 IF 分支 resolveNext 为 null")
     void resolveNext_terminalIfBranchEndsFlow() {
         String json = """
                 {
@@ -107,7 +107,7 @@ class GraphWalkerTest {
                     {"id":"n_cond","type":"condition","position":{"x":0,"y":0},"data":{
                       "name":"c",
                       "branches":[
-                        {"id":"b_if","kind":"if","terminal":true,"conditions":[{"left":"flow.code","operator":"eq","right":"0"}]},
+                        {"id":"b_if","kind":"if","conditions":[{"left":"flow.code","operator":"eq","right":"0"}]},
                         {"id":"b_else","kind":"else","target":"n_fail"}
                       ]
                     }}
@@ -129,7 +129,7 @@ class GraphWalkerTest {
     }
 
     /**
-     * 前提：IF 无 target、无 terminal 字段；flow.code=0 命中 IF。
+     * 前提：IF 无 target；flow.code=0 命中 IF（与 Order4 同口径，保留空白 target 字面量场景）。
      * 期望：resolveNext 返回 null（无出边即结束）。
      */
     @Test

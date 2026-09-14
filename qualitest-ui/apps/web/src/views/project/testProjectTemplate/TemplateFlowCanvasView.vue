@@ -43,7 +43,7 @@ import { useFlowCanvasStore } from '../testFlow/stores/flowCanvasStore'
 
 import { useTemplateFlowDraftStore } from './stores/templateFlowDraftStore'
 import { synthesizeTemplateApiCatalog } from './utils/synthesizeTemplateApiTree'
-import { parseJsonMaybe, partitionTemplateParams, mergeFlowSeedFromTemplateParams } from './utils/templateForm'
+import { parseJsonMaybe } from './utils/templateForm'
 import {
   hydrateTemplateFlowGraph,
   isLoginFlowSkeleton,
@@ -83,22 +83,6 @@ function handleBack() {
 function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
   document.body.classList.toggle('fullscreen-detail-mode', isFullscreen.value)
-}
-
-/**
- * 当前场景 flowSeed 为空字段时，用模板预制参数里 kind=flow 的初值填上。
- * 只影响本页展示，不写回模板。
- */
-function hydrateFlowSeedFromTemplateParams(templateParams) {
-  const { flow } = partitionTemplateParams(templateParams)
-  if (!flow.length) return
-  const scenarios = store.runConfig?.scenarios
-  if (!Array.isArray(scenarios) || !scenarios.length) return
-  const activeId = store.runConfig.activeScenarioId
-  const scenario = scenarios.find((s) => s.id === activeId) || scenarios[0]
-  if (!scenario) return
-  const { seed, changed } = mergeFlowSeedFromTemplateParams(scenario.flowSeed, flow)
-  if (changed) scenario.flowSeed = seed
 }
 
 /** 灌入前裁成可再水合的节点快照（去掉运行态多余字段） */
@@ -193,7 +177,6 @@ async function initFromDraft() {
     if (isLoginFlowSkeleton(store.nodes)) {
       store.viewport = { ...LOGIN_FLOW_VIEWPORT }
     }
-    hydrateFlowSeedFromTemplateParams(draft.form.templateParams || [])
     store.markClean()
     scheduleHistoryReset()
     await finalizeCanvasHistoryBaseline(store, resetHistory)

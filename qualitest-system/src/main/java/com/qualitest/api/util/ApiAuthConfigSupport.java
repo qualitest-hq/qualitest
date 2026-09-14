@@ -14,7 +14,7 @@ import java.util.Locale;
  * <p>
  * 导入接口时把上传包里的 auth 对象转成 JSON 字符串写入数据库；
  * 未声明或 mode 为空时返回 null，表示本次导入不要改库里已有值。
- * 接口行不再读写 loginHint（凭证目标在项目 Profile 托管头）。
+ * 凭证目标在项目 Profile 托管头，接口行只存 mode / profileId / override 头。
  */
 public final class ApiAuthConfigSupport {
 
@@ -65,7 +65,6 @@ public final class ApiAuthConfigSupport {
      * 转成可写入接口 auth_config 列的 JSON。
      * 未带 auth 或 mode 为空返回 null，调用方应跳过覆盖。
      * 非法 mode、override 缺头时抛业务异常。
-     * 不写出 loginHint。
      */
     public static String toStorageJson(ApiAuthConfig auth) {
         if (auth == null || StrUtil.isBlank(auth.getMode())) {
@@ -103,7 +102,7 @@ public final class ApiAuthConfigSupport {
     }
 
     /**
-     * 更新导入时合并鉴权：免登口强制 mode=none；不读写 loginHint。
+     * 更新导入时合并鉴权：免登口强制 mode=none。
      *
      * @param localAuthJson 库中已有 auth_config
      * @param incoming      上传包 auth，可为 null

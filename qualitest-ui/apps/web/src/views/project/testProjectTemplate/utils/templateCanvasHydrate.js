@@ -65,7 +65,7 @@ function catalogIndex(catalog) {
 
 /**
  * 将 store 内 HTTP 节点与 templateApis catalog 对齐（补合成 id / apiName / summary）。
- * 旧图仅有 method+path 时按 catalog 回填合成 id（作者期合法绑定，非 Apply 猜项目 id）。
+ * 仅有 method+path 时按 catalog 回填合成 id（作者期合法绑定）。
  * @returns 是否有节点被改写
  */
 export function syncTemplateHttpNodesFromCatalog(nodes, catalog) {
@@ -138,44 +138,11 @@ export function applyLoginFlowLayoutIfPresent(nodes) {
   return changed
 }
 
-/**
- * 旧图迁移：去掉 reuse_end 占位 delay，并把指向它的探活成功 IF 改为无 target（结束本流）。
- * @returns 是否改写了 graph
- */
-export function migrateLoginFlowTerminalBranch(graph) {
-  if (!graph || !Array.isArray(graph.nodes)) return false
-  const hasReuse = graph.nodes.some((n) => n?.id === 'reuse_end')
-  if (!hasReuse) return false
-
-  graph.nodes.forEach((node) => {
-    if (node?.id !== 'cond_alive' || !node.data || typeof node.data !== 'object') return
-    const branches = node.data.branches
-    if (!Array.isArray(branches)) return
-    node.data.branches = branches.map((branch) => {
-      if (!branch || typeof branch !== 'object') return branch
-      if (branch.kind !== 'if' || branch.target !== 'reuse_end') return branch
-      const next = { ...branch }
-      delete next.target
-      delete next.terminal
-      return next
-    })
-  })
-
-  graph.nodes = graph.nodes.filter((n) => n?.id !== 'reuse_end')
-  if (Array.isArray(graph.edges)) {
-    graph.edges = graph.edges.filter(
-      (e) => e?.target !== 'reuse_end' && e?.source !== 'reuse_end' && e?.id !== 'e_alive_if',
-    )
-  }
-  return true
-}
-
-/** 对 graph 对象做旧图迁移、绑定同步、排版 */
+/** 对 graph 对象做绑定同步、排版 */
 export function hydrateTemplateFlowGraph(graph, catalog) {
-  let changed = migrateLoginFlowTerminalBranch(graph)
   const nodes = graph?.nodes
-  if (!Array.isArray(nodes)) return changed
-  changed = syncTemplateHttpNodesFromCatalog(nodes, catalog) || changed
+  if (!Array.isArray(nodes)) return false
+  let changed = syncTemplateHttpNodesFromCatalog(nodes, catalog)
   changed = applyLoginFlowLayoutIfPresent(nodes) || changed
   return changed
 }

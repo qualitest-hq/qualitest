@@ -7,7 +7,6 @@ import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckResult;
 import com.qualitest.ai.tools.FlowDesignIds;
 import com.qualitest.api.util.ManagedAuthHeaderApplier;
-import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
@@ -883,7 +882,6 @@ public class FlowDesignPatchNormalizer {
                 } else {
                     branch.remove("target");
                 }
-                ConditionBranchTerminalSupport.stripTerminalFlag(branch);
             }
 
             node.getData().put("branches", branches);

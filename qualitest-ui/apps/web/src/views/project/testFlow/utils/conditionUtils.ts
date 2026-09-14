@@ -22,8 +22,6 @@ export interface ConditionBranch {
   kind: 'if' | 'elif' | 'else';
   /** 下游节点 id；缺省或空表示命中后结束本流 */
   target?: string;
-  /** 旧图遗留字段；新写路径不设置，读图时以有无 target 判断是否结束 */
-  terminal?: boolean;
   conditions?: CompareRule[];
 }
 
@@ -179,7 +177,7 @@ export function createElifBranchId(_branches: ConditionBranch[]): string {
  * 将 condition 出边的 target 写入 data.branches[].target。
  *
  * 有 sourceHandle（out-{branchId}）时写入对应分支；否则若已有分支指向同一 target 则跳过；
- * 再否则写入第一条尚无 target 的分支。写入时删除遗留 terminal 字段。
+ * 再否则写入第一条尚无 target 的分支。
  *
  * @returns 是否实际修改了 branches
  */
@@ -199,15 +197,14 @@ export function bindConditionBranchTarget(
   const branch = branches.find((b) => b.id === branchId);
   if (!branch || branch.target === edge.target) return false;
   branch.target = edge.target;
-  delete branch.terminal;
   nodeData.branches = branches;
   return true;
 }
 
 /**
  * 切换分支结束出口。
- * asEnd=true：清除 target（命中后结束本流），并删掉遗留 terminal。<br>
- * asEnd=false：只删遗留 terminal，不自动恢复出边（需用户再连线）。
+ * asEnd=true：清除 target（命中后结束本流）。<br>
+ * asEnd=false：不自动恢复出边（需用户再连线）。
  */
 export function setBranchTerminal(
   nodeData: Record<string, unknown>,
@@ -218,7 +215,6 @@ export function setBranchTerminal(
   const branch = branches.find((b) => b.id === branchId);
   if (!branch) return false;
   if (asEnd) delete branch.target;
-  delete branch.terminal;
   nodeData.branches = branches;
   return true;
 }

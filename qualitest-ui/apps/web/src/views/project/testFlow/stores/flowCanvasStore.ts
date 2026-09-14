@@ -398,12 +398,12 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     templateApiCatalog.value = catalog;
   }
 
-  /** 写入模板预制参数上下文（flow/env/asset） */
+  /** 写入模板预制参数上下文（flow/asset + templateEnvs 预览） */
   function setTemplateParamContext(params: unknown[], envs: unknown[] = []) {
     const partitioned = partitionTemplateParams(params);
     templateParamContext.value = {
       flow: partitioned.flow,
-      env: mergeEnvPreviewRows(templateEnvsToEnvParamRows(envs), partitioned.env),
+      env: mergeEnvPreviewRows(templateEnvsToEnvParamRows(envs)),
       asset: partitioned.asset,
     };
   }

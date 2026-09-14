@@ -25,12 +25,11 @@ describe('parseAuthConfig', () => {
 
     const form = parseAuthConfig(raw)
 
-    // 期望：表单行含 pathPrefix、credential 与 asset 值模板；不含 loginHint 字段
+    // 期望：表单行含 pathPrefix、credential 与 asset 值模板
     expect(form.profiles).toHaveLength(1)
     expect(form.profiles[0].headerName).toBe('Authorization')
     expect(form.profiles[0].credentialPath).toBe('/login')
     expect(form.profiles[0].valueTemplate).toBe('Bearer {{asset.adminAuth.token}}')
-    expect(form.profiles[0].loginFlowKey).toBeUndefined()
     expect(form.profiles[0].pathPrefixText).toBe('/system/')
     expect(form.profiles[0].apis[0].authMode).toBe('none')
   })
@@ -77,11 +76,12 @@ describe('buildAuthConfigPayload', () => {
 
     const obj = buildAuthConfigObject(form)
 
-    // 期望：写出仅含 authProfiles，无 loginHint
-    expect(obj.authProfiles[0].loginHint).toBeUndefined()
+    // 期望：写出仅含 authProfiles，JSON 不含 loginHint 键
+    const payload = buildAuthConfigPayload(form)
+    expect(payload).not.toContain('loginHint')
     expect(obj.authProfiles[0].headerValueTemplate).toBe('Bearer {{asset.adminAuth.token}}')
     expect(obj.authProfiles[0].credentialApi.path).toBe('/login')
-    expect(JSON.parse(buildAuthConfigPayload(form)).authProfiles[0].id).toBe('ruoyiBearer')
+    expect(JSON.parse(payload).authProfiles[0].id).toBe('ruoyiBearer')
   })
 
   it('pathPrefix 禁止单独 / 时 validateAuthForm 失败', () => {

@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -106,19 +105,16 @@ class ConditionBranchMergeHelperTest {
     }
 
     /**
-     * 前提：IF 分支带旧字段 terminal=true 且无 target；显式指定 branchId 绑定新 target。
-     * 期望：写入 target，并删除 terminal 字段。
+     * 前提：IF 分支无 target；显式指定 branchId 绑定新 target。
+     * 期望：写入 target。
      */
     @Test
     @Order(4)
-    @DisplayName("为 terminal 分支连线时清除 terminal 并写入 target")
-    void bindConditionBranchTarget_clearsTerminalWhenBindingTarget() {
+    @DisplayName("为无 target 分支连线时写入 target")
+    void bindConditionBranchTarget_writesTarget() {
         String ifBranchId = "2071158532992012288";
         GraphNode condition = conditionNode("1001", ifBranchId, "2071158532992012289");
         Map<String, Object> data = condition.getData();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> branches = (List<Map<String, Object>>) data.get("branches");
-        branches.get(0).put("terminal", true);
 
         boolean changed = ConditionBranchMergeHelper.bindConditionBranchTarget(
                 data, "1002", ifBranchId);
@@ -127,7 +123,6 @@ class ConditionBranchMergeHelperTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> after = (List<Map<String, Object>>) data.get("branches");
         assertEquals("1002", after.get(0).get("target"));
-        assertFalse(after.get(0).containsKey("terminal"));
     }
 
     /** 构造带 IF/ELSE 两条分支、均未绑定 target 的 condition 节点 */

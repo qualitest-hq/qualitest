@@ -33,7 +33,7 @@
 <script setup>
 /**
  * 预制参数面板：编辑 templateParams 素材（kind=asset）。
- * 存量 kind=flow 保存时保留；kind=env 由表单迁入 templateEnvs。
+ * 环境变量在「预制环境」编辑。
  */
 import { nextTick, watch } from 'vue'
 import VariableEntrySheetSection from '@/views/project/testProject/components/VariableEntrySheetSection.vue'

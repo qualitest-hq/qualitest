@@ -22,7 +22,7 @@ import java.util.Set;
 /**
  * 项目鉴权配置的解析、校验、写出和运行期查询。
  * <p>
- * 写出含 authProfiles（扁平头 + credentialApi + 预制接口）；不写 loginHint。
+ * 写出含 authProfiles（扁平头 + credentialApi + 预制接口）。
  * 免登：配置为空时用内置 /login 等路径；有 Profile 后只认预制口 mode=none。
  * 抽凭证：credentialApi 标明登录口；托管头占位符标明写入目标。
  */
@@ -62,7 +62,7 @@ public final class ProjectAuthConfigSupport {
 
     /**
      * 序列化成当前结构 JSON：根只有 authProfiles。
-     * 不含嵌套 header、loginHint；apis 的 auth 不含 loginHint。
+     * Profile 头为扁平字段；apis 的 auth 只含 mode / profileId / override 头。
      */
     public static String toJson(ProjectAuthConfig config) {
         if (isEmpty(config)) {
@@ -79,7 +79,7 @@ public final class ProjectAuthConfigSupport {
         return JSONUtil.toJsonStr(root);
     }
 
-    /** 写出一条 Profile：id、name、match、扁平头、credentialApi、apis（不写 loginHint）。 */
+    /** 写出一条 Profile：id、name、match、扁平头、credentialApi、apis。 */
     private static Map<String, Object> writeProfile(ProjectAuthProfile profile) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", profile.getId());
@@ -159,7 +159,7 @@ public final class ProjectAuthConfigSupport {
         }
     }
 
-    /** 写出接口鉴权：预制口只带 mode / profileId / override 头，不含 loginHint。 */
+    /** 写出接口鉴权：预制口只带 mode / profileId / override 头。 */
     private static Map<String, Object> writeAuthConfig(ApiAuthConfig auth) {
         Map<String, Object> map = new LinkedHashMap<>();
         if (StrUtil.isNotBlank(auth.getMode())) {
@@ -265,7 +265,6 @@ public final class ProjectAuthConfigSupport {
                     .headerName(headerName)
                     .headerValueTemplate(valueTemplate)
                     .credentialApi(normalizeCredentialApi(profile.getCredentialApi()))
-                    .loginHint(null)
                     .apis(normalizePrefabricatedApis(profile.getApis(), id))
                     .build());
         }
