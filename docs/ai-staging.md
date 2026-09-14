@@ -21,9 +21,9 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
   → 保存（画布可见节点）
 ```
 
-**例外：全自动**（AI 面板「半自动 | 全自动」，默认半自动）：请求带 `autopilotEnabled=true` 时注入 `run_test_flow`（跑前/回合结束**自动落盘**，无独立 commit 工具），且 `upsert_asset_variables` **直接写素材库**。模型可在同会话内 upsert → `submit_*` → `run_test_flow` → 失败再修（最多再修 2 轮）。落盘成功后 SSE `graphCommitted`，前端清 Staging 并 reload 画布。半自动则仍走上文 Staging ✓ → **人手保存**。
+**例外：全自动**（AI 面板「半自动 | 全自动」，默认半自动）：请求带 `autopilotEnabled=true` 时注入 `run_test_flow`（跑前/回合结束**自动落盘**，无独立 commit 工具），且 `upsert_asset_variables` / `upsert_auth_profile` **直接写库**。隐式落盘门槛与人手**保存**相同（只拦无法解析 / 缺节点 id / 边端点）；双开始节点、断言路径等只进 warnings，不拦写库——开跑时再硬拦。模型可在同会话内 upsert → `submit_*` → `run_test_flow` → 失败再修（最多再修 2 轮）。落盘成功后 SSE `graphCommitted`，前端清 Staging 并 reload 画布。半自动则仍走上文 Staging ✓ → **人手保存**；素材与鉴权提案在聊天侧确认。
 
-**MCP 只读**：无 `submit_*`、无 `upsert_asset_variables`、无 commit/run。Cursor 里改图无效；必须回 Web AI 面板。
+**MCP 只读**：无 `submit_*`、无 `upsert_asset_variables` / `upsert_auth_profile`、无 commit/run。Cursor 里改图无效；必须回 Web AI 面板。
 
 ---
 
@@ -58,10 +58,12 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 | | Web AI 面板 | MCP |
 | --- | --- | --- |
 | 读接口 / 流摘要 / Run 失败 | 有 | 有（另有 `list_flows` / `get_flow`） |
+| `list_project_auth_profiles` | **有** | **有**（只读） |
 | `submit_*` 单元写工具 | **有** | 无 |
 | `upsert_asset_variables` | **有**（半自动：提案确认后落盘；全自动：工具内直接写库） | 无 |
+| `upsert_auth_profile` | **有**（半自动：提案确认后写 `auth_config`；全自动：工具内直写） | 无 |
 | `append_api_design_hints` | 有（直接改接口 hint） | 无 |
-| `run_test_flow` | **有**（须选「全自动」；跑前自动落盘） | **无** |
+| `run_test_flow` | **有**（须选「全自动」；跑前自动落盘；有 pending 素材/鉴权提案时拒绝） | **无** |
 
 改图画布 = 只走 Web。MCP 用来勘察 `testFlowId` 和失败现场。
 
@@ -86,7 +88,9 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 **运行**：前端与后端统一 readiness（图结构 + 断言路径错误 + `/patch/savePrecheck` 同口径的 AUTH / 登录 extract / HTTP 必填）。不过则不开跑。
 
-`/patch/savePrecheck` 与末单元 `saveRiskWarnings` 现为**运行风险**预警（不阻断 ✓ / 保存），写入画布校验条；开跑失败再 toast。
+`/patch/savePrecheck` 与末单元 `saveRiskWarnings` 现为**运行风险**预警（不阻断 ✓ / 保存），写入画布校验条；下一轮 AI 设计请求会带上 `runRiskWarnings` 注入模型 user 上下文。单单元 `submit_*` 对 AUTH_* / HTTP 必填写入 **warnings**（不进 errors）；整包规范化仍进 errors。开跑失败再 toast。
+
+造流助手可读 `list_project_auth_profiles`、可提 `upsert_auth_profile`（半自动确认卡片写入项目 `auth_config`）。客户端 Profile 误绑 `adminAuth`（或相反）时，`AUTH_TOKEN_MISSING` 文案会追加「疑似绑错端」。登录 extract 的 `name=入口.字段` 缺 `entryKey` 时服务端会拆开。
 
 造流 submit 工具面：节点/边/场景用 `submit_*` + `op=add|update`；删除统一 `submit_delete`（`kind`+`id`）。AI **不造** `input` 节点，**不切**默认运行场景。
 

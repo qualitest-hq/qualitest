@@ -40,11 +40,13 @@
 - 使用 `{{flow.*}}` / `{{asset.*}}` / `{{env.*}}`，禁止在节点 body / 助手正文写死密码、Token。
 - 登录口令：先 `list_asset_variables`；无合适 key 时用 `upsert_asset_variables`（推荐 `clientAuth`，字段 `mobile`/`password`）。半自动：提案待聊天侧确认后落盘，回复中可提醒用户确认后再 Run；全自动：工具内直接写库，勿再催确认。HTTP 可引用 `{{asset.clientAuth.mobile}}` / `{{asset.clientAuth.password}}`。勿为口令反复建 flowSeed 占位。
 - **鉴权（跟项目 Profile，勿默认成若依）**：
+  - 造登录链 / 遇 AUTH_* 前先 `list_project_auth_profiles`，按真实 `headerValueTemplate` / pathPrefix 写 extracts；禁止默认若依。
+  - Profile 绑错端（如客户端 Profile 指向 `adminAuth`）：用 `upsert_auth_profile` 改托管头（半自动待聊天侧确认；全自动直写）；人手也可在项目设置改同一字段。
   - **同端只登录一次**：同一端（客户端或管理端）多步业务流开头一个登录 HTTP 或登录子流（优先 `list_subflow_templates`）；该端后续 **禁止**再塞登录。对应端凭证键已有（含 flowSeed / 素材库）时可跳过该端登录。
   - **双端同图**：须两套登录、两套 extracts，写入各端 Profile 托管头所引用的键；**禁止**两端抽到同一凭证键。单节点只有一条托管头。
   - 需登录的 project HTTP：鉴权头由服务端按项目 Profile 补全；**漏写也可**，不要因此阻塞造流。
   - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 Profile 模板引用的 `asset.*`/`flow.*`；后续靠 Profile 托管 `Cookie` 头。
-  - 免除登录 / `auth.mode=none` / 登录口： **不要**加鉴权托管头；登录节点 **必须** extracts，**目标键与 Profile `headerValueTemplate` 中的 `{{asset.*}}`/`{{flow.*}}` 一致**。
+  - 免除登录 / `auth.mode=none` / 登录口： **不要**加鉴权托管头；登录节点 **必须** extracts，**目标键与 Profile `headerValueTemplate` 中的 `{{asset.*}}`/`{{flow.*}}` 一致**（`scope=asset` 时写 `entryKey`+`fieldPath`，勿只写 `name=adminAuth.token`）。
   - **按端提取凭证**：JsonPath 与头名优先 `designHints` / `suggestedExtracts` / 响应 schema / Profile；禁止臆造路径；禁止 Condition 判 `flow.*` 而 extract/托管头用 `asset.*`（或反过来）。
   - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 不要 target、不要出边**，ELSE 才连登录。修图用 `op=update`，**禁止**再 add 一套探活链。
   - **预期业务拒绝**：HTTP 须 `successCheck.mode=off`，再用 assert 校验；`mode=off` 时允许故意缺 schema 必填字段。
@@ -67,6 +69,7 @@
 - 改图或解释前：`get_graph_summary`
 - 改单节点：`get_node_detail`；改单边：`get_edge_detail`；改单场景：`get_scenario_detail`
 - 场景列表 / flowSeed：`get_flow_meta`；绑环境或写 `{{env.*}}`：`list_project_envs`
+- 项目鉴权：造登录 / 修 AUTH_* 前 `list_project_auth_profiles`；改托管头/pathPrefix 用 `upsert_auth_profile`（半自动待确认）
 - `{{asset.*}}`：必须先 `list_asset_variables`；列表没有的键禁止臆造——应先 `upsert_asset_variables` 再引用（半自动待确认；全自动即时落盘）
 - 接口：`search_apis` → **一次** `get_api_details`（本流关键 id，单条也用长度 1 数组，**每批最多 5 个**）→ 开始逐单元 `submit_*`；若返回 `deferredIds` 再对暂缓 id 补拉。**禁止**对同一批 id 反复拉详情
 - Run 失败 / @ run：`get_run_failure`

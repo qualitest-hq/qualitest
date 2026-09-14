@@ -31,7 +31,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 FlowDesignPatchNormalizer：AI 流程补丁规范化（补 id/position、API 绑定、summary）与预合并校验。
+ * 测 FlowDesignPatchNormalizer：AI 流程补丁规范化（补 id/position、API 绑定、summary）与预合并校验；
+ * 含单单元将 AUTH_* / HTTP 必填写入 warnings、整包写入 errors。
  * 边界：Mock TestProjectApiMapper，不访问数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignPatchNormalizerTest
  */
@@ -832,11 +833,11 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：项目双端鉴权；单单元 add 需登录的客户端 project HTTP，图中无 token 来源。
-     * 期望：normalizeUnit 接受且 errors 无 AUTH_TOKEN_MISSING；同图走整包 normalize 则含该码。
+     * 期望：normalizeUnit 接受且 errors 无 AUTH_TOKEN_MISSING（改 warnings）；整包 normalize 则 errors 含该码。
      */
     @Test
     @Order(94)
-    @DisplayName("normalizeUnit 跳过 AuthToken 门禁")
+    @DisplayName("normalizeUnit 将 AuthToken 门禁降为 warnings")
     void normalizeUnit_projectHttpMissingToken_skipsAuthGate() {
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
                 .testProjectApiId(API_ID)
@@ -852,6 +853,8 @@ class FlowDesignPatchNormalizerTest {
                 normalizer.normalizeUnit(unitPatch, graphWithMeta(), PROJECT_ID, new HashMap<>());
         assertTrue(unitResult.validation().getErrors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
                 () -> "unit errors=" + unitResult.validation().getErrors());
+        assertTrue(unitResult.validation().getWarnings().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
+                () -> "unit warnings=" + unitResult.validation().getWarnings());
 
         FlowDesignPatch fullPatch = dualBearerHttpAddPatch("9602");
         FlowDesignPatchNormalizer.NormalizeResult fullResult =

@@ -18,6 +18,7 @@ import com.qualitest.ai.tools.flow.GetRunFailureTool;
 import com.qualitest.ai.tools.flow.GetScenarioDetailTool;
 import com.qualitest.ai.tools.flow.ListAssetVariablesTool;
 import com.qualitest.ai.tools.flow.ListFlowsTool;
+import com.qualitest.ai.tools.flow.ListProjectAuthProfilesTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.ai.tools.flow.GetSubflowDetailTool;
 import com.qualitest.ai.tools.flow.ListSubflowTemplatesTool;
@@ -25,6 +26,7 @@ import com.qualitest.ai.tools.flow.RunTestFlowTool;
 import com.qualitest.ai.tools.flow.SearchApisTool;
 import com.qualitest.ai.tools.flow.SubmitFlowDesignUnitTool;
 import com.qualitest.ai.tools.flow.UpsertAssetVariablesTool;
+import com.qualitest.ai.tools.flow.UpsertAuthProfileTool;
 import com.qualitest.flow.diagnose.HttpNodeApiHealthChecker;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.mapper.TestProjectApiMapper;
@@ -61,6 +63,10 @@ public class FlowDesignToolExecutor {
     public static final String LIST_PROJECT_ENVS = FlowDesignToolNames.LIST_PROJECT_ENVS.getId();
     public static final String LIST_ASSET_VARIABLES = FlowDesignToolNames.LIST_ASSET_VARIABLES.getId();
     public static final String UPSERT_ASSET_VARIABLES = FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId();
+    /** 列举项目鉴权 Profile */
+    public static final String LIST_PROJECT_AUTH_PROFILES = FlowDesignToolNames.LIST_PROJECT_AUTH_PROFILES.getId();
+    /** 浅合并更新或新建项目鉴权 Profile */
+    public static final String UPSERT_AUTH_PROFILE = FlowDesignToolNames.UPSERT_AUTH_PROFILE.getId();
     public static final String APPEND_API_DESIGN_HINTS = FlowDesignToolNames.APPEND_API_DESIGN_HINTS.getId();
     public static final String GET_NODE_DETAIL = FlowDesignToolNames.GET_NODE_DETAIL.getId();
     public static final String GET_EDGE_DETAIL = FlowDesignToolNames.GET_EDGE_DETAIL.getId();
@@ -104,6 +110,8 @@ public class FlowDesignToolExecutor {
         map.put(LIST_PROJECT_ENVS, new ListProjectEnvsTool(testProjectEnvService));
         map.put(LIST_ASSET_VARIABLES, new ListAssetVariablesTool(testProjectMapper));
         map.put(UPSERT_ASSET_VARIABLES, new UpsertAssetVariablesTool(testProjectAssetService));
+        map.put(LIST_PROJECT_AUTH_PROFILES, new ListProjectAuthProfilesTool(testProjectMapper));
+        map.put(UPSERT_AUTH_PROFILE, new UpsertAuthProfileTool(testProjectMapper));
         map.put(APPEND_API_DESIGN_HINTS, new AppendApiDesignHintsTool(testProjectApiMapper, designHintsService));
         map.put(GET_NODE_DETAIL, new GetNodeDetailTool(graphResolver));
         map.put(GET_EDGE_DETAIL, new GetEdgeDetailTool(graphResolver));

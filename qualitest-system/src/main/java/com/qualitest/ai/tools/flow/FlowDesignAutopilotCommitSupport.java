@@ -19,7 +19,9 @@ import java.util.List;
 /**
  * 全自动模式下的隐式落盘逻辑（不暴露给大模型）。
  * <p>
- * 把本轮已接受的 submit_* 内存工作图校验后写入 test_flow.graph_json。
+ * 把本轮已接受的 submit_* 内存工作图写入 test_flow.graph_json。
+ * 写库只硬拦地板错误（无法解析 / 缺节点 id / 边端点等）；
+ * 开始节点不唯一、断言路径等只进 warnings，不拦落盘（开跑时再硬拦）。
  * 调用时机：run_test_flow 跑流之前；以及 Agent 一整轮对话结束仍有未落盘单元时。
  * 半自动不走本类；模板预制流禁止落盘。
  */
@@ -32,14 +34,15 @@ public final class FlowDesignAutopilotCommitSupport {
      * 尝试把本轮已接受单元写入测试流。
      * <ol>
      *   <li>非全自动 / 无已接受单元 → 跳过（ok=true, committed=false）</li>
-     *   <li>尚有 pending 素材提案、缺 flowId、空图、校验失败、流不存在 → 失败且不改库</li>
-     *   <li>updateTestFlow 成功 → 清空 SubmitCapture、推进内存工作图、触发 onGraphCommitted</li>
+     *   <li>尚有未确认的素材/鉴权提案、缺 flowId、空图、落库地板校验失败、流不存在 → 失败且不改库</li>
+     *   <li>updateTestFlow 成功 → 清空 SubmitCapture、推进内存工作图、触发 onGraphCommitted
+     *       （完整结构/断言问题仅 warnings）</li>
      * </ol>
      *
      * @param ctx                 须 autopilotEnabled=true，并带 submitCapture / workingGraph
      * @param testFlowService     写库
-     * @param graphJsonValidator  全图结构校验
-     * @param patchNormalizer     提供断言路径门禁所需的 API 解析器
+     * @param graphJsonValidator  图结构校验
+     * @param patchNormalizer     提供断言路径检查所需的 API 解析器
      * @return 落盘结果；ok=false 表示未写库
      */
     public static CommitOutcome commitIfNeeded(FlowDesignToolContext ctx,
@@ -55,10 +58,11 @@ public final class FlowDesignAutopilotCommitSupport {
         if (ctx.getTestFlowId() == null) {
             return CommitOutcome.fail("缺少 testFlowId", List.of("缺少 testFlowId"), List.of());
         }
-        if (ctx.getAssetUpsertCapture() != null && ctx.getAssetUpsertCapture().hasPendingProposals()) {
+        String pendingUpsert = ctx.pendingUpsertBlockReason();
+        if (pendingUpsert != null) {
             return CommitOutcome.fail(
-                    "尚有未确认的素材库提案",
-                    List.of("尚有未确认的素材库提案，请先确认后再落盘"),
+                    pendingUpsert,
+                    List.of(pendingUpsert + "，请先确认后再落盘"),
                     List.of());
         }
         FlowDesignSubmitCapture capture = ctx.getSubmitCapture();
@@ -73,22 +77,22 @@ public final class FlowDesignAutopilotCommitSupport {
 
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
-        GraphValidationResult validation =
+        // 地板硬拦；完整结构 / 断言只作预警（不拦写库）
+        GraphValidationResult floor =
+                graphJsonValidator.validate(toSave, GraphValidationOptions.persistMinimal());
+        addAllNonBlank(errors, floor.getErrors());
+        addAllNonBlank(warnings, floor.getWarnings());
+
+        GraphValidationResult full =
                 graphJsonValidator.validate(toSave, GraphValidationOptions.full());
-        if (validation.getErrors() != null) {
-            errors.addAll(validation.getErrors());
-        }
-        if (validation.getWarnings() != null) {
-            warnings.addAll(validation.getWarnings());
-        }
+        addSoftFindings(warnings, errors, full.getErrors());
+        addSoftFindings(warnings, errors, full.getWarnings());
+
         AssertPathDesignGate.AssertPathGateResult assertPath =
                 AssertPathDesignGate.validate(toSave, patchNormalizer.apiResolver());
-        if (assertPath.errors() != null) {
-            errors.addAll(assertPath.errors());
-        }
-        if (assertPath.warnings() != null) {
-            warnings.addAll(assertPath.warnings());
-        }
+        addSoftFindings(warnings, errors, assertPath.errors());
+        addSoftFindings(warnings, errors, assertPath.warnings());
+
         if (!errors.isEmpty()) {
             return CommitOutcome.fail("校验未通过，未写库", errors, warnings);
         }
@@ -119,6 +123,36 @@ public final class FlowDesignAutopilotCommitSupport {
         ctx.advanceWorkingGraph(toSave);
         ctx.notifyGraphCommitted(toSave);
         return CommitOutcome.committed(String.valueOf(ctx.getTestFlowId()), warnings);
+    }
+
+    /** 把非空文案追加到目标列表。 */
+    private static void addAllNonBlank(List<String> target, List<String> source) {
+        if (source == null || source.isEmpty()) {
+            return;
+        }
+        for (String item : source) {
+            if (item != null && !item.isBlank()) {
+                target.add(item);
+            }
+        }
+    }
+
+    /**
+     * 把完整校验 / 断言发现写入 warnings：跳过空白，以及已在 errors/warnings 中的文案。
+     */
+    private static void addSoftFindings(List<String> warnings, List<String> hardErrors, List<String> findings) {
+        if (findings == null || findings.isEmpty()) {
+            return;
+        }
+        for (String item : findings) {
+            if (item == null || item.isBlank()) {
+                continue;
+            }
+            if (hardErrors.contains(item) || warnings.contains(item)) {
+                continue;
+            }
+            warnings.add(item);
+        }
     }
 
     /**

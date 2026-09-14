@@ -39,7 +39,7 @@ export interface FlowDesignPatch {
 /** 图结构校验摘要：ok 为 true 表示无 errors，warnings 不阻断合并 */
 export type DesignValidationResult = import('@/utils/flow/graphValidate').GraphValidationResult;
 
-/** AI 设计流式接口一轮响应：说明文案、画布 patch、校验、素材库写入提案等 */
+/** AI 设计流式接口一轮响应：说明文案、画布 patch、校验、素材库写入提案、鉴权 Profile 提案等 */
 export interface TestFlowDesignResult {
   aiChatSessionId?: string | null;
   aiLlmModelId?: string;
@@ -53,6 +53,8 @@ export interface TestFlowDesignResult {
   explainOnly?: boolean;
   /** 本轮素材库写入提案；流式结束事件中通常带 fields 明文 */
   assetProposals?: AssetUpsertProposalView[];
+  /** 本轮项目鉴权 Profile 写入提案（新建或更新项目 auth_config 中的 Profile） */
+  authProfileProposals?: AuthProfileUpsertProposalView[];
 }
 
 /** 素材提案处理状态：待确认 / 已确认落盘 / 已拒绝 */
@@ -77,6 +79,27 @@ export interface AssetUpsertProposalView {
   fieldNames?: string[];
   /** pending / confirmed / rejected */
   status?: AssetUpsertProposalStatus | string;
+}
+
+/**
+ * 聊天里展示的一条项目鉴权 Profile 写入提案。
+ * 确认后写入项目 auth_config；拒绝只改提案状态，不改项目配置。
+ */
+export interface AuthProfileUpsertProposalView {
+  /** Profile 唯一 id（提案定位与确认/拒绝入参） */
+  profileId: string;
+  /** 动作：created 新建 / updated 更新已有 Profile */
+  action?: string;
+  /** 处理状态：pending 待确认 / confirmed 已写入 / rejected 已拒绝 */
+  status?: string;
+  /** 变更前 Profile 字段快照（用于 Diff 展示） */
+  before?: Record<string, unknown>;
+  /** 变更后 Profile 字段快照（确认成功后可能带回服务端规范化结果） */
+  after?: Record<string, unknown>;
+  /** AI 给出的增量补丁字段（相对 before 的变更集合） */
+  patch?: Record<string, unknown>;
+  /** 相对 before 发生变更的字段名列表，供卡片逐行展示 */
+  changedFields?: string[];
 }
 
 /** 对话消息角色 */
@@ -116,6 +139,8 @@ export interface AiDesignMessageView {
   assetProposals?: AssetUpsertProposalView[];
   /** 列表摘要：服务端标了有提案，但本条尚未解析出提案内容 */
   assetProposalsPending?: boolean;
+  /** 本轮项目鉴权 Profile 写入提案列表（确认后写项目 auth_config） */
+  authProfileProposals?: AuthProfileUpsertProposalView[];
   /** user 消息编辑器文档，用于历史气泡中的只读 chip 渲染 */
   composerDoc?: ComposerDoc;
   /** 请求进行中，尚未收到响应 */
@@ -166,7 +191,7 @@ export function parseUserFromServer(msg: AiChatMessageItem): AiDesignMessageView
  * 将服务端助手消息还原为面板视图。
  * 正文用 summary；explainOnly 时不挂 patch；否则读 patchJson。
  * patchPending：服务端标了有改图但本条尚未拉到完整 patchJson。
- * 素材提案读 assetProposals。
+ * 素材提案读 assetProposals；鉴权 Profile 提案读 authProfileProposals。
  */
 export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessageView {
   let meta: Record<string, unknown> = {};
@@ -190,6 +215,7 @@ export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessag
   }
   const assetProposals = parseAssetProposalsFromMeta(meta);
   const hasAssetProposalsFlag = meta.hasAssetProposals === true;
+  const authProfileProposals = parseAuthProfileProposalsFromMeta(meta);
   return {
     id: msg.aiChatMessageId,
     role: 'assistant',
@@ -204,6 +230,7 @@ export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessag
     patchPending: hasPatchFlag && !patch && !explainOnly,
     assetProposals: assetProposals.length > 0 ? assetProposals : undefined,
     assetProposalsPending: hasAssetProposalsFlag && assetProposals.length === 0,
+    authProfileProposals: authProfileProposals.length > 0 ? authProfileProposals : undefined,
   };
 }
 
@@ -242,6 +269,37 @@ export function parseAssetProposalsFromMeta(meta: Record<string, unknown>): Asse
       fields,
       fieldNames,
       status: typeof row.status === 'string' ? row.status : 'pending',
+    });
+  }
+  return out;
+}
+
+/**
+ * 从消息元数据解析鉴权 Profile 写入提案列表。
+ * 跳过无 profileId 的项；缺 status 时默认 pending；
+ * before / after / patch 仅在为对象时保留。
+ */
+export function parseAuthProfileProposalsFromMeta(meta: Record<string, unknown>): AuthProfileUpsertProposalView[] {
+  const raw = meta.authProfileProposals;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out: AuthProfileUpsertProposalView[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const profileId = typeof row.profileId === 'string' ? row.profileId.trim() : '';
+    if (!profileId) continue;
+    out.push({
+      profileId,
+      action: typeof row.action === 'string' ? row.action : undefined,
+      status: typeof row.status === 'string' ? row.status : 'pending',
+      before: row.before && typeof row.before === 'object' ? (row.before as Record<string, unknown>) : undefined,
+      after: row.after && typeof row.after === 'object' ? (row.after as Record<string, unknown>) : undefined,
+      patch: row.patch && typeof row.patch === 'object' ? (row.patch as Record<string, unknown>) : undefined,
+      changedFields: Array.isArray(row.changedFields)
+        ? row.changedFields.filter((n): n is string => typeof n === 'string')
+        : undefined,
     });
   }
   return out;

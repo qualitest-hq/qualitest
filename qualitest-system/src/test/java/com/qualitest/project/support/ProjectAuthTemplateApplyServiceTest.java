@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -43,9 +44,10 @@ import static org.mockito.Mockito.when;
 
 /**
  * ProjectAuthTemplateApplyService：勾选模板写入项目鉴权 Profile，并种子接口 / 测值 / 测试流 / 环境。
- * 覆盖：同名 Profile 跳过、method+path 去重、库内已有不覆盖、字段拷贝、瘦 JSON 补缺省；
+ * 覆盖：同名 Profile 跳过、method+path 去重、托管头由登录流或 match_config.credential 派生、
+ * 无法派生时拒绝、库内已有不覆盖、字段拷贝、瘦 JSON 补缺省；
  * 预制环境占位 URL→8801、已定制不覆盖、无环境行跳过（建项须先建默认环境再 Apply）。
- * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ProjectAuthTemplateApplyServiceTest}
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ProjectAuthTemplateApplyServiceTest
  */
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -247,40 +249,62 @@ class ProjectAuthTemplateApplyServiceTest {
     }
 
     /**
-     * 模板登录口无 flows 时写弱默认 asset 头。
-     * 期望：Profile 有 Bearer {{asset.adminAuth.token}}；接口行只写 mode=none；测值在 testValueConfig。
+     * 前提：无 flows、无 match_config.credential。
+     * 期望：拒绝 Apply，不再弱默认成 adminAuth Bearer。
      */
     @Test
     @Order(6)
-    @DisplayName("种子：无 flows 时弱默认 asset 头，接口行只有 none")
-    void apply_seedsLoginModeNoneDefaultAssetHeader() {
+    @DisplayName("无 flows 且无 credential 时拒绝 Apply")
+    void apply_rejectsWhenCannotDeriveHeader() {
+        stubEmptyProject();
+        TestProjectTemplate bare = TestProjectTemplate.builder()
+                .testProjectTemplateId(TPL_DEFAULT)
+                .templateName("残缺模板")
+                .templateApis(loginOnlyApis())
+                .matchConfig("{\"pathPrefix\":[\"/api/\"]}")
+                .enableStatus(1)
+                .delStatus(0)
+                .build();
+        when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(bare);
+
+        com.qualitest.common.exception.ServiceException ex = assertThrows(
+                com.qualitest.common.exception.ServiceException.class,
+                () -> service.apply(PROJECT_ID, List.of(TPL_DEFAULT)));
+        assertTrue(ex.getMessage().contains("无法派生托管头"));
+        verify(testProjectMapper, never()).updateTestProject(any());
+    }
+
+    /**
+     * 前提：空 flows，match_config.credential 为客户端 header token。
+     * 期望：Profile 头为 token + {{asset.clientAuth.data}}，并带 credentialApi。
+     */
+    @Test
+    @Order(61)
+    @DisplayName("种子：match_config.credential 派生客户端托管头")
+    void apply_derivesHeaderFromMatchConfigCredential() {
         stubEmptyProject();
         stubGroupCreate();
         when(testProjectApiService.selectTestProjectApiList(any())).thenReturn(List.of());
         when(testProjectApiService.batchInsertTestProjectApi(any())).thenReturn(1);
+        String clientApis = "[{\"apiName\":\"登录\",\"apiPath\":\"/api/login/login\",\"apiGroup\":\"客户端\","
+                + "\"protocolType\":\"http\",\"apiStatus\":\"normal\","
+                + "\"requestConfig\":{\"configVersion\":1,\"method\":\"POST\"},"
+                + "\"authConfig\":{\"mode\":\"none\"}}]";
+        String match = "{\"pathPrefix\":[\"/api/\"],\"credential\":{"
+                + "\"asset\":\"clientAuth\",\"extract\":\"$.data\","
+                + "\"headerName\":\"token\",\"headerValueTemplate\":\"{{token}}\"}}";
         when(templateService.selectTestProjectTemplateById(TPL_DEFAULT)).thenReturn(
-                template(TPL_DEFAULT, "RuoYi Bearer", loginOnlyApis()));
+                templateWithMatch(TPL_DEFAULT, "老虎充电 · 客户端 Header token", clientApis, match));
 
         service.apply(PROJECT_ID, List.of(TPL_DEFAULT));
 
         ArgumentCaptor<TestProject> update = ArgumentCaptor.forClass(TestProject.class);
         verify(testProjectMapper).updateTestProject(update.capture());
-        String authConfigJson = update.getValue().getAuthConfig();
-        assertFalse(authConfigJson.contains("loginHint"));
-        ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(authConfigJson);
-        assertEquals("Bearer {{asset.adminAuth.token}}",
+        ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(update.getValue().getAuthConfig());
+        assertEquals("token", stored.getAuthProfiles().get(0).getHeaderName());
+        assertEquals("{{asset.clientAuth.data}}",
                 stored.getAuthProfiles().get(0).getHeaderValueTemplate());
-        assertNull(stored.getAuthProfiles().get(0).getCredentialApi());
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<TestProjectApi>> inserts = ArgumentCaptor.forClass(List.class);
-        verify(testProjectApiService).batchInsertTestProjectApi(inserts.capture());
-        String authJson = inserts.getValue().get(0).getAuthConfig();
-        assertTrue(authJson.contains("\"none\""));
-        assertFalse(authJson.contains("loginHint"));
-        assertTrue(inserts.getValue().get(0).getTestValueConfig().contains("admin"));
-        assertTrue(inserts.getValue().get(0).getTestValueConfig().contains("token"));
-        assertFalse(inserts.getValue().get(0).getResponseConfig().contains("\"example\""));
+        assertEquals("/api/login/login", stored.getAuthProfiles().get(0).getCredentialApi().getPath());
     }
 
     /**
@@ -655,6 +679,20 @@ class ProjectAuthTemplateApplyServiceTest {
                 .testProjectTemplateId(id)
                 .templateName(name)
                 .templateApis(apis)
+                .matchConfig("{\"credential\":{\"asset\":\"adminAuth\",\"extract\":\"$.token\","
+                        + "\"headerName\":\"Authorization\","
+                        + "\"headerValueTemplate\":\"Bearer {{asset.adminAuth.token}}\"}}")
+                .enableStatus(1)
+                .delStatus(0)
+                .build();
+    }
+
+    private static TestProjectTemplate templateWithMatch(Long id, String name, String apis, String matchConfig) {
+        return TestProjectTemplate.builder()
+                .testProjectTemplateId(id)
+                .templateName(name)
+                .templateApis(apis)
+                .matchConfig(matchConfig)
                 .enableStatus(1)
                 .delStatus(0)
                 .build();

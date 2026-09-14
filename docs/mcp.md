@@ -61,6 +61,7 @@ MCP 侧共 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` / `g
 | `search_apis` / `get_api_details` | 查项目接口（详情支持一次传多个 id） |
 | `list_project_envs` | 环境列表 |
 | `list_asset_variables` | 项目素材库（参数资产）key/字段名，不含明文；**写入请走 Web AI 的 `upsert_asset_variables`（半自动：聊天侧确认；全自动：工具内直写）** |
+| `list_project_auth_profiles` | 项目鉴权 Profile 摘要（pathPrefix、托管头、凭证目标；无密钥明文）；**改 Profile 请走 Web AI 的 `upsert_auth_profile`（半自动确认 / 全自动直写）** |
 | `list_subflow_templates` | 平台子流模板 |
 
 典型勘察顺序：`list_flows` → 记下 `testFlowId` → `get_graph_summary` / `get_run_failure`。

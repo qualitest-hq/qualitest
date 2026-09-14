@@ -5,10 +5,13 @@ import com.qualitest.ai.llm.AgentRunListener;
 import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.scenario.flow.TestFlowDesignAgent;
 import com.qualitest.ai.scenario.flow.AssetUpsertProposalService;
+import com.qualitest.ai.scenario.flow.AuthProfileUpsertProposalService;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchConfirmService;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.AssetUpsertProposalDecisionRequest;
 import com.qualitest.ai.scenario.flow.model.AssetUpsertProposalDecisionResult;
+import com.qualitest.ai.scenario.flow.model.AuthProfileUpsertProposalDecisionRequest;
+import com.qualitest.ai.scenario.flow.model.AuthProfileUpsertProposalDecisionResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmRequest;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckRequest;
@@ -56,6 +59,7 @@ public class TestFlowAiController extends BaseController {
     private final FlowDesignPatchConfirmService flowDesignPatchConfirmService;
     private final FlowDesignPatchNormalizer flowDesignPatchNormalizer;
     private final AssetUpsertProposalService assetUpsertProposalService;
+    private final AuthProfileUpsertProposalService authProfileUpsertProposalService;
     private final ITestProjectMemberService testProjectMemberService;
     private final TestFlowDesignAccessValidator testFlowDesignAccessValidator;
     private final IAiPromptTemplateService aiPromptTemplateService;
@@ -145,13 +149,49 @@ public class TestFlowAiController extends BaseController {
      * @param confirm true 确认落盘，false 拒绝
      */
     private AjaxResult decideAssetProposal(AssetUpsertProposalDecisionRequest request, boolean confirm) {
-        if (request.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());
-        }
+        ensureProjectMember(request.getTestProjectId());
         AssetUpsertProposalDecisionResult result = confirm
                 ? assetUpsertProposalService.confirm(request, getUserId())
                 : assetUpsertProposalService.reject(request, getUserId());
         return AjaxResult.success(result);
+    }
+
+    /**
+     * 确认项目鉴权 Profile 写入提案：按 patch 写入项目 auth_config。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @PostMapping("/authProfileProposal/confirm")
+    public AjaxResult confirmAuthProfileProposal(@RequestBody AuthProfileUpsertProposalDecisionRequest request) {
+        return decideAuthProfileProposal(request, true);
+    }
+
+    /**
+     * 拒绝项目鉴权 Profile 写入提案：不写库，仅更新助手消息 meta 状态。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @PostMapping("/authProfileProposal/reject")
+    public AjaxResult rejectAuthProfileProposal(@RequestBody AuthProfileUpsertProposalDecisionRequest request) {
+        return decideAuthProfileProposal(request, false);
+    }
+
+    /**
+     * 确认或拒绝鉴权 Profile 提案的共用入口：成员校验后调用业务服务。
+     *
+     * @param confirm true 确认落盘，false 拒绝
+     */
+    private AjaxResult decideAuthProfileProposal(AuthProfileUpsertProposalDecisionRequest request, boolean confirm) {
+        ensureProjectMember(request.getTestProjectId());
+        AuthProfileUpsertProposalDecisionResult result = confirm
+                ? authProfileUpsertProposalService.confirm(request, getUserId())
+                : authProfileUpsertProposalService.reject(request, getUserId());
+        return AjaxResult.success(result);
+    }
+
+    /** 请求带了项目 id 时校验当前用户为项目成员。 */
+    private void ensureProjectMember(Long testProjectId) {
+        if (testProjectId != null) {
+            testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        }
     }
 
     /**

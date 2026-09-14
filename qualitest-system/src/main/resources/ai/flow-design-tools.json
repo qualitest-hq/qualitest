@@ -159,6 +159,46 @@
   {
     "type": "function",
     "function": {
+      "name": "list_project_auth_profiles",
+      "description": "列举项目鉴权 Profile：id、名称、pathPrefix、headerName、headerValueTemplate、credentialTarget、credentialApi。造登录链、修 AUTH_TOKEN_MISSING、改托管头前必须先调用；勿默认若依。不含密钥明文",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "upsert_auth_profile",
+      "description": "浅合并更新项目鉴权 Profile（pathPrefix/headerName/headerValueTemplate/credentialApi/name）。半自动：提案 pending，聊天侧确认后落盘；全自动：工具内直写。更新须 profileId；新建须 create=true 且 patch 含 headerName 与 headerValueTemplate。两端禁止同一凭证键。仅 Web",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "profileId": {
+            "type": "string",
+            "description": "已有 Profile id；更新必填"
+          },
+          "create": {
+            "type": "boolean",
+            "description": "true 时新建 Profile（无 profileId 亦可）"
+          },
+          "patch": {
+            "type": "object",
+            "description": "浅合并字段：name、pathPrefix（字符串数组）、headerName、headerValueTemplate、credentialApi{method,path}",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "patch"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "get_node_detail",
       "description": "获取单个节点的 type 与完整 data。MCP 可仅传 testFlowId 自动加载画布",
       "parameters": {

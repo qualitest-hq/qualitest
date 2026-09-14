@@ -1,8 +1,9 @@
 <!--
   测试流画布 AI 助手侧栏。
   非模态停靠在画布右侧，不遮挡画布交互。
-  负责：Mention 输入、Staging 变更摘要与定位、素材提案确认、半自动|全自动开关。
-  半自动：改图/素材须人审，确认后人手保存。
+  负责：Mention 输入、Staging 变更摘要与定位、素材提案确认、
+  鉴权 Profile 提案确认、半自动|全自动开关。
+  半自动：改图/素材/鉴权提案须人审，确认后人手保存（鉴权确认即写项目配置）。
   全自动：改图隐式落盘、素材直写，模型可 run_test_flow。
 -->
 <template>
@@ -109,6 +110,13 @@
                     :proposals="(msg as AiDesignMessageView).assetProposals ?? []"
                     @update:proposals="(next) => onAssetProposalsUpdate((msg as AiDesignMessageView).id, next)"
                 />
+                <AiAuthProfileProposalCard
+                    v-if="shouldShowAuthProfileProposals(msg as AiDesignMessageView)"
+                    :message-id="(msg as AiDesignMessageView).id"
+                    :proposals="(msg as AiDesignMessageView).authProfileProposals ?? []"
+                    @update:proposals="(next) => onAuthProfileProposalsUpdate((msg as AiDesignMessageView).id, next)"
+                    @confirmed="() => store.loadProjectAuthConfig()"
+                />
                 <div
                     v-if="shouldShowStagingSummary(msg as AiDesignMessageView)"
                     class="ai-design-staging-extra"
@@ -177,6 +185,7 @@
  *
  * 壳层 UI 由 AiChatShell 承担；本文件处理：
  * Mention 输入与发送、画布 Staging 变更摘要、素材库写入提案卡片、
+ * 项目鉴权 Profile 写入提案卡片、造流鉴权软提示摘要、
  * Run 失败修复 / 节点添加入口预填、半自动|全自动偏好开关。
  *
  * 半自动：改图进 Staging、素材进提案，确认后不自动保存，须人手点保存。
@@ -199,6 +208,7 @@ import AiChatUserBubble from '@/components/ai/AiChatUserBubble.vue';
 import AiComposerToggle from '@/components/ai/AiComposerToggle.vue';
 import AiStagingChangeSummary from '../components/AiStagingChangeSummary.vue';
 import AiAssetProposalCard from '../components/AiAssetProposalCard.vue';
+import AiAuthProfileProposalCard from '../components/AiAuthProfileProposalCard.vue';
 import { useAiDesign } from '../composables/useAiDesign';
 import { useFlowGraph } from '../composables/useFlowGraph';
 import { isAutopilotEnabled, setAutopilotEnabled } from '../utils/aiDesignPreferences';
@@ -212,6 +222,7 @@ import type {
   AiDesignMessageView,
   AiDesignSystemAction,
   AssetUpsertProposalView,
+  AuthProfileUpsertProposalView,
 } from '../types/aiDesignTypes';
 import { shouldShowStagingSummary } from '../utils/stagingMessage';
 import { filterAuthRelatedWarnings } from '../utils/stagingAuthHints';
@@ -366,7 +377,10 @@ function shouldShowAssetProposals(msg: AiDesignMessageView) {
   return msg.role === 'assistant' && Array.isArray(msg.assetProposals) && msg.assetProposals.length > 0;
 }
 
-/** 造流结果里鉴权类软提示：聊天区只展示一句摘要 */
+/**
+ * 从造流校验 warnings 中筛出鉴权相关软提示，在 Staging 摘要上方展示。
+ * 多条时聊天区只保留首条，并注明另有若干项（完整列表在属性 Diff 区）。
+ */
 function authValidationWarnings(msg: AiDesignMessageView): string[] {
   const all = filterAuthRelatedWarnings(msg.validation?.warnings)
   if (!all.length) return []
@@ -374,17 +388,33 @@ function authValidationWarnings(msg: AiDesignMessageView): string[] {
   return [`${all[0]}（另有 ${all.length - 1} 项鉴权提示，见属性 Diff）`]
 }
 
-/** 卡片确认/拒绝或懒加载 fields 后，回写该消息上的提案列表 */
-function onAssetProposalsUpdate(messageId: string, next: AssetUpsertProposalView[]) {
+/**
+ * 就地更新某条助手消息的局部字段（不可变替换 messages 数组项）。
+ * 用于提案卡片确认/拒绝后回写列表，或素材提案 fields 懒加载完成后合并。
+ */
+function patchAssistantMessage(messageId: string, patch: Partial<AiDesignMessageView>) {
   const idx = messages.value.findIndex((m) => m.id === messageId);
   if (idx < 0) return;
   const copy = [...messages.value];
-  copy[idx] = {
-    ...copy[idx],
-    assetProposals: next,
-    assetProposalsPending: false,
-  };
+  copy[idx] = { ...copy[idx], ...patch };
   messages.value = copy;
+}
+
+/** 素材提案状态变更后写回该助手消息，并清除「提案待解析」标记 */
+function onAssetProposalsUpdate(messageId: string, next: AssetUpsertProposalView[]) {
+  patchAssistantMessage(messageId, { assetProposals: next, assetProposalsPending: false });
+}
+
+/** 助手消息是否带有可展示的鉴权 Profile 写入提案 */
+function shouldShowAuthProfileProposals(msg: AiDesignMessageView) {
+  return msg.role === 'assistant'
+    && Array.isArray(msg.authProfileProposals)
+    && msg.authProfileProposals.length > 0;
+}
+
+/** 鉴权 Profile 提案确认/拒绝后写回该助手消息上的提案列表 */
+function onAuthProfileProposalsUpdate(messageId: string, next: AuthProfileUpsertProposalView[]) {
+  patchAssistantMessage(messageId, { authProfileProposals: next });
 }
 
 /** Run 失败修复入口：预插 run chip；若仍有未确认 Staging 则先 toast 提醒 */

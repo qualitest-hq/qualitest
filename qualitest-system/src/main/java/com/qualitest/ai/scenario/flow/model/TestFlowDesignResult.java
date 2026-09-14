@@ -2,6 +2,7 @@ package com.qualitest.ai.scenario.flow.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.qualitest.ai.tools.AssetUpsertProposal;
+import com.qualitest.ai.tools.AuthProfileUpsertProposal;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -10,9 +11,9 @@ import java.util.List;
 /**
  * 测试流 AI 设计接口的一轮响应。
  * <p>
- * 含自然语言说明、画布增量 patch、校验结果，以及本轮素材提案列表（若有）。
+ * 含自然语言说明、画布增量 patch、校验结果，以及本轮素材/鉴权 Profile 提案列表（若有）。
  * explainOnly=true：本轮没有可展示的 Staging patch（未成功 submit_*，或全自动已隐式落盘并清空 capture）。
- * 半自动：patch / 素材提案须用户确认后再持久化；全自动：图与素材可能已在本轮写库。
+ * 半自动：patch / 素材 / 鉴权提案须用户确认后再持久化；全自动：图、素材与鉴权可能已在本轮写库。
  */
 @Getter
 @Builder
@@ -42,12 +43,18 @@ public class TestFlowDesignResult {
     /** 最近一次成功 submit 的校验摘要；纯答疑时 ok=true 且无错误 */
     private final DesignValidationResult validation;
 
-    /** true：本轮未成功调用任何 submit_*，仅说明或仅有素材提案 */
+    /** true：本轮未成功调用任何 submit_*，仅说明或仅有素材/鉴权提案 */
     private final boolean explainOnly;
 
     /**
-     * 本轮素材库写入提案列表（含 fields 明文，供前端确认卡片展示与落盘）。
+     * 本轮素材库写入提案列表（含 fields 明文，用于确认卡片展示与落盘）。
      * 无提案时为 null 或空列表。会话列表接口会对 fields 脱敏。
      */
     private final List<AssetUpsertProposal> assetProposals;
+
+    /**
+     * 本轮项目鉴权 Profile 写入提案（含 before/after/patch）。
+     * 无提案时为 null 或空列表。
+     */
+    private final List<AuthProfileUpsertProposal> authProfileProposals;
 }

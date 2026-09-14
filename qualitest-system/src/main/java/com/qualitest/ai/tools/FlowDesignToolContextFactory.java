@@ -15,8 +15,8 @@ import java.util.List;
 /**
  * 组装造流工具请求上下文的工厂。
  * <p>
- * Web：注入 SubmitCapture、素材提案容器、会话短名映射与基准画布。
- * MCP：只读信封（项目/流/画布），不注入素材写入容器。
+ * Web：注入 SubmitCapture、素材/鉴权提案容器、会话短名映射与基准画布。
+ * MCP：只读信封（项目/流/画布），不注入素材或鉴权写入容器。
  */
 @Component
 @RequiredArgsConstructor
@@ -57,12 +57,27 @@ public class FlowDesignToolContextFactory {
     /**
      * 从 Web 设计请求构建完整上下文。
      *
-     * @param autopilotEnabled  是否全自动（允许 run_test_flow、隐式落盘、素材直写）
+     * @param autopilotEnabled  是否全自动（允许 run_test_flow、隐式落盘、素材与鉴权直写）
      * @param onGraphCommitted  隐式落盘成功回调；SSE 层用于推送 graphCommitted
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture,
                                                      AssetUpsertCapture assetUpsertCapture,
+                                                     Long aiChatSessionId,
+                                                     java.util.Map<String, String> flowDesignClientIdMap,
+                                                     boolean autopilotEnabled,
+                                                     java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted) {
+        return fromDesignRequest(request, submitCapture, assetUpsertCapture, null,
+                aiChatSessionId, flowDesignClientIdMap, autopilotEnabled, onGraphCommitted);
+    }
+
+    /**
+     * 从 Web 设计请求构建完整上下文（含素材与鉴权 Profile 提案容器、会话 id、短名映射、全自动开关与落盘回调）。
+     */
+    public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
+                                                     FlowDesignSubmitCapture submitCapture,
+                                                     AssetUpsertCapture assetUpsertCapture,
+                                                     AuthProfileUpsertCapture authProfileUpsertCapture,
                                                      Long aiChatSessionId,
                                                      java.util.Map<String, String> flowDesignClientIdMap,
                                                      boolean autopilotEnabled,
@@ -80,6 +95,7 @@ public class FlowDesignToolContextFactory {
                 resolved.getContextRunId(),
                 submitCapture,
                 assetUpsertCapture,
+                authProfileUpsertCapture,
                 aiChatSessionId,
                 flowDesignClientIdMap,
                 autopilotEnabled,
@@ -97,7 +113,7 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 MCP 调用请求构建工具上下文；可附带 submit 捕获器。素材提案捕获器固定为 null（MCP 无写入素材工具）。
+     * 从 MCP 调用请求构建工具上下文；可附带 submit 捕获器。素材与鉴权提案捕获器固定为 null。
      */
     public FlowDesignToolContext fromMcpRequest(McpToolInvokeParams params,
                                                 Long tokenProjectId,
@@ -122,6 +138,7 @@ public class FlowDesignToolContextFactory {
                 null,
                 null,
                 null,
+                null,
                 false,
                 null);
     }
@@ -139,6 +156,7 @@ public class FlowDesignToolContextFactory {
                                         Long contextRunId,
                                         FlowDesignSubmitCapture submitCapture,
                                         AssetUpsertCapture assetUpsertCapture,
+                                        AuthProfileUpsertCapture authProfileUpsertCapture,
                                         Long aiChatSessionId,
                                         java.util.Map<String, String> flowDesignClientIdMap,
                                         boolean autopilotEnabled,
@@ -162,6 +180,7 @@ public class FlowDesignToolContextFactory {
                 .maxToolResultBytes(aiLlmConfigService.getMaxToolResultBytes())
                 .submitCapture(submitCapture)
                 .assetUpsertCapture(assetUpsertCapture)
+                .authProfileUpsertCapture(authProfileUpsertCapture)
                 .aiChatSessionId(aiChatSessionId)
                 .flowDesignClientIdMap(idMap)
                 .build();

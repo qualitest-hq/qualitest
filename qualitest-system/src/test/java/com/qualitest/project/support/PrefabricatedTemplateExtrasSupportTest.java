@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * PrefabricatedTemplateExtrasSupport：凭证派生、画布绑接口、flow/assert/env 合并。
- * 覆盖：流优先、setCookie→Cookie、无来源返回 null、旧 params 不再生效。
+ * 覆盖：流 extracts 派生、match_config.credential 派生、setCookie→Cookie、无来源返回 null、旧 params 不再生效。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=PrefabricatedTemplateExtrasSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -83,9 +83,52 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertNull(PrefabricatedTemplateExtrasSupport.deriveCredential("[]"));
     }
 
-    /** 合成 id 优先 remap，不再依赖 path（薄节点可无 apiPath）。 */
+    /**
+     * 前提：空 flows，match_config.credential 写 clientAuth + header=token + extract=$.data。
+     * 期望：托管头 token + {{asset.clientAuth.data}}，不落到 adminAuth Bearer。
+     */
     @Test
     @Order(5)
+    @DisplayName("match_config.credential 派生客户端 header token")
+    void derive_fromMatchConfig_clientHeader() {
+        String match = "{\"authStyle\":\"header\",\"credential\":{"
+                + "\"asset\":\"clientAuth\",\"extract\":\"$.data\","
+                + "\"headerName\":\"token\",\"headerValueTemplate\":\"{{token}}\"},"
+                + "\"pathPrefix\":[\"/api/\"]}";
+
+        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredentialFromMatchConfig(
+                match, "POST", "/api/login/login");
+
+        assertNotNull(derived);
+        assertEquals("token", derived.getHeaderName());
+        assertEquals("{{asset.clientAuth.data}}", derived.getHeaderValueTemplate());
+        assertEquals("/api/login/login", derived.getCredentialApi().getPath());
+        assertEquals("POST", derived.getCredentialApi().getMethod());
+    }
+
+    /**
+     * 前提：match_config.credential 为 adminAuth + header=token。
+     * 期望：{{asset.adminAuth.data}}。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("match_config.credential 派生管理端 header token")
+    void derive_fromMatchConfig_adminHeader() {
+        String match = "{\"credential\":{\"asset\":\"adminAuth\",\"extract\":\"$.data\","
+                + "\"headerName\":\"token\",\"headerValueTemplate\":\"{{token}}\"},"
+                + "\"pathPrefix\":[\"/api/backstage\"]}";
+
+        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredentialFromMatchConfig(
+                match, "POST", "/api/backstageLogin/passwordLogin");
+
+        assertNotNull(derived);
+        assertEquals("token", derived.getHeaderName());
+        assertEquals("{{asset.adminAuth.data}}", derived.getHeaderValueTemplate());
+    }
+
+    /** 合成 id 优先 remap，不再依赖 path（薄节点可无 apiPath）。 */
+    @Test
+    @Order(7)
     @DisplayName("bindGraphApis 合成 id remap")
     void bindGraphApis_synthRemap() {
         // 前提：节点仅有合成 id，无 path

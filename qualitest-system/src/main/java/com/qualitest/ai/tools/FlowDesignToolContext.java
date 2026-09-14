@@ -17,7 +17,7 @@ import java.util.function.BiConsumer;
  * 测试流 AI 设计工具执行时的请求级上下文。
  * <p>
  * Web 造流与 MCP 共用：项目、测试流、基准画布、检索范围、结果字节上限，
- * 以及本轮 submit 累积器、素材提案累积器、短名映射、内存工作图。
+ * 以及本轮 submit 累积器、素材/鉴权提案累积器、短名映射、内存工作图。
  */
 @Getter
 @Builder
@@ -101,6 +101,12 @@ public class FlowDesignToolContext {
      */
     private final AssetUpsertCapture assetUpsertCapture;
 
+    /**
+     * 本轮 upsert_auth_profile 提案累积器。
+     * 半自动只记提案；全自动已写库后记 confirmed；为空时 upsert 工具直接报错。
+     */
+    private final AuthProfileUpsertCapture authProfileUpsertCapture;
+
     /** 当前 AI 会话 id；用于把短名映射落会话。MCP 可空 */
     private final Long aiChatSessionId;
 
@@ -144,5 +150,19 @@ public class FlowDesignToolContext {
     /** 本轮是否已成功隐式落盘过 */
     public boolean hasCommittedThisTurn() {
         return committedThisTurn != null && committedThisTurn.get();
+    }
+
+    /**
+     * 半自动未确认提案的拦截原因；无 pending 时返回 null。
+     * 素材提案优先于鉴权 Profile 提案。
+     */
+    public String pendingUpsertBlockReason() {
+        if (assetUpsertCapture != null && assetUpsertCapture.hasPendingProposals()) {
+            return "尚有未确认的素材库提案";
+        }
+        if (authProfileUpsertCapture != null && authProfileUpsertCapture.hasPendingProposals()) {
+            return "尚有未确认的鉴权 Profile 提案";
+        }
+        return null;
     }
 }

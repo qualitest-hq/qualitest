@@ -98,7 +98,7 @@ public class FlowDesignPatchNormalizer {
      *   <li>边端点允许前向短名（本轮稍后才会 add 的节点）</li>
      *   <li>source/target 尚不存在的拓扑报错降为 warnings</li>
      *   <li>断言路径只把命中本单元节点的错误当 errors</li>
-     *   <li>跳过鉴权 token 来源、登录抽取、HTTP 必填测值等跨单元门禁</li>
+     *   <li>AUTH_* 鉴权风险与 HTTP 必填项记入 warnings，不硬拦（分批造流时图常不完整）</li>
      * </ul>
      */
     public NormalizeResult normalizeUnit(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
@@ -107,7 +107,7 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * @param unitLocal true=单单元宽松；false=整包严格
+     * @param unitLocal true=单单元宽松（鉴权风险与跨单元拓扑进 warnings）；false=整包严格
      */
     private NormalizeResult normalizeInternal(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
                                               Map<String, String> sessionClientIdMap, boolean unitLocal) {
@@ -141,8 +141,9 @@ public class FlowDesignPatchNormalizer {
             }
         }
         // 断言路径：结构错误进 errors；schema 缺字段进 warnings（不阻断 Staging）
+        Function<Long, TestProjectApi> apiResolver = apiResolver();
         AssertPathDesignGate.AssertPathGateResult assertPath =
-                AssertPathDesignGate.validate(merged, apiResolver());
+                AssertPathDesignGate.validate(merged, apiResolver);
         if (unitLocal) {
             Set<String> unitNodeIds = unitNodeIds(patch);
             for (String err : assertPath.errors()) {
@@ -159,14 +160,13 @@ public class FlowDesignPatchNormalizer {
             errors.addAll(assertPath.errors());
             warnings.addAll(assertPath.warnings());
         }
-        if (!unitLocal) {
-            // 整包才验：token 是否有来源、登录是否抽取、必填测值是否齐
-            String projectAuthJson = loadProjectAuthConfig(testProjectId);
-            Function<Long, TestProjectApi> apiResolver = apiResolver();
-            errors.addAll(AuthTokenPresenceGate.validate(
-                    merged, projectAuthJson, apiResolver, subflowGraphResolver()));
-            errors.addAll(LoginExtractPresenceGate.validate(merged, projectAuthJson, apiResolver));
-            errors.addAll(HttpRequiredParamGate.validate(merged, apiResolver));
+        // 整包：鉴权风险进 errors 硬拦；单单元：仅进 warnings（分批造流时图常不完整）
+        List<String> authRisks = DesignAuthRiskGates.collect(
+                merged, loadProjectAuthConfig(testProjectId), apiResolver, subflowGraphResolver());
+        if (unitLocal) {
+            warnings.addAll(authRisks);
+        } else {
+            errors.addAll(authRisks);
         }
 
         DesignValidationResult planValidation = DesignValidationResult.builder()

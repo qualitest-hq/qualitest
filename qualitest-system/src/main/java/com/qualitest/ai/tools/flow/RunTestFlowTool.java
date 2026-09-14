@@ -57,10 +57,10 @@ public class RunTestFlowTool implements QualitestTool {
         if (ctx.getTestFlowId() == null) {
             return FlowDesignToolSupport.errorJson("缺少 testFlowId");
         }
-        // 半自动遗留的 pending 素材提案会挡住跑流（全自动 upsert 应为 confirmed）
-        if (ctx.getAssetUpsertCapture() != null && ctx.getAssetUpsertCapture().hasPendingProposals()) {
-            return FlowDesignToolSupport.errorJson(
-                    "尚有未确认的素材库提案，请先让用户确认后再 run");
+        // 未确认的素材或鉴权 Profile 提案会挡住跑流
+        String pendingUpsert = ctx.pendingUpsertBlockReason();
+        if (pendingUpsert != null) {
+            return FlowDesignToolSupport.errorJson(pendingUpsert + "，请先让用户确认后再 run");
         }
 
         // 有未落盘 submit_* 时先写库，再跑库中最新图

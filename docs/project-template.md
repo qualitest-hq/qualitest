@@ -20,6 +20,16 @@
 | 预制测试流 | 登录流等；`extracts` 派生托管头与 `credentialApi` |
 | 预制提示词 | 可选；内置鉴权模板默认可为空 |
 
+Apply 托管头派生顺序：
+
+1. **预制登录流** `template_flows` 里登录 HTTP 的 extracts  
+2. 否则读 **`match_config.credential`**（精简包常见字段：`asset`、`extract`、`tokenField`、`headerName`、`headerValueTemplate`、`cookieName`；短占位如 `{{token}}` 会展开成 `{{asset.<entry>.<field>}}`）  
+3. 仍无法得到完整 `headerName` + `headerValueTemplate` → **拒绝该条**（不再弱默认成两端共用的 `Bearer {{asset.adminAuth.token}}`）
+
+项目设置「添加 Profile」空行不再预填 `adminAuth` Bearer，须人手或 Apply / AI 写明托管头。
+
+**存量坏 Profile**（例如客户端误绑 `adminAuth`）：项目设置手改；或删同名 Profile 后「从项目模板添加」再 Apply；或 AI `upsert_auth_profile`（半自动确认）。**不会**自动改已有项目库。
+
 内置只读样例：`RuoYi Bearer` / `RuoYi Session` / `客户端 Bearer` / `管理端 Bearer`（可克隆后改）。
 
 ---

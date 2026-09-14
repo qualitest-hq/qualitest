@@ -9,7 +9,6 @@ import com.qualitest.ai.result.AiPromptTemplateResult;
 import com.qualitest.ai.service.IAiPromptTemplateService;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
-import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
@@ -60,7 +59,7 @@ import java.util.Set;
  * <ul>
  *   <li>同名 Profile 整份跳过；</li>
  *   <li>预制接口按 method+path 去重，已有则不插入、不改已有行；</li>
- *   <li>托管头与凭证目标由预制测试流 extracts 派生（优先 asset，如 Bearer {{asset.x.y}}）；</li>
+ *   <li>托管头优先由预制测试流 extracts 派生；无流时读 match_config.credential；仍无法得到完整托管头则拒绝该条；</li>
  *   <li>预制参数：flow→场景 flowSeed，env→项目环境变量，asset→项目素材库（Profile 同名跳过仍补种子）；</li>
  *   <li>预制测试流按 flowName 去重后写入项目测试流，并尽量绑定项目接口 id；</li>
  *   <li>预制提示词写入项目级 ai_prompt_template（同 sessionScene+title 跳过；Profile 已存在仍会补种子）。</li>
@@ -204,7 +203,7 @@ public class ProjectAuthTemplateApplyService {
     /**
      * 把一条模板转成项目鉴权 Profile。
      * 生成新 Profile id；名称用模板名；path 已存在的预制接口不放入 Profile、也不再种子；
-     * 托管头与凭证优先由预制测试流 extracts 派生。
+     * 托管头优先由预制测试流 extracts 得到，其次由 match_config.credential 得到。
      */
     private ProjectAuthProfile toProfile(
             TestProjectTemplate template, Set<String> apiIdentities, List<PrefabricatedApi> toSeed) {
@@ -232,29 +231,66 @@ public class ProjectAuthTemplateApplyService {
 
         DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(
                 template.getTemplateFlows());
-
-        String headerName;
-        String headerValueTemplate;
-        CredentialApi credentialApi = null;
-        if (derived != null) {
-            credentialApi = derived.getCredentialApi();
-            headerName = derived.getHeaderName();
-            headerValueTemplate = derived.getHeaderValueTemplate();
-        } else {
-            // 没有任何凭证来源时写弱默认头，避免后续规范化因缺头失败
-            headerName = "Authorization";
-            headerValueTemplate = "Bearer {{asset.adminAuth.token}}";
+        if (derived == null) {
+            PrefabricatedApi loginApi = firstNoneModeApi(kept.isEmpty() ? apis : kept);
+            String loginMethod = loginApi == null ? null : httpMethodOf(loginApi);
+            String loginPath = loginApi == null ? null : loginApi.getApiPath();
+            derived = PrefabricatedTemplateExtrasSupport.deriveCredentialFromMatchConfig(
+                    template.getMatchConfig(), loginMethod, loginPath);
+        }
+        if (derived == null
+                || StrUtil.isBlank(derived.getHeaderName())
+                || StrUtil.isBlank(derived.getHeaderValueTemplate())) {
+            throw new ServiceException(
+                    "模板「" + template.getTemplateName()
+                            + "」缺登录流且 match_config.credential 不完整，无法派生托管头；"
+                            + "请补 template_flows 登录 extracts，或在 match_config.credential 写明 asset/header");
         }
 
         return ProjectAuthProfile.builder()
                 .id(String.valueOf(IdUtil.getSnowflakeNextId()))
                 .name(template.getTemplateName().trim())
                 .match(match)
-                .headerName(headerName)
-                .headerValueTemplate(headerValueTemplate)
-                .credentialApi(credentialApi)
+                .headerName(derived.getHeaderName())
+                .headerValueTemplate(derived.getHeaderValueTemplate())
+                .credentialApi(derived.getCredentialApi())
                 .apis(kept)
                 .build();
+    }
+
+    /** 取第一条 auth.mode=none 的预制接口，用作登录口 method+path（写入 credentialApi）。 */
+    private static PrefabricatedApi firstNoneModeApi(List<PrefabricatedApi> apis) {
+        if (apis == null) {
+            return null;
+        }
+        for (PrefabricatedApi api : apis) {
+            if (api == null || StrUtil.isBlank(api.getApiPath())) {
+                continue;
+            }
+            if (api.getAuthConfig() != null
+                    && ApiAuthConfig.MODE_NONE.equalsIgnoreCase(
+                    StrUtil.blankToDefault(api.getAuthConfig().getMode(), ""))) {
+                return api;
+            }
+        }
+        return null;
+    }
+
+    /** 从预制接口 requestConfig 取 HTTP 方法，缺省 POST。 */
+    private static String httpMethodOf(PrefabricatedApi api) {
+        if (api == null || api.getRequestConfig() == null) {
+            return "POST";
+        }
+        try {
+            Object raw = api.getRequestConfig();
+            cn.hutool.json.JSONObject obj = raw instanceof cn.hutool.json.JSONObject jo
+                    ? jo
+                    : JSONUtil.parseObj(raw);
+            String method = StrUtil.trimToNull(obj.getStr("method"));
+            return method != null ? method.toUpperCase() : "POST";
+        } catch (Exception e) {
+            return "POST";
+        }
     }
 
     /** 解析模板上的预制接口 JSON；非法则抛业务异常。 */

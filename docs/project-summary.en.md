@@ -64,29 +64,31 @@ Configured in project settings → auth. Shared by Normalizer, Run, and debug.
 | Concept | Notes |
 | ------- | ----- |
 | `test_project_template` | One row = one Profile; built-ins: RuoYi Bearer/Session, client Bearer, admin Bearer |
-| Apply | Copy into `authProfiles` (**new ids**); insert prefab `apis[]` (skip existing method+path) |
+| Apply | Copy into `authProfiles` (**new ids**); insert prefab `apis[]` (skip existing method+path); optional envs/params/flows. Managed header + `credentialApi`: **prefer** login-flow extracts, else **`match_config.credential`**, else **reject the row** (no weak dual `adminAuth` Bearer; no `loginHint`) |
 | New project | **At least one** template; dual mall: admin Bearer then client Bearer |
 | Anonymous | Prefab `apis[].authConfig.mode=none` only; no project-level anonymous path list |
-| Empty config | Builtin `/login` heuristics only when auth is completely empty |
+| Empty config | Builtin `/login` heuristics only when auth is completely empty; Profiles with empty apis → settings banner |
 
 ### Three layers
 
 | Layer | Notes |
 | ----- | ----- |
-| Project `authProfiles` | Header template + `credentialApi` + `loginHint` + prefab `apis[]`; unmatched `pathPrefix` → **first array item** |
-| API `auth.mode` | `inherit` / `none` / `override`; API rows do **not** store `loginHint` |
+| Project `authProfiles` | Header template + `credentialApi` + prefab `apis[]`; unmatched `pathPrefix` → **first array item**. **`loginHint` removed** |
+| API `auth.mode` | `inherit` / `none` / `override` |
 | Node headers | `profileManaged` rows refresh from current config at Run; unmarked headers never silently change |
 
 **Match:** `authProfileId` if set; else longest `pathPrefix`; else first profile. **`pathPrefix="/"` forbidden.**
 
-Login extracts align with **Profile.`loginHint`** when the API matches `credentialApi` → `flow.token` / `flow.adminToken`, …. Hard blocks on **Run** only (`AUTH_LOGIN_EXTRACT_MISSING`, `AUTH_TOKEN_MISSING`, `AUTH_LOGIN_FLOWKEY_COLLISION`); AI `submit_*` / Staging ✓ / **Save** skip them. Uploads change API schema/`mode` only, not Profile hints.
+**Login extracts:** usually `scope=asset` into the asset library; Profile header uses `{{asset.adminAuth.token}}` etc. Must match `credentialApi`. Empty extracts on design are filled from the managed-header placeholder + schema; missing extract hard-blocks on **Run** (`AUTH_LOGIN_EXTRACT_MISSING`). Uploads merge API schema/`mode` by method+path; optional upload protection (`syncProtected=1` skips the row; built-in prefab APIs default to `1`).
 
 | Side | Typical path | Extract |
 | ---- | ------------ | ------- |
-| Client | `/api/account/auth/login` | `$.data.token` → `flow.token` |
-| Admin | `/login` | `$.token` → `flow.adminToken` |
+| Client | `/api/account/auth/login` | `$.data.token` → `asset.clientAuth.token` |
+| Admin | `/login` | `$.token` → `asset.adminAuth.token` |
 
-Same side: login once, reuse Bearer. Dual-side same graph: two logins, two extracts — never overwrite one `flow.token`. flowSeed may preseed tokens; passwords stay in the asset library.
+Same side: login once (or subflow), reuse managed Bearer on `asset.*`. Dual-side same graph: two logins, two extracts — never overwrite one credential path (`AUTH_LOGIN_FLOWKEY_COLLISION`). Missing source → `AUTH_TOKEN_MISSING` (**Run** hard-block; unit `submit_*` → warnings; Staging ✓ / Save soft; may tip “wrong side” Profile). Soft: `AUTH_HEADER_MANAGED`. AI: `list_project_auth_profiles` + `upsert_auth_profile`; next turn may carry `runRiskWarnings`. Details: [ai-staging.en.md](./ai-staging.en.md) · [faq.en.md](./faq.en.md) · [project-template.md](./project-template.md).
+
+flowSeed may preseed legacy `flow.*` tokens; passwords and formal credentials stay in the asset library.
 
 ### Snapshot on writes
 
@@ -98,7 +100,7 @@ HTTP `snapshotBefore` → pause on failure → restore & retry / retry / skip / 
 
 Details: [ai-staging.en.md](./ai-staging.en.md) · [flow-variables-and-values.en.md](./flow-variables-and-values.en.md) · [assets.en.md](./assets.en.md) · [faq.en.md](./faq.en.md)
 
-New chat + short prompt + real api ids for long flows. Staging must clear before save counts. Failure paths: “expect business reject” + literals. MCP read-only; edit graphs on Web.
+New chat + short prompt + real api ids for long flows. Staging must clear before save counts. Semi-auto: confirm asset/auth proposals in chat. Failure paths: “expect business reject” + literals. MCP read-only (can list auth Profiles); edit graphs / write Profiles on Web.
 
 ---
 

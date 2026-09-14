@@ -8,7 +8,7 @@ import java.util.Arrays;
  * 每个工具两个开关：webAgent（是否进 Web 造流助手工具列表）、mcpAllowed（是否允许 MCP 调用）。
  * submit_* 仅 Web：半自动经 Staging 确认后才落库；全自动由服务端隐式写库。
  * run_test_flow 仅 Web，且仅当请求开启全自动时注入模型；MCP 始终只读。
- * 启动时校验：本枚举、执行器注册表、flow-design-tools.json 三者工具名集合必须相同。
+ * 启动时校验：工具名清单须完整、无遗漏、无多余项。
  */
 public enum FlowDesignToolNames {
 
@@ -26,6 +26,10 @@ public enum FlowDesignToolNames {
     LIST_ASSET_VARIABLES("list_asset_variables", true, true),
     /** 新增或更新素材库条目（半自动：提案待确认；全自动：工具内直写） */
     UPSERT_ASSET_VARIABLES("upsert_asset_variables", true, false),
+    /** 列举项目鉴权 Profile（pathPrefix、托管头、凭证目标；无密钥明文） */
+    LIST_PROJECT_AUTH_PROFILES("list_project_auth_profiles", true, true),
+    /** 浅合并更新或新建项目鉴权 Profile（半自动记提案待确认；全自动工具内直写） */
+    UPSERT_AUTH_PROFILE("upsert_auth_profile", true, false),
     /** 向接口 design_hints 追加短提示并直接落库 */
     APPEND_API_DESIGN_HINTS("append_api_design_hints", true, false),
     /** 读取单个节点的 type 与完整 data */

@@ -27,16 +27,15 @@ import java.util.function.Function;
 /**
  * 设计期检查：图中需要登录的 project HTTP，是否已有对应端的凭证来源。
  * <p>
- * 对每个需鉴权的 project HTTP，解析其命中的鉴权 Profile，读取托管头上的
- * {@link CredentialTarget}（如 asset.adminAuth.token、flow.token）。
- * 未解析出凭证目标的 Profile 跳过。再扫描整图是否已产出该目标：
- * HTTP extracts（flow / asset）、assign 赋值、子流 flowOutputs（flow 作用域）、
- * 子流引用图内的 extracts（子上下文与父共享 asset，登录子流写 asset.* 对本图有效）、
- * 场景 flowSeed（仅 flow）。
+ * 对每个需鉴权的 project HTTP，解析其命中的鉴权 Profile，读取托管头上的凭证目标
+ * （如 asset.adminAuth.token、flow.token）。未解析出凭证目标的 Profile 跳过。
+ * 再扫描整图是否已产出该目标：HTTP extracts（flow / asset）、assign 赋值、
+ * 子流 flowOutputs（flow 作用域）、子流引用图内的 extracts
+ * （子上下文与父共享 asset，登录子流写 asset.* 对本图有效）、场景 flowSeed（仅 flow）。
  * 客户端与管理端分开检查，有一端凭证不能代替另一端。
  * <p>
- * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING）。保存流程时硬拦；
- * 单单元 normalize 与 Staging 确认刻意不调用本门禁（分批确认时图常不完整）。
+ * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING）。仅运行硬拦；
+ * 单单元规范化时把同样结果写入 warnings（不硬拦）；Staging 确认 / 保存不硬拦。
  * 项目未配置鉴权 Profile 时不做检查。
  */
 public final class AuthTokenPresenceGate {

@@ -5,6 +5,8 @@
  * - 加载模型与会话列表，刷新后恢复历史消息
  * - SSE 流式设计，支持取消
  * - patch 到达 → hydratePatchToStaging / createAiStagingHydration（画布就地确认）
+ * - 发送设计请求时注入当前画布 runRiskWarnings，写入本轮 user 上下文
+ * - 流式结果挂载素材提案与鉴权 Profile 提案到助手消息
  */
 import { reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -29,6 +31,7 @@ import { useAiDesignStream } from './useAiDesignStream';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
+import { useRunRiskStore } from '../stores/runRiskStore';
 import { useFlowGraph } from './useFlowGraph';
 import { isAutopilotEnabled } from '../utils/aiDesignPreferences';
 import type { AiDesignMessageView, AiDesignSystemAction, FlowDesignPatch, TestFlowDesignResult } from '../types/aiDesignTypes';
@@ -368,6 +371,11 @@ export function useAiDesign() {
       // 模板画布强制半自动；项目画布跟 localStorage 全自动开关
       autopilotEnabled: !isTemplate && isAutopilotEnabled(),
     };
+    // 把当前画布已算出的开跑/鉴权风险文案带入本轮设计请求
+    const riskWarnings = useRunRiskStore().warnings;
+    if (Array.isArray(riskWarnings) && riskWarnings.length > 0) {
+      base.runRiskWarnings = riskWarnings.filter((w) => typeof w === 'string' && w.trim());
+    }
     if (isTemplate) {
       base.designMode = 'template';
       base.testFlowId = '0';
@@ -454,7 +462,7 @@ export function useAiDesign() {
   /**
    * 把设计接口响应转成助手消息写入列表。
    * explainOnly（本轮无成功 submit_*）时不带 patch、不灌 Staging；
-   * 有 patch 则灌入待确认单元；有素材提案则挂在消息上供卡片展示。
+   * 有 patch 则灌入待确认单元；有素材提案或鉴权 Profile 提案则挂在消息上由卡片展示。
    */
   function appendAssistantMessage(data: TestFlowDesignResult) {
     const messageId = createClientMessageId();
@@ -464,6 +472,11 @@ export function useAiDesign() {
     const assetProposals = Array.isArray(data.assetProposals) && data.assetProposals.length > 0
       ? data.assetProposals
       : undefined;
+    // 本轮鉴权 Profile 写入提案，挂到助手消息由确认卡片渲染
+    const authProfileProposals =
+      Array.isArray(data.authProfileProposals) && data.authProfileProposals.length > 0
+        ? data.authProfileProposals
+        : undefined;
     const assistantMessage: AiDesignMessageView = {
       id: messageId,
       role: 'assistant',
@@ -481,6 +494,7 @@ export function useAiDesign() {
       validation: data.validation,
       explainOnly,
       assetProposals,
+      authProfileProposals,
     };
     messages.value = [...messages.value, assistantMessage];
 

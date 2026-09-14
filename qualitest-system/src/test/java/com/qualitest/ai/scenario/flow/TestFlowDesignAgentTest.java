@@ -102,7 +102,7 @@ class TestFlowDesignAgentTest {
                 .thenReturn(List.of());
         when(conversationService.loadFlowDesignClientIdMap(any())).thenReturn(new HashMap<>());
         when(toolsDefinitionService.loadToolsDefinition(anyBoolean())).thenReturn(List.of());
-        when(contextFactory.fromDesignRequest(any(), any(), any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
+        when(contextFactory.fromDesignRequest(any(), any(), any(), any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
             TestFlowDesignRequest req = inv.getArgument(0);
             FlowDesignSubmitCapture capture = inv.getArgument(1);
             return FlowDesignToolContext.builder()
@@ -113,11 +113,12 @@ class TestFlowDesignAgentTest {
                     .maxToolResultBytes(8192)
                     .submitCapture(capture)
                     .assetUpsertCapture(inv.getArgument(2))
-                    .aiChatSessionId(inv.getArgument(3))
-                    .flowDesignClientIdMap(inv.getArgument(4) != null
-                            ? inv.getArgument(4)
+                    .authProfileUpsertCapture(inv.getArgument(3))
+                    .aiChatSessionId(inv.getArgument(4))
+                    .flowDesignClientIdMap(inv.getArgument(5) != null
+                            ? inv.getArgument(5)
                             : new HashMap<>())
-                    .autopilotEnabled(Boolean.TRUE.equals(inv.getArgument(5)))
+                    .autopilotEnabled(Boolean.TRUE.equals(inv.getArgument(6)))
                     .build();
         });
     }

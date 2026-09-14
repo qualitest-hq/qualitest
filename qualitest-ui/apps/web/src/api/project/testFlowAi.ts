@@ -6,6 +6,8 @@
  * - POST /project/testFlow/ai/patch/savePrecheck — 运行风险预检（鉴权/必填；不写库、不拦保存）
  * - POST /project/testFlow/ai/assetProposal/confirm — 确认素材库写入提案并落盘
  * - POST /project/testFlow/ai/assetProposal/reject — 拒绝素材库写入提案
+ * - POST /project/testFlow/ai/authProfileProposal/confirm — 确认鉴权 Profile 提案并写入项目 auth_config
+ * - POST /project/testFlow/ai/authProfileProposal/reject — 拒绝鉴权 Profile 提案
  * - GET  /project/testFlow/ai/promptTemplates — 设计面板提示词模板
  */
 import request from '@/utils/request';
@@ -48,8 +50,8 @@ export interface TestFlowDesignRequestPayload {
   thinkingEnabled?: boolean;
   /**
    * 是否开启全自动。
-   * true：后端注入 run_test_flow；submit_* 在跑流前/回合结束隐式写库；upsert 直写素材库。
-   * false：半自动，Staging 与素材须人审。模板画布前端会强制为 false。
+   * true：注入 run_test_flow；submit_* 在跑流前/回合结束隐式写库；素材与鉴权 Profile upsert 直写。
+   * false：半自动，Staging 与各类写入提案须人审。模板画布会强制为 false。
    */
   autopilotEnabled?: boolean;
   /** 限定可检索的 API id 范围（可选） */
@@ -58,6 +60,11 @@ export interface TestFlowDesignRequestPayload {
   contextNodeIds?: string[];
   /** 画布上下文：关联的 Run id，用于失败修复场景（可选） */
   contextRunId?: string;
+  /**
+   * 当前画布开跑/保存风险文案（如缺鉴权头、登录抽取缺失、HTTP 必填未填等）。
+   * 随设计请求提交，写入本轮 user 上下文，便于模型根据已有风险继续改图。
+   */
+  runRiskWarnings?: string[];
 }
 
 /** SSE 推送的事件类型 */
@@ -250,6 +257,64 @@ export async function rejectAssetUpsertProposal(
     data,
   });
   return res.data as AssetUpsertProposalDecisionResult;
+}
+
+/** 确认或拒绝鉴权 Profile 写入提案的请求参数 */
+export interface AuthProfileUpsertProposalDecisionPayload {
+  /** 测试项目 id（提案写入该项目的 auth_config） */
+  testProjectId: string;
+  /** 存有提案的助手消息 id */
+  aiChatMessageId: string;
+  /** 提案对应的 Profile id */
+  profileId: string;
+}
+
+/** 确认或拒绝鉴权 Profile 写入提案的响应 */
+export interface AuthProfileUpsertProposalDecisionResult {
+  /** 是否成功 */
+  ok?: boolean;
+  /** 失败时的可读错误列表 */
+  errors?: string[];
+  /** 实际写入或处理的 Profile id（确认后可能与入参相同） */
+  profileId?: string;
+  /** 动作：created / updated 等 */
+  action?: string;
+  /** 处理后的状态：confirmed / rejected */
+  status?: string;
+  /** 相对变更的字段名列表 */
+  changedFields?: string[];
+  /** 确认写入后的 Profile 字段快照 */
+  after?: Record<string, unknown>;
+}
+
+/**
+ * 确认鉴权 Profile 写入提案：把提案内容写入项目 auth_config。
+ */
+export async function confirmAuthProfileUpsertProposal(
+  data: AuthProfileUpsertProposalDecisionPayload,
+): Promise<AuthProfileUpsertProposalDecisionResult> {
+  const res = await request({
+    url: '/project/testFlow/ai/authProfileProposal/confirm',
+    method: 'post',
+    headers: { repeatSubmit: false },
+    data,
+  });
+  return res.data as AuthProfileUpsertProposalDecisionResult;
+}
+
+/**
+ * 拒绝鉴权 Profile 写入提案：只改消息元数据状态，不写项目 auth_config。
+ */
+export async function rejectAuthProfileUpsertProposal(
+  data: AuthProfileUpsertProposalDecisionPayload,
+): Promise<AuthProfileUpsertProposalDecisionResult> {
+  const res = await request({
+    url: '/project/testFlow/ai/authProfileProposal/reject',
+    method: 'post',
+    headers: { repeatSubmit: false },
+    data,
+  });
+  return res.data as AuthProfileUpsertProposalDecisionResult;
 }
 
 /**

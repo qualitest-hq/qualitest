@@ -1,10 +1,12 @@
 /**
  * 项目级鉴权配置（auth_config）表单解析 / 组装 / 轻量校验。
- * 对齐后端 ProjectAuthConfig：扁平头 + credentialApi + apis[]；
- * 凭证目标写在 headerValueTemplate 的 {{asset.*}} / {{flow.*}} 占位符中。
+ *
+ * 表单结构：多个 Profile，每条含扁平鉴权头（headerName + valueTemplate）、
+ * 可选 credentialApi（登录取票 method/path）、以及 apis[]（按接口覆盖鉴权模式）。
+ * 凭证来源写在 valueTemplate 的 {{asset.*}} / {{flow.*}} 占位符中。
  */
 
-/** 空表单（无 Profile） */
+/** 空表单：无 Profile，且不提示「缺模板」 */
 export function emptyAuthForm() {
   return {
     profiles: [],
@@ -12,14 +14,17 @@ export function emptyAuthForm() {
   }
 }
 
-/** 新建一条空白 Profile 行 */
+/**
+ * 新建一条空白 Profile 行（供设置页「添加 Profile」）。
+ * id/name/pathPrefix/鉴权头/取票接口均为空；credentialMethod 默认 POST；apis 空列表。
+ */
 export function emptyProfileRow() {
   return {
     id: '',
     name: '',
     pathPrefixText: '',
-    headerName: 'Authorization',
-    valueTemplate: 'Bearer {{asset.adminAuth.token}}',
+    headerName: '',
+    valueTemplate: '',
     credentialMethod: 'POST',
     credentialPath: '',
     apis: [],

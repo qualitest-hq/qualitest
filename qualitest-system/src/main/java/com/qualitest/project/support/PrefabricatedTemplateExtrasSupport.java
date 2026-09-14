@@ -28,13 +28,17 @@ import java.util.regex.Pattern;
  * 项目模板「预制参数 / 预制环境 / 预制测试流 / 预制提示词」解析，以及凭证规则与托管头的派生。
  * <p>
  * 预制参数 kind 仅认 flow / asset。
- * 凭证派生只认预制测试流 extracts（优先 scope=asset）；托管头不存模板表。
+ * 凭证派生优先预制测试流 extracts（scope=asset）；无流时可读 match_config.credential。
  */
 public final class PrefabricatedTemplateExtrasSupport {
 
     /** 匹配 {{asset.entryKey...}} 中的素材入口名。 */
     private static final Pattern ASSET_ENTRY_KEY_PATTERN =
             Pattern.compile("\\{\\{\\s*asset\\.([a-zA-Z0-9_]+)");
+
+    /** 简写占位符 {{token}}（单段标识，无 asset./flow.）。 */
+    private static final Pattern SHORT_PLACEHOLDER =
+            Pattern.compile("\\{\\{\\s*([a-zA-Z_][\\w]*)\\s*\\}\\}");
 
     private PrefabricatedTemplateExtrasSupport() {}
 
@@ -353,8 +357,159 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
+     * 从 match_config.credential 派生托管头（精简模板无登录流时用）。
+     * 读取字段：asset、extract、tokenField、headerName、headerValueTemplate、cookieName；
+     * 据此拼出 headerName / headerValueTemplate，可选附带登录口 method+path 作为 credentialApi。
+     *
+     * @param matchConfigJson 模板 match_config JSON；可空
+     * @param loginMethod     可选登录口 method（写入 credentialApi）
+     * @param loginPath       可选登录口 path
+     * @return 派生结果；credential 缺失或不完整时 null
+     */
+    public static DerivedCredential deriveCredentialFromMatchConfig(
+            String matchConfigJson, String loginMethod, String loginPath) {
+        if (StrUtil.isBlank(matchConfigJson) || "null".equals(matchConfigJson.trim())) {
+            return null;
+        }
+        JSONObject root;
+        try {
+            root = JSON.parseObject(matchConfigJson.trim());
+        } catch (Exception e) {
+            return null;
+        }
+        if (root == null) {
+            return null;
+        }
+        JSONObject credential = root.getJSONObject("credential");
+        if (credential == null || credential.isEmpty()) {
+            return null;
+        }
+        String assetEntry = StrUtil.blankToDefault(credential.getString("asset"), "").trim();
+        if (assetEntry.isEmpty()) {
+            return null;
+        }
+        String extractExpr = matchConfigExtractExpr(credential.get("extract"));
+        String tokenField = StrUtil.trimToNull(credential.getString("tokenField"));
+        if (tokenField == null && extractExpr != null) {
+            tokenField = lastPathSegment(extractExpr);
+        }
+        if (tokenField == null) {
+            tokenField = "token";
+        }
+        String fullPlaceholder = "{{asset." + assetEntry + "." + tokenField + "}}";
+        String cookieName = StrUtil.trimToNull(credential.getString("cookieName"));
+        String headerName = StrUtil.trimToNull(credential.getString("headerName"));
+        String headerValueTemplate = StrUtil.trimToNull(credential.getString("headerValueTemplate"));
+
+        if (cookieName != null) {
+            headerName = "Cookie";
+            String valuePart = expandShortPlaceholders(
+                    StrUtil.blankToDefault(headerValueTemplate, fullPlaceholder), fullPlaceholder);
+            if (!valuePart.contains("=")) {
+                headerValueTemplate = cookieName + "=" + ensureAssetOrFlowPlaceholder(valuePart, fullPlaceholder);
+            } else {
+                headerValueTemplate = expandShortPlaceholders(valuePart, fullPlaceholder);
+            }
+        } else if (headerName != null) {
+            headerValueTemplate = expandShortPlaceholders(
+                    StrUtil.blankToDefault(headerValueTemplate, fullPlaceholder), fullPlaceholder);
+            headerValueTemplate = ensureAssetOrFlowPlaceholder(headerValueTemplate, fullPlaceholder);
+        } else {
+            headerName = "Authorization";
+            String expanded = expandShortPlaceholders(
+                    StrUtil.blankToDefault(headerValueTemplate, fullPlaceholder), fullPlaceholder);
+            expanded = ensureAssetOrFlowPlaceholder(expanded, fullPlaceholder);
+            if (!expanded.toLowerCase(Locale.ROOT).contains("bearer") && expanded.trim().startsWith("{{")) {
+                headerValueTemplate = "Bearer " + expanded.trim();
+            } else {
+                headerValueTemplate = expanded;
+            }
+        }
+        if (StrUtil.isBlank(headerName) || StrUtil.isBlank(headerValueTemplate)) {
+            return null;
+        }
+        CredentialApi credentialApi = null;
+        if (StrUtil.isNotBlank(loginPath)) {
+            credentialApi = ProjectAuthConfigSupport.credentialApi(
+                    StrUtil.blankToDefault(loginMethod, "POST"), loginPath);
+        }
+        return DerivedCredential.builder()
+                .credentialApi(credentialApi)
+                .headerName(headerName.trim())
+                .headerValueTemplate(headerValueTemplate.trim())
+                .build();
+    }
+
+    /**
+     * 从 match_config.credential.extract 取出 JsonPath 表达式。
+     * 支持纯字符串，或带 expr 字段的对象。
+     */
+    public static String matchConfigExtractExpr(Object extract) {
+        if (extract == null) {
+            return null;
+        }
+        if (extract instanceof String s) {
+            return StrUtil.trimToNull(s);
+        }
+        if (extract instanceof Map<?, ?> map) {
+            Object expr = map.get("expr");
+            return expr == null ? null : StrUtil.trimToNull(String.valueOf(expr));
+        }
+        if (extract instanceof JSONObject json) {
+            return StrUtil.trimToNull(json.getString("expr"));
+        }
+        return StrUtil.trimToNull(String.valueOf(extract));
+    }
+
+    /** JSONPath 末段，如 $.data.token → token；$.data → data。 */
+    public static String lastPathSegment(String jsonPath) {
+        if (StrUtil.isBlank(jsonPath)) {
+            return null;
+        }
+        String t = jsonPath.trim();
+        int idx = Math.max(t.lastIndexOf('.'), t.lastIndexOf(']'));
+        if (idx < 0 || idx >= t.length() - 1) {
+            String bare = t.startsWith("$.") ? t.substring(2) : t;
+            return StrUtil.trimToNull(bare.replaceAll("[^a-zA-Z0-9_]", ""));
+        }
+        String seg = t.substring(idx + 1).replaceAll("[^a-zA-Z0-9_]", "");
+        return StrUtil.trimToNull(seg);
+    }
+
+    /** 把 {{token}} 一类单段占位展开为完整 {{asset.entry.field}}。 */
+    static String expandShortPlaceholders(String raw, String fullPlaceholder) {
+        if (StrUtil.isBlank(raw)) {
+            return fullPlaceholder;
+        }
+        Matcher matcher = SHORT_PLACEHOLDER.matcher(raw);
+        StringBuffer sb = new StringBuffer();
+        boolean replaced = false;
+        while (matcher.find()) {
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(fullPlaceholder));
+            replaced = true;
+        }
+        matcher.appendTail(sb);
+        return replaced ? sb.toString() : raw;
+    }
+
+    /** 若模板仍无 asset./flow. 占位，则回落到完整占位符。 */
+    private static String ensureAssetOrFlowPlaceholder(String raw, String fullPlaceholder) {
+        if (StrUtil.isBlank(raw)) {
+            return fullPlaceholder;
+        }
+        if (raw.contains("{{asset.") || raw.contains("{{flow.")) {
+            return raw;
+        }
+        if (raw.contains("{{")) {
+            return expandShortPlaceholders(raw, fullPlaceholder);
+        }
+        return fullPlaceholder;
+    }
+
+    /**
      * 派生凭证规则与托管头。
-     * 只读预制测试流 extracts（优先 asset，其次 flow）；无则返回 null。
+     * 扫描预制测试流 HTTP 节点 extracts，取第一条可识别的凭证抽取（优先 asset，其次 flow），
+     * 据此得到登录口 method+path 与托管头模板；找不到则返回 null。
      */
     public static DerivedCredential deriveCredential(String flowsJson) {
         for (PrefabFlow flow : parseFlows(flowsJson)) {
@@ -391,6 +546,10 @@ public final class PrefabricatedTemplateExtrasSupport {
         return null;
     }
 
+    /**
+     * 由登录口定位与一条凭证抽取结果拼出托管头模板。
+     * 按凭证目标生成 headerName / headerValueTemplate；无法生成时返回 null。
+     */
     private static DerivedCredential buildDerived(CredentialApi credentialApi, CredentialExtract extract) {
         if (extract == null) {
             return null;
@@ -425,7 +584,7 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
-     * 将画布 HTTP 节点上的项目接口主键改回模板合成 id（{@link #bindGraphApis} 的逆操作）。
+     * 将画布 HTTP 节点上的项目接口主键改回模板合成 id（与 bindGraphApis 方向相反）。
      * 仅处理 callMode=project 且 testProjectApiId 落在 projectIdToSynthId 中的节点。
      *
      * @param projectIdToSynthId 项目接口主键字符串 → 模板合成 id 字符串

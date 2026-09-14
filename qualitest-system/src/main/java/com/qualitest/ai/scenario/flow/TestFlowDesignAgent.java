@@ -21,6 +21,8 @@ import com.qualitest.ai.service.AiChatSessionSummaryService;
 import com.qualitest.ai.service.IAiLlmModelService;
 import com.qualitest.ai.tools.AssetUpsertCapture;
 import com.qualitest.ai.tools.AssetUpsertProposal;
+import com.qualitest.ai.tools.AuthProfileUpsertCapture;
+import com.qualitest.ai.tools.AuthProfileUpsertProposal;
 import com.qualitest.ai.tools.FlowDesignPatchStats;
 import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
@@ -40,13 +42,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 测试流 AI 设计编排：跑 Agent、收集画布单元与素材提案、写助手消息并返回结果。
+ * 测试流 AI 设计编排：跑 Agent、收集画布单元与素材/鉴权提案、写助手消息并返回结果。
  * <p>
  * 半自动（默认）：模型多次 submit_* 每次产出一个 Staging 单元，本类用 SubmitCapture 累积；
  * 本轮无成功单元则 explainOnly=true（纯答疑，不灌 Staging）；步数耗尽但已有单元时仍返回已接受 patch。
- * 画布与素材不自动写业务库，也不自动 Run；前端 Staging ✓ → 保存 → Run。
+ * 画布、素材与鉴权 Profile 不自动写业务库，也不自动 Run；前端 Staging ✓ → 保存 → Run。
  * <p>
- * 全自动（请求 autopilotEnabled=true）：工具列表注入 run_test_flow；素材 upsert 工具内直写；
+ * 全自动（请求 autopilotEnabled=true）：工具列表注入 run_test_flow；素材与鉴权 upsert 工具内直写；
  * 改图在 run 前或回合结束时隐式写入 test_flow；落盘失败抛 LlmClientException。
  * 模板设计模式强制关闭全自动。
  */
@@ -88,7 +90,7 @@ public class TestFlowDesignAgent {
     /**
      * 执行一轮 AI 设计的核心流程。
      * <p>
-     * 顺序：校验请求 → 加载/创建会话 → 注入 SubmitCapture 与素材提案容器 → Agent 循环
+     * 顺序：校验请求 → 加载/创建会话 → 注入 SubmitCapture 与素材/鉴权提案容器 → Agent 循环
      * （开启步数将尽催 submit_*）→ 按是否有成功单元决定 explainOnly 与 patch →
      * 写助手消息 meta → 返回结果。
      */
@@ -114,13 +116,15 @@ public class TestFlowDesignAgent {
 
         Integer sessionThinking = resolveSessionThinking(session, request);
 
-        // 本轮内存容器：画布 patch 与素材库写入提案（工具只写容器，不落业务库）
+        // 本轮内存容器：画布 patch 与素材/鉴权提案（工具只写容器，不落业务库）
         FlowDesignSubmitCapture submitCapture = new FlowDesignSubmitCapture();
-        // 模板模式禁用素材 upsert（无真实项目素材库）
+        // 模板模式禁用素材/鉴权 upsert（无真实项目库）
         AssetUpsertCapture assetUpsertCapture = request.isTemplateDesignMode() ? null : new AssetUpsertCapture();
+        AuthProfileUpsertCapture authProfileUpsertCapture =
+                request.isTemplateDesignMode() ? null : new AuthProfileUpsertCapture();
         boolean autopilot = request.isAutopilotEnabledEffective();
         FlowDesignToolContext toolContext = flowDesignToolContextFactory.fromDesignRequest(
-                request, submitCapture, assetUpsertCapture,
+                request, submitCapture, assetUpsertCapture, authProfileUpsertCapture,
                 session.getAiChatSessionId(),
                 aiChatConversationService.loadFlowDesignClientIdMap(session.getAiChatSessionId()),
                 autopilot,
@@ -202,12 +206,16 @@ public class TestFlowDesignAgent {
 
         String summary = resolveSummary(normalizedPatch, content, explainOnly);
 
-        // 本轮 upsert 工具留下的素材提案（含明文 fields，供前端确认后落盘）
-        List<AssetUpsertProposal> assetProposals = assetUpsertCapture.hasProposals()
+        // 本轮 upsert 工具留下的素材/鉴权提案（含明细，供前端确认后落盘）
+        List<AssetUpsertProposal> assetProposals = assetUpsertCapture != null && assetUpsertCapture.hasProposals()
                 ? assetUpsertCapture.getProposals()
                 : List.of();
+        List<AuthProfileUpsertProposal> authProfileProposals =
+                authProfileUpsertCapture != null && authProfileUpsertCapture.hasProposals()
+                        ? authProfileUpsertCapture.getProposals()
+                        : List.of();
 
-        // 助手消息元数据：说明文案、是否仅答疑、画布 patch、素材提案、模型信息
+        // 助手消息元数据：说明文案、是否仅答疑、画布 patch、素材/鉴权提案、模型信息
         JSONObject meta = new JSONObject();
         meta.put("summary", summary);
         meta.put("explainOnly", explainOnly);
@@ -219,6 +227,9 @@ public class TestFlowDesignAgent {
         }
         if (!assetProposals.isEmpty()) {
             meta.put("assetProposals", assetProposals);
+        }
+        if (!authProfileProposals.isEmpty()) {
+            meta.put("authProfileProposals", authProfileProposals);
         }
 
         aiChatConversationService.appendAssistantMessage(
@@ -243,6 +254,7 @@ public class TestFlowDesignAgent {
                 .validation(validation)
                 .explainOnly(explainOnly)
                 .assetProposals(assetProposals.isEmpty() ? null : assetProposals)
+                .authProfileProposals(authProfileProposals.isEmpty() ? null : authProfileProposals)
                 .build();
     }
 
@@ -348,18 +360,35 @@ public class TestFlowDesignAgent {
         }
     }
 
-    /** 构造送入 LLM 的 user 消息正文 */
+    /**
+     * 构造送入 LLM 的 user 消息正文。
+     * 若请求带 runRiskWarnings，追加「运行风险预检」段落，提示先处理 AUTH_* 等问题。
+     */
     private static String buildUserContent(TestFlowDesignRequest request) {
-        return AiDesignMentionSupport.buildUserLlmContent(
+        String base = AiDesignMentionSupport.buildUserLlmContent(
                 request.getTestProjectId(),
                 request.getTestFlowId(),
                 request.getPrompt(),
                 request.getMentions());
+        List<String> risks = request.getRunRiskWarnings();
+        if (risks == null || risks.isEmpty()) {
+            return base;
+        }
+        StringBuilder sb = new StringBuilder(base);
+        sb.append("\n\n【运行风险预检（须处理）】\n");
+        for (String risk : risks) {
+            if (risk != null && !risk.isBlank()) {
+                sb.append("- ").append(risk.trim()).append('\n');
+            }
+        }
+        sb.append("若含 AUTH_TOKEN_MISSING：先 list_project_auth_profiles 判断 Profile 是否绑错端；")
+                .append("绑错则 upsert_auth_profile，缺登录抽取则 submit 补 extracts / 登录子流。");
+        return sb.toString();
     }
 
     /**
      * 构建 user 消息 result_meta_json。
-     * composerDoc 供前端恢复 chip；mentions 供多轮历史重建 LLM 上下文。
+     * 写入 composerDoc（恢复编辑器 chip）与 mentions（多轮历史重建 LLM 上下文）。
      */
     private static String buildUserMetaJson(TestFlowDesignRequest request) {
         boolean hasComposerDoc = request.getComposerDoc() != null && !request.getComposerDoc().isEmpty();

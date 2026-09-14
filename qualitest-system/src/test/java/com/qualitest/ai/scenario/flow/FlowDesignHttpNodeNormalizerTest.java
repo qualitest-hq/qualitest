@@ -19,7 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /**
- * 测 FlowDesignHttpNodeNormalizer：AI patch 里 HTTP 节点瘦身（body → overrides，剥厚 requestConfig）。
+ * 测 FlowDesignHttpNodeNormalizer：AI patch 里 HTTP 节点瘦身（body → overrides，剥厚 requestConfig），
+ * 以及 extract 行规范化（缺 entryKey 时拆 name=入口.字段 为 asset 抽取）。
  * 边界：纯函数，依赖传入的 TestProjectApi，无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignHttpNodeNormalizerTest
  */
@@ -189,11 +190,35 @@ class FlowDesignHttpNodeNormalizerTest {
     }
 
     /**
+     * 前提：scope=asset 且 name=adminAuth.token，缺 entryKey/fieldPath。
+     * 期望：拆成 entryKey=adminAuth、fieldPath=token、name=token。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("normalizeExtracts 拆 dotted asset name")
+    void normalizeExtracts_splitsDottedAssetName() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("extracts", List.of(
+                Map.of("scope", "asset", "name", "adminAuth.token", "from", "body", "expr", "$.data")
+        ));
+
+        FlowDesignHttpNodeNormalizer.normalizeExtracts(data);
+
+        JSONArray extracts = (JSONArray) data.get("extracts");
+        JSONObject row = extracts.getJSONObject(0);
+        assertEquals("asset", row.getString("scope"));
+        assertEquals("adminAuth", row.getString("entryKey"));
+        assertEquals("token", row.getString("fieldPath"));
+        assertEquals("token", row.getString("name"));
+        assertEquals("$.data", row.getString("expr"));
+    }
+
+    /**
      * 前提：callMode=external。
      * 期望：successCheck.mode=off。
      */
     @Test
-    @Order(7)
+    @Order(9)
     @DisplayName("external 模式默认 successCheck 为 off")
     void normalize_external_defaultsSuccessCheckOff() {
         Map<String, Object> data = new HashMap<>();

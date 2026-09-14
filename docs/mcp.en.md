@@ -61,6 +61,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `search_apis` / `get_api_details` | Project APIs (batch detail by id list) |
 | `list_project_envs` | Environments |
 | `list_asset_variables` | Project asset variable keys/fields (no plaintext values); **writes via Web AI `upsert_asset_variables` (Semi-auto: confirm; Full-auto: immediate)** |
+| `list_project_auth_profiles` | Project auth Profile summaries (pathPrefix, managed header, credential target; no secrets); **writes via Web AI `upsert_auth_profile` (Semi-auto confirm / Full-auto in-tool)** |
 | `list_subflow_templates` | Platform subflow templates |
 
 Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary` / `get_run_failure`.

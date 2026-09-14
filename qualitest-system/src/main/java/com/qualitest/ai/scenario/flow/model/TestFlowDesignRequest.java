@@ -31,7 +31,7 @@ public class TestFlowDesignRequest {
     private String designMode;
 
     /**
-     * designMode=template 时内联的预制接口列表（与模板 templateApis 同形）。
+     * designMode=template 时内联的预制接口列表。
      * 每项可含 testProjectApiId（合成 id，如 tpl-0）、apiPath、requestConfig 等。
      */
     private JSONArray templateApis;
@@ -50,6 +50,12 @@ public class TestFlowDesignRequest {
 
     /** 由 composerDoc 线性化后的用户描述纯文本 */
     private String prompt;
+
+    /**
+     * 画布当前运行风险文案（如 AUTH_TOKEN_MISSING），注入本轮 user 上下文供模型自愈。
+     * 可空。
+     */
+    private List<String> runRiskWarnings;
 
     /** 从 composerDoc 提取的去重 @ 引用列表 */
     private List<AiDesignMention> mentions;
@@ -71,8 +77,9 @@ public class TestFlowDesignRequest {
 
     /**
      * 是否开启全自动。
-     * true：注入 run_test_flow、追加全自动规程；改图在跑流前/回合结束隐式写库；素材 upsert 直写。
-     * false：半自动，Staging 与素材须人审。模板设计模式强制视为 false。
+     * true：注入 run_test_flow、追加全自动规程；改图在跑流前/回合结束隐式写库；
+     * 素材与鉴权 Profile 的 upsert 在工具内直写。
+     * false：半自动，Staging 与各类写入提案须人审。模板设计模式强制视为 false。
      */
     private Boolean autopilotEnabled;
 

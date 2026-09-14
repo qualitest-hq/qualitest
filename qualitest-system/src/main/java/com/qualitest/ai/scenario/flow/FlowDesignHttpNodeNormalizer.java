@@ -65,7 +65,7 @@ public final class FlowDesignHttpNodeNormalizer {
      *
      * @param data            节点 data
      * @param api             已绑定的项目接口；未绑定或外联时为 null
-     * @param projectAuthJson 项目鉴权 JSON；用于按托管头凭证目标 / 可用 schema 对齐登录 extract
+     * @param projectAuthJson 项目鉴权 JSON；用于按托管头凭证目标与响应 schema 补全/修正登录口 extracts
      */
     public static void normalize(Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
         if (data == null) {
@@ -108,9 +108,9 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 登录凭证口：仅当托管头凭证目标或响应 schema 能确定目标+expr 时，
-     * 空 extracts 补一行；已有「凭证类」行则对齐到 {@link LoginExtractSuggestor#suggest}。
-     * 自定义路径不改；无法确定 expr 时不编 JsonPath。
+     * 登录凭证口：仅当托管头凭证目标或响应 schema 能确定目标与 expr 时，
+     * 空 extracts 补一行建议抽取；已有凭证类行则改写为目标 scope/name/expr。
+     * 自定义非凭证路径不改；无法确定 expr 时不编造 JsonPath。
      */
     static void alignLoginExtract(
             Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
@@ -200,8 +200,8 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 规范化 extracts 列表：补全 from/scope/name，对 expr 做 LLM 路径规范化。
-     * 不猜测补 $.data 前缀。语义健康检查比对抽取路径前也会调用。
+     * 规范化 extracts 列表：补全 from/scope/name，对 expr 做路径规范化，
+     * 并将「入口.字段」形式的 name 拆成 asset 抽取。不猜测补 $.data 前缀。
      */
     public static void normalizeExtracts(Map<String, Object> data) {
         Object raw = data.get("extracts");
@@ -224,6 +224,12 @@ public final class FlowDesignHttpNodeNormalizer {
         }
     }
 
+    /**
+     * 规范化单行 extract：补 from/scope/name，规范化 expr；
+     * 若 name 形如 adminAuth.token 且缺 entryKey，则拆成 asset 的 entryKey/fieldPath。
+     *
+     * @return 规范化后的行；name 或 expr 缺失时返回 null（丢弃该行）
+     */
     private static JSONObject normalizeExtractRow(JSONObject row) {
         String name = defaultString(row.getString("name"), row.getString("entryKey"));
         String expr = row.getString("expr");
@@ -233,13 +239,58 @@ public final class FlowDesignHttpNodeNormalizer {
         if (name == null || name.isBlank() || expr == null || expr.isBlank()) {
             return null;
         }
+        String rawScope = trimToNull(row.getString("scope"));
+        String scope = rawScope != null ? rawScope : "flow";
+        String entryKey = trimToNull(row.getString("entryKey"));
+        String fieldPath = trimToNull(row.getString("fieldPath"));
+
+        // name=adminAuth.token 且缺 entryKey：拆成 asset 的入口名与字段路径
+        String dotted = name.trim();
+        int dot = dotted.indexOf('.');
+        if (entryKey == null && dot > 0 && dot < dotted.length() - 1
+                && dotted.indexOf('.', dot + 1) < 0) {
+            String left = dotted.substring(0, dot).trim();
+            String right = dotted.substring(dot + 1).trim();
+            boolean explicitAsset = "asset".equalsIgnoreCase(scope);
+            boolean omittedScope = rawScope == null;
+            if (!left.isEmpty() && !right.isEmpty()
+                    && (explicitAsset || (omittedScope && looksLikeAssetEntryKey(left)))) {
+                entryKey = left;
+                fieldPath = fieldPath != null ? fieldPath : right;
+                name = fieldPath;
+                scope = "asset";
+            }
+        }
+
         JSONObject next = new JSONObject();
         next.put("from", defaultString(row.getString("from"), "body"));
         next.put("expr", expr);
-        next.put("scope", defaultString(row.getString("scope"), "flow"));
+        next.put("scope", scope);
         next.put("name", name.trim());
-        copyOptionalExtractFields(row, next);
+        if (entryKey != null) {
+            next.put("entryKey", entryKey);
+        }
+        if (fieldPath != null) {
+            next.put("fieldPath", fieldPath);
+        }
         return next;
+    }
+
+    /**
+     * 判断 name 左段是否像素材入口名（含 auth）。
+     * 用于在未写 entryKey、未显式声明 scope 时，把「入口.字段」拆成 asset 抽取。
+     */
+    private static boolean looksLikeAssetEntryKey(String left) {
+        String k = left.toLowerCase();
+        return k.contains("auth");
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 
     private static void copyOptionalExtractFields(JSONObject from, JSONObject to) {

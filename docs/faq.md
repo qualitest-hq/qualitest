@@ -22,14 +22,35 @@
 
 `AUTH_TOKEN_MISSING` / 登录 extract / HTTP 必填等 **只在运行硬拦**（保存可带错落盘）。Staging ✓ 能过、点保存也成功、点运行才报 AUTH → 先查项目 Profile 托管头是否绑错端（如客户端误用 `adminAuth`）、再查登录 extract，不是 confirm / 保存 bug。
 
+**AI 自愈**（与人手改设置页等价）：
+
+1. 造登录或修 `AUTH_TOKEN_MISSING` 前先 `list_project_auth_profiles`，核对托管头凭证目标。
+2. Profile 绑错端 → `upsert_auth_profile`（半自动：聊天侧确认卡片写入 `auth_config`；全自动：工具内直写）。未确认的鉴权提案会挡住 `run_test_flow` / 隐式落盘。
+3. 下一轮设计请求会带上校验条里的 `runRiskWarnings`，模型可据此继续改图。
+4. 登录 extract 写成 `name=adminAuth.token` 且缺 `entryKey` 时，服务端会拆成 `entryKey` + `fieldPath`。
+
 | 码 | 含义 | 处理 |
 | --- | --- | --- |
 | `AUTH_LOGIN_EXTRACT_MISSING` | 登录口没抽出托管头所需凭证（asset/flow） | 补 extracts 或让 AI 按托管头占位符补 |
-| `AUTH_TOKEN_MISSING` | 后续 HTTP 要用凭证，但图里没有来源 | 同端补登录 extract（或存量 flowSeed 仅对 flow 目标）；核对 Profile `headerValueTemplate` |
+| `AUTH_TOKEN_MISSING` | 后续 HTTP 要用凭证，但图里没有来源 | 同端补登录 extract（或存量 flowSeed 仅对 flow 目标）；核对 Profile `headerValueTemplate`；文案含「疑似绑错端」时改项目鉴权 |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | 两套登录写出同一凭证路径 | 双端分用 `adminAuth` / `clientAuth` |
 | `AUTH_HEADER_MANAGED` | 已自动补托管头 | 提示，不拦 |
 
 → [ai-staging.md §5](./ai-staging.md)
+
+### 客户端 HTTP 却报缺 `adminAuth.token`
+
+多半是 **Profile 托管头绑错端**（客户端 Profile 的 `headerValueTemplate` 写成了 `{{asset.adminAuth.token}}`），不是画布缺登录节点。
+
+**怎么来的**：精简模板无登录流时，旧版 Apply 曾弱默认两端都成 `adminAuth` Bearer；现已改为读 `match_config.credential`，仍无法派生则拒绝该条。
+
+**怎么修（存量项目不自动改库）**：
+
+1. 项目设置 → 鉴权：改对应 Profile 的托管头；或删同名 Profile 后「从项目模板添加」再 Apply。
+2. AI：`upsert_auth_profile` 改 `headerValueTemplate`（半自动确认）。
+3. 新建项目勾正确模板 Apply 即可一次写对。
+
+→ [project-template.md](./project-template.md) · [project-summary.md §4](./project-summary.md)
 
 ### 账号密码应该放哪
 
@@ -57,8 +78,9 @@ Staging **全部 ✕** 取消坏提案，或**新建一条流**重来。不要�
 
 ### 「全自动」停了 / 没写库没跑
 
-- 默认是**半自动**：Staging / 素材须人审，确认后**人手保存**；未切到全自动时模型没有 `run_test_flow`。
-- 全自动下素材 `upsert` 会直接落盘；改图后直接 `run_test_flow`（自动写库），无需再 commit。
+- 默认是**半自动**：Staging / 素材 / 鉴权 Profile 提案须人审，确认后**人手保存**画布；未切到全自动时模型没有 `run_test_flow`。
+- 全自动下素材与鉴权 Profile 的 `upsert` 会直接落盘；改图后直接 `run_test_flow`（自动写库），无需再 commit。
+- 尚有未确认的素材或鉴权提案时，`run_test_flow` / 隐式落盘会拒绝。
 - Run 就绪/AUTH 硬拦、paused（await-input）也会停；看助手气泡与工具回执 hint。
 
 → [ai-staging.md §6](./ai-staging.md)

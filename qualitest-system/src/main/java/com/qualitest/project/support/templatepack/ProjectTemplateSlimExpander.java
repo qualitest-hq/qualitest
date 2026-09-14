@@ -7,6 +7,7 @@ import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.domain.TestProjectTemplate;
+import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport;
 import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.ExpandResult;
 import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.SlimApi;
 import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.SlimCredential;
@@ -294,33 +295,19 @@ public class ProjectTemplateSlimExpander {
         return sb.toString();
     }
 
-    /** 从 extract（字符串或带 expr 的对象）取出表达式文本。 */
+    /**
+     * 从 extract（字符串或带 expr 的对象）取出 JsonPath 表达式文本。
+     */
     static String extractExpr(Object extract) {
-        if (extract == null) {
-            return null;
-        }
-        if (extract instanceof String s) {
-            return StrUtil.trimToNull(s);
-        }
-        if (extract instanceof Map<?, ?> map) {
-            Object expr = map.get("expr");
-            return expr == null ? null : StrUtil.trimToNull(String.valueOf(expr));
-        }
-        return StrUtil.trimToNull(String.valueOf(extract));
+        return PrefabricatedTemplateExtrasSupport.matchConfigExtractExpr(extract);
     }
 
-    /** JSONPath 末段字段名，用于推断 tokenField（如 $.data.accessToken → accessToken）。 */
+    /**
+     * 取 JSONPath 末段字段名，用于在未写 tokenField 时推断素材字段
+     * （如 $.data.accessToken → accessToken）。
+     */
     static String lastPathSegment(String jsonPath) {
-        if (StrUtil.isBlank(jsonPath)) {
-            return null;
-        }
-        String t = jsonPath.trim();
-        int idx = Math.max(t.lastIndexOf('.'), t.lastIndexOf(']'));
-        if (idx < 0) {
-            return t.startsWith("$") ? null : t;
-        }
-        String seg = t.substring(idx + 1).replace("]", "").trim();
-        return seg.isEmpty() ? null : seg;
+        return PrefabricatedTemplateExtrasSupport.lastPathSegment(jsonPath);
     }
 
     /** 由 method / query / headers / body 组装 requestConfig。 */

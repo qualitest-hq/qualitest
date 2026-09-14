@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 /**
@@ -94,6 +95,60 @@ class FlowDesignAutopilotCommitSupportTest {
         assertTrue(outcome.committed());
         assertFalse(capture.hasAccepted());
         assertTrue(committed[0]);
+        verify(flowService, times(1)).updateTestFlow(any());
+    }
+
+    /**
+     * 前提：工作图有两个无入边节点（完整校验会报双开始节点）。
+     * 期望：仍写库；warnings 含开始节点提示；不因完整结构错误失败。
+     */
+    @Test
+    @Order(3)
+    @DisplayName("双开始节点仅 warnings，仍落盘")
+    void commit_twoStartNodes_commitsWithWarnings() {
+        ITestFlowService flowService = mock(ITestFlowService.class);
+        GraphJsonValidator validator = mock(GraphJsonValidator.class);
+        FlowDesignPatchNormalizer normalizer = mock(FlowDesignPatchNormalizer.class);
+        when(validator.validate(any(), argThat(opt -> opt != null && opt.isPersistMinimalOnly())))
+                .thenReturn(GraphValidationResult.of(List.of(), List.of()));
+        when(validator.validate(any(), argThat(opt -> opt != null && !opt.isPersistMinimalOnly())))
+                .thenReturn(GraphValidationResult.of(
+                        List.of("流程只能有一个开始节点，当前有 2 个：客户端探活、凭证是否已存在"),
+                        List.of()));
+        when(normalizer.apiResolver()).thenReturn(id -> null);
+        TestFlow existing = new TestFlow();
+        existing.setTestFlowId(3002L);
+        existing.setTestProjectId(100L);
+        existing.setDelStatus(0);
+        when(flowService.selectTestFlowById(3002L)).thenReturn(existing);
+        when(flowService.updateTestFlow(any())).thenReturn(1);
+
+        FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
+        FlowDesignPatch unit = new FlowDesignPatch();
+        GraphNode a = GraphNode.builder().id("a").type("http").build();
+        GraphNode b = GraphNode.builder().id("b").type("condition").build();
+        unit.getAddNodes().add(a);
+        unit.getAddNodes().add(b);
+        capture.record(new FlowDesignPatchNormalizer.NormalizeResult(
+                unit,
+                DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build()));
+
+        GraphJson working = GraphJson.builder().nodes(List.of(a, b)).build();
+        FlowDesignToolContext ctx = FlowDesignToolContext.builder()
+                .testFlowId(3002L)
+                .testProjectId(100L)
+                .autopilotEnabled(true)
+                .submitCapture(capture)
+                .graphJson(GraphJson.builder().build())
+                .workingGraphRef(new AtomicReference<>(working))
+                .build();
+
+        var outcome = FlowDesignAutopilotCommitSupport.commitIfNeeded(
+                ctx, flowService, validator, normalizer);
+
+        assertTrue(outcome.ok());
+        assertTrue(outcome.committed());
+        assertTrue(outcome.warnings().stream().anyMatch(w -> w.contains("开始节点")));
         verify(flowService, times(1)).updateTestFlow(any());
     }
 }
