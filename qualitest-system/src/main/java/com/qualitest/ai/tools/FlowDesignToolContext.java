@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * 测试流 AI 设计工具执行时的请求级上下文。
@@ -73,9 +74,27 @@ public class FlowDesignToolContext {
 
     /**
      * 隐式落盘成功后的回调（参数：testFlowId、已落库图）。
-     * SSE 编排层用于推送 graphCommitted 事件；可为 null。
+     * 设计流式通道可据此推送 graphCommitted；可为 null。
      */
     private final BiConsumer<Long, GraphJson> onGraphCommitted;
+
+    /**
+     * 已触发 Run 并拿到 runId 后的回调。
+     * 设计流式通道可据此推送 runStarted，画布开始按步骤高亮；可为 null。
+     */
+    private final Consumer<Long> onRunStarted;
+
+    /**
+     * 设计请求带来的默认运行场景 id。
+     * run_test_flow 未在工具参数里传 runScenarioId 时用此值。
+     */
+    private final String defaultRunScenarioId;
+
+    /**
+     * 设计请求带来的默认环境 id。
+     * run_test_flow 未在工具参数里传 testProjectEnvId 时用此值。
+     */
+    private final Long defaultTestProjectEnvId;
 
     /** search_apis 单次返回条数上限 */
     @Builder.Default
@@ -144,6 +163,13 @@ public class FlowDesignToolContext {
         }
         if (onGraphCommitted != null && testFlowId != null && saved != null) {
             onGraphCommitted.accept(testFlowId, saved);
+        }
+    }
+
+    /** 已拿到 runId 后通知画布开始按步骤高亮（若有 onRunStarted） */
+    public void notifyRunStarted(Long runId) {
+        if (onRunStarted != null && runId != null) {
+            onRunStarted.accept(runId);
         }
     }
 

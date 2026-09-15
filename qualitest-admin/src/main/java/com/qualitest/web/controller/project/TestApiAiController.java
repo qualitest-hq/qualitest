@@ -15,6 +15,8 @@ import com.qualitest.project.service.ITestProjectMemberService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -87,7 +89,10 @@ public class TestApiAiController extends BaseController {
                 }
             }
         };
+        // SSE 独立线程须带回登录态，避免后续鉴权/成员校验拿不到用户
+        SecurityContext securityContext = SecurityContextHolder.getContext();
         Thread worker = new Thread(() -> {
+            SecurityContextHolder.setContext(securityContext);
             try {
                 ApiDesignResult result = apiDesignAgent.design(request, userId, listener);
                 sendStreamEvent(emitter, Map.of("type", "done", "result", result));
@@ -100,6 +105,8 @@ public class TestApiAiController extends BaseController {
                 } catch (Exception ignored) {
                     emitter.completeWithError(e);
                 }
+            } finally {
+                SecurityContextHolder.clearContext();
             }
         });
         worker.setName("api-design-ai-stream");

@@ -47,7 +47,7 @@ public class TestFlowRunParams extends BaseEntity implements Serializable {
     private String graphFingerprint;
 
     /**
-     * 触发方式（manual手动 ci持续集成 schedule定时）
+     * 触发来源：manual（画布人手）、ai（全自动）、ci、schedule 等
      */
     private String triggerType;
 

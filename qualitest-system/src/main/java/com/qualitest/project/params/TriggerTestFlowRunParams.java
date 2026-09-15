@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * POST {@code /project/testFlowRun/trigger} 请求体。
+ * 触发正式 Run 的请求体。
  */
 @Getter
 @Setter
@@ -16,14 +16,18 @@ import lombok.Setter;
 @AllArgsConstructor
 public class TriggerTestFlowRunParams {
 
+    /** 要运行的测试流 id */
     private Long testFlowId;
 
-    /** 可选，覆盖场景内环境 */
+    /** 可选，覆盖场景内绑定的环境 */
     private Long testProjectEnvId;
 
-    /** 可选，覆盖 meta.activeScenarioId */
+    /** 可选，覆盖图 meta 里的活动场景 */
     private String runScenarioId;
 
-    /** manual / ci / schedule，默认 manual */
+    /**
+     * 触发来源，写入运行记录。
+     * 常见值：manual（画布人手）、ai（全自动工具）、ci、schedule；空则按 manual。
+     */
     private String triggerType;
 }

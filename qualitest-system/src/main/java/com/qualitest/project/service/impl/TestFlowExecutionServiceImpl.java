@@ -23,6 +23,7 @@ import com.qualitest.project.result.ResumeRunResult;
 import com.qualitest.project.result.RunPauseInfo;
 import com.qualitest.project.result.SnapshotStackItemResult;
 import com.qualitest.flow.run.RunBootstrapMeta;
+import com.qualitest.flow.run.RunStatusUpdater;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
 import com.qualitest.flow.http.FlowExternalPermission;
@@ -45,19 +46,23 @@ import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectEnvService;
 import com.qualitest.project.service.ITestProjectMemberService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
  * 测试流 Run 编排服务。
  * <p>
  * 触发运行：校验成员 → 解析图 → 运行就绪检查（结构/断言路径/鉴权/必填）→ 解析场景与环境 →
- * 写入 Run 快照 → 同步执行。<br>
- * 查询详情：返回 Run 头与按 step_index 排序的步骤列表。
+ * 写入 running 态 Run 并立刻返回 runId；后台线程继续执行，每步完成即落步骤表。<br>
+ * 查询详情：返回 Run 头与按 step_index 排序的步骤列表（执行中也可查）。
  */
 @Service
 @RequiredArgsConstructor
@@ -72,6 +77,14 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     private final TestFlowExecutor testFlowExecutor;
     private final StepResultWriter stepResultWriter;
     private final FlowRunReadinessGate flowRunReadinessGate;
+    private final RunStatusUpdater runStatusUpdater;
+
+    /** 后台跑流线程池；守护线程，不阻塞触发接口返回 */
+    private final ExecutorService runExecutor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "test-flow-run");
+        t.setDaemon(true);
+        return t;
+    });
 
     @Override
     public Long triggerRun(TriggerTestFlowRunParams params) {
@@ -137,11 +150,12 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             ctx.setProjectAuthConfig(project.getAuthConfig());
         }
 
-        // 4. 深拷贝图 JSON 为 snapshot，并计算指纹供列表对比
+        // 4. 固化图快照与指纹（列表对比用）
         String snapshotJson = graph.toJsonString();
         String fingerprint = StepResultWriter.fingerprint(snapshotJson);
 
-        // 5. 插入 running 态 Run，再同步执行
+        // 5. 插入 running 态 Run 后立刻返回；图在后台线程继续跑
+        //    后台线程须带回当前登录态，否则成员校验/外联权限会失败
         Date now = DateUtils.getNowDate();
         Long runId = IdUtil.getSnowflakeNextId();
         TestFlowRun run = TestFlowRun.builder()
@@ -159,8 +173,61 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         run.setCreateTime(now);
         testFlowRunService.insertTestFlowRun(run);
 
-        testFlowExecutor.execute(runId, graph, ctx, new RunBootstrapMeta(scenario, env.getEnvName(), env));
+        SecurityContext securityContext = SecurityContextHolder.getContext();
+        RunBootstrapMeta bootstrap = new RunBootstrapMeta(scenario, env.getEnvName(), env);
+        GraphJson graphSnapshot = graph;
+        FlowRunContext runCtx = ctx;
+        Date startedAt = now;
+        runExecutor.execute(() -> {
+            SecurityContextHolder.setContext(securityContext);
+            try {
+                testFlowExecutor.execute(runId, graphSnapshot, runCtx, bootstrap);
+            } catch (Exception e) {
+                // 兜底：避免异常导致记录永久停在 running
+                try {
+                    String msg = e.getMessage() != null ? e.getMessage() : "运行异常";
+                    runStatusUpdater.markFinished(runId, RunStatus.FAILED, startedAt,
+                            startedAt.getTime(), runCtx,
+                            FlowErrorCode.TF_STEP_ERROR.getCode(), msg);
+                } catch (Exception ignored) {
+                    // ignore
+                }
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        });
         return runId;
+    }
+
+    /**
+     * 短间隔查库，直到 status 不再是 running，或超过 timeoutMs。
+     *
+     * @param timeoutMs 最长等待；超时仍返回当前快照（可能仍为 running）
+     */
+    @Override
+    public TestFlowRunResult awaitRunTerminal(Long testFlowRunId, long timeoutMs) {
+        if (testFlowRunId == null) {
+            throw new ServiceException("testFlowRunId 不能为空");
+        }
+        long deadline = System.currentTimeMillis() + Math.max(0, timeoutMs);
+        TestFlowRunResult latest = null;
+        while (System.currentTimeMillis() <= deadline) {
+            latest = testFlowRunService.selectTestFlowRunResult(testFlowRunId);
+            if (latest == null) {
+                return null;
+            }
+            String status = latest.getStatus();
+            if (status != null && !RunStatus.RUNNING.equals(status)) {
+                return latest;
+            }
+            try {
+                Thread.sleep(200L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return latest;
+            }
+        }
+        return latest != null ? latest : testFlowRunService.selectTestFlowRunResult(testFlowRunId);
     }
 
     @Override

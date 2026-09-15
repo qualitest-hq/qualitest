@@ -15,28 +15,41 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 内存图遍历执行器：按边顺序执行节点 Handler，支持续跑与暂停。
  * <p>
- * 暂停来源：节点返回 failed 且策略要求暂停、checkpoint 钩子失败、节点返回 paused（人工输入）。
- * 续跑模式含重试、跳过、完成当前节点（人工输入已写入后记 passed）等。
+ * 每产生一步可立刻回调（通常用于当场写步骤表）；内存中仍保留完整 steps 供 Outcome 使用。
+ * 暂停来源：节点 failed 且策略要求暂停、checkpoint 钩子失败、节点 paused（人工输入）。
+ * 续跑模式含重试、跳过、完成当前节点等。
  */
 @Component
 public class FlowGraphRunner {
 
     public Outcome run(GraphJson snapshot, FlowRunContext ctx, NodeHandlerRegistry registry) {
-        return run(snapshot, ctx, registry, FlowNodePreExecuteHook.NONE, RunContinuation.fresh(), RunSnapshotPolicy.defaults());
+        return run(snapshot, ctx, registry, FlowNodePreExecuteHook.NONE, RunContinuation.fresh(),
+                RunSnapshotPolicy.defaults(), null);
     }
 
     public Outcome run(GraphJson snapshot, FlowRunContext ctx, NodeHandlerRegistry registry,
                        FlowNodePreExecuteHook preExecuteHook) {
-        return run(snapshot, ctx, registry, preExecuteHook, RunContinuation.fresh(), RunSnapshotPolicy.defaults());
+        return run(snapshot, ctx, registry, preExecuteHook, RunContinuation.fresh(),
+                RunSnapshotPolicy.defaults(), null);
     }
 
     public Outcome run(GraphJson snapshot, FlowRunContext ctx, NodeHandlerRegistry registry,
                        FlowNodePreExecuteHook preExecuteHook, RunContinuation continuation,
                        RunSnapshotPolicy policy) {
+        return run(snapshot, ctx, registry, preExecuteHook, continuation, policy, null);
+    }
+
+    /**
+     * @param onStep 每产生一步（含 prelude / 节点结果）立刻回调，便于当场落库；可为 null
+     */
+    public Outcome run(GraphJson snapshot, FlowRunContext ctx, NodeHandlerRegistry registry,
+                       FlowNodePreExecuteHook preExecuteHook, RunContinuation continuation,
+                       RunSnapshotPolicy policy, Consumer<StepResult> onStep) {
         GraphWalker walker = new GraphWalker(snapshot);
         String currentId;
         String incomingEdgeId;
@@ -83,7 +96,7 @@ public class FlowGraphRunner {
                 FlowNodePreExecuteHook.PreExecuteOutcome pre = preExecuteHook.beforeNode(node);
                 if (pre != null) {
                     for (StepResult prelude : pre.preludeSteps()) {
-                        steps.add(prelude);
+                        recordStep(steps, prelude, onStep);
                     }
                     if (pre.pause()) {
                         StepError error = pre.abortError() != null
@@ -116,7 +129,7 @@ public class FlowGraphRunner {
             } else {
                 result = registry.execute(ctx, node, incomingEdgeId);
             }
-            steps.add(result);
+            recordStep(steps, result, onStep);
 
             if (StepResult.STATUS_PAUSED.equals(result.getStatus())) {
                 StepError error = result.getError() != null
@@ -146,6 +159,14 @@ public class FlowGraphRunner {
         }
 
         return Outcome.passed(steps, ctx, steps.size());
+    }
+
+    /** 追加到内存步骤列表；若有 onStep 则立刻回调（通常用于当场写库） */
+    private static void recordStep(List<StepResult> steps, StepResult result, Consumer<StepResult> onStep) {
+        steps.add(result);
+        if (onStep != null && result != null) {
+            onStep.accept(result);
+        }
     }
 
     /** 跳过或完成节点时不跑 Handler，直接合成一步（skipped 或 passed） */

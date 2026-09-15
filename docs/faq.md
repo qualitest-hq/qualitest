@@ -79,9 +79,11 @@ Staging **全部 ✕** 取消坏提案，或**新建一条流**重来。不要�
 ### 「全自动」停了 / 没写库没跑
 
 - 默认是**半自动**：Staging / 素材 / 鉴权 Profile 提案须人审，确认后**人手保存**画布；未切到全自动时模型没有 `run_test_flow`。
-- 全自动下素材与鉴权 Profile 的 `upsert` 会直接落盘；改图后直接 `run_test_flow`（自动写库），无需再 commit。
+- **只拨开关不会跑**：须再发一条造流/修复类请求；开关只作用于该次及之后发送。
+- 全自动下素材与鉴权 Profile 的 `upsert` 会直接落盘；造流/修复完成后模型应主动 `run_test_flow`（自动写库），无需再 commit。纯答疑可不跑。
 - 尚有未确认的素材或鉴权提案时，`run_test_flow` / 隐式落盘会拒绝。
 - Run 就绪/AUTH 硬拦、paused（await-input）也会停；看助手气泡与工具回执 hint。
+- **边跑边亮**：`run_test_flow` 与人手「运行」共用同一 trigger——先返 `runId`、执行中按节点落库；SSE 推 `runStarted` 后画布轮询详情高亮当前步（不再等跑完才回放）。
 
 → [ai-staging.md §6](./ai-staging.md)
 

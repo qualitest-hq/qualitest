@@ -22,9 +22,16 @@ public interface AgentRunListener {
     }
 
     /**
-     * 全自动隐式落盘成功后回调。
-     * 前端据此清 Staging 并重新加载画布（testFlowId 为已写库的测试流）。
+     * 全自动隐式落盘成功后回调（参数为已写库的 testFlowId）。
+     * 画布侧可清 Staging 并重新加载该测试流。
      */
     default void onGraphCommitted(Long testFlowId) {
+    }
+
+    /**
+     * 全自动已触发 Run（参数为刚返回的 runId，图在后台执行中）。
+     * 画布侧可开始按步骤轮询详情并高亮当前节点。
+     */
+    default void onRunStarted(Long runId) {
     }
 }

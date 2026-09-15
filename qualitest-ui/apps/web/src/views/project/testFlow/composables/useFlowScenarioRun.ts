@@ -1,8 +1,9 @@
 /**
- * 场景运行：触发正式 Run，拉取详情后按步骤动画高亮并写入运行库。
+ * 场景运行：触发正式 Run，执行中轮询详情并高亮画布上最新已完成步骤。
  *
- * 流程：脏图可先带错保存 → 运行就绪检查（结构/断言路径/鉴权必填）→
- * 通过后 POST 触发 → 拉详情 → 逐步高亮。
+ * 流程：脏图可先带错保存 → 运行就绪检查 → POST 触发（立刻得到 runId）→
+ * 短间隔拉详情并高亮 → 终态 toast。
+ * watchRunLive 也可由 AI 设计流在收到 runStarted 后调用。
  */
 import { computed } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -10,10 +11,10 @@ import { ElMessage } from 'element-plus';
 import { triggerTestFlowRun } from '@/api/project/testFlowRun';
 import { validateSnapshotResetEndpointStatic } from '@/utils/flow/snapshotPreRunValidate';
 
-import { SCENARIO_RUN_STEP_MS } from '../constants/flowConfig';
+import { LIVE_RUN_POLL_MS } from '../constants/flowConfig';
 import { toGraphJson } from '../graphAdapter';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
-import type { RunRecord } from '../stores/runLibraryStore';
+import type { RunRecord, RunRecordStatus } from '../stores/runLibraryStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
 import { abortableSleep } from '../utils/abortableSleep';
@@ -23,8 +24,17 @@ import { useFlowGraph } from './useFlowGraph';
 import { useFlowSimulate } from './useFlowSimulate';
 import { useRunConfig } from './useRunConfig';
 
+/** Run 已结束、可停止轮询的状态 */
+const TERMINAL_STATUSES = new Set<RunRecordStatus>([
+  'passed',
+  'failed',
+  'paused',
+  'aborted',
+  'cancelled',
+]);
+
 /**
- * 按 Run 步骤时间线高亮画布节点：已访问节点写入 runVisitedNodeIds，当前步写入 runHighlightNodeId。
+ * 按 Run 步骤时间线高亮画布：0..stepIndex 写入已访问样式，当前步写入高亮节点。
  */
 export function highlightRunStep(
   store: ReturnType<typeof useFlowCanvasStore>,
@@ -41,44 +51,13 @@ export function highlightRunStep(
   if (step?.nodeId) store.runHighlightNodeId = step.nodeId;
 }
 
-/**
- * 正式 Run 完成后按 SCENARIO_RUN_STEP_MS 逐步高亮，同步 Inspector 步骤索引。
- * 用户按 Esc 或点停止时通过 scenarioRunLive.abort 中断。
- */
-async function animateRunSteps(detail: RunRecord) {
-  const store = useFlowCanvasStore();
-  const runLib = useRunLibraryStore();
-  const steps = detail.steps;
-  if (!steps.length) return;
-
-  const recordId = detail.id;
-  const shouldAbort = () => !!runLib.scenarioRunLive?.abort;
-
-  runLib.scenarioRunLive = {
-    abort: false,
-    recordId,
-    phase: 'animating',
-    stepIndex: 0,
-    stepTotal: steps.length,
-  };
-  runLib.inspectorStepIndex = 0;
-  highlightRunStep(store, detail, 0);
-
-  for (let i = 1; i < steps.length; i++) {
-    if (shouldAbort()) break;
-    await abortableSleep(SCENARIO_RUN_STEP_MS, shouldAbort);
-    if (shouldAbort()) break;
-
-    runLib.scenarioRunLive = {
-      abort: false,
-      recordId,
-      phase: 'animating',
-      stepIndex: i,
-      stepTotal: steps.length,
-    };
-    runLib.inspectorStepIndex = i;
-    highlightRunStep(store, detail, i);
+/** 取最后一个带画布 nodeId 的步骤下标（跳过纯 run_config 等引导步） */
+function lastGraphStepIndex(record: RunRecord): number {
+  const steps = record.steps ?? [];
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i]?.nodeId) return i;
   }
+  return steps.length > 0 ? steps.length - 1 : -1;
 }
 
 export function useFlowScenarioRun() {
@@ -91,9 +70,82 @@ export function useFlowScenarioRun() {
   const isScenarioRunActive = computed(() => !!runLib.scenarioRunLive);
 
   /**
+   * 执行中轮询 Run 详情，用最新已完成步骤高亮画布；到达终态后 toast 并停止。
+   * @param takeOver false 时若已有其它 live 会话，只把本 run 写入运行库，不抢当前高亮
+   */
+  async function watchRunLive(
+    runId: string,
+    options?: { takeOver?: boolean },
+  ): Promise<RunRecord | null> {
+    const takeOver = options?.takeOver !== false;
+    const live = runLib.scenarioRunLive;
+    if (
+      !takeOver
+      && live
+      && live.recordId
+      && !String(live.recordId).startsWith('pending-')
+      && live.recordId !== runId
+    ) {
+      const detail = await runLib.fetchRunDetail(runId);
+      if (detail) runLib.upsertRun(detail);
+      return detail;
+    }
+
+    runLib.scenarioRunLive = { abort: false, recordId: runId, phase: 'running' };
+    store.showRunPanel();
+    store.ui.leftTab = 'runs';
+
+    let lastDetail: RunRecord | null = null;
+    try {
+      while (runLib.scenarioRunLive && !runLib.scenarioRunLive.abort) {
+        const detail = await runLib.fetchRunDetail(runId);
+        if (!detail) break;
+        lastDetail = detail;
+        runLib.upsertRun(detail);
+        runLib.selectedRunId = runId;
+
+        const stepIdx = lastGraphStepIndex(detail);
+        if (stepIdx >= 0) {
+          const aborted = !!runLib.scenarioRunLive?.abort;
+          runLib.scenarioRunLive = {
+            abort: aborted,
+            recordId: runId,
+            phase: 'running',
+            stepIndex: stepIdx,
+            stepTotal: detail.steps.length,
+          };
+          runLib.inspectorStepIndex = stepIdx;
+          highlightRunStep(store, detail, stepIdx);
+        }
+
+        if (TERMINAL_STATUSES.has(detail.status)) {
+          if (!runLib.scenarioRunLive?.abort) {
+            if (detail.status === 'failed') {
+              ElMessage.error(detail.errorMessage ?? '运行失败');
+            } else if (detail.status === 'paused') {
+              ElMessage.warning(detail.errorMessage ?? '运行已暂停');
+            } else if (detail.status === 'passed') {
+              ElMessage.success('运行完成');
+            }
+          }
+          break;
+        }
+
+        await abortableSleep(LIVE_RUN_POLL_MS, () => !!runLib.scenarioRunLive?.abort);
+      }
+      return lastDetail;
+    } finally {
+      const aborted = !!runLib.scenarioRunLive?.abort;
+      if (runLib.scenarioRunLive?.recordId === runId) {
+        runLib.scenarioRunLive = null;
+      }
+      if (aborted) store.clearRunHighlight();
+    }
+  }
+
+  /**
    * 运行当前选中场景。
-   * 成功后打开右栏运行详情、切换左栏至运行库，并按步骤动画高亮。
-   * 就绪检查未通过则 toast 首条错误并中止，不发起 Run。
+   * 触发接口立刻返回 runId 后开始轮询高亮；就绪检查未通过则 toast 首条错误并中止。
    */
   async function runActiveScenario() {
     if (runLib.scenarioRunLive) return null;
@@ -106,7 +158,6 @@ export function useFlowScenarioRun() {
       ? envOptions.value.find((e) => e.testProjectEnvId === String(envId))
       : undefined;
 
-    // 先静默落盘（允许半成品），再统一做一次就绪检查，避免保存里再跑一遍
     if (store.dirty) {
       const saved = await saveFlow({ quiet: true, skipRunRiskRefresh: true });
       if (!saved) {
@@ -132,7 +183,6 @@ export function useFlowScenarioRun() {
       graph: graphForRun,
       testProjectId: store.testProjectId,
     });
-    // 把鉴权/必填子集写入校验条；结构错误已由实时结构校验展示
     useRunRiskStore().setWarnings(precheckErrors);
     if (blocking.length) {
       ElMessage.error(`${blocking[0]}（详见左上角校验条）`);
@@ -166,39 +216,16 @@ export function useFlowScenarioRun() {
         return null;
       }
 
-      runLib.scenarioRunLive = { abort: false, recordId: runId, phase: 'running' };
-      const detail = await runLib.fetchRunDetail(runId);
-      if (!detail) return null;
-
-      if (runLib.scenarioRunLive?.abort) return null;
-
-      runLib.upsertRun(detail);
-      store.showRunPanel();
-      store.ui.leftTab = 'runs';
-
-      await animateRunSteps(detail);
-
-      if (!runLib.scenarioRunLive?.abort) {
-        if (detail.status === 'failed') {
-          ElMessage.error(detail.errorMessage ?? '运行失败');
-        } else {
-          ElMessage.success('运行完成');
-        }
-      }
-
-      return detail;
+      return await watchRunLive(runId, { takeOver: true });
     } catch (e) {
       ElMessage.error((e as Error)?.message ?? '运行失败');
-      return null;
-    } finally {
-      const aborted = runLib.scenarioRunLive?.abort;
       runLib.scenarioRunLive = null;
-      if (aborted) store.clearRunHighlight();
+      return null;
     }
   }
 
   /**
-   * 中止运行或运行动画。后端为同步执行，进行中的 HTTP 请求无法取消，仅忽略后续高亮与提示。
+   * 中止画布侧轮询/高亮。后台图执行无法取消，仅忽略后续 UI 更新。
    */
   function abortScenarioRun() {
     if (runLib.scenarioRunLive) runLib.scenarioRunLive.abort = true;
@@ -207,6 +234,7 @@ export function useFlowScenarioRun() {
   return {
     runActiveScenario,
     abortScenarioRun,
+    watchRunLive,
     isScenarioRunActive,
     highlightRunStep,
   };

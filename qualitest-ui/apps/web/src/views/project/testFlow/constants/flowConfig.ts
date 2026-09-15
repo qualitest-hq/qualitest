@@ -12,13 +12,14 @@ export const COND_ROW_H = 40;
 /** VueFlow 实例 id，供画布外组件通过 useVueFlow(id) 访问 */
 export const FLOW_VUE_FLOW_ID = 'flow-canvas-main';
 
-/** 路径模拟与场景运行的步数、间隔上限 */
+/** 路径模拟的步数、间隔上限 */
 export const SIMULATE_MAX_PATH_STEPS = 50;
 export const SIMULATE_MAX_LOOP_EDGE_USES = 1;
 export const SIMULATE_STEP_MS = 650;
 export const SIMULATE_PATH_GAP_MS = 500;
-export const RUN_EXEC_MAX_STEPS = 50;
-export const SCENARIO_RUN_STEP_MS = 480;
+
+/** 正式 Run 执行中轮询详情的间隔（毫秒） */
+export const LIVE_RUN_POLL_MS = 400;
 /** 运行库回放自动步进间隔（毫秒） */
 export const RUN_REPLAY_STEP_MS = 550;
 

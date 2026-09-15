@@ -102,7 +102,7 @@ class TestFlowDesignAgentTest {
                 .thenReturn(List.of());
         when(conversationService.loadFlowDesignClientIdMap(any())).thenReturn(new HashMap<>());
         when(toolsDefinitionService.loadToolsDefinition(anyBoolean())).thenReturn(List.of());
-        when(contextFactory.fromDesignRequest(any(), any(), any(), any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
+        when(contextFactory.fromDesignRequest(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any())).thenAnswer(inv -> {
             TestFlowDesignRequest req = inv.getArgument(0);
             FlowDesignSubmitCapture capture = inv.getArgument(1);
             return FlowDesignToolContext.builder()

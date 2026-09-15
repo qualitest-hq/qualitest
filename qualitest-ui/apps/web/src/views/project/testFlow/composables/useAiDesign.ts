@@ -33,6 +33,8 @@ import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
 import { useFlowGraph } from './useFlowGraph';
+import { useFlowScenarioRun } from './useFlowScenarioRun';
+import { useRunConfig } from './useRunConfig';
 import { isAutopilotEnabled } from '../utils/aiDesignPreferences';
 import type { AiDesignMessageView, AiDesignSystemAction, FlowDesignPatch, TestFlowDesignResult } from '../types/aiDesignTypes';
 import { parseAssistantFromServer, parseUserFromServer } from '../types/aiDesignTypes';
@@ -358,6 +360,8 @@ export function useAiDesign() {
       stagingFilter: stagingStore.buildPersistFilter(),
     });
     const isTemplate = store.canvasMode === 'template';
+    const { getActiveScenario } = useRunConfig();
+    const activeScenario = !isTemplate ? getActiveScenario() : undefined;
     const base: TestFlowDesignRequestPayload = {
       testFlowId: store.testFlowId,
       testProjectId: store.testProjectId || undefined,
@@ -368,8 +372,13 @@ export function useAiDesign() {
       composerDoc: payload.doc,
       graphJson,
       thinkingEnabled: thinkingEnabled.value,
-      // 模板画布强制半自动；项目画布跟 localStorage 全自动开关
+      // 模板画布强制半自动；项目画布跟本地全自动开关
       autopilotEnabled: !isTemplate && isAutopilotEnabled(),
+      // 当前画布活动场景/环境，供服务端跑流默认回退
+      runScenarioId: activeScenario?.id || undefined,
+      testProjectEnvId: activeScenario?.testProjectEnvId
+        ? String(activeScenario.testProjectEnvId)
+        : undefined,
     };
     // 把当前画布已算出的开跑/鉴权风险文案带入本轮设计请求
     const riskWarnings = useRunRiskStore().warnings;
@@ -386,6 +395,8 @@ export function useAiDesign() {
         testProjectApiId: e.syntheticId,
       }));
       base.autopilotEnabled = false;
+      base.runScenarioId = undefined;
+      base.testProjectEnvId = undefined;
     }
     return base;
   }
@@ -422,9 +433,10 @@ export function useAiDesign() {
   async function executeDesignRequest(payload: ComposerSendPayload) {
     designing.value = true;
     const { loadFlow } = useFlowGraph();
+    const { watchRunLive } = useFlowScenarioRun();
     try {
       const data = await runDesignStream(buildDesignPayload(payload), {
-        // 全自动隐式落盘成功：清 Staging 状态并重新拉库中图
+        // 全自动隐式写库成功：清 Staging 并重新拉库中图
         onGraphCommitted: (testFlowId) => {
           clearAllStagingState();
           resetStagingAcceptanceMaps();
@@ -435,6 +447,12 @@ export function useAiDesign() {
             .catch(() => {
               ElMessage.warning('已落库，但刷新画布失败，请手动重新打开测试流');
             });
+        },
+        // Run 已触发：开始轮询详情并高亮；已有其它 live 会话时不抢高亮
+        onRunStarted: (runId) => {
+          const id = String(runId || '').trim();
+          if (!id) return;
+          void watchRunLive(id, { takeOver: false });
         },
       });
       if (data.aiChatSessionId) {

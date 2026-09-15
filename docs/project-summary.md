@@ -43,7 +43,7 @@ flowchart TB
 | **接口资产** | method/path/schema/测值/鉴权 mode；来自插件上传或模板预制                   |
 | **测试流**  | 画布图（固定 8 种节点）；改图走 AI Staging 或属性面板                          |
 | **素材库**  | 可复用测值；登录口令优先 `{{asset.*}}`；文件走 `storagePath` → multipart    |
-| **Run**  | 一次执行；详情含时间线、HTTP、审计步（`run_config` / `snapshot` / `restore`） |
+| **Run**  | 一次执行；trigger 先返 `runId`、按节点落库，详情可边跑边看；含时间线、HTTP、审计步（`run_config` / `snapshot` / `restore`） |
 
 
 跑流变量：`{{flow.*}}` · `{{env.*}}` · `{{asset.*}}`（详见 [flow-variables-and-values.md](./flow-variables-and-values.md)）。`session` 仅 Script 节点；断言左值见 [test-flow-nodes.md](./test-flow-nodes.md)。

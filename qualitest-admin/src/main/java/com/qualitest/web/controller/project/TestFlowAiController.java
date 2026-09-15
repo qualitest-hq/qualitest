@@ -29,6 +29,8 @@ import com.qualitest.project.service.ITestProjectMemberService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -199,8 +201,9 @@ public class TestFlowAiController extends BaseController {
      * <ul>
      *   <li>token / thinking：模型增量文本</li>
      *   <li>tool_start / tool_end：工具调用起止</li>
-     *   <li>graphCommitted：全自动隐式写库成功（带 testFlowId），前端应清 Staging 并 reload</li>
-     *   <li>done：整轮结束，data.result 为 TestFlowDesignResult</li>
+     *   <li>graphCommitted：全自动隐式写库成功（带 testFlowId），画布应清 Staging 并重载</li>
+     *   <li>runStarted：全自动已触发 Run（带 runId），画布可开始按步骤高亮</li>
+     *   <li>done：整轮结束，含完整设计结果</li>
      *   <li>error：失败文案</li>
      * </ul>
      */
@@ -237,15 +240,28 @@ public class TestFlowAiController extends BaseController {
 
             @Override
             public void onGraphCommitted(Long testFlowId) {
-                // 全自动写库成功：通知前端清 Staging 并重新加载该测试流
+                // 隐式写库成功，推送 testFlowId
                 if (testFlowId != null) {
                     sendStreamEvent(emitter, Map.of(
                             "type", "graphCommitted",
                             "testFlowId", String.valueOf(testFlowId)));
                 }
             }
+
+            @Override
+            public void onRunStarted(Long runId) {
+                // Run 已触发，推送 runId，画布可开始按步骤高亮
+                if (runId != null) {
+                    sendStreamEvent(emitter, Map.of(
+                            "type", "runStarted",
+                            "runId", String.valueOf(runId)));
+                }
+            }
         };
+        // Agent 在独立线程跑；须带回登录态，否则跑流/成员校验会拿不到用户
+        SecurityContext securityContext = SecurityContextHolder.getContext();
         Thread worker = new Thread(() -> {
+            SecurityContextHolder.setContext(securityContext);
             try {
                 TestFlowDesignResult result = testFlowDesignAgent.design(request, userId, listener);
                 sendStreamEvent(emitter, Map.of("type", "done", "result", result));
@@ -258,6 +274,8 @@ public class TestFlowAiController extends BaseController {
                 } catch (Exception ignored) {
                     emitter.completeWithError(e);
                 }
+            } finally {
+                SecurityContextHolder.clearContext();
             }
         });
         worker.setName("test-flow-ai-design-stream");

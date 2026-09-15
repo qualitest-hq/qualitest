@@ -29,8 +29,8 @@ import java.util.Map;
 /**
  * 测试流 Run 执行器（薄编排）。
  * <p>
- * 职责：触发首次执行或 paused 续跑 → 委托图遍历、checkpoint 钩子、状态落库。
- * 不直接调用被测 HTTP；快照/还原由 snapshot 包与钩子完成。
+ * 职责：首次执行或 paused 续跑 → 委托图遍历与 checkpoint 钩子 → 按步写入步骤表、更新 Run 终态。
+ * 每完成一个可展示步骤立即 insertStep，执行中即可查到已完成步骤；不直接发被测 HTTP。
  */
 @Service
 @RequiredArgsConstructor
@@ -166,13 +166,13 @@ public class TestFlowExecutor {
         FlowNodePreExecuteHook snapshotHook = snapshotPreExecuteHookFactory.create(
                 testFlowRunId, env, policy, snapshotState);
 
+        // 每完成一步立刻写入步骤表（含 step_index），不再在整段跑完后批量补插
+        java.util.concurrent.atomic.AtomicLong stepIndexRef =
+                new java.util.concurrent.atomic.AtomicLong(nextStepIndex);
         FlowGraphRunner.Outcome outcome = flowGraphRunner.run(
-                snapshot, ctx, nodeHandlerRegistry, snapshotHook, continuation, policy);
-
-        long stepIndex = nextStepIndex;
-        for (StepResult result : outcome.getSteps()) {
-            persistStep(testFlowRunId, stepIndex++, result);
-        }
+                snapshot, ctx, nodeHandlerRegistry, snapshotHook, continuation, policy,
+                result -> persistStep(testFlowRunId, stepIndexRef.getAndIncrement(), result));
+        long stepIndex = stepIndexRef.get();
 
         if (outcome.isPaused()) {
             String errorCode = outcome.getError() != null
@@ -246,6 +246,7 @@ public class TestFlowExecutor {
         return ExecutionOutcome.failed(errorCode, errorMessage, 0);
     }
 
+    /** 将单步结果写成 test_flow_run_step 并立即入库 */
     private void persistStep(Long testFlowRunId, long stepIndex, StepResult result) {
         TestFlowRunStep entity = stepResultWriter.toEntity(testFlowRunId, (int) stepIndex, result);
         runPersistenceService.insertStep(entity);

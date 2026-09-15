@@ -4,7 +4,7 @@
   负责：Mention 输入、Staging 变更摘要与定位、素材提案确认、
   鉴权 Profile 提案确认、半自动|全自动开关。
   半自动：改图/素材/鉴权提案须人审，确认后人手保存（鉴权确认即写项目配置）。
-  全自动：改图隐式落盘、素材直写，模型可 run_test_flow。
+  全自动：改图隐式落盘、素材直写；造流/修复后模型应主动 run_test_flow。
 -->
 <template>
   <div v-if="store.aiDesignPanelOpen" class="ai-design-chat-dock">
@@ -172,7 +172,7 @@
             v-model="autopilotEnabled"
             on-label="全自动"
             off-label="半自动"
-            title="半自动：Staging/素材须人审，确认后人手保存；全自动：素材直写、改图隐式落盘，模型可 run_test_flow"
+            title="半自动：Staging/素材须人审，确认后人手保存。全自动：素材直写、改图隐式落盘；造流/修复后模型应主动 run_test_flow（下一轮发送生效）"
         />
       </template>
     </AiChatShell>

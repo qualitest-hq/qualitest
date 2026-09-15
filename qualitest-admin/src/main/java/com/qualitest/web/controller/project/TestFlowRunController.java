@@ -30,7 +30,8 @@ import com.qualitest.common.core.page.TableDataInfo;
 /**
  * 测试流运行 HTTP 接口。
  * <p>
- * 业务入口：{@link #trigger} 触发同步执行；{@link #getInfo} 查询 Run 报告（含步骤与图快照）。
+ * trigger：校验通过后写 running 记录并立刻返回 runId，图在后台执行；
+ * getInfo：查 Run 头、步骤与图快照，执行中也可轮询。
  */
 @RestController
 @RequestMapping("/project/testFlowRun")
@@ -64,7 +65,8 @@ public class TestFlowRunController extends BaseController {
     }
 
     /**
-     * 获取测试流运行详细信息（含 steps + graph_json_snapshot）
+     * 查询单次 Run 详情（头信息、已落库步骤、图快照）。
+     * 执行中也可调用，步骤列表随执行推进变长。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping(value = "/{testFlowRunId}")
@@ -73,7 +75,8 @@ public class TestFlowRunController extends BaseController {
     }
 
     /**
-     * 触发测试流 Run：校验图 → 固化 snapshot → 同步执行 → 返回 testFlowRunId。
+     * 触发测试流 Run。
+     * 校验图与就绪条件 → 写入 running 记录 → 立刻返回 runId；图在后台异步执行，每步完成即落库。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试流运行", businessType = BusinessType.OTHER)

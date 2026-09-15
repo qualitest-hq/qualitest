@@ -81,7 +81,7 @@ public class TestFlowDesignAgent {
     /**
      * 流式/同步共用入口。
      *
-     * @param listener 可选；用于推送 token、思考链、工具起止、以及全自动落盘后的 graphCommitted
+     * @param listener 可选；推送 token、思考链、工具起止、隐式落盘成功、Run 已触发等过程事件
      */
     public TestFlowDesignResult design(TestFlowDesignRequest request, Long userId, AgentRunListener listener) {
         return executeDesign(request, userId, listener);
@@ -129,8 +129,15 @@ public class TestFlowDesignAgent {
                 aiChatConversationService.loadFlowDesignClientIdMap(session.getAiChatSessionId()),
                 autopilot,
                 (flowId, graph) -> {
+                    // 隐式写库成功：推送 testFlowId，画布可清 Staging 并重载
                     if (listener != null && flowId != null) {
                         listener.onGraphCommitted(flowId);
+                    }
+                },
+                runId -> {
+                    // Run 已触发：推送 runId，画布可开始按步骤高亮
+                    if (listener != null && runId != null) {
+                        listener.onRunStarted(runId);
                     }
                 });
 

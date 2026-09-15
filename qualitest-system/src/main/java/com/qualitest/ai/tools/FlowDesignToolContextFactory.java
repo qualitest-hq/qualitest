@@ -68,11 +68,12 @@ public class FlowDesignToolContextFactory {
                                                      boolean autopilotEnabled,
                                                      java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted) {
         return fromDesignRequest(request, submitCapture, assetUpsertCapture, null,
-                aiChatSessionId, flowDesignClientIdMap, autopilotEnabled, onGraphCommitted);
+                aiChatSessionId, flowDesignClientIdMap, autopilotEnabled, onGraphCommitted, null);
     }
 
     /**
-     * 从 Web 设计请求构建完整上下文（含素材与鉴权 Profile 提案容器、会话 id、短名映射、全自动开关与落盘回调）。
+     * 从 Web 设计请求构建完整上下文（含素材与鉴权提案容器、会话 id、短名映射、
+     * 全自动开关、落盘成功回调、Run 已触发回调，以及默认场景/环境）。
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture,
@@ -81,7 +82,8 @@ public class FlowDesignToolContextFactory {
                                                      Long aiChatSessionId,
                                                      java.util.Map<String, String> flowDesignClientIdMap,
                                                      boolean autopilotEnabled,
-                                                     java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted) {
+                                                     java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted,
+                                                     java.util.function.Consumer<Long> onRunStarted) {
         AiDesignMentionSupport.ResolvedMentionContext resolved =
                 AiDesignMentionSupport.resolve(request.getMentions());
         return build(
@@ -99,7 +101,25 @@ public class FlowDesignToolContextFactory {
                 aiChatSessionId,
                 flowDesignClientIdMap,
                 autopilotEnabled,
-                onGraphCommitted);
+                onGraphCommitted,
+                onRunStarted,
+                blankToNull(request.getRunScenarioId()),
+                request.getTestProjectEnvId());
+    }
+
+    /**
+     * 不需要「Run 已触发」回调时使用：onRunStarted 置为 null。
+     */
+    public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
+                                                     FlowDesignSubmitCapture submitCapture,
+                                                     AssetUpsertCapture assetUpsertCapture,
+                                                     AuthProfileUpsertCapture authProfileUpsertCapture,
+                                                     Long aiChatSessionId,
+                                                     java.util.Map<String, String> flowDesignClientIdMap,
+                                                     boolean autopilotEnabled,
+                                                     java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted) {
+        return fromDesignRequest(request, submitCapture, assetUpsertCapture, authProfileUpsertCapture,
+                aiChatSessionId, flowDesignClientIdMap, autopilotEnabled, onGraphCommitted, null);
     }
 
     /**
@@ -140,6 +160,9 @@ public class FlowDesignToolContextFactory {
                 null,
                 null,
                 false,
+                null,
+                null,
+                null,
                 null);
     }
 
@@ -160,7 +183,10 @@ public class FlowDesignToolContextFactory {
                                         Long aiChatSessionId,
                                         java.util.Map<String, String> flowDesignClientIdMap,
                                         boolean autopilotEnabled,
-                                        java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted) {
+                                        java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted,
+                                        java.util.function.Consumer<Long> onRunStarted,
+                                        String defaultRunScenarioId,
+                                        Long defaultTestProjectEnvId) {
         java.util.Map<String, String> idMap = flowDesignClientIdMap != null
                 ? flowDesignClientIdMap
                 : new java.util.HashMap<>();
@@ -175,6 +201,9 @@ public class FlowDesignToolContextFactory {
                 .contextRunId(contextRunId)
                 .autopilotEnabled(autopilotEnabled)
                 .onGraphCommitted(onGraphCommitted)
+                .onRunStarted(onRunStarted)
+                .defaultRunScenarioId(defaultRunScenarioId)
+                .defaultTestProjectEnvId(defaultTestProjectEnvId)
                 .maxSearchApis(aiLlmConfigService.getMaxSearchApis())
                 .maxListFlows(aiLlmConfigService.getMaxListFlows())
                 .maxToolResultBytes(aiLlmConfigService.getMaxToolResultBytes())
@@ -184,6 +213,10 @@ public class FlowDesignToolContextFactory {
                 .aiChatSessionId(aiChatSessionId)
                 .flowDesignClientIdMap(idMap)
                 .build();
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 
     private static boolean tokenIdEquals(Long a, Long b) {

@@ -1,6 +1,6 @@
 /**
  * 封装测试流 AI 设计 SSE 消费与 AbortController 取消。
- * 转发 token / 思考 / 工具起止 / graphCommitted（全自动落盘）/ done / error。
+ * 转发 token / 思考 / 工具起止 / 隐式落盘成功 / Run 已触发 / done / error。
  */
 import { ref } from 'vue';
 
@@ -59,9 +59,13 @@ export function useAiDesignStream() {
             activeTool.value = '';
             handlers?.onToolEnd?.();
           },
-          // 全自动隐式落盘成功 → 交给 useAiDesign 清 Staging 并 reload
+          // 全自动隐式写库成功
           onGraphCommitted: (testFlowId) => {
             handlers?.onGraphCommitted?.(testFlowId);
+          },
+          // 全自动已触发 Run（带 runId）
+          onRunStarted: (runId) => {
+            handlers?.onRunStarted?.(runId);
           },
           onEvent: handlers?.onEvent,
           onDone: handlers?.onDone,

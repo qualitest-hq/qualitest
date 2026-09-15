@@ -48,5 +48,6 @@ public class DashboardRecentRunResult implements Serializable {
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long durationMs;
 
+    /** 触发来源：manual / ai / ci / schedule 等 */
     private String triggerType;
 }

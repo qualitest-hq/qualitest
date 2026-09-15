@@ -199,6 +199,81 @@ class TestFlowExecutorTest {
         ));
     }
 
+    /**
+     * 前提：线性图；后续 HTTP 节点执行时断言前序节点步骤已入库。
+     * 期望：步骤在节点完成后立刻写入，而不是整段跑完再批量补插。
+     */
+    @Test
+    @Order(3)
+    @DisplayName("节点执行中前序步骤已落库")
+    void execute_persistsStepBeforeNextNodeRuns() {
+        registry = new NodeHandlerRegistry(List.of(
+                new AbstractStubNodeHandler(FlowNodeType.HTTP) {
+                    @Override
+                    public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
+                        if (!"n1".equals(node.getId())) {
+                            assertTrue(
+                                    persistedSteps.stream().anyMatch(s -> "n1".equals(s.getNodeId())),
+                                    "执行 " + node.getId() + " 前 n1 应已落库");
+                        }
+                        return StepResult.builder()
+                                .nodeId(node.getId())
+                                .nodeType("http")
+                                .nodeName(node.getId())
+                                .edgeId(incomingEdgeId)
+                                .status(StepResult.STATUS_PASSED)
+                                .durationMs(1)
+                                .flowAfter(new HashMap<>(ctx.getFlow()))
+                                .http(Map.of("method", "GET", "url", "/mock", "status", 200))
+                                .build();
+                    }
+                },
+                new AssertNodeHandler(),
+                new AbstractStubNodeHandler(FlowNodeType.DELAY) {
+                    @Override
+                    public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
+                        return StepResult.builder()
+                                .nodeId(node.getId())
+                                .nodeType("delay")
+                                .status(StepResult.STATUS_PASSED)
+                                .durationMs(0)
+                                .flowAfter(new HashMap<>(ctx.getFlow()))
+                                .build();
+                    }
+                }
+        ));
+        SnapshotCheckpointService snapshotCheckpointService = mock(SnapshotCheckpointService.class);
+        when(snapshotCheckpointService.maybeCheckpoint(any(), any(), any(), any(), any())).thenReturn(null);
+        SnapshotRestoreService snapshotRestoreService = mock(SnapshotRestoreService.class);
+        RunStatusUpdater runStatusUpdater = new RunStatusUpdater(runPersistenceService);
+        SnapshotPreExecuteHookFactory hookFactory = new SnapshotPreExecuteHookFactory(
+                snapshotCheckpointService, new StepResultWriter());
+        ResumeContinuationPlanner resumePlanner = new ResumeContinuationPlanner(snapshotRestoreService);
+        executor = new TestFlowExecutor(
+                registry, new FlowGraphRunner(), runService, runPersistenceService,
+                runStatusUpdater, new StepResultWriter(), hookFactory, resumePlanner);
+
+        GraphJson graph = loadGraph("flow/linear-run-graph.json");
+        FlowRunContext ctx = FlowRunContext.builder()
+                .env(Map.of("baseUrl", "http://localhost"))
+                .flow(new HashMap<>(Map.of("code", 0)))
+                .build();
+        RunBootstrapMeta bootstrap = new RunBootstrapMeta(
+                ResolvedRunScenario.builder()
+                        .scenarioId("sc-default")
+                        .scenarioName("默认场景")
+                        .testProjectEnvId(100L)
+                        .flowSeed(Map.of("code", 0))
+                        .build(),
+                "开发环境",
+                null
+        );
+
+        ExecutionOutcome outcome = executor.execute(5003L, graph, ctx, bootstrap);
+        assertTrue(outcome.isPassed());
+        assertTrue(persistedSteps.stream().anyMatch(s -> "n1".equals(s.getNodeId())));
+    }
+
     private static GraphJson loadGraph(String path) {
         try (InputStream in = TestFlowExecutorTest.class.getClassLoader().getResourceAsStream(path)) {
             assertNotNull(in);

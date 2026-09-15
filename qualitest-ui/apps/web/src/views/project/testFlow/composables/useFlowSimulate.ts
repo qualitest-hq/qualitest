@@ -98,15 +98,17 @@ export function useFlowSimulate() {
   const isSimulateActive = pathSimulateActive;
 
   /**
-   * 底栏状态区文案：场景运行高亮、路径模拟进度或空闲时的路径/运行统计。
+   * 底栏状态区文案：正式 Run 进度、路径模拟进度，或空闲时的路径/运行统计。
    */
   const statusText = computed(() => {
     const live = runLib.scenarioRunLive;
-    if (live?.phase === 'animating' && live.stepTotal) {
-      const idx = (live.stepIndex ?? 0) + 1;
-      return `运行高亮 · 步骤 ${idx}/${live.stepTotal}`;
+    if (live?.phase === 'running') {
+      if (live.stepTotal) {
+        const idx = (live.stepIndex ?? 0) + 1;
+        return `正式运行 · 步骤 ${idx}/${live.stepTotal}`;
+      }
+      return '正式运行执行中…';
     }
-    if (live?.phase === 'running') return '正式运行执行中…';
     const pb = playback.value;
     if (pb?.active) {
       const entry = pb.timeline[pb.cursor];

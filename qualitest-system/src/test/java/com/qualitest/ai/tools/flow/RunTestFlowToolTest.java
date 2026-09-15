@@ -22,16 +22,20 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * 测 RunTestFlowTool：半自动拒绝；无 pending 时直接跑；有 pending 且校验失败则不 triggerRun。
+ * 测 RunTestFlowTool：半自动拒绝；无 pending 时直接跑；有 pending 且校验失败则不触发；
+ * triggerType=ai、等待终态、默认场景回退、Run 已触发回调。
  * 边界：Mock execution / run / flow 服务，不真实跑流。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunTestFlowToolTest
  */
@@ -39,8 +43,8 @@ import static org.mockito.Mockito.*;
 class RunTestFlowToolTest {
 
     /**
-     * 前提：已开全自动、无 pending capture、trigger 返回 runId、status=passed。
-     * 期望：ok、passed=true，未走落盘。
+     * 前提：已开全自动、无 pending capture、trigger 返回 runId、await 终态 passed。
+     * 期望：ok、passed=true，未走落盘；triggerType=ai；调用 awaitRunTerminal。
      */
     @Test
     @Order(1)
@@ -52,7 +56,7 @@ class RunTestFlowToolTest {
         when(execution.triggerRun(any(TriggerTestFlowRunParams.class))).thenReturn(88L);
         TestFlowRunResult run = new TestFlowRunResult();
         run.setStatus(RunStatus.PASSED);
-        when(runService.selectTestFlowRunResult(88L)).thenReturn(run);
+        when(execution.awaitRunTerminal(eq(88L), anyLong())).thenReturn(run);
 
         RunTestFlowTool tool = new RunTestFlowTool(
                 execution, runService, mock(ITestFlowRunStepService.class),
@@ -70,6 +74,10 @@ class RunTestFlowToolTest {
         assertEquals("88", root.getString("runId"));
         assertFalse(root.getBooleanValue("autoCommittedBeforeRun"));
         verify(flowService, never()).updateTestFlow(any());
+        verify(execution).awaitRunTerminal(eq(88L), anyLong());
+        ArgumentCaptor<TriggerTestFlowRunParams> captor = ArgumentCaptor.forClass(TriggerTestFlowRunParams.class);
+        verify(execution).triggerRun(captor.capture());
+        assertEquals("ai", captor.getValue().getTriggerType());
     }
 
     /**
@@ -137,5 +145,44 @@ class RunTestFlowToolTest {
         assertFalse(root.getBooleanValue("ok"));
         assertTrue(root.getString("error").contains("自动落盘失败"));
         verify(execution, never()).triggerRun(any());
+    }
+
+    /**
+     * 前提：工具参数未传场景/环境，上下文带默认值；已注册「Run 已触发」回调。
+     * 期望：触发参数带上默认场景/环境与 triggerType=ai；回调收到 runId。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("默认场景回退并通知 Run 已触发")
+    void execute_defaultScenarioAndNotifyRunStarted() {
+        ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
+        when(execution.triggerRun(any(TriggerTestFlowRunParams.class))).thenReturn(99L);
+        TestFlowRunResult run = new TestFlowRunResult();
+        run.setStatus(RunStatus.PASSED);
+        when(execution.awaitRunTerminal(eq(99L), anyLong())).thenReturn(run);
+
+        java.util.concurrent.atomic.AtomicLong started = new java.util.concurrent.atomic.AtomicLong();
+        RunTestFlowTool tool = new RunTestFlowTool(
+                execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
+                mock(ITestFlowService.class), mock(GraphJsonValidator.class),
+                mock(FlowDesignPatchNormalizer.class));
+        FlowDesignToolContext ctx = FlowDesignToolContext.builder()
+                .testFlowId(1L)
+                .autopilotEnabled(true)
+                .submitCapture(new FlowDesignSubmitCapture())
+                .defaultRunScenarioId("sc-canvas")
+                .defaultTestProjectEnvId(9001L)
+                .onRunStarted(started::set)
+                .build();
+
+        String json = tool.execute(Map.of(), ctx);
+        assertTrue(JSON.parseObject(json).getBooleanValue("ok"));
+        assertEquals(99L, started.get());
+
+        ArgumentCaptor<TriggerTestFlowRunParams> captor = ArgumentCaptor.forClass(TriggerTestFlowRunParams.class);
+        verify(execution).triggerRun(captor.capture());
+        assertEquals("sc-canvas", captor.getValue().getRunScenarioId());
+        assertEquals(9001L, captor.getValue().getTestProjectEnvId());
+        assertEquals("ai", captor.getValue().getTriggerType());
     }
 }

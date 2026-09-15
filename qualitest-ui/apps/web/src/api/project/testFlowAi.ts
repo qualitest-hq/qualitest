@@ -54,6 +54,10 @@ export interface TestFlowDesignRequestPayload {
    * false：半自动，Staging 与各类写入提案须人审。模板画布会强制为 false。
    */
   autopilotEnabled?: boolean;
+  /** 画布当前活动运行场景 id；服务端跑流未另传场景时作默认 */
+  runScenarioId?: string;
+  /** 画布当前活动场景绑定的环境 id；服务端跑流未另传环境时作默认 */
+  testProjectEnvId?: string;
   /** 限定可检索的 API id 范围（可选） */
   scopeApiIds?: string[];
   /** 画布上下文：选中的节点 id 列表（可选） */
@@ -67,13 +71,14 @@ export interface TestFlowDesignRequestPayload {
   runRiskWarnings?: string[];
 }
 
-/** SSE 推送的事件类型 */
+/** SSE 推送的事件类型（含隐式落盘成功、Run 已触发等） */
 export type AiDesignStreamEventType =
   | 'token'
   | 'thinking'
   | 'tool_start'
   | 'tool_end'
   | 'graphCommitted'
+  | 'runStarted'
   | 'done'
   | 'error';
 
@@ -84,8 +89,10 @@ export interface AiDesignStreamEvent {
   text?: string;
   /** tool_start / tool_end 的工具名 */
   tool?: string;
-  /** graphCommitted 事件的测试流 id */
+  /** graphCommitted：已写库的测试流 id */
   testFlowId?: string;
+  /** runStarted：刚触发的运行 id */
+  runId?: string;
   /** error 事件的错误说明 */
   message?: string;
   /** done 事件的完整设计结果 */
@@ -99,7 +106,10 @@ export interface AiDesignStreamHandlers {
   onThinking?: (text: string) => void;
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool: string) => void;
+  /** 全自动隐式写库成功 */
   onGraphCommitted?: (testFlowId: string) => void;
+  /** 全自动已触发 Run，可开始按步骤高亮画布 */
+  onRunStarted?: (runId: string) => void;
   onDone?: (result: TestFlowDesignResult) => void;
   onError?: (message: string) => void;
 }

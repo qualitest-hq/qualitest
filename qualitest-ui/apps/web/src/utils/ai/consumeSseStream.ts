@@ -6,8 +6,10 @@ export interface SseStreamHandlers<TEvent, TResult> {
   onThinking?: (text: string) => void;
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool: string) => void;
-  /** 测试流全自动隐式落盘成功（SSE type=graphCommitted） */
+  /** 测试流全自动隐式写库成功 */
   onGraphCommitted?: (testFlowId: string) => void;
+  /** 全自动已触发 Run，画布可开始按步骤高亮 */
+  onRunStarted?: (runId: string) => void;
   onDone?: (result: TResult) => void;
   onError?: (message: string) => void;
 }
@@ -28,6 +30,7 @@ function dispatchSseEvent<
     tool?: string;
     message?: string;
     testFlowId?: string;
+    runId?: string;
     result?: TResult;
   },
   TResult,
@@ -41,9 +44,13 @@ function dispatchSseEvent<
   if (event.type === 'thinking' && event.text) handlers.onThinking?.(event.text);
   if (event.type === 'tool_start' && event.tool) handlers.onToolStart?.(event.tool);
   if (event.type === 'tool_end' && event.tool) handlers.onToolEnd?.(event.tool);
-  // 全自动写库后：清 Staging 并 reload 画布
+  // 全自动隐式写库成功
   if (event.type === 'graphCommitted' && event.testFlowId) {
     handlers.onGraphCommitted?.(event.testFlowId);
+  }
+  // 全自动已触发 Run
+  if (event.type === 'runStarted' && event.runId) {
+    handlers.onRunStarted?.(event.runId);
   }
   if (event.type === 'done' && event.result !== undefined) {
     handlers.onDone?.(event.result);

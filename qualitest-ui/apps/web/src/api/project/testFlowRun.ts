@@ -4,6 +4,7 @@ export interface TriggerTestFlowRunParams {
   testFlowId: string;
   testProjectEnvId?: string;
   runScenarioId?: string;
+  /** 触发来源：manual / ai / ci / schedule 等 */
   triggerType?: string;
   [key: string]: unknown;
 }
@@ -23,6 +24,7 @@ export interface ApiTestFlowRun {
   durationMs?: string | number;
   errorCode?: string;
   errorMessage?: string;
+  /** 触发来源：manual / ai / ci / schedule 等 */
   triggerType?: string;
   runExecutionState?: string;
   pausedAt?: string;
@@ -117,6 +119,7 @@ export interface TestFlowRunListParams {
   [key: string]: unknown;
 }
 
+/** 触发正式 Run；立刻返回 runId，图在后台执行 */
 export function triggerTestFlowRun(data: TriggerTestFlowRunParams) {
   return request({
     url: '/project/testFlowRun/trigger',
@@ -125,6 +128,7 @@ export function triggerTestFlowRun(data: TriggerTestFlowRunParams) {
   });
 }
 
+/** 查询单次 Run 详情（执行中也可轮询，步骤随执行变长） */
 export function getTestFlowRun(testFlowRunId: string | number) {
   return request({
     url: `/project/testFlowRun/${testFlowRunId}`,

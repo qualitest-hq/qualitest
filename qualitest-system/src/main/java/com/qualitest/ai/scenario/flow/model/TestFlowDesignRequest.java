@@ -83,6 +83,19 @@ public class TestFlowDesignRequest {
      */
     private Boolean autopilotEnabled;
 
+    /**
+     * 画布当前活动运行场景 id。
+     * 全自动跑流时若工具未另传场景，则用此作为默认场景。
+     */
+    private String runScenarioId;
+
+    /**
+     * 画布当前活动场景绑定的环境 id。
+     * 全自动跑流时若工具未另传环境，则用此作为默认环境。
+     */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long testProjectEnvId;
+
     /** 是否为模板预制流设计模式 */
     public boolean isTemplateDesignMode() {
         return designMode != null && "template".equalsIgnoreCase(designMode.trim());

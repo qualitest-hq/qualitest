@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Run 与步骤的短事务落库，供 {@link TestFlowExecutor} 在 HTTP snapshot/restore 事务外调用。
+ * Run 与步骤的短事务落库。
+ * <p>
+ * 每步单独短事务 insert，避免整次跑流包进一个大事务；步骤在节点完成后即可被详情查询读到。
  */
 @Service
 @RequiredArgsConstructor
@@ -19,6 +21,7 @@ public class RunPersistenceService {
     private final ITestFlowRunService testFlowRunService;
     private final ITestFlowRunStepService testFlowRunStepService;
 
+    /** 写入单条运行步骤（短事务立刻提交） */
     @Transactional(rollbackFor = Exception.class)
     public void insertStep(TestFlowRunStep step) {
         if (step.getCreateTime() == null) {

@@ -8,6 +8,7 @@ import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
+import com.qualitest.flow.snapshot.RunSnapshotPolicy;
 import com.qualitest.flow.validate.FlowNodeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -139,6 +140,31 @@ class FlowGraphRunnerTest {
         FlowGraphRunner.Outcome outcome = runner.run(graph, ctx, registry);
         assertTrue(outcome.isPassed());
         assertEquals(1, outcome.getSteps().size());
+    }
+
+    /**
+     * 前提：线性两节点；注册每步完成回调。
+     * 期望：每步完成后立刻回调，顺序与最终 steps 一致。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("onStep 在每步完成后立即回调")
+    void run_onStep_invokedPerStep() {
+        GraphJson graph = GraphJson.parse(loadResource("flow/runner-linear-two-delay.json"));
+        java.util.ArrayList<String> seen = new java.util.ArrayList<>();
+        FlowGraphRunner.Outcome outcome = runner.run(
+                graph, ctx, registry,
+                FlowNodePreExecuteHook.NONE,
+                RunContinuation.fresh(),
+                RunSnapshotPolicy.defaults(),
+                step -> {
+                    if (step != null && step.getNodeId() != null) {
+                        seen.add(step.getNodeId());
+                    }
+                });
+        assertTrue(outcome.isPassed());
+        assertEquals(List.of("d1", "d2"), seen);
+        assertEquals(2, outcome.getSteps().size());
     }
 
     private static NodeHandlerRegistry passingDelayRegistry() {

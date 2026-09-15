@@ -110,12 +110,17 @@ export interface RunRecord {
 /** 右栏运行 Inspector 当前 Tab */
 export type InspectorTab = 'summary' | 'http' | 'flow';
 
-/** 场景运行进行中或运行动画会话状态 */
+/** 正式 Run 进行中的会话：控制轮询中止与底栏步骤文案 */
 export interface ScenarioRunLiveSession {
+  /** true 时停止后续轮询/高亮更新 */
   abort: boolean;
+  /** 当前关注的 testFlowRunId；触发前可用 pending-* 占位 */
   recordId: string;
-  phase?: 'running' | 'animating';
+  /** 执行中固定为 running */
+  phase?: 'running';
+  /** 当前已高亮到的步骤下标（0-based） */
   stepIndex?: number;
+  /** 详情里已返回的步骤总数 */
   stepTotal?: number;
 }
 
@@ -127,7 +132,7 @@ export const useRunLibraryStore = defineStore('flowRunLibrary', () => {
   const inspectorTab = ref<InspectorTab>('summary');
   /** 右栏 Inspector 当前查看的步骤索引 */
   const inspectorStepIndex = ref(0);
-  /** 正式 Run 进行中或完成后逐步高亮动画：abort 为 true 时中止后续 UI 更新 */
+  /** 正式 Run 执行中会话：abort 为 true 时中止后续 UI 轮询更新 */
   const scenarioRunLive = ref<ScenarioRunLiveSession | null>(null);
   const listLoading = ref(false);
   const detailLoading = ref(false);

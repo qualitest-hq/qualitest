@@ -48,7 +48,7 @@
   - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 Profile 模板引用的 `asset.*`/`flow.*`；后续靠 Profile 托管 `Cookie` 头。
   - 免除登录 / `auth.mode=none` / 登录口： **不要**加鉴权托管头；登录节点 **必须** extracts，**目标键与 Profile `headerValueTemplate` 中的 `{{asset.*}}`/`{{flow.*}}` 一致**（`scope=asset` 时写 `entryKey`+`fieldPath`，勿只写 `name=adminAuth.token`）。
   - **按端提取凭证**：JsonPath 与头名优先 `designHints` / `suggestedExtracts` / 响应 schema / Profile；禁止臆造路径；禁止 Condition 判 `flow.*` 而 extract/托管头用 `asset.*`（或反过来）。
-  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 不要 target、不要出边**，ELSE 才连登录。修图用 `op=update`，**禁止**再 add 一套探活链。
+  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`statusCheck.whitelist [200,401]` + `successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 不要 target、不要出边**，ELSE 才连登录。工具用 `submit_condition_node` / `submit_http_node` / `submit_edge`（`op=add|update`），**禁止**臆造 `submit_add_*`。修图用 `op=update`，**禁止**再 add 一套探活链。
   - **预期业务拒绝**：HTTP 须 `successCheck.mode=off`，再用 assert 校验；`mode=off` 时允许故意缺 schema 必填字段。
   - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。缺必填时在节点 `requestValueOverrides` 补测值。
   - 账号口令走素材；**禁止** flowSeed 塞口令（调试预置 token 可以）。
@@ -61,7 +61,7 @@
 - 臆造 API 路径或 `testProjectApiId`；须先 `search_apis` / `get_api_details`。
 - external HTTP 填 `testProjectApiId`；写死密文或臆造 env/asset 键。
 - 空 `assert.rules` / 空 `assign.assignments`；臆造断言运算符。
-- 半自动下假设会自动保存或自动触发 Run（全自动另见本请求附加规程：落盘隐式，Run 须显式 `run_test_flow`）。
+- 半自动下假设会自动保存或自动触发 Run。全自动另见本请求附加规程：落盘隐式；造流/修复后须显式 `run_test_flow` 验证（仅纯答疑可跳过）。
 - 只回复「稍等/正在查看」而不调用工具；问接口/画布/Run/API 语义时须先调只读工具再基于结果作答。
 - 在助手正文中复述 upsert 提案中的明文密码。
 
