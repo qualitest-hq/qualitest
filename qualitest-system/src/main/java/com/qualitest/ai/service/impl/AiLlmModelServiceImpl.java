@@ -18,14 +18,13 @@ import com.qualitest.ai.config.AiLlmConfigService;
 import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.llm.LlmModelConfig;
 import com.qualitest.ai.llm.LlmProviderTypes;
+import com.qualitest.ai.llm.template.ModelMetadata;
+import com.qualitest.ai.llm.template.ModelMetadataCatalog;
 import com.qualitest.ai.service.IAiLlmModelService;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * AI 模型业务实现。
- * <p>
- * CRUD 走 {@code ai_llm_model} 表；{@link #resolve(Long)} JOIN 厂商表组装 {@link LlmModelConfig}；
- * {@link #listModelsGrouped()} 仅返回启用且未删除的模型，按厂商 sort_num 分组。
+ * AI 模型业务实现：表 CRUD、按主键解析运行时配置、按厂商分组列出启用模型。
  */
 @Service
 public class AiLlmModelServiceImpl implements IAiLlmModelService {
@@ -34,6 +33,10 @@ public class AiLlmModelServiceImpl implements IAiLlmModelService {
 
     @Autowired
     private AiLlmConfigService aiLlmConfigService;
+
+    /** 按上游 model 名补全思考请求风格等静态元数据 */
+    @Autowired
+    private ModelMetadataCatalog modelMetadataCatalog;
 
     /**
      * 查询AI 模型列表
@@ -178,7 +181,11 @@ public class AiLlmModelServiceImpl implements IAiLlmModelService {
     }
 
     /**
-     * 解析模型调用配置，校验启用状态与密钥完整性。
+     * 按模型主键解析运行时配置：校验启用与密钥，JOIN 厂商得到 baseUrl/apiKey/协议，
+     * 并从元数据目录按 model 名补上思考请求风格。
+     *
+     * @param aiLlmModelId 模型主键
+     * @return 可直接发起调用的配置
      */
     @Override
     public LlmModelConfig resolve(Long aiLlmModelId) {
@@ -207,11 +214,14 @@ public class AiLlmModelServiceImpl implements IAiLlmModelService {
         if (row.getBaseUrl() == null || row.getBaseUrl().isBlank()) {
             throw new LlmClientException("厂商 Base URL 未配置");
         }
-        // 运行时仅支持已实现的两种协议，避免调用阶段才暴露配置错误
+        // 仅接受已实现的两种协议，避免调用时才发现配置错误
         if (!LlmProviderTypes.isOpenAiCompatible(row.getProvider())
                 && !LlmProviderTypes.isAnthropic(row.getProvider())) {
             throw new LlmClientException("不支持的协议标识：" + row.getProvider());
         }
+        // 思考请求风格来自静态元数据（按上游 model 名），不落库
+        ModelMetadata metadata = modelMetadataCatalog.get(row.getModelName());
+        String thinkingControl = metadata != null ? metadata.getThinkingControl() : null;
         return LlmModelConfig.builder()
                 .aiLlmModelId(row.getAiLlmModelId())
                 .aiLlmVendorId(row.getAiLlmVendorId())
@@ -226,6 +236,7 @@ public class AiLlmModelServiceImpl implements IAiLlmModelService {
                 .writeTimeoutMs(aiLlmConfigService.getWriteTimeoutMs())
                 .thinkingCapable(row.getThinkingCapable() != null && row.getThinkingCapable() == 1)
                 .thinkingDefault(row.getThinkingDefault() != null && row.getThinkingDefault() == 1)
+                .thinkingControl(thinkingControl)
                 .thinkingBudgetTokens(row.getThinkingBudgetTokens())
                 .build();
     }

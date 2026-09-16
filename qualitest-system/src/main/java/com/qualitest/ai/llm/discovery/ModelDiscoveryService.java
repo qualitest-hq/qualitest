@@ -19,6 +19,7 @@ import com.qualitest.ai.service.IAiLlmVendorService;
 import com.qualitest.common.core.redis.RedisCache;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 /**
  * 模型发现编排服务：拉取远端模型列表、与库内 diff、勾选同步入库，以及保存前的连通性检测。
  */
+@Slf4j
 @Service
 public class ModelDiscoveryService {
 
@@ -328,7 +330,13 @@ public class ModelDiscoveryService {
         return adapter.discover(context);
     }
 
-    /** 用 {@link ModelMetadataCatalog} 补全展示名与 thinking 能力字段 */
+    /**
+     * 用静态元数据补全远端模型的展示名、是否支持思考、默认是否开思考。
+     * 元数据缺失时记 warn，并按不支持思考、默认关闭处理。
+     *
+     * @param models 远端发现的原始模型列表
+     * @return 补全后的列表
+     */
     private List<DiscoveredModel> enrichWithMetadata(List<DiscoveredModel> models) {
         List<DiscoveredModel> result = new ArrayList<>();
         for (DiscoveredModel model : models) {
@@ -342,6 +350,7 @@ public class ModelDiscoveryService {
                         .thinkingCapable(metadata.getThinkingCapable() != null ? metadata.getThinkingCapable() : 0)
                         .thinkingDefault(metadata.getThinkingDefault() != null ? metadata.getThinkingDefault() : 0);
             } else {
+                log.warn("模型 {} 未收录元数据，按不支持思考导入", model.getModelId());
                 builder.displayName(model.getDisplayName() != null ? model.getDisplayName() : model.getModelId())
                         .thinkingCapable(0)
                         .thinkingDefault(0);

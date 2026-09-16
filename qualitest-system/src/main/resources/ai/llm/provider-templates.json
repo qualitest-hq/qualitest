@@ -12,8 +12,8 @@
       "includePatterns": ["deepseek-*"],
       "excludePatterns": ["*-embed-*", "*-rerank-*"]
     },
-    "recommendedModels": ["deepseek-chat", "deepseek-reasoner"],
-    "docUrl": "https://platform.deepseek.com/api-docs"
+    "recommendedModels": ["deepseek-v4-flash", "deepseek-v4-pro"],
+    "docUrl": "https://api-docs.deepseek.com"
   },
   {
     "templateId": "openai",

@@ -9,7 +9,29 @@
     "displayName": "DeepSeek Reasoner",
     "thinkingCapable": 1,
     "thinkingDefault": 1,
+    "thinkingControl": "deepseek_thinking",
     "tags": ["reasoning"]
+  },
+  "deepseek-v4-flash": {
+    "displayName": "DeepSeek V4 Flash",
+    "thinkingCapable": 1,
+    "thinkingDefault": 0,
+    "thinkingControl": "deepseek_thinking",
+    "tags": ["chat", "reasoning"]
+  },
+  "deepseek-v4-pro": {
+    "displayName": "DeepSeek V4 Pro",
+    "thinkingCapable": 1,
+    "thinkingDefault": 0,
+    "thinkingControl": "deepseek_thinking",
+    "tags": ["chat", "reasoning"]
+  },
+  "deepseek-v4-*": {
+    "displayName": null,
+    "thinkingCapable": 1,
+    "thinkingDefault": 0,
+    "thinkingControl": "deepseek_thinking",
+    "tags": ["chat", "reasoning"]
   },
   "gpt-4o": {
     "displayName": "GPT-4o",

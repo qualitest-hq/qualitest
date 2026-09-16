@@ -26,13 +26,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Chat Completions 协议 HTTP 客户端。
  * <p>
- * 职责：
- * <ul>
- *   <li>POST {@code /chat/completions}，Bearer 鉴权</li>
- *   <li>组装 messages、tools、response_format，支持多模态 content 数组</li>
- *   <li>解析 choices[0].message 的 content、tool_calls 与 usage</li>
- *   <li>同步与 SSE 流式两种模式，429/502/503 退避重试</li>
- * </ul>
+ * 发送 POST /chat/completions（Bearer 鉴权）；请求 JSON 由 OpenAiPayloadBuilder 组装；
+ * 解析 choices 中的正文、工具调用与用量；支持同步与 SSE 流式，并对 429/502/503 退避重试。
  */
 @Slf4j
 @Component
@@ -49,8 +44,13 @@ public class OkHttpLlmClient {
     }
 
     /**
-     * 同步对话请求。
-     * request.stream=true 时内部走流式聚合后返回完整结果。
+     * 同步对话：组装请求、执行并解析完整响应。
+     * 若 request.stream=true，则内部走流式并聚合成一次完整结果返回。
+     * 本轮未开思考时，会去掉响应里残留的思考文本。
+     *
+     * @param cfg     模型运行时配置
+     * @param request 本轮对话请求
+     * @return 解析后的完整响应
      */
     public LlmChatResponse chatSync(LlmModelConfig cfg, LlmChatRequest request) {
         if (request.isStream()) {
@@ -80,31 +80,32 @@ public class OkHttpLlmClient {
             return LlmChatResponse.builder().content(text.toString()).build();
         }
         OkHttpClient client = clientFor(cfg);
-        JSONObject body = buildBody(cfg, request);
-        Request httpRequest = new Request.Builder()
-                .url(normalizeUrl(cfg.getBaseUrl()) + "/chat/completions")
-                .header("Authorization", "Bearer " + cfg.getApiKey())
-                .post(RequestBody.create(body.toJSONString(), JSON_MEDIA))
-                .build();
+        Request httpRequest = buildChatCompletionsRequest(cfg, OpenAiPayloadBuilder.buildBody(cfg, request));
         LlmChatResponse response = executeWithRetry(client, httpRequest);
+        response = dropThinkingIfDisabled(request, response);
         logUsage(cfg, response);
         return response;
     }
 
-    /** SSE 流式对话，解析 data: 行并通过 callback 推送文本增量 */
+    /**
+     * SSE 流式对话：按 data: 行解析增量，通过回调推送正文与（若本轮开思考）思考增量，
+     * 结束后回调完整结果。本轮未开思考时忽略 reasoning_content，不推送、不写入结果。
+     *
+     * @param cfg      模型运行时配置
+     * @param request  本轮对话请求（内部会强制 stream=true）
+     * @param callback 文本/思考增量与完成回调
+     */
     public void chatStream(LlmModelConfig cfg, LlmChatRequest request, LlmStreamCallback callback) {
         OkHttpClient client = clientFor(cfg);
-        JSONObject body = buildBody(cfg, request.toBuilder().stream(true).build());
-        Request httpRequest = new Request.Builder()
-                .url(normalizeUrl(cfg.getBaseUrl()) + "/chat/completions")
-                .header("Authorization", "Bearer " + cfg.getApiKey())
-                .post(RequestBody.create(body.toJSONString(), JSON_MEDIA))
-                .build();
+        LlmChatRequest streamRequest = request.toBuilder().stream(true).build();
+        Request httpRequest = buildChatCompletionsRequest(cfg, OpenAiPayloadBuilder.buildBody(cfg, streamRequest));
         StringBuilder textBuilder = new StringBuilder();
         StringBuilder thinkingBuilder = new StringBuilder();
         StreamToolCallAccumulator toolCallAccumulator = new StreamToolCallAccumulator();
         String finishReason = null;
         LlmUsage usage = null;
+        // 本轮关思考时不接收、不转发 reasoning_content
+        boolean acceptThinking = streamRequest.isReasoningEnabled();
         try (Response response = client.newCall(httpRequest).execute()) {
             if (!response.isSuccessful()) {
                 String responseBody = response.body() != null ? response.body().string() : "";
@@ -140,10 +141,12 @@ public class OkHttpLlmClient {
                                 textBuilder.append(deltaText);
                                 callback.onTextDelta(deltaText);
                             }
-                            String reasoningDelta = delta.getString("reasoning_content");
-                            if (reasoningDelta != null && !reasoningDelta.isEmpty()) {
-                                thinkingBuilder.append(reasoningDelta);
-                                callback.onThinkingDelta(reasoningDelta);
+                            if (acceptThinking) {
+                                String reasoningDelta = delta.getString("reasoning_content");
+                                if (reasoningDelta != null && !reasoningDelta.isEmpty()) {
+                                    thinkingBuilder.append(reasoningDelta);
+                                    callback.onThinkingDelta(reasoningDelta);
+                                }
                             }
                         }
                         if (choice.getString("finish_reason") != null) {
@@ -171,6 +174,35 @@ public class OkHttpLlmClient {
         }
     }
 
+    /**
+     * 构造 chat/completions 的 HTTP 请求：拼 URL、Bearer 头与 JSON Body。
+     *
+     * @param cfg  模型配置（baseUrl、apiKey）
+     * @param body 已组装好的请求体
+     * @return OkHttp Request
+     */
+    private Request buildChatCompletionsRequest(LlmModelConfig cfg, JSONObject body) {
+        return new Request.Builder()
+                .url(normalizeUrl(cfg.getBaseUrl()) + "/chat/completions")
+                .header("Authorization", "Bearer " + cfg.getApiKey())
+                .post(RequestBody.create(body.toJSONString(), JSON_MEDIA))
+                .build();
+    }
+
+    /**
+     * 本轮未开启思考时，清空响应中的思考文本，避免界面误展示。
+     *
+     * @param request  本轮请求（看 reasoningEnabled）
+     * @param response 上游解析结果
+     * @return 去掉思考字段后的响应，或原对象
+     */
+    private static LlmChatResponse dropThinkingIfDisabled(LlmChatRequest request, LlmChatResponse response) {
+        if (request.isReasoningEnabled() || response == null || response.getThinkingContent() == null) {
+            return response;
+        }
+        return response.toBuilder().thinkingContent(null).build();
+    }
+
     private OkHttpClient clientFor(LlmModelConfig cfg) {
         if (sharedClient == null) {
             synchronized (this) {
@@ -189,109 +221,6 @@ public class OkHttpLlmClient {
                 .readTimeout(cfg.getReadTimeoutMs(), TimeUnit.MILLISECONDS)
                 .writeTimeout(cfg.getWriteTimeoutMs(), TimeUnit.MILLISECONDS)
                 .build();
-    }
-
-    /** 构造 chat/completions 请求体 */
-    private JSONObject buildBody(LlmModelConfig cfg, LlmChatRequest request) {
-        JSONObject body = new JSONObject();
-        body.put("model", cfg.getModelName());
-        body.put("max_tokens", cfg.getMaxTokens());
-        body.put("messages", toMessageArray(request.getMessages()));
-        if (request.getTools() != null && !request.getTools().isEmpty()) {
-            body.put("tools", request.getTools());
-            if (request.getToolChoice() != null && !request.getToolChoice().isBlank()) {
-                body.put("tool_choice", toOpenAiToolChoice(request.getToolChoice()));
-            }
-        }
-        if (request.getResponseFormat() != null) {
-            body.put("response_format", request.getResponseFormat());
-        }
-        if (request.isReasoningEnabled()) {
-            body.put("reasoning_effort", "medium");
-        }
-        if (request.isStream()) {
-            body.put("stream", true);
-            body.put("stream_options", new JSONObject().fluentPut("include_usage", true));
-        }
-        return body;
-    }
-
-    /**
-     * 转换 tool_choice。
-     * auto/none 原样传递；工具名转为 {@code {type:function, function:{name}}} 对象。
-     */
-    private Object toOpenAiToolChoice(String toolChoice) {
-        if ("auto".equalsIgnoreCase(toolChoice) || "none".equalsIgnoreCase(toolChoice)) {
-            return toolChoice;
-        }
-        JSONObject choice = new JSONObject();
-        choice.put("type", "function");
-        JSONObject function = new JSONObject();
-        function.put("name", toolChoice);
-        choice.put("function", function);
-        return choice;
-    }
-
-    /** 将应用层消息列表转为 messages 数组，支持 tool_calls 与多模态 content */
-    private JSONArray toMessageArray(List<LlmMessage> messages) {
-        JSONArray arr = new JSONArray();
-        if (messages == null) {
-            return arr;
-        }
-        for (LlmMessage msg : messages) {
-            JSONObject item = new JSONObject();
-            item.put("role", msg.getRole());
-            if (msg.getContentParts() != null && !msg.getContentParts().isEmpty()) {
-                item.put("content", toOpenAiContentParts(msg.getContentParts()));
-            } else if (msg.getContent() != null) {
-                item.put("content", msg.getContent());
-            }
-            if (msg.getToolCallId() != null) {
-                item.put("tool_call_id", msg.getToolCallId());
-            }
-            if (msg.getToolCalls() != null && !msg.getToolCalls().isEmpty()) {
-                JSONArray toolCalls = new JSONArray();
-                for (LlmToolCall tc : msg.getToolCalls()) {
-                    JSONObject tcObj = new JSONObject();
-                    tcObj.put("id", tc.getId());
-                    tcObj.put("type", "function");
-                    JSONObject fn = new JSONObject();
-                    fn.put("name", tc.getName());
-                    fn.put("arguments", tc.getArgumentsJson());
-                    tcObj.put("function", fn);
-                    toolCalls.add(tcObj);
-                }
-                item.put("tool_calls", toolCalls);
-            }
-            arr.add(item);
-        }
-        return arr;
-    }
-
-    /** 将 LlmContentPart 列表转为 content 数组（text + image_url） */
-    private JSONArray toOpenAiContentParts(List<LlmContentPart> parts) {
-        JSONArray arr = new JSONArray();
-        for (LlmContentPart part : parts) {
-            if ("image".equals(part.getType())) {
-                JSONObject image = new JSONObject();
-                image.put("type", "image_url");
-                JSONObject imageUrl = new JSONObject();
-                if (part.getImageUrl() != null && !part.getImageUrl().isBlank()) {
-                    imageUrl.put("url", part.getImageUrl());
-                } else if (part.getImageBase64() != null && !part.getImageBase64().isBlank()) {
-                    String mediaType = part.getImageMediaType() != null ? part.getImageMediaType() : "image/png";
-                    imageUrl.put("url", "data:" + mediaType + ";base64," + part.getImageBase64());
-                }
-                image.put("image_url", imageUrl);
-                arr.add(image);
-            } else {
-                JSONObject text = new JSONObject();
-                text.put("type", "text");
-                text.put("text", part.getText());
-                arr.add(text);
-            }
-        }
-        return arr;
     }
 
     private LlmChatResponse executeWithRetry(OkHttpClient client, Request request) {
