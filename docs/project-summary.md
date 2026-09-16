@@ -163,6 +163,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | **本文** | 概念、鉴权、主链路 |
 | [test-flow-nodes.md](./test-flow-nodes.md) | 8 种节点与断言方言 |
 | [ai-staging.md](./ai-staging.md) | AI Diff / Staging 确认 |
+| [ai-tool-trace.md](./ai-tool-trace.md) | 造流工具调用轨迹（设计备忘，未实现） |
 | [flow-variables-and-values.md](./flow-variables-and-values.md) | 跑流变量与 HTTP 测值 |
 | [assets.md](./assets.md) | 素材库与测参文件 |
 | [faq.md](./faq.md) | 日常使用疑问（非冒烟专项） |

@@ -4,7 +4,7 @@
 > **不是**：节点字段字典、鉴权口径、测试勾选表。  
 > 英文：[ai-staging.en.md](./ai-staging.en.md)
 
-概念地图：[project-summary.md](./project-summary.md) · 节点：[test-flow-nodes.md](./test-flow-nodes.md) · 验收铁律：手册 §B.0.1
+概念地图：[project-summary.md](./project-summary.md) · 节点：[test-flow-nodes.md](./test-flow-nodes.md) · 验收铁律：手册 §B.0.1 · 工具轨迹（未实现）：[ai-tool-trace.md](./ai-tool-trace.md)
 
 ---
 
