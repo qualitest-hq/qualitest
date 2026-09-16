@@ -1,5 +1,6 @@
 package com.qualitest.ai.scenario.flow;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.config.AiLlmConfigService;
 import com.qualitest.ai.domain.AiChatSession;
 import com.qualitest.ai.llm.*;
@@ -22,6 +23,7 @@ import com.qualitest.flow.model.*;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.service.ITestFlowService;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -166,10 +168,15 @@ class TestFlowDesignAgentTest {
         assertTrue(result.getValidation().isOk());
         assertFalse(result.isExplainOnly());
         assertEquals(SESSION_ID, result.getAiChatSessionId());
+        assertNotNull(result.getToolTrace());
+        assertEquals("submit_http_node", result.getToolTrace().getJSONArray("calls").getJSONObject(0).getString("name"));
         verify(agentRunner).run(any());
         verify(toolExecutor).executeTool(eq(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()), anyString(), any());
+        ArgumentCaptor<String> metaCaptor = ArgumentCaptor.forClass(String.class);
         verify(conversationService).appendAssistantMessage(
-                eq(SESSION_ID), eq("登录链路"), contains("\"patchJson\""), eq(1001L), isNull());
+                eq(SESSION_ID), eq("登录链路"), metaCaptor.capture(), eq(1001L), isNull());
+        assertTrue(metaCaptor.getValue().contains("\"toolTrace\""));
+        assertTrue(metaCaptor.getValue().contains("\"patchJson\""));
         verify(summaryService).maybeRefreshSummaryAsync(eq(SESSION_ID), eq(1001L));
     }
 
@@ -187,12 +194,19 @@ class TestFlowDesignAgentTest {
         when(agentRunner.run(any())).thenReturn(AiAgentRunner.AgentRunResult.builder()
                 .content("这是流程说明")
                 .stepsUsed(1)
+                .toolTrace(sampleToolTrace("get_graph_summary"))
                 .build());
 
         TestFlowDesignResult result = agent.design(request, USER_ID);
 
         assertTrue(result.isExplainOnly());
         assertNull(result.getPatch());
+        assertNotNull(result.getToolTrace());
+        ArgumentCaptor<String> metaCaptor = ArgumentCaptor.forClass(String.class);
+        verify(conversationService).appendAssistantMessage(
+                eq(SESSION_ID), eq("这是流程说明"), metaCaptor.capture(), eq(1001L), isNull());
+        assertTrue(metaCaptor.getValue().contains("\"toolTrace\""));
+        assertTrue(metaCaptor.getValue().contains("get_graph_summary"));
         verify(toolExecutor, never()).executeTool(eq(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()), anyString(), any());
     }
 
@@ -225,6 +239,7 @@ class TestFlowDesignAgentTest {
             return AiAgentRunner.AgentRunResult.builder()
                     .terminalViaTool(true)
                     .stepsUsed(8)
+                    .toolTrace(sampleToolTrace(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()))
                     .build();
         });
 
@@ -234,7 +249,35 @@ class TestFlowDesignAgentTest {
         assertNotNull(result.getPatch());
         assertEquals("登录链路", result.getSummary());
         verify(conversationService).appendAssistantMessage(
-                eq(SESSION_ID), eq("登录链路"), contains("\"patchJson\""), eq(1001L), isNull());
+                eq(SESSION_ID), eq("登录链路"), contains("\"toolTrace\""), eq(1001L), isNull());
+    }
+
+    /**
+     * 前提：Runner 返回 interrupted=true 与 toolTrace。
+     * 期望：落库助手 meta 含 interrupted 与 toolTrace，结果 interrupted=true，不抛异常。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("中断时落盘半成品助手消息")
+    void design_interrupted_persistsPartialAssistant() {
+        TestFlowDesignRequest request = baseRequest();
+        when(agentRunner.run(any())).thenReturn(AiAgentRunner.AgentRunResult.builder()
+                .interrupted(true)
+                .error(AiAgentRunner.INTERRUPTED_MESSAGE)
+                .stepsUsed(1)
+                .toolTrace(sampleToolTrace("search_apis"))
+                .build());
+
+        TestFlowDesignResult result = agent.design(request, USER_ID);
+
+        assertTrue(result.isInterrupted());
+        assertTrue(result.isExplainOnly());
+        assertEquals(AiAgentRunner.INTERRUPTED_MESSAGE, result.getSummary());
+        ArgumentCaptor<String> metaCaptor = ArgumentCaptor.forClass(String.class);
+        verify(conversationService).appendAssistantMessage(
+                eq(SESSION_ID), eq(AiAgentRunner.INTERRUPTED_MESSAGE), metaCaptor.capture(), eq(1001L), isNull());
+        assertTrue(metaCaptor.getValue().contains("\"interrupted\":true"));
+        assertTrue(metaCaptor.getValue().contains("\"toolTrace\""));
     }
 
     /**
@@ -252,6 +295,9 @@ class TestFlowDesignAgentTest {
 
         LlmClientException ex = assertThrows(LlmClientException.class, () -> agent.design(baseRequest(), USER_ID));
         assertEquals("步数超限", ex.getMessage());
+        // 硬失败也会尽量落盘半成品
+        verify(conversationService).appendAssistantMessage(
+                eq(SESSION_ID), eq("步数超限"), contains("\"interrupted\""), eq(1001L), isNull());
     }
 
     private static TestFlowDesignRequest baseRequest() {
@@ -313,7 +359,14 @@ class TestFlowDesignAgentTest {
             return AiAgentRunner.AgentRunResult.builder()
                     .content(assistantText)
                     .stepsUsed(1)
+                    .toolTrace(sampleToolTrace(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()))
                     .build();
         });
+    }
+
+    private static JSONObject sampleToolTrace(String toolName) {
+        AiToolTraceSupport.Recorder recorder = new AiToolTraceSupport.Recorder();
+        recorder.record(toolName, "{\"op\":\"add\"}", "{\"received\":true}", 12L, 8);
+        return recorder.build(1, 8);
     }
 }

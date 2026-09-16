@@ -1,11 +1,14 @@
 package com.qualitest.ai.scenario.apidesign.model;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 import lombok.Getter;
 
 /**
  * AI API 助手单轮对话完成后的响应。
+ * 含说明文案、结构化 patch、校验结果、工具轨迹 toolTrace；
+ * interrupted=true 表示本轮因取消或断连结束，内容可能不完整。
  */
 @Getter
 @Builder
@@ -42,4 +45,13 @@ public class ApiDesignResult {
      * false：已提交 patch，侧栏展示变更勾选区。
      */
     private final boolean explainOnly;
+
+    /**
+     * 本轮工具调用轨迹（已脱敏截断）。
+     * 含步数、是否截断及按序的 name / ok / ms / args / result。
+     */
+    private final JSONObject toolTrace;
+
+    /** 本轮因用户取消或连接中断而结束，助手内容可能不完整 */
+    private final boolean interrupted;
 }

@@ -562,7 +562,7 @@ export function useAiChatSession<TMessage extends AiChatMessageBase>(
     }
   }
 
-  /** 设计完成后同步 sessionId 并刷新会话列表 */
+  /** 设计过程中收到 session 事件或完成后同步 sessionId，并刷新会话列表 */
   async function afterDesignSessionCreated(sessionId: string) {
     activeSessionId.value = String(sessionId);
     loadedSessionId.value = activeSessionId.value;
@@ -570,6 +570,16 @@ export function useAiChatSession<TMessage extends AiChatMessageBase>(
       sessionThinkingEnabled.value = thinkingEnabled.value ? 1 : 0;
     }
     await loadSessions();
+  }
+
+  /**
+   * 强制重拉当前会话消息（清空已加载缓存）。
+   * 用于用户取消后展示服务端已落盘的助手半成品。
+   */
+  async function reloadActiveSession(): Promise<boolean> {
+    if (!isPersistedSessionId(activeSessionId.value)) return false;
+    loadedSessionId.value = '';
+    return loadSession(activeSessionId.value);
   }
 
   return {
@@ -581,6 +591,7 @@ export function useAiChatSession<TMessage extends AiChatMessageBase>(
     loadSessions,
     refreshServerMessageIds,
     loadSession,
+    reloadActiveSession,
     loadOlderMessages,
     hasMoreOlderMessages,
     loadingOlderMessages,

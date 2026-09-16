@@ -10,6 +10,8 @@ export interface SseStreamHandlers<TEvent, TResult> {
   onGraphCommitted?: (testFlowId: string) => void;
   /** 全自动已触发 Run，画布可开始按步骤高亮 */
   onRunStarted?: (runId: string) => void;
+  /** 会话已就绪（新建或复用），尽早记下 id 以便取消后重拉半成品 */
+  onSession?: (aiChatSessionId: string) => void;
   onDone?: (result: TResult) => void;
   onError?: (message: string) => void;
 }
@@ -31,6 +33,7 @@ function dispatchSseEvent<
     message?: string;
     testFlowId?: string;
     runId?: string;
+    aiChatSessionId?: string;
     result?: TResult;
   },
   TResult,
@@ -51,6 +54,10 @@ function dispatchSseEvent<
   // 全自动已触发 Run
   if (event.type === 'runStarted' && event.runId) {
     handlers.onRunStarted?.(event.runId);
+  }
+  // 会话就绪：尽早回调 sessionId
+  if (event.type === 'session' && event.aiChatSessionId) {
+    handlers.onSession?.(event.aiChatSessionId);
   }
   if (event.type === 'done' && event.result !== undefined) {
     handlers.onDone?.(event.result);

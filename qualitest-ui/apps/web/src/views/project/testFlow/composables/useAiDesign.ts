@@ -37,7 +37,8 @@ import { useFlowScenarioRun } from './useFlowScenarioRun';
 import { useRunConfig } from './useRunConfig';
 import { isAutopilotEnabled } from '../utils/aiDesignPreferences';
 import type { AiDesignMessageView, AiDesignSystemAction, FlowDesignPatch, TestFlowDesignResult } from '../types/aiDesignTypes';
-import { parseAssistantFromServer, parseUserFromServer } from '../types/aiDesignTypes';
+import { parseAssistantFromServer, parseToolTraceFromMeta, parseUserFromServer } from '../types/aiDesignTypes';
+import { AI_INTERRUPTED_MESSAGE } from '@/utils/ai/toolTrace';
 import type { ComposerSendPayload } from './mentionComposer';
 import {
   createClientMessageId,
@@ -436,6 +437,9 @@ export function useAiDesign() {
     const { watchRunLive } = useFlowScenarioRun();
     try {
       const data = await runDesignStream(buildDesignPayload(payload), {
+        onSession: (sessionId) => {
+          void chat.afterDesignSessionCreated(String(sessionId));
+        },
         // 全自动隐式写库成功：清 Staging 并重新拉库中图
         onGraphCommitted: (testFlowId) => {
           clearAllStagingState();
@@ -463,6 +467,8 @@ export function useAiDesign() {
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === 'AbortError') {
         appendLocalSystemMessage('已取消设计');
+        // 取消：重拉或本地兜底半成品助手气泡
+        await handleDesignInterrupted();
       } else {
         const msg = e instanceof Error ? e.message : 'AI 助手请求失败';
         designError.value = msg;
@@ -478,9 +484,39 @@ export function useAiDesign() {
   executeDesignRequestRef = executeDesignRequest;
 
   /**
+   * 用户取消流式请求后的收尾：先短暂等待服务端落盘，再强制重拉当前会话。
+   * 若已有助手消息则直接采用服务端半成品；否则用本地已收到的正文/思考兜底，并标 interrupted。
+   */
+  async function handleDesignInterrupted() {
+    const localText = streamText.value.trim();
+    const localThinking = streamThinking.value.trim();
+    // 给服务端协作停止与落盘留一点时间
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const reloaded = await chat.reloadActiveSession();
+    if (reloaded) {
+      const last = messages.value[messages.value.length - 1];
+      if (last?.role === 'assistant') {
+        return;
+      }
+    }
+    messages.value = [
+      ...messages.value,
+      {
+        id: createClientMessageId(),
+        role: 'assistant',
+        content: localText || AI_INTERRUPTED_MESSAGE,
+        thinkingContent: localThinking || undefined,
+        interrupted: true,
+        explainOnly: true,
+      },
+    ];
+  }
+
+  /**
    * 把设计接口响应转成助手消息写入列表。
    * explainOnly（本轮无成功 submit_*）时不带 patch、不灌 Staging；
-   * 有 patch 则灌入待确认单元；有素材提案或鉴权 Profile 提案则挂在消息上由卡片展示。
+   * 有 patch 则灌入待确认单元；有素材/鉴权提案则挂在消息上由卡片展示；
+   * 附带工具轨迹与 interrupted 标记。
    */
   function appendAssistantMessage(data: TestFlowDesignResult) {
     const messageId = createClientMessageId();
@@ -494,6 +530,10 @@ export function useAiDesign() {
     const authProfileProposals =
       Array.isArray(data.authProfileProposals) && data.authProfileProposals.length > 0
         ? data.authProfileProposals
+        : undefined;
+    const toolTrace =
+      data.toolTrace && typeof data.toolTrace === 'object'
+        ? parseToolTraceFromMeta({ toolTrace: data.toolTrace })
         : undefined;
     const assistantMessage: AiDesignMessageView = {
       id: messageId,
@@ -513,6 +553,8 @@ export function useAiDesign() {
       explainOnly,
       assetProposals,
       authProfileProposals,
+      toolTrace,
+      interrupted: data.interrupted === true,
     };
     messages.value = [...messages.value, assistantMessage];
 

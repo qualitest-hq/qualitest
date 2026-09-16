@@ -31,12 +31,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 /**
  * AI API 助手场景编排：加载会话、跑工具循环、产出 ApiDesignPatch 或纯说明。
  * <p>
  * 半自动：submit 只进 SubmitCapture，前端 Diff 勾选后才合并进工作台草稿，人手保存接口库。
  * 全自动：system 追加全自动规程；submit 回执提示前端会自动应用草稿；仍不自动写接口库、不自动调试发送。
+ * 用户取消或断连时：步间停止，仍尽量写入助手半成品（正文、思考、工具轨迹、已提交 patch），并标 interrupted。
  */
 @Service
 @RequiredArgsConstructor
@@ -54,7 +56,7 @@ public class ApiDesignAgent {
 
     /** 执行一轮 API 设计对话，不推送流式事件。 */
     public ApiDesignResult design(ApiDesignRequest request, Long userId) {
-        return design(request, userId, null);
+        return design(request, userId, null, null);
     }
 
     /**
@@ -63,6 +65,16 @@ public class ApiDesignAgent {
      * @param listener 可选；非空时推送 token、思考链与工具调用事件
      */
     public ApiDesignResult design(ApiDesignRequest request, Long userId, AgentRunListener listener) {
+        return design(request, userId, listener, null);
+    }
+
+    /**
+     * 流式入口：可传入取消标志。
+     *
+     * @param cancelled 用户取消或 SSE 断连后为 true；步间停止并把已有结果写入助手消息
+     */
+    public ApiDesignResult design(ApiDesignRequest request, Long userId,
+                                  AgentRunListener listener, BooleanSupplier cancelled) {
         validateRequest(request);
         if (userId == null) {
             throw new ServiceException("未登录");
@@ -79,6 +91,11 @@ public class ApiDesignAgent {
                 request.getAiLlmModelId(),
                 request.getPrompt(),
                 request.getAiChatSessionId() == null ? request.getThinkingEnabled() : null);
+
+        if (listener != null && session.getAiChatSessionId() != null) {
+            // 会话就绪后立刻回调，便于流式接口尽早推送 session 事件
+            listener.onSessionReady(session.getAiChatSessionId());
+        }
 
         Integer sessionThinking = resolveSessionThinking(session, request);
 
@@ -104,12 +121,30 @@ public class ApiDesignAgent {
                 .maxSteps(aiLlmConfigService.getMaxSteps())
                 .listener(listener)
                 .sessionThinkingEnabled(sessionThinking)
+                .cancelled(cancelled)
                 .build());
 
-        if (!runResult.isOk()) {
+        boolean interrupted = runResult.isInterrupted();
+        if (!runResult.isOk() && !interrupted) {
+            persistApiAssistant(request, userId, session, modelConfig, runResult, submitCapture, true);
             throw new LlmClientException(runResult.getError());
         }
 
+        return persistApiAssistant(request, userId, session, modelConfig, runResult, submitCapture, interrupted);
+    }
+
+    /**
+     * 将本轮助手结果写入会话并组装返回体。
+     * 中断或硬失败时写入 interrupted、已有正文或默认中断文案、工具轨迹与已提交的 patch。
+     */
+    private ApiDesignResult persistApiAssistant(
+            ApiDesignRequest request,
+            Long userId,
+            AiChatSession session,
+            LlmModelConfig modelConfig,
+            AiAgentRunner.AgentRunResult runResult,
+            ApiDesignSubmitCapture submitCapture,
+            boolean interruptedOrFailed) {
         String content = runResult.getContent();
         boolean explainOnly = !submitCapture.isSubmitted();
         ApiDesignPatch normalizedPatch = explainOnly ? null : submitCapture.getNormalizedPatch();
@@ -122,7 +157,7 @@ public class ApiDesignAgent {
                     .warnings(List.of())
                     .build();
         } else {
-            if (normalizedPatch == null) {
+            if (normalizedPatch == null && !interruptedOrFailed) {
                 throw new LlmClientException("submit_api_design_patch 未产生有效 patch");
             }
             validation = submitCapture.getValidation();
@@ -135,15 +170,27 @@ public class ApiDesignAgent {
             }
         }
 
-        String summary = resolveSummary(normalizedPatch, content, explainOnly);
+        String summary;
+        if (interruptedOrFailed) {
+            summary = AiAgentRunner.resolveInterruptedSummary(content, runResult.getError());
+        } else {
+            summary = resolveSummary(normalizedPatch, content, explainOnly);
+        }
 
         JSONObject meta = new JSONObject();
         meta.put("summary", summary);
         meta.put("explainOnly", explainOnly);
         meta.put("vendorName", modelConfig.getVendorName());
         meta.put("modelName", modelConfig.getModelName());
+        if (interruptedOrFailed) {
+            meta.put("interrupted", true);
+        }
         if (!explainOnly && normalizedPatch != null) {
             meta.put("patchJson", normalizedPatch);
+        }
+        // 脱敏截断后的工具轨迹，供气泡折叠展开排障
+        if (runResult.getToolTrace() != null) {
+            meta.put("toolTrace", runResult.getToolTrace());
         }
 
         aiChatConversationService.appendAssistantMessage(
@@ -167,6 +214,8 @@ public class ApiDesignAgent {
                 .patch(normalizedPatch)
                 .validation(validation)
                 .explainOnly(explainOnly)
+                .toolTrace(runResult.getToolTrace())
+                .interrupted(interruptedOrFailed)
                 .build();
     }
 

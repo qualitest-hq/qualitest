@@ -1,7 +1,8 @@
 package com.qualitest.ai.llm;
 
 /**
- * Agent 运行过程中的可选事件回调，用于 SSE 流式推送。
+ * Agent 运行过程事件回调。
+ * 流式设计接口用其把工具起止、文本增量、落盘与会话就绪等推给前端。
  */
 public interface AgentRunListener {
 
@@ -13,25 +14,36 @@ public interface AgentRunListener {
     default void onToolEnd(String toolName) {
     }
 
-    /** 模型输出思考过程增量（Extended Thinking） */
+    /** 模型输出思考过程增量 */
     default void onThinkingDelta(String delta) {
     }
 
-    /** 模型输出文本增量（通常为最终轮） */
+    /** 模型输出正文文本增量 */
     default void onTextDelta(String delta) {
     }
 
     /**
-     * 全自动隐式落盘成功后回调（参数为已写库的 testFlowId）。
-     * 画布侧可清 Staging 并重新加载该测试流。
+     * 全自动场景下测试流图已写入数据库。
+     *
+     * @param testFlowId 已写库的测试流 id
      */
     default void onGraphCommitted(Long testFlowId) {
     }
 
     /**
-     * 全自动已触发 Run（参数为刚返回的 runId，图在后台执行中）。
-     * 画布侧可开始按步骤轮询详情并高亮当前节点。
+     * 全自动场景下已触发一次 Run。
+     *
+     * @param runId 新产生的运行 id
      */
     default void onRunStarted(Long runId) {
+    }
+
+    /**
+     * 本轮会话已加载或新建完成，尽早给出会话 id。
+     * 客户端取消后可凭此 id 重拉已落盘的助手半成品消息。
+     *
+     * @param aiChatSessionId 会话主键
+     */
+    default void onSessionReady(Long aiChatSessionId) {
     }
 }

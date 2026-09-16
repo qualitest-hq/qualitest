@@ -40,9 +40,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 /**
- * 测试流 AI 设计编排：跑 Agent、收集画布单元与素材/鉴权提案、写助手消息并返回结果。
+ * 测试流 AI 设计编排：跑工具循环、收集画布单元与素材/鉴权提案、写助手消息并返回结果。
  * <p>
  * 半自动（默认）：模型多次 submit_* 每次产出一个 Staging 单元，本类用 SubmitCapture 累积；
  * 本轮无成功单元则 explainOnly=true（纯答疑，不灌 Staging）；步数耗尽但已有单元时仍返回已接受 patch。
@@ -51,6 +52,8 @@ import java.util.Map;
  * 全自动（请求 autopilotEnabled=true）：工具列表注入 run_test_flow；素材与鉴权 upsert 工具内直写；
  * 改图在 run 前或回合结束时隐式写入 test_flow；落盘失败抛 LlmClientException。
  * 模板设计模式强制关闭全自动。
+ * <p>
+ * 用户取消或断连时：步间停止，跳过回合末全自动写库，仍尽量写入助手半成品（正文、思考、工具轨迹、已接受 patch），并标 interrupted。
  */
 @Service
 @RequiredArgsConstructor
@@ -84,19 +87,29 @@ public class TestFlowDesignAgent {
      * @param listener 可选；推送 token、思考链、工具起止、隐式落盘成功、Run 已触发等过程事件
      */
     public TestFlowDesignResult design(TestFlowDesignRequest request, Long userId, AgentRunListener listener) {
-        return executeDesign(request, userId, listener);
+        return executeDesign(request, userId, listener, null);
     }
 
     /**
-     * 执行一轮 AI 设计的核心流程。
+     * 流式入口：可传入取消标志。
+     *
+     * @param cancelled 用户取消或 SSE 断连后为 true；工具循环在步间停止并把已有结果写入助手消息
+     */
+    public TestFlowDesignResult design(TestFlowDesignRequest request, Long userId,
+                                       AgentRunListener listener, BooleanSupplier cancelled) {
+        return executeDesign(request, userId, listener, cancelled);
+    }
+
+    /**
+     * 执行一轮测试流 AI 设计。
      * <p>
-     * 顺序：校验请求 → 加载/创建会话 → 注入 SubmitCapture 与素材/鉴权提案容器 → Agent 循环
-     * （开启步数将尽催 submit_*）→ 按是否有成功单元决定 explainOnly 与 patch →
-     * 写助手消息 meta → 返回结果。
+     * 校验请求 → 加载或创建会话 → 跑工具循环 → 按是否有成功 submit 决定 explainOnly 与 patch →
+     * 写助手消息元数据并返回。若本轮被取消，跳过全自动回合末写库，仍尽量写入助手半成品（正文、思考、轨迹、已接受的 patch）。
      */
     private TestFlowDesignResult executeDesign(TestFlowDesignRequest request,
                                                Long userId,
-                                               AgentRunListener listener) {
+                                               AgentRunListener listener,
+                                               BooleanSupplier cancelled) {
         validateRequest(request);
         if (userId == null) {
             throw new ServiceException("未登录");
@@ -113,6 +126,11 @@ public class TestFlowDesignAgent {
                 request.getAiLlmModelId(),
                 request.getPrompt(),
                 request.getAiChatSessionId() == null ? request.getThinkingEnabled() : null);
+
+        if (listener != null && session.getAiChatSessionId() != null) {
+            // 会话就绪后立刻回调，便于流式接口尽早推送 session 事件
+            listener.onSessionReady(session.getAiChatSessionId());
+        }
 
         Integer sessionThinking = resolveSessionThinking(session, request);
 
@@ -160,20 +178,25 @@ public class TestFlowDesignAgent {
                 .listener(listener)
                 .sessionThinkingEnabled(sessionThinking)
                 .designSubmitNudgeEnabled(true)
+                .cancelled(cancelled)
                 .build());
 
-        if (!runResult.isOk()) {
+        boolean interrupted = runResult.isInterrupted();
+        if (!runResult.isOk() && !interrupted) {
             if (submitCapture.hasAccepted()
                     && runResult.getError() != null
                     && runResult.getError().contains("最大步数")) {
                 // 已有累积单元：步数耗尽仍返回已接受 patch，避免整轮作废
             } else {
+                // 硬失败：尽量落盘已有轨迹与半成品后再抛
+                persistPartialAssistant(request, userId, session, modelConfig, runResult,
+                        submitCapture, assetUpsertCapture, authProfileUpsertCapture, true);
                 throw new LlmClientException(runResult.getError());
             }
         }
 
-        // 全自动：回合结束若仍有未落盘 submit_*，直接隐式写库；失败则中断本轮
-        if (autopilot && submitCapture.hasAccepted()) {
+        // 全自动：仅正常结束时补做回合末隐式写库；中断跳过以免半成品强行落库
+        if (!interrupted && autopilot && submitCapture.hasAccepted()) {
             FlowDesignAutopilotCommitSupport.CommitOutcome outcome =
                     FlowDesignAutopilotCommitSupport.commitIfNeeded(
                             toolContext, testFlowService, graphJsonValidator, flowDesignPatchNormalizer);
@@ -185,8 +208,27 @@ public class TestFlowDesignAgent {
             }
         }
 
+        return persistPartialAssistant(request, userId, session, modelConfig, runResult,
+                submitCapture, assetUpsertCapture, authProfileUpsertCapture, interrupted);
+    }
+
+    /**
+     * 将本轮助手结果写入会话并组装返回体。
+     * 中断或硬失败时：摘要优先用已有正文，否则用错误说明或「本轮已中断」；元数据带 interrupted=true，并写入已有 toolTrace 与已接受的 patch。
+     *
+     * @param interruptedOrFailed true 表示本轮未正常收尾（取消或失败后的半成品落盘）
+     */
+    private TestFlowDesignResult persistPartialAssistant(
+            TestFlowDesignRequest request,
+            Long userId,
+            AiChatSession session,
+            LlmModelConfig modelConfig,
+            AiAgentRunner.AgentRunResult runResult,
+            FlowDesignSubmitCapture submitCapture,
+            AssetUpsertCapture assetUpsertCapture,
+            AuthProfileUpsertCapture authProfileUpsertCapture,
+            boolean interruptedOrFailed) {
         String content = runResult.getContent();
-        // explainOnly：本轮未成功接受任何 submit_* 单元（或全自动已隐式落盘清空），视为无 Staging patch
         boolean explainOnly = !submitCapture.hasAccepted();
         FlowDesignPatch normalizedPatch = explainOnly ? null : submitCapture.getNormalizedPatch();
         DesignValidationResult validation;
@@ -198,7 +240,7 @@ public class TestFlowDesignAgent {
                     .warnings(List.of())
                     .build();
         } else {
-            if (normalizedPatch == null) {
+            if (normalizedPatch == null && !interruptedOrFailed) {
                 throw new LlmClientException("submit_* 未产生有效 patch");
             }
             validation = submitCapture.getValidation();
@@ -211,9 +253,13 @@ public class TestFlowDesignAgent {
             }
         }
 
-        String summary = resolveSummary(normalizedPatch, content, explainOnly);
+        String summary;
+        if (interruptedOrFailed) {
+            summary = AiAgentRunner.resolveInterruptedSummary(content, runResult.getError());
+        } else {
+            summary = resolveSummary(normalizedPatch, content, explainOnly);
+        }
 
-        // 本轮 upsert 工具留下的素材/鉴权提案（含明细，供前端确认后落盘）
         List<AssetUpsertProposal> assetProposals = assetUpsertCapture != null && assetUpsertCapture.hasProposals()
                 ? assetUpsertCapture.getProposals()
                 : List.of();
@@ -222,13 +268,15 @@ public class TestFlowDesignAgent {
                         ? authProfileUpsertCapture.getProposals()
                         : List.of();
 
-        // 助手消息元数据：说明文案、是否仅答疑、画布 patch、素材/鉴权提案、模型信息
         JSONObject meta = new JSONObject();
         meta.put("summary", summary);
         meta.put("explainOnly", explainOnly);
         meta.put("patchStats", FlowDesignPatchStats.build(normalizedPatch));
         meta.put("vendorName", modelConfig.getVendorName());
         meta.put("modelName", modelConfig.getModelName());
+        if (interruptedOrFailed) {
+            meta.put("interrupted", true);
+        }
         if (!explainOnly && normalizedPatch != null) {
             meta.put("patchJson", normalizedPatch);
         }
@@ -237,6 +285,10 @@ public class TestFlowDesignAgent {
         }
         if (!authProfileProposals.isEmpty()) {
             meta.put("authProfileProposals", authProfileProposals);
+        }
+        // 脱敏截断后的工具轨迹，供气泡折叠展开排障
+        if (runResult.getToolTrace() != null) {
+            meta.put("toolTrace", runResult.getToolTrace());
         }
 
         aiChatConversationService.appendAssistantMessage(
@@ -262,6 +314,8 @@ public class TestFlowDesignAgent {
                 .explainOnly(explainOnly)
                 .assetProposals(assetProposals.isEmpty() ? null : assetProposals)
                 .authProfileProposals(authProfileProposals.isEmpty() ? null : authProfileProposals)
+                .toolTrace(runResult.getToolTrace())
+                .interrupted(interruptedOrFailed)
                 .build();
     }
 

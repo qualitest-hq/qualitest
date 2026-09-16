@@ -37,6 +37,7 @@ export type ApiDesignStreamEventType =
   | 'thinking'
   | 'tool_start'
   | 'tool_end'
+  | 'session'
   | 'done'
   | 'error';
 
@@ -46,6 +47,8 @@ export interface ApiDesignStreamEvent {
   text?: string;
   tool?: string;
   message?: string;
+  /** session 事件：已就绪的会话 id */
+  aiChatSessionId?: string;
   result?: ApiDesignResult;
 }
 
@@ -56,6 +59,8 @@ export interface ApiDesignStreamHandlers {
   onThinking?: (text: string) => void;
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool: string) => void;
+  /** 会话已就绪：尽早绑定 sessionId，取消后可重拉半成品 */
+  onSession?: (aiChatSessionId: string) => void;
   onDone?: (result: ApiDesignResult) => void;
   onError?: (message: string) => void;
 }

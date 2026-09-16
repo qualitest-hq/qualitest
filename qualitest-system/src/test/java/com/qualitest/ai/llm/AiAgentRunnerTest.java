@@ -69,6 +69,12 @@ class AiAgentRunnerTest {
         assertTrue(result.isOk());
         assertEquals("{\"addNodes\":[],\"addEdges\":[]}", result.getContent());
         assertEquals(1, result.getStepsUsed());
+        assertNotNull(result.getToolTrace());
+        assertEquals(1, result.getToolTrace().getJSONArray("calls").size());
+        assertEquals("search_apis", result.getToolTrace().getJSONArray("calls").getJSONObject(0).getString("name"));
+        assertTrue(result.getToolTrace().getJSONArray("calls").getJSONObject(0).getBooleanValue("ok"));
+        assertEquals("login", result.getToolTrace().getJSONArray("calls").getJSONObject(0)
+                .getJSONObject("args").getString("keyword"));
         verify(llmProvider, times(2)).chat(eq(modelConfig), any());
     }
 
@@ -189,5 +195,59 @@ class AiAgentRunnerTest {
         assertTrue(result.isTerminalViaTool());
         assertNull(result.getContent());
         assertEquals(1, result.getStepsUsed());
+    }
+
+    /**
+     * 前提：第 1 轮执行完 tool 后 cancelled=true。
+     * 期望：interrupted=true，不再调下一轮 LLM，toolTrace 保留已执行工具。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("取消标志置位后步间停止并保留 toolTrace")
+    void run_cancelledAfterTool_returnsInterruptedWithTrace() {
+        java.util.concurrent.atomic.AtomicBoolean cancelled = new java.util.concurrent.atomic.AtomicBoolean(false);
+        LlmToolCall toolCall = LlmToolCall.builder()
+                .id("call_1")
+                .name("search_apis")
+                .argumentsJson("{\"keyword\":\"login\"}")
+                .build();
+        when(llmProvider.chat(eq(modelConfig), any()))
+                .thenReturn(LlmChatResponse.builder().toolCalls(List.of(toolCall)).build());
+
+        AiAgentRunner.AgentRunResult result = runner.run(AiAgentRunner.AgentRunOptions.builder()
+                .modelConfig(modelConfig)
+                .initialMessages(List.of(LlmMessage.user("plan")))
+                .toolExecutor((name, args) -> {
+                    cancelled.set(true);
+                    return "{\"items\":[]}";
+                })
+                .maxSteps(5)
+                .cancelled(cancelled::get)
+                .build());
+
+        assertTrue(result.isInterrupted());
+        assertFalse(result.isOk());
+        assertEquals(AiAgentRunner.INTERRUPTED_MESSAGE, result.getError());
+        assertEquals(1, result.getStepsUsed());
+        assertNotNull(result.getToolTrace());
+        assertEquals(1, result.getToolTrace().getJSONArray("calls").size());
+        assertEquals("search_apis", result.getToolTrace().getJSONArray("calls").getJSONObject(0).getString("name"));
+        verify(llmProvider, times(1)).chat(eq(modelConfig), any());
+    }
+
+    /**
+     * 前提：content / error / 占位 INTERRUPTED_MESSAGE 组合。
+     * 期望：优先 content，其次非占位 error，否则「本轮已中断」。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("中断 summary 决议口径")
+    void resolveInterruptedSummary_prefersContentThenError() {
+        assertEquals("已写出一半", AiAgentRunner.resolveInterruptedSummary("已写出一半", "x"));
+        assertEquals("步数超限", AiAgentRunner.resolveInterruptedSummary(null, "步数超限"));
+        assertEquals(AiAgentRunner.INTERRUPTED_MESSAGE,
+                AiAgentRunner.resolveInterruptedSummary(null, AiAgentRunner.INTERRUPTED_MESSAGE));
+        assertEquals(AiAgentRunner.INTERRUPTED_MESSAGE,
+                AiAgentRunner.resolveInterruptedSummary("  ", null));
     }
 }

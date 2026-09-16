@@ -1,5 +1,5 @@
 /**
- * AI API 助手 SSE 流封装。
+ * AI API 助手 SSE 流封装：累积 token/思考、跟踪当前工具，并转发 session 事件。
  */
 import { ref } from 'vue';
 
@@ -56,6 +56,10 @@ export function useApiAiStream() {
           onToolEnd: () => {
             activeTool.value = '';
             handlers?.onToolEnd?.();
+          },
+          // 会话已就绪：尽早记下 sessionId，取消后可重拉半成品
+          onSession: (aiChatSessionId) => {
+            handlers?.onSession?.(aiChatSessionId);
           },
           onEvent: handlers?.onEvent,
           onDone: handlers?.onDone,

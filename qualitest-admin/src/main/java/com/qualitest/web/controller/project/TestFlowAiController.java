@@ -1,6 +1,5 @@
 package com.qualitest.web.controller.project;
 
-import com.alibaba.fastjson2.JSON;
 import com.qualitest.ai.llm.AgentRunListener;
 import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.scenario.flow.TestFlowDesignAgent;
@@ -22,6 +21,7 @@ import com.qualitest.ai.result.AiPromptTemplateResult;
 import com.qualitest.ai.service.IAiPromptTemplateService;
 import com.qualitest.ai.service.AiChatConversationService;
 import com.qualitest.ai.scenario.flow.TestFlowDesignAccessValidator;
+import com.qualitest.web.ai.AiSseStreamSupport;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.AjaxResult;
 import com.qualitest.flow.model.GraphJson;
@@ -39,9 +39,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 测试流 AI 设计 HTTP 接口。
@@ -198,12 +198,14 @@ public class TestFlowAiController extends BaseController {
 
     /**
      * 流式设计：SSE 推送过程事件与最终结果。
+     * 客户端断连或超时会置取消标志；业务线程尽量把已产生的助手半成品写入会话后再结束。
      * <ul>
+     *   <li>session：会话已就绪（aiChatSessionId），便于取消后重拉消息</li>
      *   <li>token / thinking：模型增量文本</li>
      *   <li>tool_start / tool_end：工具调用起止</li>
      *   <li>graphCommitted：全自动隐式写库成功（带 testFlowId），画布应清 Staging 并重载</li>
      *   <li>runStarted：全自动已触发 Run（带 runId），画布可开始按步骤高亮</li>
-     *   <li>done：整轮结束，含完整设计结果</li>
+     *   <li>done：整轮结束，含完整设计结果（可含 toolTrace、interrupted）</li>
      *   <li>error：失败文案</li>
      * </ul>
      */
@@ -212,29 +214,32 @@ public class TestFlowAiController extends BaseController {
     public SseEmitter designStream(@RequestBody TestFlowDesignRequest request) {
         validateDesignAccess(request);
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
+        // 断连 / 超时 / 发送失败 → true；设计循环步间读取后停止并尽量落盘
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        AiSseStreamSupport.armCancel(emitter, cancelled);
         Long userId = getUserId();
         AgentRunListener listener = new AgentRunListener() {
             @Override
             public void onToolStart(String toolName) {
-                sendStreamEvent(emitter, Map.of("type", "tool_start", "tool", toolName));
+                AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "tool_start", "tool", toolName));
             }
 
             @Override
             public void onToolEnd(String toolName) {
-                sendStreamEvent(emitter, Map.of("type", "tool_end", "tool", toolName));
+                AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "tool_end", "tool", toolName));
             }
 
             @Override
             public void onThinkingDelta(String delta) {
                 if (delta != null && !delta.isEmpty()) {
-                    sendStreamEvent(emitter, Map.of("type", "thinking", "text", delta));
+                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "thinking", "text", delta));
                 }
             }
 
             @Override
             public void onTextDelta(String delta) {
                 if (delta != null && !delta.isEmpty()) {
-                    sendStreamEvent(emitter, Map.of("type", "token", "text", delta));
+                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "token", "text", delta));
                 }
             }
 
@@ -242,7 +247,7 @@ public class TestFlowAiController extends BaseController {
             public void onGraphCommitted(Long testFlowId) {
                 // 隐式写库成功，推送 testFlowId
                 if (testFlowId != null) {
-                    sendStreamEvent(emitter, Map.of(
+                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of(
                             "type", "graphCommitted",
                             "testFlowId", String.valueOf(testFlowId)));
                 }
@@ -252,27 +257,45 @@ public class TestFlowAiController extends BaseController {
             public void onRunStarted(Long runId) {
                 // Run 已触发，推送 runId，画布可开始按步骤高亮
                 if (runId != null) {
-                    sendStreamEvent(emitter, Map.of(
+                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of(
                             "type", "runStarted",
                             "runId", String.valueOf(runId)));
                 }
             }
+
+            @Override
+            public void onSessionReady(Long aiChatSessionId) {
+                // 尽早推送会话 id，取消后客户端可重拉半成品
+                if (aiChatSessionId != null) {
+                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of(
+                            "type", "session",
+                            "aiChatSessionId", String.valueOf(aiChatSessionId)));
+                }
+            }
         };
-        // Agent 在独立线程跑；须带回登录态，否则跑流/成员校验会拿不到用户
+        // 独立线程跑设计；须带回登录态，否则跑流/成员校验会拿不到用户
         SecurityContext securityContext = SecurityContextHolder.getContext();
         Thread worker = new Thread(() -> {
             SecurityContextHolder.setContext(securityContext);
             try {
-                TestFlowDesignResult result = testFlowDesignAgent.design(request, userId, listener);
-                sendStreamEvent(emitter, Map.of("type", "done", "result", result));
-                emitter.complete();
+                TestFlowDesignResult result = testFlowDesignAgent.design(
+                        request, userId, listener, cancelled::get);
+                // 即使已取消也尽量推 done（含半成品）；已断连时 sendJson 会静默跳过
+                AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "done", "result", result));
+                if (!cancelled.get()) {
+                    emitter.complete();
+                }
             } catch (Exception e) {
                 String message = e instanceof LlmClientException ? e.getMessage() : "AI 助手请求失败";
                 try {
-                    sendStreamEvent(emitter, Map.of("type", "error", "message", message));
-                    emitter.complete();
+                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "error", "message", message));
+                    if (!cancelled.get()) {
+                        emitter.complete();
+                    }
                 } catch (Exception ignored) {
-                    emitter.completeWithError(e);
+                    if (!cancelled.get()) {
+                        emitter.completeWithError(e);
+                    }
                 }
             } finally {
                 SecurityContextHolder.clearContext();
@@ -287,14 +310,5 @@ public class TestFlowAiController extends BaseController {
     /** 校验当前用户为项目成员，且 testFlowId 属于 testProjectId */
     private void validateDesignAccess(TestFlowDesignRequest request) {
         testFlowDesignAccessValidator.validateMemberAndFlow(request);
-    }
-
-    private static void sendStreamEvent(SseEmitter emitter, Map<String, Object> payload) {
-        try {
-            emitter.send(SseEmitter.event()
-                    .data(JSON.toJSONString(payload), MediaType.APPLICATION_JSON));
-        } catch (IOException e) {
-            throw new LlmClientException("SSE 发送失败", e);
-        }
     }
 }

@@ -1,5 +1,6 @@
 package com.qualitest.ai.scenario.flow.model;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.qualitest.ai.tools.AssetUpsertProposal;
 import com.qualitest.ai.tools.AuthProfileUpsertProposal;
@@ -11,8 +12,9 @@ import java.util.List;
 /**
  * 测试流 AI 设计接口的一轮响应。
  * <p>
- * 含自然语言说明、画布增量 patch、校验结果，以及本轮素材/鉴权 Profile 提案列表（若有）。
+ * 含自然语言说明、画布增量 patch、校验结果、素材/鉴权提案，以及本轮工具轨迹 toolTrace。
  * explainOnly=true：本轮没有可展示的 Staging patch（未成功 submit_*，或全自动已隐式落盘并清空 capture）。
+ * interrupted=true：本轮因用户取消或连接中断结束，摘要与 patch 可能不完整。
  * 半自动：patch / 素材 / 鉴权提案须用户确认后再持久化；全自动：图、素材与鉴权可能已在本轮写库。
  */
 @Getter
@@ -57,4 +59,13 @@ public class TestFlowDesignResult {
      * 无提案时为 null 或空列表。
      */
     private final List<AuthProfileUpsertProposal> authProfileProposals;
+
+    /**
+     * 本轮工具调用轨迹（已脱敏截断）。
+     * 含步数、是否截断及按序的 name / ok / ms / args / result。
+     */
+    private final JSONObject toolTrace;
+
+    /** 本轮因用户取消或连接中断而结束，助手内容可能不完整 */
+    private final boolean interrupted;
 }

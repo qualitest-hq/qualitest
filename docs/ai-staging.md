@@ -4,7 +4,7 @@
 > **不是**：节点字段字典、鉴权口径、测试勾选表。  
 > 英文：[ai-staging.en.md](./ai-staging.en.md)
 
-概念地图：[project-summary.md](./project-summary.md) · 节点：[test-flow-nodes.md](./test-flow-nodes.md) · 验收铁律：手册 §B.0.1 · 工具轨迹（未实现）：[ai-tool-trace.md](./ai-tool-trace.md)
+概念地图：[project-summary.md](./project-summary.md) · 节点：[test-flow-nodes.md](./test-flow-nodes.md) · 验收铁律：手册 §B.0.1 · 工具轨迹（已落库 `result_meta_json.toolTrace`）：[ai-tool-trace.md](./ai-tool-trace.md)
 
 ---
 
@@ -48,6 +48,8 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 本轮助手消息下**没有** Staging 变更摘要（`explainOnly`）= 模型只写了方案，**没调** 任何 `submit_*` 单元工具。画布不会变。
 
 常见原因：同会话从零搭长流、反复拉超大 `get_api_details`、步数将尽。
+
+**例外（全自动）**：隐式落盘清空 capture 后也会 `explainOnly=true`，此时以助手气泡「工具轨迹」或 `result_meta_json.toolTrace` 为准（见 [ai-tool-trace.md](./ai-tool-trace.md)）。
 
 **测法 / 用法**：新建对话 + 短提示 + 显式 API id；无 Staging 摘要时让 AI「请按单元 submit 落盘」，不要当已经改图。
 

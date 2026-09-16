@@ -36,6 +36,7 @@ import {
   parseAssistantMessageFromServer,
   parseUserMessageFromServer,
 } from '../types/apiDesignAiTypes';
+import { AI_INTERRUPTED_MESSAGE, parseToolTraceFromMeta } from '@/utils/ai/toolTrace';
 import { isApiAiAutopilotEnabled } from '../utils/apiAiPreferences';
 import { useApiAiStream } from './useApiAiStream';
 
@@ -99,6 +100,7 @@ export function useApiAi(
 
   /**
    * 将流式完成结果追加为助手消息，并初始化 Diff 默认勾选。
+   * 同时挂上工具轨迹与 interrupted 标记；中断轮次不自动 merge。
    * @returns 新助手消息 id（供全自动立即 merge）
    */
   function appendAssistantMessage(data: ApiDesignResult): string {
@@ -106,6 +108,10 @@ export function useApiAi(
     const explainOnly = data.explainOnly === true;
     const patch = explainOnly ? undefined : data.patch;
     const autopilot = isApiAiAutopilotEnabled();
+    const toolTrace =
+      data.toolTrace && typeof data.toolTrace === 'object'
+        ? parseToolTraceFromMeta({ toolTrace: data.toolTrace })
+        : undefined;
     const assistantMessage: ApiDesignMessageView = {
       id: messageId,
       role: 'assistant',
@@ -125,6 +131,8 @@ export function useApiAi(
       validation: data.validation,
       explainOnly,
       diffItems: patch ? buildDesignDiffItems(patch) : undefined,
+      toolTrace,
+      interrupted: data.interrupted === true,
     };
     messages.value = [...messages.value, assistantMessage];
     if (patch && !explainOnly) {
@@ -185,16 +193,22 @@ export function useApiAi(
     designing.value = true;
     try {
       const autopilot = isApiAiAutopilotEnabled();
-      const data = await runDesignStream(buildPayload(prompt));
+      const data = await runDesignStream(buildPayload(prompt), {
+        onSession: (sessionId) => {
+          void chat.afterDesignSessionCreated(String(sessionId));
+        },
+      });
       if (data.aiChatSessionId) {
         await chat.afterDesignSessionCreated(String(data.aiChatSessionId));
       }
       const messageId = appendAssistantMessage(data);
-      // 全自动须在 refreshServerMessageIds 前 merge，避免 client id 被替换后找不到消息
+      // 全自动须在 refreshServerMessageIds 前 merge，避免 client id 被替换后找不到消息；
+      // 本轮若已中断则跳过自动应用
       if (
         autopilot
         && data.explainOnly !== true
         && data.patch
+        && data.interrupted !== true
       ) {
         acceptAllForMessage(messageId);
         await mergeMessagePatch(messageId);
@@ -207,6 +221,8 @@ export function useApiAi(
           ...messages.value,
           { id: createClientMessageId(), role: 'system', content: '已取消生成' },
         ];
+        // 取消：重拉或本地兜底半成品助手气泡
+        await handleDesignInterrupted();
       } else {
         const msg = e instanceof Error ? e.message : 'AI 助手请求失败';
         designError.value = msg;
@@ -217,6 +233,34 @@ export function useApiAi(
       streamText.value = '';
       streamThinking.value = '';
     }
+  }
+
+  /**
+   * 用户取消流式请求后的收尾：短暂等待服务端落盘后强制重拉当前会话。
+   * 若已有助手消息则采用服务端半成品；否则用本地已收到的正文/思考兜底，并标 interrupted。
+   */
+  async function handleDesignInterrupted() {
+    const localText = streamText.value.trim();
+    const localThinking = streamThinking.value.trim();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const reloaded = await chat.reloadActiveSession();
+    if (reloaded) {
+      const last = messages.value[messages.value.length - 1];
+      if (last?.role === 'assistant') {
+        return;
+      }
+    }
+    messages.value = [
+      ...messages.value,
+      {
+        id: createClientMessageId(),
+        role: 'assistant',
+        content: localText || AI_INTERRUPTED_MESSAGE,
+        thinkingContent: localThinking || undefined,
+        interrupted: true,
+        explainOnly: true,
+      },
+    ];
   }
 
   /** 发送用户消息并触发设计；默认先追加 user 气泡。 */

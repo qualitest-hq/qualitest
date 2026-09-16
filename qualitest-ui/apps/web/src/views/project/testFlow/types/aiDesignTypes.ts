@@ -4,6 +4,14 @@ import type { AiChatMessageItem } from '@/api/ai/chat';
 
 import type { ComposerDoc } from './mentionTypes';
 import { COMPOSER_DOC_VERSION } from './mentionTypes';
+import {
+  parseToolTraceFromMeta,
+  type AiToolTraceCallView,
+  type AiToolTraceView,
+} from '@/utils/ai/toolTrace';
+
+export type { AiToolTraceCallView, AiToolTraceView };
+export { parseToolTraceFromMeta };
 
 /** AI 建议删除的节点/边 id 列表 */
 export interface FlowDesignSuggestedDeletes {
@@ -55,6 +63,10 @@ export interface TestFlowDesignResult {
   assetProposals?: AssetUpsertProposalView[];
   /** 本轮项目鉴权 Profile 写入提案（新建或更新项目 auth_config 中的 Profile） */
   authProfileProposals?: AuthProfileUpsertProposalView[];
+  /** 本轮工具调用轨迹（已脱敏截断，气泡内默认折叠展示） */
+  toolTrace?: AiToolTraceView;
+  /** 本轮因用户取消或连接中断结束，内容可能不完整 */
+  interrupted?: boolean;
 }
 
 /** 素材提案处理状态：待确认 / 已确认落盘 / 已拒绝 */
@@ -141,6 +153,10 @@ export interface AiDesignMessageView {
   assetProposalsPending?: boolean;
   /** 本轮项目鉴权 Profile 写入提案列表（确认后写项目 auth_config） */
   authProfileProposals?: AuthProfileUpsertProposalView[];
+  /** 本轮工具调用轨迹（脱敏截断后，气泡内默认折叠展示） */
+  toolTrace?: AiToolTraceView;
+  /** 本轮因用户取消或连接中断结束，内容可能不完整 */
+  interrupted?: boolean;
   /** user 消息编辑器文档，用于历史气泡中的只读 chip 渲染 */
   composerDoc?: ComposerDoc;
   /** 请求进行中，尚未收到响应 */
@@ -191,7 +207,7 @@ export function parseUserFromServer(msg: AiChatMessageItem): AiDesignMessageView
  * 将服务端助手消息还原为面板视图。
  * 正文用 summary；explainOnly 时不挂 patch；否则读 patchJson。
  * patchPending：服务端标了有改图但本条尚未拉到完整 patchJson。
- * 素材提案读 assetProposals；鉴权 Profile 提案读 authProfileProposals。
+ * 另解析素材提案、鉴权提案、工具轨迹 toolTrace，以及 interrupted 中断标记。
  */
 export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessageView {
   let meta: Record<string, unknown> = {};
@@ -216,6 +232,7 @@ export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessag
   const assetProposals = parseAssetProposalsFromMeta(meta);
   const hasAssetProposalsFlag = meta.hasAssetProposals === true;
   const authProfileProposals = parseAuthProfileProposalsFromMeta(meta);
+  const toolTrace = parseToolTraceFromMeta(meta);
   return {
     id: msg.aiChatMessageId,
     role: 'assistant',
@@ -231,6 +248,8 @@ export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessag
     assetProposals: assetProposals.length > 0 ? assetProposals : undefined,
     assetProposalsPending: hasAssetProposalsFlag && assetProposals.length === 0,
     authProfileProposals: authProfileProposals.length > 0 ? authProfileProposals : undefined,
+    toolTrace,
+    interrupted: meta.interrupted === true,
   };
 }
 
@@ -304,3 +323,4 @@ export function parseAuthProfileProposalsFromMeta(meta: Record<string, unknown>)
   }
   return out;
 }
+

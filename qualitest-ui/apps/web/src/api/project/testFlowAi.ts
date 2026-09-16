@@ -79,6 +79,7 @@ export type AiDesignStreamEventType =
   | 'tool_end'
   | 'graphCommitted'
   | 'runStarted'
+  | 'session'
   | 'done'
   | 'error';
 
@@ -93,6 +94,8 @@ export interface AiDesignStreamEvent {
   testFlowId?: string;
   /** runStarted：刚触发的运行 id */
   runId?: string;
+  /** session：已就绪的会话 id */
+  aiChatSessionId?: string;
   /** error 事件的错误说明 */
   message?: string;
   /** done 事件的完整设计结果 */
@@ -110,6 +113,8 @@ export interface AiDesignStreamHandlers {
   onGraphCommitted?: (testFlowId: string) => void;
   /** 全自动已触发 Run，可开始按步骤高亮画布 */
   onRunStarted?: (runId: string) => void;
+  /** 会话已创建或复用：尽早绑定 sessionId，取消后可重拉半成品 */
+  onSession?: (aiChatSessionId: string) => void;
   onDone?: (result: TestFlowDesignResult) => void;
   onError?: (message: string) => void;
 }

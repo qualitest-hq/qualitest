@@ -1,6 +1,6 @@
 /**
  * 封装测试流 AI 设计 SSE 消费与 AbortController 取消。
- * 转发 token / 思考 / 工具起止 / 隐式落盘成功 / Run 已触发 / done / error。
+ * 转发 session / token / 思考 / 工具起止 / 隐式落盘成功 / Run 已触发 / done / error。
  */
 import { ref } from 'vue';
 
@@ -66,6 +66,10 @@ export function useAiDesignStream() {
           // 全自动已触发 Run（带 runId）
           onRunStarted: (runId) => {
             handlers?.onRunStarted?.(runId);
+          },
+          // 会话已就绪：尽早记下 sessionId，取消后可重拉半成品
+          onSession: (aiChatSessionId) => {
+            handlers?.onSession?.(aiChatSessionId);
           },
           onEvent: handlers?.onEvent,
           onDone: handlers?.onDone,

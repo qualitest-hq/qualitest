@@ -79,6 +79,10 @@
                 </button>
               </template>
               <template #extra>
+                <AiToolTracePanel
+                    v-if="(msg as ApiDesignMessageView).toolTrace"
+                    :tool-trace="(msg as ApiDesignMessageView).toolTrace!"
+                />
                 <div
                     v-if="shouldShowPatchDiffSection(msg as ApiDesignMessageView)"
                     class="api-ai-diff"
@@ -190,6 +194,7 @@ import AiChatShell from '@/components/ai/AiChatShell.vue';
 import AiChatUserBubble from '@/components/ai/AiChatUserBubble.vue';
 import AiComposerToggle from '@/components/ai/AiComposerToggle.vue';
 import AiPromptTemplateStrip from '@/components/ai/AiPromptTemplateStrip.vue';
+import AiToolTracePanel from '@/components/ai/AiToolTracePanel.vue';
 import { useAiPromptTemplates } from '@/composables/ai/useAiPromptTemplates';
 
 import { API_AI_DOCK_KEY } from '../constants/apiAiDock';

@@ -117,6 +117,10 @@
                     @update:proposals="(next) => onAuthProfileProposalsUpdate((msg as AiDesignMessageView).id, next)"
                     @confirmed="() => store.loadProjectAuthConfig()"
                 />
+                <AiToolTracePanel
+                    v-if="(msg as AiDesignMessageView).toolTrace"
+                    :tool-trace="(msg as AiDesignMessageView).toolTrace!"
+                />
                 <div
                     v-if="shouldShowStagingSummary(msg as AiDesignMessageView)"
                     class="ai-design-staging-extra"
@@ -206,6 +210,7 @@ import AiChatMessageRow from '@/components/ai/AiChatMessageRow.vue';
 import AiChatShell from '@/components/ai/AiChatShell.vue';
 import AiChatUserBubble from '@/components/ai/AiChatUserBubble.vue';
 import AiComposerToggle from '@/components/ai/AiComposerToggle.vue';
+import AiToolTracePanel from '@/components/ai/AiToolTracePanel.vue';
 import AiStagingChangeSummary from '../components/AiStagingChangeSummary.vue';
 import AiAssetProposalCard from '../components/AiAssetProposalCard.vue';
 import AiAuthProfileProposalCard from '../components/AiAuthProfileProposalCard.vue';

@@ -2,6 +2,12 @@
  * AI API 助手：消息视图、patch Diff、服务端消息解析（脚本 / 约束 / 测值 / meta）。
  */
 import type { AiChatMessageItem } from '@/api/ai/chat';
+import {
+  parseToolTraceFromMeta,
+  type AiToolTraceView,
+} from '@/utils/ai/toolTrace';
+
+export type { AiToolTraceView };
 
 /** 单条 patch 变更：脚本、约束、测值或 meta。 */
 export interface ApiDesignPatchChange {
@@ -42,6 +48,10 @@ export interface ApiDesignResult {
   patch?: ApiDesignPatch;
   validation?: ApiDesignValidationResult;
   explainOnly?: boolean;
+  /** 本轮工具调用轨迹（已脱敏截断，气泡内默认折叠展示） */
+  toolTrace?: AiToolTraceView;
+  /** 本轮因用户取消或连接中断结束，内容可能不完整 */
+  interrupted?: boolean;
 }
 
 export type ApiDesignMessageRole = 'user' | 'assistant' | 'system';
@@ -83,6 +93,10 @@ export interface ApiDesignMessageView {
   diffItems?: ApiDesignDiffItem[];
   patchPending?: boolean;
   patchLoading?: boolean;
+  /** 本轮工具调用轨迹（脱敏截断后，气泡内默认折叠展示） */
+  toolTrace?: AiToolTraceView;
+  /** 本轮因用户取消或连接中断结束，内容可能不完整 */
+  interrupted?: boolean;
 }
 
 /** 截断预览文本，超出 max 时追加省略号。 */
@@ -175,7 +189,7 @@ export function parseUserMessageFromServer(msg: AiChatMessageItem): ApiDesignMes
   };
 }
 
-/** 将服务端助手消息转为侧栏视图，解析 meta 中的 patch 与 explainOnly 标志。 */
+/** 将服务端助手消息转为侧栏视图：解析 patch、explainOnly、工具轨迹与中断标记。 */
 export function parseAssistantMessageFromServer(msg: AiChatMessageItem): ApiDesignMessageView {
   let meta: Record<string, unknown> = {};
   if (msg.resultMetaJson) {
@@ -207,6 +221,8 @@ export function parseAssistantMessageFromServer(msg: AiChatMessageItem): ApiDesi
     patch,
     explainOnly,
     patchPending: hasPatchFlag && !patch && !explainOnly,
+    toolTrace: parseToolTraceFromMeta(meta),
+    interrupted: meta.interrupted === true,
   };
   if (patch && !explainOnly) {
     view.diffItems = buildDesignDiffItems(patch);
