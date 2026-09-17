@@ -11,6 +11,7 @@
         <result property="responseConvention" column="response_convention"/>
         <!-- 项目鉴权配置 JSON：多套 Bearer 等 -->
         <result property="authConfig" column="auth_config"/>
+        <result property="mcpAutopilotEnabled" column="mcp_autopilot_enabled"/>
         <result property="lastApiSyncTime" column="last_api_sync_time"/>
         <result property="apiCount" column="api_count"/>
         <result property="ownerId" column="owner_id"/>
@@ -20,7 +21,7 @@
     </resultMap>
 
     <sql id="selectTestProjectVo">
-        select test_project_id, project_name, asset_variables, response_convention, auth_config, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
+        select test_project_id, project_name, asset_variables, response_convention, auth_config, mcp_autopilot_enabled, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
         from test_project
     </sql>
 
@@ -30,6 +31,7 @@
                tp.asset_variables    as assetVariables,
                tp.response_convention as responseConvention,
                tp.auth_config         as authConfig,
+               tp.mcp_autopilot_enabled as mcpAutopilotEnabled,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
                tp.owner_id           as ownerId,
@@ -86,6 +88,7 @@
                tp.project_name       as projectName,
                tp.response_convention as responseConvention,
                tp.auth_config         as authConfig,
+               tp.mcp_autopilot_enabled as mcpAutopilotEnabled,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
                tp.owner_id           as ownerId,
@@ -119,6 +122,7 @@
                tp.asset_variables,
                tp.response_convention,
                tp.auth_config,
+               tp.mcp_autopilot_enabled,
                tp.last_api_sync_time,
                tp.api_count,
                tp.owner_id,
@@ -156,6 +160,9 @@
             <if test="authConfig != null">
                 auth_config,
             </if>
+            <if test="mcpAutopilotEnabled != null">
+                mcp_autopilot_enabled,
+            </if>
             <if test="lastApiSyncTime != null">
                 last_api_sync_time,
             </if>
@@ -190,6 +197,9 @@
             </if>
             <if test="authConfig != null">
                 #{authConfig},
+            </if>
+            <if test="mcpAutopilotEnabled != null">
+                #{mcpAutopilotEnabled},
             </if>
             <if test="lastApiSyncTime != null">
                 #{lastApiSyncTime},
@@ -226,6 +236,9 @@
             </if>
             <if test="authConfig != null">
                 auth_config = #{authConfig},
+            </if>
+            <if test="mcpAutopilotEnabled != null">
+                mcp_autopilot_enabled = #{mcpAutopilotEnabled},
             </if>
             <if test="lastApiSyncTime != null">
                 last_api_sync_time = #{lastApiSyncTime},

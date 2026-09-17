@@ -10,18 +10,19 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 可测提示词：供复制到 Cursor 等编辑器，按业务仓汇总质衡可用的短提示。
+ * 可测提示词服务：从 classpath 读取增量/全量 Markdown，截取可复制正文供前端一键复制。
+ * 正文贴到 Cursor 等编辑器，让其按业务仓汇总可回贴质衡造流的短提示。
  */
 @Service
 public class TestablePromptService {
 
-    /** 增量：刚改完功能时用 */
+    /** 增量：刚改完单个功能时用 */
     public static final String KIND_INCREMENTAL = "incremental";
-    /** 全量：整仓补测时用 */
+    /** 全量：整仓补测、按模块列出时可测提示 */
     public static final String KIND_FULL = "full";
 
     /**
-     * 按类型返回可复制正文（去掉资源文件说明头）。
+     * 按类型返回可复制正文（去掉资源文件开头的说明头）。
      *
      * @param kind incremental 或 full
      * @return 提示词正文
@@ -39,6 +40,7 @@ public class TestablePromptService {
         throw new ServiceException("不支持的可测提示词类型: " + kind);
     }
 
+    /** 以 UTF-8 读取 classpath 资源全文 */
     private static String loadClasspathUtf8(String path, String label) {
         try (InputStream in = new ClassPathResource(path).getInputStream()) {
             return IoUtil.read(in, StandardCharsets.UTF_8);
@@ -48,7 +50,8 @@ public class TestablePromptService {
     }
 
     /**
-     * 若存在独立一行的 --- 分隔线，取其后内容；否则取全文。
+     * 若存在独立一行的 --- 分隔线，取其后内容作为可复制正文；否则取全文。
+     * 分隔线后若为空则报错。
      */
     static String extractCopyablePrompt(String raw) {
         if (StrUtil.isBlank(raw)) {

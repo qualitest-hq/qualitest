@@ -13,10 +13,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 组装造流工具请求上下文的工厂。
+ * 组装造流工具请求上下文。
  * <p>
- * Web：注入 SubmitCapture、素材/鉴权提案容器、会话短名映射与基准画布。
- * MCP：只读信封（项目/流/画布），不注入素材或鉴权写入容器。
+ * Web：注入 submit 累积器、素材/鉴权提案容器、会话短名映射与基准画布；可开全自动。
+ * MCP：按 Token 与参数组装项目/流/画布；写工具可开全自动并注入本调用的 submit 累积器；
+ * 素材与鉴权提案容器为空（写素材时走全自动直写库）。
  */
 @Component
 @RequiredArgsConstructor
@@ -123,21 +124,35 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 MCP 调用请求构建工具上下文。
-     * 项目 id 优先用 params.testProjectId，否则用 Token 解析出的项目 id。
+     * 从 MCP 调用参数组装工具上下文。
+     * 项目 id 优先用参数里的 testProjectId，否则用 Token 解析出的项目 id。
      *
-     * @param tokenProjectId Project Token 过滤器写入的项目 id
+     * @param tokenProjectId Token 绑定的项目 id
      */
     public FlowDesignToolContext fromMcpRequest(McpToolInvokeParams params, Long tokenProjectId) {
-        return fromMcpRequest(params, tokenProjectId, null);
+        return fromMcpRequest(params, tokenProjectId, null, false);
     }
 
     /**
-     * 从 MCP 调用请求构建工具上下文；可附带 submit 捕获器。素材与鉴权提案捕获器固定为 null。
+     * 从 MCP 调用参数组装工具上下文，可附带本调用的 submit 单元累积器。
+     * 素材/鉴权提案容器固定为空（MCP 写素材走全自动直写路径）。
      */
     public FlowDesignToolContext fromMcpRequest(McpToolInvokeParams params,
                                                 Long tokenProjectId,
                                                 FlowDesignSubmitCapture submitCapture) {
+        return fromMcpRequest(params, tokenProjectId, submitCapture, false);
+    }
+
+    /**
+     * 从 MCP 调用参数组装工具上下文。
+     *
+     * @param submitCapture    本调用的 submit 单元累积器；改图 submit 时传入，只读可为 null
+     * @param autopilotEnabled true 时允许跑流、素材/鉴权直写，以及 submit 后立即写库
+     */
+    public FlowDesignToolContext fromMcpRequest(McpToolInvokeParams params,
+                                                Long tokenProjectId,
+                                                FlowDesignSubmitCapture submitCapture,
+                                                boolean autopilotEnabled) {
         Long projectId = params.getTestProjectId() != null ? params.getTestProjectId() : tokenProjectId;
         if (projectId == null) {
             throw new ServiceException("缺少 testProjectId");
@@ -159,7 +174,7 @@ public class FlowDesignToolContextFactory {
                 null,
                 null,
                 null,
-                false,
+                autopilotEnabled,
                 null,
                 null,
                 null,

@@ -19,9 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 FlowDesignToolContextFactory：Web 设计请求与 MCP 调用组装 FlowDesignToolContext。
- * 边界：Mock AiLlmConfigService；校验项目归属与 scopeApiIds。
- * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolContextFactoryTest
+ * 测工具上下文组装：Web 设计请求与 MCP 调用（项目回退、项目 id 冲突校验）。
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FlowDesignToolContextFactoryTest {

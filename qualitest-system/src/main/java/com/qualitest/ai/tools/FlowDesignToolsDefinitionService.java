@@ -20,11 +20,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 加载 Web 造流与 MCP 的 OpenAI function 定义（名称、描述、参数 Schema）。
+ * 加载 Web 造流与 MCP 的工具定义（名称、描述、参数 Schema）。
  * <p>
- * Web：主工具 JSON 中 webAgent 工具（含分类型 submit_*、素材列举与写入）。
- * MCP：主 JSON 中允许 MCP 的工具 + 额外列流/读流定义（只读，不含任何 submit）。
- * 启动时校验：工具名枚举、执行器已注册名、JSON 定义名三者集合相同。
+ * Web：造流助手可用工具（含 submit、素材写入、跑流等）。
+ * MCP 默认：只读勘察工具列表。
+ * MCP 全自动：在只读列表上追加改图 submit、素材/鉴权写入、跑流等写工具（须项目开关开启）。
+ * 启动时校验：枚举声明名、执行器已注册名、JSON 定义名集合齐全无多余。
  */
 @Slf4j
 @Service
@@ -33,18 +34,23 @@ public class FlowDesignToolsDefinitionService {
 
     private final FlowDesignToolExecutor flowDesignToolExecutor;
 
-    /** Web Agent 工具定义缓存 */
+    /** Web 造流助手工具定义缓存 */
     @Getter
     private volatile List<Map<String, Object>> cachedTools;
 
-    /** MCP 只读工具定义缓存（OpenAI function 结构，供内部转换） */
+    /** MCP 只读工具定义缓存（内部 function 结构） */
     @Getter
     private volatile List<Map<String, Object>> cachedMcpTools;
 
-    /** MCP tools/list 协议格式缓存：{name, description, inputSchema} */
+    /** MCP tools/list 协议格式缓存：仅只读 */
     @Getter
     private volatile List<Map<String, Object>> cachedMcpProtocolTools;
 
+    /** MCP tools/list 协议格式缓存：只读 + 全自动写工具 */
+    @Getter
+    private volatile List<Map<String, Object>> cachedMcpAutopilotProtocolTools;
+
+    /** 应用启动时校验工具名注册完整性 */
     @PostConstruct
     void validateToolRegistryConsistency() {
         try {
@@ -54,6 +60,7 @@ public class FlowDesignToolsDefinitionService {
         }
     }
 
+    /** 校验枚举、执行器、JSON 三处工具名集合齐全且无多余项 */
     private void validateToolRegistryConsistencyInternal() throws IOException {
         Set<String> declared = FlowDesignToolExecutor.allDeclaredToolNames();
         Set<String> registered = flowDesignToolExecutor.registeredToolNames();
@@ -76,7 +83,7 @@ public class FlowDesignToolsDefinitionService {
 
         Set<String> mcpFromJson = new HashSet<>();
         mcpFromJson.addAll(extractToolNames(loadToolsDefinitionRaw().stream()
-                .filter(this::isMcpToolDefinition)
+                .filter(this::isMcpReadonlyToolDefinition)
                 .toList()));
         mcpFromJson.addAll(extractToolNames(loadMcpExtraToolsDefinition()));
         Set<String> expectedMcp = FlowDesignToolNames.mcpAllowedToolIds();
@@ -85,7 +92,15 @@ public class FlowDesignToolsDefinitionService {
                     + "jsonOnly=" + diff(mcpFromJson, expectedMcp)
                     + ", enumOnly=" + diff(expectedMcp, mcpFromJson));
         }
-        log.info("Flow Design 工具注册一致性校验通过: web={}, mcp={}", webFromJson.size(), mcpFromJson.size());
+
+        Set<String> writeIds = FlowDesignToolNames.mcpAutopilotWriteToolIds();
+        Set<String> missingWrite = new HashSet<>(writeIds);
+        missingWrite.removeAll(registered);
+        if (!missingWrite.isEmpty()) {
+            throw new IllegalStateException("MCP 全自动写工具缺少执行器定义: " + missingWrite);
+        }
+        log.info("Flow Design 工具注册一致性校验通过: web={}, mcpReadonly={}, mcpWrite={}",
+                webFromJson.size(), mcpFromJson.size(), writeIds.size());
     }
 
     private static Set<String> diff(Set<String> a, Set<String> b) {
@@ -150,7 +165,7 @@ public class FlowDesignToolsDefinitionService {
     }
 
     /**
-     * MCP 网关对外暴露的工具列表。
+     * MCP 默认只读工具列表（内部 function 结构：name / description / parameters）。
      */
     public List<Map<String, Object>> loadMcpToolsDefinition() {
         List<Map<String, Object>> local = cachedMcpTools;
@@ -161,9 +176,10 @@ public class FlowDesignToolsDefinitionService {
             if (cachedMcpTools != null) {
                 return cachedMcpTools;
             }
+            // 主清单里的只读工具 + MCP 专用扩展（列流、读流）
             List<Map<String, Object>> merged = new ArrayList<>();
             merged.addAll(loadToolsDefinition().stream()
-                    .filter(this::isMcpToolDefinition)
+                    .filter(this::isMcpReadonlyToolDefinition)
                     .toList());
             merged.addAll(loadMcpExtraToolsDefinition());
             cachedMcpTools = List.copyOf(merged);
@@ -172,7 +188,42 @@ public class FlowDesignToolsDefinitionService {
     }
 
     /**
-     * MCP {@code tools/list} 直接可用的工具定义。
+     * 返回 MCP tools/list 用的工具定义。
+     *
+     * @param mcpAutopilotEnabled true 时在只读列表上追加改图/写入/跑流等写工具
+     */
+    public List<Map<String, Object>> loadMcpProtocolTools(boolean mcpAutopilotEnabled) {
+        if (!mcpAutopilotEnabled) {
+            return loadMcpProtocolTools();
+        }
+        List<Map<String, Object>> local = cachedMcpAutopilotProtocolTools;
+        if (local != null) {
+            return local;
+        }
+        synchronized (this) {
+            if (cachedMcpAutopilotProtocolTools != null) {
+                return cachedMcpAutopilotProtocolTools;
+            }
+            // 以只读列表为底，再挂上写工具并标注 MCP 落盘说明
+            List<Map<String, Object>> protocolTools = new ArrayList<>(loadMcpProtocolTools());
+            Set<String> existing = protocolTools.stream()
+                    .map(t -> String.valueOf(t.get("name")))
+                    .collect(Collectors.toSet());
+            for (Map<String, Object> tool : loadToolsDefinition()) {
+                String name = extractFunctionName(tool);
+                if (name == null || !FlowDesignToolNames.isMcpAutopilotWriteTool(name) || existing.contains(name)) {
+                    continue;
+                }
+                protocolTools.add(annotateMcpWriteTool(toMcpProtocolTool(tool)));
+                existing.add(name);
+            }
+            cachedMcpAutopilotProtocolTools = List.copyOf(protocolTools);
+            return cachedMcpAutopilotProtocolTools;
+        }
+    }
+
+    /**
+     * 返回 MCP tools/list 默认只读工具定义（协议格式：name / description / inputSchema）。
      */
     public List<Map<String, Object>> loadMcpProtocolTools() {
         List<Map<String, Object>> local = cachedMcpProtocolTools;
@@ -192,6 +243,29 @@ public class FlowDesignToolsDefinitionService {
         }
     }
 
+    /**
+     * 给 MCP 写工具 description 追加落盘说明，避免模型以为还要单独 commit。
+     * submit：成功即写库；run：跑库中最新图；其它写入：工具内直接写库。
+     */
+    private static Map<String, Object> annotateMcpWriteTool(Map<String, Object> mcpTool) {
+        Object nameObj = mcpTool.get("name");
+        String name = nameObj != null ? String.valueOf(nameObj) : "";
+        Object descObj = mcpTool.get("description");
+        String desc = descObj instanceof String s ? s : "";
+        String suffix;
+        if (FlowDesignToolNames.isSubmitUnitTool(name)) {
+            suffix = "【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。";
+        } else if (FlowDesignToolNames.RUN_TEST_FLOW.getId().equals(name)) {
+            suffix = "【MCP 全自动】跑库中最新图；此前每次 submit 已落盘。";
+        } else {
+            suffix = "【MCP 全自动】工具内直接写库。";
+        }
+        Map<String, Object> next = new LinkedHashMap<>(mcpTool);
+        next.put("description", (desc + " " + suffix).trim());
+        return next;
+    }
+
+    /** 内部 function 结构转为 MCP 协议格式（name / description / inputSchema） */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> toMcpProtocolTool(Map<String, Object> functionTool) {
         Object fnObj = functionTool.get("function");
@@ -206,6 +280,7 @@ public class FlowDesignToolsDefinitionService {
         return mcpTool;
     }
 
+    /** 加载仅 MCP 使用的扩展工具定义（如列流、读流） */
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> loadMcpExtraToolsDefinition() {
         try {
@@ -219,7 +294,8 @@ public class FlowDesignToolsDefinitionService {
         }
     }
 
-    private boolean isMcpToolDefinition(Map<String, Object> tool) {
+    /** 是否属于 MCP 默认只读工具定义 */
+    private boolean isMcpReadonlyToolDefinition(Map<String, Object> tool) {
         String name = extractFunctionName(tool);
         return name != null && FlowDesignToolNames.isMcpAllowed(name);
     }
@@ -255,7 +331,7 @@ public class FlowDesignToolsDefinitionService {
         return tool;
     }
 
-    /** 返回 Web Agent 工具名列表（按 tools 定义文件中的声明顺序） */
+    /** 返回 Web 造流助手工具名列表（按定义文件中的声明顺序） */
     public List<String> listToolNames() {
         List<String> names = new ArrayList<>();
         for (Map<String, Object> tool : loadToolsDefinition()) {

@@ -59,6 +59,11 @@ public class TestProject extends BaseEntity {
     private String authConfig;
 
     /**
+     * 是否允许 MCP 全自动写流：开启后持 Token 方可经 MCP 改图画布并跑流。
+     */
+    private Boolean mcpAutopilotEnabled;
+
+    /**
      * 新建项目时勾选的模板主键列表。
      * 仅请求入参、不落库；创建时据此写入 authConfig 并种子预制资产。
      */

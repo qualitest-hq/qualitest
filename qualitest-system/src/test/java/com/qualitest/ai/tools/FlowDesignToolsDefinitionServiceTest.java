@@ -20,9 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 FlowDesignToolsDefinitionService：Web / MCP 工具清单内容与数量。
- * 边界：Mock FlowDesignToolExecutor.registeredToolNames，不启真实 Agent。
- * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolsDefinitionServiceTest
+ * 测工具定义加载：Web 半自动/全自动清单、MCP 只读清单、MCP 全自动追加写工具。
  */
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -152,5 +150,25 @@ class FlowDesignToolsDefinitionServiceTest {
                 .collect(Collectors.toSet());
 
         assertEquals(FlowDesignToolNames.mcpAllowedToolIds(), mcpNames);
+    }
+
+    /**
+     * 前提：开启 MCP 全自动写流时的工具列表。
+     * 期望：含只读工具与全部写工具，名称无重复。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("MCP 全自动列表含写工具")
+    void loadMcpProtocolTools_autopilot_includesWriteTools() {
+        List<String> names = service.loadMcpProtocolTools(true).stream()
+                .map(tool -> String.valueOf(tool.get("name")))
+                .toList();
+        Set<String> unique = Set.copyOf(names);
+        assertEquals(names.size(), unique.size());
+        assertEquals(FlowDesignToolNames.mcpAutopilotToolIds(), unique);
+        assertTrue(names.contains(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
     }
 }

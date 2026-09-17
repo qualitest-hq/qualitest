@@ -49,6 +49,7 @@ public class TestProjectController extends BaseController {
     private final ITestProjectUserSettingService testProjectUserSettingService;
     private final ProjectAuthTemplateApplyService projectAuthTemplateApplyService;
     private final ProjectTemplateFromProjectService projectTemplateFromProjectService;
+    /** 可测提示词（增量/全量）加载，供一键复制到编辑器 */
     private final TestablePromptService testablePromptService;
 
     /**

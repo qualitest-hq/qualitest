@@ -1,8 +1,8 @@
 # MCP integration (Cursor example)
 
-Qualitest exposes a **project-scoped MCP** service over **Streamable HTTP** so **MCP-capable AI editors / agents** (Cursor, VS Code ecosystem, Claude Code, …) can **read** this project’s APIs, test flows, and Run context.  
+Qualitest exposes a **project-scoped MCP** service over **Streamable HTTP** so **MCP-capable AI editors / agents** (Cursor, VS Code ecosystem, Claude Code, …) can query this project’s APIs, test flows, and Run context.  
 Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + custom headers can use the same fields.  
-**Edit the canvas via the Web AI panel** (Diff then merge, or switch to Full-auto for Web auto-persist + `run`). MCP **does not** write the database and has no `submit_*` / `run_test_flow` tools.
+**Read-only by default.** Enable **“Allow MCP Full-auto write”** in Project settings to expose Web Full-auto write tools (`submit_*`, upserts, `run_test_flow`); each successful `submit_*` **persists immediately**.
 
 中文版：[mcp.md](./mcp.md)
 
@@ -99,7 +99,7 @@ and suggest what to change on the canvas (advice only — do not write the DB).
 ## 5. Security & limits
 
 - A Token is a project credential: keep it out of Git and screenshots; rotate in Project settings if leaked.
-- MCP is **read-only**; design changes go through Web **AI assistant** (Diff then merge). Rules: [ai-staging.en.md](./ai-staging.en.md). Stuck: [faq.en.md](./faq.en.md). Draft MCP Full-auto write+run: [mcp-autopilot-write-run.md](./mcp-autopilot-write-run.md) (Chinese).
+- MCP is **read-only by default**; enable Full-auto write in Project settings to allow Cursor to edit flows and run. Staging rules: [ai-staging.en.md](./ai-staging.en.md). Stuck: [faq.en.md](./faq.en.md).
 - Without MCP write: Project Settings → copy **testable prompts** (incremental / full) into Cursor, then paste short prompts back into Web AI.
 - Demo target + NL flow prompts: [qualitest-demo · AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
 

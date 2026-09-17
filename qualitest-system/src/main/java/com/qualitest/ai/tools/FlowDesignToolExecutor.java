@@ -47,10 +47,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 测试流 AI 设计 Function Calling 统一执行器。
+ * 测试流 AI 设计工具统一执行器。
  * <p>
- * 构造时注册全部只读工具与 submit_* 写图单元工具，按工具名路由执行。
- * Web Agent 与 MCP 共用本执行器；MCP 调用入口另行拦截 submit_*，禁止改图。
+ * 构造时注册全部只读工具与改图 submit、素材写入、跑流等，按工具名路由执行。
+ * Web 造流与 MCP 共用；MCP 侧是否允许写工具由调用入口按项目开关拦截，本类只负责执行。
  */
 @Slf4j
 @Component
@@ -174,7 +174,7 @@ public class FlowDesignToolExecutor {
                 .collect(Collectors.toSet());
     }
 
-    /** 是否允许 MCP 调用该工具名。 */
+    /** 是否始终允许 MCP 只读调用该工具名。 */
     public static boolean isMcpAllowedTool(String name) {
         return FlowDesignToolNames.isMcpAllowed(name);
     }

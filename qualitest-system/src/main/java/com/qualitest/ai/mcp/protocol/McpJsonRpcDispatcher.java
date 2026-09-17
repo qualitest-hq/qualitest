@@ -17,26 +17,26 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * MCP JSON-RPC 请求分发器。
+ * MCP JSON-RPC 请求分发。
  * <p>
- * 将 POST 请求体解析为 JSON-RPC，按 {@code method} 路由到具体处理逻辑，并序列化为 JSON-RPC 响应字符串。
- * 支持的方法：
- * <ul>
- *   <li>{@code initialize}：返回协议版本、能力与 serverInfo（含 testProjectId），并创建 SSE 会话</li>
- *   <li>{@code tools/list}：返回当前项目可用的只读工具定义列表</li>
- *   <li>{@code tools/call}：执行单个工具，结果封装为 MCP content 文本</li>
- *   <li>{@code ping}：空 result 心跳</li>
- *   <li>{@code notifications/*}：客户端通知，HTTP 层返回空响应体</li>
- * </ul>
- * 工具执行委托 {@link McpToolInvokeService}，不在此重复白名单与业务规则。
+ * 解析 POST 体后按 method 路由：
+ * initialize（握手，serverInfo 含项目 id 与是否开启 MCP 全自动写流）；
+ * tools/list（按项目开关返回只读或只读+写工具定义）；
+ * tools/call（执行单个工具）；
+ * ping / notifications。
+ * 工具白名单与写库规则由工具调用服务处理。
  */
 @Service
 @RequiredArgsConstructor
 public class McpJsonRpcDispatcher {
 
+    /** 提供 tools/list 用的工具 Schema */
     private final FlowDesignToolsDefinitionService toolsDefinitionService;
+    /** 执行 tools/call 与读取项目 MCP 全自动开关 */
     private final McpToolInvokeService mcpToolInvokeService;
+    /** 把 MCP arguments 映射为内部调用参数 */
     private final McpToolArgumentsMapper argumentsMapper;
+    /** 维护 MCP SSE 会话 */
     private final McpSessionRegistry sessionRegistry;
 
     /**
@@ -73,18 +73,21 @@ public class McpJsonRpcDispatcher {
             case "initialize" -> DispatchResult.withSession(
                     handleInitialize(id, testProjectId),
                     sessionRegistry.createSession(testProjectId));
-            case "tools/list" -> DispatchResult.response(handleToolsList(id));
+            case "tools/list" -> DispatchResult.response(handleToolsList(id, testProjectId));
             case "tools/call" -> DispatchResult.response(handleToolsCall(id, request, testProjectId));
             case "ping" -> DispatchResult.response(McpJsonRpc.result(id, Map.of()));
             default -> DispatchResult.response(McpJsonRpc.error(id, -32601, "Method not found: " + method));
         };
     }
 
+    /** 握手：返回协议版本、能力，以及项目 id、是否开启 MCP 全自动写流 */
     private String handleInitialize(Object id, Long testProjectId) {
+        boolean mcpAutopilot = mcpToolInvokeService.isMcpAutopilotEnabled(testProjectId);
         Map<String, Object> serverInfo = new LinkedHashMap<>();
         serverInfo.put("name", McpJsonRpc.SERVER_NAME);
         serverInfo.put("version", McpJsonRpc.SERVER_VERSION);
         serverInfo.put("testProjectId", String.valueOf(testProjectId));
+        serverInfo.put("mcpAutopilotEnabled", mcpAutopilot);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("protocolVersion", McpJsonRpc.PROTOCOL_VERSION);
@@ -93,11 +96,14 @@ public class McpJsonRpcDispatcher {
         return McpJsonRpc.result(id, result);
     }
 
-    private String handleToolsList(Object id) {
-        List<Map<String, Object>> mcpTools = toolsDefinitionService.loadMcpProtocolTools();
+    /** 按项目开关返回工具列表：关=只读，开=只读加写工具 */
+    private String handleToolsList(Object id, Long testProjectId) {
+        boolean mcpAutopilot = mcpToolInvokeService.isMcpAutopilotEnabled(testProjectId);
+        List<Map<String, Object>> mcpTools = toolsDefinitionService.loadMcpProtocolTools(mcpAutopilot);
         return McpJsonRpc.result(id, Map.of("tools", mcpTools));
     }
 
+    /** 执行单个工具：解析参数、调用业务、封装 content 文本与 isError */
     @SuppressWarnings("unchecked")
     private String handleToolsCall(Object id, JSONObject request, Long testProjectId) {
         JSONObject params = request.getJSONObject("params");
@@ -127,7 +133,7 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * {@link #dispatch} 的返回封装。
+     * 分发结果：响应体、新建的 SSE 会话 id、是否为客户端通知（通知时 HTTP 空体）。
      */
     @Getter
     public static class DispatchResult {

@@ -282,11 +282,34 @@
         </section>
 
         <section class="project-setting__card">
+          <header class="project-setting__card-head">
+            <h3 class="project-setting__card-title">MCP 全自动写流</h3>
+            <p class="project-setting__card-desc">
+              开启后，持有本项目 Token 的 Cursor 等可通过 MCP 直接改测试流画布并触发运行。
+            </p>
+          </header>
+
+          <div class="project-setting__mcp-autopilot-row">
+            <el-switch
+                v-model="mcpAutopilotEnabled"
+                active-text="允许 MCP 全自动写流"
+                inactive-text="仅只读"
+            />
+            <el-button :loading="mcpAutopilotSaving" type="primary" @click="saveMcpAutopilot">
+              保存
+            </el-button>
+          </div>
+          <p class="project-setting__hint project-setting__hint--warn">
+            默认关闭。开启后 Token 泄露风险放大：持有者可改图画布并跑流；请仅对可信环境开启，并可随时关闭或刷新 Token。
+          </p>
+        </section>
+
+        <section class="project-setting__card">
           <header class="project-setting__card-head project-setting__card-head--row">
             <div>
               <h3 class="project-setting__card-title">Cursor MCP</h3>
               <p class="project-setting__card-desc">
-                粘贴到 Cursor 的 <code>mcp.json</code>，IDE 内只读查询本项目 API、测试流等。
+                粘贴到 Cursor 的 <code>mcp.json</code>；未开「MCP 全自动写流」时仅只读查询本项目 API、测试流等。
               </p>
             </div>
             <el-button
@@ -411,6 +434,10 @@ const testablePromptCache = reactive({
   full: '',
 })
 
+/** MCP 全自动写流开关（项目级） */
+const mcpAutopilotEnabled = ref(false)
+const mcpAutopilotSaving = ref(false)
+
 const authPreview = computed(() => formatAuthConfigPreview(authForm))
 
 function resolveProjectId() {
@@ -519,6 +546,7 @@ function loadProjectSettings() {
   if (!pid) {
     applyConvention(null)
     applyAuthForm(emptyAuthForm())
+    mcpAutopilotEnabled.value = false
     return
   }
   getTestProject(pid)
@@ -527,10 +555,35 @@ function loadProjectSettings() {
       applyAuthForm(parseAuthConfig(res.data?.authConfig, {
         needsAuthTemplateHint: res.data?.needsAuthTemplateHint,
       }))
+      mcpAutopilotEnabled.value = !!res.data?.mcpAutopilotEnabled
     })
     .catch(() => {
       applyConvention(null)
       applyAuthForm(emptyAuthForm())
+      mcpAutopilotEnabled.value = false
+    })
+}
+
+/** 保存 MCP 全自动写流开关 */
+function saveMcpAutopilot() {
+  const pid = resolveProjectId()
+  if (!pid) {
+    proxy.$modal.msgError('缺少项目 ID')
+    return
+  }
+  mcpAutopilotSaving.value = true
+  updateTestProject({
+    testProjectId: pid,
+    mcpAutopilotEnabled: !!mcpAutopilotEnabled.value,
+  })
+    .then(() => {
+      proxy.$modal.msgSuccess(mcpAutopilotEnabled.value ? '已允许 MCP 全自动写流' : '已关闭 MCP 全自动写流')
+    })
+    .catch(() => {
+      proxy.$modal.msgError('保存失败')
+    })
+    .finally(() => {
+      mcpAutopilotSaving.value = false
     })
 }
 
@@ -837,6 +890,14 @@ const mcpConfigText = computed(() => {
   &--flush-top {
     margin-top: 0;
   }
+}
+
+.project-setting__mcp-autopilot-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .project-setting__conv-grid {

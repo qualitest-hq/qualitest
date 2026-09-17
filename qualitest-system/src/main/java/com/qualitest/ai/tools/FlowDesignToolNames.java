@@ -1,20 +1,23 @@
 package com.qualitest.ai.tools;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 测试流 AI 设计工具名注册表。
  * <p>
- * 每个工具两个开关：webAgent（是否进 Web 造流助手工具列表）、mcpAllowed（是否允许 MCP 调用）。
- * submit_* 仅 Web：半自动经 Staging 确认后才落库；全自动由服务端隐式写库。
- * run_test_flow 仅 Web，且仅当请求开启全自动时注入模型；MCP 始终只读。
- * 启动时校验：工具名清单须完整、无遗漏、无多余项。
+ * 每个工具两个开关：webAgent（是否进 Web 造流助手工具列表）、
+ * mcpAllowed（是否默认允许 MCP 调用，一般为只读勘察工具）。
+ * 改图 submit、素材/鉴权写入、跑流等默认不进 MCP；
+ * 仅当项目开启「允许 MCP 全自动写流」后，由运行时追加进工具列表并可调用。
  */
 public enum FlowDesignToolNames {
 
     /** 按关键词搜索当前项目下的接口，返回 id、method、path、名称与鉴权摘要 */
     SEARCH_APIS("search_apis", true, true),
-    /** 批量拉取接口造流摘要（参数、schema、designHints、建议 extracts 等），每批最多若干条 */
+    /** 批量拉取接口造流摘要（参数、schema、designHints、建议 extracts 等） */
     GET_API_DETAILS("get_api_details", true, true),
     /** 获取当前画布节点与边摘要，含开始节点数与异常拓扑提示 */
     GET_GRAPH_SUMMARY("get_graph_summary", true, true),
@@ -24,11 +27,11 @@ public enum FlowDesignToolNames {
     LIST_PROJECT_ENVS("list_project_envs", true, true),
     /** 列举项目素材库变量键与字段名（不含明文） */
     LIST_ASSET_VARIABLES("list_asset_variables", true, true),
-    /** 新增或更新素材库条目（半自动：提案待确认；全自动：工具内直写） */
+    /** 新增或更新素材库条目；半自动进提案，全自动工具内直接写库 */
     UPSERT_ASSET_VARIABLES("upsert_asset_variables", true, false),
     /** 列举项目鉴权 Profile（pathPrefix、托管头、凭证目标；无密钥明文） */
     LIST_PROJECT_AUTH_PROFILES("list_project_auth_profiles", true, true),
-    /** 浅合并更新或新建项目鉴权 Profile（半自动记提案待确认；全自动工具内直写） */
+    /** 浅合并更新或新建项目鉴权 Profile；半自动进提案，全自动工具内直接写库 */
     UPSERT_AUTH_PROFILE("upsert_auth_profile", true, false),
     /** 向接口 design_hints 追加短提示并直接落库 */
     APPEND_API_DESIGN_HINTS("append_api_design_hints", true, false),
@@ -40,7 +43,7 @@ public enum FlowDesignToolNames {
     GET_SCENARIO_DETAIL("get_scenario_detail", true, true),
     /** 读取某次 Run 的失败步骤现场（按失败类别分区） */
     GET_RUN_FAILURE("get_run_failure", true, true),
-    /** 检查画布上项目 HTTP 节点的 API 语义健康告警（缺失、孤儿测值、抽取路径失效等） */
+    /** 检查画布上项目 HTTP 节点的 API 语义健康告警 */
     GET_FLOW_API_HEALTH("get_flow_api_health", true, true),
     /** 列举可引用的子流模板与项目内测试流摘要 */
     LIST_SUBFLOW_TEMPLATES("list_subflow_templates", true, true),
@@ -51,11 +54,7 @@ public enum FlowDesignToolNames {
     /** 仅 MCP：读取完整测试流与 graphJson */
     GET_FLOW("get_flow", false, true),
 
-    /**
-     * 以下为 Web 画布写工具：每次调用恰好产出 1 个 Staging 单元。
-     * 节点/边/场景用 upsert（参数 op=add|update）；删除用统一 submit_delete（kind+id）。
-     */
-    /** 新增或修改单个 HTTP 节点 */
+    /** 新增或修改单个 HTTP 节点（每次调用一个 Staging 单元） */
     SUBMIT_HTTP_NODE("submit_http_node", true, false),
     /** 新增或修改单个断言节点 */
     SUBMIT_ASSERT_NODE("submit_assert_node", true, false),
@@ -69,21 +68,24 @@ public enum FlowDesignToolNames {
     SUBMIT_SCRIPT_NODE("submit_script_node", true, false),
     /** 新增或修改单个子流节点 */
     SUBMIT_SUBFLOW_NODE("submit_subflow_node", true, false),
-
     /** 新增或修改单条边 */
     SUBMIT_EDGE("submit_edge", true, false),
     /** 新增或修改单个运行场景（不切换画布默认场景） */
     SUBMIT_SCENARIO("submit_scenario", true, false),
-    /** 建议删除单个节点、边或运行场景 */
+    /** 删除单个节点、边或运行场景 */
     SUBMIT_DELETE("submit_delete", true, false),
 
     /**
-     * 全自动：触发当前测试流 Run 并返回结果摘要（仅 Web，须请求 autopilotEnabled；跑前自动落盘）。
+     * 触发当前测试流 Run 并返回结果摘要。
+     * 仅全自动上下文可调用；跑前会把未落盘的 submit 单元先写入库。
      */
     RUN_TEST_FLOW("run_test_flow", true, false);
 
+    /** 工具名字符串，作 Function Calling / 执行器路由键 */
     private final String id;
+    /** 是否进入 Web 造流助手工具列表 */
     private final boolean webAgent;
+    /** 是否默认允许 MCP 调用（只读勘察类为 true） */
     private final boolean mcpAllowed;
 
     FlowDesignToolNames(String id, boolean webAgent, boolean mcpAllowed) {
@@ -92,32 +94,31 @@ public enum FlowDesignToolNames {
         this.mcpAllowed = mcpAllowed;
     }
 
-    /** Function Calling 工具名，亦作执行器路由键 */
+    /** 工具名字符串 */
     public String getId() {
         return id;
     }
 
-    /** 是否注入 Web 造流 Agent 的 tools 列表 */
+    /** 是否进入 Web 造流助手工具列表 */
     public boolean isWebAgent() {
         return webAgent;
     }
 
-    /** 是否允许经 MCP tools/call 调用 */
+    /** 是否默认允许 MCP 调用 */
     public boolean isMcpAllowed() {
         return mcpAllowed;
     }
 
     /**
-     * 是否为画布单元提交类工具。
-     * 名称以 submit_ 开头即视为写图单元工具。
+     * 是否为画布单元提交类工具（名称以 submit_ 开头）。
      */
     public static boolean isSubmitUnitTool(String name) {
         return name != null && name.startsWith("submit_");
     }
 
     /**
-     * 全自动才注入给模型的工具名判定。
-     * 当前仅 run_test_flow；改图落盘不通过独立工具暴露给模型。
+     * 是否为仅全自动才注入 Web 助手的工具。
+     * 当前仅 run_test_flow。
      */
     public static boolean isAutopilotOnlyTool(String name) {
         if (name == null || name.isBlank()) {
@@ -126,7 +127,25 @@ public enum FlowDesignToolNames {
         return RUN_TEST_FLOW.id.equals(name);
     }
 
-    /** 按工具名判断是否允许 MCP */
+    /**
+     * 是否为 MCP 全自动写工具。
+     * 须项目开关开启后才可出现在 tools/list 并被 tools/call。
+     * 含全部 submit_*、素材 upsert、鉴权 upsert、追加 design_hints、run_test_flow。
+     */
+    public static boolean isMcpAutopilotWriteTool(String name) {
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+        if (isSubmitUnitTool(name)) {
+            return true;
+        }
+        return UPSERT_ASSET_VARIABLES.id.equals(name)
+                || UPSERT_AUTH_PROFILE.id.equals(name)
+                || APPEND_API_DESIGN_HINTS.id.equals(name)
+                || RUN_TEST_FLOW.id.equals(name);
+    }
+
+    /** 按工具名判断是否默认允许 MCP（只读集） */
     public static boolean isMcpAllowed(String name) {
         if (name == null || name.isBlank()) {
             return false;
@@ -135,7 +154,20 @@ public enum FlowDesignToolNames {
                 .anyMatch(t -> t.id.equals(name) && t.mcpAllowed);
     }
 
-    /** 按工具名判断是否属于 Web Agent */
+    /**
+     * 当前请求是否允许经 MCP 调用该工具。
+     * 只读工具始终允许；写工具仅当项目已开启 MCP 全自动写流。
+     *
+     * @param autopilotEnabled 项目是否开启 MCP 全自动写流
+     */
+    public static boolean isMcpCallable(String name, boolean autopilotEnabled) {
+        if (isMcpAllowed(name)) {
+            return true;
+        }
+        return autopilotEnabled && isMcpAutopilotWriteTool(name);
+    }
+
+    /** 按工具名判断是否属于 Web 造流助手 */
     public static boolean isWebAgent(String name) {
         if (name == null || name.isBlank()) {
             return false;
@@ -144,20 +176,35 @@ public enum FlowDesignToolNames {
                 .anyMatch(t -> t.id.equals(name) && t.webAgent);
     }
 
-    /** Web Agent 应加载的全部工具 id */
-    public static java.util.Set<String> webAgentToolIds() {
+    /** Web 造流助手应加载的全部工具 id */
+    public static Set<String> webAgentToolIds() {
         return Arrays.stream(values())
                 .filter(FlowDesignToolNames::isWebAgent)
                 .map(FlowDesignToolNames::getId)
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
     }
 
-    /** MCP 应暴露的全部工具 id */
-    public static java.util.Set<String> mcpAllowedToolIds() {
+    /** MCP 默认只读工具 id 集合 */
+    public static Set<String> mcpAllowedToolIds() {
         return Arrays.stream(values())
                 .filter(FlowDesignToolNames::isMcpAllowed)
                 .map(FlowDesignToolNames::getId)
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
+    }
+
+    /** MCP 全自动写工具 id 集合（不含只读） */
+    public static Set<String> mcpAutopilotWriteToolIds() {
+        return Arrays.stream(values())
+                .map(FlowDesignToolNames::getId)
+                .filter(FlowDesignToolNames::isMcpAutopilotWriteTool)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /** MCP 全自动开启时的全部工具 id（只读加写） */
+    public static Set<String> mcpAutopilotToolIds() {
+        Set<String> ids = new LinkedHashSet<>(mcpAllowedToolIds());
+        ids.addAll(mcpAutopilotWriteToolIds());
+        return ids;
     }
 
     /** 按 id 反查枚举；未知返回 null */

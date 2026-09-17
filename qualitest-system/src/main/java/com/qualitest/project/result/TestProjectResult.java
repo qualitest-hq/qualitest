@@ -52,6 +52,11 @@ public class TestProjectResult implements Serializable {
     private String authConfig;
 
     /**
+     * 是否允许 MCP 全自动写流：开启后持 Token 方可经 MCP 改图画布并跑流。
+     */
+    private Boolean mcpAutopilotEnabled;
+
+    /**
      * 有 Profile 但预制 apis 全空时为 true，前端提示从项目模板添加。
      */
     private Boolean needsAuthTemplateHint;

@@ -17,12 +17,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 全自动模式下的隐式落盘逻辑（不暴露给大模型）。
+ * 全自动模式下的隐式落盘（不暴露给大模型作独立工具）。
  * <p>
- * 把本轮已接受的 submit_* 内存工作图写入 test_flow.graph_json。
+ * 把本轮已接受的 submit 内存工作图写入测试流画布。
  * 写库只硬拦地板错误（无法解析 / 缺节点 id / 边端点等）；
  * 开始节点不唯一、断言路径等只进 warnings，不拦落盘（开跑时再硬拦）。
- * 调用时机：run_test_flow 跑流之前；以及 Agent 一整轮对话结束仍有未落盘单元时。
+ * 调用时机：跑流之前；Web 一整轮对话结束仍有未落盘单元时；
+ * MCP 每次改图 submit 校验通过后立即落盘。
  * 半自动不走本类；模板预制流禁止落盘。
  */
 public final class FlowDesignAutopilotCommitSupport {

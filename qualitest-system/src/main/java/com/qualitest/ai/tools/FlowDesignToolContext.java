@@ -60,8 +60,9 @@ public class FlowDesignToolContext {
 
     /**
      * 是否开启全自动。
-     * true：允许 run_test_flow；素材 upsert 直写；改图由跑流前/回合结束隐式写库。
-     * false：半自动，改图进 Staging、素材须聊天侧确认。
+     * true：允许跑流；素材/鉴权 upsert 直写库；改图可隐式写库
+     * （Web 在跑流前或回合结束落盘；MCP 每次 submit 成功后立即落盘）。
+     * false：半自动，改图进 Staging、素材须聊天侧确认；MCP 侧亦不可调写工具。
      */
     @Builder.Default
     private final boolean autopilotEnabled = false;

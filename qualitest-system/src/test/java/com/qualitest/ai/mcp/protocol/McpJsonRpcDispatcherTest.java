@@ -30,9 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 McpJsonRpcDispatcher：initialize / tools/list / tools/call 与错误、通知处理。
- * 边界：依赖 Mock，不访问库。
- * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=McpJsonRpcDispatcherTest
+ * 测 MCP JSON-RPC 分发：握手、列工具、调工具、错误与通知。
  */
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -78,8 +76,8 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * 前提：tools/list；Mock 返回 1 个协议工具。
-     * 期望：委托 loadMcpProtocolTools；result.tools 长度 1。
+     * 前提：tools/list；Mock 返回 1 个只读工具。
+     * 期望：响应 tools 数组长度为 1。
      */
     @Test
     @Order(2)
