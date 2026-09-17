@@ -167,7 +167,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | [assets.md](./assets.md) | 素材库与测参文件 |
 | [faq.md](./faq.md) | 日常使用疑问（非冒烟专项） |
 | [全面测试手册.md](./全面测试手册.md) | T1→T3 验收与 §F/§G |
-| [mcp.md](./mcp.md) | MCP Token；默认可只读查询，项目设置可开「全自动写流」；另有「可测提示词」 |
+| [mcp.md](./mcp.md) | MCP Token；默认可只读查询，项目设置可开「全自动写流」；顶栏规程含单功能/整项目提示词 |
 | [deploy.md](./deploy.md) | 部署 / Compose |
 | [testing-conventions.md](./testing-conventions.md) | 工程测试约定 |
 | [质衡开源与工程路线图.md](./质衡开源与工程路线图.md) | 排期与待办 |

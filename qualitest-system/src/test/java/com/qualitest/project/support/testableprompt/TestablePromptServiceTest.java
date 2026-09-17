@@ -51,6 +51,14 @@ class TestablePromptServiceTest {
     }
 
     @Test
+    @DisplayName("指定范围提示词可加载且含占位符")
+    void loadScoped() {
+        String text = service.loadPromptText(TestablePromptService.KIND_SCOPED);
+        assertTrue(text.contains("<指定范围>"));
+        assertTrue(text.contains("质衡测试流 AI"));
+    }
+
+    @Test
     @DisplayName("未知类型抛异常")
     void unknownKindThrows() {
         assertThrows(ServiceException.class, () -> service.loadPromptText("other"));

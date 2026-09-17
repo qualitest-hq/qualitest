@@ -52,18 +52,6 @@ export function myProjectContext(testProjectId) {
   })
 }
 
-/**
- * 拉取可测提示词正文（贴到 Cursor 等编辑器用）。
- * @param {'incremental'|'full'} kind 增量 | 全量
- */
-export function getTestablePrompt(kind) {
-  return request({
-    url: '/project/testProject/testablePrompt',
-    method: 'get',
-    params: { kind },
-  })
-}
-
 /** 从项目模板追加鉴权 Profile，并种子尚未存在的预制接口 */
 export function applyAuthTemplates(testProjectId, templateIds) {
   return request({

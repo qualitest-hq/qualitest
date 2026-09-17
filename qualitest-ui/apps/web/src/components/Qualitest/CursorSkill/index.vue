@@ -5,31 +5,61 @@
         v-model="visible"
         append-to-body
         title="MCP 造流 Agent 规程"
-        width="640px"
+        width="720px"
         class="cursor-skill-dialog"
         @opened="ensureGuides"
     >
       <div v-loading="loading" class="cursor-skill-dialog__wrap">
-        <el-tabs v-if="guides.length" v-model="activeId" class="cursor-skill-dialog__tabs">
-          <el-tab-pane
-              v-for="g in guides"
-              :key="g.id"
-              :label="g.title"
-              :name="g.id"
-          >
-            <div class="cursor-skill-dialog__body">
-              <p>{{ g.intro }}</p>
-              <ol>
-                <li v-for="(step, idx) in g.steps" :key="idx">{{ step }}</li>
-              </ol>
-              <p class="cursor-skill-dialog__hint">
-                规程与具体测试项目无关；Token、MCP 配置和写流开关仍在各项目的「项目设置」里。
-                建议保存位置：
-                <code class="cursor-skill-dialog__path">{{ g.saveHint }}</code>
-              </p>
+        <template v-if="payload">
+          <section class="cursor-skill-dialog__howto">
+            <h4 class="cursor-skill-dialog__section-title">怎么用</h4>
+            <p>{{ payload.howToUse }}</p>
+            <ul v-if="payload.tips?.length" class="cursor-skill-dialog__tips">
+              <li v-for="(tip, idx) in payload.tips" :key="idx">{{ tip }}</li>
+            </ul>
+            <div v-if="payload.examples?.length" class="cursor-skill-dialog__examples">
+              <h4 class="cursor-skill-dialog__section-title">示例提问（可直接复制）</h4>
+              <div
+                  v-for="(ex, idx) in payload.examples"
+                  :key="idx"
+                  class="cursor-skill-dialog__example"
+              >
+                <div class="cursor-skill-dialog__example-head">
+                  <span>{{ ex.label }}</span>
+                  <el-button link type="primary" @click="copyText(ex.text, '示例已复制')">
+                    复制
+                  </el-button>
+                </div>
+                <pre class="cursor-skill-dialog__example-text">{{ ex.text }}</pre>
+              </div>
             </div>
-          </el-tab-pane>
-        </el-tabs>
+          </section>
+
+          <el-tabs
+              v-if="guides.length"
+              v-model="activeId"
+              class="cursor-skill-dialog__tabs"
+          >
+            <el-tab-pane
+                v-for="g in guides"
+                :key="g.id"
+                :label="g.title"
+                :name="g.id"
+            >
+              <div class="cursor-skill-dialog__body">
+                <p>{{ g.intro }}</p>
+                <ol>
+                  <li v-for="(step, idx) in g.steps" :key="idx">{{ step }}</li>
+                </ol>
+                <p class="cursor-skill-dialog__hint">
+                  规程正文给 Agent 看；Token、MCP 配置和写流开关仍在各项目的「项目设置」里。
+                  建议保存位置：
+                  <code class="cursor-skill-dialog__path">{{ g.saveHint }}</code>
+                </p>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        </template>
         <p v-else-if="!loading" class="cursor-skill-dialog__hint">暂无可用规程</p>
       </div>
       <template #footer>
@@ -49,7 +79,7 @@
 
 <script setup>
 /**
- * 顶栏图标：弹出多编辑器 MCP 造流规程说明（Tabs），并可复制当前 Tab 全文。
+ * 顶栏图标：弹出 MCP 人话用法、示例提问，以及多编辑器规程 Tabs，可复制当前 Tab 全文。
  */
 import { ElMessage } from 'element-plus'
 import { getMcpAgentGuides } from '@/api/common/mcpCursorSkill'
@@ -58,10 +88,11 @@ import { copyTextSync } from '@/utils/clipboard'
 const visible = ref(false)
 const loading = ref(false)
 const copying = ref(false)
-/** @type {import('vue').Ref<Array<{ id: string, title: string, intro: string, steps: string[], saveHint: string, content: string }>>} */
-const guides = ref([])
+/** @type {import('vue').Ref<{ howToUse?: string, tips?: string[], examples?: Array<{ label: string, text: string }>, guides?: Array<{ id: string, title: string, intro: string, steps: string[], saveHint: string, content: string }> } | null>} */
+const payload = ref(null)
 const activeId = ref('')
 
+const guides = computed(() => payload.value?.guides || [])
 const activeGuide = computed(() => guides.value.find((g) => g.id === activeId.value) || null)
 
 function openDialog() {
@@ -69,14 +100,22 @@ function openDialog() {
 }
 
 function ensureGuides() {
-  if (guides.value.length || loading.value) {
+  if (payload.value || loading.value) {
     return
   }
   loading.value = true
   getMcpAgentGuides()
     .then((res) => {
-      const list = Array.isArray(res?.data) ? res.data : []
-      guides.value = list
+      const data = res?.data
+      // 兼容旧接口：若仍返回数组，则只当 guides 用
+      if (Array.isArray(data)) {
+        payload.value = { guides: data }
+      } else if (data && typeof data === 'object') {
+        payload.value = data
+      } else {
+        payload.value = null
+      }
+      const list = payload.value?.guides || []
       if (!activeId.value && list.length) {
         activeId.value = list[0].id
       }
@@ -89,23 +128,28 @@ function ensureGuides() {
     })
 }
 
+function copyText(text, successMsg) {
+  const value = String(text || '').trim()
+  if (!value) {
+    ElMessage.error('内容为空')
+    return false
+  }
+  if (copyTextSync(value)) {
+    ElMessage.success(successMsg || '已复制')
+    return true
+  }
+  ElMessage.error('复制失败')
+  return false
+}
+
 function copyActive() {
   const g = activeGuide.value
   if (!g) {
     return
   }
-  const text = String(g.content || '').trim()
-  if (!text) {
-    ElMessage.error('规程为空')
-    return
-  }
   copying.value = true
   try {
-    if (copyTextSync(text)) {
-      ElMessage.success(`已复制，请保存为 ${g.saveHint}`)
-    } else {
-      ElMessage.error('复制失败')
-    }
+    copyText(g.content, `已复制，请保存为 ${g.saveHint}`)
   } finally {
     copying.value = false
   }
@@ -115,6 +159,74 @@ function copyActive() {
 <style scoped>
 .cursor-skill-dialog__wrap {
   min-height: 160px;
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.cursor-skill-dialog__howto {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.cursor-skill-dialog__section-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.cursor-skill-dialog__howto > p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--el-text-color-regular);
+}
+
+.cursor-skill-dialog__tips {
+  margin: 0 0 14px;
+  padding-left: 1.2em;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--el-text-color-secondary);
+}
+
+.cursor-skill-dialog__tips li {
+  margin-bottom: 6px;
+}
+
+.cursor-skill-dialog__examples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cursor-skill-dialog__example {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--el-fill-color-lighter);
+}
+
+.cursor-skill-dialog__example-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.cursor-skill-dialog__example-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--el-text-color-regular);
 }
 
 .cursor-skill-dialog__tabs :deep(.el-tabs__nav-wrap) {

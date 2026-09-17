@@ -119,12 +119,12 @@ public class CommonController {
     }
 
     /**
-     * 返回 MCP 造流 Agent 规程列表（Cursor Skill、其它编辑器规则等）。
-     * 登录即可；不依赖某个测试项目。前端顶栏按 Tab 展示并分别复制。
+     * 返回 MCP 造流弹框载荷：人话用法、示例提问、各编辑器规程 Tab。
+     * 登录即可；不依赖某个测试项目。
      */
     @GetMapping("/mcpAgentGuides")
     public AjaxResult mcpAgentGuides() {
-        return AjaxResult.success("操作成功", mcpCursorSkillService.loadGuides());
+        return AjaxResult.success("操作成功", mcpCursorSkillService.loadPayload());
     }
 
     /**

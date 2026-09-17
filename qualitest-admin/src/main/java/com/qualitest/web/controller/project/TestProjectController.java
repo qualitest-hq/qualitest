@@ -24,7 +24,6 @@ import com.qualitest.project.service.ITestProjectUserSettingService;
 import com.qualitest.project.support.ProjectAuthTemplateApplyService;
 import com.qualitest.project.support.templatepack.ProjectTemplateFromProjectService;
 import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.PackOpResult;
-import com.qualitest.project.support.testableprompt.TestablePromptService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -49,8 +48,6 @@ public class TestProjectController extends BaseController {
     private final ITestProjectUserSettingService testProjectUserSettingService;
     private final ProjectAuthTemplateApplyService projectAuthTemplateApplyService;
     private final ProjectTemplateFromProjectService projectTemplateFromProjectService;
-    /** 可测提示词（增量/全量）加载，供一键复制到编辑器 */
-    private final TestablePromptService testablePromptService;
 
     /**
      * 查询测试项目列表
@@ -167,16 +164,6 @@ public class TestProjectController extends BaseController {
     public R<Void> remove(@PathVariable Long[] testProjectIds) {
         List<Long> idList = Convert.toLongList(testProjectIds);
         return toR(testProjectService.logicDeleteTestProjectByIdList(idList));
-    }
-
-    /**
-     * 返回可复制给 Cursor 等编辑器的可测提示词正文。
-     * kind=incremental 增量（刚改完功能）；kind=full 全量（整仓补测）。
-     */
-    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
-    @GetMapping("/testablePrompt")
-    public R<String> testablePrompt(@RequestParam("kind") String kind) {
-        return ok(testablePromptService.loadPromptText(kind));
     }
 
     /**

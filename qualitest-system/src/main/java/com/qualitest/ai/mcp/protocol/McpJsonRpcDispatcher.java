@@ -85,13 +85,18 @@ public class McpJsonRpcDispatcher {
         boolean mcpAutopilot = mcpToolInvokeService.isMcpAutopilotEnabled(testProjectId);
         Map<String, Object> serverInfo = new LinkedHashMap<>();
         serverInfo.put("name", McpJsonRpc.SERVER_NAME);
-        serverInfo.put("version", McpJsonRpc.SERVER_VERSION);
+        // 开关变化时改 version，避免客户端按旧 version 缓存只读工具列表
+        serverInfo.put("version", mcpAutopilot
+                ? McpJsonRpc.SERVER_VERSION + "+autopilot"
+                : McpJsonRpc.SERVER_VERSION);
         serverInfo.put("testProjectId", String.valueOf(testProjectId));
         serverInfo.put("mcpAutopilotEnabled", mcpAutopilot);
 
+        Map<String, Object> toolsCapability = new LinkedHashMap<>();
+        toolsCapability.put("listChanged", true);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("protocolVersion", McpJsonRpc.PROTOCOL_VERSION);
-        result.put("capabilities", Map.of("tools", Map.of()));
+        result.put("capabilities", Map.of("tools", toolsCapability));
         result.put("serverInfo", serverInfo);
         return McpJsonRpc.result(id, result);
     }
