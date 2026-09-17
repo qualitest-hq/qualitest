@@ -90,3 +90,9 @@ Repeated “fix from Run” can yield two start nodes. ✕ all Staging or **new 
 ## 7. API-design AI
 
 A separate assistant (`submit_api_design_patch`) edits API assets. **Semi-auto** (default): Diff → apply to workbench draft → human save. **Full-auto**: auto-applies Diff to draft (still human save; no auto debug send). Do not mix with flow Staging when scoring tests.
+
+---
+
+## 8. Tool trace (`toolTrace`)
+
+Assistant messages store only `user` / `assistant` roles. Per-turn tool calls land in `result_meta_json.toolTrace` (name, redacted args/result, ok, latency, step count). UI: collapsible tool-trace panel. `explainOnly=true` does **not** mean zero tools under Full-auto (implicit persist may clear Staging capture) — trust the trace / `graphCommitted`. Cancel / SSE drop may persist `interrupted=true` plus partial trace; Full-auto DB writes / Runs already done are **not** rolled back. Details: Chinese [ai-staging.md](./ai-staging.md) §8.

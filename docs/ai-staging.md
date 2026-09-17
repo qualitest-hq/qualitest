@@ -4,7 +4,7 @@
 > **不是**：节点字段字典、鉴权口径、测试勾选表。  
 > 英文：[ai-staging.en.md](./ai-staging.en.md)
 
-概念地图：[project-summary.md](./project-summary.md) · 节点：[test-flow-nodes.md](./test-flow-nodes.md) · 验收铁律：手册 §B.0.1 · 工具轨迹（已落库 `result_meta_json.toolTrace`）：[ai-tool-trace.md](./ai-tool-trace.md)
+概念地图：[project-summary.md](./project-summary.md) · 节点：[test-flow-nodes.md](./test-flow-nodes.md) · 验收铁律：手册 §B.0.1
 
 ---
 
@@ -49,7 +49,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 常见原因：同会话从零搭长流、反复拉超大 `get_api_details`、步数将尽。
 
-**例外（全自动）**：隐式落盘清空 capture 后也会 `explainOnly=true`，此时以助手气泡「工具轨迹」或 `result_meta_json.toolTrace` 为准（见 [ai-tool-trace.md](./ai-tool-trace.md)）。
+**例外（全自动）**：隐式落盘清空 capture 后也会 `explainOnly=true`，此时以助手气泡「工具轨迹」或 `result_meta_json.toolTrace` 为准（见 §8）。
 
 **测法 / 用法**：新建对话 + 短提示 + 显式 API id；无 Staging 摘要时让 AI「请按单元 submit 落盘」，不要当已经改图。
 
@@ -120,3 +120,20 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 - **全自动**：有 patch 时前端自动应用到工作台草稿（仍须人手保存；不自动调试发送）
 
 两套不要混用验收口径。
+
+---
+
+## 8. 工具轨迹 `toolTrace`
+
+`ai_chat_message` 只落 `user` / `assistant`（不落 `tool` 角色）。助手 `result_meta_json.toolTrace` 记录本轮工具名、脱敏截断后的 args/result、`ok` / 耗时 / 步数，供排障对账。
+
+| 要点 | 口径 |
+|------|------|
+| 落哪里 | 助手气泡 meta；前端 `AiToolTracePanel` 默认折叠 |
+| 谁采集 | `AiAgentRunner` 逐步记录 → 造流 / 接口设计 Agent 写入 meta |
+| 截断 | 单字段约 2KB、calls ≤ maxSteps；口令 / Bearer 打码 `***` |
+| 与 `explainOnly` | `explainOnly=true` **不等于**零工具：全自动可能已 submit + 隐式落盘再清空 capture，以轨迹 / `graphCommitted` 为准 |
+| 半自动无 Staging | 仍表示本轮没有可灌 Staging 的成功 `submit_*` |
+| 中断 | 取消 / SSE 断连：助手可带 `interrupted=true` + 已有轨迹；**不**回滚已发生的全自动写库 / Run |
+
+排障优先看：调用顺序是否触顶、某次 `submit_edge` 的 label/校验、全自动是否真的 `run_test_flow`。轨迹只负责可证伪，不替代修 MergeHelper 等回写缺陷。

@@ -225,6 +225,34 @@
 
         <section class="project-setting__card">
           <header class="project-setting__card-head">
+            <h3 class="project-setting__card-title">可测提示词</h3>
+            <p class="project-setting__card-desc">
+              复制后贴到 Cursor 等 AI 编辑器（打开业务仓库），让其汇总短提示，再贴回质衡画布 AI 造流。
+            </p>
+          </header>
+
+          <div class="project-setting__actions project-setting__actions--flush-top">
+            <el-button
+                :loading="testablePromptLoading === 'incremental'"
+                type="primary"
+                @click="copyTestablePrompt('incremental')"
+            >
+              复制增量提示词
+            </el-button>
+            <el-button
+                :loading="testablePromptLoading === 'full'"
+                @click="copyTestablePrompt('full')"
+            >
+              复制全量提示词
+            </el-button>
+          </div>
+          <p class="project-setting__hint">
+            增量：刚改完一个功能时用。全量：整仓补测、按模块列出时可测提示。
+          </p>
+        </section>
+
+        <section class="project-setting__card">
+          <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">项目 Token</h3>
             <p class="project-setting__card-desc">
               供 IDEA 插件、Cursor MCP 等外部工具鉴权；刷新后旧 Token 立即失效。
@@ -298,7 +326,7 @@
 
 <script setup>
 /**
- * 项目设置侧栏：响应约定、项目鉴权、API 调试传输方式、项目 Token、Cursor MCP 配置。
+ * 项目设置侧栏：响应约定、项目鉴权、可测提示词、API 调试传输方式、项目 Token、Cursor MCP 配置。
  */
 import { computed, getCurrentInstance, reactive, ref, watch } from 'vue'
 import { buildCursorMcpConfig } from '../utils/mcpClientConfig'
@@ -310,7 +338,7 @@ import {
   formatAuthModeLabel,
   parseAuthConfig,
 } from '../utils/projectAuthConfig'
-import { applyAuthTemplates, getTestProject, updateTestProject } from '@/api/project/testProject'
+import { applyAuthTemplates, getTestablePrompt, getTestProject, updateTestProject } from '@/api/project/testProject'
 import AuthTemplateCheckboxList from './AuthTemplateCheckboxList.vue'
 import SaveAsAuthTemplateDialog from './SaveAsAuthTemplateDialog.vue'
 import { toTemplateIds, useEnabledAuthTemplates } from '../composables/useEnabledAuthTemplates'
@@ -375,10 +403,74 @@ const {
   loadEnabledTemplates,
 } = useEnabledAuthTemplates()
 
+/** 可测提示词：当前正在拉取的 kind，空表示空闲 */
+const testablePromptLoading = ref('')
+/** 增量 / 全量正文缓存，避免重复请求 */
+const testablePromptCache = reactive({
+  incremental: '',
+  full: '',
+})
+
 const authPreview = computed(() => formatAuthConfigPreview(authForm))
 
 function resolveProjectId() {
   return props.testProjectId || props.settingForm?.testProjectId
+}
+
+/**
+ * 复制可测提示词到剪贴板。
+ * @param {'incremental'|'full'} kind
+ */
+function copyTestablePrompt(kind) {
+  const label = kind === 'full' ? '全量提示词' : '增量提示词'
+  const write = (text) => {
+    if (!text) {
+      proxy.$modal.msgError('提示词为空')
+      return
+    }
+    if (copyTextToClipboard(text)) {
+      proxy.$modal.msgSuccess(`已复制${label}`)
+      return
+    }
+    proxy.$modal.msgError('复制失败')
+  }
+  const cached = testablePromptCache[kind]
+  if (cached) {
+    write(cached)
+    return
+  }
+  testablePromptLoading.value = kind
+  getTestablePrompt(kind)
+    .then((res) => {
+      const text = String(res?.data || '').trim()
+      testablePromptCache[kind] = text
+      write(text)
+    })
+    .catch(() => {
+      proxy.$modal.msgError('获取提示词失败')
+    })
+    .finally(() => {
+      testablePromptLoading.value = ''
+    })
+}
+
+/** 同步写入剪贴板（避免异步 clipboard API 在部分环境下丢焦点失败） */
+function copyTextToClipboard(text) {
+  const el = document.createElement('textarea')
+  el.value = text
+  el.setAttribute('readonly', '')
+  el.style.position = 'fixed'
+  el.style.top = '0'
+  el.style.left = '0'
+  el.style.opacity = '0'
+  document.body.appendChild(el)
+  el.focus()
+  el.select()
+  try {
+    return document.execCommand('copy')
+  } finally {
+    el.remove()
+  }
 }
 
 function syncAuthCollapse() {
@@ -741,6 +833,10 @@ const mcpConfigText = computed(() => {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 14px;
+
+  &--flush-top {
+    margin-top: 0;
+  }
 }
 
 .project-setting__conv-grid {
