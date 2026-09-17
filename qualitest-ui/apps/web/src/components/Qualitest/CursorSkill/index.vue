@@ -52,7 +52,7 @@
                   <li v-for="(step, idx) in g.steps" :key="idx">{{ step }}</li>
                 </ol>
                 <p class="cursor-skill-dialog__hint">
-                  规程正文给 Agent 看；Token、MCP 配置和写流开关仍在各项目的「项目设置」里。
+                  规程正文给 Agent 看；Token 只绑项目，读写看「允许 MCP 全自动写流」开关（均在各项目的「项目设置」里）。
                   建议保存位置：
                   <code class="cursor-skill-dialog__path">{{ g.saveHint }}</code>
                 </p>

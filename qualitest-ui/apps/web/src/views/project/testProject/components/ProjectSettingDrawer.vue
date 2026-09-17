@@ -257,7 +257,7 @@
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">MCP 全自动写流</h3>
             <p class="project-setting__card-desc">
-              开启后，持有本项目 Token 的 Cursor 等可通过 MCP 直接改测试流画布并触发运行。
+              Token 只绑定项目身份。开启后，持有本项目 Token 的 Cursor 等可通过 MCP 调用 create_flow、submit_*、run_test_flow 等写工具；未开启时仅只读勘察。开启并保存后若编辑器仍只列只读工具，请重连或刷新 MCP。
             </p>
           </header>
 
@@ -272,7 +272,7 @@
             </el-button>
           </div>
           <p class="project-setting__hint project-setting__hint--warn">
-            默认关闭。开启后 Token 泄露风险放大：持有者可改图画布并跑流；请仅对可信环境开启，并可随时关闭或刷新 Token。
+            默认关闭。读写不由 Token「权限」区分，而由本开关控制。开启后 Token 泄露风险放大：持有者可新建流、改图画布并跑流；请仅对可信环境开启，并可随时关闭或刷新 Token。
           </p>
         </section>
 

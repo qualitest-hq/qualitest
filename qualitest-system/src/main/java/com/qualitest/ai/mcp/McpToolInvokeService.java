@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
  * MCP 单次工具调用编排。
  * <p>
  * 默认只允许只读工具。项目开启「允许 MCP 全自动写流」后，还可调用改图 submit、
- * 素材/鉴权写入、跑流等写工具；每次 submit 校验通过后立刻把画布写入测试流库。
+ * create_flow、素材/鉴权写入、跑流等写工具；每次 submit 校验通过后立刻把画布写入测试流库。
  */
 @Slf4j
 @Service
@@ -126,7 +126,7 @@ public class McpToolInvokeService {
 
     /**
      * 补齐写图/跑流所需信封：必须有 testFlowId，且属于当前项目；
-     * 未传 graphJson 时从库中加载当前画布。素材 upsert、接口 hint 追加不要求流 id。
+     * 未传 graphJson 时从库中加载当前画布。素材 upsert、接口 hint 追加、create_flow 不要求流 id。
      */
     private void ensureWriteEnvelope(String toolName, McpToolInvokeParams params, Long tokenProjectId) {
         boolean needsFlow = FlowDesignToolNames.isSubmitUnitTool(toolName)
@@ -136,7 +136,7 @@ public class McpToolInvokeService {
         }
         Long projectId = params.getTestProjectId() != null ? params.getTestProjectId() : tokenProjectId;
         if (params.getTestFlowId() == null) {
-            throw new ServiceException("MCP 写工具须提供 testFlowId（可先在 Web 新建空测试流）");
+            throw new ServiceException("MCP 写工具须提供 testFlowId（可先 create_flow 或在 Web 新建空测试流）");
         }
         TestFlowAccessSupport.FlowAccess access = TestFlowAccessSupport.resolveFlowInProject(
                 params.getTestFlowId(), projectId, testFlowService);

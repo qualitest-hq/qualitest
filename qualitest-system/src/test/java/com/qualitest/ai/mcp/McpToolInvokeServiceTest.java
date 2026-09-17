@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mock;
@@ -145,5 +147,45 @@ class McpToolInvokeServiceTest {
 
         McpToolResult result = service.invoke(FlowDesignToolExecutor.SEARCH_APIS, params, 100L);
         assertTrue(result.isError());
+    }
+
+    /**
+     * 前提：项目未开 MCP 全自动；调用 create_flow。
+     * 期望：抛 ServiceException；不委托 Executor。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("关开关时 create_flow 被拒绝")
+    void invoke_createFlow_rejectedWhenAutopilotOff() {
+        McpToolInvokeParams params = new McpToolInvokeParams();
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.invoke(FlowDesignToolNames.CREATE_FLOW.getId(), params, 100L));
+        assertTrue(ex.getMessage().contains("允许 MCP 全自动写流"));
+        verify(toolExecutor, never()).executeTool(anyString(), any(), any());
+    }
+
+    /**
+     * 前提：项目已开 MCP 全自动；create_flow 不带 testFlowId。
+     * 期望：可委托 Executor，不要求 testFlowId。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("开开关时 create_flow 无需 testFlowId")
+    void invoke_createFlow_allowedWithoutTestFlowId() {
+        when(testProjectService.selectTestProjectById(100L)).thenReturn(
+                TestProject.builder().testProjectId(100L).mcpAutopilotEnabled(true).build());
+        McpToolInvokeParams params = new McpToolInvokeParams();
+        params.setArguments(Map.of("flowName", "新流"));
+        FlowDesignToolContext ctx = FlowDesignToolContext.builder()
+                .testProjectId(100L)
+                .build();
+        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(true))).thenReturn(ctx);
+        when(toolExecutor.executeTool(eq(FlowDesignToolNames.CREATE_FLOW.getId()), anyString(), eq(ctx)))
+                .thenReturn("{\"testFlowId\":\"1\",\"flowName\":\"新流\"}");
+
+        McpToolResult result = service.invoke(FlowDesignToolNames.CREATE_FLOW.getId(), params, 100L);
+        assertEquals(FlowDesignToolNames.CREATE_FLOW.getId(), result.getTool());
+        assertFalse(result.isError());
+        verify(testFlowService, never()).selectTestFlowResult(any());
     }
 }

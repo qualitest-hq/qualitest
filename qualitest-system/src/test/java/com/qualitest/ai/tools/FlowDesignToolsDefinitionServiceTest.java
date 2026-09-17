@@ -67,6 +67,7 @@ class FlowDesignToolsDefinitionServiceTest {
         assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
         assertFalse(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
         assertFalse(names.contains(FlowDesignToolNames.GET_FLOW.getId()));
+        assertFalse(names.contains(FlowDesignToolNames.CREATE_FLOW.getId()));
         assertFalse(names.contains("commit_design_patch"));
     }
 
@@ -169,6 +170,22 @@ class FlowDesignToolsDefinitionServiceTest {
         assertTrue(names.contains(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()));
         assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
         assertTrue(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.CREATE_FLOW.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
+    }
+
+    /**
+     * 前提：未开全自动时的 MCP 只读列表。
+     * 期望：不含 create_flow。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("只读 MCP 列表不含 create_flow")
+    void loadMcpProtocolTools_readonly_excludesCreateFlow() {
+        List<String> names = service.loadMcpProtocolTools().stream()
+                .map(tool -> String.valueOf(tool.get("name")))
+                .toList();
+        assertFalse(names.contains(FlowDesignToolNames.CREATE_FLOW.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
     }
 }

@@ -29,7 +29,7 @@ public final class FlowDesignPromptResources {
     public static final String TOOLS_DEFINITION = "ai/flow-design-tools.json";
 
     /**
-     * 仅 MCP 额外工具：list_flows、get_flow（列流/读流）。
+     * 仅 MCP 额外工具：list_flows、get_flow（列流/读流）及 create_flow（写流，须全自动开关）。
      * 不注入 Web Agent。
      */
     public static final String MCP_EXTRA_TOOLS = "ai/flow-design-mcp-extra-tools.json";

@@ -23,7 +23,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 **例外：全自动**（AI 面板「半自动 | 全自动」，默认半自动）：请求带 `autopilotEnabled=true` 时注入 `run_test_flow`（跑前/回合结束**自动落盘**，无独立 commit 工具），且 `upsert_asset_variables` / `upsert_auth_profile` **直接写库**。隐式落盘门槛与人手**保存**相同（只拦无法解析 / 缺节点 id / 边端点）；双开始节点、断言路径等只进 warnings，不拦写库——开跑时再硬拦。造流/修复类请求完成后模型应主动 `run_test_flow`（纯答疑除外）；同会话内 upsert → `submit_*` → `run_test_flow` → 失败再修（最多再修 2 轮）。落盘成功后 SSE `graphCommitted`，前端清 Staging 并 reload 画布；`run_test_flow` 触发后 SSE `runStarted`，与人手共用轮询边跑边亮（执行中步骤即可读）。半自动则仍走上文 Staging ✓ → **人手保存**；素材与鉴权提案在聊天侧确认。只拨开关不发送请求不会跑流。
 
-**MCP 默认只读**：无写工具。项目设置开启「允许 MCP 全自动写流」后，可经 MCP 调用 `submit_*` / upsert / `run_test_flow`（每次成功 submit 立即落盘）；接入说明见 [mcp.md](./mcp.md)。
+**MCP 默认只读**：无写工具。项目设置开启「允许 MCP 全自动写流」后，可经 MCP 调用 `submit_*` / upsert / `run_test_flow`（每次成功 submit 立即落盘）；接入说明见 [mcp.md](./mcp.md)。打开中画布如何跟上 MCP 落盘、对齐 `graphCommitted`：见 [mcp-canvas-live-sync.md](./mcp-canvas-live-sync.md)。
 
 ---
 

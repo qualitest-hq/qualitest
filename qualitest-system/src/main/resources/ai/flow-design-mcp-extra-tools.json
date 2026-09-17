@@ -36,5 +36,26 @@
         "required": []
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "create_flow",
+      "description": "MCP 专用：在当前项目新建一条空画布测试流并立即写库。返回 testFlowId，供后续 submit_* / run_test_flow 使用。须项目已开启「允许 MCP 全自动写流」",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "flowName": {
+            "type": "string",
+            "description": "测试流名称"
+          },
+          "flowDescription": {
+            "type": "string",
+            "description": "测试流说明；可省略"
+          }
+        },
+        "required": ["flowName"]
+      }
+    }
   }
 ]

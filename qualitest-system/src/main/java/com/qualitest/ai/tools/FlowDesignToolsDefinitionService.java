@@ -85,7 +85,9 @@ public class FlowDesignToolsDefinitionService {
         mcpFromJson.addAll(extractToolNames(loadToolsDefinitionRaw().stream()
                 .filter(this::isMcpReadonlyToolDefinition)
                 .toList()));
-        mcpFromJson.addAll(extractToolNames(loadMcpExtraToolsDefinition()));
+        mcpFromJson.addAll(extractToolNames(loadMcpExtraToolsDefinition().stream()
+                .filter(this::isMcpReadonlyToolDefinition)
+                .toList()));
         Set<String> expectedMcp = FlowDesignToolNames.mcpAllowedToolIds();
         if (!mcpFromJson.equals(expectedMcp)) {
             throw new IllegalStateException("MCP 工具 JSON 与 FlowDesignToolNames.mcpAllowed 不一致: "
@@ -98,6 +100,19 @@ public class FlowDesignToolsDefinitionService {
         missingWrite.removeAll(registered);
         if (!missingWrite.isEmpty()) {
             throw new IllegalStateException("MCP 全自动写工具缺少执行器定义: " + missingWrite);
+        }
+
+        Set<String> writeSchemaNames = new HashSet<>();
+        writeSchemaNames.addAll(extractToolNames(loadToolsDefinitionRaw()).stream()
+                .filter(FlowDesignToolNames::isMcpAutopilotWriteTool)
+                .toList());
+        writeSchemaNames.addAll(extractToolNames(loadMcpExtraToolsDefinition()).stream()
+                .filter(FlowDesignToolNames::isMcpAutopilotWriteTool)
+                .toList());
+        Set<String> missingWriteSchema = new HashSet<>(writeIds);
+        missingWriteSchema.removeAll(writeSchemaNames);
+        if (!missingWriteSchema.isEmpty()) {
+            throw new IllegalStateException("MCP 全自动写工具缺少 JSON Schema 定义: " + missingWriteSchema);
         }
         log.info("Flow Design 工具注册一致性校验通过: web={}, mcpReadonly={}, mcpWrite={}",
                 webFromJson.size(), mcpFromJson.size(), writeIds.size());
@@ -176,12 +191,14 @@ public class FlowDesignToolsDefinitionService {
             if (cachedMcpTools != null) {
                 return cachedMcpTools;
             }
-            // 主清单里的只读工具 + MCP 专用扩展（列流、读流）
+            // 主清单里的只读工具 + MCP 专用只读扩展（列流、读流；不含 create_flow 等写工具）
             List<Map<String, Object>> merged = new ArrayList<>();
             merged.addAll(loadToolsDefinition().stream()
                     .filter(this::isMcpReadonlyToolDefinition)
                     .toList());
-            merged.addAll(loadMcpExtraToolsDefinition());
+            merged.addAll(loadMcpExtraToolsDefinition().stream()
+                    .filter(this::isMcpReadonlyToolDefinition)
+                    .toList());
             cachedMcpTools = List.copyOf(merged);
             return cachedMcpTools;
         }
@@ -204,21 +221,31 @@ public class FlowDesignToolsDefinitionService {
             if (cachedMcpAutopilotProtocolTools != null) {
                 return cachedMcpAutopilotProtocolTools;
             }
-            // 以只读列表为底，再挂上写工具并标注 MCP 落盘说明
+            // 以只读列表为底，再挂上写工具并标注 MCP 落盘说明（含 mcp-extra 的 create_flow）
             List<Map<String, Object>> protocolTools = new ArrayList<>(loadMcpProtocolTools());
             Set<String> existing = protocolTools.stream()
                     .map(t -> String.valueOf(t.get("name")))
                     .collect(Collectors.toSet());
-            for (Map<String, Object> tool : loadToolsDefinition()) {
-                String name = extractFunctionName(tool);
-                if (name == null || !FlowDesignToolNames.isMcpAutopilotWriteTool(name) || existing.contains(name)) {
-                    continue;
-                }
-                protocolTools.add(annotateMcpWriteTool(toMcpProtocolTool(tool)));
-                existing.add(name);
-            }
+            appendMcpWriteTools(protocolTools, existing, loadToolsDefinition());
+            appendMcpWriteTools(protocolTools, existing, loadMcpExtraToolsDefinition());
             cachedMcpAutopilotProtocolTools = List.copyOf(protocolTools);
             return cachedMcpAutopilotProtocolTools;
+        }
+    }
+
+    /**
+     * 把源列表中的 MCP 全自动写工具转为协议格式并追加到 protocolTools。
+     */
+    private static void appendMcpWriteTools(List<Map<String, Object>> protocolTools,
+                                            Set<String> existing,
+                                            List<Map<String, Object>> source) {
+        for (Map<String, Object> tool : source) {
+            String name = extractFunctionName(tool);
+            if (name == null || !FlowDesignToolNames.isMcpAutopilotWriteTool(name) || existing.contains(name)) {
+                continue;
+            }
+            protocolTools.add(annotateMcpWriteTool(toMcpProtocolTool(tool)));
+            existing.add(name);
         }
     }
 

@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
  * <p>
  * 每个工具两个开关：webAgent（是否进 Web 造流助手工具列表）、
  * mcpAllowed（是否默认允许 MCP 调用，一般为只读勘察工具）。
- * 改图 submit、素材/鉴权写入、跑流等默认不进 MCP；
+ * 改图 submit、create_flow、素材/鉴权写入、跑流等默认不进 MCP；
  * 仅当项目开启「允许 MCP 全自动写流」后，由运行时追加进工具列表并可调用。
  */
 public enum FlowDesignToolNames {
@@ -53,6 +53,8 @@ public enum FlowDesignToolNames {
     LIST_FLOWS("list_flows", false, true),
     /** 仅 MCP：读取完整测试流与 graphJson */
     GET_FLOW("get_flow", false, true),
+    /** 仅 MCP：新建空画布测试流（须项目开启 MCP 全自动写流） */
+    CREATE_FLOW("create_flow", false, false),
 
     /** 新增或修改单个 HTTP 节点（每次调用一个 Staging 单元） */
     SUBMIT_HTTP_NODE("submit_http_node", true, false),
@@ -130,7 +132,7 @@ public enum FlowDesignToolNames {
     /**
      * 是否为 MCP 全自动写工具。
      * 须项目开关开启后才可出现在 tools/list 并被 tools/call。
-     * 含全部 submit_*、素材 upsert、鉴权 upsert、追加 design_hints、run_test_flow。
+     * 含全部 submit_*、create_flow、素材 upsert、鉴权 upsert、追加 design_hints、run_test_flow。
      */
     public static boolean isMcpAutopilotWriteTool(String name) {
         if (name == null || name.isBlank()) {
@@ -139,7 +141,8 @@ public enum FlowDesignToolNames {
         if (isSubmitUnitTool(name)) {
             return true;
         }
-        return UPSERT_ASSET_VARIABLES.id.equals(name)
+        return CREATE_FLOW.id.equals(name)
+                || UPSERT_ASSET_VARIABLES.id.equals(name)
                 || UPSERT_AUTH_PROFILE.id.equals(name)
                 || APPEND_API_DESIGN_HINTS.id.equals(name)
                 || RUN_TEST_FLOW.id.equals(name);

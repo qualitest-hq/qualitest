@@ -3,15 +3,15 @@
 
 ## 前置
 
-1. 编辑器已接入质衡 MCP 并配好 Project Token。
-2. **写流 / 跑流**前：质衡「项目设置」已开启并保存「允许 MCP 全自动写流」。未开则只能只读勘察。
-3. **改图必须带已有 `testFlowId`**。没有则先 `list_flows`；仍没有则请用户在 Web 建空流后再继续（MCP 不创建测试流）。
+1. 编辑器已接入质衡 MCP 并配好 Project Token（Token 只绑定项目身份，不区分读写权限）。
+2. **写流 / 跑流 / 新建流**前：质衡「项目设置」已开启并保存「允许 MCP 全自动写流」。未开则只能只读勘察。开启后若编辑器仍只列只读工具，请重连或刷新 MCP。
+3. **改图必须带已有 `testFlowId`**。没有则先 `list_flows`；仍没有合适流则用 `create_flow` 新建空画布后再继续。
 
 ## 硬规矩
 
 - **每次成功的 `submit_*` 已立即写库**。不要找 commit / 保存工具，也不要假设还要 Staging 确认。
 - 造流、修流、修失败、用户要「跑通/验证」时：必要 `submit_*`（及缺省时的 upsert）完成后 **立刻** `run_test_flow`，不要只改图就结束。
-- 纯答疑（解释节点/字段、只要建议不改库）时：只用只读工具；不要 `submit_*` / `run_test_flow`。
+- 纯答疑（解释节点/字段、只要建议不改库）时：只用只读工具；不要 `submit_*` / `create_flow` / `run_test_flow`。
 - 不要输出整份 `graphJson`；拓扑用 `get_graph_summary` / `get_node_detail`。
 - 不要编造接口 path / 测值；先 `search_apis` → `get_api_details`，测值从业务仓或素材键读取，读不到标不确定。
 - 本规程 **不是**「可测提示词」路径：不要只汇总短提示贴回 Web；开了写权限就直接 MCP 改流。
@@ -24,7 +24,7 @@
 
 ### 造流 / 扩流
 
-1. 确认 `testFlowId`；读现有图与相关接口。
+1. 确认 `testFlowId`；没有合适流时先 `create_flow`，再读相关接口。
 2. 缺素材 / 鉴权时先 `upsert_asset_variables` / `upsert_auth_profile`（调用即写库）。
 3. 每次只调 **一个** `submit_*` 单元（一个节点 / 一条边 / 一个场景 / 一次删除）。
 4. 空画布：先连续 `submit_*_node`（`op=add`），再 `submit_edge`。
@@ -40,6 +40,7 @@
 
 | 工具 | 要点 |
 |------|------|
+| `create_flow` | 新建空画布测试流并写库；返回 `testFlowId`；不要求已有流 id |
 | `submit_http_node` 等 `submit_*` | 每次 1 单元；成功即落盘；须 `testFlowId` |
 | `upsert_asset_variables` / `upsert_auth_profile` | 工具内直写库；不要求 `testFlowId` |
 | `append_api_design_hints` | 追加接口短提示并落库 |

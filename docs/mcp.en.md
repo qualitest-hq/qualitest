@@ -2,7 +2,7 @@
 
 Qualitest exposes a **project-scoped MCP** service over **Streamable HTTP** so **MCP-capable AI editors / agents** (Cursor, VS Code ecosystem, Claude Code, …) can query this project’s APIs, test flows, and Run context.  
 Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + custom headers can use the same fields.  
-**Read-only by default.** Enable **“Allow MCP Full-auto write”** in Project settings to expose Web Full-auto write tools (`submit_*`, upserts, `run_test_flow`); each successful `submit_*` **persists immediately**.
+**Read-only by default.** Enable **“Allow MCP Full-auto write”** in Project settings to expose `create_flow`, Web Full-auto write tools (`submit_*`, upserts, `run_test_flow`); each successful `submit_*` **persists immediately**. The Token only binds project identity; read vs write is controlled by that switch.
 
 中文版：[mcp.md](./mcp.md)
 
@@ -47,7 +47,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 
 ## 3. Read-only tools (summary)
 
-**13** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow`; no `submit_*` / `upsert_asset_variables` / `run_test_flow`).
+**16** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow`; no `submit_*` / `create_flow` / `upsert_asset_variables` / `run_test_flow`).
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -65,6 +65,10 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `list_subflow_templates` | Platform subflow templates |
 
 Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary` / `get_run_failure`.
+
+### Write tools (Full-auto switch on)
+
+When enabled, `tools/list` also exposes `create_flow`, all `submit_*`, upserts, `append_api_design_hints`, and `run_test_flow`. Use `create_flow` when no suitable empty flow exists; graph edits still require `testFlowId`.
 
 ---
 
@@ -99,7 +103,7 @@ and suggest what to change on the canvas (advice only — do not write the DB).
 ## 5. Security & limits
 
 - A Token is a project credential: keep it out of Git and screenshots; rotate in Project settings if leaked.
-- MCP is **read-only by default**; enable Full-auto write in Project settings to allow Cursor to edit flows and run. Staging rules: [ai-staging.en.md](./ai-staging.en.md). Stuck: [faq.en.md](./faq.en.md).
+- MCP is **read-only by default**; read vs write is controlled by the Full-auto switch (not by Token “scopes”). With write enabled, a Token holder can create flows, edit canvases, and run. Staging rules: [ai-staging.en.md](./ai-staging.en.md). Stuck: [faq.en.md](./faq.en.md).
 - Without MCP write: Project Settings → copy **testable prompts** (incremental / full) into Cursor, then paste short prompts back into Web AI.
 - Demo target + NL flow prompts: [qualitest-demo · AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
 
@@ -112,4 +116,5 @@ and suggest what to change on the canvas (advice only — do not write the DB).
 | Cursor can’t connect | Backend up? Host/port in `url` match browser access (IDE does not use Vite proxy) |
 | 401 / no tools | Token expired or truncated? Header name exactly `X-Project-Token`? |
 | Empty / forbidden | Token belongs to the project you intend to query? |
+| Only read-only tools | Full-auto write enabled **and saved**? Reconnect / refresh MCP after saving |
 | Stale config | After refresh Token, re-copy the full `mcp.json` snippet |

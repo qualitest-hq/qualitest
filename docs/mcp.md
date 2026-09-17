@@ -2,9 +2,10 @@
 
 质衡通过 **Streamable HTTP** 暴露项目级 MCP 服务，供 **支持 MCP 的 AI 编辑器 / Agent**（Cursor、VS Code 生态、Claude Code 等）查询本项目的接口、测试流与 Run 现场。  
 下文配置以 **Cursor `mcp.json`** 为例；其它客户端只要支持同协议的 HTTP MCP + 自定义 Header，即可按同等字段接入。  
-**默认只读**。项目设置开启「允许 MCP 全自动写流」后，可经 MCP 调用与 Web 全自动同名的 `submit_*` / upsert / `run_test_flow`（每次成功 `submit_*` **立即写库**）。未开启时改画布请走 Web 端 AI 面板。
+**默认只读**。项目设置开启「允许 MCP 全自动写流」后，可经 MCP 调用 `create_flow`、与 Web 全自动同名的 `submit_*` / upsert / `run_test_flow`（每次成功 `submit_*` **立即写库**）。Token 只绑定项目身份，读写由该开关控制。未开启时改画布请走 Web 端 AI 面板。
 
-English: [mcp.en.md](./mcp.en.md)
+English: [mcp.en.md](./mcp.en.md)  
+画布实时同步（看着 MCP 长出图）设计：[mcp-canvas-live-sync.md](./mcp-canvas-live-sync.md)
 
 ---
 
@@ -13,7 +14,7 @@ English: [mcp.en.md](./mcp.en.md)
 1. 登录质衡 → 打开目标 **测试项目** → **项目设置**。
 2. 生成 / 复制 **Project Token**（刷新后旧 Token 立即失效）。
 3. 同页「Cursor MCP」卡片可一键复制完整 `mcp.json` 片段；也可按下方模板手写。
-4. （可选）同页开启 **「允许 MCP 全自动写流」** 并保存，Cursor 才能 `submit_*` / `run_test_flow`。
+4. （可选）同页开启 **「允许 MCP 全自动写流」** 并保存，Cursor 才能 `create_flow` / `submit_*` / `run_test_flow`。开启后若仍只见只读工具，请重连或刷新 MCP。
 5. （可选）顶栏「MCP 造流 Agent 规程」：弹窗按编辑器切换（Cursor / Claude Code / Copilot / Windsurf / Continue / Trae / AGENTS.md），复制后保存到对应规则文件。
 
 本地开发默认后端：`http://127.0.0.1:8800`。  
@@ -41,7 +42,7 @@ Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根�
 | 字段 | 说明 |
 |:-----|:-----|
 | `url` | MCP 端点，路径固定为 `/api/project/mcp`（无尾斜杠） |
-| `headers.X-Project-Token` | 项目 Token；权限与签发时一致，按最小权限发放 |
+| `headers.X-Project-Token` | 项目 Token；只绑定项目身份（读写由「允许 MCP 全自动写流」开关控制），按最小权限发放 |
 
 配置生效后，在 Cursor Agent / Chat 中应能看到名为 `qualitest` 的 MCP 服务器及其工具列表。
 
@@ -51,7 +52,7 @@ Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根�
 
 ### 3.1 默认只读（始终可用）
 
-MCP 侧默认 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow`）。
+MCP 侧默认 **16** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow`）。
 
 | 工具 | 用途 |
 |:-----|:-----|
@@ -72,9 +73,9 @@ MCP 侧默认 **13** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 ### 3.2 MCP 全自动写工具（须项目设置开启）
 
-开启「允许 MCP 全自动写流」后，`tools/list` 追加与 Web 全自动同名的写工具：全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`append_api_design_hints`、`run_test_flow`。
+开启「允许 MCP 全自动写流」后，`tools/list` 追加写工具：`create_flow`、全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`append_api_design_hints`、`run_test_flow`。
 
-- 改图须带已有 `testFlowId`（可先在 Web 建空流）。
+- 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。
 - **每次成功 `submit_*` 立即写库**；`run_test_flow` 跑库中最新图。
 - 未开启时调用写工具会得到明确拒绝文案。
 
@@ -111,7 +112,7 @@ testFlowId 用 <上一步拿到的 id>。
 ## 5. 安全与限制
 
 - Token 等同项目凭证：勿提交进 Git / 截图外传；泄露后立即在项目设置刷新。
-- MCP **默认只读**；开启「允许 MCP 全自动写流」后持 Token 者可改流并跑流（落盘规则见 [ai-staging.md](./ai-staging.md)）。卡住见 [faq.md](./faq.md)。
+- MCP **默认只读**；读写不由 Token「权限」区分，而由「允许 MCP 全自动写流」开关控制。开启后持 Token 者可新建流、改流并跑流（落盘规则见 [ai-staging.md](./ai-staging.md)）。卡住见 [faq.md](./faq.md)。
 - 未开 MCP 写权限时：顶栏「MCP 造流 Agent 规程」可复制单功能 / 整项目提示词贴到 Cursor，汇总短提示后再贴回 Web 造流。
 - 靶场联调、自然语言造流示例见：[qualitest-demo · AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)。
 - IDEA / OpenAPI 同步后：检查登录口（`/login`、`/api/account/auth/login` 等）资产的 `auth.mode` 应为 `none`；若仍为 `inherit`，造流可能误补 `Bearer {{flow.token}}`。存量可用 `sql/fix_anonymous_auth_builtin_paths.sql` 预览后修复。
@@ -125,4 +126,5 @@ testFlowId 用 <上一步拿到的 id>。
 | Cursor 连不上 | 后端是否已起；`url` 主机/端口是否与浏览器访问一致（IDE 不走 Vite 代理） |
 | 401 / 无工具 | Token 是否过期或复制不完整；header 名是否为 `X-Project-Token` |
 | 工具报无权限 / 空列表 | Token 是否属于当前要查的那个项目 |
+| 只有只读工具 | 是否已开启并**保存**「允许 MCP 全自动写流」；保存后请重连/刷新 MCP |
 | 只有旧配置 | 刷新 Token 后须重新复制整段 `mcp.json` |
