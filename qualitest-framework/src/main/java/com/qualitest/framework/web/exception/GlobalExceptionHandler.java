@@ -7,6 +7,7 @@ import com.qualitest.common.exception.DemoModeException;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.StringUtils;
 import com.qualitest.common.utils.html.EscapeUtil;
+import com.qualitest.flow.sync.FlowEditLeaseConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +58,17 @@ public class GlobalExceptionHandler {
         log.error(e.getMessage(), e);
         Integer code = e.getCode();
         return StringUtils.isNotNull(code) ? AjaxResult.error(code, e.getMessage()) : AjaxResult.error(e.getMessage());
+    }
+
+    /**
+     * 测试流写锁冲突：返回错误文案，并附带 lockHeldBy 字段。
+     */
+    @ExceptionHandler(FlowEditLeaseConflictException.class)
+    public AjaxResult handleFlowEditLeaseConflict(FlowEditLeaseConflictException e, HttpServletRequest request) {
+        log.warn("写锁冲突 URI={} lockHeldBy={}", request.getRequestURI(), e.getLockHeldBy());
+        AjaxResult result = AjaxResult.error(e.getMessage());
+        result.put("lockHeldBy", e.getLockHeldBy());
+        return result;
     }
 
     /**

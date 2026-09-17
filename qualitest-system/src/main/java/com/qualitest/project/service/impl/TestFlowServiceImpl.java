@@ -7,6 +7,11 @@ import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
+import com.qualitest.common.utils.ServletUtils;
+import com.qualitest.flow.sync.FlowEditLeaseService;
+import com.qualitest.flow.sync.FlowExternalChangePublisher;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
+import com.qualitest.flow.sync.FlowGraphCommitPatchHolder;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
@@ -19,7 +24,9 @@ import com.qualitest.project.service.ITestFlowService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,6 +43,12 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     @Autowired
     private GraphJsonValidator graphJsonValidator;
+
+    @Autowired
+    private FlowExternalChangePublisher flowExternalChangePublisher;
+
+    @Autowired
+    private FlowEditLeaseService flowEditLeaseService;
 
     /**
      * 查询测试流列表
@@ -95,21 +108,91 @@ public class TestFlowServiceImpl implements ITestFlowService {
         }
         validateGraphJsonForPersist(testFlow.getGraphJson());
         testFlow.setCreateTime(DateUtils.getNowDate());
-        return testFlowMapper.insertTestFlow(testFlow);
+        int rows = testFlowMapper.insertTestFlow(testFlow);
+        if (rows > 0 && testFlow.getTestFlowId() != null) {
+            flowExternalChangePublisher.publishFlowCreated(
+                    testFlow.getTestFlowId(),
+                    testFlow.getTestProjectId(),
+                    FlowExternalChangeSourceHolder.getOrDefault());
+        }
+        return rows;
     }
 
     /**
-     * 修改测试流
+     * 修改测试流。
+     * 写 graph_json 时先占写锁（请求头带有效租约则续期不换锁，否则短抢短释）；
+     * 成功后发图提交或元数据变更通知；短抢锁在 finally 释放。
      *
-     * @param testFlow 测试流
-     * @return 结果
+     * @param testFlow 测试流（可只改名称，或带 graphJson 改图）
+     * @return 影响行数
      */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateTestFlow(TestFlow testFlow) {
         validateGraphJsonForPersist(testFlow.getGraphJson());
-        testFlow.setUpdateTime(DateUtils.getNowDate());
-        return testFlowMapper.updateTestFlow(testFlow);
+        boolean writingGraph = StrUtil.isNotBlank(testFlow.getGraphJson());
+        FlowEditLeaseService.LeaseHandle lease = null;
+        try {
+            if (writingGraph && testFlow.getTestFlowId() != null) {
+                lease = flowEditLeaseService.beginWrite(
+                        testFlow.getTestFlowId(),
+                        FlowExternalChangeSourceHolder.getOrDefault(),
+                        readClientLeaseToken());
+            }
+            testFlow.setUpdateTime(DateUtils.getNowDate());
+            int rows = testFlowMapper.updateTestFlow(testFlow);
+            if (rows > 0 && testFlow.getTestFlowId() != null) {
+                Long projectId = testFlow.getTestProjectId();
+                if (projectId == null) {
+                    TestFlow existing = testFlowMapper.selectTestFlowById(testFlow.getTestFlowId());
+                    if (existing != null) {
+                        projectId = existing.getTestProjectId();
+                    }
+                }
+                String source = FlowExternalChangeSourceHolder.getOrDefault();
+                if (writingGraph) {
+                    // 全自动落盘可能已放入本批节点/边片段；人手保存一般为 null
+                    FlowGraphCommitPatchHolder.PatchPayload patch = FlowGraphCommitPatchHolder.get();
+                    flowExternalChangePublisher.publishGraphCommitted(
+                            testFlow.getTestFlowId(),
+                            projectId,
+                            source,
+                            testFlow.getUpdateTime(),
+                            patch);
+                } else {
+                    flowExternalChangePublisher.publishFlowMetaChanged(
+                            testFlow.getTestFlowId(), projectId, source);
+                }
+            }
+            return rows;
+        } finally {
+            // 客户端长持锁不在此释放；短抢锁写完即放
+            if (lease != null && !lease.heldFromClient() && testFlow.getTestFlowId() != null) {
+                flowEditLeaseService.release(testFlow.getTestFlowId(), lease.token());
+            }
+            FlowGraphCommitPatchHolder.clear();
+        }
+    }
+
+    /**
+     * 从当前 HTTP 请求读取写锁租约头。
+     * 无 Web 请求上下文（例如 MCP 调用线程）返回 null，走短抢短释。
+     */
+    private static String readClientLeaseToken() {
+        try {
+            ServletRequestAttributes attrs = ServletUtils.getRequestAttributes();
+            if (attrs == null) {
+                return null;
+            }
+            HttpServletRequest request = attrs.getRequest();
+            if (request == null) {
+                return null;
+            }
+            String token = request.getHeader(FlowEditLeaseService.HEADER_NAME);
+            return token != null && !token.isBlank() ? token.trim() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

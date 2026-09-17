@@ -11,12 +11,15 @@
 import { ElMessage } from 'element-plus';
 
 import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
+import { useFlowEditLease } from './useFlowEditLease';
 import { validateGraphJson } from '@/utils/flow/graphValidate';
 
 import { fromGraphJson, toGraphJson } from '../graphAdapter';
 import { refreshSavedBaseline } from '../utils/reconcileFlowDirty';
 import { promptStagingPendingSave } from '../utils/promptStagingPendingSave';
 import { collectRunBlockingErrors } from '../utils/runReadiness';
+import { suppressExternalGraphSync } from '../utils/externalGraphSyncState';
+import { getFlowEditLeaseToken } from '../utils/flowEditLeaseState';
 import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
@@ -129,12 +132,17 @@ export function useFlowGraph() {
 
     store.loading = true;
     try {
-      await updateTestFlow({
-        testFlowId: store.testFlowId,
-        testProjectId: store.testProjectId,
-        flowName: store.flowName,
-        graphJson: JSON.stringify(graph),
-      });
+      // 带上本地写锁 token，服务端续期而不另抢一把
+      await updateTestFlow(
+        {
+          testFlowId: store.testFlowId,
+          testProjectId: store.testProjectId,
+          flowName: store.flowName,
+          graphJson: JSON.stringify(graph),
+        },
+        getFlowEditLeaseToken(),
+      );
+      suppressExternalGraphSync();
       await refreshSavedBaseline(store);
 
       if (!options?.skipRunRiskRefresh && !options?.quiet) {

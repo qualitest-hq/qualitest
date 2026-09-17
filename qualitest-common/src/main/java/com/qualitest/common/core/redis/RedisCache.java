@@ -44,6 +44,16 @@ public class RedisCache {
     }
 
     /**
+     * 仅当 key 不存在时写入（SET NX），并设置过期时间。
+     *
+     * @return true 表示抢到；false 表示已存在
+     */
+    public <T> boolean setIfAbsent(final String key, final T value, final long timeout, final TimeUnit timeUnit) {
+        Boolean ok = redisTemplate.opsForValue().setIfAbsent(key, value, timeout, timeUnit);
+        return Boolean.TRUE.equals(ok);
+    }
+
+    /**
      * 设置有效时间
      *
      * @param key     Redis键

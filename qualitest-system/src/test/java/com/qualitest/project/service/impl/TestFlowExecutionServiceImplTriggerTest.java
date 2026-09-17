@@ -88,7 +88,8 @@ class TestFlowExecutionServiceImplTriggerTest {
                 testFlowExecutor,
                 new StepResultWriter(),
                 flowRunReadinessGate,
-                mock(RunStatusUpdater.class)
+                mock(RunStatusUpdater.class),
+                mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class)
         );
 
         LoginUser loginUser = mock(LoginUser.class);

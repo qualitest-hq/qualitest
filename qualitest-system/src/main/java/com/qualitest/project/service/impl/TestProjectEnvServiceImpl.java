@@ -20,6 +20,8 @@ import com.qualitest.project.params.TestProjectEnvParams;
 import com.qualitest.project.result.TestProjectEnvResult;
 import com.qualitest.project.service.ITestProjectEnvService;
 import com.qualitest.project.support.TestProjectVariableEntrySupport;
+import com.qualitest.flow.sync.FlowExternalChangePublisher;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -32,6 +34,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
     @Autowired
     private TestProjectEnvMapper testProjectEnvMapper;
+
+    @Autowired
+    private FlowExternalChangePublisher flowExternalChangePublisher;
+
+    private void notifyEnvsChanged(Long testProjectId) {
+        if (testProjectId == null) {
+            return;
+        }
+        flowExternalChangePublisher.publishProjectEnvsChanged(
+                testProjectId, FlowExternalChangeSourceHolder.getOrDefault());
+    }
 
     /**
      * 查询测试项目环境列表
@@ -100,7 +113,11 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
             testProjectEnv.setSortNum(0);
         }
         testProjectEnv.setCreateTime(DateUtils.getNowDate());
-        return testProjectEnvMapper.insertTestProjectEnv(testProjectEnv);
+        int rows = testProjectEnvMapper.insertTestProjectEnv(testProjectEnv);
+        if (rows > 0) {
+            notifyEnvsChanged(testProjectEnv.getTestProjectId());
+        }
+        return rows;
     }
 
     /**
@@ -114,7 +131,19 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
     public int updateTestProjectEnv(TestProjectEnv testProjectEnv) {
         normalizeEnvVariables(testProjectEnv);
         testProjectEnv.setUpdateTime(DateUtils.getNowDate());
-        return testProjectEnvMapper.updateTestProjectEnv(testProjectEnv);
+        int rows = testProjectEnvMapper.updateTestProjectEnv(testProjectEnv);
+        if (rows > 0) {
+            Long projectId = testProjectEnv.getTestProjectId();
+            if (projectId == null && testProjectEnv.getTestProjectEnvId() != null) {
+                TestProjectEnv existing = testProjectEnvMapper.selectTestProjectEnvById(
+                        testProjectEnv.getTestProjectEnvId());
+                if (existing != null) {
+                    projectId = existing.getTestProjectId();
+                }
+            }
+            notifyEnvsChanged(projectId);
+        }
+        return rows;
     }
 
     /**
@@ -151,15 +180,19 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
                 throw new ServiceException("环境与列表不一致，请刷新后重试");
             }
         }
-        List<TestProjectEnv> rows = new ArrayList<>();
+        List<TestProjectEnv> sortRows = new ArrayList<>();
         for (int i = 0; i < orderedEnvIds.size(); i++) {
             TestProjectEnv row = new TestProjectEnv();
             row.setTestProjectEnvId(orderedEnvIds.get(i));
             row.setSortNum(i);
-            rows.add(row);
+            sortRows.add(row);
         }
         Date now = DateUtils.getNowDate();
-        return testProjectEnvMapper.batchUpdateSortNumForReorder(testProjectId, userId, now, rows);
+        int updated = testProjectEnvMapper.batchUpdateSortNumForReorder(testProjectId, userId, now, sortRows);
+        if (updated > 0) {
+            notifyEnvsChanged(testProjectId);
+        }
+        return updated;
     }
 
     /**
@@ -192,7 +225,18 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
      */
     @Override
     public int logicDeleteTestProjectEnvById(Long testProjectEnvId) {
-        return testProjectEnvMapper.logicDeleteTestProjectEnvById(testProjectEnvId);
+        Long projectId = null;
+        if (testProjectEnvId != null) {
+            TestProjectEnv existing = testProjectEnvMapper.selectTestProjectEnvById(testProjectEnvId);
+            if (existing != null) {
+                projectId = existing.getTestProjectId();
+            }
+        }
+        int rows = testProjectEnvMapper.logicDeleteTestProjectEnvById(testProjectEnvId);
+        if (rows > 0) {
+            notifyEnvsChanged(projectId);
+        }
+        return rows;
     }
 
     /**
@@ -203,7 +247,18 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
      */
     @Override
     public int logicDeleteTestProjectEnvByIdList(List<Long> testProjectEnvIdList) {
-        return testProjectEnvMapper.logicDeleteTestProjectEnvByIdList(testProjectEnvIdList);
+        Long projectId = null;
+        if (testProjectEnvIdList != null && !testProjectEnvIdList.isEmpty()) {
+            TestProjectEnv existing = testProjectEnvMapper.selectTestProjectEnvById(testProjectEnvIdList.get(0));
+            if (existing != null) {
+                projectId = existing.getTestProjectId();
+            }
+        }
+        int rows = testProjectEnvMapper.logicDeleteTestProjectEnvByIdList(testProjectEnvIdList);
+        if (rows > 0) {
+            notifyEnvsChanged(projectId);
+        }
+        return rows;
     }
 
     /**

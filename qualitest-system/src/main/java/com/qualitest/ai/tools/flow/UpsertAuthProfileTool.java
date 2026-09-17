@@ -15,6 +15,7 @@ import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.mapper.TestProjectMapper;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import lombok.RequiredArgsConstructor;
 
 import java.util.LinkedHashMap;
@@ -106,12 +107,16 @@ public class UpsertAuthProfileTool implements QualitestTool {
 
         if (autopilot) {
             try {
+                FlowExternalChangeSourceHolder.set(
+                        FlowExternalChangeSourceHolder.mcpOrWebAutopilot(ctx.getAiChatSessionId() != null));
                 resolvedId = AuthProfileUpsertSupport.persistPatch(
                         testProjectMapper, projectId, profileId.isEmpty() ? null : profileId, create, patch);
                 status = AuthProfileUpsertProposal.STATUS_CONFIRMED;
             } catch (ServiceException e) {
                 return FlowDesignToolSupport.errorJson(
                         e.getMessage() != null ? e.getMessage() : "写入项目鉴权失败");
+            } finally {
+                FlowExternalChangeSourceHolder.clear();
             }
             after.put("id", resolvedId);
         }

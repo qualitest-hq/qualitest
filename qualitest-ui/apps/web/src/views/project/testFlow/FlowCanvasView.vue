@@ -84,7 +84,7 @@ function onBeforeUnload(event) {
   event.returnValue = ''
 }
 
-/** 加载指定测试流：重置状态 → 拉图/环境/Run 列表 → 首次 API 语义预检 */
+/** 加载指定测试流：先出图，再并行拉鉴权/项目名/环境/Run，预检稍后 */
 async function initFlow() {
   const testFlowId = String(route.params.testFlowId ?? '')
   const testProjectId = String(route.params.testProjectId ?? '')
@@ -98,11 +98,14 @@ async function initFlow() {
   store.testProjectId = testProjectId
   try {
     await loadFlow(testFlowId)
-    await store.loadProjectAuthConfig()
-    await loadProjectName(testProjectId)
-    await loadProjectEnvs()
-    await runLib.loadRuns(testFlowId)
-    await runPreview()
+    await Promise.all([
+      store.loadProjectAuthConfig(),
+      loadProjectName(testProjectId),
+      loadProjectEnvs(),
+      runLib.loadRuns(testFlowId),
+    ])
+    // 预检稍后，避免挡住首屏出图
+    void runPreview()
   } catch (error) {
     const message = error instanceof Error ? error.message : '加载测试流失败'
     ElMessage.error(message)

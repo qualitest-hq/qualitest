@@ -11,6 +11,7 @@ import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.run.RunStatus;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.params.TriggerTestFlowRunParams;
 import com.qualitest.project.result.TestFlowRunResult;
@@ -93,10 +94,10 @@ public class RunTestFlowTool implements QualitestTool {
         if (envId == null) {
             envId = ctx.getDefaultTestProjectEnvId();
         }
-
         Long runId;
         try {
-            // triggerType=ai：运行库区分来源；trigger 立刻返回 runId，图在后台继续跑
+            FlowExternalChangeSourceHolder.set(
+                    FlowExternalChangeSourceHolder.mcpOrWebAutopilot(ctx.getAiChatSessionId() != null));
             TriggerTestFlowRunParams params = TriggerTestFlowRunParams.builder()
                     .testFlowId(ctx.getTestFlowId())
                     .runScenarioId(runScenarioId)
@@ -118,6 +119,8 @@ public class RunTestFlowTool implements QualitestTool {
             return FlowDesignToolSupport.errorJson(e.getMessage());
         } catch (Exception e) {
             return FlowDesignToolSupport.errorJson("触发 Run 异常: " + e.getMessage());
+        } finally {
+            FlowExternalChangeSourceHolder.clear();
         }
 
         // 先通知画布按 runId 开始高亮；本工具再等终态，把结果回给模型

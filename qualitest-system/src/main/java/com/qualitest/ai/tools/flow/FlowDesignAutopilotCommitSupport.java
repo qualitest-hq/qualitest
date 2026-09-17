@@ -6,6 +6,9 @@ import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.sync.FlowEditLeaseConflictException;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
+import com.qualitest.flow.sync.FlowGraphCommitPatchHolder;
 import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
@@ -107,17 +110,29 @@ public final class FlowDesignAutopilotCommitSupport {
             return CommitOutcome.fail("测试流不属于当前项目", List.of("测试流不属于当前项目"), warnings);
         }
 
+        // 标记写入来源；放入本批图增量片段后写库
         try {
+            FlowExternalChangeSourceHolder.set(
+                    FlowExternalChangeSourceHolder.mcpOrWebAutopilot(ctx.getAiChatSessionId() != null));
+            FlowGraphCommitPatchHolder.set(
+                    FlowGraphCommitPatchHolder.fromCapture(capture.getNormalizedPatch(), toSave));
             TestFlow update = new TestFlow();
             update.setTestFlowId(ctx.getTestFlowId());
+            update.setTestProjectId(ctx.getTestProjectId());
             update.setGraphJson(toSave.toJsonString());
             testFlowService.updateTestFlow(update);
+        } catch (FlowEditLeaseConflictException e) {
+            // 他端正持写锁，不落盘
+            return CommitOutcome.leaseConflict(e, warnings);
         } catch (ServiceException e) {
             return CommitOutcome.fail("写库失败: " + e.getMessage(),
                     List.of("写库失败: " + e.getMessage()), warnings);
         } catch (Exception e) {
             return CommitOutcome.fail("写库异常: " + e.getMessage(),
                     List.of("写库异常: " + e.getMessage()), warnings);
+        } finally {
+            FlowExternalChangeSourceHolder.clear();
+            FlowGraphCommitPatchHolder.clear();
         }
 
         capture.clearAccepted();
@@ -159,34 +174,44 @@ public final class FlowDesignAutopilotCommitSupport {
     /**
      * 隐式落盘结果。
      *
-     * @param ok        true=成功或跳过；false=失败未写库
-     * @param committed true=本次确实执行了 updateTestFlow
-     * @param message   人类可读说明
-     * @param errors    失败时的错误列表
-     * @param warnings  校验警告（成功也可能带）
+     * @param ok          true=成功或跳过；false=失败未写库
+     * @param committed   true=本次确实写入了测试流
+     * @param message     人类可读说明
+     * @param errors      失败时的错误列表
+     * @param warnings    校验警告（成功也可能带）
+     * @param lockHeldBy  写锁冲突时的持锁方摘要；无冲突为 null
      */
     public record CommitOutcome(boolean ok, boolean committed, String message,
-                                List<String> errors, List<String> warnings) {
+                                List<String> errors, List<String> warnings, String lockHeldBy) {
 
-        /** 无需落盘（例如半自动、或本轮没有已接受单元） */
+        /** 无需落盘（半自动，或本轮没有已接受单元） */
         static CommitOutcome skip(String message) {
-            return new CommitOutcome(true, false, message, List.of(), List.of());
+            return new CommitOutcome(true, false, message, List.of(), List.of(), null);
         }
 
-        /** 已写入 test_flow */
+        /** 已写入测试流 */
         static CommitOutcome committed(String testFlowId, List<String> warnings) {
             return new CommitOutcome(true, true, "已落库 testFlowId=" + testFlowId,
-                    List.of(), warnings != null ? warnings : List.of());
+                    List.of(), warnings != null ? warnings : List.of(), null);
         }
 
         /** 校验或写库失败，库未改 */
         static CommitOutcome fail(String message, List<String> errors, List<String> warnings) {
             return new CommitOutcome(false, false, message,
                     errors != null ? errors : List.of(),
-                    warnings != null ? warnings : List.of());
+                    warnings != null ? warnings : List.of(),
+                    null);
         }
 
-        /** 组装给工具回执或日志用的 JSON（含 ok / committed / message / errors / warnings） */
+        /** 写锁被他端占用，库未改 */
+        static CommitOutcome leaseConflict(FlowEditLeaseConflictException e, List<String> warnings) {
+            String msg = e != null ? e.getMessage() : "测试流写锁冲突";
+            String held = e != null ? e.getLockHeldBy() : "unknown";
+            return new CommitOutcome(false, false, msg, List.of(msg),
+                    warnings != null ? warnings : List.of(), held);
+        }
+
+        /** 组装回执 JSON（ok / committed / message / errors / warnings / lockHeldBy） */
         public JSONObject toJson() {
             JSONObject o = new JSONObject();
             o.put("ok", ok);
@@ -197,6 +222,9 @@ public final class FlowDesignAutopilotCommitSupport {
             }
             if (!warnings.isEmpty()) {
                 o.put("warnings", warnings);
+            }
+            if (lockHeldBy != null && !lockHeldBy.isBlank()) {
+                o.put("lockHeldBy", lockHeldBy);
             }
             return o;
         }

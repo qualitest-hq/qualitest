@@ -77,7 +77,9 @@ MCP 侧默认 **16** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 - 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。
 - **每次成功 `submit_*` 立即写库**；`run_test_flow` 跑库中最新图。
+- **打开对应测试流画布即可看到同步**（SSE 推送 `graphCommitted` 等；Autopilot/MCP 可带增量片段），无需手动整页刷新。若 Web 本地有未保存修改或未决 Staging，会提示「放弃本地并拉取」，不会静默覆盖。
 - 未开启时调用写工具会得到明确拒绝文案。
+- 若写工具返回 `lockHeldBy`：另一端（Web 脏稿持锁 / 保存）占用该流写锁，按 `hint` 稍后重试或换一流。
 
 ---
 

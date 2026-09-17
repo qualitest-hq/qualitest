@@ -14,6 +14,7 @@ import com.qualitest.ai.tools.flow.TestFlowAccessSupport;
 import com.qualitest.api.params.McpToolInvokeParams;
 import com.qualitest.api.result.McpToolResult;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.flow.sync.FlowEditLeaseConflictException;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.result.TestFlowResult;
@@ -48,16 +49,21 @@ public class McpToolInvokeService {
     private final FlowDesignPatchNormalizer flowDesignPatchNormalizer;
 
     /**
-     * 执行一次 MCP tools/call。
-     * 先按项目开关做白名单校验；写工具补齐测试流与画布后执行；
-     * submit 成功则立即写库，并把落盘结果写进回执 JSON。
-     *
-     * @param toolName       工具名
-     * @param params         信封（项目/流/画布）与业务参数
-     * @param tokenProjectId 请求头 Token 解析出的项目 id
-     * @return 工具回执（含 resultJson、是否失败）
+     * 执行一次 MCP 工具调用。
+     * 按项目开关校验白名单；写工具补齐流与画布后执行；
+     * submit 成功则立即写库并把落盘结果写进回执。
+     * 若撞上他端写锁，回执带 lockHeldBy 与重试提示。
      */
     public McpToolResult invoke(String toolName, McpToolInvokeParams params, Long tokenProjectId) {
+        try {
+            return invokeInner(toolName, params, tokenProjectId);
+        } catch (FlowEditLeaseConflictException e) {
+            return leaseConflictResult(toolName, e);
+        }
+    }
+
+    /** 正常工具执行路径（不含写锁冲突包装） */
+    private McpToolResult invokeInner(String toolName, McpToolInvokeParams params, Long tokenProjectId) {
         boolean mcpAutopilot = isMcpAutopilotEnabled(tokenProjectId, params);
         if (!FlowDesignToolNames.isMcpCallable(toolName, mcpAutopilot)) {
             if (FlowDesignToolNames.isMcpAutopilotWriteTool(toolName)) {
@@ -95,6 +101,21 @@ public class McpToolInvokeService {
                 .tool(toolName)
                 .resultJson(resultJson)
                 .error(error)
+                .build();
+    }
+
+    /**
+     * 写锁冲突回执：error + lockHeldBy + hint（换一流或稍后重试）。
+     */
+    private static McpToolResult leaseConflictResult(String toolName, FlowEditLeaseConflictException e) {
+        JSONObject o = new JSONObject();
+        o.put("error", e.getMessage());
+        o.put("lockHeldBy", e.getLockHeldBy());
+        o.put("hint", "测试流正被其它端编辑，请换一流或稍后重试");
+        return McpToolResult.builder()
+                .tool(toolName)
+                .resultJson(o.toJSONString())
+                .error(true)
                 .build();
     }
 
@@ -150,8 +171,8 @@ public class McpToolInvokeService {
     }
 
     /**
-     * submit 回执为 received=true 时，把本调用已接受的画布单元写入测试流库，
-     * 并在回执中补充 committed / commitOk / hint 等字段。
+     * submit 校验通过后立刻写库，并在回执中补充 committed / commitOk / hint。
+     * 若因写锁失败，额外写入 lockHeldBy。
      *
      * @return 更新后的回执 JSON，以及是否因落盘失败标为 error
      */
@@ -181,7 +202,12 @@ public class McpToolInvokeService {
         } else if (!commit.ok()) {
             error = true;
             result.put("error", "单元已接受但落盘失败: " + commit.message());
-            result.put("hint", "请根据 commit errors 修正后再 submit_*");
+            if (commit.lockHeldBy() != null && !commit.lockHeldBy().isBlank()) {
+                result.put("lockHeldBy", commit.lockHeldBy());
+                result.put("hint", "测试流正被其它端编辑，请换一流或稍后重试");
+            } else {
+                result.put("hint", "请根据 commit errors 修正后再 submit_*");
+            }
             result.put("commitErrors", commit.errors());
         }
         if (commit.warnings() != null && !commit.warnings().isEmpty()) {

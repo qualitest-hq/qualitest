@@ -13,6 +13,9 @@ import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
+import com.qualitest.common.utils.spring.SpringUtils;
+import com.qualitest.flow.sync.FlowExternalChangePublisher;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.mapper.TestProjectMapper;
 
@@ -181,6 +184,12 @@ public final class AuthProfileUpsertSupport {
         update.setAuthConfig(ProjectAuthConfigSupport.toJson(normalized));
         update.setUpdateTime(DateUtils.getNowDate());
         testProjectMapper.updateTestProject(update);
+        try {
+            SpringUtils.getBean(FlowExternalChangePublisher.class)
+                    .publishAuthConfigChanged(projectId, FlowExternalChangeSourceHolder.getOrDefault());
+        } catch (Exception ignored) {
+            // 单元测试等无 Spring 上下文时跳过
+        }
         return merged.getId();
     }
 

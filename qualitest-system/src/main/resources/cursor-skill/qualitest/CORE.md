@@ -10,6 +10,7 @@
 ## 硬规矩
 
 - **每次成功的 `submit_*` 已立即写库**。不要找 commit / 保存工具，也不要假设还要 Staging 确认。
+- 用户若在 Web **打开了同一测试流**，画布会自动跟上；不要提示「请刷新画布」。
 - 造流、修流、修失败、用户要「跑通/验证」时：必要 `submit_*`（及缺省时的 upsert）完成后 **立刻** `run_test_flow`，不要只改图就结束。
 - 纯答疑（解释节点/字段、只要建议不改库）时：只用只读工具；不要 `submit_*` / `create_flow` / `run_test_flow`。
 - 不要输出整份 `graphJson`；拓扑用 `get_graph_summary` / `get_node_detail`。

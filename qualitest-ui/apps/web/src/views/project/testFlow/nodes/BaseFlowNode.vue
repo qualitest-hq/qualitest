@@ -71,6 +71,7 @@ const nodeClasses = computed(() => ({
   'is-step-passed': store.runVisitedNodeIds[props.id] === 'passed',
   'is-step-failed': store.runVisitedNodeIds[props.id] === 'failed',
   'is-ai-highlight': store.aiHighlightNodeIds.includes(props.id),
+  'is-external-sync-highlight': store.externalSyncHighlightNodeIds.includes(props.id),
   'is-ai-staging-add': stagingMark.value?.mode === 'add',
   'is-ai-staging-update': stagingMark.value?.mode === 'update',
   'is-ai-staging-delete': stagingMark.value?.mode === 'delete',
@@ -203,6 +204,16 @@ defineExpose({ rootEl })
     animation: ai-highlight-pulse 1.6s ease-in-out infinite;
   }
 
+  &.is-external-sync-highlight {
+    z-index: 7;
+    border-color: #0d9488 !important;
+    background: color-mix(in srgb, #0d9488 8%, #fff);
+    box-shadow:
+      0 0 0 2px #0d9488,
+      0 0 0 6px color-mix(in srgb, #0d9488 22%, transparent);
+    animation: external-sync-enter 0.45s ease-out, ai-highlight-pulse 1.6s ease-in-out 0.45s infinite;
+  }
+
   &.is-ai-staging-add {
     z-index: 7;
     border-style: dashed;
@@ -274,6 +285,17 @@ defineExpose({ rootEl })
     box-shadow:
       0 0 0 2px #7c3aed,
       0 0 0 10px color-mix(in srgb, #7c3aed 18%, transparent);
+  }
+}
+
+@keyframes external-sync-enter {
+  from {
+    opacity: 0.55;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 

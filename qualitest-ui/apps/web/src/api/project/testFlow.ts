@@ -41,12 +41,47 @@ export function addTestFlow(data: Partial<TestFlowRecord>) {
   });
 }
 
-export function updateTestFlow(data: Partial<TestFlowRecord>) {
+/** 保存测试流；可选带上写锁 token，服务端续期不换锁 */
+export function updateTestFlow(data: Partial<TestFlowRecord>, leaseToken?: string | null) {
+  const headers: Record<string, string> = {}
+  if (leaseToken) {
+    headers['X-Flow-Edit-Lease'] = leaseToken
+  }
   return request({
     url: '/project/testFlow',
     method: 'put',
     data,
+    headers,
   });
+}
+
+/** 画布有未保存修改时占用写锁，返回 { token } */
+export function acquireFlowEditLease(testFlowId: string | number) {
+  return request({
+    url: `/project/testFlow/${testFlowId}/editLease`,
+    method: 'post',
+    headers: { repeatSubmit: false },
+  })
+}
+
+/** 写锁心跳，延长服务端租约 TTL */
+export function heartbeatFlowEditLease(testFlowId: string | number, token: string) {
+  return request({
+    url: `/project/testFlow/${testFlowId}/editLease/heartbeat`,
+    method: 'post',
+    data: { token },
+    headers: { repeatSubmit: false },
+  })
+}
+
+/** 释放写锁 */
+export function releaseFlowEditLease(testFlowId: string | number, token: string) {
+  return request({
+    url: `/project/testFlow/${testFlowId}/editLease`,
+    method: 'delete',
+    params: { token },
+    headers: { repeatSubmit: false },
+  })
 }
 
 export function delTestFlow(testFlowIds: string | number) {

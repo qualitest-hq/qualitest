@@ -14,6 +14,7 @@ import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.domain.TestProjectAsset;
 import com.qualitest.project.result.TestProjectAssetResult;
 import com.qualitest.project.service.ITestProjectAssetService;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import lombok.RequiredArgsConstructor;
 
 import java.util.LinkedHashMap;
@@ -76,12 +77,16 @@ public class UpsertAssetVariablesTool implements QualitestTool {
         String status = AssetUpsertProposal.STATUS_PENDING;
         if (autopilot) {
             try {
+                FlowExternalChangeSourceHolder.set(
+                        FlowExternalChangeSourceHolder.mcpOrWebAutopilot(ctx.getAiChatSessionId() != null));
                 AssetUpsertSupport.persistAsset(testProjectAssetService, projectId, key, fields, remark);
             } catch (ServiceException e) {
                 return FlowDesignToolSupport.errorJson(
                         e.getMessage() != null ? e.getMessage() : "全自动写入素材库失败");
             } catch (Exception e) {
                 return FlowDesignToolSupport.errorJson("全自动写入素材库异常: " + e.getMessage());
+            } finally {
+                FlowExternalChangeSourceHolder.clear();
             }
             status = AssetUpsertProposal.STATUS_CONFIRMED;
         }

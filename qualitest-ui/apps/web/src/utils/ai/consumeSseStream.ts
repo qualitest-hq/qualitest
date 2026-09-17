@@ -106,10 +106,34 @@ export async function consumeAuthenticatedSsePost<
     throw new Error('流式响应无正文');
   }
 
-  const reader = response.body.getReader();
+  let finalResult: TResult | null = null;
+  await readSseJsonStream(response.body, (payload) => {
+    try {
+      const event = JSON.parse(payload) as TEvent;
+      const doneResult = dispatchSseEvent(event, handlers, defaultErrorMessage);
+      if (doneResult !== null) finalResult = doneResult;
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        return;
+      }
+      throw e;
+    }
+  });
+
+  if (finalResult === null) throw new Error(missingResultMessage);
+  return finalResult;
+}
+
+/**
+ * 读取 SSE ReadableStream：按空行分块，对每条 `data:` 行回调 JSON 文本。
+ */
+export async function readSseJsonStream(
+  body: ReadableStream<Uint8Array>,
+  onDataPayload: (payload: string) => void,
+): Promise<void> {
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let finalResult: TResult | null = null;
 
   const parseChunk = (chunk: string) => {
     const lines = chunk.split('\n');
@@ -118,17 +142,7 @@ export async function consumeAuthenticatedSsePost<
       if (!trimmed.startsWith('data:')) continue;
       const payload = trimmed.slice(5).trim();
       if (!payload) continue;
-      try {
-        const event = JSON.parse(payload) as TEvent;
-        const doneResult = dispatchSseEvent(event, handlers, defaultErrorMessage);
-        if (doneResult !== null) finalResult = doneResult;
-      } catch (e) {
-        // SyntaxError：半包/脏行，忽略；其余（含 type=error 业务失败）必须上抛
-        if (e instanceof SyntaxError) {
-          continue;
-        }
-        throw e;
-      }
+      onDataPayload(payload);
     }
   };
 
@@ -141,7 +155,4 @@ export async function consumeAuthenticatedSsePost<
     for (const part of parts) parseChunk(part);
   }
   if (buffer.trim()) parseChunk(buffer);
-
-  if (finalResult === null) throw new Error(missingResultMessage);
-  return finalResult;
 }

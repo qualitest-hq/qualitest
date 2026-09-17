@@ -68,6 +68,10 @@ import {
   pruneStagingAcceptanceForMessages,
   resetStagingAcceptanceMaps,
 } from '../utils/stagingAcceptance';
+import {
+  emitExternalGraphCommitted,
+  hasExternalGraphCommittedHandler,
+} from '../utils/externalGraphSyncState';
 import { restorePendingStagingIfNeeded as restorePendingStagingFromMessages } from '../utils/stagingSessionRestore';
 import { graphObjectIdFromUnit } from '../utils/stagingUnitIds';
 
@@ -440,10 +444,14 @@ export function useAiDesign() {
         onSession: (sessionId) => {
           void chat.afterDesignSessionCreated(String(sessionId));
         },
-        // 全自动隐式写库成功：清 Staging 并重新拉库中图
+        // 全自动隐式写库成功：清 Staging；有外部同步订阅时走统一入口（与 Hub SSE 去重）
         onGraphCommitted: (testFlowId) => {
           clearAllStagingState();
           resetStagingAcceptanceMaps();
+          if (hasExternalGraphCommittedHandler()) {
+            emitExternalGraphCommitted(testFlowId);
+            return;
+          }
           void loadFlow(testFlowId)
             .then(() => {
               ElMessage.success('全自动已落库，画布已同步');

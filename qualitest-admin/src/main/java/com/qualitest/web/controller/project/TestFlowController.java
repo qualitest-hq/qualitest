@@ -1,6 +1,8 @@
 package com.qualitest.web.controller.project;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -11,12 +13,14 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.qualitest.common.annotation.Log;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.R;
 import com.qualitest.common.enums.BusinessType;
+import com.qualitest.common.utils.SecurityUtils;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.ai.scenario.flow.FlowAuthHeaderRefreshService;
 import com.qualitest.ai.scenario.flow.model.RefreshAuthHeadersResult;
@@ -30,6 +34,7 @@ import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.flow.diagnose.ApiFlowReferenceScanService;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
+import com.qualitest.flow.sync.FlowEditLeaseService;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.common.core.text.Convert;
 import com.qualitest.common.utils.poi.ExcelUtil;
@@ -48,12 +53,14 @@ public class TestFlowController extends BaseController {
 
     private final ITestFlowService testFlowService;
     private final ITestProjectMemberService testProjectMemberService;
-    /** 保存流或主动刷新时，把语义告警条数写回 test_flow.api_health_* */
-    private final ApiFlowHealthPersistService apiFlowHealthPersistService;
     /** 按入参 graphJson 做语义体检，不写库（画布预检用） */
     private final ApiFlowReferenceScanService apiFlowReferenceScanService;
+    /** 保存流或主动刷新时，把语义告警条数写回 test_flow.api_health_* */
+    private final ApiFlowHealthPersistService apiFlowHealthPersistService;
     /** 按项目鉴权刷新本流托管头（只提案，不写库） */
     private final FlowAuthHeaderRefreshService flowAuthHeaderRefreshService;
+    /** 画布写锁：脏稿占用 / 心跳 / 释放 */
+    private final FlowEditLeaseService flowEditLeaseService;
 
     /**
      * 查询测试流列表
@@ -232,5 +239,61 @@ public class TestFlowController extends BaseController {
             }
         }
         return toR(testFlowService.logicDeleteTestFlowByIdList(idList));
+    }
+
+    /**
+     * 画布有未保存修改时占用写锁。
+     * 返回 token；保存请求头带上该 token 可续期而不换锁。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
+    @PostMapping("/{testFlowId}/editLease")
+    public R<Map<String, String>> acquireEditLease(@PathVariable("testFlowId") Long testFlowId) {
+        assertFlowEditable(testFlowId);
+        String holder = "web:" + SecurityUtils.getUsername();
+        String token = flowEditLeaseService.tryAcquire(testFlowId, holder);
+        Map<String, String> data = new HashMap<>(2);
+        data.put("token", token);
+        return R.ok(data);
+    }
+
+    /**
+     * 写锁心跳：延长 TTL，避免编辑中途锁过期被他端抢走。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
+    @PostMapping("/{testFlowId}/editLease/heartbeat")
+    public R<Void> heartbeatEditLease(@PathVariable("testFlowId") Long testFlowId,
+                                      @RequestBody Map<String, String> body) {
+        assertFlowEditable(testFlowId);
+        String token = body != null ? body.get("token") : null;
+        if (token == null || token.isBlank()) {
+            throw new ServiceException("缺少租约 token");
+        }
+        if (!flowEditLeaseService.heartbeat(testFlowId, token.trim())) {
+            throw new ServiceException("租约无效或已过期，请重新占用写锁");
+        }
+        return R.ok();
+    }
+
+    /**
+     * 释放写锁（保存成功变干净、离开画布、放弃本地修改时调用）。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
+    @DeleteMapping("/{testFlowId}/editLease")
+    public R<Void> releaseEditLease(@PathVariable("testFlowId") Long testFlowId,
+                                    @RequestParam("token") String token) {
+        assertFlowEditable(testFlowId);
+        flowEditLeaseService.release(testFlowId, token);
+        return R.ok();
+    }
+
+    /** 校验流存在且当前用户是项目成员，才允许操作写锁 */
+    private void assertFlowEditable(Long testFlowId) {
+        TestFlowResult existing = testFlowService.selectTestFlowResult(testFlowId);
+        if (existing == null || (existing.getDelStatus() != null && existing.getDelStatus() != 0)) {
+            throw new ServiceException("测试流不存在");
+        }
+        if (existing.getTestProjectId() != null) {
+            testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+        }
     }
 }

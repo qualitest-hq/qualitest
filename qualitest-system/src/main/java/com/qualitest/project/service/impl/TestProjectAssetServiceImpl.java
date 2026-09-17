@@ -10,6 +10,8 @@ import com.qualitest.project.params.TestProjectAssetSaveParams;
 import com.qualitest.project.result.TestProjectAssetResult;
 import com.qualitest.project.service.ITestProjectAssetService;
 import com.qualitest.project.support.TestProjectAssetSupport;
+import com.qualitest.flow.sync.FlowExternalChangePublisher;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 项目素材库 Service 实现
@@ -30,6 +33,9 @@ public class TestProjectAssetServiceImpl implements ITestProjectAssetService {
 
     @Autowired
     private TestProjectMapper testProjectMapper;
+
+    @Autowired
+    private FlowExternalChangePublisher flowExternalChangePublisher;
 
     /**
      * 查询项目下素材列表
@@ -160,6 +166,12 @@ public class TestProjectAssetServiceImpl implements ITestProjectAssetService {
         if (rows <= 0) {
             throw new ServiceException("保存素材库失败");
         }
+        List<String> keys = entries == null ? List.of() : entries.stream()
+                .map(TestProjectAsset::getKey)
+                .filter(k -> k != null && !k.isBlank())
+                .collect(Collectors.toList());
+        flowExternalChangePublisher.publishAssetVariablesChanged(
+                testProjectId, FlowExternalChangeSourceHolder.getOrDefault(), keys);
     }
 
     /**

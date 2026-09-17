@@ -45,6 +45,8 @@ import com.qualitest.project.service.ITestFlowRunStepService;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectEnvService;
 import com.qualitest.project.service.ITestProjectMemberService;
+import com.qualitest.flow.sync.FlowExternalChangePublisher;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -78,6 +80,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     private final StepResultWriter stepResultWriter;
     private final FlowRunReadinessGate flowRunReadinessGate;
     private final RunStatusUpdater runStatusUpdater;
+    private final FlowExternalChangePublisher flowExternalChangePublisher;
 
     /** 后台跑流线程池；守护线程，不阻塞触发接口返回 */
     private final ExecutorService runExecutor = Executors.newCachedThreadPool(r -> {
@@ -172,6 +175,12 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 .build();
         run.setCreateTime(now);
         testFlowRunService.insertTestFlowRun(run);
+
+        flowExternalChangePublisher.publishRunStarted(
+                testFlow.getTestFlowId(),
+                testFlow.getTestProjectId(),
+                runId,
+                FlowExternalChangeSourceHolder.getOrDefault());
 
         SecurityContext securityContext = SecurityContextHolder.getContext();
         RunBootstrapMeta bootstrap = new RunBootstrapMeta(scenario, env.getEnvName(), env);

@@ -125,6 +125,11 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const pendingAiDesignRunId = ref('');
   /** AI 确认成功后短暂高亮的新增/修改节点 id（紫色脉冲，约 4 秒后清除） */
   const aiHighlightNodeIds = ref<string[]>([]);
+  /**
+   * 外部同步（MCP 等）差分高亮节点 id，与 runHighlight / aiHighlight 分字段。
+   * 新增为主高亮，变更亦列入此集合。
+   */
+  const externalSyncHighlightNodeIds = ref<string[]>([]);
   /** Staging 边灌入请求计数；递增后触发画布内灌入逻辑重试 pendingEdges。 */
   const stagingEdgeFlushToken = ref(0);
 
@@ -171,6 +176,16 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     }
   }
 
+  /** 外部落盘同步后的差分高亮 */
+  function setExternalSyncHighlight(nodeIds: string[]) {
+    externalSyncHighlightNodeIds.value = nodeIds.length ? [...nodeIds] : [];
+  }
+
+  /** 清除外部同步高亮 */
+  function clearExternalSyncHighlight() {
+    externalSyncHighlightNodeIds.value = [];
+  }
+
   /** 切换 testFlowId 或离开画布时清空编辑态 */
   function reset() {
     nodes.value = [];
@@ -206,6 +221,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     pendingAiDesignRunId.value = '';
     clearAiHighlightTimer();
     aiHighlightNodeIds.value = [];
+    externalSyncHighlightNodeIds.value = [];
     stagingEdgeFlushToken.value = 0;
     useAiStagingStore().reset();
   }
@@ -442,6 +458,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     aiDesignPanelOpen,
     pendingAiDesignRunId,
     aiHighlightNodeIds,
+    externalSyncHighlightNodeIds,
     stagingEdgeFlushToken,
     setSavedGraphSnapshot,
     beginCanvasHydration,
@@ -465,6 +482,8 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     addAiConfirmHighlight,
     finalizeAiConfirmHighlight,
     setAiHighlightFocus,
+    setExternalSyncHighlight,
+    clearExternalSyncHighlight,
     toggleMinimapVisible,
     setMinimapVisible,
     openAiDesignPanel,

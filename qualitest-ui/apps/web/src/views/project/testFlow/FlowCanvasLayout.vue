@@ -28,6 +28,21 @@
           </span>
         </div>
       </div>
+      <!-- 外部写入冲突条幅：图 / 鉴权 / 素材 -->
+      <div
+          v-for="banner in externalConflictBanners"
+          :key="banner.id"
+          class="flow-canvas-header__external-banner"
+          role="status"
+      >
+        <span>{{ banner.text }}</span>
+        <button class="btn btn--ghost" type="button" @click="banner.onAccept">
+          {{ banner.acceptLabel }}
+        </button>
+        <button class="btn btn--ghost" type="button" @click="banner.onDismiss">
+          稍后
+        </button>
+      </div>
       <div class="flow-canvas-header__actions">
         <button
             v-if="!isTemplateCanvas"
@@ -292,6 +307,8 @@ import { useFlowViewport } from './composables/useFlowViewport'
 import { useAiStagingStore } from './stores/aiStagingStore'
 import { useFlowCanvasStore } from './stores/flowCanvasStore'
 import { stagingPendingSaveTooltip } from './utils/promptStagingPendingSave'
+import { useExternalGraphSync } from './composables/useExternalGraphSync'
+import { useFlowEditLease } from './composables/useFlowEditLease'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -318,6 +335,44 @@ const isTemplateCanvas = computed(() => store.canvasMode === 'template')
 const backLabel = computed(() => props.backLabel)
 const stagingStore = useAiStagingStore()
 const stagingPendingCount = computed(() => stagingStore.pendingCount)
+
+const externalSyncTestFlowId = computed(() => String(store.testFlowId || ''))
+const externalSyncProjectId = computed(() => String(store.testProjectId || ''))
+const externalSyncEnabled = computed(() => !isTemplateCanvas.value && !!externalSyncTestFlowId.value)
+
+const {
+  projectSettingDrawerVisible,
+  activeTestProjectId,
+  settingContext,
+  settingLoading,
+  settingForm,
+  projectHttpTransport,
+  forwardAvail,
+  showHttpTransportSetting,
+  drawerTitle,
+  openProjectSettingById,
+  getSettingOnDrawerOpen,
+  handleRefreshToken,
+} = useProjectSettingDrawer(() => proxy)
+
+const authFormDirty = computed(() => !!projectSettingDrawerVisible.value)
+const assetFormDirty = computed(() => store.ui.leftTab === 'params')
+
+// 脏稿占写锁 + 心跳；干净/离页释放
+useFlowEditLease({
+  testFlowId: externalSyncTestFlowId,
+  enabled: externalSyncEnabled,
+})
+
+// 订阅外部写入；条幅驱动顶栏「放弃并刷新」
+const { externalConflictBanners } = useExternalGraphSync({
+  testFlowId: externalSyncTestFlowId,
+  testProjectId: externalSyncProjectId,
+  enabled: externalSyncEnabled,
+  authFormDirty,
+  assetFormDirty,
+})
+
 const {
   confirmAllReady,
   resumeConfirmAllReady,
@@ -342,20 +397,6 @@ async function handleResumeConfirmAllReady() {
   if (!canEditFlow.value || stagingBatchBusy.value || !stagingBatchPausedOnUnitId.value) return
   await resumeConfirmAllReady()
 }
-const {
-  projectSettingDrawerVisible,
-  activeTestProjectId,
-  settingContext,
-  settingLoading,
-  settingForm,
-  projectHttpTransport,
-  forwardAvail,
-  showHttpTransportSetting,
-  drawerTitle,
-  openProjectSettingById,
-  getSettingOnDrawerOpen,
-  handleRefreshToken,
-} = useProjectSettingDrawer(() => proxy)
 const { onConnect, onEdgesChange } = useFlowConnect()
 const { refreshAllNodeInternals } = useFlowNodeInternalsRefresh()
 const { canUndo, undo, pushHistory, commitHistoryResetIfPending } = useFlowHistory()
@@ -798,6 +839,22 @@ function onPaneClick() {
   background: #ea580c;
   box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55);
   animation: flow-dirty-pulse 1.4s ease-out infinite;
+}
+
+/* 外部落盘冲突条幅 */
+.flow-canvas-header__external-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #0d9488 12%, #fff);
+  color: #0f766e;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 @keyframes flow-dirty-pulse {
