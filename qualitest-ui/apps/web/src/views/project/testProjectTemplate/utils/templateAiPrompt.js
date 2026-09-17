@@ -5,6 +5,11 @@
  * 避免按钮进入 loading 造成界面闪烁。
  */
 
+import { copyTextSync } from '@/utils/clipboard'
+
+/** 再导出，供仍从本模块引用 copyTextSync 的调用方使用 */
+export { copyTextSync }
+
 /** 已拉取的提示词正文缓存 */
 let cachedAiPrompt = ''
 /** 进行中的预取 Promise，避免并发重复请求 */
@@ -32,28 +37,6 @@ export function prefetchTemplateAiPrompt(fetcher) {
       aiPromptLoading = null
     })
   return aiPromptLoading
-}
-
-/**
- * 同步把文本写入系统剪贴板。
- * @returns {boolean} 是否成功
- */
-export function copyTextSync(text) {
-  const el = document.createElement('textarea')
-  el.value = text
-  el.setAttribute('readonly', '')
-  el.style.position = 'fixed'
-  el.style.top = '0'
-  el.style.left = '0'
-  el.style.opacity = '0'
-  document.body.appendChild(el)
-  el.focus()
-  el.select()
-  try {
-    return document.execCommand('copy')
-  } finally {
-    el.remove()
-  }
 }
 
 /**

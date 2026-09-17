@@ -174,11 +174,6 @@ public class FlowDesignToolExecutor {
                 .collect(Collectors.toSet());
     }
 
-    /** 是否始终允许 MCP 只读调用该工具名。 */
-    public static boolean isMcpAllowedTool(String name) {
-        return FlowDesignToolNames.isMcpAllowed(name);
-    }
-
     /**
      * 按名执行工具；argumentsJson 为模型传来的参数对象字符串。
      * 未知工具或参数解析失败返回 error JSON，不抛给 Agent 循环外。

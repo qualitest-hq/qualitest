@@ -332,7 +332,7 @@
           </div>
 
           <p class="project-setting__hint project-setting__hint--warn">
-            含私密 Token，请勿提交到 git 或分享给无关人员。
+            含私密 Token，请勿提交到 git 或分享给无关人员。造流规程请点顶栏技能图标查看（支持 Cursor / 其它编辑器）。
           </p>
         </section>
       </template>
@@ -349,7 +349,7 @@
 
 <script setup>
 /**
- * 项目设置侧栏：响应约定、项目鉴权、可测提示词、API 调试传输方式、项目 Token、Cursor MCP 配置。
+ * 项目设置侧栏：响应约定、项目鉴权、可测提示词、API 调试传输方式、项目 Token、MCP 全自动与 Cursor 配置。
  */
 import { computed, getCurrentInstance, reactive, ref, watch } from 'vue'
 import { buildCursorMcpConfig } from '../utils/mcpClientConfig'
@@ -362,6 +362,7 @@ import {
   parseAuthConfig,
 } from '../utils/projectAuthConfig'
 import { applyAuthTemplates, getTestablePrompt, getTestProject, updateTestProject } from '@/api/project/testProject'
+import { copyTextSync } from '@/utils/clipboard'
 import AuthTemplateCheckboxList from './AuthTemplateCheckboxList.vue'
 import SaveAsAuthTemplateDialog from './SaveAsAuthTemplateDialog.vue'
 import { toTemplateIds, useEnabledAuthTemplates } from '../composables/useEnabledAuthTemplates'
@@ -434,8 +435,9 @@ const testablePromptCache = reactive({
   full: '',
 })
 
-/** MCP 全自动写流开关（项目级） */
+/** MCP 全自动写流开关（项目级：开则 Token 可经 MCP 改图并跑流） */
 const mcpAutopilotEnabled = ref(false)
+/** 正在保存 MCP 全自动开关 */
 const mcpAutopilotSaving = ref(false)
 
 const authPreview = computed(() => formatAuthConfigPreview(authForm))
@@ -445,7 +447,8 @@ function resolveProjectId() {
 }
 
 /**
- * 复制可测提示词到剪贴板。
+ * 复制可测提示词到剪贴板（增量 / 全量）。
+ * 有缓存则直接写；否则先请求后端再写。
  * @param {'incremental'|'full'} kind
  */
 function copyTestablePrompt(kind) {
@@ -455,7 +458,7 @@ function copyTestablePrompt(kind) {
       proxy.$modal.msgError('提示词为空')
       return
     }
-    if (copyTextToClipboard(text)) {
+    if (copyTextSync(text)) {
       proxy.$modal.msgSuccess(`已复制${label}`)
       return
     }
@@ -479,25 +482,6 @@ function copyTestablePrompt(kind) {
     .finally(() => {
       testablePromptLoading.value = ''
     })
-}
-
-/** 同步写入剪贴板（避免异步 clipboard API 在部分环境下丢焦点失败） */
-function copyTextToClipboard(text) {
-  const el = document.createElement('textarea')
-  el.value = text
-  el.setAttribute('readonly', '')
-  el.style.position = 'fixed'
-  el.style.top = '0'
-  el.style.left = '0'
-  el.style.opacity = '0'
-  document.body.appendChild(el)
-  el.focus()
-  el.select()
-  try {
-    return document.execCommand('copy')
-  } finally {
-    el.remove()
-  }
 }
 
 function syncAuthCollapse() {

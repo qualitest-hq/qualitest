@@ -19,6 +19,7 @@
 /** 只读展示当前 flow 变量，支持复制 {{flow.*}} 占位符 */
 import { computed } from 'vue'
 import { getCurrentInstance } from 'vue'
+import { copyTextSync } from '@/utils/clipboard'
 
 const props = defineProps({
   flow: { type: Object, default: () => ({}) },
@@ -51,13 +52,12 @@ function formatValue(v) {
   return String(v)
 }
 
-async function copyPlaceholder(text) {
-  try {
-    await navigator.clipboard.writeText(text)
+function copyPlaceholder(text) {
+  if (copyTextSync(text)) {
     proxy?.$modal?.msgSuccess?.('已复制')
-  } catch {
-    proxy?.$modal?.msgError?.('复制失败')
+    return
   }
+  proxy?.$modal?.msgError?.('复制失败')
 }
 </script>
 

@@ -20,6 +20,10 @@
           <qualitest-doc id="qualitest-doc" class="right-menu-item hover-effect" />
         </el-tooltip>
 
+        <el-tooltip content="MCP 造流 Agent 规程" effect="dark" placement="bottom">
+          <qualitest-cursor-skill id="qualitest-cursor-skill" class="right-menu-item hover-effect" />
+        </el-tooltip>
+
         <screenfull id="screenfull" class="right-menu-item hover-effect" />
 
         <el-tooltip content="主题模式" effect="dark" placement="bottom">
@@ -69,6 +73,8 @@ import SizeSelect from '@/components/SizeSelect'
 import HeaderSearch from '@/components/HeaderSearch'
 import QualitestGit from '@/components/Qualitest/Git'
 import QualitestDoc from '@/components/Qualitest/Doc'
+/** 顶栏：复制全局 MCP 造流 Skill */
+import QualitestCursorSkill from '@/components/Qualitest/CursorSkill'
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'

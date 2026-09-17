@@ -8,6 +8,7 @@ import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
 
 import { getTestProjectEnv } from '@/api/project/testProjectEnv';
+import { copyTextSync } from '@/utils/clipboard';
 import { extractEntryInner } from '../../testProject/utils/variableEntryUtils';
 import {
   normalizeEnvVariableEntries,
@@ -220,21 +221,12 @@ export function useParamLibrary() {
     });
   }
 
-  async function copyParamText(text: string, label: string) {
-    try {
-      await navigator.clipboard.writeText(text);
+  function copyParamText(text: string, label: string) {
+    if (copyTextSync(text)) {
       ElMessage.success(`已复制 ${label}`);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-      ElMessage.success(`已复制 ${label}`);
+      return;
     }
+    ElMessage.error('复制失败');
   }
 
   return {

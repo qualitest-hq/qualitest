@@ -6,7 +6,6 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.AssetUpsertCapture;
 import com.qualitest.ai.tools.AssetUpsertProposal;
 import com.qualitest.ai.tools.FlowDesignToolContext;
-import com.qualitest.ai.tools.FlowDesignToolExecutor;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.result.TestProjectAssetResult;
@@ -173,7 +172,7 @@ class UpsertAssetVariablesToolTest {
     void mcpDisallowsUpsert() {
         String id = FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId();
 
-        assertFalse(FlowDesignToolExecutor.isMcpAllowedTool(id));
+        assertFalse(FlowDesignToolNames.isMcpAllowed(id));
         assertTrue(FlowDesignToolNames.isWebAgent(id));
     }
 

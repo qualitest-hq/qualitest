@@ -6,6 +6,7 @@ import com.qualitest.common.utils.StringUtils;
 import com.qualitest.common.utils.file.FileUploadUtils;
 import com.qualitest.common.utils.file.FileUtils;
 import com.qualitest.framework.config.ServerConfig;
+import com.qualitest.project.support.cursorskill.McpCursorSkillService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -22,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 通用请求处理
+ * 通用请求处理：上传下载、以及全局 Cursor MCP Skill 正文拉取等。
  *
  * @author qualitest
  */
@@ -33,6 +34,9 @@ public class CommonController {
     private static final String FILE_DELIMITER = ",";
     @Autowired
     private ServerConfig serverConfig;
+    /** 读取 MCP 造流 Skill 全文（全局，不绑项目） */
+    @Autowired
+    private McpCursorSkillService mcpCursorSkillService;
 
     /**
      * 通用下载请求
@@ -112,6 +116,23 @@ public class CommonController {
         } catch (Exception e) {
             return AjaxResult.error(e.getMessage());
         }
+    }
+
+    /**
+     * 返回 MCP 造流 Agent 规程列表（Cursor Skill、其它编辑器规则等）。
+     * 登录即可；不依赖某个测试项目。前端顶栏按 Tab 展示并分别复制。
+     */
+    @GetMapping("/mcpAgentGuides")
+    public AjaxResult mcpAgentGuides() {
+        return AjaxResult.success("操作成功", mcpCursorSkillService.loadGuides());
+    }
+
+    /**
+     * 返回 Cursor MCP 造流 Skill 全文（兼容旧入口）。
+     */
+    @GetMapping("/mcpCursorSkill")
+    public AjaxResult mcpCursorSkill() {
+        return AjaxResult.success("操作成功", mcpCursorSkillService.loadSkillMarkdown());
     }
 
     /**

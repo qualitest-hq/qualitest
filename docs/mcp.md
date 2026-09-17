@@ -14,6 +14,7 @@ English: [mcp.en.md](./mcp.en.md)
 2. 生成 / 复制 **Project Token**（刷新后旧 Token 立即失效）。
 3. 同页「Cursor MCP」卡片可一键复制完整 `mcp.json` 片段；也可按下方模板手写。
 4. （可选）同页开启 **「允许 MCP 全自动写流」** 并保存，Cursor 才能 `submit_*` / `run_test_flow`。
+5. （可选）顶栏「MCP 造流 Agent 规程」：弹窗按编辑器切换（Cursor / Claude Code / Copilot / Windsurf / Continue / Trae / AGENTS.md），复制后保存到对应规则文件。
 
 本地开发默认后端：`http://127.0.0.1:8800`。  
 Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根（常见为 `http://localhost/api/project/mcp`），以项目设置里生成的为准。

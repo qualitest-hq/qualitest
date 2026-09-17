@@ -31,6 +31,7 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
+import { copyTextSync } from '@/utils/clipboard'
 import { toGraphJson } from '../graphAdapter'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { exportGraphAsPng } from '../utils/graphExportImage'
@@ -66,22 +67,12 @@ function close() {
   emit('update:visible', false)
 }
 
-async function copyJson() {
-  const text = exportText.value
-  try {
-    await navigator.clipboard.writeText(text)
+function copyJson() {
+  if (copyTextSync(exportText.value)) {
     ElMessage.success('JSON 已复制到剪贴板')
-  } catch {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.style.position = 'fixed'
-    ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    ta.remove()
-    ElMessage.success('JSON 已复制到剪贴板')
+    return
   }
+  ElMessage.error('复制失败')
 }
 
 function downloadJson() {
