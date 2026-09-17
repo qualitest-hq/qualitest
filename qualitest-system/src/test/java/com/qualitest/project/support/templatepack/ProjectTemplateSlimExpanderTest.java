@@ -164,6 +164,49 @@ class ProjectTemplateSlimExpanderTest {
         assertEquals("Set-Cookie", ProjectTemplateSlimExpander.extractExpr(Map.of("from", "header", "expr", "Set-Cookie")));
     }
 
+    @Test
+    @Order(7)
+    @DisplayName("bodyMode=form 展开为 x-www-form-urlencoded")
+    void expand_bodyModeForm_writesUrlencoded() throws Exception {
+        // 前提：精简包 bodyMode=form，body 含 phone/code
+        String json = """
+                {
+                  "templateName": "Form Login",
+                  "authStyle": "header",
+                  "pathPrefix": ["/api/"],
+                  "credential": {"asset": "clientAuth", "extract": "$.data", "headerName": "token"},
+                  "apis": [{
+                    "name": "验证码登录",
+                    "method": "POST",
+                    "path": "/api/login/login",
+                    "authMode": "none",
+                    "bodyMode": "form",
+                    "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+                    "body": {
+                      "phone": "{{asset.clientAuth.phone}}",
+                      "code": "{{asset.clientAuth.code}}"
+                    },
+                    "response": {"code": 1, "data": "tok"}
+                  }]
+                }
+                """;
+        SlimTemplate slim = mapper.readValue(json, SlimTemplate.class);
+
+        ExpandResult result = expander.expand(slim);
+
+        // 期望：body.mode 为 x-www-form-urlencoded，urlencoded 含 phone、code 行
+        JSONArray apis = JSONUtil.parseArray(result.getEntity().getTemplateApis());
+        JSONObject body = apis.getJSONObject(0).getJSONObject("requestConfig").getJSONObject("body");
+        assertEquals("x-www-form-urlencoded", body.getStr("mode"));
+        assertFalse(body.containsKey("form"));
+        JSONArray rows = body.getJSONArray("urlencoded");
+        assertNotNull(rows);
+        assertEquals(2, rows.size());
+        assertTrue(rows.toString().contains("phone"));
+        assertTrue(rows.toString().contains("{{asset.clientAuth.phone}}"));
+        assertTrue(rows.toString().contains("code"));
+    }
+
     private static String bearerJson() {
         return """
                 {

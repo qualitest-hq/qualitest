@@ -820,9 +820,9 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 按出边回填 condition 节点各分支的 target：出口只认边。
-     * 每条分支按 label/handle 匹配出边写入 target；无匹配边则清除 target（结束分支）。
-     * 不保留模型预写的 target。
+     * 按出边回填条件节点各分支的 {@code target}。
+     * 每条分支用出边 label 匹配到边则写入目标节点 id；匹配不到则清除 target（表示本流在此结束）。
+     * 模型预写的 target 不保留，一律以当前出边为准。
      */
     @SuppressWarnings("unchecked")
     private static void reconcileConditionBranches(FlowDesignPatch patch, GraphJson baseGraph) {
@@ -847,7 +847,7 @@ public class FlowDesignPatchNormalizer {
             }
             String type = node.getType() != null ? node.getType().trim() : "";
             if (!type.isEmpty() && !"condition".equalsIgnoreCase(type)) {
-                // update 可能缺 type，看 data.branches
+                // update 可能省略 type，有 branches 字段仍按条件节点处理
                 if (!(node.getData().get("branches") instanceof List<?>)) {
                     continue;
                 }
@@ -869,7 +869,6 @@ public class FlowDesignPatchNormalizer {
             List<GraphEdge> outs = outEdgesBySource.getOrDefault(node.getId(), List.of());
             Set<String> usedEdgeIds = new HashSet<>();
 
-            // 出口只认边：匹配出边则写 target，否则清除（结束）
             for (Map<String, Object> branch : branches) {
                 String branchId = stringVal(branch.get("id"));
                 String kind = branchKind(branch);
@@ -888,6 +887,7 @@ public class FlowDesignPatchNormalizer {
         }
     }
 
+    /** 按 source 汇总出边，忽略缺少端点的边。 */
     private static void collectOutEdges(List<GraphEdge> edges, Map<String, List<GraphEdge>> outEdgesBySource) {
         if (edges == null) {
             return;
@@ -900,12 +900,27 @@ public class FlowDesignPatchNormalizer {
         }
     }
 
+    /**
+     * 为一条条件分支匹配出边。
+     * <p>
+     * 优先级：label 等于 {@code out-<分支id>} → label 等于分支 id → label 等于分支种类
+     * （{@code if}/{@code elif}/{@code else}）。已被其它分支占用的边跳过。
+     * 分支已有种类但上述均未命中时返回 null（该分支视为结束或未接线）。
+     * 分支没有种类时，才允许用无 label 的边做兜底。
+     *
+     * @param outs         同源出边
+     * @param branchId     分支 id
+     * @param kind         分支种类，可为空
+     * @param usedEdgeIds  本轮已分配给其它分支的边 id
+     * @return 匹配到的边，未匹配为 null
+     */
     private static GraphEdge matchOutEdge(List<GraphEdge> outs, String branchId, String kind, Set<String> usedEdgeIds) {
         if (outs == null || outs.isEmpty()) {
             return null;
         }
         String handle = branchId != null ? "out-" + branchId : null;
         boolean kindSet = kind != null && !kind.isEmpty();
+        GraphEdge byBranchId = null;
         GraphEdge byKind = null;
         GraphEdge firstFree = null;
         for (GraphEdge e : outs) {
@@ -916,25 +931,29 @@ public class FlowDesignPatchNormalizer {
             if (handle != null && handle.equalsIgnoreCase(label)) {
                 return e;
             }
+            if (byBranchId == null && branchId != null && !branchId.isEmpty() && branchId.equalsIgnoreCase(label)) {
+                byBranchId = e;
+            }
             if (byKind == null && kindSet && kind.equalsIgnoreCase(label)) {
                 byKind = e;
             }
             if (firstFree == null && label.isEmpty()) {
-                // 仅无 label 的边可作为无 kind 分支的兜底，避免 if 抢走 label=else 的边
                 firstFree = e;
             }
+        }
+        if (byBranchId != null) {
+            return byBranchId;
         }
         if (byKind != null) {
             return byKind;
         }
-        // 有 kind 但未匹配到同名 label：不认边（结束或未接线）
         if (kindSet) {
             return null;
         }
         return firstFree;
     }
 
-    /** 只读 {@code kind}，不做 type/name 回退。 */
+    /** 读取分支的 {@code kind} 并转小写；没有则返回空串。不读 name/type。 */
     private static String branchKind(Map<String, Object> branch) {
         String kind = stringVal(branch.get("kind"));
         return kind == null ? "" : kind.trim().toLowerCase(Locale.ROOT);

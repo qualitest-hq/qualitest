@@ -27,10 +27,10 @@ import org.springframework.stereotype.Component;
 /**
  * 测试流画布 graph_json 结构校验。
  * <p>
- * 默认（完整）检查：节点/边形状、唯一开始节点、各节点类型字段、condition 分支出边、meta.scenarios。<br>
+ * 默认（完整）检查：节点/边形状、唯一开始节点、各节点类型字段、条件分支与出边对齐、meta.scenarios。<br>
  * 可选「仅落库地板」：只检查节点 id、边端点，允许半成品图写入数据库。<br>
  * 可选「延后拓扑」：开始节点问题写入警告而非错误。<br>
- * {@code ok=true} 当且仅当 errors 为空。
+ * {@code ok=true} 当且仅当 errors 为空；warnings 不影响 ok。
  */
 @Component
 public class GraphJsonValidator {
@@ -75,7 +75,7 @@ public class GraphJsonValidator {
         List<GraphEdge> edges = graph.getEdges() != null ? graph.getEdges() : List.of();
         Set<String> nodeIds = validateTypedNodes(nodes, errors, warnings);
         validateTypedEdges(edges, nodeIds, errors);
-        validateConditionBranches(nodes, edges, warnings);
+        validateConditionBranches(nodes, edges, errors, warnings);
         if (effective.isDeferTopologyStructureRules()) {
             appendDeferredStartNodeWarning(nodes, edges, warnings);
         } else {
@@ -152,7 +152,7 @@ public class GraphJsonValidator {
         JSONArray edgesArr = graph.getJSONArray("edges");
         Set<String> nodeIds = validateRawNodes(nodesArr, errors, warnings);
         validateRawEdges(edgesArr, nodeIds, errors, warnings);
-        validateRawConditionBranches(nodesArr, edgesArr, warnings);
+        validateRawConditionBranches(nodesArr, edgesArr, errors, warnings);
         appendStartNodeErrorFromRaw(nodesArr, edgesArr, errors);
         appendMetaRunErrorFromRaw(graph, errors);
         if (nodesArr.isEmpty()) {
@@ -733,12 +733,24 @@ public class GraphJsonValidator {
         }
     }
 
+    /**
+     * 校验条件节点分支与出边是否对齐。
+     * <p>
+     * 分支无 {@code target}：表示命中后本流正常结束，合法。<br>
+     * 分支有 {@code target}：须存在同源同目标的出边，否则记入 warnings。<br>
+     * 条件节点有出边：须有分支的 {@code target} 认领该目标，否则记入 errors（硬拦）。
+     *
+     * @param nodes    节点列表
+     * @param edges    边列表
+     * @param errors   错误收集
+     * @param warnings 警告收集
+     */
     private void validateConditionBranches(
             List<GraphNode> nodes,
             List<GraphEdge> edges,
+            List<String> errors,
             List<String> warnings
     ) {
-        // 条件分支出口：无 target 合法结束；有 target 必须能找到对应出边
         for (GraphNode node : nodes) {
             if (node == null || !FlowNodeType.CONDITION.matches(node.getType())) {
                 continue;
@@ -748,25 +760,58 @@ public class GraphJsonValidator {
             if (!(branchesObj instanceof List<?> branches)) {
                 continue;
             }
+            // 已被分支 target 认领的下游节点 id
+            Set<String> claimedTargets = new HashSet<>();
             for (Object branchObj : branches) {
                 if (!(branchObj instanceof Map<?, ?> branch)) {
                     continue;
                 }
                 Object branchId = branch.get("id");
                 Object target = branch.get("target");
-                // 无 target：合法结束出口，跳过
-                // 有 target：须存在对应出边，否则告警（数据不一致）
                 if (target == null || String.valueOf(target).isBlank()) {
                     continue;
                 }
-                if (!hasOutgoingEdge(edges, node.getId(), String.valueOf(target))) {
+                String targetStr = String.valueOf(target);
+                claimedTargets.add(targetStr);
+                if (!hasOutgoingEdge(edges, node.getId(), targetStr)) {
                     warnings.add("条件节点 " + node.getId() + " 分支 " + branchId + " 的 target 无对应出边：" + target);
+                }
+            }
+            if (edges == null) {
+                continue;
+            }
+            for (GraphEdge edge : edges) {
+                if (edge == null || edge.getSource() == null || edge.getTarget() == null) {
+                    continue;
+                }
+                if (!node.getId().equals(edge.getSource())) {
+                    continue;
+                }
+                if (!claimedTargets.contains(edge.getTarget())) {
+                    errors.add("条件节点 " + node.getId() + " 出边无对应 branches.target：" + edge.getTarget());
                 }
             }
         }
     }
 
-    private void validateRawConditionBranches(JSONArray nodesArr, JSONArray edgesArr, List<String> warnings) {
+    /**
+     * 对未解析成模型对象的原始 JSON 图，校验条件分支与出边是否对齐。
+     * <p>
+     * 分支无 {@code target}：表示命中后本流正常结束，合法。<br>
+     * 分支有 {@code target}：须存在同源同目标的出边，否则记入 warnings。<br>
+     * 条件节点有出边：须有分支的 {@code target} 认领该目标，否则记入 errors（硬拦）。
+     *
+     * @param nodesArr 节点 JSON 数组
+     * @param edgesArr 边 JSON 数组
+     * @param errors   错误收集
+     * @param warnings 警告收集
+     */
+    private void validateRawConditionBranches(
+            JSONArray nodesArr,
+            JSONArray edgesArr,
+            List<String> errors,
+            List<String> warnings
+    ) {
         for (Object item : nodesArr) {
             if (!(item instanceof JSONObject node)) {
                 continue;
@@ -781,6 +826,7 @@ public class GraphJsonValidator {
             if (branches == null) {
                 continue;
             }
+            Set<String> claimedTargets = new HashSet<>();
             for (int j = 0; j < branches.size(); j++) {
                 JSONObject branch = branches.getJSONObject(j);
                 if (branch == null) {
@@ -788,12 +834,30 @@ public class GraphJsonValidator {
                 }
                 String branchId = branch.getString("id");
                 String target = branch.getString("target");
-                // 无 target：结束出口，不告警；有 target 须能找到对应出边
                 if (target == null || target.isBlank()) {
                     continue;
                 }
+                claimedTargets.add(target);
                 if (!hasRawOutgoingEdge(edgesArr, nodeId, target)) {
                     warnings.add("条件节点 " + nodeId + " 分支 " + branchId + " 的 target 无对应出边：" + target);
+                }
+            }
+            if (edgesArr == null) {
+                continue;
+            }
+            for (Object edgeItem : edgesArr) {
+                if (!(edgeItem instanceof JSONObject edge)) {
+                    continue;
+                }
+                if (!nodeId.equals(edge.getString("source"))) {
+                    continue;
+                }
+                String edgeTarget = edge.getString("target");
+                if (edgeTarget == null || edgeTarget.isBlank()) {
+                    continue;
+                }
+                if (!claimedTargets.contains(edgeTarget)) {
+                    errors.add("条件节点 " + nodeId + " 出边无对应 branches.target：" + edgeTarget);
                 }
             }
         }
@@ -979,6 +1043,7 @@ public class GraphJsonValidator {
         return value != null && !String.valueOf(value).isBlank();
     }
 
+    /** 是否存在 source→target 的出边。 */
     private boolean hasOutgoingEdge(List<GraphEdge> edges, String source, String target) {
         if (edges == null) {
             return false;
@@ -991,6 +1056,7 @@ public class GraphJsonValidator {
         return false;
     }
 
+    /** 原始 JSON 边数组中是否存在 source→target 的出边。 */
     private boolean hasRawOutgoingEdge(JSONArray edgesArr, String source, String target) {
         for (Object item : edgesArr) {
             if (item instanceof JSONObject edge) {

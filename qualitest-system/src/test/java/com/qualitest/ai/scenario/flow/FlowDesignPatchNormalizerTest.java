@@ -974,6 +974,45 @@ class FlowDesignPatchNormalizerTest {
         assertFalse(branches.get(0).containsKey("target"));
     }
 
+    /**
+     * 前提：ELSE 分支 id 为 else_cred，出边 label 同为 else_cred；IF 无出边。
+     * 期望：ELSE 写入登录节点 target，IF 无 target。
+     */
+    @Test
+    @Order(97)
+    @DisplayName("label=else_cred 按 branchId 回写 ELSE target")
+    void normalize_edgeLabelBranchId_bindsElse() {
+        Map<String, String> sessionMap = new HashMap<>();
+        Map<String, Object> condData = new HashMap<>();
+        condData.put("name", "凭证是否存在");
+        condData.put("branches", new ArrayList<>(List.of(
+                new HashMap<>(Map.of(
+                        "id", "b_if",
+                        "kind", "if",
+                        "conditions", List.of(Map.of("left", "asset.adminAuth.token", "operator", "exists")))),
+                new HashMap<>(Map.of(
+                        "id", "else_cred",
+                        "kind", "else"))
+        )));
+        GraphNode cond = GraphNode.builder().id("n_cond").type("condition").data(condData).build();
+        GraphNode login = GraphNode.builder().id("n_login").type("http")
+                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录"))).build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        patch.setAddNodes(new ArrayList<>(List.of(cond, login)));
+        patch.setAddEdges(new ArrayList<>(List.of(
+                GraphEdge.builder().id("e_else").source("n_cond").target("n_login").label("else_cred").build()
+        )));
+
+        FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, emptyGraph(), PROJECT_ID, sessionMap);
+        GraphNode condNode = nodeByDataName(result.patch().getAddNodes(), "凭证是否存在");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> branches = (List<Map<String, Object>>) condNode.getData().get("branches");
+        Map<String, Object> ifBranch = branchById(branches, "b_if");
+        Map<String, Object> elseBranch = branchById(branches, "else_cred");
+        assertNull(ifBranch.get("target"));
+        assertEquals(sessionMap.get("n_login"), elseBranch.get("target"));
+    }
+
     private static Map<String, Object> branchById(List<Map<String, Object>> branches, String id) {
         return branches.stream()
                 .filter(b -> id.equals(String.valueOf(b.get("id"))))

@@ -1,5 +1,5 @@
 {
-  "description": "condition 仅勾选 addEdge 时同步 branches[].target 并通过校验",
+  "description": "条件节点补出边（label=if）时同步 IF 的 target 并通过校验",
   "baseGraph": {
     "nodes": [
       {
@@ -52,7 +52,7 @@
     }
   },
   "patch": {
-    "addEdges": [{ "id": "2001", "source": "1001", "target": "1002" }]
+    "addEdges": [{ "id": "2001", "source": "1001", "target": "1002", "label": "if" }]
   },
   "acceptedIds": ["addEdge:2001"],
   "expectOk": true

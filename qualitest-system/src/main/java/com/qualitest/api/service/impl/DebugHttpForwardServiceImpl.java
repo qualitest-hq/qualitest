@@ -23,6 +23,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -278,6 +279,49 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
     private record BodyPublishResult(HttpRequest.BodyPublisher publisher, String contentType) {
     }
 
+    /**
+     * 得到 urlencoded 实际发送字符串。
+     * 已有非空 raw 则直接用；否则把 fields 编成 name=value&name=value（UTF-8 百分号编码）。
+     * fields 与 raw 都空时返回空串。
+     *
+     * @param spec 请求体规格（kind=urlencoded）
+     * @return 可写入 HTTP 实体的表单字符串
+     */
+    static String resolveUrlencodedRaw(DebugBodySpec spec) {
+        if (spec == null) {
+            return "";
+        }
+        if (spec.getRaw() != null && !spec.getRaw().isBlank()) {
+            return spec.getRaw();
+        }
+        List<List<String>> fields = spec.getFields();
+        if (fields == null || fields.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (List<String> pair : fields) {
+            if (pair == null || pair.isEmpty()) {
+                continue;
+            }
+            String name = pair.get(0);
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            String value = pair.size() > 1 && pair.get(1) != null ? pair.get(1) : "";
+            if (!sb.isEmpty()) {
+                sb.append('&');
+            }
+            sb.append(URLEncoder.encode(name, StandardCharsets.UTF_8));
+            sb.append('=');
+            sb.append(URLEncoder.encode(value, StandardCharsets.UTF_8));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 按 body.kind 生成 HttpClient 的 BodyPublisher 与 Content-Type。
+     * GET/HEAD、无 body、kind=none 时不发实体。
+     */
     private BodyPublishResult buildBodyPublisher(DebugBodySpec spec, String method, Map<String, String> headers) {
         if ("GET".equals(method) || "HEAD".equals(method)) {
             return new BodyPublishResult(null, null);
@@ -291,7 +335,8 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
                     HttpRequest.BodyPublishers.ofString(spec.getRaw() != null ? spec.getRaw() : ""),
                     getHeaderIgnoreCase(headers, "Content-Type", "text/plain"));
             case "urlencoded" -> new BodyPublishResult(
-                    HttpRequest.BodyPublishers.ofString(spec.getRaw() != null ? spec.getRaw() : ""),
+                    // fields 编成表单串再发出；仅有 fields、无 raw 时也必须非空
+                    HttpRequest.BodyPublishers.ofString(resolveUrlencodedRaw(spec), StandardCharsets.UTF_8),
                     "application/x-www-form-urlencoded");
             case "json" -> {
                 String json = spec.getJson() != null

@@ -1,6 +1,5 @@
 package com.qualitest.flow.graph;
 
-import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.validate.FlowNodeType;
@@ -11,10 +10,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 合并 patch 时维护 condition 出边与 data.branches[].target 的绑定。
+ * 合并流程补丁时，维护条件节点出边与分支下游的绑定。
  * <p>
- * 遍历下一跳读的是 branches[].target；新增/更新出边时回写 target，删除出边时清掉对应绑定。
- * 绑定成功时顺带删掉分支上的遗留 terminal 字段。
+ * 运行时下一跳只读 {@code data.branches[].target}。新增或更新出边时把边的目标写入对应分支；
+ * 删除出边时清掉指向该目标的绑定。写入 target 时会去掉分支上多余的 {@code terminal} 字段。
  */
 public final class ConditionBranchMergeHelper {
 
@@ -22,8 +21,15 @@ public final class ConditionBranchMergeHelper {
     }
 
     /**
-     * condition 出边写入图后，同步更新源节点 branches[].target。
-     * 若分支此前指向其他节点，会移除同源到旧 target 的冗余出边（分支改连场景）。
+     * 条件节点出边写入图后，把边的目标同步到源节点对应分支的 {@code target}。
+     * <p>
+     * 按边的 {@code label} 选择分支：可为 {@code out-<分支id>}、分支 id 本身，或分支种类
+     * {@code if}/{@code elif}/{@code else}。没有 label 则不绑定。
+     * 若该分支原先指向别的节点，会删掉同源、指向旧目标的多余出边。
+     *
+     * @param nodes 当前图节点列表
+     * @param edges 当前图边列表（改连时可能删掉多余边）
+     * @param edge  刚写入的出边
      */
     public static void syncConditionEdgeToNodes(List<GraphNode> nodes, List<GraphEdge> edges, GraphEdge edge) {
         if (edge == null || edge.getSource() == null || edge.getTarget() == null) {
@@ -34,22 +40,26 @@ public final class ConditionBranchMergeHelper {
             return;
         }
         Map<String, Object> data = ensureMutableData(source);
-        String branchId = resolveConditionBranchIdForEdge(data, edge.getTarget(), edge.getSource(), edges);
-        if (branchId != null) {
-            String staleTarget = findBranchTarget(data, branchId);
-            if (staleTarget != null && !staleTarget.equals(edge.getTarget())) {
-                edges.removeIf(e -> e != null
-                        && !edge.getId().equals(e.getId())
-                        && edge.getSource().equals(e.getSource())
-                        && staleTarget.equals(e.getTarget()));
-            }
+        String branchId = resolveConditionBranchIdForEdge(data, edge.getTarget(), edge.getLabel());
+        if (branchId == null || branchId.isBlank()) {
+            return;
+        }
+        String staleTarget = findBranchTarget(data, branchId);
+        if (staleTarget != null && !staleTarget.equals(edge.getTarget())) {
+            edges.removeIf(e -> e != null
+                    && !edge.getId().equals(e.getId())
+                    && edge.getSource().equals(e.getSource())
+                    && staleTarget.equals(e.getTarget()));
         }
         bindConditionBranchTarget(data, edge.getTarget(), branchId);
         source.setData(data);
     }
 
     /**
-     * 删除 condition 出边前，清除 branches 中指向该 target 的绑定。
+     * 删除条件节点出边前，清除各分支里指向该边目标的 {@code target}。
+     *
+     * @param nodes 当前图节点列表
+     * @param edge  即将删除的出边
      */
     public static void clearConditionTargetForRemovedEdge(List<GraphNode> nodes, GraphEdge edge) {
         if (edge == null || edge.getSource() == null || edge.getTarget() == null) {
@@ -66,34 +76,22 @@ public final class ConditionBranchMergeHelper {
     }
 
     /**
-     * 将出边 target 写入 branches[].target。
-     * <p>
-     * branchId 非空：写入对应分支。<br>
-     * branchId 为空：若已有分支指向同一 target 则跳过；否则写入首条尚无有效 target 的分支。<br>
-     * 写入后删除该分支上的遗留 terminal 字段。
+     * 把下游节点 id 写入指定分支的 {@code target}，并去掉该分支上的 {@code terminal}。
+     * {@code branchId} 必填；为空或找不到对应分支时不修改。
      *
-     * @return 是否修改了 branches
+     * @param nodeData 条件节点 data
+     * @param target   下游节点 id
+     * @param branchId 分支 id
+     * @return 是否改写了 branches
      */
     static boolean bindConditionBranchTarget(Map<String, Object> nodeData, String target, String branchId) {
-        if (target == null || target.isBlank() || nodeData == null) {
+        if (target == null || target.isBlank() || nodeData == null
+                || branchId == null || branchId.isBlank()) {
             return false;
         }
         List<Map<String, Object>> branches = copyBranches(nodeData);
         if (branches.isEmpty()) {
             return false;
-        }
-        if (branchId == null || branchId.isBlank()) {
-            if (branches.stream().anyMatch(b -> target.equals(stringValue(b.get("target"))))) {
-                return false;
-            }
-            Map<String, Object> unbound = branches.stream()
-                    .filter(b -> !ConditionBranchTerminalSupport.hasBranchTarget(b))
-                    .findFirst()
-                    .orElse(null);
-            if (unbound == null) {
-                return false;
-            }
-            branchId = stringValue(unbound.get("id"));
         }
         for (Map<String, Object> branch : branches) {
             if (branchId.equals(stringValue(branch.get("id")))) {
@@ -101,6 +99,7 @@ public final class ConditionBranchMergeHelper {
                     return false;
                 }
                 branch.put("target", target);
+                branch.remove("terminal");
                 nodeData.put("branches", branches);
                 return true;
             }
@@ -109,7 +108,11 @@ public final class ConditionBranchMergeHelper {
     }
 
     /**
-     * 清除 branches 中所有指向给定 target 的绑定。
+     * 清除所有指向给定下游节点 id 的分支 {@code target}。
+     *
+     * @param nodeData 条件节点 data
+     * @param target   要解除绑定的下游节点 id
+     * @return 是否改写了 branches
      */
     static boolean clearConditionBranchTarget(Map<String, Object> nodeData, String target) {
         if (target == null || target.isBlank() || nodeData == null) {
@@ -133,16 +136,26 @@ public final class ConditionBranchMergeHelper {
     }
 
     /**
-     * 解析出边应关联的分支 id。
-     * 顺序：已绑定相同 target 的分支 → 画布上存在旧出边的已绑定分支（改连）→ 首条未绑定分支。
+     * 根据边的目标与 label，解析应写入的分支 id。
+     * <p>
+     * 优先用 label 匹配分支；若无 label 匹配，但某分支已绑定同一 target，则返回该分支 id（重复写入时幂等）。
+     * 仍无法判定时返回 {@code null}。
+     *
+     * @param nodeData  条件节点 data
+     * @param target    边的目标节点 id
+     * @param edgeLabel 边的 label，可为空
+     * @return 分支 id，无法判定时为 null
      */
     static String resolveConditionBranchIdForEdge(
             Map<String, Object> nodeData,
             String target,
-            String source,
-            List<GraphEdge> edges
+            String edgeLabel
     ) {
         List<Map<String, Object>> branches = readBranches(nodeData);
+        String byLabel = matchBranchIdByEdgeLabel(branches, edgeLabel);
+        if (byLabel != null) {
+            return byLabel;
+        }
         if (target != null && !target.isBlank()) {
             for (Map<String, Object> branch : branches) {
                 if (target.equals(stringValue(branch.get("target")))) {
@@ -150,41 +163,60 @@ public final class ConditionBranchMergeHelper {
                 }
             }
         }
-        if (source != null && edges != null) {
-            String rebindingId = null;
-            for (Map<String, Object> branch : branches) {
-                String branchTarget = stringValue(branch.get("target"));
-                if (isBlank(branchTarget) || branchTarget.equals(target)) {
-                    continue;
-                }
-                boolean hasOutgoing = false;
-                for (GraphEdge e : edges) {
-                    if (e != null && source.equals(e.getSource()) && branchTarget.equals(e.getTarget())) {
-                        hasOutgoing = true;
-                        break;
-                    }
-                }
-                if (!hasOutgoing) {
-                    continue;
-                }
-                if (rebindingId != null) {
-                    return null;
-                }
-                rebindingId = stringValue(branch.get("id"));
-            }
-            if (rebindingId != null) {
-                return rebindingId;
+        return null;
+    }
+
+    /**
+     * 用边 label 匹配分支 id。
+     * 匹配顺序：{@code out-<分支id>} → 分支 id 原文 → 分支种类 {@code if}/{@code elif}/{@code else}。
+     * label 为空时返回 {@code null}。
+     *
+     * @param branches  分支列表
+     * @param edgeLabel 边的 label
+     * @return 匹配到的分支 id，未匹配为 null
+     */
+    static String matchBranchIdByEdgeLabel(List<Map<String, Object>> branches, String edgeLabel) {
+        if (edgeLabel == null || edgeLabel.isBlank() || branches.isEmpty()) {
+            return null;
+        }
+        String label = edgeLabel.trim();
+        if (label.length() > 4 && label.regionMatches(true, 0, "out-", 0, 4)) {
+            String handleId = label.substring(4).trim();
+            String byHandle = findBranchIdByField(branches, "id", handleId);
+            if (byHandle != null) {
+                return byHandle;
             }
         }
+        String byId = findBranchIdByField(branches, "id", label);
+        if (byId != null) {
+            return byId;
+        }
+        return findBranchIdByField(branches, "kind", label);
+    }
+
+    /**
+     * 在分支列表中按指定字段做忽略大小写相等匹配，返回该分支的 id。
+     *
+     * @param branches 分支列表
+     * @param field    字段名，如 id、kind
+     * @param expected 期望值
+     * @return 分支 id，未匹配为 null
+     */
+    private static String findBranchIdByField(
+            List<Map<String, Object>> branches,
+            String field,
+            String expected
+    ) {
         for (Map<String, Object> branch : branches) {
-            if (isBlank(branch.get("target"))
-                    && !ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
+            String value = stringValue(branch.get(field));
+            if (expected.equalsIgnoreCase(value)) {
                 return stringValue(branch.get("id"));
             }
         }
         return null;
     }
 
+    /** 读取指定分支当前的 target，没有则返回 null。 */
     private static String findBranchTarget(Map<String, Object> nodeData, String branchId) {
         for (Map<String, Object> branch : readBranches(nodeData)) {
             if (branchId.equals(stringValue(branch.get("id")))) {
@@ -194,6 +226,7 @@ public final class ConditionBranchMergeHelper {
         return null;
     }
 
+    /** 复制节点 data 为可写 Map，避免直接改只读结构。 */
     private static Map<String, Object> ensureMutableData(GraphNode node) {
         Map<String, Object> data = node.getData();
         if (data == null) {
@@ -204,6 +237,7 @@ public final class ConditionBranchMergeHelper {
         return data;
     }
 
+    /** 深拷贝读出 branches 列表；无有效列表时返回空。 */
     private static List<Map<String, Object>> readBranches(Map<String, Object> nodeData) {
         if (nodeData == null) {
             return List.of();
@@ -227,15 +261,13 @@ public final class ConditionBranchMergeHelper {
         return out;
     }
 
+    /** 在可读拷贝基础上再包一层可增删的 ArrayList。 */
     private static List<Map<String, Object>> copyBranches(Map<String, Object> nodeData) {
         return new ArrayList<>(readBranches(nodeData));
     }
 
+    /** 对象转字符串；null 仍为 null。 */
     private static String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
-    }
-
-    private static boolean isBlank(Object value) {
-        return value == null || String.valueOf(value).isBlank();
     }
 }

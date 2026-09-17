@@ -312,9 +312,14 @@ class GraphJsonValidatorTest {
         assertTrue(badType.getErrors().stream().anyMatch(e -> e.contains("type 无效")));
     }
 
+    /**
+     * 前提：IF 无 target；ELSE 有 target 且有对应出边。
+     * 期望：校验通过。
+     * 另测：分支有 target 但无出边 → warnings；有出边但无分支 target → errors。
+     */
     @Test
     @Order(13)
-    @DisplayName("condition 无 target 不警告；有 target 无出边仍警告")
+    @DisplayName("condition 无 target 合法；有出边无 target 硬拦")
     void conditionEndBranchValidation() {
         String endOk = """
                 {
@@ -348,6 +353,23 @@ class GraphJsonValidatorTest {
                 """;
         GraphValidationResult dangling = validator.validateJson(danglingTarget);
         assertTrue(dangling.getWarnings().stream().anyMatch(w -> w.contains("无对应出边")));
+
+        String orphanEdge = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
+                      {"id":"b_if","kind":"if","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
+                      {"id":"b_else","kind":"else","terminal":true}
+                    ]}},
+                    {"id":"n2","type":"http","position":{"x":1,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
+                  ],
+                  "edges":[{"id":"e1","source":"c1","target":"n2","label":"else"}]
+                }
+                """;
+        GraphValidationResult orphan = validator.validateJson(orphanEdge);
+        assertFalse(orphan.isOk());
+        assertTrue(orphan.getErrors().stream().anyMatch(e -> e.contains("出边无对应 branches.target")));
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.qualitest.flow.http;
 import com.qualitest.api.params.DebugHttpForwardParams;
 import com.qualitest.common.config.QualitestConfig;
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.support.TestProjectApiEffectiveConfigResolver;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +23,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -274,5 +276,101 @@ class FlowHttpRequestBuilderFormDataTest {
         assertTrue(headers.stream().anyMatch(h ->
                 "Content-Type".equalsIgnoreCase(h.getName())
                         && "application/octet-stream".equals(h.getValue())));
+    }
+
+    /**
+     * 前提：API body.mode=form。
+     * 期望：组装抛步骤失败，错误信息含 body.mode 与 form。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("未知 mode=form 显式失败")
+    void build_unknownModeForm_throws() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(6L)
+                .testProjectId(1L)
+                .apiPath("/api/login/login")
+                .requestConfig("""
+                        {
+                          "configVersion":1,
+                          "method":"POST",
+                          "queryParams":[],
+                          "pathParams":[],
+                          "declaredHeaders":[],
+                          "body":{
+                            "mode":"form",
+                            "form":{"schema":{"type":"object"}}
+                          }
+                        }
+                        """)
+                .build();
+        TestProjectApi effective = TestProjectApiEffectiveConfigResolver.resolve(api).toApiView(api);
+
+        Map<String, Object> nodeData = new HashMap<>();
+        nodeData.put("callMode", "project");
+        nodeData.put("testProjectApiId", "6");
+
+        FlowRunContext ctx = FlowRunContext.builder()
+                .env(Map.of("baseUrl", "http://localhost:8801"))
+                .build();
+
+        FlowExecutionException ex = assertThrows(FlowExecutionException.class,
+                () -> FlowHttpRequestBuilder.buildFromProject(ctx, effective, nodeData));
+        assertTrue(ex.getMessage().contains("body.mode"));
+        assertTrue(ex.getMessage().contains("form"));
+    }
+
+    /**
+     * 前提：标准 urlencoded + bodyExample 叠出行 value。
+     * 期望：发出 urlencoded fields 含 phone/code 解析后的值。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("urlencoded：bodyExample 叠层后发出字段")
+    void build_urlencoded_sendsBodyExampleFields() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(7L)
+                .testProjectId(1L)
+                .apiPath("/api/login/login")
+                .requestConfig("""
+                        {
+                          "configVersion":1,
+                          "method":"POST",
+                          "queryParams":[],
+                          "pathParams":[],
+                          "declaredHeaders":[],
+                          "body":{
+                            "mode":"x-www-form-urlencoded",
+                            "urlencoded":[
+                              {"name":"phone","example":""},
+                              {"name":"code","example":""}
+                            ]
+                          }
+                        }
+                        """)
+                .testValueConfig("""
+                        {"request":{"bodyExample":{"phone":"{{asset.clientAuth.phone}}","code":"{{asset.clientAuth.code}}"}}}
+                        """)
+                .build();
+        TestProjectApi effective = TestProjectApiEffectiveConfigResolver.resolve(api).toApiView(api);
+
+        Map<String, Object> nodeData = new HashMap<>();
+        nodeData.put("callMode", "project");
+        nodeData.put("testProjectApiId", "7");
+
+        FlowRunContext ctx = FlowRunContext.builder()
+                .env(Map.of("baseUrl", "http://localhost:8801"))
+                .asset(Map.of("clientAuth", Map.of("phone", "13800000001", "code", "123456")))
+                .build();
+
+        FlowHttpRequestBuilder.BuiltHttpRequest built =
+                FlowHttpRequestBuilder.buildFromProject(ctx, effective, nodeData);
+
+        DebugHttpForwardParams.DebugBodySpec body = built.getForwardParams().getBody();
+        assertNotNull(body);
+        assertEquals("urlencoded", body.getKind());
+        assertEquals(2, body.getFields().size());
+        assertTrue(body.getFields().stream().anyMatch(f -> "phone".equals(f.get(0)) && "13800000001".equals(f.get(1))));
+        assertTrue(body.getFields().stream().anyMatch(f -> "code".equals(f.get(0)) && "123456".equals(f.get(1))));
     }
 }

@@ -361,4 +361,50 @@ class TestProjectApiEffectiveConfigResolverTest {
         assertTrue(compact.contains("asset.clientAuth.mobile"));
         assertFalse(compact.contains("openapi"));
     }
+
+    /**
+     * 前提：body.mode=urlencoded，行仅有 name；test_value bodyExample 提供 phone/code。
+     * 期望：有效配置 urlencoded 行写入对应 value，不进 json.example。
+     */
+    @Test
+    @Order(12)
+    @DisplayName("resolve：urlencoded 的 bodyExample 落到行 value")
+    void resolve_urlencoded_bodyExample_writesRowValues() {
+        TestProjectApi api = TestProjectApi.builder()
+                .requestConfig("""
+                        {
+                          "configVersion": 1,
+                          "method": "POST",
+                          "queryParams": [],
+                          "pathParams": [],
+                          "declaredHeaders": [],
+                          "body": {
+                            "mode": "x-www-form-urlencoded",
+                            "urlencoded": [
+                              {"name": "phone", "example": ""},
+                              {"name": "code", "example": ""}
+                            ]
+                          }
+                        }
+                        """)
+                .testValueConfig("""
+                        {
+                          "request": {
+                            "bodyExample": {
+                              "phone": "{{asset.clientAuth.phone}}",
+                              "code": "{{asset.clientAuth.code}}"
+                            }
+                          }
+                        }
+                        """)
+                .build();
+
+        var effective = TestProjectApiEffectiveConfigResolver.resolve(api);
+        String rc = effective.getRequestConfig();
+
+        assertTrue(rc.contains("{{asset.clientAuth.phone}}"));
+        assertTrue(rc.contains("{{asset.clientAuth.code}}"));
+        assertTrue(rc.contains("urlencoded"));
+        assertFalse(rc.contains("\"json\""));
+    }
 }

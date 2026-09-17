@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
+import com.qualitest.api.util.ApiConfigBodyModes;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.domain.TestProjectTemplate;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport;
@@ -323,9 +324,10 @@ public class ProjectTemplateSlimExpander {
         Map<String, Object> body = new LinkedHashMap<>();
         if ("GET".equals(method) || "none".equals(bodyMode) || api.getBody() == null || api.getBody().isEmpty()) {
             body.put("mode", "none");
-        } else if ("form".equals(bodyMode)) {
-            body.put("mode", "form");
-            body.put("form", Map.of("schema", inferObjectSchema(api.getBody())));
+        } else if ("form".equals(bodyMode) || ApiConfigBodyModes.isUrlencoded(bodyMode)) {
+            // form / urlencoded：落标准 x-www-form-urlencoded，并生成带 name、example、value 的参数行
+            body.put("mode", ApiConfigBodyModes.URLENCODED);
+            body.put("urlencoded", mapToNameExampleList(api.getBody(), true));
         } else {
             body.put("mode", "json");
             body.put("json", Map.of("schema", inferObjectSchema(api.getBody())));
@@ -334,8 +336,14 @@ public class ProjectTemplateSlimExpander {
         return rc;
     }
 
-    /** 简易 map → requestConfig 里的 name/example 参数列表。 */
-    private static List<Map<String, Object>> mapToNameExampleList(Map<String, Object> map) {
+    /**
+     * 把键值 map 转成参数行列表（name + example）。
+     *
+     * @param map                字段名 → 示例值
+     * @param copyExampleToValue true 时额外写入 value，供表单 body 发送使用
+     * @return 参数行；map 为空则空列表
+     */
+    private static List<Map<String, Object>> mapToNameExampleList(Map<String, Object> map, boolean copyExampleToValue) {
         List<Map<String, Object>> rows = new ArrayList<>();
         if (map == null || map.isEmpty()) {
             return rows;
@@ -346,10 +354,19 @@ public class ProjectTemplateSlimExpander {
             }
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("name", e.getKey().trim());
-            row.put("example", e.getValue() == null ? "" : String.valueOf(e.getValue()));
+            String example = e.getValue() == null ? "" : String.valueOf(e.getValue());
+            row.put("example", example);
+            if (copyExampleToValue) {
+                row.put("value", example);
+            }
             rows.add(row);
         }
         return rows;
+    }
+
+    /** 把键值 map 转成仅含 name、example 的参数行（query / header 等）。 */
+    private static List<Map<String, Object>> mapToNameExampleList(Map<String, Object> map) {
+        return mapToNameExampleList(map, false);
     }
 
     /** 响应样例 → responseConfig（含推断 schema 与一条成功响应）。 */

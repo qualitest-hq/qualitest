@@ -134,6 +134,56 @@ describe('resolveNodeAuthScope', () => {
     expect(scope.conflictReason).toContain('adminAuth')
   })
 
+  it('空 apiPath 回落第一条，易与客户端托管头误冲突', () => {
+    // 前提：apiPath 为空；托管头为客户端凭证；管理端 Profile 排第一
+    const scope = resolveNodeAuthScope({
+      apiPath: '',
+      headers: [
+        {
+          name: 'Authorization',
+          value: 'Bearer {{asset.clientAuth.token}}',
+          profileManaged: true,
+        },
+      ],
+      authConfig: dualAuth,
+    })
+
+    // 期望：期望凭证为管理端，与托管头不一致，标记冲突
+    expect(scope.expectedCredential).toBe('asset.adminAuth.token')
+    expect(scope.headerCredential).toBe('asset.clientAuth.token')
+    expect(scope.conflict).toBe(true)
+  })
+
+  it('客户端探活路径 + clientAuth 托管头无冲突', () => {
+    // 前提：apiPath 为 /api/login/getPhoneByToken；托管头为客户端凭证
+    const scope = resolveNodeAuthScope({
+      apiPath: '/api/login/getPhoneByToken',
+      headers: [
+        {
+          name: 'token',
+          value: '{{asset.clientAuth.data}}',
+          profileManaged: true,
+        },
+      ],
+      authConfig: {
+        authProfiles: [
+          dualAuth.authProfiles[0],
+          {
+            ...dualAuth.authProfiles[1],
+            headerName: 'token',
+            headerValueTemplate: '{{asset.clientAuth.data}}',
+          },
+        ],
+      },
+    })
+
+    // 期望：期望凭证为客户端，无冲突
+    expect(scope.kind).toBe('inherit')
+    expect(scope.expectedCredential).toBe('asset.clientAuth.data')
+    expect(scope.conflict).toBe(false)
+    expect(formatNodeAuthScopeLabel(scope)).toBe('凭证 asset.clientAuth.data')
+  })
+
   it('验证码预制口为免登', () => {
     // 前提：GET /captchaImage 在管理端 apis 且 mode=none
     const scope = resolveNodeAuthScope({ apiPath: '/captchaImage', authConfig: dualAuth })

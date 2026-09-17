@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.qualitest.api.util.ApiConfigBodyModes;
 import com.qualitest.api.util.ApiConfigJsonSupport;
 import com.qualitest.flow.http.HttpNodeRequestValueOverridesSupport;
 import com.qualitest.project.domain.TestProjectApi;
@@ -14,6 +15,7 @@ import com.qualitest.project.result.TestProjectApiResult;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -99,7 +101,7 @@ public final class TestProjectApiEffectiveConfigResolver {
      *
      * @param rawRequestConfig 请求结构 JSON（或已含部分测值的副本）
      * @param paramDefaults    按参数 name 写入 query / path / header / form-data / urlencoded 的 value；空则跳过
-     * @param bodyExample      写入 body.json.example；null 则跳过
+     * @param bodyExample      测值示例：json 写入 body.json.example；urlencoded 按字段名写入各行 value；null 跳过
      */
     public static String overlayRequestValues(String rawRequestConfig, ObjectNode paramDefaults, JsonNode bodyExample) {
         ObjectNode root = ApiConfigJsonSupport.parseObjectOrEmpty(rawRequestConfig);
@@ -265,8 +267,10 @@ public final class TestProjectApiEffectiveConfigResolver {
     }
 
     /**
-     * 把 bodyExample 整段写入 body.json.example（替换，不与旧 example 字段级深合并）；
-     * 没有 body 对象则跳过。
+     * 把 bodyExample 叠进请求 body。
+     * urlencoded：按字段名写入各 urlencoded 行的 value，没有对应行则新建。
+     * 其它模式：整段写入 body.json.example。
+     * 无 body 对象时跳过。
      */
     private static void applyBodyExampleNode(ObjectNode root, JsonNode bodyExample) {
         if (bodyExample == null || bodyExample.isNull()) {
@@ -277,6 +281,11 @@ public final class TestProjectApiEffectiveConfigResolver {
             return;
         }
         ObjectNode bodyObj = (ObjectNode) body;
+        String mode = ApiConfigJsonSupport.textField(bodyObj, "mode");
+        if (ApiConfigBodyModes.isUrlencoded(mode)) {
+            applyBodyExampleToUrlencoded(bodyObj, bodyExample);
+            return;
+        }
         ObjectNode jsonPart = bodyObj.has("json") && bodyObj.get("json").isObject()
                 ? (ObjectNode) bodyObj.get("json")
                 : JsonNodeFactory.instance.objectNode();
@@ -284,7 +293,63 @@ public final class TestProjectApiEffectiveConfigResolver {
                 ? JsonNodeFactory.instance.textNode(bodyExample.asText())
                 : bodyExample.deepCopy());
         bodyObj.set("json", jsonPart);
-        root.set("body", bodyObj);
+    }
+
+    /**
+     * 将对象型 bodyExample 的每个字段写入 urlencoded 行的 value。
+     * 已有同名行则覆盖 value；没有则追加一行。
+     * bodyExample 非对象时跳过。
+     */
+    private static void applyBodyExampleToUrlencoded(ObjectNode bodyObj, JsonNode bodyExample) {
+        if (!bodyExample.isObject()) {
+            return;
+        }
+        ArrayNode rows = bodyObj.has("urlencoded") && bodyObj.get("urlencoded").isArray()
+                ? (ArrayNode) bodyObj.get("urlencoded")
+                : JsonNodeFactory.instance.arrayNode();
+        Iterator<Map.Entry<String, JsonNode>> fields = bodyExample.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            String name = entry.getKey() == null ? null : entry.getKey().trim();
+            if (name == null || name.isEmpty()) {
+                continue;
+            }
+            ObjectNode row = findUrlencodedRowByName(rows, name);
+            if (row == null) {
+                row = JsonNodeFactory.instance.objectNode();
+                row.put("name", name);
+                rows.add(row);
+            }
+            JsonNode val = entry.getValue();
+            if (val == null || val.isNull()) {
+                row.put("value", "");
+            } else if (val.isTextual()) {
+                row.put("value", val.asText());
+            } else if (val.isValueNode()) {
+                row.put("value", val.asText());
+            } else {
+                row.put("value", val.toString());
+            }
+        }
+        bodyObj.set("urlencoded", rows);
+    }
+
+    /**
+     * 在 urlencoded 参数数组中按 name 查找行。
+     *
+     * @return 命中的行对象；未找到返回 null
+     */
+    private static ObjectNode findUrlencodedRowByName(ArrayNode rows, String name) {
+        for (JsonNode item : rows) {
+            if (!item.isObject()) {
+                continue;
+            }
+            ObjectNode row = (ObjectNode) item;
+            if (name.equals(ApiConfigJsonSupport.textField(row, "name"))) {
+                return row;
+            }
+        }
+        return null;
     }
 
     /**

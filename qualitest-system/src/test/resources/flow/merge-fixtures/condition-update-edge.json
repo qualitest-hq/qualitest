@@ -1,5 +1,5 @@
 {
-  "description": "updateEdge 时 condition 分支 target 同步更新",
+  "description": "updateEdge（label=if）时同步 IF 的 target 到新下游",
   "baseGraph": {
     "nodes": [
       {
@@ -47,7 +47,7 @@
       }
     ],
     "edges": [
-      { "id": "2001", "source": "1001", "target": "1002" }
+      { "id": "2001", "source": "1001", "target": "1002", "label": "if" }
     ],
     "meta": {
       "viewport": { "x": 0, "y": 0, "zoom": 1 },
@@ -67,7 +67,7 @@
   },
   "patch": {
     "updateEdges": [
-      { "id": "2001", "source": "1001", "target": "1003" }
+      { "id": "2001", "source": "1001", "target": "1003", "label": "if" }
     ]
   },
   "acceptedIds": ["updateEdge:2001"],

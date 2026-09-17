@@ -153,13 +153,13 @@ it('空环境 URL 时还原基址为空串', () => {
 
 ```java
 /**
- * 前提：condition 出边新增，IF/ELSE 均尚未绑定 target。
- * 期望：首条未绑定分支（IF）写入 edge.target；ELSE 仍为 null。
+ * 前提：condition 出边 label=if，IF/ELSE 均尚未绑定 target。
+ * 期望：IF 写入 edge.target；ELSE 仍为 null。
  */
 @Test
 @Order(1)
-@DisplayName("新增出边时绑定首个未绑定分支")
-void syncConditionEdgeToNodes_bindsFirstUnboundBranch() { ... }
+@DisplayName("label=if 时绑定 IF 分支")
+void syncConditionEdgeToNodes_bindsIfByKindLabel() { ... }
 ```
 
 **前端示例**

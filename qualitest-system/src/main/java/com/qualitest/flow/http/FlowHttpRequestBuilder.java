@@ -401,6 +401,11 @@ public final class FlowHttpRequestBuilder {
         return out;
     }
 
+    /**
+     * 按 requestConfig.body.mode 组装 HTTP 请求体。
+     * 支持 json、urlencoded、text/xml、form-data、binary。
+     * 未识别的 mode 抛步骤失败，避免发出空 body。
+     */
     private static DebugHttpForwardParams.DebugBodySpec buildBody(
             JSONObject requestConfig, String method, FlowRunContext ctx, Map<String, String> headers) {
         if ("GET".equals(method) || "HEAD".equals(method)) {
@@ -420,7 +425,8 @@ public final class FlowHttpRequestBuilder {
             case "text", "xml" -> buildRawBody(body, ctx, mode, headers);
             case "form-data", "formData", "multipart" -> buildFormDataBody(body, ctx);
             case "binary" -> buildBinaryBody(body, ctx, headers);
-            default -> null;
+            default -> throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR,
+                    "不支持的 body.mode：" + mode + "（请使用 json / x-www-form-urlencoded / form-data 等）");
         };
     }
 
@@ -626,6 +632,9 @@ public final class FlowHttpRequestBuilder {
         return spec;
     }
 
+    /**
+     * 从 urlencoded 参数行组装发送规格：解析占位符后写入 fields，并补 Content-Type。
+     */
     private static DebugHttpForwardParams.DebugBodySpec buildUrlencodedBody(
             JSONObject body, FlowRunContext ctx, Map<String, String> headers) {
         JSONArray rows = body.getJSONArray("urlencoded");
