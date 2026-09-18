@@ -50,7 +50,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 
 ## 3. Read-only tools (summary)
 
-**16** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow`; no `submit_*` / `create_flow` / `upsert_asset_variables` / `run_test_flow`).
+**17** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow` / `get_mcp_guide_version`).
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -58,7 +58,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `get_flow` | Full `graphJson` (prefer the next two for browsing) |
 | `get_graph_summary` / `get_subflow_detail` | Topology / subflow structure; `get_graph_summary` also returns `mermaid` (flowchart body for Cursor preview) |
 | `get_flow_meta` | Scenario, seed, flowOutputs, … |
-| `get_node_detail` | Single node config |
+| `get_node_detail` / `get_edge_detail` / `get_scenario_detail` | Single node / edge / scenario |
 | `get_run_failure` | Failed Run step context |
 | `get_flow_api_health` | HTTP binding / API semantic warnings |
 | `search_apis` / `get_api_details` | Project APIs (batch detail by id list) |
@@ -66,8 +66,22 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `list_asset_variables` | Project asset variable keys/fields (no plaintext values); **writes via Web AI `upsert_asset_variables` (Semi-auto: confirm; Full-auto: immediate)** |
 | `list_project_auth_profiles` | Project auth Profile summaries (pathPrefix, managed header, credential target; no secrets); **writes via Web AI `upsert_auth_profile` (Semi-auto confirm / Full-auto in-tool)** |
 | `list_subflow_templates` | Platform subflow templates |
+| `get_mcp_guide_version` | Guide content fingerprint; compare with local Skill `guideVersion` |
 
 Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary` / `get_run_failure`.
+
+### Prompts / Resources
+
+`initialize` advertises `prompts` and `resources`; `serverInfo.guideVersion` matches `get_mcp_guide_version`.
+
+| Prompt | Purpose |
+|:-------|:--------|
+| `qualitest_core` | Core flow-design rules (same text as resource `qualitest://docs/core`) |
+| `qualitest_survey` | Read-only survey order |
+| `qualitest_fix_run` | Fix failed run (max 2 repair rounds) |
+| `qualitest_sync_local_skill` | Install/update `.cursor/skills/qualitest/SKILL.md` (skip if `guideVersion` matches) |
+
+Do **not** hide `prompts/list`. If local Skill already has the same `guideVersion`, do not `prompts/get` the three body prompts again (avoids double token cost). Re-run sync when the server version changes.
 
 ### Write tools (Full-auto switch on)
 

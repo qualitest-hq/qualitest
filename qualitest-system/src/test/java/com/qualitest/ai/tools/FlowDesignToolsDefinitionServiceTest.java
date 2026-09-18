@@ -132,6 +132,7 @@ class FlowDesignToolsDefinitionServiceTest {
         assertFalse(names.contains("commit_design_patch"));
         assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.GET_MCP_GUIDE_VERSION.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_EDGE_DETAIL.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_SCENARIO_DETAIL.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW_API_HEALTH.getId()));

@@ -1,5 +1,6 @@
 package com.qualitest.ai.tools;
 
+import com.qualitest.ai.mcp.McpPromptResourceService;
 import com.qualitest.ai.service.AiChatConversationService;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchMerger;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
@@ -14,15 +15,16 @@ import com.qualitest.ai.tools.flow.GetFlowApiHealthTool;
 import com.qualitest.ai.tools.flow.GetFlowMetaTool;
 import com.qualitest.ai.tools.flow.GetFlowTool;
 import com.qualitest.ai.tools.flow.GetGraphSummaryTool;
+import com.qualitest.ai.tools.flow.GetMcpGuideVersionTool;
 import com.qualitest.ai.tools.flow.GetNodeDetailTool;
 import com.qualitest.ai.tools.flow.GetRunFailureTool;
 import com.qualitest.ai.tools.flow.GetScenarioDetailTool;
+import com.qualitest.ai.tools.flow.GetSubflowDetailTool;
+import com.qualitest.ai.tools.flow.ImportApisTool;
 import com.qualitest.ai.tools.flow.ListAssetVariablesTool;
 import com.qualitest.ai.tools.flow.ListFlowsTool;
 import com.qualitest.ai.tools.flow.ListProjectAuthProfilesTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
-import com.qualitest.ai.tools.flow.GetSubflowDetailTool;
-import com.qualitest.ai.tools.flow.ImportApisTool;
 import com.qualitest.ai.tools.flow.ListSubflowTemplatesTool;
 import com.qualitest.ai.tools.flow.RunTestFlowTool;
 import com.qualitest.ai.tools.flow.SearchApisTool;
@@ -82,11 +84,33 @@ public class FlowDesignToolExecutor {
     public static final String GET_SUBFLOW_DETAIL = FlowDesignToolNames.GET_SUBFLOW_DETAIL.getId();
     public static final String LIST_FLOWS = FlowDesignToolNames.LIST_FLOWS.getId();
     public static final String GET_FLOW = FlowDesignToolNames.GET_FLOW.getId();
+    /** 返回造流规程版本指纹 */
+    public static final String GET_MCP_GUIDE_VERSION = FlowDesignToolNames.GET_MCP_GUIDE_VERSION.getId();
     public static final String CREATE_FLOW = FlowDesignToolNames.CREATE_FLOW.getId();
     public static final String RUN_TEST_FLOW = FlowDesignToolNames.RUN_TEST_FLOW.getId();
 
     private final Map<String, QualitestTool> tools;
 
+    /**
+     * 注册全部 Flow Design 工具（只读、改图、导入、规程版本查询等）。
+     *
+     * @param testProjectApiMapper         项目接口 Mapper
+     * @param testProjectMapper            测试项目 Mapper
+     * @param testProjectEnvService        项目环境服务
+     * @param testFlowService              测试流服务
+     * @param testFlowRunService           测试流 Run 服务
+     * @param testFlowRunStepService       Run 步骤服务
+     * @param testFlowExecutionService     测试流执行服务
+     * @param flowDesignPatchNormalizer    改图补丁规范化
+     * @param flowDesignPatchMerger        改图补丁合并
+     * @param graphJsonValidator           画布 JSON 校验
+     * @param httpNodeApiHealthChecker     HTTP 节点 API 健康检查
+     * @param testProjectAssetService      项目素材服务
+     * @param designHintsService           接口设计提示服务
+     * @param aiChatConversationService    AI 会话服务
+     * @param apiImportService             接口导入服务
+     * @param mcpPromptResourceService     造流规程与版本指纹
+     */
     public FlowDesignToolExecutor(TestProjectApiMapper testProjectApiMapper,
                                   TestProjectMapper testProjectMapper,
                                   ITestProjectEnvService testProjectEnvService,
@@ -101,7 +125,8 @@ public class FlowDesignToolExecutor {
                                   ITestProjectAssetService testProjectAssetService,
                                   TestProjectApiDesignHintsService designHintsService,
                                   AiChatConversationService aiChatConversationService,
-                                  IApiImportService apiImportService) {
+                                  IApiImportService apiImportService,
+                                  McpPromptResourceService mcpPromptResourceService) {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         FlowDesignUnitSubmitSupport unitSubmit = new FlowDesignUnitSubmitSupport(
                 flowDesignPatchNormalizer, aiChatConversationService, flowDesignPatchMerger);
@@ -112,6 +137,7 @@ public class FlowDesignToolExecutor {
         map.put(LIST_SUBFLOW_TEMPLATES, new ListSubflowTemplatesTool(testFlowService));
         map.put(GET_SUBFLOW_DETAIL, new GetSubflowDetailTool(testFlowService));
         map.put(GET_FLOW, new GetFlowTool(testFlowService));
+        map.put(GET_MCP_GUIDE_VERSION, new GetMcpGuideVersionTool(mcpPromptResourceService));
         map.put(CREATE_FLOW, new CreateFlowTool(testFlowService));
         map.put(GET_GRAPH_SUMMARY, new GetGraphSummaryTool(graphResolver));
         map.put(GET_FLOW_META, new GetFlowMetaTool(graphResolver));

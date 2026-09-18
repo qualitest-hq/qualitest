@@ -1,6 +1,6 @@
 package com.qualitest.project.support.cursorskill;
 
-import com.qualitest.common.utils.ClasspathMarkdownSupport;
+import com.qualitest.ai.mcp.McpPromptResourceService;
 import com.qualitest.project.support.testableprompt.TestablePromptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -8,23 +8,23 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * 加载质衡 MCP 造流用的多份 Agent 规程正文，以及弹框里给人看的人话用法。
+ * 组装顶栏「MCP 造流 Agent 规程」弹框数据：人话用法、示例提问、各编辑器可复制规程正文。
  * <p>
- * 每种编辑器一份独立 Tab；造流硬规矩共用 CORE.md，避免多份正文漂移。
- * 示例提问含列出测试流，以及单功能 / 指定范围 / 整项目造流提示词。
+ * Cursor 页内容为 YAML 头加造流硬规矩；其它编辑器页为各自抬头加造流硬规矩正文。
  */
 @Service
 @RequiredArgsConstructor
 public class McpCursorSkillService {
 
-    private static final String CORE_PATH = "cursor-skill/qualitest/CORE.md";
-    private static final String CURSOR_SKILL_PATH = "cursor-skill/qualitest/SKILL.md";
-
-    /** 单功能 / 指定范围 / 整项目提示词正文 */
+    /** 单功能 / 指定范围 / 整项目造流提示词加载 */
     private final TestablePromptService testablePromptService;
+    /** 造流硬规矩、Cursor Skill 全文、同步本地 Skill 说明 */
+    private final McpPromptResourceService mcpPromptResourceService;
 
     /**
-     * 弹框完整载荷：人话用法 + 示例提问 + 各编辑器规程。
+     * 组装弹框完整载荷：怎么用、提示、示例提问、各编辑器规程列表。
+     *
+     * @return 弹框载荷
      */
     public McpAgentGuidesPayload loadPayload() {
         return McpAgentGuidesPayload.builder()
@@ -47,6 +47,10 @@ public class McpCursorSkillService {
                                 .text("用 qualitest MCP 的 create_flow 新建一条空画布测试流，名称自拟，返回 testFlowId。")
                                 .build(),
                         McpExamplePrompt.builder()
+                                .label("同步/更新本地 Skill")
+                                .text(mcpPromptResourceService.loadSyncLocalSkillText().trim())
+                                .build(),
+                        McpExamplePrompt.builder()
                                 .label("单功能")
                                 .text(testablePromptService.loadPromptText(TestablePromptService.KIND_INCREMENTAL))
                                 .build(),
@@ -64,10 +68,12 @@ public class McpCursorSkillService {
     }
 
     /**
-     * 返回全部规程（顺序即 Tab 顺序），每种编辑器单独一项。
+     * 组装全部编辑器规程项（顺序即弹框 Tab 顺序）。
+     *
+     * @return 规程列表
      */
     public List<McpAgentGuide> loadGuides() {
-        String core = ClasspathMarkdownSupport.loadClasspathUtf8Normalized(CORE_PATH, "造流规程正文");
+        String core = mcpPromptResourceService.loadCoreText();
         return List.of(
                 McpAgentGuide.builder()
                         .id("cursor")
@@ -82,8 +88,7 @@ public class McpCursorSkillService {
                                 "在 Agent / Chat 里用自然语言提问（可参考上方示例）；写完后刷新画布查看结果。"
                         ))
                         .saveHint(".cursor/skills/qualitest/SKILL.md")
-                        .content(ClasspathMarkdownSupport.loadClasspathUtf8Normalized(
-                                CURSOR_SKILL_PATH, "Cursor Skill"))
+                        .content(mcpPromptResourceService.loadCursorSkillText())
                         .build(),
                 guide(
                         "claude-code",
@@ -200,6 +205,18 @@ public class McpCursorSkillService {
         );
     }
 
+    /**
+     * 组装单个非 Cursor 编辑器规程项：抬头 Markdown 加造流硬规矩正文。
+     *
+     * @param id       规程项 id（弹框 Tab）
+     * @param title    显示标题
+     * @param intro    简介
+     * @param steps    安装步骤
+     * @param saveHint 建议保存路径提示
+     * @param header   文件抬头 Markdown
+     * @param core     造流硬规矩正文
+     * @return 规程项
+     */
     private static McpAgentGuide guide(String id,
                                        String title,
                                        String intro,

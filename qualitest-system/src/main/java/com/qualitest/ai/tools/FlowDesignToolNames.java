@@ -60,6 +60,8 @@ public enum FlowDesignToolNames {
     LIST_FLOWS("list_flows", false, true),
     /** 仅 MCP：读取完整测试流与 graphJson */
     GET_FLOW("get_flow", false, true),
+    /** 仅 MCP：返回造流规程版本指纹（只读，始终可调用） */
+    GET_MCP_GUIDE_VERSION("get_mcp_guide_version", false, true),
     /** 仅 MCP：新建空画布测试流（须项目开启 MCP 全自动写流） */
     CREATE_FLOW("create_flow", false, false),
 

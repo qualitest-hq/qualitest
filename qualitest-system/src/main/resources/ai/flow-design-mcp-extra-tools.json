@@ -40,6 +40,18 @@
   {
     "type": "function",
     "function": {
+      "name": "get_mcp_guide_version",
+      "description": "MCP 专用：返回当前造流规程 guideVersion（CORE/SURVEY/FIX_RUN 内容指纹）。用于判断业务仓 .cursor/skills/qualitest/SKILL.md 是否过期；未过期则勿再 prompts/get 规程正文。无需参数。",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "create_flow",
       "description": "MCP 专用：在当前项目新建一条空画布测试流并立即写库。返回 testFlowId，供后续 submit_* / run_test_flow 使用。须项目已开启「允许 MCP 全自动写流」",
       "parameters": {

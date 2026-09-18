@@ -1,6 +1,8 @@
 通过已配置的质衡 MCP（服务名一般为 `qualitest`）操作当前 Token 绑定的测试项目。
 业务仓代码只作上下文；改图画布与跑流一律走 MCP 工具。编辑器须已接入 MCP（HTTP + `X-Project-Token`）。
 
+本地已有 `.cursor/skills/qualitest/SKILL.md` 且文内 `guideVersion` 与 `get_mcp_guide_version`（或 initialize.serverInfo.guideVersion）一致时：日常只用 Skill，**不要**再 `prompts/get` `qualitest_core` / `qualitest_survey` / `qualitest_fix_run`（防叠灌）。版本落后或用户要求更新时，执行 `qualitest_sync_local_skill`。
+
 ## 前置
 
 1. 编辑器已接入质衡 MCP 并配好 Project Token（Token 只绑定项目身份，不区分读写权限）。
@@ -19,6 +21,7 @@
 - 用户要看图时：把 `get_graph_summary` 返回的 `mermaid` 原样放进 ` ```mermaid ` 代码块，勿手搓图。
 - 不要编造接口 path / 测值；先 `search_apis` → `get_api_details`；库无目标接口时从业务仓抽取后 `import_apis`，再 `get_api_details` → `submit_http_node(callMode=project)`，避免退化为 external+绝对 URL。测值从业务仓或素材键读取，读不到标不确定。
 - 本规程 **不是**「可测提示词」路径：不要只汇总短提示贴回 Web；开了写权限就直接 MCP 改流。
+- 若工具报「正在被其它端写入」：等待数秒后重试，或换一流再写。
 
 ## 接口分组 / 注释占位（优先）
 

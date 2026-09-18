@@ -2,6 +2,7 @@ package com.qualitest.ai.mcp.protocol;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.ai.mcp.McpPromptResourceService;
 import com.qualitest.ai.mcp.McpToolInvokeService;
 import com.qualitest.ai.tools.FlowDesignToolsDefinitionService;
 import com.qualitest.api.params.McpToolInvokeParams;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -46,22 +48,25 @@ class McpJsonRpcDispatcherTest {
     private McpToolArgumentsMapper argumentsMapper;
 
     private McpSessionRegistry sessionRegistry;
+    private McpPromptResourceService mcpPromptResourceService;
     private McpJsonRpcDispatcher dispatcher;
 
     @BeforeEach
     void setUp() {
         sessionRegistry = new McpSessionRegistry();
+        mcpPromptResourceService = new McpPromptResourceService();
         dispatcher = new McpJsonRpcDispatcher(
                 toolsDefinitionService,
                 mcpToolInvokeService,
                 argumentsMapper,
-                sessionRegistry);
+                sessionRegistry,
+                mcpPromptResourceService);
     }
 
     /**
      * 前提：POST initialize，testProjectId=42，项目未开 MCP 全自动。
      * 期望：成功响应；sessionId 非空；testProjectId=42；version 无 autopilot 后缀；
-     * tools.listChanged=true。
+     * tools.listChanged=true；capabilities 含 prompts/resources；serverInfo.guideVersion 非空。
      */
     @Test
     @Order(1)
@@ -80,8 +85,12 @@ class McpJsonRpcDispatcherTest {
         JSONObject serverInfo = json.getJSONObject("result").getJSONObject("serverInfo");
         assertEquals("42", serverInfo.getString("testProjectId"));
         assertEquals("1.0.0", serverInfo.getString("version"));
-        assertTrue(json.getJSONObject("result").getJSONObject("capabilities")
-                .getJSONObject("tools").getBooleanValue("listChanged"));
+        assertNotNull(serverInfo.getString("guideVersion"));
+        assertFalse(serverInfo.getString("guideVersion").isBlank());
+        JSONObject capabilities = json.getJSONObject("result").getJSONObject("capabilities");
+        assertTrue(capabilities.getJSONObject("tools").getBooleanValue("listChanged"));
+        assertTrue(capabilities.containsKey("prompts"));
+        assertTrue(capabilities.containsKey("resources"));
     }
 
     /**
@@ -247,5 +256,86 @@ class McpJsonRpcDispatcherTest {
 
         JSONObject json = JSON.parseObject(result.getResponseBody());
         assertTrue(json.getJSONObject("result").getBooleanValue("isError"));
+    }
+
+    /**
+     * 前提：prompts/list。
+     * 期望：含 qualitest_core / survey / fix_run / sync_local_skill 共 4 条。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("prompts/list 返回四条规程 Prompt")
+    void dispatch_promptsList_returnsFourPrompts() {
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"prompts/list\",\"params\":{}}";
+        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 1L);
+
+        JSONObject json = JSON.parseObject(result.getResponseBody());
+        var prompts = json.getJSONObject("result").getJSONArray("prompts");
+        assertEquals(4, prompts.size());
+        assertEquals(McpPromptResourceService.PROMPT_CORE, prompts.getJSONObject(0).getString("name"));
+        assertEquals(McpPromptResourceService.PROMPT_SYNC_LOCAL_SKILL,
+                prompts.getJSONObject(3).getString("name"));
+    }
+
+    /**
+     * 前提：prompts/get qualitest_core。
+     * 期望：messages 含立即写库关键句。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("prompts/get core 返回硬规矩正文")
+    void dispatch_promptsGet_core_returnsGuideBody() {
+        String body = """
+                {"jsonrpc":"2.0","id":9,"method":"prompts/get","params":{"name":"qualitest_core"}}
+                """;
+        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 1L);
+
+        JSONObject json = JSON.parseObject(result.getResponseBody());
+        String text = json.getJSONObject("result").getJSONArray("messages")
+                .getJSONObject(0).getJSONObject("content").getString("text");
+        assertTrue(text.contains("已立即写库") || text.contains("立即写库"));
+        assertTrue(text.contains("guideVersion"));
+    }
+
+    /**
+     * 前提：prompts/get 未知名。
+     * 期望：error.code=-32602。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("prompts/get 未知名返回 -32602")
+    void dispatch_promptsGet_unknown_returnsInvalidParams() {
+        String body = """
+                {"jsonrpc":"2.0","id":10,"method":"prompts/get","params":{"name":"no_such_prompt"}}
+                """;
+        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 1L);
+
+        JSONObject json = JSON.parseObject(result.getResponseBody());
+        assertEquals(-32602, json.getJSONObject("error").getIntValue("code"));
+    }
+
+    /**
+     * 前提：resources/list 与 resources/read。
+     * 期望：list 含 qualitest://docs/core；read 正文含造流硬规矩。
+     */
+    @Test
+    @Order(12)
+    @DisplayName("resources list/read 返回 CORE 规程")
+    void dispatch_resources_listAndRead_returnCore() {
+        McpJsonRpcDispatcher.DispatchResult listResult = dispatcher.dispatch(
+                "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"resources/list\",\"params\":{}}", 1L);
+        JSONObject listJson = JSON.parseObject(listResult.getResponseBody());
+        assertEquals(McpPromptResourceService.RESOURCE_CORE_URI,
+                listJson.getJSONObject("result").getJSONArray("resources")
+                        .getJSONObject(0).getString("uri"));
+
+        String readBody = """
+                {"jsonrpc":"2.0","id":12,"method":"resources/read","params":{"uri":"qualitest://docs/core"}}
+                """;
+        McpJsonRpcDispatcher.DispatchResult readResult = dispatcher.dispatch(readBody, 1L);
+        String text = JSON.parseObject(readResult.getResponseBody())
+                .getJSONObject("result").getJSONArray("contents")
+                .getJSONObject(0).getString("text");
+        assertTrue(text.contains("run_test_flow"));
     }
 }

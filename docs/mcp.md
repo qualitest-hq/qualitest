@@ -6,6 +6,8 @@
 
 English: [mcp.en.md](./mcp.en.md)
 
+后续未做增强项见：[mcp-backlog.md](./mcp-backlog.md)
+
 ---
 
 ## 1. 准备
@@ -16,7 +18,7 @@ English: [mcp.en.md](./mcp.en.md)
 4. （可选）开启 **「允许 MCP 全自动写流」** 并保存，才能 `create_flow` / `submit_*` / `run_test_flow`。
 5. （可选）开启 **「允许 MCP 导入接口」** 并保存，才能调用 `import_apis`（只控制导入接口，不控制改图与跑流）。
 6. 开关变更后若编辑器仍只列旧工具，请重连或刷新 MCP。
-7. （可选）顶栏「MCP 造流 Agent 规程」：弹窗按编辑器切换（Cursor / Claude Code / Copilot / Windsurf / Continue / Trae / AGENTS.md），复制后保存到对应规则文件。
+7. （可选）顶栏「MCP 造流 Agent 规程」：弹窗按编辑器切换（Cursor / Claude Code / Copilot / Windsurf / Continue / Trae / AGENTS.md），复制后保存到对应规则文件；也可在已接 MCP 的编辑器里用示例「同步/更新本地 Skill」从 Prompt 生成带 `guideVersion` 的 Cursor Skill。
 
 本地开发默认后端：`http://127.0.0.1:8800`。  
 Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根（常见为 `http://localhost/api/project/mcp`），以项目设置里生成的为准。
@@ -53,7 +55,7 @@ Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根�
 
 ### 3.1 默认只读（始终可用）
 
-MCP 侧默认 **16** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow`）。
+MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow` / `get_mcp_guide_version`）。
 
 | 工具 | 用途 |
 |:-----|:-----|
@@ -61,7 +63,7 @@ MCP 侧默认 **16** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 | `get_flow` | 读单条流完整 `graphJson`（浏览拓扑优先用下面两个） |
 | `get_graph_summary` / `get_subflow_detail` | 拓扑摘要、子流结构；`get_graph_summary` 另含 `mermaid`（flowchart 正文，供 Cursor 预览） |
 | `get_flow_meta` | 场景、seed、flowOutputs 等元数据 |
-| `get_node_detail` | 单个节点配置 |
+| `get_node_detail` / `get_edge_detail` / `get_scenario_detail` | 单个节点 / 边 / 场景配置 |
 | `get_run_failure` | 失败 Run 的步骤现场 |
 | `get_flow_api_health` | HTTP 节点绑定 / API 语义健康告警 |
 | `search_apis` / `get_api_details` | 查项目接口（详情支持一次传多个 id） |
@@ -69,10 +71,26 @@ MCP 侧默认 **16** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 | `list_asset_variables` | 项目素材库 key/字段名，不含明文 |
 | `list_project_auth_profiles` | 项目鉴权 Profile 摘要（无密钥明文） |
 | `list_subflow_templates` | 平台子流模板 |
+| `get_mcp_guide_version` | 造流规程 `guideVersion`（内容指纹）；与本地 Skill 比对是否过期 |
 
 典型勘察顺序：`list_flows` → 记下 `testFlowId` → `get_graph_summary` / `get_run_failure`。
 
-### 3.2 MCP 全自动写工具（须「允许 MCP 全自动写流」）
+### 3.2 Prompts / Resources（规程下发）
+
+握手 `initialize` 声明 `prompts` 与 `resources`；`serverInfo.guideVersion` 与 `get_mcp_guide_version` 同值。
+
+| Prompt | 用途 |
+|:-------|:-----|
+| `qualitest_core` | 造流 / 修流硬规矩（与 Resource `qualitest://docs/core` 同源） |
+| `qualitest_survey` | 只读勘察推荐顺序 |
+| `qualitest_fix_run` | 修失败 + 最多再修 2 轮 |
+| `qualitest_sync_local_skill` | 安装或更新 `.cursor/skills/qualitest/SKILL.md`（先比 version，一致则停止） |
+
+- **不关闭** `prompts/list`：目录始终可见，以便服务端规程变更后再次 sync。
+- 本地 Skill 已带相同 `guideVersion` 时：日常只用 Skill，勿再 `prompts/get` 三条正文（防叠灌）。
+- 顶栏「复制 SKILL」仍可用；与 Prompt 通道并列，内容同源 CORE。
+
+### 3.3 MCP 全自动写工具（须「允许 MCP 全自动写流」）
 
 开启后 `tools/list` 追加：`create_flow`、全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`append_api_design_hints`、`run_test_flow`。
 
@@ -82,13 +100,13 @@ MCP 侧默认 **16** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 - 未开启时调用写工具会得到明确拒绝文案。
 - 若写工具返回 `lockHeldBy`：另一端（Web 脏稿持锁 / 保存）占用该流写锁，按 `hint` 稍后重试或换一流。
 
-### 3.3 MCP 导入接口（须「允许 MCP 导入接口」）
+### 3.4 MCP 导入接口（须「允许 MCP 导入接口」）
 
 开启后追加 `import_apis`：将结构化 `items[]`（method、path、name、参数摘要等）按 HTTP 方法 + 规范化 path 写入本项目接口库（已存在则更新，不存在则新增），成功即落库；回执含 created/updated/skipped/conflicts 与 `testProjectApiId`。不会改写接口上的设计提示。本开关不影响写流权限；IDEA 插件的 REST 导入不受本开关限制。
 
 ---
 
-## 4. 三条示例提问
+## 4. 示例提问
 
 在 Cursor 里直接问即可（模型会调 MCP 工具）。建议先让 AI `list_flows`，再带上具体 `testFlowId`。
 
@@ -112,6 +130,16 @@ testFlowId 用 <上一步拿到的 id>。
 ```text
 同一个 testFlowId。调用 get_run_failure，总结失败步骤、断言/HTTP 错误信息，
 以及建议我下一步在画布上改哪里（只给建议，不要改库）。
+```
+
+**④ 同步 / 更新本地 Cursor Skill**
+
+```text
+用质衡 MCP 执行 qualitest_sync_local_skill（安装或更新本地 Skill）：
+1. 先 get_mcp_guide_version，记下服务端 guideVersion。
+2. 若业务仓已有 .cursor/skills/qualitest/SKILL.md 且文内 guideVersion 与服务端一致：停止；勿再 get 正文。
+3. 否则 prompts/get qualitest_core；写入 SKILL.md = Cursor frontmatter（含 guideVersion）+ CORE 正文。
+4. 之后日常造流只靠本地 Skill；仅当 version 不一致或我明确要求更新时再跑本流程。
 ```
 
 ---
