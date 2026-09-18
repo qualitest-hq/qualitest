@@ -10,10 +10,10 @@ import {
 /** @typedef {{ name: string, value?: unknown, remark?: string }} TemplateParamRow */
 /** @typedef {{ id?: number|null, key: string, remark?: string, assets: object }} VariableEntry */
 
-/** 将 templateParams 拆成 asset 一组（flow 桶恒为空，供参数库上下文同形）。 */
+/** 将 templateParams 拆成 asset 一组（只认 kind=asset）。 */
 export function partitionTemplateParams(params) {
-  /** @type {{ flow: TemplateParamRow[], asset: TemplateParamRow[] }} */
-  const out = { flow: [], asset: [] }
+  /** @type {{ asset: TemplateParamRow[] }} */
+  const out = { asset: [] }
   ;(Array.isArray(params) ? params : []).forEach((row) => {
     if (!row || typeof row !== 'object') return
     const kind = String(row.kind || '').trim()
@@ -200,15 +200,4 @@ export function templateAssetMentionItems(assetRows) {
       detail: row.remark || '模板 asset',
     }]
   })
-}
-
-/** @mention：flow 初值（排除已在 flowSeed 中的键）；预制参数不再提供 flow 行 */
-export function templateFlowMentionItems(flowRows, existingSeedKeys = new Set()) {
-  return (flowRows || [])
-    .filter((row) => row.name && !existingSeedKeys.has(row.name))
-    .map((row) => ({
-      id: row.name,
-      label: `flow.${row.name}`,
-      detail: row.remark || '模板 flow 初值',
-    }))
 }

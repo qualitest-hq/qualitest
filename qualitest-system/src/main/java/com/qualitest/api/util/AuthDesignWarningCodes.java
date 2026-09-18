@@ -96,7 +96,7 @@ public final class AuthDesignWarningCodes {
     }
 
     private static String pathOrFallback(String displayPath) {
-        return displayPath != null && !displayPath.isBlank() ? displayPath.trim() : "flow.token";
+        return displayPath != null && !displayPath.isBlank() ? displayPath.trim() : "凭证目标";
     }
 
     /**

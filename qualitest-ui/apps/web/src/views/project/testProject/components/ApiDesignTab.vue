@@ -102,7 +102,7 @@
                         v-model="auth.valueTemplate"
                         clearable
                         maxlength="512"
-                        placeholder="Bearer {{flow.token}} 或 Bearer invalid-token"
+                        placeholder="Bearer {{…}} 或字面量"
                     />
                   </el-form-item>
                 </el-col>

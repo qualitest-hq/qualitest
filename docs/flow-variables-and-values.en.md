@@ -13,7 +13,7 @@ Formal Run is **strict** (undefined → `TF_PLACEHOLDER_UNDEFINED`). Debug may b
 
 | Scope | Meaning | Example |
 | ----- | ------- | ------- |
-| `flow` | Variables in this Run | `{{flow.token}}` |
+| `flow` | Variables in this Run | `{{flow.token}}`, `{{flow.orderId}}` |
 | `env` | Current test environment | `{{env.baseUrl}}` |
 | `asset` | Project asset library | `{{asset.clientAuth.password}}` |
 | `http` | Last HTTP snapshot | Mostly asserts |
@@ -24,7 +24,7 @@ No `{{session.*}}` — use Script `ctx.session` instead. Assets use **dot** path
 
 ## 2. Where `flow` comes from
 
-HTTP **extracts**, **Assign**, subflow **outputs**, scenario **flowSeed** (tokens only, not passwords). Login extracts follow Profile `loginHint`.
+HTTP **extracts**, **Assign**, subflow **outputs**, scenario **flowSeed** (ok for preseeded tokens; no plaintext passwords).
 
 ---
 
@@ -40,7 +40,7 @@ Overrides may only have **`paramDefaults`** and **`bodyExample`**. Do not put bo
 
 ## 4. Passwords & scenario accounts
 
-Main accounts: assets + `{{asset.*}}`. Failure cases: **literals** on the node. flowSeed: tokens only.
+Reusable accounts: assets + `{{asset.*}}`. Failure cases: **literals** on the node. Skip-login debug: flowSeed / asset token / probe branch.
 
 ---
 
@@ -48,7 +48,7 @@ Main accounts: assets + `{{asset.*}}`. Failure cases: **literals** on the node. 
 
 | Use | Form |
 | --- | ---- |
-| Request params | `{{flow.token}}` |
+| Request params | `{{flow.token}}` / `{{asset.*.token}}` / `{{env.*}}` |
 | Extract / biz-code | `$.data.token` |
 | Assert left | `http.body.data.code` or `$.data.code` |
 
@@ -56,4 +56,4 @@ Main accounts: assets + `{{asset.*}}`. Failure cases: **literals** on the node. 
 
 ## 6. Typical errors
 
-Undefined `{{flow.token}}` → login extract / auth header. Missing field → bad override shape. File as string → form-data `type=file` + `storagePath`.
+Undefined token placeholder → missing source (extract / flowSeed / env) or bad auth header. Missing field → bad override shape. File as string → form-data `type=file` + `storagePath`.

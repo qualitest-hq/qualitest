@@ -126,7 +126,6 @@ public final class LoginExtractSuggestor {
             return toSuggestion(target, "body", sniffed);
         }
         if (target != null && target.isFlow() && sniffed == null && isLoginLikeApi(apiPath)) {
-            // 有目标但无 schema：仍返回目标，expr 留给门禁/跑流后补；造流对齐需要 expr 时不硬编
             return null;
         }
         if (target == null && sniffed != null && isLoginLikeApi(apiPath)) {

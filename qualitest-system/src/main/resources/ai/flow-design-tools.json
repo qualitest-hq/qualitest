@@ -526,7 +526,7 @@
                   "properties": {
                     "left": {
                       "type": "string",
-                      "description": "断言左值，如 http.body.code / flow.token / http.status"
+                      "description": "断言左值，如 http.body.code / flow.orderId / http.status"
                     },
                     "operator": {
                       "type": "string",
@@ -635,7 +635,7 @@
                         "properties": {
                           "left": {
                             "type": "string",
-                            "description": "断言左值，如 http.body.code / flow.token / http.status"
+                            "description": "断言左值，如 http.body.code / flow.orderId / http.status"
                           },
                           "operator": {
                             "type": "string",

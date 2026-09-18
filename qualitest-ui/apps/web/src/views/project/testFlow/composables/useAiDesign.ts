@@ -140,7 +140,7 @@ function applyPendingRunContextModule() {
   const run = runLib.runs.find((r) => r.id === runId) ?? runLib.selectedRun;
   const has401 = (run?.steps ?? []).some((s) => Number(s?.http?.status) === 401);
   designContext.pendingPrompt = has401
-    ? '这次失败含 HTTP 401（未认证/凭证无效）。请结合 @run 详情检查鉴权：是否漏 Authorization/Bearer、是否缺登录抽取 flow.token 或 flow.adminToken、双端是否串用；用对应 submit_* 单元工具给出修改建议，确认前不改图。'
+    ? '这次失败含 HTTP 401。请结合 @run 检查鉴权头与凭证来源是否齐全，给出修改建议，确认前不改图。'
     : '帮我分析这次失败原因并给出修改建议';
   store.pendingAiDesignRunId = '';
 }

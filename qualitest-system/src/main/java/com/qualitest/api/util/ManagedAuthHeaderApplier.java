@@ -61,7 +61,7 @@ public final class ManagedAuthHeaderApplier {
     }
 
     /**
-     * 本节点 extracts 是否写出项目托管头上的任一凭证目标（asset.* / flow.*）。
+     * 本节点 extracts 是否写出项目托管头上的任一凭证目标。
      */
     static boolean producesCredentialTarget(Map<String, Object> data, ProjectAuthConfig projectAuth) {
         Set<String> required = ProjectAuthConfigSupport.collectCredentialIdentityKeys(projectAuth);

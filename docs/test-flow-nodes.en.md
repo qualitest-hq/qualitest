@@ -43,7 +43,7 @@ Common features:
 - Then run `extracts`; asset persistence still only on 2xx
 - Optional **snapshot before** (`snapshotBefore`) for mutating calls (see concept map §4)
 
-Managed auth header rows use `profileManaged` and refresh from current config at Run; unmarked headers are never silently changed. The canvas may show which `flow.token` / `flow.adminToken` a node will use or produce.
+Managed auth header rows use `profileManaged` and refresh from current config at Run; unmarked headers are never silently changed. The canvas may show which credential path a node will use or produce.
 
 ---
 

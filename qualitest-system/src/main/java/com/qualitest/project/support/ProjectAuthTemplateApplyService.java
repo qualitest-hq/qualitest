@@ -60,7 +60,7 @@ import java.util.Set;
  *   <li>同名 Profile 整份跳过；</li>
  *   <li>预制接口按 method+path 去重，已有则不插入、不改已有行；</li>
  *   <li>托管头优先由预制测试流 extracts 派生；无流时读 match_config.credential；仍无法得到完整托管头则拒绝该条；</li>
- *   <li>预制参数：flow→场景 flowSeed，env→项目环境变量，asset→项目素材库（Profile 同名跳过仍补种子）；</li>
+ *   <li>预制参数：仅 kind=asset → 项目素材库（Profile 同名跳过仍补种子）；存量 kind=env 仍合并进环境变量；</li>
  *   <li>预制测试流按 flowName 去重后写入项目测试流，并尽量绑定项目接口 id；</li>
  *   <li>预制提示词写入项目级 ai_prompt_template（同 sessionScene+title 跳过；Profile 已存在仍会补种子）。</li>
  * </ul>

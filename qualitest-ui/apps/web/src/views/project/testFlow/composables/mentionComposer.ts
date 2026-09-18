@@ -16,7 +16,6 @@ import {
 } from './useProjectVariables';
 import {
   templateAssetMentionItems,
-  templateFlowMentionItems,
 } from '../../testProjectTemplate/utils/templateParamUtils';
 import type {
   AiDesignMention,
@@ -465,7 +464,6 @@ const MENTION_PROVIDERS: MentionProvider[] = [
         ?? store.runConfig.scenarios?.[0];
 
       if (varSubtype === 'flow') {
-        const seedKeys = new Set(Object.keys(scenario?.flowSeed ?? {}));
         items = Object.keys(scenario?.flowSeed ?? {}).map((key) => ({
           type: 'var',
           subtype: 'flow',
@@ -473,17 +471,6 @@ const MENTION_PROVIDERS: MentionProvider[] = [
           label: `flow.${key}`,
           detail: '运行场景初值',
         }));
-        if (store.canvasMode === 'template') {
-          items.push(
-            ...templateFlowMentionItems(store.templateParamContext?.flow || [], seedKeys).map((row) => ({
-              type: 'var' as const,
-              subtype: 'flow' as const,
-              id: row.id,
-              label: row.label,
-              detail: row.detail,
-            })),
-          );
-        }
       } else if (varSubtype === 'env') {
         if (store.canvasMode === 'template') {
           items = (store.templateParamContext?.env || []).map((row) => ({

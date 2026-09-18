@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 /**
  * 项目模板「预制参数 / 预制环境 / 预制测试流 / 预制提示词」解析，以及凭证规则与托管头的派生。
  * <p>
- * 预制参数 kind 仅认 flow / asset。
+ * 预制参数 kind 仅认 asset。
  * 凭证派生优先预制测试流 extracts（scope=asset）；无流时可读 match_config.credential。
  */
 public final class PrefabricatedTemplateExtrasSupport {

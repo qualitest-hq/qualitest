@@ -302,7 +302,7 @@
                 <el-form-item label="头值模板">
                   <el-input
                     v-model="selectedAuthValueTemplate"
-                    placeholder="Bearer {{flow.token}}"
+                    placeholder="Bearer {{…}}"
                   />
                 </el-form-item>
               </el-col>

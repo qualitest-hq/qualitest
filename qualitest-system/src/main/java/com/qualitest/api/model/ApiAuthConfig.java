@@ -68,7 +68,7 @@ public class ApiAuthConfig implements Serializable {
         /** 头名称，通常为 Authorization。 */
         private String name;
 
-        /** 头值模板，如 Bearer {{flow.token}} 或 Bearer invalid-token。 */
+        /** 头值模板，如 Bearer {{asset.x.token}} / Bearer {{flow.token}} 或字面量。 */
         private String valueTemplate;
     }
 }

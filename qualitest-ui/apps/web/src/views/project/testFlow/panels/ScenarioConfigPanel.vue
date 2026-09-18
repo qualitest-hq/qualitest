@@ -72,7 +72,7 @@
             :rows="flowSeedRows"
             @update:rows="onFlowSeedRowsChange"
         />
-        <div class="field__hint">运行选中场景时注入 flow 变量；跨步骤引用写法如 flow.token，素材见参数库</div>
+        <div class="field__hint">运行选中场景时注入 flow 变量，写法如 {{flow.orderId}}</div>
       </div>
       <div class="field">
         <label>节点失败时</label>

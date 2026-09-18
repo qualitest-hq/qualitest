@@ -29,9 +29,8 @@ export interface TemplateApiCatalogEntry {
   api: Record<string, unknown>;
 }
 
-/** 模板画布参数库上下文（来自 templateParams） */
+/** 模板画布参数库上下文（来自 templateParams + templateEnvs） */
 export interface TemplateParamContext {
-  flow: Array<{ name: string; value?: unknown; remark?: string }>;
   env: Array<{ name: string; value?: unknown; remark?: string }>;
   asset: Array<{ name: string; value?: unknown; remark?: string }>;
 }
@@ -87,7 +86,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   /** 模板模式下由 templateApis 合成的接口目录（供 Http 配置展示绑定） */
   const templateApiCatalog = ref<TemplateApiCatalogEntry[]>([]);
   const templateApiTree = ref<unknown[]>([]);
-  /** 模板模式下 templateParams + templateEnvs 水合（flow/env/asset 预览，不请求项目变量接口） */
+  /** 模板模式下 templateParams + templateEnvs 水合（env/asset 预览，不请求项目变量接口） */
   const templateParamContext = ref<TemplateParamContext | null>(null);
   /** 项目 auth_config JSON 字符串，供画布解析双端凭证变量 */
   const projectAuthConfig = ref('');
@@ -414,11 +413,10 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     templateApiCatalog.value = catalog;
   }
 
-  /** 写入模板预制参数上下文（flow/asset + templateEnvs 预览） */
+  /** 写入模板预制参数上下文（asset + templateEnvs 预览） */
   function setTemplateParamContext(params: unknown[], envs: unknown[] = []) {
     const partitioned = partitionTemplateParams(params);
     templateParamContext.value = {
-      flow: partitioned.flow,
       env: mergeEnvPreviewRows(templateEnvsToEnvParamRows(envs)),
       asset: partitioned.asset,
     };

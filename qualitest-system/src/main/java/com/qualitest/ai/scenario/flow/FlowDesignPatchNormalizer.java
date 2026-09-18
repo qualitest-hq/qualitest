@@ -255,7 +255,7 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 检查图中需登录的 project HTTP 是否已有对应端 flow 变量来源（如 token、adminToken）。
+     * 检查图中需登录的 project HTTP 是否已有对应端凭证来源。
      * 缺来源时返回错误文案列表；项目未配鉴权或无需登录时返回空列表。
      */
     public List<String> collectAuthTokenPresenceErrors(GraphJson graph, Long testProjectId) {

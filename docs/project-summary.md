@@ -89,7 +89,7 @@ IDEA 插件上传接口
 | 概念                      | 要点                                                                          |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `test_project_template` | 一行模板 = 一条 Profile；内置 RuoYi Bearer / Session、客户端 Bearer、管理端 Bearer           |
-| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**；作者期 `testProjectApiId` 为雪花字符串，种子时换新主键）；可选种子 `templateEnvs`（填建项占位环境 URL，已定制不覆盖；`envVariables` 同 key 不覆盖；**Profile 同名跳过仍补**）与 `templateParams`（**主路径** asset→素材库，**Profile 同名跳过仍补 asset**；内置管理端 `adminAuth`、客户端 `clientAuth`；存量 `kind=env` 仍合并进第一条环境；`kind=flow` 仍可叠场景 flowSeed，面板不再编辑）与 `templateFlows`（同名流跳过；HTTP 作者期雪花 id **remap** 为项目 apiId，历史 `tpl_*` 兼容，legacy 仅 path 仍按 method+path 绑；登录 HTTP body 引用 `{{asset.*}}`）；托管头与 `credentialApi`：**优先**登录流 extracts 派生，**其次** `match_config.credential`，仍无法派生则**拒绝该条**（不再弱默认 `adminAuth` Bearer；不再写 `loginHint`） |
+| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**；作者期 `testProjectApiId` 为雪花字符串，种子时换新主键）；可选种子 `templateEnvs`（填建项占位环境 URL，已定制不覆盖；`envVariables` 同 key 不覆盖；**Profile 同名跳过仍补**）与 `templateParams`（**仅** kind=asset→素材库，**Profile 同名跳过仍补 asset**；内置管理端 `adminAuth`、客户端 `clientAuth`；存量 `kind=env` 仍合并进第一条环境）与 `templateFlows`（同名流跳过；HTTP 作者期雪花 id **remap** 为项目 apiId，历史 `tpl_*` 兼容，legacy 仅 path 仍按 method+path 绑；登录 HTTP body 引用 `{{asset.*}}`）；托管头与 `credentialApi`：**优先**登录流 extracts 派生，**其次** `match_config.credential`，仍无法派生则**拒绝该条**（不再弱默认 `adminAuth` Bearer；不再写 `loginHint`） |
 | 新建项目                    | **至少勾一套**；商城双端建议先「管理端 Bearer」再「客户端 Bearer」                                  |
 | 免登                      | 认预制 `apis[].authConfig.mode=none`；**不再**维护项目级匿名 path 清单                     |
 | 空配置                     | 才暂留 builtin `/login` 等启发式；有 Profile 但 apis 空 → 设置页黄条提示补模板                   |
@@ -125,7 +125,7 @@ IDEA 插件上传接口
 - **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（**仅运行**硬拦；AI 单单元 `submit_*` 进 **warnings**；整包规范化 / Staging ✓ / **保存**不硬拦）。客户端 Profile 误绑 `adminAuth`（或相反）时文案追加「疑似绑错端」。托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。
 - **AI 改 Profile**：`list_project_auth_profiles`（只读）+ `upsert_auth_profile`（半自动确认 / 全自动直写）；下一轮可带 `runRiskWarnings`。细则见 [ai-staging.md](./ai-staging.md) · [faq.md](./faq.md)。
 - 画布顶栏「刷新鉴权头」、HTTP 节点凭证行提示；Run 鉴权失败可用「AI 修复」。
-- 调试可用 flowSeed 预置旧版 `flow.*` token；**口令与正式凭证走素材库**，勿 flowSeed 塞密码。
+- 凭证可落在 extract→asset/flow、场景 flowSeed、或环境变量等；**口令勿明文塞进图**，可复用账号优先素材库。
 
 验收步骤见手册 **T1.2**（项目模板）、**T1.8**（登录子流）、§F #21/#24。用法（导入导出 / 另存）见 [project-template.md](./project-template.md)。
 

@@ -8,12 +8,12 @@
 
 ## 鉴权与 token
 
-### Run 报 `{{asset.*.token}}` 或旧 `{{flow.token}}` 未定义
+### Run 报凭证占位符未定义（`{{asset.*}}` / `{{flow.*}}` / `{{env.*}}`）
 
 常见原因：
 
-1. 登录节点 **extract 路径写错**（管理端 `/login` 用 `$.token`→`asset.adminAuth.token`，客户端用 `$.data.token`→`asset.clientAuth.token`）。
-2. 图里用了 Bearer，但**没有**对应端的登录抽取 / 已落盘素材。
+1. 登录节点 **extract 路径写错**，或未与 Profile 托管头目标对齐。
+2. 图里用了 Bearer，但**没有**对应来源（extract / flowSeed / env / 已落盘素材）。
 3. 登录口应是免登（`mode=none`），却仍被补了托管 Bearer——查项目模板与接口 `auth.mode`。
 
 → [project-summary.md §4](./project-summary.md) · [flow-variables-and-values.md](./flow-variables-and-values.md)
@@ -32,7 +32,7 @@
 | 码 | 含义 | 处理 |
 | --- | --- | --- |
 | `AUTH_LOGIN_EXTRACT_MISSING` | 登录口没抽出托管头所需凭证（asset/flow） | 补 extracts 或让 AI 按托管头占位符补 |
-| `AUTH_TOKEN_MISSING` | 后续 HTTP 要用凭证，但图里没有来源 | 同端补登录 extract（或存量 flowSeed 仅对 flow 目标）；核对 Profile `headerValueTemplate`；文案含「疑似绑错端」时改项目鉴权 |
+| `AUTH_TOKEN_MISSING` | 后续 HTTP 要用凭证，但图里没有来源 | 补登录 extract / flowSeed / 环境变量等与 Profile 托管头一致的来源；文案含「疑似绑错端」时改项目鉴权 |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | 两套登录写出同一凭证路径 | 双端分用 `adminAuth` / `clientAuth` |
 | `AUTH_HEADER_MANAGED` | 已自动补托管头 | 提示，不拦 |
 
@@ -56,7 +56,7 @@
 
 **成功路径、可复用主测号**：素材库 + `{{asset.*}}`。  
 **失败路径、场景专用账号**：节点里写**字面量**，勿绑主测号素材。  
-**不要**用 flowSeed 塞口令（flowSeed 只适合调试时预置 token）。
+**不要**把明文口令写进图或 flowSeed；可复用账号优先素材库。
 
 → [assets.md](./assets.md) · [flow-variables-and-values.md §4](./flow-variables-and-values.md)
 
