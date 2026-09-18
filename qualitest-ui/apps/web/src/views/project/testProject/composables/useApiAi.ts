@@ -36,7 +36,8 @@ import {
   parseAssistantMessageFromServer,
   parseUserMessageFromServer,
 } from '../types/apiDesignAiTypes';
-import { AI_INTERRUPTED_MESSAGE, parseToolTraceFromMeta } from '@/utils/ai/toolTrace';
+import { parseToolTraceFromMeta } from '@/utils/ai/toolTrace';
+import { recoverInterruptedDesign } from '@/utils/ai/recoverInterruptedDesign';
 import { isApiAiAutopilotEnabled } from '../utils/apiAiPreferences';
 import { useApiAiStream } from './useApiAiStream';
 
@@ -222,7 +223,12 @@ export function useApiAi(
           { id: createClientMessageId(), role: 'system', content: '已取消生成' },
         ];
         // 取消：重拉或本地兜底半成品助手气泡
-        await handleDesignInterrupted();
+        await recoverInterruptedDesign({
+          streamText,
+          streamThinking,
+          messages,
+          reloadActiveSession: chat.reloadActiveSession,
+        });
       } else {
         const msg = e instanceof Error ? e.message : 'AI 助手请求失败';
         designError.value = msg;
@@ -233,34 +239,6 @@ export function useApiAi(
       streamText.value = '';
       streamThinking.value = '';
     }
-  }
-
-  /**
-   * 用户取消流式请求后的收尾：短暂等待服务端落盘后强制重拉当前会话。
-   * 若已有助手消息则采用服务端半成品；否则用本地已收到的正文/思考兜底，并标 interrupted。
-   */
-  async function handleDesignInterrupted() {
-    const localText = streamText.value.trim();
-    const localThinking = streamThinking.value.trim();
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const reloaded = await chat.reloadActiveSession();
-    if (reloaded) {
-      const last = messages.value[messages.value.length - 1];
-      if (last?.role === 'assistant') {
-        return;
-      }
-    }
-    messages.value = [
-      ...messages.value,
-      {
-        id: createClientMessageId(),
-        role: 'assistant',
-        content: localText || AI_INTERRUPTED_MESSAGE,
-        thinkingContent: localThinking || undefined,
-        interrupted: true,
-        explainOnly: true,
-      },
-    ];
   }
 
   /** 发送用户消息并触发设计；默认先追加 user 气泡。 */

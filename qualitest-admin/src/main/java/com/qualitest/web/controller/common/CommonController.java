@@ -128,14 +128,6 @@ public class CommonController {
     }
 
     /**
-     * 返回 Cursor MCP 造流 Skill 全文（兼容旧入口）。
-     */
-    @GetMapping("/mcpCursorSkill")
-    public AjaxResult mcpCursorSkill() {
-        return AjaxResult.success("操作成功", mcpCursorSkillService.loadSkillMarkdown());
-    }
-
-    /**
      * 本地资源通用下载
      */
     @GetMapping("/download/resource")

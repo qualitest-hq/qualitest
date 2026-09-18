@@ -2,95 +2,29 @@
  * 封装测试流 AI 设计 SSE 消费与 AbortController 取消。
  * 转发 session / token / 思考 / 工具起止 / 隐式落盘成功 / Run 已触发 / done / error。
  */
-import { ref } from 'vue';
-
 import {
   designTestFlowStream,
   type AiDesignStreamHandlers,
   type TestFlowDesignRequestPayload,
 } from '@/api/project/testFlowAi';
+import { useAiAgentStream } from '@/composables/ai/useAiAgentStream';
 import type { TestFlowDesignResult } from '@/views/project/testFlow/types/aiDesignTypes';
 
 export function useAiDesignStream() {
-  const streamText = ref('');
-  const streamThinking = ref('');
-  const activeTool = ref('');
-  const abortController = ref<AbortController | null>(null);
-
-  /** 取消进行中的流式请求 */
-  function cancelStream() {
-    abortController.value?.abort();
-    abortController.value = null;
-    activeTool.value = '';
-  }
-
-  /**
-   * 发起流式设计请求。
-   * 返回 done 时的完整结果；取消时抛出 DOMException。
-   */
-  async function runDesignStream(
-    payload: TestFlowDesignRequestPayload,
-    handlers?: Partial<AiDesignStreamHandlers>,
-  ): Promise<TestFlowDesignResult> {
-    cancelStream();
-    streamText.value = '';
-    streamThinking.value = '';
-    activeTool.value = '';
-    const controller = new AbortController();
-    abortController.value = controller;
-
-    try {
-      return await designTestFlowStream(
-        payload,
-        {
-          onToken: (text) => {
-            streamText.value += text;
-            handlers?.onToken?.(text);
-          },
-          onThinking: (text) => {
-            streamThinking.value += text;
-            handlers?.onThinking?.(text);
-          },
-          onToolStart: (tool) => {
-            activeTool.value = tool;
-            handlers?.onToolStart?.(tool);
-          },
-          onToolEnd: () => {
-            activeTool.value = '';
-            handlers?.onToolEnd?.();
-          },
-          // 全自动隐式写库成功
-          onGraphCommitted: (testFlowId) => {
-            handlers?.onGraphCommitted?.(testFlowId);
-          },
-          // 全自动已触发 Run（带 runId）
-          onRunStarted: (runId) => {
-            handlers?.onRunStarted?.(runId);
-          },
-          // 会话已就绪：尽早记下 sessionId，取消后可重拉半成品
-          onSession: (aiChatSessionId) => {
-            handlers?.onSession?.(aiChatSessionId);
-          },
-          onEvent: handlers?.onEvent,
-          onDone: handlers?.onDone,
-          onError: handlers?.onError,
-        },
-        controller.signal,
-      );
-    } finally {
-      if (abortController.value === controller) {
-        abortController.value = null;
-      }
-      activeTool.value = '';
-    }
-  }
+  const stream = useAiAgentStream<
+    TestFlowDesignRequestPayload,
+    TestFlowDesignResult,
+    AiDesignStreamHandlers
+  >({
+    designFn: designTestFlowStream,
+  });
 
   return {
-    streamText,
-    streamThinking,
-    activeTool,
-    abortController,
-    runDesignStream,
-    cancelStream,
+    streamText: stream.streamText,
+    streamThinking: stream.streamThinking,
+    activeTool: stream.activeTool,
+    abortController: stream.abortController,
+    runDesignStream: stream.runDesignStream,
+    cancelStream: stream.cancelStream,
   };
 }

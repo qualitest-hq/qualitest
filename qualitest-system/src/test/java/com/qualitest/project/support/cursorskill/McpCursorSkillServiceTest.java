@@ -28,7 +28,7 @@ class McpCursorSkillServiceTest {
 
     /**
      * 前提：加载弹框完整载荷。
-     * 期望：含人话说明；示例为列出测试流 + 单功能 + 指定范围 + 整项目。
+     * 期望：含人话说明；示例为列出测试流 + 新建空流 + 单功能 + 指定范围 + 整项目。
      */
     @Test
     @Order(1)
@@ -37,16 +37,18 @@ class McpCursorSkillServiceTest {
         McpAgentGuidesPayload payload = service.loadPayload();
         assertTrue(payload.getHowToUse().contains("不需要特殊唤醒词"));
         assertFalse(payload.getTips().isEmpty());
-        assertEquals(4, payload.getExamples().size());
+        assertEquals(5, payload.getExamples().size());
         assertEquals("列出测试流", payload.getExamples().get(0).getLabel());
         assertTrue(payload.getExamples().get(0).getText().contains("list_flows"));
-        assertEquals("单功能（增量）", payload.getExamples().get(1).getLabel());
-        assertTrue(payload.getExamples().get(1).getText().contains("本次改动")
-                || payload.getExamples().get(1).getText().contains("刚改过"));
-        assertEquals("指定范围", payload.getExamples().get(2).getLabel());
-        assertTrue(payload.getExamples().get(2).getText().contains("<指定范围>"));
-        assertEquals("整项目（全量）", payload.getExamples().get(3).getLabel());
-        assertTrue(payload.getExamples().get(3).getText().contains("按模块"));
+        assertEquals("新建空流", payload.getExamples().get(1).getLabel());
+        assertTrue(payload.getExamples().get(1).getText().contains("create_flow"));
+        assertEquals("单功能", payload.getExamples().get(2).getLabel());
+        assertTrue(payload.getExamples().get(2).getText().contains("本次改动")
+                || payload.getExamples().get(2).getText().contains("刚改过"));
+        assertEquals("指定范围", payload.getExamples().get(3).getLabel());
+        assertTrue(payload.getExamples().get(3).getText().contains("<指定范围>"));
+        assertEquals("整项目", payload.getExamples().get(4).getLabel());
+        assertTrue(payload.getExamples().get(4).getText().contains("按模块"));
         assertEquals(7, payload.getGuides().size());
     }
 
@@ -80,18 +82,5 @@ class McpCursorSkillServiceTest {
         assertTrue(claude.getContent().contains("run_test_flow"));
         assertTrue(claude.getContent().contains("立即写库")
                 || claude.getContent().contains("已立即写库"));
-    }
-
-    /**
-     * 前提：调用兼容接口。
-     * 期望：仍返回 Cursor Skill 全文。
-     */
-    @Test
-    @Order(3)
-    @DisplayName("兼容接口仍返回 Cursor Skill")
-    void loadSkillMarkdown_returnsCursor() {
-        String text = service.loadSkillMarkdown();
-        assertTrue(text.contains("name: qualitest"));
-        assertTrue(text.contains("run_test_flow"));
     }
 }

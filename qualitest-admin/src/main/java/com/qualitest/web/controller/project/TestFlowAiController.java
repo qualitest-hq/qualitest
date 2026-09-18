@@ -1,7 +1,5 @@
 package com.qualitest.web.controller.project;
 
-import com.qualitest.ai.llm.AgentRunListener;
-import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.scenario.flow.TestFlowDesignAgent;
 import com.qualitest.ai.scenario.flow.AssetUpsertProposalService;
 import com.qualitest.ai.scenario.flow.AuthProfileUpsertProposalService;
@@ -16,7 +14,6 @@ import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckRequest;
 import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckResult;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignRequest;
-import com.qualitest.ai.scenario.flow.model.TestFlowDesignResult;
 import com.qualitest.ai.result.AiPromptTemplateResult;
 import com.qualitest.ai.service.IAiPromptTemplateService;
 import com.qualitest.ai.service.AiChatConversationService;
@@ -29,8 +26,6 @@ import com.qualitest.project.service.ITestProjectMemberService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -40,8 +35,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 测试流 AI 设计 HTTP 接口。
@@ -213,98 +206,12 @@ public class TestFlowAiController extends BaseController {
     @PostMapping(value = "/design/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter designStream(@RequestBody TestFlowDesignRequest request) {
         validateDesignAccess(request);
-        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
-        // 断连 / 超时 / 发送失败 → true；设计循环步间读取后停止并尽量落盘
-        AtomicBoolean cancelled = new AtomicBoolean(false);
-        AiSseStreamSupport.armCancel(emitter, cancelled);
         Long userId = getUserId();
-        AgentRunListener listener = new AgentRunListener() {
-            @Override
-            public void onToolStart(String toolName) {
-                AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "tool_start", "tool", toolName));
-            }
-
-            @Override
-            public void onToolEnd(String toolName) {
-                AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "tool_end", "tool", toolName));
-            }
-
-            @Override
-            public void onThinkingDelta(String delta) {
-                if (delta != null && !delta.isEmpty()) {
-                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "thinking", "text", delta));
-                }
-            }
-
-            @Override
-            public void onTextDelta(String delta) {
-                if (delta != null && !delta.isEmpty()) {
-                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "token", "text", delta));
-                }
-            }
-
-            @Override
-            public void onGraphCommitted(Long testFlowId) {
-                // 隐式写库成功，推送 testFlowId
-                if (testFlowId != null) {
-                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of(
-                            "type", "graphCommitted",
-                            "testFlowId", String.valueOf(testFlowId)));
-                }
-            }
-
-            @Override
-            public void onRunStarted(Long runId) {
-                // Run 已触发，推送 runId，画布可开始按步骤高亮
-                if (runId != null) {
-                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of(
-                            "type", "runStarted",
-                            "runId", String.valueOf(runId)));
-                }
-            }
-
-            @Override
-            public void onSessionReady(Long aiChatSessionId) {
-                // 尽早推送会话 id，取消后客户端可重拉半成品
-                if (aiChatSessionId != null) {
-                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of(
-                            "type", "session",
-                            "aiChatSessionId", String.valueOf(aiChatSessionId)));
-                }
-            }
-        };
-        // 独立线程跑设计；须带回登录态，否则跑流/成员校验会拿不到用户
-        SecurityContext securityContext = SecurityContextHolder.getContext();
-        Thread worker = new Thread(() -> {
-            SecurityContextHolder.setContext(securityContext);
-            try {
-                TestFlowDesignResult result = testFlowDesignAgent.design(
-                        request, userId, listener, cancelled::get);
-                // 即使已取消也尽量推 done（含半成品）；已断连时 sendJson 会静默跳过
-                AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "done", "result", result));
-                if (!cancelled.get()) {
-                    emitter.complete();
-                }
-            } catch (Exception e) {
-                String message = e instanceof LlmClientException ? e.getMessage() : "AI 助手请求失败";
-                try {
-                    AiSseStreamSupport.sendJson(emitter, cancelled, Map.of("type", "error", "message", message));
-                    if (!cancelled.get()) {
-                        emitter.complete();
-                    }
-                } catch (Exception ignored) {
-                    if (!cancelled.get()) {
-                        emitter.completeWithError(e);
-                    }
-                }
-            } finally {
-                SecurityContextHolder.clearContext();
-            }
-        });
-        worker.setName("test-flow-ai-design-stream");
-        worker.setDaemon(true);
-        worker.start();
-        return emitter;
+        return AiSseStreamSupport.openDesignStream(
+                SSE_TIMEOUT_MS,
+                "test-flow-ai-design-stream",
+                "AI 助手请求失败",
+                (listener, cancelled) -> testFlowDesignAgent.design(request, userId, listener, cancelled));
     }
 
     /** 校验当前用户为项目成员，且 testFlowId 属于 testProjectId */

@@ -1,10 +1,10 @@
 package com.qualitest.project.support.templatepack;
 
-import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.common.utils.ClasspathMarkdownSupport;
 import com.qualitest.project.domain.TestProjectTemplate;
 import com.qualitest.project.mapper.TestProjectTemplateMapper;
 import com.qualitest.project.service.ITestProjectTemplateService;
@@ -13,12 +13,9 @@ import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.Expa
 import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.ImportRequest;
 import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.PackOpResult;
 import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.SlimTemplate;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +51,8 @@ public class ProjectTemplatePackService {
 
     /** 返回精简包 JSON Schema 原文，供外部校验结构。 */
     public String loadSchemaJson() {
-        return loadClasspathUtf8("project-template/project-template.schema.json", "精简 Schema");
+        return ClasspathMarkdownSupport.loadClasspathUtf8(
+                "project-template/project-template.schema.json", "精简 Schema");
     }
 
     /**
@@ -62,34 +60,10 @@ public class ProjectTemplatePackService {
      * 会去掉资源文件开头说明，只保留分隔线之后的可粘贴内容。
      */
     public String loadAiPromptText() {
-        return extractCopyablePrompt(loadClasspathUtf8("project-template/AI_PROMPT.md", "精简生成提示词"));
-    }
-
-    /** 按路径读取 classpath UTF-8 文本；失败抛业务异常。 */
-    private static String loadClasspathUtf8(String path, String label) {
-        try (InputStream in = new ClassPathResource(path).getInputStream()) {
-            return IoUtil.read(in, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new ServiceException("无法读取" + label + ": " + e.getMessage());
-        }
-    }
-
-    /**
-     * 从提示词资源全文中取出可复制正文：
-     * 若存在独立一行的 --- 分隔线，取其后内容；否则取全文。
-     */
-    static String extractCopyablePrompt(String raw) {
-        if (StrUtil.isBlank(raw)) {
-            throw new ServiceException("精简生成提示词为空");
-        }
-        String normalized = raw.replace("\r\n", "\n");
-        int sep = normalized.indexOf("\n---\n");
-        String body = sep >= 0 ? normalized.substring(sep + "\n---\n".length()) : normalized;
-        String trimmed = body.trim();
-        if (trimmed.isEmpty()) {
-            throw new ServiceException("精简生成提示词正文为空");
-        }
-        return trimmed;
+        return ClasspathMarkdownSupport.extractCopyablePrompt(
+                ClasspathMarkdownSupport.loadClasspathUtf8(
+                        "project-template/AI_PROMPT.md", "精简生成提示词"),
+                "精简生成提示词");
     }
 
     /** 校验完整包或精简包：展开预览，不写库。 */

@@ -82,7 +82,7 @@
  * 顶栏图标：弹出 MCP 人话用法、示例提问，以及多编辑器规程 Tabs，可复制当前 Tab 全文。
  */
 import { ElMessage } from 'element-plus'
-import { getMcpAgentGuides } from '@/api/common/mcpCursorSkill'
+import { getMcpAgentGuides } from '@/api/common/mcpAgentGuides'
 import { copyTextSync } from '@/utils/clipboard'
 
 const visible = ref(false)

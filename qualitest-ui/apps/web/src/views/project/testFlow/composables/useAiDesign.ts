@@ -38,7 +38,7 @@ import { useRunConfig } from './useRunConfig';
 import { isAutopilotEnabled } from '../utils/aiDesignPreferences';
 import type { AiDesignMessageView, AiDesignSystemAction, FlowDesignPatch, TestFlowDesignResult } from '../types/aiDesignTypes';
 import { parseAssistantFromServer, parseToolTraceFromMeta, parseUserFromServer } from '../types/aiDesignTypes';
-import { AI_INTERRUPTED_MESSAGE } from '@/utils/ai/toolTrace';
+import { recoverInterruptedDesign } from '@/utils/ai/recoverInterruptedDesign';
 import type { ComposerSendPayload } from './mentionComposer';
 import {
   createClientMessageId,
@@ -476,7 +476,12 @@ export function useAiDesign() {
       if (e instanceof DOMException && e.name === 'AbortError') {
         appendLocalSystemMessage('已取消设计');
         // 取消：重拉或本地兜底半成品助手气泡
-        await handleDesignInterrupted();
+        await recoverInterruptedDesign({
+          streamText,
+          streamThinking,
+          messages,
+          reloadActiveSession: chat.reloadActiveSession,
+        });
       } else {
         const msg = e instanceof Error ? e.message : 'AI 助手请求失败';
         designError.value = msg;
@@ -490,35 +495,6 @@ export function useAiDesign() {
     }
   }
   executeDesignRequestRef = executeDesignRequest;
-
-  /**
-   * 用户取消流式请求后的收尾：先短暂等待服务端落盘，再强制重拉当前会话。
-   * 若已有助手消息则直接采用服务端半成品；否则用本地已收到的正文/思考兜底，并标 interrupted。
-   */
-  async function handleDesignInterrupted() {
-    const localText = streamText.value.trim();
-    const localThinking = streamThinking.value.trim();
-    // 给服务端协作停止与落盘留一点时间
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const reloaded = await chat.reloadActiveSession();
-    if (reloaded) {
-      const last = messages.value[messages.value.length - 1];
-      if (last?.role === 'assistant') {
-        return;
-      }
-    }
-    messages.value = [
-      ...messages.value,
-      {
-        id: createClientMessageId(),
-        role: 'assistant',
-        content: localText || AI_INTERRUPTED_MESSAGE,
-        thinkingContent: localThinking || undefined,
-        interrupted: true,
-        explainOnly: true,
-      },
-    ];
-  }
 
   /**
    * 把设计接口响应转成助手消息写入列表。

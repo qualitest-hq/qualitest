@@ -1,15 +1,10 @@
 package com.qualitest.project.support.cursorskill;
 
-import cn.hutool.core.io.IoUtil;
-import cn.hutool.core.util.StrUtil;
-import com.qualitest.common.exception.ServiceException;
+import com.qualitest.common.utils.ClasspathMarkdownSupport;
 import com.qualitest.project.support.testableprompt.TestablePromptService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -72,7 +67,7 @@ public class McpCursorSkillService {
      * 返回全部规程（顺序即 Tab 顺序），每种编辑器单独一项。
      */
     public List<McpAgentGuide> loadGuides() {
-        String core = loadClasspathUtf8(CORE_PATH, "造流规程正文");
+        String core = ClasspathMarkdownSupport.loadClasspathUtf8Normalized(CORE_PATH, "造流规程正文");
         return List.of(
                 McpAgentGuide.builder()
                         .id("cursor")
@@ -87,7 +82,8 @@ public class McpCursorSkillService {
                                 "在 Agent / Chat 里用自然语言提问（可参考上方示例）；写完后刷新画布查看结果。"
                         ))
                         .saveHint(".cursor/skills/qualitest/SKILL.md")
-                        .content(loadClasspathUtf8(CURSOR_SKILL_PATH, "Cursor Skill"))
+                        .content(ClasspathMarkdownSupport.loadClasspathUtf8Normalized(
+                                CURSOR_SKILL_PATH, "Cursor Skill"))
                         .build(),
                 guide(
                         "claude-code",
@@ -204,17 +200,6 @@ public class McpCursorSkillService {
         );
     }
 
-    /**
-     * 仅 Cursor Skill 全文（兼容旧调用）。
-     */
-    public String loadSkillMarkdown() {
-        return loadGuides().stream()
-                .filter(g -> "cursor".equals(g.getId()))
-                .map(McpAgentGuide::getContent)
-                .findFirst()
-                .orElseThrow(() -> new ServiceException("Cursor Skill 为空"));
-    }
-
     private static McpAgentGuide guide(String id,
                                        String title,
                                        String intro,
@@ -230,19 +215,5 @@ public class McpCursorSkillService {
                 .saveHint(saveHint)
                 .content((header + core).replace("\r\n", "\n").trim() + "\n")
                 .build();
-    }
-
-    private static String loadClasspathUtf8(String path, String label) {
-        try (InputStream in = new ClassPathResource(path).getInputStream()) {
-            String text = IoUtil.read(in, StandardCharsets.UTF_8);
-            if (StrUtil.isBlank(text)) {
-                throw new ServiceException(label + "为空");
-            }
-            return text.replace("\r\n", "\n").trim() + "\n";
-        } catch (ServiceException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ServiceException("无法读取" + label + ": " + e.getMessage());
-        }
     }
 }
