@@ -27,8 +27,11 @@ import org.springframework.stereotype.Service;
 /**
  * MCP 单次工具调用编排。
  * <p>
- * 默认只允许只读工具。项目开启「允许 MCP 全自动写流」后，还可调用改图 submit、
- * create_flow、素材/鉴权写入、跑流等写工具；每次 submit 校验通过后立刻把画布写入测试流库。
+ * 默认只允许只读工具。
+ * 项目开启「允许 MCP 全自动写流」后，还可调用改图提交、新建流、素材/鉴权写入、跑流等写工具。
+ * 项目开启「允许 MCP 导入接口」后，还可调用 import_apis 写入项目接口库。
+ * 写流与导入是两道独立开关。
+ * 画布类 submit 校验通过后会立刻把画布写入测试流库。
  */
 @Slf4j
 @Service
@@ -39,7 +42,7 @@ public class McpToolInvokeService {
     private final FlowDesignToolExecutor flowDesignToolExecutor;
     /** 组装本次调用的项目/流/画布上下文 */
     private final FlowDesignToolContextFactory contextFactory;
-    /** 读取项目级 MCP 全自动开关 */
+    /** 读取项目级 MCP 开关 */
     private final ITestProjectService testProjectService;
     /** 加载测试流、写回 graph_json */
     private final ITestFlowService testFlowService;
@@ -62,10 +65,20 @@ public class McpToolInvokeService {
         }
     }
 
-    /** 正常工具执行路径（不含写锁冲突包装） */
+    /**
+     * 正常工具执行路径（不含写锁冲突包装）。
+     * 一次加载项目读取双开关 → 门控校验 → 写流工具补信封 → 执行 → submit 成功则落盘。
+     */
     private McpToolResult invokeInner(String toolName, McpToolInvokeParams params, Long tokenProjectId) {
-        boolean mcpAutopilot = isMcpAutopilotEnabled(tokenProjectId, params);
-        if (!FlowDesignToolNames.isMcpCallable(toolName, mcpAutopilot)) {
+        // 同一次调用只查一次项目，同时读出写流与导入开关
+        TestProject project = loadProject(tokenProjectId, params);
+        boolean mcpAutopilot = project != null && Boolean.TRUE.equals(project.getMcpAutopilotEnabled());
+        boolean mcpImportApis = project != null && Boolean.TRUE.equals(project.getMcpImportApisEnabled());
+        if (!FlowDesignToolNames.isMcpCallable(toolName, mcpAutopilot, mcpImportApis)) {
+            if (FlowDesignToolNames.isMcpImportApisTool(toolName)) {
+                throw new ServiceException(
+                        "MCP 不支持导入接口；请在项目设置开启「允许 MCP 导入接口」");
+            }
             if (FlowDesignToolNames.isMcpAutopilotWriteTool(toolName)) {
                 throw new ServiceException(
                         "MCP 不支持修改测试流；请在项目设置开启「允许 MCP 全自动写流」，或改用质衡 Web 端 AI 助手");
@@ -92,7 +105,8 @@ public class McpToolInvokeService {
             CommitWrapped wrapped = commitSubmitIfNeeded(toolName, context, resultJson, tokenProjectId);
             resultJson = wrapped.resultJson();
             error = wrapped.error();
-        } else if (writeTool) {
+        } else if (writeTool || FlowDesignToolNames.isMcpImportApisTool(toolName)) {
+            // 写流与导入接口均记一条审计日志（import_apis 不改画布，无 commit 包装）
             log.info("MCP 写工具 projectId={} tool={} flowId={} error={}",
                     context.getTestProjectId(), toolName, context.getTestFlowId(), error);
         }
@@ -120,29 +134,59 @@ public class McpToolInvokeService {
     }
 
     /**
-     * 查询项目是否开启 MCP 全自动写流。
+     * 项目级 MCP 权限开关快照。
      *
-     * @param tokenProjectId Token 绑定的项目 id
-     * @return true 表示可列出并调用写工具
+     * @param autopilotEnabled  是否允许全自动写流（改图、新建流、跑流等）
+     * @param importApisEnabled 是否允许 import_apis 写入接口库
      */
-    public boolean isMcpAutopilotEnabled(Long tokenProjectId) {
-        return isMcpAutopilotEnabled(tokenProjectId, null);
+    public record McpProjectGates(boolean autopilotEnabled, boolean importApisEnabled) {
     }
 
     /**
-     * 解析项目 id 后读取是否允许 MCP 全自动写流。
-     * 优先用 Token 绑定的项目 id，缺省时用参数里的 testProjectId。
+     * 按 Token 绑定的项目 id 一次查库，返回写流与导入接口两个开关。
+     * 供 initialize、tools/list 等需要同时读双开关的入口使用，避免重复查库。
+     *
+     * @param tokenProjectId Token 绑定的项目 id
      */
-    private boolean isMcpAutopilotEnabled(Long tokenProjectId, McpToolInvokeParams params) {
+    public McpProjectGates resolveMcpGates(Long tokenProjectId) {
+        TestProject project = loadProject(tokenProjectId, null);
+        return new McpProjectGates(
+                project != null && Boolean.TRUE.equals(project.getMcpAutopilotEnabled()),
+                project != null && Boolean.TRUE.equals(project.getMcpImportApisEnabled()));
+    }
+
+    /**
+     * 查询项目是否开启「允许 MCP 全自动写流」。
+     *
+     * @param tokenProjectId Token 绑定的项目 id
+     * @return true 表示可列出并调用写流类工具
+     */
+    public boolean isMcpAutopilotEnabled(Long tokenProjectId) {
+        return resolveMcpGates(tokenProjectId).autopilotEnabled();
+    }
+
+    /**
+     * 查询项目是否开启「允许 MCP 导入接口」。
+     *
+     * @param tokenProjectId Token 绑定的项目 id
+     * @return true 表示可列出并调用 import_apis
+     */
+    public boolean isMcpImportApisEnabled(Long tokenProjectId) {
+        return resolveMcpGates(tokenProjectId).importApisEnabled();
+    }
+
+    /**
+     * 解析项目实体：优先 Token 绑定的项目 id，缺省再用参数里的 testProjectId。
+     */
+    private TestProject loadProject(Long tokenProjectId, McpToolInvokeParams params) {
         Long projectId = tokenProjectId;
         if (projectId == null && params != null) {
             projectId = params.getTestProjectId();
         }
         if (projectId == null) {
-            return false;
+            return null;
         }
-        TestProject project = testProjectService.selectTestProjectById(projectId);
-        return project != null && Boolean.TRUE.equals(project.getMcpAutopilotEnabled());
+        return testProjectService.selectTestProjectById(projectId);
     }
 
     /**

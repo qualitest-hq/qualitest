@@ -35,6 +35,13 @@ public enum FlowDesignToolNames {
     UPSERT_AUTH_PROFILE("upsert_auth_profile", true, false),
     /** 向接口 design_hints 追加短提示并直接落库 */
     APPEND_API_DESIGN_HINTS("append_api_design_hints", true, false),
+    /**
+     * MCP 专用：按结构化 items 导入或更新项目接口库（方法+path 幂等写入）。
+     * 不进入 Web 造流助手列表；默认也不在 MCP 只读白名单。
+     * 仅当项目开启「允许 MCP 导入接口」时，才会出现在 tools/list 并允许 tools/call。
+     * 本工具不走「允许 MCP 全自动写流」开关。
+     */
+    IMPORT_APIS("import_apis", false, false),
     /** 读取单个节点的 type 与完整 data */
     GET_NODE_DETAIL("get_node_detail", true, true),
     /** 读取单条边的 id、source、target、label */
@@ -130,9 +137,18 @@ public enum FlowDesignToolNames {
     }
 
     /**
-     * 是否为 MCP 全自动写工具。
-     * 须项目开关开启后才可出现在 tools/list 并被 tools/call。
-     * 含全部 submit_*、create_flow、素材 upsert、鉴权 upsert、追加 design_hints、run_test_flow。
+     * 是否为「导入项目接口」工具名（import_apis）。
+     * 该工具由项目的「允许 MCP 导入接口」开关单独控制。
+     */
+    public static boolean isMcpImportApisTool(String name) {
+        return IMPORT_APIS.id.equals(name);
+    }
+
+    /**
+     * 是否为 MCP 全自动写流类工具。
+     * 需项目开启「允许 MCP 全自动写流」后，才可列入 tools/list 并接受 tools/call。
+     * 包括：全部 submit_*、create_flow、素材写入、鉴权写入、追加接口设计提示、跑流。
+     * 不包括 import_apis。
      */
     public static boolean isMcpAutopilotWriteTool(String name) {
         if (name == null || name.isBlank()) {
@@ -158,16 +174,33 @@ public enum FlowDesignToolNames {
     }
 
     /**
-     * 当前请求是否允许经 MCP 调用该工具。
-     * 只读工具始终允许；写工具仅当项目已开启 MCP 全自动写流。
+     * 判断当前请求是否允许经 MCP 调用该工具。
+     * <ul>
+     *   <li>只读白名单工具：始终允许</li>
+     *   <li>import_apis：仅当 importApisEnabled 为 true</li>
+     *   <li>写流类工具：仅当 autopilotEnabled 为 true</li>
+     * </ul>
      *
-     * @param autopilotEnabled 项目是否开启 MCP 全自动写流
+     * @param autopilotEnabled  是否开启「允许 MCP 全自动写流」
+     * @param importApisEnabled 是否开启「允许 MCP 导入接口」
      */
-    public static boolean isMcpCallable(String name, boolean autopilotEnabled) {
+    public static boolean isMcpCallable(String name, boolean autopilotEnabled, boolean importApisEnabled) {
         if (isMcpAllowed(name)) {
             return true;
         }
+        if (isMcpImportApisTool(name)) {
+            return importApisEnabled;
+        }
         return autopilotEnabled && isMcpAutopilotWriteTool(name);
+    }
+
+    /**
+     * 仅根据写流开关判断是否可调用；导入接口按未开启处理。
+     *
+     * @param autopilotEnabled 是否开启「允许 MCP 全自动写流」
+     */
+    public static boolean isMcpCallable(String name, boolean autopilotEnabled) {
+        return isMcpCallable(name, autopilotEnabled, false);
     }
 
     /** 按工具名判断是否属于 Web 造流助手 */

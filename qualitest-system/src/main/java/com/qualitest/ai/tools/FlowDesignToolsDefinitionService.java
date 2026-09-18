@@ -114,7 +114,18 @@ public class FlowDesignToolsDefinitionService {
         if (!missingWriteSchema.isEmpty()) {
             throw new IllegalStateException("MCP 全自动写工具缺少 JSON Schema 定义: " + missingWriteSchema);
         }
-        log.info("Flow Design 工具注册一致性校验通过: web={}, mcpReadonly={}, mcpWrite={}",
+
+        // import_apis 不在只读白名单、也不在写流工具集，单独校验：执行器已注册且扩展 JSON 有 Schema
+        String importId = FlowDesignToolNames.IMPORT_APIS.getId();
+        if (!registered.contains(importId)) {
+            throw new IllegalStateException("MCP 导入接口工具缺少执行器定义: " + importId);
+        }
+        Set<String> allSchemaNames = new HashSet<>(extractToolNames(loadToolsDefinitionRaw()));
+        allSchemaNames.addAll(extractToolNames(loadMcpExtraToolsDefinition()));
+        if (!allSchemaNames.contains(importId)) {
+            throw new IllegalStateException("MCP 导入接口工具缺少 JSON Schema 定义: " + importId);
+        }
+        log.info("Flow Design 工具注册校验通过: web={}, mcpReadonly={}, mcpWrite={}, mcpImportApis=1",
                 webFromJson.size(), mcpFromJson.size(), writeIds.size());
     }
 
@@ -205,14 +216,44 @@ public class FlowDesignToolsDefinitionService {
     }
 
     /**
-     * 返回 MCP tools/list 用的工具定义。
-     *
-     * @param mcpAutopilotEnabled true 时在只读列表上追加改图/写入/跑流等写工具
+     * 返回 MCP tools/list 默认只读工具定义（协议格式：name / description / inputSchema）。
      */
-    public List<Map<String, Object>> loadMcpProtocolTools(boolean mcpAutopilotEnabled) {
-        if (!mcpAutopilotEnabled) {
-            return loadMcpProtocolTools();
+    public List<Map<String, Object>> loadMcpProtocolTools() {
+        List<Map<String, Object>> local = cachedMcpProtocolTools;
+        if (local != null) {
+            return local;
         }
+        synchronized (this) {
+            if (cachedMcpProtocolTools != null) {
+                return cachedMcpProtocolTools;
+            }
+            List<Map<String, Object>> protocolTools = new ArrayList<>();
+            for (Map<String, Object> tool : loadMcpToolsDefinition()) {
+                protocolTools.add(toMcpProtocolTool(tool));
+            }
+            cachedMcpProtocolTools = List.copyOf(protocolTools);
+            return cachedMcpProtocolTools;
+        }
+    }
+
+    /**
+     * 组装 MCP tools/list 返回的工具定义。
+     *
+     * @param mcpAutopilotEnabled  true：在只读基础上追加改图/写入/跑流等写流工具
+     * @param mcpImportApisEnabled true：追加 import_apis（写入项目接口库）
+     */
+    public List<Map<String, Object>> loadMcpProtocolTools(boolean mcpAutopilotEnabled,
+                                                          boolean mcpImportApisEnabled) {
+        List<Map<String, Object>> protocolTools = new ArrayList<>(
+                mcpAutopilotEnabled ? loadMcpAutopilotProtocolToolsCached() : loadMcpProtocolTools());
+        if (mcpImportApisEnabled) {
+            appendMcpImportApisTool(protocolTools);
+        }
+        return List.copyOf(protocolTools);
+    }
+
+    /** 缓存「只读 + 全自动写」协议列表 */
+    private List<Map<String, Object>> loadMcpAutopilotProtocolToolsCached() {
         List<Map<String, Object>> local = cachedMcpAutopilotProtocolTools;
         if (local != null) {
             return local;
@@ -221,7 +262,6 @@ public class FlowDesignToolsDefinitionService {
             if (cachedMcpAutopilotProtocolTools != null) {
                 return cachedMcpAutopilotProtocolTools;
             }
-            // 以只读列表为底，再挂上写工具并标注 MCP 落盘说明（含 mcp-extra 的 create_flow）
             List<Map<String, Object>> protocolTools = new ArrayList<>(loadMcpProtocolTools());
             Set<String> existing = protocolTools.stream()
                     .map(t -> String.valueOf(t.get("name")))
@@ -250,29 +290,28 @@ public class FlowDesignToolsDefinitionService {
     }
 
     /**
-     * 返回 MCP tools/list 默认只读工具定义（协议格式：name / description / inputSchema）。
+     * 向协议工具列表追加 import_apis（已存在则跳过）。
+     * Schema 来自 MCP 扩展工具 JSON，不进入 Web 造流助手清单。
      */
-    public List<Map<String, Object>> loadMcpProtocolTools() {
-        List<Map<String, Object>> local = cachedMcpProtocolTools;
-        if (local != null) {
-            return local;
+    private void appendMcpImportApisTool(List<Map<String, Object>> protocolTools) {
+        String importId = FlowDesignToolNames.IMPORT_APIS.getId();
+        boolean already = protocolTools.stream()
+                .anyMatch(t -> importId.equals(String.valueOf(t.get("name"))));
+        if (already) {
+            return;
         }
-        synchronized (this) {
-            if (cachedMcpProtocolTools != null) {
-                return cachedMcpProtocolTools;
+        for (Map<String, Object> tool : loadMcpExtraToolsDefinition()) {
+            String name = extractFunctionName(tool);
+            if (importId.equals(name)) {
+                protocolTools.add(annotateMcpImportApisTool(toMcpProtocolTool(tool)));
+                return;
             }
-            List<Map<String, Object>> protocolTools = new ArrayList<>();
-            for (Map<String, Object> tool : loadMcpToolsDefinition()) {
-                protocolTools.add(toMcpProtocolTool(tool));
-            }
-            cachedMcpProtocolTools = List.copyOf(protocolTools);
-            return cachedMcpProtocolTools;
         }
     }
 
     /**
-     * 给 MCP 写工具 description 追加落盘说明，避免模型以为还要单独 commit。
-     * submit：成功即写库；run：跑库中最新图；其它写入：工具内直接写库。
+     * 给 MCP 写流工具 description 追加落盘说明，避免模型以为还要单独提交。
+     * submit：成功即写库；跑流：跑库中最新图；其它写入：工具内直接写库。
      */
     private static Map<String, Object> annotateMcpWriteTool(Map<String, Object> mcpTool) {
         Object nameObj = mcpTool.get("name");
@@ -292,6 +331,18 @@ public class FlowDesignToolsDefinitionService {
         return next;
     }
 
+    /**
+     * 给 import_apis 的 description 追加落盘说明：
+     * 调用成功即写入项目接口库；不会改写接口上的设计提示字段。
+     */
+    private static Map<String, Object> annotateMcpImportApisTool(Map<String, Object> mcpTool) {
+        Object descObj = mcpTool.get("description");
+        String desc = descObj instanceof String s ? s : "";
+        Map<String, Object> next = new LinkedHashMap<>(mcpTool);
+        next.put("description", (desc + " 【MCP 导入接口】成功即写入项目接口库，不覆盖接口设计提示。").trim());
+        return next;
+    }
+
     /** 内部 function 结构转为 MCP 协议格式（name / description / inputSchema） */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> toMcpProtocolTool(Map<String, Object> functionTool) {
@@ -307,7 +358,7 @@ public class FlowDesignToolsDefinitionService {
         return mcpTool;
     }
 
-    /** 加载仅 MCP 使用的扩展工具定义（如列流、读流） */
+    /** 加载仅 MCP 使用的扩展工具定义（列流、读流、新建流、导入接口等） */
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> loadMcpExtraToolsDefinition() {
         try {

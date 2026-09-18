@@ -67,7 +67,8 @@ class McpJsonRpcDispatcherTest {
     @Order(1)
     @DisplayName("initialize 返回 serverInfo 与 session")
     void dispatch_initialize_returnsServerInfoAndSession() {
-        when(mcpToolInvokeService.isMcpAutopilotEnabled(42L)).thenReturn(false);
+        when(mcpToolInvokeService.resolveMcpGates(42L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false));
         String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
 
         McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 42L);
@@ -91,7 +92,8 @@ class McpJsonRpcDispatcherTest {
     @Order(2)
     @DisplayName("initialize 全自动时 version 带 autopilot 后缀")
     void dispatch_initialize_autopilot_versionsServerInfo() {
-        when(mcpToolInvokeService.isMcpAutopilotEnabled(42L)).thenReturn(true);
+        when(mcpToolInvokeService.resolveMcpGates(42L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(true, false));
         String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
 
         McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 42L);
@@ -100,6 +102,27 @@ class McpJsonRpcDispatcherTest {
                 .getJSONObject("result").getJSONObject("serverInfo");
         assertEquals("1.0.0+autopilot", serverInfo.getString("version"));
         assertTrue(serverInfo.getBooleanValue("mcpAutopilotEnabled"));
+        assertTrue(!serverInfo.getBooleanValue("mcpImportApisEnabled"));
+    }
+
+    /**
+     * 前提：POST initialize，仅开导入接口。
+     * 期望：version 带 +importApis；mcpImportApisEnabled=true。
+     */
+    @Test
+    @Order(21)
+    @DisplayName("initialize 导入开时 version 带 importApis 后缀")
+    void dispatch_initialize_importApis_versionsServerInfo() {
+        when(mcpToolInvokeService.resolveMcpGates(42L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(false, true));
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
+
+        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 42L);
+
+        JSONObject serverInfo = JSON.parseObject(result.getResponseBody())
+                .getJSONObject("result").getJSONObject("serverInfo");
+        assertEquals("1.0.0+importApis", serverInfo.getString("version"));
+        assertTrue(serverInfo.getBooleanValue("mcpImportApisEnabled"));
     }
 
     /**
@@ -111,8 +134,9 @@ class McpJsonRpcDispatcherTest {
     @DisplayName("tools/list 返回协议工具列表")
     void dispatch_toolsList_returnsProtocolTools() {
         List<Map<String, Object>> mcpTools = List.of(Map.of("name", "list_flows"));
-        when(mcpToolInvokeService.isMcpAutopilotEnabled(1L)).thenReturn(false);
-        when(toolsDefinitionService.loadMcpProtocolTools(false)).thenReturn(mcpTools);
+        when(mcpToolInvokeService.resolveMcpGates(1L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false));
+        when(toolsDefinitionService.loadMcpProtocolTools(false, false)).thenReturn(mcpTools);
 
         String body = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}";
         McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 1L);

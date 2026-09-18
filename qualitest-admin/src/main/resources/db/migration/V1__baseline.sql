@@ -1343,6 +1343,7 @@ CREATE TABLE `test_project`
     `response_convention` json                                                         NULL COMMENT '响应约定',
     `auth_config`         json                                                         NULL COMMENT '项目鉴权配置：多套 Bearer 等',
     `mcp_autopilot_enabled` tinyint                                                    NOT NULL DEFAULT 0 COMMENT '允许MCP全自动写流（0否 1是）',
+    `mcp_import_apis_enabled` tinyint                                                  NOT NULL DEFAULT 0 COMMENT '允许MCP导入接口（0否 1是）',
     `last_api_sync_time`  datetime                                                     NULL     DEFAULT NULL COMMENT '最新API同步时间',
     `api_count`           int                                                          NOT NULL DEFAULT 0 COMMENT 'API数量',
     `owner_id`            bigint                                                       NOT NULL COMMENT '所有者ID',

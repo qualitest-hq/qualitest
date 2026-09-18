@@ -80,17 +80,26 @@ public class McpJsonRpcDispatcher {
         };
     }
 
-    /** 握手：返回协议版本、能力，以及项目 id、是否开启 MCP 全自动写流 */
+    /**
+     * 握手 initialize：返回协议版本、服务能力，以及项目 id、写流开关、导入接口开关。
+     * version 会按已开开关追加后缀（+autopilot / +importApis），便于客户端感知权限变化并刷新工具列表。
+     */
     private String handleInitialize(Object id, Long testProjectId) {
-        boolean mcpAutopilot = mcpToolInvokeService.isMcpAutopilotEnabled(testProjectId);
+        McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
         Map<String, Object> serverInfo = new LinkedHashMap<>();
         serverInfo.put("name", McpJsonRpc.SERVER_NAME);
-        // 开关变化时改 version，避免客户端按旧 version 缓存只读工具列表
-        serverInfo.put("version", mcpAutopilot
-                ? McpJsonRpc.SERVER_VERSION + "+autopilot"
-                : McpJsonRpc.SERVER_VERSION);
+        // 开关变化时改 version，避免客户端按旧 version 缓存工具列表
+        String version = McpJsonRpc.SERVER_VERSION;
+        if (gates.autopilotEnabled()) {
+            version = version + "+autopilot";
+        }
+        if (gates.importApisEnabled()) {
+            version = version + "+importApis";
+        }
+        serverInfo.put("version", version);
         serverInfo.put("testProjectId", String.valueOf(testProjectId));
-        serverInfo.put("mcpAutopilotEnabled", mcpAutopilot);
+        serverInfo.put("mcpAutopilotEnabled", gates.autopilotEnabled());
+        serverInfo.put("mcpImportApisEnabled", gates.importApisEnabled());
 
         Map<String, Object> toolsCapability = new LinkedHashMap<>();
         toolsCapability.put("listChanged", true);
@@ -101,10 +110,13 @@ public class McpJsonRpcDispatcher {
         return McpJsonRpc.result(id, result);
     }
 
-    /** 按项目开关返回工具列表：关=只读，开=只读加写工具 */
+    /**
+     * tools/list：按项目「写流」「导入接口」两个开关组装当前可见工具列表。
+     */
     private String handleToolsList(Object id, Long testProjectId) {
-        boolean mcpAutopilot = mcpToolInvokeService.isMcpAutopilotEnabled(testProjectId);
-        List<Map<String, Object>> mcpTools = toolsDefinitionService.loadMcpProtocolTools(mcpAutopilot);
+        McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
+        List<Map<String, Object>> mcpTools =
+                toolsDefinitionService.loadMcpProtocolTools(gates.autopilotEnabled(), gates.importApisEnabled());
         return McpJsonRpc.result(id, Map.of("tools", mcpTools));
     }
 

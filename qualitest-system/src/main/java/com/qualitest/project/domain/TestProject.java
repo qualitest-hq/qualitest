@@ -64,6 +64,13 @@ public class TestProject extends BaseEntity {
     private Boolean mcpAutopilotEnabled;
 
     /**
+     * 是否允许 MCP 导入接口。
+     * 开启后，持项目 Token 可调用 import_apis，向本项目接口库做方法+path 幂等写入。
+     * 默认关闭。本字段只控制导入接口，不控制改图画布与跑流。
+     */
+    private Boolean mcpImportApisEnabled;
+
+    /**
      * 新建项目时勾选的模板主键列表。
      * 仅请求入参、不落库；创建时据此写入 authConfig 并种子预制资产。
      */

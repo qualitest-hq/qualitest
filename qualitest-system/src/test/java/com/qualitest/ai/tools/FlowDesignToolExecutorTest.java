@@ -85,7 +85,8 @@ class FlowDesignToolExecutorTest {
                 normalizer,
                 new com.qualitest.ai.scenario.flow.FlowDesignPatchMerger(),
                 mock(com.qualitest.flow.validate.GraphJsonValidator.class),
-                new HttpNodeApiHealthChecker(), assetService, designHintsService, null);
+                new HttpNodeApiHealthChecker(), assetService, designHintsService, null,
+                mock(com.qualitest.api.service.IApiImportService.class));
         context = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
                 .testFlowId(3001L)

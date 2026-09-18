@@ -57,6 +57,13 @@ public class TestProjectResult implements Serializable {
     private Boolean mcpAutopilotEnabled;
 
     /**
+     * 是否允许 MCP 导入接口。
+     * 开启后，持项目 Token 可调用 import_apis 写入本项目接口库。
+     * 默认关闭。本字段只控制导入接口，不控制改图画布与跑流。
+     */
+    private Boolean mcpImportApisEnabled;
+
+    /**
      * 有 Profile 但预制 apis 全空时为 true，前端提示从项目模板添加。
      */
     private Boolean needsAuthTemplateHint;

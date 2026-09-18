@@ -22,12 +22,14 @@ import com.qualitest.ai.tools.flow.ListFlowsTool;
 import com.qualitest.ai.tools.flow.ListProjectAuthProfilesTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.ai.tools.flow.GetSubflowDetailTool;
+import com.qualitest.ai.tools.flow.ImportApisTool;
 import com.qualitest.ai.tools.flow.ListSubflowTemplatesTool;
 import com.qualitest.ai.tools.flow.RunTestFlowTool;
 import com.qualitest.ai.tools.flow.SearchApisTool;
 import com.qualitest.ai.tools.flow.SubmitFlowDesignUnitTool;
 import com.qualitest.ai.tools.flow.UpsertAssetVariablesTool;
 import com.qualitest.ai.tools.flow.UpsertAuthProfileTool;
+import com.qualitest.api.service.IApiImportService;
 import com.qualitest.flow.diagnose.HttpNodeApiHealthChecker;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.mapper.TestProjectApiMapper;
@@ -69,6 +71,8 @@ public class FlowDesignToolExecutor {
     /** 浅合并更新或新建项目鉴权 Profile */
     public static final String UPSERT_AUTH_PROFILE = FlowDesignToolNames.UPSERT_AUTH_PROFILE.getId();
     public static final String APPEND_API_DESIGN_HINTS = FlowDesignToolNames.APPEND_API_DESIGN_HINTS.getId();
+    /** MCP：结构化导入/更新项目接口库 */
+    public static final String IMPORT_APIS = FlowDesignToolNames.IMPORT_APIS.getId();
     public static final String GET_NODE_DETAIL = FlowDesignToolNames.GET_NODE_DETAIL.getId();
     public static final String GET_EDGE_DETAIL = FlowDesignToolNames.GET_EDGE_DETAIL.getId();
     public static final String GET_SCENARIO_DETAIL = FlowDesignToolNames.GET_SCENARIO_DETAIL.getId();
@@ -96,7 +100,8 @@ public class FlowDesignToolExecutor {
                                   HttpNodeApiHealthChecker httpNodeApiHealthChecker,
                                   ITestProjectAssetService testProjectAssetService,
                                   TestProjectApiDesignHintsService designHintsService,
-                                  AiChatConversationService aiChatConversationService) {
+                                  AiChatConversationService aiChatConversationService,
+                                  IApiImportService apiImportService) {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         FlowDesignUnitSubmitSupport unitSubmit = new FlowDesignUnitSubmitSupport(
                 flowDesignPatchNormalizer, aiChatConversationService, flowDesignPatchMerger);
@@ -116,6 +121,8 @@ public class FlowDesignToolExecutor {
         map.put(LIST_PROJECT_AUTH_PROFILES, new ListProjectAuthProfilesTool(testProjectMapper));
         map.put(UPSERT_AUTH_PROFILE, new UpsertAuthProfileTool(testProjectMapper));
         map.put(APPEND_API_DESIGN_HINTS, new AppendApiDesignHintsTool(testProjectApiMapper, designHintsService));
+        // MCP：结构化导入/更新项目接口库（受「允许 MCP 导入接口」开关控制）
+        map.put(IMPORT_APIS, new ImportApisTool(apiImportService, testProjectApiMapper));
         map.put(GET_NODE_DETAIL, new GetNodeDetailTool(graphResolver));
         map.put(GET_EDGE_DETAIL, new GetEdgeDetailTool(graphResolver));
         map.put(GET_SCENARIO_DETAIL, new GetScenarioDetailTool(graphResolver));

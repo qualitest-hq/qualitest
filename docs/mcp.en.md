@@ -2,7 +2,7 @@
 
 Qualitest exposes a **project-scoped MCP** service over **Streamable HTTP** so **MCP-capable AI editors / agents** (Cursor, VS Code ecosystem, Claude Code, …) can query this project’s APIs, test flows, and Run context.  
 Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + custom headers can use the same fields.  
-**Read-only by default.** Enable **“Allow MCP Full-auto write”** in Project settings to expose `create_flow`, Web Full-auto write tools (`submit_*`, upserts, `run_test_flow`); each successful `submit_*` **persists immediately**. The Token only binds project identity; read vs write is controlled by that switch.
+**Read-only by default.** Two independent Project-settings switches: **“Allow MCP Full-auto write”** (`create_flow` / `submit_*` / upserts / `run_test_flow`) and **“Allow MCP import APIs”** (`import_apis` only). The Token only binds project identity.
 
 中文版：[mcp.md](./mcp.md)
 
@@ -13,6 +13,9 @@ Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + 
 1. Sign in → open the **test project** → **Project settings**.
 2. Generate / copy the **Project Token** (refresh invalidates the old token immediately).
 3. The “Cursor MCP” card can copy a full `mcp.json` snippet; or use the template below.
+4. (Optional) Enable **“Allow MCP Full-auto write”** for graph write / run tools.
+5. (Optional) Enable **“Allow MCP import APIs”** for `import_apis` (independent of Full-auto write).
+6. After toggling, reconnect or refresh MCP if the editor still lists the old tool set.
 
 Local default backend: `http://127.0.0.1:8800`.  
 With full-stack Compose (Nginx), set `url` to the API root your browser can reach (often `http://localhost/api/project/mcp`). Prefer the snippet from Project settings.
@@ -70,6 +73,10 @@ Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary
 
 When enabled, `tools/list` also exposes `create_flow`, all `submit_*`, upserts, `append_api_design_hints`, and `run_test_flow`. Use `create_flow` when no suitable empty flow exists; graph edits still require `testFlowId`.
 
+### Import APIs (“Allow MCP import APIs” on)
+
+Exposes `import_apis`: structured `items[]` upsert by HTTP method + normalized path into the project API library; persists immediately; returns created/updated/skipped/conflicts and `testProjectApiId`. Does not overwrite API design hints. This switch does not control graph edits or runs. IDEA plugin REST import is unaffected.
+
 ---
 
 ## 4. Three sample prompts
@@ -103,7 +110,7 @@ and suggest what to change on the canvas (advice only — do not write the DB).
 ## 5. Security & limits
 
 - A Token is a project credential: keep it out of Git and screenshots; rotate in Project settings if leaked.
-- MCP is **read-only by default**; read vs write is controlled by the Full-auto switch (not by Token “scopes”). With write enabled, a Token holder can create flows, edit canvases, and run. Staging rules: [ai-staging.en.md](./ai-staging.en.md). Stuck: [faq.en.md](./faq.en.md).
+- MCP is **read-only by default**; graph write vs API import are controlled by two Project switches (not Token “scopes”). Staging rules: [ai-staging.en.md](./ai-staging.en.md). Stuck: [faq.en.md](./faq.en.md).
 - Without MCP write: Project Settings → copy **testable prompts** (incremental / full) into Cursor, then paste short prompts back into Web AI.
 - Demo target + NL flow prompts: [qualitest-demo · AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
 
@@ -116,5 +123,5 @@ and suggest what to change on the canvas (advice only — do not write the DB).
 | Cursor can’t connect | Backend up? Host/port in `url` match browser access (IDE does not use Vite proxy) |
 | 401 / no tools | Token expired or truncated? Header name exactly `X-Project-Token`? |
 | Empty / forbidden | Token belongs to the project you intend to query? |
-| Only read-only tools | Full-auto write enabled **and saved**? Reconnect / refresh MCP after saving |
+| Only read-only tools | Full-auto write and/or import APIs enabled **and saved**? Reconnect / refresh MCP after saving |
 | Stale config | After refresh Token, re-copy the full `mcp.json` snippet |

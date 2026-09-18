@@ -161,7 +161,7 @@ class FlowDesignToolsDefinitionServiceTest {
     @Order(6)
     @DisplayName("MCP 全自动列表含写工具")
     void loadMcpProtocolTools_autopilot_includesWriteTools() {
-        List<String> names = service.loadMcpProtocolTools(true).stream()
+        List<String> names = service.loadMcpProtocolTools(true, false).stream()
                 .map(tool -> String.valueOf(tool.get("name")))
                 .toList();
         Set<String> unique = Set.copyOf(names);

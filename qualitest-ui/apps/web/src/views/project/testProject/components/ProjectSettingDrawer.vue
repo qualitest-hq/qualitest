@@ -255,9 +255,9 @@
 
         <section class="project-setting__card">
           <header class="project-setting__card-head">
-            <h3 class="project-setting__card-title">MCP 全自动写流</h3>
+            <h3 class="project-setting__card-title">MCP 权限</h3>
             <p class="project-setting__card-desc">
-              Token 只绑定项目身份。开启后，持有本项目 Token 的 Cursor 等可通过 MCP 调用 create_flow、submit_*、run_test_flow 等写工具；未开启时仅只读勘察。开启并保存后若编辑器仍只列只读工具，请重连或刷新 MCP。
+              Token 只绑定项目身份。下面两个开关分别控制「改图画布与跑流」和「导入接口」，互不影响。开启并保存后若编辑器仍只看到旧工具列表，请重连或刷新 MCP。
             </p>
           </header>
 
@@ -272,7 +272,21 @@
             </el-button>
           </div>
           <p class="project-setting__hint project-setting__hint--warn">
-            默认关闭。读写不由 Token「权限」区分，而由本开关控制。开启后 Token 泄露风险放大：持有者可新建流、改图画布并跑流；请仅对可信环境开启，并可随时关闭或刷新 Token。
+            默认关闭。开启后持 Token 者可经 MCP 新建流、改图画布并跑流；请仅对可信环境开启。
+          </p>
+
+          <div class="project-setting__mcp-autopilot-row">
+            <el-switch
+                v-model="mcpImportApisEnabled"
+                active-text="允许 MCP 导入接口"
+                inactive-text="禁止导入"
+            />
+            <el-button :loading="mcpImportApisSaving" type="primary" @click="saveMcpImportApis">
+              保存
+            </el-button>
+          </div>
+          <p class="project-setting__hint project-setting__hint--warn">
+            默认关闭。开启后持 Token 者可经 MCP 调用 import_apis，按方法+path 向本项目接口库新增或更新接口。本开关不影响写流权限；IDEA 插件的 REST 导入不受本开关限制。
           </p>
         </section>
 
@@ -398,10 +412,14 @@ const {
   loadEnabledTemplates,
 } = useEnabledAuthTemplates()
 
-/** MCP 全自动写流开关（项目级：开则 Token 可经 MCP 改图并跑流） */
+/** 是否允许 MCP 全自动写流（改图、新建流、跑流等） */
 const mcpAutopilotEnabled = ref(false)
-/** 正在保存 MCP 全自动开关 */
+/** 写流开关保存中 */
 const mcpAutopilotSaving = ref(false)
+/** 是否允许 MCP 调用 import_apis 写入本项目接口库（与写流无关） */
+const mcpImportApisEnabled = ref(false)
+/** 导入接口开关保存中 */
+const mcpImportApisSaving = ref(false)
 
 const authPreview = computed(() => formatAuthConfigPreview(authForm))
 
@@ -449,13 +467,14 @@ function parseSuccessValuesText(text) {
   return values.length ? values : [200]
 }
 
-/** 打开抽屉后拉取项目详情中的响应约定与鉴权配置 */
+/** 打开抽屉后拉取项目详情：响应约定、鉴权配置、MCP 写流开关、MCP 导入接口开关 */
 function loadProjectSettings() {
   const pid = resolveProjectId()
   if (!pid) {
     applyConvention(null)
     applyAuthForm(emptyAuthForm())
     mcpAutopilotEnabled.value = false
+    mcpImportApisEnabled.value = false
     return
   }
   getTestProject(pid)
@@ -465,35 +484,57 @@ function loadProjectSettings() {
         needsAuthTemplateHint: res.data?.needsAuthTemplateHint,
       }))
       mcpAutopilotEnabled.value = !!res.data?.mcpAutopilotEnabled
+      mcpImportApisEnabled.value = !!res.data?.mcpImportApisEnabled
     })
     .catch(() => {
       applyConvention(null)
       applyAuthForm(emptyAuthForm())
       mcpAutopilotEnabled.value = false
+      mcpImportApisEnabled.value = false
     })
 }
 
-/** 保存 MCP 全自动写流开关 */
-function saveMcpAutopilot() {
+/**
+ * 保存单个 MCP 权限开关到项目。
+ * @param opts.saving 按钮 loading 状态
+ * @param opts.payload 写入 updateTestProject 的字段（如 mcpAutopilotEnabled / mcpImportApisEnabled）
+ * @param opts.onMsg 成功提示文案
+ */
+function saveMcpFlag({ saving, payload, onMsg }) {
   const pid = resolveProjectId()
   if (!pid) {
     proxy.$modal.msgError('缺少项目 ID')
     return
   }
-  mcpAutopilotSaving.value = true
-  updateTestProject({
-    testProjectId: pid,
-    mcpAutopilotEnabled: !!mcpAutopilotEnabled.value,
-  })
+  saving.value = true
+  updateTestProject({ testProjectId: pid, ...payload })
     .then(() => {
-      proxy.$modal.msgSuccess(mcpAutopilotEnabled.value ? '已允许 MCP 全自动写流' : '已关闭 MCP 全自动写流')
+      proxy.$modal.msgSuccess(onMsg)
     })
     .catch(() => {
       proxy.$modal.msgError('保存失败')
     })
     .finally(() => {
-      mcpAutopilotSaving.value = false
+      saving.value = false
     })
+}
+
+/** 保存「允许 MCP 全自动写流」开关 */
+function saveMcpAutopilot() {
+  saveMcpFlag({
+    saving: mcpAutopilotSaving,
+    payload: { mcpAutopilotEnabled: !!mcpAutopilotEnabled.value },
+    onMsg: mcpAutopilotEnabled.value ? '已允许 MCP 全自动写流' : '已关闭 MCP 全自动写流',
+  })
+}
+
+/** 保存「允许 MCP 导入接口」开关 */
+function saveMcpImportApis() {
+  saveMcpFlag({
+    saving: mcpImportApisSaving,
+    payload: { mcpImportApisEnabled: !!mcpImportApisEnabled.value },
+    onMsg: mcpImportApisEnabled.value ? '已允许 MCP 导入接口' : '已关闭 MCP 导入接口',
+  })
 }
 
 function openTemplatePicker() {

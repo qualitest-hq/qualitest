@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -29,7 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 MCP 工具调用：只读白名单、全自动开关、关开关时拒绝写工具、开开关查询、错误回执标记。
+ * 测 MCP 工具调用：只读白名单、写流开关、导入接口开关、关开关时拒绝、开开关查询、错误回执标记。
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpToolInvokeServiceTest {
@@ -187,5 +188,48 @@ class McpToolInvokeServiceTest {
         assertEquals(FlowDesignToolNames.CREATE_FLOW.getId(), result.getTool());
         assertFalse(result.isError());
         verify(testFlowService, never()).selectTestFlowResult(any());
+    }
+
+    /**
+     * 前提：项目未开「允许 MCP 导入接口」；调用 import_apis。
+     * 期望：抛 ServiceException（含导入接口提示）；不委托 Executor。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("关导入开关时 import_apis 被拒绝")
+    void invoke_importApis_rejectedWhenImportOff() {
+        McpToolInvokeParams params = new McpToolInvokeParams();
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.invoke(FlowDesignToolNames.IMPORT_APIS.getId(), params, 100L));
+        assertTrue(ex.getMessage().contains("允许 MCP 导入接口"));
+        verify(toolExecutor, never()).executeTool(anyString(), any(), any());
+    }
+
+    /**
+     * 前提：仅开导入接口；import_apis 可调且不要求 testFlowId。
+     * 期望：委托 Executor。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("开导入开关时 import_apis 可调")
+    void invoke_importApis_allowedWhenImportOn() {
+        when(testProjectService.selectTestProjectById(100L)).thenReturn(
+                TestProject.builder()
+                        .testProjectId(100L)
+                        .mcpAutopilotEnabled(false)
+                        .mcpImportApisEnabled(true)
+                        .build());
+        McpToolInvokeParams params = new McpToolInvokeParams();
+        params.setArguments(Map.of("items", List.of()));
+        FlowDesignToolContext ctx = FlowDesignToolContext.builder()
+                .testProjectId(100L)
+                .build();
+        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(false))).thenReturn(ctx);
+        when(toolExecutor.executeTool(eq(FlowDesignToolNames.IMPORT_APIS.getId()), anyString(), eq(ctx)))
+                .thenReturn("{\"ok\":true}");
+
+        McpToolResult result = service.invoke(FlowDesignToolNames.IMPORT_APIS.getId(), params, 100L);
+        assertEquals(FlowDesignToolNames.IMPORT_APIS.getId(), result.getTool());
+        assertFalse(result.isError());
     }
 }
