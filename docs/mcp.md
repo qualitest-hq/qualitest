@@ -4,8 +4,7 @@
 下文配置以 **Cursor `mcp.json`** 为例；其它客户端只要支持同协议的 HTTP MCP + 自定义 Header，即可按同等字段接入。  
 **默认只读**。项目设置开启「允许 MCP 全自动写流」后，可经 MCP 调用 `create_flow`、与 Web 全自动同名的 `submit_*` / upsert / `run_test_flow`（每次成功 `submit_*` **立即写库**）。Token 只绑定项目身份，读写由该开关控制。未开启时改画布请走 Web 端 AI 面板。
 
-English: [mcp.en.md](./mcp.en.md)  
-画布实时同步（看着 MCP 长出图）设计：[mcp-canvas-live-sync.md](./mcp-canvas-live-sync.md)
+English: [mcp.en.md](./mcp.en.md)
 
 ---
 
