@@ -64,9 +64,10 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * 前提：POST initialize，testProjectId=42，项目未开 MCP 全自动。
-     * 期望：成功响应；sessionId 非空；testProjectId=42；version 无 autopilot 后缀；
-     * tools.listChanged=true；capabilities 含 prompts/resources；serverInfo.guideVersion 非空。
+     * 前提：POST initialize，testProjectId=42，项目未开 MCP 全自动写流与导入接口。
+     * 期望：成功响应；sessionId 非空；serverInfo 含 testProjectId=42、version 无门控后缀、guideVersion 非空；
+     * capabilities 含 tools、prompts、resources；tools 对象存在且不含 listChanged
+     * （表示不主动推送工具列表变更，改开关须客户端重连）。
      */
     @Test
     @Order(1)
@@ -88,7 +89,8 @@ class McpJsonRpcDispatcherTest {
         assertNotNull(serverInfo.getString("guideVersion"));
         assertFalse(serverInfo.getString("guideVersion").isBlank());
         JSONObject capabilities = json.getJSONObject("result").getJSONObject("capabilities");
-        assertTrue(capabilities.getJSONObject("tools").getBooleanValue("listChanged"));
+        assertTrue(capabilities.containsKey("tools"));
+        assertFalse(capabilities.getJSONObject("tools").containsKey("listChanged"));
         assertTrue(capabilities.containsKey("prompts"));
         assertTrue(capabilities.containsKey("resources"));
     }

@@ -104,7 +104,9 @@ Staging **全部 ✕** 取消坏提案，或**新建一条流**重来。不要�
 
 ### Cursor / 其它 MCP 客户端改不了画布
 
-**设计如此**：MCP **只读**（查流、查失败现场等）。改图须在 Web **AI 助手** → Staging → 保存。
+**默认只读**（查流、查失败现场等）。项目设置开启并**保存**「允许 MCP 全自动写流」后，可经 MCP 调用 `submit_*` / `create_flow` / `run_test_flow` 等改图跑流；「允许 MCP 导入接口」控制 `import_apis`（不影响写流）。
+
+**改开关后必须重连或刷新 MCP**，否则编辑器常仍只见旧工具列表（服务端不主动推送工具列表变更）。未开写流时改图仍走 Web **AI 助手** → Staging → 保存。
 
 → [mcp.md](./mcp.md) · [ai-staging.md §4](./ai-staging.md)
 

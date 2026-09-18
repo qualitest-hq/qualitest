@@ -15,7 +15,7 @@ Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + 
 3. The “Cursor MCP” card can copy a full `mcp.json` snippet; or use the template below.
 4. (Optional) Enable **“Allow MCP Full-auto write”** for graph write / run tools.
 5. (Optional) Enable **“Allow MCP import APIs”** for `import_apis` (independent of Full-auto write).
-6. After toggling, reconnect or refresh MCP if the editor still lists the old tool set.
+6. After toggling either switch, **reconnect or refresh MCP** — editors often keep the old tool list (the server does not push tool-list changes).
 
 Local default backend: `http://127.0.0.1:8800`.  
 With full-stack Compose (Nginx), set `url` to the API root your browser can reach (often `http://localhost/api/project/mcp`). Prefer the snippet from Project settings.
@@ -137,5 +137,5 @@ and suggest what to change on the canvas (advice only — do not write the DB).
 | Cursor can’t connect | Backend up? Host/port in `url` match browser access (IDE does not use Vite proxy) |
 | 401 / no tools | Token expired or truncated? Header name exactly `X-Project-Token`? |
 | Empty / forbidden | Token belongs to the project you intend to query? |
-| Only read-only tools | Full-auto write and/or import APIs enabled **and saved**? Reconnect / refresh MCP after saving |
+| Only read-only tools | Full-auto write and/or import APIs enabled **and saved**? After saving you **must** reconnect / refresh MCP |
 | Stale config | After refresh Token, re-copy the full `mcp.json` snippet |

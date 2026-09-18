@@ -1,7 +1,7 @@
 # MCP 后续优化 backlog
 
 本文汇总对话中已讨论、**尚未实现**的 MCP 相关增强。  
-已落地（Prompts / Resources、`guideVersion`、本地 Skill 由 frontmatter+CORE 拼接、文档与注释等）不在此列。
+已落地（Prompts / Resources、`guideVersion`、本地 Skill 由 frontmatter+CORE 拼接、**省略 `tools.listChanged` + FAQ 纠漂**、文档与注释等）不在「待办」叙事中展开；§1.1 / §2.1 仅留简短结案。
 
 优先级按「对造流体感 / 客诉」大致排序，实施时可再拆迭代。
 
@@ -9,19 +9,12 @@
 
 ## 1. 高优先级
 
-### 1.1 真正推送 `tools/list_changed`（或诚实降级）
+### 1.1 ~~真正推送 `tools/list_changed`（或诚实降级）~~（已选降级）
 
-**现状**  
-`initialize` 里声明 `tools.listChanged: true`，但开关变更后 SSE 基本只发连接注释，客户端常仍只见旧工具列表，须人工重连。
+**结案**  
+不推送 `notifications/tools/list_changed`。`initialize` 的 `capabilities.tools` 为空对象（**不声明** `listChanged`），与 `prompts` / `resources` 一致。产品与文档写死：改写流 / 导入开关后**必须重连或刷新 MCP**。
 
-**目标**  
-二选一，不要空头支票：
-
-- **做实**：项目「允许 MCP 全自动写流 / 导入接口」变更后，向该项目相关 MCP 会话推送 `notifications/tools/list_changed`（必要时再推 prompts 若有变更）。
-- **降级**：去掉或改为 `listChanged: false`，文档写死「改开关后必须重连 MCP」。
-
-**价值**  
-减少「开了写流还是只有只读工具」类客诉。
+（曾考虑做实 SSE 推送；远程 HTTP 客户端对 GET SSE + list_changed 支持不可靠，收益不确定，故不采用。）
 
 ---
 
@@ -62,16 +55,10 @@
 
 ## 2. 中优先级
 
-### 2.1 修正 FAQ 与现网能力漂移
+### 2.1 ~~修正 FAQ 与现网能力漂移~~（已完成）
 
-**现状**  
-`faq.md` 仍写「MCP 只读、改不了画布」；与项目开关写流、`mcp.md` 矛盾。
-
-**目标**  
-FAQ 改为：默认只读；开启并保存写流 / 导入开关后可经 MCP 改图、跑流、导入；开关后若工具列表不变请重连。
-
-**价值**  
-成本低，减少误判。
+**结案**  
+`faq.md` / `faq.en.md` 已改为：默认只读；开启并保存写流 / 导入开关后可经 MCP 改图、跑流、导入；改开关后必须重连 MCP。
 
 ---
 
@@ -174,11 +161,10 @@ Project Token 只绑项目；读写靠两个项目级布尔开关，无细粒度
 
 ## 4. 建议落地顺序（参考）
 
-1. FAQ 修正（半天级）  
-2. `list_changed` 做实或降级（与客诉直接相关）  
-3. `import_apis` 可喂 OpenAPI  
-4. 批量 submit / patch  
-5. `get_flow` 默认 compact  
-6. Token / 审计 → 运维写工具 → 多实例 SSE  
+1. ~~FAQ 修正 / `listChanged` 降级~~（已完成）  
+2. `import_apis` 可喂 OpenAPI  
+3. 批量 submit / patch  
+4. `get_flow` 默认 compact  
+5. Token / 审计 → 运维写工具 → 多实例 SSE（若将来做推送再连带）  
 
 每项开工前用本文对应小节做验收清单即可。

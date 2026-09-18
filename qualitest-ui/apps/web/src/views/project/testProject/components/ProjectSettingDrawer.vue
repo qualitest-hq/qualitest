@@ -253,11 +253,12 @@
           </div>
         </section>
 
+        <!-- MCP 权限：写流 / 导入两开关只落库；保存后须用户重连或刷新 MCP，工具列表才会更新 -->
         <section class="project-setting__card">
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">MCP 权限</h3>
             <p class="project-setting__card-desc">
-              Token 只绑定项目身份。下面两个开关分别控制「改图画布与跑流」和「导入接口」，互不影响。开启并保存后若编辑器仍只看到旧工具列表，请重连或刷新 MCP。
+              Token 只绑定项目身份。下面两个开关分别控制「改图画布与跑流」和「导入接口」，互不影响。保存后请重连或刷新 MCP，否则编辑器常仍只看到旧工具列表。
             </p>
           </header>
 
@@ -412,11 +413,11 @@ const {
   loadEnabledTemplates,
 } = useEnabledAuthTemplates()
 
-/** 是否允许 MCP 全自动写流（改图、新建流、跑流等） */
+/** 是否允许 MCP 全自动写流（改图、新建流、跑流等）；保存入库后编辑器须重连 MCP 才会刷新工具列表 */
 const mcpAutopilotEnabled = ref(false)
 /** 写流开关保存中 */
 const mcpAutopilotSaving = ref(false)
-/** 是否允许 MCP 调用 import_apis 写入本项目接口库（与写流无关） */
+/** 是否允许 MCP 调用 import_apis 写入本项目接口库（与写流无关）；保存后同样须重连 MCP */
 const mcpImportApisEnabled = ref(false)
 /** 导入接口开关保存中 */
 const mcpImportApisSaving = ref(false)
@@ -467,7 +468,7 @@ function parseSuccessValuesText(text) {
   return values.length ? values : [200]
 }
 
-/** 打开抽屉后拉取项目详情：响应约定、鉴权配置、MCP 写流开关、MCP 导入接口开关 */
+/** 打开抽屉后拉取项目详情：响应约定、鉴权配置、以及当前 MCP 写流 / 导入开关（仅反映库中状态，不触发 MCP 重连） */
 function loadProjectSettings() {
   const pid = resolveProjectId()
   if (!pid) {
@@ -496,6 +497,7 @@ function loadProjectSettings() {
 
 /**
  * 保存单个 MCP 权限开关到项目。
+ * 只写库字段，不会通知已连接的 MCP 客户端刷新工具列表；保存后须由用户重连或刷新 MCP。
  * @param opts.saving 按钮 loading 状态
  * @param opts.payload 写入 updateTestProject 的字段（如 mcpAutopilotEnabled / mcpImportApisEnabled）
  * @param opts.onMsg 成功提示文案
@@ -519,7 +521,7 @@ function saveMcpFlag({ saving, payload, onMsg }) {
     })
 }
 
-/** 保存「允许 MCP 全自动写流」开关 */
+/** 保存「允许 MCP 全自动写流」开关（落库后须重连 MCP 才出现/消失写工具） */
 function saveMcpAutopilot() {
   saveMcpFlag({
     saving: mcpAutopilotSaving,
@@ -528,7 +530,7 @@ function saveMcpAutopilot() {
   })
 }
 
-/** 保存「允许 MCP 导入接口」开关 */
+/** 保存「允许 MCP 导入接口」开关（落库后须重连 MCP 才出现/消失 import_apis） */
 function saveMcpImportApis() {
   saveMcpFlag({
     saving: mcpImportApisSaving,

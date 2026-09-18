@@ -21,6 +21,8 @@ import java.util.Map;
  * MCP JSON-RPC 请求分发。
  * <p>
  * 解析 POST 体后按 method 路由到握手、工具列表/调用、规程 Prompt、规程 Resource、ping 与通知处理。
+ * initialize 声明提供 tools / prompts / resources，但不声明工具列表变更推送；
+ * 项目开关变化后须客户端重连，再通过 tools/list 拉取当前工具集。
  */
 @Service
 @RequiredArgsConstructor
@@ -83,9 +85,14 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * 处理 initialize：返回协议版本、tools/prompts/resources 能力声明，
-     * 以及项目 id、写流开关、导入接口开关、规程版本指纹。
-     * serverInfo.version 在开启写流或导入时追加 +autopilot / +importApis，便于客户端刷新工具列表。
+     * 处理 initialize：返回协议版本、能力声明与 serverInfo。
+     * <p>
+     * 能力声明含 tools、prompts、resources，表示本服务提供工具列表/调用、规程 Prompt、规程 Resource。
+     * tools 能力不携带 listChanged：服务端不会在工具集合变化时主动通知客户端；
+     * 项目写流或导入接口开关变更后，须由客户端重连或刷新 MCP，再走 tools/list 才能看到新工具集。
+     * <p>
+     * serverInfo 含项目 id、写流开关、导入接口开关、规程版本指纹；
+     * version 在开启写流或导入时追加 +autopilot / +importApis，仅作重新握手时的版本提示，不能替代重连后的 tools/list。
      *
      * @param id            请求 id
      * @param testProjectId 测试项目 id
@@ -95,7 +102,7 @@ public class McpJsonRpcDispatcher {
         McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
         Map<String, Object> serverInfo = new LinkedHashMap<>();
         serverInfo.put("name", McpJsonRpc.SERVER_NAME);
-        // 开关变化时改 version，促使客户端刷新已缓存的工具列表
+        // 开关开启时给 version 加后缀，便于重新 initialize 时识别当前门控状态
         String version = McpJsonRpc.SERVER_VERSION;
         if (gates.autopilotEnabled()) {
             version = version + "+autopilot";
@@ -109,10 +116,9 @@ public class McpJsonRpcDispatcher {
         serverInfo.put("mcpImportApisEnabled", gates.importApisEnabled());
         serverInfo.put("guideVersion", mcpPromptResourceService.guideVersion());
 
-        Map<String, Object> toolsCapability = new LinkedHashMap<>();
-        toolsCapability.put("listChanged", true);
+        // 声明三类能力均可用；tools 不带 listChanged，故不主动推送工具列表变更
         Map<String, Object> capabilities = new LinkedHashMap<>();
-        capabilities.put("tools", toolsCapability);
+        capabilities.put("tools", Map.of());
         capabilities.put("prompts", Map.of());
         capabilities.put("resources", Map.of());
 
@@ -124,7 +130,9 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * 处理 tools/list：按项目写流开关与导入接口开关组装当前可见工具定义。
+     * 处理 tools/list：按当前项目「允许 MCP 全自动写流」「允许 MCP 导入接口」开关，
+     * 组装此刻可见的工具定义（关写流则无 submit_* 等；关导入则无 import_apis）。
+     * 开关在库中已变但客户端未重连时，仍可能继续请求到旧缓存列表，须重连后再调本方法。
      *
      * @param id            请求 id
      * @param testProjectId 测试项目 id

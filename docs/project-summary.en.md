@@ -48,7 +48,7 @@ IDEA plugin upload APIs
 
 | Rule | Notes |
 | ---- | ----- |
-| **Edit graph** | Web AI → Staging → save; [ai-staging.en.md](./ai-staging.en.md); MCP **read-only** |
+| **Edit graph** | Web AI → Staging → save; [ai-staging.en.md](./ai-staging.en.md); MCP **read-only by default**, Full-auto write optional in Project settings |
 | **Staging** | ✓ commits; delete ✓ is the only confirm; empty `nodes` ≠ success |
 | **Auth** | On the **project**, not the environment — §4 |
 | **Mutating scenarios** | Load demo scenario first; optional `snapshotBefore`; restore needs SUT `/test-support` |
@@ -100,7 +100,7 @@ HTTP `snapshotBefore` → pause on failure → restore & retry / retry / skip / 
 
 Details: [ai-staging.en.md](./ai-staging.en.md) · [flow-variables-and-values.en.md](./flow-variables-and-values.en.md) · [assets.en.md](./assets.en.md) · [faq.en.md](./faq.en.md)
 
-New chat + short prompt + real api ids for long flows. Staging must clear before save counts. Semi-auto: confirm asset/auth proposals in chat. Failure paths: “expect business reject” + literals. MCP read-only (can list auth Profiles); edit graphs / write Profiles on Web.
+New chat + short prompt + real api ids for long flows. Staging must clear before save counts. Semi-auto: confirm asset/auth proposals in chat. Failure paths: “expect business reject” + literals. MCP read-only by default (can list auth Profiles); enable Full-auto write in Project settings for graph/Profile writes via MCP (reconnect after toggle).
 
 ---
 

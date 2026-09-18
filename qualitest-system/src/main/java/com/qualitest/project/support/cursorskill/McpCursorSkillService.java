@@ -11,6 +11,7 @@ import java.util.List;
  * 组装顶栏「MCP 造流 Agent 规程」弹框数据：人话用法、示例提问、各编辑器可复制规程正文。
  * <p>
  * Cursor 页内容为 YAML 头加造流硬规矩；其它编辑器页为各自抬头加造流硬规矩正文。
+ * tips 中会提示：写流开关保存后须重连或刷新 MCP，否则编辑器工具列表可能仍是只读集。
  */
 @Service
 @RequiredArgsConstructor
@@ -23,6 +24,7 @@ public class McpCursorSkillService {
 
     /**
      * 组装弹框完整载荷：怎么用、提示、示例提问、各编辑器规程列表。
+     * 提示含 Token 与写流开关说明，以及改开关后须重连 MCP 才能看到写工具。
      *
      * @return 弹框载荷
      */
@@ -33,7 +35,7 @@ public class McpCursorSkillService {
                         + "也可复制下方造流提示词，让编辑器产出短提示再贴回 Web 造流。")
                 .tips(List.of(
                         "Token 只绑定项目身份；是否出现 submit_* / create_flow / run_test_flow，由项目设置里的「允许 MCP 全自动写流」决定。",
-                        "只读勘察随时可用；要经 MCP 直接造流 / 修流 / 跑流，须先开启并保存写流开关。开启后若编辑器仍只列只读，请重连或刷新 MCP。",
+                        "只读勘察随时可用；要经 MCP 直接造流 / 修流 / 跑流，须先开启并保存写流开关。保存后请重连或刷新 MCP，否则编辑器常仍只列只读工具。",
                         "没有合适测试流时可用 create_flow 新建空画布；「单功能」= 刚改完一块；「指定范围」= 只扫某模块/包/目录；「整项目」= 整仓按模块补测。",
                         "写工具成功后已落库，不用再找 commit。"
                 ))

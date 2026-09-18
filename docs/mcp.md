@@ -17,7 +17,7 @@ English: [mcp.en.md](./mcp.en.md)
 3. 同页「Cursor MCP」卡片可一键复制完整 `mcp.json` 片段；也可按下方模板手写。
 4. （可选）开启 **「允许 MCP 全自动写流」** 并保存，才能 `create_flow` / `submit_*` / `run_test_flow`。
 5. （可选）开启 **「允许 MCP 导入接口」** 并保存，才能调用 `import_apis`（只控制导入接口，不控制改图与跑流）。
-6. 开关变更后若编辑器仍只列旧工具，请重连或刷新 MCP。
+6. 开关变更后**必须重连或刷新 MCP**，否则编辑器常仍只列旧工具列表（服务端不主动推送工具列表变更）。
 7. （可选）顶栏「MCP 造流 Agent 规程」：弹窗按编辑器切换（Cursor / Claude Code / Copilot / Windsurf / Continue / Trae / AGENTS.md），复制后保存到对应规则文件；也可在已接 MCP 的编辑器里用示例「同步/更新本地 Skill」从 Prompt 生成带 `guideVersion` 的 Cursor Skill。
 
 本地开发默认后端：`http://127.0.0.1:8800`。  
@@ -161,5 +161,5 @@ testFlowId 用 <上一步拿到的 id>。
 | Cursor 连不上 | 后端是否已起；`url` 主机/端口是否与浏览器访问一致（IDE 不走 Vite 代理） |
 | 401 / 无工具 | Token 是否过期或复制不完整；header 名是否为 `X-Project-Token` |
 | 工具报无权限 / 空列表 | Token 是否属于当前要查的那个项目 |
-| 只有只读工具 | 是否已开启并**保存**「允许 MCP 全自动写流」和/或「允许 MCP 导入接口」；保存后请重连/刷新 MCP |
+| 只有只读工具 | 是否已开启并**保存**「允许 MCP 全自动写流」和/或「允许 MCP 导入接口」；保存后**必须**重连/刷新 MCP |
 | 只有旧配置 | 刷新 Token 后须重新复制整段 `mcp.json` |
