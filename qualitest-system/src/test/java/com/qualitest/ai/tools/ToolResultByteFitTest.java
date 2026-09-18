@@ -158,6 +158,27 @@ class ToolResultByteFitTest {
         assertTrue(parsed.getJSONArray("failures").size() >= 1);
     }
 
+    /**
+     * 前提：含超长 mermaid + 节点边，上限偏紧。
+     * 期望：先去掉 mermaid；仍保留 nodes/edges 键。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("fitGraphTopology：超限先删 mermaid")
+    void fitGraphTopology_dropsMermaidFirst() {
+        JSONObject result = sampleGraph(2, 20);
+        result.put("mermaid", "flowchart TB\n  " + "n0[\"HTTP · " + "x".repeat(200) + "\"]");
+
+        String out = ToolResultByteFit.fitGraphTopology(result, 220);
+        JSONObject parsed = JSON.parseObject(out);
+
+        assertFalse(parsed.containsKey("mermaid"));
+        assertTrue(parsed.getBooleanValue("truncated"));
+        assertTrue(parsed.containsKey("nodes"));
+        assertTrue(parsed.containsKey("edges"));
+        assertTrue(out.getBytes(StandardCharsets.UTF_8).length <= 220);
+    }
+
     private static JSONObject sampleGraph(int nodeCount, int nameRepeat) {
         JSONObject result = new JSONObject();
         result.put("nodeCount", nodeCount);

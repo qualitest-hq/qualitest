@@ -53,7 +53,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 |:-----|:--------|
 | `list_flows` | List flow summaries (optional keyword) |
 | `get_flow` | Full `graphJson` (prefer the next two for browsing) |
-| `get_graph_summary` / `get_subflow_detail` | Topology / subflow structure |
+| `get_graph_summary` / `get_subflow_detail` | Topology / subflow structure; `get_graph_summary` also returns `mermaid` (flowchart body for Cursor preview) |
 | `get_flow_meta` | Scenario, seed, flowOutputs, … |
 | `get_node_detail` | Single node config |
 | `get_run_failure` | Failed Run step context |

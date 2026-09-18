@@ -19,7 +19,8 @@ import java.util.Set;
  * <p>
  * 节点数超过 FULL_NODE_LIMIT 时压缩：只保留计数，以及上下文指定的节点与相关边。
  * 另输出 startNodeCount（入度为 0 的节点数）与异常拓扑提示 topologyHint。
- * 返回前按字节上限裁剪（先减 edges，再减 nodes）。
+ * 另输出 mermaid（flowchart TB 正文）；压缩且无上下文节点时不写该字段。
+ * 返回前按字节上限裁剪（先删 mermaid，再减 edges，再减 nodes）。
  */
 public class GetGraphSummaryTool implements QualitestTool {
 
@@ -51,6 +52,7 @@ public class GetGraphSummaryTool implements QualitestTool {
             result.put("nodes", new JSONArray());
             result.put("edges", new JSONArray());
             result.put("compressed", false);
+            result.put("mermaid", FlowGraphMermaidSupport.toMermaid(graph));
             return ToolResultByteFit.fitGraphTopology(result, ctx.getMaxToolResultBytes());
         }
         int nodeCount = graph.getNodes().size();
@@ -118,6 +120,11 @@ public class GetGraphSummaryTool implements QualitestTool {
         }
         if (ctx.getContextNodeIds() != null && !ctx.getContextNodeIds().isEmpty()) {
             result.put("contextNodeIds", ctx.getContextNodeIds());
+        }
+        if (!compressed) {
+            result.put("mermaid", FlowGraphMermaidSupport.toMermaid(graph));
+        } else if (!includeNodeIds.isEmpty()) {
+            result.put("mermaid", FlowGraphMermaidSupport.toMermaid(graph, includeNodeIds));
         }
         return ToolResultByteFit.fitGraphTopology(result, ctx.getMaxToolResultBytes());
     }

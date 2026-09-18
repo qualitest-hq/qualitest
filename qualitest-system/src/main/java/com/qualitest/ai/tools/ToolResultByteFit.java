@@ -129,11 +129,15 @@ public final class ToolResultByteFit {
     }
 
     /**
-     * 适配图拓扑摘要：超限时先清空 edges，再从尾部减少 nodes；nodeCount/edgeCount 计数字段保留。
-     * 减到 1 个 node 仍超限时去掉节点 name，只留 id；不删 nodes/edges 键。
+     * 适配图拓扑摘要：超限时先删 mermaid，再清空 edges，再从尾部减少 nodes；
+     * nodeCount/edgeCount 计数字段保留。减到 1 个 node 仍超限时去掉节点 name，只留 id；不删 nodes/edges 键。
      */
     public static String fitGraphTopology(JSONObject result, int maxBytes) {
         maxBytes = effectiveMax(maxBytes);
+        if (result.containsKey("mermaid") && over(result, maxBytes)) {
+            result.remove("mermaid");
+            markTruncated(result, "结果过大，已省略 mermaid");
+        }
         JSONArray edges = result.getJSONArray("edges");
         JSONArray nodes = result.getJSONArray("nodes");
         if (edges != null && over(result, maxBytes)) {

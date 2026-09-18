@@ -57,7 +57,7 @@ MCP 侧默认 **16** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 |:-----|:-----|
 | `list_flows` | 按关键词列举本项目测试流摘要 |
 | `get_flow` | 读单条流完整 `graphJson`（浏览拓扑优先用下面两个） |
-| `get_graph_summary` / `get_subflow_detail` | 拓扑摘要、子流结构（多数勘察够用） |
+| `get_graph_summary` / `get_subflow_detail` | 拓扑摘要、子流结构；`get_graph_summary` 另含 `mermaid`（flowchart 正文，供 Cursor 预览） |
 | `get_flow_meta` | 场景、seed、flowOutputs 等元数据 |
 | `get_node_detail` | 单个节点配置 |
 | `get_run_failure` | 失败 Run 的步骤现场 |

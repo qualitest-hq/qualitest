@@ -23,6 +23,7 @@ description: >-
 - 若工具报「正在被其它端写入」：等待数秒后重试，或换一流再写。
 - 纯答疑（解释节点/字段、只要建议不改库）时：只用只读工具；不要 `submit_*` / `create_flow` / `run_test_flow`。
 - 不要输出整份 `graphJson`；拓扑用 `get_graph_summary` / `get_node_detail`。
+- 用户要看图时：把 `get_graph_summary` 返回的 `mermaid` 原样放进 ` ```mermaid ` 代码块，勿手搓图。
 - 不要编造接口 path / 测值；先 `search_apis` → `get_api_details`，测值从业务仓或素材键读取，读不到标不确定。
 - 本 Skill **不是**「可测提示词」路径：不要只汇总短提示贴回 Web；开了写权限就直接 MCP 改流。
 

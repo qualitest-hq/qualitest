@@ -73,7 +73,7 @@
     "type": "function",
     "function": {
       "name": "get_graph_summary",
-      "description": "获取测试流画布的节点与边摘要。单节点用 get_node_detail，单边用 get_edge_detail。Web 使用当前画布；MCP 可仅传 testFlowId",
+      "description": "获取测试流画布的节点与边摘要；另含 mermaid（flowchart TB 正文，便于预览拓扑）。单节点用 get_node_detail，单边用 get_edge_detail。Web 使用当前画布；MCP 可仅传 testFlowId",
       "parameters": {
         "type": "object",
         "properties": {
