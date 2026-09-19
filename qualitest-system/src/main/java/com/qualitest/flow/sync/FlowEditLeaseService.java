@@ -9,29 +9,32 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 测试流画布写锁（按 testFlowId，Redis SET NX + TTL）。
- * <p>
- * 规则：只挡写图；打开浏览不占锁。Web 脏稿可长持锁并定时心跳续期；
- * 无租约的写入（如 MCP）走短抢短释。抢锁失败抛写锁冲突异常。
+ * 测试流画布写锁。
+ * 按测试流 id 在 Redis 中 SET NX，并带 TTL。
+ * 只约束写 graph_json；打开浏览不占锁。
+ * Web 脏稿可长持锁并靠心跳续期；无客户端租约的写入（例如 MCP）短抢短释。
+ * 抢锁失败抛出写锁冲突异常。
  */
 @Service
 @RequiredArgsConstructor
 public class FlowEditLeaseService {
 
-    /** 保存请求携带的租约请求头名 */
+    /** 保存画布请求头中携带租约 token 的字段名 */
     public static final String HEADER_NAME = "X-Flow-Edit-Lease";
+    /** Redis 键前缀，后接测试流 id */
     private static final String KEY_PREFIX = "qualitest:flow:edit-lease:";
-    /** 租约存活秒数；心跳须在过期前刷新 */
+    /** 租约默认存活秒数；心跳须在过期前调用 */
     public static final int DEFAULT_TTL_SECONDS = 45;
 
     private final RedisCache redisCache;
 
     /**
      * 抢占写锁。
+     * 成功则写入 Redis 并返回新 token；已被占用则抛冲突异常。
      *
      * @param testFlowId 测试流 id
-     * @param holderId   持锁方前缀（如 web:用户名 / mcp），拼进 token 便于辨认
-     * @return 租约 token
+     * @param holderId   持锁方前缀（如 web:用户名、mcp），会拼进 token 便于辨认
+     * @return 新租约 token（持锁方前缀 + UUID）
      */
     public String tryAcquire(Long testFlowId, String holderId) {
         if (testFlowId == null) {
@@ -48,9 +51,12 @@ public class FlowEditLeaseService {
     }
 
     /**
-     * 心跳续期。仅当 Redis 中值仍等于本方 token 时延长 TTL。
+     * 心跳续期。
+     * 仅当 Redis 中当前值仍等于本方 token 时，把 TTL 重新设为默认秒数。
      *
-     * @return true=续期成功；false=token 无效或已过期
+     * @param testFlowId 测试流 id
+     * @param token      本方租约 token
+     * @return true 续期成功；false token 无效或已过期
      */
     public boolean heartbeat(Long testFlowId, String token) {
         if (!holds(testFlowId, token)) {
@@ -60,7 +66,11 @@ public class FlowEditLeaseService {
     }
 
     /**
-     * 释放写锁。仅持有方 token 匹配时删除，避免误删他端锁。
+     * 释放写锁。
+     * 仅当 Redis 中当前值等于本方 token 时删除键；不匹配则不动。
+     *
+     * @param testFlowId 测试流 id
+     * @param token      本方租约 token
      */
     public void release(Long testFlowId, String token) {
         if (!holds(testFlowId, token)) {
@@ -70,13 +80,14 @@ public class FlowEditLeaseService {
     }
 
     /**
-     * 写库前占锁。
-     * <ul>
-     *   <li>请求带有仍有效的 token → 续期，返回 heldFromClient=true（写完不要 release）</li>
-     *   <li>否则短抢一把 → heldFromClient=false（写完须在 finally release）</li>
-     * </ul>
+     * 写库前取得写锁。
+     * 若 existingToken 仍有效则续期，并标记为客户端长持锁；
+     * 否则短时抢一把新锁，写完后应由调用方释放。
      *
+     * @param testFlowId    测试流 id
+     * @param holderId      持锁方前缀
      * @param existingToken 客户端已持有的租约，可空
+     * @return 本次占用的租约句柄
      */
     public LeaseHandle beginWrite(Long testFlowId, String holderId, String existingToken) {
         if (testFlowId == null) {
@@ -91,7 +102,9 @@ public class FlowEditLeaseService {
         return new LeaseHandle(token, false);
     }
 
-    /** 判断当前 Redis 锁值是否等于给定 token */
+    /**
+     * 判断 Redis 中该流的锁值是否等于给定 token。
+     */
     private boolean holds(Long testFlowId, String token) {
         if (testFlowId == null || token == null || token.isBlank()) {
             return false;
@@ -100,6 +113,7 @@ public class FlowEditLeaseService {
         return held != null && token.equals(String.valueOf(held));
     }
 
+    /** 拼出该测试流的 Redis 写锁键 */
     private static String key(Long testFlowId) {
         return KEY_PREFIX + testFlowId;
     }
@@ -108,7 +122,8 @@ public class FlowEditLeaseService {
      * 一次写库占用的租约句柄。
      *
      * @param token          租约 token
-     * @param heldFromClient true=沿用客户端长持锁，写完勿 release；false=本次短抢，写完须 release
+     * @param heldFromClient true 表示沿用客户端长持锁，写完后不要释放；
+     *                       false 表示本次短抢，写完后应释放
      */
     public record LeaseHandle(String token, boolean heldFromClient) {
     }

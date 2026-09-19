@@ -132,7 +132,7 @@ export function useFlowGraph() {
 
     store.loading = true;
     try {
-      // 带上本地写锁 token，服务端续期而不另抢一把
+      // 请求头带上本标签写锁 token，有有效租约时服务端续期，不再另抢一把
       await updateTestFlow(
         {
           testFlowId: store.testFlowId,
@@ -140,7 +140,7 @@ export function useFlowGraph() {
           flowName: store.flowName,
           graphJson: JSON.stringify(graph),
         },
-        getFlowEditLeaseToken(),
+        getFlowEditLeaseToken(String(store.testFlowId || '')),
       );
       suppressExternalGraphSync();
       await refreshSavedBaseline(store);

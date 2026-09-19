@@ -242,8 +242,8 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 画布有未保存修改时占用写锁。
-     * 返回 token；保存请求头带上该 token 可续期而不换锁。
+     * 占用测试流写锁。
+     * 画布有未保存修改时调用；返回 token 供后续心跳与保存携带。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @PostMapping("/{testFlowId}/editLease")
@@ -257,7 +257,8 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 写锁心跳：延长 TTL，避免编辑中途锁过期被他端抢走。
+     * 写锁心跳续期。
+     * 用请求体中的 token 延长该流写锁存活时间；token 无效或已过期则报错。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @PostMapping("/{testFlowId}/editLease/heartbeat")
@@ -275,7 +276,8 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 释放写锁（保存成功变干净、离开画布、放弃本地修改时调用）。
+     * 释放测试流写锁。
+     * 保存成功、离开画布或放弃本地修改时调用；仅 token 匹配时删除租约。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @DeleteMapping("/{testFlowId}/editLease")
@@ -286,7 +288,9 @@ public class TestFlowController extends BaseController {
         return R.ok();
     }
 
-    /** 校验流存在且当前用户是项目成员，才允许操作写锁 */
+    /**
+     * 校验测试流可编辑：流存在且未删除，且当前用户是所属项目成员。
+     */
     private void assertFlowEditable(Long testFlowId) {
         TestFlowResult existing = testFlowService.selectTestFlowResult(testFlowId);
         if (existing == null || (existing.getDelStatus() != null && existing.getDelStatus() != 0)) {

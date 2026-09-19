@@ -39,6 +39,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class McpToolInvokeService {
 
+    /** 写锁冲突时写入回执的短提示文案 */
+    private static final String LEASE_CONFLICT_HINT =
+            "写锁仍被占用（可能是 Web 脏稿/其它标签或 MCP）；请稍后重试或换一流";
+
     /** 按工具名执行具体业务 */
     private final FlowDesignToolExecutor flowDesignToolExecutor;
     /** 组装本次调用的项目/流/画布上下文 */
@@ -146,13 +150,18 @@ public class McpToolInvokeService {
     }
 
     /**
-     * 写锁冲突回执：error + lockHeldBy + hint（换一流或稍后重试）。
+     * 组装写锁冲突工具回执。
+     * 含错误信息、持锁方标识与稍后重试/换一流的短提示。
+     *
+     * @param toolName 当前工具名
+     * @param e        写锁冲突异常
+     * @return 标记为错误的工具回执
      */
     private static McpToolResult leaseConflictResult(String toolName, FlowEditLeaseConflictException e) {
         JSONObject o = new JSONObject();
         o.put("error", e.getMessage());
         o.put("lockHeldBy", e.getLockHeldBy());
-        o.put("hint", "测试流正被其它端编辑，请换一流或稍后重试");
+        o.put("hint", LEASE_CONFLICT_HINT);
         return McpToolResult.builder()
                 .tool(toolName)
                 .resultJson(o.toJSONString())
@@ -304,7 +313,7 @@ public class McpToolInvokeService {
             result.put("error", "单元已接受但落盘失败: " + commit.message());
             if (commit.lockHeldBy() != null && !commit.lockHeldBy().isBlank()) {
                 result.put("lockHeldBy", commit.lockHeldBy());
-                result.put("hint", "测试流正被其它端编辑，请换一流或稍后重试");
+                result.put("hint", LEASE_CONFLICT_HINT);
             } else {
                 result.put("hint", "请根据 commit errors 修正后再 submit_*");
             }

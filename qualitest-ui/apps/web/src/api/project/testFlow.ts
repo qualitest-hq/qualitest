@@ -55,7 +55,10 @@ export function updateTestFlow(data: Partial<TestFlowRecord>, leaseToken?: strin
   });
 }
 
-/** 画布有未保存修改时占用写锁，返回 { token } */
+/**
+ * 占用测试流写锁。
+ * 画布有未保存修改时调用；成功时 data.token 为本标签租约凭证。
+ */
 export function acquireFlowEditLease(testFlowId: string | number) {
   return request({
     url: `/project/testFlow/${testFlowId}/editLease`,
@@ -64,7 +67,10 @@ export function acquireFlowEditLease(testFlowId: string | number) {
   })
 }
 
-/** 写锁心跳，延长服务端租约 TTL */
+/**
+ * 写锁心跳续期。
+ * 用已持有的 token 延长服务端租约存活时间；token 无效或已过期时失败。
+ */
 export function heartbeatFlowEditLease(testFlowId: string | number, token: string) {
   return request({
     url: `/project/testFlow/${testFlowId}/editLease/heartbeat`,
@@ -74,7 +80,10 @@ export function heartbeatFlowEditLease(testFlowId: string | number, token: strin
   })
 }
 
-/** 释放写锁 */
+/**
+ * 释放测试流写锁。
+ * 仅当 token 与服务端当前租约一致时删除；保存变干净或离开画布时调用。
+ */
 export function releaseFlowEditLease(testFlowId: string | number, token: string) {
   return request({
     url: `/project/testFlow/${testFlowId}/editLease`,

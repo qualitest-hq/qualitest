@@ -72,7 +72,8 @@
             :rows="flowSeedRows"
             @update:rows="onFlowSeedRowsChange"
         />
-        <div class="field__hint">运行选中场景时注入 flow 变量，写法如 {{flow.orderId}}</div>
+        <!-- v-pre：把 {{flow.orderId}} 当纯文案展示，不要当成模板变量求值 -->
+        <div class="field__hint" v-pre>运行选中场景时注入 flow 变量，写法如 {{flow.orderId}}</div>
       </div>
       <div class="field">
         <label>节点失败时</label>

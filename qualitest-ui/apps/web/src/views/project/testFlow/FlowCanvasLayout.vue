@@ -358,7 +358,7 @@ const {
 const authFormDirty = computed(() => !!projectSettingDrawerVisible.value)
 const assetFormDirty = computed(() => store.ui.leftTab === 'params')
 
-// 脏稿占写锁 + 心跳；干净/离页释放
+// 脏稿占用写锁并心跳续期；变干净或离开画布时释放
 useFlowEditLease({
   testFlowId: externalSyncTestFlowId,
   enabled: externalSyncEnabled,
