@@ -6,6 +6,7 @@
 
 - `run_test_flow`：若有未落盘的 submit_* 会**先自动写库**再跑；返回 status / failures
 - `upsert_asset_variables` / `upsert_auth_profile`：调用即**直接写库**（无需聊天侧确认）
+- `update_flow_meta`：浅合并改测试流名称/说明，调用即**直接写库**（不进 Staging，不动画布）
 
 **没有**独立落盘工具：落盘是隐式的（`run_test_flow` 前，或本轮结束时自动完成）。
 

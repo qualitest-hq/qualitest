@@ -89,7 +89,7 @@ class McpPromptResourceServiceTest {
 
     /**
      * 前提：仅开写流门控。
-     * 期望：含 submit / create_flow；不含 import_apis。
+     * 期望：含 submit / create_flow / update_flow_meta；不含 import_apis。
      */
     @Test
     @Order(4)
@@ -97,6 +97,7 @@ class McpPromptResourceServiceTest {
     void getPrompt_autopilotOnly() {
         String text = promptText(service.getPrompt(McpPromptResourceService.PROMPT_CORE, true, false));
         assertTrue(text.contains("create_flow"));
+        assertTrue(text.contains("update_flow_meta"));
         assertTrue(text.contains("submit_*") || text.contains("`submit_"));
         assertTrue(text.contains("run_test_flow"));
         assertFalse(text.contains("import_apis"));

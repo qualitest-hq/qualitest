@@ -16,11 +16,11 @@ public final class FlowEditLeaseConflictException extends RuntimeException {
      * @param lockHeldBy 当前持锁方标识，可空（空则记为 unknown）
      */
     public FlowEditLeaseConflictException(String lockHeldBy) {
-        String held = lockHeldBy != null && !lockHeldBy.isBlank() ? lockHeldBy : "unknown";
-        super("测试流写锁仍被占用（lockHeldBy=" + held
+        super("测试流写锁仍被占用（lockHeldBy="
+                + (lockHeldBy != null && !lockHeldBy.isBlank() ? lockHeldBy : "unknown")
                 + "）。可能是本账号其它标签页或 MCP/其它端正在写入；"
                 + "请关闭其它画布标签或约 45 秒后重试");
-        this.lockHeldBy = held;
+        this.lockHeldBy = lockHeldBy != null && !lockHeldBy.isBlank() ? lockHeldBy : "unknown";
     }
 
     /**

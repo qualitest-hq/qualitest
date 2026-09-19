@@ -166,11 +166,26 @@ class McpToolInvokeServiceTest {
     }
 
     /**
+     * 前提：项目未开 MCP 全自动；调用 update_flow_meta。
+     * 期望：抛 ServiceException；不委托 Executor。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("关开关时 update_flow_meta 被拒绝")
+    void invoke_updateFlowMeta_rejectedWhenAutopilotOff() {
+        McpToolInvokeParams params = new McpToolInvokeParams();
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.invoke(FlowDesignToolNames.UPDATE_FLOW_META.getId(), params, 100L));
+        assertTrue(ex.getMessage().contains("允许 MCP 全自动写流"));
+        verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
+    }
+
+    /**
      * 前提：项目已开 MCP 全自动；create_flow 不带 testFlowId。
      * 期望：可委托 Executor，不要求 testFlowId。
      */
     @Test
-    @Order(8)
+    @Order(9)
     @DisplayName("开开关时 create_flow 无需 testFlowId")
     void invoke_createFlow_allowedWithoutTestFlowId() {
         when(testProjectService.selectTestProjectById(100L)).thenReturn(
@@ -196,7 +211,7 @@ class McpToolInvokeServiceTest {
      * 期望：抛 ServiceException（含导入接口提示）；不委托 Executor。
      */
     @Test
-    @Order(9)
+    @Order(10)
     @DisplayName("关导入开关时 import_apis 被拒绝")
     void invoke_importApis_rejectedWhenImportOff() {
         McpToolInvokeParams params = new McpToolInvokeParams();
@@ -211,7 +226,7 @@ class McpToolInvokeServiceTest {
      * 期望：委托 Executor。
      */
     @Test
-    @Order(10)
+    @Order(11)
     @DisplayName("开导入开关时 import_apis 可调")
     void invoke_importApis_allowedWhenImportOn() {
         when(testProjectService.selectTestProjectById(100L)).thenReturn(
@@ -240,7 +255,7 @@ class McpToolInvokeServiceTest {
      * 期望：抛「Project Token 未绑定操作者」。
      */
     @Test
-    @Order(11)
+    @Order(12)
     @DisplayName("写工具缺操作者时明确报错")
     void invoke_writeTool_rejectsMissingOperator() {
         when(testProjectService.selectTestProjectById(100L)).thenReturn(

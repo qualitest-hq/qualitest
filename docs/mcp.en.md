@@ -2,7 +2,7 @@
 
 Qualitest exposes a **project-scoped MCP** service over **Streamable HTTP** so **MCP-capable AI editors / agents** (Cursor, VS Code ecosystem, Claude Code, …) can query this project’s APIs, test flows, and Run context.  
 Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + custom headers can use the same fields.  
-**Read-only by default.** Two independent Project-settings switches: **“Allow MCP Full-auto write”** (`create_flow` / `submit_*` / upserts / `run_test_flow`) and **“Allow MCP import APIs”** (`import_apis` only). The Token only binds project identity.
+**Read-only by default.** Two independent Project-settings switches: **“Allow MCP Full-auto write”** (`create_flow` / `update_flow_meta` / `submit_*` / upserts / `run_test_flow`) and **“Allow MCP import APIs”** (`import_apis` only). The Token only binds project identity.
 
 中文版：[mcp.md](./mcp.md)
 
@@ -88,7 +88,7 @@ Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary
 Do **not** hide `prompts/list`. If local Skill already has the same `guideVersion`, do not `prompts/get` the three body prompts again (avoids double token cost). Re-run sync when the server version changes (including switch-suffix changes). Navbar “copy guide” passes route `testProjectId` when available; otherwise read-only gates.
 ### Write tools (Full-auto switch on)
 
-When enabled, `tools/list` also exposes `create_flow`, all `submit_*`, upserts, `append_api_design_hints`, and `run_test_flow`. Use `create_flow` when no suitable empty flow exists; graph edits still require `testFlowId`.
+When enabled, `tools/list` also exposes `create_flow`, `update_flow_meta`, all `submit_*`, upserts, `append_api_design_hints`, and `run_test_flow`. Use `create_flow` only to create an empty flow; rename or change description with `update_flow_meta` (do not create a new flow to fake a rename). Graph edits still require `testFlowId`.
 
 ### Import APIs (“Allow MCP import APIs” on)
 

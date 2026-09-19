@@ -63,6 +63,7 @@ class FlowDesignToolsDefinitionServiceTest {
         assertTrue(names.contains(FlowDesignToolNames.GET_SCENARIO_DETAIL.getId()));
         assertTrue(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
         assertTrue(names.contains(FlowDesignToolNames.APPEND_API_DESIGN_HINTS.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.UPDATE_FLOW_META.getId()));
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW_API_HEALTH.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_ASSET_VARIABLES.getId()));
         assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
@@ -173,21 +174,23 @@ class FlowDesignToolsDefinitionServiceTest {
         assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
         assertTrue(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
         assertTrue(names.contains(FlowDesignToolNames.CREATE_FLOW.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.UPDATE_FLOW_META.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
     }
 
     /**
      * 前提：未开全自动时的 MCP 只读列表。
-     * 期望：不含 create_flow。
+     * 期望：不含 create_flow / update_flow_meta。
      */
     @Test
     @Order(7)
-    @DisplayName("只读 MCP 列表不含 create_flow")
+    @DisplayName("只读 MCP 列表不含 create_flow / update_flow_meta")
     void loadMcpProtocolTools_readonly_excludesCreateFlow() {
         List<String> names = service.loadMcpProtocolTools().stream()
                 .map(tool -> String.valueOf(tool.get("name")))
                 .toList();
         assertFalse(names.contains(FlowDesignToolNames.CREATE_FLOW.getId()));
+        assertFalse(names.contains(FlowDesignToolNames.UPDATE_FLOW_META.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
     }
 

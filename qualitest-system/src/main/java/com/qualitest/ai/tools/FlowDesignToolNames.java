@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
  * <p>
  * 每个工具两个开关：webAgent（是否进 Web 造流助手工具列表）、
  * mcpAllowed（是否默认允许 MCP 调用，一般为只读勘察工具）。
- * 改图 submit、create_flow、素材/鉴权写入、跑流等默认不进 MCP；
+ * 改图 submit、create_flow、update_flow_meta、素材/鉴权写入、跑流等默认不进 MCP；
  * 仅当项目开启「允许 MCP 全自动写流」后，由运行时追加进工具列表并可调用。
  */
 public enum FlowDesignToolNames {
@@ -64,6 +64,8 @@ public enum FlowDesignToolNames {
     GET_MCP_GUIDE_VERSION("get_mcp_guide_version", false, true),
     /** 仅 MCP：新建空画布测试流（须项目开启 MCP 全自动写流） */
     CREATE_FLOW("create_flow", false, false),
+    /** 浅合并更新测试流名称/说明并立即写库（Web + MCP；须项目开启 MCP 全自动写流才可经 MCP 调用） */
+    UPDATE_FLOW_META("update_flow_meta", true, false),
 
     /** 新增或修改单个 HTTP 节点（每次调用一个 Staging 单元） */
     SUBMIT_HTTP_NODE("submit_http_node", true, false),
@@ -149,7 +151,7 @@ public enum FlowDesignToolNames {
     /**
      * 是否为 MCP 全自动写流类工具。
      * 需项目开启「允许 MCP 全自动写流」后，才可列入 tools/list 并接受 tools/call。
-     * 包括：全部 submit_*、create_flow、素材写入、鉴权写入、追加接口设计提示、跑流。
+     * 包括：全部 submit_*、create_flow、update_flow_meta、素材写入、鉴权写入、追加接口设计提示、跑流。
      * 不包括 import_apis。
      */
     public static boolean isMcpAutopilotWriteTool(String name) {
@@ -160,6 +162,7 @@ public enum FlowDesignToolNames {
             return true;
         }
         return CREATE_FLOW.id.equals(name)
+                || UPDATE_FLOW_META.id.equals(name)
                 || UPSERT_ASSET_VARIABLES.id.equals(name)
                 || UPSERT_AUTH_PROFILE.id.equals(name)
                 || APPEND_API_DESIGN_HINTS.id.equals(name)

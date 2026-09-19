@@ -37,16 +37,22 @@ class FlowDesignToolNamesMcpGateTest {
 
     /**
      * 前提：仅开启全自动写流。
-     * 期望：submit 可调；import_apis 不可调。
+     * 期望：submit / update_flow_meta 可调；import_apis 不可调。
      */
     @Test
     @Order(2)
-    @DisplayName("仅写流开：可 submit，不可 import_apis")
+    @DisplayName("仅写流开：可 submit 与 update_flow_meta，不可 import_apis")
     void callable_autopilotOnly() {
         assertTrue(FlowDesignToolNames.isMcpCallable(
                 FlowDesignToolNames.SUBMIT_HTTP_NODE.getId(), true, false));
+        assertTrue(FlowDesignToolNames.isMcpCallable(
+                FlowDesignToolNames.UPDATE_FLOW_META.getId(), true, false));
+        assertTrue(FlowDesignToolNames.isMcpAutopilotWriteTool(
+                FlowDesignToolNames.UPDATE_FLOW_META.getId()));
         assertFalse(FlowDesignToolNames.isMcpCallable(
                 FlowDesignToolNames.IMPORT_APIS.getId(), true, false));
+        assertFalse(FlowDesignToolNames.isMcpCallable(
+                FlowDesignToolNames.UPDATE_FLOW_META.getId(), false, false));
     }
 
     /**

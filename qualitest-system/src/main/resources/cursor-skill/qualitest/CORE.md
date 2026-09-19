@@ -27,6 +27,7 @@
 - 本规程 **不是**「可测提示词」路径：不要只汇总短提示贴回 Web；开了写权限就直接 MCP 改流。
 - 若工具报写锁仍被占用（lockHeldBy）：可能是 Web 脏稿/其它标签或 MCP 占用，等待数秒后重试，或换一流再写。
 - HTTP 节点优先 `callMode=project` + `testProjectApiId`；测值从业务仓或素材键读取，读不到标不确定。
+- **改测试流名称/说明**只能用 `update_flow_meta`；禁止用 `create_flow` 新建冒充改名。
 <!-- /mcp:autopilot -->
 <!-- mcp:import -->
 - **`import_apis` 成功即写接口库**；不会改写接口上的设计提示字段（设计提示用专门的追加工具写入）。
@@ -85,7 +86,8 @@
 
 | 工具 | 要点 |
 |------|------|
-| `create_flow` | 新建空画布测试流并写库；返回 `testFlowId`；不要求已有流 id |
+| `create_flow` | 仅新建空画布测试流并写库；返回 `testFlowId`；不要求已有流 id；改名/改说明勿用本工具 |
+| `update_flow_meta` | 浅合并改名称/说明并写库；须 `testFlowId`；不动画布；`flowDescription` 空串清空 |
 | `submit_http_node` 等 `submit_*` | 每次 1 单元；成功即落盘；须 `testFlowId` |
 | `upsert_asset_variables` / `upsert_auth_profile` | 工具内直写库；不要求 `testFlowId`；约定改 `patch.responseConvention` |
 | `append_api_design_hints` | 追加接口短提示并落库 |

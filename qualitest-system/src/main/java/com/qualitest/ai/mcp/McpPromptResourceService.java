@@ -315,7 +315,7 @@ public class McpPromptResourceService {
         }
         sb.append("。在用户提到质衡 MCP、造流、修流、跑测试流");
         if (autopilotEnabled) {
-            sb.append("、submit、create_flow、run_test_flow");
+            sb.append("、submit、create_flow、update_flow_meta、run_test_flow");
         }
         if (importApisEnabled) {
             sb.append("、import_apis");

@@ -59,10 +59,11 @@ public class McpCursorSkillService {
                         + "模型会自己调工具。想改画布或跑流时，说清「用 MCP / 质衡」会更稳。"
                         + "也可复制下方造流提示词，让编辑器产出短提示再贴回 Web 造流。")
                 .tips(List.of(
-                        "Token 只绑定项目身份；是否出现 submit_* / create_flow / run_test_flow，由项目设置里的「允许 MCP 全自动写流」决定；"
+                        "Token 只绑定项目身份；是否出现 submit_* / create_flow / update_flow_meta / run_test_flow，由项目设置里的「允许 MCP 全自动写流」决定；"
                                 + "import_apis 由「允许 MCP 导入接口」决定。下方复制的规程已按当前项目开关裁剪（未选项目则为只读）。",
                         "只读勘察随时可用；要经 MCP 直接造流 / 修流 / 跑流，须先开启并保存写流开关。保存后请重连或刷新 MCP，并再 sync 本地 Skill。",
-                        "没有合适测试流时可用 create_flow 新建空画布；「单功能」= 刚改完一块；「指定范围」= 只扫某模块/包/目录；「整项目」= 整仓按模块补测。",
+                        "没有合适测试流时可用 create_flow 新建空画布；改名称或说明用 update_flow_meta，勿用新建冒充改名；"
+                                + "「单功能」= 刚改完一块；「指定范围」= 只扫某模块/包/目录；「整项目」= 整仓按模块补测。",
                         "写工具成功后已落库，不用再找 commit。"
                 ))
                 .examples(List.of(

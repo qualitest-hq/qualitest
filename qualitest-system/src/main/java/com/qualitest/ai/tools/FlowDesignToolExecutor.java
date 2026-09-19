@@ -7,6 +7,7 @@ import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.tools.flow.AppendApiDesignHintsTool;
 import com.qualitest.ai.tools.flow.CreateFlowTool;
+import com.qualitest.ai.tools.flow.UpdateFlowMetaTool;
 import com.qualitest.ai.tools.flow.FlowDesignUnitSubmitSupport;
 import com.qualitest.ai.tools.flow.FlowGraphContextResolver;
 import com.qualitest.ai.tools.flow.GetApiDetailsTool;
@@ -91,6 +92,7 @@ public class FlowDesignToolExecutor {
     /** 返回合成规程版本（指纹 + 可选写流/导入后缀） */
     public static final String GET_MCP_GUIDE_VERSION = FlowDesignToolNames.GET_MCP_GUIDE_VERSION.getId();
     public static final String CREATE_FLOW = FlowDesignToolNames.CREATE_FLOW.getId();
+    public static final String UPDATE_FLOW_META = FlowDesignToolNames.UPDATE_FLOW_META.getId();
     public static final String RUN_TEST_FLOW = FlowDesignToolNames.RUN_TEST_FLOW.getId();
 
     private final Map<String, QualitestTool> tools;
@@ -145,6 +147,7 @@ public class FlowDesignToolExecutor {
         map.put(GET_FLOW, new GetFlowTool(testFlowService));
         map.put(GET_MCP_GUIDE_VERSION, new GetMcpGuideVersionTool(mcpPromptResourceService, testProjectMapper));
         map.put(CREATE_FLOW, new CreateFlowTool(testFlowService));
+        map.put(UPDATE_FLOW_META, new UpdateFlowMetaTool(testFlowService));
         map.put(GET_GRAPH_SUMMARY, new GetGraphSummaryTool(graphResolver));
         map.put(GET_FLOW_META, new GetFlowMetaTool(graphResolver));
         map.put(LIST_PROJECT_ENVS, new ListProjectEnvsTool(testProjectEnvService));

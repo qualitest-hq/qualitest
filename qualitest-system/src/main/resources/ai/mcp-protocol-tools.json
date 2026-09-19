@@ -1185,7 +1185,7 @@
     "type": "function",
     "function": {
       "name": "create_flow",
-      "description": "MCP 专用：在当前项目新建一条空画布测试流并立即写库。返回 testFlowId，供后续 submit_* / run_test_flow 使用。须项目已开启「允许 MCP 全自动写流」 【MCP 全自动】工具内直接写库。",
+      "description": "MCP 专用：在当前项目新建一条空画布测试流并立即写库。仅用于新建；改名或改说明请用 update_flow_meta，禁止用新建冒充改名。返回 testFlowId，供后续 submit_* / run_test_flow 使用。须项目已开启「允许 MCP 全自动写流」 【MCP 全自动】工具内直接写库。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1200,6 +1200,33 @@
         },
         "required": [
           "flowName"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "update_flow_meta",
+      "description": "浅合并更新已有测试流的名称与/或说明并立即写库。不动画布、场景与环境，不改 testFlowId。改名/改说明专用；勿用 create_flow 新建冒充改名。flowDescription 传空串清空，不传则不动。须项目已开启「允许 MCP 全自动写流」 【MCP 全自动】工具内直接写库。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 ID"
+          },
+          "flowName": {
+            "type": "string",
+            "description": "新名称；省略则不改"
+          },
+          "flowDescription": {
+            "type": "string",
+            "description": "新说明；传空串清空；省略则不改"
+          }
+        },
+        "required": [
+          "testFlowId"
         ]
       }
     }

@@ -2,7 +2,7 @@
 
 质衡通过 **Streamable HTTP** 暴露项目级 MCP 服务，供 **支持 MCP 的 AI 编辑器 / Agent**（Cursor、VS Code 生态、Claude Code 等）查询本项目的接口、测试流与 Run 现场。  
 下文配置以 **Cursor `mcp.json`** 为例；其它客户端只要支持同协议的 HTTP MCP + 自定义 Header，即可按同等字段接入。  
-**默认只读**。项目设置有两道独立开关：「允许 MCP 全自动写流」（`create_flow` / `submit_*` / upsert / `run_test_flow`）与「允许 MCP 导入接口」（仅 `import_apis`）。Token 只绑定项目身份。未开启时改画布请走 Web 端 AI 面板。
+**默认只读**。项目设置有两道独立开关：「允许 MCP 全自动写流」（`create_flow` / `update_flow_meta` / `submit_*` / upsert / `run_test_flow`）与「允许 MCP 导入接口」（仅 `import_apis`）。Token 只绑定项目身份。未开启时改画布请走 Web 端 AI 面板。
 
 English: [mcp.en.md](./mcp.en.md)
 
@@ -15,7 +15,7 @@ English: [mcp.en.md](./mcp.en.md)
 1. 登录质衡 → 打开目标 **测试项目** → **项目设置**。
 2. 生成 / 复制 **Project Token**（刷新后旧 Token 立即失效）。
 3. 同页「Cursor MCP」卡片可一键复制完整 `mcp.json` 片段；也可按下方模板手写。
-4. （可选）开启 **「允许 MCP 全自动写流」** 并保存，才能 `create_flow` / `submit_*` / `run_test_flow`。
+4. （可选）开启 **「允许 MCP 全自动写流」** 并保存，才能 `create_flow` / `update_flow_meta` / `submit_*` / `run_test_flow`。
 5. （可选）开启 **「允许 MCP 导入接口」** 并保存，才能调用 `import_apis`（只控制导入接口，不控制改图与跑流）。
 6. 开关变更后**必须重连或刷新 MCP**，否则编辑器常仍只列旧工具列表（服务端不主动推送工具列表变更）。
 7. （可选）顶栏「MCP 造流 Agent 规程」：弹窗按编辑器切换（Cursor / Claude Code / Copilot / Windsurf / Continue / Trae / AGENTS.md），复制后保存到对应规则文件；也可在已接 MCP 的编辑器里用示例「同步/更新本地 Skill」从 Prompt 生成带 `guideVersion` 的 Cursor Skill。
@@ -96,9 +96,10 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 ### 3.3 MCP 全自动写工具（须「允许 MCP 全自动写流」）
 
-开启后 `tools/list` 追加：`create_flow`、全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`append_api_design_hints`、`run_test_flow`。
+开启后 `tools/list` 追加：`create_flow`、`update_flow_meta`、全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`append_api_design_hints`、`run_test_flow`。
 
 - 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。
+- 改名称/说明用 `update_flow_meta`（成功即落库，不动画布）；禁止用 `create_flow` 新建冒充改名。
 - **每次成功 `submit_*` 立即写库**；`run_test_flow` 跑库中最新图。
 - **打开对应测试流画布即可看到同步**（SSE 推送 `graphCommitted` 等；Autopilot/MCP 可带增量片段），无需手动整页刷新。若 Web 本地有未保存修改或未决 Staging，会提示「放弃本地并拉取」，不会静默覆盖。
 - 未开启时调用写工具会得到明确拒绝文案。

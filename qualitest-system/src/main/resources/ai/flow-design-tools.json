@@ -72,6 +72,33 @@
   {
     "type": "function",
     "function": {
+      "name": "update_flow_meta",
+      "description": "浅合并更新已有测试流的名称与/或说明并立即写库（成功即落盘，不进 Staging）。不动画布、场景与环境，不改 testFlowId。改名/改说明专用。flowDescription 传空串清空，不传则不动。至少传 flowName 或 flowDescription 之一。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 ID"
+          },
+          "flowName": {
+            "type": "string",
+            "description": "新名称；省略则不改"
+          },
+          "flowDescription": {
+            "type": "string",
+            "description": "新说明；传空串清空；省略则不改"
+          }
+        },
+        "required": [
+          "testFlowId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "get_graph_summary",
       "description": "获取测试流画布的节点与边摘要；另含 mermaid（flowchart TB 正文，便于预览拓扑）。单节点用 get_node_detail，单边用 get_edge_detail。Web 使用当前画布；MCP 可仅传 testFlowId",
       "parameters": {
