@@ -84,7 +84,7 @@ public class FlowDesignToolExecutor {
     public static final String GET_SUBFLOW_DETAIL = FlowDesignToolNames.GET_SUBFLOW_DETAIL.getId();
     public static final String LIST_FLOWS = FlowDesignToolNames.LIST_FLOWS.getId();
     public static final String GET_FLOW = FlowDesignToolNames.GET_FLOW.getId();
-    /** 返回造流规程版本指纹 */
+    /** 返回合成规程版本（指纹 + 可选写流/导入后缀） */
     public static final String GET_MCP_GUIDE_VERSION = FlowDesignToolNames.GET_MCP_GUIDE_VERSION.getId();
     public static final String CREATE_FLOW = FlowDesignToolNames.CREATE_FLOW.getId();
     public static final String RUN_TEST_FLOW = FlowDesignToolNames.RUN_TEST_FLOW.getId();
@@ -109,7 +109,7 @@ public class FlowDesignToolExecutor {
      * @param designHintsService           接口设计提示服务
      * @param aiChatConversationService    AI 会话服务
      * @param apiImportService             接口导入服务
-     * @param mcpPromptResourceService     造流规程与版本指纹
+     * @param mcpPromptResourceService     造流规程加载与合成版本计算
      */
     public FlowDesignToolExecutor(TestProjectApiMapper testProjectApiMapper,
                                   TestProjectMapper testProjectMapper,
@@ -137,7 +137,7 @@ public class FlowDesignToolExecutor {
         map.put(LIST_SUBFLOW_TEMPLATES, new ListSubflowTemplatesTool(testFlowService));
         map.put(GET_SUBFLOW_DETAIL, new GetSubflowDetailTool(testFlowService));
         map.put(GET_FLOW, new GetFlowTool(testFlowService));
-        map.put(GET_MCP_GUIDE_VERSION, new GetMcpGuideVersionTool(mcpPromptResourceService));
+        map.put(GET_MCP_GUIDE_VERSION, new GetMcpGuideVersionTool(mcpPromptResourceService, testProjectMapper));
         map.put(CREATE_FLOW, new CreateFlowTool(testFlowService));
         map.put(GET_GRAPH_SUMMARY, new GetGraphSummaryTool(graphResolver));
         map.put(GET_FLOW_META, new GetFlowMetaTool(graphResolver));

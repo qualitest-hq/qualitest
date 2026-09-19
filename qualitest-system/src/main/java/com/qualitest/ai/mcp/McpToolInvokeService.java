@@ -17,6 +17,7 @@ import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.sync.FlowEditLeaseConflictException;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.domain.TestProject;
+import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectService;
@@ -72,8 +73,9 @@ public class McpToolInvokeService {
     private McpToolResult invokeInner(String toolName, McpToolInvokeParams params, Long tokenProjectId) {
         // 同一次调用只查一次项目，同时读出写流与导入开关
         TestProject project = loadProject(tokenProjectId, params);
-        boolean mcpAutopilot = project != null && Boolean.TRUE.equals(project.getMcpAutopilotEnabled());
-        boolean mcpImportApis = project != null && Boolean.TRUE.equals(project.getMcpImportApisEnabled());
+        McpProjectGates gates = McpProjectGates.from(project);
+        boolean mcpAutopilot = gates.autopilotEnabled();
+        boolean mcpImportApis = gates.importApisEnabled();
         if (!FlowDesignToolNames.isMcpCallable(toolName, mcpAutopilot, mcpImportApis)) {
             if (FlowDesignToolNames.isMcpImportApisTool(toolName)) {
                 throw new ServiceException(
@@ -134,25 +136,54 @@ public class McpToolInvokeService {
     }
 
     /**
-     * 项目级 MCP 权限开关快照。
+     * 项目级 MCP 权限开关快照：是否允许全自动写流、是否允许导入接口。
      *
-     * @param autopilotEnabled  是否允许全自动写流（改图、新建流、跑流等）
-     * @param importApisEnabled 是否允许 import_apis 写入接口库
+     * @param autopilotEnabled  是否允许改图、新建流、跑流等写流工具
+     * @param importApisEnabled 是否允许 import_apis 写入项目接口库
      */
     public record McpProjectGates(boolean autopilotEnabled, boolean importApisEnabled) {
+
+        /** 两道开关都关：仅只读能力 */
+        public static final McpProjectGates READ_ONLY = new McpProjectGates(false, false);
+
+        /**
+         * 从项目实体读出两道开关；项目为空时返回只读快照。
+         *
+         * @param project 测试项目，可空
+         * @return 门控快照
+         */
+        public static McpProjectGates from(TestProject project) {
+            if (project == null) {
+                return READ_ONLY;
+            }
+            return new McpProjectGates(
+                    Boolean.TRUE.equals(project.getMcpAutopilotEnabled()),
+                    Boolean.TRUE.equals(project.getMcpImportApisEnabled()));
+        }
+
+        /**
+         * 按项目 id 查库后读出两道开关；mapper 或 id 为空时返回只读快照。
+         *
+         * @param mapper        测试项目 Mapper，可空
+         * @param testProjectId 测试项目 id，可空
+         * @return 门控快照
+         */
+        public static McpProjectGates fromProjectId(TestProjectMapper mapper, Long testProjectId) {
+            if (mapper == null || testProjectId == null) {
+                return READ_ONLY;
+            }
+            return from(mapper.selectTestProjectById(testProjectId));
+        }
     }
 
     /**
-     * 按 Token 绑定的项目 id 一次查库，返回写流与导入接口两个开关。
-     * 供 initialize、tools/list 等需要同时读双开关的入口使用，避免重复查库。
+     * 按 Token 绑定的项目 id 查库，返回写流与导入两道开关快照。
      *
      * @param tokenProjectId Token 绑定的项目 id
+     * @return 门控快照；项目不存在时为只读
      */
     public McpProjectGates resolveMcpGates(Long tokenProjectId) {
-        TestProject project = loadProject(tokenProjectId, null);
-        return new McpProjectGates(
-                project != null && Boolean.TRUE.equals(project.getMcpAutopilotEnabled()),
-                project != null && Boolean.TRUE.equals(project.getMcpImportApisEnabled()));
+        return McpProjectGates.from(loadProject(tokenProjectId, null));
     }
 
     /**

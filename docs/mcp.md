@@ -71,24 +71,28 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 | `list_asset_variables` | 项目素材库 key/字段名，不含明文 |
 | `list_project_auth_profiles` | 项目鉴权 Profile 摘要（无密钥明文） |
 | `list_subflow_templates` | 平台子流模板 |
-| `get_mcp_guide_version` | 造流规程 `guideVersion`（内容指纹）；与本地 Skill 比对是否过期 |
+| `get_mcp_guide_version` | 造流规程合成 `guideVersion`（内容指纹 + 可选 `+autopilot`/`+importApis`）；与本地 Skill 字符串全等则未过期 |
 
 典型勘察顺序：`list_flows` → 记下 `testFlowId` → `get_graph_summary` / `get_run_failure`。
 
 ### 3.2 Prompts / Resources（规程下发）
 
-握手 `initialize` 声明 `prompts` 与 `resources`；`serverInfo.guideVersion` 与 `get_mcp_guide_version` 同值。
+握手 `initialize` 声明 `prompts` 与 `resources`；`serverInfo.guideVersion` 与 `get_mcp_guide_version` 同值（均为合成串）。
+
+`guideVersion` 格式：`{CORE+SURVEY+FIX_RUN 源文指纹 12 位}[+autopilot][+importApis]`。改项目写流/导入开关后后缀会变，须重连 MCP 并再 sync Skill。
+
+`prompts/get` / `resources/read` / 本地 Skill 正文均按当前项目两道开关裁剪（关导入则无 `import_apis` 段；关写流则无 `submit_*` 等）。
 
 | Prompt | 用途 |
 |:-------|:-----|
-| `qualitest_core` | 造流 / 修流硬规矩（与 Resource `qualitest://docs/core` 同源） |
+| `qualitest_core` | 造流 / 修流硬规矩（与 Resource `qualitest://docs/core` 同源，已按开关裁剪） |
 | `qualitest_survey` | 只读勘察推荐顺序 |
-| `qualitest_fix_run` | 修失败 + 最多再修 2 轮 |
-| `qualitest_sync_local_skill` | 安装或更新 `.cursor/skills/qualitest/SKILL.md`（先比 version，一致则停止） |
+| `qualitest_fix_run` | 修失败 + 最多再修 2 轮（关写流时无写流步骤） |
+| `qualitest_sync_local_skill` | 安装或更新 `.cursor/skills/qualitest/SKILL.md`（先比合成 guideVersion，全等则停止） |
 
 - **不关闭** `prompts/list`：目录始终可见，以便服务端规程变更后再次 sync。
 - 本地 Skill 已带相同 `guideVersion` 时：日常只用 Skill，勿再 `prompts/get` 三条正文（防叠灌）。
-- 顶栏「复制 SKILL」仍可用；与 Prompt 通道并列，内容同源 CORE。
+- 顶栏「复制规程」可带当前路由 `testProjectId` 按项目开关裁剪；未进入项目时为只读门控。
 
 ### 3.3 MCP 全自动写工具（须「允许 MCP 全自动写流」）
 
@@ -136,10 +140,10 @@ testFlowId 用 <上一步拿到的 id>。
 
 ```text
 用质衡 MCP 执行 qualitest_sync_local_skill（安装或更新本地 Skill）：
-1. 先 get_mcp_guide_version，记下服务端 guideVersion。
-2. 若业务仓已有 .cursor/skills/qualitest/SKILL.md 且文内 guideVersion 与服务端一致：停止；勿再 get 正文。
-3. 否则 prompts/get qualitest_core；写入 SKILL.md = Cursor frontmatter（含 guideVersion）+ CORE 正文。
-4. 之后日常造流只靠本地 Skill；仅当 version 不一致或我明确要求更新时再跑本流程。
+1. 先 get_mcp_guide_version，记下服务端 guideVersion（合成串：指纹[+autopilot][+importApis]）。
+2. 若业务仓已有 .cursor/skills/qualitest/SKILL.md 且文内 guideVersion 与服务端字符串全等：停止；勿再 get 正文。
+3. 否则 prompts/get qualitest_core（正文已按当前开关裁剪）；写入 SKILL.md = Cursor frontmatter（含 guideVersion）+ CORE 正文。
+4. 之后日常造流只靠本地 Skill；仅当 version 不一致（含改开关导致后缀变化）或我明确要求更新时再跑本流程。改开关后须先重连 MCP 再 sync。
 ```
 
 ---

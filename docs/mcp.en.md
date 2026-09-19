@@ -66,23 +66,26 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `list_asset_variables` | Project asset variable keys/fields (no plaintext values); **writes via Web AI `upsert_asset_variables` (Semi-auto: confirm; Full-auto: immediate)** |
 | `list_project_auth_profiles` | Project auth Profile summaries (pathPrefix, managed header, credential target; no secrets); **writes via Web AI `upsert_auth_profile` (Semi-auto confirm / Full-auto in-tool)** |
 | `list_subflow_templates` | Platform subflow templates |
-| `get_mcp_guide_version` | Guide content fingerprint; compare with local Skill `guideVersion` |
+| `get_mcp_guide_version` | Composite `guideVersion` (content fingerprint + optional `+autopilot`/`+importApis`); exact string match vs local Skill |
 
 Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary` / `get_run_failure`.
 
 ### Prompts / Resources
 
-`initialize` advertises `prompts` and `resources`; `serverInfo.guideVersion` matches `get_mcp_guide_version`.
+`initialize` advertises `prompts` and `resources`; `serverInfo.guideVersion` matches `get_mcp_guide_version` (both composite).
+
+`guideVersion` format: `{12-hex fingerprint of CORE+SURVEY+FIX_RUN source}[+autopilot][+importApis]`. Toggling project write/import switches changes the suffix — reconnect MCP and re-sync Skill.
+
+`prompts/get`, `resources/read`, and Skill body are gated by the two project switches (no `import_apis` section when import is off; no `submit_*` when write is off).
 
 | Prompt | Purpose |
 |:-------|:--------|
-| `qualitest_core` | Core flow-design rules (same text as resource `qualitest://docs/core`) |
+| `qualitest_core` | Core flow-design rules (same as resource `qualitest://docs/core`, gated) |
 | `qualitest_survey` | Read-only survey order |
-| `qualitest_fix_run` | Fix failed run (max 2 repair rounds) |
-| `qualitest_sync_local_skill` | Install/update `.cursor/skills/qualitest/SKILL.md` (skip if `guideVersion` matches) |
+| `qualitest_fix_run` | Fix failed run (max 2 repair rounds; empty write steps when write is off) |
+| `qualitest_sync_local_skill` | Install/update `.cursor/skills/qualitest/SKILL.md` (skip if composite `guideVersion` matches exactly) |
 
-Do **not** hide `prompts/list`. If local Skill already has the same `guideVersion`, do not `prompts/get` the three body prompts again (avoids double token cost). Re-run sync when the server version changes.
-
+Do **not** hide `prompts/list`. If local Skill already has the same `guideVersion`, do not `prompts/get` the three body prompts again (avoids double token cost). Re-run sync when the server version changes (including switch-suffix changes). Navbar “copy guide” passes route `testProjectId` when available; otherwise read-only gates.
 ### Write tools (Full-auto switch on)
 
 When enabled, `tools/list` also exposes `create_flow`, all `submit_*`, upserts, `append_api_design_hints`, and `run_test_flow`. Use `create_flow` when no suitable empty flow exists; graph edits still require `testFlowId`.

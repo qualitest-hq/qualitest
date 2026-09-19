@@ -17,18 +17,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 MCP 造流规程加载：人话用法、各编辑器独立 Tab、共用造流硬规矩。
- * 边界：读 classpath 资源；不启 Spring。
+ * 测 MCP 造流规程加载：人话用法、各编辑器独立 Tab、按门控裁剪。
+ * 边界：读 classpath 资源；不启 Spring；mapper 传 null。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=McpCursorSkillServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpCursorSkillServiceTest {
 
     private final McpCursorSkillService service =
-            new McpCursorSkillService(new TestablePromptService(), new McpPromptResourceService());
+            new McpCursorSkillService(new TestablePromptService(), new McpPromptResourceService(), null);
 
     /**
-     * 前提：加载弹框完整载荷。
+     * 前提：加载弹框完整载荷（默认只读）。
      * 期望：含人话说明；示例为列出测试流 + 新建空流 + 同步 Skill + 单功能 + 指定范围 + 整项目。
      */
     @Test
@@ -58,13 +58,13 @@ class McpCursorSkillServiceTest {
     }
 
     /**
-     * 前提：加载各编辑器规程。
-     * 期望：7 个独立 Tab；Cursor 为完整 SKILL；其它含共用写流规矩。
+     * 前提：默认只读门控加载各编辑器规程。
+     * 期望：7 个 Tab；Cursor Skill 无 import_apis / 写流工具段。
      */
     @Test
     @Order(2)
-    @DisplayName("规程按编辑器拆分为独立项")
-    void loadGuides_splitByEditor() {
+    @DisplayName("默认只读规程无写流与导入")
+    void loadGuides_readonlyByDefault() {
         List<McpAgentGuide> guides = service.loadGuides();
         Set<String> ids = guides.stream().map(McpAgentGuide::getId).collect(Collectors.toSet());
         assertTrue(ids.containsAll(Set.of(
@@ -75,9 +75,8 @@ class McpCursorSkillServiceTest {
         assertEquals("cursor", cursor.getId());
         assertTrue(cursor.getContent().contains("name: qualitest"));
         assertTrue(cursor.getContent().contains("guideVersion:"));
-        assertTrue(cursor.getContent().contains("submit_*"));
-        assertTrue(cursor.getContent().contains("已立即写库")
-                || cursor.getContent().contains("立即写库"));
+        assertFalse(cursor.getContent().contains("import_apis"));
+        assertFalse(cursor.getContent().contains("create_flow"));
         assertTrue(cursor.getIntro().contains("自然语言") || cursor.getSteps().stream()
                 .anyMatch(s -> s.contains("自然语言")));
 
@@ -87,8 +86,22 @@ class McpCursorSkillServiceTest {
                 .orElseThrow();
         assertEquals("CLAUDE.md", claude.getSaveHint());
         assertTrue(claude.getContent().contains("Claude Code"));
-        assertTrue(claude.getContent().contains("run_test_flow"));
-        assertTrue(claude.getContent().contains("立即写库")
-                || claude.getContent().contains("已立即写库"));
+        assertFalse(claude.getContent().contains("run_test_flow"));
+    }
+
+    /**
+     * 前提：两道门控都开。
+     * 期望：规程含 import_apis 与写流工具。
+     */
+    @Test
+    @Order(3)
+    @DisplayName("门控全开规程含写流与导入")
+    void loadGuides_bothGatesEnabled() {
+        McpAgentGuide cursor = service.loadGuides(true, true).get(0);
+        assertTrue(cursor.getContent().contains("import_apis"));
+        assertTrue(cursor.getContent().contains("create_flow"));
+        assertTrue(cursor.getContent().contains("submit_*") || cursor.getContent().contains("`submit_"));
+        assertTrue(cursor.getContent().contains("guideVersion: "
+                + new McpPromptResourceService().guideVersion(true, true)));
     }
 }

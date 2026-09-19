@@ -86,8 +86,9 @@ class McpJsonRpcDispatcherTest {
         JSONObject serverInfo = json.getJSONObject("result").getJSONObject("serverInfo");
         assertEquals("42", serverInfo.getString("testProjectId"));
         assertEquals("1.0.0", serverInfo.getString("version"));
-        assertNotNull(serverInfo.getString("guideVersion"));
-        assertFalse(serverInfo.getString("guideVersion").isBlank());
+        assertEquals(mcpPromptResourceService.guideVersion(false, false),
+                serverInfo.getString("guideVersion"));
+        assertFalse(serverInfo.getString("guideVersion").contains("+"));
         JSONObject capabilities = json.getJSONObject("result").getJSONObject("capabilities");
         assertTrue(capabilities.containsKey("tools"));
         assertFalse(capabilities.getJSONObject("tools").containsKey("listChanged"));
@@ -112,13 +113,16 @@ class McpJsonRpcDispatcherTest {
         JSONObject serverInfo = JSON.parseObject(result.getResponseBody())
                 .getJSONObject("result").getJSONObject("serverInfo");
         assertEquals("1.0.0+autopilot", serverInfo.getString("version"));
+        assertEquals(mcpPromptResourceService.guideVersion(true, false),
+                serverInfo.getString("guideVersion"));
+        assertTrue(serverInfo.getString("guideVersion").endsWith("+autopilot"));
         assertTrue(serverInfo.getBooleanValue("mcpAutopilotEnabled"));
         assertTrue(!serverInfo.getBooleanValue("mcpImportApisEnabled"));
     }
 
     /**
      * 前提：POST initialize，仅开导入接口。
-     * 期望：version 带 +importApis；mcpImportApisEnabled=true。
+     * 期望：version 带 +importApis；guideVersion 带同款后缀；mcpImportApisEnabled=true。
      */
     @Test
     @Order(21)
@@ -133,6 +137,9 @@ class McpJsonRpcDispatcherTest {
         JSONObject serverInfo = JSON.parseObject(result.getResponseBody())
                 .getJSONObject("result").getJSONObject("serverInfo");
         assertEquals("1.0.0+importApis", serverInfo.getString("version"));
+        assertEquals(mcpPromptResourceService.guideVersion(false, true),
+                serverInfo.getString("guideVersion"));
+        assertTrue(serverInfo.getString("guideVersion").endsWith("+importApis"));
         assertTrue(serverInfo.getBooleanValue("mcpImportApisEnabled"));
     }
 
@@ -280,13 +287,15 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * 前提：prompts/get qualitest_core。
-     * 期望：messages 含立即写库关键句。
+     * 前提：prompts/get qualitest_core；项目只读门控。
+     * 期望：messages 含 tools/list 规矩；无 import_apis / 立即写库写流段。
      */
     @Test
     @Order(10)
-    @DisplayName("prompts/get core 返回硬规矩正文")
+    @DisplayName("prompts/get core 只读裁剪")
     void dispatch_promptsGet_core_returnsGuideBody() {
+        when(mcpToolInvokeService.resolveMcpGates(1L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false));
         String body = """
                 {"jsonrpc":"2.0","id":9,"method":"prompts/get","params":{"name":"qualitest_core"}}
                 """;
@@ -295,8 +304,31 @@ class McpJsonRpcDispatcherTest {
         JSONObject json = JSON.parseObject(result.getResponseBody());
         String text = json.getJSONObject("result").getJSONArray("messages")
                 .getJSONObject(0).getJSONObject("content").getString("text");
-        assertTrue(text.contains("已立即写库") || text.contains("立即写库"));
         assertTrue(text.contains("guideVersion"));
+        assertTrue(text.contains("tools/list"));
+        assertFalse(text.contains("import_apis"));
+        assertFalse(text.contains("已立即写库") || text.contains("立即写库"));
+    }
+
+    /**
+     * 前提：prompts/get qualitest_core；写流与导入均开。
+     * 期望：含立即写库与 import_apis。
+     */
+    @Test
+    @Order(101)
+    @DisplayName("prompts/get core 门控全开")
+    void dispatch_promptsGet_core_bothGates() {
+        when(mcpToolInvokeService.resolveMcpGates(1L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(true, true));
+        String body = """
+                {"jsonrpc":"2.0","id":91,"method":"prompts/get","params":{"name":"qualitest_core"}}
+                """;
+        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 1L);
+        String text = JSON.parseObject(result.getResponseBody())
+                .getJSONObject("result").getJSONArray("messages")
+                .getJSONObject(0).getJSONObject("content").getString("text");
+        assertTrue(text.contains("已立即写库") || text.contains("立即写库"));
+        assertTrue(text.contains("import_apis"));
     }
 
     /**
@@ -307,6 +339,8 @@ class McpJsonRpcDispatcherTest {
     @Order(11)
     @DisplayName("prompts/get 未知名返回 -32602")
     void dispatch_promptsGet_unknown_returnsInvalidParams() {
+        when(mcpToolInvokeService.resolveMcpGates(1L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false));
         String body = """
                 {"jsonrpc":"2.0","id":10,"method":"prompts/get","params":{"name":"no_such_prompt"}}
                 """;
@@ -317,13 +351,15 @@ class McpJsonRpcDispatcherTest {
     }
 
     /**
-     * 前提：resources/list 与 resources/read。
-     * 期望：list 含 qualitest://docs/core；read 正文含造流硬规矩。
+     * 前提：resources/list 与 resources/read（只读门控）。
+     * 期望：list 含 qualitest://docs/core；read 正文无写流段。
      */
     @Test
     @Order(12)
     @DisplayName("resources list/read 返回 CORE 规程")
     void dispatch_resources_listAndRead_returnCore() {
+        when(mcpToolInvokeService.resolveMcpGates(1L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false));
         McpJsonRpcDispatcher.DispatchResult listResult = dispatcher.dispatch(
                 "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"resources/list\",\"params\":{}}", 1L);
         JSONObject listJson = JSON.parseObject(listResult.getResponseBody());
@@ -338,6 +374,8 @@ class McpJsonRpcDispatcherTest {
         String text = JSON.parseObject(readResult.getResponseBody())
                 .getJSONObject("result").getJSONArray("contents")
                 .getJSONObject(0).getString("text");
-        assertTrue(text.contains("run_test_flow"));
+        assertTrue(text.contains("guideVersion"));
+        assertFalse(text.contains("import_apis"));
+        assertFalse(text.contains("run_test_flow"));
     }
 }

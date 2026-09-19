@@ -1,8 +1,8 @@
 # MCP 后续优化 backlog
 
 本文汇总对话中已讨论、**尚未实现**的 MCP 相关增强。  
-已落地（Prompts / Resources、`guideVersion`、本地 Skill 由 frontmatter+CORE 拼接、**省略 `tools.listChanged` + FAQ 纠漂**、文档与注释等）不在「待办」叙事中展开；§1.1 / §2.1 仅留简短结案；§1.2（`submit_batch`）、§3.0（可喂 OpenAPI）已标暂缓。  
-待办里较稳的下一刀：§2.2 `get_flow` compact。§1.3：**last-wins 是真缺口**（有空或复现后修）；「闪」仍是猜测。
+已落地（Prompts / Resources、`guideVersion`、本地 Skill 由 frontmatter+CORE 拼接、**省略 `tools.listChanged` + FAQ 纠漂**、**画布 SSE last-wins 逐帧串行**、文档与注释等）不在「待办」叙事中展开；§1.1 / §1.3（last-wins）/ §2.1 仅留简短结案；§1.2（`submit_batch`）、§3.0（可喂 OpenAPI）已标暂缓。  
+待办里较稳的下一刀：§2.2 `get_flow` compact。§1.3「减闪」仍是猜测、未排期。
 
 优先级按「对造流体感 / 客诉」大致排序，实施时可再拆迭代。
 
@@ -32,51 +32,20 @@ Web 全自动同回合已可回合末一次 commit；MCP 每 call 独立 HTTP—
 受限多单元一次落盘（typed `submit_batch` 或一批 `nodes+edges`）；成功即写库；处理好 Web 脏稿 / Staging / 写锁。
 
 **相关**  
-画布同步见 **§1.3**（last-wins 真缺口；与 `submit_batch` 解耦）。
+画布同步见 **§1.3**（last-wins 已结案；与 `submit_batch` 解耦）。
 
 ---
 
-### 1.3 画布 SSE：last-wins 丢增量（真缺口）与减闪（猜测）
+### 1.3 ~~画布 SSE：last-wins 丢增量~~（已修）与减闪（猜测，未排期）
 
-**先分清两件事**
+**结案（last-wins）**  
+已去掉图变更 500ms 防抖覆盖。`useExternalGraphSync` 对 `graphCommitted` 改为**队列串行**：来一帧 `await applyGraphFromServer` 一帧（有 patch 走增量 merge，无则 `loadFlow`），不再 last-wins 丢中间帧。未做跨帧 patch 合并、未做多帧整图兜底。后端仍每次写库立刻 SSE。
 
-| | last-wins 丢增量 | 观感闪 |
-|:--|:-----------------|:-------|
-| 是否真实 | **代码路径上是真的** | 猜测，未复现 |
-| 何时踩 | 同一条流 **&lt;≈500ms 内** 连到 ≥2 次 `graphCommitted`，且每帧只带本单元 patch | 连写时多次 toast/高亮/灌图 |
-| 后果 | 画布可能缺中间节点/边（库是全的） | 看着抖 |
-| 咋整 | 见下「整法」 | 未证实前可不排期 |
-
-现网已有 500ms 防抖；MCP tool 间隔常 &gt;500ms 时，last-wins **也可能很少踩到**——但一旦同窗口多帧，现逻辑就会丢，这是确定的实现缺陷，不是产品想象。
-
-**真缺口整法（只动前端，推荐）**
-
-问题出在 `scheduleGraph`：窗口内 `lastGraphEvent = event` **覆盖**，到期只 apply 最后一帧。
-
-改法：
-
-1. 窗口内改成 **数组缓冲**（或按 id 累加 patch），不要覆盖。  
-2. 到期 **一次** apply：  
-   - 1 帧 → 现逻辑（有 patch 增量 / 无则 `loadFlow`）。  
-   - ≥2 帧 → 按 id **合并**各帧 `nodePatches` / `edgePatches` / `deleted*` → 一次 `mergeExternalGraphPatches`；失败或全无 patch → `loadFlow`。  
-3. toast / 高亮顺带合成一次即可（减闪是附带，不是开工前提）。  
-4. **1 帧仍到期就推**，不必等第二帧；后端仍每次写库立刻 SSE。  
-5. 脏稿 / Staging 不覆盖、MCP 成功即写库 —— 都不动。
-
-更偷懒但正确的变体：窗口内曾 ≥2 帧则到期只 `loadFlow` 一次（不丢图，但没用上增量）。正式更干净的是跨帧合并增量。
-
-**勿改坏**  
-增量优先、失败回退整图、冲突条幅、非整页 F5。
-
-**何时做**  
-- 改 `useExternalGraphSync` 时顺手修 last-wins，或自测用短间隔连写打出缺节点后再修。  
-- **不要**等「闪」被证实才修 last-wins；也 **不必**为未证实的闪单独开大迭代。
-
-**复现（验证缺口）**  
-打开画布 + MCP 写流；若能让两次 `graphCommitted` 落在 500ms 内且带不同节点 patch，看画布是否只出现最后一批节点。能复现 = 必修；复现不了 = 仍建议有空修掉 last-wins（防御性），优先级低于 §2.2。
+**减闪（猜测，未证实）**  
+连写时多次 toast / 高亮 / 灌图是否「闪」、怎么收，未复现、方案未定——**不要**与 last-wins 绑死，未证实前可不排期。
 
 **关键文件**  
-`qualitest-ui/.../useExternalGraphSync.ts`（`scheduleGraph`）、`mergeExternalGraphPatches.ts`。
+`qualitest-ui/.../useExternalGraphSync.ts`（`enqueueGraph` / `pumpGraphQueue`）、`mergeExternalGraphPatches.ts`。
 
 ---
 
@@ -200,7 +169,7 @@ Project Token 只绑项目；读写靠两个项目级布尔开关，无细粒度
 
 1. ~~FAQ 修正 / `listChanged` 降级~~（已完成）  
 2. `get_flow` 默认 compact（§2.2）  
-3. 修 last-wins 丢增量（§1.3）——小改前端防抖缓冲；勿和「减闪猜测」绑死
+3. ~~修 last-wins 丢增量（§1.3）~~（已完成：逐帧串行 apply；减闪仍猜测未排期）  
 4. Token / 审计 → 运维写工具 → 多实例 SSE（若将来做推送再连带）  
 5. ~~`import_apis` 可喂 OpenAPI~~（暂缓，见 §3.0）  
 6. ~~批量 submit / patch~~（暂缓，见 §1.2；勿与 §1.3 混为一谈）

@@ -41,7 +41,7 @@
     "type": "function",
     "function": {
       "name": "get_mcp_guide_version",
-      "description": "MCP 专用：返回当前造流规程 guideVersion（CORE/SURVEY/FIX_RUN 内容指纹）。用于判断业务仓 .cursor/skills/qualitest/SKILL.md 是否过期；未过期则勿再 prompts/get 规程正文。无需参数。",
+      "description": "MCP 专用：返回当前造流规程 guideVersion（合成串：CORE/SURVEY/FIX_RUN 内容指纹 + 可选 +autopilot/+importApis，与当前项目写流/导入开关一致）。用于判断业务仓 .cursor/skills/qualitest/SKILL.md 是否过期；字符串全等则勿再 prompts/get 规程正文。无需参数。",
       "parameters": {
         "type": "object",
         "properties": {},

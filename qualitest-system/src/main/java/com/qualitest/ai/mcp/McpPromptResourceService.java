@@ -11,12 +11,14 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
- * 加载并组装 MCP 造流规程：Prompt 列表与正文、Resource 正文、Cursor Skill 全文，以及规程版本指纹。
+ * MCP 造流规程加载与组装。
  * <p>
- * 造流硬规矩正文来自 classpath 的 CORE.md；勘察 / 修失败 / 同步 Skill 另有短文；
- * Cursor Skill 由 YAML 头 + 版本指纹 + CORE 正文拼接而成。
+ * 从 classpath 读取造流硬规矩、勘察短文、修失败短文、同步 Skill 说明与 Cursor Skill YAML 头；
+ * 按项目「允许 MCP 全自动写流」「允许 MCP 导入接口」两道开关裁剪正文；
+ * 计算规程源文指纹，并拼出带门控后缀的 guideVersion，供 Prompt / Resource / 本地 Skill 使用。
  */
 @Service
 public class McpPromptResourceService {
@@ -33,56 +35,132 @@ public class McpPromptResourceService {
     /** Resource 地址：造流硬规矩 Markdown */
     public static final String RESOURCE_CORE_URI = "qualitest://docs/core";
 
-    /** classpath：造流硬规矩 */
+    /** guideVersion / 握手 version 在开启写流时追加的后缀 */
+    public static final String SUFFIX_AUTOPILOT = "+autopilot";
+    /** guideVersion / 握手 version 在开启导入接口时追加的后缀 */
+    public static final String SUFFIX_IMPORT_APIS = "+importApis";
+
+    /** classpath 路径：造流硬规矩 */
     private static final String CORE_PATH = "cursor-skill/qualitest/CORE.md";
-    /** classpath：只读勘察短文 */
+    /** classpath 路径：只读勘察短文 */
     private static final String SURVEY_PATH = "cursor-skill/qualitest/SURVEY.md";
-    /** classpath：修失败短文 */
+    /** classpath 路径：修失败短文 */
     private static final String FIX_RUN_PATH = "cursor-skill/qualitest/FIX_RUN.md";
-    /** classpath：同步本地 Skill 操作说明 */
+    /** classpath 路径：同步本地 Skill 操作说明 */
     private static final String SYNC_PATH = "cursor-skill/qualitest/SYNC_LOCAL_SKILL.md";
-    /** classpath：Cursor Skill 的 YAML 头（不含规程正文） */
+    /** classpath 路径：Cursor Skill 的 YAML 头（不含规程正文） */
     private static final String SKILL_FRONTMATTER_PATH = "cursor-skill/qualitest/SKILL.md";
 
-    /** Prompt 说明：造流硬规矩 */
+    /** 匹配写流门控块；关写流时整段（含起止标记）删除 */
+    private static final Pattern GATE_AUTOPILOT = Pattern.compile(
+            "(?s)<!--\\s*mcp:autopilot\\s*-->.*?<!--\\s*/mcp:autopilot\\s*-->\\R?");
+    /** 匹配导入门控块；关导入时整段（含起止标记）删除 */
+    private static final Pattern GATE_IMPORT = Pattern.compile(
+            "(?s)<!--\\s*mcp:import\\s*-->.*?<!--\\s*/mcp:import\\s*-->\\R?");
+    /** 匹配门控起止标记行；对应开关开启时只删标记、保留中间正文 */
+    private static final Pattern GATE_MARKERS = Pattern.compile(
+            "(?m)^\\s*<!--\\s*/?mcp:(?:autopilot|import)\\s*-->\\s*\\R?");
+
+    /** prompts/list 中造流硬规矩的说明文字 */
     private static final String DESC_CORE =
             "质衡造流/修流硬规矩。业务仓本地 Skill 未过期时勿再获取本 Prompt。";
-    /** Prompt 说明：只读勘察 */
+    /** prompts/list 中只读勘察的说明文字 */
     private static final String DESC_SURVEY =
             "只读勘察推荐顺序。业务仓本地 Skill 未过期时勿再获取本 Prompt。";
-    /** Prompt 说明：修失败 */
+    /** prompts/list 中修失败的说明文字 */
     private static final String DESC_FIX_RUN =
             "修失败与跑通步骤（失败后再修最多 2 轮）。业务仓本地 Skill 未过期时勿再获取本 Prompt。";
-    /** Prompt 说明：同步本地 Skill */
+    /** prompts/list 中同步本地 Skill 的说明文字 */
     private static final String DESC_SYNC =
             "安装或更新业务仓 .cursor/skills/qualitest/SKILL.md；先查规程版本，未过期则停止。";
 
-    /** 已计算的规程版本指纹；未加载时为 null */
-    private volatile String cachedGuideVersion;
-    /** 已加载的造流硬规矩正文 */
+    /** 规程源文指纹（裁剪前 CORE+SURVEY+FIX_RUN 的 hash 前 12 位）；未加载时为 null */
+    private volatile String cachedBaseGuideVersion;
+    /** 造流硬规矩源文（含门控 HTML 注释块） */
     private volatile String cachedCore;
-    /** 已加载的只读勘察短文 */
+    /** 只读勘察短文源文 */
     private volatile String cachedSurvey;
-    /** 已加载的修失败短文 */
+    /** 修失败短文源文 */
     private volatile String cachedFixRun;
-    /** 已加载的同步本地 Skill 说明 */
+    /** 同步本地 Skill 操作说明源文 */
     private volatile String cachedSync;
-    /** 已加载的 Cursor Skill YAML 头 */
+    /** Cursor Skill YAML 头源文 */
     private volatile String cachedSkillFrontmatter;
 
     /**
-     * 返回当前造流规程版本指纹（CORE、SURVEY、FIX_RUN 正文的 SHA-256 前 12 位十六进制）。
-     * 供握手 serverInfo、工具回执与本地 Skill 文件中的 guideVersion 字段使用。
+     * 返回规程源文指纹（不含开关后缀）。
+     * 对 CORE、SURVEY、FIX_RUN 裁剪前全文做 SHA-256，取十六进制小写前 12 位。
+     * 改规程 Markdown 会变；只改项目开关不变。
      *
      * @return 12 位十六进制指纹
      */
-    public String guideVersion() {
+    public String baseGuideVersion() {
         ensureTextsLoaded();
-        return cachedGuideVersion;
+        return cachedBaseGuideVersion;
     }
 
     /**
-     * 返回 MCP prompts/list 的 Prompt 摘要列表（名称与说明；始终返回四条）。
+     * 返回合成规程版本串：源文指纹，再按开关追加 +autopilot、+importApis（先写流后导入）。
+     * 两道都关时仅为 12 位指纹。本地 Skill 文件中的 guideVersion 与本串全等则视为未过期。
+     *
+     * @param autopilotEnabled  是否开启「允许 MCP 全自动写流」
+     * @param importApisEnabled 是否开启「允许 MCP 导入接口」
+     * @return 合成版本串
+     */
+    public String guideVersion(boolean autopilotEnabled, boolean importApisEnabled) {
+        ensureTextsLoaded();
+        return appendGateSuffixes(cachedBaseGuideVersion, autopilotEnabled, importApisEnabled);
+    }
+
+    /**
+     * 在任意前缀后按开关追加门控后缀（先 +autopilot，再 +importApis；未开则不加）。
+     * 用于规程 guideVersion，也用于握手 serverInfo.version。
+     *
+     * @param base              前缀文本（规程指纹或协议版本号等）
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return 带可选后缀的合成串
+     */
+    public static String appendGateSuffixes(String base, boolean autopilotEnabled, boolean importApisEnabled) {
+        StringBuilder sb = new StringBuilder(base == null ? "" : base);
+        if (autopilotEnabled) {
+            sb.append(SUFFIX_AUTOPILOT);
+        }
+        if (importApisEnabled) {
+            sb.append(SUFFIX_IMPORT_APIS);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 按两道开关裁剪 Markdown 正文。
+     * 关写流：删除 mcp:autopilot 整块；关导入：删除 mcp:import 整块；
+     * 开着的块只去掉起止注释行，保留中间文字；再压缩多余空行。
+     *
+     * @param markdown          含门控注释块的源文，可空
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return 裁剪后正文（末尾补换行）；入参 null 时返回空串
+     */
+    static String applyGates(String markdown, boolean autopilotEnabled, boolean importApisEnabled) {
+        if (markdown == null || markdown.isEmpty()) {
+            return markdown == null ? "" : markdown;
+        }
+        String text = markdown.replace("\r\n", "\n");
+        if (!autopilotEnabled) {
+            text = GATE_AUTOPILOT.matcher(text).replaceAll("");
+        }
+        if (!importApisEnabled) {
+            text = GATE_IMPORT.matcher(text).replaceAll("");
+        }
+        text = GATE_MARKERS.matcher(text).replaceAll("");
+        // 删块后可能留下连续空行，压成最多一个空行
+        text = text.replaceAll("\n{3,}", "\n\n");
+        return text.trim() + "\n";
+    }
+
+    /**
+     * 返回 prompts/list 用的四条 Prompt 元数据（名称与说明）。
      *
      * @return Prompt 元数据列表
      */
@@ -95,27 +173,34 @@ public class McpPromptResourceService {
     }
 
     /**
-     * 按名称返回 MCP prompts/get 载荷：说明文字与一条 user 文本消息。
+     * 按 Prompt 名称返回 prompts/get 载荷；正文按两道开关裁剪。
+     * 未知名称或名称为空时抛业务异常。
      *
-     * @param name Prompt 名（qualitest_core 等）
-     * @return description 与 messages
+     * @param name              Prompt 名
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return 含 description 与 messages 的载荷
      */
-    public Map<String, Object> getPrompt(String name) {
+    public Map<String, Object> getPrompt(String name, boolean autopilotEnabled, boolean importApisEnabled) {
         if (name == null || name.isBlank()) {
             throw new ServiceException("缺少 prompt name");
         }
         ensureTextsLoaded();
         return switch (name.trim()) {
-            case PROMPT_CORE -> promptPayload(DESC_CORE, cachedCore);
-            case PROMPT_SURVEY -> promptPayload(DESC_SURVEY, cachedSurvey);
-            case PROMPT_FIX_RUN -> promptPayload(DESC_FIX_RUN, cachedFixRun);
-            case PROMPT_SYNC_LOCAL_SKILL -> promptPayload(DESC_SYNC, cachedSync);
+            case PROMPT_CORE -> promptPayload(DESC_CORE,
+                    applyGates(cachedCore, autopilotEnabled, importApisEnabled));
+            case PROMPT_SURVEY -> promptPayload(DESC_SURVEY,
+                    applyGates(cachedSurvey, autopilotEnabled, importApisEnabled));
+            case PROMPT_FIX_RUN -> promptPayload(DESC_FIX_RUN,
+                    applyGates(cachedFixRun, autopilotEnabled, importApisEnabled));
+            case PROMPT_SYNC_LOCAL_SKILL -> promptPayload(DESC_SYNC,
+                    applyGates(cachedSync, autopilotEnabled, importApisEnabled));
             default -> throw new ServiceException("未知 prompt: " + name);
         };
     }
 
     /**
-     * 返回 MCP resources/list 的资源摘要（造流硬规矩一条）。
+     * 返回 resources/list 用的资源摘要（造流硬规矩一条）。
      *
      * @return Resource 元数据列表
      */
@@ -129,12 +214,15 @@ public class McpPromptResourceService {
     }
 
     /**
-     * 按 URI 返回 MCP resources/read 载荷（Markdown 正文）。
+     * 按 URI 返回 resources/read 载荷；正文为按开关裁剪后的造流硬规矩。
+     * 仅支持造流硬规矩那一条 URI；其它或空 URI 抛业务异常。
      *
-     * @param uri 资源地址，目前仅支持 qualitest://docs/core
-     * @return contents 数组
+     * @param uri               资源地址
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return 含 contents 数组的载荷
      */
-    public Map<String, Object> readResource(String uri) {
+    public Map<String, Object> readResource(String uri, boolean autopilotEnabled, boolean importApisEnabled) {
         if (uri == null || uri.isBlank()) {
             throw new ServiceException("缺少 resource uri");
         }
@@ -145,24 +233,26 @@ public class McpPromptResourceService {
         Map<String, Object> content = new LinkedHashMap<>();
         content.put("uri", RESOURCE_CORE_URI);
         content.put("mimeType", "text/markdown");
-        content.put("text", cachedCore);
+        content.put("text", applyGates(cachedCore, autopilotEnabled, importApisEnabled));
         return Map.of("contents", List.of(content));
     }
 
     /**
-     * 返回造流硬规矩 Markdown 正文（供 Web 各编辑器规程 Tab 拼接使用）。
+     * 返回按开关裁剪后的造流硬规矩正文（供 Web 各编辑器规程拼接）。
      *
-     * @return CORE.md 全文
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return 裁剪后的造流硬规矩 Markdown
      */
-    public String loadCoreText() {
+    public String loadCoreText(boolean autopilotEnabled, boolean importApisEnabled) {
         ensureTextsLoaded();
-        return cachedCore;
+        return applyGates(cachedCore, autopilotEnabled, importApisEnabled);
     }
 
     /**
-     * 返回「同步/更新本地 Cursor Skill」操作说明正文（供 Web 示例提问与 Prompt 使用）。
+     * 返回「同步/更新本地 Cursor Skill」操作说明全文。
      *
-     * @return SYNC_LOCAL_SKILL.md 全文
+     * @return 同步 Skill 说明 Markdown
      */
     public String loadSyncLocalSkillText() {
         ensureTextsLoaded();
@@ -170,25 +260,89 @@ public class McpPromptResourceService {
     }
 
     /**
-     * 返回可保存为业务仓 Cursor Skill 的完整 Markdown：
-     * YAML 头（含 guideVersion）+ 造流硬规矩正文。
+     * 组装完整 Cursor Skill 文件内容：
+     * 按开关改写 YAML description、写入合成 guideVersion，再接上裁剪后的造流硬规矩正文。
      *
-     * @return 完整 SKILL.md 文本
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return 可保存为 SKILL.md 的完整 Markdown
      */
-    public String loadCursorSkillText() {
+    public String loadCursorSkillText(boolean autopilotEnabled, boolean importApisEnabled) {
         ensureTextsLoaded();
-        return composeCursorSkill(cachedSkillFrontmatter, cachedGuideVersion, cachedCore);
+        String version = guideVersion(autopilotEnabled, importApisEnabled);
+        String core = applyGates(cachedCore, autopilotEnabled, importApisEnabled);
+        String frontmatter = applySkillFrontmatterGates(cachedSkillFrontmatter, autopilotEnabled, importApisEnabled);
+        return composeCursorSkill(frontmatter, version, core);
     }
 
     /**
-     * 首次调用时从 classpath 读入全部规程文本并计算版本指纹，之后直接使用缓存。
+     * 按开关重写 Skill YAML 中的 description 字段，只保留当前已开通能力相关的唤醒词。
+     *
+     * @param frontmatter       原始 YAML 头
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return 改写 description 后的 YAML 头；无 description 字段则原样返回
+     */
+    static String applySkillFrontmatterGates(String frontmatter, boolean autopilotEnabled, boolean importApisEnabled) {
+        String fm = frontmatter == null ? "" : frontmatter.replace("\r\n", "\n");
+        String description = buildSkillDescription(autopilotEnabled, importApisEnabled);
+        if (fm.contains("description:")) {
+            int descStart = fm.indexOf("description:");
+            int close = fm.lastIndexOf("\n---");
+            if (close < 0) {
+                close = fm.length();
+            }
+            String before = fm.substring(0, descStart);
+            String after = fm.substring(close);
+            return before + "description: >-\n  " + description.replace("\n", "\n  ") + "\n" + after.trim() + "\n";
+        }
+        return fm;
+    }
+
+    /**
+     * 按开关拼出 Skill description 纯文本（不含 YAML 缩进）。
+     * 开写流时带上改流/跑流相关词；开导入时带上导入相关词。
+     *
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return description 正文
+     */
+    static String buildSkillDescription(boolean autopilotEnabled, boolean importApisEnabled) {
+        StringBuilder sb = new StringBuilder(
+                "经质衡（QualiTest）MCP 勘察");
+        if (autopilotEnabled) {
+            sb.append("、改测试流并跑通");
+        }
+        sb.append("。在用户提到质衡 MCP、造流、修流、跑测试流");
+        if (autopilotEnabled) {
+            sb.append("、submit、create_flow、run_test_flow");
+        }
+        if (importApisEnabled) {
+            sb.append("、import_apis");
+        }
+        sb.append("、项目 Token、允许 MCP 全自动写流");
+        if (importApisEnabled) {
+            sb.append("、允许 MCP 导入接口");
+        }
+        sb.append("，或要在 Cursor 里直接");
+        if (autopilotEnabled) {
+            sb.append("改质衡画布");
+        } else {
+            sb.append("勘察质衡测试流");
+        }
+        sb.append("时使用。");
+        return sb.toString();
+    }
+
+    /**
+     * 首次调用时从 classpath 读入全部规程文本并计算源文指纹，之后直接用内存缓存。
      */
     private void ensureTextsLoaded() {
-        if (cachedGuideVersion != null) {
+        if (cachedBaseGuideVersion != null) {
             return;
         }
         synchronized (this) {
-            if (cachedGuideVersion != null) {
+            if (cachedBaseGuideVersion != null) {
                 return;
             }
             cachedCore = ClasspathMarkdownSupport.loadClasspathUtf8Normalized(CORE_PATH, "造流规程 CORE");
@@ -197,16 +351,17 @@ public class McpPromptResourceService {
             cachedSync = ClasspathMarkdownSupport.loadClasspathUtf8Normalized(SYNC_PATH, "同步 Skill 规程");
             cachedSkillFrontmatter = ClasspathMarkdownSupport.loadClasspathUtf8Normalized(
                     SKILL_FRONTMATTER_PATH, "Cursor Skill frontmatter");
-            cachedGuideVersion = fingerprint(cachedCore + cachedSurvey + cachedFixRun);
+            cachedBaseGuideVersion = fingerprint(cachedCore + cachedSurvey + cachedFixRun);
         }
     }
 
     /**
-     * 将版本指纹写入 YAML 头，再接上造流硬规矩正文，生成完整 Cursor Skill 文件内容。
+     * 将合成 guideVersion 写入 YAML 头，再接上造流硬规矩正文，得到完整 Skill 文件。
+     * 若头里已有 guideVersion 行会先去掉再写入当前值。
      *
-     * @param frontmatter  仅含 name、description 等字段的 YAML 头（以 --- 起止）
-     * @param guideVersion 规程版本指纹
-     * @param core         造流硬规矩正文
+     * @param frontmatter  YAML 头（以 --- 起止，含 name、description 等）
+     * @param guideVersion 要写入的合成规程版本
+     * @param core         已按开关裁剪的造流硬规矩正文
      * @return 完整 Markdown
      */
     static String composeCursorSkill(String frontmatter, String guideVersion, String core) {
@@ -226,7 +381,6 @@ public class McpPromptResourceService {
             throw new ServiceException("Cursor Skill frontmatter 缺少结束 ---");
         }
         String yaml = fm.substring(0, close).trim();
-        // 去掉已有 guideVersion 行后写入当前指纹
         StringBuilder yamlOut = new StringBuilder();
         for (String line : yaml.split("\n", -1)) {
             if (line.startsWith("guideVersion:")) {
@@ -242,11 +396,11 @@ public class McpPromptResourceService {
     }
 
     /**
-     * 组装 prompts/list 单条元数据。
+     * 组装 prompts/list 单条：name 与 description。
      *
      * @param name        Prompt 名
      * @param description 简短说明
-     * @return name、description 映射
+     * @return 元数据映射
      */
     private static Map<String, Object> promptMeta(String name, String description) {
         Map<String, Object> meta = new LinkedHashMap<>();
@@ -256,11 +410,11 @@ public class McpPromptResourceService {
     }
 
     /**
-     * 组装 prompts/get 返回体：说明 + 一条 role=user 的文本消息。
+     * 组装 prompts/get 返回体：说明文字 + 一条 role=user 的文本消息。
      *
      * @param description Prompt 说明
-     * @param text        正文
-     * @return description、messages
+     * @param text        用户消息正文
+     * @return 载荷映射
      */
     private static Map<String, Object> promptPayload(String description, String text) {
         Map<String, Object> content = new LinkedHashMap<>();
@@ -276,9 +430,9 @@ public class McpPromptResourceService {
     }
 
     /**
-     * 计算文本的 SHA-256，取前 12 位十六进制作为规程版本指纹。
+     * 对文本做 SHA-256，取十六进制小写前 12 位作为规程源文指纹。
      *
-     * @param text 参与指纹的正文拼接
+     * @param text 参与指纹的正文
      * @return 12 位十六进制字符串
      */
     static String fingerprint(String text) {

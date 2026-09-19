@@ -1,6 +1,8 @@
 package com.qualitest.project.support.cursorskill;
 
 import com.qualitest.ai.mcp.McpPromptResourceService;
+import com.qualitest.ai.mcp.McpToolInvokeService.McpProjectGates;
+import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.support.testableprompt.TestablePromptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -10,32 +12,56 @@ import java.util.List;
 /**
  * 组装顶栏「MCP 造流 Agent 规程」弹框数据：人话用法、示例提问、各编辑器可复制规程正文。
  * <p>
- * Cursor 页内容为 YAML 头加造流硬规矩；其它编辑器页为各自抬头加造流硬规矩正文。
- * tips 中会提示：写流开关保存后须重连或刷新 MCP，否则编辑器工具列表可能仍是只读集。
+ * Cursor 页为 YAML 头加造流硬规矩；其它编辑器页为各自抬头加造流硬规矩。
+ * 规程正文按项目写流 / 导入两道开关裁剪；未传项目 id 时按两道都关（只读）裁剪。
  */
 @Service
 @RequiredArgsConstructor
 public class McpCursorSkillService {
 
-    /** 单功能 / 指定范围 / 整项目造流提示词加载 */
+    /** 单功能 / 指定范围 / 整项目造流示例提示词 */
     private final TestablePromptService testablePromptService;
-    /** 造流硬规矩、Cursor Skill 全文、同步本地 Skill 说明 */
+    /** 造流硬规矩、完整 Cursor Skill、同步 Skill 说明 */
     private final McpPromptResourceService mcpPromptResourceService;
+    /** 按项目 id 读写流 / 导入开关；单元测试可传 null */
+    private final TestProjectMapper testProjectMapper;
 
     /**
-     * 组装弹框完整载荷：怎么用、提示、示例提问、各编辑器规程列表。
-     * 提示含 Token 与写流开关说明，以及改开关后须重连 MCP 才能看到写工具。
+     * 组装弹框完整载荷（无项目 id，按只读门控裁剪规程）。
      *
      * @return 弹框载荷
      */
     public McpAgentGuidesPayload loadPayload() {
+        return loadPayload(null);
+    }
+
+    /**
+     * 组装弹框完整载荷。传入项目 id 时按该项目两道开关裁剪规程；未传或项目不存在时按只读裁剪。
+     *
+     * @param testProjectId 测试项目 id，可空
+     * @return 弹框载荷
+     */
+    public McpAgentGuidesPayload loadPayload(Long testProjectId) {
+        McpProjectGates gates = McpProjectGates.fromProjectId(testProjectMapper, testProjectId);
+        return loadPayload(gates.autopilotEnabled(), gates.importApisEnabled());
+    }
+
+    /**
+     * 按给定两道开关组装弹框完整载荷（怎么用、提示、示例提问、各编辑器规程）。
+     *
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return 弹框载荷
+     */
+    public McpAgentGuidesPayload loadPayload(boolean autopilotEnabled, boolean importApisEnabled) {
         return McpAgentGuidesPayload.builder()
                 .howToUse("不需要特殊唤醒词。在已接好质衡 MCP 的业务仓窗口里，直接用自然语言说目标即可，"
                         + "模型会自己调工具。想改画布或跑流时，说清「用 MCP / 质衡」会更稳。"
                         + "也可复制下方造流提示词，让编辑器产出短提示再贴回 Web 造流。")
                 .tips(List.of(
-                        "Token 只绑定项目身份；是否出现 submit_* / create_flow / run_test_flow，由项目设置里的「允许 MCP 全自动写流」决定。",
-                        "只读勘察随时可用；要经 MCP 直接造流 / 修流 / 跑流，须先开启并保存写流开关。保存后请重连或刷新 MCP，否则编辑器常仍只列只读工具。",
+                        "Token 只绑定项目身份；是否出现 submit_* / create_flow / run_test_flow，由项目设置里的「允许 MCP 全自动写流」决定；"
+                                + "import_apis 由「允许 MCP 导入接口」决定。下方复制的规程已按当前项目开关裁剪（未选项目则为只读）。",
+                        "只读勘察随时可用；要经 MCP 直接造流 / 修流 / 跑流，须先开启并保存写流开关。保存后请重连或刷新 MCP，并再 sync 本地 Skill。",
                         "没有合适测试流时可用 create_flow 新建空画布；「单功能」= 刚改完一块；「指定范围」= 只扫某模块/包/目录；「整项目」= 整仓按模块补测。",
                         "写工具成功后已落库，不用再找 commit。"
                 ))
@@ -65,17 +91,28 @@ public class McpCursorSkillService {
                                 .text(testablePromptService.loadPromptText(TestablePromptService.KIND_FULL))
                                 .build()
                 ))
-                .guides(loadGuides())
+                .guides(loadGuides(autopilotEnabled, importApisEnabled))
                 .build();
     }
 
     /**
-     * 组装全部编辑器规程项（顺序即弹框 Tab 顺序）。
+     * 组装全部编辑器规程项（两道开关都关，只读规程）。
      *
      * @return 规程列表
      */
     public List<McpAgentGuide> loadGuides() {
-        String core = mcpPromptResourceService.loadCoreText();
+        return loadGuides(false, false);
+    }
+
+    /**
+     * 按两道开关组装全部编辑器规程项（顺序即弹框 Tab 顺序）。
+     *
+     * @param autopilotEnabled  写流开关是否开启
+     * @param importApisEnabled 导入开关是否开启
+     * @return 规程列表
+     */
+    public List<McpAgentGuide> loadGuides(boolean autopilotEnabled, boolean importApisEnabled) {
+        String core = mcpPromptResourceService.loadCoreText(autopilotEnabled, importApisEnabled);
         return List.of(
                 McpAgentGuide.builder()
                         .id("cursor")
@@ -86,11 +123,11 @@ public class McpCursorSkillService {
                                 "保存到业务仓 .cursor/skills/qualitest/SKILL.md"
                                         + "（或本机 ~/.cursor/skills/qualitest/SKILL.md）。",
                                 "用 Cursor 打开业务仓；在项目设置里配好 MCP Token。"
-                                        + "要改流 / 跑流前，开启并保存「允许 MCP 全自动写流」。",
+                                        + "要改流 / 跑流前，开启并保存「允许 MCP 全自动写流」。改开关后请重连 MCP 并再 sync Skill。",
                                 "在 Agent / Chat 里用自然语言提问（可参考上方示例）；写完后刷新画布查看结果。"
                         ))
                         .saveHint(".cursor/skills/qualitest/SKILL.md")
-                        .content(mcpPromptResourceService.loadCursorSkillText())
+                        .content(mcpPromptResourceService.loadCursorSkillText(autopilotEnabled, importApisEnabled))
                         .build(),
                 guide(
                         "claude-code",
@@ -208,7 +245,7 @@ public class McpCursorSkillService {
     }
 
     /**
-     * 组装单个非 Cursor 编辑器规程项：抬头 Markdown 加造流硬规矩正文。
+     * 组装单个非 Cursor 编辑器规程项：文件抬头 Markdown 加上已裁剪的造流硬规矩正文。
      *
      * @param id       规程项 id（弹框 Tab）
      * @param title    显示标题
@@ -216,7 +253,7 @@ public class McpCursorSkillService {
      * @param steps    安装步骤
      * @param saveHint 建议保存路径提示
      * @param header   文件抬头 Markdown
-     * @param core     造流硬规矩正文
+     * @param core     已按开关裁剪的造流硬规矩正文
      * @return 规程项
      */
     private static McpAgentGuide guide(String id,

@@ -120,11 +120,14 @@ public class CommonController {
 
     /**
      * 返回 MCP 造流弹框载荷：人话用法、示例提问、各编辑器规程 Tab。
-     * 登录即可；不依赖某个测试项目。
+     * 需登录。可选传测试项目 id：有则按该项目写流/导入开关裁剪规程正文；无则按只读裁剪。
+     *
+     * @param testProjectId 测试项目 id，可空
+     * @return 弹框载荷
      */
     @GetMapping("/mcpAgentGuides")
-    public AjaxResult mcpAgentGuides() {
-        return AjaxResult.success("操作成功", mcpCursorSkillService.loadPayload());
+    public AjaxResult mcpAgentGuides(Long testProjectId) {
+        return AjaxResult.success("操作成功", mcpCursorSkillService.loadPayload(testProjectId));
     }
 
     /**

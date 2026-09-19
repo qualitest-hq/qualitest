@@ -1,6 +1,6 @@
 # 质衡 MCP：只读勘察
 
-本地已有 `.cursor/skills/qualitest/SKILL.md` 且文内 `guideVersion` 与 `get_mcp_guide_version` 一致时：**不要**再 `prompts/get` 本 Prompt（防叠灌）。版本不一致或未装 Skill 时再用。
+本地已有 `.cursor/skills/qualitest/SKILL.md` 且文内 `guideVersion` 与 `get_mcp_guide_version` **字符串全等**时：**不要**再 `prompts/get` 本 Prompt（防叠灌）。版本不一致或未装 Skill 时再用。
 
 ## 推荐顺序
 
@@ -11,5 +11,5 @@
 
 ## 硬约束
 
-- 纯答疑：只用只读工具；不要 `submit_*` / `create_flow` / `import_apis` / `run_test_flow`。
+- 纯答疑：只用只读工具；不要调用写流 / 导入 / 跑流类工具（仅当 `tools/list` 出现对应工具时才可在用户明确要求下使用）。
 - 用户要看图：把 `get_graph_summary` 的 `mermaid` 原样放进 ` ```mermaid ` 代码块。

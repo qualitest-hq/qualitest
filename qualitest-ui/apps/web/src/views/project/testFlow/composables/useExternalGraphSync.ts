@@ -1,7 +1,7 @@
 /**
  * 打开画布后订阅外部写入通知，按变更类型轻量刷新（图 / 素材 / 鉴权 / 环境 / 开跑）。
  * 不走整页初始化；本地有脏稿或未决 Staging 时不静默覆盖，顶栏条幅让用户选择。
- * 图事件若带增量片段则合并进画布，失败再整图重拉。
+ * 图事件逐帧串行应用：有增量则合并进画布，失败再整图重拉（不防抖覆盖，避免丢增量）。
  */
 import { ElMessage } from 'element-plus'
 import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue'
@@ -35,8 +35,6 @@ import { useApiHealthDraftPreview } from './useApiHealthDraftPreview'
 import { useRunConfig } from './useRunConfig'
 import { fetchProjectAssetRows } from './useProjectVariables'
 
-/** 图变更防抖（毫秒） */
-const GRAPH_DEBOUNCE_MS = 500
 /** 素材/鉴权/环境防抖（毫秒） */
 const OTHER_DEBOUNCE_MS = 800
 /** 外部同步节点高亮时长（毫秒） */
@@ -94,14 +92,15 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
 
   let abort: AbortController | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  let graphTimer: ReturnType<typeof setTimeout> | null = null
   let highlightTimer: ReturnType<typeof setTimeout> | null = null
   const domainTimers: Record<string, ReturnType<typeof setTimeout> | null> = {
     asset: null,
     auth: null,
     env: null,
   }
-  let lastGraphEvent: FlowExternalChangeEvent | null = null
+  /** 图变更逐帧串行队列（有多少推多少，避免 last-wins 丢增量与并发写 store） */
+  const pendingGraphEvents: FlowExternalChangeEvent[] = []
+  let graphPumpRunning = false
   let stopped = false
 
   function fingerprintNodes(nodes: Array<{ id?: string; data?: unknown; position?: unknown }>) {
@@ -199,15 +198,27 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     }
   }
 
-  function scheduleGraph(event: FlowExternalChangeEvent) {
-    lastGraphEvent = event
-    if (graphTimer) clearTimeout(graphTimer)
-    graphTimer = setTimeout(() => {
-      graphTimer = null
-      const e = lastGraphEvent
-      lastGraphEvent = null
-      if (e) void applyGraphFromServer(e)
-    }, GRAPH_DEBOUNCE_MS)
+  /** 入队并串行 apply：来一帧推一帧，不覆盖、不加防抖延迟 */
+  function enqueueGraph(event: FlowExternalChangeEvent) {
+    pendingGraphEvents.push(event)
+    void pumpGraphQueue()
+  }
+
+  async function pumpGraphQueue() {
+    if (graphPumpRunning) return
+    graphPumpRunning = true
+    try {
+      while (!stopped && pendingGraphEvents.length > 0) {
+        const e = pendingGraphEvents.shift()
+        if (e) await applyGraphFromServer(e)
+      }
+    } finally {
+      graphPumpRunning = false
+      // 泵退出到清标志之间若又入队，补跑一轮
+      if (!stopped && pendingGraphEvents.length > 0) {
+        void pumpGraphQueue()
+      }
+    }
   }
 
   /** 放弃本地脏稿并整图重拉 */
@@ -307,9 +318,9 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     if (event.type === 'graphCommitted') {
       if (!matchesCurrentFlow(event)) return
       if (store.runHighlightNodeId) {
-        ElMessage.info(`${externalChangeSourceLabel(event.source)}已改图，将在短暂延迟后同步`)
+        ElMessage.info(`${externalChangeSourceLabel(event.source)}已改图，将同步到画布`)
       }
-      scheduleGraph(event)
+      enqueueGraph(event)
       return
     }
 
@@ -376,7 +387,7 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     reconnectTimer = null
     abort?.abort()
     abort = null
-    if (graphTimer) clearTimeout(graphTimer)
+    pendingGraphEvents.length = 0
     for (const key of Object.keys(domainTimers) as Array<keyof typeof domainTimers>) {
       if (domainTimers[key]) clearTimeout(domainTimers[key]!)
       domainTimers[key] = null
@@ -419,7 +430,7 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
   })
 
   setExternalGraphCommittedHandler((testFlowId, updateTime) => {
-    scheduleGraph({ type: 'graphCommitted', testFlowId, updateTime, source: 'web-autopilot' })
+    enqueueGraph({ type: 'graphCommitted', testFlowId, updateTime, source: 'web-autopilot' })
   })
 
   return {

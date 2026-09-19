@@ -80,11 +80,15 @@
 <script setup>
 /**
  * 顶栏图标：弹出 MCP 人话用法、示例提问，以及多编辑器规程 Tabs，可复制当前 Tab 全文。
+ * 当前路由若带 testProjectId，则按该项目写流/导入开关拉取已裁剪规程；否则拉取只读规程。
+ * 每次打开弹框都会重新请求，以便换项目或改开关后拿到最新正文。
  */
 import { ElMessage } from 'element-plus'
+import { useRoute } from 'vue-router'
 import { getMcpAgentGuides } from '@/api/common/mcpAgentGuides'
 import { copyTextSync } from '@/utils/clipboard'
 
+const route = useRoute()
 const visible = ref(false)
 const loading = ref(false)
 const copying = ref(false)
@@ -95,7 +99,15 @@ const activeId = ref('')
 const guides = computed(() => payload.value?.guides || [])
 const activeGuide = computed(() => guides.value.find((g) => g.id === activeId.value) || null)
 
+/** 从当前路由 params 取出 testProjectId；没有则返回 undefined */
+function resolveTestProjectId() {
+  const id = route.params?.testProjectId
+  return id != null && String(id).trim() !== '' ? String(id) : undefined
+}
+
 function openDialog() {
+  // 清空缓存，打开时按当前路由项目重新拉取规程
+  payload.value = null
   visible.value = true
 }
 
@@ -104,10 +116,10 @@ function ensureGuides() {
     return
   }
   loading.value = true
-  getMcpAgentGuides()
+  getMcpAgentGuides(resolveTestProjectId())
     .then((res) => {
       const data = res?.data
-      // 兼容旧接口：若仍返回数组，则只当 guides 用
+      // 旧接口若仍返回数组，只当作 guides 使用
       if (Array.isArray(data)) {
         payload.value = { guides: data }
       } else if (data && typeof data === 'object') {
