@@ -13,16 +13,14 @@ import {
 } from '@/api/project/testFlowRun';
 
 import { RUN_LIBRARY_MAX_RUNS } from '../constants/flowConfig';
+import type { RunRecordStatus, RunStepStatus } from '../constants/runStatus';
 import {
   mapRunDetail,
   mapRunListItem,
   type ApiTestFlowRunDetail,
 } from '../utils/runRecordMapper';
 
-/** 单步状态（与 test_flow_run_step.status 对应） */
-export type RunStepStatus = 'passed' | 'failed' | 'skipped';
-/** Run 终态（与 test_flow_run.status 对应） */
-export type RunRecordStatus = 'passed' | 'failed' | 'running' | 'paused' | 'aborted' | 'cancelled';
+export type { RunRecordStatus, RunStepStatus };
 
 export type { RunPauseInfo };
 

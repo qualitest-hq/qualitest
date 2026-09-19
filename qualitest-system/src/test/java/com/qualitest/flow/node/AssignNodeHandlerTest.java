@@ -1,5 +1,7 @@
 package com.qualitest.flow.node;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.FlowRunContext;
@@ -43,7 +45,7 @@ class AssignNodeHandlerTest {
         FlowRunContext ctx = new FlowRunContext();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals(1L, ctx.getFlow().get("pollAttempt"));
 
         @SuppressWarnings("unchecked")
@@ -69,7 +71,7 @@ class AssignNodeHandlerTest {
         ctx.getFlow().put("count", 3);
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals(5L, ctx.getFlow().get("count"));
 
         @SuppressWarnings("unchecked")

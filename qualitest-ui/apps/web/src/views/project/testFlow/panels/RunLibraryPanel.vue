@@ -54,6 +54,7 @@ import { ElMessageBox } from 'element-plus'
 import { storeToRefs } from 'pinia'
 
 import { usePlayback } from '../composables/usePlayback'
+import { runStatusLabel } from '../constants/runStatus'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { useRunLibraryStore } from '../stores/runLibraryStore'
 
@@ -69,15 +70,7 @@ function formatTime(iso) {
 }
 
 function statusLabel(status) {
-  const map = {
-    passed: '通过',
-    failed: '失败',
-    running: '运行中',
-    paused: '已暂停',
-    aborted: '已中止',
-    cancelled: '已取消',
-  }
-  return map[status] || status
+  return runStatusLabel(status)
 }
 
 async function selectRun(id) {

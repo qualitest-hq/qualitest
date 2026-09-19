@@ -96,7 +96,7 @@ class TestFlowExecutorPauseResumeTest {
                             return StepResult.builder()
                                     .nodeId(node.getId())
                                     .nodeType("http")
-                                    .status(StepResult.STATUS_FAILED)
+                                    .status(RunStatus.FAILED.getCode())
                                     .error(StepError.of(com.qualitest.flow.exception.FlowErrorCode.TF_STEP_ERROR, "fail"))
                                     .durationMs(1)
                                     .build();
@@ -104,7 +104,7 @@ class TestFlowExecutorPauseResumeTest {
                         return StepResult.builder()
                                 .nodeId(node.getId())
                                 .nodeType("http")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .build();
@@ -138,7 +138,7 @@ class TestFlowExecutorPauseResumeTest {
                 .testFlowId(1L)
                 .testProjectEnvId(100L)
                 .runScenarioId("sc-default")
-                .status(RunStatus.RUNNING)
+                .status(RunStatus.RUNNING.getCode())
                 .graphJsonSnapshot(graph.toJsonString())
                 .build();
 
@@ -158,10 +158,10 @@ class TestFlowExecutorPauseResumeTest {
                 runId, graph, FlowRunContext.builder().flow(new HashMap<>()).build(), bootstrap);
 
         assertTrue(first.isPaused());
-        assertEquals(RunStatus.PAUSED, pausedRun.getStatus());
+        assertEquals(RunStatus.PAUSED.getCode(), pausedRun.getStatus());
         assertTrue(pausedRun.getRunExecutionState() != null && pausedRun.getRunExecutionState().contains("n2"));
 
-        pausedRun.setStatus(RunStatus.PAUSED);
+        pausedRun.setStatus(RunStatus.PAUSED.getCode());
         ExecutionOutcome resumed = executor.resume(
                 runId,
                 ResumeDecision.builder().decision(ResumeDecision.RETRY_IN_PLACE).operator("tester").build(),
@@ -169,7 +169,7 @@ class TestFlowExecutorPauseResumeTest {
         );
 
         assertTrue(resumed.isPassed());
-        assertEquals(RunStatus.PASSED, pausedRun.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), pausedRun.getStatus());
     }
 
     private static GraphJson loadGraph(String path) {

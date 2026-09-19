@@ -1,5 +1,7 @@
 package com.qualitest.flow.node;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
@@ -106,7 +108,7 @@ class NodeHandlerRegistryTest {
             assertEquals(type, result.getNodeType());
             assertEquals("测试-" + type, result.getNodeName());
             assertEquals("e1", result.getEdgeId());
-            assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+            assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
             assertEquals(0, result.getDurationMs());
             assertNotNull(result.getError());
             assertEquals(FlowErrorCode.TF_STEP_ERROR.getCode(), result.getError().getCode());

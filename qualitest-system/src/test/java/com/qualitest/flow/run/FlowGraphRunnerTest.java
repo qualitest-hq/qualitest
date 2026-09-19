@@ -97,7 +97,7 @@ class FlowGraphRunnerTest {
                                 .nodeId(node.getId())
                                 .nodeType("delay")
                                 .nodeName(node.getId())
-                                .status(fail ? StepResult.STATUS_FAILED : StepResult.STATUS_PASSED)
+                                .status(fail ? RunStatus.FAILED.getCode() : RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .error(fail ? StepError.of(FlowErrorCode.TF_STEP_ERROR, "首步失败") : null)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
@@ -128,7 +128,7 @@ class FlowGraphRunnerTest {
                                 .nodeId(node.getId())
                                 .nodeType("subflow")
                                 .nodeName("嵌套")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .build();
@@ -176,7 +176,7 @@ class FlowGraphRunnerTest {
                                 .nodeId(node.getId())
                                 .nodeType("delay")
                                 .nodeName(node.getId())
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .build();

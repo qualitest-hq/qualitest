@@ -153,7 +153,7 @@ class TestFlowExecutionServiceImplTriggerTest {
 
         ArgumentCaptor<TestFlowRun> runCaptor = ArgumentCaptor.forClass(TestFlowRun.class);
         verify(testFlowRunService).insertTestFlowRun(runCaptor.capture());
-        assertEquals(RunStatus.RUNNING, runCaptor.getValue().getStatus());
+        assertEquals(RunStatus.RUNNING.getCode(), runCaptor.getValue().getStatus());
         assertEquals(runId, runCaptor.getValue().getTestFlowRunId());
         assertEquals("manual", runCaptor.getValue().getTriggerType());
 
@@ -176,11 +176,11 @@ class TestFlowExecutionServiceImplTriggerTest {
     void awaitRunTerminal_returnsWhenNotRunning() {
         TestFlowRunResult passed = TestFlowRunResult.builder()
                 .testFlowRunId(7L)
-                .status(RunStatus.PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .build();
         when(testFlowRunService.selectTestFlowRunResult(7L)).thenReturn(passed);
         TestFlowRunResult got = service.awaitRunTerminal(7L, 1_000L);
-        assertEquals(RunStatus.PASSED, got.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), got.getStatus());
         verify(testFlowRunService).selectTestFlowRunResult(eq(7L));
     }
 

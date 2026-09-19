@@ -51,7 +51,7 @@ class FlowGraphRunnerSnapshotHookTest {
                         return StepResult.builder()
                                 .nodeId(node.getId())
                                 .nodeType("http")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .build();
@@ -65,7 +65,7 @@ class FlowGraphRunnerSnapshotHookTest {
                         .nodeId(node.getId())
                         .nodeType(StepResultWriter.NODE_TYPE_SNAPSHOT)
                         .nodeName(StepResultWriter.NODE_NAME_SNAPSHOT)
-                        .status(StepResult.STATUS_PASSED)
+                        .status(RunStatus.PASSED.getCode())
                         .durationMs(2)
                         .build()
         ));

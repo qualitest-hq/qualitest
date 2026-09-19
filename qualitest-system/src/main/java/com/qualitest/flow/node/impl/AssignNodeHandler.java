@@ -1,5 +1,7 @@
 package com.qualitest.flow.node.impl;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.FlowRunContext;
@@ -61,7 +63,7 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.ASSIGN.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .durationMs(Math.max(0, System.currentTimeMillis() - t0))
                 .flowAfter(copyFlow(ctx))
                 .assigns(assignResults)

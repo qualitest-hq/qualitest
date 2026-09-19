@@ -12,9 +12,10 @@ import { triggerTestFlowRun } from '@/api/project/testFlowRun';
 import { validateSnapshotResetEndpointStatic } from '@/utils/flow/snapshotPreRunValidate';
 
 import { LIVE_RUN_POLL_MS } from '../constants/flowConfig';
+import { TERMINAL_RUN_STATUSES } from '../constants/runStatus';
 import { toGraphJson } from '../graphAdapter';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
-import type { RunRecord, RunRecordStatus } from '../stores/runLibraryStore';
+import type { RunRecord } from '../stores/runLibraryStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
 import { abortableSleep } from '../utils/abortableSleep';
@@ -23,15 +24,6 @@ import { endRunReplay } from './usePlayback';
 import { useFlowGraph } from './useFlowGraph';
 import { useFlowSimulate } from './useFlowSimulate';
 import { useRunConfig } from './useRunConfig';
-
-/** Run 已结束、可停止轮询的状态 */
-const TERMINAL_STATUSES = new Set<RunRecordStatus>([
-  'passed',
-  'failed',
-  'paused',
-  'aborted',
-  'cancelled',
-]);
 
 /**
  * 按 Run 步骤时间线高亮画布：0..stepIndex 写入已访问样式，当前步写入高亮节点。
@@ -118,7 +110,7 @@ export function useFlowScenarioRun() {
           highlightRunStep(store, detail, stepIdx);
         }
 
-        if (TERMINAL_STATUSES.has(detail.status)) {
+        if (TERMINAL_RUN_STATUSES.has(detail.status)) {
           if (!runLib.scenarioRunLive?.abort) {
             if (detail.status === 'failed') {
               ElMessage.error(detail.errorMessage ?? '运行失败');

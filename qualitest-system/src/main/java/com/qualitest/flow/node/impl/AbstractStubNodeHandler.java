@@ -1,5 +1,7 @@
 package com.qualitest.flow.node.impl;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
@@ -43,7 +45,7 @@ public abstract class AbstractStubNodeHandler implements NodeHandler {
                 .nodeType(supportedType)
                 .nodeName(resolveNodeName(node))
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_FAILED)
+                .status(RunStatus.FAILED.getCode())
                 .durationMs(0)
                 .flowAfter(copyFlow(ctx))
                 .error(StepError.of(FlowErrorCode.TF_STEP_ERROR, STUB_MESSAGE))

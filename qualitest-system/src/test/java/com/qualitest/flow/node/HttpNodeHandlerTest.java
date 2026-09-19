@@ -1,5 +1,7 @@
 package com.qualitest.flow.node;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.api.util.ApiConfigTestFixtures;
 
 import com.qualitest.api.params.DebugHttpForwardParams;
@@ -87,7 +89,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n1").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("tok-1", ctx.getFlow().get("token"));
         assertEquals(0L, ((Number) ctx.getFlow().get("code")).longValue());
         assertNotNull(result.getHttp());
@@ -118,7 +120,7 @@ class HttpNodeHandlerTest {
                 .build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertEquals(FlowErrorCode.TF_HTTP_STATUS.getCode(), result.getError().getCode());
     }
 
@@ -167,7 +169,7 @@ class HttpNodeHandlerTest {
                 .build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertNotNull(result.getHttp().get("preScript"));
     }
 
@@ -195,7 +197,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n-ext").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("tok-ext", ctx.getFlow().get("token"));
         assertEquals("external", result.getHttp().get("callMode"));
     }
@@ -217,7 +219,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n-denied").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertEquals(FlowErrorCode.TF_HTTP_EXTERNAL_DENIED.getCode(), result.getError().getCode());
     }
 
@@ -245,7 +247,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n-pre").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertNotNull(result.getHttp().get("preScript"));
     }
 
@@ -284,7 +286,7 @@ class HttpNodeHandlerTest {
                 .build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("abc", ctx.getFlow().get("sid"));
     }
 
@@ -314,7 +316,7 @@ class HttpNodeHandlerTest {
                 .build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertEquals(FlowErrorCode.TF_BIZ_CODE.getCode(), result.getError().getCode());
         assertTrue(result.getError().getMessage().contains("手机号或密码错误"));
         @SuppressWarnings("unchecked")
@@ -350,7 +352,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n-off").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertNull(result.getHttp().get("bizCheck"));
     }
 
@@ -374,7 +376,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n-ext-biz").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertNull(result.getHttp().get("bizCheck"));
     }
 
@@ -403,7 +405,7 @@ class HttpNodeHandlerTest {
                 .data(Map.of("callMode", "project", "testProjectApiId", "1001"))
                 .build();
         StepResult ok = handler.execute(ctx, nodeOk, null);
-        assertEquals(StepResult.STATUS_PASSED, ok.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), ok.getStatus());
         @SuppressWarnings("unchecked")
         Map<String, Object> bizOk = (Map<String, Object>) ok.getHttp().get("bizCheck");
         assertEquals(true, bizOk.get("passed"));
@@ -417,7 +419,7 @@ class HttpNodeHandlerTest {
                 .data(Map.of("callMode", "project", "testProjectApiId", "1001"))
                 .build();
         StepResult fail = handler.execute(ctx, nodeFail, null);
-        assertEquals(StepResult.STATUS_FAILED, fail.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), fail.getStatus());
         assertEquals(FlowErrorCode.TF_BIZ_CODE.getCode(), fail.getError().getCode());
     }
 
@@ -447,7 +449,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n-probe").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertNull(result.getError());
         assertEquals(401, ctx.getLastResponse().getStatus());
         @SuppressWarnings("unchecked")
@@ -481,7 +483,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n-probe").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertEquals(FlowErrorCode.TF_HTTP_STATUS.getCode(), result.getError().getCode());
     }
 
@@ -511,7 +513,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n-off").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals(503, ctx.getLastResponse().getStatus());
     }
 
@@ -545,7 +547,7 @@ class HttpNodeHandlerTest {
         GraphNode node = GraphNode.builder().id("n-img").type("http").data(data).build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         @SuppressWarnings("unchecked")
         Map<String, Object> response = (Map<String, Object>) result.getHttp().get("response");
         assertNotNull(response);

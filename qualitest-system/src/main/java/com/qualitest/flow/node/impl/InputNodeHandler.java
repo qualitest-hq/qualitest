@@ -1,5 +1,7 @@
 package com.qualitest.flow.node.impl;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
@@ -31,7 +33,7 @@ public class InputNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.INPUT.getCode())
                 .nodeName(resolveNodeName(node))
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_PAUSED)
+                .status(RunStatus.PAUSED.getCode())
                 .durationMs(0L)
                 .flowAfter(copyFlow(ctx))
                 .error(StepError.of(FlowErrorCode.TF_AWAIT_INPUT, "等待人工输入"))

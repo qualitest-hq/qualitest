@@ -50,7 +50,7 @@ public class RunStatusUpdater {
         Date now = DateUtils.getNowDate();
         TestFlowRun update = new TestFlowRun();
         update.setTestFlowRunId(testFlowRunId);
-        update.setStatus(RunStatus.PAUSED);
+        update.setStatus(RunStatus.PAUSED.getCode());
         update.setStartedAt(startedAt);
         update.setFinishedAt(null);
         update.setDurationMs(Math.max(0, System.currentTimeMillis() - runT0));
@@ -88,7 +88,7 @@ public class RunStatusUpdater {
         Date finishedAt = DateUtils.getNowDate();
         TestFlowRun update = new TestFlowRun();
         update.setTestFlowRunId(testFlowRunId);
-        update.setStatus(RunStatus.ABORTED);
+        update.setStatus(RunStatus.ABORTED.getCode());
         update.setStartedAt(startedAt);
         update.setFinishedAt(finishedAt);
         update.setDurationMs(Math.max(0, elapsedMs));

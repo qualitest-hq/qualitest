@@ -73,7 +73,7 @@ public class TestFlowExecutor {
         if (run == null) {
             throw new FlowExecutionException(FlowErrorCode.TF_RUN_RESUME_INVALID, "运行记录不存在");
         }
-        if (!RunStatus.PAUSED.equals(run.getStatus())) {
+        if (!RunStatus.PAUSED.matches(run.getStatus())) {
             return ExecutionOutcome.idempotent(run.getStatus());
         }
         if (decision == null || decision.getDecision() == null || decision.getDecision().isBlank()) {
@@ -199,11 +199,11 @@ public class TestFlowExecutor {
             String errorMessage = outcome.getError() != null
                     ? outcome.getError().getMessage()
                     : "步骤失败";
-            runStatusUpdater.markFinished(testFlowRunId, RunStatus.FAILED, startedAt, runT0, ctx, errorCode, errorMessage);
+            runStatusUpdater.markFinished(testFlowRunId, RunStatus.FAILED.getCode(), startedAt, runT0, ctx, errorCode, errorMessage);
             return ExecutionOutcome.failed(errorCode, errorMessage, outcome.getExecutedSteps());
         }
 
-        runStatusUpdater.markFinished(testFlowRunId, RunStatus.PASSED, startedAt, runT0, ctx, null, null);
+        runStatusUpdater.markFinished(testFlowRunId, RunStatus.PASSED.getCode(), startedAt, runT0, ctx, null, null);
         return ExecutionOutcome.passed(outcome.getExecutedSteps());
     }
 
@@ -239,7 +239,7 @@ public class TestFlowExecutor {
         }
         FlowRunContext safeCtx = ctx != null ? ctx : new FlowRunContext();
         try {
-            runStatusUpdater.markFinished(testFlowRunId, RunStatus.FAILED, startedAt, runT0, safeCtx, errorCode, errorMessage);
+            runStatusUpdater.markFinished(testFlowRunId, RunStatus.FAILED.getCode(), startedAt, runT0, safeCtx, errorCode, errorMessage);
         } catch (Exception ignored) {
             // 尽力更新终态
         }

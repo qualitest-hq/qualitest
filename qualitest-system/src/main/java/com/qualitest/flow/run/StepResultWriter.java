@@ -35,9 +35,6 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class StepResultWriter {
 
-    /** 预留：步骤未执行状态 */
-    public static final String STATUS_SKIPPED = "skipped";
-
     /** 虚拟首步：记录 Run 启动时的场景、环境、flow 初值 */
     public static final String NODE_TYPE_RUN_CONFIG = "runConfig";
 
@@ -72,7 +69,7 @@ public class StepResultWriter {
         step.setNodeId("");
         step.setNodeType(NODE_TYPE_RUN_CONFIG);
         step.setNodeName(NODE_NAME_RUN_CONFIG);
-        step.setStatus(StepResult.STATUS_PASSED);
+        step.setStatus(RunStatus.PASSED.getCode());
         step.setDurationMs(0L);
         step.setStepDetails(toRunConfigStepDetailsJson(scenario, envName, ctx));
         step.setDelStatus(0);
@@ -177,7 +174,7 @@ public class StepResultWriter {
                 .nodeId("")
                 .nodeType(NODE_TYPE_RUN_CONFIG)
                 .nodeName(NODE_NAME_RUN_CONFIG)
-                .status(StepResult.STATUS_PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .durationMs(0L)
                 .stepDetails(JSON.toJSONString(details))
                 .build();
@@ -209,12 +206,12 @@ public class StepResultWriter {
                 .snapshot(snapshotDetails);
 
         if (attempt.isPassed()) {
-            builder.status(StepResult.STATUS_PASSED);
+            builder.status(RunStatus.PASSED.getCode());
         } else {
             FlowErrorCode code = attempt.getErrorCode() != null
                     ? attempt.getErrorCode()
                     : FlowErrorCode.TF_SNAPSHOT_FAILED;
-            builder.status(StepResult.STATUS_FAILED)
+            builder.status(RunStatus.FAILED.getCode())
                     .error(StepError.of(code, attempt.getErrorMessage()));
         }
         return builder.build();
@@ -240,7 +237,7 @@ public class StepResultWriter {
                 .nodeId("")
                 .nodeType(NODE_TYPE_RESUME_DECISION)
                 .nodeName(NODE_NAME_RESUME_DECISION)
-                .status(StepResult.STATUS_PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .durationMs(0L)
                 .snapshot(details)
                 .build();
@@ -276,7 +273,7 @@ public class StepResultWriter {
                 .nodeId(nodeId != null ? nodeId : "")
                 .nodeType(NODE_TYPE_RESTORE)
                 .nodeName(NODE_NAME_RESTORE)
-                .status(StepResult.STATUS_PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .durationMs(durationMs)
                 .snapshot(restoreDetails)
                 .build();

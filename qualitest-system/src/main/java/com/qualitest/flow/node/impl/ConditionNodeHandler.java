@@ -1,5 +1,7 @@
 package com.qualitest.flow.node.impl;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.CompareRuleEvaluator;
@@ -83,7 +85,7 @@ public class ConditionNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.CONDITION.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .durationMs(Math.max(0, System.currentTimeMillis() - t0))
                 .flowAfter(copyFlow(ctx))
                 .branchTaken(branchTaken)
@@ -122,7 +124,7 @@ public class ConditionNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.CONDITION.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_FAILED)
+                .status(RunStatus.FAILED.getCode())
                 .durationMs(Math.max(0, System.currentTimeMillis() - t0))
                 .flowAfter(copyFlow(ctx))
                 .error(StepError.of(FlowErrorCode.TF_BRANCH_UNWIRED, message))

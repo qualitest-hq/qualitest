@@ -118,11 +118,11 @@ public class FlowGraphRunner {
             StepResult result;
             if (skipCurrentNode) {
                 result = syntheticStep(node, incomingEdgeId, ctx,
-                        StepResultWriter.STATUS_SKIPPED, null, node.getId());
+                        RunStatus.SKIPPED.getCode(), null, node.getId());
                 skipCurrentNode = false;
             } else if (completeCurrentNode) {
                 result = syntheticStep(node, incomingEdgeId, ctx,
-                        StepResult.STATUS_PASSED,
+                        RunStatus.PASSED.getCode(),
                         continuation != null ? continuation.getCompletionAssigns() : null,
                         resolveDisplayName(node));
                 completeCurrentNode = false;
@@ -131,7 +131,7 @@ public class FlowGraphRunner {
             }
             recordStep(steps, result, onStep);
 
-            if (StepResult.STATUS_PAUSED.equals(result.getStatus())) {
+            if (RunStatus.PAUSED.matches(result.getStatus())) {
                 StepError error = result.getError() != null
                         ? result.getError()
                         : StepError.of(FlowErrorCode.TF_AWAIT_INPUT, "等待人工输入");
@@ -140,7 +140,7 @@ public class FlowGraphRunner {
                         currentId, incomingEdgeId);
             }
 
-            if (StepResult.STATUS_FAILED.equals(result.getStatus())) {
+            if (RunStatus.FAILED.matches(result.getStatus())) {
                 StepError error = result.getError() != null
                         ? result.getError()
                         : StepError.of(FlowErrorCode.TF_STEP_ERROR, "步骤失败");

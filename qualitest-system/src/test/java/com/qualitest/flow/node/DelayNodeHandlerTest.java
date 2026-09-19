@@ -1,5 +1,7 @@
 package com.qualitest.flow.node;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.DelayNodeHandler;
@@ -40,7 +42,7 @@ class DelayNodeHandlerTest {
         StepResult result = handler.execute(FlowRunContext.builder().build(), node, null);
         long elapsed = System.currentTimeMillis() - t0;
 
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertTrue(result.getDurationMs() >= 10);
         assertTrue(elapsed >= 10);
     }

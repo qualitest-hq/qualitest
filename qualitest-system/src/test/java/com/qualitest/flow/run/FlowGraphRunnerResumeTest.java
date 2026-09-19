@@ -54,7 +54,7 @@ class FlowGraphRunnerResumeTest {
                         return StepResult.builder()
                                 .nodeId(node.getId())
                                 .nodeType("http")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(Map.of("code", 0)))
                                 .build();
@@ -101,7 +101,7 @@ class FlowGraphRunnerResumeTest {
                         return StepResult.builder()
                                 .nodeId(node.getId())
                                 .nodeType("http")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(Map.of("code", 0)))
                                 .build();
@@ -126,7 +126,7 @@ class FlowGraphRunnerResumeTest {
         );
 
         assertTrue(outcome.isPassed());
-        assertEquals(StepResultWriter.STATUS_SKIPPED, outcome.getSteps().get(0).getStatus());
+        assertEquals(RunStatus.SKIPPED.getCode(), outcome.getSteps().get(0).getStatus());
         assertEquals("n2", outcome.getSteps().get(1).getNodeId());
     }
 
@@ -147,7 +147,7 @@ class FlowGraphRunnerResumeTest {
                         return StepResult.builder()
                                 .nodeId(node.getId())
                                 .nodeType("http")
-                                .status(StepResult.STATUS_FAILED)
+                                .status(RunStatus.FAILED.getCode())
                                 .error(StepError.of(FlowErrorCode.TF_STEP_ERROR, "mock fail"))
                                 .durationMs(1)
                                 .build();

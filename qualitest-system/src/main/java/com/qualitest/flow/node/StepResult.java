@@ -22,18 +22,6 @@ import java.util.Map;
 @AllArgsConstructor
 public class StepResult {
 
-    /** 步骤成功 */
-    public static final String STATUS_PASSED = "passed";
-
-    /** 步骤失败 */
-    public static final String STATUS_FAILED = "failed";
-
-    /**
-     * 步骤主动暂停（当前仅 Input：等待人工输入）。
-     * 图遍历器据此将 Run 置为 paused，pauseReason=await_input。
-     */
-    public static final String STATUS_PAUSED = "paused";
-
     /** 图内节点 id */
     private String nodeId;
 
@@ -46,7 +34,10 @@ public class StepResult {
     /** 入边 id；开始节点为 null */
     private String edgeId;
 
-    /** {@link #STATUS_PASSED} / {@link #STATUS_FAILED} / {@link #STATUS_PAUSED} */
+    /**
+     * 步骤状态 code：{@code passed} / {@code failed} / {@code paused} / {@code skipped}。
+     * paused 表示步骤主动暂停（当前仅 Input：等待人工输入），图遍历器据此将 Run 置为 paused。
+     */
     private String status;
 
     /** 本步耗时（毫秒） */

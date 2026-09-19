@@ -1,5 +1,7 @@
 package com.qualitest.flow.node.impl;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
@@ -306,7 +308,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                     .nodeType(FlowNodeType.HTTP.getCode())
                     .nodeName(nodeName)
                     .edgeId(incomingEdgeId)
-                    .status(StepResult.STATUS_FAILED)
+                    .status(RunStatus.FAILED.getCode())
                     .durationMs(durationMs)
                     .http(httpDetails)
                     .extracts(appliedExtracts)
@@ -322,7 +324,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                     .nodeType(FlowNodeType.HTTP.getCode())
                     .nodeName(nodeName)
                     .edgeId(incomingEdgeId)
-                    .status(StepResult.STATUS_PASSED)
+                    .status(RunStatus.PASSED.getCode())
                     .durationMs(durationMs)
                     .http(httpDetails)
                     .extracts(appliedExtracts)
@@ -367,7 +369,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                         .nodeType(FlowNodeType.HTTP.getCode())
                         .nodeName(nodeName)
                         .edgeId(incomingEdgeId)
-                        .status(StepResult.STATUS_FAILED)
+                        .status(RunStatus.FAILED.getCode())
                         .durationMs(durationMs)
                         .http(httpDetails)
                         .extracts(appliedExtracts)
@@ -382,7 +384,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.HTTP.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .durationMs(durationMs)
                 .http(httpDetails)
                 .extracts(appliedExtracts)
@@ -415,7 +417,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.HTTP.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_FAILED)
+                .status(RunStatus.FAILED.getCode())
                 .durationMs(durationMs)
                 .http(httpDetails)
                 .flowAfter(copyFlow(ctx))
@@ -433,7 +435,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.HTTP.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_FAILED)
+                .status(RunStatus.FAILED.getCode())
                 .durationMs(durationMs)
                 .flowAfter(copyFlow(ctx))
                 .error(StepError.of(code, message))

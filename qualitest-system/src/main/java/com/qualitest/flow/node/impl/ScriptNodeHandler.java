@@ -1,5 +1,7 @@
 package com.qualitest.flow.node.impl;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepError;
@@ -50,7 +52,7 @@ public class ScriptNodeHandler extends AbstractStubNodeHandler {
                     .nodeType(FlowNodeType.SCRIPT.getCode())
                     .nodeName(nodeName)
                     .edgeId(incomingEdgeId)
-                    .status(StepResult.STATUS_FAILED)
+                    .status(RunStatus.FAILED.getCode())
                     .durationMs(durationMs)
                     .flowAfter(copyFlow(ctx))
                     .script(result.toStepScriptDetails(language))
@@ -63,7 +65,7 @@ public class ScriptNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.SCRIPT.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .durationMs(durationMs)
                 .flowAfter(copyFlow(ctx))
                 .script(result.toStepScriptDetails(language))

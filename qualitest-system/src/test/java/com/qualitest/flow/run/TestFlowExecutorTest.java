@@ -63,7 +63,7 @@ class TestFlowExecutorTest {
                                 .nodeType("http")
                                 .nodeName(node.getId())
                                 .edgeId(incomingEdgeId)
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .http(Map.of("method", "GET", "url", "/mock", "status", 200))
@@ -77,7 +77,7 @@ class TestFlowExecutorTest {
                         return StepResult.builder()
                                 .nodeId(node.getId())
                                 .nodeType("delay")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(0)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .build();
@@ -155,7 +155,7 @@ class TestFlowExecutorTest {
         ArgumentCaptor<TestFlowRun> runCaptor = ArgumentCaptor.forClass(TestFlowRun.class);
         verify(runPersistenceService).updateRun(runCaptor.capture());
         TestFlowRun finished = runCaptor.getValue();
-        assertEquals(RunStatus.PASSED, finished.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), finished.getStatus());
         assertNotNull(finished.getFlowSnapshot());
         assertTrue(finished.getFlowSnapshot().contains("code"));
 
@@ -191,10 +191,10 @@ class TestFlowExecutorTest {
 
         assertFalse(outcome.isPassed());
         assertEquals(5, persistedSteps.size());
-        assertEquals(StepResult.STATUS_FAILED, persistedSteps.get(4).getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), persistedSteps.get(4).getStatus());
 
         verify(runPersistenceService).updateRun(argThat((TestFlowRun r) ->
-                RunStatus.FAILED.equals(r.getStatus())
+                RunStatus.FAILED.matches(r.getStatus())
                         && r.getErrorCode() != null
         ));
     }
@@ -221,7 +221,7 @@ class TestFlowExecutorTest {
                                 .nodeType("http")
                                 .nodeName(node.getId())
                                 .edgeId(incomingEdgeId)
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .http(Map.of("method", "GET", "url", "/mock", "status", 200))
@@ -235,7 +235,7 @@ class TestFlowExecutorTest {
                         return StepResult.builder()
                                 .nodeId(node.getId())
                                 .nodeType("delay")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(0)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .build();

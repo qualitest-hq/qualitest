@@ -1,5 +1,7 @@
 package com.qualitest.flow.subflow;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.node.StepError;
@@ -82,7 +84,7 @@ class SubflowIoSupportTest {
                 .nodeId("n1")
                 .nodeType("assert")
                 .nodeName("断言")
-                .status(StepResult.STATUS_FAILED)
+                .status(RunStatus.FAILED.getCode())
                 .durationMs(2)
                 .error(StepError.of(FlowErrorCode.TF_ASSERT_FAILED, "断言失败"))
                 .build();

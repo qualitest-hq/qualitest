@@ -1,5 +1,7 @@
 package com.qualitest.flow.node;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
@@ -82,7 +84,7 @@ class SubflowNodeHandlerTest {
 
         StepResult result = handler.execute(parentCtx, node, "e1");
 
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertNotNull(result.getSubflow());
         assertEquals("ok", parentCtx.getFlow().get("parentToken"));
         assertNotNull(result.getSubflow().get("childSteps"));
@@ -109,7 +111,7 @@ class SubflowNodeHandlerTest {
 
         StepResult result = handler.execute(parentCtx, node, null);
 
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("ok", parentCtx.getFlow().get("childOut"));
     }
 
@@ -123,7 +125,7 @@ class SubflowNodeHandlerTest {
     void execute_missingSubflowId_fails() {
         GraphNode node = subflowNode(nodeData("name", "坏节点"));
         StepResult result = handler.execute(parentCtx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertEquals(FlowErrorCode.TF_SUBFLOW_INVALID.getCode(), result.getError().getCode());
     }
 
@@ -144,7 +146,7 @@ class SubflowNodeHandlerTest {
         ));
 
         StepResult result = handler.execute(parentCtx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("ok", parentCtx.getFlow().get("parentToken"));
     }
 
@@ -166,7 +168,7 @@ class SubflowNodeHandlerTest {
         ));
 
         StepResult result = handler.execute(parentCtx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertEquals(FlowErrorCode.TF_SUBFLOW_INVALID.getCode(), result.getError().getCode());
         assertTrue(result.getError().getMessage().contains("不属于当前项目"));
     }
@@ -190,7 +192,7 @@ class SubflowNodeHandlerTest {
         ));
 
         StepResult result = handler.execute(parentCtx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertNotNull(result.getSubflow());
         assertEquals("failed", result.getSubflow().get("status"));
         @SuppressWarnings("unchecked")
@@ -218,7 +220,7 @@ class SubflowNodeHandlerTest {
         ));
 
         StepResult result = handler.execute(parentCtx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertEquals(FlowErrorCode.TF_SUBFLOW_NESTED.getCode(), result.getError().getCode());
         assertTrue(result.getError().getMessage().contains("嵌套超过上限"));
     }
@@ -233,7 +235,7 @@ class SubflowNodeHandlerTest {
                                 .nodeId(node.getId())
                                 .nodeType("assign")
                                 .nodeName("stub-assign")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .build();
@@ -251,7 +253,7 @@ class SubflowNodeHandlerTest {
                                 .nodeId(node.getId())
                                 .nodeType("delay")
                                 .nodeName(node.getId())
-                                .status(StepResult.STATUS_FAILED)
+                                .status(RunStatus.FAILED.getCode())
                                 .durationMs(1)
                                 .error(StepError.of(FlowErrorCode.TF_STEP_ERROR, "子步骤失败"))
                                 .flowAfter(new HashMap<>(ctx.getFlow()))

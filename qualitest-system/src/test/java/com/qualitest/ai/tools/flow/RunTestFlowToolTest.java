@@ -55,7 +55,7 @@ class RunTestFlowToolTest {
         ITestFlowService flowService = mock(ITestFlowService.class);
         when(execution.triggerRun(any(TriggerTestFlowRunParams.class))).thenReturn(88L);
         TestFlowRunResult run = new TestFlowRunResult();
-        run.setStatus(RunStatus.PASSED);
+        run.setStatus(RunStatus.PASSED.getCode());
         when(execution.awaitRunTerminal(eq(88L), anyLong())).thenReturn(run);
 
         RunTestFlowTool tool = new RunTestFlowTool(
@@ -158,7 +158,7 @@ class RunTestFlowToolTest {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
         when(execution.triggerRun(any(TriggerTestFlowRunParams.class))).thenReturn(99L);
         TestFlowRunResult run = new TestFlowRunResult();
-        run.setStatus(RunStatus.PASSED);
+        run.setStatus(RunStatus.PASSED.getCode());
         when(execution.awaitRunTerminal(eq(99L), anyLong())).thenReturn(run);
 
         java.util.concurrent.atomic.AtomicLong started = new java.util.concurrent.atomic.AtomicLong();

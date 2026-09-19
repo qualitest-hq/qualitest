@@ -33,23 +33,23 @@ public final class ExecutionOutcome {
     }
 
     public static ExecutionOutcome passed(int executedSteps) {
-        return new ExecutionOutcome(RunStatus.PASSED, true, false, false, null, null, executedSteps);
+        return new ExecutionOutcome(RunStatus.PASSED.getCode(), true, false, false, null, null, executedSteps);
     }
 
     public static ExecutionOutcome failed(String errorCode, String errorMessage, int executedSteps) {
-        return new ExecutionOutcome(RunStatus.FAILED, false, false, false, errorCode, errorMessage, executedSteps);
+        return new ExecutionOutcome(RunStatus.FAILED.getCode(), false, false, false, errorCode, errorMessage, executedSteps);
     }
 
     public static ExecutionOutcome paused(String errorCode, String errorMessage, int executedSteps) {
-        return new ExecutionOutcome(RunStatus.PAUSED, false, true, false, errorCode, errorMessage, executedSteps);
+        return new ExecutionOutcome(RunStatus.PAUSED.getCode(), false, true, false, errorCode, errorMessage, executedSteps);
     }
 
     public static ExecutionOutcome aborted() {
-        return new ExecutionOutcome(RunStatus.ABORTED, false, false, false, null, null, 0);
+        return new ExecutionOutcome(RunStatus.ABORTED.getCode(), false, false, false, null, null, 0);
     }
 
     public boolean isAborted() {
-        return RunStatus.ABORTED.equals(terminalStatus);
+        return RunStatus.ABORTED.matches(terminalStatus);
     }
 
     /**
@@ -57,8 +57,8 @@ public final class ExecutionOutcome {
      * 若当前已是 paused 则幂等且无错误码；否则带 TF_RUN_NOT_PAUSED。
      */
     public static ExecutionOutcome idempotent(String currentStatus) {
-        boolean passed = RunStatus.PASSED.equals(currentStatus);
-        boolean paused = RunStatus.PAUSED.equals(currentStatus);
+        boolean passed = RunStatus.PASSED.matches(currentStatus);
+        boolean paused = RunStatus.PAUSED.matches(currentStatus);
         String errorCode = paused ? null : FlowErrorCode.TF_RUN_NOT_PAUSED.getCode();
         return new ExecutionOutcome(currentStatus, passed, paused, true, errorCode, null, 0);
     }

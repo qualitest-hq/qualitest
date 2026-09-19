@@ -1,5 +1,7 @@
 package com.qualitest.flow.node.impl;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.delay.DelayConstants;
 import com.qualitest.flow.exception.FlowErrorCode;
@@ -37,7 +39,7 @@ public class DelayNodeHandler extends AbstractStubNodeHandler {
                     .nodeType(FlowNodeType.DELAY.getCode())
                     .nodeName(resolveNodeName(node))
                     .edgeId(incomingEdgeId)
-                    .status(StepResult.STATUS_FAILED)
+                    .status(RunStatus.FAILED.getCode())
                     .durationMs(System.currentTimeMillis() - t0)
                     .flowAfter(copyFlow(ctx))
                     .error(StepError.of(FlowErrorCode.TF_STEP_ERROR, "Delay 被中断"))
@@ -49,7 +51,7 @@ public class DelayNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.DELAY.getCode())
                 .nodeName(resolveNodeName(node))
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .durationMs(System.currentTimeMillis() - t0)
                 .flowAfter(copyFlow(ctx))
                 .build();

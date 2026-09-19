@@ -46,7 +46,7 @@ class McpRunTestFlowToolTest {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
         when(execution.triggerRun(any(TriggerTestFlowRunParams.class))).thenReturn(88L);
         TestFlowRunResult run = new TestFlowRunResult();
-        run.setStatus(RunStatus.PASSED);
+        run.setStatus(RunStatus.PASSED.getCode());
         when(execution.awaitRunTerminal(eq(88L), anyLong())).thenReturn(run);
 
         McpRunTestFlowTool tool = new McpRunTestFlowTool(

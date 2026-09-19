@@ -186,7 +186,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 .testFlowId(testFlow.getTestFlowId())
                 .testProjectEnvId(scenario.getTestProjectEnvId())
                 .runScenarioId(scenario.getScenarioId())
-                .status(RunStatus.RUNNING)
+                .status(RunStatus.RUNNING.getCode())
                 .graphJsonSnapshot(snapshotJson)
                 .graphFingerprint(fingerprint)
                 .startedAt(now)
@@ -216,7 +216,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 // 兜底：避免异常导致记录永久停在 running
                 try {
                     String msg = e.getMessage() != null ? e.getMessage() : "运行异常";
-                    runStatusUpdater.markFinished(runId, RunStatus.FAILED, startedAt,
+                    runStatusUpdater.markFinished(runId, RunStatus.FAILED.getCode(), startedAt,
                             startedAt.getTime(), runCtx,
                             FlowErrorCode.TF_STEP_ERROR.getCode(), msg);
                 } catch (Exception ignored) {
@@ -278,7 +278,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 return null;
             }
             String status = latest.getStatus();
-            if (status != null && !RunStatus.RUNNING.equals(status)) {
+            if (status != null && !RunStatus.RUNNING.matches(status)) {
                 return latest;
             }
             try {
@@ -381,7 +381,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
      * 非 paused 返回 null。
      */
     private RunPauseInfo buildPauseInfo(TestFlowRunResult run) {
-        if (run == null || !RunStatus.PAUSED.equals(run.getStatus())) {
+        if (run == null || !RunStatus.PAUSED.matches(run.getStatus())) {
             return null;
         }
         RunExecutionState state = RunExecutionState.fromJson(run.getRunExecutionState());

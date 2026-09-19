@@ -121,7 +121,7 @@ class TestFlowExecutionServiceImplResumeTest {
         TestFlowRunResult run = TestFlowRunResult.builder()
                 .testFlowRunId(10L)
                 .testFlowId(1L)
-                .status(RunStatus.PAUSED)
+                .status(RunStatus.PAUSED.getCode())
                 .runExecutionState(state.toJson())
                 .pausedAt(pausedAt)
                 .build();
@@ -156,7 +156,7 @@ class TestFlowExecutionServiceImplResumeTest {
         TestFlowRunResult run = TestFlowRunResult.builder()
                 .testFlowRunId(11L)
                 .testFlowId(1L)
-                .status(RunStatus.PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .build();
 
         when(testFlowRunService.selectTestFlowRunResult(11L)).thenReturn(run);
@@ -181,7 +181,7 @@ class TestFlowExecutionServiceImplResumeTest {
                 .testFlowRunId(20L)
                 .testFlowId(2L)
                 .testProjectEnvId(100L)
-                .status(RunStatus.PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .delStatus(0)
                 .build();
         TestProjectEnv env = TestProjectEnv.builder().delStatus(0).build();
@@ -190,16 +190,16 @@ class TestFlowExecutionServiceImplResumeTest {
         when(testFlowService.selectTestFlowById(2L)).thenReturn(TestFlow.builder().testProjectId(99L).build());
         when(testProjectEnvService.selectTestProjectEnvById(100L)).thenReturn(env);
         when(testFlowExecutor.resume(eq(20L), any(ResumeDecision.class), eq(env)))
-                .thenReturn(ExecutionOutcome.idempotent(RunStatus.PASSED));
+                .thenReturn(ExecutionOutcome.idempotent(RunStatus.PASSED.getCode()));
         when(testFlowRunService.selectTestFlowRunResult(20L)).thenReturn(
-                TestFlowRunResult.builder().testFlowRunId(20L).status(RunStatus.PASSED).build());
+                TestFlowRunResult.builder().testFlowRunId(20L).status(RunStatus.PASSED.getCode()).build());
 
         ResumeRunResult result = service.resumeRun(20L,
                 ResumeTestFlowRunParams.builder().decision(ResumeDecision.RETRY_IN_PLACE).build());
 
         assertTrue(result.isIdempotent());
         assertEquals(FlowErrorCode.TF_RUN_NOT_PAUSED.getCode(), result.getErrorCode());
-        assertEquals(RunStatus.PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         verify(testFlowExecutor).resume(eq(20L), any(ResumeDecision.class), eq(env));
     }
 
@@ -225,7 +225,7 @@ class TestFlowExecutionServiceImplResumeTest {
         TestFlowRunResult run = TestFlowRunResult.builder()
                 .testFlowRunId(12L)
                 .testFlowId(1L)
-                .status(RunStatus.PAUSED)
+                .status(RunStatus.PAUSED.getCode())
                 .runExecutionState(state.toJson())
                 .graphJsonSnapshot(graphJson)
                 .build();

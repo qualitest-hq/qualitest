@@ -1,5 +1,7 @@
 package com.qualitest.flow.node;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
@@ -38,7 +40,7 @@ class ScriptNodeHandlerTest {
         FlowRunContext ctx = new FlowRunContext();
 
         StepResult result = handler.execute(ctx, node, "e1");
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("ok", ctx.getFlow().get("demo"));
         assertNotNull(result.getScript());
         assertEquals("javascript", result.getScript().get("language"));
@@ -57,7 +59,7 @@ class ScriptNodeHandlerTest {
         FlowRunContext ctx = new FlowRunContext();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertNotNull(result.getError());
         assertEquals(FlowErrorCode.TF_SCRIPT_ERROR.getCode(), result.getError().getCode());
     }

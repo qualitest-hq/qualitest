@@ -48,7 +48,7 @@ class ResumeContinuationPlannerTest {
         stack.push("n2", "snap-2");
 
         when(restoreService.restore(any(), eq(99L), eq("snap-1"), eq("n1")))
-                .thenReturn(StepResult.builder().nodeType(StepResultWriter.NODE_TYPE_RESTORE).status(StepResult.STATUS_PASSED).build());
+                .thenReturn(StepResult.builder().nodeType(StepResultWriter.NODE_TYPE_RESTORE).status(RunStatus.PASSED.getCode()).build());
 
         RunExecutionState state = RunExecutionState.builder().pauseNodeId("n2").build();
         ResumeContinuationPlanner.PlannedResume planned = planner.plan(

@@ -1,5 +1,7 @@
 package com.qualitest.flow.node;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.InputNodeHandler;
@@ -45,7 +47,7 @@ class InputNodeHandlerTest {
 
         StepResult result = handler.execute(ctx, node, null);
 
-        assertEquals(StepResult.STATUS_PAUSED, result.getStatus());
+        assertEquals(RunStatus.PAUSED.getCode(), result.getStatus());
         assertEquals("in1", result.getNodeId());
         assertTrue(ctx.getFlow().isEmpty());
         assertNotNull(result.getError());

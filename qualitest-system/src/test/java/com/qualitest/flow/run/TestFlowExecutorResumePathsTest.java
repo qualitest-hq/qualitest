@@ -84,7 +84,7 @@ class TestFlowExecutorResumePathsTest {
                         return StepResult.builder()
                                 .nodeId(node.getId())
                                 .nodeType("http")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(1)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .build();
@@ -109,7 +109,7 @@ class TestFlowExecutorResumePathsTest {
     @Order(1)
     @DisplayName("非暂停态续跑幂等返回 TF_RUN_NOT_PAUSED")
     void resume_idempotentWhenNotPaused() {
-        pausedRun = TestFlowRun.builder().testFlowRunId(1L).status(RunStatus.PASSED).build();
+        pausedRun = TestFlowRun.builder().testFlowRunId(1L).status(RunStatus.PASSED.getCode()).build();
         when(runService.selectTestFlowRunById(1L)).thenReturn(pausedRun);
 
         ExecutionOutcome outcome = executor.resume(1L,
@@ -137,7 +137,7 @@ class TestFlowExecutorResumePathsTest {
                 env());
 
         assertTrue(outcome.isAborted());
-        assertEquals(RunStatus.ABORTED, pausedRun.getStatus());
+        assertEquals(RunStatus.ABORTED.getCode(), pausedRun.getStatus());
     }
 
     /**
@@ -157,7 +157,7 @@ class TestFlowExecutorResumePathsTest {
                 env());
 
         assertTrue(outcome.isPassed());
-        assertEquals(RunStatus.PASSED, pausedRun.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), pausedRun.getStatus());
     }
 
     /**
@@ -187,7 +187,7 @@ class TestFlowExecutorResumePathsTest {
                 env());
 
         assertTrue(outcome.isPassed());
-        assertEquals(RunStatus.PASSED, pausedRun.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), pausedRun.getStatus());
     }
 
     /**
@@ -218,7 +218,7 @@ class TestFlowExecutorResumePathsTest {
                                 return StepResult.builder()
                                         .nodeId(node.getId())
                                         .nodeType("http")
-                                        .status(StepResult.STATUS_PASSED)
+                                        .status(RunStatus.PASSED.getCode())
                                         .durationMs(1)
                                         .flowAfter(new HashMap<>(ctx.getFlow()))
                                         .build();
@@ -237,7 +237,7 @@ class TestFlowExecutorResumePathsTest {
                 TestProjectEnv.builder().envUrl("http://localhost:8801").allowDestructiveReset(0).build());
 
         assertTrue(outcome.isPassed());
-        assertEquals(RunStatus.PASSED, pausedRun.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), pausedRun.getStatus());
     }
 
     private static TestFlowRun buildPausedRun(Long runId, GraphJson graph, String pauseNodeId) {
@@ -252,7 +252,7 @@ class TestFlowExecutorResumePathsTest {
                 .testFlowRunId(runId)
                 .testProjectEnvId(100L)
                 .runScenarioId("sc-default")
-                .status(RunStatus.PAUSED)
+                .status(RunStatus.PAUSED.getCode())
                 .graphJsonSnapshot(graph.toJsonString())
                 .runExecutionState(state.toJson())
                 .build();

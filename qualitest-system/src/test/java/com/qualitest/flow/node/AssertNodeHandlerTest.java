@@ -1,5 +1,7 @@
 package com.qualitest.flow.node;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
@@ -51,7 +53,7 @@ class AssertNodeHandlerTest {
                 .build();
 
         StepResult result = handler.execute(ctx, node, "e1");
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertNotNull(result.getAssertDetails());
     }
 
@@ -73,7 +75,7 @@ class AssertNodeHandlerTest {
                 .build();
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_FAILED, result.getStatus());
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertEquals(FlowErrorCode.TF_ASSERT_FAILED.getCode(), result.getError().getCode());
     }
 }

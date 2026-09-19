@@ -89,7 +89,7 @@ class GraphWalkerTest {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         GraphWalker walker = new GraphWalker(graph);
         GraphNode n1 = walker.getNode("n1");
-        StepResult stub = StepResult.builder().status(StepResult.STATUS_PASSED).build();
+        StepResult stub = StepResult.builder().status(RunStatus.PASSED.getCode()).build();
         assertEquals("n2", walker.resolveNextNodeId(n1, stub));
     }
 

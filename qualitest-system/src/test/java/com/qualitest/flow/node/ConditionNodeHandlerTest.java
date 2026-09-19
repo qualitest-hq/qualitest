@@ -1,5 +1,7 @@
 package com.qualitest.flow.node;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.FlowRunContext;
@@ -39,7 +41,7 @@ class ConditionNodeHandlerTest {
         ctx.getFlow().put("code", 0);
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("b_if", result.getBranchTaken().get("branchId"));
         assertEquals("if", result.getBranchTaken().get("kind"));
     }
@@ -57,7 +59,7 @@ class ConditionNodeHandlerTest {
         ctx.getFlow().put("code", 99);
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("b_else", result.getBranchTaken().get("branchId"));
         assertEquals("else", result.getBranchTaken().get("kind"));
     }
@@ -79,7 +81,7 @@ class ConditionNodeHandlerTest {
         ctx.getFlow().put("flag", 1);
 
         StepResult result = handler.execute(ctx, node, null);
-        assertEquals(StepResult.STATUS_PASSED, result.getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("b_if", result.getBranchTaken().get("branchId"));
         assertEquals(Boolean.TRUE, result.getBranchTaken().get("terminal"));
     }

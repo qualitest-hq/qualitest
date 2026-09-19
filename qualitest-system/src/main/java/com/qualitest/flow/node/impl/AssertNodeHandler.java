@@ -1,5 +1,7 @@
 package com.qualitest.flow.node.impl;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
@@ -70,7 +72,7 @@ public class AssertNodeHandler extends AbstractStubNodeHandler {
                     .nodeType(FlowNodeType.ASSERT.getCode())
                     .nodeName(nodeName)
                     .edgeId(incomingEdgeId)
-                    .status(StepResult.STATUS_FAILED)
+                    .status(RunStatus.FAILED.getCode())
                     .durationMs(durationMs)
                     .assertDetails(assertDetails)
                     .flowAfter(copyFlow(ctx))
@@ -83,7 +85,7 @@ public class AssertNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.ASSERT.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_PASSED)
+                .status(RunStatus.PASSED.getCode())
                 .durationMs(durationMs)
                 .assertDetails(assertDetails)
                 .flowAfter(copyFlow(ctx))

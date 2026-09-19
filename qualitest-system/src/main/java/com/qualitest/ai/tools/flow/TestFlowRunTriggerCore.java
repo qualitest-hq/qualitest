@@ -169,10 +169,10 @@ public class TestFlowRunTriggerCore {
             run = testFlowRunService.selectTestFlowRunResult(runId);
         }
         String status = run != null ? run.getStatus() : null;
-        boolean failed = RunStatus.FAILED.equals(status);
-        boolean paused = RunStatus.PAUSED.equals(status);
-        boolean passed = RunStatus.PASSED.equals(status);
-        boolean stillRunning = RunStatus.RUNNING.equals(status);
+        boolean failed = RunStatus.FAILED.matches(status);
+        boolean paused = RunStatus.PAUSED.matches(status);
+        boolean passed = RunStatus.PASSED.matches(status);
+        boolean stillRunning = RunStatus.RUNNING.matches(status);
 
         JSONObject result = new JSONObject();
         result.put("ok", true);

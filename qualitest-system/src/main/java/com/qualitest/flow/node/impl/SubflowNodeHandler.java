@@ -1,5 +1,7 @@
 package com.qualitest.flow.node.impl;
 
+
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
@@ -108,7 +110,7 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                         .nodeType(FlowNodeType.SUBFLOW.getCode())
                         .nodeName(nodeName)
                         .edgeId(incomingEdgeId)
-                        .status(StepResult.STATUS_FAILED)
+                        .status(RunStatus.FAILED.getCode())
                         .durationMs(durationMs)
                         .subflow(subflowDetails)
                         .flowAfter(copyFlow(ctx))
@@ -129,7 +131,7 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                     .nodeType(FlowNodeType.SUBFLOW.getCode())
                     .nodeName(nodeName)
                     .edgeId(incomingEdgeId)
-                    .status(StepResult.STATUS_PASSED)
+                    .status(RunStatus.PASSED.getCode())
                     .durationMs(durationMs)
                     .subflow(subflowDetails)
                     .flowAfter(copyFlow(ctx))
@@ -201,7 +203,7 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                 .nodeType(FlowNodeType.SUBFLOW.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(StepResult.STATUS_FAILED)
+                .status(RunStatus.FAILED.getCode())
                 .durationMs(durationMs)
                 .subflow(subflowDetails)
                 .flowAfter(copyFlow(ctx))

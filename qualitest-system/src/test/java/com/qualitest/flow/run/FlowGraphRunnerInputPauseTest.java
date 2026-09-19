@@ -62,7 +62,7 @@ class FlowGraphRunnerInputPauseTest {
         assertTrue(outcome.isPaused());
         assertEquals(RunExecutionState.PAUSE_REASON_AWAIT_INPUT, outcome.getPauseReason());
         assertEquals("in1", outcome.getPauseNodeId());
-        assertEquals(StepResult.STATUS_PAUSED, outcome.getSteps().get(0).getStatus());
+        assertEquals(RunStatus.PAUSED.getCode(), outcome.getSteps().get(0).getStatus());
     }
 
     /**
@@ -103,7 +103,7 @@ class FlowGraphRunnerInputPauseTest {
                         return StepResult.builder()
                                 .nodeId(node.getId())
                                 .nodeType("delay")
-                                .status(StepResult.STATUS_PASSED)
+                                .status(RunStatus.PASSED.getCode())
                                 .durationMs(0)
                                 .flowAfter(new HashMap<>(ctx.getFlow()))
                                 .build();
@@ -128,7 +128,7 @@ class FlowGraphRunnerInputPauseTest {
 
         assertTrue(outcome.isPassed());
         assertEquals(2, outcome.getSteps().size());
-        assertEquals(StepResult.STATUS_PASSED, outcome.getSteps().get(0).getStatus());
+        assertEquals(RunStatus.PASSED.getCode(), outcome.getSteps().get(0).getStatus());
         assertEquals("in1", outcome.getSteps().get(0).getNodeId());
         assertEquals("d1", outcome.getSteps().get(1).getNodeId());
     }

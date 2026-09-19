@@ -29,25 +29,20 @@
 </template>
 
 <script setup>
+import { runStatusLabel, runStatusTagType } from '@/views/project/testFlow/constants/runStatus'
+
 defineProps({
   runs: { type: Array, default: () => [] },
 })
 
 const router = useRouter()
 
-const STATUS_MAP = {
-  passed: { label: '成功', type: 'success' },
-  failed: { label: '失败', type: 'danger' },
-  running: { label: '执行中', type: 'warning' },
-  cancelled: { label: '取消', type: 'info' },
-}
-
 function statusLabel(status) {
-  return STATUS_MAP[status]?.label || status || '-'
+  return runStatusLabel(status)
 }
 
 function statusType(status) {
-  return STATUS_MAP[status]?.type || 'info'
+  return runStatusTagType(status)
 }
 
 function formatDuration(ms) {
