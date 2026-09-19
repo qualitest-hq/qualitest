@@ -173,6 +173,32 @@ class TestProjectApiEffectiveConfigResolverTest {
     }
 
     /**
+     * 前提：base 含必填 query classroomId；overrides 顶层扁平写 classroomId。
+     * 期望：叠层后 queryParams 行上有该测值。
+     */
+    @Test
+    @Order(55)
+    @DisplayName("overlayOverrides：顶层 query 名叠进 queryParams.value")
+    void overlayRequestValuesFromOverrides_routesQueryParam() {
+        String base = """
+                {
+                  "configVersion": 1,
+                  "method": "GET",
+                  "queryParams": [{"name": "classroomId", "required": true, "type": "string"}],
+                  "pathParams": [],
+                  "declaredHeaders": [],
+                  "body": {"mode": "none"}
+                }
+                """;
+        var overrides = java.util.Map.of("classroomId", "{{flow.classroomId}}");
+
+        String overlaid = TestProjectApiEffectiveConfigResolver.overlayRequestValuesFromOverrides(base, overrides);
+
+        assertTrue(overlaid.contains("{{flow.classroomId}}"));
+        assertTrue(overlaid.contains("classroomId"));
+    }
+
+    /**
      * 前提：request 含 body.json.example 脏默认。
      * 期望：stripBodyExample 后 example 被移除；resolve 仍叠回 TV body（调试路径不变）。
      */

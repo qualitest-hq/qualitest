@@ -187,6 +187,39 @@ class HttpRequiredParamGateTest {
         assertTrue(HttpRequiredParamGate.validate(graph, id -> api(id, schema)).isEmpty());
     }
 
+    /**
+     * 前提：必填 query classroomId；节点扁平写 requestValueOverrides.classroomId={{flow.x}}。
+     * 期望：叠层分桶后通过（含运行时引用）。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("扁平 query 覆盖与 {{flow.*}} 通过")
+    void flatQueryOverride_withFlowRef_ok() {
+        String schema = """
+                {"configVersion":1,"method":"GET",
+                 "queryParams":[{"name":"classroomId","required":true,"type":"string"}],
+                 "pathParams":[],"declaredHeaders":[],"body":{"mode":"none"}}
+                """;
+        GraphNode node = httpNode("detail", 1L, Map.of("classroomId", "{{flow.classroomId}}"));
+        GraphJson graph = GraphJson.builder().nodes(List.of(node)).build();
+
+        assertTrue(HttpRequiredParamGate.validate(graph, id -> api(id, schema)).isEmpty());
+    }
+
+    /**
+     * 前提：必填 query page；历史上误把 page 写进 bodyExample。
+     * 期望：叠层迁回 paramDefaults 后通过。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("误存 bodyExample 的 query 测值仍可通过")
+    void queryMisplacedInBodyExample_reclaimed_ok() {
+        GraphNode node = httpNode("list", 1L, Map.of("bodyExample", Map.of("page", "1")));
+        GraphJson graph = GraphJson.builder().nodes(List.of(node)).build();
+
+        assertTrue(HttpRequiredParamGate.validate(graph, id -> api(id, QUERY_PAGE_REQUIRED)).isEmpty());
+    }
+
     /** 组装一个绑定项目接口的 HTTP 节点；overrides 写入 requestValueOverrides。 */
     private static GraphNode httpNode(String id, Long apiId, Map<String, Object> overrides) {
         Map<String, Object> data = new HashMap<>();

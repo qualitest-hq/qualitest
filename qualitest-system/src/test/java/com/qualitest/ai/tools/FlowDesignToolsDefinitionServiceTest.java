@@ -193,7 +193,7 @@ class FlowDesignToolsDefinitionServiceTest {
 
     /**
      * 前提：MCP 全自动列表中的 run_test_flow。
-     * 期望：inputSchema 必填 testFlowId；描述不含「当前画布」。
+     * 期望：inputSchema 必填 testFlowId；描述写明无画布当前流。
      */
     @Test
     @Order(8)
@@ -205,8 +205,9 @@ class FlowDesignToolsDefinitionServiceTest {
                 .findFirst()
                 .orElseThrow();
         String desc = String.valueOf(runTool.get("description"));
-        assertFalse(desc.contains("当前打开"));
+        assertFalse(desc.contains("触发当前测试流"));
         assertTrue(desc.contains("testFlowId"));
+        assertTrue(desc.contains("无画布"));
         Map<String, Object> schema = (Map<String, Object>) runTool.get("inputSchema");
         List<String> required = (List<String>) schema.get("required");
         assertTrue(required.contains("testFlowId"));

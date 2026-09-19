@@ -73,13 +73,13 @@
     "type": "function",
     "function": {
       "name": "get_graph_summary",
-      "description": "获取测试流画布的节点与边摘要；另含 mermaid（flowchart TB 正文，便于预览拓扑）。单节点用 get_node_detail，单边用 get_edge_detail。MCP：传 testFlowId 加载画布（可与信封 testFlowId 二选一）",
+      "description": "获取测试流画布的节点与边摘要；另含 mermaid（flowchart TB 正文，便于预览拓扑）。单节点用 get_node_detail，单边用 get_edge_detail。MCP：传 testFlowId 加载画布（请求里带 testFlowId 即可）",
       "parameters": {
         "type": "object",
         "properties": {
           "testFlowId": {
             "type": "string",
-            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+            "description": "测试流 id；MCP 未传 graphJson 时必填（请求已带则可省略）"
           }
         },
         "required": []
@@ -90,13 +90,13 @@
     "type": "function",
     "function": {
       "name": "get_flow_meta",
-      "description": "获取画布 meta：运行场景列表摘要、flowOutputNames、startNodeId。单场景详情用 get_scenario_detail。传 testFlowId 或由信封提供",
+      "description": "获取画布 meta：运行场景列表摘要、flowOutputNames、startNodeId。单场景详情用 get_scenario_detail。传 testFlowId（请求已带则可省略）",
       "parameters": {
         "type": "object",
         "properties": {
           "testFlowId": {
             "type": "string",
-            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+            "description": "测试流 id；MCP 未传 graphJson 时必填（请求已带则可省略）"
           }
         },
         "required": []
@@ -200,7 +200,7 @@
     "type": "function",
     "function": {
       "name": "get_node_detail",
-      "description": "获取单个节点的 type 与完整 data。传 testFlowId 或由信封提供 自动加载画布",
+      "description": "获取单个节点的 type 与完整 data。传 testFlowId（请求已带则可省略）自动加载画布",
       "parameters": {
         "type": "object",
         "properties": {
@@ -210,7 +210,7 @@
           },
           "testFlowId": {
             "type": "string",
-            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+            "description": "测试流 id；MCP 未传 graphJson 时必填（请求已带则可省略）"
           }
         },
         "required": [
@@ -223,7 +223,7 @@
     "type": "function",
     "function": {
       "name": "get_edge_detail",
-      "description": "获取单条边完整字段（id/source/target/label）。改边或删边前优先调用；传 testFlowId 或由信封提供",
+      "description": "获取单条边完整字段（id/source/target/label）。改边或删边前优先调用；传 testFlowId（请求已带则可省略）",
       "parameters": {
         "type": "object",
         "properties": {
@@ -233,7 +233,7 @@
           },
           "testFlowId": {
             "type": "string",
-            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+            "description": "测试流 id；MCP 未传 graphJson 时必填（请求已带则可省略）"
           }
         },
         "required": [
@@ -246,7 +246,7 @@
     "type": "function",
     "function": {
       "name": "get_scenario_detail",
-      "description": "获取单个运行场景配置（含 flowSeed 键名，不含明文）。改场景前优先调用；传 testFlowId 或由信封提供",
+      "description": "获取单个运行场景配置（含 flowSeed 键名，不含明文）。改场景前优先调用；传 testFlowId（请求已带则可省略）",
       "parameters": {
         "type": "object",
         "properties": {
@@ -256,7 +256,7 @@
           },
           "testFlowId": {
             "type": "string",
-            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+            "description": "测试流 id；MCP 未传 graphJson 时必填（请求已带则可省略）"
           }
         },
         "required": [
@@ -294,7 +294,7 @@
         "properties": {
           "testFlowId": {
             "type": "string",
-            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+            "description": "测试流 id；MCP 未传 graphJson 时必填（请求已带则可省略）"
           }
         },
         "required": []
@@ -326,7 +326,7 @@
     "type": "function",
     "function": {
       "name": "get_subflow_detail",
-      "description": "读取测试流拓扑摘要与 flowOutputs，无需 graphJson 信封；浏览子流结构优先于 get_flow",
+      "description": "读取测试流拓扑摘要与 flowOutputs，无需另传 graphJson；浏览子流结构优先于 get_flow",
       "parameters": {
         "type": "object",
         "properties": {
@@ -413,7 +413,17 @@
                 "type": "string"
               },
               "requestValueOverrides": {
-                "type": "object"
+                "type": "object",
+                "description": "节点测值覆盖（两桶）。query/path/header/表单用 paramDefaults；JSON body 用 bodyExample。值可为字面量或 {{flow.*}}。勿把参数名写在顶层。",
+                "properties": {
+                  "paramDefaults": {
+                    "type": "object",
+                    "description": "按参数名覆盖 query/path/header/form-data/urlencoded 的 value"
+                  },
+                  "bodyExample": {
+                    "description": "覆盖 JSON body 测值（对象或可解析 JSON 字符串）"
+                  }
+                }
               },
               "extracts": {
                 "type": "array",
@@ -1080,13 +1090,13 @@
     "type": "function",
     "function": {
       "name": "run_test_flow",
-      "description": "触发指定测试流 Run。须传 testFlowId。若本轮有未落盘的 submit_* 会先自动写库再跑。返回 runId/status/失败摘要。须项目已开启「允许 MCP 全自动写流」。可选 runScenarioId、testProjectEnvId。跑库中最新图；此前每次 submit 已落盘。",
+      "description": "触发指定测试流 Run。须传 testFlowId（无画布当前流）。若本轮有未落盘的 submit_* 会先自动写库再跑。返回 runId/status/失败摘要。须项目已开启「允许 MCP 全自动写流」。可选 runScenarioId、testProjectEnvId。跑库中最新图；此前每次 submit 已落盘。",
       "parameters": {
         "type": "object",
         "properties": {
           "testFlowId": {
             "type": "string",
-            "description": "要运行的测试流 id；必填"
+            "description": "要运行的测试流 id；必填（请求已带则可省略）"
           },
           "runScenarioId": {
             "type": "string",

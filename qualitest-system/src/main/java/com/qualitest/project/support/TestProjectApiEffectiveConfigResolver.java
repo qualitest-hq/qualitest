@@ -17,6 +17,7 @@ import lombok.Getter;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 读取 API 时把结构配置与测试值合成为「有效配置」。
@@ -121,7 +122,8 @@ public final class TestProjectApiEffectiveConfigResolver {
      * overrides 为 null 或空时原样返回 rawRequestConfig（空则 "{}"）。
      * 支持 Map、JSON 字符串、JsonNode。
      * <p>
-     * 叠层前纠正「body 字段误放在 overrides 顶层」的形状，避免测值静默失效。
+     * 叠层前按请求结构中的参数名分桶纠正形状（扁平杂项 / 误进 bodyExample 的参数名），
+     * 与造流落盘 normalize 同一语义。
      */
     public static String overlayRequestValuesFromOverrides(String rawRequestConfig, Object overridesRaw) {
         // JsonNode 先落到可解析文本，再交给 Support（统一 fastjson 形状纠正，避免 Jackson↔Map 往返）
@@ -132,7 +134,9 @@ public final class TestProjectApiEffectiveConfigResolver {
             }
             coerceTarget = jn.toString();
         }
-        JSONObject normalized = HttpNodeRequestValueOverridesSupport.normalizeOverridesShape(coerceTarget);
+        Set<String> knownParams = HttpNodeRequestValueOverridesSupport.collectParamNames(rawRequestConfig);
+        JSONObject normalized = HttpNodeRequestValueOverridesSupport.normalizeOverridesShape(
+                coerceTarget, knownParams);
         if (normalized == null || normalized.isEmpty()) {
             return rawRequestConfig != null ? rawRequestConfig : "{}";
         }

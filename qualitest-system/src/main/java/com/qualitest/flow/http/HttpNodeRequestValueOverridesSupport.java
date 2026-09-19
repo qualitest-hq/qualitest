@@ -1,11 +1,15 @@
 package com.qualitest.flow.http;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.util.ApiConfigJsonSupport;
 import com.qualitest.project.domain.TestProjectApi;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,20 +18,25 @@ import java.util.Set;
 /**
  * 测试流 HTTP 节点测值覆盖字段 {@code requestValueOverrides} 的读写辅助。
  * <p>
- * 节点只存测值，不存完整请求结构。字段形状：
+ * 节点只存测值，不存完整请求结构。正式形状两桶：
  * <ul>
  *   <li>{@code paramDefaults}：按参数名覆盖 query / path / header / form-data / urlencoded 的 value</li>
  *   <li>{@code bodyExample}：覆盖 JSON body 测值</li>
  * </ul>
  * 用途：相对资产默认值做差分、写成可落盘的 Map。
  * <p>
- * AI 偶发把 body 字段写在 overrides 顶层（如 {@code cartIds}/{@code addressId}），
- * 运行时只读 {@code bodyExample} 会静默忽略；{@link #normalizeOverridesShape} 负责纠正。
+ * Agent 偶发把字段写在 overrides 顶层：若名属于接口参数结构则归入 paramDefaults，
+ * 否则归入 bodyExample；已误放进 bodyExample 的参数名也会迁回 paramDefaults。
  */
 public final class HttpNodeRequestValueOverridesSupport {
 
-    /** 合法的 overrides 顶层键；其余视为误放的 body 字段 */
+    /** 合法的 overrides 顶层键；其余为待分桶的杂项 */
     private static final Set<String> KNOWN_OVERRIDE_KEYS = Set.of("paramDefaults", "bodyExample");
+
+    /** 请求结构里带 name 的参数数组字段 */
+    private static final String[] REQUEST_PARAM_ARRAY_FIELDS = {
+            "queryParams", "pathParams", "declaredHeaders"
+    };
 
     private HttpNodeRequestValueOverridesSupport() {
     }
@@ -41,51 +50,164 @@ public final class HttpNodeRequestValueOverridesSupport {
             Object existingOverridesRaw,
             Object requestBodyRaw,
             TestProjectApi api) {
+        Set<String> knownParams = collectParamNamesFromApi(api);
         JSONObject merged = new JSONObject();
-        mergeOverrides(merged, toJsonObject(existingOverridesRaw));
+        JSONObject existing = toJsonObject(existingOverridesRaw);
+        if (existing != null && !existing.isEmpty()) {
+            // 保留顶层杂项，交给后续按接口参数名分桶
+            merged.putAll(existing);
+        }
         applyRequestBodyAsBodyExample(merged, requestBodyRaw);
-        // 合并完成后再纠正一次：覆盖「AI 把 body 字段写在顶层」的错误形状
-        normalizeOverridesShapeInPlace(merged);
+        normalizeOverridesShapeInPlace(merged, knownParams);
 
         JSONObject assetDefaults = assetRequestValueDefaults(api);
         return diffAgainstDefaults(merged, assetDefaults);
     }
 
     /**
-     * 纠正错误的 overrides 形状：把顶层「非 paramDefaults/bodyExample」键提升进 bodyExample。
-     * <p>
-     * 接受 JSONObject / Map / JSON 字符串；返回新对象（不修改入参）。
-     * 已有 bodyExample 为对象时，误放字段合并进去（同名以误放值为准）；
-     * bodyExample 缺失时整段误放对象成为 bodyExample；
-     * bodyExample 为非对象（如字符串）时保留原值，丢弃无法安全合并的误放字段。
+     * 纠正 overrides 形状（无接口参数上下文）：顶层杂项一律抬进 bodyExample。
+     * 有接口结构时应使用 {@link #normalizeOverridesShape(Object, Collection)}。
      */
     public static JSONObject normalizeOverridesShape(Object raw) {
+        return normalizeOverridesShape(raw, Collections.emptySet());
+    }
+
+    /**
+     * 纠正 overrides 形状：按接口参数名分桶。
+     * <ul>
+     *   <li>顶层杂项名 ∈ knownParamNames → paramDefaults</li>
+     *   <li>其余顶层杂项 → bodyExample</li>
+     *   <li>bodyExample 对象内命中参数名的键 → 迁回 paramDefaults</li>
+     * </ul>
+     *
+     * @param raw             overrides 原始值
+     * @param knownParamNames 接口 query/path/header/form 参数名；可空
+     * @return 纠正后的新对象；raw 无法解析则 null
+     */
+    public static JSONObject normalizeOverridesShape(Object raw, Collection<String> knownParamNames) {
         JSONObject source = toJsonObject(raw);
         if (source == null) {
             return null;
         }
         JSONObject copy = new JSONObject(source);
-        normalizeOverridesShapeInPlace(copy);
+        normalizeOverridesShapeInPlace(copy, knownParamNames);
         return copy;
     }
 
-    /** 就地纠正形状错误（仅内部与测试使用）。 */
-    static void normalizeOverridesShapeInPlace(JSONObject overrides) {
+    /**
+     * 就地按接口参数名分桶。
+     *
+     * @param overrides       待纠正对象
+     * @param knownParamNames 接口参数名集合；可空
+     */
+    static void normalizeOverridesShapeInPlace(JSONObject overrides, Collection<String> knownParamNames) {
         if (overrides == null || overrides.isEmpty()) {
             return;
         }
-        JSONObject stray = new JSONObject();
+        Set<String> known = knownParamNames == null || knownParamNames.isEmpty()
+                ? Collections.emptySet()
+                : Set.copyOf(knownParamNames);
+
+        JSONObject strayParams = new JSONObject();
+        JSONObject strayBody = new JSONObject();
         for (String key : List.copyOf(overrides.keySet())) {
-            if (!KNOWN_OVERRIDE_KEYS.contains(key)) {
-                stray.put(key, overrides.remove(key));
+            if (KNOWN_OVERRIDE_KEYS.contains(key)) {
+                continue;
+            }
+            Object value = overrides.remove(key);
+            if (known.contains(key)) {
+                strayParams.put(key, value);
+            } else {
+                strayBody.put(key, value);
             }
         }
-        if (stray.isEmpty()) {
+        if (!strayParams.isEmpty()) {
+            ensureParamDefaults(overrides).putAll(strayParams);
+        }
+        if (!strayBody.isEmpty()) {
+            mergeIntoBodyExample(overrides, strayBody);
+        }
+        reclaimParamNamesFromBodyExample(overrides, known);
+    }
+
+    /**
+     * 从接口 requestConfig 收集可走 paramDefaults 的参数名
+     * （query / path / header / form-data / urlencoded）。
+     *
+     * @param api 项目接口；可空
+     * @return 参数名集合；无结构时为空集
+     */
+    public static Set<String> collectParamNamesFromApi(TestProjectApi api) {
+        if (api == null) {
+            return Collections.emptySet();
+        }
+        return collectParamNames(api.getRequestConfig());
+    }
+
+    /**
+     * 从请求结构 JSON 收集参数名。
+     *
+     * @param requestConfigJson request_config 文本；可空
+     * @return 参数名集合
+     */
+    public static Set<String> collectParamNames(String requestConfigJson) {
+        if (requestConfigJson == null || requestConfigJson.isBlank()) {
+            return Collections.emptySet();
+        }
+        try {
+            JSONObject root = JSON.parseObject(requestConfigJson);
+            if (root == null) {
+                return Collections.emptySet();
+            }
+            Set<String> names = new LinkedHashSet<>();
+            for (String field : REQUEST_PARAM_ARRAY_FIELDS) {
+                collectNamesFromParamArray(root.getJSONArray(field), names);
+            }
+            JSONObject body = root.getJSONObject("body");
+            if (body != null) {
+                collectNamesFromParamArray(body.getJSONArray("formData"), names);
+                collectNamesFromParamArray(body.getJSONArray("urlencoded"), names);
+            }
+            return names;
+        } catch (Exception e) {
+            return Collections.emptySet();
+        }
+    }
+
+    /** 遍历参数数组，收集非空 name。 */
+    private static void collectNamesFromParamArray(JSONArray arr, Set<String> names) {
+        if (arr == null || arr.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < arr.size(); i++) {
+            JSONObject row = arr.getJSONObject(i);
+            if (row == null) {
+                continue;
+            }
+            String name = row.getString("name");
+            if (name != null && !name.isBlank()) {
+                names.add(name.trim());
+            }
+        }
+    }
+
+    /** 确保 paramDefaults 对象存在并返回。 */
+    private static JSONObject ensureParamDefaults(JSONObject overrides) {
+        JSONObject params = overrides.getJSONObject("paramDefaults");
+        if (params == null) {
+            params = new JSONObject();
+            overrides.put("paramDefaults", params);
+        }
+        return params;
+    }
+
+    /** 把 stray 合并进 bodyExample（对象则合并；缺失则整段写入；非对象则丢弃 stray）。 */
+    private static void mergeIntoBodyExample(JSONObject overrides, JSONObject stray) {
+        if (stray == null || stray.isEmpty()) {
             return;
         }
         Object existingBody = overrides.get("bodyExample");
         if (existingBody instanceof Map<?, ?> map) {
-            // JSONObject 实现 Map；统一转成 JSONObject 再合并
             JSONObject bodyObj = existingBody instanceof JSONObject jo ? jo : new JSONObject(map);
             bodyObj.putAll(stray);
             overrides.put("bodyExample", bodyObj);
@@ -95,6 +217,34 @@ public final class HttpNodeRequestValueOverridesSupport {
             overrides.put("bodyExample", stray);
         }
         // bodyExample 已是字符串等非对象：保留原值，丢弃 stray
+    }
+
+    /**
+     * 把 bodyExample 对象里命中接口参数名的键迁回 paramDefaults（纠正历史误落盘）。
+     */
+    private static void reclaimParamNamesFromBodyExample(JSONObject overrides, Set<String> known) {
+        if (known == null || known.isEmpty()) {
+            return;
+        }
+        Object bodyRaw = overrides.get("bodyExample");
+        if (!(bodyRaw instanceof Map<?, ?>)) {
+            return;
+        }
+        JSONObject bodyObj = bodyRaw instanceof JSONObject jo ? jo : new JSONObject((Map<?, ?>) bodyRaw);
+        JSONObject moved = new JSONObject();
+        for (String key : List.copyOf(bodyObj.keySet())) {
+            if (key != null && known.contains(key)) {
+                moved.put(key, bodyObj.remove(key));
+            }
+        }
+        if (!moved.isEmpty()) {
+            ensureParamDefaults(overrides).putAll(moved);
+        }
+        if (bodyObj.isEmpty()) {
+            overrides.remove("bodyExample");
+        } else {
+            overrides.put("bodyExample", bodyObj);
+        }
     }
 
     /**
@@ -166,42 +316,23 @@ public final class HttpNodeRequestValueOverridesSupport {
     }
 
     /**
-     * 把 overrides 转成节点可落盘的 Map。
-     * 空对象返回 null，调用方应删除该字段。
+     * 把已分桶的 overrides 转成节点可落盘的 Map。
+     * 只序列化 paramDefaults / bodyExample；空则返回 null（调用方应删除该字段）。
+     * 入参应由 {@link #buildDiffOverrides} 或 {@link #normalizeOverridesShape} 先分桶。
      */
     public static Map<String, Object> toPersistMap(JSONObject overrides) {
-        JSONObject normalized = normalizeOverridesShape(overrides);
-        if (normalized == null || normalized.isEmpty()) {
+        if (overrides == null || overrides.isEmpty()) {
             return null;
         }
         Map<String, Object> map = new LinkedHashMap<>();
-        JSONObject params = normalized.getJSONObject("paramDefaults");
+        JSONObject params = overrides.getJSONObject("paramDefaults");
         if (params != null && !params.isEmpty()) {
             map.put("paramDefaults", new LinkedHashMap<>(params));
         }
-        if (normalized.containsKey("bodyExample")) {
-            map.put("bodyExample", normalized.get("bodyExample"));
+        if (overrides.containsKey("bodyExample")) {
+            map.put("bodyExample", overrides.get("bodyExample"));
         }
         return map.isEmpty() ? null : map;
-    }
-
-    /** 把 src 的 paramDefaults / bodyExample 合并进 target（后者覆盖同名项）。 */
-    private static void mergeOverrides(JSONObject target, JSONObject src) {
-        if (src == null || src.isEmpty()) {
-            return;
-        }
-        JSONObject srcParams = src.getJSONObject("paramDefaults");
-        if (srcParams != null && !srcParams.isEmpty()) {
-            JSONObject targetParams = target.getJSONObject("paramDefaults");
-            if (targetParams == null) {
-                targetParams = new JSONObject();
-                target.put("paramDefaults", targetParams);
-            }
-            targetParams.putAll(srcParams);
-        }
-        if (src.containsKey("bodyExample")) {
-            target.put("bodyExample", src.get("bodyExample"));
-        }
     }
 
     /**

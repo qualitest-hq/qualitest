@@ -9,6 +9,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -60,7 +61,7 @@ class HttpNodeRequestValueOverridesSupportTest {
         raw.put("bodyExample", body);
         raw.put("cartIds", List.of(5001, 5002));
 
-        HttpNodeRequestValueOverridesSupport.normalizeOverridesShapeInPlace(raw);
+        HttpNodeRequestValueOverridesSupport.normalizeOverridesShapeInPlace(raw, Set.of());
 
         assertFalse(raw.containsKey("cartIds"));
         JSONObject merged = raw.getJSONObject("bodyExample");
@@ -89,23 +90,81 @@ class HttpNodeRequestValueOverridesSupportTest {
     }
 
     /**
-     * 前提：toPersistMap 收到顶层误放 body 字段。
+     * 前提：先 normalize 顶层误放字段，再 toPersistMap。
      * 期望：落盘 Map 只有 bodyExample。
      */
     @Test
     @Order(4)
-    @DisplayName("toPersistMap 落盘前纠正形状")
-    void toPersistMap_normalizesBeforePersist() {
+    @DisplayName("toPersistMap 序列化已分桶结果")
+    void toPersistMap_serializesNormalizedBuckets() {
         JSONObject raw = new JSONObject();
         raw.put("addressId", 4001);
         raw.put("cartIds", List.of(5001, 5002));
+        JSONObject normalized = HttpNodeRequestValueOverridesSupport.normalizeOverridesShape(raw);
 
-        Map<String, Object> persisted = HttpNodeRequestValueOverridesSupport.toPersistMap(raw);
+        Map<String, Object> persisted = HttpNodeRequestValueOverridesSupport.toPersistMap(normalized);
 
         assertNull(persisted.get("cartIds"));
         assertTrue(persisted.containsKey("bodyExample"));
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) persisted.get("bodyExample");
         assertEquals(4001, body.get("addressId"));
+    }
+
+    /**
+     * 前提：顶层写 classroomId，knownParams 含该名。
+     * 期望：进 paramDefaults，不进 bodyExample。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("顶层 query 参数名路由到 paramDefaults")
+    void normalize_routesKnownParamToParamDefaults() {
+        JSONObject raw = new JSONObject();
+        raw.put("classroomId", "{{flow.classroomId}}");
+        raw.put("cartIds", List.of(5001));
+
+        JSONObject normalized = HttpNodeRequestValueOverridesSupport.normalizeOverridesShape(
+                raw, Set.of("classroomId"));
+
+        assertFalse(normalized.containsKey("classroomId"));
+        assertEquals("{{flow.classroomId}}",
+                normalized.getJSONObject("paramDefaults").getString("classroomId"));
+        assertTrue(normalized.getJSONObject("bodyExample").getJSONArray("cartIds").contains(5001));
+    }
+
+    /**
+     * 前提：bodyExample 误含 query 名 page，knownParams 含 page。
+     * 期望：page 迁回 paramDefaults；bodyExample 清空后删除。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("bodyExample 内误放参数名迁回 paramDefaults")
+    void normalize_reclaimsParamFromBodyExample() {
+        JSONObject raw = new JSONObject();
+        raw.put("bodyExample", Map.of("page", "{{flow.page}}", "name", "alice"));
+
+        JSONObject normalized = HttpNodeRequestValueOverridesSupport.normalizeOverridesShape(
+                raw, Set.of("page"));
+
+        assertEquals("{{flow.page}}", normalized.getJSONObject("paramDefaults").getString("page"));
+        assertEquals("alice", normalized.getJSONObject("bodyExample").getString("name"));
+        assertFalse(normalized.getJSONObject("bodyExample").containsKey("page"));
+    }
+
+    /**
+     * 前提：接口 requestConfig 含必填 query classroomId。
+     * 期望：collectParamNames 含 classroomId。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("从 requestConfig 收集参数名")
+    void collectParamNames_fromRequestConfig() {
+        String cfg = """
+                {"queryParams":[{"name":"classroomId","required":true}],"pathParams":[{"name":"id"}],
+                 "declaredHeaders":[],"body":{"mode":"none"}}
+                """;
+        Set<String> names = HttpNodeRequestValueOverridesSupport.collectParamNames(cfg);
+        assertTrue(names.contains("classroomId"));
+        assertTrue(names.contains("id"));
     }
 }

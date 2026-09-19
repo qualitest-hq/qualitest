@@ -50,7 +50,7 @@
   - **按端提取凭证**：JsonPath 与头名优先 `designHints` / `suggestedExtracts` / 响应 schema / Profile；禁止臆造路径；禁止 Condition 判 `flow.*` 而 extract/托管头用 `asset.*`（或反过来）。
   - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`statusCheck.whitelist [200,401]` + `successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 不要 target、不要出边**，ELSE 才连登录。工具用 `submit_condition_node` / `submit_http_node` / `submit_edge`（`op=add|update`），**禁止**臆造 `submit_add_*`。修图用 `op=update`，**禁止**再 add 一套探活链。
   - **预期业务拒绝**：HTTP 须 `successCheck.mode=off`，再用 assert 校验；`mode=off` 时允许故意缺 schema 必填字段。
-  - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。缺必填时在节点 `requestValueOverrides` 补测值。
+  - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。缺必填时在节点 `requestValueOverrides` 补测值：query/path/header/表单写 `paramDefaults`，JSON body 写 `bodyExample`（可用 `{{flow.*}}`）。
   - 账号口令走素材；**禁止** flowSeed 塞口令（调试预置 token 可以）。
 - **两套方言，勿混用：**
   - extracts / 业务码：JsonPath，**必须以 `$` 开头**；`from=setCookie` 时 `expr` 为 Cookie 名。
@@ -95,5 +95,5 @@ flowSeed 用于非密钥运行初值；**禁止**把登录口令放进 flowSeed�
 - `left 试算未命中（空或 []）` / 路径含 `.items` → 按上游响应示例改写
 - `left 不可写成 http.body.$.…` → 改为 `http.body.data…` 或 extracts 用 `$.data…`
 - `缺少 subflowId` → 先 list_subflow_templates 再填真实 id
-- `缺少必填 … 字段` → 在节点 `requestValueOverrides` 补测值
+- `缺少必填 … 字段` → 在 `requestValueOverrides.paramDefaults`（query/path 等）或 `bodyExample`（JSON body）补测值
 - `缺少或非法 op` → 显式传 `op: add` 或 `op: update`

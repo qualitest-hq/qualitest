@@ -411,7 +411,17 @@
                 "type": "string"
               },
               "requestValueOverrides": {
-                "type": "object"
+                "type": "object",
+                "description": "节点测值覆盖（两桶）。query/path/header/表单用 paramDefaults；JSON body 用 bodyExample。值可为字面量或 {{flow.*}}。勿把参数名写在顶层。",
+                "properties": {
+                  "paramDefaults": {
+                    "type": "object",
+                    "description": "按参数名覆盖 query/path/header/form-data/urlencoded 的 value"
+                  },
+                  "bodyExample": {
+                    "description": "覆盖 JSON body 测值（对象或可解析 JSON 字符串）"
+                  }
+                }
               },
               "extracts": {
                 "type": "array",
