@@ -9,6 +9,7 @@ import com.qualitest.api.script.ApiScriptContext;
 import com.qualitest.api.script.ApiScriptExecutionResult;
 import com.qualitest.api.script.ApiScriptSupport;
 import com.qualitest.api.service.IDebugHttpForwardService;
+import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.context.AssetExtractPersistService;
 import com.qualitest.flow.context.ExtractApplicator;
 import com.qualitest.flow.context.FlowRunContext;
@@ -330,9 +331,15 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
 
         // HTTP 2xx 之后：按节点 successCheck 决定是否校验 body 业务码
-        // mode=off 或外联默认关闭时跳过；开启时用项目约定（或接口白名单）判定成功值
+        // mode=off 或外联默认关闭时跳过；开启时用本端响应约定（及接口/节点成功值覆盖）判定
+        String apiPath = api != null ? api.getApiPath() : null;
+        if (apiPath == null || apiPath.isBlank()) {
+            apiPath = extractPathFromUrl(built.getUrl());
+        }
+        String conventionJson = ProjectAuthConfigSupport.resolveResponseConventionJson(
+                apiPath, ctx.getProjectAuthConfig());
         SuccessCheckResolver.Resolved check = SuccessCheckResolver.resolve(
-                data, built.getCallMode(), api, ctx.getResponseConvention());
+                data, built.getCallMode(), api, conventionJson);
         if (check.shouldApply()) {
             // 从响应 body 读取业务码与消息字段
             Object actualCode = PlaceholderResolver.simpleJsonPath(body, "$." + check.getCodePath());
@@ -492,5 +499,25 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
         String s = String.valueOf(raw);
         return s.isBlank() ? null : s;
+    }
+
+    /** 从完整 URL 抽出 path，供无绑定 API 时按路径选端并取响应约定。 */
+    private static String extractPathFromUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return "/";
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(url.trim());
+            String path = uri.getPath();
+            return path != null && !path.isBlank() ? path : "/";
+        } catch (Exception e) {
+            int scheme = url.indexOf("://");
+            int start = scheme >= 0 ? url.indexOf('/', scheme + 3) : url.indexOf('/');
+            if (start < 0) {
+                return "/";
+            }
+            int q = url.indexOf('?', start);
+            return q >= 0 ? url.substring(start, q) : url.substring(start);
+        }
     }
 }

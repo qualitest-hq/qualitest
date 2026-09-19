@@ -15,9 +15,9 @@ import java.util.List;
 /**
  * 组装造流工具请求上下文。
  * <p>
- * Web：注入 submit 累积器、素材/鉴权提案容器、会话短名映射与基准画布；可开全自动。
+ * Web：注入 submit 累积器、素材/多端 Profile 提案容器、会话短名映射与基准画布；可开全自动。
  * MCP：按 Token 与参数组装项目/流/画布；写工具可开全自动并注入本调用的 submit 累积器；
- * 素材与鉴权提案容器为空（写素材时走全自动直写库）。
+ * MCP 下提案容器为空（素材与多端 Profile 走工具内直写）。
  */
 @Component
 @RequiredArgsConstructor
@@ -40,7 +40,7 @@ public class FlowDesignToolContextFactory {
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
                                                      FlowDesignSubmitCapture submitCapture,
                                                      AssetUpsertCapture assetUpsertCapture) {
-        return fromDesignRequest(request, submitCapture, assetUpsertCapture, null, null);
+        return fromDesignRequest(request, submitCapture, assetUpsertCapture, null, null, null, false, null, null);
     }
 
     /**
@@ -51,14 +51,14 @@ public class FlowDesignToolContextFactory {
                                                      AssetUpsertCapture assetUpsertCapture,
                                                      Long aiChatSessionId,
                                                      java.util.Map<String, String> flowDesignClientIdMap) {
-        return fromDesignRequest(request, submitCapture, assetUpsertCapture,
-                aiChatSessionId, flowDesignClientIdMap, false, null);
+        return fromDesignRequest(request, submitCapture, assetUpsertCapture, null,
+                aiChatSessionId, flowDesignClientIdMap, false, null, null);
     }
 
     /**
      * 从 Web 设计请求构建完整上下文。
      *
-     * @param autopilotEnabled  是否全自动（允许 run_test_flow、隐式落盘、素材与鉴权直写）
+     * @param autopilotEnabled  是否全自动（允许 run_test_flow、隐式落盘、素材/多端 Profile 直写）
      * @param onGraphCommitted  隐式落盘成功回调；SSE 层用于推送 graphCommitted
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
@@ -73,7 +73,7 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 Web 设计请求构建完整上下文（含素材与鉴权提案容器、会话 id、短名映射、
+     * 从 Web 设计请求构建完整上下文（含素材、多端 Profile 提案容器、会话 id、短名映射、
      * 全自动开关、落盘成功回调、Run 已触发回调，以及默认场景/环境）。
      */
     public FlowDesignToolContext fromDesignRequest(TestFlowDesignRequest request,
@@ -147,7 +147,7 @@ public class FlowDesignToolContextFactory {
      * @param params           调用参数
      * @param tokenProjectId   Token 绑定的项目 id
      * @param submitCapture    submit 单元累积器；改图 submit 时传入，只读可为 null
-     * @param autopilotEnabled true 时允许跑流、素材/鉴权直写，以及 submit 后立即写库
+     * @param autopilotEnabled true 时允许跑流、素材/多端 Profile 直写，以及 submit 后立即写库
      * @param operatorUserId   Token 绑定的用户 id；跑流等写工具须非空
      * @return 工具上下文
      */
@@ -241,30 +241,36 @@ public class FlowDesignToolContextFactory {
     }
 
     private static boolean tokenIdEquals(Long a, Long b) {
-        return a != null && b != null && a.longValue() == b.longValue();
+        return a != null && a.equals(b);
     }
 
-    /** 空列表转为 null，工具层用 null 表示「未限制范围」 */
-    private static <T> List<T> emptyToNull(List<T> list) {
-        return list == null || list.isEmpty() ? null : list;
+    private static List<Long> emptyToNull(List<Long> ids) {
+        return ids == null || ids.isEmpty() ? null : ids;
     }
 
-    /** 将字符串 id 列表解析为 Long；非法项跳过 */
-    private static List<Long> parseLongIds(List<String> ids) {
+    @SuppressWarnings("unchecked")
+    private static List<String> emptyToNull(java.util.Collection<String> ids) {
         if (ids == null || ids.isEmpty()) {
             return null;
         }
-        List<Long> parsed = new ArrayList<>();
-        for (String id : ids) {
-            if (id == null || id.isBlank()) {
+        return new ArrayList<>(ids);
+    }
+
+    private static List<Long> parseLongIds(List<?> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        List<Long> out = new ArrayList<>();
+        for (Object item : raw) {
+            if (item == null) {
                 continue;
             }
             try {
-                parsed.add(Long.parseLong(id.trim()));
+                out.add(Long.valueOf(String.valueOf(item).trim()));
             } catch (NumberFormatException ignored) {
-                // 跳过无法解析的 id
+                // skip
             }
         }
-        return parsed.isEmpty() ? null : parsed;
+        return out.isEmpty() ? null : out;
     }
 }

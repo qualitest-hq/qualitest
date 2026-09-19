@@ -2,6 +2,9 @@ package com.qualitest.api.util;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
@@ -9,6 +12,7 @@ import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.project.support.ResponseConventionSupport;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -20,11 +24,16 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 项目鉴权配置的解析、校验、写出和运行期查询。
+ * 项目多端配置（存于 test_project.auth_config）的解析、校验、写出和运行期查询。
  * <p>
- * 写出含 authProfiles（扁平头 + credentialApi + 预制接口）。
- * 免登：配置为空时用内置 /login 等路径；有 Profile 后只认预制口 mode=none。
- * 抽凭证：credentialApi 标明登录口；托管头占位符标明写入目标。
+ * 根结构为 authProfiles 数组；每条 Profile 含：
+ * 路径前缀匹配、鉴权托管头、响应约定四字段、credentialApi、预制接口列表。
+ * <ul>
+ *   <li>选端：按接口 path 命中最长 pathPrefix；都未命中用数组第一条</li>
+ *   <li>免登：配置为空时用内置登录类路径；有 Profile 后只认预制口 auth.mode=none</li>
+ *   <li>抽凭证：credentialApi 标明登录口；托管头占位符标明写入目标</li>
+ *   <li>响应约定：取命中 Profile 上的四字段；Profile 未写或残缺时用代码缺省（code/[200]/msg/data）</li>
+ * </ul>
  */
 public final class ProjectAuthConfigSupport {
 
@@ -79,7 +88,7 @@ public final class ProjectAuthConfigSupport {
         return JSONUtil.toJsonStr(root);
     }
 
-    /** 写出一条 Profile：id、name、match、扁平头、credentialApi、apis。 */
+    /** 写出一条 Profile：id、name、match、扁平头、响应约定、credentialApi、apis。 */
     private static Map<String, Object> writeProfile(ProjectAuthProfile profile) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", profile.getId());
@@ -94,6 +103,7 @@ public final class ProjectAuthConfigSupport {
         }
         map.put("headerName", profile.getHeaderName());
         map.put("headerValueTemplate", profile.getHeaderValueTemplate());
+        map.put("responseConvention", writeResponseConvention(profile.getResponseConvention()));
         CredentialApi cred = profile.getCredentialApi();
         if (cred != null && StrUtil.isNotBlank(cred.getPath())) {
             Map<String, Object> credMap = new LinkedHashMap<>();
@@ -105,6 +115,11 @@ public final class ProjectAuthConfigSupport {
         }
         map.put("apis", writeApis(profile.getApis()));
         return map;
+    }
+
+    /** 写出响应约定四字段；空或残缺时补齐为代码缺省值。 */
+    private static Map<String, Object> writeResponseConvention(Map<String, Object> raw) {
+        return ResponseConventionSupport.toMap(raw);
     }
 
     /** 写出预制接口列表，跳过没有 path 的项。 */
@@ -264,11 +279,17 @@ public final class ProjectAuthConfigSupport {
                     .match(match)
                     .headerName(headerName)
                     .headerValueTemplate(valueTemplate)
+                    .responseConvention(normalizeResponseConventionMap(profile.getResponseConvention()))
                     .credentialApi(normalizeCredentialApi(profile.getCredentialApi()))
                     .apis(normalizePrefabricatedApis(profile.getApis(), id))
                     .build());
         }
         return out;
+    }
+
+    /** 规范化响应约定为四字段 Map；空或残缺时补齐缺省值。 */
+    private static Map<String, Object> normalizeResponseConventionMap(Map<String, Object> raw) {
+        return writeResponseConvention(raw);
     }
 
     /** 校验预制接口：path 去重，补默认 protocol/status，规范 auth.mode。 */
@@ -762,13 +783,20 @@ public final class ProjectAuthConfigSupport {
         return normalizePrefix(rawPrefix);
     }
 
-    /** 按 id 查找 Profile。 */
+    /**
+     * 按 id 查找 Profile（入参会 trim）。
+     *
+     * @param config    多端配置
+     * @param profileId Profile id，可带首尾空白
+     * @return 命中的 Profile；未找到为 null
+     */
     public static ProjectAuthProfile findProfile(ProjectAuthConfig config, String profileId) {
         if (config == null || config.getAuthProfiles() == null || StrUtil.isBlank(profileId)) {
             return null;
         }
+        String want = profileId.trim();
         for (ProjectAuthProfile p : config.getAuthProfiles()) {
-            if (p != null && profileId.equals(p.getId())) {
+            if (p != null && want.equals(p.getId())) {
                 return p;
             }
         }
@@ -776,7 +804,117 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * Profile 展示名。没有 name 时按常见 id 回落中文。
+     * 按接口路径解析应使用的 Profile。
+     * 选端规则：最长 pathPrefix 命中优先；都未命中用数组第一条。
+     *
+     * @param apiPath 接口路径
+     * @param config  多端配置
+     * @return 命中的 Profile；配置为空时可能为 null
+     */
+    public static ProjectAuthProfile resolveProfile(String apiPath, ProjectAuthConfig config) {
+        return findProfile(config, resolveProfileId(apiPath, config));
+    }
+
+    /**
+     * 按接口路径解析本端响应约定 JSON 字符串（四字段已规范化）。
+     * Profile 未配置约定或配置为空时返回代码缺省约定。
+     *
+     * @param apiPath         接口路径
+     * @param authConfigJson  项目 auth_config JSON
+     * @return 约定 JSON 字符串
+     */
+    public static String resolveResponseConventionJson(String apiPath, String authConfigJson) {
+        return resolveResponseConventionJson(apiPath, parse(authConfigJson));
+    }
+
+    /**
+     * 按接口路径解析本端响应约定 JSON 字符串（四字段已规范化）。
+     * Profile 未配置约定或配置为空时返回代码缺省约定。
+     *
+     * @param apiPath 接口路径
+     * @param config  多端配置
+     * @return 约定 JSON 字符串
+     */
+    public static String resolveResponseConventionJson(String apiPath, ProjectAuthConfig config) {
+        return conventionJsonOf(resolveProfile(apiPath, config));
+    }
+
+    /**
+     * 取出 Profile 上的响应约定并规范化为 JSON。
+     * Profile 为空或约定字段为空时返回代码缺省约定。
+     *
+     * @param profile 多端 Profile，可空
+     * @return 约定 JSON 字符串
+     */
+    public static String conventionJsonOf(ProjectAuthProfile profile) {
+        if (profile == null || profile.getResponseConvention() == null
+                || profile.getResponseConvention().isEmpty()) {
+            return ResponseConventionSupport.DEFAULT_JSON;
+        }
+        return ResponseConventionSupport.normalizeToJson(JSON.toJSONString(profile.getResponseConvention()));
+    }
+
+    /**
+     * 升级迁移：把旧「项目级响应约定」灌入各 Profile，再返回规范化后的 auth_config JSON。
+     * <p>
+     * 在原始 JSON 上判断约定是否缺失（字段不存在或空对象），只给尚无约定的 Profile 写入；
+     * 已有约定的 Profile 不动。灌入内容为空时用代码缺省约定。
+     *
+     * @param authConfigJson         当前 auth_config JSON
+     * @param projectConventionJson  旧项目级约定 JSON，可空
+     * @return 灌入后并规范化的 auth_config JSON
+     */
+    public static String mergeProjectConventionIntoProfiles(String authConfigJson, String projectConventionJson) {
+        JSONObject root;
+        try {
+            root = JSON.parseObject(StrUtil.blankToDefault(authConfigJson, "{}"));
+        } catch (Exception ex) {
+            root = new JSONObject();
+        }
+        if (root == null) {
+            root = new JSONObject();
+        }
+        JSONArray profiles = root.getJSONArray("authProfiles");
+        if (profiles == null || profiles.isEmpty()) {
+            return toJson(parse(root.toJSONString()));
+        }
+        String seed = StrUtil.isBlank(projectConventionJson)
+                ? ResponseConventionSupport.DEFAULT_JSON
+                : ResponseConventionSupport.normalizeToJson(projectConventionJson);
+        Map<String, Object> seedMap = ResponseConventionSupport.toMap(seed);
+        for (int i = 0; i < profiles.size(); i++) {
+            JSONObject profile = profiles.getJSONObject(i);
+            if (profile == null) {
+                continue;
+            }
+            Object rawConv = profile.get("responseConvention");
+            if (isBlankConvention(rawConv)) {
+                profile.put("responseConvention", new LinkedHashMap<>(seedMap));
+            }
+        }
+        root.put("authProfiles", profiles);
+        return toJson(parse(root.toJSONString()));
+    }
+
+    /**
+     * 判断原始约定字段是否视为「尚未配置」：
+     * null、空 Map、空白字符串或 "{}"。
+     */
+    private static boolean isBlankConvention(Object rawConv) {
+        if (rawConv == null) {
+            return true;
+        }
+        if (rawConv instanceof Map<?, ?> map) {
+            return map.isEmpty();
+        }
+        if (rawConv instanceof String s) {
+            return StrUtil.isBlank(s) || "{}".equals(s.trim());
+        }
+        return false;
+    }
+
+    /**
+     * Profile 展示名：优先用配置的 name；没有 name 时按常见 id 回落中文名；再没有则用 id 本身。
      */
     public static String displayProfileName(ProjectAuthConfig config, String profileId) {
         ProjectAuthProfile profile = findProfile(config, profileId);
@@ -792,7 +930,7 @@ public final class ProjectAuthConfigSupport {
         if (PROFILE_ADMIN.equals(profileId)) {
             return "管理端 Bearer";
         }
-        return StrUtil.blankToDefault(profileId, "项目鉴权");
+        return StrUtil.blankToDefault(profileId, "多端 Profile");
     }
 
     /** 读扁平头名称。 */

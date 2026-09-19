@@ -29,9 +29,9 @@ public enum FlowDesignToolNames {
     LIST_ASSET_VARIABLES("list_asset_variables", true, true),
     /** 新增或更新素材库条目；半自动进提案，全自动工具内直接写库 */
     UPSERT_ASSET_VARIABLES("upsert_asset_variables", true, false),
-    /** 列举项目鉴权 Profile（pathPrefix、托管头、凭证目标；无密钥明文） */
+    /** 列举多端配置 Profile（pathPrefix、托管头、响应约定、凭证目标；无密钥明文） */
     LIST_PROJECT_AUTH_PROFILES("list_project_auth_profiles", true, true),
-    /** 浅合并更新或新建项目鉴权 Profile；半自动进提案，全自动工具内直接写库 */
+    /** 浅合并更新或新建多端 Profile（鉴权头 / 响应约定 / credentialApi）；半自动进提案，全自动工具内直接写库 */
     UPSERT_AUTH_PROFILE("upsert_auth_profile", true, false),
     /** 向接口 design_hints 追加短提示并直接落库 */
     APPEND_API_DESIGN_HINTS("append_api_design_hints", true, false),

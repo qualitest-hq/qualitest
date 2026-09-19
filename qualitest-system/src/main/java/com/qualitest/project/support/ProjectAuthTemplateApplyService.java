@@ -253,6 +253,7 @@ public class ProjectAuthTemplateApplyService {
                 .match(match)
                 .headerName(derived.getHeaderName())
                 .headerValueTemplate(derived.getHeaderValueTemplate())
+                .responseConvention(ResponseConventionSupport.toMap((String) null))
                 .credentialApi(derived.getCredentialApi())
                 .apis(kept)
                 .build();

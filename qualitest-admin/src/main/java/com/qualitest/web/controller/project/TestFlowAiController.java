@@ -152,7 +152,7 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 确认项目鉴权 Profile 写入提案：按 patch 写入项目 auth_config。
+     * 确认多端 Profile 写入提案：按 patch 写入项目 auth_config（可改鉴权头、pathPrefix、响应约定等）。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping("/authProfileProposal/confirm")
@@ -161,7 +161,7 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 拒绝项目鉴权 Profile 写入提案：不写库，仅更新助手消息 meta 状态。
+     * 拒绝多端 Profile 写入提案：不写库，仅更新助手消息 meta 状态。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping("/authProfileProposal/reject")
@@ -170,7 +170,7 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 确认或拒绝鉴权 Profile 提案的共用入口：成员校验后调用业务服务。
+     * 确认或拒绝多端 Profile 提案的共用入口：成员校验后调用业务服务。
      *
      * @param confirm true 确认落盘，false 拒绝
      */

@@ -3,6 +3,7 @@ package com.qualitest.api.util;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
+import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
 import com.qualitest.common.exception.ServiceException;
 import org.junit.jupiter.api.DisplayName;
@@ -10,6 +11,9 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -373,5 +377,98 @@ class ProjectAuthConfigSupportTest {
                 ProjectAuthConfigSupport.findCredentialProfile(cfg, "POST", "/api/account/auth/login"));
         assertEquals("asset.adminAuth.token", admin.displayPath());
         assertEquals("asset.clientAuth.token", client.displayPath());
+    }
+
+    /**
+     * 前提：双 Profile 各写不同 successValues。
+     * 期望：按 path 命中对应约定；无约定 Profile 回落 DEFAULT。
+     */
+    @Test
+    @Order(15)
+    @DisplayName("双端不同约定：path 命中与 DEFAULT")
+    void dualProfiles_resolveResponseConventionByPath() {
+        Map<String, Object> adminConv = Map.of(
+                "codePath", "code",
+                "successValues", List.of(200),
+                "messagePath", "msg",
+                "dataPath", "data");
+        Map<String, Object> clientConv = Map.of(
+                "codePath", "errno",
+                "successValues", List.of(0),
+                "messagePath", "errmsg",
+                "dataPath", "result");
+        ProjectAuthConfig base = AuthProfileTestFixtures.adminThenClient();
+        ProjectAuthProfile admin = base.getAuthProfiles().get(0);
+        ProjectAuthProfile client = base.getAuthProfiles().get(1);
+        ProjectAuthProfile bare = ProjectAuthConfig.ProjectAuthProfile.builder()
+                .id("bare")
+                .name("无约定")
+                .headerName("X-Token")
+                .headerValueTemplate("{{asset.bare.token}}")
+                .apis(List.of())
+                .build();
+        ProjectAuthConfig cfg = ProjectAuthConfig.builder()
+                .authProfiles(List.of(
+                        ProjectAuthConfig.ProjectAuthProfile.builder()
+                                .id(admin.getId())
+                                .name(admin.getName())
+                                .match(admin.getMatch())
+                                .headerName(admin.getHeaderName())
+                                .headerValueTemplate(admin.getHeaderValueTemplate())
+                                .responseConvention(adminConv)
+                                .credentialApi(admin.getCredentialApi())
+                                .apis(admin.getApis())
+                                .build(),
+                        ProjectAuthConfig.ProjectAuthProfile.builder()
+                                .id(client.getId())
+                                .name(client.getName())
+                                .match(client.getMatch())
+                                .headerName(client.getHeaderName())
+                                .headerValueTemplate(client.getHeaderValueTemplate())
+                                .responseConvention(clientConv)
+                                .credentialApi(client.getCredentialApi())
+                                .apis(client.getApis())
+                                .build(),
+                        bare))
+                .build();
+
+        String adminJson = ProjectAuthConfigSupport.resolveResponseConventionJson("/system/user/list", cfg);
+        String clientJson = ProjectAuthConfigSupport.resolveResponseConventionJson(
+                "/api/account/auth/profile", cfg);
+        String bareJson = ProjectAuthConfigSupport.conventionJsonOf(bare);
+
+        assertTrue(adminJson.contains("\"successValues\":[200]"));
+        assertTrue(clientJson.contains("\"successValues\":[0]"));
+        assertTrue(clientJson.contains("\"codePath\":\"errno\""));
+        assertEquals(com.qualitest.project.support.ResponseConventionSupport.DEFAULT_JSON, bareJson);
+    }
+
+    /**
+     * 前提：旧项目级约定 + Profile 尚无 responseConvention。
+     * 期望：灌入后各 Profile 带约定；已有约定不被覆盖。
+     */
+    @Test
+    @Order(16)
+    @DisplayName("mergeProjectConventionIntoProfiles：灌入且不覆盖已有")
+    void mergeProjectConvention_seedsMissingOnly() {
+        // 模拟库中尚未规范化的 auth_config：一端已有约定，一端缺字段
+        String authJson = """
+                {"authProfiles":[
+                  {"id":"adminBearer","name":"管理端",
+                   "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
+                   "responseConvention":{"codePath":"code","successValues":[1],"messagePath":"msg","dataPath":"data"},
+                   "apis":[]},
+                  {"id":"clientBearer","name":"客户端",
+                   "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.clientAuth.token}}",
+                   "apis":[]}
+                ]}
+                """;
+
+        String merged = ProjectAuthConfigSupport.mergeProjectConventionIntoProfiles(
+                authJson, "{\"codePath\":\"code\",\"successValues\":[0],\"messagePath\":\"msg\",\"dataPath\":\"data\"}");
+        ProjectAuthConfig cfg = ProjectAuthConfigSupport.parse(merged);
+
+        assertEquals(List.of(1), cfg.getAuthProfiles().get(0).getResponseConvention().get("successValues"));
+        assertEquals(List.of(0), cfg.getAuthProfiles().get(1).getResponseConvention().get("successValues"));
     }
 }

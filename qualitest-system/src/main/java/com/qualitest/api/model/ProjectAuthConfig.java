@@ -9,14 +9,15 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 项目鉴权配置，存在 test_project.auth_config。
+ * 项目多端配置，存在 test_project.auth_config。
  * <p>
- * 按接口路径选一套 Profile：命中最长 pathPrefix 的那条；都没命中则用数组第一条。
- * 免登只看预制接口 authConfig.mode=none。
- * 抽凭证：credentialApi 标明哪一口登录；托管头占位符（{{asset.*}} / {{flow.*}}）标明写入目标。
- * 抽取 from/expr 只活在登录流 extracts。
+ * 按接口路径选一套 Profile：命中最长 pathPrefix 的那条；都未命中则用数组第一条。
+ * 每套 Profile 含鉴权托管头与可选响应约定（业务码信封四字段）。
+ * 免登只看预制接口 auth.mode=none。
+ * 抽凭证：credentialApi 标明哪一口登录；托管头占位符标明写入目标。
  */
 @Data
 @Builder
@@ -28,13 +29,13 @@ public class ProjectAuthConfig implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 多套鉴权。数组顺序就是勾选顺序，未命中前缀时用下标 0。
+     * 多端 Profile。数组顺序就是勾选顺序，未命中前缀时用下标 0。
      */
     @Builder.Default
     private List<ProjectAuthProfile> authProfiles = new ArrayList<>();
 
     /**
-     * 一套鉴权：请求头模板 + 若干预制接口。
+     * 一套多端配置：路径匹配 + 鉴权头 + 响应约定 + 预制接口。
      */
     @Data
     @Builder
@@ -59,6 +60,12 @@ public class ProjectAuthConfig implements Serializable {
 
         /** 鉴权头值，如 Bearer {{asset.adminAuth.token}}。 */
         private String headerValueTemplate;
+
+        /**
+         * 本端响应约定：codePath、successValues、messagePath、dataPath。
+         * 未写或字段为空时，运行时按代码缺省（code / [200] / msg / data）判业务码。
+         */
+        private Map<String, Object> responseConvention;
 
         /**
          * 本套发凭证的接口，通常是 POST /login。

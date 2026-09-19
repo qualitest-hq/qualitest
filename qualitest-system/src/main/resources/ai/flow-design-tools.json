@@ -160,7 +160,7 @@
     "type": "function",
     "function": {
       "name": "list_project_auth_profiles",
-      "description": "列举项目鉴权 Profile：id、名称、pathPrefix、headerName、headerValueTemplate、credentialTarget、credentialApi。造登录链、修 AUTH_TOKEN_MISSING、改托管头前必须先调用；勿默认若依。不含密钥明文",
+      "description": "列举多端配置 Profile：id、名称、pathPrefix、headerName、headerValueTemplate、responseConvention（四字段）、credentialTarget、credentialApi。造登录链、修 AUTH_TOKEN_MISSING、改托管头/响应约定前必须先调用；勿默认若依。不含密钥明文",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -172,7 +172,7 @@
     "type": "function",
     "function": {
       "name": "upsert_auth_profile",
-      "description": "浅合并更新项目鉴权 Profile（pathPrefix/headerName/headerValueTemplate/credentialApi/name）。半自动：提案 pending，聊天侧确认后落盘；全自动：工具内直写。更新须 profileId；新建须 create=true 且 patch 含 headerName 与 headerValueTemplate。两端禁止同一凭证键。仅 Web",
+      "description": "浅合并更新多端 Profile（pathPrefix/headerName/headerValueTemplate/responseConvention/credentialApi/name）。半自动：提案 pending，聊天侧确认后落盘；全自动：工具内直写。更新须 profileId；新建须 create=true 且 patch 含 headerName 与 headerValueTemplate。改响应约定时 patch.responseConvention 可只传变更字段（如 successValues）。两端禁止同一凭证键。仅 Web",
       "parameters": {
         "type": "object",
         "properties": {
@@ -186,7 +186,7 @@
           },
           "patch": {
             "type": "object",
-            "description": "浅合并字段：name、pathPrefix（字符串数组）、headerName、headerValueTemplate、credentialApi{method,path}",
+            "description": "浅合并字段：name、pathPrefix（字符串数组）、headerName、headerValueTemplate、responseConvention{codePath,successValues,messagePath,dataPath}、credentialApi{method,path}",
             "additionalProperties": true
           }
         },
@@ -458,7 +458,25 @@
                 }
               },
               "successCheck": {
-                "type": "object"
+                "type": "object",
+                "description": "业务码校验。mode=inherit|off；可选 successValues 非空整数数组（如 [1]）覆盖项目/接口约定。",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "inherit",
+                      "off"
+                    ],
+                    "description": "inherit 校验业务码；off 关闭"
+                  },
+                  "successValues": {
+                    "type": "array",
+                    "description": "可选；非空时优先于项目约定与接口 biz_code_config",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                }
               },
               "timeoutMs": {
                 "type": "number"

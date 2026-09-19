@@ -134,9 +134,9 @@ public class TestFlowDesignAgent {
 
         Integer sessionThinking = resolveSessionThinking(session, request);
 
-        // 本轮内存容器：画布 patch 与素材/鉴权提案（工具只写容器，不落业务库）
+        // 本轮内存容器：画布 patch 与素材/多端 Profile 提案（工具只写容器，不落业务库）
         FlowDesignSubmitCapture submitCapture = new FlowDesignSubmitCapture();
-        // 模板模式禁用素材/鉴权 upsert（无真实项目库）
+        // 模板模式禁用素材/多端 Profile upsert（无真实项目库）
         AssetUpsertCapture assetUpsertCapture = request.isTemplateDesignMode() ? null : new AssetUpsertCapture();
         AuthProfileUpsertCapture authProfileUpsertCapture =
                 request.isTemplateDesignMode() ? null : new AuthProfileUpsertCapture();

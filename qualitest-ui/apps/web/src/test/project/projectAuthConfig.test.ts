@@ -82,6 +82,43 @@ describe('buildAuthConfigPayload', () => {
     expect(obj.authProfiles[0].headerValueTemplate).toBe('Bearer {{asset.adminAuth.token}}')
     expect(obj.authProfiles[0].credentialApi.path).toBe('/login')
     expect(JSON.parse(payload).authProfiles[0].id).toBe('ruoyiBearer')
+    expect(obj.authProfiles[0].responseConvention).toEqual({
+      codePath: 'code',
+      successValues: [200],
+      messagePath: 'msg',
+      dataPath: 'data',
+    })
+  })
+
+  it('round-trip 保留 Profile.responseConvention 四字段', () => {
+    const form = parseAuthConfig({
+      authProfiles: [{
+        id: 'clientBearer',
+        name: '客户端',
+        headerName: 'Authorization',
+        headerValueTemplate: 'Bearer {{asset.clientAuth.token}}',
+        responseConvention: {
+          codePath: 'errno',
+          successValues: [0, 1],
+          messagePath: 'errmsg',
+          dataPath: 'result',
+        },
+        apis: [],
+      }],
+    })
+
+    expect(form.profiles[0].codePath).toBe('errno')
+    expect(form.profiles[0].successValuesText).toBe('0,1')
+    expect(form.profiles[0].messagePath).toBe('errmsg')
+    expect(form.profiles[0].dataPath).toBe('result')
+
+    const obj = buildAuthConfigObject(form)
+    expect(obj.authProfiles[0].responseConvention).toEqual({
+      codePath: 'errno',
+      successValues: [0, 1],
+      messagePath: 'errmsg',
+      dataPath: 'result',
+    })
   })
 
   it('pathPrefix 禁止单独 / 时 validateAuthForm 失败', () => {

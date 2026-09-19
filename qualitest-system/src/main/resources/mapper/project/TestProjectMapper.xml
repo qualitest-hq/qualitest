@@ -8,8 +8,7 @@
         <result property="testProjectId" column="test_project_id"/>
         <result property="projectName" column="project_name"/>
         <result property="assetVariables" column="asset_variables"/>
-        <result property="responseConvention" column="response_convention"/>
-        <!-- 项目鉴权配置 JSON：多套 Bearer 等 -->
+        <!-- 项目多端配置 JSON：鉴权头 + 响应约定 + 预制接口 -->
         <result property="authConfig" column="auth_config"/>
         <!-- 是否允许 MCP 全自动写流 -->
         <result property="mcpAutopilotEnabled" column="mcp_autopilot_enabled"/>
@@ -24,7 +23,7 @@
     </resultMap>
 
     <sql id="selectTestProjectVo">
-        select test_project_id, project_name, asset_variables, response_convention, auth_config, mcp_autopilot_enabled, mcp_import_apis_enabled, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
+        select test_project_id, project_name, asset_variables, auth_config, mcp_autopilot_enabled, mcp_import_apis_enabled, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
         from test_project
     </sql>
 
@@ -32,7 +31,6 @@
         select tp.test_project_id    as testProjectId,
                tp.project_name       as projectName,
                tp.asset_variables    as assetVariables,
-               tp.response_convention as responseConvention,
                tp.auth_config         as authConfig,
                tp.mcp_autopilot_enabled as mcpAutopilotEnabled,
                tp.mcp_import_apis_enabled as mcpImportApisEnabled,
@@ -90,7 +88,6 @@
     <select id="selectTestProjectResult" parameterType="Long" resultType="TestProjectResult">
         select tp.test_project_id    as testProjectId,
                tp.project_name       as projectName,
-               tp.response_convention as responseConvention,
                tp.auth_config         as authConfig,
                tp.mcp_autopilot_enabled as mcpAutopilotEnabled,
                tp.mcp_import_apis_enabled as mcpImportApisEnabled,
@@ -125,7 +122,6 @@
         select tp.test_project_id,
                tp.project_name,
                tp.asset_variables,
-               tp.response_convention,
                tp.auth_config,
                tp.mcp_autopilot_enabled,
                tp.mcp_import_apis_enabled,
@@ -159,9 +155,6 @@
             </if>
             <if test="assetVariables != null">
                 asset_variables,
-            </if>
-            <if test="responseConvention != null">
-                response_convention,
             </if>
             <if test="authConfig != null">
                 auth_config,
@@ -201,9 +194,6 @@
             <if test="assetVariables != null">
                 #{assetVariables},
             </if>
-            <if test="responseConvention != null">
-                #{responseConvention},
-            </if>
             <if test="authConfig != null">
                 #{authConfig},
             </if>
@@ -242,9 +232,6 @@
             </if>
             <if test="assetVariables != null">
                 asset_variables = #{assetVariables},
-            </if>
-            <if test="responseConvention != null">
-                response_convention = #{responseConvention},
             </if>
             <if test="authConfig != null">
                 auth_config = #{authConfig},

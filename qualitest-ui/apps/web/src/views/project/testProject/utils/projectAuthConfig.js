@@ -1,9 +1,9 @@
 /**
- * 项目级鉴权配置（auth_config）表单解析 / 组装 / 轻量校验。
+ * 项目多端配置（auth_config）表单解析 / 组装 / 轻量校验。
  *
- * 表单结构：多个 Profile，每条含扁平鉴权头（headerName + valueTemplate）、
- * 可选 credentialApi（登录取票 method/path）、以及 apis[]（按接口覆盖鉴权模式）。
- * 凭证来源写在 valueTemplate 的 {{asset.*}} / {{flow.*}} 占位符中。
+ * 表单为多个 Profile 行：每条含 id、名称、pathPrefix、鉴权托管头、
+ * 响应约定四字段（codePath / successValuesText / messagePath / dataPath）、
+ * 可选 credentialApi，以及预制接口 apis[]。
  */
 
 /** 空表单：无 Profile，且不提示「缺模板」 */
@@ -15,8 +15,21 @@ export function emptyAuthForm() {
 }
 
 /**
- * 新建一条空白 Profile 行（供设置页「添加 Profile」）。
- * id/name/pathPrefix/鉴权头/取票接口均为空；credentialMethod 默认 POST；apis 空列表。
+ * 表单用的缺省响应约定字段。
+ * codePath=code，成功值文本=200，messagePath=msg，dataPath=data。
+ */
+export function emptyConventionFields() {
+  return {
+    codePath: 'code',
+    successValuesText: '200',
+    messagePath: 'msg',
+    dataPath: 'data',
+  }
+}
+
+/**
+ * 新建一条空白 Profile 行（设置页「添加 Profile」）。
+ * 鉴权头为空字符串，响应约定带缺省四字段，apis 为空数组。
  */
 export function emptyProfileRow() {
   return {
@@ -27,6 +40,7 @@ export function emptyProfileRow() {
     valueTemplate: '',
     credentialMethod: 'POST',
     credentialPath: '',
+    ...emptyConventionFields(),
     apis: [],
   }
 }
@@ -70,6 +84,32 @@ function resolveHeaderValueTemplate(p) {
   return str(p?.headerValueTemplate)
 }
 
+/** 解析成功业务码输入框（逗号/空白分隔的整数）；空输入视为 [200] */
+export function parseSuccessValuesText(text) {
+  const values = String(text || '')
+    .split(/[,，\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => Number(s))
+    .filter((n) => !Number.isNaN(n))
+  return values.length ? values : [200]
+}
+
+/**
+ * 把库中 responseConvention 对象拆成表单字段。
+ * 缺字段时分别回落为 code / [200] / msg / data。
+ */
+function conventionFromRaw(raw) {
+  const obj = raw && typeof raw === 'object' ? raw : null
+  const values = Array.isArray(obj?.successValues) ? obj.successValues : [200]
+  return {
+    codePath: str(obj?.codePath, 'code'),
+    successValuesText: values.join(','),
+    messagePath: str(obj?.messagePath, 'msg'),
+    dataPath: str(obj?.dataPath, 'data'),
+  }
+}
+
 function resolveApiMethod(api) {
   const cfg = parseJsonMaybe(api?.requestConfig)
   return str(cfg?.method, 'GET').toUpperCase()
@@ -84,6 +124,10 @@ function apiToRow(api) {
   }
 }
 
+/**
+ * 库中一条 authProfiles 项 → 设置页表单行。
+ * 展开 responseConvention 为 codePath / successValuesText / messagePath / dataPath。
+ */
 function profileToRow(p) {
   const credential = p?.credentialApi || {}
   const apis = Array.isArray(p?.apis) ? p.apis.map(apiToRow) : []
@@ -95,12 +139,14 @@ function profileToRow(p) {
     valueTemplate: resolveHeaderValueTemplate(p),
     credentialMethod: str(credential?.method, 'POST').toUpperCase(),
     credentialPath: str(credential?.path),
+    ...conventionFromRaw(p?.responseConvention),
     apis,
   }
 }
 
 /**
  * 把库中 authConfig（JSON 字符串或对象）填入表单结构。
+ * 解析 authProfiles；若未显式传入 needsAuthTemplateHint，则有 Profile 但 apis 全空时提示缺模板。
  */
 export function parseAuthConfig(raw, options = {}) {
   const form = emptyAuthForm()
@@ -153,6 +199,10 @@ export function validateAuthForm(form) {
   return null
 }
 
+/**
+ * 表单一行 → 写出 authProfiles 单项。
+ * 把约定四字段收成 responseConvention 对象；有 pathPrefix / credentialApi / apis 时一并带上。
+ */
 function rowToProfile(p) {
   const id = String(p.id || '').trim()
   const name = String(p.name || '').trim()
@@ -166,6 +216,12 @@ function rowToProfile(p) {
     id,
     headerName,
     headerValueTemplate: valueTemplate,
+    responseConvention: {
+      codePath: String(p.codePath || 'code').trim() || 'code',
+      successValues: parseSuccessValuesText(p.successValuesText),
+      messagePath: String(p.messagePath || 'msg').trim() || 'msg',
+      dataPath: String(p.dataPath || 'data').trim() || 'data',
+    },
   }
   if (name) row.name = name
   if (prefixes.length) {

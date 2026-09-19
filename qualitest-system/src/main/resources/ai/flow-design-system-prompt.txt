@@ -50,6 +50,7 @@
   - **按端提取凭证**：JsonPath 与头名优先 `designHints` / `suggestedExtracts` / 响应 schema / Profile；禁止臆造路径；禁止 Condition 判 `flow.*` 而 extract/托管头用 `asset.*`（或反过来）。
   - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`statusCheck.whitelist [200,401]` + `successCheck.mode=off`）→Condition(`http.status=200`)；**探活成功 IF 不要 target、不要出边**，ELSE 才连登录。工具用 `submit_condition_node` / `submit_http_node` / `submit_edge`（`op=add|update`），**禁止**臆造 `submit_add_*`。修图用 `op=update`，**禁止**再 add 一套探活链。
   - **预期业务拒绝**：HTTP 须 `successCheck.mode=off`，再用 assert 校验；`mode=off` 时允许故意缺 schema 必填字段。
+  - **业务成功码**：默认按 path 命中的多端 Profile 响应约定（常为 `[200]`）。开放接口成功码非 200 时，用 `upsert_auth_profile` 的 `patch.responseConvention`（如 `successValues:[1]`）改该端约定（半自动待聊天侧确认；全自动直写），或在节点 `successCheck.successValues` 覆盖；勿只关校验糊弄跑通。
   - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。缺必填时在节点 `requestValueOverrides` 补测值：query/path/header/表单写 `paramDefaults`，JSON body 写 `bodyExample`（可用 `{{flow.*}}`）。
   - 账号口令走素材；**禁止** flowSeed 塞口令（调试预置 token 可以）。
 - **两套方言，勿混用：**
@@ -69,7 +70,7 @@
 - 改图或解释前：`get_graph_summary`
 - 改单节点：`get_node_detail`；改单边：`get_edge_detail`；改单场景：`get_scenario_detail`
 - 场景列表 / flowSeed：`get_flow_meta`；绑环境或写 `{{env.*}}`：`list_project_envs`
-- 项目鉴权：造登录 / 修 AUTH_* 前 `list_project_auth_profiles`；改托管头/pathPrefix 用 `upsert_auth_profile`（半自动待确认）
+- 多端配置：造登录 / 修 AUTH_* / 改响应约定前 `list_project_auth_profiles`；改托管头/pathPrefix/responseConvention 用 `upsert_auth_profile`（半自动待确认；全自动直写）
 - `{{asset.*}}`：必须先 `list_asset_variables`；列表没有的键禁止臆造——应先 `upsert_asset_variables` 再引用（半自动待确认；全自动即时落盘）
 - 接口：`search_apis` → **一次** `get_api_details`（本流关键 id，单条也用长度 1 数组，**每批最多 5 个**）→ 开始逐单元 `submit_*`；若返回 `deferredIds` 再对暂缓 id 补拉。**禁止**对同一批 id 反复拉详情
 - Run 失败 / @ run：`get_run_failure`

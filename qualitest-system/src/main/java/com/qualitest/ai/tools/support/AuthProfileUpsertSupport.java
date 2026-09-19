@@ -18,6 +18,7 @@ import com.qualitest.flow.sync.FlowExternalChangePublisher;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.mapper.TestProjectMapper;
+import com.qualitest.project.support.ResponseConventionSupport;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,10 +28,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 项目鉴权 Profile 的列表摘要、字段浅合并与落盘。
+ * 多端 Profile 的列表摘要、字段浅合并与落盘。
  * <p>
- * 能力：解析 patch、生成 before/after 快照、校验多套 Profile 是否指向同一凭证、
- * 把合并结果写入 test_project.auth_config。
+ * 负责：解析 AI 工具 patch、生成提案 before/after 快照、校验多套 Profile 凭证不碰撞、
+ * 把合并结果写入 test_project.auth_config（含鉴权头与响应约定）。
  */
 public final class AuthProfileUpsertSupport {
 
@@ -60,10 +61,12 @@ public final class AuthProfileUpsertSupport {
     }
 
     /**
-     * 将单个 Profile 转为列举摘要：id、名称、pathPrefix、托管头、凭证目标、登录口定位。
+     * 将单个 Profile 转为列举摘要。
+     * 含：id、名称、pathPrefix、托管头、规范化后的响应约定四字段、凭证目标、登录口定位。
+     * 不含密钥明文。
      *
-     * @param profile 鉴权 Profile
-     * @return 摘要 JSON（无密钥明文）
+     * @param profile 多端 Profile
+     * @return 摘要 JSON
      */
     public static JSONObject toSummary(ProjectAuthProfile profile) {
         JSONObject item = new JSONObject();
@@ -75,6 +78,7 @@ public final class AuthProfileUpsertSupport {
         item.put("pathPrefix", prefixes);
         item.put("headerName", profile.getHeaderName());
         item.put("headerValueTemplate", profile.getHeaderValueTemplate());
+        item.put("responseConvention", ResponseConventionSupport.toMap(profile.getResponseConvention()));
         CredentialTarget target = CredentialTargetSupport.primaryTarget(profile);
         if (target != null) {
             JSONObject ct = new JSONObject();
@@ -95,10 +99,12 @@ public final class AuthProfileUpsertSupport {
     }
 
     /**
-     * 生成提案 before/after 用的扁平字段快照。
+     * 生成提案 before/after 用的字段快照。
+     * 含 id、name、pathPrefix、headerName、headerValueTemplate、
+     * responseConvention（四字段）、credentialMethod、credentialPath。
      *
      * @param profile 可空；空则返回空 Map
-     * @return 含 id、name、pathPrefix、headerName、headerValueTemplate、credentialMethod/Path 等
+     * @return 有序字段快照
      */
     public static Map<String, Object> snapshot(ProjectAuthProfile profile) {
         Map<String, Object> map = new LinkedHashMap<>();
@@ -110,6 +116,7 @@ public final class AuthProfileUpsertSupport {
         map.put("pathPrefix", profile.getMatch() != null ? profile.getMatch().getPathPrefix() : List.of());
         map.put("headerName", profile.getHeaderName());
         map.put("headerValueTemplate", profile.getHeaderValueTemplate());
+        map.put("responseConvention", ResponseConventionSupport.toMap(profile.getResponseConvention()));
         if (profile.getCredentialApi() != null) {
             map.put("credentialMethod", profile.getCredentialApi().getMethod());
             map.put("credentialPath", profile.getCredentialApi().getPath());
@@ -119,13 +126,14 @@ public final class AuthProfileUpsertSupport {
 
     /**
      * 将 patch 浅合并到指定 Profile 并写入项目 auth_config。
-     * create=true 且找不到 profileId 时新建 Profile（雪花 id）；合并后校验凭证目标不碰撞。
+     * create=true 且找不到 profileId 时新建 Profile（雪花 id，默认响应约定四字段）；
+     * 合并后校验多套 Profile 凭证目标不碰撞，并发布 auth_config 变更事件。
      *
      * @param testProjectMapper 项目 Mapper
      * @param projectId         项目 id
      * @param profileId         既有 Profile id；新建时可空
      * @param create            是否允许新建
-     * @param patch             拟合并字段
+     * @param patch             拟合并字段（可含 responseConvention）
      * @return 落盘后的 Profile id
      */
     public static String persistPatch(
@@ -149,24 +157,15 @@ public final class AuthProfileUpsertSupport {
                 ? new ArrayList<>()
                 : new ArrayList<>(config.getAuthProfiles());
 
-        ProjectAuthProfile target = null;
-        int index = -1;
-        if (StrUtil.isNotBlank(profileId)) {
-            for (int i = 0; i < profiles.size(); i++) {
-                ProjectAuthProfile p = profiles.get(i);
-                if (p != null && profileId.trim().equals(p.getId())) {
-                    target = p;
-                    index = i;
-                    break;
-                }
-            }
-        }
+        ProjectAuthProfile target = ProjectAuthConfigSupport.findProfile(config, profileId);
+        int index = target != null ? profiles.indexOf(target) : -1;
         if (target == null) {
             if (!create) {
                 throw new ServiceException("未找到 Profile id=" + profileId);
             }
             target = ProjectAuthProfile.builder()
                     .id(String.valueOf(IdUtil.getSnowflakeNextId()))
+                    .responseConvention(ResponseConventionSupport.toMap((String) null))
                     .apis(new ArrayList<>())
                     .build();
             profiles.add(target);
@@ -195,7 +194,9 @@ public final class AuthProfileUpsertSupport {
 
     /**
      * 把 patch 中出现的字段合并进 Profile，未出现的字段保持原值；apis 列表原样保留。
-     * 支持 credentialApi 对象，或扁平的 credentialMethod / credentialPath。
+     * <p>
+     * 可合并字段：name、headerName、headerValueTemplate、pathPrefix、
+     * responseConvention（对约定四字段浅合并）、credentialApi 或扁平 credentialMethod/credentialPath。
      *
      * @param base  合并前的 Profile
      * @param patch 拟写入字段
@@ -207,6 +208,7 @@ public final class AuthProfileUpsertSupport {
         String headerValueTemplate = base.getHeaderValueTemplate();
         Match match = base.getMatch();
         CredentialApi credentialApi = base.getCredentialApi();
+        Map<String, Object> responseConvention = base.getResponseConvention();
 
         if (patch.containsKey("name")) {
             name = StrUtil.trimToNull(stringVal(patch.get("name")));
@@ -220,6 +222,14 @@ public final class AuthProfileUpsertSupport {
         if (patch.containsKey("pathPrefix")) {
             List<String> prefixes = toStringList(patch.get("pathPrefix"));
             match = prefixes.isEmpty() ? null : Match.builder().pathPrefix(prefixes).build();
+        }
+        if (patch.containsKey("responseConvention")) {
+            Map<String, Object> convPatch = toObjectMap(patch.get("responseConvention"));
+            if (convPatch != null && !convPatch.isEmpty()) {
+                String beforeJson = ProjectAuthConfigSupport.conventionJsonOf(base);
+                String merged = ResponseConventionSupport.mergePatchToJson(beforeJson, convPatch);
+                responseConvention = ResponseConventionSupport.toMap(merged);
+            }
         }
         if (patch.containsKey("credentialApi") || patch.containsKey("credentialMethod")
                 || patch.containsKey("credentialPath")) {
@@ -258,6 +268,9 @@ public final class AuthProfileUpsertSupport {
                 .match(match)
                 .headerName(headerName)
                 .headerValueTemplate(headerValueTemplate)
+                .responseConvention(responseConvention != null
+                        ? new LinkedHashMap<>(responseConvention)
+                        : null)
                 .credentialApi(credentialApi)
                 .apis(base.getApis() != null ? base.getApis() : new ArrayList<>())
                 .build();
@@ -287,6 +300,7 @@ public final class AuthProfileUpsertSupport {
 
     /**
      * 比较 before/after 快照，列出发生变化的字段名（忽略 id）。
+     * Map / List 按 JSON 序列化结果比较，避免引用不同但内容相同被判为变更。
      *
      * @param before 改前快照
      * @param after  改后快照
@@ -307,11 +321,43 @@ public final class AuthProfileUpsertSupport {
             }
             Object a = before == null ? null : before.get(key);
             Object b = after == null ? null : after.get(key);
-            if (!String.valueOf(a).equals(String.valueOf(b))) {
+            if (!snapshotValueEquals(a, b)) {
                 changed.add(key);
             }
         }
         return changed;
+    }
+
+    private static boolean snapshotValueEquals(Object a, Object b) {
+        if (a instanceof Map<?, ?> || b instanceof Map<?, ?>
+                || a instanceof List<?> || b instanceof List<?>) {
+            return JSON.toJSONString(a).equals(JSON.toJSONString(b));
+        }
+        return String.valueOf(a).equals(String.valueOf(b));
+    }
+
+    /** 把任意对象收成可修改的 String→Object Map（支持 Map 或 JSON 字符串）。 */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> toObjectMap(Object raw) {
+        if (raw instanceof Map<?, ?> map) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                if (e.getKey() == null) {
+                    continue;
+                }
+                out.put(String.valueOf(e.getKey()), e.getValue());
+            }
+            return out;
+        }
+        if (raw instanceof String s && StrUtil.isNotBlank(s)) {
+            try {
+                JSONObject obj = JSON.parseObject(s);
+                return obj != null ? new LinkedHashMap<>(obj) : null;
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /** 将任意值转为去首尾空白的字符串；null 仍为 null */
@@ -364,24 +410,5 @@ public final class AuthProfileUpsertSupport {
             out.put(key, e.getValue());
         }
         return out.isEmpty() ? null : out;
-    }
-
-    /**
-     * 按 id 在鉴权配置中查找 Profile。
-     *
-     * @param config    项目鉴权配置
-     * @param profileId Profile id
-     * @return 命中的 Profile；未找到为 null
-     */
-    public static ProjectAuthProfile findProfile(ProjectAuthConfig config, String profileId) {
-        if (config == null || config.getAuthProfiles() == null || StrUtil.isBlank(profileId)) {
-            return null;
-        }
-        for (ProjectAuthProfile p : config.getAuthProfiles()) {
-            if (p != null && profileId.trim().equals(p.getId())) {
-                return p;
-            }
-        }
-        return null;
     }
 }

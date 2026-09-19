@@ -23,9 +23,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * AI 造流写工具：按 profileId 浅合并更新项目鉴权 Profile，或 create=true 时新建。
+ * AI 造流写工具：按 profileId 浅合并更新多端 Profile，或 create=true 时新建。
  * <p>
- * 半自动：只记 pending 提案，用户确认后才改 auth_config；
+ * patch 可改：name、pathPrefix、鉴权托管头、responseConvention（响应约定四字段）、credentialApi。
+ * 半自动：只记 pending 提案，用户在聊天侧确认后才写 auth_config；
  * 全自动：工具内直接写库，提案 status 记为 confirmed。
  * 模板画布模式禁止写入。
  */
@@ -49,7 +50,7 @@ public class UpsertAuthProfileTool implements QualitestTool {
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
         if (ctx != null && ctx.isTemplateDesignMode()) {
-            return FlowDesignToolSupport.errorJson("模板画布不支持写入项目鉴权");
+            return FlowDesignToolSupport.errorJson("模板画布不支持写入多端配置");
         }
         Long projectId = ctx.getTestProjectId();
         if (projectId == null) {
@@ -57,12 +58,12 @@ public class UpsertAuthProfileTool implements QualitestTool {
         }
         AuthProfileUpsertCapture capture = ctx.getAuthProfileUpsertCapture();
         if (capture == null) {
-            return FlowDesignToolSupport.errorJson("鉴权提案捕获器未就绪");
+            return FlowDesignToolSupport.errorJson("多端配置提案捕获器未就绪");
         }
         Map<String, Object> patch = AuthProfileUpsertSupport.parsePatch(arguments.get("patch"));
         if (patch == null) {
             return FlowDesignToolSupport.errorJson(
-                    "缺少 patch 对象（可含 name/pathPrefix/headerName/headerValueTemplate/credentialApi）");
+                    "缺少 patch 对象（可含 name/pathPrefix/headerName/headerValueTemplate/responseConvention/credentialApi）");
         }
         String profileId = FlowDesignToolSupport.stringArg(arguments.get("profileId"));
         boolean create = Boolean.TRUE.equals(arguments.get("create"))
@@ -76,7 +77,7 @@ public class UpsertAuthProfileTool implements QualitestTool {
             return FlowDesignToolSupport.errorJson("项目不存在");
         }
         ProjectAuthConfig config = ProjectAuthConfigSupport.parse(project.getAuthConfig());
-        ProjectAuthProfile existing = AuthProfileUpsertSupport.findProfile(config, profileId);
+        ProjectAuthProfile existing = ProjectAuthConfigSupport.findProfile(config, profileId);
         if (existing == null && !create) {
             return FlowDesignToolSupport.errorJson("未找到 Profile id=" + profileId);
         }
@@ -114,7 +115,7 @@ public class UpsertAuthProfileTool implements QualitestTool {
                 status = AuthProfileUpsertProposal.STATUS_CONFIRMED;
             } catch (ServiceException e) {
                 return FlowDesignToolSupport.errorJson(
-                        e.getMessage() != null ? e.getMessage() : "写入项目鉴权失败");
+                        e.getMessage() != null ? e.getMessage() : "写入多端配置失败");
             } finally {
                 FlowExternalChangeSourceHolder.clear();
             }
@@ -150,7 +151,7 @@ public class UpsertAuthProfileTool implements QualitestTool {
         result.put("changedFields", proposal.getChangedFields());
         result.put("after", proposal.getAfter());
         if (autopilot) {
-            result.put("hint", "已写入项目鉴权 Profile");
+            result.put("hint", "已写入多端配置 Profile");
         } else {
             result.put("hint", "提案待聊天侧确认后落盘；确认前画布仍用旧 Profile");
         }

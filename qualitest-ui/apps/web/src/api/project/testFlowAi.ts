@@ -274,7 +274,7 @@ export async function rejectAssetUpsertProposal(
   return res.data as AssetUpsertProposalDecisionResult;
 }
 
-/** 确认或拒绝鉴权 Profile 写入提案的请求参数 */
+/** 确认或拒绝多端 Profile 写入提案的请求参数 */
 export interface AuthProfileUpsertProposalDecisionPayload {
   /** 测试项目 id（提案写入该项目的 auth_config） */
   testProjectId: string;
@@ -284,7 +284,7 @@ export interface AuthProfileUpsertProposalDecisionPayload {
   profileId: string;
 }
 
-/** 确认或拒绝鉴权 Profile 写入提案的响应 */
+/** 确认或拒绝多端 Profile 写入提案的响应 */
 export interface AuthProfileUpsertProposalDecisionResult {
   /** 是否成功 */
   ok?: boolean;
@@ -303,7 +303,7 @@ export interface AuthProfileUpsertProposalDecisionResult {
 }
 
 /**
- * 确认鉴权 Profile 写入提案：把提案内容写入项目 auth_config。
+ * 确认多端 Profile 写入提案：把提案 patch 写入项目 auth_config（可含响应约定四字段）。
  */
 export async function confirmAuthProfileUpsertProposal(
   data: AuthProfileUpsertProposalDecisionPayload,
@@ -318,7 +318,7 @@ export async function confirmAuthProfileUpsertProposal(
 }
 
 /**
- * 拒绝鉴权 Profile 写入提案：只改消息元数据状态，不写项目 auth_config。
+ * 拒绝多端 Profile 写入提案：只改消息元数据状态，不写项目 auth_config。
  */
 export async function rejectAuthProfileUpsertProposal(
   data: AuthProfileUpsertProposalDecisionPayload,
@@ -331,6 +331,7 @@ export async function rejectAuthProfileUpsertProposal(
   });
   return res.data as AuthProfileUpsertProposalDecisionResult;
 }
+
 
 /**
  * SSE 流式设计。

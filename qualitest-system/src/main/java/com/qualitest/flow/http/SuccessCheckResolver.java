@@ -4,6 +4,8 @@ import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.support.ResponseConventionSupport;
 import com.qualitest.project.support.TestProjectApiBizCodeService;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -11,18 +13,19 @@ import java.util.Objects;
 /**
  * HTTP 节点业务成功码校验解析器。
  * <p>
- * 根据节点 successCheck.mode、调用模式、接口级白名单与项目响应约定，
+ * 根据节点 successCheck、调用模式、接口级白名单与本端响应约定，
  * 决定本步是否校验 body 中的业务 code，以及成功值列表与字段路径。
  * <ul>
  *   <li>mode=off：不校验业务码，仅依赖 HTTP 状态码</li>
  *   <li>外联模式且未写 mode：视为关闭校验</li>
  *   <li>project 模式缺省或 mode=inherit：开启校验</li>
- *   <li>成功值：接口 biz_code_config.successValues 非空时优先，否则用项目约定（空则 [200]）</li>
+ *   <li>成功值优先级：节点 successCheck.successValues 非空 → 接口 biz_code_config → 本端约定 successValues（缺省 [200]）</li>
+ *   <li>业务码 / 消息字段路径取自本端约定（缺省 code / msg）</li>
  * </ul>
  */
 public final class SuccessCheckResolver {
 
-    /** 继承项目响应约定并校验业务码 */
+    /** 继承本端响应约定并校验业务码 */
     public static final String MODE_INHERIT = "inherit";
     /** 关闭业务码校验 */
     public static final String MODE_OFF = "off";
@@ -36,7 +39,7 @@ public final class SuccessCheckResolver {
      * @param nodeData               节点 data（可读 successCheck）
      * @param callMode               project / external
      * @param api                    绑定的项目接口；external 或未绑定时为 null
-     * @param responseConventionJson 项目 response_convention 原始 JSON；空则用默认约定
+     * @param responseConventionJson 本端响应约定 JSON；空白时按代码缺省约定解析
      * @return 解析结果；shouldApply 为 false 时跳过业务码校验
      */
     public static Resolved resolve(Map<String, Object> nodeData, String callMode, TestProjectApi api,
@@ -54,8 +57,11 @@ public final class SuccessCheckResolver {
         ResponseConventionSupport.Parsed convention =
                 ResponseConventionSupport.parseOrDefault(responseConventionJson);
         List<Integer> successValues = convention.successValues();
-        // 接口级成功码白名单覆盖项目约定中的 successValues
-        if (api != null) {
+
+        List<Integer> nodeValues = readNodeSuccessValues(nodeData);
+        if (nodeValues != null && !nodeValues.isEmpty()) {
+            successValues = List.copyOf(nodeValues);
+        } else if (api != null) {
             List<Integer> apiValues = TestProjectApiBizCodeService.readSuccessValues(api);
             if (apiValues != null && !apiValues.isEmpty()) {
                 successValues = List.copyOf(apiValues);
@@ -76,15 +82,56 @@ public final class SuccessCheckResolver {
 
     /** 读取节点 data.successCheck.mode */
     private static String readMode(Map<String, Object> nodeData) {
-        if (nodeData == null) {
-            return null;
-        }
-        Object raw = nodeData.get("successCheck");
-        if (raw instanceof Map<?, ?> map) {
+        Object successCheck = readSuccessCheck(nodeData);
+        if (successCheck instanceof Map<?, ?> map) {
             Object mode = map.get("mode");
             return mode != null ? String.valueOf(mode) : null;
         }
         return null;
+    }
+
+    /**
+     * 读取节点 data.successCheck.successValues；无或空则返回 null。
+     * 支持 number / 可解析整数的字符串。
+     */
+    static List<Integer> readNodeSuccessValues(Map<String, Object> nodeData) {
+        Object successCheck = readSuccessCheck(nodeData);
+        if (!(successCheck instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object raw = map.get("successValues");
+        if (raw == null) {
+            return null;
+        }
+        List<Integer> out = new ArrayList<>();
+        if (raw instanceof Collection<?> coll) {
+            for (Object item : coll) {
+                Integer v = toInteger(item);
+                if (v != null) {
+                    out.add(v);
+                }
+            }
+        } else if (raw instanceof Object[] arr) {
+            for (Object item : arr) {
+                Integer v = toInteger(item);
+                if (v != null) {
+                    out.add(v);
+                }
+            }
+        } else {
+            Integer single = toInteger(raw);
+            if (single != null) {
+                out.add(single);
+            }
+        }
+        return out.isEmpty() ? null : out;
+    }
+
+    private static Object readSuccessCheck(Map<String, Object> nodeData) {
+        if (nodeData == null) {
+            return null;
+        }
+        return nodeData.get("successCheck");
     }
 
     /**

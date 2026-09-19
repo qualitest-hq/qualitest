@@ -163,14 +163,13 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         }
 
         String assetJson = testProjectMapper.selectAssetVariablesByTestProjectId(testFlow.getTestProjectId());
-        // 加载项目响应约定写入 Run 上下文，供本 Run 内 HTTP 节点校验业务码
+        // 加载项目多端配置写入 Run 上下文，供本 Run 内 HTTP 节点校验业务码与补鉴权头
         TestProject project = testProjectMapper.selectTestProjectById(testFlow.getTestProjectId());
         boolean externalPermitted = FlowExternalPermission.isPermitted(memberRole);
         FlowRunContext ctx = FlowRunContextBuilder.build(
                 env, assetJson, scenario.getFlowSeed(), testFlow.getTestProjectId(),
                 externalPermitted);
         if (project != null) {
-            ctx.setResponseConvention(project.getResponseConvention());
             ctx.setProjectAuthConfig(project.getAuthConfig());
         }
 

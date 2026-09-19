@@ -499,7 +499,7 @@ export function useAiDesign() {
   /**
    * 把设计接口响应转成助手消息写入列表。
    * explainOnly（本轮无成功 submit_*）时不带 patch、不灌 Staging；
-   * 有 patch 则灌入待确认单元；有素材/鉴权提案则挂在消息上由卡片展示；
+   * 有 patch 则灌入待确认单元；有素材/多端 Profile 提案则挂在消息上由卡片展示；
    * 附带工具轨迹与 interrupted 标记。
    */
   function appendAssistantMessage(data: TestFlowDesignResult) {
@@ -510,7 +510,7 @@ export function useAiDesign() {
     const assetProposals = Array.isArray(data.assetProposals) && data.assetProposals.length > 0
       ? data.assetProposals
       : undefined;
-    // 本轮鉴权 Profile 写入提案，挂到助手消息由确认卡片渲染
+    // 本轮多端 Profile 写入提案，挂到助手消息由确认卡片渲染
     const authProfileProposals =
       Array.isArray(data.authProfileProposals) && data.authProfileProposals.length > 0
         ? data.authProfileProposals

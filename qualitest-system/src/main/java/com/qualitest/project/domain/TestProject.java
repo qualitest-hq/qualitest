@@ -44,17 +44,8 @@ public class TestProject extends BaseEntity {
     private String assetVariables;
 
     /**
-     * 响应约定 / 业务 Code 库（JSON 字符串）。
-     * 描述被测系统统一响应包装：
-     * codePath（业务码字段）、successValues（成功码列表）、
-     * messagePath（错误消息字段）、dataPath（业务数据包装字段）。
-     * HTTP 节点默认按此校验 body 业务码；节点可将 successCheck.mode 设为 off 关闭。
-     */
-    private String responseConvention;
-
-    /**
-     * 项目鉴权配置 JSON。
-     * authProfiles 数组（扁平头 + 预制 apis）；勾选模板后拷贝进本字段，跑流只读副本。
+     * 项目多端配置 JSON。
+     * authProfiles 数组（鉴权头 + 响应约定 + 预制 apis）；勾选模板后拷贝进本字段，跑流只读副本。
      */
     private String authConfig;
 

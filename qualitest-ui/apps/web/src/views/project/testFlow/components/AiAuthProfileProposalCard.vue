@@ -55,11 +55,11 @@
 
 <script setup lang="ts">
 /**
- * 助手消息下的「项目鉴权 Profile」写入提案卡片。
+ * 助手消息下的「多端配置 Profile」写入提案卡片。
  *
- * 展示本轮 AI 建议新建或更新的鉴权 Profile（变更字段前后对比），
+ * 展示本轮 AI 建议新建或更新的 Profile（鉴权托管头、pathPrefix、响应约定等变更前后对比），
  * 待确认时可 ✓ 写入项目 auth_config，或 ✕ 拒绝提案。
- * 模板画布仅只读展示，不提供确认/拒绝；须已有服务端消息 id 与项目 id 才能操作。
+ * 模板画布仅只读展示；须已有服务端消息 id 与项目 id 才能操作。
  */
 import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -101,14 +101,14 @@ const errorById = reactive<Record<string, string>>({})
 /** 区块标题：有待确认项时为「提案」，否则为已处理态「写入」 */
 const sectionTitle = computed(() =>
   props.proposals.some((p) => !p.status || p.status === 'pending')
-    ? '项目鉴权 Profile 提案'
-    : '项目鉴权 Profile 写入',
+    ? '多端配置 Profile 提案'
+    : '多端配置 Profile 写入',
 )
 /** 区块说明：待确认时提示写入效果；已处理时提示本轮已结束 */
 const sectionHint = computed(() =>
   props.proposals.some((p) => !p.status || p.status === 'pending')
-    ? '确认后写入项目 auth_config，立即生效。'
-    : '本轮鉴权 Profile 已处理。',
+    ? '确认后写入项目 auth_config（含鉴权与响应约定），立即生效。'
+    : '本轮多端 Profile 已处理。',
 )
 
 /** 展示名：优先 after/before 的 name，否则回退 profileId */
@@ -131,10 +131,17 @@ function statusLabel(status?: string) {
   return status || ''
 }
 
-/** 字段值展示：空、数组、标量统一转可读字符串 */
+/** 字段值展示：空、数组、对象（如 responseConvention）、标量统一转可读字符串 */
 function formatVal(v: unknown) {
   if (v == null) return '（空）'
   if (Array.isArray(v)) return v.join(', ')
+  if (typeof v === 'object') {
+    try {
+      return JSON.stringify(v)
+    } catch {
+      return String(v)
+    }
+  }
   return String(v)
 }
 

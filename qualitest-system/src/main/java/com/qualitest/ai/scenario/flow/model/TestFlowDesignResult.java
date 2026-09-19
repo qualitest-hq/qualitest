@@ -12,10 +12,11 @@ import java.util.List;
 /**
  * 测试流 AI 设计接口的一轮响应。
  * <p>
- * 含自然语言说明、画布增量 patch、校验结果、素材/鉴权提案，以及本轮工具轨迹 toolTrace。
- * explainOnly=true：本轮没有可展示的 Staging patch（未成功 submit_*，或全自动已隐式落盘并清空 capture）。
+ * 含自然语言说明、画布增量 patch、校验结果、素材提案、多端 Profile 提案（可含响应约定变更），
+ * 以及本轮工具轨迹。
+ * explainOnly=true：本轮没有可展示的 Staging patch。
  * interrupted=true：本轮因用户取消或连接中断结束，摘要与 patch 可能不完整。
- * 半自动：patch / 素材 / 鉴权提案须用户确认后再持久化；全自动：图、素材与鉴权可能已在本轮写库。
+ * 半自动下 patch / 素材 / 多端 Profile 提案须用户确认后再持久化；全自动下图与配置可能已在本轮写库。
  */
 @Getter
 @Builder
@@ -45,7 +46,7 @@ public class TestFlowDesignResult {
     /** 最近一次成功 submit 的校验摘要；纯答疑时 ok=true 且无错误 */
     private final DesignValidationResult validation;
 
-    /** true：本轮未成功调用任何 submit_*，仅说明或仅有素材/鉴权提案 */
+    /** true：本轮未成功调用任何 submit_*，仅说明或仅有素材/多端 Profile 提案 */
     private final boolean explainOnly;
 
     /**
@@ -55,7 +56,7 @@ public class TestFlowDesignResult {
     private final List<AssetUpsertProposal> assetProposals;
 
     /**
-     * 本轮项目鉴权 Profile 写入提案（含 before/after/patch）。
+     * 本轮多端 Profile 写入提案（含 before/after/patch；patch 可含响应约定四字段）。
      * 无提案时为 null 或空列表。
      */
     private final List<AuthProfileUpsertProposal> authProfileProposals;

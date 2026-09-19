@@ -7,8 +7,7 @@ import java.util.Map;
  * FlowRunContext 暂停/续跑时的序列化与反序列化。
  * <p>
  * 快照包含 env / flow / asset / session、外联权限、项目 ID、子流深度，
- * 以及项目响应约定（responseConvention）、项目鉴权配置（projectAuthConfig），
- * 保证续跑后 HTTP 节点仍能按原约定校验业务码并补鉴权头。
+ * 以及项目多端配置（projectAuthConfig），保证续跑后 HTTP 仍能按 Profile 约定校验业务码并补鉴权头。
  */
 public final class FlowRunContextPersistence {
 
@@ -26,7 +25,6 @@ public final class FlowRunContextPersistence {
         map.put("session", ctx.getSession() != null ? new HashMap<>(ctx.getSession()) : new HashMap<>());
         map.put("externalHttpPermitted", ctx.isExternalHttpPermitted());
         map.put("testProjectId", ctx.getTestProjectId());
-        map.put("responseConvention", ctx.getResponseConvention());
         map.put("projectAuthConfig", ctx.getProjectAuthConfig());
         map.put("subflowDepth", ctx.getSubflowDepth());
         return map;
@@ -61,10 +59,6 @@ public final class FlowRunContextPersistence {
         Object projectId = map.get("testProjectId");
         if (projectId instanceof Number n) {
             builder.testProjectId(n.longValue());
-        }
-        Object responseConvention = map.get("responseConvention");
-        if (responseConvention != null) {
-            builder.responseConvention(String.valueOf(responseConvention));
         }
         Object projectAuthConfig = map.get("projectAuthConfig");
         if (projectAuthConfig != null) {

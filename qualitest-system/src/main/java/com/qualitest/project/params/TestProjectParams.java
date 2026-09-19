@@ -34,13 +34,6 @@ public class TestProjectParams extends BaseEntity implements Serializable {
     private String assetVariables;
 
     /**
-     * 响应约定 / 业务 Code 库（JSON 字符串）。
-     * 更新项目时可提交；含 codePath、successValues、messagePath、dataPath。
-     * 服务端会补全缺省字段后再写入。
-     */
-    private String responseConvention;
-
-    /**
      * 所有者名称
      */
     private String ownerName;

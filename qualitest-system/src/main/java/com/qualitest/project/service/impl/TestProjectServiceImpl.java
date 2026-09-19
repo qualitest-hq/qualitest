@@ -11,7 +11,6 @@ import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.params.TestProjectParams;
 import com.qualitest.project.result.TestProjectResult;
 import com.qualitest.project.service.ITestProjectService;
-import com.qualitest.project.support.ResponseConventionSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -95,13 +94,6 @@ public class TestProjectServiceImpl implements ITestProjectService {
         if (StrUtil.isBlank(testProject.getAssetVariables())) {
             testProject.setAssetVariables(TestProjectConstants.EMPTY_ASSET_VARIABLES_JSON);
         }
-        // 新建项目写入默认响应约定；若调用方已传约定则先规范化（补全缺省字段）再落库
-        if (StrUtil.isBlank(testProject.getResponseConvention())) {
-            testProject.setResponseConvention(ResponseConventionSupport.DEFAULT_JSON);
-        } else {
-            testProject.setResponseConvention(
-                    ResponseConventionSupport.normalizeToJson(testProject.getResponseConvention()));
-        }
         // 勾了模板：auth_config 先空着；Apply 须在默认环境建好后由 Controller 调用（seedEnvs 依赖已有环境行）
         // 没勾模板：必须自带非空 Profile，否则拒绝新建
         List<Long> templateIds = testProject.getTemplateIds();
@@ -132,11 +124,6 @@ public class TestProjectServiceImpl implements ITestProjectService {
     public int updateTestProject(TestProject testProject) {
         // 素材库另有接口维护，此处不更新 asset_variables
         testProject.setAssetVariables(null);
-        // 本次提交含 responseConvention 时：规范化缺省字段后写入；未提交则不改动该列
-        if (StrUtil.isNotBlank(testProject.getResponseConvention())) {
-            testProject.setResponseConvention(
-                    ResponseConventionSupport.normalizeToJson(testProject.getResponseConvention()));
-        }
         // 本次提交含 authConfig（含空串清空）时规范化后写入；未提交（null）则不改动该列
         if (testProject.getAuthConfig() != null) {
             testProject.setAuthConfig(ProjectAuthConfigSupport.normalizeToJson(testProject.getAuthConfig()));

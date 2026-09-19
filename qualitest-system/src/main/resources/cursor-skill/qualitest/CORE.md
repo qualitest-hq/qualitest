@@ -70,7 +70,7 @@
 ### 造流 / 扩流
 
 1. 确认 `testFlowId`；没有合适流时先 `create_flow`，再读相关接口（接口库缺目标时按上文「缺接口」路径处理）。
-2. 缺素材 / 鉴权时先 `upsert_asset_variables` / `upsert_auth_profile`（调用即写库）。
+2. 缺素材 / 多端配置（鉴权头或响应约定）时先 `upsert_asset_variables` / `upsert_auth_profile`（调用即写库；改约定用 `patch.responseConvention`）。
 3. 每次只调 **一个** `submit_*` 单元（一个节点 / 一条边 / 一个场景 / 一次删除）；HTTP 优先 `callMode=project` + `testProjectApiId`。
 4. 空画布：先连续 `submit_*_node`（`op=add`），再 `submit_edge`。
 5. 至少成功一次改图后 → `run_test_flow`。
@@ -87,7 +87,7 @@
 |------|------|
 | `create_flow` | 新建空画布测试流并写库；返回 `testFlowId`；不要求已有流 id |
 | `submit_http_node` 等 `submit_*` | 每次 1 单元；成功即落盘；须 `testFlowId` |
-| `upsert_asset_variables` / `upsert_auth_profile` | 工具内直写库；不要求 `testFlowId` |
+| `upsert_asset_variables` / `upsert_auth_profile` | 工具内直写库；不要求 `testFlowId`；约定改 `patch.responseConvention` |
 | `append_api_design_hints` | 追加接口短提示并落库 |
 | `run_test_flow` | 跑库中最新图；须 `testFlowId`；可选场景/环境 id |
 

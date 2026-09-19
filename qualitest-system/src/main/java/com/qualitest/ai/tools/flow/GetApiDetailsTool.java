@@ -12,6 +12,7 @@ import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
+import com.qualitest.api.util.ProjectAuthConfigSupport;
 import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
@@ -56,12 +57,10 @@ public class GetApiDetailsTool implements QualitestTool {
         boolean countTruncated = requested.size() > MAX_IDS;
         List<Long> ids = countTruncated ? requested.subList(0, MAX_IDS) : requested;
 
-        String conventionJson = null;
         String projectAuthJson = null;
         if (ctx.getTestProjectId() != null) {
             TestProject project = testProjectMapper.selectTestProjectById(ctx.getTestProjectId());
             if (project != null) {
-                conventionJson = project.getResponseConvention();
                 projectAuthJson = project.getAuthConfig();
             }
         }
@@ -78,6 +77,8 @@ public class GetApiDetailsTool implements QualitestTool {
                 missingIds.add(String.valueOf(apiId));
                 continue;
             }
+            String conventionJson = ProjectAuthConfigSupport.resolveResponseConventionJson(
+                    api.getApiPath(), projectAuthJson);
             apis.add(ApiDetailPayloadBuilder.build(api, conventionJson, projectAuthJson));
         }
 

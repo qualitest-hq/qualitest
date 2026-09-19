@@ -410,14 +410,14 @@ function onAssetProposalsUpdate(messageId: string, next: AssetUpsertProposalView
   patchAssistantMessage(messageId, { assetProposals: next, assetProposalsPending: false });
 }
 
-/** 助手消息是否带有可展示的鉴权 Profile 写入提案 */
+/** 助手消息是否带有可展示的多端 Profile 写入提案 */
 function shouldShowAuthProfileProposals(msg: AiDesignMessageView) {
   return msg.role === 'assistant'
     && Array.isArray(msg.authProfileProposals)
     && msg.authProfileProposals.length > 0;
 }
 
-/** 鉴权 Profile 提案确认/拒绝后写回该助手消息上的提案列表 */
+/** 多端 Profile 提案确认/拒绝后写回该助手消息上的提案列表 */
 function onAuthProfileProposalsUpdate(messageId: string, next: AuthProfileUpsertProposalView[]) {
   patchAssistantMessage(messageId, { authProfileProposals: next });
 }

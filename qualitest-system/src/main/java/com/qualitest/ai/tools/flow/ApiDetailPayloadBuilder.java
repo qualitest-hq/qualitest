@@ -17,15 +17,15 @@ import java.util.List;
  * 组装单条项目接口的造流摘要对象。
  * <p>
  * 输出字段包括：id、method、path、名称与说明、designHints、分组、请求参数与 body 示例、
- * 响应 schema、项目响应约定、suggestedExtracts（登录口优先插入 token 抽取建议）、鉴权提示。
+ * 响应 schema、本端响应约定四字段、suggestedExtracts（登录口优先插入 token 抽取建议）、鉴权提示。
  */
 final class ApiDetailPayloadBuilder {
 
     private ApiDetailPayloadBuilder() {}
 
     /**
-     * @param conventionJson  项目响应约定 JSON，可空
-     * @param projectAuthJson 项目鉴权配置 JSON，可空（用于登录 extract 与 header 提示）
+     * @param conventionJson  该接口 path 命中端的响应约定 JSON，可空（空则按缺省四字段）
+     * @param projectAuthJson 项目多端配置 JSON，可空（用于登录 extract 与 header 提示）
      */
     static JSONObject build(TestProjectApi api, String conventionJson, String projectAuthJson) {
         TestProjectApiEffectiveConfigResolver.EffectiveApiConfig effective =
@@ -63,10 +63,10 @@ final class ApiDetailPayloadBuilder {
 
         JSONObject convention = ResponseConventionSupport.toJsonObject(conventionJson);
         result.put("responseConvention", convention);
-        // 按响应约定 dataPath 从 schema 推断的抽取建议
+        // 按约定 dataPath 从 schema 推断的抽取建议
         JSONArray schemaSuggested = FlowDesignApiSummarizer.suggestExtracts(
                 responseSchemaSummary, convention.getString("dataPath"));
-        // 登录/注册口：优先按项目鉴权配置给出 token extract，并置于 suggestedExtracts 首位
+        // 登录/注册口：优先按多端配置给出 token extract，并置于 suggestedExtracts 首位
         if (loginSuggestion != null) {
             JSONArray merged = new JSONArray();
             merged.add(new JSONObject(loginSuggestion.toExtractRow()));

@@ -9,7 +9,7 @@ import java.util.Map;
  * 单次 Run 运行时上下文。
  * <p>
  * 持有 env / flow / asset / session、外联权限、项目 ID，
- * 以及项目响应约定（responseConvention）、项目鉴权配置（projectAuthConfig）。
+ * 以及项目多端配置（projectAuthConfig：鉴权头 + 各端响应约定）。
  */
 @Getter
 @Setter
@@ -59,14 +59,8 @@ public class FlowRunContext {
     private Long testProjectId;
 
     /**
-     * 项目响应约定原始 JSON（表字段 response_convention）。
-     * HTTP 节点校验业务码时读取；为空则按默认约定（code / [200] / msg / data）解析。
-     */
-    private String responseConvention;
-
-    /**
-     * 项目鉴权配置原始 JSON（表字段 auth_config）。
-     * HTTP 节点发送前按接口鉴权标签解析是否补 Authorization 等托管头。
+     * 项目多端配置原始 JSON（表字段 auth_config）。
+     * HTTP 节点发送前按接口鉴权标签解析托管头；业务码校验按 path 命中 Profile 的响应约定。
      */
     private String projectAuthConfig;
 

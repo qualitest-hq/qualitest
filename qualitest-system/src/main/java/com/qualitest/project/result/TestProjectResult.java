@@ -41,13 +41,7 @@ public class TestProjectResult implements Serializable {
     private String assetVariables;
 
     /**
-     * 响应约定 / 业务 Code 库（JSON 字符串）。
-     * 项目详情与设置页读写；含 codePath、successValues、messagePath、dataPath。
-     */
-    private String responseConvention;
-
-    /**
-     * 项目鉴权配置 JSON（多套 Bearer 等）；详情可读。
+     * 项目多端配置 JSON（鉴权头 + 响应约定 + 预制接口）；详情可读。
      */
     private String authConfig;
 

@@ -34,47 +34,10 @@
       <template v-if="settingContext !== null">
         <section class="project-setting__card">
           <header class="project-setting__card-head">
-            <h3 class="project-setting__card-title">响应约定</h3>
+            <h3 class="project-setting__card-title">多端配置</h3>
             <p class="project-setting__card-desc">
-              项目级业务 Code 库：HTTP 节点默认按此校验 body 中的业务码（可在节点上关闭）。
-            </p>
-          </header>
-
-          <div class="project-setting__conv-grid">
-            <div class="project-setting__conv-field">
-              <label>code 路径</label>
-              <el-input v-model="conventionForm.codePath" placeholder="code" />
-            </div>
-            <div class="project-setting__conv-field">
-              <label>成功值（逗号分隔）</label>
-              <el-input v-model="conventionForm.successValuesText" placeholder="200" />
-            </div>
-            <div class="project-setting__conv-field">
-              <label>消息路径</label>
-              <el-input v-model="conventionForm.messagePath" placeholder="msg" />
-            </div>
-            <div class="project-setting__conv-field">
-              <label>data 路径</label>
-              <el-input v-model="conventionForm.dataPath" placeholder="data" />
-            </div>
-          </div>
-
-          <pre class="project-setting__preview-block"><code>{{ conventionPreview }}</code></pre>
-          <p class="project-setting__hint">示例响应判定：code ∈ 成功值 → 步骤通过；否则失败并展示 message 字段。</p>
-
-          <div class="project-setting__actions">
-            <el-button :loading="conventionSaving" type="primary" @click="saveResponseConvention">
-              保存响应约定
-            </el-button>
-          </div>
-        </section>
-
-        <section class="project-setting__card">
-          <header class="project-setting__card-head">
-            <h3 class="project-setting__card-title">项目鉴权</h3>
-            <p class="project-setting__card-desc">
-              从项目模板勾选开源/靶场 Profile；免登由预制接口 <code>authConfig.mode=none</code> 决定，不再维护匿名 path 清单。
-              pathPrefix 禁止写 <code>/</code>。
+              按端维护鉴权托管头与响应约定；按 pathPrefix 最长命中。免登由预制接口
+              <code>authConfig.mode=none</code> 决定。pathPrefix 禁止写 <code>/</code>。
             </p>
           </header>
 
@@ -148,6 +111,22 @@
                   <el-input v-model="row.valueTemplate" placeholder="Bearer {{asset.adminAuth.token}}" />
                 </div>
                 <div class="project-setting__conv-field">
+                  <label>code 路径</label>
+                  <el-input v-model="row.codePath" placeholder="code" />
+                </div>
+                <div class="project-setting__conv-field">
+                  <label>成功值（逗号分隔）</label>
+                  <el-input v-model="row.successValuesText" placeholder="200" />
+                </div>
+                <div class="project-setting__conv-field">
+                  <label>消息路径</label>
+                  <el-input v-model="row.messagePath" placeholder="msg" />
+                </div>
+                <div class="project-setting__conv-field">
+                  <label>data 路径</label>
+                  <el-input v-model="row.dataPath" placeholder="data" />
+                </div>
+                <div class="project-setting__conv-field">
                   <label>credentialApi.method</label>
                   <el-input v-model="row.credentialMethod" placeholder="POST" />
                 </div>
@@ -186,7 +165,7 @@
 
           <div class="project-setting__actions">
             <el-button :loading="authSaving" type="primary" @click="saveProjectAuth">
-              保存项目鉴权
+              保存多端配置
             </el-button>
           </div>
         </section>
@@ -336,7 +315,10 @@
 
 <script setup>
 /**
- * 项目设置侧栏：响应约定、项目鉴权、API 调试传输方式、项目 Token、MCP 全自动与 Cursor 配置。
+ * 项目设置侧栏。
+ * <p>
+ * 多端配置：按 Profile 维护鉴权托管头、pathPrefix、响应约定四字段、credentialApi 与预制接口；
+ * 另含 API 调试传输方式、项目 Token、MCP 全自动写流开关与 Cursor 配置导出。
  */
 import { computed, getCurrentInstance, reactive, ref, watch } from 'vue'
 import { buildCursorMcpConfig } from '../utils/mcpClientConfig'
@@ -391,15 +373,6 @@ const props = defineProps({
 
 const emit = defineEmits(['opened', 'refresh-token', 'auth-changed'])
 
-const conventionSaving = ref(false)
-/** 响应约定表单：业务码路径、成功值、消息路径、数据包装路径 */
-const conventionForm = reactive({
-  codePath: 'code',
-  successValuesText: '200',
-  messagePath: 'msg',
-  dataPath: 'data',
-})
-
 const authSaving = ref(false)
 const authForm = reactive(emptyAuthForm())
 const authCollapseNames = ref([])
@@ -432,47 +405,16 @@ function syncAuthCollapse() {
   authCollapseNames.value = authForm.profiles.map((_, i) => String(i))
 }
 
-/** 把库中的 responseConvention JSON 填入表单 */
-function applyConvention(raw) {
-  let obj = null
-  if (raw && typeof raw === 'string') {
-    try {
-      obj = JSON.parse(raw)
-    } catch {
-      obj = null
-    }
-  } else if (raw && typeof raw === 'object') {
-    obj = raw
-  }
-  conventionForm.codePath = obj?.codePath || 'code'
-  conventionForm.messagePath = obj?.messagePath || 'msg'
-  conventionForm.dataPath = obj?.dataPath || 'data'
-  const values = Array.isArray(obj?.successValues) ? obj.successValues : [200]
-  conventionForm.successValuesText = values.join(',')
-}
-
 function applyAuthForm(next) {
   authForm.profiles = Array.isArray(next.profiles) ? next.profiles.map((p) => ({ ...p, apis: [...(p.apis || [])] })) : []
   authForm.needsAuthTemplateHint = !!next.needsAuthTemplateHint
   syncAuthCollapse()
 }
 
-/** 解析成功业务码输入框（逗号/空白分隔），空则默认 [200] */
-function parseSuccessValuesText(text) {
-  const values = String(text || '')
-    .split(/[,，\s]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => Number(s))
-    .filter((n) => !Number.isNaN(n))
-  return values.length ? values : [200]
-}
-
-/** 打开抽屉后拉取项目详情：响应约定、鉴权配置、以及当前 MCP 写流 / 导入开关（仅反映库中状态，不触发 MCP 重连） */
+/** 打开抽屉后拉取项目详情：多端配置、以及当前 MCP 写流 / 导入开关 */
 function loadProjectSettings() {
   const pid = resolveProjectId()
   if (!pid) {
-    applyConvention(null)
     applyAuthForm(emptyAuthForm())
     mcpAutopilotEnabled.value = false
     mcpImportApisEnabled.value = false
@@ -480,7 +422,6 @@ function loadProjectSettings() {
   }
   getTestProject(pid)
     .then((res) => {
-      applyConvention(res.data?.responseConvention)
       applyAuthForm(parseAuthConfig(res.data?.authConfig, {
         needsAuthTemplateHint: res.data?.needsAuthTemplateHint,
       }))
@@ -488,7 +429,6 @@ function loadProjectSettings() {
       mcpImportApisEnabled.value = !!res.data?.mcpImportApisEnabled
     })
     .catch(() => {
-      applyConvention(null)
       applyAuthForm(emptyAuthForm())
       mcpAutopilotEnabled.value = false
       mcpImportApisEnabled.value = false
@@ -621,63 +561,6 @@ function saveProjectAuth() {
     .catch((err) => proxy?.$modal?.msgError?.(err?.message || err?.msg || '保存失败'))
     .finally(() => {
       authSaving.value = false
-    })
-}
-
-/** 预览：用示例失败响应演示当前约定下是否判定通过 */
-const conventionPreview = computed(() => {
-  const successValues = parseSuccessValuesText(conventionForm.successValuesText)
-  const sampleFail = {
-    code: 500,
-    msg: '手机号或密码错误',
-    data: null,
-  }
-  const codePath = conventionForm.codePath || 'code'
-  const msgPath = conventionForm.messagePath || 'msg'
-  const actual = sampleFail[codePath]
-  const passed = successValues.includes(actual)
-  return JSON.stringify(
-    {
-      sample: sampleFail,
-      successValues,
-      actualCode: actual,
-      message: sampleFail[msgPath],
-      passed,
-    },
-    null,
-    2,
-  )
-})
-
-/** 保存响应约定到项目：规范化字段后调用 updateTestProject 写库 */
-function saveResponseConvention() {
-  const pid = resolveProjectId()
-  if (!pid) {
-    proxy?.$modal?.msgError?.('缺少项目 ID')
-    return
-  }
-  const values = parseSuccessValuesText(conventionForm.successValuesText)
-  const payload = {
-    testProjectId: pid,
-    responseConvention: JSON.stringify({
-      codePath: (conventionForm.codePath || 'code').trim(),
-      successValues: values,
-      messagePath: (conventionForm.messagePath || 'msg').trim(),
-      dataPath: (conventionForm.dataPath || 'data').trim(),
-    }),
-  }
-  conventionSaving.value = true
-  updateTestProject(payload)
-    .then((res) => {
-      if (res.code === 200) {
-        proxy?.$modal?.msgSuccess?.('响应约定已保存')
-      } else {
-        proxy?.$modal?.msgError?.(res.msg || '保存失败')
-      }
-    })
-    .catch(() => proxy?.$modal?.msgError?.('保存失败'))
-    .finally(() => {
-      conventionSaving.value = false
     })
 }
 

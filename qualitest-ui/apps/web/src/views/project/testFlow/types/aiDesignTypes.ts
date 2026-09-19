@@ -61,7 +61,7 @@ export interface TestFlowDesignResult {
   explainOnly?: boolean;
   /** 本轮素材库写入提案；流式结束事件中通常带 fields 明文 */
   assetProposals?: AssetUpsertProposalView[];
-  /** 本轮项目鉴权 Profile 写入提案（新建或更新项目 auth_config 中的 Profile） */
+  /** 本轮多端 Profile 写入提案（新建或更新 auth_config，可含 responseConvention） */
   authProfileProposals?: AuthProfileUpsertProposalView[];
   /** 本轮工具调用轨迹（已脱敏截断，气泡内默认折叠展示） */
   toolTrace?: AiToolTraceView;
@@ -94,8 +94,8 @@ export interface AssetUpsertProposalView {
 }
 
 /**
- * 聊天里展示的一条项目鉴权 Profile 写入提案。
- * 确认后写入项目 auth_config；拒绝只改提案状态，不改项目配置。
+ * 聊天里展示的一条多端 Profile 写入提案。
+ * 确认后写入项目 auth_config（可含 responseConvention）；拒绝只改提案状态。
  */
 export interface AuthProfileUpsertProposalView {
   /** Profile 唯一 id（提案定位与确认/拒绝入参） */
@@ -151,7 +151,7 @@ export interface AiDesignMessageView {
   assetProposals?: AssetUpsertProposalView[];
   /** 列表摘要：服务端标了有提案，但本条尚未解析出提案内容 */
   assetProposalsPending?: boolean;
-  /** 本轮项目鉴权 Profile 写入提案列表（确认后写项目 auth_config） */
+  /** 本轮多端 Profile 写入提案列表（确认后写项目 auth_config） */
   authProfileProposals?: AuthProfileUpsertProposalView[];
   /** 本轮工具调用轨迹（脱敏截断后，气泡内默认折叠展示） */
   toolTrace?: AiToolTraceView;
@@ -207,7 +207,7 @@ export function parseUserFromServer(msg: AiChatMessageItem): AiDesignMessageView
  * 将服务端助手消息还原为面板视图。
  * 正文用 summary；explainOnly 时不挂 patch；否则读 patchJson。
  * patchPending：服务端标了有改图但本条尚未拉到完整 patchJson。
- * 另解析素材提案、鉴权提案、工具轨迹 toolTrace，以及 interrupted 中断标记。
+ * 另解析素材提案、多端 Profile 提案、工具轨迹 toolTrace，以及 interrupted 中断标记。
  */
 export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessageView {
   let meta: Record<string, unknown> = {};
