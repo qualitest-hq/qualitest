@@ -32,7 +32,7 @@ import org.springframework.stereotype.Service;
  * 项目开启「允许 MCP 全自动写流」后，还可调用改图提交、新建流、素材/鉴权写入、跑流等写工具。
  * 项目开启「允许 MCP 导入接口」后，还可调用 import_apis 写入项目接口库。
  * 写流与导入是两道独立开关。
- * 画布类 submit 校验通过后会立刻把画布写入测试流库。
+ * 写流/导入须带 Token 绑定的操作者用户 id；画布类 submit 校验通过后立刻写库。
  */
 @Slf4j
 @Service
@@ -53,24 +53,42 @@ public class McpToolInvokeService {
     private final FlowDesignPatchNormalizer flowDesignPatchNormalizer;
 
     /**
-     * 执行一次 MCP 工具调用。
-     * 按项目开关校验白名单；写工具补齐流与画布后执行；
-     * submit 成功则立即写库并把落盘结果写进回执。
-     * 若撞上他端写锁，回执带 lockHeldBy 与重试提示。
+     * 执行一次 MCP 工具调用（不传操作者，仅适合只读工具）。
+     *
+     * @param toolName       工具名
+     * @param params         调用参数（含信封字段）
+     * @param tokenProjectId Token 绑定的项目 id
+     * @return 工具回执
      */
     public McpToolResult invoke(String toolName, McpToolInvokeParams params, Long tokenProjectId) {
+        return invoke(toolName, params, tokenProjectId, null);
+    }
+
+    /**
+     * 执行一次 MCP 工具调用。
+     * 按项目开关校验白名单；写工具补齐流与画布；写流/导入须有操作者；
+     * submit 成功则立即写库；撞写锁时回执带 lockHeldBy。
+     *
+     * @param toolName       工具名
+     * @param params         调用参数（含信封字段）
+     * @param tokenProjectId Token 绑定的项目 id
+     * @param operatorUserId Token 绑定的操作者用户 id；写流与导入时必填
+     * @return 工具回执
+     */
+    public McpToolResult invoke(String toolName, McpToolInvokeParams params,
+                                Long tokenProjectId, Long operatorUserId) {
         try {
-            return invokeInner(toolName, params, tokenProjectId);
+            return invokeInner(toolName, params, tokenProjectId, operatorUserId);
         } catch (FlowEditLeaseConflictException e) {
             return leaseConflictResult(toolName, e);
         }
     }
 
     /**
-     * 正常工具执行路径（不含写锁冲突包装）。
-     * 一次加载项目读取双开关 → 门控校验 → 写流工具补信封 → 执行 → submit 成功则落盘。
+     * 正常工具执行：读双开关 → 门控 → 写工具校验操作者与信封 → 执行 → submit 成功则落盘。
      */
-    private McpToolResult invokeInner(String toolName, McpToolInvokeParams params, Long tokenProjectId) {
+    private McpToolResult invokeInner(String toolName, McpToolInvokeParams params,
+                                      Long tokenProjectId, Long operatorUserId) {
         // 同一次调用只查一次项目，同时读出写流与导入开关
         TestProject project = loadProject(tokenProjectId, params);
         McpProjectGates gates = McpProjectGates.from(project);
@@ -89,6 +107,11 @@ public class McpToolInvokeService {
         }
 
         boolean writeTool = FlowDesignToolNames.isMcpAutopilotWriteTool(toolName);
+        // 写流与导入都要落库审计人，须有 Token 绑定用户
+        boolean needsOperator = writeTool || FlowDesignToolNames.isMcpImportApisTool(toolName);
+        if (needsOperator && operatorUserId == null) {
+            throw new ServiceException("Project Token 未绑定操作者");
+        }
         if (writeTool) {
             ensureWriteEnvelope(toolName, params, tokenProjectId);
         }
@@ -98,9 +121,11 @@ public class McpToolInvokeService {
                 ? new FlowDesignSubmitCapture()
                 : null;
         FlowDesignToolContext context = contextFactory.fromMcpRequest(
-                params, tokenProjectId, capture, writeTool);
+                params, tokenProjectId, capture, writeTool, operatorUserId);
 
-        String resultJson = flowDesignToolExecutor.executeTool(toolName, params.toArgumentsJson(), context);
+        // mcpMode：跑流/查失败使用 MCP 门面实现
+        String resultJson = flowDesignToolExecutor.executeTool(
+                toolName, params.toArgumentsJson(), context, true);
 
         boolean error = FlowDesignToolSupport.isErrorResult(resultJson);
         if (FlowDesignToolNames.isSubmitUnitTool(toolName) && !error) {

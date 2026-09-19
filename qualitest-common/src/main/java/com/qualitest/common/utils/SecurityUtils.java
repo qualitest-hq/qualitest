@@ -15,58 +15,62 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * 安全服务工具类
+ * 安全服务工具类。
+ * 从当前请求安全上下文读取登录用户；无认证主体时抛未登录异常。
  *
  * @author qualitest
  */
 public class SecurityUtils {
 
+    /** 无登录主体时的提示文案 */
+    private static final String UNAUTH_MSG = "未登录：缺少 Web 会话或操作者";
+
     /**
-     * 用户ID
-     **/
+     * 当前登录用户 id；无登录态时抛未登录异常
+     */
     public static Long getUserId() {
-        try {
-            return getLoginUser().getUserId();
-        } catch (Exception e) {
-            throw new ServiceException("获取用户ID异常", HttpStatus.UNAUTHORIZED);
-        }
+        return getLoginUser().getUserId();
     }
 
     /**
-     * 获取部门ID
-     **/
+     * 当前登录用户部门 id
+     */
     public static Long getDeptId() {
-        try {
-            return getLoginUser().getDeptId();
-        } catch (Exception e) {
-            throw new ServiceException("获取部门ID异常", HttpStatus.UNAUTHORIZED);
-        }
+        return getLoginUser().getDeptId();
     }
 
     /**
-     * 获取用户账户
-     **/
+     * 当前登录用户账号名
+     */
     public static String getUsername() {
-        try {
-            return getLoginUser().getUsername();
-        } catch (Exception e) {
-            throw new ServiceException("获取用户账户异常", HttpStatus.UNAUTHORIZED);
-        }
+        return getLoginUser().getUsername();
     }
 
     /**
-     * 获取用户
-     **/
+     * 取安全上下文中的登录用户。
+     * 无认证、主体不是登录用户、或读取失败时抛未登录异常。
+     */
     public static LoginUser getLoginUser() {
         try {
-            return (LoginUser) getAuthentication().getPrincipal();
+            Authentication authentication = getAuthentication();
+            if (authentication == null || !(authentication.getPrincipal() instanceof LoginUser loginUser)) {
+                throw unauthorized();
+            }
+            return loginUser;
+        } catch (ServiceException e) {
+            throw e;
         } catch (Exception e) {
-            throw new ServiceException("获取用户信息异常", HttpStatus.UNAUTHORIZED);
+            throw unauthorized();
         }
     }
 
+    /** 构造未登录业务异常 */
+    private static ServiceException unauthorized() {
+        return new ServiceException(UNAUTH_MSG, HttpStatus.UNAUTHORIZED);
+    }
+
     /**
-     * 获取Authentication
+     * 当前请求的认证对象，可能为空
      */
     public static Authentication getAuthentication() {
         return SecurityContextHolder.getContext().getAuthentication();

@@ -19,29 +19,36 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * 质衡 MCP Streamable HTTP 入口（HTTP 适配层）。
+ * 质衡 MCP Streamable HTTP 入口。
  * <p>
- * 对外暴露 {@link ProjectConstants#MCP_ENDPOINT}：
- * <ul>
- *   <li>{@code POST}：接收 JSON-RPC 请求体，委托 {@link McpJsonRpcDispatcher} 处理</li>
- *   <li>{@code GET}：在携带有效 {@code Mcp-Session-Id} 时建立 SSE 下行流</li>
- * </ul>
- * 请求须带 {@code X-Project-Token}，由过滤器校验后将项目上下文写入请求属性。
+ * POST：接收 JSON-RPC 请求，携带项目 id 与 Token 绑定操作者用户 id 后分发处理；
+ * GET：在有效会话头下建立 SSE 下行流。
+ * 请求须带项目 Token，过滤器校验后把项目用户设置写入请求属性。
  */
 @RestController
 @Anonymous
 @RequiredArgsConstructor
 public class McpStreamableHttpController extends ProjectController {
 
+    /** SSE 空闲超时（毫秒） */
     private static final long SSE_TIMEOUT_MS = 30 * 60 * 1000L;
 
+    /** JSON-RPC 分发 */
     private final McpJsonRpcDispatcher jsonRpcDispatcher;
+    /** MCP 会话登记 */
     private final McpSessionRegistry sessionRegistry;
 
+    /**
+     * 处理 MCP JSON-RPC POST。
+     * 把当前项目 id、Token 绑定用户 id 一并交给分发器；通知类请求无响应体。
+     *
+     * @param body 原始 JSON-RPC 文本
+     * @return JSON 响应；通知则空 200
+     */
     @PostMapping(value = ProjectConstants.MCP_ENDPOINT, consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> handlePost(@RequestBody String body) {
         McpJsonRpcDispatcher.DispatchResult result =
-                jsonRpcDispatcher.dispatch(body, getTestProjectId());
+                jsonRpcDispatcher.dispatch(body, getTestProjectId(), getUserId());
         if (result.isNotification()) {
             return ResponseEntity.ok().build();
         }
@@ -53,6 +60,13 @@ public class McpStreamableHttpController extends ProjectController {
         return new ResponseEntity<>(result.getResponseBody(), headers, HttpStatus.OK);
     }
 
+    /**
+     * 建立 MCP SSE 下行流。
+     * 会话 id 无效返回 400；超时或完成时移除会话。
+     *
+     * @param sessionId MCP 会话头
+     * @return SSE 发射器或 400
+     */
     @GetMapping(value = ProjectConstants.MCP_ENDPOINT, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> handleGet(
             @RequestHeader(value = McpJsonRpc.SESSION_HEADER, required = false) String sessionId) {

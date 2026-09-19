@@ -14,6 +14,8 @@ import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.input.InputFieldTypes;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.common.utils.SecurityUtils;
+import com.qualitest.common.core.domain.entity.SysUser;
+import com.qualitest.common.core.domain.model.LoginUser;
 import com.qualitest.flow.run.ExecutionOutcome;
 import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.run.ResumeDecision;
@@ -48,6 +50,7 @@ import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.flow.sync.FlowExternalChangePublisher;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -62,8 +65,8 @@ import java.util.stream.Collectors;
 /**
  * 测试流 Run 编排服务。
  * <p>
- * 触发运行：校验成员 → 解析图 → 运行就绪检查（结构/断言路径/鉴权/必填）→ 解析场景与环境 →
- * 写入 running 态 Run 并立刻返回 runId；后台线程继续执行，每步完成即落步骤表。<br>
+ * 触发运行：解析操作者 → 校验项目成员 → 解析图 → 运行就绪检查 → 解析场景与环境 →
+ * 写入 running 态 Run 并立刻返回 runId；后台线程携带操作者身份继续执行，每步完成即落步骤表。<br>
  * 查询详情：返回 Run 头与按 step_index 排序的步骤列表（执行中也可查）。
  */
 @Service
@@ -89,6 +92,14 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         return t;
     });
 
+    /**
+     * 触发一次正式 Run。
+     * 操作者优先取请求参数；未传则取当前登录用户；都没有则拒绝。
+     * 校验通过后写入 running 记录并返回 runId，图在后台线程执行。
+     *
+     * @param params 触发参数（测试流、场景、环境、触发来源、操作者）
+     * @return 新创建的 Run id
+     */
     @Override
     public Long triggerRun(TriggerTestFlowRunParams params) {
         if (params == null || params.getTestFlowId() == null) {
@@ -104,7 +115,17 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             throw new ServiceException("测试流 graph_json 为空");
         }
 
-        TestProjectMemberRole memberRole = testProjectMemberService.getCheckProjectMemberRole(testFlow.getTestProjectId());
+        // 解析操作者：优先请求显式传入，否则取当前登录用户；都没有则缺少审计用户
+        Long operatorUserId = params.getOperatorUserId();
+        if (operatorUserId == null) {
+            try {
+                operatorUserId = SecurityUtils.getUserId();
+            } catch (ServiceException e) {
+                throw new ServiceException("缺少审计用户/操作者");
+            }
+        }
+        TestProjectMemberRole memberRole =
+                testProjectMemberService.getCheckProjectMemberRole(testFlow.getTestProjectId(), operatorUserId);
 
         // 2. 解析图并做运行就绪检查；未通过则不创建 Run 记录
         GraphJson graph;
@@ -158,7 +179,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         String fingerprint = StepResultWriter.fingerprint(snapshotJson);
 
         // 5. 插入 running 态 Run 后立刻返回；图在后台线程继续跑
-        //    后台线程须带回当前登录态，否则成员校验/外联权限会失败
+        //    后台线程需携带操作者身份，供后续成员校验与外联权限使用
         Date now = DateUtils.getNowDate();
         Long runId = IdUtil.getSnowflakeNextId();
         TestFlowRun run = TestFlowRun.builder()
@@ -182,7 +203,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 runId,
                 FlowExternalChangeSourceHolder.getOrDefault());
 
-        SecurityContext securityContext = SecurityContextHolder.getContext();
+        // 为后台线程准备带操作者身份的安全上下文
+        SecurityContext securityContext = securityContextForOperator(operatorUserId);
         RunBootstrapMeta bootstrap = new RunBootstrapMeta(scenario, env.getEnvName(), env);
         GraphJson graphSnapshot = graph;
         FlowRunContext runCtx = ctx;
@@ -206,6 +228,37 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             }
         });
         return runId;
+    }
+
+    /**
+     * 构造跑流后台线程使用的安全上下文。
+     * 若当前请求已是同一操作者登录态则复用；否则安装仅含用户 id 的最小登录主体。
+     *
+     * @param operatorUserId 操作者用户 id
+     * @return 可交给后台线程的安全上下文
+     */
+    private static SecurityContext securityContextForOperator(Long operatorUserId) {
+        SecurityContext current = SecurityContextHolder.getContext();
+        try {
+            if (current != null && current.getAuthentication() != null
+                    && current.getAuthentication().getPrincipal() instanceof LoginUser loginUser
+                    && operatorUserId.equals(loginUser.getUserId())) {
+                return current;
+            }
+        } catch (Exception ignored) {
+            // 无可用登录态时下方新建
+        }
+        LoginUser loginUser = new LoginUser();
+        loginUser.setUserId(operatorUserId);
+        SysUser stub = new SysUser();
+        stub.setUserId(operatorUserId);
+        stub.setUserName("operator-" + operatorUserId);
+        loginUser.setUser(stub);
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(loginUser, null, loginUser.getAuthorities());
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(auth);
+        return context;
     }
 
     /**

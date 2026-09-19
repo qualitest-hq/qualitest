@@ -124,7 +124,7 @@ public class ImportApisTool implements QualitestTool {
                     .configVersion(mapped.params().getConfigVersion())
                     .apiList(toImport)
                     .build();
-            ApiImportResult result = apiImportService.importApis(projectId, resolveUserId(), params);
+            ApiImportResult result = apiImportService.importApis(projectId, resolveUserId(ctx), params);
             if (result.getDetails() != null) {
                 for (ApiImportResult.ApiImportDetail detail : result.getDetails()) {
                     String method = ApiImportMatchSupport.extractHttpMethod(findRequestConfig(toImport, detail));
@@ -255,8 +255,17 @@ public class ImportApisTool implements QualitestTool {
         return row;
     }
 
-    /** 取当前登录用户 id；MCP Token 场景下可能取不到，返回 null 交给导入服务处理。 */
-    private static Long resolveUserId() {
+    /**
+     * 解析导入审计用户 id。
+     * 优先用上下文中的操作者；没有则尝试当前登录用户；都没有则返回 null（由导入服务自行处理）。
+     *
+     * @param ctx 请求上下文，可空
+     * @return 用户 id，可空
+     */
+    private static Long resolveUserId(FlowDesignToolContext ctx) {
+        if (ctx != null && ctx.getOperatorUserId() != null) {
+            return ctx.getOperatorUserId();
+        }
         try {
             return SecurityUtils.getUserId();
         } catch (Exception e) {

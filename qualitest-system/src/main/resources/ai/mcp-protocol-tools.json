@@ -1,0 +1,1285 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "search_apis",
+      "description": "按关键词搜索当前测试项目下的 API 接口，返回 id、method、path、name、精简 auth（mode/authProfileId）；keyword 可省略，将列举 scopeApiIds 或项目接口",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "搜索关键词，匹配接口名、路径或描述；可省略"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "返回条数上限，默认使用系统配置，最大不超过配置上限"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_api_details",
+      "description": "批量获取 API 造流摘要（单条也用本工具）。每条含 path/query/header/body 参数摘要、body 示例、响应 schema 摘要、designHints、responseConvention、suggestedExtracts（登录口会按 Profile 托管头占位符前置抽取建议）、鉴权 auth/headerHint。一次传入本流关键 testProjectApiId（去重后最多 5 条）；不够再调第二次。超字节会从尾部暂缓部分 id（deferredIds），不会整包清空",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testProjectApiIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "项目 API ID 列表；单条也请传长度为 1 的数组；去重后最多 5 条"
+          }
+        },
+        "required": [
+          "testProjectApiIds"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "append_api_design_hints",
+      "description": "向接口 design_hints 追加造流设计提示并直接落库（人机均可维护；导入不覆盖）。确认业务约定（如 body 字段二选一、金额符号）后调用；勿写入 apiDescription。每条尽量短（≤200 字）。 【MCP 全自动】工具内直接写库。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testProjectApiId": {
+            "type": "string",
+            "description": "项目 API ID"
+          },
+          "hints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "待追加的短提示列表"
+          }
+        },
+        "required": [
+          "testProjectApiId",
+          "hints"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_graph_summary",
+      "description": "获取测试流画布的节点与边摘要；另含 mermaid（flowchart TB 正文，便于预览拓扑）。单节点用 get_node_detail，单边用 get_edge_detail。MCP：传 testFlowId 加载画布（可与信封 testFlowId 二选一）",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_flow_meta",
+      "description": "获取画布 meta：运行场景列表摘要、flowOutputNames、startNodeId。单场景详情用 get_scenario_detail。传 testFlowId 或由信封提供",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_project_envs",
+      "description": "列举当前测试项目的环境 id、名称、URL 与环境变量键名（不含值）；为场景绑定 testProjectEnvId 或编写 {{env.*}} 占位符前建议调用",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_asset_variables",
+      "description": "列举项目素材库（参数资产）变量：key、备注、子字段名；不含明文值。编写或选用 {{asset.key.field}} 前必须先调用；若列表无对应 key，先 upsert_asset_variables 再引用（半自动待聊天侧确认；全自动工具内直写），禁止臆造 asset 键",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "upsert_asset_variables",
+      "description": "按 key 新增或更新项目素材库条目。半自动：提案 pending，用户聊天侧确认后落盘；全自动：工具内直接写库，status=confirmed。fields 为扁平字段对象；返回 key/字段名/action/status，不含明文。登录口令等优先如 clientAuth（mobile/password）。仅 Web；勿在助手正文复述明文 【MCP 全自动】工具内直接写库。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "素材键名，如 clientAuth"
+          },
+          "remark": {
+            "type": "string",
+            "description": "可选备注"
+          },
+          "fields": {
+            "type": "object",
+            "description": "字段名到值的映射，如 {\"mobile\":\"13800000001\",\"password\":\"...\"}",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "key",
+          "fields"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_project_auth_profiles",
+      "description": "列举项目鉴权 Profile：id、名称、pathPrefix、headerName、headerValueTemplate、credentialTarget、credentialApi。造登录链、修 AUTH_TOKEN_MISSING、改托管头前必须先调用；勿默认若依。不含密钥明文",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "upsert_auth_profile",
+      "description": "浅合并更新项目鉴权 Profile（pathPrefix/headerName/headerValueTemplate/credentialApi/name）。半自动：提案 pending，聊天侧确认后落盘；全自动：工具内直写。更新须 profileId；新建须 create=true 且 patch 含 headerName 与 headerValueTemplate。两端禁止同一凭证键。仅 Web 【MCP 全自动】工具内直接写库。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "profileId": {
+            "type": "string",
+            "description": "已有 Profile id；更新必填"
+          },
+          "create": {
+            "type": "boolean",
+            "description": "true 时新建 Profile（无 profileId 亦可）"
+          },
+          "patch": {
+            "type": "object",
+            "description": "浅合并字段：name、pathPrefix（字符串数组）、headerName、headerValueTemplate、credentialApi{method,path}",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "patch"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_node_detail",
+      "description": "获取单个节点的 type 与完整 data。传 testFlowId 或由信封提供 自动加载画布",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "节点 id"
+          },
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": [
+          "nodeId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_edge_detail",
+      "description": "获取单条边完整字段（id/source/target/label）。改边或删边前优先调用；传 testFlowId 或由信封提供",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "edgeId": {
+            "type": "string",
+            "description": "边 id"
+          },
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": [
+          "edgeId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_scenario_detail",
+      "description": "获取单个运行场景配置（含 flowSeed 键名，不含明文）。改场景前优先调用；传 testFlowId 或由信封提供",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scenarioId": {
+            "type": "string",
+            "description": "场景 id"
+          },
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": [
+          "scenarioId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_run_failure",
+      "description": "获取某次测试流 Run 的失败步骤现场。按 failureCategory 分区：bizCode/assert/other。须显式传 runId。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "description": "测试流运行记录 id；必填"
+          }
+        },
+        "required": [
+          "runId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_flow_api_health",
+      "description": "检查当前画布「项目接口」HTTP 节点的 API 语义健康告警（API_MISSING / ORPHAN_PARAM / EXTRACT_PATH_MISSING）。用户提到左上角「API 语义」告警、绑定失效、接口不存在或已删除、修复测试流异常（非 Run 失败）时优先调用；返回 nodeId、绑定 apiId、message，以及节点残留 apiName/apiPath 便于换绑",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；MCP 未传 graphJson 时必填或由信封提供"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_subflow_templates",
+      "description": "列举平台内置子流模板（tpl_*）与项目测试流摘要，供 subflow 节点选型；Web 改图场景优先使用",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "按测试流名称模糊过滤 projectSubflows；可省略"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "projectSubflows 返回条数上限，默认 20"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_subflow_detail",
+      "description": "读取测试流拓扑摘要与 flowOutputs，无需 graphJson 信封；浏览子流结构优先于 get_flow",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "被引用的测试流 id；可省略，将使用请求上下文中的 testFlowId"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_http_node",
+      "description": "新增或修改单个HTTP节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id；update 必填；add 可省略（短名或雪花）"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "callMode"
+            ],
+            "properties": {
+              "callMode": {
+                "type": "string",
+                "enum": [
+                  "project",
+                  "external"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "testProjectApiId": {
+                "type": "string"
+              },
+              "externalUrl": {
+                "type": "string"
+              },
+              "httpMethod": {
+                "type": "string"
+              },
+              "headers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "requestBody": {
+                "type": "string"
+              },
+              "requestValueOverrides": {
+                "type": "object"
+              },
+              "extracts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "expr"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "写入变量名，如 token"
+                    },
+                    "expr": {
+                      "type": "string",
+                      "description": "from=body 时须 $ 开头 JsonPath；from=setCookie 时为 Cookie 名"
+                    },
+                    "from": {
+                      "type": "string",
+                      "enum": [
+                        "body",
+                        "header",
+                        "setCookie"
+                      ]
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "flow",
+                        "asset"
+                      ]
+                    }
+                  }
+                }
+              },
+              "successCheck": {
+                "type": "object"
+              },
+              "timeoutMs": {
+                "type": "number"
+              },
+              "preScript": {
+                "type": "string"
+              },
+              "postScript": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_assert_node",
+      "description": "新增或修改单个断言节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id；update 必填；add 可省略（短名或雪花）"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "rules"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "left",
+                    "operator"
+                  ],
+                  "properties": {
+                    "left": {
+                      "type": "string",
+                      "description": "断言左值，如 http.body.code / flow.orderId / http.status"
+                    },
+                    "operator": {
+                      "type": "string",
+                      "enum": [
+                        "eq",
+                        "ne",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "contains",
+                        "not_contains",
+                        "exists"
+                      ]
+                    },
+                    "right": {
+                      "description": "比较右值；operator=exists 时可省略"
+                    }
+                  }
+                },
+                "minItems": 1
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_condition_node",
+      "description": "新增或修改单个条件分支节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id；update 必填；add 可省略（短名或雪花）"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "branches"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "branches": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "kind"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "if",
+                        "elif",
+                        "else"
+                      ]
+                    },
+                    "conditions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "left",
+                          "operator"
+                        ],
+                        "properties": {
+                          "left": {
+                            "type": "string",
+                            "description": "断言左值，如 http.body.code / flow.orderId / http.status"
+                          },
+                          "operator": {
+                            "type": "string",
+                            "enum": [
+                              "eq",
+                              "ne",
+                              "gt",
+                              "gte",
+                              "lt",
+                              "lte",
+                              "contains",
+                              "not_contains",
+                              "exists"
+                            ]
+                          },
+                          "right": {
+                            "description": "比较右值；operator=exists 时可省略"
+                          }
+                        }
+                      }
+                    },
+                    "terminal": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "minItems": 1
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_assign_node",
+      "description": "新增或修改单个赋值节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id；update 必填；add 可省略（短名或雪花）"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "assignments"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "assignments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "value": {},
+                    "op": {
+                      "type": "string",
+                      "enum": [
+                        "set",
+                        "add",
+                        "sub",
+                        "mul",
+                        "div"
+                      ]
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "flow"
+                      ]
+                    }
+                  }
+                },
+                "minItems": 1
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_delay_node",
+      "description": "新增或修改单个延时节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id；update 必填；add 可省略（短名或雪花）"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "ms": {
+                "type": "number"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_script_node",
+      "description": "新增或修改单个脚本节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id；update 必填；add 可省略（短名或雪花）"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "source"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string",
+                "enum": [
+                  "javascript",
+                  "python"
+                ]
+              },
+              "source": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_subflow_node",
+      "description": "新增或修改单个子流节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id；update 必填；add 可省略（短名或雪花）"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "subflowId"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "subflowId": {
+                "type": "string"
+              },
+              "subflowName": {
+                "type": "string"
+              },
+              "versionPolicy": {
+                "type": "string",
+                "enum": [
+                  "pinned",
+                  "latest"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_edge",
+      "description": "新增或修改单条边（恰好 1 个 Staging 单元）。必填 op=add|update；add 须 source/target；update 须 id。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          },
+          "id": {
+            "type": "string",
+            "description": "边 id；update 必填"
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "条件出口可用 if|elif|else 或 branchId"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_scenario",
+      "description": "新增或修改单个运行场景（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id。不切换默认场景。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          },
+          "id": {
+            "type": "string",
+            "description": "场景 id；update 必填"
+          },
+          "name": {
+            "type": "string"
+          },
+          "testProjectEnvId": {
+            "type": "string"
+          },
+          "flowSeed": {
+            "type": "object"
+          },
+          "remark": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_delete",
+      "description": "建议删除单个节点、边或运行场景（恰好 1 个 Staging 单元）。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "node",
+              "edge",
+              "scenario"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "待删对象 id"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "run_test_flow",
+      "description": "触发指定测试流 Run。须传 testFlowId。若本轮有未落盘的 submit_* 会先自动写库再跑。返回 runId/status/失败摘要。须项目已开启「允许 MCP 全自动写流」。可选 runScenarioId、testProjectEnvId。跑库中最新图；此前每次 submit 已落盘。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "要运行的测试流 id；必填"
+          },
+          "runScenarioId": {
+            "type": "string",
+            "description": "可选，覆盖默认运行场景 id"
+          },
+          "testProjectEnvId": {
+            "type": "string",
+            "description": "可选，覆盖场景内环境 id"
+          }
+        },
+        "required": [
+          "testFlowId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_flows",
+      "description": "MCP 专用：按 keyword/limit 列举项目测试流摘要（不含 graphJson）。子流选型含平台模板请用 list_subflow_templates",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "按测试流名称模糊搜索；可省略"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "返回条数上限，默认 20"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_flow",
+      "description": "MCP 专用：读取单条测试流完整 graphJson。浏览拓扑优先 get_subflow_detail 或带 testFlowId 的 get_graph_summary",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 id；可省略，将使用请求上下文中的 testFlowId"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_mcp_guide_version",
+      "description": "MCP 专用：返回当前造流规程 guideVersion（合成串：CORE/SURVEY/FIX_RUN 内容指纹 + 可选 +autopilot/+importApis，与当前项目写流/导入开关一致）。用于判断业务仓 .cursor/skills/qualitest/SKILL.md 是否过期；字符串全等则勿再 prompts/get 规程正文。无需参数。",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "create_flow",
+      "description": "MCP 专用：在当前项目新建一条空画布测试流并立即写库。返回 testFlowId，供后续 submit_* / run_test_flow 使用。须项目已开启「允许 MCP 全自动写流」 【MCP 全自动】工具内直接写库。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "flowName": {
+            "type": "string",
+            "description": "测试流名称"
+          },
+          "flowDescription": {
+            "type": "string",
+            "description": "测试流说明；可省略"
+          }
+        },
+        "required": [
+          "flowName"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "import_apis",
+      "description": "将结构化接口 items[] 按 HTTP 方法 + 规范化 path 写入当前测试项目接口库：已存在则更新，不存在则新增，成功即落库。须项目已开启「允许 MCP 导入接口」。建议分批、单次少批量。不会改写接口上的设计提示。更新时未传分组/注释则保留库内原值；新增未传分组则落入默认分组。 【MCP 导入接口】成功即写入项目接口库，不覆盖接口设计提示。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "待导入的接口列表",
+            "items": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "description": "HTTP 方法，如 GET、POST"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "接口路径；入库前会规范化（补前导斜杠、去掉尾部斜杠）"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "接口显示名称"
+                },
+                "apiGroup": {
+                  "type": "string",
+                  "description": "接口分组，可用点号表示多级；省略时：更新保留库内分组，新增使用默认分组"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "接口说明文字；省略时：更新保留库内说明，新增为空"
+                },
+                "pathParams": {
+                  "type": "array",
+                  "description": "路径参数列表（name / type / description 等）",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "queryParams": {
+                  "type": "array",
+                  "description": "查询参数列表",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "headerParams": {
+                  "type": "array",
+                  "description": "请求头参数列表；入库写入请求配置的声明头",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "bodyParams": {
+                  "type": "array",
+                  "description": "请求体字段列表，用于生成极简 JSON schema",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "bodyExample": {
+                  "description": "请求体示例，对象或 JSON 字符串均可"
+                },
+                "responseSchemaSummary": {
+                  "description": "响应 schema 摘要（对象）；可省略"
+                },
+                "authSuggestion": {
+                  "type": "object",
+                  "description": "鉴权建议。mode：none / inherit / override；可选 authProfileId、header（name + valueTemplate）",
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    },
+                    "authProfileId": {
+                      "type": "string"
+                    },
+                    "header": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "valueTemplate": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "required": [
+                "method",
+                "path",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      }
+    }
+  }
+]

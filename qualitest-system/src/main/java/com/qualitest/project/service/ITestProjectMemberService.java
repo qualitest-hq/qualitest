@@ -120,11 +120,23 @@ public interface ITestProjectMemberService {
     List<Long> listMemberUserIdsByTestProjectId(Long testProjectId);
 
     /**
-     * 获取并检查项目成员角色
+     * 按当前登录用户解析并校验其在项目中的成员角色。
+     * 非成员或未登录时抛业务异常。
      *
-     * @param testProjectId 项目ID
-     * @return 项目角色
+     * @param testProjectId 项目 id
+     * @return 成员角色
      */
     TestProjectMemberRole getCheckProjectMemberRole(Long testProjectId);
+
+    /**
+     * 按指定用户解析并校验其在项目中的成员角色。
+     * 用户为空时抛「缺少审计用户/操作者」；非成员时抛无权限。
+     * 平台超管用户直接视为系统管理员角色。
+     *
+     * @param testProjectId 项目 id
+     * @param userId 操作者用户 id
+     * @return 成员角色
+     */
+    TestProjectMemberRole getCheckProjectMemberRole(Long testProjectId, Long userId);
 
 }

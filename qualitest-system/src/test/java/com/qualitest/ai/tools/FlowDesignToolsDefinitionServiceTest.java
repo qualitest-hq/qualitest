@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -188,5 +189,44 @@ class FlowDesignToolsDefinitionServiceTest {
                 .toList();
         assertFalse(names.contains(FlowDesignToolNames.CREATE_FLOW.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
+    }
+
+    /**
+     * 前提：MCP 全自动列表中的 run_test_flow。
+     * 期望：inputSchema 必填 testFlowId；描述不含「当前画布」。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("MCP run_test_flow 合同必填 testFlowId")
+    @SuppressWarnings("unchecked")
+    void loadMcpProtocolTools_runTestFlow_requiresTestFlowId() {
+        Map<String, Object> runTool = service.loadMcpProtocolTools(true, false).stream()
+                .filter(t -> FlowDesignToolNames.RUN_TEST_FLOW.getId().equals(String.valueOf(t.get("name"))))
+                .findFirst()
+                .orElseThrow();
+        String desc = String.valueOf(runTool.get("description"));
+        assertFalse(desc.contains("当前打开"));
+        assertTrue(desc.contains("testFlowId"));
+        Map<String, Object> schema = (Map<String, Object>) runTool.get("inputSchema");
+        List<String> required = (List<String>) schema.get("required");
+        assertTrue(required.contains("testFlowId"));
+    }
+
+    /**
+     * 前提：MCP 只读列表中的 get_run_failure。
+     * 期望：inputSchema 必填 runId。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("MCP get_run_failure 合同必填 runId")
+    @SuppressWarnings("unchecked")
+    void loadMcpProtocolTools_getRunFailure_requiresRunId() {
+        Map<String, Object> tool = service.loadMcpProtocolTools().stream()
+                .filter(t -> FlowDesignToolNames.GET_RUN_FAILURE.getId().equals(String.valueOf(t.get("name"))))
+                .findFirst()
+                .orElseThrow();
+        Map<String, Object> schema = (Map<String, Object>) tool.get("inputSchema");
+        List<String> required = (List<String>) schema.get("required");
+        assertTrue(required.contains("runId"));
     }
 }

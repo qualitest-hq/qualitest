@@ -30,4 +30,10 @@ public class TriggerTestFlowRunParams {
      * 常见值：manual（画布人手）、ai（全自动工具）、ci、schedule；空则按 manual。
      */
     private String triggerType;
+
+    /**
+     * 操作者用户 id，用于成员校验与后台跑流身份。
+     * 未传时使用当前登录用户；无登录态时应显式传入。
+     */
+    private Long operatorUserId;
 }

@@ -119,7 +119,7 @@ class TestFlowExecutionServiceImplTriggerTest {
                 .delStatus(0)
                 .build();
         when(testFlowService.selectTestFlowById(1L)).thenReturn(flow);
-        when(testProjectMemberService.getCheckProjectMemberRole(99L)).thenReturn(TestProjectMemberRole.OWNER);
+        when(testProjectMemberService.getCheckProjectMemberRole(eq(99L), any())).thenReturn(TestProjectMemberRole.OWNER);
 
         TestProjectEnv env = TestProjectEnv.builder()
                 .testProjectEnvId(9001L)

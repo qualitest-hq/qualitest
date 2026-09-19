@@ -5,9 +5,6 @@ import com.qualitest.ai.mcp.protocol.McpSessionRegistry;
 import com.qualitest.common.constant.ProjectConstants;
 import com.qualitest.common.mcp.McpJsonRpc;
 import com.qualitest.project.domain.TestProjectUserSetting;
-import jakarta.servlet.http.HttpServletRequest;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -19,8 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -40,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class McpStreamableHttpControllerTest {
 
     private static final long TEST_PROJECT_ID = 99L;
+    private static final long OPERATOR_USER_ID = 1L;
 
     @Mock
     private McpJsonRpcDispatcher jsonRpcDispatcher;
@@ -48,24 +44,22 @@ class McpStreamableHttpControllerTest {
 
     private MockMvc mockMvc;
 
-    @BeforeEach
-    void setUp() {
+    private MockMvc mockMvc() {
         McpStreamableHttpController controller =
                 new McpStreamableHttpController(jsonRpcDispatcher, sessionRegistry);
-        mockMvc = MockMvcBuilders.standaloneSetup(controller)
-                .setCustomArgumentResolvers()
-                .build();
-        bindProjectSetting(TEST_PROJECT_ID);
+        return MockMvcBuilders.standaloneSetup(controller).build();
     }
 
-    @AfterEach
-    void tearDown() {
-        RequestContextHolder.resetRequestAttributes();
+    private static TestProjectUserSetting projectSetting() {
+        TestProjectUserSetting setting = new TestProjectUserSetting();
+        setting.setTestProjectId(TEST_PROJECT_ID);
+        setting.setUserId(OPERATOR_USER_ID);
+        return setting;
     }
 
     /**
      * 前提：POST initialize；Dispatcher 返回带 session-abc 的响应。
-     * 期望：HTTP 200；SESSION_HEADER=session-abc；jsonrpc=2.0。
+     * 期望：HTTP 200；SESSION_HEADER=session-abc；jsonrpc=2.0；dispatch 带操作者 userId。
      */
     @Test
     @Order(1)
@@ -74,11 +68,12 @@ class McpStreamableHttpControllerTest {
         String responseBody = """
                 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}
                 """;
-        when(jsonRpcDispatcher.dispatch(any(), eq(TEST_PROJECT_ID)))
+        when(jsonRpcDispatcher.dispatch(any(), eq(TEST_PROJECT_ID), eq(OPERATOR_USER_ID)))
                 .thenReturn(McpJsonRpcDispatcher.DispatchResult.withSession(responseBody, "session-abc"));
 
-        mockMvc.perform(post(ProjectConstants.MCP_ENDPOINT)
+        mockMvc().perform(post(ProjectConstants.MCP_ENDPOINT)
                         .contentType(MediaType.APPLICATION_JSON)
+                        .requestAttr(ProjectConstants.PROJECT_SETTING_ATTR, projectSetting())
                         .content("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(McpJsonRpc.SESSION_HEADER, "session-abc"))
@@ -87,7 +82,7 @@ class McpStreamableHttpControllerTest {
 
     /**
      * 前提：POST tools/list；Dispatcher 返回空 tools；项目上下文 testProjectId=99。
-     * 期望：dispatch 入参为 99；HTTP 200；result.tools 为数组。
+     * 期望：dispatch 入参为项目 id 与操作者；HTTP 200；result.tools 为数组。
      */
     @Test
     @Order(2)
@@ -96,23 +91,14 @@ class McpStreamableHttpControllerTest {
         String responseBody = """
                 {"jsonrpc":"2.0","id":2,"result":{"tools":[]}}
                 """;
-        when(jsonRpcDispatcher.dispatch(any(), eq(TEST_PROJECT_ID)))
+        when(jsonRpcDispatcher.dispatch(any(), eq(TEST_PROJECT_ID), eq(OPERATOR_USER_ID)))
                 .thenReturn(McpJsonRpcDispatcher.DispatchResult.response(responseBody));
 
-        mockMvc.perform(post(ProjectConstants.MCP_ENDPOINT)
+        mockMvc().perform(post(ProjectConstants.MCP_ENDPOINT)
                         .contentType(MediaType.APPLICATION_JSON)
+                        .requestAttr(ProjectConstants.PROJECT_SETTING_ATTR, projectSetting())
                         .content("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.tools").isArray());
-    }
-
-    private static void bindProjectSetting(long testProjectId) {
-        TestProjectUserSetting setting = new TestProjectUserSetting();
-        setting.setTestProjectId(testProjectId);
-        setting.setUserId(1L);
-        HttpServletRequest request = org.mockito.Mockito.mock(HttpServletRequest.class);
-        org.mockito.Mockito.when(request.getAttribute(ProjectConstants.PROJECT_SETTING_ATTR))
-                .thenReturn(setting);
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }
 }

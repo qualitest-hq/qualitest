@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -174,7 +175,7 @@ class McpJsonRpcDispatcherTest {
         McpToolInvokeParams params = new McpToolInvokeParams();
         params.setArguments(Map.of("keyword", "login"));
         when(argumentsMapper.fromToolArguments(any())).thenReturn(params);
-        when(mcpToolInvokeService.invoke(eq("search_apis"), any(), eq(1L)))
+        when(mcpToolInvokeService.invoke(eq("search_apis"), any(), eq(1L), isNull()))
                 .thenReturn(McpToolResult.builder()
                         .tool("search_apis")
                         .resultJson("{\"apis\":[]}")
@@ -188,7 +189,7 @@ class McpJsonRpcDispatcherTest {
         JSONObject json = JSON.parseObject(result.getResponseBody());
         assertEquals("{\"apis\":[]}", json.getJSONObject("result").getJSONArray("content")
                 .getJSONObject(0).getString("text"));
-        verify(mcpToolInvokeService).invoke(eq("search_apis"), any(), eq(1L));
+        verify(mcpToolInvokeService).invoke(eq("search_apis"), any(), eq(1L), isNull());
     }
 
     /**
@@ -200,7 +201,7 @@ class McpJsonRpcDispatcherTest {
     @DisplayName("tools/call 异常时 isError=true")
     void dispatch_toolsCall_serviceException_returnsIsError() {
         when(argumentsMapper.fromToolArguments(any())).thenReturn(new McpToolInvokeParams());
-        when(mcpToolInvokeService.invoke(eq("bad_tool"), any(), eq(1L)))
+        when(mcpToolInvokeService.invoke(eq("bad_tool"), any(), eq(1L), isNull()))
                 .thenThrow(new ServiceException("MCP 不支持的工具: bad_tool"));
 
         String body = """
@@ -251,7 +252,7 @@ class McpJsonRpcDispatcherTest {
     @DisplayName("业务 error 时 isError=true")
     void dispatch_toolsCall_businessError_returnsIsError() {
         when(argumentsMapper.fromToolArguments(any())).thenReturn(new McpToolInvokeParams());
-        when(mcpToolInvokeService.invoke(eq("get_flow"), any(), eq(1L)))
+        when(mcpToolInvokeService.invoke(eq("get_flow"), any(), eq(1L), isNull()))
                 .thenReturn(McpToolResult.builder()
                         .tool("get_flow")
                         .resultJson("{\"error\":\"测试流不存在\"}")

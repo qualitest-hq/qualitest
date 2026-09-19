@@ -41,6 +41,15 @@ public class GetRunFailureTool implements QualitestTool {
         return FlowDesignToolNames.GET_RUN_FAILURE.getId();
     }
 
+    /**
+     * 查询失败 Run 的全部 failed 步骤现场。
+     * runId 优先取参数；未传时用上下文中的失败 Run id（如 AI 修复入口带入）。
+     * 两者皆空则返回缺少 runId 的错误。
+     *
+     * @param arguments 工具参数
+     * @param ctx       请求上下文
+     * @return 失败现场 JSON
+     */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
         Long runId = FlowDesignToolSupport.longArg(arguments.get("runId"));
@@ -48,7 +57,8 @@ public class GetRunFailureTool implements QualitestTool {
             runId = ctx.getContextRunId();
         }
         if (runId == null) {
-            return FlowDesignToolSupport.errorJson("缺少 runId");
+            return FlowDesignToolSupport.errorJson(
+                    "缺少 runId：请传入 runId，或在带失败 Run 上下文的调用中使用");
         }
         TestFlowRunResult run = testFlowRunService.selectTestFlowRunResult(runId);
         if (run == null) {

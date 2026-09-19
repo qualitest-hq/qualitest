@@ -29,12 +29,17 @@ public final class FlowDesignPromptResources {
     public static final String TOOLS_DEFINITION = "ai/flow-design-tools.json";
 
     /**
-     * 仅 MCP 额外工具：list_flows、get_flow（列流/读流）及 create_flow（写流，须全自动开关）。
-     * 不注入 Web Agent。
+     * MCP 协议工具定义：名称、说明与参数 Schema（只读、写流、导入接口均收录在此文件）。
+     * 运行时再按项目开关裁剪可见工具列表。
      */
-    public static final String MCP_EXTRA_TOOLS = "ai/flow-design-mcp-extra-tools.json";
+    public static final String MCP_PROTOCOL_TOOLS = "ai/mcp-protocol-tools.json";
 
-    /** 从 classpath 加载文本资源 */
+    /**
+     * 按路径加载 classpath 文本资源
+     *
+     * @param path 资源路径
+     * @return 文本内容
+     */
     public static String loadText(String path) throws IOException {
         ClassPathResource resource = new ClassPathResource(path);
         return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);

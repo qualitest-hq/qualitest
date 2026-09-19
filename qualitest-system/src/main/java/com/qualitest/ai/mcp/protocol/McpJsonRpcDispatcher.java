@@ -40,13 +40,26 @@ public class McpJsonRpcDispatcher {
     private final McpPromptResourceService mcpPromptResourceService;
 
     /**
-     * 解析并分发一条 JSON-RPC 请求。
+     * 解析并分发一条 JSON-RPC 请求（无操作者，仅适合不触发写流/导入的调用）。
      *
      * @param body          POST 原始 JSON 文本
      * @param testProjectId 当前请求 Token 绑定的测试项目 id
      * @return 响应 JSON、可选新建会话 id、是否为无响应体的通知
      */
     public DispatchResult dispatch(String body, Long testProjectId) {
+        return dispatch(body, testProjectId, null);
+    }
+
+    /**
+     * 解析并分发一条 JSON-RPC 请求。
+     * tools/call 会把操作者用户 id 传给工具编排，供写流与导入落审计人。
+     *
+     * @param body           POST 原始 JSON 文本
+     * @param testProjectId  当前请求 Token 绑定的测试项目 id
+     * @param operatorUserId Token 绑定的操作者用户 id，可空
+     * @return 响应 JSON、可选新建会话 id、是否为无响应体的通知
+     */
+    public DispatchResult dispatch(String body, Long testProjectId, Long operatorUserId) {
         JSONObject request;
         try {
             request = JSON.parseObject(body);
@@ -74,7 +87,8 @@ public class McpJsonRpcDispatcher {
                     handleInitialize(id, testProjectId),
                     sessionRegistry.createSession(testProjectId));
             case "tools/list" -> DispatchResult.response(handleToolsList(id, testProjectId));
-            case "tools/call" -> DispatchResult.response(handleToolsCall(id, request, testProjectId));
+            case "tools/call" -> DispatchResult.response(
+                    handleToolsCall(id, request, testProjectId, operatorUserId));
             case "prompts/list" -> DispatchResult.response(handlePromptsList(id));
             case "prompts/get" -> DispatchResult.response(handlePromptsGet(id, request, testProjectId));
             case "resources/list" -> DispatchResult.response(handleResourcesList(id));
@@ -141,15 +155,16 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * 处理 tools/call：解析工具名与参数，执行业务，封装 content 文本与 isError。
+     * 处理 tools/call：解析工具名与参数，带上操作者执行业务，封装 content 文本与 isError。
      *
-     * @param id            请求 id
-     * @param request       完整 JSON-RPC 请求
-     * @param testProjectId 测试项目 id
+     * @param id             请求 id
+     * @param request        完整 JSON-RPC 请求
+     * @param testProjectId  测试项目 id
+     * @param operatorUserId Token 绑定的操作者用户 id，可空
      * @return JSON-RPC 成功或业务错误响应字符串
      */
     @SuppressWarnings("unchecked")
-    private String handleToolsCall(Object id, JSONObject request, Long testProjectId) {
+    private String handleToolsCall(Object id, JSONObject request, Long testProjectId, Long operatorUserId) {
         JSONObject params = request.getJSONObject("params");
         if (params == null) {
             return McpJsonRpc.error(id, -32602, "Invalid params");
@@ -161,7 +176,8 @@ public class McpJsonRpcDispatcher {
         Map<String, Object> rawArguments = params.getObject("arguments", Map.class);
         McpToolInvokeParams invokeParams = argumentsMapper.fromToolArguments(rawArguments);
         try {
-            McpToolResult toolResult = mcpToolInvokeService.invoke(toolName, invokeParams, testProjectId);
+            McpToolResult toolResult =
+                    mcpToolInvokeService.invoke(toolName, invokeParams, testProjectId, operatorUserId);
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("content", List.of(Map.of(
                     "type", "text",

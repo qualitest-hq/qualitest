@@ -82,7 +82,7 @@ class McpToolInvokeServiceTest {
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> service.invoke(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId(), params, 100L));
         assertTrue(ex.getMessage().contains("允许 MCP 全自动写流"));
-        verify(toolExecutor, never()).executeTool(anyString(), any(), any());
+        verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
     }
 
     /**
@@ -97,8 +97,8 @@ class McpToolInvokeServiceTest {
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testProjectId(100L)
                 .build();
-        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(false))).thenReturn(ctx);
-        when(toolExecutor.executeTool(eq(FlowDesignToolExecutor.LIST_FLOWS), anyString(), eq(ctx)))
+        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(false), isNull())).thenReturn(ctx);
+        when(toolExecutor.executeTool(eq(FlowDesignToolExecutor.LIST_FLOWS), anyString(), eq(ctx), eq(true)))
                 .thenReturn("{\"flows\":[]}");
 
         McpToolResult result = service.invoke(FlowDesignToolExecutor.LIST_FLOWS, params, 100L);
@@ -142,8 +142,8 @@ class McpToolInvokeServiceTest {
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testProjectId(100L)
                 .build();
-        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(false))).thenReturn(ctx);
-        when(toolExecutor.executeTool(eq(FlowDesignToolExecutor.SEARCH_APIS), anyString(), eq(ctx)))
+        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(false), isNull())).thenReturn(ctx);
+        when(toolExecutor.executeTool(eq(FlowDesignToolExecutor.SEARCH_APIS), anyString(), eq(ctx), eq(true)))
                 .thenReturn("{\"error\":\"boom\"}");
 
         McpToolResult result = service.invoke(FlowDesignToolExecutor.SEARCH_APIS, params, 100L);
@@ -162,7 +162,7 @@ class McpToolInvokeServiceTest {
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> service.invoke(FlowDesignToolNames.CREATE_FLOW.getId(), params, 100L));
         assertTrue(ex.getMessage().contains("允许 MCP 全自动写流"));
-        verify(toolExecutor, never()).executeTool(anyString(), any(), any());
+        verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
     }
 
     /**
@@ -179,12 +179,13 @@ class McpToolInvokeServiceTest {
         params.setArguments(Map.of("flowName", "新流"));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testProjectId(100L)
+                .operatorUserId(7L)
                 .build();
-        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(true))).thenReturn(ctx);
-        when(toolExecutor.executeTool(eq(FlowDesignToolNames.CREATE_FLOW.getId()), anyString(), eq(ctx)))
+        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(true), eq(7L))).thenReturn(ctx);
+        when(toolExecutor.executeTool(eq(FlowDesignToolNames.CREATE_FLOW.getId()), anyString(), eq(ctx), eq(true)))
                 .thenReturn("{\"testFlowId\":\"1\",\"flowName\":\"新流\"}");
 
-        McpToolResult result = service.invoke(FlowDesignToolNames.CREATE_FLOW.getId(), params, 100L);
+        McpToolResult result = service.invoke(FlowDesignToolNames.CREATE_FLOW.getId(), params, 100L, 7L);
         assertEquals(FlowDesignToolNames.CREATE_FLOW.getId(), result.getTool());
         assertFalse(result.isError());
         verify(testFlowService, never()).selectTestFlowResult(any());
@@ -202,7 +203,7 @@ class McpToolInvokeServiceTest {
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> service.invoke(FlowDesignToolNames.IMPORT_APIS.getId(), params, 100L));
         assertTrue(ex.getMessage().contains("允许 MCP 导入接口"));
-        verify(toolExecutor, never()).executeTool(anyString(), any(), any());
+        verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
     }
 
     /**
@@ -223,13 +224,32 @@ class McpToolInvokeServiceTest {
         params.setArguments(Map.of("items", List.of()));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testProjectId(100L)
+                .operatorUserId(7L)
                 .build();
-        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(false))).thenReturn(ctx);
-        when(toolExecutor.executeTool(eq(FlowDesignToolNames.IMPORT_APIS.getId()), anyString(), eq(ctx)))
+        when(contextFactory.fromMcpRequest(eq(params), eq(100L), isNull(), eq(false), eq(7L))).thenReturn(ctx);
+        when(toolExecutor.executeTool(eq(FlowDesignToolNames.IMPORT_APIS.getId()), anyString(), eq(ctx), eq(true)))
                 .thenReturn("{\"ok\":true}");
 
-        McpToolResult result = service.invoke(FlowDesignToolNames.IMPORT_APIS.getId(), params, 100L);
+        McpToolResult result = service.invoke(FlowDesignToolNames.IMPORT_APIS.getId(), params, 100L, 7L);
         assertEquals(FlowDesignToolNames.IMPORT_APIS.getId(), result.getTool());
         assertFalse(result.isError());
+    }
+
+    /**
+     * 前提：项目已开 MCP 全自动；写工具未传 operatorUserId。
+     * 期望：抛「Project Token 未绑定操作者」。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("写工具缺操作者时明确报错")
+    void invoke_writeTool_rejectsMissingOperator() {
+        when(testProjectService.selectTestProjectById(100L)).thenReturn(
+                TestProject.builder().testProjectId(100L).mcpAutopilotEnabled(true).build());
+        McpToolInvokeParams params = new McpToolInvokeParams();
+        params.setArguments(Map.of("flowName", "新流"));
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.invoke(FlowDesignToolNames.CREATE_FLOW.getId(), params, 100L, null));
+        assertTrue(ex.getMessage().contains("未绑定操作者"));
+        verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
     }
 }

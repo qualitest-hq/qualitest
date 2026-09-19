@@ -14,13 +14,12 @@ import com.qualitest.project.service.ITestFlowService;
 import java.util.Map;
 
 /**
- * 造流助手工具：触发当前测试流正式 Run，返回 runId、status、失败摘要。
+ * MCP 跑流工具门面：触发指定测试流正式 Run。
  * <p>
- * 仅全自动上下文可调用；半自动直接拒绝。
- * 测试流 id 来自画布上下文或参数；未传操作者时由触发服务使用当前登录用户。
- * 场景/环境参数可省略，省略时用设计请求带来的默认值。
+ * 必须提供测试流 id（工具参数或请求信封），且上下文须带 Token 绑定的操作者用户 id。
+ * 不使用「当前打开的流」隐式目标；场景/环境仅认显式参数。
  */
-public class RunTestFlowTool implements QualitestTool {
+public class McpRunTestFlowTool implements QualitestTool {
 
     /** 跑流核心 */
     private final TestFlowRunTriggerCore runCore;
@@ -30,19 +29,19 @@ public class RunTestFlowTool implements QualitestTool {
      *
      * @param runCore 跑流核心
      */
-    public RunTestFlowTool(TestFlowRunTriggerCore runCore) {
+    public McpRunTestFlowTool(TestFlowRunTriggerCore runCore) {
         this.runCore = runCore;
     }
 
     /**
      * 单测用：按依赖自行组装跑流核心
      */
-    public RunTestFlowTool(ITestFlowExecutionService testFlowExecutionService,
-                           ITestFlowRunService testFlowRunService,
-                           ITestFlowRunStepService testFlowRunStepService,
-                           ITestFlowService testFlowService,
-                           GraphJsonValidator graphJsonValidator,
-                           FlowDesignPatchNormalizer patchNormalizer) {
+    public McpRunTestFlowTool(ITestFlowExecutionService testFlowExecutionService,
+                              ITestFlowRunService testFlowRunService,
+                              ITestFlowRunStepService testFlowRunStepService,
+                              ITestFlowService testFlowService,
+                              GraphJsonValidator graphJsonValidator,
+                              FlowDesignPatchNormalizer patchNormalizer) {
         this(new TestFlowRunTriggerCore(
                 testFlowExecutionService, testFlowRunService, testFlowRunStepService,
                 testFlowService, graphJsonValidator, patchNormalizer));
@@ -54,21 +53,23 @@ public class RunTestFlowTool implements QualitestTool {
     }
 
     /**
-     * 解析参数后交给跑流核心执行；允许用画布默认场景/环境补全。
+     * 校验操作者与测试流 id 后交给跑流核心；不用画布默认场景/环境。
      *
      * @param arguments 工具参数
-     * @param ctx       请求上下文
+     * @param ctx       请求上下文（须含操作者）
      * @return 回执 JSON
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
-        TestFlowRunTriggerCore.ResolvedRunArgs args =
-                TestFlowRunTriggerCore.resolveArgs(arguments, ctx, true);
-        if (args.testFlowId() == null) {
-            return FlowDesignToolSupport.errorJson("缺少 testFlowId");
+        if (ctx == null || ctx.getOperatorUserId() == null) {
+            return FlowDesignToolSupport.errorJson("Project Token 未绑定操作者");
         }
-        Long operatorUserId = ctx != null ? ctx.getOperatorUserId() : null;
+        TestFlowRunTriggerCore.ResolvedRunArgs args =
+                TestFlowRunTriggerCore.resolveArgs(arguments, ctx, false);
+        if (args.testFlowId() == null) {
+            return FlowDesignToolSupport.errorJson("缺少 testFlowId：请显式传入");
+        }
         return runCore.run(args.testFlowId(), args.runScenarioId(), args.testProjectEnvId(),
-                operatorUserId, ctx);
+                ctx.getOperatorUserId(), ctx);
     }
 }

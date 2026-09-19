@@ -17,8 +17,8 @@ import java.util.function.Consumer;
 /**
  * 测试流 AI 设计工具执行时的请求级上下文。
  * <p>
- * Web 造流与 MCP 共用：项目、测试流、基准画布、检索范围、结果字节上限，
- * 以及本轮 submit 累积器、素材/鉴权提案累积器、短名映射、内存工作图。
+ * 承载本轮执行所需的项目、测试流、基准画布、检索范围、结果字节上限，
+ * 以及 submit 累积器、素材/鉴权提案累积器、短名映射、内存工作图、操作者用户 id。
  */
 @Getter
 @Builder
@@ -38,7 +38,7 @@ public class FlowDesignToolContext {
 
     /**
      * 用户请求带来的基准画布（本轮开始时的图）。
-     * Web 由设计面板传入；MCP 可由信封或 get_flow 写入。
+     * 可由设计面板、请求信封或 get_flow 写入。
      */
     private final GraphJson graphJson;
 
@@ -55,14 +55,20 @@ public class FlowDesignToolContext {
     /** 用户在画布选中的节点 id；供提示模型先查这些节点详情 */
     private final List<String> contextNodeIds;
 
-    /** 「AI 修复」入口带入的失败 Run id；get_run_failure 未显式传 runId 时回退使用 */
+    /** 「AI 修复」入口带入的失败 Run id；查询失败现场未显式传 runId 时回退使用 */
     private final Long contextRunId;
+
+    /**
+     * 操作者用户 id，用于跑流成员校验与审计。
+     * 可为空：触发跑流时回退为当前登录用户；经项目 Token 调用写工具时须为 Token 绑定用户。
+     */
+    private final Long operatorUserId;
 
     /**
      * 是否开启全自动。
      * true：允许跑流；素材/鉴权 upsert 直写库；改图可隐式写库
-     * （Web 在跑流前或回合结束落盘；MCP 每次 submit 成功后立即落盘）。
-     * false：半自动，改图进 Staging、素材须聊天侧确认；MCP 侧亦不可调写工具。
+     * （设计通道可在跑流前或回合结束落盘；MCP 每次 submit 成功后立即落盘）。
+     * false：半自动，改图进 Staging、素材须聊天侧确认；经 MCP 时亦不可调写工具。
      */
     @Builder.Default
     private final boolean autopilotEnabled = false;

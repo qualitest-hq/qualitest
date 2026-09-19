@@ -319,22 +319,38 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
     }
 
     /**
-     * 获取并检查项目成员角色
+     * 按当前登录用户解析并校验其在项目中的成员角色。
      *
-     * @param testProjectId 项目ID
-     * @return 项目角色
+     * @param testProjectId 项目 id
+     * @return 成员角色
      */
     @Override
     public TestProjectMemberRole getCheckProjectMemberRole(Long testProjectId) {
+        return getCheckProjectMemberRole(testProjectId, SecurityUtils.getUserId());
+    }
+
+    /**
+     * 按指定用户解析并校验其在项目中的成员角色。
+     * 用户为空抛缺少审计用户；超管直接返回系统管理员；否则查成员表，不存在则无权限。
+     *
+     * @param testProjectId 项目 id
+     * @param userId 操作者用户 id
+     * @return 成员角色
+     */
+    @Override
+    public TestProjectMemberRole getCheckProjectMemberRole(Long testProjectId, Long userId) {
         if (testProjectId == null) {
             throw new ServiceException("请指定测试项目");
         }
-        if (SecurityUtils.isAdmin()) {
+        if (userId == null) {
+            throw new ServiceException("缺少审计用户/操作者");
+        }
+        if (SecurityUtils.isAdmin(userId)) {
             return TestProjectMemberRole.SYS_ADMIN;
         }
         TestProjectMember self = testProjectMemberMapper.selectTestProjectMemberOne(TestProjectMemberParams.builder()
                 .testProjectId(testProjectId)
-                .userId(SecurityUtils.getUserId())
+                .userId(userId)
                 .build());
         if (self == null) {
             throw new ServiceException("您不是该项目成员，无权限访问");

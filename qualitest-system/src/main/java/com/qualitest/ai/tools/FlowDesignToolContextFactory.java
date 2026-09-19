@@ -105,7 +105,8 @@ public class FlowDesignToolContextFactory {
                 onGraphCommitted,
                 onRunStarted,
                 blankToNull(request.getRunScenarioId()),
-                request.getTestProjectEnvId());
+                request.getTestProjectEnvId(),
+                null);
     }
 
     /**
@@ -124,35 +125,37 @@ public class FlowDesignToolContextFactory {
     }
 
     /**
-     * 从 MCP 调用参数组装工具上下文。
-     * 项目 id 优先用参数里的 testProjectId，否则用 Token 解析出的项目 id。
-     *
-     * @param tokenProjectId Token 绑定的项目 id
-     */
-    public FlowDesignToolContext fromMcpRequest(McpToolInvokeParams params, Long tokenProjectId) {
-        return fromMcpRequest(params, tokenProjectId, null, false);
-    }
-
-    /**
      * 从 MCP 调用参数组装工具上下文，可附带本调用的 submit 单元累积器。
-     * 素材/鉴权提案容器固定为空（MCP 写素材走全自动直写路径）。
+     * 默认非全自动、无操作者（只读或测试组装用）。
+     *
+     * @param params         调用参数
+     * @param tokenProjectId Token 绑定的项目 id
+     * @param submitCapture  submit 单元累积器，可空
+     * @return 工具上下文
      */
     public FlowDesignToolContext fromMcpRequest(McpToolInvokeParams params,
                                                 Long tokenProjectId,
                                                 FlowDesignSubmitCapture submitCapture) {
-        return fromMcpRequest(params, tokenProjectId, submitCapture, false);
+        return fromMcpRequest(params, tokenProjectId, submitCapture, false, null);
     }
 
     /**
      * 从 MCP 调用参数组装工具上下文。
+     * 项目 id 优先参数，否则用 Token 项目 id；二者不一致则拒绝。
+     * 写入操作者用户 id、是否全自动、以及可选的 submit 累积器与画布。
      *
-     * @param submitCapture    本调用的 submit 单元累积器；改图 submit 时传入，只读可为 null
+     * @param params           调用参数
+     * @param tokenProjectId   Token 绑定的项目 id
+     * @param submitCapture    submit 单元累积器；改图 submit 时传入，只读可为 null
      * @param autopilotEnabled true 时允许跑流、素材/鉴权直写，以及 submit 后立即写库
+     * @param operatorUserId   Token 绑定的用户 id；跑流等写工具须非空
+     * @return 工具上下文
      */
     public FlowDesignToolContext fromMcpRequest(McpToolInvokeParams params,
                                                 Long tokenProjectId,
                                                 FlowDesignSubmitCapture submitCapture,
-                                                boolean autopilotEnabled) {
+                                                boolean autopilotEnabled,
+                                                Long operatorUserId) {
         Long projectId = params.getTestProjectId() != null ? params.getTestProjectId() : tokenProjectId;
         if (projectId == null) {
             throw new ServiceException("缺少 testProjectId");
@@ -178,7 +181,8 @@ public class FlowDesignToolContextFactory {
                 null,
                 null,
                 null,
-                null);
+                null,
+                operatorUserId);
     }
 
     /**
@@ -201,7 +205,8 @@ public class FlowDesignToolContextFactory {
                                         java.util.function.BiConsumer<Long, GraphJson> onGraphCommitted,
                                         java.util.function.Consumer<Long> onRunStarted,
                                         String defaultRunScenarioId,
-                                        Long defaultTestProjectEnvId) {
+                                        Long defaultTestProjectEnvId,
+                                        Long operatorUserId) {
         java.util.Map<String, String> idMap = flowDesignClientIdMap != null
                 ? flowDesignClientIdMap
                 : new java.util.HashMap<>();
@@ -214,6 +219,7 @@ public class FlowDesignToolContextFactory {
                 .scopeApiIds(scopeApiIds)
                 .contextNodeIds(contextNodeIds)
                 .contextRunId(contextRunId)
+                .operatorUserId(operatorUserId)
                 .autopilotEnabled(autopilotEnabled)
                 .onGraphCommitted(onGraphCommitted)
                 .onRunStarted(onRunStarted)

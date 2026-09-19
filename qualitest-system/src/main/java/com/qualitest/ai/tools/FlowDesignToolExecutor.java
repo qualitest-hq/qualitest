@@ -26,9 +26,12 @@ import com.qualitest.ai.tools.flow.ListFlowsTool;
 import com.qualitest.ai.tools.flow.ListProjectAuthProfilesTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.ai.tools.flow.ListSubflowTemplatesTool;
+import com.qualitest.ai.tools.flow.McpGetRunFailureTool;
+import com.qualitest.ai.tools.flow.McpRunTestFlowTool;
 import com.qualitest.ai.tools.flow.RunTestFlowTool;
 import com.qualitest.ai.tools.flow.SearchApisTool;
 import com.qualitest.ai.tools.flow.SubmitFlowDesignUnitTool;
+import com.qualitest.ai.tools.flow.TestFlowRunTriggerCore;
 import com.qualitest.ai.tools.flow.UpsertAssetVariablesTool;
 import com.qualitest.ai.tools.flow.UpsertAuthProfileTool;
 import com.qualitest.api.service.IApiImportService;
@@ -55,7 +58,8 @@ import java.util.stream.Collectors;
  * 测试流 AI 设计工具统一执行器。
  * <p>
  * 构造时注册全部只读工具与改图 submit、素材写入、跑流等，按工具名路由执行。
- * Web 造流与 MCP 共用；MCP 侧是否允许写工具由调用入口按项目开关拦截，本类只负责执行。
+ * 写工具是否允许调用由入口按项目开关拦截。
+ * 另有一份 MCP 门面表：同名跑流、查失败工具在 mcpMode 下优先走门面实现。
  */
 @Slf4j
 @Component
@@ -90,6 +94,8 @@ public class FlowDesignToolExecutor {
     public static final String RUN_TEST_FLOW = FlowDesignToolNames.RUN_TEST_FLOW.getId();
 
     private final Map<String, QualitestTool> tools;
+    /** MCP 门面表：同名工具在 mcpMode 下优先使用（跑流、查失败现场） */
+    private final Map<String, QualitestTool> mcpTools;
 
     /**
      * 注册全部 Flow Design 工具（只读、改图、导入、规程版本查询等）。
@@ -152,16 +158,24 @@ public class FlowDesignToolExecutor {
         map.put(GET_NODE_DETAIL, new GetNodeDetailTool(graphResolver));
         map.put(GET_EDGE_DETAIL, new GetEdgeDetailTool(graphResolver));
         map.put(GET_SCENARIO_DETAIL, new GetScenarioDetailTool(graphResolver));
-        map.put(GET_RUN_FAILURE, new GetRunFailureTool(testFlowRunService, testFlowRunStepService));
+        GetRunFailureTool getRunFailureTool = new GetRunFailureTool(testFlowRunService, testFlowRunStepService);
+        map.put(GET_RUN_FAILURE, getRunFailureTool);
         map.put(GET_FLOW_API_HEALTH, new GetFlowApiHealthTool(
                 graphResolver,
                 httpNodeApiHealthChecker != null ? httpNodeApiHealthChecker : new HttpNodeApiHealthChecker(),
                 testProjectApiMapper));
-        map.put(RUN_TEST_FLOW, new RunTestFlowTool(
+        // 跑流核心只组装一份；通用工具与 MCP 门面各自持有引用
+        TestFlowRunTriggerCore runCore = new TestFlowRunTriggerCore(
                 testFlowExecutionService, testFlowRunService, testFlowRunStepService,
-                testFlowService, graphJsonValidator, flowDesignPatchNormalizer));
+                testFlowService, graphJsonValidator, flowDesignPatchNormalizer);
+        map.put(RUN_TEST_FLOW, new RunTestFlowTool(runCore));
         registerSubmitUnitTools(map, unitSubmit);
         this.tools = Map.copyOf(map);
+
+        Map<String, QualitestTool> mcpMap = new HashMap<>();
+        mcpMap.put(RUN_TEST_FLOW, new McpRunTestFlowTool(runCore));
+        mcpMap.put(GET_RUN_FAILURE, new McpGetRunFailureTool(getRunFailureTool));
+        this.mcpTools = Map.copyOf(mcpMap);
     }
 
     /**
@@ -211,11 +225,37 @@ public class FlowDesignToolExecutor {
     }
 
     /**
-     * 按名执行工具；argumentsJson 为模型传来的参数对象字符串。
-     * 未知工具或参数解析失败返回 error JSON，不抛给 Agent 循环外。
+     * 按名执行工具（默认路径，不走 MCP 门面）。
+     * argumentsJson 为模型传来的参数对象字符串。
+     * 未知工具或参数解析失败返回 error JSON，不向外抛。
+     *
+     * @param name          工具名
+     * @param argumentsJson 参数 JSON
+     * @param context       请求上下文
+     * @return 回执 JSON
      */
     public String executeTool(String name, String argumentsJson, FlowDesignToolContext context) {
-        QualitestTool tool = tools.get(name);
+        return executeTool(name, argumentsJson, context, false);
+    }
+
+    /**
+     * 按名执行工具。
+     * mcpMode 为 true 时，若存在 MCP 门面实现（跑流、查失败）则优先使用，否则用通用注册表。
+     *
+     * @param name          工具名
+     * @param argumentsJson 参数 JSON
+     * @param context       请求上下文
+     * @param mcpMode       是否走 MCP 门面优先路由
+     * @return 回执 JSON
+     */
+    public String executeTool(String name, String argumentsJson, FlowDesignToolContext context, boolean mcpMode) {
+        QualitestTool tool = null;
+        if (mcpMode) {
+            tool = mcpTools.get(name);
+        }
+        if (tool == null) {
+            tool = tools.get(name);
+        }
         if (tool == null) {
             return FlowDesignToolSupport.errorJson("未知工具: " + name);
         }
