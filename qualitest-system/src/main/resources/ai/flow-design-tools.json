@@ -46,7 +46,7 @@
     "type": "function",
     "function": {
       "name": "append_api_design_hints",
-      "description": "向接口 design_hints 追加造流设计提示并直接落库（人机均可维护；导入不覆盖）。确认业务约定（如 body 字段二选一、金额符号）后调用；勿写入 apiDescription。每条尽量短（≤200 字）。",
+      "description": "向接口 design_hints 追加造流设计提示并直接落库（人机均可维护；导入不覆盖）。确认业务约定（如 body 字段二选一、金额符号）后调用；只追加 design_hints。每条尽量短（≤200 字）。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -187,7 +187,7 @@
     "type": "function",
     "function": {
       "name": "list_project_auth_profiles",
-      "description": "列举多端配置 Profile：id、名称、pathPrefix、headerName、headerValueTemplate、responseConvention（四字段）、credentialTarget、credentialApi。造登录链、修 AUTH_TOKEN_MISSING、改托管头/响应约定前必须先调用；勿默认若依。不含密钥明文",
+      "description": "列举多端配置 Profile：id、名称、pathPrefix、headerName、headerValueTemplate、responseConvention（四字段）、credentialTarget、credentialApi。造登录链、修 AUTH_TOKEN_MISSING、改托管头/响应约定前必须先调用；按返回 Profile 配置。不含密钥明文",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -428,7 +428,7 @@
               },
               "requestValueOverrides": {
                 "type": "object",
-                "description": "节点测值覆盖（两桶）。query/path/header/表单用 paramDefaults；JSON body 用 bodyExample。值可为字面量或 {{flow.*}}。勿把参数名写在顶层。",
+                "description": "节点测值覆盖（两桶）。query/path/header/表单用 paramDefaults；JSON body 用 bodyExample。值可为字面量或 {{flow.*}}。参数名只在 paramDefaults/bodyExample 内。",
                 "properties": {
                   "paramDefaults": {
                     "type": "object",

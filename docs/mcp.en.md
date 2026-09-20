@@ -117,14 +117,14 @@ Use qualitest MCP list_flows to list flows in the current project
 ```text
 testFlowId = <id from previous step>.
 Use get_graph_summary (or get_subflow_detail): nodes, main path, key asserts.
-Do not dump the full graphJson.
+Use get_graph_summary / get_node_detail for topology.
 ```
 
 **③ Where did the last run fail?**
 
 ```text
 Same testFlowId. Call get_run_failure; summarize failed step, assert/HTTP errors,
-and suggest what to change on the canvas (advice only — do not write the DB).
+and suggest what to change on the canvas (advice only).
 ```
 
 ---

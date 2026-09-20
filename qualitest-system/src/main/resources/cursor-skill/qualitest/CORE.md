@@ -5,7 +5,7 @@
 
 `guideVersion` 为合成串：`{规程指纹}[+autowrite][+autorun][+importApis]`。改项目写流/跑流/导入开关并保存后须重连或刷新 MCP，并再跑同步 Skill，否则本地规程与 `tools/list` 可能不一致。
 
-**只调用当前 `tools/list` 里出现的工具**；列表没有的工具当作本项目未开通，勿尝试调用。
+**只调用当前 `tools/list` 里出现的工具**。
 
 ## 前置
 
@@ -24,28 +24,27 @@
 ## 硬规矩
 
 <!-- mcp:autowrite -->
-- **每次成功的 `submit_*` 已立即写库**。不要找 commit / 保存工具，也不要假设还要 Staging 确认。
-- 用户若在 Web **打开了同一测试流**，画布会自动跟上；不要提示「请刷新画布」。
-- 本规程 **不是**「可测提示词」路径：不要只汇总短提示贴回 Web；开了写权限就直接 MCP 改流。
+- **每次成功的 `submit_*` 已立即写库**；同流已在 Web 打开时画布自动同步。
+- 本规程职责是经 MCP 改流：开了写权限就直接调写工具。
 - 若工具报写锁仍被占用（lockHeldBy）：可能是 Web 脏稿/其它标签或 MCP 占用，等待数秒后重试，或换一流再写。
 - HTTP 节点优先 `callMode=project` + `testProjectApiId`；测值从业务仓或素材键读取，读不到标不确定。
 - **改测试流名称/说明**只能用 `update_flow_meta`；禁止用 `create_flow` 新建冒充改名。
-- 当前 `tools/list` 无跑流工具时：改图落盘后结束；跑通请用户在 Web 点 Run，或开启「允许 MCP 自动跑流」并重连后再调；勿假装已跑通。
+- 当前 `tools/list` 无跑流工具时：改图落盘后结束；跑通请用户在 Web 点 Run，或开启「允许 MCP 自动跑流」并重连后再调。
 <!-- /mcp:autowrite -->
 <!-- mcp:autorun -->
-- 造流、修流、修失败、用户要「跑通/验证」时：必要 `submit_*`（及缺省时的 upsert）完成后 **立刻** `run_test_flow`，不要只改图就结束。
+- 造流、修流、修失败、用户要「跑通/验证」时：必要 `submit_*`（及缺省时的 upsert）完成后 **立刻** `run_test_flow`。
 <!-- /mcp:autorun -->
 <!-- mcp:import -->
 - **`import_apis` 成功即写接口库**；不会改写接口上的设计提示字段（设计提示用专门的追加工具写入）。
 <!-- /mcp:import -->
-- 纯答疑（解释节点/字段、只要建议不改库）时：只用只读工具；不要调用写流 / 导入 / 跑流类工具。
-- 不要输出整份 `graphJson`；拓扑用 `get_graph_summary` / `get_node_detail`。
-- 用户要看图时：把 `get_graph_summary` 返回的 `mermaid` 原样放进 ` ```mermaid ` 代码块，勿手搓图。
-- 不要编造接口 path / 测值；先 `search_apis` → `get_api_details`。
+- 纯答疑（解释节点/字段、只要建议不改库）时：只用只读工具。
+- 拓扑只用 `get_graph_summary` / `get_node_detail`。
+- 用户要看图时：把 `get_graph_summary` 返回的 `mermaid` 原样放进 ` ```mermaid ` 代码块。
+- 接口与测值：先 `search_apis` → `get_api_details`。
 <!-- mcp:import -->
-- 库无目标接口时：从业务仓抽取后 `import_apis`，再 `get_api_details`；造流时 HTTP 用 `callMode=project`，避免退化为 external+绝对 URL。
+- 库无目标接口时：从业务仓抽取后 `import_apis`，再 `get_api_details`；造流时 HTTP 用 `callMode=project`，优先项目内绑定而非 external+绝对 URL。
 <!-- /mcp:import -->
-- 库无目标接口且当前 `tools/list` 无导入类工具时：请用户在 Web / IDEA 插件入库，或开启「允许 MCP 导入接口」并重连后再 sync Skill；不要假装已导入。
+- 库无目标接口且当前 `tools/list` 无导入类工具时：请用户在 Web / IDEA 插件入库，或开启「允许 MCP 导入接口」并重连后再 sync Skill。
 
 ## 推荐顺序
 
@@ -66,7 +65,7 @@
 名称：@Operation.summary → JavaDoc 首行 → 方法名
 ```
 
-从**业务仓** Controller 抽 method/path/参数及上述分组注释；有标注则传入 `import_apis` 覆盖；省略则更新保留库内、新增落入默认分组。不要用包名瞎编分组覆盖已有库内值。看回执 `warnings` / `metaGroupSource`。
+从**业务仓** Controller 抽 method/path/参数及上述分组注释；有标注则传入 `import_apis` 覆盖；省略则更新保留库内、新增落入默认分组。看回执 `warnings` / `metaGroupSource`。
 
 ### 缺接口时充实接口库
 
@@ -88,7 +87,7 @@
 
 | 工具 | 要点 |
 |------|------|
-| `create_flow` | 仅新建空画布测试流并写库；返回 `testFlowId`；不要求已有流 id；改名/改说明勿用本工具 |
+| `create_flow` | 仅新建空画布测试流并写库；返回 `testFlowId`；不要求已有流 id |
 | `update_flow_meta` | 浅合并改名称/说明并写库；须 `testFlowId`；不动画布；`flowDescription` 空串清空 |
 | `submit_http_node` 等 `submit_*` | 每次 1 单元；成功即落盘；须 `testFlowId` |
 | `upsert_asset_variables` / `upsert_auth_profile` | 工具内直写库；不要求 `testFlowId`；约定改 `patch.responseConvention` |
@@ -106,7 +105,7 @@
 
 `get_run_failure`（或看 `run_test_flow` 回执）→ `submit_*` 修复 → 再 `run_test_flow`。  
 失败后再修最多 **2** 轮（合计最多 3 次 run）；仍失败则停，用中文说明原因与下一步。  
-`paused`（await-input）→ 停，说明须用户处理，勿盲跑。
+`paused`（await-input）→ 停，说明须用户处理。
 
 | 工具 | 要点 |
 |------|------|

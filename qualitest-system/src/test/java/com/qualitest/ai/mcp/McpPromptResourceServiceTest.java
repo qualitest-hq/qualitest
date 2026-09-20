@@ -90,7 +90,7 @@ class McpPromptResourceServiceTest {
 
     /**
      * 前提：仅开写流门控（跑流关）。
-     * 期望：含 submit / create_flow；提示无跑流工具时勿假装跑通；不含 import_apis。
+     * 期望：含 submit / create_flow；无跑流工具时改图后结束并提示 Web Run；不含 import_apis。
      */
     @Test
     @Order(4)
@@ -100,7 +100,7 @@ class McpPromptResourceServiceTest {
         assertTrue(text.contains("create_flow"));
         assertTrue(text.contains("update_flow_meta"));
         assertTrue(text.contains("submit_*") || text.contains("`submit_"));
-        assertTrue(text.contains("勿假装已跑通") || text.contains("Web 点 Run"));
+        assertTrue(text.contains("Web 点 Run") || text.contains("允许 MCP 自动跑流"));
         assertFalse(text.contains("立刻") && text.contains("run_test_flow"));
         assertFalse(text.contains("import_apis"));
     }

@@ -66,9 +66,9 @@ public class McpCursorSkillService {
                                 + "import_apis 由「允许 MCP 导入接口」决定。下方复制的规程已按当前项目开关裁剪（未选项目则为只读）。",
                         "只读勘察随时可用；要经 MCP 直接造流 / 修流，须先开启并保存写流开关；要自动跑流须另开跑流开关。"
                                 + "保存后请重连或刷新 MCP，并再 sync 本地 Skill。",
-                        "没有合适测试流时可用 create_flow 新建空画布；改名称或说明用 update_flow_meta，勿用新建冒充改名；"
+                        "没有合适测试流时可用 create_flow 新建空画布；改名称或说明用 update_flow_meta；"
                                 + "「单功能」= 刚改完一块；「指定范围」= 只扫某模块/包/目录；「整项目」= 整仓按模块补测。",
-                        "写工具成功后已落库，不用再找 commit。"
+                        "写工具成功后已落库。"
                 ))
                 .examples(List.of(
                         McpExamplePrompt.builder()

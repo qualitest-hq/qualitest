@@ -99,10 +99,10 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 开启后 `tools/list` 追加：`create_flow`、`update_flow_meta`、全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`append_api_design_hints`（**不含** `run_test_flow`）。
 
-- 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。
+- **每次成功 `submit_*` 立即写库**；同流已在 Web 打开时画布自动同步。
 - 改名称/说明用 `update_flow_meta`（成功即落库，不动画布）；禁止用 `create_flow` 新建冒充改名。
-- **每次成功 `submit_*` 立即写库**。
-- **打开对应测试流画布即可看到同步**（SSE 推送 `graphCommitted` 等；Autopilot/MCP 可带增量片段），无需手动整页刷新。若 Web 本地有未保存修改或未决 Staging，会提示「放弃本地并拉取」，不会静默覆盖。
+- 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。
+- 若 Web 本地有未保存修改或未决 Staging，会提示「放弃本地并拉取」，不会静默覆盖。
 - 未开启时调用写工具会得到明确拒绝文案。
 - 若写工具返回 `lockHeldBy`：另一端（Web 脏稿持锁 / 保存）占用该流写锁，按 `hint` 稍后重试或换一流。
 
@@ -132,14 +132,14 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 ```text
 testFlowId 用 <上一步拿到的 id>。
 用 get_graph_summary（或 get_subflow_detail）说明：有哪些节点、主路径怎么走、关键断言在哪。
-不要贴整份 graphJson。
+拓扑用 get_graph_summary / get_node_detail。
 ```
 
 **③ 上次跑挂在哪？**
 
 ```text
 同一个 testFlowId。调用 get_run_failure，总结失败步骤、断言/HTTP 错误信息，
-以及建议我下一步在画布上改哪里（只给建议，不要改库）。
+以及建议我下一步在画布上改哪里（只给建议）。
 ```
 
 **④ 同步 / 更新本地 Cursor Skill**
