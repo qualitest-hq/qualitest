@@ -170,7 +170,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | [mcp.md](./mcp.md) | MCP Token；默认可只读；可开写流 / 跑流 / 导入接口；§0 人话场景（前后端）；顶栏规程含单功能/整项目提示词 |
 | [deploy.md](./deploy.md) | 部署 / Compose |
 | [testing-conventions.md](./testing-conventions.md) | 工程测试约定 |
-| [ROADMAP.md](./ROADMAP.md) | 排期与待办 |
+| [ROADMAP.md](../ROADMAP.md) | 排期与待办 |
 | [Demo AI 提示集](../../qualitest-demo/docs/ai-test-flow-prompts.md) | 靶场造流提示正文 |
 
 

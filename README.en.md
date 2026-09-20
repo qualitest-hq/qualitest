@@ -212,7 +212,7 @@ Full loop (demo target + API ingest + AI / MCP): see [Deploy](./docs/deploy.en.m
 
 - [Deploy](./docs/deploy.en.md) · [Concepts](./docs/project-summary.en.md) · [FAQ](./docs/faq.en.md)
 - [Flow nodes](./docs/test-flow-nodes.en.md) · [MCP](./docs/mcp.en.md) · [Project templates](./docs/project-template.en.md)
-- [Roadmap](./docs/ROADMAP.md) · [UI / desktop](./qualitest-ui/README.md) · [Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Security](./SECURITY.md)
+- [Roadmap](./ROADMAP.md) · [UI / desktop](./qualitest-ui/README.md) · [Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Security](./SECURITY.md)
 - [中文 README](./README.md)
 
 </details>

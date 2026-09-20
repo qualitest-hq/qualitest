@@ -34,7 +34,7 @@ Public + 分支保护 + Pages  >  GHCR  >  动图（可选）  >  插件市场  
 | 1.1 | 三仓改 **Public** | `qualitest` / `qualitest-demo` / `qualitest-intellij-plugin` |
 | 1.2 | `main` 分支保护 / required checks | Free Org 仅 Public 后可用 |
 | — | Dependabot + Secret scanning + Push protection | Settings → Code security |
-| — | 落地页 Pages | Source = GitHub Actions；变量 `ENABLE_PAGES_DEPLOY=true`；About Website = `https://qualitest-hq.github.io/qualitest/`（见 [`site/README.md`](../site/README.md)） |
+| — | 落地页 Pages | Source = GitHub Actions；变量 `ENABLE_PAGES_DEPLOY=true`；About Website = `https://qualitest-hq.github.io/qualitest/`（见 [`site/README.md`](./site/README.md)） |
 | — | 插件仓首个 tag `v1.0.0` | 触发 Release；公开前勿打 |
 
 公开前抽查：SQL 种子无真实手机 / 邮箱 / 生产数据。README 标明生产须改默认口令与 `token.secret`。
@@ -52,7 +52,7 @@ Public + 分支保护 + Pages  >  GHCR  >  动图（可选）  >  插件市场  
 
 | ID | 任务 | 产出 |
 | -- | ---- | ---- |
-| 2.1 | GHCR 镜像 | `ghcr.io/qualitest-hq/qualitest`；README / [`deploy.md`](./deploy.md) 附 pull |
+| 2.1 | GHCR 镜像 | `ghcr.io/qualitest-hq/qualitest`；README / [`deploy.md`](./docs/deploy.md) 附 pull |
 | 2.2 | 演示动图（可选，暂缓） | README / 落地页目前为文字步骤；有空再补 GIF 亦可 |
 | 2.3 | JetBrains 插件市场上架 | 审核通过；README 链到市场 |
 
