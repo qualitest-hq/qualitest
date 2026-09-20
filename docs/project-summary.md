@@ -67,7 +67,7 @@ IDEA 插件上传接口
 
 | 原则          | 说明                                        |
 | ----------- | ----------------------------------------- |
-| **改图画布**    | Web AI → Staging → 保存；规则见 [ai-staging.md](./ai-staging.md)；MCP **默认只读**，项目设置可开全自动写流 |
+| **改图画布**    | Web AI → Staging → 保存；规则见 [ai-staging.md](./ai-staging.md)；MCP **默认只读**，项目设置可开自动写流 |
 | **Staging** | ✓ = 确认提案；删除类 ✓ = 唯一确认；空 `nodes` 不算成功 |
 | **鉴权**      | 挂**项目**，不挂环境；见 §4                         |
 | **写库场景**    | 靶场先加载场景；节点可勾「执行前快照」；还原需被测 `/test-support` |
@@ -167,7 +167,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | [assets.md](./assets.md) | 素材库与测参文件 |
 | [faq.md](./faq.md) | 日常使用疑问（非冒烟专项） |
 | [全面测试手册.md](./全面测试手册.md) | T1→T3 验收与 §F/§G |
-| [mcp.md](./mcp.md) | MCP Token；默认可只读查询，项目设置可开「全自动写流」；顶栏规程含单功能/整项目提示词 |
+| [mcp.md](./mcp.md) | MCP Token；默认可只读查询，项目设置可开「自动写流」；顶栏规程含单功能/整项目提示词 |
 | [deploy.md](./deploy.md) | 部署 / Compose |
 | [testing-conventions.md](./testing-conventions.md) | 工程测试约定 |
 | [质衡开源与工程路线图.md](./质衡开源与工程路线图.md) | 排期与待办 |

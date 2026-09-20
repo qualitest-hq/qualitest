@@ -128,6 +128,10 @@ public class TestProjectServiceImpl implements ITestProjectService {
         if (testProject.getAuthConfig() != null) {
             testProject.setAuthConfig(ProjectAuthConfigSupport.normalizeToJson(testProject.getAuthConfig()));
         }
+        // 关写流时强制关跑流，避免只关写流却仍可 run_test_flow
+        if (Boolean.FALSE.equals(testProject.getMcpAutoWriteEnabled())) {
+            testProject.setMcpAutorunEnabled(false);
+        }
         testProject.setUpdateTime(DateUtils.getNowDate());
         return testProjectMapper.updateTestProject(testProject);
     }

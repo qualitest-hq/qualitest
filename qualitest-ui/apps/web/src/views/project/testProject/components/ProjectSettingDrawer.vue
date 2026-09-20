@@ -232,27 +232,49 @@
           </div>
         </section>
 
-        <!-- MCP 权限：写流 / 导入两开关只落库；保存后须用户重连或刷新 MCP，工具列表才会更新 -->
+        <!-- MCP 权限：写流 / 跑流 / 导入三开关只落库；保存后须用户重连或刷新 MCP，工具列表才会更新 -->
         <section class="project-setting__card">
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">MCP 权限</h3>
             <p class="project-setting__card-desc">
-              Token 只绑定项目身份。下面两个开关分别控制「改图画布与跑流」和「导入接口」，互不影响。保存后请重连或刷新 MCP，否则编辑器常仍只看到旧工具列表。
+              Token 只绑定项目身份。下面开关分别控制「改图画布」「触发正式 Run」「导入接口」。
+              跑流依赖写流已开。保存后请重连或刷新 MCP，否则编辑器常仍只看到旧工具列表。
             </p>
           </header>
 
           <div class="project-setting__mcp-autopilot-row">
             <el-switch
-                v-model="mcpAutopilotEnabled"
-                active-text="允许 MCP 全自动写流"
+                v-model="mcpAutoWriteEnabled"
+                active-text="允许 MCP 自动写流"
                 inactive-text="仅只读"
+                @change="onMcpAutoWriteChange"
             />
-            <el-button :loading="mcpAutopilotSaving" type="primary" @click="saveMcpAutopilot">
+            <el-button :loading="mcpAutoWriteSaving" type="primary" @click="saveMcpAutoWrite">
               保存
             </el-button>
           </div>
           <p class="project-setting__hint project-setting__hint--warn">
-            默认关闭。开启后持 Token 者可经 MCP 新建流、改图画布并跑流；请仅对可信环境开启。
+            默认关闭。开启后持 Token 者可经 MCP 新建流、改图画布；请仅对可信环境开启。
+          </p>
+
+          <div class="project-setting__mcp-autopilot-row">
+            <el-switch
+                v-model="mcpAutorunEnabled"
+                :disabled="!mcpAutoWriteEnabled"
+                active-text="允许 MCP 自动跑流"
+                inactive-text="禁止跑流"
+            />
+            <el-button
+                :loading="mcpAutorunSaving"
+                :disabled="!mcpAutoWriteEnabled && !mcpAutorunEnabled"
+                type="primary"
+                @click="saveMcpAutorun"
+            >
+              保存
+            </el-button>
+          </div>
+          <p class="project-setting__hint project-setting__hint--warn">
+            默认关闭。开启后持 Token 者可经 MCP 调用 run_test_flow 触发正式 Run（写 Run 记录）。须先开写流；关写流时会一并关闭本开关。
           </p>
 
           <div class="project-setting__mcp-autopilot-row">
@@ -275,7 +297,7 @@
             <div>
               <h3 class="project-setting__card-title">Cursor MCP</h3>
               <p class="project-setting__card-desc">
-                粘贴到 Cursor 的 <code>mcp.json</code>；未开「MCP 全自动写流」时仅只读查询本项目 API、测试流等。
+                粘贴到 Cursor 的 <code>mcp.json</code>；未开「MCP 自动写流」时仅只读查询本项目 API、测试流等。
               </p>
             </div>
             <el-button
@@ -318,7 +340,7 @@
  * 项目设置侧栏。
  * <p>
  * 多端配置：按 Profile 维护鉴权托管头、pathPrefix、响应约定四字段、credentialApi 与预制接口；
- * 另含 API 调试传输方式、项目 Token、MCP 全自动写流开关与 Cursor 配置导出。
+ * 另含 API 调试传输方式、项目 Token、MCP 自动写流开关与 Cursor 配置导出。
  */
 import { computed, getCurrentInstance, reactive, ref, watch } from 'vue'
 import { buildCursorMcpConfig } from '../utils/mcpClientConfig'
@@ -386,10 +408,14 @@ const {
   loadEnabledTemplates,
 } = useEnabledAuthTemplates()
 
-/** 是否允许 MCP 全自动写流（改图、新建流、跑流等）；保存入库后编辑器须重连 MCP 才会刷新工具列表 */
-const mcpAutopilotEnabled = ref(false)
+/** 是否允许 MCP 自动写流（改图、新建流等）；保存入库后编辑器须重连 MCP 才会刷新工具列表 */
+const mcpAutoWriteEnabled = ref(false)
 /** 写流开关保存中 */
-const mcpAutopilotSaving = ref(false)
+const mcpAutoWriteSaving = ref(false)
+/** 是否允许 MCP 自动跑流（run_test_flow）；依赖写流已开 */
+const mcpAutorunEnabled = ref(false)
+/** 跑流开关保存中 */
+const mcpAutorunSaving = ref(false)
 /** 是否允许 MCP 调用 import_apis 写入本项目接口库（与写流无关）；保存后同样须重连 MCP */
 const mcpImportApisEnabled = ref(false)
 /** 导入接口开关保存中 */
@@ -411,12 +437,13 @@ function applyAuthForm(next) {
   syncAuthCollapse()
 }
 
-/** 打开抽屉后拉取项目详情：多端配置、以及当前 MCP 写流 / 导入开关 */
+/** 打开抽屉后拉取项目详情：多端配置、以及当前 MCP 写流 / 跑流 / 导入开关 */
 function loadProjectSettings() {
   const pid = resolveProjectId()
   if (!pid) {
     applyAuthForm(emptyAuthForm())
-    mcpAutopilotEnabled.value = false
+    mcpAutoWriteEnabled.value = false
+    mcpAutorunEnabled.value = false
     mcpImportApisEnabled.value = false
     return
   }
@@ -425,21 +452,32 @@ function loadProjectSettings() {
       applyAuthForm(parseAuthConfig(res.data?.authConfig, {
         needsAuthTemplateHint: res.data?.needsAuthTemplateHint,
       }))
-      mcpAutopilotEnabled.value = !!res.data?.mcpAutopilotEnabled
+      mcpAutoWriteEnabled.value = !!res.data?.mcpAutoWriteEnabled
+      mcpAutorunEnabled.value = !!res.data?.mcpAutorunEnabled
       mcpImportApisEnabled.value = !!res.data?.mcpImportApisEnabled
     })
     .catch(() => {
       applyAuthForm(emptyAuthForm())
-      mcpAutopilotEnabled.value = false
+      mcpAutoWriteEnabled.value = false
+      mcpAutorunEnabled.value = false
       mcpImportApisEnabled.value = false
     })
+}
+
+/**
+ * 关写流时本地一并关掉跑流开关（保存写流时会把跑流也落库为关）。
+ */
+function onMcpAutoWriteChange(on) {
+  if (!on) {
+    mcpAutorunEnabled.value = false
+  }
 }
 
 /**
  * 保存单个 MCP 权限开关到项目。
  * 只写库字段，不会通知已连接的 MCP 客户端刷新工具列表；保存后须由用户重连或刷新 MCP。
  * @param opts.saving 按钮 loading 状态
- * @param opts.payload 写入 updateTestProject 的字段（如 mcpAutopilotEnabled / mcpImportApisEnabled）
+ * @param opts.payload 写入 updateTestProject 的字段
  * @param opts.onMsg 成功提示文案
  */
 function saveMcpFlag({ saving, payload, onMsg }) {
@@ -461,12 +499,36 @@ function saveMcpFlag({ saving, payload, onMsg }) {
     })
 }
 
-/** 保存「允许 MCP 全自动写流」开关（落库后须重连 MCP 才出现/消失写工具） */
-function saveMcpAutopilot() {
+/** 保存「允许 MCP 自动写流」开关；关写流时一并关掉跑流 */
+function saveMcpAutoWrite() {
+  const writeOn = !!mcpAutoWriteEnabled.value
+  if (!writeOn) {
+    mcpAutorunEnabled.value = false
+  }
+  const payload = {
+    mcpAutoWriteEnabled: writeOn,
+    ...(writeOn ? {} : { mcpAutorunEnabled: false }),
+  }
   saveMcpFlag({
-    saving: mcpAutopilotSaving,
-    payload: { mcpAutopilotEnabled: !!mcpAutopilotEnabled.value },
-    onMsg: mcpAutopilotEnabled.value ? '已允许 MCP 全自动写流' : '已关闭 MCP 全自动写流',
+    saving: mcpAutoWriteSaving,
+    payload,
+    onMsg: writeOn
+      ? '已允许 MCP 自动写流'
+      : '已关闭 MCP 自动写流（并关闭自动跑流）',
+  })
+}
+
+/** 保存「允许 MCP 自动跑流」开关（落库后须重连 MCP 才出现/消失 run_test_flow） */
+function saveMcpAutorun() {
+  if (!mcpAutoWriteEnabled.value) {
+    mcpAutorunEnabled.value = false
+    proxy.$modal.msgError('请先开启并保存「允许 MCP 自动写流」')
+    return
+  }
+  saveMcpFlag({
+    saving: mcpAutorunSaving,
+    payload: { mcpAutorunEnabled: !!mcpAutorunEnabled.value },
+    onMsg: mcpAutorunEnabled.value ? '已允许 MCP 自动跑流' : '已关闭 MCP 自动跑流',
   })
 }
 

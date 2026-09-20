@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * create_flow：在当前项目新建一条空画布测试流并立即写库（仅 MCP 全自动）。
+ * create_flow：在当前项目新建一条空画布测试流并立即写库（仅 MCP 自动写）。
  */
 @RequiredArgsConstructor
 public class CreateFlowTool implements QualitestTool {

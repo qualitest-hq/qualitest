@@ -105,8 +105,8 @@ public class McpJsonRpcDispatcher {
      * tools 不声明 listChanged：服务端不主动推送工具列表变更；
      * 项目写流或导入开关变更后，须客户端重连或刷新 MCP，再调 tools/list 才能看到新工具集。
      * <p>
-     * serverInfo 含：服务名、协议 version（可带 +autopilot / +importApis）、项目 id、
-     * 两道开关布尔值、合成 guideVersion（规程指纹 + 同款门控后缀，供本地 Skill 过期判定）。
+     * serverInfo 含：服务名、协议 version（可带 +autowrite / +autorun / +importApis）、项目 id、
+     * 三道开关布尔值、合成 guideVersion（规程指纹 + 同款门控后缀，供本地 Skill 过期判定）。
      *
      * @param id            请求 id
      * @param testProjectId 测试项目 id
@@ -118,12 +118,12 @@ public class McpJsonRpcDispatcher {
         serverInfo.put("name", McpJsonRpc.SERVER_NAME);
         // 按当前项目开关给协议 version 加门控后缀
         serverInfo.put("version", McpPromptResourceService.appendGateSuffixes(
-                McpJsonRpc.SERVER_VERSION, gates.autopilotEnabled(), gates.importApisEnabled()));
+                McpJsonRpc.SERVER_VERSION, gates));
         serverInfo.put("testProjectId", String.valueOf(testProjectId));
-        serverInfo.put("mcpAutopilotEnabled", gates.autopilotEnabled());
+        serverInfo.put("mcpAutoWriteEnabled", gates.autoWriteEnabled());
+        serverInfo.put("mcpAutorunEnabled", gates.autorunEnabled());
         serverInfo.put("mcpImportApisEnabled", gates.importApisEnabled());
-        serverInfo.put("guideVersion",
-                mcpPromptResourceService.guideVersion(gates.autopilotEnabled(), gates.importApisEnabled()));
+        serverInfo.put("guideVersion", mcpPromptResourceService.guideVersion(gates));
 
         // 声明三类能力；tools 不带 listChanged
         Map<String, Object> capabilities = new LinkedHashMap<>();
@@ -139,8 +139,8 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * 处理 tools/list：按当前项目「允许 MCP 全自动写流」「允许 MCP 导入接口」开关，
-     * 组装此刻可见的工具定义（关写流则无 submit_* 等；关导入则无 import_apis）。
+     * 处理 tools/list：按当前项目「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」开关，
+     * 组装此刻可见的工具定义（关写流则无 submit_* 等；关跑流则无 run_test_flow；关导入则无 import_apis）。
      * 开关在库中已变但客户端未重连时，仍可能继续请求到旧缓存列表，须重连后再调本方法。
      *
      * @param id            请求 id
@@ -149,8 +149,7 @@ public class McpJsonRpcDispatcher {
      */
     private String handleToolsList(Object id, Long testProjectId) {
         McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
-        List<Map<String, Object>> mcpTools =
-                toolsDefinitionService.loadMcpProtocolTools(gates.autopilotEnabled(), gates.importApisEnabled());
+        List<Map<String, Object>> mcpTools = toolsDefinitionService.loadMcpProtocolTools(gates);
         return McpJsonRpc.result(id, Map.of("tools", mcpTools));
     }
 
@@ -203,7 +202,7 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * 处理 prompts/get：按 Prompt 名与当前项目两道开关返回已裁剪正文；未知名返回 -32602。
+     * 处理 prompts/get：按 Prompt 名与当前项目三道开关返回已裁剪正文；未知名返回 -32602。
      *
      * @param id            请求 id
      * @param request       完整 JSON-RPC 请求
@@ -218,8 +217,7 @@ public class McpJsonRpcDispatcher {
         String name = params.getString("name");
         try {
             McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
-            return McpJsonRpc.result(id, mcpPromptResourceService.getPrompt(
-                    name, gates.autopilotEnabled(), gates.importApisEnabled()));
+            return McpJsonRpc.result(id, mcpPromptResourceService.getPrompt(name, gates));
         } catch (ServiceException ex) {
             return McpJsonRpc.error(id, -32602, ex.getMessage());
         }
@@ -236,7 +234,7 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * 处理 resources/read：按 uri 与当前项目两道开关返回已裁剪的造流硬规矩 Markdown；未知 uri 返回 -32602。
+     * 处理 resources/read：按 uri 与当前项目三道开关返回已裁剪的造流硬规矩 Markdown；未知 uri 返回 -32602。
      *
      * @param id            请求 id
      * @param request       完整 JSON-RPC 请求
@@ -251,8 +249,7 @@ public class McpJsonRpcDispatcher {
         String uri = params.getString("uri");
         try {
             McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
-            return McpJsonRpc.result(id, mcpPromptResourceService.readResource(
-                    uri, gates.autopilotEnabled(), gates.importApisEnabled()));
+            return McpJsonRpc.result(id, mcpPromptResourceService.readResource(uri, gates));
         } catch (ServiceException ex) {
             return McpJsonRpc.error(id, -32602, ex.getMessage());
         }

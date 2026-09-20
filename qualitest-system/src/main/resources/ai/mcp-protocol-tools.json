@@ -46,7 +46,7 @@
     "type": "function",
     "function": {
       "name": "append_api_design_hints",
-      "description": "向接口 design_hints 追加造流设计提示并直接落库（人机均可维护；导入不覆盖）。确认业务约定（如 body 字段二选一、金额符号）后调用；勿写入 apiDescription。每条尽量短（≤200 字）。 【MCP 全自动】工具内直接写库。",
+      "description": "向接口 design_hints 追加造流设计提示并直接落库（人机均可维护；导入不覆盖）。确认业务约定（如 body 字段二选一、金额符号）后调用；勿写入 apiDescription。每条尽量短（≤200 字）。 【MCP 自动写】工具内直接写库。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -131,7 +131,7 @@
     "type": "function",
     "function": {
       "name": "upsert_asset_variables",
-      "description": "按 key 新增或更新项目素材库条目。半自动：提案 pending，用户聊天侧确认后落盘；全自动：工具内直接写库，status=confirmed。fields 为扁平字段对象；返回 key/字段名/action/status，不含明文。登录口令等优先如 clientAuth（mobile/password）。仅 Web；勿在助手正文复述明文 【MCP 全自动】工具内直接写库。",
+      "description": "按 key 新增或更新项目素材库条目。半自动：提案 pending，用户聊天侧确认后落盘；全自动：工具内直接写库，status=confirmed。fields 为扁平字段对象；返回 key/字段名/action/status，不含明文。登录口令等优先如 clientAuth（mobile/password）。仅 Web；勿在助手正文复述明文 【MCP 自动写】工具内直接写库。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -172,7 +172,7 @@
     "type": "function",
     "function": {
       "name": "upsert_auth_profile",
-      "description": "浅合并更新多端 Profile（pathPrefix/headerName/headerValueTemplate/responseConvention/credentialApi/name）。半自动：提案 pending，聊天侧确认后落盘；全自动：工具内直写。更新须 profileId；新建须 create=true 且 patch 含 headerName 与 headerValueTemplate。改响应约定时 patch.responseConvention 可只传变更字段（如 successValues）。两端禁止同一凭证键。仅 Web 【MCP 全自动】工具内直接写库。",
+      "description": "浅合并更新多端 Profile（pathPrefix/headerName/headerValueTemplate/responseConvention/credentialApi/name）。半自动：提案 pending，聊天侧确认后落盘；全自动：工具内直写。更新须 profileId；新建须 create=true 且 patch 含 headerName 与 headerValueTemplate。改响应约定时 patch.responseConvention 可只传变更字段（如 successValues）。两端禁止同一凭证键。仅 Web 【MCP 自动写】工具内直接写库。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -343,7 +343,7 @@
     "type": "function",
     "function": {
       "name": "submit_http_node",
-      "description": "新增或修改单个HTTP节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单个HTTP节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -498,7 +498,7 @@
     "type": "function",
     "function": {
       "name": "submit_assert_node",
-      "description": "新增或修改单个断言节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单个断言节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -577,7 +577,7 @@
     "type": "function",
     "function": {
       "name": "submit_condition_node",
-      "description": "新增或修改单个条件分支节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单个条件分支节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -681,7 +681,7 @@
     "type": "function",
     "function": {
       "name": "submit_assign_node",
-      "description": "新增或修改单个赋值节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单个赋值节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -759,7 +759,7 @@
     "type": "function",
     "function": {
       "name": "submit_delay_node",
-      "description": "新增或修改单个延时节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单个延时节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -805,7 +805,7 @@
     "type": "function",
     "function": {
       "name": "submit_script_node",
-      "description": "新增或修改单个脚本节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单个脚本节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -860,7 +860,7 @@
     "type": "function",
     "function": {
       "name": "submit_subflow_node",
-      "description": "新增或修改单个子流节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单个子流节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -918,7 +918,7 @@
     "type": "function",
     "function": {
       "name": "submit_edge",
-      "description": "新增或修改单条边（恰好 1 个 Staging 单元）。必填 op=add|update；add 须 source/target；update 须 id。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单条边（恰好 1 个 Staging 单元）。必填 op=add|update；add 须 source/target；update 须 id。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -958,7 +958,7 @@
     "type": "function",
     "function": {
       "name": "submit_scenario",
-      "description": "新增或修改单个运行场景（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id。不切换默认场景。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单个运行场景（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id。不切换默认场景。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1000,7 +1000,7 @@
     "type": "function",
     "function": {
       "name": "submit_delete",
-      "description": "建议删除单个节点、边或运行场景（恰好 1 个 Staging 单元）。 【MCP 全自动】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "建议删除单个节点、边或运行场景（恰好 1 个 Staging 单元）。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1031,7 +1031,7 @@
     "type": "function",
     "function": {
       "name": "run_test_flow",
-      "description": "触发指定测试流 Run。须传 testFlowId（无画布当前流）。若本轮有未落盘的 submit_* 会先自动写库再跑。返回 runId/status/失败摘要。须项目已开启「允许 MCP 全自动写流」。可选 runScenarioId、testProjectEnvId。跑库中最新图；此前每次 submit 已落盘。",
+      "description": "触发指定测试流 Run。须传 testFlowId（无画布当前流）。若本轮有未落盘的 submit_* 会先自动写库再跑。返回 runId/status/失败摘要。须项目已开启「允许 MCP 自动跑流」。可选 runScenarioId、testProjectEnvId。跑库中最新图；此前每次 submit 已落盘。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1096,7 +1096,7 @@
     "type": "function",
     "function": {
       "name": "get_mcp_guide_version",
-      "description": "MCP 专用：返回当前造流规程 guideVersion（合成串：CORE/SURVEY/FIX_RUN 内容指纹 + 可选 +autopilot/+importApis，与当前项目写流/导入开关一致）。用于判断业务仓 .cursor/skills/qualitest/SKILL.md 是否过期；字符串全等则勿再 prompts/get 规程正文。无需参数。",
+      "description": "MCP 专用：返回当前造流规程 guideVersion（合成串：CORE/SURVEY/FIX_RUN 内容指纹 + 可选 +autowrite/+importApis，与当前项目写流/导入开关一致）。用于判断业务仓 .cursor/skills/qualitest/SKILL.md 是否过期；字符串全等则勿再 prompts/get 规程正文。无需参数。",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -1108,7 +1108,7 @@
     "type": "function",
     "function": {
       "name": "create_flow",
-      "description": "MCP 专用：在当前项目新建一条空画布测试流并立即写库。仅用于新建；改名或改说明请用 update_flow_meta，禁止用新建冒充改名。返回 testFlowId，供后续 submit_* / run_test_flow 使用。须项目已开启「允许 MCP 全自动写流」 【MCP 全自动】工具内直接写库。",
+      "description": "MCP 专用：在当前项目新建一条空画布测试流并立即写库。仅用于新建；改名或改说明请用 update_flow_meta，禁止用新建冒充改名。返回 testFlowId，供后续 submit_* / run_test_flow 使用。须项目已开启「允许 MCP 自动写流」 【MCP 自动写】工具内直接写库。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1131,7 +1131,7 @@
     "type": "function",
     "function": {
       "name": "update_flow_meta",
-      "description": "浅合并更新已有测试流的名称与/或说明并立即写库。不动画布、场景与环境，不改 testFlowId。改名/改说明专用；勿用 create_flow 新建冒充改名。flowDescription 传空串清空，不传则不动。须项目已开启「允许 MCP 全自动写流」 【MCP 全自动】工具内直接写库。",
+      "description": "浅合并更新已有测试流的名称与/或说明并立即写库。不动画布、场景与环境，不改 testFlowId。改名/改说明专用；勿用 create_flow 新建冒充改名。flowDescription 传空串清空，不传则不动。须项目已开启「允许 MCP 自动写流」 【MCP 自动写】工具内直接写库。",
       "parameters": {
         "type": "object",
         "properties": {

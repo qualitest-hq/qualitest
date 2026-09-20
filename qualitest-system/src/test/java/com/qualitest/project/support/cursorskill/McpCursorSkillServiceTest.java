@@ -97,11 +97,11 @@ class McpCursorSkillServiceTest {
     @Order(3)
     @DisplayName("门控全开规程含写流与导入")
     void loadGuides_bothGatesEnabled() {
-        McpAgentGuide cursor = service.loadGuides(true, true).get(0);
+        McpAgentGuide cursor = service.loadGuides(true, false, true).get(0);
         assertTrue(cursor.getContent().contains("import_apis"));
         assertTrue(cursor.getContent().contains("create_flow"));
         assertTrue(cursor.getContent().contains("submit_*") || cursor.getContent().contains("`submit_"));
         assertTrue(cursor.getContent().contains("guideVersion: "
-                + new McpPromptResourceService().guideVersion(true, true)));
+                + new McpPromptResourceService().guideVersion(true, false, true)));
     }
 }

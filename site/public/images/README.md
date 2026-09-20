@@ -6,7 +6,7 @@
 |------|------|
 | `overview.gif` | Hero 概览；缺失时回退链路 SVG |
 | `demo-mcp-survey.gif` | MCP 区块 · 只读勘察 |
-| `demo-mcp-autopilot.gif` | MCP 区块 · 造流 / 跑通 |
+| `demo-mcp-autowrite.gif` | MCP 区块 · 造流 / 跑通 |
 
 公开前若尚未录制：
 

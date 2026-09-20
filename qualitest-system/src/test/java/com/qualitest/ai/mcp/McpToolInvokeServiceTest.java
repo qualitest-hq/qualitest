@@ -55,7 +55,7 @@ class McpToolInvokeServiceTest {
                 toolExecutor, contextFactory, testProjectService, testFlowService,
                 graphJsonValidator, patchNormalizer);
         when(testProjectService.selectTestProjectById(100L)).thenReturn(
-                TestProject.builder().testProjectId(100L).mcpAutopilotEnabled(false).build());
+                TestProject.builder().testProjectId(100L).mcpAutoWriteEnabled(false).build());
     }
 
     /**
@@ -71,7 +71,7 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 前提：项目未开 MCP 全自动；调用 submit_http_node。
+     * 前提：项目未开 MCP 自动写；调用 submit_http_node。
      * 期望：抛 ServiceException（含开启提示）；不委托 Executor。
      */
     @Test
@@ -81,7 +81,7 @@ class McpToolInvokeServiceTest {
         McpToolInvokeParams params = new McpToolInvokeParams();
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> service.invoke(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId(), params, 100L));
-        assertTrue(ex.getMessage().contains("允许 MCP 全自动写流"));
+        assertTrue(ex.getMessage().contains("允许 MCP 自动写流"));
         verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
     }
 
@@ -107,27 +107,27 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 前提：项目已开 MCP 全自动写流。
+     * 前提：项目已开 MCP 自动写流。
      * 期望：查询开关为 true。
      */
     @Test
     @Order(4)
-    @DisplayName("开开关时 isMcpAutopilotEnabled 为 true")
-    void isMcpAutopilotEnabled_whenOn() {
+    @DisplayName("开开关时 isMcpAutoWriteEnabled 为 true")
+    void isMcpAutoWriteEnabled_whenOn() {
         when(testProjectService.selectTestProjectById(100L)).thenReturn(
-                TestProject.builder().testProjectId(100L).mcpAutopilotEnabled(true).build());
-        assertTrue(service.isMcpAutopilotEnabled(100L));
+                TestProject.builder().testProjectId(100L).mcpAutoWriteEnabled(true).build());
+        assertTrue(service.isMcpAutoWriteEnabled(100L));
     }
 
     /**
      * 前提：项目未开开关。
-     * 期望：isMcpAutopilotEnabled 为 false。
+     * 期望：isMcpAutoWriteEnabled 为 false。
      */
     @Test
     @Order(5)
-    @DisplayName("关开关时 isMcpAutopilotEnabled 为 false")
-    void isMcpAutopilotEnabled_whenOff() {
-        assertFalse(service.isMcpAutopilotEnabled(100L));
+    @DisplayName("关开关时 isMcpAutoWriteEnabled 为 false")
+    void isMcpAutoWriteEnabled_whenOff() {
+        assertFalse(service.isMcpAutoWriteEnabled(100L));
     }
 
     /**
@@ -151,7 +151,7 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 前提：项目未开 MCP 全自动；调用 create_flow。
+     * 前提：项目未开 MCP 自动写；调用 create_flow。
      * 期望：抛 ServiceException；不委托 Executor。
      */
     @Test
@@ -161,12 +161,12 @@ class McpToolInvokeServiceTest {
         McpToolInvokeParams params = new McpToolInvokeParams();
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> service.invoke(FlowDesignToolNames.CREATE_FLOW.getId(), params, 100L));
-        assertTrue(ex.getMessage().contains("允许 MCP 全自动写流"));
+        assertTrue(ex.getMessage().contains("允许 MCP 自动写流"));
         verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
     }
 
     /**
-     * 前提：项目未开 MCP 全自动；调用 update_flow_meta。
+     * 前提：项目未开 MCP 自动写；调用 update_flow_meta。
      * 期望：抛 ServiceException；不委托 Executor。
      */
     @Test
@@ -176,12 +176,12 @@ class McpToolInvokeServiceTest {
         McpToolInvokeParams params = new McpToolInvokeParams();
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> service.invoke(FlowDesignToolNames.UPDATE_FLOW_META.getId(), params, 100L));
-        assertTrue(ex.getMessage().contains("允许 MCP 全自动写流"));
+        assertTrue(ex.getMessage().contains("允许 MCP 自动写流"));
         verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
     }
 
     /**
-     * 前提：项目已开 MCP 全自动；create_flow 不带 testFlowId。
+     * 前提：项目已开 MCP 自动写；create_flow 不带 testFlowId。
      * 期望：可委托 Executor，不要求 testFlowId。
      */
     @Test
@@ -189,7 +189,7 @@ class McpToolInvokeServiceTest {
     @DisplayName("开开关时 create_flow 无需 testFlowId")
     void invoke_createFlow_allowedWithoutTestFlowId() {
         when(testProjectService.selectTestProjectById(100L)).thenReturn(
-                TestProject.builder().testProjectId(100L).mcpAutopilotEnabled(true).build());
+                TestProject.builder().testProjectId(100L).mcpAutoWriteEnabled(true).build());
         McpToolInvokeParams params = new McpToolInvokeParams();
         params.setArguments(Map.of("flowName", "新流"));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
@@ -232,7 +232,7 @@ class McpToolInvokeServiceTest {
         when(testProjectService.selectTestProjectById(100L)).thenReturn(
                 TestProject.builder()
                         .testProjectId(100L)
-                        .mcpAutopilotEnabled(false)
+                        .mcpAutoWriteEnabled(false)
                         .mcpImportApisEnabled(true)
                         .build());
         McpToolInvokeParams params = new McpToolInvokeParams();
@@ -251,20 +251,41 @@ class McpToolInvokeServiceTest {
     }
 
     /**
-     * 前提：项目已开 MCP 全自动；写工具未传 operatorUserId。
-     * 期望：抛「Project Token 未绑定操作者」。
+     * 前提：项目已开写流、未开跑流；调用 run_test_flow。
+     * 期望：抛 ServiceException（含自动跑流提示）；不委托 Executor。
      */
     @Test
-    @Order(12)
-    @DisplayName("写工具缺操作者时明确报错")
-    void invoke_writeTool_rejectsMissingOperator() {
+    @Order(13)
+    @DisplayName("写流开跑流关时 run_test_flow 被拒绝")
+    void invoke_runTestFlow_rejectedWhenAutorunOff() {
         when(testProjectService.selectTestProjectById(100L)).thenReturn(
-                TestProject.builder().testProjectId(100L).mcpAutopilotEnabled(true).build());
+                TestProject.builder()
+                        .testProjectId(100L)
+                        .mcpAutoWriteEnabled(true)
+                        .mcpAutorunEnabled(false)
+                        .build());
         McpToolInvokeParams params = new McpToolInvokeParams();
-        params.setArguments(Map.of("flowName", "新流"));
+        params.setTestFlowId(1L);
         ServiceException ex = assertThrows(ServiceException.class,
-                () -> service.invoke(FlowDesignToolNames.CREATE_FLOW.getId(), params, 100L, null));
-        assertTrue(ex.getMessage().contains("未绑定操作者"));
+                () -> service.invoke(FlowDesignToolNames.RUN_TEST_FLOW.getId(), params, 100L, 7L));
+        assertTrue(ex.getMessage().contains("允许 MCP 自动跑流"));
         verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
+    }
+
+    /**
+     * 前提：项目已开跑流。
+     * 期望：isMcpAutorunEnabled 为 true。
+     */
+    @Test
+    @Order(14)
+    @DisplayName("开跑流开关时 isMcpAutorunEnabled 为 true")
+    void isMcpAutorunEnabled_whenOn() {
+        when(testProjectService.selectTestProjectById(100L)).thenReturn(
+                TestProject.builder()
+                        .testProjectId(100L)
+                        .mcpAutoWriteEnabled(true)
+                        .mcpAutorunEnabled(true)
+                        .build());
+        assertTrue(service.isMcpAutorunEnabled(100L));
     }
 }

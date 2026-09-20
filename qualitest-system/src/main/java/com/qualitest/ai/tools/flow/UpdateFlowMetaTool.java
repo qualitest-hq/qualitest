@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * update_flow_meta：浅合并更新测试流名称/说明并立即写库（不动画布）。
  * <p>
- * Web 造流助手与 MCP 全自动均可调用；成功即落盘，不进 Staging。
+ * Web 造流助手与 MCP 自动写均可调用；成功即落盘，不进 Staging。
  */
 @RequiredArgsConstructor
 public class UpdateFlowMetaTool implements QualitestTool {

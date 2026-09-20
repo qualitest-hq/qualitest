@@ -2,7 +2,7 @@
 
 质衡通过 **Streamable HTTP** 暴露项目级 MCP 服务，供 **支持 MCP 的 AI 编辑器 / Agent**（Cursor、VS Code 生态、Claude Code 等）查询本项目的接口、测试流与 Run 现场。  
 下文配置以 **Cursor `mcp.json`** 为例；其它客户端只要支持同协议的 HTTP MCP + 自定义 Header，即可按同等字段接入。  
-**默认只读**。项目设置有两道独立开关：「允许 MCP 全自动写流」（`create_flow` / `update_flow_meta` / `submit_*` / upsert / `run_test_flow`）与「允许 MCP 导入接口」（仅 `import_apis`）。Token 只绑定项目身份。未开启时改画布请走 Web 端 AI 面板。
+**默认只读**。项目设置有三道独立开关：「允许 MCP 自动写流」（`create_flow` / `update_flow_meta` / `submit_*` / upsert）、「允许 MCP 自动跑流」（仅 `run_test_flow`）与「允许 MCP 导入接口」（仅 `import_apis`）。跑流通常依赖写流已开。Token 只绑定项目身份。未开启时改画布请走 Web 端 AI 面板。
 
 English: [mcp.en.md](./mcp.en.md)
 
@@ -15,10 +15,11 @@ English: [mcp.en.md](./mcp.en.md)
 1. 登录质衡 → 打开目标 **测试项目** → **项目设置**。
 2. 生成 / 复制 **Project Token**（刷新后旧 Token 立即失效）。
 3. 同页「Cursor MCP」卡片可一键复制完整 `mcp.json` 片段；也可按下方模板手写。
-4. （可选）开启 **「允许 MCP 全自动写流」** 并保存，才能 `create_flow` / `update_flow_meta` / `submit_*` / `run_test_flow`。
-5. （可选）开启 **「允许 MCP 导入接口」** 并保存，才能调用 `import_apis`（只控制导入接口，不控制改图与跑流）。
-6. 开关变更后**必须重连或刷新 MCP**，否则编辑器常仍只列旧工具列表（服务端不主动推送工具列表变更）。
-7. （可选）顶栏「MCP 造流 Agent 规程」：弹窗按编辑器切换（Cursor / Claude Code / Copilot / Windsurf / Continue / Trae / AGENTS.md），复制后保存到对应规则文件；也可在已接 MCP 的编辑器里用示例「同步/更新本地 Skill」从 Prompt 生成带 `guideVersion` 的 Cursor Skill。
+4. （可选）开启 **「允许 MCP 自动写流」** 并保存，才能 `create_flow` / `update_flow_meta` / `submit_*` / upsert。
+5. （可选）开启 **「允许 MCP 自动跑流」** 并保存，才能调用 `run_test_flow`（须先开写流；关写流会一并关掉跑流）。
+6. （可选）开启 **「允许 MCP 导入接口」** 并保存，才能调用 `import_apis`（只控制导入接口，不控制改图与跑流）。
+7. 开关变更后**必须重连或刷新 MCP**，否则编辑器常仍只列旧工具列表（服务端不主动推送工具列表变更）。
+8. （可选）顶栏「MCP 造流 Agent 规程」：弹窗按编辑器切换（Cursor / Claude Code / Copilot / Windsurf / Continue / Trae / AGENTS.md），复制后保存到对应规则文件；也可在已接 MCP 的编辑器里用示例「同步/更新本地 Skill」从 Prompt 生成带 `guideVersion` 的 Cursor Skill。
 
 本地开发默认后端：`http://127.0.0.1:8800`。  
 Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根（常见为 `http://localhost/api/project/mcp`），以项目设置里生成的为准。
@@ -45,7 +46,7 @@ Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根�
 | 字段 | 说明 |
 |:-----|:-----|
 | `url` | MCP 端点，路径固定为 `/api/project/mcp`（无尾斜杠） |
-| `headers.X-Project-Token` | 项目 Token；只绑定项目身份（读写由项目设置两道 MCP 开关控制），按最小权限发放 |
+| `headers.X-Project-Token` | 项目 Token；只绑定项目身份（读写由项目设置 MCP 开关控制），按最小权限发放 |
 
 配置生效后，在 Cursor Agent / Chat 中应能看到名为 `qualitest` 的 MCP 服务器及其工具列表。
 
@@ -71,7 +72,7 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 | `list_asset_variables` | 项目素材库 key/字段名，不含明文 |
 | `list_project_auth_profiles` | 项目鉴权 Profile 摘要（无密钥明文） |
 | `list_subflow_templates` | 平台子流模板 |
-| `get_mcp_guide_version` | 造流规程合成 `guideVersion`（内容指纹 + 可选 `+autopilot`/`+importApis`）；与本地 Skill 字符串全等则未过期 |
+| `get_mcp_guide_version` | 造流规程合成 `guideVersion`（内容指纹 + 可选 `+autowrite`/`+autorun`/`+importApis`）；与本地 Skill 字符串全等则未过期 |
 
 典型勘察顺序：`list_flows` → 记下 `testFlowId` → `get_graph_summary` / `get_run_failure`。
 
@@ -79,9 +80,9 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 握手 `initialize` 声明 `prompts` 与 `resources`；`serverInfo.guideVersion` 与 `get_mcp_guide_version` 同值（均为合成串）。
 
-`guideVersion` 格式：`{CORE+SURVEY+FIX_RUN 源文指纹 12 位}[+autopilot][+importApis]`。改项目写流/导入开关后后缀会变，须重连 MCP 并再 sync Skill。
+`guideVersion` 格式：`{CORE+SURVEY+FIX_RUN 源文指纹 12 位}[+autowrite][+autorun][+importApis]`。改项目写流/跑流/导入开关后后缀会变，须重连 MCP 并再 sync Skill。
 
-`prompts/get` / `resources/read` / 本地 Skill 正文均按当前项目两道开关裁剪（关导入则无 `import_apis` 段；关写流则无 `submit_*` 等）。
+`prompts/get` / `resources/read` / 本地 Skill 正文均按当前项目三道开关裁剪（关导入则无 `import_apis` 段；关写流则无 `submit_*` 等；关跑流则无立刻 `run_test_flow` 规程）。
 
 | Prompt | 用途 |
 |:-------|:-----|
@@ -94,18 +95,22 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 - 本地 Skill 已带相同 `guideVersion` 时：日常只用 Skill，勿再 `prompts/get` 三条正文（防叠灌）。
 - 顶栏「复制规程」可带当前路由 `testProjectId` 按项目开关裁剪；未进入项目时为只读门控。
 
-### 3.3 MCP 全自动写工具（须「允许 MCP 全自动写流」）
+### 3.3 MCP 自动写工具（须「允许 MCP 自动写流」）
 
-开启后 `tools/list` 追加：`create_flow`、`update_flow_meta`、全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`append_api_design_hints`、`run_test_flow`。
+开启后 `tools/list` 追加：`create_flow`、`update_flow_meta`、全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`append_api_design_hints`（**不含** `run_test_flow`）。
 
 - 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。
 - 改名称/说明用 `update_flow_meta`（成功即落库，不动画布）；禁止用 `create_flow` 新建冒充改名。
-- **每次成功 `submit_*` 立即写库**；`run_test_flow` 跑库中最新图。
+- **每次成功 `submit_*` 立即写库**。
 - **打开对应测试流画布即可看到同步**（SSE 推送 `graphCommitted` 等；Autopilot/MCP 可带增量片段），无需手动整页刷新。若 Web 本地有未保存修改或未决 Staging，会提示「放弃本地并拉取」，不会静默覆盖。
 - 未开启时调用写工具会得到明确拒绝文案。
 - 若写工具返回 `lockHeldBy`：另一端（Web 脏稿持锁 / 保存）占用该流写锁，按 `hint` 稍后重试或换一流。
 
-### 3.4 MCP 导入接口（须「允许 MCP 导入接口」）
+### 3.4 MCP 自动跑流（须「允许 MCP 自动跑流」）
+
+开启后追加 `run_test_flow`：跑库中最新图；须显式 `testFlowId`。通常须同时开启写流。关写流时服务端会强制关掉本开关。
+
+### 3.5 MCP 导入接口（须「允许 MCP 导入接口」）
 
 开启后追加 `import_apis`：将结构化 `items[]`（method、path、name、参数摘要等）按 HTTP 方法 + 规范化 path 写入本项目接口库（已存在则更新，不存在则新增），成功即落库；回执含 created/updated/skipped/conflicts 与 `testProjectApiId`。不会改写接口上的设计提示。本开关不影响写流权限；IDEA 插件的 REST 导入不受本开关限制。
 
@@ -141,7 +146,7 @@ testFlowId 用 <上一步拿到的 id>。
 
 ```text
 用质衡 MCP 执行 qualitest_sync_local_skill（安装或更新本地 Skill）：
-1. 先 get_mcp_guide_version，记下服务端 guideVersion（合成串：指纹[+autopilot][+importApis]）。
+1. 先 get_mcp_guide_version，记下服务端 guideVersion（合成串：指纹[+autowrite][+importApis]）。
 2. 若业务仓已有 .cursor/skills/qualitest/SKILL.md 且文内 guideVersion 与服务端字符串全等：停止；勿再 get 正文。
 3. 否则 prompts/get qualitest_core（正文已按当前开关裁剪）；写入 SKILL.md = Cursor frontmatter（含 guideVersion）+ CORE 正文。
 4. 之后日常造流只靠本地 Skill；仅当 version 不一致（含改开关导致后缀变化）或我明确要求更新时再跑本流程。改开关后须先重连 MCP 再 sync。
@@ -166,5 +171,5 @@ testFlowId 用 <上一步拿到的 id>。
 | Cursor 连不上 | 后端是否已起；`url` 主机/端口是否与浏览器访问一致（IDE 不走 Vite 代理） |
 | 401 / 无工具 | Token 是否过期或复制不完整；header 名是否为 `X-Project-Token` |
 | 工具报无权限 / 空列表 | Token 是否属于当前要查的那个项目 |
-| 只有只读工具 | 是否已开启并**保存**「允许 MCP 全自动写流」和/或「允许 MCP 导入接口」；保存后**必须**重连/刷新 MCP |
+| 只有只读工具 | 是否已开启并**保存**「允许 MCP 自动写流」和/或「允许 MCP 导入接口」；保存后**必须**重连/刷新 MCP |
 | 只有旧配置 | 刷新 Token 后须重新复制整段 `mcp.json` |

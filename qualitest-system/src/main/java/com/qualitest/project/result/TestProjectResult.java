@@ -46,9 +46,15 @@ public class TestProjectResult implements Serializable {
     private String authConfig;
 
     /**
-     * 是否允许 MCP 全自动写流：开启后持 Token 方可经 MCP 改图画布并跑流。
+     * 是否允许 MCP 自动写流：开启后持 Token 方可经 MCP 新建流、改图画布（不含跑流）。
      */
-    private Boolean mcpAutopilotEnabled;
+    private Boolean mcpAutoWriteEnabled;
+
+    /**
+     * 是否允许 MCP 自动跑流：开启后持 Token 方可经 MCP 调用 run_test_flow。
+     * 默认关闭。通常须同时开启写流。
+     */
+    private Boolean mcpAutorunEnabled;
 
     /**
      * 是否允许 MCP 导入接口。

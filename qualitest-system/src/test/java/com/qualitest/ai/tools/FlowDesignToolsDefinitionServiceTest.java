@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * 测工具定义加载：Web 半自动/全自动清单、MCP 只读清单、MCP 全自动追加写工具。
+ * 测工具定义加载：Web 半自动/全自动清单、MCP 只读清单、MCP 自动写追加写工具。
  */
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -157,25 +157,40 @@ class FlowDesignToolsDefinitionServiceTest {
     }
 
     /**
-     * 前提：开启 MCP 全自动写流时的工具列表。
-     * 期望：含只读工具与全部写工具，名称无重复。
+     * 前提：开启 MCP 自动写流、未开跑流时的工具列表。
+     * 期望：含只读工具与写工具，不含 run_test_flow；名称无重复。
      */
     @Test
     @Order(6)
-    @DisplayName("MCP 全自动列表含写工具")
+    @DisplayName("MCP 写流列表含写工具不含跑流")
     void loadMcpProtocolTools_autopilot_includesWriteTools() {
-        List<String> names = service.loadMcpProtocolTools(true, false).stream()
+        List<String> names = service.loadMcpProtocolTools(true, false, false).stream()
                 .map(tool -> String.valueOf(tool.get("name")))
                 .toList();
         Set<String> unique = Set.copyOf(names);
         assertEquals(names.size(), unique.size());
-        assertEquals(FlowDesignToolNames.mcpAutopilotToolIds(), unique);
+        assertEquals(FlowDesignToolNames.mcpAutoWriteEnabledToolIds(), unique);
         assertTrue(names.contains(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()));
-        assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
+        assertFalse(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
         assertTrue(names.contains(FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId()));
         assertTrue(names.contains(FlowDesignToolNames.CREATE_FLOW.getId()));
         assertTrue(names.contains(FlowDesignToolNames.UPDATE_FLOW_META.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
+    }
+
+    /**
+     * 前提：写流与跑流都开。
+     * 期望：列表含 run_test_flow。
+     */
+    @Test
+    @Order(61)
+    @DisplayName("MCP 写流+跑流列表含 run_test_flow")
+    void loadMcpProtocolTools_autorun_includesRun() {
+        List<String> names = service.loadMcpProtocolTools(true, true, false).stream()
+                .map(tool -> String.valueOf(tool.get("name")))
+                .toList();
+        assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()));
     }
 
     /**
@@ -195,15 +210,15 @@ class FlowDesignToolsDefinitionServiceTest {
     }
 
     /**
-     * 前提：MCP 全自动列表中的 run_test_flow。
-     * 期望：inputSchema 必填 testFlowId；描述写明无画布当前流。
+     * 前提：MCP 跑流列表中的 run_test_flow。
+     * 期望：inputSchema 必填 testFlowId；描述写明无画布当前流与自动跑流开关。
      */
     @Test
     @Order(8)
     @DisplayName("MCP run_test_flow 合同必填 testFlowId")
     @SuppressWarnings("unchecked")
     void loadMcpProtocolTools_runTestFlow_requiresTestFlowId() {
-        Map<String, Object> runTool = service.loadMcpProtocolTools(true, false).stream()
+        Map<String, Object> runTool = service.loadMcpProtocolTools(true, true, false).stream()
                 .filter(t -> FlowDesignToolNames.RUN_TEST_FLOW.getId().equals(String.valueOf(t.get("name"))))
                 .findFirst()
                 .orElseThrow();
@@ -211,6 +226,7 @@ class FlowDesignToolsDefinitionServiceTest {
         assertFalse(desc.contains("触发当前测试流"));
         assertTrue(desc.contains("testFlowId"));
         assertTrue(desc.contains("无画布"));
+        assertTrue(desc.contains("允许 MCP 自动跑流"));
         Map<String, Object> schema = (Map<String, Object>) runTool.get("inputSchema");
         List<String> required = (List<String>) schema.get("required");
         assertTrue(required.contains("testFlowId"));

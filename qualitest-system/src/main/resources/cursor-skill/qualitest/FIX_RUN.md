@@ -2,11 +2,17 @@
 
 本地已有 `.cursor/skills/qualitest/SKILL.md` 且文内 `guideVersion` 与 `get_mcp_guide_version` **字符串全等**时：**不要**再 `prompts/get` 本 Prompt（防叠灌）。版本不一致或未装 Skill 时再用。
 
-<!-- mcp:autopilot -->
-## 前置
+<!-- mcp:autowrite -->
+## 前置（写流）
 
-- 须已开启「允许 MCP 全自动写流」才能 `submit_*` / `run_test_flow`（且 `tools/list` 须已出现这些工具）。
+- 须已开启「允许 MCP 自动写流」才能 `submit_*`（且 `tools/list` 须已出现这些工具）。
 - 改图必须带已有 `testFlowId`。
+<!-- /mcp:autowrite -->
+
+<!-- mcp:autorun -->
+## 前置（跑流）
+
+- 须已开启「允许 MCP 自动跑流」才能 `run_test_flow`（且 `tools/list` 须已出现该工具）。
 
 ## 流程
 
@@ -20,6 +26,7 @@
 
 - 不要输出整份 `graphJson`；拓扑用 `get_graph_summary` / `get_node_detail`。
 - HTTP 优先 `callMode=project` + `testProjectApiId`。
-<!-- /mcp:autopilot -->
+<!-- /mcp:autorun -->
 
-未开启写流时：本 Prompt 无写流步骤可用；用只读工具勘察后，请用户开启「允许 MCP 全自动写流」、重连 MCP 并再 sync Skill。
+未开启写流时：本 Prompt 无写流步骤可用；用只读工具勘察后，请用户开启「允许 MCP 自动写流」、重连 MCP 并再 sync Skill。
+未开启自动跑流时：可改图落盘，但勿调用 `run_test_flow`；请用户在 Web 点 Run，或开启「允许 MCP 自动跑流」并重连后再 sync Skill。

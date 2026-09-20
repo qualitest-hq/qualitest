@@ -10,8 +10,9 @@ import java.util.stream.Collectors;
  * <p>
  * 每个工具两个开关：webAgent（是否进 Web 造流助手工具列表）、
  * mcpAllowed（是否默认允许 MCP 调用，一般为只读勘察工具）。
- * 改图 submit、create_flow、update_flow_meta、素材/鉴权写入、跑流等默认不进 MCP；
- * 仅当项目开启「允许 MCP 全自动写流」后，由运行时追加进工具列表并可调用。
+ * 改图 submit、create_flow、update_flow_meta、素材/鉴权写入等默认不进 MCP；
+ * 仅当项目开启「允许 MCP 自动写流」后，由运行时追加进工具列表并可调用。
+ * run_test_flow 另由「允许 MCP 自动跑流」单独控制。
  */
 public enum FlowDesignToolNames {
 
@@ -39,7 +40,7 @@ public enum FlowDesignToolNames {
      * MCP 专用：按结构化 items 导入或更新项目接口库（方法+path 幂等写入）。
      * 不进入 Web 造流助手列表；默认也不在 MCP 只读白名单。
      * 仅当项目开启「允许 MCP 导入接口」时，才会出现在 tools/list 并允许 tools/call。
-     * 本工具不走「允许 MCP 全自动写流」开关。
+     * 本工具不走「允许 MCP 自动写流」开关。
      */
     IMPORT_APIS("import_apis", false, false),
     /** 读取单个节点的 type 与完整 data */
@@ -62,9 +63,9 @@ public enum FlowDesignToolNames {
     GET_FLOW("get_flow", false, true),
     /** 仅 MCP：返回造流规程版本指纹（只读，始终可调用） */
     GET_MCP_GUIDE_VERSION("get_mcp_guide_version", false, true),
-    /** 仅 MCP：新建空画布测试流（须项目开启 MCP 全自动写流） */
+    /** 仅 MCP：新建空画布测试流（须项目开启 MCP 自动写流） */
     CREATE_FLOW("create_flow", false, false),
-    /** 浅合并更新测试流名称/说明并立即写库（Web + MCP；须项目开启 MCP 全自动写流才可经 MCP 调用） */
+    /** 浅合并更新测试流名称/说明并立即写库（Web + MCP；须项目开启 MCP 自动写流才可经 MCP 调用） */
     UPDATE_FLOW_META("update_flow_meta", true, false),
 
     /** 新增或修改单个 HTTP 节点（每次调用一个 Staging 单元） */
@@ -149,12 +150,12 @@ public enum FlowDesignToolNames {
     }
 
     /**
-     * 是否为 MCP 全自动写流类工具。
-     * 需项目开启「允许 MCP 全自动写流」后，才可列入 tools/list 并接受 tools/call。
-     * 包括：全部 submit_*、create_flow、update_flow_meta、素材写入、鉴权写入、追加接口设计提示、跑流。
-     * 不包括 import_apis。
+     * 是否为 MCP 自动写流类工具。
+     * 需项目开启「允许 MCP 自动写流」后，才可列入 tools/list 并接受 tools/call。
+     * 包括：全部 submit_*、create_flow、update_flow_meta、素材写入、鉴权写入、追加接口设计提示。
+     * 不包括 import_apis、run_test_flow。
      */
-    public static boolean isMcpAutopilotWriteTool(String name) {
+    public static boolean isMcpAutoWriteTool(String name) {
         if (name == null || name.isBlank()) {
             return false;
         }
@@ -165,8 +166,15 @@ public enum FlowDesignToolNames {
                 || UPDATE_FLOW_META.id.equals(name)
                 || UPSERT_ASSET_VARIABLES.id.equals(name)
                 || UPSERT_AUTH_PROFILE.id.equals(name)
-                || APPEND_API_DESIGN_HINTS.id.equals(name)
-                || RUN_TEST_FLOW.id.equals(name);
+                || APPEND_API_DESIGN_HINTS.id.equals(name);
+    }
+
+    /**
+     * 是否为 MCP 自动跑流工具（run_test_flow）。
+     * 需项目开启「允许 MCP 自动跑流」后，才可列入 tools/list 并接受 tools/call。
+     */
+    public static boolean isMcpAutorunTool(String name) {
+        return name != null && RUN_TEST_FLOW.id.equals(name);
     }
 
     /** 按工具名判断是否默认允许 MCP（只读集） */
@@ -183,29 +191,27 @@ public enum FlowDesignToolNames {
      * <ul>
      *   <li>只读白名单工具：始终允许</li>
      *   <li>import_apis：仅当 importApisEnabled 为 true</li>
-     *   <li>写流类工具：仅当 autopilotEnabled 为 true</li>
+     *   <li>写流类工具：仅当 autoWriteEnabled 为 true</li>
+     *   <li>run_test_flow：仅当 autorunEnabled 与 autoWriteEnabled 均为 true</li>
      * </ul>
+     * 参数顺序与 guideVersion / appendGateSuffixes 一致：写流 → 跑流 → 导入。
      *
-     * @param autopilotEnabled  是否开启「允许 MCP 全自动写流」
+     * @param autoWriteEnabled  是否开启「允许 MCP 自动写流」
+     * @param autorunEnabled    是否开启「允许 MCP 自动跑流」
      * @param importApisEnabled 是否开启「允许 MCP 导入接口」
      */
-    public static boolean isMcpCallable(String name, boolean autopilotEnabled, boolean importApisEnabled) {
+    public static boolean isMcpCallable(String name, boolean autoWriteEnabled,
+                                        boolean autorunEnabled, boolean importApisEnabled) {
         if (isMcpAllowed(name)) {
             return true;
         }
         if (isMcpImportApisTool(name)) {
             return importApisEnabled;
         }
-        return autopilotEnabled && isMcpAutopilotWriteTool(name);
-    }
-
-    /**
-     * 仅根据写流开关判断是否可调用；导入接口按未开启处理。
-     *
-     * @param autopilotEnabled 是否开启「允许 MCP 全自动写流」
-     */
-    public static boolean isMcpCallable(String name, boolean autopilotEnabled) {
-        return isMcpCallable(name, autopilotEnabled, false);
+        if (isMcpAutorunTool(name)) {
+            return autorunEnabled && autoWriteEnabled;
+        }
+        return autoWriteEnabled && isMcpAutoWriteTool(name);
     }
 
     /** 按工具名判断是否属于 Web 造流助手 */
@@ -233,18 +239,23 @@ public enum FlowDesignToolNames {
                 .collect(Collectors.toSet());
     }
 
-    /** MCP 全自动写工具 id 集合（不含只读） */
-    public static Set<String> mcpAutopilotWriteToolIds() {
+    /** MCP 自动写工具 id 集合（不含只读、不含跑流） */
+    public static Set<String> mcpAutoWriteToolIds() {
         return Arrays.stream(values())
                 .map(FlowDesignToolNames::getId)
-                .filter(FlowDesignToolNames::isMcpAutopilotWriteTool)
+                .filter(FlowDesignToolNames::isMcpAutoWriteTool)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    /** MCP 全自动开启时的全部工具 id（只读加写） */
-    public static Set<String> mcpAutopilotToolIds() {
+    /** MCP 自动跑流工具 id 集合 */
+    public static Set<String> mcpAutorunToolIds() {
+        return Set.of(RUN_TEST_FLOW.id);
+    }
+
+    /** 写流开启时可见的全部工具 id（只读加写，不含跑流） */
+    public static Set<String> mcpAutoWriteEnabledToolIds() {
         Set<String> ids = new LinkedHashSet<>(mcpAllowedToolIds());
-        ids.addAll(mcpAutopilotWriteToolIds());
+        ids.addAll(mcpAutoWriteToolIds());
         return ids;
     }
 

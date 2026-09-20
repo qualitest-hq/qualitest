@@ -55,7 +55,7 @@ class McpPromptResourceServiceTest {
     @Order(2)
     @DisplayName("只读 core 与合成 guideVersion")
     void getPrompt_readonly_andCompositeGuideVersion() {
-        Map<String, Object> payload = service.getPrompt(McpPromptResourceService.PROMPT_CORE, false, false);
+        Map<String, Object> payload = service.getPrompt(McpPromptResourceService.PROMPT_CORE, false, false, false);
         String text = promptText(payload);
         assertFalse(text.contains("import_apis"));
         assertFalse(text.contains("submit_*") || text.contains("`submit_"));
@@ -66,10 +66,11 @@ class McpPromptResourceServiceTest {
         String base = service.baseGuideVersion();
         assertEquals(12, base.length());
         assertTrue(base.matches("[0-9a-f]{12}"));
-        assertEquals(base, service.guideVersion(false, false));
-        assertEquals(base + "+autopilot", service.guideVersion(true, false));
-        assertEquals(base + "+importApis", service.guideVersion(false, true));
-        assertEquals(base + "+autopilot+importApis", service.guideVersion(true, true));
+        assertEquals(base, service.guideVersion(false, false, false));
+        assertEquals(base + "+autowrite", service.guideVersion(true, false, false));
+        assertEquals(base + "+autorun", service.guideVersion(false, true, false));
+        assertEquals(base + "+importApis", service.guideVersion(false, false, true));
+        assertEquals(base + "+autowrite+autorun+importApis", service.guideVersion(true, true, true));
     }
 
     /**
@@ -80,7 +81,7 @@ class McpPromptResourceServiceTest {
     @Order(3)
     @DisplayName("仅导入开：core 有 import_apis 无写流")
     void getPrompt_importOnly() {
-        String text = promptText(service.getPrompt(McpPromptResourceService.PROMPT_CORE, false, true));
+        String text = promptText(service.getPrompt(McpPromptResourceService.PROMPT_CORE, false, false, true));
         assertTrue(text.contains("import_apis"));
         assertTrue(text.contains("缺接口时充实接口库"));
         assertFalse(text.contains("create_flow"));
@@ -88,19 +89,33 @@ class McpPromptResourceServiceTest {
     }
 
     /**
-     * 前提：仅开写流门控。
-     * 期望：含 submit / create_flow / update_flow_meta；不含 import_apis。
+     * 前提：仅开写流门控（跑流关）。
+     * 期望：含 submit / create_flow；提示无跑流工具时勿假装跑通；不含 import_apis。
      */
     @Test
     @Order(4)
-    @DisplayName("仅写流开：core 有 submit 无 import_apis")
+    @DisplayName("仅写流开：core 有 submit，无立刻跑流规程")
     void getPrompt_autopilotOnly() {
-        String text = promptText(service.getPrompt(McpPromptResourceService.PROMPT_CORE, true, false));
+        String text = promptText(service.getPrompt(McpPromptResourceService.PROMPT_CORE, true, false, false));
         assertTrue(text.contains("create_flow"));
         assertTrue(text.contains("update_flow_meta"));
         assertTrue(text.contains("submit_*") || text.contains("`submit_"));
-        assertTrue(text.contains("run_test_flow"));
+        assertTrue(text.contains("勿假装已跑通") || text.contains("Web 点 Run"));
+        assertFalse(text.contains("立刻") && text.contains("run_test_flow"));
         assertFalse(text.contains("import_apis"));
+    }
+
+    /**
+     * 前提：写流与跑流都开。
+     * 期望：含立刻 run_test_flow 规程。
+     */
+    @Test
+    @Order(41)
+    @DisplayName("写流+跑流开：core 含立刻跑流")
+    void getPrompt_writeAndAutorun() {
+        String text = promptText(service.getPrompt(McpPromptResourceService.PROMPT_CORE, true, true, false));
+        assertTrue(text.contains("run_test_flow"));
+        assertTrue(text.contains("立刻") || text.contains("至少成功一次改图后"));
     }
 
     /**
@@ -112,13 +127,13 @@ class McpPromptResourceServiceTest {
     @DisplayName("sync Prompt 含版本比对步骤")
     void getPrompt_sync_containsVersionSteps() {
         Map<String, Object> payload = service.getPrompt(
-                McpPromptResourceService.PROMPT_SYNC_LOCAL_SKILL, false, false);
+                McpPromptResourceService.PROMPT_SYNC_LOCAL_SKILL, false, false, false);
         String text = promptText(payload);
         assertTrue(text.contains("guideVersion"));
         assertTrue(text.contains("get_mcp_guide_version"));
         assertTrue(text.contains("SKILL.md"));
         assertTrue(text.contains("qualitest_core"));
-        assertTrue(text.contains("+autopilot") || text.contains("合成串"));
+        assertTrue(text.contains("+autowrite") || text.contains("合成串"));
     }
 
     /**
@@ -130,7 +145,7 @@ class McpPromptResourceServiceTest {
     @DisplayName("readResource 未知 uri 抛错")
     void readResource_unknownUri_throws() {
         assertThrows(com.qualitest.common.exception.ServiceException.class,
-                () -> service.readResource("qualitest://docs/nope", false, false));
+                () -> service.readResource("qualitest://docs/nope", false, false, false));
     }
 
     /**
@@ -141,10 +156,10 @@ class McpPromptResourceServiceTest {
     @Order(7)
     @DisplayName("loadCursorSkillText 门控全开")
     void loadCursorSkillText_bothGates() {
-        String skill = service.loadCursorSkillText(true, true);
+        String skill = service.loadCursorSkillText(true, false, true);
         assertTrue(skill.startsWith("---"));
         assertTrue(skill.contains("name: qualitest"));
-        assertTrue(skill.contains("guideVersion: " + service.guideVersion(true, true)));
+        assertTrue(skill.contains("guideVersion: " + service.guideVersion(true, false, true)));
         assertTrue(skill.contains("import_apis"));
         assertTrue(skill.contains("已立即写库") || skill.contains("立即写库"));
         assertTrue(skill.contains("create_flow"));
@@ -159,13 +174,16 @@ class McpPromptResourceServiceTest {
     @DisplayName("applyGates 裁剪注释块")
     void applyGates_stripsBlocks() {
         String src = "A\n<!-- mcp:import -->\nIMP\n<!-- /mcp:import -->\n"
-                + "<!-- mcp:autopilot -->\nAP\n<!-- /mcp:autopilot -->\nB\n";
-        assertEquals("A\nB\n", McpPromptResourceService.applyGates(src, false, false));
-        assertTrue(McpPromptResourceService.applyGates(src, false, true).contains("IMP"));
-        assertFalse(McpPromptResourceService.applyGates(src, false, true).contains("AP"));
-        assertFalse(McpPromptResourceService.applyGates(src, false, true).contains("mcp:import"));
-        assertTrue(McpPromptResourceService.applyGates(src, true, true).contains("IMP"));
-        assertTrue(McpPromptResourceService.applyGates(src, true, true).contains("AP"));
+                + "<!-- mcp:autowrite -->\nAP\n<!-- /mcp:autowrite -->\n"
+                + "<!-- mcp:autorun -->\nAR\n<!-- /mcp:autorun -->\nB\n";
+        assertEquals("A\nB\n", McpPromptResourceService.applyGates(src, false, false, false));
+        assertTrue(McpPromptResourceService.applyGates(src, false, false, true).contains("IMP"));
+        assertFalse(McpPromptResourceService.applyGates(src, false, false, true).contains("AP"));
+        assertFalse(McpPromptResourceService.applyGates(src, false, false, true).contains("mcp:import"));
+        assertTrue(McpPromptResourceService.applyGates(src, true, false, true).contains("IMP"));
+        assertTrue(McpPromptResourceService.applyGates(src, true, false, true).contains("AP"));
+        assertFalse(McpPromptResourceService.applyGates(src, true, false, true).contains("AR"));
+        assertTrue(McpPromptResourceService.applyGates(src, true, true, true).contains("AR"));
     }
 
     @SuppressWarnings("unchecked")

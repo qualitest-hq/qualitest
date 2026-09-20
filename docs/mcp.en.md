@@ -2,7 +2,7 @@
 
 Qualitest exposes a **project-scoped MCP** service over **Streamable HTTP** so **MCP-capable AI editors / agents** (Cursor, VS Code ecosystem, Claude Code, …) can query this project’s APIs, test flows, and Run context.  
 Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + custom headers can use the same fields.  
-**Read-only by default.** Two independent Project-settings switches: **“Allow MCP Full-auto write”** (`create_flow` / `update_flow_meta` / `submit_*` / upserts / `run_test_flow`) and **“Allow MCP import APIs”** (`import_apis` only). The Token only binds project identity.
+**Read-only by default.** Three independent Project-settings switches: **“Allow MCP auto-write”** (`create_flow` / `update_flow_meta` / `submit_*` / upserts), **“Allow MCP auto-run”** (`run_test_flow` only), and **“Allow MCP import APIs”** (`import_apis` only). Auto-run usually requires write. The Token only binds project identity.
 
 中文版：[mcp.md](./mcp.md)
 
@@ -13,9 +13,10 @@ Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + 
 1. Sign in → open the **test project** → **Project settings**.
 2. Generate / copy the **Project Token** (refresh invalidates the old token immediately).
 3. The “Cursor MCP” card can copy a full `mcp.json` snippet; or use the template below.
-4. (Optional) Enable **“Allow MCP Full-auto write”** for graph write / run tools.
-5. (Optional) Enable **“Allow MCP import APIs”** for `import_apis` (independent of Full-auto write).
-6. After toggling either switch, **reconnect or refresh MCP** — editors often keep the old tool list (the server does not push tool-list changes).
+4. (Optional) Enable **“Allow MCP auto-write”** for graph write tools.
+5. (Optional) Enable **“Allow MCP auto-run”** for `run_test_flow` (requires write; turning write off also turns auto-run off).
+6. (Optional) Enable **“Allow MCP import APIs”** for `import_apis` (independent of auto-write).
+7. After toggling any switch, **reconnect or refresh MCP** — editors often keep the old tool list (the server does not push tool-list changes).
 
 Local default backend: `http://127.0.0.1:8800`.  
 With full-stack Compose (Nginx), set `url` to the API root your browser can reach (often `http://localhost/api/project/mcp`). Prefer the snippet from Project settings.
@@ -66,7 +67,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `list_asset_variables` | Project asset variable keys/fields (no plaintext values); **writes via Web AI `upsert_asset_variables` (Semi-auto: confirm; Full-auto: immediate)** |
 | `list_project_auth_profiles` | Project auth Profile summaries (pathPrefix, managed header, credential target; no secrets); **writes via Web AI `upsert_auth_profile` (Semi-auto confirm / Full-auto in-tool)** |
 | `list_subflow_templates` | Platform subflow templates |
-| `get_mcp_guide_version` | Composite `guideVersion` (content fingerprint + optional `+autopilot`/`+importApis`); exact string match vs local Skill |
+| `get_mcp_guide_version` | Composite `guideVersion` (content fingerprint + optional `+autowrite`/`+autorun`/`+importApis`); exact string match vs local Skill |
 
 Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary` / `get_run_failure`.
 
@@ -74,7 +75,7 @@ Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary
 
 `initialize` advertises `prompts` and `resources`; `serverInfo.guideVersion` matches `get_mcp_guide_version` (both composite).
 
-`guideVersion` format: `{12-hex fingerprint of CORE+SURVEY+FIX_RUN source}[+autopilot][+importApis]`. Toggling project write/import switches changes the suffix — reconnect MCP and re-sync Skill.
+`guideVersion` format: `{12-hex fingerprint of CORE+SURVEY+FIX_RUN source}[+autowrite][+autorun][+importApis]`. Toggling project write/run/import switches changes the suffix — reconnect MCP and re-sync Skill.
 
 `prompts/get`, `resources/read`, and Skill body are gated by the two project switches (no `import_apis` section when import is off; no `submit_*` when write is off).
 
@@ -86,9 +87,13 @@ Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary
 | `qualitest_sync_local_skill` | Install/update `.cursor/skills/qualitest/SKILL.md` (skip if composite `guideVersion` matches exactly) |
 
 Do **not** hide `prompts/list`. If local Skill already has the same `guideVersion`, do not `prompts/get` the three body prompts again (avoids double token cost). Re-run sync when the server version changes (including switch-suffix changes). Navbar “copy guide” passes route `testProjectId` when available; otherwise read-only gates.
-### Write tools (Full-auto switch on)
+### Write tools (auto-write switch on)
 
-When enabled, `tools/list` also exposes `create_flow`, `update_flow_meta`, all `submit_*`, upserts, `append_api_design_hints`, and `run_test_flow`. Use `create_flow` only to create an empty flow; rename or change description with `update_flow_meta` (do not create a new flow to fake a rename). Graph edits still require `testFlowId`.
+When enabled, `tools/list` also exposes `create_flow`, `update_flow_meta`, all `submit_*`, upserts, and `append_api_design_hints` (**not** `run_test_flow`). Use `create_flow` only to create an empty flow; rename or change description with `update_flow_meta` (do not create a new flow to fake a rename). Graph edits still require `testFlowId`.
+
+### Auto-run (“Allow MCP auto-run” on)
+
+When enabled, `tools/list` also exposes `run_test_flow`. Usually requires auto-write. Turning write off forces auto-run off on the server.
 
 ### Import APIs (“Allow MCP import APIs” on)
 
@@ -140,5 +145,5 @@ and suggest what to change on the canvas (advice only — do not write the DB).
 | Cursor can’t connect | Backend up? Host/port in `url` match browser access (IDE does not use Vite proxy) |
 | 401 / no tools | Token expired or truncated? Header name exactly `X-Project-Token`? |
 | Empty / forbidden | Token belongs to the project you intend to query? |
-| Only read-only tools | Full-auto write and/or import APIs enabled **and saved**? After saving you **must** reconnect / refresh MCP |
+| Only read-only tools | auto-write and/or import APIs enabled **and saved**? After saving you **must** reconnect / refresh MCP |
 | Stale config | After refresh Token, re-copy the full `mcp.json` snippet |

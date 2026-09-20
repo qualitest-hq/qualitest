@@ -166,9 +166,9 @@ Read-only by default; with **Allow MCP autopilot write** enabled, Cursor (etc.) 
 <!--
   Record (write): autopilot write enabled → Cursor create_flow / submit_* / run_test_flow → Web canvas updates via SSE
   Spec: width ≤ 900px · 8–10 fps · ≤ 10s · < 1MB
-  File: docs/images/demo-mcp-autopilot.gif
+  File: docs/images/demo-mcp-autowrite.gif
 -->
-<img src="docs/images/demo-mcp-autopilot.gif" alt="MCP autopilot: create/submit/run a flow in Cursor; Web canvas syncs" width="820"/>
+<img src="docs/images/demo-mcp-autowrite.gif" alt="MCP autopilot: create/submit/run a flow in Cursor; Web canvas syncs" width="820"/>
 
 ### Ecosystem: IDEA plugin (separate repo)
 

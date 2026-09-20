@@ -93,9 +93,9 @@ Library file upload → form-data row **`type=file`** → `{{asset.<key>.storage
 
 ### MCP cannot edit the canvas
 
-**Read-only by default** (list flows, inspect failed runs, etc.). After you enable and **save** **“Allow MCP Full-auto write”** in Project settings, MCP can call `submit_*` / `create_flow` / `run_test_flow` and similar write tools; **“Allow MCP import APIs”** gates `import_apis` only (independent of Full-auto write).
+**Read-only by default** (list flows, inspect failed runs, etc.). After you enable and **save** **“Allow MCP auto-write”** in Project settings, MCP can call `submit_*` / `create_flow` and similar write tools; **“Allow MCP auto-run”** gates `run_test_flow`; **“Allow MCP import APIs”** gates `import_apis` only (independent of auto-write).
 
-**After toggling either switch you must reconnect or refresh MCP** — editors often keep the old tool list (the server does not push tool-list changes). Without Full-auto write, edit on Web AI → Staging → Save.
+**After toggling either switch you must reconnect or refresh MCP** — editors often keep the old tool list (the server does not push tool-list changes). Without auto-write, edit on Web AI → Staging → Save.
 
 → [mcp.en.md](./mcp.en.md) · [ai-staging.md](./ai-staging.md)
 

@@ -23,7 +23,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 **例外：全自动**（AI 面板「半自动 | 全自动」，默认半自动）：请求带 `autopilotEnabled=true` 时注入 `run_test_flow`（跑前/回合结束**自动落盘**，无独立 commit 工具），且 `upsert_asset_variables` / `upsert_auth_profile` **直接写库**。隐式落盘门槛与人手**保存**相同（只拦无法解析 / 缺节点 id / 边端点）；双开始节点、断言路径等只进 warnings，不拦写库——开跑时再硬拦。造流/修复类请求完成后模型应主动 `run_test_flow`（纯答疑除外）；同会话内 upsert → `submit_*` → `run_test_flow` → 失败再修（最多再修 2 轮）。落盘成功后 SSE `graphCommitted`，前端清 Staging 并 reload 画布；`run_test_flow` 触发后 SSE `runStarted`，与人手共用轮询边跑边亮（执行中步骤即可读）。半自动则仍走上文 Staging ✓ → **人手保存**；素材与鉴权提案在聊天侧确认。只拨开关不发送请求不会跑流。
 
-**MCP 默认只读**：无写工具。项目设置开启「允许 MCP 全自动写流」后，可经 MCP 调用 `submit_*` / upsert / `run_test_flow`（每次成功 submit 立即落盘）；开启「允许 MCP 导入接口」后可调 `import_apis`（只控制导入接口，不控制改图与跑流）。MCP 与 Web 全自动落盘共用外部变更同步语义（`graphCommitted` 等）：打开中的画布经 SSE 轻量跟上，脏稿/Staging 时不静默覆盖。
+**MCP 默认只读**：无写工具。项目设置开启「允许 MCP 自动写流」后，可经 MCP 调用 `submit_*` / upsert（每次成功 submit 立即落盘）；另开「允许 MCP 自动跑流」后可调 `run_test_flow`；开启「允许 MCP 导入接口」后可调 `import_apis`（只控制导入接口，不控制改图与跑流）。MCP 与 Web 全自动落盘共用外部变更同步语义（`graphCommitted` 等）：打开中的画布经 SSE 轻量跟上，脏稿/Staging 时不静默覆盖。
 
 ---
 
@@ -57,7 +57,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 ## 4. Web 助手 vs MCP
 
-| | Web AI 面板 | MCP（默认） | MCP（项目开启全自动写流） |
+| | Web AI 面板 | MCP（默认） | MCP（项目开启自动写流） |
 | --- | --- | --- | --- |
 | 读接口 / 流摘要 / Run 失败 | 有 | 有（另有 `list_flows` / `get_flow`） | 同左 |
 | `list_project_auth_profiles` | **有** | **有**（只读） | 同左 |
@@ -66,9 +66,9 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 | `upsert_auth_profile` | **有**（半自动确认 / 全自动直写） | 无 | **有**（直写） |
 | `append_api_design_hints` | 有 | 无 | **有** |
 | `import_apis` | 无 | 无 | 无（须另开「允许 MCP 导入接口」） |
-| `run_test_flow` | **有**（须选「全自动」） | **无** | **有** |
+| `run_test_flow` | **有**（须选「全自动」） | **无** | **有**（须另开自动跑流） |
 
-默认改图画布仍走 Web。开启 MCP 全自动后 Cursor 可端到端造流/修流；须带已有 `testFlowId`。
+默认改图画布仍走 Web。开启 MCP 自动写后 Cursor 可端到端造流/修流；须带已有 `testFlowId`。
 
 ---
 

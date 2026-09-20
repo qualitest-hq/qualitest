@@ -195,7 +195,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 ### MCP 接入 · IDE / AI 编辑器直接读懂（并可写）测试项目
 
-默认只读勘察；项目开启「允许 MCP 全自动写流」后，可在 Cursor 等编辑器里造流 / 修流 / 跑通。配置见 [`docs/mcp.md`](./docs/mcp.md)。
+默认只读勘察；项目开启「允许 MCP 自动写流」后可在 Cursor 等编辑器里造流 / 修流；另开「允许 MCP 自动跑流」后可跑通。配置见 [`docs/mcp.md`](./docs/mcp.md)。
 
 <!--
   录制规格（勘察）：Cursor 已接 qualitest MCP → list_flows → 带 testFlowId 问节点拓扑 / 上次 Run 失败点 → 返回平台真数据
@@ -205,11 +205,12 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 <img src="docs/images/demo-mcp-survey.gif" alt="MCP 勘察：在 Cursor 中列出测试流、查看节点拓扑与 Run 失败现场" width="820"/>
 
 <!--
-  录制规格（写流）：项目已开「允许 MCP 全自动写流」→ Cursor 调 create_flow / submit_* / run_test_flow → Web 画布 SSE 同步出现变更
+  录制规格（写流）：项目已开「允许 MCP 自动写流」→ Cursor 调 create_flow / submit_* → Web 画布 SSE 同步出现变更
+  录制规格（跑流）：另开「允许 MCP 自动跑流」→ Cursor 调 run_test_flow
   宽度 ≤ 900px · 8~10fps · ≤ 10s · 目标 < 1MB
-  文件占位：docs/images/demo-mcp-autopilot.gif
+  文件占位：docs/images/demo-mcp-autowrite.gif
 -->
-<img src="docs/images/demo-mcp-autopilot.gif" alt="MCP 造流：在 Cursor 中创建/提交测试流并运行，Web 画布同步" width="820"/>
+<img src="docs/images/demo-mcp-autowrite.gif" alt="MCP 造流：在 Cursor 中创建/提交测试流并运行，Web 画布同步" width="820"/>
 
 ### 周边：IDEA 插件（独立仓库）
 
@@ -270,7 +271,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 #### MCP 造流 · 从勘察到跑通
 
-接 MCP → 列流勘察 →（可选）开写流开关 → Cursor 造流/修流并 Run → Web 画布同步。依赖已配置的项目 Token；写流片需开启「允许 MCP 全自动写流」。详见 [`docs/mcp.md`](./docs/mcp.md)。
+接 MCP → 列流勘察 →（可选）开写流开关 → Cursor 造流/修流 →（可选）开跑流开关并 Run → Web 画布同步。依赖已配置的项目 Token；写流片需开启「允许 MCP 自动写流」，跑流片另开「允许 MCP 自动跑流」。详见 [`docs/mcp.md`](./docs/mcp.md)。
 
 ##### A · 接入 + 只读勘察
 
@@ -283,7 +284,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 ##### B · 开写流 + Cursor 造流并 Run
 
 <!--
-  录制：开启并保存「允许 MCP 全自动写流」→ 重连 MCP → Cursor create_flow / submit_* / run_test_flow → 工具调用成功
+  录制：开启并保存「允许 MCP 自动写流」与「允许 MCP 自动跑流」→ 重连 MCP → Cursor create_flow / submit_* / run_test_flow → 工具调用成功
   文件：docs/images/demo-story-mcp-b.gif · 目标 < 1MB
 -->
 <img src="docs/images/demo-story-mcp-b.gif" alt="MCP 故事 B：开启写流后 Cursor 造流并运行" width="820"/>

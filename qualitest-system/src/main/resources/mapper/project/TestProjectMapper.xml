@@ -10,8 +10,10 @@
         <result property="assetVariables" column="asset_variables"/>
         <!-- 项目多端配置 JSON：鉴权头 + 响应约定 + 预制接口 -->
         <result property="authConfig" column="auth_config"/>
-        <!-- 是否允许 MCP 全自动写流 -->
-        <result property="mcpAutopilotEnabled" column="mcp_autopilot_enabled"/>
+        <!-- 是否允许 MCP 自动写流 -->
+        <result property="mcpAutoWriteEnabled" column="mcp_auto_write_enabled"/>
+        <!-- 是否允许 MCP 自动跑流 -->
+        <result property="mcpAutorunEnabled" column="mcp_autorun_enabled"/>
         <!-- 是否允许 MCP 导入接口（import_apis） -->
         <result property="mcpImportApisEnabled" column="mcp_import_apis_enabled"/>
         <result property="lastApiSyncTime" column="last_api_sync_time"/>
@@ -23,7 +25,7 @@
     </resultMap>
 
     <sql id="selectTestProjectVo">
-        select test_project_id, project_name, asset_variables, auth_config, mcp_autopilot_enabled, mcp_import_apis_enabled, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
+        select test_project_id, project_name, asset_variables, auth_config, mcp_auto_write_enabled, mcp_autorun_enabled, mcp_import_apis_enabled, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
         from test_project
     </sql>
 
@@ -32,7 +34,8 @@
                tp.project_name       as projectName,
                tp.asset_variables    as assetVariables,
                tp.auth_config         as authConfig,
-               tp.mcp_autopilot_enabled as mcpAutopilotEnabled,
+               tp.mcp_auto_write_enabled as mcpAutoWriteEnabled,
+               tp.mcp_autorun_enabled as mcpAutorunEnabled,
                tp.mcp_import_apis_enabled as mcpImportApisEnabled,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
@@ -89,7 +92,8 @@
         select tp.test_project_id    as testProjectId,
                tp.project_name       as projectName,
                tp.auth_config         as authConfig,
-               tp.mcp_autopilot_enabled as mcpAutopilotEnabled,
+               tp.mcp_auto_write_enabled as mcpAutoWriteEnabled,
+               tp.mcp_autorun_enabled as mcpAutorunEnabled,
                tp.mcp_import_apis_enabled as mcpImportApisEnabled,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
@@ -123,7 +127,8 @@
                tp.project_name,
                tp.asset_variables,
                tp.auth_config,
-               tp.mcp_autopilot_enabled,
+               tp.mcp_auto_write_enabled,
+               tp.mcp_autorun_enabled,
                tp.mcp_import_apis_enabled,
                tp.last_api_sync_time,
                tp.api_count,
@@ -159,8 +164,11 @@
             <if test="authConfig != null">
                 auth_config,
             </if>
-            <if test="mcpAutopilotEnabled != null">
-                mcp_autopilot_enabled,
+            <if test="mcpAutoWriteEnabled != null">
+                mcp_auto_write_enabled,
+            </if>
+            <if test="mcpAutorunEnabled != null">
+                mcp_autorun_enabled,
             </if>
             <if test="mcpImportApisEnabled != null">
                 mcp_import_apis_enabled,
@@ -197,8 +205,11 @@
             <if test="authConfig != null">
                 #{authConfig},
             </if>
-            <if test="mcpAutopilotEnabled != null">
-                #{mcpAutopilotEnabled},
+            <if test="mcpAutoWriteEnabled != null">
+                #{mcpAutoWriteEnabled},
+            </if>
+            <if test="mcpAutorunEnabled != null">
+                #{mcpAutorunEnabled},
             </if>
             <if test="mcpImportApisEnabled != null">
                 #{mcpImportApisEnabled},
@@ -236,8 +247,11 @@
             <if test="authConfig != null">
                 auth_config = #{authConfig},
             </if>
-            <if test="mcpAutopilotEnabled != null">
-                mcp_autopilot_enabled = #{mcpAutopilotEnabled},
+            <if test="mcpAutoWriteEnabled != null">
+                mcp_auto_write_enabled = #{mcpAutoWriteEnabled},
+            </if>
+            <if test="mcpAutorunEnabled != null">
+                mcp_autorun_enabled = #{mcpAutorunEnabled},
             </if>
             <if test="mcpImportApisEnabled != null">
                 mcp_import_apis_enabled = #{mcpImportApisEnabled},
