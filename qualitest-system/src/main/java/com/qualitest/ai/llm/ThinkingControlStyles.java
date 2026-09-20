@@ -3,7 +3,7 @@ package com.qualitest.ai.llm;
 /**
  * 思考请求风格常量：决定请求体里如何开关「思考/推理」。
  * <p>
- * 取值写在 model-metadata.json 的 thinkingControl 字段，解析模型配置时带入运行时。
+ * 取值写在厂商模板 provider-templates.json 的 thinkingControl 字段，解析模型配置时带入运行时。
  */
 public final class ThinkingControlStyles {
 

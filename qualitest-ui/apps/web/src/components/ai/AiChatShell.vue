@@ -14,7 +14,7 @@
  * - #composer-input：主输入控件（Mention 或 textarea）
  * - #composer-extra：Composer 开关组内额外控件（半自动|全自动等）
  */
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 
 import type { AiChatSessionItem, AiModelVendorGroup } from '@/api/ai/chat';
 import AiChatVirtualMessageList from '@/components/ai/AiChatVirtualMessageList.vue';
@@ -105,6 +105,16 @@ function onThinkingChange(enabled: boolean) {
   emit('update:thinkingEnabled', enabled);
   emit('thinking-change', enabled);
 }
+
+const thinkingToggleTitle = computed(() => {
+  if (!props.thinkingCapable) {
+    return '当前模型不支持思考';
+  }
+  if (props.designing) {
+    return '生成中，暂不可切换思考开关';
+  }
+  return '开启后模型输出思考过程；关闭则直接作答';
+});
 
 /** 横向会话 Tab 列表滚到当前选中项 */
 function scrollActiveSessionIntoView() {
@@ -294,7 +304,7 @@ defineExpose({
               :disabled="!thinkingCapable || designing"
               on-label="思考"
               off-label="思考"
-              title="开启后模型输出思考过程（需当前模型支持）；关闭则直接作答"
+              :title="thinkingToggleTitle"
               @update:model-value="onThinkingChange"
           />
           <slot name="composer-extra" />

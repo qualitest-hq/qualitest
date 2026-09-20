@@ -107,4 +107,9 @@ public class AiLlmModelResolveResult implements Serializable {
      * 思考模式 token 预算上限；为空时使用全局默认值
      */
     private Integer thinkingBudgetTokens;
+
+    /**
+     * 厂商模板标识（JOIN ai_llm_vendor.template_id）
+     */
+    private String templateId;
 }

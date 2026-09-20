@@ -8,11 +8,13 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "deepseek",
+    "thinkingControl": "deepseek_thinking",
     "modelFilters": {
       "includePatterns": ["deepseek-*"],
       "excludePatterns": ["*-embed-*", "*-rerank-*"]
     },
-    "recommendedModels": ["deepseek-v4-flash", "deepseek-v4-pro"],
+    "recommendedModels": ["deepseek-flash", "deepseek-v4-pro"],
     "docUrl": "https://api-docs.deepseek.com"
   },
   {
@@ -24,6 +26,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "openai",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "excludePatterns": ["*-embed-*", "dall-e-*", "tts-*", "whisper-*"]
     },
@@ -39,6 +43,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "siliconflow-cn",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "excludePatterns": ["*-embed-*", "*-rerank-*"]
     },
@@ -54,6 +60,8 @@
     "baseUrlEditable": true,
     "discoveryType": "anthropic_models",
     "discoveryPath": "/v1/models",
+    "modelsDevProviderId": "anthropic",
+    "thinkingControl": null,
     "modelFilters": {},
     "recommendedModels": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022"],
     "docUrl": "https://docs.anthropic.com"
@@ -67,6 +75,8 @@
     "baseUrlEditable": true,
     "discoveryType": "ollama_tags",
     "discoveryPath": "/api/tags",
+    "modelsDevProviderId": null,
+    "thinkingControl": null,
     "modelFilters": {},
     "recommendedModels": [],
     "docUrl": "https://ollama.com"
@@ -80,6 +90,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "moonshotai-cn",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "includePatterns": ["moonshot-*", "kimi-*"],
       "excludePatterns": ["*-embed-*"]
@@ -96,6 +108,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "zhipuai",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "includePatterns": ["glm-*"],
       "excludePatterns": ["*-embed-*"]
@@ -112,6 +126,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "alibaba-cn",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "includePatterns": ["qwen*"],
       "excludePatterns": ["*-embed-*", "*-rerank-*"]
@@ -128,6 +144,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "minimax",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "includePatterns": ["abab*", "minimax*"],
       "excludePatterns": ["*-embed-*"]
@@ -144,44 +162,14 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "volcengine",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "includePatterns": ["doubao-*", "ep-*"],
       "excludePatterns": ["*-embed-*"]
     },
     "recommendedModels": ["doubao-pro-32k", "doubao-lite-32k"],
     "docUrl": "https://www.volcengine.com/docs/82379"
-  },
-  {
-    "templateId": "baichuan",
-    "displayName": "百川智能",
-    "icon": "baichuan",
-    "provider": "openai_compatible",
-    "defaultBaseUrl": "https://api.baichuan-ai.com/v1",
-    "baseUrlEditable": true,
-    "discoveryType": "openai_models",
-    "discoveryPath": "/models",
-    "modelFilters": {
-      "includePatterns": ["Baichuan*", "baichuan*"],
-      "excludePatterns": ["*-embed-*"]
-    },
-    "recommendedModels": ["Baichuan4-Turbo", "Baichuan3-Turbo"],
-    "docUrl": "https://platform.baichuan-ai.com/docs"
-  },
-  {
-    "templateId": "yi",
-    "displayName": "零一万物",
-    "icon": "yi",
-    "provider": "openai_compatible",
-    "defaultBaseUrl": "https://api.lingyiwanwu.com/v1",
-    "baseUrlEditable": true,
-    "discoveryType": "openai_models",
-    "discoveryPath": "/models",
-    "modelFilters": {
-      "includePatterns": ["yi-*"],
-      "excludePatterns": ["*-embed-*"]
-    },
-    "recommendedModels": ["yi-lightning", "yi-large"],
-    "docUrl": "https://platform.lingyiwanwu.com/docs"
   },
   {
     "templateId": "stepfun",
@@ -192,28 +180,14 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "stepfun",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "includePatterns": ["step-*"],
       "excludePatterns": ["*-embed-*"]
     },
     "recommendedModels": ["step-2-16k", "step-1-8k"],
     "docUrl": "https://platform.stepfun.com/docs"
-  },
-  {
-    "templateId": "hunyuan",
-    "displayName": "腾讯混元",
-    "icon": "hunyuan",
-    "provider": "openai_compatible",
-    "defaultBaseUrl": "https://api.hunyuan.cloud.tencent.com/v1",
-    "baseUrlEditable": true,
-    "discoveryType": "openai_models",
-    "discoveryPath": "/models",
-    "modelFilters": {
-      "includePatterns": ["hunyuan-*"],
-      "excludePatterns": ["*-embed-*"]
-    },
-    "recommendedModels": ["hunyuan-pro", "hunyuan-standard"],
-    "docUrl": "https://cloud.tencent.com/document/product/1729"
   },
   {
     "templateId": "gemini",
@@ -224,6 +198,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "google",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "includePatterns": ["gemini-*"],
       "excludePatterns": ["*-embed-*", "*-image-*"]
@@ -240,6 +216,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "groq",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "excludePatterns": ["*-embed-*", "whisper-*"]
     },
@@ -255,6 +233,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "mistral",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "excludePatterns": ["*-embed-*"]
     },
@@ -270,6 +250,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "openrouter",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "excludePatterns": ["*-embed-*"]
     },
@@ -285,6 +267,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "togetherai",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "excludePatterns": ["*-embed-*"]
     },
@@ -300,6 +284,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "fireworks-ai",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "excludePatterns": ["*-embed-*"]
     },
@@ -315,6 +301,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "azure",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "excludePatterns": ["*-embed-*", "dall-e-*", "tts-*", "whisper-*"]
     },
@@ -330,6 +318,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "perplexity",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "includePatterns": ["sonar*"],
       "excludePatterns": ["*-embed-*"]
@@ -346,6 +336,8 @@
     "baseUrlEditable": true,
     "discoveryType": "openai_models",
     "discoveryPath": "/models",
+    "modelsDevProviderId": "xai",
+    "thinkingControl": "openai_reasoning_effort",
     "modelFilters": {
       "includePatterns": ["grok-*"],
       "excludePatterns": ["*-embed-*"]
@@ -362,6 +354,8 @@
     "baseUrlEditable": true,
     "discoveryType": "anthropic_models",
     "discoveryPath": "/v1/models",
+    "modelsDevProviderId": null,
+    "thinkingControl": null,
     "modelFilters": {},
     "recommendedModels": [],
     "docUrl": ""
@@ -375,6 +369,8 @@
     "baseUrlEditable": true,
     "discoveryType": "none",
     "discoveryPath": "",
+    "modelsDevProviderId": null,
+    "thinkingControl": null,
     "modelFilters": {},
     "staticModels": [],
     "recommendedModels": [],

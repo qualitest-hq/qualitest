@@ -18,8 +18,8 @@ import com.qualitest.ai.config.AiLlmConfigService;
 import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.llm.LlmModelConfig;
 import com.qualitest.ai.llm.LlmProviderTypes;
-import com.qualitest.ai.llm.template.ModelMetadata;
-import com.qualitest.ai.llm.template.ModelMetadataCatalog;
+import com.qualitest.ai.llm.template.ProviderTemplate;
+import com.qualitest.ai.llm.template.ProviderTemplateRegistry;
 import com.qualitest.ai.service.IAiLlmModelService;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,9 +34,9 @@ public class AiLlmModelServiceImpl implements IAiLlmModelService {
     @Autowired
     private AiLlmConfigService aiLlmConfigService;
 
-    /** 按上游 model 名补全思考请求风格等静态元数据 */
+    /** 厂商模板：提供思考请求风格 thinkingControl */
     @Autowired
-    private ModelMetadataCatalog modelMetadataCatalog;
+    private ProviderTemplateRegistry providerTemplateRegistry;
 
     /**
      * 查询AI 模型列表
@@ -219,9 +219,10 @@ public class AiLlmModelServiceImpl implements IAiLlmModelService {
                 && !LlmProviderTypes.isAnthropic(row.getProvider())) {
             throw new LlmClientException("不支持的协议标识：" + row.getProvider());
         }
-        // 思考请求风格来自静态元数据（按上游 model 名），不落库
-        ModelMetadata metadata = modelMetadataCatalog.get(row.getModelName());
-        String thinkingControl = metadata != null ? metadata.getThinkingControl() : null;
+        // 思考请求风格来自厂商模板，不落库
+        ProviderTemplate template = row.getTemplateId() != null
+                ? providerTemplateRegistry.getById(row.getTemplateId()) : null;
+        String thinkingControl = template != null ? template.getThinkingControl() : null;
         return LlmModelConfig.builder()
                 .aiLlmModelId(row.getAiLlmModelId())
                 .aiLlmVendorId(row.getAiLlmVendorId())

@@ -180,3 +180,16 @@ xss:
   enabled: true
   excludes: /system/notice
   urlPatterns: /system/*,/monitor/*,/tool/*
+
+# -----------------------------------------------------------------------------
+# AI / LLM（models.dev 能力目录，MIT）
+# -----------------------------------------------------------------------------
+ai:
+  llm:
+    allow-private-base-url: true
+    discover-cache-ttl: 3600
+    models-dev:
+      enabled: true
+      api-url: https://models.dev/api.json
+      models-url: https://models.dev/models.json
+      cache-ttl-seconds: 86400

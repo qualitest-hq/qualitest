@@ -142,3 +142,13 @@ xss:
   enabled: true
   excludes: /system/notice
   urlPatterns: /system/*,/monitor/*,/tool/*
+
+ai:
+  llm:
+    allow-private-base-url: false
+    discover-cache-ttl: 3600
+    models-dev:
+      enabled: true
+      api-url: https://models.dev/api.json
+      models-url: https://models.dev/models.json
+      cache-ttl-seconds: 86400

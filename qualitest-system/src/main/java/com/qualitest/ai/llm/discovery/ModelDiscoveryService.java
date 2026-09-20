@@ -4,8 +4,8 @@ import cn.hutool.core.util.IdUtil;
 import com.qualitest.ai.domain.AiLlmModel;
 import com.qualitest.ai.domain.AiLlmVendor;
 import com.qualitest.ai.llm.LlmClientException;
-import com.qualitest.ai.llm.template.ModelMetadata;
-import com.qualitest.ai.llm.template.ModelMetadataCatalog;
+import com.qualitest.ai.llm.modelsdev.ModelsDevCatalog;
+import com.qualitest.ai.llm.modelsdev.ModelsDevModelInfo;
 import com.qualitest.ai.llm.template.ProviderTemplate;
 import com.qualitest.ai.llm.template.ProviderTemplateRegistry;
 import com.qualitest.ai.mapper.AiLlmModelMapper;
@@ -55,7 +55,7 @@ public class ModelDiscoveryService {
     private ProviderTemplateRegistry providerTemplateRegistry;
 
     @Autowired
-    private ModelMetadataCatalog modelMetadataCatalog;
+    private ModelsDevCatalog modelsDevCatalog;
 
     @Autowired
     private IAiLlmVendorService aiLlmVendorService;
@@ -204,13 +204,12 @@ public class ModelDiscoveryService {
             if (item == null || "ORPHAN".equals(item.getStatus())) {
                 continue;
             }
-            ModelMetadata metadata = modelMetadataCatalog.get(modelId);
-            String displayName = metadata != null && metadata.getDisplayName() != null
-                    ? metadata.getDisplayName() : modelId;
-            Integer thinkingCapable = metadata != null && metadata.getThinkingCapable() != null
-                    ? metadata.getThinkingCapable() : 0;
-            Integer thinkingDefault = metadata != null && metadata.getThinkingDefault() != null
-                    ? metadata.getThinkingDefault() : 0;
+            ProviderTemplate template = resolveTemplate(vendor.getTemplateId(), vendor.getProvider(), vendor.getDiscoveryType());
+            String modelsDevProviderId = template != null ? template.getModelsDevProviderId() : null;
+            ModelsDevModelInfo info = modelsDevCatalog.lookupOrDefault(modelsDevProviderId, modelId);
+            String displayName = info.getDisplayName() != null ? info.getDisplayName() : modelId;
+            Integer thinkingCapable = info.isThinkingCapable() ? 1 : 0;
+            Integer thinkingDefault = info.isThinkingDefault() ? 1 : 0;
 
             if ("NEW".equals(item.getStatus())) {
                 AiLlmModel model = AiLlmModel.builder()
@@ -298,7 +297,7 @@ public class ModelDiscoveryService {
         return vendor;
     }
 
-    /** 按厂商配置拉取远端模型并合并 model-metadata.json 元数据 */
+    /** 按厂商配置拉取远端模型并合并 models.dev 元数据 */
     private List<DiscoveredModel> fetchForVendor(AiLlmVendor vendor) {
         ProviderTemplate template = resolveTemplate(vendor.getTemplateId(), vendor.getProvider(), vendor.getDiscoveryType());
         String baseUrl = vendor.getBaseUrl();
@@ -308,7 +307,9 @@ public class ModelDiscoveryService {
             }
         }
         LlmDiscoveryUrlUtils.validateBaseUrl(baseUrl, allowPrivateBaseUrl);
-        return enrichWithMetadata(fetchRemote(template, baseUrl, vendor.getApiKey(), vendor.getDiscoveryType()));
+        String modelsDevProviderId = template != null ? template.getModelsDevProviderId() : null;
+        return enrichWithModelsDev(fetchRemote(template, baseUrl, vendor.getApiKey(), vendor.getDiscoveryType()),
+                modelsDevProviderId);
     }
 
     /** 按 discoveryType 选择适配器并发起上游 HTTP 发现请求 */
@@ -331,31 +332,28 @@ public class ModelDiscoveryService {
     }
 
     /**
-     * 用静态元数据补全远端模型的展示名、是否支持思考、默认是否开思考。
-     * 元数据缺失时记 warn，并按不支持思考、默认关闭处理。
+     * 用 models.dev 补全远端模型的展示名、是否支持思考、默认是否开思考。
+     * 目录未命中时按可思考、默认关闭处理。
      *
-     * @param models 远端发现的原始模型列表
+     * @param models               远端发现的原始模型列表
+     * @param modelsDevProviderId  models.dev provider 键，可空
      * @return 补全后的列表
      */
-    private List<DiscoveredModel> enrichWithMetadata(List<DiscoveredModel> models) {
+    private List<DiscoveredModel> enrichWithModelsDev(List<DiscoveredModel> models, String modelsDevProviderId) {
         List<DiscoveredModel> result = new ArrayList<>();
         for (DiscoveredModel model : models) {
-            ModelMetadata metadata = modelMetadataCatalog.get(model.getModelId());
-            DiscoveredModel.DiscoveredModelBuilder builder = DiscoveredModel.builder()
+            ModelsDevModelInfo info = modelsDevCatalog.lookupOrDefault(modelsDevProviderId, model.getModelId());
+            if (info.isFallback()) {
+                log.debug("模型 {} 未命中 models.dev，按默认可思考导入", model.getModelId());
+            }
+            result.add(DiscoveredModel.builder()
                     .modelId(model.getModelId())
                     .ownedBy(model.getOwnedBy())
-                    .remoteCreatedAt(model.getRemoteCreatedAt());
-            if (metadata != null) {
-                builder.displayName(metadata.getDisplayName() != null ? metadata.getDisplayName() : model.getModelId())
-                        .thinkingCapable(metadata.getThinkingCapable() != null ? metadata.getThinkingCapable() : 0)
-                        .thinkingDefault(metadata.getThinkingDefault() != null ? metadata.getThinkingDefault() : 0);
-            } else {
-                log.warn("模型 {} 未收录元数据，按不支持思考导入", model.getModelId());
-                builder.displayName(model.getDisplayName() != null ? model.getDisplayName() : model.getModelId())
-                        .thinkingCapable(0)
-                        .thinkingDefault(0);
-            }
-            result.add(builder.build());
+                    .remoteCreatedAt(model.getRemoteCreatedAt())
+                    .displayName(info.getDisplayName() != null ? info.getDisplayName() : model.getModelId())
+                    .thinkingCapable(info.isThinkingCapable() ? 1 : 0)
+                    .thinkingDefault(info.isThinkingDefault() ? 1 : 0)
+                    .build());
         }
         return result;
     }

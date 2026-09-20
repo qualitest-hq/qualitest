@@ -359,7 +359,8 @@
                alv.enable_status     as vendorEnableStatus,
                alm.del_status        as modelDelStatus,
                alv.del_status        as vendorDelStatus,
-               alm.sort_num          as modelSortNum
+               alm.sort_num          as modelSortNum,
+               alv.template_id       as templateId
         from ai_llm_model alm
                  inner join ai_llm_vendor alv on alm.ai_llm_vendor_id = alv.ai_llm_vendor_id
         where alm.ai_llm_model_id = #{aiLlmModelId}
