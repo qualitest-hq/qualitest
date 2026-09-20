@@ -58,7 +58,8 @@ public final class AiSseStreamSupport {
                     emitter.complete();
                 }
             } catch (Exception e) {
-                String message = e instanceof LlmClientException ? e.getMessage() : errorFallbackMessage;
+                String message = resolveErrorMessage(e, errorFallbackMessage);
+                log.error("{}: {}", workerThreadName, message, e);
                 try {
                     sendJson(emitter, cancelled, Map.of("type", "error", "message", message));
                     if (!cancelled.get()) {
@@ -171,6 +172,39 @@ public final class AiSseStreamSupport {
             cancelled.set(true);
             log.debug("SSE 发送失败，标记取消: {}", e.toString());
         }
+    }
+
+    /**
+     * 从异常链提取可展示给前端的文案。
+     * 优先业务异常原文；连接拒绝/超时等给出明确中文；其余带上原始 message，避免只剩笼统兜底句。
+     */
+    static String resolveErrorMessage(Throwable error, String fallback) {
+        if (error instanceof LlmClientException && error.getMessage() != null && !error.getMessage().isBlank()) {
+            return error.getMessage().trim();
+        }
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof java.net.ConnectException) {
+                return "无法连接模型服务（连接被拒绝），请检查厂商 Base URL 是否可达、网关是否已启动";
+            }
+            if (t instanceof java.net.SocketTimeoutException
+                    || t instanceof java.util.concurrent.TimeoutException) {
+                return "连接模型服务超时，请检查网络或增大读超时";
+            }
+            if (t instanceof java.net.UnknownHostException) {
+                return "无法解析模型服务地址，请检查厂商 Base URL";
+            }
+            String name = t.getClass().getSimpleName();
+            String msg = t.getMessage();
+            if (msg != null && !msg.isBlank()) {
+                if (name.contains("Http") || name.contains("OpenAi") || name.contains("LangChain")) {
+                    return "模型调用失败: " + msg.trim();
+                }
+            }
+        }
+        if (error.getMessage() != null && !error.getMessage().isBlank()) {
+            return error.getMessage().trim();
+        }
+        return fallback != null ? fallback : "AI 助手请求失败";
     }
 
     /**

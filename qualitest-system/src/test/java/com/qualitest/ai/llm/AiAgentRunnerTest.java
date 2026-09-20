@@ -1,37 +1,49 @@
 package com.qualitest.ai.llm;
 
 import com.qualitest.ai.config.AiLlmConfigService;
+import com.qualitest.ai.llm.lc4j.Lc4jClientFactory;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * 测 AiAgentRunner：多步 tool_call 循环（执行工具、写回 tool 消息、maxSteps / 终态探针）。
- * 边界：Mock LlmProvider / AiLlmConfigService，不发真实 LLM。
- * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiAgentRunnerTest
+ * Agent 工具循环单测。
+ * 覆盖：多步工具调用、结果写回对话、步数上限、终态探测。
+ * 使用 Mock 客户端与配置，不访问真实大模型。
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AiAgentRunnerTest {
 
-    private LlmProvider llmProvider;
+    private Lc4jClientFactory lc4jClientFactory;
+    private ChatModel chatModel;
     private AiLlmConfigService configService;
     private AiAgentRunner runner;
     private LlmModelConfig modelConfig;
 
     @BeforeEach
     void setUp() {
-        llmProvider = mock(LlmProvider.class);
+        lc4jClientFactory = mock(Lc4jClientFactory.class);
+        chatModel = mock(ChatModel.class);
         configService = mock(AiLlmConfigService.class);
         when(configService.getMaxSteps()).thenReturn(8);
-        runner = new AiAgentRunner(llmProvider, configService);
+        when(configService.getReadTimeoutMs()).thenReturn(120_000);
+        when(lc4jClientFactory.chatModel(any(), anyBoolean())).thenReturn(chatModel);
+        runner = new AiAgentRunner(lc4jClientFactory, configService);
         modelConfig = LlmModelConfig.builder()
                 .aiLlmModelId(1001L)
                 .modelName("gpt-test")
+                .provider(LlmProviderTypes.OPENAI_COMPATIBLE)
                 .baseUrl("https://example.com/v1")
                 .apiKey("sk-test")
                 .build();
@@ -45,23 +57,22 @@ class AiAgentRunnerTest {
     @Order(1)
     @DisplayName("tool_call 后返回最终 JSON 成功")
     void run_toolCallThenFinalJson_succeeds() {
-        LlmToolCall toolCall = LlmToolCall.builder()
+        ToolExecutionRequest toolCall = ToolExecutionRequest.builder()
                 .id("call_1")
                 .name("search_apis")
-                .argumentsJson("{\"keyword\":\"login\"}")
+                .arguments("{\"keyword\":\"login\"}")
                 .build();
-        when(llmProvider.chat(eq(modelConfig), any()))
-                .thenReturn(LlmChatResponse.builder()
-                        .toolCalls(List.of(toolCall))
+        when(chatModel.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.builder().toolExecutionRequests(List.of(toolCall)).build())
                         .build())
-                .thenReturn(LlmChatResponse.builder()
-                        .content("{\"addNodes\":[],\"addEdges\":[]}")
-                        .finishReason("stop")
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.from("{\"addNodes\":[],\"addEdges\":[]}"))
                         .build());
 
         AiAgentRunner.AgentRunResult result = runner.run(AiAgentRunner.AgentRunOptions.builder()
                 .modelConfig(modelConfig)
-                .initialMessages(List.of(LlmMessage.user("plan")))
+                .initialMessages(List.of(UserMessage.from("plan")))
                 .toolExecutor((name, args) -> "{\"items\":[]}")
                 .maxSteps(3)
                 .build());
@@ -75,7 +86,7 @@ class AiAgentRunnerTest {
         assertTrue(result.getToolTrace().getJSONArray("calls").getJSONObject(0).getBooleanValue("ok"));
         assertEquals("login", result.getToolTrace().getJSONArray("calls").getJSONObject(0)
                 .getJSONObject("args").getString("keyword"));
-        verify(llmProvider, times(2)).chat(eq(modelConfig), any());
+        verify(chatModel, times(2)).chat(any(ChatRequest.class));
     }
 
     /**
@@ -86,17 +97,19 @@ class AiAgentRunnerTest {
     @Order(2)
     @DisplayName("超过 maxSteps 时返回错误")
     void run_exceedsMaxSteps_returnsError() {
-        LlmToolCall toolCall = LlmToolCall.builder()
+        ToolExecutionRequest toolCall = ToolExecutionRequest.builder()
                 .id("call_loop")
                 .name("search_apis")
-                .argumentsJson("{}")
+                .arguments("{}")
                 .build();
-        when(llmProvider.chat(eq(modelConfig), any()))
-                .thenReturn(LlmChatResponse.builder().toolCalls(List.of(toolCall)).build());
+        when(chatModel.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.builder().toolExecutionRequests(List.of(toolCall)).build())
+                        .build());
 
         AiAgentRunner.AgentRunResult result = runner.run(AiAgentRunner.AgentRunOptions.builder()
                 .modelConfig(modelConfig)
-                .initialMessages(List.of(LlmMessage.user("plan")))
+                .initialMessages(List.of(UserMessage.from("plan")))
                 .toolExecutor((name, args) -> "{}")
                 .maxSteps(2)
                 .build());
@@ -114,28 +127,31 @@ class AiAgentRunnerTest {
     @Order(5)
     @DisplayName("步数将尽时注入催 submit 提示")
     void run_nearMaxSteps_appendsSubmitNudge() {
-        LlmToolCall toolCall = LlmToolCall.builder()
+        ToolExecutionRequest toolCall = ToolExecutionRequest.builder()
                 .id("call_loop")
                 .name("search_apis")
-                .argumentsJson("{}")
+                .arguments("{}")
                 .build();
-        when(llmProvider.chat(eq(modelConfig), any()))
-                .thenReturn(LlmChatResponse.builder().toolCalls(List.of(toolCall)).build());
+        when(chatModel.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.builder().toolExecutionRequests(List.of(toolCall)).build())
+                        .build());
 
-        ArgumentCaptor<LlmChatRequest> requestCaptor = ArgumentCaptor.forClass(LlmChatRequest.class);
+        ArgumentCaptor<ChatRequest> requestCaptor = ArgumentCaptor.forClass(ChatRequest.class);
         AiAgentRunner.AgentRunResult result = runner.run(AiAgentRunner.AgentRunOptions.builder()
                 .modelConfig(modelConfig)
-                .initialMessages(List.of(LlmMessage.user("plan")))
+                .initialMessages(List.of(UserMessage.from("plan")))
                 .toolExecutor((name, args) -> "{}")
                 .maxSteps(3)
                 .designSubmitNudgeEnabled(true)
                 .build());
 
-        verify(llmProvider, times(3)).chat(eq(modelConfig), requestCaptor.capture());
-        List<LlmChatRequest> requests = requestCaptor.getAllValues();
-        // 第 2、3 轮请求应已带上催 submit（第 1 轮 tool 后 steps=1，剩余 2）
-        boolean secondHasNudge = requests.get(1).getMessages().stream()
-                .anyMatch(m -> AiAgentRunner.SUBMIT_NUDGE_CONTENT.equals(m.getContent()));
+        verify(chatModel, times(3)).chat(requestCaptor.capture());
+        List<ChatRequest> requests = requestCaptor.getAllValues();
+        boolean secondHasNudge = requests.get(1).messages().stream()
+                .anyMatch(m -> m instanceof UserMessage user
+                        && user.hasSingleText()
+                        && AiAgentRunner.SUBMIT_NUDGE_CONTENT.equals(user.singleText()));
         assertTrue(secondHasNudge);
         assertFalse(result.isOk());
         assertTrue(result.getError().contains("submit_"));
@@ -149,22 +165,23 @@ class AiAgentRunnerTest {
     @Order(3)
     @DisplayName("无 tool_call 时直接返回 content")
     void run_directContent_noToolCalls() {
-        when(llmProvider.chat(eq(modelConfig), any()))
-                .thenReturn(LlmChatResponse.builder()
-                        .content("  {\"summary\":\"ok\"}  ")
-                        .finishReason("stop")
+        when(chatModel.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.from("  {\"summary\":\"ok\"}  "))
                         .build());
 
         AiAgentRunner.AgentRunResult result = runner.run(AiAgentRunner.AgentRunOptions.builder()
                 .modelConfig(modelConfig)
-                .initialMessages(List.of(LlmMessage.system("sys"), LlmMessage.user("go")))
+                .initialMessages(List.of(
+                        dev.langchain4j.data.message.SystemMessage.from("sys"),
+                        UserMessage.from("go")))
                 .maxSteps(5)
                 .build());
 
         assertTrue(result.isOk());
         assertEquals("{\"summary\":\"ok\"}", result.getContent());
         assertEquals(0, result.getStepsUsed());
-        verify(llmProvider, times(1)).chat(eq(modelConfig), any());
+        verify(chatModel, times(1)).chat(any(ChatRequest.class));
     }
 
     /**
@@ -175,17 +192,19 @@ class AiAgentRunnerTest {
     @Order(4)
     @DisplayName("终态探针成功时无 content 仍 ok")
     void run_terminalSuccessProbe_succeedsWithoutContent() {
-        LlmToolCall toolCall = LlmToolCall.builder()
+        ToolExecutionRequest toolCall = ToolExecutionRequest.builder()
                 .id("call_submit")
                 .name("submit_http_node")
-                .argumentsJson("{}")
+                .arguments("{}")
                 .build();
-        when(llmProvider.chat(eq(modelConfig), any()))
-                .thenReturn(LlmChatResponse.builder().toolCalls(List.of(toolCall)).build());
+        when(chatModel.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.builder().toolExecutionRequests(List.of(toolCall)).build())
+                        .build());
 
         AiAgentRunner.AgentRunResult result = runner.run(AiAgentRunner.AgentRunOptions.builder()
                 .modelConfig(modelConfig)
-                .initialMessages(List.of(LlmMessage.user("plan")))
+                .initialMessages(List.of(UserMessage.from("plan")))
                 .toolExecutor((name, args) -> "{\"received\":true}")
                 .maxSteps(1)
                 .terminalSuccessProbe(() -> true)
@@ -206,17 +225,19 @@ class AiAgentRunnerTest {
     @DisplayName("取消标志置位后步间停止并保留 toolTrace")
     void run_cancelledAfterTool_returnsInterruptedWithTrace() {
         java.util.concurrent.atomic.AtomicBoolean cancelled = new java.util.concurrent.atomic.AtomicBoolean(false);
-        LlmToolCall toolCall = LlmToolCall.builder()
+        ToolExecutionRequest toolCall = ToolExecutionRequest.builder()
                 .id("call_1")
                 .name("search_apis")
-                .argumentsJson("{\"keyword\":\"login\"}")
+                .arguments("{\"keyword\":\"login\"}")
                 .build();
-        when(llmProvider.chat(eq(modelConfig), any()))
-                .thenReturn(LlmChatResponse.builder().toolCalls(List.of(toolCall)).build());
+        when(chatModel.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.builder().toolExecutionRequests(List.of(toolCall)).build())
+                        .build());
 
         AiAgentRunner.AgentRunResult result = runner.run(AiAgentRunner.AgentRunOptions.builder()
                 .modelConfig(modelConfig)
-                .initialMessages(List.of(LlmMessage.user("plan")))
+                .initialMessages(List.of(UserMessage.from("plan")))
                 .toolExecutor((name, args) -> {
                     cancelled.set(true);
                     return "{\"items\":[]}";
@@ -232,7 +253,7 @@ class AiAgentRunnerTest {
         assertNotNull(result.getToolTrace());
         assertEquals(1, result.getToolTrace().getJSONArray("calls").size());
         assertEquals("search_apis", result.getToolTrace().getJSONArray("calls").getJSONObject(0).getString("name"));
-        verify(llmProvider, times(1)).chat(eq(modelConfig), any());
+        verify(chatModel, times(1)).chat(any(ChatRequest.class));
     }
 
     /**

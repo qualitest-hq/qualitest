@@ -11,6 +11,7 @@ import com.qualitest.ai.llm.LlmModelConfig;
 import com.qualitest.ai.llm.history.HistoryWindowPolicy;
 import com.qualitest.ai.llm.history.HistoryWindowPolicyResolver;
 import com.qualitest.ai.llm.history.TokenEstimator;
+import com.qualitest.ai.llm.lc4j.Lc4jMessageSupport;
 import com.qualitest.ai.scenario.apidesign.model.ApiDesignPatch;
 import com.qualitest.ai.scenario.apidesign.model.ApiDesignRequest;
 import com.qualitest.ai.scenario.apidesign.model.ApiDesignResult;
@@ -32,6 +33,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
 
 /**
  * AI API 助手场景编排：加载会话、跑工具循环、产出 ApiDesignPatch 或纯说明。
@@ -104,7 +109,7 @@ public class ApiDesignAgent {
 
         List<Map<String, Object>> tools = apiDesignToolsDefinitionService.loadToolsDefinition();
         boolean autopilot = request.isAutopilotEnabledEffective();
-        List<LlmMessage> messages = buildInitialMessages(request, session, modelConfig, autopilot);
+        List<ChatMessage> messages = buildInitialMessages(request, session, modelConfig, autopilot);
 
         aiChatConversationService.appendUserMessage(
                 session.getAiChatSessionId(),
@@ -254,7 +259,11 @@ public class ApiDesignAgent {
         return obj.toJSONString();
     }
 
-    /** 解析本轮是否开启思考链：已有会话取会话配置，新建会话取请求参数。 */
+    /**
+     * 解析本轮是否开启思考链。
+     * 已有会话优先用会话表 thinking_enabled；新建会话创建前用请求里的 thinkingEnabled；
+     * 都没有则返回 null（跟随模型默认能力）。
+     */
     private static Integer resolveSessionThinking(AiChatSession session, ApiDesignRequest request) {
         if (session.getThinkingEnabled() != null) {
             return session.getThinkingEnabled();
@@ -265,9 +274,13 @@ public class ApiDesignAgent {
         return null;
     }
 
-    /** 组装首轮 LLM 消息：系统提示（可含全自动段）、会话摘要、历史窗口与当前用户描述。 */
-    private List<LlmMessage> buildInitialMessages(ApiDesignRequest request, AiChatSession session,
-                                                  LlmModelConfig modelConfig, boolean autopilot) {
+    /**
+     * 组装首轮送入模型的消息。
+     * 顺序：系统提示（全自动时追加全自动规程）→ 可选会话摘要 → 按 token 窗口裁剪的历史 → 本轮用户正文。
+     * reservedTokens 预留系统提示、用户正文与摘要占用，避免历史装载挤爆上下文。
+     */
+    private List<ChatMessage> buildInitialMessages(ApiDesignRequest request, AiChatSession session,
+                                                   LlmModelConfig modelConfig, boolean autopilot) {
         try {
             String systemPrompt = ApiDesignPromptResources.loadText(ApiDesignPromptResources.SYSTEM_PROMPT);
             if (autopilot) {
@@ -282,14 +295,15 @@ public class ApiDesignAgent {
             }
 
             HistoryWindowPolicy policy = historyWindowPolicyResolver.resolve(modelConfig);
-            List<LlmMessage> messages = new ArrayList<>();
-            messages.add(LlmMessage.system(systemPrompt));
+            List<ChatMessage> messages = new ArrayList<>();
+            messages.add(SystemMessage.from(systemPrompt));
             if (session.getContextSummary() != null && !session.getContextSummary().isBlank()) {
-                messages.add(LlmMessage.system("【会话摘要】\n" + session.getContextSummary().trim()));
+                messages.add(SystemMessage.from("【会话摘要】\n" + session.getContextSummary().trim()));
             }
-            messages.addAll(aiChatConversationService.loadMessagesForLlm(
-                    session.getAiChatSessionId(), modelConfig, policy, reservedTokens));
-            messages.add(LlmMessage.user(userContent));
+            List<LlmMessage> history = aiChatConversationService.loadMessagesForLlm(
+                    session.getAiChatSessionId(), modelConfig, policy, reservedTokens);
+            messages.addAll(Lc4jMessageSupport.fromLlmMessages(history));
+            messages.add(UserMessage.from(userContent));
             return messages;
         } catch (IOException e) {
             throw new LlmClientException("加载 AI Prompt 资源失败", e);

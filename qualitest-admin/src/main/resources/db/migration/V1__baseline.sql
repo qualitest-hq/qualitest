@@ -127,7 +127,7 @@ CREATE TABLE `ai_llm_vendor`
 -- ----------------------------
 -- Records of ai_llm_vendor
 -- ----------------------------
-INSERT INTO `ai_llm_vendor` VALUES (2067000000000000001, 'Deepseek', 1, 'deepseek', 'openai_compatible', 'openai_models', 'https://api.deepseek.com', NULL, 0, 10, NULL, 0, '2026-06-23 11:42:53', NULL);
+INSERT INTO `ai_llm_vendor` VALUES (2067000000000000001, 'DeepSeek', 1, 'deepseek', 'openai_compatible', 'openai_models', 'https://api.deepseek.com', NULL, 0, 10, NULL, 0, '2026-06-23 11:42:53', NULL);
 INSERT INTO `ai_llm_vendor` VALUES (2067000000000000002, 'OpenAI', 1, 'openai', 'openai_compatible', 'openai_models', 'https://api.openai.com/v1', NULL, 0, 20, NULL, 0, '2026-06-23 11:42:53', NULL);
 INSERT INTO `ai_llm_vendor` VALUES (2067000000000000003, '硅基流动', 1, 'siliconflow', 'openai_compatible', 'openai_models', 'https://api.siliconflow.cn/v1', NULL, 0, 30, NULL, 0, '2026-06-23 11:42:54', NULL);
 INSERT INTO `ai_llm_vendor` VALUES (2067000000000000004, 'Anthropic', 1, 'anthropic', 'anthropic_compatible', 'anthropic_models', 'https://api.anthropic.com', NULL, 0, 40, NULL, 0, '2026-06-23 11:42:54', NULL);

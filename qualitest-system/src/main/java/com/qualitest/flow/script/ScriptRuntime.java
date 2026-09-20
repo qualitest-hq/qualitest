@@ -29,8 +29,8 @@ import java.util.concurrent.TimeoutException;
 /**
  * 受限脚本运行时：在 GraalVM 沙箱中执行 JavaScript / Python 源码。
  * <p>
- * 禁止 IO、线程、本地访问；通过 {@link ScriptHostContext} 暴露只读 env/asset/HTTP 与可写 flow。
- * 超时与并发由 {@link ScriptConstants} 控制。
+ * 禁止 IO、线程、本地访问；通过宿主上下文暴露只读 env/asset/HTTP 与可写 flow。
+ * 超时与并发上限由脚本常量配置。
  */
 @Component
 public class ScriptRuntime {
@@ -38,7 +38,10 @@ public class ScriptRuntime {
     private static final Semaphore CONCURRENCY = new Semaphore(ScriptConstants.MAX_CONCURRENT_SCRIPTS);
 
     /** 进程内共享 Engine，避免每次新建 Context 重复加载语言（尤其 Python 冷启动很慢） */
-    private static final Engine SHARED_ENGINE = Engine.create();
+    private static final Engine SHARED_ENGINE = Engine.newBuilder()
+            // Graal 25 优化运行时需 JDK 25+；当前 JDK 17 走解释执行，关闭告警避免刷屏
+            .option("engine.WarnInterpreterOnly", "false")
+            .build();
 
     private final IDebugHttpForwardService forwardService;
 

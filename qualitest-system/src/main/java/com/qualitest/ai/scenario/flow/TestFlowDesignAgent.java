@@ -12,6 +12,7 @@ import com.qualitest.ai.llm.LlmModelConfig;
 import com.qualitest.ai.llm.history.HistoryWindowPolicy;
 import com.qualitest.ai.llm.history.HistoryWindowPolicyResolver;
 import com.qualitest.ai.llm.history.TokenEstimator;
+import com.qualitest.ai.llm.lc4j.Lc4jMessageSupport;
 import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignRequest;
@@ -41,6 +42,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
 
 /**
  * 测试流 AI 设计编排：跑工具循环、收集画布单元与素材/鉴权提案、写助手消息并返回结果。
@@ -160,7 +165,7 @@ public class TestFlowDesignAgent {
                 });
 
         List<Map<String, Object>> tools = flowDesignToolsDefinitionService.loadToolsDefinition(autopilot);
-        List<LlmMessage> messages = buildInitialMessages(request, session, modelConfig, autopilot);
+        List<ChatMessage> messages = buildInitialMessages(request, session, modelConfig, autopilot);
 
         aiChatConversationService.appendUserMessage(
                 session.getAiChatSessionId(),
@@ -379,7 +384,11 @@ public class TestFlowDesignAgent {
         return "{\"testFlowId\":\"" + testFlowId + "\"}";
     }
 
-    /** 会话库内开关优先；新会话创建前由 request.thinkingEnabled 落库 */
+    /**
+     * 解析本轮是否开启思考链。
+     * 已有会话优先用会话表 thinking_enabled；新建会话创建前用请求里的 thinkingEnabled；
+     * 都没有则返回 null（跟随模型默认能力）。
+     */
     private static Integer resolveSessionThinking(AiChatSession session, TestFlowDesignRequest request) {
         if (session.getThinkingEnabled() != null) {
             return session.getThinkingEnabled();
@@ -390,9 +399,13 @@ public class TestFlowDesignAgent {
         return null;
     }
 
-    /** 组装首轮送入模型的消息：system（可含全自动段）+ 会话摘要 + 裁剪历史 + 本轮 user */
-    private List<LlmMessage> buildInitialMessages(TestFlowDesignRequest request, AiChatSession session,
-                                                  LlmModelConfig modelConfig, boolean autopilot) {
+    /**
+     * 组装首轮送入模型的消息。
+     * 顺序：系统提示（全自动时追加全自动规程）→ 可选会话摘要 → 按 token 窗口裁剪的历史 → 本轮用户正文。
+     * reservedTokens 预留系统提示、用户正文与摘要占用，避免历史装载挤爆上下文。
+     */
+    private List<ChatMessage> buildInitialMessages(TestFlowDesignRequest request, AiChatSession session,
+                                                   LlmModelConfig modelConfig, boolean autopilot) {
         try {
             String systemPrompt = FlowDesignPromptResources.loadText(FlowDesignPromptResources.SYSTEM_PROMPT);
             if (autopilot) {
@@ -407,14 +420,15 @@ public class TestFlowDesignAgent {
             }
 
             HistoryWindowPolicy policy = historyWindowPolicyResolver.resolve(modelConfig);
-            List<LlmMessage> messages = new ArrayList<>();
-            messages.add(LlmMessage.system(systemPrompt));
+            List<ChatMessage> messages = new ArrayList<>();
+            messages.add(SystemMessage.from(systemPrompt));
             if (session.getContextSummary() != null && !session.getContextSummary().isBlank()) {
-                messages.add(LlmMessage.system("【会话摘要】\n" + session.getContextSummary().trim()));
+                messages.add(SystemMessage.from("【会话摘要】\n" + session.getContextSummary().trim()));
             }
-            messages.addAll(aiChatConversationService.loadMessagesForLlm(
-                    session.getAiChatSessionId(), modelConfig, policy, reservedTokens));
-            messages.add(LlmMessage.user(userContent));
+            List<LlmMessage> history = aiChatConversationService.loadMessagesForLlm(
+                    session.getAiChatSessionId(), modelConfig, policy, reservedTokens);
+            messages.addAll(Lc4jMessageSupport.fromLlmMessages(history));
+            messages.add(UserMessage.from(userContent));
             return messages;
         } catch (IOException e) {
             throw new LlmClientException("加载 AI Prompt 资源失败", e);

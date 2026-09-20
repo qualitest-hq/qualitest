@@ -1,8 +1,23 @@
 package com.qualitest.ai.llm;
 
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.config.AiLlmConfigService;
+import com.qualitest.ai.llm.lc4j.Lc4jClientFactory;
+import com.qualitest.ai.llm.lc4j.Lc4jToolSpecifications;
+import com.qualitest.ai.tools.FlowDesignToolSupport;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.ToolChoice;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.PartialThinking;
+import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -11,60 +26,96 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 /**
- * 通用 Agent 循环执行器。
+ * 通用 Agent 工具循环执行器。
  * <p>
- * 反复调用模型，处理工具调用闭环，直到返回最终文本、达到步数上限或被取消：
- * <ul>
- *   <li>返回 toolCalls → 执行工具 → 追加 tool 消息 → 继续</li>
- *   <li>返回非空文本 → 视为最终答案并结束</li>
- *   <li>超出 maxSteps → 返回可读错误</li>
- *   <li>designSubmitNudgeEnabled 且剩余步数 ≤2 → 注入催促继续改图或收尾总结的提示</li>
- *   <li>cancelled 为 true → 在步间停止，返回 interrupted 及已记录的工具轨迹</li>
- * </ul>
- * 造流默认不启用终态探针：单次 submit 成功不立刻结束循环，由模型收尾总结；
- * 累积的画布改动由编排层从 SubmitCapture 读取。
- * 正在进行的单次模型 HTTP 请求不会被中途打断，等本次响应返回后再检查取消。
+ * 按步调用大模型：有监听器时走流式（正文/思考增量推前端），否则走同步一次返回。
+ * 每步若返回工具调用则执行宿主回调、把结果写回对话继续下一轮；
+ * 若返回纯文本则结束；也可因步数用尽、用户取消、或宿主终态探测成功而结束。
  */
 @Component
 @RequiredArgsConstructor
 public class AiAgentRunner {
 
-    /** 造流步数将尽时追加的 user 提示：催促 submit_* 或停止拉详情并总结 */
+    /** 造流场景：剩余步数将尽时追加的用户提示，催促提交改图工具或停止拉详情并总结。 */
     static final String SUBMIT_NUDGE_CONTENT =
             "剩余工具步数不足（≤2）。若本轮要改画布，请继续调用对应的 submit_* 单元工具；"
                     + "若已完成请停止调工具并给出中文总结。禁止再反复拉取接口详情。";
 
-    /** 用户取消或连接中断后，写入助手消息时的默认说明文案 */
+    /** 用户取消或连接中断后，写入助手消息时的默认说明文案。 */
     public static final String INTERRUPTED_MESSAGE = "本轮已中断";
 
-    private final LlmProvider llmProvider;
+    private final Lc4jClientFactory lc4jClientFactory;
     private final AiLlmConfigService aiLlmConfigService;
 
     /**
      * 执行 Agent 主循环。
      *
-     * @param options 模型、消息、工具、执行器、步数上限、可选取消标志与监听器
-     * @return 成功时 content 为最终正文；失败时 error 有说明；取消时 interrupted 为 true 并带已有轨迹
+     * @param options 模型配置、首轮消息、工具定义、工具执行器、步数上限、取消标志、监听器等
+     * @return 成功时 content 为最终正文；失败时 error 有说明；取消时 interrupted 为 true 并带已有工具轨迹
      */
     public AgentRunResult run(AgentRunOptions options) {
-        List<LlmMessage> messages = new ArrayList<>(options.getInitialMessages());
+        try {
+            return runInternal(options);
+        } catch (LlmClientException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw wrapLlmFailure(e);
+        }
+    }
+
+    /** 将上游客户端抛出的运行时异常转为带中文说明的业务异常。 */
+    private static LlmClientException wrapLlmFailure(RuntimeException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof java.net.ConnectException) {
+                return new LlmClientException(
+                        "无法连接模型服务（连接被拒绝），请检查厂商 Base URL 是否可达、网关是否已启动", e);
+            }
+            if (t instanceof java.net.SocketTimeoutException) {
+                return new LlmClientException("连接模型服务超时，请检查网络或增大读超时", e);
+            }
+            if (t instanceof java.net.UnknownHostException) {
+                return new LlmClientException("无法解析模型服务地址，请检查厂商 Base URL", e);
+            }
+        }
+        String msg = e.getMessage();
+        if (msg != null && !msg.isBlank()) {
+            return new LlmClientException("模型调用失败: " + msg.trim(), e);
+        }
+        return new LlmClientException("模型调用失败", e);
+    }
+
+    private AgentRunResult runInternal(AgentRunOptions options) {
+        List<ChatMessage> messages = new ArrayList<>(options.getInitialMessages());
         int maxSteps = options.getMaxSteps() > 0 ? options.getMaxSteps() : aiLlmConfigService.getMaxSteps();
         AgentRunListener listener = options.getListener();
         StringBuilder thinkingAccumulator = new StringBuilder();
         AiToolTraceSupport.Recorder toolTrace = new AiToolTraceSupport.Recorder();
+        boolean reasoningEnabled = ThinkingPolicy.resolveEffective(
+                options.getModelConfig(), options.getSessionThinkingEnabled());
+        List<ToolSpecification> toolSpecs = Lc4jToolSpecifications.fromOpenAiMaps(options.getTools());
+        StreamingChatModel streamingModel = listener != null
+                ? lc4jClientFactory.streamingChatModel(options.getModelConfig(), reasoningEnabled)
+                : null;
+        ChatModel chatModel = listener == null
+                ? lc4jClientFactory.chatModel(options.getModelConfig(), reasoningEnabled)
+                : null;
+
         int steps = 0;
         while (steps < maxSteps) {
             if (isCancelled(options)) {
                 return buildInterrupted(thinkingAccumulator, steps, maxSteps, toolTrace, null);
             }
-            LlmChatRequest request = buildChatRequest(options, messages);
-            LlmChatResponse response = listener != null
-                    ? chatStreamCollect(options.getModelConfig(), request, listener, thinkingAccumulator)
-                    : llmProvider.chat(options.getModelConfig(), request);
-            if (response == null) {
+            ChatRequest request = buildChatRequest(messages, toolSpecs);
+            ChatResponse response = listener != null
+                    ? chatStreamCollect(streamingModel, request, listener, reasoningEnabled)
+                    : chatModel.chat(request);
+            if (response == null || response.aiMessage() == null) {
                 if (isCancelled(options)) {
                     return buildInterrupted(thinkingAccumulator, steps, maxSteps, toolTrace, null);
                 }
@@ -74,30 +125,39 @@ public class AiAgentRunner {
                         .toolTrace(toolTrace.build(steps, maxSteps))
                         .build();
             }
-            appendThinking(thinkingAccumulator, response.getThinkingContent());
+            AiMessage aiMessage = response.aiMessage();
+            appendThinking(thinkingAccumulator, aiMessage.thinking());
             if (isCancelled(options)) {
-                String partial = response.getContent() != null && !response.getContent().isBlank()
-                        ? response.getContent().trim()
+                String partial = aiMessage.text() != null && !aiMessage.text().isBlank()
+                        ? aiMessage.text().trim()
                         : null;
                 return buildInterrupted(thinkingAccumulator, steps, maxSteps, toolTrace, partial);
             }
-            if (response.getToolCalls() != null && !response.getToolCalls().isEmpty()) {
-                messages.add(LlmMessage.assistant(response.getContent(), response.getToolCalls()));
-                for (LlmToolCall tc : response.getToolCalls()) {
+            if (aiMessage.hasToolExecutionRequests()) {
+                messages.add(toHistoryAiMessage(aiMessage, reasoningEnabled));
+                for (ToolExecutionRequest tc : aiMessage.toolExecutionRequests()) {
                     if (isCancelled(options)) {
                         return buildInterrupted(thinkingAccumulator, steps, maxSteps, toolTrace, null);
                     }
+                    String toolName = tc.name();
+                    String argsJson = tc.arguments() != null ? tc.arguments() : "{}";
                     if (listener != null) {
-                        listener.onToolStart(tc.getName());
+                        listener.onToolStart(toolName);
                     }
                     long started = System.nanoTime();
-                    String result = options.getToolExecutor().execute(tc.getName(), tc.getArgumentsJson());
+                    String result = options.getToolExecutor().execute(toolName, argsJson);
                     long ms = (System.nanoTime() - started) / 1_000_000L;
-                    toolTrace.record(tc.getName(), tc.getArgumentsJson(), result, ms, maxSteps);
+                    toolTrace.record(toolName, argsJson, result, ms, maxSteps);
                     if (listener != null) {
-                        listener.onToolEnd(tc.getName());
+                        listener.onToolEnd(toolName);
                     }
-                    messages.add(LlmMessage.tool(tc.getId(), result, isToolErrorResult(result)));
+                    boolean toolError = isToolErrorResult(result);
+                    messages.add(ToolExecutionResultMessage.builder()
+                            .id(tc.id())
+                            .toolName(toolName)
+                            .text(result != null ? result : "")
+                            .isError(toolError)
+                            .build());
                 }
                 steps++;
                 if (isCancelled(options)) {
@@ -109,7 +169,7 @@ public class AiAgentRunner {
                 maybeAppendSubmitNudge(messages, options, steps, maxSteps);
                 continue;
             }
-            String content = response.getContent();
+            String content = aiMessage.text();
             if (content != null && !content.isBlank()) {
                 return AgentRunResult.builder()
                         .content(content.trim())
@@ -135,50 +195,100 @@ public class AiAgentRunner {
     }
 
     /**
-     * 组装单次 LLM 请求。
-     * Anthropic 协议下按全局配置决定是否启用 Prompt Caching 与 Extended Thinking。
+     * 组装单轮模型请求：消息列表 + 可选工具规格。
+     * 当前工具选择策略固定为 AUTO（由模型决定是否调工具）。
      */
-    private LlmChatRequest buildChatRequest(AgentRunOptions options, List<LlmMessage> messages) {
-        LlmModelConfig modelConfig = options.getModelConfig();
-        boolean effective = ThinkingPolicy.resolveEffective(modelConfig, options.getSessionThinkingEnabled());
-        boolean anthropic = LlmProviderTypes.isAnthropic(modelConfig.getProvider());
-        boolean openAi = LlmProviderTypes.isOpenAiCompatible(modelConfig.getProvider());
-        return LlmChatRequest.builder()
-                .messages(messages)
-                .tools(options.getTools())
-                .toolChoice(options.getToolChoice())
-                .promptCaching(anthropic && aiLlmConfigService.isAgentPromptCaching())
-                .extendedThinking(effective && anthropic)
-                .reasoningEnabled(effective && openAi)
-                .thinkingBudgetTokens(ThinkingPolicy.resolveBudget(modelConfig, aiLlmConfigService))
-                .build();
+    private static ChatRequest buildChatRequest(List<ChatMessage> messages,
+                                                List<ToolSpecification> tools) {
+        ChatRequest.Builder builder = ChatRequest.builder().messages(messages);
+        if (tools != null && !tools.isEmpty()) {
+            builder.toolSpecifications(tools);
+            builder.toolChoice(ToolChoice.AUTO);
+        }
+        return builder.build();
     }
 
-    private LlmChatResponse chatStreamCollect(LlmModelConfig modelConfig, LlmChatRequest request,
-                                            AgentRunListener listener, StringBuilder thinkingAccumulator) {
-        final LlmChatResponse[] holder = new LlmChatResponse[1];
-        llmProvider.chatStream(modelConfig, request, new LlmStreamCallback() {
+    /**
+     * 发起流式调用并阻塞至完整响应。
+     * 正文增量、思考增量实时回调监听器；完整思考文本在结束后由主循环累加，避免与增量重复写入。
+     * 超时时间为读超时配置 + 30 秒缓冲。
+     */
+    private ChatResponse chatStreamCollect(StreamingChatModel model,
+                                           ChatRequest request,
+                                           AgentRunListener listener,
+                                           boolean reasoningEnabled) {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<ChatResponse> holder = new AtomicReference<>();
+        AtomicReference<Throwable> errorHolder = new AtomicReference<>();
+        model.chat(request, new StreamingChatResponseHandler() {
             @Override
-            public void onTextDelta(String delta) {
-                listener.onTextDelta(delta);
+            public void onPartialResponse(String partialResponse) {
+                if (partialResponse != null && !partialResponse.isEmpty()) {
+                    listener.onTextDelta(partialResponse);
+                }
             }
 
             @Override
-            public void onThinkingDelta(String delta) {
+            public void onPartialThinking(PartialThinking partialThinking) {
+                if (!reasoningEnabled || partialThinking == null) {
+                    return;
+                }
+                String delta = partialThinking.text();
                 if (delta != null && !delta.isEmpty()) {
-                    thinkingAccumulator.append(delta);
+                    // 仅推前端展示；完整思考在本轮结束后写入累加器，避免重复拼接
                     listener.onThinkingDelta(delta);
                 }
             }
 
             @Override
-            public void onComplete(LlmChatResponse response) {
-                holder[0] = response;
+            public void onCompleteResponse(ChatResponse completeResponse) {
+                holder.set(completeResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                errorHolder.set(error);
+                latch.countDown();
             }
         });
-        return holder[0];
+        try {
+            long timeoutMs = Math.max(aiLlmConfigService.getReadTimeoutMs(), 1000L) + 30_000L;
+            if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+                throw new LlmClientException("LLM 流式响应超时");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LlmClientException("LLM 流式响应被中断", e);
+        }
+        if (errorHolder.get() != null) {
+            Throwable err = errorHolder.get();
+            if (err instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new LlmClientException("LLM 流式调用失败: " + err.getMessage(), err);
+        }
+        return holder.get();
     }
 
+    /**
+     * 把本轮助手消息写入多轮上下文。
+     * 开启思考时，即使上游未返回 thinking 也写入空串，避免部分厂商在后续工具轮丢失思考字段。
+     */
+    private static AiMessage toHistoryAiMessage(AiMessage aiMessage, boolean reasoningEnabled) {
+        String thinking = aiMessage.thinking();
+        if (reasoningEnabled && thinking == null) {
+            thinking = "";
+        }
+        return AiMessage.builder()
+                .text(aiMessage.text())
+                .thinking(thinking)
+                .toolExecutionRequests(aiMessage.toolExecutionRequests())
+                .attributes(aiMessage.attributes())
+                .build();
+    }
+
+    /** 将本轮完整思考文本追加到累加器（多轮之间用换行分隔）。 */
     private static void appendThinking(StringBuilder accumulator, String thinking) {
         if (thinking == null || thinking.isBlank()) {
             return;
@@ -189,6 +299,7 @@ public class AiAgentRunner {
         accumulator.append(thinking.trim());
     }
 
+    /** 累加器转最终思考正文；无内容时返回 null。 */
     private static String toThinkingContent(StringBuilder accumulator) {
         if (accumulator.length() == 0) {
             return null;
@@ -196,12 +307,15 @@ public class AiAgentRunner {
         return accumulator.toString().trim();
     }
 
-    /** 工具结果是否为错误 JSON（顶层含 error），供消息标记 */
+    /**
+     * 判断工具返回是否为错误结果。
+     * 约定：返回 JSON 顶层含 error 字段时视为失败，写入 tool 消息时打上错误标记。
+     */
     static boolean isToolErrorResult(String result) {
         return FlowDesignToolSupport.isErrorResult(result);
     }
 
-    /** 当前请求是否已标记取消 */
+    /** 当前请求是否已标记取消（用户取消或 SSE 断连）。 */
     static boolean isCancelled(AgentRunOptions options) {
         BooleanSupplier cancelled = options.getCancelled();
         return cancelled != null && cancelled.getAsBoolean();
@@ -209,10 +323,7 @@ public class AiAgentRunner {
 
     /**
      * 中断或失败落盘时选用的助手摘要文案。
-     * 优先用已有正文；否则用非空且非默认中断文案的 error；再否则用「本轮已中断」。
-     *
-     * @param content 模型已产生的正文，可为 null
-     * @param error   错误或中断说明，可为 null
+     * 优先已有正文；其次用非空且非默认中断文案的 error；最后用「本轮已中断」。
      */
     public static String resolveInterruptedSummary(String content, String error) {
         if (content != null && !content.isBlank()) {
@@ -224,9 +335,7 @@ public class AiAgentRunner {
         return INTERRUPTED_MESSAGE;
     }
 
-    /**
-     * 构造因取消而结束的运行结果：带已有思考、轨迹与可选部分正文。
-     */
+    /** 组装取消/中断结果：带已有思考、可选半成品正文与工具轨迹。 */
     private static AgentRunResult buildInterrupted(
             StringBuilder thinkingAccumulator,
             int stepsUsed,
@@ -243,18 +352,18 @@ public class AiAgentRunner {
                 .build();
     }
 
-    /** 可选终态探针为 true 时提前成功结束（造流通常不设） */
+    /** 宿主终态探测是否已成功（例如造流已提交改图）。 */
     private static boolean isTerminalSuccess(AgentRunOptions options) {
         BooleanSupplier probe = options.getTerminalSuccessProbe();
         return probe != null && probe.getAsBoolean();
     }
 
     /**
-     * 造流：剩余步数 ≤2 时追加催促提示（同内容不重复追加）。
-     * 已终态成功则不再催。
+     * 造流：剩余步数 ≤2 且尚未终态成功时，向对话末尾追加催促提示。
+     * 若末条已是同一催促文案则不重复追加。
      */
     static void maybeAppendSubmitNudge(
-            List<LlmMessage> messages, AgentRunOptions options, int steps, int maxSteps) {
+            List<ChatMessage> messages, AgentRunOptions options, int steps, int maxSteps) {
         if (!options.isDesignSubmitNudgeEnabled()) {
             return;
         }
@@ -265,15 +374,17 @@ public class AiAgentRunner {
             return;
         }
         if (!messages.isEmpty()) {
-            LlmMessage last = messages.get(messages.size() - 1);
-            if ("user".equals(last.getRole()) && SUBMIT_NUDGE_CONTENT.equals(last.getContent())) {
+            ChatMessage last = messages.get(messages.size() - 1);
+            if (last instanceof UserMessage user
+                    && user.hasSingleText()
+                    && SUBMIT_NUDGE_CONTENT.equals(user.singleText())) {
                 return;
             }
         }
-        messages.add(LlmMessage.user(SUBMIT_NUDGE_CONTENT));
+        messages.add(UserMessage.from(SUBMIT_NUDGE_CONTENT));
     }
 
-    /** 达步数上限时的错误文案；造流额外提示缩小范围并尽快 submit_*。 */
+    /** 步数耗尽时的错误说明；造流场景文案更侧重催促提交改图。 */
     static String maxStepsExceededMessage(int maxSteps, AgentRunOptions options) {
         if (options.isDesignSubmitNudgeEnabled() || options.getTerminalSuccessProbe() != null) {
             return "Agent 已达最大步数上限（" + maxSteps + "）。"
@@ -283,7 +394,7 @@ public class AiAgentRunner {
         return "Agent 已达最大步数上限（" + maxSteps + "），请缩小查询范围或简化需求";
     }
 
-    /** 终态探针触发时的成功结果（可无自然语言正文）。 */
+    /** 因宿主终态探测成功而结束（无最终正文，依赖工具侧已落结果）。 */
     private static AgentRunResult buildTerminalToolSuccess(
             StringBuilder thinkingAccumulator, int stepsUsed, JSONObject toolTrace) {
         return AgentRunResult.builder()
@@ -294,70 +405,67 @@ public class AiAgentRunner {
                 .build();
     }
 
-    /** Agent 单次运行入参 */
+    /** Agent 单次运行入参。 */
     @Getter
     @Builder
     public static class AgentRunOptions {
-        /** 已 resolve 的模型运行时配置 */
+        /** 已解析的模型运行时配置（连接信息、模型名、超时等）。 */
         private final LlmModelConfig modelConfig;
-        /** 首轮消息（通常含 system + user） */
-        private final List<LlmMessage> initialMessages;
-        /** 可用工具定义 */
+        /** 首轮送入模型的消息（通常含 system、摘要、历史、本轮 user）。 */
+        private final List<ChatMessage> initialMessages;
+        /** 可用工具定义（OpenAI 风格 Map：function.name / description / parameters）。 */
         private final List<Map<String, Object>> tools;
-        /** 工具调用策略，如 auto */
+        /** 工具选择策略字符串（预留字段；当前实现固定 AUTO）。 */
         private final String toolChoice;
-        /** 宿主实现的工具执行回调，返回 tool 消息 content（JSON 字符串） */
+        /** 宿主工具执行回调，入参为工具名与 arguments JSON，返回写入 tool 消息的 content。 */
         private final ToolExecutor toolExecutor;
-        /** 最大工具轮数；≤0 时使用全局配置中的上限 */
+        /** 最大工具轮数；≤0 时使用全局配置上限。 */
         private final int maxSteps;
-        /** 流式过程事件回调，可为 null */
+        /** 流式过程事件回调；非空时走流式客户端，可为 null 走同步。 */
         private final AgentRunListener listener;
-        /** 会话思考开关：0 关、1 开、null 跟随模型默认 */
+        /** 会话思考开关：0 关、1 开、null 跟随模型默认能力。 */
         private final Integer sessionThinkingEnabled;
-        /**
-         * 可选终态探测：返回 true 时立刻成功结束循环（无需等模型再写正文）。
-         */
+        /** 可选终态探测：返回 true 时立刻按工具成功结束循环。 */
         private final BooleanSupplier terminalSuccessProbe;
-        /**
-         * 为 true 时在步数将尽时向对话追加催促改图或收尾的提示。
-         */
+        /** 为 true 时在步数将尽时向对话追加催促改图或收尾的提示。 */
         @Builder.Default
         private final boolean designSubmitNudgeEnabled = false;
-        /**
-         * 取消标志：用户取消或 SSE 断连后为 true。
-         * 循环在每轮模型返回后、每组工具执行前后检查；为 true 则停止并返回 interrupted。
-         */
+        /** 取消标志：用户取消或 SSE 断连后为 true。 */
         private final BooleanSupplier cancelled;
     }
 
-    /** 宿主提供的工具执行实现，返回写入 tool 消息的 content（一般为 JSON 字符串） */
+    /** 宿主提供的工具执行实现。 */
     public interface ToolExecutor {
+        /**
+         * 执行一次工具调用。
+         *
+         * @param toolName      工具名
+         * @param argumentsJson 模型给出的参数 JSON 字符串
+         * @return 写入 tool 消息的 content（一般为 JSON 字符串）
+         */
         String execute(String toolName, String argumentsJson);
     }
 
-    /** Agent 单次运行结果 */
+    /** Agent 单次运行结果。 */
     @Getter
     @Builder
     public static class AgentRunResult {
-        /** 模型最终正文；中断时可能仅为部分文本 */
+        /** 最终助手正文；终态经工具成功结束时可为 null。 */
         private final String content;
-        /** 思考过程全文，仅展示用 */
+        /** 本轮累加的思考链全文；未开启或无内容时为 null。 */
         private final String thinkingContent;
-        /** 失败或中断时的说明文案 */
+        /** 失败或中断说明；成功时为 null。 */
         private final String error;
-        /** 实际消耗的工具轮数 */
+        /** 已消耗的工具轮数。 */
         private final int stepsUsed;
-        /** 无正文但业务侧判定工具已达成终态 */
+        /** true 表示因宿主终态探测成功而结束（例如已提交改图）。 */
         private final boolean terminalViaTool;
-        /**
-         * 本轮工具调用轨迹（已脱敏截断）。
-         * 字段含 stepsUsed、maxSteps、truncated、calls（每项含 i、name、ok、ms、args、result）。
-         */
+        /** 工具调用轨迹（供落库与前端展示）。 */
         private final JSONObject toolTrace;
-        /** 因用户取消或连接中断而停止 */
+        /** true 表示用户取消或连接中断。 */
         private final boolean interrupted;
 
-        /** 未中断、无 error，且有正文或终态探针成功 */
+        /** 未中断、无 error，且有正文或经工具终态成功。 */
         public boolean isOk() {
             return !interrupted && error == null && (content != null || terminalViaTool);
         }

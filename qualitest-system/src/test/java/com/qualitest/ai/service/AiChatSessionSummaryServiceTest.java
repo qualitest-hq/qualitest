@@ -1,12 +1,15 @@
 package com.qualitest.ai.service;
 
 import com.qualitest.ai.domain.AiChatSession;
-import com.qualitest.ai.llm.LlmChatResponse;
 import com.qualitest.ai.llm.LlmMessage;
 import com.qualitest.ai.llm.LlmModelConfig;
-import com.qualitest.ai.llm.LlmProvider;
 import com.qualitest.ai.llm.history.HistoryWindowPolicy;
 import com.qualitest.ai.llm.history.HistoryWindowPolicyResolver;
+import com.qualitest.ai.llm.lc4j.Lc4jClientFactory;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -21,9 +24,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * 测 AiChatSessionSummaryService：assistant 条数不足跳过；达条件时用被裁历史调 LLM 写回摘要。
- * 边界：全 Mock，不调用真实 LLM / DB。
- * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AiChatSessionSummaryServiceTest
+ * 会话摘要服务单测。
+ * 覆盖：助手条数不足跳过；达条件时用被裁历史调用模型并写回摘要。
+ * 全 Mock，不访问真实大模型与数据库。
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AiChatSessionSummaryServiceTest {
@@ -31,7 +34,8 @@ class AiChatSessionSummaryServiceTest {
     private IAiChatSessionService aiChatSessionService;
     private AiChatConversationService conversationService;
     private IAiLlmModelService modelService;
-    private LlmProvider llmProvider;
+    private Lc4jClientFactory lc4jClientFactory;
+    private ChatModel chatModel;
     private HistoryWindowPolicyResolver policyResolver;
     private ThreadPoolTaskExecutor executor;
     private AiChatSessionSummaryService summaryService;
@@ -41,13 +45,15 @@ class AiChatSessionSummaryServiceTest {
         aiChatSessionService = mock(IAiChatSessionService.class);
         conversationService = mock(AiChatConversationService.class);
         modelService = mock(IAiLlmModelService.class);
-        llmProvider = mock(LlmProvider.class);
+        lc4jClientFactory = mock(Lc4jClientFactory.class);
+        chatModel = mock(ChatModel.class);
         policyResolver = mock(HistoryWindowPolicyResolver.class);
         executor = new ThreadPoolTaskExecutor();
         executor.initialize();
+        when(lc4jClientFactory.chatModel(any(), anyBoolean())).thenReturn(chatModel);
         summaryService = new AiChatSessionSummaryService(
                 aiChatSessionService, conversationService, modelService,
-                llmProvider, policyResolver, executor);
+                lc4jClientFactory, policyResolver, executor);
     }
 
     /**
@@ -67,7 +73,7 @@ class AiChatSessionSummaryServiceTest {
 
         summaryService.refreshSummaryIfNeeded(1L, 100L);
 
-        verify(llmProvider, never()).chat(any(), any());
+        verify(chatModel, never()).chat(any(ChatRequest.class));
     }
 
     /**
@@ -86,6 +92,9 @@ class AiChatSessionSummaryServiceTest {
         LlmModelConfig modelConfig = LlmModelConfig.builder()
                 .aiLlmModelId(100L)
                 .modelName("gpt-test")
+                .provider("openai_compatible")
+                .baseUrl("https://example.com/v1")
+                .apiKey("sk-test")
                 .build();
         HistoryWindowPolicy policy = HistoryWindowPolicy.builder().countLimit(2).tokenBudget(12000).build();
 
@@ -99,7 +108,9 @@ class AiChatSessionSummaryServiceTest {
         when(conversationService.formatMessagesForSummary(any())).thenReturn("user: early\nassistant: early answer");
         when(conversationService.loadMessagesForLlm(eq(1L), eq(modelConfig), eq(policy), anyInt()))
                 .thenReturn(List.of(LlmMessage.user("recent")));
-        when(llmProvider.chat(any(), any())).thenReturn(LlmChatResponse.builder().content("用户早期确认登录节点").build());
+        when(chatModel.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder()
+                .aiMessage(AiMessage.from("用户早期确认登录节点"))
+                .build());
 
         summaryService.refreshSummaryIfNeeded(1L, 100L);
 

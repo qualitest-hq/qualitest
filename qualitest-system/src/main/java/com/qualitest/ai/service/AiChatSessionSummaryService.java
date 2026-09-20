@@ -1,40 +1,49 @@
 package com.qualitest.ai.service;
 
 import com.qualitest.ai.domain.AiChatSession;
-import com.qualitest.ai.llm.LlmChatRequest;
-import com.qualitest.ai.llm.LlmChatResponse;
 import com.qualitest.ai.llm.LlmMessage;
 import com.qualitest.ai.llm.LlmModelConfig;
-import com.qualitest.ai.llm.LlmProvider;
 import com.qualitest.ai.llm.history.HistoryWindowPolicy;
 import com.qualitest.ai.llm.history.HistoryWindowPolicyResolver;
 import com.qualitest.ai.llm.history.TokenEstimator;
+import com.qualitest.ai.llm.lc4j.Lc4jClientFactory;
 import com.qualitest.ai.scenario.flow.FlowDesignPromptResources;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 会话摘要 Checkpoint：异步压缩被历史窗口裁掉的早期消息，写入 ai_chat_session.context_summary。
+ * 会话摘要服务。
+ * <p>
+ * 在助手消息落库后异步判断是否需要刷新摘要：把历史窗口裁掉的早期对话压缩成短文本，
+ * 写入会话表的 context_summary，供后续轮次作为系统侧背景，减少重复塞入超长历史。
  */
 @Slf4j
 @Service
 public class AiChatSessionSummaryService {
 
+    /** 至少产生这么多条助手消息后才考虑触发摘要。 */
     private static final int MIN_ASSISTANT_FOR_TRIGGER = 3;
+    /** 助手消息条数每增加该间隔触发一次。 */
     private static final int ASSISTANT_INTERVAL = 5;
+    /** 相对上次摘要覆盖的消息数，缺口超过该值也触发。 */
     private static final int MESSAGE_COUNT_GAP = 10;
+    /** 摘要正文最大字符数，超出截断。 */
     private static final int MAX_SUMMARY_CHARS = 800;
 
     private final IAiChatSessionService aiChatSessionService;
     private final AiChatConversationService aiChatConversationService;
     private final IAiLlmModelService aiLlmModelService;
-    private final LlmProvider llmProvider;
+    private final Lc4jClientFactory lc4jClientFactory;
     private final HistoryWindowPolicyResolver historyWindowPolicyResolver;
     private final ThreadPoolTaskExecutor threadPoolTaskExecutor;
 
@@ -42,18 +51,21 @@ public class AiChatSessionSummaryService {
             IAiChatSessionService aiChatSessionService,
             AiChatConversationService aiChatConversationService,
             IAiLlmModelService aiLlmModelService,
-            LlmProvider llmProvider,
+            Lc4jClientFactory lc4jClientFactory,
             HistoryWindowPolicyResolver historyWindowPolicyResolver,
             @Qualifier("threadPoolTaskExecutor") ThreadPoolTaskExecutor threadPoolTaskExecutor) {
         this.aiChatSessionService = aiChatSessionService;
         this.aiChatConversationService = aiChatConversationService;
         this.aiLlmModelService = aiLlmModelService;
-        this.llmProvider = llmProvider;
+        this.lc4jClientFactory = lc4jClientFactory;
         this.historyWindowPolicyResolver = historyWindowPolicyResolver;
         this.threadPoolTaskExecutor = threadPoolTaskExecutor;
     }
 
-    /** assistant 落库后异步尝试刷新摘要，不阻塞主流程 */
+    /**
+     * 助手落库后异步尝试刷新摘要，不阻塞主流程。
+     * sessionId 或 modelId 为空时直接返回。
+     */
     public void maybeRefreshSummaryAsync(Long sessionId, Long modelId) {
         if (sessionId == null || modelId == null) {
             return;
@@ -67,6 +79,10 @@ public class AiChatSessionSummaryService {
         });
     }
 
+    /**
+     * 同步判断并刷新摘要。
+     * 会话不存在或已删除则跳过；未达触发条件、无被裁历史、或模型返回空则跳过。
+     */
     void refreshSummaryIfNeeded(Long sessionId, Long modelId) throws IOException {
         AiChatSession session = aiChatSessionService.selectAiChatSessionById(sessionId);
         if (session == null || (session.getDelStatus() != null && session.getDelStatus() != 0)) {
@@ -107,6 +123,10 @@ public class AiChatSessionSummaryService {
         aiChatConversationService.updateContextSummary(sessionId, summary.trim(), coveredCount);
     }
 
+    /**
+     * 是否应触发摘要刷新。
+     * 条件：助手条数达标，且（条数整除间隔，或尚未有摘要覆盖数，或相对上次覆盖缺口过大）。
+     */
     private static boolean shouldTrigger(int assistantCount, int totalMessages, Integer summaryMessageCount) {
         if (assistantCount < MIN_ASSISTANT_FOR_TRIGGER) {
             return false;
@@ -120,6 +140,9 @@ public class AiChatSessionSummaryService {
         return totalMessages - summaryMessageCount > MESSAGE_COUNT_GAP;
     }
 
+    /**
+     * 估算为系统提示与既有摘要预留的 token，避免装载「被裁历史」时算错窗口。
+     */
     private static int estimateReservedTokens(AiChatSession session) {
         int reserved = 4096;
         if (session.getContextSummary() != null && !session.getContextSummary().isBlank()) {
@@ -128,6 +151,12 @@ public class AiChatSessionSummaryService {
         return reserved;
     }
 
+    /**
+     * 调用同步对话模型生成新摘要。
+     * 关闭思考链以降低延迟与费用；入参含已有摘要与待压缩的早期对话文本。
+     *
+     * @return 模型返回的摘要正文；无有效回复时为 null
+     */
     private String callSummaryLlm(LlmModelConfig modelConfig, String existingSummary, String droppedText)
             throws IOException {
         String systemPrompt = FlowDesignPromptResources.loadText("ai/session-summary-prompt.txt");
@@ -137,18 +166,17 @@ public class AiChatSessionSummaryService {
         }
         userContent.append("【待压缩的早期对话】\n").append(droppedText);
 
-        List<LlmMessage> messages = new ArrayList<>();
-        messages.add(LlmMessage.system(systemPrompt));
-        messages.add(LlmMessage.user(userContent.toString()));
-
-        LlmChatRequest request = LlmChatRequest.builder()
-                .messages(messages)
-                .stream(false)
+        boolean reasoningEnabled = false;
+        ChatModel chatModel = lc4jClientFactory.chatModel(modelConfig, reasoningEnabled);
+        ChatRequest request = ChatRequest.builder()
+                .messages(List.of(
+                        SystemMessage.from(systemPrompt),
+                        UserMessage.from(userContent.toString())))
                 .build();
-        LlmChatResponse response = llmProvider.chat(modelConfig, request);
-        if (response == null || response.getContent() == null) {
+        ChatResponse response = chatModel.chat(request);
+        if (response == null || response.aiMessage() == null || response.aiMessage().text() == null) {
             return null;
         }
-        return response.getContent().trim();
+        return response.aiMessage().text().trim();
     }
 }
