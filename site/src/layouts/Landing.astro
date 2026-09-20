@@ -3,6 +3,7 @@ import SiteNav from "../components/SiteNav.astro";
 import Hero from "../components/Hero.astro";
 import QuickStart from "../components/QuickStart.astro";
 import Capabilities from "../components/Capabilities.astro";
+import McpShowcase from "../components/McpShowcase.astro";
 import Ecosystem from "../components/Ecosystem.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import { type Lang, useTranslations, pathForLang } from "../i18n/ui";
@@ -47,6 +48,7 @@ const htmlLang = lang === "zh" ? "zh-CN" : "en";
       <Hero lang={lang} />
       <QuickStart lang={lang} />
       <Capabilities lang={lang} />
+      <McpShowcase lang={lang} />
       <Ecosystem lang={lang} />
     </main>
     <SiteFooter lang={lang} />

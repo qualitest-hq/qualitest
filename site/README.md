@@ -33,4 +33,8 @@ pnpm preview
 5. About → Website 填上述 URL  
 6. 浏览器打开确认；发文 CTA 可同时链官网 + GitHub  
 
-`overview.gif` 放入 `public/images/`（与 `docs/images/overview.gif` 同内容即可）；缺失时 Hero 使用链路 SVG。
+GIF 放入 `public/images/`（与 `docs/images/` 同名即可）：
+
+- `overview.gif` — Hero；缺失时用链路 SVG
+- `demo-mcp-survey.gif` / `demo-mcp-autopilot.gif` — MCP 展示区；缺失时显示占位文案
+

@@ -1,10 +1,16 @@
 # 占位说明
 
-落地页优先展示本目录的 `overview.gif`（与主仓 `docs/images/overview.gif` 同名约定）。
+落地页 GIF 与主仓 `docs/images/` **同名约定**；录制后各放一份（或复制同一文件）。
 
-公开前若尚未录制，Hero 会自动回退到链路 SVG 示意。录制完成后将 GIF 放到：
+| 文件 | 用途 |
+|------|------|
+| `overview.gif` | Hero 概览；缺失时回退链路 SVG |
+| `demo-mcp-survey.gif` | MCP 区块 · 只读勘察 |
+| `demo-mcp-autopilot.gif` | MCP 区块 · 造流 / 跑通 |
 
-- 主仓文档：`docs/images/overview.gif`
-- 本站静态资源：`site/public/images/overview.gif`（可复制同一文件）
+公开前若尚未录制：
 
-构建产物会从 `public/` 原样输出，路径为 `/qualitest/images/overview.gif`。
+- Hero：自动用链路 SVG
+- MCP 区块：显示文件名占位提示，GIF 就绪后自动替换
+
+构建产物路径示例：`/qualitest/images/overview.gif`。

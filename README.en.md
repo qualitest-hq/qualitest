@@ -119,7 +119,7 @@ Describe intent in natural language — suggestions use **this project’s real 
 
 **Your IDE can read the test project**
 
-Connect via standard **read-only MCP** (Cursor and others). Ask “what nodes are on this flow?” / “where did the last run fail?” — answers come from **live platform data**. Canvas edits still go through the Web Diff merge.
+Connect via standard **MCP** (Cursor and others). Ask “what nodes are on this flow?” / “where did the last run fail?” — answers come from **live platform data**. With write enabled, the editor can also create / fix / run flows.
 
 → Setup: [`docs/mcp.en.md`](./docs/mcp.en.md)
 
@@ -152,9 +152,23 @@ Invite members and assign roles per project. Issue separate Tokens for the plugi
 
 <img src="docs/images/demo-ai-diff.gif" alt="AI assist: natural language suggestion, Diff preview, then merge" width="820"/>
 
-### MCP · IDE reads the test project
+### MCP · IDE reads (and can write) the test project
 
-<img src="docs/images/demo-mcp-cursor.gif" alt="MCP in Cursor: inspect flows, topology, and failed Run context" width="820"/>
+Read-only by default; with **Allow MCP autopilot write** enabled, Cursor (etc.) can create / fix / run flows. Setup: [`docs/mcp.en.md`](./docs/mcp.en.md).
+
+<!--
+  Record (survey): Cursor + qualitest MCP → list_flows → ask topology / last failed Run with testFlowId → live platform data
+  Spec: width ≤ 900px · 8–10 fps · ≤ 10s · < 1MB
+  File: docs/images/demo-mcp-survey.gif
+-->
+<img src="docs/images/demo-mcp-survey.gif" alt="MCP survey: list flows, topology, and failed Run context in Cursor" width="820"/>
+
+<!--
+  Record (write): autopilot write enabled → Cursor create_flow / submit_* / run_test_flow → Web canvas updates via SSE
+  Spec: width ≤ 900px · 8–10 fps · ≤ 10s · < 1MB
+  File: docs/images/demo-mcp-autopilot.gif
+-->
+<img src="docs/images/demo-mcp-autopilot.gif" alt="MCP autopilot: create/submit/run a flow in Cursor; Web canvas syncs" width="820"/>
 
 ### Ecosystem: IDEA plugin (separate repo)
 
@@ -170,8 +184,36 @@ Demos for [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-
 
 ### Longer stories · split into short clips
 
-> These two journeys **do not fit in 10s**. Watch the clips in order. Spec: width ≤ 900px · 8–10 fps · ≤ 10s each · under `docs/images/`.  
+> These journeys **do not fit in 10s**. Watch the clips in order. Spec: width ≤ 900px · 8–10 fps · ≤ 10s each · under `docs/images/`.  
 > Prefer [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) as SUT; plugin clips need [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin).
+
+#### MCP autopilot · survey to green
+
+Connect MCP → survey flows → (optional) enable write → Cursor create/fix + Run → Web canvas sync. Needs a project Token; write clips require **Allow MCP autopilot write**. See [`docs/mcp.en.md`](./docs/mcp.en.md).
+
+##### A · Connect + read-only survey
+
+<!--
+  Record: copy mcp.json from project settings → qualitest tools in Cursor → list_flows → get_flow / failed Run → live data in the answer
+  File: docs/images/demo-story-mcp-a.gif · < 800KB
+-->
+<img src="docs/images/demo-story-mcp-a.gif" alt="MCP story A: connect and survey flows / Runs" width="820"/>
+
+##### B · Enable write + create/run in Cursor
+
+<!--
+  Record: enable & save autopilot write → reconnect MCP → Cursor create_flow / submit_* / run_test_flow → tools succeed
+  File: docs/images/demo-story-mcp-b.gif · < 1MB
+-->
+<img src="docs/images/demo-story-mcp-b.gif" alt="MCP story B: write enabled, create and run from Cursor" width="820"/>
+
+##### C · Web canvas syncs the change
+
+<!--
+  Record: open the flow canvas → SSE shows new nodes/edges (or discard-local-and-pull) → Run timeline visible
+  File: docs/images/demo-story-mcp-c.gif · < 800KB
+-->
+<img src="docs/images/demo-story-mcp-c.gif" alt="MCP story C: Web canvas syncs MCP commits" width="820"/>
 
 #### Main loop · sync to green again
 

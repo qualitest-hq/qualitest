@@ -145,7 +145,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 **IDE 也能读懂你的测试项目**
 
-通过标准 MCP 只读接入（Cursor 等均可）。问「这条流有哪些节点？」「上次跑挂在哪？」——答案来自平台**真数据**。改画布仍在 Web 端 Diff 后合并。
+通过标准 MCP 接入（Cursor 等均可）。问「这条流有哪些节点？」「上次跑挂在哪？」——答案来自平台**真数据**。开启写流开关后，也可在编辑器里直接造流 / 修流 / 跑通。
 
 → 配置见 [`docs/mcp.md`](./docs/mcp.md)
 
@@ -193,14 +193,23 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 -->
 <img src="docs/images/demo-ai-diff.gif" alt="AI 辅助设计：自然语言生成修改建议，Diff 预览后合并" width="820"/>
 
-### MCP 接入 · IDE / AI 编辑器直接读懂测试项目
+### MCP 接入 · IDE / AI 编辑器直接读懂（并可写）测试项目
+
+默认只读勘察；项目开启「允许 MCP 全自动写流」后，可在 Cursor 等编辑器里造流 / 修流 / 跑通。配置见 [`docs/mcp.md`](./docs/mcp.md)。
 
 <!--
-  录制规格：在 Cursor 中接入 MCP，选定 qualitest-demo 项目测试流 → list_flows → 带 testFlowId 提问 → 返回平台真数据
+  录制规格（勘察）：Cursor 已接 qualitest MCP → list_flows → 带 testFlowId 问节点拓扑 / 上次 Run 失败点 → 返回平台真数据
   宽度 ≤ 900px · 8~10fps · ≤ 10s · 目标 < 1MB
-  文件占位：docs/images/demo-mcp-cursor.gif
+  文件占位：docs/images/demo-mcp-survey.gif
 -->
-<img src="docs/images/demo-mcp-cursor.gif" alt="MCP 接入 Cursor：只读勘察测试流、节点拓扑与 Run 失败现场" width="820"/>
+<img src="docs/images/demo-mcp-survey.gif" alt="MCP 勘察：在 Cursor 中列出测试流、查看节点拓扑与 Run 失败现场" width="820"/>
+
+<!--
+  录制规格（写流）：项目已开「允许 MCP 全自动写流」→ Cursor 调 create_flow / submit_* / run_test_flow → Web 画布 SSE 同步出现变更
+  宽度 ≤ 900px · 8~10fps · ≤ 10s · 目标 < 1MB
+  文件占位：docs/images/demo-mcp-autopilot.gif
+-->
+<img src="docs/images/demo-mcp-autopilot.gif" alt="MCP 造流：在 Cursor 中创建/提交测试流并运行，Web 画布同步" width="820"/>
 
 ### 周边：IDEA 插件（独立仓库）
 
@@ -220,7 +229,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 ### 复杂演示 · 分片讲述
 
-> 下面两条故事 **10 秒讲不完**，拆成短片连着看。统一：宽度 ≤ 900px · 8~10fps · 单片 ≤ 10s · 放 `docs/images/`。  
+> 下面几条故事 **10 秒讲不完**，拆成短片连着看。统一：宽度 ≤ 900px · 8~10fps · 单片 ≤ 10s · 放 `docs/images/`。  
 > 建议以 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) 为被测；插件片依赖 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
 
 #### 完整主链路 · 从同步到再跑绿
@@ -258,6 +267,34 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
   文件：docs/images/demo-story-main-d.gif · 目标 < 1MB
 -->
 <img src="docs/images/demo-story-main-d.gif" alt="主链路 D：Run 失败后 AI 修复再跑绿" width="820"/>
+
+#### MCP 造流 · 从勘察到跑通
+
+接 MCP → 列流勘察 →（可选）开写流开关 → Cursor 造流/修流并 Run → Web 画布同步。依赖已配置的项目 Token；写流片需开启「允许 MCP 全自动写流」。详见 [`docs/mcp.md`](./docs/mcp.md)。
+
+##### A · 接入 + 只读勘察
+
+<!--
+  录制：项目设置复制 mcp.json → Cursor 出现 qualitest 工具 → list_flows → get_flow / 问失败 Run → 回答含平台真数据
+  文件：docs/images/demo-story-mcp-a.gif · 目标 < 800KB
+-->
+<img src="docs/images/demo-story-mcp-a.gif" alt="MCP 故事 A：接入后只读勘察测试流与 Run" width="820"/>
+
+##### B · 开写流 + Cursor 造流并 Run
+
+<!--
+  录制：开启并保存「允许 MCP 全自动写流」→ 重连 MCP → Cursor create_flow / submit_* / run_test_flow → 工具调用成功
+  文件：docs/images/demo-story-mcp-b.gif · 目标 < 1MB
+-->
+<img src="docs/images/demo-story-mcp-b.gif" alt="MCP 故事 B：开启写流后 Cursor 造流并运行" width="820"/>
+
+##### C · Web 画布同步看到变更
+
+<!--
+  录制：打开对应测试流画布 → SSE 推送后节点/连线出现（或「放弃本地并拉取」后对齐）→ 时间线可见本次 Run
+  文件：docs/images/demo-story-mcp-c.gif · 目标 < 800KB
+-->
+<img src="docs/images/demo-story-mcp-c.gif" alt="MCP 故事 C：Web 画布同步 MCP 提交的变更" width="820"/>
 
 #### 写库可回滚 · 快照、暂停与还原
 

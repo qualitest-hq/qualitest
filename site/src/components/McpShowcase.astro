@@ -1,0 +1,168 @@
+---
+import { type Lang, useTranslations } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+const base = import.meta.env.BASE_URL;
+
+const clips = [
+  {
+    src: `${base}images/demo-mcp-survey.gif`,
+    title: t.mcpSurveyTitle,
+    desc: t.mcpSurveyDesc,
+    alt: t.mcpSurveyAlt,
+    placeholder: t.mcpSurveyPlaceholder,
+  },
+  {
+    src: `${base}images/demo-mcp-autopilot.gif`,
+    title: t.mcpAutopilotTitle,
+    desc: t.mcpAutopilotDesc,
+    alt: t.mcpAutopilotAlt,
+    placeholder: t.mcpAutopilotPlaceholder,
+  },
+] as const;
+---
+
+<section class="section mcp" id="mcp">
+  <div class="wrap">
+    <h2 class="section-title">{t.mcpTitle}</h2>
+    <p class="section-lead">
+      {t.mcpLead}
+      {" "}
+      <a href={t.mcpDocsHref}>{t.mcpDocsLabel}</a>
+      {t.mcpLeadAfter}
+    </p>
+
+    <ul class="clips">
+      {
+        clips.map((clip) => (
+          <li class="clip">
+            <div class="frame" data-mcp-frame>
+              <img
+                class="gif"
+                src={clip.src}
+                alt={clip.alt}
+                width="820"
+                height="460"
+                loading="lazy"
+                hidden
+                data-mcp-gif
+              />
+              <div class="fallback" data-mcp-fallback>
+                <p class="fallback-title">{clip.title}</p>
+                <p class="fallback-hint">{clip.placeholder}</p>
+              </div>
+            </div>
+            <h3>{clip.title}</h3>
+            <p>{clip.desc}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .mcp {
+    border-block: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.18));
+  }
+
+  .clips {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2rem 1.5rem;
+  }
+
+  @media (min-width: 860px) {
+    .clips {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .clip h3 {
+    margin: 1rem 0 0.35rem;
+    font-family: var(--font-display);
+    font-size: 1.08rem;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+  }
+
+  .clip > p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.98rem;
+  }
+
+  .frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background:
+      radial-gradient(ellipse 70% 60% at 30% 20%, rgba(20, 184, 166, 0.12), transparent 55%),
+      linear-gradient(165deg, #f7faf9, #eef3f4);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .gif {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .fallback {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: 0.4rem;
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  .fallback-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 650;
+    font-size: 1.05rem;
+    color: var(--accent-deep);
+  }
+
+  .fallback-hint {
+    margin: 0;
+    max-width: 22rem;
+    justify-self: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .frame[data-ready] .fallback {
+    display: none;
+  }
+</style>
+
+<script>
+  document.querySelectorAll("[data-mcp-frame]").forEach((frame) => {
+    if (!(frame instanceof HTMLElement)) return;
+    const img = frame.querySelector("[data-mcp-gif]");
+    if (!(img instanceof HTMLImageElement)) return;
+
+    const probe = new Image();
+    probe.onload = () => {
+      img.src = probe.src;
+      img.hidden = false;
+      frame.dataset.ready = "1";
+    };
+    probe.src = img.getAttribute("src") ?? "";
+  });
+</script>
