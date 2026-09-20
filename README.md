@@ -44,14 +44,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 <br/>
 
-<!--
-  顶部概览 GIF（建议录制规格）：
-  - 内容：以 qualitest-demo 为例的一条主链路——IDEA 同步接口 → 调试台发请求 → 画布编排 → AI Diff 合并
-  - 宽度 ≤ 900px、帧率 8~10fps、时长 ≤ 10s、体积尽量 < 1MB
-  - 录制工具：ScreenToGif / LICEcap；超大用 gifsicle -O3 --colors 128 压缩
-  - 文件占位：docs/images/overview.gif（暂未提供时此图显示为占位说明）
--->
-<img src="docs/images/overview.gif" alt="质衡 Qualitest 功能概览：接口同步 → 调试 → 编排 → AI 辅助" width="860"/>
+<p><strong>主链路</strong>：接口入库 → 调试台 → 测试流画布 → AI Diff → MCP</p>
 
 </div>
 
@@ -166,166 +159,37 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 ## 🎬 功能演示
 
-### 接口调试台 · 选中即调、一键切环境
+建议以 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) 为被测；Java 同步可选 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
 
-<!--
-  录制规格：在 qualitest-demo 对应主平台项目中选中一个接口 → 切换 测试/预发 环境 → 发请求 → 展开响应
-  宽度 ≤ 900px · 8~10fps · ≤ 8s · 目标 < 600KB
-  文件占位：docs/images/demo-api-console.gif
--->
-<img src="docs/images/demo-api-console.gif" alt="接口调试台：选中接口、切换环境、发起请求并查看响应" width="820"/>
+### 接口调试台
 
-### 测试流编排 · 画布拖拽搭建用例
+选中接口 → 切换测试 / 预发 / 生产环境 → 发请求 → 看响应与耗时。
 
-<!--
-  录制规格：基于 qualitest-demo 项目接口，从节点面板拖出 HTTP / 断言节点 → 连线 → 运行测试流看结果
-  宽度 ≤ 900px · 8~10fps · ≤ 8s · 目标 < 800KB
-  文件占位：docs/images/demo-flow-canvas.gif
--->
-<img src="docs/images/demo-flow-canvas.gif" alt="测试流编排：在画布上拖拽节点、连线并运行" width="820"/>
+### 测试流画布
 
-### AI 辅助设计 · 自然语言描述、先看 Diff 再合并
+从节点面板拖出 HTTP / 断言 / 条件 / 子流 → 连线 → 运行；时间线可展开每步结果。节点说明见 [`docs/test-flow-nodes.md`](./docs/test-flow-nodes.md)。
 
-<!--
-  录制规格：在 qualitest-demo 项目测试流旁打开 AI 面板 → 输入「测登录失败再重试」→ 展示 Diff 预览 → 点击合并
-  宽度 ≤ 900px · 8~10fps · ≤ 8s · 目标 < 800KB
-  文件占位：docs/images/demo-ai-diff.gif
--->
-<img src="docs/images/demo-ai-diff.gif" alt="AI 辅助设计：自然语言生成修改建议，Diff 预览后合并" width="820"/>
+### AI 辅助设计
 
-### MCP 接入 · IDE / AI 编辑器直接读懂（并可写）测试项目
+在测试流旁打开 AI 面板，用自然语言描述意图（如「登录失败再重试」）→ **先预览 Diff，确认后再合并**。靶场提示集：[AI 测试流提示](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)（需管理员配置大模型；无 Key 可跳过）。
 
-默认只读勘察；可分别开启「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」——造流 / 修流 / 跑通，或从任意业务仓把接口写入项目库（不依赖 IDEA / Java）。配置见 [`docs/mcp.md`](./docs/mcp.md)。
+### MCP 接入
 
-<!--
-  录制规格（勘察）：Cursor 已接 qualitest MCP → list_flows → 带 testFlowId 问节点拓扑 / 上次 Run 失败点 → 返回平台真数据
-  宽度 ≤ 900px · 8~10fps · ≤ 10s · 目标 < 1MB
-  文件占位：docs/images/demo-mcp-survey.gif
--->
-<img src="docs/images/demo-mcp-survey.gif" alt="MCP 勘察：在 Cursor 中列出测试流、查看节点拓扑与 Run 失败现场" width="820"/>
+默认只读勘察；可分别开启「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」。配置见 [`docs/mcp.md`](./docs/mcp.md)。
 
-<!--
-  录制规格（写流）：项目已开「允许 MCP 自动写流」→ Cursor 调 create_flow / submit_* → Web 画布 SSE 同步出现变更
-  录制规格（跑流）：另开「允许 MCP 自动跑流」→ Cursor 调 run_test_flow
-  宽度 ≤ 900px · 8~10fps · ≤ 10s · 目标 < 1MB
-  文件占位：docs/images/demo-mcp-autowrite.gif
--->
-<img src="docs/images/demo-mcp-autowrite.gif" alt="MCP 造流：在 Cursor 中创建/提交测试流并运行，Web 画布同步" width="820"/>
+1. 项目设置复制 `mcp.json` → Cursor 出现 qualitest 工具  
+2. `list_flows` / `get_graph_summary` 勘察拓扑与失败 Run  
+3. （可选）开写流后 `create_flow` / `submit_*`；开跑流后 `run_test_flow`；Web 画布经 SSE 同步  
 
-### 周边：IDEA 插件（独立仓库）
+### IDEA 插件（可选）
 
-演示来自 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin)；示例工程建议用 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)。
+Tools → Qualitest Helper：**项目级上传** / Controller **全部上传** / **选择上传**。上传后接口进入项目库，即可进调试台。
 
-<!--
-  录制规格：项目级上传 / Controller 全部上传 / Controller 选择上传
-  文件占位：docs/images/demo-idea-sync-*.gif
--->
-<img src="docs/images/demo-idea-sync-project.gif" alt="IDEA 插件：项目级上传，整工程接口同步到平台" width="820"/>
+### 推荐试用路径
 
-<img src="docs/images/demo-idea-sync-controller-all.gif" alt="IDEA 插件：选中 Controller 后全部上传" width="820"/>
-
-<img src="docs/images/demo-idea-sync-controller-pick.gif" alt="IDEA 插件：选中 Controller 后勾选部分接口上传" width="820"/>
-
----
-
-### 复杂演示 · 分片讲述
-
-> 下面几条故事 **10 秒讲不完**，拆成短片连着看。统一：宽度 ≤ 900px · 8~10fps · 单片 ≤ 10s · 放 `docs/images/`。  
-> 建议以 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) 为被测；插件片依赖 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
-
-#### 完整主链路 · 从同步到再跑绿
-
-同步 → 调试 → 挂登录子流 → 编排业务 → AI 补断言 → Run → 失败则 AI 修 → 再绿。
-
-##### A · 插件同步 + 调试台验通
-
-<!--
-  录制：IDEA 打开 demo → 项目级上传 → 切回质衡接口列表出现 → 调试台选环境发通一个接口
-  文件：docs/images/demo-story-main-a.gif · 目标 < 800KB
--->
-<img src="docs/images/demo-story-main-a.gif" alt="主链路 A：IDEA 同步接口后在调试台发通" width="820"/>
-
-##### B · 项目模板 + 登录子流挂上主流
-
-<!--
-  录制：项目鉴权已有 Bearer（或建项勾模板）→ 画布拖 Subflow → 从平台模板创建 Bearer 登录 → 主流 Start→Subflow→业务 HTTP
-  文件：docs/images/demo-story-main-b.gif · 目标 < 800KB
--->
-<img src="docs/images/demo-story-main-b.gif" alt="主链路 B：登录子流模板挂入主流" width="820"/>
-
-##### C · 画布串业务 + 首次 Run
-
-<!--
-  录制：补断言/条件 → 点运行 → 时间线展开（可含 childSteps）→ 故意留一处会挂的断言或场景，为 D 铺垫
-  文件：docs/images/demo-story-main-c.gif · 目标 < 800KB
--->
-<img src="docs/images/demo-story-main-c.gif" alt="主链路 C：编排业务并首次运行" width="820"/>
-
-##### D · 失败 → AI 修复 → 再跑绿
-
-<!--
-  录制：打开失败 Run → 失败分类跳到断言步 → AI 修复 → Staging ✓ → 保存 → 再 Run 变绿
-  文件：docs/images/demo-story-main-d.gif · 目标 < 1MB
--->
-<img src="docs/images/demo-story-main-d.gif" alt="主链路 D：Run 失败后 AI 修复再跑绿" width="820"/>
-
-#### MCP 造流 · 从勘察到跑通
-
-接 MCP → 列流勘察 →（可选）开写流开关 → Cursor 造流/修流 →（可选）开跑流开关并 Run → Web 画布同步。依赖已配置的项目 Token；写流片需开启「允许 MCP 自动写流」，跑流片另开「允许 MCP 自动跑流」。详见 [`docs/mcp.md`](./docs/mcp.md)。
-
-##### A · 接入 + 只读勘察
-
-<!--
-  录制：项目设置复制 mcp.json → Cursor 出现 qualitest 工具 → list_flows → get_flow / 问失败 Run → 回答含平台真数据
-  文件：docs/images/demo-story-mcp-a.gif · 目标 < 800KB
--->
-<img src="docs/images/demo-story-mcp-a.gif" alt="MCP 故事 A：接入后只读勘察测试流与 Run" width="820"/>
-
-##### B · 开写流 + Cursor 造流并 Run
-
-<!--
-  录制：开启并保存「允许 MCP 自动写流」与「允许 MCP 自动跑流」→ 重连 MCP → Cursor create_flow / submit_* / run_test_flow → 工具调用成功
-  文件：docs/images/demo-story-mcp-b.gif · 目标 < 1MB
--->
-<img src="docs/images/demo-story-mcp-b.gif" alt="MCP 故事 B：开启写流后 Cursor 造流并运行" width="820"/>
-
-##### C · Web 画布同步看到变更
-
-<!--
-  录制：打开对应测试流画布 → SSE 推送后节点/连线出现（或「放弃本地并拉取」后对齐）→ 时间线可见本次 Run
-  文件：docs/images/demo-story-mcp-c.gif · 目标 < 800KB
--->
-<img src="docs/images/demo-story-mcp-c.gif" alt="MCP 故事 C：Web 画布同步 MCP 提交的变更" width="820"/>
-
-#### 写库可回滚 · 快照、暂停与还原
-
-靶场脏场景 → 节点勾执行前快照 → Run 写库失败暂停 → 时间线 snapshot → 还原并重试 → restore 审计。
-
-##### A · 加载失败场景 + 勾快照开跑
-
-<!--
-  录制：demo-ui 失败场景（如 F01）点「加载此场景」→ 质衡环境开「允许还原」→ 写库 HTTP 勾「执行前快照」→ 点运行
-  依赖：靶场 /test-support；文件：docs/images/demo-story-restore-a.gif
--->
-<img src="docs/images/demo-story-restore-a.gif" alt="回滚故事 A：加载靶场场景并勾快照开跑" width="820"/>
-
-##### B · 暂停决策面板
-
-<!--
-  录制：Run 进入 paused → 决策面板可见「还原并重试 / 原地重试 / 跳过 / 中止」→ 点「还原并重试」
-  文件：docs/images/demo-story-restore-b.gif · 目标 < 600KB
--->
-<img src="docs/images/demo-story-restore-b.gif" alt="回滚故事 B：失败暂停后的决策面板" width="820"/>
-
-##### C · 时间线审计：snapshot → restore → 重试
-
-<!--
-  录制：Run 详情时间线依次出现 snapshot、失败步、restore、重试成功；可短停各步标签
-  文件：docs/images/demo-story-restore-c.gif · 目标 < 800KB
--->
-<img src="docs/images/demo-story-restore-c.gif" alt="回滚故事 C：时间线 snapshot / restore / 重试审计" width="820"/>
-
-> GIF 暂未录制时可能显示为占位；录制后按上述文件名放入 `docs/images/` 即可。
+1. **主链路**：插件或 MCP 入库 → 调试台发通 → 建项勾鉴权模板 → 画布挂登录子流 → 串业务 HTTP / 断言 → Run；失败可用 AI 修复后再绿。  
+2. **MCP 造流**：接 Token → 只读勘察 →（可选）开写流 / 跑流 → Cursor 造流并 Run → 回 Web 看画布。  
+3. **写库可回滚**（demo `/test-support`）：加载失败场景 → 环境开「允许还原」→ HTTP 勾「执行前快照」→ 失败暂停后选「还原并重试」；时间线可见 snapshot / restore。
 
 ---
 
@@ -358,7 +222,7 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 - [部署说明](./docs/deploy.md) · [产品概念](./docs/project-summary.md) · [FAQ](./docs/faq.md)
 - [测试流节点](./docs/test-flow-nodes.md) · [MCP](./docs/mcp.md) · [项目模板](./docs/project-template.md)
-- [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [行为准则](./CODE_OF_CONDUCT.md) · [安全策略](./SECURITY.md)
+- [路线图](./docs/ROADMAP.md) · [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [行为准则](./CODE_OF_CONDUCT.md) · [安全策略](./SECURITY.md)
 - [English README](./README.en.md)
 
 </details>

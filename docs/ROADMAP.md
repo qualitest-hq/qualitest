@@ -13,21 +13,21 @@
 
 ```mermaid
 flowchart LR
-  A["公开收尾"] --> B["GHCR / GIF"]
+  A["公开收尾"] --> B["GHCR"]
   B --> C["插件市场"]
   C --> D["引擎与安全硬伤"]
   D --> E["有人要再说"]
 ```
 
 ```text
-Public + 分支保护 + Pages  >  GHCR  >  GIF（可补）  >  插件市场  >  跑流/密钥硬伤  >  其余看反馈
+Public + 分支保护 + Pages  >  GHCR  >  动图（可选）  >  插件市场  >  跑流/密钥硬伤  >  其余看反馈
 ```
 
 ---
 
 ## 🚧 Now — 公开收尾
 
-陌生人约 15 分钟内 clone → `docker compose up -d` → 登录。GIF **不阻塞公开**。
+陌生人约 15 分钟内 clone → `docker compose up -d` → 登录。演示动图**不阻塞公开**（README / 落地页已用文字步骤）。
 
 | ID | 任务 | 产出 |
 | -- | ---- | ---- |
@@ -53,7 +53,7 @@ Public + 分支保护 + Pages  >  GHCR  >  GIF（可补）  >  插件市场  >  
 | ID | 任务 | 产出 |
 | -- | ---- | ---- |
 | 2.1 | GHCR 镜像 | `ghcr.io/qualitest-hq/qualitest`；README / [`deploy.md`](./deploy.md) 附 pull |
-| 2.2 | 演示 GIF（暂缓） | README 嵌入 ≥2：`demo-api-console` / `demo-flow-canvas` / `demo-ai-diff` 或 `demo-mcp-cursor` |
+| 2.2 | 演示动图（可选，暂缓） | README / 落地页目前为文字步骤；有空再补 GIF 亦可 |
 | 2.3 | JetBrains 插件市场上架 | 审核通过；README 链到市场 |
 
 ---

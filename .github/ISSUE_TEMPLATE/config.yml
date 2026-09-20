@@ -2,7 +2,7 @@ blank_issues_enabled: true
 contact_links:
   - name: 安全漏洞 · Security
     url: https://github.com/qualitest-hq/qualitest/security/advisories/new
-    about: 请勿在公开 Issue 中披露可利用细节；走 Private vulnerability reporting 或见 SECURITY.md
+    about: 请勿在公开 Issue 中披露可利用细节；走 Private vulnerability reporting，或邮件 38680050@qq.com（见 SECURITY.md）
   - name: 部署与快速开始
     url: https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.md
     about: Compose / 本机启动、端口与环境变量先看 deploy 文档

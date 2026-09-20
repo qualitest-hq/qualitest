@@ -7,7 +7,6 @@ interface Props {
 
 const { lang } = Astro.props;
 const t = useTranslations(lang);
-const base = import.meta.env.BASE_URL;
 const [n1, n2, n3, n4, n5] = t.heroPipelineNodes;
 ---
 
@@ -30,14 +29,6 @@ const [n1, n2, n3, n4, n5] = t.heroPipelineNodes;
     <div class="visual rise rise-delay-2">
       <figure class="stage">
         <div class="glow" aria-hidden="true"></div>
-        <img
-          class="overview"
-          src={`${base}images/overview.gif`}
-          alt={t.heroImgAlt}
-          width="860"
-          height="480"
-          hidden
-        />
         <div class="pipeline">
           <svg viewBox="0 0 640 300" role="img" aria-label={t.heroPipelineAria}>
             <defs>
@@ -184,15 +175,6 @@ const [n1, n2, n3, n4, n5] = t.heroPipelineNodes;
     pointer-events: none;
   }
 
-  .overview {
-    position: relative;
-    z-index: 1;
-    display: block;
-    width: 100%;
-    border-radius: 10px;
-    background: #e2e8f0;
-  }
-
   .pipeline {
     position: relative;
     z-index: 1;
@@ -255,23 +237,3 @@ const [n1, n2, n3, n4, n5] = t.heroPipelineNodes;
     }
   }
 </style>
-
-<script>
-  const img = document.querySelector(".overview");
-  const fallback = document.querySelector(".pipeline");
-
-  function showGif() {
-    if (!(img instanceof HTMLImageElement) || !(fallback instanceof HTMLElement)) return;
-    img.hidden = false;
-    fallback.hidden = true;
-  }
-
-  if (img instanceof HTMLImageElement) {
-    const probe = new Image();
-    probe.onload = () => {
-      img.src = probe.src;
-      showGif();
-    };
-    probe.src = img.getAttribute("src") ?? "";
-  }
-</script>

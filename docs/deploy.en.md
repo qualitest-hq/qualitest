@@ -2,7 +2,7 @@
 
 Ports, env vars, and production hardening for Compose full stack and local development. Quick start: [README.en.md](../README.en.md). Security disclosure: [SECURITY.md](../SECURITY.md).
 
-CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dockerfiles or related paths change. Publishing images is roadmap item 2.2 (GHCR).
+CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dockerfiles or related paths change. Publishing images is roadmap item **2.1** (GHCR).
 
 **The demo target is not in this repo’s Compose** (no `--profile demo` mixed stack). To run the shop demo, clone [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) and start it with its own [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start`. Most users only need this repo to try Qualitest.
 
@@ -326,7 +326,7 @@ Local: `cd site && pnpm install && pnpm build && pnpm preview` → `http://127.0
 |------|--------|
 | Naming | `V{n}__short_desc.sql` (double underscore), e.g. `V2__add_api_group_index.sql` |
 | Empty DB | Compose creates empty `qualitest` → app runs `V1`…`Vn` |
-| New features | **Only add** new `V{n}`; never edit applied files; never treat root `sql/qualitest_*.sql` as the upgrade path |
+| New features | **Only add** new `V{n}`; never edit applied files; **do not** use a full local mysqldump as the upgrade path |
 | Config | With Druid master, set explicit `spring.flyway.url` / `user` / `password` (see `application-*.yml`) |
 | Production | No `clean`; roll forward with a new version or restore from backup (Community has no auto down) |
 
@@ -342,11 +342,11 @@ ORDER BY installed_rank;
 
 **Do not** run full `V1__baseline.sql` on a DB that already has business data (`DROP` / duplicate `CREATE`).
 
-1. Backup (`sql/backup_db.bat` or mysqldump)
+1. Backup (`mysqldump`, etc. — **do not commit** dump files)
 2. Confirm schema ≈ what V1 describes
 3. Temporarily set `spring.flyway.baseline-on-migrate: true` (`baseline-version: 1` is configured)
 4. Start once → `flyway_schema_history` gets baseline version **1** without executing V1 body
 5. Set `baseline-on-migrate: false` again
 6. Upgrade only via new `V2`, `V3`, …
 
-Root `sql/qualitest_*.sql` may still serve as disaster / offline export material; **all new changes go into migrations.**
+**All new changes go into migrations.** Keep local full dumps / ad-hoc upgrade scripts outside the repo.

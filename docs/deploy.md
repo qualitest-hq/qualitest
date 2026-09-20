@@ -2,7 +2,7 @@
 
 面向 Compose 全栈与本机开发的端口、环境变量与生产加固。快速上手摘要见根目录 [README](../README.md)；安全披露见 [SECURITY.md](../SECURITY.md)。
 
-CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker-app` / `docker-web` 镜像构建校验（只 build 不 push）**；正式推镜像见路线图阶段 2.2 GHCR。
+CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker-app` / `docker-web` 镜像构建校验（只 build 不 push）**；正式推镜像见路线图阶段 **2.1** GHCR。
 
 **靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**。一般人只起本仓即可体验质衡。
 
@@ -304,7 +304,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 3. 主仓 Settings → Secrets and variables → Actions → Variables：新增 **`ENABLE_PAGES_DEPLOY=true`**（未设时 CI 只 build 不 deploy，避免 Private 下红叉）
 4. Actions → **Deploy Pages** → Run workflow（或 push `site/`）
 5. About → Website 填上述 URL
-6. 浏览器确认落地页可打开（无 `overview.gif` 时 Hero 会显示链路 SVG）
+6. 浏览器确认落地页可打开（Hero 为链路 SVG；MCP 区为文字步骤）
 
 本地预览：`cd site && pnpm install && pnpm build && pnpm preview` → `http://127.0.0.1:4321/qualitest/`。
 
@@ -334,7 +334,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后重建
 |------|------|
 | 命名 | `V{n}__short_desc.sql`（两个下划线），如 `V2__add_api_group_index.sql` |
 | 空库 | Compose 只建空库 `qualitest` → app 启动跑 `V1`…`Vn` |
-| 新功能 | **只加**新的 `V{n}`；禁止改已执行文件、禁止只改根目录 `sql/qualitest_*.sql` 当升级路径 |
+| 新功能 | **只加**新的 `V{n}`；禁止改已执行文件；**不要**用本机 mysqldump 全库导出当升级路径 |
 | 配置 | Druid master 下须显式配 `spring.flyway.url` / `user` / `password`（见各 `application-*.yml`） |
 | 生产 | 禁止 `clean`；回滚靠新版本正向修复或备份还原（Community 无自动 down） |
 
@@ -350,11 +350,11 @@ ORDER BY installed_rank;
 
 **禁止**对已有业务库直接执行完整 `V1__baseline.sql`（含 `DROP` / 重复 `CREATE`）。
 
-1. 备份库（`sql/backup_db.bat` 或 mysqldump）
+1. 备份库（`mysqldump` 等，备份文件**勿提交**进 Git）
 2. 确认当前结构 ≈ V1 所描述结构
 3. 临时设置 `spring.flyway.baseline-on-migrate: true`（`baseline-version: 1` 已配置）
 4. 启动一次 → `flyway_schema_history` 出现 baseline 记录（版本 1），**不**执行 V1 文件体
 5. 改回 `baseline-on-migrate: false`
 6. 之后只通过新增 `V2`、`V3`… 升级
 
-根目录 `sql/qualitest_*.sql` 可作灾难备份 / 离线导出原料；**新变更只加 migration。**
+**新变更只加 migration。** 本机全库 dump / 临时升级脚本请放仓外，勿进仓库。

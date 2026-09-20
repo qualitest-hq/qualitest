@@ -25,7 +25,7 @@ Sync APIs, debug in-project, orchestrate flows, and design with AI — in one pl
 
 <br/>
 
-<img src="docs/images/overview.gif" alt="Qualitest overview: sync → debug → orchestrate → AI assist" width="860"/>
+<p><strong>Loop</strong>: API ingest → console → flow canvas → AI Diff → MCP</p>
 
 </div>
 
@@ -140,146 +140,37 @@ Invite members and assign roles per project. Issue separate Tokens for the plugi
 
 ## Demos
 
-### API console · select, switch env, send
+Prefer [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) as the SUT; Java sync is optional via [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin).
 
-<img src="docs/images/demo-api-console.gif" alt="API console: select API, switch environment, send and view response" width="820"/>
+### API console
 
-### Test-flow canvas · drag nodes and run
+Select an API → switch test / staging / prod → send → inspect response and latency.
 
-<img src="docs/images/demo-flow-canvas.gif" alt="Test flow: drag nodes, wire edges, run" width="820"/>
+### Test-flow canvas
 
-### AI design · Diff then merge
+Drag HTTP / assert / condition / subflow nodes → wire edges → run; expand the timeline per step. Node reference: [`docs/test-flow-nodes.en.md`](./docs/test-flow-nodes.en.md).
 
-<img src="docs/images/demo-ai-diff.gif" alt="AI assist: natural language suggestion, Diff preview, then merge" width="820"/>
+### AI design
 
-### MCP · IDE reads (and can write) the test project
+Open the AI panel beside a flow, describe intent (e.g. “retry after login failure”) → **preview Diff, then merge**. Demo prompts: [AI test-flow prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) (needs an admin-configured model; skip if you have no key).
 
-Read-only by default; enable **Allow MCP autopilot write**, **Allow MCP auto-run**, and/or **Allow MCP import APIs** — create / fix / run flows, or import APIs from any business repo (no IDEA / Java required). Setup: [`docs/mcp.en.md`](./docs/mcp.en.md).
+### MCP
 
-<!--
-  Record (survey): Cursor + qualitest MCP → list_flows → ask topology / last failed Run with testFlowId → live platform data
-  Spec: width ≤ 900px · 8–10 fps · ≤ 10s · < 1MB
-  File: docs/images/demo-mcp-survey.gif
--->
-<img src="docs/images/demo-mcp-survey.gif" alt="MCP survey: list flows, topology, and failed Run context in Cursor" width="820"/>
+Read-only by default; enable **Allow MCP auto-write**, **Allow MCP auto-run**, and/or **Allow MCP import APIs**. Setup: [`docs/mcp.en.md`](./docs/mcp.en.md).
 
-<!--
-  Record (write): autopilot write enabled → Cursor create_flow / submit_* / run_test_flow → Web canvas updates via SSE
-  Spec: width ≤ 900px · 8–10 fps · ≤ 10s · < 1MB
-  File: docs/images/demo-mcp-autowrite.gif
--->
-<img src="docs/images/demo-mcp-autowrite.gif" alt="MCP autopilot: create/submit/run a flow in Cursor; Web canvas syncs" width="820"/>
+1. Copy `mcp.json` from project settings → qualitest tools appear in Cursor  
+2. `list_flows` / `get_graph_summary` to survey topology and failed Runs  
+3. (Optional) with write enabled: `create_flow` / `submit_*`; with run enabled: `run_test_flow`; Web canvas syncs over SSE  
 
-### Ecosystem: IDEA plugin (separate repo)
+### IDEA plugin (optional)
 
-Demos for [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin); sample project: [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo).
+Tools → Qualitest Helper: **project-level upload** / Controller **upload all** / **select upload**. APIs land in the project library for the console.
 
-<img src="docs/images/demo-idea-sync-project.gif" alt="IDEA plugin: project-level upload" width="820"/>
+### Suggested trial paths
 
-<img src="docs/images/demo-idea-sync-controller-all.gif" alt="IDEA plugin: upload entire Controller" width="820"/>
-
-<img src="docs/images/demo-idea-sync-controller-pick.gif" alt="IDEA plugin: pick endpoints from a Controller" width="820"/>
-
----
-
-### Longer stories · split into short clips
-
-> These journeys **do not fit in 10s**. Watch the clips in order. Spec: width ≤ 900px · 8–10 fps · ≤ 10s each · under `docs/images/`.  
-> Prefer [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) as SUT; plugin clips need [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin).
-
-#### MCP autopilot · survey to green
-
-Connect MCP → survey flows → (optional) enable write → Cursor create/fix + Run → Web canvas sync. Needs a project Token; write clips require **Allow MCP autopilot write**. See [`docs/mcp.en.md`](./docs/mcp.en.md).
-
-##### A · Connect + read-only survey
-
-<!--
-  Record: copy mcp.json from project settings → qualitest tools in Cursor → list_flows → get_flow / failed Run → live data in the answer
-  File: docs/images/demo-story-mcp-a.gif · < 800KB
--->
-<img src="docs/images/demo-story-mcp-a.gif" alt="MCP story A: connect and survey flows / Runs" width="820"/>
-
-##### B · Enable write + create/run in Cursor
-
-<!--
-  Record: enable & save autopilot write → reconnect MCP → Cursor create_flow / submit_* / run_test_flow → tools succeed
-  File: docs/images/demo-story-mcp-b.gif · < 1MB
--->
-<img src="docs/images/demo-story-mcp-b.gif" alt="MCP story B: write enabled, create and run from Cursor" width="820"/>
-
-##### C · Web canvas syncs the change
-
-<!--
-  Record: open the flow canvas → SSE shows new nodes/edges (or discard-local-and-pull) → Run timeline visible
-  File: docs/images/demo-story-mcp-c.gif · < 800KB
--->
-<img src="docs/images/demo-story-mcp-c.gif" alt="MCP story C: Web canvas syncs MCP commits" width="820"/>
-
-#### Main loop · sync to green again
-
-Sync → console → login subflow → orchestrate → AI asserts → Run → fail → AI fix → green.
-
-##### A · Plugin sync + console OK
-
-<!--
-  Record: IDEA project-level upload → API list appears → console send succeeds
-  File: docs/images/demo-story-main-a.gif
--->
-<img src="docs/images/demo-story-main-a.gif" alt="Story main A: sync then console OK" width="820"/>
-
-##### B · Auth template + login subflow on the main flow
-
-<!--
-  Record: Subflow from platform Bearer login template → Start→Subflow→business HTTP
-  File: docs/images/demo-story-main-b.gif
--->
-<img src="docs/images/demo-story-main-b.gif" alt="Story main B: login subflow on main flow" width="820"/>
-
-##### C · Orchestrate + first Run
-
-<!--
-  Record: add asserts → run → timeline (optional childSteps) → leave a failing assert for D
-  File: docs/images/demo-story-main-c.gif
--->
-<img src="docs/images/demo-story-main-c.gif" alt="Story main C: orchestrate and first run" width="820"/>
-
-##### D · Fail → AI fix → green
-
-<!--
-  Record: failed Run → AI fix → Staging ✓ → save → re-run green
-  File: docs/images/demo-story-main-d.gif
--->
-<img src="docs/images/demo-story-main-d.gif" alt="Story main D: AI fix after failed run" width="820"/>
-
-#### Writable SUT rollback · snapshot, pause, restore
-
-Dirty demo scenario → snapshotBefore → pause on write failure → timeline snapshot → restore & retry → restore audit.
-
-##### A · Load fail scenario + snapshot then run
-
-<!--
-  Record: demo-ui load F01 → env allow restore → HTTP snapshotBefore → run
-  Needs: demo /test-support · File: docs/images/demo-story-restore-a.gif
--->
-<img src="docs/images/demo-story-restore-a.gif" alt="Story restore A: load scenario and run with snapshot" width="820"/>
-
-##### B · Pause decision panel
-
-<!--
-  Record: paused run → restore & retry / retry in place / skip / abort → click restore & retry
-  File: docs/images/demo-story-restore-b.gif
--->
-<img src="docs/images/demo-story-restore-b.gif" alt="Story restore B: pause decision panel" width="820"/>
-
-##### C · Timeline audit: snapshot → restore → retry
-
-<!--
-  Record: timeline shows snapshot, fail step, restore, successful retry
-  File: docs/images/demo-story-restore-c.gif
--->
-<img src="docs/images/demo-story-restore-c.gif" alt="Story restore C: snapshot / restore / retry audit" width="820"/>
-
-> Until GIFs are recorded, images may show as placeholders; drop files into `docs/images/` with the names above when ready.
+1. **Main loop**: ingest via plugin or MCP → console OK → new project with auth templates → hang a login subflow → business HTTP / asserts → Run; on failure, AI fix then green.  
+2. **MCP create**: connect Token → survey → (optional) enable write / run → create and run from Cursor → check the Web canvas.  
+3. **Writable SUT rollback** (demo `/test-support`): load a fail scenario → env allow restore → HTTP snapshot-before → on pause choose restore & retry; timeline shows snapshot / restore.
 
 ---
 
@@ -312,7 +203,7 @@ Full loop (demo target + API ingest + AI / MCP): see [Deploy](./docs/deploy.en.m
 
 - [Deploy](./docs/deploy.en.md) · [Concepts](./docs/project-summary.en.md) · [FAQ](./docs/faq.en.md)
 - [Flow nodes](./docs/test-flow-nodes.en.md) · [MCP](./docs/mcp.en.md)
-- [UI / desktop](./qualitest-ui/README.md) · [Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Security](./SECURITY.md)
+- [Roadmap](./docs/ROADMAP.md) · [UI / desktop](./qualitest-ui/README.md) · [Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Security](./SECURITY.md)
 - [中文 README](./README.md)
 
 </details>
