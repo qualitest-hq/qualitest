@@ -312,7 +312,7 @@ Full loop (demo target + IDEA sync + AI / MCP): see [Deploy](./docs/deploy.en.md
 
 - [Deploy](./docs/deploy.en.md) · [Concepts](./docs/project-summary.en.md) · [FAQ](./docs/faq.en.md)
 - [Flow nodes](./docs/test-flow-nodes.en.md) · [MCP](./docs/mcp.en.md)
-- [UI / desktop](./qualitest-ui/README.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
+- [UI / desktop](./qualitest-ui/README.md) · [Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Security](./SECURITY.md)
 - [中文 README](./README.md)
 
 </details>
@@ -321,8 +321,8 @@ Full loop (demo target + IDEA sync + AI / MCP): see [Deploy](./docs/deploy.en.md
 
 <div align="center">
 
-**Qualitest** · [Apache-2.0](LICENSE) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [QQ group](https://qm.qq.com/q/FBa9jDRhm) (`1105468427`)
+**Qualitest** · [Apache-2.0](LICENSE) (commercial use allowed) · [Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Security](SECURITY.md) · [QQ group](https://qm.qq.com/q/FBa9jDRhm) (`1105468427`)
 
-<sub>Deployment details: [`docs/deploy.en.md`](./docs/deploy.en.md)</sub>
+<sub>Deployment: [`docs/deploy.en.md`](./docs/deploy.en.md). The names “质衡” and “Qualitest” belong to the maintainers; contribution terms: [CONTRIBUTING](CONTRIBUTING.md).</sub>
 
 </div>

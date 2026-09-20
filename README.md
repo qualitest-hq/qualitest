@@ -358,7 +358,7 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 - [部署说明](./docs/deploy.md) · [产品概念](./docs/project-summary.md) · [FAQ](./docs/faq.md)
 - [测试流节点](./docs/test-flow-nodes.md) · [MCP](./docs/mcp.md) · [项目模板](./docs/project-template.md)
-- [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md)
+- [前端 / 桌面](./qualitest-ui/README.md) · [贡献指南](./CONTRIBUTING.md) · [行为准则](./CODE_OF_CONDUCT.md) · [安全策略](./SECURITY.md)
 - [English README](./README.en.md)
 
 </details>
@@ -367,8 +367,8 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 <div align="center">
 
-**质衡 Qualitest** · 让质量保障更高效 · [Apache-2.0](LICENSE) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [QQ 交流群](https://qm.qq.com/q/FBa9jDRhm)（`1105468427`）
+**质衡 Qualitest** · 让质量保障更高效 · [Apache-2.0](LICENSE)（可商用） · [贡献指南](CONTRIBUTING.md) · [行为准则](CODE_OF_CONDUCT.md) · [安全策略](SECURITY.md) · [QQ 交流群](https://qm.qq.com/q/FBa9jDRhm)（`1105468427`）
 
-<sub>部署细节以 [`docs/deploy.md`](./docs/deploy.md) 为准</sub>
+<sub>部署细节以 [`docs/deploy.md`](./docs/deploy.md) 为准。名称与标识「质衡」「Qualitest」归项目维护方；贡献许可见 [CONTRIBUTING](CONTRIBUTING.md)。</sub>
 
 </div>

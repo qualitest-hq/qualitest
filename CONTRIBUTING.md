@@ -8,6 +8,7 @@
 | [`qualitest-demo`](https://github.com/qualitest-hq/qualitest-demo) | 接口靶场 |
 | [`qualitest-intellij-plugin`](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA 插件 |
 
+参与本社区即表示同意 [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)。  
 安全漏洞请走 [`SECURITY.md`](./SECURITY.md)，不要开公开 Issue。
 
 ## 欢迎什么
@@ -51,9 +52,12 @@ GitHub 上「New issue」可选表单（Bug / 想法 / 提问）；空白 Issue 
 跟着现有风格走即可：后端是 Spring Boot 多模块，前端是 Vue 3 + Element Plus。用户可见文案以中文为主。行为有变时，顺手改一下 README 或对应 `docs/` 就行——不必为贡献专门写长文档。  
 新增/大改单测时，请参考 [`docs/testing-conventions.md`](./docs/testing-conventions.md)（测试也是给人看的）。各类 AI 助手可先看根目录 [`AGENTS.md`](./AGENTS.md)。
 
-## 许可证
+## 许可证与商用
 
-贡献默认按 **[Apache License 2.0](./LICENSE)** 授权给本项目。提交即表示你有权按该协议贡献，且同意同样授权。  
-可选：在 commit 中加入 `Signed-off-by:`（DCO）。上游致谢见 [`NOTICE`](./NOTICE)。
+本项目整体以 **[Apache License 2.0](./LICENSE)** 发布，**允许商用**（含闭源产品中使用、提供托管/咨询等），须保留许可证与 NOTICE 要求的归属说明。
+
+- 打开 Issue / 提交 Pull Request / 推送 commit，即表示：你有权做出该贡献，并以 **Apache-2.0** 将贡献授权给本项目及所有接受者（与根目录 `LICENSE` 相同条款）。
+- 你仍保留自己贡献部分的著作权；**不会**因此获得项目整体所有权，也**不会**获得「质衡」「Qualitest」等名称与标识的商标权。
+- 可选：在 commit 中加入 `Signed-off-by:`（[DCO](https://developercertificate.org/)），便于确认来源。上游致谢见 [`NOTICE`](./NOTICE)。
 
 有想法就提，谢谢！
