@@ -65,7 +65,7 @@
 名称：@Operation.summary → JavaDoc 首行 → 方法名
 ```
 
-从**业务仓** Controller 抽 method/path/参数及上述分组注释；有标注则传入 `import_apis` 覆盖；省略则更新保留库内、新增落入默认分组。看回执 `warnings` / `metaGroupSource`。
+从**业务仓**抽取 method/path/参数及上述分组注释（**不限 Java**：Controller / router / handler / OpenAPI 注释等均可）；有标注则传入 `import_apis` 覆盖；省略则更新保留库内、新增落入默认分组。看回执 `warnings` / `metaGroupSource`。Java 示例见上占位；其它栈按同等字段映射即可。
 
 ### 缺接口时充实接口库
 

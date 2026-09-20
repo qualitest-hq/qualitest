@@ -30,7 +30,7 @@
 
 <br/>
 
-**Qualitest** connects API sync, in-project debug, canvas orchestration, and AI design (**diff before merge**) — plus MCP so AI editors can **read** the same project.
+**Qualitest** connects API sync (IntelliJ **or** MCP import — not Java-only), in-project debug, canvas orchestration, and AI design (**diff before merge**) — plus MCP so AI editors can **read and write** the same project.
 
 ```bash
 cd qualitest
@@ -63,7 +63,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 | 以前 | 现在（质衡） |
 |:-----|:-------------|
-| 接口路径手抄进 Postman，各维护一份集合 | IDEA 插件一键同步，团队共用同一份清单 |
+| 接口路径手抄进 Postman，各维护一份集合 | **IDEA 插件**或 **MCP 导入**入库，团队共用同一份清单（不限 Java） |
 | 测试 / 预发 / 生产环境切换靠改 URL | 项目内调试台，一键切环境再发请求 |
 | 多步用例靠长脚本，改一处查半天 | 画布拖拽编排，断点与断言一眼可见 |
 | AI 改流程心里没底，怕悄悄写乱 | 自然语言出建议，**先看 Diff 再合并** |
@@ -78,8 +78,8 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 | ① | ② | ③ | ④ | ⑤ |
 |:---:|:---:|:---:|:---:|:---:|
-| **IDEA 同步** | **调试台** | **测试流编排** | **AI 辅助** | **MCP 接入** |
-| 接口从代码来 | 多环境自测 | 画布拖拽串联 | Diff 再合并 | IDE 可读项目 |
+| **接口入库** | **调试台** | **测试流编排** | **AI 辅助** | **MCP 接入** |
+| 插件 / MCP 导入 | 多环境自测 | 画布拖拽串联 | Diff 再合并 | IDE 可读可写 |
 
 <p align="center"><sub>闭环 · 少切换 · 少重复录入</sub></p>
 
@@ -87,7 +87,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 |:-----|:-----|
 | **本仓** | 质衡平台 + Web（`qualitest-ui/`） |
 | [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | 可选靶场，零配置体验演示场景 |
-| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA 插件：Controller → 平台 |
+| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA 插件：Java Controller → 平台（可选；其它栈可用 MCP `import_apis`） |
 
 ---
 
@@ -101,7 +101,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 **不用手抄第二遍，顺手就能自测**
 
-装上 IntelliJ 插件，工程里的接口定义一键同步到平台。团队共享同一份清单；自己也能在调试台立刻验一遍，再也不用问「这个路径到底是多少」。
+**Java**：装 IntelliJ 插件，Controller 一键同步。**其它语言 / 栈**：在 Cursor 等编辑器接 MCP，开启「允许 MCP 导入接口」后用 `import_apis` 入库。团队共享同一份清单；调试台立刻自测，再也不用问「这个路径到底是多少」。
 
 </td>
 <td width="50%" valign="top">
@@ -145,7 +145,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 **IDE 也能读懂你的测试项目**
 
-通过标准 MCP 接入（Cursor 等均可）。问「这条流有哪些节点？」「上次跑挂在哪？」——答案来自平台**真数据**。开启写流开关后，也可在编辑器里直接造流 / 修流 / 跑通。
+通过标准 MCP 接入（Cursor 等均可）。问「这条流有哪些节点？」「上次跑挂在哪？」——答案来自平台**真数据**。按需开启写流 / 跑流 / **导入接口**：在编辑器里造流、修流、跑通，或把任意栈的接口抽进项目库。
 
 → 配置见 [`docs/mcp.md`](./docs/mcp.md)
 
@@ -195,7 +195,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 ### MCP 接入 · IDE / AI 编辑器直接读懂（并可写）测试项目
 
-默认只读勘察；项目开启「允许 MCP 自动写流」后可在 Cursor 等编辑器里造流 / 修流；另开「允许 MCP 自动跑流」后可跑通。配置见 [`docs/mcp.md`](./docs/mcp.md)。
+默认只读勘察；可分别开启「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」——造流 / 修流 / 跑通，或从任意业务仓把接口写入项目库（不依赖 IDEA / Java）。配置见 [`docs/mcp.md`](./docs/mcp.md)。
 
 <!--
   录制规格（勘察）：Cursor 已接 qualitest MCP → list_flows → 带 testFlowId 问节点拓扑 / 上次 Run 失败点 → 返回平台真数据
@@ -351,7 +351,7 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 登录账号 **`admin`**，密码 **`admin123`**。勿用于公网。
 
-想完整体验（靶场 + IDEA 同步 + AI / MCP）：见 [部署说明](./docs/deploy.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
+想完整体验（靶场 + 接口入库 + AI / MCP）：见 [部署说明](./docs/deploy.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [MCP](./docs/mcp.md) · [IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)（Java 可选）。
 
 <details>
 <summary>更多文档</summary>

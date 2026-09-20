@@ -13,7 +13,7 @@
 | ---------------------------- | ------------------------------------------ |
 | `qualitest/`                 | 主平台后端（Spring Boot）+ `qualitest-ui/` 前端 SPA |
 | `qualitest-demo/`            | 可选商城接口靶场（独立 Compose；`/test-support` 快照样板）  |
-| `qualitest-intellij-plugin/` | IDEA 插件：扫描 Controller → 上传接口资产             |
+| `qualitest-intellij-plugin/` | IDEA 插件：扫描 Java Controller → 上传（可选；其它栈用 MCP `import_apis`） |
 
 
 前后端经 REST/JSON 通信；跑流与调试默认打项目环境的 `baseUrl`（Demo 常见 `http://localhost:8801`）。
@@ -40,7 +40,7 @@ flowchart TB
 | -------- | ----------------------------------------------------------- |
 | **测试项目** | 隔离边界：成员、Token、接口、流、素材、鉴权都挂项目                                |
 | **环境**   | 被测 `baseUrl`；可选「允许还原被测数据」（开则同环境串行 Run）                      |
-| **接口资产** | method/path/schema/测值/鉴权 mode；来自插件上传或模板预制                   |
+| **接口资产** | method/path/schema/测值/鉴权 mode；来自 IDEA 插件、MCP `import_apis`、Web 维护或模板预制 |
 | **测试流**  | 画布图（固定 8 种节点）；改图走 AI Staging 或属性面板                          |
 | **素材库**  | 可复用测值；登录口令优先 `{{asset.*}}`；文件走 `storagePath` → multipart    |
 | **Run**  | 一次执行；trigger 先返 `runId`、按节点落库，详情可边跑边看；含时间线、HTTP、审计步（`run_config` / `snapshot` / `restore`） |
@@ -55,7 +55,7 @@ flowchart TB
 ## 3. 主链路（人可复现）
 
 ```text
-IDEA 插件上传接口
+接口入库（IDEA 插件 / MCP import_apis / Web）
   → 调试台单接口验证（选环境）
   → 新建/打开测试流
   → AI 助手自然语言造流或修复
@@ -148,7 +148,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | Staging | 全部 ✓ 再保存；删除 ✓ 无二次弹窗；MCP 不能 `submit`；半自动素材/鉴权提案须聊天侧确认 |
 | 失败路径    | 「预期业务拒绝」+ 字面量；成功路径才用 `{{asset.*}}`                     |
 | 素材 / 文件 | 口令进素材库；file → `storagePath` → multipart                |
-| MCP     | 默认只读勘察（含列举鉴权 Profile）；项目开启写流后可经 MCP 改图 / 写鉴权 / 跑流 |
+| MCP     | 默认只读勘察（含列举鉴权 Profile）；可开写流 / 跑流 / **导入接口**（`import_apis`，不限语言栈） |
 
 
 ---
@@ -167,7 +167,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | [assets.md](./assets.md) | 素材库与测参文件 |
 | [faq.md](./faq.md) | 日常使用疑问（非冒烟专项） |
 | [全面测试手册.md](./全面测试手册.md) | T1→T3 验收与 §F/§G |
-| [mcp.md](./mcp.md) | MCP Token；默认可只读查询，项目设置可开「自动写流」；顶栏规程含单功能/整项目提示词 |
+| [mcp.md](./mcp.md) | MCP Token；默认可只读；可开写流 / 跑流 / 导入接口；顶栏规程含单功能/整项目提示词 |
 | [deploy.md](./deploy.md) | 部署 / Compose |
 | [testing-conventions.md](./testing-conventions.md) | 工程测试约定 |
 | [ROADMAP.md](./ROADMAP.md) | 排期与待办 |

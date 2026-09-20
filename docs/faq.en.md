@@ -115,6 +115,6 @@ Backend up; correct `url` and `X-Project-Token`. [deploy.en.md](./deploy.en.md),
 
 ### Why must new projects pick an auth template?
 
-Templates seed Profiles, anonymous login APIs, prefab envs/params/flows. Managed headers come from login-flow extracts or `match_config.credential` (no weak dual `adminAuth` default). Business APIs still come from the IDEA plugin. Dual mall: pick admin Bearer + client Bearer.
+Templates seed Profiles, anonymous login APIs, prefab envs/params/flows. Managed headers come from login-flow extracts or `match_config.credential` (no weak dual `adminAuth` default). **Business APIs** come from the IDEA plugin, MCP `import_apis` (enable **Allow MCP import APIs**), or the Web API library — **not Java-only**. Dual mall: pick admin Bearer + client Bearer.
 
-→ [project-template.md](./project-template.md) · [project-summary.en.md §4.1](./project-summary.en.md)
+→ [project-template.md](./project-template.md) · [project-summary.en.md §4.1](./project-summary.en.md) · [mcp.en.md](./mcp.en.md)

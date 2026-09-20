@@ -37,7 +37,7 @@ API testing often fragments across tools and people:
 
 | Before | With Qualitest |
 |:-------|:---------------|
-| Hand-copy paths into Postman; everyone keeps their own collection | IntelliJ plugin syncs once; the team shares one inventory |
+| Hand-copy paths into Postman; everyone keeps their own collection | **IntelliJ plugin** or **MCP import** into one shared inventory (not Java-only) |
 | Env switches mean editing URLs by hand | In-project console: pick test / staging / prod, then send |
 | Multi-step cases live in long scripts | Canvas orchestration — breaks and asserts stay visible |
 | AI edits feel unsafe | Natural-language suggestions; **Diff before merge** |
@@ -52,8 +52,8 @@ You focus on **what** to test; the platform cuts the busywork.
 
 | ① | ② | ③ | ④ | ⑤ |
 |:---:|:---:|:---:|:---:|:---:|
-| **IDEA sync** | **Console** | **Test flows** | **AI assist** | **MCP** |
-| APIs from code | Multi-env debug | Canvas orchestration | Diff then merge | IDE can read it |
+| **API ingest** | **Console** | **Test flows** | **AI assist** | **MCP** |
+| Plugin / MCP import | Multi-env debug | Canvas orchestration | Diff then merge | IDE can read & write |
 
 <p align="center"><sub>Closed loop · fewer switches · less re-entry</sub></p>
 
@@ -61,7 +61,7 @@ You focus on **what** to test; the platform cuts the busywork.
 |:-----|:-----|
 | **This repo** | Platform + Web (`qualitest-ui/`) |
 | [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | Optional shop API target for demos |
-| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA plugin: Controllers → platform |
+| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA plugin: Java Controllers → platform (optional; other stacks use MCP `import_apis`) |
 
 ---
 
@@ -75,7 +75,7 @@ You focus on **what** to test; the platform cuts the busywork.
 
 **No second copy-paste — and you can self-test**
 
-Install the IntelliJ plugin and sync Controller definitions in one click. Teams share one inventory; you can also hit the console right away to verify your own APIs — no private Postman collections, no “what’s the real path?” chats.
+**Java**: install the IntelliJ plugin and sync Controllers in one click. **Other stacks**: connect MCP in Cursor (etc.), enable **Allow MCP import APIs**, then `import_apis` into the project library. Teams share one inventory; self-test in the console — no private Postman collections, no “what’s the real path?” chats.
 
 </td>
 <td width="50%" valign="top">
@@ -119,7 +119,7 @@ Describe intent in natural language — suggestions use **this project’s real 
 
 **Your IDE can read the test project**
 
-Connect via standard **MCP** (Cursor and others). Ask “what nodes are on this flow?” / “where did the last run fail?” — answers come from **live platform data**. With write enabled, the editor can also create / fix / run flows.
+Connect via standard **MCP** (Cursor and others). Ask “what nodes are on this flow?” / “where did the last run fail?” — answers come from **live platform data**. Enable write / run / **import APIs** as needed: create, fix, and run flows in the editor, or pull APIs from any stack into the project library.
 
 → Setup: [`docs/mcp.en.md`](./docs/mcp.en.md)
 
@@ -154,7 +154,7 @@ Invite members and assign roles per project. Issue separate Tokens for the plugi
 
 ### MCP · IDE reads (and can write) the test project
 
-Read-only by default; with **Allow MCP autopilot write** enabled, Cursor (etc.) can create / fix / run flows. Setup: [`docs/mcp.en.md`](./docs/mcp.en.md).
+Read-only by default; enable **Allow MCP autopilot write**, **Allow MCP auto-run**, and/or **Allow MCP import APIs** — create / fix / run flows, or import APIs from any business repo (no IDEA / Java required). Setup: [`docs/mcp.en.md`](./docs/mcp.en.md).
 
 <!--
   Record (survey): Cursor + qualitest MCP → list_flows → ask topology / last failed Run with testFlowId → live platform data
@@ -305,7 +305,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT=8088` 
 
 Username **`admin`**, password **`admin123`**. Do not use on the public internet.
 
-Full loop (demo target + IDEA sync + AI / MCP): see [Deploy](./docs/deploy.en.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [IDEA plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin).
+Full loop (demo target + API ingest + AI / MCP): see [Deploy](./docs/deploy.en.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [MCP](./docs/mcp.en.md) · [IDEA plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) (optional for Java).
 
 <details>
 <summary>More docs</summary>

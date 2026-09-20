@@ -97,7 +97,7 @@ When enabled, `tools/list` also exposes `run_test_flow`. Usually requires auto-w
 
 ### Import APIs (“Allow MCP import APIs” on)
 
-Exposes `import_apis`: structured `items[]` upsert by HTTP method + normalized path into the project API library; persists immediately; returns created/updated/skipped/conflicts and `testProjectApiId`. Does not overwrite API design hints. This switch does not control graph edits or runs. IDEA plugin REST import is unaffected.
+Exposes `import_apis`: structured `items[]` upsert by HTTP method + normalized path into the project API library; persists immediately; returns created/updated/skipped/conflicts and `testProjectApiId`. Does not overwrite API design hints. **Any language stack**: have the AI extract from the business repo (controllers / routers / OpenAPI notes, etc.) — no IDEA / Java required. This switch does not control graph edits or runs. IDEA plugin REST import is unaffected.
 
 ---
 

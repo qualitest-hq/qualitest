@@ -112,7 +112,7 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 ### 3.5 MCP 导入接口（须「允许 MCP 导入接口」）
 
-开启后追加 `import_apis`：将结构化 `items[]`（method、path、name、参数摘要等）按 HTTP 方法 + 规范化 path 写入本项目接口库（已存在则更新，不存在则新增），成功即落库；回执含 created/updated/skipped/conflicts 与 `testProjectApiId`。不会改写接口上的设计提示。本开关不影响写流权限；IDEA 插件的 REST 导入不受本开关限制。
+开启后追加 `import_apis`：将结构化 `items[]`（method、path、name、参数摘要等）按 HTTP 方法 + 规范化 path 写入本项目接口库（已存在则更新，不存在则新增），成功即落库；回执含 created/updated/skipped/conflicts 与 `testProjectApiId`。不会改写接口上的设计提示。**任意语言栈**均可：由 AI 从业务仓（Controller / router / OpenAPI 注释等）抽取后调用即可，不依赖 IDEA / Java。本开关不影响写流权限；IDEA 插件的 REST 导入不受本开关限制。
 
 ---
 

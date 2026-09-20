@@ -134,6 +134,6 @@ HTTP 步骤连不上被测地址。常见：
 
 ### 新建项目时为什么要勾「项目模板」
 
-模板写入 Profile、登录口免登、**预制登录口**，以及**预制环境（URL + 变量）/ 预制参数（主路径 asset 口令；flow 仅兼容存量）/ 预制测试流**（内置模板种子 `adminAuth` / `clientAuth`，占位环境写成 `http://localhost:8801`；登录流 extracts 派生托管头与 `credentialApi`，**不再**写 `loginHint`）；`template_prompts` 默认可为空（靶场业务提示见 demo 提示集，不进鉴权模板）。不勾无法创建。**业务 API** 仍须 IDEA 插件上传（手册 **T1.3**）。商城类双端项目建议勾「管理端 Bearer」+「客户端 Bearer」。
+模板写入 Profile、登录口免登、**预制登录口**，以及**预制环境（URL + 变量）/ 预制参数（主路径 asset 口令；flow 仅兼容存量）/ 预制测试流**（内置模板种子 `adminAuth` / `clientAuth`，占位环境写成 `http://localhost:8801`；登录流 extracts 派生托管头与 `credentialApi`，**不再**写 `loginHint`）；`template_prompts` 默认可为空（靶场业务提示见 demo 提示集，不进鉴权模板）。不勾无法创建。**业务 API** 走 IDEA 插件上传，或 MCP `import_apis`（项目设置开「允许 MCP 导入接口」），也可在 Web 接口库手工维护——**不限 Java**。商城类双端项目建议勾「管理端 Bearer」+「客户端 Bearer」。
 
-→ [project-template.md](./project-template.md) · [project-summary.md §4.1](./project-summary.md) · 手册 **T1.2**（项目模板）· **T1.3**（插件上传）
+→ [project-template.md](./project-template.md) · [project-summary.md §4.1](./project-summary.md) · [mcp.md §3.5](./mcp.md) · 手册 **T1.2**（项目模板）· **T1.3**（插件上传，可选）
