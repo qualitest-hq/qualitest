@@ -157,8 +157,7 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 **① 这个项目里有哪些测试流？**
 
 ```text
-用 qualitest MCP 的 list_flows 列出当前项目的测试流（可按名称搜「登录」），
-返回 testFlowId 和名称即可。
+用 qualitest MCP 的 list_flows 列出当前项目的测试流（可按名称搜「登录」），返回 testFlowId 和名称即可。
 ```
 
 **② 这条流大概长什么样？**
