@@ -1,9 +1,8 @@
 /**
- * 对比当前编辑态与上次加载/保存的基线，同步「未保存」状态。
+ * 画布「未保存」脏状态：用可比较快照对照上次加载/保存基线。
  * <p>
- * 脏检查忽略 meta.viewport：仅平移/缩放画布不算内容变更，
- * 避免出现「未保存却无法撤销」的体验。
- * 真正改节点/边/场景后再保存时，仍会把当前视口写入 graph_json。
+ * 比较时去掉视口：仅平移、缩放画布不算内容变更。
+ * 真正改节点、边、场景后再保存时，当前视口仍会写入 graph_json。
  */
 import type { GraphJson } from '@/utils/flow/graphTypes';
 
@@ -11,12 +10,17 @@ import { toGraphJson } from '../graphAdapter';
 import { graphJsonToSnapshotString } from './graphFingerprint';
 import type { useFlowCanvasStore } from '../stores/flowCanvasStore';
 
+/** 画布 Pinia store 类型 */
 type FlowCanvasStore = ReturnType<typeof useFlowCanvasStore>;
 
 /**
- * 去掉 meta.viewport 后再做脏比较，使视口变化不影响「未保存」标记。
+ * 去掉 meta.viewport 后返回新图对象；无视口则原样返回。
+ * 用于内容比较时忽略平移与缩放。
+ *
+ * @param graph 流程图对象
+ * @returns 不含 viewport 的图（或原对象）
  */
-function stripViewportForDirtyCompare(graph: GraphJson): GraphJson {
+export function stripViewportForCompare(graph: GraphJson): GraphJson {
   if (!graph?.meta || graph.meta.viewport == null) {
     return graph;
   }
@@ -25,15 +29,32 @@ function stripViewportForDirtyCompare(graph: GraphJson): GraphJson {
   return { ...graph, meta };
 }
 
-/** 将 graph 对象规范化为可比较的持久化快照字符串（含视口，供其它指纹场景用） */
+/**
+ * 将图对象规范序列化为可比较的 JSON 字符串（保留视口）。
+ *
+ * @param graph 流程图或类图对象；空则返回空串
+ */
 export function snapshotStringFromGraph(graph: GraphJson | Record<string, unknown> | null | undefined): string {
   if (!graph) return '';
   return graphJsonToSnapshotString(graph);
 }
 
 /**
- * 序列化当前画布为脏检查用快照（忽略视口）。
- * 与保存路径相同的 toGraphJson，但比较前剥离 meta.viewport。
+ * 将图对象规范序列化为可比较的 JSON 字符串，且不含视口。
+ * 平移、缩放不计入内容变更。
+ *
+ * @param graph 流程图或类图对象；空则返回空串
+ */
+export function snapshotStringWithoutViewport(graph: GraphJson | Record<string, unknown> | null | undefined): string {
+  if (!graph) return '';
+  return snapshotStringFromGraph(stripViewportForCompare(graph as GraphJson));
+}
+
+/**
+ * 从画布 store 生成脏检查用快照字符串（不含视口）。
+ * 先确保边已灌入，再序列化节点、边、运行配置与流输出。
+ *
+ * @param store 画布 store
  */
 export async function snapshotStringFromStore(store: FlowCanvasStore): Promise<string> {
   await store.ensureEdgesHydrated();
@@ -44,12 +65,14 @@ export async function snapshotStringFromStore(store: FlowCanvasStore): Promise<s
     runConfig: store.runConfig,
     flowOutputs: store.flowOutputs,
   });
-  return snapshotStringFromGraph(stripViewportForDirtyCompare(graph));
+  return snapshotStringWithoutViewport(graph);
 }
 
 /**
- * 在加载/初始化完成后记录「已保存」基线。
- * 必须从灌入后的 store 生成，不能直接用服务端原始 JSON（字段规范化会有差异）。
+ * 把当前画布快照记为「已保存」基线，并清除未保存标记。
+ * 快照由当前 store 现场序列化得到。
+ *
+ * @param store 画布 store
  */
 export async function refreshSavedBaseline(store: FlowCanvasStore) {
   const snap = await snapshotStringFromStore(store);
@@ -58,7 +81,10 @@ export async function refreshSavedBaseline(store: FlowCanvasStore) {
 }
 
 /**
- * 仅在当前无未保存修改时刷新基线（场景环境自动补全等初始化补全用）。
+ * 仅在当前无未保存修改时刷新「已保存」基线。
+ * 用于初始化阶段自动补全场景环境等、且用户尚未改图的情况。
+ *
+ * @param store 画布 store
  */
 export async function refreshSavedBaselineIfPristine(store: FlowCanvasStore) {
   if (store.dirty) return;
@@ -66,8 +92,10 @@ export async function refreshSavedBaselineIfPristine(store: FlowCanvasStore) {
 }
 
 /**
- * 根据与已保存基线是否一致，更新 dirty 标记。
- * 撤销后若节点/边/场景回到加载或保存时的状态，则清除「未保存」（视口差异忽略）。
+ * 对照已保存基线更新 dirty。
+ * 当前快照与基线相同则标为已保存；不同则标为未保存。无基线时不改。
+ *
+ * @param store 画布 store
  */
 export async function reconcileFlowDirtyState(store: FlowCanvasStore) {
   const baseline = store.savedGraphSnapshot;
