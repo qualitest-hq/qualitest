@@ -165,8 +165,10 @@ public final class ToolResultByteFit {
     }
 
     /**
-     * 适配单节点详情：去掉 position，再按序删除 data 内脚本/body/配置等大字段；
-     * 仍超限则 data 只留 name/summary/testProjectApiId；再不行只返回 id/type。
+     * 适配单节点详情回执的字节上限。
+     * 超限时依次：去掉 position → 删除 data 内脚本/body/配置等大字段 →
+     * data 只留 name/summary/testProjectApiId → 仍超限则只返回 id/type。
+     * 正常路径的节点详情本就不含 position，此处 remove 作为超限兜底。
      */
     public static String fitNodeDetail(JSONObject result, int maxBytes) {
         maxBytes = effectiveMax(maxBytes);

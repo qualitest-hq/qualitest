@@ -8,7 +8,6 @@ import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphRunScenario;
 
 import java.util.HashMap;
@@ -197,7 +196,7 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
     }
 
     /**
-     * 组装节点：强制写入 type，data 必填，position 可选。
+     * 组装节点：强制写入 type，data 必填；不从参数读取 position（坐标由规范化阶段自动排版写入）。
      * generateIdIfMissing 为 true 且缺 id 时用 n_纳秒作临时短名，供会话内映射为雪花。
      */
     @SuppressWarnings("unchecked")
@@ -209,19 +208,6 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
             id = "n_" + System.nanoTime();
         }
         node.setId(id);
-        Object pos = args.get("position");
-        if (pos instanceof Map<?, ?> posMap) {
-            GraphNodePosition position = new GraphNodePosition();
-            Object x = posMap.get("x");
-            Object y = posMap.get("y");
-            if (x instanceof Number n) {
-                position.setX(n.doubleValue());
-            }
-            if (y instanceof Number n) {
-                position.setY(n.doubleValue());
-            }
-            node.setPosition(position);
-        }
         Object dataObj = args.get("data");
         if (dataObj instanceof Map<?, ?> dataMap) {
             node.setData(new HashMap<>((Map<String, Object>) dataMap));

@@ -1,78 +1,25 @@
 /**
- * Staging 灌入前：对 addNodes 做与画布障碍物的 AABB 避让，避免多轮 pending 叠在同一坐标。
+ * Staging 灌入前的新增节点坐标处理。
+ * <p>
+ * 忽略模型可能自带的坐标；按节点类型估算宽高，用网格起步 + AABB 避让，
+ * 给本批 addNodes 写入互不重叠的 position，供预览展示（不写库）。
  */
 import type { FlowDesignPatch } from '../types/aiDesignTypes';
-import { NODE_MIN_H, NODE_W } from '../constants/flowConfig';
+import {
+  findFreeLayoutPosition,
+  LAYOUT_LAYER_GAP_X,
+  resolveLayoutSize,
+  wrapPreferredPosition,
+  type LayoutRect,
+} from './flowGraphLayeredLayout';
 
-/** 与服务端 FlowDesignPatchNormalizer 网格步进一致 */
-export const STAGING_GRID_X = 380;
-
-const DEFAULT_X = 40;
-const DEFAULT_Y = 80;
-/** 单次右移 / 下移行尝试上限；用尽后兜底落点，避免死循环 */
-const MAX_SHIFT = 40;
-const ROW_STEP = NODE_MIN_H + 40;
-
-export interface StagingPositionObstacle {
-  x: number;
-  y: number;
-}
-
-function boxesOverlap(
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-): boolean {
-  return !(
-    ax + NODE_W <= bx
-    || bx + NODE_W <= ax
-    || ay + NODE_MIN_H <= by
-    || by + NODE_MIN_H <= ay
-  );
-}
-
-function overlapsAny(
-  x: number,
-  y: number,
-  obstacles: StagingPositionObstacle[],
-): boolean {
-  for (const o of obstacles) {
-    if (boxesOverlap(x, y, o.x, o.y)) {
-      return true;
-    }
-  }
-  return false;
-}
+/** 画布上已占用的节点矩形，作为避让障碍 */
+export type StagingPositionObstacle = LayoutRect;
 
 /**
- * 在障碍物中为候选点找空位：优先沿 x 网格右移，用尽后 y 下移再继续。
- */
-function findFreeStagingPosition(
-  preferred: StagingPositionObstacle,
-  obstacles: StagingPositionObstacle[],
-): StagingPositionObstacle {
-  const baseX = preferred.x;
-  const baseY = preferred.y;
-  for (let row = 0; row < MAX_SHIFT; row++) {
-    const y = baseY + row * ROW_STEP;
-    for (let i = 0; i < MAX_SHIFT; i++) {
-      const x = baseX + i * STAGING_GRID_X;
-      if (!overlapsAny(x, y, obstacles)) {
-        return { x, y };
-      }
-    }
-  }
-  // 与服务端一致：兜底落在扫过范围的右下角外侧
-  return {
-    x: baseX + MAX_SHIFT * STAGING_GRID_X,
-    y: baseY + MAX_SHIFT * ROW_STEP,
-  };
-}
-
-/**
- * 重写 patch.addNodes 的 position，使其不与障碍物及同批已放置节点重叠。
- * 不修改原 patch；无 addNodes 时原样返回。
+ * 为 patch 中的 addNodes 重新写入 position。
+ * 不修改入参原对象；没有 addNodes 时原样返回。
+ * 每放置一颗节点后立刻加入障碍列表，避免同批互相重叠。
  */
 export function spreadStagingAddPositions(
   patch: FlowDesignPatch,
@@ -83,17 +30,17 @@ export function spreadStagingAddPositions(
     return patch;
   }
 
-  const placed: StagingPositionObstacle[] = [...obstacles];
+  const placed: LayoutRect[] = [...obstacles];
   const nextNodes = addNodes.map((node) => {
-    const preferred = {
-      x: node.position?.x ?? DEFAULT_X,
-      y: node.position?.y ?? DEFAULT_Y,
-    };
-    const free = findFreeStagingPosition(preferred, placed);
-    placed.push(free);
-    if (free.x === preferred.x && free.y === preferred.y && node.position) {
-      return node;
-    }
+    const branches = (node.data as Record<string, unknown> | undefined)?.branches;
+    const size = resolveLayoutSize({
+      id: node.id ?? '',
+      type: node.type,
+      branchCount: Array.isArray(branches) ? branches.length : undefined,
+    });
+    const preferred = wrapPreferredPosition(placed.length);
+    const free = findFreeLayoutPosition(preferred, placed, size);
+    placed.push({ ...free, w: size.w, h: size.h });
     return {
       ...node,
       position: { x: free.x, y: free.y },
@@ -104,10 +51,16 @@ export function spreadStagingAddPositions(
 }
 
 /**
- * 从画布节点提取避让障碍；可排除本轮 patch 即将写入的 id（同 message 重灌时避免把旧副本当障碍）。
+ * 从当前画布节点列表提取避让障碍矩形（含按类型估算的宽高）。
+ * excludeIds 中的节点不计入（例如本轮即将重写的同 id 节点）。
  */
 export function obstaclesFromCanvasNodes(
-  nodes: Array<{ id?: string; position?: { x?: number; y?: number } | null }>,
+  nodes: Array<{
+    id?: string
+    type?: string | null
+    position?: { x?: number; y?: number } | null
+    data?: Record<string, unknown> | null
+  }>,
   excludeIds?: ReadonlySet<string>,
 ): StagingPositionObstacle[] {
   const out: StagingPositionObstacle[] = [];
@@ -120,7 +73,13 @@ export function obstaclesFromCanvasNodes(
     if (typeof x !== 'number' || typeof y !== 'number' || Number.isNaN(x) || Number.isNaN(y)) {
       continue;
     }
-    out.push({ x, y });
+    const branches = n.data?.branches;
+    const size = resolveLayoutSize({
+      id: n.id ?? '',
+      type: n.type,
+      branchCount: Array.isArray(branches) ? branches.length : undefined,
+    });
+    out.push({ x, y, w: size.w, h: size.h });
   }
   return out;
 }

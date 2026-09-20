@@ -1,6 +1,7 @@
 /**
- * 将 FlowDesignPatch 灌入 Staging。
- * 先过滤非法项并 toast，再规范化 HTTP/坐标，最后写入 Staging store；不写库。
+ * 将 FlowDesignPatch 灌入 Staging（预览，不写库）。
+ * <p>
+ * 步骤：过滤非法项并 toast → 规范化 HTTP 测值差分 → 给 addNodes 网格避让写坐标 → 写入 Staging store。
  */
 import { ElMessage } from 'element-plus';
 
@@ -26,7 +27,7 @@ export type HydratePatchToStagingOptions = {
 };
 
 /**
- * 过滤 → prepare → 避让坐标 → 写入 Staging。
+ * 过滤 → HTTP prepare → addNodes 坐标避让 → 写入 Staging。
  * @returns 当前 pending Staging 单元数
  */
 export async function hydratePatchToStaging(

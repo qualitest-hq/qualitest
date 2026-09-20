@@ -384,17 +384,6 @@
             "type": "string",
             "description": "节点 id；update 必填；add 可省略（短名或雪花）"
           },
-          "position": {
-            "type": "object",
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            }
-          },
           "data": {
             "type": "object",
             "required": [
@@ -550,17 +539,6 @@
             "type": "string",
             "description": "节点 id；update 必填；add 可省略（短名或雪花）"
           },
-          "position": {
-            "type": "object",
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            }
-          },
           "data": {
             "type": "object",
             "required": [
@@ -639,17 +617,6 @@
           "id": {
             "type": "string",
             "description": "节点 id；update 必填；add 可省略（短名或雪花）"
-          },
-          "position": {
-            "type": "object",
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            }
           },
           "data": {
             "type": "object",
@@ -755,17 +722,6 @@
             "type": "string",
             "description": "节点 id；update 必填；add 可省略（短名或雪花）"
           },
-          "position": {
-            "type": "object",
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            }
-          },
           "data": {
             "type": "object",
             "required": [
@@ -844,17 +800,6 @@
             "type": "string",
             "description": "节点 id；update 必填；add 可省略（短名或雪花）"
           },
-          "position": {
-            "type": "object",
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            }
-          },
           "data": {
             "type": "object",
             "required": [],
@@ -900,17 +845,6 @@
           "id": {
             "type": "string",
             "description": "节点 id；update 必填；add 可省略（短名或雪花）"
-          },
-          "position": {
-            "type": "object",
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            }
           },
           "data": {
             "type": "object",
@@ -966,17 +900,6 @@
           "id": {
             "type": "string",
             "description": "节点 id；update 必填；add 可省略（短名或雪花）"
-          },
-          "position": {
-            "type": "object",
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            }
           },
           "data": {
             "type": "object",

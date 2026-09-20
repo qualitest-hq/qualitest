@@ -12,9 +12,10 @@ import com.qualitest.flow.model.GraphNode;
 import java.util.Map;
 
 /**
- * 只读：按 nodeId 返回节点 type 与完整 data。
+ * 只读：按 nodeId 返回节点 id、type 与完整 data。
  * <p>
  * 读图走工作图优先（本轮已接受的 submit 单元可立刻查到）。
+ * 回执字段刻意不含 position（模型无需关心画布落点）；
  * 返回前按节点详情形状做字节上限裁剪（压缩脚本/body 等大字段）。
  */
 public class GetNodeDetailTool implements QualitestTool {
@@ -50,9 +51,6 @@ public class GetNodeDetailTool implements QualitestTool {
                 result.put("id", node.getId());
                 result.put("type", node.getType());
                 result.put("data", node.getData());
-                if (node.getPosition() != null) {
-                    result.put("position", node.getPosition());
-                }
                 return ToolResultByteFit.fitNodeDetail(result, ctx.getMaxToolResultBytes());
             }
         }

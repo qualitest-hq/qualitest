@@ -31,8 +31,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 FlowDesignPatchNormalizer：AI 流程补丁规范化（补 id/position、API 绑定、summary）与预合并校验；
- * 含单单元将 AUTH_* / HTTP 必填写入 warnings、整包写入 errors。
+ * 测 FlowDesignPatchNormalizer：AI 流程补丁规范化（补雪花 id、自动排版写入新增节点坐标、
+ * API 绑定、summary）与预合并校验；含单单元将 AUTH_* / HTTP 必填写入 warnings、整包写入 errors。
  * 边界：Mock TestProjectApiMapper，不访问数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignPatchNormalizerTest
  */
@@ -59,11 +59,11 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：新增节点/边缺 id，边 source 指向将被替换的旧 id。
-     * 期望：节点与边补数字雪花 id；节点 position=(40,80)；边 source 映射到新节点 id。
+     * 期望：节点与边补数字雪花 id；新增节点由自动排版写入 position=(40,80)；边 source 映射到新节点 id。
      */
     @Test
     @Order(1)
-    @DisplayName("缺 id 时补雪花 id 与默认坐标")
+    @DisplayName("缺 id 时补雪花 id 与自动排版坐标")
     void normalize_assignsSnowflakeIdsAndPosition() {
         GraphNode httpNode = GraphNode.builder()
                 .id("bad")
@@ -535,7 +535,7 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：空底图，AI 同批两个 addNodes 都写死 position=(40,80)。
-     * 期望：第一颗保留 (40,80)，第二颗错开到 (420,80)。
+     * 期望：忽略入参坐标后自动排版；第一颗 (40,80)，第二颗错开到 (420,80)。
      */
     @Test
     @Order(16)
@@ -566,11 +566,11 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：底图已有节点 (40,80)，addNode 也写死 (40,80)。
-     * 期望：即使已有 position 也错开到 (420,80)。
+     * 期望：忽略入参坐标，自动避让后落在 (420,80)。
      */
     @Test
     @Order(17)
-    @DisplayName("相对底图重叠时有坐标也错开")
+    @DisplayName("与底图重叠时自动避让错开")
     void normalize_overlapWithBase_shiftsEvenWithExplicitPosition() {
         GraphNode existing = GraphNode.builder()
                 .id("1001")

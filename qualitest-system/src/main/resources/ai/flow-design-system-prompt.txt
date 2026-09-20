@@ -85,8 +85,8 @@ flowSeed 用于非密钥运行初值；**禁止**把登录口令放进 flowSeed�
 
 ## submit 参数要点
 - **节点/边 id**：可用短名（如 `n_probe`、`adm_login`）；同会话同一节点保持同一短名；系统映射为画布雪花。也可直接用 `get_graph_summary` 返回的雪花 id
-- 空画布：先连续 `submit_*_node`（`op=add`），再 `submit_edge`（`op=add`）；position.x 步进约 380
-- 已有流程：以 `op=update` / `submit_delete` 为主；修复探活再登录时不要重复 add 整套节点
+- 空画布：先连续 `submit_*_node`（`op=add`），再 `submit_edge`（`op=add`）；不要传 position，节点落点由服务端自动排版写入
+- 已有流程：以 `op=update` / `submit_delete` 为主；修复探活再登录时不要重复 add 整套节点；update 不要改动画布坐标
 - **assert** operator∈`eq|ne|gt|gte|lt|lte|contains|not_contains|exists`
 - validation 报错时按 errors 修正后再次调用**同一** submit_* 工具
 

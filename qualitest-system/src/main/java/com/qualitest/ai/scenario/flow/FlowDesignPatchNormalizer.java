@@ -7,11 +7,11 @@ import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckResult;
 import com.qualitest.ai.tools.FlowDesignIds;
 import com.qualitest.api.util.ManagedAuthHeaderApplier;
+import com.qualitest.flow.graph.FlowGraphLayeredLayout;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
@@ -35,6 +35,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,9 +45,11 @@ import java.util.function.Function;
 /**
  * AI 产出画布增量的服务端规范化器。
  * <p>
- * 在提交进 Capture / 返回前端 Staging 前依次：补雪花 id 与默认坐标、校验 HTTP 接口归属、
+ * 在提交进 Capture / 返回前端 Staging 前依次完成：
+ * 补雪花 id、忽略入参坐标并为新增节点自动写入 position、校验 HTTP 接口归属、
  * 补鉴权托管头与节点 summary、规范化场景字段、预合并跑图结构校验与断言路径门禁等。
- * 不写业务库；用户在前端确认后才持久化 graph_json。
+ * 更新节点不写坐标，合并时保留画布原位置。
+ * 本类不写业务库；用户在前端确认后才持久化 graph_json。
  * <p>
  * 提供两条入口：
  * <ul>
@@ -57,16 +60,6 @@ import java.util.function.Function;
 @Component
 @RequiredArgsConstructor
 public class FlowDesignPatchNormalizer {
-
-    private static final double GRID_X = 380.0;
-    private static final double DEFAULT_X = 40.0;
-    private static final double DEFAULT_Y = 80.0;
-    /** 新增节点 AABB 避让用的默认宽、最小高 */
-    private static final double NODE_W = 300.0;
-    private static final double NODE_MIN_H = 108.0;
-    /** 单次右移 / 下移行尝试上限；用尽后兜底落点，避免死循环 */
-    private static final int MAX_SHIFT = 40;
-    private static final double ROW_STEP = NODE_MIN_H + 40.0;
 
     private final TestProjectApiMapper testProjectApiMapper;
     private final TestProjectMapper testProjectMapper;
@@ -221,7 +214,7 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 规范化 patch 字段（id、坐标、API 绑定、summary 等），不做预合并整图校验。
+     * 规范化 patch 字段（id、新增节点坐标、API 绑定、summary 等），不做预合并整图校验。
      * 用于确认前单独跑规范化；第四参收集 warnings。
      */
     public FlowDesignPatch preparePatch(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId, List<String> warnings) {
@@ -323,8 +316,8 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 规范化入口编排：补 suggestedDeletes 空壳、规范化 id/坐标、校验删除目标、
-     * 告警 add 撞已有 id、Condition 分支整理、删映射、场景字段、剔除未知 data 键、
+     * 规范化入口编排：补 suggestedDeletes 空壳、规范化 id、清空入参坐标并为新增节点自动排版、
+     * 校验删除目标、告警 add 撞已有 id、Condition 分支整理、删映射、场景字段、剔除未知 data 键、
      * HTTP API 绑定、按 type 补全 data、补 summary。
      * unitLocal 为 true 时边端点允许前向短名（本轮稍后才会提交的节点）。
      */
@@ -521,6 +514,7 @@ public class FlowDesignPatchNormalizer {
     /**
      * 规范化节点/边 id：模型可用短名，落盘侧一律雪花。
      * 会话 clientIdMap 保证同会话短名稳定；同步改写边端点、update 引用与 condition branches.target。
+     * 新增节点先清空入参坐标（稍后只给新增节点自动排版）；update 清空坐标字段，合并时保留画布原位置。
      * unitLocal=true 时边端点未知短名会先占位发号（前向引用），否则记入 idErrors。
      */
     private void normalizeIds(FlowDesignPatch patch, GraphJson baseGraph,
@@ -533,26 +527,18 @@ public class FlowDesignPatchNormalizer {
         }
         Set<String> knownIds = collectKnownNodeIds(baseGraph);
         Map<String, String> idRemap = new HashMap<>();
-        List<GraphNodePosition> obstacles = collectBaseObstacles(baseGraph);
 
         if (patch.getAddNodes() != null) {
-            int index = 0;
             for (GraphNode node : patch.getAddNodes()) {
                 if (node == null) {
-                    index++;
                     continue;
                 }
                 String oldId = node.getId() != null ? node.getId().trim() : "";
                 String resolved = resolveAddNodeId(oldId, clientIdMap, idRemap);
                 node.setId(resolved);
                 knownIds.add(resolved);
-                GraphNodePosition preferred = node.getPosition() != null
-                        ? node.getPosition()
-                        : defaultAddPosition(baseGraph, index);
-                GraphNodePosition resolvedPos = resolveAddPosition(obstacles, preferred);
-                node.setPosition(resolvedPos);
-                obstacles.add(resolvedPos);
-                index++;
+                // 丢弃模型自带坐标；placePositionsForAddNodes 再统一写入
+                node.setPosition(null);
             }
         }
 
@@ -568,6 +554,8 @@ public class FlowDesignPatchNormalizer {
                 } else {
                     update.setId(resolved);
                 }
+                // 更新节点不改画布位置
+                update.setPosition(null);
             }
         }
 
@@ -615,6 +603,9 @@ public class FlowDesignPatchNormalizer {
             }
         }
 
+        // 只给本批新增节点写坐标；已有节点与 update 节点位置不动
+        placePositionsForAddNodes(patch, baseGraph);
+
         stripConditionBranchTargets(patch.getAddNodes());
         stripConditionBranchTargets(patch.getUpdateNodes());
 
@@ -622,6 +613,45 @@ public class FlowDesignPatchNormalizer {
             remapDeleteIds(patch.getSuggestedDeletes().getNodeIds(), clientIdMap, idRemap);
             remapDeleteIds(patch.getSuggestedDeletes().getEdgeIds(), clientIdMap, idRemap);
         }
+    }
+
+    /**
+     * 给 patch 中的新增节点写入画布坐标。
+     * 把新增节点与本批新边叠到基准图副本上，再只改这些新节点的 position：
+     * 有上游则靠右落位并可折行，无上游则网格避让；已有节点坐标保持不变。
+     */
+    private static void placePositionsForAddNodes(FlowDesignPatch patch, GraphJson baseGraph) {
+        if (patch == null || patch.getAddNodes() == null || patch.getAddNodes().isEmpty()) {
+            return;
+        }
+        Set<String> newIds = new LinkedHashSet<>();
+        List<GraphNode> toPlace = new ArrayList<>();
+        for (GraphNode n : patch.getAddNodes()) {
+            if (n == null || n.getId() == null || n.getId().isBlank()) {
+                continue;
+            }
+            newIds.add(n.getId());
+            toPlace.add(n);
+        }
+        if (newIds.isEmpty()) {
+            return;
+        }
+        GraphJson temp = baseGraph != null ? baseGraph.copy() : GraphJson.builder().build();
+        if (temp.getNodes() == null) {
+            temp.setNodes(new ArrayList<>());
+        }
+        if (temp.getEdges() == null) {
+            temp.setEdges(new ArrayList<>());
+        }
+        temp.getNodes().addAll(toPlace);
+        if (patch.getAddEdges() != null) {
+            for (GraphEdge e : patch.getAddEdges()) {
+                if (e != null) {
+                    temp.getEdges().add(e);
+                }
+            }
+        }
+        FlowGraphLayeredLayout.placeNewNodes(temp, newIds);
     }
 
     private static String resolveAddNodeId(String oldId, Map<String, String> clientIdMap,
@@ -967,65 +997,6 @@ public class FlowDesignPatchNormalizer {
         return s.isEmpty() ? null : s;
     }
 
-    /** 收集基准图全部节点 position，作为避让障碍起点。 */
-    private static List<GraphNodePosition> collectBaseObstacles(GraphJson baseGraph) {
-        List<GraphNodePosition> obstacles = new ArrayList<>();
-        if (baseGraph == null || baseGraph.getNodes() == null) {
-            return obstacles;
-        }
-        for (GraphNode n : baseGraph.getNodes()) {
-            if (n != null && n.getPosition() != null) {
-                obstacles.add(n.getPosition());
-            }
-        }
-        return obstacles;
-    }
-
-    /**
-     * 相对障碍物为候选点找空位：缺坐标已在调用方补 preferred；有坐标但重叠时同样错开。
-     * 优先沿 x 网格右移，用尽后 y 下移再继续。
-     */
-    static GraphNodePosition resolveAddPosition(List<GraphNodePosition> obstacles, GraphNodePosition preferred) {
-        double baseX = preferred != null ? preferred.getX() : DEFAULT_X;
-        double baseY = preferred != null ? preferred.getY() : DEFAULT_Y;
-        for (int row = 0; row < MAX_SHIFT; row++) {
-            double y = baseY + row * ROW_STEP;
-            for (int i = 0; i < MAX_SHIFT; i++) {
-                double x = baseX + i * GRID_X;
-                if (!overlapsAny(x, y, obstacles)) {
-                    return GraphNodePosition.builder().x(x).y(y).build();
-                }
-            }
-        }
-        // 网格试遍仍重叠：落在扫过范围的右下角外侧
-        return GraphNodePosition.builder()
-                .x(baseX + MAX_SHIFT * GRID_X)
-                .y(baseY + MAX_SHIFT * ROW_STEP)
-                .build();
-    }
-
-    private static boolean overlapsAny(double x, double y, List<GraphNodePosition> obstacles) {
-        if (obstacles == null || obstacles.isEmpty()) {
-            return false;
-        }
-        for (GraphNodePosition o : obstacles) {
-            if (o == null) {
-                continue;
-            }
-            if (boxesOverlap(x, y, o.getX(), o.getY())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean boxesOverlap(double ax, double ay, double bx, double by) {
-        return !(ax + NODE_W <= bx
-                || bx + NODE_W <= ax
-                || ay + NODE_MIN_H <= by
-                || by + NODE_MIN_H <= ay);
-    }
-
     /**
      * 规范化 scenarioPatch：为新增场景补雪花 id、空 flowSeed 与占位名称。
      */
@@ -1058,26 +1029,6 @@ public class FlowDesignPatchNormalizer {
                 index++;
             }
         }
-    }
-
-    /**
-     * 为缺省 position 的新增节点推算坐标。
-     * 空图首节点 (40,80)；否则取基准图末节点 x+380，同批后续节点 y 递增 40。
-     */
-    private static GraphNodePosition defaultAddPosition(GraphJson baseGraph, int indexInPatch) {
-        double baseX = DEFAULT_X;
-        double baseY = DEFAULT_Y;
-        if (baseGraph != null && baseGraph.getNodes() != null && !baseGraph.getNodes().isEmpty()) {
-            GraphNode last = baseGraph.getNodes().get(baseGraph.getNodes().size() - 1);
-            if (last.getPosition() != null) {
-                baseX = last.getPosition().getX() + GRID_X;
-                baseY = last.getPosition().getY();
-            }
-        }
-        return GraphNodePosition.builder()
-                .x(baseX)
-                .y(baseY + indexInPatch * 40.0)
-                .build();
     }
 
     /** 画布节点/边 id 须为可解析的数字雪花 id */

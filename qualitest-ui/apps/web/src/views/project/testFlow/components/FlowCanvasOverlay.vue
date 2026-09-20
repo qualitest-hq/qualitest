@@ -22,9 +22,9 @@
 /**
  * 画布底栏锚点组件。
  *
- * 挂载缩放工具栏，并将用户操作与 Vue Flow 视口变更统一委托给 useFlowViewport：
+ * 挂载缩放工具栏，并将用户操作与 Vue Flow 视口变更统一委托：
  * - 用户拖拽/滚轮 → onViewportChange → syncFromFlow
- * - 底栏放大/缩小/重置/适应画布 → useFlowViewport 对应方法
+ * - 底栏放大/缩小/重置/适应画布 → 视口 composable
  * - 画布 onInit 与组件 onMounted 时恢复 store 中保存的视口
  *
  * 不再监听 suppressDirty 回写视口，避免与 Staging 聚焦动画竞态导致视角跳回。

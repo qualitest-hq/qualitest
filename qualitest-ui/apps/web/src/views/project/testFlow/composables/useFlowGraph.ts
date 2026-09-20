@@ -18,7 +18,7 @@ import { fromGraphJson, toGraphJson } from '../graphAdapter';
 import { refreshSavedBaseline } from '../utils/reconcileFlowDirty';
 import { promptStagingPendingSave } from '../utils/promptStagingPendingSave';
 import { collectRunBlockingErrors } from '../utils/runReadiness';
-import { suppressExternalGraphSync } from '../utils/externalGraphSyncState';
+import { suppressExternalGraphSync, acknowledgeLocalWebSave } from '../utils/externalGraphSyncState';
 import { getFlowEditLeaseToken } from '../utils/flowEditLeaseState';
 import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
@@ -132,6 +132,8 @@ export function useFlowGraph() {
 
     store.loading = true;
     try {
+      // 须在发请求前抑制：服务端提交后 SSE 可能早于 HTTP 返回到达本页
+      suppressExternalGraphSync();
       // 请求头带上本标签写锁 token，有有效租约时服务端续期，不再另抢一把
       await updateTestFlow(
         {
@@ -142,7 +144,8 @@ export function useFlowGraph() {
         },
         getFlowEditLeaseToken(String(store.testFlowId || '')),
       );
-      suppressExternalGraphSync();
+      // 清掉抑制窗口前误亮的「其它端保存」条幅
+      acknowledgeLocalWebSave();
       await refreshSavedBaseline(store);
 
       if (!options?.skipRunRiskRefresh && !options?.quiet) {

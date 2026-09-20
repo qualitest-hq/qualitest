@@ -67,6 +67,17 @@
         <button :disabled="!canUndo" class="btn btn--ghost" title="撤销" type="button" @click="undo">
           ↩ 撤销
         </button>
+        <el-tooltip content="按节点连线自动分层排列，层过多时折行兼顾宽高" placement="bottom">
+          <button
+              :disabled="!canEditFlow || isTemplateCanvas"
+              class="btn btn--ghost"
+              title="一键排版：重算全部节点坐标并适应视图"
+              type="button"
+              @click="tidyLayout"
+          >
+            一键排版
+          </button>
+        </el-tooltip>
         <button class="btn" type="button" @click="importModalVisible = true">导入</button>
         <button class="btn" type="button" @click="exportDrawerVisible = true">导出</button>
         <button
@@ -303,6 +314,7 @@ import { useFlowCanvasPermissions } from './composables/useFlowCanvasPermissions
 import { useAiStagingCanvas } from './composables/useAiStagingCanvas'
 import { useAiStagingConfirm } from './composables/useAiStagingConfirm'
 import { useAiStagingScenario } from './composables/useAiStagingScenario'
+import { useFlowTidyLayout } from './composables/useFlowTidyLayout'
 import { useFlowViewport } from './composables/useFlowViewport'
 import { useAiStagingStore } from './stores/aiStagingStore'
 import { useFlowCanvasStore } from './stores/flowCanvasStore'
@@ -400,6 +412,8 @@ async function handleResumeConfirmAllReady() {
 const { onConnect, onEdgesChange } = useFlowConnect()
 const { refreshAllNodeInternals } = useFlowNodeInternalsRefresh()
 const { canUndo, undo, pushHistory, commitHistoryResetIfPending } = useFlowHistory()
+/** 顶栏一键排版：按连线分层重算全部节点坐标，并适应视图 */
+const { tidyLayout } = useFlowTidyLayout()
 /** 画布视口控制器，供节点初始化后与 Staging 首次进入时恢复/聚焦视角 */
 const viewport = useFlowViewport()
 useAiStagingCanvas()

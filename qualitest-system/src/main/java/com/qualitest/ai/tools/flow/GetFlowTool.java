@@ -6,6 +6,7 @@ import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.ai.tools.ToolResultByteFit;
+import com.qualitest.flow.graph.FlowGraphAiViewSupport;
 import com.qualitest.project.service.ITestFlowService;
 import lombok.RequiredArgsConstructor;
 
@@ -14,7 +15,8 @@ import java.util.Map;
 /**
  * 读取单条测试流元数据与 graphJson。
  * <p>
- * 返回前按流记录形状做字节上限裁剪（优先去掉 graphJson）。
+ * 回执里的 graphJson 会去掉每个节点的 position，避免模型读写画布坐标；
+ * 再按流记录形状做字节上限裁剪。
  */
 @RequiredArgsConstructor
 public class GetFlowTool implements QualitestTool {
@@ -42,9 +44,11 @@ public class GetFlowTool implements QualitestTool {
         result.put("testFlowId", String.valueOf(flow.getTestFlowId()));
         result.put("flowName", flow.getFlowName());
         result.put("flowDescription", flow.getFlowDescription() != null ? flow.getFlowDescription() : "");
-        result.put("graphJson", FlowDesignToolSupport.parseGraphJsonField(flow.getGraphJson()));
+        Object graphObj = FlowDesignToolSupport.parseGraphJsonField(flow.getGraphJson());
+        FlowGraphAiViewSupport.stripPositionsFromGraphJsonObject(graphObj);
+        result.put("graphJson", graphObj);
         result.put("hint", "浏览拓扑优先 get_subflow_detail 或带 testFlowId 的 get_graph_summary；"
-                + "需完整 data 编辑时可将 graphJson 放入信封后调用 get_node_detail");
+                + "需完整 data 编辑时可将 graphJson 放入信封后调用 get_node_detail；本工具不返回节点坐标");
         return ToolResultByteFit.fitFlowRecord(result, ctx.getMaxToolResultBytes());
     }
 }

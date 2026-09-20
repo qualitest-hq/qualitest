@@ -6,10 +6,15 @@ type GraphCommittedHandler = (testFlowId: string, updateTime?: string) => void
 const lastAppliedByFlow = new Map<string, string>()
 let suppressUntilMs = 0
 let graphCommittedHandler: GraphCommittedHandler | null = null
+/** 本端保存成功后清掉误报的「其它端保存」条幅 */
+let localWebSaveAckHandler: (() => void) | null = null
 
-/** 本端刚保存后短暂抑制回声同步（避免立刻再 loadFlow） */
-export function suppressExternalGraphSync(ms = 2500) {
-  suppressUntilMs = Date.now() + ms
+/**
+ * 本端即将/正在保存时抑制回声同步。
+ * 须在发保存请求前调用，避免服务端 SSE 在 HTTP 返回前抢先到达。
+ */
+export function suppressExternalGraphSync(ms = 5000) {
+  suppressUntilMs = Math.max(suppressUntilMs, Date.now() + ms)
 }
 
 export function isExternalGraphSyncSuppressed(): boolean {
@@ -43,6 +48,16 @@ export function hasExternalGraphCommittedHandler(): boolean {
 
 export function emitExternalGraphCommitted(testFlowId: string, updateTime?: string) {
   graphCommittedHandler?.(testFlowId, updateTime)
+}
+
+/** 由外部同步模块注册：本端保存成功后清除误报条幅 */
+export function setLocalWebSaveAckHandler(next: (() => void) | null) {
+  localWebSaveAckHandler = next
+}
+
+/** 本端保存成功：确认本端回声，清掉「其它端保存」条幅 */
+export function acknowledgeLocalWebSave() {
+  localWebSaveAckHandler?.()
 }
 
 /** 同步来源短文案（Toast / 条幅共用） */

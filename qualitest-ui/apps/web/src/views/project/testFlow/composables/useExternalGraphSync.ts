@@ -20,6 +20,7 @@ import {
   isExternalGraphSyncSuppressed,
   noteAppliedGraphUpdateTime,
   setExternalGraphCommittedHandler,
+  setLocalWebSaveAckHandler,
   shouldApplyGraphUpdate,
 } from '../utils/externalGraphSyncState'
 import {
@@ -427,10 +428,20 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     stop()
     store.clearExternalSyncHighlight()
     setExternalGraphCommittedHandler(null)
+    setLocalWebSaveAckHandler(null)
   })
 
   setExternalGraphCommittedHandler((testFlowId, updateTime) => {
     enqueueGraph({ type: 'graphCommitted', testFlowId, updateTime, source: 'web-autopilot' })
+  })
+
+  // 本端保存成功后清掉误报的「其它端保存」条幅（SSE 回声在 suppress 前到达时会误亮）
+  setLocalWebSaveAckHandler(() => {
+    if (!graphConflict.pending.value) return
+    const src = graphConflict.source.value
+    if (src == null || src === 'web-save') {
+      graphConflict.clear()
+    }
   })
 
   return {

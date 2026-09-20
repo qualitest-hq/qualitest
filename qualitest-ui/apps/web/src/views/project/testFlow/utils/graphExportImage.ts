@@ -8,12 +8,9 @@ import { filterFilledExtracts } from '@/utils/flow/extract';
 import { formatAssignAssignment, getAssignAssignments } from '@/utils/flow/assign';
 
 import {
-  COND_NODE_W,
   COND_ROW_H,
   FLOW_VUE_FLOW_ID,
   NODE_HEAD_H,
-  NODE_MIN_H,
-  NODE_W,
 } from '../constants/flowConfig';
 import { NODE_TYPES } from '../constants/nodeTypes';
 import {
@@ -22,6 +19,7 @@ import {
   getConditionBranches,
   getConditionEdgeHandle,
 } from './conditionUtils';
+import { resolveLayoutSize } from './flowGraphLayeredLayout';
 import {
   formatAssertRule,
   formatAssertSummary,
@@ -48,16 +46,16 @@ function truncateText(s: unknown, max: number): string {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
-/** 按节点类型计算导出用宽高 */
+/** 按节点类型估算导出用宽高（不读 DOM，保证导出稳定可复现） */
 function getNodeDimensions(node: Node): { w: number; h: number } {
-  if (node.type === 'condition') {
-    const n = getConditionBranches(node.data as Record<string, unknown>).length;
-    return {
-      w: COND_NODE_W,
-      h: Math.max(NODE_HEAD_H + COND_ROW_H + 12, NODE_HEAD_H + n * COND_ROW_H + 12),
-    };
-  }
-  return { w: NODE_W, h: NODE_MIN_H };
+  const branches = node.type === 'condition'
+    ? getConditionBranches(node.data as Record<string, unknown>).length
+    : undefined;
+  return resolveLayoutSize({
+    id: String(node.id ?? ''),
+    type: typeof node.type === 'string' ? node.type : undefined,
+    branchCount: branches,
+  });
 }
 
 /** 计算所有节点（含锚点）的外接矩形 */
