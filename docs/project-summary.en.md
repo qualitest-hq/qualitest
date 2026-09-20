@@ -86,7 +86,7 @@ Configured in project settings → auth. Shared by Normalizer, Run, and debug.
 | Client | `/api/account/auth/login` | `$.data.token` → `asset.clientAuth.token` |
 | Admin | `/login` | `$.token` → `asset.adminAuth.token` |
 
-Same side: login once (or subflow), reuse managed Bearer on `asset.*`. Dual-side same graph: two logins, two extracts — never overwrite one credential path (`AUTH_LOGIN_FLOWKEY_COLLISION`). Missing source → `AUTH_TOKEN_MISSING` (**Run** hard-block; unit `submit_*` → warnings; Staging ✓ / Save soft; may tip “wrong side” Profile). Soft: `AUTH_HEADER_MANAGED`. AI: `list_project_auth_profiles` + `upsert_auth_profile`; next turn may carry `runRiskWarnings`. Details: [ai-staging.en.md](./ai-staging.en.md) · [faq.en.md](./faq.en.md) · [project-template.md](./project-template.md).
+Same side: login once (or subflow), reuse managed Bearer on `asset.*`. Dual-side same graph: two logins, two extracts — never overwrite one credential path (`AUTH_LOGIN_FLOWKEY_COLLISION`). Missing source → `AUTH_TOKEN_MISSING` (**Run** hard-block; unit `submit_*` → warnings; Staging ✓ / Save soft; may tip “wrong side” Profile). Soft: `AUTH_HEADER_MANAGED`. AI: `list_project_auth_profiles` + `upsert_auth_profile`; next turn may carry `runRiskWarnings`. Details: [ai-staging.en.md](./ai-staging.en.md) · [faq.en.md](./faq.en.md) · [project-template.en.md](./project-template.en.md).
 
 Credentials may come from extracts (`asset`/`flow`), scenario `flowSeed`, or env vars. Prefer the asset library for reusable accounts; do not put plaintext passwords on the graph.
 

@@ -1,6 +1,7 @@
 # 项目模板
 
 > **用途**：鉴权 / 预制资产包怎么勾选进项目、怎么用 AI 冷启动、怎么导入导出与另存。  
+> English: [project-template.en.md](./project-template.en.md)  
 > 契约与样例：[project-template/](./project-template/) · AI 生成提示词：仓库内 `qualitest-system/.../project-template/AI_PROMPT.md`（管理端「复制提示词」同源）。  
 > 概念与 Apply 细节：[project-summary.md §4.1](./project-summary.md) · 建项冒烟：手册 **T1.2**。
 

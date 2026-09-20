@@ -21,7 +21,7 @@
 | [docs/ai-staging.md](./docs/ai-staging.md) | AI Staging / Diff |
 | [docs/flow-variables-and-values.md](./docs/flow-variables-and-values.md) | 跑流变量与 HTTP 测值 |
 | [docs/assets.md](./docs/assets.md) | 素材库 |
-| [docs/project-template.md](./docs/project-template.md) | 项目模板（勾选 / 导入导出 / 另存） |
+| [docs/project-template.md](./docs/project-template.md) · [en](./docs/project-template.en.md) | 项目模板（勾选 / 导入导出 / 另存） |
 | [docs/faq.md](./docs/faq.md) | 日常使用 FAQ（冒烟/靶场见测试手册 §F） |
 
 回复与用户可见说明默认使用中文。

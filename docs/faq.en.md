@@ -50,7 +50,7 @@ Usually the **client Profile’s managed header points at the wrong asset** (`{{
 2. AI: `upsert_auth_profile` on `headerValueTemplate` (semi-auto confirm).
 3. New projects with a correct template Apply once correctly.
 
-→ [project-template.md](./project-template.md) · [project-summary.en.md §4](./project-summary.en.md)
+→ [project-template.en.md](./project-template.en.md) · [project-summary.en.md §4](./project-summary.en.md)
 
 ### Where to put passwords
 
@@ -117,4 +117,4 @@ Backend up; correct `url` and `X-Project-Token`. [deploy.en.md](./deploy.en.md),
 
 Templates seed Profiles, anonymous login APIs, prefab envs/params/flows. Managed headers come from login-flow extracts or `match_config.credential` (no weak dual `adminAuth` default). **Business APIs** come from the IDEA plugin, MCP `import_apis` (enable **Allow MCP import APIs**), or the Web API library — **not Java-only**. Dual mall: pick admin Bearer + client Bearer.
 
-→ [project-template.md](./project-template.md) · [project-summary.en.md §4.1](./project-summary.en.md) · [mcp.en.md](./mcp.en.md)
+→ [project-template.en.md](./project-template.en.md) · [project-summary.en.md §4.1](./project-summary.en.md) · [mcp.en.md](./mcp.en.md)
