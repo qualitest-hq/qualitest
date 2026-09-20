@@ -6,8 +6,6 @@
 
 English: [mcp.en.md](./mcp.en.md)
 
-后续未做增强项见：[mcp-backlog.md](./mcp-backlog.md)
-
 ---
 
 ## 0. 开了写流和跑流，能少干哪些活？
