@@ -4,7 +4,7 @@
 
 **Enterprise API testing & quality platform**
 
-Sync APIs, debug in-project, orchestrate flows, and design with AI — in one place, with fewer tool switches.
+Sync APIs, debug in-project, orchestrate flows, and design with AI — plus MCP **write / run** so Cursor can build a flow and hit Run next to the code you just changed (backend or frontend).
 
 <br/>
 
@@ -41,6 +41,8 @@ API testing often fragments across tools and people:
 | Env switches mean editing URLs by hand | In-project console: pick test / staging / prod, then send |
 | Multi-step cases live in long scripts | Canvas orchestration — breaks and asserts stay visible |
 | AI edits feel unsafe | Natural-language suggestions; **Diff before merge** |
+| After changing code, self-test still means Postman / the browser | **MCP write / run**: build and run the flow in Cursor (backend and frontend) |
+
 
 You focus on **what** to test; the platform cuts the busywork.
 
@@ -53,7 +55,7 @@ You focus on **what** to test; the platform cuts the busywork.
 | ① | ② | ③ | ④ | ⑤ |
 |:---:|:---:|:---:|:---:|:---:|
 | **API ingest** | **Console** | **Test flows** | **AI assist** | **MCP** |
-| Plugin / MCP import | Multi-env debug | Canvas orchestration | Diff then merge | IDE can read & write |
+| Plugin / MCP import | Multi-env debug | Canvas orchestration | Diff then merge | Write=build · run=hit Run |
 
 <p align="center"><sub>Closed loop · fewer switches · less re-entry</sub></p>
 
@@ -117,11 +119,12 @@ Describe intent in natural language — suggestions use **this project’s real 
 
 ### AI-assisted coding
 
-**Your IDE can read the test project**
+**After you change code, build and run the flow in Cursor**
 
-Connect via standard **MCP** (Cursor and others). Ask “what nodes are on this flow?” / “where did the last run fail?” — answers come from **live platform data**. Enable write / run / **import APIs** as needed: create, fix, and run flows in the editor, or pull APIs from any stack into the project library.
+Connect via standard MCP. **Auto-write** = the agent builds / edits the test flow; **auto-run** = the agent hits Run and pulls failures back into the chat.  
+**Backend**: fewer Postman hops after shipping an API. **Frontend**: verify the API path your page depends on before blaming the UI. Read-only by default; enable write / run in project settings.
 
-→ Setup: [`docs/mcp.en.md`](./docs/mcp.en.md)
+→ Plain-language scenarios: [`docs/mcp.en.md`](./docs/mcp.en.md)
 
 </td>
 <td width="50%" valign="top">
@@ -156,11 +159,17 @@ Open the AI panel beside a flow, describe intent (e.g. “retry after login fail
 
 ### MCP
 
-Read-only by default; enable **Allow MCP auto-write**, **Allow MCP auto-run**, and/or **Allow MCP import APIs**. Setup: [`docs/mcp.en.md`](./docs/mcp.en.md).
+Read-only by default; enable **Allow MCP auto-write**, **Allow MCP auto-run**, and/or **Allow MCP import APIs**. Plain-language write-up: [`docs/mcp.en.md`](./docs/mcp.en.md).
+
+| Switch | In plain terms | Who benefits |
+|:-------|:---------------|:-------------|
+| **Auto-write** | Cursor builds / edits the test flow | Backend authors the chain after an API change; frontend mirrors the page path first |
+| **Auto-run** | Cursor hits Run; failures return to the chat | Both sides hop to the browser less |
 
 1. Copy `mcp.json` from project settings → qualitest tools appear in Cursor  
-2. `list_flows` / `get_graph_summary` to survey topology and failed Runs  
-3. (Optional) with write enabled: `create_flow` / `submit_*`; with run enabled: `run_test_flow`; Web canvas syncs over SSE  
+2. (Recommended) enable write + run and **reconnect MCP**  
+3. `create_flow` / `submit_*` to build → `run_test_flow` to verify; Web canvas syncs over SSE  
+4. Read-only still supports `list_flows` / `get_graph_summary` / `get_run_failure`  
 
 ### IDEA plugin (optional)
 
@@ -169,7 +178,7 @@ Tools → Qualitest Helper: **project-level upload** / Controller **upload all**
 ### Suggested trial paths
 
 1. **Main loop**: ingest via plugin or MCP → console OK → new project with auth templates → hang a login subflow → business HTTP / asserts → Run; on failure, AI fix then green.  
-2. **MCP create**: connect Token → survey → (optional) enable write / run → create and run from Cursor → check the Web canvas.  
+2. **MCP create**: connect Token → enable write / run and reconnect → create and run from Cursor → check the Web canvas (on failure, `get_run_failure` then fix).  
 3. **Writable SUT rollback** (demo `/test-support`): load a fail scenario → env allow restore → HTTP snapshot-before → on pause choose restore & retry; timeline shows snapshot / restore.
 
 ---

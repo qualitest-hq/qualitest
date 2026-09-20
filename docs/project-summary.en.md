@@ -48,7 +48,7 @@ API ingest (IDEA plugin / MCP import_apis / Web)
 
 | Rule | Notes |
 | ---- | ----- |
-| **Edit graph** | Web AI → Staging → save; [ai-staging.en.md](./ai-staging.en.md); MCP **read-only by default**; Project settings can enable auto-write / auto-run / import APIs |
+| **Edit graph** | Web AI → Staging → save; [ai-staging.en.md](./ai-staging.en.md); MCP **read-only by default**; enable write (build the flow) / run (hit Run); scenarios in [mcp.en.md §0](./mcp.en.md) |
 | **Staging** | ✓ commits; delete ✓ is the only confirm; empty `nodes` ≠ success |
 | **Auth** | On the **project**, not the environment — §4 |
 | **Mutating scenarios** | Load demo scenario first; optional `snapshotBefore`; restore needs SUT `/test-support` |
@@ -100,7 +100,7 @@ HTTP `snapshotBefore` → pause on failure → restore & retry / retry / skip / 
 
 Details: [ai-staging.en.md](./ai-staging.en.md) · [flow-variables-and-values.en.md](./flow-variables-and-values.en.md) · [assets.en.md](./assets.en.md) · [faq.en.md](./faq.en.md)
 
-New chat + short prompt + real api ids for long flows. Staging must clear before save counts. Semi-auto: confirm asset/auth proposals in chat. Failure paths: “expect business reject” + literals. MCP read-only by default (can list auth Profiles); enable auto-write / auto-run / **import APIs** in Project settings (reconnect after toggle). Import works for any stack via `import_apis` — not Java-only.
+New chat + short prompt + real api ids for long flows. Staging must clear before save counts. Semi-auto: confirm asset/auth proposals in chat. Failure paths: “expect business reject” + literals. MCP read-only by default (can list auth Profiles); enable write (build the flow) / run (hit Run) / **import APIs** in Project settings (reconnect after toggle). Scenarios for backend & frontend: [mcp.en.md §0](./mcp.en.md). Import works for any stack via `import_apis` — not Java-only.
 
 ---
 
@@ -114,7 +114,7 @@ New chat + short prompt + real api ids for long flows. Staging must clear before
 | [flow-variables-and-values.en.md](./flow-variables-and-values.en.md) | `{{…}}` & HTTP test values |
 | [assets.en.md](./assets.en.md) | Asset library / fixture files |
 | [faq.en.md](./faq.en.md) | Day-to-day Q&A (not smoke-test quirks) |
-| [mcp.en.md](./mcp.en.md) | MCP tools |
+| [mcp.en.md](./mcp.en.md) | MCP tools; §0 plain-language write/run scenarios (backend & frontend) |
 | [deploy.en.md](./deploy.en.md) | Deploy / Compose |
 | [Demo AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) | Target-app flow prompts |
 | Chinese handbook | [全面测试手册.md](./全面测试手册.md) |

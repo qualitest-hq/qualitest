@@ -67,7 +67,7 @@ flowchart TB
 
 | 原则          | 说明                                        |
 | ----------- | ----------------------------------------- |
-| **改图画布**    | Web AI → Staging → 保存；规则见 [ai-staging.md](./ai-staging.md)；MCP **默认只读**，项目设置可开自动写流 |
+| **改图画布**    | Web AI → Staging → 保存；规则见 [ai-staging.md](./ai-staging.md)；MCP **默认只能看**，可开写流（搭编排）/ 跑流（点运行），场景见 [mcp.md §0](./mcp.md) |
 | **Staging** | ✓ = 确认提案；删除类 ✓ = 唯一确认；空 `nodes` 不算成功 |
 | **鉴权**      | 挂**项目**，不挂环境；见 §4                         |
 | **写库场景**    | 靶场先加载场景；节点可勾「执行前快照」；还原需被测 `/test-support` |
@@ -148,7 +148,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | Staging | 全部 ✓ 再保存；删除 ✓ 无二次弹窗；MCP 不能 `submit`；半自动素材/鉴权提案须聊天侧确认 |
 | 失败路径    | 「预期业务拒绝」+ 字面量；成功路径才用 `{{asset.*}}`                     |
 | 素材 / 文件 | 口令进素材库；file → `storagePath` → multipart                |
-| MCP     | 默认只读勘察（含列举鉴权 Profile）；可开写流 / 跑流 / **导入接口**（`import_apis`，不限语言栈） |
+| MCP     | 默认只能看；可开写流（搭编排）/ 跑流（点运行）/ **导入接口**；前后端场景见 [mcp.md §0](./mcp.md) |
 
 
 ---
@@ -167,7 +167,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | [assets.md](./assets.md) | 素材库与测参文件 |
 | [faq.md](./faq.md) | 日常使用疑问（非冒烟专项） |
 | [全面测试手册.md](./全面测试手册.md) | T1→T3 验收与 §F/§G |
-| [mcp.md](./mcp.md) | MCP Token；默认可只读；可开写流 / 跑流 / 导入接口；顶栏规程含单功能/整项目提示词 |
+| [mcp.md](./mcp.md) | MCP Token；默认可只读；可开写流 / 跑流 / 导入接口；§0 人话场景（前后端）；顶栏规程含单功能/整项目提示词 |
 | [deploy.md](./deploy.md) | 部署 / Compose |
 | [testing-conventions.md](./testing-conventions.md) | 工程测试约定 |
 | [ROADMAP.md](./ROADMAP.md) | 排期与待办 |

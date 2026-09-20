@@ -24,7 +24,7 @@ pnpm preview
 
 ## 公开日上线
 
-> 与路线图「公开日安全动作」、[`docs/deploy.md`](../docs/deploy.md)「GitHub Pages 落地页」、[`docs/v1.0-首发文草稿.md`](../docs/v1.0-首发文草稿.md) 发文前核对一致。**Private 时站点不可对外访问，勿以为忘了部署。**
+> 与路线图「公开日安全动作」、[`docs/deploy.md`](../docs/deploy.md)「GitHub Pages 落地页」核对一致。**Private 时站点不可对外访问，勿以为忘了部署。**
 
 1. 仓库改为 Public  
 2. Settings → Pages → Source = **GitHub Actions**  

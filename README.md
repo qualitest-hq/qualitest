@@ -30,7 +30,7 @@
 
 <br/>
 
-**Qualitest** connects API sync (IntelliJ **or** MCP import — not Java-only), in-project debug, canvas orchestration, and AI design (**diff before merge**) — plus MCP so AI editors can **read and write** the same project.
+**Qualitest** connects API sync (IntelliJ **or** MCP import — not Java-only), in-project debug, canvas orchestration, and AI design (**diff before merge**) — plus MCP **write / run** so Cursor can build a flow and hit Run next to the code you just changed (backend or frontend).
 
 ```bash
 cd qualitest
@@ -60,6 +60,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 | 测试 / 预发 / 生产环境切换靠改 URL | 项目内调试台，一键切环境再发请求 |
 | 多步用例靠长脚本，改一处查半天 | 画布拖拽编排，断点与断言一眼可见 |
 | AI 改流程心里没底，怕悄悄写乱 | 自然语言出建议，**先看 Diff 再合并** |
+| 改完代码还要切 Postman / 浏览器自测 | **MCP 写流 / 跑流**：Cursor 里搭流并跑通（前后端都适用） |
 
 一句话：你专注「测什么」，平台负责少折腾。
 
@@ -72,7 +73,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 | ① | ② | ③ | ④ | ⑤ |
 |:---:|:---:|:---:|:---:|:---:|
 | **接口入库** | **调试台** | **测试流编排** | **AI 辅助** | **MCP 接入** |
-| 插件 / MCP 导入 | 多环境自测 | 画布拖拽串联 | Diff 再合并 | IDE 可读可写 |
+| 插件 / MCP 导入 | 多环境自测 | 画布拖拽串联 | Diff 再合并 | 写流=搭编排 · 跑流=点运行 |
 
 <p align="center"><sub>闭环 · 少切换 · 少重复录入</sub></p>
 
@@ -136,11 +137,12 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 ### 用 AI 编辑器写代码的人
 
-**IDE 也能读懂你的测试项目**
+**改完代码，在 Cursor 里搭流并跑通**
 
-通过标准 MCP 接入（Cursor 等均可）。问「这条流有哪些节点？」「上次跑挂在哪？」——答案来自平台**真数据**。按需开启写流 / 跑流 / **导入接口**：在编辑器里造流、修流、跑通，或把任意栈的接口抽进项目库。
+通过标准 MCP 接入。**写流** = 让 Agent 帮你搭 / 改测试流；**跑流** = 让 Agent 帮你点运行，挂了把失败步骤拉回对话。  
+**后端**：改完接口少开 Postman。**前端**：先按页面路径把接口链路跑通，再分清是页面锅还是服务端锅。默认只能看；写库 / 跑库要在项目设置里打开。
 
-→ 配置见 [`docs/mcp.md`](./docs/mcp.md)
+→ 场景说明见 [`docs/mcp.md`](./docs/mcp.md)
 
 </td>
 <td width="50%" valign="top">
@@ -175,11 +177,17 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 ### MCP 接入
 
-默认只读勘察；可分别开启「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」。配置见 [`docs/mcp.md`](./docs/mcp.md)。
+默认只能看；可分别开启「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」。人话说明见 [`docs/mcp.md`](./docs/mcp.md)。
+
+| 开关 | 人话 | 谁更吃这套 |
+|:-----|:-----|:-----------|
+| **自动写流** | 让 Cursor 帮你搭 / 改测试流 | 后端改完接口造链路；前端按页面路径先验接口 |
+| **自动跑流** | 让 Cursor 帮你点运行，挂了拉回对话再修 | 两边都少切浏览器 |
 
 1. 项目设置复制 `mcp.json` → Cursor 出现 qualitest 工具  
-2. `list_flows` / `get_graph_summary` 勘察拓扑与失败 Run  
-3. （可选）开写流后 `create_flow` / `submit_*`；开跑流后 `run_test_flow`；Web 画布经 SSE 同步  
+2. （推荐）开写流 + 跑流并**重连 MCP**  
+3. `create_flow` / `submit_*` 造流 → `run_test_flow` 跑通；Web 画布经 SSE 同步  
+4. 只读时仍可用 `list_flows` / `get_graph_summary` / `get_run_failure` 勘察  
 
 ### IDEA 插件（可选）
 
@@ -188,7 +196,7 @@ Tools → Qualitest Helper：**项目级上传** / Controller **全部上传** /
 ### 推荐试用路径
 
 1. **主链路**：插件或 MCP 入库 → 调试台发通 → 建项勾鉴权模板 → 画布挂登录子流 → 串业务 HTTP / 断言 → Run；失败可用 AI 修复后再绿。  
-2. **MCP 造流**：接 Token → 只读勘察 →（可选）开写流 / 跑流 → Cursor 造流并 Run → 回 Web 看画布。  
+2. **MCP 造流**：接 Token → 开写流 / 跑流并重连 → Cursor 造流并 Run → 回 Web 看画布（失败则 `get_run_failure` 再修）。  
 3. **写库可回滚**（demo `/test-support`）：加载失败场景 → 环境开「允许还原」→ HTTP 勾「执行前快照」→ 失败暂停后选「还原并重试」；时间线可见 snapshot / restore。
 
 ---

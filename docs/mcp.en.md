@@ -8,6 +8,40 @@ Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + 
 
 ---
 
+## 0. What do auto-write and auto-run actually buy you?
+
+By default MCP is **read-only** (list flows, inspect topology, inspect failed runs). Project-settings switches unlock graph edits and runs:
+
+| Switch | In plain terms | What the agent does |
+|:-------|:---------------|:--------------------|
+| **Auto-write** | Let Cursor **build / edit a test flow** for you — no hand-dragging the canvas | `create_flow`, then unit `submit_*` for nodes, asserts, edges; **each success persists**; an open Web canvas syncs over SSE |
+| **Auto-run** | Let Cursor **hit Run** for you — no hopping back to the browser | `run_test_flow` on the latest graph in the DB; on failure, `get_run_failure` pulls the step back into the chat |
+
+Write-only can build the graph; Run still needs the Web UI unless auto-run is on. With both on, create → verify → fix stays in one chat.
+
+### Backend (API authors)
+
+After changing a Controller / Handler, instead of opening Postman and dragging nodes for multi-step cases:
+
+1. In Cursor: “login for a token → call this new API → assert 200”  
+2. The agent writes the flow and (with auto-run) runs it  
+3. On failure, inspect the step, fix asserts / params in the same chat, re-run  
+
+Fewer tool switches; long chains without clicking every property panel. You get a collaborative, env-switchable platform graph — not hard-to-review scripts dumped into the business repo.
+
+### Frontend (page authors)
+
+The usual stuck point: **the page fails — is it a bad client request, or did the backend chain / auth never work?** MCP lets you verify the **API path** separately from the UI:
+
+1. **Check for an existing flow** — `list_flows` / topology, so you do not reinvent the same case  
+2. **Mirror the page path** (login → list → submit) — have the agent write and run that flow; if green, dig into front-end headers / params; if red, you know which server step broke  
+3. **Ingest APIs from the business repo** (enable import) — `import_apis` is not Java-only; OpenAPI, routers, and fetch wrappers in a front-end repo all work as context  
+4. **401 / business codes disagree** — run the flow and read the failure site; fewer guesses than Network-panel-only debugging  
+
+In one line: **write = build the orchestration; run = hit Run.** Backend self-tests stay in the IDE; frontend spends less time bouncing between the page, Postman, and “maybe the backend?”.
+
+---
+
 ## 1. Prepare
 
 1. Sign in → open the **test project** → **Project settings**.

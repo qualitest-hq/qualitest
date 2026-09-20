@@ -16,7 +16,7 @@
 | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | 社区行为准则 |
 | [SECURITY.md](./SECURITY.md) | 安全披露 |
 | [docs/deploy.md](./docs/deploy.md) | 部署 / Compose / Flyway 运维约定 |
-| [docs/mcp.md](./docs/mcp.md) | MCP 配置与示例提问（以 Cursor 为例） |
+| [docs/mcp.md](./docs/mcp.md) | MCP 配置与示例；§0 人话：写流=搭编排、跑流=点运行（前后端） |
 | [docs/project-summary.md](./docs/project-summary.md) | 产品概念 / 鉴权 |
 | [docs/ai-staging.md](./docs/ai-staging.md) | AI Staging / Diff |
 | [docs/flow-variables-and-values.md](./docs/flow-variables-and-values.md) | 跑流变量与 HTTP 测值 |

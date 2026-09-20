@@ -91,6 +91,15 @@ Library file upload → form-data row **`type=file`** → `{{asset.<key>.storage
 
 ## MCP
 
+### What do auto-write and auto-run actually buy you?
+
+| Switch | In plain terms | Who benefits |
+|:-------|:---------------|:-------------|
+| **Auto-write** | Cursor builds / edits the test flow — no hand-dragging | **Backend**: author the chain after shipping an API. **Frontend**: mirror the page path (login → list → submit) and verify APIs before blaming the UI |
+| **Auto-run** | Cursor hits Run; failures come back into the chat | Both sides hop to the browser less; frontend can tell page bugs from server-chain bugs sooner |
+
+Read-only by default. Enable write / run in project settings. Longer scenarios: [mcp.en.md §0](./mcp.en.md).
+
 ### MCP cannot edit the canvas
 
 **Read-only by default** (list flows, inspect failed runs, etc.). After you enable and **save** **“Allow MCP auto-write”** in Project settings, MCP can call `submit_*` / `create_flow` and similar write tools; **“Allow MCP auto-run”** gates `run_test_flow`; **“Allow MCP import APIs”** gates `import_apis` only (independent of auto-write).
