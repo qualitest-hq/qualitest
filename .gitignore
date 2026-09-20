@@ -9,7 +9,11 @@ target/
 !.mvn/wrapper/maven-wrapper.jar
 
 ######################################################################
-# IDE
+# IDE / 编辑器（本机可留，勿提交）
+
+.vscode/
+.cursor/
+.cursorignore
 
 ### STS ###
 .apt_generated
