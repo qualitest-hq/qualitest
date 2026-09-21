@@ -34,6 +34,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -137,9 +138,13 @@ class ProjectTemplateFromProjectServiceTest {
         assertNotNull(preview);
         JsonNode previewNode = objectMapper.valueToTree(preview);
         assertEquals(1, previewNode.get("templateFlows").size());
-        String graph = previewNode.get("templateFlows").get(0).get("graphJson").toString();
-        assertFalse(graph.contains(String.valueOf(LOGIN_API_ID)));
+        JsonNode graphNode = previewNode.get("templateFlows").get(0).get("graphJson");
         assertTrue(previewNode.get("templateApis").size() >= 1);
+        String synthLoginApiId = previewNode.get("templateApis").get(0).get("testProjectApiId").asText();
+        assertNotEquals(String.valueOf(LOGIN_API_ID), synthLoginApiId);
+        String remappedApiId = graphNode.get("nodes").get(0).get("data").get("testProjectApiId").asText();
+        assertEquals(synthLoginApiId, remappedApiId);
+        assertNotEquals(String.valueOf(LOGIN_API_ID), remappedApiId);
         assertEquals(1, previewNode.get("templateParams").size());
         assertEquals("adminAuth", previewNode.get("templateParams").get(0).get("name").asText());
         @SuppressWarnings("unchecked")

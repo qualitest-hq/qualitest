@@ -25,7 +25,7 @@ class McpGetRunFailureToolTest {
 
     /**
      * 前提：arguments 与 context 均无 runId。
-     * 期望：error 文案含 MCP 无 contextRunId；不查库。
+     * 期望：error 文案提示须传入 runId；不查库。
      */
     @Test
     @Order(1)
@@ -37,7 +37,7 @@ class McpGetRunFailureToolTest {
 
         String json = tool.execute(Map.of(), ctx);
         assertTrue(json.contains("缺少 runId"));
-        assertTrue(json.contains("contextRunId"));
+        assertTrue(json.contains("请传入 runId"));
         verify(runService, never()).selectTestFlowRunResult(org.mockito.ArgumentMatchers.any());
     }
 }

@@ -2,6 +2,7 @@ package com.qualitest.ai.scenario.flow;
 
 import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
+import com.qualitest.flow.graph.FlowGraphLayeredLayout;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphMeta;
@@ -94,7 +95,7 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：基图画布已有节点 position=(40,80)，新增节点未带 position。
-     * 期望：新节点落在末节点右侧一格 (420,80)。
+     * 期望：新节点落在末节点右侧一格（ORIGIN_X + LAYER_GAP_X, ORIGIN_Y）。
      */
     @Test
     @Order(2)
@@ -121,8 +122,8 @@ class FlowDesignPatchNormalizerTest {
 
         GraphNodePosition position = result.patch().getAddNodes().get(0).getPosition();
         assertNotNull(position);
-        assertEquals(420.0, position.getX());
-        assertEquals(80.0, position.getY());
+        assertEquals(FlowGraphLayeredLayout.ORIGIN_X + FlowGraphLayeredLayout.LAYER_GAP_X, position.getX());
+        assertEquals(FlowGraphLayeredLayout.ORIGIN_Y, position.getY());
     }
 
     /**
@@ -535,7 +536,7 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：空底图，AI 同批两个 addNodes 都写死 position=(40,80)。
-     * 期望：忽略入参坐标后自动排版；第一颗 (40,80)，第二颗错开到 (420,80)。
+     * 期望：忽略入参坐标后自动排版；第一颗 ORIGIN，第二颗右移一格 LAYER_GAP_X。
      */
     @Test
     @Order(16)
@@ -558,15 +559,15 @@ class FlowDesignPatchNormalizerTest {
 
         GraphNodePosition p0 = result.patch().getAddNodes().get(0).getPosition();
         GraphNodePosition p1 = result.patch().getAddNodes().get(1).getPosition();
-        assertEquals(40.0, p0.getX());
-        assertEquals(80.0, p0.getY());
-        assertEquals(420.0, p1.getX());
-        assertEquals(80.0, p1.getY());
+        assertEquals(FlowGraphLayeredLayout.ORIGIN_X, p0.getX());
+        assertEquals(FlowGraphLayeredLayout.ORIGIN_Y, p0.getY());
+        assertEquals(FlowGraphLayeredLayout.ORIGIN_X + FlowGraphLayeredLayout.LAYER_GAP_X, p1.getX());
+        assertEquals(FlowGraphLayeredLayout.ORIGIN_Y, p1.getY());
     }
 
     /**
      * 前提：底图已有节点 (40,80)，addNode 也写死 (40,80)。
-     * 期望：忽略入参坐标，自动避让后落在 (420,80)。
+     * 期望：忽略入参坐标，自动避让后落在 ORIGIN_X + LAYER_GAP_X。
      */
     @Test
     @Order(17)
@@ -594,8 +595,8 @@ class FlowDesignPatchNormalizerTest {
 
         GraphNodePosition position = result.patch().getAddNodes().get(0).getPosition();
         assertNotNull(position);
-        assertEquals(420.0, position.getX());
-        assertEquals(80.0, position.getY());
+        assertEquals(FlowGraphLayeredLayout.ORIGIN_X + FlowGraphLayeredLayout.LAYER_GAP_X, position.getX());
+        assertEquals(FlowGraphLayeredLayout.ORIGIN_Y, position.getY());
     }
 
     /**
