@@ -80,3 +80,8 @@ Thumbs.db
 !*/build/*.java
 !*/build/*.html
 !*/build/*.xml
+
+# 内部草稿（勿提交）
+docs/*草稿*
+**/*草稿*
+
