@@ -10,6 +10,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Website](https://img.shields.io/badge/Website-qualitest-0ea5e9?style=for-the-badge)](https://qualitest-hq.github.io/qualitest/)
+[![Gitee](https://img.shields.io/badge/Gitee-镜像-c71d23?style=for-the-badge)](https://gitee.com/qualitest-hq/qualitest)
 [![QQ](https://img.shields.io/badge/QQ%20群-1105468427-12b7f5?style=for-the-badge)](https://qm.qq.com/q/FBa9jDRhm)
 
 <br/>
@@ -77,11 +78,13 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 <p align="center"><sub>闭环 · 少切换 · 少重复录入</sub></p>
 
-| 仓库 | 角色 |
-|:-----|:-----|
-| **本仓** | 质衡平台 + Web（`qualitest-ui/`） |
-| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | 可选靶场，零配置体验演示场景 |
-| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA 插件：Java Controller → 平台（可选；其它栈可用 MCP `import_apis`） |
+| 仓库 | 角色 | GitHub | Gitee（只读镜像） |
+|:-----|:-----|:-------|:------------------|
+| **本仓** | 质衡平台 + Web（`qualitest-ui/`） | [qualitest](https://github.com/qualitest-hq/qualitest) | [qualitest](https://gitee.com/qualitest-hq/qualitest) |
+| qualitest-demo | 可选靶场，零配置体验演示场景 | [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | [qualitest-demo](https://gitee.com/qualitest-hq/qualitest-demo) |
+| qualitest-intellij-plugin | IDEA 插件：Java Controller → 平台（可选；其它栈可用 MCP `import_apis`） | [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | [qualitest-intellij-plugin](https://gitee.com/qualitest-hq/qualitest-intellij-plugin) |
+
+> **托管**：GitHub 为主仓（Issue / PR / Release / CI）；Gitee 为国内只读镜像，请勿向镜像提交代码。
 
 ---
 

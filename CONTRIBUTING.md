@@ -2,11 +2,13 @@
 
 感谢关注质衡（Qualitest）。本仓库包含 **后端多模块** 与前端目录 **`qualitest-ui/`**。相关仓：
 
-| 仓库 | 用途 |
-|------|------|
-| [`qualitest`](https://github.com/qualitest-hq/qualitest)（本仓） | 主平台 + Web |
-| [`qualitest-demo`](https://github.com/qualitest-hq/qualitest-demo) | 接口靶场 |
-| [`qualitest-intellij-plugin`](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA 插件 |
+| 仓库 | 用途 | GitHub | Gitee（只读镜像） |
+|------|------|--------|-------------------|
+| `qualitest`（本仓） | 主平台 + Web | [GitHub](https://github.com/qualitest-hq/qualitest) | [Gitee](https://gitee.com/qualitest-hq/qualitest) |
+| `qualitest-demo` | 接口靶场 | [GitHub](https://github.com/qualitest-hq/qualitest-demo) | [Gitee](https://gitee.com/qualitest-hq/qualitest-demo) |
+| `qualitest-intellij-plugin` | IDEA 插件 | [GitHub](https://github.com/qualitest-hq/qualitest-intellij-plugin) | [Gitee](https://gitee.com/qualitest-hq/qualitest-intellij-plugin) |
+
+**GitHub 为主仓**（Issue / PR / Release）；Gitee 仅作国内只读镜像，请勿向镜像提交代码。
 
 参与本社区即表示同意 [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)。  
 安全漏洞请走 [`SECURITY.md`](./SECURITY.md)，不要开公开 Issue。

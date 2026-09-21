@@ -10,6 +10,7 @@ Sync APIs, debug in-project, orchestrate flows, and design with AI — plus MCP 
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Website](https://img.shields.io/badge/Website-qualitest-0ea5e9?style=for-the-badge)](https://qualitest-hq.github.io/qualitest/)
+[![Gitee](https://img.shields.io/badge/Gitee-mirror-c71d23?style=for-the-badge)](https://gitee.com/qualitest-hq/qualitest)
 [![QQ](https://img.shields.io/badge/QQ%20group-1105468427-12b7f5?style=for-the-badge)](https://qm.qq.com/q/FBa9jDRhm)
 
 <br/>
@@ -59,11 +60,13 @@ You focus on **what** to test; the platform cuts the busywork.
 
 <p align="center"><sub>Closed loop · fewer switches · less re-entry</sub></p>
 
-| Repo | Role |
-|:-----|:-----|
-| **This repo** | Platform + Web (`qualitest-ui/`) |
-| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | Optional shop API target for demos |
-| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | IDEA plugin: Java Controllers → platform (optional; other stacks use MCP `import_apis`) |
+| Repo | Role | GitHub | Gitee (read-only mirror) |
+|:-----|:-----|:-------|:-------------------------|
+| **This repo** | Platform + Web (`qualitest-ui/`) | [qualitest](https://github.com/qualitest-hq/qualitest) | [qualitest](https://gitee.com/qualitest-hq/qualitest) |
+| qualitest-demo | Optional shop API target for demos | [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | [qualitest-demo](https://gitee.com/qualitest-hq/qualitest-demo) |
+| qualitest-intellij-plugin | IDEA plugin: Java Controllers → platform (optional; other stacks use MCP `import_apis`) | [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | [qualitest-intellij-plugin](https://gitee.com/qualitest-hq/qualitest-intellij-plugin) |
+
+> **Hosting**: GitHub is canonical (Issues / PRs / Releases / CI). Gitee is a China-friendly read-only mirror — do not push to the mirror.
 
 ---
 

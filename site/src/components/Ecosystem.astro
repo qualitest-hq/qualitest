@@ -18,13 +18,16 @@ const t = useTranslations(lang);
       {
         t.ecoRepos.map((repo) => (
           <li>
-            <a href={repo.href}>
+            <div class="row">
               <span class="meta">
                 <span class="name">{repo.name}</span>
                 <span class="role">{repo.role}</span>
               </span>
-              <span class="go" aria-hidden="true">→</span>
-            </a>
+              <span class="links">
+                <a href={repo.href}>{t.ecoGitHub}</a>
+                <a href={repo.giteeHref}>{t.ecoGitee}</a>
+              </span>
+            </div>
           </li>
         ))
       }
@@ -40,36 +43,30 @@ const t = useTranslations(lang);
     border-top: 1px solid var(--line);
   }
 
-  .repos a {
+  .row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
     padding: 1.15rem 0.35rem;
     border-bottom: 1px solid var(--line);
-    text-decoration: none;
-    color: inherit;
     transition: background 0.2s ease, padding-left 0.25s var(--ease);
   }
 
-  .repos a:hover {
+  .row:hover {
     background: rgba(255, 255, 255, 0.45);
     padding-left: 0.55rem;
   }
 
-  .repos a:hover .name {
+  .row:hover .name {
     color: var(--accent-deep);
-  }
-
-  .repos a:hover .go {
-    color: var(--accent);
-    transform: translateX(4px);
   }
 
   .meta {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
+    min-width: 0;
   }
 
   @media (min-width: 720px) {
@@ -93,9 +90,20 @@ const t = useTranslations(lang);
     font-size: 0.94rem;
   }
 
-  .go {
+  .links {
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.85rem;
+  }
+
+  .links a {
     color: var(--muted);
-    font-size: 1.15rem;
-    transition: transform 0.25s var(--ease), color 0.2s ease;
+    font-size: 0.92rem;
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+
+  .links a:hover {
+    color: var(--accent);
   }
 </style>

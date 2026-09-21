@@ -1,7 +1,7 @@
 # Roadmap
 
 > **用途**：公开后「接下来做什么」。  
-> **远程**：[qualitest-hq](https://github.com/qualitest-hq)  
+> **远程**：[GitHub qualitest-hq](https://github.com/qualitest-hq)（主仓）· [Gitee qualitest-hq](https://gitee.com/qualitest-hq)（只读镜像）  
 > 不绑定硬性日期；条目可能推迟、拆分或取消。
 
 | 标记 | 含义 |
@@ -87,8 +87,8 @@ GHCR  >  动图（可选）  >  插件市场  >  跑流/密钥硬伤  >  其余�
 
 ## 仓库
 
-| 仓库 | 端口 |
-| ---- | ---- |
-| [qualitest](https://github.com/qualitest-hq/qualitest) | Compose Web **80**；本机 API **8800** / UI **5180** |
-| [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | API **8801**；Compose UI **5181** |
-| [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | — |
+| 仓库 | 端口 | GitHub | Gitee（只读镜像） |
+| ---- | ---- | ------ | ----------------- |
+| qualitest | Compose Web **80**；本机 API **8800** / UI **5180** | [GitHub](https://github.com/qualitest-hq/qualitest) | [Gitee](https://gitee.com/qualitest-hq/qualitest) |
+| qualitest-demo | API **8801**；Compose UI **5181** | [GitHub](https://github.com/qualitest-hq/qualitest-demo) | [Gitee](https://gitee.com/qualitest-hq/qualitest-demo) |
+| qualitest-intellij-plugin | — | [GitHub](https://github.com/qualitest-hq/qualitest-intellij-plugin) | [Gitee](https://gitee.com/qualitest-hq/qualitest-intellij-plugin) |

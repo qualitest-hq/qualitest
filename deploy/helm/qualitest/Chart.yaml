@@ -13,6 +13,7 @@ keywords:
 home: https://github.com/qualitest-hq/qualitest
 sources:
   - https://github.com/qualitest-hq/qualitest
+  - https://gitee.com/qualitest-hq/qualitest
 maintainers:
   - name: qualitest-hq
     url: https://github.com/qualitest-hq
