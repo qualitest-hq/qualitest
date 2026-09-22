@@ -59,24 +59,6 @@
         ■ 停止模拟
       </button>
       <button
-          v-if="!isScenarioRunActive"
-          :disabled="!canEditFlow || isSimulateActive || isReplayActive || runDisabled || isTemplateCanvas"
-          :title="scenarioRunTitle"
-          class="btn btn--ghost flow-canvas-toolbar__scenario-run-btn"
-          type="button"
-          @click="emit('start-scenario-run')"
-      >
-        ▶ {{ activeScenarioName }}
-      </button>
-      <button
-          v-else
-          class="btn btn--primary is-scenario-run-stop"
-          type="button"
-          @click="emit('abort-scenario-run')"
-      >
-        ■ 停止
-      </button>
-      <button
           :disabled="!isTransportActive"
           aria-label="上一步"
           class="btn btn--ghost btn--icon flow-canvas-toolbar__path-step-btn"
@@ -115,25 +97,21 @@
 
 <script setup>
 /**
- * 画布底栏：视图缩放、路径模拟、运行库回放传输控制、场景运行、全屏。
- *
- * 传输按钮（停止 / 暂停 / 步进）在路径模拟或回放活跃时共用同一组控件；
- * 状态区按当前播放态展示对应进度文案。
+ * 画布底栏：缩放、小地图开关、路径模拟、运行库回放的停止/暂停/步进、全屏。
+ * 真实场景跑流不在此栏；场景跑进行中会禁用「模拟路径」。
+ * 路径模拟与回放共用同一组传输按钮，状态区显示当前进度文案。
  */
 import { computed } from 'vue'
 
-import { useRunConfig } from '../composables/useRunConfig'
-import { useFlowCanvasPermissions } from '../composables/useFlowCanvasPermissions'
 import { useFlowSimulate } from '../composables/useFlowSimulate'
 import { usePlayback } from '../composables/usePlayback'
 
 const props = defineProps({
   zoomPercent: { type: Number, default: 100 },
   isFullscreen: { type: Boolean, default: false },
+  /** 场景真实跑流进行中：为 true 时禁用「模拟路径」 */
   isScenarioRunActive: { type: Boolean, default: false },
   minimapVisible: { type: Boolean, default: true },
-  /** 模板画布等场景强制禁用真实 Run */
-  runDisabled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -142,12 +120,8 @@ const emit = defineEmits([
   'zoom-reset',
   'fit-view',
   'toggle-fullscreen',
-  'start-scenario-run',
-  'abort-scenario-run',
   'toggle-minimap',
 ])
-
-const { canEditFlow, isTemplateCanvas } = useFlowCanvasPermissions()
 
 const {
   statusText,
@@ -169,44 +143,34 @@ const {
   replayStepNext,
 } = usePlayback()
 
-const { activeScenarioName } = useRunConfig()
-
-const scenarioRunTitle = computed(() => {
-  if (props.runDisabled || isTemplateCanvas.value) return '模板画布不支持运行场景'
-  if (!canEditFlow.value) return '当前账号无编辑权限，无法运行场景'
-  return `运行场景「${activeScenarioName.value}」`
-})
-
-/** 路径模拟或回放进行中时，步进与暂停按钮可用 */
+/** 路径模拟或回放进行中：步进、暂停按钮可用 */
 const isTransportActive = computed(() => isSimulateActive.value || isReplayActive.value)
 
-/**
- * 底栏状态区文案：回放活跃时展示回放步序，否则展示场景运行或路径模拟状态。
- */
+/** 底栏状态文案：回放中显示步序，否则显示路径模拟状态 */
 const toolbarStatusText = computed(() => {
   if (isReplayActive.value) return replayStatusText.value
   return statusText.value
 })
 
-/** 终止当前活跃的播放态（回放或路径模拟） */
+/** 停止当前回放或路径模拟 */
 function onTransportStop() {
   if (isReplayActive.value) abortReplay()
   else abortSimulate()
 }
 
-/** 切换当前活跃播放态的自动步进暂停/继续 */
+/** 暂停 / 继续当前回放或路径模拟的自动步进 */
 function onTransportTogglePause() {
   if (isReplayActive.value) toggleReplayPause()
   else toggleSimulatePause()
 }
 
-/** 当前活跃播放态单步后退 */
+/** 当前回放或路径模拟单步后退 */
 function onTransportStepPrev() {
   if (isReplayActive.value) replayStepPrev()
   else simulateStepPrev()
 }
 
-/** 当前活跃播放态单步前进 */
+/** 当前回放或路径模拟单步前进 */
 function onTransportStepNext() {
   if (isReplayActive.value) replayStepNext()
   else simulateStepNext()
@@ -256,13 +220,6 @@ function onTransportStepNext() {
   font-size: 14px;
   line-height: 1;
   justify-content: center;
-}
-
-.flow-canvas-toolbar__scenario-run-btn {
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .flow-canvas-toolbar__zoom {

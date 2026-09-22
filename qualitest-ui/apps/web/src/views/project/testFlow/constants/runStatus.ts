@@ -58,3 +58,23 @@ export function runStatusTagType(status: string | null | undefined): string {
   if (!status) return 'info';
   return (RUN_STATUS_TAG_TYPE as Record<string, string>)[status] || 'info';
 }
+
+/** 运行触发方式 code */
+export const RUN_TRIGGER_TYPES = ['manual', 'ai', 'ci', 'schedule'] as const;
+
+export type RunTriggerType = (typeof RUN_TRIGGER_TYPES)[number];
+
+/** 触发方式中文标签 */
+export const RUN_TRIGGER_LABEL: Record<RunTriggerType, string> = {
+  manual: '手动',
+  ai: 'AI 跑流',
+  ci: 'CI',
+  schedule: '定时',
+};
+
+/** 触发方式展示文案；未知 code 原样返回 */
+export function runTriggerLabel(triggerType: string | null | undefined): string {
+  if (!triggerType?.trim()) return '';
+  const key = triggerType.trim() as RunTriggerType;
+  return RUN_TRIGGER_LABEL[key] || triggerType.trim();
+}

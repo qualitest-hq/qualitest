@@ -28,7 +28,7 @@
         }"
         class="panel__body flow-panel__body"
     >
-      <RunConfigPanel v-if="store.ui.leftTab === 'runConfig'" @run-scenario="emit('run-scenario')" />
+      <RunConfigPanel v-if="store.ui.leftTab === 'runConfig'" />
       <NodePalette v-else-if="store.ui.leftTab === 'nodes'" />
       <ParamLibraryPanel v-else-if="store.ui.leftTab === 'params'" />
       <RunLibraryPanel v-else-if="store.ui.leftTab === 'runs'" />
@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-/** 左栏：运行场景 / 节点库 / 参数库 / 运行库 四个 Tab */
+/** 左栏四个 Tab：运行场景、节点库、参数库、运行库；模板画布隐藏运行库 */
 import { computed } from 'vue'
 
 import NodePalette from './NodePalette.vue'
@@ -45,8 +45,6 @@ import ParamLibraryPanel from './ParamLibraryPanel.vue'
 import RunConfigPanel from './RunConfigPanel.vue'
 import RunLibraryPanel from './RunLibraryPanel.vue'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
-
-const emit = defineEmits(['run-scenario'])
 
 const store = useFlowCanvasStore()
 

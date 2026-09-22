@@ -1,21 +1,49 @@
 <template>
   <div v-if="!run" class="prop-empty">选择左侧运行记录</div>
   <template v-else>
-    <div class="run-detail-actions">
-      <button
-          v-if="run.status === 'failed' || hasFailedStep"
-          class="btn btn--primary btn--sm run-ai-fix-btn"
-          type="button"
-          @click="openAiFix"
-      >
-        AI 修复
-      </button>
-    </div>
     <div v-if="staleWarning" class="run-stale-warn">{{ staleWarning }}</div>
 
-    <!-- 失败分区：业务 Code / 断言 / 其他 -->
+    <!-- Run 页眉：状态徽标、场景名、失败时的 AI 修复，以及环境/触发/耗时/起止 -->
+    <header class="run-hero">
+      <div class="run-hero__top">
+        <span :class="`run-badge run-badge--${run.status}`">{{ runStatusLabel(run.status) }}</span>
+        <span class="run-hero__scenario">{{ run.scenarioName || '未命名场景' }}</span>
+        <button
+            v-if="run.status === 'failed' || hasFailedStep"
+            class="btn btn--primary btn--sm run-ai-fix-btn"
+            type="button"
+            @click="openAiFix"
+        >
+          AI 修复
+        </button>
+      </div>
+      <div class="run-hero__grid">
+        <div class="run-hero__cell">
+          <span class="run-hero__k">环境</span>
+          <span class="run-hero__v">{{ runEnvName }}</span>
+        </div>
+        <div class="run-hero__cell">
+          <span class="run-hero__k">触发</span>
+          <span class="run-hero__v">{{ runTriggerLabel(run.triggerType) || '-' }}</span>
+        </div>
+        <div class="run-hero__cell">
+          <span class="run-hero__k">耗时</span>
+          <span class="run-hero__v">{{ formatDurationMs(run.durationMs) }}</span>
+        </div>
+        <div class="run-hero__cell">
+          <span class="run-hero__k">开始</span>
+          <span class="run-hero__v">{{ formatRunTime(run.startedAt) }}</span>
+        </div>
+        <div class="run-hero__cell">
+          <span class="run-hero__k">结束</span>
+          <span class="run-hero__v">{{ formatRunTime(run.finishedAt) }}</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 失败摘要：按业务码 / 断言 / 其他分组，可点击跳步 -->
     <div v-if="failureGroups.hasAny" class="run-failure-groups">
-      <div class="run-failure-groups__title">失败分类</div>
+      <div class="run-failure-groups__title">失败摘要</div>
       <div
           v-for="group in failureGroups.sections"
           :key="group.id"
@@ -34,7 +62,10 @@
             type="button"
             @click="goToStep(item.stepIndex)"
         >
-          <span class="run-failure-group__name">{{ item.nodeName }}</span>
+          <span class="run-failure-group__name">
+            {{ item.nodeName }}
+            <span class="run-failure-group__type">({{ item.typeLabel }})</span>
+          </span>
           <span class="run-failure-group__msg">{{ item.summary }}</span>
         </button>
       </div>
@@ -158,14 +189,19 @@
           :class="{
             'is-current': idx === runLib.inspectorStepIndex,
             'is-pause-node': step.nodeId === run.pauseInfo?.pauseNodeId,
+            'is-audit': isAuditStep(step.nodeType),
           }"
           class="run-step-item"
           @click="goToStep(idx)"
       >
         <span class="run-step-item__icon">{{ stepIcon(step.nodeType) }}</span>
-        <div>
-          <div style="font-weight:600">{{ step.nodeName || step.nodeType }}</div>
-          <div style="color:var(--pd-text-muted);margin-top:2px">{{ summarizeStep(step) }}</div>
+        <div class="run-step-item__body">
+          <div class="run-step-item__main">
+            <span class="run-step-item__name">{{ step.nodeName || nodeTypeLabelZh(step.nodeType) }}</span>
+            <span :class="`run-badge run-badge--${step.status}`">{{ runStatusLabel(step.status) }}</span>
+            <span class="run-step-item__dur">{{ formatDurationMs(step.durationMs) }}</span>
+          </div>
+          <div class="run-step-item__sub">{{ summarizeStep(step) }}</div>
         </div>
       </div>
     </div>
@@ -191,7 +227,7 @@
             <div v-if="!currentStep.http" class="prop-empty" style="padding:20px">该步骤无 HTTP 请求/响应</div>
             <template v-else>
               <div style="margin-bottom:8px;font-weight:600">
-                {{ currentStep.http.method }} {{ currentStep.http.url }} · {{ currentStep.http.status }}
+                {{ currentStep.http.method }} {{ decodeUrlForDisplay(currentStep.http.url) }} · {{ currentStep.http.status }}
               </div>
               <div
                   v-if="currentStep.http.bizCheck"
@@ -232,21 +268,39 @@
 </template>
 
 <script setup>
-/** 右栏运行详情：失败分区、步骤时间线、摘要/HTTP/变量 Inspector；paused 时展示续跑决策或人工输入表单 */
+/**
+ * 右栏运行详情。
+ * 含：Run 页眉、失败摘要、暂停续跑 / 人工输入、步骤时间线、摘要 / HTTP / 流程变量 Inspector。
+ * 点击步骤会切换 Inspector，并高亮、定位画布上对应节点。
+ */
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { resumeTestFlowRun } from '@/api/project/testFlowRun'
 import ResponseMediaPreview from '@/components/ResponseMediaPreview/index.vue'
 import { normalizeInputFieldType } from '@/utils/flow/inputFields'
+import { runStatusLabel, runTriggerLabel } from '../constants/runStatus'
 import { formatAssertRuleWithActual } from '../utils/nodeDataUtils'
+import {
+  decodeUrlForDisplay,
+  failureCategoryLabel,
+  formatDurationMs,
+  formatRunTime,
+  isAuditStep,
+  nodeTypeLabelZh,
+  resolveFailureCategory,
+  summarizeStep,
+} from '../utils/runStepDisplay'
 import { toGraphJson } from '../graphAdapter'
+import { highlightRunStep } from '../composables/useFlowScenarioRun'
+import { useFlowViewport } from '../composables/useFlowViewport'
 import { isGraphStructurallyStale } from '../utils/graphFingerprint'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { useRunLibraryStore } from '../stores/runLibraryStore'
 
 const runLib = useRunLibraryStore()
 const canvasStore = useFlowCanvasStore()
+const viewport = useFlowViewport()
 const staleWarning = ref('')
 const resumeLoading = ref(false)
 /** 人工输入表单的本地值：字段 name → 当前填写内容 */
@@ -262,6 +316,16 @@ const DECISION_META = {
 }
 
 const run = computed(() => runLib.selectedRun)
+
+/** 页眉展示的环境名：取步骤里场景加载结果的 envName，没有则短横线 */
+const runEnvName = computed(() => {
+  const steps = run.value?.steps || []
+  for (const s of steps) {
+    const name = s.scenarioLoaded?.envName
+    if (name) return name
+  }
+  return '-'
+})
 
 /** 是否因等待人工输入而暂停 */
 const isAwaitInput = computed(() => run.value?.pauseInfo?.pauseReason === 'await_input')
@@ -388,8 +452,19 @@ async function handleResume(decision) {
   }
 }
 
+/**
+ * 选中运行步骤：切换 Inspector 当前步，并按时间线高亮画布节点。
+ * 若该步有 nodeId 且画布上仍存在对应节点，则把视口移到该节点。
+ */
 function goToStep(idx) {
   runLib.selectInspectorStep(idx)
+  const r = run.value
+  if (!r?.steps?.length) return
+  highlightRunStep(canvasStore, r, idx)
+  const nodeId = r.steps[idx]?.nodeId
+  if (nodeId && canvasStore.nodes.some((n) => n.id === nodeId)) {
+    void viewport.focusNodeIds([nodeId], { onlyIfOffscreen: false })
+  }
 }
 
 const hasFailedStep = computed(() => {
@@ -447,119 +522,46 @@ function stepIcon(type) {
   return m[type] || '?'
 }
 
-/** 是否为业务码校验失败（错误码 TF_BIZ_CODE，或 http.bizCheck.passed === false） */
-function isBizCodeFailure(step) {
-  return step?.error?.code === 'TF_BIZ_CODE' || step?.http?.bizCheck?.passed === false
-}
-
-/** 业务码失败时的步骤摘要：优先展示实际码与消息文案 */
-function formatBizCheckFailure(step) {
-  const bc = step?.http?.bizCheck
-  const msg = bc?.message || step?.error?.message || ''
-  const code = bc?.actualCode != null ? String(bc.actualCode) : ''
-  if (code && msg) return `业务码 ${code}: ${msg}`
-  if (code) return `业务码 ${code} 失败`
-  return step?.error?.message || '业务码校验失败'
-}
-
-/** 步骤列表副标题：按节点类型展示 HTTP 状态、业务码、断言结果或错误信息 */
-function summarizeStep(step) {
-  if (isBizCodeFailure(step)) {
-    return formatBizCheckFailure(step)
-  }
-  if (step.error?.message) return step.error.message
-  if (step.nodeType === 'subflow' && step.subflow) {
-    const childSteps = step.subflow.childSteps || []
-    const failed = childSteps.find((c) => c.status === 'failed')
-    if (failed) return `子流内失败: ${failed.nodeName || failed.nodeType}`
-    return `子流 ${childSteps.length} 步 · ${step.durationMs}ms`
-  }
-  if (step.nodeType === 'http' && step.http) {
-    const prefix = step.http.callMode === 'external' ? '↗ ' : ''
-    const bizOk = step.http.bizCheck?.passed === true ? ' · 业务码通过' : ''
-    return `${prefix}${step.http.method || 'HTTP'} ${step.http.status}${bizOk} · ${step.durationMs}ms`
-  }
-  if (step.nodeType === 'assert' && step.assert) {
-    const failed = (step.assert.rules || []).filter((r) => !r.passed)
-    return failed.length ? `断言失败 ${failed.length} 条` : '断言通过'
-  }
-  if (step.nodeType === 'delay') return `等待 ${step.durationMs}ms`
-  if (step.nodeType === 'input' && step.assigns?.length) {
-    return step.assigns.map((a) => `${a.name}: ${JSON.stringify(a.after)}`).join(' · ')
-  }
-  if (step.nodeType === 'input' && step.status === 'paused') {
-    return '等待人工输入'
-  }
-  if (step.nodeType === 'assign' && step.assigns?.length) {
-    return step.assigns.map((a) => `${a.name}: ${JSON.stringify(a.before)} → ${JSON.stringify(a.after)}`).join(' · ')
-  }
-  if (step.nodeType === 'script' && step.script?.writes?.length) {
-    return step.script.writes.map((w) => `flow.${w.key} = ${JSON.stringify(w.value)}`).join(' · ')
-  }
-  if (step.nodeType === 'script' && step.script?.language) {
-    return `${step.script.language} 脚本`
-  }
-  if (step.nodeType === 'runConfig') {
-    const sl = step.scenarioLoaded
-    if (sl) {
-      const flowSeed = sl.flowSeed && typeof sl.flowSeed === 'object' ? sl.flowSeed : {}
-      const flowCount = Object.keys(flowSeed).length
-      const scenarioLabel = sl.scenarioName || sl.scenarioId || '场景'
-      const envLabel = sl.envName || '环境'
-      return `${scenarioLabel} · ${envLabel} · ${flowCount} 个 flow 初值`
-    }
-    return '场景加载'
-  }
-  return step.status
-}
-
 /**
- * 将失败步骤分为：业务 Code 失败、断言失败、其他失败。
- * 点击分区项可跳到对应步骤。
+ * 失败摘要分区：把失败步骤归入业务码 / 断言 / 其他三组。
+ * 每项含节点名、类型中文、一行摘要；点击后跳到对应步骤。
  */
 const failureGroups = computed(() => {
   const r = run.value
   const empty = { hasAny: false, sections: [] }
   if (!r?.steps?.length) return empty
 
-  const biz = []
-  const assertFails = []
-  const other = []
+  const buckets = { bizCode: [], assert: [], other: [] }
 
   r.steps.forEach((step, stepIndex) => {
     if (step.status !== 'failed') return
     const nodeName = step.nodeName || step.nodeType || `步骤 ${stepIndex}`
-    const summary = summarizeStep(step)
-    const item = { stepIndex, nodeName, summary }
-    const code = step.error?.code || ''
-    if (isBizCodeFailure(step)) {
-      biz.push(item)
-    } else if (code === 'TF_ASSERT_FAILED' || step.nodeType === 'assert') {
-      assertFails.push(item)
-    } else {
-      other.push(item)
+    const item = {
+      stepIndex,
+      nodeName,
+      typeLabel: nodeTypeLabelZh(step.nodeType),
+      summary: summarizeStep(step),
     }
+    const cat = resolveFailureCategory(step)
+    buckets[cat].push(item)
   })
 
   const sections = []
-  if (biz.length) {
-    sections.push({ id: 'bizCode', label: '业务 Code 失败', items: biz })
-  }
-  if (assertFails.length) {
-    sections.push({ id: 'assert', label: '断言失败', items: assertFails })
-  }
-  if (other.length) {
-    sections.push({ id: 'other', label: '其他失败', items: other })
+  for (const id of ['bizCode', 'assert', 'other']) {
+    if (buckets[id].length) {
+      sections.push({ id, label: failureCategoryLabel(id), items: buckets[id] })
+    }
   }
   return { hasAny: sections.length > 0, sections }
 })
 
 
-/** 摘要 Tab：渲染当前步骤的状态、错误、提取项与断言 passed 着色 */
+/** 摘要 Tab：当前步骤状态、错误、业务码校验、提取、断言、赋值、脚本与子流等结构化说明 */
 const summaryHtml = computed(() => {
   const step = currentStep.value
   if (!step) return ''
-  let html = `<div><strong>${escapeHtml(step.nodeName)}</strong> · <span class="run-badge run-badge--${step.status}">${step.status}</span> · ${step.durationMs}ms</div>`
+  const statusText = runStatusLabel(step.status)
+  let html = `<div><strong>${escapeHtml(step.nodeName)}</strong> · <span class="run-badge run-badge--${step.status}">${escapeHtml(statusText)}</span> · ${escapeHtml(formatDurationMs(step.durationMs))}</div>`
   if (step.error) {
     html += `<div style="color:#b91c1c;margin-top:8px">${escapeHtml(step.error.code)}: ${escapeHtml(step.error.message)}</div>`
   }
@@ -647,7 +649,7 @@ const summaryHtml = computed(() => {
     html += '<div style="margin-top:8px">子流步骤:</div><ul style="margin:4px 0 0 16px">'
     step.subflow.childSteps.forEach((child) => {
       const badge = child.status === 'failed' ? 'color:#b91c1c' : child.status === 'passed' ? 'color:#166534' : ''
-      html += `<li style="${badge}">${escapeHtml(child.nodeName || child.nodeType)} · ${escapeHtml(child.status || '')} · ${child.durationMs ?? 0}ms</li>`
+      html += `<li style="${badge}">${escapeHtml(child.nodeName || child.nodeType)} · ${escapeHtml(runStatusLabel(child.status))} · ${escapeHtml(formatDurationMs(child.durationMs))}</li>`
       if (child.error?.message) {
         html += `<li style="color:#b91c1c;margin-left:12px">${escapeHtml(child.error.message)}</li>`
       }
@@ -667,14 +669,10 @@ function escapeHtml(s) {
 </script>
 
 <style scoped lang="scss">
-.run-detail-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
 .run-ai-fix-btn {
-  height: 28px;
+  /* 页眉右侧：失败 Run 打开 AI 设计并注入上下文 */
+  margin-left: auto;
+  height: 26px;
   padding: 0 10px;
   border-radius: 6px;
   border: none;
@@ -683,6 +681,7 @@ function escapeHtml(s) {
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
+  flex-shrink: 0;
 
   &:hover {
     background: #095ec0;
@@ -700,7 +699,55 @@ function escapeHtml(s) {
   border: 1px solid #fcd34d;
 }
 
-/* 失败分类分区：业务 Code / 断言 / 其他，点击条目跳到对应步骤 */
+/* Run 页眉：状态徽标、场景名、AI 修复按钮，以及环境/触发/耗时/起止网格 */
+.run-hero {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--pd-divider, #e5e7eb);
+  background: var(--pd-bg-sunken, #f8fafc);
+}
+
+.run-hero__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.run-hero__scenario {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--pd-text);
+}
+
+.run-hero__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+  font-size: 11px;
+}
+
+.run-hero__cell {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.run-hero__k {
+  color: var(--pd-text-muted);
+  flex: 0 0 auto;
+}
+
+.run-hero__v {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 失败摘要：按业务码 / 断言 / 其他分组，点击条目跳到时间线对应步骤 */
 .run-failure-groups {
   margin-bottom: 10px;
   padding: 10px 12px;
@@ -783,6 +830,12 @@ function escapeHtml(s) {
 .run-failure-group__name {
   font-weight: 600;
   color: var(--pd-text);
+}
+
+.run-failure-group__type {
+  margin-left: 4px;
+  font-weight: 500;
+  color: var(--pd-text-muted);
 }
 
 .run-failure-group__msg {
@@ -941,6 +994,16 @@ function escapeHtml(s) {
     border-color: #f59e0b;
     background: #fffbeb;
   }
+
+  &.is-audit {
+    /* 审计步（场景加载等）弱化显示 */
+    opacity: 0.72;
+  }
+
+  &.is-audit .run-step-item__icon {
+    background: transparent;
+    border: 1px dashed var(--pd-divider, #d1d5db);
+  }
 }
 
 .run-step-item__icon {
@@ -953,6 +1016,35 @@ function escapeHtml(s) {
   font-weight: 700;
   flex-shrink: 0;
   background: var(--pd-bg-sunken);
+}
+
+.run-step-item__body {
+  min-width: 0;
+  flex: 1;
+}
+
+/* 时间线主行：节点名、状态徽标、耗时 */
+.run-step-item__main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.run-step-item__name {
+  font-weight: 600;
+}
+
+.run-step-item__dur {
+  color: var(--pd-text-muted);
+  font-size: 10px;
+}
+
+.run-step-item__sub {
+  color: var(--pd-text-muted);
+  margin-top: 2px;
+  word-break: break-all;
+  line-height: 1.35;
 }
 
 .run-inspector__tabs {
@@ -995,6 +1087,7 @@ function escapeHtml(s) {
   }
 }
 
+.run-badge,
 :deep(.run-badge) {
   display: inline-block;
   padding: 1px 6px;
@@ -1006,7 +1099,9 @@ function escapeHtml(s) {
   &.run-badge--failed { background: #fee2e2; color: #b91c1c; }
   &.run-badge--running { background: #dbeafe; color: #1d4ed8; }
   &.run-badge--paused { background: #fef3c7; color: #92400e; }
-  &.run-badge--aborted { background: #f3f4f6; color: #4b5563; }
+  &.run-badge--skipped { background: #f3f4f6; color: #6b7280; }
+  &.run-badge--aborted,
+  &.run-badge--cancelled { background: #f3f4f6; color: #4b5563; }
 }
 
 :deep(.prop-empty) {

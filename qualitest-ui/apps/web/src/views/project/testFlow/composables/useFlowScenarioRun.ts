@@ -26,7 +26,8 @@ import { useFlowSimulate } from './useFlowSimulate';
 import { useRunConfig } from './useRunConfig';
 
 /**
- * 按 Run 步骤时间线高亮画布：0..stepIndex 写入已访问样式，当前步写入高亮节点。
+ * 按 Run 步骤时间线刷新画布高亮。
+ * 将 0..stepIndex 的节点标为已访问（失败则失败色），当前步节点标为运行高亮。
  */
 export function highlightRunStep(
   store: ReturnType<typeof useFlowCanvasStore>,

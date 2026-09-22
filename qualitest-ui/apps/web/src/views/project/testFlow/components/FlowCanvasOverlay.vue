@@ -4,11 +4,8 @@
         :is-fullscreen="isFullscreen"
         :is-scenario-run-active="isScenarioRunActive"
         :minimap-visible="minimapVisible"
-        :run-disabled="runDisabled"
         :zoom-percent="zoomPercent"
-        @abort-scenario-run="emit('abort-scenario-run')"
         @fit-view="fitView"
-        @start-scenario-run="emit('start-scenario-run')"
         @toggle-fullscreen="emit('toggle-fullscreen')"
         @toggle-minimap="emit('toggle-minimap')"
         @zoom-in="zoomIn"
@@ -20,14 +17,9 @@
 
 <script setup>
 /**
- * 画布底栏锚点组件。
- *
- * 挂载缩放工具栏，并将用户操作与 Vue Flow 视口变更统一委托：
- * - 用户拖拽/滚轮 → onViewportChange → syncFromFlow
- * - 底栏放大/缩小/重置/适应画布 → 视口 composable
- * - 画布 onInit 与组件 onMounted 时恢复 store 中保存的视口
- *
- * 不再监听 suppressDirty 回写视口，避免与 Staging 聚焦动画竞态导致视角跳回。
+ * 画布底栏锚点：挂载工具栏，并把视口操作接到 Vue Flow。
+ * 用户拖拽/滚轮改变视口时写回 store；底栏缩放与适应视图走视口 composable；
+ * 画布初始化与组件挂载时恢复已保存视口。
  */
 import { useVueFlow } from '@vue-flow/core'
 import { computed, onMounted } from 'vue'
@@ -37,25 +29,24 @@ import { useFlowViewport } from '../composables/useFlowViewport'
 import FlowCanvasToolbar from './FlowCanvasToolbar.vue'
 
 defineProps({
+  /** 画布是否全屏 */
   isFullscreen: {
     type: Boolean,
     default: false,
   },
+  /** 场景真实跑流是否进行中（用于禁用路径模拟） */
   isScenarioRunActive: {
     type: Boolean,
     default: false,
   },
+  /** 小地图是否可见 */
   minimapVisible: {
     type: Boolean,
     default: true,
   },
-  runDisabled: {
-    type: Boolean,
-    default: false,
-  },
 })
 
-const emit = defineEmits(['toggle-fullscreen', 'start-scenario-run', 'abort-scenario-run', 'toggle-minimap'])
+const emit = defineEmits(['toggle-fullscreen', 'toggle-minimap'])
 
 const viewport = useFlowViewport()
 const { onViewportChange, onInit } = useVueFlow(FLOW_VUE_FLOW_ID)

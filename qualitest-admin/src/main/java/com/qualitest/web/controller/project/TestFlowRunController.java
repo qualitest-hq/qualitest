@@ -1,8 +1,10 @@
 package com.qualitest.web.controller.project;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +17,7 @@ import com.qualitest.common.annotation.Log;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.R;
 import com.qualitest.common.enums.BusinessType;
+import com.qualitest.common.utils.file.FileUtils;
 import com.qualitest.project.params.TestFlowRunParams;
 import com.qualitest.project.params.ResumeTestFlowRunParams;
 import com.qualitest.project.params.TriggerTestFlowRunParams;
@@ -22,6 +25,7 @@ import com.qualitest.project.result.ResumeRunResult;
 import com.qualitest.project.result.TestFlowRunDetailResult;
 import com.qualitest.project.result.TestFlowRunResult;
 import com.qualitest.project.service.ITestFlowExecutionService;
+import com.qualitest.project.service.ITestFlowRunReportService;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.common.core.text.Convert;
 import com.qualitest.common.utils.poi.ExcelUtil;
@@ -40,6 +44,7 @@ public class TestFlowRunController extends BaseController {
 
     private final ITestFlowRunService testFlowRunService;
     private final ITestFlowExecutionService testFlowExecutionService;
+    private final ITestFlowRunReportService testFlowRunReportService;
 
     /**
      * 查询测试流运行列表
@@ -72,6 +77,27 @@ public class TestFlowRunController extends BaseController {
     @GetMapping(value = "/{testFlowRunId}")
     public R<TestFlowRunDetailResult> getInfo(@PathVariable("testFlowRunId") Long testFlowRunId) {
         return ok(testFlowExecutionService.getRunDetail(testFlowRunId));
+    }
+
+    /**
+     * 下载单次运行的简易 HTML 报告。
+     * 将报告作为附件写入响应流；文件名含项目、流名、场景、状态、时间与运行 ID。
+     * 仅成功、失败、中止、取消状态的运行可导出。
+     *
+     * @param testFlowRunId 运行 ID
+     * @param response      HTTP 响应
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @Log(title = "测试流运行报告", businessType = BusinessType.EXPORT)
+    @GetMapping("/{testFlowRunId}/report.html")
+    public void exportHtmlReport(@PathVariable("testFlowRunId") Long testFlowRunId,
+                                 HttpServletResponse response) throws Exception {
+        var report = testFlowRunReportService.buildHtmlReport(testFlowRunId);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType(MediaType.TEXT_HTML_VALUE);
+        FileUtils.setAttachmentResponseHeader(response, report.getFileName());
+        response.getOutputStream().write(report.getHtml().getBytes(StandardCharsets.UTF_8));
+        response.getOutputStream().flush();
     }
 
     /**

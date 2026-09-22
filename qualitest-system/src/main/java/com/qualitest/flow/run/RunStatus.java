@@ -37,6 +37,10 @@ public enum RunStatus {
     private static final Set<String> TERMINAL_CODES = Set.of(
             PASSED.code, FAILED.code, PAUSED.code, ABORTED.code, CANCELLED.code);
 
+    /** 允许导出简易 HTML 报告的运行状态：成功、失败、中止、取消 */
+    private static final Set<String> REPORT_EXPORTABLE_CODES = Set.of(
+            PASSED.code, FAILED.code, ABORTED.code, CANCELLED.code);
+
     private final String code;
 
     RunStatus(String code) {
@@ -66,6 +70,14 @@ public enum RunStatus {
      */
     public static boolean isTerminal(String status) {
         return status != null && TERMINAL_CODES.contains(status);
+    }
+
+    /**
+     * 是否允许导出简易 HTML 运行报告。
+     * 允许：passed、failed、aborted、cancelled；不允许：running、paused。
+     */
+    public static boolean isReportExportable(String status) {
+        return status != null && REPORT_EXPORTABLE_CODES.contains(status);
     }
 
     /** 是否为步骤可用状态 */

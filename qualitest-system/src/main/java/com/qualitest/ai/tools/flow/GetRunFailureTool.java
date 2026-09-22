@@ -1,6 +1,5 @@
 package com.qualitest.ai.tools.flow;
 
-import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignToolContext;
@@ -8,6 +7,8 @@ import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.ai.tools.ToolResultByteFit;
+import com.qualitest.project.report.RunFailureCategoryResolver;
+import com.qualitest.project.report.StepDetailsJson;
 import com.qualitest.project.params.TestFlowRunStepParams;
 import com.qualitest.project.result.TestFlowRunResult;
 import com.qualitest.project.result.TestFlowRunStepResult;
@@ -19,19 +20,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 查询失败 Run 的全部 failed 步骤现场。
+ * 查询失败运行的全部失败步骤现场。
  * <p>
- * 输出 failures（含 failureCategory、errorCode、bizCheck、子流 childSteps 等），
- * 以及按类型分区的列表与计数。failureCategory：bizCode / assert / other。
- * 仅一条失败时，额外把 nodeId、stepDetails、failureCategory 提到顶层。
- * 返回前按失败现场形状做字节上限裁剪（去分区重复数组，再压缩/减少 failures）。
+ * 输出 failures（节点信息、错误码、业务码校验、子流子步骤等），
+ * 并按业务码失败 / 断言失败 / 其他失败分区计数。
+ * 仅有一条失败时，把节点与类别等字段额外提到结果顶层，便于直接阅读。
+ * 返回前按体积上限裁剪字段，避免工具结果过大。
  */
 @RequiredArgsConstructor
 public class GetRunFailureTool implements QualitestTool {
-
-    private static final String CATEGORY_BIZ = "bizCode";
-    private static final String CATEGORY_ASSERT = "assert";
-    private static final String CATEGORY_OTHER = "other";
 
     private final ITestFlowRunService testFlowRunService;
     private final ITestFlowRunStepService testFlowRunStepService;
@@ -42,8 +39,8 @@ public class GetRunFailureTool implements QualitestTool {
     }
 
     /**
-     * 查询失败 Run 的全部 failed 步骤现场。
-     * runId 优先取参数；未传时用上下文中的失败 Run id（如 AI 修复入口带入）。
+     * 查询指定失败运行的全部失败步骤现场。
+     * runId 优先取参数；未传时使用请求上下文中的运行 ID。
      * 两者皆空则返回缺少 runId 的错误。
      *
      * @param arguments 工具参数
@@ -88,9 +85,9 @@ public class GetRunFailureTool implements QualitestTool {
             item.put("stepIndex", step.getStepIndex());
 
             String rawDetails = step.getStepDetails();
-            JSONObject details = tryParseDetails(rawDetails);
+            JSONObject details = StepDetailsJson.parse(rawDetails);
             enrichFailureDetails(item, step.getNodeType(), details);
-            String category = resolveFailureCategory(step.getNodeType(), details);
+            String category = RunFailureCategoryResolver.resolve(step.getNodeType(), details);
             item.put("failureCategory", category);
 
             String detailsText = rawDetails;
@@ -101,8 +98,8 @@ public class GetRunFailureTool implements QualitestTool {
             item.put("stepDetails", detailsText);
             failures.add(item);
             switch (category) {
-                case CATEGORY_BIZ -> bizCodeFailures.add(item);
-                case CATEGORY_ASSERT -> assertFailures.add(item);
+                case RunFailureCategoryResolver.BIZ_CODE -> bizCodeFailures.add(item);
+                case RunFailureCategoryResolver.ASSERT -> assertFailures.add(item);
                 default -> otherFailures.add(item);
             }
         }
@@ -117,7 +114,7 @@ public class GetRunFailureTool implements QualitestTool {
         result.put("failed", true);
         result.put("failureCount", failures.size());
         result.put("failures", failures);
-        // 分区列表，便于区分业务码失败与断言失败
+        // 按失败类别放入分区列表
         result.put("bizCodeFailures", bizCodeFailures);
         result.put("assertFailures", assertFailures);
         result.put("otherFailures", otherFailures);
@@ -137,7 +134,7 @@ public class GetRunFailureTool implements QualitestTool {
     }
 
     /**
-     * 从已解析的 step_details 填充 error / bizCheck / 子流字段。
+     * 从已解析的步骤详情填充错误码、错误信息、业务码校验结果，以及子流相关字段。
      */
     private static void enrichFailureDetails(JSONObject item, String nodeType, JSONObject details) {
         if (details == null) {
@@ -168,44 +165,6 @@ public class GetRunFailureTool implements QualitestTool {
         JSONArray childSteps = subflow.getJSONArray("childSteps");
         if (childSteps != null && !childSteps.isEmpty()) {
             item.put("childSteps", childSteps);
-        }
-    }
-
-    /**
-     * 判定失败类别：业务码 / 断言 / 其他。
-     */
-    private static String resolveFailureCategory(String nodeType, JSONObject details) {
-        if ("assert".equals(nodeType)) {
-            return CATEGORY_ASSERT;
-        }
-        if (details != null) {
-            JSONObject error = details.getJSONObject("error");
-            String code = error != null ? error.getString("code") : null;
-            if ("TF_BIZ_CODE".equals(code)) {
-                return CATEGORY_BIZ;
-            }
-            if ("TF_ASSERT_FAILED".equals(code)) {
-                return CATEGORY_ASSERT;
-            }
-            JSONObject http = details.getJSONObject("http");
-            if (http != null) {
-                JSONObject bizCheck = http.getJSONObject("bizCheck");
-                if (bizCheck != null && Boolean.FALSE.equals(bizCheck.getBoolean("passed"))) {
-                    return CATEGORY_BIZ;
-                }
-            }
-        }
-        return CATEGORY_OTHER;
-    }
-
-    private static JSONObject tryParseDetails(String rawDetails) {
-        if (rawDetails == null || rawDetails.isBlank()) {
-            return null;
-        }
-        try {
-            return JSON.parseObject(rawDetails);
-        } catch (Exception e) {
-            return null;
         }
     }
 }

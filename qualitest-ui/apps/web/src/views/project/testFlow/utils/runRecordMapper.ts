@@ -7,6 +7,7 @@ import type {
   ApiTestFlowRunDetail,
   ApiTestFlowRunStep,
 } from '@/api/project/testFlowRun'
+import { runTriggerLabel } from '../constants/runStatus'
 import type { RunRecord, RunStepDetail } from '../stores/runLibraryStore'
 
 /** 后端 Run 头字段（列表项或详情 run 节点） — 再导出供外部使用 */
@@ -46,13 +47,6 @@ export function resolveScenarioNameFromSnapshot(
   }
 }
 
-/** 触发来源短标签 */
-function resolveTriggerLabel(run: ApiTestFlowRun): string {
-  if (run.triggerType === 'manual') return '手动'
-  if (run.triggerType === 'ai') return 'ai'
-  return run.triggerType?.trim() || '运行'
-}
-
 /**
  * 生成运行库列表项展示用的环境/场景标签。
  * 优先用快照中的场景名；没有快照时才退回「场景 {id}」。
@@ -61,7 +55,8 @@ function resolveEnvLabel(run: ApiTestFlowRun, scenarioName?: string): string {
   const scenario =
     scenarioName
     || (run.runScenarioId ? `场景 ${run.runScenarioId}` : '默认场景')
-  return `${resolveTriggerLabel(run)} · ${scenario}`
+  const trigger = runTriggerLabel(run.triggerType) || '运行'
+  return `${trigger} · ${scenario}`
 }
 
 /**

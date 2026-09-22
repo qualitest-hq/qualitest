@@ -1,3 +1,6 @@
+import axios from 'axios';
+
+import { getToken } from '@/utils/auth';
 import request from '@/utils/request';
 
 export interface TriggerTestFlowRunParams {
@@ -160,4 +163,28 @@ export function resumeTestFlowRun(
     method: 'post',
     data,
   });
+}
+
+/** 下载单次运行的简易 HTML 报告；返回 blob 与服务端建议文件名 */
+export async function downloadTestFlowRunHtmlReport(testFlowRunId: string | number): Promise<{
+  blob: Blob;
+  fileName: string;
+}> {
+  const baseURL = import.meta.env.VITE_APP_BASE_API;
+  const res = await axios({
+    method: 'get',
+    url: `${baseURL}/project/testFlowRun/${testFlowRunId}/report.html`,
+    responseType: 'blob',
+    headers: { Authorization: 'Bearer ' + getToken() },
+  });
+  const headerName = res.headers?.['download-filename'];
+  let fileName = `qualitest-run-${testFlowRunId}.html`;
+  if (headerName) {
+    try {
+      fileName = decodeURIComponent(String(headerName));
+    } catch {
+      fileName = String(headerName);
+    }
+  }
+  return { blob: res.data as Blob, fileName };
 }

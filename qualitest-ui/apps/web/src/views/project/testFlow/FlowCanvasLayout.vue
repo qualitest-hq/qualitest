@@ -142,7 +142,7 @@
         }"
         class="flow-canvas-app-body app-body"
     >
-      <LeftPanel @run-scenario="handleRunScenario" />
+      <LeftPanel />
 
       <div
           :class="{ 'is-ai-dock-open': store.aiDesignPanelOpen }"
@@ -219,9 +219,6 @@
             :is-fullscreen="isFullscreen"
             :is-scenario-run-active="isScenarioRunActive"
             :minimap-visible="store.ui.minimapVisible"
-            :run-disabled="isTemplateCanvas"
-            @abort-scenario-run="abortScenarioRun"
-            @start-scenario-run="handleRunScenario"
             @toggle-fullscreen="emit('toggle-fullscreen')"
             @toggle-minimap="store.toggleMinimapVisible()"
         />
@@ -424,7 +421,7 @@ const nodeDragActive = ref(false)
 const { handleDrop, handleDragOver } = useFlowNodes()
 const { deleteNodeById } = useFlowDelete()
 const { queueNodeForChat } = useAiDesign()
-const { runActiveScenario, abortScenarioRun, isScenarioRunActive } = useFlowScenarioRun()
+const { isScenarioRunActive } = useFlowScenarioRun()
 const { canUseAiDesign, canEditFlow } = useFlowCanvasPermissions()
 
 const aiAssistantTitle = computed(() => {
@@ -495,17 +492,6 @@ async function handleRefreshAuthHeaders() {
   }
 }
 
-async function handleRunScenario() {
-  if (isTemplateCanvas.value) {
-    ElMessage.warning('模板画布不支持运行场景')
-    return
-  }
-  if (!canEditFlow.value) {
-    ElMessage.warning('当前账号无编辑权限，无法运行场景')
-    return
-  }
-  await runActiveScenario()
-}
 const {
   showMinimap,
   minimapNodeColor,
@@ -753,7 +739,9 @@ function onPaneClick() {
 }
 
 .flow-canvas-root .btn.is-path-simulate-stop,
+.flow-canvas-root .btn.is-run-replay-stop,
 .flow-canvas-root .btn.is-scenario-run-stop {
+  /* 停止类按钮统一红色：停止模拟 / 停止回放 / 停止场景跑流 */
   background: #dc2626;
   border-color: #dc2626;
   color: #fff;
