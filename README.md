@@ -10,6 +10,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Website](https://img.shields.io/badge/Website-qualitest-0ea5e9?style=for-the-badge)](https://qualitest-hq.github.io/qualitest/)
+[![GHCR](https://img.shields.io/badge/GHCR-app%20%7C%20web-24292f?style=for-the-badge&logo=github)](https://github.com/orgs/qualitest-hq/packages?repo_name=qualitest)
 [![Gitee](https://img.shields.io/badge/Gitee-镜像-c71d23?style=for-the-badge)](https://gitee.com/qualitest-hq/qualitest)
 [![QQ](https://img.shields.io/badge/QQ%20群-1105468427-12b7f5?style=for-the-badge)](https://qm.qq.com/q/FBa9jDRhm)
 
@@ -206,27 +207,37 @@ Tools → Qualitest Helper：**项目级上传** / Controller **全部上传** /
 
 ## ⚡ 试一把
 
-需 Docker + Compose V2。一键脚本优先拉取 GHCR 预构建镜像；不可达时回退本地构建（首次编译较慢）。**脚本结束不等于能立刻登录**，请等后端健康 / Flyway 跑完（可 `docker compose logs -f app`）。
+需 Docker + Compose V2。**脚本结束不等于能立刻登录**，请等后端健康 / Flyway 跑完（可 `docker compose logs -f app`）。
 
-镜像：`ghcr.io/qualitest-hq/qualitest-app` · `ghcr.io/qualitest-hq/qualitest-web`（详见 [部署说明](./docs/deploy.md)）。
-
-**Windows**
-
-```bat
-cd qualitest
-scripts\quick-start.bat
-```
-
-**Linux / macOS**
+### 用法（推荐）
 
 ```bash
+# 克隆后
 cd qualitest
+# Windows: scripts\quick-start.bat
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-浏览器打开 `http://localhost`（默认映射宿主机 **80**；若被占用，在 `.env` 设 `WEB_PORT=8088` 之类，则打开 `http://localhost:8088`）。
+等价手动步骤：
 
-登录账号 **`admin`**，密码 **`admin123`**。勿用于公网。
+```bash
+cp .env.example .env   # Windows: copy .env.example .env
+docker compose pull    # 拉 GHCR 预构建镜像
+docker compose up -d   # 起 MySQL + Redis + app + web
+```
+
+改代码 / 无网时：`docker compose up -d --build`。
+
+浏览器打开 `http://localhost`（默认宿主机 **80**；被占用则在 `.env` 设 `WEB_PORT=8088` 等）。登录 **`admin`** / **`admin123`**。勿用于公网。
+
+### 官方镜像（GHCR）
+
+| 镜像 | 包页 |
+|------|------|
+| `ghcr.io/qualitest-hq/qualitest-app` | [qualitest-app](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-app) |
+| `ghcr.io/qualitest-hq/qualitest-web` | [qualitest-web](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-web) |
+
+组织 Packages：[orgs/qualitest-hq/packages](https://github.com/orgs/qualitest-hq/packages?repo_name=qualitest) · 部署细节见 [deploy.md](./docs/deploy.md)
 
 想完整体验（靶场 + 接口入库 + AI / MCP）：见 [部署说明](./docs/deploy.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [MCP](./docs/mcp.md) · [IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)（Java 可选）。
 

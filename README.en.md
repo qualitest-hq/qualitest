@@ -10,6 +10,7 @@ Sync APIs, debug in-project, orchestrate flows, and design with AI — plus MCP 
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Website](https://img.shields.io/badge/Website-qualitest-0ea5e9?style=for-the-badge)](https://qualitest-hq.github.io/qualitest/)
+[![GHCR](https://img.shields.io/badge/GHCR-app%20%7C%20web-24292f?style=for-the-badge&logo=github)](https://github.com/orgs/qualitest-hq/packages?repo_name=qualitest)
 [![Gitee](https://img.shields.io/badge/Gitee-mirror-c71d23?style=for-the-badge)](https://gitee.com/qualitest-hq/qualitest)
 [![QQ](https://img.shields.io/badge/QQ%20group-1105468427-12b7f5?style=for-the-badge)](https://qm.qq.com/q/FBa9jDRhm)
 
@@ -188,27 +189,36 @@ Tools → Qualitest Helper: **project-level upload** / Controller **upload all**
 
 ## Try it
 
-Requires Docker + Compose V2. `quick-start` prefers GHCR prebuilt images and falls back to a local build if pull fails (first compile is slow). **Containers up ≠ ready to log in** — wait until the backend is healthy / Flyway finishes (`docker compose logs -f app`).
+Requires Docker + Compose V2. **Containers up ≠ ready to log in** — wait until the backend is healthy / Flyway finishes (`docker compose logs -f app`).
 
-Images: `ghcr.io/qualitest-hq/qualitest-app` · `ghcr.io/qualitest-hq/qualitest-web` (see [Deploy](./docs/deploy.en.md)).
-
-**Windows**
-
-```bat
-cd qualitest
-scripts\quick-start.bat
-```
-
-**Linux / macOS**
+### Usage (recommended)
 
 ```bash
 cd qualitest
+# Windows: scripts\quick-start.bat
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT=8088` in `.env` and open `http://localhost:8088`).
+Or manually:
 
-Username **`admin`**, password **`admin123`**. Do not use on the public internet.
+```bash
+cp .env.example .env   # Windows: copy .env.example .env
+docker compose pull    # pull GHCR prebuilt images
+docker compose up -d   # MySQL + Redis + app + web
+```
+
+When changing code / offline: `docker compose up -d --build`.
+
+Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT=8088` in `.env`). Sign in **`admin`** / **`admin123`**. Do not use on the public internet.
+
+### Official images (GHCR)
+
+| Image | Package page |
+|------|------|
+| `ghcr.io/qualitest-hq/qualitest-app` | [qualitest-app](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-app) |
+| `ghcr.io/qualitest-hq/qualitest-web` | [qualitest-web](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-web) |
+
+Org packages: [orgs/qualitest-hq/packages](https://github.com/orgs/qualitest-hq/packages?repo_name=qualitest) · Details: [deploy.en.md](./docs/deploy.en.md)
 
 Full loop (demo target + API ingest + AI / MCP): see [Deploy](./docs/deploy.en.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [MCP](./docs/mcp.en.md) · [IDEA plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) (optional for Java).
 

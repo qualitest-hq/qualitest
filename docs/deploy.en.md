@@ -52,7 +52,9 @@ docker compose up -d
 
 Packages: https://github.com/orgs/qualitest-hq/packages  
 
-Anonymous `docker pull` works when the repo and packages are **Public**; otherwise `docker login ghcr.io` (PAT with `read:packages`). If a package stays Private after the first push, set it Public on the org Packages page (the workflow also tries to flip it).
+Official packages are **Public** — anonymous `docker pull` works. For private forks / self-hosted packages, `docker login ghcr.io` (PAT with `read:packages`).
+
+New packages start Private: enable Public in org Settings → Packages, then package page → **Change visibility** → **Public** (irreversible).
 
 Pin a commit: set `QUALITEST_IMAGE_TAG=sha-<short>` in `.env`. Compose still needs **MySQL + Redis** (or equivalents).
 

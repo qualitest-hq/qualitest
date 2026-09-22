@@ -52,7 +52,9 @@ docker compose up -d
 
 Packages：https://github.com/orgs/qualitest-hq/packages  
 
-仓库与 Package 均为 **Public** 时可匿名 `docker pull`；若仍为 Private，需 `docker login ghcr.io`（GitHub PAT，勾选 `read:packages`）。首次推送后若 Package 仍是 Private，到组织 Packages 页改为 Public（workflow 也会尝试自动公开）。
+官方包已为 **Public**，可匿名 `docker pull`。若拉取私有 fork / 自建包，需 `docker login ghcr.io`（PAT 勾选 `read:packages`）。
+
+新包首次推送默认为 Private：组织 Settings → Packages 需允许 Public，再到包页 **Change visibility** → **Public**（不可逆）。
 
 指定提交：`.env` 设 `QUALITEST_IMAGE_TAG=sha-<短 sha>`（与 Actions 推送的 tag 一致）。仍需 Compose 内的 **MySQL + Redis**（或自备等价服务）。
 
