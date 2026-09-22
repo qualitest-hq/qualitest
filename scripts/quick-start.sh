@@ -2,7 +2,7 @@
 # 质衡一键启动：Docker Compose 全栈
 #
 # 用法：
-#   ./scripts/quick-start.sh           # 启动 MySQL + Redis + 后端 + Nginx
+#   ./scripts/quick-start.sh           # 优先拉 GHCR，失败则本地构建
 #   ./scripts/quick-start.sh -h        # 显示本说明
 #
 # 说明：从任意目录调用即可（脚本会切到仓库根）；依赖 Docker Engine/Desktop + Compose V2
@@ -12,11 +12,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 用法:
-  ./scripts/quick-start.sh           启动全栈（MySQL + Redis + 后端 + Nginx）
+  ./scripts/quick-start.sh           启动全栈（优先 GHCR 镜像；失败则 --build）
   ./scripts/quick-start.sh -h        显示本说明
 
 仅依赖:     ./scripts/dev-deps-up.sh （停：./scripts/dev-deps-down.sh）
 停止全栈:   docker compose down
+本地重建:   docker compose up -d --build
 靶场/RustFS: 独立仓 qualitest-demo（另起 Compose；本仓无 --profile demo）
 EOF
 }
@@ -62,8 +63,14 @@ if [[ -f .env ]]; then
   WEB_PORT="${WEB_PORT:-80}"
 fi
 
-echo "[info] 构建并启动 MySQL + Redis + 后端 + Nginx ..."
-docker compose up -d --build
+echo "[info] 拉取 GHCR 预构建镜像（ghcr.io/qualitest-hq/qualitest-app|web）..."
+if docker compose pull app web; then
+  echo "[info] 启动 MySQL + Redis + 后端 + Nginx ..."
+  docker compose up -d
+else
+  echo "[warn] pull 失败（镜像未发布 / 网络），改为本地构建 ..."
+  docker compose up -d --build
+fi
 
 echo
 echo "=============================================="

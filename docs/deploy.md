@@ -2,7 +2,12 @@
 
 面向 Compose 全栈与本机开发的端口、环境变量与生产加固。快速上手摘要见根目录 [README](../README.md)；安全披露见 [SECURITY.md](../SECURITY.md)。
 
-CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker-app` / `docker-web` 镜像构建校验（只 build 不 push）**；正式推镜像见路线图阶段 **2.1** GHCR。
+CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker-app` / `docker-web` 镜像构建校验（只 build 不 push）**。正式镜像由 workflow **[GHCR](../.github/workflows/ghcr.yml)** 推到：
+
+- `ghcr.io/qualitest-hq/qualitest-app`
+- `ghcr.io/qualitest-hq/qualitest-web`
+
+（`latest` + `sha-<短提交>`；仅 `qualitest-hq/qualitest` 的 `main` / 手动触发。）
 
 **靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**。一般人只起本仓即可体验质衡。
 
@@ -22,9 +27,13 @@ chmod +x scripts/quick-start.sh
 # Windows
 scripts\quick-start.bat
 
-# 或手动（无 .env 时可先复制 .env.example）
+# 或手动：优先拉 GHCR，再起栈
 # cp .env.example .env   # Windows: copy .env.example .env
-docker compose up -d --build
+docker compose pull
+docker compose up -d
+
+# 改代码 / 无网时本地构建
+# docker compose up -d --build
 ```
 
 - 浏览器：**http://localhost**（`WEB_PORT` 非 80 时带端口）
@@ -32,7 +41,20 @@ docker compose up -d --build
 - 首次以 **app 健康 / 日志 Flyway migrate 成功** 为准（不再依赖 initdb 整库 dump）
 - IDEA 插件服务器地址：Compose 填 **`http://localhost/prod-api`**；本机后端填 **`http://localhost:8800`**
 
-首次 `--build` 会拉基础镜像并编译前后端，可能较慢，属正常。
+`quick-start` 会先 `compose pull`；GHCR 不可达或尚未发布时自动回退 `--build`。本地首次编译前后端可能较慢，属正常。
+
+### 官方镜像（GHCR）
+
+| 镜像 | 说明 |
+|------|------|
+| `ghcr.io/qualitest-hq/qualitest-app` | 后端（Spring Boot） |
+| `ghcr.io/qualitest-hq/qualitest-web` | 前端（Nginx + SPA，反代 `/prod-api` → app） |
+
+Packages：https://github.com/orgs/qualitest-hq/packages  
+
+仓库与 Package 均为 **Public** 时可匿名 `docker pull`；若仍为 Private，需 `docker login ghcr.io`（GitHub PAT，勾选 `read:packages`）。首次推送后若 Package 仍是 Private，到组织 Packages 页改为 Public（workflow 也会尝试自动公开）。
+
+指定提交：`.env` 设 `QUALITEST_IMAGE_TAG=sha-<短 sha>`（与 Actions 推送的 tag 一致）。仍需 Compose 内的 **MySQL + Redis**（或自备等价服务）。
 
 ---
 
@@ -151,14 +173,13 @@ deploy/helm/qualitest/
 
 ### 准备镜像
 
-Chart 默认镜像名与 Compose 一致（`qualitest-hq/qualitest-app` / `qualitest-web`）。需先构建并推到集群能拉到的仓库（官方 GHCR 发布见路线图阶段 2）：
+Chart 默认已指向 GHCR（`ghcr.io/qualitest-hq/qualitest-app` / `qualitest-web`）。集群能访问 ghcr.io 时可直接装；离线 / 私有仓库时再改 `image.*.repository`，或本地构建后 `kind load`：
 
 ```bash
 docker compose build app web
 # kind 示例
-# kind load docker-image qualitest-hq/qualitest-app:latest
-# kind load docker-image qualitest-hq/qualitest-web:latest
-# 或 docker tag + push 到你们的 registry，再用 --set image.*.repository=...
+# kind load docker-image ghcr.io/qualitest-hq/qualitest-app:latest
+# kind load docker-image ghcr.io/qualitest-hq/qualitest-web:latest
 ```
 
 ### 安装
@@ -207,7 +228,7 @@ kubectl -n qualitest port-forward svc/qualitest-web 5180:80
 | `SPRING_DATASOURCE_DRUID_MASTER_*` | JDBC URL / 用户 / 密码 | Compose 已写死连服务名 `mysql`；本机改 localhost |
 | `SPRING_DATA_REDIS_*` | Redis host / port / database / password | Compose 内 host=`redis` |
 | `LOGGING_LEVEL_COM_QUALITEST` | 业务日志级别 | 默认 `info` |
-| `QUALITEST_IMAGE_TAG` | 本地构建镜像 tag | 默认 `latest` |
+| `QUALITEST_IMAGE_TAG` | Compose / 本地镜像 tag | 默认 `latest`；可与 GHCR 的 `sha-xxxx` 对齐 |
 | `DRUID_STAT_USERNAME` / `DRUID_STAT_PASSWORD` | Druid 控制台（仅 **dev**） | docker / prod **已关闭**控制台，勿对公网开 dev |
 
 ---
@@ -269,7 +290,9 @@ docker compose logs -f app
 docker compose ps
 docker compose down          # 保留数据卷
 docker compose down -v       # 清空 MySQL / Redis / 上传卷（慎用，等于重装库）
-docker compose up -d --build # 改代码或 Dockerfile 后重建
+docker compose pull          # 拉最新 GHCR
+docker compose up -d         # 用已有 / 已 pull 的镜像起栈
+docker compose up -d --build # 改代码或 Dockerfile 后本地重建
 ```
 
 ---

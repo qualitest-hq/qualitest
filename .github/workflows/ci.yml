@@ -4,13 +4,13 @@
 # - 仅 docs / 社区文件等：detect-changes 后各 Job 跳过
 # - 仅 qualitest-ui：frontend（+ 可能 docker-web）
 # - 仅后端模块 / pom：backend（+ 可能 docker-app）
-# - Dockerfile / Compose / deploy：docker 镜像只 build 不 push
+# - Dockerfile / Compose / deploy：docker 镜像只 build 不 push（推送见 ghcr.yml）
 # - 改本 workflow：backend、frontend、docker 都跑
 #
 # 说明：
 # - 根 pom 默认 skipTests=true；backend 先做编译校验（package -DskipTests）
 # - frontend 跑 Vitest（qualitest-ui → pnpm test）
-# - docker：校验 Dockerfile / Dockerfile.web 可构建，不推镜像（GHCR 见路线图 2.2）
+# - docker：校验 Dockerfile / Dockerfile.web 可构建；正式推 GHCR 见 workflow「GHCR」
 # - qualitest-system 全量单测仍有存量失败，修绿后把 backend 的 package 换成：
 #     mvn -B test -DskipTests=false -pl qualitest-system -am
 

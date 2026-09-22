@@ -206,7 +206,9 @@ Tools → Qualitest Helper：**项目级上传** / Controller **全部上传** /
 
 ## ⚡ 试一把
 
-需 Docker + Compose V2。首次构建较慢；**脚本结束不等于能立刻登录**，请等后端健康 / Flyway 跑完（可 `docker compose logs -f app`）。
+需 Docker + Compose V2。一键脚本优先拉取 GHCR 预构建镜像；不可达时回退本地构建（首次编译较慢）。**脚本结束不等于能立刻登录**，请等后端健康 / Flyway 跑完（可 `docker compose logs -f app`）。
+
+镜像：`ghcr.io/qualitest-hq/qualitest-app` · `ghcr.io/qualitest-hq/qualitest-web`（详见 [部署说明](./docs/deploy.md)）。
 
 **Windows**
 

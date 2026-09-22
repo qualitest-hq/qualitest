@@ -188,7 +188,9 @@ Tools → Qualitest Helper: **project-level upload** / Controller **upload all**
 
 ## Try it
 
-Requires Docker + Compose V2. First build is slow; **containers up ≠ ready to log in** — wait until the backend is healthy / Flyway finishes (`docker compose logs -f app`).
+Requires Docker + Compose V2. `quick-start` prefers GHCR prebuilt images and falls back to a local build if pull fails (first compile is slow). **Containers up ≠ ready to log in** — wait until the backend is healthy / Flyway finishes (`docker compose logs -f app`).
+
+Images: `ghcr.io/qualitest-hq/qualitest-app` · `ghcr.io/qualitest-hq/qualitest-web` (see [Deploy](./docs/deploy.en.md)).
 
 **Windows**
 

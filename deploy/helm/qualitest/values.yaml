@@ -1,18 +1,18 @@
 # Qualitest Helm values
-# 镜像需自行构建并推到可达仓库（GHCR 尚未作为官方制品发布时可本地 load 到 kind/k3s）。
+# 默认使用 GHCR 官方镜像；亦可本地 build 后 kind load / 改 repository。
 # 默认口令仅便于 PoC；上生产前务必改 secrets / mysql.auth。
 
 nameOverride: ""
 fullnameOverride: ""
 
-# --- 镜像（与 docker-compose 构建产物同名时可改 tag / registry）---
+# --- 镜像（与 Compose / GHCR 一致）---
 image:
   app:
-    repository: qualitest-hq/qualitest-app
+    repository: ghcr.io/qualitest-hq/qualitest-app
     tag: latest
     pullPolicy: IfNotPresent
   web:
-    repository: qualitest-hq/qualitest-web
+    repository: ghcr.io/qualitest-hq/qualitest-web
     tag: latest
     pullPolicy: IfNotPresent
 

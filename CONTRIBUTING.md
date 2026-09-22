@@ -33,7 +33,7 @@ GitHub 上「New issue」可选表单（Bug / 想法 / 提问）；空白 Issue 
 - 复制 [`.env.example`](./.env.example) 为 `.env`（勿提交），或改 `application-dev.yml`  
 - 后端：`mvn clean package` 后按根目录 `qualitest.bat` / `qualitest.sh` 启动  
 - 前端：`cd qualitest-ui && pnpm install && pnpm dev`  
-- 一键依赖 / 全栈：见 README「5 分钟快速开始」与 `docker compose`
+- 一键依赖 / 全栈：见 README「试一把」与 `docker compose`（优先 GHCR：`ghcr.io/qualitest-hq/qualitest-app|web`）
 
 本地联调靶场时，环境 `baseUrl` 一般为 `http://localhost:8801`。
 

@@ -14,14 +14,13 @@
 
 ```mermaid
 flowchart LR
-  A["GHCR"] --> B["插件市场"]
-  B --> C["测试流工程化"]
-  C --> D["引擎与安全硬伤"]
-  D --> E["有人要再说"]
+  A["插件市场"] --> B["测试流工程化"]
+  B --> C["引擎与安全硬伤"]
+  C --> D["有人要再说"]
 ```
 
 ```text
-GHCR  >  动图（可选）  >  插件市场  >  测试流工程化  >  跑流/密钥硬伤  >  其余看反馈
+插件市场  >  测试流工程化  >  跑流/密钥硬伤  >  其余看反馈
 ```
 
 ---
@@ -30,7 +29,6 @@ GHCR  >  动图（可选）  >  插件市场  >  测试流工程化  >  跑流/�
 
 | ID | 任务 | 产出 |
 | -- | ---- | ---- |
-| 1.1 | GHCR 镜像 | `ghcr.io/qualitest-hq/qualitest`；README / [`deploy.md`](./docs/deploy.md) 附 pull |
 | 1.2 | JetBrains 插件市场上架 | 审核通过；README 链到市场 |
 | 1.3 | 插件仓首个 tag `v1.0.0` | 触发 Release；附 ZIP |
 
@@ -50,6 +48,7 @@ GHCR  >  动图（可选）  >  插件市场  >  测试流工程化  >  跑流/�
 
 | ID | 任务 | 说明 |
 | -- | ---- | ---- |
+| 1.1 | GHCR 镜像 | `ghcr.io/qualitest-hq/qualitest-app` / `qualitest-web`；workflow `ghcr.yml`；Compose / README / deploy 已附 pull |
 | 3.1 | 简易 HTML 报告 | Run 导出单文件 HTML；运行库「导出报告」下载；失败摘要与节点卡片 |
 | 3.11 | 运行详情体验 | 页眉与失败摘要、时间线短摘要、点选高亮画布；场景跑入口收束到左栏「运行场景」 |
 

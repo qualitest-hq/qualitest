@@ -2,7 +2,12 @@
 
 Ports, env vars, and production hardening for Compose full stack and local development. Quick start: [README.en.md](../README.en.md). Security disclosure: [SECURITY.md](../SECURITY.md).
 
-CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dockerfiles or related paths change. Publishing images is roadmap item **2.1** (GHCR).
+CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dockerfiles or related paths change. Official images are pushed by workflow **[GHCR](../.github/workflows/ghcr.yml)** to:
+
+- `ghcr.io/qualitest-hq/qualitest-app`
+- `ghcr.io/qualitest-hq/qualitest-web`
+
+(`latest` + `sha-<short>`; only `qualitest-hq/qualitest` `main` / manual dispatch.)
 
 **The demo target is not in this repo’s Compose** (no `--profile demo` mixed stack). To run the shop demo, clone [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) and start it with its own [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start`. Most users only need this repo to try Qualitest.
 
@@ -22,9 +27,13 @@ chmod +x scripts/quick-start.sh
 # Windows
 scripts\quick-start.bat
 
-# Or manually (copy .env.example first if needed)
+# Or manually: pull GHCR, then start
 # cp .env.example .env   # Windows: copy .env.example .env
-docker compose up -d --build
+docker compose pull
+docker compose up -d
+
+# Local build when changing code / offline
+# docker compose up -d --build
 ```
 
 - Browser: **http://localhost** (include port if `WEB_PORT` ≠ 80)
@@ -32,7 +41,20 @@ docker compose up -d --build
 - First boot: wait for **app healthy / Flyway migrate success** in logs (no full initdb dump)
 - IDEA plugin server URL: Compose → **`http://localhost/prod-api`**; local backend → **`http://localhost:8800`**
 
-First `--build` pulls base images and compiles front/back — expect a longer wait.
+`quick-start` runs `compose pull` first and falls back to `--build` if GHCR is unreachable or not published yet. Local first compile can be slow.
+
+### Official images (GHCR)
+
+| Image | Role |
+|------|------|
+| `ghcr.io/qualitest-hq/qualitest-app` | Backend (Spring Boot) |
+| `ghcr.io/qualitest-hq/qualitest-web` | Frontend (Nginx + SPA; `/prod-api` → app) |
+
+Packages: https://github.com/orgs/qualitest-hq/packages  
+
+Anonymous `docker pull` works when the repo and packages are **Public**; otherwise `docker login ghcr.io` (PAT with `read:packages`). If a package stays Private after the first push, set it Public on the org Packages page (the workflow also tries to flip it).
+
+Pin a commit: set `QUALITEST_IMAGE_TAG=sha-<short>` in `.env`. Compose still needs **MySQL + Redis** (or equivalents).
 
 ---
 
@@ -151,12 +173,12 @@ deploy/helm/qualitest/
 
 ### Images
 
-Default image names match Compose (`qualitest-hq/qualitest-app` / `qualitest-web`). Build and push (or `kind load`) before install:
+Chart defaults to GHCR (`ghcr.io/qualitest-hq/qualitest-app` / `qualitest-web`). If the cluster can reach ghcr.io, install directly; otherwise retarget `image.*.repository` or build locally and `kind load`:
 
 ```bash
 docker compose build app web
-# kind load docker-image qualitest-hq/qualitest-app:latest
-# kind load docker-image qualitest-hq/qualitest-web:latest
+# kind load docker-image ghcr.io/qualitest-hq/qualitest-app:latest
+# kind load docker-image ghcr.io/qualitest-hq/qualitest-web:latest
 ```
 
 ### Install
@@ -201,7 +223,7 @@ Authoritative list: [`.env.example`](../.env.example). Compose injects some into
 | `SPRING_DATASOURCE_DRUID_MASTER_*` | JDBC URL / user / password | Compose points at service `mysql`; local → localhost |
 | `SPRING_DATA_REDIS_*` | Redis host / port / database / password | Compose host=`redis` |
 | `LOGGING_LEVEL_COM_QUALITEST` | App log level | Default `info` |
-| `QUALITEST_IMAGE_TAG` | Local image tag | Default `latest` |
+| `QUALITEST_IMAGE_TAG` | Compose / local image tag | Default `latest`; can match GHCR `sha-xxxx` |
 | `DRUID_STAT_USERNAME` / `DRUID_STAT_PASSWORD` | Druid console (**dev** only) | docker / prod **disable** console — never expose `dev` publicly |
 
 ---
@@ -263,6 +285,8 @@ docker compose logs -f app
 docker compose ps
 docker compose down          # keep volumes
 docker compose down -v       # wipe MySQL / Redis / upload (destructive)
+docker compose pull          # pull latest GHCR images
+docker compose up -d         # start with existing / pulled images
 docker compose up -d --build # rebuild after code / Dockerfile changes
 ```
 

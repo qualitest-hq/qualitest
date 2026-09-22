@@ -1,0 +1,196 @@
+# 推送官方镜像到 GHCR（仅 qualitest-hq/qualitest 的 main / 手动触发）
+# 镜像：
+#   ghcr.io/qualitest-hq/qualitest-app
+#   ghcr.io/qualitest-hq/qualitest-web
+# PR / fork 不推送；CI 里 docker-* 仍只做构建校验。
+#
+# 首次推送后若 Packages 默认 Private：组织 Packages 页改为 Public，
+# 或本 workflow 末尾「Set package visibility」步骤会尝试公开。
+
+name: GHCR
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - "deploy/docker/**"
+      - "deploy/nginx/**"
+      - "docker-compose.yml"
+      - "pom.xml"
+      - "qualitest-admin/**"
+      - "qualitest-common/**"
+      - "qualitest-framework/**"
+      - "qualitest-generator/**"
+      - "qualitest-quartz/**"
+      - "qualitest-system/**"
+      - "qualitest-ui/**"
+      - ".github/workflows/ghcr.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ghcr-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  changes:
+    name: detect-changes
+    if: github.repository == 'qualitest-hq/qualitest'
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      web: ${{ steps.filter.outputs.web }}
+      force: ${{ steps.force.outputs.value }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Force both on workflow_dispatch
+        id: force
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Path filter
+        uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+              - 'pom.xml'
+              - 'qualitest-admin/**'
+              - 'qualitest-common/**'
+              - 'qualitest-framework/**'
+              - 'qualitest-generator/**'
+              - 'qualitest-quartz/**'
+              - 'qualitest-system/**'
+              - '.github/workflows/ghcr.yml'
+            web:
+              - 'deploy/docker/**'
+              - 'deploy/nginx/**'
+              - 'docker-compose.yml'
+              - 'qualitest-ui/**'
+              - '.github/workflows/ghcr.yml'
+
+  push-app:
+    name: push-app
+    needs: changes
+    if: >
+      github.repository == 'qualitest-hq/qualitest' &&
+      (needs.changes.outputs.force == 'true' || needs.changes.outputs.app == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (app)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/qualitest-app
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push app
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=qualitest-app
+          cache-to: type=gha,mode=max,scope=qualitest-app
+
+  push-web:
+    name: push-web
+    needs: changes
+    if: >
+      github.repository == 'qualitest-hq/qualitest' &&
+      (needs.changes.outputs.force == 'true' || needs.changes.outputs.web == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (web)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/qualitest-web
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push web
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./deploy/docker/Dockerfile.web
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=qualitest-web
+          cache-to: type=gha,mode=max,scope=qualitest-web
+
+  visibility:
+    name: package-visibility
+    needs: [push-app, push-web]
+    if: >
+      always() &&
+      github.repository == 'qualitest-hq/qualitest' &&
+      (needs.push-app.result == 'success' || needs.push-web.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure packages are public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          org="${{ github.repository_owner }}"
+          for pkg in qualitest-app qualitest-web; do
+            echo "Set visibility public: ${org}/${pkg}"
+            gh api \
+              --method PUT \
+              -H "Accept: application/vnd.github+json" \
+              "/orgs/${org}/packages/container/${pkg}/visibility" \
+              -f visibility=public \
+              || echo "::warning::Could not set ${pkg} public (may already be public, or needs org Package admin). Set manually: https://github.com/orgs/${org}/packages"
+          done
