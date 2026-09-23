@@ -153,9 +153,17 @@ Prefer [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) as the S
 
 Select an API → switch test / staging / prod → send → inspect response and latency.
 
+<p align="center">
+  <img src="./docs/images/debug-200.gif" alt="API console: send request, get 200" width="960" />
+</p>
+
 ### Test-flow canvas
 
 Drag HTTP / assert / condition / subflow nodes → wire edges → run; expand the timeline per step. Node reference: [`docs/test-flow-nodes.en.md`](./docs/test-flow-nodes.en.md).
+
+<p align="center">
+  <img src="./docs/images/canvas-glance.gif" alt="Test-flow canvas at a glance" width="960" />
+</p>
 
 ### AI design
 

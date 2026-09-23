@@ -35,7 +35,7 @@ flowchart LR
 
 | ID | 任务 | 产出 |
 | -- | ---- | ---- |
-| 2.1 | 演示动图（可选） | README / 落地页目前为文字步骤；有空再补 GIF 亦可 |
+| 2.1 | 演示动图（可选） | README + 落地页能力区已插 `debug-200` / `canvas-glance`；AI Diff、MCP 短图待补 |
 
 ---
 

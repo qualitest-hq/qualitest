@@ -1,13 +1,13 @@
 # 落地页插图
 
-当前对外展示用 **Hero 链路 SVG** 与 **MCP 文字步骤**，不依赖 GIF。
+Hero 仍用链路 SVG。能力区下方可嵌极短 GIF（文件存在才渲染，删掉即回退为纯文字步骤）。
 
-若日后要补动图，可放入本目录（可选）：
+| 文件 | 用途 | 状态 |
+|------|------|------|
+| `debug-200.gif` | 能力区演示「接口调试」 | 已放 |
+| `canvas-glance.gif` | 能力区演示「测试流」 | 已放 |
+| `ai-diff.gif` | 能力区「AI Diff」（待补） | 可选 |
+| `mcp-list.gif` | MCP 左卡「只读勘察」（待补） | 可选 |
+| `mcp-sse.gif` | MCP 右卡「写流同步」（待补） | 可选 |
 
-| 文件 | 用途 |
-|------|------|
-| `overview.gif` | 可选替换 Hero 示意 |
-| `demo-mcp-survey.gif` | 可选 MCP 勘察动图 |
-| `demo-mcp-autowrite.gif` | 可选 MCP 造流动图 |
-
-构建产物路径示例：`/qualitest/images/overview.gif`。
+与 README 同源时可从 [`docs/images/`](../../docs/images/) 复制到本目录。构建产物示例：`/qualitest/images/debug-200.gif`。

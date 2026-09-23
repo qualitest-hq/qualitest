@@ -171,9 +171,17 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 选中接口 → 切换测试 / 预发 / 生产环境 → 发请求 → 看响应与耗时。
 
+<p align="center">
+  <img src="./docs/images/debug-200.gif" alt="接口调试台：发请求得到 200" width="960" />
+</p>
+
 ### 测试流画布
 
 从节点面板拖出 HTTP / 断言 / 条件 / 子流 → 连线 → 运行；时间线可展开每步结果。节点说明见 [`docs/test-flow-nodes.md`](./docs/test-flow-nodes.md)。
+
+<p align="center">
+  <img src="./docs/images/canvas-glance.gif" alt="测试流画布一览" width="960" />
+</p>
 
 ### AI 辅助设计
 

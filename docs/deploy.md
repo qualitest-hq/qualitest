@@ -329,7 +329,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后本地重建
 3. 主仓 Settings → Secrets and variables → Actions → Variables：新增 **`ENABLE_PAGES_DEPLOY=true`**（未设时 CI 只 build 不 deploy，避免 Private 下红叉）
 4. Actions → **Deploy Pages** → Run workflow（或 push `site/`）
 5. About → Website 填上述 URL
-6. 浏览器确认落地页可打开（Hero 为链路 SVG；MCP 区为文字步骤）
+6. 浏览器确认落地页可打开（Hero 为链路 SVG；能力区可有调试/画布短 GIF；MCP 区仍为文字步骤）
 
 本地预览：`cd site && pnpm install && pnpm build && pnpm preview` → `http://127.0.0.1:4321/qualitest/`。
 

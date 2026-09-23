@@ -33,5 +33,5 @@ pnpm preview
 5. About → Website 填上述 URL  
 6. 浏览器打开确认；发文 CTA 可同时链官网 + GitHub  
 
-对外与演示说明以 README / 本站文案为准（当前为文字步骤 + Hero SVG，不依赖 GIF）。
+对外与演示说明以 README / 本站文案为准。README 与落地页能力区共用 `docs/images/` 同源 GIF（落地页副本在 `site/public/images/`）；Hero 仍为 SVG，MCP 区仍为文字步骤（待补短图）。
 

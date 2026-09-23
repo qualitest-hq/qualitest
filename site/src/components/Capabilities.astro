@@ -1,4 +1,6 @@
 ---
+import fs from "node:fs";
+import path from "node:path";
 import { type Lang, useTranslations } from "../i18n/ui";
 
 interface Props {
@@ -7,6 +9,21 @@ interface Props {
 
 const { lang } = Astro.props;
 const t = useTranslations(lang);
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
+const imagesDir = path.join(process.cwd(), "public", "images");
+
+const demos = [
+  {
+    file: "debug-200.gif",
+    title: t.capDemoDebugTitle,
+    alt: t.capDemoDebugAlt,
+  },
+  {
+    file: "canvas-glance.gif",
+    title: t.capDemoCanvasTitle,
+    alt: t.capDemoCanvasAlt,
+  },
+].filter((d) => fs.existsSync(path.join(imagesDir, d.file)));
 ---
 
 <section class="section capabilities">
@@ -25,6 +42,27 @@ const t = useTranslations(lang);
         ))
       }
     </ol>
+
+    {
+      demos.length > 0 && (
+        <ul class="demos">
+          {demos.map((demo) => (
+            <li>
+              <figure>
+                <figcaption>{demo.title}</figcaption>
+                <img
+                  src={`${base}images/${demo.file}`}
+                  alt={demo.alt}
+                  width="960"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+            </li>
+          ))}
+        </ul>
+      )
+    }
   </div>
 </section>
 
@@ -94,7 +132,7 @@ const t = useTranslations(lang);
     color: var(--accent-deep);
   }
 
-  strong {
+  .rail strong {
     display: block;
     font-family: var(--font-display);
     font-size: 1.08rem;
@@ -103,10 +141,52 @@ const t = useTranslations(lang);
     letter-spacing: -0.01em;
   }
 
-  p {
+  .rail p {
     margin: 0;
     color: var(--muted);
     font-size: 0.93rem;
     line-height: 1.55;
+  }
+
+  .demos {
+    list-style: none;
+    margin: 2rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  @media (min-width: 860px) {
+    .demos {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .demos figure {
+    margin: 0;
+    padding: 0.85rem 0.9rem 0.95rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background:
+      radial-gradient(ellipse 70% 60% at 30% 20%, rgba(20, 184, 166, 0.1), transparent 55%),
+      linear-gradient(165deg, #f7faf9, #eef3f4);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .demos figcaption {
+    margin: 0 0 0.65rem;
+    font-family: var(--font-display);
+    font-size: 0.98rem;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+  }
+
+  .demos img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: calc(var(--radius) - 4px);
+    border: 1px solid rgba(12, 18, 34, 0.06);
+    background: #fff;
   }
 </style>
