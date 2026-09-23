@@ -87,7 +87,7 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 - **if / elif**：`conditions[]` 全部成立则命中（AND）
 - **else**：前序均未命中时兜底
 
-命中分支须有非空 `target`（下一节点 id），或 IF/ELIF 设 `terminal: true` 结束流程；结果写入步骤 `branchTaken`（`branchId` / `kind` / 可选 `terminal`）。
+命中分支有非空 `target`（下一节点 id）则继续走；无 `target` 则本流正常结束。结果写入步骤 `branchTaken`（`branchId` / `kind`）。
 
 ---
 

@@ -5,14 +5,14 @@ import com.alibaba.fastjson2.JSONObject;
 import java.util.Map;
 
 /**
- * 条件分支「是否结束本流」判定。
+ * 条件分支下游 target 判定。
  * <p>
  * 有非空 target：命中后走到下游节点。<br>
  * 无非空 target：命中后本流正常结束。
  */
-public final class ConditionBranchTerminalSupport {
+public final class ConditionBranchTargetSupport {
 
-    private ConditionBranchTerminalSupport() {
+    private ConditionBranchTargetSupport() {
     }
 
     /**
@@ -31,16 +31,8 @@ public final class ConditionBranchTerminalSupport {
         return !target.isEmpty() && !"null".equalsIgnoreCase(target);
     }
 
-    /**
-     * 是否为结束分支：命中后不再走向下一节点。
-     * 判定依据是「没有有效 target」。
-     */
-    public static boolean isTerminalBranch(Map<?, ?> branch) {
-        return !hasBranchTarget(branch);
-    }
-
-    /** JSONObject 入参的结束分支判定。 */
-    public static boolean isTerminalBranch(JSONObject branch) {
-        return isTerminalBranch((Map<?, ?>) branch);
+    /** JSONObject 入参。 */
+    public static boolean hasBranchTarget(JSONObject branch) {
+        return hasBranchTarget((Map<?, ?>) branch);
     }
 }

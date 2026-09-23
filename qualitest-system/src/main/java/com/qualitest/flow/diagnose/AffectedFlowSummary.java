@@ -1,5 +1,7 @@
 package com.qualitest.flow.diagnose;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,6 +12,7 @@ import java.util.List;
 public class AffectedFlowSummary {
 
     /** 测试流 id */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     public Long testFlowId;
 
     /** 测试流名称 */

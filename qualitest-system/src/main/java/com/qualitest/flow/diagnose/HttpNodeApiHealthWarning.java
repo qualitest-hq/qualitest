@@ -1,5 +1,7 @@
 package com.qualitest.flow.diagnose;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 /**
  * 测试流 HTTP 节点相对所绑 API 的一条语义告警。
  * <p>
@@ -17,6 +19,7 @@ public class HttpNodeApiHealthWarning {
      */
     public String code;
     /** 所属测试流 id（批量诊断或单流检查时填入） */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     public Long testFlowId;
     /** 测试流名称 */
     public String flowName;
@@ -25,6 +28,7 @@ public class HttpNodeApiHealthWarning {
     /** 节点展示名 */
     public String nodeName;
     /** 节点绑定的 API id */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     public Long testProjectApiId;
     /** 给人看的完整告警文案 */
     public String message;

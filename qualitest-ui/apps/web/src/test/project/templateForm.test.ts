@@ -163,8 +163,6 @@ describe('buildLoginGraphJson', () => {
     expect(byId.reuse_end).toBeUndefined()
     const aliveIf = byId.cond_alive.data.branches.find((b) => b.id === 'b_alive_if')
     expect(aliveIf?.target).toBeUndefined()
-    expect(aliveIf?.terminal).toBeUndefined()
-    expect(aliveIf?.target).toBeUndefined()
     expect(graph.edges.length).toBe(4)
     expect(graph.meta.layout).toBe('manual')
     expect(graph.meta.scenarios).toHaveLength(1)

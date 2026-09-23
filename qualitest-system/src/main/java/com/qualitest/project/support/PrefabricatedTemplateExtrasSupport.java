@@ -1059,7 +1059,7 @@ public final class PrefabricatedTemplateExtrasSupport {
         return b;
     }
 
-    /** IF/ELIF 结束本流分支：只写 id/kind/conditions，不写 target、不写 terminal。 */
+    /** IF/ELIF 结束本流分支：只写 id/kind/conditions，不写 target。 */
     private static JSONObject endBranch(String id, String kind, List<JSONObject> conditions) {
         JSONObject b = new JSONObject();
         b.put("id", id);

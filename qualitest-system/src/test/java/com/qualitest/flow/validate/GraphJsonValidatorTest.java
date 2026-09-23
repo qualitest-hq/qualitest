@@ -360,7 +360,7 @@ class GraphJsonValidatorTest {
                   "nodes": [
                     {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
                       {"id":"b_if","kind":"if","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
-                      {"id":"b_else","kind":"else","terminal":true}
+                      {"id":"b_else","kind":"else"}
                     ]}},
                     {"id":"n2","type":"http","position":{"x":1,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
                   ],

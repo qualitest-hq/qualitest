@@ -8,7 +8,7 @@ import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepResult;
-import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
+import com.qualitest.flow.graph.ConditionBranchTargetSupport;
 import com.qualitest.flow.validate.FlowNodeType;
 
 import java.util.ArrayList;
@@ -196,7 +196,7 @@ public class GraphWalker {
             if (!branchId.equals(branch.getString("id"))) {
                 continue;
             }
-            if (ConditionBranchTerminalSupport.isTerminalBranch(branch)) {
+            if (!ConditionBranchTargetSupport.hasBranchTarget(branch)) {
                 // 无出口：正常结束，不抛「未配置目标」
                 return null;
             }

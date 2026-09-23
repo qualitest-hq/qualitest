@@ -1,11 +1,10 @@
 /**
  * condition 节点分支数据工具。
- * 负责 branches 规范化、卡片摘要、出边与分支锚点映射、结束出口的读写。
+ * 负责 branches 规范化、卡片摘要、出边与分支锚点映射。
  */
 import type { CompareRule } from '@/utils/flow/compareRule';
 import {
   hasBranchTarget,
-  isTerminalBranch,
 } from '@/utils/flow/conditionBranch';
 import { condOpLabel, evalCompareRule } from '@/utils/flow/compareRule';
 import type { FlowRunContext } from '@/utils/flow/types';
@@ -27,9 +26,6 @@ export interface ConditionBranch {
 
 /** 分支是否有有效下游 target */
 export const hasConditionBranchTarget = hasBranchTarget;
-
-/** 是否为结束分支（无有效 target） */
-export { isTerminalBranch };
 
 /**
  * 规范化 condition 节点 data.branches。
@@ -111,7 +107,7 @@ export function pickConditionEdge(
   const branches = getConditionBranches(node.data);
   for (const branch of branches) {
     if (!evalBranchConditions(branch, ctx)) continue;
-    if (isTerminalBranch(branch)) return { edge: null, branch };
+    if (!hasBranchTarget(branch)) return { edge: null, branch };
     const targetId = branch.target;
     const edge = edges.find((e) => e.source === node.id && e.target === targetId);
     return { edge: edge ?? null, branch };
@@ -197,24 +193,6 @@ export function bindConditionBranchTarget(
   const branch = branches.find((b) => b.id === branchId);
   if (!branch || branch.target === edge.target) return false;
   branch.target = edge.target;
-  nodeData.branches = branches;
-  return true;
-}
-
-/**
- * 切换分支结束出口。
- * asEnd=true：清除 target（命中后结束本流）。<br>
- * asEnd=false：不自动恢复出边（需用户再连线）。
- */
-export function setBranchTerminal(
-  nodeData: Record<string, unknown>,
-  branchId: string,
-  asEnd: boolean,
-): boolean {
-  const branches = getConditionBranches(nodeData).map((b) => ({ ...b }));
-  const branch = branches.find((b) => b.id === branchId);
-  if (!branch) return false;
-  if (asEnd) delete branch.target;
   nodeData.branches = branches;
   return true;
 }

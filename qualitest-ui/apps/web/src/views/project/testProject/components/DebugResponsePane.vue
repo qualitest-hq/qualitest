@@ -88,7 +88,7 @@
             <span v-if="debugScriptTestsBadge > 0" class="debug-tab-count">{{ debugScriptTestsBadge }}</span>
           </button>
         </nav>
-        <div v-show="activeRespTab === 'body'" class="debug-resp-panel">
+        <div v-show="activeRespTab === 'body'" class="debug-resp-panel debug-resp-panel--body">
           <ResponseMediaPreview
               :body-base64="debugResponse.bodyBase64"
               :body-encoding="debugResponse.bodyEncoding"
@@ -316,6 +316,11 @@ const emit = defineEmits(['update:activeRespTab'])
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.debug-resp-panel--body {
+  gap: 10px;
+  padding-right: 6px;
 }
 
 .debug-resp-textarea {

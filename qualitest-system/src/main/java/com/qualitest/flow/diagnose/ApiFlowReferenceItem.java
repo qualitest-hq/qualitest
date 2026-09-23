@@ -1,5 +1,7 @@
 package com.qualitest.flow.diagnose;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 /**
  * 某个测试流里，绑定了指定 API 的一个 HTTP 节点摘要。
  * <p>
@@ -8,6 +10,7 @@ package com.qualitest.flow.diagnose;
 public class ApiFlowReferenceItem {
 
     /** 测试流 id */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     public Long testFlowId;
     /** 测试流名称 */
     public String flowName;
@@ -18,5 +21,6 @@ public class ApiFlowReferenceItem {
     /** 节点 callMode，一般为 project */
     public String callMode;
     /** 所查的 API id */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     public Long testProjectApiId;
 }

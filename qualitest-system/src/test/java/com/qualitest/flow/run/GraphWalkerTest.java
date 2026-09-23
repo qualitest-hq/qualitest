@@ -95,12 +95,12 @@ class GraphWalkerTest {
 
     /**
      * 前提：IF 无 target；flow.code=0 命中 IF。
-     * 期望：resolveNext 返回 null（本流结束）；branchTaken 带 terminal=true。
+     * 期望：resolveNext 返回 null（本流结束）。
      */
     @Test
     @Order(4)
     @DisplayName("无 target 的 IF 分支 resolveNext 为 null")
-    void resolveNext_terminalIfBranchEndsFlow() {
+    void resolveNext_ifBranchWithoutTargetEndsFlow() {
         String json = """
                 {
                   "nodes":[
@@ -123,7 +123,6 @@ class GraphWalkerTest {
         GraphNode condNode = walker.getNode("n_cond");
         StepResult condResult = new ConditionNodeHandler().execute(ctx, condNode, null);
         assertEquals("b_if", condResult.getBranchTaken().get("branchId"));
-        assertEquals(Boolean.TRUE, condResult.getBranchTaken().get("terminal"));
 
         assertNull(walker.resolveNextNodeId(condNode, condResult));
     }
@@ -158,7 +157,6 @@ class GraphWalkerTest {
         GraphNode condNode = walker.getNode("n_cond");
         StepResult condResult = new ConditionNodeHandler().execute(ctx, condNode, null);
         assertEquals("b_if", condResult.getBranchTaken().get("branchId"));
-        assertEquals(Boolean.TRUE, condResult.getBranchTaken().get("terminal"));
 
         assertNull(walker.resolveNextNodeId(condNode, condResult));
     }

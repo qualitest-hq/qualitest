@@ -10,7 +10,6 @@ import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
-import com.qualitest.flow.graph.ConditionBranchTerminalSupport;
 import com.qualitest.flow.validate.FlowNodeType;
 import org.springframework.stereotype.Component;
 
@@ -25,9 +24,8 @@ import java.util.Map;
  *   <li>if/elif：{@code conditions[]} 全部成立则命中（AND）</li>
  *   <li>else：前序均未命中时作为兜底</li>
  * </ul>
- * 命中后本步标记 passed，并把命中分支写入 {@code branchTaken}。<br>
- * 无有效 target 时在 {@code branchTaken} 里带 {@code terminal: true}，表示本流应结束。<br>
- * 有有效 target 时，后续步骤按 target 走到下游节点。
+ * 命中后本步标记 passed，并把命中分支写入 {@code branchTaken}（branchId / kind）。
+ * 无有效 target 时后续不再走向下游，本流正常结束。
  */
 @Component
 public class ConditionNodeHandler extends AbstractStubNodeHandler {
@@ -70,15 +68,9 @@ public class ConditionNodeHandler extends AbstractStubNodeHandler {
                     "未命中任何条件分支");
         }
 
-        boolean endBranch = ConditionBranchTerminalSupport.isTerminalBranch(matched);
-
         Map<String, Object> branchTaken = new LinkedHashMap<>();
         branchTaken.put("branchId", matched.getString("id"));
         branchTaken.put("kind", matched.getString("kind"));
-        // 结束分支：结果快照标记 terminal，表示本流结束
-        if (endBranch) {
-            branchTaken.put("terminal", true);
-        }
 
         return StepResult.builder()
                 .nodeId(node.getId())

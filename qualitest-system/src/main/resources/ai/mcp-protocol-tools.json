@@ -653,9 +653,6 @@
                           }
                         }
                       }
-                    },
-                    "terminal": {
-                      "type": "boolean"
                     }
                   }
                 },

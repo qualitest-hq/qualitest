@@ -760,7 +760,6 @@ class FlowDesignPatchNormalizerTest {
         Map<String, Object> elseBranch = branchById(branches, "b_else");
         assertEquals(sessionMap.get("n_probe"), ifBranch.get("target"));
         assertEquals(sessionMap.get("n_login"), elseBranch.get("target"));
-        assertFalse(ifBranch.containsKey("terminal"));
     }
 
     @Test

@@ -13,7 +13,7 @@ import java.util.Map;
  * 合并流程补丁时，维护条件节点出边与分支下游的绑定。
  * <p>
  * 运行时下一跳只读 {@code data.branches[].target}。新增或更新出边时把边的目标写入对应分支；
- * 删除出边时清掉指向该目标的绑定。写入 target 时会去掉分支上多余的 {@code terminal} 字段。
+ * 删除出边时清掉指向该目标的绑定。
  */
 public final class ConditionBranchMergeHelper {
 
@@ -76,7 +76,7 @@ public final class ConditionBranchMergeHelper {
     }
 
     /**
-     * 把下游节点 id 写入指定分支的 {@code target}，并去掉该分支上的 {@code terminal}。
+     * 把下游节点 id 写入指定分支的 {@code target}。
      * {@code branchId} 必填；为空或找不到对应分支时不修改。
      *
      * @param nodeData 条件节点 data
@@ -99,7 +99,6 @@ public final class ConditionBranchMergeHelper {
                     return false;
                 }
                 branch.put("target", target);
-                branch.remove("terminal");
                 nodeData.put("branches", branches);
                 return true;
             }

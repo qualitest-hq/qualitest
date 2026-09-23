@@ -1,6 +1,7 @@
 package com.qualitest.flow.diagnose;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.graph.FlowHttpNodeVisitor;
 import com.qualitest.project.domain.TestFlow;
@@ -347,8 +348,10 @@ public class ApiFlowReferenceScanService {
      */
     public static class DiagnoseImpactsResult {
         /** 被诊断的 API id */
+        @JsonFormat(shape = JsonFormat.Shape.STRING)
         public Long testProjectApiId;
         /** 该 API 所属项目 id */
+        @JsonFormat(shape = JsonFormat.Shape.STRING)
         public Long testProjectId;
         /** 引用该 API 的流与节点 */
         public List<ApiFlowReferenceItem> references;
@@ -361,8 +364,10 @@ public class ApiFlowReferenceScanService {
      */
     public static class FlowApiHealthResult {
         /** 测试流 id */
+        @JsonFormat(shape = JsonFormat.Shape.STRING)
         public Long testFlowId;
         /** 所属项目 id */
+        @JsonFormat(shape = JsonFormat.Shape.STRING)
         public Long testProjectId;
         /** 测试流名称 */
         public String flowName;

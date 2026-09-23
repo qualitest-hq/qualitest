@@ -1,39 +1,45 @@
 <template>
   <div v-if="preview" class="response-media-preview">
+    <div class="response-media-preview__head">
+      <span class="response-media-preview__label">媒体预览</span>
+      <span class="response-media-preview__kind">{{ kindLabel }}</span>
+    </div>
     <div v-if="preview.truncated" class="response-media-preview__hint">
       响应已截断，预览可能不完整
     </div>
-    <img
-      v-if="preview.kind === 'image'"
-      :src="preview.src"
-      alt="响应媒体预览"
-      class="response-media-preview__media response-media-preview__img"
-    />
-    <video
-      v-else-if="preview.kind === 'video'"
-      :src="preview.src"
-      class="response-media-preview__media"
-      controls
-    />
-    <audio
-      v-else-if="preview.kind === 'audio'"
-      :src="preview.src"
-      class="response-media-preview__audio"
-      controls
-    />
-    <div v-else-if="preview.kind === 'pdf'" class="response-media-preview__pdf">
-      <iframe :src="preview.src" class="response-media-preview__iframe" title="PDF 预览" />
-      <a :href="preview.src" class="response-media-preview__link" rel="noopener noreferrer" target="_blank">
-        新窗口打开
-      </a>
-    </div>
-    <div v-else-if="preview.kind === 'link'" class="response-media-preview__link-wrap">
-      <a :href="preview.src" class="response-media-preview__link" rel="noopener noreferrer" target="_blank">
-        {{ preview.src }}
-      </a>
+    <div class="response-media-preview__stage" :class="'is-' + preview.kind">
+      <img
+        v-if="preview.kind === 'image'"
+        :src="preview.src"
+        alt="响应媒体预览"
+        class="response-media-preview__media response-media-preview__img"
+      />
+      <video
+        v-else-if="preview.kind === 'video'"
+        :src="preview.src"
+        class="response-media-preview__media"
+        controls
+      />
+      <audio
+        v-else-if="preview.kind === 'audio'"
+        :src="preview.src"
+        class="response-media-preview__audio"
+        controls
+      />
+      <div v-else-if="preview.kind === 'pdf'" class="response-media-preview__pdf">
+        <iframe :src="preview.src" class="response-media-preview__iframe" title="PDF 预览" />
+        <a :href="preview.src" class="response-media-preview__link" rel="noopener noreferrer" target="_blank">
+          新窗口打开
+        </a>
+      </div>
+      <div v-else-if="preview.kind === 'link'" class="response-media-preview__link-wrap">
+        <a :href="preview.src" class="response-media-preview__link" rel="noopener noreferrer" target="_blank">
+          {{ preview.src }}
+        </a>
+      </div>
     </div>
   </div>
-  <div v-else-if="omittedLabel" class="response-media-preview">
+  <div v-else-if="omittedLabel" class="response-media-preview response-media-preview--omitted">
     <div class="response-media-preview__hint">
       {{ omittedLabel }}（未保存预览）
     </div>
@@ -82,6 +88,20 @@ const preview = computed(() =>
   })
 )
 
+const KIND_LABELS = {
+  image: '图片',
+  video: '视频',
+  audio: '音频',
+  pdf: 'PDF',
+  link: '链接'
+}
+
+/** 预览类型短标签，用于标题栏 */
+const kindLabel = computed(() => {
+  const kind = preview.value?.kind
+  return (kind && KIND_LABELS[kind]) || '媒体'
+})
+
 /** 裸媒体未落库时的一行说明；有可渲染预览时不使用 */
 const omittedLabel = computed(() => {
   const meta = props.bodyMedia
@@ -97,32 +117,85 @@ const omittedLabel = computed(() => {
 
 <style scoped>
 .response-media-preview {
-  margin-bottom: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--el-border-color-lighter, #ebeef5);
-  border-radius: 6px;
-  background: var(--el-fill-color-blank, #fff);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--pd-border-muted, var(--el-border-color-lighter, #ebeef5));
+  border-radius: var(--pd-radius-sm, 8px);
+  background: var(--pd-bg-sunken, #f5f8fc);
+}
+
+.response-media-preview--omitted {
+  padding: 8px 10px;
+}
+
+.response-media-preview__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+}
+
+.response-media-preview__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pd-text-muted, #64748b);
+}
+
+.response-media-preview__kind {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--pd-text-muted, #64748b);
+  background: var(--pd-surface-elevated, #fff);
+  border: 1px solid var(--pd-border-muted, #e2e8f0);
 }
 
 .response-media-preview__hint {
-  margin-bottom: 8px;
   font-size: 12px;
   color: var(--el-color-warning);
 }
 
-.response-media-preview__hint:last-child {
-  margin-bottom: 0;
+.response-media-preview__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--pd-border-muted, #e8edf3);
+  background: var(--pd-surface-elevated, #fff);
+  overflow: auto;
+}
+
+.response-media-preview__stage.is-image {
+  background: repeating-conic-gradient(#eef1f5 0% 25%, #fff 0% 50%) 50% / 14px 14px;
+}
+
+.response-media-preview__stage.is-audio,
+.response-media-preview__stage.is-link {
+  justify-content: stretch;
+  padding: 10px 12px;
+}
+
+.response-media-preview__stage.is-pdf {
+  padding: 0;
+  overflow: hidden;
 }
 
 .response-media-preview__media {
   display: block;
   max-width: 100%;
-  max-height: 280px;
+  max-height: 200px;
 }
 
 .response-media-preview__img {
   object-fit: contain;
-  background: repeating-conic-gradient(#f0f0f0 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .response-media-preview__audio {
@@ -133,11 +206,13 @@ const omittedLabel = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  padding: 8px;
 }
 
 .response-media-preview__iframe {
   width: 100%;
-  height: 280px;
+  height: 240px;
   border: 0;
   background: #fafafa;
 }
@@ -148,6 +223,6 @@ const omittedLabel = computed(() => {
 
 .response-media-preview__link {
   font-size: 13px;
-  color: var(--el-color-primary);
+  color: var(--pd-primary, var(--el-color-primary));
 }
 </style>

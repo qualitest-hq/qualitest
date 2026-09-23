@@ -79,7 +79,7 @@ Scans `data.branches[]` in order IF → ELIF → ELSE:
 - **if / elif**: hit when every entry in `conditions[]` is true (AND)
 - **else**: fallback when nothing earlier matched
 
-Matched branch must have a non-empty `target` (next node id). Result is stored on the step as `branchTaken` (`branchId` / `kind`).
+Matched branch continues when it has a non-empty `target` (next node id); without `target`, the flow ends normally. Result is stored on the step as `branchTaken` (`branchId` / `kind`).
 
 ---
 

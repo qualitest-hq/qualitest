@@ -66,7 +66,7 @@ class ConditionNodeHandlerTest {
 
     /**
      * 前提：IF 条件成立且无 target。
-     * 期望：passed；branchTaken 带 terminal=true（表示本流结束）。
+     * 期望：passed；命中 IF 且本流结束（无下一跳）。
      */
     @Test
     @Order(3)
@@ -83,7 +83,7 @@ class ConditionNodeHandlerTest {
         StepResult result = handler.execute(ctx, node, null);
         assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertEquals("b_if", result.getBranchTaken().get("branchId"));
-        assertEquals(Boolean.TRUE, result.getBranchTaken().get("terminal"));
+        assertEquals("if", result.getBranchTaken().get("kind"));
     }
 
     /** 构造含 IF/ELSE 两分支的 condition 节点 */

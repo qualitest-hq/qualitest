@@ -678,9 +678,6 @@
                           }
                         }
                       }
-                    },
-                    "terminal": {
-                      "type": "boolean"
                     }
                   }
                 },

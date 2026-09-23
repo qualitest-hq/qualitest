@@ -22,14 +22,6 @@
           用于定义当 IF / ELIF 条件均不满足时应执行的逻辑。
           无出口时命中后结束本流。
         </div>
-        <label class="cond-case__terminal">
-          <input
-              :checked="!hasConditionBranchTarget(branch)"
-              type="checkbox"
-              @change="toggleTerminal(branch.id, $event.target.checked)"
-          />
-          <span>结束流程（清除出口）</span>
-        </label>
         <template v-if="branch.kind !== 'else'">
           <DebugAssertEditor
               :model-value="branch.conditions || []"
@@ -38,7 +30,7 @@
               @update:model-value="(val) => updateBranchConditions(branch.id, val)"
           />
           <div v-if="!hasConditionBranchTarget(branch)" class="cond-case__desc">
-            当前无出口：命中此分支后子流正常结束。连线后即可继续往下走。
+            当前无出口：命中此分支后本流正常结束。在画布上连线即可继续往下走。
           </div>
         </template>
       </div>
@@ -58,7 +50,8 @@
 
 <script setup>
 /**
- * condition 节点属性区：编辑各分支 conditions，增删 ELIF，勾选「结束流程」清除出口。
+ * condition 节点属性区：编辑各分支 conditions，增删 ELIF。
+ * 分支出口由画布连线决定；无出边则命中后结束本流。
  * 条件左值试算优先用选中 Run 的 HTTP 响应，否则用上游接口响应示例。
  */
 import { computed } from 'vue'
@@ -75,7 +68,6 @@ import {
   createElifBranchId,
   getConditionBranches,
   hasConditionBranchTarget,
-  setBranchTerminal,
 } from '../../utils/conditionUtils'
 
 const props = defineProps({
@@ -124,18 +116,6 @@ function removeElifBranch(branchId) {
 
   const next = branches.value.filter((b) => b.id !== branchId).map((b) => ({ ...b }))
   patchNodeData(props.node.id, { branches: next })
-}
-
-/** 勾选结束流程：清 target 并删该分支出边；取消勾选只剥旧 terminal，需再连线才有出口 */
-function toggleTerminal(branchId, terminal) {
-  const data = { ...props.node.data }
-  if (!setBranchTerminal(data, branchId, terminal)) return
-  if (terminal) {
-    store.edges = store.edges.filter(
-      (e) => !(e.source === props.node.id && e.sourceHandle === `out-${branchId}`),
-    )
-  }
-  patchNodeData(props.node.id, { branches: data.branches })
 }
 </script>
 
@@ -186,20 +166,6 @@ function toggleTerminal(branchId, terminal) {
   font-size: 12px;
   color: var(--pd-text-muted);
   line-height: 1.6;
-}
-
-.cond-case__terminal {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: var(--pd-text);
-  cursor: pointer;
-
-  input {
-    margin: 0;
-  }
 }
 
 .cond-add-elif {

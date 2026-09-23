@@ -114,14 +114,21 @@ const emit = defineEmits(['send', 'save', 'update:draftApiPath', 'update:method'
     }
   }
 
+  /* EP .el-input 默认 width:100%，在 flex 行里会按整栏算宽，盖住方法选择与发送按钮 */
   .debug-url-input {
-    flex: 1;
-    min-width: 200px;
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
 
     :deep(.el-input__wrapper) {
       border-radius: var(--pd-radius-sm, 8px);
       font-family: ui-monospace, Consolas, monospace;
     }
+  }
+
+  .debug-send-btn,
+  .debug-save-btn {
+    flex-shrink: 0;
   }
 
   .debug-send-btn {
