@@ -27,9 +27,7 @@ flowchart LR
 
 ## 🚧 Now
 
-| ID | 任务 | 产出 |
-| -- | ---- | ---- |
-| 1.2 | JetBrains 插件市场上架 | 已提交审核；通过后 README 链到市场 |
+（暂无；按反馈再排）
 
 ---
 
@@ -48,6 +46,7 @@ flowchart LR
 | ID | 任务 | 说明 |
 | -- | ---- | ---- |
 | 1.1 | GHCR 镜像 | `ghcr.io/qualitest-hq/qualitest-app` / `qualitest-web`；workflow `ghcr.yml`；Compose / README / deploy 已附 pull |
+| 1.2 | JetBrains 插件市场上架 | [Qualitest Helper](https://plugins.jetbrains.com/plugin/34434-qualitest-helper) 已通过审核 |
 | 1.3 | 插件仓首个 tag `v1.0.0` | 已打 tag；GitHub Release 附 ZIP |
 | 3.1 | 简易 HTML 报告 | Run 导出单文件 HTML；运行库「导出报告」下载；失败摘要与节点卡片 |
 | 3.11 | 运行详情体验 | 页眉与失败摘要、时间线短摘要、点选高亮画布；场景跑入口收束到左栏「运行场景」 |

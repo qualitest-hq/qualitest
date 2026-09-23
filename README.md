@@ -195,7 +195,7 @@ Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.
 
 ### IDEA 插件（可选）
 
-Tools → Qualitest Helper：**项目级上传** / Controller **全部上传** / **选择上传**。上传后接口进入项目库，即可进调试台。详细步骤与截图见 [qualitest-intellij-plugin · 使用方式](https://github.com/qualitest-hq/qualitest-intellij-plugin#使用方式)。
+IDE 插件市场搜 **Qualitest Helper**（[Marketplace](https://plugins.jetbrains.com/plugin/34434-qualitest-helper)）。Tools → Qualitest Helper：**项目级上传** / Controller **全部上传** / **选择上传**。详细步骤见 [插件仓](https://github.com/qualitest-hq/qualitest-intellij-plugin#使用方式)。
 
 ### 推荐试用路径
 

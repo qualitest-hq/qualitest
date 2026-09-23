@@ -177,7 +177,7 @@ Read-only by default; enable **Allow MCP auto-write**, **Allow MCP auto-run**, a
 
 ### IDEA plugin (optional)
 
-Tools → Qualitest Helper: **project-level upload** / Controller **upload all** / **select upload**. APIs land in the project library for the console. Steps and screenshots: [qualitest-intellij-plugin · Usage](https://github.com/qualitest-hq/qualitest-intellij-plugin#使用方式).
+Install **Qualitest Helper** from the IDE marketplace ([Marketplace](https://plugins.jetbrains.com/plugin/34434-qualitest-helper)). Tools → Qualitest Helper: **project-level upload** / Controller **upload all** / **select upload**. Details: [plugin repo](https://github.com/qualitest-hq/qualitest-intellij-plugin#使用方式).
 
 ### Suggested trial paths
 
