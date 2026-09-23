@@ -36,7 +36,7 @@ docker compose up -d
 # docker compose up -d --build
 ```
 
-- Browser: **http://localhost** (include port if `WEB_PORT` ≠ 80)
+- Browser: `http://localhost` (include port if `WEB_PORT` ≠ 80)
 - Default login: **`admin` / `admin123`** (Flyway V1 seed — change before public exposure)
 - First boot: wait for **app healthy / Flyway migrate success** in logs (no full initdb dump)
 - IDEA plugin server URL: Compose → **`http://localhost/prod-api`**; local backend → **`http://localhost:8800`**
@@ -117,7 +117,7 @@ mvn -pl qualitest-admin -am -DskipTests package
 cd qualitest-ui && pnpm install && pnpm dev
 ```
 
-Browser: **http://localhost:5180**. MySQL only needs empty DB `qualitest` (Compose `mysql` creates it). On backend start, **Flyway** runs `db/migration` (including seed). Login once migrate succeeds in logs.
+Browser: `http://localhost:5180`. MySQL only needs empty DB `qualitest` (Compose `mysql` creates it). On backend start, **Flyway** runs `db/migration` (including seed). Login once migrate succeeds in logs.
 
 > **JRebel:** do not combine with `spring-boot-devtools` restart. Set `spring.devtools.restart.enabled=false` (or drop the optional dependency) when using JRebel.
 
@@ -312,17 +312,9 @@ docker compose up -d --build # rebuild after code / Dockerfile changes
 
 ---
 
-## GitHub Pages landing (public launch day)
+## GitHub Pages landing
 
-Source: [`site/`](../site/). URL: `https://qualitest-hq.github.io/qualitest/`.  
-**Private + Free Org cannot serve Pages publicly** — enable on public day. Steps: [`site/README.md`](../site/README.md).
-
-1. Make the three repos **Public**
-2. Repo Settings → Pages → Source = **GitHub Actions**
-3. Repo Settings → Secrets and variables → Actions → Variables: set **`ENABLE_PAGES_DEPLOY=true`** (without it, CI only builds and skips deploy)
-4. Actions → **Deploy Pages** → Run workflow (or push `site/`)
-5. About → Website = the URL above
-6. Verify the landing page loads (Hero pipeline SVG; capability demos may show debug/canvas GIFs; MCP section still text steps)
+Source: [`site/`](../site/). Live: `https://qualitest-hq.github.io/qualitest/`. Local / CI notes: [`site/README.md`](../site/README.md).
 
 Local: `cd site && pnpm install && pnpm build && pnpm preview` → `http://127.0.0.1:4321/qualitest/`.
 
@@ -330,7 +322,7 @@ Local: `cd site && pnpm install && pnpm build && pnpm preview` → `http://127.0
 
 ## Related files
 
-- [`site/`](../site/) (GitHub Pages landing; launch-day steps in its README)
+- [`site/`](../site/) (GitHub Pages landing)
 - [`deploy/helm/qualitest/`](../deploy/helm/qualitest/) (Helm Chart; community-tested)
 - [`docker-compose.yml`](../docker-compose.yml)
 - [`docker-compose.override.yml.example`](../docker-compose.override.yml.example) (local YAML override template; real override is gitignored)

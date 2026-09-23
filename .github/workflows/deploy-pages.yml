@@ -2,10 +2,9 @@
 #
 # - push / workflow_dispatch：始终 build，校验 site/ 可构建
 # - deploy：仅当仓库变量 ENABLE_PAGES_DEPLOY=true 时执行
-#   公开日：Settings → Pages → Source = GitHub Actions
-#           Settings → Secrets and variables → Actions → Variables
-#           新增 ENABLE_PAGES_DEPLOY = true
-#           再跑本 workflow（或 push site/）
+#   Settings → Pages → Source = GitHub Actions
+#   Settings → Secrets and variables → Actions → Variables
+#   ENABLE_PAGES_DEPLOY = true 后，push site/ 或手动跑本 workflow 即发布
 
 name: Deploy Pages
 

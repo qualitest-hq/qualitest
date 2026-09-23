@@ -36,7 +36,7 @@ docker compose up -d
 # docker compose up -d --build
 ```
 
-- 浏览器：**http://localhost**（`WEB_PORT` 非 80 时带端口）
+- 浏览器：`http://localhost`（`WEB_PORT` 非 80 时带端口）
 - 默认账号：**`admin` / `admin123`**（Flyway V1 种子；上公网前务必改掉）
 - 首次以 **app 健康 / 日志 Flyway migrate 成功** 为准（不再依赖 initdb 整库 dump）
 - IDEA 插件服务器地址：Compose 填 **`http://localhost/prod-api`**；本机后端填 **`http://localhost:8800`**
@@ -117,7 +117,7 @@ mvn -pl qualitest-admin -am -DskipTests package
 cd qualitest-ui && pnpm install && pnpm dev
 ```
 
-浏览器：**http://localhost:5180**。MySQL 只需空库 `qualitest`（Compose `mysql` 服务会建）；启动后端后由 **Flyway** 自动执行 `db/migration`（含种子），日志出现 migrate 成功即可登录。
+浏览器：`http://localhost:5180`。MySQL 只需空库 `qualitest`（Compose `mysql` 服务会建）；启动后端后由 **Flyway** 自动执行 `db/migration`（含种子），日志出现 migrate 成功即可登录。
 
 > **JRebel**：与 `spring-boot-devtools` 热重启不要同时开。用 JRebel 时设 `spring.devtools.restart.enabled=false`（或去掉 / 可选依赖）。
 
@@ -317,19 +317,9 @@ docker compose up -d --build # 改代码或 Dockerfile 后本地重建
 
 ---
 
-## GitHub Pages 落地页（公开日）
+## GitHub Pages 落地页
 
-项目门面站源码在 [`site/`](../site/)，目标 URL：`https://qualitest-hq.github.io/qualitest/`。  
-**Private + Free Org 无法对外访问 Pages**；公开日再开。完整步骤见 [`site/README.md`](../site/README.md)。
-
-公开日 checklist（与路线图一致）：
-
-1. 三仓改为 **Public**
-2. 主仓 Settings → Pages → Source = **GitHub Actions**
-3. 主仓 Settings → Secrets and variables → Actions → Variables：新增 **`ENABLE_PAGES_DEPLOY=true`**（未设时 CI 只 build 不 deploy，避免 Private 下红叉）
-4. Actions → **Deploy Pages** → Run workflow（或 push `site/`）
-5. About → Website 填上述 URL
-6. 浏览器确认落地页可打开（Hero 为链路 SVG；能力区可有调试/画布短 GIF；MCP 区仍为文字步骤）
+门面站源码 [`site/`](../site/)，线上：`https://qualitest-hq.github.io/qualitest/`。本地与 CI 说明见 [`site/README.md`](../site/README.md)。
 
 本地预览：`cd site && pnpm install && pnpm build && pnpm preview` → `http://127.0.0.1:4321/qualitest/`。
 
@@ -337,7 +327,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后本地重建
 
 ## 相关文件
 
-- [`site/`](../site/)（GitHub Pages 落地页；公开日上线步骤见其 README）
+- [`site/`](../site/)（GitHub Pages 落地页）
 - [`deploy/helm/qualitest/`](../deploy/helm/qualitest/)（Helm Chart；社区自测）
 - [`docker-compose.yml`](../docker-compose.yml)
 - [`docker-compose.override.yml.example`](../docker-compose.override.yml.example)（本机 YAML 覆盖模板；真实 override 勿提交）
