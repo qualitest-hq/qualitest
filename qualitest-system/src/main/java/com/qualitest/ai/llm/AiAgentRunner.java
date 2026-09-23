@@ -55,6 +55,7 @@ public class AiAgentRunner {
 
     /**
      * 执行 Agent 主循环。
+     * 业务异常原样抛出；其它运行时异常转为带中文说明的业务异常（不透出上游原始 JSON）。
      *
      * @param options 模型配置、首轮消息、工具定义、工具执行器、步数上限、取消标志、监听器等
      * @return 成功时 content 为最终正文；失败时 error 有说明；取消时 interrupted 为 true 并带已有工具轨迹
@@ -65,29 +66,9 @@ public class AiAgentRunner {
         } catch (LlmClientException e) {
             throw e;
         } catch (RuntimeException e) {
-            throw wrapLlmFailure(e);
+            // 上游/网络等运行时异常 → 用户可读中文
+            throw new LlmClientException(LlmUpstreamErrorMessages.forChat(e), e);
         }
-    }
-
-    /** 将上游客户端抛出的运行时异常转为带中文说明的业务异常。 */
-    private static LlmClientException wrapLlmFailure(RuntimeException e) {
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof java.net.ConnectException) {
-                return new LlmClientException(
-                        "无法连接模型服务（连接被拒绝），请检查厂商 Base URL 是否可达、网关是否已启动", e);
-            }
-            if (t instanceof java.net.SocketTimeoutException) {
-                return new LlmClientException("连接模型服务超时，请检查网络或增大读超时", e);
-            }
-            if (t instanceof java.net.UnknownHostException) {
-                return new LlmClientException("无法解析模型服务地址，请检查厂商 Base URL", e);
-            }
-        }
-        String msg = e.getMessage();
-        if (msg != null && !msg.isBlank()) {
-            return new LlmClientException("模型调用失败: " + msg.trim(), e);
-        }
-        return new LlmClientException("模型调用失败", e);
     }
 
     private AgentRunResult runInternal(AgentRunOptions options) {

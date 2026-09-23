@@ -1,8 +1,8 @@
 package com.qualitest.ai.llm.discovery;
 
 import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.llm.LlmClientException;
+import com.qualitest.ai.llm.LlmUpstreamErrorMessages;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -12,7 +12,10 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 模型发现专用 HTTP GET 客户端：短超时、JSON 响应校验、统一错误映射。
+ * 模型发现专用的 HTTP GET 客户端。
+ * <p>
+ * 按上下文超时发起请求；成功时校验响应体为非空 JSON 并返回原文；
+ * 失败时按状态码或网络错误抛出中文业务异常。
  */
 @Slf4j
 final class DiscoveryHttpClient {
@@ -21,11 +24,14 @@ final class DiscoveryHttpClient {
     }
 
     /**
-     * 发起 GET 请求并返回响应体字符串。
+     * 发起 GET 并返回响应体字符串。
+     * 非 2xx：按状态码映射为业务异常；空体或非 JSON：分别提示空响应 / 协议或地址错误；
+     * IO 失败：提示网络超时或连接失败。
      *
      * @param url     完整请求 URL
-     * @param context 超时配置
-     * @param builder 可追加鉴权头等；url 由本方法设置
+     * @param context 连接超时、读超时等
+     * @param builder 可追加鉴权头等；最终 url 由本方法写入
+     * @return 响应体原文（已确认为可解析 JSON）
      */
     static String get(String url, ModelDiscoveryContext context, Request.Builder builder) {
         OkHttpClient client = new OkHttpClient.Builder()
@@ -36,7 +42,7 @@ final class DiscoveryHttpClient {
         try (Response response = client.newCall(request).execute()) {
             String body = response.body() != null ? response.body().string() : "";
             if (!response.isSuccessful()) {
-                throw mapHttpError(response.code(), body);
+                throw mapHttpError(response.code());
             }
             if (body.isBlank()) {
                 throw new LlmClientException("远端返回空响应");
@@ -55,12 +61,18 @@ final class DiscoveryHttpClient {
         }
     }
 
-    /** 将 HTTP 状态码映射为可读的业务异常消息 */
-    private static LlmClientException mapHttpError(int code, String body) {
-        return switch (code) {
-            case 401, 403 -> new LlmClientException("API Key 无效或无权访问");
-            case 404 -> new LlmClientException("接口地址错误，未找到模型列表端点");
-            default -> new LlmClientException("请求失败（HTTP " + code + "）");
-        };
+    /**
+     * 将 HTTP 状态码转为业务异常。
+     * 已知码（401/403/404/408/504/429）用固定中文；其余为「请求失败（HTTP 码）」。
+     *
+     * @param code HTTP 状态码
+     * @return 带中文说明的业务异常
+     */
+    private static LlmClientException mapHttpError(int code) {
+        String mapped = LlmUpstreamErrorMessages.forHttpStatus(code);
+        if (mapped != null) {
+            return new LlmClientException(mapped);
+        }
+        return new LlmClientException("请求失败（HTTP " + code + "）");
     }
 }
