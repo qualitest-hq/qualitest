@@ -12,6 +12,7 @@ import com.qualitest.api.util.CredentialTargetSupport.ManagedHeaderTemplate;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.project.constant.TestProjectConstants;
 import com.qualitest.project.domain.TestProjectAsset;
+import com.qualitest.flow.context.MustacheScan;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -21,8 +22,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 项目模板「预制参数 / 预制环境 / 预制测试流 / 预制提示词」解析，以及凭证规则与托管头的派生。
@@ -31,14 +30,6 @@ import java.util.regex.Pattern;
  * 凭证派生优先预制测试流 extracts（scope=asset）；无流时可读 match_config.credential。
  */
 public final class PrefabricatedTemplateExtrasSupport {
-
-    /** 匹配 {{asset.entryKey...}} 中的素材入口名。 */
-    private static final Pattern ASSET_ENTRY_KEY_PATTERN =
-            Pattern.compile("\\{\\{\\s*asset\\.([a-zA-Z0-9_]+)");
-
-    /** 简写占位符 {{token}}（单段标识，无 asset./flow.）。 */
-    private static final Pattern SHORT_PLACEHOLDER =
-            Pattern.compile("\\{\\{\\s*([a-zA-Z_][\\w]*)\\s*\\}\\}");
 
     private PrefabricatedTemplateExtrasSupport() {}
 
@@ -476,20 +467,29 @@ public final class PrefabricatedTemplateExtrasSupport {
         return StrUtil.trimToNull(seg);
     }
 
-    /** 把 {{token}} 一类单段占位展开为完整 {{asset.entry.field}}。 */
+    /**
+     * 把 {@code {{token}}} 这类单段简写占位全部换成给定的完整占位文案。
+     * 非简写占位原样保留；若没有任何简写被替换则返回原文。
+     *
+     * @param raw              原始头值或模板
+     * @param fullPlaceholder  完整占位，如 {{asset.adminAuth.token}}
+     * @return 展开后的字符串
+     */
     static String expandShortPlaceholders(String raw, String fullPlaceholder) {
         if (StrUtil.isBlank(raw)) {
             return fullPlaceholder;
         }
-        Matcher matcher = SHORT_PLACEHOLDER.matcher(raw);
-        StringBuffer sb = new StringBuffer();
-        boolean replaced = false;
-        while (matcher.find()) {
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(fullPlaceholder));
-            replaced = true;
-        }
-        matcher.appendTail(sb);
-        return replaced ? sb.toString() : raw;
+        StringBuilder sb = new StringBuilder(raw.length());
+        int[] cursor = {0};
+        boolean[] replaced = {false};
+        MustacheScan.forEachWhere(raw, MustacheScan::isShortIdentifier, span -> {
+            sb.append(raw, cursor[0], span.start());
+            sb.append(fullPlaceholder);
+            replaced[0] = true;
+            cursor[0] = span.endExclusive();
+        });
+        sb.append(raw, cursor[0], raw.length());
+        return replaced[0] ? sb.toString() : raw;
     }
 
     /** 若模板仍无 asset./flow. 占位，则回落到完整占位符。 */
@@ -655,19 +655,49 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
-     * 从文本中收集 {@code {{asset.key...}}} 的素材入口 key（去重写入 into）。
+     * 从文本中收集 {@code {{asset.入口名…}}} 的素材入口名，写入 into（去重）。
+     * 入口名须为字母数字下划线。
+     *
+     * @param text 可能含占位的文案
+     * @param into 收集结果集合
      */
     public static void collectAssetKeys(String text, Set<String> into) {
         if (StrUtil.isBlank(text) || into == null) {
             return;
         }
-        Matcher matcher = ASSET_ENTRY_KEY_PATTERN.matcher(text);
-        while (matcher.find()) {
-            String key = matcher.group(1);
-            if (StrUtil.isNotBlank(key)) {
-                into.add(key);
+        for (String inner : MustacheScan.listInners(text)) {
+            if (!inner.regionMatches(true, 0, "asset.", 0, "asset.".length())) {
+                continue;
+            }
+            String rest = inner.substring("asset.".length()).trim();
+            if (rest.isEmpty()) {
+                continue;
+            }
+            int dot = rest.indexOf('.');
+            String entry = (dot >= 0 ? rest.substring(0, dot) : rest).trim();
+            if (isAssetEntryKey(entry)) {
+                into.add(entry);
             }
         }
+    }
+
+    /**
+     * 判断字符串是否可作为素材入口名：非空且仅含字母、数字、下划线。
+     *
+     * @param key 候选入口名
+     * @return 合法则 true
+     */
+    private static boolean isAssetEntryKey(String key) {
+        if (StrUtil.isBlank(key)) {
+            return false;
+        }
+        for (int i = 0; i < key.length(); i++) {
+            char c = key.charAt(i);
+            if (!(Character.isLetterOrDigit(c) || c == '_')) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

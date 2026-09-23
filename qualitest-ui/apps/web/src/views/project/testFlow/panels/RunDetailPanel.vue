@@ -41,7 +41,7 @@
       </div>
     </header>
 
-    <!-- 失败摘要：按业务码 / 断言 / 其他分组，可点击跳步 -->
+    <!-- 失败摘要：按业务码 / 断言 / 其他分组；可点击跳步；条目下挂本步关联变量 -->
     <div v-if="failureGroups.hasAny" class="run-failure-groups">
       <div class="run-failure-groups__title">失败摘要</div>
       <div
@@ -67,6 +67,17 @@
             <span class="run-failure-group__type">({{ item.typeLabel }})</span>
           </span>
           <span class="run-failure-group__msg">{{ item.summary }}</span>
+          <!-- 本步关联 flow 变量：键 / 短值 -->
+          <div v-if="item.relatedVars.length" class="run-failure-group__vars">
+            <div
+                v-for="v in item.relatedVars"
+                :key="v.key"
+                class="run-failure-group__var"
+            >
+              <span class="run-failure-group__var-k">{{ v.key }}</span>
+              <span class="run-failure-group__var-v">{{ formatRelatedVarValue(v.value) }}</span>
+            </div>
+          </div>
         </button>
       </div>
     </div>
@@ -285,9 +296,11 @@ import {
   decodeUrlForDisplay,
   failureCategoryLabel,
   formatDurationMs,
+  formatRelatedVarValue,
   formatRunTime,
   isAuditStep,
   nodeTypeLabelZh,
+  pickRelatedFlowVars,
   resolveFailureCategory,
   summarizeStep,
 } from '../utils/runStepDisplay'
@@ -524,7 +537,7 @@ function stepIcon(type) {
 
 /**
  * 失败摘要分区：把失败步骤归入业务码 / 断言 / 其他三组。
- * 每项含节点名、类型中文、一行摘要；点击后跳到对应步骤。
+ * 每项含节点名、类型中文、一行摘要，以及本步关联 flow 变量（键 / 短值）；点击后跳到对应步骤。
  */
 const failureGroups = computed(() => {
   const r = run.value
@@ -541,6 +554,7 @@ const failureGroups = computed(() => {
       nodeName,
       typeLabel: nodeTypeLabelZh(step.nodeType),
       summary: summarizeStep(step),
+      relatedVars: pickRelatedFlowVars(step),
     }
     const cat = resolveFailureCategory(step)
     buckets[cat].push(item)
@@ -747,7 +761,7 @@ function escapeHtml(s) {
   white-space: nowrap;
 }
 
-/* 失败摘要：按业务码 / 断言 / 其他分组，点击条目跳到时间线对应步骤 */
+/* 失败摘要区：分组列表 + 条目下关联变量 */
 .run-failure-groups {
   margin-bottom: 10px;
   padding: 10px 12px;
@@ -841,6 +855,41 @@ function escapeHtml(s) {
 .run-failure-group__msg {
   color: #b91c1c;
   line-height: 1.4;
+  word-break: break-all;
+}
+
+/* 失败条目下的关联变量列表 */
+.run-failure-group__vars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #fecaca;
+}
+
+/* 单条关联变量：键 + 短值 */
+.run-failure-group__var {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  font-size: 10px;
+  line-height: 1.35;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.run-failure-group__var-k {
+  flex: 0 0 auto;
+  color: #9a3412;
+  font-weight: 600;
+}
+
+.run-failure-group__var-v {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #7f1d1d;
   word-break: break-all;
 }
 

@@ -23,7 +23,7 @@ import java.util.Set;
 /**
  * 将一次测试流运行渲染为单文件简易 HTML 报告。
  * <p>
- * 报告含页眉结论、失败摘要（可跳转）、业务步骤总览表、节点结构化卡片与页脚；
+ * 报告含页眉结论、失败摘要（可跳转、挂关联变量）、业务步骤总览表、节点结构化卡片与页脚；
  * 场景加载 / 快照 / 还原 / 恢复决策等审计步不进入步骤表与卡片。
  * 失败步卡片默认展开；通过步默认收起。
  */
@@ -201,7 +201,12 @@ public final class RunHtmlReportRenderer {
                 .append("</span><span class=\"meta-v\">").append(esc(v)).append("</span></div>\n");
     }
 
-    /** 写入失败摘要列表：类别、节点名、错误一行；节点名链到下方对应卡片 */
+    /**
+     * 写入失败摘要：失败类别、节点名（锚点链到下方卡片）、类型、错误一行、关联变量列表。
+     *
+     * @param sb       HTML 缓冲
+     * @param failures 失败步骤视图
+     */
     private static void appendFailureSummary(StringBuilder sb, List<StepView> failures) {
         sb.append("<section>\n<h2>失败摘要</h2>\n<ul class=\"fail-list\">\n");
         for (StepView s : failures) {
@@ -214,9 +219,28 @@ public final class RunHtmlReportRenderer {
             if (s.errorLine != null && !s.errorLine.isBlank()) {
                 sb.append("<div class=\"err\">").append(esc(s.errorLine)).append("</div>");
             }
+            appendRelatedVars(sb, s.relatedVars);
             sb.append("</li>\n");
         }
         sb.append("</ul>\n</section>\n");
+    }
+
+    /**
+     * 写入关联变量定义列表（键 / 短值）；无内容则不输出。
+     *
+     * @param sb          HTML 缓冲
+     * @param relatedVars 键 → 展示值
+     */
+    private static void appendRelatedVars(StringBuilder sb, Map<String, String> relatedVars) {
+        if (relatedVars == null || relatedVars.isEmpty()) {
+            return;
+        }
+        sb.append("<dl class=\"rel-vars\">\n");
+        for (Map.Entry<String, String> e : relatedVars.entrySet()) {
+            sb.append("<div class=\"rel-var\"><dt>").append(esc(e.getKey())).append("</dt><dd>")
+                    .append(esc(e.getValue())).append("</dd></div>\n");
+        }
+        sb.append("</dl>\n");
     }
 
     /** 写入业务步骤总览表：序号、节点、中文类型、状态、耗时、一行摘要 */
@@ -542,7 +566,7 @@ public final class RunHtmlReportRenderer {
 
     /**
      * 将落库步骤转为报告行视图。
-     * 跳过审计步；含 HTTP 时脱敏；失败步计算类别与错误行。
+     * 跳过审计步；含 HTTP 时脱敏；失败步计算类别、错误行与关联变量。
      */
     private static List<StepView> buildStepViews(List<TestFlowRunStepResult> steps) {
         List<StepView> out = new ArrayList<>();
@@ -574,6 +598,7 @@ public final class RunHtmlReportRenderer {
             v.summary = buildSummary(step.getNodeType(), details, v.status);
             if (failed) {
                 v.errorLine = buildErrorLine(details);
+                v.relatedVars = RelatedFlowVars.pick(details);
             }
             out.add(v);
         }
@@ -895,7 +920,7 @@ public final class RunHtmlReportRenderer {
                 .replace("'", "&#39;");
     }
 
-    /** 报告内联样式：总览表、失败摘要、节点卡片、规则表 */
+    /** 报告内联样式：总览表、失败摘要与关联变量、节点卡片、规则表 */
     private static String css() {
         return """
                 @page{size:A4;margin:16mm}
@@ -924,6 +949,10 @@ public final class RunHtmlReportRenderer {
                 .steps th,.rules th{background:#f3f6fb}
                 .fail-list{list-style:none;padding:0;margin:0}
                 .fail-list li{padding:6px 8px;margin:0 0 4px;background:#fff5f5;border:1px solid #ffd7d5}
+                .rel-vars{margin:6px 0 0;padding:4px 0 0;border-top:1px dashed #ffd7d5}
+                .rel-var{display:flex;gap:8px;font-size:9pt;font-family:Consolas,"Courier New",monospace;line-height:1.35;margin:2px 0}
+                .rel-var dt{flex:0 0 auto;color:#9a3412;font-weight:700;margin:0}
+                .rel-var dd{flex:1 1 auto;margin:0;color:#7f1d1d;word-break:break-all}
                 .fail-link{color:#1f6feb;text-decoration:none}
                 .fail-link:hover{text-decoration:underline}
                 .cat{display:inline-block;font-size:9pt;padding:1px 6px;border-radius:3px;background:#eaeef2}
@@ -981,6 +1010,8 @@ public final class RunHtmlReportRenderer {
         private String summary;
         /** 失败一行错误文案 */
         private String errorLine;
+        /** 失败摘要关联变量：键 → 短展示值；非失败为 null */
+        private Map<String, String> relatedVars;
         /** 已解析（且 HTTP 已脱敏）的步骤详情 */
         private JSONObject details;
     }

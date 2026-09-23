@@ -1,4 +1,4 @@
-/** 测试流运行时工具：占位符、断言/提取求值、图校验、节点 type 常量 */
+/** 测试流运行时工具：占位符扫描/求值、断言/提取、图校验、节点 type 常量 */
 export { nextSnowflakeId } from './snowflakeId';
 export type {
   GraphEdge,
@@ -31,6 +31,12 @@ export {
   resolvePlaceholderString,
   simpleJsonPath,
 } from './placeholder';
+/** 占位扫描：listMustacheInners / replaceMustache；MustacheSpan 为命中片段 */
+export {
+  listMustacheInners,
+  replaceMustache,
+} from './mustacheScan';
+export type { MustacheSpan } from './mustacheScan';
 export type { CompareRule, CondOperator } from './compareRule';
 export {
   COND_OPERATORS,

@@ -2,10 +2,9 @@
  * 鉴权头行：托管标记与 {{asset.*}} / {{flow.*}} 凭证占位解析。
  * 画布凭证作用域、Staging 黄条、Headers 表共用。
  */
+import { listMustacheInners } from '@/utils/flow/mustacheScan'
 
-const CREDENTIAL_PLACEHOLDER = /\{\{\s*(asset|flow)\.([^}]+?)\s*\}\}/gi
-
-/** 头值模板中的一条凭证占位（对齐后端 CredentialTargetSupport） */
+/** 头值模板中的一条凭证占位：flow 变量或 asset.入口.字段 */
 export interface CredentialPlaceholder {
   scope: 'flow' | 'asset'
   /** 展示路径，如 flow.token / asset.adminAuth.token */
@@ -22,6 +21,10 @@ export function isProfileManagedRow(row: Record<string, unknown> | null | undefi
   return managed === true || managed === 'true'
 }
 
+/**
+ * 按 scope 与点号后路径组装凭证占位。
+ * flow：取第一段为变量名；asset：第一段为入口名，其余为字段路径。
+ */
 function parseRest(scope: 'flow' | 'asset', rest: string): CredentialPlaceholder | null {
   const trimmed = String(rest || '').trim()
   if (!trimmed) return null
@@ -44,17 +47,19 @@ function parseRest(scope: 'flow' | 'asset', rest: string): CredentialPlaceholder
 }
 
 /**
- * 从头值模板解析全部凭证占位符（保序去重）
+ * 从头值模板解析全部凭证占位（保序去重）。
+ * 只认内层为 flow.… 或 asset.… 的占位；其它花括号忽略。
  */
 export function parseCredentialPlaceholders(value: unknown): CredentialPlaceholder[] {
   const text = String(value || '')
   const out: CredentialPlaceholder[] = []
   const seen = new Set<string>()
-  const re = new RegExp(CREDENTIAL_PLACEHOLDER.source, CREDENTIAL_PLACEHOLDER.flags)
-  let m: RegExpExecArray | null
-  while ((m = re.exec(text)) !== null) {
-    const scope = m[1].trim().toLowerCase() as 'flow' | 'asset'
-    const target = parseRest(scope, m[2])
+  for (const inner of listMustacheInners(text)) {
+    const dot = inner.indexOf('.')
+    if (dot <= 0 || dot >= inner.length - 1) continue
+    const scope = inner.slice(0, dot).trim().toLowerCase()
+    if (scope !== 'flow' && scope !== 'asset') continue
+    const target = parseRest(scope, inner.slice(dot + 1))
     if (!target) continue
     const key = target.displayPath.toLowerCase()
     if (seen.has(key)) continue

@@ -10,8 +10,7 @@
 import type { FlowRunContext, PlaceholderResolveMode } from './types';
 import { PlaceholderUndefinedError } from './types';
 import { JSONPath } from 'jsonpath-plus';
-
-const PLACEHOLDER_RE = /\{\{([^}]+)\}\}/g;
+import { replaceMustache } from './mustacheScan';
 
 /**
  * 把以 $ 开头的断言左值改成带 scope 的写法。
@@ -185,7 +184,8 @@ export function simpleJsonPath(body: unknown, expr: string): unknown {
 }
 
 /**
- * 替换模板中全部 {{…}}。
+ * 替换模板中全部合法路径占位 {{flow.|env.|asset.|http.…}}。
+ * 非路径形态的花括号保留为字面量；未定义路径在 lenient 下变空串，strict 下抛错。
  * @param mode lenient=未定义→空串；strict=未定义→抛错
  */
 export function resolvePlaceholderString(
@@ -194,7 +194,7 @@ export function resolvePlaceholderString(
   mode: PlaceholderResolveMode = 'lenient',
 ): string {
   if (template == null) return '';
-  return String(template).replace(PLACEHOLDER_RE, (_, inner: string) => {
+  return replaceMustache(String(template), (inner) => {
     const key = inner.trim();
     const value = resolvePathSegment(ctx, key);
     if (value == null) {

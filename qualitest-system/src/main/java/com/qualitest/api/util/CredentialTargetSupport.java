@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
+import com.qualitest.flow.context.MustacheScan;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -12,16 +13,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * 从 Profile 托管头解析凭证目标（{{asset.*}} / {{flow.*}}），供门禁与造流对齐登录 extracts。
+ * 从 Profile 托管头解析凭证目标（{{asset.*}} / {{flow.*}}）。
+ * 结果用于鉴权门禁校验、以及造流时识别登录接口应提取的凭证字段。
  */
 public final class CredentialTargetSupport {
-
-    private static final Pattern PLACEHOLDER = Pattern.compile(
-            "\\{\\{\\s*(asset|flow)\\.([^}]+?)\\s*\\}\\}", Pattern.CASE_INSENSITIVE);
 
     private CredentialTargetSupport() {}
 
@@ -122,17 +119,29 @@ public final class CredentialTargetSupport {
         return new ManagedHeaderTemplate("Authorization", "Bearer " + placeholder);
     }
 
-    /** 从托管头值模板解析全部凭证占位符（保序去重）。 */
+    /**
+     * 从头值模板解析全部凭证占位（保序去重）。
+     * 只认内层为 flow.… 或 asset.… 的占位；其它花括号忽略。
+     *
+     * @param headerValueTemplate 头值模板，如 Bearer {{flow.token}}
+     * @return 凭证目标列表；无命中则为空列表
+     */
     public static List<CredentialTarget> parseFromHeaderTemplate(String headerValueTemplate) {
         List<CredentialTarget> out = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         if (StrUtil.isBlank(headerValueTemplate)) {
             return out;
         }
-        Matcher matcher = PLACEHOLDER.matcher(headerValueTemplate);
-        while (matcher.find()) {
-            String scope = matcher.group(1).trim().toLowerCase(Locale.ROOT);
-            String rest = matcher.group(2).trim();
+        for (String inner : MustacheScan.listInners(headerValueTemplate)) {
+            int dot = inner.indexOf('.');
+            if (dot <= 0 || dot >= inner.length() - 1) {
+                continue;
+            }
+            String scope = inner.substring(0, dot).trim().toLowerCase(Locale.ROOT);
+            String rest = inner.substring(dot + 1).trim();
+            if (!"flow".equals(scope) && !"asset".equals(scope)) {
+                continue;
+            }
             CredentialTarget target = parseRest(scope, rest);
             if (target == null || !seen.add(target.identityKey())) {
                 continue;
@@ -142,6 +151,14 @@ public final class CredentialTargetSupport {
         return out;
     }
 
+    /**
+     * 按 scope 与点号后路径组装凭证目标。
+     * flow：取第一段为变量名；asset：第一段为入口名，其余为字段路径。
+     *
+     * @param scope flow 或 asset
+     * @param rest  点号后的路径
+     * @return 目标；无法解析则为 null
+     */
     private static CredentialTarget parseRest(String scope, String rest) {
         if (StrUtil.isBlank(rest)) {
             return null;

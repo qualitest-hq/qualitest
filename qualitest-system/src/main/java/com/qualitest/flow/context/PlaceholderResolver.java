@@ -4,8 +4,6 @@ import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
 
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 占位符与运行时路径解析。
@@ -14,12 +12,9 @@ import java.util.regex.Pattern;
  * 持久变量：{@code env.*}、{@code flow.*}、{@code asset.*}。<br>
  * 上一步 HTTP：{@code http.body} / {@code http.body.<JsonPath相对路径>}、
  * {@code http.status}、{@code http.duration}、{@code http.header.*}。<br>
- * LENIENT：未定义占位符替换为空串；STRICT：未定义则抛
- * {@link FlowErrorCode#TF_PLACEHOLDER_UNDEFINED}。
+ * LENIENT：未定义占位符替换为空串；STRICT：未定义则抛业务错误码 TF_PLACEHOLDER_UNDEFINED。
  */
 public record PlaceholderResolver(ResolveMode mode) {
-
-    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{([^}]+)\\}\\}");
 
     public enum ResolveMode {
         /** 未定义占位符 → 空字符串（调试 / Mock） */
@@ -28,39 +23,51 @@ public record PlaceholderResolver(ResolveMode mode) {
         STRICT
     }
 
+    /**
+     * 宽松模式解析器：占位未定义时替换为空串。
+     *
+     * @return 解析器实例
+     */
     public static PlaceholderResolver lenient() {
         return new PlaceholderResolver(ResolveMode.LENIENT);
     }
 
+    /**
+     * 严格模式解析器：占位未定义时抛错。
+     *
+     * @return 解析器实例
+     */
     public static PlaceholderResolver strict() {
         return new PlaceholderResolver(ResolveMode.STRICT);
     }
 
-    /** 替换模板中全部 {@code {{…}}}。 */
+    /**
+     * 替换模板中全部合法路径占位 {@code {{flow.|env.|asset.|http.…}}}。
+     * 非路径形态的花括号保留为字面量；未定义路径在宽松模式下变空串，严格模式下抛错。
+     *
+     * @param template 模板原文，null 视为空串
+     * @param ctx      当前运行上下文
+     * @return 替换后的字符串
+     */
     public String resolve(String template, FlowRunContext ctx) {
         if (template == null) {
             return "";
         }
-        Matcher matcher = PLACEHOLDER_PATTERN.matcher(template);
-        StringBuilder out = new StringBuilder();
-        while (matcher.find()) {
-            String inner = matcher.group(1).trim();
-            Object value = resolvePathSegment(ctx, inner);
+        return MustacheScan.replace(template, inner -> {
+            String key = inner.trim();
+            Object value = resolvePathSegment(ctx, key);
             if (value == null) {
                 if (mode == ResolveMode.STRICT) {
                     throw new FlowExecutionException(
                             FlowErrorCode.TF_PLACEHOLDER_UNDEFINED,
-                            "占位符未定义: {{" + inner + "}}",
-                            inner
+                            "占位符未定义: {{" + key + "}}",
+                            key
                     );
                 }
-                matcher.appendReplacement(out, "");
-            } else {
-                matcher.appendReplacement(out, Matcher.quoteReplacement(String.valueOf(value)));
+                return "";
             }
-        }
-        matcher.appendTail(out);
-        return out.toString();
+            return String.valueOf(value);
+        });
     }
 
     /**

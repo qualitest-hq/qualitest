@@ -1,5 +1,6 @@
 /**
- * runStepDisplay 单元测试：节点类型中文、URL 解码、失败分类、审计判定、耗时与时间线摘要。
+ * runStepDisplay 单元测试：节点类型中文、URL 解码、失败分类、审计判定、耗时与时间线摘要、关联变量。
+ * 边界：关联变量只取本步相关键；无键或 flowAfter 无对应项时为空。
  * 单跑：pnpm test runStepDisplay（在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
@@ -7,10 +8,13 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeUrlForDisplay,
   failureCategoryLabel,
+  flowKeyFromPath,
   formatDurationMs,
+  formatRelatedVarValue,
   isAuditStep,
   isBizCodeFailure,
   nodeTypeLabelZh,
+  pickRelatedFlowVars,
   resolveFailureCategory,
   summarizeStep,
 } from '@/views/project/testFlow/utils/runStepDisplay';
@@ -83,5 +87,45 @@ describe('runStepDisplay', () => {
         ],
       }),
     ).toBe('写入 classroomName 等 4 项');
+  });
+
+  it('pickRelatedFlowVars 用结构化键与 flow. 路径，断言优先 leftActual', () => {
+    // 前提：写入 token/amount；断言 left=flow.amount 且有 leftActual；right 含占位符也不扫
+    // 期望：token 来自 flowAfter，amount 用 leftActual；不扫 right；无相关键为空
+    const vars = pickRelatedFlowVars({
+      extracts: [{ name: 'token', scope: 'flow' }],
+      assigns: [{ name: 'amount' }],
+      script: { writes: [{ key: 'token' }] },
+      assert: {
+        rules: [{ left: 'flow.amount', right: '{{flow.noise}}', passed: false, leftActual: 0 }],
+      },
+      flowAfter: { amount: 9, token: 'abc', noise: 1 },
+    });
+    expect(vars.map((v) => v.key)).toEqual(['token', 'amount']);
+    expect(vars.find((v) => v.key === 'amount')?.value).toBe(0);
+    expect(vars.find((v) => v.key === 'noise')).toBeUndefined();
+    expect(
+      pickRelatedFlowVars({
+        assert: { rules: [{ left: 'flow.amount', leftActual: 7 }] },
+      }),
+    ).toEqual([{ key: 'amount', value: 7 }]);
+    expect(pickRelatedFlowVars({ flowAfter: { a: 1 } })).toEqual([]);
+    expect(pickRelatedFlowVars({ assigns: [{ name: 'x' }], flowAfter: {} })).toEqual([]);
+  });
+
+  it('flowKeyFromPath 只认 flow. 前缀', () => {
+    expect(flowKeyFromPath('flow.amount')).toBe('amount');
+    expect(flowKeyFromPath(' flow.code ')).toBe('code');
+    expect(flowKeyFromPath('http.body.code')).toBeNull();
+    expect(flowKeyFromPath('{{flow.amount}}')).toBeNull();
+    expect(flowKeyFromPath('flow.')).toBeNull();
+  });
+
+  it('formatRelatedVarValue 截断对象 JSON', () => {
+    expect(formatRelatedVarValue('hi')).toBe('hi');
+    expect(formatRelatedVarValue(null)).toBe('null');
+    const long = formatRelatedVarValue({ a: 'x'.repeat(100) }, 40);
+    expect(long.length).toBeLessThanOrEqual(40);
+    expect(long.endsWith('…')).toBe(true);
   });
 });

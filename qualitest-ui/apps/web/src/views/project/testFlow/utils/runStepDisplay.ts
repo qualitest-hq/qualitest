@@ -1,11 +1,14 @@
 /**
  * 运行详情与步骤时间线的展示工具：
- * 节点类型中文名、URL 解码、失败分类、审计步判定、耗时/时间格式化、一行摘要。
+ * 节点类型中文名、URL 解码、失败分类、审计步判定、耗时/时间格式化、一行摘要、关联变量。
  */
 import { runStatusLabel } from '../constants/runStatus';
 
 /** 失败类别：bizCode 业务码失败；assert 断言失败；other 其它失败 */
 export type FailureCategory = 'bizCode' | 'assert' | 'other';
+
+/** 失败摘要挂载的关联 flow 变量一项 */
+export type RelatedFlowVar = { key: string; value: unknown };
 
 /**
  * 生成时间线一行摘要时用到的步骤字段。
@@ -28,12 +31,21 @@ export type SummarizeStepInput = {
       message?: string | null;
     } | null;
   } | null;
-  assert?: { rules?: Array<{ passed?: boolean }> | null } | null;
+  assert?: {
+    rules?: Array<{
+      passed?: boolean;
+      left?: unknown;
+      right?: unknown;
+      leftActual?: unknown;
+    }> | null;
+  } | null;
   assigns?: Array<{ name?: string | null }> | null;
+  extracts?: Array<{ name?: string | null; scope?: string | null }> | null;
   script?: {
     language?: string | null;
     writes?: Array<{ key?: string | null }> | null;
   } | null;
+  flowAfter?: Record<string, unknown> | null;
   subflow?: {
     childSteps?: Array<{
       status?: string | null;
@@ -48,6 +60,9 @@ export type SummarizeStepInput = {
     flowSeed?: Record<string, unknown> | null;
   } | null;
 };
+
+/** 关联变量值展示的最大字符数（对象 / 数组截断） */
+const RELATED_VAR_VALUE_MAX = 80;
 
 /**
  * 审计类节点类型：场景加载、快照、还原、续跑决策。
@@ -201,6 +216,75 @@ export function summarizeAssignKeys(
 ): string {
   const keys = (assigns || []).map((a) => a.name).filter((n): n is string => !!n);
   return summarizeKeyList(keys, verb);
+}
+
+/**
+ * 从断言左值路径解析 flow 变量键：仅接受以 `flow.` 开头的写法，返回点号后整段；
+ * 非该前缀或前缀后为空则返回 null。
+ */
+export function flowKeyFromPath(path: string | null | undefined): string | null {
+  const p = String(path ?? '').trim();
+  if (!p.startsWith('flow.')) return null;
+  const key = p.slice('flow.'.length);
+  return key || null;
+}
+
+/**
+ * 从失败步收集关联 flow 变量：键 → 原值。
+ * 来源包括 extracts（scope 为 flow 或缺省）、assigns、script.writes、
+ * 以及断言规则 left 上的 flow. 路径；断言若带 leftActual 则优先用实测值，
+ * 否则从 flowAfter 取值。不读取 right，不回退整份快照。
+ */
+export function pickRelatedFlowVars(step: SummarizeStepInput | null | undefined): RelatedFlowVar[] {
+  if (!step) return [];
+  const flowAfter =
+    step.flowAfter && typeof step.flowAfter === 'object' ? step.flowAfter : null;
+  const values = new Map<string, unknown>();
+
+  const takeFromFlowAfter = (key: string) => {
+    if (!flowAfter || !Object.prototype.hasOwnProperty.call(flowAfter, key)) return;
+    if (!values.has(key)) values.set(key, flowAfter[key]);
+  };
+
+  for (const e of step.extracts || []) {
+    if (!e?.name) continue;
+    const scope = (e.scope || 'flow').trim().toLowerCase();
+    if (scope === 'flow') takeFromFlowAfter(e.name);
+  }
+  for (const a of step.assigns || []) {
+    if (a?.name) takeFromFlowAfter(a.name);
+  }
+  for (const w of step.script?.writes || []) {
+    if (w?.key) takeFromFlowAfter(w.key);
+  }
+  for (const r of step.assert?.rules || []) {
+    const key = flowKeyFromPath(r?.left != null ? String(r.left) : '');
+    if (!key) continue;
+    if (r != null && Object.prototype.hasOwnProperty.call(r, 'leftActual')) {
+      values.set(key, r.leftActual);
+    } else {
+      takeFromFlowAfter(key);
+    }
+  }
+
+  return Array.from(values.entries()).map(([key, value]) => ({ key, value }));
+}
+
+/**
+ * 关联变量值的短展示：标量原样；对象 / 数组截断 JSON。
+ */
+export function formatRelatedVarValue(value: unknown, max = RELATED_VAR_VALUE_MAX): string {
+  if (value === undefined) return 'undefined';
+  if (value === null) return 'null';
+  const t = typeof value;
+  if (t === 'string' || t === 'number' || t === 'boolean') {
+    return truncateText(String(value), max);
+  }
+  try {
+    return truncateText(JSON.stringify(value), max);
+  } catch {
+    return truncateText(String(value), max);
+  }
 }
 
 /**
