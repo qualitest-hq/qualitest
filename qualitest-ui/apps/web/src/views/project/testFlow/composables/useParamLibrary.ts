@@ -1,7 +1,7 @@
 /**
  * 左栏参数库：只聚合当前场景 env 与项目 asset 的配置态叶子。
  * 模板画布读 templateParamContext，不请求项目变量接口。
- * 支持按 scope 过滤、关键字搜索、复制 {{placeholder}}。
+ * 支持按 scope 过滤、关键字搜索、复制 {{placeholder}} / 样例值。
  */
 import { ref } from 'vue';
 

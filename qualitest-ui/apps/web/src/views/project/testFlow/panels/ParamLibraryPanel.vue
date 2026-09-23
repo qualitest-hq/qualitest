@@ -26,24 +26,46 @@
               v-for="item in group.items"
               :key="item.path"
               class="param-item"
+              :title="`点击复制 ${item.placeholder}`"
               @click="copyParamText(item.placeholder, item.path)"
           >
             <FlowScopeBadge :scope="item.scope" />
             <div class="param-item__main">
               <code class="param-item__path">{{ item.path }}</code>
-              <span v-if="itemMeta(item)" class="param-item__meta">{{ itemMeta(item) }}</span>
+              <span v-if="item.remark" class="param-item__remark">{{ item.remark }}</span>
+              <span
+                  v-if="item.sample"
+                  class="param-item__sample"
+                  :title="item.sample"
+              >{{ item.sample }}</span>
             </div>
-            <button
-                class="param-item__copy"
-                title="复制占位符"
-                type="button"
-                @click.stop="copyParamText(item.placeholder, item.path)"
-            >
-              <svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
-                <rect height="13" rx="2" width="13" x="9" y="9"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-              </svg>
-            </button>
+            <div class="param-item__actions">
+              <button
+                  v-if="item.sample"
+                  class="param-item__copy param-item__copy--value"
+                  title="复制值"
+                  type="button"
+                  @click.stop="copyParamText(item.sample, `${item.path} 值`)"
+              >
+                <svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="8" y1="13" x2="16" y2="13"/>
+                  <line x1="8" y1="17" x2="14" y2="17"/>
+                </svg>
+              </button>
+              <button
+                  class="param-item__copy"
+                  :title="`复制 ${item.placeholder}`"
+                  type="button"
+                  @click.stop="copyParamText(item.placeholder, item.path)"
+              >
+                <svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+                  <rect height="13" rx="2" width="13" x="9" y="9"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </template>
         <div v-else-if="!keyword.trim()" class="param-lib__empty is-inline">
@@ -58,7 +80,7 @@
 </template>
 
 <script setup>
-/** 左栏参数库：按 scope 分组展示 env/asset 配置态叶子，点击复制 */
+/** 左栏参数库：按 scope 分组展示 env/asset 配置态叶子，点击复制占位符 / 值 */
 import { computed, onMounted, watch } from 'vue'
 
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
@@ -90,10 +112,6 @@ const groupedItems = computed(() => {
 })
 
 const hasAnyVisible = computed(() => groupedItems.value.some((g) => g.items.length > 0))
-
-function itemMeta(item) {
-  return [item.remark, item.sample ? `值: ${item.sample}` : ''].filter(Boolean).join(' · ')
-}
 
 /** 当前激活场景绑定的环境 id（用于触发重载） */
 function activeScenarioEnvId() {
@@ -221,9 +239,9 @@ watch(
 
 .param-item {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px;
   border-radius: var(--pd-radius-sm);
   border: 1px solid var(--pd-border-subtle);
   background: var(--pd-surface-elevated);
@@ -234,6 +252,11 @@ watch(
     border-color: color-mix(in srgb, var(--pd-primary) 40%, var(--pd-border-subtle));
     box-shadow: var(--pd-shadow-card);
   }
+
+  :deep(.flow-scope-badge) {
+    align-self: flex-start;
+    margin-top: 1px;
+  }
 }
 
 .param-item__main {
@@ -243,6 +266,7 @@ watch(
   flex-direction: column;
   justify-content: center;
   gap: 2px;
+  padding-top: 1px;
 }
 
 .param-item__path {
@@ -255,15 +279,40 @@ watch(
   font-size: 13px;
   font-weight: 500;
   color: var(--pd-text);
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1.35;
 }
 
-.param-item__meta {
+.param-item__remark {
   display: block;
   font-size: 11px;
   color: var(--pd-text-muted);
   line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.param-item__sample {
+  display: block;
+  margin-top: 1px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--pd-text-muted) 85%, var(--pd-text));
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.param-item__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  align-self: center;
 }
 
 .param-item__copy {
@@ -281,10 +330,9 @@ watch(
   background: var(--pd-bg-sunken);
   color: var(--pd-text-muted);
   cursor: pointer;
-  align-self: center;
   line-height: 1;
   font: inherit;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s;
 
   svg {
     width: 14px;
@@ -292,16 +340,22 @@ watch(
     pointer-events: none;
     flex-shrink: 0;
   }
+
+  &--value {
+    opacity: 0.72;
+  }
 }
 
 .param-item:hover .param-item__copy {
   border-color: color-mix(in srgb, var(--pd-primary) 35%, var(--pd-border-subtle));
   color: var(--pd-primary);
+  opacity: 1;
 }
 
 .param-item__copy:hover {
   background: var(--pd-primary-soft);
   border-color: var(--pd-primary);
   color: var(--pd-primary);
+  opacity: 1;
 }
 </style>
