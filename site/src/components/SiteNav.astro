@@ -16,7 +16,14 @@ const enHref = pathForLang("en", base);
 <header class="nav">
   <div class="wrap nav-inner">
     <a class="brand" href={home}>
-      <span class="mark" aria-hidden="true"></span>
+      <img
+        class="mark"
+        src={`${base}images/logo.png`}
+        width="32"
+        height="32"
+        alt=""
+        decoding="async"
+      />
       {t.navBrand}
     </a>
     <nav class="links" aria-label={t.navAria}>
@@ -63,11 +70,12 @@ const enHref = pathForLang("en", base);
   }
 
   .mark {
-    width: 0.72rem;
-    height: 0.72rem;
-    border-radius: 2px;
-    background: linear-gradient(145deg, var(--accent-bright), var(--accent-deep));
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 7px;
+    object-fit: cover;
+    display: block;
+    box-shadow: 0 0 0 1px var(--line);
   }
 
   .brand:hover {
