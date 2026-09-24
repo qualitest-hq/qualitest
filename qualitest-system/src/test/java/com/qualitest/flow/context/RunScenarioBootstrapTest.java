@@ -15,8 +15,9 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 RunScenarioBootstrap：运行前从 graph meta 解析场景（含 env 覆盖与缺失场景）。
- * 边界：夹具 flow/linear-run-graph.json；无 DB。
+ * 测 RunScenarioBootstrap：从图 meta 解析运行场景与环境。
+ * 覆盖：默认场景与 flowSeed、入参环境覆盖、场景不存在、fallback 回落、缺环境硬失败文案。
+ * 边界：夹具 flow/linear-run-graph.json；无数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunScenarioBootstrapTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -66,6 +67,41 @@ class RunScenarioBootstrapTest {
                 () -> RunScenarioBootstrap.resolve(graph, "missing", null)
         );
         assertEquals(FlowErrorCode.TF_GRAPH_INVALID.getCode(), ex.getCode());
+    }
+
+    /**
+     * 前提：场景 env 为空串，未传覆盖，但提供 fallbackEnvId。
+     * 期望：使用 fallback。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("解析：场景无 env 时用 fallback")
+    void resolve_usesFallbackWhenScenarioEnvBlank() {
+        GraphJson graph = loadGraph("flow/linear-run-graph.json");
+        graph.getMeta().getScenarios().get(0).setTestProjectEnvId("");
+        ResolvedRunScenario scenario = RunScenarioBootstrap.resolve(graph, null, null, 5555L);
+        assertEquals(5555L, scenario.getTestProjectEnvId());
+    }
+
+    /**
+     * 前提：场景 env 为空且无 fallback。
+     * 期望：抛错且文案提示 list_project_envs。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("解析：无 env 无 fallback 时文案含指引")
+    void resolve_missingEnv_messageHintsListEnvs() {
+        GraphJson graph = loadGraph("flow/linear-run-graph.json");
+        graph.getMeta().getScenarios().get(0).setTestProjectEnvId("");
+        FlowExecutionException ex = assertThrows(
+                FlowExecutionException.class,
+                () -> RunScenarioBootstrap.resolve(graph, null, null, null)
+        );
+        assertEquals(FlowErrorCode.TF_GRAPH_INVALID.getCode(), ex.getCode());
+        assertTrue(ex.getMessage().contains("list_project_envs"));
+        assertTrue(ex.getMessage().contains("testProjectEnvId"));
+        assertTrue(ex.getMessage().contains("upsert_project_env")
+                || ex.getMessage().contains("submit_scenario"));
     }
 
     private static GraphJson loadGraph(String path) {

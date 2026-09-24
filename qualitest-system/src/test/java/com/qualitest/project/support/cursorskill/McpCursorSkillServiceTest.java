@@ -29,7 +29,7 @@ class McpCursorSkillServiceTest {
 
     /**
      * 前提：加载弹框完整载荷（默认只读）。
-     * 期望：含人话说明；示例为列出测试流 + 新建空流 + 同步 Skill + 单功能 + 指定范围 + 整项目。
+     * 期望：含人话说明；示例为列出测试流 + 新建空流 + 多端登录子流 + 同步 Skill + 单功能 + 指定范围 + 整项目。
      */
     @Test
     @Order(1)
@@ -38,22 +38,25 @@ class McpCursorSkillServiceTest {
         McpAgentGuidesPayload payload = service.loadPayload();
         assertTrue(payload.getHowToUse().contains("不需要特殊唤醒词"));
         assertFalse(payload.getTips().isEmpty());
-        assertEquals(6, payload.getExamples().size());
+        assertEquals(7, payload.getExamples().size());
         assertEquals("列出测试流", payload.getExamples().get(0).getLabel());
         assertTrue(payload.getExamples().get(0).getText().contains("list_flows"));
         assertEquals("新建空流", payload.getExamples().get(1).getLabel());
         assertTrue(payload.getExamples().get(1).getText().contains("create_flow"));
-        assertEquals("同步/更新本地 Skill", payload.getExamples().get(2).getLabel());
-        assertTrue(payload.getExamples().get(2).getText().contains("guideVersion"));
-        assertTrue(payload.getExamples().get(2).getText().contains("qualitest_sync_local_skill")
-                || payload.getExamples().get(2).getText().contains("get_mcp_guide_version"));
-        assertEquals("单功能", payload.getExamples().get(3).getLabel());
-        assertTrue(payload.getExamples().get(3).getText().contains("本次改动")
-                || payload.getExamples().get(3).getText().contains("刚改过"));
-        assertEquals("指定范围", payload.getExamples().get(4).getLabel());
-        assertTrue(payload.getExamples().get(4).getText().contains("<指定范围>"));
-        assertEquals("整项目", payload.getExamples().get(5).getLabel());
-        assertTrue(payload.getExamples().get(5).getText().contains("按模块"));
+        assertEquals("多端登录子流", payload.getExamples().get(2).getLabel());
+        assertTrue(payload.getExamples().get(2).getText().contains("探活再登录"));
+        assertTrue(payload.getExamples().get(2).getText().contains("list_project_auth_profiles"));
+        assertEquals("同步/更新本地 Skill", payload.getExamples().get(3).getLabel());
+        assertTrue(payload.getExamples().get(3).getText().contains("guideVersion"));
+        assertTrue(payload.getExamples().get(3).getText().contains("qualitest_sync_local_skill")
+                || payload.getExamples().get(3).getText().contains("get_mcp_guide_version"));
+        assertEquals("单功能", payload.getExamples().get(4).getLabel());
+        assertTrue(payload.getExamples().get(4).getText().contains("本次改动")
+                || payload.getExamples().get(4).getText().contains("刚改过"));
+        assertEquals("指定范围", payload.getExamples().get(5).getLabel());
+        assertTrue(payload.getExamples().get(5).getText().contains("<指定范围>"));
+        assertEquals("整项目", payload.getExamples().get(6).getLabel());
+        assertTrue(payload.getExamples().get(6).getText().contains("按模块"));
         assertEquals(7, payload.getGuides().size());
     }
 

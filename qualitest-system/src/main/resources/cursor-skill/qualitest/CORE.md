@@ -91,6 +91,7 @@
 | `update_flow_meta` | 浅合并改名称/说明并写库；须 `testFlowId`；不动画布；`flowDescription` 空串清空 |
 | `submit_http_node` 等 `submit_*` | 每次 1 单元；成功即落盘；须 `testFlowId` |
 | `upsert_asset_variables` / `upsert_auth_profile` | 工具内直写库；不要求 `testFlowId`；约定改 `patch.responseConvention` |
+| `upsert_project_env` | 新增/改项目环境实体并写库；不要求 `testFlowId`；绑场景仍用 `submit_scenario` |
 | `append_api_design_hints` | 追加接口短提示并落库 |
 
 <!-- mcp:import -->
@@ -109,7 +110,7 @@
 
 | 工具 | 要点 |
 |------|------|
-| `run_test_flow` | 跑库中最新图；须 `testFlowId`；可选场景/环境 id；须开「允许 MCP 自动跑流」 |
+| `run_test_flow` | 跑库中最新图；须 `testFlowId`；可选场景/环境 id；未绑环境不会自动选；须开「允许 MCP 自动跑流」 |
 <!-- /mcp:autorun -->
 
 ## 对用户说明

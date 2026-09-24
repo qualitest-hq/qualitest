@@ -29,10 +29,10 @@ import org.springframework.stereotype.Service;
  * MCP 单次工具调用编排。
  * <p>
  * 默认只允许只读工具。
- * 项目开启「允许 MCP 自动写流」后，还可调用改图提交、新建流、素材/鉴权写入等写工具。
- * 项目开启「允许 MCP 自动跑流」后，还可调用 run_test_flow。
+ * 项目开启「允许 MCP 自动写流」后，还可调用改图提交、新建流、素材/鉴权/环境写入等写工具。
+ * 项目开启「允许 MCP 自动跑流」后，还可调用 run_test_flow（须写流已开）。
  * 项目开启「允许 MCP 导入接口」后，还可调用 import_apis 写入项目接口库。
- * 写流、跑流、导入是三道独立开关（跑流通常依赖写流已开）。
+ * 写流、跑流、导入是三道独立开关。
  * 写流/跑流/导入须带 Token 绑定的操作者用户 id；画布类 submit 校验通过后立刻写库。
  */
 @Slf4j
@@ -104,6 +104,12 @@ public class McpToolInvokeService {
                         "MCP 不支持导入接口；请在项目设置开启「允许 MCP 导入接口」");
             }
             if (FlowDesignToolNames.isMcpAutorunTool(toolName)) {
+                // run_test_flow 须写流与跑流都开：缺写流时先提示写流，否则提示跑流
+                if (!gates.autoWriteEnabled()) {
+                    throw new ServiceException(
+                            "MCP 自动跑流须同时开启「允许 MCP 自动写流」；请在项目设置开启写流后再开跑流，"
+                                    + "或改用质衡 Web 端 AI 助手");
+                }
                 throw new ServiceException(
                         "MCP 不支持自动跑流；请在项目设置开启「允许 MCP 自动跑流」");
             }
@@ -177,10 +183,10 @@ public class McpToolInvokeService {
     }
 
     /**
-     * 项目级 MCP 权限开关快照：是否允许自动写流、是否允许自动跑流、是否允许导入接口。
+     * 项目级 MCP 权限开关快照。
      *
-     * @param autoWriteEnabled  是否允许改图、新建流等写流工具
-     * @param autorunEnabled    是否允许 run_test_flow
+     * @param autoWriteEnabled  是否允许改图、新建流、素材/鉴权/环境写入等写流工具
+     * @param autorunEnabled    是否允许 run_test_flow（实际调用还须写流已开）
      * @param importApisEnabled 是否允许 import_apis 写入项目接口库
      */
     public record McpProjectGates(boolean autoWriteEnabled, boolean autorunEnabled, boolean importApisEnabled) {

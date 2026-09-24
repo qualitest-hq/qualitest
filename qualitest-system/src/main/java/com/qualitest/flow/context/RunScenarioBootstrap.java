@@ -13,8 +13,9 @@ import java.util.Map;
 /**
  * 运行场景解析：从图内 meta.scenarios 选出本次 Run 使用的环境与 flow 初值。
  * <p>
- * 场景选择优先级：API 入参 scenarioId → activeScenarioId → 列表首条。
- * 环境 ID 优先级：API 入参 testProjectEnvId → 场景内配置。
+ * 场景选择优先级：入参 scenarioId → activeScenarioId → 列表首条。
+ * 环境 ID 优先级：入参 testProjectEnvId → 场景内配置 → 可选 fallbackEnvId。
+ * 三者皆空时硬失败，不会自动挑选项目环境。
  * <p>
  * 同时把场景上的 onNodeFailure、onSnapshotFailure 带入解析结果，供正式 Run 决定节点失败、checkpoint 失败时的处理方式。
  */
@@ -24,14 +25,28 @@ public final class RunScenarioBootstrap {
     }
 
     /**
+     * 解析场景配置（不使用额外回落环境；缺环境时直接失败）。
+     *
+     * @param graph              已迁移的图
+     * @param scenarioIdOverride 入参场景 id，可覆盖 activeScenarioId
+     * @param envIdOverride      入参环境 id，可覆盖场景内 testProjectEnvId
+     * @return 场景 id、环境 id、flow 初值，以及节点/checkpoint 失败策略
+     */
+    public static ResolvedRunScenario resolve(GraphJson graph, String scenarioIdOverride, Long envIdOverride) {
+        return resolve(graph, scenarioIdOverride, envIdOverride, null);
+    }
+
+    /**
      * 解析场景配置。
      *
      * @param graph              已迁移的图
      * @param scenarioIdOverride 入参场景 id，可覆盖 activeScenarioId
      * @param envIdOverride      入参环境 id，可覆盖场景内 testProjectEnvId
+     * @param fallbackEnvId      入参与场景均无 env 时的可选回落；正式触发跑流应传 null
      * @return 场景 id、环境 id、flow 初值，以及节点/checkpoint 失败策略；策略未配置时为 null，由执行器填默认（fail / abort）
      */
-    public static ResolvedRunScenario resolve(GraphJson graph, String scenarioIdOverride, Long envIdOverride) {
+    public static ResolvedRunScenario resolve(GraphJson graph, String scenarioIdOverride, Long envIdOverride,
+                                              Long fallbackEnvId) {
         GraphMeta meta = graph != null ? graph.getMeta() : null;
         if (meta == null || meta.getScenarios() == null || meta.getScenarios().isEmpty()) {
             throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID, "缺少 meta.scenarios");
@@ -65,7 +80,15 @@ public final class RunScenarioBootstrap {
             }
         }
         if (envId == null) {
-            throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID, "未指定 testProjectEnvId");
+            envId = fallbackEnvId;
+        }
+        if (envId == null) {
+            // 正式跑流不自动选环境：须场景已绑、入参覆盖，或先建环境再绑
+            throw new FlowExecutionException(
+                    FlowErrorCode.TF_GRAPH_INVALID,
+                    "未指定 testProjectEnvId；请先 list_project_envs，再 submit_scenario 绑定，"
+                            + "或跑流时显式传入；缺环境实体可用 upsert_project_env 新建"
+            );
         }
 
         Map<String, Object> flowSeed = new HashMap<>();

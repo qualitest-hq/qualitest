@@ -26,8 +26,8 @@ import java.util.Map;
  * AI 造流写工具：按 profileId 浅合并更新多端 Profile，或 create=true 时新建。
  * <p>
  * patch 可改：name、pathPrefix、鉴权托管头、responseConvention（响应约定四字段）、credentialApi。
- * 半自动：只记 pending 提案，用户在聊天侧确认后才写 auth_config；
- * 全自动：工具内直接写库，提案 status 记为 confirmed。
+ * 半自动：须有提案捕获器；只记 pending 提案，用户确认后才写 auth_config。<br>
+ * 全自动：工具内直接写库，提案 status 为 confirmed；捕获器可为空。
  * 模板画布模式禁止写入。
  */
 @RequiredArgsConstructor
@@ -42,9 +42,11 @@ public class UpsertAuthProfileTool implements QualitestTool {
 
     /**
      * 校验入参与项目，预览合并结果后按半自动/全自动分别记提案或落盘。
+     * <p>
+     * 半自动缺少捕获器时直接失败；全自动允许捕获器为空并立即写库。
      *
      * @param arguments 须含 patch；更新须 profileId，新建须 create=true
-     * @param ctx       须含 testProjectId 与 authProfileUpsertCapture
+     * @param ctx       须含 testProjectId；半自动还须 authProfileUpsertCapture
      * @return 提案回执 JSON（profileId / action / status / changedFields / after / hint）
      */
     @Override
@@ -56,8 +58,10 @@ public class UpsertAuthProfileTool implements QualitestTool {
         if (projectId == null) {
             return FlowDesignToolSupport.errorJson("缺少 testProjectId");
         }
+        boolean autopilot = ctx.isAutopilotEnabled();
         AuthProfileUpsertCapture capture = ctx.getAuthProfileUpsertCapture();
-        if (capture == null) {
+        // 半自动必须能暂存提案；全自动可跳过捕获器，直接落盘
+        if (capture == null && !autopilot) {
             return FlowDesignToolSupport.errorJson("多端配置提案捕获器未就绪");
         }
         Map<String, Object> patch = AuthProfileUpsertSupport.parsePatch(arguments.get("patch"));
@@ -102,7 +106,6 @@ public class UpsertAuthProfileTool implements QualitestTool {
         String action = existing == null
                 ? AuthProfileUpsertProposal.ACTION_CREATED
                 : AuthProfileUpsertProposal.ACTION_UPDATED;
-        boolean autopilot = ctx.isAutopilotEnabled();
         String status = AuthProfileUpsertProposal.STATUS_PENDING;
         String resolvedId = existing != null ? existing.getId() : profileId;
 
@@ -131,7 +134,9 @@ public class UpsertAuthProfileTool implements QualitestTool {
                 .after(new LinkedHashMap<>(after))
                 .changedFields(changed)
                 .build();
-        capture.record(proposal);
+        if (capture != null) {
+            capture.record(proposal);
+        }
         return buildAck(proposal, ctx.getMaxToolResultBytes(), autopilot);
     }
 

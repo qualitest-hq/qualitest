@@ -181,7 +181,7 @@
               @node-drag-stop="onNodeDragStop"
               @pane-click="onPaneClick"
               @edges-change="onEdgesChange"
-              @nodes-change="onGraphChange"
+              @nodes-change="onNodesChange"
               @nodes-initialized="onNodesInitialized"
           >
             <Background :gap="20" :size="1" color="rgba(11, 110, 220, 0.06)" />
@@ -316,6 +316,7 @@ import { useFlowViewport } from './composables/useFlowViewport'
 import { useAiStagingStore } from './stores/aiStagingStore'
 import { useFlowCanvasStore } from './stores/flowCanvasStore'
 import { stagingPendingSaveTooltip } from './utils/promptStagingPendingSave'
+import { nodeChangeAffectsPersist } from './utils/nodeChangeAffectsPersist'
 import { useExternalGraphSync } from './composables/useExternalGraphSync'
 import { useFlowEditLease } from './composables/useFlowEditLease'
 
@@ -593,8 +594,11 @@ function openProjectSetting() {
 
 provide('openHttpConfig', openHttpConfig)
 
-function onGraphChange() {
-  store.markDirty()
+function onNodesChange(changes) {
+  // 仅坐标/增删才标脏；dimensions、select 等打开画布就会触发，误占写锁会挡住 MCP
+  if (nodeChangeAffectsPersist(changes)) {
+    store.markDirty()
+  }
 }
 
 function conditionNodeIds() {

@@ -30,7 +30,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 MCP 工具调用：只读白名单、写流开关、导入接口开关、关开关时拒绝、开开关查询、错误回执标记。
+ * 测 MCP 工具调用门控与执行编排。
+ * 覆盖：只读白名单、写流/跑流/导入开关开闭时的放行与拒绝文案、操作者校验、错误回执标记。
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpToolInvokeServiceTest {
@@ -269,6 +270,29 @@ class McpToolInvokeServiceTest {
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> service.invoke(FlowDesignToolNames.RUN_TEST_FLOW.getId(), params, 100L, 7L));
         assertTrue(ex.getMessage().contains("允许 MCP 自动跑流"));
+        verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
+    }
+
+    /**
+     * 前提：跑流开、写流关；调用 run_test_flow。
+     * 期望：拒绝文案提示须开启自动写流；不委托 Executor。
+     */
+    @Test
+    @Order(15)
+    @DisplayName("跑流开写流关时 run_test_flow 提示须开写流")
+    void invoke_runTestFlow_rejectedWhenWriteOffEvenIfAutorunOn() {
+        when(testProjectService.selectTestProjectById(100L)).thenReturn(
+                TestProject.builder()
+                        .testProjectId(100L)
+                        .mcpAutoWriteEnabled(false)
+                        .mcpAutorunEnabled(true)
+                        .build());
+        McpToolInvokeParams params = new McpToolInvokeParams();
+        params.setTestFlowId(1L);
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.invoke(FlowDesignToolNames.RUN_TEST_FLOW.getId(), params, 100L, 7L));
+        assertTrue(ex.getMessage().contains("允许 MCP 自动写流"));
+        assertFalse(ex.getMessage().contains("不支持自动跑流"));
         verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
     }
 

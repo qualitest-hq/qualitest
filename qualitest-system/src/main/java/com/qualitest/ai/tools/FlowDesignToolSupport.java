@@ -40,6 +40,10 @@ public final class FlowDesignToolSupport {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 解析长整型参数。
+     * 支持 Number 或可解析的数字字符串；空串、非法格式返回 null。
+     */
     public static Long longArg(Object value) {
         if (value == null) {
             return null;
@@ -53,6 +57,28 @@ public final class FlowDesignToolSupport {
         }
         try {
             return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 解析整型参数。
+     * 支持 Number 或可解析的数字字符串；空串、非法格式返回 null。
+     */
+    public static Integer intArg(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number n) {
+            return n.intValue();
+        }
+        String s = String.valueOf(value).trim();
+        if (s.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(s);
         } catch (NumberFormatException e) {
             return null;
         }

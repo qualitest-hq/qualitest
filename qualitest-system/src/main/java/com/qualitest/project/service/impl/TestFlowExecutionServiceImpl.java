@@ -147,7 +147,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             );
         }
 
-        // 3. 解析运行场景与环境，组装运行时上下文
+        // 3. 解析运行场景与环境（须入参或场景已绑环境；此处不自动挑选）
         ResolvedRunScenario scenario = RunScenarioBootstrap.resolve(
                 graph,
                 params.getRunScenarioId(),

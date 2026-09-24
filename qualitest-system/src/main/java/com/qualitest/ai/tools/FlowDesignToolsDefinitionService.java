@@ -232,9 +232,11 @@ public class FlowDesignToolsDefinitionService {
     }
 
     /**
-     * 组装 MCP tools/list。参数顺序与 guideVersion 一致：写流 → 跑流 → 导入。
+     * 组装 MCP tools/list。
+     * 先按写流开关取只读或「只读+写流」列表，再按导入/跑流开关追加对应工具。
+     * 跑流工具仅在写流与跑流都开启时追加。
      *
-     * @param mcpAutoWriteEnabled  true：追加写流工具
+     * @param mcpAutoWriteEnabled  true：列表含改图、新建流、素材/鉴权/环境写入等
      * @param mcpAutorunEnabled    true：在写流已开时追加 run_test_flow
      * @param mcpImportApisEnabled true：追加 import_apis
      */
@@ -247,7 +249,7 @@ public class FlowDesignToolsDefinitionService {
             appendMcpNamedTool(protocolTools, FlowDesignToolNames.IMPORT_APIS.getId(),
                     "加载 MCP import_apis 定义失败");
         }
-        // 跑流依赖写流：仅两开关都开时列出 run_test_flow
+        // 跑流工具须写流与跑流都开才出现在列表中
         if (mcpAutorunEnabled && mcpAutoWriteEnabled) {
             appendMcpNamedTool(protocolTools, FlowDesignToolNames.RUN_TEST_FLOW.getId(),
                     "加载 MCP run_test_flow 定义失败");

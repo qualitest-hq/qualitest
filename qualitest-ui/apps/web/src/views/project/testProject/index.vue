@@ -132,10 +132,10 @@
         <el-form-item label="项目名" prop="projectName">
           <el-input v-model="form.projectName" placeholder="请输入项目名"/>
         </el-form-item>
-        <el-form-item v-if="!form.testProjectId" label="项目模板" prop="templateIds">
+        <el-form-item v-if="!form.testProjectId" label="项目模板">
           <div class="test-project-template-field">
             <p class="test-project-template-tip">
-              新建项目须至少勾选一套项目模板，用于登录口免登与凭证抽取。商城双端建议先勾「管理端 Bearer」，再勾「客户端 Bearer」。
+              可选。勾选后可预置登录口免登与凭证抽取；也可稍后在项目设置中添加。商城双端建议先勾「管理端 Bearer」，再勾「客户端 Bearer」。
             </p>
             <AuthTemplateCheckboxList
                 v-model="form.templateIds"
@@ -247,22 +247,6 @@ const data = reactive({
   rules: {
     projectName: [
       {required: true, message: "项目名不能为空", trigger: "blur"}
-    ],
-    templateIds: [
-      {
-        validator: (_rule, value, callback) => {
-          if (form.value.testProjectId != null) {
-            callback()
-            return
-          }
-          if (!Array.isArray(value) || value.length === 0) {
-            callback(new Error('请至少勾选一套项目模板'))
-            return
-          }
-          callback()
-        },
-        trigger: 'change',
-      },
     ],
   }
 })

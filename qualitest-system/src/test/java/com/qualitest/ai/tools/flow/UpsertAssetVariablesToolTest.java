@@ -30,8 +30,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 UpsertAssetVariablesTool：半自动记提案；全自动直接写库；回执不含明文。
- * 边界：Mock 素材服务，无 DB。
+ * 测 UpsertAssetVariablesTool：半自动记提案；全自动可无捕获器并直接写库；回执不含明文。
+ * 边界：Mock 素材服务，无真实数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=UpsertAssetVariablesToolTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -177,12 +177,12 @@ class UpsertAssetVariablesToolTest {
     }
 
     /**
-     * 前提：上下文无 Capture。
+     * 前提：半自动上下文无 Capture。
      * 期望：回执含 error，不落盘。
      */
     @Test
     @Order(5)
-    @DisplayName("缺少 Capture 时返回错误")
+    @DisplayName("半自动缺少 Capture 时返回错误")
     void upsert_missingCapture_returnsError() {
         FlowDesignToolContext noCapture = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
@@ -193,5 +193,33 @@ class UpsertAssetVariablesToolTest {
                 "fields", Map.of("password", "x")), noCapture);
         assertTrue(JSON.parseObject(json).containsKey("error"));
         verify(assetService, never()).insertTestProjectAsset(any());
+    }
+
+    /**
+     * 前提：全自动且 Capture 为空。
+     * 期望：直接 insert，回执 confirmed，不因捕获器未就绪失败。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("全自动无 Capture 时仍直写")
+    void upsert_autopilot_withoutCapture_persists() {
+        when(assetService.selectTestProjectAssetResultByKey(PROJECT_ID, "adminAuth"))
+                .thenThrow(new ServiceException("素材条目不存在"));
+        FlowDesignToolContext autoNoCapture = FlowDesignToolContext.builder()
+                .testProjectId(PROJECT_ID)
+                .maxToolResultBytes(8192)
+                .autopilotEnabled(true)
+                .build();
+
+        String json = tool.execute(Map.of(
+                "key", "adminAuth",
+                "fields", Map.of("username", "admin", "password", "secret")), autoNoCapture);
+
+        JSONObject root = JSON.parseObject(json);
+        assertFalse(root.containsKey("error"));
+        assertEquals(AssetUpsertProposal.STATUS_CONFIRMED, root.getString("status"));
+        assertEquals("created", root.getString("action"));
+        assertFalse(json.contains("secret"));
+        verify(assetService).insertTestProjectAsset(any());
     }
 }

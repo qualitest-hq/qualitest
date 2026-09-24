@@ -2,7 +2,7 @@
 
 Qualitest exposes a **project-scoped MCP** service over **Streamable HTTP** so **MCP-capable AI editors / agents** (Cursor, VS Code ecosystem, Claude Code, …) can query this project’s APIs, test flows, and Run context.  
 Examples below use **Cursor `mcp.json`**. Other clients that support HTTP MCP + custom headers can use the same fields.  
-**Read-only by default.** Three independent Project-settings switches: **“Allow MCP auto-write”** (`create_flow` / `update_flow_meta` / `submit_*` / upserts), **“Allow MCP auto-run”** (`run_test_flow` only), and **“Allow MCP import APIs”** (`import_apis` only). Auto-run usually requires write. The Token only binds project identity.
+**Read-only by default.** Three independent Project-settings switches: **“Allow MCP auto-write”** (`create_flow` / `update_flow_meta` / `submit_*` / upserts including `upsert_project_env`), **“Allow MCP auto-run”** (`run_test_flow` only), and **“Allow MCP import APIs”** (`import_apis` only). Auto-run usually requires write. The Token only binds project identity.
 
 中文版：[mcp.md](./mcp.md)
 
@@ -14,7 +14,7 @@ By default MCP is **read-only** (list flows, inspect topology, inspect failed ru
 
 | Switch | In plain terms | What the agent does |
 |:-------|:---------------|:--------------------|
-| **Auto-write** | Let Cursor **build / edit a test flow** for you — no hand-dragging the canvas | `create_flow`, then unit `submit_*` for nodes, asserts, edges; **each success persists**; an open Web canvas syncs over SSE |
+| **Auto-write** | Let Cursor **build / edit a test flow** for you — no hand-dragging the canvas | `create_flow`, then unit `submit_*` for nodes, asserts, edges; **each success persists**; an open Web canvas syncs over SSE; use `upsert_project_env` when an env entity is missing |
 | **Auto-run** | Let Cursor **hit Run** for you — no hopping back to the browser | `run_test_flow` on the latest graph in the DB; on failure, `get_run_failure` pulls the step back into the chat |
 
 Write-only can build the graph; Run still needs the Web UI unless auto-run is on. With both on, create → verify → fix stays in one chat.
@@ -127,7 +127,7 @@ When enabled, `tools/list` also exposes `create_flow`, `update_flow_meta`, all `
 
 ### Auto-run (“Allow MCP auto-run” on)
 
-When enabled, `tools/list` also exposes `run_test_flow`. Usually requires auto-write. Turning write off forces auto-run off on the server.
+When enabled, `tools/list` also exposes `run_test_flow`. Missing env is a hard failure — no silent default. Usually requires auto-write. Turning write off forces auto-run off on the server.
 
 ### Import APIs (“Allow MCP import APIs” on)
 
@@ -135,7 +135,7 @@ Exposes `import_apis`: structured `items[]` upsert by HTTP method + normalized p
 
 ---
 
-## 4. Three sample prompts
+## 4. Sample prompts
 
 Ask in Cursor (the model will call MCP). Prefer `list_flows` first, then a concrete `testFlowId`.
 
@@ -159,6 +159,15 @@ Use get_graph_summary / get_node_detail for topology.
 ```text
 Same testFlowId. Call get_run_failure; summarize failed step, assert/HTTP errors,
 and suggest what to change on the canvas (advice only).
+```
+
+**④ Multi-end login subflows (needs auto-write; run needs auto-run)**
+
+```text
+Via qualitest MCP, for each auth Profile in this project, create a probe-then-login subflow (e.g. admin + client):
+1. list_project_auth_profiles, list_asset_variables, search_apis (login + probe APIs per side). Missing asset keys → upsert_asset_variables (adminAuth: username/password; clientAuth: mobile/password). No Profiles → tell user to Apply a project template or upsert_auth_profile.
+2. create_flow once per side (name includes side, e.g. "admin login" / "client login"). Graph: Condition(credential exists) → probe HTTP (statusCheck: {mode:whitelist, values:[200,401]} + successCheck.mode=off) → Condition(http.status=200); IF on probe success has no outgoing edge, ELSE connects to login; login extracts write the asset.* referenced by that side's headerValueTemplate (never the same credential key on both sides). Optionally list_subflow_templates and follow a platform/project template skeleton.
+3. If auto-run is on, run_test_flow each flow; report testFlowId and side.
 ```
 
 ---

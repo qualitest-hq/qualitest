@@ -54,4 +54,24 @@ class FlowDesignNodeDataKeysTest {
         assertEquals(List.of("foo"), removed);
         assertTrue(data.containsKey("rules"));
     }
+
+    /**
+     * 前提：http data 含 statusCheck（探活白名单）与无关 requestConfig。
+     * 期望：保留 statusCheck，剔除 requestConfig。
+     */
+    @Test
+    @Order(3)
+    @DisplayName("http 保留 statusCheck、剔除未知键")
+    void stripUnknown_http_keepsStatusCheck() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("statusCheck", Map.of("mode", "whitelist", "values", List.of(200, 401)));
+        data.put("successCheck", Map.of("mode", "off"));
+        data.put("requestConfig", Map.of("method", "GET"));
+        List<String> removed = FlowDesignNodeDataKeys.stripUnknown("http", data);
+        assertEquals(List.of("requestConfig"), removed);
+        assertTrue(data.containsKey("statusCheck"));
+        assertTrue(data.containsKey("successCheck"));
+        assertFalse(data.containsKey("requestConfig"));
+    }
 }

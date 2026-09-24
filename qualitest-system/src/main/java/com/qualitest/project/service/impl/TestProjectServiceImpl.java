@@ -2,7 +2,6 @@ package com.qualitest.project.service.impl;
 
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
-import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.project.constant.TestProjectConstants;
@@ -95,19 +94,16 @@ public class TestProjectServiceImpl implements ITestProjectService {
             testProject.setAssetVariables(TestProjectConstants.EMPTY_ASSET_VARIABLES_JSON);
         }
         // 勾了模板：auth_config 先空着；Apply 须在默认环境建好后由 Controller 调用（seedEnvs 依赖已有环境行）
-        // 没勾模板：必须自带非空 Profile，否则拒绝新建
+        // 没勾模板：可带非空 Profile，也可建空项目（之后在设置里从模板追加）
         List<Long> templateIds = testProject.getTemplateIds();
         boolean hasTemplates = templateIds != null && templateIds.stream().anyMatch(Objects::nonNull);
         if (hasTemplates) {
             testProject.setAuthConfig(null);
         } else if (testProject.getAuthConfig() != null) {
             String normalized = ProjectAuthConfigSupport.normalizeToJson(testProject.getAuthConfig());
-            if (ProjectAuthConfigSupport.isEmpty(ProjectAuthConfigSupport.parse(normalized))) {
-                throw new ServiceException("新建项目须至少勾选一套项目模板");
-            }
-            testProject.setAuthConfig(normalized);
-        } else {
-            throw new ServiceException("新建项目须至少勾选一套项目模板");
+            testProject.setAuthConfig(ProjectAuthConfigSupport.isEmpty(ProjectAuthConfigSupport.parse(normalized))
+                    ? null
+                    : normalized);
         }
         testProject.setCreateTime(DateUtils.getNowDate());
         return testProjectMapper.insertTestProject(testProject);

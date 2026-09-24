@@ -21,10 +21,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 按 key 提出新增或更新项目素材库条目。
+ * 按 key 新增或更新项目素材库条目。
  * <p>
- * 半自动：只把提案写入本轮捕获器，不写库；用户确认后才落盘。<br>
- * 全自动：工具内直接写库，提案状态为 confirmed。
+ * 半自动：须有提案捕获器；只把提案写入本轮容器，不写库，待用户确认后落盘。<br>
+ * 全自动：工具内直接写库，提案状态为 confirmed；捕获器可为空（例如 MCP 全自动上下文）。
  * 回执含 key、字段名、action、status，不含字段明文。
  */
 @RequiredArgsConstructor
@@ -40,6 +40,8 @@ public class UpsertAssetVariablesTool implements QualitestTool {
 
     /**
      * 校验入参 → 查库判定新建/更新 → 半自动记提案 / 全自动落盘 → 返回无明文回执。
+     * <p>
+     * 半自动缺少捕获器时直接失败；全自动允许捕获器为空并立即写库。
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
@@ -50,8 +52,10 @@ public class UpsertAssetVariablesTool implements QualitestTool {
         if (projectId == null) {
             return FlowDesignToolSupport.errorJson("缺少 testProjectId");
         }
+        boolean autopilot = ctx.isAutopilotEnabled();
         AssetUpsertCapture capture = ctx.getAssetUpsertCapture();
-        if (capture == null) {
+        // 半自动必须能暂存提案；全自动可跳过捕获器，直接落盘
+        if (capture == null && !autopilot) {
             return FlowDesignToolSupport.errorJson("素材提案捕获器未就绪");
         }
         String key = FlowDesignToolSupport.stringArg(arguments.get("key"));
@@ -73,7 +77,6 @@ public class UpsertAssetVariablesTool implements QualitestTool {
                 ? AssetUpsertProposal.ACTION_CREATED
                 : AssetUpsertProposal.ACTION_UPDATED;
 
-        boolean autopilot = ctx.isAutopilotEnabled();
         String status = AssetUpsertProposal.STATUS_PENDING;
         if (autopilot) {
             try {
@@ -98,7 +101,9 @@ public class UpsertAssetVariablesTool implements QualitestTool {
                 .fields(fields)
                 .status(status)
                 .build();
-        capture.record(proposal);
+        if (capture != null) {
+            capture.record(proposal);
+        }
 
         return buildAck(proposal, ctx.getMaxToolResultBytes(), autopilot);
     }

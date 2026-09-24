@@ -143,12 +143,13 @@ public class FlowDesignToolContextFactory {
      * 从 MCP 调用参数组装工具上下文。
      * 项目 id 优先参数，否则用 Token 项目 id；二者不一致则拒绝。
      * 写入操作者用户 id、是否全自动、以及可选的 submit 累积器与画布。
+     * 素材/鉴权提案捕获器固定为空：全自动写工具直接落盘，半自动提案通道不经此入口。
      *
      * @param params           调用参数
      * @param tokenProjectId   Token 绑定的项目 id
      * @param submitCapture    submit 单元累积器；改图 submit 时传入，只读可为 null
-     * @param autopilotEnabled true 时允许跑流、素材/多端 Profile 直写，以及 submit 后立即写库
-     * @param operatorUserId   Token 绑定的用户 id；跑流等写工具须非空
+     * @param autopilotEnabled true 时允许跑流、素材/鉴权/环境直写，以及 submit 后立即写库
+     * @param operatorUserId   Token 绑定的用户 id；写流/跑流等须非空
      * @return 工具上下文
      */
     public FlowDesignToolContext fromMcpRequest(McpToolInvokeParams params,

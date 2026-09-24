@@ -5,7 +5,7 @@
 本轮除 submit_* 外还可使用：
 
 - `run_test_flow`：若有未落盘的 submit_* 会**先自动写库**再跑；返回 status / failures
-- `upsert_asset_variables` / `upsert_auth_profile`：调用即**直接写库**（无需聊天侧确认）
+- `upsert_asset_variables` / `upsert_auth_profile` / `upsert_project_env`：调用即**直接写库**（素材/鉴权半自动另见提案；环境无 Staging）
 - `update_flow_meta`：浅合并改测试流名称/说明，调用即**直接写库**（不进 Staging，不动画布）
 
 **没有**独立落盘工具：落盘是隐式的（`run_test_flow` 前，或本轮结束时自动完成）。
@@ -23,7 +23,7 @@
 
 ### 规程
 
-1. 造流或修复：多次 `submit_*`（每次 1 单元）；缺素材/鉴权时先 upsert（立刻落盘）
+1. 造流或修复：多次 `submit_*`（每次 1 单元）；缺素材/鉴权时先 upsert（立刻落盘）；缺环境实体时 `upsert_project_env`；跑前场景须已绑 `testProjectEnvId`（或 run 时显式传入）；**禁止**未选环境时自动挑环境
 2. 本轮已成功接受至少 1 个改图单元，或用户明确要求跑流 → **立刻** `run_test_flow`
 3. Run **失败**：看 failures 或 `get_run_failure` → `submit_*` 修复 → 再 `run_test_flow`
 4. **失败后再修最多 2 轮**（合计最多 3 次 run）；仍失败则停止并中文说明原因与下一步

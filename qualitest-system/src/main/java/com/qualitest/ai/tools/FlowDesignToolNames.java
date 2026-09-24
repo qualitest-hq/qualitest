@@ -10,9 +10,9 @@ import java.util.stream.Collectors;
  * <p>
  * 每个工具两个开关：webAgent（是否进 Web 造流助手工具列表）、
  * mcpAllowed（是否默认允许 MCP 调用，一般为只读勘察工具）。
- * 改图 submit、create_flow、update_flow_meta、素材/鉴权写入等默认不进 MCP；
+ * 改图 submit、create_flow、update_flow_meta、素材/鉴权/环境写入等默认不进 MCP；
  * 仅当项目开启「允许 MCP 自动写流」后，由运行时追加进工具列表并可调用。
- * run_test_flow 另由「允许 MCP 自动跑流」单独控制。
+ * run_test_flow 另由「允许 MCP 自动跑流」控制（且须写流已开）。
  */
 public enum FlowDesignToolNames {
 
@@ -26,13 +26,26 @@ public enum FlowDesignToolNames {
     GET_FLOW_META("get_flow_meta", true, true),
     /** 列举项目环境 id、名称、URL 与环境变量键名（不含值） */
     LIST_PROJECT_ENVS("list_project_envs", true, true),
+    /**
+     * 新增或更新项目测试环境实体（名称/URL/环境变量等），调用即写库。
+     * 不修改画布场景绑定；MCP 须开「允许 MCP 自动写流」。
+     */
+    UPSERT_PROJECT_ENV("upsert_project_env", true, false),
     /** 列举项目素材库变量键与字段名（不含明文） */
     LIST_ASSET_VARIABLES("list_asset_variables", true, true),
-    /** 新增或更新素材库条目；半自动进提案，全自动工具内直接写库 */
+    /**
+     * 新增或更新素材库条目。
+     * 半自动：写入本轮提案容器，待用户确认后落盘；
+     * 全自动：工具内直接写库（提案容器可为空）。
+     */
     UPSERT_ASSET_VARIABLES("upsert_asset_variables", true, false),
     /** 列举多端配置 Profile（pathPrefix、托管头、响应约定、凭证目标；无密钥明文） */
     LIST_PROJECT_AUTH_PROFILES("list_project_auth_profiles", true, true),
-    /** 浅合并更新或新建多端 Profile（鉴权头 / 响应约定 / credentialApi）；半自动进提案，全自动工具内直接写库 */
+    /**
+     * 浅合并更新或新建多端 Profile（鉴权头 / 响应约定 / credentialApi）。
+     * 半自动：写入本轮提案容器，待用户确认后落盘；
+     * 全自动：工具内直接写库（提案容器可为空）。
+     */
     UPSERT_AUTH_PROFILE("upsert_auth_profile", true, false),
     /** 向接口 design_hints 追加短提示并直接落库 */
     APPEND_API_DESIGN_HINTS("append_api_design_hints", true, false),
@@ -135,10 +148,7 @@ public enum FlowDesignToolNames {
      * 当前仅 run_test_flow。
      */
     public static boolean isAutopilotOnlyTool(String name) {
-        if (name == null || name.isBlank()) {
-            return false;
-        }
-        return RUN_TEST_FLOW.id.equals(name);
+        return name != null && RUN_TEST_FLOW.id.equals(name);
     }
 
     /**
@@ -152,7 +162,7 @@ public enum FlowDesignToolNames {
     /**
      * 是否为 MCP 自动写流类工具。
      * 需项目开启「允许 MCP 自动写流」后，才可列入 tools/list 并接受 tools/call。
-     * 包括：全部 submit_*、create_flow、update_flow_meta、素材写入、鉴权写入、追加接口设计提示。
+     * 包括：全部 submit_*、create_flow、update_flow_meta、素材/鉴权/环境写入、追加接口设计提示。
      * 不包括 import_apis、run_test_flow。
      */
     public static boolean isMcpAutoWriteTool(String name) {
@@ -166,12 +176,13 @@ public enum FlowDesignToolNames {
                 || UPDATE_FLOW_META.id.equals(name)
                 || UPSERT_ASSET_VARIABLES.id.equals(name)
                 || UPSERT_AUTH_PROFILE.id.equals(name)
+                || UPSERT_PROJECT_ENV.id.equals(name)
                 || APPEND_API_DESIGN_HINTS.id.equals(name);
     }
 
     /**
-     * 是否为 MCP 自动跑流工具（run_test_flow）。
-     * 需项目开启「允许 MCP 自动跑流」后，才可列入 tools/list 并接受 tools/call。
+     * 是否为 MCP 自动跑流工具（当前仅 run_test_flow）。
+     * 列入 tools/list 并接受 tools/call 时，须项目同时开启「允许 MCP 自动写流」与「允许 MCP 自动跑流」。
      */
     public static boolean isMcpAutorunTool(String name) {
         return name != null && RUN_TEST_FLOW.id.equals(name);
@@ -194,7 +205,6 @@ public enum FlowDesignToolNames {
      *   <li>写流类工具：仅当 autoWriteEnabled 为 true</li>
      *   <li>run_test_flow：仅当 autorunEnabled 与 autoWriteEnabled 均为 true</li>
      * </ul>
-     * 参数顺序与 guideVersion / appendGateSuffixes 一致：写流 → 跑流 → 导入。
      *
      * @param autoWriteEnabled  是否开启「允许 MCP 自动写流」
      * @param autorunEnabled    是否开启「允许 MCP 自动跑流」

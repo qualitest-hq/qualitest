@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 FlowDesignToolNames：写流开关与导入接口开关各自控制不同工具。
+ * 测 FlowDesignToolNames MCP 门控：写流、跑流、导入三道开关如何决定工具可调用性。
  * 纯函数，无数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignToolNamesMcpGateTest
  */
@@ -61,11 +61,11 @@ class FlowDesignToolNamesMcpGateTest {
 
     /**
      * 前提：写流与跑流都开。
-     * 期望：run_test_flow 可调；isMcpAutorunTool 为 true。
+     * 期望：run_test_flow 可调；isMcpAutorunTool 为 true；upsert_project_env 属写流门控。
      */
     @Test
     @Order(3)
-    @DisplayName("写流+跑流开：可 run_test_flow")
+    @DisplayName("写流+跑流开：可 run_test_flow；upsert_project_env 走写流")
     void callable_writeAndAutorun() {
         assertTrue(FlowDesignToolNames.isMcpAutorunTool(
                 FlowDesignToolNames.RUN_TEST_FLOW.getId()));
@@ -73,6 +73,12 @@ class FlowDesignToolNamesMcpGateTest {
                 FlowDesignToolNames.RUN_TEST_FLOW.getId(), true, true, false));
         assertFalse(FlowDesignToolNames.isMcpCallable(
                 FlowDesignToolNames.RUN_TEST_FLOW.getId(), false, true, false));
+        assertTrue(FlowDesignToolNames.isMcpAutoWriteTool(
+                FlowDesignToolNames.UPSERT_PROJECT_ENV.getId()));
+        assertTrue(FlowDesignToolNames.isMcpCallable(
+                FlowDesignToolNames.UPSERT_PROJECT_ENV.getId(), true, false, false));
+        assertFalse(FlowDesignToolNames.isMcpCallable(
+                FlowDesignToolNames.UPSERT_PROJECT_ENV.getId(), false, false, false));
     }
 
     /**

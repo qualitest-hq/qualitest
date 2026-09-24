@@ -35,6 +35,7 @@ import com.qualitest.ai.tools.flow.SubmitFlowDesignUnitTool;
 import com.qualitest.ai.tools.flow.TestFlowRunTriggerCore;
 import com.qualitest.ai.tools.flow.UpsertAssetVariablesTool;
 import com.qualitest.ai.tools.flow.UpsertAuthProfileTool;
+import com.qualitest.ai.tools.flow.UpsertProjectEnvTool;
 import com.qualitest.api.service.IApiImportService;
 import com.qualitest.flow.diagnose.HttpNodeApiHealthChecker;
 import com.qualitest.flow.validate.GraphJsonValidator;
@@ -71,6 +72,7 @@ public class FlowDesignToolExecutor {
     public static final String GET_GRAPH_SUMMARY = FlowDesignToolNames.GET_GRAPH_SUMMARY.getId();
     public static final String GET_FLOW_META = FlowDesignToolNames.GET_FLOW_META.getId();
     public static final String LIST_PROJECT_ENVS = FlowDesignToolNames.LIST_PROJECT_ENVS.getId();
+    public static final String UPSERT_PROJECT_ENV = FlowDesignToolNames.UPSERT_PROJECT_ENV.getId();
     public static final String LIST_ASSET_VARIABLES = FlowDesignToolNames.LIST_ASSET_VARIABLES.getId();
     public static final String UPSERT_ASSET_VARIABLES = FlowDesignToolNames.UPSERT_ASSET_VARIABLES.getId();
     /** 列举项目鉴权 Profile */
@@ -151,6 +153,8 @@ public class FlowDesignToolExecutor {
         map.put(GET_GRAPH_SUMMARY, new GetGraphSummaryTool(graphResolver));
         map.put(GET_FLOW_META, new GetFlowMetaTool(graphResolver));
         map.put(LIST_PROJECT_ENVS, new ListProjectEnvsTool(testProjectEnvService));
+        // 新增/更新项目环境实体（调用即写库）
+        map.put(UPSERT_PROJECT_ENV, new UpsertProjectEnvTool(testProjectEnvService));
         map.put(LIST_ASSET_VARIABLES, new ListAssetVariablesTool(testProjectMapper));
         map.put(UPSERT_ASSET_VARIABLES, new UpsertAssetVariablesTool(testProjectAssetService));
         map.put(LIST_PROJECT_AUTH_PROFILES, new ListProjectAuthProfilesTool(testProjectMapper));

@@ -138,10 +138,62 @@
     "type": "function",
     "function": {
       "name": "list_project_envs",
-      "description": "列举当前测试项目的环境 id、名称、URL 与环境变量键名（不含值）；为场景绑定 testProjectEnvId 或编写 {{env.*}} 占位符前建议调用",
+      "description": "列举当前测试项目的环境 id、名称、URL 与环境变量键名（不含值）；为场景绑定 testProjectEnvId、编写 {{env.*}} 或 upsert_project_env 前建议调用",
       "parameters": {
         "type": "object",
         "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "upsert_project_env",
+      "description": "新增或更新项目测试环境（名称/URL/环境变量等），调用即写库。新建须 create=true；更新须 testProjectEnvId。envVariables 为条目数组 [{\"key\",\"assets\":{…}}]，回执仅含键名不含值。场景绑环境仍用 submit_scenario。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "create": {
+            "type": "boolean",
+            "description": "新建时须为 true"
+          },
+          "testProjectEnvId": {
+            "type": "string",
+            "description": "更新时必填；新建可不传"
+          },
+          "envName": {
+            "type": "string",
+            "description": "环境名称；新建必填"
+          },
+          "envUrl": {
+            "type": "string",
+            "description": "环境 Base URL（纯字符串或多模块 JSON）"
+          },
+          "envVariables": {
+            "type": "array",
+            "description": "环境变量条目数组，形如 [{\"key\":\"db\",\"assets\":{\"db\":{\"host\":\"…\"}}}]（assets 须含与 key 同名的唯一子键）",
+            "items": {
+              "type": "object"
+            }
+          },
+          "shareStatus": {
+            "type": "string",
+            "enum": [
+              "private",
+              "share"
+            ],
+            "description": "可选；默认 private"
+          },
+          "envColor": {
+            "type": "string",
+            "description": "可选标识色"
+          },
+          "allowDestructiveReset": {
+            "type": "integer",
+            "description": "0 禁止 / 1 允许正式 Run 还原被测数据；名称含生产/prod 时强制 0"
+          }
+        },
         "required": []
       }
     }
@@ -473,6 +525,28 @@
                         "flow",
                         "asset"
                       ]
+                    }
+                  }
+                }
+              },
+              "statusCheck": {
+                "type": "object",
+                "description": "HTTP 状态码门禁。默认 2xx；探活常用 mode=whitelist、values=[200,401]；off 不校验状态码。",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "2xx",
+                      "whitelist",
+                      "off"
+                    ],
+                    "description": "2xx 仅 2xx 通过；whitelist 仅 values 内通过；off 不校验"
+                  },
+                  "values": {
+                    "type": "array",
+                    "description": "mode=whitelist 时的允许状态码",
+                    "items": {
+                      "type": "integer"
                     }
                   }
                 }
@@ -1057,7 +1131,7 @@
     "type": "function",
     "function": {
       "name": "run_test_flow",
-      "description": "全自动专用：触发当前测试流 Run。若本轮有未落盘的 submit_* 会先自动写库再跑。返回 runId/status/失败摘要。须用户选择全自动。可选 runScenarioId、testProjectEnvId。失败后可修图再 run，最多再修 2 轮。",
+      "description": "全自动专用：触发当前测试流 Run。若本轮有未落盘的 submit_* 会先自动写库再跑。返回 runId/status/失败摘要。须用户选择全自动。可选 runScenarioId、testProjectEnvId。失败后可修图再 run，最多再修 2 轮。未绑环境时不会自动选；须场景已绑或显式传入。",
       "parameters": {
         "type": "object",
         "properties": {

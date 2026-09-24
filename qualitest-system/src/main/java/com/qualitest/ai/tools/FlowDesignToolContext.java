@@ -66,9 +66,9 @@ public class FlowDesignToolContext {
 
     /**
      * 是否开启全自动。
-     * true：允许跑流；素材/鉴权 upsert 直写库；改图可隐式写库
+     * true：允许跑流；素材/鉴权 upsert 可直接写库；改图可隐式写库
      * （设计通道可在跑流前或回合结束落盘；MCP 每次 submit 成功后立即落盘）。
-     * false：半自动，改图进 Staging、素材须聊天侧确认；经 MCP 时亦不可调写工具。
+     * false：半自动，改图进 Staging、素材/鉴权须捕获器提案后再确认落盘。
      */
     @Builder.Default
     private final boolean autopilotEnabled = false;
@@ -99,7 +99,7 @@ public class FlowDesignToolContext {
 
     /**
      * 设计请求带来的默认环境 id。
-     * run_test_flow 未在工具参数里传 testProjectEnvId 时用此值。
+     * run_test_flow 未在工具参数里传 testProjectEnvId 时用此值（仅覆盖工具参数缺省，不代替场景绑定）。
      */
     private final Long defaultTestProjectEnvId;
 
@@ -123,13 +123,15 @@ public class FlowDesignToolContext {
 
     /**
      * 本轮 upsert_asset_variables 提案累积器。
-     * 半自动只记提案；全自动工具内已写库后记 confirmed；为空时 upsert 工具直接报错。
+     * 半自动：只记提案，待确认后落盘；捕获器为空则工具报错。
+     * 全自动：工具内已写库后可记 confirmed；捕获器可为空（跳过 record，仅直写）。
      */
     private final AssetUpsertCapture assetUpsertCapture;
 
     /**
      * 本轮多端 Profile 写入提案累积器。
-     * 半自动只记 pending；全自动写库后记 confirmed；为空时 upsert 工具直接报错。
+     * 半自动：只记 pending，待确认后落盘；捕获器为空则工具报错。
+     * 全自动：写库后可记 confirmed；捕获器可为空（跳过 record，仅直写）。
      */
     private final AuthProfileUpsertCapture authProfileUpsertCapture;
 

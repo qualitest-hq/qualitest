@@ -180,16 +180,17 @@ class FlowDesignToolsDefinitionServiceTest {
 
     /**
      * 前提：写流与跑流都开。
-     * 期望：列表含 run_test_flow。
+     * 期望：列表含 run_test_flow；写流开时含 upsert_project_env。
      */
     @Test
     @Order(61)
-    @DisplayName("MCP 写流+跑流列表含 run_test_flow")
+    @DisplayName("MCP 写流+跑流列表含 run_test_flow；写流含 upsert_project_env")
     void loadMcpProtocolTools_autorun_includesRun() {
         List<String> names = service.loadMcpProtocolTools(true, true, false).stream()
                 .map(tool -> String.valueOf(tool.get("name")))
                 .toList();
         assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
+        assertTrue(names.contains(FlowDesignToolNames.UPSERT_PROJECT_ENV.getId()));
         assertTrue(names.contains(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()));
     }
 

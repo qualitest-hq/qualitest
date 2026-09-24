@@ -206,6 +206,47 @@ public final class TestProjectVariableEntrySupport {
         return null;
     }
 
+    /**
+     * 从变量条目 JSON 提取键名列表（不含字段值）。
+     * <ul>
+     *   <li>标准形态：JSON 数组，元素含 {@code key} 字段</li>
+     *   <li>旧数据：若根为对象，则取其自身 keySet</li>
+     * </ul>
+     * 解析失败返回空列表，不抛异常（供列举/回执使用）。
+     *
+     * @param variablesJson 素材库或环境变量 JSON 文本，可空
+     * @return 键名列表，永不返回 null
+     */
+    public static List<String> extractVariableKeys(String variablesJson) {
+        List<String> keys = new ArrayList<>();
+        if (StrUtil.isBlank(variablesJson)) {
+            return keys;
+        }
+        try {
+            Object parsed = JSON.parse(variablesJson.trim());
+            if (parsed instanceof JSONArray arr) {
+                for (int i = 0; i < arr.size(); i++) {
+                    Object item = arr.get(i);
+                    if (item instanceof JSONObject obj) {
+                        String key = obj.getString("key");
+                        if (StrUtil.isNotBlank(key)) {
+                            keys.add(key.trim());
+                        }
+                    }
+                }
+            } else if (parsed instanceof JSONObject obj) {
+                for (String key : obj.keySet()) {
+                    if (StrUtil.isNotBlank(key)) {
+                        keys.add(key);
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // 只读列举/回执用，坏数据不阻断主流程
+        }
+        return keys;
+    }
+
     static Map<String, Object> normalizeAssetsMap(Map<String, Object> assets) {
         if (assets == null) {
             return new LinkedHashMap<>();

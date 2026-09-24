@@ -8,7 +8,7 @@
 # -----------------------------------------------------------------------------
 qualitest:
   name: Qualitest
-  version: 1.2.0
+  version: 1.3.0
   copyrightYear: 2026
   profile: ${QUALITEST_PROFILE:D:/qualitest/uploadPath}    # 本地上传文件落盘根目录；可用环境变量覆盖
   addressEnabled: false           # 登录日志是否解析 IP 所在地

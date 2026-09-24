@@ -21,11 +21,11 @@ public final class FlowDesignNodeDataKeys {
     /** 各类型共用：显示名与画布副标题 */
     private static final Set<String> COMMON = Set.of("name", "summary");
 
-    /** HTTP 节点 data 允许键 */
+    /** HTTP 节点 data 允许键（含 statusCheck：按 HTTP 状态码判定节点成败） */
     private static final Set<String> HTTP = Set.of(
             "callMode", "testProjectApiId", "externalUrl", "httpMethod",
             "headers", "requestBody", "requestValueOverrides", "extracts",
-            "successCheck", "timeoutMs", "preScript", "postScript",
+            "statusCheck", "successCheck", "timeoutMs", "preScript", "postScript",
             "apiName", "apiPath", "authProfileId");
 
     /** 断言节点 data 允许键 */

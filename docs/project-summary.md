@@ -120,7 +120,7 @@ flowchart TB
 | 管理端 | `/login`                  | `$.token` → `asset.adminAuth.token`       |
 
 
-- **同端**：开头只登录一次（或挂登录子流），后续靠托管 Bearer 复用 `asset.*`（HTTP 成功后 extract 落盘，跨 Run 可探活）。内置预制登录流为 **探活再登录**：`statusCheck.whitelist [200,401]` 探活 + Condition，有效则跳过登录。
+- **同端**：开头只登录一次（或挂登录子流），后续靠托管 Bearer 复用 `asset.*`（HTTP 成功后 extract 落盘，跨 Run 可探活）。内置预制登录流为 **探活再登录**：`statusCheck: {mode:whitelist, values:[200,401]}` 探活 + Condition，有效则跳过登录。
 - **双端同图**：两套登录、两套 extracts；**禁止**覆盖同一凭证路径（硬拦 `AUTH_LOGIN_FLOWKEY_COLLISION`）。
 - **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（**仅运行**硬拦；AI 单单元 `submit_*` 进 **warnings**；整包规范化 / Staging ✓ / **保存**不硬拦）。客户端 Profile 误绑 `adminAuth`（或相反）时文案追加「疑似绑错端」。托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。
 - **AI 改 Profile**：`list_project_auth_profiles`（只读）+ `upsert_auth_profile`（半自动确认 / 全自动直写）；下一轮可带 `runRiskWarnings`。细则见 [ai-staging.md](./ai-staging.md) · [faq.md](./faq.md)。
