@@ -9,9 +9,9 @@ export const defaultLang: Lang = "zh";
 
 export const ui = {
   zh: {
-    metaTitle: "质衡 Qualitest — 企业级自动化测试与质量保障平台",
+    metaTitle: "质衡 Qualitest — 开源接口自动化测试平台（画布编排 · Cursor MCP）",
     metaDescription:
-      "让接口同步、调试、编排与 AI 辅助设计在同一项目里闭环。Compose 五分钟起栈；接口可经 IDEA 插件或 MCP 导入（不限 Java）。",
+      "开源接口测试与接口自动化平台：接口调试、测试流画布编排、AI Diff，以及 Cursor MCP 写流跑流。Compose 五分钟起栈；IDEA 插件或 MCP 导入接口（不限 Java）。",
     navAria: "主导航",
     navBrand: "质衡",
     navDocs: "文档",
@@ -19,12 +19,12 @@ export const ui = {
     navPlugin: "插件",
     navGitHub: "GitHub",
     langSwitchAria: "语言",
-    heroEyebrow: "企业级自动化测试与质量保障",
+    heroEyebrow: "开源接口自动化测试 · 画布编排 · Cursor MCP",
     heroBrandPrimary: "质衡",
     heroBrandSecondary: "Qualitest",
     heroHeadline: "接口同步、调试、编排与 AI，同一项目闭环",
     heroSupport:
-      "少切换工具，少重复录入 —— 接口入库（IDEA 或 MCP）、调试台、测试流画布、AI Diff，一条链路走完。",
+      "开源接口自动化：少切换工具，少重复录入 —— 接口入库（IDEA 或 MCP）、调试台、测试流画布、AI Diff，一条链路走完。",
     heroCtaPrimary: "Star on GitHub",
     heroCtaSecondary: "5 分钟 Quick Start",
     heroPipelineAria: "质衡主链路示意：入库、调试、画布、AI、MCP",
@@ -106,9 +106,9 @@ export const ui = {
     footSecurity: "Security",
   },
   en: {
-    metaTitle: "Qualitest — Enterprise API testing & quality platform",
+    metaTitle: "Qualitest — Open-source API automation testing (flow canvas · Cursor MCP)",
     metaDescription:
-      "API sync, debugging, flow orchestration, and AI-assisted design in one project. Compose up in minutes; ingest via IntelliJ plugin or MCP (not Java-only).",
+      "Open-source API testing platform: API debugger, multi-step flow canvas, AI Diff, and Cursor MCP to author and run flows. Compose up in minutes; ingest via IntelliJ plugin or MCP (any stack).",
     navAria: "Primary",
     navBrand: "Qualitest",
     navDocs: "Docs",
@@ -116,12 +116,12 @@ export const ui = {
     navPlugin: "Plugin",
     navGitHub: "GitHub",
     langSwitchAria: "Language",
-    heroEyebrow: "Enterprise API testing & quality assurance",
+    heroEyebrow: "Open-source API automation · flow canvas · Cursor MCP",
     heroBrandPrimary: "Qualitest",
     heroBrandSecondary: "质衡",
     heroHeadline: "Sync, debug, orchestrate, and AI — closed loop in one project",
     heroSupport:
-      "Fewer tool switches, less re-entry — API ingest (IntelliJ or MCP), debugger, flow canvas, AI Diff, one continuous path.",
+      "Open-source API automation with fewer tool switches — ingest (IntelliJ or MCP), debugger, flow canvas, AI Diff, one continuous path.",
     heroCtaPrimary: "Star on GitHub",
     heroCtaSecondary: "5-min Quick Start",
     heroPipelineAria: "Qualitest pipeline: Ingest, Debug, Canvas, AI, MCP",
