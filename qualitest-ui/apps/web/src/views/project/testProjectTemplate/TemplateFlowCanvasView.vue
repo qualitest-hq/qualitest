@@ -180,9 +180,6 @@ async function initFromDraft() {
     store.markClean()
     scheduleHistoryReset()
     await finalizeCanvasHistoryBaseline(store, resetHistory)
-    if (store.ui.leftTab === 'runConfig') {
-      store.showScenarioPanel()
-    }
   } catch (error) {
     store.endCanvasHydration()
     const message = error instanceof Error ? error.message : '加载预制流失败'

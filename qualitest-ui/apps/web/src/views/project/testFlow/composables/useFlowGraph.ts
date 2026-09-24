@@ -65,9 +65,6 @@ export function useFlowGraph() {
     store.markClean();
     scheduleHistoryReset();
     await finalizeHistoryBaseline();
-    if (store.ui.leftTab === 'runConfig') {
-      store.showScenarioPanel();
-    }
     return adapted;
   }
 

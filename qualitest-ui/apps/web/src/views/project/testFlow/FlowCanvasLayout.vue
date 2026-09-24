@@ -648,10 +648,6 @@ function onNodeDragStop() {
 function onPaneClick() {
   closeNodeMenu()
   store.clearSelection()
-  if (store.ui.leftTab === 'runConfig') {
-    store.showScenarioPanel()
-    return
-  }
   if (store.ui.rightMode === 'run') return
   store.ui.rightMode = 'props'
   store.ui.rightOpen = false
