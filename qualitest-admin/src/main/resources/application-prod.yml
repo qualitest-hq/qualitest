@@ -4,7 +4,7 @@
 
 qualitest:
   name: Qualitest
-  version: 1.1.0
+  version: 1.2.0
   copyrightYear: 2026
   profile: ${QUALITEST_PROFILE:/home/qualitest/uploadPath}   # Linux 部署上传目录
   addressEnabled: false

@@ -1,6 +1,6 @@
 {
   "name": "@qualitest/transport-types",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "HTTP 传输层契约（错误码、IPC channel，无 electron/vue 依赖）",
   "type": "module",

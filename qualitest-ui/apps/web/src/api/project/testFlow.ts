@@ -2,7 +2,14 @@ import request from '@/utils/request';
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
 
 export interface TestFlowListParams {
+  /** 所属项目 */
   testProjectId?: string;
+  /** 按名称模糊搜 */
+  flowName?: string;
+  /** 按目录过滤（含子孙） */
+  flowGroupId?: string | number;
+  /** 只查未分组 */
+  ungroupedOnly?: boolean;
   pageNum?: number;
   pageSize?: number;
   [key: string]: unknown;
@@ -11,6 +18,12 @@ export interface TestFlowListParams {
 export interface TestFlowRecord {
   testFlowId?: string | number;
   testProjectId?: string | number;
+  /** 所属目录；空为未分组 */
+  flowGroupId?: string | number | null;
+  /** 所属目录名称（列表联表） */
+  flowGroupName?: string;
+  /** 为 true 时清空所属目录（与 flowGroupId 同时传则以清空为准） */
+  clearFlowGroup?: boolean;
   flowName?: string;
   flowDescription?: string;
   graphJson?: string;
@@ -52,6 +65,14 @@ export function updateTestFlow(data: Partial<TestFlowRecord>, leaseToken?: strin
     method: 'put',
     data,
     headers,
+  });
+}
+
+/** 清空测试流所属目录（变为未分组） */
+export function clearTestFlowGroup(testFlowId: string | number) {
+  return request({
+    url: `/project/testFlow/${testFlowId}/flowGroup`,
+    method: 'delete',
   });
 }
 

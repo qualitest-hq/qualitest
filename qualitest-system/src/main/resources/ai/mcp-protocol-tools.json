@@ -1055,7 +1055,7 @@
     "type": "function",
     "function": {
       "name": "list_flows",
-      "description": "MCP 专用：按 keyword/limit 列举项目测试流摘要（不含 graphJson）。子流选型含平台模板请用 list_subflow_templates",
+      "description": "MCP 专用：按 keyword/limit/分组过滤列举项目测试流摘要（不含 graphJson）。返回含 flowGroupId、flowGroupName。子流选型含平台模板请用 list_subflow_templates",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1066,6 +1066,14 @@
           "limit": {
             "type": "integer",
             "description": "返回条数上限，默认 20"
+          },
+          "flowGroupId": {
+            "type": "string",
+            "description": "按测试流分组过滤（含该组及子孙）；可省略"
+          },
+          "ungroupedOnly": {
+            "type": "boolean",
+            "description": "为 true 时仅返回未分组的测试流；可省略"
           }
         },
         "required": []
@@ -1105,7 +1113,7 @@
     "type": "function",
     "function": {
       "name": "create_flow",
-      "description": "MCP 专用：在当前项目新建一条空画布测试流并立即写库。仅用于新建；改名或改说明请用 update_flow_meta，禁止用新建冒充改名。返回 testFlowId，供后续 submit_* / run_test_flow 使用。须项目已开启「允许 MCP 自动写流」 【MCP 自动写】工具内直接写库。",
+      "description": "MCP 专用：在当前项目新建一条空画布测试流并立即写库。仅用于新建；改名或改说明请用 update_flow_meta，禁止用新建冒充改名。可选 flowGroupId 挂到目录。返回 testFlowId，供后续 submit_* / run_test_flow 使用。须项目已开启「允许 MCP 自动写流」 【MCP 自动写】工具内直接写库。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1116,6 +1124,10 @@
           "flowDescription": {
             "type": "string",
             "description": "测试流说明；可省略"
+          },
+          "flowGroupId": {
+            "type": "string",
+            "description": "可选，挂到的测试流分组 ID"
           }
         },
         "required": [
@@ -1128,7 +1140,7 @@
     "type": "function",
     "function": {
       "name": "update_flow_meta",
-      "description": "浅合并更新已有测试流的名称与/或说明并立即写库。不动画布、场景与环境，不改 testFlowId。改名/改说明专用。flowDescription 传空串清空，不传则不动。须项目已开启「允许 MCP 自动写流」 【MCP 自动写】工具内直接写库。",
+      "description": "浅合并更新已有测试流的名称与/或说明与/或分组并立即写库。不动画布、场景与环境，不改 testFlowId。flowDescription 传空串清空，不传则不动。flowGroupId 传空串清空为未分组。须项目已开启「允许 MCP 自动写流」 【MCP 自动写】工具内直接写库。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1143,6 +1155,10 @@
           "flowDescription": {
             "type": "string",
             "description": "新说明；传空串清空；省略则不改"
+          },
+          "flowGroupId": {
+            "type": "string",
+            "description": "新分组 ID；传空串清空为未分组；省略则不改"
           }
         },
         "required": [

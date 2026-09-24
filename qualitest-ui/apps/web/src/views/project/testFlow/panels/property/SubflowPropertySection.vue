@@ -4,8 +4,12 @@
       <label>引用测试流</label>
       <select :value="subflowIdVal" @change="onSubflowChange">
         <option value="">— 请选择 —</option>
-        <optgroup v-if="projectSubflows.length" label="项目测试流">
-          <option v-for="sf in projectSubflows" :key="sf.testFlowId" :value="String(sf.testFlowId)">
+        <optgroup
+            v-for="group in projectSubflowGroups"
+            :key="group.label + '-' + (group.items[0]?.flowGroupId ?? 'ungrouped')"
+            :label="group.label"
+        >
+          <option v-for="sf in group.items" :key="sf.testFlowId" :value="String(sf.testFlowId)">
             {{ sf.flowName }}
           </option>
         </optgroup>
@@ -112,6 +116,19 @@ const store = useFlowCanvasStore()
 const { patchNodeData } = useFlowNodes()
 
 const projectSubflows = ref([])
+/** 按目录主键分段，供下拉 optgroup 展示（无目录归入「未分组」） */
+const projectSubflowGroups = computed(() => {
+  const map = new Map()
+  for (const sf of projectSubflows.value) {
+    const key = sf.flowGroupId != null ? String(sf.flowGroupId) : 'ungrouped'
+    const label = sf.flowGroupName?.trim() ? sf.flowGroupName : '未分组'
+    if (!map.has(key)) {
+      map.set(key, { label, items: [] })
+    }
+    map.get(key).items.push(sf)
+  }
+  return Array.from(map.values())
+})
 const platformTemplates = ref([])
 const creating = ref(false)
 
@@ -124,6 +141,7 @@ const hasPinnedSnapshot = computed(() => {
   return raw != null && String(raw).trim() !== ''
 })
 
+/** 拉取同项目其它测试流（排除当前流），供引用选择 */
 async function loadSubflows() {
   if (!store.testProjectId) return
   try {

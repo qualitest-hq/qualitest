@@ -15,9 +15,8 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * update_flow_meta：浅合并更新测试流名称/说明并立即写库（不动画布）。
- * <p>
- * Web 造流助手与 MCP 自动写均可调用；成功即落盘，不进 Staging。
+ * 浅合并更新测试流元数据并立即写库（不改画布节点与边）。
+ * 可改名称、说明、所属目录；目录传空串表示改为未分组。
  */
 @RequiredArgsConstructor
 public class UpdateFlowMetaTool implements QualitestTool {
@@ -30,7 +29,7 @@ public class UpdateFlowMetaTool implements QualitestTool {
     }
 
     /**
-     * 校验归属与入参 → 只改传入字段 → 写库并回执。
+     * 解析要改的字段 → 写库 → 回执当前名称/说明/目录。
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
@@ -42,7 +41,7 @@ public class UpdateFlowMetaTool implements QualitestTool {
             return FlowDesignToolSupport.errorJson("缺少 testProjectId");
         }
         if (arguments == null) {
-            return FlowDesignToolSupport.errorJson("至少传入 flowName 或 flowDescription");
+            return FlowDesignToolSupport.errorJson("至少传入 flowName、flowDescription 或 flowGroupId");
         }
 
         Long flowId = FlowDesignToolSupport.longArg(arguments.get("testFlowId"));
@@ -57,8 +56,9 @@ public class UpdateFlowMetaTool implements QualitestTool {
 
         boolean hasName = arguments.containsKey("flowName");
         boolean hasDescription = arguments.containsKey("flowDescription");
-        if (!hasName && !hasDescription) {
-            return FlowDesignToolSupport.errorJson("至少传入 flowName 或 flowDescription");
+        boolean hasGroup = arguments.containsKey("flowGroupId");
+        if (!hasName && !hasDescription && !hasGroup) {
+            return FlowDesignToolSupport.errorJson("至少传入 flowName、flowDescription 或 flowGroupId");
         }
 
         String newName = null;
@@ -74,10 +74,26 @@ public class UpdateFlowMetaTool implements QualitestTool {
             newDescription = FlowDesignToolSupport.stringArg(arguments.get("flowDescription"));
         }
 
+        Long newGroupId = null;
+        boolean clearGroup = false;
+        if (hasGroup) {
+            Object rawGroup = arguments.get("flowGroupId");
+            if (rawGroup == null || "".equals(String.valueOf(rawGroup).trim())) {
+                clearGroup = true;
+            } else {
+                newGroupId = FlowDesignToolSupport.longArg(rawGroup);
+                if (newGroupId == null) {
+                    return FlowDesignToolSupport.errorJson("flowGroupId 无效");
+                }
+            }
+        }
+
         TestFlow toUpdate = TestFlow.builder()
                 .testFlowId(flowId)
                 .flowName(newName)
                 .flowDescription(hasDescription ? newDescription : null)
+                .flowGroupId(newGroupId)
+                .clearFlowGroup(clearGroup ? Boolean.TRUE : null)
                 .build();
 
         try {
@@ -103,7 +119,16 @@ public class UpdateFlowMetaTool implements QualitestTool {
         result.put("testFlowId", String.valueOf(flowId));
         result.put("flowName", resultName != null ? resultName : "");
         result.put("flowDescription", resultDescription != null ? resultDescription : "");
-        result.put("hint", "测试流名称/说明已更新并写库；未改动画布、场景与环境");
+        if (clearGroup) {
+            result.put("flowGroupId", "");
+            result.put("flowGroupName", "");
+        } else if (newGroupId != null) {
+            result.put("flowGroupId", String.valueOf(newGroupId));
+        } else if (existing.getFlowGroupId() != null) {
+            result.put("flowGroupId", String.valueOf(existing.getFlowGroupId()));
+            result.put("flowGroupName", existing.getFlowGroupName() != null ? existing.getFlowGroupName() : "");
+        }
+        result.put("hint", "测试流元数据已更新并写库；未改动画布、场景与环境");
         return result.toJSONString();
     }
 }

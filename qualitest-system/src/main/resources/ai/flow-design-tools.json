@@ -73,7 +73,7 @@
     "type": "function",
     "function": {
       "name": "update_flow_meta",
-      "description": "浅合并更新已有测试流的名称与/或说明并立即写库（成功即落盘，不进 Staging）。不动画布、场景与环境，不改 testFlowId。改名/改说明专用。flowDescription 传空串清空，不传则不动。至少传 flowName 或 flowDescription 之一。",
+      "description": "浅合并更新已有测试流的名称与/或说明与/或分组并立即写库（成功即落盘，不进 Staging）。不动画布、场景与环境，不改 testFlowId。flowDescription 传空串清空，不传则不动。flowGroupId 传空串清空为未分组。至少传 flowName、flowDescription 或 flowGroupId 之一。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -88,6 +88,10 @@
           "flowDescription": {
             "type": "string",
             "description": "新说明；传空串清空；省略则不改"
+          },
+          "flowGroupId": {
+            "type": "string",
+            "description": "新分组 ID；传空串清空为未分组；省略则不改"
           }
         },
         "required": [

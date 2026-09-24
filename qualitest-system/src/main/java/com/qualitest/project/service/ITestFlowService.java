@@ -62,6 +62,14 @@ public interface ITestFlowService {
     int updateTestFlow(TestFlow testFlow);
 
     /**
+     * 清空测试流所属目录（变为未分组）。
+     *
+     * @param testFlowId 测试流主键
+     * @return 影响行数
+     */
+    int clearFlowGroupId(Long testFlowId);
+
+    /**
      * 批量删除测试流
      * 
      * @param testFlowIdList 需要删除的测试流主键集合

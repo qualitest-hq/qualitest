@@ -225,6 +225,23 @@ public class TestFlowController extends BaseController {
     }
 
     /**
+     * 清空测试流所属目录（变为未分组）。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
+    @Log(title = "测试流", businessType = BusinessType.UPDATE)
+    @DeleteMapping("/{testFlowId}/flowGroup")
+    public R<Void> clearFlowGroup(@PathVariable("testFlowId") Long testFlowId) {
+        TestFlowResult existing = testFlowService.selectTestFlowResult(testFlowId);
+        if (existing == null || (existing.getDelStatus() != null && existing.getDelStatus() != 0)) {
+            throw new ServiceException("测试流不存在");
+        }
+        if (existing.getTestProjectId() != null) {
+            testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+        }
+        return toR(testFlowService.clearFlowGroupId(testFlowId));
+    }
+
+    /**
      * 删除测试流
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:remove')")

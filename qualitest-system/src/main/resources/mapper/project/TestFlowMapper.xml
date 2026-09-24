@@ -7,6 +7,7 @@
     <resultMap type="TestFlow" id="TestFlowResult">
         <result property="testFlowId" column="test_flow_id"/>
         <result property="testProjectId" column="test_project_id"/>
+        <result property="flowGroupId" column="flow_group_id"/>
         <result property="flowName" column="flow_name"/>
         <result property="flowDescription" column="flow_description"/>
         <result property="graphJson" column="graph_json"/>
@@ -21,6 +22,7 @@
     <sql id="selectTestFlowVo">
         select test_flow_id,
                test_project_id,
+               flow_group_id,
                flow_name,
                flow_description,
                graph_json,
@@ -36,6 +38,7 @@
     <sql id="selectTestFlowAliasVo">
         select tf.test_flow_id              as testFlowId,
                tf.test_project_id           as testProjectId,
+               tf.flow_group_id             as flowGroupId,
                tf.flow_name                 as flowName,
                tf.flow_description          as flowDescription,
                tf.graph_json                as graphJson,
@@ -72,6 +75,8 @@
         select
         tf.test_flow_id as testFlowId,
         tf.test_project_id as testProjectId,
+        tf.flow_group_id as flowGroupId,
+        tfg.group_name as flowGroupName,
         tf.flow_name as flowName,
         tf.flow_description as flowDescription,
         tf.graph_json as graphJson,
@@ -82,6 +87,7 @@
         tf.create_time as createTime,
         tf.update_time as updateTime
         from test_flow tf
+        left join test_flow_group tfg on tfg.flow_group_id = tf.flow_group_id and tfg.del_status = 0
         where tf.del_status = 0
         <if test="testProjectId != null">
             and tf.test_project_id = #{testProjectId}
@@ -89,12 +95,23 @@
         <if test="flowName != null and flowName != ''">
             and tf.flow_name like concat('%', #{flowName}, '%')
         </if>
+        <if test="ungroupedOnly != null and ungroupedOnly">
+            and tf.flow_group_id is null
+        </if>
+        <if test="flowGroupIdList != null and flowGroupIdList.size() &gt; 0">
+            and tf.flow_group_id in
+            <foreach item="gid" collection="flowGroupIdList" open="(" separator="," close=")">
+                #{gid}
+            </foreach>
+        </if>
         order by tf.test_flow_id desc
     </select>
 
     <select id="selectTestFlowResult" parameterType="Long" resultType="TestFlowResult">
         select tf.test_flow_id     as testFlowId,
                tf.test_project_id  as testProjectId,
+               tf.flow_group_id    as flowGroupId,
+               tfg.group_name     as flowGroupName,
                tf.flow_name        as flowName,
                tf.flow_description as flowDescription,
                tf.graph_json       as graphJson,
@@ -105,6 +122,7 @@
                tf.create_time      as createTime,
                tf.update_time      as updateTime
         from test_flow tf
+        left join test_flow_group tfg on tfg.flow_group_id = tf.flow_group_id and tfg.del_status = 0
         where tf.del_status = 0
           and tf.test_flow_id = #{testFlowId}
         limit 1
@@ -126,6 +144,7 @@
         select
         tf.test_flow_id,
         tf.test_project_id,
+        tf.flow_group_id,
         tf.flow_name,
         tf.flow_description,
         tf.graph_json,
@@ -156,6 +175,9 @@
             <if test="testProjectId != null">
                 test_project_id,
             </if>
+            <if test="flowGroupId != null">
+                flow_group_id,
+            </if>
             <if test="flowName != null and flowName != ''">
                 flow_name,
             </if>
@@ -181,6 +203,9 @@
             </if>
             <if test="testProjectId != null">
                 #{testProjectId},
+            </if>
+            <if test="flowGroupId != null">
+                #{flowGroupId},
             </if>
             <if test="flowName != null and flowName != ''">
                 #{flowName},
@@ -209,6 +234,9 @@
             <if test="testProjectId != null">
                 test_project_id = #{testProjectId},
             </if>
+            <if test="flowGroupId != null">
+                flow_group_id = #{flowGroupId},
+            </if>
             <if test="flowName != null and flowName != ''">
                 flow_name = #{flowName},
             </if>
@@ -232,6 +260,14 @@
             </if>
         </trim>
         where test_flow_id = #{testFlowId}
+    </update>
+
+    <update id="clearFlowGroupId">
+        update test_flow
+        set flow_group_id = null,
+            update_time   = now()
+        where test_flow_id = #{testFlowId}
+          and del_status = 0
     </update>
 
     <update id="updateApiHealthFields" parameterType="TestFlow">

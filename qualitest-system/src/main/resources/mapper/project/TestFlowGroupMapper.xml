@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestFlowGroupMapper">
+
+    <resultMap type="TestFlowGroup" id="TestFlowGroupResultMap">
+        <result property="flowGroupId" column="flow_group_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="ancestors" column="ancestors"/>
+        <result property="groupName" column="group_name"/>
+        <result property="sortNum" column="sort_num"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestFlowGroupVo">
+        select flow_group_id,
+               test_project_id,
+               parent_id,
+               ancestors,
+               group_name,
+               sort_num,
+               del_status,
+               create_time,
+               update_time
+        from test_flow_group
+    </sql>
+
+    <select id="selectTestFlowGroupList" parameterType="TestFlowGroup" resultMap="TestFlowGroupResultMap">
+        <include refid="selectTestFlowGroupVo"/>
+        <where>
+            <if test="testProjectId != null">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="parentId != null">
+                and parent_id = #{parentId}
+            </if>
+            <if test="ancestors != null and ancestors != ''">
+                and ancestors = #{ancestors}
+            </if>
+            <if test="groupName != null and groupName != ''">
+                and group_name = #{groupName}
+            </if>
+            <if test="delStatus != null">
+                and del_status = #{delStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestFlowGroupById" parameterType="Long" resultMap="TestFlowGroupResultMap">
+        <include refid="selectTestFlowGroupVo"/>
+        where flow_group_id = #{flowGroupId}
+    </select>
+
+    <select id="selectTestFlowGroupResultList" parameterType="TestFlowGroupParams"
+            resultType="TestFlowGroupResult">
+        select
+        tfg.flow_group_id as flowGroupId,
+        tfg.test_project_id as testProjectId,
+        tfg.parent_id as parentId,
+        tfg.ancestors as ancestors,
+        tfg.group_name as groupName,
+        tfg.sort_num as sortNum,
+        tfg.del_status as delStatus,
+        tfg.create_time as createTime,
+        tfg.update_time as updateTime,
+        tfg.group_name as label
+        from test_flow_group tfg
+        where tfg.del_status = 0
+        <if test="testProjectId != null">
+            and tfg.test_project_id = #{testProjectId}
+        </if>
+        <if test="parentId != null">
+            and tfg.parent_id = #{parentId}
+        </if>
+        <if test="ancestors != null and ancestors != ''">
+            and tfg.ancestors = #{ancestors}
+        </if>
+        <if test="groupName != null and groupName != ''">
+            and tfg.group_name like concat('%', #{groupName}, '%')
+        </if>
+        order by tfg.sort_num asc, tfg.flow_group_id asc
+    </select>
+
+    <select id="selectTestFlowGroupResult" parameterType="Long" resultType="TestFlowGroupResult">
+        select tfg.flow_group_id   as flowGroupId,
+               tfg.test_project_id as testProjectId,
+               tfg.parent_id       as parentId,
+               tfg.ancestors       as ancestors,
+               tfg.group_name      as groupName,
+               tfg.sort_num        as sortNum,
+               tfg.del_status      as delStatus,
+               tfg.create_time     as createTime,
+               tfg.update_time     as updateTime,
+               tfg.group_name      as label
+        from test_flow_group tfg
+        where tfg.del_status = 0
+          and tfg.flow_group_id = #{flowGroupId}
+        limit 1
+    </select>
+
+    <select id="selectTestFlowGroupCount" parameterType="TestFlowGroupParams" resultType="int">
+        select count(1)
+        from test_flow_group tfg
+        where tfg.del_status = 0
+        <if test="testProjectId != null">
+            and tfg.test_project_id = #{testProjectId}
+        </if>
+        <if test="parentId != null">
+            and tfg.parent_id = #{parentId}
+        </if>
+        <if test="groupName != null and groupName != ''">
+            and tfg.group_name like concat('%', #{groupName}, '%')
+        </if>
+    </select>
+
+    <select id="countChildrenByParentId" parameterType="Long" resultType="int">
+        select count(1)
+        from test_flow_group
+        where del_status = 0
+          and parent_id = #{parentId}
+    </select>
+
+    <select id="selectSelfAndDescendantIds" resultType="long">
+        select flow_group_id
+        from test_flow_group
+        where del_status = 0
+          and test_project_id = #{testProjectId}
+          and (flow_group_id = #{flowGroupId}
+            or find_in_set(#{flowGroupId}, ancestors))
+    </select>
+
+    <insert id="insertTestFlowGroup" parameterType="TestFlowGroup" useGeneratedKeys="true"
+            keyProperty="flowGroupId">
+        insert into test_flow_group
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="parentId != null">
+                parent_id,
+            </if>
+            <if test="ancestors != null">
+                ancestors,
+            </if>
+            <if test="groupName != null and groupName != ''">
+                group_name,
+            </if>
+            <if test="sortNum != null">
+                sort_num,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="parentId != null">
+                #{parentId},
+            </if>
+            <if test="ancestors != null">
+                #{ancestors},
+            </if>
+            <if test="groupName != null and groupName != ''">
+                #{groupName},
+            </if>
+            <if test="sortNum != null">
+                #{sortNum},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestFlowGroup" parameterType="TestFlowGroup">
+        update test_flow_group
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="parentId != null">
+                parent_id = #{parentId},
+            </if>
+            <if test="ancestors != null">
+                ancestors = #{ancestors},
+            </if>
+            <if test="groupName != null and groupName != ''">
+                group_name = #{groupName},
+            </if>
+            <if test="sortNum != null">
+                sort_num = #{sortNum},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where flow_group_id = #{flowGroupId}
+    </update>
+
+    <update id="logicDeleteTestFlowGroupById" parameterType="Long">
+        update test_flow_group
+        set del_status = 1
+        where flow_group_id = #{flowGroupId}
+    </update>
+
+    <update id="logicDeleteTestFlowGroupByIdList" parameterType="java.util.List">
+        update test_flow_group set del_status = 1 where flow_group_id in
+        <foreach item="flowGroupId" collection="list" open="(" separator="," close=")">
+            #{flowGroupId}
+        </foreach>
+    </update>
+
+    <update id="clearFlowGroupIdOnFlows" parameterType="Long">
+        update test_flow
+        set flow_group_id = null,
+            update_time   = now()
+        where flow_group_id = #{flowGroupId}
+    </update>
+</mapper>

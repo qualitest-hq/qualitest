@@ -14,7 +14,8 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * create_flow：在当前项目新建一条空画布测试流并立即写库（仅 MCP 自动写）。
+ * 新建空画布测试流并立即写库。
+ * 可选传入目录主键，创建时直接挂到该目录下。
  */
 @RequiredArgsConstructor
 public class CreateFlowTool implements QualitestTool {
@@ -27,7 +28,7 @@ public class CreateFlowTool implements QualitestTool {
     }
 
     /**
-     * 校验名称 → 插入空图测试流 → 回执 testFlowId。
+     * 校验名称 → 可选挂目录 → 插入空图测试流 → 回执主键。
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
@@ -46,6 +47,7 @@ public class CreateFlowTool implements QualitestTool {
         if (flowDescription.isEmpty()) {
             flowDescription = null;
         }
+        Long flowGroupId = FlowDesignToolSupport.longArg(arguments.get("flowGroupId"));
 
         long testFlowId = IdUtil.getSnowflakeNextId();
         TestFlow flow = TestFlow.builder()
@@ -53,6 +55,7 @@ public class CreateFlowTool implements QualitestTool {
                 .testProjectId(projectId)
                 .flowName(flowName)
                 .flowDescription(flowDescription)
+                .flowGroupId(flowGroupId)
                 .graphJson(EmptyTestFlowGraphFactory.createEmptyGraphJson())
                 .build();
         try {
@@ -67,6 +70,9 @@ public class CreateFlowTool implements QualitestTool {
         result.put("testFlowId", String.valueOf(testFlowId));
         result.put("flowName", flowName);
         result.put("flowDescription", flowDescription != null ? flowDescription : "");
+        if (flowGroupId != null) {
+            result.put("flowGroupId", String.valueOf(flowGroupId));
+        }
         result.put("hint", "空测试流已创建并写库；后续 submit_* / run_test_flow 请带此 testFlowId");
         return result.toJSONString();
     }

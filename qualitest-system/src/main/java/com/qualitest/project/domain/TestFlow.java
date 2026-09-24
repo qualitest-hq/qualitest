@@ -43,6 +43,19 @@ public class TestFlow extends BaseEntity {
     private Long testProjectId;
 
     /**
+     * 所属目录主键。
+     * 空表示未分组。
+     */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long flowGroupId;
+
+    /**
+     * 请求侧：为 true 时清空所属目录（不落库）。
+     * 与 flowGroupId 同时传入时以清空为准。
+     */
+    private Boolean clearFlowGroup;
+
+    /**
      * 测试流名称
      */
     private String flowName;

@@ -36,6 +36,20 @@ public class TestFlowResult implements Serializable {
     private Long testProjectId;
 
     /**
+     * 所属目录主键。
+     * 空表示未分组。
+     */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long flowGroupId;
+
+    /**
+     * 所属目录名称。
+     * 列表联表查出，未分组时为空。
+     */
+    @Excel(name = "分组名称")
+    private String flowGroupName;
+
+    /**
      * 测试流名称
      */
     @Excel(name = "测试流名称")

@@ -5,6 +5,7 @@ import lombok.*;
 import org.apache.ibatis.type.Alias;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * 测试流 Params 对象
@@ -30,5 +31,20 @@ public class TestFlowParams extends BaseEntity implements Serializable {
      * 测试流名称
      */
     private String flowName;
+
+    /**
+     * 选中的测试流分组ID（服务端会展开为含子孙的 flowGroupIdList）
+     */
+    private Long flowGroupId;
+
+    /**
+     * 仅查询未分组的测试流
+     */
+    private Boolean ungroupedOnly;
+
+    /**
+     * 分组 id 列表（含选中组及其子孙；由 Service 填充）
+     */
+    private List<Long> flowGroupIdList;
 
 }

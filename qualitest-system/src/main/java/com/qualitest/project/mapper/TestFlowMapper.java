@@ -80,6 +80,14 @@ public interface TestFlowMapper {
     int updateTestFlow(TestFlow testFlow);
 
     /**
+     * 清空指定测试流的所属目录（flow_group_id 置 NULL）。
+     *
+     * @param testFlowId 测试流主键
+     * @return 影响行数
+     */
+    int clearFlowGroupId(@Param("testFlowId") Long testFlowId);
+
+    /**
      * 仅更新 API 语义健康三字段：
      * api_health_warning_count、api_health_checked_at、api_health_warning_codes。
      * 不改动 graph_json 及其他业务列。

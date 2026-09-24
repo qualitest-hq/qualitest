@@ -20,6 +20,7 @@ import com.qualitest.project.mapper.TestFlowMapper;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
 import com.qualitest.project.params.TestFlowParams;
 import com.qualitest.project.result.TestFlowResult;
+import com.qualitest.project.service.ITestFlowGroupService;
 import com.qualitest.project.service.ITestFlowService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,9 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     @Autowired
     private FlowEditLeaseService flowEditLeaseService;
+
+    @Autowired
+    private ITestFlowGroupService testFlowGroupService;
 
     /**
      * 查询测试流列表
@@ -80,7 +84,59 @@ public class TestFlowServiceImpl implements ITestFlowService {
      */
     @Override
     public List<TestFlowResult> selectTestFlowResultList(TestFlowParams params) {
+        prepareFlowGroupFilter(params);
         return testFlowMapper.selectTestFlowResultList(params);
+    }
+
+    /**
+     * 整理列表目录过滤条件。
+     * 未分组：只保留 ungroupedOnly；选中目录：展开为含子孙的 flowGroupIdList；
+     * 无项目 id 时无法展开子孙，至少按当前目录主键过滤，避免漏掉条件查出全量。
+     *
+     * @param params 列表查询参数
+     */
+    private void prepareFlowGroupFilter(TestFlowParams params) {
+        if (params == null) {
+            return;
+        }
+        if (Boolean.TRUE.equals(params.getUngroupedOnly())) {
+            params.setFlowGroupIdList(null);
+            return;
+        }
+        if (params.getFlowGroupId() == null) {
+            return;
+        }
+        Long projectId = params.getTestProjectId();
+        if (projectId == null) {
+            // 无法展开子孙时至少按本节点过滤，避免静默变成全量
+            params.setFlowGroupIdList(List.of(params.getFlowGroupId()));
+            return;
+        }
+        List<Long> ids = testFlowGroupService.selectSelfAndDescendantIds(params.getFlowGroupId(), projectId);
+        if (ids == null || ids.isEmpty()) {
+            params.setFlowGroupIdList(List.of(params.getFlowGroupId()));
+            return;
+        }
+        params.setFlowGroupIdList(ids);
+    }
+
+    /**
+     * 新建或改挂目录时：确认目录存在、未删除且与测试流同属一项目。
+     *
+     * @param testFlow 测试流（须带 flowGroupId 才校验）
+     */
+    private void validateFlowGroupAssignment(TestFlow testFlow) {
+        if (testFlow == null || testFlow.getFlowGroupId() == null) {
+            return;
+        }
+        Long projectId = testFlow.getTestProjectId();
+        if (projectId == null && testFlow.getTestFlowId() != null) {
+            TestFlow existing = testFlowMapper.selectTestFlowById(testFlow.getTestFlowId());
+            if (existing != null) {
+                projectId = existing.getTestProjectId();
+            }
+        }
+        testFlowGroupService.assertGroupInProject(testFlow.getFlowGroupId(), projectId);
     }
 
     /**
@@ -106,6 +162,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
         if (Objects.isNull(testFlow.getTestFlowId())) {
             testFlow.setTestFlowId(IdUtil.getSnowflakeNextId());
         }
+        validateFlowGroupAssignment(testFlow);
         validateGraphJsonForPersist(testFlow.getGraphJson());
         testFlow.setCreateTime(DateUtils.getNowDate());
         int rows = testFlowMapper.insertTestFlow(testFlow);
@@ -129,6 +186,13 @@ public class TestFlowServiceImpl implements ITestFlowService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateTestFlow(TestFlow testFlow) {
+        boolean clearGroup = Boolean.TRUE.equals(testFlow.getClearFlowGroup());
+        testFlow.setClearFlowGroup(null);
+        if (clearGroup) {
+            // 同请求若又带了 flowGroupId，以清空为准
+            testFlow.setFlowGroupId(null);
+        }
+        validateFlowGroupAssignment(testFlow);
         validateGraphJsonForPersist(testFlow.getGraphJson());
         boolean writingGraph = StrUtil.isNotBlank(testFlow.getGraphJson());
         FlowEditLeaseService.LeaseHandle lease = null;
@@ -141,6 +205,12 @@ public class TestFlowServiceImpl implements ITestFlowService {
             }
             testFlow.setUpdateTime(DateUtils.getNowDate());
             int rows = testFlowMapper.updateTestFlow(testFlow);
+            if (clearGroup && testFlow.getTestFlowId() != null) {
+                int cleared = testFlowMapper.clearFlowGroupId(testFlow.getTestFlowId());
+                if (cleared > 0) {
+                    rows = Math.max(rows, cleared);
+                }
+            }
             if (rows > 0 && testFlow.getTestFlowId() != null) {
                 Long projectId = testFlow.getTestProjectId();
                 if (projectId == null) {
@@ -172,6 +242,28 @@ public class TestFlowServiceImpl implements ITestFlowService {
             }
             FlowGraphCommitPatchHolder.clear();
         }
+    }
+
+    /**
+     * 清空测试流所属目录（变为未分组），并发元数据变更通知。
+     *
+     * @param testFlowId 测试流主键
+     * @return 影响行数
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int clearFlowGroupId(Long testFlowId) {
+        if (testFlowId == null) {
+            return 0;
+        }
+        int rows = testFlowMapper.clearFlowGroupId(testFlowId);
+        if (rows > 0) {
+            TestFlow existing = testFlowMapper.selectTestFlowById(testFlowId);
+            Long projectId = existing != null ? existing.getTestProjectId() : null;
+            flowExternalChangePublisher.publishFlowMetaChanged(
+                    testFlowId, projectId, FlowExternalChangeSourceHolder.getOrDefault());
+        }
+        return rows;
     }
 
     /**
