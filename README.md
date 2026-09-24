@@ -2,9 +2,11 @@
 
 # 质衡 · Qualitest
 
-**企业级自动化测试与质量保障平台**
+<img src="./docs/images/logo.png" alt="质衡 Qualitest" width="96" />
 
-让接口同步、调试、编排与 AI 辅助设计在同一项目里闭环 —— 少切换工具，少重复录入。
+**在 Cursor 里：导入接口 → 写测试流 → 跑流 → 挂了继续改**
+
+开源接口自动化测试平台 · 画布编排 · AI Diff · IDEA / MCP 入库
 
 <br/>
 
@@ -18,21 +20,25 @@
 
 [官网](https://qualitest-hq.github.io/qualitest/) ·
 [English](./README.en.md) ·
-[为什么需要](#-为什么需要质衡) ·
-[主链路](#-一条链路走完) ·
-[谁适合用](#-谁适合用) ·
-[功能演示](#-功能演示) ·
+[MCP 说明](./docs/mcp.md) ·
 [试一把](#-试一把) ·
+[功能演示](#-功能演示) ·
 [QQ 交流群](https://qm.qq.com/q/FBa9jDRhm)
 
 <br/>
+
+<p align="center">
+  <img src="./docs/images/canvas-glance.gif" alt="测试流画布：多步接口编排与运行" width="720" />
+</p>
+
+<p><strong>主叙事</strong>：改完代码不必先切 Postman —— 用 MCP 在 Cursor 里造流、跑流；也可用 Web 画布与调试台完整自测。</p>
 
 <details>
 <summary><strong>English Summary</strong> — value prop &amp; quick start · <a href="./README.en.md">full English README</a></summary>
 
 <br/>
 
-**Qualitest** connects API sync (IntelliJ **or** MCP import — not Java-only), in-project debug, canvas orchestration, and AI design (**diff before merge**) — plus MCP **write / run** so Cursor can build a flow and hit Run next to the code you just changed (backend or frontend).
+**Qualitest**: in Cursor — **import APIs → write a test flow → run it → fix failures in chat**. Also a full Web console + canvas. Ingest via IntelliJ **or** MCP (not Java-only).
 
 ```bash
 cd qualitest
@@ -40,11 +46,21 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT` in `.env`). Sign in **`admin`** / **`admin123`** after the backend is healthy. Docs: [README.en.md](./README.en.md) · [deploy.en.md](./docs/deploy.en.md).
+Open `http://localhost` · **`admin`** / **`admin123`**. Docs: [README.en.md](./README.en.md) · [mcp.en.md](./docs/mcp.en.md).
 
 </details>
 
 <br/>
+
+### 5 分钟起栈
+
+```bash
+cd qualitest
+# Windows: scripts\quick-start.bat
+chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
+```
+
+浏览器打开 `http://localhost`（默认 **80**；占用则在 `.env` 设 `WEB_PORT`），登录 **`admin`** / **`admin123`**。等后端健康后再登；细节见下方 [试一把](#-试一把)。
 
 <p><strong>主链路</strong>：接口入库 → 调试台 → 测试流画布 → AI Diff → MCP</p>
 

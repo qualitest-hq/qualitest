@@ -1,10 +1,12 @@
 <div align="center">
 
-# Qualitest
+# Qualitest · 质衡
 
-**Enterprise API testing & quality platform**
+<img src="./docs/images/logo.png" alt="Qualitest" width="96" />
 
-Sync APIs, debug in-project, orchestrate flows, and design with AI — plus MCP **write / run** so Cursor can build a flow and hit Run next to the code you just changed (backend or frontend).
+**In Cursor: import APIs → write a test flow → run it → fix failures in chat**
+
+Open-source API automation · flow canvas · AI Diff · IntelliJ / MCP ingest
 
 <br/>
 
@@ -18,14 +20,30 @@ Sync APIs, debug in-project, orchestrate flows, and design with AI — plus MCP 
 
 [Website](https://qualitest-hq.github.io/qualitest/) ·
 [中文 README](./README.md) ·
-[Why Qualitest](#why-qualitest) ·
-[The loop](#one-loop) ·
-[Who it's for](#who-its-for) ·
-[Demos](#demos) ·
+[MCP](./docs/mcp.en.md) ·
 [Try it](#try-it) ·
+[Demos](#demos) ·
 [QQ group](https://qm.qq.com/q/FBa9jDRhm)
 
 <br/>
+
+<p align="center">
+  <img src="./docs/images/canvas-glance.gif" alt="Test-flow canvas: orchestrate and run multi-step API flows" width="720" />
+</p>
+
+<p><strong>Pitch</strong>: after changing code, stay in Cursor — MCP builds and runs the flow. Or use the full Web debugger + canvas.</p>
+
+<br/>
+
+### 5-minute Quick Start
+
+```bash
+cd qualitest
+# Windows: scripts\quick-start.bat
+chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
+```
+
+Open `http://localhost` (default **80**; set `WEB_PORT` in `.env` if busy). Sign in **`admin`** / **`admin123`** after the backend is healthy. More detail: [Try it](#try-it).
 
 <p><strong>Loop</strong>: API ingest → console → flow canvas → AI Diff → MCP</p>
 

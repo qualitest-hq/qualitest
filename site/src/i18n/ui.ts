@@ -22,9 +22,9 @@ export const ui = {
     heroEyebrow: "开源接口自动化测试 · 画布编排 · Cursor MCP",
     heroBrandPrimary: "质衡",
     heroBrandSecondary: "Qualitest",
-    heroHeadline: "接口同步、调试、编排与 AI，同一项目闭环",
+    heroHeadline: "改完代码，在 Cursor 里写流、跑流",
     heroSupport:
-      "开源接口自动化：少切换工具，少重复录入 —— 接口入库（IDEA 或 MCP）、调试台、测试流画布、AI Diff，一条链路走完。",
+      "导入接口 → 写测试流 → 跑流 → 挂了继续改。也可用 Web 调试台与画布完整自测；IDEA 插件或 MCP 入库（不限 Java）。",
     heroCtaPrimary: "Star on GitHub",
     heroCtaSecondary: "5 分钟 Quick Start",
     heroPipelineAria: "质衡主链路示意：入库、调试、画布、AI、MCP",
@@ -119,9 +119,9 @@ export const ui = {
     heroEyebrow: "Open-source API automation · flow canvas · Cursor MCP",
     heroBrandPrimary: "Qualitest",
     heroBrandSecondary: "质衡",
-    heroHeadline: "Sync, debug, orchestrate, and AI — closed loop in one project",
+    heroHeadline: "After you change code, write and run flows in Cursor",
     heroSupport:
-      "Open-source API automation with fewer tool switches — ingest (IntelliJ or MCP), debugger, flow canvas, AI Diff, one continuous path.",
+      "Import APIs → write a test flow → run it → fix failures in chat. Or use the full Web debugger and canvas; ingest via IntelliJ or MCP (any stack).",
     heroCtaPrimary: "Star on GitHub",
     heroCtaSecondary: "5-min Quick Start",
     heroPipelineAria: "Qualitest pipeline: Ingest, Debug, Canvas, AI, MCP",
