@@ -17,7 +17,7 @@ import java.util.Map;
  * 按接口路径选一套 Profile：命中最长 pathPrefix 的那条；都未命中则用数组第一条。
  * 每套 Profile 含鉴权托管头与可选响应约定（业务码信封四字段）。
  * 免登只看预制接口 auth.mode=none。
- * 抽凭证：credentialApi 标明哪一口登录；托管头占位符标明写入目标。
+ * 抽凭证：节点 extracts 写入目标对齐托管头占位符；登录口由此推断，不另声明。
  */
 @Data
 @Builder
@@ -67,34 +67,9 @@ public class ProjectAuthConfig implements Serializable {
          */
         private Map<String, Object> responseConvention;
 
-        /**
-         * 本套发凭证的接口，通常是 POST /login。
-         * 造流只对这一口按托管头占位符补 extracts。
-         */
-        private CredentialApi credentialApi;
-
         /** 本套预制接口：登录、注册、验证码等。 */
         @Builder.Default
         private List<PrefabricatedApi> apis = new ArrayList<>();
-    }
-
-    /**
-     * 发凭证接口的 method + path。
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class CredentialApi implements Serializable {
-
-        @Serial
-        private static final long serialVersionUID = 1L;
-
-        /** HTTP 方法，如 POST。 */
-        private String method;
-
-        /** 接口路径，如 /login。 */
-        private String path;
     }
 
     /**

@@ -5,7 +5,6 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ProjectAuthConfig;
-import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.api.util.CredentialTargetSupport;
@@ -62,7 +61,7 @@ public final class AuthProfileUpsertSupport {
 
     /**
      * 将单个 Profile 转为列举摘要。
-     * 含：id、名称、pathPrefix、托管头、规范化后的响应约定四字段、凭证目标、登录口定位。
+     * 含：id、名称、pathPrefix、托管头、规范化后的响应约定四字段、凭证目标。
      * 不含密钥明文。
      *
      * @param profile 多端 Profile
@@ -89,19 +88,12 @@ public final class AuthProfileUpsertSupport {
             ct.put("displayPath", target.displayPath());
             item.put("credentialTarget", ct);
         }
-        if (profile.getCredentialApi() != null) {
-            JSONObject api = new JSONObject();
-            api.put("method", profile.getCredentialApi().getMethod());
-            api.put("path", profile.getCredentialApi().getPath());
-            item.put("credentialApi", api);
-        }
         return item;
     }
 
     /**
      * 生成提案 before/after 用的字段快照。
-     * 含 id、name、pathPrefix、headerName、headerValueTemplate、
-     * responseConvention（四字段）、credentialMethod、credentialPath。
+     * 含 id、name、pathPrefix、headerName、headerValueTemplate、responseConvention（四字段）。
      *
      * @param profile 可空；空则返回空 Map
      * @return 有序字段快照
@@ -117,10 +109,6 @@ public final class AuthProfileUpsertSupport {
         map.put("headerName", profile.getHeaderName());
         map.put("headerValueTemplate", profile.getHeaderValueTemplate());
         map.put("responseConvention", ResponseConventionSupport.toMap(profile.getResponseConvention()));
-        if (profile.getCredentialApi() != null) {
-            map.put("credentialMethod", profile.getCredentialApi().getMethod());
-            map.put("credentialPath", profile.getCredentialApi().getPath());
-        }
         return map;
     }
 
@@ -196,7 +184,7 @@ public final class AuthProfileUpsertSupport {
      * 把 patch 中出现的字段合并进 Profile，未出现的字段保持原值；apis 列表原样保留。
      * <p>
      * 可合并字段：name、headerName、headerValueTemplate、pathPrefix、
-     * responseConvention（对约定四字段浅合并）、credentialApi 或扁平 credentialMethod/credentialPath。
+     * responseConvention（对约定四字段浅合并）。
      *
      * @param base  合并前的 Profile
      * @param patch 拟写入字段
@@ -207,7 +195,6 @@ public final class AuthProfileUpsertSupport {
         String headerName = base.getHeaderName();
         String headerValueTemplate = base.getHeaderValueTemplate();
         Match match = base.getMatch();
-        CredentialApi credentialApi = base.getCredentialApi();
         Map<String, Object> responseConvention = base.getResponseConvention();
 
         if (patch.containsKey("name")) {
@@ -231,36 +218,6 @@ public final class AuthProfileUpsertSupport {
                 responseConvention = ResponseConventionSupport.toMap(merged);
             }
         }
-        if (patch.containsKey("credentialApi") || patch.containsKey("credentialMethod")
-                || patch.containsKey("credentialPath")) {
-            Object rawApi = patch.get("credentialApi");
-            String method = null;
-            String path = null;
-            if (rawApi instanceof Map<?, ?> map) {
-                method = stringVal(map.get("method"));
-                path = stringVal(map.get("path"));
-            } else if (rawApi != null) {
-                try {
-                    JSONObject obj = JSON.parseObject(JSON.toJSONString(rawApi));
-                    method = obj.getString("method");
-                    path = obj.getString("path");
-                } catch (Exception ignored) {
-                    // 非法 credentialApi 形态时忽略，改用扁平字段
-                }
-            }
-            if (patch.containsKey("credentialMethod")) {
-                method = stringVal(patch.get("credentialMethod"));
-            }
-            if (patch.containsKey("credentialPath")) {
-                path = stringVal(patch.get("credentialPath"));
-            }
-            if (StrUtil.isBlank(path)) {
-                credentialApi = null;
-            } else {
-                credentialApi = ProjectAuthConfigSupport.credentialApi(
-                        StrUtil.blankToDefault(method, "POST"), path);
-            }
-        }
 
         return ProjectAuthProfile.builder()
                 .id(base.getId())
@@ -271,7 +228,6 @@ public final class AuthProfileUpsertSupport {
                 .responseConvention(responseConvention != null
                         ? new LinkedHashMap<>(responseConvention)
                         : null)
-                .credentialApi(credentialApi)
                 .apis(base.getApis() != null ? base.getApis() : new ArrayList<>())
                 .build();
     }

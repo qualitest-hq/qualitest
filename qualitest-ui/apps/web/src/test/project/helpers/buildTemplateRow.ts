@@ -51,7 +51,6 @@ export function buildAdminBearerProfile(overrides: Record<string, unknown> = {})
     headerName: 'Authorization',
     headerValueTemplate: 'Bearer {{asset.adminAuth.token}}',
     match: { pathPrefix: ['/system/'] },
-    credentialApi: { method: 'POST', path: '/login' },
     apis: [buildLoginApi()],
     ...overrides,
   }

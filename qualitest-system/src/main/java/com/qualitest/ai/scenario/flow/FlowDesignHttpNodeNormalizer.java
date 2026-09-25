@@ -108,25 +108,33 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 登录凭证口：仅当托管头凭证目标或响应 schema 能确定目标与 expr 时，
-     * 空 extracts 补一行建议抽取；已有凭证类行则改写为目标 scope/name/expr。
-     * 自定义非凭证路径不改；无法确定 expr 时不编造 JsonPath。
+     * 登录类接口：已有凭证类 extracts 时，按 pathPrefix Profile 托管头目标对齐 scope/name/expr。
+     * 空 extracts 不自动补行（由人/AI 按 headerValueTemplate 后补）。
      */
     static void alignLoginExtract(
             Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
-        if (data == null || api == null
-                || !LoginExtractSuggestor.isCredentialApiEndpoint(projectAuthJson, null, api.getApiPath())) {
+        if (data == null || api == null || !LoginExtractSuggestor.isLoginLikeApi(api.getApiPath())) {
+            return;
+        }
+        Object raw = data.get("extracts");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return;
+        }
+        boolean hasCredentialLike = false;
+        for (Object item : list) {
+            JSONObject row = toJsonObject(item);
+            if (row != null && LoginExtractSuggestor.isCredentialLikeExtract(row)) {
+                hasCredentialLike = true;
+                break;
+            }
+        }
+        if (!hasCredentialLike) {
             return;
         }
         JSONObject schema = FlowDesignApiSummarizer.summarizeResponse(api.getResponseConfig());
         LoginExtractSuggestor.Suggestion suggestion = LoginExtractSuggestor.suggest(
                 projectAuthJson, api.getApiPath(), schema);
         if (suggestion == null) {
-            return;
-        }
-        Object raw = data.get("extracts");
-        if (!(raw instanceof List<?> list) || list.isEmpty()) {
-            data.put("extracts", List.of(suggestion.toExtractRow()));
             return;
         }
         List<Object> next = new ArrayList<>();

@@ -23,7 +23,7 @@ import java.util.function.Function;
 /**
  * 设计期门禁：两套不同登录口不得写出同一个凭证目标。
  * <p>
- * 扫描命中 credentialApi 的 project HTTP；按实际 extracts 收集 asset / flow 凭证目标。
+ * 扫描 extracts 已写出托管头凭证目标的 project HTTP；按实际 extracts 收集目标。
  * 同一 identityKey 被至少两个不同 method+path 写出时硬拦。
  */
 public final class LoginFlowKeyCollisionGate {

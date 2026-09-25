@@ -7,7 +7,6 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
-import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
@@ -27,11 +26,11 @@ import java.util.Set;
  * 项目多端配置（存于 test_project.auth_config）的解析、校验、写出和运行期查询。
  * <p>
  * 根结构为 authProfiles 数组；每条 Profile 含：
- * 路径前缀匹配、鉴权托管头、响应约定四字段、credentialApi、预制接口列表。
+ * 路径前缀匹配、鉴权托管头、响应约定四字段、预制接口列表。
  * <ul>
  *   <li>选端：按接口 path 命中最长 pathPrefix；都未命中则不加托管头（不回落第一条）</li>
  *   <li>免登：配置为空时用内置登录类路径；有 Profile 后只认预制口 auth.mode=none</li>
- *   <li>抽凭证：credentialApi 标明登录口；托管头占位符标明写入目标</li>
+ *   <li>抽凭证：节点 extracts 对齐托管头占位符；登录口由此推断</li>
  *   <li>响应约定：取命中 Profile 上的四字段；Profile 未写或残缺时用代码缺省（code/[200]/msg/data）</li>
  * </ul>
  */
@@ -88,7 +87,7 @@ public final class ProjectAuthConfigSupport {
         return JSONUtil.toJsonStr(root);
     }
 
-    /** 写出一条 Profile：id、name、match、扁平头、响应约定、credentialApi、apis。 */
+    /** 写出一条 Profile：id、name、match、扁平头、响应约定、apis。 */
     private static Map<String, Object> writeProfile(ProjectAuthProfile profile) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", profile.getId());
@@ -104,15 +103,6 @@ public final class ProjectAuthConfigSupport {
         map.put("headerName", profile.getHeaderName());
         map.put("headerValueTemplate", profile.getHeaderValueTemplate());
         map.put("responseConvention", writeResponseConvention(profile.getResponseConvention()));
-        CredentialApi cred = profile.getCredentialApi();
-        if (cred != null && StrUtil.isNotBlank(cred.getPath())) {
-            Map<String, Object> credMap = new LinkedHashMap<>();
-            if (StrUtil.isNotBlank(cred.getMethod())) {
-                credMap.put("method", cred.getMethod());
-            }
-            credMap.put("path", cred.getPath());
-            map.put("credentialApi", credMap);
-        }
         map.put("apis", writeApis(profile.getApis()));
         return map;
     }
@@ -226,21 +216,6 @@ public final class ProjectAuthConfigSupport {
                 .build();
     }
 
-    /** 整理 credentialApi：path 必填，method 转大写。 */
-    private static CredentialApi normalizeCredentialApi(CredentialApi raw) {
-        if (raw == null || StrUtil.isBlank(raw.getPath())) {
-            return null;
-        }
-        String method = StrUtil.trimToNull(raw.getMethod());
-        if (method != null) {
-            method = method.toUpperCase(Locale.ROOT);
-        }
-        return CredentialApi.builder()
-                .method(method)
-                .path(normalizeApiPath(raw.getPath()))
-                .build();
-    }
-
     /** 校验 Profile：id 非空且不重复，必须有头名称和值模板，禁止 pathPrefix=/。 */
     private static List<ProjectAuthProfile> normalizeProfiles(List<ProjectAuthProfile> raw) {
         List<ProjectAuthProfile> out = new ArrayList<>();
@@ -280,7 +255,6 @@ public final class ProjectAuthConfigSupport {
                     .headerName(headerName)
                     .headerValueTemplate(valueTemplate)
                     .responseConvention(normalizeResponseConventionMap(profile.getResponseConvention()))
-                    .credentialApi(normalizeCredentialApi(profile.getCredentialApi()))
                     .apis(normalizePrefabricatedApis(profile.getApis(), id))
                     .build());
         }
@@ -415,7 +389,6 @@ public final class ProjectAuthConfigSupport {
                                 .name("RuoYi Bearer")
                                 .headerName("Authorization")
                                 .headerValueTemplate("Bearer {{asset.adminAuth.token}}")
-                                .credentialApi(credentialApi("POST", "/login"))
                                 .apis(ruoyiBearerApis())
                                 .build()
                 ))
@@ -589,14 +562,6 @@ public final class ProjectAuthConfigSupport {
             return "array";
         }
         return "string";
-    }
-
-    /** 发凭证口：method + 规范化 path。 */
-    public static CredentialApi credentialApi(String method, String path) {
-        return CredentialApi.builder()
-                .method(StrUtil.trimToNull(method) != null ? method.trim().toUpperCase(Locale.ROOT) : null)
-                .path(normalizeApiPath(path))
-                .build();
     }
 
     /**
@@ -992,67 +957,6 @@ public final class ProjectAuthConfigSupport {
             }
         }
         return keys;
-    }
-
-    /**
-     * 按 method+path 找发凭证 Profile：接口须在某 Profile.apis 中，且命中该条 credentialApi。
-     */
-    public static ProjectAuthProfile findCredentialProfile(ProjectAuthConfig config, String method, String apiPath) {
-        if (isEmpty(config) || StrUtil.isBlank(apiPath)) {
-            return null;
-        }
-        String path = normalizeApiPath(apiPath);
-        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
-            if (profile == null || !profileContainsApi(profile, method, path)) {
-                continue;
-            }
-            if (matchesCredential(profile, method, path)) {
-                return profile;
-            }
-            return null;
-        }
-        return null;
-    }
-
-    /** 该 Profile 的 apis 是否含此 method+path。 */
-    private static boolean profileContainsApi(ProjectAuthProfile profile, String method, String path) {
-        if (profile.getApis() == null) {
-            return false;
-        }
-        String wantMethod = StrUtil.trimToNull(method);
-        if (wantMethod != null) {
-            wantMethod = wantMethod.toUpperCase(Locale.ROOT);
-        }
-        for (PrefabricatedApi api : profile.getApis()) {
-            if (api == null || StrUtil.isBlank(api.getApiPath())) {
-                continue;
-            }
-            if (!path.equals(normalizeApiPath(api.getApiPath()))) {
-                continue;
-            }
-            String apiMethod = prefabricatedHttpMethod(api);
-            if (apiMethod == null || wantMethod == null || apiMethod.equals(wantMethod)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** 是否为本 Profile 声明的发凭证口。 */
-    private static boolean matchesCredential(ProjectAuthProfile profile, String method, String path) {
-        CredentialApi cred = profile.getCredentialApi();
-        if (cred == null || StrUtil.isBlank(cred.getPath())) {
-            return false;
-        }
-        if (!path.equals(normalizeApiPath(cred.getPath()))) {
-            return false;
-        }
-        String credMethod = StrUtil.trimToNull(cred.getMethod());
-        String wantMethod = StrUtil.trimToNull(method);
-        if (credMethod == null || wantMethod == null) {
-            return true;
-        }
-        return credMethod.equalsIgnoreCase(wantMethod);
     }
 
     /**

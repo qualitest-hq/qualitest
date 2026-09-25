@@ -141,8 +141,6 @@ final class TemplateApiCatalogSupport {
         result.put("responseSchemaSummary", FlowDesignApiSummarizer.summarizeResponse(responseConfigJson));
         result.put("responseSchemaLeaves", FlowDesignApiSummarizer.summarizeResponseLeaves(responseConfigJson));
         result.put("responseConvention", new JSONObject());
-        result.put("suggestedExtracts", FlowDesignApiSummarizer.suggestExtracts(
-                result.getJSONObject("responseSchemaSummary"), null));
         result.put("auth", api.get("authConfig"));
         return result;
     }

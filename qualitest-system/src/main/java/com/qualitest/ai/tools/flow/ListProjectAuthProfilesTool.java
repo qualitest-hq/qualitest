@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * AI 造流只读工具：列举当前项目鉴权 Profile。
  * <p>
- * 回执含 id、名称、pathPrefix、托管头、credentialTarget、credentialApi；不含密钥明文。
+ * 回执含 id、名称、pathPrefix、托管头、credentialTarget；不含密钥明文。
  * 模板画布模式无项目鉴权，直接返回错误。
  */
 @RequiredArgsConstructor

@@ -214,7 +214,6 @@ class ProjectAuthTemplateApplyServiceTest {
         assertEquals("post()", row.getPostRequestScript());
         assertTrue(row.getDesignHints().contains("$.token"));
         assertTrue(row.getAuthConfig().contains("\"none\""));
-        assertFalse(row.getAuthConfig().contains("loginHint"));
     }
 
     /**
@@ -276,7 +275,7 @@ class ProjectAuthTemplateApplyServiceTest {
 
     /**
      * 前提：空 flows，match_config.credential 为客户端 header token。
-     * 期望：Profile 头为 token + {{asset.clientAuth.data}}，并带 credentialApi。
+     * 期望：Profile 头为 token + {{asset.clientAuth.data}}。
      */
     @Test
     @Order(61)
@@ -304,7 +303,6 @@ class ProjectAuthTemplateApplyServiceTest {
         assertEquals("token", stored.getAuthProfiles().get(0).getHeaderName());
         assertEquals("{{asset.clientAuth.data}}",
                 stored.getAuthProfiles().get(0).getHeaderValueTemplate());
-        assertEquals("/api/login/login", stored.getAuthProfiles().get(0).getCredentialApi().getPath());
     }
 
     /**
@@ -332,11 +330,9 @@ class ProjectAuthTemplateApplyServiceTest {
         ArgumentCaptor<TestProject> update = ArgumentCaptor.forClass(TestProject.class);
         verify(testProjectMapper).updateTestProject(update.capture());
         String authConfigJson = update.getValue().getAuthConfig();
-        assertFalse(authConfigJson.contains("loginHint"));
         ProjectAuthConfig stored = ProjectAuthConfigSupport.parse(authConfigJson);
         assertEquals("Bearer {{asset.adminAuth.token}}",
                 stored.getAuthProfiles().get(0).getHeaderValueTemplate());
-        assertEquals("/login", stored.getAuthProfiles().get(0).getCredentialApi().getPath());
 
         ArgumentCaptor<com.qualitest.project.domain.TestFlow> flowCap =
                 ArgumentCaptor.forClass(com.qualitest.project.domain.TestFlow.class);

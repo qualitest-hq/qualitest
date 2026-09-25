@@ -52,7 +52,7 @@ class LoginExtractSuggestorTest {
     }
 
     /**
-     * 前提：双端模板；管理端 /login；schema 含 token。
+     * 前提：单端 RuoYi 模板；管理端 /login；schema 含 token。
      * 期望：asset.adminAuth.token，expr=$.token。
      */
     @Test
@@ -61,8 +61,9 @@ class LoginExtractSuggestorTest {
     void suggest_adminLogin_usesAssetTarget() {
         JSONObject schema = new JSONObject();
         schema.put("token", "string");
+        String single = ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.ruoyiBearerTemplate());
 
-        LoginExtractSuggestor.Suggestion s = LoginExtractSuggestor.suggest(DUAL, "/login", schema);
+        LoginExtractSuggestor.Suggestion s = LoginExtractSuggestor.suggest(single, "/login", schema);
 
         assertNotNull(s);
         assertEquals("asset", s.scope());
@@ -150,17 +151,17 @@ class LoginExtractSuggestorTest {
     }
 
     /**
-     * 前提：双端模板。
-     * 期望：仅 credentialApi 有凭证口；注册口没有。
+     * 前提：常见 path。
+     * 期望：以 /login|/register 结尾为登录类；验证码不是。
      */
     @Test
     @Order(8)
-    @DisplayName("isCredentialApiEndpoint 只认发凭证口")
-    void isCredentialApiEndpoint_onlyCredentialApi() {
-        assertTrue(LoginExtractSuggestor.isCredentialApiEndpoint(DUAL, "POST", "/login"));
-        assertFalse(LoginExtractSuggestor.isCredentialApiEndpoint(DUAL, "POST", "/register"));
-        assertFalse(LoginExtractSuggestor.isCredentialApiEndpoint(DUAL, "GET", "/captchaImage"));
-        assertTrue(LoginExtractSuggestor.isCredentialApiEndpoint(
-                DUAL, "POST", "/api/account/auth/login"));
+    @DisplayName("isLoginLikeApi 认 /login 与 /register")
+    void isLoginLikeApi_loginAndRegister() {
+        assertTrue(LoginExtractSuggestor.isLoginLikeApi("/login"));
+        assertTrue(LoginExtractSuggestor.isLoginLikeApi("/api/account/auth/login"));
+        assertTrue(LoginExtractSuggestor.isLoginLikeApi("/api/account/auth/register"));
+        assertFalse(LoginExtractSuggestor.isLoginLikeApi("/captchaImage"));
+        assertFalse(LoginExtractSuggestor.isLoginLikeApi("/system/user/list"));
     }
 }

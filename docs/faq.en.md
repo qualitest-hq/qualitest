@@ -31,7 +31,6 @@ Hard blocks for token / login-extract / HTTP-required run on **Run** only — St
 
 | Code | Meaning | Fix |
 | ---- | ------- | --- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | Login node missing extract for managed header target | Add extracts |
 | `AUTH_TOKEN_MISSING` | Bearer needed but no writer in the graph | Add a matching source (login extract / flowSeed / env) for the Profile header; “wrong side” tip → fix project auth |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Two logins write the same credential path | Use `adminAuth` / `clientAuth` separately |
 | `AUTH_HEADER_MANAGED` | Managed header filled | Info only |

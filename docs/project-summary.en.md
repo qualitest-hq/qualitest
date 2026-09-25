@@ -64,7 +64,7 @@ Configured in project settings → auth. Shared by Normalizer, Run, and debug.
 | Concept | Notes |
 | ------- | ----- |
 | `test_project_template` | One row = one Profile; built-ins: RuoYi Bearer/Session, client Bearer, admin Bearer |
-| Apply | Copy into `authProfiles` (**new ids**); insert prefab `apis[]` (skip existing method+path); optional envs/params/flows. Managed header + `credentialApi`: **prefer** login-flow extracts, else **`match_config.credential`**, else **reject the row** (no weak dual `adminAuth` Bearer; no `loginHint`) |
+| Apply | Copy into `authProfiles` (**new ids**); insert prefab `apis[]` (skip existing method+path); optional envs/params/flows. Managed header: prefer login-flow extracts, else match_config.credential, else reject the row |
 | New project | **At least one** template; dual mall: admin Bearer then client Bearer |
 | Anonymous | Prefab `apis[].authConfig.mode=none` only; no project-level anonymous path list |
 | Empty config | Builtin `/login` heuristics only when auth is completely empty; Profiles with empty apis → settings banner |
@@ -73,13 +73,13 @@ Configured in project settings → auth. Shared by Normalizer, Run, and debug.
 
 | Layer | Notes |
 | ----- | ----- |
-| Project `authProfiles` | Header template + `credentialApi` + prefab `apis[]`; unmatched `pathPrefix` → **first array item**. **`loginHint` removed** |
+| Project `authProfiles` | Header template (`headerName` + `headerValueTemplate`) + prefab `apis[]`; unmatched `pathPrefix` → **first array item** |
 | API `auth.mode` | `inherit` / `none` / `override` |
 | Node headers | `profileManaged` rows refresh from current config at Run; unmarked headers never silently change |
 
 **Match:** `authProfileId` if set; else longest `pathPrefix`; else first profile. **`pathPrefix="/"` forbidden.**
 
-**Login extracts:** usually `scope=asset` into the asset library; Profile header uses `{{asset.adminAuth.token}}` etc. Must match `credentialApi`. Empty extracts on design are filled from the managed-header placeholder + schema; missing extract hard-blocks on **Run** (`AUTH_LOGIN_EXTRACT_MISSING`). Uploads merge API schema/`mode` by method+path; optional upload protection (`syncProtected=1` skips the row; built-in prefab APIs default to `1`).
+**Login extracts:** usually `scope=asset` into the asset library; Profile header uses `{{asset.adminAuth.token}}` etc. Login nodes are inferred when extracts match headerValueTemplate; missing extracts are not hard-blocked (human/AI can add later). Uploads merge API schema/`mode` by method+path; optional upload protection (`syncProtected=1` skips the row; built-in prefab APIs default to `1`).
 
 | Side | Typical path | Extract |
 | ---- | ------------ | ------- |

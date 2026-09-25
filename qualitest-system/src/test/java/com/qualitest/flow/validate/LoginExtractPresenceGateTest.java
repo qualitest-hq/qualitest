@@ -15,12 +15,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 LoginExtractPresenceGate：登录口必须写出期望凭证目标；expr 在 schema 可确定时硬拦。
- * 边界：双端模板 /login；Map schema 无目标只查名。
+ * 测 LoginExtractPresenceGate：不再按声明登录口硬拦缺 extract；仅保留已有 extracts 写出托管头目标时的键碰撞。
+ * 边界：双端模板；空 extracts 通过；两端写同一目标硬拦。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=LoginExtractPresenceGateTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -31,26 +30,22 @@ class LoginExtractPresenceGateTest {
 
     /**
      * 前提：双端模板；/login 节点无 extracts。
-     * 期望：硬拦，文案含 asset.adminAuth.token。
+     * 期望：不硬拦（缺 extracts 由人/AI 后补）。
      */
     @Test
     @Order(1)
-    @DisplayName("登录口无 extract 硬拦")
-    void missingExtract_fails() {
+    @DisplayName("登录口无 extract 不硬拦")
+    void missingExtract_ok() {
         GraphJson graph = GraphJson.builder()
                 .nodes(List.of(httpNode("login", 1L)))
                 .build();
 
-        List<String> errors = LoginExtractPresenceGate.validate(
-                graph, PROJECT_AUTH, id -> api(id, "/login"));
-
-        assertEquals(1, errors.size());
-        assertTrue(errors.get(0).startsWith("AUTH_LOGIN_EXTRACT_MISSING:"));
-        assertTrue(errors.get(0).contains("asset.adminAuth.token"));
+        assertTrue(LoginExtractPresenceGate.validate(
+                graph, PROJECT_AUTH, id -> api(id, "/login")).isEmpty());
     }
 
     /**
-     * 前提：双端模板；/login 已抽取 asset.adminAuth.token / $.token。
+     * 前提：双端模板；/login 已抽取 asset.adminAuth.token。
      * 期望：通过。
      */
     @Test
@@ -73,13 +68,13 @@ class LoginExtractPresenceGateTest {
     }
 
     /**
-     * 前提：双端模板；/login 目标正确但 expr=$.data.token；响应 schema 含 token。
-     * 期望：路径不符硬拦。
+     * 前提：双端模板；/login 目标正确但 expr 与 schema 不一致。
+     * 期望：不再因 expr 硬拦。
      */
     @Test
     @Order(3)
-    @DisplayName("schema 已知时错误 expr 硬拦")
-    void wrongExpr_failsWhenSchemaKnown() {
+    @DisplayName("错误 expr 不硬拦")
+    void wrongExpr_doesNotBlock() {
         GraphNode n = httpNode("login", 1L);
         n.getData().put("extracts", List.of(Map.of(
                 "name", "token",
@@ -91,18 +86,13 @@ class LoginExtractPresenceGateTest {
         )));
         GraphJson graph = GraphJson.builder().nodes(List.of(n)).build();
 
-        List<String> errors = LoginExtractPresenceGate.validate(
-                graph, PROJECT_AUTH, id -> apiWithTokenSchema(id, "/login"));
-
-        assertEquals(1, errors.size());
-        assertTrue(errors.get(0).startsWith("AUTH_LOGIN_EXTRACT_MISSING:"));
-        assertTrue(errors.get(0).contains("$.token"));
-        assertTrue(errors.get(0).contains("$.data.token"));
+        assertTrue(LoginExtractPresenceGate.validate(
+                graph, PROJECT_AUTH, id -> apiWithTokenSchema(id, "/login")).isEmpty());
     }
 
     /**
-     * 前提：无项目鉴权；/login schema 为 Map；extracts 名为 adminToken、expr 任意。
-     * 期望：无 credential 口目标，不拦。
+     * 前提：无项目鉴权；/login schema 为 Map。
+     * 期望：不拦。
      */
     @Test
     @Order(4)
@@ -116,34 +106,28 @@ class LoginExtractPresenceGateTest {
         )));
         GraphJson graph = GraphJson.builder().nodes(List.of(n)).build();
 
-        List<String> errors = LoginExtractPresenceGate.validate(
-                graph, null, id -> apiWithMapSchema(id, "/login"));
-
-        assertTrue(errors.isEmpty());
+        assertTrue(LoginExtractPresenceGate.validate(
+                graph, null, id -> apiWithMapSchema(id, "/login")).isEmpty());
     }
 
     /**
      * 前提：双端模板；客户端登录口无 extracts。
-     * 期望：硬拦，文案含 asset.clientAuth.token。
+     * 期望：不硬拦。
      */
     @Test
     @Order(5)
-    @DisplayName("客户端登录口无 extract 硬拦")
-    void clientLogin_missingExtract_fails() {
+    @DisplayName("客户端登录口无 extract 不硬拦")
+    void clientLogin_missingExtract_ok() {
         GraphJson graph = GraphJson.builder()
                 .nodes(List.of(httpNode("clientLogin", 2L)))
                 .build();
 
-        List<String> errors = LoginExtractPresenceGate.validate(
-                graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/login"));
-
-        assertEquals(1, errors.size());
-        assertTrue(errors.get(0).startsWith("AUTH_LOGIN_EXTRACT_MISSING:"));
-        assertTrue(errors.get(0).contains("asset.clientAuth.token"));
+        assertTrue(LoginExtractPresenceGate.validate(
+                graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/login")).isEmpty());
     }
 
     /**
-     * 前提：双端模板；客户端登录已抽取 asset.clientAuth.token / $.data.token。
+     * 前提：双端模板；客户端登录已抽取 asset.clientAuth.token。
      * 期望：通过。
      */
     @Test

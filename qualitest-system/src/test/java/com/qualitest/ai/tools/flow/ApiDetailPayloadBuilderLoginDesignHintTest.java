@@ -3,6 +3,7 @@ package com.qualitest.ai.tools.flow;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.util.AuthProfileTestFixtures;
 import com.qualitest.api.util.LoginExtractSuggestor;
+import com.qualitest.api.util.ProjectAuthConfigSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -16,15 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 ApiDetailPayloadBuilder 登录口 designHints 文案。
- * 边界：有建议时写具体路径；无法确定时写「跑一次再改」。
- * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiDetailPayloadBuilderLoginHintTest
+ * 测 ApiDetailPayloadBuilder 登录口 designHints 文案（按 isLoginLikeApi）。
+ * 边界：有建议时写具体路径；无法确定时写「跑一次再改」；非登录类 path 不追加。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiDetailPayloadBuilderLoginDesignHintTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class ApiDetailPayloadBuilderLoginHintTest {
+class ApiDetailPayloadBuilderLoginDesignHintTest {
 
     /**
-     * 前提：双端模板管理端建议（schema 含 token）；hints 为空。
+     * 前提：单端模板 /login 建议（schema 含 token）；hints 为空。
      * 期望：首条含 $.token → token（asset 写入）。
      */
     @Test
@@ -33,14 +34,12 @@ class ApiDetailPayloadBuilderLoginHintTest {
     void prepend_whenSuggestionKnown() {
         JSONObject schema = new JSONObject();
         schema.put("token", "string");
+        String authJson = ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.ruoyiBearerTemplate());
         LoginExtractSuggestor.Suggestion suggestion = LoginExtractSuggestor.suggest(
-                AuthProfileTestFixtures.adminThenClientJson(),
-                "/login",
-                schema);
+                authJson, "/login", schema);
         List<String> hints = new ArrayList<>();
 
-        ApiDetailPayloadBuilder.prependLoginDesignHint(
-                hints, AuthProfileTestFixtures.adminThenClientJson(), "/login", suggestion);
+        ApiDetailPayloadBuilder.prependLoginDesignHint(hints, authJson, "/login", suggestion);
 
         assertEquals(1, hints.size());
         assertTrue(hints.get(0).contains("$.token"));
@@ -48,7 +47,7 @@ class ApiDetailPayloadBuilderLoginHintTest {
     }
 
     /**
-     * 前提：登录 path；建议为 null（Map/未知路径）。
+     * 前提：登录类 path；建议为 null（Map/未知路径）。
      * 期望：写入「跑一次后按真实 body 再改」。
      */
     @Test
@@ -64,13 +63,13 @@ class ApiDetailPayloadBuilderLoginHintTest {
     }
 
     /**
-     * 前提：非登录 path。
+     * 前提：非 isLoginLikeApi 的 path。
      * 期望：不追加 hint。
      */
     @Test
     @Order(3)
-    @DisplayName("非登录口不追加抽取 hint")
-    void prepend_skipsNonLogin() {
+    @DisplayName("非登录类 path 不追加抽取 hint")
+    void prepend_skipsNonLoginLike() {
         List<String> hints = new ArrayList<>();
 
         ApiDetailPayloadBuilder.prependLoginDesignHint(

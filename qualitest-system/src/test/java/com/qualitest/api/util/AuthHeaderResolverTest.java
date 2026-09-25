@@ -277,7 +277,7 @@ class AuthHeaderResolverTest {
     }
 
     /**
-     * 前提：当前 JSON 含 credentialApi 与 /login none 口。
+     * 前提：项目鉴权含 /login none 口。
      * 期望：inherit 的 /login 不加 Bearer。
      */
     @Test
@@ -288,7 +288,6 @@ class AuthHeaderResolverTest {
                 {"authProfiles":[{
                   "id":"defaultBearer","name":"Bearer",
                   "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
-                  "credentialApi":{"method":"POST","path":"/login"},
                   "apis":[{"apiPath":"/login","authConfig":{"mode":"none"},
                     "requestConfig":{"configVersion":1,"method":"POST"}}]
                 }]}

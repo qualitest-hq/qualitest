@@ -25,7 +25,6 @@ public final class AuthProfileTestFixtures {
                                         .build())
                                 .headerName("Authorization")
                                 .headerValueTemplate("Bearer {{asset.adminAuth.token}}")
-                                .credentialApi(ProjectAuthConfigSupport.credentialApi("POST", "/login"))
                                 .apis(ProjectAuthConfigSupport.ruoyiBearerApis())
                                 .build(),
                         ProjectAuthProfile.builder()
@@ -34,7 +33,6 @@ public final class AuthProfileTestFixtures {
                                 .match(Match.builder().pathPrefix(List.of("/api/")).build())
                                 .headerName("Authorization")
                                 .headerValueTemplate("Bearer {{asset.clientAuth.token}}")
-                                .credentialApi(ProjectAuthConfigSupport.credentialApi("POST", "/api/account/auth/login"))
                                 .apis(ProjectAuthConfigSupport.clientBearerApis())
                                 .build()
                 ))

@@ -42,7 +42,7 @@ public enum FlowDesignToolNames {
     /** 列举多端配置 Profile（pathPrefix、托管头、响应约定、凭证目标；无密钥明文） */
     LIST_PROJECT_AUTH_PROFILES("list_project_auth_profiles", true, true),
     /**
-     * 浅合并更新或新建多端 Profile（鉴权头 / 响应约定 / credentialApi）。
+     * 浅合并更新或新建多端 Profile（鉴权头 / 响应约定）。
      * 半自动：写入本轮提案容器，待用户确认后落盘；
      * 全自动：工具内直接写库（提案容器可为空）。
      */

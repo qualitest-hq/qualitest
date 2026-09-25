@@ -63,7 +63,6 @@ Edit the canvas on Web only. Use MCP to inspect `testFlowId` and failure context
 
 | CODE | Hard? | When | Meaning |
 | ---- | ----- | ---- | ------- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | Yes | **Run** (unit `submit_*` → warnings; Staging ✓ / Save soft; last-unit confirm may warn via `saveRiskWarnings`) | Login node missing extract for managed header target |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | **Run** (same) | Two logins write the same credential path |
 | `AUTH_TOKEN_MISSING` | Yes | **Run** (same; last-unit confirm may warn) | Bearer needed but no extract / assign / subflow output / **flowSeed(flow only)**; may tip “wrong side” Profile |
 | `AUTH_HEADER_MANAGED` / `AUTH_LOGIN_NO_BEARER` | Soft | — | Managed header filled / stripped on anonymous login |

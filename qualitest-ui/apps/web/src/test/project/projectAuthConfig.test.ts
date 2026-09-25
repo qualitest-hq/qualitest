@@ -17,25 +17,24 @@ import {
 } from '@/views/project/testProject/utils/projectAuthConfig'
 
 describe('parseAuthConfig', () => {
-  it('解析扁平头、credentialApi 与值模板中的 asset 占位', () => {
-    // 前提：库中为新版 authProfiles 结构（无 loginHint）
+  it('解析扁平头与 asset 占位', () => {
+    // 前提：库中 Profile 为扁平头 + asset 值模板 + 预制登录口
     const raw = {
       authProfiles: [buildAdminBearerProfile()],
     }
 
     const form = parseAuthConfig(raw)
 
-    // 期望：表单行含 pathPrefix、credential 与 asset 值模板
+    // 期望：表单行含 pathPrefix 与 asset 值模板
     expect(form.profiles).toHaveLength(1)
     expect(form.profiles[0].headerName).toBe('Authorization')
-    expect(form.profiles[0].credentialPath).toBe('/login')
     expect(form.profiles[0].valueTemplate).toBe('Bearer {{asset.adminAuth.token}}')
     expect(form.profiles[0].pathPrefixText).toBe('/system/')
     expect(form.profiles[0].apis[0].authMode).toBe('none')
   })
 
   it('有 Profile 但 apis 为空时 needsAuthTemplateHint 为 true', () => {
-    // 前提：存量仅有 Profile 无预制口
+    // 前提：仅有 Profile 无预制口
     const raw = {
       authProfiles: [{
         id: 'legacy',
@@ -61,7 +60,7 @@ describe('parseAuthConfig', () => {
 })
 
 describe('buildAuthConfigPayload', () => {
-  it('round-trip 保留 authProfiles 核心字段且不写 loginHint', () => {
+  it('round-trip 保留 authProfiles 核心字段', () => {
     // 前提：完整表单行（值模板用 asset 占位）
     const form = parseAuthConfig({
       authProfiles: [{
@@ -69,18 +68,15 @@ describe('buildAuthConfigPayload', () => {
         name: 'RuoYi Bearer',
         headerName: 'Authorization',
         headerValueTemplate: 'Bearer {{asset.adminAuth.token}}',
-        credentialApi: { method: 'POST', path: '/login' },
         apis: [buildLoginApi()],
       }],
     })
 
     const obj = buildAuthConfigObject(form)
 
-    // 期望：写出仅含 authProfiles，JSON 不含 loginHint 键
+    // 期望：写出 authProfiles，托管头与响应约定齐全
     const payload = buildAuthConfigPayload(form)
-    expect(payload).not.toContain('loginHint')
     expect(obj.authProfiles[0].headerValueTemplate).toBe('Bearer {{asset.adminAuth.token}}')
-    expect(obj.authProfiles[0].credentialApi.path).toBe('/login')
     expect(JSON.parse(payload).authProfiles[0].id).toBe('ruoyiBearer')
     expect(obj.authProfiles[0].responseConvention).toEqual({
       codePath: 'code',
@@ -130,8 +126,6 @@ describe('buildAuthConfigPayload', () => {
       pathPrefixText: '/',
       headerName: 'Authorization',
       valueTemplate: 'Bearer {{asset.adminAuth.token}}',
-      credentialMethod: 'POST',
-      credentialPath: '',
       apis: [],
     })
 

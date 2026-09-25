@@ -175,39 +175,37 @@ class ApiAuthConfigSupportTest {
     }
 
     /**
-     * 前提：本地登录口曾带 loginHint；上传包 mode=none。
-     * 期望：落库仅 mode=none，不保留 loginHint。
+     * 前提：本地免登口 mode=none；上传包 mode=none。
+     * 期望：落库瘦 JSON 仅含 mode=none。
      */
     @Test
     @Order(11)
-    @DisplayName("更新导入：上传 none 写出瘦 JSON，无 loginHint")
+    @DisplayName("更新导入：上传 none 写出瘦 JSON")
     void mergeOnImportUpdate_noneWritesLeanJson() {
-        String local = "{\"mode\":\"none\",\"loginHint\":{\"flowKey\":\"token\",\"from\":\"body\",\"expr\":\"$.token\"}}";
+        String local = "{\"mode\":\"none\"}";
         ApiAuthConfig incoming = ApiAuthConfig.builder().mode("none").build();
 
         String merged = ApiAuthConfigSupport.mergeOnImportUpdate(local, incoming, true, null);
 
         assertTrue(merged.contains("\"none\""));
-        assertFalse(merged.contains("loginHint"));
-        assertFalse(merged.contains("$.token"));
+        assertFalse(merged.contains("inherit"));
+        assertFalse(merged.contains("header"));
     }
 
     /**
-     * 前提：本地免登口曾有 hint；上传 inherit。
-     * 期望：强制 none，且不写 loginHint。
+     * 前提：本地免登口 mode=none；上传 inherit。
+     * 期望：强制 none，不写 inherit。
      */
     @Test
     @Order(12)
-    @DisplayName("更新导入：上传 inherit 对免登口强制 none，无 loginHint")
-    void mergeOnImportUpdate_inheritAnonymousForcesNoneNoHint() {
-        String local = "{\"mode\":\"none\",\"loginHint\":{\"flowKey\":\"adminToken\",\"from\":\"body\",\"expr\":\"$.token\"}}";
+    @DisplayName("更新导入：上传 inherit 对免登口强制 none")
+    void mergeOnImportUpdate_inheritAnonymousForcesNone() {
+        String local = "{\"mode\":\"none\"}";
         ApiAuthConfig incoming = ApiAuthConfig.builder().mode("inherit").build();
 
         String merged = ApiAuthConfigSupport.mergeOnImportUpdate(local, incoming, true, "p1");
 
         assertTrue(merged.contains("\"none\""));
-        assertFalse(merged.contains("loginHint"));
-        assertFalse(merged.contains("adminToken"));
         assertFalse(merged.contains("inherit"));
     }
 
@@ -224,18 +222,18 @@ class ApiAuthConfigSupportTest {
     }
 
     /**
-     * 前提：免登口本地曾有 hint；上传未带 auth。
-     * 期望：补 none，不保留 loginHint。
+     * 前提：免登口本地 mode=none；上传未带 auth。
+     * 期望：仍写出 mode=none。
      */
     @Test
     @Order(14)
-    @DisplayName("更新导入：未带 auth 的免登口补 none，无 loginHint")
-    void mergeOnImportUpdate_noAuthAnonymous_writesNoneNoHint() {
-        String local = "{\"mode\":\"none\",\"loginHint\":{\"flowKey\":\"token\",\"from\":\"body\",\"expr\":\"$.token\"}}";
+    @DisplayName("更新导入：未带 auth 的免登口补 none")
+    void mergeOnImportUpdate_noAuthAnonymous_writesNone() {
+        String local = "{\"mode\":\"none\"}";
 
         String merged = ApiAuthConfigSupport.mergeOnImportUpdate(local, null, true, null);
 
         assertTrue(merged.contains("\"none\""));
-        assertFalse(merged.contains("loginHint"));
+        assertFalse(merged.contains("inherit"));
     }
 }

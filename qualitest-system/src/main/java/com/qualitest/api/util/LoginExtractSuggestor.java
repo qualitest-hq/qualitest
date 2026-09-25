@@ -2,7 +2,6 @@ package com.qualitest.api.util;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
 
@@ -16,9 +15,9 @@ import java.util.stream.Collectors;
 /**
  * 为登录类接口推荐 token 抽取（extract）配置。
  * <p>
- * 优先按 Profile 托管头占位符（须命中 {@code credentialApi}）确定写入目标；
+ * 按 pathPrefix 命中 Profile 的托管头占位符确定写入目标；
  * from/expr：Cookie 托管头用 setCookie；否则按响应 schema 嗅探 token 字段。
- * 两者都没有时不编 JsonPath（交给跑流后按真实响应再改）。
+ * 仅对登录/注册类 path 自动建议，避免业务口误补；空 extracts 不硬拦，由人/AI 后补。
  */
 public final class LoginExtractSuggestor {
 
@@ -84,7 +83,7 @@ public final class LoginExtractSuggestor {
 
     /**
      * 是否视为登录或注册接口（path 以 /login 或 /register 结尾）。
-     * 造流硬拦只认 credentialApi，用 {@link #isCredentialApiEndpoint}。
+     * 仅作建议启发式，不作硬拦门槛。
      */
     public static boolean isLoginLikeApi(String apiPath) {
         String path = ProjectAuthConfigSupport.normalizeApiPath(apiPath).toLowerCase(Locale.ROOT);
@@ -102,15 +101,19 @@ public final class LoginExtractSuggestor {
     }
 
     /**
-     * 推荐一条登录 extract。有 credential 口托管头目标时按目标写；expr 来自 Cookie 名或 schema。
+     * 推荐一条登录 extract。登录类 path 上按 pathPrefix Profile 托管头目标写；
+     * expr 来自 Cookie 名或 schema。业务口不自动建议。
      */
     public static Suggestion suggest(
             String projectAuthJson,
             String method,
             String apiPath,
             JSONObject responseSchemaSummary) {
-        ProjectAuthProfile profile = ProjectAuthConfigSupport.findCredentialProfile(
-                ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath);
+        if (!isLoginLikeApi(apiPath)) {
+            return null;
+        }
+        ProjectAuthProfile profile = ProjectAuthConfigSupport.resolveProfile(
+                apiPath, ProjectAuthConfigSupport.parse(projectAuthJson));
         CredentialTarget target = profile != null ? CredentialTargetSupport.primaryTarget(profile) : null;
         String cookieName = profile != null
                 ? CredentialTargetSupport.cookieNameFromHeader(
@@ -125,10 +128,10 @@ public final class LoginExtractSuggestor {
         if (target != null && sniffed != null) {
             return toSuggestion(target, "body", sniffed);
         }
-        if (target != null && target.isFlow() && sniffed == null && isLoginLikeApi(apiPath)) {
+        if (target != null && target.isFlow() && sniffed == null) {
             return null;
         }
-        if (target == null && sniffed != null && isLoginLikeApi(apiPath)) {
+        if (target == null && sniffed != null) {
             return Suggestion.flow("token", "body", sniffed);
         }
         return null;
@@ -142,12 +145,6 @@ public final class LoginExtractSuggestor {
             return Suggestion.asset(target.entryKey(), target.fieldPath(), from, expr);
         }
         return Suggestion.flow(target.flowKey(), from, expr);
-    }
-
-    /** 该 method+path 是否为本套 Profile 的发凭证口（credentialApi）。 */
-    public static boolean isCredentialApiEndpoint(String projectAuthJson, String method, String apiPath) {
-        return ProjectAuthConfigSupport.findCredentialProfile(
-                ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath) != null;
     }
 
     /** 从响应 schema 叶路径中按优先级找 token 字段，返回带 $. 前缀的 JsonPath；找不到返回 null。 */
@@ -275,10 +272,16 @@ public final class LoginExtractSuggestor {
         return text;
     }
 
-    /** 该登录口应对齐的凭证目标。 */
+    /**
+     * 该登录类口应对齐的凭证目标（pathPrefix 命中 Profile 的托管头）。
+     * 非登录类 path 返回 null。
+     */
     public static CredentialTarget resolveExpectedTarget(String projectAuthJson, String method, String apiPath) {
-        ProjectAuthProfile profile = ProjectAuthConfigSupport.findCredentialProfile(
-                ProjectAuthConfigSupport.parse(projectAuthJson), method, apiPath);
+        if (!isLoginLikeApi(apiPath)) {
+            return null;
+        }
+        ProjectAuthProfile profile = ProjectAuthConfigSupport.resolveProfile(
+                apiPath, ProjectAuthConfigSupport.parse(projectAuthJson));
         return CredentialTargetSupport.primaryTarget(profile);
     }
 }

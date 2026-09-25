@@ -42,7 +42,7 @@ public class AuthProfileUpsertProposal {
 
     /**
      * 拟写入字段（浅合并）。
-     * 可含 name、pathPrefix、headerName、headerValueTemplate、credentialApi 等。
+     * 可含 name、pathPrefix、headerName、headerValueTemplate 等。
      */
     private final Map<String, Object> patch;
 

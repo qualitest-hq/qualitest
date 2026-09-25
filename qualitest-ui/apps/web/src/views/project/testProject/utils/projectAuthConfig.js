@@ -3,7 +3,7 @@
  *
  * 表单为多个 Profile 行：每条含 id、名称、pathPrefix、鉴权托管头、
  * 响应约定四字段（codePath / successValuesText / messagePath / dataPath）、
- * 可选 credentialApi，以及预制接口 apis[]。
+ * 以及预制接口 apis[]。
  */
 
 /** 空表单：无 Profile，且不提示「缺模板」 */
@@ -38,8 +38,6 @@ export function emptyProfileRow() {
     pathPrefixText: '',
     headerName: '',
     valueTemplate: '',
-    credentialMethod: 'POST',
-    credentialPath: '',
     ...emptyConventionFields(),
     apis: [],
   }
@@ -129,7 +127,6 @@ function apiToRow(api) {
  * 展开 responseConvention 为 codePath / successValuesText / messagePath / dataPath。
  */
 function profileToRow(p) {
-  const credential = p?.credentialApi || {}
   const apis = Array.isArray(p?.apis) ? p.apis.map(apiToRow) : []
   return {
     id: str(p?.id),
@@ -137,8 +134,6 @@ function profileToRow(p) {
     pathPrefixText: joinPathLines(p?.match?.pathPrefix),
     headerName: resolveHeaderName(p),
     valueTemplate: resolveHeaderValueTemplate(p),
-    credentialMethod: str(credential?.method, 'POST').toUpperCase(),
-    credentialPath: str(credential?.path),
     ...conventionFromRaw(p?.responseConvention),
     apis,
   }
@@ -191,17 +186,13 @@ export function validateAuthForm(form) {
     if (splitPathLines(p?.pathPrefixText).some((x) => x === '/')) {
       return `Profile「${id}」的 pathPrefix 禁止使用 "/"`
     }
-    const credentialPath = String(p?.credentialPath || '').trim()
-    if (credentialPath && !String(p?.credentialMethod || '').trim()) {
-      return `Profile「${id}」填写 credentialApi.path 时须同时填写 method`
-    }
   }
   return null
 }
 
 /**
  * 表单一行 → 写出 authProfiles 单项。
- * 把约定四字段收成 responseConvention 对象；有 pathPrefix / credentialApi / apis 时一并带上。
+ * 把约定四字段收成 responseConvention 对象；有 pathPrefix / apis 时一并带上。
  */
 function rowToProfile(p) {
   const id = String(p.id || '').trim()
@@ -209,8 +200,6 @@ function rowToProfile(p) {
   const prefixes = splitPathLines(p.pathPrefixText)
   const headerName = String(p.headerName || '').trim()
   const valueTemplate = String(p.valueTemplate || '').trim()
-  const credentialMethod = String(p.credentialMethod || '').trim().toUpperCase()
-  const credentialPath = String(p.credentialPath || '').trim()
 
   const row = {
     id,
@@ -226,12 +215,6 @@ function rowToProfile(p) {
   if (name) row.name = name
   if (prefixes.length) {
     row.match = { pathPrefix: prefixes }
-  }
-  if (credentialPath) {
-    row.credentialApi = {
-      method: credentialMethod || 'POST',
-      path: credentialPath,
-    }
   }
   if (Array.isArray(p.apis) && p.apis.length) {
     row.apis = p.apis

@@ -10,7 +10,6 @@ import java.util.Locale;
  * <ul>
  *   <li>AUTH_HEADER_MANAGED — 造流已自动补上托管鉴权头，仅作提示，不阻断操作</li>
  *   <li>AUTH_LOGIN_NO_BEARER — 登录/免登口剥离了误补的托管头，仅提示</li>
- *   <li>AUTH_LOGIN_EXTRACT_MISSING — 登录口未抽取凭证到托管头目标（asset.x.y / flow.x）；仅运行硬拦，submit/Staging/保存不硬拦</li>
  *   <li>AUTH_LOGIN_FLOWKEY_COLLISION — 两套不同登录口抽出同一个凭证目标；仅运行硬拦</li>
  *   <li>AUTH_TOKEN_MISSING — 图中需要某端凭证但缺少写入来源；仅运行硬拦</li>
  * </ul>
@@ -22,9 +21,6 @@ public final class AuthDesignWarningCodes {
 
     /** 登录口 / 免登口不需要 Bearer，已剥离误补的托管头 */
     public static final String LOGIN_NO_BEARER = "AUTH_LOGIN_NO_BEARER";
-
-    /** 登录类接口未配置写出凭证的 extracts */
-    public static final String LOGIN_EXTRACT_MISSING = "AUTH_LOGIN_EXTRACT_MISSING";
 
     /** 两套不同登录口抽出同一个凭证目标，应硬拦 */
     public static final String LOGIN_FLOWKEY_COLLISION = "AUTH_LOGIN_FLOWKEY_COLLISION";
@@ -79,40 +75,6 @@ public final class AuthDesignWarningCodes {
     }
 
     /**
-     * 生成「登录口缺 extract」错误文案。
-     *
-     * @param nodeLabel   节点展示名
-     * @param displayPath 应收录的凭证展示路径（asset.x.y 或 flow.x）
-     */
-    public static String loginExtractMissing(String nodeLabel, String displayPath) {
-        return LOGIN_EXTRACT_MISSING + CODE_SEP
-                + "HTTP 节点「" + nodeLabel + "」为登录口，但未抽取 " + pathOrFallback(displayPath)
-                + "（请按该端凭证目标 / 响应结构补 extracts）";
-    }
-
-    /**
-     * 生成「登录抽取路径不符合凭证目标或响应 schema」错误文案。
-     *
-     * @param nodeLabel     节点展示名
-     * @param displayPath   应收录的凭证展示路径
-     * @param expectedExpr  期望 JsonPath
-     * @param actualExpr    当前 JsonPath，可空
-     */
-    public static String loginExtractExprMismatch(
-            String nodeLabel, String displayPath, String expectedExpr, String actualExpr) {
-        String expected = expectedExpr != null ? expectedExpr.trim() : "";
-        String actual = actualExpr != null && !actualExpr.isBlank() ? actualExpr.trim() : "空";
-        return LOGIN_EXTRACT_MISSING + CODE_SEP
-                + "HTTP 节点「" + nodeLabel + "」登录抽取路径应为 "
-                + expected + " → " + pathOrFallback(displayPath)
-                + "，当前为 " + actual;
-    }
-
-    private static String pathOrFallback(String displayPath) {
-        return displayPath != null && !displayPath.isBlank() ? displayPath.trim() : "凭证目标";
-    }
-
-    /**
      * 生成「两端登录抽到同一凭证目标」错误文案。
      *
      * @param displayPath 被两套登录口同时写出的凭证展示路径
@@ -121,6 +83,10 @@ public final class AuthDesignWarningCodes {
         return LOGIN_FLOWKEY_COLLISION + CODE_SEP
                 + "图中至少两套不同登录口都抽出了 " + pathOrFallback(displayPath)
                 + "；各端请使用托管头对应的不同凭证目标，禁止互相覆盖";
+    }
+
+    private static String pathOrFallback(String displayPath) {
+        return displayPath != null && !displayPath.isBlank() ? displayPath.trim() : "凭证目标";
     }
 
     /**

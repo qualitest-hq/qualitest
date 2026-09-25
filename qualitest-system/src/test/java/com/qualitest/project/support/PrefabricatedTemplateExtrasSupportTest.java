@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PrefabricatedTemplateExtrasSupportTest {
 
     /**
-     * 有登录抽取的预制测试流 → Bearer 头与 credentialApi。
+     * 有登录抽取的预制测试流 → Bearer 托管头。
      */
     @Test
     @Order(1)
@@ -40,7 +40,6 @@ class PrefabricatedTemplateExtrasSupportTest {
 
         // 期望：Bearer 托管头指向 asset
         assertNotNull(derived);
-        assertEquals("/login", derived.getCredentialApi().getPath());
         assertEquals("Authorization", derived.getHeaderName());
         assertEquals("Bearer {{asset.adminAuth.token}}", derived.getHeaderValueTemplate());
     }
@@ -96,14 +95,11 @@ class PrefabricatedTemplateExtrasSupportTest {
                 + "\"headerName\":\"token\",\"headerValueTemplate\":\"{{token}}\"},"
                 + "\"pathPrefix\":[\"/api/\"]}";
 
-        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredentialFromMatchConfig(
-                match, "POST", "/api/login/login");
+        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredentialFromMatchConfig(match);
 
         assertNotNull(derived);
         assertEquals("token", derived.getHeaderName());
         assertEquals("{{asset.clientAuth.data}}", derived.getHeaderValueTemplate());
-        assertEquals("/api/login/login", derived.getCredentialApi().getPath());
-        assertEquals("POST", derived.getCredentialApi().getMethod());
     }
 
     /**
@@ -118,8 +114,7 @@ class PrefabricatedTemplateExtrasSupportTest {
                 + "\"headerName\":\"token\",\"headerValueTemplate\":\"{{token}}\"},"
                 + "\"pathPrefix\":[\"/api/backstage\"]}";
 
-        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredentialFromMatchConfig(
-                match, "POST", "/api/backstageLogin/passwordLogin");
+        DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredentialFromMatchConfig(match);
 
         assertNotNull(derived);
         assertEquals("token", derived.getHeaderName());

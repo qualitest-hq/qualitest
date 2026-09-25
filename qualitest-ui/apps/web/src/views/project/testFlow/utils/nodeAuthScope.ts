@@ -4,7 +4,7 @@
  *
  * 选端规则：最长 pathPrefix 命中优先；多端都未命中则不加托管头（返回空凭证期望）；
  * 项目只有一套 Profile 时，未命中前缀仍用该套。
- * 登录口（credentialPath 命中）：期望 extracts 写出对应凭证；缺写则 conflict。
+ * 登录口：extracts 写出目标命中某 Profile 托管头 → kind=login；空 extracts 不当登录口、不因缺写 conflict。
  * 免登口（预制 api authMode=none）：kind=none。
  * 普通 inherit：托管头凭证路径若与 pathPrefix 命中 Profile 的模板不同，则 conflict。
  */
@@ -67,6 +67,7 @@ function parseHeaderCredential(headers: unknown): string {
     if (!isProfileManagedRow(r)) continue
     const path = parseCredentialDisplayPath(r.value)
     if (path) return path
+    return ''
   }
   return ''
 }
@@ -96,12 +97,21 @@ function resolveProfile(apiPath: string, profiles: ReturnType<typeof parseAuthCo
   return best || (profiles.length === 1 ? profiles[0] : null) || null
 }
 
-/** 路径是否为某 Profile 声明的登录/取凭证接口。 */
-function findCredentialProfile(
-  apiPath: string,
+/**
+ * extracts 产出路径是否命中某 Profile 托管头；命中则返回该 Profile（先扫完取第一条相交）。
+ */
+function findLoginProfileByExtracts(
+  extractCredentials: string[],
   profiles: ReturnType<typeof parseAuthConfig>['profiles'],
 ) {
-  return profiles.find((p) => p.credentialPath && pathsEqual(p.credentialPath, apiPath)) || null
+  if (!extractCredentials.length) return null
+  for (const p of profiles) {
+    const expected = expectedFromProfile(p)
+    if (expected && extractCredentials.includes(expected)) {
+      return p
+    }
+  }
+  return null
 }
 
 /** 路径是否落在某端预制免登接口上（authMode=none）。 */
@@ -149,20 +159,17 @@ export function resolveNodeAuthScope(input: {
   const apiPath = String(input.apiPath || '')
   const extractCredentials = listExtractCredentialPaths(input.extracts)
   const headerCredential = parseHeaderCredential(input.headers)
-  const credential = findCredentialProfile(apiPath, profiles)
-  if (credential) {
-    const expectedCredential = expectedFromProfile(credential)
-    const conflict = !!expectedCredential && !extractCredentials.includes(expectedCredential)
+  const loginProfile = findLoginProfileByExtracts(extractCredentials, profiles)
+  if (loginProfile) {
+    const expectedCredential = expectedFromProfile(loginProfile)
     return {
       kind: 'login',
-      profileName: credential.name || credential.id,
+      profileName: loginProfile.name || loginProfile.id,
       expectedCredential,
       headerCredential,
       extractCredentials,
-      conflict,
-      conflictReason: conflict
-        ? `登录口应产出 ${expectedCredential}，当前 extracts 未写出该变量`
-        : '',
+      conflict: false,
+      conflictReason: '',
     }
   }
   if (isAnonymousPrefabricated(apiPath, profiles)) {

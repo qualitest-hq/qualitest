@@ -232,11 +232,8 @@ public class ProjectAuthTemplateApplyService {
         DerivedCredential derived = PrefabricatedTemplateExtrasSupport.deriveCredential(
                 template.getTemplateFlows());
         if (derived == null) {
-            PrefabricatedApi loginApi = firstNoneModeApi(kept.isEmpty() ? apis : kept);
-            String loginMethod = loginApi == null ? null : httpMethodOf(loginApi);
-            String loginPath = loginApi == null ? null : loginApi.getApiPath();
             derived = PrefabricatedTemplateExtrasSupport.deriveCredentialFromMatchConfig(
-                    template.getMatchConfig(), loginMethod, loginPath);
+                    template.getMatchConfig());
         }
         if (derived == null
                 || StrUtil.isBlank(derived.getHeaderName())
@@ -254,44 +251,8 @@ public class ProjectAuthTemplateApplyService {
                 .headerName(derived.getHeaderName())
                 .headerValueTemplate(derived.getHeaderValueTemplate())
                 .responseConvention(ResponseConventionSupport.toMap((String) null))
-                .credentialApi(derived.getCredentialApi())
                 .apis(kept)
                 .build();
-    }
-
-    /** 取第一条 auth.mode=none 的预制接口，用作登录口 method+path（写入 credentialApi）。 */
-    private static PrefabricatedApi firstNoneModeApi(List<PrefabricatedApi> apis) {
-        if (apis == null) {
-            return null;
-        }
-        for (PrefabricatedApi api : apis) {
-            if (api == null || StrUtil.isBlank(api.getApiPath())) {
-                continue;
-            }
-            if (api.getAuthConfig() != null
-                    && ApiAuthConfig.MODE_NONE.equalsIgnoreCase(
-                    StrUtil.blankToDefault(api.getAuthConfig().getMode(), ""))) {
-                return api;
-            }
-        }
-        return null;
-    }
-
-    /** 从预制接口 requestConfig 取 HTTP 方法，缺省 POST。 */
-    private static String httpMethodOf(PrefabricatedApi api) {
-        if (api == null || api.getRequestConfig() == null) {
-            return "POST";
-        }
-        try {
-            Object raw = api.getRequestConfig();
-            cn.hutool.json.JSONObject obj = raw instanceof cn.hutool.json.JSONObject jo
-                    ? jo
-                    : JSONUtil.parseObj(raw);
-            String method = StrUtil.trimToNull(obj.getStr("method"));
-            return method != null ? method.toUpperCase() : "POST";
-        } catch (Exception e) {
-            return "POST";
-        }
     }
 
     /** 解析模板上的预制接口 JSON；非法则抛业务异常。 */

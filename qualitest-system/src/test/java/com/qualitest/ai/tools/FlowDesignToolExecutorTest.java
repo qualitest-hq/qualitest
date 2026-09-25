@@ -175,7 +175,6 @@ class FlowDesignToolExecutorTest {
         assertNotNull(detail.getJSONObject("responseSchemaSummary"));
         assertNotNull(detail.getJSONObject("responseConvention"));
         assertEquals("code", detail.getJSONObject("responseConvention").getString("codePath"));
-        assertNotNull(detail.getJSONArray("suggestedExtracts"));
         assertNotNull(detail.getJSONArray("designHints"));
         assertFalse(root.getBooleanValue("truncated"));
         assertEquals("none", detail.getJSONObject("auth").getString("mode"));

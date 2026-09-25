@@ -10,11 +10,9 @@ export const AUTH_WARNING_CODES = {
   HEADER_MANAGED: 'AUTH_HEADER_MANAGED',
   /** 登录/免登口已剥离误补托管头，仅提示 */
   LOGIN_NO_BEARER: 'AUTH_LOGIN_NO_BEARER',
-  /** 登录口缺少 token extract，应硬拦 */
-  LOGIN_EXTRACT_MISSING: 'AUTH_LOGIN_EXTRACT_MISSING',
-  /** 两套不同登录口抽出同一个 flow 变量，应硬拦 */
+  /** 两套不同登录口抽出同一个凭证目标，应硬拦 */
   LOGIN_FLOWKEY_COLLISION: 'AUTH_LOGIN_FLOWKEY_COLLISION',
-  /** 缺对应端 token 来源，应硬拦（出现在 errors） */
+  /** 缺对应端凭证来源，应硬拦（出现在 errors） */
   TOKEN_MISSING: 'AUTH_TOKEN_MISSING',
 } as const
 

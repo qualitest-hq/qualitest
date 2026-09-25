@@ -89,7 +89,7 @@ flowchart TB
 | 概念                      | 要点                                                                          |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `test_project_template` | 一行模板 = 一条 Profile；内置 RuoYi Bearer / Session、客户端 Bearer、管理端 Bearer           |
-| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**；作者期 `testProjectApiId` 为雪花字符串，种子时换新主键）；可选种子 `templateEnvs`（填建项占位环境 URL，已定制不覆盖；`envVariables` 同 key 不覆盖；**Profile 同名跳过仍补**）与 `templateParams`（**仅** kind=asset→素材库，**Profile 同名跳过仍补 asset**；内置管理端 `adminAuth`、客户端 `clientAuth`；存量 `kind=env` 仍合并进第一条环境）与 `templateFlows`（同名流跳过；HTTP 作者期雪花 id **remap** 为项目 apiId，历史 `tpl_*` 兼容，legacy 仅 path 仍按 method+path 绑；登录 HTTP body 引用 `{{asset.*}}`）；托管头与 `credentialApi`：**优先**登录流 extracts 派生，**其次** `match_config.credential`，仍无法派生则**拒绝该条**（不再弱默认 `adminAuth` Bearer；不再写 `loginHint`） |
+| Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**；作者期 `testProjectApiId` 为雪花字符串，种子时换新主键）；可选种子 `templateEnvs`（填建项占位环境 URL，已定制不覆盖；`envVariables` 同 key 不覆盖；**Profile 同名跳过仍补**）与 `templateParams`（**仅** kind=asset→素材库，**Profile 同名跳过仍补 asset**；内置管理端 `adminAuth`、客户端 `clientAuth`；存量 `kind=env` 仍合并进第一条环境）与 `templateFlows`（同名流跳过；HTTP 作者期雪花 id **remap** 为项目 apiId，历史 `tpl_*` 兼容，legacy 仅 path 仍按 method+path 绑；登录 HTTP body 引用 `{{asset.*}}`）；托管头：优先登录流 extracts 派生，其次 match_config.credential，仍无法派生则拒绝该条 |
 | 新建项目                    | **至少勾一套**；商城双端建议先「管理端 Bearer」再「客户端 Bearer」                                  |
 | 免登                      | 认预制 `apis[].authConfig.mode=none`；**不再**维护项目级匿名 path 清单                     |
 | 空配置                     | 才暂留 builtin `/login` 等启发式；有 Profile 但 apis 空 → 设置页黄条提示补模板                   |
@@ -102,14 +102,14 @@ flowchart TB
 
 | 层级                | 要点                                                                            |
 | ----------------- | ----------------------------------------------------------------------------- |
-| 项目 `authProfiles` | 头模板 + `credentialApi` + 预制 `apis[]`；未命中 `pathPrefix` 用**数组第一条**。**已废弃** `loginHint` |
+| 项目 `authProfiles` | 头模板（`headerName` + `headerValueTemplate`）+ 预制 `apis[]`；未命中 `pathPrefix` 用**数组第一条** |
 | 接口 `auth.mode`    | `inherit` → 项目 Profile；`none` 不加头；`override` 用本接口头模板 |
 | 节点 headers        | 托管头带 `profileManaged`，Run 按**当前**配置刷新；无该标记的显式头永不被静默改掉                         |
 
 
 **匹配**：接口指定 `authProfileId` 优先；否则最长 `pathPrefix`；无人命中用数组第一条。**禁止** `pathPrefix="/"`。
 
-**登录抽凭证**：登录流 HTTP `extracts`（通常 `scope=asset`）写素材库；Profile 托管头引用 `{{asset.adminAuth.token}}` 等。须命中 `credentialApi`。造流时空 extracts 按托管头占位符 + schema 补；缺 extract 硬拦（`AUTH_LOGIN_EXTRACT_MISSING`）。上传/OpenAPI 改接口行 schema 与 mode：同 method+path 合并；接口可选 **上传保护**（`sync_protected` / `syncProtected` 为 `0/1`），`1` 则导入整条跳过（**内置模板预制口默认 `1`**），`0` 后可覆盖。
+**登录抽凭证**：登录流 HTTP `extracts`（通常 `scope=asset`）写素材库；Profile 托管头引用 `{{asset.adminAuth.token}}` 等。登录口由 extracts 对齐 headerValueTemplate 推断；缺 extracts 不硬拦，由人/AI 后补。上传/OpenAPI 改接口行 schema 与 mode：同 method+path 合并；接口可选 **上传保护**（`sync_protected` / `syncProtected` 为 `0/1`），`1` 则导入整条跳过（**内置模板预制口默认 `1`**），`0` 后可覆盖。
 
 ### 4.3 双端与门禁
 

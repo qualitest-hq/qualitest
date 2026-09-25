@@ -5,7 +5,6 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.api.model.ProjectAuthConfig.CredentialApi;
 import com.qualitest.api.util.CredentialTargetSupport;
 import com.qualitest.api.util.CredentialTargetSupport.CredentialExtract;
 import com.qualitest.api.util.CredentialTargetSupport.ManagedHeaderTemplate;
@@ -34,13 +33,11 @@ public final class PrefabricatedTemplateExtrasSupport {
     private PrefabricatedTemplateExtrasSupport() {}
 
     /**
-     * 派生结果：抽凭证的接口定位、以及写入项目 Profile 的托管头。
+     * 派生结果：写入项目 Profile 的托管头。
      */
     @Getter
     @Builder
     public static class DerivedCredential {
-        /** 抽凭证的 HTTP 接口（method + path）；可空。 */
-        private final CredentialApi credentialApi;
         /** 托管请求头名，如 Authorization / Cookie。 */
         private final String headerName;
         /** 托管请求头值模板，如 Bearer {{asset.adminAuth.token}}。 */
@@ -350,15 +347,12 @@ public final class PrefabricatedTemplateExtrasSupport {
     /**
      * 从 match_config.credential 派生托管头（精简模板无登录流时用）。
      * 读取字段：asset、extract、tokenField、headerName、headerValueTemplate、cookieName；
-     * 据此拼出 headerName / headerValueTemplate，可选附带登录口 method+path 作为 credentialApi。
+     * 据此拼出 headerName / headerValueTemplate。
      *
      * @param matchConfigJson 模板 match_config JSON；可空
-     * @param loginMethod     可选登录口 method（写入 credentialApi）
-     * @param loginPath       可选登录口 path
      * @return 派生结果；credential 缺失或不完整时 null
      */
-    public static DerivedCredential deriveCredentialFromMatchConfig(
-            String matchConfigJson, String loginMethod, String loginPath) {
+    public static DerivedCredential deriveCredentialFromMatchConfig(String matchConfigJson) {
         if (StrUtil.isBlank(matchConfigJson) || "null".equals(matchConfigJson.trim())) {
             return null;
         }
@@ -419,13 +413,7 @@ public final class PrefabricatedTemplateExtrasSupport {
         if (StrUtil.isBlank(headerName) || StrUtil.isBlank(headerValueTemplate)) {
             return null;
         }
-        CredentialApi credentialApi = null;
-        if (StrUtil.isNotBlank(loginPath)) {
-            credentialApi = ProjectAuthConfigSupport.credentialApi(
-                    StrUtil.blankToDefault(loginMethod, "POST"), loginPath);
-        }
         return DerivedCredential.builder()
-                .credentialApi(credentialApi)
                 .headerName(headerName.trim())
                 .headerValueTemplate(headerValueTemplate.trim())
                 .build();
@@ -509,7 +497,7 @@ public final class PrefabricatedTemplateExtrasSupport {
     /**
      * 派生凭证规则与托管头。
      * 扫描预制测试流 HTTP 节点 extracts，取第一条可识别的凭证抽取（优先 asset，其次 flow），
-     * 据此得到登录口 method+path 与托管头模板；找不到则返回 null。
+     * 据此得到托管头模板；找不到则返回 null。
      */
     public static DerivedCredential deriveCredential(String flowsJson) {
         for (PrefabFlow flow : parseFlows(flowsJson)) {
@@ -534,23 +522,17 @@ public final class PrefabricatedTemplateExtrasSupport {
                 if (extract == null) {
                     continue;
                 }
-                String method = StrUtil.blankToDefault(data.getString("httpMethod"), "POST").trim().toUpperCase(Locale.ROOT);
-                String path = ProjectAuthConfigSupport.normalizeApiPath(data.getString("apiPath"));
-                if (StrUtil.isBlank(path)) {
-                    continue;
-                }
-                return buildDerived(
-                        ProjectAuthConfigSupport.credentialApi(method, path), extract);
+                return buildDerived(extract);
             }
         }
         return null;
     }
 
     /**
-     * 由登录口定位与一条凭证抽取结果拼出托管头模板。
+     * 由一条凭证抽取结果拼出托管头模板。
      * 按凭证目标生成 headerName / headerValueTemplate；无法生成时返回 null。
      */
-    private static DerivedCredential buildDerived(CredentialApi credentialApi, CredentialExtract extract) {
+    private static DerivedCredential buildDerived(CredentialExtract extract) {
         if (extract == null) {
             return null;
         }
@@ -560,7 +542,6 @@ public final class PrefabricatedTemplateExtrasSupport {
             return null;
         }
         return DerivedCredential.builder()
-                .credentialApi(credentialApi)
                 .headerName(header.headerName())
                 .headerValueTemplate(header.headerValueTemplate())
                 .build();

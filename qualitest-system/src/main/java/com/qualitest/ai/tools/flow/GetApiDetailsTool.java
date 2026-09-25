@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 批量查询项目接口摘要（参数、schema、designHints、响应约定、suggestedExtracts、鉴权提示）。
+ * 批量查询项目接口摘要（参数、schema、designHints、响应约定、鉴权提示）。
  * <p>
  * 入参 {@code testProjectApiIds} 为字符串数组；查单条时传长度为 1 的数组。
  * 去重后最多返回 MAX_IDS 条；超过部分不查库，并在 hint 中说明。
@@ -189,7 +189,7 @@ public class GetApiDetailsTool implements QualitestTool {
 
         if (ToolResultByteFit.utf8Len(result) > maxBytes && apis.size() == 1) {
             apis.set(0, minimalApiDetail(apis.getJSONObject(0)));
-            hints.add("已降为最小字段（id/method/path/name/auth/suggestedExtracts）");
+            hints.add("已降为最小字段（id/method/path/name/auth/designHints）");
         }
 
         boolean truncated = !hints.isEmpty()
@@ -250,7 +250,7 @@ public class GetApiDetailsTool implements QualitestTool {
         detail.remove("bodyParams");
     }
 
-    /** 只保留 id、method、path、name、designHints、suggestedExtracts、鉴权相关字段。 */
+    /** 只保留 id、method、path、name、designHints、鉴权相关字段。 */
     static JSONObject minimalApiDetail(JSONObject detail) {
         JSONObject min = new JSONObject();
         if (detail == null) {
@@ -261,7 +261,6 @@ public class GetApiDetailsTool implements QualitestTool {
         copyIfPresent(detail, min, "path");
         copyIfPresent(detail, min, "name");
         copyIfPresent(detail, min, "designHints");
-        copyIfPresent(detail, min, "suggestedExtracts");
         copyIfPresent(detail, min, "auth");
         copyIfPresent(detail, min, "headerHint");
         copyIfPresent(detail, min, "responseConvention");

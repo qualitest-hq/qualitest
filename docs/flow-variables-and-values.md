@@ -37,7 +37,7 @@
 | **Subflow** 输出 | 子流 `outputs` / `meta.flowOutputs` 回写父流 |
 | 场景 **flowSeed** | Run 开始前注入；可用于预置 token 等，不要塞明文口令 |
 
-登录 extract 应对齐项目 Profile **托管头占位符**（如 `{{asset.adminAuth.token}}`），并命中 `credentialApi`（见 [project-summary.md §4](./project-summary.md)）。`loginHint` 已废弃。
+登录 extract 应对齐项目 Profile 托管头占位符（如 `{{asset.adminAuth.token}}`）。登录口由节点 extracts 与 Profile `headerValueTemplate` 对齐推断。
 
 ---
 

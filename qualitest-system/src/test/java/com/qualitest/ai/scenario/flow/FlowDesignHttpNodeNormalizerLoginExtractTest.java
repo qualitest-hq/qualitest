@@ -14,13 +14,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测 FlowDesignHttpNodeNormalizer 登录 extract 对齐。
- * 边界：有托管头凭证目标 + schema 才补/纠；Map schema 不编路径；自定义 expr 不改。
+ * 边界：已有凭证类 extracts 才按托管头目标纠；空 extracts 不自动补；Map schema 不编路径。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignHttpNodeNormalizerLoginExtractTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -28,12 +27,12 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
 
     /**
      * 前提：双端模板；客户端登录；extracts 为空；响应 schema 含 data.token。
-     * 期望：补 asset.clientAuth.token / $.data.token。
+     * 期望：空 extracts 不自动补行。
      */
     @Test
     @Order(1)
-    @DisplayName("空 extracts 时按 asset 目标补登录 extract")
-    void alignLoginExtract_whenEmpty_fillsFromTarget() {
+    @DisplayName("空 extracts 不自动补登录 extract")
+    void alignLoginExtract_whenEmpty_doesNotFill() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
         TestProjectApi api = TestProjectApi.builder()
@@ -50,19 +49,11 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
 
         FlowDesignHttpNodeNormalizer.normalize(data, api, projectAuth);
 
-        Object raw = data.get("extracts");
-        assertInstanceOf(List.class, raw);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> extracts = (List<Map<String, Object>>) raw;
-        assertEquals(1, extracts.size());
-        assertEquals("asset", extracts.get(0).get("scope"));
-        assertEquals("clientAuth", extracts.get(0).get("entryKey"));
-        assertEquals("token", extracts.get(0).get("fieldPath"));
-        assertEquals("$.data.token", extracts.get(0).get("expr"));
+        assertNull(data.get("extracts"));
     }
 
     /**
-     * 前提：双端模板；管理端 /login；AI 写成 flow token + $.data.token；schema 含 token。
+     * 前提：单端 RuoYi 模板；管理端 /login；AI 写成 flow token + $.data.token；schema 含 token。
      * 期望：纠成 asset.adminAuth.token + $.token。
      */
     @Test
@@ -87,7 +78,7 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
                 .build();
 
         FlowDesignHttpNodeNormalizer.normalize(
-                data, api, AuthProfileTestFixtures.adminThenClientJson());
+                data, api, ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.ruoyiBearerTemplate()));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> extracts = (List<Map<String, Object>>) data.get("extracts");

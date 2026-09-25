@@ -24,7 +24,7 @@
     "type": "function",
     "function": {
       "name": "get_api_details",
-      "description": "批量获取 API 造流摘要（单条也用本工具）。每条含 path/query/header/body 参数摘要、body 示例、响应 schema 摘要、designHints、responseConvention、suggestedExtracts（登录口会按 Profile 托管头占位符前置抽取建议）、鉴权 auth/headerHint。一次传入本流关键 testProjectApiId（去重后最多 5 条）；不够再调第二次。超字节会从尾部暂缓部分 id（deferredIds），不会整包清空",
+      "description": "批量获取 API 造流摘要（单条也用本工具）。每条含 path/query/header/body 参数摘要、body 示例、响应 schema 摘要、designHints、responseConvention、鉴权 auth/headerHint。一次传入本流关键 testProjectApiId（去重后最多 5 条）；不够再调第二次。超字节会从尾部暂缓部分 id（deferredIds），不会整包清空",
       "parameters": {
         "type": "object",
         "properties": {
@@ -212,7 +212,7 @@
     "type": "function",
     "function": {
       "name": "list_project_auth_profiles",
-      "description": "列举多端配置 Profile：id、名称、pathPrefix、headerName、headerValueTemplate、responseConvention（四字段）、credentialTarget、credentialApi。造登录链、修 AUTH_TOKEN_MISSING、改托管头/响应约定前必须先调用；按返回 Profile 配置。不含密钥明文",
+      "description": "列举多端配置 Profile：id、名称、pathPrefix、headerName、headerValueTemplate、responseConvention（四字段）、credentialTarget。造登录链、修 AUTH_TOKEN_MISSING、改托管头/响应约定前必须先调用；按返回 Profile 配置。登录 extracts 须对齐 headerValueTemplate 与响应 schema 自定。不含密钥明文",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -224,7 +224,7 @@
     "type": "function",
     "function": {
       "name": "upsert_auth_profile",
-      "description": "浅合并更新多端 Profile（pathPrefix/headerName/headerValueTemplate/responseConvention/credentialApi/name）。半自动：提案 pending，聊天侧确认后落盘；全自动：工具内直写。更新须 profileId；新建须 create=true 且 patch 含 headerName 与 headerValueTemplate。改响应约定时 patch.responseConvention 可只传变更字段（如 successValues）。两端禁止同一凭证键。仅 Web 【MCP 自动写】工具内直接写库。",
+      "description": "浅合并更新多端 Profile（pathPrefix/headerName/headerValueTemplate/responseConvention/name）。半自动：提案 pending，聊天侧确认后落盘；全自动：工具内直写。更新须 profileId；新建须 create=true 且 patch 含 headerName 与 headerValueTemplate。改响应约定时 patch.responseConvention 可只传变更字段（如 successValues）。两端禁止同一凭证键。仅 Web 【MCP 自动写】工具内直接写库。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -238,7 +238,7 @@
           },
           "patch": {
             "type": "object",
-            "description": "浅合并字段：name、pathPrefix（字符串数组）、headerName、headerValueTemplate、responseConvention{codePath,successValues,messagePath,dataPath}、credentialApi{method,path}",
+            "description": "浅合并字段：name、pathPrefix（字符串数组）、headerName、headerValueTemplate、responseConvention{codePath,successValues,messagePath,dataPath}",
             "additionalProperties": true
           }
         },

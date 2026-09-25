@@ -126,14 +126,6 @@
                   <label>data 路径</label>
                   <el-input v-model="row.dataPath" placeholder="data" />
                 </div>
-                <div class="project-setting__conv-field">
-                  <label>credentialApi.method</label>
-                  <el-input v-model="row.credentialMethod" placeholder="POST" />
-                </div>
-                <div class="project-setting__conv-field">
-                  <label>credentialApi.path</label>
-                  <el-input v-model="row.credentialPath" placeholder="/login" />
-                </div>
               </div>
 
               <div v-if="row.apis?.length" class="project-setting__apis-block">
@@ -339,7 +331,7 @@
 /**
  * 项目设置侧栏。
  * <p>
- * 多端配置：按 Profile 维护鉴权托管头、pathPrefix、响应约定四字段、credentialApi 与预制接口；
+ * 多端配置：按 Profile 维护鉴权托管头、pathPrefix、响应约定四字段与预制接口；
  * 另含 API 调试传输方式、项目 Token、MCP 自动写流开关与 Cursor 配置导出。
  */
 import { computed, getCurrentInstance, reactive, ref, watch } from 'vue'

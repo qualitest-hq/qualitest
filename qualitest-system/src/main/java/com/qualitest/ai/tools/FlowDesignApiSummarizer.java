@@ -268,40 +268,6 @@ public final class FlowDesignApiSummarizer {
     }
 
     /**
-     * 根据响应 schema 摘要生成建议的 extracts 列表。
-     */
-    public static JSONArray suggestExtracts(JSONObject responseSchemaSummary, String dataPath) {
-        JSONArray extracts = new JSONArray();
-        if (responseSchemaSummary == null || responseSchemaSummary.isEmpty()) {
-            return extracts;
-        }
-        String prefix = (dataPath == null || dataPath.isBlank()) ? "data" : dataPath.trim();
-        String pathPrefix = prefix + ".";
-        for (String path : responseSchemaSummary.keySet()) {
-            if (path == null || !path.startsWith(pathPrefix)) {
-                continue;
-            }
-            String field = path.substring(pathPrefix.length());
-            if (field.isBlank()) {
-                continue;
-            }
-            String name = field.contains(".")
-                    ? field.substring(field.lastIndexOf('.') + 1)
-                    : field;
-            if (name.isBlank()) {
-                continue;
-            }
-            JSONObject row = new JSONObject();
-            row.put("name", name);
-            row.put("expr", "$." + path);
-            row.put("scope", "flow");
-            row.put("from", "body");
-            extracts.add(row);
-        }
-        return extracts;
-    }
-
-    /**
      * 将 JSON Schema 展开为叶节点数组：每项含 path / type / 约束子集（不含 enum）。
      * 对象走 properties 键名；数组在路径上追加 [*] 再展开元素 schema。
      */

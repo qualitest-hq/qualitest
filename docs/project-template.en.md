@@ -18,7 +18,7 @@ One template row ≈ one Auth Profile seed pack. After you check it into a test 
 | Prefab APIs | Profile + project APIs (skip existing method+path); login APIs usually `auth.mode=none` |
 | Prefab params | Asset-library credentials (e.g. `adminAuth` / `clientAuth`) |
 | Prefab env | Fill create-project placeholder `baseUrl`, merge env vars (customized URLs are not overwritten) |
-| Prefab flows | Login flows, etc.; `extracts` derive managed headers and `credentialApi` |
+| Prefab flows | Login flows, etc.; extracts derive managed headers |
 | Prefab prompts | Optional; built-in auth templates may leave this empty |
 
 Managed-header derivation order on Apply:

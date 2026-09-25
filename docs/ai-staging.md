@@ -78,7 +78,6 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 | CODE | 硬拦？ | 何时硬拦 | 含义 |
 | ---- | ---- | ---- | ---- |
-| `AUTH_LOGIN_EXTRACT_MISSING` | 是 | **运行**（AI `submit_*` / Staging ✓ / **保存**跳过硬拦；**末单元 confirm 可附带 `saveRiskWarnings` 作运行风险预警**） | 登录口未抽出托管头所需凭证（`{{asset.*}}` / 存量 `{{flow.*}}`） |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **运行**（同上） | 两套不同登录口写出同一凭证路径 |
 | `AUTH_TOKEN_MISSING` | 是 | **运行**（同上；末单元 confirm 可预警） | 图要用某托管 Bearer，但 extracts / assign / 子流输出 / **flowSeed(仅 flow)** 都没有该目标 |
 | `AUTH_HEADER_MANAGED` | 否（soft） | — | 已按项目鉴权补托管头 |

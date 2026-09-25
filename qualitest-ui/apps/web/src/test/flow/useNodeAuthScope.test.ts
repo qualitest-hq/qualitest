@@ -28,7 +28,6 @@ const dualAuthJson = JSON.stringify({
       match: { pathPrefix: ['/system/', '/monitor/'] },
       headerName: 'Authorization',
       headerValueTemplate: 'Bearer {{asset.adminAuth.token}}',
-      credentialApi: { method: 'POST', path: '/login' },
       apis: [],
     },
     {
@@ -37,7 +36,6 @@ const dualAuthJson = JSON.stringify({
       match: { pathPrefix: ['/api/'] },
       headerName: 'token',
       headerValueTemplate: '{{asset.clientAuth.data}}',
-      credentialApi: { method: 'POST', path: '/api/login/login' },
       apis: [],
     },
   ],

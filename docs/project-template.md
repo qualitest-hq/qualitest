@@ -18,7 +18,7 @@
 | 预制接口 | Profile + 项目接口（method+path 已有则跳过）；登录口通常 `auth.mode=none` |
 | 预制参数 | 素材库口令等（如 `adminAuth` / `clientAuth`） |
 | 预制环境 | 填建项占位 `baseUrl`、合并环境变量（已改过的 URL 不覆盖） |
-| 预制测试流 | 登录流等；`extracts` 派生托管头与 `credentialApi` |
+| 预制测试流 | 登录流等；extracts 派生托管头 |
 | 预制提示词 | 可选；内置鉴权模板默认可为空 |
 
 Apply 托管头派生顺序：

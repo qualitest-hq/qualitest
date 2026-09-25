@@ -25,7 +25,7 @@ import java.util.Map;
 /**
  * AI 造流写工具：按 profileId 浅合并更新多端 Profile，或 create=true 时新建。
  * <p>
- * patch 可改：name、pathPrefix、鉴权托管头、responseConvention（响应约定四字段）、credentialApi。
+ * patch 可改：name、pathPrefix、鉴权托管头、responseConvention（响应约定四字段）。
  * 半自动：须有提案捕获器；只记 pending 提案，用户确认后才写 auth_config。<br>
  * 全自动：工具内直接写库，提案 status 为 confirmed；捕获器可为空。
  * 模板画布模式禁止写入。
@@ -67,7 +67,7 @@ public class UpsertAuthProfileTool implements QualitestTool {
         Map<String, Object> patch = AuthProfileUpsertSupport.parsePatch(arguments.get("patch"));
         if (patch == null) {
             return FlowDesignToolSupport.errorJson(
-                    "缺少 patch 对象（可含 name/pathPrefix/headerName/headerValueTemplate/responseConvention/credentialApi）");
+                    "缺少 patch 对象（可含 name/pathPrefix/headerName/headerValueTemplate/responseConvention）");
         }
         String profileId = FlowDesignToolSupport.stringArg(arguments.get("profileId"));
         boolean create = Boolean.TRUE.equals(arguments.get("create"))

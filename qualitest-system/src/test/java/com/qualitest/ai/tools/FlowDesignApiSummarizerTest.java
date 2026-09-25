@@ -138,42 +138,10 @@ class FlowDesignApiSummarizerTest {
     }
 
     /**
-     * 前提：响应摘要含 code/msg 与 data.* 字段。
-     * 期望：suggestExtracts 只建议 data 下字段，expr 为 $.data.xxx。
-     */
-    @Test
-    @Order(8)
-    @DisplayName("仅建议 data 下 extracts")
-    void suggestExtracts_fromDataPathFields() {
-        var summary = new JSONObject();
-        summary.put("code", "number");
-        summary.put("msg", "string");
-        summary.put("data.token", "string");
-        summary.put("data.mobile", "string");
-        var extracts = FlowDesignApiSummarizer.suggestExtracts(summary, "data");
-        assertEquals(2, extracts.size());
-        boolean hasToken = false;
-        boolean hasMobile = false;
-        for (int i = 0; i < extracts.size(); i++) {
-            var row = extracts.getJSONObject(i);
-            if ("token".equals(row.getString("name"))) {
-                hasToken = true;
-                assertEquals("$.data.token", row.getString("expr"));
-            }
-            if ("mobile".equals(row.getString("name"))) {
-                hasMobile = true;
-                assertEquals("$.data.mobile", row.getString("expr"));
-            }
-        }
-        assertTrue(hasToken);
-        assertTrue(hasMobile);
-    }
-
-    /**
      * data 为 array 时，叶路径写成 data[*].quantity，不会出现 data.items.quantity。
      */
     @Test
-    @Order(9)
+    @Order(8)
     @DisplayName("数组响应用 data[*] 叶路径")
     void summarizeResponse_arrayUsesStarIndexNotItemsKeyword() {
         String responseConfig = """
@@ -197,7 +165,7 @@ class FlowDesignApiSummarizerTest {
      * 期望：叶子 path=name 带 required=true；note 不标必填。
      */
     @Test
-    @Order(10)
+    @Order(9)
     @DisplayName("对象级 required 数组标到叶子")
     void summarizeRequest_objectRequiredArrayMarksLeaf() {
         String requestConfig = """
