@@ -19,7 +19,7 @@ public final class FlowEditLeaseConflictException extends RuntimeException {
         super("测试流写锁仍被占用（lockHeldBy="
                 + (lockHeldBy != null && !lockHeldBy.isBlank() ? lockHeldBy : "unknown")
                 + "）。可能是本账号其它标签页或 MCP/其它端正在写入；"
-                + "请关闭其它画布标签或约 45 秒后重试");
+                + "请关闭其它画布标签或约 30 秒后重试");
         this.lockHeldBy = lockHeldBy != null && !lockHeldBy.isBlank() ? lockHeldBy : "unknown";
     }
 

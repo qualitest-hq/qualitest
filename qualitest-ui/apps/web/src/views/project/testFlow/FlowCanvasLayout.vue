@@ -26,6 +26,17 @@
             <span class="flow-canvas-header__dirty-dot" aria-hidden="true" />
             未保存
           </span>
+          <!-- 写锁占用提示：本页持锁 / 他人占用 / 外部改图短暂提示 -->
+          <span
+              v-if="leaseBadge"
+              :class="[
+                'flow-canvas-header__lease',
+                leaseBadge.kind === 'self' ? 'is-self' : 'is-other',
+              ]"
+              :title="leaseBadge.text"
+          >
+            {{ leaseBadge.text }}
+          </span>
         </div>
       </div>
       <!-- 外部写入冲突条幅：图 / 鉴权 / 素材 -->
@@ -319,6 +330,7 @@ import { stagingPendingSaveTooltip } from './utils/promptStagingPendingSave'
 import { nodeChangeAffectsPersist } from './utils/nodeChangeAffectsPersist'
 import { useExternalGraphSync } from './composables/useExternalGraphSync'
 import { useFlowEditLease } from './composables/useFlowEditLease'
+import { externalChangeSourceLabel } from './utils/externalGraphSyncState'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -368,8 +380,8 @@ const {
 const authFormDirty = computed(() => !!projectSettingDrawerVisible.value)
 const assetFormDirty = computed(() => store.ui.leftTab === 'params')
 
-// 脏稿占用写锁并心跳续期；变干净或离开画布时释放
-useFlowEditLease({
+// 内容脏占用写锁并心跳续期；仅布局脏或干净时释放；顶栏展示占用状态
+const { leaseBadge, pulseRemoteActivity } = useFlowEditLease({
   testFlowId: externalSyncTestFlowId,
   enabled: externalSyncEnabled,
 })
@@ -381,6 +393,9 @@ const { externalConflictBanners } = useExternalGraphSync({
   enabled: externalSyncEnabled,
   authFormDirty,
   assetFormDirty,
+  onGraphWriteActivity: (source) => {
+    pulseRemoteActivity(externalChangeSourceLabel(source))
+  },
 })
 
 const {
@@ -831,6 +846,34 @@ function onPaneClick() {
   background: #ffedd5;
   border: 1px solid #fdba74;
   box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+}
+
+/* 写锁占用徽章：本页持锁偏青、他人占用偏灰 */
+.flow-canvas-header__lease {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-canvas-header__lease.is-self {
+  color: #0f766e;
+  background: #ccfbf1;
+  border: 1px solid #5eead4;
+}
+
+.flow-canvas-header__lease.is-other {
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
 }
 
 /* 徽章内圆点：缓慢外扩脉冲，吸引注意 */

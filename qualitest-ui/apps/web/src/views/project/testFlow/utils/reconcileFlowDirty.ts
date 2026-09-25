@@ -60,7 +60,7 @@ export async function snapshotStringFromStore(store: FlowCanvasStore): Promise<s
   await store.ensureEdgesHydrated();
   const graph = toGraphJson({
     nodes: store.nodes,
-    edges: store.edges,
+    edges: store.getEffectiveEdges(),
     viewport: store.viewport,
     runConfig: store.runConfig,
     flowOutputs: store.flowOutputs,

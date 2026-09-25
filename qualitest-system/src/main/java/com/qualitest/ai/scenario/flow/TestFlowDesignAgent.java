@@ -146,15 +146,19 @@ public class TestFlowDesignAgent {
         AuthProfileUpsertCapture authProfileUpsertCapture =
                 request.isTemplateDesignMode() ? null : new AuthProfileUpsertCapture();
         boolean autopilot = request.isAutopilotEnabledEffective();
+        java.util.concurrent.atomic.AtomicReference<FlowDesignToolContext> ctxHolder =
+                new java.util.concurrent.atomic.AtomicReference<>();
         FlowDesignToolContext toolContext = flowDesignToolContextFactory.fromDesignRequest(
                 request, submitCapture, assetUpsertCapture, authProfileUpsertCapture,
                 session.getAiChatSessionId(),
                 aiChatConversationService.loadFlowDesignClientIdMap(session.getAiChatSessionId()),
                 autopilot,
                 (flowId, graph) -> {
-                    // 隐式写库成功：推送 testFlowId，画布可清 Staging 并重载
+                    // 隐式写库成功：推送 testFlowId 与版本号，画布可清 Staging 并重载
                     if (listener != null && flowId != null) {
-                        listener.onGraphCommitted(flowId);
+                        FlowDesignToolContext c = ctxHolder.get();
+                        Long rev = c != null ? c.getBaseGraphRevision() : null;
+                        listener.onGraphCommitted(flowId, rev);
                     }
                 },
                 runId -> {
@@ -163,6 +167,7 @@ public class TestFlowDesignAgent {
                         listener.onRunStarted(runId);
                     }
                 });
+        ctxHolder.set(toolContext);
 
         List<Map<String, Object>> tools = flowDesignToolsDefinitionService.loadToolsDefinition(autopilot);
         List<ChatMessage> messages = buildInitialMessages(request, session, modelConfig, autopilot);

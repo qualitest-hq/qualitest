@@ -1,6 +1,6 @@
 /**
  * 测试流外部变更长连接（GET 事件流）。
- * 打开画布时订阅他端写库通知；与 AI 对话推流无关。
+ * 打开画布时订阅他端写库通知（改图、素材、鉴权、开跑等）。
  */
 import { getToken } from '@/utils/auth'
 import { readSseJsonStream } from '@/utils/ai/consumeSseStream'
@@ -25,6 +25,8 @@ export interface FlowExternalChangeEvent {
   testProjectId?: string
   source?: string
   updateTime?: string
+  /** 图写入后的版本号（graphCommitted 可带） */
+  graphRevision?: number
   runId?: string
   /** 素材变更涉及的 key */
   keys?: string[]

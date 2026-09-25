@@ -7,19 +7,29 @@
  *
  * 半自动下 Staging ✓ 后须调用本模块的 saveFlow 才写库；
  * 若仍有 pending，先弹门禁（去确认 / 仅保存已确认 / 取消）。
+ *
+ * 写图请求体携带本地图版本号；冲突时仅布局脏自动套坐标重存，内容冲突弹窗分流。
  */
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
 import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
-import { useFlowEditLease } from './useFlowEditLease';
 import { validateGraphJson } from '@/utils/flow/graphValidate';
 
-import { fromGraphJson, toGraphJson } from '../graphAdapter';
+import { fromGraphJson } from '../graphAdapter';
+import { buildCanvasPersistGraph } from './buildCanvasPersistGraph';
 import { refreshSavedBaseline } from '../utils/reconcileFlowDirty';
 import { promptStagingPendingSave } from '../utils/promptStagingPendingSave';
 import { collectRunBlockingErrors } from '../utils/runReadiness';
 import { suppressExternalGraphSync, acknowledgeLocalWebSave } from '../utils/externalGraphSyncState';
 import { getFlowEditLeaseToken } from '../utils/flowEditLeaseState';
+import { isLayoutOnlyDirtyFromStore } from '../utils/isLayoutOnlyDirty';
+import { applyNodePositions, captureNodePositions } from '../utils/nodePositions';
+import {
+  extractGraphRevisionFromResponse,
+  parseGraphRevisionConflict,
+} from '../utils/graphRevisionConflict';
+import { clearAllStagingState } from '../utils/stagingCleanup';
+import { resetStagingAcceptanceMaps } from '../utils/stagingAcceptance';
 import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
@@ -39,6 +49,8 @@ export interface SaveFlowOptions {
    * 开跑路径会紧接着自己做一次完整就绪检查，避免重复请求。
    */
   skipRunRiskRefresh?: boolean;
+  /** 内部：版本冲突自动重试中，避免死循环 */
+  _conflictRetry?: boolean;
 }
 
 export function useFlowGraph() {
@@ -56,6 +68,7 @@ export function useFlowGraph() {
     store.testFlowId = String(data.testFlowId);
     store.testProjectId = String(data.testProjectId);
     store.flowName = data.flowName ?? '';
+    store.setGraphRevision(data.graphRevision ?? 0);
     const raw = data.graphJson ? JSON.parse(data.graphJson) : null
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
       raw.edges = recoverLoginFlowEdgesIfMissing(raw.nodes, raw.edges);
@@ -87,11 +100,99 @@ export function useFlowGraph() {
     }
   }
 
+  /** 拉取库中当前图版本号 */
+  async function fetchLatestGraphRevision(flowId: string): Promise<number> {
+    const res = await getTestFlow(flowId);
+    const n = Number(res.data?.graphRevision);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  /**
+   * 仅布局脏时的版本冲突：拉最新图、套回本地坐标后自动重存。
+   */
+  async function retrySaveAfterLayoutOnlyConflict(options?: SaveFlowOptions) {
+    const flowId = String(store.testFlowId || '');
+    if (!flowId) return false;
+    const positions = captureNodePositions(store.nodes);
+    const viewport = { ...store.viewport };
+    await loadFlow(flowId);
+    applyNodePositions(store, positions);
+    store.viewport = viewport;
+    store.markDirty();
+    return saveFlow({ ...options, _conflictRetry: true });
+  }
+
+  /**
+   * 内容脏时的版本冲突：放弃本地并拉取，或二次确认后强制用本地图覆盖。
+   */
+  async function resolveContentRevisionConflict(
+    serverRevision: number,
+    options?: SaveFlowOptions,
+  ): Promise<boolean> {
+    try {
+      await ElMessageBox.confirm(
+        '画布已被外部更新，本地有未保存的内容修改。可放弃本地并拉取最新图，或强制用本地图覆盖服务器。',
+        '版本冲突',
+        {
+          type: 'warning',
+          confirmButtonText: '放弃本地并拉取',
+          cancelButtonText: '强制覆盖',
+          distinguishCancelAndClose: true,
+          closeOnClickModal: false,
+        },
+      );
+      clearAllStagingState();
+      resetStagingAcceptanceMaps();
+      store.markClean();
+      const flowId = String(store.testFlowId || '');
+      if (flowId) {
+        await loadFlow(flowId);
+        if (!options?.quiet) {
+          ElMessage.success('已放弃本地修改并拉取最新画布');
+        }
+      }
+      return false;
+    } catch (action) {
+      if (action !== 'cancel') {
+        return false;
+      }
+      try {
+        await ElMessageBox.confirm(
+          '强制覆盖将用本地图覆盖服务器上的最新内容，可能导致他人已写入的节点丢失。确定继续？',
+          '确认强制覆盖',
+          {
+            type: 'warning',
+            confirmButtonText: '确定覆盖',
+            cancelButtonText: '取消',
+            closeOnClickModal: false,
+          },
+        );
+      } catch {
+        return false;
+      }
+      const flowId = String(store.testFlowId || '');
+      let base = serverRevision;
+      if (!Number.isFinite(base) || base < 0) {
+        try {
+          base = await fetchLatestGraphRevision(flowId);
+        } catch {
+          if (!options?.quiet) {
+            ElMessage.error('获取最新版本失败');
+          }
+          return false;
+        }
+      }
+      store.setGraphRevision(base);
+      return saveFlow({ ...options, _conflictRetry: true });
+    }
+  }
+
   /**
    * 序列化当前画布并提交保存。
    * - 有未确认 Staging 时弹窗：去确认 / 仅保存已确认 / 取消
    * - 序列化时排除未确认的 Staging 对象；「仅保存已确认」即走此路径
    * - 仅落库地板失败才阻断；其余问题可落盘，并提示尚不可运行
+   * - 写图携带本地图版本号作基准；冲突按仅布局脏 / 内容脏分流
    */
   async function saveFlow(options?: SaveFlowOptions) {
     await store.ensureEdgesHydrated();
@@ -111,14 +212,7 @@ export function useFlowGraph() {
       }
     }
 
-    const graph = toGraphJson({
-      nodes: store.nodes,
-      edges: store.getEffectiveEdges(),
-      viewport: store.viewport,
-      runConfig: store.runConfig,
-      flowOutputs: store.flowOutputs,
-      stagingFilter: stagingStore.buildPersistFilter(),
-    });
+    const graph = buildCanvasPersistGraph();
     const floor = validateGraphJson(graph, { persistMinimalOnly: true });
     if (!floor.ok) {
       if (!options?.quiet) {
@@ -128,21 +222,26 @@ export function useFlowGraph() {
     }
 
     store.loading = true;
+    /** 冲突分流已接管后续异步流程时，finally 不再清 loading */
+    let conflictHandoff = false;
     try {
-      // 须在发请求前抑制：服务端提交后 SSE 可能早于 HTTP 返回到达本页
+      // 须在发请求前抑制：服务端变更通知可能早于 HTTP 返回到达本页
       suppressExternalGraphSync();
-      // 请求头带上本标签写锁 token，有有效租约时服务端续期，不再另抢一把
-      await updateTestFlow(
+      // 请求头带上本标签写锁 token；body 带图版本号作乐观锁基准
+      const res = await updateTestFlow(
         {
           testFlowId: store.testFlowId,
           testProjectId: store.testProjectId,
           flowName: store.flowName,
           graphJson: JSON.stringify(graph),
+          graphRevision: store.graphRevision,
         },
         getFlowEditLeaseToken(String(store.testFlowId || '')),
       );
       // 清掉抑制窗口前误亮的「其它端保存」条幅
       acknowledgeLocalWebSave();
+      const nextRev = extractGraphRevisionFromResponse(res);
+      store.setGraphRevision(nextRev != null ? nextRev : store.graphRevision + 1);
       await refreshSavedBaseline(store);
 
       if (!options?.skipRunRiskRefresh && !options?.quiet) {
@@ -170,12 +269,25 @@ export function useFlowGraph() {
       }
       return true;
     } catch (e: unknown) {
+      // 图版本冲突：仅布局脏则套本地坐标重存；内容脏则弹窗让用户选择
+      const conflictRev = parseGraphRevisionConflict(e);
+      if (conflictRev != null && !options?._conflictRetry) {
+        conflictHandoff = true;
+        store.loading = false;
+        if (isLayoutOnlyDirtyFromStore(store, stagingStore.pendingCount)) {
+          return retrySaveAfterLayoutOnlyConflict(options);
+        }
+        return resolveContentRevisionConflict(conflictRev, options);
+      }
+      // 写锁冲突等其它错误：直接展示服务端文案（含占用方信息）
       if (!options?.quiet) {
         ElMessage.error(e instanceof Error ? e.message : '保存失败');
       }
       return false;
     } finally {
-      store.loading = false;
+      if (!conflictHandoff) {
+        store.loading = false;
+      }
     }
   }
 

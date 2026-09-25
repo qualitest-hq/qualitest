@@ -40,8 +40,8 @@ import java.util.List;
  * 测试流 AI 设计 HTTP 接口。
  * <p>
  * 半自动：返回增量 patch / 素材提案，不自动保存 test_flow，不触发 Run。
- * 全自动（请求体 autopilotEnabled=true）：可经 run_test_flow 隐式写库并运行；
- * SSE 可推送 graphCommitted，前端据此清 Staging 并 reload 画布。
+ * 全自动（请求体 autopilotEnabled=true）：可经工具隐式写库并运行；
+ * 流式接口可推送落库与开跑事件，前端据此清 Staging、更新图版本或合入画布。
  */
 @RestController
 @RequestMapping("/project/testFlow/ai")

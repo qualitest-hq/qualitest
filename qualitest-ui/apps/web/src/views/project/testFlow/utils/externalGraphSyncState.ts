@@ -1,17 +1,24 @@
 /**
- * 外部图同步共享状态：updateTime 去重、本端保存回声抑制、全自动会话桥接、文案。
+ * 外部图同步共享状态：updateTime 去重、本端保存回声抑制、订阅活跃标记、来源文案。
  */
-type GraphCommittedHandler = (testFlowId: string, updateTime?: string) => void
 
 const lastAppliedByFlow = new Map<string, string>()
 let suppressUntilMs = 0
-let graphCommittedHandler: GraphCommittedHandler | null = null
+/** 画布已订阅外部变更长连接时为 true；全自动落库据此跳过整图重载 */
+let externalGraphSyncListening = false
 /** 本端保存成功后清掉误报的「其它端保存」条幅 */
 let localWebSaveAckHandler: (() => void) | null = null
 
+/** 变更来源 → 短名 / 条幅后缀 */
+const SOURCE_LABELS: Record<string, { short: string; banner: string }> = {
+  mcp: { short: 'MCP', banner: '（来自 MCP）' },
+  'web-autopilot': { short: '全自动', banner: '（来自全自动）' },
+  'web-save': { short: '其它端保存', banner: '（来自其它端保存）' },
+}
+
 /**
  * 本端即将/正在保存时抑制回声同步。
- * 须在发保存请求前调用，避免服务端 SSE 在 HTTP 返回前抢先到达。
+ * 须在发保存请求前调用，避免服务端变更通知在 HTTP 返回前抢先到达。
  */
 export function suppressExternalGraphSync(ms = 5000) {
   suppressUntilMs = Math.max(suppressUntilMs, Date.now() + ms)
@@ -38,16 +45,14 @@ export function noteAppliedGraphUpdateTime(testFlowId: string, updateTime?: stri
   lastAppliedByFlow.set(id, updateTime)
 }
 
-export function setExternalGraphCommittedHandler(next: GraphCommittedHandler | null) {
-  graphCommittedHandler = next
+/** 标记是否已订阅外部变更长连接（有流 id 且启用时为 true） */
+export function setExternalGraphSyncListening(listening: boolean) {
+  externalGraphSyncListening = listening
 }
 
-export function hasExternalGraphCommittedHandler(): boolean {
-  return graphCommittedHandler != null
-}
-
-export function emitExternalGraphCommitted(testFlowId: string, updateTime?: string) {
-  graphCommittedHandler?.(testFlowId, updateTime)
+/** 画布是否正在收外部改图通知；全自动落库据此决定是否跳过整图重载 */
+export function isExternalGraphSyncListening(): boolean {
+  return externalGraphSyncListening
 }
 
 /** 由外部同步模块注册：本端保存成功后清除误报条幅 */
@@ -60,18 +65,14 @@ export function acknowledgeLocalWebSave() {
   localWebSaveAckHandler?.()
 }
 
-/** 同步来源短文案（Toast / 条幅共用） */
+/** 同步来源短文案（Toast / 顶栏短暂提示共用） */
 export function externalChangeSourceLabel(source?: string | null): string {
-  if (source === 'mcp') return 'MCP'
-  if (source === 'web-autopilot') return '全自动'
-  if (source === 'web-save') return '其它端保存'
-  return '外部'
+  if (source == null) return '外部'
+  return SOURCE_LABELS[source]?.short ?? '外部'
 }
 
 /** 条幅括号后缀，如「（来自 MCP）」 */
 export function externalChangeSourceBannerSuffix(source?: string | null): string {
-  if (source === 'mcp') return '（来自 MCP）'
-  if (source === 'web-autopilot') return '（来自全自动）'
-  if (source === 'web-save') return '（来自其它端保存）'
-  return ''
+  if (source == null) return ''
+  return SOURCE_LABELS[source]?.banner ?? ''
 }

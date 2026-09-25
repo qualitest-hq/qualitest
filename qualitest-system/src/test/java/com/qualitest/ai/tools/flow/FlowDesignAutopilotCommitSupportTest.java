@@ -65,6 +65,7 @@ class FlowDesignAutopilotCommitSupportTest {
         existing.setTestFlowId(3001L);
         existing.setTestProjectId(100L);
         existing.setDelStatus(0);
+        existing.setGraphRevision(0L);
         when(flowService.selectTestFlowById(3001L)).thenReturn(existing);
         when(flowService.updateTestFlow(any())).thenReturn(1);
 
@@ -120,6 +121,7 @@ class FlowDesignAutopilotCommitSupportTest {
         existing.setTestFlowId(3002L);
         existing.setTestProjectId(100L);
         existing.setDelStatus(0);
+        existing.setGraphRevision(0L);
         when(flowService.selectTestFlowById(3002L)).thenReturn(existing);
         when(flowService.updateTestFlow(any())).thenReturn(1);
 
@@ -150,5 +152,72 @@ class FlowDesignAutopilotCommitSupportTest {
         assertTrue(outcome.committed());
         assertTrue(outcome.warnings().stream().anyMatch(w -> w.contains("开始节点")));
         verify(flowService, times(1)).updateTestFlow(any());
+    }
+
+    @Test
+    @Order(4)
+    @DisplayName("版本冲突时重放并重试成功")
+    void commit_revisionConflict_replaysAndSucceeds() {
+        ITestFlowService flowService = mock(ITestFlowService.class);
+        GraphJsonValidator validator = mock(GraphJsonValidator.class);
+        FlowDesignPatchNormalizer normalizer = mock(FlowDesignPatchNormalizer.class);
+        when(validator.validate(any(), any())).thenReturn(GraphValidationResult.of(List.of(), List.of()));
+        when(normalizer.apiResolver()).thenReturn(id -> null);
+
+        GraphNode node = GraphNode.builder().id("n1").type("delay").build();
+        GraphJson baseGraph = GraphJson.builder().nodes(List.of()).build();
+        GraphJson mergedGraph = GraphJson.builder().nodes(List.of(node)).build();
+
+        TestFlow existing = new TestFlow();
+        existing.setTestFlowId(3003L);
+        existing.setTestProjectId(100L);
+        existing.setDelStatus(0);
+        existing.setGraphRevision(0L);
+        existing.setGraphJson(baseGraph.toJsonString());
+
+        TestFlow afterConflict = new TestFlow();
+        afterConflict.setTestFlowId(3003L);
+        afterConflict.setTestProjectId(100L);
+        afterConflict.setDelStatus(0);
+        afterConflict.setGraphRevision(1L);
+        afterConflict.setGraphJson(baseGraph.toJsonString());
+
+        when(flowService.selectTestFlowById(3003L))
+                .thenReturn(existing, afterConflict, afterConflict);
+        when(flowService.updateTestFlow(any()))
+                .thenThrow(new com.qualitest.flow.sync.FlowGraphRevisionConflictException(1L))
+                .thenReturn(1);
+
+        FlowDesignPatch unit = new FlowDesignPatch();
+        unit.getAddNodes().add(node);
+        FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
+        capture.record(new FlowDesignPatchNormalizer.NormalizeResult(
+                unit,
+                DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build()));
+
+        when(normalizer.normalize(any(), any(), any()))
+                .thenReturn(new FlowDesignPatchNormalizer.NormalizeResult(
+                        unit,
+                        DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build()));
+        when(normalizer.mergeOnto(any(), any(), any())).thenReturn(mergedGraph);
+
+        GraphJson working = GraphJson.builder().nodes(List.of(node)).build();
+        FlowDesignToolContext ctx = FlowDesignToolContext.builder()
+                .testFlowId(3003L)
+                .testProjectId(100L)
+                .autopilotEnabled(true)
+                .submitCapture(capture)
+                .graphJson(GraphJson.builder().build())
+                .workingGraphRef(new AtomicReference<>(working))
+                .baseGraphRevisionRef(new AtomicReference<>(0L))
+                .build();
+
+        var outcome = FlowDesignAutopilotCommitSupport.commitIfNeeded(
+                ctx, flowService, validator, normalizer);
+
+        assertTrue(outcome.ok());
+        assertTrue(outcome.committed());
+        verify(flowService, times(2)).updateTestFlow(any());
+        verify(normalizer, atLeastOnce()).normalize(any(), any(), any());
     }
 }

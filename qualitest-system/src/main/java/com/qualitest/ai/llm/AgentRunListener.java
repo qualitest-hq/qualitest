@@ -25,9 +25,10 @@ public interface AgentRunListener {
     /**
      * 全自动场景下测试流图已写入数据库。
      *
-     * @param testFlowId 已写库的测试流 id
+     * @param testFlowId     已写库的测试流 id
+     * @param graphRevision  写入后的图版本号，可空
      */
-    default void onGraphCommitted(Long testFlowId) {
+    default void onGraphCommitted(Long testFlowId, Long graphRevision) {
     }
 
     /**

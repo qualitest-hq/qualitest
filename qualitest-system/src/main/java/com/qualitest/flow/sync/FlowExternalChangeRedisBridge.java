@@ -92,6 +92,7 @@ public class FlowExternalChangeRedisBridge implements MessageListener {
                     .testProjectId(payload.getLong("testProjectId"))
                     .source(payload.getString("source"))
                     .updateTime(payload.getString("updateTime"))
+                    .graphRevision(payload.getLong("graphRevision"))
                     .runId(payload.getLong("runId"))
                     .keys(listOrEmpty(payload, "keys", String.class))
                     .changedNodeIds(listOrEmpty(payload, "changedNodeIds", String.class))

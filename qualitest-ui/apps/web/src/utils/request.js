@@ -103,8 +103,21 @@ service.interceptors.response.use(res => {
     }
       return Promise.reject('无效的会话，或者会话已过期，请重新登录。')
     } else if (code === 500) {
-      ElMessage({ message: msg, type: 'error' })
-      return Promise.reject(new Error(msg))
+      // 业务 500 可能附带：revisionConflict + graphRevision（图版本冲突）、lockHeldBy（写锁冲突）
+      const isRevisionConflict = !!(res.data && res.data.revisionConflict)
+      const isLeaseConflict = !!(res.data && res.data.lockHeldBy)
+      // 图版本冲突 / 写锁冲突由业务层分流提示，不在此再弹 toast
+      if (!isRevisionConflict && !isLeaseConflict) {
+        ElMessage({ message: msg, type: 'error' })
+      }
+      const err = new Error(msg)
+      // 把业务扩展字段挂到 Error 上，供保存等调用方分流处理
+      if (res.data && typeof res.data === 'object') {
+        if (res.data.revisionConflict) err.revisionConflict = true
+        if (res.data.graphRevision != null) err.graphRevision = res.data.graphRevision
+        if (res.data.lockHeldBy != null) err.lockHeldBy = res.data.lockHeldBy
+      }
+      return Promise.reject(err)
     } else if (code === 601) {
       ElMessage({ message: msg, type: 'warning' })
       return Promise.reject(new Error(msg))

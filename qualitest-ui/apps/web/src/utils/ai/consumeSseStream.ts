@@ -7,7 +7,7 @@ export interface SseStreamHandlers<TEvent, TResult> {
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool: string) => void;
   /** 测试流全自动隐式写库成功 */
-  onGraphCommitted?: (testFlowId: string) => void;
+  onGraphCommitted?: (testFlowId: string, graphRevision?: number) => void;
   /** 全自动已触发 Run，画布可开始按步骤高亮 */
   onRunStarted?: (runId: string) => void;
   /** 会话已就绪（新建或复用），尽早记下 id 以便取消后重拉半成品 */
@@ -21,6 +21,8 @@ export interface ConsumeSsePostOptions<TEvent extends { type: string }, TResult>
   body: unknown;
   handlers: SseStreamHandlers<TEvent, TResult>;
   signal?: AbortSignal;
+  /** 额外请求头（如 X-Flow-Edit-Lease） */
+  headers?: Record<string, string>;
   defaultErrorMessage?: string;
   missingResultMessage?: string;
 }
@@ -32,6 +34,7 @@ function dispatchSseEvent<
     tool?: string;
     message?: string;
     testFlowId?: string;
+    graphRevision?: number;
     runId?: string;
     aiChatSessionId?: string;
     result?: TResult;
@@ -49,7 +52,7 @@ function dispatchSseEvent<
   if (event.type === 'tool_end' && event.tool) handlers.onToolEnd?.(event.tool);
   // 全自动隐式写库成功
   if (event.type === 'graphCommitted' && event.testFlowId) {
-    handlers.onGraphCommitted?.(event.testFlowId);
+    handlers.onGraphCommitted?.(event.testFlowId, event.graphRevision);
   }
   // 全自动已触发 Run
   if (event.type === 'runStarted' && event.runId) {
@@ -83,11 +86,15 @@ export async function consumeAuthenticatedSsePost<
     body,
     handlers,
     signal,
+    headers: extraHeaders,
     defaultErrorMessage = 'AI 助手请求失败',
     missingResultMessage = '未收到结果',
   } = options;
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(extraHeaders || {}),
+  };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 

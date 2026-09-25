@@ -8,6 +8,7 @@ import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.StringUtils;
 import com.qualitest.common.utils.html.EscapeUtil;
 import com.qualitest.flow.sync.FlowEditLeaseConflictException;
+import com.qualitest.flow.sync.FlowGraphRevisionConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,6 +69,19 @@ public class GlobalExceptionHandler {
         log.warn("写锁冲突 URI={} lockHeldBy={}", request.getRequestURI(), e.getLockHeldBy());
         AjaxResult result = AjaxResult.error(e.getMessage());
         result.put("lockHeldBy", e.getLockHeldBy());
+        return result;
+    }
+
+    /**
+ * 测试流图版本冲突：返回错误文案与库中当前图版本号。
+ */
+    @ExceptionHandler(FlowGraphRevisionConflictException.class)
+    public AjaxResult handleFlowGraphRevisionConflict(FlowGraphRevisionConflictException e,
+                                                      HttpServletRequest request) {
+        log.warn("图版本冲突 URI={} graphRevision={}", request.getRequestURI(), e.getCurrentGraphRevision());
+        AjaxResult result = AjaxResult.error(e.getMessage());
+        result.put("revisionConflict", true);
+        result.put("graphRevision", e.getCurrentGraphRevision());
         return result;
     }
 

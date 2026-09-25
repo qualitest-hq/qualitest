@@ -42,7 +42,7 @@ public class McpToolInvokeService {
 
     /** 写锁冲突时写入回执的短提示文案 */
     private static final String LEASE_CONFLICT_HINT =
-            "写锁仍被占用（可能是 Web 脏稿/其它标签或 MCP）；请稍后重试或换一流";
+            "写锁仍被占用（可能是 Web 未保存的内容草稿/其它标签）；请等待用户保存或放弃本地改动后再试，或换一流";
 
     /** 按工具名执行具体业务 */
     private final FlowDesignToolExecutor flowDesignToolExecutor;
@@ -301,6 +301,12 @@ public class McpToolInvokeService {
         if (params.getGraphJson() == null) {
             TestFlowResult flow = access.flow();
             params.setGraphJson(TestFlowAccessSupport.parseGraphJson(flow.getGraphJson()));
+            if (params.getGraphRevision() == null) {
+                params.setGraphRevision(flow.getGraphRevision() != null ? flow.getGraphRevision() : 0L);
+            }
+        } else if (params.getGraphRevision() == null) {
+            TestFlowResult flow = access.flow();
+            params.setGraphRevision(flow.getGraphRevision() != null ? flow.getGraphRevision() : 0L);
         }
     }
 
@@ -339,6 +345,8 @@ public class McpToolInvokeService {
             if (commit.lockHeldBy() != null && !commit.lockHeldBy().isBlank()) {
                 result.put("lockHeldBy", commit.lockHeldBy());
                 result.put("hint", LEASE_CONFLICT_HINT);
+            } else if (commit.message() != null && commit.message().contains("版本冲突")) {
+                result.put("hint", "图版本冲突且自动重试已耗尽；请重新勘察当前画布后再 submit_*");
             } else {
                 result.put("hint", "请根据 commit errors 修正后再 submit_*");
             }

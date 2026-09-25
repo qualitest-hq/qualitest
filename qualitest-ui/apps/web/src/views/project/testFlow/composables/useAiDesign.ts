@@ -69,8 +69,7 @@ import {
   resetStagingAcceptanceMaps,
 } from '../utils/stagingAcceptance';
 import {
-  emitExternalGraphCommitted,
-  hasExternalGraphCommittedHandler,
+  isExternalGraphSyncListening,
 } from '../utils/externalGraphSyncState';
 import { restorePendingStagingIfNeeded as restorePendingStagingFromMessages } from '../utils/stagingSessionRestore';
 import { graphObjectIdFromUnit } from '../utils/stagingUnitIds';
@@ -384,6 +383,8 @@ export function useAiDesign() {
       testProjectEnvId: activeScenario?.testProjectEnvId
         ? String(activeScenario.testProjectEnvId)
         : undefined,
+      // 当前图版本，供全自动落盘条件更新
+      graphRevision: store.graphRevision,
     };
     // 把当前画布已算出的开跑/鉴权风险文案带入本轮设计请求
     const riskWarnings = useRunRiskStore().warnings;
@@ -444,12 +445,15 @@ export function useAiDesign() {
         onSession: (sessionId) => {
           void chat.afterDesignSessionCreated(String(sessionId));
         },
-        // 全自动隐式写库成功：清 Staging；有外部同步订阅时走统一入口（与 Hub SSE 去重）
-        onGraphCommitted: (testFlowId) => {
+        // 全自动隐式写库成功：清 Staging、更新本地图版本。
+        // 画布已订阅外部变更时不再整图重载，改由长连接合入。
+        onGraphCommitted: (testFlowId, graphRevision) => {
           clearAllStagingState();
           resetStagingAcceptanceMaps();
-          if (hasExternalGraphCommittedHandler()) {
-            emitExternalGraphCommitted(testFlowId);
+          if (graphRevision != null && Number.isFinite(Number(graphRevision))) {
+            store.setGraphRevision(Number(graphRevision));
+          }
+          if (isExternalGraphSyncListening()) {
             return;
           }
           void loadFlow(testFlowId)

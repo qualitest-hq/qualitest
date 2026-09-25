@@ -11,6 +11,7 @@
         <result property="flowName" column="flow_name"/>
         <result property="flowDescription" column="flow_description"/>
         <result property="graphJson" column="graph_json"/>
+        <result property="graphRevision" column="graph_revision"/>
         <result property="apiHealthWarningCount" column="api_health_warning_count"/>
         <result property="apiHealthCheckedAt" column="api_health_checked_at"/>
         <result property="apiHealthWarningCodes" column="api_health_warning_codes"/>
@@ -26,6 +27,7 @@
                flow_name,
                flow_description,
                graph_json,
+               graph_revision,
                api_health_warning_count,
                api_health_checked_at,
                api_health_warning_codes,
@@ -42,6 +44,7 @@
                tf.flow_name                 as flowName,
                tf.flow_description          as flowDescription,
                tf.graph_json                as graphJson,
+               tf.graph_revision            as graphRevision,
                tf.api_health_warning_count  as apiHealthWarningCount,
                tf.api_health_checked_at     as apiHealthCheckedAt,
                tf.api_health_warning_codes  as apiHealthWarningCodes,
@@ -80,6 +83,7 @@
         tf.flow_name as flowName,
         tf.flow_description as flowDescription,
         tf.graph_json as graphJson,
+        tf.graph_revision as graphRevision,
         tf.api_health_warning_count as apiHealthWarningCount,
         tf.api_health_checked_at as apiHealthCheckedAt,
         tf.api_health_warning_codes as apiHealthWarningCodes,
@@ -115,6 +119,7 @@
                tf.flow_name        as flowName,
                tf.flow_description as flowDescription,
                tf.graph_json       as graphJson,
+               tf.graph_revision   as graphRevision,
                tf.api_health_warning_count as apiHealthWarningCount,
                tf.api_health_checked_at as apiHealthCheckedAt,
                tf.api_health_warning_codes as apiHealthWarningCodes,
@@ -148,6 +153,7 @@
         tf.flow_name,
         tf.flow_description,
         tf.graph_json,
+        tf.graph_revision,
         tf.api_health_warning_count,
         tf.api_health_checked_at,
         tf.api_health_warning_codes,
@@ -260,6 +266,17 @@
             </if>
         </trim>
         where test_flow_id = #{testFlowId}
+    </update>
+
+    <!-- 写图条件更新：入参为基准版本时成功并将版本号 +1，否则影响 0 行 -->
+    <update id="updateTestFlowGraphCas" parameterType="TestFlow">
+        update test_flow
+        set graph_json     = #{graphJson},
+            graph_revision = graph_revision + 1,
+            update_time    = #{updateTime}
+        where test_flow_id = #{testFlowId}
+          and graph_revision = #{graphRevision}
+          and del_status = 0
     </update>
 
     <update id="clearFlowGroupId">

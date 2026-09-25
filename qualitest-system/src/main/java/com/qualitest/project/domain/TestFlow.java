@@ -71,6 +71,12 @@ public class TestFlow extends BaseEntity {
     private String graphJson;
 
     /**
+     * 图版本号。
+     * 读出为库中当前值；写 graph_json 时作为条件更新的基准版本。
+     */
+    private Long graphRevision;
+
+    /**
      * API 语义健康告警条数。
      * 静态对照图上 HTTP 节点与当前 API 定义后得到；0 表示当前无此类告警。
      */

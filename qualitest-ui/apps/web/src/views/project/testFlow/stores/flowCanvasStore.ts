@@ -118,6 +118,11 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const suppressDirty = ref(false);
   /** 上次加载或保存成功时的 graph_json 规范快照，用于判断能否回到「已保存」 */
   const savedGraphSnapshot = ref<string | null>(null);
+  /**
+   * 本地持有的图版本号（乐观锁）。
+   * 加载、保存成功或外部合入时更新；保存请求体携带作条件更新基准。
+   */
+  const graphRevision = ref(0);
   /** AI 设计侧栏/抽屉是否打开 */
   const aiDesignPanelOpen = ref(false);
   /** Run 详情「AI 修复」打开面板时待注入的 runId */
@@ -216,6 +221,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     pendingHistoryReset.value = false;
     suppressDirty.value = false;
     savedGraphSnapshot.value = null;
+    graphRevision.value = 0;
     aiDesignPanelOpen.value = false;
     pendingAiDesignRunId.value = '';
     clearAiHighlightTimer();
@@ -228,6 +234,12 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   /** 记录已保存基线（加载或保存成功后调用） */
   function setSavedGraphSnapshot(snapshot: string) {
     savedGraphSnapshot.value = snapshot;
+  }
+
+  /** 写入图版本号（非法值按 0） */
+  function setGraphRevision(revision: number | null | undefined) {
+    const n = Number(revision);
+    graphRevision.value = Number.isFinite(n) ? n : 0;
   }
 
   /** 开始灌入图数据，暂停脏标记直到 endCanvasHydration */
@@ -453,12 +465,14 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     pendingHistoryReset,
     suppressDirty,
     savedGraphSnapshot,
+    graphRevision,
     aiDesignPanelOpen,
     pendingAiDesignRunId,
     aiHighlightNodeIds,
     externalSyncHighlightNodeIds,
     stagingEdgeFlushToken,
     setSavedGraphSnapshot,
+    setGraphRevision,
     beginCanvasHydration,
     endCanvasHydration,
     bumpStagingEdgeFlushToken,

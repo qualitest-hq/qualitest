@@ -31,6 +31,9 @@ public class FlowExternalChangeEvent {
     /** 图更新时间，前端用于去重、避免重复灌图 */
     private final String updateTime;
 
+    /** 写图成功时携带的新图版本号 */
+    private final Long graphRevision;
+
     /** 开跑事件携带的 runId */
     private final Long runId;
 
@@ -97,6 +100,9 @@ public class FlowExternalChangeEvent {
         }
         if (updateTime != null) {
             map.put("updateTime", updateTime);
+        }
+        if (graphRevision != null) {
+            map.put("graphRevision", graphRevision);
         }
         putId(map, "runId", runId, stringifyIds);
         putIfNonEmpty(map, "keys", keys);

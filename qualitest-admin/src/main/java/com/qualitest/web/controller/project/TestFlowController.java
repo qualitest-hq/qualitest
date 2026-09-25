@@ -208,7 +208,7 @@ public class TestFlowController extends BaseController {
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试流", businessType = BusinessType.UPDATE)
     @PutMapping
-    public R<Void> edit(@RequestBody TestFlow testFlow) {
+    public R<Map<String, Object>> edit(@RequestBody TestFlow testFlow) {
         if (testFlow.getTestProjectId() != null) {
             testProjectMemberService.getCheckProjectMemberRole(testFlow.getTestProjectId());
         } else if (testFlow.getTestFlowId() != null) {
@@ -217,11 +217,21 @@ public class TestFlowController extends BaseController {
                 testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
             }
         }
+        boolean writingGraph = testFlow.getGraphJson() != null && !testFlow.getGraphJson().isBlank();
         int rows = testFlowService.updateTestFlow(testFlow);
         if (rows > 0 && testFlow.getTestFlowId() != null) {
             apiFlowHealthPersistService.refreshFlow(testFlow.getTestFlowId());
         }
-        return toR(rows);
+        if (rows <= 0) {
+            return R.fail();
+        }
+        // 写图成功时回传新版本号，供前端更新本地图版本
+        if (writingGraph && testFlow.getGraphRevision() != null) {
+            Map<String, Object> data = new HashMap<>(2);
+            data.put("graphRevision", testFlow.getGraphRevision());
+            return R.ok(data);
+        }
+        return R.ok();
     }
 
     /**
@@ -274,6 +284,22 @@ public class TestFlowController extends BaseController {
     }
 
     /**
+     * 查询测试流写锁占用状态（只读）。
+     * 无长租约时 lockHeldBy 为空。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProject:edit')")
+    @GetMapping("/{testFlowId}/editLease")
+    public R<Map<String, String>> getEditLeaseStatus(@PathVariable("testFlowId") Long testFlowId) {
+        assertFlowEditable(testFlowId);
+        String held = flowEditLeaseService.peekHolder(testFlowId);
+        Map<String, String> data = new HashMap<>(2);
+        if (held != null && !held.isBlank()) {
+            data.put("lockHeldBy", held);
+        }
+        return R.ok(data);
+    }
+
+    /**
      * 写锁心跳续期。
      * 用请求体中的 token 延长该流写锁存活时间；token 无效或已过期则报错。
      */
@@ -294,7 +320,7 @@ public class TestFlowController extends BaseController {
 
     /**
      * 释放测试流写锁。
-     * 保存成功、离开画布或放弃本地修改时调用；仅 token 匹配时删除租约。
+     * 保存成功、离开画布或放弃本地修改时调用；仅本方 token 仍有效时删除。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @DeleteMapping("/{testFlowId}/editLease")

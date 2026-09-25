@@ -18,18 +18,13 @@ public class FlowExternalChangePublisher {
     private final FlowExternalChangeHub hub;
     private final FlowExternalChangeRedisBridge redisBridge;
 
-    /** 图已落库（无人手增量片段时，前端整图重拉） */
-    public void publishGraphCommitted(Long testFlowId, Long testProjectId, String source, Date updateTime) {
-        publishGraphCommitted(testFlowId, testProjectId, source, updateTime, null);
-    }
-
-    /**
-     * 图已落库。
+    /** 图已落库。
      *
-     * @param patch 本批节点/边增量；空则前端走整图重拉
+     * @param patch         本批节点/边增量；空则前端走整图重拉
+     * @param graphRevision 写入后的图版本号，可空
      */
     public void publishGraphCommitted(Long testFlowId, Long testProjectId, String source, Date updateTime,
-                                      FlowGraphCommitPatchHolder.PatchPayload patch) {
+                                      FlowGraphCommitPatchHolder.PatchPayload patch, Long graphRevision) {
         if (testFlowId == null) {
             return;
         }
@@ -38,7 +33,8 @@ public class FlowExternalChangePublisher {
                 .testFlowId(testFlowId)
                 .testProjectId(testProjectId)
                 .source(source != null ? source : FlowExternalChangeSourceHolder.getOrDefault())
-                .updateTime(formatTime(updateTime));
+                .updateTime(formatTime(updateTime))
+                .graphRevision(graphRevision);
         if (patch != null && !patch.isEmpty()) {
             b.changedNodeIds(patch.changedNodeIds() != null ? patch.changedNodeIds() : List.of())
                     .nodePatches(patch.nodePatches() != null ? patch.nodePatches() : List.of())

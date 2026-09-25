@@ -19,7 +19,7 @@ import {
   externalChangeSourceLabel,
   isExternalGraphSyncSuppressed,
   noteAppliedGraphUpdateTime,
-  setExternalGraphCommittedHandler,
+  setExternalGraphSyncListening,
   setLocalWebSaveAckHandler,
   shouldApplyGraphUpdate,
 } from '../utils/externalGraphSyncState'
@@ -27,6 +27,9 @@ import {
   hasExternalGraphPatches,
   mergeExternalGraphPatches,
 } from '../utils/mergeExternalGraphPatches'
+import { isLayoutOnlyDirtyFromStore } from '../utils/isLayoutOnlyDirty'
+import { applyNodePositions, captureNodePositions } from '../utils/nodePositions'
+import { refreshSavedBaseline } from '../utils/reconcileFlowDirty'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { useRunLibraryStore } from '../stores/runLibraryStore'
@@ -52,6 +55,11 @@ export interface UseExternalGraphSyncOptions {
   authFormDirty?: Ref<boolean>
   /** true：左栏参数库打开，素材事件不自动刷新 */
   assetFormDirty?: Ref<boolean>
+  /**
+   * 收到外部改图通知时回调（含 MCP 短抢短释）。
+   * 用于顶栏短暂展示来源；本端 web-save 不触发。
+   */
+  onGraphWriteActivity?: (source: string) => void
 }
 
 /** 顶栏「外部已更新」条幅项 */
@@ -152,21 +160,50 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     highlightTimer = setTimeout(() => store.clearExternalSyncHighlight(), EXTERNAL_HIGHLIGHT_MS)
   }
 
-  /** 应用一次服务端图更新：有增量则合并，否则整图重拉；本地脏则只亮条幅 */
+  /** 事件若带 graphRevision 则写入 store */
+  function applyEventGraphRevision(event: FlowExternalChangeEvent) {
+    const rev = event.graphRevision
+    if (rev == null) return
+    const n = Number(rev)
+    if (Number.isFinite(n)) {
+      store.setGraphRevision(n)
+    }
+  }
+
+  /**
+   * 应用一次服务端图更新：有增量则合并，否则整图重拉。
+   * 仅布局脏：自动合入并保留本地坐标；内容脏或有 pending Staging：只亮条幅。
+   */
   async function applyGraphFromServer(event: FlowExternalChangeEvent) {
     const flowId = String(event.testFlowId || options.testFlowId.value || '')
     if (!flowId || flowId !== String(options.testFlowId.value)) return
+    // 外部改图（非本端保存）：顶栏短暂展示来源，弥补短抢短释轮询看不见
+    const src = event.source != null ? String(event.source).trim() : ''
+    if (src && src !== 'web-save') {
+      options.onGraphWriteActivity?.(src)
+    }
     if (!shouldApplyGraphUpdate(flowId, event.updateTime)) return
     if (isExternalGraphSyncSuppressed() && event.source === 'web-save') {
       noteAppliedGraphUpdateTime(flowId, event.updateTime)
+      applyEventGraphRevision(event)
       return
     }
 
-    const dirty = store.dirty || stagingStore.pendingCount > 0
-    if (dirty) {
+    const hasPendingStaging = stagingStore.pendingCount > 0
+    const layoutOnly =
+      store.dirty
+      && !hasPendingStaging
+      && isLayoutOnlyDirtyFromStore(store, 0)
+    // 内容脏或有未确认 Staging：不自动合入，只亮冲突条幅
+    const contentDirty = (store.dirty && !layoutOnly) || hasPendingStaging
+    if (contentDirty) {
       graphConflict.mark(event.source)
       return
     }
+
+    const keepLocalLayout = layoutOnly
+    const localPositions = keepLocalLayout ? captureNodePositions(store.nodes) : null
+    const localViewport = keepLocalLayout ? { ...store.viewport } : null
 
     const before = fingerprintNodes(store.nodes as Array<{ id?: string; data?: unknown; position?: unknown }>)
     setSuspended(true)
@@ -185,12 +222,30 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
         highlightIds = diffHighlightIds(before, store.nodes)
       }
 
+      applyEventGraphRevision(event)
+
+      if (keepLocalLayout && localPositions) {
+        // 以服务器内容（含服务器坐标）为已保存基线，再套回本地排版并标脏
+        await refreshSavedBaseline(store)
+        applyNodePositions(store, localPositions)
+        if (localViewport) {
+          store.viewport = localViewport
+        }
+        store.markDirty()
+      } else if (hasExternalGraphPatches(event)) {
+        // 增量合入后当场刷新已保存快照（整图重拉会在画布初始化完成后自动刷新）
+        await refreshSavedBaseline(store)
+      }
+
       noteAppliedGraphUpdateTime(flowId, event.updateTime)
       graphConflict.clear()
       applyHighlight(highlightIds)
 
       if (event.source && event.source !== 'web-save') {
-        ElMessage.success(`${externalChangeSourceLabel(event.source)}已更新画布`)
+        const tip = keepLocalLayout
+          ? `${externalChangeSourceLabel(event.source)}已更新画布（已保留本地排版）`
+          : `${externalChangeSourceLabel(event.source)}已更新画布`
+        ElMessage.success(tip)
       }
     } catch {
       ElMessage.warning('外部已更新，但同步画布失败，请手动刷新')
@@ -205,6 +260,7 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     void pumpGraphQueue()
   }
 
+  /** 串行消费图变更队列，保证多帧增量按顺序合入 */
   async function pumpGraphQueue() {
     if (graphPumpRunning) return
     graphPumpRunning = true
@@ -384,6 +440,7 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
 
   function stop() {
     stopped = true
+    setExternalGraphSyncListening(false)
     if (reconnectTimer) clearTimeout(reconnectTimer)
     reconnectTimer = null
     abort?.abort()
@@ -403,6 +460,7 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     if (!flowId) return
     if (options.enabled && !options.enabled.value) return
 
+    setExternalGraphSyncListening(true)
     const connect = () => {
       if (stopped) return
       abort = new AbortController()
@@ -427,15 +485,10 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
   onBeforeUnmount(() => {
     stop()
     store.clearExternalSyncHighlight()
-    setExternalGraphCommittedHandler(null)
     setLocalWebSaveAckHandler(null)
   })
 
-  setExternalGraphCommittedHandler((testFlowId, updateTime) => {
-    enqueueGraph({ type: 'graphCommitted', testFlowId, updateTime, source: 'web-autopilot' })
-  })
-
-  // 本端保存成功后清掉误报的「其它端保存」条幅（SSE 回声在 suppress 前到达时会误亮）
+  // 本端保存成功后清掉误报的「其它端保存」条幅（抑制窗口前到达的回声会误亮）
   setLocalWebSaveAckHandler(() => {
     if (!graphConflict.pending.value) return
     const src = graphConflict.source.value

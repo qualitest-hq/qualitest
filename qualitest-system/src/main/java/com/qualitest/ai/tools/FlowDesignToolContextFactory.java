@@ -87,7 +87,7 @@ public class FlowDesignToolContextFactory {
                                                      java.util.function.Consumer<Long> onRunStarted) {
         AiDesignMentionSupport.ResolvedMentionContext resolved =
                 AiDesignMentionSupport.resolve(request.getMentions());
-        return build(
+        FlowDesignToolContext ctx = build(
                 request.getTestProjectId(),
                 request.getTestFlowId(),
                 request.isTemplateDesignMode() ? "template" : null,
@@ -107,6 +107,8 @@ public class FlowDesignToolContextFactory {
                 blankToNull(request.getRunScenarioId()),
                 request.getTestProjectEnvId(),
                 null);
+        ctx.setBaseGraphRevision(request.getGraphRevision());
+        return ctx;
     }
 
     /**
@@ -164,7 +166,7 @@ public class FlowDesignToolContextFactory {
         if (tokenProjectId != null && !tokenIdEquals(projectId, tokenProjectId)) {
             throw new ServiceException("testProjectId 与 Project Token 所属项目不一致");
         }
-        return build(
+        FlowDesignToolContext ctx = build(
                 projectId,
                 params.getTestFlowId(),
                 null,
@@ -184,6 +186,8 @@ public class FlowDesignToolContextFactory {
                 null,
                 null,
                 operatorUserId);
+        ctx.setBaseGraphRevision(params.getGraphRevision());
+        return ctx;
     }
 
     /**

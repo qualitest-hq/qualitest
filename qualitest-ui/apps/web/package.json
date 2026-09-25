@@ -1,6 +1,6 @@
 {
   "name": "@qualitest/web",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "质衡自动化测试系统 Web 端",
   "author": "质衡",
   "license": "Apache-2.0",

@@ -80,6 +80,15 @@ public interface TestFlowMapper {
     int updateTestFlow(TestFlow testFlow);
 
     /**
+     * 条件更新 graph_json 并递增 graph_revision。
+     * 入参 graphRevision 须为当前库中版本；不匹配则影响行数为 0。
+     *
+     * @param testFlow 须带 testFlowId、graphJson、graphRevision（基准）、updateTime
+     * @return 影响行数；0 表示版本冲突
+     */
+    int updateTestFlowGraphCas(TestFlow testFlow);
+
+    /**
      * 清空指定测试流的所属目录（flow_group_id 置 NULL）。
      *
      * @param testFlowId 测试流主键

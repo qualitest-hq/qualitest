@@ -12,6 +12,7 @@ import com.qualitest.flow.sync.FlowEditLeaseService;
 import com.qualitest.flow.sync.FlowExternalChangePublisher;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.flow.sync.FlowGraphCommitPatchHolder;
+import com.qualitest.flow.sync.FlowGraphRevisionConflictException;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
@@ -32,7 +33,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 测试流Service业务层处理
+ * 测试流业务层。
+ * 写图画布时协调 Redis 写锁、图版本条件更新与外部变更通知。
  *
  * @author qualitest
  * @date 2026-06-05
@@ -177,10 +179,10 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     /**
      * 修改测试流。
-     * 写 graph_json 时先占写锁（请求头带有效租约则续期不换锁，否则短抢短释）；
-     * 成功后发图提交或元数据变更通知；短抢锁在 finally 释放。
+     * 写 graph_json 时先占写锁（请求头带有效租约则续期不换锁，否则短抢短释），
+     * 再按 graphRevision 条件更新并递增版本；成功后发图提交或元数据变更通知；短抢锁在 finally 释放。
      *
-     * @param testFlow 测试流（可只改名称，或带 graphJson 改图）
+     * @param testFlow 测试流（可只改名称，或带 graphJson+graphRevision 改图）
      * @return 影响行数
      */
     @Transactional(rollbackFor = Exception.class)
@@ -198,13 +200,34 @@ public class TestFlowServiceImpl implements ITestFlowService {
         FlowEditLeaseService.LeaseHandle lease = null;
         try {
             if (writingGraph && testFlow.getTestFlowId() != null) {
+                if (testFlow.getGraphRevision() == null) {
+                    throw new ServiceException("写图须提供 graphRevision（基准版本）");
+                }
                 lease = flowEditLeaseService.beginWrite(
                         testFlow.getTestFlowId(),
                         FlowExternalChangeSourceHolder.getOrDefault(),
                         readClientLeaseToken());
             }
             testFlow.setUpdateTime(DateUtils.getNowDate());
-            int rows = testFlowMapper.updateTestFlow(testFlow);
+            int rows;
+            if (writingGraph && testFlow.getTestFlowId() != null) {
+                long baseRevision = testFlow.getGraphRevision();
+                rows = testFlowMapper.updateTestFlowGraphCas(testFlow);
+                if (rows == 0) {
+                    TestFlow latest = testFlowMapper.selectTestFlowById(testFlow.getTestFlowId());
+                    long current = latest != null && latest.getGraphRevision() != null
+                            ? latest.getGraphRevision()
+                            : baseRevision;
+                    throw new FlowGraphRevisionConflictException(current);
+                }
+                // 写库成功后把递增后的图版本号写回实体，供接口响应与外部变更通知携带
+                testFlow.setGraphRevision(baseRevision + 1);
+            } else {
+                // 元数据更新不改 graph_json / graph_revision
+                testFlow.setGraphJson(null);
+                testFlow.setGraphRevision(null);
+                rows = testFlowMapper.updateTestFlow(testFlow);
+            }
             if (clearGroup && testFlow.getTestFlowId() != null) {
                 int cleared = testFlowMapper.clearFlowGroupId(testFlow.getTestFlowId());
                 if (cleared > 0) {
@@ -221,14 +244,14 @@ public class TestFlowServiceImpl implements ITestFlowService {
                 }
                 String source = FlowExternalChangeSourceHolder.getOrDefault();
                 if (writingGraph) {
-                    // 全自动落盘可能已放入本批节点/边片段；人手保存一般为 null
                     FlowGraphCommitPatchHolder.PatchPayload patch = FlowGraphCommitPatchHolder.get();
                     flowExternalChangePublisher.publishGraphCommitted(
                             testFlow.getTestFlowId(),
                             projectId,
                             source,
                             testFlow.getUpdateTime(),
-                            patch);
+                            patch,
+                            testFlow.getGraphRevision());
                 } else {
                     flowExternalChangePublisher.publishFlowMetaChanged(
                             testFlow.getTestFlowId(), projectId, source);

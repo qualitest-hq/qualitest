@@ -27,9 +27,8 @@ public final class AiSseStreamSupport {
     }
 
     /**
-     * 在后台线程执行一轮设计，并向客户端推送标准过程事件与 done/error。
-     * listener 已含 token/thinking/tool/session，以及测试流全自动的 graphCommitted/runStarted
-     * （API 场景不会触发后两者）。
+     * 在后台线程执行一轮设计，并向客户端推送过程事件与结束/错误。
+     * 监听回调包含工具起止、文本增量、会话就绪，以及测试流全自动落库与开跑事件。
      *
      * @param timeoutMs            SSE 超时毫秒
      * @param workerThreadName     工作线程名
@@ -110,12 +109,16 @@ public final class AiSseStreamSupport {
             }
 
             @Override
-            public void onGraphCommitted(Long testFlowId) {
-                // 隐式写库成功，推送 testFlowId
+            public void onGraphCommitted(Long testFlowId, Long graphRevision) {
+                // 隐式写库成功，推送 testFlowId 与新版本号
                 if (testFlowId != null) {
-                    sendJson(emitter, cancelled, Map.of(
-                            "type", "graphCommitted",
-                            "testFlowId", String.valueOf(testFlowId)));
+                    java.util.HashMap<String, Object> payload = new java.util.HashMap<>();
+                    payload.put("type", "graphCommitted");
+                    payload.put("testFlowId", String.valueOf(testFlowId));
+                    if (graphRevision != null) {
+                        payload.put("graphRevision", graphRevision);
+                    }
+                    sendJson(emitter, cancelled, payload);
                 }
             }
 

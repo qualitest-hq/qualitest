@@ -21,6 +21,7 @@ import type {
   FlowDesignPatch,
   TestFlowDesignResult,
 } from '@/views/project/testFlow/types/aiDesignTypes';
+import { FLOW_EDIT_LEASE_HEADER, getFlowEditLeaseToken } from '@/views/project/testFlow/utils/flowEditLeaseState';
 
 /** 流式设计请求体 */
 export interface TestFlowDesignRequestPayload {
@@ -69,6 +70,11 @@ export interface TestFlowDesignRequestPayload {
    * 随设计请求提交，写入本轮 user 上下文，便于模型根据已有风险继续改图。
    */
   runRiskWarnings?: string[];
+  /**
+   * 当前画布对应的图版本号（乐观锁基准）。
+   * 全自动落盘时服务端据此做条件更新 / 冲突重放。
+   */
+  graphRevision?: number;
 }
 
 /** SSE 推送的事件类型（含隐式落盘成功、Run 已触发等） */
@@ -90,9 +96,11 @@ export interface AiDesignStreamEvent {
   text?: string;
   /** tool_start / tool_end 的工具名 */
   tool?: string;
-  /** graphCommitted：已写库的测试流 id */
+  /** 落库成功后的测试流 id */
   testFlowId?: string;
-  /** runStarted：刚触发的运行 id */
+  /** 落库后的新图版本号 */
+  graphRevision?: number;
+  /** 刚触发的运行 id */
   runId?: string;
   /** session：已就绪的会话 id */
   aiChatSessionId?: string;
@@ -110,7 +118,7 @@ export interface AiDesignStreamHandlers {
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool: string) => void;
   /** 全自动隐式写库成功 */
-  onGraphCommitted?: (testFlowId: string) => void;
+  onGraphCommitted?: (testFlowId: string, graphRevision?: number) => void;
   /** 全自动已触发 Run，可开始按步骤高亮画布 */
   onRunStarted?: (runId: string) => void;
   /** 会话已创建或复用：尽早绑定 sessionId，取消后可重拉半成品 */
@@ -334,20 +342,26 @@ export async function rejectAuthProfileUpsertProposal(
 
 
 /**
- * SSE 流式设计。
- * 使用 fetch + ReadableStream 解析 `data:` 行；支持 AbortSignal 取消。
- * 流结束时应收到 type=done 事件，否则抛出异常。
+ * 流式设计：解析推送事件，支持 AbortSignal 取消。
+ * 流结束时应收到完成事件，否则抛出异常。
+ * 若本标签持有写锁，请求头带租约凭证，避免全自动落盘被本页写锁挡住。
  */
 export async function designTestFlowStream(
   data: TestFlowDesignRequestPayload,
   handlers: AiDesignStreamHandlers,
   signal?: AbortSignal,
 ): Promise<TestFlowDesignResult> {
+  const leaseToken = getFlowEditLeaseToken(String(data.testFlowId || ''));
+  const headers: Record<string, string> = {};
+  if (leaseToken) {
+    headers[FLOW_EDIT_LEASE_HEADER] = leaseToken;
+  }
   return consumeAuthenticatedSsePost<AiDesignStreamEvent, TestFlowDesignResult>({
     url: `${BASE_API}/project/testFlow/ai/design/stream`,
     body: data,
     handlers,
     signal,
+    headers,
     defaultErrorMessage: 'AI 助手请求失败',
     missingResultMessage: '未收到设计结果',
   });

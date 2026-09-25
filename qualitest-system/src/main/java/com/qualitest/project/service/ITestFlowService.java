@@ -54,8 +54,9 @@ public interface ITestFlowService {
     int insertTestFlow(TestFlow testFlow);
 
     /**
-     * 修改测试流
-     * 
+     * 修改测试流。
+     * 写图时须带基准图版本号；服务端占写锁并做条件更新，版本不匹配抛出版本冲突。
+     *
      * @param testFlow 测试流
      * @return 结果
      */

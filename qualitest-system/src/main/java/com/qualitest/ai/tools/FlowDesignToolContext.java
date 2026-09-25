@@ -74,20 +74,25 @@ public class FlowDesignToolContext {
     private final boolean autopilotEnabled = false;
 
     /**
+     * 本轮基准图对应的库版本号（写图条件更新用）。
+     * 可在落盘成功或冲突重放后更新。
+     */
+    @Builder.Default
+    private final AtomicReference<Long> baseGraphRevisionRef = new AtomicReference<>();
+
+    /**
      * 本轮是否已至少成功隐式落盘一次（写过 test_flow）。
      */
     @Builder.Default
     private final AtomicBoolean committedThisTurn = new AtomicBoolean(false);
 
     /**
-     * 隐式落盘成功后的回调（参数：testFlowId、已落库图）。
-     * 设计流式通道可据此推送 graphCommitted；可为 null。
+     * 隐式落盘成功后的可选回调，参数为测试流 id 与已落库图。
      */
     private final BiConsumer<Long, GraphJson> onGraphCommitted;
 
     /**
-     * 已触发 Run 并拿到 runId 后的回调。
-     * 设计流式通道可据此推送 runStarted，画布开始按步骤高亮；可为 null。
+     * 已触发 Run 并拿到 runId 后的可选回调，供画布开始按步骤高亮。
      */
     private final Consumer<Long> onRunStarted;
 
@@ -162,6 +167,18 @@ public class FlowDesignToolContext {
     public void advanceWorkingGraph(GraphJson next) {
         if (workingGraphRef != null && next != null) {
             workingGraphRef.set(next);
+        }
+    }
+
+    /** 读取写图基准版本；未设置时返回 null */
+    public Long getBaseGraphRevision() {
+        return baseGraphRevisionRef != null ? baseGraphRevisionRef.get() : null;
+    }
+
+    /** 更新写图基准版本（加载流、落盘成功或冲突重放后） */
+    public void setBaseGraphRevision(Long revision) {
+        if (baseGraphRevisionRef != null) {
+            baseGraphRevisionRef.set(revision);
         }
     }
 

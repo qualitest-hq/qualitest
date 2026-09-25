@@ -6,6 +6,9 @@
  * token 按测试流 id 写入 sessionStorage，同标签刷新后仍可读出并续约。
  */
 
+/** 写图请求头中携带的租约 token 字段名 */
+export const FLOW_EDIT_LEASE_HEADER = 'X-Flow-Edit-Lease'
+
 /** sessionStorage 键前缀，后接测试流 id */
 const STORAGE_PREFIX = 'qualitest:flow-edit-lease:'
 
@@ -103,4 +106,19 @@ export function getFlowEditLeaseToken(flowId: string): string | null {
     currentToken = null
   }
   return null
+}
+
+/**
+ * 将 lockHeldBy 转为顶栏短名。
+ * web:alice:uuid → alice；mcp:… → MCP；其它 →「其他会话」。
+ */
+export function formatFlowEditLeaseHolder(lockHeldBy: string | null | undefined): string {
+  const raw = lockHeldBy != null ? String(lockHeldBy).trim() : ''
+  if (!raw) return '其他会话'
+  const parts = raw.split(':')
+  if (parts[0] === 'mcp') return 'MCP'
+  if (parts.length >= 3 && parts[0] === 'web' && parts[1]) {
+    return parts[1]
+  }
+  return '其他会话'
 }

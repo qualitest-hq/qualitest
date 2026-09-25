@@ -24,7 +24,7 @@ public class FlowEditLeaseService {
     /** Redis 键前缀，后接测试流 id */
     private static final String KEY_PREFIX = "qualitest:flow:edit-lease:";
     /** 租约默认存活秒数；心跳须在过期前调用 */
-    public static final int DEFAULT_TTL_SECONDS = 45;
+    public static final int DEFAULT_TTL_SECONDS = 30;
 
     private final RedisCache redisCache;
 
@@ -52,7 +52,7 @@ public class FlowEditLeaseService {
 
     /**
      * 心跳续期。
-     * 仅当 Redis 中当前值仍等于本方 token 时，把 TTL 重新设为默认秒数。
+     * 仅本方 token 仍有效时，把 TTL 重新设为默认秒数。
      *
      * @param testFlowId 测试流 id
      * @param token      本方租约 token
@@ -67,7 +67,7 @@ public class FlowEditLeaseService {
 
     /**
      * 释放写锁。
-     * 仅当 Redis 中当前值等于本方 token 时删除键；不匹配则不动。
+     * 仅本方 token 仍有效时删除键；否则不动。
      *
      * @param testFlowId 测试流 id
      * @param token      本方租约 token
@@ -103,7 +103,7 @@ public class FlowEditLeaseService {
     }
 
     /**
-     * 判断 Redis 中该流的锁值是否等于给定 token。
+     * 判断本方 token 是否仍为当前写锁。
      */
     private boolean holds(Long testFlowId, String token) {
         if (testFlowId == null || token == null || token.isBlank()) {
@@ -111,6 +111,21 @@ public class FlowEditLeaseService {
         }
         Object held = redisCache.getCacheObject(key(testFlowId));
         return held != null && token.equals(String.valueOf(held));
+    }
+
+    /**
+     * 查询当前写锁持有方。
+     * 无锁返回 null；有锁返回 Redis 中的 token 字符串。
+     *
+     * @param testFlowId 测试流 id
+     * @return 持锁 token，或 null
+     */
+    public String peekHolder(Long testFlowId) {
+        if (testFlowId == null) {
+            return null;
+        }
+        Object held = redisCache.getCacheObject(key(testFlowId));
+        return held != null ? String.valueOf(held) : null;
     }
 
     /** 拼出该测试流的 Redis 写锁键 */

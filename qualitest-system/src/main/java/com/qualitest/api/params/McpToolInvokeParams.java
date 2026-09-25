@@ -45,6 +45,12 @@ public class McpToolInvokeParams {
     private GraphJson graphJson;
 
     /**
+     * 画布图版本号。
+     * 读出为库中当前值；写图时作为条件更新的基准版本。
+     */
+    private Long graphRevision;
+
+    /**
      * API id 列表，限制 {@code search_apis} 的检索范围。
      */
     private List<String> scopeApiIds;

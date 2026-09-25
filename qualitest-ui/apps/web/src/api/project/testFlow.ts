@@ -1,5 +1,6 @@
 import request from '@/utils/request';
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
+import { FLOW_EDIT_LEASE_HEADER } from '@/views/project/testFlow/utils/flowEditLeaseState';
 
 export interface TestFlowListParams {
   /** 所属项目 */
@@ -27,6 +28,11 @@ export interface TestFlowRecord {
   flowName?: string;
   flowDescription?: string;
   graphJson?: string;
+  /**
+   * 图版本号。
+   * 读出为库中当前值；写图时作为条件更新的基准版本。
+   */
+  graphRevision?: number;
   updateTime?: string;
   [key: string]: unknown;
 }
@@ -58,7 +64,7 @@ export function addTestFlow(data: Partial<TestFlowRecord>) {
 export function updateTestFlow(data: Partial<TestFlowRecord>, leaseToken?: string | null) {
   const headers: Record<string, string> = {}
   if (leaseToken) {
-    headers['X-Flow-Edit-Lease'] = leaseToken
+    headers[FLOW_EDIT_LEASE_HEADER] = leaseToken
   }
   return request({
     url: '/project/testFlow',
@@ -103,13 +109,31 @@ export function heartbeatFlowEditLease(testFlowId: string | number, token: strin
 
 /**
  * 释放测试流写锁。
- * 仅当 token 与服务端当前租约一致时删除；保存变干净或离开画布时调用。
+ * 仅本方 token 仍有效时删除；保存变干净或离开画布时调用。
  */
 export function releaseFlowEditLease(testFlowId: string | number, token: string) {
   return request({
     url: `/project/testFlow/${testFlowId}/editLease`,
     method: 'delete',
     params: { token },
+    headers: { repeatSubmit: false },
+  })
+}
+
+/** 写锁状态查询结果（他人占用时带 lockHeldBy） */
+export interface FlowEditLeaseStatus {
+  /** 当前持锁方标识（如 web:alice:uuid）；无人占用时可空 */
+  lockHeldBy?: string | null
+}
+
+/**
+ * 查询测试流写锁占用状态。
+ * 供顶栏展示「占用中 · {名}」；MCP / 短抢通常很快释放，不常驻。
+ */
+export function getFlowEditLeaseStatus(testFlowId: string | number) {
+  return request({
+    url: `/project/testFlow/${testFlowId}/editLease`,
+    method: 'get',
     headers: { repeatSubmit: false },
   })
 }

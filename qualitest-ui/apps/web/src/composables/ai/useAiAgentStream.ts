@@ -11,7 +11,9 @@ export interface AiAgentStreamHandlerHooks {
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool?: string) => void;
   onSession?: (aiChatSessionId: string) => void;
-  onGraphCommitted?: (testFlowId: string) => void;
+  /** 全自动隐式写库成功：携带测试流 id 与新图版本号 */
+  onGraphCommitted?: (testFlowId: string, graphRevision?: number) => void;
+  /** 全自动已触发 Run：携带运行 id，供画布步骤高亮 */
   onRunStarted?: (runId: string) => void;
   onEvent?: (event: unknown) => void;
   onDone?: (result: unknown) => void;
@@ -101,8 +103,8 @@ export function useAiAgentStream<
         onSession: (aiChatSessionId: string) => {
           handlers?.onSession?.(aiChatSessionId);
         },
-        onGraphCommitted: (testFlowId: string) => {
-          handlers?.onGraphCommitted?.(testFlowId);
+        onGraphCommitted: (testFlowId: string, graphRevision?: number) => {
+          handlers?.onGraphCommitted?.(testFlowId, graphRevision);
         },
         onRunStarted: (runId: string) => {
           handlers?.onRunStarted?.(runId);

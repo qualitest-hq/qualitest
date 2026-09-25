@@ -70,6 +70,12 @@ public class TestFlowDesignRequest {
     private GraphJson graphJson;
 
     /**
+     * 画布当前图版本号。
+     * 全自动落盘时作为条件更新的基准版本；可空时由服务端按库中当前值补齐。
+     */
+    private Long graphRevision;
+
+    /**
      * 对话级思考开关：true 开、false 关。
      * 已落库会话以库中 thinking_enabled 为准；草稿会话首次发送时写入新会话。
      */

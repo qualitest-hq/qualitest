@@ -1284,4 +1284,18 @@ public class FlowDesignPatchNormalizer {
 
     /** 规范化后的 patch 与校验结果 */
     public record NormalizeResult(FlowDesignPatch patch, DesignValidationResult validation) {}
+
+    /**
+     * 将规范化 patch 合并到基准图。
+     * 版本冲突重放时，在重新 normalize 后调用以得到待落盘图。
+     *
+     * @param baseGraph 基准图
+     * @param patch     已规范化 patch
+     * @param warnings  合并告警输出，可空
+     * @return 合并后的图
+     */
+    public GraphJson mergeOnto(GraphJson baseGraph, FlowDesignPatch patch, List<String> warnings) {
+        List<String> w = warnings != null ? warnings : new ArrayList<>();
+        return patchMerger.mergeAll(baseGraph, patch, w);
+    }
 }
