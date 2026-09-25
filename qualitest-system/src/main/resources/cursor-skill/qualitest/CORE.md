@@ -29,6 +29,9 @@
 - 若工具报写锁仍被占用（lockHeldBy）：通常是 Web 有未保存的**内容**草稿（非仅排版/拖坐标）正占锁；请等待用户保存或放弃本地改动后再试，或换一流。
 - 若工具报图版本冲突且自动重试已耗尽：服务端已按最新图重放本单元若干次仍失败；请重新勘察当前画布后再 submit_*。
 - HTTP 节点优先 `callMode=project` + `testProjectApiId`；测值从业务仓或素材键读取，读不到标不确定。
+- 外联 `preScript`/`postScript`：宿主 `api`（服务端 GraalJS）。常用：`environment.get`、`request.headers.add`、`request.body = {kind,raw}`（须整对象重赋，嵌套改字段不回写）、`base64Encode`/`base64Decode`、`response.json()`、`test`/`expect`。无浏览器 `btoa`/`atob`、无 `pm`。`project` 模式用接口库脚本，节点 `data.preScript` 不生效。HTTP 失败默认不写 `extracts`（`extractsOnFailure=write` 除外）。
+- 跑流须显式 `testProjectEnvId` 或场景已绑环境；不会自动选「默认环境」。缺环境时错误会列出可选 `envId=…（名称）` 便于复制。
+- 多端鉴权按最长 `pathPrefix` 选 Profile；多端都未命中不加托管头（仅一套 Profile 时未命中仍用该套）。告警文案带 `profileId` / `pathPrefix`。
 - **改测试流名称/说明**只能用 `update_flow_meta`；禁止用 `create_flow` 新建冒充改名。
 - 当前 `tools/list` 无跑流工具时：改图落盘后结束；跑通请用户在 Web 点 Run，或开启「允许 MCP 自动跑流」并重连后再调。
 <!-- /mcp:autowrite -->

@@ -77,8 +77,10 @@ public final class JsonPathFacade {
     }
 
     /**
-     * 把 {@code http.body} 后面的相对路径补成绝对 JsonPath。
-     * 例：{@code data.items[0]} → {@code $.data.items[0]}；空串 → {@code $}。
+     * 把相对路径补成绝对 JsonPath，供读 body 业务码等场景使用。
+     * 已以 {@code $} 开头则原样返回（避免再拼成 {@code $.$.code}）；
+     * 以 {@code [} 开头则前加 {@code $}；否则前加 {@code $.}。
+     * 空串返回 {@code $}。
      */
     public static String toAbsolutePath(String relative) {
         if (relative == null || relative.isEmpty()) {

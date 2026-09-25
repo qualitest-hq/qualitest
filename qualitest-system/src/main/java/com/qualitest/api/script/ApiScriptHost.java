@@ -4,17 +4,13 @@ import com.alibaba.fastjson2.JSON;
 import com.qualitest.api.params.DebugHttpForwardParams;
 import com.qualitest.api.result.DebugHttpForwardResult;
 import com.qualitest.api.service.IDebugHttpForwardService;
+import com.qualitest.flow.script.ScriptHostContext;
 import com.qualitest.flow.script.ScriptValueConverter;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -22,14 +18,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 注入 API 脚本的 {@code api} 宿主对象。
+ * 注入 API 脚本的 {@code api} 宿主对象（前置/后置脚本共用）。
+ * <p>
+ * 提供 variables / environment / globals、request（仅前置可写）、response（仅后置可读）、
+ * test/expect（仅后置）、sendRequest，以及 jsonParse/jsonStringify、hmacSha256、md5、
+ * base64Encode/base64Decode。运行在服务端 GraalJS，无 DOM、无浏览器 btoa/atob。
+ * 改 request.body 必须整对象重赋；嵌套字段赋值不会回写到真实请求。
  */
 public class ApiScriptHost implements ProxyObject {
 
     private static final Set<String> MEMBERS = Set.of(
             "variables", "environment", "globals", "request", "response", "info",
             "test", "expect", "sendRequest",
-            "jsonParse", "jsonStringify", "hmacSha256", "md5"
+            "jsonParse", "jsonStringify", "hmacSha256", "md5", "base64Encode", "base64Decode"
     );
 
     private final ApiScriptContext context;
@@ -75,11 +76,20 @@ public class ApiScriptHost implements ProxyObject {
             };
             case "hmacSha256" -> (ProxyExecutable) args -> {
                 requireArgs(args, 2, "hmacSha256");
-                return hmacSha256(args[0].asString(), args[1].asString());
+                return ScriptHostContext.hmacSha256(args[0].asString(), args[1].asString());
             };
             case "md5" -> (ProxyExecutable) args -> {
                 requireArgs(args, 1, "md5");
-                return md5(args[0].asString());
+                return ScriptHostContext.md5(args[0].asString());
+            };
+            // 编码工具：服务端实现，替代浏览器 btoa/atob
+            case "base64Encode" -> (ProxyExecutable) args -> {
+                requireArgs(args, 1, "base64Encode");
+                return ScriptHostContext.base64Encode(args[0].asString());
+            };
+            case "base64Decode" -> (ProxyExecutable) args -> {
+                requireArgs(args, 1, "base64Decode");
+                return ScriptHostContext.base64Decode(args[0].asString());
             };
             default -> null;
         };
@@ -231,27 +241,6 @@ public class ApiScriptHost implements ProxyObject {
             return list;
         }
         return value.toString();
-    }
-
-    static String hmacSha256(String data, String secret) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(String.valueOf(secret).getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] hash = mac.doFinal(String.valueOf(data).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (Exception e) {
-            throw new RuntimeException("hmacSha256 失败: " + e.getMessage(), e);
-        }
-    }
-
-    static String md5(String data) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("MD5");
-            byte[] hash = digest.digest(String.valueOf(data).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (Exception e) {
-            throw new RuntimeException("md5 失败: " + e.getMessage(), e);
-        }
     }
 
     private static final class ScopeHost implements ProxyObject {

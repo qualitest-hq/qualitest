@@ -34,7 +34,8 @@ import java.util.function.Function;
  * （子上下文与父共享 asset，登录子流写 asset.* 对本图有效）、场景 flowSeed（仅 flow）。
  * 客户端与管理端分开检查，有一端凭证不能代替另一端。
  * <p>
- * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING）。仅运行硬拦；
+ * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING），并附上 profileId、命中的 pathPrefix，
+ * 便于核对「哪一端、哪段前缀」缺登录抽取。仅运行硬拦；
  * 单单元规范化时把同样结果写入 warnings（不硬拦）；Staging 确认 / 保存不硬拦。
  * 项目未配置鉴权 Profile 时不做检查。
  */
@@ -83,9 +84,12 @@ public final class AuthTokenPresenceGate {
             return errors;
         }
 
-        // identityKey → (displayPath, Profile 展示名)；同一目标被多节点需要时只保留首次
+        // identityKey → 展示路径 / Profile 名 / profileId / 命中 pathPrefix；
+        // 同一凭证目标被多节点需要时只保留首次，报错时带上 id 与前缀便于核对多端。
         Map<String, String> requiredDisplayPaths = new LinkedHashMap<>();
         Map<String, String> requiredProfileNames = new LinkedHashMap<>();
+        Map<String, String> requiredProfileIds = new LinkedHashMap<>();
+        Map<String, String> requiredPathPrefixes = new LinkedHashMap<>();
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
         for (GraphNode node : nodes) {
             if (node == null || node.getData() == null) {
@@ -119,8 +123,11 @@ public final class AuthTokenPresenceGate {
             }
             String profileName = ProjectAuthConfigSupport.displayProfileName(projectAuth, resolved.profileId());
             for (CredentialTarget target : targets) {
+                // 首次登记该凭证目标时，一并记下 profileId 与命中前缀，供 AUTH_TOKEN_MISSING 文案展示
                 if (requiredDisplayPaths.putIfAbsent(target.identityKey(), target.displayPath()) == null) {
                     requiredProfileNames.put(target.identityKey(), profileName);
+                    requiredProfileIds.put(target.identityKey(), resolved.profileId());
+                    requiredPathPrefixes.put(target.identityKey(), resolved.matchedPathPrefix());
                 }
             }
         }
@@ -135,7 +142,10 @@ public final class AuthTokenPresenceGate {
                 continue;
             }
             errors.add(AuthDesignWarningCodes.tokenMissing(
-                    requiredProfileNames.get(entry.getKey()), entry.getValue()));
+                    requiredProfileNames.get(entry.getKey()),
+                    entry.getValue(),
+                    requiredProfileIds.get(entry.getKey()),
+                    requiredPathPrefixes.get(entry.getKey())));
         }
         return errors;
     }

@@ -255,16 +255,18 @@ public class ScriptHostContext implements ProxyObject {
         return value.toString();
     }
 
-    static String base64Encode(String data) {
+    /** UTF-8 明文 → Base64 字符串（脚本宿主 ctx.base64Encode / api.base64Encode 共用）。 */
+    public static String base64Encode(String data) {
         return Base64.getEncoder().encodeToString(String.valueOf(data).getBytes(StandardCharsets.UTF_8));
     }
 
-    static String base64Decode(String data) {
+    /** Base64 字符串 → UTF-8 明文；非法输入抛运行时异常。 */
+    public static String base64Decode(String data) {
         return new String(Base64.getDecoder().decode(String.valueOf(data)), StandardCharsets.UTF_8);
     }
 
-    /** 计算 HMAC-SHA256，返回小写十六进制字符串 */
-    static String hmacSha256(String data, String secret) {
+    /** 计算 HMAC-SHA256，返回小写十六进制字符串。 */
+    public static String hmacSha256(String data, String secret) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(String.valueOf(secret).getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
@@ -275,8 +277,8 @@ public class ScriptHostContext implements ProxyObject {
         }
     }
 
-    /** 计算 MD5，返回小写十六进制字符串 */
-    static String md5(String data) {
+    /** 计算 MD5，返回小写十六进制字符串。 */
+    public static String md5(String data) {
         try {
             MessageDigest digest = MessageDigest.getInstance("MD5");
             byte[] hash = digest.digest(String.valueOf(data).getBytes(StandardCharsets.UTF_8));

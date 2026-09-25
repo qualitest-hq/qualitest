@@ -56,6 +56,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -147,11 +148,27 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             );
         }
 
-        // 3. 解析运行场景与环境（须入参或场景已绑环境；此处不自动挑选）
+        // 3. 解析运行场景与环境。
+        // 正式跑流不自动挑环境：须入参 testProjectEnvId 或场景已绑定；
+        // 缺省时把项目下可用环境整理成 envId=… 片段塞进报错，方便复制后显式选择。
+        TestProjectEnv envQuery = new TestProjectEnv();
+        envQuery.setTestProjectId(testFlow.getTestProjectId());
+        envQuery.setDelStatus(0);
+        List<TestProjectEnv> projectEnvs = testProjectEnvService.selectTestProjectEnvList(envQuery);
+        List<RunScenarioBootstrap.EnvHint> hints = new ArrayList<>();
+        if (projectEnvs != null) {
+            for (TestProjectEnv e : projectEnvs) {
+                if (e != null) {
+                    hints.add(new RunScenarioBootstrap.EnvHint(e.getTestProjectEnvId(), e.getEnvName()));
+                }
+            }
+        }
         ResolvedRunScenario scenario = RunScenarioBootstrap.resolve(
                 graph,
                 params.getRunScenarioId(),
-                params.getTestProjectEnvId()
+                params.getTestProjectEnvId(),
+                null,
+                RunScenarioBootstrap.formatAvailableEnvHint(hints)
         );
 
         TestProjectEnv env = testProjectEnvService.selectTestProjectEnvById(scenario.getTestProjectEnvId());

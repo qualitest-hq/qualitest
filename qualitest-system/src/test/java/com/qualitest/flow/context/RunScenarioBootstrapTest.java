@@ -85,7 +85,7 @@ class RunScenarioBootstrapTest {
 
     /**
      * 前提：场景 env 为空且无 fallback。
-     * 期望：抛错且文案提示 list_project_envs。
+     * 期望：抛错且文案提示须显式选择、可附带可选 envId。
      */
     @Test
     @Order(5)
@@ -98,10 +98,28 @@ class RunScenarioBootstrapTest {
                 () -> RunScenarioBootstrap.resolve(graph, null, null, null)
         );
         assertEquals(FlowErrorCode.TF_GRAPH_INVALID.getCode(), ex.getCode());
-        assertTrue(ex.getMessage().contains("list_project_envs"));
+        assertTrue(ex.getMessage().contains("list_project_envs")
+                || ex.getMessage().contains("不会自动选环境"));
         assertTrue(ex.getMessage().contains("testProjectEnvId"));
-        assertTrue(ex.getMessage().contains("upsert_project_env")
-                || ex.getMessage().contains("submit_scenario"));
+    }
+
+    /**
+     * 前提：缺 env，传入 availableEnvHint。
+     * 期望：错误文案含可复制 envId。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("解析：缺 env 时报错附可选 envId")
+    void resolve_missingEnv_includesAvailableHint() {
+        GraphJson graph = loadGraph("flow/linear-run-graph.json");
+        graph.getMeta().getScenarios().get(0).setTestProjectEnvId("");
+        FlowExecutionException ex = assertThrows(
+                FlowExecutionException.class,
+                () -> RunScenarioBootstrap.resolve(
+                        graph, null, null, null, "envId=2103（默认环境）")
+        );
+        assertTrue(ex.getMessage().contains("envId=2103"));
+        assertTrue(ex.getMessage().contains("默认环境"));
     }
 
     private static GraphJson loadGraph(String path) {

@@ -547,10 +547,17 @@
                 "type": "number"
               },
               "preScript": {
-                "type": "string"
+                "type": "string",
+                "description": "仅 callMode=external 生效（project 用接口库 preRequestScript）。宿主 api（服务端 GraalJS，无浏览器 btoa/atob、无 pm）：variables|environment|globals 的 get/set/unset/has；request.url|method 可赋；request.headers.add/remove/get/list；request.body 须整对象重赋（嵌套改字段不回写）；base64Encode/Decode、jsonParse/jsonStringify、hmacSha256、md5、sendRequest。改 query 改 url。例：api.request.body={kind:'json',raw:api.jsonStringify({password:api.base64Encode(api.environment.get('pwd'))})}。"
               },
               "postScript": {
-                "type": "string"
+                "type": "string",
+                "description": "仅 callMode=external 生效（project 用接口库 postRequestScript）。宿主 api（服务端 GraalJS）：variables|environment|globals；可读 api.response.code|statusText|headers|json()|text()；可用 api.test/expect 断言；工具函数含 base64Encode/Decode、jsonParse/jsonStringify、hmacSha256、md5、sendRequest。request 在后置只读。"
+              },
+              "extractsOnFailure": {
+                "type": "string",
+                "enum": ["skip", "write"],
+                "description": "步骤失败时是否仍执行 extracts。默认 skip（不写）；write 时失败也写入内存抽取（asset 落盘仍仅步骤最终通过时）。"
               },
               "summary": {
                 "type": "string"

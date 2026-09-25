@@ -44,11 +44,24 @@ public final class AuthDesignWarningCodes {
      * @param headerName 头名称，空则按 Authorization
      */
     public static String headerManaged(String nodeLabel, String headerName) {
+        return headerManaged(nodeLabel, headerName, null, null);
+    }
+
+    /**
+     * 生成「已补托管头」提示文案。
+     * 文案末尾带 profileId；有 pathPrefix 则带上，无前缀则写「未匹配前缀/显式绑定」。
+     */
+    public static String headerManaged(
+            String nodeLabel, String headerName, String profileId, String pathPrefix) {
         String name = headerName != null && !headerName.isBlank() ? headerName : "Authorization";
-        return HEADER_MANAGED + CODE_SEP
-                + "HTTP 节点「" + nodeLabel + "」已按项目鉴权补全 "
-                + name
-                + "（托管头，Run 时随项目配置刷新）";
+        StringBuilder sb = new StringBuilder();
+        sb.append(HEADER_MANAGED).append(CODE_SEP)
+                .append("HTTP 节点「").append(nodeLabel).append("」已按项目鉴权补全 ")
+                .append(name)
+                .append("（托管头，Run 时随项目配置刷新");
+        appendProfileMeta(sb, profileId, pathPrefix, true);
+        sb.append("）");
+        return sb.toString();
     }
 
     /**
@@ -117,15 +130,50 @@ public final class AuthDesignWarningCodes {
      * @param displayPath        缺失的凭证展示路径（如 asset.clientAuth.token、flow.token）
      */
     public static String tokenMissing(String profileDisplayName, String displayPath) {
-        String tip = wrongEndTip(profileDisplayName, displayPath);
-        return TOKEN_MISSING + CODE_SEP
-                + "图中使用了" + profileDisplayName
-                + "（" + pathOrFallback(displayPath) + "），但未找到该凭证来源"
-                + "（HTTP extracts / assign / 子流输出 / flowSeed）；请补对应端登录抽取，勿与另一端凭证混用"
-                + tip;
+        return tokenMissing(profileDisplayName, displayPath, null, null);
     }
 
-    /** 客户端 Profile 绑 adminAuth（或相反）时追加提示。 */
+    /**
+     * 生成「缺凭证来源」错误文案。
+     * 说明图中需要哪端凭证、缺哪条展示路径，并附上 profileId / pathPrefix 便于核对多端配置。
+     *
+     * @param profileDisplayName Profile 展示名（如「客户端 Bearer」）
+     * @param displayPath        缺失的凭证展示路径（如 asset.clientAuth.token）
+     * @param profileId          需要该凭证的 Profile id，可空
+     * @param pathPrefix         解析时命中的 pathPrefix，可空
+     */
+    public static String tokenMissing(
+            String profileDisplayName, String displayPath, String profileId, String pathPrefix) {
+        String tip = wrongEndTip(profileDisplayName, displayPath);
+        StringBuilder sb = new StringBuilder();
+        sb.append(TOKEN_MISSING).append(CODE_SEP)
+                .append("图中使用了").append(profileDisplayName)
+                .append("（").append(pathOrFallback(displayPath)).append("），但未找到该凭证来源")
+                .append("（HTTP extracts / assign / 子流输出 / flowSeed）；请补对应端登录抽取，勿与另一端凭证混用");
+        appendProfileMeta(sb, profileId, pathPrefix, false);
+        sb.append(tip);
+        return sb.toString();
+    }
+
+    /**
+     * 往告警文案末尾追加 profileId、pathPrefix。
+     * needFallbackPathNote=true 且有 id 无前缀时，写「pathPrefix=未匹配前缀/显式绑定」。
+     */
+    private static void appendProfileMeta(
+            StringBuilder sb, String profileId, String pathPrefix, boolean needFallbackPathNote) {
+        if (profileId != null && !profileId.isBlank()) {
+            sb.append("；profileId=").append(profileId.trim());
+        }
+        if (pathPrefix != null && !pathPrefix.isBlank()) {
+            sb.append("；pathPrefix=").append(pathPrefix.trim());
+        } else if (needFallbackPathNote && profileId != null && !profileId.isBlank()) {
+            sb.append("；pathPrefix=未匹配前缀/显式绑定");
+        }
+    }
+
+    /**
+     * 展示名像「客户端」但路径却是 adminAuth（或相反）时，追加「疑似 Profile 绑错端」提示。
+     */
     static String wrongEndTip(String profileDisplayName, String displayPath) {
         if (profileDisplayName == null || displayPath == null) {
             return "";

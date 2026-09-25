@@ -6,13 +6,13 @@
 	
     <groupId>com.qualitest</groupId>
     <artifactId>qualitest</artifactId>
-    <version>1.4.0</version>
+    <version>1.4.1</version>
 
     <name>qualitest</name>
     <description>质衡自动化测试系统</description>
     
     <properties>
-        <qualitest.version>1.4.0</qualitest.version>
+        <qualitest.version>1.4.1</qualitest.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>17</java.version>

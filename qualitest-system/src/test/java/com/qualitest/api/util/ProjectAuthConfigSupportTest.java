@@ -69,17 +69,16 @@ class ProjectAuthConfigSupportTest {
 
     /**
      * 前提：管理端在前 + 客户端夹具。
-     * 期望：/api/ 命中客户端，/system/ 命中管理端，未命中走第一条（管理端）。
+     * 期望：/api/ 命中客户端，/web/ 命中管理端，未命中前缀返回 null（不回落第一条）。
      */
     @Test
     @Order(2)
-    @DisplayName("双端夹具：前缀命中与第一条兜底")
+    @DisplayName("双端夹具：前缀命中与未命中为 null")
     void adminThenClient_prefixAndFirstFallback() {
         ProjectAuthConfig cfg = AuthProfileTestFixtures.adminThenClient();
 
         assertEquals(2, cfg.getAuthProfiles().size());
-        assertEquals(
-                ProjectAuthConfigSupport.PROFILE_ADMIN,
+        assertNull(
                 ProjectAuthConfigSupport.resolveProfileId("/other/ping", cfg));
         assertEquals(
                 ProjectAuthConfigSupport.PROFILE_CLIENT,

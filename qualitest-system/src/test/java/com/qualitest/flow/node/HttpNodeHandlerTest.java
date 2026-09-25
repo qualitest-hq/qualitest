@@ -559,4 +559,88 @@ class HttpNodeHandlerTest {
         assertEquals(false, bodyMedia.get("stored"));
         assertFalse(response.containsKey("bodyBase64"));
     }
+
+    /**
+     * 前提：HTTP 200 + 业务失败 + Set-Cookie→asset；默认不抽。
+     * 期望：TF_BIZ_CODE；ctx.asset 无脏 Session。
+     */
+    @Test
+    @Order(16)
+    @DisplayName("业务失败默认不写 asset extracts")
+    void execute_bizFail_skipsAssetExtractByDefault() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/login")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(200, "OK",
+                        Map.of("Set-Cookie", "JSESSIONID=dirty-sid; Path=/"),
+                        "{\"code\":500,\"msg\":\"用户不存在/密码错误\"}")
+        );
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("extracts", List.of(Map.of(
+                "from", "setCookie",
+                "expr", "JSESSIONID",
+                "scope", "asset",
+                "entryKey", "adminAuth",
+                "fieldPath", "JSESSIONID"
+        )));
+        GraphNode node = GraphNode.builder().id("n-dirty").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
+        assertEquals(FlowErrorCode.TF_BIZ_CODE.getCode(), result.getError().getCode());
+        assertTrue(result.getError().getMessage().contains("500"));
+        Object adminAuth = ctx.getAsset().get("adminAuth");
+        assertTrue(adminAuth == null || (adminAuth instanceof Map<?, ?> m && m.get("JSESSIONID") == null));
+    }
+
+    /**
+     * 前提：约定 codePath 带 $.；body 有明确业务码。
+     * 期望：能解析到 actualCode，摘要不含「code=null」。
+     */
+    @Test
+    @Order(17)
+    @DisplayName("业务码：codePath 已含 $ 仍能解析")
+    void execute_bizCodePathWithDollar_parsesActual() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/api/login")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(200, "OK", Map.of(),
+                        "{\"code\":0,\"msg\":\"手机号码不正确！\"}")
+        );
+        ctx.setProjectAuthConfig("""
+                {"authProfiles":[{"id":"client","name":"客户端","match":{"pathPrefix":["/api"]},
+                "headerName":"token","headerValueTemplate":"{{asset.clientAuth.token}}",
+                "responseConvention":{"codePath":"$.code","successValues":[1],"messagePath":"$.msg","dataPath":"$.data"}}]}
+                """);
+        ctx.getAsset().put("clientAuth", new HashMap<>(Map.of("token", "dummy")));
+
+        GraphNode node = GraphNode.builder()
+                .id("n-dollar")
+                .type("http")
+                .data(Map.of("callMode", "project", "testProjectApiId", "1001"))
+                .build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
+        assertEquals(FlowErrorCode.TF_BIZ_CODE.getCode(), result.getError().getCode());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> bizCheck = (Map<String, Object>) result.getHttp().get("bizCheck");
+        assertNotNull(bizCheck);
+        assertNotNull(bizCheck.get("actualCode"), "应解析到业务码，勿因 codePath 带 $ 读飞；msg=" + result.getError().getMessage());
+        assertEquals(0, ((Number) bizCheck.get("actualCode")).intValue());
+        assertFalse(Boolean.TRUE.equals(bizCheck.get("parseMissed")));
+        assertTrue(result.getError().getMessage().contains("0"));
+        assertTrue(result.getError().getMessage().contains("手机号码不正确"));
+    }
 }

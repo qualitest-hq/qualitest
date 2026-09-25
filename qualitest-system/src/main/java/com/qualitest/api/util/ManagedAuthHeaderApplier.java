@@ -10,10 +10,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-    /**
-     * 将项目鉴权托管头写入 HTTP 节点 headers。
-     * 登录口、免登口、本节点正抽取 token 时：不补 Authorization，并去掉已有托管头。
-     */
+/**
+ * 将项目鉴权托管头写入 HTTP 节点 headers。
+ * 登录口、免登口、本节点正抽取 token 时：不补 Authorization，并去掉已有托管头。
+ * 成功补头或刷新时，warnings 记 AUTH_HEADER_MANAGED（含 profileId / pathPrefix）。
+ */
 public final class ManagedAuthHeaderApplier {
 
     private ManagedAuthHeaderApplier() {}
@@ -53,9 +54,12 @@ public final class ManagedAuthHeaderApplier {
         AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(data.get("headers"), resolved);
         data.put("headers", applied.headers());
         if (applied.changed() && warnings != null) {
+            // 新补或刷新了托管头：记 AUTH_HEADER_MANAGED，文案带 profileId / pathPrefix
             warnings.add(AuthDesignWarningCodes.headerManaged(
                     nodeLabel,
-                    resolved.name() != null ? resolved.name() : "Authorization"));
+                    resolved.name() != null ? resolved.name() : "Authorization",
+                    resolved.profileId(),
+                    resolved.matchedPathPrefix()));
         }
         return applied.changed();
     }

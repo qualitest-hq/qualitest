@@ -15,7 +15,8 @@ import java.util.Map;
  * <p>
  * 场景选择优先级：入参 scenarioId → activeScenarioId → 列表首条。
  * 环境 ID 优先级：入参 testProjectEnvId → 场景内配置 → 可选 fallbackEnvId。
- * 三者皆空时硬失败，不会自动挑选项目环境。
+ * 三者皆空时硬失败，不会自动挑选项目「默认环境」；可传入 availableEnvHint，
+ * 把可选 {@code envId=…（名称）} 拼进报错，便于复制后显式绑定。
  * <p>
  * 同时把场景上的 onNodeFailure、onSnapshotFailure 带入解析结果，供正式 Run 决定节点失败、checkpoint 失败时的处理方式。
  */
@@ -47,6 +48,18 @@ public final class RunScenarioBootstrap {
      */
     public static ResolvedRunScenario resolve(GraphJson graph, String scenarioIdOverride, Long envIdOverride,
                                               Long fallbackEnvId) {
+        return resolve(graph, scenarioIdOverride, envIdOverride, fallbackEnvId, null);
+    }
+
+    /**
+     * 解析场景配置。
+     * 环境 id 优先级：入参 envIdOverride → 场景已绑 testProjectEnvId → fallbackEnvId。
+     * 三者皆空时硬失败（不自动挑「默认环境」）；若传入 availableEnvHint 则拼进报错，便于复制 envId。
+     *
+     * @param availableEnvHint 缺 env 时报错附带的可选环境列表（如 envId=1（默认环境）），可空
+     */
+    public static ResolvedRunScenario resolve(GraphJson graph, String scenarioIdOverride, Long envIdOverride,
+                                              Long fallbackEnvId, String availableEnvHint) {
         GraphMeta meta = graph != null ? graph.getMeta() : null;
         if (meta == null || meta.getScenarios() == null || meta.getScenarios().isEmpty()) {
             throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID, "缺少 meta.scenarios");
@@ -83,12 +96,15 @@ public final class RunScenarioBootstrap {
             envId = fallbackEnvId;
         }
         if (envId == null) {
-            // 正式跑流不自动选环境：须场景已绑、入参覆盖，或先建环境再绑
-            throw new FlowExecutionException(
-                    FlowErrorCode.TF_GRAPH_INVALID,
-                    "未指定 testProjectEnvId；请先 list_project_envs，再 submit_scenario 绑定，"
-                            + "或跑流时显式传入；缺环境实体可用 upsert_project_env 新建"
-            );
+            // 正式跑流不自动选环境：须场景已绑或入参覆盖；报错里附可选 envId 便于显式选择
+            StringBuilder msg = new StringBuilder(
+                    "未指定 testProjectEnvId；请传入或 submit_scenario 绑定，不会自动选环境");
+            if (availableEnvHint != null && !availableEnvHint.isBlank()) {
+                msg.append("。可选：").append(availableEnvHint.trim());
+            } else {
+                msg.append("。请先 list_project_envs 查看可用环境");
+            }
+            throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID, msg.toString());
         }
 
         Map<String, Object> flowSeed = new HashMap<>();
@@ -106,6 +122,40 @@ public final class RunScenarioBootstrap {
                 .onSnapshotFailure(matched.getOnSnapshotFailure())
                 .build();
     }
+
+    /**
+     * 把项目环境列表格式化为报错用的可复制片段。
+     * 形如 {@code envId=1（默认环境）；envId=2（预发）}，最多列 8 个。
+     */
+    public static String formatAvailableEnvHint(List<EnvHint> envs) {
+        if (envs == null || envs.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        int n = 0;
+        for (EnvHint e : envs) {
+            if (e == null || e.id() == null) {
+                continue;
+            }
+            if (n > 0) {
+                sb.append("；");
+            }
+            sb.append("envId=").append(e.id());
+            if (e.name() != null && !e.name().isBlank()) {
+                sb.append("（").append(e.name().trim()).append("）");
+            }
+            n++;
+            if (n >= 8) {
+                break;
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 报错提示用的环境摘要：环境主键 + 展示名。
+     */
+    public record EnvHint(Long id, String name) {}
 
     private static GraphRunScenario findScenario(List<GraphRunScenario> scenarios, String id) {
         for (GraphRunScenario sc : scenarios) {

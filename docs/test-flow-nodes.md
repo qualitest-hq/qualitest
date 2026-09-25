@@ -37,13 +37,73 @@
 
 - 成功判定（两层，不合并）：
   - **HTTP 状态** `statusCheck`：默认 `mode=2xx`（非 2xx → 失败）；`whitelist` + `values` 仅放行列表内状态码（探活常用 `[200,401]`）；`off` 任意状态码步骤仍 passed。有响应即写入 `lastResponse`，后续 Condition 可读 `http.status`
-  - **业务码** `successCheck`：仅在 **2xx** 后可选校验 body 业务码白名单；`mode=off` 关闭
+  - **业务码** `successCheck`：仅在 **2xx** 后可选校验 body 业务码白名单；`mode=off` 关闭。`codePath` 支持 `code` 或 `$.code`
+- **extracts**：默认仅步骤最终通过后执行；`extractsOnFailure=write` 时失败也写入内存（asset 落盘仍仅通过时）
+- **前置/后置脚本**：见下方「HTTP 脚本（preScript / postScript）」
 - 占位符解析请求参数 / 体（`flow` / `env` / `asset` / `session` 等）
 - **项目鉴权补头**（Profile 托管头 `{{asset.*}}` / `{{flow.*}}` → 见 [project-summary.md §4](./project-summary.md)）
-- 通过后执行 `extracts`；asset 落盘仍仅 2xx
 - 可选 **执行前快照**（`snapshotBefore`）：写库失败可暂停并还原被测数据（环境允许还原时；详见概念地图 §4.4）
 
 节点上托管鉴权头带 `profileManaged`，Run 时按当前项目/接口配置刷新；无该标记的显式头永不被静默改掉。画布可显示节点将使用/产出的凭证路径。
+
+### HTTP 脚本（preScript / postScript）
+
+宿主对象名为 **`api`**（GraalVM JS；无 DOM、无 `btoa`/`atob`、无 Postman `pm`）。
+
+| 挂载位置 | 何时执行 |
+|----------|----------|
+| `callMode=project` | 接口库 `preRequestScript` / `postRequestScript`（**节点** `data.preScript` **不执行**） |
+| `callMode=external` | 节点 `data.preScript` / `data.postScript` |
+
+#### 变量
+
+| API | 说明 |
+|-----|------|
+| `api.variables.get/set/unset/has(key[, value])` | 临时变量（跑流侧≈flow） |
+| `api.environment.get/set/unset/has` | 环境变量；`set` 仅当前会话 |
+| `api.globals.get/set/unset/has` | 全局（调试会话） |
+
+#### 请求（仅前置可写）
+
+| API | 说明 |
+|-----|------|
+| `api.request.url` / `method` | 读、赋值修改；改 query 请改完整 `url` |
+| `api.request.headers.add({key,value})` 或 `add(k,v)` | 增改头 |
+| `api.request.headers.remove(name)` / `get` / `list` | 删、读 |
+| `api.request.body` | 读快照；**写入须整对象重赋** `api.request.body = {…}`（`body.xxx =` 嵌套改不会回写） |
+
+#### 响应（仅后置）
+
+| API | 说明 |
+|-----|------|
+| `api.response.code`（或 `status`） | HTTP 状态码 |
+| `api.response.statusText` / `headers` | 文案、响应头 |
+| `api.response.json()` / `text()` | 解析 JSON / 原文 |
+
+#### 工具与断言
+
+| API | 说明 |
+|-----|------|
+| `api.base64Encode` / `base64Decode` | Base64（不要用 `btoa`） |
+| `api.jsonParse` / `jsonStringify` | JSON |
+| `api.hmacSha256(data, secret)` / `api.md5(data)` | 签名，返回 hex |
+| `api.sendRequest({ url, method, headers, body })` | 同步辅助请求 |
+| `api.test(name, fn)` / `api.expect(x).to.equal(y)` | **仅后置**断言 |
+
+#### 示例：密码 Base64 后发出
+
+```javascript
+var pwd = api.environment.get('password');
+api.request.body = {
+  kind: 'json',
+  raw: api.jsonStringify({
+    mobile: api.environment.get('mobile'),
+    password: api.base64Encode(pwd)
+  })
+};
+```
+
+UI 调试台侧栏「脚本 API」与片段库与上表同源（`scriptApiReference.js` / `apiScriptSnippets.js`）。
 
 ---
 

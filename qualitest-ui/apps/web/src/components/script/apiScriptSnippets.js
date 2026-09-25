@@ -68,6 +68,17 @@ export const API_PRE_REQUEST_SNIPPETS = [
     code: "api.variables.set('sign', api.hmacSha256('data', api.environment.get('secret')));",
   },
   {
+    id: 'base64-password',
+    label: '密码 Base64 后写入 body',
+    comment: '读环境明文密码，Base64 后整对象重赋 request.body（嵌套改字段无效）',
+    code: `var pwd = api.environment.get('password');
+var encoded = api.base64Encode(pwd);
+api.request.body = {
+  kind: 'json',
+  raw: api.jsonStringify({ mobile: api.environment.get('mobile'), password: encoded })
+};`,
+  },
+  {
     id: 'send-request',
     label: '发送辅助 HTTP 请求',
     comment: '在前置脚本中同步发送辅助请求（如获取 token）',

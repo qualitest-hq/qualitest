@@ -29,7 +29,7 @@ import java.util.Set;
  * 根结构为 authProfiles 数组；每条 Profile 含：
  * 路径前缀匹配、鉴权托管头、响应约定四字段、credentialApi、预制接口列表。
  * <ul>
- *   <li>选端：按接口 path 命中最长 pathPrefix；都未命中用数组第一条</li>
+ *   <li>选端：按接口 path 命中最长 pathPrefix；都未命中则不加托管头（不回落第一条）</li>
  *   <li>免登：配置为空时用内置登录类路径；有 Profile 后只认预制口 auth.mode=none</li>
  *   <li>抽凭证：credentialApi 标明登录口；托管头占位符标明写入目标</li>
  *   <li>响应约定：取命中 Profile 上的四字段；Profile 未写或残缺时用代码缺省（code/[200]/msg/data）</li>
@@ -729,29 +729,52 @@ public final class ProjectAuthConfigSupport {
 
     /**
      * 按接口路径解析应使用的 Profile id。
-     * 最长 pathPrefix 命中优先；无人命中则用数组第一条。
+     * 规则：在所有 Profile 的 pathPrefix 里取最长命中；多端都未命中返回 null（不会随便落到第一条）。
+     * 例外：项目里只有一套 Profile 时，未命中前缀仍用该套（旧模板 match 可能为空）。
      *
-     * @return profile id，配置为空时可能为 null
+     * @return profile id；未命中或配置为空时为 null
      */
     public static String resolveProfileId(String apiPath, ProjectAuthConfig config) {
-        if (isEmpty(config)) {
-            return null;
-        }
         String byPrefix = resolveProfileIdByPrefixOnly(apiPath, config);
         if (byPrefix != null) {
             return byPrefix;
         }
-        ProjectAuthProfile first = config.getAuthProfiles().get(0);
-        return first != null ? StrUtil.trimToNull(first.getId()) : null;
+        if (!isEmpty(config) && config.getAuthProfiles().size() == 1) {
+            ProjectAuthProfile only = config.getAuthProfiles().get(0);
+            return only != null ? StrUtil.trimToNull(only.getId()) : null;
+        }
+        return null;
     }
 
-    /** 只按 pathPrefix 选 Profile，未命中返回 null（不回落到第一条）。 */
-    private static String resolveProfileIdByPrefixOnly(String apiPath, ProjectAuthConfig config) {
+    /**
+     * 只按 pathPrefix 选 Profile id。
+     * 最长前缀命中优先；都未命中返回 null，不做单端回落。
+     */
+    public static String resolveProfileIdByPrefixOnly(String apiPath, ProjectAuthConfig config) {
+        PrefixHit hit = bestPrefixHit(apiPath, config);
+        return hit != null ? hit.profileId() : null;
+    }
+
+    /**
+     * 返回命中该 apiPath 的最长 pathPrefix（规范化后带尾斜杠）。
+     * 未命中返回 null，供告警文案展示「实际命中了哪段前缀」。
+     */
+    public static String resolveMatchedPathPrefix(String apiPath, ProjectAuthConfig config) {
+        PrefixHit hit = bestPrefixHit(apiPath, config);
+        return hit != null ? hit.prefix() : null;
+    }
+
+    /**
+     * 在全部 Profile 的 pathPrefix 中找最长命中。
+     * 返回 profileId 与规范化后的 prefix；都未命中返回 null。
+     */
+    private static PrefixHit bestPrefixHit(String apiPath, ProjectAuthConfig config) {
         if (isEmpty(config)) {
             return null;
         }
         String path = normalizeApiPath(apiPath);
         String bestId = null;
+        String bestPrefix = null;
         int bestLen = -1;
         for (ProjectAuthProfile profile : config.getAuthProfiles()) {
             if (profile == null || StrUtil.isBlank(profile.getId()) || profile.getMatch() == null) {
@@ -769,13 +792,17 @@ public final class ProjectAuthConfigSupport {
                 if ((path + "/").startsWith(prefix) && prefix.length() > bestLen) {
                     bestLen = prefix.length();
                     bestId = profile.getId().trim();
+                    bestPrefix = prefix;
                 }
             }
         }
-        return bestId;
+        return bestId != null ? new PrefixHit(bestId, bestPrefix) : null;
     }
 
-    /** 把前缀整理成可匹配形式；空或单独 / 返回 null。 */
+    /** pathPrefix 最长命中结果：Profile id + 规范化前缀。 */
+    private record PrefixHit(String profileId, String prefix) {}
+
+    /** 把前缀整理成可匹配形式（带尾斜杠）；空或单独 / 视为无效，返回 null。 */
     static String toMatchPrefix(String rawPrefix) {
         if (StrUtil.isBlank(rawPrefix) || "/".equals(rawPrefix.trim())) {
             return null;
@@ -805,11 +832,12 @@ public final class ProjectAuthConfigSupport {
 
     /**
      * 按接口路径解析应使用的 Profile。
-     * 选端规则：最长 pathPrefix 命中优先；都未命中用数组第一条。
+     * 最长 pathPrefix 命中优先；多端都未命中返回 null。
+     * 项目只有一套 Profile 时，未命中前缀仍可能返回该套。
      *
      * @param apiPath 接口路径
      * @param config  多端配置
-     * @return 命中的 Profile；配置为空时可能为 null
+     * @return 命中的 Profile；未命中或配置为空时为 null
      */
     public static ProjectAuthProfile resolveProfile(String apiPath, ProjectAuthConfig config) {
         return findProfile(config, resolveProfileId(apiPath, config));

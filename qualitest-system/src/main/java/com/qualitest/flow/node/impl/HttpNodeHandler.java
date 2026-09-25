@@ -15,6 +15,7 @@ import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.context.AssetExtractPersistService;
 import com.qualitest.flow.context.ExtractApplicator;
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.context.JsonPathFacade;
 import com.qualitest.flow.context.PlaceholderResolver;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
@@ -47,17 +48,20 @@ import java.util.Map;
  *   <li><b>external</b> — 使用节点 externalUrl / httpMethod / headers / requestBody；
  *       运行前校验外联权限与 URL；pre/post 脚本来自节点 data；步骤报告会脱敏敏感字段</li>
  * </ul>
- * Cookie 鉴权与 Bearer 相同：登录 extracts（含 {@code from=setCookie}）写入 flow.*，
- * 后续由项目 Profile 托管头带上；不再使用节点 {@code useRunSession}。
+ * Cookie 鉴权与 Bearer 相同：登录 extracts（含 from=setCookie）写入 flow.*，
+ * 后续由项目 Profile 托管头带上；节点不再使用 useRunSession。
  * <p>
- * 成功判定顺序（statusCheck 与 successCheck 并列，不合并）：
+ * 成功判定顺序（statusCheck 与 successCheck 分开做，不合并成一步）：
  * <ol>
- *   <li>HTTP 状态码：默认 statusCheck.mode=2xx，非 2xx → TF_HTTP_STATUS；
- *       whitelist 时仅 values 内通过；off 时任意状态码通过（连接失败仍失败）</li>
- *   <li>2xx 后若开启业务码校验（节点 successCheck.mode 非 off）→ 读取 body 中业务码；
- *       不在成功白名单内则步骤失败，错误码 TF_BIZ_CODE，并在步骤 http.bizCheck 写入实际码与消息</li>
+ *   <li>HTTP 状态码：默认 statusCheck.mode=2xx，非 2xx 记 TF_HTTP_STATUS；
+ *       whitelist 时仅 values 内状态码通过；off 时任意状态码通过（连接失败仍失败）</li>
+ *   <li>仅 HTTP 2xx 时再做业务码：successCheck.mode 非 off 则读 body 业务码；
+ *       不在成功白名单内则步骤失败（TF_BIZ_CODE），并在 http.bizCheck 写入实际码、消息、解析失败时的 body 片段</li>
  * </ol>
- * 有响应即写入 lastResponse（含非 2xx），再执行 extracts；asset 落盘仍仅 2xx。
+ * 有响应即写入 lastResponse（含非 2xx）。
+ * extracts：默认仅步骤最终通过才执行并落盘 asset；
+ * extractsOnFailure=write 时失败也会做内存抽取，但 asset 落盘仍只在步骤通过时发生。
+ * 业务码路径经 toAbsolutePath 规范化后再读，避免 codePath 已带 {@code $.} 时再拼一层变成无效路径。
  */
 @Component
 public class HttpNodeHandler extends AbstractStubNodeHandler {
@@ -259,12 +263,6 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                 .durationMs(durationMs)
                 .build();
 
-        JSONArray extractsConfig = toExtractsArray(data.get("extracts"));
-        List<JSONObject> appliedExtracts = ExtractApplicator.apply(extractsConfig, ctx, snapshot);
-        if (status >= 200 && status < 300) {
-            assetExtractPersistService.persistFromExtractConfig(ctx, extractsConfig, appliedExtracts);
-        }
-
         Map<String, Object> httpDetails = new LinkedHashMap<>();
         httpDetails.put("callMode", built.getCallMode());
         httpDetails.put("method", built.getMethod());
@@ -292,48 +290,33 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             httpDetails = HttpStepDetailsDesensitizer.desensitize(httpDetails);
         }
 
-        // HTTP 状态门禁：默认 2xx；whitelist/off 供探活等场景放行非 2xx 供后续 Condition
+        // HTTP 状态门禁：默认要求 2xx；whitelist/off 可放行非 2xx，供后续 Condition 分支
         StatusCheckResolver.Resolved statusCheck = StatusCheckResolver.resolve(data);
         Map<String, Object> statusCheckReport = new LinkedHashMap<>();
         statusCheckReport.put("mode", statusCheck.getMode());
         if (!statusCheck.getValues().isEmpty()) {
             statusCheckReport.put("values", statusCheck.getValues());
         }
-        statusCheckReport.put("passed", statusCheck.passes(status));
+        boolean statusPassed = statusCheck.passes(status);
+        statusCheckReport.put("passed", statusPassed);
         httpDetails.put("statusCheck", statusCheckReport);
 
-        if (!statusCheck.passes(status)) {
-            return StepResult.builder()
-                    .nodeId(node.getId())
-                    .nodeType(FlowNodeType.HTTP.getCode())
-                    .nodeName(nodeName)
-                    .edgeId(incomingEdgeId)
-                    .status(RunStatus.FAILED.getCode())
-                    .durationMs(durationMs)
-                    .http(httpDetails)
-                    .extracts(appliedExtracts)
-                    .flowAfter(copyFlow(ctx))
-                    .error(StepError.of(FlowErrorCode.TF_HTTP_STATUS, "HTTP " + status))
-                    .build();
+        // 状态门禁失败：步骤失败；默认不写 extracts，避免把失败响应里的脏值写入 flow/asset
+        if (!statusPassed) {
+            List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, false);
+            return httpStepResult(node, incomingEdgeId, nodeName, durationMs, httpDetails, appliedExtracts, ctx,
+                    RunStatus.FAILED.getCode(),
+                    StepError.of(FlowErrorCode.TF_HTTP_STATUS, "HTTP " + status));
         }
 
-        // 仅 2xx 后按 successCheck 校验业务码；whitelist 放行的 401 等跳过业务码
+        // statusCheck 已放行但非 2xx（如 whitelist 含 401）：步骤通过，不做业务码校验
         if (status < 200 || status >= 300) {
-            return StepResult.builder()
-                    .nodeId(node.getId())
-                    .nodeType(FlowNodeType.HTTP.getCode())
-                    .nodeName(nodeName)
-                    .edgeId(incomingEdgeId)
-                    .status(RunStatus.PASSED.getCode())
-                    .durationMs(durationMs)
-                    .http(httpDetails)
-                    .extracts(appliedExtracts)
-                    .flowAfter(copyFlow(ctx))
-                    .build();
+            List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, true);
+            return httpStepResult(node, incomingEdgeId, nodeName, durationMs, httpDetails, appliedExtracts, ctx,
+                    RunStatus.PASSED.getCode(), null);
         }
 
-        // HTTP 2xx 之后：按节点 successCheck 决定是否校验 body 业务码
-        // mode=off 或外联默认关闭时跳过；开启时用本端响应约定（及接口/节点成功值覆盖）判定
+        // HTTP 2xx：按节点 successCheck / 项目响应约定校验 body 业务码
         String apiPath = api != null ? api.getApiPath() : null;
         if (apiPath == null || apiPath.isBlank()) {
             apiPath = extractPathFromUrl(built.getUrl());
@@ -343,13 +326,14 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         SuccessCheckResolver.Resolved check = SuccessCheckResolver.resolve(
                 data, built.getCallMode(), api, conventionJson);
         if (check.shouldApply()) {
-            // 从响应 body 读取业务码与消息字段
-            Object actualCode = PlaceholderResolver.simpleJsonPath(body, "$." + check.getCodePath());
-            Object messageObj = PlaceholderResolver.simpleJsonPath(body, "$." + check.getMessagePath());
+            // codePath/messagePath 统一成绝对 JsonPath 再读，防止已带 $. 时重复拼接
+            String codeAbs = JsonPathFacade.toAbsolutePath(check.getCodePath());
+            String msgAbs = JsonPathFacade.toAbsolutePath(check.getMessagePath());
+            Object actualCode = PlaceholderResolver.simpleJsonPath(body, codeAbs);
+            Object messageObj = PlaceholderResolver.simpleJsonPath(body, msgAbs);
             String message = messageObj != null ? String.valueOf(messageObj) : null;
             boolean passed = check.isSuccess(actualCode);
 
-            // 写入步骤报告 http.bizCheck，供 Run 详情与失败分析展示
             Map<String, Object> bizCheck = new LinkedHashMap<>();
             bizCheck.put("codePath", check.getCodePath());
             bizCheck.put("actualCode", actualCode);
@@ -358,38 +342,116 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             if (message != null && !message.isBlank()) {
                 bizCheck.put("message", message);
             }
+            // 读不到业务码时记下片段，方便报告里对照真实响应
+            if (actualCode == null) {
+                bizCheck.put("parseMissed", true);
+                bizCheck.put("bodySnippet", bodySnippet(body, 200));
+            }
             httpDetails.put("bizCheck", bizCheck);
 
             if (!passed) {
-                // 业务码失败：步骤 failed，错误信息带上实际码与消息文案
-                String errorMsg = "业务 code=" + actualCode
-                        + (message != null && !message.isBlank() ? ": " + message : "");
-                return StepResult.builder()
-                        .nodeId(node.getId())
-                        .nodeType(FlowNodeType.HTTP.getCode())
-                        .nodeName(nodeName)
-                        .edgeId(incomingEdgeId)
-                        .status(RunStatus.FAILED.getCode())
-                        .durationMs(durationMs)
-                        .http(httpDetails)
-                        .extracts(appliedExtracts)
-                        .flowAfter(copyFlow(ctx))
-                        .error(StepError.of(FlowErrorCode.TF_BIZ_CODE, errorMsg))
-                        .build();
+                List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, false);
+                String errorMsg = formatBizCodeFailure(actualCode, message, check.getCodePath(), body);
+                return httpStepResult(node, incomingEdgeId, nodeName, durationMs, httpDetails, appliedExtracts, ctx,
+                        RunStatus.FAILED.getCode(),
+                        StepError.of(FlowErrorCode.TF_BIZ_CODE, errorMsg));
             }
         }
 
-        return StepResult.builder()
+        // 步骤最终通过：执行 extracts，并把配置为 asset 的抽取结果落盘
+        JSONArray extractsConfig = toExtractsArray(data.get("extracts"));
+        List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, true);
+        assetExtractPersistService.persistFromExtractConfig(ctx, extractsConfig, appliedExtracts);
+
+        return httpStepResult(node, incomingEdgeId, nodeName, durationMs, httpDetails, appliedExtracts, ctx,
+                RunStatus.PASSED.getCode(), null);
+    }
+
+    /**
+     * 组装本步 HTTP 的 StepResult。
+     *
+     * @param status 步骤状态码（passed / failed）
+     * @param error  失败时的错误；通过时传 null
+     */
+    private static StepResult httpStepResult(
+            GraphNode node, String incomingEdgeId, String nodeName, long durationMs,
+            Map<String, Object> httpDetails, List<JSONObject> extracts, FlowRunContext ctx,
+            String status, StepError error) {
+        var builder = StepResult.builder()
                 .nodeId(node.getId())
                 .nodeType(FlowNodeType.HTTP.getCode())
                 .nodeName(nodeName)
                 .edgeId(incomingEdgeId)
-                .status(RunStatus.PASSED.getCode())
+                .status(status)
                 .durationMs(durationMs)
                 .http(httpDetails)
-                .extracts(appliedExtracts)
-                .flowAfter(copyFlow(ctx))
-                .build();
+                .extracts(extracts)
+                .flowAfter(copyFlow(ctx));
+        if (error != null) {
+            builder.error(error);
+        }
+        return builder.build();
+    }
+
+    /**
+     * 本步是否执行 extracts。
+     * 步骤通过：一律执行。
+     * 步骤失败：仅当节点 extractsOnFailure=write 时执行（默认 skip，防止失败响应污染变量）。
+     */
+    private static boolean shouldApplyExtracts(Map<String, Object> data, boolean stepPassed) {
+        if (stepPassed) {
+            return true;
+        }
+        return isExtractsOnFailureWrite(data);
+    }
+
+    /** 节点是否显式要求失败时仍写 extracts（data.extractsOnFailure=write）。 */
+    private static boolean isExtractsOnFailureWrite(Map<String, Object> data) {
+        if (data == null) {
+            return false;
+        }
+        Object raw = data.get("extractsOnFailure");
+        return raw != null && "write".equalsIgnoreCase(String.valueOf(raw).trim());
+    }
+
+    /**
+     * 按步骤成败与 extractsOnFailure 决定是否抽取；不抽则返回空列表。
+     * 此处只写内存 flow/asset，不负责 asset 落盘。
+     */
+    private List<JSONObject> maybeApplyExtracts(
+            Map<String, Object> data, FlowRunContext ctx,
+            FlowRunContext.HttpResponseSnapshot snapshot, boolean stepPassed) {
+        if (!shouldApplyExtracts(data, stepPassed)) {
+            return List.of();
+        }
+        JSONArray extractsConfig = toExtractsArray(data.get("extracts"));
+        return ExtractApplicator.apply(extractsConfig, ctx, snapshot);
+    }
+
+    /**
+     * 业务码失败时的错误文案。
+     * 读到码：输出 {@code 业务 code=实际值}，有 message 则追加。
+     * 读不到码：输出 codePath 与 body 截断片段，便于对照响应结构。
+     */
+    static String formatBizCodeFailure(Object actualCode, String message, String codePath, Object body) {
+        if (actualCode != null) {
+            return "业务 code=" + actualCode
+                    + (message != null && !message.isBlank() ? ": " + message : "");
+        }
+        return "业务 code=null (codePath=" + (codePath != null ? codePath : "")
+                + ", body=" + bodySnippet(body, 200) + ")";
+    }
+
+    /** 把响应 body 截成最多 maxLen 字符，超长加省略号；null 返回空串。 */
+    static String bodySnippet(Object body, int maxLen) {
+        if (body == null) {
+            return "";
+        }
+        String s = body instanceof String str ? str : JSON.toJSONString(body);
+        if (s.length() <= maxLen) {
+            return s;
+        }
+        return s.substring(0, Math.max(0, maxLen)) + "...";
     }
 
     private static String resolveCallMode(Map<String, Object> data) {
@@ -412,6 +474,11 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                 : FlowErrorCode.TF_SCRIPT_ERROR;
         Map<String, Object> httpDetails = new LinkedHashMap<>();
         httpDetails.put(phase, scriptResult.toStepScriptDetails());
+        String msg = scriptResult.getErrorMessage() != null
+                ? scriptResult.getErrorMessage()
+                : "脚本执行失败";
+        // 附加宿主能力提示：改 body 须整对象重赋；编码用 api.base64Encode（无浏览器 btoa）
+        msg = msg + "；可用 api.request.url/method/headers.add、api.request.body=整对象、api.base64Encode、api.jsonParse/jsonStringify（无 btoa/pm；body 嵌套赋值不回写）";
         return StepResult.builder()
                 .nodeId(node.getId())
                 .nodeType(FlowNodeType.HTTP.getCode())
@@ -421,9 +488,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                 .durationMs(durationMs)
                 .http(httpDetails)
                 .flowAfter(copyFlow(ctx))
-                .error(StepError.of(code, scriptResult.getErrorMessage() != null
-                        ? scriptResult.getErrorMessage()
-                        : "脚本执行失败"))
+                .error(StepError.of(code, msg))
                 .build();
     }
 
