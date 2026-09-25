@@ -71,7 +71,6 @@
           v-loading="loading"
           :data="flowList"
           row-key="testFlowId"
-          @row-click="handleRowClick"
           @selection-change="handleSelectionChange"
       >
         <el-table-column align="center" type="selection" width="55"/>
@@ -89,7 +88,7 @@
             show-overflow-tooltip
         />
         <el-table-column align="center" label="更新时间" prop="updateTime" width="180"/>
-        <el-table-column align="center" label="操作" width="160">
+        <el-table-column align="center" label="操作" width="200">
           <template #default="scope">
             <el-button link type="primary" @click.stop="openCanvas(scope.row)">打开</el-button>
             <el-button
@@ -98,6 +97,13 @@
                 type="primary"
                 @click.stop="handleEdit(scope.row)"
             >修改
+            </el-button>
+            <el-button
+                v-hasPermi="['project:testProject:remove']"
+                link
+                type="danger"
+                @click.stop="handleDeleteRow(scope.row)"
+            >删除
             </el-button>
           </template>
         </el-table-column>
@@ -272,10 +278,6 @@ function handleSelectionChange(selection) {
 
 function openCanvas(row) {
   router.push(`/project/testProject/flow/${testProjectId.value}/${row.testFlowId}`)
-}
-
-function handleRowClick(row) {
-  openCanvas(row)
 }
 
 /** 左侧点选目录后刷新表格 */
@@ -471,6 +473,18 @@ async function handleDelete() {
   ElMessage.success('删除成功')
   selectedIds.value = []
   selectedRows.value = []
+  await getList()
+}
+
+/** 行内删除单条测试流 */
+async function handleDeleteRow(row) {
+  if (!row?.testFlowId) return
+  const name = String(row.flowName ?? '').trim() || String(row.testFlowId)
+  await ElMessageBox.confirm(`确认删除测试流「${name}」吗？`, '提示', { type: 'warning' })
+  await delTestFlow(String(row.testFlowId))
+  ElMessage.success('删除成功')
+  selectedIds.value = selectedIds.value.filter((id) => id !== row.testFlowId)
+  selectedRows.value = selectedRows.value.filter((item) => item.testFlowId !== row.testFlowId)
   await getList()
 }
 
