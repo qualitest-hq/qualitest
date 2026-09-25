@@ -48,7 +48,7 @@
   - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 Profile 模板引用的 `asset.*`/`flow.*`；后续靠 Profile 托管 `Cookie` 头。
   - 免除登录 / `auth.mode=none` / 登录口：登录口无鉴权托管头；登录节点 **必须** extracts，**目标键与 Profile `headerValueTemplate` 中的 `{{asset.*}}`/`{{flow.*}}` 一致**（`scope=asset` 时写 `entryKey`+`fieldPath`）。缺 extracts 时自行或请人补。
   - **按端提取凭证**：JsonPath 与头名优先按 Profile `headerValueTemplate` 与响应 schema 自定；`designHints` 仅作参考；按响应 schema 与 Profile 自定 extracts。Condition 判与 extract/托管头须同一套 `flow.*` 或 `asset.*`，禁止混用。
-  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`statusCheck: {mode:whitelist, values:[200,401]}` + `successCheck.mode=off`）→Condition(`http.status=200`)；探活成功 IF 无出边，ELSE 才连登录。工具名仅表内 `submit_condition_node` / `submit_http_node` / `submit_edge`（`op=add|update`）。修图用 `op=update`。
+  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`statusCheck: {mode:whitelist, values:[200,401,403]}` + `successCheck.mode=off`）→Condition(`http.status=200` AND `http.expectedMatch=true`)；探活成功 IF 无出边，ELSE 才连登录。`expectedMatch` 对照接口 `responseConfig.expectedResponseKind`（默认 json）与实际 body；200 却回 HTML 登录页时走登录。工具名仅表内 `submit_condition_node` / `submit_http_node` / `submit_edge`（`op=add|update`）。修图用 `op=update`。
   - **预期业务拒绝**：HTTP 须 `successCheck.mode=off`，再用 assert 校验；`mode=off` 时允许故意缺 schema 必填字段。
   - **业务成功码**：默认按 path 命中的多端 Profile 响应约定（常为 `[200]`）。开放接口成功码非 200 时，用 `upsert_auth_profile` 的 `patch.responseConvention`（如 `successValues:[1]`）改该端约定（半自动待聊天侧确认；全自动直写），或在节点 `successCheck.successValues` 覆盖。业务拒绝用 `successCheck.off`+断言。
   - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。缺必填时在节点 `requestValueOverrides` 补测值：query/path/header/表单写 `paramDefaults`，JSON body 写 `bodyExample`（可用 `{{flow.*}}`）。

@@ -308,7 +308,7 @@ function onSuccessCheckModeChange(e) {
   applyPatch({ successCheck: { mode: e.target.value === 'off' ? 'off' : 'inherit' } })
 }
 
-/** 切换 HTTP 状态门禁 */
+/** 切换 HTTP 状态门禁（2xx / 白名单 / 关闭） */
 function onStatusCheckModeChange(e) {
   const mode = e.target.value
   if (mode === 'off') {
@@ -317,15 +317,16 @@ function onStatusCheckModeChange(e) {
   }
   if (mode === 'whitelist') {
     const existing = props.node?.data?.statusCheck?.values
+    // 探活默认白名单：200 活着，401/403 去登录
     const values =
-      Array.isArray(existing) && existing.length ? existing : [200, 401]
+      Array.isArray(existing) && existing.length ? existing : [200, 401, 403]
     applyPatch({ statusCheck: { mode: 'whitelist', values } })
     return
   }
   applyPatch({ statusCheck: { mode: '2xx' } })
 }
 
-/** 白名单状态码文本，如 200,401 */
+/** 编辑白名单状态码文本（如 200,401,403）；空输入回落到探活默认白名单 */
 function onStatusCheckValuesChange(e) {
   const raw = String(e.target.value || '')
   const values = raw
@@ -335,7 +336,7 @@ function onStatusCheckValuesChange(e) {
   applyPatch({
     statusCheck: {
       mode: 'whitelist',
-      values: values.length ? values : [200, 401],
+      values: values.length ? values : [200, 401, 403],
     },
   })
 }

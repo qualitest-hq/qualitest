@@ -166,7 +166,7 @@ and suggest what to change on the canvas (advice only).
 ```text
 Via qualitest MCP, for each auth Profile in this project, create a probe-then-login subflow (e.g. admin + client):
 1. list_project_auth_profiles, list_asset_variables, search_apis (login + probe APIs per side). Missing asset keys → upsert_asset_variables (adminAuth: username/password; clientAuth: mobile/password). No Profiles → tell user to Apply a project template or upsert_auth_profile.
-2. create_flow once per side (name includes side, e.g. "admin login" / "client login"). Graph: Condition(credential exists) → probe HTTP (statusCheck: {mode:whitelist, values:[200,401]} + successCheck.mode=off) → Condition(http.status=200); IF on probe success has no outgoing edge, ELSE connects to login; login extracts write the asset.* referenced by that side's headerValueTemplate (never the same credential key on both sides). Optionally list_subflow_templates and follow a platform/project template skeleton.
+2. create_flow once per side (name includes side, e.g. "admin login" / "client login"). Graph: Condition(credential exists) → probe HTTP (statusCheck: {mode:whitelist, values:[200,401,403]} + successCheck.mode=off) → Condition(http.status=200 AND http.expectedMatch=true); IF on probe success has no outgoing edge, ELSE connects to login; login extracts write the asset.* referenced by that side's headerValueTemplate (never the same credential key on both sides). Interface `expectedResponseKind` (default json) lives on responseConfig; runtime only compares. Optionally list_subflow_templates and follow a platform/project template skeleton.
 3. If auto-run is on, run_test_flow each flow; report testFlowId and side.
 ```
 

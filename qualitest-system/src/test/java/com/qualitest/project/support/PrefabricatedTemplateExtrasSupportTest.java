@@ -215,6 +215,9 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertTrue(graph.contains("cond_alive"));
         assertTrue(graph.contains("login_http"));
         assertTrue(graph.contains("whitelist"));
+        assertTrue(graph.contains("http.expectedMatch"));
+        assertTrue(graph.contains("401"));
+        assertTrue(graph.contains("403"));
         assertTrue(graph.contains("asset.adminAuth.token"));
         assertTrue(graph.contains("{{asset.adminAuth.username}}"));
         assertTrue(graph.contains("/getInfo"));

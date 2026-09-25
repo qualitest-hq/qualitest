@@ -140,7 +140,8 @@ export function emptyPrefabFlow(templateApis = [], overrides = {}) {
 
 /**
  * 组装「探活再登录」画布 graphJson。
- * Condition(凭证 exists) → 探活(statusCheck whitelist) → Condition(http.status=200) 否则登录。
+ * Condition(凭证 exists) → 探活(statusCheck 白名单 200/401/403，关业务码) →
+ * Condition(status=200 且 expectedMatch) 否则登录。
  * 默认把 token 抽到 asset.{entryKey}.{fieldPath}。
  */
 export function buildLoginGraphJson({
@@ -236,7 +237,9 @@ export function buildLoginGraphJson({
               }
             : {}),
           timeoutMs: timeout,
-          statusCheck: { mode: 'whitelist', values: [200, 401] },
+          // 探活：200 活着，401/403 去登录；其它码步骤失败
+          statusCheck: { mode: 'whitelist', values: [200, 401, 403] },
+          // 关闭业务码，避免非 JSON / 401 体误失败
           successCheck: { mode: 'off' },
           extracts: [],
           summary: String(probeApiId || '').trim()
@@ -255,7 +258,11 @@ export function buildLoginGraphJson({
             {
               id: 'b_alive_if',
               kind: 'if',
-              conditions: [{ left: 'http.status', operator: 'eq', right: '200' }],
+              // 已登录：HTTP 200 且响应符合接口期望形态
+              conditions: [
+                { left: 'http.status', operator: 'eq', right: '200' },
+                { left: 'http.expectedMatch', operator: 'eq', right: 'true' },
+              ],
             },
             { id: 'b_alive_else', kind: 'else', target: 'login_http', conditions: [] },
           ],

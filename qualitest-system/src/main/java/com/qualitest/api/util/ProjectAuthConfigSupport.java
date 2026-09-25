@@ -480,10 +480,11 @@ public final class ProjectAuthConfigSupport {
         return Map.of("request", Map.of("bodyExample", bodyExample));
     }
 
-    /** 登录响应草稿：带 schema 与 example；组装时会把 example 拆进测值。 */
+    /** 登录响应草稿：期望形态 json，带 schema 与 example；组装时会把 example 拆进测值。 */
     private static Map<String, Object> loginResponseConfig(Map<String, Object> example) {
         return Map.of(
                 "configVersion", 1,
+                "expectedResponseKind", "json",
                 "responses", List.of(Map.of(
                         "id", "resp-login",
                         "name", "成功",

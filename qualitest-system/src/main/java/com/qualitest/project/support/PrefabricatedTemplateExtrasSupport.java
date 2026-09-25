@@ -803,7 +803,8 @@ public final class PrefabricatedTemplateExtrasSupport {
 
     /**
      * 组装内置模板用的「探活再登录」流 JSON 数组字符串。
-     * 默认探活 GET /getInfo；extract 写入 asset.{entryKey}.{fieldPath}。
+     * 图：凭证存在 → 探活（白名单 200/401/403）→ 状态 200 且响应符合期望则结束，否则登录。
+     * 默认探活 GET /getInfo；登录 extract 写入 asset.{entryKey}.{fieldPath}。
      */
     public static String builtinLoginFlowJson(
             String flowName,
@@ -819,8 +820,8 @@ public final class PrefabricatedTemplateExtrasSupport {
 
     /**
      * 组装内置模板用的「探活再登录」流 JSON 数组字符串。
-     * 图：Condition(asset 凭证 exists) → 探活(statusCheck whitelist 200/401)
-     * → Condition(http.status=200) 否则登录；extract 写入 asset.{entryKey}.{fieldPath}。
+     * 图：凭证存在 → 探活（白名单 200/401/403）→ 状态 200 且响应符合期望则结束，否则登录。
+     * extract 写入 asset.{entryKey}.{fieldPath}；
      * 登录 body 引用同 key 的预制口令（adminAuth.username/password 或 clientAuth.mobile/password）。
      */
     public static String builtinLoginFlowJson(
@@ -838,6 +839,8 @@ public final class PrefabricatedTemplateExtrasSupport {
     }
 
     /**
+     * 组装内置模板用的「探活再登录」流（可绑定预制登录/探活口 id 与展示名）。
+     *
      * @param loginApiId   预制登录口合成 id
      * @param probeApiId   预制探活口合成 id
      * @param loginApiName 登录口展示名
@@ -905,9 +908,11 @@ public final class PrefabricatedTemplateExtrasSupport {
         probeData.put("timeoutMs", 30000);
         JSONObject statusCheck = new JSONObject();
         statusCheck.put("mode", "whitelist");
-        statusCheck.put("values", List.of(200, 401));
+        // 探活：200 视为活着，401/403 视为去登录（步骤仍 passed）；其它状态码步骤失败
+        statusCheck.put("values", List.of(200, 401, 403));
         probeData.put("statusCheck", statusCheck);
         JSONObject probeSuccess = new JSONObject();
+        // 探活关闭业务码校验，避免 401 体或非 JSON 触发业务失败
         probeSuccess.put("mode", "off");
         probeData.put("successCheck", probeSuccess);
         probeData.put("extracts", List.of());
@@ -923,9 +928,11 @@ public final class PrefabricatedTemplateExtrasSupport {
         JSONObject condAliveData = new JSONObject();
         condAliveData.put("name", "凭证是否有效");
         condAliveData.put("summary", "凭证是否有效");
+        // 已登录：HTTP 200 且实际响应符合接口期望形态（如期望 json 却回 HTML 则去登录）
         condAliveData.put("branches", List.of(
                 endBranch("b_alive_if", "if", List.of(
-                        condition("http.status", "eq", "200"))),
+                        condition("http.status", "eq", "200"),
+                        condition("http.expectedMatch", "eq", "true"))),
                 branch("b_alive_else", "else", "login_http", List.of())
         ));
         condAlive.put("data", condAliveData);

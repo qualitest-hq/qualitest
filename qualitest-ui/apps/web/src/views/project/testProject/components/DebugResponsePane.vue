@@ -45,6 +45,14 @@
           type="info"
       />
       <el-alert
+          v-if="expectedMismatchHint"
+          :closable="false"
+          :title="expectedMismatchHint"
+          class="debug-expected-mismatch-alert"
+          show-icon
+          type="warning"
+      />
+      <el-alert
           v-if="debugResponse.preScriptError"
           :closable="false"
           :title="'前置脚本：' + debugResponse.preScriptError"
@@ -144,15 +152,35 @@
 
 <script setup>
 import ResponseMediaPreview from '@/components/ResponseMediaPreview/index.vue'
+import {computed} from 'vue'
+import {
+  matchesExpectedResponseKind,
+  normalizeExpectedResponseKind,
+  parseResponseConfigInput
+} from '@/views/project/testProject/utils/responseConfig'
 
-defineProps({
+const props = defineProps({
   debugResponse: {type: Object, required: true},
   activeRespTab: {type: String, default: 'body'},
   debugScriptTestsBadge: {type: Number, default: 0},
-  formatResponseHeaders: {type: Function, required: true}
+  formatResponseHeaders: {type: Function, required: true},
+  /** 当前接口 responseConfig JSON；用于对照期望响应形态是否与实际正文一致 */
+  responseConfigText: {type: String, default: ''}
 })
 
 const emit = defineEmits(['update:activeRespTab'])
+
+const expectedMismatchHint = computed(() => {
+  // 调试发送后：实际正文不符合接口期望形态时给出提示（不改转发结果）
+  const dr = props.debugResponse
+  if (!dr?.sent || dr.error || dr.status == null) return ''
+  const parsed = parseResponseConfigInput(props.responseConfigText)
+  const kind = normalizeExpectedResponseKind(parsed.bundle?.expectedResponseKind)
+  if (kind === 'any') return ''
+  if (matchesExpectedResponseKind(kind, dr.bodyText)) return ''
+  const label = kind === 'html' ? 'HTML' : 'JSON'
+  return `与接口期望不符：期望 ${label}，实际响应形态不一致`
+})
 </script>
 
 <style lang="scss" scoped>

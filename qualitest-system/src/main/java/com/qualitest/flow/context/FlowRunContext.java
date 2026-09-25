@@ -49,7 +49,8 @@ public class FlowRunContext {
     private boolean externalHttpPermitted = true;
 
     /**
-     * 最近一步 HTTP 响应快照（含 status / headers / body / durationMs）
+     * 最近一步 HTTP 响应快照（status / headers / body / durationMs /
+     * 实际响应形态 responseKind / 是否符合接口期望 expectedMatch）
      */
     private HttpResponseSnapshot lastResponse;
 
@@ -77,5 +78,13 @@ public class FlowRunContext {
          * 该步 HTTP 请求耗时（毫秒）
          */
         private Long durationMs;
+        /**
+         * 实际响应形态：json（对象/数组）或 nonJson（HTML、纯文本等）
+         */
+        private String responseKind;
+        /**
+         * 实际响应是否符合接口配置的期望形态；无绑定接口时为 true
+         */
+        private Boolean expectedMatch;
     }
 }

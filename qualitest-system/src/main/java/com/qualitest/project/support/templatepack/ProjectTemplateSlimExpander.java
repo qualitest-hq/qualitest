@@ -369,7 +369,7 @@ public class ProjectTemplateSlimExpander {
         return mapToNameExampleList(map, false);
     }
 
-    /** 响应样例 → responseConfig（含推断 schema 与一条成功响应）。 */
+    /** 响应样例 → responseConfig（期望形态 json + 推断 schema + 一条成功响应）。 */
     private static Map<String, Object> buildResponseConfig(Map<String, Object> example) {
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("id", "resp-" + IdUtil.fastSimpleUUID().substring(0, 8));
@@ -380,6 +380,7 @@ public class ProjectTemplateSlimExpander {
         resp.put("example", example);
         Map<String, Object> cfg = new LinkedHashMap<>();
         cfg.put("configVersion", 1);
+        cfg.put("expectedResponseKind", "json");
         cfg.put("responses", List.of(resp));
         return cfg;
     }

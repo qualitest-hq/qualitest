@@ -3,6 +3,7 @@ package com.qualitest.ai.tools.flow;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignApiSummarizer;
 import com.qualitest.api.util.AuthHeaderHintSupport;
+import com.qualitest.api.util.ExpectedResponseKindSupport;
 import com.qualitest.api.util.LoginExtractSuggestor;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.support.ResponseConventionSupport;
@@ -16,8 +17,8 @@ import java.util.List;
  * 组装单条项目接口的造流摘要对象。
  * <p>
  * 输出字段包括：id、method、path、名称与说明、designHints、分组、请求参数与 body 示例、
- * 响应 schema、本端响应约定四字段、鉴权提示。
- * extracts 由 AI/人按 schema 与 Profile.headerValueTemplate 自定，不另返回建议列表。
+ * 响应 schema、期望响应形态、本端响应约定四字段、鉴权提示。
+ * extracts 由调用方按响应 schema 与托管头模板自行决定，不另返回建议列表。
  */
 final class ApiDetailPayloadBuilder {
 
@@ -60,6 +61,9 @@ final class ApiDetailPayloadBuilder {
         result.put("responseSchemaSummary", responseSchemaSummary);
         result.put("responseSchemaLeaves",
                 FlowDesignApiSummarizer.summarizeResponseLeaves(effective.getResponseConfig()));
+        // 接口期望响应形态（探活 Conditon 对照用）
+        result.put("expectedResponseKind",
+                ExpectedResponseKindSupport.fromResponseConfigJson(effective.getResponseConfig()));
 
         JSONObject convention = ResponseConventionSupport.toJsonObject(conventionJson);
         result.put("responseConvention", convention);

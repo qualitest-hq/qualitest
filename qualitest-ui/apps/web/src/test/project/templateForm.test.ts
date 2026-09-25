@@ -148,7 +148,7 @@ describe('buildLoginGraphJson', () => {
     // 期望：Condition → 探活(whitelist) → Condition → 登录；抽取写 asset.adminAuth.token
     const byId = Object.fromEntries(graph.nodes.map((n) => [n.id, n]))
     expect(byId.cond_token.type).toBe('condition')
-    expect(byId.probe_http.data.statusCheck).toEqual({ mode: 'whitelist', values: [200, 401] })
+    expect(byId.probe_http.data.statusCheck).toEqual({ mode: 'whitelist', values: [200, 401, 403] })
     expect(byId.probe_http.data.successCheck).toEqual({ mode: 'off' })
     expect(byId.probe_http.data.apiPath).toBe('/getInfo')
     expect(byId.login_http.data.apiPath).toBe('/login')
@@ -163,6 +163,12 @@ describe('buildLoginGraphJson', () => {
     expect(byId.reuse_end).toBeUndefined()
     const aliveIf = byId.cond_alive.data.branches.find((b) => b.id === 'b_alive_if')
     expect(aliveIf?.target).toBeUndefined()
+    expect(aliveIf?.conditions).toEqual(
+      expect.arrayContaining([
+        { left: 'http.status', operator: 'eq', right: '200' },
+        { left: 'http.expectedMatch', operator: 'eq', right: 'true' },
+      ])
+    )
     expect(graph.edges.length).toBe(4)
     expect(graph.meta.layout).toBe('manual')
     expect(graph.meta.scenarios).toHaveLength(1)

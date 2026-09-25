@@ -264,6 +264,7 @@ public class GetApiDetailsTool implements QualitestTool {
         copyIfPresent(detail, min, "auth");
         copyIfPresent(detail, min, "headerHint");
         copyIfPresent(detail, min, "responseConvention");
+        copyIfPresent(detail, min, "expectedResponseKind");
         return min;
     }
 

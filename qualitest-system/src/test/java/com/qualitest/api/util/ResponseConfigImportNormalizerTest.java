@@ -39,6 +39,7 @@ class ResponseConfigImportNormalizerTest {
                 }
                 """;
         String out = ResponseConfigImportNormalizer.normalize(raw);
+        assertTrue(out.contains("\"expectedResponseKind\":\"json\""));
         assertTrue(out.contains("\"configVersion\":1"));
         assertTrue(out.contains("\"responses\""));
         assertTrue(out.contains("resp-abc123"));

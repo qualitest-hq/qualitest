@@ -11,6 +11,7 @@ import com.qualitest.api.util.ApiConfigJsonSupport;
 import com.qualitest.api.util.ApiImportConfigPipeline;
 import com.qualitest.api.util.ApiSchemaSoftMergeSupport;
 import com.qualitest.api.util.ApiTestValuePeelSupport;
+import com.qualitest.api.util.ExpectedResponseKindSupport;
 import com.qualitest.project.domain.TestProjectApi;
 import org.springframework.stereotype.Service;
 
@@ -181,7 +182,8 @@ public class ApiImportMergeService {
     }
 
     /**
-     * 合并响应结构：按 id（或 httpStatus+name）对齐条目与 schema。
+     * 合并响应结构：按 id（或 httpStatus+name）匹配条目并合并 schema；
+     * 顶层期望响应形态优先取上传包，否则保留库内。
      * 上传包带的 example 写入 examplesById（已有不覆盖）；结构里不留 example。
      * 上传包删掉的条目，其测值挪到 archivedExamples。
      */
@@ -192,6 +194,14 @@ public class ApiImportMergeService {
             ApiImportMergeSummary summary) {
         ObjectNode out = JsonNodeFactory.instance.objectNode();
         out.put("configVersion", ApiConfigJsonSupport.CONFIG_VERSION);
+        // 期望响应形态：上传包有字段则用上传包，否则保留库内原值，再缺省为 json
+        String incomingKind = ExpectedResponseKindSupport.fromObjectNode(incoming);
+        String existingKind = ExpectedResponseKindSupport.fromObjectNode(existing);
+        boolean incomingHasKind = incoming != null
+                && incoming.has(ExpectedResponseKindSupport.FIELD)
+                && !incoming.get(ExpectedResponseKindSupport.FIELD).isNull();
+        ExpectedResponseKindSupport.putOnObjectNode(out,
+                incomingHasKind ? incomingKind : existingKind);
 
         ArrayNode existingResponses = ApiConfigJsonSupport.arrayOrEmpty(existing.get("responses"));
         ArrayNode incomingResponses = ApiConfigJsonSupport.arrayOrEmpty(incoming.get("responses"));

@@ -22,6 +22,16 @@
     </template>
 
     <template v-else>
+      <div class="resp-expected-kind-row">
+        <!-- 接口级期望响应形态：跑流探活对照实际 body -->
+        <span class="resp-expected-kind-label">期望响应形态</span>
+        <el-select v-model="local.expectedResponseKind" class="resp-expected-kind-select" placeholder="期望形态">
+          <el-option label="JSON" value="json"/>
+          <el-option label="HTML" value="html"/>
+          <el-option label="任意" value="any"/>
+        </el-select>
+        <span class="resp-field-desc resp-expected-kind-hint">跑流探活对照：实际形态不符则不算已登录</span>
+      </div>
       <div class="resp-tab-bar">
         <div class="resp-tab-bar__tabs">
           <el-tabs
@@ -619,6 +629,29 @@ defineExpose({
   font-size: 12px;
   color: var(--pd-text-muted, #5a6b86);
   line-height: 1.45;
+}
+
+.resp-expected-kind-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.resp-expected-kind-label {
+  font-size: 13px;
+  color: var(--pd-text, #1f2a37);
+  flex-shrink: 0;
+}
+
+.resp-expected-kind-select {
+  width: 120px;
+}
+
+.resp-expected-kind-hint {
+  margin: 0;
+  flex: 1 1 160px;
 }
 
 .resp-raw-textarea {

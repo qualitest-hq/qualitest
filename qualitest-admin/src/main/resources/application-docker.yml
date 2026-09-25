@@ -6,7 +6,7 @@
 
 qualitest:
   name: Qualitest
-  version: 1.4.2
+  version: 1.4.3
   copyrightYear: 2026
   profile: ${QUALITEST_PROFILE:/data/upload}
   addressEnabled: false

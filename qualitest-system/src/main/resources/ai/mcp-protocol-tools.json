@@ -502,7 +502,7 @@
               },
               "statusCheck": {
                 "type": "object",
-                "description": "HTTP 状态码门禁。默认 2xx；探活常用 mode=whitelist、values=[200,401]；off 不校验状态码。",
+                "description": "HTTP 状态码门禁。默认 2xx；探活常用 mode=whitelist、values=[200,401,403]（活着+去登录；5xx 仍失败）；off 不校验状态码。探活活着判定另看 http.expectedMatch（对照接口 expectedResponseKind）。",
                 "properties": {
                   "mode": {
                     "type": "string",
@@ -1315,6 +1315,10 @@
                 },
                 "responseSchemaSummary": {
                   "description": "响应 schema 摘要（对象）；可省略"
+                },
+                "expectedResponseKind": {
+                  "type": "string",
+                  "description": "期望响应形态：json（默认）/ html / any。跑流时对照实际 body；不符则探活 Conditon 视为未登录"
                 },
                 "authSuggestion": {
                   "type": "object",

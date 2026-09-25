@@ -1,6 +1,7 @@
 /**
- * API 响应配置读写（存 TestProjectApi.responseConfig 单一 JSON 字符串）。
- * 结构：{ configVersion: 1, responses: [ { id, name, httpStatus, contentType, schema, example, ... } ] }
+ * 接口响应配置读写（存接口表 responseConfig 单一 JSON 字符串）。
+ * 结构含 configVersion、expectedResponseKind（期望响应形态：json/html/any）、responses 条目列表。
+ * expectedResponseKind 供跑流探活对照实际响应是否符合期望。
  */
 
 import { RESPONSE_CONFIG_VERSION } from './apiConfigConstants'
@@ -8,11 +9,12 @@ import {sanitizeBodyJsonSchemaForPersist} from '@/views/project/testProject/util
 
 export { RESPONSE_CONFIG_VERSION } from './apiConfigConstants'
 
-/** 生成 Web 端新建响应项时使用的 id */
+/** 生成新建响应条目的 id */
 export function genResponseEntryId() {
   return `resp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+/** 默认一条成功响应条目（200 / json） */
 export function createDefaultResponseEntry() {
   return {
     id: genResponseEntryId(),
@@ -26,19 +28,33 @@ export function createDefaultResponseEntry() {
   }
 }
 
+/** 空响应配置：版本号 + 期望形态 json + 一条默认成功条目 */
 export function createEmptyResponseConfig() {
   return {
     configVersion: RESPONSE_CONFIG_VERSION,
+    expectedResponseKind: 'json',
     responses: [createDefaultResponseEntry()]
   }
 }
 
+/** 规范条目 contentType 为 json / xml / binary */
 function normalizeContentType(v) {
   const x = String(v || '').toLowerCase()
   if (x === 'xml' || x === 'binary' || x === 'json') return x
   return 'json'
 }
 
+/**
+ * 规范期望响应形态为 json / html / any；空白或未知视为 json。
+ * @param {unknown} v
+ */
+export function normalizeExpectedResponseKind(v) {
+  const x = String(v || '').toLowerCase().trim()
+  if (x === 'html' || x === 'any' || x === 'json') return x
+  return 'json'
+}
+
+/** 规范单条响应条目字段 */
 function normalizeResponseEntry(r) {
   if (!r || typeof r !== 'object') return createDefaultResponseEntry()
   const http = Number(r.httpStatus)
@@ -60,17 +76,40 @@ function normalizeResponseEntry(r) {
   }
 }
 
+/**
+ * 无显式期望时按条目 contentType 推断：全是 json → json，出现 xml/binary → any。
+ */
+function inferExpectedKindFromResponses(list) {
+  if (!Array.isArray(list) || !list.length) return 'json'
+  for (const r of list) {
+    const ct = normalizeContentType(r?.contentType)
+    if (ct !== 'json') return 'any'
+  }
+  return 'json'
+}
+
+/**
+ * 规范整份响应配置：补齐版本、期望形态、responses。
+ * 有 expectedResponseKind 则规范化；否则按条目 contentType 推断。
+ */
 function normalizeBundle(o) {
   const src = o && typeof o === 'object' ? o : {}
   let list = Array.isArray(src.responses) ? src.responses.map(normalizeResponseEntry) : []
   if (!list.length) list = [createDefaultResponseEntry()]
+  const kindRaw = src.expectedResponseKind
+  const expectedResponseKind =
+    kindRaw != null && String(kindRaw).trim() !== ''
+      ? normalizeExpectedResponseKind(kindRaw)
+      : inferExpectedKindFromResponses(list)
   return {
     configVersion: RESPONSE_CONFIG_VERSION,
+    expectedResponseKind,
     responses: list
   }
 }
 
 /**
+ * 解析库中或编辑区的 responseConfig 原文。
  * @param {string|null|undefined} raw
  * @returns {{ ok: boolean, bundle: object, rawFallback: string|null, parseError: boolean }}
  */
@@ -96,6 +135,7 @@ export function parseResponseConfigInput(raw) {
   return {ok: false, bundle: createEmptyResponseConfig(), rawFallback: str, parseError: true}
 }
 
+/** 清洗响应 example：空串/空对象置 null，JSON 字符串尽量解析为对象 */
 function sanitizeExampleValue(ex) {
   if (ex == null) return null
   if (typeof ex === 'string') {
@@ -112,7 +152,7 @@ function sanitizeExampleValue(ex) {
 }
 
 /**
- * 序列化为写入库的 JSON 字符串（含每条响应 schema 清洗；unwrap 仅展示，写库保持扫描形态）
+ * 序列化为写入库的 JSON 字符串（含每条响应 schema 清洗）。
  */
 export function serializeResponseConfig(bundle) {
   const out = normalizeBundle(JSON.parse(JSON.stringify(bundle)))
@@ -133,4 +173,36 @@ export function serializeResponseConfig(bundle) {
     }
   }
   return JSON.stringify(out)
+}
+
+/**
+ * 判断实际响应正文是否符合期望形态。
+ * any 恒通过；json 要求正文可解析为 JSON；html 要求正文不是 JSON。
+ * @param {string} expectedKind 期望形态
+ * @param {string|null|undefined} bodyText 实际响应正文
+ */
+export function matchesExpectedResponseKind(expectedKind, bodyText) {
+  const expected = normalizeExpectedResponseKind(expectedKind)
+  if (expected === 'any') return true
+  const actual = detectActualResponseKind(bodyText)
+  if (expected === 'json') return actual === 'json'
+  if (expected === 'html') return actual === 'nonJson'
+  return actual === 'json'
+}
+
+/**
+ * 根据响应正文判定实际形态：可 JSON.parse 的对象/数组 → json，否则 nonJson。
+ * @param {string|null|undefined} bodyText
+ * @returns {'json'|'nonJson'}
+ */
+export function detectActualResponseKind(bodyText) {
+  if (bodyText == null || String(bodyText).trim() === '') return 'nonJson'
+  const trimmed = String(bodyText).trim()
+  if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return 'nonJson'
+  try {
+    JSON.parse(trimmed)
+    return 'json'
+  } catch {
+    return 'nonJson'
+  }
 }

@@ -13,11 +13,11 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * 导入时规范化 {@code responseConfig} JSON。
+ * 导入时规范化 responseConfig JSON。
  * <p>
- * 目标结构：{@code configVersion:1} 与 {@code responses[]}，每项含
- * {@code id}、{@code name}、{@code httpStatus}、{@code contentType}、{@code schema}、{@code example}。
- * 含 {@code content} 顶层字段、缺 responses 数组或非法 JSON 时失败；空白输入写入一条默认成功响应。
+ * 产出结构：configVersion=1、expectedResponseKind（缺省 json）、responses 数组
+ *（每项含 id、name、httpStatus、contentType、schema、example）。
+ * 含非法顶层 content、缺 responses 或非法 JSON 时抛错；空白输入生成一条默认成功响应。
  */
 public final class ResponseConfigImportNormalizer {
 
@@ -58,10 +58,14 @@ public final class ResponseConfigImportNormalizer {
         }
     }
 
-    /** 规范化 responses 列表，空列表时补一条默认项 */
+    /**
+     * 组装规范化后的响应配置对象。
+     * 写入版本号与期望响应形态；responses 为空时补一条默认成功项。
+     */
     private static ObjectNode normalizeResponsesBundle(ObjectNode root) {
         ObjectNode out = JsonNodeFactory.instance.objectNode();
         out.put("configVersion", CONFIG_VERSION);
+        ExpectedResponseKindSupport.putOnObjectNode(out, resolveExpectedKind(root));
         ArrayNode responses = JsonNodeFactory.instance.arrayNode();
         JsonNode arr = root.get("responses");
         if (arr != null && arr.isArray()) {
@@ -74,6 +78,49 @@ public final class ResponseConfigImportNormalizer {
         }
         out.set("responses", responses);
         return out;
+    }
+
+    /**
+     * 解析期望响应形态：已有 expectedResponseKind 则规范化后采用；
+     * 否则按 responses 条目的 contentType 推断（全 json → json，含 xml/binary → any）。
+     */
+    private static String resolveExpectedKind(ObjectNode root) {
+        if (root != null && root.hasNonNull(ExpectedResponseKindSupport.FIELD)
+                && root.get(ExpectedResponseKindSupport.FIELD).isTextual()) {
+            return ExpectedResponseKindSupport.fromObjectNode(root);
+        }
+        return inferExpectedKindFromResponses(root);
+    }
+
+    /**
+     * 按响应条目 contentType 推断期望形态。
+     * 全部为 json（或缺省）→ json；出现 xml 或 binary → any。
+     */
+    private static String inferExpectedKindFromResponses(ObjectNode root) {
+        if (root == null) {
+            return ExpectedResponseKindSupport.KIND_JSON;
+        }
+        JsonNode arr = root.get("responses");
+        if (arr == null || !arr.isArray() || arr.isEmpty()) {
+            return ExpectedResponseKindSupport.KIND_JSON;
+        }
+        boolean sawNonJson = false;
+        for (JsonNode item : arr) {
+            if (item == null || !item.isObject()) {
+                continue;
+            }
+            String ct = "json";
+            if (item.hasNonNull("contentType") && item.get("contentType").isTextual()) {
+                ct = normalizeContentType(item.get("contentType").asText());
+            }
+            if (!"json".equals(ct)) {
+                sawNonJson = true;
+                break;
+            }
+        }
+        return sawNonJson
+                ? ExpectedResponseKindSupport.KIND_ANY
+                : ExpectedResponseKindSupport.KIND_JSON;
     }
 
     /** 规范化单条响应：补 id、默认名称/状态码/类型，schema 缺省为 null */
@@ -134,10 +181,11 @@ public final class ResponseConfigImportNormalizer {
         return "json";
     }
 
-    /** 空白输入使用的默认响应 bundle */
+    /** 空白输入时的默认响应配置：期望 json + 一条 200/json 成功项 */
     private static ObjectNode emptyBundle() {
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         root.put("configVersion", CONFIG_VERSION);
+        ExpectedResponseKindSupport.putOnObjectNode(root, ExpectedResponseKindSupport.KIND_JSON);
         ArrayNode arr = JsonNodeFactory.instance.arrayNode();
         arr.add(defaultResponseEntry());
         root.set("responses", arr);

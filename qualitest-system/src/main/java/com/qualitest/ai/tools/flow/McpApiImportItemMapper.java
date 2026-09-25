@@ -6,6 +6,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.params.ApiImportParams;
 import com.qualitest.api.util.ApiConfigJsonSupport;
+import com.qualitest.api.util.ExpectedResponseKindSupport;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.api.util.RequestConfigImportNormalizer;
 import com.qualitest.common.exception.ServiceException;
@@ -124,7 +125,9 @@ public final class McpApiImportItemMapper {
                 item.get("headerParams"),
                 item.get("bodyParams"),
                 item.get("bodyExample"));
-        String responseConfig = buildResponseConfig(item.get("responseSchemaSummary"));
+        String responseConfig = buildResponseConfig(
+                item.get("responseSchemaSummary"),
+                item.get("expectedResponseKind"));
         ApiAuthConfig auth = mapAuth(item.get("authSuggestion"));
 
         ApiImportParams.ApiImportItem apiItem = ApiImportParams.ApiImportItem.builder()
@@ -212,13 +215,16 @@ public final class McpApiImportItemMapper {
     }
 
     /**
-     * 组装响应配置：固定一条 HTTP 200 的默认成功响应；
+     * 组装响应配置：固定一条 HTTP 200 成功响应；
      * 有 responseSchemaSummary 则写入 schema，否则空对象。
+     * expectedResponseKind 为接口期望响应形态，缺省 json。
      */
-    private static String buildResponseConfig(Object responseSchemaSummary) {
+    private static String buildResponseConfig(Object responseSchemaSummary, Object expectedResponseKind) {
         Object schema = coerceJson(responseSchemaSummary);
         JSONObject root = new JSONObject();
         root.put("configVersion", ApiConfigJsonSupport.CONFIG_VERSION);
+        root.put("expectedResponseKind",
+                ExpectedResponseKindSupport.normalize(str(expectedResponseKind)));
         JSONArray responses = new JSONArray();
         JSONObject resp = new JSONObject();
         resp.put("id", "default");

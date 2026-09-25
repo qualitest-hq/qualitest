@@ -11,6 +11,7 @@ import com.qualitest.api.script.ApiScriptContext;
 import com.qualitest.api.script.ApiScriptExecutionResult;
 import com.qualitest.api.script.ApiScriptSupport;
 import com.qualitest.api.service.IDebugHttpForwardService;
+import com.qualitest.api.util.ExpectedResponseKindSupport;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.context.AssetExtractPersistService;
 import com.qualitest.flow.context.ExtractApplicator;
@@ -58,7 +59,8 @@ import java.util.Map;
  *   <li>仅 HTTP 2xx 时再做业务码：successCheck.mode 非 off 则读 body 业务码；
  *       不在成功白名单内则步骤失败（TF_BIZ_CODE），并在 http.bizCheck 写入实际码、消息、解析失败时的 body 片段</li>
  * </ol>
- * 有响应即写入 lastResponse（含非 2xx）。
+ * 有响应即写入 lastResponse（含非 2xx），并附带实际响应形态 responseKind、
+ * 是否符合接口期望形态 expectedMatch（供 Conditon 分支；不符期望不直接导致本步失败）。
  * extracts：默认仅步骤最终通过才执行并落盘 asset；
  * extractsOnFailure=write 时失败也会做内存抽取，但 asset 落盘仍只在步骤通过时发生。
  * 业务码路径经 toAbsolutePath 规范化后再读，避免 codePath 已带 {@code $.} 时再拼一层变成无效路径。
@@ -256,12 +258,21 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             ApiScriptExecutionResult preScriptResult,
             ApiScriptExecutionResult postScriptResult,
             TestProjectApi api) {
+        // 判定实际响应形态，并对照接口期望：供 Conditon 读 http.responseKind / http.expectedMatch
+        // （探活：不符期望则去登录；步骤本身不因此失败）
+        String responseKind = ExpectedResponseKindSupport.detectActualKind(body);
+        boolean expectedMatch = api == null
+                || ExpectedResponseKindSupport.matchesOrSkip(api.getResponseConfig(), body);
+
         FlowRunContext.HttpResponseSnapshot snapshot = FlowRunContext.HttpResponseSnapshot.builder()
                 .status(status)
                 .headers(responseHeaders)
                 .body(body)
                 .durationMs(durationMs)
+                .responseKind(responseKind)
+                .expectedMatch(expectedMatch)
                 .build();
+        ctx.setLastResponse(snapshot);
 
         Map<String, Object> httpDetails = new LinkedHashMap<>();
         httpDetails.put("callMode", built.getCallMode());
@@ -273,6 +284,9 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         responseSnapshot.put("status", status);
         responseSnapshot.put("headers", responseHeaders);
         responseSnapshot.put("body", body);
+        // 步骤报告：响应形态与是否符合接口期望
+        responseSnapshot.put("responseKind", responseKind);
+        responseSnapshot.put("expectedMatch", expectedMatch);
         // 裸媒体：只写 bodyMedia 元数据（stored=false），不落 bodyBase64
         Map<String, Object> bodyMedia = HttpResponseBodyMediaSupport.buildMarker(forwardResult);
         if (bodyMedia != null) {
@@ -280,6 +294,8 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
         httpDetails.put("response", responseSnapshot);
         httpDetails.put("durationMs", durationMs);
+        httpDetails.put("responseKind", responseKind);
+        httpDetails.put("expectedMatch", expectedMatch);
         if (preScriptResult != null) {
             httpDetails.put("preScript", preScriptResult.toStepScriptDetails());
         }

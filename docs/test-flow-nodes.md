@@ -36,7 +36,7 @@
 常用能力：
 
 - 成功判定（两层，不合并）：
-  - **HTTP 状态** `statusCheck`：默认 `mode=2xx`（非 2xx → 失败）；`whitelist` + `values` 仅放行列表内状态码（探活常用 `[200,401]`）；`off` 任意状态码步骤仍 passed。有响应即写入 `lastResponse`，后续 Condition 可读 `http.status`
+  - **HTTP 状态** `statusCheck`：默认 `mode=2xx`（非 2xx → 失败）；`whitelist` + `values` 仅放行列表内状态码（探活常用 `[200,401,403]`）；`off` 任意状态码步骤仍 passed。有响应即写入 `lastResponse`，后续 Condition 可读 `http.status`、`http.expectedMatch`（对照接口 `expectedResponseKind`）、`http.responseKind`
   - **业务码** `successCheck`：仅在 **2xx** 后可选校验 body 业务码白名单；`mode=off` 关闭。`codePath` 支持 `code` 或 `$.code`
 - **extracts**：默认仅步骤最终通过后执行；`extractsOnFailure=write` 时失败也写入内存（asset 落盘仍仅通过时）
 - **前置/后置脚本**：见下方「HTTP 脚本（preScript / postScript）」

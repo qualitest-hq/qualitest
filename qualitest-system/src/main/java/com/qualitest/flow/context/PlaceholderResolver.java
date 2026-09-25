@@ -123,8 +123,9 @@ public record PlaceholderResolver(ResolveMode mode) {
     }
 
     /**
-     * 解析 {@code http.*}：整 body、body 上 JsonPath、状态码、耗时、响应头。
-     * {@code http.body.$.…} 视为非法，返回 null。
+     * 解析 http.* 路径：整 body、body 上 JsonPath、状态码、耗时、响应头、
+     * 实际响应形态 responseKind、是否符合接口期望 expectedMatch。
+     * http.body.$.… 视为非法，返回 null。
      */
     private static Object resolveHttpPath(FlowRunContext ctx, String rest) {
         if (rest == null || rest.isEmpty()) {
@@ -136,6 +137,14 @@ public record PlaceholderResolver(ResolveMode mode) {
         }
         if ("status".equals(rest)) {
             return last == null ? null : last.getStatus();
+        }
+        // 实际响应形态（json / nonJson）
+        if ("responseKind".equals(rest)) {
+            return last == null ? null : last.getResponseKind();
+        }
+        // 是否符合接口期望形态（探活 Conditon 常用）
+        if ("expectedMatch".equals(rest)) {
+            return last == null ? null : last.getExpectedMatch();
         }
         if ("body".equals(rest)) {
             return last == null ? null : last.getBody();

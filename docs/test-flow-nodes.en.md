@@ -36,7 +36,7 @@ Two paths via `data.callMode`, sharing forward + `extracts`:
 Common features:
 
 - Success checks (two layers, not merged):
-  - **HTTP status** `statusCheck`: default `mode=2xx` (non-2xx fails); `whitelist` + `values` allows listed statuses (probe often `[200,401]`); `off` passes any status. Response is written to `lastResponse` so Condition can read `http.status`
+  - **HTTP status** `statusCheck`: default `mode=2xx` (non-2xx fails); `whitelist` + `values` allows listed statuses (probe often `[200,401,403]`); `off` passes any status. Response is written to `lastResponse` so Condition can read `http.status`, `http.expectedMatch` (vs API `expectedResponseKind`), `http.responseKind`
   - **Business code** `successCheck`: optional body-code allowlist after **2xx** only; `mode=off` disables
 - Placeholder resolution on params / body (`flow` / `env` / `asset` / `session`, …)
 - **Project auth headers** (Profiles / managed `{{asset.*}}` / `{{flow.*}}` → [project-summary.en.md §4](./project-summary.en.md))

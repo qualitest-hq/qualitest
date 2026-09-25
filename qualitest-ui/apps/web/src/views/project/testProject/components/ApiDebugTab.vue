@@ -52,6 +52,7 @@
           :active-resp-tab="activeRespTab"
           :debug-script-tests-badge="debugScriptTestsBadge"
           :format-response-headers="formatResponseHeaders"
+          :response-config-text="apiDetail?.responseConfig || ''"
           @update:active-resp-tab="setActiveRespTab"
       />
     </div>

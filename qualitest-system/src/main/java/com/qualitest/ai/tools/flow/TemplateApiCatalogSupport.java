@@ -3,6 +3,7 @@ package com.qualitest.ai.tools.flow;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignApiSummarizer;
+import com.qualitest.api.util.ExpectedResponseKindSupport;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -140,6 +141,9 @@ final class TemplateApiCatalogSupport {
         result.put("bodySchemaLeaves", requestSummary.getJSONArray("bodySchemaLeaves"));
         result.put("responseSchemaSummary", FlowDesignApiSummarizer.summarizeResponse(responseConfigJson));
         result.put("responseSchemaLeaves", FlowDesignApiSummarizer.summarizeResponseLeaves(responseConfigJson));
+        // 期望响应形态，供造探活 Conditon 使用
+        result.put("expectedResponseKind",
+                ExpectedResponseKindSupport.fromResponseConfigJson(responseConfigJson));
         result.put("responseConvention", new JSONObject());
         result.put("auth", api.get("authConfig"));
         return result;

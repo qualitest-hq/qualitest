@@ -643,4 +643,40 @@ class HttpNodeHandlerTest {
         assertTrue(result.getError().getMessage().contains("0"));
         assertTrue(result.getError().getMessage().contains("手机号码不正确"));
     }
+
+    /**
+     * 前提：接口期望 json；转发 200 + HTML 登录页；successCheck=off。
+     * 期望：步骤仍 passed；expectedMatch=false；responseKind=nonJson（供探活 Conditon 去登录）。
+     */
+    @Test
+    @Order(18)
+    @DisplayName("期望 json：200 HTML → expectedMatch=false")
+    void execute_expectedJson_htmlBody_expectedMatchFalse() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/system/main/toDoList")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .responseConfig("{\"configVersion\":1,\"expectedResponseKind\":\"json\",\"responses\":[]}")
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(200, "OK", Map.of(),
+                        "<html><body>未登录或登录超时</body></html>")
+        );
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("statusCheck", Map.of("mode", "whitelist", "values", List.of(200, 401, 403)));
+        data.put("successCheck", Map.of("mode", "off"));
+        GraphNode node = GraphNode.builder().id("n-probe-html").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
+        assertEquals(Boolean.FALSE, ctx.getLastResponse().getExpectedMatch());
+        assertEquals("nonJson", ctx.getLastResponse().getResponseKind());
+        assertEquals(false, result.getHttp().get("expectedMatch"));
+        assertEquals("nonJson", result.getHttp().get("responseKind"));
+    }
 }
+

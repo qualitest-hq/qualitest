@@ -179,7 +179,7 @@ testFlowId 用 <上一步拿到的 id>。
 ```text
 用 qualitest MCP 按当前项目多端 Profile，各造一条「探活再登录」登录子流（如管理端 + 客户端）：
 1. list_project_auth_profiles、list_asset_variables、search_apis（各端登录口与探活口）。缺素材键时 upsert_asset_variables（管理端 adminAuth：username/password；客户端 clientAuth：mobile/password）。无 Profile 时先说明须在项目设置从模板添加，或 upsert_auth_profile。
-2. 每端 create_flow 一条（名称带端别，如「管理端登录」「客户端登录」）。图：Condition(凭证 exists)→探活 HTTP（statusCheck: {mode:whitelist, values:[200,401]} + successCheck.mode=off）→Condition(http.status=200)；探活成功 IF 无出边，ELSE 连登录；登录 extracts 写入该端 headerValueTemplate 引用的 asset.*（两端禁止同一凭证键）。可先 list_subflow_templates；有合适平台/项目模板则按其骨架造或挂子流。
+2. 每端 create_flow 一条（名称带端别，如「管理端登录」「客户端登录」）。图：Condition(凭证 exists)→探活 HTTP（statusCheck: {mode:whitelist, values:[200,401,403]} + successCheck.mode=off）→Condition(http.status=200 且 http.expectedMatch=true)；探活成功 IF 无出边，ELSE 连登录；登录 extracts 写入该端 headerValueTemplate 引用的 asset.*（两端禁止同一凭证键）。接口 expectedResponseKind（默认 json）挂在 responseConfig；跑流对照实际 body。可先 list_subflow_templates；有合适平台/项目模板则按其骨架造或挂子流。
 3. 已开跑流则对各流 run_test_flow 验证；回报各流 testFlowId 与端别。
 ```
 
