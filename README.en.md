@@ -33,6 +33,8 @@ Open-source API automation · flow canvas · AI Diff · IntelliJ / MCP ingest
 
 <p><strong>Pitch</strong>: after changing code, stay in Cursor — MCP builds and runs the flow. Or use the full Web debugger + canvas.</p>
 
+</div>
+
 <br/>
 
 ### 5-minute Quick Start
@@ -45,9 +47,7 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 Open `http://localhost` (default **80**; set `WEB_PORT` in `.env` if busy). Sign in **`admin`** / **`admin123`** after the backend is healthy. More detail: [Try it](#try-it).
 
-<p><strong>Loop</strong>: API ingest → console → flow canvas → AI Diff → MCP</p>
-
-</div>
+<p align="center"><strong>Loop</strong>: API ingest → console → flow canvas → AI Diff → MCP</p>
 
 ---
 

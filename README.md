@@ -50,6 +50,8 @@ Open `http://localhost` · **`admin`** / **`admin123`**. Docs: [README.en.md](./
 
 </details>
 
+</div>
+
 <br/>
 
 ### 5 分钟起栈
@@ -62,9 +64,7 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 浏览器打开 `http://localhost`（默认 **80**；占用则在 `.env` 设 `WEB_PORT`），登录 **`admin`** / **`admin123`**。等后端健康后再登；细节见下方 [试一把](#-试一把)。
 
-<p><strong>主链路</strong>：接口入库 → 调试台 → 测试流画布 → AI Diff → MCP</p>
-
-</div>
+<p align="center"><strong>主链路</strong>：接口入库 → 调试台 → 测试流画布 → AI Diff → MCP</p>
 
 ---
 
