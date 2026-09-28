@@ -78,9 +78,11 @@ const route = useRoute()
 const router = useRouter()
 const { proxy } = getCurrentInstance()
 
+// 正式镜像不预填；开发可用 VITE_APP_LOGIN_*；演示挂载 /config.js 注入 demo
+const runtimeLogin = (typeof window !== "undefined" && window.__QUALITEST_LOGIN_DEFAULTS__) || {}
 const loginForm = ref({
-  username: "admin",
-  password: "admin123",
+  username: runtimeLogin.username || import.meta.env.VITE_APP_LOGIN_USERNAME || "",
+  password: runtimeLogin.password || import.meta.env.VITE_APP_LOGIN_PASSWORD || "",
   rememberMe: false,
   code: "",
   uuid: ""
