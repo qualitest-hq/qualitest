@@ -252,7 +252,7 @@ docker compose up -d   # 起 MySQL + Redis + app + web
 
 改代码 / 无网时：`docker compose up -d --build`。
 
-浏览器打开 `http://localhost:5180`（默认宿主机 **5180**；被占用则在 `.env` 设 `WEB_PORT`）。登录 **`admin`** / **`admin123`**。勿用于公网。
+浏览器打开 `http://localhost:5180`（默认宿主机 **5180**；被占用则在 `.env` 设 `WEB_PORT`）。登录 **`admin`** / **`admin123`**。勿用于公网。公网演示见 [docs/deploy.md](./docs/deploy.md)（运维 **`QtDemo#Admin2026`**，访客 **`demo` / `demo123`**）。
 
 ### 官方镜像（GHCR）
 

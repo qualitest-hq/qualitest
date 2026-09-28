@@ -37,7 +37,8 @@ docker compose up -d
 ```
 
 - 浏览器：`http://localhost:5180`（`WEB_PORT` 非默认时带对应端口）
-- 默认账号：**`admin` / `admin123`**（Flyway V1 种子；上公网前务必改掉）
+- 默认账号：**`admin` / `admin123`**（Flyway V1 种子；**仅本地 / 私有环境**）
+- **公网演示环境**：勿继续用 `admin123`。执行运维仓种子后，运维口令为 **`admin` / `QtDemo#Admin2026`**，对外访客 **`demo` / `demo123`**（见 [qualitest-demo-host](https://github.com/38680050/qualitest-demo-host)）。**正式**登录页不预填；**演示**通过挂载 `config.js` 预填 demo（运维仓 `1panel/login-defaults.js`）。本地 `.env.development` 可预填 `admin`
 - 首次以 **app 健康 / 日志 Flyway migrate 成功** 为准（不再依赖 initdb 整库 dump）
 - IDEA 插件服务器地址：Compose 填 **`http://localhost:5180/prod-api`**；本机后端填 **`http://localhost:8800`**
 
