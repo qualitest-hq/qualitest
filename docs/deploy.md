@@ -9,7 +9,7 @@ CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker
 
 （`latest` + `sha-<短提交>`；仅 `qualitest-hq/qualitest` 的 `main` / 手动触发。）
 
-**靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**。一般人只起本仓即可体验质衡。
+**靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**（亦可拉 GHCR：`ghcr.io/qualitest-hq/qualitest-demo-app|web|mysql`）。一般人只起本仓即可体验质衡。
 
 English: [deploy.en.md](./deploy.en.md)
 

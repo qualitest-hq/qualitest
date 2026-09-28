@@ -9,7 +9,7 @@ CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dock
 
 (`latest` + `sha-<short>`; only `qualitest-hq/qualitest` `main` / manual dispatch.)
 
-**The demo target is not in this repo’s Compose** (no `--profile demo` mixed stack). To run the shop demo, clone [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) and start it with its own [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start`. Most users only need this repo to try Qualitest.
+**The demo target is not in this repo’s Compose** (no `--profile demo` mixed stack). To run the shop demo, clone [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) and start it with its own [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` (or pull GHCR `ghcr.io/qualitest-hq/qualitest-demo-app|web|mysql`). Most users only need this repo to try Qualitest.
 
 中文版：[deploy.md](./deploy.md)
 
