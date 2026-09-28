@@ -54,7 +54,7 @@ English: [mcp.en.md](./mcp.en.md)
 8. （可选）顶栏「MCP 造流 Agent 规程」：弹窗按编辑器切换（Cursor / Claude Code / Copilot / Windsurf / Continue / Trae / AGENTS.md），复制后保存到对应规则文件；也可在已接 MCP 的编辑器里用示例「同步/更新本地 Skill」从 Prompt 生成带 `guideVersion` 的 Cursor Skill。
 
 本地开发默认后端：`http://127.0.0.1:8800`。  
-Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根（常见为 `http://localhost/api/project/mcp`），以项目设置里生成的为准。
+Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根（常见为 `http://localhost:5180/api/project/mcp`），以项目设置里生成的为准。
 
 ---
 

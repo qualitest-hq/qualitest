@@ -129,6 +129,6 @@ flowchart LR
 
 | 仓库 | 端口 | GitHub | Gitee（只读镜像） |
 | ---- | ---- | ------ | ----------------- |
-| qualitest | Compose Web **80**；本机 API **8800** / UI **5180** | [GitHub](https://github.com/qualitest-hq/qualitest) | [Gitee](https://gitee.com/qualitest-hq/qualitest) |
+| qualitest | Web / API **5180** / **8800**；MySQL / Redis **3306** / **6379** | [GitHub](https://github.com/qualitest-hq/qualitest) | [Gitee](https://gitee.com/qualitest-hq/qualitest) |
 | qualitest-demo | API **8801**；Compose UI **5181** | [GitHub](https://github.com/qualitest-hq/qualitest-demo) | [Gitee](https://gitee.com/qualitest-hq/qualitest-demo) |
 | qualitest-intellij-plugin | — | [GitHub](https://github.com/qualitest-hq/qualitest-intellij-plugin) | [Gitee](https://gitee.com/qualitest-hq/qualitest-intellij-plugin) |

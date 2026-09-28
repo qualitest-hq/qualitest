@@ -17,7 +17,7 @@ English: [deploy.en.md](./deploy.en.md)
 
 ## 一键全栈（推荐）
 
-前置：Docker Desktop / Docker Engine + Compose V2；默认占用宿主机 **80 / 3306 / 6379**（可用 `.env` 改，见下文）。
+前置：Docker Desktop / Docker Engine + Compose V2；默认占用宿主机 **5180 / 3306 / 6379**（可用 `.env` 改，见下文）。
 
 ```bash
 # Linux / macOS
@@ -36,10 +36,10 @@ docker compose up -d
 # docker compose up -d --build
 ```
 
-- 浏览器：`http://localhost`（`WEB_PORT` 非 80 时带端口）
+- 浏览器：`http://localhost:5180`（`WEB_PORT` 非默认时带对应端口）
 - 默认账号：**`admin` / `admin123`**（Flyway V1 种子；上公网前务必改掉）
 - 首次以 **app 健康 / 日志 Flyway migrate 成功** 为准（不再依赖 initdb 整库 dump）
-- IDEA 插件服务器地址：Compose 填 **`http://localhost/prod-api`**；本机后端填 **`http://localhost:8800`**
+- IDEA 插件服务器地址：Compose 填 **`http://localhost:5180/prod-api`**；本机后端填 **`http://localhost:8800`**
 
 `quick-start` 会先 `compose pull`；GHCR 不可达或尚未发布时自动回退 `--build`。本地首次编译前后端可能较慢，属正常。
 
@@ -74,7 +74,7 @@ cd qualitest-demo && ./scripts/quick-start.sh
 
 | 项 | 地址 |
 |----|------|
-| 质衡 Web | http://localhost |
+| 质衡 Web | http://localhost:5180 |
 | 靶场 API / Swagger | http://localhost:8801 （Swagger：`/swagger-ui.html`） |
 | 靶场 UI | http://localhost:5181 |
 
@@ -127,8 +127,8 @@ cd qualitest-ui && pnpm install && pnpm dev
 
 | 项 | Compose 全栈 | 本机开发 | 说明 |
 |----|--------------|----------|------|
-| 质衡 Web | **`WEB_PORT` → 默认 80** | Vite **5180** | Compose 经 Nginx 提供静态页 |
-| 质衡 API | 容器内 **8800**（默认不映射宿主机） | **8800** | 浏览器走 Nginx **`/prod-api`**；插件 Compose 填 `http://localhost/prod-api` |
+| 质衡 Web | **`WEB_PORT` → 默认 5180**（容器内 Nginx 同为 **5180**） | Vite **5180** | Compose 经 Nginx 提供静态页 |
+| 质衡 API | 容器内 **8800**（默认不映射宿主机） | **8800** | 浏览器走 Nginx **`/prod-api`**；插件 Compose 填 `http://localhost:5180/prod-api` |
 | MySQL | **`MYSQL_PORT` → 默认 3306** | 本机或同上 | 库名 `qualitest` |
 | Redis | **`REDIS_PORT` → 默认 6379** | 本机或同上 | Compose 内 app 用库号 `0`；本机 `.env.example` 示例多为 `10` |
 | 靶场 API（demo） | **8801** | 同左 | **独立仓**另起 Compose；本仓不混入 |
@@ -139,7 +139,7 @@ cd qualitest-ui && pnpm install && pnpm dev
 复制 [`.env.example`](../.env.example) 为 `.env`（勿提交），例如：
 
 ```env
-WEB_PORT=8088
+WEB_PORT=6180
 MYSQL_PORT=33066
 REDIS_PORT=63790
 ```
@@ -196,7 +196,7 @@ helm upgrade --install qualitest ./deploy/helm/qualitest \
 未开 Ingress 时：
 
 ```bash
-kubectl -n qualitest port-forward svc/qualitest-web 5180:80
+kubectl -n qualitest port-forward svc/qualitest-web 5180:5180
 # 浏览器 http://127.0.0.1:5180 ；默认 admin / admin123（立刻改掉）
 # Service 名随 Release：{{ release }}-web；上例 Release 名为 qualitest
 ```
@@ -272,7 +272,7 @@ kubectl -n qualitest port-forward svc/qualitest-web 5180:80
    - 非 Compose 生产用 **`prod`**，同样不要启用 Druid 控制台；**切勿**把 `dev`（含默认 Druid 账号）暴露到公网  
 
 3. **HTTPS**  
-   - 本仓 Compose **默认仅 HTTP**（`WEB_PORT`→容器 80）  
+   - 本仓 Compose **默认仅 HTTP**（`WEB_PORT`→容器 **5180**）  
    - 生产请在前面加反向代理（Nginx / Caddy / 云 LB）终结 TLS，反代到 `http://127.0.0.1:${WEB_PORT}`；或自建证书挂到自有 Nginx，把 `deploy/nginx/default.conf` 作 upstream 参考  
    - 证书与私钥不要打进镜像、不要提交进 Git  
 
@@ -303,7 +303,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后本地重建
 
 | 现象 | 可尝试 |
 |------|--------|
-| `Bind for 0.0.0.0:80 failed` 等端口占用 | 改 `.env` 中 `WEB_PORT` / `MYSQL_PORT` / `REDIS_PORT` 后重新 `up` |
+| `Bind for 0.0.0.0:5180 failed` 等端口占用 | 改 `.env` 中 `WEB_PORT` / `MYSQL_PORT` / `REDIS_PORT` 后重新 `up` |
 | 首次启动很慢 / 构建失败 | 确认 Docker 资源与网络；重试 `docker compose build --no-cache app`（或 `web`） |
 | 打不开页面但容器在跑 | `docker compose ps`；`logs -f web` / `logs -f app`；确认访问的是 `WEB_PORT` |
 | 登录失败 / 401 | 确认种子账号；若改过 `TOKEN_SECRET` 需重新登录；查 `app` 日志 |
@@ -311,7 +311,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后本地重建
 | 存量库报 `Found non-empty schema without metadata` | 见下文「库表迁移」存量 baseline；勿对已有库直接跑完整 V1 |
 | `Checksum mismatch` | 改了已执行过的 migration 文件；应还原文件，用新的 `V{n}` 正向修复 |
 | 改完 migration 旧卷仍不对 | 可丢数据时用 `down -v` 再 `up`；生产用增量 `V{n}`，禁止改已执行脚本 |
-| 插件连不上 | Compose 用 `http://localhost/prod-api`；本机用 `http://localhost:8800`；勿混用 |
+| 插件连不上 | Compose 用 `http://localhost:5180/prod-api`；本机用 `http://localhost:8800`；勿混用 |
 | 与 demo 端口冲突 | demo 默认 8801/5181/3307/6380，一般不冲突；若自改过主仓端口再核对 |
 | 调试/测试流连不上靶场 | 确认 demo 已另起；Compose 内质衡 app 勿用 `localhost:8801`，改用 `host.docker.internal:8801`（见上文「与靶场联调」） |
 

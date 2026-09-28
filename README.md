@@ -46,7 +46,7 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open `http://localhost` · **`admin`** / **`admin123`**. Docs: [README.en.md](./README.en.md) · [mcp.en.md](./docs/mcp.en.md).
+Open `http://localhost:5180` · **`admin`** / **`admin123`**. Docs: [README.en.md](./README.en.md) · [mcp.en.md](./docs/mcp.en.md).
 
 </details>
 
@@ -62,7 +62,7 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-浏览器打开 `http://localhost`（默认 **80**；占用则在 `.env` 设 `WEB_PORT`），登录 **`admin`** / **`admin123`**。等后端健康后再登；细节见下方 [试一把](#-试一把)。
+浏览器打开 `http://localhost:5180`（默认 **5180**；占用则在 `.env` 设 `WEB_PORT`），登录 **`admin`** / **`admin123`**。等后端健康后再登；细节见下方 [试一把](#-试一把)。
 
 <p align="center"><strong>主链路</strong>：接口入库 → 调试台 → 测试流画布 → AI Diff → MCP</p>
 
@@ -252,7 +252,7 @@ docker compose up -d   # 起 MySQL + Redis + app + web
 
 改代码 / 无网时：`docker compose up -d --build`。
 
-浏览器打开 `http://localhost`（默认宿主机 **80**；被占用则在 `.env` 设 `WEB_PORT=8088` 等）。登录 **`admin`** / **`admin123`**。勿用于公网。
+浏览器打开 `http://localhost:5180`（默认宿主机 **5180**；被占用则在 `.env` 设 `WEB_PORT`）。登录 **`admin`** / **`admin123`**。勿用于公网。
 
 ### 官方镜像（GHCR）
 

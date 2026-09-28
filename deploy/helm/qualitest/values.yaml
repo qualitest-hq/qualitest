@@ -71,7 +71,7 @@ web:
   resources: {}
   service:
     type: ClusterIP
-    port: 80
+    port: 5180
 
 # --- 内置 MySQL（PoC；生产建议关并用云 RDS / 已有库）---
 mysql:

@@ -17,7 +17,7 @@ CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dock
 
 ## One-command full stack (recommended)
 
-Requires Docker Desktop / Engine + Compose V2. Default host ports: **80 / 3306 / 6379** (override via `.env`).
+Requires Docker Desktop / Engine + Compose V2. Default host ports: **5180 / 3306 / 6379** (override via `.env`).
 
 ```bash
 # Linux / macOS
@@ -36,10 +36,10 @@ docker compose up -d
 # docker compose up -d --build
 ```
 
-- Browser: `http://localhost` (include port if `WEB_PORT` ≠ 80)
+- Browser: `http://localhost:5180` (use the corresponding port if `WEB_PORT` differs)
 - Default login: **`admin` / `admin123`** (Flyway V1 seed — change before public exposure)
 - First boot: wait for **app healthy / Flyway migrate success** in logs (no full initdb dump)
-- IDEA plugin server URL: Compose → **`http://localhost/prod-api`**; local backend → **`http://localhost:8800`**
+- IDEA plugin server URL: Compose → **`http://localhost:5180/prod-api`**; local backend → **`http://localhost:8800`**
 
 `quick-start` runs `compose pull` first and falls back to `--build` if GHCR is unreachable or not published yet. Local first compile can be slow.
 
@@ -74,7 +74,7 @@ cd qualitest-demo && ./scripts/quick-start.sh
 
 | Item | URL |
 |------|-----|
-| Qualitest Web | http://localhost |
+| Qualitest Web | http://localhost:5180 |
 | Demo API / Swagger | http://localhost:8801 (`/swagger-ui.html`) |
 | Demo UI | http://localhost:5181 |
 
@@ -127,8 +127,8 @@ Browser: `http://localhost:5180`. MySQL only needs empty DB `qualitest` (Compose
 
 | Item | Compose full stack | Local dev | Notes |
 |------|--------------------|-----------|-------|
-| Qualitest Web | **`WEB_PORT` → default 80** | Vite **5180** | Compose serves static via Nginx |
-| Qualitest API | **8800** in container (usually not published) | **8800** | Browser uses Nginx **`/prod-api`**; plugin Compose URL `http://localhost/prod-api` |
+| Qualitest Web | **`WEB_PORT` → default 5180** (Nginx in container also **5180**) | Vite **5180** | Compose serves static via Nginx |
+| Qualitest API | **8800** in container (usually not published) | **8800** | Browser uses Nginx **`/prod-api`**; plugin Compose URL `http://localhost:5180/prod-api` |
 | MySQL | **`MYSQL_PORT` → 3306** | Host or same | DB name `qualitest` |
 | Redis | **`REDIS_PORT` → 6379** | Host or same | Compose app uses DB `0`; local `.env.example` often `10` |
 | Demo API | **8801** | Same | **Separate repo** Compose; not mixed here |
@@ -139,7 +139,7 @@ Browser: `http://localhost:5180`. MySQL only needs empty DB `qualitest` (Compose
 Copy [`.env.example`](../.env.example) to `.env` (do not commit), e.g.:
 
 ```env
-WEB_PORT=8088
+WEB_PORT=6180
 MYSQL_PORT=33066
 REDIS_PORT=63790
 ```
@@ -195,7 +195,7 @@ helm upgrade --install qualitest ./deploy/helm/qualitest \
 Without Ingress:
 
 ```bash
-kubectl -n qualitest port-forward svc/qualitest-web 5180:80
+kubectl -n qualitest port-forward svc/qualitest-web 5180:5180
 # http://127.0.0.1:5180 — default admin / admin123 (change immediately)
 # Service name follows Release: <release>-web (example Release name: qualitest)
 ```
@@ -267,7 +267,7 @@ Defaults are for local demos — **do not** ship them to the public internet or 
    - Non-Compose production: **`prod`**, keep Druid console off; **never** expose `dev` (default Druid credentials) publicly  
 
 3. **HTTPS**  
-   - This Compose stack is **HTTP only** by default (`WEB_PORT` → container 80)  
+   - This Compose stack is **HTTP only** by default (`WEB_PORT` → container **5180**)  
    - Terminate TLS on a reverse proxy (Nginx / Caddy / cloud LB) to `http://127.0.0.1:${WEB_PORT}`; or use your own Nginx with `deploy/nginx/default.conf` as upstream reference  
    - Do not bake certs/keys into images or commit them  
 
@@ -298,7 +298,7 @@ docker compose up -d --build # rebuild after code / Dockerfile changes
 
 | Symptom | Try |
 |---------|-----|
-| `Bind for 0.0.0.0:80 failed` | Change `WEB_PORT` / `MYSQL_PORT` / `REDIS_PORT` in `.env`, then `up` again |
+| `Bind for 0.0.0.0:5180 failed` | Change `WEB_PORT` / `MYSQL_PORT` / `REDIS_PORT` in `.env`, then `up` again |
 | Slow first start / build failure | Check Docker resources & network; `docker compose build --no-cache app` (or `web`) |
 | Page down but containers up | `docker compose ps`; `logs -f web` / `logs -f app`; confirm `WEB_PORT` |
 | Login fail / 401 | Seed account? After changing `TOKEN_SECRET`, re-login; check `app` logs |
@@ -306,7 +306,7 @@ docker compose up -d --build # rebuild after code / Dockerfile changes
 | `Found non-empty schema without metadata` | See [existing DB baseline](#existing-databases-local-data--future-production); do not run full V1 on a filled DB |
 | `Checksum mismatch` | An already-applied migration file was edited — restore it; fix forward with a new `V{n}` |
 | Old volume still wrong after migration edits | If data is disposable: `down -v` then `up`; in production only add incremental `V{n}` |
-| Plugin can’t connect | Compose: `http://localhost/prod-api`; local: `http://localhost:8800` — don’t mix |
+| Plugin can’t connect | Compose: `http://localhost:5180/prod-api`; local: `http://localhost:8800` — don’t mix |
 | Port clash with demo | Demo defaults 8801/5181/3307/6380; re-check if you remapped this repo |
 | Debug / flow can’t reach demo | Demo started separately? Compose Qualitest app must not use `localhost:8801` — use `host.docker.internal:8801` (see [demo target](#optional-demo-target--two-compose-stacks)) |
 

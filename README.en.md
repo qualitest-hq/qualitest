@@ -45,7 +45,7 @@ cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
 
-Open `http://localhost` (default **80**; set `WEB_PORT` in `.env` if busy). Sign in **`admin`** / **`admin123`** after the backend is healthy. More detail: [Try it](#try-it).
+Open `http://localhost:5180` (default **5180**; set `WEB_PORT` in `.env` if busy). Sign in **`admin`** / **`admin123`** after the backend is healthy. More detail: [Try it](#try-it).
 
 <p align="center"><strong>Loop</strong>: API ingest → console → flow canvas → AI Diff → MCP</p>
 
@@ -235,7 +235,7 @@ docker compose up -d   # MySQL + Redis + app + web
 
 When changing code / offline: `docker compose up -d --build`.
 
-Open `http://localhost` (default host port **80**; if busy, set `WEB_PORT=8088` in `.env`). Sign in **`admin`** / **`admin123`**. Do not use on the public internet.
+Open `http://localhost:5180` (default host port **5180**; if busy, set `WEB_PORT` in `.env`). Sign in **`admin`** / **`admin123`**. Do not use on the public internet.
 
 ### Official images (GHCR)
 

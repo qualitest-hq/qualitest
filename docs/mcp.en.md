@@ -53,7 +53,7 @@ In one line: **write = build the orchestration; run = hit Run.** Backend self-te
 7. After toggling any switch, **reconnect or refresh MCP** — editors often keep the old tool list (the server does not push tool-list changes).
 
 Local default backend: `http://127.0.0.1:8800`.  
-With full-stack Compose (Nginx), set `url` to the API root your browser can reach (often `http://localhost/api/project/mcp`). Prefer the snippet from Project settings.
+With full-stack Compose (Nginx), set `url` to the API root your browser can reach (often `http://localhost:5180/api/project/mcp`). Prefer the snippet from Project settings.
 
 ---
 

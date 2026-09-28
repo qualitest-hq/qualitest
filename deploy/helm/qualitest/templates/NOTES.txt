@@ -20,7 +20,7 @@
 
 4. 访问 Web（未开 Ingress 时）:
 
-   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "qualitest.webFullname" . }} 5180:{{ .Values.web.service.port }}
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "qualitest.webFullname" . }} 5180:5180
 
    浏览器打开 http://127.0.0.1:5180 ，默认账号 admin / admin123（Flyway 种子；请立刻修改）。
 
