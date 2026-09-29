@@ -37,7 +37,10 @@ docker compose up -d
 ```
 
 - Browser: `http://localhost:5180` (use the corresponding port if `WEB_PORT` differs)
-- Default login: **`admin` / `admin123`** (Flyway V1 seed — change before public exposure)
+- Built-in accounts (after Flyway including **V6**):
+  - **`admin` / `admin123`**: super admin (**local / private only**; change before public exposure)
+  - **`demo` / `demo123`**: demo visitor (V6 converges seed users; test management + AI only — change or disable in production)
+- **Public demo hosts**: do not keep `admin123`. Ops-repo `DEMO_SEED` only overrides ops password to **`admin` / `QtDemo#Admin2026`**; visitors still use **`demo` / `demo123`** (see qualitest-demo-host). Production login form is not prefilled; demo may optionally mount `config.js` (ops-repo `1panel/login-defaults.js`). Local `.env.development` may prefill `admin`
 - First boot: wait for **app healthy / Flyway migrate success** in logs (no full initdb dump)
 - IDEA plugin server URL: Compose → **`http://localhost:5180/prod-api`**; local backend → **`http://localhost:8800`**
 
@@ -259,7 +262,7 @@ Defaults are for local demos — **do not** ship them to the public internet or 
 1. **Secrets**  
    - Strong random `TOKEN_SECRET`  
    - Change `MYSQL_ROOT_PASSWORD` (and local datasource passwords)  
-   - Change seed user `admin` / `admin123` immediately after first login  
+   - Change seed user `admin` / `admin123` immediately after first login; in production also **change or disable** built-in demo user `demo` / `demo123`  
    - If Redis is reachable from outside, set `SPRING_DATA_REDIS_PASSWORD` and align Compose  
 
 2. **Profiles**  

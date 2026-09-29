@@ -37,8 +37,10 @@ docker compose up -d
 ```
 
 - 浏览器：`http://localhost:5180`（`WEB_PORT` 非默认时带对应端口）
-- 默认账号：**`admin` / `admin123`**（Flyway V1 种子；**仅本地 / 私有环境**）
-- **公网演示环境**：勿继续用 `admin123`。执行运维仓种子后，运维口令为 **`admin` / `QtDemo#Admin2026`**，对外访客 **`demo` / `demo123`**（见 [qualitest-demo-host](https://github.com/38680050/qualitest-demo-host)）。**正式**登录页不预填；**演示**通过挂载 `config.js` 预填 demo（运维仓 `1panel/login-defaults.js`）。本地 `.env.development` 可预填 `admin`
+- 开箱账号（Flyway 跑完后，含 **V6**）：
+  - **`admin` / `admin123`**：超级管理员（**仅本地 / 私有环境**；公网务必改密）
+  - **`demo` / `demo123`**：演示访客（由 V6 将种子账号收敛而来；仅测试管理 + AI；正式环境请改密或停用）
+- **公网演示环境**：勿继续用 `admin123`。运维仓 `DEMO_SEED` 只覆盖运维口令为 **`admin` / `QtDemo#Admin2026`**；访客仍用 **`demo` / `demo123`**（见 [qualitest-demo-host](https://github.com/38680050/qualitest-demo-host)）。正式登录页不预填；演示可选挂载 `config.js` 预填（运维仓 `1panel/login-defaults.js`）。本地 `.env.development` 可预填 `admin`
 - 首次以 **app 健康 / 日志 Flyway migrate 成功** 为准（不再依赖 initdb 整库 dump）
 - IDEA 插件服务器地址：Compose 填 **`http://localhost:5180/prod-api`**；本机后端填 **`http://localhost:8800`**
 
@@ -265,7 +267,7 @@ kubectl -n qualitest port-forward svc/qualitest-web 5180:5180
 1. **密钥与口令**  
    - 强随机 `TOKEN_SECRET`  
    - 修改 `MYSQL_ROOT_PASSWORD`（及本机数据源口令）  
-   - 登录后立即修改种子账号 `admin` / `admin123`  
+   - 登录后立即修改种子账号 `admin` / `admin123`；生产环境同时**改密或停用**开箱演示账号 `demo` / `demo123`  
    - Redis 若对公网可达，设置 `SPRING_DATA_REDIS_PASSWORD` 并同步 compose  
 
 2. **Profile**  
