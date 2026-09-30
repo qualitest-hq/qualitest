@@ -1,5 +1,6 @@
 package com.qualitest.flow.snapshot;
 
+import com.qualitest.api.util.HttpEgressAllowlist;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -18,8 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * 测 HttpEndpointSnapshotAdapter：对 /test-support 的 snapshot / restore HTTP 契约。
- * 边界：MockWebServer，不连真实环境。
+ * 测快照适配器：对 /test-support 的 snapshot / restore HTTP 契约。
+ * 边界：MockWebServer，不连真实环境；出站白名单关闭以免挡住本机随机端口。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpEndpointSnapshotAdapterTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -32,7 +33,7 @@ class HttpEndpointSnapshotAdapterTest {
     void setUp() throws Exception {
         server = new MockWebServer();
         server.start();
-        adapter = new HttpEndpointSnapshotAdapter();
+        adapter = new HttpEndpointSnapshotAdapter(new HttpEgressAllowlist(false, ""));
     }
 
     @AfterEach

@@ -8,7 +8,7 @@ import com.qualitest.api.result.DebugHttpForwardResult;
 import com.qualitest.api.service.IDebugHttpForwardService;
 import com.qualitest.api.util.ApiImportMatchSupport;
 import com.qualitest.api.util.AuthHeaderResolver;
-import com.qualitest.api.util.DebugForwardUrlPolicy;
+import com.qualitest.api.util.HttpEgressAllowlist;
 import com.qualitest.api.util.MediaContentTypes;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
@@ -41,7 +41,9 @@ import java.util.stream.Collectors;
 
 /**
  * 通过 Java HttpClient 将调试请求转发至被测 URL。
- * 若请求带 testProjectApiId，转发前按项目鉴权配置补齐缺失的鉴权头。
+ * <p>
+ * 转发前校验目标 URL（协议、主机，以及可选的出口白名单）；
+ * 若请求带 testProjectApiId，按项目鉴权配置补齐缺失的鉴权头。
  */
 @Slf4j
 @Service
@@ -59,14 +61,22 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
 
     private final TestProjectApiMapper testProjectApiMapper;
     private final TestProjectMapper testProjectMapper;
+    /** HTTP 出站目标校验（协议 / 主机 / 可选白名单） */
+    private final HttpEgressAllowlist httpEgressAllowlist;
 
+    /**
+     * 转发调试 HTTP 请求。
+     * <p>
+     * 目标 URL 未通过出口校验时返回策略错误，不发起网络请求。
+     */
     @Override
     public DebugHttpForwardResult forward(DebugHttpForwardParams params) {
         if (params == null) {
             return DebugHttpForwardResult.policyError("请求体不能为空");
         }
         injectAuthHeadersIfNeeded(params);
-        String policyError = DebugForwardUrlPolicy.validateTargetUrl(params.getUrl());
+        // 协议、主机及可选 host:port 白名单
+        String policyError = httpEgressAllowlist.check(params.getUrl());
         if (policyError != null) {
             return DebugHttpForwardResult.policyError(policyError);
         }

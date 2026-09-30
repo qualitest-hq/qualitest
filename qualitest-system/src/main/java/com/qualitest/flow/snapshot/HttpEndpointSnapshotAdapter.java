@@ -2,6 +2,7 @@ package com.qualitest.flow.snapshot;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.api.util.HttpEgressAllowlist;
 import com.qualitest.flow.exception.FlowErrorCode;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -20,6 +21,7 @@ import java.util.concurrent.TimeUnit;
  * 通过 HTTP 调用被测系统的 snapshot、restore 接口。
  * <p>
  * 请求体为 JSON；同步阻塞直到响应或超时。不单独做探活，snapshot 失败即视为被测快照服务不可用。
+ * 发起请求前校验 reset 端点 URL（协议、主机，以及可选的出口白名单）。
  */
 @Component
 public class HttpEndpointSnapshotAdapter implements DbSnapshotAdapter {
@@ -28,8 +30,14 @@ public class HttpEndpointSnapshotAdapter implements DbSnapshotAdapter {
 
     /** 默认 HTTP 客户端，连接/读/写超时各 30 秒 */
     private final OkHttpClient httpClient;
+    /** HTTP 出站目标校验（协议 / 主机 / 可选白名单） */
+    private final HttpEgressAllowlist httpEgressAllowlist;
 
-    public HttpEndpointSnapshotAdapter() {
+    /**
+     * @param httpEgressAllowlist 出站 URL 校验（协议/主机；白名单开启时再核对 host:port）
+     */
+    public HttpEndpointSnapshotAdapter(HttpEgressAllowlist httpEgressAllowlist) {
+        this.httpEgressAllowlist = httpEgressAllowlist;
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
@@ -107,13 +115,22 @@ public class HttpEndpointSnapshotAdapter implements DbSnapshotAdapter {
         }
     }
 
-    private static void validateBase(String base) {
+    /**
+     * 校验快照服务根地址非空，并做 HTTP 出站策略检查（协议/主机；白名单开启时再核对 host:port）。
+     *
+     * @param base reset 端点根 URL，例如 {@code http://host:port/test-support}
+     */
+    private void validateBase(String base) {
         if (base == null || base.isBlank()) {
             throw new SnapshotException(FlowErrorCode.TF_SNAPSHOT_ENDPOINT, "reset 端点未配置或 envUrl 无效");
         }
+        String policyError = httpEgressAllowlist.check(base);
+        if (policyError != null) {
+            throw new SnapshotException(FlowErrorCode.TF_SNAPSHOT_ENDPOINT, policyError);
+        }
     }
 
-    /** 按请求超时创建客户端；与默认 30s 相同时复用共享实例 */
+    /** 按请求超时创建客户端；超时为默认 30 秒时复用共享实例 */
     private OkHttpClient clientFor(long timeoutMs) {
         long ms = timeoutMs > 0 ? timeoutMs : 30_000L;
         if (ms == 30_000L) {

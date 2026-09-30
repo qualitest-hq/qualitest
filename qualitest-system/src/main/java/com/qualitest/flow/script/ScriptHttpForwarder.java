@@ -15,8 +15,8 @@ import java.util.Map;
 /**
  * Script 节点 {@code ctx.http(options)} 的 HTTP 转发实现。
  * <p>
- * 将 options 转为 external 模式节点 data，经 {@link FlowHttpRequestBuilder#buildFromExternal} 组装请求，
- * 走 {@link IDebugHttpForwardService} 转发；占位符 strict，须通过 {@link com.qualitest.flow.http.ExternalUrlValidator} 与外联权限校验（由调用链保证）。
+ * 将 options 转为外联模式请求并转发；占位符严格解析。
+ * 出站前会校验外联 URL 协议/主机，以及转发层出口白名单（若已开启）。
  */
 public final class ScriptHttpForwarder {
 
