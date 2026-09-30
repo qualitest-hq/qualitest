@@ -2,8 +2,26 @@ package com.qualitest.project.service.impl;
 
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.api.util.HttpEgressAllowlist;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.flow.context.EnvUrlSupport;
+import com.qualitest.flow.sync.FlowExternalChangePublisher;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.project.constant.TestProjectConstants;
+import com.qualitest.project.domain.TestProjectEnv;
+import com.qualitest.project.mapper.TestProjectEnvMapper;
+import com.qualitest.project.params.TestProjectEnvParams;
+import com.qualitest.project.result.TestProjectEnvResult;
+import com.qualitest.project.service.ITestProjectEnvService;
+import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport;
+import com.qualitest.project.support.TestProjectVariableEntrySupport;
+import com.qualitest.common.utils.DateUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
@@ -11,22 +29,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import com.qualitest.common.utils.DateUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import com.qualitest.project.mapper.TestProjectEnvMapper;
-import com.qualitest.project.domain.TestProjectEnv;
-import com.qualitest.project.params.TestProjectEnvParams;
-import com.qualitest.project.result.TestProjectEnvResult;
-import com.qualitest.project.service.ITestProjectEnvService;
-import com.qualitest.project.support.TestProjectVariableEntrySupport;
-import com.qualitest.flow.sync.FlowExternalChangePublisher;
-import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
-import org.springframework.transaction.annotation.Transactional;
-
 /**
  * 测试项目环境Service业务层处理
- * 
+ *
  * @author qualitest
  * @date 2026-02-05
  */
@@ -37,6 +42,9 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
 
     @Autowired
     private FlowExternalChangePublisher flowExternalChangePublisher;
+
+    @Autowired
+    private HttpEgressAllowlist httpEgressAllowlist;
 
     private void notifyEnvsChanged(Long testProjectId) {
         if (testProjectId == null) {
@@ -105,6 +113,7 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
         if (StrUtil.isBlank(testProjectEnv.getShareStatus())) {
             testProjectEnv.setShareStatus(TestProjectConstants.DEFAULT_ENV_SHARE_STATUS);
         }
+        assertEnvUrlAllowed(testProjectEnv.getEnvUrl());
         normalizeEnvVariables(testProjectEnv);
         if (testProjectEnv.getSortNum() == null && testProjectEnv.getTestProjectId() != null) {
             Integer maxSort = testProjectEnvMapper.selectMaxSortNumByProjectId(testProjectEnv.getTestProjectId());
@@ -129,6 +138,7 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateTestProjectEnv(TestProjectEnv testProjectEnv) {
+        assertEnvUrlAllowed(testProjectEnv.getEnvUrl());
         normalizeEnvVariables(testProjectEnv);
         testProjectEnv.setUpdateTime(DateUtils.getNowDate());
         int rows = testProjectEnvMapper.updateTestProjectEnv(testProjectEnv);
@@ -147,7 +157,57 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
     }
 
     /**
-     * 将 env_variables 规范为变量条目 JSON 数组并校验。
+     * 校验环境 URL 是否允许出站。
+     * <p>
+     * 空串与建项占位地址不校验（便于新建项目）；纯字符串与多模块 JSON 中的每个基址都会检查。
+     * 白名单关闭时只校验协议与主机；开启时再核对 host:port。
+     *
+     * @param envUrl 环境 URL 原始值；null 表示本次未改该字段，跳过
+     */
+    private void assertEnvUrlAllowed(String envUrl) {
+        if (envUrl == null || PrefabricatedTemplateExtrasSupport.isPlaceholderEnvUrl(envUrl)) {
+            return;
+        }
+        String raw = envUrl.trim();
+        if (raw.startsWith("{")) {
+            JSONObject modules;
+            try {
+                modules = JSON.parseObject(raw);
+            } catch (Exception e) {
+                throw new ServiceException("环境 URL 格式无效");
+            }
+            if (modules == null || modules.isEmpty()) {
+                return;
+            }
+            for (Object value : modules.values()) {
+                if (!(value instanceof String s) || s.isBlank()) {
+                    continue;
+                }
+                assertSingleEnvBaseUrlAllowed(s.trim());
+            }
+            return;
+        }
+        assertSingleEnvBaseUrlAllowed(raw);
+    }
+
+    /**
+     * 校验单个基址 URL（可无协议，保存前会补 http://）。
+     *
+     * @param baseUrl 单个模块或环境的基址
+     */
+    private void assertSingleEnvBaseUrlAllowed(String baseUrl) {
+        String url = EnvUrlSupport.ensureHttpSchemeForRequest(baseUrl);
+        if (url.isEmpty()) {
+            return;
+        }
+        String err = httpEgressAllowlist.check(url);
+        if (err != null) {
+            throw new ServiceException(err);
+        }
+    }
+
+    /**
+     * 将 env_values 规范为变量条目 JSON 数组并校验。
      */
     private void normalizeEnvVariables(TestProjectEnv testProjectEnv) {
         String raw = testProjectEnv.getEnvVariables();
@@ -197,7 +257,7 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
 
     /**
      * 批量删除测试项目环境
-     * 
+     *
      * @param testProjectEnvIdList 需要删除的测试项目环境主键集合
      * @return 结果
      */
@@ -208,7 +268,7 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
 
     /**
      * 删除测试项目环境信息
-     * 
+     *
      * @param testProjectEnvId 测试项目环境主键
      * @return 结果
      */
@@ -219,7 +279,7 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
 
     /**
      * 逻辑删除测试项目环境信息
-     * 
+     *
      * @param testProjectEnvId 测试项目环境主键
      * @return 结果
      */
@@ -241,7 +301,7 @@ public class TestProjectEnvServiceImpl implements ITestProjectEnvService {
 
     /**
      * 批量逻辑删除测试项目环境信息
-     * 
+     *
      * @param testProjectEnvIdList 测试项目环境主键集合
      * @return 结果
      */
