@@ -1,15 +1,15 @@
 package com.qualitest.flow.http;
 
+import com.qualitest.api.util.HttpEgressAllowlist;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-
 /**
- * 外联 HTTP URL 基础校验（占位符解析后的完整 URL）。
+ * 测试流外联 HTTP 节点的 URL 基础校验。
  * <p>
- * 要求：scheme 为 http/https，且含非空主机名。不做项目级域名白名单、内网/metadata 拦截。
+ * 在占位符解析得到完整 URL 后调用：要求协议为 http/https，且含非空主机名。
+ * 不在此处做 host:port 白名单；白名单在实际转发前另行校验。
+ * 失败时抛出 {@code TF_HTTP_EXTERNAL_DENIED}。
  */
 public final class ExternalUrlValidator {
 
@@ -17,27 +17,15 @@ public final class ExternalUrlValidator {
     }
 
     /**
-     * 校验解析后的完整 URL 是否可用于出站 HTTP。
+     * 校验外联用完整 URL 的协议与主机。
      *
      * @param resolvedUrl 占位符已解析的完整 URL
+     * @throws FlowExecutionException 协议非法、缺主机或 URL 为空/格式错误时
      */
     public static void validate(String resolvedUrl) {
-        if (resolvedUrl == null || resolvedUrl.isBlank()) {
-            throw new FlowExecutionException(FlowErrorCode.TF_HTTP_EXTERNAL_DENIED, "外联 URL 为空");
-        }
-        URI uri;
-        try {
-            uri = new URI(resolvedUrl.trim());
-        } catch (URISyntaxException e) {
-            throw new FlowExecutionException(FlowErrorCode.TF_HTTP_EXTERNAL_DENIED, "外联 URL 格式无效");
-        }
-        String scheme = uri.getScheme();
-        if (scheme == null || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
-            throw new FlowExecutionException(FlowErrorCode.TF_HTTP_EXTERNAL_DENIED, "外联 URL 须为 http/https");
-        }
-        String host = uri.getHost();
-        if (host == null || host.isBlank()) {
-            throw new FlowExecutionException(FlowErrorCode.TF_HTTP_EXTERNAL_DENIED, "外联 URL 缺少主机名");
+        String err = HttpEgressAllowlist.validateSchemeAndHost(resolvedUrl);
+        if (err != null) {
+            throw new FlowExecutionException(FlowErrorCode.TF_HTTP_EXTERNAL_DENIED, err);
         }
     }
 }

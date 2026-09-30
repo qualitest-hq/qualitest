@@ -11,8 +11,8 @@ import org.junit.jupiter.api.TestMethodOrder;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 ExternalUrlValidator：外联 URL 协议与 host 校验（不做白名单拦截）。
- * 边界：纯函数，无网络。
+ * 测外联 URL 基础校验：协议须为 http/https，且含主机名。
+ * 边界：纯函数，无网络；不覆盖 host:port 白名单场景。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ExternalUrlValidatorTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)

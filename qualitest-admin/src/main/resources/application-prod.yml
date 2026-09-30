@@ -9,6 +9,12 @@ qualitest:
   profile: ${QUALITEST_PROFILE:/home/qualitest/uploadPath}   # Linux 部署上传目录
   addressEnabled: false
   captchaType: math
+  http:
+    # 出站 HTTP 限制：关闭时只校验协议与主机；开启后目标须命中 allowlist 的 host:port
+    egress:
+      enabled: ${QUALITEST_HTTP_EGRESS_ENABLED:false}
+      # 逗号分隔，如 host.docker.internal:8801；仅 enabled=true 时生效
+      allowlist: ${QUALITEST_HTTP_EGRESS_ALLOWLIST:host.docker.internal:8801,localhost:8801,127.0.0.1:8801,[::1]:8801}
 
 server:
   port: ${SERVER_PORT:8800}
