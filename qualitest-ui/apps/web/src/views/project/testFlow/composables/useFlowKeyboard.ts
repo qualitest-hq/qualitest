@@ -1,6 +1,7 @@
 /**
- * 画布全局键盘快捷键：撤销、删除、Esc 停止、方向键步进。
- * 在 FlowCanvasView 挂载时注册，卸载时注销；输入框聚焦时不拦截编辑键。
+ * 画布全局键盘快捷键：保存、撤销、删除、Esc 停止、方向键步进。
+ * 在 FlowCanvasLayout 挂载时注册，卸载时注销。
+ * Ctrl/Cmd+S 在输入框内也生效（拦截浏览器另存为）；其余编辑键在输入框聚焦时不拦截。
  */
 import { onBeforeUnmount, onMounted, type Ref } from 'vue';
 
@@ -24,6 +25,8 @@ export function isInputFocused(): boolean {
 export interface UseFlowKeyboardOptions {
   /** 快捷键帮助弹层开关，Esc 时关闭 */
   helpOpen: Ref<boolean>;
+  /** 保存画布（与顶栏保存按钮同一入口） */
+  onSave: () => void;
 }
 
 export function useFlowKeyboard(options: UseFlowKeyboardOptions) {
@@ -65,6 +68,13 @@ export function useFlowKeyboard(options: UseFlowKeyboardOptions) {
         e.preventDefault();
         options.helpOpen.value = false;
       }
+      return;
+    }
+
+    // 保存：输入框内也拦截，避免浏览器弹出「另存为」
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      options.onSave();
       return;
     }
 

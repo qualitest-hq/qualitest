@@ -12,8 +12,8 @@ import java.util.List;
 /**
  * 测试流 AI 设计接口的一轮响应。
  * <p>
- * 含自然语言说明、画布增量 patch、校验结果、素材提案、多端 Profile 提案（可含响应约定变更），
- * 以及本轮工具轨迹。
+ * 含自然语言说明、思考过程、过程旁白、画布增量 patch、校验结果、素材提案、
+ * 多端 Profile 提案（可含响应约定变更），以及本轮工具轨迹。
  * explainOnly=true：本轮没有可展示的 Staging patch。
  * interrupted=true：本轮因用户取消或连接中断结束，摘要与 patch 可能不完整。
  * 半自动下 patch / 素材 / 多端 Profile 提案须用户确认后再持久化；全自动下图与配置可能已在本轮写库。
@@ -39,6 +39,12 @@ public class TestFlowDesignResult {
 
     /** 模型思考过程全文，仅展示，不参与多轮上下文 */
     private final String thinkingContent;
+
+    /**
+     * 过程旁白：各步调用工具前模型输出的说明文字，多句以换行分隔，不含最终总结；无则 null。
+     * 前端显示在总结前面。
+     */
+    private final String processNarration;
 
     /** 本轮累积的画布增量；explainOnly 或无成功单元时为 null */
     private final FlowDesignPatch patch;

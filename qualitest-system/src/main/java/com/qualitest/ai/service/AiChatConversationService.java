@@ -468,8 +468,11 @@ public class AiChatConversationService {
      * <ul>
      *   <li>{@code messageContent} — 用户可见的自然语言 summary</li>
      *   <li>{@code thinkingContent} — 模型思考过程，独立字段存储，不送入多轮 LLM</li>
- *   <li>{@code resultMeta} — JSON：summary、explainOnly、patchStats、vendorName、modelName；
- *       有画布建议时含 patchJson；有素材库写入提案时含 assetProposals（含 fields）</li>
+     *   <li>{@code resultMeta} — JSON：summary、explainOnly、patchStats、vendorName、modelName；
+     *       有画布建议时含 patchJson；有素材库写入提案时含 assetProposals（含 fields）；
+     *       另可含 toolTrace（工具调用轨迹）、processNarration（调用工具前的说明文字）、
+     *       agentSteps（按步时间线：step、narration、callFrom / callTo、thinkingChars）、
+     *       agentReply（模型最后一轮纯文本回复原文，仅在它不同于 summary 时写入）</li>
      * </ul>
      *
      * @param messageContent  assistant 自然语言正文

@@ -37,34 +37,20 @@ function createFlowValidation(): FlowValidationApi {
   const apiHealth = useApiHealthStore()
   const runRisk = useRunRiskStore()
 
-  /** 序列化缓存：nodes/edges 引用未变时复用 graph */
-  let cachedNodes: unknown = null
-  let cachedEdges: unknown = null
-  let cachedGraph: ReturnType<typeof buildCanvasPersistGraph> | null = null
+  /**
+   * 可落盘图单独缓存：只随画布节点 / 边 / Staging 单元变化重算。
+   * API 健康、运行风险变化时复用同一份图，避免整图反复序列化。
+   */
+  const persistGraph = computed(() => buildCanvasPersistGraph())
 
   const issues = computed(() => {
-    void stagingStore.unitsById
-    void canvasStore.nodes
-    void canvasStore.edges
-    void apiHealth.warnings
-    void runRisk.warnings
-
-    if (cachedNodes !== canvasStore.nodes || cachedEdges !== canvasStore.edges || !cachedGraph) {
-      cachedNodes = canvasStore.nodes
-      cachedEdges = canvasStore.edges
-      cachedGraph = buildCanvasPersistGraph()
-    }
-    const graph = cachedGraph
-    const deferTopologyStructureRules = hasPendingStagingEdgeUnits(
-      Object.values(stagingStore.unitsById),
-    )
+    const graph = persistGraph.value
+    const stagingUnits = Object.values(stagingStore.unitsById)
+    const deferTopologyStructureRules = hasPendingStagingEdgeUnits(stagingUnits)
     const validation = validateGraphJson(graph, { deferTopologyStructureRules })
     return [
       ...issuesFromGraphValidation(validation, graph),
-      ...issuesFromStagingConfirmFailures(
-        Object.values(stagingStore.unitsById),
-        canvasStore.edges,
-      ),
+      ...issuesFromStagingConfirmFailures(stagingUnits, canvasStore.edges),
       ...issuesFromRunRiskWarnings(runRisk.warnings),
       ...issuesFromApiHealthWarnings(apiHealth.warnings),
     ]
@@ -84,4 +70,9 @@ export function useFlowValidation() {
     singleton = createFlowValidation()
   }
   return singleton
+}
+
+/** 测试用：清空单例，避免跨 Pinia 实例复用旧 store */
+export function resetFlowValidationForTests() {
+  singleton = null
 }

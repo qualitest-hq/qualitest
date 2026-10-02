@@ -296,10 +296,8 @@ public class TestFlowDesignAgent {
         if (!authProfileProposals.isEmpty()) {
             meta.put("authProfileProposals", authProfileProposals);
         }
-        // 脱敏截断后的工具轨迹，供气泡折叠展开排障
-        if (runResult.getToolTrace() != null) {
-            meta.put("toolTrace", runResult.getToolTrace());
-        }
+        // 工具轨迹、过程旁白、按步时间线、最终回复原文
+        runResult.writeProcessMeta(meta, summary);
 
         aiChatConversationService.appendAssistantMessage(
                 session.getAiChatSessionId(),
@@ -319,6 +317,7 @@ public class TestFlowDesignAgent {
                 .modelName(modelConfig.getModelName())
                 .summary(summary)
                 .thinkingContent(runResult.getThinkingContent())
+                .processNarration(runResult.getProcessNarration())
                 .patch(normalizedPatch)
                 .validation(validation)
                 .explainOnly(explainOnly)
@@ -442,7 +441,8 @@ public class TestFlowDesignAgent {
 
     /**
      * 构造送入 LLM 的 user 消息正文。
-     * 若请求带 runRiskWarnings，追加「运行风险预检」段落，提示先处理 AUTH_* 等问题。
+     * 依次为：项目 / 测试流上下文与用户描述；请求带 runRiskWarnings 时追加「运行风险预检」段落，
+     * 提示先处理 AUTH_* 等问题；最后追加输出语言提醒，要求模型用简体中文输出。
      */
     private static String buildUserContent(TestFlowDesignRequest request) {
         String base = AiDesignMentionSupport.buildUserLlmContent(
@@ -450,19 +450,19 @@ public class TestFlowDesignAgent {
                 request.getTestFlowId(),
                 request.getPrompt(),
                 request.getMentions());
-        List<String> risks = request.getRunRiskWarnings();
-        if (risks == null || risks.isEmpty()) {
-            return base;
-        }
         StringBuilder sb = new StringBuilder(base);
-        sb.append("\n\n【运行风险预检（须处理）】\n");
-        for (String risk : risks) {
-            if (risk != null && !risk.isBlank()) {
-                sb.append("- ").append(risk.trim()).append('\n');
+        List<String> risks = request.getRunRiskWarnings();
+        if (risks != null && !risks.isEmpty()) {
+            sb.append("\n\n【运行风险预检（须处理）】\n");
+            for (String risk : risks) {
+                if (risk != null && !risk.isBlank()) {
+                    sb.append("- ").append(risk.trim()).append('\n');
+                }
             }
+            sb.append("若含 AUTH_TOKEN_MISSING：先 list_project_auth_profiles 判断 Profile 是否绑错端；")
+                    .append("绑错则 upsert_auth_profile，缺登录抽取则 submit 补 extracts / 登录子流。");
         }
-        sb.append("若含 AUTH_TOKEN_MISSING：先 list_project_auth_profiles 判断 Profile 是否绑错端；")
-                .append("绑错则 upsert_auth_profile，缺登录抽取则 submit 补 extracts / 登录子流。");
+        sb.append("\n\n").append(AiAgentRunner.OUTPUT_LANGUAGE_REMINDER);
         return sb.toString();
     }
 

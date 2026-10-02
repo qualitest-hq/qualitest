@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 
 /**
  * Agent 工具循环单测。
- * 覆盖：多步工具调用、结果写回对话、步数上限、终态探测。
+ * 覆盖：多步工具调用、结果写回对话、步数上限、终态探测、按步时间线。
  * 使用 Mock 客户端与配置，不访问真实大模型。
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -254,6 +254,65 @@ class AiAgentRunnerTest {
         assertEquals(1, result.getToolTrace().getJSONArray("calls").size());
         assertEquals("search_apis", result.getToolTrace().getJSONArray("calls").getJSONObject(0).getString("name"));
         verify(chatModel, times(1)).chat(any(ChatRequest.class));
+    }
+
+    /**
+     * 前提：第 1 步带旁白与思考、并行两次工具调用；第 2 步无旁白无思考、一次调用；第 3 步纯文本结束。
+     * 期望：agentSteps 两条；第 1 条有说明文字、调用序号 1–2、思考字符数为去空白后的长度；
+     * 第 2 条无说明文字、调用序号 3–3、思考字符数 0；processNarration 为第 1 步说明文字；
+     * 最终纯文本回复不记入时间线。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("按步时间线记录旁白、调用序号与思考长度")
+    void run_multiStep_recordsAgentSteps() {
+        ToolExecutionRequest canvas = ToolExecutionRequest.builder()
+                .id("call_a").name("get_graph_summary").arguments("{}").build();
+        ToolExecutionRequest subflows = ToolExecutionRequest.builder()
+                .id("call_b").name("list_subflow_templates").arguments("{}").build();
+        ToolExecutionRequest submit = ToolExecutionRequest.builder()
+                .id("call_c").name("submit_http_node").arguments("{}").build();
+        when(chatModel.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.builder()
+                                .text("先查看画布和可用子流。")
+                                .thinking("  需要先了解画布  ")
+                                .toolExecutionRequests(List.of(canvas, subflows))
+                                .build())
+                        .build())
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.builder().toolExecutionRequests(List.of(submit)).build())
+                        .build())
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.from("已添加查询节点。"))
+                        .build());
+
+        AiAgentRunner.AgentRunResult result = runner.run(AiAgentRunner.AgentRunOptions.builder()
+                .modelConfig(modelConfig)
+                .initialMessages(List.of(UserMessage.from("plan")))
+                .toolExecutor((name, args) -> "{}")
+                .maxSteps(5)
+                .build());
+
+        assertTrue(result.isOk());
+        assertEquals("已添加查询节点。", result.getContent());
+        assertEquals("先查看画布和可用子流。", result.getProcessNarration());
+        assertNotNull(result.getAgentSteps());
+        assertEquals(2, result.getAgentSteps().size());
+
+        var first = result.getAgentSteps().getJSONObject(0);
+        assertEquals(1, first.getIntValue("step"));
+        assertEquals("先查看画布和可用子流。", first.getString("narration"));
+        assertEquals(1, first.getIntValue("callFrom"));
+        assertEquals(2, first.getIntValue("callTo"));
+        assertEquals("需要先了解画布".length(), first.getIntValue("thinkingChars"));
+
+        var second = result.getAgentSteps().getJSONObject(1);
+        assertEquals(2, second.getIntValue("step"));
+        assertFalse(second.containsKey("narration"));
+        assertEquals(3, second.getIntValue("callFrom"));
+        assertEquals(3, second.getIntValue("callTo"));
+        assertEquals(0, second.getIntValue("thinkingChars"));
     }
 
     /**

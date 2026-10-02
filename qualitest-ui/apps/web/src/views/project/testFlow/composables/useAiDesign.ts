@@ -49,6 +49,7 @@ import { buildComposerPayloadFromUserMessage } from '@/utils/ai/buildComposerPay
 import {
   resolveAssistantContent,
   resolveFailedAssistantFields,
+  normalizeProcessNarration,
   resolveThinkingContent,
 } from '@/utils/ai/assistantMessageContent';
 import type { ComposerDoc } from '../types/mentionTypes';
@@ -533,6 +534,7 @@ export function useAiDesign() {
         emptyPatchPlaceholder: '已生成流程变更建议，请在画布上逐项确认。',
       }),
       thinkingContent: resolveThinkingContent(data.thinkingContent, streamThinking.value),
+      processNarration: normalizeProcessNarration(data.processNarration),
       aiLlmModelId: data.aiLlmModelId,
       vendorName: data.vendorName,
       modelName: data.modelName,

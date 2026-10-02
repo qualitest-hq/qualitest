@@ -1,5 +1,6 @@
 /**
  * 通用 AI 设计 SSE 流封装：累积 token/思考、跟踪当前工具、AbortController 取消。
+ * 工具调用之后到达的正文自动另起一段，各步说明文字不会粘在一起。
  * 领域差异（API 函数、flow 专属事件）由 designFn / handlers 注入。
  */
 import { ref, type Ref } from 'vue';
@@ -80,10 +81,17 @@ export function useAiAgentStream<
     activeTool.value = '';
     const controller = new AbortController();
     abortController.value = controller;
+    /** true：刚开始调用工具，下一段正文需另起一段 */
+    let paragraphBreakPending = false;
 
     try {
       const merged = {
         onToken: (text: string) => {
+          // 工具调用后的首个 token：已有正文末尾补成段落分隔
+          if (paragraphBreakPending && streamText.value && !streamText.value.endsWith('\n\n')) {
+            streamText.value = `${streamText.value.trimEnd()}\n\n`;
+          }
+          paragraphBreakPending = false;
           streamText.value += text;
           handlers?.onToken?.(text);
         },
@@ -93,6 +101,8 @@ export function useAiAgentStream<
         },
         onToolStart: (tool: string) => {
           activeTool.value = tool;
+          // 标记下一段正文另起一段
+          paragraphBreakPending = true;
           handlers?.onToolStart?.(tool);
         },
         onToolEnd: ((tool?: string) => {

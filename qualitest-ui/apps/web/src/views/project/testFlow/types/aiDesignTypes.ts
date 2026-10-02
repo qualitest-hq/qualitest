@@ -9,6 +9,7 @@ import {
   type AiToolTraceCallView,
   type AiToolTraceView,
 } from '@/utils/ai/toolTrace';
+import { normalizeProcessNarration } from '@/utils/ai/assistantMessageContent';
 
 export type { AiToolTraceCallView, AiToolTraceView };
 export { parseToolTraceFromMeta };
@@ -55,6 +56,8 @@ export interface TestFlowDesignResult {
   modelName?: string;
   summary?: string;
   thinkingContent?: string;
+  /** 过程旁白：调用工具前模型输出的说明文字，多句以换行分隔，不含总结 */
+  processNarration?: string;
   patch?: FlowDesignPatch;
   validation?: DesignValidationResult;
   /** 本轮未成功接受任何 submit_* 单元时为 true（纯答疑，无画布 patch） */
@@ -134,6 +137,8 @@ export interface AiDesignMessageView {
   content: string;
   /** assistant 模型思考过程 */
   thinkingContent?: string;
+  /** 过程旁白：调用工具前模型输出的说明文字，结束后显示在总结前面 */
+  processNarration?: string;
   createTime?: string;
   aiLlmModelId?: string;
   vendorName?: string;
@@ -207,7 +212,7 @@ export function parseUserFromServer(msg: AiChatMessageItem): AiDesignMessageView
  * 将服务端助手消息还原为面板视图。
  * 正文用 summary；explainOnly 时不挂 patch；否则读 patchJson。
  * patchPending：服务端标了有改图但本条尚未拉到完整 patchJson。
- * 另解析素材提案、多端 Profile 提案、工具轨迹 toolTrace，以及 interrupted 中断标记。
+ * 另解析思考过程、过程旁白、素材提案、多端 Profile 提案、工具轨迹 toolTrace，以及 interrupted 中断标记。
  */
 export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessageView {
   let meta: Record<string, unknown> = {};
@@ -238,6 +243,7 @@ export function parseAssistantFromServer(msg: AiChatMessageItem): AiDesignMessag
     role: 'assistant',
     content: summary,
     thinkingContent: msg.thinkingContent?.trim() || undefined,
+    processNarration: normalizeProcessNarration(meta.processNarration),
     createTime: msg.createTime,
     aiLlmModelId: msg.aiLlmModelId,
     vendorName: typeof meta.vendorName === 'string' ? meta.vendorName : undefined,

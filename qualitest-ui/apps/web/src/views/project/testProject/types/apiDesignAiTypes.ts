@@ -6,6 +6,7 @@ import {
   parseToolTraceFromMeta,
   type AiToolTraceView,
 } from '@/utils/ai/toolTrace';
+import { normalizeProcessNarration } from '@/utils/ai/assistantMessageContent';
 
 export type { AiToolTraceView };
 
@@ -45,6 +46,8 @@ export interface ApiDesignResult {
   modelName?: string;
   summary?: string;
   thinkingContent?: string;
+  /** 过程旁白：调用工具前模型输出的说明文字，多句以换行分隔，不含总结 */
+  processNarration?: string;
   patch?: ApiDesignPatch;
   validation?: ApiDesignValidationResult;
   explainOnly?: boolean;
@@ -82,6 +85,8 @@ export interface ApiDesignMessageView {
   role: ApiDesignMessageRole;
   content: string;
   thinkingContent?: string;
+  /** 过程旁白：调用工具前模型输出的说明文字，结束后显示在总结前面 */
+  processNarration?: string;
   createTime?: string;
   aiLlmModelId?: string;
   vendorName?: string;
@@ -189,7 +194,7 @@ export function parseUserMessageFromServer(msg: AiChatMessageItem): ApiDesignMes
   };
 }
 
-/** 将服务端助手消息转为侧栏视图：解析 patch、explainOnly、工具轨迹与中断标记。 */
+/** 将服务端助手消息转为侧栏视图：解析 patch、explainOnly、思考过程、过程旁白、工具轨迹与中断标记。 */
 export function parseAssistantMessageFromServer(msg: AiChatMessageItem): ApiDesignMessageView {
   let meta: Record<string, unknown> = {};
   if (msg.resultMetaJson) {
@@ -214,6 +219,7 @@ export function parseAssistantMessageFromServer(msg: AiChatMessageItem): ApiDesi
     role: 'assistant',
     content: summary,
     thinkingContent: msg.thinkingContent?.trim() || undefined,
+    processNarration: normalizeProcessNarration(meta.processNarration),
     createTime: msg.createTime,
     aiLlmModelId: msg.aiLlmModelId != null ? String(msg.aiLlmModelId) : undefined,
     vendorName: typeof meta.vendorName === 'string' ? meta.vendorName : undefined,
