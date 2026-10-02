@@ -81,8 +81,8 @@ export async function refreshSavedBaseline(store: FlowCanvasStore) {
 }
 
 /**
- * 仅在当前无未保存修改时刷新「已保存」基线。
- * 用于初始化阶段自动补全场景环境等、且用户尚未改图的情况。
+ * 仅在当前无「未保存」标记时，把画布现场序列化结果记为已保存基线，并清未保存标记。
+ * 用于打开画布后自动补绑场景环境等静默改图：用户尚未手改时，把补全后的图当作新基线。
  *
  * @param store 画布 store
  */

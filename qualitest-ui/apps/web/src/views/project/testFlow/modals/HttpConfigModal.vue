@@ -570,7 +570,8 @@ watch(
   color: var(--pd-text-muted);
 }
 
-.debug-url-bar {
+/* 必须挂在 .http-modal 下：与 API 调试 DebugUrlBar 类名相同，顶层会污染全局 */
+.http-modal .debug-url-bar {
   display: flex;
   gap: 6px;
   padding: 8px 10px;
@@ -592,7 +593,7 @@ watch(
   flex-shrink: 0;
 }
 
-.debug-method-select {
+.http-modal .debug-method-select {
   width: 88px;
   flex-shrink: 0;
   height: 30px;
@@ -614,7 +615,7 @@ watch(
   }
 }
 
-.debug-url-input {
+.http-modal .debug-url-input {
   flex: 1;
   min-width: 0;
   height: 30px;
@@ -638,7 +639,7 @@ watch(
   }
 }
 
-.debug-inner-tablist {
+.http-modal .debug-inner-tablist {
   display: flex;
   gap: 0;
   margin-bottom: 8px;
@@ -647,7 +648,7 @@ watch(
   flex-shrink: 0;
 }
 
-.debug-inner-tab {
+.http-modal .debug-inner-tab {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -673,7 +674,7 @@ watch(
   }
 }
 
-.debug-tab-count {
+.http-modal .debug-tab-count {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -686,14 +687,14 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-
-  .debug-inner-tab.is-active & {
-    background: var(--pd-primary);
-    color: #fff;
-  }
 }
 
-.debug-inner-panel {
+.http-modal .debug-inner-tab.is-active .debug-tab-count {
+  background: var(--pd-primary);
+  color: #fff;
+}
+
+.http-modal .debug-inner-panel {
   flex: 1;
   min-height: 0;
   display: flex;

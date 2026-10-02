@@ -201,40 +201,61 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
       return
     }
 
+    // 本地只有排版改动：合入前记下节点坐标和视口，合入后套回
     const keepLocalLayout = layoutOnly
     const localPositions = keepLocalLayout ? captureNodePositions(store.nodes) : null
     const localViewport = keepLocalLayout ? { ...store.viewport } : null
+
+    /**
+     * 本地只有排版改动时，把合入前的坐标和视口套回画布，并标记为未保存。
+     * refreshBaseline 为 true 时，先把服务端最新图记为已保存基线，再套回坐标。
+     */
+    async function restoreLocalLayoutIfNeeded(refreshBaseline: boolean) {
+      if (!keepLocalLayout || !localPositions) return
+      if (refreshBaseline) {
+        await refreshSavedBaseline(store)
+      }
+      applyNodePositions(store, localPositions)
+      if (localViewport) {
+        store.viewport = localViewport
+      }
+      store.markDirty()
+    }
 
     const before = fingerprintNodes(store.nodes as Array<{ id?: string; data?: unknown; position?: unknown }>)
     setSuspended(true)
     try {
       let highlightIds: string[] = []
-      if (hasExternalGraphPatches(event)) {
-        try {
-          highlightIds = mergeExternalGraphPatches(store, event)
-          await store.ensureEdgesHydrated()
-        } catch {
-          await loadFlow(flowId)
-          highlightIds = diffHighlightIds(before, store.nodes)
-        }
-      } else {
+
+      /** 从服务端重新加载整张图，算出需要高亮的变动节点，写入图版本号，按需套回本地排版 */
+      async function reloadWholeGraph() {
         await loadFlow(flowId)
         highlightIds = diffHighlightIds(before, store.nodes)
+        applyEventGraphRevision(event)
+        await restoreLocalLayoutIfNeeded(true)
       }
 
-      applyEventGraphRevision(event)
-
-      if (keepLocalLayout && localPositions) {
-        // 以服务器内容（含服务器坐标）为已保存基线，再套回本地排版并标脏
-        await refreshSavedBaseline(store)
-        applyNodePositions(store, localPositions)
-        if (localViewport) {
-          store.viewport = localViewport
+      if (hasExternalGraphPatches(event)) {
+        // 有增量：合并到当前画布；合并失败则整图重拉
+        try {
+          // 合并期间画布增删节点、改坐标不标记为未保存，避免合并途中误占写锁
+          store.beginCanvasHydration()
+          try {
+            highlightIds = mergeExternalGraphPatches(store, event)
+            await store.ensureEdgesHydrated()
+            applyEventGraphRevision(event)
+            // 合并后的图记为已保存基线
+            await refreshSavedBaseline(store)
+          } finally {
+            store.endCanvasHydration()
+          }
+          await restoreLocalLayoutIfNeeded(false)
+        } catch {
+          await reloadWholeGraph()
         }
-        store.markDirty()
-      } else if (hasExternalGraphPatches(event)) {
-        // 增量合入后当场刷新已保存快照（整图重拉会在画布初始化完成后自动刷新）
-        await refreshSavedBaseline(store)
+      } else {
+        // 无增量：整图重拉
+        await reloadWholeGraph()
       }
 
       noteAppliedGraphUpdateTime(flowId, event.updateTime)

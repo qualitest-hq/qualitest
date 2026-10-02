@@ -211,6 +211,10 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 默认只能看；可分别开启「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」。人话说明见 [`docs/mcp.md`](./docs/mcp.md)。
 
+<p align="center">
+  <img src="./docs/images/mcp-write.gif" alt="MCP 写流：Cursor 搭流后 Web 画布 SSE 同步" width="960" />
+</p>
+
 | 开关 | 人话 | 谁更吃这套 |
 |:-----|:-----|:-----------|
 | **自动写流** | 让 Cursor 帮你搭 / 改测试流 | 后端改完接口造链路；前端按页面路径先验接口 |

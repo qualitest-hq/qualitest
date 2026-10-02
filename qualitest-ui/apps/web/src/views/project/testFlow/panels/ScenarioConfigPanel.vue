@@ -142,7 +142,6 @@ import {
 import { syncStagingDraftFromScenario } from '../composables/stagingDraftSync';
 import { usePendingStagingUnit, useShowNormalFields } from '../composables/usePendingStagingUnit';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
-import { refreshSavedBaselineIfPristine } from '../utils/reconcileFlowDirty';
 
 const store = useFlowCanvasStore();
 const envManageDialogVisible = ref(false);
@@ -169,9 +168,8 @@ const flowSeedRows = computed(() => flowSeedToRows(activeScenario.value?.flowSee
 const flowOutputRows = computed(() => flowOutputsToRows(store.flowOutputs));
 
 onMounted(async () => {
+  // 打开场景面板时拉取项目环境；未绑环境的激活场景会自动补绑并更新已保存基线
   await loadProjectEnvs();
-  ensureActiveScenarioEnv();
-  await refreshSavedBaselineIfPristine(store);
 });
 
 function syncScenarioDraft() {
@@ -199,6 +197,7 @@ function openEnvManageDialog() {
 }
 
 async function onEnvManageSaved(payload) {
+  // 环境增删改后重拉列表，并修正当前场景的绑定
   await loadProjectEnvs();
   const sc = activeScenario.value;
   if (!sc) return;
@@ -206,12 +205,14 @@ async function onEnvManageSaved(payload) {
   const deletedId = payload?.deletedId != null ? String(payload.deletedId) : '';
   const stillExists = envOptions.value.some((e) => e.testProjectEnvId === curId);
   if (curId && (!stillExists || (deletedId && deletedId === curId))) {
+    // 原绑定已不存在：改绑到列表第一条（没有则清空），并标未保存
     patchActiveScenario({
       testProjectEnvId: envOptions.value[0]?.testProjectEnvId ?? '',
     });
     syncScenarioDraft();
   } else {
-    ensureActiveScenarioEnv();
+    // 原绑定仍有效：若场景本来未绑环境，则自动补绑第一条
+    await ensureActiveScenarioEnv();
   }
 }
 
