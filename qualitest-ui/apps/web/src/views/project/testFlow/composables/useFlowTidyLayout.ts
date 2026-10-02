@@ -1,7 +1,8 @@
 /**
  * 顶栏「一键排版」。
  * <p>
- * 按当前画布节点与边重算全部坐标（优先用 Vue Flow 实测宽高），写入撤销栈、标记脏数据，再适应视图。
+ * 按当前画布的节点与连线重新计算全部节点坐标（优先用节点实际渲染宽高），
+ * 先记入撤销栈，再写入坐标、标记为未保存，最后缩放视图显示全部节点。
  * 模板画布或无编辑权限时只提示，不改图。
  */
 import { useVueFlow } from '@vue-flow/core'
@@ -10,12 +11,14 @@ import { ElMessage } from 'element-plus'
 import { FLOW_VUE_FLOW_ID } from '../constants/flowConfig'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { computeLayeredPositions, type LayoutNodeRef } from '../utils/flowGraphLayeredLayout'
+import { applyNodePositions } from '../utils/nodePositions'
 import { flushVueFlowLayout } from '../utils/waitDoubleAnimationFrame'
 import { useFlowCanvasPermissions } from './useFlowCanvasPermissions'
 import { useFlowHistory } from './useFlowHistory'
 import { useFlowNodeInternalsRefresh } from './useFlowNodeInternalsRefresh'
 import { useFlowViewport } from './useFlowViewport'
 
+/** 提供一键排版方法 */
 export function useFlowTidyLayout() {
   const store = useFlowCanvasStore()
   const { canEditFlow, isTemplateCanvas } = useFlowCanvasPermissions()
@@ -26,7 +29,7 @@ export function useFlowTidyLayout() {
 
   /**
    * 执行一键排版。
-   * 流程：权限校验 → 刷新尺寸 → 按实测宽高算坐标 → 入撤销栈 → 写回节点 → 适应视图。
+   * 依次：校验权限，刷新节点尺寸，按实际宽高和连线计算坐标，记入撤销栈，写入坐标，缩放视图显示全部节点。
    */
   async function tidyLayout() {
     if (!canEditFlow.value || isTemplateCanvas.value) {
@@ -39,10 +42,11 @@ export function useFlowTidyLayout() {
       return
     }
 
-    // 量尺寸前：刷新 DOM dimensions
+    // 先刷新节点尺寸，保证下面读到的宽高是最新渲染结果
     refreshAllNodeInternals(nodes.map((n) => n.id))
     await flushVueFlowLayout()
 
+    // 每个节点的类型、实际宽高、条件分支数，作为排版输入
     const layoutNodes: LayoutNodeRef[] = nodes.map((n) => {
       const vf = findNode(n.id)
       const w = vf?.dimensions?.width
@@ -59,21 +63,19 @@ export function useFlowTidyLayout() {
       }
     })
 
+    // 按画布上实际生效的连线分层计算坐标
     const positions = computeLayeredPositions(
       layoutNodes,
-      store.edges.map((e) => ({ source: e.source, target: e.target })),
+      store.getEffectiveEdges().map((e) => ({ source: e.source, target: e.target })),
     )
     if (positions.size === 0) return
 
+    // 记入撤销栈后写入新坐标，并标记为未保存
     pushHistory()
-    store.nodes = nodes.map((n) => {
-      const pos = positions.get(n.id)
-      if (!pos) return n
-      return { ...n, position: { x: pos.x, y: pos.y } }
-    })
+    applyNodePositions(store, positions)
     store.markDirty()
 
-    // 写坐标后：再刷尺寸并 fitView，避免视口落在旧包围盒上
+    // 写入坐标后再刷新尺寸，然后缩放视图显示全部节点
     refreshAllNodeInternals(store.nodes.map((n) => n.id))
     await flushVueFlowLayout()
     await viewport.fitViewAll(0.2)

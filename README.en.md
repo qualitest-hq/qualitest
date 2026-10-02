@@ -195,6 +195,10 @@ Open the AI panel beside a flow, describe intent (e.g. “retry after login fail
 
 Read-only by default; enable **Allow MCP auto-write**, **Allow MCP auto-run**, and/or **Allow MCP import APIs**. Plain-language write-up: [`docs/mcp.en.md`](./docs/mcp.en.md).
 
+<p align="center">
+  <img src="./docs/images/mcp-write.gif" alt="MCP write: Cursor builds the flow; Web canvas syncs over SSE" width="960" />
+</p>
+
 | Switch | In plain terms | Who benefits |
 |:-------|:---------------|:-------------|
 | **Auto-write** | Cursor builds / edits the test flow | Backend authors the chain after an API change; frontend mirrors the page path first |

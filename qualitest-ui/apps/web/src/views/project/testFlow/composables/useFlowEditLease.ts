@@ -1,10 +1,14 @@
 /**
- * 画布脏稿写锁生命周期。
+ * 画布写锁管理。
  * <p>
- * 仅内容脏（非只改坐标/排版）时占用服务端写锁并心跳续期；
- * 变为仅布局脏、干净、路由离开、切流时释放。
- * 本标签页把租约 token 写入 sessionStorage，刷新后可先续约再决定是否重新抢锁。
- * 只挡写图；只读打开画布不占锁；排版与拖拽不占长锁。
+ * 画布有内容改动（不只是挪坐标）时占住服务端写锁，并定时续期；
+ * 改动已保存、只剩排版改动、切换测试流、离开画布时释放写锁。
+ * 本页持锁期间，其它端（如 MCP）无法写入这张图。
+ * <p>
+ * 处理分两层：
+ * - 观察：画布状态变化时，只记下「现在要不要锁、锁哪条流」；
+ * - 执行：串行处理抢锁、释放，每做完一步重新判断，直到该持的锁已持有、该放的锁已放掉。
+ * 抢锁请求返回时若想法已经变了（例如画布已保存），立即放掉刚拿到的锁，不续期。
  */
 import { computed, onActivated, onBeforeUnmount, onDeactivated, ref, watch, type Ref } from 'vue'
 
@@ -16,22 +20,27 @@ import {
 } from '@/api/project/testFlow'
 
 import {
-  getFlowEditLeaseToken,
-  setFlowEditLeaseToken,
+  advanceFlowEditLeaseIntent,
+  emptyFlowEditLeaseIntent,
   formatFlowEditLeaseHolder,
+  getFlowEditLeaseToken,
+  nextFlowEditLeaseStep,
+  setFlowEditLeaseToken,
+  shouldKeepLeaseAfterAcquire,
+  type FlowEditLeaseIntent,
 } from '../utils/flowEditLeaseState'
 import { isLayoutOnlyDirtyFromStore } from '../utils/isLayoutOnlyDirty'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 
-/** 心跳间隔（毫秒）；须短于服务端写锁存活时间，避免编辑中途租约过期 */
+/** 续期间隔（毫秒）；须短于服务端写锁存活时间，避免编辑中途锁过期 */
 const HEARTBEAT_MS = 10_000
-/** 查询他人占用状态的间隔（毫秒）；短时抢锁不常驻顶栏，仅用于展示长占用 */
+/** 查询他人是否占锁的间隔（毫秒）；只用于顶栏展示长时间占用 */
 const STATUS_POLL_MS = 12_000
-/** 收到外部改图通知后，顶栏短暂展示来源的时长（毫秒）；覆盖 MCP 等短抢短释 */
+/** 收到外部改图通知后，顶栏短暂提示来源的时长（毫秒）；用于抢锁时间很短、轮询看不到的写入方 */
 const ACTIVITY_PULSE_MS = 5_000
 
-/** 写锁 composable 入参 */
+/** 写锁管理的入参 */
 export interface UseFlowEditLeaseOptions {
   /** 当前编辑的测试流 id */
   testFlowId: Ref<string>
@@ -39,42 +48,47 @@ export interface UseFlowEditLeaseOptions {
   enabled?: Ref<boolean>
 }
 
-/** 顶栏租约徽章文案 */
+/** 顶栏写锁徽章：self 为本页占锁，other 为他人占锁或刚有外部写入 */
 export type FlowEditLeaseBadge =
   | { kind: 'self'; text: string }
   | { kind: 'other'; text: string }
   | null
 
 /**
- * 挂载脏稿写锁：监听内容脏 / 流 id / 开关，管理抢锁、心跳与释放；并轮询他人占用状态。
+ * 挂载画布写锁管理，返回顶栏徽章与外部写入提示方法。
  */
 export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
   const store = useFlowCanvasStore()
   const stagingStore = useAiStagingStore()
-  /** 心跳定时器；有值表示本页已在续期中 */
+
+  /** 当前想要的锁状态：哪条流、要不要锁，以及每次放弃或切流时递增的序号 */
+  let intent: FlowEditLeaseIntent = emptyFlowEditLeaseIntent()
+  /** 续期定时器；有值表示本页正在续期 */
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null
-  /** 他人占用状态轮询定时器 */
+  /** 他人占锁状态的轮询定时器 */
   let statusTimer: ReturnType<typeof setInterval> | null = null
-  /** 外部改图短暂展示定时器 */
+  /** 外部写入提示的自动消失定时器 */
   let activityPulseTimer: ReturnType<typeof setTimeout> | null = null
-  /** 为 true 时跳过新的抢锁请求，避免并发重复占用 */
-  let acquiring = false
-  /** 上一次处理过的测试流 id；变化时先释放旧流锁 */
-  let watchedFlowId = ''
+  /** 为 true 表示正在执行抢锁或释放，期间不再并发执行 */
+  let busy = false
+  /** 执行期间锁需求又变了，当前一轮结束后需要再处理一次 */
+  let pendingDrive = false
+  /** 本页正在续期的测试流 id；未持锁为空串 */
+  let holdingFlowId = ''
   /**
    * 浏览器刷新或关闭过程中为 true。
-   * 此时卸载组件不清 sessionStorage 里的 token，方便同标签重新打开后续约。
+   * 此时卸载组件不清本标签保存的锁凭证，同一标签重新打开后可直接续期。
    */
   let pageUnloading = false
 
-  /** 本页是否正持有长租约（已心跳中） */
+  /** 本页是否正持有写锁并在续期 */
   const holdingLease = ref(false)
-  /** 他人占用时的展示名；本页持锁或无人占用时为 null */
+  /** 他人占锁时的展示名；本页持锁或无人占锁时为 null */
   const remoteHolderName = ref<string | null>(null)
-  /** 外部改图短暂展示名（如 MCP）；锁已释放仍提示约数秒 */
+  /** 外部写入方的短暂展示名（如 MCP）；对方已释放锁时仍提示几秒 */
   const activityPulseName = ref<string | null>(null)
 
-  /** 清除外部改图短暂展示 */
+  /** 清除外部写入提示 */
   function clearActivityPulse() {
     if (activityPulseTimer) {
       clearTimeout(activityPulseTimer)
@@ -84,8 +98,8 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
   }
 
   /**
-   * 收到外部改图通知时调用：顶栏短暂亮「占用中 · 来源」。
-   * 用于 MCP 等短抢短释，轮询往往捕不到真实持锁窗口。
+   * 收到外部改图通知时调用：顶栏短暂显示「占用中 · 来源」，到时自动消失。
+   * 用于抢锁、写完、放锁都很快的写入方，定时轮询通常捕捉不到。
    */
   function pulseRemoteActivity(label: string, ms = ACTIVITY_PULSE_MS) {
     const name = label != null ? String(label).trim() : ''
@@ -101,47 +115,30 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
     }, ms)
   }
 
-  /** 是否需要长占写锁：内容脏（非仅布局）且有 pending Staging 也算内容脏 */
+  /**
+   * 当前是否需要持锁。
+   * 画布未保存且改动不只是坐标时需要；有未确认的 AI 待定改动也算需要。
+   */
   function needsLongLease(): boolean {
     if (!store.dirty) return false
     return !isLayoutOnlyDirtyFromStore(store, stagingStore.pendingCount)
   }
 
-  /** 按当前脏态同步占锁 / 释锁 */
-  function syncLeaseForCurrentFlow() {
-    const nextId = String(options.testFlowId.value || '').trim()
-    if (watchedFlowId && watchedFlowId !== nextId) {
-      void releaseFor(watchedFlowId)
-    }
-    watchedFlowId = nextId
-
-    const enabled = options.enabled?.value ?? true
-    if (!enabled || !nextId || !needsLongLease()) {
-      // 仅在本页确有租约时释锁，避免仅拖排版时深监听反复打释放/状态接口
-      const hadLease = holdingLease.value || !!getFlowEditLeaseToken(nextId)
-      if (hadLease) {
-        void releaseCurrent().then(() => {
-          void refreshRemoteStatus()
-        })
-      }
-      return
-    }
-    void ensureLease()
-  }
-
-  /** 停止心跳定时器 */
+  /** 停止续期，并把本页标记为未持锁 */
   function clearHeartbeat() {
     if (heartbeatTimer) {
       clearInterval(heartbeatTimer)
       heartbeatTimer = null
     }
     holdingLease.value = false
+    holdingFlowId = ''
   }
 
-  /** 启动心跳：每隔 HEARTBEAT_MS 向服务端续期一次 */
-  function startHeartbeat() {
+  /** 标记本页持有指定流的写锁，并开始定时续期 */
+  function startHeartbeat(flowId: string) {
     clearHeartbeat()
     holdingLease.value = true
+    holdingFlowId = flowId
     remoteHolderName.value = null
     clearActivityPulse()
     heartbeatTimer = setInterval(() => {
@@ -151,11 +148,13 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
 
   /**
    * 释放指定测试流的写锁。
-   * 先停心跳、清本地 token，再请求服务端删除租约；请求失败不影响本地编辑。
+   * 若正是本页续期的流，先停止续期；再清本地凭证并请求服务端删除锁。请求失败不影响本地编辑。
    */
   async function releaseFor(flowId: string) {
     const id = String(flowId || '').trim()
-    clearHeartbeat()
+    if (holdingFlowId === id) {
+      clearHeartbeat()
+    }
     if (!id) return
     const t = getFlowEditLeaseToken(id)
     setFlowEditLeaseToken(id, null)
@@ -163,58 +162,133 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
     try {
       await releaseFlowEditLease(id, t)
     } catch {
-      // 释锁失败不打断编辑
+      // 释放失败不打断编辑
     }
   }
 
-  /** 释放当前 options.testFlowId 对应的写锁 */
-  function releaseCurrent() {
-    return releaseFor(String(options.testFlowId.value || ''))
+  /**
+   * 按当前画布状态更新锁需求，然后触发执行。
+   * 只记录要不要锁，不在这里直接抢锁或放锁。
+   */
+  function publishIntent() {
+    const flowId = String(options.testFlowId.value || '').trim()
+    const enabled = options.enabled?.value ?? true
+    const wantLongLease = enabled && !!flowId && needsLongLease()
+    intent = advanceFlowEditLeaseIntent(intent, { flowId, wantLongLease })
+    void drive()
   }
 
   /**
-   * 确保当前流持有写锁。
-   * 若本地已有 token，先心跳续约；续约失败则清空后重新抢锁；成功后启动心跳。
-   * 已在心跳中或开关关闭时直接返回。抢锁失败仍允许本地改图。
+   * 执行入口：串行处理抢锁与释放，直到实际持锁状态符合锁需求。
+   * 正在执行时再次调用只做标记，当前一轮结束后自动补跑。
    */
-  async function ensureLease() {
-    const flowId = String(options.testFlowId.value || '').trim()
-    if (!flowId || acquiring) return
-    if (options.enabled && !options.enabled.value) return
-    if (!needsLongLease()) return
-    if (heartbeatTimer && getFlowEditLeaseToken(flowId)) return
-
-    acquiring = true
+  async function drive() {
+    if (busy) {
+      pendingDrive = true
+      return
+    }
+    busy = true
     try {
-      const existing = getFlowEditLeaseToken(flowId)
-      if (existing) {
-        try {
-          await heartbeatFlowEditLease(flowId, existing)
-          startHeartbeat()
-          return
-        } catch {
-          setFlowEditLeaseToken(flowId, null)
-        }
+      do {
+        pendingDrive = false
+        await driveOnce()
+      } while (pendingDrive)
+    } finally {
+      busy = false
+    }
+    // 执行结束到清除 busy 之间若又有新需求，再补跑一次
+    if (pendingDrive) {
+      void drive()
+    }
+  }
+
+  /**
+   * 执行一步：根据锁需求和本页持锁情况，决定什么都不做、释放，还是抢锁。
+   * 抢锁时本地已有凭证则先尝试续期，续期失败再重新抢。
+   */
+  async function driveOnce() {
+    const step = nextFlowEditLeaseStep({
+      intent,
+      holding: holdingLease.value,
+      holdingFlowId,
+      hasTokenForIntentFlow: !!intent.flowId && !!getFlowEditLeaseToken(intent.flowId),
+    })
+
+    if (step.type === 'idle') return
+
+    if (step.type === 'release') {
+      await releaseFor(step.flowId)
+      void refreshRemoteStatus()
+      pendingDrive = true
+      return
+    }
+
+    const flowId = step.flowId
+    const epochAtStart = step.epoch
+    const existing = getFlowEditLeaseToken(flowId)
+    if (existing) {
+      try {
+        await heartbeatFlowEditLease(flowId, existing)
+        await commitOrDiscard(flowId, existing, epochAtStart, true)
+        return
+      } catch {
+        // 旧凭证已失效，清掉后重新抢锁
+        setFlowEditLeaseToken(flowId, null)
       }
+    }
+
+    try {
       const res = await acquireFlowEditLease(flowId)
       const next = (res as { data?: { token?: string } })?.data?.token
-      if (typeof next === 'string' && next) {
-        setFlowEditLeaseToken(flowId, next)
-        startHeartbeat()
-      }
+      if (typeof next !== 'string' || !next) return
+      await commitOrDiscard(flowId, next, epochAtStart, false)
     } catch {
-      // 抢锁失败仍可本地改图；保存时由服务端短时抢锁
-    } finally {
-      acquiring = false
+      // 抢锁失败（多半被他人占用）仍可本地改图；保存时服务端会短时抢锁
     }
   }
 
   /**
-   * 执行一次心跳续期。
-   * 失败则清除本地 token 与定时器；若仍需内容脏长租约则再次尝试占锁。
+   * 抢锁或续期成功后决定留下还是放掉。
+   * 请求期间锁需求已作废或已不需要持锁：放掉这把锁，并再处理一次；否则保存凭证并开始续期。
+   * alreadyStored 为 true 表示凭证本来就存在本地（续期场景），false 表示刚抢到、还没保存。
+   */
+  async function commitOrDiscard(
+    flowId: string,
+    token: string,
+    epochAtStart: number,
+    alreadyStored: boolean,
+  ) {
+    if (
+      !shouldKeepLeaseAfterAcquire({
+        epochAtStart,
+        currentEpoch: intent.epoch,
+        needsLongLease: needsLongLease(),
+      })
+    ) {
+      if (alreadyStored) {
+        await releaseFor(flowId)
+      } else {
+        try {
+          await releaseFlowEditLease(flowId, token)
+        } catch {
+          // 释放失败不打断编辑
+        }
+      }
+      pendingDrive = true
+      return
+    }
+    if (!alreadyStored) {
+      setFlowEditLeaseToken(flowId, token)
+    }
+    startHeartbeat(flowId)
+  }
+
+  /**
+   * 定时续期一次。
+   * 续期失败说明锁已丢失：清掉本地凭证并停止续期，再按当前画布状态决定是否重新抢锁。
    */
   async function beat() {
-    const flowId = String(options.testFlowId.value || '').trim()
+    const flowId = holdingFlowId || String(options.testFlowId.value || '').trim()
     const token = getFlowEditLeaseToken(flowId)
     if (!flowId || !token) return
     try {
@@ -222,13 +296,17 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
     } catch {
       setFlowEditLeaseToken(flowId, null)
       clearHeartbeat()
-      if (needsLongLease()) {
-        void ensureLease()
-      }
+      publishIntent()
     }
   }
 
-  /** 查询他人是否占用写锁（本页持锁时不查） */
+  /** 改为不需要锁并触发执行，用于离开画布或组件卸载 */
+  function dropWantAndDrive() {
+    intent = advanceFlowEditLeaseIntent(intent, { flowId: intent.flowId, wantLongLease: false })
+    void drive()
+  }
+
+  /** 查询当前流是否被他人占锁，结果用于顶栏展示；本页持锁时不查 */
   async function refreshRemoteStatus() {
     const flowId = String(options.testFlowId.value || '').trim()
     if (!flowId || (options.enabled && !options.enabled.value)) {
@@ -247,6 +325,7 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
         remoteHolderName.value = null
         return
       }
+      // 占锁的是本标签自己的凭证，不算他人占用
       const ours = getFlowEditLeaseToken(flowId)
       if (ours && raw === ours) {
         remoteHolderName.value = null
@@ -254,11 +333,11 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
       }
       remoteHolderName.value = formatFlowEditLeaseHolder(raw)
     } catch {
-      // 状态接口未就绪或失败时不打断编辑
+      // 查询失败不打断编辑
     }
   }
 
-  /** 停止他人占用状态轮询定时器 */
+  /** 停止他人占锁状态的轮询 */
   function clearStatusPoll() {
     if (statusTimer) {
       clearInterval(statusTimer)
@@ -266,7 +345,7 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
     }
   }
 
-  /** 立即查一次他人占用，并按固定间隔继续轮询 */
+  /** 立即查一次他人占锁状态，并按固定间隔继续轮询 */
   function startStatusPoll() {
     clearStatusPoll()
     void refreshRemoteStatus()
@@ -275,7 +354,7 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
     }, STATUS_POLL_MS)
   }
 
-  // dirty / Staging / 流 id / 开关：切流先释旧锁；不需长租约则释放；否则占锁
+  // 未保存标记、AI 待定改动数、已保存基线、流 id、开关变化时，重新计算锁需求
   watch(
     () =>
       [
@@ -286,22 +365,22 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
         options.enabled?.value ?? true,
       ] as const,
     () => {
-      syncLeaseForCurrentFlow()
+      publishIntent()
     },
     { immediate: true },
   )
 
-  // 节点/边/场景深变更：已脏时需重判是否仅布局脏（如先拖拽再改内容）
+  // 节点、边、场景、流输出有深层变化且画布未保存时，重新判断是否只是排版改动
   watch(
     () => [store.nodes, store.edges, store.runConfig, store.flowOutputs] as const,
     () => {
       if (!store.dirty) return
-      syncLeaseForCurrentFlow()
+      publishIntent()
     },
     { deep: true },
   )
 
-  // 启用且有流 id 时轮询他人占用
+  // 启用且有流 id 时轮询他人占锁状态；否则停止轮询并清空展示
   watch(
     () => [options.testFlowId.value, options.enabled?.value ?? true] as const,
     ([flowId, enabled]) => {
@@ -316,20 +395,18 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
     { immediate: true },
   )
 
-  // 路由缓存停用：离开画布时释放写锁
+  // 页面被缓存隐藏（离开画布）时释放写锁
   onDeactivated(() => {
-    void releaseCurrent()
+    dropWantAndDrive()
   })
 
-  // 路由缓存重新激活：若仍需内容脏长租约则重新占锁或续约
+  // 从缓存重新显示时，按当前画布状态重新决定是否抢锁，并刷新他人占锁状态
   onActivated(() => {
-    if (needsLongLease() && (options.enabled?.value ?? true) && options.testFlowId.value) {
-      void ensureLease()
-    }
+    publishIntent()
     void refreshRemoteStatus()
   })
 
-  /** 标记即将刷新或关闭页面 */
+  /** 标记浏览器即将刷新或关闭页面 */
   function onPageHide() {
     pageUnloading = true
   }
@@ -341,15 +418,16 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
     clearStatusPoll()
     clearActivityPulse()
     if (pageUnloading) {
-      // 刷新/关页：只停心跳，保留 sessionStorage token 供下次续约
+      // 刷新或关闭页面：只停续期并作废进行中的抢锁，保留本地凭证，下次打开可直接续期
+      intent = advanceFlowEditLeaseIntent(intent, { flowId: intent.flowId, wantLongLease: false })
       clearHeartbeat()
       return
     }
-    // 路由内卸载：完整释放服务端写锁
-    void releaseCurrent()
+    // 站内跳转卸载：完整释放服务端写锁
+    dropWantAndDrive()
   })
 
-  /** 顶栏徽章：本页持锁 / 轮询到的他人占用 / 外部改图短暂提示 */
+  /** 顶栏徽章：优先显示本页持锁，其次他人占锁，最后是外部写入的短暂提示 */
   const leaseBadge = computed<FlowEditLeaseBadge>(() => {
     if (holdingLease.value) {
       return { kind: 'self', text: '编辑中 · 外部写图已暂停' }

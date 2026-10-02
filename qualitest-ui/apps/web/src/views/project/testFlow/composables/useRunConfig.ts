@@ -1,6 +1,7 @@
 /**
  * 运行场景配置：管理 graph_json.meta.scenarios 中的场景列表与当前激活场景。
- * 提供场景增删改查、项目环境下拉数据、flowSeed 键值行转换。
+ * 提供场景增删改查、项目环境下拉、flowSeed 键值行转换。
+ * 打开画布拉环境后，会给未绑定环境的激活场景自动补上列表第一条，并同步「已保存」基线。
  */
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -10,6 +11,7 @@ import type { GraphFlowOutput, GraphRunScenario } from '@/utils/flow/graphTypes'
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId';
 
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
+import { refreshSavedBaselineIfPristine } from '../utils/reconcileFlowDirty';
 
 /** 项目环境条目，供场景配置下拉使用 */
 export interface ProjectEnvOption {
@@ -114,15 +116,22 @@ export function useRunConfig() {
     return parts.join(' · ');
   }
 
-  /** 拉取当前项目环境列表，写入 envOptions */
+  /**
+   * 拉取当前项目的运行环境列表，写入 envOptions。
+   * 请求成功后给未绑环境的激活场景自动补绑列表第一条；若发生补绑，会把当前画布记为已保存基线。
+   * 同一项目已有缓存且未 force 时跳过请求，仍会再跑一遍自动补绑。
+   *
+   * @param force true 时忽略本地缓存，强制重新请求
+   */
   async function loadProjectEnvs(force = false) {
     const projectId = store.testProjectId;
     if (!projectId) {
       resetProjectEnvs();
       return;
     }
+    // 同项目已有环境缓存：不重复请求，仍尝试补绑未设环境的场景
     if (!force && loadedProjectId === projectId && envOptions.value.length) {
-      ensureActiveScenarioEnv();
+      await ensureActiveScenarioEnv();
       return;
     }
     envLoading.value = true;
@@ -136,7 +145,8 @@ export function useRunConfig() {
         allowDestructiveReset: Number(row.allowDestructiveReset ?? 0),
       }));
       loadedProjectId = projectId;
-      ensureActiveScenarioEnv();
+      // 列表就绪后再补绑，确保能取到第一条环境 id
+      await ensureActiveScenarioEnv();
     } catch {
       envOptions.value = [];
       loadedProjectId = '';
@@ -221,14 +231,18 @@ export function useRunConfig() {
   }
 
   /**
-   * 若当前场景未绑定环境且项目环境列表非空，自动选中第一条。
-   * 在场景面板挂载或环境列表加载后调用。
+   * 当前激活场景还没有 testProjectEnvId、且 envOptions 非空时，写入列表第一条的环境 id。
+   * 自动补全不标记「未保存」。
+   * 若本次确实写入了环境 id：在画布仍无用户改动时，把当前图快照记为已保存基线并清未保存标记。
+   * 这样之后只拖节点或一键排版改坐标时，相对基线仍是仅布局变更，不会去长占画布写锁。
    */
-  /** 场景未绑定环境时自动选第一条，属于加载期补全，不触发未保存状态 */
-  function ensureActiveScenarioEnv() {
+  async function ensureActiveScenarioEnv() {
     const sc = getActiveScenario();
+    // 无激活场景、已有环境、或列表为空：无需补绑
     if (!sc || sc.testProjectEnvId || !envOptions.value.length) return;
     sc.testProjectEnvId = envOptions.value[0].testProjectEnvId;
+    // 补绑改了场景内容但不标脏；同步基线，避免后续仅改坐标被当成内容脏
+    await refreshSavedBaselineIfPristine(store);
   }
 
   return {

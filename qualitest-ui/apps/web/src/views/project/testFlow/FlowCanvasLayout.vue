@@ -277,7 +277,7 @@ import { Background } from '@vue-flow/background'
 import { VueFlow } from '@vue-flow/core'
 import { MiniMap } from '@vue-flow/minimap'
 import { markRaw, nextTick, onBeforeUnmount, reactive, ref, watch, getCurrentInstance, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 import ProjectSettingDrawer from '@/views/project/testProject/components/ProjectSettingDrawer.vue'
@@ -351,6 +351,7 @@ const props = defineProps({
 const emit = defineEmits(['back', 'save', 'toggle-fullscreen'])
 
 const { proxy } = getCurrentInstance()
+const route = useRoute()
 const router = useRouter()
 const store = useFlowCanvasStore()
 const isTemplateCanvas = computed(() => store.canvasMode === 'template')
@@ -358,8 +359,11 @@ const backLabel = computed(() => props.backLabel)
 const stagingStore = useAiStagingStore()
 const stagingPendingCount = computed(() => stagingStore.pendingCount)
 
-const externalSyncTestFlowId = computed(() => String(store.testFlowId || ''))
-const externalSyncProjectId = computed(() => String(store.testProjectId || ''))
+/** 写锁 / SSE 跟地址栏 id，避免 store 滞后握着已删旧流去打 editLease */
+const externalSyncTestFlowId = computed(() => String(route.params.testFlowId ?? ''))
+const externalSyncProjectId = computed(() =>
+  String(route.params.testProjectId ?? store.testProjectId ?? ''),
+)
 const externalSyncEnabled = computed(() => !isTemplateCanvas.value && !!externalSyncTestFlowId.value)
 
 const {

@@ -98,6 +98,7 @@ async function initFlow() {
   store.testProjectId = testProjectId
   try {
     await loadFlow(testFlowId)
+    // 并行拉鉴权、项目名、环境列表、Run 库；拉环境时会给未绑环境的场景自动补绑并更新已保存基线
     await Promise.all([
       store.loadProjectAuthConfig(),
       loadProjectName(testProjectId),

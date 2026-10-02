@@ -66,6 +66,7 @@ export const ui = {
     mcpLeadAfter: "。",
     mcpSurveyTitle: "只读勘察",
     mcpSurveyDesc: "列出测试流、查看节点拓扑与上次 Run 失败现场 —— 答案来自平台真数据。",
+    mcpSurveyAlt: "MCP 只读勘察：list_flows 与拓扑查询",
     mcpSurveySteps: [
       "项目设置复制 mcp.json，接入 Cursor",
       "list_flows / get_graph_summary 看拓扑",
@@ -73,6 +74,7 @@ export const ui = {
     ] as const,
     mcpAutoWriteTitle: "写流 / 跑流",
     mcpAutoWriteDesc: "写流：Cursor 帮你搭画布（成功就写库）。跑流：Cursor 帮你点运行，挂了拉回对话再修。后端自测、前端先验接口链路。",
+    mcpAutoWriteAlt: "MCP 写流：Cursor 搭流后 Web 画布 SSE 同步",
     mcpAutoWriteSteps: [
       "项目设置开启写流、跑流并保存",
       "重连 MCP 后 create_flow / submit_* / run_test_flow",
@@ -166,6 +168,7 @@ export const ui = {
     mcpLeadAfter: ".",
     mcpSurveyTitle: "Survey",
     mcpSurveyDesc: "List flows, inspect topology, and last failed Run — answers from live platform data.",
+    mcpSurveyAlt: "MCP survey: list_flows and topology",
     mcpSurveySteps: [
       "Copy mcp.json from project settings into Cursor",
       "list_flows / get_graph_summary for topology",
@@ -173,6 +176,7 @@ export const ui = {
     ] as const,
     mcpAutoWriteTitle: "Write / run",
     mcpAutoWriteDesc: "Write: Cursor builds the canvas (persists on success). Run: Cursor hits Run and pulls failures back. Backend self-tests; frontend verifies the API path first.",
+    mcpAutoWriteAlt: "MCP write: Cursor builds the flow; Web canvas syncs over SSE",
     mcpAutoWriteSteps: [
       "Enable write + run in project settings and save",
       "Reconnect MCP, then create_flow / submit_* / run_test_flow",
