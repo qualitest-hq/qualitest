@@ -187,6 +187,10 @@ Drag HTTP / assert / condition / subflow nodes → wire edges → run; expand th
 
 Open the AI panel beside a flow, describe intent (e.g. “retry after login failure”) → **preview Diff, then merge**. Demo prompts: [AI test-flow prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) (needs an admin-configured model; skip if you have no key).
 
+<p align="center">
+  <img src="./docs/images/ai-diff.gif" alt="AI flow edit: stop at Diff, merge only after confirm" width="960" />
+</p>
+
 ### MCP
 
 Read-only by default; enable **Allow MCP auto-write**, **Allow MCP auto-run**, and/or **Allow MCP import APIs**. Plain-language write-up: [`docs/mcp.en.md`](./docs/mcp.en.md).

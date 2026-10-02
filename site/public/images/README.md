@@ -6,7 +6,7 @@ Hero 仍用链路 SVG。能力区下方可嵌极短 GIF（文件存在才渲染�
 |------|------|------|
 | `debug-200.gif` | 能力区演示「接口调试」 | 已放 |
 | `canvas-glance.gif` | 能力区演示「测试流」 | 已放 |
-| `ai-diff.gif` | 能力区「AI Diff」（待补） | 可选 |
+| `ai-diff.gif` | 能力区「AI Diff」 | 已放 |
 | `mcp-list.gif` | MCP 左卡「只读勘察」（待补） | 可选 |
 | `mcp-sse.gif` | MCP 右卡「写流同步」（待补） | 可选 |
 

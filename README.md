@@ -203,6 +203,10 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 在测试流旁打开 AI 面板，用自然语言描述意图（如「登录失败再重试」）→ **先预览 Diff，确认后再合并**。靶场提示集：[AI 测试流提示](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)（需管理员配置大模型；无 Key 可跳过）。
 
+<p align="center">
+  <img src="./docs/images/ai-diff.gif" alt="AI 辅助改流：停在 Diff、确认后再合并" width="960" />
+</p>
+
 ### MCP 接入
 
 默认只能看；可分别开启「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」。人话说明见 [`docs/mcp.md`](./docs/mcp.md)。
