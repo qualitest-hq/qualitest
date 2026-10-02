@@ -21,6 +21,7 @@ import { createClientMessageId, isPersistedSessionId } from '@/utils/ai/aiChatSe
 import {
   resolveAssistantContent,
   resolveFailedAssistantFields,
+  normalizeProcessNarration,
   resolveThinkingContent,
 } from '@/utils/ai/assistantMessageContent';
 import { parseAiChatSessionMessages } from '@/utils/ai/parseAiChatSessionMessages';
@@ -125,6 +126,7 @@ export function useApiAi(
           : '已生成接口变更建议，请勾选后合并到工作台。',
       }),
       thinkingContent: resolveThinkingContent(data.thinkingContent, streamThinking.value),
+      processNarration: normalizeProcessNarration(data.processNarration),
       aiLlmModelId: data.aiLlmModelId,
       vendorName: data.vendorName,
       modelName: data.modelName,

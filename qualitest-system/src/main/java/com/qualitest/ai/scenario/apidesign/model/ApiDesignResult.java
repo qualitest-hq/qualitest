@@ -7,7 +7,7 @@ import lombok.Getter;
 
 /**
  * AI API 助手单轮对话完成后的响应。
- * 含说明文案、结构化 patch、校验结果、工具轨迹 toolTrace；
+ * 含说明文案、思考过程、过程旁白、结构化 patch、校验结果、工具轨迹 toolTrace；
  * interrupted=true 表示本轮因取消或断连结束，内容可能不完整。
  */
 @Getter
@@ -33,6 +33,12 @@ public class ApiDesignResult {
 
     /** 模型思考链内容（若开启思考且有输出） */
     private final String thinkingContent;
+
+    /**
+     * 过程旁白：各步调用工具前模型输出的说明文字，多句以换行分隔，不含最终总结；无则 null。
+     * 前端显示在总结前面。
+     */
+    private final String processNarration;
 
     /** 结构化修改建议；仅答疑时为 null */
     private final ApiDesignPatch patch;

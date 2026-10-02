@@ -453,8 +453,8 @@ const saveButtonTitle = computed(() => {
   if (stagingPendingCount.value > 0) {
     return stagingPendingSaveTooltip(stagingPendingCount.value)
   }
-  if (store.dirty) return '有未保存的修改，点击保存'
-  return undefined
+  if (store.dirty) return '有未保存的修改，点击保存（Ctrl+S）'
+  return '保存（Ctrl+S）'
 })
 
 function handleOpenAiDesign() {
@@ -466,6 +466,7 @@ function handleOpenAiDesign() {
 }
 
 function handleSave() {
+  if (store.loading) return
   if (!canEditFlow.value) {
     ElMessage.warning('当前账号无编辑权限，无法保存')
     return
@@ -571,7 +572,7 @@ function onDeleteNodeFromMenu() {
 }
 
 const helpOpen = ref(false)
-useFlowKeyboard({ helpOpen })
+useFlowKeyboard({ helpOpen, onSave: handleSave })
 
 const nodeTypes = Object.fromEntries(
   // 从注册表生成 VueFlow nodeTypes，避免 Layout 手写每种节点

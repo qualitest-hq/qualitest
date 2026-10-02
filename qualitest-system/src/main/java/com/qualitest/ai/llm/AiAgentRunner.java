@@ -1,5 +1,6 @@
 package com.qualitest.ai.llm;
 
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.config.AiLlmConfigService;
 import com.qualitest.ai.llm.lc4j.Lc4jClientFactory;
@@ -50,6 +51,13 @@ public class AiAgentRunner {
     /** 用户取消或连接中断后，写入助手消息时的默认说明文案。 */
     public static final String INTERRUPTED_MESSAGE = "本轮已中断";
 
+    /**
+     * 输出语言提醒：追加在本轮用户消息末尾，要求模型调用工具前的说明与最终回复都用简体中文，
+     * 工具前的说明至多一句。只发给模型，不保存到会话记录。
+     */
+    public static final String OUTPUT_LANGUAGE_REMINDER =
+            "【输出语言】调用工具前的说明与最终回复一律使用简体中文；工具前至多一句，如「先查看画布和可用子流。」。";
+
     private final Lc4jClientFactory lc4jClientFactory;
     private final AiLlmConfigService aiLlmConfigService;
 
@@ -75,8 +83,7 @@ public class AiAgentRunner {
         List<ChatMessage> messages = new ArrayList<>(options.getInitialMessages());
         int maxSteps = options.getMaxSteps() > 0 ? options.getMaxSteps() : aiLlmConfigService.getMaxSteps();
         AgentRunListener listener = options.getListener();
-        StringBuilder thinkingAccumulator = new StringBuilder();
-        AiToolTraceSupport.Recorder toolTrace = new AiToolTraceSupport.Recorder();
+        RunProgress progress = new RunProgress();
         boolean reasoningEnabled = ThinkingPolicy.resolveEffective(
                 options.getModelConfig(), options.getSessionThinkingEnabled());
         List<ToolSpecification> toolSpecs = Lc4jToolSpecifications.fromOpenAiMaps(options.getTools());
@@ -90,7 +97,7 @@ public class AiAgentRunner {
         int steps = 0;
         while (steps < maxSteps) {
             if (isCancelled(options)) {
-                return buildInterrupted(thinkingAccumulator, steps, maxSteps, toolTrace, null);
+                return buildInterrupted(progress, steps, maxSteps, null);
             }
             ChatRequest request = buildChatRequest(messages, toolSpecs);
             ChatResponse response = listener != null
@@ -98,27 +105,28 @@ public class AiAgentRunner {
                     : chatModel.chat(request);
             if (response == null || response.aiMessage() == null) {
                 if (isCancelled(options)) {
-                    return buildInterrupted(thinkingAccumulator, steps, maxSteps, toolTrace, null);
+                    return buildInterrupted(progress, steps, maxSteps, null);
                 }
-                return AgentRunResult.builder()
+                return progress.resultBuilder(steps, maxSteps)
                         .error("LLM 流式响应未完成")
-                        .stepsUsed(steps)
-                        .toolTrace(toolTrace.build(steps, maxSteps))
                         .build();
             }
             AiMessage aiMessage = response.aiMessage();
-            appendThinking(thinkingAccumulator, aiMessage.thinking());
+            // 本轮思考追加到思考全文，记下字符数，用于把思考全文按步切开
+            int thinkingChars = progress.appendThinking(aiMessage.thinking());
             if (isCancelled(options)) {
                 String partial = aiMessage.text() != null && !aiMessage.text().isBlank()
                         ? aiMessage.text().trim()
                         : null;
-                return buildInterrupted(thinkingAccumulator, steps, maxSteps, toolTrace, partial);
+                return buildInterrupted(progress, steps, maxSteps, partial);
             }
+            // 带工具调用的一步：记录本步说明文字，依次执行工具，结果写回对话后进入下一轮
             if (aiMessage.hasToolExecutionRequests()) {
+                JSONObject stepRecord = progress.startStep(steps + 1, aiMessage.text(), thinkingChars);
                 messages.add(toHistoryAiMessage(aiMessage, reasoningEnabled));
                 for (ToolExecutionRequest tc : aiMessage.toolExecutionRequests()) {
                     if (isCancelled(options)) {
-                        return buildInterrupted(thinkingAccumulator, steps, maxSteps, toolTrace, null);
+                        return buildInterrupted(progress, steps, maxSteps, null);
                     }
                     String toolName = tc.name();
                     String argsJson = tc.arguments() != null ? tc.arguments() : "{}";
@@ -128,7 +136,9 @@ public class AiAgentRunner {
                     long started = System.nanoTime();
                     String result = options.getToolExecutor().execute(toolName, argsJson);
                     long ms = (System.nanoTime() - started) / 1_000_000L;
-                    toolTrace.record(toolName, argsJson, result, ms, maxSteps);
+                    // 写入工具轨迹，并把本次调用序号记到所属步骤
+                    progress.toolTrace.record(toolName, argsJson, result, ms, maxSteps);
+                    progress.markCallDone(stepRecord);
                     if (listener != null) {
                         listener.onToolEnd(toolName);
                     }
@@ -142,37 +152,128 @@ public class AiAgentRunner {
                 }
                 steps++;
                 if (isCancelled(options)) {
-                    return buildInterrupted(thinkingAccumulator, steps, maxSteps, toolTrace, null);
+                    return buildInterrupted(progress, steps, maxSteps, null);
                 }
                 if (isTerminalSuccess(options)) {
-                    return buildTerminalToolSuccess(thinkingAccumulator, steps, toolTrace.build(steps, maxSteps));
+                    return buildTerminalToolSuccess(progress, steps, maxSteps);
                 }
                 maybeAppendSubmitNudge(messages, options, steps, maxSteps);
                 continue;
             }
+            // 无工具调用且有正文：作为最终回复，结束本轮
             String content = aiMessage.text();
             if (content != null && !content.isBlank()) {
-                return AgentRunResult.builder()
+                return progress.resultBuilder(steps, maxSteps)
                         .content(content.trim())
-                        .thinkingContent(toThinkingContent(thinkingAccumulator))
-                        .stepsUsed(steps)
-                        .toolTrace(toolTrace.build(steps, maxSteps))
                         .build();
             }
+            // 既无工具调用也无正文的空步：仍记一条步骤，保证按 thinkingChars 切分思考全文时不错位
+            progress.startStep(steps + 1, null, thinkingChars);
             steps++;
             if (isTerminalSuccess(options)) {
-                return buildTerminalToolSuccess(thinkingAccumulator, steps, toolTrace.build(steps, maxSteps));
+                return buildTerminalToolSuccess(progress, steps, maxSteps);
             }
             maybeAppendSubmitNudge(messages, options, steps, maxSteps);
         }
         if (isTerminalSuccess(options)) {
-            return buildTerminalToolSuccess(thinkingAccumulator, steps, toolTrace.build(steps, maxSteps));
+            return buildTerminalToolSuccess(progress, steps, maxSteps);
         }
-        return AgentRunResult.builder()
+        return progress.resultBuilder(steps, maxSteps)
                 .error(maxStepsExceededMessage(maxSteps, options))
-                .stepsUsed(steps)
-                .toolTrace(toolTrace.build(steps, maxSteps))
                 .build();
+    }
+
+    /**
+     * 单次运行中的累积状态：思考全文、按步时间线、工具轨迹、工具调用计数。
+     * <p>
+     * 按步时间线每条字段：
+     * <ul>
+     *   <li>step：第几轮模型调用，从 1 开始</li>
+     *   <li>narration：该步调用工具前模型输出的说明文字，无则不写</li>
+     *   <li>callFrom / callTo：该步执行的工具调用在本轮所有调用中的起止序号（从 1 开始），未执行调用则不写</li>
+     *   <li>thinkingChars：该步追加进思考全文的字符数，按顺序累加即可从思考全文切出每步的思考</li>
+     * </ul>
+     * 最终纯文本回复那一步不记入时间线，它的思考是思考全文切完各步后剩下的部分。
+     */
+    private static final class RunProgress {
+        /** 本轮思考全文，各步之间以一个换行分隔 */
+        private final StringBuilder thinking = new StringBuilder();
+        /** 按步时间线 */
+        private final JSONArray agentSteps = new JSONArray();
+        /** 工具调用轨迹 */
+        private final AiToolTraceSupport.Recorder toolTrace = new AiToolTraceSupport.Recorder();
+        /** 已执行的工具调用总数（含因轨迹条数上限未写入轨迹的调用） */
+        private int callSeq;
+
+        /**
+         * 将本轮完整思考文本追加到思考全文（多轮之间用换行分隔）。
+         *
+         * @return 本次追加的思考字符数（不含分隔换行）；无内容时为 0
+         */
+        private int appendThinking(String text) {
+            if (text == null || text.isBlank()) {
+                return 0;
+            }
+            if (thinking.length() > 0) {
+                thinking.append('\n');
+            }
+            String trimmed = text.trim();
+            thinking.append(trimmed);
+            return trimmed.length();
+        }
+
+        /**
+         * 追加一条步骤记录并返回，执行工具时再往里回填 callFrom / callTo。
+         *
+         * @param step          第几轮模型调用
+         * @param text          该步模型输出的说明文字，可为空
+         * @param thinkingChars 该步思考字符数
+         */
+        private JSONObject startStep(int step, String text, int thinkingChars) {
+            JSONObject record = new JSONObject();
+            record.put("step", step);
+            if (text != null && !text.isBlank()) {
+                record.put("narration", text.trim());
+            }
+            record.put("thinkingChars", thinkingChars);
+            agentSteps.add(record);
+            return record;
+        }
+
+        /** 一次工具调用执行完毕：调用计数加一，并更新所属步骤的起止序号。 */
+        private void markCallDone(JSONObject stepRecord) {
+            callSeq++;
+            if (!stepRecord.containsKey("callFrom")) {
+                stepRecord.put("callFrom", callSeq);
+            }
+            stepRecord.put("callTo", callSeq);
+        }
+
+        /** 把各步说明文字按顺序用换行拼成过程旁白全文；一句都没有时返回 null。 */
+        private String joinNarration() {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < agentSteps.size(); i++) {
+                String text = agentSteps.getJSONObject(i).getString("narration");
+                if (text == null) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append('\n');
+                }
+                sb.append(text);
+            }
+            return sb.length() == 0 ? null : sb.toString();
+        }
+
+        /** 生成已填好思考全文、过程旁白、按步时间线、已用步数与工具轨迹的结果构建器，各出口在此基础上补充自身字段。 */
+        private AgentRunResult.AgentRunResultBuilder resultBuilder(int stepsUsed, int maxSteps) {
+            return AgentRunResult.builder()
+                    .thinkingContent(thinking.length() == 0 ? null : thinking.toString())
+                    .processNarration(joinNarration())
+                    .agentSteps(agentSteps.isEmpty() ? null : agentSteps)
+                    .stepsUsed(stepsUsed)
+                    .toolTrace(toolTrace.build(stepsUsed, maxSteps));
+        }
     }
 
     /**
@@ -269,25 +370,6 @@ public class AiAgentRunner {
                 .build();
     }
 
-    /** 将本轮完整思考文本追加到累加器（多轮之间用换行分隔）。 */
-    private static void appendThinking(StringBuilder accumulator, String thinking) {
-        if (thinking == null || thinking.isBlank()) {
-            return;
-        }
-        if (accumulator.length() > 0) {
-            accumulator.append('\n');
-        }
-        accumulator.append(thinking.trim());
-    }
-
-    /** 累加器转最终思考正文；无内容时返回 null。 */
-    private static String toThinkingContent(StringBuilder accumulator) {
-        if (accumulator.length() == 0) {
-            return null;
-        }
-        return accumulator.toString().trim();
-    }
-
     /**
      * 判断工具返回是否为错误结果。
      * 约定：返回 JSON 顶层含 error 字段时视为失败，写入 tool 消息时打上错误标记。
@@ -316,20 +398,13 @@ public class AiAgentRunner {
         return INTERRUPTED_MESSAGE;
     }
 
-    /** 组装取消/中断结果：带已有思考、可选半成品正文与工具轨迹。 */
+    /** 组装取消/中断结果：带已有思考、过程旁白、按步时间线、可选半成品正文与工具轨迹。 */
     private static AgentRunResult buildInterrupted(
-            StringBuilder thinkingAccumulator,
-            int stepsUsed,
-            int maxSteps,
-            AiToolTraceSupport.Recorder toolTrace,
-            String partialContent) {
-        return AgentRunResult.builder()
+            RunProgress progress, int stepsUsed, int maxSteps, String partialContent) {
+        return progress.resultBuilder(stepsUsed, maxSteps)
                 .interrupted(true)
                 .content(partialContent)
-                .thinkingContent(toThinkingContent(thinkingAccumulator))
                 .error(INTERRUPTED_MESSAGE)
-                .stepsUsed(stepsUsed)
-                .toolTrace(toolTrace.build(stepsUsed, maxSteps))
                 .build();
     }
 
@@ -376,13 +451,9 @@ public class AiAgentRunner {
     }
 
     /** 因宿主终态探测成功而结束（无最终正文，依赖工具侧已落结果）。 */
-    private static AgentRunResult buildTerminalToolSuccess(
-            StringBuilder thinkingAccumulator, int stepsUsed, JSONObject toolTrace) {
-        return AgentRunResult.builder()
+    private static AgentRunResult buildTerminalToolSuccess(RunProgress progress, int stepsUsed, int maxSteps) {
+        return progress.resultBuilder(stepsUsed, maxSteps)
                 .terminalViaTool(true)
-                .thinkingContent(toThinkingContent(thinkingAccumulator))
-                .stepsUsed(stepsUsed)
-                .toolTrace(toolTrace)
                 .build();
     }
 
@@ -435,6 +506,16 @@ public class AiAgentRunner {
         private final String content;
         /** 本轮累加的思考链全文；未开启或无内容时为 null。 */
         private final String thinkingContent;
+        /**
+         * 过程旁白：各步调用工具前模型输出的说明文字，按步用换行拼接，不含最终回复；无则 null。
+         * 前端在本轮结束后把它显示在总结前面。
+         */
+        private final String processNarration;
+        /**
+         * 按步时间线（不含最终纯文本回复那一步）；无步骤时为 null。
+         * 每条含 step、narration、callFrom / callTo、thinkingChars，可还原说明文字、工具调用与思考的先后顺序。
+         */
+        private final JSONArray agentSteps;
         /** 失败或中断说明；成功时为 null。 */
         private final String error;
         /** 已消耗的工具轮数。 */
@@ -449,6 +530,33 @@ public class AiAgentRunner {
         /** 未中断、无 error，且有正文或经工具终态成功。 */
         public boolean isOk() {
             return !interrupted && error == null && (content != null || terminalViaTool);
+        }
+
+        /**
+         * 把本轮过程信息写入助手消息元数据，各字段无内容时不写：
+         * <ul>
+         *   <li>toolTrace：工具调用轨迹</li>
+         *   <li>processNarration：过程旁白</li>
+         *   <li>agentSteps：按步时间线</li>
+         *   <li>agentReply：模型最后一轮纯文本回复原文，仅在它不同于 summary 时写入</li>
+         * </ul>
+         *
+         * @param meta    助手消息元数据
+         * @param summary 本轮最终写入气泡的 summary
+         */
+        public void writeProcessMeta(JSONObject meta, String summary) {
+            if (toolTrace != null) {
+                meta.put("toolTrace", toolTrace);
+            }
+            if (processNarration != null && !processNarration.isBlank()) {
+                meta.put("processNarration", processNarration);
+            }
+            if (agentSteps != null && !agentSteps.isEmpty()) {
+                meta.put("agentSteps", agentSteps);
+            }
+            if (content != null && !content.isBlank() && !content.trim().equals(summary)) {
+                meta.put("agentReply", content.trim());
+            }
         }
     }
 }

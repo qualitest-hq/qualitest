@@ -193,10 +193,8 @@ public class ApiDesignAgent {
         if (!explainOnly && normalizedPatch != null) {
             meta.put("patchJson", normalizedPatch);
         }
-        // 脱敏截断后的工具轨迹，供气泡折叠展开排障
-        if (runResult.getToolTrace() != null) {
-            meta.put("toolTrace", runResult.getToolTrace());
-        }
+        // 工具轨迹、过程旁白、按步时间线、最终回复原文
+        runResult.writeProcessMeta(meta, summary);
 
         aiChatConversationService.appendAssistantMessage(
                 session.getAiChatSessionId(),
@@ -216,6 +214,7 @@ public class ApiDesignAgent {
                 .modelName(modelConfig.getModelName())
                 .summary(summary)
                 .thinkingContent(runResult.getThinkingContent())
+                .processNarration(runResult.getProcessNarration())
                 .patch(normalizedPatch)
                 .validation(validation)
                 .explainOnly(explainOnly)
@@ -310,7 +309,7 @@ public class ApiDesignAgent {
         }
     }
 
-    /** 将项目/接口 id 与用户自然语言需求格式化为 user 消息正文。 */
+    /** 将项目 / 接口 id 与用户自然语言需求格式化为 user 消息正文，末尾追加输出语言提醒，要求模型用简体中文输出。 */
     private static String buildUserContent(ApiDesignRequest request) {
         StringBuilder sb = new StringBuilder();
         sb.append("【上下文】\n");
@@ -318,6 +317,7 @@ public class ApiDesignAgent {
         sb.append("- testProjectApiId: ").append(request.getTestProjectApiId()).append('\n');
         sb.append("\n【用户描述】\n");
         sb.append(request.getPrompt().trim());
+        sb.append("\n\n").append(AiAgentRunner.OUTPUT_LANGUAGE_REMINDER);
         return sb.toString();
     }
 }

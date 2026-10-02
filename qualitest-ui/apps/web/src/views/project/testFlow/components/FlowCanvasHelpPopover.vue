@@ -21,6 +21,9 @@
       <div class="help-popover__title">快捷键</div>
       <div class="help-popover__list">
         <div class="help-popover__item">
+          <kbd>Ctrl+S</kbd><span>保存测试流</span>
+        </div>
+        <div class="help-popover__item">
           <kbd>Del</kbd><span>删除选中节点或边</span>
         </div>
         <div class="help-popover__item">
