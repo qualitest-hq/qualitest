@@ -3,6 +3,7 @@
  * http 节点 data.extracts[] 的配置与执行均经此模块。
  */
 import type { FlowRunContext, HttpResponseSnapshot } from './types';
+import { unboxSingleton } from './compareRule';
 import { simpleJsonPath } from './placeholder';
 
 /** 单条提取配置（对应 http 节点 data.extracts[] 元素） */
@@ -159,7 +160,8 @@ export function applyExtracts(
   for (const ex of extracts ?? []) {
     let val: unknown;
     if (ex.from === 'body') {
-      val = simpleJsonPath(response.body, ex.expr ?? '');
+      // 不定路径单命中时 JsonPath 仍返回数组；与后端 ExtractApplicator 一致，解包为标量
+      val = unboxSingleton(simpleJsonPath(response.body, ex.expr ?? ''));
     } else if (ex.from === 'header') {
       val = resolveHeaderValue(response.headers, ex.expr ?? '');
     } else if (ex.from === 'setCookie') {
