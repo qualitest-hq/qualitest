@@ -24,4 +24,4 @@ pnpm preview
 
 改完落地页后：push `site/`，或 Actions → **Deploy Pages** → Run workflow。
 
-对外文案以 README / 本站为准。演示 GIF 在 `public/images/`（与 `docs/images/` 同源副本）；Hero 为 SVG；能力区含调试 / 画布 / AI Diff；MCP 区右卡已插 `mcp-write`（左卡 `mcp-list` 仍可选）。
+对外文案以 README / 本站为准。演示 GIF 在 `public/images/`（与 `docs/images/` 同源副本）；Hero 为 SVG；能力区含调试 / 画布 / AI Diff；MCP 区已插 `mcp-write` / `mcp-run`。

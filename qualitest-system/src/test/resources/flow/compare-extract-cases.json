@@ -101,8 +101,14 @@
     {
       "id": "filter-extract-sku",
       "extracts": [{ "from": "body", "expr": "$.data.cart[?(@.cartId==5001)].skuId", "scope": "flow", "name": "sku" }],
-      "expected": [{ "name": "sku", "scope": "flow", "value": ["SKU-A"] }],
-      "flowAfter": { "sku": ["SKU-A"] }
+      "expected": [{ "name": "sku", "scope": "flow", "value": "SKU-A" }],
+      "flowAfter": { "sku": "SKU-A" }
+    },
+    {
+      "id": "filter-extract-multi-keep-list",
+      "extracts": [{ "from": "body", "expr": "$.data.cart[*].skuId", "scope": "flow", "name": "skus" }],
+      "expected": [{ "name": "skus", "scope": "flow", "value": ["SKU-A", "SKU-B"] }],
+      "flowAfter": { "skus": ["SKU-A", "SKU-B"] }
     },
     {
       "id": "index-extract",

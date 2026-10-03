@@ -20,6 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -307,7 +308,7 @@ public class GraphJsonValidator {
         }
 
         if (FlowNodeType.HTTP.matches(type)) {
-            validateHttpNodeFields(p, id, data, errors);
+            validateHttpNodeFields(p, id, data, errors, warnings);
         }
         if (FlowNodeType.ASSERT.matches(type)) {
             validateAssertNodeFields(p, id, data, errors);
@@ -555,13 +556,22 @@ public class GraphJsonValidator {
     }
 
     /**
-     * 校验 HTTP extracts：from=body 时 expr 非空、须以 {@code $} 开头且 JsonPath 可解析。
+     * 过滤器后紧跟数字下标：JsonPath 把 [n] 作用到每个命中元素而非结果集，常得到 []。
+     * 例：{@code $[?(@.id==1)][0]}。单命中 extract 会自动解包，应去掉 [n]。
+     */
+    private static final Pattern FILTER_THEN_INDEX =
+            Pattern.compile("\\[\\?\\(.*\\)\\]\\s*\\[\\d+\\]");
+
+    /**
+     * 校验 HTTP extracts：from=body 时 expr 非空、须以 {@code $} 开头且 JsonPath 可解析；
+     * 过滤器后紧跟 [n] 时写入 warnings（不硬拦）。
      */
     private void validateHttpExtracts(
             String p,
             String name,
             Map<String, Object> data,
-            List<String> errors
+            List<String> errors,
+            List<String> warnings
     ) {
         Object extractsRaw = data != null ? data.get("extracts") : null;
         if (!(extractsRaw instanceof List<?> extracts) || extracts.isEmpty()) {
@@ -589,6 +599,12 @@ public class GraphJsonValidator {
             }
             if (!JsonPathFacade.isValidPath(expr)) {
                 errors.add(p + " HTTP 节点「" + name + "」extracts[" + i + "] JsonPath 无法解析：" + expr);
+                continue;
+            }
+            if (FILTER_THEN_INDEX.matcher(expr).find()) {
+                warnings.add(p + " HTTP 节点「" + name + "」extracts[" + i
+                        + "] 过滤器后的 [n] 作用于每个命中元素而非结果集，常得到 []；单命中会自动解包，去掉 [n] 即可："
+                        + expr);
             }
         }
     }
@@ -629,7 +645,8 @@ public class GraphJsonValidator {
             String p,
             String id,
             Map<String, Object> data,
-            List<String> errors
+            List<String> errors,
+            List<String> warnings
     ) {
         String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
         Object callModeObj = data != null ? data.get("callMode") : null;
@@ -644,7 +661,7 @@ public class GraphJsonValidator {
         }
         if (FlowHttpCallMode.isProject(callMode)) {
             // project 模式未绑接口不在此告警（由 API 语义健康检查另行提示）
-            validateHttpExtracts(p, name, data, errors);
+            validateHttpExtracts(p, name, data, errors, warnings);
             return;
         }
         Object externalUrl = data.get("externalUrl");
@@ -658,7 +675,7 @@ public class GraphJsonValidator {
         if (hasTestProjectApiId(data)) {
             errors.add(p + " HTTP 节点「" + name + "」外联模式不可填写 testProjectApiId");
         }
-        validateHttpExtracts(p, name, data, errors);
+        validateHttpExtracts(p, name, data, errors, warnings);
     }
 
     /** script 节点：非法 language 为 error，空 source 为 warning */

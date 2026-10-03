@@ -14,18 +14,18 @@ const imagesDir = path.join(process.cwd(), "public", "images");
 
 const clips = [
   {
-    title: t.mcpSurveyTitle,
-    desc: t.mcpSurveyDesc,
-    steps: t.mcpSurveySteps,
-    file: "mcp-list.gif",
-    alt: t.mcpSurveyAlt,
-  },
-  {
     title: t.mcpAutoWriteTitle,
     desc: t.mcpAutoWriteDesc,
     steps: t.mcpAutoWriteSteps,
     file: "mcp-write.gif",
     alt: t.mcpAutoWriteAlt,
+  },
+  {
+    title: t.mcpAutoRunTitle,
+    desc: t.mcpAutoRunDesc,
+    steps: t.mcpAutoRunSteps,
+    file: "mcp-run.gif",
+    alt: t.mcpAutoRunAlt,
   },
 ].map((clip) => ({
   ...clip,

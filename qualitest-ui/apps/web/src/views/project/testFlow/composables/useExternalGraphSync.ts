@@ -32,9 +32,8 @@ import { applyNodePositions, captureNodePositions } from '../utils/nodePositions
 import { refreshSavedBaseline } from '../utils/reconcileFlowDirty'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
-import { useRunLibraryStore } from '../stores/runLibraryStore'
+import { followRun, reconcileActiveRun } from './followActiveRun'
 import { useFlowGraph } from './useFlowGraph'
-import { useFlowScenarioRun } from './useFlowScenarioRun'
 import { useApiHealthDraftPreview } from './useApiHealthDraftPreview'
 import { useRunConfig } from './useRunConfig'
 import { fetchProjectAssetRows } from './useProjectVariables'
@@ -90,10 +89,8 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
   const store = useFlowCanvasStore()
   const stagingStore = useAiStagingStore()
   const { loadFlow } = useFlowGraph()
-  const { watchRunLive } = useFlowScenarioRun()
   const { setSuspended } = useApiHealthDraftPreview(options.testFlowId)
   const { loadProjectEnvs } = useRunConfig()
-  const runLib = useRunLibraryStore()
 
   const graphConflict = createPendingExternal()
   const authConflict = createPendingExternal()
@@ -390,8 +387,20 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
   }
 
   /** 分发外部事件：图合并/重拉、素材鉴权环境刷新、开跑接听、流名更新 */
+  function onPageVisible() {
+    if (stopped || document.visibilityState !== 'visible') return
+    const flowId = String(options.testFlowId.value || '')
+    if (!flowId) return
+    void reconcileActiveRun(flowId)
+  }
+
   function handleEvent(event: FlowExternalChangeEvent) {
-    if (event.type === 'ping' || event.type === 'subscribed') return
+    if (event.type === 'ping') return
+    if (event.type === 'subscribed') {
+      const flowId = String(options.testFlowId.value || event.testFlowId || '')
+      if (flowId) void reconcileActiveRun(flowId)
+      return
+    }
 
     if (event.type === 'graphCommitted') {
       if (!matchesCurrentFlow(event)) return
@@ -404,8 +413,7 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
 
     if (event.type === 'runStarted' && event.runId) {
       if (!matchesCurrentFlow(event)) return
-      void watchRunLive(String(event.runId), { takeOver: false })
-      void runLib.loadRuns(String(options.testFlowId.value)).catch(() => undefined)
+      void followRun(String(event.runId))
       return
     }
 
@@ -461,6 +469,7 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
 
   function stop() {
     stopped = true
+    document.removeEventListener('visibilitychange', onPageVisible)
     setExternalGraphSyncListening(false)
     if (reconnectTimer) clearTimeout(reconnectTimer)
     reconnectTimer = null
@@ -482,6 +491,7 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     if (options.enabled && !options.enabled.value) return
 
     setExternalGraphSyncListening(true)
+    document.addEventListener('visibilitychange', onPageVisible)
     const connect = () => {
       if (stopped) return
       abort = new AbortController()

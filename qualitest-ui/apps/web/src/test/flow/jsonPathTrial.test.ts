@@ -13,6 +13,7 @@ import {
   isTrialMissValue,
   pathMatchesSchema,
   previewAssertLeft,
+  previewExtractExpr,
   resolveTrialApiId,
 } from '@/views/project/testFlow/utils/jsonPathTrial';
 
@@ -63,6 +64,22 @@ describe('jsonPathTrial design gate helpers', () => {
     expect(isTrialMissPreview(bad)).toBe(true);
     expect(isTrialMissPreview(good)).toBe(false);
     expect(good).toContain('3');
+  });
+
+  it('extract 试算：过滤器单命中解包为标量；多命中保留数组', () => {
+    // 前提：cart 仅一条；过滤器命中 quantity
+    // 期望：试算文案是标量 3，不是 [3]
+    const one = previewExtractExpr(cartBody, "$.data[?(@.cartId=='5001')].quantity");
+    expect(one).toBe('试算：3');
+
+    const multiBody = {
+      data: [
+        { cartId: '5001', quantity: 3 },
+        { cartId: '5002', quantity: 1 },
+      ],
+    };
+    const multi = previewExtractExpr(multiBody, '$.data[*].quantity');
+    expect(multi).toBe('试算：[3,1]');
   });
 
   it('extractResponseExample 读取首个 responses[].example', () => {

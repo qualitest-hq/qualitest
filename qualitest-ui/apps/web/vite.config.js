@@ -74,7 +74,20 @@ export default defineConfig(({ mode, command }) => {
         '/dev-api': {
           target: baseUrl,
           changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api/, '')
+          timeout: 0,
+          proxyTimeout: 0,
+          rewrite: (p) => p.replace(/^\/dev-api/, ''),
+          configure: (proxy) => {
+            proxy.on('proxyRes', (proxyRes, req, res) => {
+              const type = String(proxyRes.headers['content-type'] || '')
+              const accept = String(req.headers.accept || '')
+              if (!type.includes('text/event-stream') && !accept.includes('text/event-stream')) return
+              proxyRes.headers['cache-control'] = 'no-cache, no-transform'
+              proxyRes.headers['x-accel-buffering'] = 'no'
+              res.setHeader('Cache-Control', 'no-cache, no-transform')
+              res.setHeader('X-Accel-Buffering', 'no')
+            })
+          },
         },
          // springdoc proxy
          '^/v3/api-docs/(.*)': {

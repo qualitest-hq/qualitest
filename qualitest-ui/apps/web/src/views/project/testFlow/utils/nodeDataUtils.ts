@@ -3,7 +3,7 @@
  * 供节点库创建、属性编辑、画布卡片展示共用。
  */
 import { formatAssignSummary, formatAssignAssignment, getAssignAssignments } from '@/utils/flow/assign';
-import { condOpLabel } from '@/utils/flow/compareRule';
+import { condOpLabel, normalizeOperator, unboxSingleton } from '@/utils/flow/compareRule';
 import { filterFilledExtracts } from '@/utils/flow/extract';
 import { formatInputSummary } from '@/utils/flow/inputFields';
 
@@ -13,6 +13,12 @@ import { ASSERT_LEFT_LABELS, defaultConditionBranches, NODE_TYPES } from '../con
 import { formatConditionSummary } from './conditionUtils';
 import { formatExternalSummary, isExternalCallMode } from './httpSummary';
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId';
+
+/** 实测展示最大长度（超出截断） */
+const LEFT_ACTUAL_MAX_LEN = 80;
+
+/** exists 对象预览优先展示的字段 */
+const PREFERRED_PREVIEW_KEYS = ['couponId', 'couponName', 'id', 'name'] as const;
 
 /** 生成画布节点 id（雪花数字串） */
 export function generateNodeId(_type?: string): string {
@@ -37,16 +43,77 @@ export function formatAssertRule(rule: Record<string, unknown>) {
   return `${left} ${condOpLabel(String(rule.operator))}${right}`;
 }
 
+/** 截断过长实测文案 */
+function truncateActual(text: string): string {
+  if (text.length <= LEFT_ACTUAL_MAX_LEN) return text;
+  return `${text.slice(0, LEFT_ACTUAL_MAX_LEN - 1)}…`;
+}
+
+/** 展示用字符串；循环引用等无法序列化时退回 String */
+function stringifyValue(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/** 从对象挑最多 2 个短字段做预览 */
+function formatObjectPreview(obj: Record<string, unknown>): string {
+  const keys: string[] = [];
+  for (const k of PREFERRED_PREVIEW_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(obj, k) && keys.length < 2) keys.push(k);
+  }
+  if (keys.length < 2) {
+    for (const k of Object.keys(obj)) {
+      if (!keys.includes(k) && keys.length < 2) keys.push(k);
+    }
+  }
+  if (!keys.length) return '';
+  return keys.map((k) => `${k}=${stringifyValue(obj[k])}`).join(' ');
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return v != null && typeof v === 'object' && !Array.isArray(v);
+}
+
+/**
+ * Run / 报告用的左值实测短文案。
+ * exists：数组 →「命中 n 条」(+ 单条对象短字段)；空 →「无」。其它运算符先解包单元素再 stringify。
+ */
+export function formatLeftActualForDisplay(operator: string | undefined, leftActual: unknown): string {
+  if (normalizeOperator(operator) === 'exists') {
+    if (leftActual == null) return '无';
+    if (Array.isArray(leftActual)) {
+      if (leftActual.length === 0) return '无';
+      let text = `命中 ${leftActual.length} 条`;
+      if (leftActual.length === 1 && isPlainObject(leftActual[0])) {
+        const preview = formatObjectPreview(leftActual[0]);
+        if (preview) text = `${text} · ${preview}`;
+      } else if (leftActual.length === 1) {
+        text = `${text} · ${stringifyValue(leftActual[0])}`;
+      }
+      return truncateActual(text);
+    }
+    if (isPlainObject(leftActual)) {
+      const preview = formatObjectPreview(leftActual);
+      return truncateActual(preview ? `存在 · ${preview}` : '存在');
+    }
+    if (typeof leftActual === 'string' && leftActual === '') return '无';
+    return truncateActual(stringifyValue(leftActual));
+  }
+
+  return truncateActual(stringifyValue(unboxSingleton(leftActual)));
+}
+
 /** Run 详情展示：规则文案后追加左值实测（leftActual） */
 export function formatAssertRuleWithActual(rule: Record<string, unknown>) {
   const base = formatAssertRule(rule);
   if (!('leftActual' in rule)) return base;
-  let actual: string;
-  try {
-    actual = JSON.stringify(rule.leftActual);
-  } catch {
-    actual = String(rule.leftActual);
-  }
+  const actual = formatLeftActualForDisplay(
+    rule.operator != null ? String(rule.operator) : undefined,
+    rule.leftActual,
+  );
   return `${base}（实际: ${actual}）`;
 }
 

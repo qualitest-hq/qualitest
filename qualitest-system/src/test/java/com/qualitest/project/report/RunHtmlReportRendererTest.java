@@ -206,6 +206,43 @@ class RunHtmlReportRendererTest {
         assertFalse(name.contains("/"));
     }
 
+    /**
+     * 前提：exists 断言 leftActual 为单元素券对象数组（含 thresholdAmount 等长字段）。
+     * 期望：报告实测列含「命中 1 条」与 couponId，不含完整大 JSON / thresholdAmount。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("exists 实测列：命中条数短文案，不含对象字段墙")
+    void render_existsLeftActual_compact() {
+        String leftActual = "["
+                + "{\"remark\":\"seed\",\"status\":0,\"couponId\":\"3002\","
+                + "\"couponName\":\"满200减30\",\"totalCount\":500,\"receiveCount\":0,"
+                + "\"thresholdAmount\":200,\"discountAmount\":30,"
+                + "\"validStartTime\":\"2026-01-01 00:00:00\",\"validEndTime\":\"2027-12-31 23:59:59\"}"
+                + "]";
+        String details = "{"
+                + "\"assert\":{\"rules\":[{"
+                + "\"left\":\"http.body.data.rows[?(@.couponId==3002)]\","
+                + "\"operator\":\"exists\",\"passed\":true,"
+                + "\"leftActual\":" + leftActual
+                + "}]}"
+                + "}";
+        TestFlowRunDetailResult detail = detail("passed", List.of(
+                step(1L, "assert", "断言可领含目标券", "passed", details)
+        ));
+        String html = RunHtmlReportRenderer.render(detail, null, "领券流");
+        assertTrue(html.contains("命中 1 条"));
+        assertTrue(html.contains("couponId"));
+        assertFalse(html.contains("thresholdAmount"));
+        assertFalse(html.contains("validStartTime"));
+
+        String compact = RunHtmlReportRenderer.formatLeftActualForDisplay("exists",
+                com.alibaba.fastjson2.JSON.parse(leftActual));
+        assertTrue(compact.contains("命中 1 条"));
+        assertTrue(compact.contains("3002"));
+        assertFalse(compact.contains("thresholdAmount"));
+    }
+
     /** 构造带头信息的运行详情 */
     private static TestFlowRunDetailResult detail(String status, List<TestFlowRunStepResult> steps) {
         TestFlowRunResult run = TestFlowRunResult.builder()

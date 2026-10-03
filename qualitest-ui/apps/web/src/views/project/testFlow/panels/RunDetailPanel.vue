@@ -305,7 +305,7 @@ import {
   summarizeStep,
 } from '../utils/runStepDisplay'
 import { toGraphJson } from '../graphAdapter'
-import { highlightRunStep } from '../composables/useFlowScenarioRun'
+import { highlightRunStep } from '../composables/followActiveRun'
 import { useFlowViewport } from '../composables/useFlowViewport'
 import { isGraphStructurallyStale } from '../utils/graphFingerprint'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'

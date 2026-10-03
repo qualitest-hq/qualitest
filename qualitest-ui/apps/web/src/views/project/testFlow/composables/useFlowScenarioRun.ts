@@ -1,9 +1,6 @@
 /**
- * 场景运行：触发正式 Run，执行中轮询详情并高亮画布上最新已完成步骤。
- *
- * 流程：脏图可先带错保存 → 运行就绪检查 → POST 触发（立刻得到 runId）→
- * 短间隔拉详情并高亮 → 终态 toast。
- * watchRunLive 也可由 AI 设计流在收到 runStarted 后调用。
+ * 场景运行：脏图可先保存 → 就绪检查 → POST 触发。
+ * 拿到 runId 后交给 followRun，与外部开跑共用同一套跟随。
  */
 import { computed } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -11,47 +8,16 @@ import { ElMessage } from 'element-plus';
 import { triggerTestFlowRun } from '@/api/project/testFlowRun';
 import { validateSnapshotResetEndpointStatic } from '@/utils/flow/snapshotPreRunValidate';
 
-import { LIVE_RUN_POLL_MS } from '../constants/flowConfig';
-import { TERMINAL_RUN_STATUSES } from '../constants/runStatus';
 import { toGraphJson } from '../graphAdapter';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
-import type { RunRecord } from '../stores/runLibraryStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
-import { abortableSleep } from '../utils/abortableSleep';
 import { collectRunBlockingErrors } from '../utils/runReadiness';
+import { followRun } from './followActiveRun';
 import { endRunReplay } from './usePlayback';
 import { useFlowGraph } from './useFlowGraph';
 import { useFlowSimulate } from './useFlowSimulate';
 import { useRunConfig } from './useRunConfig';
-
-/**
- * 按 Run 步骤时间线刷新画布高亮。
- * 将 0..stepIndex 的节点标为已访问（失败则失败色），当前步节点标为运行高亮。
- */
-export function highlightRunStep(
-  store: ReturnType<typeof useFlowCanvasStore>,
-  record: RunRecord,
-  stepIndex: number,
-) {
-  store.clearRunHighlight();
-  for (let i = 0; i <= stepIndex; i++) {
-    const s = record.steps[i];
-    if (!s?.nodeId) continue;
-    store.runVisitedNodeIds[s.nodeId] = s.status === 'failed' ? 'failed' : 'passed';
-  }
-  const step = record.steps[stepIndex];
-  if (step?.nodeId) store.runHighlightNodeId = step.nodeId;
-}
-
-/** 取最后一个带画布 nodeId 的步骤下标（跳过纯 run_config 等引导步） */
-function lastGraphStepIndex(record: RunRecord): number {
-  const steps = record.steps ?? [];
-  for (let i = steps.length - 1; i >= 0; i--) {
-    if (steps[i]?.nodeId) return i;
-  }
-  return steps.length > 0 ? steps.length - 1 : -1;
-}
 
 export function useFlowScenarioRun() {
   const store = useFlowCanvasStore();
@@ -61,80 +27,6 @@ export function useFlowScenarioRun() {
   const { getActiveScenario, loadProjectEnvs, envOptions } = useRunConfig();
 
   const isScenarioRunActive = computed(() => !!runLib.scenarioRunLive);
-
-  /**
-   * 执行中轮询 Run 详情，用最新已完成步骤高亮画布；到达终态后 toast 并停止。
-   * @param takeOver false 时若已有其它 live 会话，只把本 run 写入运行库，不抢当前高亮
-   */
-  async function watchRunLive(
-    runId: string,
-    options?: { takeOver?: boolean },
-  ): Promise<RunRecord | null> {
-    const takeOver = options?.takeOver !== false;
-    const live = runLib.scenarioRunLive;
-    if (
-      !takeOver
-      && live
-      && live.recordId
-      && !String(live.recordId).startsWith('pending-')
-      && live.recordId !== runId
-    ) {
-      const detail = await runLib.fetchRunDetail(runId);
-      if (detail) runLib.upsertRun(detail);
-      return detail;
-    }
-
-    runLib.scenarioRunLive = { abort: false, recordId: runId, phase: 'running' };
-    store.showRunPanel();
-    store.ui.leftTab = 'runs';
-
-    let lastDetail: RunRecord | null = null;
-    try {
-      while (runLib.scenarioRunLive && !runLib.scenarioRunLive.abort) {
-        const detail = await runLib.fetchRunDetail(runId);
-        if (!detail) break;
-        lastDetail = detail;
-        runLib.upsertRun(detail);
-        runLib.selectedRunId = runId;
-
-        const stepIdx = lastGraphStepIndex(detail);
-        if (stepIdx >= 0) {
-          const aborted = !!runLib.scenarioRunLive?.abort;
-          runLib.scenarioRunLive = {
-            abort: aborted,
-            recordId: runId,
-            phase: 'running',
-            stepIndex: stepIdx,
-            stepTotal: detail.steps.length,
-          };
-          runLib.inspectorStepIndex = stepIdx;
-          highlightRunStep(store, detail, stepIdx);
-        }
-
-        if (TERMINAL_RUN_STATUSES.has(detail.status)) {
-          if (!runLib.scenarioRunLive?.abort) {
-            if (detail.status === 'failed') {
-              ElMessage.error(detail.errorMessage ?? '运行失败');
-            } else if (detail.status === 'paused') {
-              ElMessage.warning(detail.errorMessage ?? '运行已暂停');
-            } else if (detail.status === 'passed') {
-              ElMessage.success('运行完成');
-            }
-          }
-          break;
-        }
-
-        await abortableSleep(LIVE_RUN_POLL_MS, () => !!runLib.scenarioRunLive?.abort);
-      }
-      return lastDetail;
-    } finally {
-      const aborted = !!runLib.scenarioRunLive?.abort;
-      if (runLib.scenarioRunLive?.recordId === runId) {
-        runLib.scenarioRunLive = null;
-      }
-      if (aborted) store.clearRunHighlight();
-    }
-  }
 
   /**
    * 运行当前选中场景。
@@ -209,7 +101,7 @@ export function useFlowScenarioRun() {
         return null;
       }
 
-      return await watchRunLive(runId, { takeOver: true });
+      return await followRun(runId, { replacePending: true });
     } catch (e) {
       ElMessage.error((e as Error)?.message ?? '运行失败');
       runLib.scenarioRunLive = null;
@@ -227,8 +119,6 @@ export function useFlowScenarioRun() {
   return {
     runActiveScenario,
     abortScenarioRun,
-    watchRunLive,
     isScenarioRunActive,
-    highlightRunStep,
   };
 }
