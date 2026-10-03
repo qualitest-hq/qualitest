@@ -96,8 +96,8 @@ function isMultiValue(leftRaw: unknown): boolean {
   return Array.isArray(leftRaw) && leftRaw.length > 1;
 }
 
-/** 数组恰好 1 个元素时取出该元素 */
-function unboxSingleton(leftRaw: unknown): unknown {
+/** 数组恰好 1 个元素时取出该元素（断言 / extract 共用） */
+export function unboxSingleton(leftRaw: unknown): unknown {
   if (Array.isArray(leftRaw) && leftRaw.length === 1) return leftRaw[0];
   return leftRaw;
 }

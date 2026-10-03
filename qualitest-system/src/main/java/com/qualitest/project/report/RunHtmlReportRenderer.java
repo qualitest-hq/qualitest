@@ -3,6 +3,7 @@ package com.qualitest.project.report;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.flow.context.CompareRuleEvaluator;
 import com.qualitest.flow.http.HttpStepDetailsDesensitizer;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.project.result.TestFlowRunDetailResult;
@@ -13,6 +14,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -413,7 +415,8 @@ public final class RunHtmlReportRenderer {
             sb.append("<td>").append(esc(blankToDash(rule.getString("left")))).append("</td>");
             sb.append("<td>").append(esc(blankToDash(stringify(rule.get("operator"))))).append("</td>");
             sb.append("<td>").append(esc(blankToDash(stringify(rule.get("right"))))).append("</td>");
-            sb.append("<td>").append(esc(blankToDash(stringify(rule.get("leftActual"))))).append("</td>");
+            sb.append("<td>").append(esc(blankToDash(
+                    formatLeftActualForDisplay(rule.getString("operator"), rule.get("leftActual"))))).append("</td>");
             sb.append("</tr>\n");
         }
         sb.append("</tbody></table>\n");
@@ -863,6 +866,93 @@ public final class RunHtmlReportRenderer {
     /** 空串显示为短横线 */
     private static String blankToDash(String s) {
         return s == null || s.isBlank() ? "-" : s;
+    }
+
+    /** 实测展示最大长度（超出截断） */
+    private static final int LEFT_ACTUAL_MAX_LEN = 80;
+
+    /** exists 对象预览优先字段 */
+    private static final String[] PREFERRED_PREVIEW_KEYS = {"couponId", "couponName", "id", "name"};
+
+    /**
+     * 断言左值实测的短文案，只影响报告展示，不改落库的 leftActual。
+     * exists：集合为空或 null 显示「无」，否则「命中 n 条」，单条对象附带最多两个字段；单个对象显示「存在」。
+     * 其它运算符先把单元素集合解包，再转成字符串。
+     */
+    static String formatLeftActualForDisplay(String operator, Object leftActual) {
+        if ("exists".equals(CompareRuleEvaluator.normalizeOperator(operator))) {
+            if (leftActual == null) {
+                return "无";
+            }
+            if (leftActual instanceof Collection<?> col) {
+                if (col.isEmpty()) {
+                    return "无";
+                }
+                String text = "命中 " + col.size() + " 条";
+                if (col.size() == 1) {
+                    Object first = col.iterator().next();
+                    if (first instanceof Map<?, ?> map) {
+                        String preview = formatObjectPreview(new JSONObject(map));
+                        if (!preview.isEmpty()) {
+                            text = text + " · " + preview;
+                        }
+                    } else {
+                        text = text + " · " + stringify(first);
+                    }
+                }
+                return truncateActual(text);
+            }
+            if (leftActual instanceof Map<?, ?> map) {
+                String preview = formatObjectPreview(new JSONObject(map));
+                return truncateActual(preview.isEmpty() ? "存在" : "存在 · " + preview);
+            }
+            if (leftActual instanceof String s && s.isEmpty()) {
+                return "无";
+            }
+            return truncateActual(stringify(leftActual));
+        }
+        return truncateActual(stringify(CompareRuleEvaluator.unboxSingleton(leftActual)));
+    }
+
+    private static String truncateActual(String text) {
+        if (text == null) {
+            return null;
+        }
+        if (text.length() <= LEFT_ACTUAL_MAX_LEN) {
+            return text;
+        }
+        return text.substring(0, LEFT_ACTUAL_MAX_LEN - 1) + "…";
+    }
+
+    private static String formatObjectPreview(JSONObject obj) {
+        if (obj == null || obj.isEmpty()) {
+            return "";
+        }
+        List<String> keys = new ArrayList<>();
+        for (String k : PREFERRED_PREVIEW_KEYS) {
+            if (obj.containsKey(k) && keys.size() < 2) {
+                keys.add(k);
+            }
+        }
+        if (keys.size() < 2) {
+            for (String k : obj.keySet()) {
+                if (!keys.contains(k) && keys.size() < 2) {
+                    keys.add(k);
+                }
+            }
+        }
+        if (keys.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < keys.size(); i++) {
+            if (i > 0) {
+                sb.append(' ');
+            }
+            String k = keys.get(i);
+            sb.append(k).append('=').append(stringify(obj.get(k)));
+        }
+        return sb.toString();
     }
 
     /** 任意对象转展示字符串 */

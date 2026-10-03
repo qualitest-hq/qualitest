@@ -82,7 +82,7 @@ Staging **全部 ✕** 取消坏提案，或**新建一条流**重来。不要�
 - 全自动下素材与鉴权 Profile 的 `upsert` 会直接落盘；造流/修复完成后模型应主动 `run_test_flow`（自动写库），无需再 commit。纯答疑可不跑。
 - 尚有未确认的素材或鉴权提案时，`run_test_flow` / 隐式落盘会拒绝。
 - Run 就绪/AUTH 硬拦、paused（await-input）也会停；看助手气泡与工具回执 hint。
-- **边跑边亮**：`run_test_flow` 与人手「运行」共用同一 trigger——先返 `runId`、执行中按节点落库；SSE 推 `runStarted` 后画布轮询详情高亮当前步（不再等跑完才回放）。
+- **边跑边亮**：画布跟随该流在服务端的活跃 Run（人手 / MCP / 全自动同一套）。SSE `runStarted` 只负责叫醒；订阅就绪或回到前台时会再按服务端 running 对齐。执行中按节点落库，画布轮询详情高亮当前步。
 
 → [ai-staging.md §6](./ai-staging.md)
 

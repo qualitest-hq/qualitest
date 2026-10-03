@@ -215,6 +215,10 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
   <img src="./docs/images/mcp-write.gif" alt="MCP 写流：Cursor 搭流后 Web 画布 SSE 同步" width="960" />
 </p>
 
+<p align="center">
+  <img src="./docs/images/mcp-run.gif" alt="MCP 跑流：Cursor 调 run_test_flow，失败拉回对话" width="960" />
+</p>
+
 | 开关 | 人话 | 谁更吃这套 |
 |:-----|:-----|:-----------|
 | **自动写流** | 让 Cursor 帮你搭 / 改测试流 | 后端改完接口造链路；前端按页面路径先验接口 |

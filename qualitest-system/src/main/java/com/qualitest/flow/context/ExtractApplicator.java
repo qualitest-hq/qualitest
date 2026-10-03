@@ -71,6 +71,9 @@ public final class ExtractApplicator {
      * 按 from 字段从响应解析原始值；regex 暂未实现，返回 null。
      * <p>
      * {@code setCookie}：{@code expr} 为 Cookie 名，从 {@code Set-Cookie} 解析 value。
+     * <p>
+     * {@code body}：不定路径（过滤器 / 通配）即使只命中 1 个也返回 List；
+     * 与断言一致，单元素自动解包为标量，便于 {@code {{flow.x}}} 写入路径参数。
      */
     private static Object resolveExtractValue(JSONObject ex, FlowRunContext.HttpResponseSnapshot response) {
         String from = ex.getString("from");
@@ -78,7 +81,8 @@ public final class ExtractApplicator {
             from = "body";
         }
         return switch (from) {
-            case "body" -> PlaceholderResolver.simpleJsonPath(response.getBody(), ex.getString("expr"));
+            case "body" -> CompareRuleEvaluator.unboxSingleton(
+                    PlaceholderResolver.simpleJsonPath(response.getBody(), ex.getString("expr")));
             case "header" -> resolveHeaderValue(response.getHeaders(), ex.getString("expr"));
             case "setCookie" -> SetCookieParser.findCookieValue(response.getHeaders(), ex.getString("expr"));
             case "status" -> response.getStatus();

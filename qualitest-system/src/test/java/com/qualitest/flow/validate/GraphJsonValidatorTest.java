@@ -234,6 +234,30 @@ class GraphJsonValidatorTest {
     }
 
     @Test
+    @Order(16)
+    @DisplayName("http extract 过滤器后紧跟 [n] 产生 warning 不硬拦")
+    void httpExtractFilterThenIndex_producesWarning() {
+        // 前提：合法 JsonPath，但过滤器后写了 [0]
+        // 期望：ok=true；warnings 提示去掉 [n]
+        String json = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{
+                      "name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET",
+                      "extracts":[{"from":"body","expr":"$.data.rows[?(@.couponId==3002)][0].couponId","scope":"flow","name":"couponId"}]
+                    }}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.isOk());
+        assertTrue(result.getWarnings().stream().anyMatch(w ->
+                w.contains("过滤器后的 [n]") && w.contains("去掉 [n]")));
+    }
+
+    @Test
     @Order(11)
     @DisplayName("assert 空 rules / condition 空 branches / assign 空 / delay 超限 为 error")
     void hardenedNodeFields_produceErrors() {

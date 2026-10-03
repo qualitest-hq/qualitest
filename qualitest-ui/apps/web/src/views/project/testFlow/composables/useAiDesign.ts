@@ -33,7 +33,7 @@ import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
 import { useFlowGraph } from './useFlowGraph';
-import { useFlowScenarioRun } from './useFlowScenarioRun';
+import { followRun } from './followActiveRun';
 import { useRunConfig } from './useRunConfig';
 import { isAutopilotEnabled } from '../utils/aiDesignPreferences';
 import type { AiDesignMessageView, AiDesignSystemAction, FlowDesignPatch, TestFlowDesignResult } from '../types/aiDesignTypes';
@@ -440,7 +440,6 @@ export function useAiDesign() {
   async function executeDesignRequest(payload: ComposerSendPayload) {
     designing.value = true;
     const { loadFlow } = useFlowGraph();
-    const { watchRunLive } = useFlowScenarioRun();
     try {
       const data = await runDesignStream(buildDesignPayload(payload), {
         onSession: (sessionId) => {
@@ -465,11 +464,11 @@ export function useAiDesign() {
               ElMessage.warning('已落库，但刷新画布失败，请手动重新打开测试流');
             });
         },
-        // Run 已触发：开始轮询详情并高亮；已有其它 live 会话时不抢高亮
+        // Run 已触发：与画布 SSE 一样交给 followRun，按服务端活跃 Run 跟随
         onRunStarted: (runId) => {
           const id = String(runId || '').trim();
           if (!id) return;
-          void watchRunLive(id, { takeOver: false });
+          void followRun(id);
         },
       });
       if (data.aiChatSessionId) {

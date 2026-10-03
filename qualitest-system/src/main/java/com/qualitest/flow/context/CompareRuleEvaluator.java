@@ -176,7 +176,7 @@ public final class CompareRuleEvaluator {
     }
 
     /** 集合/数组恰好 1 个元素时取出该元素，否则原样返回。 */
-    static Object unboxSingleton(Object leftRaw) {
+    public static Object unboxSingleton(Object leftRaw) {
         if (leftRaw instanceof Collection<?> c) {
             if (c.size() == 1) {
                 return c.iterator().next();

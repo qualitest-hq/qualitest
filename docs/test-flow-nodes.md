@@ -38,7 +38,7 @@
 - 成功判定（两层，不合并）：
   - **HTTP 状态** `statusCheck`：默认 `mode=2xx`（非 2xx → 失败）；`whitelist` + `values` 仅放行列表内状态码（探活常用 `[200,401,403]`）；`off` 任意状态码步骤仍 passed。有响应即写入 `lastResponse`，后续 Condition 可读 `http.status`、`http.expectedMatch`（对照接口 `expectedResponseKind`）、`http.responseKind`
   - **业务码** `successCheck`：仅在 **2xx** 后可选校验 body 业务码白名单；`mode=off` 关闭。`codePath` 支持 `code` 或 `$.code`
-- **extracts**：默认仅步骤最终通过后执行；`extractsOnFailure=write` 时失败也写入内存（asset 落盘仍仅通过时）
+- **extracts**：默认仅步骤最终通过后执行；`extractsOnFailure=write` 时失败也写入内存（asset 落盘仍仅通过时）。不定路径（过滤器 / `[*]`）命中 **恰好 1 个**时自动解包为标量（与断言一致），便于 `{{flow.x}}` 写路径参数；**0 个**仍为 `[]`，**多个**保留数组。过滤器后不要再写 `[n]`（JsonPath 会把下标作用到每个命中元素，常得到 `[]`）
 - **前置/后置脚本**：见下方「HTTP 脚本（preScript / postScript）」
 - 占位符解析请求参数 / 体（`flow` / `env` / `asset` / `session` 等）
 - **项目鉴权补头**（Profile 托管头 `{{asset.*}}` / `{{flow.*}}` → 见 [project-summary.md §4](./project-summary.md)）

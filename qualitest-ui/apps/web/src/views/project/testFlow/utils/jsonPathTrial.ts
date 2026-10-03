@@ -16,6 +16,7 @@ import {
   normalizeAssertLeftPath,
   toAbsoluteJsonPath,
 } from '@/utils/flow/placeholder';
+import { unboxSingleton } from '@/utils/flow/compareRule';
 import { parseResponseConfigInput } from '@/views/project/testProject/utils/responseConfig';
 
 import type { RunRecord, RunStepDetail } from '../stores/runLibraryStore';
@@ -167,6 +168,7 @@ export function formatTrialResult(value: unknown): string {
 /**
  * 提取节点 body 表达式试算。
  * 无 trialBody / 空表达式 → 空串；必须以 $ 开头且路径可解析。
+ * 与运行时 ExtractApplicator 一致：不定路径单命中自动解包为标量。
  */
 export function previewExtractExpr(trialBody: unknown, expr: string): string {
   if (trialBody === undefined || trialBody === null) return '';
@@ -174,7 +176,7 @@ export function previewExtractExpr(trialBody: unknown, expr: string): string {
   if (!path) return '';
   if (!path.startsWith('$')) return '试算失败：body 表达式须以 $ 开头';
   if (!isValidJsonPath(path)) return `试算失败：JsonPath 无法解析 ${path}`;
-  return formatTrialResult(evalJsonPath(trialBody, path));
+  return formatTrialResult(unboxSingleton(evalJsonPath(trialBody, path)));
 }
 
 /**

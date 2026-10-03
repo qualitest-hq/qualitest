@@ -40,7 +40,7 @@ Common features:
   - **Business code** `successCheck`: optional body-code allowlist after **2xx** only; `mode=off` disables
 - Placeholder resolution on params / body (`flow` / `env` / `asset` / `session`, …)
 - **Project auth headers** (Profiles / managed `{{asset.*}}` / `{{flow.*}}` → [project-summary.en.md §4](./project-summary.en.md))
-- Then run `extracts`; asset persistence still only on 2xx
+- Then run `extracts`; asset persistence still only on 2xx. Indefinite paths (filters / `[*]`) that hit **exactly one** value are auto-unboxed to a scalar (same as asserts) so `{{flow.x}}` works in path params; **zero** hits stay `[]`, **multiple** stay a list. Do not append `[n]` after a filter — JsonPath applies the index to each match and often yields `[]`
 - Optional **snapshot before** (`snapshotBefore`) for mutating calls (see concept map §4)
 
 Managed auth header rows use `profileManaged` and refresh from current config at Run; unmarked headers are never silently changed. The canvas may show which credential path a node will use or produce.

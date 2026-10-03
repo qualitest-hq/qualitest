@@ -199,6 +199,10 @@ Read-only by default; enable **Allow MCP auto-write**, **Allow MCP auto-run**, a
   <img src="./docs/images/mcp-write.gif" alt="MCP write: Cursor builds the flow; Web canvas syncs over SSE" width="960" />
 </p>
 
+<p align="center">
+  <img src="./docs/images/mcp-run.gif" alt="MCP run: Cursor calls run_test_flow; failures return to chat" width="960" />
+</p>
+
 | Switch | In plain terms | Who benefits |
 |:-------|:---------------|:-------------|
 | **Auto-write** | Cursor builds / edits the test flow | Backend authors the chain after an API change; frontend mirrors the page path first |

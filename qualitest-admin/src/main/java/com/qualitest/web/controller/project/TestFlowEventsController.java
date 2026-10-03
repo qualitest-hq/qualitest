@@ -9,7 +9,9 @@ import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.web.ai.AiSseStreamSupport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,7 +59,7 @@ public class TestFlowEventsController extends BaseController {
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping(value = "/{testFlowId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter subscribe(@PathVariable("testFlowId") Long testFlowId) {
+    public ResponseEntity<SseEmitter> subscribe(@PathVariable("testFlowId") Long testFlowId) {
         TestFlowResult flow = testFlowService.selectTestFlowResult(testFlowId);
         if (flow == null || (flow.getDelStatus() != null && flow.getDelStatus() != 0)) {
             throw new com.qualitest.common.exception.ServiceException("测试流不存在");
@@ -105,6 +107,9 @@ public class TestFlowEventsController extends BaseController {
         AiSseStreamSupport.sendJson(emitter, cancelled, Map.of(
                 "type", "subscribed",
                 "testFlowId", String.valueOf(testFlowId)));
-        return emitter;
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-transform")
+                .header("X-Accel-Buffering", "no")
+                .body(emitter);
     }
 }

@@ -12,7 +12,7 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
 import { abortableSleep } from '../utils/abortableSleep';
 import { endSimulate } from './useFlowSimulate';
-import { highlightRunStep } from './useFlowScenarioRun';
+import { highlightRunStep } from './followActiveRun';
 
 /** 单次回放会话：cursor 为当前高亮步骤下标，epoch 用于作废过期驱动循环 */
 interface RunPlayback {
