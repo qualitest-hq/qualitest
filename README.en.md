@@ -23,6 +23,7 @@ Open-source API automation · flow canvas · AI Diff · IntelliJ / MCP ingest
 [MCP](./docs/mcp.en.md) ·
 [Try it](#try-it) ·
 [Demos](#demos) ·
+[Video](https://www.bilibili.com/video/BV1hSHW6kERG/) ·
 [QQ group](https://qm.qq.com/q/FBa9jDRhm)
 
 <br/>
@@ -175,6 +176,8 @@ Invite members and assign roles per project. Issue separate Tokens for the plugi
 ---
 
 ## Demos
+
+Full walkthrough video (~3.5 min, Bilibili, Chinese): [Qualitest — test APIs end-to-end in Cursor](https://www.bilibili.com/video/BV1hSHW6kERG/)
 
 Prefer [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) as the SUT; Java sync is optional via [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin).
 
