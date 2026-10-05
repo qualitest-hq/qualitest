@@ -23,6 +23,7 @@
 [MCP 说明](./docs/mcp.md) ·
 [试一把](#-试一把) ·
 [功能演示](#-功能演示) ·
+[演示视频](https://www.bilibili.com/video/BV1hSHW6kERG/) ·
 [QQ 交流群](https://qm.qq.com/q/FBa9jDRhm)
 
 <br/>
@@ -192,6 +193,8 @@ scripts\quick-start.bat
 ---
 
 ## 🎬 功能演示
+
+完整演示视频（约 3 分半，B 站）：[质衡 Qualitest｜在 Cursor 里把接口测通](https://www.bilibili.com/video/BV1hSHW6kERG/)
 
 建议以 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) 为被测；Java 同步可选 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
 
