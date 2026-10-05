@@ -10,14 +10,14 @@ Pick one path. Do not mix passwords: local `dev` uses MySQL `root` / `123456` an
 
 Quick start summary: [README.en.md](../README.en.md). Security disclosure: [SECURITY.md](../SECURITY.md).
 
-CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dockerfiles or related paths change. Official images are pushed by workflow **[GHCR](../.github/workflows/ghcr.yml)** to:
+CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dockerfiles or related paths change. GitHub images go to **[GHCR](../.github/workflows/ghcr.yml)** (`ghcr.io/qualitest-hq/qualitest-app|web`). Compose **defaults** to the Aliyun public registry (**anonymous, no login**):
 
-- `ghcr.io/qualitest-hq/qualitest-app`
-- `ghcr.io/qualitest-hq/qualitest-web`
+- `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-app`
+- `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-web`
 
-(`latest` + `sha-<short>`; only `qualitest-hq/qualitest` `main` / manual dispatch.)
+To use GHCR, set `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq` in `.env`. `quick-start` tries Aliyun, then GHCR, then a local `--build`.
 
-**The demo target is not in this repo’s Compose** (no `--profile demo` mixed stack). To run the shop demo, clone [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) and start it with its own [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` (or pull GHCR `ghcr.io/qualitest-hq/qualitest-demo-app|web|mysql`). Most users only need this repo to try Qualitest.
+**The demo target is not in this repo’s Compose** (no `--profile demo` mixed stack). To run the shop demo, clone [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) and start it with its own [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` (Aliyun `qualitest-demo-app|web|mysql` by default). Most users only need this repo to try Qualitest.
 
 中文版：[deploy.md](./deploy.md)
 
@@ -218,7 +218,7 @@ If GitHub is slow, use the read-only mirror (folder name stays `qualitest`):
 git clone https://gitee.com/qualitest-hq/qualitest.git
 ```
 
-The script copies `.env.example` to `.env` when missing, then `docker compose pull`. If the pull fails it runs `docker compose up -d --build` (first local build can take many minutes). If the pull hangs, press `Ctrl+C` and run:
+The script copies `.env.example` to `.env` when missing, then pulls the Aliyun public images (no login). If that fails it tries GHCR, then `docker compose up -d --build`. If the pull hangs, press `Ctrl+C` and run:
 
 ```bash
 docker compose up -d --build
@@ -226,7 +226,7 @@ docker compose up -d --build
 
 ### 1b. Plain Docker Compose (same result as the script)
 
-Skip `quick-start` and paste this instead of step 1. The script only copies `.env`, runs `docker compose pull app web`, then `docker compose up -d`. If the repo is already cloned, start at the `.env` line. An existing `.env` is left as-is.
+Skip `quick-start` and paste this instead of step 1. The script copies `.env`, runs `docker compose pull app web` (Aliyun by default), then `docker compose up -d`. If the repo is already cloned, start at the `.env` line. An existing `.env` is left as-is. To use GHCR, add `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq` to `.env`.
 
 **Linux / macOS / Git Bash**
 
@@ -294,7 +294,7 @@ curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
 - Built-in accounts (after Flyway including **V6**):
   - **`admin` / `admin123`**: super admin (**local / private only**; change before public exposure)
   - **`demo` / `demo123`**: demo visitor (V6 converges seed users; test management + AI only — change or disable in production)
-- **Public demo hosts**: ops password is **`admin` / `QtDemo#Admin2026`**; visitors still use **`demo` / `demo123`** (see qualitest-demo-host). Production login form is not prefilled; demo may optionally mount `config.js` (ops-repo `1panel/login-defaults.js`). Local `.env.development` may prefill `admin`
+- **Public demo hosts**: ops password is **`admin` / `QtDemo#Admin2026`**; visitors still use **`demo` / `demo123`**. Production login form is not prefilled; demo may optionally mount `config.js`. Local `.env.development` may prefill `admin`
 - First boot: response header **`HTTP/1.1 200`** / Flyway migrate success in logs (empty database is migrated by Flyway; no full initdb dump)
 - IDEA plugin server URL: Compose → **`http://localhost:5180/prod-api`**; local backend → **`http://localhost:8800`**
 
@@ -415,20 +415,20 @@ Run this in each repo directory. `down` keeps data; `down -v` wipes the database
 docker compose down
 ```
 
-### Official images (GHCR)
+### Official images
+
+Compose default (anonymous pull, no login):
 
 | Image | Role |
 |------|------|
-| `ghcr.io/qualitest-hq/qualitest-app` | Backend (Spring Boot) |
-| `ghcr.io/qualitest-hq/qualitest-web` | Frontend (Nginx + SPA; `/prod-api` → app) |
+| `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-app` | Backend (Spring Boot) |
+| `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-web` | Frontend (Nginx + SPA; `/prod-api` → app) |
 
-Packages: https://github.com/orgs/qualitest-hq/packages  
+GHCR copies: `ghcr.io/qualitest-hq/qualitest-app|web`. Packages: https://github.com/orgs/qualitest-hq/packages  
 
-Official packages are **Public** — anonymous `docker pull` works. For private forks / self-hosted packages, `docker login ghcr.io` (PAT with `read:packages`).
+Switch to GHCR: `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq` in `.env`. Do not `docker login` for the public Aliyun repos.
 
-New packages start Private: enable Public in org Settings → Packages, then package page → **Change visibility** → **Public** (irreversible).
-
-Pin a commit: set `QUALITEST_IMAGE_TAG=sha-<short>` in `.env`. Compose still needs **MySQL + Redis** (or equivalents).
+Pin a commit: `QUALITEST_IMAGE_TAG=sha-<short>` in `.env` (matches GHCR tags; Aliyun currently tracks `latest`). Compose still needs **MySQL + Redis**. `mysql:8.0` / `redis:7-alpine` still come from Docker Hub.
 
 ---
 
@@ -589,7 +589,8 @@ Authoritative list: [`.env.example`](../.env.example). Compose injects some into
 | `SPRING_DATASOURCE_DRUID_MASTER_*` | JDBC URL / user / password | Compose points at service `mysql`; local → localhost |
 | `SPRING_DATA_REDIS_*` | Redis host / port / database / password | Compose host=`redis` |
 | `LOGGING_LEVEL_COM_QUALITEST` | App log level | Default `info` |
-| `QUALITEST_IMAGE_TAG` | Compose / local image tag | Default `latest`; can match GHCR `sha-xxxx` |
+| `QUALITEST_IMAGE_PREFIX` | Compose image registry prefix | Default Aliyun `registry.cn-hangzhou.aliyuncs.com/qualitest-hq`; GHCR: `ghcr.io/qualitest-hq` |
+| `QUALITEST_IMAGE_TAG` | Compose / local image tag | Default `latest` |
 | `DRUID_STAT_USERNAME` / `DRUID_STAT_PASSWORD` | Druid console (**dev** only) | docker / prod **disable** console — never expose `dev` publicly |
 
 ---
@@ -653,9 +654,9 @@ docker compose logs -f app
 docker compose ps
 docker compose down          # keep volumes
 docker compose down -v       # wipe MySQL / Redis / upload (destructive)
-docker compose pull app web  # Qualitest GHCR only; MySQL / Redis are pulled by up when missing
+docker compose pull app web  # Aliyun by default; MySQL / Redis are pulled by up when missing
 docker compose up -d         # start with existing / pulled images
-docker compose up -d --build # rebuild after code / Dockerfile changes, or when GHCR pull fails
+docker compose up -d --build # rebuild after code / Dockerfile changes, or when prebuilt pull fails
 ```
 
 ---

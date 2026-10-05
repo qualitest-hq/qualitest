@@ -1,7 +1,7 @@
 @echo off
 REM 质衡一键启动：Docker Compose 全栈
 REM 用法：
-REM   scripts\quick-start.bat           优先拉 GHCR，失败则本地构建
+REM   scripts\quick-start.bat           优先拉阿里云，失败则 GHCR，再失败则本地构建
 REM   scripts\quick-start.bat -h        显示本说明
 REM 说明：从任意目录调用即可（脚本会切到仓库根）；依赖 Docker Desktop + Compose V2
 REM 靶场 / RustFS：独立仓 qualitest-demo 另起 Compose（本仓无 --profile demo）
@@ -43,12 +43,21 @@ if exist ".env" (
   for /f "usebackq tokens=1,* delims==" %%A in (`findstr /b /c:"WEB_PORT=" ".env"`) do set "WEB_PORT=%%B"
 )
 
-echo [info] 拉取 GHCR 预构建镜像（ghcr.io/qualitest-hq/qualitest-app^|web）...
+echo [info] 拉取预构建镜像（默认阿里云 registry.cn-hangzhou.aliyuncs.com/qualitest-hq ）...
 docker compose pull app web
 if errorlevel 1 (
-  echo [warn] pull 失败（镜像未发布 / 网络），改为本地构建 ...
-  docker compose up -d --build
-  if errorlevel 1 exit /b 1
+  echo [warn] 阿里云拉取失败，改试 GHCR ...
+  set "QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq"
+  docker compose pull app web
+  if errorlevel 1 (
+    echo [warn] 预构建拉不到，改为本地构建 ...
+    docker compose up -d --build
+    if errorlevel 1 exit /b 1
+  ) else (
+    echo [info] 启动 MySQL + Redis + 后端 + Nginx ...
+    docker compose up -d
+    if errorlevel 1 exit /b 1
+  )
 ) else (
   echo [info] 启动 MySQL + Redis + 后端 + Nginx ...
   docker compose up -d
@@ -69,7 +78,7 @@ exit /b 0
 
 :usage
 echo 用法:
-echo   scripts\quick-start.bat           启动全栈（优先 GHCR；失败则 --build）
+echo   scripts\quick-start.bat           启动全栈（优先阿里云；失败则 GHCR，再失败则 --build）
 echo   scripts\quick-start.bat -h        显示本说明
 echo.
 echo 仅依赖:     scripts\dev-deps-up.bat （停：scripts\dev-deps-down.bat）

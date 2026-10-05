@@ -1,9 +1,10 @@
 # 质衡 Qualitest — Docker Compose 全栈
 # 用法：
-#   docker compose pull && docker compose up -d   # 拉 GHCR 预构建镜像（推荐）
+#   docker compose pull && docker compose up -d   # 拉预构建镜像（默认阿里云，匿名）
 #   docker compose up -d --build                  # 本地构建（改代码时）
 #   docker compose up -d mysql redis              # 仅依赖（本机跑 mvn / pnpm）
-# 官方镜像：ghcr.io/qualitest-hq/qualitest-app|web（tag 见 QUALITEST_IMAGE_TAG，默认 latest）
+# 默认：registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-app|web
+# 改回 GHCR：.env 设 QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq
 # 一键全栈：scripts/quick-start.sh|.bat
 # 仅依赖：  scripts/dev-deps-up.sh|.bat  /  scripts/dev-deps-down.sh|.bat
 # 靶场：独立仓 qualitest-demo 另起 Compose（本文件无 --profile demo；见 docs/deploy.md）
@@ -55,7 +56,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/qualitest-hq/qualitest-app:${QUALITEST_IMAGE_TAG:-latest}
+    image: ${QUALITEST_IMAGE_PREFIX:-registry.cn-hangzhou.aliyuncs.com/qualitest-hq}/qualitest-app:${QUALITEST_IMAGE_TAG:-latest}
     pull_policy: missing
     container_name: qualitest-app
     restart: unless-stopped
@@ -90,7 +91,7 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.web
-    image: ghcr.io/qualitest-hq/qualitest-web:${QUALITEST_IMAGE_TAG:-latest}
+    image: ${QUALITEST_IMAGE_PREFIX:-registry.cn-hangzhou.aliyuncs.com/qualitest-hq}/qualitest-web:${QUALITEST_IMAGE_TAG:-latest}
     pull_policy: missing
     container_name: qualitest-web
     restart: unless-stopped

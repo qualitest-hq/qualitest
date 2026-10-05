@@ -261,14 +261,16 @@ IDE 插件市场搜 **Qualitest Helper**（[Marketplace](https://plugins.jetbrai
 
 浏览器打开 `http://localhost:5180`。登录 **`admin`** / **`admin123`**。勿用于公网。公网演示运维口令为 **`admin` / `QtDemo#Admin2026`**，访客 **`demo` / `demo123`**。
 
-### 官方镜像（GHCR）
+### 官方镜像
 
-| 镜像 | 包页 |
-|------|------|
-| `ghcr.io/qualitest-hq/qualitest-app` | [qualitest-app](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-app) |
-| `ghcr.io/qualitest-hq/qualitest-web` | [qualitest-web](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-web) |
+Compose 默认阿里云（匿名 pull）：
 
-组织 Packages：[orgs/qualitest-hq/packages](https://github.com/orgs/qualitest-hq/packages?repo_name=qualitest) · 部署细节见 [deploy.md](./docs/deploy.md)
+| 镜像 |
+|------|
+| `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-app` |
+| `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-web` |
+
+GHCR 备份：[qualitest-app](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-app) · [qualitest-web](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-web)。改回 GHCR：`.env` 设 `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq`。部署细节见 [deploy.md](./docs/deploy.md)
 
 想完整体验（靶场 + 接口入库 + AI / MCP）：见 [部署说明](./docs/deploy.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [MCP](./docs/mcp.md) · [IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)（Java 可选）。
 

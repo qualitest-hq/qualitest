@@ -10,14 +10,14 @@
 
 快速上手摘要见根目录 [README](../README.md)；安全披露见 [SECURITY.md](../SECURITY.md)。
 
-CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker-app` / `docker-web` 镜像构建校验（只 build 不 push）**。正式镜像由 workflow **[GHCR](../.github/workflows/ghcr.yml)** 推到：
+CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker-app` / `docker-web` 镜像构建校验（只 build 不 push）**。GitHub 上的正式镜像由 workflow **[GHCR](../.github/workflows/ghcr.yml)** 推到 `ghcr.io/qualitest-hq/qualitest-app|web`。Compose **默认**拉阿里云公开仓库（**匿名，不用登录**）：
 
-- `ghcr.io/qualitest-hq/qualitest-app`
-- `ghcr.io/qualitest-hq/qualitest-web`
+- `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-app`
+- `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-web`
 
-（`latest` + `sha-<短提交>`；仅 `qualitest-hq/qualitest` 的 `main` / 手动触发。）
+改回 GHCR：`.env` 设 `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq`。`quick-start` 先拉阿里云，失败再试 GHCR，再失败才本地构建。
 
-**靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**（亦可拉 GHCR：`ghcr.io/qualitest-hq/qualitest-demo-app|web|mysql`）。一般人只起本仓即可体验质衡。
+**靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**（默认阿里云 `qualitest-demo-app|web|mysql`）。一般人只起本仓即可体验质衡。
 
 English: [deploy.en.md](./deploy.en.md)
 
@@ -218,7 +218,7 @@ GitHub 克隆很慢时，把地址换成只读镜像（目录名仍是 `qualites
 git clone https://gitee.com/qualitest-hq/qualitest.git
 ```
 
-脚本会：没有 `.env` 时从 `.env.example` 复制；先 `docker compose pull` 拉 GHCR；拉取失败则自动 `docker compose up -d --build`（首次本地构建可能要十几分钟）。拉取一直停住时，`Ctrl+C` 后在仓库目录执行：
+脚本会：没有 `.env` 时从 `.env.example` 复制；先拉阿里云公开镜像（不用登录）；失败再试 GHCR；再失败则 `docker compose up -d --build`（首次本地构建可能要十几分钟）。拉取一直停住时，`Ctrl+C` 后在仓库目录执行：
 
 ```bash
 docker compose up -d --build
@@ -226,7 +226,7 @@ docker compose up -d --build
 
 ### 1b. 直接 Docker Compose（与上面的脚本等价）
 
-不跑 `quick-start` 时，用下面整段代替第 1 步。脚本内部就是：复制 `.env` → `docker compose pull app web` → `docker compose up -d`。已经克隆过的，从复制 `.env` 那一行开始贴。`.env` 已存在时不会覆盖。
+不跑 `quick-start` 时，用下面整段代替第 1 步。脚本内部就是：复制 `.env` → `docker compose pull app web`（默认阿里云）→ `docker compose up -d`。已经克隆过的，从复制 `.env` 那一行开始贴。`.env` 已存在时不会覆盖。改回 GHCR：`.env` 加一行 `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq`。
 
 **Linux / macOS / Git Bash**
 
@@ -294,7 +294,7 @@ curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
 - 开箱账号（Flyway 跑完后，含 **V6**）：
   - **`admin` / `admin123`**：超级管理员（**仅本地 / 私有环境**；公网务必改密）
   - **`demo` / `demo123`**：演示访客（由 V6 将种子账号收敛而来；仅测试管理 + AI；正式环境请改密或停用）
-- **公网演示环境**：运维口令为 **`admin` / `QtDemo#Admin2026`**，访客仍用 **`demo` / `demo123`**（见 [qualitest-demo-host](https://github.com/38680050/qualitest-demo-host)）。正式登录页不预填；演示可选挂载 `config.js` 预填（运维仓 `1panel/login-defaults.js`）。本地 `.env.development` 可预填 `admin`
+- **公网演示环境**：运维口令为 **`admin` / `QtDemo#Admin2026`**，访客仍用 **`demo` / `demo123`**。正式登录页不预填；演示可选挂载 `config.js` 预填。本地 `.env.development` 可预填 `admin`
 - 首次以响应头 **`HTTP/1.1 200`** / 日志 Flyway migrate 成功为准（空库由 Flyway 建表，不再依赖 initdb 整库 dump）
 - IDEA 插件服务器地址：Compose 填 **`http://localhost:5180/prod-api`**；本机后端填 **`http://localhost:8800`**
 
@@ -415,20 +415,20 @@ http://host.docker.internal:8801
 docker compose down
 ```
 
-### 官方镜像（GHCR）
+### 官方镜像
+
+Compose 默认（匿名 pull，不用登录）：
 
 | 镜像 | 说明 |
 |------|------|
-| `ghcr.io/qualitest-hq/qualitest-app` | 后端（Spring Boot） |
-| `ghcr.io/qualitest-hq/qualitest-web` | 前端（Nginx + SPA，反代 `/prod-api` → app） |
+| `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-app` | 后端（Spring Boot） |
+| `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-web` | 前端（Nginx + SPA，反代 `/prod-api` → app） |
 
-Packages：https://github.com/orgs/qualitest-hq/packages  
+同源备份在 GHCR：`ghcr.io/qualitest-hq/qualitest-app|web`。Packages：https://github.com/orgs/qualitest-hq/packages  
 
-官方包已为 **Public**，可匿名 `docker pull`。若拉取私有 fork / 自建包，需 `docker login ghcr.io`（PAT 勾选 `read:packages`）。
+改回 GHCR：`.env` 写 `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq`。私有 fork 拉 GHCR 时需 `docker login ghcr.io`。阿里云公开仓库不要 login。
 
-新包首次推送默认为 Private：组织 Settings → Packages 需允许 Public，再到包页 **Change visibility** → **Public**（不可逆）。
-
-指定提交：`.env` 设 `QUALITEST_IMAGE_TAG=sha-<短 sha>`（与 Actions 推送的 tag 一致）。仍需 Compose 内的 **MySQL + Redis**（或自备等价服务）。
+指定提交：`.env` 设 `QUALITEST_IMAGE_TAG=sha-<短 sha>`（与 GHCR 上 Actions 打的 tag 一致；阿里云目前主要同步 `latest`）。仍需 Compose 内的 **MySQL + Redis**（或自备等价服务）。`mysql:8.0` / `redis:7-alpine` 仍走 Docker Hub。
 
 ---
 
@@ -588,7 +588,8 @@ kubectl -n qualitest port-forward svc/qualitest-web 5180:5180
 | `SPRING_DATASOURCE_DRUID_MASTER_*` | JDBC URL / 用户 / 密码 | Compose 已写死连服务名 `mysql`；本机改 localhost |
 | `SPRING_DATA_REDIS_*` | Redis host / port / database / password | Compose 内 host=`redis` |
 | `LOGGING_LEVEL_COM_QUALITEST` | 业务日志级别 | 默认 `info` |
-| `QUALITEST_IMAGE_TAG` | Compose / 本地镜像 tag | 默认 `latest`；可与 GHCR 的 `sha-xxxx` 对齐 |
+| `QUALITEST_IMAGE_PREFIX` | Compose 镜像仓库前缀 | 默认阿里云 `registry.cn-hangzhou.aliyuncs.com/qualitest-hq`；GHCR 用 `ghcr.io/qualitest-hq` |
+| `QUALITEST_IMAGE_TAG` | Compose / 本地镜像 tag | 默认 `latest` |
 | `DRUID_STAT_USERNAME` / `DRUID_STAT_PASSWORD` | Druid 控制台（仅 **dev**） | docker / prod **已关闭**控制台，勿对公网开 dev |
 
 ---
@@ -652,7 +653,7 @@ docker compose logs -f app
 docker compose ps
 docker compose down          # 保留数据卷
 docker compose down -v       # 清空 MySQL / Redis / 上传卷（慎用，等于重装库）
-docker compose pull app web  # 只拉质衡 GHCR；MySQL / Redis 由 up 按需拉取
+docker compose pull app web  # 默认阿里云；MySQL / Redis 由 up 按需拉取
 docker compose up -d         # 用已有 / 已 pull 的镜像起栈
 docker compose up -d --build # 改代码、Dockerfile，或 GHCR 拉取失败时本地重建
 ```

@@ -244,14 +244,16 @@ Paste only the block for your OS. The blocks in [5-minute Quick Start](#5-minute
 
 Open `http://localhost:5180`. Sign in **`admin`** / **`admin123`**. Do not use on the public internet.
 
-### Official images (GHCR)
+### Official images
 
-| Image | Package page |
-|------|------|
-| `ghcr.io/qualitest-hq/qualitest-app` | [qualitest-app](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-app) |
-| `ghcr.io/qualitest-hq/qualitest-web` | [qualitest-web](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-web) |
+Compose defaults to Aliyun (anonymous pull):
 
-Org packages: [orgs/qualitest-hq/packages](https://github.com/orgs/qualitest-hq/packages?repo_name=qualitest) · Details: [deploy.en.md](./docs/deploy.en.md)
+| Image |
+|------|
+| `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-app` |
+| `registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-web` |
+
+GHCR copies: [qualitest-app](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-app) · [qualitest-web](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-web). Switch back: `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq` in `.env`. Details: [deploy.en.md](./docs/deploy.en.md)
 
 Full loop (demo target + API ingest + AI / MCP): see [Deploy](./docs/deploy.en.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [MCP](./docs/mcp.en.md) · [IDEA plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) (optional for Java).
 
