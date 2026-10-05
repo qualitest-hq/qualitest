@@ -370,12 +370,5 @@ async function buildJavaForwardPayload(built) {
     correlationId: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined,
     body
   }
-  const apiId = built?.testProjectApiId
-  if (apiId != null && String(apiId).trim() !== '') {
-    const n = Number(apiId)
-    if (Number.isFinite(n)) {
-      payload.testProjectApiId = n
-    }
-  }
   return payload
 }

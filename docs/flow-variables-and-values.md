@@ -9,7 +9,7 @@
 
 ## 1. `{{…}}` 怎么写
 
-正式 Run 解析 **严格**：变量不存在 → `TF_PLACEHOLDER_UNDEFINED`。调试台部分场景会宽松（未定义当空串）。
+正式 Run 解析 **严格**：变量不存在 → `TF_PLACEHOLDER_UNDEFINED`。调试台发送前按当前环境与素材库做宽松替换（未定义当空串），并在响应区提示未解析的占位路径。需要登录的接口会在调试台 Headers 里显示一行托管鉴权头（如 `Authorization: Bearer {{asset.clientAuth.token}}`），不能删、不能改，取消勾选则这趟不发送。
 
 语法：`{{作用域.路径}}`（双花括号）。
 

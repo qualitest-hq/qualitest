@@ -270,6 +270,7 @@
                             v-if="apiDetailSubTab === 'design'"
                             :key="'api-dsg-' + (apiDetail.testProjectApiId ?? '')"
                             :api-detail="apiDetail"
+                            :project-auth-config="projectInfo.authConfig"
                             @saved="onDebugSaved"
                         />
                       </keep-alive>
@@ -1633,7 +1634,7 @@ onBeforeUnmount(() => {
 
 <style lang="scss">
 body.fullscreen-detail-mode {
-  .main-container .fixed-header {
+  .main-container .layout-header {
     display: none !important;
   }
 

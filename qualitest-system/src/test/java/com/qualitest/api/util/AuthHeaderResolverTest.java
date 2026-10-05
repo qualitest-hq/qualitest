@@ -298,4 +298,33 @@ class AuthHeaderResolverTest {
                 AuthHeaderResolver.resolve(apiAuth, projectAuth, "/login");
         assertTrue(resolved.skipped());
     }
+
+    /**
+     * 前提：同名托管行已取消勾选。
+     * 期望：不追加新的启用行，changed=false。
+     */
+    @Test
+    @Order(13)
+    @DisplayName("取消勾选的托管行不再补头")
+    void apply_disabledManagedRow_doesNotAppend() {
+        AuthHeaderResolver.ResolvedAuthHeader resolved =
+                AuthHeaderResolver.resolve(
+                        ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder().mode("inherit").build()),
+                        PROJECT_AUTH,
+                        "/api/orders");
+        List<Map<String, Object>> rows = new ArrayList<>();
+        Map<String, Object> managed = new LinkedHashMap<>();
+        managed.put("_enabled", false);
+        managed.put("name", "Authorization");
+        managed.put("value", "Bearer {{asset.clientAuth.token}}");
+        managed.put(AuthHeaderResolver.PROFILE_MANAGED, true);
+        managed.put(AuthHeaderResolver.AUTH_PROFILE_ID, resolved.profileId());
+        rows.add(managed);
+
+        AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(rows, resolved);
+        assertFalse(applied.changed());
+        assertEquals(1, applied.headers().size());
+        assertEquals(false, applied.headers().get(0).get("_enabled"));
+        assertTrue(AuthHeaderResolver.isManagedAuthOptedOut(rows, resolved));
+    }
 }

@@ -229,58 +229,76 @@
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">MCP 权限</h3>
             <p class="project-setting__card-desc">
-              Token 只绑定项目身份。下面开关分别控制「改图画布」「触发正式 Run」「导入接口」。
-              跑流依赖写流已开。保存后请重连或刷新 MCP，否则编辑器常仍只看到旧工具列表。
+              Token 只绑定项目身份。三道开关分别控制改图画布、直接跑测试流、把接口写入项目；默认关闭，请仅对可信环境开启。
             </p>
           </header>
 
-          <div class="project-setting__mcp-autopilot-row">
-            <el-switch
-                v-model="mcpAutoWriteEnabled"
-                active-text="允许 MCP 自动写流"
-                inactive-text="仅只读"
-                @change="onMcpAutoWriteChange"
-            />
-            <el-button :loading="mcpAutoWriteSaving" type="primary" @click="saveMcpAutoWrite">
-              保存
-            </el-button>
-          </div>
-          <p class="project-setting__hint project-setting__hint--warn">
-            默认关闭。开启后持 Token 者可经 MCP 新建流、改图画布；请仅对可信环境开启。
-          </p>
+          <div class="project-setting__mcp-list">
+            <div class="project-setting__mcp-row">
+              <div class="project-setting__mcp-meta">
+                <span class="project-setting__mcp-name">允许 MCP 自动写流</span>
+                <span class="project-setting__mcp-sub">新建流、改图画布</span>
+              </div>
+              <div class="project-setting__mcp-controls">
+                <el-switch
+                    v-model="mcpAutoWriteEnabled"
+                    inline-prompt
+                    active-text="开"
+                    inactive-text="关"
+                    @change="onMcpAutoWriteChange"
+                />
+                <el-button :loading="mcpAutoWriteSaving" size="small" type="primary" @click="saveMcpAutoWrite">
+                  保存
+                </el-button>
+              </div>
+            </div>
 
-          <div class="project-setting__mcp-autopilot-row">
-            <el-switch
-                v-model="mcpAutorunEnabled"
-                :disabled="!mcpAutoWriteEnabled"
-                active-text="允许 MCP 自动跑流"
-                inactive-text="禁止跑流"
-            />
-            <el-button
-                :loading="mcpAutorunSaving"
-                :disabled="!mcpAutoWriteEnabled && !mcpAutorunEnabled"
-                type="primary"
-                @click="saveMcpAutorun"
-            >
-              保存
-            </el-button>
-          </div>
-          <p class="project-setting__hint project-setting__hint--warn">
-            默认关闭。开启后持 Token 者可经 MCP 调用 run_test_flow 触发正式 Run（写 Run 记录）。须先开写流；关写流时会一并关闭本开关。
-          </p>
+            <div class="project-setting__mcp-row">
+              <div class="project-setting__mcp-meta">
+                <span class="project-setting__mcp-name">允许 MCP 自动跑流</span>
+                <span class="project-setting__mcp-sub">在 Cursor 里直接跑测试流，须先开写流</span>
+              </div>
+              <div class="project-setting__mcp-controls">
+                <el-switch
+                    v-model="mcpAutorunEnabled"
+                    :disabled="!mcpAutoWriteEnabled"
+                    inline-prompt
+                    active-text="开"
+                    inactive-text="关"
+                />
+                <el-button
+                    :loading="mcpAutorunSaving"
+                    :disabled="!mcpAutoWriteEnabled && !mcpAutorunEnabled"
+                    size="small"
+                    type="primary"
+                    @click="saveMcpAutorun"
+                >
+                  保存
+                </el-button>
+              </div>
+            </div>
 
-          <div class="project-setting__mcp-autopilot-row">
-            <el-switch
-                v-model="mcpImportApisEnabled"
-                active-text="允许 MCP 导入接口"
-                inactive-text="禁止导入"
-            />
-            <el-button :loading="mcpImportApisSaving" type="primary" @click="saveMcpImportApis">
-              保存
-            </el-button>
+            <div class="project-setting__mcp-row">
+              <div class="project-setting__mcp-meta">
+                <span class="project-setting__mcp-name">允许 MCP 导入接口</span>
+                <span class="project-setting__mcp-sub">把代码里的接口写入本项目；IDEA 插件导入不受影响</span>
+              </div>
+              <div class="project-setting__mcp-controls">
+                <el-switch
+                    v-model="mcpImportApisEnabled"
+                    inline-prompt
+                    active-text="开"
+                    inactive-text="关"
+                />
+                <el-button :loading="mcpImportApisSaving" size="small" type="primary" @click="saveMcpImportApis">
+                  保存
+                </el-button>
+              </div>
+            </div>
           </div>
-          <p class="project-setting__hint project-setting__hint--warn">
-            默认关闭。开启后持 Token 者可经 MCP 调用 import_apis，按方法+path 向本项目接口库新增或更新接口。本开关不影响写流权限；IDEA 插件的 REST 导入不受本开关限制。
+
+          <p class="project-setting__hint">
+            保存后请重连或刷新 MCP，否则编辑器常仍只看到旧工具列表。关写流时会一并关掉跑流。
           </p>
         </section>
 
@@ -781,12 +799,54 @@ const mcpConfigText = computed(() => {
   }
 }
 
-.project-setting__mcp-autopilot-row {
+.project-setting__mcp-list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+}
+
+.project-setting__mcp-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px 16px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-blank);
+
+  & + & {
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+}
+
+.project-setting__mcp-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.project-setting__mcp-name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--el-text-color-primary);
+}
+
+.project-setting__mcp-sub {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--el-text-color-secondary);
+}
+
+.project-setting__mcp-controls {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
 }
 
 .project-setting__conv-grid {

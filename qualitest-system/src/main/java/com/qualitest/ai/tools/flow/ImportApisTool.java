@@ -127,7 +127,7 @@ public class ImportApisTool implements QualitestTool {
             ApiImportResult result = apiImportService.importApis(projectId, resolveUserId(ctx), params);
             if (result.getDetails() != null) {
                 for (ApiImportResult.ApiImportDetail detail : result.getDetails()) {
-                    String method = ApiImportMatchSupport.extractHttpMethod(findRequestConfig(toImport, detail));
+                    String method = detail.getMethod();
                     String normPath = ProjectAuthConfigSupport.normalizeApiPath(detail.getApiPath());
                     ItemMeta meta = metaByIdentity.get(method + " " + normPath);
                     JSONObject row = ackRow(
@@ -210,24 +210,6 @@ public class ImportApisTool implements QualitestTool {
             index.putIfAbsent(method + " " + path, api);
         }
         return index;
-    }
-
-    /**
-     * 从本批导入项中按规范化 path 取出 requestConfig，用于解析 HTTP 方法。
-     * 本批已按方法+path 去重；找不到时回退第一条。
-     */
-    private static String findRequestConfig(List<ApiImportParams.ApiImportItem> items,
-                                            ApiImportResult.ApiImportDetail detail) {
-        if (detail.getApiPath() == null || items == null || items.isEmpty()) {
-            return items == null || items.isEmpty() ? null : items.get(0).getRequestConfig();
-        }
-        String detailPath = ProjectAuthConfigSupport.normalizeApiPath(detail.getApiPath());
-        for (ApiImportParams.ApiImportItem item : items) {
-            if (detailPath.equals(ProjectAuthConfigSupport.normalizeApiPath(item.getApiPath()))) {
-                return item.getRequestConfig();
-            }
-        }
-        return items.get(0).getRequestConfig();
     }
 
     /**

@@ -670,43 +670,41 @@ $tags-bar-height: 34px;
   }
 }
 
-/* 页签全屏模式样式 */
-.main-container.fullscreen-mode {
+/* 页签全屏：整栏贴视口，内部仍走主栏 flex，不再用 100vh 减页签高度。
+   #app 前缀用来压过 sidebar.scss 里 #app .main-container { position: relative } */
+#app .main-container.fullscreen-mode {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  inset: 0;
+  z-index: 2000;
+  width: auto;
+  height: auto;
   overflow: hidden;
   margin-left: 0 !important;
   transition: none !important;
+  display: flex;
+  flex-direction: column;
 }
 
-.main-container.fullscreen-mode .fixed-header {
+.main-container.fullscreen-mode .layout-header {
   display: block !important;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex-shrink: 0;
   width: 100% !important;
-  z-index: 1000;
+  z-index: 1;
   transition: none !important;
 }
 
-.main-container.fullscreen-mode .fixed-header .navbar {
+.main-container.fullscreen-mode .layout-header .navbar {
   display: none !important;
 }
 
 .main-container.fullscreen-mode .app-main {
-  position: fixed;
-  top: 34px;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: relative;
+  flex: 1;
+  min-height: 0;
   margin: 0 !important;
   padding: 0 !important;
-  height: calc(100vh - 34px) !important;
-  min-height: calc(100vh - 34px) !important;
+  height: auto !important;
   overflow: auto;
 }
 </style>

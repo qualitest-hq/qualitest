@@ -6,14 +6,8 @@ import com.qualitest.api.params.DebugHttpForwardParams.DebugBodySpec;
 import com.qualitest.api.params.DebugHttpForwardParams.HeaderPair;
 import com.qualitest.api.result.DebugHttpForwardResult;
 import com.qualitest.api.service.IDebugHttpForwardService;
-import com.qualitest.api.util.ApiImportMatchSupport;
-import com.qualitest.api.util.AuthHeaderResolver;
 import com.qualitest.api.util.HttpEgressAllowlist;
 import com.qualitest.api.util.MediaContentTypes;
-import com.qualitest.project.domain.TestProject;
-import com.qualitest.project.domain.TestProjectApi;
-import com.qualitest.project.mapper.TestProjectApiMapper;
-import com.qualitest.project.mapper.TestProjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,8 +36,8 @@ import java.util.stream.Collectors;
 /**
  * 通过 Java HttpClient 将调试请求转发至被测 URL。
  * <p>
- * 转发前校验目标 URL（协议、主机，以及可选的出口白名单）；
- * 若请求带 testProjectApiId，按项目鉴权配置补齐缺失的鉴权头。
+ * 转发前校验目标 URL（协议、主机，以及可选的出口白名单）。
+ * 鉴权头由调试台在发送前写好，这里不再按项目配置补头。
  */
 @Slf4j
 @Service
@@ -59,8 +53,6 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
             "keep-alive", "proxy-connection", "te", "trailer", "upgrade"
     );
 
-    private final TestProjectApiMapper testProjectApiMapper;
-    private final TestProjectMapper testProjectMapper;
     /** HTTP 出站目标校验（协议 / 主机 / 可选白名单） */
     private final HttpEgressAllowlist httpEgressAllowlist;
 
@@ -74,7 +66,6 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
         if (params == null) {
             return DebugHttpForwardResult.policyError("请求体不能为空");
         }
-        injectAuthHeadersIfNeeded(params);
         // 协议、主机及可选 host:port 白名单
         String policyError = httpEgressAllowlist.check(params.getUrl());
         if (policyError != null) {
@@ -118,81 +109,6 @@ public class DebugHttpForwardServiceImpl implements IDebugHttpForwardService {
                     "UNKNOWN",
                     null);
         }
-    }
-
-    /**
-     * 调试台带 testProjectApiId 时：缺鉴权头则按项目配置补模板值（已有同名头不覆盖）。
-     */
-    private void injectAuthHeadersIfNeeded(DebugHttpForwardParams params) {
-        Long apiId = params.getTestProjectApiId();
-        if (apiId == null) {
-            return;
-        }
-        TestProjectApi api = testProjectApiMapper.selectTestProjectApiById(apiId);
-        if (api == null) {
-            return;
-        }
-        String projectAuthJson = null;
-        if (api.getTestProjectId() != null) {
-            TestProject project = testProjectMapper.selectTestProjectById(api.getTestProjectId());
-            if (project != null) {
-                projectAuthJson = project.getAuthConfig();
-            }
-        }
-        AuthHeaderResolver.ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(
-                api.getAuthConfig(),
-                projectAuthJson,
-                api.getApiPath(),
-                ApiImportMatchSupport.extractHttpMethod(api.getRequestConfig()));
-        if (resolved.skipped()) {
-            return;
-        }
-
-        List<Map<String, Object>> rows = headerPairsToRows(params.getHeaders());
-        AuthHeaderResolver.ApplyResult applied = AuthHeaderResolver.applyToHeaderRows(rows, resolved);
-        if (applied.changed()) {
-            params.setHeaders(rowsToHeaderPairs(applied.headers()));
-        }
-    }
-
-    private static List<Map<String, Object>> headerPairsToRows(List<HeaderPair> pairs) {
-        List<Map<String, Object>> rows = new ArrayList<>();
-        if (pairs == null) {
-            return rows;
-        }
-        for (HeaderPair pair : pairs) {
-            if (pair == null || pair.getName() == null || pair.getName().isBlank()) {
-                continue;
-            }
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("_enabled", true);
-            row.put("name", pair.getName());
-            row.put("value", pair.getValue() != null ? pair.getValue() : "");
-            rows.add(row);
-        }
-        return rows;
-    }
-
-    private static List<HeaderPair> rowsToHeaderPairs(List<Map<String, Object>> rows) {
-        List<HeaderPair> out = new ArrayList<>();
-        if (rows == null) {
-            return out;
-        }
-        for (Map<String, Object> row : rows) {
-            if (row == null || Boolean.FALSE.equals(row.get("_enabled"))) {
-                continue;
-            }
-            Object nameObj = row.get("name");
-            if (nameObj == null || String.valueOf(nameObj).isBlank()) {
-                nameObj = row.get("key");
-            }
-            if (nameObj == null || String.valueOf(nameObj).isBlank()) {
-                continue;
-            }
-            Object value = row.get("value");
-            out.add(new HeaderPair(String.valueOf(nameObj).trim(), value != null ? String.valueOf(value) : ""));
-        }
-        return out;
     }
 
     private static String classifyIo(String msg) {

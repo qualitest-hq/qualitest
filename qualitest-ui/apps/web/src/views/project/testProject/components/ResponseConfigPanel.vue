@@ -22,16 +22,6 @@
     </template>
 
     <template v-else>
-      <div class="resp-expected-kind-row">
-        <!-- 接口级期望响应形态：跑流探活对照实际 body -->
-        <span class="resp-expected-kind-label">期望响应形态</span>
-        <el-select v-model="local.expectedResponseKind" class="resp-expected-kind-select" placeholder="期望形态">
-          <el-option label="JSON" value="json"/>
-          <el-option label="HTML" value="html"/>
-          <el-option label="任意" value="any"/>
-        </el-select>
-        <span class="resp-field-desc resp-expected-kind-hint">跑流探活对照：实际形态不符则不算已登录</span>
-      </div>
       <div class="resp-tab-bar">
         <div class="resp-tab-bar__tabs">
           <el-tabs
@@ -48,6 +38,22 @@
                 :name="r.id"
             />
           </el-tabs>
+        </div>
+        <div class="resp-expected-kind">
+          <!-- 接口级期望响应形态：只描述正常返回的正文类型 -->
+          <span class="resp-expected-kind-label">
+            期望响应形态
+            <el-tooltip content="标明这个接口正常返回的正文是 JSON、HTML，还是不限制形态" placement="top">
+              <el-icon class="resp-field-help">
+                <QuestionFilled/>
+              </el-icon>
+            </el-tooltip>
+          </span>
+          <el-select v-model="local.expectedResponseKind" class="resp-expected-kind-select" placeholder="期望形态" size="small">
+            <el-option label="JSON" value="json"/>
+            <el-option label="HTML" value="html"/>
+            <el-option label="任意" value="any"/>
+          </el-select>
         </div>
         <el-button class="resp-add-tab-btn" size="small" type="primary" @click="addResponseTab">
           <el-icon class="el-icon--left"><Plus/></el-icon>
@@ -631,27 +637,31 @@ defineExpose({
   line-height: 1.45;
 }
 
-.resp-expected-kind-row {
-  display: flex;
-  flex-wrap: wrap;
+.resp-expected-kind {
+  display: inline-flex;
   align-items: center;
-  gap: 8px 12px;
-  margin-bottom: 12px;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .resp-expected-kind-label {
-  font-size: 13px;
-  color: var(--pd-text, #1f2a37);
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--pd-text-muted, #5a6b86);
   flex-shrink: 0;
 }
 
-.resp-expected-kind-select {
-  width: 120px;
+.resp-field-help {
+  margin-left: 2px;
+  font-size: 13px;
+  color: var(--el-text-color-placeholder, #a8abb2);
+  cursor: help;
 }
 
-.resp-expected-kind-hint {
-  margin: 0;
-  flex: 1 1 160px;
+.resp-expected-kind-select {
+  width: 96px;
 }
 
 .resp-raw-textarea {
@@ -673,6 +683,7 @@ defineExpose({
   gap: 8px;
   margin: 0;
   min-height: 0;
+  padding: 6px 8px 0;
 }
 
 .resp-tab-bar__tabs {

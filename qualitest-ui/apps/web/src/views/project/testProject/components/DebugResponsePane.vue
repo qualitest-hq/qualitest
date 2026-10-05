@@ -53,6 +53,14 @@
           type="warning"
       />
       <el-alert
+          v-if="(debugResponse.unresolvedPlaceholders || []).length"
+          :closable="false"
+          :title="'占位符未解析：' + debugResponse.unresolvedPlaceholders.join('、')"
+          class="debug-error-alert"
+          show-icon
+          type="warning"
+      />
+      <el-alert
           v-if="debugResponse.preScriptError"
           :closable="false"
           :title="'前置脚本：' + debugResponse.preScriptError"

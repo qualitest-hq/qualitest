@@ -29,14 +29,21 @@
               v-for="index in visibleIndices"
               :key="'kv-' + index"
               class="debug-kv-row debug-kv-row--virtual"
+              :class="{ 'is-managed-overridden': isManagedOverridden(rows[index]) }"
               :style="{ ...gridStyle, minHeight: VIRTUAL_ROW_HEIGHT + 'px' }"
           >
             <div class="debug-kv-cell debug-kv-cell--chk">
               <el-checkbox v-model="rows[index]._enabled"/>
             </div>
             <div class="debug-kv-cell" :style="keyCellStyle(rows[index])">
+              <div v-if="rows[index]._managed" class="debug-kv-managed-name">
+                <span>{{ rows[index].name }}</span>
+                <el-tooltip content="鉴权模式在「设计」页修改" placement="top">
+                  <span class="debug-kv-managed-tag">{{ managedTag(rows[index]) }}</span>
+                </el-tooltip>
+              </div>
               <el-input
-                  v-if="!isKeyDisabled(rows[index])"
+                  v-else-if="!isKeyDisabled(rows[index])"
                   v-model="rows[index][keyColumnField]"
                   :placeholder="namePlaceholder"
                   class="debug-kv-field"
@@ -89,7 +96,14 @@
               </div>
             </div>
             <div class="debug-kv-cell">
-              <div v-if="shouldShowFileUpload(rows[index])" class="debug-kv-file-value">
+              <el-input
+                  v-if="rows[index]._managed"
+                  :model-value="rows[index].value"
+                  :title="isManagedOverridden(rows[index]) ? '已被手动请求头覆盖' : undefined"
+                  class="debug-kv-field"
+                  disabled
+              />
+              <div v-else-if="shouldShowFileUpload(rows[index])" class="debug-kv-file-value">
                 <input
                     :ref="el => setFileInputRef(index, el)"
                     class="debug-kv-file-native"
@@ -165,7 +179,7 @@
                   <el-icon><CirclePlus/></el-icon>
                 </button>
               </el-tooltip>
-              <el-tooltip content="删除" placement="top">
+              <el-tooltip v-if="!rows[index]._managed" content="删除" placement="top">
                 <button
                     class="debug-kv-remove"
                     type="button"
@@ -197,14 +211,21 @@
             v-for="(row, index) in rows"
             :key="index"
             class="debug-kv-row"
+            :class="{ 'is-managed-overridden': isManagedOverridden(row) }"
             :style="gridStyle"
         >
           <div class="debug-kv-cell debug-kv-cell--chk">
             <el-checkbox v-model="row._enabled"/>
           </div>
           <div class="debug-kv-cell" :style="keyCellStyle(row)">
+            <div v-if="row._managed" class="debug-kv-managed-name">
+              <span>{{ row.name }}</span>
+              <el-tooltip content="鉴权模式在「设计」页修改" placement="top">
+                <span class="debug-kv-managed-tag">{{ managedTag(row) }}</span>
+              </el-tooltip>
+            </div>
             <el-input
-                v-if="!isKeyDisabled(row)"
+                v-else-if="!isKeyDisabled(row)"
                 v-model="row[keyColumnField]"
                 :placeholder="namePlaceholder"
                 class="debug-kv-field"
@@ -257,7 +278,14 @@
             </div>
           </div>
           <div class="debug-kv-cell">
-            <div v-if="shouldShowFileUpload(row)" class="debug-kv-file-value">
+            <el-input
+                v-if="row._managed"
+                :model-value="row.value"
+                :title="isManagedOverridden(row) ? '已被手动请求头覆盖' : undefined"
+                class="debug-kv-field"
+                disabled
+            />
+            <div v-else-if="shouldShowFileUpload(row)" class="debug-kv-file-value">
               <input
                   :ref="el => setFileInputRef(index, el)"
                   class="debug-kv-file-native"
@@ -333,7 +361,7 @@
                 <el-icon><CirclePlus/></el-icon>
               </button>
             </el-tooltip>
-            <el-tooltip content="删除" placement="top">
+            <el-tooltip v-if="!row._managed" content="删除" placement="top">
               <button
                   class="debug-kv-remove"
                   type="button"
@@ -354,6 +382,7 @@ import {CirclePlus, Delete, FullScreen} from '@element-plus/icons-vue'
 import {ElMessage} from 'element-plus'
 import {useDebounceFn} from '@vueuse/core'
 import {uploadCommonFile} from '@/api/common/upload'
+import {isManagedRowOverridden, managedAuthTag} from '@/views/project/testProject/utils/debugManagedAuthRow'
 
 /** 与 .debug-kv-row 单行高度对齐，用于占位计算（略大于实际单行，避免裁切） */
 const VIRTUAL_ROW_HEIGHT = 56
@@ -543,6 +572,14 @@ function keyCellStyle(row) {
 
 function isKeyDisabled(row) {
   return Boolean(row?._hideKey)
+}
+
+function managedTag(row) {
+  return managedAuthTag(row)
+}
+
+function isManagedOverridden(row) {
+  return isManagedRowOverridden(props.rows, row)
 }
 
 function isRemarkEditable(row) {
@@ -1003,6 +1040,32 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 600;
   color: var(--pd-text, #303133);
+}
+
+.debug-kv-managed-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.debug-kv-managed-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: rgba(11, 110, 220, 0.1);
+  color: var(--pd-primary, #0b6edc);
+  font-size: 12px;
+  line-height: 20px;
+  cursor: default;
+}
+
+.debug-kv-row.is-managed-overridden {
+  opacity: 0.55;
 }
 
 .debug-kv-add-child {
