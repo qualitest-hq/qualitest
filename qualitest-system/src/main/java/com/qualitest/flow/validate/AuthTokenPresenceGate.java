@@ -116,6 +116,10 @@ public final class AuthTokenPresenceGate {
             if (resolved == null || resolved.skipped()) {
                 continue;
             }
+            // 节点上同名托管头已取消勾选：这趟明确不带鉴权，不再要求凭证来源
+            if (AuthHeaderResolver.isManagedAuthOptedOut(data.get("headers"), resolved)) {
+                continue;
+            }
             ProjectAuthProfile profile = ProjectAuthConfigSupport.findProfile(projectAuth, resolved.profileId());
             List<CredentialTarget> targets = CredentialTargetSupport.targetsOnProfile(profile);
             if (targets.isEmpty()) {

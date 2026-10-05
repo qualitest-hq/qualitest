@@ -204,8 +204,8 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .flow-canvas-page {
-  height: calc(100vh - 84px);
-  min-height: calc(100vh - 84px);
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -215,8 +215,8 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  height: 100vh;
-  min-height: 100vh;
+  height: auto;
+  min-height: 0;
   background: #fff;
 }
 </style>

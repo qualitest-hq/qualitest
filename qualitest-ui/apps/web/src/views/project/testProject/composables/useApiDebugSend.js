@@ -6,6 +6,13 @@ import {
   resolveEnvBaseUrlForRequest
 } from '@/views/project/testProject/utils/envConfigUtils'
 import {rowsToKeyValueObject} from '@/views/project/testProject/composables/useApiDebugPersist'
+import {listTestProjectAsset} from '@/api/project/testProjectAsset'
+import {buildDebugFlowContext} from '@/utils/flow/flowContextBuilder'
+import {pickHeadersForSend} from '@/views/project/testProject/utils/debugManagedAuthRow'
+import {
+  collectUnresolvedPlaceholders,
+  resolvePlaceholderInString
+} from '@/views/project/testProject/utils/debugPlaceholderResolve'
 
 /**
  * API 调试发送：组装 URL/选项、执行请求与前后置脚本。
@@ -78,7 +85,7 @@ export function useApiDebugSend(props, draft, bodyJson, proxy, script) {
     const fullUrl = base + urlPath + (qStr ? `?${qStr}` : '')
 
     const method = (draftRequestConfig.value.method || 'GET').toUpperCase()
-    const headers = {...rowsToKeyValueObject(draftHeaderRows.value)}
+    const headers = {...pickHeadersForSend(draftHeaderRows.value)}
     const cookieStr = Object.entries(rowsToKeyValueObject(draftCookieRows.value))
         .map(([k, v]) => `${k}=${v}`)
         .join('; ')
@@ -162,7 +169,69 @@ export function useApiDebugSend(props, draft, bodyJson, proxy, script) {
       }
     }
 
-    return {fullUrl, method, headers, data, testProjectApiId: props.apiDetail?.testProjectApiId}
+    return {fullUrl, method, headers, data}
+  }
+
+  /** 前置脚本之后再取素材，把 url / headers / body 里的 {{env/asset/flow}} 换成当前值。 */
+  async function resolveSendPlaceholders(built) {
+    const projectId = props.apiDetail?.testProjectId
+    let assetEntries = []
+    if (projectId != null) {
+      try {
+        const res = await listTestProjectAsset({testProjectId: projectId})
+        assetEntries = res?.rows ?? res?.data ?? []
+      } catch {
+        assetEntries = []
+      }
+    }
+    const env = props.envList.find((e) => String(e.testProjectEnvId) === String(props.testProjectEnvId))
+    const ctx = buildDebugFlowContext({
+      envUrl: env?.envUrl,
+      envVariables: env?.envVariables,
+      assetEntries,
+      flow: {...(scriptState.value.variables ?? {})}
+    })
+    const headers = {}
+    for (const [name, value] of Object.entries(built.headers || {})) {
+      headers[resolvePlaceholderInString(name, ctx)] = resolvePlaceholderInString(value, ctx)
+    }
+    const data = resolveRequestData(built.data, ctx)
+    const texts = [
+      built.fullUrl,
+      ...Object.keys(built.headers || {}),
+      ...Object.values(built.headers || {}),
+      typeof built.data === 'string' ? built.data : dataPreview(built.data)
+    ]
+    return {
+      ...built,
+      fullUrl: resolvePlaceholderInString(built.fullUrl, ctx),
+      headers,
+      data,
+      unresolvedPlaceholders: collectUnresolvedPlaceholders(texts, ctx)
+    }
+  }
+
+  function dataPreview(data) {
+    if (data == null || typeof data === 'string') return data ?? ''
+    if (typeof FormData !== 'undefined' && data instanceof FormData) return ''
+    if (typeof File !== 'undefined' && data instanceof File) return ''
+    try {
+      return JSON.stringify(data)
+    } catch {
+      return ''
+    }
+  }
+
+  function resolveRequestData(data, ctx) {
+    if (data == null || typeof data !== 'string' && typeof data !== 'object') return data
+    if (typeof data === 'string') return resolvePlaceholderInString(data, ctx)
+    if (typeof FormData !== 'undefined' && data instanceof FormData) return data
+    if (typeof File !== 'undefined' && data instanceof File) return data
+    try {
+      return JSON.parse(resolvePlaceholderInString(JSON.stringify(data), ctx))
+    } catch {
+      return data
+    }
   }
 
   async function handleDebugSend() {
@@ -204,6 +273,7 @@ export function useApiDebugSend(props, draft, bodyJson, proxy, script) {
         scriptSession.environment = buildEnvironmentMap()
       }
       sendBuilt = preOutcome.built
+      sendBuilt = await resolveSendPlaceholders(sendBuilt)
 
       const {fullUrl, method, headers, data} = sendBuilt
       const result = await executeDebugRequest(
@@ -226,7 +296,8 @@ export function useApiDebugSend(props, draft, bodyJson, proxy, script) {
         preScriptError: null,
         postScriptError: null,
         scriptLogs: preOutcome.result?.logs ?? [],
-        scriptTests: []
+        scriptTests: [],
+        unresolvedPlaceholders: sendBuilt.unresolvedPlaceholders || []
       }
 
       const postScript = draftPostRequestScript.value ?? props.apiDetail?.postRequestScript ?? ''

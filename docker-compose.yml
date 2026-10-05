@@ -59,6 +59,9 @@ services:
     pull_policy: missing
     container_name: qualitest-app
     restart: unless-stopped
+    # 容器内访问宿主机上的靶场（8801）。Docker Desktop 与 Linux Engine 均可用。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       mysql:
         condition: service_healthy

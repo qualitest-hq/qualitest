@@ -9,7 +9,7 @@ Assert / extract dialects: [test-flow-nodes.en.md](./test-flow-nodes.en.md). Ass
 
 ## 1. Writing `{{…}}`
 
-Formal Run is **strict** (undefined → `TF_PLACEHOLDER_UNDEFINED`). Debug may be lenient.
+Formal Run is **strict** (undefined → `TF_PLACEHOLDER_UNDEFINED`). The debug console resolves `{{env.*}}` / `{{asset.*}}` / `{{flow.*}}` leniently before send and warns when a placeholder is empty. APIs that need auth show a managed header row (for example `Authorization: Bearer {{asset.clientAuth.token}}`): it cannot be deleted or edited, and unchecking it omits the header for that send.
 
 | Scope | Meaning | Example |
 | ----- | ------- | ------- |

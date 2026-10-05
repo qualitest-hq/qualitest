@@ -88,13 +88,6 @@
     </div>
 
     <div class="drawer-item">
-      <span>固定 Header</span>
-      <span class="comp-style">
-        <el-switch v-model="settingsStore.fixedHeader" class="drawer-switch" />
-      </span>
-    </div>
-
-    <div class="drawer-item">
       <span>显示 Logo</span>
       <span class="comp-style">
         <el-switch v-model="settingsStore.sidebarLogo" class="drawer-switch" />

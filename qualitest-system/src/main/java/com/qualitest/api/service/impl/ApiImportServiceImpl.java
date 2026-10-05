@@ -128,6 +128,7 @@ public class ApiImportServiceImpl implements IApiImportService {
 
                 ApiImportResult.ApiImportDetail detail = ApiImportResult.ApiImportDetail.builder()
                         .apiPath(item.getApiPath())
+                        .method(ApiImportMatchSupport.extractHttpMethod(item.getRequestConfig()))
                         .apiName(item.getApiName())
                         .status("fail")
                         .message("处理失败: " + e.getMessage())
@@ -302,6 +303,7 @@ public class ApiImportServiceImpl implements IApiImportService {
         validateApiItem(item);
 
         String identity = ApiImportMatchSupport.buildIdentity(item);
+        String method = ApiImportMatchSupport.extractHttpMethod(item.getRequestConfig());
         TestProjectApi existingInBatch = batchIdentityIndex.get(identity);
         TestProjectApi existingInDb = existingInBatch == null ? existingDbIndex.get(identity) : null;
 
@@ -312,6 +314,7 @@ public class ApiImportServiceImpl implements IApiImportService {
             batchIdentityIndex.put(identity, existingInDb);
             return ApiImportResult.ApiImportDetail.builder()
                     .apiPath(item.getApiPath())
+                    .method(method)
                     .apiName(StrUtil.blankToDefault(item.getApiName(), existingInDb.getApiName()))
                     .status("skip")
                     .testProjectApiId(existingInDb.getTestProjectApiId())
@@ -321,6 +324,7 @@ public class ApiImportServiceImpl implements IApiImportService {
         if (existingInBatch != null && ApiImportMatchSupport.isSyncProtected(existingInBatch)) {
             return ApiImportResult.ApiImportDetail.builder()
                     .apiPath(item.getApiPath())
+                    .method(method)
                     .apiName(StrUtil.blankToDefault(item.getApiName(), existingInBatch.getApiName()))
                     .status("skip")
                     .testProjectApiId(existingInBatch.getTestProjectApiId())
@@ -358,6 +362,7 @@ public class ApiImportServiceImpl implements IApiImportService {
 
         return ApiImportResult.ApiImportDetail.builder()
                 .apiPath(item.getApiPath())
+                .method(method)
                 .apiName(item.getApiName())
                 .status(action)
                 .testProjectApiId(api.getTestProjectApiId())

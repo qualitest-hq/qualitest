@@ -193,6 +193,27 @@ class AuthTokenPresenceGateTest {
         assertTrue(errors.get(0).contains("asset.clientAuth.token"));
     }
 
+    /**
+     * 前提：需客户端鉴权的 HTTP 节点把托管 Authorization 取消勾选，图中也没有凭证来源。
+     * 期望：不报 AUTH_TOKEN_MISSING。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("取消勾选托管头则不要求凭证")
+    void validate_managedHeaderUnchecked_skips() {
+        GraphNode node = httpNode("n1", 701L);
+        node.getData().put("headers", List.of(Map.of(
+                "_enabled", false,
+                "name", "Authorization",
+                "value", "Bearer {{asset.clientAuth.token}}",
+                "profileManaged", true
+        )));
+        GraphJson graph = GraphJson.builder().nodes(List.of(node)).build();
+        List<String> errors = AuthTokenPresenceGate.validate(
+                graph, PROJECT_AUTH, id -> api(id, "/api/cart/list", "inherit"));
+        assertTrue(errors.isEmpty());
+    }
+
     private static GraphNode httpNode(String id, Long apiId) {
         Map<String, Object> data = new HashMap<>();
         data.put("name", id);

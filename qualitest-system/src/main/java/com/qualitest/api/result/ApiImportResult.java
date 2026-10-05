@@ -77,6 +77,9 @@ public class ApiImportResult implements Serializable {
         /** API 路径 */
         private String apiPath;
 
+        /** HTTP 方法（大写），与 apiPath 一起唯一确定一条接口 */
+        private String method;
+
         /** API 名称 */
         private String apiName;
 

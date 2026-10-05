@@ -1,6 +1,14 @@
 # Deployment
 
-Ports, env vars, and production hardening for Compose full stack and local development. Quick start: [README.en.md](../README.en.md). Security disclosure: [SECURITY.md](../SECURITY.md).
+Pick one path. Do not mix passwords: local `dev` uses MySQL `root` / `123456` and Redis with no password; Docker `.env` defaults `MYSQL_ROOT_PASSWORD` to `qualitest`.
+
+| | A · No Docker | B · Docker one-click |
+|--|--|--|
+| Install first | JDK 17, Maven, Node ≥ 22.13, pnpm ≥ 11, MySQL 8, Redis | Git, Docker Desktop (or Engine + Compose V2 on Linux) |
+| Database | You create an empty schema; Qualitest tables come from Flyway; the demo target needs two SQL files | Images / the script include them |
+| UI | http://localhost:5180 | same |
+
+Quick start summary: [README.en.md](../README.en.md). Security disclosure: [SECURITY.md](../SECURITY.md).
 
 CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dockerfiles or related paths change. Official images are pushed by workflow **[GHCR](../.github/workflows/ghcr.yml)** to:
 
@@ -15,36 +23,397 @@ CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dock
 
 ---
 
-## One-command full stack (recommended)
+## A. No Docker
 
-Requires Docker Desktop / Engine + Compose V2. Default host ports: **5180 / 3306 / 6379** (override via `.env`).
+Install **JDK 17, Maven, Node ≥ 22.13, pnpm ≥ 11, MySQL 8, and Redis** on the host. Nothing below uses Docker. MySQL `root` is assumed to use password `123456`. Redis needs no password; the app selects its logical database.
 
-```bash
-# Linux / macOS
-chmod +x scripts/quick-start.sh
-./scripts/quick-start.sh
+Paste only the block for your OS. If the repo is already cloned, start after `cd`. If GitHub is slow, replace `github.com/qualitest-hq` with `gitee.com/qualitest-hq` (read-only mirror; folder name stays the same).
 
-# Windows
-scripts\quick-start.bat
+### 1. Create the database
 
-# Or manually: pull GHCR, then start
-# cp .env.example .env   # Windows: copy .env.example .env
-docker compose pull
-docker compose up -d
+Run this in the MySQL client. An empty database is enough; Flyway creates the tables when the backend starts:
 
-# Local build when changing code / offline
-# docker compose up -d --build
+```sql
+CREATE DATABASE IF NOT EXISTS qualitest
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
 ```
 
-- Browser: `http://localhost:5180` (use the corresponding port if `WEB_PORT` differs)
+If `root`'s password is not `123456`, leave the database as-is and set `SPRING_DATASOURCE_DRUID_MASTER_PASSWORD` before the start command below.
+
+Check Redis on port 6379:
+
+```bash
+redis-cli ping
+```
+
+Expect `PONG`. Qualitest uses logical database **10**.
+
+### 2. Start Qualitest
+
+Use two terminals in the repo. Start the backend first; start the UI after Flyway migrate succeeds in the log.
+
+**Terminal 1 · Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+**Terminal 1 · Windows PowerShell**
+
+```powershell
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+**Terminal 1 · Windows Command Prompt**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+When the password is not `123456`, replace the start line (change only the password):
+
+```bash
+SPRING_DATASOURCE_DRUID_MASTER_PASSWORD=your-password mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+```powershell
+$env:SPRING_DATASOURCE_DRUID_MASTER_PASSWORD = "your-password"
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+```bat
+set SPRING_DATASOURCE_DRUID_MASTER_PASSWORD=your-password
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+The default profile is `dev`: MySQL `localhost:3306/qualitest`, user `root`, Redis `localhost:6379` logical DB 10. Backend port **8800**.
+
+**Terminal 2 · same on every OS** (directory `qualitest-ui`):
+
+```bash
+cd qualitest-ui
+pnpm install
+pnpm dev
+```
+
+Vite listens on **5180** and proxies the browser to `http://127.0.0.1:8800`.
+
+### 3. Confirm you can sign in
+
+With the backend still running:
+
+**Linux / macOS / Git Bash**
+
+```bash
+curl -fsS -D - -o /dev/null http://127.0.0.1:8800/captchaImage
+```
+
+**Windows (PowerShell or Command Prompt)**
+
+```bat
+curl.exe -fsS -D - -o NUL http://127.0.0.1:8800/captchaImage
+```
+
+When the status line is `HTTP/1.1 200`, open `http://localhost:5180` and sign in **`admin` / `admin123`** (local only). IDEA plugin server URL: **`http://localhost:8800`**.
+
+### 4. Optional: demo target
+
+The demo repo has no Flyway. Import both SQL files into an empty database `qualitest-demo`. It can share the same MySQL and Redis processes (logical DB **11**).
+
+In the MySQL client:
+
+```sql
+CREATE DATABASE IF NOT EXISTS `qualitest-demo`
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
+**Linux / macOS / Git Bash** (directory `qualitest-demo`):
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+mysql -uroot -p123456 qualitest-demo < deploy/mysql/docker-entrypoint-initdb.d/01-qualitest-demo.sql
+mysql -uroot -p123456 qualitest-demo < deploy/mysql/docker-entrypoint-initdb.d/02_business_menus.sql
+mvn -pl demo-admin -am spring-boot:run -DskipTests
+```
+
+**Windows PowerShell**
+
+```powershell
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo.sql | mysql -uroot -p123456 qualitest-demo
+Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql | mysql -uroot -p123456 qualitest-demo
+mvn -pl demo-admin -am spring-boot:run -DskipTests
+```
+
+**Windows Command Prompt**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+mysql -uroot -p123456 qualitest-demo < deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo.sql
+mysql -uroot -p123456 qualitest-demo < deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql
+mvn -pl demo-admin -am spring-boot:run -DskipTests
+```
+
+If the password is not `123456`, change `-p123456` and set `SPRING_DATASOURCE_DRUID_MASTER_PASSWORD` before `mvn` (same pattern as Qualitest).
+
+In another terminal:
+
+```bash
+cd demo-ui
+pnpm install
+pnpm dev
+```
+
+| Item | URL |
+|------|-----|
+| Demo UI | http://localhost:5181 (`admin` / `admin123`) |
+| Demo API / Swagger | http://localhost:8801/swagger-ui.html |
+| Qualitest environment `baseUrl` | **`http://localhost:8801`** |
+
+In Qualitest, open **Project → Environments** and set the target URL to `http://localhost:8801`. A **200** from the debug console means the two apps are wired.
+
+Stop a process with `Ctrl+C` in its terminal.
+
+---
+
+## B. Docker one-click
+
+Requires **Git** and **Docker Desktop already running** (or Docker Engine + **Compose V2** on Linux). Default host ports: **5180 / 3306 / 6379**. The MySQL password is `MYSQL_ROOT_PASSWORD` in `.env` (default `qualitest`), separate from `123456` above.
+
+Copy **only the block for your OS**. Use either the script (step 1) or plain Docker Compose (step 1b). If the repo is already cloned, start at the `cd` line or the `.env` line.
+
+### 1. Start Qualitest
+
+**Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+chmod +x scripts/quick-start.sh
+./scripts/quick-start.sh
+```
+
+**Windows (PowerShell or Command Prompt)**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+scripts\quick-start.bat
+```
+
+If GitHub is slow, use the read-only mirror (folder name stays `qualitest`):
+
+```bash
+git clone https://gitee.com/qualitest-hq/qualitest.git
+```
+
+The script copies `.env.example` to `.env` when missing, then `docker compose pull`. If the pull fails it runs `docker compose up -d --build` (first local build can take many minutes). If the pull hangs, press `Ctrl+C` and run:
+
+```bash
+docker compose up -d --build
+```
+
+### 1b. Plain Docker Compose (same result as the script)
+
+Skip `quick-start` and paste this instead of step 1. The script only copies `.env`, runs `docker compose pull app web`, then `docker compose up -d`. If the repo is already cloned, start at the `.env` line. An existing `.env` is left as-is.
+
+**Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+cp -n .env.example .env
+docker compose pull app web
+docker compose up -d
+docker compose ps
+curl -fsS -D - -o /dev/null http://localhost:5180/healthz
+```
+
+**Windows PowerShell**
+
+```powershell
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+docker compose pull app web
+docker compose up -d
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
+```
+
+**Windows Command Prompt**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+if not exist .env copy /Y .env.example .env
+docker compose pull app web
+docker compose up -d
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
+```
+
+If `pull app web` fails or hangs, press `Ctrl+C` and run this in the same directory (`up` still pulls MySQL / Redis when they are missing):
+
+```bash
+docker compose up -d --build
+```
+
+Use the same command after changing code or a Dockerfile. Open `http://localhost:5180` when the status line is `HTTP/1.1 200`.
+
+### 2. Confirm you can sign in
+
+After the script prints that the stack is up, `web` waits until the backend healthcheck passes. Open the browser after `qualitest-web` is Up and the response headers include `HTTP/1.1 200`.
+
+**Linux / macOS / Git Bash**
+
+```bash
+docker compose ps
+curl -fsS -D - -o /dev/null http://localhost:5180/healthz
+```
+
+**Windows (PowerShell or Command Prompt)**
+
+```bat
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
+```
+
+- Browser: `http://localhost:5180` (use the port you set in `WEB_PORT`)
 - Built-in accounts (after Flyway including **V6**):
   - **`admin` / `admin123`**: super admin (**local / private only**; change before public exposure)
   - **`demo` / `demo123`**: demo visitor (V6 converges seed users; test management + AI only — change or disable in production)
-- **Public demo hosts**: do not keep `admin123`. Ops-repo `DEMO_SEED` only overrides ops password to **`admin` / `QtDemo#Admin2026`**; visitors still use **`demo` / `demo123`** (see qualitest-demo-host). Production login form is not prefilled; demo may optionally mount `config.js` (ops-repo `1panel/login-defaults.js`). Local `.env.development` may prefill `admin`
-- First boot: wait for **app healthy / Flyway migrate success** in logs (no full initdb dump)
+- **Public demo hosts**: ops password is **`admin` / `QtDemo#Admin2026`**; visitors still use **`demo` / `demo123`** (see qualitest-demo-host). Production login form is not prefilled; demo may optionally mount `config.js` (ops-repo `1panel/login-defaults.js`). Local `.env.development` may prefill `admin`
+- First boot: response header **`HTTP/1.1 200`** / Flyway migrate success in logs (empty database is migrated by Flyway; no full initdb dump)
 - IDEA plugin server URL: Compose → **`http://localhost:5180/prod-api`**; local backend → **`http://localhost:8800`**
 
-`quick-start` runs `compose pull` first and falls back to `--build` if GHCR is unreachable or not published yet. Local first compile can be slow.
+If the status line is not 200 yet:
+
+```bash
+docker compose logs -f app
+```
+
+### 3. When a port is already taken
+
+The log shows `Bind for 0.0.0.0:3306`, `6379`, or `5180` failed. From the **qualitest** directory, paste the block for your OS (host ports become 6180 / 13306 / 16379; container ports stay the same):
+
+**Linux / macOS**
+
+```bash
+docker compose down
+sed -i.bak -e 's/^WEB_PORT=.*/WEB_PORT=6180/' -e 's/^MYSQL_PORT=.*/MYSQL_PORT=13306/' -e 's/^REDIS_PORT=.*/REDIS_PORT=16379/' .env
+docker compose up -d
+curl -fsS -D - -o /dev/null http://localhost:6180/healthz
+```
+
+**Windows PowerShell**
+
+```powershell
+docker compose down
+(Get-Content .env) -replace '^WEB_PORT=.*','WEB_PORT=6180' -replace '^MYSQL_PORT=.*','MYSQL_PORT=13306' -replace '^REDIS_PORT=.*','REDIS_PORT=16379' | Set-Content .env -Encoding ascii
+docker compose up -d
+curl.exe -fsS -D - -o NUL http://localhost:6180/healthz
+```
+
+Then open `http://localhost:6180`.
+
+### 4. Optional: start the demo target
+
+Open a **second terminal** and paste into a **different directory**. Each repo has its own Compose; default ports do not overlap.
+
+**Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+chmod +x scripts/quick-start.sh
+./scripts/quick-start.sh
+```
+
+**Windows (PowerShell or Command Prompt)**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+scripts\quick-start.bat
+```
+
+Mirror: `https://gitee.com/qualitest-hq/qualitest-demo.git`.
+
+To skip the script, paste one of these into a **different directory** (pick this or `quick-start`, not both).
+
+**Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+cp -n .env.example .env
+docker compose pull mysql app web
+docker compose up -d
+docker compose ps
+curl -fsS -D - -o /dev/null http://localhost:5181/
+```
+
+**Windows PowerShell**
+
+```powershell
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+docker compose pull mysql app web
+docker compose up -d
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5181/
+```
+
+**Windows Command Prompt**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+if not exist .env copy /Y .env.example .env
+docker compose pull mysql app web
+docker compose up -d
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5181/
+```
+
+If `pull` fails, run `docker compose up -d --build` in `qualitest-demo`. `qualitest-demo-web` Up and `HTTP/1.1 200` from `http://localhost:5181/` means the demo UI is ready.
+
+| Item | URL |
+|------|-----|
+| Qualitest Web | http://localhost:5180 |
+| Demo UI | http://localhost:5181 (`admin` / `admin123`) |
+| Demo API / Swagger | http://localhost:8801/swagger-ui.html |
+
+When Qualitest runs in Compose, set the project environment `baseUrl` (Project → Environments) to:
+
+```text
+http://host.docker.internal:8801
+```
+
+`app` already has `extra_hosts: host.docker.internal:host-gateway`, so this URL works on Windows, macOS, and Linux. Save, send one demo request from the console, and a **200** means the two stacks are wired. If you changed demo `APP_PORT`, use that port here.
+
+If demo host ports (5181 / 8801 / 3307 / 6380) are busy, edit `WEB_PORT` / `APP_PORT` / `MYSQL_PORT` / `REDIS_PORT` in `qualitest-demo/.env`, then `docker compose up -d`.
+
+### 5. Stop
+
+Run this in each repo directory. `down` keeps data; `down -v` wipes the database.
+
+```bash
+docker compose down
+```
 
 ### Official images (GHCR)
 
@@ -65,15 +434,7 @@ Pin a commit: set `QUALITEST_IMAGE_TAG=sha-<short>` in `.env`. Compose still nee
 
 ## Optional: demo target · two Compose stacks
 
-Qualitest and demo each have their own Compose; ports are offset so they can run together:
-
-```bash
-# Terminal 1 — Qualitest (this repo)
-cd qualitest && ./scripts/quick-start.sh   # Windows: scripts\quick-start.bat
-
-# Terminal 2 — demo (after separate clone)
-cd qualitest-demo && ./scripts/quick-start.sh
-```
+Full paste blocks are in [step 4](#4-optional-start-the-demo-target) above. Each repo has its own Compose; default ports can run together.
 
 | Item | URL |
 |------|-----|
@@ -85,16 +446,16 @@ cd qualitest-demo && ./scripts/quick-start.sh
 
 | Setup | Suggested `baseUrl` |
 |-------|---------------------|
-| Both as host processes (`mvn` / `pnpm`), or browser hits host ports | Seed default **`http://localhost:8801`** |
-| **Qualitest app inside Compose**, demo mapped on host **8801** | Container `localhost` cannot reach the demo — use **`http://host.docker.internal:8801`** (Docker Desktop: Windows / macOS). On Linux add `extra_hosts: ["host.docker.internal:host-gateway"]`, or run Qualitest backend on the host |
+| Both as host processes (`mvn` / `pnpm`), or the browser hits host ports | **`http://localhost:8801`** |
+| **Qualitest app inside Compose**, demo mapped on host **8801** | **`http://host.docker.internal:8801`** (`extra_hosts` is already in `docker-compose.yml`) |
 
 Demo schema uses initdb dump + scenario seed — **no Flyway**. Qualitest migrations: see [Schema migration (Flyway)](#schema-migration-flyway).
 
 ---
 
-## Dependencies only (local development · hot reload)
+## Host hot reload (MySQL / Redis still in Compose)
 
-Compose runs MySQL + Redis only; run backend / frontend on the host for **devtools / JRebel / Vite HMR**.
+This is not the no-Docker path. Compose runs MySQL + Redis only; the backend and frontend stay on the host for **devtools / JRebel / Vite HMR**. For no Docker at all, use [A. No Docker](#a-no-docker).
 
 ```bash
 # Linux / macOS
@@ -285,14 +646,16 @@ See also [SECURITY.md](../SECURITY.md).
 
 ## Common commands
 
+Full from-zero paste: [Plain Docker Compose](#1b-plain-docker-compose-same-result-as-the-script). Once you are already in the repo and images are present:
+
 ```bash
 docker compose logs -f app
 docker compose ps
 docker compose down          # keep volumes
 docker compose down -v       # wipe MySQL / Redis / upload (destructive)
-docker compose pull          # pull latest GHCR images
+docker compose pull app web  # Qualitest GHCR only; MySQL / Redis are pulled by up when missing
 docker compose up -d         # start with existing / pulled images
-docker compose up -d --build # rebuild after code / Dockerfile changes
+docker compose up -d --build # rebuild after code / Dockerfile changes, or when GHCR pull fails
 ```
 
 ---
@@ -311,7 +674,7 @@ docker compose up -d --build # rebuild after code / Dockerfile changes
 | Old volume still wrong after migration edits | If data is disposable: `down -v` then `up`; in production only add incremental `V{n}` |
 | Plugin can’t connect | Compose: `http://localhost:5180/prod-api`; local: `http://localhost:8800` — don’t mix |
 | Port clash with demo | Demo defaults 8801/5181/3307/6380; re-check if you remapped this repo |
-| Debug / flow can’t reach demo | Demo started separately? Compose Qualitest app must not use `localhost:8801` — use `host.docker.internal:8801` (see [demo target](#optional-demo-target--two-compose-stacks)) |
+| Debug / flow can’t reach demo | Demo started separately? In Compose, set environment `baseUrl` to `http://host.docker.internal:8801` (see [step 4](#4-optional-start-the-demo-target)) |
 
 ---
 

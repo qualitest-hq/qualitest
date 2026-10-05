@@ -39,13 +39,24 @@ Open-source API automation · flow canvas · AI Diff · IntelliJ / MCP ingest
 
 ### 5-minute Quick Start
 
+**Linux / macOS / Git Bash** (paste the whole block):
+
 ```bash
+git clone https://github.com/qualitest-hq/qualitest.git
 cd qualitest
-# Windows: scripts\quick-start.bat
-chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
+chmod +x scripts/quick-start.sh
+./scripts/quick-start.sh
 ```
 
-Open `http://localhost:5180` (default **5180**; set `WEB_PORT` in `.env` if busy). Sign in **`admin`** / **`admin123`** after the backend is healthy. More detail: [Try it](#try-it).
+**Windows** (PowerShell or Command Prompt, paste the whole block):
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+scripts\quick-start.bat
+```
+
+Open `http://localhost:5180`. Sign in **`admin`** / **`admin123`**. This block is the Docker one-click path. No Docker (local MySQL / Redis, create the database, import SQL): [deploy.en.md · A](./docs/deploy.en.md#a-no-docker). Port conflicts and the demo target: [deploy.en.md · B](./docs/deploy.en.md#b-docker-one-click).
 
 <p align="center"><strong>Loop</strong>: API ingest → console → flow canvas → AI Diff → MCP</p>
 
@@ -229,25 +240,9 @@ Install **Qualitest Helper** from the IDE marketplace ([Marketplace](https://plu
 
 Requires Docker + Compose V2. **Containers up ≠ ready to log in** — wait until the backend is healthy / Flyway finishes (`docker compose logs -f app`).
 
-### Usage (recommended)
+Paste only the block for your OS. The blocks in [5-minute Quick Start](#5-minute-quick-start) are the Docker path. No Docker is [deploy.en.md · A](./docs/deploy.en.md#a-no-docker). Port conflicts and the demo `baseUrl` are in [deploy.en.md · B](./docs/deploy.en.md#b-docker-one-click).
 
-```bash
-cd qualitest
-# Windows: scripts\quick-start.bat
-chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
-```
-
-Or manually:
-
-```bash
-cp .env.example .env   # Windows: copy .env.example .env
-docker compose pull    # pull GHCR prebuilt images
-docker compose up -d   # MySQL + Redis + app + web
-```
-
-When changing code / offline: `docker compose up -d --build`.
-
-Open `http://localhost:5180` (default host port **5180**; if busy, set `WEB_PORT` in `.env`). Sign in **`admin`** / **`admin123`**. Do not use on the public internet.
+Open `http://localhost:5180`. Sign in **`admin`** / **`admin123`**. Do not use on the public internet.
 
 ### Official images (GHCR)
 

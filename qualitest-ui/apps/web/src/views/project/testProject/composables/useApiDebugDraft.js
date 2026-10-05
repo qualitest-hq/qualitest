@@ -12,6 +12,7 @@ import {
   ensureTrailingEmptyRow
 } from '@/views/project/testProject/utils/apiDetailRequestWorkbench'
 import {useApiDebugTrailingEmptyRows} from '@/views/project/testProject/composables/useApiDebugTrailingEmptyRows'
+import {buildManagedRow} from '@/views/project/testProject/utils/debugManagedAuthRow'
 
 /**
  * API 调试草稿状态：路径/请求配置/Headers/Cookies/脚本/响应/Body JSON 文本与 binary 等。
@@ -76,7 +77,9 @@ export function useApiDebugDraft(props) {
     const d = props.apiDetail
     if (!d?.testProjectApiId || d.testProjectId == null) return
     const all = readAllDebugUiPrefs(d.testProjectId)
+    const prev = all[String(d.testProjectApiId)] || {}
     all[String(d.testProjectApiId)] = {
+      ...prev,
       requestTab: activeDebugRequestTab.value,
       respTab: activeRespTab.value
     }
@@ -129,7 +132,9 @@ export function useApiDebugDraft(props) {
       preScriptError: null,
       postScriptError: null,
       scriptLogs: [],
-      scriptTests: []
+      scriptTests: [],
+      /** 发送前未能换成实际值的占位路径 */
+      unresolvedPlaceholders: []
     }
   }
 
@@ -140,13 +145,30 @@ export function useApiDebugDraft(props) {
   /** 与最近一次 init 入参为同一对象引用时跳过，避免 keep-alive 切回时重复整表重建 */
   let lastInitDraftFromDetailRef = null
 
+  function readManagedAuthEnabled(detail) {
+    if (!detail?.testProjectApiId || detail.testProjectId == null) return true
+    const saved = readAllDebugUiPrefs(detail.testProjectId)[String(detail.testProjectApiId)]
+    return typeof saved?.managedAuthEnabled === 'boolean' ? saved.managedAuthEnabled : true
+  }
+
+  function writeManagedAuthEnabled(enabled) {
+    const d = props.apiDetail
+    if (!d?.testProjectApiId || d.testProjectId == null || typeof enabled !== 'boolean') return
+    const all = readAllDebugUiPrefs(d.testProjectId)
+    const prev = all[String(d.testProjectApiId)] || {}
+    all[String(d.testProjectApiId)] = {...prev, managedAuthEnabled: enabled}
+    writeDebugUiPrefs(d.testProjectId, all)
+  }
+
   function initDraftFromApiDetail(detail) {
     resetDebugResponse()
     binaryBodyFile.value = null
     const s = buildRequestWorkbenchStateFromDetail(detail)
     draftApiPath.value = s.draftApiPath
     draftRequestConfig.value = s.draftRequestConfig
-    draftHeaderRows.value = s.draftHeaderRows
+    const managed = buildManagedRow(detail?.managedAuthHeader, readManagedAuthEnabled(detail))
+    const headerRows = (s.draftHeaderRows || []).filter((row) => !row?._managed)
+    draftHeaderRows.value = managed ? [managed, ...headerRows] : headerRows
     draftCookieRows.value = s.draftCookieRows
     draftPreRequestScript.value = s.draftPreRequestScript
     draftPostRequestScript.value = s.draftPostRequestScript
@@ -193,6 +215,7 @@ export function useApiDebugDraft(props) {
   )
 
   function removeRow(arr, index) {
+    if (arr[index]?._managed) return
     arr.splice(index, 1)
     if (!arr.length) arr.push(emptyKVRow())
     ensureTrailingEmptyRow(arr)
@@ -204,6 +227,14 @@ export function useApiDebugDraft(props) {
     draftRequestConfig,
     ensureTrailingEmptyRow
   })
+
+  watch(
+      () => draftHeaderRows.value.find((row) => row?._managed)?._enabled,
+      (enabled) => {
+        if (typeof enabled !== 'boolean') return
+        writeManagedAuthEnabled(enabled)
+      }
+  )
 
   watch(
       () => props.apiDetail,

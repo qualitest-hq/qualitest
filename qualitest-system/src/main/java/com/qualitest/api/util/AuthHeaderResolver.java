@@ -93,6 +93,7 @@ public final class AuthHeaderResolver {
     /**
      * 按解析结果追加或刷新托管头行。
      * 已有另一端托管头（authProfileId 不同）时整表不改动。
+     * 同名托管行已取消勾选时不追加，表示这趟不发送鉴权头。
      * 头名/值已与模板相同且缺 authProfileId 时：静默补写 id，changed=false，避免反复刷设计警告。
      */
     public static ApplyResult applyToHeaderRows(Object rawHeaders, ResolvedAuthHeader resolved) {
@@ -101,6 +102,10 @@ public final class AuthHeaderResolver {
             return new ApplyResult(rows, false);
         }
         if (hasOtherManagedProfile(rows, resolved.profileId())) {
+            return new ApplyResult(rows, false);
+        }
+        // 同名托管行被取消勾选：用户明确不发送，不再补一行启用的托管头
+        if (hasDisabledManagedOptOut(rows, resolved)) {
             return new ApplyResult(rows, false);
         }
         Map<String, Object> existing = findHeaderRow(rows, resolved.name());
@@ -127,6 +132,38 @@ public final class AuthHeaderResolver {
         fillManagedHeaderRow(row, resolved);
         rows.add(row);
         return new ApplyResult(rows, true);
+    }
+
+    /**
+     * 头列表里是否有一条同名、已取消勾选的托管行。
+     * 画布节点 headers 用它表示「这趟请求不要带项目鉴权头」。
+     */
+    public static boolean isManagedAuthOptedOut(Object rawHeaders, ResolvedAuthHeader resolved) {
+        if (resolved == null || resolved.skipped()) {
+            return false;
+        }
+        return hasDisabledManagedOptOut(copyRows(rawHeaders), resolved);
+    }
+
+    /** 已启用行之外，是否还有同名且未勾选的托管行。 */
+    private static boolean hasDisabledManagedOptOut(List<Map<String, Object>> rows, ResolvedAuthHeader resolved) {
+        if (rows == null || resolved == null || resolved.name() == null) {
+            return false;
+        }
+        for (Map<String, Object> row : rows) {
+            if (row == null || !isProfileManaged(row) || !Boolean.FALSE.equals(row.get("_enabled"))) {
+                continue;
+            }
+            if (!resolved.name().equalsIgnoreCase(rowName(row))) {
+                continue;
+            }
+            String rowProfileId = rowAuthProfileId(row);
+            if (rowProfileId != null && resolved.profileId() != null && !rowProfileId.equals(resolved.profileId())) {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     /**

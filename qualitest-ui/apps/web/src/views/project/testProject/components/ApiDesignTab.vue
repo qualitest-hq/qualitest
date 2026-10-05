@@ -6,7 +6,7 @@
         <div class="design-strip__body design-strip__body--form">
           <el-form
               class="design-meta-form"
-              label-width="100px"
+              label-width="122px"
               size="default"
           >
             <el-row :gutter="12">
@@ -18,8 +18,8 @@
               <el-col :md="12" :span="24">
                 <el-form-item label="协议类型">
                   <el-select v-model="meta.protocolType" class="design-w100" clearable placeholder="如 HTTP">
-                    <el-option label="HTTP" value="HTTP"/>
-                    <el-option label="HTTPS" value="HTTPS"/>
+                    <el-option label="HTTP" value="http"/>
+                    <el-option label="HTTPS" value="https"/>
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -35,15 +35,22 @@
                 </el-form-item>
               </el-col>
               <el-col :span="24">
-                <el-form-item label="造流设计提示">
+                <el-form-item>
+                  <template #label>
+                    <span>造流设计提示</span>
+                    <el-tooltip content="用于造流 AI 读取业务约定；随本页「保存」一并写入（导入不会覆盖）" placement="top">
+                      <el-icon class="design-field-help">
+                        <QuestionFilled/>
+                      </el-icon>
+                    </el-tooltip>
+                  </template>
                   <el-input
                       v-model="designHintsText"
                       :rows="3"
                       maxlength="2000"
-                      placeholder="每行一条；人机可维护，接口导入不会覆盖"
+                      placeholder="每行一条"
                       type="textarea"
                   />
-                  <div class="design-hints-tip">用于造流 AI 读取业务约定；随本页「保存」一并写入（导入不会覆盖）</div>
                 </el-form-item>
               </el-col>
               <el-col :md="12" :span="24">
@@ -55,12 +62,19 @@
                 </el-form-item>
               </el-col>
               <el-col :md="12" :span="24">
-                <el-form-item label="上传保护">
+                <el-form-item>
+                  <template #label>
+                    <span>上传保护</span>
+                    <el-tooltip content="开启后插件/批量导入不会覆盖本接口；需要同步时先关闭，上传后再打开" placement="top">
+                      <el-icon class="design-field-help">
+                        <QuestionFilled/>
+                      </el-icon>
+                    </el-tooltip>
+                  </template>
                   <el-switch v-model="meta.syncProtected" inline-prompt active-text="开" inactive-text="关"/>
-                  <div class="design-hints-tip">开启后插件/批量导入不会覆盖本接口；需要同步时先关闭，上传后再打开</div>
                 </el-form-item>
               </el-col>
-              <el-col :md="12" :span="24">
+              <el-col :span="24">
                 <el-form-item label="API 分组">
                   <span class="design-readonly-text">{{ apiDetail.apiGroup || '—' }}</span>
                 </el-form-item>
@@ -75,14 +89,25 @@
                 </el-form-item>
               </el-col>
               <el-col :md="12" :span="24">
-                <el-form-item label="鉴权 Profile">
-                  <el-input
+                <el-form-item label="鉴权配置">
+                  <el-select
                       v-model="auth.authProfileId"
                       :disabled="auth.mode !== 'inherit'"
+                      class="design-w100"
                       clearable
-                      maxlength="64"
-                      placeholder="如 clientBearer / adminBearer，可空则按路径匹配"
-                  />
+                      placeholder="按路径自动匹配"
+                  >
+                    <el-option label="按路径自动匹配" value=""/>
+                    <el-option
+                        v-for="item in authProfileOptions"
+                        :key="item.id"
+                        :label="item.label"
+                        :value="item.id"
+                    >
+                      <span>{{ item.label }}</span>
+                      <span v-if="item.prefix" class="design-profile-prefix">{{ item.prefix }}</span>
+                    </el-option>
+                  </el-select>
                 </el-form-item>
               </el-col>
               <template v-if="auth.mode === 'override'">
@@ -145,7 +170,9 @@
 </template>
 
 <script setup>
+import {QuestionFilled} from '@element-plus/icons-vue'
 import {updateTestProjectApi} from '@/api/project/testProjectApi'
+import {parseAuthConfig as parseProjectAuthConfig} from '@/views/project/testProject/utils/projectAuthConfig'
 import ApiDebugTab from './ApiDebugTab.vue'
 import ResponseConfigPanel from './ResponseConfigPanel.vue'
 
@@ -153,6 +180,11 @@ const props = defineProps({
   apiDetail: {
     type: Object,
     required: true
+  },
+  /** 项目 auth_config，用于鉴权配置下拉 */
+  projectAuthConfig: {
+    type: [String, Object],
+    default: null
   }
 })
 
@@ -184,6 +216,23 @@ const auth = reactive({
 })
 
 const responseConfigText = ref('')
+
+/** 项目鉴权配置下拉；当前绑定的 id 不在列表里时仍保留，避免打开再保存把绑定弄丢。 */
+const authProfileOptions = computed(() => {
+  const form = parseProjectAuthConfig(props.projectAuthConfig)
+  const options = (form.profiles || [])
+      .filter((profile) => profile?.id)
+      .map((profile) => ({
+        id: profile.id,
+        label: profile.name || profile.id,
+        prefix: profile.pathPrefixText || ''
+      }))
+  const current = String(auth.authProfileId || '').trim()
+  if (current && !options.some((item) => item.id === current)) {
+    options.push({id: current, label: current, prefix: ''})
+  }
+  return options
+})
 
 function formatJsonForEdit(raw) {
   if (raw == null || raw === '') return ''
@@ -289,7 +338,7 @@ function buildDesignHintsJson(text) {
 function syncMetaFromDetail(d) {
   meta.apiName = d.apiName ?? ''
   meta.apiDescription = d.apiDescription ?? ''
-  meta.protocolType = d.protocolType ?? ''
+  meta.protocolType = String(d.protocolType ?? '').trim().toLowerCase()
   const s = d.apiStatus
   meta.apiStatus = s === '0' || s === 0 || s === false ? '0' : '1'
   meta.syncProtected = d.syncProtected === 1 || d.syncProtected === true || d.syncProtected === '1'
@@ -455,11 +504,18 @@ function handleSaveDesign() {
   color: var(--pd-text-muted, #5a6b86);
 }
 
-.design-hints-tip {
-  margin-top: 4px;
-  font-size: 12px;
+.design-field-help {
+  margin-left: 4px;
+  font-size: 14px;
+  color: var(--el-text-color-placeholder, #a8abb2);
+  vertical-align: -2px;
+  cursor: help;
+}
+
+.design-profile-prefix {
+  margin-left: 8px;
   color: var(--pd-text-muted, #5a6b86);
-  line-height: 1.4;
+  font-size: 12px;
 }
 
 .design-field-desc {

@@ -41,10 +41,11 @@
 **Qualitest**: in Cursor — **import APIs → write a test flow → run it → fix failures in chat**. Also a full Web console + canvas. Ingest via IntelliJ **or** MCP (not Java-only).
 
 ```bash
-cd qualitest
-# Windows: scripts\quick-start.bat
+git clone https://github.com/qualitest-hq/qualitest.git && cd qualitest
 chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 ```
+
+Windows: `git clone https://github.com/qualitest-hq/qualitest.git` then `cd qualitest` and `scripts\quick-start.bat`.
 
 Open `http://localhost:5180` · **`admin`** / **`admin123`**. Docs: [README.en.md](./README.en.md) · [mcp.en.md](./docs/mcp.en.md).
 
@@ -56,13 +57,24 @@ Open `http://localhost:5180` · **`admin`** / **`admin123`**. Docs: [README.en.m
 
 ### 5 分钟起栈
 
+**Linux / macOS / Git Bash**（整段复制）：
+
 ```bash
+git clone https://github.com/qualitest-hq/qualitest.git
 cd qualitest
-# Windows: scripts\quick-start.bat
-chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
+chmod +x scripts/quick-start.sh
+./scripts/quick-start.sh
 ```
 
-浏览器打开 `http://localhost:5180`（默认 **5180**；占用则在 `.env` 设 `WEB_PORT`），登录 **`admin`** / **`admin123`**。等后端健康后再登；细节见下方 [试一把](#-试一把)。
+**Windows**（PowerShell 或命令提示符，整段复制）：
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+scripts\quick-start.bat
+```
+
+浏览器打开 `http://localhost:5180`，登录 **`admin`** / **`admin123`**。这是 Docker 一键。不用 Docker（本机 MySQL / Redis、建库、导 SQL）见 [部署说明 · 甲](./docs/deploy.md#甲不用-docker)。验收、端口占用、靶场联调见 [部署说明 · 乙](./docs/deploy.md#乙docker-一键)。
 
 <p align="center"><strong>主链路</strong>：接口入库 → 调试台 → 测试流画布 → AI Diff → MCP</p>
 
@@ -245,26 +257,9 @@ IDE 插件市场搜 **Qualitest Helper**（[Marketplace](https://plugins.jetbrai
 
 需 Docker + Compose V2。**脚本结束不等于能立刻登录**，请等后端健康 / Flyway 跑完（可 `docker compose logs -f app`）。
 
-### 用法（推荐）
+按系统只复制一段。不用 Docker 见 [部署说明 · 甲](./docs/deploy.md#甲不用-docker)；Docker 一键、端口冲突和靶场 `baseUrl` 见 [部署说明 · 乙](./docs/deploy.md#乙docker-一键)。上面 [5 分钟起栈](#5-分钟起栈) 是 Docker 那一条。
 
-```bash
-# 克隆后
-cd qualitest
-# Windows: scripts\quick-start.bat
-chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
-```
-
-等价手动步骤：
-
-```bash
-cp .env.example .env   # Windows: copy .env.example .env
-docker compose pull    # 拉 GHCR 预构建镜像
-docker compose up -d   # 起 MySQL + Redis + app + web
-```
-
-改代码 / 无网时：`docker compose up -d --build`。
-
-浏览器打开 `http://localhost:5180`（默认宿主机 **5180**；被占用则在 `.env` 设 `WEB_PORT`）。登录 **`admin`** / **`admin123`**。勿用于公网。公网演示见 [docs/deploy.md](./docs/deploy.md)（运维 **`QtDemo#Admin2026`**，访客 **`demo` / `demo123`**）。
+浏览器打开 `http://localhost:5180`。登录 **`admin`** / **`admin123`**。勿用于公网。公网演示运维口令为 **`admin` / `QtDemo#Admin2026`**，访客 **`demo` / `demo123`**。
 
 ### 官方镜像（GHCR）
 

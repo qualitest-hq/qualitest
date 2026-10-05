@@ -15,10 +15,7 @@ const content = computed(() => settingsStore.footerContent)
 
 <style scoped>
 .copyright {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  flex-shrink: 0;
   height: 36px;
   padding: 10px 20px;
   text-align: right;
@@ -26,6 +23,6 @@ const content = computed(() => settingsStore.footerContent)
   color: #666;
   font-size: 14px;
   border-top: 1px solid #e7e7e7;
-  z-index: 999;
+  box-sizing: border-box;
 }
 </style>

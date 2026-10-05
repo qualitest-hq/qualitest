@@ -58,6 +58,9 @@
             <if test="groupName != null and groupName != ''">
                 and group_name = #{groupName}
             </if>
+            <if test="delStatus != null ">
+                and del_status = #{delStatus}
+            </if>
         </where>
     </select>
 

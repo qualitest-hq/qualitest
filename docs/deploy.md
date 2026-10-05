@@ -1,6 +1,14 @@
 # 部署说明
 
-面向 Compose 全栈与本机开发的端口、环境变量与生产加固。快速上手摘要见根目录 [README](../README.md)；安全披露见 [SECURITY.md](../SECURITY.md)。
+两条路，先选一条。口令不要混用：本机 `dev` 是 MySQL `root` / `123456`、Redis 无密码；Docker `.env` 里 MySQL 口令默认是 `qualitest`。
+
+| | 甲 · 不用 Docker | 乙 · Docker 一键 |
+|--|--|--|
+| 要先装好 | JDK 17、Maven、Node ≥ 22.13、pnpm ≥ 11、MySQL 8、Redis | Git、Docker Desktop（或 Linux 上 Engine + Compose V2） |
+| 库 | 自己建空库；质衡表由 Flyway 建，靶场要导入两份 SQL | 镜像 / 脚本带齐 |
+| 页面 | http://localhost:5180 | 同左 |
+
+快速上手摘要见根目录 [README](../README.md)；安全披露见 [SECURITY.md](../SECURITY.md)。
 
 CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker-app` / `docker-web` 镜像构建校验（只 build 不 push）**。正式镜像由 workflow **[GHCR](../.github/workflows/ghcr.yml)** 推到：
 
@@ -15,36 +23,397 @@ English: [deploy.en.md](./deploy.en.md)
 
 ---
 
-## 一键全栈（推荐）
+## 甲、不用 Docker
 
-前置：Docker Desktop / Docker Engine + Compose V2；默认占用宿主机 **5180 / 3306 / 6379**（可用 `.env` 改，见下文）。
+本机已装好 **JDK 17、Maven、Node ≥ 22.13、pnpm ≥ 11、MySQL 8、Redis**。下面不使用 Docker。MySQL 用你自己的 `root`（默认口令按 `123456` 写）。Redis 无密码即可，应用自己选逻辑库，不用建库。
 
-```bash
-# Linux / macOS
-chmod +x scripts/quick-start.sh
-./scripts/quick-start.sh
+按系统只贴对应那一段。已经克隆过的，从 `cd` 之后开始贴。GitHub 慢时把 `github.com/qualitest-hq` 换成 `gitee.com/qualitest-hq`（只读镜像，目录名不变）。
 
-# Windows
-scripts\quick-start.bat
+### 1. 建库
 
-# 或手动：优先拉 GHCR，再起栈
-# cp .env.example .env   # Windows: copy .env.example .env
-docker compose pull
-docker compose up -d
+在 MySQL 客户端整段执行（空库即可，表由后端启动时的 Flyway 创建）：
 
-# 改代码 / 无网时本地构建
-# docker compose up -d --build
+```sql
+CREATE DATABASE IF NOT EXISTS qualitest
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
 ```
 
-- 浏览器：`http://localhost:5180`（`WEB_PORT` 非默认时带对应端口）
+`root` 口令不是 `123456` 时，不要改库，只在下面启动命令前改环境变量 `SPRING_DATASOURCE_DRUID_MASTER_PASSWORD`。
+
+确认 Redis 已在本机 6379：
+
+```bash
+redis-cli ping
+```
+
+应输出 `PONG`。质衡使用逻辑库 **10**。
+
+### 2. 启动质衡
+
+两个终端都停在仓库里。先起后端，日志里 Flyway migrate 成功后再起前端。
+
+**终端 1 · Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+**终端 1 · Windows PowerShell**
+
+```powershell
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+**终端 1 · Windows 命令提示符**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+口令不是 `123456` 时，把启动那一行换成（只改口令）：
+
+```bash
+SPRING_DATASOURCE_DRUID_MASTER_PASSWORD=你的口令 mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+```powershell
+$env:SPRING_DATASOURCE_DRUID_MASTER_PASSWORD = "你的口令"
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+```bat
+set SPRING_DATASOURCE_DRUID_MASTER_PASSWORD=你的口令
+mvn -pl qualitest-admin -am spring-boot:run -DskipTests
+```
+
+默认 profile 是 `dev`：MySQL `localhost:3306/qualitest`，用户 `root`，Redis `localhost:6379` 逻辑库 10。后端端口 **8800**。
+
+**终端 2 · 三个系统相同**（在 `qualitest-ui` 目录）：
+
+```bash
+cd qualitest-ui
+pnpm install
+pnpm dev
+```
+
+Vite 在 **5180**，把浏览器请求代理到 `http://127.0.0.1:8800`。
+
+### 3. 确认可以登录
+
+后端还在跑的前提下：
+
+**Linux / macOS / Git Bash**
+
+```bash
+curl -fsS -D - -o /dev/null http://127.0.0.1:8800/captchaImage
+```
+
+**Windows（PowerShell 或命令提示符）**
+
+```bat
+curl.exe -fsS -D - -o NUL http://127.0.0.1:8800/captchaImage
+```
+
+响应头有 `HTTP/1.1 200` 后打开 `http://localhost:5180`，登录 **`admin` / `admin123`**（仅本地）。IDEA 插件服务器地址填 **`http://localhost:8800`**。
+
+### 4. 可选：再起靶场
+
+靶场没有 Flyway，必须把两份 SQL 导入空库 `qualitest-demo`。可以和质衡共用这一台 MySQL、这一台 Redis（逻辑库自动用 **11**）。
+
+建库（仍在 MySQL 客户端）：
+
+```sql
+CREATE DATABASE IF NOT EXISTS `qualitest-demo`
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
+**Linux / macOS / Git Bash**（在 `qualitest-demo` 目录）：
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+mysql -uroot -p123456 qualitest-demo < deploy/mysql/docker-entrypoint-initdb.d/01-qualitest-demo.sql
+mysql -uroot -p123456 qualitest-demo < deploy/mysql/docker-entrypoint-initdb.d/02_business_menus.sql
+mvn -pl demo-admin -am spring-boot:run -DskipTests
+```
+
+**Windows PowerShell**
+
+```powershell
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo.sql | mysql -uroot -p123456 qualitest-demo
+Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql | mysql -uroot -p123456 qualitest-demo
+mvn -pl demo-admin -am spring-boot:run -DskipTests
+```
+
+**Windows 命令提示符**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+mysql -uroot -p123456 qualitest-demo < deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo.sql
+mysql -uroot -p123456 qualitest-demo < deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql
+mvn -pl demo-admin -am spring-boot:run -DskipTests
+```
+
+口令不是 `123456` 时，把 `-p123456` 换成你的 root 口令，并在 `mvn` 前设置 `SPRING_DATASOURCE_DRUID_MASTER_PASSWORD`（写法同质衡）。
+
+另开终端起靶场页面：
+
+```bash
+cd demo-ui
+pnpm install
+pnpm dev
+```
+
+| 项 | 地址 |
+|----|------|
+| 靶场 UI | http://localhost:5181 （`admin` / `admin123`） |
+| 靶场 API / Swagger | http://localhost:8801/swagger-ui.html |
+| 质衡里的环境 `baseUrl` | **`http://localhost:8801`** |
+
+登录质衡 → **项目 → 环境管理**，把被测地址写成 `http://localhost:8801` 并保存。调试台对靶场发一条请求返回 200 即联调成功。
+
+停后端：在对应的 `mvn` 终端按 `Ctrl+C`。停前端同样。
+
+---
+
+## 乙、Docker 一键
+
+前置：本机已安装 **Git**，并且 **Docker Desktop 已经启动**（托盘图标就绪）或 Linux 上已有 Docker Engine + **Compose V2**。默认占用宿主机 **5180 / 3306 / 6379**。MySQL 口令用 `.env` 里的 `MYSQL_ROOT_PASSWORD`（默认 `qualitest`），与上面的 `123456` 无关。
+
+按你的系统 **只复制对应那一段**。脚本（第 1 步）和直接 Docker Compose（第 1b 步）二选一。已经克隆过的，从 `cd` 或复制 `.env` 那一行开始贴。
+
+### 1. 启动质衡
+
+**Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+chmod +x scripts/quick-start.sh
+./scripts/quick-start.sh
+```
+
+**Windows（PowerShell 或命令提示符）**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+scripts\quick-start.bat
+```
+
+GitHub 克隆很慢时，把地址换成只读镜像（目录名仍是 `qualitest`）：
+
+```bash
+git clone https://gitee.com/qualitest-hq/qualitest.git
+```
+
+脚本会：没有 `.env` 时从 `.env.example` 复制；先 `docker compose pull` 拉 GHCR；拉取失败则自动 `docker compose up -d --build`（首次本地构建可能要十几分钟）。拉取一直停住时，`Ctrl+C` 后在仓库目录执行：
+
+```bash
+docker compose up -d --build
+```
+
+### 1b. 直接 Docker Compose（与上面的脚本等价）
+
+不跑 `quick-start` 时，用下面整段代替第 1 步。脚本内部就是：复制 `.env` → `docker compose pull app web` → `docker compose up -d`。已经克隆过的，从复制 `.env` 那一行开始贴。`.env` 已存在时不会覆盖。
+
+**Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+cp -n .env.example .env
+docker compose pull app web
+docker compose up -d
+docker compose ps
+curl -fsS -D - -o /dev/null http://localhost:5180/healthz
+```
+
+**Windows PowerShell**
+
+```powershell
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+docker compose pull app web
+docker compose up -d
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
+```
+
+**Windows 命令提示符**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest.git
+cd qualitest
+if not exist .env copy /Y .env.example .env
+docker compose pull app web
+docker compose up -d
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
+```
+
+`pull app web` 失败或一直停住时，`Ctrl+C` 后在同一目录执行（MySQL / Redis 仍由 `up` 按需拉取）：
+
+```bash
+docker compose up -d --build
+```
+
+改过代码或 Dockerfile 后同样用这条重建。响应头出现 `HTTP/1.1 200` 后打开 `http://localhost:5180`。
+
+### 2. 确认可以登录
+
+脚本打印「已启动」后，`web` 会等后端健康检查通过才起来。再执行下面的检查，响应头里有 `HTTP/1.1 200` 后再打开浏览器。
+
+**Linux / macOS / Git Bash**
+
+```bash
+docker compose ps
+curl -fsS -D - -o /dev/null http://localhost:5180/healthz
+```
+
+**Windows（PowerShell 或命令提示符）**
+
+```bat
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
+```
+
+- 浏览器：`http://localhost:5180`（若改过 `WEB_PORT`，用改后的端口）
 - 开箱账号（Flyway 跑完后，含 **V6**）：
   - **`admin` / `admin123`**：超级管理员（**仅本地 / 私有环境**；公网务必改密）
   - **`demo` / `demo123`**：演示访客（由 V6 将种子账号收敛而来；仅测试管理 + AI；正式环境请改密或停用）
-- **公网演示环境**：勿继续用 `admin123`。运维仓 `DEMO_SEED` 只覆盖运维口令为 **`admin` / `QtDemo#Admin2026`**；访客仍用 **`demo` / `demo123`**（见 [qualitest-demo-host](https://github.com/38680050/qualitest-demo-host)）。正式登录页不预填；演示可选挂载 `config.js` 预填（运维仓 `1panel/login-defaults.js`）。本地 `.env.development` 可预填 `admin`
-- 首次以 **app 健康 / 日志 Flyway migrate 成功** 为准（不再依赖 initdb 整库 dump）
+- **公网演示环境**：运维口令为 **`admin` / `QtDemo#Admin2026`**，访客仍用 **`demo` / `demo123`**（见 [qualitest-demo-host](https://github.com/38680050/qualitest-demo-host)）。正式登录页不预填；演示可选挂载 `config.js` 预填（运维仓 `1panel/login-defaults.js`）。本地 `.env.development` 可预填 `admin`
+- 首次以响应头 **`HTTP/1.1 200`** / 日志 Flyway migrate 成功为准（空库由 Flyway 建表，不再依赖 initdb 整库 dump）
 - IDEA 插件服务器地址：Compose 填 **`http://localhost:5180/prod-api`**；本机后端填 **`http://localhost:8800`**
 
-`quick-start` 会先 `compose pull`；GHCR 不可达或尚未发布时自动回退 `--build`。本地首次编译前后端可能较慢，属正常。
+`healthz` 暂时失败时看后端日志，出现 Flyway 成功后再查一次：
+
+```bash
+docker compose logs -f app
+```
+
+### 3. 端口被占用时
+
+日志出现 `Bind for 0.0.0.0:3306`、`6379` 或 `5180` failed。在 **qualitest 目录**整段再贴一次（把宿主机端口改成 6180 / 13306 / 16379，容器内部端口不变）：
+
+**Linux / macOS**
+
+```bash
+docker compose down
+sed -i.bak -e 's/^WEB_PORT=.*/WEB_PORT=6180/' -e 's/^MYSQL_PORT=.*/MYSQL_PORT=13306/' -e 's/^REDIS_PORT=.*/REDIS_PORT=16379/' .env
+docker compose up -d
+curl -fsS -D - -o /dev/null http://localhost:6180/healthz
+```
+
+**Windows PowerShell**
+
+```powershell
+docker compose down
+(Get-Content .env) -replace '^WEB_PORT=.*','WEB_PORT=6180' -replace '^MYSQL_PORT=.*','MYSQL_PORT=13306' -replace '^REDIS_PORT=.*','REDIS_PORT=16379' | Set-Content .env -Encoding ascii
+docker compose up -d
+curl.exe -fsS -D - -o NUL http://localhost:6180/healthz
+```
+
+浏览器改为 `http://localhost:6180`。
+
+### 4. 可选：再起靶场
+
+另开一个终端，到 **另一个目录** 整段粘贴。质衡和靶场各一套 Compose，端口已错开。
+
+**Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+chmod +x scripts/quick-start.sh
+./scripts/quick-start.sh
+```
+
+**Windows（PowerShell 或命令提示符）**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+scripts\quick-start.bat
+```
+
+国内镜像：`https://gitee.com/qualitest-hq/qualitest-demo.git`。
+
+不用脚本时，在**另一个目录**整段粘贴（与上面的 `quick-start` 二选一）。
+
+**Linux / macOS / Git Bash**
+
+```bash
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+cp -n .env.example .env
+docker compose pull mysql app web
+docker compose up -d
+docker compose ps
+curl -fsS -D - -o /dev/null http://localhost:5181/
+```
+
+**Windows PowerShell**
+
+```powershell
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+docker compose pull mysql app web
+docker compose up -d
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5181/
+```
+
+**Windows 命令提示符**
+
+```bat
+git clone https://github.com/qualitest-hq/qualitest-demo.git
+cd qualitest-demo
+if not exist .env copy /Y .env.example .env
+docker compose pull mysql app web
+docker compose up -d
+docker compose ps
+curl.exe -fsS -D - -o NUL http://localhost:5181/
+```
+
+`pull` 失败时在 `qualitest-demo` 目录执行 `docker compose up -d --build`。`qualitest-demo-web` 为 Up，且 `http://localhost:5181/` 响应头为 `HTTP/1.1 200` 即可。
+
+| 项 | 地址 |
+|----|------|
+| 质衡 Web | http://localhost:5180 |
+| 靶场 UI | http://localhost:5181 （`admin` / `admin123`） |
+| 靶场 API / Swagger | http://localhost:8801/swagger-ui.html |
+
+质衡跑在 Compose 里时，到 **项目 → 环境管理**，把被测 `baseUrl` 写成：
+
+```text
+http://host.docker.internal:8801
+```
+
+`app` 已配置 `extra_hosts: host.docker.internal:host-gateway`，Windows、macOS、Linux 都用这一行。保存后在调试台发一条靶场接口，返回 200 即联调成功。靶场端口若改过 `APP_PORT`，这里的 `8801` 一起改。
+
+靶场宿主机端口（5181 / 8801 / 3307 / 6380）被占用时，在 `qualitest-demo/.env` 改 `WEB_PORT` / `APP_PORT` / `MYSQL_PORT` / `REDIS_PORT`，再执行 `docker compose up -d`。
+
+### 5. 停机
+
+在各自仓库目录执行。`down` 保留数据；`down -v` 清空数据库，等于重装。
+
+```bash
+docker compose down
+```
 
 ### 官方镜像（GHCR）
 
@@ -65,36 +434,22 @@ Packages：https://github.com/orgs/qualitest-hq/packages
 
 ## 与靶场联调（可选 · 双仓各起）
 
-主仓与 demo **各自一套 Compose**，端口已错开，可并行：
-
-```bash
-# 终端 1 — 质衡（本仓）
-cd qualitest && ./scripts/quick-start.sh   # Windows: scripts\quick-start.bat
-
-# 终端 2 — 靶场（另 clone 后）
-cd qualitest-demo && ./scripts/quick-start.sh
-```
-
-| 项 | 地址 |
-|----|------|
-| 质衡 Web | http://localhost:5180 |
-| 靶场 API / Swagger | http://localhost:8801 （Swagger：`/swagger-ui.html`） |
-| 靶场 UI | http://localhost:5181 |
+完整复制粘贴见上文 **「4. 可选：再起靶场」**。两边各一套 Compose，默认可并行。
 
 **环境 `baseUrl`（项目 → 环境管理）**
 
 | 跑法 | 建议 `baseUrl` |
 |------|----------------|
-| 两边都在本机进程（`mvn` / `pnpm`），或仅浏览器直连宿主机端口 | 种子默认 **`http://localhost:8801`** |
-| **质衡 app 在 Compose 容器内**，demo 映射在宿主机 **8801** | 容器内 `localhost` 打不到靶场，改为 **`http://host.docker.internal:8801`**（Docker Desktop：Windows / macOS）。Linux 可加 compose `extra_hosts: ["host.docker.internal:host-gateway"]`，或改为本机跑质衡后端 |
+| 两边都在本机进程（`mvn` / `pnpm`），或仅浏览器直连宿主机端口 | **`http://localhost:8801`** |
+| **质衡 app 在 Compose 容器内**，demo 映射在宿主机 **8801** | **`http://host.docker.internal:8801`**（本仓 `docker-compose.yml` 已写入 `extra_hosts`） |
 
 靶场库表用 initdb dump + 场景 seed，**不接 Flyway**；质衡自身迁移见下文「库表迁移（Flyway）」。
 
 ---
 
-## 仅依赖（本机开发 · 热更）
+## 本机改代码（热更 · MySQL / Redis 仍用 Compose）
 
-Compose 只起 MySQL + Redis；后端 / 前端在宿主机跑，便于 **devtools / JRebel / Vite HMR**。
+这不是「不用 Docker」。只把 MySQL + Redis 放在 Compose 里，后端 / 前端在宿主机跑，便于 **devtools / JRebel / Vite HMR**。完全不用 Docker 走上文 **「甲、不用 Docker」**。
 
 ```bash
 # Linux / macOS
@@ -290,14 +645,16 @@ kubectl -n qualitest port-forward svc/qualitest-web 5180:5180
 
 ## 常用命令
 
+从零整段粘贴见上文 **「1b. 直接 Docker Compose」**。已经在仓库目录、镜像也齐时，用下面的单条命令：
+
 ```bash
 docker compose logs -f app
 docker compose ps
 docker compose down          # 保留数据卷
 docker compose down -v       # 清空 MySQL / Redis / 上传卷（慎用，等于重装库）
-docker compose pull          # 拉最新 GHCR
+docker compose pull app web  # 只拉质衡 GHCR；MySQL / Redis 由 up 按需拉取
 docker compose up -d         # 用已有 / 已 pull 的镜像起栈
-docker compose up -d --build # 改代码或 Dockerfile 后本地重建
+docker compose up -d --build # 改代码、Dockerfile，或 GHCR 拉取失败时本地重建
 ```
 
 ---
@@ -316,7 +673,7 @@ docker compose up -d --build # 改代码或 Dockerfile 后本地重建
 | 改完 migration 旧卷仍不对 | 可丢数据时用 `down -v` 再 `up`；生产用增量 `V{n}`，禁止改已执行脚本 |
 | 插件连不上 | Compose 用 `http://localhost:5180/prod-api`；本机用 `http://localhost:8800`；勿混用 |
 | 与 demo 端口冲突 | demo 默认 8801/5181/3307/6380，一般不冲突；若自改过主仓端口再核对 |
-| 调试/测试流连不上靶场 | 确认 demo 已另起；Compose 内质衡 app 勿用 `localhost:8801`，改用 `host.docker.internal:8801`（见上文「与靶场联调」） |
+| 调试/测试流连不上靶场 | 确认 demo 已另起；Compose 内质衡把环境 `baseUrl` 写成 `http://host.docker.internal:8801`（见上文「4. 可选：再起靶场」） |
 
 ---
 

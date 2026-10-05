@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.qualitest.api.util.ApiAuthConfigSupport;
 import com.qualitest.api.util.ApiImportMatchSupport;
 import com.qualitest.api.util.ApiTestValuePeelSupport;
+import com.qualitest.api.util.ManagedAuthHeaderSupport;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.project.domain.TestProjectApi;
@@ -86,7 +87,9 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
     @Override
     public TestProjectApiResult selectTestProjectApiResult(Long testProjectApiId) {
         TestProjectApiResult result = testProjectApiMapper.selectTestProjectApiResult(testProjectApiId);
-        return applyEffectiveConfigForRead(result);
+        result = applyEffectiveConfigForRead(result);
+        fillManagedAuthHeader(result);
+        return result;
     }
 
     /**
@@ -322,5 +325,25 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
     private TestProjectApiResult applyEffectiveConfigForRead(TestProjectApiResult result) {
         TestProjectApiEffectiveConfigResolver.overlayResultConfigs(result);
         return result;
+    }
+
+    /**
+     * 详情读路径附上托管鉴权头，供调试台展示。
+     * 免登录、未命中配置时为 null。
+     */
+    private void fillManagedAuthHeader(TestProjectApiResult result) {
+        if (result == null) {
+            return;
+        }
+        String projectAuthJson = null;
+        if (result.getTestProjectId() != null) {
+            var project = testProjectService.selectTestProjectById(result.getTestProjectId());
+            if (project != null) {
+                projectAuthJson = project.getAuthConfig();
+            }
+        }
+        String method = ApiImportMatchSupport.extractHttpMethod(result.getRequestConfig());
+        result.setManagedAuthHeader(ManagedAuthHeaderSupport.resolve(
+                result.getAuthConfig(), projectAuthJson, result.getApiPath(), method));
     }
 }

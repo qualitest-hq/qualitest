@@ -54,7 +54,7 @@ export function cloneRequestConfigForSave(rc) {
 export function rowsToKeyValueObject(rows) {
   const out = {}
   for (const r of rows || []) {
-    if (r._enabled === false) continue
+    if (r._enabled === false || r._managed) continue
     const k = (r.name || '').trim()
     if (!k) continue
     out[k] = r.value ?? ''

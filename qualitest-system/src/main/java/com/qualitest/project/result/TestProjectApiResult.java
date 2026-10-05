@@ -130,6 +130,12 @@ public class TestProjectApiResult implements Serializable {
     private String authConfig;
 
     /**
+     * 调试台展示用的托管鉴权头。
+     * 仅详情接口按鉴权标签与项目配置现算，不入库；免登录或未命中时为 null。
+     */
+    private ManagedAuthHeader managedAuthHeader;
+
+    /**
      * 上传保护：1=导入跳过；0=允许覆盖。详情与列表原样返回。
      */
     private Integer syncProtected;

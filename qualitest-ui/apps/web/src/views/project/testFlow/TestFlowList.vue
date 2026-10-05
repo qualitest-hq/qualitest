@@ -496,8 +496,8 @@ onMounted(async () => {
 <style lang="scss" scoped>
 .flow-list-page {
   display: flex;
-  height: calc(100vh - 84px);
-  min-height: 480px;
+  height: 100%;
+  min-height: 0;
   background: var(--pd-bg-page, #f0f5fb);
   overflow: hidden;
 }
