@@ -2,7 +2,7 @@
 # 质衡一键启动：Docker Compose 全栈
 #
 # 用法：
-#   ./scripts/quick-start.sh           # 优先拉 GHCR，失败则本地构建
+#   ./scripts/quick-start.sh           # 优先拉阿里云，失败则 GHCR，再失败则本地构建
 #   ./scripts/quick-start.sh -h        # 显示本说明
 #
 # 说明：从任意目录调用即可（脚本会切到仓库根）；依赖 Docker Engine/Desktop + Compose V2
@@ -12,7 +12,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 用法:
-  ./scripts/quick-start.sh           启动全栈（优先 GHCR 镜像；失败则 --build）
+  ./scripts/quick-start.sh           启动全栈（优先阿里云镜像；失败则 GHCR，再失败则 --build）
   ./scripts/quick-start.sh -h        显示本说明
 
 仅依赖:     ./scripts/dev-deps-up.sh （停：./scripts/dev-deps-down.sh）
@@ -63,12 +63,15 @@ if [[ -f .env ]]; then
   WEB_PORT="${WEB_PORT:-5180}"
 fi
 
-echo "[info] 拉取 GHCR 预构建镜像（ghcr.io/qualitest-hq/qualitest-app|web）..."
+echo "[info] 拉取预构建镜像（默认阿里云 registry.cn-hangzhou.aliyuncs.com/qualitest-hq ）..."
 if docker compose pull app web; then
   echo "[info] 启动 MySQL + Redis + 后端 + Nginx ..."
   docker compose up -d
+elif QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq docker compose pull app web; then
+  echo "[info] 阿里云不可达，改用 GHCR 启动 ..."
+  QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq docker compose up -d
 else
-  echo "[warn] pull 失败（镜像未发布 / 网络），改为本地构建 ..."
+  echo "[warn] 预构建拉不到，改为本地构建 ..."
   docker compose up -d --build
 fi
 

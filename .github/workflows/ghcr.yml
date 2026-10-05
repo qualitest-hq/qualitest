@@ -1,10 +1,10 @@
-# 推送官方镜像到 GHCR（仅 qualitest-hq/qualitest 的 main / 手动触发）
+# 推送官方镜像到 GHCR，并在配置了 ALIYUN_PASSWORD 时再推阿里云公开仓库。
 # 镜像：
-#   ghcr.io/qualitest-hq/qualitest-app
-#   ghcr.io/qualitest-hq/qualitest-web
-# PR / fork 不推送；CI 里 docker-* 仍只做构建校验。
+#   ghcr.io/qualitest-hq/qualitest-app|web
+#   registry.cn-hangzhou.aliyuncs.com/qualitest-hq/qualitest-app|web
+# PR / fork 不推送；未配阿里云密钥则只推 GHCR。
 #
-# 首次推送后若 Packages 默认 Private：组织 Packages 页改为 Public，
+# 首次推送后若 GHCR Packages 默认 Private：组织 Packages 页改为 Public，
 # 或本 workflow 末尾「Set package visibility」步骤会尝试公开。
 
 name: GHCR
@@ -38,6 +38,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
+  ALIYUN_REGISTRY: registry.cn-hangzhou.aliyuncs.com
+  ALIYUN_NAMESPACE: qualitest-hq
 
 jobs:
   changes:
@@ -127,6 +129,43 @@ jobs:
           cache-from: type=gha,scope=qualitest-app
           cache-to: type=gha,mode=max,scope=qualitest-app
 
+      - name: Skip ACR if unconfigured
+        if: ${{ secrets.ALIYUN_PASSWORD == '' }}
+        run: echo "::notice::ALIYUN_PASSWORD 未配置，跳过阿里云推送。"
+
+      - name: Log in to Aliyun ACR
+        if: ${{ secrets.ALIYUN_PASSWORD != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: Docker metadata (app ACR)
+        if: ${{ secrets.ALIYUN_PASSWORD != '' }}
+        id: meta-acr
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ALIYUN_REGISTRY }}/${{ env.ALIYUN_NAMESPACE }}/qualitest-app
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push app (ACR)
+        if: ${{ secrets.ALIYUN_PASSWORD != '' }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta-acr.outputs.tags }}
+          labels: ${{ steps.meta-acr.outputs.labels }}
+          cache-from: type=gha,scope=qualitest-app
+          cache-to: type=gha,mode=max,scope=qualitest-app
+
   push-web:
     name: push-web
     needs: changes
@@ -167,6 +206,43 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=qualitest-web
+          cache-to: type=gha,mode=max,scope=qualitest-web
+
+      - name: Skip ACR if unconfigured
+        if: ${{ secrets.ALIYUN_PASSWORD == '' }}
+        run: echo "::notice::ALIYUN_PASSWORD 未配置，跳过阿里云推送。"
+
+      - name: Log in to Aliyun ACR
+        if: ${{ secrets.ALIYUN_PASSWORD != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: Docker metadata (web ACR)
+        if: ${{ secrets.ALIYUN_PASSWORD != '' }}
+        id: meta-acr
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ALIYUN_REGISTRY }}/${{ env.ALIYUN_NAMESPACE }}/qualitest-web
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push web (ACR)
+        if: ${{ secrets.ALIYUN_PASSWORD != '' }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./deploy/docker/Dockerfile.web
+          push: true
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta-acr.outputs.tags }}
+          labels: ${{ steps.meta-acr.outputs.labels }}
           cache-from: type=gha,scope=qualitest-web
           cache-to: type=gha,mode=max,scope=qualitest-web
 
