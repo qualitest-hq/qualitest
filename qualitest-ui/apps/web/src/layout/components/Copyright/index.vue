@@ -35,5 +35,10 @@ const icpNumber = readIcpNumber()
 
 .copyright.is-beian-only {
   justify-content: center;
+  height: 22px;
+  padding: 0 12px;
+  font-size: 12px;
+  line-height: 22px;
+  background-color: #fff;
 }
 </style>
