@@ -19,6 +19,7 @@ Open-source API automation · flow canvas · AI Diff · IntelliJ / MCP ingest
 <br/>
 
 [Website](https://qualitest-hq.github.io/qualitest/) ·
+[Live demo](https://qualitesthq.cn/) ·
 [中文 README](./README.md) ·
 [MCP](./docs/mcp.en.md) ·
 [Try it](#try-it) ·
@@ -58,6 +59,8 @@ scripts\quick-start.bat
 ```
 
 Open `http://localhost:5180`. Sign in **`admin`** / **`admin123`**. This block is the Docker one-click path. No Docker (local MySQL / Redis, create the database, import SQL): [deploy.en.md · A](./docs/deploy.en.md#a-no-docker). Port conflicts and the demo target: [deploy.en.md · B](./docs/deploy.en.md#b-docker-one-click).
+
+Skip local setup: live demo [https://qualitesthq.cn/](https://qualitesthq.cn/) (guest **`demo` / `demo123`**); target app [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/).
 
 <p align="center"><strong>Loop</strong>: API ingest → console → flow canvas → AI Diff → MCP</p>
 
@@ -245,7 +248,7 @@ Requires Docker + Compose V2. **Containers up ≠ ready to log in** — wait unt
 
 Paste only the block for your OS. The blocks in [5-minute Quick Start](#5-minute-quick-start) are the Docker path. No Docker is [deploy.en.md · A](./docs/deploy.en.md#a-no-docker). Port conflicts and the demo `baseUrl` are in [deploy.en.md · B](./docs/deploy.en.md#b-docker-one-click).
 
-Open `http://localhost:5180`. Sign in **`admin`** / **`admin123`**. Do not use on the public internet.
+Open `http://localhost:5180`. Sign in **`admin`** / **`admin123`** (local only — do not expose on the public internet). Live demo: [https://qualitesthq.cn/](https://qualitesthq.cn/) · target [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/) · guest **`demo` / `demo123`**.
 
 ### Official images
 

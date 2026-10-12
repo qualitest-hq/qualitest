@@ -294,7 +294,7 @@ curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
 - 开箱账号（Flyway 跑完后，含 **V6**）：
   - **`admin` / `admin123`**：超级管理员（**仅本地 / 私有环境**；公网务必改密）
   - **`demo` / `demo123`**：演示访客（由 V6 将种子账号收敛而来；仅测试管理 + AI；正式环境请改密或停用）
-- **公网演示环境**：运维口令为 **`admin` / `[REDACTED]`**，访客仍用 **`demo` / `demo123`**。正式登录页不预填；演示可选挂载 `config.js` 预填。本地 `.env.development` 可预填 `admin`
+- **公网演示**：[https://qualitesthq.cn/](https://qualitesthq.cn/) · 靶场 [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/) · 访客 **`demo` / `demo123`**（勿公布运维账号）。正式登录页不预填；演示可选挂载 `config.js`。本地 `.env.development` 可预填 `admin`
 - 首次以响应头 **`HTTP/1.1 200`** / 日志 Flyway migrate 成功为准（空库由 Flyway 建表，不再依赖 initdb 整库 dump）
 - IDEA 插件服务器地址：Compose 填 **`http://localhost:5180/prod-api`**；本机后端填 **`http://localhost:8800`**
 

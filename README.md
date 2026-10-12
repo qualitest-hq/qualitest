@@ -19,6 +19,7 @@
 <br/>
 
 [官网](https://qualitest-hq.github.io/qualitest/) ·
+[在线演示](https://qualitesthq.cn/) ·
 [English](./README.en.md) ·
 [MCP 说明](./docs/mcp.md) ·
 [试一把](#-试一把) ·
@@ -76,6 +77,8 @@ scripts\quick-start.bat
 ```
 
 浏览器打开 `http://localhost:5180`，登录 **`admin`** / **`admin123`**。这是 Docker 一键。不用 Docker（本机 MySQL / Redis、建库、导 SQL）见 [部署说明 · 甲](./docs/deploy.md#甲不用-docker)。验收、端口占用、靶场联调见 [部署说明 · 乙](./docs/deploy.md#乙docker-一键)。
+
+不想起本地栈：公网演示 [https://qualitesthq.cn/](https://qualitesthq.cn/)（访客 **`demo` / `demo123`**）；靶场 [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/)。
 
 <p align="center"><strong>主链路</strong>：接口入库 → 调试台 → 测试流画布 → AI Diff → MCP</p>
 
@@ -262,7 +265,7 @@ IDE 插件市场搜 **Qualitest Helper**（[Marketplace](https://plugins.jetbrai
 
 按系统只复制一段。不用 Docker 见 [部署说明 · 甲](./docs/deploy.md#甲不用-docker)；Docker 一键、端口冲突和靶场 `baseUrl` 见 [部署说明 · 乙](./docs/deploy.md#乙docker-一键)。上面 [5 分钟起栈](#5-分钟起栈) 是 Docker 那一条。
 
-浏览器打开 `http://localhost:5180`。登录 **`admin`** / **`admin123`**。勿用于公网。公网演示运维口令为 **`admin` / `[REDACTED]`**，访客 **`demo` / `demo123`**。
+浏览器打开 `http://localhost:5180`。登录 **`admin`** / **`admin123`**（仅本地，勿用于公网）。公网演示：[https://qualitesthq.cn/](https://qualitesthq.cn/) · 靶场 [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/) · 访客 **`demo` / `demo123`**。
 
 ### 官方镜像
 

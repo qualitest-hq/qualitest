@@ -294,7 +294,7 @@ curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
 - Built-in accounts (after Flyway including **V6**):
   - **`admin` / `admin123`**: super admin (**local / private only**; change before public exposure)
   - **`demo` / `demo123`**: demo visitor (V6 converges seed users; test management + AI only — change or disable in production)
-- **Public demo hosts**: ops password is **`admin` / `[REDACTED]`**; visitors still use **`demo` / `demo123`**. Production login form is not prefilled; demo may optionally mount `config.js`. Local `.env.development` may prefill `admin`
+- **Public demo**: [https://qualitesthq.cn/](https://qualitesthq.cn/) · target [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/) · guest **`demo` / `demo123`** (do not publish ops accounts). Production login form is not prefilled; demo may optionally mount `config.js`. Local `.env.development` may prefill `admin`
 - First boot: response header **`HTTP/1.1 200`** / Flyway migrate success in logs (empty database is migrated by Flyway; no full initdb dump)
 - IDEA plugin server URL: Compose → **`http://localhost:5180/prod-api`**; local backend → **`http://localhost:8800`**
 
