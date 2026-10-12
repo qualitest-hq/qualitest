@@ -19,7 +19,7 @@
 <br/>
 
 [官网](https://qualitest-hq.github.io/qualitest/) ·
-[在线演示](https://qualitesthq.cn/) ·
+[在线演示](#在线演示) ·
 [English](./README.en.md) ·
 [MCP 说明](./docs/mcp.md) ·
 [试一把](#-试一把) ·
@@ -49,13 +49,30 @@ chmod +x scripts/quick-start.sh && ./scripts/quick-start.sh
 
 Windows: `git clone https://github.com/qualitest-hq/qualitest.git` then `cd qualitest` and `scripts\quick-start.bat`.
 
-Open `http://localhost:5180` · **`admin`** / **`admin123`**. Docs: [README.en.md](./README.en.md) · [mcp.en.md](./docs/mcp.en.md).
+**Try it now:** [https://qualitesthq.cn/](https://qualitesthq.cn/) · **`demo`** / **`demo123`**. Target app: [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/). Local install: `http://localhost:5180` · **`admin`** / **`admin123`**. Docs: [README.en.md](./README.en.md) · [mcp.en.md](./docs/mcp.en.md).
 
 </details>
 
 </div>
 
 <br/>
+
+## 在线演示
+
+不用克隆，不用 Docker。浏览器打开就能登录。
+
+| 打开 | 地址 | 这是什么 |
+|------|------|----------|
+| **质衡** | [https://qualitesthq.cn/](https://qualitesthq.cn/) | 产品本身。进去看调试台、测试流画布，以及已经配好的演示项目 |
+| **靶场** | [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/) | 被测系统。演示里的测试流，请求打的就是这个站 |
+
+两个站同一个账号：
+
+| 账号 | 密码 |
+|------|------|
+| `demo` | `demo123` |
+
+先开质衡，用这个账号登录，打开项目「质衡演示靶场」。想在自己机器上跑，再看下面的本地安装。
 
 ### 5 分钟起栈
 
@@ -76,9 +93,7 @@ cd qualitest
 scripts\quick-start.bat
 ```
 
-浏览器打开 `http://localhost:5180`，登录 **`admin`** / **`admin123`**。这是 Docker 一键。不用 Docker（本机 MySQL / Redis、建库、导 SQL）见 [部署说明 · 甲](./docs/deploy.md#甲不用-docker)。验收、端口占用、靶场联调见 [部署说明 · 乙](./docs/deploy.md#乙docker-一键)。
-
-不想起本地栈：公网演示 [https://qualitesthq.cn/](https://qualitesthq.cn/)（访客 **`demo` / `demo123`**）；靶场 [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/)。
+浏览器打开 `http://localhost:5180`，登录 **`admin`** / **`admin123`**（仅本机）。这是 Docker 一键。不用 Docker（本机 MySQL / Redis、建库、导 SQL）见 [部署说明 · 甲](./docs/deploy.md#甲不用-docker)。验收、端口占用、靶场联调见 [部署说明 · 乙](./docs/deploy.md#乙docker-一键)。不想装，直接用上面的 [在线演示](#在线演示)。
 
 <p align="center"><strong>主链路</strong>：接口入库 → 调试台 → 测试流画布 → AI Diff → MCP</p>
 
@@ -265,7 +280,7 @@ IDE 插件市场搜 **Qualitest Helper**（[Marketplace](https://plugins.jetbrai
 
 按系统只复制一段。不用 Docker 见 [部署说明 · 甲](./docs/deploy.md#甲不用-docker)；Docker 一键、端口冲突和靶场 `baseUrl` 见 [部署说明 · 乙](./docs/deploy.md#乙docker-一键)。上面 [5 分钟起栈](#5-分钟起栈) 是 Docker 那一条。
 
-浏览器打开 `http://localhost:5180`。登录 **`admin`** / **`admin123`**（仅本地，勿用于公网）。公网演示：[https://qualitesthq.cn/](https://qualitesthq.cn/) · 靶场 [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/) · 访客 **`demo` / `demo123`**。
+浏览器打开 `http://localhost:5180`。登录 **`admin`** / **`admin123`**（仅本机，勿用于公网）。不想装：看 [在线演示](#在线演示)。
 
 ### 官方镜像
 
