@@ -59,6 +59,7 @@
     </el-form>
     <!--  底部  -->
     <div class="el-login-footer">
+      <icp-beian />
       <span>{{ footerContent }}</span>
     </div>
   </div>
@@ -70,6 +71,7 @@ import Cookies from "js-cookie"
 import { encrypt, decrypt } from "@/utils/jsencrypt"
 import useUserStore from '@/store/modules/user'
 import defaultSettings from '@/settings'
+import IcpBeian from '@/components/IcpBeian/index.vue'
 
 const title = import.meta.env.VITE_APP_TITLE
 const footerContent = defaultSettings.footerContent
@@ -232,6 +234,10 @@ getCookie()
   position: fixed;
   bottom: 0;
   width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
   text-align: center;
   color: rgba(90, 110, 130, 0.65);
   font-family: Arial;
