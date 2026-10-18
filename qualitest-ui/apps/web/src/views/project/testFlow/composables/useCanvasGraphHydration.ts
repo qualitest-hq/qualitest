@@ -9,9 +9,14 @@ import type { useFlowCanvasStore } from '../stores/flowCanvasStore'
 
 type FlowCanvasStore = ReturnType<typeof useFlowCanvasStore>
 
-/** 将 fromGraphJson 结果写入 store：先 nodes、待灌边，节点就绪后再 flush edges */
+/**
+ * 将读出的图写入画布。
+ * 排版方式只记到 store，用来决定顶栏名称和句柄方向，不在这里重排节点。
+ */
 export async function applyAdaptedGraphToStore(store: FlowCanvasStore, adapted: FromGraphJsonResult) {
   store.setPendingEdges(adapted.edges)
+  // 先于节点写入，避免卡片先按横向句柄画出来再改方向
+  store.setLayoutPreset(adapted.layoutPreset)
   store.viewport = adapted.viewport
   store.runConfig = adapted.runConfig
   store.flowOutputs = adapted.flowOutputs

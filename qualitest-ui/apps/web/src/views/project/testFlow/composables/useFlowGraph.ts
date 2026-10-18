@@ -8,7 +8,7 @@
  * 半自动下 Staging ✓ 后须调用本模块的 saveFlow 才写库；
  * 若仍有 pending，先弹门禁（去确认 / 仅保存已确认 / 取消）。
  *
- * 写图请求体携带本地图版本号；冲突时仅布局脏自动套坐标重存，内容冲突弹窗分流。
+ * 写图请求体携带本地图版本号；冲突时仅布局脏自动套回排版再存，内容冲突弹窗分流。
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -23,7 +23,7 @@ import { collectRunBlockingErrors } from '../utils/runReadiness';
 import { suppressExternalGraphSync, acknowledgeLocalWebSave } from '../utils/externalGraphSyncState';
 import { getFlowEditLeaseToken } from '../utils/flowEditLeaseState';
 import { isLayoutOnlyDirtyFromStore } from '../utils/isLayoutOnlyDirty';
-import { applyNodePositions, captureNodePositions } from '../utils/nodePositions';
+import { holdCanvasLayout, reapplyHeldCanvasLayout } from '../utils/nodePositions';
 import {
   extractGraphRevisionFromResponse,
   parseGraphRevisionConflict,
@@ -108,17 +108,14 @@ export function useFlowGraph() {
   }
 
   /**
-   * 仅布局脏时的版本冲突：拉最新图、套回本地坐标后自动重存。
+   * 只改了排版时碰到版本冲突：拉最新图，再套回本地坐标、视口和排版方式，然后自动重存。
    */
   async function retrySaveAfterLayoutOnlyConflict(options?: SaveFlowOptions) {
     const flowId = String(store.testFlowId || '');
     if (!flowId) return false;
-    const positions = captureNodePositions(store.nodes);
-    const viewport = { ...store.viewport };
+    const held = holdCanvasLayout(store);
     await loadFlow(flowId);
-    applyNodePositions(store, positions);
-    store.viewport = viewport;
-    store.markDirty();
+    reapplyHeldCanvasLayout(store, held);
     return saveFlow({ ...options, _conflictRetry: true });
   }
 

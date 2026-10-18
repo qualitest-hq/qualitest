@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测画布自动排版：链式分层、分支同层、无边换行、森林分量、仅新增节点找位、长链折行。
+ * 测画布自动排版：链式分层、分支同层、菱形汇合、无边换行、森林分量、仅新增节点找位、长链折行。
  * 边界：纯函数改写 position；不依赖 Spring。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphLayeredLayoutTest
  */
@@ -132,38 +132,48 @@ class FlowGraphLayeredLayoutTest {
 
     /**
      * 前提：A→B→C→D→E→F 六节点长链。
-     * 期望：按列折成多行带；第 4 个节点（D）回到左侧下一行带，整图宽度不超过单行带最大列数。
+     * 期望：按约 √N 列折成多行带；D 回到左侧下一行带，不拉成一行。
      */
     @Test
     @Order(7)
-    @DisplayName("长链按列折行兼顾宽高")
+    @DisplayName("长链按列折行")
     void apply_longChain_wrapsIntoBands() {
-        List<GraphNode> nodes = new ArrayList<>();
-        List<GraphEdge> edges = new ArrayList<>();
-        String[] ids = {"A", "B", "C", "D", "E", "F"};
-        for (String id : ids) {
-            nodes.add(node(id));
-        }
-        for (int i = 0; i < ids.length - 1; i++) {
-            edges.add(edge("e" + i, ids[i], ids[i + 1]));
-        }
-        GraphJson g = graph(nodes, edges);
+        GraphJson g = chain("A", "B", "C", "D", "E", "F");
 
         FlowGraphLayeredLayout.apply(g);
 
-        int cols = FlowGraphLayeredLayout.resolveLayerColumns(6, 6);
-        assertEquals(3, cols);
-        // D 为第 4 层（layer=3）→ 折到第二行带第 0 列
+        assertEquals(3, FlowGraphLayeredLayout.resolveLayerColumns(6, 6));
         assertEquals(FlowGraphLayeredLayout.ORIGIN_X, xOf(g, "D"), 0.01);
         assertTrue(yOf(g, "D") > yOf(g, "A"));
-        // 整图宽度不超过单行带最大列数
-        double maxX = g.getNodes().stream()
-                .mapToDouble(n -> n.getPosition().getX())
-                .max()
-                .orElse(0);
-        assertTrue(maxX <= FlowGraphLayeredLayout.ORIGIN_X
-                + (FlowGraphLayeredLayout.MAX_LAYER_COLUMNS - 1) * FlowGraphLayeredLayout.LAYER_GAP_X
-                + 0.01);
+        assertEquals(yOf(g, "A"), yOf(g, "C"), 0.01);
+    }
+
+    /**
+     * 前提：R→A、R→B、A→M、B→M；节点顺序把 B 放在 A 前，出边先 A 后 B。
+     * 期望：A 在 B 上方；M 的垂直中心靠近 A、B 中心的中点。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("菱形汇合落在两路中间")
+    void apply_diamond_joinCentered() {
+        GraphJson g = graph(
+                List.of(node("R"), node("B"), node("A"), node("M")),
+                List.of(
+                        edge("e1", "R", "A"),
+                        edge("e2", "R", "B"),
+                        edge("e3", "A", "M"),
+                        edge("e4", "B", "M")));
+
+        FlowGraphLayeredLayout.apply(g);
+
+        assertEquals(xOf(g, "A"), xOf(g, "B"), 0.01);
+        assertTrue(yOf(g, "A") < yOf(g, "B"));
+        double h = FlowGraphLayeredLayout.NODE_MIN_H;
+        double aMid = yOf(g, "A") + h / 2;
+        double bMid = yOf(g, "B") + h / 2;
+        double mMid = yOf(g, "M") + h / 2;
+        assertEquals((aMid + bMid) / 2, mMid, 0.01);
+        assertTrue(xOf(g, "M") > xOf(g, "A"));
     }
 
     /**
@@ -207,6 +217,18 @@ class FlowGraphLayeredLayoutTest {
         assertEquals(null, FlowGraphLayeredLayout.apply(null));
         GraphJson empty = GraphJson.builder().nodes(new ArrayList<>()).edges(new ArrayList<>()).build();
         assertNotNull(FlowGraphLayeredLayout.apply(empty));
+    }
+
+    private static GraphJson chain(String... ids) {
+        List<GraphNode> nodes = new ArrayList<>();
+        List<GraphEdge> edges = new ArrayList<>();
+        for (String id : ids) {
+            nodes.add(node(id));
+        }
+        for (int i = 0; i < ids.length - 1; i++) {
+            edges.add(edge("e" + i, ids[i], ids[i + 1]));
+        }
+        return graph(nodes, edges);
     }
 
     private static GraphJson graph(List<GraphNode> nodes, List<GraphEdge> edges) {

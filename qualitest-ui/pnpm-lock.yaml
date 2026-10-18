@@ -114,6 +114,9 @@ importers:
       element-plus:
         specifier: 2.13.1
         version: 2.13.1(vue@3.5.26(typescript@5.9.3))
+      elkjs:
+        specifier: ^0.12.0
+        version: 0.12.0
       file-saver:
         specifier: 2.0.5
         version: 2.0.5
@@ -2882,6 +2885,9 @@ packages:
 
   elkjs@0.11.1:
     resolution: {integrity: sha512-zxxR9k+rx5ktMwT/FwyLdPCrq7xN6e4VGGHH8hA01vVYKjTFik7nHOxBnAYtrgYUB1RpAiLvA1/U2YraWxyKKg==}
+
+  elkjs@0.12.0:
+    resolution: {integrity: sha512-YZcKynxVxYoKIOEpywEPwCFdg+BTbxQRNf3pbwdDCvc8O3kQD8bmIwSxKU1eOTVc4Xo+VG9Te+575mlfvOrhEQ==}
 
   emoji-mart@5.6.0:
     resolution: {integrity: sha512-eJp3QRe79pjwa+duv+n7+5YsNhRcMl812EcFVwrnRvYKoNPoQb5qxU8DG6Bgwji0akHdp6D4Ln6tYLG58MFSow==}
@@ -9175,6 +9181,8 @@ snapshots:
       - '@vue/composition-api'
 
   elkjs@0.11.1: {}
+
+  elkjs@0.12.0: {}
 
   emoji-mart@5.6.0: {}
 

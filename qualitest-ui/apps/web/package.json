@@ -1,6 +1,6 @@
 {
   "name": "@qualitest/web",
-  "version": "1.4.7",
+  "version": "1.4.8",
   "description": "质衡自动化测试系统 Web 端",
   "author": "质衡",
   "license": "Apache-2.0",
@@ -41,6 +41,7 @@
     "dompurify": "3.4.14",
     "echarts": "5.6.0",
     "element-plus": "2.13.1",
+    "elkjs": "^0.12.0",
     "file-saver": "2.0.5",
     "fuse.js": "7.1.0",
     "js-beautify": "1.15.4",

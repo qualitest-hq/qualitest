@@ -1,6 +1,6 @@
 /**
  * 测谁：仅布局脏判定、去掉视口与坐标后的图比较。
- * 边界：只移坐标、改节点 data、增删节点、有待确认 Staging、无已保存基线、
+ * 边界：只移坐标、只换排版方式、改节点 data、增删节点、有待确认 Staging、无已保存基线、
  *       基线缺环境 id 而当前多了环境 id、补环境后再只移坐标。
  * 单跑：pnpm test isLayoutOnlyDirty（在 qualitest-ui 或 apps/web 下）
  */
@@ -58,6 +58,24 @@ describe('isLayoutOnlyDirty', () => {
         position: { x: n.position.x + 50, y: n.position.y + 50 },
       })),
       meta: { ...saved.meta, viewport: { x: 9, y: 9, zoom: 1.2 } },
+    })
+    expect(
+      isLayoutOnlyDirty({
+        currentGraph: current,
+        savedGraphSnapshot: baselineOf(saved),
+        pendingStagingCount: 0,
+      }),
+    ).toBe(true)
+  })
+
+  // 前提：只把排版方式从 default 换成 horizontal，坐标不动。
+  // 期望：判定为仅布局脏，不占写锁。
+  it('只换排版方式 → true', () => {
+    const saved = sampleGraph({
+      meta: { ...sampleGraph().meta, layout: 'default' },
+    })
+    const current = sampleGraph({
+      meta: { ...saved.meta, layout: 'horizontal' },
     })
     expect(
       isLayoutOnlyDirty({
@@ -217,6 +235,7 @@ describe('stripLayoutForCompare', () => {
     const g = sampleGraph()
     const stripped = stripLayoutForCompare(g)
     expect(stripped.meta?.viewport).toBeUndefined()
+    expect(stripped.meta?.layout).toBeUndefined()
     expect(stripped.nodes.every((n) => n.position.x === 0 && n.position.y === 0)).toBe(true)
     expect(stripped.nodes[0].data).toEqual(g.nodes[0].data)
     expect(stripped.edges).toEqual(g.edges)

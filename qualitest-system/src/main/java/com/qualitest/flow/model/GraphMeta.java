@@ -30,7 +30,11 @@ public class GraphMeta {
     private GraphViewport viewport;
 
     /**
-     * 布局模式；固定 {@code manual}
+     * 这条流的排版方式，只记方式，不记连线拐点。
+     * default：从左往右分层并折行。
+     * horizontal：横向分层，不折行。
+     * horizontal-wrap：横向分层并折行。
+     * vertical：自上而下分层。
      */
     private String layout;
 

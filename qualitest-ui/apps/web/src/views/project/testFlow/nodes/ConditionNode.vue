@@ -24,8 +24,9 @@
             {{ formatBranchSummary(branch) }}
           </div>
         </div>
-        <!-- 行内出边锚点：始终可连；未绑 target 时命中即结束本流 -->
+        <!-- 横向：锚点贴在这一行右侧；未绑 target 时命中即结束本流 -->
         <Handle
+            v-if="!vertical"
             :id="`out-${branch.id}`"
             :position="Position.Right"
             class="handle handle--out handle--out-branch"
@@ -33,18 +34,34 @@
         />
       </div>
     </div>
+    <!-- 纵向：全部分支出边改贴卡片底边，从左到右均分 -->
+    <template v-if="vertical" #source-handles>
+      <div class="cond-node__bottom-handles">
+        <Handle
+            v-for="(branch, index) in branches"
+            :id="`out-${branch.id}`"
+            :key="branch.id"
+            :position="Position.Bottom"
+            :style="{ left: `${((index + 0.5) / branches.length) * 100}%` }"
+            class="handle handle--out handle--out-branch"
+            type="source"
+        />
+      </div>
+    </template>
   </BaseFlowNode>
 </template>
 
 <script setup>
 /**
  * condition 节点画布卡片。
- * 按 branches 渲染 IF/ELIF/ELSE 多行；每行右侧有出边锚点，未连线即命中后结束本流。
+ * 按 branches 渲染 IF/ELIF/ELSE 多行。
+ * 横向时每行右侧有出边锚点；纵向时出边锚点改贴卡片底边。未连线即命中后结束本流。
  */
 import { Handle, Position } from '@vue-flow/core'
 import { computed, ref } from 'vue'
 
 import { useConditionHandleLayout } from '../composables/useConditionHandleLayout'
+import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import {
   branchKindLabel,
   formatBranchSummary,
@@ -61,7 +78,9 @@ const props = defineProps({
 const baseNodeRef = ref(null)
 const rootEl = computed(() => baseNodeRef.value?.rootEl ?? null)
 
+const canvasStore = useFlowCanvasStore()
 const branches = computed(() => getConditionBranches(props.data))
+const vertical = computed(() => canvasStore.layoutAxis === 'vertical')
 
 useConditionHandleLayout(props.id, branches, rootEl)
 
@@ -116,6 +135,19 @@ function isMutedSummary(branch) {
   letter-spacing: 0.04em;
   text-align: center;
   box-sizing: border-box;
+}
+
+.cond-node__bottom-handles {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  pointer-events: none;
+
+  :deep(.handle) {
+    pointer-events: all;
+  }
 }
 
 .cond-node__row-expr {

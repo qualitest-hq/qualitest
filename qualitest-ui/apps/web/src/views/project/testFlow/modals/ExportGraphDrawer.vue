@@ -53,12 +53,14 @@ const exportBasename = computed(() => {
 })
 
 const exportText = computed(() => {
+  // 导出带上当前排版方式。边用画布上已经显示的，不含尚未灌入的待定边
   const graph = toGraphJson({
     nodes: store.nodes,
     edges: store.edges,
     viewport: store.viewport,
     runConfig: store.runConfig,
     flowOutputs: store.flowOutputs,
+    layoutPreset: store.layoutPresetId,
   })
   return JSON.stringify(graph, null, 2)
 })

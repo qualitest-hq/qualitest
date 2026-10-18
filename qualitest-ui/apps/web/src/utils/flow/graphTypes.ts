@@ -46,7 +46,12 @@ export const CURRENT_GRAPH_SCHEMA_VERSION = 1;
 export interface GraphMeta {
   schemaVersion?: number;
   viewport?: GraphViewport;
-  layout?: 'manual';
+  /**
+   * 这条流的排版方式，随图保存，不另存拐点。
+   * default 从左往右分层并折行；horizontal 横向不折行；
+   * horizontal-wrap 横向折行；vertical 自上而下。
+   */
+  layout?: string;
   startNodeId?: string;
   activeScenarioId?: string;
   scenarios?: GraphRunScenario[];

@@ -295,7 +295,8 @@ export function buildLoginGraphJson({
     edges: LOGIN_FLOW_EDGES.map((e) => ({ ...e })),
     meta: {
       schemaVersion: 1,
-      layout: 'manual',
+      // 预制登录流记为默认排版。坐标用上面写好的位置，这里不重排
+      layout: 'default',
       viewport: { x: 0, y: 0, zoom: 0.85 },
       flowOutputs: flowOutputs.length ? flowOutputs : [],
       activeScenarioId: scenarioId,

@@ -9,6 +9,7 @@ import { triggerTestFlowRun } from '@/api/project/testFlowRun';
 import { validateSnapshotResetEndpointStatic } from '@/utils/flow/snapshotPreRunValidate';
 
 import { toGraphJson } from '../graphAdapter';
+import { buildFlowGraphInput } from '../utils/stagingGraphInput';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
@@ -51,13 +52,8 @@ export function useFlowScenarioRun() {
       }
     }
 
-    const graphForRun = toGraphJson({
-      nodes: store.nodes,
-      edges: store.getEffectiveEdges(),
-      viewport: store.viewport,
-      runConfig: store.runConfig,
-      flowOutputs: store.flowOutputs,
-    });
+    // 运行前的图带上当前排版方式，避免随后保存的运行快照丢掉这项
+    const graphForRun = toGraphJson(buildFlowGraphInput(store));
     const snapshotCheck = validateSnapshotResetEndpointStatic(graphForRun, env);
     if (!snapshotCheck.ok) {
       ElMessage.error(snapshotCheck.message);

@@ -1,7 +1,8 @@
 /**
  * 测试流画布自动排版。
  * <p>
- * 有边：按拓扑从左到右分层，同层节点上下排列；层数过多时折成多行带。
+ * 有边：按拓扑从左到右分层；同层按父子重心排序，列内相对父节点纵向对齐；
+ * 列数按节点规模折行，避免拉成一行。回边不参与抬层。
  * 无边：按固定列数网格换行。
  * 落位间距按每个节点的宽高计算（实测尺寸优先，否则按类型估算），避免卡片互相重叠。
  * <p>
@@ -44,7 +45,7 @@ export const LAYOUT_BAND_GAP_Y = 80
 export const LAYOUT_WRAP_COLUMNS = 4
 /** 有边分层时，单行带至少保留的列数 */
 export const LAYOUT_MIN_LAYER_COLUMNS = 3
-/** 有边分层时，单行带最多列数 */
+/** 有边分层时，单行带最多列数，超出则折到下一行带 */
 export const LAYOUT_MAX_LAYER_COLUMNS = 5
 
 /** 找空位时横向/纵向最多试探次数，防止死循环 */
@@ -252,9 +253,8 @@ function layoutWrap(
 
 /**
  * 对单个连通分量做分层落位，并把坐标写入 result。
- * 列的 x：上一列最大宽度 + 水平空隙。
- * 同层节点的 y：上一节点高度 + 垂直空隙。
- * 行带高度：该带内各列堆叠高度的最大值。
+ * 同层先按父节点重心排序（出边顺序作次序），再相对上一列父节点中心纵向对齐后紧凑堆叠。
+ * 列的 x：上一列最大宽度 + 水平空隙。行带高度按对齐后的实际上下界计算。
  */
 function layoutComponent(
   component: string[],
@@ -264,7 +264,8 @@ function layoutComponent(
   result: Map<string, LayoutPosition>,
 ): number {
   const inComp = new Set(component)
-  const layerOf = assignLayers(component, outs, inComp)
+  const forward = forwardOuts(component, outs, inComp)
+  const layerOf = assignLayers(component, forward, inComp)
 
   let maxLayer = 0
   const byLayer = new Map<number, string[]>()
@@ -280,14 +281,12 @@ function layoutComponent(
   for (const list of byLayer.values()) {
     list.sort((a, b) => (orderIndex.get(a) ?? 0) - (orderIndex.get(b) ?? 0))
   }
+  const ins = invertOuts(component, outs)
+  orderLayersByBarycenter(byLayer, maxLayer, outs, ins, layerOf)
 
   const layerSpan = maxLayer + 1
   const cols = resolveLayerColumns(component.length, layerSpan)
   const bandCount = Math.ceil(layerSpan / cols)
-
-  const bandOriginYs: number[] = []
-  // 每个行带内各列的左缘 x（按该带内各列最大宽度累加）
-  const bandColXs: number[][] = []
 
   let cursorBandY = originY
   for (let band = 0; band < bandCount; band++) {
@@ -295,58 +294,209 @@ function layoutComponent(
     const layerEnd = Math.min(layerStart + cols - 1, maxLayer)
     const colCount = layerEnd - layerStart + 1
 
-    const colMaxW: number[] = []
-    const colStackH: number[] = []
-    for (let c = 0; c < colCount; c++) {
-      const layerNodes = byLayer.get(layerStart + c) ?? []
-      let maxW = NODE_W
-      let stackH = 0
-      layerNodes.forEach((id, row) => {
-        const s = sizes.get(id) ?? { w: NODE_W, h: NODE_MIN_H }
-        maxW = Math.max(maxW, s.w)
-        stackH += s.h
-        if (row < layerNodes.length - 1) stackH += LAYOUT_GAP_Y
-      })
-      if (layerNodes.length === 0) {
-        stackH = NODE_MIN_H
-      }
-      colMaxW.push(maxW)
-      colStackH.push(stackH)
-    }
-
     const colXs: number[] = []
     let x = LAYOUT_ORIGIN_X
     for (let c = 0; c < colCount; c++) {
       colXs.push(x)
-      x += colMaxW[c] + LAYOUT_GAP_X
+      const layerNodes = byLayer.get(layerStart + c) ?? []
+      let maxW = NODE_W
+      for (const id of layerNodes) {
+        maxW = Math.max(maxW, sizes.get(id)?.w ?? NODE_W)
+      }
+      x += maxW + LAYOUT_GAP_X
     }
-    bandColXs.push(colXs)
 
-    const height = Math.max(NODE_MIN_H, ...colStackH)
-    bandOriginYs.push(cursorBandY)
+    const placed: { id: string; y: number }[] = []
+    const centerY = new Map<string, number>()
+    let minY = Number.POSITIVE_INFINITY
+    let maxBottom = Number.NEGATIVE_INFINITY
+
+    for (let c = 0; c < colCount; c++) {
+      const layer = layerStart + c
+      const layerNodes = byLayer.get(layer) ?? []
+      const colX = colXs[c] ?? LAYOUT_ORIGIN_X
+      const stackH = columnStackHeight(layerNodes, sizes)
+      let top = cursorBandY
+      if (c > 0 && layerNodes.length > 0) {
+        const ideals: number[] = []
+        for (const id of layerNodes) {
+          const ideal = parentCenterMedian(id, layer - 1, ins, layerOf, centerY)
+          if (ideal != null) ideals.push(ideal)
+        }
+        if (ideals.length > 0) {
+          top = median(ideals) - stackH / 2
+        }
+      }
+      let y = top
+      if (layerNodes.length === 0) {
+        minY = Math.min(minY, cursorBandY)
+        maxBottom = Math.max(maxBottom, cursorBandY + NODE_MIN_H)
+      }
+      for (const id of layerNodes) {
+        const h = sizes.get(id)?.h ?? NODE_MIN_H
+        result.set(id, { x: colX, y })
+        centerY.set(id, y + h / 2)
+        placed.push({ id, y })
+        minY = Math.min(minY, y)
+        maxBottom = Math.max(maxBottom, y + h)
+        y += h + LAYOUT_GAP_Y
+      }
+    }
+
+    if (Number.isFinite(minY) && minY < cursorBandY) {
+      const shift = cursorBandY - minY
+      for (const p of placed) {
+        const pos = result.get(p.id)
+        if (!pos) continue
+        pos.y += shift
+        const h = sizes.get(p.id)?.h ?? NODE_MIN_H
+        centerY.set(p.id, pos.y + h / 2)
+      }
+      maxBottom += shift
+    }
+
+    const height = Math.max(NODE_MIN_H, (Number.isFinite(maxBottom) ? maxBottom : cursorBandY) - cursorBandY)
     cursorBandY += height + LAYOUT_BAND_GAP_Y
-  }
-
-  for (let layer = 0; layer <= maxLayer; layer++) {
-    const layerNodes = byLayer.get(layer) ?? []
-    const col = layer % cols
-    const band = Math.floor(layer / cols)
-    const bandOriginY = bandOriginYs[band]
-    const colX = bandColXs[band][col] ?? LAYOUT_ORIGIN_X
-    let y = bandOriginY
-    for (const id of layerNodes) {
-      const s = sizes.get(id) ?? { w: NODE_W, h: NODE_MIN_H }
-      result.set(id, { x: colX, y })
-      y += s.h + LAYOUT_GAP_Y
-    }
   }
 
   return cursorBandY - originY - LAYOUT_BAND_GAP_Y
 }
 
+/** 同层节点自上而下紧凑堆叠后的总高度（含节点间距） */
+function columnStackHeight(ids: string[], sizes: Map<string, LayoutSize>): number {
+  if (ids.length === 0) return NODE_MIN_H
+  let h = 0
+  ids.forEach((id, i) => {
+    h += sizes.get(id)?.h ?? NODE_MIN_H
+    if (i < ids.length - 1) h += LAYOUT_GAP_Y
+  })
+  return h
+}
+
 /**
- * 估算单行带应放几列，让整体更接近方正。
- * 层数 ≤ 1 时固定 1 列；否则取 ceil(√节点数)，夹在 MIN～MAX 之间，且不超过实际层数。
+ * 上一层父节点垂直中心的中位数。
+ * 没有落在指定层的父节点时返回 null，调用方改为顶对齐。
+ */
+function parentCenterMedian(
+  id: string,
+  parentLayer: number,
+  ins: Map<string, string[]>,
+  layerOf: Map<string, number>,
+  centerY: Map<string, number>,
+): number | null {
+  const centers: number[] = []
+  for (const p of ins.get(id) ?? []) {
+    if (layerOf.get(p) !== parentLayer) continue
+    const c = centerY.get(p)
+    if (c != null) centers.push(c)
+  }
+  if (centers.length === 0) return null
+  return median(centers)
+}
+
+/** 数值中位数；偶数个取中间两数平均 */
+function median(values: number[]): number {
+  const s = [...values].sort((a, b) => a - b)
+  const n = s.length
+  if (n === 0) return 0
+  if (n % 2 === 1) return s[(n - 1) / 2]
+  return (s[n / 2 - 1] + s[n / 2]) / 2
+}
+
+/**
+ * 同层重心排序：先按上一层父节点序号的中位数从左到右（这里是从上到下），
+ * 重心相同时按父节点出边顺序；再按下一层子节点重心回扫一次。
+ * 重心相同则保持当前相对顺序。
+ */
+function orderLayersByBarycenter(
+  byLayer: Map<number, string[]>,
+  maxLayer: number,
+  outs: Map<string, string[]>,
+  ins: Map<string, string[]>,
+  layerOf: Map<string, number>,
+): void {
+  const rank = new Map<string, number>()
+  const refresh = () => {
+    for (let layer = 0; layer <= maxLayer; layer++) {
+      const list = byLayer.get(layer) ?? []
+      list.forEach((id, i) => rank.set(id, i))
+    }
+  }
+  refresh()
+
+  const bary = (ids: string[], self: string): number => {
+    const rs: number[] = []
+    for (const id of ids) {
+      const r = rank.get(id)
+      if (r != null) rs.push(r)
+    }
+    if (rs.length === 0) return rank.get(self) ?? 0
+    return median(rs)
+  }
+
+  const onLayer = (pool: string[] | undefined, layer: number): string[] =>
+    (pool ?? []).filter((n) => layerOf.get(n) === layer)
+
+  for (let layer = 1; layer <= maxLayer; layer++) {
+    const list = byLayer.get(layer)
+    if (!list || list.length < 2) continue
+    const cur = new Map(list.map((id, i) => [id, i]))
+    list.sort((a, b) => {
+      const pa = onLayer(ins.get(a), layer - 1)
+      const pb = onLayer(ins.get(b), layer - 1)
+      const ba = bary(pa, a)
+      const bb = bary(pb, b)
+      if (ba !== bb) return ba - bb
+      const ea = edgeOrder(a, pa, outs)
+      const eb = edgeOrder(b, pb, outs)
+      if (ea !== eb) return ea - eb
+      return (cur.get(a) ?? 0) - (cur.get(b) ?? 0)
+    })
+    refresh()
+  }
+
+  for (let layer = maxLayer - 1; layer >= 0; layer--) {
+    const list = byLayer.get(layer)
+    if (!list || list.length < 2) continue
+    const cur = new Map(list.map((id, i) => [id, i]))
+    list.sort((a, b) => {
+      const ca = onLayer(outs.get(a), layer + 1)
+      const cb = onLayer(outs.get(b), layer + 1)
+      const ba = bary(ca, a)
+      const bb = bary(cb, b)
+      if (ba !== bb) return ba - bb
+      return (cur.get(a) ?? 0) - (cur.get(b) ?? 0)
+    })
+    refresh()
+  }
+}
+
+/** 节点在若干父节点出边列表中的最靠前序号；没有则视为最后 */
+function edgeOrder(id: string, parents: string[], outs: Map<string, string[]>): number {
+  let best = Number.POSITIVE_INFINITY
+  for (const p of parents) {
+    const idx = (outs.get(p) ?? []).indexOf(id)
+    if (idx >= 0 && idx < best) best = idx
+  }
+  return best
+}
+
+/** 由出边表得到入边表（仅分量内节点） */
+function invertOuts(component: string[], outs: Map<string, string[]>): Map<string, string[]> {
+  const ins = new Map<string, string[]>()
+  for (const id of component) ins.set(id, [])
+  for (const [u, vs] of outs) {
+    if (!ins.has(u)) continue
+    for (const v of vs) {
+      ins.get(v)?.push(u)
+    }
+  }
+  return ins
+}
+
+/**
+ * 估算单行带应放几列，让整图更接近方块，而不是拉成一行。
+ * 层数 ≤ 1 时 1 列；否则取 ceil(√节点数)，夹在最小列数与最大列数之间，且不超过实际层数。
  */
 function resolveLayerColumns(nodeCount: number, layerSpan: number): number {
   if (layerSpan <= 1) return 1
@@ -359,8 +509,38 @@ function resolveLayerColumns(nodeCount: number, layerSpan: number): number {
 }
 
 /**
- * 在连通分量内用 BFS 分层。
+ * 去掉回边后的出边表。
+ * 深度优先时指向仍在栈上的节点视为回边，该边不参与分层，避免环把节点层层拉开。
+ */
+function forwardOuts(
+  component: string[],
+  outs: Map<string, string[]>,
+  inComp: Set<string>,
+): Map<string, string[]> {
+  const forward = new Map<string, string[]>()
+  for (const id of component) forward.set(id, [])
+  const color = new Map<string, number>()
+  const dfs = (u: string) => {
+    color.set(u, 1)
+    for (const v of outs.get(u) ?? []) {
+      if (!inComp.has(v)) continue
+      const c = color.get(v) ?? 0
+      if (c === 1) continue
+      forward.get(u)!.push(v)
+      if (c === 0) dfs(v)
+    }
+    color.set(u, 2)
+  }
+  for (const id of component) {
+    if ((color.get(id) ?? 0) === 0) dfs(id)
+  }
+  return forward
+}
+
+/**
+ * 在连通分量内用 BFS 分层（只沿非回边）。
  * 无入边为第 0 层；沿出边层号 +1；多父时取较大层号。
+ * 层号达到节点数时不再抬高，防止残余环无限加深。
  */
 function assignLayers(
   component: string[],
@@ -374,6 +554,7 @@ function assignLayers(
   }
   if (roots.length === 0 && component.length > 0) roots.push(component[0])
 
+  const limit = component.length
   const q: string[] = [...roots]
   for (const r of roots) layerOf.set(r, 0)
   while (q.length) {
@@ -382,6 +563,7 @@ function assignLayers(
     for (const v of outs.get(u) ?? []) {
       if (!inComp.has(v)) continue
       const next = lu + 1
+      if (next >= limit) continue
       const existing = layerOf.get(v)
       if (existing == null || next > existing) {
         layerOf.set(v, next)

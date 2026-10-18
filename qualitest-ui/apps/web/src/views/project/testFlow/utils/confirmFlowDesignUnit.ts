@@ -24,6 +24,8 @@ export interface ConfirmFlowDesignUnitInput {
   runConfig: GraphScenarioConfig;
   flowOutputs: GraphFlowOutput[];
   viewport: GraphViewport;
+  /** 当前排版方式，随确认后的图一起写回 */
+  layoutPreset?: string | null;
   testProjectId: string;
   patch: FlowDesignPatch;
   unitId: string;
@@ -65,6 +67,7 @@ export async function requestConfirmFlowDesignUnit(
     viewport: input.viewport,
     runConfig: input.runConfig,
     flowOutputs: input.flowOutputs,
+    layoutPreset: input.layoutPreset,
     stagingFilter: input.stagingFilter,
   });
 

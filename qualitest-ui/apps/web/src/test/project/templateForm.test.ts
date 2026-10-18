@@ -170,7 +170,7 @@ describe('buildLoginGraphJson', () => {
       ])
     )
     expect(graph.edges.length).toBe(4)
-    expect(graph.meta.layout).toBe('manual')
+    expect(graph.meta.layout).toBe('default')
     expect(graph.meta.scenarios).toHaveLength(1)
     expect(graph.meta.flowOutputs).toEqual([{ name: 'adminAuth.token' }])
   })

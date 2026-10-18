@@ -504,12 +504,14 @@ watch(
       staleWarning.value = ''
       return
     }
+    // 对比时带上当前排版方式。边用画布上已经显示的
     const graph = toGraphJson({
       nodes: canvasStore.nodes,
       edges: canvasStore.edges,
       viewport: canvasStore.viewport,
       runConfig: canvasStore.runConfig,
       flowOutputs: canvasStore.flowOutputs,
+      layoutPreset: canvasStore.layoutPresetId,
     })
     const stale = isGraphStructurallyStale(r.graphJsonSnapshot, graph)
     staleWarning.value = stale ? '图已变更，回放高亮可能错位' : ''

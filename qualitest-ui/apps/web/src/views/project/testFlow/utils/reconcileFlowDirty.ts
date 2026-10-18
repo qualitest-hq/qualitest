@@ -7,6 +7,7 @@
 import type { GraphJson } from '@/utils/flow/graphTypes';
 
 import { toGraphJson } from '../graphAdapter';
+import { buildFlowGraphInput } from './stagingGraphInput';
 import { graphJsonToSnapshotString } from './graphFingerprint';
 import type { useFlowCanvasStore } from '../stores/flowCanvasStore';
 
@@ -51,20 +52,15 @@ export function snapshotStringWithoutViewport(graph: GraphJson | Record<string, 
 }
 
 /**
- * 从画布 store 生成脏检查用快照字符串（不含视口）。
- * 先确保边已灌入，再序列化节点、边、运行配置与流输出。
+ * 从画布生成未保存比较用的快照（不含视口）。
+ * 先确保边已灌入，再序列化节点、边、运行配置、流输出和排版方式。
+ * 换排版或挪坐标都会和基线不同，从而显示未保存。
  *
  * @param store 画布 store
  */
 export async function snapshotStringFromStore(store: FlowCanvasStore): Promise<string> {
   await store.ensureEdgesHydrated();
-  const graph = toGraphJson({
-    nodes: store.nodes,
-    edges: store.getEffectiveEdges(),
-    viewport: store.viewport,
-    runConfig: store.runConfig,
-    flowOutputs: store.flowOutputs,
-  });
+  const graph = toGraphJson(buildFlowGraphInput(store));
   return snapshotStringWithoutViewport(graph);
 }
 

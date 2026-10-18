@@ -1,7 +1,7 @@
 /**
  * 画布写锁管理。
  * <p>
- * 画布有内容改动（不只是挪坐标）时占住服务端写锁，并定时续期；
+ * 画布有内容改动（不只是挪坐标或换排版方式）时占住服务端写锁，并定时续期；
  * 改动已保存、只剩排版改动、切换测试流、离开画布时释放写锁。
  * 本页持锁期间，其它端（如 MCP）无法写入这张图。
  * <p>
@@ -117,7 +117,7 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
 
   /**
    * 当前是否需要持锁。
-   * 画布未保存且改动不只是坐标时需要；有未确认的 AI 待定改动也算需要。
+   * 画布未保存且改动不只是坐标或排版方式时需要；有未确认的 AI 待定改动也算需要。
    */
   function needsLongLease(): boolean {
     if (!store.dirty) return false
@@ -370,9 +370,10 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
     { immediate: true },
   )
 
-  // 节点、边、场景、流输出有深层变化且画布未保存时，重新判断是否只是排版改动
+  // 节点、边、场景、流输出或排版方式变化且画布未保存时，重新判断要不要占写锁。
+  // 只换排版方式或只挪坐标时放开写锁，外部可以继续写这张图。
   watch(
-    () => [store.nodes, store.edges, store.runConfig, store.flowOutputs] as const,
+    () => [store.nodes, store.edges, store.runConfig, store.flowOutputs, store.layoutPresetId] as const,
     () => {
       if (!store.dirty) return
       publishIntent()

@@ -21,7 +21,8 @@ import java.util.Set;
 /**
  * 测试流画布自动排版。
  * <p>
- * 有边：按拓扑从左到右分层，同层节点从上到下排列；层数过多时按列折成多行带。
+ * 有边：按拓扑从左到右分层；同层按父子重心排序，列内相对父节点纵向对齐。
+ * 列数按节点规模折行，避免拉成一行。回边不参与抬层。
  * 无边：按固定列数网格换行。
  * 落位间距按每个节点的占位宽高计算（按类型估算：条件节点更宽，并随分支数增高），避免卡片互相重叠。
  * <p>
@@ -68,7 +69,7 @@ public final class FlowGraphLayeredLayout {
     public static final int WRAP_COLUMNS = 4;
     /** 有边分层时，单行带至少保留的列数 */
     public static final int MIN_LAYER_COLUMNS = 3;
-    /** 有边分层时，单行带最多列数 */
+    /** 有边分层时，单行带最多列数，超出则折到下一行带 */
     public static final int MAX_LAYER_COLUMNS = 5;
 
     private FlowGraphLayeredLayout() {
@@ -374,7 +375,8 @@ public final class FlowGraphLayeredLayout {
 
     /**
      * 对单个连通分量做分层落位。
-     * 列的 x：上一列最大宽度 + 水平空隙；同层 y：上一节点高度 + 垂直空隙。
+     * 同层先按父节点重心排序（出边顺序作次序），再相对上一列父节点中心纵向对齐后紧凑堆叠。
+     * 列的 x：上一列最大宽度 + 水平空隙。行带高度按对齐后的实际上下界计算。
      */
     private static double layoutComponent(
             Map<String, GraphNode> byId,
@@ -383,7 +385,8 @@ public final class FlowGraphLayeredLayout {
             double originY,
             Map<String, Size> sizes) {
         Set<String> inComp = new HashSet<>(component);
-        Map<String, Integer> layerOf = assignLayers(component, outs, inComp);
+        Map<String, List<String>> forward = forwardOuts(component, outs, inComp);
+        Map<String, Integer> layerOf = assignLayers(component, forward, inComp);
 
         int maxLayer = 0;
         Map<Integer, List<String>> byLayer = new HashMap<>();
@@ -401,13 +404,12 @@ public final class FlowGraphLayeredLayout {
                     orderIndex.getOrDefault(a, 0),
                     orderIndex.getOrDefault(b, 0)));
         }
+        Map<String, List<String>> ins = invertOuts(component, outs);
+        orderLayersByBarycenter(byLayer, maxLayer, outs, ins, layerOf);
 
         int layerSpan = maxLayer + 1;
         int cols = resolveLayerColumns(component.size(), layerSpan);
         int bandCount = (layerSpan + cols - 1) / cols;
-
-        double[] bandOriginYs = new double[bandCount];
-        double[][] bandColXs = new double[bandCount][];
 
         double cursorBandY = originY;
         for (int band = 0; band < bandCount; band++) {
@@ -415,65 +417,276 @@ public final class FlowGraphLayeredLayout {
             int layerEnd = Math.min(layerStart + cols - 1, maxLayer);
             int colCount = layerEnd - layerStart + 1;
 
-            double[] colMaxW = new double[colCount];
-            double[] colStackH = new double[colCount];
-            for (int c = 0; c < colCount; c++) {
-                List<String> layerNodes = byLayer.getOrDefault(layerStart + c, List.of());
-                double maxW = NODE_W;
-                double stackH = 0;
-                for (int row = 0; row < layerNodes.size(); row++) {
-                    Size s = sizes.getOrDefault(layerNodes.get(row), Size.of(NODE_W, NODE_MIN_H));
-                    maxW = Math.max(maxW, s.w);
-                    stackH += s.h;
-                    if (row < layerNodes.size() - 1) {
-                        stackH += GAP_Y;
-                    }
-                }
-                if (layerNodes.isEmpty()) {
-                    stackH = NODE_MIN_H;
-                }
-                colMaxW[c] = maxW;
-                colStackH[c] = stackH;
-            }
-
             double[] colXs = new double[colCount];
             double x = ORIGIN_X;
             for (int c = 0; c < colCount; c++) {
                 colXs[c] = x;
-                x += colMaxW[c] + GAP_X;
-            }
-            bandColXs[band] = colXs;
-
-            double height = NODE_MIN_H;
-            for (double h : colStackH) {
-                height = Math.max(height, h);
-            }
-            bandOriginYs[band] = cursorBandY;
-            cursorBandY += height + BAND_GAP_Y;
-        }
-
-        for (int layer = 0; layer <= maxLayer; layer++) {
-            List<String> layerNodes = byLayer.getOrDefault(layer, List.of());
-            int col = layer % cols;
-            int band = layer / cols;
-            double bandOriginY = bandOriginYs[band];
-            double colX = bandColXs[band].length > col ? bandColXs[band][col] : ORIGIN_X;
-            double y = bandOriginY;
-            for (String id : layerNodes) {
-                GraphNode node = byId.get(id);
-                Size s = sizes.getOrDefault(id, Size.of(NODE_W, NODE_MIN_H));
-                if (node != null) {
-                    node.setPosition(pos(colX, y));
+                List<String> layerNodes = byLayer.getOrDefault(layerStart + c, List.of());
+                double maxW = NODE_W;
+                for (String id : layerNodes) {
+                    maxW = Math.max(maxW, sizes.getOrDefault(id, Size.of(NODE_W, NODE_MIN_H)).w);
                 }
-                y += s.h + GAP_Y;
+                x += maxW + GAP_X;
             }
+
+            List<String> placed = new ArrayList<>();
+            Map<String, Double> centerY = new HashMap<>();
+            double minY = Double.POSITIVE_INFINITY;
+            double maxBottom = Double.NEGATIVE_INFINITY;
+
+            for (int c = 0; c < colCount; c++) {
+                int layer = layerStart + c;
+                List<String> layerNodes = byLayer.getOrDefault(layer, List.of());
+                double colX = colXs[c];
+                double stackH = columnStackHeight(layerNodes, sizes);
+                double top = cursorBandY;
+                if (c > 0 && !layerNodes.isEmpty()) {
+                    List<Double> ideals = new ArrayList<>();
+                    for (String id : layerNodes) {
+                        Double ideal = parentCenterMedian(id, layer - 1, ins, layerOf, centerY);
+                        if (ideal != null) {
+                            ideals.add(ideal);
+                        }
+                    }
+                    if (!ideals.isEmpty()) {
+                        top = median(ideals) - stackH / 2.0;
+                    }
+                }
+                double y = top;
+                if (layerNodes.isEmpty()) {
+                    minY = Math.min(minY, cursorBandY);
+                    maxBottom = Math.max(maxBottom, cursorBandY + NODE_MIN_H);
+                }
+                for (String id : layerNodes) {
+                    Size s = sizes.getOrDefault(id, Size.of(NODE_W, NODE_MIN_H));
+                    GraphNode node = byId.get(id);
+                    if (node != null) {
+                        node.setPosition(pos(colX, y));
+                    }
+                    centerY.put(id, y + s.h / 2.0);
+                    placed.add(id);
+                    minY = Math.min(minY, y);
+                    maxBottom = Math.max(maxBottom, y + s.h);
+                    y += s.h + GAP_Y;
+                }
+            }
+
+            if (minY < cursorBandY && minY != Double.POSITIVE_INFINITY) {
+                double shift = cursorBandY - minY;
+                for (String id : placed) {
+                    GraphNode node = byId.get(id);
+                    if (node == null || node.getPosition() == null) {
+                        continue;
+                    }
+                    double ny = node.getPosition().getY() + shift;
+                    node.setPosition(pos(node.getPosition().getX(), ny));
+                    Size s = sizes.getOrDefault(id, Size.of(NODE_W, NODE_MIN_H));
+                    centerY.put(id, ny + s.h / 2.0);
+                }
+                maxBottom += shift;
+            }
+
+            double height = Math.max(NODE_MIN_H, (maxBottom == Double.NEGATIVE_INFINITY ? cursorBandY : maxBottom) - cursorBandY);
+            cursorBandY += height + BAND_GAP_Y;
         }
 
         return cursorBandY - originY - BAND_GAP_Y;
     }
 
+    /** 同层节点自上而下紧凑堆叠后的总高度（含节点间距） */
+    private static double columnStackHeight(List<String> ids, Map<String, Size> sizes) {
+        if (ids == null || ids.isEmpty()) {
+            return NODE_MIN_H;
+        }
+        double h = 0;
+        for (int i = 0; i < ids.size(); i++) {
+            h += sizes.getOrDefault(ids.get(i), Size.of(NODE_W, NODE_MIN_H)).h;
+            if (i < ids.size() - 1) {
+                h += GAP_Y;
+            }
+        }
+        return h;
+    }
+
     /**
-     * 估算单行带应放几列，让整体更接近方正。
+     * 上一层父节点垂直中心的中位数。
+     * 没有落在指定层的父节点时返回 null，调用方改为顶对齐。
+     */
+    private static Double parentCenterMedian(
+            String id,
+            int parentLayer,
+            Map<String, List<String>> ins,
+            Map<String, Integer> layerOf,
+            Map<String, Double> centerY) {
+        List<Double> centers = new ArrayList<>();
+        for (String p : ins.getOrDefault(id, List.of())) {
+            if (layerOf.getOrDefault(p, -1) != parentLayer) {
+                continue;
+            }
+            Double c = centerY.get(p);
+            if (c != null) {
+                centers.add(c);
+            }
+        }
+        if (centers.isEmpty()) {
+            return null;
+        }
+        return median(centers);
+    }
+
+    /** 数值中位数；偶数个取中间两数平均 */
+    private static double median(List<Double> values) {
+        if (values == null || values.isEmpty()) {
+            return 0;
+        }
+        List<Double> sorted = new ArrayList<>(values);
+        sorted.sort(Double::compare);
+        int n = sorted.size();
+        if (n % 2 == 1) {
+            return sorted.get(n / 2);
+        }
+        return (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2.0;
+    }
+
+    /**
+     * 同层重心排序：先按上一层父节点序号的中位数从上到下，
+     * 重心相同时按父节点出边顺序；再按下一层子节点重心回扫一次。
+     * 重心相同则保持当前相对顺序。
+     */
+    private static void orderLayersByBarycenter(
+            Map<Integer, List<String>> byLayer,
+            int maxLayer,
+            Map<String, List<String>> outs,
+            Map<String, List<String>> ins,
+            Map<String, Integer> layerOf) {
+        Map<String, Integer> rank = new HashMap<>();
+        Runnable refresh = () -> {
+            rank.clear();
+            for (int layer = 0; layer <= maxLayer; layer++) {
+                List<String> list = byLayer.getOrDefault(layer, List.of());
+                for (int i = 0; i < list.size(); i++) {
+                    rank.put(list.get(i), i);
+                }
+            }
+        };
+        refresh.run();
+
+        for (int layer = 1; layer <= maxLayer; layer++) {
+            List<String> list = byLayer.get(layer);
+            if (list == null || list.size() < 2) {
+                continue;
+            }
+            Map<String, Integer> cur = new HashMap<>();
+            for (int i = 0; i < list.size(); i++) {
+                cur.put(list.get(i), i);
+            }
+            final int parentLayer = layer - 1;
+            list.sort((a, b) -> {
+                List<String> pa = onLayer(ins.get(a), parentLayer, layerOf);
+                List<String> pb = onLayer(ins.get(b), parentLayer, layerOf);
+                double ba = bary(pa, a, rank);
+                double bb = bary(pb, b, rank);
+                if (ba != bb) {
+                    return Double.compare(ba, bb);
+                }
+                int ea = edgeOrder(a, pa, outs);
+                int eb = edgeOrder(b, pb, outs);
+                if (ea != eb) {
+                    return Integer.compare(ea, eb);
+                }
+                return Integer.compare(cur.getOrDefault(a, 0), cur.getOrDefault(b, 0));
+            });
+            refresh.run();
+        }
+
+        for (int layer = maxLayer - 1; layer >= 0; layer--) {
+            List<String> list = byLayer.get(layer);
+            if (list == null || list.size() < 2) {
+                continue;
+            }
+            Map<String, Integer> cur = new HashMap<>();
+            for (int i = 0; i < list.size(); i++) {
+                cur.put(list.get(i), i);
+            }
+            final int childLayer = layer + 1;
+            list.sort((a, b) -> {
+                List<String> ca = onLayer(outs.get(a), childLayer, layerOf);
+                List<String> cb = onLayer(outs.get(b), childLayer, layerOf);
+                double ba = bary(ca, a, rank);
+                double bb = bary(cb, b, rank);
+                if (ba != bb) {
+                    return Double.compare(ba, bb);
+                }
+                return Integer.compare(cur.getOrDefault(a, 0), cur.getOrDefault(b, 0));
+            });
+            refresh.run();
+        }
+    }
+
+    /** 只保留落在指定层的邻居 */
+    private static List<String> onLayer(List<String> pool, int layer, Map<String, Integer> layerOf) {
+        List<String> hit = new ArrayList<>();
+        if (pool == null) {
+            return hit;
+        }
+        for (String n : pool) {
+            if (layerOf.getOrDefault(n, -1) == layer) {
+                hit.add(n);
+            }
+        }
+        return hit;
+    }
+
+    /** 邻居在各层中的序号中位数；没有邻居时用自身当前序号 */
+    private static double bary(List<String> ids, String self, Map<String, Integer> rank) {
+        List<Double> rs = new ArrayList<>();
+        for (String id : ids) {
+            Integer r = rank.get(id);
+            if (r != null) {
+                rs.add(r.doubleValue());
+            }
+        }
+        if (rs.isEmpty()) {
+            return rank.getOrDefault(self, 0);
+        }
+        return median(rs);
+    }
+
+    /** 节点在若干父节点出边列表中的最靠前序号；没有则视为最后 */
+    private static int edgeOrder(String id, List<String> parents, Map<String, List<String>> outs) {
+        int best = Integer.MAX_VALUE;
+        for (String p : parents) {
+            int idx = outs.getOrDefault(p, List.of()).indexOf(id);
+            if (idx >= 0 && idx < best) {
+                best = idx;
+            }
+        }
+        return best;
+    }
+
+    /** 由出边表得到入边表（仅分量内节点） */
+    private static Map<String, List<String>> invertOuts(List<String> component, Map<String, List<String>> outs) {
+        Map<String, List<String>> ins = new HashMap<>();
+        for (String id : component) {
+            ins.put(id, new ArrayList<>());
+        }
+        for (Map.Entry<String, List<String>> e : outs.entrySet()) {
+            if (!ins.containsKey(e.getKey())) {
+                continue;
+            }
+            for (String v : e.getValue()) {
+                List<String> parents = ins.get(v);
+                if (parents != null) {
+                    parents.add(e.getKey());
+                }
+            }
+        }
+        return ins;
+    }
+
+    /**
+     * 估算单行带应放几列，让整图更接近方块，而不是拉成一行。
+     * 层数不超过 1 时返回 1；否则取 ceil(√节点数)，夹在最小列数与最大列数之间，且不超过实际层数。
      */
     static int resolveLayerColumns(int nodeCount, int layerSpan) {
         if (layerSpan <= 1) {
@@ -484,6 +697,55 @@ public final class FlowGraphLayeredLayout {
         return Math.min(cols, layerSpan);
     }
 
+    /**
+     * 去掉回边后的出边表。
+     * 深度优先时指向仍在栈上的节点视为回边，该边不参与分层，避免环把节点层层拉开。
+     */
+    private static Map<String, List<String>> forwardOuts(
+            List<String> component,
+            Map<String, List<String>> outs,
+            Set<String> inComp) {
+        Map<String, List<String>> forward = new HashMap<>();
+        for (String id : component) {
+            forward.put(id, new ArrayList<>());
+        }
+        Map<String, Integer> color = new HashMap<>();
+        for (String id : component) {
+            if (color.getOrDefault(id, 0) == 0) {
+                dfsForward(id, outs, inComp, forward, color);
+            }
+        }
+        return forward;
+    }
+
+    private static void dfsForward(
+            String u,
+            Map<String, List<String>> outs,
+            Set<String> inComp,
+            Map<String, List<String>> forward,
+            Map<String, Integer> color) {
+        color.put(u, 1);
+        for (String v : outs.getOrDefault(u, List.of())) {
+            if (!inComp.contains(v)) {
+                continue;
+            }
+            int c = color.getOrDefault(v, 0);
+            if (c == 1) {
+                continue;
+            }
+            forward.get(u).add(v);
+            if (c == 0) {
+                dfsForward(v, outs, inComp, forward, color);
+            }
+        }
+        color.put(u, 2);
+    }
+
+    /**
+     * 在连通分量内用 BFS 分层（只沿非回边）。
+     * 无入边为第 0 层；沿出边层号 +1；多父时取较大层号。
+     * 层号达到节点数时不再抬高，防止残余环无限加深。
+     */
     private static Map<String, Integer> assignLayers(
             List<String> component,
             Map<String, List<String>> outs,
@@ -499,6 +761,7 @@ public final class FlowGraphLayeredLayout {
             roots.add(component.get(0));
         }
 
+        int limit = component.size();
         Queue<String> q = new ArrayDeque<>();
         for (String r : roots) {
             layerOf.put(r, 0);
@@ -512,6 +775,9 @@ public final class FlowGraphLayeredLayout {
                     continue;
                 }
                 int next = lu + 1;
+                if (next >= limit) {
+                    continue;
+                }
                 Integer existing = layerOf.get(v);
                 if (existing == null || next > existing) {
                     layerOf.put(v, next);

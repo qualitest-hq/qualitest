@@ -28,7 +28,7 @@ import {
   mergeExternalGraphPatches,
 } from '../utils/mergeExternalGraphPatches'
 import { isLayoutOnlyDirtyFromStore } from '../utils/isLayoutOnlyDirty'
-import { applyNodePositions, captureNodePositions } from '../utils/nodePositions'
+import { holdCanvasLayout, reapplyHeldCanvasLayout } from '../utils/nodePositions'
 import { refreshSavedBaseline } from '../utils/reconcileFlowDirty'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
@@ -198,25 +198,19 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
       return
     }
 
-    // 本地只有排版改动：合入前记下节点坐标和视口，合入后套回
-    const keepLocalLayout = layoutOnly
-    const localPositions = keepLocalLayout ? captureNodePositions(store.nodes) : null
-    const localViewport = keepLocalLayout ? { ...store.viewport } : null
+    // 本地只有排版改动：合入前记下坐标、视口和排版方式，合入后套回
+    const heldLayout = layoutOnly ? holdCanvasLayout(store) : null
 
     /**
-     * 本地只有排版改动时，把合入前的坐标和视口套回画布，并标记为未保存。
-     * refreshBaseline 为 true 时，先把服务端最新图记为已保存基线，再套回坐标。
+     * 本地只有排版改动时，把合入前的排版套回画布，并标记为未保存。
+     * refreshBaseline 为 true 时，先把服务端最新图记为已保存基线，再套回。
      */
     async function restoreLocalLayoutIfNeeded(refreshBaseline: boolean) {
-      if (!keepLocalLayout || !localPositions) return
+      if (!heldLayout) return
       if (refreshBaseline) {
         await refreshSavedBaseline(store)
       }
-      applyNodePositions(store, localPositions)
-      if (localViewport) {
-        store.viewport = localViewport
-      }
-      store.markDirty()
+      reapplyHeldCanvasLayout(store, heldLayout)
     }
 
     const before = fingerprintNodes(store.nodes as Array<{ id?: string; data?: unknown; position?: unknown }>)

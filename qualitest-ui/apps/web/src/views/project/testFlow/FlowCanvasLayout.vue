@@ -78,17 +78,46 @@
         <button :disabled="!canUndo" class="btn btn--ghost" title="撤销" type="button" @click="undo">
           ↩ 撤销
         </button>
-        <el-tooltip content="按节点连线自动分层排列，层过多时折行兼顾宽高" placement="bottom">
+        <div
+            ref="tidySplitEl"
+            :class="{ 'is-open': tidyMenuOpen, 'is-disabled': !canEditFlow || isTemplateCanvas }"
+            class="tidy-split"
+        >
+          <el-tooltip :content="tidyMainTip" :disabled="tidyMenuOpen" placement="bottom">
+            <button
+                :disabled="!canEditFlow || isTemplateCanvas"
+                class="tidy-split__main"
+                type="button"
+                @click="runTidy()"
+            >
+              {{ tidyLabel }}
+            </button>
+          </el-tooltip>
           <button
+              :aria-expanded="tidyMenuOpen"
               :disabled="!canEditFlow || isTemplateCanvas"
-              class="btn btn--ghost"
-              title="一键排版：重算全部节点坐标并适应视图"
+              aria-haspopup="menu"
+              aria-label="选择排版方式"
+              class="tidy-split__more"
               type="button"
-              @click="tidyLayout"
+              @click.stop="tidyMenuOpen = !tidyMenuOpen"
           >
-            一键排版
+            <span aria-hidden="true" class="tidy-split__caret"/>
           </button>
-        </el-tooltip>
+          <div v-if="tidyMenuOpen" class="tidy-split__menu" role="menu">
+            <button
+                v-for="preset in FLOW_LAYOUT_PRESETS"
+                :key="preset.id"
+                :class="{ 'is-active': preset.id === layoutPresetId }"
+                class="tidy-split__item"
+                role="menuitem"
+                type="button"
+                @click="pickTidyPreset(preset.id)"
+            >
+              {{ preset.label }}
+            </button>
+          </div>
+        </div>
         <button class="btn" type="button" @click="importModalVisible = true">导入</button>
         <button class="btn" type="button" @click="exportDrawerVisible = true">导出</button>
         <button
@@ -276,7 +305,7 @@
 import { Background } from '@vue-flow/background'
 import { VueFlow } from '@vue-flow/core'
 import { MiniMap } from '@vue-flow/minimap'
-import { markRaw, nextTick, onBeforeUnmount, reactive, ref, watch, getCurrentInstance, computed } from 'vue'
+import { markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, getCurrentInstance, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
@@ -323,6 +352,7 @@ import { useAiStagingCanvas } from './composables/useAiStagingCanvas'
 import { useAiStagingConfirm } from './composables/useAiStagingConfirm'
 import { useAiStagingScenario } from './composables/useAiStagingScenario'
 import { useFlowTidyLayout } from './composables/useFlowTidyLayout'
+import { FLOW_LAYOUT_PRESETS, presetById } from './utils/flowLayoutPreset'
 import { useFlowViewport } from './composables/useFlowViewport'
 import { useAiStagingStore } from './stores/aiStagingStore'
 import { useFlowCanvasStore } from './stores/flowCanvasStore'
@@ -429,8 +459,35 @@ async function handleResumeConfirmAllReady() {
 const { onConnect, onEdgesChange } = useFlowConnect()
 const { refreshAllNodeInternals } = useFlowNodeInternalsRefresh()
 const { canUndo, undo, pushHistory, commitHistoryResetIfPending } = useFlowHistory()
-/** 顶栏一键排版：按连线分层重算全部节点坐标，并适应视图 */
-const { tidyLayout } = useFlowTidyLayout()
+/**
+ * 顶栏排版控件，外观是一颗按钮。
+ * 左半显示这条流的排版名称，点击就按该方式重排；右半箭头展开四种方式。
+ * 模板画布和无编辑权限时整颗禁用。
+ */
+const tidySplitEl = ref(null)
+const tidyMenuOpen = ref(false)
+const { tidyLayout, layoutPresetId } = useFlowTidyLayout()
+const tidyLabel = computed(() => presetById(layoutPresetId.value).label)
+const tidyMainTip = computed(() => `按「${tidyLabel.value}」重算全部节点坐标并适应视图`)
+
+function runTidy() {
+  tidyMenuOpen.value = false
+  void tidyLayout()
+}
+
+function pickTidyPreset(id) {
+  tidyMenuOpen.value = false
+  void tidyLayout(id)
+}
+
+function onTidyMenuPointerDown(ev) {
+  if (!tidyMenuOpen.value) return
+  const root = tidySplitEl.value
+  if (root && ev.target instanceof Node && root.contains(ev.target)) return
+  tidyMenuOpen.value = false
+}
+
+onMounted(() => document.addEventListener('pointerdown', onTidyMenuPointerDown))
 /** 画布视口控制器，供节点初始化后与 Staging 首次进入时恢复/聚焦视角 */
 const viewport = useFlowViewport()
 useAiStagingCanvas()
@@ -438,6 +495,10 @@ useAiStagingScenario()
 
 /** 用户主动拖移节点时为 true，避免初始化阶段误记入历史 */
 const nodeDragActive = ref(false)
+/** 本次拖动各节点的起点；位移超过阈值才清拐点、记撤销 */
+const dragOrigins = new Map()
+const DRAG_MOVE_THRESHOLD = 3
+let dragMoved = false
 const { handleDrop, handleDragOver } = useFlowNodes()
 const { deleteNodeById } = useFlowDelete()
 const { queueNodeForChat } = useAiDesign()
@@ -548,6 +609,7 @@ watch(
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', closeNodeMenu)
+  document.removeEventListener('pointerdown', onTidyMenuPointerDown)
 })
 
 function closeNodeMenu() {
@@ -615,6 +677,22 @@ function openProjectSetting() {
 provide('openHttpConfig', openHttpConfig)
 
 function onNodesChange(changes) {
+  if (nodeDragActive.value) {
+    for (const change of changes) {
+      if (change.type !== 'position' || !change.dragging || !change.position) continue
+      if (!dragOrigins.has(change.id) && change.from) {
+        dragOrigins.set(change.id, { x: change.from.x, y: change.from.y })
+      }
+      const origin = dragOrigins.get(change.id)
+      if (!origin) continue
+      const dx = change.position.x - origin.x
+      const dy = change.position.y - origin.y
+      if (dx * dx + dy * dy > DRAG_MOVE_THRESHOLD * DRAG_MOVE_THRESHOLD) {
+        dragMoved = true
+        break
+      }
+    }
+  }
   // 仅坐标/增删才标脏；dimensions、select 等打开画布就会触发，误占写锁会挡住 MCP
   if (nodeChangeAffectsPersist(changes)) {
     store.markDirty()
@@ -654,15 +732,21 @@ function onEdgeClick({ edge }) {
   store.selectItem('edge', edge.id)
 }
 
-function onNodeDragStart() {
+function onNodeDragStart({ node }) {
   nodeDragActive.value = true
+  dragMoved = false
+  if (node?.position) {
+    dragOrigins.set(node.id, { x: node.position.x, y: node.position.y })
+  }
 }
 
-/** 用户拖移节点结束后记入撤销历史 */
+/** 确实挪动过才记入撤销；点一下高亮不记 */
 function onNodeDragStop() {
   if (!nodeDragActive.value) return
   nodeDragActive.value = false
-  pushHistory()
+  dragOrigins.clear()
+  if (dragMoved) pushHistory()
+  dragMoved = false
 }
 
 function onPaneClick() {
@@ -935,6 +1019,123 @@ function onPaneClick() {
   .btn--primary.is-dirty:hover:not(:disabled) {
     background: #c2410c;
     border-color: #9a3412;
+  }
+
+  /* 排版控件：一整颗按钮。左半是名称，右半是箭头，中间用一条竖线分开 */
+  .tidy-split {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+    box-sizing: border-box;
+    height: 32px;
+    z-index: 30;
+    border: 1px solid var(--pd-border-subtle);
+    border-radius: 6px;
+    background: var(--pd-surface-elevated);
+    overflow: visible;
+
+    &.is-disabled {
+      opacity: 0.45;
+    }
+
+    .el-tooltip__trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+    }
+  }
+
+  .tidy-split__main,
+  .tidy-split__more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    height: 100%;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: var(--pd-text);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: normal;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--pd-primary-soft);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+
+  .tidy-split__main {
+    padding: 0 12px;
+    border-radius: 5px 0 0 5px;
+  }
+
+  .tidy-split__more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    padding: 0;
+    border-left: 1px solid var(--pd-border-subtle);
+    border-radius: 0 5px 5px 0;
+  }
+
+  .tidy-split.is-open .tidy-split__more {
+    background: var(--pd-primary-soft);
+  }
+
+  .tidy-split__caret {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
+  }
+
+  .tidy-split__menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 132px;
+    margin: 0;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid var(--pd-border-subtle);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  }
+
+  .tidy-split__item {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--pd-text);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover,
+    &.is-active {
+      background: var(--pd-primary-soft);
+      color: var(--pd-primary);
+    }
   }
 }
 
@@ -1312,6 +1513,13 @@ function onPaneClick() {
     stroke-width: 2.5;
   }
 
+  /* 点中节点后，接到它的线用虚线流动。系统要求减少动效时停住 */
+  @media (prefers-reduced-motion: reduce) {
+    .vue-flow__edge-path {
+      animation: none !important;
+    }
+  }
+
   .vue-flow__edge.selected .vue-flow__edge-path,
   .vue-flow__edge.selectable:focus .vue-flow__edge-path,
   .vue-flow__edge.selectable:focus-visible .vue-flow__edge-path {
@@ -1346,6 +1554,13 @@ function onPaneClick() {
       background: var(--pd-primary-soft);
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--pd-primary) 28%, transparent);
     }
+  }
+}
+
+/* 虚线 8+6 走完一节。负偏移让虚线从源节点流向目标节点 */
+@keyframes qualitest-edge-flow {
+  to {
+    stroke-dashoffset: -14;
   }
 }
 </style>

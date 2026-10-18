@@ -15,11 +15,11 @@
     <div class="flow-node__body">
       <slot />
     </div>
-    <Handle :position="Position.Left" class="handle handle--in" type="target" />
+    <Handle :position="inPosition" class="handle handle--in" type="target" />
     <slot name="source-handles">
       <Handle
           v-if="!hideSourceHandle"
-          :position="Position.Right"
+          :position="outPosition"
           class="handle handle--out"
           type="source"
       />
@@ -31,7 +31,7 @@
 <script setup>
 /** 节点卡片外壳：顶栏色条、标题、运行高亮、校验描边、Staging 角标、连接锚点 */
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
-import { computed, inject, onBeforeUnmount, onMounted, ref, toRef } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
 
 import AiStagingChrome from '../components/AiStagingChrome.vue'
 import { useStagingMark } from '../composables/usePendingStagingUnit'
@@ -63,7 +63,13 @@ const color = computed(() => cfg.value.color || '#0b6edc')
 const icon = computed(() => cfg.value.icon || '?')
 const label = computed(() => cfg.value.label || props.type)
 
+/** 横向左入右出；纵向上入下出，和一键排版方向一致 */
+const vertical = computed(() => store.layoutAxis === 'vertical')
+const inPosition = computed(() => (vertical.value ? Position.Top : Position.Left))
+const outPosition = computed(() => (vertical.value ? Position.Bottom : Position.Right))
+
 const nodeClasses = computed(() => ({
+  'is-layout-vertical': vertical.value,
   'is-selected': props.selected,
   'is-start': isStartNode(props.id),
   'is-running': store.runHighlightNodeId === props.id,
@@ -91,6 +97,8 @@ let resizeObserver = null
 function refreshNodeInternals() {
   updateNodeInternals([props.id])
 }
+
+watch(vertical, () => refreshNodeInternals(), { flush: 'post' })
 
 onMounted(() => {
   if (!rootEl.value) return
@@ -142,10 +150,6 @@ defineExpose({ rootEl })
       0 0 0 2px var(--node-accent, var(--pd-primary)),
       0 0 0 6px color-mix(in srgb, var(--node-accent, var(--pd-primary)) 28%, transparent),
       0 10px 28px color-mix(in srgb, var(--node-accent, var(--pd-primary)) 22%, transparent);
-  }
-
-  &.is-selected .flow-node__bar {
-    height: 4px;
   }
 
   &.is-start {

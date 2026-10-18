@@ -22,7 +22,7 @@ describe('createEmptyGraph', () => {
     expect(graph.nodes).toEqual([]);
     expect(graph.edges).toEqual([]);
     expect(graph.meta?.viewport).toEqual({ x: 40, y: 40, zoom: 1 });
-    expect(graph.meta?.layout).toBe('manual');
+    expect(graph.meta?.layout).toBe('default');
     expect(graph.meta?.schemaVersion).toBe(1);
     expect(graph.meta?.scenarios?.length).toBeGreaterThanOrEqual(1);
     expect(graph.meta?.activeScenarioId).toMatch(/^\d+$/);
@@ -94,6 +94,20 @@ describe('fromGraphJson / toGraphJson', () => {
         expect(Object.prototype.hasOwnProperty.call(e, 'sourceHandle')).toBe(false);
       });
   });
+
+  it('缺省排版读成默认，横向分层能写回', () => {
+    // 前提：一份没写 layout 的图，以及一份横向分层的图
+    // 期望：缺省收成 default；横向分层往返后仍是 horizontal
+    const raw = JSON.parse(JSON.stringify(demoGraph)) as { meta: { layout?: string } }
+    delete raw.meta.layout
+    expect(fromGraphJson(raw).layoutPreset).toBe('default')
+    expect(toGraphJson(fromGraphJson(raw)).meta?.layout).toBe('default')
+
+    raw.meta.layout = 'horizontal'
+    const adapted = fromGraphJson(raw)
+    expect(adapted.layoutPreset).toBe('horizontal')
+    expect(toGraphJson(adapted).meta?.layout).toBe('horizontal')
+  })
 
   it('空图往返保留 meta 场景', () => {
     // 前提：空图设置 viewport 与 testProjectEnvId 后往返

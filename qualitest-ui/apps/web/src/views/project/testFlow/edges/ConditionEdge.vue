@@ -22,17 +22,18 @@
 
 <script setup>
 /**
- * condition 节点出边自定义渲染。
+ * condition 节点出边自定义渲染，路径为横平竖直的正交折线。
  * 在边中点展示对应分支的 IF / ELIF / ELSE 标签，以及 Staging 确认浮层。
+ * 路径、描边和点中节点后的流动由共用绘制负责，这里只决定标签文字。
  */
-import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@vue-flow/core'
+import { BaseEdge, EdgeLabelRenderer } from '@vue-flow/core'
 import { computed } from 'vue'
 
+import { useFlowEdgeView } from '../composables/useFlowEdgeView'
+
 import AiStagingChrome from '../components/AiStagingChrome.vue'
-import { hasStagingConfirmError, useStagingMark, useStagingUnitByMark } from '../composables/usePendingStagingUnit'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { branchKindLabel, getConditionBranches } from '../utils/conditionUtils'
-import { defaultEdgeStroke, resolveStagingEdgeStroke } from '../utils/stagingEdgeStyle'
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -48,20 +49,7 @@ const props = defineProps({
 })
 
 const store = useFlowCanvasStore()
-
-const path = computed(() =>
-  getBezierPath({
-    sourceX: props.sourceX,
-    sourceY: props.sourceY,
-    targetX: props.targetX,
-    targetY: props.targetY,
-    sourcePosition: props.sourcePosition,
-    targetPosition: props.targetPosition,
-  }),
-)
-
-const stagingMark = useStagingMark(computed(() => props.id), 'edge')
-const stagingUnit = useStagingUnitByMark(stagingMark)
+const { path, labelStyle, edgeStyle, stagingMark } = useFlowEdgeView(props)
 
 /** 优先展示用户自定义 label，否则回退为 condition 分支 IF/ELIF/ELSE */
 const label = computed(() => {
@@ -74,21 +62,6 @@ const label = computed(() => {
   const branches = getConditionBranches(srcNode.data)
   const branch = branches.find((b) => b.target === props.target)
   return branch ? branchKindLabel(branch) : ''
-})
-
-const labelStyle = computed(() => ({
-  position: 'absolute',
-  transform: `translate(-50%, -50%) translate(${path.value[1]}px, ${path.value[2] - 18}px)`,
-  pointerEvents: 'all',
-}))
-
-const edgeStyle = computed(() => {
-  const stagingStroke = resolveStagingEdgeStroke(
-    stagingMark.value,
-    hasStagingConfirmError(stagingUnit.value),
-    props.selected,
-  )
-  return stagingStroke ?? defaultEdgeStroke(props.selected)
 })
 </script>
 

@@ -1,10 +1,11 @@
 /**
- * 测整图分层坐标计算：链式分层、分支同层错开、无边换行、长链折行、按节点宽高留白。
+ * 测整图分层坐标计算：链式分层、分支同层、菱形汇合对齐、无边换行、长链折行、按节点宽高留白。
  * 边界：纯函数，无画布依赖。
  * 单跑：pnpm test flowGraphLayeredLayout   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest'
 
+import { NODE_MIN_H } from '@/views/project/testFlow/constants/flowConfig'
 import {
   computeLayeredPositions,
   LAYOUT_GAP_X,
@@ -63,9 +64,9 @@ describe('computeLayeredPositions', () => {
     })
   })
 
-  it('长链按列折行兼顾宽高', () => {
+  it('长链按列折行', () => {
     // 前提：A→…→F 六节点链
-    // 期望：D 折到下一行带左侧，非整图一长条
+    // 期望：按约 √N 列折行，D 落到下一行带左侧，不拉成一行
     const ids = ['A', 'B', 'C', 'D', 'E', 'F']
     const nodes = ids.map((id) => ({ id }))
     const edges = ids.slice(0, -1).map((id, i) => ({
@@ -75,6 +76,29 @@ describe('computeLayeredPositions', () => {
     const pos = computeLayeredPositions(nodes, edges)
     expect(pos.get('D')?.x).toBe(LAYOUT_ORIGIN_X)
     expect((pos.get('D')?.y ?? 0) > (pos.get('A')?.y ?? 0)).toBe(true)
+    expect(pos.get('C')?.y).toBe(pos.get('A')?.y)
+  })
+
+  it('菱形汇合落在两路中间', () => {
+    // 前提：R→A、R→B，A→M、B→M；节点登记顺序把 B 放在 A 前，但出边先 A 后 B
+    // 期望：A 在 B 上方且同层；M 的垂直中心靠近 A、B 中心的中点
+    const pos = computeLayeredPositions(
+      [{ id: 'R' }, { id: 'B' }, { id: 'A' }, { id: 'M' }],
+      [
+        { source: 'R', target: 'A' },
+        { source: 'R', target: 'B' },
+        { source: 'A', target: 'M' },
+        { source: 'B', target: 'M' },
+      ],
+    )
+    expect(pos.get('A')?.x).toBe(pos.get('B')?.x)
+    expect((pos.get('A')?.y ?? 0) < (pos.get('B')?.y ?? 0)).toBe(true)
+    const h = NODE_MIN_H
+    const aMid = (pos.get('A')?.y ?? 0) + h / 2
+    const bMid = (pos.get('B')?.y ?? 0) + h / 2
+    const mMid = (pos.get('M')?.y ?? 0) + h / 2
+    expect(Math.abs(mMid - (aMid + bMid) / 2)).toBeLessThan(1)
+    expect((pos.get('M')?.x ?? 0) > (pos.get('A')?.x ?? 0)).toBe(true)
   })
 
   it('宽高不同时按实际尺寸留白', () => {
@@ -91,9 +115,13 @@ describe('computeLayeredPositions', () => {
         { source: 'W', target: 'S' },
       ],
     )
-    expect(pos.get('W')).toEqual({ x: LAYOUT_ORIGIN_X, y: LAYOUT_ORIGIN_Y })
     expect(pos.get('T')?.x).toBe(LAYOUT_ORIGIN_X + 400 + LAYOUT_GAP_X)
     expect(pos.get('S')?.x).toBe(pos.get('T')?.x)
-    expect(pos.get('S')?.y).toBe(LAYOUT_ORIGIN_Y + 200 + LAYOUT_GAP_Y)
+    expect(pos.get('S')?.y).toBe((pos.get('T')?.y ?? 0) + 200 + LAYOUT_GAP_Y)
+    // 分支列整体中心靠近父节点垂直中心
+    const wCenter = (pos.get('W')?.y ?? 0) + NODE_MIN_H / 2
+    const stackTop = pos.get('T')?.y ?? 0
+    const stackCenter = stackTop + (200 + LAYOUT_GAP_Y + NODE_MIN_H) / 2
+    expect(Math.abs(stackCenter - wCenter)).toBeLessThan(1)
   })
 })

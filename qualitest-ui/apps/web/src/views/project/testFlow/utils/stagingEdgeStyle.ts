@@ -37,9 +37,12 @@ export function resolveStagingEdgeStroke(
   return null;
 }
 
+/** 未选中、也没有待确认标记时的连线颜色 */
+export const EDGE_IDLE_STROKE = '#94a3b8'
+
 export function defaultEdgeStroke(selected: boolean): StagingEdgeStrokeStyle {
   return {
-    stroke: selected ? STAGING_UPDATE_COLOR : '#94a3b8',
+    stroke: selected ? STAGING_UPDATE_COLOR : EDGE_IDLE_STROKE,
     strokeWidth: selected ? 2.5 : 1.5,
   };
 }

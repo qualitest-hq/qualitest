@@ -14,6 +14,7 @@ import { getTestProject } from '@/api/project/testProject';
 import { partitionTemplateParams, mergeEnvPreviewRows, templateEnvsToEnvParamRows } from '../../testProjectTemplate/utils/templateParamUtils';
 import { createDefaultRunConfig, DEFAULT_VIEWPORT } from '../graphAdapter';
 import { AI_CONFIRM_HIGHLIGHT_CLEAR_MS } from '../constants/flowConfig';
+import { presetById, type FlowLayoutAxis, type FlowLayoutPresetId } from '../utils/flowLayoutPreset';
 import { waitDoubleAnimationFrame } from '../utils/waitDoubleAnimationFrame';
 import { useAiStagingStore } from './aiStagingStore';
 
@@ -100,6 +101,13 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     rightMode: 'props',
     minimapVisible: readMinimapVisiblePreference(),
   });
+  /**
+   * 这条流的排版方式。打开图时从 meta.layout 恢复，点菜单才改并标成未保存。
+   * 不自动重排。句柄方向跟着这项走，本身不另写进图。
+   */
+  const layoutPresetId = ref<FlowLayoutPresetId>('default');
+  /** 句柄在哪一侧进出。跟着 layoutPresetId，不单独标成未保存 */
+  const layoutAxis = ref<FlowLayoutAxis>('horizontal');
   /** 场景运行高亮：当前执行节点 id */
   const runHighlightNodeId = ref<string | null>(null);
   /** 场景运行已访问节点 id 集合 */
@@ -217,6 +225,8 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     };
     runHighlightNodeId.value = null;
     runVisitedNodeIds.value = {};
+    layoutPresetId.value = 'default';
+    layoutAxis.value = 'horizontal';
     pendingEdges.value = null;
     pendingHistoryReset.value = false;
     suppressDirty.value = false;
@@ -380,6 +390,16 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     persistMinimapVisible(ui.value.minimapVisible);
   }
 
+  /**
+   * 记下这条流的排版方式，并同步句柄方向。
+   * 不改节点坐标，也不标成未保存。真正重排由顶栏排版去做。
+   */
+  function setLayoutPreset(id: string | null | undefined) {
+    const preset = presetById(id);
+    layoutPresetId.value = preset.id;
+    layoutAxis.value = preset.axis;
+  }
+
   function setMinimapVisible(visible: boolean) {
     ui.value.minimapVisible = visible;
     persistMinimapVisible(visible);
@@ -461,6 +481,9 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     ui,
     runHighlightNodeId,
     runVisitedNodeIds,
+    layoutPresetId,
+    setLayoutPreset,
+    layoutAxis,
     pendingEdges,
     pendingHistoryReset,
     suppressDirty,

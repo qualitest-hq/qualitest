@@ -22,15 +22,16 @@
 
 <script setup>
 /**
- * 默认连线渲染：支持 Staging 样式与边中点确认浮层。
+ * 默认连线渲染：横平竖直的正交折线，支持 Staging 样式与边中点确认浮层。
+ * 路径、描边和点中节点后的流动由共用绘制负责，这里只决定标签文字。
  */
-import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@vue-flow/core'
+import { BaseEdge, EdgeLabelRenderer } from '@vue-flow/core'
 import { computed } from 'vue'
 
+import { useFlowEdgeView } from '../composables/useFlowEdgeView'
+
 import AiStagingChrome from '../components/AiStagingChrome.vue'
-import { hasStagingConfirmError, useStagingMark, useStagingUnitByMark } from '../composables/usePendingStagingUnit'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
-import { defaultEdgeStroke, resolveStagingEdgeStroke } from '../utils/stagingEdgeStyle'
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -45,40 +46,12 @@ const props = defineProps({
 })
 
 const store = useFlowCanvasStore()
-
-const path = computed(() =>
-  getBezierPath({
-    sourceX: props.sourceX,
-    sourceY: props.sourceY,
-    targetX: props.targetX,
-    targetY: props.targetY,
-    sourcePosition: props.sourcePosition,
-    targetPosition: props.targetPosition,
-  }),
-)
-
-const stagingMark = useStagingMark(computed(() => props.id), 'edge')
-const stagingUnit = useStagingUnitByMark(stagingMark)
+const { path, labelStyle, edgeStyle, stagingMark } = useFlowEdgeView(props)
 
 const label = computed(() => {
   const edge = store.edges.find((e) => e.id === props.id)
   const text = edge?.label != null ? String(edge.label).trim() : ''
   return text || (props.label ? String(props.label).trim() : '')
-})
-
-const labelStyle = computed(() => ({
-  position: 'absolute',
-  transform: `translate(-50%, -50%) translate(${path.value[1]}px, ${path.value[2] - 18}px)`,
-  pointerEvents: 'all',
-}))
-
-const edgeStyle = computed(() => {
-  const stagingStroke = resolveStagingEdgeStroke(
-    stagingMark.value,
-    hasStagingConfirmError(stagingUnit.value),
-    props.selected,
-  )
-  return stagingStroke ?? defaultEdgeStroke(props.selected)
 })
 </script>
 

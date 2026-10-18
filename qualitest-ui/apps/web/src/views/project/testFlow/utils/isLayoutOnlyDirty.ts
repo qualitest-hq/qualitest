@@ -1,12 +1,13 @@
 /**
- * 判断画布脏稿是否「仅布局变更」：相对已保存基线，去掉视口与节点坐标后图内容相同，
+ * 判断画布脏稿是否「仅布局变更」：相对已保存基线，去掉视口、节点坐标和排版方式后图内容相同，
  * 且没有待确认的 Staging 单元。
- * true 时：只改了坐标/视口，不长占画布写锁；外部合入可保留本地排版；保存版本冲突可走自动重套坐标。
+ * true 时：只改了坐标、视口或排版方式，不长占画布写锁；外部合入可保留本地排版；保存版本冲突可走自动重套坐标。
  * false 时：有内容差异或 Staging，需按内容脏处理。
  */
 import type { GraphJson } from '@/utils/flow/graphTypes'
 
 import { toGraphJson } from '../graphAdapter'
+import { buildFlowGraphInput } from './stagingGraphInput'
 import { graphJsonToSnapshotString } from './graphFingerprint'
 import { stripViewportForCompare } from './reconcileFlowDirty'
 import type { useFlowCanvasStore } from '../stores/flowCanvasStore'
@@ -14,12 +15,15 @@ import type { useFlowCanvasStore } from '../stores/flowCanvasStore'
 type FlowCanvasStore = ReturnType<typeof useFlowCanvasStore>
 
 /**
- * 去掉 meta.viewport，并把每个节点 position 归零，得到只比内容、不比排版的图副本。
+ * 去掉视口、排版方式和节点坐标，得到只比内容、不比排版的图副本。
  */
 export function stripLayoutForCompare(graph: GraphJson): GraphJson {
   const withoutViewport = stripViewportForCompare(graph)
+  const meta = withoutViewport.meta ? { ...withoutViewport.meta } : undefined
+  if (meta) delete meta.layout
   return {
     ...withoutViewport,
+    meta,
     nodes: (withoutViewport.nodes ?? []).map((n) => ({
       ...n,
       position: { x: 0, y: 0 },
@@ -27,7 +31,7 @@ export function stripLayoutForCompare(graph: GraphJson): GraphJson {
   }
 }
 
-/** 去掉视口与节点坐标后，规范序列化为可比较的 JSON 字符串 */
+/** 去掉视口、排版方式和节点坐标后，规范序列化为可比较的字符串 */
 export function snapshotStringWithoutLayout(
   graph: GraphJson | Record<string, unknown> | null | undefined,
 ): string {
@@ -38,7 +42,7 @@ export function snapshotStringWithoutLayout(
 /**
  * 相对已保存基线做「仅布局」判定。
  * 有待确认 Staging、或没有可用基线 → false。
- * 去掉视口与坐标后当前图与基线相同 → true（含坐标也完全相同的干净态）。
+ * 去掉视口、坐标和排版方式后当前图与基线相同 → true（含坐标和排版方式都没变的干净态）。
  * 调用方通常还要结合 store.dirty：干净且未脏时不必占写锁。
  */
 export function isLayoutOnlyDirty(params: {
@@ -73,13 +77,7 @@ export function isLayoutOnlyDirtyFromStore(
   store: FlowCanvasStore,
   pendingStagingCount: number,
 ): boolean {
-  const graph = toGraphJson({
-    nodes: store.nodes,
-    edges: store.getEffectiveEdges(),
-    viewport: store.viewport,
-    runConfig: store.runConfig,
-    flowOutputs: store.flowOutputs,
-  })
+  const graph = toGraphJson(buildFlowGraphInput(store))
   return isLayoutOnlyDirty({
     currentGraph: graph,
     savedGraphSnapshot: store.savedGraphSnapshot,

@@ -39,7 +39,8 @@ public final class EmptyTestFlowGraphFactory {
 
         JSONObject meta = new JSONObject();
         meta.put("viewport", viewport);
-        meta.put("layout", "manual");
+        // 新建空流记为默认排版：从左往右分层并折行。此时没有节点，不计算坐标
+        meta.put("layout", "default");
         meta.put("schemaVersion", GraphSchemaVersions.CURRENT);
         meta.put("activeScenarioId", scenarioId);
         meta.put("scenarios", scenarios);

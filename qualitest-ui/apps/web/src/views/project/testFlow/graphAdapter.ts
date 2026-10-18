@@ -1,9 +1,9 @@
 /**
  * 测试流 graph_json 与 vue-flow 编辑态的双向转换。
  *
- * - fromGraphJson：unwrap 外层包装 + 还原 nodes/edges/viewport/runConfig/flowOutputs；condition 出边补 sourceHandle
- * - toGraphJson：剥离 selected/dragging 等 UI 字段，写入展平 meta
- * - createEmptyGraph：新建空图时附带默认 viewport 与运行场景
+ * - fromGraphJson：解开外层包装，还原 nodes/edges/viewport/runConfig/flowOutputs，并读出排版方式；condition 出边补 sourceHandle。打开画布不据此重排
+ * - toGraphJson：剥离 selected/dragging 等界面字段，把当前排版方式写入 meta.layout
+ * - createEmptyGraph：新建空图时附带默认视口、运行场景，排版方式写成 default
  */
 import type { Edge, Node } from '@vue-flow/core';
 import { markRaw } from 'vue';
@@ -24,6 +24,7 @@ import type {
 import { CURRENT_GRAPH_SCHEMA_VERSION } from '@/utils/flow/graphTypes';
 
 import type { StagingPersistFilter } from './types/aiStagingTypes';
+import { normalizeLayoutPresetId, type FlowLayoutPresetId } from './utils/flowLayoutPreset';
 
 export const DEFAULT_VIEWPORT: GraphViewport = { x: 40, y: 40, zoom: 1 };
 
@@ -57,7 +58,7 @@ export interface CreateEmptyGraphOptions {
   viewport?: GraphViewport;
 }
 
-/** 新建空画布 graph_json */
+/** 新建空画布。排版方式固定为默认排版，此时没有节点，不会排坐标 */
 export function createEmptyGraph(options: CreateEmptyGraphOptions = {}): GraphJson {
   const runConfig = createDefaultRunConfig(options.testProjectEnvId ?? '');
   return {
@@ -65,7 +66,7 @@ export function createEmptyGraph(options: CreateEmptyGraphOptions = {}): GraphJs
     edges: [],
     meta: {
       viewport: options.viewport ?? { ...DEFAULT_VIEWPORT },
-      layout: 'manual',
+      layout: 'default',
       schemaVersion: CURRENT_GRAPH_SCHEMA_VERSION,
       activeScenarioId: runConfig.activeScenarioId,
       scenarios: runConfig.scenarios,
@@ -80,6 +81,8 @@ export interface FromGraphJsonResult {
   viewport: GraphViewport;
   runConfig: GraphScenarioConfig;
   flowOutputs: GraphFlowOutput[];
+  /** 这条流记住的排版。打开画布只恢复这项，不自动重排 */
+  layoutPreset: FlowLayoutPresetId;
 }
 
 function normalizeScenario(scenario: GraphRunScenario): GraphRunScenario {
@@ -117,7 +120,7 @@ export function parseGraphJson(raw: unknown): GraphJson {
   };
 }
 
-/** 持久化 JSON → vue-flow 编辑态 */
+/** 持久化 JSON 转成画布编辑态。排版方式只读回来，不重算节点坐标 */
 export function fromGraphJson(raw: unknown): FromGraphJsonResult {
   const graph = parseGraphJson(raw);
   const meta = graph.meta;
@@ -132,7 +135,14 @@ export function fromGraphJson(raw: unknown): FromGraphJsonResult {
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   const edges = buildVueFlowEdges(nodeById, graph.edges);
 
-  return { nodes, edges, viewport, runConfig, flowOutputs };
+  return {
+    nodes,
+    edges,
+    viewport,
+    runConfig,
+    flowOutputs,
+    layoutPreset: normalizeLayoutPresetId(meta?.layout),
+  };
 }
 
 type RawNodeLike = {
@@ -214,6 +224,8 @@ export interface ToGraphJsonInput {
   viewport: GraphViewport;
   runConfig: GraphScenarioConfig;
   flowOutputs?: GraphFlowOutput[];
+  /** 当前排版方式；缺省写成 default */
+  layoutPreset?: string | null;
   /** 保存时排除未 confirm 的 Staging 对象并回滚 pending update */
   stagingFilter?: StagingPersistFilter;
 }
@@ -285,7 +297,7 @@ export function applyStagingPersistFilter(input: ToGraphJsonInput): ToGraphJsonI
   return { ...input, nodes, edges, runConfig };
 }
 
-/** vue-flow 编辑态 → 持久化 JSON（剥离 UI 字段；可选排除 Staging） */
+/** 画布编辑态转成可落盘的图。排版方式写入 meta.layout；未传入时写成默认排版 */
 export function toGraphJson(input: ToGraphJsonInput): GraphJson {
   const effective = applyStagingPersistFilter(input);
   const nodes = effective.nodes.map((n) => ({
@@ -307,7 +319,7 @@ export function toGraphJson(input: ToGraphJsonInput): GraphJson {
   const meta: GraphMeta = {
     schemaVersion: CURRENT_GRAPH_SCHEMA_VERSION,
     viewport: normalizeViewport(effective.viewport),
-    layout: 'manual',
+    layout: normalizeLayoutPresetId(effective.layoutPreset),
     activeScenarioId: effective.runConfig.activeScenarioId,
     scenarios: JSON.parse(JSON.stringify(effective.runConfig.scenarios)),
     flowOutputs: JSON.parse(JSON.stringify(effective.flowOutputs ?? [])),
