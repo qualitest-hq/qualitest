@@ -2,40 +2,76 @@ package com.qualitest.ai.mcp.protocol;
 
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * MCP Streamable HTTP 会话注册表。
+ * MCP Streamable HTTP 会话登记。
  * <p>
- * {@code initialize} 时为当前项目分配 UUID 会话 id，供后续 GET SSE 连接校验。
- * 数据仅存于 JVM 内存，适用于单机部署；进程重启后会话失效，客户端需重新 initialize。
+ * 会话 id 在 initialize 时签发，供后续请求头 {@code Mcp-Session-Id} 与 SSE 下行校验。
+ * 移除会话只丢掉内存中的工作图与尚未跑流的单元，不另行写入测试流。
  */
 @Component
 public class McpSessionRegistry {
 
-    private final Map<String, Long> sessions = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, McpSession> sessions = new ConcurrentHashMap<>();
 
     /**
-     * 创建新会话并登记项目 id。
+     * 登记一条逐次调用会话。
      *
-     * @param testProjectId Token 解析出的测试项目 id
-     * @return 新生成的会话 id，写入 initialize 响应头 {@link com.qualitest.common.mcp.McpJsonRpc#SESSION_HEADER}
+     * @param testProjectId 项目 id
+     * @return 新建会话
      */
-    public String createSession(Long testProjectId) {
+    public McpSession createSession(Long testProjectId) {
+        return createSession(testProjectId, McpSession.Mode.CALL, null);
+    }
+
+    /**
+     * 登记一条会话。回合会话须已绑定测试流。
+     *
+     * @param testProjectId 项目 id
+     * @param mode          会话模式
+     * @param testFlowId    回合会话绑定的测试流，逐次调用可为 null
+     * @return 新建会话
+     */
+    public McpSession createSession(Long testProjectId, McpSession.Mode mode, Long testFlowId) {
         String sessionId = UUID.randomUUID().toString();
-        sessions.put(sessionId, testProjectId);
-        return sessionId;
+        McpSession session = new McpSession(sessionId, testProjectId, mode, testFlowId);
+        sessions.put(sessionId, session);
+        return session;
     }
 
-    /** 判断会话 id 是否仍有效（未关闭且未过期清理）。 */
+    /**
+     * 按会话 id 取会话。
+     *
+     * @param sessionId 请求头中的会话 id
+     * @return 会话；不存在时 null
+     */
+    public McpSession get(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return null;
+        }
+        return sessions.get(sessionId);
+    }
+
+    /**
+     * 判断会话 id 是否仍有效。
+     *
+     * @param sessionId 请求头中的会话 id
+     * @return true 表示已登记且未移除
+     */
     public boolean isValid(String sessionId) {
-        return sessionId != null && sessions.containsKey(sessionId);
+        return get(sessionId) != null;
     }
 
-    /** SSE 连接结束或超时时移除会话，释放内存。 */
+    /**
+     * 移除会话。内存中尚未跑流的单元一并丢弃。
+     *
+     * @param sessionId 会话 id
+     */
     public void remove(String sessionId) {
-        sessions.remove(sessionId);
+        if (sessionId != null) {
+            sessions.remove(sessionId);
+        }
     }
 }

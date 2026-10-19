@@ -1,5 +1,6 @@
 package com.qualitest.ai.mcp;
 
+import com.qualitest.ai.mcp.protocol.McpSession;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolContextFactory;
@@ -8,8 +9,10 @@ import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.api.params.McpToolInvokeParams;
 import com.qualitest.api.result.McpToolResult;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.domain.TestProject;
+import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectService;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -311,5 +315,67 @@ class McpToolInvokeServiceTest {
                         .mcpAutorunEnabled(true)
                         .build());
         assertTrue(service.isMcpAutorunEnabled(100L));
+    }
+
+    /**
+     * 前提：回合会话绑定测试流 9，参数未带 testFlowId；项目已开写流。
+     * 期望：两次 submit 复用同一累积器，执行器 mcpMode=false，回执含 received 且不含 committed，工作图留在会话上。
+     */
+    @Test
+    @Order(16)
+    @DisplayName("回合会话 submit 回 received 并保留工作图")
+    void invoke_turn_submitKeepsGraphWithoutCommit() {
+        when(testProjectService.selectTestProjectById(100L)).thenReturn(
+                TestProject.builder()
+                        .testProjectId(100L)
+                        .mcpAutoWriteEnabled(true)
+                        .mcpAutorunEnabled(true)
+                        .build());
+        when(testFlowService.selectTestFlowResult(9L)).thenReturn(
+                TestFlowResult.builder()
+                        .testFlowId(9L)
+                        .testProjectId(100L)
+                        .graphJson("{}")
+                        .graphRevision(1L)
+                        .build());
+        GraphJson graph = GraphJson.builder().build();
+        FlowDesignToolContext ctx = FlowDesignToolContext.builder()
+                .testProjectId(100L)
+                .testFlowId(9L)
+                .graphJson(graph)
+                .build();
+        McpSession session = new McpSession("s1", 100L, McpSession.Mode.TURN, 9L);
+        when(contextFactory.fromMcpRequest(any(), eq(100L), eq(session.getCapture()), eq(true), eq(7L)))
+                .thenReturn(ctx);
+        when(toolExecutor.executeTool(eq("submit_http_node"), anyString(), eq(ctx), eq(false)))
+                .thenReturn("{\"received\":true}");
+
+        McpToolInvokeParams first = new McpToolInvokeParams();
+        McpToolResult result = service.invoke("submit_http_node", first, 100L, 7L, session);
+        assertEquals(9L, first.getTestFlowId());
+        assertFalse(result.isError());
+        assertTrue(result.getResultJson().contains("received"));
+        assertFalse(result.getResultJson().contains("committed"));
+        assertSame(graph, session.getGraph());
+
+        McpToolInvokeParams second = new McpToolInvokeParams();
+        service.invoke("submit_http_node", second, 100L, 7L, session);
+        assertSame(graph, second.getGraphJson());
+        verify(toolExecutor, times(2)).executeTool(eq("submit_http_node"), anyString(), eq(ctx), eq(false));
+    }
+
+    /**
+     * 前提：回合会话调用 list_flows。
+     * 期望：拒绝，不委托执行器。
+     */
+    @Test
+    @Order(17)
+    @DisplayName("回合会话不提供列流")
+    void invoke_turn_rejectsListFlows() {
+        McpSession session = new McpSession("s1", 100L, McpSession.Mode.TURN, 9L);
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.invoke("list_flows", new McpToolInvokeParams(), 100L, 7L, session));
+        assertTrue(ex.getMessage().contains("回合会话不提供"));
+        verify(toolExecutor, never()).executeTool(anyString(), any(), any(), anyBoolean());
     }
 }

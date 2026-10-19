@@ -270,6 +270,28 @@ public class FlowDesignToolsDefinitionService {
                 gates.autoWriteEnabled(), gates.autorunEnabled(), gates.importApisEnabled());
     }
 
+    /**
+     * 回合会话的 tools/list。
+     * 定义取自画布设计工具表，再转成 MCP 的 name / description / inputSchema。
+     * 是否列入由回合会话可调用规则决定：关写流则无改图工具，关跑流则无 run_test_flow。
+     * 不含列流、建流、导入接口、规程版本。导入开关不改变本列表。
+     *
+     * @param gates 写流 / 跑流 / 导入快照；null 按只读
+     */
+    public List<Map<String, Object>> loadTurnSessionTools(McpProjectGates gates) {
+        boolean write = gates != null && gates.autoWriteEnabled();
+        boolean run = gates != null && gates.autorunEnabled();
+        List<Map<String, Object>> protocolTools = new ArrayList<>();
+        for (Map<String, Object> tool : loadToolsDefinition()) {
+            String name = extractFunctionName(tool);
+            if (!FlowDesignToolNames.isTurnSessionCallable(name, write, run)) {
+                continue;
+            }
+            protocolTools.add(toMcpProtocolTool(tool));
+        }
+        return List.copyOf(protocolTools);
+    }
+
     /** 缓存「只读 + 自动写流」协议列表 */
     private List<Map<String, Object>> loadMcpAutoWriteProtocolToolsCached() {
         List<Map<String, Object>> local = cachedMcpAutoWriteProtocolTools;

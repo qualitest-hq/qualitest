@@ -1,5 +1,6 @@
 package com.qualitest.web.mcp;
 
+import com.qualitest.ai.mcp.protocol.McpInbound;
 import com.qualitest.ai.mcp.protocol.McpJsonRpcDispatcher;
 import com.qualitest.ai.mcp.protocol.McpSessionRegistry;
 import com.qualitest.common.annotation.Anonymous;
@@ -21,7 +22,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * 质衡 MCP Streamable HTTP 入口。
  * <p>
- * POST：接收 JSON-RPC 请求，携带项目 id 与 Token 绑定操作者用户 id 后分发处理；
+ * POST：接收 JSON-RPC 请求，把项目 id、操作者，以及会话头交给分发器。
+ * 会话模式和测试流只在 initialize 时从参数或请求头读入。
  * GET：在有效会话头下建立 SSE 下行流。
  * 请求须带项目 Token，过滤器校验后把项目用户设置写入请求属性。
  */
@@ -40,15 +42,25 @@ public class McpStreamableHttpController extends ProjectController {
 
     /**
      * 处理 MCP JSON-RPC POST。
-     * 把当前项目 id、Token 绑定用户 id 一并交给分发器；通知类请求无响应体。
+     * 把当前项目 id、Token 绑定用户 id，以及会话相关请求头交给分发器。
+     * 会话模式和测试流只在 initialize 时生效；通知类请求无响应体。
+     * initialize 成功时把新会话 id 写回响应头 Mcp-Session-Id。
      *
-     * @param body 原始 JSON-RPC 文本
+     * @param body        原始 JSON-RPC 文本
+     * @param sessionId   已有会话 id，可空
+     * @param sessionMode 会话模式 call 或 turn，可空；只在 initialize 时读取
+     * @param testFlowId  回合会话绑定的测试流 id，可空；只在 initialize 时读取
      * @return JSON 响应；通知则空 200
      */
     @PostMapping(value = ProjectConstants.MCP_ENDPOINT, consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<String> handlePost(@RequestBody String body) {
-        McpJsonRpcDispatcher.DispatchResult result =
-                jsonRpcDispatcher.dispatch(body, getTestProjectId(), getUserId());
+    public ResponseEntity<String> handlePost(
+            @RequestBody String body,
+            @RequestHeader(value = McpJsonRpc.SESSION_HEADER, required = false) String sessionId,
+            @RequestHeader(value = McpJsonRpc.SESSION_MODE_HEADER, required = false) String sessionMode,
+            @RequestHeader(value = McpJsonRpc.SESSION_FLOW_HEADER, required = false) String testFlowId) {
+        McpJsonRpcDispatcher.DispatchResult result = jsonRpcDispatcher.dispatch(
+                body, getTestProjectId(), getUserId(),
+                new McpInbound(sessionId, sessionMode, testFlowId));
         if (result.isNotification()) {
             return ResponseEntity.ok().build();
         }
@@ -62,7 +74,7 @@ public class McpStreamableHttpController extends ProjectController {
 
     /**
      * 建立 MCP SSE 下行流。
-     * 会话 id 无效返回 400；超时或完成时移除会话。
+     * 会话 id 无效返回 400。超时或完成时移除会话，内存中尚未跑流的设计单元一并丢掉，不写入测试流。
      *
      * @param sessionId MCP 会话头
      * @return SSE 发射器或 400

@@ -60,6 +60,21 @@ public class McpJsonRpcDispatcher {
      * @return 响应 JSON、可选新建会话 id、是否为无响应体的通知
      */
     public DispatchResult dispatch(String body, Long testProjectId, Long operatorUserId) {
+        return dispatch(body, testProjectId, operatorUserId, McpInbound.empty());
+    }
+
+    /**
+     * 解析并分发一条 JSON-RPC 请求。
+     * initialize 读取会话模式与绑定测试流；其余方法用已有会话 id 找回会话。
+     *
+     * @param body           POST 原始 JSON 文本
+     * @param testProjectId  当前请求 Token 绑定的测试项目 id
+     * @param operatorUserId Token 绑定的操作者用户 id，可空
+     * @param inbound        本次请求头，可空
+     * @return 响应 JSON、可选新建会话 id、是否为无响应体的通知
+     */
+    public DispatchResult dispatch(String body, Long testProjectId, Long operatorUserId, McpInbound inbound) {
+        McpInbound headers = inbound == null ? McpInbound.empty() : inbound;
         JSONObject request;
         try {
             request = JSON.parseObject(body);
@@ -83,12 +98,12 @@ public class McpJsonRpcDispatcher {
         }
 
         return switch (method) {
-            case "initialize" -> DispatchResult.withSession(
-                    handleInitialize(id, testProjectId),
-                    sessionRegistry.createSession(testProjectId));
-            case "tools/list" -> DispatchResult.response(handleToolsList(id, testProjectId));
+            case "initialize" -> openSession(id, request, testProjectId, headers);
+            case "tools/list" -> DispatchResult.response(
+                    handleToolsList(id, testProjectId, sessionRegistry.get(headers.sessionId())));
             case "tools/call" -> DispatchResult.response(
-                    handleToolsCall(id, request, testProjectId, operatorUserId));
+                    handleToolsCall(id, request, testProjectId, operatorUserId,
+                            sessionRegistry.get(headers.sessionId())));
             case "prompts/list" -> DispatchResult.response(handlePromptsList(id));
             case "prompts/get" -> DispatchResult.response(handlePromptsGet(id, request, testProjectId));
             case "resources/list" -> DispatchResult.response(handleResourcesList(id));
@@ -106,13 +121,15 @@ public class McpJsonRpcDispatcher {
      * 项目写流或导入开关变更后，须客户端重连或刷新 MCP，再调 tools/list 才能看到新工具集。
      * <p>
      * serverInfo 含：服务名、协议 version（可带 +autowrite / +autorun / +importApis）、项目 id、
-     * 三道开关布尔值、合成 guideVersion（规程指纹 + 同款门控后缀，供本地 Skill 过期判定）。
+     * 三道开关布尔值、合成 guideVersion（规程指纹 + 同款门控后缀，供本地 Skill 过期判定）、
+     * 会话模式 session（call 或 turn）。回合会话再带回绑定的 testFlowId。
      *
      * @param id            请求 id
      * @param testProjectId 测试项目 id
+     * @param session       刚登记的会话
      * @return JSON-RPC 成功响应字符串
      */
-    private String handleInitialize(Object id, Long testProjectId) {
+    private String handleInitialize(Object id, Long testProjectId, McpSession session) {
         McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
         Map<String, Object> serverInfo = new LinkedHashMap<>();
         serverInfo.put("name", McpJsonRpc.SERVER_NAME);
@@ -124,6 +141,11 @@ public class McpJsonRpcDispatcher {
         serverInfo.put("mcpAutorunEnabled", gates.autorunEnabled());
         serverInfo.put("mcpImportApisEnabled", gates.importApisEnabled());
         serverInfo.put("guideVersion", mcpPromptResourceService.guideVersion(gates));
+        // call：每次调用各自写库；turn：同一会话累积，跑流前再写库
+        serverInfo.put("session", session.isTurn() ? "turn" : "call");
+        if (session.isTurn()) {
+            serverInfo.put("testFlowId", String.valueOf(session.getTestFlowId()));
+        }
 
         // 声明三类能力；tools 不带 listChanged
         Map<String, Object> capabilities = new LinkedHashMap<>();
@@ -139,31 +161,56 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * 处理 tools/list：按当前项目「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」开关，
-     * 组装此刻可见的工具定义（关写流则无 submit_* 等；关跑流则无 run_test_flow；关导入则无 import_apis）。
-     * 开关在库中已变但客户端未重连时，仍可能继续请求到旧缓存列表，须重连后再调本方法。
+     * 处理 tools/list。
+     * 没有会话或逐次调用会话：列出 MCP 协议工具，含列流、建流、导入接口。
+     * 回合会话：列出画布设计工具，按写流、跑流开关裁剪，不含列流、建流、导入接口、规程版本。
      *
      * @param id            请求 id
      * @param testProjectId 测试项目 id
+     * @param session       请求头 Mcp-Session-Id 对应的会话，可空
      * @return JSON-RPC 成功响应字符串
      */
-    private String handleToolsList(Object id, Long testProjectId) {
+    private String handleToolsList(Object id, Long testProjectId, McpSession session) {
         McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
-        List<Map<String, Object>> mcpTools = toolsDefinitionService.loadMcpProtocolTools(gates);
+        List<Map<String, Object>> mcpTools = session != null && session.isTurn()
+                ? toolsDefinitionService.loadTurnSessionTools(gates)
+                : toolsDefinitionService.loadMcpProtocolTools(gates);
         return McpJsonRpc.result(id, Map.of("tools", mcpTools));
     }
 
     /**
-     * 处理 tools/call：解析工具名与参数，带上操作者执行业务，封装 content 文本与 isError。
+     * 登记会话并返回 initialize 结果。
+     * 模式或测试流不合法时返回参数错误，不签发会话 id。
+     * 合法时把会话记入登记表，响应头带回会话 id，正文 serverInfo 写明 call 或 turn。
+     *
+     * @param id            请求 id
+     * @param request       initialize 原文
+     * @param testProjectId 测试项目 id
+     * @param headers       本次请求头
+     */
+    private DispatchResult openSession(Object id, JSONObject request, Long testProjectId, McpInbound headers) {
+        McpSessionOpen.Parsed open = McpSessionOpen.parse(request, headers.sessionMode(), headers.testFlowId());
+        if (!open.ok()) {
+            return DispatchResult.response(McpJsonRpc.error(id, -32602, open.error()));
+        }
+        McpSession session = sessionRegistry.createSession(testProjectId, open.mode(), open.testFlowId());
+        return DispatchResult.withSession(handleInitialize(id, testProjectId, session), session.getId());
+    }
+
+    /**
+     * 处理 tools/call：解析工具名与参数，带上操作者和当前会话执行业务，封装 content 文本与 isError。
+     * 会话为回合时，缺省的测试流和工作图由该会话补上，submit 不在本次调用写库。
      *
      * @param id             请求 id
      * @param request        完整 JSON-RPC 请求
      * @param testProjectId  测试项目 id
      * @param operatorUserId Token 绑定的操作者用户 id，可空
+     * @param session        请求头 Mcp-Session-Id 对应的会话；没有会话时按逐次调用
      * @return JSON-RPC 成功或业务错误响应字符串
      */
     @SuppressWarnings("unchecked")
-    private String handleToolsCall(Object id, JSONObject request, Long testProjectId, Long operatorUserId) {
+    private String handleToolsCall(Object id, JSONObject request, Long testProjectId, Long operatorUserId,
+                                   McpSession session) {
         JSONObject params = request.getJSONObject("params");
         if (params == null) {
             return McpJsonRpc.error(id, -32602, "Invalid params");
@@ -175,8 +222,8 @@ public class McpJsonRpcDispatcher {
         Map<String, Object> rawArguments = params.getObject("arguments", Map.class);
         McpToolInvokeParams invokeParams = argumentsMapper.fromToolArguments(rawArguments);
         try {
-            McpToolResult toolResult =
-                    mcpToolInvokeService.invoke(toolName, invokeParams, testProjectId, operatorUserId);
+            McpToolResult toolResult = mcpToolInvokeService.invoke(
+                    toolName, invokeParams, testProjectId, operatorUserId, session);
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("content", List.of(Map.of(
                     "type", "text",

@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
@@ -86,6 +87,7 @@ class McpJsonRpcDispatcherTest {
         assertEquals(1, json.getIntValue("id"));
         JSONObject serverInfo = json.getJSONObject("result").getJSONObject("serverInfo");
         assertEquals("42", serverInfo.getString("testProjectId"));
+        assertEquals("call", serverInfo.getString("session"));
         assertEquals("1.0.0", serverInfo.getString("version"));
         assertEquals(mcpPromptResourceService.guideVersion(false, false, false),
                 serverInfo.getString("guideVersion"));
@@ -176,7 +178,7 @@ class McpJsonRpcDispatcherTest {
         McpToolInvokeParams params = new McpToolInvokeParams();
         params.setArguments(Map.of("keyword", "login"));
         when(argumentsMapper.fromToolArguments(any())).thenReturn(params);
-        when(mcpToolInvokeService.invoke(eq("search_apis"), any(), eq(1L), isNull()))
+        when(mcpToolInvokeService.invoke(eq("search_apis"), any(), eq(1L), isNull(), isNull()))
                 .thenReturn(McpToolResult.builder()
                         .tool("search_apis")
                         .resultJson("{\"apis\":[]}")
@@ -190,7 +192,7 @@ class McpJsonRpcDispatcherTest {
         JSONObject json = JSON.parseObject(result.getResponseBody());
         assertEquals("{\"apis\":[]}", json.getJSONObject("result").getJSONArray("content")
                 .getJSONObject(0).getString("text"));
-        verify(mcpToolInvokeService).invoke(eq("search_apis"), any(), eq(1L), isNull());
+        verify(mcpToolInvokeService).invoke(eq("search_apis"), any(), eq(1L), isNull(), isNull());
     }
 
     /**
@@ -202,7 +204,7 @@ class McpJsonRpcDispatcherTest {
     @DisplayName("tools/call 异常时 isError=true")
     void dispatch_toolsCall_serviceException_returnsIsError() {
         when(argumentsMapper.fromToolArguments(any())).thenReturn(new McpToolInvokeParams());
-        when(mcpToolInvokeService.invoke(eq("bad_tool"), any(), eq(1L), isNull()))
+        when(mcpToolInvokeService.invoke(eq("bad_tool"), any(), eq(1L), isNull(), isNull()))
                 .thenThrow(new ServiceException("MCP 不支持的工具: bad_tool"));
 
         String body = """
@@ -253,7 +255,7 @@ class McpJsonRpcDispatcherTest {
     @DisplayName("业务 error 时 isError=true")
     void dispatch_toolsCall_businessError_returnsIsError() {
         when(argumentsMapper.fromToolArguments(any())).thenReturn(new McpToolInvokeParams());
-        when(mcpToolInvokeService.invoke(eq("get_flow"), any(), eq(1L), isNull()))
+        when(mcpToolInvokeService.invoke(eq("get_flow"), any(), eq(1L), isNull(), isNull()))
                 .thenReturn(McpToolResult.builder()
                         .tool("get_flow")
                         .resultJson("{\"error\":\"测试流不存在\"}")
@@ -379,5 +381,106 @@ class McpJsonRpcDispatcherTest {
         assertTrue(text.contains("guideVersion"));
         assertFalse(text.contains("import_apis"));
         assertFalse(text.contains("run_test_flow"));
+    }
+
+    /**
+     * 前提：initialize 请求头声明 turn，但没有测试流。
+     * 期望：-32602，不签发会话。
+     */
+    @Test
+    @Order(13)
+    @DisplayName("回合会话缺少测试流时拒绝握手")
+    void dispatch_initialize_turnWithoutFlow_returnsInvalidParams() {
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
+        McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(
+                body, 42L, null, new McpInbound(null, "turn", null));
+
+        assertNull(result.getSessionId());
+        JSONObject error = JSON.parseObject(result.getResponseBody()).getJSONObject("error");
+        assertEquals(-32602, error.getIntValue("code"));
+        assertTrue(error.getString("message").contains("testFlowId"));
+    }
+
+    /**
+     * 前提：initialize 用请求头绑定 turn 与测试流 9；随后带会话 id 调 tools/list。
+     * 期望：serverInfo.session=turn、testFlowId=9；tools/list 走回合工具表。
+     */
+    @Test
+    @Order(14)
+    @DisplayName("请求头建立回合会话后列画布工具")
+    void dispatch_initialize_turnHeader_listsTurnTools() {
+        when(mcpToolInvokeService.resolveMcpGates(42L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(true, true, false));
+        when(toolsDefinitionService.loadTurnSessionTools(any()))
+                .thenReturn(List.of(Map.of("name", "submit_http_node")));
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
+
+        McpJsonRpcDispatcher.DispatchResult opened = dispatcher.dispatch(
+                body, 42L, null, new McpInbound(null, "turn", "9"));
+
+        assertNotNull(opened.getSessionId());
+        JSONObject serverInfo = JSON.parseObject(opened.getResponseBody())
+                .getJSONObject("result").getJSONObject("serverInfo");
+        assertEquals("turn", serverInfo.getString("session"));
+        assertEquals("9", serverInfo.getString("testFlowId"));
+
+        McpJsonRpcDispatcher.DispatchResult listed = dispatcher.dispatch(
+                "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}",
+                42L, null, new McpInbound(opened.getSessionId(), null, null));
+        JSONObject tool = JSON.parseObject(listed.getResponseBody())
+                .getJSONObject("result").getJSONArray("tools").getJSONObject(0);
+        assertEquals("submit_http_node", tool.getString("name"));
+        verify(toolsDefinitionService).loadTurnSessionTools(any());
+    }
+
+    /**
+     * 前提：initialize 正文 qualitest.session=turn、testFlowId=9。
+     * 期望：与请求头同义，serverInfo 为 turn。
+     */
+    @Test
+    @Order(15)
+    @DisplayName("initialize 参数建立回合会话")
+    void dispatch_initialize_turnParams_bindsFlow() {
+        when(mcpToolInvokeService.resolveMcpGates(42L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(true, true, false));
+        String body = """
+                {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"qualitest":{"session":"turn","testFlowId":9}}}
+                """;
+
+        McpJsonRpcDispatcher.DispatchResult opened = dispatcher.dispatch(body, 42L);
+
+        JSONObject serverInfo = JSON.parseObject(opened.getResponseBody())
+                .getJSONObject("result").getJSONObject("serverInfo");
+        assertEquals("turn", serverInfo.getString("session"));
+        assertEquals("9", serverInfo.getString("testFlowId"));
+        assertTrue(sessionRegistry.isValid(opened.getSessionId()));
+        sessionRegistry.remove(opened.getSessionId());
+        assertFalse(sessionRegistry.isValid(opened.getSessionId()));
+    }
+
+    /**
+     * 前提：回合会话已绑定测试流 9，再 tools/call search_apis。
+     * 期望：把该会话交给 invoke，而不是逐次调用。
+     */
+    @Test
+    @Order(16)
+    @DisplayName("回合会话的 tools/call 带上会话")
+    void dispatch_toolsCall_turnSession_passesSession() {
+        when(mcpToolInvokeService.resolveMcpGates(42L))
+                .thenReturn(new McpToolInvokeService.McpProjectGates(true, true, false));
+        McpJsonRpcDispatcher.DispatchResult opened = dispatcher.dispatch(
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}",
+                42L, null, new McpInbound(null, "turn", "9"));
+        when(argumentsMapper.fromToolArguments(any())).thenReturn(new McpToolInvokeParams());
+        when(mcpToolInvokeService.invoke(eq("search_apis"), any(), eq(42L), isNull(), any(McpSession.class)))
+                .thenReturn(McpToolResult.builder().tool("search_apis").resultJson("{\"ok\":true}").build());
+
+        dispatcher.dispatch(
+                "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"search_apis\",\"arguments\":{}}}",
+                42L, null, new McpInbound(opened.getSessionId(), null, null));
+
+        verify(mcpToolInvokeService).invoke(
+                eq("search_apis"), any(), eq(42L), isNull(),
+                argThat(session -> session != null && session.isTurn() && Long.valueOf(9L).equals(session.getTestFlowId())));
     }
 }

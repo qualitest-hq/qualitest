@@ -2,6 +2,7 @@ package com.qualitest.ai.mcp;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.ai.mcp.protocol.McpSession;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
@@ -33,7 +34,9 @@ import org.springframework.stereotype.Service;
  * 项目开启「允许 MCP 自动跑流」后，还可调用 run_test_flow（须写流已开）。
  * 项目开启「允许 MCP 导入接口」后，还可调用 import_apis 写入项目接口库。
  * 写流、跑流、导入是三道独立开关。
- * 写流/跑流/导入须带 Token 绑定的操作者用户 id；画布类 submit 校验通过后立刻写库。
+ * 写流/跑流/导入须带 Token 绑定的操作者用户 id。
+ * 逐次调用会话里，画布类 submit 校验通过后立刻写库。
+ * 回合会话在同一会话内累积单元与工作图，submit 回执保持 received，跑流前再写入测试流。
  */
 @Slf4j
 @Service
@@ -82,42 +85,54 @@ public class McpToolInvokeService {
      */
     public McpToolResult invoke(String toolName, McpToolInvokeParams params,
                                 Long tokenProjectId, Long operatorUserId) {
+        return invoke(toolName, params, tokenProjectId, operatorUserId, null);
+    }
+
+    /**
+     * 执行一次 MCP 工具调用。
+     * 回合会话复用同一份单元累积器与工作图，submit 不在本次调用写库。
+     *
+     * @param toolName       工具名
+     * @param params         调用参数（含信封字段）
+     * @param tokenProjectId Token 绑定的项目 id
+     * @param operatorUserId Token 绑定的操作者用户 id；写流与导入时必填
+     * @param session        当前会话；逐次调用或无会话时为 null
+     * @return 工具回执
+     */
+    public McpToolResult invoke(String toolName, McpToolInvokeParams params,
+                                Long tokenProjectId, Long operatorUserId, McpSession session) {
         try {
-            return invokeInner(toolName, params, tokenProjectId, operatorUserId);
+            return invokeInner(toolName, params, tokenProjectId, operatorUserId, session);
         } catch (FlowEditLeaseConflictException e) {
             return leaseConflictResult(toolName, e);
         }
     }
 
     /**
-     * 正常工具执行：读三道开关 → 门控 → 写/跑工具校验操作者与信封 → 执行 → submit 成功则落盘。
+     * 正常工具执行：读三道开关 → 门控 → 写/跑工具校验操作者与信封 → 执行。
+     * 逐次调用的 submit 成功则立刻写库；回合会话只记住工作图。
      */
     private McpToolResult invokeInner(String toolName, McpToolInvokeParams params,
-                                      Long tokenProjectId, Long operatorUserId) {
+                                      Long tokenProjectId, Long operatorUserId, McpSession session) {
         // 同一次调用只查一次项目，同时读出写流、跑流与导入开关
         TestProject project = loadProject(tokenProjectId, params);
         McpProjectGates gates = McpProjectGates.from(project);
-        if (!FlowDesignToolNames.isMcpCallable(toolName,
-                gates.autoWriteEnabled(), gates.autorunEnabled(), gates.importApisEnabled())) {
-            if (FlowDesignToolNames.isMcpImportApisTool(toolName)) {
-                throw new ServiceException(
-                        "MCP 不支持导入接口；请在项目设置开启「允许 MCP 导入接口」");
-            }
-            if (FlowDesignToolNames.isMcpAutorunTool(toolName)) {
-                // run_test_flow 须写流与跑流都开：缺写流时先提示写流，否则提示跑流
-                if (!gates.autoWriteEnabled()) {
-                    throw new ServiceException(
-                            "MCP 自动跑流须同时开启「允许 MCP 自动写流」；请在项目设置开启写流后再开跑流，"
-                                    + "或改用质衡 Web 端 AI 助手");
+        boolean turn = session != null && session.isTurn();
+        if (turn) {
+            // 回合会话只开放画布设计工具。列流、建流、导入接口、规程版本直接拒绝。
+            // 写流或跑流没开时，按对应开关提示用户去项目设置里打开。
+            if (!FlowDesignToolNames.isTurnSessionCallable(
+                    toolName, gates.autoWriteEnabled(), gates.autorunEnabled())) {
+                if (!FlowDesignToolNames.isWebAgent(toolName)) {
+                    throw new ServiceException("回合会话不提供工具: " + toolName);
                 }
-                throw new ServiceException(
-                        "MCP 不支持自动跑流；请在项目设置开启「允许 MCP 自动跑流」");
+                rejectClosedTool(toolName, gates);
             }
-            if (FlowDesignToolNames.isMcpAutoWriteTool(toolName)) {
-                throw new ServiceException(
-                        "MCP 不支持修改测试流；请在项目设置开启「允许 MCP 自动写流」，或改用质衡 Web 端 AI 助手");
-            }
-            throw new ServiceException("MCP 不支持的工具: " + toolName);
+            // 参数没带测试流时用会话绑定的流；会话里已有工作图时用它，避免旧图盖掉本轮累积
+            bindTurnEnvelope(session, params);
+        } else if (!FlowDesignToolNames.isMcpCallable(toolName,
+                gates.autoWriteEnabled(), gates.autorunEnabled(), gates.importApisEnabled())) {
+            rejectClosedTool(toolName, gates);
         }
 
         boolean writeTool = FlowDesignToolNames.isMcpAutoWriteTool(toolName);
@@ -131,21 +146,26 @@ public class McpToolInvokeService {
             ensureWriteEnvelope(toolName, params, tokenProjectId);
         }
 
-        // submit 需要本调用内的单元累积器，便于校验通过后立刻落盘
-        FlowDesignSubmitCapture capture = FlowDesignToolNames.isSubmitUnitTool(toolName)
-                ? new FlowDesignSubmitCapture()
-                : null;
-        // 写流与跑流均注入全自动上下文（跑前可隐式落盘未提交单元）
-        boolean autopilotCtx = writeTool || autorunTool;
+        // 回合会话全程复用同一累积器，这样 run_test_flow 能看到前面收下的单元。
+        // 逐次调用只在 submit 时新建累积器，校验通过后立刻写库并清空。
+        FlowDesignSubmitCapture capture = turn
+                ? session.getCapture()
+                : (FlowDesignToolNames.isSubmitUnitTool(toolName) ? new FlowDesignSubmitCapture() : null);
+        // 回合会话按可跑流的设计上下文执行：run_test_flow 在开跑前把已接受单元写入测试流
+        boolean autopilotCtx = turn || writeTool || autorunTool;
         FlowDesignToolContext context = contextFactory.fromMcpRequest(
                 params, tokenProjectId, capture, autopilotCtx, operatorUserId);
 
-        // mcpMode：跑流/查失败使用 MCP 门面实现
+        // 最后一个参数为 false 时走画布执行：submit 回 received，不在本次调用写库。
+        // 为 true 时走逐次调用门面：跑流和查失败按 MCP 回执，submit 随后立刻写库。
         String resultJson = flowDesignToolExecutor.executeTool(
-                toolName, params.toArgumentsJson(), context, true);
+                toolName, params.toArgumentsJson(), context, !turn);
+
+        rememberTurnGraph(session, turn, context);
 
         boolean error = FlowDesignToolSupport.isErrorResult(resultJson);
-        if (FlowDesignToolNames.isSubmitUnitTool(toolName) && !error) {
+        // 回合会话不在这里写库，也不包 committed；落盘发生在画布跑流之前
+        if (!turn && FlowDesignToolNames.isSubmitUnitTool(toolName) && !error) {
             CommitWrapped wrapped = commitSubmitIfNeeded(toolName, context, resultJson, tokenProjectId);
             resultJson = wrapped.resultJson();
             error = wrapped.error();
@@ -160,6 +180,66 @@ public class McpToolInvokeService {
                 .resultJson(resultJson)
                 .error(error)
                 .build();
+    }
+
+    /**
+     * 工具因项目开关未开而不可调用时抛出对应说明。
+     * 逐次调用和回合会话共用这些说明：导入、跑流、写流各自提示要开的开关。
+     * 回合会话里不属于画布的工具不走这里，而是直接说明当前会话不提供该工具。
+     */
+    private static void rejectClosedTool(String toolName, McpProjectGates gates) {
+        if (FlowDesignToolNames.isMcpImportApisTool(toolName)) {
+            throw new ServiceException(
+                    "MCP 不支持导入接口；请在项目设置开启「允许 MCP 导入接口」");
+        }
+        if (FlowDesignToolNames.isMcpAutorunTool(toolName)) {
+            // run_test_flow 须写流与跑流都开：缺写流时先提示写流，否则提示跑流
+            if (!gates.autoWriteEnabled()) {
+                throw new ServiceException(
+                        "MCP 自动跑流须同时开启「允许 MCP 自动写流」；请在项目设置开启写流后再开跑流，"
+                                + "或改用质衡 Web 端 AI 助手");
+            }
+            throw new ServiceException(
+                    "MCP 不支持自动跑流；请在项目设置开启「允许 MCP 自动跑流」");
+        }
+        if (FlowDesignToolNames.isMcpAutoWriteTool(toolName)) {
+            throw new ServiceException(
+                    "MCP 不支持修改测试流；请在项目设置开启「允许 MCP 自动写流」，或改用质衡 Web 端 AI 助手");
+        }
+        throw new ServiceException("MCP 不支持的工具: " + toolName);
+    }
+
+    /**
+     * 用回合会话上的测试流和工作图补齐本次调用。
+     * 参数没带测试流时填会话绑定的流。
+     * 会话里已经有工作图时，用它覆盖本次参数里的图和版本，使后面的 submit、查图、跑流都接着本轮累积，而不是回到库里的旧图。
+     */
+    private static void bindTurnEnvelope(McpSession session, McpToolInvokeParams params) {
+        if (params.getTestFlowId() == null) {
+            params.setTestFlowId(session.getTestFlowId());
+        }
+        if (session.getGraph() != null) {
+            params.setGraphJson(session.getGraph());
+            if (session.getRevision() != null) {
+                params.setGraphRevision(session.getRevision());
+            }
+        }
+    }
+
+    /**
+     * 回合会话在工具返回后，把上下文里的工作图和版本留在会话上。
+     * 下一次调用会把这张图带回去。逐次调用不保留。
+     */
+    private static void rememberTurnGraph(McpSession session, boolean turn, FlowDesignToolContext context) {
+        if (!turn || context == null) {
+            return;
+        }
+        if (context.resolveGraphJson() != null) {
+            session.setGraph(context.resolveGraphJson());
+        }
+        if (context.getBaseGraphRevision() != null) {
+            session.setRevision(context.getBaseGraphRevision());
+        }
     }
 
     /**

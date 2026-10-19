@@ -10,6 +10,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import com.qualitest.ai.mcp.McpToolInvokeService.McpProjectGates;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -249,5 +251,33 @@ class FlowDesignToolsDefinitionServiceTest {
         Map<String, Object> schema = (Map<String, Object>) tool.get("inputSchema");
         List<String> required = (List<String>) schema.get("required");
         assertTrue(required.contains("runId"));
+    }
+
+    /**
+     * 前提：写流与跑流都开。
+     * 期望：回合工具表含 submit 与 run_test_flow，不含列流、建流、导入接口、规程版本。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("回合工具表按写流跑流裁剪且不含协议专有工具")
+    void loadTurnSessionTools_canvasCatalogWithoutProtocolExtras() {
+        Set<String> names = service.loadTurnSessionTools(new McpProjectGates(true, true, true)).stream()
+                .map(tool -> String.valueOf(tool.get("name")))
+                .collect(Collectors.toSet());
+        assertTrue(names.contains("submit_http_node"));
+        assertTrue(names.contains("run_test_flow"));
+        assertTrue(names.contains("search_apis"));
+        assertFalse(names.contains("list_flows"));
+        assertFalse(names.contains("create_flow"));
+        assertFalse(names.contains("get_flow"));
+        assertFalse(names.contains("import_apis"));
+        assertFalse(names.contains("get_mcp_guide_version"));
+
+        Set<String> readonly = service.loadTurnSessionTools(new McpProjectGates(false, false, true)).stream()
+                .map(tool -> String.valueOf(tool.get("name")))
+                .collect(Collectors.toSet());
+        assertTrue(readonly.contains("search_apis"));
+        assertFalse(readonly.contains("submit_http_node"));
+        assertFalse(readonly.contains("run_test_flow"));
     }
 }

@@ -224,6 +224,27 @@ public enum FlowDesignToolNames {
         return autoWriteEnabled && isMcpAutoWriteTool(name);
     }
 
+    /**
+     * 回合会话可调用的画布工具。
+     * 只含造流助手工具。列流、建流、读单条流、导入接口、规程版本不在此列。
+     * 改图类工具要开写流；run_test_flow 要写流和跑流都开。其余只读画布工具始终可调用。
+     *
+     * @param autoWriteEnabled 是否开启「允许 MCP 自动写流」
+     * @param autorunEnabled   是否开启「允许 MCP 自动跑流」
+     */
+    public static boolean isTurnSessionCallable(String name, boolean autoWriteEnabled, boolean autorunEnabled) {
+        if (!isWebAgent(name)) {
+            return false;
+        }
+        if (isMcpAutorunTool(name)) {
+            return autorunEnabled && autoWriteEnabled;
+        }
+        if (isMcpAutoWriteTool(name)) {
+            return autoWriteEnabled;
+        }
+        return true;
+    }
+
     /** 按工具名判断是否属于 Web 造流助手 */
     public static boolean isWebAgent(String name) {
         if (name == null || name.isBlank()) {

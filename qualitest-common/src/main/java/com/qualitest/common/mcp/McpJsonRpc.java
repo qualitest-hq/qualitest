@@ -27,6 +27,18 @@ public final class McpJsonRpc {
     /** Streamable HTTP 会话响应/请求头名。 */
     public static final String SESSION_HEADER = "Mcp-Session-Id";
 
+    /**
+     * 建立会话时的模式请求头。取值 call（每次工具调用各自写库）或 turn（同一会话累积，跑流前再写库）。
+     * 只在 initialize 时读取一次；没带这个头时按 call。
+     */
+    public static final String SESSION_MODE_HEADER = "X-Qualitest-Session";
+
+    /**
+     * 建立回合会话时绑定测试流的请求头，值是测试流 id。
+     * 只在 initialize 时读取一次。turn 却没带测试流 id 时，握手失败、不签发会话。
+     */
+    public static final String SESSION_FLOW_HEADER = "X-Qualitest-Test-Flow-Id";
+
     /** Project Token 鉴权失败时 JSON-RPC error.code。 */
     public static final int AUTH_ERROR_CODE = -32001;
 
