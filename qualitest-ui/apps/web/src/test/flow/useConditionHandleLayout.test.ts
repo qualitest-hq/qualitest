@@ -1,11 +1,13 @@
 /**
  * 测 useConditionHandleLayout：行布局变化后刷新 Vue Flow internals。
- * 边界：mock @vue-flow/core；jsdom + stub rAF / ResizeObserver。
+ * 边界：mock @vue-flow/core；jsdom + stub rAF / ResizeObserver；排版方向读画布 store，需先建 Pinia。
  * 单跑：pnpm test useConditionHandleLayout   （在 qualitest-ui 或 apps/web 下）
  * @vitest-environment jsdom
  */
 import { createApp, defineComponent, nextTick, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { setupFreshPinia } from '@/test/helpers/pinia';
 
 const updateNodeInternalsMock = vi.fn();
 
@@ -19,6 +21,7 @@ import { useConditionHandleLayout } from '@/views/project/testFlow/composables/u
 
 describe('useConditionHandleLayout', () => {
   beforeEach(() => {
+    setupFreshPinia();
     updateNodeInternalsMock.mockClear();
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       cb(0);
