@@ -9,7 +9,7 @@
     ><img
       v-if="showIcon"
       class="mps-icon"
-      src="/beian-mps.png"
+      :src="mpsIconSrc"
       alt=""
       @error="showIcon = false"
     />{{ mps.number }}</a>
@@ -28,6 +28,8 @@ import { readIcpNumber, readMpsBeian } from "@/utils/icp"
 
 const number = readIcpNumber()
 const mps = readMpsBeian()
+/** 演示站 compose 挂载的官方图标；勿写成静态 src，否则 Vite 会当模块解析失败。 */
+const mpsIconSrc = "/beian-mps.png"
 const showIcon = ref(!!mps.number)
 </script>
 
