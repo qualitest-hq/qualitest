@@ -12,3 +12,12 @@ window.__QUALITEST_LOGIN_DEFAULTS__ = {
 window.__QUALITEST_ICP__ = {
   number: ""
 };
+
+/**
+ * 公安联网备案（公网安备）。正式镜像留空。
+ * 演示站填写 number + 平台下发的查询 url。
+ */
+window.__QUALITEST_MPS__ = {
+  number: "",
+  url: ""
+};

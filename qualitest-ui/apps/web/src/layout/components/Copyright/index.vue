@@ -1,5 +1,5 @@
 <template>
-  <footer v-if="visible || icpNumber" class="copyright" :class="{ 'is-beian-only': !visible }">
+  <footer v-if="visible || hasBeian" class="copyright" :class="{ 'is-beian-only': !visible }">
     <icp-beian />
     <span v-if="visible">{{ content }}</span>
   </footer>
@@ -7,14 +7,14 @@
 
 <script setup>
 import IcpBeian from '@/components/IcpBeian/index.vue'
-import { readIcpNumber } from '@/utils/icp'
+import { readIcpNumber, readMpsBeian } from '@/utils/icp'
 import useSettingsStore from '@/store/modules/settings'
 
 const settingsStore = useSettingsStore()
 
 const visible = computed(() => settingsStore.footerVisible)
 const content = computed(() => settingsStore.footerContent)
-const icpNumber = readIcpNumber()
+const hasBeian = !!(readIcpNumber() || readMpsBeian().number)
 </script>
 
 <style scoped>
