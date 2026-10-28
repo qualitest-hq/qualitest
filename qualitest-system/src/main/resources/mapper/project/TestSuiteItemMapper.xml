@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestSuiteItemMapper">
+
+    <resultMap id="TestSuiteItemResultMap" type="TestSuiteItem">
+        <result property="testSuiteItemId" column="test_suite_item_id"/>
+        <result property="testSuiteId" column="test_suite_id"/>
+        <result property="testFlowId" column="test_flow_id"/>
+        <result property="runScenarioId" column="run_scenario_id"/>
+        <result property="sortNum" column="sort_num"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestSuiteItemVo">
+        select test_suite_item_id,
+               test_suite_id,
+               test_flow_id,
+               run_scenario_id,
+               sort_num,
+               del_status,
+               create_time,
+               update_time
+        from test_suite_item
+    </sql>
+
+    <select id="selectTestSuiteItemList" parameterType="TestSuiteItem" resultMap="TestSuiteItemResultMap">
+        <include refid="selectTestSuiteItemVo"/>
+        <where>
+            <if test="testSuiteId != null">
+                and test_suite_id = #{testSuiteId}
+            </if>
+            <if test="testFlowId != null">
+                and test_flow_id = #{testFlowId}
+            </if>
+            <if test="runScenarioId != null and runScenarioId != ''">
+                and run_scenario_id = #{runScenarioId}
+            </if>
+            <if test="delStatus != null">
+                and del_status = #{delStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestSuiteItemById" parameterType="Long" resultMap="TestSuiteItemResultMap">
+        <include refid="selectTestSuiteItemVo"/>
+        where test_suite_item_id = #{testSuiteItemId}
+    </select>
+
+    <select id="selectTestSuiteItemResultList" parameterType="TestSuiteItemParams"
+            resultType="TestSuiteItemResult">
+        select
+            tsi.test_suite_item_id as testSuiteItemId,
+            tsi.test_suite_id as testSuiteId,
+            tsi.test_flow_id as testFlowId,
+            tf.flow_name as flowName,
+            tsi.run_scenario_id as runScenarioId,
+            tsi.sort_num as sortNum,
+            tsi.del_status as delStatus,
+            tsi.create_time as createTime,
+            tsi.update_time as updateTime
+        from test_suite_item tsi
+        left join test_flow tf on tf.test_flow_id = tsi.test_flow_id and tf.del_status = 0
+        where tsi.del_status = 0
+        <if test="testSuiteId != null">
+            and tsi.test_suite_id = #{testSuiteId}
+        </if>
+        <if test="testFlowId != null">
+            and tsi.test_flow_id = #{testFlowId}
+        </if>
+        <if test="runScenarioId != null and runScenarioId != ''">
+            and tsi.run_scenario_id = #{runScenarioId}
+        </if>
+        order by tsi.sort_num asc, tsi.test_suite_item_id asc
+    </select>
+
+    <select id="selectTestSuiteItemResult" parameterType="Long" resultType="TestSuiteItemResult">
+        select
+            tsi.test_suite_item_id as testSuiteItemId,
+            tsi.test_suite_id as testSuiteId,
+            tsi.test_flow_id as testFlowId,
+            tf.flow_name as flowName,
+            tsi.run_scenario_id as runScenarioId,
+            tsi.sort_num as sortNum,
+            tsi.del_status as delStatus,
+            tsi.create_time as createTime,
+            tsi.update_time as updateTime
+        from test_suite_item tsi
+        left join test_flow tf on tf.test_flow_id = tsi.test_flow_id and tf.del_status = 0
+        where tsi.del_status = 0
+          and tsi.test_suite_item_id = #{testSuiteItemId}
+        limit 1
+    </select>
+
+    <select id="selectTestSuiteItemCount" parameterType="TestSuiteItemParams" resultType="int">
+        select count(1)
+        from test_suite_item tsi
+        where tsi.del_status = 0
+        <if test="testSuiteId != null">
+            and tsi.test_suite_id = #{testSuiteId}
+        </if>
+        <if test="testFlowId != null">
+            and tsi.test_flow_id = #{testFlowId}
+        </if>
+    </select>
+
+    <select id="selectTestSuiteItemOne" parameterType="TestSuiteItemParams" resultMap="TestSuiteItemResultMap">
+        <include refid="selectTestSuiteItemVo"/>
+        <where>
+            <if test="testSuiteItemId != null">
+                and test_suite_item_id = #{testSuiteItemId}
+            </if>
+            <if test="testSuiteId != null">
+                and test_suite_id = #{testSuiteId}
+            </if>
+            <if test="testFlowId != null">
+                and test_flow_id = #{testFlowId}
+            </if>
+            <if test="delStatus != null">
+                and del_status = #{delStatus}
+            </if>
+        </where>
+        limit 1
+    </select>
+
+    <insert id="insertTestSuiteItem" parameterType="TestSuiteItem">
+        insert into test_suite_item
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testSuiteItemId != null">test_suite_item_id,</if>
+            <if test="testSuiteId != null">test_suite_id,</if>
+            <if test="testFlowId != null">test_flow_id,</if>
+            <if test="runScenarioId != null">run_scenario_id,</if>
+            <if test="sortNum != null">sort_num,</if>
+            <if test="delStatus != null">del_status,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testSuiteItemId != null">#{testSuiteItemId},</if>
+            <if test="testSuiteId != null">#{testSuiteId},</if>
+            <if test="testFlowId != null">#{testFlowId},</if>
+            <if test="runScenarioId != null">#{runScenarioId},</if>
+            <if test="sortNum != null">#{sortNum},</if>
+            <if test="delStatus != null">#{delStatus},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateTestSuiteItem" parameterType="TestSuiteItem">
+        update test_suite_item
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testFlowId != null">test_flow_id = #{testFlowId},</if>
+            <if test="runScenarioId != null">run_scenario_id = #{runScenarioId},</if>
+            <if test="sortNum != null">sort_num = #{sortNum},</if>
+            <if test="delStatus != null">del_status = #{delStatus},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where test_suite_item_id = #{testSuiteItemId}
+    </update>
+
+    <delete id="deleteTestSuiteItemById" parameterType="Long">
+        delete from test_suite_item where test_suite_item_id = #{testSuiteItemId}
+    </delete>
+
+    <delete id="deleteTestSuiteItemByIdList" parameterType="java.util.List">
+        delete from test_suite_item where test_suite_item_id in
+        <foreach item="testSuiteItemId" collection="list" open="(" separator="," close=")">
+            #{testSuiteItemId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestSuiteItemById" parameterType="Long">
+        update test_suite_item
+        set del_status = 1, update_time = now()
+        where test_suite_item_id = #{testSuiteItemId}
+    </update>
+
+    <update id="logicDeleteTestSuiteItemByIdList" parameterType="java.util.List">
+        update test_suite_item
+        set del_status = 1, update_time = now()
+        where test_suite_item_id in
+        <foreach item="testSuiteItemId" collection="list" open="(" separator="," close=")">
+            #{testSuiteItemId}
+        </foreach>
+    </update>
+
+    <update id="logicDeleteBySuiteId">
+        update test_suite_item
+        set del_status = 1, update_time = now()
+        where test_suite_id = #{testSuiteId}
+          and del_status = 0
+    </update>
+
+    <update id="logicDeleteBySuiteIdList">
+        update test_suite_item
+        set del_status = 1, update_time = now()
+        where del_status = 0
+          and test_suite_id in
+        <foreach collection="suiteIdList" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+</mapper>

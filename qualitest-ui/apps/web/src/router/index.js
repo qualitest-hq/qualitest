@@ -177,6 +177,12 @@ export const dynamicRoutes = [
         meta: { title: '测试流', activeMenu: '/project/testProject' }
       },
       {
+        path: 'suites/:testProjectId',
+        component: () => import('@/views/project/testFlow/TestSuiteList.vue'),
+        name: 'TestSuiteList',
+        meta: { title: '测试套件', activeMenu: '/project/testProject' }
+      },
+      {
         path: 'flow/:testProjectId/:testFlowId',
         component: () => import('@/views/project/testFlow/FlowCanvasView.vue'),
         name: 'TestFlowCanvas',

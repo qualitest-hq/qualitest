@@ -31,6 +31,15 @@
               >
                 <svg-icon class="detail-doc-tab-flow-icon" icon-class="test-flow"/>
               </button>
+              <button
+                  type="button"
+                  class="detail-doc-tab-flow-btn"
+                  title="测试套件"
+                  aria-label="测试套件"
+                  @click="openTestSuiteList"
+              >
+                <svg-icon class="detail-doc-tab-flow-icon" icon-class="test-suite"/>
+              </button>
             </template>
           </ProjectDetailDocTabs>
           <div class="detail-main-tabs-wrap">
@@ -414,6 +423,10 @@ function openAssetManageDialog() {
 
 function openTestFlowList() {
   router.push(`/project/testProject/flows/${testProjectId.value}`)
+}
+
+function openTestSuiteList() {
+  router.push(`/project/testProject/suites/${testProjectId.value}`)
 }
 
 function openProjectSettingDrawer() {

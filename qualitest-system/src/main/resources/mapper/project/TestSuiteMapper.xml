@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestSuiteMapper">
+
+    <resultMap id="TestSuiteResultMap" type="TestSuite">
+        <result property="testSuiteId" column="test_suite_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="suiteName" column="suite_name"/>
+        <result property="suiteDescription" column="suite_description"/>
+        <result property="stopOnNonPass" column="stop_on_non_pass"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestSuiteVo">
+        select test_suite_id,
+               test_project_id,
+               suite_name,
+               suite_description,
+               stop_on_non_pass,
+               del_status,
+               create_time,
+               update_time
+        from test_suite
+    </sql>
+
+    <select id="selectTestSuiteList" parameterType="TestSuite" resultMap="TestSuiteResultMap">
+        <include refid="selectTestSuiteVo"/>
+        <where>
+            <if test="testProjectId != null">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="suiteName != null and suiteName != ''">
+                and suite_name like concat('%', #{suiteName}, '%')
+            </if>
+            <if test="stopOnNonPass != null">
+                and stop_on_non_pass = #{stopOnNonPass}
+            </if>
+            <if test="delStatus != null">
+                and del_status = #{delStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestSuiteById" parameterType="Long" resultMap="TestSuiteResultMap">
+        <include refid="selectTestSuiteVo"/>
+        where test_suite_id = #{testSuiteId}
+    </select>
+
+    <select id="selectTestSuiteResultList" parameterType="TestSuiteParams" resultType="TestSuiteResult">
+        select
+            ts.test_suite_id as testSuiteId,
+            ts.test_project_id as testProjectId,
+            ts.suite_name as suiteName,
+            ts.suite_description as suiteDescription,
+            ts.stop_on_non_pass as stopOnNonPass,
+            ts.del_status as delStatus,
+            ts.create_time as createTime,
+            ts.update_time as updateTime,
+            (select count(1) from test_suite_item tsi
+             where tsi.test_suite_id = ts.test_suite_id and tsi.del_status = 0) as itemCount
+        from test_suite ts
+        where ts.del_status = 0
+        <if test="testProjectId != null">
+            and ts.test_project_id = #{testProjectId}
+        </if>
+        <if test="suiteName != null and suiteName != ''">
+            and ts.suite_name like concat('%', #{suiteName}, '%')
+        </if>
+        order by ts.update_time desc, ts.test_suite_id desc
+    </select>
+
+    <select id="selectTestSuiteResult" parameterType="Long" resultType="TestSuiteResult">
+        select
+            ts.test_suite_id as testSuiteId,
+            ts.test_project_id as testProjectId,
+            ts.suite_name as suiteName,
+            ts.suite_description as suiteDescription,
+            ts.stop_on_non_pass as stopOnNonPass,
+            ts.del_status as delStatus,
+            ts.create_time as createTime,
+            ts.update_time as updateTime,
+            (select count(1) from test_suite_item tsi
+             where tsi.test_suite_id = ts.test_suite_id and tsi.del_status = 0) as itemCount
+        from test_suite ts
+        where ts.del_status = 0
+          and ts.test_suite_id = #{testSuiteId}
+        limit 1
+    </select>
+
+    <select id="selectTestSuiteCount" parameterType="TestSuiteParams" resultType="int">
+        select count(1)
+        from test_suite ts
+        where ts.del_status = 0
+        <if test="testProjectId != null">
+            and ts.test_project_id = #{testProjectId}
+        </if>
+        <if test="suiteName != null and suiteName != ''">
+            and ts.suite_name like concat('%', #{suiteName}, '%')
+        </if>
+    </select>
+
+    <select id="selectTestSuiteOne" parameterType="TestSuiteParams" resultMap="TestSuiteResultMap">
+        <include refid="selectTestSuiteVo"/>
+        <where>
+            <if test="testSuiteId != null">
+                and test_suite_id = #{testSuiteId}
+            </if>
+            <if test="testProjectId != null">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="suiteName != null and suiteName != ''">
+                and suite_name = #{suiteName}
+            </if>
+            <if test="delStatus != null">
+                and del_status = #{delStatus}
+            </if>
+        </where>
+        limit 1
+    </select>
+
+    <insert id="insertTestSuite" parameterType="TestSuite">
+        insert into test_suite
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testSuiteId != null">test_suite_id,</if>
+            <if test="testProjectId != null">test_project_id,</if>
+            <if test="suiteName != null and suiteName != ''">suite_name,</if>
+            <if test="suiteDescription != null">suite_description,</if>
+            <if test="stopOnNonPass != null">stop_on_non_pass,</if>
+            <if test="delStatus != null">del_status,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testSuiteId != null">#{testSuiteId},</if>
+            <if test="testProjectId != null">#{testProjectId},</if>
+            <if test="suiteName != null and suiteName != ''">#{suiteName},</if>
+            <if test="suiteDescription != null">#{suiteDescription},</if>
+            <if test="stopOnNonPass != null">#{stopOnNonPass},</if>
+            <if test="delStatus != null">#{delStatus},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateTestSuite" parameterType="TestSuite">
+        update test_suite
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="suiteName != null and suiteName != ''">suite_name = #{suiteName},</if>
+            <if test="suiteDescription != null">suite_description = #{suiteDescription},</if>
+            <if test="stopOnNonPass != null">stop_on_non_pass = #{stopOnNonPass},</if>
+            <if test="delStatus != null">del_status = #{delStatus},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where test_suite_id = #{testSuiteId}
+    </update>
+
+    <delete id="deleteTestSuiteById" parameterType="Long">
+        delete from test_suite where test_suite_id = #{testSuiteId}
+    </delete>
+
+    <delete id="deleteTestSuiteByIdList" parameterType="java.util.List">
+        delete from test_suite where test_suite_id in
+        <foreach item="testSuiteId" collection="list" open="(" separator="," close=")">
+            #{testSuiteId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestSuiteById" parameterType="Long">
+        update test_suite
+        set del_status = 1, update_time = now()
+        where test_suite_id = #{testSuiteId}
+    </update>
+
+    <update id="logicDeleteTestSuiteByIdList" parameterType="java.util.List">
+        update test_suite
+        set del_status = 1, update_time = now()
+        where test_suite_id in
+        <foreach item="testSuiteId" collection="list" open="(" separator="," close=")">
+            #{testSuiteId}
+        </foreach>
+    </update>
+</mapper>

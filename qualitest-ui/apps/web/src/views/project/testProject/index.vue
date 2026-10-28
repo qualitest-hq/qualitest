@@ -87,7 +87,7 @@
       <el-table-column v-if="columnVisible['ownerId']" key="ownerId" align="center" label="所有者ID" prop="ownerId"/>
       <el-table-column v-if="columnVisible['ownerName']" key="ownerName" align="center" label="所有者"
                        prop="ownerName"/>
-      <el-table-column align="center" class-name="small-padding fixed-width" label="操作" width="300">
+      <el-table-column align="center" class-name="small-padding fixed-width" label="操作" width="360">
         <template #default="scope">
           <el-button class="test-project-op-btn" link type="primary" @click="handleOpenApi(scope.row)">
             <svg-icon icon-class="project-api"/>
@@ -96,6 +96,10 @@
           <el-button class="test-project-op-btn test-project-op-btn--flow" link type="primary" @click="handleOpenTestFlows(scope.row)">
             <svg-icon class="test-project-op-icon--flow" icon-class="test-flow"/>
             测试流
+          </el-button>
+          <el-button class="test-project-op-btn" link type="primary" @click="handleOpenTestSuites(scope.row)">
+            <svg-icon icon-class="test-suite"/>
+            测试套件
           </el-button>
           <el-button
               v-hasPermi="['project:testProject:query']"
@@ -371,6 +375,11 @@ function handleOpenApi(row) {
 /** 打开项目下测试流列表 */
 function handleOpenTestFlows(row) {
   router.push(`/project/testProject/flows/${row.testProjectId}`)
+}
+
+/** 打开项目下测试套件列表 */
+function handleOpenTestSuites(row) {
+  router.push(`/project/testProject/suites/${row.testProjectId}`)
 }
 
 /** 项目成员 */

@@ -60,7 +60,7 @@ export function runStatusTagType(status: string | null | undefined): string {
 }
 
 /** 运行触发方式 code */
-export const RUN_TRIGGER_TYPES = ['manual', 'ai', 'ci', 'schedule'] as const;
+export const RUN_TRIGGER_TYPES = ['manual', 'ai', 'ci', 'schedule', 'suite'] as const;
 
 export type RunTriggerType = (typeof RUN_TRIGGER_TYPES)[number];
 
@@ -70,6 +70,7 @@ export const RUN_TRIGGER_LABEL: Record<RunTriggerType, string> = {
   ai: 'AI 跑流',
   ci: 'CI',
   schedule: '定时',
+  suite: '批量',
 };
 
 /** 触发方式展示文案；未知 code 原样返回 */

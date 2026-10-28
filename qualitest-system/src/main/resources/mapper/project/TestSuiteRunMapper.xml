@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestSuiteRunMapper">
+
+    <resultMap id="TestSuiteRunResultMap" type="TestSuiteRun">
+        <result property="testSuiteRunId" column="test_suite_run_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="testSuiteId" column="test_suite_id"/>
+        <result property="suiteNameSnapshot" column="suite_name_snapshot"/>
+        <result property="status" column="status"/>
+        <result property="stopOnNonPass" column="stop_on_non_pass"/>
+        <result property="testProjectEnvId" column="test_project_env_id"/>
+        <result property="triggerType" column="trigger_type"/>
+        <result property="passedCount" column="passed_count"/>
+        <result property="failedCount" column="failed_count"/>
+        <result property="pausedCount" column="paused_count"/>
+        <result property="skippedCount" column="skipped_count"/>
+        <result property="otherCount" column="other_count"/>
+        <result property="startedAt" column="started_at"/>
+        <result property="finishedAt" column="finished_at"/>
+        <result property="operatorUserId" column="operator_user_id"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestSuiteRunVo">
+        select test_suite_run_id,
+               test_project_id,
+               test_suite_id,
+               suite_name_snapshot,
+               status,
+               stop_on_non_pass,
+               test_project_env_id,
+               trigger_type,
+               passed_count,
+               failed_count,
+               paused_count,
+               skipped_count,
+               other_count,
+               started_at,
+               finished_at,
+               operator_user_id,
+               del_status,
+               create_time,
+               update_time
+        from test_suite_run
+    </sql>
+
+    <select id="selectTestSuiteRunList" parameterType="TestSuiteRun" resultMap="TestSuiteRunResultMap">
+        <include refid="selectTestSuiteRunVo"/>
+        <where>
+            <if test="testProjectId != null">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="testSuiteId != null">
+                and test_suite_id = #{testSuiteId}
+            </if>
+            <if test="status != null and status != ''">
+                and status = #{status}
+            </if>
+            <if test="delStatus != null">
+                and del_status = #{delStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestSuiteRunById" parameterType="Long" resultMap="TestSuiteRunResultMap">
+        <include refid="selectTestSuiteRunVo"/>
+        where test_suite_run_id = #{testSuiteRunId}
+    </select>
+
+    <select id="selectTestSuiteRunResultList" parameterType="TestSuiteRunParams"
+            resultType="TestSuiteRunResult">
+        select
+            test_suite_run_id as testSuiteRunId,
+            test_project_id as testProjectId,
+            test_suite_id as testSuiteId,
+            suite_name_snapshot as suiteNameSnapshot,
+            status,
+            stop_on_non_pass as stopOnNonPass,
+            test_project_env_id as testProjectEnvId,
+            trigger_type as triggerType,
+            passed_count as passedCount,
+            failed_count as failedCount,
+            paused_count as pausedCount,
+            skipped_count as skippedCount,
+            other_count as otherCount,
+            started_at as startedAt,
+            finished_at as finishedAt,
+            operator_user_id as operatorUserId,
+            del_status as delStatus,
+            create_time as createTime,
+            update_time as updateTime
+        from test_suite_run
+        where del_status = 0
+        <if test="testProjectId != null">
+            and test_project_id = #{testProjectId}
+        </if>
+        <if test="testSuiteId != null">
+            and test_suite_id = #{testSuiteId}
+        </if>
+        <if test="status != null and status != ''">
+            and status = #{status}
+        </if>
+        order by started_at desc, test_suite_run_id desc
+    </select>
+
+    <select id="selectTestSuiteRunResult" parameterType="Long" resultType="TestSuiteRunResult">
+        select
+            test_suite_run_id as testSuiteRunId,
+            test_project_id as testProjectId,
+            test_suite_id as testSuiteId,
+            suite_name_snapshot as suiteNameSnapshot,
+            status,
+            stop_on_non_pass as stopOnNonPass,
+            test_project_env_id as testProjectEnvId,
+            trigger_type as triggerType,
+            passed_count as passedCount,
+            failed_count as failedCount,
+            paused_count as pausedCount,
+            skipped_count as skippedCount,
+            other_count as otherCount,
+            started_at as startedAt,
+            finished_at as finishedAt,
+            operator_user_id as operatorUserId,
+            del_status as delStatus,
+            create_time as createTime,
+            update_time as updateTime
+        from test_suite_run
+        where del_status = 0
+          and test_suite_run_id = #{testSuiteRunId}
+        limit 1
+    </select>
+
+    <select id="selectTestSuiteRunCount" parameterType="TestSuiteRunParams" resultType="int">
+        select count(1)
+        from test_suite_run
+        where del_status = 0
+        <if test="testProjectId != null">
+            and test_project_id = #{testProjectId}
+        </if>
+        <if test="testSuiteId != null">
+            and test_suite_id = #{testSuiteId}
+        </if>
+        <if test="status != null and status != ''">
+            and status = #{status}
+        </if>
+    </select>
+
+    <select id="selectTestSuiteRunOne" parameterType="TestSuiteRunParams" resultMap="TestSuiteRunResultMap">
+        <include refid="selectTestSuiteRunVo"/>
+        <where>
+            <if test="testSuiteRunId != null">
+                and test_suite_run_id = #{testSuiteRunId}
+            </if>
+            <if test="testProjectId != null">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="testSuiteId != null">
+                and test_suite_id = #{testSuiteId}
+            </if>
+            <if test="status != null and status != ''">
+                and status = #{status}
+            </if>
+            <if test="delStatus != null">
+                and del_status = #{delStatus}
+            </if>
+        </where>
+        limit 1
+    </select>
+
+    <insert id="insertTestSuiteRun" parameterType="TestSuiteRun">
+        insert into test_suite_run
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testSuiteRunId != null">test_suite_run_id,</if>
+            <if test="testProjectId != null">test_project_id,</if>
+            <if test="testSuiteId != null">test_suite_id,</if>
+            <if test="suiteNameSnapshot != null">suite_name_snapshot,</if>
+            <if test="status != null">status,</if>
+            <if test="stopOnNonPass != null">stop_on_non_pass,</if>
+            <if test="testProjectEnvId != null">test_project_env_id,</if>
+            <if test="triggerType != null">trigger_type,</if>
+            <if test="passedCount != null">passed_count,</if>
+            <if test="failedCount != null">failed_count,</if>
+            <if test="pausedCount != null">paused_count,</if>
+            <if test="skippedCount != null">skipped_count,</if>
+            <if test="otherCount != null">other_count,</if>
+            <if test="startedAt != null">started_at,</if>
+            <if test="finishedAt != null">finished_at,</if>
+            <if test="operatorUserId != null">operator_user_id,</if>
+            <if test="delStatus != null">del_status,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testSuiteRunId != null">#{testSuiteRunId},</if>
+            <if test="testProjectId != null">#{testProjectId},</if>
+            <if test="testSuiteId != null">#{testSuiteId},</if>
+            <if test="suiteNameSnapshot != null">#{suiteNameSnapshot},</if>
+            <if test="status != null">#{status},</if>
+            <if test="stopOnNonPass != null">#{stopOnNonPass},</if>
+            <if test="testProjectEnvId != null">#{testProjectEnvId},</if>
+            <if test="triggerType != null">#{triggerType},</if>
+            <if test="passedCount != null">#{passedCount},</if>
+            <if test="failedCount != null">#{failedCount},</if>
+            <if test="pausedCount != null">#{pausedCount},</if>
+            <if test="skippedCount != null">#{skippedCount},</if>
+            <if test="otherCount != null">#{otherCount},</if>
+            <if test="startedAt != null">#{startedAt},</if>
+            <if test="finishedAt != null">#{finishedAt},</if>
+            <if test="operatorUserId != null">#{operatorUserId},</if>
+            <if test="delStatus != null">#{delStatus},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateTestSuiteRun" parameterType="TestSuiteRun">
+        update test_suite_run
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="status != null">status = #{status},</if>
+            <if test="passedCount != null">passed_count = #{passedCount},</if>
+            <if test="failedCount != null">failed_count = #{failedCount},</if>
+            <if test="pausedCount != null">paused_count = #{pausedCount},</if>
+            <if test="skippedCount != null">skipped_count = #{skippedCount},</if>
+            <if test="otherCount != null">other_count = #{otherCount},</if>
+            <if test="finishedAt != null">finished_at = #{finishedAt},</if>
+            <if test="delStatus != null">del_status = #{delStatus},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where test_suite_run_id = #{testSuiteRunId}
+    </update>
+
+    <delete id="deleteTestSuiteRunById" parameterType="Long">
+        delete from test_suite_run where test_suite_run_id = #{testSuiteRunId}
+    </delete>
+
+    <delete id="deleteTestSuiteRunByIdList" parameterType="java.util.List">
+        delete from test_suite_run where test_suite_run_id in
+        <foreach item="testSuiteRunId" collection="list" open="(" separator="," close=")">
+            #{testSuiteRunId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestSuiteRunById" parameterType="Long">
+        update test_suite_run
+        set del_status = 1, update_time = now()
+        where test_suite_run_id = #{testSuiteRunId}
+    </update>
+
+    <update id="logicDeleteTestSuiteRunByIdList" parameterType="java.util.List">
+        update test_suite_run
+        set del_status = 1, update_time = now()
+        where test_suite_run_id in
+        <foreach item="testSuiteRunId" collection="list" open="(" separator="," close=")">
+            #{testSuiteRunId}
+        </foreach>
+    </update>
+</mapper>

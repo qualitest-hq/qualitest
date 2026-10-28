@@ -33,6 +33,9 @@
           </el-button>
         </el-col>
         <el-col :span="1.5">
+          <el-button icon="Collection" plain @click="goSuites">测试套件</el-button>
+        </el-col>
+        <el-col :span="1.5">
           <el-button
               v-hasPermi="['project:testProject:remove']"
               :disabled="!selectedIds.length"
@@ -190,7 +193,7 @@
 <script setup>
 /**
  * 项目测试流列表：左侧目录树 + 右侧表格。
- * 支持按目录/未分组过滤、名称搜索、新建与改元信息（含挂目录）、批量移动目录、删除、进画布。
+ * 支持按目录/未分组过滤、名称搜索、新建与改元信息（含挂目录）、批量移动目录、删除、进画布；批量跑走「测试套件」。
  */
 import { getCurrentInstance, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -435,6 +438,10 @@ async function openMoveDialog() {
   moveTargetGroupId.value = null
   await ensureGroupSelectData()
   moveDialogVisible.value = true
+}
+
+function goSuites() {
+  router.push(`/project/testProject/suites/${testProjectId.value}`)
 }
 
 async function submitMove() {

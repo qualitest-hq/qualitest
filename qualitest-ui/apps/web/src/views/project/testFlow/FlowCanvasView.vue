@@ -105,6 +105,7 @@ async function initFlow() {
       loadProjectEnvs(),
       runLib.loadRuns(testFlowId),
     ])
+    await applyRunIdDeepLink()
     // 预检稍后，避免挡住首屏出图
     void runPreview()
   } catch (error) {
@@ -117,6 +118,23 @@ async function initFlow() {
     }
   } finally {
     setSuspended(false)
+  }
+}
+
+/**
+ * 支持 ?runId= 深链：加载运行库后选中该 Run 并打开运行详情。
+ * 无效 id 静默忽略。
+ */
+async function applyRunIdDeepLink() {
+  const runId = String(route.query.runId ?? '').trim()
+  if (!runId) return
+  try {
+    const detail = await runLib.fetchRunDetail(runId)
+    if (!detail) return
+    await runLib.selectRun(runId)
+    store.showRunPanel()
+  } catch {
+    // 深链失败不阻断画布
   }
 }
 

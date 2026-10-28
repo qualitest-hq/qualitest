@@ -20,10 +20,12 @@ import com.qualitest.common.enums.BusinessType;
 import com.qualitest.common.utils.file.FileUtils;
 import com.qualitest.project.params.TestFlowRunParams;
 import com.qualitest.project.params.ResumeTestFlowRunParams;
+import com.qualitest.project.params.TriggerTestFlowRunBatchParams;
 import com.qualitest.project.params.TriggerTestFlowRunParams;
 import com.qualitest.project.result.ResumeRunResult;
 import com.qualitest.project.result.TestFlowRunDetailResult;
 import com.qualitest.project.result.TestFlowRunResult;
+import com.qualitest.project.result.TriggerTestFlowRunBatchResult;
 import com.qualitest.project.service.ITestFlowExecutionService;
 import com.qualitest.project.service.ITestFlowRunReportService;
 import com.qualitest.project.service.ITestFlowRunService;
@@ -110,6 +112,17 @@ public class TestFlowRunController extends BaseController {
     public R<String> trigger(@RequestBody TriggerTestFlowRunParams params) {
         Long runId = testFlowExecutionService.triggerRun(params);
         return ok(runId != null ? String.valueOf(runId) : null);
+    }
+
+    /**
+     * 批量串行触发：按队列逐条 trigger 并等待离开 running，再处理下一项。
+     * 适合短批或服务端调用；长批建议客户端逐条 trigger 并轮询，以免 HTTP 超时。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
+    @Log(title = "测试流批量运行", businessType = BusinessType.OTHER)
+    @PostMapping("/triggerBatch")
+    public R<TriggerTestFlowRunBatchResult> triggerBatch(@RequestBody TriggerTestFlowRunBatchParams params) {
+        return ok(testFlowExecutionService.triggerBatch(params));
     }
 
     /**

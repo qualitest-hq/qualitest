@@ -825,6 +825,7 @@ public final class RunHtmlReportRenderer {
             case "ai" -> "AI 跑流";
             case "ci" -> "CI";
             case "schedule" -> "定时";
+            case "suite" -> "批量";
             default -> triggerType;
         };
     }

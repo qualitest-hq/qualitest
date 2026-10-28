@@ -21,9 +21,13 @@ import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.run.ResumeDecision;
 import com.qualitest.flow.run.RunExecutionState;
 import com.qualitest.project.params.ResumeTestFlowRunParams;
+import com.qualitest.project.params.TriggerTestFlowRunBatchItemParams;
+import com.qualitest.project.params.TriggerTestFlowRunBatchParams;
 import com.qualitest.project.result.ResumeRunResult;
 import com.qualitest.project.result.RunPauseInfo;
 import com.qualitest.project.result.SnapshotStackItemResult;
+import com.qualitest.project.result.TriggerTestFlowRunBatchItemResult;
+import com.qualitest.project.result.TriggerTestFlowRunBatchResult;
 import com.qualitest.flow.run.RunBootstrapMeta;
 import com.qualitest.flow.run.RunStatusUpdater;
 import com.qualitest.flow.run.StepResultWriter;
@@ -58,6 +62,7 @@ import org.springframework.stereotype.Service;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -275,6 +280,158 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(auth);
         return context;
+    }
+
+    private static final long DEFAULT_PER_RUN_TIMEOUT_MS = 600_000L;
+    private static final long MAX_PER_RUN_TIMEOUT_MS = 1_800_000L;
+
+    /**
+     * 按队列串行触发：每条写入 running 后等待离开 running，再处理下一项。
+     * items 优先；为空时用 testFlowIds（每流默认场景）。
+     */
+    @Override
+    public TriggerTestFlowRunBatchResult triggerBatch(TriggerTestFlowRunBatchParams params) {
+        if (params == null) {
+            throw new ServiceException("批量跑流参数不能为空");
+        }
+        List<TriggerTestFlowRunBatchItemParams> queue = resolveBatchQueue(params);
+        if (queue.isEmpty()) {
+            throw new ServiceException("批量跑流队列不能为空");
+        }
+
+        boolean stopOnNonPass = params.getStopOnNonPass() == null || Boolean.TRUE.equals(params.getStopOnNonPass());
+        long perRunTimeoutMs = resolvePerRunTimeoutMs(params.getPerRunTimeoutMs());
+        String triggerType = StrUtil.blankToDefault(params.getTriggerType(), "suite");
+
+        TriggerTestFlowRunBatchResult result = TriggerTestFlowRunBatchResult.builder()
+                .items(new ArrayList<>())
+                .build();
+
+        boolean stoppedEarly = false;
+        for (int i = 0; i < queue.size(); i++) {
+            if (stoppedEarly) {
+                TriggerTestFlowRunBatchItemParams skipped = queue.get(i);
+                result.getItems().add(TriggerTestFlowRunBatchItemResult.builder()
+                        .testFlowId(skipped.getTestFlowId())
+                        .runScenarioId(blankToNull(skipped.getRunScenarioId()))
+                        .status(RunStatus.SKIPPED.getCode())
+                        .errorMessage("队列已提前停止")
+                        .build());
+                result.setSkippedCount(result.getSkippedCount() + 1);
+                continue;
+            }
+
+            TriggerTestFlowRunBatchItemParams item = queue.get(i);
+            TriggerTestFlowRunBatchItemResult itemResult = runBatchItem(
+                    item, params.getTestProjectEnvId(), params.getOperatorUserId(), triggerType, perRunTimeoutMs);
+            result.getItems().add(itemResult);
+            tallyBatchItem(result, itemResult.getStatus());
+
+            if (stopOnNonPass && !RunStatus.PASSED.matches(itemResult.getStatus())) {
+                stoppedEarly = true;
+            }
+        }
+        result.setStoppedEarly(stoppedEarly);
+        return result;
+    }
+
+    /**
+     * 解析批量队列：优先 items；否则由 testFlowIds 去重保序展开。
+     */
+    private List<TriggerTestFlowRunBatchItemParams> resolveBatchQueue(TriggerTestFlowRunBatchParams params) {
+        List<TriggerTestFlowRunBatchItemParams> fromItems = params.getItems();
+        if (fromItems != null && !fromItems.isEmpty()) {
+            List<TriggerTestFlowRunBatchItemParams> queue = new ArrayList<>();
+            for (TriggerTestFlowRunBatchItemParams item : fromItems) {
+                if (item == null || item.getTestFlowId() == null) {
+                    throw new ServiceException("批量跑流项缺少 testFlowId");
+                }
+                queue.add(item);
+            }
+            return queue;
+        }
+        List<Long> flowIds = params.getTestFlowIds();
+        if (flowIds == null || flowIds.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<Long> ordered = new LinkedHashSet<>();
+        for (Long id : flowIds) {
+            if (id != null) {
+                ordered.add(id);
+            }
+        }
+        List<TriggerTestFlowRunBatchItemParams> queue = new ArrayList<>();
+        for (Long id : ordered) {
+            queue.add(TriggerTestFlowRunBatchItemParams.builder().testFlowId(id).build());
+        }
+        return queue;
+    }
+
+    private long resolvePerRunTimeoutMs(Long requested) {
+        long value = requested == null ? DEFAULT_PER_RUN_TIMEOUT_MS : requested;
+        if (value < 1L) {
+            value = DEFAULT_PER_RUN_TIMEOUT_MS;
+        }
+        return Math.min(value, MAX_PER_RUN_TIMEOUT_MS);
+    }
+
+    /**
+     * 触发单条并等待终态；触发异常记入 item，不向外抛。
+     */
+    private TriggerTestFlowRunBatchItemResult runBatchItem(
+            TriggerTestFlowRunBatchItemParams item,
+            Long testProjectEnvId,
+            Long operatorUserId,
+            String triggerType,
+            long perRunTimeoutMs) {
+        TriggerTestFlowRunBatchItemResult.TriggerTestFlowRunBatchItemResultBuilder builder =
+                TriggerTestFlowRunBatchItemResult.builder()
+                        .testFlowId(item.getTestFlowId())
+                        .runScenarioId(blankToNull(item.getRunScenarioId()));
+        try {
+            Long runId = triggerRun(TriggerTestFlowRunParams.builder()
+                    .testFlowId(item.getTestFlowId())
+                    .runScenarioId(blankToNull(item.getRunScenarioId()))
+                    .testProjectEnvId(testProjectEnvId)
+                    .triggerType(triggerType)
+                    .operatorUserId(operatorUserId)
+                    .build());
+            builder.runId(runId);
+            TestFlowRunResult terminal = awaitRunTerminal(runId, perRunTimeoutMs);
+            if (terminal == null) {
+                return builder.status(RunStatus.FAILED.getCode())
+                        .errorMessage("运行记录不存在")
+                        .build();
+            }
+            return builder
+                    .status(terminal.getStatus())
+                    .durationMs(terminal.getDurationMs())
+                    .errorMessage(terminal.getErrorMessage())
+                    .runScenarioId(blankToNull(StrUtil.blankToDefault(
+                            terminal.getRunScenarioId(), item.getRunScenarioId())))
+                    .build();
+        } catch (Exception e) {
+            return builder
+                    .status(RunStatus.FAILED.getCode())
+                    .errorMessage(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()))
+                    .build();
+        }
+    }
+
+    private void tallyBatchItem(TriggerTestFlowRunBatchResult result, String status) {
+        if (RunStatus.PASSED.matches(status)) {
+            result.setPassedCount(result.getPassedCount() + 1);
+        } else if (RunStatus.FAILED.matches(status)) {
+            result.setFailedCount(result.getFailedCount() + 1);
+        } else if (RunStatus.PAUSED.matches(status)) {
+            result.setPausedCount(result.getPausedCount() + 1);
+        } else {
+            result.setOtherCount(result.getOtherCount() + 1);
+        }
+    }
+
+    private static String blankToNull(String value) {
+        return StrUtil.isBlank(value) ? null : value.trim();
     }
 
     /**

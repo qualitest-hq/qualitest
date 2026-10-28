@@ -1,10 +1,12 @@
 package com.qualitest.project.service;
 
 import com.qualitest.project.params.ResumeTestFlowRunParams;
+import com.qualitest.project.params.TriggerTestFlowRunBatchParams;
 import com.qualitest.project.params.TriggerTestFlowRunParams;
 import com.qualitest.project.result.ResumeRunResult;
 import com.qualitest.project.result.TestFlowRunDetailResult;
 import com.qualitest.project.result.TestFlowRunResult;
+import com.qualitest.project.result.TriggerTestFlowRunBatchResult;
 
 /**
  * 测试流 Run 执行与报告查询。
@@ -21,6 +23,15 @@ public interface ITestFlowExecutionService {
      * @return 新建的 testFlowRunId（返回时通常仍为 running）
      */
     Long triggerRun(TriggerTestFlowRunParams params);
+
+    /**
+     * 按队列串行触发多条 Run：每条 trigger 后等待离开 running，再处理下一项。
+     * 适合短批或服务端调用；长批请由客户端逐条触发并轮询。
+     *
+     * @param params 队列与失败策略等
+     * @return 每项结果与汇总计数
+     */
+    TriggerTestFlowRunBatchResult triggerBatch(TriggerTestFlowRunBatchParams params);
 
     /**
      * 查询 Run 头信息、已落库步骤列表，以及触发时固化的 graph_json_snapshot。

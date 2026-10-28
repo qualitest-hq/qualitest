@@ -7,9 +7,46 @@ export interface TriggerTestFlowRunParams {
   testFlowId: string;
   testProjectEnvId?: string;
   runScenarioId?: string;
-  /** 触发来源：manual / ai / ci / schedule 等 */
+  /** 触发来源：manual / ai / ci / schedule / suite 等 */
   triggerType?: string;
   [key: string]: unknown;
+}
+
+/** 批量串行队列单条 */
+export interface TriggerTestFlowRunBatchItemParams {
+  testFlowId: string;
+  runScenarioId?: string;
+}
+
+/** 批量串行触发请求 */
+export interface TriggerTestFlowRunBatchParams {
+  items?: TriggerTestFlowRunBatchItemParams[];
+  testFlowIds?: string[];
+  testProjectEnvId?: string;
+  triggerType?: string;
+  stopOnNonPass?: boolean;
+  perRunTimeoutMs?: number;
+}
+
+/** 批量串行单项结果 */
+export interface TriggerTestFlowRunBatchItemResult {
+  testFlowId?: string | number;
+  runScenarioId?: string;
+  runId?: string | number;
+  status?: string;
+  errorMessage?: string;
+  durationMs?: number;
+}
+
+/** 批量串行汇总结果 */
+export interface TriggerTestFlowRunBatchResult {
+  items?: TriggerTestFlowRunBatchItemResult[];
+  stoppedEarly?: boolean;
+  passedCount?: number;
+  failedCount?: number;
+  pausedCount?: number;
+  otherCount?: number;
+  skippedCount?: number;
 }
 
 /** 后端 Run 头字段（列表项或详情 run 节点） */
@@ -126,6 +163,18 @@ export interface TestFlowRunListParams {
 export function triggerTestFlowRun(data: TriggerTestFlowRunParams) {
   return request({
     url: '/project/testFlowRun/trigger',
+    method: 'post',
+    data,
+  });
+}
+
+/**
+ * 服务端串行批量触发（短批/脚本用）。
+ * 长批请用客户端逐条 trigger + 轮询，以免 HTTP 超时。
+ */
+export function triggerTestFlowRunBatch(data: TriggerTestFlowRunBatchParams) {
+  return request({
+    url: '/project/testFlowRun/triggerBatch',
     method: 'post',
     data,
   });
