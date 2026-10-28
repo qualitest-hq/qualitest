@@ -107,11 +107,10 @@ flowchart LR
 | 5.5 | 画布独立快照节点 |
 | 5.6 | Dev Container / Codespaces |
 | 5.7 | 前端打进 JAR（可选单容器） |
-| 5.8 | MapStruct 收敛 DTO |
-| 5.9 | GitHub Discussions |
-| 5.10 | Dependabot 常态化合入 |
-| 5.11 | 双远程：GitHub 为主，Gitee 只读镜像 |
-| 5.12 | 报告导出可选 AI 建议 | 仅 HTML、默认关；失败 Run 勾选后现算只读诊断（可能原因与排查步骤）；不写入 JUnit |
+| 5.8 | GitHub Discussions |
+| 5.9 | Dependabot 常态化合入 |
+| 5.10 | 双远程：GitHub 为主，Gitee 只读镜像 |
+| 5.11 | 报告导出可选 AI 建议 | 仅 HTML、默认关；失败 Run 勾选后现算只读诊断（可能原因与排查步骤）；不写入 JUnit |
 | — | Helm Chart 实测（骨架已有，谁用谁验） |
 
 ---
