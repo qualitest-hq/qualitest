@@ -22,6 +22,7 @@ import com.qualitest.web.ai.AiSseStreamSupport;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.AjaxResult;
 import com.qualitest.flow.model.GraphJson;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.service.ITestProjectMemberService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
@@ -60,7 +61,7 @@ public class TestFlowAiController extends BaseController {
     private final IAiPromptTemplateService aiPromptTemplateService;
 
     /**
-     * AI 设计面板：查询可用的提示词模板（平台级 + 当前项目级）。
+     * AI 设计面板：查询可用的提示词模板（平台级 + 当前项目级）；指定项目时需造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @GetMapping("/promptTemplates")
@@ -68,7 +69,7 @@ public class TestFlowAiController extends BaseController {
             @RequestParam(required = false) Long testProjectId,
             @RequestParam(required = false) String sessionScene) {
         if (testProjectId != null) {
-            testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+            testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.AI_FLOW_DESIGN);
         }
         String scene = sessionScene != null ? sessionScene : AiChatConversationService.SCENE_TEST_FLOW_DESIGN;
         List<AiPromptTemplateResult> list = aiPromptTemplateService.listForDesignPanel(
@@ -82,12 +83,13 @@ public class TestFlowAiController extends BaseController {
      * 内存中合并该单元并校验，不写 test_flow、不触发 Run。
      * 成功返回 graphJson；本轮已无未决单元时还可带 saveRiskWarnings（不阻断本次确认）。
      * 失败保持该单元 Staging 态，errors 供前端展示。
+     * 需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @PostMapping("/patch/confirmUnit")
     public AjaxResult confirmPatchUnit(@RequestBody FlowDesignPatchConfirmRequest request) {
         if (request.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());
+            testProjectMemberService.requireCapability(request.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
         }
         FlowDesignPatchConfirmResult result = flowDesignPatchConfirmService.confirmUnit(request);
         return AjaxResult.success(result);
@@ -97,12 +99,13 @@ public class TestFlowAiController extends BaseController {
      * 运行风险预检接口。
      * 检查鉴权凭证来源、登录抽取、HTTP 必填测值是否齐全；不写库、不阻断保存。
      * 返回错误列表供画布提示；正式开跑前会再次用同类规则拦截。
+     * 需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @PostMapping("/patch/savePrecheck")
     public AjaxResult savePrecheck(@RequestBody FlowDesignSavePrecheckRequest request) {
         if (request.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());
+            testProjectMemberService.requireCapability(request.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
         }
         GraphJson graph = null;
         if (request.getGraphJson() != null && !request.getGraphJson().isBlank()) {
@@ -121,7 +124,7 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 确认素材库写入提案：校验项目成员后，把提案 fields 写入项目素材库。
+     * 确认素材库写入提案；需编辑素材权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping("/assetProposal/confirm")
@@ -130,7 +133,7 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 拒绝素材库写入提案：校验项目成员后，只改消息元数据状态，不写素材库。
+     * 拒绝素材库写入提案；只改消息元数据状态，不写素材库。需造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping("/assetProposal/reject")
@@ -139,12 +142,16 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 确认或拒绝素材提案的共用入口：成员校验后调用业务服务。
+     * 确认或拒绝素材提案：确认需编辑素材，拒绝需造流 AI 助手权限。
      *
      * @param confirm true 确认落盘，false 拒绝
      */
     private AjaxResult decideAssetProposal(AssetUpsertProposalDecisionRequest request, boolean confirm) {
-        ensureProjectMember(request.getTestProjectId());
+        if (request.getTestProjectId() != null) {
+            testProjectMemberService.requireCapability(
+                    request.getTestProjectId(),
+                    confirm ? TestProjectMemberPerm.ASSET_EDIT : TestProjectMemberPerm.AI_FLOW_DESIGN);
+        }
         AssetUpsertProposalDecisionResult result = confirm
                 ? assetUpsertProposalService.confirm(request, getUserId())
                 : assetUpsertProposalService.reject(request, getUserId());
@@ -153,6 +160,7 @@ public class TestFlowAiController extends BaseController {
 
     /**
      * 确认多端 Profile 写入提案：按 patch 写入项目 auth_config（可改鉴权头、pathPrefix、响应约定等）。
+     * 需编辑项目设置权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping("/authProfileProposal/confirm")
@@ -161,7 +169,7 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 拒绝多端 Profile 写入提案：不写库，仅更新助手消息 meta 状态。
+     * 拒绝多端 Profile 写入提案：不写库，仅更新助手消息 meta 状态。需造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping("/authProfileProposal/reject")
@@ -170,23 +178,20 @@ public class TestFlowAiController extends BaseController {
     }
 
     /**
-     * 确认或拒绝多端 Profile 提案的共用入口：成员校验后调用业务服务。
+     * 确认或拒绝多端 Profile 提案：确认需编辑项目设置，拒绝需造流 AI 助手权限。
      *
      * @param confirm true 确认落盘，false 拒绝
      */
     private AjaxResult decideAuthProfileProposal(AuthProfileUpsertProposalDecisionRequest request, boolean confirm) {
-        ensureProjectMember(request.getTestProjectId());
+        if (request.getTestProjectId() != null) {
+            testProjectMemberService.requireCapability(
+                    request.getTestProjectId(),
+                    confirm ? TestProjectMemberPerm.PROJECT_EDIT : TestProjectMemberPerm.AI_FLOW_DESIGN);
+        }
         AuthProfileUpsertProposalDecisionResult result = confirm
                 ? authProfileUpsertProposalService.confirm(request, getUserId())
                 : authProfileUpsertProposalService.reject(request, getUserId());
         return AjaxResult.success(result);
-    }
-
-    /** 请求带了项目 id 时校验当前用户为项目成员。 */
-    private void ensureProjectMember(Long testProjectId) {
-        if (testProjectId != null) {
-            testProjectMemberService.getCheckProjectMemberRole(testProjectId);
-        }
     }
 
     /**
@@ -201,6 +206,7 @@ public class TestFlowAiController extends BaseController {
      *   <li>done：整轮结束，含完整设计结果（可含 toolTrace、interrupted）</li>
      *   <li>error：失败文案</li>
      * </ul>
+     * 需造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
     @PostMapping(value = "/design/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -214,7 +220,7 @@ public class TestFlowAiController extends BaseController {
                 (listener, cancelled) -> testFlowDesignAgent.design(request, userId, listener, cancelled));
     }
 
-    /** 校验当前用户为项目成员，且 testFlowId 属于 testProjectId */
+    /** 校验造流 AI 助手权限及请求中的项目、测试流归属 */
     private void validateDesignAccess(TestFlowDesignRequest request) {
         testFlowDesignAccessValidator.validateMemberAndFlow(request);
     }

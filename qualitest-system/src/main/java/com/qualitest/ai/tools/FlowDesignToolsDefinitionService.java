@@ -3,7 +3,7 @@ package com.qualitest.ai.tools;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.qualitest.ai.llm.LlmClientException;
-import com.qualitest.ai.mcp.McpToolInvokeService.McpProjectGates;
+import com.qualitest.ai.mcp.McpProjectGates;
 import com.qualitest.ai.scenario.flow.FlowDesignPromptResources;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * 加载造流助手与 MCP 协议的工具定义（名称、描述、参数 Schema）。
  * <p>
  * 造流助手：读助手工具清单文件，按是否全自动裁剪跑流工具。
- * MCP：读协议工具清单文件，再按项目写流/跑流/导入开关裁剪可见列表。
+ * MCP：读协议工具清单文件，再按成员角色 MCP 门控裁剪可见列表。
  * 启动时校验枚举、执行器注册名与 JSON 工具名集合齐全、无多余项。
  */
 @Slf4j
@@ -233,8 +233,8 @@ public class FlowDesignToolsDefinitionService {
 
     /**
      * 组装 MCP tools/list。
-     * 先按写流开关取只读或「只读+写流」列表，再按导入/跑流开关追加对应工具。
-     * 跑流工具仅在写流与跑流都开启时追加。
+     * 先按 mcp:flow:write 取只读或「只读+写流」列表，再按 mcp:api:import / mcp:run 追加对应工具。
+     * 跑流工具仅在同时具备写流与跑流 MCP 权限时追加。
      *
      * @param mcpAutoWriteEnabled  true：列表含改图、新建流、素材/鉴权/环境写入等
      * @param mcpAutorunEnabled    true：在写流已开时追加 run_test_flow
@@ -260,7 +260,7 @@ public class FlowDesignToolsDefinitionService {
     /**
      * 按项目门控快照组装 MCP tools/list。
      *
-     * @param gates 写流 / 跑流 / 导入三道开关快照；null 按只读
+     * @param gates 成员角色 MCP 门控快照；null 按只读
      */
     public List<Map<String, Object>> loadMcpProtocolTools(McpProjectGates gates) {
         if (gates == null) {
@@ -276,7 +276,7 @@ public class FlowDesignToolsDefinitionService {
      * 是否列入由回合会话可调用规则决定：关写流则无改图工具，关跑流则无 run_test_flow。
      * 不含列流、建流、导入接口、规程版本。导入开关不改变本列表。
      *
-     * @param gates 写流 / 跑流 / 导入快照；null 按只读
+     * @param gates 成员角色 MCP 门控快照；null 按只读
      */
     public List<Map<String, Object>> loadTurnSessionTools(McpProjectGates gates) {
         boolean write = gates != null && gates.autoWriteEnabled();

@@ -87,7 +87,8 @@ class FlowDesignToolExecutorTest {
                 mock(com.qualitest.flow.validate.GraphJsonValidator.class),
                 new HttpNodeApiHealthChecker(), assetService, designHintsService, null,
                 mock(com.qualitest.api.service.IApiImportService.class),
-                new com.qualitest.ai.mcp.McpPromptResourceService());
+                new com.qualitest.ai.mcp.McpPromptResourceService(),
+                mock(com.qualitest.ai.mcp.McpProjectGateResolver.class));
         context = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
                 .testFlowId(3001L)

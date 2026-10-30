@@ -50,9 +50,7 @@ public class TestProjectMemberParams extends BaseEntity implements Serializable 
     private String userName;
 
     /**
-     * 成员角色
-     *
-     * @see TestProjectMemberRole
+     * 成员角色标识 role_key（查询条件）
      */
     private String memberRole;
 

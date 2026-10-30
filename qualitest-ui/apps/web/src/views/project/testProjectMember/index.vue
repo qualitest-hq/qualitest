@@ -31,7 +31,7 @@
     </el-form>
 
     <el-row :gutter="10" class="mb8">
-      <el-col v-if="canManage" :span="1.5">
+      <el-col v-if="canAddMember" :span="1.5">
         <el-button
             v-hasPermi="['project:testProjectMember:add']"
             icon="Plus"
@@ -41,7 +41,7 @@
         >新增
         </el-button>
       </el-col>
-      <el-col v-if="canManage && !toolbarEditDisabled" :span="1.5">
+      <el-col v-if="canEditMember && !toolbarEditDisabled" :span="1.5">
         <el-button
             v-hasPermi="['project:testProjectMember:edit']"
             icon="Edit"
@@ -51,7 +51,7 @@
         >修改
         </el-button>
       </el-col>
-      <el-col v-if="canManage && !toolbarDeleteDisabled" :span="1.5">
+      <el-col v-if="canRemoveMember && !toolbarDeleteDisabled" :span="1.5">
         <el-button
             v-hasPermi="['project:testProjectMember:remove']"
             icon="Delete"
@@ -61,7 +61,7 @@
         >删除
         </el-button>
       </el-col>
-      <el-col v-if="canManage" :span="1.5">
+      <el-col v-if="canViewMember" :span="1.5">
         <el-button
             v-hasPermi="['project:testProjectMember:export']"
             icon="Download"
@@ -76,7 +76,7 @@
 
     <el-table v-loading="loading" :data="testProjectMemberList" row-key="testProjectMemberId"
               @selection-change="handleSelectionChange">
-      <el-table-column v-if="canManage" :selectable="canSelectMemberRow" align="center" type="selection" width="55"/>
+      <el-table-column v-if="canEditMember || canRemoveMember" :selectable="canSelectMemberRow" align="center" type="selection" width="55"/>
       <el-table-column v-if="columnVisible['testProjectMemberId']" key="testProjectMemberId" align="center" label="项目成员ID"
                        prop="testProjectMemberId"/>
       <el-table-column v-if="columnVisible['testProjectId']" key="testProjectId" align="center" label="测试项目ID"
@@ -89,12 +89,12 @@
           <span>{{ formatMemberRole(scope.row.memberRole) }}</span>
         </template>
       </el-table-column>
-      <el-table-column v-if="canManage" align="center" class-name="small-padding fixed-width" label="操作">
+      <el-table-column v-if="canEditMember || canRemoveMember" align="center" class-name="small-padding fixed-width" label="操作">
         <template #default="scope">
-          <el-button v-if="canSelectMemberRow(scope.row)" v-hasPermi="['project:testProjectMember:edit']" icon="Edit" link
+          <el-button v-if="canEditMember && canSelectMemberRow(scope.row)" v-hasPermi="['project:testProjectMember:edit']" icon="Edit" link
                      type="primary" @click="handleUpdate(scope.row)">修改
           </el-button>
-          <el-button v-if="canDeleteMemberRow(scope.row)" v-hasPermi="['project:testProjectMember:remove']" icon="Delete" link
+          <el-button v-if="canRemoveMember && canDeleteMemberRow(scope.row)" v-hasPermi="['project:testProjectMember:remove']" icon="Delete" link
                      type="primary" @click="handleDelete(scope.row)">删除
           </el-button>
         </template>
@@ -158,6 +158,12 @@
 </template>
 
 <script name="TestProjectMember" setup>
+/**
+ * 单个测试项目的成员列表与增删改。
+ * 工具栏与行操作按查看/添加/编辑/移除成员及转让所有者权限控制显隐；
+ * 非所有者不能操作所有者行，也不能操作其他管理员行。
+ * 成员角色下拉加载启用中的角色；历史角色标识 developer 在表格中显示为「后端开发者」。
+ */
 import {
   addTestProjectMember,
   delTestProjectMember,
@@ -166,11 +172,13 @@ import {
   updateTestProjectMember
 } from "@/api/project/testProjectMember";
 import {getTestProject, myProjectContext} from "@/api/project/testProject";
+import {listEnabledMemberRoles} from "@/api/project/testProjectMemberRole";
 import ProjectMemberSelect from '@/components/UserSelect/ProjectMemberSelect.vue'
 import {useRoute} from 'vue-router'
 import useTagsViewStore from '@/store/modules/tagsView'
 import useUserStore from '@/store/modules/user'
 import { buildProjectTabTitle } from '@/views/project/testProject/utils/projectTabTitle'
+import { hasProjectCapability, parseProjectCapabilities } from '@/views/project/testProject/utils/projectCapabilities'
 
 const {proxy} = getCurrentInstance()
 const route = useRoute()
@@ -228,6 +236,8 @@ const {queryParams, form, rules} = toRefs(data)
 const currentProjectInfo = ref(null)
 /** 当前用户在该项目中的成员角色 */
 const selfMemberRole = ref(null)
+/** 当前用户在该项目的细粒度权限 */
+const selfCapabilities = ref([])
 /** 修改弹窗打开时记录的角色与用户，提交前做权限校验用 */
 const editOriginal = ref(null)
 
@@ -236,24 +246,34 @@ function isSysAdmin() {
   return Number(userStore.id) === 1
 }
 
-// 系统管理员、项目所有者、项目管理员可管理成员
-const canManage = computed(() =>
-    isSysAdmin() ||
-    selfMemberRole.value === 'owner' ||
-    selfMemberRole.value === 'admin'
-)
+/** 系统管理员或具备指定项目权限时为 true */
+const hasCap = (code) => isSysAdmin() || hasProjectCapability(selfCapabilities.value, code)
+/** 是否可查看成员列表 */
+const canViewMember = computed(() => hasCap('member:view'))
+/** 是否可添加成员 */
+const canAddMember = computed(() => hasCap('member:add'))
+/** 是否可编辑成员 */
+const canEditMember = computed(() => hasCap('member:edit'))
+/** 是否可移除成员 */
+const canRemoveMember = computed(() => hasCap('member:remove'))
 
-// 项目管理员不能操作所有者；不能操作其他管理员（本人除外）
+/** 是否可将他人指定为所有者 */
+const canTransferOwner = computed(() => hasCap('project:transfer'))
+
+/**
+ * 表格行是否允许勾选编辑/删除。
+ * 无编辑与移除权时不可选；系统管理员与所有者可选任意行；
+ * 其余人不能选所有者行，也不能选其他管理员行。
+ */
 function canSelectMemberRow(row) {
-  if (!canManage.value || !row) return false
+  if ((!canEditMember.value && !canRemoveMember.value) || !row) return false
   if (isSysAdmin() || selfMemberRole.value === 'owner') return true
-  if (selfMemberRole.value !== 'admin') return false
   if (row.memberRole === 'owner') return false
   if (row.memberRole === 'admin' && Number(row.userId) !== Number(userStore.id)) return false
   return true
 }
 
-// 所有者不可删除，须先转让
+/** 行是否允许删除：可选中且不是所有者（所有者须先转让） */
 function canDeleteMemberRow(row) {
   return canSelectMemberRow(row) && row.memberRole !== 'owner'
 }
@@ -285,28 +305,47 @@ const hasOtherOwner = computed(() => {
 
 const editingCurrentOwner = computed(() => editOriginal.value?.memberRole === 'owner')
 
+/** 弹窗内可选角色：所有者不可降级；无转让权或管理员不可选 owner */
 const dialogMemberRoleOptions = computed(() => {
   // 编辑现任所有者：角色锁定为所有者
   if (editingCurrentOwner.value) {
     return memberRoleOptions.value.filter((o) => o.value === 'owner')
   }
-  // 项目管理员不能指定成员为所有者
-  if (selfMemberRole.value === 'admin' && !isSysAdmin()) {
+  // 无转让权限，或项目管理员：不能指定成员为所有者
+  if (!canTransferOwner.value || (selfMemberRole.value === 'admin' && !isSysAdmin())) {
     return memberRoleOptions.value.filter((o) => o.value !== 'owner')
   }
   return memberRoleOptions.value
 })
 
-const memberRoleOptions = ref([
-  {value: 'owner', label: '所有者'},
-  {value: 'admin', label: '管理员'},
-  {value: 'developer', label: '开发者'},
-  {value: 'tester', label: '测试员'}
-])
+/** 启用中的角色，用于筛选、表格展示与弹窗下拉 */
+const memberRoleOptions = ref([])
 
+/** 从服务端拉取角色选项；失败时使用内置兜底列表以保证页面可用 */
+function loadMemberRoleOptions() {
+  return listEnabledMemberRoles().then((res) => {
+    const rows = res.data || []
+    memberRoleOptions.value = rows.map((r) => ({
+      value: r.roleKey,
+      label: r.roleName || r.roleKey
+    }))
+  }).catch(() => {
+    memberRoleOptions.value = [
+      {value: 'owner', label: '所有者'},
+      {value: 'admin', label: '管理员'},
+      {value: 'backend', label: '后端开发者'},
+      {value: 'frontend', label: '前端开发者'},
+      {value: 'tester', label: '测试员'}
+    ]
+  })
+}
+
+/** 将 memberRole（roleKey）转为展示名；旧 key developer 映射为后端开发者 */
 function formatMemberRole(memberRole) {
   const role = memberRoleOptions.value.find(item => item.value === memberRole)
-  return role ? role.label : memberRole
+  if (role) return role.label
+  if (memberRole === 'developer') return '后端开发者'
+  return memberRole
 }
 
 function onUserSelectChange() {
@@ -341,7 +380,7 @@ function reset() {
     nickName: null,
     userName: null,
     userId: null,
-    memberRole: 'developer',
+    memberRole: 'backend',
     delStatus: null,
     createTime: null,
     updateTime: null
@@ -503,9 +542,10 @@ onMounted(() => {
 
     myProjectContext(route.query.testProjectId).then(res => {
       selfMemberRole.value = res.data?.memberRole ?? null
+      selfCapabilities.value = parseProjectCapabilities(res.data)
     })
 
-    getList()
+    loadMemberRoleOptions().then(() => getList())
   }).catch(() => {
     proxy.$tab.closePage();
   })

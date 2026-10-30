@@ -7,6 +7,8 @@ import com.qualitest.common.core.domain.R;
 import com.qualitest.api.params.ApiImportParams;
 import com.qualitest.api.result.ApiImportResult;
 import com.qualitest.api.service.IApiImportService;
+import com.qualitest.project.enums.TestProjectMemberPerm;
+import com.qualitest.project.service.ITestProjectMemberService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,17 +31,21 @@ public class ProjectApiController extends ProjectController {
 
     private final IApiImportService apiImportService;
 
+    private final ITestProjectMemberService testProjectMemberService;
+
     /**
      * 接收外部上传的 API 列表并批量导入。
      * 项目 id 由请求头项目令牌解析。
      * 返回体含新增/更新/失败统计与逐条明细；
      * 若有接口被更新，还含 syncImpact（可能受影响的测试流汇总）。
+     * 需 IDEA 插件上传接口权限。
      */
     @PostMapping("/importApis")
     public R<ApiImportResult> importApis(@Valid @RequestBody ApiImportParams params) {
 
         Long projectId = getTestProjectId();
         Long userId = getUserId();
+        testProjectMemberService.requireCapability(projectId, userId, TestProjectMemberPerm.PLUGIN_API_IMPORT);
 
         log.info("开始导入接口, projectId={}, userId={}, apiCount={}", projectId, userId, params.getApiList().size());
         log.debug("接口列表: {}", JSONUtil.toJsonPrettyStr(params.getApiList()));

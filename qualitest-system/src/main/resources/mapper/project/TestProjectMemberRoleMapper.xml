@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestProjectMemberRoleMapper">
+    <resultMap type="TestProjectMemberRole" id="TestProjectMemberRoleResult">
+        <result property="testProjectMemberRoleId" column="test_project_member_role_id"/>
+        <result property="roleKey" column="role_key"/>
+        <result property="roleName" column="role_name"/>
+        <result property="sortNum" column="sort_num"/>
+        <result property="enableStatus" column="enable_status"/>
+        <result property="remark" column="remark"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestProjectMemberRoleVo">
+        select test_project_member_role_id, role_key, role_name, sort_num, enable_status, remark, del_status,
+        create_time, update_time from test_project_member_role
+    </sql>
+
+    <sql id="selectTestProjectMemberRoleAliasVo">
+        select tpmr.test_project_member_role_id as testProjectMemberRoleId, tpmr.role_key as roleKey, tpmr.role_name as
+        roleName, tpmr.sort_num as sortNum, tpmr.enable_status as enableStatus, tpmr.remark as remark, tpmr.del_status
+        as delStatus, tpmr.create_time as createTime, tpmr.update_time as updateTime from test_project_member_role tpmr
+    </sql>
+
+    <select id="selectTestProjectMemberRoleList" parameterType="TestProjectMemberRole"
+            resultMap="TestProjectMemberRoleResult">
+        <include refid="selectTestProjectMemberRoleVo"/>
+        <where>
+            <if test="roleKey != null and roleKey != ''">
+                and role_key = #{roleKey}
+            </if>
+            <if test="roleName != null and roleName != ''">
+                and role_name = #{roleName}
+            </if>
+            <if test="sortNum != null ">
+                and sort_num = #{sortNum}
+            </if>
+            <if test="enableStatus != null ">
+                and enable_status = #{enableStatus}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestProjectMemberRoleById" parameterType="Long" resultMap="TestProjectMemberRoleResult">
+        <include refid="selectTestProjectMemberRoleVo"/>
+        where test_project_member_role_id = #{testProjectMemberRoleId}
+    </select>
+
+    <select id="selectTestProjectMemberRoleResultList" parameterType="TestProjectMemberRoleParams"
+            resultType="TestProjectMemberRoleResult">
+        select
+        tpmr.test_project_member_role_id as testProjectMemberRoleId,
+        tpmr.role_key as roleKey,
+        tpmr.role_name as roleName,
+        tpmr.sort_num as sortNum,
+        tpmr.enable_status as enableStatus,
+        tpmr.remark as remark,
+        tpmr.del_status as delStatus,
+        tpmr.create_time as createTime,
+        tpmr.update_time as updateTime
+        from test_project_member_role tpmr
+        where tpmr.del_status = 0
+        <if test="roleKey != null and roleKey != ''">
+            and tpmr.role_key = #{roleKey}
+        </if>
+        <if test="roleName != null and roleName != ''">
+            and tpmr.role_name like concat('%', #{roleName}, '%')
+        </if>
+        <if test="sortNum != null">
+            and tpmr.sort_num = #{sortNum}
+        </if>
+        <if test="enableStatus != null">
+            and tpmr.enable_status = #{enableStatus}
+        </if>
+        order by tpmr.test_project_member_role_id desc
+    </select>
+
+    <select id="selectTestProjectMemberRoleResult" parameterType="Long" resultType="TestProjectMemberRoleResult">
+        select
+        tpmr.test_project_member_role_id as testProjectMemberRoleId,
+        tpmr.role_key as roleKey,
+        tpmr.role_name as roleName,
+        tpmr.sort_num as sortNum,
+        tpmr.enable_status as enableStatus,
+        tpmr.remark as remark,
+        tpmr.del_status as delStatus,
+        tpmr.create_time as createTime,
+        tpmr.update_time as updateTime
+        from test_project_member_role tpmr
+        where
+        tpmr.del_status = 0 and
+        tpmr.test_project_member_role_id = #{testProjectMemberRoleId}
+        limit 1
+    </select>
+
+    <select id="selectTestProjectMemberRoleCount" parameterType="TestProjectMemberRoleParams" resultType="int">
+        select count(1)
+        from test_project_member_role tpmr
+        where tpmr.del_status = 0
+        <if test="roleKey != null  and roleKey != ''">
+            and tpmr.role_key = #{roleKey}
+        </if>
+        <if test="roleName != null  and roleName != ''">
+            and tpmr.role_name like concat('%', #{roleName}, '%')
+        </if>
+        <if test="sortNum != null ">
+            and tpmr.sort_num = #{sortNum}
+        </if>
+        <if test="enableStatus != null ">
+            and tpmr.enable_status = #{enableStatus}
+        </if>
+    </select>
+
+    <select id="selectTestProjectMemberRoleOne" parameterType="TestProjectMemberRoleParams"
+            resultMap="TestProjectMemberRoleResult">
+        select
+        tpmr.test_project_member_role_id,
+        tpmr.role_key,
+        tpmr.role_name,
+        tpmr.sort_num,
+        tpmr.enable_status,
+        tpmr.remark,
+        tpmr.del_status,
+        tpmr.create_time,
+        tpmr.update_time
+        from test_project_member_role tpmr
+        where tpmr.del_status = 0
+        <if test="roleKey != null  and roleKey != ''">
+            and tpmr.role_key = #{roleKey}
+        </if>
+        <if test="roleName != null  and roleName != ''">
+            and tpmr.role_name like concat('%', #{roleName}, '%')
+        </if>
+        <if test="sortNum != null ">
+            and tpmr.sort_num = #{sortNum}
+        </if>
+        <if test="enableStatus != null ">
+            and tpmr.enable_status = #{enableStatus}
+        </if>
+        order by tpmr.test_project_member_role_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestProjectMemberRole" parameterType="TestProjectMemberRole">
+        insert into test_project_member_role
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectMemberRoleId != null">
+                test_project_member_role_id,
+            </if>
+            <if test="roleKey != null and roleKey != ''">
+                role_key,
+            </if>
+            <if test="roleName != null and roleName != ''">
+                role_name,
+            </if>
+            <if test="sortNum != null">
+                sort_num,
+            </if>
+            <if test="enableStatus != null">
+                enable_status,
+            </if>
+            <if test="remark != null">
+                remark,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectMemberRoleId != null">
+                #{testProjectMemberRoleId},
+            </if>
+            <if test="roleKey != null and roleKey != ''">
+                #{roleKey},
+            </if>
+            <if test="roleName != null and roleName != ''">
+                #{roleName},
+            </if>
+            <if test="sortNum != null">
+                #{sortNum},
+            </if>
+            <if test="enableStatus != null">
+                #{enableStatus},
+            </if>
+            <if test="remark != null">
+                #{remark},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestProjectMemberRole" parameterType="TestProjectMemberRole">
+        update test_project_member_role
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="roleKey != null and roleKey != ''">
+                role_key = #{roleKey},
+            </if>
+            <if test="roleName != null and roleName != ''">
+                role_name = #{roleName},
+            </if>
+            <if test="sortNum != null">
+                sort_num = #{sortNum},
+            </if>
+            <if test="enableStatus != null">
+                enable_status = #{enableStatus},
+            </if>
+            <if test="remark != null">
+                remark = #{remark},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_project_member_role_id = #{testProjectMemberRoleId}
+    </update>
+
+    <delete id="deleteTestProjectMemberRoleById" parameterType="Long">
+        delete from test_project_member_role where test_project_member_role_id = #{testProjectMemberRoleId}
+    </delete>
+
+    <delete id="deleteTestProjectMemberRoleByIdList" parameterType="java.util.List">
+        delete from test_project_member_role where test_project_member_role_id in
+        <foreach item="testProjectMemberRoleId" collection="list" open="(" separator="," close=")">
+            #{testProjectMemberRoleId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestProjectMemberRoleById" parameterType="Long">
+        update test_project_member_role set del_status = 1 where test_project_member_role_id =
+        #{testProjectMemberRoleId}
+    </update>
+
+    <update id="logicDeleteTestProjectMemberRoleByIdList" parameterType="java.util.List">
+        update test_project_member_role set del_status = 1 where test_project_member_role_id in
+        <foreach item="testProjectMemberRoleId" collection="list" open="(" separator="," close=")">
+            #{testProjectMemberRoleId}
+        </foreach>
+    </update>
+</mapper>

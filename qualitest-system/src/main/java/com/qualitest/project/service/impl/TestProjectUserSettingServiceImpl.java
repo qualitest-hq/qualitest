@@ -10,12 +10,14 @@ import com.qualitest.common.utils.uuid.IdUtils;
 import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.domain.TestProjectMember;
 import com.qualitest.project.domain.TestProjectUserSetting;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.enums.TestProjectMemberRole;
 import com.qualitest.project.mapper.TestProjectUserSettingMapper;
 import com.qualitest.project.params.TestProjectMemberParams;
 import com.qualitest.project.params.TestProjectUserSettingParams;
 import com.qualitest.project.result.TestProjectUserSettingResult;
 import com.qualitest.project.service.ITestProjectEnvService;
+import com.qualitest.project.service.ITestProjectMemberRoleService;
 import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.project.service.ITestProjectUserSettingService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,10 @@ public class TestProjectUserSettingServiceImpl implements ITestProjectUserSettin
 
     @Autowired
     private ITestProjectEnvService testProjectEnvService;
+
+    @Autowired
+    @Lazy
+    private ITestProjectMemberRoleService testProjectMemberRoleService;
 
     /**
      * 查询测试项目用户设置列表
@@ -223,8 +229,11 @@ public class TestProjectUserSettingServiceImpl implements ITestProjectUserSettin
         if (member == null && !SecurityUtils.isAdmin(userId)) {
             throw new ServiceException("非项目成员，无法初始化用户设置");
         }
+        // 补建用户设置时：仅 token:use 角色预生成 Project Token；平台超管无成员记录时也生成
         boolean allowProjectToken = member != null
-                ? TestProjectMemberRole.canUseProjectToken(member.getMemberRole())
+                ? testProjectMemberRoleService.listPermCodesByRoleKey(
+                        TestProjectMemberRole.normalizeCode(member.getMemberRole()))
+                .contains(TestProjectMemberPerm.TOKEN_USE.getCode())
                 : SecurityUtils.isAdmin(userId);
         TestProjectUserSetting setting = TestProjectUserSetting.builder()
                 .testProjectId(testProjectId)
@@ -316,6 +325,28 @@ public class TestProjectUserSettingServiceImpl implements ITestProjectUserSettin
         setting.setUpdateTime(DateUtils.getNowDate());
         testProjectUserSettingMapper.updateTestProjectUserSetting(setting);
         return newToken;
+    }
+
+    /**
+     * 清空指定用户在项目下的 Project Token
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void clearProjectToken(Long testProjectId, Long userId) {
+        if (testProjectId == null || userId == null) {
+            return;
+        }
+        TestProjectUserSetting setting = testProjectUserSettingMapper.selectTestProjectUserSettingOne(
+                TestProjectUserSettingParams.builder()
+                        .testProjectId(testProjectId)
+                        .userId(userId)
+                        .build());
+        if (setting == null || StrUtil.isBlank(setting.getProjectToken())) {
+            return;
+        }
+        setting.setProjectToken(null);
+        setting.setUpdateTime(DateUtils.getNowDate());
+        testProjectUserSettingMapper.updateTestProjectUserSetting(setting);
     }
 
 }

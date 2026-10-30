@@ -3,7 +3,7 @@
     <div class="run-config__toolbar">
       <button
           v-if="!isScenarioRunActive"
-          :disabled="!canEditFlow || isTemplateCanvas"
+          :disabled="!canRunFlow || isTemplateCanvas"
           :title="runButtonTitle"
           class="btn btn--primary run-config__scenario-run-btn"
           type="button"
@@ -13,15 +13,32 @@
       </button>
       <button
           v-else
+          :disabled="!canRunFlow"
+          :title="canRunFlow ? '停止当前跑流' : '当前账号无执行权限，无法停止'"
           class="btn btn--primary run-config__scenario-run-btn is-scenario-run-stop"
           type="button"
           @click="abortScenarioRun"
       >
         ■ 停止
       </button>
-      <button class="btn btn--ghost" type="button" @click="addScenario">＋ 场景</button>
-      <button class="btn btn--ghost" type="button" @click="duplicateScenario">复制</button>
-      <button class="btn btn--ghost" type="button" @click="deleteScenario">删除</button>
+      <button
+          v-if="canEditFlow"
+          class="btn btn--ghost"
+          type="button"
+          @click="addScenario"
+      >＋ 场景</button>
+      <button
+          v-if="canEditFlow"
+          class="btn btn--ghost"
+          type="button"
+          @click="duplicateScenario"
+      >复制</button>
+      <button
+          v-if="canEditFlow"
+          class="btn btn--ghost"
+          type="button"
+          @click="deleteScenario"
+      >删除</button>
     </div>
     <div class="run-config__scenarios">
       <div class="run-config__scenarios-title">场景列表（选中 = 下次运行场景）</div>
@@ -55,7 +72,7 @@
 <script setup>
 /**
  * 左栏运行场景：场景列表增删复制，选中后由右栏编辑配置。
- * 工具条可触发当前活动场景的真实跑流，跑流中切换为停止。
+ * 工具条可触发当前活动场景的真实跑流，跑流中切换为停止；运行按钮受 flow:run 与模板画布限制。
  * Staging 中的场景在卡片上显示确认条与样式标记。
  */
 import { computed, onMounted } from 'vue';
@@ -73,7 +90,7 @@ import { useFlowCanvasPermissions } from '../composables/useFlowCanvasPermission
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 
-const { canEditFlow, isTemplateCanvas } = useFlowCanvasPermissions();
+const { canRunFlow, canEditFlow, isTemplateCanvas } = useFlowCanvasPermissions();
 const { isScenarioRunActive, runActiveScenario, abortScenarioRun } = useFlowScenarioRun();
 
 const store = useFlowCanvasStore();
@@ -90,18 +107,18 @@ const {
 
 const runButtonTitle = computed(() => {
   if (isTemplateCanvas.value) return '模板画布不支持运行场景';
-  if (!canEditFlow.value) return '当前账号无编辑权限，无法运行场景';
+  if (!canRunFlow.value) return '当前账号无执行权限，无法运行场景';
   return `运行场景「${activeScenarioName.value}」`;
 });
 
-/** 触发当前活动场景跑流：先校验模板画布与编辑权限 */
+/** 触发当前活动场景跑流：先校验模板画布与 flow:run */
 async function onRunScenario() {
   if (isTemplateCanvas.value) {
     ElMessage.warning('模板画布不支持运行场景');
     return;
   }
-  if (!canEditFlow.value) {
-    ElMessage.warning('当前账号无编辑权限，无法运行场景');
+  if (!canRunFlow.value) {
+    ElMessage.warning('当前账号无执行权限，无法运行场景');
     return;
   }
   await runActiveScenario();

@@ -16,7 +16,7 @@
 /**
  * 测试流画布页入口。
  * 负责加载/保存流、挂载 API 语义预检、全屏与离开页未保存拦截；
- * 进入页隐藏全局侧栏，离开恢复。
+ * 进入页隐藏全局侧栏，离开恢复。initFlow 时拉取 loadMemberCapabilities 供画布权限判断。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -101,6 +101,8 @@ async function initFlow() {
     // 并行拉鉴权、项目名、环境列表、Run 库；拉环境时会给未绑环境的场景自动补绑并更新已保存基线
     await Promise.all([
       store.loadProjectAuthConfig(),
+      // 与鉴权并行拉成员权限，供画布顶栏与运行面板 gate
+      store.loadMemberCapabilities(),
       loadProjectName(testProjectId),
       loadProjectEnvs(),
       runLib.loadRuns(testFlowId),

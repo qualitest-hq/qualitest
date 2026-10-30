@@ -6,6 +6,7 @@ import com.qualitest.common.core.domain.R;
 import com.qualitest.common.core.page.TableDataInfo;
 import com.qualitest.common.core.text.Convert;
 import com.qualitest.common.enums.BusinessType;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.TestProjectAssetParams;
 import com.qualitest.project.params.TestProjectAssetSaveParams;
 import com.qualitest.project.result.TestProjectAssetResult;
@@ -31,64 +32,64 @@ public class TestProjectAssetController extends BaseController {
     private final ITestProjectMemberService testProjectMemberService;
 
     /**
-     * 查询项目下素材列表（不分页）
+     * 查询项目下素材列表（不分页）；需查看素材权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/list")
     public TableDataInfo list(TestProjectAssetParams params) {
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.ASSET_VIEW);
         List<TestProjectAssetResult> list = testProjectAssetService.selectTestProjectAssetResultList(params);
         return getDataTable(list);
     }
 
     /**
-     * 按条目 id 查询单条
+     * 按条目 id 查询单条；需查看素材权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/{id}")
     public R<TestProjectAssetResult> getInfo(
             @PathVariable("id") Long id,
             @RequestParam("testProjectId") Long testProjectId) {
-        testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.ASSET_VIEW);
         return ok(testProjectAssetService.selectTestProjectAssetResult(testProjectId, id));
     }
 
     /**
-     * 按 key 查询单条
+     * 按 key 查询单条；需查看素材权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/byKey")
     public R<TestProjectAssetResult> getByKey(
             @RequestParam("testProjectId") Long testProjectId,
             @RequestParam("key") String key) {
-        testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.ASSET_VIEW);
         return ok(testProjectAssetService.selectTestProjectAssetResultByKey(testProjectId, key));
     }
 
     /**
-     * 新增素材条目
+     * 新增素材条目；需编辑素材权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:add')")
     @Log(title = "项目素材库", businessType = BusinessType.INSERT)
     @PostMapping
     public R<TestProjectAssetResult> add(@RequestBody TestProjectAssetSaveParams params) {
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.ASSET_EDIT);
         return ok(testProjectAssetService.insertTestProjectAsset(params));
     }
 
     /**
-     * 修改素材条目
+     * 修改素材条目；需编辑素材权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "项目素材库", businessType = BusinessType.UPDATE)
     @PutMapping
     public R<TestProjectAssetResult> edit(@RequestBody TestProjectAssetSaveParams params) {
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.ASSET_EDIT);
         return ok(testProjectAssetService.updateTestProjectAsset(params));
     }
 
     /**
-     * 批量删除素材条目
+     * 批量删除素材条目；需编辑素材权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:remove')")
     @Log(title = "项目素材库", businessType = BusinessType.DELETE)
@@ -96,7 +97,7 @@ public class TestProjectAssetController extends BaseController {
     public R<Void> remove(
             @PathVariable Long[] ids,
             @RequestParam("testProjectId") Long testProjectId) {
-        testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.ASSET_EDIT);
         List<Long> idList = Convert.toLongList(ids);
         return toR(testProjectAssetService.deleteTestProjectAssetByIds(testProjectId, idList));
     }

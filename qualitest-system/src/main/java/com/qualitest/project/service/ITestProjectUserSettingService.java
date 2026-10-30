@@ -116,6 +116,7 @@ public interface ITestProjectUserSettingService {
     /**
      * 获取或补建当前用户在项目下的用户设置记录。
      * 补建前须在项目下已有至少一个测试环境（成员入会时一般会带好默认环境；超级管理员需自行创建）。
+     * 补建时按成员角色是否含 token:use 决定是否写入 Project Token。
      *
      * @param testProjectId 测试项目 ID
      * @param userId        用户 ID
@@ -147,5 +148,13 @@ public interface ITestProjectUserSettingService {
      * @return 新的Token
      */
     String refreshProjectToken(Long testProjectUserSettingId);
+
+    /**
+     * 清空指定用户在项目下的 Project Token
+     *
+     * @param testProjectId 项目ID
+     * @param userId 用户ID
+     */
+    void clearProjectToken(Long testProjectId, Long userId);
 
 }

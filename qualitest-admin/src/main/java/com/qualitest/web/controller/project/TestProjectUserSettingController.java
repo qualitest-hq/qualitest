@@ -7,7 +7,7 @@ import com.qualitest.common.enums.BusinessType;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.project.domain.TestProjectUserSetting;
-import com.qualitest.project.enums.TestProjectMemberRole;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.TestProjectUserSettingSubmitParams;
 import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.project.service.ITestProjectUserSettingService;
@@ -71,16 +71,13 @@ public class TestProjectUserSettingController extends BaseController {
     }
 
     /**
-     * 根据项目ID刷新项目Token
+     * 根据项目 ID 刷新项目 Token；需使用项目 Token 权限。
      */
     @PreAuthorize("@ss.hasAnyPermi('project:testProject:query,project:testProject:edit')")
     @Log(title = "刷新项目Token", businessType = BusinessType.UPDATE)
     @PostMapping("/refreshToken/project/{testProjectId}")
     public R<String> refreshTokenByProjectId(@PathVariable("testProjectId") Long testProjectId) {
-        TestProjectMemberRole memberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
-        if (!TestProjectMemberRole.canUseProjectToken(memberRole.getCode())) {
-            throw new ServiceException("仅所有者、管理员、开发者可使用项目 Token");
-        }
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.TOKEN_USE);
         Long userId = getUserId();
 
         TestProjectUserSetting setting = testProjectUserSettingService.getUserSettingForProjectSetting(testProjectId, userId);

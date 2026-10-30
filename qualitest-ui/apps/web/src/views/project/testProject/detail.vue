@@ -3,6 +3,7 @@
     <div class="detail-content">
       <ApiGroupTreePanel
           ref="apiTreePanelRef"
+          :can-add-api="canAddApi"
           :test-project-id="testProjectId"
           @refresh-start="onTreeRefreshStart"
           @tree-refreshed="getProjectInfo"
@@ -23,6 +24,7 @@
           >
             <template #actions>
               <button
+                  v-if="canViewFlow"
                   type="button"
                   class="detail-doc-tab-flow-btn"
                   title="测试流"
@@ -32,6 +34,7 @@
                 <svg-icon class="detail-doc-tab-flow-icon" icon-class="test-flow"/>
               </button>
               <button
+                  v-if="canViewSuite"
                   type="button"
                   class="detail-doc-tab-flow-btn"
                   title="测试套件"
@@ -84,6 +87,7 @@
                   </el-option>
                 </el-select>
                 <button
+                    v-if="canViewEnv"
                     type="button"
                     class="tabs-env-manage-btn"
                     title="环境管理"
@@ -107,6 +111,7 @@
                 </button>
               </div>
               <button
+                  v-if="canUseApiAi"
                   type="button"
                   class="detail-toolbar-asset-btn"
                   :class="{ 'is-active': apiAiPanelOpen }"
@@ -132,6 +137,7 @@
                 </svg>
               </button>
               <button
+                  v-if="canViewAsset"
                   type="button"
                   class="detail-toolbar-asset-btn"
                   title="素材库"
@@ -261,6 +267,7 @@
                             v-if="apiDetailSubTab === 'debug'"
                             :key="'api-dbg-' + (apiDetail.testProjectApiId ?? '')"
                             :api-detail="apiDetail"
+                            :can-edit-api="canEditApi"
                             :env-list="envList"
                             :http-transport-mode="projectHttpTransport"
                             :test-project-env-id="settingForm.testProjectEnvId"
@@ -279,6 +286,7 @@
                             v-if="apiDetailSubTab === 'design'"
                             :key="'api-dsg-' + (apiDetail.testProjectApiId ?? '')"
                             :api-detail="apiDetail"
+                            :can-edit-api="canEditApi"
                             :project-auth-config="projectInfo.authConfig"
                             @saved="onDebugSaved"
                         />
@@ -306,6 +314,7 @@
 
             <EnvManageDialog
                 v-model:visible="envManageDialogVisible"
+                :readonly="!canEditEnv"
                 :test-project-id="testProjectId"
                 :toolbar-env-id="settingForm.testProjectEnvId"
                 @saved="onEnvManageSaved"
@@ -313,12 +322,14 @@
 
             <AssetManageDialog
                 v-model:visible="assetManageDialogVisible"
+                :readonly="!canEditAsset"
                 :test-project-id="testProjectId"
             />
 
             <ProjectSettingDrawer
                 v-model:visible="projectSettingDrawerVisible"
                 v-model:http-transport="projectHttpTransport"
+                :capabilities="projectCapabilities"
                 :forward-available="forwardAvail.available"
                 :setting-loading="settingLoading"
                 :setting-form="settingForm"
@@ -354,6 +365,7 @@
 
 <script name="TestProjectDetail" setup>
 import {getTestProject, myProjectContext} from '@/api/project/testProject'
+import {hasProjectCapability, parseProjectCapabilities} from './utils/projectCapabilities'
 import {getTestProjectApi} from '@/api/project/testProjectApi'
 import {listTestProjectEnv} from '@/api/project/testProjectEnv'
 import {
@@ -399,6 +411,19 @@ const tagsViewStore = useTagsViewStore()
 const testProjectId = ref(route.params.testProjectId)
 /** `myProjectContext` 返回的 setting；非 null 时抽屉展示 Token 区（Token 可能仍为空字符串） */
 const settingContext = ref(null)
+/** 当前登录用户在本项目的细粒度权限，传入项目设置抽屉控制 Token/鉴权等区块 */
+const projectCapabilities = ref([])
+/** 判断当前用户是否具备某项目权限 code，供 Tab/工具栏/对话框只读或隐藏 */
+const hasCap = (code) => hasProjectCapability(projectCapabilities.value, code)
+const canViewEnv = computed(() => hasCap('env:view'))
+const canEditEnv = computed(() => hasCap('env:edit'))
+const canViewAsset = computed(() => hasCap('asset:view'))
+const canEditAsset = computed(() => hasCap('asset:edit'))
+const canUseApiAi = computed(() => hasCap('ai:api:design'))
+const canViewFlow = computed(() => hasCap('flow:view'))
+const canViewSuite = computed(() => hasCap('suite:view'))
+const canAddApi = computed(() => hasCap('api:add'))
+const canEditApi = computed(() => hasCap('api:edit'))
 const projectInfo = ref({})
 
 // --- 布局：全屏、抽屉、左侧树 ---
@@ -989,7 +1014,7 @@ function applySettingFromContext(setting) {
 }
 
 /**
- * 拉取「我的项目上下文」（含成员角色与用户设置），并写入 settingContext / 表单。
+ * 拉取当前用户项目上下文：成员 setting、capabilities，并同步到表单。
  * @param {{ drawerLoading?: boolean }} opts drawerLoading 为 true 时用于抽屉打开的 loading 态
  */
 function fetchProjectContext(opts = {}) {
@@ -1001,10 +1026,12 @@ function fetchProjectContext(opts = {}) {
       .then((res) => {
         const setting = res.data?.setting ?? null
         settingContext.value = setting
+        projectCapabilities.value = parseProjectCapabilities(res.data)
         applySettingFromContext(setting)
       })
       .catch(() => {
         settingContext.value = null
+        projectCapabilities.value = []
         applySettingFromContext(null)
       })
       .finally(() => {

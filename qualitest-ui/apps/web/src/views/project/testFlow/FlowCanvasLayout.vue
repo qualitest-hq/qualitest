@@ -118,8 +118,18 @@
             </button>
           </div>
         </div>
-        <button class="btn" type="button" @click="importModalVisible = true">导入</button>
-        <button class="btn" type="button" @click="exportDrawerVisible = true">导出</button>
+        <button
+            v-if="canEditFlow"
+            class="btn"
+            type="button"
+            @click="importModalVisible = true"
+        >导入</button>
+        <button
+            v-if="canExportFlow"
+            class="btn"
+            type="button"
+            @click="exportDrawerVisible = true"
+        >导出</button>
         <button
             :disabled="!canUseAiDesign"
             :title="aiAssistantTitle"
@@ -207,13 +217,16 @@
               :max-zoom="2"
               :min-zoom="0.25"
               :node-types="nodeTypes"
+              :nodes-connectable="canEditFlow"
+              :nodes-draggable="canEditFlow"
+              :elements-selectable="true"
               :pan-on-drag="true"
               :zoom-on-scroll="true"
               class="flow-canvas-vue-flow"
               :selection-key-code="true"
               @connect="onConnect"
-              @dragover="handleDragOver"
-              @drop="handleDrop"
+              @dragover="canEditFlow ? handleDragOver : undefined"
+              @drop="canEditFlow ? handleDrop : undefined"
               @edge-click="onEdgeClick"
               @node-click="onNodeClick"
               @node-context-menu="onNodeContextMenu"
@@ -282,6 +295,7 @@
         v-if="!isTemplateCanvas"
         v-model:visible="projectSettingDrawerVisible"
         v-model:http-transport="projectHttpTransport"
+        :capabilities="capabilities"
         :drawer-title="drawerTitle"
         :forward-available="forwardAvail.available"
         :setting-context="settingContext"
@@ -300,7 +314,8 @@
 /**
  * 测试流画布根布局。
  * 负责顶栏、三栏 Grid、VueFlow 挂载，以及子面板无法内聚的共享 CSS 变量与 .btn。
- * 顶栏「AI 助手」按钮打开 AiDesignChatPanel 侧栏（挂载于 canvas-wrap，不遮挡右栏属性区）。
+ * 顶栏保存/AI/排版等操作经 useFlowCanvasPermissions 校验项目权限；
+ * 项目设置抽屉复用 useProjectSettingDrawer 的 capabilities 控制 Token 与鉴权区。
  */
 import { Background } from '@vue-flow/background'
 import { VueFlow } from '@vue-flow/core'
@@ -396,10 +411,12 @@ const externalSyncProjectId = computed(() =>
 )
 const externalSyncEnabled = computed(() => !isTemplateCanvas.value && !!externalSyncTestFlowId.value)
 
+/** 项目设置抽屉；capabilities 来自 myProjectContext，传给 ProjectSettingDrawer */
 const {
   projectSettingDrawerVisible,
   activeTestProjectId,
   settingContext,
+  capabilities,
   settingLoading,
   settingForm,
   projectHttpTransport,
@@ -503,7 +520,8 @@ const { handleDrop, handleDragOver } = useFlowNodes()
 const { deleteNodeById } = useFlowDelete()
 const { queueNodeForChat } = useAiDesign()
 const { isScenarioRunActive } = useFlowScenarioRun()
-const { canUseAiDesign, canEditFlow } = useFlowCanvasPermissions()
+/** 画布编辑与 AI：菜单权限 + store.capabilities（flow:edit、ai:flow:design） */
+const { canUseAiDesign, canEditFlow, canExportFlow } = useFlowCanvasPermissions()
 
 const aiAssistantTitle = computed(() => {
   if (!canUseAiDesign.value) return '当前账号无查询权限，无法使用 AI 助手'

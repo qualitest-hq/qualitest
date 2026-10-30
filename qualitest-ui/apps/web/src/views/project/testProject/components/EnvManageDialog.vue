@@ -17,7 +17,7 @@
       <aside class="env-sidebar">
         <div class="env-sidebar-head">
           <span class="env-sidebar-title">环境</span>
-          <div class="env-sidebar-actions">
+          <div v-if="!readonly" class="env-sidebar-actions">
             <el-tooltip content="新建环境" placement="bottom">
               <el-button class="env-sidebar-tool" link type="primary" @click="startNewEnv">
                 <el-icon>
@@ -40,7 +40,7 @@
               item-key="testProjectEnvId"
               handle=".env-drag-hint"
               :animation="200"
-              :disabled="listLoading || orderSaving"
+              :disabled="readonly || listLoading || orderSaving"
               class="env-sidebar-draggable"
               ghost-class="env-sidebar-item--ghost"
               @end="onEnvDragEnd"
@@ -66,7 +66,7 @@
                 >
                   {{ env.envName }}
                 </span>
-                <el-dropdown trigger="click" @click.stop>
+                <el-dropdown v-if="!readonly" trigger="click" @click.stop>
                   <span class="env-item-more">
                     <el-icon>
                       <MoreFilled/>
@@ -97,6 +97,7 @@
           <div class="env-main-header">
             <div class="env-config-title-row">
               <el-popover
+                  :disabled="readonly"
                   :width="236"
                   placement="bottom-start"
                   popper-class="env-color-popover"
@@ -105,6 +106,7 @@
                 <template #reference>
                   <button
                       class="env-color-trigger"
+                      :disabled="readonly"
                       type="button"
                       aria-label="环境颜色"
                   >
@@ -151,6 +153,7 @@
                 <input
                     v-model="form.envName"
                     class="env-name-input"
+                    :disabled="readonly"
                     maxlength="64"
                     placeholder="环境名称"
                     type="text"
@@ -170,6 +173,7 @@
               <h3 class="env-section-title">前置 URL</h3>
               <el-input
                   v-model="baseUrl"
+                  :disabled="readonly"
                   class="env-url-input"
                   placeholder="https://api.example.com、localhost:8800 等"
                   @blur="trimBaseUrl"
@@ -184,7 +188,7 @@
               <div class="env-reset-row">
                 <el-switch
                     v-model="allowDestructiveResetOn"
-                    :disabled="isProductionEnv"
+                    :disabled="readonly || isProductionEnv"
                     active-text="允许还原被测数据"
                     inactive-text="禁止还原"
                 />
@@ -199,7 +203,7 @@
             <section class="env-section">
               <div class="env-section-head">
                 <h3 class="env-section-title">环境变量</h3>
-                <el-button link type="primary" @click="addEntryRow">
+                <el-button v-if="!readonly" link type="primary" @click="addEntryRow">
                   <el-icon>
                     <Plus/>
                   </el-icon>
@@ -207,12 +211,13 @@
                 </el-button>
               </div>
               <VariableEntrySheetSection
+                  :read-only="readonly"
                   :rows="sheetRows"
                   wrap-class="env-variable-sheet"
                   name-placeholder="key"
                   type-popper-class="env-variable-type-select-popper"
                   :show-empty="!sheetRows.length"
-                  empty-text="暂无环境变量，点击「添加变量」"
+                  :empty-text="readonly ? '暂无环境变量' : '暂无环境变量，点击「添加变量」'"
                   @add-child="onEnvAddChildRow"
                   @remove="onEnvRemoveRow"
                   @type-change="onRowTypeChange"
@@ -224,19 +229,24 @@
       </div>
 
       <footer v-if="!detailLoading" class="env-config-footer">
-        <el-button @click="visible = false">取 消</el-button>
-        <el-button :loading="saveLoading" @click="handleSave(true)">
-          保存并关闭
-        </el-button>
-        <el-button :loading="saveLoading" type="primary" @click="handleSave(false)">
-          保 存
-        </el-button>
+        <el-button @click="visible = false">{{ readonly ? '关 闭' : '取 消' }}</el-button>
+        <template v-if="!readonly">
+          <el-button :loading="saveLoading" @click="handleSave(true)">
+            保存并关闭
+          </el-button>
+          <el-button :loading="saveLoading" type="primary" @click="handleSave(false)">
+            保 存
+          </el-button>
+        </template>
       </footer>
     </div>
   </el-dialog>
 </template>
 
 <script setup>
+/**
+ * 项目环境管理弹窗：侧边栏切换环境、编辑 Base URL 与变量表；readonly 由父页按 env:edit 传入。
+ */
 import {
   Check,
   Lock,
@@ -278,6 +288,11 @@ const props = defineProps({
   toolbarEnvId: {
     type: [String, Number],
     default: null
+  },
+  /** 无 env:edit 时只读浏览 */
+  readonly: {
+    type: Boolean,
+    default: false
   }
 })
 

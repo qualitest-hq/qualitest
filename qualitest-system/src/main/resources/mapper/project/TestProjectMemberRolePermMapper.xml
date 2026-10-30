@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestProjectMemberRolePermMapper">
+    <resultMap type="TestProjectMemberRolePerm" id="TestProjectMemberRolePermResult">
+        <result property="testProjectMemberRolePermId" column="test_project_member_role_perm_id"/>
+        <result property="testProjectMemberRoleId" column="test_project_member_role_id"/>
+        <result property="permCode" column="perm_code"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectTestProjectMemberRolePermVo">
+        select test_project_member_role_perm_id, test_project_member_role_id, perm_code, create_time from
+        test_project_member_role_perm
+    </sql>
+
+    <sql id="selectTestProjectMemberRolePermAliasVo">
+        select tpmrp.test_project_member_role_perm_id as testProjectMemberRolePermId, tpmrp.test_project_member_role_id
+        as testProjectMemberRoleId, tpmrp.perm_code as permCode, tpmrp.create_time as createTime from
+        test_project_member_role_perm tpmrp
+    </sql>
+
+    <select id="selectTestProjectMemberRolePermList" parameterType="TestProjectMemberRolePerm"
+            resultMap="TestProjectMemberRolePermResult">
+        <include refid="selectTestProjectMemberRolePermVo"/>
+        <where>
+            <if test="testProjectMemberRoleId != null ">
+                and test_project_member_role_id = #{testProjectMemberRoleId}
+            </if>
+            <if test="permCode != null and permCode != ''">
+                and perm_code = #{permCode}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestProjectMemberRolePermById" parameterType="Long" resultMap="TestProjectMemberRolePermResult">
+        <include refid="selectTestProjectMemberRolePermVo"/>
+        where test_project_member_role_perm_id = #{testProjectMemberRolePermId}
+    </select>
+
+    <select id="selectTestProjectMemberRolePermResultList" parameterType="TestProjectMemberRolePermParams"
+            resultType="TestProjectMemberRolePermResult">
+        select
+        tpmrp.test_project_member_role_perm_id as testProjectMemberRolePermId,
+        tpmrp.test_project_member_role_id as testProjectMemberRoleId,
+        tpmrp.perm_code as permCode,
+        tpmrp.create_time as createTime
+        from test_project_member_role_perm tpmrp
+        <where>
+            <if test="testProjectMemberRoleId != null">
+                and tpmrp.test_project_member_role_id = #{testProjectMemberRoleId}
+            </if>
+            <if test="permCode != null and permCode != ''">
+                and tpmrp.perm_code = #{permCode}
+            </if>
+        </where>
+        order by tpmrp.test_project_member_role_perm_id desc
+    </select>
+
+    <select id="selectTestProjectMemberRolePermResult" parameterType="Long"
+            resultType="TestProjectMemberRolePermResult">
+        select
+        tpmrp.test_project_member_role_perm_id as testProjectMemberRolePermId,
+        tpmrp.test_project_member_role_id as testProjectMemberRoleId,
+        tpmrp.perm_code as permCode,
+        tpmrp.create_time as createTime
+        from test_project_member_role_perm tpmrp
+        where
+        tpmrp.test_project_member_role_perm_id = #{testProjectMemberRolePermId}
+        limit 1
+    </select>
+
+    <select id="selectTestProjectMemberRolePermCount" parameterType="TestProjectMemberRolePermParams" resultType="int">
+        select count(1)
+        from test_project_member_role_perm tpmrp
+        <where>
+            <if test="testProjectMemberRoleId != null ">
+                and tpmrp.test_project_member_role_id = #{testProjectMemberRoleId}
+            </if>
+            <if test="permCode != null  and permCode != ''">
+                and tpmrp.perm_code = #{permCode}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestProjectMemberRolePermOne" parameterType="TestProjectMemberRolePermParams"
+            resultMap="TestProjectMemberRolePermResult">
+        select
+        tpmrp.test_project_member_role_perm_id,
+        tpmrp.test_project_member_role_id,
+        tpmrp.perm_code,
+        tpmrp.create_time
+        from test_project_member_role_perm tpmrp
+        <where>
+            <if test="testProjectMemberRoleId != null ">
+                and tpmrp.test_project_member_role_id = #{testProjectMemberRoleId}
+            </if>
+            <if test="permCode != null  and permCode != ''">
+                and tpmrp.perm_code = #{permCode}
+            </if>
+        </where>
+        order by tpmrp.test_project_member_role_perm_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestProjectMemberRolePerm" parameterType="TestProjectMemberRolePerm">
+        insert into test_project_member_role_perm
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testProjectMemberRolePermId != null">
+                test_project_member_role_perm_id,
+            </if>
+            <if test="testProjectMemberRoleId != null">
+                test_project_member_role_id,
+            </if>
+            <if test="permCode != null and permCode != ''">
+                perm_code,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testProjectMemberRolePermId != null">
+                #{testProjectMemberRolePermId},
+            </if>
+            <if test="testProjectMemberRoleId != null">
+                #{testProjectMemberRoleId},
+            </if>
+            <if test="permCode != null and permCode != ''">
+                #{permCode},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestProjectMemberRolePerm" parameterType="TestProjectMemberRolePerm">
+        update test_project_member_role_perm
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectMemberRoleId != null">
+                test_project_member_role_id = #{testProjectMemberRoleId},
+            </if>
+            <if test="permCode != null and permCode != ''">
+                perm_code = #{permCode},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+        </trim>
+        where test_project_member_role_perm_id = #{testProjectMemberRolePermId}
+    </update>
+
+    <delete id="deleteTestProjectMemberRolePermById" parameterType="Long">
+        delete from test_project_member_role_perm where test_project_member_role_perm_id =
+        #{testProjectMemberRolePermId}
+    </delete>
+
+    <delete id="deleteTestProjectMemberRolePermByIdList" parameterType="java.util.List">
+        delete from test_project_member_role_perm where test_project_member_role_perm_id in
+        <foreach item="testProjectMemberRolePermId" collection="list" open="(" separator="," close=")">
+            #{testProjectMemberRolePermId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteTestProjectMemberRolePermByRoleId">
+        delete from test_project_member_role_perm
+        where test_project_member_role_id = #{testProjectMemberRoleId}
+    </delete>
+
+    <select id="selectPermCodesByRoleId" resultType="java.lang.String">
+        select perm_code
+        from test_project_member_role_perm
+        where test_project_member_role_id = #{testProjectMemberRoleId}
+    </select>
+</mapper>

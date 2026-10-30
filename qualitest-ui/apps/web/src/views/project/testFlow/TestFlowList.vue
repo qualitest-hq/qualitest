@@ -2,6 +2,7 @@
   <div class="flow-list-page">
     <FlowGroupTreePanel
         ref="groupTreeRef"
+        :can-edit-group="canEditFlowGroup"
         :test-project-id="testProjectId"
         @changed="handleGroupChanged"
         @select="handleGroupSelect"
@@ -12,7 +13,7 @@
         <el-col :span="1.5">
           <el-button icon="ArrowLeft" plain @click="handleBack">返回项目</el-button>
         </el-col>
-        <el-col :span="1.5">
+        <el-col v-if="canAddFlow" :span="1.5">
           <el-button
               v-hasPermi="['project:testProject:add']"
               icon="Plus"
@@ -22,7 +23,7 @@
           >新建测试流
           </el-button>
         </el-col>
-        <el-col :span="1.5">
+        <el-col v-if="canEditFlowMeta" :span="1.5">
           <el-button
               v-hasPermi="['project:testProject:edit']"
               :disabled="!selectedIds.length"
@@ -32,10 +33,10 @@
           >移动到分组
           </el-button>
         </el-col>
-        <el-col :span="1.5">
+        <el-col v-if="canViewSuite" :span="1.5">
           <el-button icon="Collection" plain @click="goSuites">测试套件</el-button>
         </el-col>
-        <el-col :span="1.5">
+        <el-col v-if="canRemoveFlow" :span="1.5">
           <el-button
               v-hasPermi="['project:testProject:remove']"
               :disabled="!selectedIds.length"
@@ -95,6 +96,7 @@
           <template #default="scope">
             <el-button link type="primary" @click.stop="openCanvas(scope.row)">打开</el-button>
             <el-button
+                v-if="canEditFlowMeta"
                 v-hasPermi="['project:testProject:edit']"
                 link
                 type="primary"
@@ -102,6 +104,7 @@
             >修改
             </el-button>
             <el-button
+                v-if="canRemoveFlow"
                 v-hasPermi="['project:testProject:remove']"
                 link
                 type="danger"
@@ -177,6 +180,7 @@
     <ProjectSettingDrawer
         v-model:visible="projectSettingDrawerVisible"
         v-model:http-transport="projectHttpTransport"
+        :capabilities="capabilities"
         :drawer-title="drawerTitle"
         :forward-available="forwardAvail.available"
         :setting-context="settingContext"
@@ -194,14 +198,16 @@
 /**
  * 项目测试流列表：左侧目录树 + 右侧表格。
  * 支持按目录/未分组过滤、名称搜索、新建与改元信息（含挂目录）、批量移动目录、删除、进画布；批量跑走「测试套件」。
+ * 顶栏项目设置抽屉通过 useProjectSettingDrawer 注入 capabilities；列表按钮另按 flow:* 细粒度隐藏。
  */
-import { getCurrentInstance, onMounted, reactive, ref } from 'vue'
+import { computed, getCurrentInstance, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
 import { addTestFlow, delTestFlow, listTestFlow, updateTestFlow } from '@/api/project/testFlow'
 import { getTestFlowGroupTree } from '@/api/project/testFlowGroup'
 import ProjectSettingDrawer from '@/views/project/testProject/components/ProjectSettingDrawer.vue'
+import { useProjectCapabilities } from '@/views/project/testProject/composables/useProjectCapabilities'
 import { useProjectSettingDrawer } from '@/views/project/testProject/composables/useProjectSettingDrawer'
 
 import FlowGroupTreePanel from './components/FlowGroupTreePanel.vue'
@@ -217,6 +223,7 @@ const {
   projectSettingDrawerVisible,
   activeTestProjectId,
   settingContext,
+  capabilities, // 当前用户项目权限 → ProjectSettingDrawer
   settingLoading,
   settingForm,
   projectHttpTransport,
@@ -229,6 +236,13 @@ const {
 } = useProjectSettingDrawer(() => proxy)
 
 const testProjectId = ref(String(route.params.testProjectId ?? ''))
+/** 当前用户在本项目的细粒度权限，控制列表/目录树按钮显隐 */
+const { has: hasCap } = useProjectCapabilities(testProjectId)
+const canAddFlow = computed(() => hasCap('flow:add'))
+const canEditFlowMeta = computed(() => hasCap('flow:edit'))
+const canRemoveFlow = computed(() => hasCap('flow:remove'))
+const canEditFlowGroup = computed(() => hasCap('flow:edit'))
+const canViewSuite = computed(() => hasCap('suite:view'))
 const loading = ref(false)
 const flowList = ref([])
 const selectedIds = ref([])

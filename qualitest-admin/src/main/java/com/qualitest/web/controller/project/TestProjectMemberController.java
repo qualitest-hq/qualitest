@@ -11,6 +11,7 @@ import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.SecurityUtils;
 import com.qualitest.common.utils.poi.ExcelUtil;
 import com.qualitest.project.domain.TestProjectMember;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.enums.TestProjectMemberRole;
 import com.qualitest.project.params.TestProjectMemberParams;
 import com.qualitest.project.result.TestProjectMemberResult;
@@ -39,47 +40,72 @@ import java.util.Set;
 @AllArgsConstructor
 public class TestProjectMemberController extends BaseController {
 
+    /** 项目成员业务 */
     private final ITestProjectMemberService testProjectMemberService;
+
+    /** 系统用户查询 */
     private final ISysUserService userService;
 
     /**
-     * 查询测试项目成员列表
+     * 查询测试项目成员列表；需具备查看成员权限。
+     *
+     * @param params 查询条件
+     * @return 分页列表
      */
     @PreAuthorize("@ss.hasPermi('project:testProjectMember:list')")
     @GetMapping("/list")
     public TableDataInfo list(@Valid TestProjectMemberParams params) {
+        if (params.getTestProjectId() == null) {
+            throw new ServiceException("请指定测试项目");
+        }
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.MEMBER_VIEW);
         startPage();
         List<TestProjectMemberResult> list = testProjectMemberService.selectTestProjectMemberResultList(params);
         return getDataTable(list);
     }
 
     /**
-     * 导出测试项目成员列表
+     * 导出测试项目成员列表；需具备查看成员权限。
+     *
+     * @param response 响应流
+     * @param params 查询条件
      */
     @PreAuthorize("@ss.hasPermi('project:testProjectMember:export')")
     @Log(title = "测试项目成员", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
     public void export(HttpServletResponse response, @Valid TestProjectMemberParams params) {
+        if (params.getTestProjectId() == null) {
+            throw new ServiceException("请指定测试项目");
+        }
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.MEMBER_VIEW);
         List<TestProjectMemberResult> list = testProjectMemberService.selectTestProjectMemberResultList(params);
         ExcelUtil<TestProjectMemberResult> util = new ExcelUtil<>(TestProjectMemberResult.class);
         util.exportExcel(response, list, "测试项目成员数据");
     }
 
     /**
-     * 获取测试项目成员详细信息
+     * 获取测试项目成员详细信息；需具备查看成员权限。
+     *
+     * @param testProjectMemberId 成员主键
+     * @return 成员详情
      */
     @PreAuthorize("@ss.hasPermi('project:testProjectMember:query')")
     @GetMapping(value = "/{testProjectMemberId}")
     public R<TestProjectMemberResult> getInfo(@PathVariable("testProjectMemberId") Long testProjectMemberId) {
-        return ok(testProjectMemberService.selectTestProjectMemberResult(testProjectMemberId));
+        TestProjectMemberResult result = testProjectMemberService.selectTestProjectMemberResult(testProjectMemberId);
+        if (result != null && result.getTestProjectId() != null) {
+            testProjectMemberService.requireCapability(result.getTestProjectId(), TestProjectMemberPerm.MEMBER_VIEW);
+        }
+        return ok(result);
     }
 
     /**
-     * 分页查询可加入项目的用户
+     * 分页查询可加入项目的用户；需添加成员权限。
      *
      * @param user          查询条件
      * @param testProjectId 测试项目ID
-     * @param retainUserId  可选；若传入则从排除列表中去掉该用户
+     * @param retainUserId  可选；保留在候选列表中的用户 id
+     * @return 分页用户列表
      */
     @PreAuthorize("@ss.hasPermi('project:testProjectMember:add')")
     @GetMapping("/selectableUsers")
@@ -91,8 +117,7 @@ public class TestProjectMemberController extends BaseController {
         if (testProjectId == null) {
             throw new ServiceException("请指定测试项目");
         }
-        TestProjectMemberRole memberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
-        assertCanManageMembers(memberRole);
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.MEMBER_ADD);
         List<Long> exclude = testProjectMemberService.listMemberUserIdsByTestProjectId(testProjectId);
         if (retainUserId != null) {
             exclude.remove(retainUserId);
@@ -104,7 +129,11 @@ public class TestProjectMemberController extends BaseController {
     }
 
     /**
-     * 新增测试项目成员
+     * 新增测试项目成员；需具备添加成员权限。
+     * 新指定为所有者时还需具备转让所有者权限；非所有者不能操作所有者或其他管理员，项目管理员不能指定为所有者。
+     *
+     * @param testProjectMember 成员信息
+     * @return 操作结果
      */
     @PreAuthorize("@ss.hasPermi('project:testProjectMember:add')")
     @Log(title = "测试项目成员", businessType = BusinessType.INSERT)
@@ -112,14 +141,19 @@ public class TestProjectMemberController extends BaseController {
     @Transactional(rollbackFor = Exception.class)
     public R<Void> add(@RequestBody TestProjectMember testProjectMember) {
         Long testProjectId = testProjectMember.getTestProjectId();
-        TestProjectMemberRole loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
-        assertCanManageMembers(loginMemberRole);
-        assertProjectAdminMayNotAssignOwner(loginMemberRole, testProjectMember.getMemberRole());
+        String loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.MEMBER_ADD);
+        requireTransferIfAssigningOwner(testProjectId, null, testProjectMember.getMemberRole());
+        assertNonOwnerMayManageTarget(loginMemberRole, null, testProjectMember.getMemberRole());
         return toR(testProjectMemberService.insertTestProjectMember(testProjectMember));
     }
 
     /**
-     * 修改测试项目成员
+     * 修改测试项目成员；需具备编辑成员权限。
+     * 升为所有者时还需具备转让所有者权限；非所有者不能操作所有者、不能操作其他管理员、项目管理员不能指定为所有者。
+     *
+     * @param testProjectMember 成员信息
+     * @return 操作结果
      */
     @PreAuthorize("@ss.hasPermi('project:testProjectMember:edit')")
     @Log(title = "测试项目成员", businessType = BusinessType.UPDATE)
@@ -130,20 +164,25 @@ public class TestProjectMemberController extends BaseController {
         if (existing == null) {
             throw new ServiceException("成员不存在");
         }
-        TestProjectMemberRole loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
-        assertCanManageMembers(loginMemberRole);
+        String loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+        testProjectMemberService.requireCapability(existing.getTestProjectId(), TestProjectMemberPerm.MEMBER_EDIT);
         testProjectMember.setTestProjectId(existing.getTestProjectId());
         testProjectMember.setUserId(existing.getUserId());
         String newRole = testProjectMember.getMemberRole();
         if (newRole == null || newRole.isEmpty()) {
             newRole = existing.getMemberRole();
         }
-        assertProjectAdminMayManageTarget(loginMemberRole, existing, newRole);
+        requireTransferIfAssigningOwner(existing.getTestProjectId(), existing.getMemberRole(), newRole);
+        assertNonOwnerMayManageTarget(loginMemberRole, existing, newRole);
         return toR(testProjectMemberService.updateTestProjectMember(testProjectMember));
     }
 
     /**
-     * 删除测试项目成员
+     * 删除测试项目成员；每个涉及的项目需具备移除成员权限。
+     * 非所有者不能删除所有者或其他管理员。
+     *
+     * @param testProjectMemberIds 成员主键数组
+     * @return 操作结果
      */
     @PreAuthorize("@ss.hasPermi('project:testProjectMember:remove')")
     @Log(title = "测试项目成员", businessType = BusinessType.DELETE)
@@ -158,47 +197,60 @@ public class TestProjectMemberController extends BaseController {
                 continue;
             }
             Long testProjectId = member.getTestProjectId();
-            TestProjectMemberRole loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+            String loginMemberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
             if (managedProjectIds.add(testProjectId)) {
-                assertCanManageMembers(loginMemberRole);
+                testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.MEMBER_REMOVE);
             }
-            // 每条都校验：项目管理员不能删所有者 / 其他管理员
-            assertProjectAdminMayManageTarget(loginMemberRole, member, member.getMemberRole());
+            // 校验操作者与目标成员的层级约束
+            assertNonOwnerMayManageTarget(loginMemberRole, member, member.getMemberRole());
         }
         return toR(testProjectMemberService.logicDeleteTestProjectMemberByIdList(idList));
     }
 
-    private void assertCanManageMembers(TestProjectMemberRole loginMemberRole) {
-        if (!TestProjectMemberRole.canManageMember(loginMemberRole.getCode())) {
-            throw new ServiceException("您无权管理项目成员");
+    /**
+     * 新升为所有者时需具备转让权限。
+     *
+     * @param testProjectId 项目ID
+     * @param oldRole       原角色；新增时为 null
+     * @param newRole       目标角色
+     */
+    private void requireTransferIfAssigningOwner(Long testProjectId, String oldRole, String newRole) {
+        if (!TestProjectMemberRole.isOwner(newRole)) {
+            return;
         }
-    }
-
-    private void assertProjectAdminMayNotAssignOwner(TestProjectMemberRole loginMemberRole, String memberRole) {
-        if (TestProjectMemberRole.ADMIN.equals(loginMemberRole)
-                && TestProjectMemberRole.OWNER.getCode().equals(memberRole)) {
-            throw new ServiceException("项目管理员不能指定成员为所有者");
+        if (TestProjectMemberRole.isOwner(oldRole)) {
+            return;
         }
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.PROJECT_TRANSFER);
     }
 
     /**
-     * 项目管理员：不能操作所有者、不能操作其他管理员、不能指定为所有者。
+     * 非所有者/系统管理员：不能操作所有者、不能操作其他管理员；项目管理员不能指定为所有者。
+     *
+     * @param loginMemberRole 当前登录者在项目中的角色
+     * @param target          目标成员；新增时为 null
+     * @param newRole         目标角色（新增指定或修改后的角色）
      */
-    private void assertProjectAdminMayManageTarget(
-            TestProjectMemberRole loginMemberRole,
+    private void assertNonOwnerMayManageTarget(
+            String loginMemberRole,
             TestProjectMember target,
             String newRole
     ) {
-        if (!TestProjectMemberRole.ADMIN.equals(loginMemberRole)) {
+        if (TestProjectMemberRole.isOwner(loginMemberRole)
+                || TestProjectMemberRole.isSysAdmin(loginMemberRole)) {
             return;
         }
-        if (TestProjectMemberRole.OWNER.getCode().equals(target.getMemberRole())) {
-            throw new ServiceException("项目管理员不能操作所有者");
+        if (target != null && TestProjectMemberRole.isOwner(target.getMemberRole())) {
+            throw new ServiceException("不能操作所有者");
         }
-        if (TestProjectMemberRole.ADMIN.getCode().equals(target.getMemberRole())
+        if (target != null
+                && TestProjectMemberRole.isAdmin(target.getMemberRole())
                 && !Objects.equals(target.getUserId(), SecurityUtils.getUserId())) {
-            throw new ServiceException("项目管理员不能操作其他管理员");
+            throw new ServiceException("不能操作其他管理员");
         }
-        assertProjectAdminMayNotAssignOwner(loginMemberRole, newRole);
+        if (TestProjectMemberRole.isAdmin(loginMemberRole)
+                && TestProjectMemberRole.isOwner(newRole)) {
+            throw new ServiceException("项目管理员不能指定成员为所有者");
+        }
     }
 }

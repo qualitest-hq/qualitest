@@ -1,7 +1,9 @@
 package com.qualitest.web.controller.project;
 
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
@@ -17,7 +19,11 @@ import com.qualitest.common.annotation.Log;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.R;
 import com.qualitest.common.enums.BusinessType;
+import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.file.FileUtils;
+import com.qualitest.project.domain.TestFlow;
+import com.qualitest.project.domain.TestFlowRun;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.TestFlowRunParams;
 import com.qualitest.project.params.ResumeTestFlowRunParams;
 import com.qualitest.project.params.TriggerTestFlowRunBatchParams;
@@ -29,6 +35,8 @@ import com.qualitest.project.result.TriggerTestFlowRunBatchResult;
 import com.qualitest.project.service.ITestFlowExecutionService;
 import com.qualitest.project.service.ITestFlowRunReportService;
 import com.qualitest.project.service.ITestFlowRunService;
+import com.qualitest.project.service.ITestFlowService;
+import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.common.core.text.Convert;
 import com.qualitest.common.utils.poi.ExcelUtil;
 import com.qualitest.common.core.page.TableDataInfo;
@@ -47,25 +55,29 @@ public class TestFlowRunController extends BaseController {
     private final ITestFlowRunService testFlowRunService;
     private final ITestFlowExecutionService testFlowExecutionService;
     private final ITestFlowRunReportService testFlowRunReportService;
+    private final ITestFlowService testFlowService;
+    private final ITestProjectMemberService testProjectMemberService;
 
     /**
-     * 查询测试流运行列表
+     * 查询测试流运行列表；须指定测试流，且需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:list')")
     @GetMapping("/list")
     public TableDataInfo list(TestFlowRunParams params) {
+        requireFlowRunViewByFlowId(params != null ? params.getTestFlowId() : null);
         startPage();
         List<TestFlowRunResult> list = testFlowRunService.selectTestFlowRunResultList(params);
         return getDataTable(list);
     }
 
     /**
-     * 导出测试流运行列表
+     * 导出测试流运行列表；须指定测试流，且需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:export')")
     @Log(title = "测试流运行", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
     public void export(HttpServletResponse response, TestFlowRunParams params) {
+        requireFlowRunViewByFlowId(params != null ? params.getTestFlowId() : null);
         List<TestFlowRunResult> list = testFlowRunService.selectTestFlowRunResultList(params);
         ExcelUtil<TestFlowRunResult> util = new ExcelUtil<>(TestFlowRunResult.class);
         util.exportExcel(response, list, "测试流运行数据");
@@ -137,13 +149,52 @@ public class TestFlowRunController extends BaseController {
     }
 
     /**
-     * 删除测试流运行
+     * 删除测试流运行；按记录所属项目校验查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:remove')")
     @Log(title = "测试流运行", businessType = BusinessType.DELETE)
     @DeleteMapping("/{testFlowRunIds}")
     public R<Void> remove(@PathVariable Long[] testFlowRunIds) {
         List<Long> idList = Convert.toLongList(testFlowRunIds);
+        requireFlowRunViewByRunIds(idList);
         return toR(testFlowRunService.logicDeleteTestFlowRunByIdList(idList));
+    }
+
+    /**
+     * 按测试流校验「查看跑流记录」权限；未指定流则拒绝（避免无项目范围扫全表）。
+     */
+    private void requireFlowRunViewByFlowId(Long testFlowId) {
+        if (testFlowId == null) {
+            throw new ServiceException("请指定测试流");
+        }
+        TestFlow flow = testFlowService.selectTestFlowById(testFlowId);
+        if (flow == null || flow.getTestProjectId() == null) {
+            throw new ServiceException("测试流不存在");
+        }
+        testProjectMemberService.requireCapability(flow.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
+    }
+
+    /**
+     * 按运行记录反查所属项目并校验查看权限。
+     */
+    private void requireFlowRunViewByRunIds(List<Long> runIds) {
+        if (runIds == null || runIds.isEmpty()) {
+            throw new ServiceException("请选择要删除的运行记录");
+        }
+        Set<Long> projectIds = new HashSet<>();
+        for (Long runId : runIds) {
+            TestFlowRun run = testFlowRunService.selectTestFlowRunById(runId);
+            if (run == null || run.getTestFlowId() == null) {
+                throw new ServiceException("运行记录不存在");
+            }
+            TestFlow flow = testFlowService.selectTestFlowById(run.getTestFlowId());
+            if (flow == null || flow.getTestProjectId() == null) {
+                throw new ServiceException("测试流不存在");
+            }
+            projectIds.add(flow.getTestProjectId());
+        }
+        for (Long projectId : projectIds) {
+            testProjectMemberService.requireCapability(projectId, TestProjectMemberPerm.FLOW_VIEW);
+        }
     }
 }

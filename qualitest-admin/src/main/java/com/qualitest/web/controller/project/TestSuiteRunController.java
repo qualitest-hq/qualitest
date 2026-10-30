@@ -6,6 +6,7 @@ import com.qualitest.common.core.domain.R;
 import com.qualitest.common.core.page.TableDataInfo;
 import com.qualitest.common.enums.BusinessType;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.BindTestSuiteRunItemParams;
 import com.qualitest.project.params.FinishTestSuiteRunItemParams;
 import com.qualitest.project.params.StartTestSuiteRunParams;
@@ -39,7 +40,7 @@ public class TestSuiteRunController extends BaseController {
     private final ITestProjectMemberService testProjectMemberService;
 
     /**
-     * 查询测试套件运行列表
+     * 查询测试套件运行列表；指定项目时需查看套件与运行记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:list')")
     @GetMapping("/list")
@@ -47,27 +48,27 @@ public class TestSuiteRunController extends BaseController {
         if (params.getTestProjectId() == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.SUITE_VIEW);
         startPage();
         List<TestSuiteRunResult> list = testSuiteRunService.selectTestSuiteRunResultList(params);
         return getDataTable(list);
     }
 
     /**
-     * 获取测试套件运行详细信息（含项）
+     * 获取测试套件运行详细信息（含项）；需查看套件与运行记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/{testSuiteRunId}")
     public R<TestSuiteRunResult> getInfo(@PathVariable Long testSuiteRunId) {
         TestSuiteRunResult result = testSuiteRunService.selectTestSuiteRunResult(testSuiteRunId);
         if (result != null && result.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(result.getTestProjectId());
+            testProjectMemberService.requireCapability(result.getTestProjectId(), TestProjectMemberPerm.SUITE_VIEW);
         }
         return ok(result);
     }
 
     /**
-     * 开始套件运行：写入 running 头与 pending 项，立刻返回；由客户端串行 trigger 并回写
+     * 开始套件运行：写入 running 头与 pending 项；需执行套件权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试套件运行", businessType = BusinessType.OTHER)
@@ -76,12 +77,12 @@ public class TestSuiteRunController extends BaseController {
         if (params.getTestProjectId() == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.SUITE_RUN);
         return ok(testSuiteRunService.start(params));
     }
 
     /**
-     * 运行项绑定正式 RunId，状态置为 running
+     * 运行项绑定正式 RunId；需执行套件权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @PostMapping("/{testSuiteRunId}/items/{testSuiteRunItemId}/bindRun")
@@ -90,14 +91,14 @@ public class TestSuiteRunController extends BaseController {
                            @RequestBody BindTestSuiteRunItemParams params) {
         TestSuiteRunResult detail = testSuiteRunService.selectTestSuiteRunResult(testSuiteRunId);
         if (detail != null && detail.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(detail.getTestProjectId());
+            testProjectMemberService.requireCapability(detail.getTestProjectId(), TestProjectMemberPerm.SUITE_RUN);
         }
         testSuiteRunService.bindRun(testSuiteRunId, testSuiteRunItemId, params);
         return ok();
     }
 
     /**
-     * 运行项写入终态并刷新汇总
+     * 运行项写入终态并刷新汇总；需执行套件权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @PostMapping("/{testSuiteRunId}/items/{testSuiteRunItemId}/finish")
@@ -106,13 +107,13 @@ public class TestSuiteRunController extends BaseController {
                                             @RequestBody FinishTestSuiteRunItemParams params) {
         TestSuiteRunResult detail = testSuiteRunService.selectTestSuiteRunResult(testSuiteRunId);
         if (detail != null && detail.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(detail.getTestProjectId());
+            testProjectMemberService.requireCapability(detail.getTestProjectId(), TestProjectMemberPerm.SUITE_RUN);
         }
         return ok(testSuiteRunService.finishItem(testSuiteRunId, testSuiteRunItemId, params));
     }
 
     /**
-     * 中止队列：未跑项标 skipped，头状态 aborted
+     * 中止队列：未跑项标 skipped；需执行套件权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试套件运行", businessType = BusinessType.OTHER)
@@ -120,7 +121,7 @@ public class TestSuiteRunController extends BaseController {
     public R<TestSuiteRunResult> abort(@PathVariable Long testSuiteRunId) {
         TestSuiteRunResult detail = testSuiteRunService.selectTestSuiteRunResult(testSuiteRunId);
         if (detail != null && detail.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(detail.getTestProjectId());
+            testProjectMemberService.requireCapability(detail.getTestProjectId(), TestProjectMemberPerm.SUITE_RUN);
         }
         return ok(testSuiteRunService.abort(testSuiteRunId));
     }

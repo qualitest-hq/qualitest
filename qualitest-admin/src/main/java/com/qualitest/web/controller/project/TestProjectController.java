@@ -11,6 +11,7 @@ import com.qualitest.common.utils.poi.ExcelUtil;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectMember;
 import com.qualitest.project.domain.TestProjectUserSetting;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.enums.TestProjectMemberRole;
 import com.qualitest.project.params.ApplyAuthTemplatesParams;
 import com.qualitest.project.params.SaveAsAuthTemplateParams;
@@ -120,17 +121,21 @@ public class TestProjectController extends BaseController {
     }
 
     /**
-     * 修改测试项目
+     * 修改测试项目；需项目成员具备编辑项目设置权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试项目", businessType = BusinessType.UPDATE)
     @PutMapping
     public R<Void> edit(@RequestBody TestProject testProject) {
+        if (testProject.getTestProjectId() != null) {
+            testProjectMemberService.requireCapability(
+                    testProject.getTestProjectId(), TestProjectMemberPerm.PROJECT_EDIT);
+        }
         return toR(testProjectService.updateTestProject(testProject));
     }
 
     /**
-     * 从项目模板追加鉴权 Profile，并种子尚未存在的预制接口。
+     * 从项目模板追加鉴权 Profile，并种子尚未存在的预制接口；需编辑项目设置权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试项目模板", businessType = BusinessType.UPDATE)
@@ -138,6 +143,7 @@ public class TestProjectController extends BaseController {
     public R<Void> applyAuthTemplates(
             @PathVariable Long testProjectId,
             @RequestBody ApplyAuthTemplatesParams params) {
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.PROJECT_EDIT);
         projectAuthTemplateApplyService.apply(
                 testProjectId, params != null ? params.getTemplateIds() : null);
         return ok();
@@ -156,18 +162,21 @@ public class TestProjectController extends BaseController {
     }
 
     /**
-     * 删除测试项目
+     * 删除测试项目；逐项校验删除项目权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:remove')")
     @Log(title = "测试项目", businessType = BusinessType.DELETE)
     @DeleteMapping("/{testProjectIds}")
     public R<Void> remove(@PathVariable Long[] testProjectIds) {
         List<Long> idList = Convert.toLongList(testProjectIds);
+        for (Long id : idList) {
+            testProjectMemberService.requireCapability(id, TestProjectMemberPerm.PROJECT_DELETE);
+        }
         return toR(testProjectService.logicDeleteTestProjectByIdList(idList));
     }
 
     /**
-     * 我的项目信息
+     * 返回当前用户在项目下的角色、权限列表与个人设置。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/myProjectContext")
@@ -175,7 +184,8 @@ public class TestProjectController extends BaseController {
         // 登录用户ID
         Long userId = SecurityUtils.getUserId();
         // 项目成员
-        TestProjectMemberRole memberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        String memberRole = testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        java.util.Set<String> capabilities = testProjectMemberService.listCapabilities(testProjectId);
         TestProjectUserSetting ensured =
                 testProjectUserSettingService.getUserSettingForProjectSetting(testProjectId, userId);
         TestProjectUserSettingResult setting = testProjectUserSettingService.selectTestProjectUserSettingResult(
@@ -183,7 +193,8 @@ public class TestProjectController extends BaseController {
         return ok(TestProjectUserContextResult.builder()
                 .testProjectId(testProjectId)
                 .userId(userId)
-                .memberRole(memberRole.getCode())
+                .memberRole(memberRole)
+                .capabilities(new java.util.ArrayList<>(capabilities))
                 .setting(setting)
                 .build());
     }

@@ -14,7 +14,7 @@
             placeholder="搜索目录"
             prefix-icon="Search"
         />
-        <el-tooltip content="新建根目录" placement="bottom">
+        <el-tooltip v-if="canEditGroup" content="新建根目录" placement="bottom">
           <el-button
               v-hasPermi="['project:testProject:add']"
               class="tree-add-btn"
@@ -74,14 +74,14 @@
               </span>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <template v-if="data.nodeType === 'all'">
+                  <template v-if="canEditGroup && data.nodeType === 'all'">
                     <el-dropdown-item
                         v-hasPermi="['project:testProject:add']"
                         command="addRoot"
                     >新建根目录
                     </el-dropdown-item>
                   </template>
-                  <template v-else-if="data.nodeType === 'group'">
+                  <template v-else-if="canEditGroup && data.nodeType === 'group'">
                     <el-dropdown-item
                         v-hasPermi="['project:testProject:add']"
                         command="addChild"
@@ -119,10 +119,10 @@
         class="flow-group-ctx"
         @click.stop
     >
-      <template v-if="ctxNode?.nodeType === 'all'">
+      <template v-if="canEditGroup && ctxNode?.nodeType === 'all'">
         <li v-hasPermi="['project:testProject:add']" @click="handleAddRoot">新建根目录</li>
       </template>
-      <template v-else-if="ctxNode?.nodeType === 'group'">
+      <template v-else-if="canEditGroup && ctxNode?.nodeType === 'group'">
         <li v-hasPermi="['project:testProject:add']" @click="handleAddChild()">新建子目录</li>
         <li v-hasPermi="['project:testProject:edit']" @click="handleRename()">重命名</li>
         <li v-hasPermi="['project:testProject:remove']" class="danger" @click="handleDeleteGroup()">删除</li>
@@ -169,6 +169,11 @@ const props = defineProps({
   testProjectId: {
     type: [String, Number],
     required: true,
+  },
+  /** 是否允许增删改目录（对应 flow:edit） */
+  canEditGroup: {
+    type: Boolean,
+    default: false,
   },
 })
 
@@ -313,8 +318,9 @@ function toggleTreeExpandAll() {
   setTreeExpanded(!treeAllExpanded.value)
 }
 
-/** 「未分组」无目录操作；「全部」可新建根；真实目录可增删改 */
+/** 「未分组」无目录操作；有 flow:edit 时「全部」可新建根、真实目录可增删改 */
 function hasNodeActions(data) {
+  if (!props.canEditGroup) return false
   return data?.nodeType === 'all' || data?.nodeType === 'group'
 }
 

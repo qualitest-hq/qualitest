@@ -4,6 +4,7 @@
         :method="draftRequestConfig.method"
         :draft-api-path="draftApiPath"
         :embed-in-design="embedInDesign"
+        :can-edit-api="canEditApi"
         :debug-sending="debugSending"
         :api-debug-saving="apiDebugSaving"
         @update:method="setMethod"
@@ -96,7 +97,9 @@ const props = defineProps({
   /** 项目设置中的调试发送模式（Web）；桌面端由主进程固定，忽略此项 */
   httpTransportMode: {type: String, default: 'browser'},
   /** 嵌入「设计」页：仅请求配置，无发送/响应区/保存按钮 */
-  embedInDesign: {type: Boolean, default: false}
+  embedInDesign: {type: Boolean, default: false},
+  /** 是否允许保存接口（api:edit） */
+  canEditApi: {type: Boolean, default: false}
 })
 
 const emit = defineEmits(['saved'])

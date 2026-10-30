@@ -135,4 +135,21 @@ public interface TestProjectMemberMapper {
      * 统计项目下有效所有者人数
      */
     int countOwners(@Param("testProjectId") Long testProjectId);
+
+    /**
+     * 全站批量将成员表中的角色标识从旧值改为新值
+     *
+     * @param oldRoleKey 旧角色标识
+     * @param newRoleKey 新角色标识
+     * @return 更新行数
+     */
+    int updateMemberRoleKey(@Param("oldRoleKey") String oldRoleKey, @Param("newRoleKey") String newRoleKey);
+
+    /**
+     * 统计仍引用某角色标识的有效成员数
+     *
+     * @param memberRole 角色标识
+     * @return 数量
+     */
+    int countByMemberRole(@Param("memberRole") String memberRole);
 }

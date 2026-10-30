@@ -61,11 +61,9 @@ public class TestProjectMemberResult implements Serializable {
     private String userName;
 
     /**
-     * 成员角色
-     *
-     * @see TestProjectMemberRole
+     * 成员角色标识 role_key
      */
-    @Excel(name = "成员角色", readConverterExp = "owner=所有者,admin=管理员,developer=开发者,tester=测试员")
+    @Excel(name = "成员角色", readConverterExp = "owner=所有者,admin=管理员,backend=后端开发者,frontend=前端开发者,tester=测试员")
     private String memberRole;
 
     /**

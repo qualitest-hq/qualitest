@@ -160,6 +160,7 @@
     <ProjectSettingDrawer
         v-model:visible="projectSettingDrawerVisible"
         v-model:http-transport="projectHttpTransport"
+        :capabilities="capabilities"
         :drawer-title="drawerTitle"
         :forward-available="forwardAvail.available"
         :setting-context="settingContext"
@@ -194,6 +195,7 @@ const {
   projectSettingDrawerVisible,
   activeTestProjectId,
   settingContext,
+  capabilities,
   settingLoading,
   settingForm,
   projectHttpTransport,

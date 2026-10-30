@@ -50,7 +50,7 @@
               :closable="false"
           />
 
-          <div class="project-setting__auth-toolbar">
+          <div v-if="canEditProject" class="project-setting__auth-toolbar">
             <el-button :loading="templateApplying" size="small" type="primary" @click="openTemplatePicker">
               从项目模板添加
             </el-button>
@@ -75,6 +75,7 @@
                   {{ row.name || row.id || `Profile ${idx + 1}` }}
                 </span>
                 <el-button
+                    v-if="canEditProject"
                     class="project-setting__auth-remove"
                     link
                     size="small"
@@ -155,11 +156,12 @@
             模板追加会写入项目 auth_config 并种子尚未存在的预制接口；手动保存仅更新当前表单中的 Profile。
           </p>
 
-          <div class="project-setting__actions">
+          <div v-if="canEditProject" class="project-setting__actions">
             <el-button :loading="authSaving" type="primary" @click="saveProjectAuth">
               保存多端配置
             </el-button>
           </div>
+          <p v-else class="project-setting__hint">当前角色无项目编辑权限，多端配置只读。</p>
         </section>
 
         <el-dialog v-model="templatePickerVisible" append-to-body title="从项目模板添加" width="520px">
@@ -194,7 +196,7 @@
           :test-project-id="resolveProjectId()"
         />
 
-        <section class="project-setting__card">
+        <section v-if="canUseToken" class="project-setting__card">
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">项目 Token</h3>
             <p class="project-setting__card-desc">
@@ -224,90 +226,12 @@
           </div>
         </section>
 
-        <!-- MCP 权限：写流 / 跑流 / 导入三开关只落库；保存后须用户重连或刷新 MCP，工具列表才会更新 -->
-        <section class="project-setting__card">
-          <header class="project-setting__card-head">
-            <h3 class="project-setting__card-title">MCP 权限</h3>
-            <p class="project-setting__card-desc">
-              Token 只绑定项目身份。三道开关分别控制改图画布、直接跑测试流、把接口写入项目；默认关闭，请仅对可信环境开启。
-            </p>
-          </header>
-
-          <div class="project-setting__mcp-list">
-            <div class="project-setting__mcp-row">
-              <div class="project-setting__mcp-meta">
-                <span class="project-setting__mcp-name">允许 MCP 自动写流</span>
-                <span class="project-setting__mcp-sub">新建流、改图画布</span>
-              </div>
-              <div class="project-setting__mcp-controls">
-                <el-switch
-                    v-model="mcpAutoWriteEnabled"
-                    inline-prompt
-                    active-text="开"
-                    inactive-text="关"
-                    @change="onMcpAutoWriteChange"
-                />
-                <el-button :loading="mcpAutoWriteSaving" size="small" type="primary" @click="saveMcpAutoWrite">
-                  保存
-                </el-button>
-              </div>
-            </div>
-
-            <div class="project-setting__mcp-row">
-              <div class="project-setting__mcp-meta">
-                <span class="project-setting__mcp-name">允许 MCP 自动跑流</span>
-                <span class="project-setting__mcp-sub">在 Cursor 里直接跑测试流，须先开写流</span>
-              </div>
-              <div class="project-setting__mcp-controls">
-                <el-switch
-                    v-model="mcpAutorunEnabled"
-                    :disabled="!mcpAutoWriteEnabled"
-                    inline-prompt
-                    active-text="开"
-                    inactive-text="关"
-                />
-                <el-button
-                    :loading="mcpAutorunSaving"
-                    :disabled="!mcpAutoWriteEnabled && !mcpAutorunEnabled"
-                    size="small"
-                    type="primary"
-                    @click="saveMcpAutorun"
-                >
-                  保存
-                </el-button>
-              </div>
-            </div>
-
-            <div class="project-setting__mcp-row">
-              <div class="project-setting__mcp-meta">
-                <span class="project-setting__mcp-name">允许 MCP 导入接口</span>
-                <span class="project-setting__mcp-sub">把代码里的接口写入本项目；IDEA 插件导入不受影响</span>
-              </div>
-              <div class="project-setting__mcp-controls">
-                <el-switch
-                    v-model="mcpImportApisEnabled"
-                    inline-prompt
-                    active-text="开"
-                    inactive-text="关"
-                />
-                <el-button :loading="mcpImportApisSaving" size="small" type="primary" @click="saveMcpImportApis">
-                  保存
-                </el-button>
-              </div>
-            </div>
-          </div>
-
-          <p class="project-setting__hint">
-            保存后请重连或刷新 MCP，否则编辑器常仍只看到旧工具列表。关写流时会一并关掉跑流。
-          </p>
-        </section>
-
-        <section class="project-setting__card">
+        <section v-if="canUseToken" class="project-setting__card">
           <header class="project-setting__card-head project-setting__card-head--row">
             <div>
               <h3 class="project-setting__card-title">Cursor MCP</h3>
               <p class="project-setting__card-desc">
-                粘贴到 Cursor 的 <code>mcp.json</code>；未开「MCP 自动写流」时仅只读查询本项目 API、测试流等。
+                粘贴到 Cursor 的 <code>mcp.json</code>；工具范围由当前项目角色权限决定（可在「项目角色」中配置）。
               </p>
             </div>
             <el-button
@@ -348,9 +272,8 @@
 <script setup>
 /**
  * 项目设置侧栏。
- * <p>
- * 多端配置：按 Profile 维护鉴权托管头、pathPrefix、响应约定四字段与预制接口；
- * 另含 API 调试传输方式、项目 Token、MCP 自动写流开关与 Cursor 配置导出。
+ * 多端配置：按 Profile 维护鉴权托管头、pathPrefix、响应约定与预制接口；
+ * API 调试传输、项目 Token、Cursor MCP 导出；canEditProject / canUseToken 由 props.capabilities 判定。
  */
 import { computed, getCurrentInstance, reactive, ref, watch } from 'vue'
 import { buildCursorMcpConfig } from '../utils/mcpClientConfig'
@@ -385,6 +308,11 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  /** 当前用户在本项目的权限列表 */
+  capabilities: {
+    type: Array,
+    default: () => [],
+  },
   showHttpTransportSetting: {
     type: Boolean,
     default: false,
@@ -418,18 +346,12 @@ const {
   loadEnabledTemplates,
 } = useEnabledAuthTemplates()
 
-/** 是否允许 MCP 自动写流（改图、新建流等）；保存入库后编辑器须重连 MCP 才会刷新工具列表 */
-const mcpAutoWriteEnabled = ref(false)
-/** 写流开关保存中 */
-const mcpAutoWriteSaving = ref(false)
-/** 是否允许 MCP 自动跑流（run_test_flow）；依赖写流已开 */
-const mcpAutorunEnabled = ref(false)
-/** 跑流开关保存中 */
-const mcpAutorunSaving = ref(false)
-/** 是否允许 MCP 调用 import_apis 写入本项目接口库（与写流无关）；保存后同样须重连 MCP */
-const mcpImportApisEnabled = ref(false)
-/** 导入接口开关保存中 */
-const mcpImportApisSaving = ref(false)
+/** 当前用户在本项目已生效的权限集合 */
+const capabilitySet = computed(() => new Set(props.capabilities || []))
+/** 含 project:edit 时可保存多端鉴权配置 */
+const canEditProject = computed(() => capabilitySet.value.has('project:edit'))
+/** 含 token:use 时展示项目 Token 与 Cursor MCP 配置区 */
+const canUseToken = computed(() => capabilitySet.value.has('token:use'))
 
 const authPreview = computed(() => formatAuthConfigPreview(authForm))
 
@@ -447,14 +369,11 @@ function applyAuthForm(next) {
   syncAuthCollapse()
 }
 
-/** 打开抽屉后拉取项目详情：多端配置、以及当前 MCP 写流 / 跑流 / 导入开关 */
+/** 打开抽屉后拉取项目多端鉴权配置 */
 function loadProjectSettings() {
   const pid = resolveProjectId()
   if (!pid) {
     applyAuthForm(emptyAuthForm())
-    mcpAutoWriteEnabled.value = false
-    mcpAutorunEnabled.value = false
-    mcpImportApisEnabled.value = false
     return
   }
   getTestProject(pid)
@@ -462,93 +381,10 @@ function loadProjectSettings() {
       applyAuthForm(parseAuthConfig(res.data?.authConfig, {
         needsAuthTemplateHint: res.data?.needsAuthTemplateHint,
       }))
-      mcpAutoWriteEnabled.value = !!res.data?.mcpAutoWriteEnabled
-      mcpAutorunEnabled.value = !!res.data?.mcpAutorunEnabled
-      mcpImportApisEnabled.value = !!res.data?.mcpImportApisEnabled
     })
     .catch(() => {
       applyAuthForm(emptyAuthForm())
-      mcpAutoWriteEnabled.value = false
-      mcpAutorunEnabled.value = false
-      mcpImportApisEnabled.value = false
     })
-}
-
-/**
- * 关写流时本地一并关掉跑流开关（保存写流时会把跑流也落库为关）。
- */
-function onMcpAutoWriteChange(on) {
-  if (!on) {
-    mcpAutorunEnabled.value = false
-  }
-}
-
-/**
- * 保存单个 MCP 权限开关到项目。
- * 只写库字段，不会通知已连接的 MCP 客户端刷新工具列表；保存后须由用户重连或刷新 MCP。
- * @param opts.saving 按钮 loading 状态
- * @param opts.payload 写入 updateTestProject 的字段
- * @param opts.onMsg 成功提示文案
- */
-function saveMcpFlag({ saving, payload, onMsg }) {
-  const pid = resolveProjectId()
-  if (!pid) {
-    proxy.$modal.msgError('缺少项目 ID')
-    return
-  }
-  saving.value = true
-  updateTestProject({ testProjectId: pid, ...payload })
-    .then(() => {
-      proxy.$modal.msgSuccess(onMsg)
-    })
-    .catch(() => {
-      proxy.$modal.msgError('保存失败')
-    })
-    .finally(() => {
-      saving.value = false
-    })
-}
-
-/** 保存「允许 MCP 自动写流」开关；关写流时一并关掉跑流 */
-function saveMcpAutoWrite() {
-  const writeOn = !!mcpAutoWriteEnabled.value
-  if (!writeOn) {
-    mcpAutorunEnabled.value = false
-  }
-  const payload = {
-    mcpAutoWriteEnabled: writeOn,
-    ...(writeOn ? {} : { mcpAutorunEnabled: false }),
-  }
-  saveMcpFlag({
-    saving: mcpAutoWriteSaving,
-    payload,
-    onMsg: writeOn
-      ? '已允许 MCP 自动写流'
-      : '已关闭 MCP 自动写流（并关闭自动跑流）',
-  })
-}
-
-/** 保存「允许 MCP 自动跑流」开关（落库后须重连 MCP 才出现/消失 run_test_flow） */
-function saveMcpAutorun() {
-  if (!mcpAutoWriteEnabled.value) {
-    mcpAutorunEnabled.value = false
-    proxy.$modal.msgError('请先开启并保存「允许 MCP 自动写流」')
-    return
-  }
-  saveMcpFlag({
-    saving: mcpAutorunSaving,
-    payload: { mcpAutorunEnabled: !!mcpAutorunEnabled.value },
-    onMsg: mcpAutorunEnabled.value ? '已允许 MCP 自动跑流' : '已关闭 MCP 自动跑流',
-  })
-}
-
-/** 保存「允许 MCP 导入接口」开关（落库后须重连 MCP 才出现/消失 import_apis） */
-function saveMcpImportApis() {
-  saveMcpFlag({
-    saving: mcpImportApisSaving,
-    payload: { mcpImportApisEnabled: !!mcpImportApisEnabled.value },
-    onMsg: mcpImportApisEnabled.value ? '已允许 MCP 导入接口' : '已关闭 MCP 导入接口',
-  })
 }
 
 function openTemplatePicker() {
@@ -607,6 +443,10 @@ function removeAuthProfile(idx) {
 
 /** 保存项目鉴权到 auth_config */
 function saveProjectAuth() {
+  if (!canEditProject.value) {
+    proxy?.$modal?.msgError?.('当前角色无项目编辑权限')
+    return
+  }
   const pid = resolveProjectId()
   if (!pid) {
     proxy?.$modal?.msgError?.('缺少项目 ID')

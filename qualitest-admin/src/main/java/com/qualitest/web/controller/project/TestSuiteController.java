@@ -7,6 +7,7 @@ import com.qualitest.common.core.page.TableDataInfo;
 import com.qualitest.common.core.text.Convert;
 import com.qualitest.common.enums.BusinessType;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.TestSuiteParams;
 import com.qualitest.project.params.TestSuiteSaveParams;
 import com.qualitest.project.result.TestSuiteResult;
@@ -40,7 +41,7 @@ public class TestSuiteController extends BaseController {
     private final ITestProjectMemberService testProjectMemberService;
 
     /**
-     * 查询测试套件列表
+     * 查询测试套件列表；指定项目时需查看套件与运行记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:list')")
     @GetMapping("/list")
@@ -48,27 +49,27 @@ public class TestSuiteController extends BaseController {
         if (params.getTestProjectId() == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.SUITE_VIEW);
         startPage();
         List<TestSuiteResult> list = testSuiteService.selectTestSuiteResultList(params);
         return getDataTable(list);
     }
 
     /**
-     * 获取测试套件详细信息（含项）
+     * 获取测试套件详细信息（含项）；需查看套件与运行记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/{testSuiteId}")
     public R<TestSuiteResult> getInfo(@PathVariable Long testSuiteId) {
         TestSuiteResult result = testSuiteService.selectTestSuiteDetail(testSuiteId);
         if (result != null && result.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(result.getTestProjectId());
+            testProjectMemberService.requireCapability(result.getTestProjectId(), TestProjectMemberPerm.SUITE_VIEW);
         }
         return ok(result);
     }
 
     /**
-     * 新增测试套件
+     * 新增测试套件；需新建套件权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:add')")
     @Log(title = "测试套件", businessType = BusinessType.INSERT)
@@ -77,13 +78,13 @@ public class TestSuiteController extends BaseController {
         if (params.getTestProjectId() == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.SUITE_ADD);
         Long id = testSuiteService.saveTestSuite(params);
         return ok(id != null ? String.valueOf(id) : null);
     }
 
     /**
-     * 修改测试套件（项整表替换）
+     * 修改测试套件（项整表替换）；需编辑套件权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试套件", businessType = BusinessType.UPDATE)
@@ -95,13 +96,13 @@ public class TestSuiteController extends BaseController {
         if (params.getTestProjectId() == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.SUITE_EDIT);
         Long id = testSuiteService.saveTestSuite(params);
         return ok(id != null ? String.valueOf(id) : null);
     }
 
     /**
-     * 删除测试套件
+     * 删除测试套件；需删除套件权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:remove')")
     @Log(title = "测试套件", businessType = BusinessType.DELETE)
@@ -111,7 +112,7 @@ public class TestSuiteController extends BaseController {
         for (Long id : idList) {
             TestSuiteResult existing = testSuiteService.selectTestSuiteDetail(id);
             if (existing != null && existing.getTestProjectId() != null) {
-                testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+                testProjectMemberService.requireCapability(existing.getTestProjectId(), TestProjectMemberPerm.SUITE_REMOVE);
             }
         }
         return toR(testSuiteService.logicDeleteTestSuiteByIdList(idList));

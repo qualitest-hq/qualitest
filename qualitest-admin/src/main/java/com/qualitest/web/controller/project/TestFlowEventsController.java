@@ -3,6 +3,7 @@ package com.qualitest.web.controller.project;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.flow.sync.FlowExternalChangeEvent;
 import com.qualitest.flow.sync.FlowExternalChangeHub;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectMemberService;
@@ -55,7 +56,7 @@ public class TestFlowEventsController extends BaseController {
 
     /**
      * 订阅指定测试流及所属项目的外部变更。
-     * 校验流存在与项目成员后建立长连接；断开时取消订阅并停保活。
+     * 校验流存在、项目成员与查看测试流与跑流记录权限后建立长连接；断开时取消订阅并停保活。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping(value = "/{testFlowId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -65,7 +66,7 @@ public class TestFlowEventsController extends BaseController {
             throw new com.qualitest.common.exception.ServiceException("测试流不存在");
         }
         if (flow.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(flow.getTestProjectId());
+            testProjectMemberService.requireCapability(flow.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
         }
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);

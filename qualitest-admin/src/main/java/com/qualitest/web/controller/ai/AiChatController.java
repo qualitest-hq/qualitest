@@ -12,6 +12,7 @@ import com.qualitest.ai.service.IAiLlmModelService;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.R;
 import com.qualitest.common.core.page.TableDataInfo;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.service.ITestProjectMemberService;
 import lombok.AllArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,6 +30,7 @@ import java.util.List;
 
 /**
  * AI 平台通用 HTTP 接口：模型列表、画布多轮会话。
+ * 绑定测试项目的会话读写按 scene 校验造流 AI 或接口工作台 AI 项目权限。
  */
 @RestController
 @RequestMapping("/ai")
@@ -49,6 +51,7 @@ public class AiChatController extends BaseController {
 
     /**
      * 列出当前用户在指定场景与业务锚点下的会话。
+     * 绑定项目时：接口设计场景需接口工作台 AI 权限，造流场景需造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/chat/session/list")
@@ -57,7 +60,7 @@ public class AiChatController extends BaseController {
             @RequestParam Long testProjectId,
             @RequestParam(required = false) Long testFlowId,
             @RequestParam(required = false) Long testProjectApiId) {
-        testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        requireAiCapability(testProjectId, scene);
         List<AiChatSessionResult> rows = aiChatConversationService.listSessions(
                 scene, testProjectId, testFlowId, testProjectApiId, getUserId());
         return getDataTable(rows);
@@ -65,6 +68,7 @@ public class AiChatController extends BaseController {
 
     /**
      * 获取会话详情及消息。
+     * 绑定项目时按会话场景校验接口工作台 AI 或造流 AI 助手权限。
      *
      * @param messageDetail summary 时 assistant 消息不含 patchJson（含 hasPatch 标记）；full 返回完整 meta
      * @param limit         分页条数；不传或 ≤0 时默认 40
@@ -82,35 +86,37 @@ public class AiChatController extends BaseController {
                 ? aiChatConversationService.getSessionWithMessages(aiChatSessionId, userId, limit, beforeMessageId)
                 : aiChatConversationService.getSessionWithMessageSummaries(
                         aiChatSessionId, userId, limit, beforeMessageId);
-        testProjectMemberService.getCheckProjectMemberRole(detail.getSession().getTestProjectId());
+        requireAiCapability(detail.getSession().getTestProjectId(), detail.getSession().getSessionScene());
         return R.ok(detail);
     }
 
     /**
      * 获取单条消息完整 meta（含 patchJson），用于 Lazy Patch 按需加载。
+     * 绑定项目时按会话场景校验接口工作台 AI 或造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/chat/message/{aiChatMessageId}/meta")
     public R<AiChatMessageResult> getMessageMeta(@PathVariable Long aiChatMessageId) {
         Long userId = getUserId();
         AiChatMessageResult message = aiChatConversationService.getMessageMeta(aiChatMessageId, userId);
-        testProjectMemberService.getCheckProjectMemberRole(
-                aiChatConversationService.getSessionTestProjectId(message.getAiChatSessionId()));
+        AiChatSessionDetailResult detail = aiChatConversationService.getSessionWithMessages(
+                message.getAiChatSessionId(), userId);
+        requireAiCapability(detail.getSession().getTestProjectId(), detail.getSession().getSessionScene());
         return R.ok(message);
     }
 
     /**
-     * 新建空会话。
+     * 新建空会话；绑定项目时按场景校验接口工作台 AI 或造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping("/chat/session")
     public R<AiChatSessionResult> createSession(@RequestBody CreateAiChatSessionRequest request) {
-        testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());
+        requireAiCapability(request.getTestProjectId(), request.getSessionScene());
         return R.ok(aiChatConversationService.createSession(request, getUserId()));
     }
 
     /**
-     * 更新会话当前模型。
+     * 更新会话当前模型；绑定项目时按场景校验接口工作台 AI 或造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PutMapping("/chat/session/{aiChatSessionId}/model")
@@ -119,13 +125,13 @@ public class AiChatController extends BaseController {
             @RequestBody UpdateAiChatSessionModelRequest body) {
         AiChatSessionDetailResult detail = aiChatConversationService.getSessionWithMessages(
                 aiChatSessionId, getUserId());
-        testProjectMemberService.getCheckProjectMemberRole(detail.getSession().getTestProjectId());
+        requireAiCapability(detail.getSession().getTestProjectId(), detail.getSession().getSessionScene());
         aiChatConversationService.updateSessionModel(aiChatSessionId, body.getCurrentModelId(), getUserId());
         return R.ok();
     }
 
     /**
-     * 更新会话思考开关。
+     * 更新会话思考开关；绑定项目时按场景校验接口工作台 AI 或造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PutMapping("/chat/session/{aiChatSessionId}/thinking")
@@ -134,7 +140,7 @@ public class AiChatController extends BaseController {
             @RequestBody UpdateAiChatSessionThinkingRequest body) {
         AiChatSessionDetailResult detail = aiChatConversationService.getSessionWithMessages(
                 aiChatSessionId, getUserId());
-        testProjectMemberService.getCheckProjectMemberRole(detail.getSession().getTestProjectId());
+        requireAiCapability(detail.getSession().getTestProjectId(), detail.getSession().getSessionScene());
         if (body.getThinkingEnabled() == null) {
             return R.fail("thinkingEnabled 不能为空");
         }
@@ -146,6 +152,7 @@ public class AiChatController extends BaseController {
      * 从锚点消息起截断会话后续消息（用于重新生成 / 编辑重发）。
      *
      * @param inclusive true 时连同锚点消息一并删除
+     * 绑定项目时按场景校验接口工作台 AI 或造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @DeleteMapping("/chat/session/{aiChatSessionId}/messages/truncate-after/{anchorMessageId}")
@@ -155,27 +162,28 @@ public class AiChatController extends BaseController {
             @RequestParam(defaultValue = "false") boolean inclusive) {
         AiChatSessionDetailResult detail = aiChatConversationService.getSessionWithMessages(
                 aiChatSessionId, getUserId());
-        testProjectMemberService.getCheckProjectMemberRole(detail.getSession().getTestProjectId());
+        requireAiCapability(detail.getSession().getTestProjectId(), detail.getSession().getSessionScene());
         int deleted = aiChatConversationService.truncateMessagesAfter(
                 aiChatSessionId, anchorMessageId, inclusive, getUserId());
         return R.ok(deleted);
     }
 
     /**
-     * 删除会话及其消息。
+     * 删除会话及其消息；绑定项目时按场景校验接口工作台 AI 或造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @DeleteMapping("/chat/session/{aiChatSessionId}")
     public R<Void> deleteSession(@PathVariable Long aiChatSessionId) {
         AiChatSessionDetailResult detail = aiChatConversationService.getSessionWithMessages(
                 aiChatSessionId, getUserId());
-        testProjectMemberService.getCheckProjectMemberRole(detail.getSession().getTestProjectId());
+        requireAiCapability(detail.getSession().getTestProjectId(), detail.getSession().getSessionScene());
         aiChatConversationService.deleteSession(aiChatSessionId, getUserId());
         return R.ok();
     }
 
     /**
      * 按雪花 id 摘除会话内 flowDesignClientIdMap 短名（Staging 丢弃时调用）。
+     * 绑定项目时需造流 AI 助手权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping("/chat/session/{aiChatSessionId}/flow-design-id-map/prune")
@@ -185,10 +193,26 @@ public class AiChatController extends BaseController {
         AiChatSessionDetailResult detail = aiChatConversationService.getSessionWithMessages(
                 aiChatSessionId, getUserId());
         if (detail.getSession().getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(detail.getSession().getTestProjectId());
+            requireAiCapability(detail.getSession().getTestProjectId(), detail.getSession().getSessionScene());
         }
         java.util.List<String> ids = body != null ? body.get("snowflakeIds") : null;
         aiChatConversationService.pruneFlowDesignClientIdMap(aiChatSessionId, ids, getUserId());
         return R.ok();
+    }
+
+    /**
+     * 按会话场景校验项目 AI 权限；项目 id 为空则跳过。
+     *
+     * @param testProjectId 测试项目 id
+     * @param scene         会话场景编码
+     */
+    private void requireAiCapability(Long testProjectId, String scene) {
+        if (testProjectId == null) {
+            return;
+        }
+        TestProjectMemberPerm perm = AiChatConversationService.SCENE_TEST_API_DESIGN.equals(scene)
+                ? TestProjectMemberPerm.AI_API_DESIGN
+                : TestProjectMemberPerm.AI_FLOW_DESIGN;
+        testProjectMemberService.requireCapability(testProjectId, perm);
     }
 }

@@ -27,7 +27,7 @@
     >发送
     </el-button>
     <el-button
-        v-if="!embedInDesign"
+        v-if="!embedInDesign && canEditApi"
         v-hasPermi="['project:testProject:edit']"
         :loading="apiDebugSaving"
         class="debug-save-btn"
@@ -45,7 +45,9 @@ defineProps({
   draftApiPath: {type: String, default: ''},
   embedInDesign: {type: Boolean, default: false},
   debugSending: {type: Boolean, default: false},
-  apiDebugSaving: {type: Boolean, default: false}
+  apiDebugSaving: {type: Boolean, default: false},
+  /** 是否允许保存（api:edit） */
+  canEditApi: {type: Boolean, default: false}
 })
 
 const emit = defineEmits(['send', 'save', 'update:draftApiPath', 'update:method'])

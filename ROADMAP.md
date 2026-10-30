@@ -63,6 +63,7 @@ flowchart LR
 | 3.2 | 失败摘要深化 | 失败摘要挂本步关联 flow 键值（运行详情 + HTML 报告）；占位按合法路径识别 |
 | 3.3 | 测试流目录 / 分组 | 列表左树右表 + 可嵌套目录；流挂 `flow_group_id`；子流选择按组；`list_flows` / `create_flow` / `update_flow_meta` 带分组字段 |
 | 3.4 | 测试套件批量跑 | 可保存套件（流×场景）+ `suite_run` 历史；套件页一键串行；结果可回看；`?runId=` 进画布；`POST /triggerBatch` 供短批 |
+| 3.12 | 项目成员角色与细粒度权限 | 全站可配角色与权限矩阵；成员按 capabilities 门禁（流/接口/套件/环境/AI/MCP/Token）；MCP 改按角色权限；历史 `developer`→`backend` |
 
 ---
 

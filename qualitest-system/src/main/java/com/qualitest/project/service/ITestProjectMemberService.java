@@ -1,11 +1,12 @@
 package com.qualitest.project.service;
 
 import com.qualitest.project.domain.TestProjectMember;
-import com.qualitest.project.enums.TestProjectMemberRole;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.TestProjectMemberParams;
 import com.qualitest.project.result.TestProjectMemberResult;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 测试项目成员Service接口
@@ -120,23 +121,58 @@ public interface ITestProjectMemberService {
     List<Long> listMemberUserIdsByTestProjectId(Long testProjectId);
 
     /**
-     * 按当前登录用户解析并校验其在项目中的成员角色。
+     * 按当前登录用户解析并校验其在项目中的成员角色标识。
      * 非成员或未登录时抛业务异常。
      *
      * @param testProjectId 项目 id
-     * @return 成员角色
+     * @return 角色 role_key（超管为 sysAdmin）
      */
-    TestProjectMemberRole getCheckProjectMemberRole(Long testProjectId);
+    String getCheckProjectMemberRole(Long testProjectId);
 
     /**
-     * 按指定用户解析并校验其在项目中的成员角色。
+     * 按指定用户解析并校验其在项目中的成员角色标识。
      * 用户为空时抛「缺少审计用户/操作者」；非成员时抛无权限。
-     * 平台超管用户直接视为系统管理员角色。
+     * 平台超管用户直接视为 sysAdmin。
      *
      * @param testProjectId 项目 id
      * @param userId 操作者用户 id
-     * @return 成员角色
+     * @return 角色 role_key
      */
-    TestProjectMemberRole getCheckProjectMemberRole(Long testProjectId, Long userId);
+    String getCheckProjectMemberRole(Long testProjectId, Long userId);
+
+    /**
+     * 校验当前登录用户具备指定项目权限
+     *
+     * @param testProjectId 项目 id
+     * @param perm 权限
+     */
+    void requireCapability(Long testProjectId, TestProjectMemberPerm perm);
+
+    /**
+     * 校验指定用户具备项目权限
+     *
+     * @param testProjectId 项目 id
+     * @param userId 用户 id
+     * @param perm 权限
+     */
+    void requireCapability(Long testProjectId, Long userId, TestProjectMemberPerm perm);
+
+    /**
+     * 当前登录用户在项目下的权限集合
+     *
+     * @param testProjectId 项目 id
+     * @return 权限 code
+     */
+    Set<String> listCapabilities(Long testProjectId);
+
+    /**
+     * 判断指定用户在项目下是否具备某权限
+     *
+     * @param testProjectId 项目 id
+     * @param userId 用户 id
+     * @param perm 权限
+     * @return 具备时为 true
+     */
+    boolean hasCapability(Long testProjectId, Long userId, TestProjectMemberPerm perm);
 
 }

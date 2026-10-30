@@ -31,7 +31,12 @@
             匹配 {{ matchedAssetCount }} / {{ totalAssetCount }} 条素材
           </span>
         </div>
-        <el-button class="asset-manage-add-btn" type="primary" @click="addEntryRow">
+        <el-button
+            v-if="!readonly"
+            class="asset-manage-add-btn"
+            type="primary"
+            @click="addEntryRow"
+        >
           <el-icon>
             <Plus/>
           </el-icon>
@@ -42,6 +47,7 @@
       <div class="asset-manage-scroll">
         <VariableEntrySheetSection
             v-if="displayRows.length"
+            :read-only="readonly"
             :rows="displayRows"
             name-placeholder="key"
             type-popper-class="asset-param-type-select-popper"
@@ -56,25 +62,30 @@
             <p class="asset-manage-empty-desc">试试缩短关键词，或<el-button link type="primary" @click="clearSearch">清空搜索</el-button></p>
           </template>
           <template v-else>
-            暂无素材，点击「新建素材」添加
+            {{ readonly ? '暂无素材' : '暂无素材，点击「新建素材」添加' }}
           </template>
         </div>
       </div>
 
       <footer class="asset-manage-footer">
-        <el-button @click="visible = false">取 消</el-button>
-        <el-button :loading="saveLoading" @click="handleSaveAll(true)">
-          保存并关闭
-        </el-button>
-        <el-button :loading="saveLoading" type="primary" @click="handleSaveAll(false)">
-          保 存
-        </el-button>
+        <el-button @click="visible = false">{{ readonly ? '关 闭' : '取 消' }}</el-button>
+        <template v-if="!readonly">
+          <el-button :loading="saveLoading" @click="handleSaveAll(true)">
+            保存并关闭
+          </el-button>
+          <el-button :loading="saveLoading" type="primary" @click="handleSaveAll(false)">
+            保 存
+          </el-button>
+        </template>
       </footer>
     </div>
   </el-dialog>
 </template>
 
 <script setup>
+/**
+ * 项目素材库弹窗：维护 asset 变量条目；readonly 由父页按 asset:edit 传入。
+ */
 import {Plus} from '@element-plus/icons-vue'
 import {
   addTestProjectAsset,
@@ -91,6 +102,11 @@ const props = defineProps({
   testProjectId: {
     type: [String, Number],
     required: true
+  },
+  /** 无 asset:edit 时只读浏览 */
+  readonly: {
+    type: Boolean,
+    default: false
   }
 })
 

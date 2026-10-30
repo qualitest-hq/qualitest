@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class McpCursorSkillServiceTest {
 
     private final McpCursorSkillService service =
-            new McpCursorSkillService(new TestablePromptService(), new McpPromptResourceService(), null);
+            new McpCursorSkillService(new TestablePromptService(), new McpPromptResourceService(), null /* gateResolver */);
 
     /**
      * 前提：加载弹框完整载荷（默认只读）。

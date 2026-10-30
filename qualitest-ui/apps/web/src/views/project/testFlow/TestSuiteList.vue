@@ -7,7 +7,7 @@
       <el-col :span="1.5">
         <el-button icon="List" plain @click="goFlows">测试流</el-button>
       </el-col>
-      <el-col :span="1.5">
+      <el-col v-if="canAddSuite" :span="1.5">
         <el-button
             v-hasPermi="['project:testProject:add']"
             icon="Plus"
@@ -17,7 +17,7 @@
         >新建套件
         </el-button>
       </el-col>
-      <el-col :span="1.5">
+      <el-col v-if="canViewSuiteRun" :span="1.5">
         <el-button icon="Clock" plain @click="openHistory()">运行历史</el-button>
       </el-col>
       <el-col :span="6">
@@ -48,14 +48,22 @@
       <el-table-column align="center" label="操作" width="260">
         <template #default="{ row }">
           <el-button
+              v-if="canRunSuite"
               v-hasPermi="['project:testProject:edit']"
               link
               type="primary"
               @click="runSuite(row)"
           >运行
           </el-button>
-          <el-button link type="primary" @click="openHistory(row)">历史</el-button>
           <el-button
+              v-if="canViewSuiteRun"
+              link
+              type="primary"
+              @click="openHistory(row)"
+          >历史
+          </el-button>
+          <el-button
+              v-if="canEditSuite"
               v-hasPermi="['project:testProject:edit']"
               link
               type="primary"
@@ -63,6 +71,7 @@
           >编辑
           </el-button>
           <el-button
+              v-if="canRemoveSuite"
               v-hasPermi="['project:testProject:remove']"
               link
               type="danger"
@@ -185,13 +194,14 @@
 
 <script setup>
 /**
- * 项目测试套件列表：CRUD、一键运行、运行历史回看。
+ * 项目测试套件列表：CRUD、一键运行、运行历史回看；按钮按 suite:* 细粒度权限隐藏。
  */
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
 import { listTestFlow } from '@/api/project/testFlow'
+import { useProjectCapabilities } from '@/views/project/testProject/composables/useProjectCapabilities'
 import {
   addTestSuite,
   delTestSuite,
@@ -217,6 +227,13 @@ const route = useRoute()
 const router = useRouter()
 const testProjectId = ref(String(route.params.testProjectId ?? ''))
 const { loadProjectName } = useProjectTabTitle(route, () => '测试套件')
+/** 当前用户在本项目的细粒度权限 */
+const { has: hasCap } = useProjectCapabilities(testProjectId)
+const canAddSuite = computed(() => hasCap('suite:add'))
+const canEditSuite = computed(() => hasCap('suite:edit'))
+const canRemoveSuite = computed(() => hasCap('suite:remove'))
+const canRunSuite = computed(() => hasCap('suite:run'))
+const canViewSuiteRun = computed(() => hasCap('suite:view'))
 
 const loading = ref(false)
 const suiteList = ref([])

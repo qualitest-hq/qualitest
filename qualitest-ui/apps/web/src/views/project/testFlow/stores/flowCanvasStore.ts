@@ -3,13 +3,15 @@
  *
  * 持有 vue-flow 的 nodes/edges/viewport、运行场景、flowOutputs、
  * 选中项、三栏 UI 开关，场景运行节点高亮，以及 AI 设计侧栏状态。
+ * 真实项目画布另持有当前用户在本项目的权限列表，供画布顶栏与操作门禁使用。
  */
 import type { Edge, Node } from '@vue-flow/core';
 import { computed, nextTick } from 'vue';
 
 import type { GraphFlowOutput, GraphScenarioConfig, GraphViewport } from '@/utils/flow/graphTypes';
 
-import { getTestProject } from '@/api/project/testProject';
+import { getTestProject, myProjectContext } from '@/api/project/testProject';
+import { parseProjectCapabilities } from '../../testProject/utils/projectCapabilities';
 
 import { partitionTemplateParams, mergeEnvPreviewRows, templateEnvsToEnvParamRows } from '../../testProjectTemplate/utils/templateParamUtils';
 import { createDefaultRunConfig, DEFAULT_VIEWPORT } from '../graphAdapter';
@@ -82,6 +84,10 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const testFlowId = ref('');
   const testProjectId = ref('');
   const flowName = ref('');
+  /** 当前用户在本项目的权限 */
+  const capabilities = ref<string[]>([]);
+  /** 项目权限是否已拉取完成（未完成时画布门禁暂不按空权限拦截） */
+  const capabilitiesLoaded = ref(false);
   /** 画布上下文：project=测试项目流；template=项目模板预制流（只读浏览） */
   const canvasMode = ref<FlowCanvasMode>('project');
   /** 模板模式下由 templateApis 合成的接口目录（供 Http 配置展示绑定） */
@@ -208,6 +214,8 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     testFlowId.value = '';
     testProjectId.value = '';
     flowName.value = '';
+    capabilities.value = [];
+    capabilitiesLoaded.value = false;
     canvasMode.value = 'project';
     templateApiCatalog.value = [];
     templateApiTree.value = [];
@@ -436,6 +444,32 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   }
 
   /**
+   * 拉取当前用户在本项目的权限并写入 capabilities。
+   * 模板画布不请求；无 projectId 时清空并保持未加载态；完成后置 capabilitiesLoaded。
+   */
+  async function loadMemberCapabilities() {
+    if (canvasMode.value === 'template') {
+      capabilities.value = [];
+      capabilitiesLoaded.value = true;
+      return;
+    }
+    const id = testProjectId.value;
+    if (!id) {
+      capabilities.value = [];
+      capabilitiesLoaded.value = false;
+      return;
+    }
+    try {
+      const res = await myProjectContext(id);
+      capabilities.value = parseProjectCapabilities(res.data);
+    } catch {
+      capabilities.value = [];
+    } finally {
+      capabilitiesLoaded.value = true;
+    }
+  }
+
+  /**
    * 切入模板预制流画布：标记 canvasMode=template（只读权限据此生效），
    * 并挂上合成后的接口树/目录供 HTTP 节点展示绑定。
    */
@@ -470,6 +504,8 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     testFlowId,
     testProjectId,
     flowName,
+    capabilities,
+    capabilitiesLoaded,
     canvasMode,
     templateApiCatalog,
     templateApiTree,
@@ -524,6 +560,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     openAiDesignPanel,
     closeAiDesignPanel,
     loadProjectAuthConfig,
+    loadMemberCapabilities,
     setTemplateApiContext,
     setTemplateParamContext,
     isRightPanelVisible,

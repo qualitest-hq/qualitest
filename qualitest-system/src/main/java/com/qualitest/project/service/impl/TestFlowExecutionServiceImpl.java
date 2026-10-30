@@ -34,7 +34,7 @@ import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
 import com.qualitest.flow.http.FlowExternalPermission;
 import com.qualitest.flow.validate.FlowRunReadinessGate;
-import com.qualitest.project.enums.TestProjectMemberRole;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestProject;
@@ -130,8 +130,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 throw new ServiceException("缺少审计用户/操作者");
             }
         }
-        TestProjectMemberRole memberRole =
-                testProjectMemberService.getCheckProjectMemberRole(testFlow.getTestProjectId(), operatorUserId);
+        testProjectMemberService.requireCapability(
+                testFlow.getTestProjectId(), operatorUserId, TestProjectMemberPerm.FLOW_RUN);
 
         // 2. 解析图并做运行就绪检查；未通过则不创建 Run 记录
         GraphJson graph;
@@ -187,7 +187,10 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         String assetJson = testProjectMapper.selectAssetVariablesByTestProjectId(testFlow.getTestProjectId());
         // 加载项目多端配置写入 Run 上下文，供本 Run 内 HTTP 节点校验业务码与补鉴权头
         TestProject project = testProjectMapper.selectTestProjectById(testFlow.getTestProjectId());
-        boolean externalPermitted = FlowExternalPermission.isPermitted(memberRole);
+        // 外联 HTTP：须 flow:external，或持有系统级外联菜单权限
+        boolean externalPermitted = testProjectMemberService.hasCapability(
+                testFlow.getTestProjectId(), operatorUserId, TestProjectMemberPerm.FLOW_EXTERNAL)
+                || SecurityUtils.hasPermi(FlowExternalPermission.PERMISSION);
         FlowRunContext ctx = FlowRunContextBuilder.build(
                 env, assetJson, scenario.getFlowSeed(), testFlow.getTestProjectId(),
                 externalPermitted);
@@ -477,7 +480,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
 
         TestFlow testFlow = testFlowService.selectTestFlowById(run.getTestFlowId());
         if (testFlow != null) {
-            testProjectMemberService.getCheckProjectMemberRole(testFlow.getTestProjectId());
+            testProjectMemberService.requireCapability(
+                    testFlow.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
         }
 
         TestFlowRunStepParams stepParams = TestFlowRunStepParams.builder()
@@ -521,7 +525,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
 
         TestFlow testFlow = testFlowService.selectTestFlowById(run.getTestFlowId());
         if (testFlow != null) {
-            testProjectMemberService.getCheckProjectMemberRole(testFlow.getTestProjectId());
+            testProjectMemberService.requireCapability(
+                    testFlow.getTestProjectId(), TestProjectMemberPerm.FLOW_RUN);
         }
 
         TestProjectEnv env = testProjectEnvService.selectTestProjectEnvById(run.getTestProjectEnvId());

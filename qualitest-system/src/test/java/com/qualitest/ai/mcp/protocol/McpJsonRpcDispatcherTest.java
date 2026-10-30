@@ -2,6 +2,7 @@ package com.qualitest.ai.mcp.protocol;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.ai.mcp.McpProjectGates;
 import com.qualitest.ai.mcp.McpPromptResourceService;
 import com.qualitest.ai.mcp.McpToolInvokeService;
 import com.qualitest.ai.tools.FlowDesignToolsDefinitionService;
@@ -75,8 +76,8 @@ class McpJsonRpcDispatcherTest {
     @Order(1)
     @DisplayName("initialize 返回 serverInfo 与 session")
     void dispatch_initialize_returnsServerInfoAndSession() {
-        when(mcpToolInvokeService.resolveMcpGates(42L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false, false));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, false, false, false));
         String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
 
         McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 42L);
@@ -107,8 +108,8 @@ class McpJsonRpcDispatcherTest {
     @Order(2)
     @DisplayName("initialize 全自动时 version 带 autopilot 后缀")
     void dispatch_initialize_autopilot_versionsServerInfo() {
-        when(mcpToolInvokeService.resolveMcpGates(42L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(true, false, false));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, true, false, false));
         String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
 
         McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 42L);
@@ -131,8 +132,8 @@ class McpJsonRpcDispatcherTest {
     @Order(21)
     @DisplayName("initialize 导入开时 version 带 importApis 后缀")
     void dispatch_initialize_importApis_versionsServerInfo() {
-        when(mcpToolInvokeService.resolveMcpGates(42L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false, true));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, false, false, true));
         String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
 
         McpJsonRpcDispatcher.DispatchResult result = dispatcher.dispatch(body, 42L);
@@ -155,9 +156,9 @@ class McpJsonRpcDispatcherTest {
     @DisplayName("tools/list 返回协议工具列表")
     void dispatch_toolsList_returnsProtocolTools() {
         List<Map<String, Object>> mcpTools = List.of(Map.of("name", "list_flows"));
-        when(mcpToolInvokeService.resolveMcpGates(1L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false, false));
-        when(toolsDefinitionService.loadMcpProtocolTools(any(McpToolInvokeService.McpProjectGates.class)))
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, false, false, false));
+        when(toolsDefinitionService.loadMcpProtocolTools(any(McpProjectGates.class)))
                 .thenReturn(mcpTools);
 
         String body = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}";
@@ -298,8 +299,8 @@ class McpJsonRpcDispatcherTest {
     @Order(10)
     @DisplayName("prompts/get core 只读裁剪")
     void dispatch_promptsGet_core_returnsGuideBody() {
-        when(mcpToolInvokeService.resolveMcpGates(1L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false, false));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, false, false, false));
         String body = """
                 {"jsonrpc":"2.0","id":9,"method":"prompts/get","params":{"name":"qualitest_core"}}
                 """;
@@ -322,8 +323,8 @@ class McpJsonRpcDispatcherTest {
     @Order(101)
     @DisplayName("prompts/get core 门控全开")
     void dispatch_promptsGet_core_bothGates() {
-        when(mcpToolInvokeService.resolveMcpGates(1L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(true, false, true));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, true, false, true));
         String body = """
                 {"jsonrpc":"2.0","id":91,"method":"prompts/get","params":{"name":"qualitest_core"}}
                 """;
@@ -343,8 +344,8 @@ class McpJsonRpcDispatcherTest {
     @Order(11)
     @DisplayName("prompts/get 未知名返回 -32602")
     void dispatch_promptsGet_unknown_returnsInvalidParams() {
-        when(mcpToolInvokeService.resolveMcpGates(1L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false, false));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, false, false, false));
         String body = """
                 {"jsonrpc":"2.0","id":10,"method":"prompts/get","params":{"name":"no_such_prompt"}}
                 """;
@@ -362,8 +363,8 @@ class McpJsonRpcDispatcherTest {
     @Order(12)
     @DisplayName("resources list/read 返回 CORE 规程")
     void dispatch_resources_listAndRead_returnCore() {
-        when(mcpToolInvokeService.resolveMcpGates(1L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(false, false, false));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, false, false, false));
         McpJsonRpcDispatcher.DispatchResult listResult = dispatcher.dispatch(
                 "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"resources/list\",\"params\":{}}", 1L);
         JSONObject listJson = JSON.parseObject(listResult.getResponseBody());
@@ -409,8 +410,8 @@ class McpJsonRpcDispatcherTest {
     @Order(14)
     @DisplayName("请求头建立回合会话后列画布工具")
     void dispatch_initialize_turnHeader_listsTurnTools() {
-        when(mcpToolInvokeService.resolveMcpGates(42L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(true, true, false));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, true, true, false));
         when(toolsDefinitionService.loadTurnSessionTools(any()))
                 .thenReturn(List.of(Map.of("name", "submit_http_node")));
         String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
@@ -441,8 +442,8 @@ class McpJsonRpcDispatcherTest {
     @Order(15)
     @DisplayName("initialize 参数建立回合会话")
     void dispatch_initialize_turnParams_bindsFlow() {
-        when(mcpToolInvokeService.resolveMcpGates(42L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(true, true, false));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, true, true, false));
         String body = """
                 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"qualitest":{"session":"turn","testFlowId":9}}}
                 """;
@@ -466,8 +467,8 @@ class McpJsonRpcDispatcherTest {
     @Order(16)
     @DisplayName("回合会话的 tools/call 带上会话")
     void dispatch_toolsCall_turnSession_passesSession() {
-        when(mcpToolInvokeService.resolveMcpGates(42L))
-                .thenReturn(new McpToolInvokeService.McpProjectGates(true, true, false));
+        when(mcpToolInvokeService.resolveMcpGates(any(), any()))
+                .thenReturn(new McpProjectGates(true, true, true, false));
         McpJsonRpcDispatcher.DispatchResult opened = dispatcher.dispatch(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}",
                 42L, null, new McpInbound(null, "turn", "9"));

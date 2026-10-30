@@ -18,7 +18,6 @@ import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.sync.FlowEditLeaseConflictException;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.domain.TestProject;
-import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestProjectService;
@@ -29,11 +28,8 @@ import org.springframework.stereotype.Service;
 /**
  * MCP 单次工具调用编排。
  * <p>
- * 默认只允许只读工具。
- * 项目开启「允许 MCP 自动写流」后，还可调用改图提交、新建流、素材/鉴权/环境写入等写工具。
- * 项目开启「允许 MCP 自动跑流」后，还可调用 run_test_flow（须写流已开）。
- * 项目开启「允许 MCP 导入接口」后，还可调用 import_apis 写入项目接口库。
- * 写流、跑流、导入是三道独立开关。
+ * 默认只允许只读工具（须具备 mcp:read）。
+ * 写流 / 跑流 / 导入由成员角色权限 mcp:flow:write、mcp:run、mcp:api:import 决定。
  * 写流/跑流/导入须带 Token 绑定的操作者用户 id。
  * 逐次调用会话里，画布类 submit 校验通过后立刻写库。
  * 回合会话在同一会话内累积单元与工作图，submit 回执保持 received，跑流前再写入测试流。
@@ -51,8 +47,10 @@ public class McpToolInvokeService {
     private final FlowDesignToolExecutor flowDesignToolExecutor;
     /** 组装本次调用的项目/流/画布上下文 */
     private final FlowDesignToolContextFactory contextFactory;
-    /** 读取项目级 MCP 开关 */
+    /** 读取项目实体（流归属等） */
     private final ITestProjectService testProjectService;
+    /** 按角色权限解析 MCP 门控 */
+    private final McpProjectGateResolver mcpProjectGateResolver;
     /** 加载测试流、写回 graph_json */
     private final ITestFlowService testFlowService;
     /** 落盘前校验画布结构 */
@@ -74,7 +72,7 @@ public class McpToolInvokeService {
 
     /**
      * 执行一次 MCP 工具调用。
-     * 按项目开关校验白名单；写工具补齐流与画布；写流/导入须有操作者；
+     * 按成员角色 MCP 权限校验工具白名单；写工具补齐流与画布；写流/导入须有操作者；
      * submit 成功则立即写库；撞写锁时回执带 lockHeldBy。
      *
      * @param toolName       工具名
@@ -109,18 +107,16 @@ public class McpToolInvokeService {
     }
 
     /**
-     * 正常工具执行：读三道开关 → 门控 → 写/跑工具校验操作者与信封 → 执行。
+     * 正常工具执行：解析角色 MCP 门控 → 校验工具白名单 → 写/跑工具校验操作者与信封 → 执行。
      * 逐次调用的 submit 成功则立刻写库；回合会话只记住工作图。
      */
     private McpToolResult invokeInner(String toolName, McpToolInvokeParams params,
                                       Long tokenProjectId, Long operatorUserId, McpSession session) {
-        // 同一次调用只查一次项目，同时读出写流、跑流与导入开关
-        TestProject project = loadProject(tokenProjectId, params);
-        McpProjectGates gates = McpProjectGates.from(project);
+        loadProject(tokenProjectId, params);
+        McpProjectGates gates = resolveMcpGates(tokenProjectId, operatorUserId);
         boolean turn = session != null && session.isTurn();
         if (turn) {
             // 回合会话只开放画布设计工具。列流、建流、导入接口、规程版本直接拒绝。
-            // 写流或跑流没开时，按对应开关提示用户去项目设置里打开。
             if (!FlowDesignToolNames.isTurnSessionCallable(
                     toolName, gates.autoWriteEnabled(), gates.autorunEnabled())) {
                 if (!FlowDesignToolNames.isWebAgent(toolName)) {
@@ -128,11 +124,13 @@ public class McpToolInvokeService {
                 }
                 rejectClosedTool(toolName, gates);
             }
-            // 参数没带测试流时用会话绑定的流；会话里已有工作图时用它，避免旧图盖掉本轮累积
             bindTurnEnvelope(session, params);
         } else if (!FlowDesignToolNames.isMcpCallable(toolName,
                 gates.autoWriteEnabled(), gates.autorunEnabled(), gates.importApisEnabled())) {
             rejectClosedTool(toolName, gates);
+        } else if (!gates.readEnabled() && !gates.autoWriteEnabled() && !gates.importApisEnabled()
+                && !gates.autorunEnabled()) {
+            throw new ServiceException("当前成员角色无权使用 MCP 工具");
         }
 
         boolean writeTool = FlowDesignToolNames.isMcpAutoWriteTool(toolName);
@@ -183,28 +181,23 @@ public class McpToolInvokeService {
     }
 
     /**
-     * 工具因项目开关未开而不可调用时抛出对应说明。
-     * 逐次调用和回合会话共用这些说明：导入、跑流、写流各自提示要开的开关。
+     * 工具因成员角色缺 MCP 权限而不可调用时抛出对应说明。
+     * 逐次调用和回合会话共用这些说明：导入、跑流、写流各自提示缺少的权限。
      * 回合会话里不属于画布的工具不走这里，而是直接说明当前会话不提供该工具。
      */
     private static void rejectClosedTool(String toolName, McpProjectGates gates) {
         if (FlowDesignToolNames.isMcpImportApisTool(toolName)) {
-            throw new ServiceException(
-                    "MCP 不支持导入接口；请在项目设置开启「允许 MCP 导入接口」");
+            throw new ServiceException("当前成员角色无权通过 MCP 导入接口");
         }
         if (FlowDesignToolNames.isMcpAutorunTool(toolName)) {
-            // run_test_flow 须写流与跑流都开：缺写流时先提示写流，否则提示跑流
             if (!gates.autoWriteEnabled()) {
                 throw new ServiceException(
-                        "MCP 自动跑流须同时开启「允许 MCP 自动写流」；请在项目设置开启写流后再开跑流，"
-                                + "或改用质衡 Web 端 AI 助手");
+                        "MCP 跑流须同时具备写流权限；请为角色勾选 mcp:flow:write 与 mcp:run，或改用 Web 端");
             }
-            throw new ServiceException(
-                    "MCP 不支持自动跑流；请在项目设置开启「允许 MCP 自动跑流」");
+            throw new ServiceException("当前成员角色无权通过 MCP 跑流");
         }
         if (FlowDesignToolNames.isMcpAutoWriteTool(toolName)) {
-            throw new ServiceException(
-                    "MCP 不支持修改测试流；请在项目设置开启「允许 MCP 自动写流」，或改用质衡 Web 端 AI 助手");
+            throw new ServiceException("当前成员角色无权通过 MCP 写流，或改用 Web 端 AI 助手");
         }
         throw new ServiceException("MCP 不支持的工具: " + toolName);
     }
@@ -263,86 +256,24 @@ public class McpToolInvokeService {
     }
 
     /**
-     * 项目级 MCP 权限开关快照。
+     * 按 Token 绑定项目推导 MCP 能力；未传操作者时返回无能力。
      *
-     * @param autoWriteEnabled  是否允许改图、新建流、素材/鉴权/环境写入等写流工具
-     * @param autorunEnabled    是否允许 run_test_flow（实际调用还须写流已开）
-     * @param importApisEnabled 是否允许 import_apis 写入项目接口库
-     */
-    public record McpProjectGates(boolean autoWriteEnabled, boolean autorunEnabled, boolean importApisEnabled) {
-
-        /** 三道开关都关：仅只读能力 */
-        public static final McpProjectGates READ_ONLY = new McpProjectGates(false, false, false);
-
-        /**
-         * 从项目实体读出三道开关；项目为空时返回只读快照。
-         *
-         * @param project 测试项目，可空
-         * @return 门控快照
-         */
-        public static McpProjectGates from(TestProject project) {
-            if (project == null) {
-                return READ_ONLY;
-            }
-            return new McpProjectGates(
-                    Boolean.TRUE.equals(project.getMcpAutoWriteEnabled()),
-                    Boolean.TRUE.equals(project.getMcpAutorunEnabled()),
-                    Boolean.TRUE.equals(project.getMcpImportApisEnabled()));
-        }
-
-        /**
-         * 按项目 id 查库后读出三道开关；mapper 或 id 为空时返回只读快照。
-         *
-         * @param mapper        测试项目 Mapper，可空
-         * @param testProjectId 测试项目 id，可空
-         * @return 门控快照
-         */
-        public static McpProjectGates fromProjectId(TestProjectMapper mapper, Long testProjectId) {
-            if (mapper == null || testProjectId == null) {
-                return READ_ONLY;
-            }
-            return from(mapper.selectTestProjectById(testProjectId));
-        }
-    }
-
-    /**
-     * 按 Token 绑定的项目 id 查库，返回写流、跑流与导入三道开关快照。
-     *
-     * @param tokenProjectId Token 绑定的项目 id
-     * @return 门控快照；项目不存在时为只读
+     * @param tokenProjectId 项目 id
+     * @return MCP 门控快照
      */
     public McpProjectGates resolveMcpGates(Long tokenProjectId) {
-        return McpProjectGates.from(loadProject(tokenProjectId, null));
+        return resolveMcpGates(tokenProjectId, null);
     }
 
     /**
-     * 查询项目是否开启「允许 MCP 自动写流」。
+     * 按项目与操作者角色权限推导 MCP 能力。
      *
-     * @param tokenProjectId Token 绑定的项目 id
-     * @return true 表示可列出并调用写流类工具
+     * @param tokenProjectId 项目 id
+     * @param operatorUserId Token 绑定用户；空则无能力
+     * @return 门控快照
      */
-    public boolean isMcpAutoWriteEnabled(Long tokenProjectId) {
-        return resolveMcpGates(tokenProjectId).autoWriteEnabled();
-    }
-
-    /**
-     * 查询项目是否开启「允许 MCP 自动跑流」。
-     *
-     * @param tokenProjectId Token 绑定的项目 id
-     * @return true 表示可列出并调用 run_test_flow
-     */
-    public boolean isMcpAutorunEnabled(Long tokenProjectId) {
-        return resolveMcpGates(tokenProjectId).autorunEnabled();
-    }
-
-    /**
-     * 查询项目是否开启「允许 MCP 导入接口」。
-     *
-     * @param tokenProjectId Token 绑定的项目 id
-     * @return true 表示可列出并调用 import_apis
-     */
-    public boolean isMcpImportApisEnabled(Long tokenProjectId) {
-        return resolveMcpGates(tokenProjectId).importApisEnabled();
+    public McpProjectGates resolveMcpGates(Long tokenProjectId, Long operatorUserId) {
+        return mcpProjectGateResolver.resolve(tokenProjectId, operatorUserId);
     }
 
     /**

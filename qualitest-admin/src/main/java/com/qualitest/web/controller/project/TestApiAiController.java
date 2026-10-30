@@ -8,6 +8,7 @@ import com.qualitest.ai.service.IAiPromptTemplateService;
 import com.qualitest.web.ai.AiSseStreamSupport;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.AjaxResult;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.service.ITestProjectMemberService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
@@ -34,13 +35,13 @@ public class TestApiAiController extends BaseController {
     private final ITestProjectMemberService testProjectMemberService;
     private final IAiPromptTemplateService aiPromptTemplateService;
 
-    /** 按会话场景返回 AI API 助手输入区可用的提示词模板（平台 + 项目） */
+    /** 按会话场景返回 AI API 助手提示词模板；需接口工作台 AI 权限。 */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/promptTemplates")
     public AjaxResult listPromptTemplates(
             @RequestParam Long testProjectId,
             @RequestParam(required = false) String sessionScene) {
-        testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.AI_API_DESIGN);
         String scene = sessionScene != null && !sessionScene.isBlank()
                 ? sessionScene
                 : AiChatConversationService.SCENE_TEST_API_DESIGN;
@@ -52,12 +53,13 @@ public class TestApiAiController extends BaseController {
      * SSE 流式 API 设计：推送过程事件与最终结果。
      * 客户端断连或超时会置取消标志；业务线程尽量把已产生的助手半成品写入会话后再结束。
      * 事件含 session（会话 id）、token / thinking、tool_start / tool_end、done（可含 toolTrace、interrupted）、error。
+     * 需接口工作台 AI 权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping(value = "/design/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter designStream(@RequestBody ApiDesignRequest request) {
         if (request.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(request.getTestProjectId());
+            testProjectMemberService.requireCapability(request.getTestProjectId(), TestProjectMemberPerm.AI_API_DESIGN);
         }
         Long userId = getUserId();
         return AiSseStreamSupport.openDesignStream(

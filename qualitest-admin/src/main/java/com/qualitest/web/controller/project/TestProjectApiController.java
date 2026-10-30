@@ -8,6 +8,7 @@ import com.qualitest.common.core.text.Convert;
 import com.qualitest.common.enums.BusinessType;
 import com.qualitest.common.utils.poi.ExcelUtil;
 import com.qualitest.project.domain.TestProjectApi;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.TestProjectApiBizCodeParams;
 import com.qualitest.project.params.TestProjectApiGroupParams;
 import com.qualitest.project.params.TestProjectApiParams;
@@ -53,11 +54,12 @@ public class TestProjectApiController extends BaseController {
     private final ITestProjectMemberService testProjectMemberService;
 
     /**
-     * 侧边栏 API 树
+     * 侧边栏 API 树；需查看接口权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:list')")
     @GetMapping("/apiTree")
     public R<List<TestProjectApiTreeResult>> apiTree(@RequestParam Long testProjectId) {
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.API_VIEW);
         List<TestProjectApiGroupResult> groups = testProjectApiGroupService.selectTestProjectApiGroupResultList(TestProjectApiGroupParams.builder()
                 .testProjectId(testProjectId)
                 .build());
@@ -68,86 +70,110 @@ public class TestProjectApiController extends BaseController {
     }
 
     /**
-     * 查询测试项目API列表
+     * 查询测试项目 API 列表；指定项目时需查看接口权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:list')")
     @GetMapping("/list")
     public TableDataInfo list(TestProjectApiParams params) {
+        if (params.getTestProjectId() != null) {
+            testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.API_VIEW);
+        }
         startPage();
         List<TestProjectApiResult> list = testProjectApiService.selectTestProjectApiResultList(params);
         return getDataTable(list);
     }
 
     /**
-     * 导出测试项目API列表
+     * 导出测试项目 API 列表；指定项目时需查看接口权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:export')")
     @Log(title = "测试项目API", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
     public void export(HttpServletResponse response, TestProjectApiParams params) {
+        if (params.getTestProjectId() != null) {
+            testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.API_VIEW);
+        }
         List<TestProjectApiResult> list = testProjectApiService.selectTestProjectApiResultList(params);
         ExcelUtil<TestProjectApiResult> util = new ExcelUtil<>(TestProjectApiResult.class);
         util.exportExcel(response, list, "测试项目API数据");
     }
 
     /**
-     * 获取测试项目API详细信息
+     * 获取测试项目 API 详细信息；需查看接口权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping(value = "/{testProjectApiId}")
     public R<TestProjectApiResult> getInfo(@PathVariable("testProjectApiId") Long testProjectApiId) {
-        return ok(testProjectApiService.selectTestProjectApiResult(testProjectApiId));
+        TestProjectApiResult result = testProjectApiService.selectTestProjectApiResult(testProjectApiId);
+        if (result != null && result.getTestProjectId() != null) {
+            testProjectMemberService.requireCapability(result.getTestProjectId(), TestProjectMemberPerm.API_VIEW);
+        }
+        return ok(result);
     }
 
     /**
-     * 列出绑定了该 API 的测试流 HTTP 节点（反向引用）。
+     * 列出绑定了该 API 的测试流 HTTP 节点（反向引用）；需查看接口权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/{testProjectApiId}/flowReferences")
     public R<List<ApiFlowReferenceItem>> flowReferences(@PathVariable Long testProjectApiId) {
-        checkApiMemberAccess(testProjectApiId);
+        requireApiCapability(testProjectApiId, TestProjectMemberPerm.API_VIEW);
         return ok(apiFlowReferenceScanService.listReferences(testProjectApiId));
     }
 
     /**
-     * 列出该 API 的测试流引用，并对命中节点做语义健康检查（孤儿测值、抽取路径等）。
+     * 列出该 API 的测试流引用并做语义健康检查；需查看接口权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/{testProjectApiId}/diagnoseImpacts")
     public R<ApiFlowReferenceScanService.DiagnoseImpactsResult> diagnoseImpacts(
             @PathVariable Long testProjectApiId) {
-        checkApiMemberAccess(testProjectApiId);
+        requireApiCapability(testProjectApiId, TestProjectMemberPerm.API_VIEW);
         return ok(apiFlowReferenceScanService.diagnoseImpacts(testProjectApiId));
     }
 
     /**
-     * 校验当前用户是否为该 API 所属项目的成员。
+     * 校验当前用户对该 API 所属项目具备指定权限。
      */
-    private void checkApiMemberAccess(Long testProjectApiId) {
+    private void requireApiCapability(Long testProjectApiId, TestProjectMemberPerm perm) {
         TestProjectApiResult api = testProjectApiService.selectTestProjectApiResult(testProjectApiId);
         if (api != null && api.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(api.getTestProjectId());
+            testProjectMemberService.requireCapability(api.getTestProjectId(), perm);
         }
     }
 
     /**
-     * 新增测试项目API
+     * 新增测试项目 API；需新增接口权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:add')")
     @Log(title = "测试项目API", businessType = BusinessType.INSERT)
     @PostMapping
     public R<Void> add(@RequestBody TestProjectApi testProjectApi) {
+        if (testProjectApi.getTestProjectId() != null) {
+            testProjectMemberService.requireCapability(testProjectApi.getTestProjectId(), TestProjectMemberPerm.API_ADD);
+        }
         return toR(testProjectApiService.insertTestProjectApi(testProjectApi));
     }
 
     /**
-     * 修改测试项目 API。
+     * 修改测试项目 API；需编辑接口与分组权限。
      * 保存成功后，对该 API 在图中的全部引用流重新体检并回写 api_health_*。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试项目API", businessType = BusinessType.UPDATE)
     @PutMapping
     public R<Void> edit(@RequestBody TestProjectApi testProjectApi) {
+        Long projectId = testProjectApi.getTestProjectId();
+        if (projectId == null && testProjectApi.getTestProjectApiId() != null) {
+            TestProjectApiResult existing = testProjectApiService.selectTestProjectApiResult(
+                    testProjectApi.getTestProjectApiId());
+            if (existing != null) {
+                projectId = existing.getTestProjectId();
+            }
+        }
+        if (projectId != null) {
+            testProjectMemberService.requireCapability(projectId, TestProjectMemberPerm.API_EDIT);
+        }
         int rows = testProjectApiService.updateTestProjectApi(testProjectApi);
         if (rows > 0 && testProjectApi.getTestProjectApiId() != null) {
             apiFlowHealthPersistService.refreshByApiId(testProjectApi.getTestProjectApiId());
@@ -157,13 +183,15 @@ public class TestProjectApiController extends BaseController {
 
     /**
      * 追加 API 业务响应码白名单中的 successValues。
-     * 与已有列表合并去重后写回 biz_code_config；返回写库后的完整 JSON。
+     * 合并去重后写回 biz_code_config；返回写库后的完整 JSON。
+     * 需编辑接口与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试项目API业务Code", businessType = BusinessType.UPDATE)
     @PutMapping("/{testProjectApiId}/bizCodeConfig")
     public R<String> appendBizCodeConfig(@PathVariable Long testProjectApiId,
                                          @RequestBody TestProjectApiBizCodeParams params) {
+        requireApiCapability(testProjectApiId, TestProjectMemberPerm.API_EDIT);
         return ok(testProjectApiBizCodeService.appendSuccessValues(
                 testProjectApiId,
                 params != null ? params.getSuccessValues() : null,
@@ -171,13 +199,16 @@ public class TestProjectApiController extends BaseController {
     }
 
     /**
-     * 删除测试项目API
+     * 删除测试项目 API；逐项校验删除接口权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:remove')")
     @Log(title = "测试项目API", businessType = BusinessType.DELETE)
     @DeleteMapping("/{testProjectApiIds}")
     public R<Void> remove(@PathVariable Long[] testProjectApiIds) {
         List<Long> idList = Convert.toLongList(testProjectApiIds);
+        for (Long id : idList) {
+            requireApiCapability(id, TestProjectMemberPerm.API_REMOVE);
+        }
         return toR(testProjectApiService.logicDeleteTestProjectApiByIdList(idList));
     }
 }

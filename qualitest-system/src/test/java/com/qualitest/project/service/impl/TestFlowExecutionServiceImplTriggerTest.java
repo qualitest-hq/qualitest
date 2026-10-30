@@ -119,7 +119,9 @@ class TestFlowExecutionServiceImplTriggerTest {
                 .delStatus(0)
                 .build();
         when(testFlowService.selectTestFlowById(1L)).thenReturn(flow);
-        when(testProjectMemberService.getCheckProjectMemberRole(eq(99L), any())).thenReturn(TestProjectMemberRole.OWNER);
+        when(testProjectMemberService.getCheckProjectMemberRole(eq(99L), any()))
+                .thenReturn(TestProjectMemberRole.OWNER.getCode());
+        // requireCapability 为 void：默认 mock 不抛即可
 
         TestProjectEnv env = TestProjectEnv.builder()
                 .testProjectEnvId(9001L)

@@ -8,19 +8,24 @@ import com.qualitest.project.constant.TestProjectConstants;
 import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.domain.TestProjectMember;
 import com.qualitest.project.domain.TestProjectUserSetting;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.enums.TestProjectMemberRole;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.mapper.TestProjectMemberMapper;
 import com.qualitest.project.params.TestProjectMemberParams;
 import com.qualitest.project.result.TestProjectMemberResult;
 import com.qualitest.project.service.ITestProjectEnvService;
+import com.qualitest.project.service.ITestProjectMemberRoleService;
 import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.project.service.ITestProjectUserSettingService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 测试项目成员Service业务层处理
@@ -31,22 +36,38 @@ import java.util.List;
 @Service
 public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
 
+    /** 禁止移除或降级唯一所有者时的提示文案 */
     private static final String KEEP_ONE_OWNER_MSG = "项目必须保留一名所有者，请先将所有权转让给其他成员";
 
+    /** 成员持久化 */
     @Autowired
     private TestProjectMemberMapper testProjectMemberMapper;
 
+    /** 项目主表 */
     @Autowired
     private TestProjectMapper testProjectMapper;
 
+    /** 成员项目内个人设置 */
     @Autowired
     private ITestProjectUserSettingService testProjectUserSettingService;
 
+    /** 成员默认环境 */
     @Autowired
     private ITestProjectEnvService testProjectEnvService;
 
+    /** 角色与权限解析 */
+    @Autowired
+    @Lazy
+    private ITestProjectMemberRoleService testProjectMemberRoleService;
+
+    /**
+     * 判断成员角色标识是否为所有者
+     *
+     * @param memberRole 角色 role_key
+     * @return 是所有者时为 true
+     */
     private static boolean isOwnerRole(String memberRole) {
-        return TestProjectMemberRole.OWNER.getCode().equals(memberRole);
+        return TestProjectMemberRole.isOwner(memberRole);
     }
 
     /**
@@ -139,8 +160,12 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
         if (envFlag <= 0) {
             throw new ServiceException("创建默认环境失败");
         }
-        // 生成 projectToken
-        String projectToken = TestProjectMemberRole.canUseProjectToken(testProjectMember.getMemberRole())
+        // 生成 projectToken（按角色权限 token:use）
+        String roleKey = TestProjectMemberRole.normalizeCode(testProjectMember.getMemberRole());
+        testProjectMember.setMemberRole(roleKey);
+        boolean canToken = testProjectMemberRoleService.listPermCodesByRoleKey(roleKey)
+                .contains(TestProjectMemberPerm.TOKEN_USE.getCode());
+        String projectToken = canToken
                 ? testProjectUserSettingService.generateProjectToken(testProjectMember.getTestProjectId(), testProjectMember.getUserId())
                 : null;
         // 创建用户设置
@@ -185,18 +210,30 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
         Long userId = existing.getUserId();
         testProjectMember.setTestProjectId(testProjectId);
         testProjectMember.setUserId(userId);
+        newRole = TestProjectMemberRole.normalizeCode(newRole);
+        testProjectMember.setMemberRole(newRole);
         transferProjectOwner(testProjectId, userId, newRole);
         testProjectMember.setUpdateTime(DateUtils.getNowDate());
         int flag = testProjectMemberMapper.updateTestProjectMember(testProjectMember);
         if (isOwnerRole(newRole)) {
             assertExactlyOneOwner(testProjectId);
         }
+        // 失去 token:use 时清空 Project Token
+        boolean canToken = testProjectMemberRoleService.listPermCodesByRoleKey(newRole)
+                .contains(TestProjectMemberPerm.TOKEN_USE.getCode());
+        if (!canToken) {
+            testProjectUserSettingService.clearProjectToken(testProjectId, userId);
+        }
         return flag;
     }
 
     /**
-     * 指定新所有者时，按 userId 将项目下其他有效 owner 降为 admin，并回写 test_project.owner_id。
-     * 创建项目写入首位 owner、或角色不是 owner 时不处理。
+     * 将指定用户设为所有者：其余所有者降为管理员，并更新项目 owner_id。
+     * 目标角色非所有者或参数不完整时不处理。
+     *
+     * @param testProjectId 项目 id
+     * @param newOwnerUserId 新所有者用户 id
+     * @param memberRole 待写入的成员角色
      */
     private void transferProjectOwner(Long testProjectId, Long newOwnerUserId, String memberRole) {
         if (!isOwnerRole(memberRole) || testProjectId == null || newOwnerUserId == null) {
@@ -206,6 +243,11 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
         testProjectMapper.updateOwnerId(testProjectId, newOwnerUserId);
     }
 
+    /**
+     * 校验项目下恰好有一名有效所有者
+     *
+     * @param testProjectId 项目 id
+     */
     private void assertExactlyOneOwner(Long testProjectId) {
         int ownerCount = testProjectMemberMapper.countOwners(testProjectId);
         if (ownerCount != 1) {
@@ -213,6 +255,11 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
         }
     }
 
+    /**
+     * 禁止对所有者执行删除或降级类操作
+     *
+     * @param member 目标成员
+     */
     private void assertNotOwner(TestProjectMember member) {
         if (member != null && isOwnerRole(member.getMemberRole())) {
             throw new ServiceException(KEEP_ONE_OWNER_MSG);
@@ -319,26 +366,25 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
     }
 
     /**
-     * 按当前登录用户解析并校验其在项目中的成员角色。
+     * 按当前登录用户解析并校验其在项目中的成员角色标识。
      *
      * @param testProjectId 项目 id
-     * @return 成员角色
+     * @return 角色 role_key
      */
     @Override
-    public TestProjectMemberRole getCheckProjectMemberRole(Long testProjectId) {
+    public String getCheckProjectMemberRole(Long testProjectId) {
         return getCheckProjectMemberRole(testProjectId, SecurityUtils.getUserId());
     }
 
     /**
-     * 按指定用户解析并校验其在项目中的成员角色。
-     * 用户为空抛缺少审计用户；超管直接返回系统管理员；否则查成员表，不存在则无权限。
+     * 按指定用户解析并校验其在项目中的成员角色标识。
      *
      * @param testProjectId 项目 id
      * @param userId 操作者用户 id
-     * @return 成员角色
+     * @return 角色 role_key
      */
     @Override
-    public TestProjectMemberRole getCheckProjectMemberRole(Long testProjectId, Long userId) {
+    public String getCheckProjectMemberRole(Long testProjectId, Long userId) {
         if (testProjectId == null) {
             throw new ServiceException("请指定测试项目");
         }
@@ -346,7 +392,7 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
             throw new ServiceException("缺少审计用户/操作者");
         }
         if (SecurityUtils.isAdmin(userId)) {
-            return TestProjectMemberRole.SYS_ADMIN;
+            return TestProjectMemberRole.SYS_ADMIN.getCode();
         }
         TestProjectMember self = testProjectMemberMapper.selectTestProjectMemberOne(TestProjectMemberParams.builder()
                 .testProjectId(testProjectId)
@@ -355,7 +401,61 @@ public class TestProjectMemberServiceImpl implements ITestProjectMemberService {
         if (self == null) {
             throw new ServiceException("您不是该项目成员，无权限访问");
         }
-        return TestProjectMemberRole.getByCode(self.getMemberRole());
+        return TestProjectMemberRole.normalizeCode(self.getMemberRole());
+    }
+
+    /**
+     * 校验当前登录用户在项目下具备指定权限，不满足则抛业务异常
+     *
+     * @param testProjectId 项目 id
+     * @param perm 权限
+     */
+    @Override
+    public void requireCapability(Long testProjectId, TestProjectMemberPerm perm) {
+        requireCapability(testProjectId, SecurityUtils.getUserId(), perm);
+    }
+
+    /**
+     * 校验指定用户在项目下具备指定权限，不满足则抛业务异常
+     *
+     * @param testProjectId 项目 id
+     * @param userId 用户 id
+     * @param perm 权限
+     */
+    @Override
+    public void requireCapability(Long testProjectId, Long userId, TestProjectMemberPerm perm) {
+        if (perm == null) {
+            throw new ServiceException("权限不能为空");
+        }
+        if (!hasCapability(testProjectId, userId, perm)) {
+            throw new ServiceException("当前角色无权限：" + perm.getName());
+        }
+    }
+
+    /**
+     * 返回当前登录用户在项目下的权限 code 集合。
+     *
+     * @param testProjectId 项目 id
+     * @return 权限 code 集合
+     */
+    @Override
+    public Set<String> listCapabilities(Long testProjectId) {
+        String roleKey = getCheckProjectMemberRole(testProjectId);
+        return testProjectMemberRoleService.listPermCodesByRoleKey(roleKey);
+    }
+
+    /**
+     * 判断指定用户是否在项目下具备某权限。
+     *
+     * @param testProjectId 项目 id
+     * @param userId 用户 id
+     * @param perm 权限
+     * @return 角色权限集合含该 code 时为 true
+     */
+    @Override
+    public boolean hasCapability(Long testProjectId, Long userId, TestProjectMemberPerm perm) {
+        String roleKey = getCheckProjectMemberRole(testProjectId, userId);
+        return testProjectMemberRoleService.listPermCodesByRoleKey(roleKey).contains(perm.getCode());
     }
 
 }

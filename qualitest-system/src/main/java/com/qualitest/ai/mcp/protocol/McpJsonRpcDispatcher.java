@@ -2,6 +2,7 @@ package com.qualitest.ai.mcp.protocol;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.ai.mcp.McpProjectGates;
 import com.qualitest.ai.mcp.McpPromptResourceService;
 import com.qualitest.ai.mcp.McpToolInvokeService;
 import com.qualitest.ai.tools.FlowDesignToolsDefinitionService;
@@ -22,7 +23,7 @@ import java.util.Map;
  * <p>
  * 解析 POST 体后按 method 路由到握手、工具列表/调用、规程 Prompt、规程 Resource、ping 与通知处理。
  * initialize 声明提供 tools / prompts / resources，但不声明工具列表变更推送；
- * 项目开关变化后须客户端重连，再通过 tools/list 拉取当前工具集。
+ * 成员角色 MCP 权限变化后须客户端重连，再通过 tools/list 拉取当前工具集。
  */
 @Service
 @RequiredArgsConstructor
@@ -30,7 +31,7 @@ public class McpJsonRpcDispatcher {
 
     /** 组装 tools/list 返回的工具 Schema */
     private final FlowDesignToolsDefinitionService toolsDefinitionService;
-    /** 执行 tools/call，并读取项目写流 / 导入接口开关 */
+    /** 执行 tools/call，并按操作者角色解析 MCP 门控 */
     private final McpToolInvokeService mcpToolInvokeService;
     /** 将 MCP arguments 转成内部调用参数 */
     private final McpToolArgumentsMapper argumentsMapper;
@@ -98,16 +99,17 @@ public class McpJsonRpcDispatcher {
         }
 
         return switch (method) {
-            case "initialize" -> openSession(id, request, testProjectId, headers);
+            case "initialize" -> openSession(id, request, testProjectId, operatorUserId, headers);
             case "tools/list" -> DispatchResult.response(
-                    handleToolsList(id, testProjectId, sessionRegistry.get(headers.sessionId())));
+                    handleToolsList(id, testProjectId, operatorUserId, sessionRegistry.get(headers.sessionId())));
             case "tools/call" -> DispatchResult.response(
                     handleToolsCall(id, request, testProjectId, operatorUserId,
                             sessionRegistry.get(headers.sessionId())));
             case "prompts/list" -> DispatchResult.response(handlePromptsList(id));
-            case "prompts/get" -> DispatchResult.response(handlePromptsGet(id, request, testProjectId));
+            case "prompts/get" -> DispatchResult.response(handlePromptsGet(id, request, testProjectId, operatorUserId));
             case "resources/list" -> DispatchResult.response(handleResourcesList(id));
-            case "resources/read" -> DispatchResult.response(handleResourcesRead(id, request, testProjectId));
+            case "resources/read" -> DispatchResult.response(
+                    handleResourcesRead(id, request, testProjectId, operatorUserId));
             case "ping" -> DispatchResult.response(McpJsonRpc.result(id, Map.of()));
             default -> DispatchResult.response(McpJsonRpc.error(id, -32601, "Method not found: " + method));
         };
@@ -118,10 +120,10 @@ public class McpJsonRpcDispatcher {
      * <p>
      * 能力声明含 tools、prompts、resources（可列工具、取规程 Prompt、读规程 Resource）。
      * tools 不声明 listChanged：服务端不主动推送工具列表变更；
-     * 项目写流或导入开关变更后，须客户端重连或刷新 MCP，再调 tools/list 才能看到新工具集。
+     * 成员角色 MCP 权限变更后，须客户端重连或刷新 MCP，再调 tools/list 才能看到新工具集。
      * <p>
      * serverInfo 含：服务名、协议 version（可带 +autowrite / +autorun / +importApis）、项目 id、
-     * 三道开关布尔值、合成 guideVersion（规程指纹 + 同款门控后缀，供本地 Skill 过期判定）、
+     * MCP 写流/跑流/导入门控布尔值、合成 guideVersion（规程指纹 + 门控后缀，供本地 Skill 过期判定）、
      * 会话模式 session（call 或 turn）。回合会话再带回绑定的 testFlowId。
      *
      * @param id            请求 id
@@ -129,11 +131,11 @@ public class McpJsonRpcDispatcher {
      * @param session       刚登记的会话
      * @return JSON-RPC 成功响应字符串
      */
-    private String handleInitialize(Object id, Long testProjectId, McpSession session) {
-        McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
+    private String handleInitialize(Object id, Long testProjectId, McpSession session, Long operatorUserId) {
+        McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId, operatorUserId);
         Map<String, Object> serverInfo = new LinkedHashMap<>();
         serverInfo.put("name", McpJsonRpc.SERVER_NAME);
-        // 按当前项目开关给协议 version 加门控后缀
+        // 按当前角色 MCP 门控给协议 version 加后缀
         serverInfo.put("version", McpPromptResourceService.appendGateSuffixes(
                 McpJsonRpc.SERVER_VERSION, gates));
         serverInfo.put("testProjectId", String.valueOf(testProjectId));
@@ -163,18 +165,25 @@ public class McpJsonRpcDispatcher {
     /**
      * 处理 tools/list。
      * 没有会话或逐次调用会话：列出 MCP 协议工具，含列流、建流、导入接口。
-     * 回合会话：列出画布设计工具，按写流、跑流开关裁剪，不含列流、建流、导入接口、规程版本。
+     * 回合会话：列出画布设计工具，按 mcp:flow:write、mcp:run 裁剪，不含列流、建流、导入接口、规程版本。
      *
      * @param id            请求 id
      * @param testProjectId 测试项目 id
      * @param session       请求头 Mcp-Session-Id 对应的会话，可空
      * @return JSON-RPC 成功响应字符串
      */
-    private String handleToolsList(Object id, Long testProjectId, McpSession session) {
-        McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
-        List<Map<String, Object>> mcpTools = session != null && session.isTurn()
-                ? toolsDefinitionService.loadTurnSessionTools(gates)
-                : toolsDefinitionService.loadMcpProtocolTools(gates);
+    private String handleToolsList(Object id, Long testProjectId, Long operatorUserId, McpSession session) {
+        McpProjectGates gates =
+                mcpToolInvokeService.resolveMcpGates(testProjectId, operatorUserId);
+        List<Map<String, Object>> mcpTools;
+        if (!gates.readEnabled() && !gates.autoWriteEnabled() && !gates.importApisEnabled()
+                && !gates.autorunEnabled()) {
+            mcpTools = List.of();
+        } else if (session != null && session.isTurn()) {
+            mcpTools = toolsDefinitionService.loadTurnSessionTools(gates);
+        } else {
+            mcpTools = toolsDefinitionService.loadMcpProtocolTools(gates);
+        }
         return McpJsonRpc.result(id, Map.of("tools", mcpTools));
     }
 
@@ -188,13 +197,15 @@ public class McpJsonRpcDispatcher {
      * @param testProjectId 测试项目 id
      * @param headers       本次请求头
      */
-    private DispatchResult openSession(Object id, JSONObject request, Long testProjectId, McpInbound headers) {
+    private DispatchResult openSession(Object id, JSONObject request, Long testProjectId, Long operatorUserId,
+                                       McpInbound headers) {
         McpSessionOpen.Parsed open = McpSessionOpen.parse(request, headers.sessionMode(), headers.testFlowId());
         if (!open.ok()) {
             return DispatchResult.response(McpJsonRpc.error(id, -32602, open.error()));
         }
         McpSession session = sessionRegistry.createSession(testProjectId, open.mode(), open.testFlowId());
-        return DispatchResult.withSession(handleInitialize(id, testProjectId, session), session.getId());
+        return DispatchResult.withSession(
+                handleInitialize(id, testProjectId, session, operatorUserId), session.getId());
     }
 
     /**
@@ -249,21 +260,22 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * 处理 prompts/get：按 Prompt 名与当前项目三道开关返回已裁剪正文；未知名返回 -32602。
+     * 处理 prompts/get：按 Prompt 名与当前角色 MCP 门控返回已裁剪正文；未知名返回 -32602。
      *
      * @param id            请求 id
      * @param request       完整 JSON-RPC 请求
      * @param testProjectId 测试项目 id
      * @return JSON-RPC 响应字符串
      */
-    private String handlePromptsGet(Object id, JSONObject request, Long testProjectId) {
+    private String handlePromptsGet(Object id, JSONObject request, Long testProjectId, Long operatorUserId) {
         JSONObject params = request.getJSONObject("params");
         if (params == null) {
             return McpJsonRpc.error(id, -32602, "Invalid params");
         }
         String name = params.getString("name");
         try {
-            McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
+            McpProjectGates gates =
+                    mcpToolInvokeService.resolveMcpGates(testProjectId, operatorUserId);
             return McpJsonRpc.result(id, mcpPromptResourceService.getPrompt(name, gates));
         } catch (ServiceException ex) {
             return McpJsonRpc.error(id, -32602, ex.getMessage());
@@ -281,21 +293,22 @@ public class McpJsonRpcDispatcher {
     }
 
     /**
-     * 处理 resources/read：按 uri 与当前项目三道开关返回已裁剪的造流硬规矩 Markdown；未知 uri 返回 -32602。
+     * 处理 resources/read：按 uri 与当前角色 MCP 门控返回已裁剪的造流硬规矩 Markdown；未知 uri 返回 -32602。
      *
      * @param id            请求 id
      * @param request       完整 JSON-RPC 请求
      * @param testProjectId 测试项目 id
      * @return JSON-RPC 响应字符串
      */
-    private String handleResourcesRead(Object id, JSONObject request, Long testProjectId) {
+    private String handleResourcesRead(Object id, JSONObject request, Long testProjectId, Long operatorUserId) {
         JSONObject params = request.getJSONObject("params");
         if (params == null) {
             return McpJsonRpc.error(id, -32602, "Invalid params");
         }
         String uri = params.getString("uri");
         try {
-            McpToolInvokeService.McpProjectGates gates = mcpToolInvokeService.resolveMcpGates(testProjectId);
+            McpProjectGates gates =
+                    mcpToolInvokeService.resolveMcpGates(testProjectId, operatorUserId);
             return McpJsonRpc.result(id, mcpPromptResourceService.readResource(uri, gates));
         } catch (ServiceException ex) {
             return McpJsonRpc.error(id, -32602, ex.getMessage());

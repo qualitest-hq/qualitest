@@ -1,5 +1,7 @@
 /**
- * 项目设置抽屉：Token、MCP 配置；供项目列表与 API 工作台复用。
+ * 项目设置抽屉逻辑：拉取用户项目上下文、Token 与 HTTP 调试传输偏好。
+ * 抽屉内多端鉴权、Token、MCP 区块是否可写/可见由 capabilities 控制；
+ * MCP 工具范围随成员角色绑定的权限变化，不再维护项目级 MCP 开关。
  */
 import { computed, reactive, ref, watch } from 'vue'
 
@@ -11,6 +13,7 @@ import {
   readDebugHttpTransportPref,
   writeDebugHttpTransportPref,
 } from '../utils/apiDebugUiPrefs'
+import { parseProjectCapabilities } from '../utils/projectCapabilities'
 
 const TOOLBAR_NO_ENV_ID = '0'
 
@@ -19,6 +22,8 @@ export function useProjectSettingDrawer(getProxy) {
   const activeTestProjectId = ref(null)
   const activeProjectName = ref('')
   const settingContext = ref(null)
+  /** 当前用户项目权限 */
+  const capabilities = ref([])
   const settingLoading = ref(false)
   const projectHttpTransport = ref('browser')
 
@@ -67,6 +72,7 @@ export function useProjectSettingDrawer(getProxy) {
     }
   }
 
+  /** 拉取 setting 与 capabilities，供 Token 区与抽屉权限判断 */
   function fetchProjectContext(drawerLoading = false) {
     const testProjectId = activeTestProjectId.value
     if (!testProjectId) {
@@ -79,10 +85,12 @@ export function useProjectSettingDrawer(getProxy) {
       .then((res) => {
         const setting = res.data?.setting ?? null
         settingContext.value = setting
+        capabilities.value = parseProjectCapabilities(res.data)
         applySettingFromContext(setting)
       })
       .catch(() => {
         settingContext.value = null
+        capabilities.value = []
         applySettingFromContext(null)
       })
       .finally(() => {
@@ -145,6 +153,7 @@ export function useProjectSettingDrawer(getProxy) {
     activeTestProjectId,
     activeProjectName,
     settingContext,
+    capabilities,
     settingLoading,
     settingForm,
     projectHttpTransport,

@@ -14,7 +14,7 @@
             placeholder="关键字 / URL"
             prefix-icon="Search"
         />
-        <el-tooltip content="添加接口" placement="bottom">
+        <el-tooltip v-if="canAddApi" content="添加接口" placement="bottom">
           <el-button class="tree-add-btn" icon="Plus" type="primary" @click="handleTreeAddHint"/>
         </el-tooltip>
       </div>
@@ -94,6 +94,11 @@ const props = defineProps({
   testProjectId: {
     type: [String, Number],
     required: true
+  },
+  /** 是否显示添加入口（api:add） */
+  canAddApi: {
+    type: Boolean,
+    default: false
   }
 })
 

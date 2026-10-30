@@ -161,7 +161,7 @@
       </section>
     </div>
 
-    <div class="design-footer">
+    <div v-if="canEditApi" class="design-footer">
       <el-button v-hasPermi="['project:testProject:edit']" :loading="saving" type="primary" @click="handleSaveDesign">
         保存设计
       </el-button>
@@ -185,6 +185,11 @@ const props = defineProps({
   projectAuthConfig: {
     type: [String, Object],
     default: null
+  },
+  /** 是否允许保存设计（api:edit） */
+  canEditApi: {
+    type: Boolean,
+    default: false
   }
 })
 

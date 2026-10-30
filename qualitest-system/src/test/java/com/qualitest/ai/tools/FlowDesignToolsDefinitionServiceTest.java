@@ -10,7 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import com.qualitest.ai.mcp.McpToolInvokeService.McpProjectGates;
+import com.qualitest.ai.mcp.McpProjectGates;
 
 import java.util.List;
 import java.util.Map;
@@ -261,7 +261,7 @@ class FlowDesignToolsDefinitionServiceTest {
     @Order(10)
     @DisplayName("回合工具表按写流跑流裁剪且不含协议专有工具")
     void loadTurnSessionTools_canvasCatalogWithoutProtocolExtras() {
-        Set<String> names = service.loadTurnSessionTools(new McpProjectGates(true, true, true)).stream()
+        Set<String> names = service.loadTurnSessionTools(new McpProjectGates(true, true, true, true)).stream()
                 .map(tool -> String.valueOf(tool.get("name")))
                 .collect(Collectors.toSet());
         assertTrue(names.contains("submit_http_node"));
@@ -273,7 +273,7 @@ class FlowDesignToolsDefinitionServiceTest {
         assertFalse(names.contains("import_apis"));
         assertFalse(names.contains("get_mcp_guide_version"));
 
-        Set<String> readonly = service.loadTurnSessionTools(new McpProjectGates(false, false, true)).stream()
+        Set<String> readonly = service.loadTurnSessionTools(new McpProjectGates(true, false, false, true)).stream()
                 .map(tool -> String.valueOf(tool.get("name")))
                 .collect(Collectors.toSet());
         assertTrue(readonly.contains("search_apis"));

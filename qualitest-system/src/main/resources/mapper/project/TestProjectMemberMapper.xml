@@ -300,4 +300,19 @@
           and member_role = 'owner'
           and del_status = 0
     </select>
+
+    <update id="updateMemberRoleKey">
+        update test_project_member
+        set member_role = #{newRoleKey},
+            update_time = now()
+        where member_role = #{oldRoleKey}
+          and del_status = 0
+    </update>
+
+    <select id="countByMemberRole" resultType="int">
+        select count(1)
+        from test_project_member
+        where member_role = #{memberRole}
+          and del_status = 0
+    </select>
 </mapper>

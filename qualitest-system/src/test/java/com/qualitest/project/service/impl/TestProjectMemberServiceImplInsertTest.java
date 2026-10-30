@@ -7,6 +7,7 @@ import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.mapper.TestProjectMemberMapper;
 import com.qualitest.project.params.TestProjectMemberParams;
 import com.qualitest.project.service.ITestProjectEnvService;
+import com.qualitest.project.service.ITestProjectMemberRoleService;
 import com.qualitest.project.service.ITestProjectUserSettingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,13 +21,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,6 +58,8 @@ class TestProjectMemberServiceImplInsertTest {
     private ITestProjectUserSettingService testProjectUserSettingService;
     @Mock
     private ITestProjectEnvService testProjectEnvService;
+    @Mock
+    private ITestProjectMemberRoleService testProjectMemberRoleService;
 
     private TestProjectMemberServiceImpl service;
 
@@ -64,6 +70,9 @@ class TestProjectMemberServiceImplInsertTest {
         ReflectionTestUtils.setField(service, "testProjectMapper", testProjectMapper);
         ReflectionTestUtils.setField(service, "testProjectUserSettingService", testProjectUserSettingService);
         ReflectionTestUtils.setField(service, "testProjectEnvService", testProjectEnvService);
+        ReflectionTestUtils.setField(service, "testProjectMemberRoleService", testProjectMemberRoleService);
+        lenient().when(testProjectMemberRoleService.listPermCodesByRoleKey(anyString()))
+                .thenReturn(Collections.emptySet());
     }
 
     /**
@@ -153,7 +162,6 @@ class TestProjectMemberServiceImplInsertTest {
         when(testProjectMapper.updateOwnerId(PROJECT_ID, NEW_USER_ID)).thenReturn(1);
         when(testProjectMemberMapper.insertTestProjectMember(any(TestProjectMember.class))).thenReturn(1);
         when(testProjectEnvService.insertTestProjectEnv(any())).thenReturn(1);
-        when(testProjectUserSettingService.generateProjectToken(PROJECT_ID, NEW_USER_ID)).thenReturn("tok");
         when(testProjectUserSettingService.insertTestProjectUserSetting(any())).thenReturn(1);
         when(testProjectMemberMapper.countOwners(PROJECT_ID)).thenReturn(1);
 
@@ -268,7 +276,7 @@ class TestProjectMemberServiceImplInsertTest {
 
         int flag = service.updateTestProjectMember(TestProjectMember.builder()
                 .testProjectMemberId(OTHER_MEMBER_ID)
-                .memberRole(TestProjectMemberRole.DEVELOPER.getCode())
+                .memberRole(TestProjectMemberRole.BACKEND.getCode())
                 .build());
 
         assertEquals(1, flag);

@@ -8,6 +8,7 @@ import com.qualitest.common.core.text.Convert;
 import com.qualitest.common.enums.BusinessType;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.domain.TestFlowGroup;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.TestFlowGroupParams;
 import com.qualitest.project.result.TestFlowGroupResult;
 import com.qualitest.project.service.ITestFlowGroupService;
@@ -33,7 +34,7 @@ public class TestFlowGroupController extends BaseController {
     private final ITestProjectMemberService testProjectMemberService;
 
     /**
-     * 查询测试流分组列表
+     * 查询测试流分组列表；指定项目时需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:list')")
     @GetMapping("/list")
@@ -41,13 +42,13 @@ public class TestFlowGroupController extends BaseController {
         if (params.getTestProjectId() == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
         List<TestFlowGroupResult> list = testFlowGroupService.selectTestFlowGroupResultList(params);
         return getDataTable(list);
     }
 
     /**
-     * 查询测试流分组树
+     * 查询测试流分组树；需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:list')")
     @GetMapping("/tree")
@@ -55,25 +56,25 @@ public class TestFlowGroupController extends BaseController {
         if (testProjectId == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(testProjectId);
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.FLOW_VIEW);
         return ok(testFlowGroupService.selectTestFlowGroupTree(testProjectId));
     }
 
     /**
-     * 获取测试流分组详细信息
+     * 获取测试流分组详细信息；需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/{flowGroupId}")
     public R<TestFlowGroupResult> getInfo(@PathVariable("flowGroupId") Long flowGroupId) {
         TestFlowGroupResult result = testFlowGroupService.selectTestFlowGroupResult(flowGroupId);
         if (result != null && result.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(result.getTestProjectId());
+            testProjectMemberService.requireCapability(result.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
         }
         return ok(result);
     }
 
     /**
-     * 新增测试流分组
+     * 新增测试流分组；需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:add')")
     @Log(title = "测试流分组", businessType = BusinessType.INSERT)
@@ -82,12 +83,12 @@ public class TestFlowGroupController extends BaseController {
         if (testFlowGroup.getTestProjectId() == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(testFlowGroup.getTestProjectId());
+        testProjectMemberService.requireCapability(testFlowGroup.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
         return toR(testFlowGroupService.insertTestFlowGroup(testFlowGroup));
     }
 
     /**
-     * 修改测试流分组
+     * 修改测试流分组；需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试流分组", businessType = BusinessType.UPDATE)
@@ -100,12 +101,12 @@ public class TestFlowGroupController extends BaseController {
         if (existing == null || (existing.getDelStatus() != null && existing.getDelStatus() != 0)) {
             throw new ServiceException("分组不存在");
         }
-        testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+        testProjectMemberService.requireCapability(existing.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
         return toR(testFlowGroupService.updateTestFlowGroup(testFlowGroup));
     }
 
     /**
-     * 删除测试流分组
+     * 删除测试流分组；需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:remove')")
     @Log(title = "测试流分组", businessType = BusinessType.DELETE)
@@ -115,7 +116,7 @@ public class TestFlowGroupController extends BaseController {
         for (Long id : idList) {
             TestFlowGroupResult existing = testFlowGroupService.selectTestFlowGroupResult(id);
             if (existing != null && existing.getTestProjectId() != null) {
-                testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+                testProjectMemberService.requireCapability(existing.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
             }
         }
         return toR(testFlowGroupService.logicDeleteTestFlowGroupByIdList(idList));

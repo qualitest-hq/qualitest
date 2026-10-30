@@ -24,6 +24,7 @@ import com.qualitest.common.utils.SecurityUtils;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.ai.scenario.flow.FlowAuthHeaderRefreshService;
 import com.qualitest.ai.scenario.flow.model.RefreshAuthHeadersResult;
+import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
 import com.qualitest.project.params.RefreshAuthHeadersParams;
 import com.qualitest.project.params.TestFlowApiHealthPreviewParams;
@@ -64,13 +65,13 @@ public class TestFlowController extends BaseController {
     private final FlowEditLeaseService flowEditLeaseService;
 
     /**
-     * 查询测试流列表
+     * 查询测试流列表；指定项目时需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:list')")
     @GetMapping("/list")
     public TableDataInfo list(TestFlowParams params) {
         if (params.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+            testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
         }
         startPage();
         List<TestFlowResult> list = testFlowService.selectTestFlowResultList(params);
@@ -78,14 +79,14 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 导出测试流列表
+     * 导出测试流列表；指定项目时需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:export')")
     @Log(title = "测试流", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
     public void export(HttpServletResponse response, TestFlowParams params) {
         if (params.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+            testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
         }
         List<TestFlowResult> list = testFlowService.selectTestFlowResultList(params);
         ExcelUtil<TestFlowResult> util = new ExcelUtil<>(TestFlowResult.class);
@@ -93,14 +94,14 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 获取测试流详细信息
+     * 获取测试流详细信息；需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping(value = "/{testFlowId}")
     public R<TestFlowResult> getInfo(@PathVariable("testFlowId") Long testFlowId) {
         TestFlowResult result = testFlowService.selectTestFlowResult(testFlowId);
         if (result != null && result.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(result.getTestProjectId());
+            testProjectMemberService.requireCapability(result.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
         }
         return ok(result);
     }
@@ -110,6 +111,7 @@ public class TestFlowController extends BaseController {
      * <p>
      * 告警包括：绑定的 API 不存在、测值参数已从接口中移除、抽取路径对不上响应结构等。
      * 仅提示，不拦截保存或执行。写回字段供仪表盘「接口变更待关注」列表使用。
+     * 需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @GetMapping("/{testFlowId}/apiHealth")
@@ -124,6 +126,7 @@ public class TestFlowController extends BaseController {
      * <p>
      * 用于画布未保存时：左上角校验条、节点属性面板按「页面上当前图」展示告警，
      * 换绑修好后无需先点保存即可看到告警消失。
+     * 需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query')")
     @PostMapping("/{testFlowId}/apiHealth/preview")
@@ -139,6 +142,7 @@ public class TestFlowController extends BaseController {
      * 按当前项目鉴权配置，为本流 project HTTP 节点刷新 profileManaged 托管头。
      * <p>
      * 只返回 Staging 可用的 updateNodes patch，不写 test_flow；前端确认后再保存。
+     * 需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @PostMapping("/refreshAuthHeaders")
@@ -146,7 +150,7 @@ public class TestFlowController extends BaseController {
         if (params == null || params.getTestProjectId() == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
         return ok(flowAuthHeaderRefreshService.refresh(params.getTestProjectId(), params.getGraphJson()));
     }
 
@@ -154,12 +158,13 @@ public class TestFlowController extends BaseController {
      * 升级本流旧版探活再登录骨架。
      * 探活白名单补 403；活着判定补上「实际响应符合接口期望」。
      * 认不出探活骨架时不改图。
+     * 需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试流探活迁移", businessType = BusinessType.UPDATE)
     @PostMapping("/{testFlowId}/migrateProbeLogin")
     public R<Map<String, Object>> migrateProbeLogin(@PathVariable("testFlowId") Long testFlowId) {
-        TestFlow flow = requireAccessibleFlow(testFlowId);
+        TestFlow flow = requireEditableFlow(testFlowId);
         String before = flow.getGraphJson();
         String after = ProbeLoginGraphMigrateSupport.migrate(before);
         boolean changed = after != null && !after.equals(before);
@@ -176,7 +181,7 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 加载未删除的测试流，并校验当前登录用户是该流所属项目的成员。
+     * 加载未删除的测试流，并校验当前登录用户具备查看权限。
      *
      * @return 通过校验的测试流实体
      */
@@ -185,7 +190,19 @@ public class TestFlowController extends BaseController {
         if (flow == null || (flow.getDelStatus() != null && flow.getDelStatus() != 0)) {
             throw new ServiceException("测试流不存在");
         }
-        testProjectMemberService.getCheckProjectMemberRole(flow.getTestProjectId());
+        testProjectMemberService.requireCapability(flow.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
+        return flow;
+    }
+
+    /**
+     * 加载未删除的测试流，并校验当前登录用户具备编辑权限。
+     */
+    private TestFlow requireEditableFlow(Long testFlowId) {
+        TestFlow flow = testFlowService.selectTestFlowById(testFlowId);
+        if (flow == null || (flow.getDelStatus() != null && flow.getDelStatus() != 0)) {
+            throw new ServiceException("测试流不存在");
+        }
+        testProjectMemberService.requireCapability(flow.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
         return flow;
     }
 
@@ -199,7 +216,7 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 按 templateId 复制平台模板为当前项目的测试流，含图与 meta.flowOutputs。
+     * 按 templateId 复制平台模板为当前项目的测试流，含图与 meta.flowOutputs；需新建测试流权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:add')")
     @Log(title = "测试流", businessType = BusinessType.INSERT)
@@ -208,27 +225,27 @@ public class TestFlowController extends BaseController {
         if (params == null || params.getTestProjectId() == null) {
             throw new ServiceException("testProjectId 不能为空");
         }
-        testProjectMemberService.getCheckProjectMemberRole(params.getTestProjectId());
+        testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.FLOW_ADD);
         Long testFlowId = testFlowService.createFromSubflowTemplate(params);
         TestFlowResult created = testFlowService.selectTestFlowResult(testFlowId);
         return ok(created);
     }
 
     /**
-     * 新增测试流
+     * 新增测试流；需新建测试流权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:add')")
     @Log(title = "测试流", businessType = BusinessType.INSERT)
     @PostMapping
     public R<Void> add(@RequestBody TestFlow testFlow) {
         if (testFlow.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(testFlow.getTestProjectId());
+            testProjectMemberService.requireCapability(testFlow.getTestProjectId(), TestProjectMemberPerm.FLOW_ADD);
         }
         return toR(testFlowService.insertTestFlow(testFlow));
     }
 
     /**
-     * 修改测试流。
+     * 修改测试流；需编辑测试流与分组权限。
      * 保存成功后对该流重新做 API 语义体检并回写 api_health_*。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
@@ -236,11 +253,11 @@ public class TestFlowController extends BaseController {
     @PutMapping
     public R<Map<String, Object>> edit(@RequestBody TestFlow testFlow) {
         if (testFlow.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(testFlow.getTestProjectId());
+            testProjectMemberService.requireCapability(testFlow.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
         } else if (testFlow.getTestFlowId() != null) {
             TestFlowResult existing = testFlowService.selectTestFlowResult(testFlow.getTestFlowId());
             if (existing != null && existing.getTestProjectId() != null) {
-                testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+                testProjectMemberService.requireCapability(existing.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
             }
         }
         boolean writingGraph = testFlow.getGraphJson() != null && !testFlow.getGraphJson().isBlank();
@@ -261,7 +278,7 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 清空测试流所属目录（变为未分组）。
+     * 清空测试流所属目录（变为未分组）；需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试流", businessType = BusinessType.UPDATE)
@@ -272,13 +289,13 @@ public class TestFlowController extends BaseController {
             throw new ServiceException("测试流不存在");
         }
         if (existing.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+            testProjectMemberService.requireCapability(existing.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
         }
         return toR(testFlowService.clearFlowGroupId(testFlowId));
     }
 
     /**
-     * 删除测试流
+     * 删除测试流；逐项校验删除测试流权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:remove')")
     @Log(title = "测试流", businessType = BusinessType.DELETE)
@@ -288,7 +305,7 @@ public class TestFlowController extends BaseController {
         for (Long id : idList) {
             TestFlowResult existing = testFlowService.selectTestFlowResult(id);
             if (existing != null && existing.getTestProjectId() != null) {
-                testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+                testProjectMemberService.requireCapability(existing.getTestProjectId(), TestProjectMemberPerm.FLOW_REMOVE);
             }
         }
         return toR(testFlowService.logicDeleteTestFlowByIdList(idList));
@@ -297,6 +314,7 @@ public class TestFlowController extends BaseController {
     /**
      * 占用测试流写锁。
      * 画布有未保存修改时调用；返回 token 供后续心跳与保存携带。
+     * 需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @PostMapping("/{testFlowId}/editLease")
@@ -312,11 +330,12 @@ public class TestFlowController extends BaseController {
     /**
      * 查询测试流写锁占用状态（只读）。
      * 无长租约时 lockHeldBy 为空。
+     * 需查看测试流与跑流记录权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProject:edit')")
     @GetMapping("/{testFlowId}/editLease")
     public R<Map<String, String>> getEditLeaseStatus(@PathVariable("testFlowId") Long testFlowId) {
-        assertFlowEditable(testFlowId);
+        assertFlowViewable(testFlowId);
         String held = flowEditLeaseService.peekHolder(testFlowId);
         Map<String, String> data = new HashMap<>(2);
         if (held != null && !held.isBlank()) {
@@ -328,6 +347,7 @@ public class TestFlowController extends BaseController {
     /**
      * 写锁心跳续期。
      * 用请求体中的 token 延长该流写锁存活时间；token 无效或已过期则报错。
+     * 需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @PostMapping("/{testFlowId}/editLease/heartbeat")
@@ -347,6 +367,7 @@ public class TestFlowController extends BaseController {
     /**
      * 释放测试流写锁。
      * 保存成功、离开画布或放弃本地修改时调用；仅本方 token 仍有效时删除。
+     * 需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @DeleteMapping("/{testFlowId}/editLease")
@@ -358,7 +379,20 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 校验测试流可编辑：流存在且未删除，且当前用户是所属项目成员。
+     * 校验测试流可查看：流存在且未删除，且当前用户具备查看权限。
+     */
+    private void assertFlowViewable(Long testFlowId) {
+        TestFlowResult existing = testFlowService.selectTestFlowResult(testFlowId);
+        if (existing == null || (existing.getDelStatus() != null && existing.getDelStatus() != 0)) {
+            throw new ServiceException("测试流不存在");
+        }
+        if (existing.getTestProjectId() != null) {
+            testProjectMemberService.requireCapability(existing.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
+        }
+    }
+
+    /**
+     * 校验测试流可编辑：流存在且未删除，且当前用户具备编辑权限。
      */
     private void assertFlowEditable(Long testFlowId) {
         TestFlowResult existing = testFlowService.selectTestFlowResult(testFlowId);
@@ -366,7 +400,7 @@ public class TestFlowController extends BaseController {
             throw new ServiceException("测试流不存在");
         }
         if (existing.getTestProjectId() != null) {
-            testProjectMemberService.getCheckProjectMemberRole(existing.getTestProjectId());
+            testProjectMemberService.requireCapability(existing.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
         }
     }
 }

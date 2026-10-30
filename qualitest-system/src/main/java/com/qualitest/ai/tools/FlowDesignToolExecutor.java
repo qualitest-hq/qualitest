@@ -1,5 +1,6 @@
 package com.qualitest.ai.tools;
 
+import com.qualitest.ai.mcp.McpProjectGateResolver;
 import com.qualitest.ai.mcp.McpPromptResourceService;
 import com.qualitest.ai.service.AiChatConversationService;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchMerger;
@@ -60,7 +61,7 @@ import java.util.stream.Collectors;
  * 测试流 AI 设计工具统一执行器。
  * <p>
  * 构造时注册全部只读工具与改图 submit、素材写入、跑流等，按工具名路由执行。
- * 写工具是否允许调用由入口按项目开关拦截。
+ * 写工具是否允许调用由 MCP 入口按成员角色权限拦截。
  * 另有一份 MCP 门面表：同名跑流、查失败工具在 mcpMode 下优先走门面实现。
  */
 @Slf4j
@@ -120,6 +121,7 @@ public class FlowDesignToolExecutor {
      * @param aiChatConversationService    AI 会话服务
      * @param apiImportService             接口导入服务
      * @param mcpPromptResourceService     造流规程加载与合成版本计算
+     * @param mcpProjectGateResolver       按角色解析 MCP 门控
      */
     public FlowDesignToolExecutor(TestProjectApiMapper testProjectApiMapper,
                                   TestProjectMapper testProjectMapper,
@@ -136,7 +138,8 @@ public class FlowDesignToolExecutor {
                                   TestProjectApiDesignHintsService designHintsService,
                                   AiChatConversationService aiChatConversationService,
                                   IApiImportService apiImportService,
-                                  McpPromptResourceService mcpPromptResourceService) {
+                                  McpPromptResourceService mcpPromptResourceService,
+                                  McpProjectGateResolver mcpProjectGateResolver) {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         FlowDesignUnitSubmitSupport unitSubmit = new FlowDesignUnitSubmitSupport(
                 flowDesignPatchNormalizer, aiChatConversationService, flowDesignPatchMerger);
@@ -147,7 +150,7 @@ public class FlowDesignToolExecutor {
         map.put(LIST_SUBFLOW_TEMPLATES, new ListSubflowTemplatesTool(testFlowService));
         map.put(GET_SUBFLOW_DETAIL, new GetSubflowDetailTool(testFlowService));
         map.put(GET_FLOW, new GetFlowTool(testFlowService));
-        map.put(GET_MCP_GUIDE_VERSION, new GetMcpGuideVersionTool(mcpPromptResourceService, testProjectMapper));
+        map.put(GET_MCP_GUIDE_VERSION, new GetMcpGuideVersionTool(mcpPromptResourceService, mcpProjectGateResolver));
         map.put(CREATE_FLOW, new CreateFlowTool(testFlowService));
         map.put(UPDATE_FLOW_META, new UpdateFlowMetaTool(testFlowService));
         map.put(GET_GRAPH_SUMMARY, new GetGraphSummaryTool(graphResolver));
@@ -160,7 +163,7 @@ public class FlowDesignToolExecutor {
         map.put(LIST_PROJECT_AUTH_PROFILES, new ListProjectAuthProfilesTool(testProjectMapper));
         map.put(UPSERT_AUTH_PROFILE, new UpsertAuthProfileTool(testProjectMapper));
         map.put(APPEND_API_DESIGN_HINTS, new AppendApiDesignHintsTool(testProjectApiMapper, designHintsService));
-        // MCP：结构化导入/更新项目接口库（受「允许 MCP 导入接口」开关控制）
+        // MCP：结构化导入/更新项目接口库（须角色具备 mcp:api:import，由入口门控）
         map.put(IMPORT_APIS, new ImportApisTool(apiImportService, testProjectApiMapper));
         map.put(GET_NODE_DETAIL, new GetNodeDetailTool(graphResolver));
         map.put(GET_EDGE_DETAIL, new GetEdgeDetailTool(graphResolver));

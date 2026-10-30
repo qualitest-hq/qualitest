@@ -1,6 +1,5 @@
 package com.qualitest.ai.mcp;
 
-import com.qualitest.ai.mcp.McpToolInvokeService.McpProjectGates;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.ClasspathMarkdownSupport;
 import org.springframework.stereotype.Service;
@@ -18,7 +17,7 @@ import java.util.regex.Pattern;
  * MCP 造流规程加载与组装。
  * <p>
  * 从 classpath 读取造流硬规矩、勘察短文、修失败短文、同步 Skill 说明与 Cursor Skill YAML 头；
- * 按项目「允许 MCP 自动写流」「允许 MCP 自动跑流」「允许 MCP 导入接口」三道开关裁剪正文；
+ * 按成员角色 MCP 门控（mcp:flow:write / mcp:run / mcp:api:import）裁剪正文；
  * 计算规程源文指纹，并拼出带门控后缀的 guideVersion，供 Prompt / Resource / 本地 Skill 使用。
  */
 @Service
@@ -96,7 +95,7 @@ public class McpPromptResourceService {
     /**
      * 返回规程源文指纹（不含开关后缀）。
      * 对 CORE、SURVEY、FIX_RUN 裁剪前全文做 SHA-256，取十六进制小写前 12 位。
-     * 改规程 Markdown 会变；只改项目开关不变。
+     * 改规程 Markdown 会变；只改角色 MCP 权限不变指纹部分。
      *
      * @return 12 位十六进制指纹
      */
@@ -106,12 +105,12 @@ public class McpPromptResourceService {
     }
 
     /**
-     * 返回合成规程版本串：源文指纹，再按开关追加 +autowrite、+autorun、+importApis。
-     * 三道都关时仅为 12 位指纹。本地 Skill 文件中的 guideVersion 与本串全等则视为未过期。
+     * 返回合成规程版本串：源文指纹，再按门控追加 +autowrite、+autorun、+importApis。
+     * 写流/跑流/导入均未开启时仅为 12 位指纹。本地 Skill 中 guideVersion 与本串全等则视为未过期。
      *
-     * @param autoWriteEnabled  是否开启「允许 MCP 自动写流」
-     * @param autorunEnabled    是否开启「允许 MCP 自动跑流」
-     * @param importApisEnabled 是否开启「允许 MCP 导入接口」
+     * @param autoWriteEnabled  角色是否具备 mcp:flow:write
+     * @param autorunEnabled    角色是否具备 mcp:run
+     * @param importApisEnabled 角色是否具备 mcp:api:import
      * @return 合成版本串
      */
     public String guideVersion(boolean autoWriteEnabled, boolean autorunEnabled, boolean importApisEnabled) {
@@ -122,7 +121,7 @@ public class McpPromptResourceService {
     /**
      * 按项目门控快照返回合成规程版本串。
      *
-     * @param gates 写流 / 跑流 / 导入三道开关快照；null 按只读
+     * @param gates 成员角色 MCP 门控快照；null 按只读
      * @return 合成版本串
      */
     public String guideVersion(McpProjectGates gates) {
@@ -137,9 +136,9 @@ public class McpPromptResourceService {
      * 用于规程 guideVersion，也用于握手 serverInfo.version。
      *
      * @param base              前缀文本（规程指纹或协议版本号等）
-     * @param autoWriteEnabled  写流开关是否开启
-     * @param autorunEnabled    跑流开关是否开启
-     * @param importApisEnabled 导入开关是否开启
+     * @param autoWriteEnabled  是否具备写流 MCP 权限
+     * @param autorunEnabled    是否具备跑流 MCP 权限
+     * @param importApisEnabled 是否具备导入 MCP 权限
      * @return 带可选后缀的合成串
      */
     public static String appendGateSuffixes(String base, boolean autoWriteEnabled,
@@ -161,7 +160,7 @@ public class McpPromptResourceService {
      * 按项目门控快照追加门控后缀。
      *
      * @param base  前缀文本
-     * @param gates 写流 / 跑流 / 导入三道开关快照；null 按只读
+     * @param gates 成员角色 MCP 门控快照；null 按只读
      * @return 带可选后缀的合成串
      */
     public static String appendGateSuffixes(String base, McpProjectGates gates) {
@@ -172,14 +171,14 @@ public class McpPromptResourceService {
     }
 
     /**
-     * 按三道开关裁剪 Markdown 正文。
-     * 关写流：删除 mcp:autowrite 整块；关跑流：删除 mcp:autorun 整块；关导入：删除 mcp:import 整块；
-     * 开着的块只去掉起止注释行，保留中间文字；再压缩多余空行。
+     * 按 MCP 门控裁剪 Markdown 正文。
+     * 无写流权限：删除 mcp:autowrite 整块；无跑流权限：删除 mcp:autorun 整块；无导入权限：删除 mcp:import 整块；
+     * 保留的块只去掉起止注释行，保留中间文字；再压缩多余空行。
      *
      * @param markdown          含门控注释块的源文，可空
-     * @param autoWriteEnabled  写流开关是否开启
-     * @param autorunEnabled    跑流开关是否开启
-     * @param importApisEnabled 导入开关是否开启
+     * @param autoWriteEnabled  是否具备写流 MCP 权限
+     * @param autorunEnabled    是否具备跑流 MCP 权限
+     * @param importApisEnabled 是否具备导入 MCP 权限
      * @return 裁剪后正文（末尾补换行）；入参 null 时返回空串
      */
     static String applyGates(String markdown, boolean autoWriteEnabled,
@@ -217,13 +216,13 @@ public class McpPromptResourceService {
     }
 
     /**
-     * 按 Prompt 名称返回 prompts/get 载荷；正文按三道开关裁剪。
+     * 按 Prompt 名称返回 prompts/get 载荷；正文按 MCP 门控裁剪。
      * 未知名称或名称为空时抛业务异常。
      *
      * @param name              Prompt 名
-     * @param autoWriteEnabled  写流开关是否开启
-     * @param autorunEnabled    跑流开关是否开启
-     * @param importApisEnabled 导入开关是否开启
+     * @param autoWriteEnabled  是否具备写流 MCP 权限
+     * @param autorunEnabled    是否具备跑流 MCP 权限
+     * @param importApisEnabled 是否具备导入 MCP 权限
      * @return 含 description 与 messages 的载荷
      */
     public Map<String, Object> getPrompt(String name, boolean autoWriteEnabled,
@@ -249,7 +248,7 @@ public class McpPromptResourceService {
      * 按 Prompt 名称与项目门控快照返回 prompts/get 载荷。
      *
      * @param name  Prompt 名
-     * @param gates 写流 / 跑流 / 导入三道开关快照；null 按只读
+     * @param gates 成员角色 MCP 门控快照；null 按只读
      * @return 含 description 与 messages 的载荷
      */
     public Map<String, Object> getPrompt(String name, McpProjectGates gates) {
@@ -278,9 +277,9 @@ public class McpPromptResourceService {
      * 仅支持造流硬规矩那一条 URI；其它或空 URI 抛业务异常。
      *
      * @param uri               资源地址
-     * @param autoWriteEnabled  写流开关是否开启
-     * @param autorunEnabled    跑流开关是否开启
-     * @param importApisEnabled 导入开关是否开启
+     * @param autoWriteEnabled  是否具备写流 MCP 权限
+     * @param autorunEnabled    是否具备跑流 MCP 权限
+     * @param importApisEnabled 是否具备导入 MCP 权限
      * @return 含 contents 数组的载荷
      */
     public Map<String, Object> readResource(String uri, boolean autoWriteEnabled,
@@ -303,7 +302,7 @@ public class McpPromptResourceService {
      * 按 URI 与项目门控快照返回 resources/read 载荷。
      *
      * @param uri   资源地址
-     * @param gates 写流 / 跑流 / 导入三道开关快照；null 按只读
+     * @param gates 成员角色 MCP 门控快照；null 按只读
      * @return 含 contents 数组的载荷
      */
     public Map<String, Object> readResource(String uri, McpProjectGates gates) {
@@ -316,9 +315,9 @@ public class McpPromptResourceService {
     /**
      * 返回按开关裁剪后的造流硬规矩正文（供 Web 各编辑器规程拼接）。
      *
-     * @param autoWriteEnabled  写流开关是否开启
-     * @param autorunEnabled    跑流开关是否开启
-     * @param importApisEnabled 导入开关是否开启
+     * @param autoWriteEnabled  是否具备写流 MCP 权限
+     * @param autorunEnabled    是否具备跑流 MCP 权限
+     * @param importApisEnabled 是否具备导入 MCP 权限
      * @return 裁剪后的造流硬规矩 Markdown
      */
     public String loadCoreText(boolean autoWriteEnabled, boolean autorunEnabled, boolean importApisEnabled) {
@@ -340,9 +339,9 @@ public class McpPromptResourceService {
      * 组装完整 Cursor Skill 文件内容：
      * 按开关改写 YAML description、写入合成 guideVersion，再接上裁剪后的造流硬规矩正文。
      *
-     * @param autoWriteEnabled  写流开关是否开启
-     * @param autorunEnabled    跑流开关是否开启
-     * @param importApisEnabled 导入开关是否开启
+     * @param autoWriteEnabled  是否具备写流 MCP 权限
+     * @param autorunEnabled    是否具备跑流 MCP 权限
+     * @param importApisEnabled 是否具备导入 MCP 权限
      * @return 可保存为 SKILL.md 的完整 Markdown
      */
     public String loadCursorSkillText(boolean autoWriteEnabled, boolean autorunEnabled,
@@ -359,9 +358,9 @@ public class McpPromptResourceService {
      * 按开关重写 Skill YAML 中的 description 字段，只保留当前已开通能力相关的唤醒词。
      *
      * @param frontmatter       原始 YAML 头
-     * @param autoWriteEnabled  写流开关是否开启
-     * @param autorunEnabled    跑流开关是否开启
-     * @param importApisEnabled 导入开关是否开启
+     * @param autoWriteEnabled  是否具备写流 MCP 权限
+     * @param autorunEnabled    是否具备跑流 MCP 权限
+     * @param importApisEnabled 是否具备导入 MCP 权限
      * @return 改写 description 后的 YAML 头；无 description 字段则原样返回
      */
     static String applySkillFrontmatterGates(String frontmatter, boolean autoWriteEnabled,
@@ -385,9 +384,9 @@ public class McpPromptResourceService {
      * 按开关拼出 Skill description 纯文本（不含 YAML 缩进）。
      * 开写流时带上改流相关词；开跑流时带上跑通相关词；开导入时带上导入相关词。
      *
-     * @param autoWriteEnabled  写流开关是否开启
-     * @param autorunEnabled    跑流开关是否开启
-     * @param importApisEnabled 导入开关是否开启
+     * @param autoWriteEnabled  是否具备写流 MCP 权限
+     * @param autorunEnabled    是否具备跑流 MCP 权限
+     * @param importApisEnabled 是否具备导入 MCP 权限
      * @return description 正文
      */
     static String buildSkillDescription(boolean autoWriteEnabled, boolean autorunEnabled,

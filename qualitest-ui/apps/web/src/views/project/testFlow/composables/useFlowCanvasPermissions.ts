@@ -5,27 +5,55 @@ import { checkPermi } from '@/utils/permission';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 
 /**
- * 测试流画布页的编辑 / AI 权限。
+ * 测试流画布能力开关：编辑、造流 AI、执行、导出。
  *
- * - 普通项目画布：按 project:testProject:* 权限判断能否改图、用 AI
- * - 项目模板预制流画布（canvasMode=template）：一律不可编辑、不可用 AI（只能看）
+ * 真实项目流：先校验系统菜单权限，再校验项目成员权限（编辑流、造流 AI、执行流、查看流）；
+ * 项目权限尚未加载完成时暂时放行，减轻顶栏按钮闪断。
+ * 模板预制流只读，上述能力均为不可用。
  */
 export function useFlowCanvasPermissions() {
   const store = useFlowCanvasStore();
   /** 是否处于模板预制流画布 */
   const isTemplate = computed(() => store.canvasMode === 'template');
 
-  /** 是否允许打开 AI 设计：模板画布永远 false */
+  const caps = computed(() => new Set(store.capabilities || []));
+
+  /** 是否允许打开造流 AI；模板画布不可用 */
   const canUseAiDesign = computed(() => {
     if (isTemplate.value) return false;
-    return checkPermi(['project:testProject:query']);
+    if (!checkPermi(['project:testProject:query'])) return false;
+    // 项目权限未加载完时先放行，加载后要求具备造流 AI 权限
+    if (!store.capabilitiesLoaded) return true;
+    return caps.value.has('ai:flow:design');
   });
 
-  /** 是否允许改图 / 保存：模板画布永远 false */
+  /** 是否允许改图与保存；模板画布不可用 */
   const canEditFlow = computed(() => {
     if (isTemplate.value) return false;
-    return checkPermi(['project:testProject:edit']);
+    if (!checkPermi(['project:testProject:edit'])) return false;
+    if (!store.capabilitiesLoaded) return true;
+    return caps.value.has('flow:edit');
   });
 
-  return { canUseAiDesign, canEditFlow, isTemplateCanvas: isTemplate };
+  /** 是否允许执行或停止场景 */
+  const canRunFlow = computed(() => {
+    if (isTemplate.value) return false;
+    if (!store.capabilitiesLoaded) return true;
+    return caps.value.has('flow:run');
+  });
+
+  /** 是否允许导出图（按查看测试流权限） */
+  const canExportFlow = computed(() => {
+    if (isTemplate.value) return false;
+    if (!store.capabilitiesLoaded) return true;
+    return caps.value.has('flow:view');
+  });
+
+  return {
+    canUseAiDesign,
+    canEditFlow,
+    canRunFlow,
+    canExportFlow,
+    isTemplateCanvas: isTemplate,
+  };
 }
