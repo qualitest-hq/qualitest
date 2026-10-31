@@ -6,7 +6,7 @@
 #   ./scripts/quick-start.sh -h        # 显示本说明
 #
 # 说明：从任意目录调用即可（脚本会切到仓库根）；依赖 Docker Engine/Desktop + Compose V2
-# 靶场 / RustFS：见独立仓 qualitest-demo
+# 靶场 / RustFS：见独立仓 qualitest-demo-mall
 set -euo pipefail
 
 usage() {
@@ -18,7 +18,7 @@ usage() {
 仅依赖:     ./scripts/dev-deps-up.sh （停：./scripts/dev-deps-down.sh）
 停止全栈:   docker compose down
 本地重建:   docker compose up -d --build
-靶场/RustFS: 独立仓 qualitest-demo（另起 Compose；本仓无 --profile demo）
+靶场/RustFS: 独立仓 qualitest-demo-mall（另起 Compose；本仓无 --profile demo）
 EOF
 }
 
@@ -82,5 +82,5 @@ echo " 浏览器打开: http://localhost:${WEB_PORT}"
 echo " 默认账号:   admin / admin123"
 echo " 停止:       docker compose down"
 echo " 仅依赖:     ./scripts/dev-deps-up.sh"
-echo " 靶场/RustFS: 见 qualitest-demo（另起 Compose；本仓无 --profile demo）"
+echo " 靶场/RustFS: 见 qualitest-demo-mall（另起 Compose；本仓无 --profile demo）"
 echo "=============================================="

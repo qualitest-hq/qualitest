@@ -226,4 +226,4 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 4. **兜底**：签名、动态拼装 → Script；保持脚本短小、可测。
 5. **破坏性写**：开 `snapshotBefore` + 环境允许还原；并行勿抢同一环境。
 
-更多：[project-summary.md](./project-summary.md) · [ai-staging.md](./ai-staging.md) · [flow-variables-and-values.md](./flow-variables-and-values.md) · [deploy.md](./deploy.md) · [mcp.md](./mcp.md) · [Demo AI 提示集](../../qualitest-demo/docs/ai-test-flow-prompts.md)
+更多：[project-summary.md](./project-summary.md) · [ai-staging.md](./ai-staging.md) · [flow-variables-and-values.md](./flow-variables-and-values.md) · [deploy.md](./deploy.md) · [mcp.md](./mcp.md) · [Demo AI 提示集](../../qualitest-demo-mall/docs/ai-test-flow-prompts.md)

@@ -6,8 +6,8 @@ contact_links:
   - name: 部署与快速开始
     url: https://github.com/qualitest-hq/qualitest/blob/main/docs/deploy.md
     about: Compose / 本机启动、端口与环境变量先看 deploy 文档
-  - name: 接口靶场 qualitest-demo
-    url: https://github.com/qualitest-hq/qualitest-demo/issues
+  - name: 接口靶场 qualitest-demo-mall
+    url: https://github.com/qualitest-hq/qualitest-demo-mall/issues
     about: demo / test-support 相关问题请到靶场仓库提
   - name: IDEA 插件
     url: https://github.com/qualitest-hq/qualitest-intellij-plugin/issues

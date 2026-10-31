@@ -45,7 +45,7 @@ flowchart LR
 
 | ID | 方向 | 说明 |
 | -- | ---- | ---- |
-| 6.1 | 可私有化的垂直造流模型 | **产出**是一份可部署的微调权重（约 7B～14B 开源基座 + LoRA/SFT），接现有 AI 通道，服务内网与调用成本；不替代多模型接入，也不是从零预训练。**训练集**来自真实造流/修流：用户意图 → 调了哪些工具、提交了什么改图 → Staging/校验失败后再改到通过。时间未定。 |
+| 6.1 | 可私有化的垂直造流模型 | **产出**是一份可部署的微调权重（约 7B～14B 开源基座 + LoRA/SFT），接现有 AI 通道，服务内网与调用成本；不替代多模型接入，也不是从零预训练。**训练集**来自真实造流/修流：用户意图 → 调了哪些工具、提交了什么改图 → Staging/校验失败后再改到通过。时间未定。靶场以 [`qualitest-demo-mall`](https://github.com/qualitest-hq/qualitest-demo-mall) 为主。 |
 
 ---
 
@@ -120,7 +120,7 @@ flowchart LR
 
 | 仓库 | 策略 |
 | ---- | ---- |
-| `qualitest` / `qualitest-demo` | semver；**不发** GitHub Release / 根目录 CHANGELOG |
+| `qualitest` / `qualitest-demo-mall` | semver；**不发** GitHub Release / 根目录 CHANGELOG |
 | `qualitest-intellij-plugin` | 独立 semver；Release 附 ZIP；`changeNotes` 在 Gradle；首发 `v1.0.0`；修 BUG 升 PATCH |
 
 ---
@@ -130,5 +130,5 @@ flowchart LR
 | 仓库 | 端口 | GitHub | Gitee（只读镜像） |
 | ---- | ---- | ------ | ----------------- |
 | qualitest | Web / API **5180** / **8800**；MySQL / Redis **3306** / **6379** | [GitHub](https://github.com/qualitest-hq/qualitest) | [Gitee](https://gitee.com/qualitest-hq/qualitest) |
-| qualitest-demo | API **8801**；Compose UI **5181** | [GitHub](https://github.com/qualitest-hq/qualitest-demo) | [Gitee](https://gitee.com/qualitest-hq/qualitest-demo) |
+| qualitest-demo-mall | API **8801**；Compose UI **5181** | [GitHub](https://github.com/qualitest-hq/qualitest-demo-mall) | [Gitee](https://gitee.com/qualitest-hq/qualitest-demo-mall) |
 | qualitest-intellij-plugin | — | [GitHub](https://github.com/qualitest-hq/qualitest-intellij-plugin) | [Gitee](https://gitee.com/qualitest-hq/qualitest-intellij-plugin) |

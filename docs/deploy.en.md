@@ -17,7 +17,7 @@ CI builds **`docker-app` / `docker-web` images (build only, no push)** when Dock
 
 To use GHCR, set `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq` in `.env`. `quick-start` tries Aliyun, then GHCR, then a local `--build`.
 
-**The demo target is not in this repo’s Compose** (no `--profile demo` mixed stack). To run the shop demo, clone [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) and start it with its own [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` (Aliyun `qualitest-demo-app|web|mysql` by default). Most users only need this repo to try Qualitest.
+**The demo target is not in this repo’s Compose** (no `--profile demo` mixed stack). To run the shop demo, clone [qualitest-demo-mall](https://github.com/qualitest-hq/qualitest-demo-mall) and start it with its own [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/deploy.md) / `quick-start` (Aliyun `qualitest-demo-mall-app|web|mysql` by default). Most users only need this repo to try Qualitest.
 
 中文版：[deploy.md](./deploy.md)
 
@@ -125,43 +125,43 @@ When the status line is `HTTP/1.1 200`, open `http://localhost:5180` and sign in
 
 ### 4. Optional: demo target
 
-The demo repo has no Flyway. Import both SQL files into an empty database `qualitest-demo`. It can share the same MySQL and Redis processes (logical DB **11**).
+The demo repo has no Flyway. Import both SQL files into an empty database `qualitest-demo-mall`. It can share the same MySQL and Redis processes (logical DB **11**).
 
 In the MySQL client:
 
 ```sql
-CREATE DATABASE IF NOT EXISTS `qualitest-demo`
+CREATE DATABASE IF NOT EXISTS `qualitest-demo-mall`
   DEFAULT CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 ```
 
-**Linux / macOS / Git Bash** (directory `qualitest-demo`):
+**Linux / macOS / Git Bash** (directory `qualitest-demo-mall`):
 
 ```bash
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
-mysql -uroot -p123456 qualitest-demo < deploy/mysql/docker-entrypoint-initdb.d/01-qualitest-demo.sql
-mysql -uroot -p123456 qualitest-demo < deploy/mysql/docker-entrypoint-initdb.d/02_business_menus.sql
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
+mysql -uroot -p123456 qualitest-demo-mall < deploy/mysql/docker-entrypoint-initdb.d/01-qualitest-demo-mall.sql
+mysql -uroot -p123456 qualitest-demo-mall < deploy/mysql/docker-entrypoint-initdb.d/02_business_menus.sql
 mvn -pl demo-admin -am spring-boot:run -DskipTests
 ```
 
 **Windows PowerShell**
 
 ```powershell
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
-Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo.sql | mysql -uroot -p123456 qualitest-demo
-Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql | mysql -uroot -p123456 qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
+Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo-mall.sql | mysql -uroot -p123456 qualitest-demo-mall
+Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql | mysql -uroot -p123456 qualitest-demo-mall
 mvn -pl demo-admin -am spring-boot:run -DskipTests
 ```
 
 **Windows Command Prompt**
 
 ```bat
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
-mysql -uroot -p123456 qualitest-demo < deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo.sql
-mysql -uroot -p123456 qualitest-demo < deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
+mysql -uroot -p123456 qualitest-demo-mall < deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo-mall.sql
+mysql -uroot -p123456 qualitest-demo-mall < deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql
 mvn -pl demo-admin -am spring-boot:run -DskipTests
 ```
 
@@ -335,8 +335,8 @@ Open a **second terminal** and paste into a **different directory**. Each repo h
 **Linux / macOS / Git Bash**
 
 ```bash
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 chmod +x scripts/quick-start.sh
 ./scripts/quick-start.sh
 ```
@@ -344,20 +344,20 @@ chmod +x scripts/quick-start.sh
 **Windows (PowerShell or Command Prompt)**
 
 ```bat
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 scripts\quick-start.bat
 ```
 
-Mirror: `https://gitee.com/qualitest-hq/qualitest-demo.git`.
+Mirror: `https://gitee.com/qualitest-hq/qualitest-demo-mall.git`.
 
 To skip the script, paste one of these into a **different directory** (pick this or `quick-start`, not both).
 
 **Linux / macOS / Git Bash**
 
 ```bash
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 cp -n .env.example .env
 docker compose pull mysql app web
 docker compose up -d
@@ -368,8 +368,8 @@ curl -fsS -D - -o /dev/null http://localhost:5181/
 **Windows PowerShell**
 
 ```powershell
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 docker compose pull mysql app web
 docker compose up -d
@@ -380,8 +380,8 @@ curl.exe -fsS -D - -o NUL http://localhost:5181/
 **Windows Command Prompt**
 
 ```bat
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 if not exist .env copy /Y .env.example .env
 docker compose pull mysql app web
 docker compose up -d
@@ -389,7 +389,7 @@ docker compose ps
 curl.exe -fsS -D - -o NUL http://localhost:5181/
 ```
 
-If `pull` fails, run `docker compose up -d --build` in `qualitest-demo`. `qualitest-demo-web` Up and `HTTP/1.1 200` from `http://localhost:5181/` means the demo UI is ready.
+If `pull` fails, run `docker compose up -d --build` in `qualitest-demo-mall`. `qualitest-demo-mall-web` Up and `HTTP/1.1 200` from `http://localhost:5181/` means the demo UI is ready.
 
 | Item | URL |
 |------|-----|
@@ -405,7 +405,7 @@ http://host.docker.internal:8801
 
 `app` already has `extra_hosts: host.docker.internal:host-gateway`, so this URL works on Windows, macOS, and Linux. Save, send one demo request from the console, and a **200** means the two stacks are wired. If you changed demo `APP_PORT`, use that port here.
 
-If demo host ports (5181 / 8801 / 3307 / 6380) are busy, edit `WEB_PORT` / `APP_PORT` / `MYSQL_PORT` / `REDIS_PORT` in `qualitest-demo/.env`, then `docker compose up -d`.
+If demo host ports (5181 / 8801 / 3307 / 6380) are busy, edit `WEB_PORT` / `APP_PORT` / `MYSQL_PORT` / `REDIS_PORT` in `qualitest-demo-mall/.env`, then `docker compose up -d`.
 
 ### 5. Stop
 
@@ -699,7 +699,7 @@ Local: `cd site && pnpm install && pnpm build && pnpm preview` → `http://127.0
 - [`.env.example`](../.env.example)
 - [`application-docker.yml`](../qualitest-admin/src/main/resources/application-docker.yml)
 - Migrations: [`qualitest-admin/.../db/migration/`](../qualitest-admin/src/main/resources/db/migration/)
-- Demo deploy: [qualitest-demo/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)
+- Demo deploy: [qualitest-demo-mall/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/deploy.md)
 
 ---
 

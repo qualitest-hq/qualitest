@@ -112,7 +112,7 @@ You focus on **what** to test; the platform cuts the busywork.
 | Repo | Role | GitHub | Gitee (read-only mirror) |
 |:-----|:-----|:-------|:-------------------------|
 | **This repo** | Platform + Web (`qualitest-ui/`) | [qualitest](https://github.com/qualitest-hq/qualitest) | [qualitest](https://gitee.com/qualitest-hq/qualitest) |
-| qualitest-demo | Optional shop API target for demos | [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | [qualitest-demo](https://gitee.com/qualitest-hq/qualitest-demo) |
+| qualitest-demo-mall | Optional shop API target for demos | [qualitest-demo-mall](https://github.com/qualitest-hq/qualitest-demo-mall) | [qualitest-demo-mall](https://gitee.com/qualitest-hq/qualitest-demo-mall) |
 | qualitest-intellij-plugin | IDEA plugin: Java Controllers → platform (optional; other stacks use MCP `import_apis`) | [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | [qualitest-intellij-plugin](https://gitee.com/qualitest-hq/qualitest-intellij-plugin) |
 
 > **Hosting**: GitHub is canonical (Issues / PRs / Releases / CI). Gitee is a China-friendly read-only mirror — do not push to the mirror.
@@ -162,7 +162,7 @@ Build order, branches, and multi-API chains on a canvas. Fold login / OAuth into
 
 Describe intent in natural language — suggestions use **this project’s real APIs**. **Preview the Diff, then merge** — nothing silently rewrites your canvas.
 
-→ Demo prompts: [AI test-flow prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
+→ Demo prompts: [AI test-flow prompts](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/ai-test-flow-prompts.md)
 
 </td>
 </tr>
@@ -197,7 +197,7 @@ Invite members and assign roles per project. Issue separate Tokens for the plugi
 
 Full walkthrough video (~3.5 min, Bilibili, Chinese): [Qualitest — test APIs end-to-end in Cursor](https://www.bilibili.com/video/BV1hSHW6kERG/)
 
-Prefer [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) as the SUT; Java sync is optional via [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin).
+Prefer [qualitest-demo-mall](https://github.com/qualitest-hq/qualitest-demo-mall) as the SUT; Java sync is optional via [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin).
 
 ### API console
 
@@ -217,7 +217,7 @@ Drag HTTP / assert / condition / subflow nodes → wire edges → run; expand th
 
 ### AI design
 
-Open the AI panel beside a flow, describe intent (e.g. “retry after login failure”) → **preview Diff, then merge**. Demo prompts: [AI test-flow prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) (needs an admin-configured model; skip if you have no key).
+Open the AI panel beside a flow, describe intent (e.g. “retry after login failure”) → **preview Diff, then merge**. Demo prompts: [AI test-flow prompts](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/ai-test-flow-prompts.md) (needs an admin-configured model; skip if you have no key).
 
 <p align="center">
   <img src="./docs/images/ai-diff.gif" alt="AI flow edit: stop at Diff, merge only after confirm" width="960" />
@@ -276,7 +276,7 @@ Compose defaults to Aliyun (anonymous pull):
 
 GHCR copies: [qualitest-app](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-app) · [qualitest-web](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-web). Switch back: `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq` in `.env`. Details: [deploy.en.md](./docs/deploy.en.md)
 
-Full loop (demo target + API ingest + AI / MCP): see [Deploy](./docs/deploy.en.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [MCP](./docs/mcp.en.md) · [IDEA plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) (optional for Java).
+Full loop (demo target + API ingest + AI / MCP): see [Deploy](./docs/deploy.en.md) · [qualitest-demo-mall](https://github.com/qualitest-hq/qualitest-demo-mall) · [MCP](./docs/mcp.en.md) · [IDEA plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) (optional for Java).
 
 <details>
 <summary>More docs</summary>

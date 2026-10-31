@@ -93,10 +93,10 @@ export const ui = {
         giteeHref: "https://gitee.com/qualitest-hq/qualitest",
       },
       {
-        name: "qualitest-demo",
+        name: "qualitest-demo-mall",
         role: "接口靶场 · 独立 Compose",
-        href: "https://github.com/qualitest-hq/qualitest-demo",
-        giteeHref: "https://gitee.com/qualitest-hq/qualitest-demo",
+        href: "https://github.com/qualitest-hq/qualitest-demo-mall",
+        giteeHref: "https://gitee.com/qualitest-hq/qualitest-demo-mall",
       },
       {
         name: "qualitest-intellij-plugin",
@@ -196,10 +196,10 @@ export const ui = {
         giteeHref: "https://gitee.com/qualitest-hq/qualitest",
       },
       {
-        name: "qualitest-demo",
+        name: "qualitest-demo-mall",
         role: "API demo target · own Compose",
-        href: "https://github.com/qualitest-hq/qualitest-demo",
-        giteeHref: "https://gitee.com/qualitest-hq/qualitest-demo",
+        href: "https://github.com/qualitest-hq/qualitest-demo-mall",
+        giteeHref: "https://gitee.com/qualitest-hq/qualitest-demo-mall",
       },
       {
         name: "qualitest-intellij-plugin",

@@ -4,7 +4,7 @@ REM 用法：
 REM   scripts\quick-start.bat           优先拉阿里云，失败则 GHCR，再失败则本地构建
 REM   scripts\quick-start.bat -h        显示本说明
 REM 说明：从任意目录调用即可（脚本会切到仓库根）；依赖 Docker Desktop + Compose V2
-REM 靶场 / RustFS：独立仓 qualitest-demo 另起 Compose（本仓无 --profile demo）
+REM 靶场 / RustFS：独立仓 qualitest-demo-mall 另起 Compose（本仓无 --profile demo）
 chcp 65001 >nul
 setlocal
 cd /d "%~dp0.."
@@ -71,7 +71,7 @@ echo  浏览器打开: http://localhost:%WEB_PORT%
 echo  默认账号:   admin / admin123
 echo  停止:       docker compose down
 echo  仅依赖:     scripts\dev-deps-up.bat
-echo  靶场/RustFS: 见 qualitest-demo（另起 Compose；本仓无 --profile demo）
+echo  靶场/RustFS: 见 qualitest-demo-mall（另起 Compose；本仓无 --profile demo）
 echo ==============================================
 endlocal
 exit /b 0
@@ -84,5 +84,5 @@ echo.
 echo 仅依赖:     scripts\dev-deps-up.bat （停：scripts\dev-deps-down.bat）
 echo 停止全栈:   docker compose down
 echo 本地重建:   docker compose up -d --build
-echo 靶场/RustFS: 独立仓 qualitest-demo（另起 Compose；本仓无 --profile demo）
+echo 靶场/RustFS: 独立仓 qualitest-demo-mall（另起 Compose；本仓无 --profile demo）
 exit /b 0

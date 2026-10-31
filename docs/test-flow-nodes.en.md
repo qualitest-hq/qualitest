@@ -158,4 +158,4 @@ Platform **subflow templates** (login / OAuth / captcha, …) can be forked and 
 4. **Escape hatch:** signing / dynamic assembly → Script; keep scripts short and testable.
 5. **Destructive writes:** `snapshotBefore` + env allows restore; don’t parallelize the same env.
 
-See also: [project-summary.en.md](./project-summary.en.md) · [ai-staging.en.md](./ai-staging.en.md) · [flow-variables-and-values.en.md](./flow-variables-and-values.en.md) · [deploy.en.md](./deploy.en.md) · [mcp.en.md](./mcp.en.md) · [demo AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
+See also: [project-summary.en.md](./project-summary.en.md) · [ai-staging.en.md](./ai-staging.en.md) · [flow-variables-and-values.en.md](./flow-variables-and-values.en.md) · [deploy.en.md](./deploy.en.md) · [mcp.en.md](./mcp.en.md) · [demo AI prompts](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/ai-test-flow-prompts.md).

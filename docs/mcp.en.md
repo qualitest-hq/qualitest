@@ -177,7 +177,7 @@ Via qualitest MCP, for each auth Profile in this project, create a probe-then-lo
 - A Token is a project credential: keep it out of Git and screenshots; rotate in Project settings if leaked.
 - MCP is **read-only by default**; graph write vs API import are controlled by two Project switches (not Token “scopes”). Staging rules: [ai-staging.en.md](./ai-staging.en.md). Stuck: [faq.en.md](./faq.en.md).
 - Without MCP write: Project Settings → copy **testable prompts** (incremental / full) into Cursor, then paste short prompts back into Web AI.
-- Demo target + NL flow prompts: [qualitest-demo · AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md).
+- Demo target + NL flow prompts: [qualitest-demo-mall · AI prompts](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/ai-test-flow-prompts.md).
 
 ---
 

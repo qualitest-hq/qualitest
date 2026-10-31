@@ -17,7 +17,7 @@ CI：改 Dockerfile / 前后端相关路径时，GitHub Actions 会跑 **`docker
 
 改回 GHCR：`.env` 设 `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq`。`quick-start` 先拉阿里云，失败再试 GHCR，再失败才本地构建。
 
-**靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md) / `quick-start` **单独启动**（默认阿里云 `qualitest-demo-app|web|mysql`）。一般人只起本仓即可体验质衡。
+**靶场不在本仓 Compose 内**（不做 `--profile demo` 混栈）。需要演示靶场时另 clone 独立仓 [qualitest-demo-mall](https://github.com/qualitest-hq/qualitest-demo-mall)，按其 [docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/deploy.md) / `quick-start` **单独启动**（默认阿里云 `qualitest-demo-mall-app|web|mysql`）。一般人只起本仓即可体验质衡。
 
 English: [deploy.en.md](./deploy.en.md)
 
@@ -125,43 +125,43 @@ curl.exe -fsS -D - -o NUL http://127.0.0.1:8800/captchaImage
 
 ### 4. 可选：再起靶场
 
-靶场没有 Flyway，必须把两份 SQL 导入空库 `qualitest-demo`。可以和质衡共用这一台 MySQL、这一台 Redis（逻辑库自动用 **11**）。
+靶场没有 Flyway，必须把两份 SQL 导入空库 `qualitest-demo-mall`。可以和质衡共用这一台 MySQL、这一台 Redis（逻辑库自动用 **11**）。
 
 建库（仍在 MySQL 客户端）：
 
 ```sql
-CREATE DATABASE IF NOT EXISTS `qualitest-demo`
+CREATE DATABASE IF NOT EXISTS `qualitest-demo-mall`
   DEFAULT CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 ```
 
-**Linux / macOS / Git Bash**（在 `qualitest-demo` 目录）：
+**Linux / macOS / Git Bash**（在 `qualitest-demo-mall` 目录）：
 
 ```bash
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
-mysql -uroot -p123456 qualitest-demo < deploy/mysql/docker-entrypoint-initdb.d/01-qualitest-demo.sql
-mysql -uroot -p123456 qualitest-demo < deploy/mysql/docker-entrypoint-initdb.d/02_business_menus.sql
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
+mysql -uroot -p123456 qualitest-demo-mall < deploy/mysql/docker-entrypoint-initdb.d/01-qualitest-demo-mall.sql
+mysql -uroot -p123456 qualitest-demo-mall < deploy/mysql/docker-entrypoint-initdb.d/02_business_menus.sql
 mvn -pl demo-admin -am spring-boot:run -DskipTests
 ```
 
 **Windows PowerShell**
 
 ```powershell
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
-Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo.sql | mysql -uroot -p123456 qualitest-demo
-Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql | mysql -uroot -p123456 qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
+Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo-mall.sql | mysql -uroot -p123456 qualitest-demo-mall
+Get-Content -Raw deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql | mysql -uroot -p123456 qualitest-demo-mall
 mvn -pl demo-admin -am spring-boot:run -DskipTests
 ```
 
 **Windows 命令提示符**
 
 ```bat
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
-mysql -uroot -p123456 qualitest-demo < deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo.sql
-mysql -uroot -p123456 qualitest-demo < deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
+mysql -uroot -p123456 qualitest-demo-mall < deploy\mysql\docker-entrypoint-initdb.d\01-qualitest-demo-mall.sql
+mysql -uroot -p123456 qualitest-demo-mall < deploy\mysql\docker-entrypoint-initdb.d\02_business_menus.sql
 mvn -pl demo-admin -am spring-boot:run -DskipTests
 ```
 
@@ -335,8 +335,8 @@ curl.exe -fsS -D - -o NUL http://localhost:6180/healthz
 **Linux / macOS / Git Bash**
 
 ```bash
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 chmod +x scripts/quick-start.sh
 ./scripts/quick-start.sh
 ```
@@ -344,20 +344,20 @@ chmod +x scripts/quick-start.sh
 **Windows（PowerShell 或命令提示符）**
 
 ```bat
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 scripts\quick-start.bat
 ```
 
-国内镜像：`https://gitee.com/qualitest-hq/qualitest-demo.git`。
+国内镜像：`https://gitee.com/qualitest-hq/qualitest-demo-mall.git`。
 
 不用脚本时，在**另一个目录**整段粘贴（与上面的 `quick-start` 二选一）。
 
 **Linux / macOS / Git Bash**
 
 ```bash
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 cp -n .env.example .env
 docker compose pull mysql app web
 docker compose up -d
@@ -368,8 +368,8 @@ curl -fsS -D - -o /dev/null http://localhost:5181/
 **Windows PowerShell**
 
 ```powershell
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 docker compose pull mysql app web
 docker compose up -d
@@ -380,8 +380,8 @@ curl.exe -fsS -D - -o NUL http://localhost:5181/
 **Windows 命令提示符**
 
 ```bat
-git clone https://github.com/qualitest-hq/qualitest-demo.git
-cd qualitest-demo
+git clone https://github.com/qualitest-hq/qualitest-demo-mall.git
+cd qualitest-demo-mall
 if not exist .env copy /Y .env.example .env
 docker compose pull mysql app web
 docker compose up -d
@@ -389,7 +389,7 @@ docker compose ps
 curl.exe -fsS -D - -o NUL http://localhost:5181/
 ```
 
-`pull` 失败时在 `qualitest-demo` 目录执行 `docker compose up -d --build`。`qualitest-demo-web` 为 Up，且 `http://localhost:5181/` 响应头为 `HTTP/1.1 200` 即可。
+`pull` 失败时在 `qualitest-demo-mall` 目录执行 `docker compose up -d --build`。`qualitest-demo-mall-web` 为 Up，且 `http://localhost:5181/` 响应头为 `HTTP/1.1 200` 即可。
 
 | 项 | 地址 |
 |----|------|
@@ -405,7 +405,7 @@ http://host.docker.internal:8801
 
 `app` 已配置 `extra_hosts: host.docker.internal:host-gateway`，Windows、macOS、Linux 都用这一行。保存后在调试台发一条靶场接口，返回 200 即联调成功。靶场端口若改过 `APP_PORT`，这里的 `8801` 一起改。
 
-靶场宿主机端口（5181 / 8801 / 3307 / 6380）被占用时，在 `qualitest-demo/.env` 改 `WEB_PORT` / `APP_PORT` / `MYSQL_PORT` / `REDIS_PORT`，再执行 `docker compose up -d`。
+靶场宿主机端口（5181 / 8801 / 3307 / 6380）被占用时，在 `qualitest-demo-mall/.env` 改 `WEB_PORT` / `APP_PORT` / `MYSQL_PORT` / `REDIS_PORT`，再执行 `docker compose up -d`。
 
 ### 5. 停机
 
@@ -698,7 +698,7 @@ docker compose up -d --build # 改代码、Dockerfile，或 GHCR 拉取失败时
 - [`.env.example`](../.env.example)
 - [`application-docker.yml`](../qualitest-admin/src/main/resources/application-docker.yml)
 - 迁移脚本：[`qualitest-admin/.../db/migration/`](../qualitest-admin/src/main/resources/db/migration/)
-- 靶场部署：[qualitest-demo/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/deploy.md)
+- 靶场部署：[qualitest-demo-mall/docs/deploy.md](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/deploy.md)
 
 ---
 

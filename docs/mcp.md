@@ -200,7 +200,7 @@ testFlowId 用 <上一步拿到的 id>。
 - Token 等同项目凭证：勿提交进 Git / 截图外传；泄露后立即在项目设置刷新。
 - MCP **默认只读**；写流与导入接口由项目设置两道独立开关控制（不由 Token「权限」区分）。落盘规则见 [ai-staging.md](./ai-staging.md)。卡住见 [faq.md](./faq.md)。
 - 未开 MCP 写权限时：顶栏「MCP 造流 Agent 规程」可复制单功能 / 整项目提示词贴到 Cursor，汇总短提示后再贴回 Web 造流。
-- 靶场联调、自然语言造流示例见：[qualitest-demo · AI 提示集](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)。
+- 靶场联调、自然语言造流示例见：[qualitest-demo-mall · AI 提示集](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/ai-test-flow-prompts.md)。
 - IDEA / OpenAPI 同步后：检查登录口（`/login`、`/api/account/auth/login` 等）资产的 `auth.mode` 应为 `none`；若仍为 `inherit`，造流可能误补托管 Bearer。存量可用 `sql/fix_anonymous_auth_builtin_paths.sql` 预览后修复。
 
 ---

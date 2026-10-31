@@ -1,4 +1,4 @@
-# 质衡主仓 CI（不依赖 qualitest-demo）
+# 质衡主仓 CI（不依赖 qualitest-demo-mall）
 # 触发：push / PR 到 main；按路径只跑相关 Job
 #
 # - 仅 docs / 社区文件等：detect-changes 后各 Job 跳过

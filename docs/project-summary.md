@@ -12,7 +12,7 @@
 | 目录                           | 角色                                         |
 | ---------------------------- | ------------------------------------------ |
 | `qualitest/`                 | 主平台后端（Spring Boot）+ `qualitest-ui/` 前端 SPA |
-| `qualitest-demo/`            | 可选商城接口靶场（独立 Compose；`/test-support` 快照样板）  |
+| `qualitest-demo-mall/`            | 可选商城接口靶场（独立 Compose；`/test-support` 快照样板）  |
 | `qualitest-intellij-plugin/` | IDEA 插件：扫描 Java Controller → 上传（可选；其它栈用 MCP `import_apis`） |
 
 
@@ -143,7 +143,7 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 
 | 主题      | 口径                                                     |
 | ------- | ------------------------------------------------------ |
-| 提示词三层   | **平台**造流动词 · **项目芯片**可选（鉴权模板 `template_prompts` 默认可为空；**不**内置靶场业务步骤）· **接口** `designHints` 仅短提示；商城业务正文与测值见 demo [ai-test-flow-prompts.md](../../qualitest-demo/docs/ai-test-flow-prompts.md)，勿再写登录句 |
+| 提示词三层   | **平台**造流动词 · **项目芯片**可选（鉴权模板 `template_prompts` 默认可为空；**不**内置靶场业务步骤）· **接口** `designHints` 仅短提示；商城业务正文与测值见 demo [ai-test-flow-prompts.md](../../qualitest-demo-mall/docs/ai-test-flow-prompts.md)，勿再写登录句 |
 | 造流      | 提示集 + 真实 apiId；长流**新对话 + 短提示**；本轮无 Staging 摘要 = 未落盘；鉴权可 `list_project_auth_profiles` / `upsert_auth_profile`；请求可带 `runRiskWarnings` |
 | Staging | 全部 ✓ 再保存；删除 ✓ 无二次弹窗；MCP 不能 `submit`；半自动素材/鉴权提案须聊天侧确认 |
 | 失败路径    | 「预期业务拒绝」+ 字面量；成功路径才用 `{{asset.*}}`                     |
@@ -171,6 +171,6 @@ HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，
 | [deploy.md](./deploy.md) | 部署 / Compose |
 | [testing-conventions.md](./testing-conventions.md) | 工程测试约定 |
 | [ROADMAP.md](../ROADMAP.md) | 排期与待办 |
-| [Demo AI 提示集](../../qualitest-demo/docs/ai-test-flow-prompts.md) | 靶场造流提示正文 |
+| [Demo AI 提示集](../../qualitest-demo-mall/docs/ai-test-flow-prompts.md) | 靶场造流提示正文 |
 
 

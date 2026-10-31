@@ -9,7 +9,7 @@
 | `main` / 当前稳定线 | 接受安全修复 |
 | 更旧的提交 / 分支 | 视影响面决定是否回溯 |
 
-覆盖本仓库（后端 + `qualitest-ui/`）。靶场 [`qualitest-demo`](https://github.com/qualitest-hq/qualitest-demo)、IDEA 插件 [`qualitest-intellij-plugin`](https://github.com/qualitest-hq/qualitest-intellij-plugin) 的同类问题请在**对应仓库**的 `SECURITY.md` 报告，或一并邮件说明。
+覆盖本仓库（后端 + `qualitest-ui/`）。靶场 [`qualitest-demo-mall`](https://github.com/qualitest-hq/qualitest-demo-mall)、IDEA 插件 [`qualitest-intellij-plugin`](https://github.com/qualitest-hq/qualitest-intellij-plugin) 的同类问题请在**对应仓库**的 `SECURITY.md` 报告，或一并邮件说明。
 
 ## 如何报告
 

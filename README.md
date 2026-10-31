@@ -129,7 +129,7 @@ scripts\quick-start.bat
 | 仓库 | 角色 | GitHub | Gitee（只读镜像） |
 |:-----|:-----|:-------|:------------------|
 | **本仓** | 质衡平台 + Web（`qualitest-ui/`） | [qualitest](https://github.com/qualitest-hq/qualitest) | [qualitest](https://gitee.com/qualitest-hq/qualitest) |
-| qualitest-demo | 可选靶场，零配置体验演示场景 | [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) | [qualitest-demo](https://gitee.com/qualitest-hq/qualitest-demo) |
+| qualitest-demo-mall | 可选靶场，零配置体验演示场景 | [qualitest-demo-mall](https://github.com/qualitest-hq/qualitest-demo-mall) | [qualitest-demo-mall](https://gitee.com/qualitest-hq/qualitest-demo-mall) |
 | qualitest-intellij-plugin | IDEA 插件：Java Controller → 平台（可选；其它栈可用 MCP `import_apis`） | [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin) | [qualitest-intellij-plugin](https://gitee.com/qualitest-hq/qualitest-intellij-plugin) |
 
 > **托管**：GitHub 为主仓（Issue / PR / Release / CI）；Gitee 为国内只读镜像，请勿向镜像提交代码。
@@ -179,7 +179,7 @@ scripts\quick-start.bat
 
 用自然语言描述意图——AI 结合**本项目真实接口**给出修改建议。**先预览 Diff，确认后再合并**，不会悄悄改乱你的流程。
 
-→ 靶场提示集：[AI 测试流提示](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)
+→ 靶场提示集：[AI 测试流提示](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/ai-test-flow-prompts.md)
 
 </td>
 </tr>
@@ -214,7 +214,7 @@ scripts\quick-start.bat
 
 完整演示视频（约 3 分半，B 站）：[质衡 Qualitest｜在 Cursor 里把接口测通](https://www.bilibili.com/video/BV1hSHW6kERG/)
 
-建议以 [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) 为被测；Java 同步可选 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
+建议以 [qualitest-demo-mall](https://github.com/qualitest-hq/qualitest-demo-mall) 为被测；Java 同步可选 [qualitest-intellij-plugin](https://github.com/qualitest-hq/qualitest-intellij-plugin)。
 
 ### 接口调试台
 
@@ -234,7 +234,7 @@ scripts\quick-start.bat
 
 ### AI 辅助设计
 
-在测试流旁打开 AI 面板，用自然语言描述意图（如「登录失败再重试」）→ **先预览 Diff，确认后再合并**。靶场提示集：[AI 测试流提示](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md)（需管理员配置大模型；无 Key 可跳过）。
+在测试流旁打开 AI 面板，用自然语言描述意图（如「登录失败再重试」）→ **先预览 Diff，确认后再合并**。靶场提示集：[AI 测试流提示](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/ai-test-flow-prompts.md)（需管理员配置大模型；无 Key 可跳过）。
 
 <p align="center">
   <img src="./docs/images/ai-diff.gif" alt="AI 辅助改流：停在 Diff、确认后再合并" width="960" />
@@ -293,7 +293,7 @@ Compose 默认阿里云（匿名 pull）：
 
 GHCR 备份：[qualitest-app](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-app) · [qualitest-web](https://github.com/qualitest-hq/qualitest/pkgs/container/qualitest-web)。改回 GHCR：`.env` 设 `QUALITEST_IMAGE_PREFIX=ghcr.io/qualitest-hq`。部署细节见 [deploy.md](./docs/deploy.md)
 
-想完整体验（靶场 + 接口入库 + AI / MCP）：见 [部署说明](./docs/deploy.md) · [qualitest-demo](https://github.com/qualitest-hq/qualitest-demo) · [MCP](./docs/mcp.md) · [IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)（Java 可选）。
+想完整体验（靶场 + 接口入库 + AI / MCP）：见 [部署说明](./docs/deploy.md) · [qualitest-demo-mall](https://github.com/qualitest-hq/qualitest-demo-mall) · [MCP](./docs/mcp.md) · [IDEA 插件](https://github.com/qualitest-hq/qualitest-intellij-plugin)（Java 可选）。
 
 <details>
 <summary>更多文档</summary>

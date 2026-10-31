@@ -11,7 +11,7 @@
 | Path | Role |
 | ---- | ---- |
 | `qualitest/` | Platform backend (Spring Boot) + `qualitest-ui/` SPA |
-| `qualitest-demo/` | Optional shop API target (separate Compose; `/test-support` snapshot sample) |
+| `qualitest-demo-mall/` | Optional shop API target (separate Compose; `/test-support` snapshot sample) |
 | `qualitest-intellij-plugin/` | IDEA plugin: scan Java Controllers → upload (optional; other stacks use MCP `import_apis`) |
 | `qualitest-all/` | Local aggregate workspace (no own Git) |
 
@@ -116,5 +116,5 @@ New chat + short prompt + real api ids for long flows. Staging must clear before
 | [faq.en.md](./faq.en.md) | Day-to-day Q&A (not smoke-test quirks) |
 | [mcp.en.md](./mcp.en.md) | MCP tools; §0 plain-language write/run scenarios (backend & frontend) |
 | [deploy.en.md](./deploy.en.md) | Deploy / Compose |
-| [Demo AI prompts](https://github.com/qualitest-hq/qualitest-demo/blob/main/docs/ai-test-flow-prompts.md) | Target-app flow prompts |
+| [Demo AI prompts](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/ai-test-flow-prompts.md) | Target-app flow prompts |
 | Chinese handbook | [全面测试手册.md](./全面测试手册.md) |
