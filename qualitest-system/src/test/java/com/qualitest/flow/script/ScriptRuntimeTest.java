@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.Signature;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -252,5 +257,75 @@ class ScriptRuntimeTest {
         );
         assertFalse(result.isSuccess());
         assertEquals(FlowErrorCode.TF_SCRIPT_ERROR, result.getErrorCode());
+    }
+
+    /**
+     * 前提：env.privateKey 为 PKCS#8 PEM；JS 用 signContent + rsaSign 签名，xmlStringify 生成报文，xmlParse 读重复节点。
+     * 期望：签名可被原公钥验过；XML 字符串包 CDATA、数字不包；重复节点为数组。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("JS 签名与 XML 报文工具可用")
+    void javascript_signAndXmlTools() throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        KeyPair keyPair = generator.generateKeyPair();
+        String pem = "-----BEGIN PRIVATE KEY-----\n"
+                + Base64.getMimeEncoder().encodeToString(keyPair.getPrivate().getEncoded())
+                + "\n-----END PRIVATE KEY-----";
+        FlowRunContext ctx = FlowRunContext.builder()
+                .env(new HashMap<>(Map.of("privateKey", pem)))
+                .flow(new HashMap<>())
+                .build();
+        String source = """
+                var content = ctx.signContent({ b: '2', a: 1, sign: 'old' });
+                ctx.setFlow('content', content);
+                ctx.setFlow('sign', ctx.rsaSign(content, ctx.getEnv('privateKey')));
+                ctx.setFlow('xml', ctx.xmlStringify({ return_code: 'SUCCESS', total_fee: 1 }));
+                ctx.setFlow('items', ctx.xmlParse('<xml><i>1</i><i>2</i></xml>').i.length);
+                """;
+        ScriptExecutionResult result = runtime.execute(
+                ScriptConstants.LANGUAGE_JAVASCRIPT,
+                source,
+                5000,
+                ctx
+        );
+        assertTrue(result.isSuccess(), result.getErrorMessage());
+        assertEquals("a=1&b=2", ctx.getFlow().get("content"));
+        Signature verifier = Signature.getInstance("SHA256withRSA");
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update("a=1&b=2".getBytes(StandardCharsets.UTF_8));
+        assertTrue(verifier.verify(Base64.getDecoder().decode(String.valueOf(ctx.getFlow().get("sign")))));
+        assertEquals("<xml><return_code><![CDATA[SUCCESS]]></return_code><total_fee>1</total_fee></xml>",
+                ctx.getFlow().get("xml"));
+        assertEquals(2L, ctx.getFlow().get("items"));
+    }
+
+    /**
+     * 前提：Python 以 dict 调 xmlStringify（root=req、cdata=False）与 signContent，并用 sha256 / sm3。
+     * 期望：dict 被识别为对象；XML 与签名原文符合预期；摘要为 64 位 hex。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("Python dict 调用报文与摘要工具")
+    void python_dictTools() {
+        FlowRunContext ctx = FlowRunContext.builder().flow(new HashMap<>()).build();
+        String source = """
+                ctx.setFlow('xml', ctx.xmlStringify({'a': 'x', 'n': 2}, {'root': 'req', 'cdata': False}))
+                ctx.setFlow('content', ctx.signContent({'b': 2, 'a': 'x', 'empty': ''}))
+                ctx.setFlow('sha', ctx.sha256('abc'))
+                ctx.setFlow('sm3', ctx.sm3('abc'))
+                """;
+        ScriptExecutionResult result = runtime.execute(
+                ScriptConstants.LANGUAGE_PYTHON,
+                source,
+                60000,
+                ctx
+        );
+        assertTrue(result.isSuccess(), result.getErrorMessage());
+        assertEquals("<req><a>x</a><n>2</n></req>", ctx.getFlow().get("xml"));
+        assertEquals("a=x&b=2", ctx.getFlow().get("content"));
+        assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", ctx.getFlow().get("sha"));
+        assertEquals("66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0", ctx.getFlow().get("sm3"));
     }
 }

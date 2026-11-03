@@ -4,34 +4,39 @@ import com.alibaba.fastjson2.JSON;
 import com.qualitest.api.params.DebugHttpForwardParams;
 import com.qualitest.api.result.DebugHttpForwardResult;
 import com.qualitest.api.service.IDebugHttpForwardService;
-import com.qualitest.flow.script.ScriptHostContext;
+import com.qualitest.flow.script.ScriptArgs;
 import com.qualitest.flow.script.ScriptValueConverter;
+import com.qualitest.flow.script.tool.ScriptToolMembers;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static com.qualitest.flow.script.ScriptArgs.requireArgs;
 
 /**
  * 注入 API 脚本的 {@code api} 宿主对象（前置/后置脚本共用）。
  * <p>
  * 提供 variables / environment / globals、request（仅前置可写）、response（仅后置可读）、
- * test/expect（仅后置）、sendRequest，以及 jsonParse/jsonStringify、hmacSha256、md5、
- * base64Encode/base64Decode。运行在服务端 GraalJS，无 DOM、无浏览器 btoa/atob。
+ * test/expect（仅后置）、sendRequest，以及 Script 节点同名可用的 JSON、Base64、URL、XML、
+ * 签名原文、摘要、HMAC、RSA、AES、国密 SM2/SM3/SM4 工具函数。运行在服务端 GraalJS，无 DOM、无浏览器 btoa/atob。
  * 改 request.body 必须整对象重赋；嵌套字段赋值不会回写到真实请求。
  */
 public class ApiScriptHost implements ProxyObject {
 
-    private static final Set<String> MEMBERS = Set.of(
-            "variables", "environment", "globals", "request", "response", "info",
-            "test", "expect", "sendRequest",
-            "jsonParse", "jsonStringify", "hmacSha256", "md5", "base64Encode", "base64Decode"
-    );
+    /** api 可见成员：宿主自有对象与方法 + 共用工具函数 */
+    private static final Set<String> MEMBERS = Stream.concat(
+            Stream.of("variables", "environment", "globals", "request", "response", "info",
+                    "test", "expect", "sendRequest"),
+            ScriptToolMembers.names().stream()
+    ).collect(Collectors.toUnmodifiableSet());
 
     private final ApiScriptContext context;
     private final IDebugHttpForwardService forwardService;
@@ -65,33 +70,8 @@ public class ApiScriptHost implements ProxyObject {
             case "test" -> (ProxyExecutable) this::runTest;
             case "expect" -> (ProxyExecutable) args -> ExpectAssertionHost.create(args);
             case "sendRequest" -> (ProxyExecutable) this::sendRequest;
-            case "jsonParse" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "jsonParse");
-                return ScriptValueConverter.jsonParse(args[0].asString());
-            };
-            case "jsonStringify" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "jsonStringify");
-                Object val = args[0].isHostObject() ? args[0].asHostObject() : guestToJava(args[0]);
-                return ScriptValueConverter.jsonStringify(val);
-            };
-            case "hmacSha256" -> (ProxyExecutable) args -> {
-                requireArgs(args, 2, "hmacSha256");
-                return ScriptHostContext.hmacSha256(args[0].asString(), args[1].asString());
-            };
-            case "md5" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "md5");
-                return ScriptHostContext.md5(args[0].asString());
-            };
-            // 编码工具：服务端实现，替代浏览器 btoa/atob
-            case "base64Encode" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "base64Encode");
-                return ScriptHostContext.base64Encode(args[0].asString());
-            };
-            case "base64Decode" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "base64Decode");
-                return ScriptHostContext.base64Decode(args[0].asString());
-            };
-            default -> null;
+            // 其余成员按名称取共用工具函数，未注册返回 null
+            default -> ScriptToolMembers.get(key);
         };
     }
 
@@ -132,7 +112,7 @@ public class ApiScriptHost implements ProxyObject {
         if (forwardService == null) {
             throw new IllegalStateException("sendRequest 不可用");
         }
-        Object raw = args[0].isHostObject() ? args[0].asHostObject() : guestToJava(args[0]);
+        Object raw = ScriptValueConverter.guestToJava(args[0]);
         if (!(raw instanceof Map<?, ?> opts)) {
             throw new IllegalArgumentException("sendRequest 参数必须是对象");
         }
@@ -206,43 +186,6 @@ public class ApiScriptHost implements ProxyObject {
         return value == null ? null : String.valueOf(value);
     }
 
-    private static void requireArgs(Value[] args, int min, String name) {
-        if (args == null || args.length < min) {
-            throw new IllegalArgumentException(name + " 参数不足");
-        }
-    }
-
-    static Object guestToJava(Value value) {
-        if (value == null || value.isNull()) {
-            return null;
-        }
-        if (value.isBoolean()) {
-            return value.asBoolean();
-        }
-        if (value.isNumber()) {
-            return value.asDouble();
-        }
-        if (value.isString()) {
-            return value.asString();
-        }
-        if (value.hasMembers()) {
-            Map<String, Object> map = new LinkedHashMap<>();
-            for (String key : value.getMemberKeys()) {
-                map.put(key, guestToJava(value.getMember(key)));
-            }
-            return map;
-        }
-        if (value.hasArrayElements()) {
-            List<Object> list = new ArrayList<>();
-            long size = value.getArraySize();
-            for (long i = 0; i < size; i++) {
-                list.add(guestToJava(value.getArrayElement(i)));
-            }
-            return list;
-        }
-        return value.toString();
-    }
-
     private static final class ScopeHost implements ProxyObject {
         private static final Set<String> KEYS = Set.of("get", "set", "unset", "has");
 
@@ -266,8 +209,7 @@ public class ApiScriptHost implements ProxyObject {
                 case "set" -> (ProxyExecutable) args -> {
                     requireArgs(args, 2, scopeName + ".set");
                     String name = args[0].asString();
-                    Object guestValue = args[1].isHostObject() ? args[1].asHostObject() : guestToJava(args[1]);
-                    Object converted = ScriptValueConverter.fromGuest(guestValue);
+                    Object converted = ScriptArgs.toJava(args[1]);
                     Object before = store.get(name);
                     store.put(name, converted);
                     context.recordWrite(scopeName, name, ScriptValueConverter.toGuest(before),
@@ -333,7 +275,7 @@ public class ApiScriptHost implements ProxyObject {
                 case "url" -> request.setUrl(value.asString());
                 case "method" -> request.setMethod(value.asString());
                 case "body" -> {
-                    Object guest = value.isHostObject() ? value.asHostObject() : guestToJava(value);
+                    Object guest = ScriptValueConverter.guestToJava(value);
                     if (guest instanceof Map<?, ?> map) {
                         Map<String, Object> body = new LinkedHashMap<>();
                         for (Map.Entry<?, ?> entry : map.entrySet()) {
@@ -535,7 +477,7 @@ public class ApiScriptHost implements ProxyObject {
             if (args == null || args.length < 1) {
                 throw new IllegalArgumentException("expect 参数不足");
             }
-            Object actual = args[0].isHostObject() ? args[0].asHostObject() : guestToJava(args[0]);
+            Object actual = ScriptValueConverter.guestToJava(args[0]);
             return new ExpectAssertionHost(actual);
         }
 
@@ -608,7 +550,7 @@ public class ApiScriptHost implements ProxyObject {
         }
 
         private static Object expectGuestArg(Value value) {
-            return value.isHostObject() ? value.asHostObject() : guestToJava(value);
+            return ScriptValueConverter.guestToJava(value);
         }
 
         private static final class ExpectToHost implements ProxyObject {

@@ -68,6 +68,16 @@ export const API_PRE_REQUEST_SNIPPETS = [
     code: "api.variables.set('sign', api.hmacSha256('data', api.environment.get('secret')));",
   },
   {
+    id: 'rsa-sign',
+    label: '生成 RSA2 签名 Header',
+    comment: '参数按 key 排序拼签名原文，SHA256withRSA 私钥签名后写入请求头',
+    code: `var params = { app_id: api.environment.get('appId'), timestamp: String(Date.now()) };
+var content = api.signContent(params);
+var sign = api.rsaSign(content, api.environment.get('privateKey'));
+api.request.headers.add({ key: 'X-Timestamp', value: params.timestamp });
+api.request.headers.add({ key: 'X-Sign', value: sign });`,
+  },
+  {
     id: 'base64-password',
     label: '密码 Base64 后写入 body',
     comment: '读环境明文密码，Base64 后整对象重赋 request.body（嵌套改字段无效）',

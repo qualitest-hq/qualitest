@@ -1,6 +1,7 @@
 package com.qualitest.flow.script;
 
 import com.alibaba.fastjson2.JSON;
+import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
@@ -99,6 +100,54 @@ public final class ScriptValueConverter {
     /** 将 Java 值序列化为 JSON 字符串 */
     public static String jsonStringify(Object value) {
         return JSON.toJSONString(toGuest(value));
+    }
+
+    /**
+     * 将脚本传入的 Graal Value 转为 Java 基本结构：宿主对象原样返回，数组 → List，
+     * Python dict 等哈希 → Map，普通对象按成员 → Map，其余取字符串。数字统一为 double。
+     * 先判断数组与哈希，避免 JS 数组、Python dict 被当成普通对象按成员展开。
+     */
+    public static Object guestToJava(Value value) {
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isHostObject()) {
+            return value.asHostObject();
+        }
+        if (value.isBoolean()) {
+            return value.asBoolean();
+        }
+        if (value.isNumber()) {
+            return value.asDouble();
+        }
+        if (value.isString()) {
+            return value.asString();
+        }
+        if (value.hasArrayElements()) {
+            List<Object> list = new ArrayList<>();
+            long size = value.getArraySize();
+            for (long i = 0; i < size; i++) {
+                list.add(guestToJava(value.getArrayElement(i)));
+            }
+            return list;
+        }
+        if (value.hasHashEntries()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            Value keys = value.getHashKeysIterator();
+            while (keys.hasIteratorNextElement()) {
+                Value key = keys.getIteratorNextElement();
+                map.put(key.isString() ? key.asString() : key.toString(), guestToJava(value.getHashValue(key)));
+            }
+            return map;
+        }
+        if (value.hasMembers()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            for (String key : value.getMemberKeys()) {
+                map.put(key, guestToJava(value.getMember(key)));
+            }
+            return map;
+        }
+        return value.toString();
     }
 
     private static Object wrapForScript(Object value) {

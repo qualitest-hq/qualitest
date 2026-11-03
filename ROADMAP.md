@@ -64,6 +64,7 @@ flowchart LR
 | 3.3 | 测试流目录 / 分组 | 列表左树右表 + 可嵌套目录；流挂 `flow_group_id`；子流选择按组；`list_flows` / `create_flow` / `update_flow_meta` 带分组字段 |
 | 3.4 | 测试套件批量跑 | 可保存套件（流×场景）+ `suite_run` 历史；套件页一键串行；结果可回看；`?runId=` 进画布；`POST /triggerBatch` 供短批 |
 | 3.12 | 项目成员角色与细粒度权限 | 全站可配角色与权限矩阵；成员按 capabilities 门禁（流/接口/套件/环境/AI/MCP/Token）；MCP 改按角色权限；历史 `developer`→`backend` |
+| 7.1 | 脚本加密与报文工具 | `ctx` / `api` 同名挂载：摘要（含 SM3）、HMAC、RSA 签验与加解密（PEM / 裸 Base64 / 证书）、AES-GCM 与 CBC/ECB、国密 SM2/SM4、`urlEncode`、`xmlParse/xmlStringify`、`signContent`；可仿支付宝 RSA2、微信支付 v2 / v3 回调 |
 
 ---
 
@@ -112,7 +113,6 @@ flowchart LR
 
 | ID | 任务 | 说明 |
 | -- | ---- | ---- |
-| 7.1 | 脚本加密与报文工具 | `ctx` 增 `sha256`、`hmacSha1/Sha512`、`rsaSign/rsaVerify`（SHA256withRSA，PEM）、`aesGcmEncrypt/Decrypt`、`urlEncode`、`xmlParse/xmlStringify`；可选国密 SM2/SM3/SM4；用于仿支付宝 RSA2、微信支付 v2（XML）/ v3（签名头 + 加密 resource）回调 |
 | 7.2 | XML 响应自动解析 | HTTP 响应为 XML 时转对象，`{{http.body.xxx}}`、断言与提取可直接取字段；原文仍保留 |
 | 7.3 | HTTP 节点重试直到通过 | 节点级「最多 N 次 / 间隔 M ms / 断言条件」，超时判失败；覆盖回调后异步改状态的轮询，不引入循环节点 |
 | 7.4 | 可配置入口（Webhook） | **唯一入站面**（不另开第二套回调 URL）。项目内自定义 path/slug 的固定地址，分两种用途。**启流**：绑定流与默认场景/环境，入口独立密钥（勿复用长期 Project Token），可选把 query/header/body 写入 flowSeed，异步返回 runId + 查结果，`paused` 对 CI 直接失败；供 CI、定时（3.6 / 3.10）。**收报文**：扮下游接收地址，被测系统像配商家通知地址一样配一次；不要求带质衡专用凭证；报文原样落库（headers、到达时间）并可查询/断言；按被测系统约定应答（如固定返回 `success`）。验证「有没有推到、内容对不对」优先：收件落库 + 7.3 轮询断言。固定 `/api/project/runs` 仅作调试旁路。现仅 MCP 可用令牌跑流 |

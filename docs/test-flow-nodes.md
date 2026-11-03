@@ -86,8 +86,8 @@
 |-----|------|
 | `api.base64Encode` / `base64Decode` | Base64（不要用 `btoa`） |
 | `api.jsonParse` / `jsonStringify` | JSON |
-| `api.hmacSha256(data, secret)` / `api.md5(data)` | 签名，返回 hex |
 | `api.sendRequest({ url, method, headers, body })` | 同步辅助请求 |
+| 编码 / 报文 / 加密工具 | 与 Script 节点 `ctx` 同名，见下文「脚本工具函数」 |
 | `api.test(name, fn)` / `api.expect(x).to.equal(y)` | **仅后置**断言 |
 
 #### 示例：密码 Base64 后发出
@@ -196,6 +196,29 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 在 GraalVM 沙箱中执行：可读写 `flow`、`session`；可读 `env` / `asset`；可选受控 `ctx.http`。`ctx.setFlow` 合并进当前 Run。失败时步骤带脚本错误码与消息。
 
 适合项目特有签名、字段拼装等「画布节点不够用」的逻辑；能用 HTTP / Assign / Assert 表达的优先用声明式节点。
+
+### 脚本工具函数
+
+Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出参均为字符串，明文按 UTF-8；二进制结果默认 hex（摘要 / HMAC）或 Base64（签名 / 密文）。
+
+| 函数 | 说明 |
+|------|------|
+| `jsonParse` / `jsonStringify`、`base64Encode` / `base64Decode` | JSON、Base64 |
+| `urlEncode` / `urlDecode` | UTF-8 URL 编解码，空格为 `+` |
+| `xmlParse(text)` | XML → 对象：去根节点，同名节点转数组，CDATA 取文本，忽略属性；禁止 DOCTYPE |
+| `xmlStringify(obj, { root: 'xml', cdata: true })` | 对象 → XML；字符串默认包 CDATA，数组展开为重复节点 |
+| `signContent(params, { exclude: ['sign'], skipEmpty: true })` | 按 key ASCII 升序拼 `k=v&k2=v2`（不 URL 编码） |
+| `md5` / `sha1` / `sha256` / `sha512` / `sm3(data, encoding?)` | 摘要；`encoding` 为 `hex`（默认）或 `base64` |
+| `hmacSha1` / `hmacSha256` / `hmacSha512(data, secret, encoding?)` | HMAC，密钥按 UTF-8 |
+| `rsaSign(data, privateKey, alg?)` / `rsaVerify(data, sign, publicKey, alg?)` | 默认 `SHA256withRSA`，签名为 Base64；私钥支持 PKCS#8 / PKCS#1 PEM 或裸 Base64，公钥支持公钥 PEM、证书 PEM 或裸 Base64 |
+| `rsaEncrypt` / `rsaDecrypt(data, key, padding?)` | `OAEP`（默认，SHA-1）/ `OAEP256` / `PKCS1` |
+| `aesGcmEncrypt` / `aesGcmDecrypt(data, key, nonce, aad?)` | key / nonce / aad 按 UTF-8；密文为 Base64(密文 + tag)，即微信支付 v3 `resource.ciphertext` 格式 |
+| `aesEncrypt` / `aesDecrypt(data, key, opts?)` | `mode`（`CBC` 默认 / `ECB`）、`iv`、`keyEncoding` / `ivEncoding`（`utf8` 默认 / `base64` / `hex`）、`padding`（`PKCS5Padding` 默认 / `NoPadding`）、`encoding`（密文 `base64` 默认 / `hex`）；CBC 未传 iv 用全 0 |
+| `sm2Sign` / `sm2Verify(data, …, key, opts?)` | `userId`（默认 `1234567812345678`）、`format`（`der` 默认 / `rs`）、`encoding` |
+| `sm2Encrypt` / `sm2Decrypt(data, key, opts?)` | `mode`（`C1C3C2` 默认 / `C1C2C3`）、`encoding`；解密兼容缺 `04` 前缀 |
+| `sm4Encrypt` / `sm4Decrypt(data, key, opts?)` | 参数同 `aesEncrypt`，`keyEncoding` 默认 `hex` |
+
+国密密钥支持 hex（私钥 d、`04` 开头公钥）、PEM 与裸 Base64。PEM 存在 JSON 素材里时可用字面量 `\n` 换行。仿渠道回调时，被测系统须配置与脚本私钥对应的公钥 / 证书，验签才会通过。
 
 ---
 

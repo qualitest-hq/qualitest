@@ -3,6 +3,8 @@
  * 运行时为服务端 GraalJS：无 DOM、无 btoa/atob、无 Postman pm.*。
  */
 
+import { buildScriptToolGroups } from './scriptToolReference'
+
 export const SCRIPT_API_GROUPS = [
   {
     id: 'variables',
@@ -45,16 +47,14 @@ export const SCRIPT_API_GROUPS = [
     ],
   },
   {
-    id: 'utils',
-    title: '工具函数',
+    id: 'http',
+    title: '辅助请求',
     items: [
-      { name: 'base64Encode / base64Decode', sig: "api.base64Encode('plain')", desc: 'Base64 编解码；无浏览器 btoa/atob', access: 'util' },
-      { name: 'jsonParse / jsonStringify', sig: 'api.jsonParse(text) / api.jsonStringify(obj)', desc: 'JSON 解析与序列化', access: 'util' },
-      { name: 'hmacSha256', sig: "api.hmacSha256(data, secret)", desc: 'HMAC-SHA256，返回 hex', access: 'util' },
-      { name: 'md5', sig: "api.md5(data)", desc: 'MD5，返回 hex', access: 'util' },
       { name: 'sendRequest', sig: 'api.sendRequest({ url, method, headers, body })', desc: '同步辅助 HTTP（如换 token）', access: 'util' },
     ],
   },
+  // 编码 / 报文 / 加密等共用工具函数
+  ...buildScriptToolGroups('api'),
 ]
 
 /** 从其他工具迁到 api.* 时的对照说明（编辑器提示用）。 */

@@ -493,8 +493,9 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         String msg = scriptResult.getErrorMessage() != null
                 ? scriptResult.getErrorMessage()
                 : "脚本执行失败";
-        // 附加宿主能力提示：改 body 须整对象重赋；编码用 api.base64Encode（无浏览器 btoa）
-        msg = msg + "；可用 api.request.url/method/headers.add、api.request.body=整对象、api.base64Encode、api.jsonParse/jsonStringify（无 btoa/pm；body 嵌套赋值不回写）";
+        // 附加宿主能力提示：改 body 须整对象重赋；编码用 api.base64Encode（无浏览器 btoa）；签名加密用宿主工具函数
+        msg = msg + "；可用 api.request.url/method/headers.add、api.request.body=整对象、api.base64Encode、api.jsonParse/jsonStringify、"
+                + "签名加密 api.md5/sha256/hmacSha256/rsaSign/aesEncrypt 等（无 btoa/pm/CryptoJS；body 嵌套赋值不回写）";
         return StepResult.builder()
                 .nodeId(node.getId())
                 .nodeType(FlowNodeType.HTTP.getCode())

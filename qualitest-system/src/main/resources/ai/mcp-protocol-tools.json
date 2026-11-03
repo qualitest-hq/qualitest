@@ -548,11 +548,11 @@
               },
               "preScript": {
                 "type": "string",
-                "description": "仅 callMode=external 生效（project 用接口库 preRequestScript）。宿主 api（服务端 GraalJS，无浏览器 btoa/atob、无 pm）：variables|environment|globals 的 get/set/unset/has；request.url|method 可赋；request.headers.add/remove/get/list；request.body 须整对象重赋（嵌套改字段不回写）；base64Encode/Decode、jsonParse/jsonStringify、hmacSha256、md5、sendRequest。改 query 改 url。例：api.request.body={kind:'json',raw:api.jsonStringify({password:api.base64Encode(api.environment.get('pwd'))})}。"
+                "description": "仅 callMode=external 生效（project 用接口库 preRequestScript）。宿主 api（服务端 GraalJS，无浏览器 btoa/atob、无 pm）：variables|environment|globals 的 get/set/unset/has；request.url|method 可赋；request.headers.add/remove/get/list；request.body 须整对象重赋（嵌套改字段不回写）；base64Encode/Decode、jsonParse/jsonStringify、urlEncode/Decode、xmlParse/xmlStringify、signContent（按 key 排序拼 k=v&）、md5/sha1/sha256/sha512/sm3、hmacSha1/hmacSha256/hmacSha512、rsaSign/rsaVerify/rsaEncrypt/rsaDecrypt（PEM 或裸 Base64）、aesGcmEncrypt/Decrypt、aesEncrypt/Decrypt、sm2Sign/sm2Verify/sm2Encrypt/sm2Decrypt、sm4Encrypt/Decrypt、sendRequest。改 query 改 url。例：api.request.body={kind:'json',raw:api.jsonStringify({password:api.base64Encode(api.environment.get('pwd'))})}。"
               },
               "postScript": {
                 "type": "string",
-                "description": "仅 callMode=external 生效（project 用接口库 postRequestScript）。宿主 api（服务端 GraalJS）：variables|environment|globals；可读 api.response.code|statusText|headers|json()|text()；可用 api.test/expect 断言；工具函数含 base64Encode/Decode、jsonParse/jsonStringify、hmacSha256、md5、sendRequest。request 在后置只读。"
+                "description": "仅 callMode=external 生效（project 用接口库 postRequestScript）。宿主 api（服务端 GraalJS）：variables|environment|globals；可读 api.response.code|statusText|headers|json()|text()；可用 api.test/expect 断言；工具函数含 base64Encode/Decode、jsonParse/jsonStringify、urlEncode/Decode、xmlParse/xmlStringify、signContent（按 key 排序拼 k=v&）、md5/sha1/sha256/sha512/sm3、hmacSha1/hmacSha256/hmacSha512、rsaSign/rsaVerify/rsaEncrypt/rsaDecrypt（PEM 或裸 Base64）、aesGcmEncrypt/Decrypt、aesEncrypt/Decrypt、sm2Sign/sm2Verify/sm2Encrypt/sm2Decrypt、sm4Encrypt/Decrypt、sendRequest。request 在后置只读。"
               },
               "extractsOnFailure": {
                 "type": "string",
@@ -916,7 +916,8 @@
                 ]
               },
               "source": {
-                "type": "string"
+                "type": "string",
+                "description": "脚本正文，服务端 GraalVM 执行，JS / Python 同一套宿主 ctx。读写：ctx.getFlow(k) / setFlow(k,v)（唯一可写 flow）、getEnv(k)、getAsset(key,path?)、getLastHttp()、session.get/set；ctx.http({method,url,headers?,body?,timeoutMs?})（节点每次执行最多调用 3 次，超出报错）；ctx.log、uuid。工具函数（入参出参均为字符串）：jsonParse/jsonStringify、base64Encode/Decode、urlEncode/Decode、xmlParse、xmlStringify(obj,{root,cdata})、signContent(params,{exclude,skipEmpty})（按 key 排序拼 k=v&，不 URL 编码）、md5/sha1/sha256/sha512/sm3(data,'hex'|'base64')、hmacSha1/hmacSha256/hmacSha512(data,secret,enc?)、rsaSign/rsaVerify（默认 SHA256withRSA，签名 Base64，密钥 PEM 或裸 Base64）、rsaEncrypt/rsaDecrypt、aesGcmEncrypt/Decrypt(data,key,nonce,aad?)、aesEncrypt/Decrypt(data,key,{mode,iv,keyEncoding})、sm2Sign/sm2Verify/sm2Encrypt/sm2Decrypt、sm4Encrypt/Decrypt。密钥从 getAsset / getEnv 读取，勿写死；无 require / import、文件与子进程。"
               },
               "summary": {
                 "type": "string"

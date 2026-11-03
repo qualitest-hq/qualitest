@@ -2,7 +2,9 @@
  * script 节点宿主 ctx 对象 API 说明（与后端 ScriptHostContext 暴露能力对应）。
  */
 
-/** API 分组：读写 flow、只读上下文、JSON/签名工具 */
+import { buildScriptToolGroups } from './scriptToolReference'
+
+/** API 分组：读写 flow、只读上下文、会话、HTTP、编码 / 报文 / 加密工具 */
 export const SCRIPT_CTX_API_GROUPS = [
   {
     id: 'flow',
@@ -66,44 +68,8 @@ export const SCRIPT_CTX_API_GROUPS = [
   },
   {
     id: 'utils',
-    title: 'JSON 与签名',
+    title: '通用',
     items: [
-      {
-        name: 'jsonParse',
-        sig: "ctx.jsonParse('{ \"a\": 1 }')",
-        desc: 'JSON 字符串解析为对象',
-        access: 'util',
-      },
-      {
-        name: 'jsonStringify',
-        sig: 'ctx.jsonStringify({ a: 1 })',
-        desc: '对象序列化为 JSON 字符串',
-        access: 'util',
-      },
-      {
-        name: 'hmacSha256',
-        sig: "ctx.hmacSha256(data, secret)",
-        desc: 'HMAC-SHA256，返回小写十六进制字符串',
-        access: 'util',
-      },
-      {
-        name: 'md5',
-        sig: "ctx.md5('text')",
-        desc: 'MD5 摘要，返回小写十六进制字符串',
-        access: 'util',
-      },
-      {
-        name: 'base64Encode',
-        sig: "ctx.base64Encode('text')",
-        desc: 'UTF-8 文本 Base64 编码',
-        access: 'util',
-      },
-      {
-        name: 'base64Decode',
-        sig: "ctx.base64Decode('dGV4dA==')",
-        desc: 'Base64 解码为 UTF-8 文本',
-        access: 'util',
-      },
       {
         name: 'uuid',
         sig: 'ctx.uuid()',
@@ -125,11 +91,13 @@ export const SCRIPT_CTX_API_GROUPS = [
       {
         name: 'http',
         sig: 'ctx.http({ method, url, headers?, body?, timeoutMs? })',
-        desc: '外联 HTTP；支持 http/https 任意地址；单步最多 3 次；返回 { ok, status, headers, body, durationMs }',
+        desc: '外联 HTTP；支持 http/https 任意地址；节点每次执行最多调用 3 次，超出报错；返回 { ok, status, headers, body, durationMs }',
         access: 'util',
       },
     ],
   },
+  // 编码 / 报文 / 加密等共用工具函数
+  ...buildScriptToolGroups('ctx'),
 ]
 
 /** 按语言返回示例片段 */
@@ -148,6 +116,18 @@ export function getScriptCtxExamples(language) {
         title: '生成签名',
         code: "sign = ctx.hmacSha256(ctx.getFlow('body'), ctx.getEnv('secret'))\nctx.setFlow('sign', sign)",
       },
+      {
+        title: '微信支付 v2 回调 XML（MD5 签名）',
+        code: `params = {
+    'return_code': 'SUCCESS',
+    'result_code': 'SUCCESS',
+    'out_trade_no': ctx.getFlow('orderNo'),
+    'total_fee': 1,
+    'nonce_str': ctx.uuid().replace('-', ''),
+}
+params['sign'] = ctx.md5(ctx.signContent(params) + '&key=' + ctx.getAsset('wxpay', 'apiKey')).upper()
+ctx.setFlow('wxNotifyXml', ctx.xmlStringify(params))`,
+      },
     ]
   }
   return [
@@ -163,6 +143,64 @@ export function getScriptCtxExamples(language) {
       title: '外联 HTTP',
       code: "const res = ctx.http({\n  method: 'POST',\n  url: ctx.getEnv('captchaApiUrl'),\n  headers: { 'Content-Type': 'application/json' },\n  body: ctx.jsonStringify({ image: ctx.getFlow('captchaImageBase64') })\n});\nif (!res.ok) throw new Error('打码失败');\nctx.setFlow('code', ctx.jsonParse(res.body).data.code);",
     },
+    {
+      title: '支付宝异步通知（RSA2 签名表单）',
+      code: `const params = {
+  notify_id: ctx.uuid(),
+  notify_time: '2026-01-01 12:00:00',
+  app_id: ctx.getEnv('alipayAppId'),
+  out_trade_no: ctx.getFlow('orderNo'),
+  trade_no: 'T' + Date.now(),
+  trade_status: 'TRADE_SUCCESS',
+  total_amount: '0.01',
+  charset: 'utf-8',
+  sign_type: 'RSA2',
+  version: '1.0'
+};
+const content = ctx.signContent(params, { exclude: ['sign', 'sign_type'] });
+params.sign = ctx.rsaSign(content, ctx.getAsset('alipay', 'privateKey'));
+const form = Object.keys(params).map(k => k + '=' + ctx.urlEncode(params[k])).join('&');
+ctx.setFlow('alipayNotifyBody', form);`,
+    },
+    {
+      title: '微信支付 v2 回调 XML（MD5 签名）',
+      code: `const params = {
+  return_code: 'SUCCESS',
+  result_code: 'SUCCESS',
+  out_trade_no: ctx.getFlow('orderNo'),
+  total_fee: 1,
+  nonce_str: ctx.uuid().replace(/-/g, '')
+};
+const content = ctx.signContent(params) + '&key=' + ctx.getAsset('wxpay', 'apiKey');
+params.sign = ctx.md5(content).toUpperCase();
+ctx.setFlow('wxNotifyXml', ctx.xmlStringify(params));`,
+    },
+    {
+      title: '微信支付 v3 回调（加密 resource + 签名头）',
+      code: `const nonce = ctx.uuid().replace(/-/g, '').slice(0, 12);
+const plain = ctx.jsonStringify({ out_trade_no: ctx.getFlow('orderNo'), trade_state: 'SUCCESS' });
+const body = ctx.jsonStringify({
+  id: ctx.uuid(),
+  event_type: 'TRANSACTION.SUCCESS',
+  resource_type: 'encrypt-resource',
+  resource: {
+    algorithm: 'AEAD_AES_256_GCM',
+    associated_data: 'transaction',
+    nonce: nonce,
+    ciphertext: ctx.aesGcmEncrypt(plain, ctx.getAsset('wxpay', 'apiV3Key'), nonce, 'transaction')
+  }
+});
+const ts = String(Math.floor(Date.now() / 1000));
+const sigNonce = ctx.uuid();
+const signature = ctx.rsaSign(ts + '\\n' + sigNonce + '\\n' + body + '\\n', ctx.getAsset('wxpay', 'platformPrivateKey'));
+ctx.setFlow('wxV3Body', body);
+ctx.setFlow('wxV3Headers', ctx.jsonStringify({
+  'Wechatpay-Timestamp': ts,
+  'Wechatpay-Nonce': sigNonce,
+  'Wechatpay-Signature': signature,
+  'Wechatpay-Serial': ctx.getAsset('wxpay', 'platformSerial')
+}));`,
+    },
   ]
 }
 
@@ -170,7 +208,9 @@ export function getScriptCtxExamples(language) {
 export const SCRIPT_CTX_NOTES = [
   'JavaScript 与 Python 使用同一套 ctx API，仅在服务端执行',
   '仅 ctx.setFlow / ctx.session.set 可写；env / asset 只读',
-  'ctx.http 支持 http/https 任意地址，单步最多 3 次；优先用 HTTP(external) 节点',
+  'ctx.http 支持 http/https 任意地址，节点每次执行最多调用 3 次；优先用 HTTP(external) 节点',
   '不支持任意网络、文件、子进程与外部模块导入',
   'print / console 与 ctx.log 输出会写入步骤日志',
+  '加密函数入参出参均为字符串；私钥、密钥建议放项目素材或环境变量，不要写死在脚本里',
+  '仿渠道回调时，被测系统需配置与脚本私钥对应的公钥 / 证书，验签才会通过',
 ]

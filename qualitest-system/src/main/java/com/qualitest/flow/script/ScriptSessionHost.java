@@ -8,6 +8,8 @@ import org.graalvm.polyglot.proxy.ProxyObject;
 import java.util.Map;
 import java.util.Set;
 
+import static com.qualitest.flow.script.ScriptArgs.requireArgs;
+
 /**
  * Script 节点 {@code ctx.session} 的 GraalVM 代理。
  * <p>
@@ -36,8 +38,8 @@ public final class ScriptSessionHost implements ProxyObject {
             case "set" -> (ProxyExecutable) args -> {
                 requireArgs(args, 2, "session.set");
                 String name = args[0].asString();
-                Object guestValue = args[1].isHostObject() ? args[1].asHostObject() : guestToJava(args[1]);
-                Object converted = ScriptValueConverter.fromGuest(guestValue);
+                // 对象 / 数组按结构保存，数字归一
+                Object converted = ScriptArgs.toJava(args[1]);
                 runContext.getSession().put(name, converted);
                 return converted;
             };
@@ -60,25 +62,4 @@ public final class ScriptSessionHost implements ProxyObject {
         throw new UnsupportedOperationException("session 不允许动态添加属性: " + key);
     }
 
-    private static void requireArgs(Value[] args, int min, String name) {
-        if (args == null || args.length < min) {
-            throw new IllegalArgumentException(name + " 参数不足");
-        }
-    }
-
-    private static Object guestToJava(Value value) {
-        if (value == null || value.isNull()) {
-            return null;
-        }
-        if (value.isBoolean()) {
-            return value.asBoolean();
-        }
-        if (value.isNumber()) {
-            return value.asDouble();
-        }
-        if (value.isString()) {
-            return value.asString();
-        }
-        return value.toString();
-    }
 }

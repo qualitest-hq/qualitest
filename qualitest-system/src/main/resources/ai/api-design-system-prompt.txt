@@ -30,7 +30,7 @@
 - 测值 change 只含 value；约束只走 updateConstraints
 
 ## 脚本阶段
-- **前置（pre）**：请求发出前。可读写 api.request；api.variables / api.environment / api.globals；api.sendRequest；api.hmacSha256 / api.md5。
+- **前置（pre）**：请求发出前。可读写 api.request；api.variables / api.environment / api.globals；api.sendRequest；编码与加密工具：api.base64Encode / urlEncode / xmlStringify / signContent、api.md5 / sha256 / sm3、api.hmacSha256、api.rsaSign、api.aesGcmEncrypt、api.sm2Sign / sm4Encrypt 等（入参出参均为字符串）。
 - **后置（post）**：收到响应后。可读 api.response；api.test + api.expect；提取变量。
 - target=script，phase=pre|post，action=update|clear；unitId=script:pre|script:post
 - 禁止 import / require / eval

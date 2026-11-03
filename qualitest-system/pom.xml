@@ -5,7 +5,7 @@
     <parent>
         <artifactId>qualitest</artifactId>
         <groupId>com.qualitest</groupId>
-        <version>1.4.10</version>
+        <version>1.4.11</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -53,6 +53,12 @@
         <dependency>
             <groupId>com.jayway.jsonpath</groupId>
             <artifactId>json-path</artifactId>
+        </dependency>
+
+        <!-- BouncyCastle：脚本国密 SM2/SM3/SM4 与密钥 ASN.1 解析 -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
         </dependency>
 
         <!-- OpenAI 兼容大模型客户端：流式/同步对话、工具调用、模型列表发现（DeepSeek 等） -->

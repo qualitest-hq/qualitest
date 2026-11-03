@@ -2,22 +2,21 @@ package com.qualitest.flow.script;
 
 import com.qualitest.api.service.IDebugHttpForwardService;
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.script.tool.ScriptToolMembers;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static com.qualitest.flow.script.ScriptArgs.requireArgs;
 
 /**
  * 注入 Script 节点脚本的 GraalVM {@code ctx} 宿主对象。
@@ -25,8 +24,8 @@ import java.util.UUID;
  * <b>变量读写</b>：{@code getFlow}/{@code setFlow}（唯一可写 flow）；{@code getEnv}/{@code getAsset} 只读；
  * {@code getLastHttp} 读上一步 HTTP 响应摘要。
  * <p>
- * <b>工具方法</b>：{@code jsonParse}/{@code jsonStringify}、{@code hmacSha256}/{@code md5}、
- * {@code base64Encode}/{@code base64Decode}、{@code uuid}、{@code log}。
+ * <b>工具方法</b>：{@code uuid}、{@code log}，以及接口脚本同名可用的 JSON、Base64、URL、XML、
+ * 签名原文、摘要、HMAC、RSA、AES、国密 SM2/SM3/SM4 工具函数。
  * <p>
  * <b>外联 HTTP</b>：{@code ctx.http({method, url, headers?, body?, timeoutMs?})}，组装规则与 external HTTP 节点相同，
  * 单步调用次数上限见 {@link ScriptConstants#MAX_HTTP_CALLS_PER_SCRIPT}。
@@ -36,11 +35,11 @@ import java.util.UUID;
  */
 public class ScriptHostContext implements ProxyObject {
 
-    private static final Set<String> MEMBERS = Set.of(
-            "getFlow", "setFlow", "getEnv", "getAsset", "getLastHttp",
-            "jsonParse", "jsonStringify", "hmacSha256", "md5",
-            "log", "base64Encode", "base64Decode", "uuid", "http", "session"
-    );
+    /** ctx 可见成员：宿主自有方法 + 共用工具函数 */
+    private static final Set<String> MEMBERS = Stream.concat(
+            Stream.of("getFlow", "setFlow", "getEnv", "getAsset", "getLastHttp", "log", "uuid", "http", "session"),
+            ScriptToolMembers.names().stream()
+    ).collect(Collectors.toUnmodifiableSet());
 
     private final FlowRunContext runContext;
     private final IDebugHttpForwardService forwardService;
@@ -79,8 +78,7 @@ public class ScriptHostContext implements ProxyObject {
             case "setFlow" -> (ProxyExecutable) args -> {
                 requireArgs(args, 2, "setFlow");
                 String name = args[0].asString();
-                Object guestValue = args[1].isHostObject() ? args[1].asHostObject() : guestToJava(args[1]);
-                Object converted = ScriptValueConverter.fromGuest(guestValue);
+                Object converted = ScriptArgs.toJava(args[1]);
                 Object before = runContext.getFlow().get(name);
                 runContext.getFlow().put(name, converted);
                 Map<String, Object> record = new LinkedHashMap<>();
@@ -112,40 +110,16 @@ public class ScriptHostContext implements ProxyObject {
                 snapshot.put("durationMs", last.getDurationMs());
                 return ScriptValueConverter.toScriptValue(snapshot);
             };
-            case "jsonParse" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "jsonParse");
-                return ScriptValueConverter.jsonParse(args[0].asString());
-            };
-            case "jsonStringify" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "jsonStringify");
-                Object val = args[0].isHostObject() ? args[0].asHostObject() : guestToJava(args[0]);
-                return ScriptValueConverter.jsonStringify(val);
-            };
-            case "hmacSha256" -> (ProxyExecutable) args -> {
-                requireArgs(args, 2, "hmacSha256");
-                return hmacSha256(args[0].asString(), args[1].asString());
-            };
-            case "md5" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "md5");
-                return md5(args[0].asString());
-            };
             case "log" -> (ProxyExecutable) args -> {
                 requireArgs(args, 1, "log");
                 appendLog(args[0].asString());
                 return null;
             };
-            case "base64Encode" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "base64Encode");
-                return base64Encode(args[0].asString());
-            };
-            case "base64Decode" -> (ProxyExecutable) args -> {
-                requireArgs(args, 1, "base64Decode");
-                return base64Decode(args[0].asString());
-            };
             case "uuid" -> (ProxyExecutable) args -> UUID.randomUUID().toString();
             case "http" -> (ProxyExecutable) this::http;
             case "session" -> sessionHost;
-            default -> null;
+            // 其余成员按名称取共用工具函数，未注册返回 null
+            default -> ScriptToolMembers.get(key);
         };
     }
 
@@ -155,8 +129,8 @@ public class ScriptHostContext implements ProxyObject {
             throw new IllegalStateException("ctx.http 单步调用次数超过上限 "
                     + ScriptConstants.MAX_HTTP_CALLS_PER_SCRIPT);
         }
-        Object raw = args[0].isHostObject() ? args[0].asHostObject() : guestToJava(args[0]);
-        if (!(raw instanceof Map<?, ?> opts)) {
+        Object raw = ScriptValueConverter.guestToJava(args[0]);
+        if (!(raw instanceof Map<?, ?>)) {
             throw new IllegalArgumentException("ctx.http 参数必须是对象");
         }
         @SuppressWarnings("unchecked")
@@ -215,76 +189,5 @@ public class ScriptHostContext implements ProxyObject {
             }
         }
         return node;
-    }
-
-    private static void requireArgs(Value[] args, int min, String name) {
-        if (args == null || args.length < min) {
-            throw new IllegalArgumentException(name + " 参数不足");
-        }
-    }
-
-    /** 将 Graal Value 转为 Java 基本结构 */
-    static Object guestToJava(Value value) {
-        if (value == null || value.isNull()) {
-            return null;
-        }
-        if (value.isBoolean()) {
-            return value.asBoolean();
-        }
-        if (value.isNumber()) {
-            return value.asDouble();
-        }
-        if (value.isString()) {
-            return value.asString();
-        }
-        if (value.hasMembers()) {
-            Map<String, Object> map = new LinkedHashMap<>();
-            for (String key : value.getMemberKeys()) {
-                map.put(key, guestToJava(value.getMember(key)));
-            }
-            return map;
-        }
-        if (value.hasArrayElements()) {
-            List<Object> list = new ArrayList<>();
-            long size = value.getArraySize();
-            for (long i = 0; i < size; i++) {
-                list.add(guestToJava(value.getArrayElement(i)));
-            }
-            return list;
-        }
-        return value.toString();
-    }
-
-    /** UTF-8 明文 → Base64 字符串（脚本宿主 ctx.base64Encode / api.base64Encode 共用）。 */
-    public static String base64Encode(String data) {
-        return Base64.getEncoder().encodeToString(String.valueOf(data).getBytes(StandardCharsets.UTF_8));
-    }
-
-    /** Base64 字符串 → UTF-8 明文；非法输入抛运行时异常。 */
-    public static String base64Decode(String data) {
-        return new String(Base64.getDecoder().decode(String.valueOf(data)), StandardCharsets.UTF_8);
-    }
-
-    /** 计算 HMAC-SHA256，返回小写十六进制字符串。 */
-    public static String hmacSha256(String data, String secret) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(String.valueOf(secret).getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] hash = mac.doFinal(String.valueOf(data).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (Exception e) {
-            throw new RuntimeException("hmacSha256 失败: " + e.getMessage(), e);
-        }
-    }
-
-    /** 计算 MD5，返回小写十六进制字符串。 */
-    public static String md5(String data) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("MD5");
-            byte[] hash = digest.digest(String.valueOf(data).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (Exception e) {
-            throw new RuntimeException("md5 失败: " + e.getMessage(), e);
-        }
     }
 }
