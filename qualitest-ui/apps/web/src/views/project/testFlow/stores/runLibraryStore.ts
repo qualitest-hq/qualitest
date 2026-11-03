@@ -49,8 +49,8 @@ export interface RunStepDetail {
       codePath?: string;
       /** 响应中实际读到的业务码 */
       actualCode?: unknown;
-      /** 视为成功的业务码列表 */
-      successValues?: number[];
+      /** 视为成功的业务码列表（整数或字符串） */
+      successValues?: Array<number | string>;
       /** 是否落在成功白名单内 */
       passed?: boolean;
       /** 响应中的错误消息文案 */

@@ -23,6 +23,7 @@ import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
 import com.qualitest.flow.http.HttpResponseBodyMediaSupport;
+import com.qualitest.flow.http.HttpResponseBodyParser;
 import com.qualitest.flow.http.HttpStepDetailsDesensitizer;
 import com.qualitest.flow.http.StatusCheckResolver;
 import com.qualitest.flow.http.SuccessCheckResolver;
@@ -57,13 +58,16 @@ import java.util.Map;
  *   <li>HTTP 状态码：默认 statusCheck.mode=2xx，非 2xx 记 TF_HTTP_STATUS；
  *       whitelist 时仅 values 内状态码通过；off 时任意状态码通过（连接失败仍失败）</li>
  *   <li>仅 HTTP 2xx 时再做业务码：successCheck.mode 非 off 则读 body 业务码；
- *       不在成功白名单内则步骤失败（TF_BIZ_CODE），并在 http.bizCheck 写入实际码、消息、解析失败时的 body 片段</li>
+ *       白名单可为整数或字符串（如 SUCCESS）；不在白名单内则步骤失败（TF_BIZ_CODE），
+ *       并在 http.bizCheck 写入实际码、消息、解析失败时的 body 片段</li>
  * </ol>
- * 有响应即写入 lastResponse（含非 2xx），并附带实际响应形态 responseKind、
- * 是否符合接口期望形态 expectedMatch（供 Conditon 分支；不符期望不直接导致本步失败）。
+ * 响应正文：JSON 转对象/数组；XML 按 Content-Type 或报文开头判定后转对象（去根节点）；
+ * 原文写入 lastResponse.bodyText；XML 时步骤报告 response 另带 bodyText。
+ * 有响应即写入 lastResponse（含非 2xx），并附带实际形态 responseKind（json / xml / nonJson）、
+ * 是否符合接口期望 expectedMatch（不符期望不直接导致本步失败，供后续条件节点分支）。
  * extracts：默认仅步骤最终通过才执行并落盘 asset；
  * extractsOnFailure=write 时失败也会做内存抽取，但 asset 落盘仍只在步骤通过时发生。
- * 业务码路径经 toAbsolutePath 规范化后再读，避免 codePath 已带 {@code $.} 时再拼一层变成无效路径。
+ * 业务码路径规范化为绝对路径后再读，避免 codePath 已带 {@code $.} 时再拼一层变成无效路径。
  */
 @Component
 public class HttpNodeHandler extends AbstractStubNodeHandler {
@@ -147,12 +151,14 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
 
         int status = forwardResult.getStatus() != null ? forwardResult.getStatus() : 0;
         Map<String, Object> responseHeaders = toObjectHeaders(forwardResult.getResponseHeaders());
-        Object body = parseResponseBody(forwardResult.getBodyText());
+        HttpResponseBodyParser.Parsed parsedBody = HttpResponseBodyParser.parse(
+                forwardResult.getBodyText(), forwardResult.getResponseHeaders());
 
         FlowRunContext.HttpResponseSnapshot snapshot = FlowRunContext.HttpResponseSnapshot.builder()
                 .status(status)
                 .headers(responseHeaders)
-                .body(body)
+                .body(parsedBody.body())
+                .bodyText(forwardResult.getBodyText())
                 .durationMs(durationMs)
                 .build();
         ctx.setLastResponse(snapshot);
@@ -180,7 +186,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
 
         return buildHttpStepResult(ctx, node, incomingEdgeId, nodeName, data, built, durationMs,
-                status, responseHeaders, body, forwardResult, preScriptResult, postScriptResult, effectiveApi);
+                status, responseHeaders, parsedBody, forwardResult, preScriptResult, postScriptResult, effectiveApi);
     }
 
     private StepResult executeExternal(FlowRunContext ctx, GraphNode node, String incomingEdgeId,
@@ -217,12 +223,14 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
 
         int status = forwardResult.getStatus() != null ? forwardResult.getStatus() : 0;
         Map<String, Object> responseHeaders = toObjectHeaders(forwardResult.getResponseHeaders());
-        Object body = parseResponseBody(forwardResult.getBodyText());
+        HttpResponseBodyParser.Parsed parsedBody = HttpResponseBodyParser.parse(
+                forwardResult.getBodyText(), forwardResult.getResponseHeaders());
 
         FlowRunContext.HttpResponseSnapshot snapshot = FlowRunContext.HttpResponseSnapshot.builder()
                 .status(status)
                 .headers(responseHeaders)
-                .body(body)
+                .body(parsedBody.body())
+                .bodyText(forwardResult.getBodyText())
                 .durationMs(durationMs)
                 .build();
         ctx.setLastResponse(snapshot);
@@ -246,28 +254,36 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
 
         return buildHttpStepResult(ctx, node, incomingEdgeId, nodeName, data, built, durationMs,
-                status, responseHeaders, body, forwardResult, preScriptResult, postScriptResult, null);
+                status, responseHeaders, parsedBody, forwardResult, preScriptResult, postScriptResult, null);
     }
 
+    /**
+     * 组装 HTTP 步骤结果：写入 lastResponse（含 body / bodyText / responseKind / expectedMatch）、
+     * 步骤报告、状态码门禁、业务码校验与 extracts。
+     *
+     * @param parsedBody 正文解析结果（形态与对象）
+     * @param api        绑定的项目接口；外联时为 null
+     */
     private StepResult buildHttpStepResult(
             FlowRunContext ctx, GraphNode node, String incomingEdgeId, String nodeName,
             Map<String, Object> data,
             FlowHttpRequestBuilder.BuiltHttpRequest built, long durationMs,
-            int status, Map<String, Object> responseHeaders, Object body,
+            int status, Map<String, Object> responseHeaders, HttpResponseBodyParser.Parsed parsedBody,
             DebugHttpForwardResult forwardResult,
             ApiScriptExecutionResult preScriptResult,
             ApiScriptExecutionResult postScriptResult,
             TestProjectApi api) {
-        // 判定实际响应形态，并对照接口期望：供 Conditon 读 http.responseKind / http.expectedMatch
-        // （探活：不符期望则去登录；步骤本身不因此失败）
-        String responseKind = ExpectedResponseKindSupport.detectActualKind(body);
+        Object body = parsedBody.body();
+        // 形态取正文解析结果；对照接口期望形态写入 expectedMatch（不符不导致本步失败）
+        String responseKind = parsedBody.kind();
         boolean expectedMatch = api == null
-                || ExpectedResponseKindSupport.matchesOrSkip(api.getResponseConfig(), body);
+                || ExpectedResponseKindSupport.matchesOrSkipByKind(api.getResponseConfig(), responseKind);
 
         FlowRunContext.HttpResponseSnapshot snapshot = FlowRunContext.HttpResponseSnapshot.builder()
                 .status(status)
                 .headers(responseHeaders)
                 .body(body)
+                .bodyText(forwardResult.getBodyText())
                 .durationMs(durationMs)
                 .responseKind(responseKind)
                 .expectedMatch(expectedMatch)
@@ -284,7 +300,11 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         responseSnapshot.put("status", status);
         responseSnapshot.put("headers", responseHeaders);
         responseSnapshot.put("body", body);
-        // 步骤报告：响应形态与是否符合接口期望
+        // XML 已转对象时在报告中保留原文
+        if (parsedBody.isXml()) {
+            responseSnapshot.put("bodyText", forwardResult.getBodyText());
+        }
+        // 报告中的实际形态与期望是否匹配
         responseSnapshot.put("responseKind", responseKind);
         responseSnapshot.put("expectedMatch", expectedMatch);
         // 裸媒体：只写 bodyMedia 元数据（stored=false），不落 bodyBase64
@@ -547,21 +567,6 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             return Map.of();
         }
         return new HashMap<>(headers);
-    }
-
-    private static Object parseResponseBody(String bodyText) {
-        if (bodyText == null || bodyText.isBlank()) {
-            return null;
-        }
-        String trimmed = bodyText.trim();
-        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-            try {
-                return JSON.parse(trimmed);
-            } catch (Exception ignored) {
-                return bodyText;
-            }
-        }
-        return bodyText;
     }
 
     private static JSONArray toExtractsArray(Object raw) {

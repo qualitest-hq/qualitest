@@ -52,13 +52,14 @@
   - **按端提取凭证**：JsonPath 与头名优先按 Profile `headerValueTemplate` 与响应 schema 自定；`designHints` 仅作参考；按响应 schema 与 Profile 自定 extracts。Condition 判与 extract/托管头须同一套 `flow.*` 或 `asset.*`，禁止混用。
   - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`statusCheck: {mode:whitelist, values:[200,401,403]}` + `successCheck.mode=off`）→Condition(`http.status=200` AND `http.expectedMatch=true`)；探活成功 IF 无出边，ELSE 才连登录。`expectedMatch` 对照接口 `responseConfig.expectedResponseKind`（默认 json）与实际 body；200 却回 HTML 登录页时走登录。工具名仅表内 `submit_condition_node` / `submit_http_node` / `submit_edge`（`op=add|update`）。修图用 `op=update`。
   - **预期业务拒绝**：HTTP 须 `successCheck.mode=off`，再用 assert 校验；`mode=off` 时允许故意缺 schema 必填字段。
-  - **业务成功码**：默认按 path 命中的多端 Profile 响应约定（常为 `[200]`）。开放接口成功码非 200 时，用 `upsert_auth_profile` 的 `patch.responseConvention`（如 `successValues:[1]`）改该端约定（半自动待聊天侧确认；全自动直写），或在节点 `successCheck.successValues` 覆盖。业务拒绝用 `successCheck.off`+断言。
+  - **业务成功码**：默认按 path 命中的多端 Profile 响应约定（常为 `[200]`）。开放接口成功码非 200 时，用 `upsert_auth_profile` 的 `patch.responseConvention`（如 `successValues:[1]`）改该端约定（半自动待聊天侧确认；全自动直写），或在节点 `successCheck.successValues` 覆盖。字符串成功码亦可（如微信 v2：`codePath:return_code` + `successValues:["SUCCESS"]`）。业务拒绝用 `successCheck.off`+断言。
   - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。缺必填时在节点 `requestValueOverrides` 补测值：query/path/header/表单写 `paramDefaults`，JSON body 写 `bodyExample`（可用 `{{flow.*}}`）。
   - 账号口令走素材；**禁止** flowSeed 塞口令（调试预置 token 可以）。
 - **两套方言：**
   - extracts / 业务码：JsonPath，**必须以 `$` 开头**；`from=setCookie` 时 `expr` 为 Cookie 名。
-  - assert / condition 左值：`http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status`。
+  - assert / condition 左值：`http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status` / `http.bodyText`（响应原文）。
   - 左值不用 `http.body.$.…`；集合「是否命中」用 `exists`（不用 `notempty`）。
+  - XML 响应（如微信 v2 `<xml>…</xml>`）自动转对象并去掉根节点：直接写 `http.body.return_code` / extracts `$.return_code`，不要再用脚本 xmlParse；原文在 `http.bodyText`；此时 `http.responseKind=xml`，接口 `expectedResponseKind` 可设 `xml`。
 
 ## 只读工具策略
 - 改图或解释前：`get_graph_summary`

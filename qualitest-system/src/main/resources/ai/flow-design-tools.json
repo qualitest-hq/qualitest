@@ -553,7 +553,7 @@
               },
               "successCheck": {
                 "type": "object",
-                "description": "业务码校验。mode=inherit|off；可选 successValues 非空整数数组（如 [1]）覆盖项目/接口约定。",
+                "description": "业务码校验。mode=inherit|off；可选 successValues 非空数组（整数或字符串，如 [1]、[\"SUCCESS\"]）覆盖项目/接口约定。",
                 "properties": {
                   "mode": {
                     "type": "string",
@@ -565,9 +565,12 @@
                   },
                   "successValues": {
                     "type": "array",
-                    "description": "可选；非空时优先于项目约定与接口 biz_code_config",
+                    "description": "可选；非空时优先于项目约定与接口 biz_code_config；元素为整数或字符串（如 SUCCESS）",
                     "items": {
-                      "type": "integer"
+                      "oneOf": [
+                        { "type": "integer" },
+                        { "type": "string" }
+                      ]
                     }
                   }
                 }

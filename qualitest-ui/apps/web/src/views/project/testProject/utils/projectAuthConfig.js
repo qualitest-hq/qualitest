@@ -2,8 +2,8 @@
  * 项目多端配置（auth_config）表单解析 / 组装 / 轻量校验。
  *
  * 表单为多个 Profile 行：每条含 id、名称、pathPrefix、鉴权托管头、
- * 响应约定四字段（codePath / successValuesText / messagePath / dataPath）、
- * 以及预制接口 apis[]。
+ * 响应约定四字段（codePath / successValuesText / messagePath / dataPath；
+ * 成功值文本支持整数与字符串如 SUCCESS）、以及预制接口 apis[]。
  */
 
 /** 空表单：无 Profile，且不提示「缺模板」 */
@@ -16,7 +16,7 @@ export function emptyAuthForm() {
 
 /**
  * 表单用的缺省响应约定字段。
- * codePath=code，成功值文本=200，messagePath=msg，dataPath=data。
+ * codePath=code，成功值文本=200（可改为 SUCCESS 等字符串），messagePath=msg，dataPath=data。
  */
 export function emptyConventionFields() {
   return {
@@ -82,14 +82,25 @@ function resolveHeaderValueTemplate(p) {
   return str(p?.headerValueTemplate)
 }
 
-/** 解析成功业务码输入框（逗号/空白分隔的整数）；空输入视为 [200] */
+/**
+ * 解析成功业务码输入框文本。
+ * 按逗号或空白分词；纯整数写成 number，非数字（如 SUCCESS）保留字符串；全空回落为 [200]。
+ *
+ * @param {unknown} text 输入框原文
+ * @returns {Array<number|string>} 成功码列表
+ */
 export function parseSuccessValuesText(text) {
   const values = String(text || '')
     .split(/[,，\s]+/)
     .map((s) => s.trim())
     .filter(Boolean)
-    .map((s) => Number(s))
-    .filter((n) => !Number.isNaN(n))
+    .map((s) => {
+      if (/^-?\d+$/.test(s)) {
+        const n = Number(s)
+        return Number.isSafeInteger(n) ? n : s
+      }
+      return s
+    })
   return values.length ? values : [200]
 }
 

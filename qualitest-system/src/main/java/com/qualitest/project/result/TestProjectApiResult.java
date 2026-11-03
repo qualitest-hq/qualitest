@@ -111,7 +111,7 @@ public class TestProjectApiResult implements Serializable {
 
     /**
      * 业务响应码白名单 JSON。
-     * 典型字段：successValues（成功 code 列表）、source、updatedAt。
+     * 典型字段：successValues（成功 code 列表，整数或字符串）、source、updatedAt。
      * HTTP 执行时若 successValues 非空，优先于项目响应约定中的成功值。
      */
     private String bizCodeConfig;

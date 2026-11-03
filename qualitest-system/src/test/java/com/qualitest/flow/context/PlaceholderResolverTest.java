@@ -137,6 +137,30 @@ class PlaceholderResolverTest {
     }
 
     /**
+     * 前提：lastResponse 为 XML 响应，body 为转换后的对象，bodyText 为原文，responseKind=xml。
+     * 期望：http.body.return_code 取字段；http.bodyText 取原文；http.responseKind 为 xml；模板替换可用。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("路径：XML 响应可按字段与原文取值")
+    void resolvePathSegment_xmlBodyAndBodyText() {
+        String xml = "<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>";
+        FlowRunContext xmlCtx = FlowRunContext.builder()
+                .lastResponse(FlowRunContext.HttpResponseSnapshot.builder()
+                        .status(200)
+                        .body(Map.of("return_code", "SUCCESS"))
+                        .bodyText(xml)
+                        .responseKind("xml")
+                        .build())
+                .build();
+
+        assertEquals("SUCCESS", lenient.resolvePathSegment(xmlCtx, "http.body.return_code"));
+        assertEquals(xml, lenient.resolvePathSegment(xmlCtx, "http.bodyText"));
+        assertEquals("xml", lenient.resolvePathSegment(xmlCtx, "http.responseKind"));
+        assertEquals("code=SUCCESS", strict.resolve("code={{http.body.return_code}}", xmlCtx));
+    }
+
+    /**
      * 将 fixture 中的 mockContext JSON 转为 {@link FlowRunContext}。
      * 结构与运行时 executor 注入的上下文一致：env / flow / asset / lastResponse（含 durationMs）。
      */

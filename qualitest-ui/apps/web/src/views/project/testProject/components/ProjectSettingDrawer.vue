@@ -117,7 +117,7 @@
                 </div>
                 <div class="project-setting__conv-field">
                   <label>成功值（逗号分隔）</label>
-                  <el-input v-model="row.successValuesText" placeholder="200" />
+                  <el-input v-model="row.successValuesText" placeholder="200 或 SUCCESS" />
                 </div>
                 <div class="project-setting__conv-field">
                   <label>消息路径</label>

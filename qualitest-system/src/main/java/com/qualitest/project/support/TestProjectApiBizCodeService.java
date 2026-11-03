@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -20,7 +19,7 @@ import java.util.Set;
 /**
  * API 业务响应码白名单（表列 biz_code_config）的读写。
  * <p>
- * 列内存 JSON，字段：successValues（成功 code 列表）、source（写入来源）、updatedAt。
+ * 列内存 JSON，字段：successValues（成功 code 列表，整数或字符串）、source（写入来源）、updatedAt。
  * 插件/API 批量导入不修改本列；由 Run 暂停确认或设置页通过专用接口追加。
  * HTTP 执行时若本列 successValues 非空，优先于项目响应约定中的成功值。
  */
@@ -34,12 +33,12 @@ public class TestProjectApiBizCodeService {
      * 向指定 API 追加业务成功 code，与已有白名单合并去重后写库。
      *
      * @param testProjectApiId 目标 API 主键
-     * @param newValues        待追加的 code；null 表示不追加新值，仍刷新 source、updatedAt
+     * @param newValues        待追加的 code（整数或字符串）；null 表示不追加新值，仍刷新 source、updatedAt
      * @param source           写入来源标识；空则记为 runtime
      * @return 写库后的完整 biz_code_config JSON 字符串
      */
     @Transactional(rollbackFor = Exception.class)
-    public String appendSuccessValues(Long testProjectApiId, List<Integer> newValues, String source) {
+    public String appendSuccessValues(Long testProjectApiId, List<?> newValues, String source) {
         if (testProjectApiId == null) {
             throw new IllegalArgumentException("testProjectApiId 不能为空");
         }
@@ -55,18 +54,13 @@ public class TestProjectApiBizCodeService {
             config.put("successValues", successValues);
         }
 
-        Set<Integer> merged = new LinkedHashSet<>();
-        for (int i = 0; i < successValues.size(); i++) {
-            Integer v = successValues.getInteger(i);
-            if (v != null) {
-                merged.add(v);
-            }
+        Set<Object> merged = new LinkedHashSet<>();
+        for (Object existing : ResponseConventionSupport.coerceSuccessValues(successValues)) {
+            merged.add(existing);
         }
         if (newValues != null) {
-            for (Integer v : newValues) {
-                if (v != null) {
-                    merged.add(v);
-                }
+            for (Object v : ResponseConventionSupport.coerceSuccessValues(newValues)) {
+                merged.add(v);
             }
         }
         JSONArray normalized = new JSONArray();
@@ -85,10 +79,13 @@ public class TestProjectApiBizCodeService {
     }
 
     /**
-     * 读取接口 biz_code_config 中的成功业务码列表。
-     * 无配置或解析失败时返回空列表。供 HTTP 执行路径直接调用，无需注入本 Service。
+     * 读取接口 biz_code_config 中的成功业务码列表（整数或字符串）。
+     * 无配置或解析失败时返回空列表。
+     *
+     * @param api 项目接口；可空
+     * @return 规范化后的成功码列表
      */
-    public static List<Integer> readSuccessValues(TestProjectApi api) {
+    public static List<Object> readSuccessValues(TestProjectApi api) {
         if (api == null || StrUtil.isBlank(api.getBizCodeConfig())) {
             return List.of();
         }
@@ -97,14 +94,7 @@ public class TestProjectApiBizCodeService {
         if (arr == null || arr.isEmpty()) {
             return List.of();
         }
-        List<Integer> out = new ArrayList<>();
-        for (int i = 0; i < arr.size(); i++) {
-            Integer v = arr.getInteger(i);
-            if (v != null) {
-                out.add(v);
-            }
-        }
-        return out;
+        return ResponseConventionSupport.coerceSuccessValues(arr);
     }
 
     /**

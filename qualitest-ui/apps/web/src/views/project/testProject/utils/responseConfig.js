@@ -1,7 +1,7 @@
 /**
  * 接口响应配置读写（存接口表 responseConfig 单一 JSON 字符串）。
- * 结构含 configVersion、expectedResponseKind（期望响应形态：json/html/any）、responses 条目列表。
- * expectedResponseKind 供跑流探活对照实际响应是否符合期望。
+ * 结构含 configVersion、expectedResponseKind（期望形态：json / xml / html / any）、responses 条目列表。
+ * 跑流时用期望形态对照实际响应；调试面板也可据此提示形态不符。
  */
 
 import { RESPONSE_CONFIG_VERSION } from './apiConfigConstants'
@@ -45,12 +45,12 @@ function normalizeContentType(v) {
 }
 
 /**
- * 规范期望响应形态为 json / html / any；空白或未知视为 json。
+ * 规范期望响应形态为 json / xml / html / any；空白或未知视为 json。
  * @param {unknown} v
  */
 export function normalizeExpectedResponseKind(v) {
   const x = String(v || '').toLowerCase().trim()
-  if (x === 'html' || x === 'any' || x === 'json') return x
+  if (x === 'html' || x === 'any' || x === 'json' || x === 'xml') return x
   return 'json'
 }
 
@@ -77,14 +77,19 @@ function normalizeResponseEntry(r) {
 }
 
 /**
- * 无显式期望时按条目 contentType 推断：全是 json → json，出现 xml/binary → any。
+ * 无显式期望时按条目 contentType 推断：全是 json → json，全是 xml → xml，混合或出现 binary → any。
  */
 function inferExpectedKindFromResponses(list) {
   if (!Array.isArray(list) || !list.length) return 'json'
+  let sawJson = false
+  let sawXml = false
   for (const r of list) {
     const ct = normalizeContentType(r?.contentType)
-    if (ct !== 'json') return 'any'
+    if (ct === 'json') sawJson = true
+    else if (ct === 'xml') sawXml = true
+    else return 'any'
   }
+  if (sawXml) return sawJson ? 'any' : 'xml'
   return 'json'
 }
 
@@ -177,32 +182,85 @@ export function serializeResponseConfig(bundle) {
 
 /**
  * 判断实际响应正文是否符合期望形态。
- * any 恒通过；json 要求正文可解析为 JSON；html 要求正文不是 JSON。
+ * any 恒通过；json 要求可解析为 JSON；xml 要求按规则判定为合法 XML；
+ * html 要求既非 JSON 也非 XML（形态为 nonJson）。
+ *
  * @param {string} expectedKind 期望形态
  * @param {string|null|undefined} bodyText 实际响应正文
+ * @param {Record<string, unknown>|null|undefined} [headers] 响应头，用于读取 Content-Type
  */
-export function matchesExpectedResponseKind(expectedKind, bodyText) {
+export function matchesExpectedResponseKind(expectedKind, bodyText, headers) {
   const expected = normalizeExpectedResponseKind(expectedKind)
   if (expected === 'any') return true
-  const actual = detectActualResponseKind(bodyText)
-  if (expected === 'json') return actual === 'json'
+  const actual = detectActualResponseKind(bodyText, headers)
   if (expected === 'html') return actual === 'nonJson'
+  if (expected === 'xml') return actual === 'xml'
   return actual === 'json'
 }
 
 /**
- * 根据响应正文判定实际形态：可 JSON.parse 的对象/数组 → json，否则 nonJson。
- * @param {string|null|undefined} bodyText
- * @returns {'json'|'nonJson'}
+ * 从响应头读取 Content-Type 主类型（小写、去掉 charset 等参数）。
+ * 找不到时返回空串。
  */
-export function detectActualResponseKind(bodyText) {
-  if (bodyText == null || String(bodyText).trim() === '') return 'nonJson'
-  const trimmed = String(bodyText).trim()
-  if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return 'nonJson'
-  try {
-    JSON.parse(trimmed)
-    return 'json'
-  } catch {
-    return 'nonJson'
+function contentTypeFromHeaders(headers) {
+  if (!headers || typeof headers !== 'object') return ''
+  for (const k of Object.keys(headers)) {
+    if (k.toLowerCase() === 'content-type' && headers[k] != null) {
+      return String(headers[k]).split(';')[0].trim().toLowerCase()
+    }
   }
+  return ''
+}
+
+/**
+ * 是否应按 XML 判定正文。
+ * Content-Type 为 text/xml、application/xml 或以 +xml 结尾时为是；
+ * 未声明或为 text/plain 时，再看正文是否以 <?xml、<xml>、<xml 开头。
+ */
+function shouldTryXml(trimmed, contentType) {
+  if (contentType === 'text/xml' || contentType === 'application/xml' || contentType.endsWith('+xml')) {
+    return true
+  }
+  if (contentType && contentType !== 'text/plain') return false
+  return trimmed.startsWith('<?xml') || trimmed.startsWith('<xml>') || trimmed.startsWith('<xml ')
+}
+
+/**
+ * 正文是否为可解析的 XML。
+ * 含 DOCTYPE 时直接视为非法；无 DOMParser 时返回 false。
+ */
+function isWellFormedXml(text) {
+  if (/<!DOCTYPE/i.test(text) || typeof DOMParser === 'undefined') return false
+  try {
+    const doc = new DOMParser().parseFromString(text, 'application/xml')
+    return doc.getElementsByTagName('parsererror').length === 0
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 根据响应正文与可选响应头判定实际形态。
+ * 以大括号/方括号开头且可 JSON.parse → json；
+ * 满足 XML 判定且可解析 → xml；否则 nonJson。
+ *
+ * @param {string|null|undefined} bodyText 响应原文
+ * @param {Record<string, unknown>|null|undefined} [headers] 响应头
+ * @returns {'json'|'xml'|'nonJson'}
+ */
+export function detectActualResponseKind(bodyText, headers) {
+  if (bodyText == null || String(bodyText).trim() === '') return 'nonJson'
+  const trimmed = String(bodyText).replace(/^\uFEFF/, '').trim()
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      JSON.parse(trimmed)
+      return 'json'
+    } catch {
+      return 'nonJson'
+    }
+  }
+  if (shouldTryXml(trimmed, contentTypeFromHeaders(headers)) && isWellFormedXml(trimmed)) {
+    return 'xml'
+  }
+  return 'nonJson'
 }

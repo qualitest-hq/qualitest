@@ -4,8 +4,6 @@ import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.support.ResponseConventionSupport;
 import com.qualitest.project.support.TestProjectApiBizCodeService;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,6 +18,7 @@ import java.util.Objects;
  *   <li>外联模式且未写 mode：视为关闭校验</li>
  *   <li>project 模式缺省或 mode=inherit：开启校验</li>
  *   <li>成功值优先级：节点 successCheck.successValues 非空 → 接口 biz_code_config → 本端约定 successValues（缺省 [200]）</li>
+ *   <li>成功值可为整数或字符串（如 SUCCESS）；数字与数字字符串可互比</li>
  *   <li>业务码 / 消息字段路径取自本端约定（缺省 code / msg）</li>
  * </ul>
  */
@@ -56,13 +55,13 @@ public final class SuccessCheckResolver {
 
         ResponseConventionSupport.Parsed convention =
                 ResponseConventionSupport.parseOrDefault(responseConventionJson);
-        List<Integer> successValues = convention.successValues();
+        List<Object> successValues = convention.successValues();
 
-        List<Integer> nodeValues = readNodeSuccessValues(nodeData);
+        List<Object> nodeValues = readNodeSuccessValues(nodeData);
         if (nodeValues != null && !nodeValues.isEmpty()) {
             successValues = List.copyOf(nodeValues);
         } else if (api != null) {
-            List<Integer> apiValues = TestProjectApiBizCodeService.readSuccessValues(api);
+            List<Object> apiValues = TestProjectApiBizCodeService.readSuccessValues(api);
             if (apiValues != null && !apiValues.isEmpty()) {
                 successValues = List.copyOf(apiValues);
             }
@@ -92,9 +91,9 @@ public final class SuccessCheckResolver {
 
     /**
      * 读取节点 data.successCheck.successValues；无或空则返回 null。
-     * 支持 number / 可解析整数的字符串。
+     * 支持整数、可解析整数的字符串，以及非数字字符串（如 SUCCESS）。
      */
-    static List<Integer> readNodeSuccessValues(Map<String, Object> nodeData) {
+    static List<Object> readNodeSuccessValues(Map<String, Object> nodeData) {
         Object successCheck = readSuccessCheck(nodeData);
         if (!(successCheck instanceof Map<?, ?> map)) {
             return null;
@@ -103,27 +102,7 @@ public final class SuccessCheckResolver {
         if (raw == null) {
             return null;
         }
-        List<Integer> out = new ArrayList<>();
-        if (raw instanceof Collection<?> coll) {
-            for (Object item : coll) {
-                Integer v = toInteger(item);
-                if (v != null) {
-                    out.add(v);
-                }
-            }
-        } else if (raw instanceof Object[] arr) {
-            for (Object item : arr) {
-                Integer v = toInteger(item);
-                if (v != null) {
-                    out.add(v);
-                }
-            }
-        } else {
-            Integer single = toInteger(raw);
-            if (single != null) {
-                out.add(single);
-            }
-        }
+        List<Object> out = ResponseConventionSupport.coerceSuccessValues(raw);
         return out.isEmpty() ? null : out;
     }
 
@@ -136,41 +115,33 @@ public final class SuccessCheckResolver {
 
     /**
      * 判断实际业务码是否落在成功白名单内。
-     * 支持数字与字符串互比（如 200 与 {@code "200"}）。
+     * 两边都能解析为整数时按整数相等（如 0 与 {@code "0"}）；
+     * 否则按去首尾空白后的字符串精确相等（区分大小写，SUCCESS 不等于 success）。
+     *
+     * @param actualCode    响应中读到的业务码；null 视为失败
+     * @param successValues 成功白名单（元素为 Integer 或 String）；空或 null 视为失败
+     * @return 是否命中白名单
      */
-    private static boolean isSuccess(Object actualCode, List<Integer> successValues) {
+    static boolean isSuccessCode(Object actualCode, List<?> successValues) {
         if (actualCode == null || successValues == null || successValues.isEmpty()) {
             return false;
         }
-        Integer actual = toInteger(actualCode);
-        String actualStr = actual != null ? String.valueOf(actual) : String.valueOf(actualCode).trim();
-        for (Integer expected : successValues) {
-            if (expected == null) {
+        Integer actualInt = ResponseConventionSupport.coerceInt(actualCode);
+        String actualStr = String.valueOf(actualCode).trim();
+        for (Object expected : successValues) {
+            Object norm = ResponseConventionSupport.coerceSuccessValue(expected);
+            if (norm == null) {
                 continue;
             }
-            if (actual != null && Objects.equals(actual, expected)) {
+            Integer expectedInt = ResponseConventionSupport.coerceInt(norm);
+            if (actualInt != null && expectedInt != null && Objects.equals(actualInt, expectedInt)) {
                 return true;
             }
-            if (actualStr.equals(String.valueOf(expected))) {
+            if (actualStr.equals(String.valueOf(norm).trim())) {
                 return true;
             }
         }
         return false;
-    }
-
-    /** 将响应中的 code 转为 Integer；无法解析则返回 null */
-    private static Integer toInteger(Object value) {
-        if (value instanceof Number n) {
-            return n.intValue();
-        }
-        if (value instanceof String s && !s.isBlank()) {
-            try {
-                return Integer.parseInt(s.trim());
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
-        }
-        return null;
     }
 
     /**
@@ -183,10 +154,10 @@ public final class SuccessCheckResolver {
         private final String codePath;
         /** body 中错误消息字段路径（如 msg） */
         private final String messagePath;
-        /** 视为成功的业务码列表 */
-        private final List<Integer> successValues;
+        /** 视为成功的业务码列表（Integer 或 String） */
+        private final List<Object> successValues;
 
-        private Resolved(boolean apply, String codePath, String messagePath, List<Integer> successValues) {
+        private Resolved(boolean apply, String codePath, String messagePath, List<Object> successValues) {
             this.apply = apply;
             this.codePath = codePath;
             this.messagePath = messagePath;
@@ -215,11 +186,11 @@ public final class SuccessCheckResolver {
 
         /** 实际业务码是否成功 */
         public boolean isSuccess(Object actualCode) {
-            return SuccessCheckResolver.isSuccess(actualCode, successValues);
+            return isSuccessCode(actualCode, successValues);
         }
 
         /** 写入步骤报告用的成功值（不可变） */
-        public List<Integer> successValuesForReport() {
+        public List<Object> successValuesForReport() {
             return successValues;
         }
     }

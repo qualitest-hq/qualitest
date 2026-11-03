@@ -80,4 +80,41 @@ class SuccessCheckResolverTest {
 
         assertFalse(r.shouldApply());
     }
+
+    /**
+     * 前提：节点 successValues=["SUCCESS"]；实际分别为 SUCCESS / success / FAIL。
+     * 期望：仅精确大写 SUCCESS 通过；大小写不同与 FAIL 失败。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("字符串成功码：SUCCESS 精确匹配")
+    void stringSuccessValues_exactMatch() {
+        Map<String, Object> data = Map.of(
+                "successCheck", Map.of("mode", "inherit", "successValues", List.of("SUCCESS")));
+        SuccessCheckResolver.Resolved r = SuccessCheckResolver.resolve(
+                data, "project", null, PROJECT_200);
+
+        assertTrue(r.isSuccess("SUCCESS"));
+        assertFalse(r.isSuccess("success"));
+        assertFalse(r.isSuccess("FAIL"));
+        assertEquals(List.of("SUCCESS"), r.successValuesForReport());
+    }
+
+    /**
+     * 前提：白名单为整数 0；实际为字符串 "0"。
+     * 期望：数字与数字字符串互比仍通过。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("数字与数字字符串互比")
+    void numericString_stillMatchesInteger() {
+        Map<String, Object> data = Map.of(
+                "successCheck", Map.of("mode", "inherit", "successValues", List.of(0)));
+        SuccessCheckResolver.Resolved r = SuccessCheckResolver.resolve(
+                data, "project", null, PROJECT_200);
+
+        assertTrue(r.isSuccess("0"));
+        assertTrue(r.isSuccess(0));
+        assertFalse(r.isSuccess("FAIL"));
+    }
 }

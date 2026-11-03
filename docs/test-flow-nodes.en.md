@@ -36,7 +36,8 @@ Two paths via `data.callMode`, sharing forward + `extracts`:
 Common features:
 
 - Success checks (two layers, not merged):
-  - **HTTP status** `statusCheck`: default `mode=2xx` (non-2xx fails); `whitelist` + `values` allows listed statuses (probe often `[200,401,403]`); `off` passes any status. Response is written to `lastResponse` so Condition can read `http.status`, `http.expectedMatch` (vs API `expectedResponseKind`), `http.responseKind`
+  - **HTTP status** `statusCheck`: default `mode=2xx` (non-2xx fails); `whitelist` + `values` allows listed statuses (probe often `[200,401,403]`); `off` passes any status. Response is written to `lastResponse` so Condition can read `http.status`, `http.expectedMatch` (vs API `expectedResponseKind`: `json` / `xml` / `html` / `any`), `http.responseKind` (`json` / `xml` / `nonJson`)
+  - **XML auto-parse**: when Content-Type is `text/xml`, `application/xml` or `*+xml`, or is missing / `text/plain` and the body starts with `<?xml` or `<xml>`, the body becomes an object (root element dropped; repeated elements become arrays; leaves take text incl. CDATA; attributes ignored; DOCTYPE rejected). `http.body.return_code`, asserts, conditions and extracts (`$.return_code`) then read fields directly; the raw text stays in `http.bodyText` and in the step report `response.bodyText`. On parse failure the raw string is kept and the step result is unaffected
   - **Business code** `successCheck`: optional body-code allowlist after **2xx** only; `mode=off` disables
 - Placeholder resolution on params / body (`flow` / `env` / `asset` / `session`, …)
 - **Project auth headers** (Profiles / managed `{{asset.*}}` / `{{flow.*}}` → [project-summary.en.md §4](./project-summary.en.md))
@@ -59,7 +60,7 @@ Does not check HTTP status (that is the HTTP step). Typical rule fields: `left`,
 | Assert / condition left | `http.body.data.code`, `http.body.data[?(@.cartId=='5001')].quantity` | Relative to last HTTP body; supports index, filter, `[*]`, `length()`. Do **not** write JSON Schema keyword `.items` into paths when `data` is already an array |
 | Shorthand (normalized) | `$.data.code` | Becomes `http.body.data.code` at design-time and runtime |
 | Extract / biz-code field | `$.data.token` | **Must start with `$`**, relative to body root |
-| Other context | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` | **Not** JsonPath |
+| Other context | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` / `http.bodyText` | **Not** JsonPath; `http.bodyText` is the raw response text |
 
 Forbidden: `http.body.$.…` (Confirm / save fails).
 

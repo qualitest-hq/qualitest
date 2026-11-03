@@ -36,7 +36,8 @@
 常用能力：
 
 - 成功判定（两层，不合并）：
-  - **HTTP 状态** `statusCheck`：默认 `mode=2xx`（非 2xx → 失败）；`whitelist` + `values` 仅放行列表内状态码（探活常用 `[200,401,403]`）；`off` 任意状态码步骤仍 passed。有响应即写入 `lastResponse`，后续 Condition 可读 `http.status`、`http.expectedMatch`（对照接口 `expectedResponseKind`）、`http.responseKind`
+  - **HTTP 状态** `statusCheck`：默认 `mode=2xx`（非 2xx → 失败）；`whitelist` + `values` 仅放行列表内状态码（探活常用 `[200,401,403]`）；`off` 任意状态码步骤仍 passed。有响应即写入 `lastResponse`，后续 Condition 可读 `http.status`、`http.expectedMatch`（对照接口 `expectedResponseKind`：`json` / `xml` / `html` / `any`）、`http.responseKind`（`json` / `xml` / `nonJson`）
+  - **XML 响应自动解析**：Content-Type 为 `text/xml`、`application/xml`、`*+xml`，或未声明 / `text/plain` 且正文以 `<?xml`、`<xml>` 开头时，body 转为对象（去掉根节点；同名节点转数组；叶子取文本，含 CDATA；忽略属性；禁止 DOCTYPE）。之后 `http.body.return_code`、断言、条件、extracts（`$.return_code`）可直接取字段；原文在 `http.bodyText`，步骤报告 `response.bodyText` 同样保留。解析失败保留原字符串，不影响步骤成败
   - **业务码** `successCheck`：仅在 **2xx** 后可选校验 body 业务码白名单；`mode=off` 关闭。`codePath` 支持 `code` 或 `$.code`
 - **extracts**：默认仅步骤最终通过后执行；`extractsOnFailure=write` 时失败也写入内存（asset 落盘仍仅通过时）。不定路径（过滤器 / `[*]`）命中 **恰好 1 个**时自动解包为标量（与断言一致），便于 `{{flow.x}}` 写路径参数；**0 个**仍为 `[]`，**多个**保留数组。过滤器后不要再写 `[n]`（JsonPath 会把下标作用到每个命中元素，常得到 `[]`）
 - **前置/后置脚本**：见下方「HTTP 脚本（preScript / postScript）」
@@ -119,7 +120,7 @@ UI 调试台侧栏「脚本 API」与片段库与上表同源（`scriptApiRefere
 | 断言 / 条件左值 | `http.body.data.code`、`http.body.data[?(@.cartId=='5001')].quantity` | 相对上一步响应 body；支持下标、过滤器、`[*]`、`length()`。**数组字段不要写 JSON Schema 关键字 `.items`**（真实 JSON 无此层） |
 | 简写（会规范化） | `$.data.code` | 设计态 / 运行态规范为 `http.body.data.code` |
 | Extract / 业务码 | `$.data.token` | **必须以 `$` 开头**，相对 body 根 |
-| 其它上下文 | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` | **不走 JsonPath** |
+| 其它上下文 | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` / `http.bodyText` | **不走 JsonPath**；`http.bodyText` 为响应原文 |
 
 禁止：`http.body.$.…`（Confirm / **运行**会失败；保存可带错落盘）。
 

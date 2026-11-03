@@ -44,8 +44,8 @@ export interface ApiRequestStructure {
 /** 响应结构：期望响应形态 + 条目 id、状态码、schema 等；示例正文放在测值里。 */
 export interface ApiResponseStructure {
   configVersion?: number
-  /** 期望响应形态：json / html / any；跑流探活对照实际响应 */
-  expectedResponseKind?: 'json' | 'html' | 'any'
+  /** 期望响应形态：json / xml / html / any；跑流时对照实际响应形态 */
+  expectedResponseKind?: 'json' | 'xml' | 'html' | 'any'
   responses?: Array<{
     id?: string
     name?: string

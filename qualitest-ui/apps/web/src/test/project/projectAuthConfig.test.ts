@@ -12,6 +12,7 @@ import {
   emptyAuthForm,
   parseAuthConfig,
   parseJsonMaybe,
+  parseSuccessValuesText,
   splitPathLines,
   validateAuthForm,
 } from '@/views/project/testProject/utils/projectAuthConfig'
@@ -146,5 +147,38 @@ describe('parseJsonMaybe / splitPathLines', () => {
     expect(parseJsonMaybe('{"a":1}')).toEqual({ a: 1 })
     expect(parseJsonMaybe('{')).toBeNull()
     expect(splitPathLines('/api/\n/mall/, /system/')).toEqual(['/api/', '/mall/', '/system/'])
+  })
+})
+
+describe('parseSuccessValuesText', () => {
+  it('纯整数仍为 number，字符串成功码保留原文', () => {
+    // 前提：逗号分隔的 0、SUCCESS、200
+    // 期望：数字保持 number；SUCCESS 为字符串；空串回落 [200]
+    expect(parseSuccessValuesText('0, SUCCESS, 200')).toEqual([0, 'SUCCESS', 200])
+    expect(parseSuccessValuesText('SUCCESS')).toEqual(['SUCCESS'])
+    expect(parseSuccessValuesText('')).toEqual([200])
+  })
+
+  it('round-trip 写出字符串 successValues', () => {
+    // 前提：表单 successValuesText 为 SUCCESS
+    // 期望：auth_config 落盘为 ["SUCCESS"]，再 parse 回 SUCCESS
+    const form = parseAuthConfig({
+      authProfiles: [{
+        id: 'wx',
+        name: '微信',
+        headerName: 'X-Unused',
+        headerValueTemplate: '1',
+        responseConvention: {
+          codePath: 'return_code',
+          successValues: ['SUCCESS'],
+          messagePath: 'return_msg',
+          dataPath: 'data',
+        },
+        apis: [],
+      }],
+    })
+    expect(form.profiles[0].successValuesText).toBe('SUCCESS')
+    const obj = buildAuthConfigObject(form)
+    expect(obj.authProfiles[0].responseConvention.successValues).toEqual(['SUCCESS'])
   })
 })

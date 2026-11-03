@@ -678,5 +678,129 @@ class HttpNodeHandlerTest {
         assertEquals(false, result.getHttp().get("expectedMatch"));
         assertEquals("nonJson", result.getHttp().get("responseKind"));
     }
+
+    /**
+     * 前提：外联节点；转发 200，Content-Type=text/plain，正文为微信 v2 风格 &lt;xml&gt; 报文；extracts 取 $.prepay_id。
+     * 期望：passed；body 转为对象可按字段取值；responseKind=xml；extracts 写入 flow；
+     *       lastResponse.bodyText 与步骤报告 response.bodyText 保留原文。
+     */
+    @Test
+    @Order(19)
+    @DisplayName("XML 响应：自动转对象，原文保留")
+    void execute_xmlResponse_parsedAndRawKept() {
+        String xml = "<xml><return_code><![CDATA[SUCCESS]]></return_code>"
+                + "<prepay_id><![CDATA[wx201410272009395522657a690389285100]]></prepay_id></xml>";
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(200, "OK", Map.of("Content-Type", "text/plain"), xml)
+        );
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "external");
+        data.put("externalUrl", "https://api.mch.example.com/pay/unifiedorder");
+        data.put("httpMethod", "POST");
+        data.put("extracts", List.of(
+                Map.of("from", "body", "expr", "$.prepay_id", "scope", "flow", "name", "prepayId")
+        ));
+        GraphNode node = GraphNode.builder().id("n-xml").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
+        assertEquals("wx201410272009395522657a690389285100", ctx.getFlow().get("prepayId"));
+        assertEquals("SUCCESS", ((Map<?, ?>) ctx.getLastResponse().getBody()).get("return_code"));
+        assertEquals(xml, ctx.getLastResponse().getBodyText());
+        assertEquals("xml", ctx.getLastResponse().getResponseKind());
+        assertEquals("xml", result.getHttp().get("responseKind"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = (Map<String, Object>) result.getHttp().get("response");
+        assertEquals(xml, response.get("bodyText"));
+    }
+
+    /**
+     * 前提：项目接口返回 application/xml；接口期望形态分别为 json 与 xml；successCheck=off。
+     * 期望：期望 json 时 expectedMatch=false；期望 xml 时 expectedMatch=true；两次 responseKind 均为 xml。
+     */
+    @Test
+    @Order(20)
+    @DisplayName("XML 响应：按期望形态判定 expectedMatch")
+    void execute_xmlResponse_expectedMatchByKind() {
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(200, "OK", Map.of("Content-Type", "application/xml"),
+                        "<?xml version=\"1.0\"?><result><code>0</code></result>")
+        );
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("successCheck", Map.of("mode", "off"));
+        GraphNode node = GraphNode.builder().id("n-xml-kind").type("http").data(data).build();
+
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(xmlApi("json"));
+        StepResult jsonExpected = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.PASSED.getCode(), jsonExpected.getStatus());
+        assertEquals(false, jsonExpected.getHttp().get("expectedMatch"));
+        assertEquals("xml", jsonExpected.getHttp().get("responseKind"));
+
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(xmlApi("xml"));
+        StepResult xmlExpected = handler.execute(ctx, node, null);
+        assertEquals(true, xmlExpected.getHttp().get("expectedMatch"));
+        assertEquals("xml", xmlExpected.getHttp().get("responseKind"));
+        assertEquals("0", ((Map<?, ?>) ctx.getLastResponse().getBody()).get("code"));
+    }
+
+    /**
+     * 前提：外联节点显式 inherit；successValues=["SUCCESS"]；约定 codePath=return_code；
+     *       分别返回 SUCCESS 与 FAIL 的 XML。
+     * 期望：SUCCESS → passed；FAIL → TF_BIZ_CODE。
+     */
+    @Test
+    @Order(21)
+    @DisplayName("业务码：字符串 SUCCESS 可作白名单")
+    void execute_stringBizCode_successAndFail() {
+        ctx.setProjectAuthConfig("""
+                {"authProfiles":[{"id":"wx","name":"微信","match":{"pathPrefix":["/pay"]},
+                "headerName":"X-Unused","headerValueTemplate":"1",
+                "responseConvention":{"codePath":"return_code","successValues":["SUCCESS"],
+                "messagePath":"return_msg","dataPath":"data"}}]}
+                """);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "external");
+        data.put("externalUrl", "https://api.mch.example.com/pay/orderquery");
+        data.put("httpMethod", "POST");
+        data.put("successCheck", Map.of("mode", "inherit", "successValues", List.of("SUCCESS")));
+        GraphNode node = GraphNode.builder().id("n-wx-biz").type("http").data(data).build();
+
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(200, "OK", Map.of("Content-Type", "text/plain"),
+                        "<xml><return_code><![CDATA[SUCCESS]]></return_code>"
+                                + "<return_msg><![CDATA[OK]]></return_msg></xml>")
+        );
+        StepResult ok = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.PASSED.getCode(), ok.getStatus());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> okBiz = (Map<String, Object>) ok.getHttp().get("bizCheck");
+        assertNotNull(okBiz);
+        assertEquals("SUCCESS", okBiz.get("actualCode"));
+        assertEquals(List.of("SUCCESS"), okBiz.get("successValues"));
+
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(200, "OK", Map.of("Content-Type", "text/plain"),
+                        "<xml><return_code><![CDATA[FAIL]]></return_code>"
+                                + "<return_msg><![CDATA[签名错误]]></return_msg></xml>")
+        );
+        StepResult fail = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.FAILED.getCode(), fail.getStatus());
+        assertEquals(FlowErrorCode.TF_BIZ_CODE.getCode(), fail.getError().getCode());
+        assertTrue(fail.getError().getMessage().contains("FAIL"));
+    }
+
+    /** 构造期望形态为 expectedKind 的项目接口 */
+    private static TestProjectApi xmlApi(String expectedKind) {
+        return TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/api/order/query")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .responseConfig("{\"configVersion\":1,\"expectedResponseKind\":\"" + expectedKind + "\",\"responses\":[]}")
+                .build();
+    }
 }
 

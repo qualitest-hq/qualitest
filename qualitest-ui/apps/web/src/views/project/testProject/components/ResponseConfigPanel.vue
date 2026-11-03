@@ -43,7 +43,7 @@
           <!-- 接口级期望响应形态：只描述正常返回的正文类型 -->
           <span class="resp-expected-kind-label">
             期望响应形态
-            <el-tooltip content="标明这个接口正常返回的正文是 JSON、HTML，还是不限制形态" placement="top">
+            <el-tooltip content="标明这个接口正常返回的正文是 JSON、XML、HTML，还是不限制形态" placement="top">
               <el-icon class="resp-field-help">
                 <QuestionFilled/>
               </el-icon>
@@ -51,6 +51,7 @@
           </span>
           <el-select v-model="local.expectedResponseKind" class="resp-expected-kind-select" placeholder="期望形态" size="small">
             <el-option label="JSON" value="json"/>
+            <el-option label="XML" value="xml"/>
             <el-option label="HTML" value="html"/>
             <el-option label="任意" value="any"/>
           </el-select>

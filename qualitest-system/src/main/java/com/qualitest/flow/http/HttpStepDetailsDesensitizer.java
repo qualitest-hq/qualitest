@@ -4,13 +4,16 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * HTTP 步骤报告（{@code step_details.http}）脱敏，主要用于 {@code callMode=external}。
+ * HTTP 步骤报告中的敏感信息脱敏（外联调用场景常用）。
  * <p>
- * 对 request/response 的 headers、body 字段名及 query 参数中匹配敏感键（password、secret、token、client_secret 等）的值替换为 {@code ***}。
- * {@code extracts} 在 http 对象外层，脱敏不作用于 extracts 顶层。
+ * 对 request/response 的 headers、body 字段名及 query 参数中命中敏感键
+ * （password、secret、token、api_key、client_secret、authorization 等）的值替换为 {@code ***}。
+ * response.bodyText 按 XML 叶子元素处理：标签名命中敏感键时，元素内容（含 CDATA）替换为 {@code ***}，标签与属性保留。
+ * extracts 列表若出现在 http 对象内，对 name 命中敏感键的项屏蔽 value。
  */
 public final class HttpStepDetailsDesensitizer {
 
@@ -22,6 +25,12 @@ public final class HttpStepDetailsDesensitizer {
 
     private static final Pattern SENSITIVE_QUERY = Pattern.compile(
             "(?i)((?:client_secret|api_key|password|secret|token)=)([^&\\s]+)"
+    );
+
+    /** XML 叶子元素：标签名、属性、文本或单段 CDATA 内容 */
+    private static final Pattern XML_LEAF = Pattern.compile(
+            "<([A-Za-z_][\\w.:-]*)(\\s[^<>]*)?>(<!\\[CDATA\\[.*?]]>|[^<]*)</\\1\\s*>",
+            Pattern.DOTALL
     );
 
     private HttpStepDetailsDesensitizer() {
@@ -49,6 +58,9 @@ public final class HttpStepDetailsDesensitizer {
             Map<String, Object> respCopy = new LinkedHashMap<>((Map<String, Object>) respMap);
             if (respCopy.get("body") != null) {
                 respCopy.put("body", desensitizeBodyValue(respCopy.get("body")));
+            }
+            if (respCopy.get("bodyText") instanceof String bodyText) {
+                respCopy.put("bodyText", maskSensitiveText(maskSensitiveXml(bodyText)));
             }
             out.put("response", respCopy);
         }
@@ -134,10 +146,41 @@ public final class HttpStepDetailsDesensitizer {
         return body;
     }
 
+    /**
+     * 对纯文本中的敏感 query 片段脱敏（如 token=xxx → token=***）。
+     *
+     * @param text 原文；空白则原样返回
+     */
     static String maskSensitiveText(String text) {
         if (text == null || text.isBlank()) {
             return text;
         }
         return SENSITIVE_QUERY.matcher(text).replaceAll("$1" + MASK);
+    }
+
+    /**
+     * 对 XML 原文做标签级脱敏：叶子元素标签名命中敏感键时，内容（含一段 CDATA）换成 {@code ***}。
+     * 非敏感标签与嵌套结构保持原文；非法或不完整片段尽量原样保留。
+     *
+     * @param text XML 原文；空白则原样返回
+     * @return 脱敏后的文本
+     */
+    static String maskSensitiveXml(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+        Matcher m = XML_LEAF.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String name = m.group(1);
+            String replacement = m.group();
+            if (SENSITIVE_KEY.matcher(name).find()) {
+                String attrs = m.group(2) != null ? m.group(2) : "";
+                replacement = "<" + name + attrs + ">" + MASK + "</" + name + ">";
+            }
+            m.appendReplacement(out, Matcher.quoteReplacement(replacement));
+        }
+        m.appendTail(out);
+        return out.toString();
     }
 }

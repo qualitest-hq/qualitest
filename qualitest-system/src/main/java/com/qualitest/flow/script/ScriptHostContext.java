@@ -22,7 +22,7 @@ import static com.qualitest.flow.script.ScriptArgs.requireArgs;
  * 注入 Script 节点脚本的 GraalVM {@code ctx} 宿主对象。
  * <p>
  * <b>变量读写</b>：{@code getFlow}/{@code setFlow}（唯一可写 flow）；{@code getEnv}/{@code getAsset} 只读；
- * {@code getLastHttp} 读上一步 HTTP 响应摘要。
+ * {@code getLastHttp} 读上一步 HTTP 快照（status、headers、body、bodyText、responseKind、durationMs）。
  * <p>
  * <b>工具方法</b>：{@code uuid}、{@code log}，以及接口脚本同名可用的 JSON、Base64、URL、XML、
  * 签名原文、摘要、HMAC、RSA、AES、国密 SM2/SM3/SM4 工具函数。
@@ -98,6 +98,7 @@ public class ScriptHostContext implements ProxyObject {
                 String path = args.length > 1 && !args[1].isNull() ? args[1].asString() : "";
                 return ScriptValueConverter.toScriptValue(resolveAsset(assetKey, path));
             };
+            // 上一步 HTTP：body 为解析后对象（含 XML 转对象），bodyText 为原文，responseKind 为 json/xml/nonJson
             case "getLastHttp" -> (ProxyExecutable) args -> {
                 FlowRunContext.HttpResponseSnapshot last = runContext.getLastResponse();
                 if (last == null) {
@@ -107,6 +108,8 @@ public class ScriptHostContext implements ProxyObject {
                 snapshot.put("status", last.getStatus());
                 snapshot.put("headers", last.getHeaders());
                 snapshot.put("body", last.getBody());
+                snapshot.put("bodyText", last.getBodyText());
+                snapshot.put("responseKind", last.getResponseKind());
                 snapshot.put("durationMs", last.getDurationMs());
                 return ScriptValueConverter.toScriptValue(snapshot);
             };

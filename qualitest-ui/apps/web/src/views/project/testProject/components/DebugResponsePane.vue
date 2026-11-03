@@ -179,14 +179,14 @@ const props = defineProps({
 const emit = defineEmits(['update:activeRespTab'])
 
 const expectedMismatchHint = computed(() => {
-  // 调试发送后：实际正文不符合接口期望形态时给出提示（不改转发结果）
+  // 调试发送后：对照期望形态（含 xml）提示不符；不改转发结果
   const dr = props.debugResponse
   if (!dr?.sent || dr.error || dr.status == null) return ''
   const parsed = parseResponseConfigInput(props.responseConfigText)
   const kind = normalizeExpectedResponseKind(parsed.bundle?.expectedResponseKind)
   if (kind === 'any') return ''
-  if (matchesExpectedResponseKind(kind, dr.bodyText)) return ''
-  const label = kind === 'html' ? 'HTML' : 'JSON'
+  if (matchesExpectedResponseKind(kind, dr.bodyText, dr.headers)) return ''
+  const label = kind === 'html' ? 'HTML' : kind === 'xml' ? 'XML' : 'JSON'
   return `与接口期望不符：期望 ${label}，实际响应形态不一致`
 })
 </script>

@@ -15,8 +15,9 @@ import java.util.UUID;
 /**
  * 导入时规范化 responseConfig JSON。
  * <p>
- * 产出结构：configVersion=1、expectedResponseKind（缺省 json）、responses 数组
+ * 产出结构：configVersion=1、expectedResponseKind（json / xml / html / any，缺省 json）、responses 数组
  *（每项含 id、name、httpStatus、contentType、schema、example）。
+ * 未写期望形态时按条目 contentType 推断：全 json → json，全 xml → xml，混合或含 binary → any。
  * 含非法顶层 content、缺 responses 或非法 JSON 时抛错；空白输入生成一条默认成功响应。
  */
 public final class ResponseConfigImportNormalizer {
@@ -82,7 +83,7 @@ public final class ResponseConfigImportNormalizer {
 
     /**
      * 解析期望响应形态：已有 expectedResponseKind 则规范化后采用；
-     * 否则按 responses 条目的 contentType 推断（全 json → json，含 xml/binary → any）。
+     * 否则按 responses 条目的 contentType 推断（全 json → json，全 xml → xml，混合或含 binary → any）。
      */
     private static String resolveExpectedKind(ObjectNode root) {
         if (root != null && root.hasNonNull(ExpectedResponseKindSupport.FIELD)
@@ -94,7 +95,7 @@ public final class ResponseConfigImportNormalizer {
 
     /**
      * 按响应条目 contentType 推断期望形态。
-     * 全部为 json（或缺省）→ json；出现 xml 或 binary → any。
+     * 全部为 json（或缺省）→ json；全部为 xml → xml；混合或出现 binary → any。
      */
     private static String inferExpectedKindFromResponses(ObjectNode root) {
         if (root == null) {
@@ -104,7 +105,8 @@ public final class ResponseConfigImportNormalizer {
         if (arr == null || !arr.isArray() || arr.isEmpty()) {
             return ExpectedResponseKindSupport.KIND_JSON;
         }
-        boolean sawNonJson = false;
+        boolean sawJson = false;
+        boolean sawXml = false;
         for (JsonNode item : arr) {
             if (item == null || !item.isObject()) {
                 continue;
@@ -113,14 +115,18 @@ public final class ResponseConfigImportNormalizer {
             if (item.hasNonNull("contentType") && item.get("contentType").isTextual()) {
                 ct = normalizeContentType(item.get("contentType").asText());
             }
-            if (!"json".equals(ct)) {
-                sawNonJson = true;
-                break;
+            if ("json".equals(ct)) {
+                sawJson = true;
+            } else if ("xml".equals(ct)) {
+                sawXml = true;
+            } else {
+                return ExpectedResponseKindSupport.KIND_ANY;
             }
         }
-        return sawNonJson
-                ? ExpectedResponseKindSupport.KIND_ANY
-                : ExpectedResponseKindSupport.KIND_JSON;
+        if (sawXml) {
+            return sawJson ? ExpectedResponseKindSupport.KIND_ANY : ExpectedResponseKindSupport.KIND_XML;
+        }
+        return ExpectedResponseKindSupport.KIND_JSON;
     }
 
     /** 规范化单条响应：补 id、默认名称/状态码/类型，schema 缺省为 null */

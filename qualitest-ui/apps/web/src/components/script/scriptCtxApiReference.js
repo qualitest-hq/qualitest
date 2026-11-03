@@ -43,7 +43,7 @@ export const SCRIPT_CTX_API_GROUPS = [
       {
         name: 'getLastHttp',
         sig: 'ctx.getLastHttp()',
-        desc: '上一步 HTTP 快照：status / headers / body / durationMs；无则 null',
+        desc: '上一步 HTTP 快照：status / headers / body（JSON、XML 已转对象）/ bodyText（原文）/ responseKind / durationMs；无则 null',
         access: 'read',
       },
     ],

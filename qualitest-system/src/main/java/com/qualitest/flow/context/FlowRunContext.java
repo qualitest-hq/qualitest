@@ -71,19 +71,28 @@ public class FlowRunContext {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class HttpResponseSnapshot {
+        /** HTTP 状态码 */
         private int status;
+        /** 响应头（键值均可访问） */
         private Map<String, Object> headers;
+        /**
+         * 解析后的响应体：JSON 对象/数组、XML 转成的对象，或未解析时的原文字符串；空体为 null
+         */
         private Object body;
+        /**
+         * 响应原文（未解析的字符串）；XML 转对象后仍保留，便于取原报文
+         */
+        private String bodyText;
         /**
          * 该步 HTTP 请求耗时（毫秒）
          */
         private Long durationMs;
         /**
-         * 实际响应形态：json（对象/数组）或 nonJson（HTML、纯文本等）
+         * 实际响应形态：json（JSON 对象/数组）、xml（XML 已转对象）、nonJson（HTML、纯文本、解析失败等）
          */
         private String responseKind;
         /**
-         * 实际响应是否符合接口配置的期望形态；无绑定接口时为 true
+         * 实际形态是否符合接口配置的期望形态；无绑定接口时为 true
          */
         private Boolean expectedMatch;
     }

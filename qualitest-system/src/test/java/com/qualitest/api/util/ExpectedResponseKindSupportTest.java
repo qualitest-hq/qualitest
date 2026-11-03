@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ExpectedResponseKindSupportTest {
 
     /**
-     * 前提：空白或未知字符串。
-     * 期望：归一为 json。
+     * 前提：空白、未知字符串与大小写不一的已知取值。
+     * 期望：空白与未知归一为 json；xml / html / any 规范为小写原值。
      */
     @Test
     @Order(1)
@@ -31,7 +31,8 @@ class ExpectedResponseKindSupportTest {
     void normalize_defaultsToJson() {
         assertEquals("json", ExpectedResponseKindSupport.normalize(null));
         assertEquals("json", ExpectedResponseKindSupport.normalize(""));
-        assertEquals("json", ExpectedResponseKindSupport.normalize("xml"));
+        assertEquals("json", ExpectedResponseKindSupport.normalize("yaml"));
+        assertEquals("xml", ExpectedResponseKindSupport.normalize(" XML "));
         assertEquals("html", ExpectedResponseKindSupport.normalize("HTML"));
         assertEquals("any", ExpectedResponseKindSupport.normalize("any"));
     }
@@ -91,5 +92,34 @@ class ExpectedResponseKindSupportTest {
         assertTrue(ExpectedResponseKindSupport.matchesOrSkip(null, "<html/>"));
         assertTrue(ExpectedResponseKindSupport.matchesOrSkip("", "<html/>"));
         assertTrue(ExpectedResponseKindSupport.matchesOrSkip("   ", "<html/>"));
+    }
+
+    /**
+     * 前提：实际形态 xml，分别对照期望 xml / json / html / any。
+     * 期望：xml、any 匹配；json、html 不匹配；期望 xml 遇到 json 也不匹配。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("matches：xml 期望与实际")
+    void matches_xmlKind() {
+        assertTrue(ExpectedResponseKindSupport.matches("xml", "xml"));
+        assertTrue(ExpectedResponseKindSupport.matches("any", "xml"));
+        assertFalse(ExpectedResponseKindSupport.matches("json", "xml"));
+        assertFalse(ExpectedResponseKindSupport.matches("html", "xml"));
+        assertFalse(ExpectedResponseKindSupport.matches("xml", "json"));
+    }
+
+    /**
+     * 前提：responseConfig 期望 xml；实际形态分别为 xml、nonJson；另有空白配置。
+     * 期望：xml 匹配，nonJson 不匹配；空白配置恒 true。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("matchesOrSkipByKind：按实际形态对照")
+    void matchesOrSkipByKind_xmlConfig() {
+        String cfg = "{\"expectedResponseKind\":\"xml\",\"responses\":[]}";
+        assertTrue(ExpectedResponseKindSupport.matchesOrSkipByKind(cfg, "xml"));
+        assertFalse(ExpectedResponseKindSupport.matchesOrSkipByKind(cfg, "nonJson"));
+        assertTrue(ExpectedResponseKindSupport.matchesOrSkipByKind(null, "nonJson"));
     }
 }

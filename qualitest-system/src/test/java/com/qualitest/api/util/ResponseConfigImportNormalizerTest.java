@@ -89,4 +89,31 @@ class ResponseConfigImportNormalizerTest {
                 """;
         assertThrows(ServiceException.class, () -> ResponseConfigImportNormalizer.normalize(raw));
     }
+
+    /**
+     * 前提：未写 expectedResponseKind，responses 全部为 xml；另一份 xml 与 json 混合。
+     * 期望：全 xml 推断为 xml；混合推断为 any。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("规范化：按条目 contentType 推断 xml / any")
+    void normalize_infersXmlOrAnyFromContentType() {
+        String allXml = """
+                {"configVersion": 1, "responses": [
+                  {"name": "成功", "httpStatus": 200, "contentType": "xml"},
+                  {"name": "失败", "httpStatus": 200, "contentType": "xml"}
+                ]}
+                """;
+        assertTrue(ResponseConfigImportNormalizer.normalize(allXml)
+                .contains("\"expectedResponseKind\":\"xml\""));
+
+        String mixed = """
+                {"configVersion": 1, "responses": [
+                  {"name": "成功", "httpStatus": 200, "contentType": "xml"},
+                  {"name": "失败", "httpStatus": 400, "contentType": "json"}
+                ]}
+                """;
+        assertTrue(ResponseConfigImportNormalizer.normalize(mixed)
+                .contains("\"expectedResponseKind\":\"any\""));
+    }
 }

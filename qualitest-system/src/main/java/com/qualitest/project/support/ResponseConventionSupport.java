@@ -6,6 +6,7 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,7 +18,7 @@ import java.util.Map;
  * 约定描述被测系统统一响应包装四字段：
  * <ul>
  *   <li>codePath：业务码所在字段路径</li>
- *   <li>successValues：视为成功的业务码列表</li>
+ *   <li>successValues：视为成功的业务码列表（整数或字符串，如 200、SUCCESS）</li>
  *   <li>messagePath：错误消息字段路径</li>
  *   <li>dataPath：业务数据包装字段路径</li>
  * </ul>
@@ -32,7 +33,7 @@ public final class ResponseConventionSupport {
     /** 默认业务数据包装字段名 */
     public static final String DEFAULT_DATA_PATH = "data";
     /** 默认成功业务码列表 */
-    public static final List<Integer> DEFAULT_SUCCESS_VALUES = List.of(200);
+    public static final List<Object> DEFAULT_SUCCESS_VALUES = List.of(200);
 
     /**
      * 缺省约定的 JSON 字符串（四字段齐全）。
@@ -56,7 +57,7 @@ public final class ResponseConventionSupport {
         String codePath = firstNonBlank(obj.getString("codePath"), DEFAULT_CODE_PATH);
         String messagePath = firstNonBlank(obj.getString("messagePath"), DEFAULT_MESSAGE_PATH);
         String dataPath = firstNonBlank(obj.getString("dataPath"), DEFAULT_DATA_PATH);
-        List<Integer> successValues = readSuccessValues(obj.getJSONArray("successValues"));
+        List<Object> successValues = readSuccessValues(obj.getJSONArray("successValues"));
         if (successValues.isEmpty()) {
             successValues = List.copyOf(DEFAULT_SUCCESS_VALUES);
         }
@@ -151,7 +152,7 @@ public final class ResponseConventionSupport {
                 }
             }
             if (patch.containsKey("successValues")) {
-                List<Integer> values = coerceSuccessValues(patch.get("successValues"));
+                List<Object> values = coerceSuccessValues(patch.get("successValues"));
                 if (!values.isEmpty()) {
                     merged.put("successValues", values);
                 }
@@ -160,30 +161,74 @@ public final class ResponseConventionSupport {
         return normalizeToJson(merged.toJSONString());
     }
 
-    /** 将补丁中的 successValues 收成整数列表（支持数组、集合、单值）。 */
-    private static List<Integer> coerceSuccessValues(Object raw) {
-        List<Integer> out = new ArrayList<>();
+    /**
+     * 将任意形态的 successValues 收成列表。
+     * 纯数字（含可整分解析且与原文一致的数字字符串）→ Integer；其余非空白 → String。
+     * 支持 JSON 数组、集合、对象数组、单值；无法识别或空白项跳过。
+     *
+     * @param raw 原始成功值；可为数组、集合或单值
+     * @return 规范化后的列表；无有效项时为空列表
+     */
+    public static List<Object> coerceSuccessValues(Object raw) {
         if (raw instanceof JSONArray arr) {
             return readSuccessValues(arr);
         }
         if (raw instanceof Collection<?> coll) {
-            for (Object item : coll) {
-                Integer v = coerceInt(item);
-                if (v != null) {
-                    out.add(v);
-                }
-            }
-            return out;
+            return coerceSuccessValuesFromIterable(coll);
         }
-        Integer single = coerceInt(raw);
-        if (single != null) {
-            out.add(single);
+        if (raw instanceof Object[] arr) {
+            return coerceSuccessValuesFromIterable(Arrays.asList(arr));
+        }
+        Object single = coerceSuccessValue(raw);
+        return single != null ? List.of(single) : List.of();
+    }
+
+    /** 遍历集合，逐项规范化并跳过无法识别的项 */
+    private static List<Object> coerceSuccessValuesFromIterable(Iterable<?> items) {
+        List<Object> out = new ArrayList<>();
+        for (Object item : items) {
+            Object v = coerceSuccessValue(item);
+            if (v != null) {
+                out.add(v);
+            }
         }
         return out;
     }
 
+    /**
+     * 单项成功码规范化。
+     * Number → Integer；纯数字字符串（trim 后与整数值字面量相同）→ Integer；
+     * 能解析成整数但原文不同（如 01）→ 保留去空白后的字符串；其它非空白 → 字符串；null / 空白 → null。
+     *
+     * @param value 原始单项
+     * @return Integer、String 或 null
+     */
+    public static Object coerceSuccessValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        Integer asInt = coerceInt(value);
+        if (asInt != null) {
+            if (value instanceof String s) {
+                String t = s.trim();
+                // 与整数字面量相同则落成 Integer，否则保留原文（避免 01 变成 1）
+                if (String.valueOf(asInt).equals(t)) {
+                    return asInt;
+                }
+                return t;
+            }
+            return asInt;
+        }
+        if (value instanceof String s) {
+            String t = s.trim();
+            return t.isEmpty() ? null : t;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
+    }
+
     /** 把 Number 或数字字符串转为 Integer；无法解析则返回 null。 */
-    private static Integer coerceInt(Object value) {
+    public static Integer coerceInt(Object value) {
         if (value instanceof Number n) {
             return n.intValue();
         }
@@ -210,14 +255,14 @@ public final class ResponseConventionSupport {
         }
     }
 
-    /** 从 JSON 数组读取成功业务码，跳过 null 元素。 */
-    private static List<Integer> readSuccessValues(JSONArray arr) {
-        List<Integer> out = new ArrayList<>();
+    /** 从 JSON 数组读取成功业务码（整数或字符串）。 */
+    private static List<Object> readSuccessValues(JSONArray arr) {
+        List<Object> out = new ArrayList<>();
         if (arr == null || arr.isEmpty()) {
             return out;
         }
         for (int i = 0; i < arr.size(); i++) {
-            Integer v = arr.getInteger(i);
+            Object v = coerceSuccessValue(arr.get(i));
             if (v != null) {
                 out.add(v);
             }
@@ -236,9 +281,9 @@ public final class ResponseConventionSupport {
      * @param codePath      业务码字段路径
      * @param messagePath   错误消息字段路径
      * @param dataPath      业务数据包装字段路径
-     * @param successValues 成功业务码列表
+     * @param successValues 成功业务码列表（Integer 或 String）
      */
-    public record Parsed(String codePath, String messagePath, String dataPath, List<Integer> successValues) {
+    public record Parsed(String codePath, String messagePath, String dataPath, List<Object> successValues) {
         public Parsed {
             successValues = successValues != null ? List.copyOf(successValues) : List.of();
         }
