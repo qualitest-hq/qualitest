@@ -25,7 +25,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 FlowGraphRunner：内存图遍历、线性多步与 forbidNestedSubflow。
+ * 测 FlowGraphRunner：内存图遍历、线性多步、步数上限超限合成失败步、forbidNestedSubflow。
  * 边界：失败短路；子图含 subflow 时拒绝；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphRunnerTest
  */
@@ -143,11 +143,39 @@ class FlowGraphRunnerTest {
     }
 
     /**
+     * 前提：线性两节点，场景策略 maxSteps=1。
+     * 期望：先执行 d1；第二步超限时为 d2 合成 failed 步骤，错误含节点名与上限。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("超过 maxSteps 时合成失败步并指出节点")
+    void run_exceedsMaxSteps_failsWithSyntheticStep() {
+        GraphJson graph = GraphJson.parse(loadResource("flow/runner-linear-two-delay.json"));
+        RunSnapshotPolicy policy = RunSnapshotPolicy.builder().maxSteps(1).build();
+        FlowGraphRunner.Outcome outcome = runner.run(
+                graph, ctx, registry,
+                FlowNodePreExecuteHook.NONE,
+                RunContinuation.fresh(),
+                policy,
+                null);
+        assertFalse(outcome.isPassed());
+        assertEquals(2, outcome.getSteps().size());
+        StepResult limitStep = outcome.getSteps().get(1);
+        assertEquals("d2", limitStep.getNodeId());
+        assertEquals(RunStatus.FAILED.getCode(), limitStep.getStatus());
+        assertNotNull(limitStep.getError());
+        assertEquals(FlowErrorCode.TF_RUN_STEP_LIMIT.getCode(), limitStep.getError().getCode());
+        assertTrue(limitStep.getError().getMessage().contains("超过单次运行步数上限（1）"));
+        assertTrue(limitStep.getError().getMessage().contains("d2"));
+        assertEquals(FlowErrorCode.TF_RUN_STEP_LIMIT.getCode(), outcome.getError().getCode());
+    }
+
+    /**
      * 前提：线性两节点；注册每步完成回调。
      * 期望：每步完成后立刻回调，顺序与最终 steps 一致。
      */
     @Test
-    @Order(5)
+    @Order(6)
     @DisplayName("onStep 在每步完成后立即回调")
     void run_onStep_invokedPerStep() {
         GraphJson graph = GraphJson.parse(loadResource("flow/runner-linear-two-delay.json"));

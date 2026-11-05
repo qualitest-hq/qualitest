@@ -3,13 +3,18 @@ package com.qualitest.ai.mcp.protocol;
 import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.flow.model.GraphJson;
 
+import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * 一条 MCP Streamable HTTP 会话。
  * <p>
  * 逐次调用（{@link Mode#CALL}）：每次工具调用各自提交，submit 校验通过就写入测试流。
  * 回合会话（{@link Mode#TURN}）：绑定一张已打开的测试流，同一会话内累积已接受的设计单元和工作图；
  * submit 只表示已收下，调用 run_test_flow 前才把这些单元写入测试流。
- * 会话被移除、断线或超时时，只丢掉还留在内存里、尚未跑流的单元，不把半成品写入测试流。
+ * 会话被移除、断线或超时时，只丢掉还留在内存里、尚未跑流的单元，不把半成品写入测试流；
+ * 并释放本会话持有的测试流写锁。
  */
 public final class McpSession {
 
@@ -35,6 +40,8 @@ public final class McpSession {
     private volatile GraphJson graph;
     /** 工作图对应的画布版本，跑流落盘成功后更新 */
     private volatile Long revision;
+    /** 本会话已取得端锁的测试流 id，会话关闭时释放 */
+    private final Set<Long> heldFlowIds = ConcurrentHashMap.newKeySet();
 
     /**
      * 建立会话。mode 为空时按逐次调用。
@@ -45,6 +52,25 @@ public final class McpSession {
         this.testProjectId = testProjectId;
         this.mode = mode == null ? Mode.CALL : mode;
         this.testFlowId = testFlowId;
+    }
+
+    /** 记下本会话持有写锁的测试流 */
+    public void noteHeldFlow(Long flowId) {
+        if (flowId != null) {
+            heldFlowIds.add(flowId);
+        }
+    }
+
+    /** 本会话不再持有该流的写锁 */
+    public void clearHeldFlow(Long flowId) {
+        if (flowId != null) {
+            heldFlowIds.remove(flowId);
+        }
+    }
+
+    /** 本会话持有写锁的全部测试流 id（只读视图） */
+    public Set<Long> getHeldFlowIds() {
+        return Collections.unmodifiableSet(heldFlowIds);
     }
 
     /** 会话 id。 */

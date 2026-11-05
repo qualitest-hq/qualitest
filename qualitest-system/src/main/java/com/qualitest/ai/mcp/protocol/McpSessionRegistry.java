@@ -1,7 +1,10 @@
 package com.qualitest.ai.mcp.protocol;
 
+import com.qualitest.flow.sync.FlowEditLeaseService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -9,12 +12,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * MCP Streamable HTTP 会话登记。
  * <p>
  * 会话 id 在 initialize 时签发，供后续请求头 {@code Mcp-Session-Id} 与 SSE 下行校验。
- * 移除会话只丢掉内存中的工作图与尚未跑流的单元，不另行写入测试流。
+ * 移除会话时丢掉内存中的工作图与尚未跑流的单元，并释放本会话持有的测试流写锁。
  */
 @Component
+@RequiredArgsConstructor
 public class McpSessionRegistry {
 
     private final ConcurrentHashMap<String, McpSession> sessions = new ConcurrentHashMap<>();
+    private final FlowEditLeaseService flowEditLeaseService;
 
     /**
      * 登记一条逐次调用会话。
@@ -65,13 +70,27 @@ public class McpSessionRegistry {
     }
 
     /**
-     * 移除会话。内存中尚未跑流的单元一并丢弃。
+     * 移除会话。内存中尚未跑流的单元一并丢弃，并释放本会话写锁。
      *
      * @param sessionId 会话 id
      */
     public void remove(String sessionId) {
-        if (sessionId != null) {
-            sessions.remove(sessionId);
+        if (sessionId == null) {
+            return;
+        }
+        McpSession removed = sessions.remove(sessionId);
+        if (removed == null) {
+            return;
+        }
+        String endpoint = FlowEditLeaseService.mcpEndpointId(
+                removed.getId(), removed.getTestProjectId(), null);
+        Set<Long> held = removed.getHeldFlowIds();
+        for (Long flowId : held) {
+            try {
+                flowEditLeaseService.release(flowId, endpoint);
+            } catch (Exception ignored) {
+                // 尽力释放
+            }
         }
     }
 }

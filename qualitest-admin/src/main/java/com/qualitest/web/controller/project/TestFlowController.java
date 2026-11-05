@@ -313,7 +313,8 @@ public class TestFlowController extends BaseController {
 
     /**
      * 占用测试流写锁。
-     * 画布有未保存修改时调用；返回 token 供后续心跳与保存携带。
+     * 画布有未保存修改时调用；返回 token 供后续心跳与保存携带，
+     * 并回传当前库中 graphRevision，供前端对齐本地图版本。
      * 需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
@@ -322,8 +323,12 @@ public class TestFlowController extends BaseController {
         assertFlowEditable(testFlowId);
         String holder = "web:" + SecurityUtils.getUsername();
         String token = flowEditLeaseService.tryAcquire(testFlowId, holder);
-        Map<String, String> data = new HashMap<>(2);
+        Map<String, String> data = new HashMap<>(4);
         data.put("token", token);
+        TestFlowResult flow = testFlowService.selectTestFlowResult(testFlowId);
+        if (flow != null && flow.getGraphRevision() != null) {
+            data.put("graphRevision", String.valueOf(flow.getGraphRevision()));
+        }
         return R.ok(data);
     }
 

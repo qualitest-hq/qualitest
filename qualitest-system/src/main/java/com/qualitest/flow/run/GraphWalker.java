@@ -30,8 +30,11 @@ import java.util.stream.Collectors;
  */
 public class GraphWalker {
 
-    /** 单次 Run 允许的最大步骤数，超出由执行器终止并抛 TF_RUN_STEP_LIMIT */
-    public static final int DEFAULT_MAX_STEPS = 50;
+    /** 场景未配置步数上限时，单次 Run 采用的默认最大步数 */
+    public static final int DEFAULT_MAX_STEPS = 200;
+
+    /** 场景配置的步数上限可被裁剪到的最大值 */
+    public static final int MAX_STEPS_CEILING = 1000;
 
     /** 节点 id → 节点定义 */
     private final Map<String, GraphNode> nodeById;

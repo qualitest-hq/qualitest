@@ -3,7 +3,6 @@ package com.qualitest.ai.mcp;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.mcp.protocol.McpSession;
-import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolContextFactory;
@@ -11,12 +10,13 @@ import com.qualitest.ai.tools.FlowDesignToolExecutor;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.flow.FlowDesignAutopilotCommitSupport;
+import com.qualitest.ai.tools.flow.ReleaseFlowLockTool;
 import com.qualitest.ai.tools.flow.TestFlowAccessSupport;
 import com.qualitest.api.params.McpToolInvokeParams;
 import com.qualitest.api.result.McpToolResult;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.sync.FlowEditLeaseConflictException;
-import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.flow.sync.FlowEditLeaseService;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
@@ -24,6 +24,9 @@ import com.qualitest.project.service.ITestProjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * MCP 单次工具调用编排。
@@ -33,15 +36,18 @@ import org.springframework.stereotype.Service;
  * 写流/跑流/导入须带 Token 绑定的操作者用户 id。
  * 逐次调用会话里，画布类 submit 校验通过后立刻写库。
  * 回合会话在同一会话内累积单元与工作图，submit 回执保持 received，跑流前再写入测试流。
+ * 写流/跑流工具在加载画布前先取得或续期本端写锁；同流后续调用（含只读）续期锁；
+ * 成功回执可附带 lockExpiresInSec；冲突时回执带 hint 与 lockHeldBy。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class McpToolInvokeService {
 
-    /** 写锁冲突时写入回执的短提示文案 */
+    /** 写锁被他端占用时，写入工具回执 hint 字段的说明文案 */
     private static final String LEASE_CONFLICT_HINT =
-            "写锁仍被占用（可能是 Web 未保存的内容草稿/其它标签）；请等待用户保存或放弃本地改动后再试，或换一流";
+            "写锁被其他端占用；请等待对方释放（MCP 空闲约 60 秒自动过期，或调用 release_flow_lock），"
+                    + "或等 Web 保存/放弃草稿后再试，或换一流";
 
     /** 按工具名执行具体业务 */
     private final FlowDesignToolExecutor flowDesignToolExecutor;
@@ -53,10 +59,8 @@ public class McpToolInvokeService {
     private final McpProjectGateResolver mcpProjectGateResolver;
     /** 加载测试流、写回 graph_json */
     private final ITestFlowService testFlowService;
-    /** 落盘前校验画布结构 */
-    private final GraphJsonValidator graphJsonValidator;
-    /** 落盘前规范化断言路径等设计期检查 */
-    private final FlowDesignPatchNormalizer flowDesignPatchNormalizer;
+    /** 测试流端锁 */
+    private final FlowEditLeaseService flowEditLeaseService;
 
     /**
      * 执行一次 MCP 工具调用（不传操作者，仅适合只读工具）。
@@ -133,6 +137,8 @@ public class McpToolInvokeService {
             throw new ServiceException("当前成员角色无权使用 MCP 工具");
         }
 
+        // release_flow_lock 不参与写前抢锁，走独立释放分支
+        boolean releaseLockTool = FlowDesignToolNames.RELEASE_FLOW_LOCK.getId().equals(toolName);
         boolean writeTool = FlowDesignToolNames.isMcpAutoWriteTool(toolName);
         boolean autorunTool = FlowDesignToolNames.isMcpAutorunTool(toolName);
         // 写流、跑流、导入都要落库审计人，须有 Token 绑定用户
@@ -140,8 +146,40 @@ public class McpToolInvokeService {
         if (needsOperator && operatorUserId == null) {
             throw new ServiceException("Project Token 未绑定操作者");
         }
+
+        String endpointId = FlowEditLeaseService.mcpEndpointId(
+                session != null ? session.getId() : null, tokenProjectId, operatorUserId);
+
+        // 先加锁再读图：写/跑工具在加载画布前取得或续期本端会话锁（含回合会话）
+        if ((writeTool || autorunTool) && !releaseLockTool) {
+            Long leaseFlowId = params.getTestFlowId();
+            if (leaseFlowId == null && turn) {
+                leaseFlowId = session.getTestFlowId();
+            }
+            if (leaseFlowId != null) {
+                flowEditLeaseService.acquireOrRenewEndpoint(
+                        leaseFlowId, endpointId, FlowEditLeaseService.MCP_TTL_SECONDS);
+                if (session != null) {
+                    session.noteHeldFlow(leaseFlowId);
+                }
+            }
+        }
         if (writeTool || autorunTool) {
             ensureWriteEnvelope(toolName, params, tokenProjectId);
+        }
+
+        // 该流上任意工具调用（含读）续期本端已持有的锁
+        Long renewFlowId = params.getTestFlowId();
+        if (renewFlowId == null && session != null) {
+            renewFlowId = session.getTestFlowId();
+        }
+        if (renewFlowId != null) {
+            flowEditLeaseService.renewIfHeldBy(
+                    renewFlowId, endpointId, FlowEditLeaseService.MCP_TTL_SECONDS);
+        }
+
+        if (!turn && releaseLockTool) {
+            return invokeReleaseFlowLock(params, tokenProjectId, operatorUserId, session, endpointId);
         }
 
         // 回合会话全程复用同一累积器，这样 run_test_flow 能看到前面收下的单元。
@@ -153,6 +191,7 @@ public class McpToolInvokeService {
         boolean autopilotCtx = turn || writeTool || autorunTool;
         FlowDesignToolContext context = contextFactory.fromMcpRequest(
                 params, tokenProjectId, capture, autopilotCtx, operatorUserId);
+        context.setEditLeaseEndpoint(endpointId);
 
         // 最后一个参数为 false 时走画布执行：submit 回 received，不在本次调用写库。
         // 为 true 时走逐次调用门面：跑流和查失败按 MCP 回执，submit 随后立刻写库。
@@ -173,11 +212,71 @@ public class McpToolInvokeService {
                     context.getTestProjectId(), toolName, context.getTestFlowId(), error);
         }
 
+        resultJson = appendLockExpiresHint(resultJson, renewFlowId, endpointId);
+
         return McpToolResult.builder()
                 .tool(toolName)
                 .resultJson(resultJson)
                 .error(error)
                 .build();
+    }
+
+    /** 执行 release_flow_lock，并更新会话持锁集合。 */
+    private McpToolResult invokeReleaseFlowLock(McpToolInvokeParams params,
+                                                Long tokenProjectId,
+                                                Long operatorUserId,
+                                                McpSession session,
+                                                String endpointId) {
+        Long flowId = params != null ? params.getTestFlowId() : null;
+        Map<String, Object> args = new HashMap<>();
+        if (flowId != null) {
+            args.put("testFlowId", String.valueOf(flowId));
+        }
+        FlowDesignToolContext ctx = contextFactory.fromMcpRequest(
+                params, tokenProjectId, null, true, operatorUserId);
+        ctx.setEditLeaseEndpoint(endpointId);
+        String resultJson = new ReleaseFlowLockTool(flowEditLeaseService, endpointId)
+                .execute(args, ctx);
+        boolean error = FlowDesignToolSupport.isErrorResult(resultJson);
+        if (!error && session != null && flowId != null) {
+            try {
+                JSONObject o = JSON.parseObject(resultJson);
+                if (o != null && Boolean.TRUE.equals(o.getBoolean("released"))) {
+                    session.clearHeldFlow(flowId);
+                }
+            } catch (Exception ignored) {
+                // 回执解析失败不影响释放结果
+            }
+        }
+        return McpToolResult.builder()
+                .tool(FlowDesignToolNames.RELEASE_FLOW_LOCK.getId())
+                .resultJson(resultJson)
+                .error(error)
+                .build();
+    }
+
+    /** 在成功回执上附带本端锁剩余秒数，便于模型决定何时 release_flow_lock。 */
+    private String appendLockExpiresHint(String resultJson, Long flowId, String endpointId) {
+        if (flowId == null || endpointId == null || endpointId.isBlank()) {
+            return resultJson;
+        }
+        if (!flowEditLeaseService.holds(flowId, endpointId)) {
+            return resultJson;
+        }
+        long ttl = flowEditLeaseService.remainingTtlSeconds(flowId);
+        if (ttl < 0) {
+            return resultJson;
+        }
+        try {
+            JSONObject result = JSON.parseObject(resultJson);
+            if (result == null || result.containsKey("error")) {
+                return resultJson;
+            }
+            result.put("lockExpiresInSec", ttl);
+            return result.toJSONString();
+        } catch (Exception e) {
+            return resultJson;
+        }
     }
 
     /**
@@ -342,22 +441,31 @@ public class McpToolInvokeService {
         }
 
         FlowDesignAutopilotCommitSupport.CommitOutcome commit =
-                FlowDesignAutopilotCommitSupport.commitIfNeeded(
-                        context, testFlowService, graphJsonValidator, flowDesignPatchNormalizer);
+                FlowDesignAutopilotCommitSupport.commitIfNeeded(context, testFlowService);
         result.put("committed", commit.committed());
         result.put("commitOk", commit.ok());
         result.put("commitMessage", commit.message());
         boolean error = false;
         if (commit.committed()) {
-            result.put("hint", "单元已接受并立即写入测试流库；可继续 submit_* 或 run_test_flow");
+            result.put("hint",
+                    "单元已接受并立即写入测试流库；可继续 submit_* 或 run_test_flow；"
+                            + "改完后请 release_flow_lock");
+            Long flowId = context.getTestFlowId();
+            String endpoint = context.getEditLeaseEndpoint();
+            if (flowId != null && endpoint != null && flowEditLeaseService.holds(flowId, endpoint)) {
+                long ttl = flowEditLeaseService.remainingTtlSeconds(flowId);
+                if (ttl >= 0) {
+                    result.put("lockExpiresInSec", ttl);
+                }
+            }
         } else if (!commit.ok()) {
             error = true;
             result.put("error", "单元已接受但落盘失败: " + commit.message());
             if (commit.lockHeldBy() != null && !commit.lockHeldBy().isBlank()) {
                 result.put("lockHeldBy", commit.lockHeldBy());
                 result.put("hint", LEASE_CONFLICT_HINT);
-            } else if (commit.message() != null && commit.message().contains("版本冲突")) {
-                result.put("hint", "图版本冲突且自动重试已耗尽；请重新勘察当前画布后再 submit_*");
+            } else if (commit.message() != null && commit.message().contains("已不存在")) {
+                result.put("hint", "引用的节点或边已不存在（可能被其他端删除）；请重新勘察画布后再 submit_*");
             } else {
                 result.put("hint", "请根据 commit errors 修正后再 submit_*");
             }

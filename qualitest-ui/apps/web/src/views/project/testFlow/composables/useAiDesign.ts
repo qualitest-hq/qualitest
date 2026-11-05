@@ -384,7 +384,7 @@ export function useAiDesign() {
       testProjectEnvId: activeScenario?.testProjectEnvId
         ? String(activeScenario.testProjectEnvId)
         : undefined,
-      // 当前图版本，供全自动落盘条件更新
+      // 当前图版本，供 Web 整图保存 CAS；AI 增量落盘走服务端行锁
       graphRevision: store.graphRevision,
     };
     // 把当前画布已算出的开跑/鉴权风险文案带入本轮设计请求

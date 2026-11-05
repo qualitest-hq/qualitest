@@ -26,8 +26,9 @@
 <!-- mcp:autowrite -->
 - **每次成功的 `submit_*` 已立即写库**；同流已在 Web 打开时画布自动同步。
 - 本规程职责是经 MCP 改流：开了写权限就直接调写工具。
-- 若工具报写锁仍被占用（lockHeldBy）：通常是 Web 有未保存的**内容**草稿（非仅排版/拖坐标）正占锁；请等待用户保存或放弃本地改动后再试，或换一流。
-- 若工具报图版本冲突且自动重试已耗尽：服务端已按最新图重放本单元若干次仍失败；请重新勘察当前画布后再 submit_*。
+- 写流会按会话持有端锁（空闲约 60 秒自动过期；该流上的读/写工具调用都会续期）。**改图完成、或跑流通过后不再继续改时，调用 `release_flow_lock`** 立刻交还锁。
+- 若工具报写锁被占用（lockHeldBy）：另一端（Web 未保存草稿、其它 MCP 会话等）正持锁；请等待对方释放或锁过期后再试，或换一流。
+- 若报「节点/边已不存在」：可能被其他端删改；请重新勘察当前画布后再 submit_*。
 - HTTP 节点优先 `callMode=project` + `testProjectApiId`；测值从业务仓或素材键读取，读不到标不确定。
 - 外联 `preScript`/`postScript`：宿主 `api`（服务端 GraalJS）。常用：`environment.get`、`request.headers.add`、`request.body = {kind,raw}`（须整对象重赋，嵌套改字段不回写）、`base64Encode`/`base64Decode`、`response.json()`、`test`/`expect`。编码与加密工具（与 Script 节点 `ctx` 同名）：`urlEncode`、`xmlParse`/`xmlStringify`、`signContent`、`md5`/`sha256`/`sm3`、`hmacSha256`/`hmacSha512`、`rsaSign`/`rsaVerify`、`aesGcmEncrypt`、`aesEncrypt`、`sm2Sign`、`sm4Encrypt` 等，入参出参均为字符串。无浏览器 `btoa`/`atob`、无 `pm`。`project` 模式用接口库脚本，节点 `data.preScript` 不生效。HTTP 失败默认不写 `extracts`（`extractsOnFailure=write` 除外）。
 - Script 节点 `source`：宿主 `ctx`（`getFlow`/`setFlow`/`getEnv`/`getAsset`/`session`/`http`），编码与加密工具同上条。需要签名、加密或编码报文时（如登录密码加密、接口签名、XML / 表单报文、仿第三方回调），用脚本生成结果写入 flow，再由 HTTP 节点引用发送；私钥、密钥放素材或环境，勿写死在脚本里。

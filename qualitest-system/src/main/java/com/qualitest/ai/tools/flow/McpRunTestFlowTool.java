@@ -1,11 +1,9 @@
 package com.qualitest.ai.tools.flow;
 
-import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
-import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.service.ITestFlowExecutionService;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.project.service.ITestFlowRunStepService;
@@ -39,12 +37,10 @@ public class McpRunTestFlowTool implements QualitestTool {
     public McpRunTestFlowTool(ITestFlowExecutionService testFlowExecutionService,
                               ITestFlowRunService testFlowRunService,
                               ITestFlowRunStepService testFlowRunStepService,
-                              ITestFlowService testFlowService,
-                              GraphJsonValidator graphJsonValidator,
-                              FlowDesignPatchNormalizer patchNormalizer) {
+                              ITestFlowService testFlowService) {
         this(new TestFlowRunTriggerCore(
                 testFlowExecutionService, testFlowRunService, testFlowRunStepService,
-                testFlowService, graphJsonValidator, patchNormalizer));
+                testFlowService));
     }
 
     @Override

@@ -1,7 +1,4 @@
-/**
- * 测试流图持久化 JSON 的最小 TypeScript 类型。
- * 与后端 GraphJson / GraphNode / GraphEdge 字段对应。
- */
+/** 测试流图持久化 JSON 的最小 TypeScript 类型定义。 */
 
 /** 画布视口 */
 export interface GraphViewport {
@@ -25,6 +22,8 @@ export interface GraphRunScenario {
   remark?: string;
   onNodeFailure?: 'fail' | 'prompt';
   onSnapshotFailure?: 'abort' | 'prompt' | 'continue';
+  /** 单次运行允许执行的最大节点步数；留空表示使用默认 200 */
+  maxSteps?: number | null;
 }
 
 /** 流程对外暴露的 flow 返回值声明 */

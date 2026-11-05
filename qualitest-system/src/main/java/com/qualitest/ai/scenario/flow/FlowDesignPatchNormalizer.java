@@ -1287,7 +1287,7 @@ public class FlowDesignPatchNormalizer {
 
     /**
      * 将规范化 patch 合并到基准图。
-     * 版本冲突重放时，在重新 normalize 后调用以得到待落盘图。
+     * 增量写图在行锁内重读最新图后调用，只应用本次操作。
      *
      * @param baseGraph 基准图
      * @param patch     已规范化 patch

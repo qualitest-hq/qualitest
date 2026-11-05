@@ -9,8 +9,7 @@ import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.run.RunStatus;
-import com.qualitest.flow.validate.GraphJsonValidator;
-import com.qualitest.flow.validate.GraphValidationResult;
+import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.params.TriggerTestFlowRunParams;
 import com.qualitest.project.result.TestFlowRunResult;
 import com.qualitest.project.service.ITestFlowExecutionService;
@@ -60,7 +59,7 @@ class RunTestFlowToolTest {
 
         RunTestFlowTool tool = new RunTestFlowTool(
                 execution, runService, mock(ITestFlowRunStepService.class),
-                flowService, mock(GraphJsonValidator.class), mock(FlowDesignPatchNormalizer.class));
+                flowService);
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
                 .autopilotEnabled(true)
@@ -91,8 +90,7 @@ class RunTestFlowToolTest {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
         RunTestFlowTool tool = new RunTestFlowTool(
                 execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
-                mock(ITestFlowService.class), mock(GraphJsonValidator.class),
-                mock(FlowDesignPatchNormalizer.class));
+                mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
                 .autopilotEnabled(false)
@@ -104,19 +102,22 @@ class RunTestFlowToolTest {
     }
 
     /**
-     * 前提：有已接受单元但校验失败。
+     * 前提：有已接受单元但增量写图失败。
      * 期望：跑流前落盘失败，不 triggerRun。
      */
     @Test
     @Order(3)
-    @DisplayName("有 pending 且校验失败时不跑流")
-    void execute_pendingCaptureValidationFail_doesNotRun() {
+    @DisplayName("有 pending 且落盘失败时不跑流")
+    void execute_pendingCaptureCommitFail_doesNotRun() {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
-        GraphJsonValidator validator = mock(GraphJsonValidator.class);
-        when(validator.validate(any(), any())).thenReturn(
-                GraphValidationResult.of(List.of("结构错误"), List.of()));
-        FlowDesignPatchNormalizer normalizer = mock(FlowDesignPatchNormalizer.class);
-        when(normalizer.apiResolver()).thenReturn(id -> null);
+        ITestFlowService flowService = mock(ITestFlowService.class);
+        TestFlow existing = new TestFlow();
+        existing.setTestFlowId(1L);
+        existing.setTestProjectId(100L);
+        existing.setDelStatus(0);
+        when(flowService.selectTestFlowById(1L)).thenReturn(existing);
+        when(flowService.applyGraphPatch(any(), any(), any(), any()))
+                .thenThrow(new com.qualitest.common.exception.ServiceException("节点 n1 已不存在，可能已被其他端删除"));
 
         FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
         FlowDesignPatch unit = new FlowDesignPatch();
@@ -127,7 +128,7 @@ class RunTestFlowToolTest {
 
         RunTestFlowTool tool = new RunTestFlowTool(
                 execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
-                mock(ITestFlowService.class), validator, normalizer);
+                flowService);
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
                 .testProjectId(100L)
@@ -164,8 +165,7 @@ class RunTestFlowToolTest {
         java.util.concurrent.atomic.AtomicLong started = new java.util.concurrent.atomic.AtomicLong();
         RunTestFlowTool tool = new RunTestFlowTool(
                 execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
-                mock(ITestFlowService.class), mock(GraphJsonValidator.class),
-                mock(FlowDesignPatchNormalizer.class));
+                mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
                 .autopilotEnabled(true)

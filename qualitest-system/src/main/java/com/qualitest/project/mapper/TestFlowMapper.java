@@ -89,6 +89,23 @@ public interface TestFlowMapper {
     int updateTestFlowGraphCas(TestFlow testFlow);
 
     /**
+     * 行锁读取测试流（写事务内重读最新图用）。
+     *
+     * @param testFlowId 测试流主键
+     * @return 测试流；不存在则 null
+     */
+    TestFlow selectTestFlowGraphForUpdate(Long testFlowId);
+
+    /**
+     * 无条件写回 graph_json 并递增 graph_revision。
+     * 须在同一事务内先 {@link #selectTestFlowGraphForUpdate}，且已持有端锁。
+     *
+     * @param testFlow 须带 testFlowId、graphJson、updateTime
+     * @return 影响行数
+     */
+    int updateTestFlowGraphIncrement(TestFlow testFlow);
+
+    /**
      * 清空指定测试流的所属目录（flow_group_id 置 NULL）。
      *
      * @param testFlowId 测试流主键

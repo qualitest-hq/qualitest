@@ -36,6 +36,10 @@ public final class ScenarioPatchMergeSupport {
         if (update.getOnSnapshotFailure() != null && !update.getOnSnapshotFailure().isBlank()) {
             existing.setOnSnapshotFailure(update.getOnSnapshotFailure());
         }
+        // 步数上限：patch 显式传入则覆盖
+        if (update.getMaxSteps() != null) {
+            existing.setMaxSteps(update.getMaxSteps());
+        }
         if (update.getFlowSeed() != null && !update.getFlowSeed().isEmpty()) {
             Map<String, Object> merged = new HashMap<>();
             if (existing.getFlowSeed() != null) {

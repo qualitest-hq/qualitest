@@ -1,6 +1,9 @@
 package com.qualitest.project.service;
 
 import java.util.List;
+
+import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
+import com.qualitest.flow.model.GraphJson;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
 import com.qualitest.project.params.TestFlowParams;
@@ -61,6 +64,29 @@ public interface ITestFlowService {
      * @return 结果
      */
     int updateTestFlow(TestFlow testFlow);
+
+    /**
+     * 在端锁与行锁内把规范化 patch 增量应用到最新图并写库。
+     * 不使用版本号 CAS；写完后 graph_revision +1。
+     *
+     * @param testFlowId   测试流 id
+     * @param testProjectId 项目 id（可空，用于校验归属）
+     * @param patch        已规范化的增量 patch
+     * @param endpointId   稳定端标识；空则按短抢锁处理
+     * @return 写库后的图、新版本号与警告
+     */
+    ApplyGraphPatchResult applyGraphPatch(Long testFlowId, Long testProjectId,
+                                          FlowDesignPatch patch, String endpointId);
+
+    /**
+     * {@link #applyGraphPatch} 的写库结果。
+     *
+     * @param graph     合并写库后的图
+     * @param revision  写库后的图版本号
+     * @param warnings  软校验警告
+     */
+    record ApplyGraphPatchResult(GraphJson graph, long revision, List<String> warnings) {
+    }
 
     /**
      * 清空测试流所属目录（变为未分组）。

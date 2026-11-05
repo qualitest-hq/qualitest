@@ -120,6 +120,7 @@ public final class RunScenarioBootstrap {
                 // 失败策略未配置时保持 null，执行器侧使用 fail / abort 默认
                 .onNodeFailure(matched.getOnNodeFailure())
                 .onSnapshotFailure(matched.getOnSnapshotFailure())
+                .maxSteps(matched.getMaxSteps())
                 .build();
     }
 

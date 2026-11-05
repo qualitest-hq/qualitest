@@ -3,9 +3,13 @@ package com.qualitest.project.service.impl;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
+import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
+import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
 import com.qualitest.common.utils.ServletUtils;
 import com.qualitest.flow.sync.FlowEditLeaseService;
@@ -13,6 +17,7 @@ import com.qualitest.flow.sync.FlowExternalChangePublisher;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.flow.sync.FlowGraphCommitPatchHolder;
 import com.qualitest.flow.sync.FlowGraphRevisionConflictException;
+import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
@@ -29,8 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 测试流业务层。
@@ -55,6 +63,10 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     @Autowired
     private ITestFlowGroupService testFlowGroupService;
+
+    /** 增量写图时把 patch 合并到最新图，并提供断言路径校验用的接口解析 */
+    @Autowired
+    private FlowDesignPatchNormalizer flowDesignPatchNormalizer;
 
     /**
      * 查询测试流列表
@@ -265,6 +277,222 @@ public class TestFlowServiceImpl implements ITestFlowService {
             }
             FlowGraphCommitPatchHolder.clear();
         }
+    }
+
+    /**
+     * 在端锁与行锁内把规范化 patch 增量应用到最新图并写库。
+     * 先 FOR UPDATE 重读 graph_json，合并 patch 后做地板校验再写入；写完后 graph_revision +1，并发布图提交事件。
+     *
+     * @param testFlowId    测试流 id
+     * @param testProjectId 项目 id，用于归属校验，可空
+     * @param patch         已规范化的增量 patch
+     * @param endpointId    稳定端标识，用于会话写锁；空则走短抢锁
+     * @return 合并后的图、新版本号与软校验警告
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public ApplyGraphPatchResult applyGraphPatch(Long testFlowId, Long testProjectId,
+                                                 FlowDesignPatch patch, String endpointId) {
+        if (testFlowId == null) {
+            throw new ServiceException("缺少 testFlowId");
+        }
+        if (patch == null) {
+            throw new ServiceException("缺少图增量 patch");
+        }
+
+        // 会话端用 endpointId 作锁值；Web 请求则尝试沿用请求头中的草稿租约
+        String holder = endpointId != null && !endpointId.isBlank()
+                ? endpointId.trim()
+                : FlowExternalChangeSourceHolder.getOrDefault();
+        String existingToken = FlowEditLeaseService.isSessionEndpoint(holder)
+                ? holder
+                : readClientLeaseToken();
+        FlowEditLeaseService.LeaseHandle lease = flowEditLeaseService.beginWrite(
+                testFlowId, holder, existingToken);
+        try {
+            // 行锁拿到当前最新图，避免同端并发写互相覆盖
+            TestFlow locked = testFlowMapper.selectTestFlowGraphForUpdate(testFlowId);
+            if (locked == null || (locked.getDelStatus() != null && locked.getDelStatus() != 0)) {
+                throw new ServiceException("测试流不存在");
+            }
+            if (testProjectId != null && locked.getTestProjectId() != null
+                    && !testProjectId.equals(locked.getTestProjectId())) {
+                throw new ServiceException("测试流不属于当前项目");
+            }
+
+            GraphJson base;
+            try {
+                base = GraphJson.parse(locked.getGraphJson());
+            } catch (Exception e) {
+                throw new ServiceException("重载图失败: " + e.getMessage());
+            }
+            if (base == null) {
+                throw new ServiceException("重载图为空");
+            }
+
+            // 更新/删除/连线所引用的节点或边必须仍在最新图中
+            List<String> refErrors = collectMissingReferenceErrors(base, patch);
+            if (!refErrors.isEmpty()) {
+                throw new ServiceException(String.join("；", refErrors));
+            }
+
+            List<String> warnings = new ArrayList<>();
+            GraphJson merged = flowDesignPatchNormalizer.mergeOnto(base, patch, warnings);
+
+            // 地板校验失败则不写库；全量与断言路径问题只记警告
+            GraphValidationResult floor =
+                    graphJsonValidator.validate(merged, GraphValidationOptions.persistMinimal());
+            if (!floor.isOk() && floor.getErrors() != null && !floor.getErrors().isEmpty()) {
+                throw new ServiceException("校验未通过，未写库：" + String.join("；", floor.getErrors()));
+            }
+            addAllNonBlank(warnings, floor.getWarnings());
+
+            GraphValidationResult full =
+                    graphJsonValidator.validate(merged, GraphValidationOptions.full());
+            addSoftFindings(warnings, full.getErrors());
+            addSoftFindings(warnings, full.getWarnings());
+
+            AssertPathDesignGate.AssertPathGateResult assertPath =
+                    AssertPathDesignGate.validate(merged, flowDesignPatchNormalizer.apiResolver());
+            addSoftFindings(warnings, assertPath.errors());
+            addSoftFindings(warnings, assertPath.warnings());
+
+            TestFlow update = new TestFlow();
+            update.setTestFlowId(testFlowId);
+            update.setGraphJson(merged.toJsonString());
+            update.setUpdateTime(DateUtils.getNowDate());
+            // 不带版本号 CAS：行锁内已基于最新图合并，写回后 revision +1
+            int rows = testFlowMapper.updateTestFlowGraphIncrement(update);
+            if (rows <= 0) {
+                throw new ServiceException("写库失败");
+            }
+            long baseRev = locked.getGraphRevision() != null ? locked.getGraphRevision() : 0L;
+            long newRev = baseRev + 1;
+
+            FlowGraphCommitPatchHolder.PatchPayload payload =
+                    FlowGraphCommitPatchHolder.fromCapture(patch, merged);
+            flowExternalChangePublisher.publishGraphCommitted(
+                    testFlowId,
+                    locked.getTestProjectId() != null ? locked.getTestProjectId() : testProjectId,
+                    FlowExternalChangeSourceHolder.getOrDefault(),
+                    update.getUpdateTime(),
+                    payload,
+                    newRev);
+
+            return new ApplyGraphPatchResult(merged, newRev, List.copyOf(warnings));
+        } finally {
+            // 会话长持锁保留；短抢锁写完即释放
+            if (lease != null && !lease.heldFromClient()) {
+                flowEditLeaseService.release(testFlowId, lease.token());
+            }
+            FlowGraphCommitPatchHolder.clear();
+        }
+    }
+
+    /** 检查 patch 引用的已有节点/边是否仍在最新图中 */
+    private static List<String> collectMissingReferenceErrors(GraphJson base, FlowDesignPatch patch) {
+        List<String> errors = new ArrayList<>();
+        Set<String> nodeIds = new HashSet<>();
+        Set<String> edgeIds = new HashSet<>();
+        if (base.getNodes() != null) {
+            for (GraphNode n : base.getNodes()) {
+                if (n != null && n.getId() != null) {
+                    nodeIds.add(n.getId());
+                }
+            }
+        }
+        if (base.getEdges() != null) {
+            for (GraphEdge e : base.getEdges()) {
+                if (e != null && e.getId() != null) {
+                    edgeIds.add(e.getId());
+                }
+            }
+        }
+        if (patch.getUpdateNodes() != null) {
+            for (GraphNode n : patch.getUpdateNodes()) {
+                if (n == null || n.getId() == null || n.getId().isBlank()) {
+                    continue;
+                }
+                if (!nodeIds.contains(n.getId())) {
+                    errors.add("节点 " + n.getId() + " 已不存在，可能已被其他端删除");
+                }
+            }
+        }
+        if (patch.getUpdateEdges() != null) {
+            for (GraphEdge e : patch.getUpdateEdges()) {
+                if (e == null || e.getId() == null || e.getId().isBlank()) {
+                    continue;
+                }
+                if (!edgeIds.contains(e.getId())) {
+                    errors.add("边 " + e.getId() + " 已不存在，可能已被其他端删除");
+                }
+            }
+        }
+        // 新增边：端点须已在基图，或与本 patch 新增节点同批出现
+        if (patch.getAddEdges() != null) {
+            for (GraphEdge e : patch.getAddEdges()) {
+                if (e == null) {
+                    continue;
+                }
+                if (e.getSource() != null && !e.getSource().isBlank()
+                        && !nodeIds.contains(e.getSource())
+                        && !isAddingNode(patch, e.getSource())) {
+                    errors.add("节点 " + e.getSource() + " 已不存在，可能已被其他端删除");
+                }
+                if (e.getTarget() != null && !e.getTarget().isBlank()
+                        && !nodeIds.contains(e.getTarget())
+                        && !isAddingNode(patch, e.getTarget())) {
+                    errors.add("节点 " + e.getTarget() + " 已不存在，可能已被其他端删除");
+                }
+            }
+        }
+        if (patch.getSuggestedDeletes() != null) {
+            if (patch.getSuggestedDeletes().getNodeIds() != null) {
+                for (String id : patch.getSuggestedDeletes().getNodeIds()) {
+                    if (id != null && !id.isBlank() && !nodeIds.contains(id)) {
+                        errors.add("节点 " + id + " 已不存在，可能已被其他端删除");
+                    }
+                }
+            }
+            if (patch.getSuggestedDeletes().getEdgeIds() != null) {
+                for (String id : patch.getSuggestedDeletes().getEdgeIds()) {
+                    if (id != null && !id.isBlank() && !edgeIds.contains(id)) {
+                        errors.add("边 " + id + " 已不存在，可能已被其他端删除");
+                    }
+                }
+            }
+        }
+        return errors;
+    }
+
+    /** 新增边引用的端点是否在本 patch 中同步新增节点 */
+    private static boolean isAddingNode(FlowDesignPatch patch, String nodeId) {
+        if (patch.getAddNodes() == null || nodeId == null) {
+            return false;
+        }
+        for (GraphNode n : patch.getAddNodes()) {
+            if (n != null && nodeId.equals(n.getId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 把 source 中非空且未重复的条目追加到 warnings 列表 */
+    private static void addAllNonBlank(List<String> target, List<String> source) {
+        if (source == null || source.isEmpty()) {
+            return;
+        }
+        for (String item : source) {
+            if (item != null && !item.isBlank() && !target.contains(item)) {
+                target.add(item);
+            }
+        }
+    }
+
+    /** 全量/断言路径等软校验结果并入 warnings，不拦写库 */
+    private static void addSoftFindings(List<String> warnings, List<String> findings) {
+        addAllNonBlank(warnings, findings);
     }
 
     /**

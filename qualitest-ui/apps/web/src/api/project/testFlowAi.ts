@@ -70,10 +70,7 @@ export interface TestFlowDesignRequestPayload {
    * 随设计请求提交，写入本轮 user 上下文，便于模型根据已有风险继续改图。
    */
   runRiskWarnings?: string[];
-  /**
-   * 当前画布对应的图版本号（乐观锁基准）。
-   * 全自动落盘时服务端据此做条件更新 / 冲突重放。
-   */
+  /** 当前画布图版本号；随请求提交，便于服务端与前端对齐最新持久化版本 */
   graphRevision?: number;
 }
 
@@ -98,7 +95,7 @@ export interface AiDesignStreamEvent {
   tool?: string;
   /** 落库成功后的测试流 id */
   testFlowId?: string;
-  /** 落库后的新图版本号 */
+  /** 落库或增量写图后的新图版本号 */
   graphRevision?: number;
   /** 刚触发的运行 id */
   runId?: string;
@@ -117,7 +114,7 @@ export interface AiDesignStreamHandlers {
   onThinking?: (text: string) => void;
   onToolStart?: (tool: string) => void;
   onToolEnd?: (tool: string) => void;
-  /** 全自动隐式写库成功 */
+  /** 全自动隐式写库成功；graphRevision 为服务端返回的新版本号 */
   onGraphCommitted?: (testFlowId: string, graphRevision?: number) => void;
   /** 全自动已触发 Run，可开始按步骤高亮画布 */
   onRunStarted?: (runId: string) => void;

@@ -1094,6 +1094,10 @@
           "flowSeed": {
             "type": "object"
           },
+          "maxSteps": {
+            "type": "integer",
+            "description": "单次运行步数上限；1～1000，省略则用系统默认 200"
+          },
           "remark": {
             "type": "string"
           },

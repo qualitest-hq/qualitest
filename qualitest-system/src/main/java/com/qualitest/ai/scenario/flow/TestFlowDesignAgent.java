@@ -32,7 +32,6 @@ import com.qualitest.ai.tools.FlowDesignToolExecutor;
 import com.qualitest.ai.tools.FlowDesignToolsDefinitionService;
 import com.qualitest.ai.tools.flow.FlowDesignAutopilotCommitSupport;
 import com.qualitest.common.exception.ServiceException;
-import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.service.ITestFlowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -74,8 +73,6 @@ public class TestFlowDesignAgent {
     private final HistoryWindowPolicyResolver historyWindowPolicyResolver;
     private final AiChatSessionSummaryService aiChatSessionSummaryService;
     private final ITestFlowService testFlowService;
-    private final GraphJsonValidator graphJsonValidator;
-    private final FlowDesignPatchNormalizer flowDesignPatchNormalizer;
 
     /**
      * 同步设计：执行完整 Agent 流程并返回结果。
@@ -208,8 +205,7 @@ public class TestFlowDesignAgent {
         // 全自动：仅正常结束时补做回合末隐式写库；中断跳过以免半成品强行落库
         if (!interrupted && autopilot && submitCapture.hasAccepted()) {
             FlowDesignAutopilotCommitSupport.CommitOutcome outcome =
-                    FlowDesignAutopilotCommitSupport.commitIfNeeded(
-                            toolContext, testFlowService, graphJsonValidator, flowDesignPatchNormalizer);
+                    FlowDesignAutopilotCommitSupport.commitIfNeeded(toolContext, testFlowService);
             if (!outcome.ok()) {
                 String detail = outcome.errors().isEmpty()
                         ? outcome.message()

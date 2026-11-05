@@ -32,6 +32,7 @@ import {
 import { isLayoutOnlyDirtyFromStore } from '../utils/isLayoutOnlyDirty'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
+import { useFlowGraph } from './useFlowGraph'
 
 /** 续期间隔（毫秒）；须短于服务端写锁存活时间，避免编辑中途锁过期 */
 const HEARTBEAT_MS = 10_000
@@ -60,6 +61,7 @@ export type FlowEditLeaseBadge =
 export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
   const store = useFlowCanvasStore()
   const stagingStore = useAiStagingStore()
+  const { loadFlow } = useFlowGraph()
 
   /** 当前想要的锁状态：哪条流、要不要锁，以及每次放弃或切流时递增的序号 */
   let intent: FlowEditLeaseIntent = emptyFlowEditLeaseIntent()
@@ -239,8 +241,18 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
 
     try {
       const res = await acquireFlowEditLease(flowId)
-      const next = (res as { data?: { token?: string } })?.data?.token
+      const data = (res as { data?: { token?: string; graphRevision?: string | number } })?.data
+      const next = data?.token
       if (typeof next !== 'string' || !next) return
+      // 抢锁响应带回服务端图版本；本地版本更旧时先拉最新图，避免在过期快照上编辑
+      const serverRev = Number(data?.graphRevision)
+      if (Number.isFinite(serverRev) && serverRev > Number(store.graphRevision || 0)) {
+        try {
+          await loadFlow(flowId)
+        } catch {
+          // 刷新失败仍保留锁，保存时版本号检查会兜底
+        }
+      }
       await commitOrDiscard(flowId, next, epochAtStart, false)
     } catch {
       // 抢锁失败（多半被他人占用）仍可本地改图；保存时服务端会短时抢锁

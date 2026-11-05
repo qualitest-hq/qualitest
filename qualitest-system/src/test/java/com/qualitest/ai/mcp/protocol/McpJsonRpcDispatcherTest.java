@@ -9,6 +9,7 @@ import com.qualitest.ai.tools.FlowDesignToolsDefinitionService;
 import com.qualitest.api.params.McpToolInvokeParams;
 import com.qualitest.api.result.McpToolResult;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.flow.sync.FlowEditLeaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -31,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,7 +58,7 @@ class McpJsonRpcDispatcherTest {
 
     @BeforeEach
     void setUp() {
-        sessionRegistry = new McpSessionRegistry();
+        sessionRegistry = new McpSessionRegistry(mock(FlowEditLeaseService.class));
         mcpPromptResourceService = new McpPromptResourceService();
         dispatcher = new McpJsonRpcDispatcher(
                 toolsDefinitionService,

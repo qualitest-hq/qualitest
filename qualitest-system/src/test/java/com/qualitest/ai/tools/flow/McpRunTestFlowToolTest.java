@@ -2,10 +2,8 @@ package com.qualitest.ai.tools.flow;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.flow.run.RunStatus;
-import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.params.TriggerTestFlowRunParams;
 import com.qualitest.project.result.TestFlowRunResult;
 import com.qualitest.project.service.ITestFlowExecutionService;
@@ -51,8 +49,7 @@ class McpRunTestFlowToolTest {
 
         McpRunTestFlowTool tool = new McpRunTestFlowTool(
                 execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
-                mock(ITestFlowService.class), mock(GraphJsonValidator.class),
-                mock(FlowDesignPatchNormalizer.class));
+                mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
                 .operatorUserId(7L)
@@ -79,8 +76,7 @@ class McpRunTestFlowToolTest {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
         McpRunTestFlowTool tool = new McpRunTestFlowTool(
                 execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
-                mock(ITestFlowService.class), mock(GraphJsonValidator.class),
-                mock(FlowDesignPatchNormalizer.class));
+                mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
                 .autopilotEnabled(true)
@@ -102,8 +98,7 @@ class McpRunTestFlowToolTest {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
         McpRunTestFlowTool tool = new McpRunTestFlowTool(
                 execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
-                mock(ITestFlowService.class), mock(GraphJsonValidator.class),
-                mock(FlowDesignPatchNormalizer.class));
+                mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .operatorUserId(7L)
                 .autopilotEnabled(true)

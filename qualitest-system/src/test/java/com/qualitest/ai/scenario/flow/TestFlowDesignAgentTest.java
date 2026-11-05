@@ -20,7 +20,6 @@ import com.qualitest.ai.tools.FlowDesignToolExecutor;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolsDefinitionService;
 import com.qualitest.flow.model.*;
-import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.service.ITestFlowService;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
@@ -74,9 +73,7 @@ class TestFlowDesignAgentTest {
                 modelService, configService, agentRunner, toolExecutor,
                 contextFactory, toolsDefinitionService, conversationService,
                 historyWindowPolicyResolver, summaryService,
-                mock(ITestFlowService.class),
-                mock(GraphJsonValidator.class),
-                mock(FlowDesignPatchNormalizer.class));
+                mock(ITestFlowService.class));
 
         modelConfig = LlmModelConfig.builder()
                 .aiLlmModelId(1001L)

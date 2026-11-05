@@ -1065,6 +1065,10 @@
           "flowSeed": {
             "type": "object"
           },
+          "maxSteps": {
+            "type": "integer",
+            "description": "单次运行步数上限；1～1000，省略则用系统默认 200"
+          },
           "remark": {
             "type": "string"
           },
@@ -1217,6 +1221,25 @@
         },
         "required": [
           "flowName"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "release_flow_lock",
+      "description": "释放本端持有的测试流写锁。改图完成、或跑流通过后不再继续改时调用；锁不在本端名下时返回成功且无副作用。须项目已开启「允许 MCP 自动写流」。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "testFlowId": {
+            "type": "string",
+            "description": "测试流 ID"
+          }
+        },
+        "required": [
+          "testFlowId"
         ]
       }
     }

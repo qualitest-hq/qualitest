@@ -2,7 +2,7 @@ package com.qualitest.flow.sync;
 
 /**
  * 测试流写锁冲突异常。
- * 抢锁失败时抛出，消息中带上当前持锁方标识，供接口错误返回与调用方提示。
+ * 他端已持锁时抛出；消息只陈述占用事实与 lockHeldBy，操作指引由调用方自行组装。
  */
 public final class FlowEditLeaseConflictException extends RuntimeException {
 
@@ -18,8 +18,7 @@ public final class FlowEditLeaseConflictException extends RuntimeException {
     public FlowEditLeaseConflictException(String lockHeldBy) {
         super("测试流写锁仍被占用（lockHeldBy="
                 + (lockHeldBy != null && !lockHeldBy.isBlank() ? lockHeldBy : "unknown")
-                + "）。可能是本账号其它标签页或 MCP/其它端正在写入；"
-                + "请关闭其它画布标签或约 30 秒后重试");
+                + "）");
         this.lockHeldBy = lockHeldBy != null && !lockHeldBy.isBlank() ? lockHeldBy : "unknown";
     }
 

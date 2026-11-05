@@ -106,7 +106,13 @@ public enum FlowDesignToolNames {
      * 触发当前测试流 Run 并返回结果摘要。
      * 仅全自动上下文可调用；跑前会把未落盘的 submit 单元先写入库。
      */
-    RUN_TEST_FLOW("run_test_flow", true, false);
+    RUN_TEST_FLOW("run_test_flow", true, false),
+
+    /**
+     * 释放本端持有的测试流写锁。
+     * 仅 MCP 逐次调用；改图完成或跑流通过后不再继续改时调用。
+     */
+    RELEASE_FLOW_LOCK("release_flow_lock", false, false);
 
     /** 工具名字符串，作 Function Calling / 执行器路由键 */
     private final String id;
@@ -162,7 +168,8 @@ public enum FlowDesignToolNames {
     /**
      * 是否为 MCP 自动写流类工具。
      * 需项目开启「允许 MCP 自动写流」后，才可列入 tools/list 并接受 tools/call。
-     * 包括：全部 submit_*、create_flow、update_flow_meta、素材/鉴权/环境写入、追加接口设计提示。
+     * 包括：全部 submit_*、create_flow、update_flow_meta、素材/鉴权/环境写入、
+     * 追加接口设计提示、release_flow_lock。
      * 不包括 import_apis、run_test_flow。
      */
     public static boolean isMcpAutoWriteTool(String name) {
@@ -177,7 +184,8 @@ public enum FlowDesignToolNames {
                 || UPSERT_ASSET_VARIABLES.id.equals(name)
                 || UPSERT_AUTH_PROFILE.id.equals(name)
                 || UPSERT_PROJECT_ENV.id.equals(name)
-                || APPEND_API_DESIGN_HINTS.id.equals(name);
+                || APPEND_API_DESIGN_HINTS.id.equals(name)
+                || RELEASE_FLOW_LOCK.id.equals(name);
     }
 
     /**

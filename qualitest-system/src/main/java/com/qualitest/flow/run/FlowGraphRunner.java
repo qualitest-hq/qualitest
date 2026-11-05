@@ -71,18 +71,13 @@ public class FlowGraphRunner {
         }
 
         int stepIndex = 1;
-        int maxSteps = GraphWalker.DEFAULT_MAX_STEPS;
+        // 步数上限来自运行策略（由场景 maxSteps 解析）；策略缺失时用遍历器默认值
+        int maxSteps = policy != null && policy.getMaxSteps() > 0
+                ? policy.getMaxSteps()
+                : GraphWalker.DEFAULT_MAX_STEPS;
         List<StepResult> steps = new ArrayList<>();
 
         while (currentId != null) {
-            if (stepIndex > maxSteps) {
-                FlowExecutionException ex = new FlowExecutionException(
-                        FlowErrorCode.TF_RUN_STEP_LIMIT,
-                        "超过步数上限: " + maxSteps
-                );
-                return Outcome.failed(steps, ctx, StepError.of(ex.getErrorCode(), ex.getMessage()), steps.size());
-            }
-
             GraphNode node = walker.getNode(currentId);
             if (node == null) {
                 FlowExecutionException ex = new FlowExecutionException(
@@ -90,6 +85,26 @@ public class FlowGraphRunner {
                         "节点不存在: " + currentId
                 );
                 return Outcome.failed(steps, ctx, StepError.of(ex.getErrorCode(), ex.getMessage()), steps.size());
+            }
+
+            // 下一步将超出上限：不执行该节点 Handler，合成一条失败步并终止 Run
+            if (stepIndex > maxSteps) {
+                String nodeName = resolveDisplayName(node);
+                String message = "超过单次运行步数上限（" + maxSteps + "），停在节点「"
+                        + nodeName + "」（" + currentId + "），后续节点未执行";
+                StepError limitError = StepError.of(FlowErrorCode.TF_RUN_STEP_LIMIT, message);
+                StepResult limitStep = StepResult.builder()
+                        .nodeId(node.getId())
+                        .nodeType(node.getType())
+                        .nodeName(nodeName)
+                        .edgeId(incomingEdgeId)
+                        .status(RunStatus.FAILED.getCode())
+                        .durationMs(0L)
+                        .error(limitError)
+                        .flowAfter(new HashMap<>(ctx.getFlow()))
+                        .build();
+                recordStep(steps, limitStep, onStep);
+                return Outcome.failed(steps, ctx, limitError, steps.size());
             }
 
             if (!skipCurrentNode && !completeCurrentNode && preExecuteHook != null && preExecuteHook != FlowNodePreExecuteHook.NONE) {

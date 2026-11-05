@@ -30,6 +30,7 @@ import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.ai.tools.flow.ListSubflowTemplatesTool;
 import com.qualitest.ai.tools.flow.McpGetRunFailureTool;
 import com.qualitest.ai.tools.flow.McpRunTestFlowTool;
+import com.qualitest.ai.tools.flow.ReleaseFlowLockTool;
 import com.qualitest.ai.tools.flow.RunTestFlowTool;
 import com.qualitest.ai.tools.flow.SearchApisTool;
 import com.qualitest.ai.tools.flow.SubmitFlowDesignUnitTool;
@@ -39,6 +40,7 @@ import com.qualitest.ai.tools.flow.UpsertAuthProfileTool;
 import com.qualitest.ai.tools.flow.UpsertProjectEnvTool;
 import com.qualitest.api.service.IApiImportService;
 import com.qualitest.flow.diagnose.HttpNodeApiHealthChecker;
+import com.qualitest.flow.sync.FlowEditLeaseService;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
@@ -97,6 +99,8 @@ public class FlowDesignToolExecutor {
     public static final String CREATE_FLOW = FlowDesignToolNames.CREATE_FLOW.getId();
     public static final String UPDATE_FLOW_META = FlowDesignToolNames.UPDATE_FLOW_META.getId();
     public static final String RUN_TEST_FLOW = FlowDesignToolNames.RUN_TEST_FLOW.getId();
+    /** 释放本端测试流写锁（MCP） */
+    public static final String RELEASE_FLOW_LOCK = FlowDesignToolNames.RELEASE_FLOW_LOCK.getId();
 
     private final Map<String, QualitestTool> tools;
     /** MCP 门面表：同名工具在 mcpMode 下优先使用（跑流、查失败现场） */
@@ -122,6 +126,7 @@ public class FlowDesignToolExecutor {
      * @param apiImportService             接口导入服务
      * @param mcpPromptResourceService     造流规程加载与合成版本计算
      * @param mcpProjectGateResolver       按角色解析 MCP 门控
+     * @param flowEditLeaseService         测试流写锁（release_flow_lock）
      */
     public FlowDesignToolExecutor(TestProjectApiMapper testProjectApiMapper,
                                   TestProjectMapper testProjectMapper,
@@ -139,7 +144,8 @@ public class FlowDesignToolExecutor {
                                   AiChatConversationService aiChatConversationService,
                                   IApiImportService apiImportService,
                                   McpPromptResourceService mcpPromptResourceService,
-                                  McpProjectGateResolver mcpProjectGateResolver) {
+                                  McpProjectGateResolver mcpProjectGateResolver,
+                                  FlowEditLeaseService flowEditLeaseService) {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         FlowDesignUnitSubmitSupport unitSubmit = new FlowDesignUnitSubmitSupport(
                 flowDesignPatchNormalizer, aiChatConversationService, flowDesignPatchMerger);
@@ -177,8 +183,10 @@ public class FlowDesignToolExecutor {
         // 跑流核心只组装一份；通用工具与 MCP 门面各自持有引用
         TestFlowRunTriggerCore runCore = new TestFlowRunTriggerCore(
                 testFlowExecutionService, testFlowRunService, testFlowRunStepService,
-                testFlowService, graphJsonValidator, flowDesignPatchNormalizer);
+                testFlowService);
         map.put(RUN_TEST_FLOW, new RunTestFlowTool(runCore));
+        // 端标识从上下文读取；MCP 入口会在调用前写入 editLeaseEndpoint
+        map.put(RELEASE_FLOW_LOCK, new ReleaseFlowLockTool(flowEditLeaseService, null));
         registerSubmitUnitTools(map, unitSubmit);
         this.tools = Map.copyOf(map);
 

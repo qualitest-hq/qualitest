@@ -56,4 +56,10 @@ public class GraphRunScenario {
      * abort：中止 Run；continue：跳过本次 checkpoint 继续执行节点；prompt：暂停（预留）。
      */
     private String onSnapshotFailure;
+
+    /**
+     * 单次运行步数上限；空则用系统默认。
+     * 合法范围 1～1000，超出由解析侧裁剪。
+     */
+    private Integer maxSteps;
 }

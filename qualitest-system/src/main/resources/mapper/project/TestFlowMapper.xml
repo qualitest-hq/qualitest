@@ -74,6 +74,14 @@
         where test_flow_id = #{testFlowId}
     </select>
 
+    <!-- 写事务内重读最新图：行锁至事务结束 -->
+    <select id="selectTestFlowGraphForUpdate" parameterType="Long" resultMap="TestFlowResult">
+        <include refid="selectTestFlowVo"/>
+        where test_flow_id = #{testFlowId}
+          and del_status = 0
+        for update
+    </select>
+
     <select id="selectTestFlowResultList" parameterType="TestFlowParams" resultType="TestFlowResult">
         select
         tf.test_flow_id as testFlowId,
@@ -276,6 +284,16 @@
             update_time    = #{updateTime}
         where test_flow_id = #{testFlowId}
           and graph_revision = #{graphRevision}
+          and del_status = 0
+    </update>
+
+    <!-- 端锁 + 行锁内增量写图：不校验基准版本，版本号 +1 -->
+    <update id="updateTestFlowGraphIncrement" parameterType="TestFlow">
+        update test_flow
+        set graph_json     = #{graphJson},
+            graph_revision = graph_revision + 1,
+            update_time    = #{updateTime}
+        where test_flow_id = #{testFlowId}
           and del_status = 0
     </update>
 

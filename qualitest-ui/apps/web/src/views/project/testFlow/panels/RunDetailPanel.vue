@@ -39,6 +39,13 @@
           <span class="run-hero__v">{{ formatRunTime(run.finishedAt) }}</span>
         </div>
       </div>
+      <!-- Run 级失败说明：步数超限、启动失败等整次运行层面的错误文案 -->
+      <div
+          v-if="run.status === 'failed' && run.errorMessage"
+          class="run-hero__error"
+      >
+        {{ run.errorMessage }}
+      </div>
     </header>
 
     <!-- 失败摘要：按业务码 / 断言 / 其他分组；可点击跳步；条目下挂本步关联变量 -->
@@ -761,6 +768,18 @@ function escapeHtml(s) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.run-hero__error {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
 }
 
 /* 失败摘要区：分组列表 + 条目下关联变量 */

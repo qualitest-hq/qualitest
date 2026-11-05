@@ -1,7 +1,6 @@
 package com.qualitest.ai.mcp;
 
 import com.qualitest.ai.mcp.protocol.McpSession;
-import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolContextFactory;
 import com.qualitest.ai.tools.FlowDesignToolExecutor;
@@ -10,7 +9,7 @@ import com.qualitest.api.params.McpToolInvokeParams;
 import com.qualitest.api.result.McpToolResult;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.flow.sync.FlowEditLeaseService;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
@@ -49,8 +48,7 @@ class McpToolInvokeServiceTest {
     private ITestProjectService testProjectService;
     private McpProjectGateResolver mcpProjectGateResolver;
     private ITestFlowService testFlowService;
-    private GraphJsonValidator graphJsonValidator;
-    private FlowDesignPatchNormalizer patchNormalizer;
+    private FlowEditLeaseService flowEditLeaseService;
     private McpToolInvokeService service;
 
     @BeforeEach
@@ -60,12 +58,11 @@ class McpToolInvokeServiceTest {
         testProjectService = mock(ITestProjectService.class);
         mcpProjectGateResolver = mock(McpProjectGateResolver.class);
         testFlowService = mock(ITestFlowService.class);
-        graphJsonValidator = mock(GraphJsonValidator.class);
-        patchNormalizer = mock(FlowDesignPatchNormalizer.class);
+        flowEditLeaseService = mock(FlowEditLeaseService.class);
         service = new McpToolInvokeService(
                 toolExecutor, contextFactory, testProjectService,
                 mcpProjectGateResolver,
-                testFlowService, graphJsonValidator, patchNormalizer);
+                testFlowService, flowEditLeaseService);
         when(testProjectService.selectTestProjectById(PROJECT_ID)).thenReturn(
                 TestProject.builder().testProjectId(PROJECT_ID).build());
         stubGates(true, false, false, false);

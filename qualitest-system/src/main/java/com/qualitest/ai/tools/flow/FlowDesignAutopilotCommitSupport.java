@@ -1,41 +1,31 @@
 package com.qualitest.ai.tools.flow;
 
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.sync.FlowEditLeaseConflictException;
+import com.qualitest.flow.sync.FlowEditLeaseService;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
-import com.qualitest.flow.sync.FlowGraphCommitPatchHolder;
-import com.qualitest.flow.sync.FlowGraphRevisionConflictException;
-import com.qualitest.flow.validate.AssertPathDesignGate;
-import com.qualitest.flow.validate.GraphJsonValidator;
-import com.qualitest.flow.validate.GraphValidationOptions;
-import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.service.ITestFlowService;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 全自动模式下的隐式落盘（不暴露给大模型作独立工具）。
  * <p>
- * 把本轮已接受的 submit 内存工作图写入测试流画布。
- * 写库只硬拦地板错误（无法解析 / 缺节点 id / 边端点等）；
+ * 把本轮已接受的 submit 内存单元增量应用到库中最新图。
+ * 写库只硬拦地板错误（无法解析 / 缺节点 id / 边端点等）与引用已不存在；
  * 开始节点不唯一、断言路径等只进 warnings，不拦落盘（开跑时再硬拦）。
  * 调用时机：跑流之前；Web 一整轮对话结束仍有未落盘单元时；
  * MCP 每次改图 submit 校验通过后立即落盘。
  * 半自动不走本类；模板预制流禁止落盘。
- * 写图带图版本号条件更新；冲突时重载库图、重放本轮已接受单元，最多重试若干次。
+ * 落盘时持端锁，并在数据库行锁内重读最新图后只合并本轮 patch。
  */
 public final class FlowDesignAutopilotCommitSupport {
-
-    /** 图版本冲突时自动重放重试上限 */
-    public static final int MAX_REVISION_RETRIES = 3;
 
     private FlowDesignAutopilotCommitSupport() {
     }
@@ -44,22 +34,17 @@ public final class FlowDesignAutopilotCommitSupport {
      * 尝试把本轮已接受单元写入测试流。
      * <ol>
      *   <li>非全自动 / 无已接受单元 → 跳过（ok=true, committed=false）</li>
-     *   <li>尚有未确认的素材/鉴权提案、缺 flowId、空图、落库地板校验失败、流不存在 → 失败且不改库</li>
-     *   <li>写库成功 → 清空 submit 捕获、推进内存工作图并通知落盘完成
-     *       （完整结构/断言问题仅 warnings）</li>
-     *   <li>写锁冲突 → leaseConflict；版本冲突 → 重放重试，耗尽则失败</li>
+     *   <li>尚有未确认的素材/鉴权提案、缺 flowId、落库失败 → 失败且不改库</li>
+     *   <li>写库成功 → 清空 submit 捕获、推进内存工作图并通知落盘完成</li>
+     *   <li>写锁冲突 → leaseConflict</li>
      * </ol>
      *
-     * @param ctx                 须 autopilotEnabled=true，并带 submitCapture / workingGraph
-     * @param testFlowService     写库
-     * @param graphJsonValidator  图结构校验
-     * @param patchNormalizer     提供断言路径检查与冲突重放
+     * @param ctx             须 autopilotEnabled=true，并带 submitCapture / workingGraph
+     * @param testFlowService 写库（增量合并与地板校验在 applyGraphPatch 内完成）
      * @return 落盘结果；ok=false 表示未写库
      */
     public static CommitOutcome commitIfNeeded(FlowDesignToolContext ctx,
-                                               ITestFlowService testFlowService,
-                                               GraphJsonValidator graphJsonValidator,
-                                               FlowDesignPatchNormalizer patchNormalizer) {
+                                               ITestFlowService testFlowService) {
         if (ctx == null || !ctx.isAutopilotEnabled()) {
             return CommitOutcome.skip("非全自动，跳过隐式落盘");
         }
@@ -81,11 +66,6 @@ public final class FlowDesignAutopilotCommitSupport {
             return CommitOutcome.skip("本轮无已接受 submit_*，无需落盘");
         }
 
-        GraphJson toSave = ctx.resolveGraphJson();
-        if (toSave == null) {
-            return CommitOutcome.fail("工作图为空", List.of("工作图为空，无法落盘"), List.of());
-        }
-
         TestFlow existing = testFlowService.selectTestFlowById(ctx.getTestFlowId());
         if (existing == null || (existing.getDelStatus() != null && existing.getDelStatus() != 0)) {
             return CommitOutcome.fail("测试流不存在", List.of("测试流不存在"), List.of());
@@ -95,144 +75,58 @@ public final class FlowDesignAutopilotCommitSupport {
             return CommitOutcome.fail("测试流不属于当前项目", List.of("测试流不属于当前项目"), List.of());
         }
 
-        if (ctx.getBaseGraphRevision() == null) {
-            ctx.setBaseGraphRevision(existing.getGraphRevision() != null ? existing.getGraphRevision() : 0L);
+        FlowDesignPatch accepted = capture.getNormalizedPatch();
+        if (accepted == null) {
+            return CommitOutcome.fail("已接受单元为空", List.of("已接受单元为空，无法落盘"), List.of());
         }
 
-        List<String> warnings = new ArrayList<>();
-        FlowGraphRevisionConflictException lastRevisionConflict = null;
-
-        for (int attempt = 0; attempt < MAX_REVISION_RETRIES; attempt++) {
-            if (attempt > 0) {
-                // 版本冲突：重载库图，重放本轮已接受单元
-                TestFlow latest = testFlowService.selectTestFlowById(ctx.getTestFlowId());
-                if (latest == null || (latest.getDelStatus() != null && latest.getDelStatus() != 0)) {
-                    return CommitOutcome.fail("测试流不存在", List.of("测试流不存在"), warnings);
-                }
-                GraphJson base;
-                try {
-                    base = GraphJson.parse(latest.getGraphJson());
-                } catch (Exception e) {
-                    return CommitOutcome.fail("重载图失败: " + e.getMessage(),
-                            List.of("重载图失败: " + e.getMessage()), warnings);
-                }
-                if (base == null) {
-                    return CommitOutcome.fail("重载图为空", List.of("重载图为空，无法重放"), warnings);
-                }
-                FlowDesignPatch accepted = capture.getNormalizedPatch();
-                FlowDesignPatchNormalizer.NormalizeResult replayed =
-                        patchNormalizer.normalize(accepted, base, ctx.getTestProjectId());
-                if (replayed.validation() == null || !replayed.validation().isOk()) {
-                    List<String> errs = replayed.validation() != null
-                            ? replayed.validation().getErrors()
-                            : List.of("版本冲突重放失败");
-                    return CommitOutcome.fail("版本冲突重放失败", errs, warnings);
-                }
-                List<String> mergeWarnings = new ArrayList<>();
-                toSave = patchNormalizer.mergeOnto(base, replayed.patch(), mergeWarnings);
-                addAllNonBlank(warnings, mergeWarnings);
-                if (replayed.validation().getWarnings() != null) {
-                    addAllNonBlank(warnings, replayed.validation().getWarnings());
-                }
-                long latestRev = latest.getGraphRevision() != null ? latest.getGraphRevision() : 0L;
-                ctx.setBaseGraphRevision(latestRev);
-            }
-
-            List<String> errors = new ArrayList<>();
-            List<String> attemptWarnings = new ArrayList<>(warnings);
-            GraphValidationResult floor =
-                    graphJsonValidator.validate(toSave, GraphValidationOptions.persistMinimal());
-            addAllNonBlank(errors, floor.getErrors());
-            addAllNonBlank(attemptWarnings, floor.getWarnings());
-
-            GraphValidationResult full =
-                    graphJsonValidator.validate(toSave, GraphValidationOptions.full());
-            addSoftFindings(attemptWarnings, errors, full.getErrors());
-            addSoftFindings(attemptWarnings, errors, full.getWarnings());
-
-            AssertPathDesignGate.AssertPathGateResult assertPath =
-                    AssertPathDesignGate.validate(toSave, patchNormalizer.apiResolver());
-            addSoftFindings(attemptWarnings, errors, assertPath.errors());
-            addSoftFindings(attemptWarnings, errors, assertPath.warnings());
-
-            if (!errors.isEmpty()) {
-                return CommitOutcome.fail("校验未通过，未写库", errors, attemptWarnings);
-            }
-
-            Long baseRevision = ctx.getBaseGraphRevision();
-            if (baseRevision == null) {
-                return CommitOutcome.fail("缺少 graphRevision", List.of("缺少 graphRevision，无法落盘"), attemptWarnings);
-            }
-
-            try {
-                FlowExternalChangeSourceHolder.set(
-                        FlowExternalChangeSourceHolder.mcpOrWebAutopilot(ctx.getAiChatSessionId() != null));
-                FlowGraphCommitPatchHolder.set(
-                        FlowGraphCommitPatchHolder.fromCapture(capture.getNormalizedPatch(), toSave));
-                TestFlow update = new TestFlow();
-                update.setTestFlowId(ctx.getTestFlowId());
-                update.setTestProjectId(ctx.getTestProjectId());
-                update.setGraphJson(toSave.toJsonString());
-                update.setGraphRevision(baseRevision);
-                testFlowService.updateTestFlow(update);
-            } catch (FlowEditLeaseConflictException e) {
-                return CommitOutcome.leaseConflict(e, attemptWarnings);
-            } catch (FlowGraphRevisionConflictException e) {
-                lastRevisionConflict = e;
-                ctx.setBaseGraphRevision(e.getCurrentGraphRevision());
-                continue;
-            } catch (ServiceException e) {
-                return CommitOutcome.fail("写库失败: " + e.getMessage(),
-                        List.of("写库失败: " + e.getMessage()), attemptWarnings);
-            } catch (Exception e) {
-                return CommitOutcome.fail("写库异常: " + e.getMessage(),
-                        List.of("写库异常: " + e.getMessage()), attemptWarnings);
-            } finally {
-                FlowExternalChangeSourceHolder.clear();
-                FlowGraphCommitPatchHolder.clear();
-            }
-
+        // 解析本端锁标识后，把已接受 patch 增量合并进库中最新图
+        String endpointId = resolveEndpointId(ctx);
+        try {
+            FlowExternalChangeSourceHolder.set(
+                    FlowExternalChangeSourceHolder.mcpOrWebAutopilot(ctx.getAiChatSessionId() != null));
+            ITestFlowService.ApplyGraphPatchResult applied = testFlowService.applyGraphPatch(
+                    ctx.getTestFlowId(),
+                    ctx.getTestProjectId(),
+                    accepted,
+                    endpointId);
             capture.clearAccepted();
-            ctx.advanceWorkingGraph(toSave);
-            ctx.setBaseGraphRevision(baseRevision + 1);
-            ctx.notifyGraphCommitted(toSave);
-            return CommitOutcome.committed(String.valueOf(ctx.getTestFlowId()), attemptWarnings);
-        }
-
-        String msg = lastRevisionConflict != null
-                ? lastRevisionConflict.getMessage() + "，重试已耗尽"
-                : "图版本冲突，重试已耗尽";
-        return CommitOutcome.fail(msg, List.of(msg), warnings);
-    }
-
-    /** 把非空文案追加到目标列表。 */
-    private static void addAllNonBlank(List<String> target, List<String> source) {
-        if (source == null || source.isEmpty()) {
-            return;
-        }
-        for (String item : source) {
-            if (item != null && !item.isBlank()) {
-                target.add(item);
-            }
+            GraphJson saved = applied.graph();
+            ctx.advanceWorkingGraph(saved);
+            ctx.setBaseGraphRevision(applied.revision());
+            ctx.notifyGraphCommitted(saved);
+            return CommitOutcome.committed(String.valueOf(ctx.getTestFlowId()), applied.warnings());
+        } catch (FlowEditLeaseConflictException e) {
+            return CommitOutcome.leaseConflict(e, List.of());
+        } catch (ServiceException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "写库失败";
+            return CommitOutcome.fail(msg, List.of(msg), List.of());
+        } catch (Exception e) {
+            String msg = "写库异常: " + e.getMessage();
+            return CommitOutcome.fail(msg, List.of(msg), List.of());
+        } finally {
+            FlowExternalChangeSourceHolder.clear();
         }
     }
 
     /**
-     * 把完整校验 / 断言发现写入 warnings：跳过空白，以及已在 errors/warnings 中的文案。
+     * 解析本次落盘的端 ID。
+     * Web AI 用 web-autopilot:对话 id；否则用 MCP 无会话的 token 端标识占位，
+     * 真正的 mcp:sessionId 由 MCP 层在调用前抢锁时使用。
      */
-    private static void addSoftFindings(List<String> warnings, List<String> hardErrors, List<String> findings) {
-        if (findings == null || findings.isEmpty()) {
-            return;
+    static String resolveEndpointId(FlowDesignToolContext ctx) {
+        if (ctx == null) {
+            return null;
         }
-        for (String item : findings) {
-            if (item == null || item.isBlank()) {
-                continue;
-            }
-            if (hardErrors.contains(item) || warnings.contains(item)) {
-                continue;
-            }
-            warnings.add(item);
+        String fromCtx = ctx.getEditLeaseEndpoint();
+        if (fromCtx != null && !fromCtx.isBlank()) {
+            return fromCtx.trim();
         }
+        if (ctx.getAiChatSessionId() != null) {
+            return FlowEditLeaseService.webAutopilotEndpointId(ctx.getAiChatSessionId());
+        }
+        return FlowEditLeaseService.mcpEndpointId(
+                null, ctx.getTestProjectId(), ctx.getOperatorUserId());
     }
 
     /**

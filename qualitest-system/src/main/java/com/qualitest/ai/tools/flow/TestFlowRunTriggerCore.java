@@ -2,7 +2,6 @@ package com.qualitest.ai.tools.flow;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.ToolResultByteFit;
@@ -10,7 +9,6 @@ import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
-import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.params.TriggerTestFlowRunParams;
 import com.qualitest.project.result.TestFlowRunResult;
 import com.qualitest.project.service.ITestFlowExecutionService;
@@ -38,10 +36,6 @@ public class TestFlowRunTriggerCore {
     private final ITestFlowRunStepService testFlowRunStepService;
     /** 落盘测试流画布 */
     private final ITestFlowService testFlowService;
-    /** 落盘前校验画布结构 */
-    private final GraphJsonValidator graphJsonValidator;
-    /** 落盘前规范化设计期检查项 */
-    private final FlowDesignPatchNormalizer patchNormalizer;
 
     /**
      * 从工具入参与上下文解析要跑的流、场景、环境。
@@ -121,8 +115,7 @@ public class TestFlowRunTriggerCore {
         boolean autoCommitted = false;
         if (ctx.getSubmitCapture() != null && ctx.getSubmitCapture().hasAccepted()) {
             FlowDesignAutopilotCommitSupport.CommitOutcome commit =
-                    FlowDesignAutopilotCommitSupport.commitIfNeeded(
-                            ctx, testFlowService, graphJsonValidator, patchNormalizer);
+                    FlowDesignAutopilotCommitSupport.commitIfNeeded(ctx, testFlowService);
             if (!commit.ok()) {
                 JSONObject fail = commit.toJson();
                 fail.put("error", "跑流前自动落盘失败: " + commit.message());
@@ -182,6 +175,15 @@ public class TestFlowRunTriggerCore {
         result.put("paused", paused);
         result.put("passed", passed);
         result.put("autoCommittedBeforeRun", autoCommitted);
+        // Run 头错误（如步数上限、图校验）写入回执，便于无失败步骤时定位原因
+        if (run != null) {
+            if (run.getErrorCode() != null && !run.getErrorCode().isBlank()) {
+                result.put("errorCode", run.getErrorCode());
+            }
+            if (run.getErrorMessage() != null && !run.getErrorMessage().isBlank()) {
+                result.put("errorMessage", run.getErrorMessage());
+            }
+        }
         if (stillRunning) {
             result.put("hint", "Run 仍在执行中（等待超时），请提示用户查看运行库或稍后 get_run_failure");
             return ToolResultByteFit.fitAck(result, ctx.getMaxToolResultBytes());
@@ -200,6 +202,13 @@ public class TestFlowRunTriggerCore {
                     result.put("bizCodeFailureCount", failure.get("bizCodeFailureCount"));
                     result.put("assertFailureCount", failure.get("assertFailureCount"));
                     result.put("otherFailureCount", failure.get("otherFailureCount"));
+                    // 失败步骤查询结果可补充 Run 头尚未写入的错误码与说明
+                    if (failure.getString("errorCode") != null && !result.containsKey("errorCode")) {
+                        result.put("errorCode", failure.getString("errorCode"));
+                    }
+                    if (failure.getString("errorMessage") != null && !result.containsKey("errorMessage")) {
+                        result.put("errorMessage", failure.getString("errorMessage"));
+                    }
                 } else if (failure != null && failure.getString("error") != null) {
                     result.put("failureLookupError", failure.getString("error"));
                 }

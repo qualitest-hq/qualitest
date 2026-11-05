@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 RunScenarioBootstrap：从图 meta 解析运行场景与环境。
- * 覆盖：默认场景与 flowSeed、入参环境覆盖、场景不存在、fallback 回落、缺环境硬失败文案。
+ * 覆盖：默认场景与 flowSeed、maxSteps、入参环境覆盖、场景不存在、fallback 回落、缺环境硬失败文案。
  * 边界：夹具 flow/linear-run-graph.json；无数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunScenarioBootstrapTest
  */
@@ -104,11 +104,25 @@ class RunScenarioBootstrapTest {
     }
 
     /**
+     * 前提：场景配置 maxSteps=120。
+     * 期望：解析结果带上 maxSteps=120。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("解析：场景 maxSteps 传入 ResolvedRunScenario")
+    void resolve_passesMaxSteps() {
+        GraphJson graph = loadGraph("flow/linear-run-graph.json");
+        graph.getMeta().getScenarios().get(0).setMaxSteps(120);
+        ResolvedRunScenario scenario = RunScenarioBootstrap.resolve(graph, null, null);
+        assertEquals(120, scenario.getMaxSteps());
+    }
+
+    /**
      * 前提：缺 env，传入 availableEnvHint。
      * 期望：错误文案含可复制 envId。
      */
     @Test
-    @Order(6)
+    @Order(7)
     @DisplayName("解析：缺 env 时报错附可选 envId")
     void resolve_missingEnv_includesAvailableHint() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");

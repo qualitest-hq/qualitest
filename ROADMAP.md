@@ -66,6 +66,7 @@ flowchart LR
 | 3.12 | 项目成员角色与细粒度权限 | 全站可配角色与权限矩阵；成员按 capabilities 门禁（流/接口/套件/环境/AI/MCP/Token）；MCP 改按角色权限；历史 `developer`→`backend` |
 | 7.1 | 脚本加密与报文工具 | `ctx` / `api` 同名挂载：摘要（含 SM3）、HMAC、RSA 签验与加解密（PEM / 裸 Base64 / 证书）、AES-GCM 与 CBC/ECB、国密 SM2/SM4、`urlEncode`、`xmlParse/xmlStringify`、`signContent`；可仿支付宝 RSA2、微信支付 v2 / v3 回调 |
 | 7.2 | XML 响应自动解析 | Content-Type 为 xml，或 `text/plain` 正文以 `<?xml` / `<xml>` 开头时转对象（去根节点、防 XXE）；`{{http.body.xxx}}`、断言、条件、提取直接取字段；原文在 `http.bodyText` 与步骤报告；`responseKind` / `expectedResponseKind` 新增 `xml` |
+| 3.13 | 测试流步数上限与写锁 | 场景可配 `maxSteps`（默认 200 / 封顶 1000），超限合成失败步并展示 Run 级错误；MCP/Web AI 端锁 + 行锁内增量写图，`release_flow_lock` 显式释锁 |
 
 ---
 

@@ -74,8 +74,7 @@ public class FlowDesignToolContext {
     private final boolean autopilotEnabled = false;
 
     /**
-     * 本轮基准图对应的库版本号（写图条件更新用）。
-     * 可在落盘成功或冲突重放后更新。
+     * 本轮基准图对应的库版本号（Web 整图保存的 CAS 基准；AI/MCP 增量落盘后同步刷新）。
      */
     @Builder.Default
     private final AtomicReference<Long> baseGraphRevisionRef = new AtomicReference<>();
@@ -144,6 +143,13 @@ public class FlowDesignToolContext {
     private final Long aiChatSessionId;
 
     /**
+     * 本请求写图所用的端锁标识（形如 mcp:会话Id 或 web-autopilot:对话Id）。
+     * 调用方在抢锁成功后写入；隐式落盘用此标识续期或校验本端持锁。
+     */
+    @Builder.Default
+    private final AtomicReference<String> editLeaseEndpointRef = new AtomicReference<>();
+
+    /**
      * 会话级短名→雪花 id 映射（可变 Map）。
      * 单单元规范化时读写，成功后由提交逻辑落会话。
      */
@@ -175,10 +181,22 @@ public class FlowDesignToolContext {
         return baseGraphRevisionRef != null ? baseGraphRevisionRef.get() : null;
     }
 
-    /** 更新写图基准版本（加载流、落盘成功或冲突重放后） */
+    /** 更新写图基准版本（加载流或落盘成功后） */
     public void setBaseGraphRevision(Long revision) {
         if (baseGraphRevisionRef != null) {
             baseGraphRevisionRef.set(revision);
+        }
+    }
+
+    /** 读取本请求端锁标识 */
+    public String getEditLeaseEndpoint() {
+        return editLeaseEndpointRef != null ? editLeaseEndpointRef.get() : null;
+    }
+
+    /** 写入本请求端锁标识（抢锁成功后） */
+    public void setEditLeaseEndpoint(String endpointId) {
+        if (editLeaseEndpointRef != null) {
+            editLeaseEndpointRef.set(endpointId);
         }
     }
 

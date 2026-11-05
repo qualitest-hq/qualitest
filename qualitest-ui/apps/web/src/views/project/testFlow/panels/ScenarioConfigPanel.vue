@@ -75,6 +75,20 @@
         <!-- v-pre：把 {{flow.orderId}} 当纯文案展示，不要当成模板变量求值 -->
         <div class="field__hint" v-pre>运行选中场景时注入 flow 变量，写法如 {{flow.orderId}}</div>
       </div>
+      <!-- 当前场景的步数上限：留空走默认，输入会裁剪到 1～1000 -->
+      <div class="field">
+        <label>单次运行步数上限</label>
+        <input
+            :value="maxStepsDisplay"
+            inputmode="numeric"
+            max="1000"
+            min="1"
+            placeholder="默认 200"
+            type="number"
+            @change="onMaxStepsChange"
+        />
+        <div class="field__hint">留空使用默认 200；合法范围 1～1000，超出上限时运行失败并指出停在哪个节点</div>
+      </div>
       <div class="field">
         <label>节点失败时</label>
         <select :value="onNodeFailure" @change="onNodeFailureChange">
@@ -163,6 +177,11 @@ const showNormalFields = useShowNormalFields(stagingUnit, ['updateScenario']);
 
 const onNodeFailure = computed(() => activeScenario.value?.onNodeFailure ?? 'fail');
 const onSnapshotFailure = computed(() => activeScenario.value?.onSnapshotFailure ?? 'abort');
+/** 步数上限输入框展示值：未配置时为空字符串，占位提示默认 200 */
+const maxStepsDisplay = computed(() => {
+  const v = activeScenario.value?.maxSteps;
+  return v == null ? '' : String(v);
+});
 
 const flowSeedRows = computed(() => flowSeedToRows(activeScenario.value?.flowSeed));
 const flowOutputRows = computed(() => flowOutputsToRows(store.flowOutputs));
@@ -224,6 +243,27 @@ function onFlowSeedRowsChange(rows) {
 function onFlowOutputRowsChange(rows) {
   store.flowOutputs = rowsToFlowOutputs(rows);
   store.markDirty();
+}
+
+/** 步数上限变更：清空或非数字则写 null；否则取整并限制在 1～1000 */
+function onMaxStepsChange(e) {
+  const raw = String(e.target.value ?? '').trim();
+  if (!raw) {
+    patchActiveScenario({ maxSteps: null });
+    syncScenarioDraft();
+    return;
+  }
+  let n = Number(raw);
+  if (!Number.isFinite(n)) {
+    patchActiveScenario({ maxSteps: null });
+    syncScenarioDraft();
+    return;
+  }
+  n = Math.round(n);
+  if (n < 1) n = 1;
+  if (n > 1000) n = 1000;
+  patchActiveScenario({ maxSteps: n });
+  syncScenarioDraft();
 }
 
 function onNodeFailureChange(e) {
