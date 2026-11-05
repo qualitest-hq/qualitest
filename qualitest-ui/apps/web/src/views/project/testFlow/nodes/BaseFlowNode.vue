@@ -74,8 +74,13 @@ const nodeClasses = computed(() => ({
   'is-start': isStartNode(props.id),
   'is-running': store.runHighlightNodeId === props.id,
   'is-visited': !!store.runVisitedNodeIds[props.id],
+  // 运行步骤着色：含失败后继续的 bypassed / continued / continued_failed
   'is-step-passed': store.runVisitedNodeIds[props.id] === 'passed',
   'is-step-failed': store.runVisitedNodeIds[props.id] === 'failed',
+  'is-step-skipped': store.runVisitedNodeIds[props.id] === 'skipped',
+  'is-step-bypassed': store.runVisitedNodeIds[props.id] === 'bypassed',
+  'is-step-continued': store.runVisitedNodeIds[props.id] === 'continued',
+  'is-step-continued-failed': store.runVisitedNodeIds[props.id] === 'continued_failed',
   'is-ai-highlight': store.aiHighlightNodeIds.includes(props.id),
   'is-external-sync-highlight': store.externalSyncHighlightNodeIds.includes(props.id),
   'is-ai-staging-add': stagingMark.value?.mode === 'add',
@@ -189,8 +194,38 @@ defineExpose({ rootEl })
     box-shadow: inset 0 -3px 0 #dc2626;
   }
 
+  /* 人工跳过、失败后绕过：灰色顶栏 */
+  &.is-step-skipped .flow-node__bar,
+  &.is-step-bypassed .flow-node__bar {
+    box-shadow: inset 0 -3px 0 #9ca3af;
+  }
+
+  /* 失败后继续且成功：蓝色顶栏 */
+  &.is-step-continued .flow-node__bar {
+    box-shadow: inset 0 -3px 0 #0284c7;
+  }
+
+  /* 失败后继续但本步失败：橙色顶栏 */
+  &.is-step-continued-failed .flow-node__bar {
+    box-shadow: inset 0 -3px 0 #ea580c;
+  }
+
   &.is-step-failed {
     border-color: #b91c1c !important;
+  }
+
+  &.is-step-skipped,
+  &.is-step-bypassed {
+    border-color: #9ca3af !important;
+    opacity: 0.78;
+  }
+
+  &.is-step-continued {
+    border-color: #0284c7 !important;
+  }
+
+  &.is-step-continued-failed {
+    border-color: #ea580c !important;
   }
 
   &.is-step-failed.is-running {

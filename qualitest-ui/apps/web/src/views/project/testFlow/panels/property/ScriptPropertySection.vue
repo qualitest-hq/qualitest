@@ -48,6 +48,8 @@
     </div>
 
     <SnapshotPropertySection :node="node" />
+    <!-- 失败后仍执行本脚本节点 -->
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
@@ -63,6 +65,7 @@ import {
   SCRIPT_MAX_TIMEOUT_MS,
 } from '../../constants/flowConfig'
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 import SnapshotPropertySection from './SnapshotPropertySection.vue'
 
 const props = defineProps({

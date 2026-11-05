@@ -31,6 +31,10 @@ const NODE_DATA_LABELS: Record<string, string> = {
   waitMs: '等待(ms)',
   remark: '备注',
   headers: '请求头',
+  /** 失败后仍执行本节点 */
+  alwaysRun: '始终执行（失败后仍跑）',
+  /** 执行业务前打被测数据快照 */
+  snapshotBefore: '执行前打快照',
 };
 
 function formatDisplayValue(value: unknown): string {

@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.CompareRuleEvaluator;
 import com.qualitest.flow.http.HttpStepDetailsDesensitizer;
+import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.project.result.TestFlowRunDetailResult;
 import com.qualitest.project.result.TestFlowRunResult;
@@ -64,7 +65,10 @@ public final class RunHtmlReportRenderer {
         List<TestFlowRunStepResult> allSteps = detail.getSteps() != null ? detail.getSteps() : List.of();
         MetaFromSteps meta = extractMeta(allSteps, run);
         List<StepView> views = buildStepViews(allSteps);
-        List<StepView> failures = views.stream().filter(s -> "failed".equals(s.status)).toList();
+        // 失败摘要：业务 failed + 失败后继续中的 continued_failed
+        List<StepView> failures = views.stream()
+                .filter(s -> RunStatus.isFailureLike(s.status))
+                .toList();
 
         StringBuilder sb = new StringBuilder(16384);
         sb.append("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\"/>\n");
@@ -276,7 +280,7 @@ public final class RunHtmlReportRenderer {
             return;
         }
         for (StepView s : views) {
-            boolean failed = "failed".equals(s.status);
+            boolean failed = RunStatus.isFailureLike(s.status);
             sb.append("<article class=\"step-card step-card--").append(esc(s.status))
                     .append("\" id=\"step-").append(s.index).append("\">\n");
             sb.append("<details").append(failed ? " open" : "").append(">\n<summary class=\"step-sum\">");
@@ -587,7 +591,7 @@ public final class RunHtmlReportRenderer {
             if (details != null && details.getJSONObject("http") != null) {
                 desensitizeHttpInPlace(details);
             }
-            boolean failed = "failed".equals(step.getStatus());
+            boolean failed = RunStatus.isFailureLike(step.getStatus());
             StepView v = new StepView();
             v.index = index;
             v.nodeName = blankToDash(step.getNodeName());
@@ -798,7 +802,10 @@ public final class RunHtmlReportRenderer {
         sb.append("<tr><th>").append(esc(k)).append("</th><td>").append(esc(v)).append("</td></tr>\n");
     }
 
-    /** 运行/步骤状态转为报告页大写英文展示 */
+    /**
+     * 运行/步骤状态转为报告页大写英文展示。
+     * 含失败后继续三态：BYPASSED、CONTINUED、CONTINUED_FAILED。
+     */
     private static String statusLabel(String status) {
         if (status == null) {
             return "-";
@@ -811,6 +818,9 @@ public final class RunHtmlReportRenderer {
             case "aborted" -> "ABORTED";
             case "cancelled" -> "CANCELLED";
             case "skipped" -> "SKIPPED";
+            case "bypassed" -> "BYPASSED";
+            case "continued" -> "CONTINUED";
+            case "continued_failed" -> "CONTINUED_FAILED";
             default -> status.toUpperCase(Locale.ROOT);
         };
     }
@@ -1065,7 +1075,10 @@ public final class RunHtmlReportRenderer {
                 .run-badge--failed{background:#fee2e2;color:#b91c1c}
                 .run-badge--running{background:#dbeafe;color:#1d4ed8}
                 .run-badge--paused{background:#fef3c7;color:#92400e}
-                .run-badge--aborted,.run-badge--cancelled,.run-badge--skipped{background:#f3f4f6;color:#4b5563}
+                /* 失败后继续：绕过灰、成功蓝、本步失败橙 */
+                .run-badge--aborted,.run-badge--cancelled,.run-badge--skipped,.run-badge--bypassed{background:#f3f4f6;color:#4b5563}
+                .run-badge--continued{background:#e0f2fe;color:#0369a1}
+                .run-badge--continued_failed{background:#ffedd5;color:#c2410c}
                 .rule-fail td{background:#fff5f5}
                 .rule-ok td{background:#f0fdf4}
                 .log-list,.child-list{margin:4px 0 0;padding-left:1.2em}

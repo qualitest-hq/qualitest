@@ -70,6 +70,8 @@
     <div class="field__hint">作用域固定为 flow · 可用于轮询计数、标志位等</div>
 
     <SnapshotPropertySection :node="node" />
+    <!-- 失败后仍执行本赋值节点（如恢复 flow 变量） -->
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
@@ -90,6 +92,7 @@ import {
 
 import { ASSIGN_PRESETS } from '../../constants/nodeTypes'
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 import SnapshotPropertySection from './SnapshotPropertySection.vue'
 
 const props = defineProps({

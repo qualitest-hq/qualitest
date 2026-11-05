@@ -87,11 +87,14 @@
       </div>
       <button class="btn btn--ghost btn--sm" type="button" @click="addOutput">+ 添加输出</button>
     </div>
+
+    <!-- 失败后仍执行本子流节点（封装多步清理） -->
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
 <script setup>
-/** 子流节点属性：选择子流、版本策略、inputs/outputs 映射 */
+/** 子流节点属性：选择子流、版本策略、inputs/outputs 映射、始终执行 */
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
@@ -107,6 +110,7 @@ import {
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowCanvasStore } from '../../stores/flowCanvasStore'
 import { updateSummary } from '../../utils/nodeDataUtils'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },

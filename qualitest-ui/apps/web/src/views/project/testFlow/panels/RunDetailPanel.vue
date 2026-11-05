@@ -297,7 +297,7 @@ import { ElMessage } from 'element-plus'
 import { resumeTestFlowRun } from '@/api/project/testFlowRun'
 import ResponseMediaPreview from '@/components/ResponseMediaPreview/index.vue'
 import { normalizeInputFieldType } from '@/utils/flow/inputFields'
-import { runStatusLabel, runTriggerLabel } from '../constants/runStatus'
+import { isFailureLikeStatus, runStatusLabel, runTriggerLabel } from '../constants/runStatus'
 import { formatAssertRuleWithActual } from '../utils/nodeDataUtils'
 import {
   decodeUrlForDisplay,
@@ -545,8 +545,9 @@ function stepIcon(type) {
 }
 
 /**
- * 失败摘要分区：把失败步骤归入业务码 / 断言 / 其他三组。
- * 每项含节点名、类型中文、一行摘要，以及本步关联 flow 变量（键 / 短值）；点击后跳到对应步骤。
+ * 失败摘要分区：把失败类步骤归入业务码 / 断言 / 其他三组。
+ * 含 status=failed（业务首错）与 continued_failed（失败后继续阶段本步失败）。
+ * 每项含节点名、类型中文、一行摘要及本步关联 flow 变量；点击跳到对应步骤。
  */
 const failureGroups = computed(() => {
   const r = run.value
@@ -556,7 +557,7 @@ const failureGroups = computed(() => {
   const buckets = { bizCode: [], assert: [], other: [] }
 
   r.steps.forEach((step, stepIndex) => {
-    if (step.status !== 'failed') return
+    if (!isFailureLikeStatus(step.status)) return
     const nodeName = step.nodeName || step.nodeType || `步骤 ${stepIndex}`
     const item = {
       stepIndex,
@@ -1170,6 +1171,10 @@ function escapeHtml(s) {
   &.run-badge--running { background: #dbeafe; color: #1d4ed8; }
   &.run-badge--paused { background: #fef3c7; color: #92400e; }
   &.run-badge--skipped { background: #f3f4f6; color: #6b7280; }
+  /* 失败后继续：已绕过 / 仍执行成功 / 仍执行失败 */
+  &.run-badge--bypassed { background: #f3f4f6; color: #6b7280; }
+  &.run-badge--continued { background: #e0f2fe; color: #0369a1; }
+  &.run-badge--continued_failed { background: #ffedd5; color: #c2410c; }
   &.run-badge--aborted,
   &.run-badge--cancelled { background: #f3f4f6; color: #4b5563; }
 }

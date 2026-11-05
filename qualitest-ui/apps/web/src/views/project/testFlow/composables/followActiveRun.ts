@@ -6,7 +6,7 @@
 import { ElMessage } from 'element-plus'
 
 import { LIVE_RUN_POLL_MS } from '../constants/flowConfig'
-import { TERMINAL_RUN_STATUSES } from '../constants/runStatus'
+import { TERMINAL_RUN_STATUSES, toCanvasVisitStatus } from '../constants/runStatus'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import type { RunRecord } from '../stores/runLibraryStore'
 import { useRunLibraryStore } from '../stores/runLibraryStore'
@@ -14,7 +14,8 @@ import { abortableSleep } from '../utils/abortableSleep'
 
 /**
  * 按 Run 步骤时间线刷新画布高亮。
- * 将 0..stepIndex 的节点标为已访问（失败则失败色），当前步节点标为运行高亮。
+ * 将 0..stepIndex 的节点标为已访问；status 经 toCanvasVisitStatus 映射
+ * （含 bypassed / continued / continued_failed）；当前步节点标为运行高亮。
  */
 export function highlightRunStep(
   store: ReturnType<typeof useFlowCanvasStore>,
@@ -25,7 +26,7 @@ export function highlightRunStep(
   for (let i = 0; i <= stepIndex; i++) {
     const s = record.steps[i]
     if (!s?.nodeId) continue
-    store.runVisitedNodeIds[s.nodeId] = s.status === 'failed' ? 'failed' : 'passed'
+    store.runVisitedNodeIds[s.nodeId] = toCanvasVisitStatus(s.status)
   }
   const step = record.steps[stepIndex]
   if (step?.nodeId) store.runHighlightNodeId = step.nodeId

@@ -12,12 +12,13 @@ import java.util.Map;
 /**
  * 单步执行结果。
  * <p>
- * 索引列字段（{@code node_id}、{@code node_type}、{@code status} 等）与 {@code step_details} JSON 分离落库；
- * 类型专属键（{@code http}、{@code assert}、{@code branchTaken}、{@code assigns} 等）写入 {@code step_details}。
+ * 索引列字段（node_id、node_type、status 等）与 step_details JSON 分离落库；
+ * 类型专属键（http、assert、branchTaken、assigns 等）写入 step_details。
+ * Builder 开启 toBuilder，便于失败后继续时只改写 status（如 passed→continued）而保留详情。
  */
 @Getter
 @Setter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class StepResult {

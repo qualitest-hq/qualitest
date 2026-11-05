@@ -116,8 +116,11 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const layoutAxis = ref<FlowLayoutAxis>('horizontal');
   /** 场景运行高亮：当前执行节点 id */
   const runHighlightNodeId = ref<string | null>(null);
-  /** 场景运行已访问节点 id 集合 */
-  const runVisitedNodeIds = ref<Record<string, 'passed' | 'failed'>>({});
+  /**
+   * 场景运行已访问节点 → 着色态。
+   * 含失败后继续：bypassed（灰）、continued（蓝）、continued_failed（橙）。
+   */
+  const runVisitedNodeIds = ref<Record<string, 'passed' | 'failed' | 'skipped' | 'bypassed' | 'continued' | 'continued_failed'>>({});
   /**
    * 待灌入画布的边列表。
    * Staging 新增连线时先写入此处，等画布内节点注册完成后再合并进 edges。

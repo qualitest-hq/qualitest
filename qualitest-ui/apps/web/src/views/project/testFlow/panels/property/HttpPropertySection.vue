@@ -155,6 +155,8 @@
   </div>
 
   <SnapshotPropertySection :node="node" />
+  <!-- 失败后仍执行本节点（取消预约、删数据等清理） -->
+  <AlwaysRunPropertySection :node="node" />
 </template>
 
 <script setup>
@@ -165,6 +167,7 @@ import DebugExtractEditor from '@/views/project/testProject/components/DebugExtr
 
 import ApiScriptWorkbench from '@/components/script/ApiScriptWorkbench.vue'
 import DebugKvSheet from '../../components/DebugKvSheet.vue'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 import SnapshotPropertySection from './SnapshotPropertySection.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowTrialBody } from '../../composables/useFlowTrialBody'

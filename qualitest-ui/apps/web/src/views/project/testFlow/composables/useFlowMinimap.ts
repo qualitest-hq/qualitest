@@ -33,6 +33,15 @@ const RUNNING_FILL = '#16a34a';
 const PASSED_FILL = '#86efac';
 const FAILED_FILL = '#fca5a5';
 const FAILED_STROKE = '#dc2626';
+/** 跳过 / 失败后绕过 */
+const SKIPPED_FILL = '#e5e7eb';
+const SKIPPED_STROKE = '#9ca3af';
+/** 失败后继续成功 */
+const CONTINUED_FILL = '#7dd3fc';
+const CONTINUED_STROKE = '#0284c7';
+/** 失败后继续本步失败 */
+const CONTINUED_FAILED_FILL = '#fdba74';
+const CONTINUED_FAILED_STROKE = '#ea580c';
 const RUN_STROKE = '#15803d';
 const RUN_PASSED_STROKE = '#16a34a';
 const AI_HIGHLIGHT_FILL = STAGING_ADD_COLOR;
@@ -106,6 +115,15 @@ function resolveSimulateMinimapTone(
   if (visited === 'failed') {
     return { fill: FAILED_FILL, stroke: FAILED_STROKE };
   }
+  if (visited === 'continued_failed') {
+    return { fill: CONTINUED_FAILED_FILL, stroke: CONTINUED_FAILED_STROKE };
+  }
+  if (visited === 'skipped' || visited === 'bypassed') {
+    return { fill: SKIPPED_FILL, stroke: SKIPPED_STROKE };
+  }
+  if (visited === 'continued') {
+    return { fill: CONTINUED_FILL, stroke: CONTINUED_STROKE };
+  }
   if (visited === 'passed') {
     return {
       fill: mixHexWithWhite(accent, SIMULATE_PASSED_MIX),
@@ -127,6 +145,9 @@ function resolveMinimapNodeColor(node: GraphNode, store: ReturnType<typeof useFl
 
   const visited = store.runVisitedNodeIds[id];
   if (visited === 'failed') return FAILED_FILL;
+  if (visited === 'continued_failed') return CONTINUED_FAILED_FILL;
+  if (visited === 'skipped' || visited === 'bypassed') return SKIPPED_FILL;
+  if (visited === 'continued') return CONTINUED_FILL;
   if (visited === 'passed') return PASSED_FILL;
 
   if (store.aiHighlightNodeIds.includes(id)) return AI_HIGHLIGHT_FILL;
@@ -154,6 +175,9 @@ function resolveMinimapNodeStrokeColor(node: GraphNode, store: ReturnType<typeof
 
   const visited = store.runVisitedNodeIds[id];
   if (visited === 'failed') return FAILED_STROKE;
+  if (visited === 'continued_failed') return CONTINUED_FAILED_STROKE;
+  if (visited === 'skipped' || visited === 'bypassed') return SKIPPED_STROKE;
+  if (visited === 'continued') return CONTINUED_STROKE;
   if (visited === 'passed') return RUN_PASSED_STROKE;
 
   if (store.aiHighlightNodeIds.includes(id)) return STAGING_ADD_STROKE;

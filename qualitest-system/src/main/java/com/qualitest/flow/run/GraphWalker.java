@@ -127,6 +127,41 @@ public class GraphWalker {
     }
 
     /**
+     * 列出 condition 节点各分支的有效下游节点 id。
+     * <p>
+     * 用于失败后继续：condition 尚未求值时无法得到 branchTaken，
+     * 按各分支 target 扇出，只执行 alwaysRun，汇合节点靠已访问集合去重。
+     * 无有效 target 的分支（表示流结束）不计入；同一 target 只出现一次，顺序按 branches 数组排列。
+     *
+     * @param node condition 节点
+     * @return 下游节点 id 列表，可能为空
+     */
+    public List<String> listConditionBranchTargets(GraphNode node) {
+        if (node == null || node.getData() == null) {
+            return List.of();
+        }
+        Object branchesObj = node.getData().get("branches");
+        if (!(branchesObj instanceof JSONArray branches)) {
+            return List.of();
+        }
+        List<String> targets = new ArrayList<>();
+        for (int i = 0; i < branches.size(); i++) {
+            JSONObject branch = branches.getJSONObject(i);
+            if (branch == null || !ConditionBranchTargetSupport.hasBranchTarget(branch)) {
+                continue;
+            }
+            String target = branch.getString("target");
+            if (target == null || target.isBlank() || !nodeById.containsKey(target)) {
+                continue;
+            }
+            if (!targets.contains(target)) {
+                targets.add(target);
+            }
+        }
+        return targets;
+    }
+
+    /**
      * 查找从 fromId 到 toId 的边 id，用于下一步的入边记录。
      */
     public String findEdgeId(String fromId, String toId) {
