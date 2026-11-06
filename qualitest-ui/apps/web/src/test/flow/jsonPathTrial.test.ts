@@ -159,7 +159,8 @@ describe('jsonPathTrial design gate helpers', () => {
       warnings: [],
     });
     const noSchema = collectAssertPathDesignIssues(graph, new Map([['99', []]]));
-    expect(noSchema.errors).toHaveLength(0);
+    // 前提：接口 schema 叶路径为空。期望：仍报 .items 结构错误，并警告无响应 schema
+    expect(noSchema.errors.some((e) => e.includes('.items'))).toBe(true);
     expect(noSchema.warnings.some((w) => w.includes('无响应 schema'))).toBe(true);
   });
 });

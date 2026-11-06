@@ -41,7 +41,7 @@ function entriesToScopeMap(entries: VariableEntryLike[]): Record<string, unknown
  * - env：环境变量条目 + baseUrl
  * - asset：素材库条目
  * - flow：调用方传入或空对象
- * - lastResponse：初始为 null，http 步骤执行后由执行器更新
+ * - lastResponse：初始 null；nodeResponses：初始空对象（HTTP 步骤执行后由调用方写入）
  */
 export function buildDebugFlowContext(options: BuildDebugFlowContextOptions = {}): FlowRunContext {
   const envEntries = parseVariableEntries(options.envVariables);
@@ -57,5 +57,6 @@ export function buildDebugFlowContext(options: BuildDebugFlowContextOptions = {}
     flow: { ...(options.flow ?? {}) },
     asset,
     lastResponse: null,
+    nodeResponses: {},
   };
 }

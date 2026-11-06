@@ -117,12 +117,13 @@ UI 调试台侧栏「脚本 API」与片段库与上表同源（`scriptApiRefere
 
 | 场景 | 写法 | 说明 |
 |------|------|------|
-| 断言 / 条件左值 | `http.body.data.code`、`http.body.data[?(@.cartId=='5001')].quantity` | 相对上一步响应 body；支持下标、过滤器、`[*]`、`length()`。**数组字段不要写 JSON Schema 关键字 `.items`**（真实 JSON 无此层） |
-| 简写（会规范化） | `$.data.code` | 设计态 / 运行态规范为 `http.body.data.code` |
+| 断言 / 条件左值 | `http.body.data.code`、`http.body.data[?(@.cartId=='5001')].quantity` | 相对本上下文**最近一次** HTTP 响应 body；中间非 HTTP 节点不覆盖。支持下标、过滤器、`[*]`、`length()`。**数组字段不要写 JSON Schema 关键字 `.items`** |
+| 按节点引用 | `nodes.<节点ID>.http.body.data.code` | 读该 HTTP 节点最近一次执行快照；只认 id。目标缺失/非 HTTP → 校验条 structure 错误，运行硬拦 |
+| 简写（会规范化） | `$.data.code` | 设计态 / 运行态规范为 `http.body.data.code`（仅裸 http，不是 nodes） |
 | Extract / 业务码 | `$.data.token` | **必须以 `$` 开头**，相对 body 根 |
 | 其它上下文 | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` / `http.bodyText` | **不走 JsonPath**；`http.bodyText` 为响应原文 |
 
-禁止：`http.body.$.…`（Confirm / **运行**会失败；保存可带错落盘）。
+禁止：`http.body.$.…`（Confirm / **运行**会失败；保存可带错落盘）。字段向后传递仍优先 HTTP **extracts** / Assign → `flow.*`。
 
 ### 运算符
 

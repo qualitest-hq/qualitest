@@ -8,7 +8,8 @@ import java.util.Map;
 /**
  * 单次 Run 运行时上下文。
  * <p>
- * 持有 env / flow / asset / session、外联权限、项目 ID，
+ * 持有 env / flow / asset / session、外联权限、项目 ID、
+ * 最近一次 HTTP 快照 lastResponse、按节点 id 索引的 HTTP 快照 nodeResponses，
  * 以及项目多端配置（projectAuthConfig：鉴权头 + 各端响应约定）。
  */
 @Getter
@@ -49,10 +50,19 @@ public class FlowRunContext {
     private boolean externalHttpPermitted = true;
 
     /**
-     * 最近一步 HTTP 响应快照（status / headers / body / durationMs /
-     * 实际响应形态 responseKind / 是否符合接口期望 expectedMatch）
+     * 本上下文内最近一次 HTTP 响应快照（status / headers / body / durationMs /
+     * 实际响应形态 responseKind / 是否符合接口期望 expectedMatch）。
+     * 中间非 HTTP 节点不会清空或改写本字段。
      */
     private HttpResponseSnapshot lastResponse;
+
+    /**
+     * 按画布节点 id 索引的 HTTP 响应快照。
+     * 同一节点多次执行时覆盖为该节点最后一次响应；
+     * 供路径 {@code nodes.<nodeId>.http…} 取值；暂停续跑序列化时不写入本 Map。
+     */
+    @Builder.Default
+    private Map<String, HttpResponseSnapshot> nodeResponses = new HashMap<>();
 
     /**
      * 当前 Run 所属测试项目 ID（子流归属校验）
@@ -95,5 +105,37 @@ public class FlowRunContext {
          * 实际形态是否符合接口配置的期望形态；无绑定接口时为 true
          */
         private Boolean expectedMatch;
+    }
+
+    /**
+     * 同时更新最近一次 HTTP 快照与按节点 id 的索引。
+     * nodeId 为空或空白时只写入 lastResponse，不写入 nodeResponses。
+     *
+     * @param nodeId   画布 HTTP 节点 id
+     * @param snapshot 本步响应快照
+     */
+    public void putHttpResponse(String nodeId, HttpResponseSnapshot snapshot) {
+        this.lastResponse = snapshot;
+        if (nodeId == null || nodeId.isBlank() || snapshot == null) {
+            return;
+        }
+        if (this.nodeResponses == null) {
+            this.nodeResponses = new HashMap<>();
+        }
+        this.nodeResponses.put(nodeId.trim(), snapshot);
+    }
+
+    /**
+     * 按画布节点 id 读取已索引的 HTTP 快照。
+     * nodeId 为空、Map 未初始化或从未写入时返回 null。
+     *
+     * @param nodeId 画布节点 id
+     * @return 该节点最后一次写入的快照，或 null
+     */
+    public HttpResponseSnapshot getNodeResponse(String nodeId) {
+        if (nodeId == null || nodeId.isBlank() || this.nodeResponses == null) {
+            return null;
+        }
+        return this.nodeResponses.get(nodeId.trim());
     }
 }

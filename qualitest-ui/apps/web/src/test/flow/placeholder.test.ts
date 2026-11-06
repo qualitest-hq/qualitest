@@ -1,6 +1,7 @@
 /**
- * 测 resolvePlaceholderString / resolvePathSegment：{{scope.path}} 占位符解析。
- * 边界：纯函数；用例来自 @flow-fixtures/placeholder-cases.json（与后端同源）。
+ * 测 resolvePlaceholderString / resolvePathSegment：{{scope.path}} 占位符解析，
+ * 以及 http.*、nodes.节点id.http.* 路径求值。
+ * 边界：纯函数；用例来自 @flow-fixtures/placeholder-cases.json。
  * 单跑：pnpm test placeholder   （在 qualitest-ui 或 apps/web 下）
  * @vitest-environment happy-dom
  */
@@ -12,7 +13,7 @@ import type { FlowRunContext } from '@/utils/flow/types';
 
 import fixture from '@flow-fixtures/placeholder-cases.json';
 
-/** fixture 中的 mockContext，结构与运行时 FlowRunContext 一致，各用例只读共享 */
+/** fixture 中的 mockContext，作为各用例只读共享的运行时上下文 */
 const ctx = fixture.mockContext as FlowRunContext;
 
 function caseById(id: string) {
@@ -241,5 +242,18 @@ describe('resolvePlaceholderString', () => {
       expect(err.code).toBe('TF_PLACEHOLDER_UNDEFINED');
       expect(err.placeholder).toBe('flow.missing');
     }
+  });
+
+  it('nodes.<id>.http.body 读取节点快照而非 lastResponse', () => {
+    // 前提：nodeResponses.n1.body.code=1，lastResponse.body.code=2
+    // 期望：nodes.n1 得 1，http.body 得 2
+    const multi: FlowRunContext = {
+      ...ctx,
+      lastResponse: { status: 200, body: { code: 2 } },
+      nodeResponses: { n1: { status: 200, body: { code: 1 } } },
+    };
+    expect(resolvePathSegment(multi, 'nodes.n1.http.body.code')).toBe(1);
+    expect(resolvePathSegment(multi, 'http.body.code')).toBe(2);
+    expect(resolvePlaceholderString('{{nodes.n1.http.body.code}}', multi, 'strict')).toBe('1');
   });
 });

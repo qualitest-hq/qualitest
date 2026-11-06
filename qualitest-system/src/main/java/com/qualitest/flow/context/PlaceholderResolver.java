@@ -10,8 +10,10 @@ import java.util.Map;
  * <p>
  * 模板形态：{@code {{scope.path}}}。<br>
  * 持久变量：{@code env.*}、{@code flow.*}、{@code asset.*}。<br>
- * 上一步 HTTP：{@code http.body} / {@code http.body.<JsonPath相对路径>}、
- * {@code http.status}、{@code http.duration}、{@code http.header.*}。<br>
+ * 最近一次 HTTP：{@code http.body} / {@code http.body.<JsonPath相对路径>}、
+ * {@code http.status}、{@code http.duration}、{@code http.header.*}、
+ * {@code http.bodyText}、{@code http.responseKind}、{@code http.expectedMatch}。<br>
+ * 按节点引用：{@code nodes.<nodeId>.http.…}，从 nodeResponses 读取该节点最后一次响应。<br>
  * LENIENT：未定义占位符替换为空串；STRICT：未定义则抛业务错误码 TF_PLACEHOLDER_UNDEFINED。
  */
 public record PlaceholderResolver(ResolveMode mode) {
@@ -21,6 +23,15 @@ public record PlaceholderResolver(ResolveMode mode) {
         LENIENT,
         /** 未定义占位符 → 抛错（正式 Run） */
         STRICT
+    }
+
+    /**
+     * 将路径 {@code nodes.<nodeId>.http.<rest>} 拆成节点 id 与 http 相对段。
+     *
+     * @param nodeId   画布节点 id（{@code nodes.} 与 {@code .http.} 之间的整段）
+     * @param httpRest {@code http.} 之后的路径，例如 {@code body.data.code}、{@code status}
+     */
+    public record NodesHttpRef(String nodeId, String httpRest) {
     }
 
     /**
@@ -42,7 +53,7 @@ public record PlaceholderResolver(ResolveMode mode) {
     }
 
     /**
-     * 替换模板中全部合法路径占位 {@code {{flow.|env.|asset.|http.…}}}。
+     * 替换模板中全部合法路径占位 {@code {{flow.|env.|asset.|http.|nodes.…}}}。
      * 非路径形态的花括号保留为字面量；未定义路径在宽松模式下变空串，严格模式下抛错。
      *
      * @param template 模板原文，null 视为空串
@@ -71,8 +82,13 @@ public record PlaceholderResolver(ResolveMode mode) {
     }
 
     /**
-     * 单段路径求值：占位符内部、断言左值、条件左值共用。
-     * 若写成纯 {@code $…}，会先改成 {@code http.body…} 再解析。
+     * 单段路径求值：占位符内部、断言/条件左值、比较右值路径共用。
+     * 纯 {@code $…} 会先改成 {@code http.body…}；
+     * {@code nodes.<id>.http…} 读 nodeResponses；{@code http…} 读 lastResponse。
+     *
+     * @param ctx  运行上下文
+     * @param path 路径原文
+     * @return 求值结果；无法解析或快照缺失时返回 null
      */
     public Object resolvePathSegment(FlowRunContext ctx, String path) {
         if (ctx == null || path == null) {
@@ -91,8 +107,12 @@ public record PlaceholderResolver(ResolveMode mode) {
         if (p.startsWith("asset.")) {
             return resolveAssetPath(ctx.getAsset(), p.substring(6));
         }
+        NodesHttpRef nodesRef = parseNodesHttpPath(p);
+        if (nodesRef != null) {
+            return resolveHttpPathOnSnapshot(ctx.getNodeResponse(nodesRef.nodeId()), nodesRef.httpRest());
+        }
         if (p.startsWith("http.")) {
-            return resolveHttpPath(ctx, p.substring(5));
+            return resolveHttpPathOnSnapshot(ctx.getLastResponse(), p.substring(5));
         }
         return null;
     }
@@ -123,64 +143,98 @@ public record PlaceholderResolver(ResolveMode mode) {
     }
 
     /**
-     * 解析 http.* 路径：整 body、body 上字段路径、响应原文 bodyText、状态码、耗时、响应头、
-     * 实际响应形态 responseKind、是否符合接口期望 expectedMatch。
-     * {@code http.body.$…} 写法非法，返回 null。
+     * 解析 {@code nodes.<nodeId>.http.<rest>}。
+     * 须同时含 {@code nodes.} 前缀与 {@code .http.} 分隔；nodeId、httpRest 任一为空则返回 null。
+     *
+     * @param path 完整路径（通常已经过断言左值规范化）
+     * @return 拆分结果；形态不符时为 null
      */
-    private static Object resolveHttpPath(FlowRunContext ctx, String rest) {
+    public static NodesHttpRef parseNodesHttpPath(String path) {
+        if (path == null || !path.startsWith("nodes.")) {
+            return null;
+        }
+        String after = path.substring("nodes.".length());
+        int httpDot = after.indexOf(".http.");
+        if (httpDot <= 0) {
+            return null;
+        }
+        String nodeId = after.substring(0, httpDot).trim();
+        String httpRest = after.substring(httpDot + ".http.".length()).trim();
+        if (nodeId.isEmpty() || httpRest.isEmpty()) {
+            return null;
+        }
+        return new NodesHttpRef(nodeId, httpRest);
+    }
+
+    /**
+     * 判断路径是否以 {@code nodes.} 开头。
+     * 形态不完整（缺 {@code .http.}）时也为 true，便于校验时单独报错。
+     *
+     * @param path 待判断路径
+     * @return 以 nodes. 开头则为 true
+     */
+    public static boolean looksLikeNodesPath(String path) {
+        return path != null && path.startsWith("nodes.");
+    }
+
+    /**
+     * 在给定 HTTP 快照上解析相对段（不含 {@code http.} 前缀）。
+     * 支持整 body、body 上 JsonPath、bodyText、status、duration、header、responseKind、expectedMatch。
+     * {@code body.$…} 非法，返回 null；快照为 null 时各字段均返回 null。
+     *
+     * @param snap 响应快照
+     * @param rest {@code http.} 之后的相对路径
+     * @return 字段值或 null
+     */
+    private static Object resolveHttpPathOnSnapshot(FlowRunContext.HttpResponseSnapshot snap, String rest) {
         if (rest == null || rest.isEmpty()) {
             return null;
         }
-        FlowRunContext.HttpResponseSnapshot last = ctx.getLastResponse();
         if ("duration".equals(rest)) {
-            return last == null ? null : last.getDurationMs();
+            return snap == null ? null : snap.getDurationMs();
         }
         if ("status".equals(rest)) {
-            return last == null ? null : last.getStatus();
+            return snap == null ? null : snap.getStatus();
         }
-        // 实际响应形态：json / xml / nonJson
         if ("responseKind".equals(rest)) {
-            return last == null ? null : last.getResponseKind();
+            return snap == null ? null : snap.getResponseKind();
         }
-        // 实际形态是否符合接口期望
         if ("expectedMatch".equals(rest)) {
-            return last == null ? null : last.getExpectedMatch();
+            return snap == null ? null : snap.getExpectedMatch();
         }
         if ("body".equals(rest)) {
-            return last == null ? null : last.getBody();
+            return snap == null ? null : snap.getBody();
         }
-        // 响应原文（含 XML 转对象前的报文）
         if ("bodyText".equals(rest)) {
-            return last == null ? null : last.getBodyText();
+            return snap == null ? null : snap.getBodyText();
         }
         if (rest.startsWith("body.")) {
-            if (last == null || last.getBody() == null) {
+            if (snap == null || snap.getBody() == null) {
                 return null;
             }
             String relative = rest.substring(5);
             if (relative.startsWith("$")) {
                 return null;
             }
-            return JsonPathFacade.eval(last.getBody(), JsonPathFacade.toAbsolutePath(relative));
+            return JsonPathFacade.eval(snap.getBody(), JsonPathFacade.toAbsolutePath(relative));
         }
         if (rest.startsWith("header.")) {
-            return resolveHttpHeader(ctx, rest.substring(7));
+            return resolveHttpHeader(snap, rest.substring(7));
         }
         if (rest.startsWith("headers.")) {
-            return resolveHttpHeader(ctx, rest.substring(8));
+            return resolveHttpHeader(snap, rest.substring(8));
         }
         return null;
     }
 
-    private static Object resolveHttpHeader(FlowRunContext ctx, String name) {
+    private static Object resolveHttpHeader(FlowRunContext.HttpResponseSnapshot snap, String name) {
         if (name == null || name.isEmpty()) {
             return null;
         }
-        FlowRunContext.HttpResponseSnapshot last = ctx.getLastResponse();
-        if (last == null || last.getHeaders() == null) {
+        if (snap == null || snap.getHeaders() == null) {
             return null;
         }
-        return last.getHeaders().get(name);
+        return snap.getHeaders().get(name);
     }
 
     /** {@code asset.key} 或 {@code asset.key.a.b}：先取条目，再按点分键逐级下钻。 */

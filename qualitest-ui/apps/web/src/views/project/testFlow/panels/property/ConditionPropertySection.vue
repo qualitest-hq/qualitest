@@ -27,6 +27,7 @@
               :model-value="branch.conditions || []"
               :trial-body="trialBody"
               :trial-source="trialSource"
+              :resolve-node-body="resolveNodeBody"
               @update:model-value="(val) => updateBranchConditions(branch.id, val)"
           />
           <div v-if="!hasConditionBranchTarget(branch)" class="cond-case__desc">
@@ -44,7 +45,7 @@
     >
       + ELIF
     </button>
-    <div class="field__hint">左值可用 flow.* / env.* / asset.* / http.body…；同分支内多条条件为 AND</div>
+    <div class="field__hint">左值可用 flow.* / env.* / asset.* / http.body… / nodes.节点ID.http.body…；同分支内多条条件为 AND</div>
   </div>
 </template>
 
@@ -52,7 +53,8 @@
 /**
  * condition 节点属性区：编辑各分支 conditions，增删 ELIF。
  * 分支出口由画布连线决定；无出边则命中后结束本流。
- * 条件左值试算优先用选中 Run 的 HTTP 响应，否则用上游接口响应示例。
+ * 条件左值支持 http.body… 与 nodes.<节点id>.http.body…；
+ * 试算优先用选中 Run 的 HTTP 响应，否则用上游接口响应示例。
  */
 import { computed } from 'vue'
 
@@ -76,7 +78,7 @@ const props = defineProps({
 
 const store = useFlowCanvasStore()
 const { patchNodeData } = useFlowNodes()
-const { trialBody, trialSource } = useFlowTrialBody({ node: () => props.node })
+const { trialBody, trialSource, resolveNodeBody } = useFlowTrialBody({ node: () => props.node })
 
 const branches = computed(() => getConditionBranches(props.node.data))
 

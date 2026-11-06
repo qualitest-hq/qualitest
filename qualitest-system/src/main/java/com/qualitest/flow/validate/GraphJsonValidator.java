@@ -14,6 +14,7 @@ import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -193,8 +194,19 @@ public class GraphJsonValidator {
         return raw;
     }
 
+    /**
+     * 校验已解析的节点列表。
+     * 先建立全图节点 id 到 type 的映射，再逐节点校验字段
+     *（断言/条件左值若写 nodes.节点id.http…，用该映射检查目标是否存在且为 http）。
+     */
     private Set<String> validateTypedNodes(List<GraphNode> nodes, List<String> errors, List<String> warnings) {
         Set<String> nodeIds = new HashSet<>();
+        Map<String, String> nodeTypesById = new HashMap<>();
+        for (GraphNode node : nodes) {
+            if (node != null && node.getId() != null && !node.getId().isBlank()) {
+                nodeTypesById.put(node.getId().trim(), node.getType() != null ? node.getType().trim() : "");
+            }
+        }
         for (int i = 0; i < nodes.size(); i++) {
             String p = "nodes[" + i + "]";
             GraphNode node = nodes.get(i);
@@ -209,6 +221,7 @@ public class GraphJsonValidator {
                     node.getPosition(),
                     node.getData(),
                     nodeIds,
+                    nodeTypesById,
                     errors,
                     warnings
             );
@@ -252,8 +265,24 @@ public class GraphJsonValidator {
         }
     }
 
+    /**
+     * 校验原始 JSON 节点数组。
+     * 先扫描建立 id→type，再逐节点做字段校验（含 nodes.节点id.http 引用目标检查）。
+     */
     private Set<String> validateRawNodes(JSONArray nodesArr, List<String> errors, List<String> warnings) {
         Set<String> nodeIds = new HashSet<>();
+        Map<String, String> nodeTypesById = new HashMap<>();
+        for (int i = 0; i < nodesArr.size(); i++) {
+            Object item = nodesArr.get(i);
+            if (!(item instanceof JSONObject node)) {
+                continue;
+            }
+            String id = node.getString("id");
+            if (id != null && !id.isBlank()) {
+                String type = node.getString("type");
+                nodeTypesById.put(id.trim(), type != null ? type.trim() : "");
+            }
+        }
         for (int i = 0; i < nodesArr.size(); i++) {
             String p = "nodes[" + i + "]";
             Object item = nodesArr.get(i);
@@ -272,7 +301,7 @@ public class GraphJsonValidator {
                         .y(position.getDoubleValue("y"))
                         .build();
             }
-            validateNodeFields(p, id, type, pos, data, nodeIds, errors, warnings);
+            validateNodeFields(p, id, type, pos, data, nodeIds, nodeTypesById, errors, warnings);
         }
         return nodeIds;
     }
@@ -284,6 +313,7 @@ public class GraphJsonValidator {
             GraphNodePosition position,
             Map<String, Object> data,
             Set<String> nodeIds,
+            Map<String, String> nodeTypesById,
             List<String> errors,
             List<String> warnings
     ) {
@@ -311,7 +341,7 @@ public class GraphJsonValidator {
             validateHttpNodeFields(p, id, data, errors, warnings);
         }
         if (FlowNodeType.ASSERT.matches(type)) {
-            validateAssertNodeFields(p, id, data, errors);
+            validateAssertNodeFields(p, id, data, nodeTypesById, errors);
         }
         if (FlowNodeType.CONDITION.matches(type)) {
             Object branches = data != null ? data.get("branches") : null;
@@ -319,7 +349,7 @@ public class GraphJsonValidator {
                 String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
                 errors.add("条件节点「" + name + "」缺少 branches，请配置 IF/ELSE 分支");
             } else {
-                validateConditionNodeFields(p, id, data, errors);
+                validateConditionNodeFields(p, id, data, nodeTypesById, errors);
             }
         }
         if (FlowNodeType.ASSIGN.matches(type)) {
@@ -340,6 +370,7 @@ public class GraphJsonValidator {
             String p,
             String id,
             Map<String, Object> data,
+            Map<String, String> nodeTypesById,
             List<String> errors
     ) {
         String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
@@ -353,7 +384,7 @@ public class GraphJsonValidator {
             if (!(item instanceof Map<?, ?> map)) {
                 continue;
             }
-            validateCompareRule(p + " 断言节点「" + name + "」rules[" + i + "]", map, errors);
+            validateCompareRule(p + " 断言节点「" + name + "」rules[" + i + "]", map, nodeTypesById, errors);
         }
     }
 
@@ -479,6 +510,7 @@ public class GraphJsonValidator {
             String p,
             String id,
             Map<String, Object> data,
+            Map<String, String> nodeTypesById,
             List<String> errors
     ) {
         String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
@@ -504,6 +536,7 @@ public class GraphJsonValidator {
                 validateCompareRule(
                         p + " 条件节点「" + name + "」branches[" + bi + "].conditions[" + ci + "]",
                         map,
+                        nodeTypesById,
                         errors
                 );
             }
@@ -511,10 +544,21 @@ public class GraphJsonValidator {
     }
 
     /**
-     * 校验单条比较规则：left 非空；作用域合法；禁止 {@code http.body.$.…}；
-     * {@code http.body.} 后缀须为可解析的 JsonPath。
+     * 校验单条比较规则的左值。
+     * 检查：非空；作用域为 flow / env / asset / http / nodes；
+     * 禁止 {@code http.body.$.…}；{@code nodes.<id>.http…} 的目标节点须存在且类型为 http；
+     * body 字段后缀须能解析为 JsonPath。
+     *
+     * @param prefix         错误文案前缀（含节点名与规则下标）
+     * @param rule           单条规则 Map
+     * @param nodeTypesById  全图节点 id → type，用于校验 nodes 引用
+     * @param errors         错误列表（追加写入）
      */
-    private void validateCompareRule(String prefix, Map<?, ?> rule, List<String> errors) {
+    private void validateCompareRule(
+            String prefix,
+            Map<?, ?> rule,
+            Map<String, String> nodeTypesById,
+            List<String> errors) {
         Object leftRaw = rule.get("left");
         String left = leftRaw == null ? "" : String.valueOf(leftRaw).trim();
         if (left.isEmpty()) {
@@ -524,7 +568,17 @@ public class GraphJsonValidator {
         left = CompareRuleEvaluator.stripMustache(left);
         String normalized = PlaceholderResolver.normalizeAssertLeftPath(left);
         if (!isAllowedCompareLeftScope(normalized)) {
-            errors.add(prefix + " left 作用域非法（须为 flow./env./asset./http. 或 $.…）：" + left);
+            errors.add(prefix + " left 作用域非法（须为 flow./env./asset./http./nodes.<id>.http. 或 $.…）：" + left);
+            return;
+        }
+        PlaceholderResolver.NodesHttpRef nodesRef = PlaceholderResolver.parseNodesHttpPath(normalized);
+        if (PlaceholderResolver.looksLikeNodesPath(normalized) && nodesRef == null) {
+            errors.add(prefix + " left 须为 nodes.<节点ID>.http.…：" + left);
+            return;
+        }
+        if (nodesRef != null) {
+            validateNodesHttpTarget(prefix, left, nodesRef, nodeTypesById, errors);
+            validateHttpBodyRelativePath(prefix, left, nodesRef.httpRest(), errors);
             return;
         }
         if (normalized.startsWith("http.body.$")) {
@@ -543,7 +597,56 @@ public class GraphJsonValidator {
         }
     }
 
-    /** left 允许的作用域前缀：flow / env / asset / http（含整段 http.body）。 */
+    /**
+     * 校验 {@code nodes.<id>.http…} 引用的目标节点。
+     * 节点不在图中，或类型不是 http 时写入 errors。
+     */
+    private static void validateNodesHttpTarget(
+            String prefix,
+            String left,
+            PlaceholderResolver.NodesHttpRef nodesRef,
+            Map<String, String> nodeTypesById,
+            List<String> errors) {
+        Map<String, String> types = nodeTypesById != null ? nodeTypesById : Map.of();
+        String targetType = types.get(nodesRef.nodeId());
+        if (targetType == null) {
+            errors.add(prefix + " left 引用的节点不存在：" + nodesRef.nodeId() + "（" + left + "）");
+            return;
+        }
+        if (!FlowNodeType.HTTP.matches(targetType)) {
+            errors.add(prefix + " left 只能引用 HTTP 节点，节点「" + nodesRef.nodeId()
+                    + "」类型为 " + targetType + "（" + left + "）");
+        }
+    }
+
+    /**
+     * 校验 http 相对段里 body 字段路径是否合法。
+     * 禁止 {@code body.$…}；{@code body.} 后的相对路径须能解析为 JsonPath；
+     * 仅 {@code body} 或非 body 段（如 status）不做 JsonPath 检查。
+     */
+    private static void validateHttpBodyRelativePath(
+            String prefix, String left, String httpRest, List<String> errors) {
+        if (httpRest == null) {
+            return;
+        }
+        if (httpRest.startsWith("body.$")) {
+            errors.add(prefix + " left 不可写成 http.body.$.…，请用 http.body.data… 或 $.data…：" + left);
+            return;
+        }
+        if ("body".equals(httpRest) || !httpRest.startsWith("body.")) {
+            return;
+        }
+        String relative = httpRest.substring("body.".length());
+        String abs = JsonPathFacade.toAbsolutePath(relative);
+        if (!JsonPathFacade.isValidPath(abs)) {
+            errors.add(prefix + " left JsonPath 无法解析：" + left);
+        }
+    }
+
+    /**
+     * 判断比较左值作用域是否合法。
+     * 允许：flow. / env. / asset. / http. / nodes. 前缀，以及整段 http.body。
+     */
     private static boolean isAllowedCompareLeftScope(String left) {
         if (left == null || left.isEmpty()) {
             return false;
@@ -552,6 +655,7 @@ public class GraphJsonValidator {
                 || left.startsWith("env.")
                 || left.startsWith("asset.")
                 || left.startsWith("http.")
+                || left.startsWith("nodes.")
                 || "http.body".equals(left);
     }
 

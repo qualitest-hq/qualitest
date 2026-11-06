@@ -9,7 +9,7 @@ import java.util.function.Predicate;
 /**
  * 模板中 {@code {{…}}} 占位符的扫描与替换。
  * <p>
- * 默认仅把以 {@code flow.}、{@code env.}、{@code asset.}、{@code http.} 开头、
+ * 默认仅把以 {@code flow.}、{@code env.}、{@code asset.}、{@code http.}、{@code nodes.} 开头、
  * 且前缀后还有内容的内层当作占位路径。其它 {@code {{…}}} 不当占位：只越过开头的 {@code {{}，
  * 继续向后查找，避免说明性花括号吞掉后面的真占位。
  * <p>
@@ -31,7 +31,8 @@ public final class MustacheScan {
 
     /**
      * 判断内层是否为可求值的占位路径。
-     * 先 trim，再检查是否以 flow. / env. / http. / asset. 开头且前缀后非空。
+     * 先 trim，再检查是否以 flow. / env. / http. / asset. / nodes. 开头，
+     * 且前缀后至少还有一个字符（含 {@code nodes.<节点id>.http.…}）。
      *
      * @param inner 定界符内原文，可为 null
      * @return 是合法路径则 true
@@ -44,7 +45,8 @@ public final class MustacheScan {
         return startsWithScopeAndKey(p, "flow.")
                 || startsWithScopeAndKey(p, "env.")
                 || startsWithScopeAndKey(p, "http.")
-                || startsWithScopeAndKey(p, "asset.");
+                || startsWithScopeAndKey(p, "asset.")
+                || startsWithScopeAndKey(p, "nodes.");
     }
 
     /** 字符串是否以指定前缀开头，且前缀后至少还有一个字符 */

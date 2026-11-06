@@ -3,18 +3,23 @@
  *
  * 模板：{{scope.path}}
  * 持久变量：env.* / flow.* / asset.*
- * 上一步 HTTP：http.body（整段）/ http.body.<相对 JsonPath>、http.status、http.duration、http.header.*
- * body 上的路径支持下标、过滤器、通配、length()。
- * lenient：未定义占位符 → 空串；strict：未定义 → 抛错。
+ * 最近一次 HTTP：http.body（整段）/ http.body.<相对 JsonPath>、http.status、http.duration、
+ * http.header.*、http.bodyText、http.responseKind、http.expectedMatch
+ * 按节点：nodes.<nodeId>.http.…，从 ctx.nodeResponses 读取该节点最后一次响应
+ * body 字段路径支持下标、过滤器、通配、length()
+ * lenient：未定义占位符 → 空串；strict：未定义 → 抛错
  */
-import type { FlowRunContext, PlaceholderResolveMode } from './types';
+import type { FlowRunContext, HttpResponseSnapshot, PlaceholderResolveMode } from './types';
 import { PlaceholderUndefinedError } from './types';
 import { JSONPath } from 'jsonpath-plus';
 import { replaceMustache } from './mustacheScan';
 
+/** 将路径 nodes.<nodeId>.http.<rest> 拆成节点 id 与 http 相对段 */
+export type NodesHttpRef = { nodeId: string; httpRest: string };
+
 /**
  * 把以 $ 开头的断言左值改成带 scope 的写法。
- * $ → http.body；$ .data.x → http.body.data.x；$[0] → http.body[0]。
+ * $ → http.body；$.data.x → http.body.data.x；$[0] → http.body[0]。
  */
 export function normalizeAssertLeftPath(path: string): string {
   const p = String(path ?? '').trim();
@@ -26,8 +31,32 @@ export function normalizeAssertLeftPath(path: string): string {
 }
 
 /**
- * 单段路径求值：占位符内部、断言左值、条件左值共用。
- * 纯 $… 会先改成 http.body… 再解析。
+ * 解析 nodes.<nodeId>.http.<rest>。
+ * 须含 nodes. 前缀与 .http. 分隔；nodeId、httpRest 任一为空则返回 null。
+ */
+export function parseNodesHttpPath(path: string | null | undefined): NodesHttpRef | null {
+  const p = String(path ?? '').trim();
+  if (!p.startsWith('nodes.')) return null;
+  const after = p.slice('nodes.'.length);
+  const httpDot = after.indexOf('.http.');
+  if (httpDot <= 0) return null;
+  const nodeId = after.slice(0, httpDot).trim();
+  const httpRest = after.slice(httpDot + '.http.'.length).trim();
+  if (!nodeId || !httpRest) return null;
+  return { nodeId, httpRest };
+}
+
+/**
+ * 判断路径是否以 nodes. 开头。
+ * 形态不完整（缺 .http.）时也为 true，便于校验单独报错。
+ */
+export function looksLikeNodesPath(path: string | null | undefined): boolean {
+  return String(path ?? '').trim().startsWith('nodes.');
+}
+
+/**
+ * 单段路径求值：占位符内部、断言/条件左值共用。
+ * 纯 $… 先改成 http.body…；nodes.<id>.http… 读 nodeResponses；http… 读 lastResponse。
  */
 export function resolvePathSegment(ctx: FlowRunContext, path: string): unknown {
   const p = normalizeAssertLeftPath(String(path ?? '').trim());
@@ -42,44 +71,55 @@ export function resolvePathSegment(ctx: FlowRunContext, path: string): unknown {
   if (p.startsWith('asset.')) {
     return resolveAssetPath(ctx.asset, p.slice(6));
   }
+  const nodesRef = parseNodesHttpPath(p);
+  if (nodesRef) {
+    const snap = ctx.nodeResponses?.[nodesRef.nodeId] ?? null;
+    return resolveHttpPathOnSnapshot(snap, nodesRef.httpRest);
+  }
   if (p.startsWith('http.')) {
-    return resolveHttpPath(ctx, p.slice(5));
+    return resolveHttpPathOnSnapshot(ctx.lastResponse ?? null, p.slice(5));
   }
   return undefined;
 }
 
-/** 解析 http.*：整 body、body JsonPath、状态码、耗时、响应头。http.body.$.… 返回 undefined。 */
-function resolveHttpPath(ctx: FlowRunContext, rest: string): unknown {
+/** 解析 http.* 相对段：整 body、body JsonPath、原文、状态码、耗时、形态、响应头。body.$.… 返回 undefined。 */
+function resolveHttpPathOnSnapshot(
+  snap: HttpResponseSnapshot | null | undefined,
+  rest: string,
+): unknown {
   if (!rest) return undefined;
-  const last = ctx.lastResponse;
   if (rest === 'duration') {
-    return last?.durationMs ?? undefined;
+    return snap?.durationMs ?? undefined;
   }
   if (rest === 'status') {
-    return last?.status ?? undefined;
+    return snap?.status ?? undefined;
+  }
+  if (rest === 'responseKind') {
+    return snap?.responseKind ?? undefined;
+  }
+  if (rest === 'expectedMatch') {
+    return snap?.expectedMatch ?? undefined;
   }
   if (rest === 'body') {
-    return last?.body ?? undefined;
+    return snap?.body ?? undefined;
+  }
+  if (rest === 'bodyText') {
+    return snap?.bodyText ?? undefined;
   }
   if (rest.startsWith('body.')) {
-    const body = ctx.lastResponse?.body;
+    const body = snap?.body;
     if (body == null) return undefined;
     const relative = rest.slice(5);
     if (relative.startsWith('$')) return undefined;
     return evalJsonPath(body, toAbsoluteJsonPath(relative));
   }
   if (rest.startsWith('header.')) {
-    return resolveHttpHeader(ctx, rest.slice(7));
+    return snap?.headers?.[rest.slice(7)];
   }
   if (rest.startsWith('headers.')) {
-    return resolveHttpHeader(ctx, rest.slice(8));
+    return snap?.headers?.[rest.slice(8)];
   }
   return undefined;
-}
-
-function resolveHttpHeader(ctx: FlowRunContext, name: string): unknown {
-  if (!name) return undefined;
-  return ctx.lastResponse?.headers?.[name];
 }
 
 /** asset.key 或 asset.key.a.b：先取条目，再按点分键下钻。 */
@@ -184,7 +224,7 @@ export function simpleJsonPath(body: unknown, expr: string): unknown {
 }
 
 /**
- * 替换模板中全部合法路径占位 {{flow.|env.|asset.|http.…}}。
+ * 替换模板中全部合法路径占位 {{flow.|env.|asset.|http.|nodes.…}}。
  * 非路径形态的花括号保留为字面量；未定义路径在 lenient 下变空串，strict 下抛错。
  * @param mode lenient=未定义→空串；strict=未定义→抛错
  */

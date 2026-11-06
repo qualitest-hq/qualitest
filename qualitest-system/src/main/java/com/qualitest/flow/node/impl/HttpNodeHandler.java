@@ -62,9 +62,9 @@ import java.util.Map;
  *       并在 http.bizCheck 写入实际码、消息、解析失败时的 body 片段</li>
  * </ol>
  * 响应正文：JSON 转对象/数组；XML 按 Content-Type 或报文开头判定后转对象（去根节点）；
- * 原文写入 lastResponse.bodyText；XML 时步骤报告 response 另带 bodyText。
- * 有响应即写入 lastResponse（含非 2xx），并附带实际形态 responseKind（json / xml / nonJson）、
- * 是否符合接口期望 expectedMatch（不符期望不直接导致本步失败，供后续条件节点分支）。
+ * 有响应即调用 {@code putHttpResponse}：更新 lastResponse，并按本节点 id 写入 nodeResponses（含非 2xx）；
+ * 快照含 bodyText、responseKind（json / xml / nonJson）、expectedMatch（不符期望不直接导致本步失败）。
+ * XML 时步骤报告 response 另带 bodyText。
  * extracts：默认仅步骤最终通过才执行并落盘 asset；
  * extractsOnFailure=write 时失败也会做内存抽取，但 asset 落盘仍只在步骤通过时发生。
  * 业务码路径规范化为绝对路径后再读，避免 codePath 已带 {@code $.} 时再拼一层变成无效路径。
@@ -161,7 +161,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                 .bodyText(forwardResult.getBodyText())
                 .durationMs(durationMs)
                 .build();
-        ctx.setLastResponse(snapshot);
+        ctx.putHttpResponse(node.getId(), snapshot);
 
         ApiScriptExecutionResult postScriptResult = null;
         if (effectiveApi.getPostRequestScript() != null && !effectiveApi.getPostRequestScript().isBlank()) {
@@ -233,7 +233,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                 .bodyText(forwardResult.getBodyText())
                 .durationMs(durationMs)
                 .build();
-        ctx.setLastResponse(snapshot);
+        ctx.putHttpResponse(node.getId(), snapshot);
 
         ApiScriptExecutionResult postScriptResult = null;
         String postScript = stringOrNull(data.get("postScript"));
@@ -258,8 +258,8 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
     }
 
     /**
-     * 组装 HTTP 步骤结果：写入 lastResponse（含 body / bodyText / responseKind / expectedMatch）、
-     * 步骤报告、状态码门禁、业务码校验与 extracts。
+     * 组装 HTTP 步骤结果：用 putHttpResponse 写入运行时快照（body / bodyText / responseKind / expectedMatch）、
+     * 再写步骤报告、做状态码门禁、业务码校验与 extracts。
      *
      * @param parsedBody 正文解析结果（形态与对象）
      * @param api        绑定的项目接口；外联时为 null
@@ -288,7 +288,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                 .responseKind(responseKind)
                 .expectedMatch(expectedMatch)
                 .build();
-        ctx.setLastResponse(snapshot);
+        ctx.putHttpResponse(node.getId(), snapshot);
 
         Map<String, Object> httpDetails = new LinkedHashMap<>();
         httpDetails.put("callMode", built.getCallMode());

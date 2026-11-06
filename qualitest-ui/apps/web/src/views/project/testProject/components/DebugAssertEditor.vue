@@ -9,7 +9,7 @@
           v-model="row.left"
           class="debug-assert-field debug-assert-left"
           clearable
-          placeholder="http.body.data.code / http.body.data[?(@.id==1)].qty"
+          placeholder="http.body.data.code / nodes.<节点ID>.http.body.xxx"
       />
       <el-select v-model="row.operator" class="debug-assert-field debug-assert-op">
         <el-option v-for="o in COND_OPERATORS" :key="o.value" :label="o.label" :value="o.value"/>
@@ -41,7 +41,7 @@
       </div>
     </div>
     <p class="debug-assert-hint">
-      多条规则为 AND；左值用 http.body…（可用过滤器）；extract 方言 $.… 会规范为 http.body…
+      多条规则为 AND；左值用 http.body…（最近一次 HTTP）或 nodes.节点ID.http.body…；extract 方言 $.… 会规范为 http.body…
       <template v-if="trialSource === 'run'"> · 试算来源：当前选中 Run 的 HTTP 响应</template>
       <template v-else-if="trialSource === 'api-example'"> · 试算来源：上游接口响应示例</template>
       <template v-else-if="!hasTrialBody"> · 绑定上游接口或选中含 HTTP 响应的 Run 后可试算左值</template>
@@ -54,23 +54,26 @@
  * 断言 / 条件规则列表编辑器。
  *
  * - 编辑 left / operator / right；exists 时隐藏右值
- * - 有 trialBody 时对 http.body 左值即时试算，展示「试算：…」
- * - 未命中（空数组、路径未命中、解析失败）标红；左值含 .items 时追加路径写法提示
+ * - 有 trialBody（或 resolveNodeBody）时对 http.body… / nodes.<id>.http.body… 即时试算
+ * - 未命中（空数组、路径未命中、解析失败）标红；左值误含 .items 时追加写法提示
  * - trialSource 标明试算数据来自 Run 还是接口响应示例
  */
 import { computed } from 'vue'
 import { COND_OPERATORS, emptyCompareRule } from '@/utils/flow/compareRule'
 import {
+  containsJsonSchemaItemsSegment,
   isTrialMissPreview,
   previewAssertLeft,
 } from '@/views/project/testFlow/utils/jsonPathTrial'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
-  /** 试算用响应体：Run 的 HTTP body，或接口 responseConfig.example */
+  /** 默认试算用响应体：选中 Run 的最近 HTTP body，或接口 responseConfig.example */
   trialBody: { type: [Object, Array, String, Number, Boolean], default: undefined },
-  /** 试算数据来源，用于底部提示：run | api-example | null */
+  /** 试算数据来源文案：run | api-example | null */
   trialSource: { type: String, default: null },
+  /** 按画布节点 id 取该节点在 Run 中的 HTTP body；nodes.<id>.http… 左值优先用此函数 */
+  resolveNodeBody: { type: Function, default: undefined },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -80,7 +83,9 @@ const hasTrialBody = computed(() => props.trialBody !== undefined && props.trial
 /** 每行试算文案与是否未命中；随规则 left、trialBody 变化统一计算 */
 const trials = computed(() =>
   (props.modelValue || []).map((row) => {
-    const text = previewAssertLeft(props.trialBody, row?.left)
+    const text = previewAssertLeft(props.trialBody, row?.left, {
+      resolveNodeBody: props.resolveNodeBody,
+    })
     return { text, miss: isTrialMissPreview(text) }
   }),
 )
@@ -95,12 +100,9 @@ function removeRow(index) {
   emit('update:modelValue', next.length ? next : [emptyCompareRule()])
 }
 
-/**
- * 左值是否像误把 JSON Schema 的 items 写进路径
- *（如 data.items[0]、data.items.qty；真实响应里数组没有 items 这一层）
- */
+/** 左值路径是否误含 JSON Schema 数组关键字 items（如 data.items.qty） */
 function looksLikeSchemaItems(left) {
-  return /\.items([.\[\?]|$)/.test(String(left ?? ''))
+  return containsJsonSchemaItemsSegment(String(left ?? ''))
 }
 
 if (!props.modelValue.length) {

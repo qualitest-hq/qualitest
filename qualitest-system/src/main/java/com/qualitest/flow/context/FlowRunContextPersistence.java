@@ -6,8 +6,9 @@ import java.util.Map;
 /**
  * FlowRunContext 暂停/续跑时的序列化与反序列化。
  * <p>
- * 快照包含 env / flow / asset / session、外联权限、项目 ID、子流深度，
- * 以及项目多端配置（projectAuthConfig），保证续跑后 HTTP 仍能按 Profile 约定校验业务码并补鉴权头。
+ * 写入内容：env / flow / asset / session、外联权限、项目 ID、子流深度、projectAuthConfig。
+ * 不写入 lastResponse、nodeResponses：续跑后这两项为空，须再次执行 HTTP 节点后才能用
+ * {@code http.*} 与 {@code nodes.<节点id>.http.*} 取值。
  */
 public final class FlowRunContextPersistence {
 

@@ -10,34 +10,23 @@ import { validateGraphJson } from '@/utils/flow/graphValidate'
 import { resolveCanvasApiDetail } from './resolveCanvasApiDetail'
 import {
   collectAssertPathDesignIssues,
+  collectAssertReferencedApiIds,
   extractResponseSchemaPaths,
-  resolveTrialApiId,
 } from './jsonPathTrial'
 
 /**
- * 按图上 assert/condition 节点，拉取上游接口响应 schema，检查路径是否合法。
+ * 按图上 assert/condition 节点收集需校验的接口 id（含最近上游与 nodes 引用的 HTTP 节点），
+ * 拉取各接口响应 schema 后做路径门禁。
  * 返回 errors（结构硬错）与 warnings（schema 缺字段等软提示）。
  */
 export async function loadAssertPathDesignIssues(graph: {
   nodes?: Array<Record<string, unknown>>
   edges?: Array<Record<string, unknown>>
 }): Promise<{ errors: string[]; warnings: string[] }> {
-  const nodes = graph.nodes ?? []
-  const edges = graph.edges ?? []
-  const apiIds = new Set<string>()
-  for (const node of nodes) {
-    const type = String(node.type ?? '').trim().toLowerCase()
-    if (type !== 'assert' && type !== 'condition') continue
-    const apiId = resolveTrialApiId(
-      node as { id?: string; type?: string; data?: Record<string, unknown> },
-      nodes as never,
-      edges as never,
-    )
-    if (apiId) apiIds.add(apiId)
-  }
+  const apiIds = collectAssertReferencedApiIds(graph)
   const schemaPathsByApiId = new Map<string, string[]>()
   await Promise.all(
-    [...apiIds].map(async (apiId) => {
+    apiIds.map(async (apiId) => {
       const detail = await resolveCanvasApiDetail(apiId)
       schemaPathsByApiId.set(apiId, extractResponseSchemaPaths(detail?.responseConfig))
     }),

@@ -12,6 +12,7 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
 import {
   extractResponseExample,
+  findHttpBodyByNodeId,
   resolveTrialApiId,
   trialBodyFromSelectedRun,
   type TrialBodySource,
@@ -81,5 +82,13 @@ export function useFlowTrialBody(opts?: { node?: MaybeRefOrGetter<TrialNode> }) 
 
   const hasTrialBody = computed(() => trialBody.value !== undefined && trialBody.value !== null);
 
-  return { runLib, trialBody, trialSource, hasTrialBody };
+  /**
+   * 按画布节点 id 取当前选中 Run 中该节点最近一次 HTTP 响应 body。
+   * 属性面板对 nodes.<节点id>.http.body… 左值试算时调用。
+   */
+  function resolveNodeBody(nodeId: string): unknown {
+    return findHttpBodyByNodeId(runLib.selectedRun?.steps, nodeId);
+  }
+
+  return { runLib, trialBody, trialSource, hasTrialBody, resolveNodeBody };
 }

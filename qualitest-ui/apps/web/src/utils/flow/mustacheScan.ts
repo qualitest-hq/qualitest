@@ -1,7 +1,8 @@
 /**
  * 模板中 {{…}} 占位符的扫描与替换。
  *
- * 默认只把以 flow. / env. / asset. / http. 开头、且前缀后还有内容的内层当作占位路径。
+ * 默认只把以 flow. / env. / asset. / http. / nodes. 开头、且前缀后还有内容的内层当作占位路径
+ *（含 {{nodes.<节点id>.http.…}}）。
  * 其它 {{…}} 不当占位：只越过开头的 {{，继续向后查找，避免说明性花括号吞掉后面的真占位。
  * 不把反斜杠当转义；原文里的 \ 按普通字符保留。
  * 写入替换结果后不再对结果做二次扫描，变量值里可含花括号。
@@ -23,7 +24,7 @@ function startsWithScopeAndKey(p: string, prefix: string): boolean {
 
 /**
  * 判断内层是否为可求值的占位路径。
- * 先 trim，再检查是否以 flow. / env. / http. / asset. 开头且前缀后非空。
+ * 先 trim，再检查是否以 flow. / env. / http. / asset. / nodes. 开头且前缀后至少还有一个字符。
  */
 export function isMustachePlaceholderPath(inner: string | null | undefined): boolean {
   if (inner == null) return false
@@ -32,7 +33,8 @@ export function isMustachePlaceholderPath(inner: string | null | undefined): boo
     startsWithScopeAndKey(p, 'flow.') ||
     startsWithScopeAndKey(p, 'env.') ||
     startsWithScopeAndKey(p, 'http.') ||
-    startsWithScopeAndKey(p, 'asset.')
+    startsWithScopeAndKey(p, 'asset.') ||
+    startsWithScopeAndKey(p, 'nodes.')
   )
 }
 

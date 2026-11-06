@@ -435,6 +435,57 @@ class GraphJsonValidatorTest {
         assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("开始节点")));
     }
 
+    /**
+     * 前提：断言 left 分别引用不存在的节点 id、delay 节点 id、合法 HTTP 节点 id。
+     * 期望：缺失 id 报「节点不存在」；非 HTTP 报「只能引用 HTTP」；合法引用不因 nodes 目标产生错误。
+     */
+    @Test
+    @Order(17)
+    @DisplayName("assert nodes.<id>.http 目标缺失或非 HTTP 报错")
+    void assertNodesHttp_missingOrNonHttp_producesError() {
+        String missing = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"nodes.missing.http.body.code","operator":"eq","right":"0"}]}}
+                  ],
+                  "edges":[{"id":"e1","source":"1","target":"2"}]
+                }
+                """;
+        GraphValidationResult miss = validator.validateJson(missing);
+        assertFalse(miss.isOk());
+        assertTrue(miss.getErrors().stream().anyMatch(e -> e.contains("节点不存在") && e.contains("missing")));
+
+        String nonHttp = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"d1","type":"delay","position":{"x":50,"y":0},"data":{"name":"d","ms":10}},
+                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"nodes.d1.http.body.code","operator":"eq","right":"0"}]}}
+                  ],
+                  "edges":[{"id":"e1","source":"1","target":"d1"},{"id":"e2","source":"d1","target":"2"}]
+                }
+                """;
+        GraphValidationResult badType = validator.validateJson(nonHttp);
+        assertFalse(badType.isOk());
+        assertTrue(badType.getErrors().stream().anyMatch(e -> e.contains("只能引用 HTTP")));
+
+        String ok = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"nodes.1.http.body.code","operator":"eq","right":"0"}]}}
+                  ],
+                  "edges":[{"id":"e1","source":"1","target":"2"}]
+                }
+                """;
+        GraphValidationResult good = validator.validateJson(ok);
+        assertTrue(good.getErrors().stream().noneMatch(e -> e.contains("nodes.1")));
+    }
+
     private static String loadResource(String path) {
         InputStream in = GraphJsonValidatorTest.class.getClassLoader().getResourceAsStream(path);
         assertNotNull(in, "missing resource: " + path);

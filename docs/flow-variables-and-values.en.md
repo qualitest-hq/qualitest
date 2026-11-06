@@ -16,7 +16,8 @@ Formal Run is **strict** (undefined → `TF_PLACEHOLDER_UNDEFINED`). The debug c
 | `flow` | Variables in this Run | `{{flow.token}}`, `{{flow.orderId}}` |
 | `env` | Current test environment | `{{env.baseUrl}}` |
 | `asset` | Project asset library | `{{asset.clientAuth.password}}` |
-| `http` | Last HTTP snapshot | Mostly asserts |
+| `http` | **Latest** HTTP snapshot in this context | Mostly asserts; non-HTTP steps do not overwrite |
+| `nodes` | HTTP snapshot keyed by canvas node id | `{{nodes.123.http.body.data.code}}` (asserts) |
 
 No `{{session.*}}` — use Script `ctx.session` instead. Assets use **dot** paths; files use `{{asset.<key>.storagePath}}`.
 
@@ -48,9 +49,11 @@ Reusable accounts: assets + `{{asset.*}}`. Failure cases: **literals** on the no
 
 | Use | Form |
 | --- | ---- |
-| Request params | `{{flow.token}}` / `{{asset.*.token}}` / `{{env.*}}` |
+| Request params | `{{flow.token}}` / `{{asset.*.token}}` / `{{env.*}}` (prefer extract → `flow` for inputs) |
 | Extract / biz-code | `$.data.token` |
-| Assert left | `http.body.data.code` or `$.data.code` |
+| Assert left | `http.body…` (latest HTTP) or `nodes.<nodeId>.http.body…` (by node id); `$…` → `http.body…` |
+
+Invalid / missing `nodes.<id>` → canvas validation bar (structure).
 
 ---
 

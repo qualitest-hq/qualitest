@@ -1,12 +1,9 @@
 /**
- * 测试流属性面板的 JsonPath 试算工具。
+ * 测试流属性面板的 JsonPath 试算与断言路径门禁工具。
  *
- * 职责：
- * 1. 从选中 Run 的步骤里取出最近一次 HTTP 响应 body
- * 2. 从接口 responseConfig 取出首个响应 example，供尚未 Run 时软试算展示
- * 3. 按画布边回溯上游 project HTTP，解析试算用的 testProjectApiId
- * 4. 把断言左值 / 提取表达式格式化成「试算：…」展示文案，并判断是否未命中
- * 5. 保存前路径门禁：按响应 schema 校验（example 不参与硬拦）
+ * 功能：从选中 Run 步骤或接口 example 取试算 body；按节点 id 取历史 HTTP body；
+ * 回溯上游 project HTTP 得试算 apiId；格式化断言/提取试算文案；
+ * 按响应 schema 校验 http.body / nodes.<id>.http.body 左值（example 不硬拦）。
  */
 import type { Edge, Node } from '@vue-flow/core';
 
@@ -14,6 +11,7 @@ import {
   evalJsonPath,
   isValidJsonPath,
   normalizeAssertLeftPath,
+  parseNodesHttpPath,
   toAbsoluteJsonPath,
 } from '@/utils/flow/placeholder';
 import { unboxSingleton } from '@/utils/flow/compareRule';
@@ -36,6 +34,25 @@ export function findLatestHttpBody(steps: RunStepDetail[] | undefined | null): u
   if (!steps?.length) return undefined;
   for (let i = steps.length - 1; i >= 0; i--) {
     const body = extractHttpResponseBody(steps[i]);
+    if (body !== undefined) return body;
+  }
+  return undefined;
+}
+
+/**
+ * 从步骤列表末尾往前找指定画布节点 id 的最近一次 HTTP 响应 body。
+ * 用于属性面板对 nodes.<节点id>.http.body… 左值做试算。
+ */
+export function findHttpBodyByNodeId(
+  steps: RunStepDetail[] | undefined | null,
+  nodeId: string,
+): unknown {
+  const id = String(nodeId ?? '').trim();
+  if (!id || !steps?.length) return undefined;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const step = steps[i];
+    if (String(step?.nodeId ?? '').trim() !== id) continue;
+    const body = extractHttpResponseBody(step);
     if (body !== undefined) return body;
   }
   return undefined;
@@ -168,7 +185,7 @@ export function formatTrialResult(value: unknown): string {
 /**
  * 提取节点 body 表达式试算。
  * 无 trialBody / 空表达式 → 空串；必须以 $ 开头且路径可解析。
- * 与运行时 ExtractApplicator 一致：不定路径单命中自动解包为标量。
+ * 不定路径命中恰好 1 个元素时自动解包为标量，便于试算展示。
  */
 export function previewExtractExpr(trialBody: unknown, expr: string): string {
   if (trialBody === undefined || trialBody === null) return '';
@@ -187,9 +204,25 @@ type AssertLeftEval =
   | { ok: true; value: unknown }
   | { ok: false; reason: 'out_of_scope' | 'bad_body_dollar' | 'bad_jsonpath'; detail?: string };
 
-function evalAssertLeftDetailed(trialBody: unknown, left: string): AssertLeftEval {
+/**
+ * 将左值规范为 http.… 作用域。
+ * nodes.<id>.http.<rest> → scoped=http.<rest> 且带上 nodeId；其它路径只做 $ 规范化。
+ */
+function toHttpScopedLeft(left: string): { scoped: string; nodeId?: string } | null {
   const normalized = normalizeAssertLeftPath(String(left ?? '').trim());
-  if (!normalized) return { ok: false, reason: 'out_of_scope' };
+  if (!normalized) return null;
+  const nodesRef = parseNodesHttpPath(normalized);
+  if (nodesRef) {
+    return { scoped: `http.${nodesRef.httpRest}`, nodeId: nodesRef.nodeId };
+  }
+  return { scoped: normalized };
+}
+
+/** 在试算 body 上对已规范的 http.body 左值求值 */
+function evalAssertLeftDetailed(trialBody: unknown, left: string): AssertLeftEval {
+  const mapped = toHttpScopedLeft(left);
+  if (!mapped) return { ok: false, reason: 'out_of_scope' };
+  const normalized = mapped.scoped;
   if (normalized === 'http.body') return { ok: true, value: trialBody };
   if (!normalized.startsWith('http.body.')) return { ok: false, reason: 'out_of_scope' };
   const relative = normalized.slice('http.body.'.length);
@@ -199,16 +232,30 @@ function evalAssertLeftDetailed(trialBody: unknown, left: string): AssertLeftEva
   return { ok: true, value: evalJsonPath(trialBody, abs) };
 }
 
+export type PreviewAssertLeftOptions = {
+  /** 按画布节点 id 取试算 body；nodes.<id>.http.body… 时优先调用 */
+  resolveNodeBody?: (nodeId: string) => unknown;
+};
+
 /**
- * 断言 / 条件左值试算。
- * 仅处理 http.body 与规范化后的 $ → http.body 方言；
- * 禁止写成 http.body.$.…；flow.* / env.* 等其它 scope 返回空串（不展示试算）。
+ * 断言 / 条件左值试算，返回「试算：…」文案。
+ * 支持 http.body…、nodes.<id>.http.body…、以及 $ → http.body 简写；
+ * 禁止 http.body.$.…；flow.* / env.* 等非 body 作用域返回空串。
  */
-export function previewAssertLeft(trialBody: unknown, left: string): string {
-  if (trialBody === undefined || trialBody === null) return '';
+export function previewAssertLeft(
+  trialBody: unknown,
+  left: string,
+  options?: PreviewAssertLeftOptions,
+): string {
   const raw = String(left ?? '').trim();
   if (!raw) return '';
-  const result = evalAssertLeftDetailed(trialBody, raw);
+  const mapped = toHttpScopedLeft(raw);
+  let body = trialBody;
+  if (mapped?.nodeId && options?.resolveNodeBody) {
+    body = options.resolveNodeBody(mapped.nodeId);
+  }
+  if (body === undefined || body === null) return '';
+  const result = evalAssertLeftDetailed(body, raw);
   if (!result.ok) {
     if (result.reason === 'out_of_scope') return '';
     if (result.reason === 'bad_body_dollar') return '试算失败：不可写成 http.body.$.…';
@@ -266,13 +313,20 @@ function collectSchemaLeaves(schema: Record<string, unknown>, prefix: string, ou
   if (prefix) out.push(prefix);
 }
 
-/** 去掉 JsonPath / http.body 前缀与下标，得到可与 schema 叶路径比对的结构路径 */
+/**
+ * 去掉 JsonPath / http.body / nodes.<id>.http.body 前缀与下标，
+ * 得到可与 schema 叶路径比对的结构路径。
+ */
 export function normalizeStructuralPath(path: string): string {
   let p = String(path ?? '').trim();
   if (p.startsWith('$.')) p = p.slice(2);
   else if (p.startsWith('$')) {
     p = p.slice(1);
     if (p.startsWith('.')) p = p.slice(1);
+  }
+  const nodesRef = parseNodesHttpPath(p);
+  if (nodesRef) {
+    p = `http.${nodesRef.httpRest}`;
   }
   if (p.startsWith('http.body.')) p = p.slice('http.body.'.length);
   else if (p === 'http.body') return '';
@@ -317,9 +371,64 @@ export function containsJsonSchemaItemsSegment(relativePath: string): boolean {
 }
 
 /**
- * 设计期断言路径门禁（保存前前端预检）。
- * 扫描 assert / condition 的 http.body 左值：
- * 结构错误（.items、http.body.$.）→ errors；
+ * 收集 assert/condition 做 schema 预检时需要拉取的 project 接口 id。
+ * 来源：各节点最近上游 HTTP 的 testProjectApiId，
+ * 以及规则左值里 nodes.<id>.http… 所指向 HTTP 节点的 testProjectApiId。
+ */
+export function collectAssertReferencedApiIds(graph: {
+  nodes?: Array<Record<string, unknown>>;
+  edges?: Array<Record<string, unknown>>;
+} | null | undefined): string[] {
+  const nodes = (graph?.nodes ?? []) as Array<{
+    id?: string;
+    type?: string;
+    data?: Record<string, unknown>;
+  }>;
+  const edges = (graph?.edges ?? []) as Edge[];
+  const byId = new Map(nodes.map((n) => [String(n.id ?? ''), n]));
+  const apiIds = new Set<string>();
+
+  const addHttpApiId = (node: { type?: string; data?: Record<string, unknown> } | undefined) => {
+    if (!node || String(node.type ?? '').trim().toLowerCase() !== 'http') return;
+    const callMode = String(node.data?.callMode ?? 'project').trim().toLowerCase();
+    if (callMode === 'external') return;
+    const apiId = String(node.data?.testProjectApiId ?? '').trim();
+    if (apiId) apiIds.add(apiId);
+  };
+
+  const scanLeft = (leftRaw: unknown) => {
+    const mapped = toHttpScopedLeft(leftRaw == null ? '' : String(leftRaw));
+    if (!mapped?.nodeId) return;
+    addHttpApiId(byId.get(mapped.nodeId));
+  };
+
+  for (const node of nodes) {
+    const type = String(node.type ?? '').trim().toLowerCase();
+    if (type !== 'assert' && type !== 'condition') continue;
+    const upstreamId = resolveTrialApiId(node, nodes as Node[], edges);
+    if (upstreamId) apiIds.add(upstreamId);
+    if (type === 'assert') {
+      const rules = Array.isArray(node.data?.rules) ? (node.data!.rules as Array<Record<string, unknown>>) : [];
+      rules.forEach((rule) => scanLeft(rule?.left));
+    } else {
+      const branches = Array.isArray(node.data?.branches)
+        ? (node.data!.branches as Array<Record<string, unknown>>)
+        : [];
+      branches.forEach((branch) => {
+        const conditions = Array.isArray(branch?.conditions)
+          ? (branch.conditions as Array<Record<string, unknown>>)
+          : [];
+        conditions.forEach((rule) => scanLeft(rule?.left));
+      });
+    }
+  }
+  return [...apiIds];
+}
+
+/**
+ * 设计期断言路径门禁（前端预检）。
+ * 扫描 assert / condition 的 http.body… 与 nodes.<id>.http.body… 左值：
+ * 结构错误（误含 .items、写成 http.body.$.）→ errors；
  * schema 缺字段或无 schema → warnings。
  * 响应 example 不参与硬拦。
  */
@@ -335,6 +444,7 @@ export function collectAssertPathDesignIssues(
     data?: Record<string, unknown>;
   }>;
   const edges = (graph?.edges ?? []) as Edge[];
+  const byId = new Map(nodes.map((n) => [String(n.id ?? ''), n]));
   const schemaMap =
     schemaPathsByApiId instanceof Map
       ? schemaPathsByApiId
@@ -344,24 +454,34 @@ export function collectAssertPathDesignIssues(
     const type = String(node.type ?? '').trim().toLowerCase();
     if (type !== 'assert' && type !== 'condition') continue;
     const apiId = resolveTrialApiId(node, nodes as Node[], edges);
-    if (!apiId || !schemaMap.has(apiId)) continue;
-    const schemaPaths = schemaMap.get(apiId) ?? [];
+    const upstreamSchemaPaths = apiId ? (schemaMap.get(apiId) ?? []) : [];
     const nodeName =
       node.data?.name != null && String(node.data.name).trim()
         ? String(node.data.name)
         : node.id ?? '?';
     const kindLabel = type === 'assert' ? '断言' : '条件';
 
-    if (!schemaPaths.length) {
-      if (hasHttpBodyLeftToCheck(type, node.data)) {
+    if (apiId && schemaMap.has(apiId) && !upstreamSchemaPaths.length) {
+      if (hasBareHttpBodyLeftToCheck(type, node.data)) {
         warnings.push(`${kindLabel}节点「${nodeName}」上游接口无响应 schema，未做字段校验`);
       }
-      continue;
     }
+
+    const resolveSchemaForLeft = (left: string): { paths: string[]; label: string } | null => {
+      const mapped = toHttpScopedLeft(left);
+      if (!mapped?.scoped.startsWith('http.body.')) return null;
+      if (mapped.nodeId) {
+        const source = byId.get(mapped.nodeId);
+        const sourceApiId = String(source?.data?.testProjectApiId ?? '').trim();
+        const paths = sourceApiId ? (schemaMap.get(sourceApiId) ?? []) : [];
+        return { paths, label: `节点「${mapped.nodeId}」接口` };
+      }
+      return { paths: upstreamSchemaPaths, label: '上游接口' };
+    };
 
     if (type === 'assert') {
       const rules = Array.isArray(node.data?.rules) ? (node.data!.rules as Array<Record<string, unknown>>) : [];
-      appendSchemaPathIssues(errors, warnings, kindLabel, nodeName, 'rules', rules, schemaPaths);
+      appendSchemaPathIssues(errors, warnings, kindLabel, nodeName, 'rules', rules, resolveSchemaForLeft);
     } else {
       const branches = Array.isArray(node.data?.branches)
         ? (node.data!.branches as Array<Record<string, unknown>>)
@@ -377,7 +497,7 @@ export function collectAssertPathDesignIssues(
           nodeName,
           `branches[${bi}].conditions`,
           conditions,
-          schemaPaths,
+          resolveSchemaForLeft,
         );
       });
     }
@@ -385,31 +505,39 @@ export function collectAssertPathDesignIssues(
   return { errors, warnings };
 }
 
-function hasHttpBodyLeftToCheck(
+/** 节点是否含裸 http.body. 字段左值（不含 nodes 引用） */
+function hasBareHttpBodyLeftToCheck(
   type: string,
   data: Record<string, unknown> | undefined,
 ): boolean {
   if (!data) return false;
   if (type === 'assert') {
-    return rulesHaveHttpBodyLeft(Array.isArray(data.rules) ? (data.rules as Array<Record<string, unknown>>) : []);
+    return rulesHaveBareHttpBodyLeft(Array.isArray(data.rules) ? (data.rules as Array<Record<string, unknown>>) : []);
   }
   const branches = Array.isArray(data.branches) ? (data.branches as Array<Record<string, unknown>>) : [];
   return branches.some((branch) =>
-    rulesHaveHttpBodyLeft(
+    rulesHaveBareHttpBodyLeft(
       Array.isArray(branch?.conditions) ? (branch.conditions as Array<Record<string, unknown>>) : [],
     ),
   );
 }
 
-function rulesHaveHttpBodyLeft(rules: Array<Record<string, unknown>>): boolean {
+/** 规则列表中是否存在裸 http.body. 字段左值 */
+function rulesHaveBareHttpBodyLeft(rules: Array<Record<string, unknown>>): boolean {
   return rules.some((rule) => {
     const rawLeft = rule?.left == null ? '' : String(rule.left).trim();
     if (!rawLeft) return false;
-    const left = normalizeAssertLeftPath(rawLeft);
-    return left.startsWith('http.body.') && left.length > 'http.body.'.length;
+    const mapped = toHttpScopedLeft(rawLeft);
+    return Boolean(
+      mapped && !mapped.nodeId && mapped.scoped.startsWith('http.body.') && mapped.scoped.length > 'http.body.'.length,
+    );
   });
 }
 
+/**
+ * 逐条把规则左值对照 schema：结构错误进 errors，缺字段或引用节点无 schema 进 warnings。
+ * resolveSchemaForLeft 按左值决定用上游 schema 还是 nodes 目标节点的 schema。
+ */
 function appendSchemaPathIssues(
   errors: string[],
   warnings: string[],
@@ -417,17 +545,16 @@ function appendSchemaPathIssues(
   nodeName: string,
   fieldName: string,
   rules: Array<Record<string, unknown>>,
-  schemaPaths: string[],
+  resolveSchemaForLeft: (left: string) => { paths: string[]; label: string } | null,
 ): void {
   rules.forEach((rule, i) => {
     const rawLeft = rule?.left == null ? '' : String(rule.left).trim();
     if (!rawLeft) return;
-    const left = normalizeAssertLeftPath(rawLeft);
-    if (!left.startsWith('http.body')) return;
-    if (left === 'http.body') return;
-    if (!left.startsWith('http.body.')) return;
-    const relative = left.slice('http.body.'.length);
-    if (!relative) return;
+    const mapped = toHttpScopedLeft(rawLeft);
+    if (!mapped) return;
+    const left = mapped.nodeId ? normalizeAssertLeftPath(rawLeft) : mapped.scoped;
+    if (!mapped.scoped.startsWith('http.body.') || mapped.scoped.length <= 'http.body.'.length) return;
+    const relative = mapped.scoped.slice('http.body.'.length);
     if (relative.startsWith('$')) {
       errors.push(
         `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」不可写成 http.body.$.…`,
@@ -440,9 +567,19 @@ function appendSchemaPathIssues(
       );
       return;
     }
-    if (!pathMatchesSchema(relative, schemaPaths)) {
+    const schema = resolveSchemaForLeft(rawLeft);
+    if (!schema) return;
+    if (!schema.paths.length) {
+      if (mapped.nodeId) {
+        warnings.push(
+          `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」引用的 ${schema.label}无响应 schema，未做字段校验`,
+        );
+      }
+      return;
+    }
+    if (!pathMatchesSchema(relative, schema.paths)) {
       warnings.push(
-        `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」在上游接口响应 schema 中未找到对应字段`,
+        `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」在${schema.label}响应 schema 中未找到对应字段`,
       );
     }
   });

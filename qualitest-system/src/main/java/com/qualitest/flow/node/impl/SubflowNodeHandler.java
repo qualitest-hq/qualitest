@@ -147,8 +147,16 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
         }
     }
 
-    /** 子上下文继承父级的 env/asset/session/外联权限/多端配置；flow 仅保留 inputs 种子。
-     * 继承后，子流内 HTTP 节点仍按同一套业务码与鉴权头规则处理。 */
+    /**
+     * 组装子流运行上下文。
+     * 继承父级 env / asset / session / 外联权限 / 多端配置；flow 仅放入本节点 inputs 解析后的种子。
+     * 不复制父级 lastResponse、nodeResponses：子流内 HTTP 只更新子上下文；
+     * 父流无法用 {@code nodes.<子图节点id>.http…} 读子流响应，需经子流 outputs 写入父 flow。
+     *
+     * @param parent    父上下文
+     * @param childSeed 子 flow 初始键值
+     * @return 新建的子上下文
+     */
     private static FlowRunContext buildChildContext(FlowRunContext parent, Map<String, Object> childSeed) {
         return FlowRunContext.builder()
                 .testProjectId(parent.getTestProjectId())

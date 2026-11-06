@@ -75,11 +75,12 @@ export function useDebugFlowContext(getOptions) {
     writePersistedFlow(opts?.testProjectId, flowCtx.value.flow)
   }
 
-  /** 清空 flow 与 lastResponse，并清除 session 缓存 */
+  /** 清空 flow 变量、最近 HTTP 快照、按节点索引的 HTTP 快照，并清除本地持久化的 flow */
   function resetFlow() {
     const opts = typeof getOptions === 'function' ? getOptions() : getOptions
     flowCtx.value.flow = {}
     flowCtx.value.lastResponse = null
+    flowCtx.value.nodeResponses = {}
     writePersistedFlow(opts?.testProjectId, {})
   }
 

@@ -57,12 +57,13 @@ Does not check HTTP status (that is the HTTP step). Typical rule fields: `left`,
 
 | Use | Form | Notes |
 |-----|------|--------|
-| Assert / condition left | `http.body.data.code`, `http.body.data[?(@.cartId=='5001')].quantity` | Relative to last HTTP body; supports index, filter, `[*]`, `length()`. Do **not** write JSON Schema keyword `.items` into paths when `data` is already an array |
-| Shorthand (normalized) | `$.data.code` | Becomes `http.body.data.code` at design-time and runtime |
+| Assert / condition left | `http.body.data.code`, `http.body.data[?(@.cartId=='5001')].quantity` | **Latest** HTTP body in this context; non-HTTP steps do not overwrite. Supports index, filter, `[*]`, `length()`. Do **not** write JSON Schema keyword `.items` when `data` is already an array |
+| By node id | `nodes.<nodeId>.http.body.data.code` | Last snapshot for that HTTP node; id only. Missing / non-HTTP → validation bar structure error; Run blocks |
+| Shorthand (normalized) | `$.data.code` | Becomes `http.body.data.code` (bare `http` only, not `nodes`) |
 | Extract / biz-code field | `$.data.token` | **Must start with `$`**, relative to body root |
 | Other context | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` / `http.bodyText` | **Not** JsonPath; `http.bodyText` is the raw response text |
 
-Forbidden: `http.body.$.…` (Confirm / save fails).
+Forbidden: `http.body.$.…` (Confirm / save fails). Prefer extracts / Assign → `flow.*` for passing fields into later requests.
 
 ### Operators
 

@@ -18,7 +18,8 @@
 | `flow` | 本条 Run 里产生的变量 | `{{flow.token}}`、`{{flow.orderId}}` |
 | `env` | 当前测试环境 | `{{env.baseUrl}}`（键名以环境配置为准） |
 | `asset` | 项目素材库 | `{{asset.clientAuth.password}}`、`{{asset.cover.storagePath}}` |
-| `http` | 上一步 HTTP 响应快照 | 多用于断言；请求体里较少 |
+| `http` | 本上下文**最近一次** HTTP 响应快照 | 多用于断言；中间非 HTTP 节点不覆盖 |
+| `nodes` | 按画布节点 id 引用该节点最近一次 HTTP 快照 | `{{nodes.123.http.body.data.code}}`（断言更常用） |
 
 **没有** `{{session.*}}`——`session` 只在 Script 节点里用 `ctx.session`，不能写在 `{{…}}` 里。
 
@@ -74,11 +75,11 @@
 
 | 用在哪 | 写法 |
 | ------ | ---- |
-| 请求参数、Header、Body | `{{flow.token}}` / `{{asset.*.token}}` / `{{env.*}}` |
+| 请求参数、Header、Body | `{{flow.token}}` / `{{asset.*.token}}` / `{{env.*}}`（入参传递优先 extract → `flow`，少用 `nodes.*`） |
 | HTTP 节点 **extract**、业务码字段 | 以 **`$` 开头**的 JSONPath，如 `$.data.token` |
-| 断言 / 条件左值 | `http.body.data.code`，或简写 `$.data.code`（会自动加 `http.body` 前缀） |
+| 断言 / 条件左值 | `http.body.data.code`，或简写 `$.data.code`；延迟核对更早 HTTP 用 `nodes.<节点ID>.http.body…` |
 
-禁止：`http.body.$.…`。细节见节点文档。
+禁止：`http.body.$.…`。`nodes.` 只认节点 **id**（不认显示名）；目标不存在或不是 HTTP → 画布顶部**校验条**报错。细节见节点文档。
 
 ---
 

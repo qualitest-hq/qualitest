@@ -7,7 +7,9 @@
  */
 import {
   isValidJsonPath,
+  looksLikeNodesPath,
   normalizeAssertLeftPath,
+  parseNodesHttpPath,
   toAbsoluteJsonPath,
 } from './placeholder';
 import { isKnownNodeType, nodeTypeLabel } from './nodeTypes';
@@ -198,23 +200,73 @@ function validateHttpNodeFields(
   validateHttpExtracts(p, name, data, errors);
 }
 
+/** 比较左值作用域是否合法：flow / env / asset / http / nodes，或整段 http.body */
 function isAllowedCompareLeftScope(left: string): boolean {
   return (
     left.startsWith('flow.')
     || left.startsWith('env.')
     || left.startsWith('asset.')
     || left.startsWith('http.')
+    || left.startsWith('nodes.')
     || left === 'http.body'
   );
 }
 
+/** 若整段被 {{…}} 包裹则剥壳，得到内部路径 */
 function stripMustache(raw: string): string {
   const s = String(raw ?? '').trim();
   const m = s.match(/^\{\{\s*(.+?)\s*\}\}$/);
   return m ? m[1].trim() : s;
 }
 
-function validateCompareRule(prefix: string, rule: Record<string, unknown>, errors: string[]): void {
+/**
+ * 校验 http 相对段里 body 字段路径。
+ * 禁止 body.$…；body. 后须为可解析 JsonPath；仅 body 或非 body 段跳过。
+ */
+function validateHttpBodyRelativePath(prefix: string, left: string, httpRest: string, errors: string[]): void {
+  if (httpRest.startsWith('body.$')) {
+    errors.push(`${prefix} left 不可写成 http.body.$.…，请用 http.body.data… 或 $.data…：${left}`);
+    return;
+  }
+  if (httpRest === 'body' || !httpRest.startsWith('body.')) return;
+  const relative = httpRest.slice('body.'.length);
+  const abs = toAbsoluteJsonPath(relative);
+  if (!isValidJsonPath(abs)) {
+    errors.push(`${prefix} left JsonPath 无法解析：${left}`);
+  }
+}
+
+/**
+ * 校验 nodes.<id>.http… 引用的目标节点：须存在于图中且类型为 http。
+ */
+function validateNodesHttpTarget(
+  prefix: string,
+  left: string,
+  nodeId: string,
+  nodeTypesById: Map<string, string>,
+  errors: string[],
+): void {
+  const targetType = nodeTypesById.get(nodeId);
+  if (targetType == null) {
+    errors.push(`${prefix} left 引用的节点不存在：${nodeId}（${left}）`);
+    return;
+  }
+  if (String(targetType).trim().toLowerCase() !== 'http') {
+    errors.push(
+      `${prefix} left 只能引用 HTTP 节点，节点「${nodeId}」类型为 ${targetType || '(空)'}（${left}）`,
+    );
+  }
+}
+
+/**
+ * 校验单条比较规则左值：非空、作用域合法、nodes 目标存在且为 HTTP、body JsonPath 可解析。
+ */
+function validateCompareRule(
+  prefix: string,
+  rule: Record<string, unknown>,
+  nodeTypesById: Map<string, string>,
+  errors: string[],
+): void {
   const leftRaw = rule.left;
   let left = leftRaw == null ? '' : String(leftRaw).trim();
   if (!left) {
@@ -224,7 +276,17 @@ function validateCompareRule(prefix: string, rule: Record<string, unknown>, erro
   left = stripMustache(left);
   const normalized = normalizeAssertLeftPath(left);
   if (!isAllowedCompareLeftScope(normalized)) {
-    errors.push(`${prefix} left 作用域非法（须为 flow./env./asset./http. 或 $.…）：${left}`);
+    errors.push(`${prefix} left 作用域非法（须为 flow./env./asset./http./nodes.<id>.http. 或 $.…）：${left}`);
+    return;
+  }
+  const nodesRef = parseNodesHttpPath(normalized);
+  if (looksLikeNodesPath(normalized) && !nodesRef) {
+    errors.push(`${prefix} left 须为 nodes.<节点ID>.http.…：${left}`);
+    return;
+  }
+  if (nodesRef) {
+    validateNodesHttpTarget(prefix, left, nodesRef.nodeId, nodeTypesById, errors);
+    validateHttpBodyRelativePath(prefix, left, nodesRef.httpRest, errors);
     return;
   }
   if (normalized.startsWith('http.body.$')) {
@@ -245,6 +307,7 @@ function validateAssertNodeFields(
   p: string,
   id: string | undefined,
   data: Record<string, unknown> | undefined,
+  nodeTypesById: Map<string, string>,
   errors: string[],
 ): void {
   const name = data?.name != null ? String(data.name) : id;
@@ -255,7 +318,12 @@ function validateAssertNodeFields(
   }
   rules.forEach((item, i) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return;
-    validateCompareRule(`${p} 断言节点「${name}」rules[${i}]`, item as Record<string, unknown>, errors);
+    validateCompareRule(
+      `${p} 断言节点「${name}」rules[${i}]`,
+      item as Record<string, unknown>,
+      nodeTypesById,
+      errors,
+    );
   });
 }
 
@@ -263,6 +331,7 @@ function validateConditionNodeFields(
   p: string,
   id: string | undefined,
   data: Record<string, unknown> | undefined,
+  nodeTypesById: Map<string, string>,
   errors: string[],
 ): void {
   const name = data?.name != null ? String(data.name) : id;
@@ -279,6 +348,7 @@ function validateConditionNodeFields(
       validateCompareRule(
         `${p} 条件节点「${name}」branches[${bi}].conditions[${ci}]`,
         cond as Record<string, unknown>,
+        nodeTypesById,
         errors,
       );
     });
@@ -446,6 +516,7 @@ function validateNodeFields(
   p: string,
   node: GraphNode | null | undefined,
   nodeIds: Set<string>,
+  nodeTypesById: Map<string, string>,
   errors: string[],
   warnings: string[],
 ): void {
@@ -477,7 +548,7 @@ function validateNodeFields(
     validateHttpNodeFields(p, id, node.data, errors);
   }
   if (type === 'assert') {
-    validateAssertNodeFields(p, id, node.data, errors);
+    validateAssertNodeFields(p, id, node.data, nodeTypesById, errors);
   }
   if (type === 'condition') {
     const branches = node.data?.branches;
@@ -485,7 +556,7 @@ function validateNodeFields(
       const name = node.data?.name != null ? String(node.data.name) : id;
       errors.push(`条件节点「${name}」缺少 branches，请配置 IF/ELSE 分支`);
     } else {
-      validateConditionNodeFields(p, id, node.data, errors);
+      validateConditionNodeFields(p, id, node.data, nodeTypesById, errors);
     }
   }
   if (type === 'assign') {
@@ -597,8 +668,14 @@ export function validateGraphJson(
   }
 
   const nodeIds = new Set<string>();
+  const nodeTypesById = new Map<string, string>();
+  (nodes as GraphNode[]).forEach((node) => {
+    if (node?.id && typeof node.id === 'string') {
+      nodeTypesById.set(node.id, String(node.type ?? ''));
+    }
+  });
   (nodes as GraphNode[]).forEach((node, i) => {
-    validateNodeFields(`nodes[${i}]`, node, nodeIds, errors, warnings);
+    validateNodeFields(`nodes[${i}]`, node, nodeIds, nodeTypesById, errors, warnings);
   });
 
   const edgeIds = new Set<string>();

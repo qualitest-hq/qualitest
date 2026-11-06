@@ -14,8 +14,9 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 PlaceholderResolver：{{scope.path}} 占位符解析（lenient / strict）。
- * 边界：fixture placeholder-cases.json，与前端 TS 用例对齐；无 DB。
+ * 测 PlaceholderResolver：{{scope.path}} 占位符解析（lenient / strict），
+ * 以及 http.*、nodes.节点id.http.* 路径求值。
+ * 边界：fixture placeholder-cases.json；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=PlaceholderResolverTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -161,8 +162,53 @@ class PlaceholderResolverTest {
     }
 
     /**
-     * 将 fixture 中的 mockContext JSON 转为 {@link FlowRunContext}。
-     * 结构与运行时 executor 注入的上下文一致：env / flow / asset / lastResponse（含 durationMs）。
+     * 前提：nodeResponses 存节点 n1 的快照，lastResponse 为另一份。
+     * 期望：nodes.n1.http.body.code 读节点快照；http.body.code 仍读 lastResponse。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("路径：nodes.<id>.http 读节点快照")
+    void resolvePathSegment_nodesHttp() {
+        FlowRunContext.HttpResponseSnapshot older = FlowRunContext.HttpResponseSnapshot.builder()
+                .status(200)
+                .body(Map.of("code", 1))
+                .build();
+        FlowRunContext.HttpResponseSnapshot newer = FlowRunContext.HttpResponseSnapshot.builder()
+                .status(200)
+                .body(Map.of("code", 2))
+                .build();
+        FlowRunContext multi = FlowRunContext.builder()
+                .lastResponse(newer)
+                .nodeResponses(new HashMap<>(Map.of("n1", older)))
+                .build();
+
+        assertEquals(1, lenient.resolvePathSegment(multi, "nodes.n1.http.body.code"));
+        assertEquals(2, lenient.resolvePathSegment(multi, "http.body.code"));
+        assertEquals("v=1", strict.resolve("v={{nodes.n1.http.body.code}}", multi));
+    }
+
+    /**
+     * 前提：putHttpResponse 写入节点 id。
+     * 期望：同时更新 lastResponse 与 nodeResponses。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("putHttpResponse：写入 last 与节点索引")
+    void putHttpResponse_indexesByNodeId() {
+        FlowRunContext empty = FlowRunContext.builder().build();
+        FlowRunContext.HttpResponseSnapshot snap = FlowRunContext.HttpResponseSnapshot.builder()
+                .status(201)
+                .body(Map.of("ok", true))
+                .build();
+        empty.putHttpResponse("http-1", snap);
+        assertSame(snap, empty.getLastResponse());
+        assertSame(snap, empty.getNodeResponse("http-1"));
+        assertEquals(true, lenient.resolvePathSegment(empty, "nodes.http-1.http.body.ok"));
+    }
+
+    /**
+     * 将 fixture 中的 mockContext JSON 转为 FlowRunContext。
+     * 填充 env / flow / asset / lastResponse（含 durationMs）。
      */
     private static FlowRunContext buildContext(JSONObject mock) {
         FlowRunContext.FlowRunContextBuilder builder = FlowRunContext.builder()
