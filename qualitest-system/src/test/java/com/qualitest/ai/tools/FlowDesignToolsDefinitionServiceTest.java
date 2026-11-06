@@ -1,17 +1,22 @@
 package com.qualitest.ai.tools;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.ai.mcp.McpProjectGates;
+import com.qualitest.ai.scenario.flow.FlowDesignPromptResources;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-import com.qualitest.ai.mcp.McpProjectGates;
-
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -279,5 +284,74 @@ class FlowDesignToolsDefinitionServiceTest {
         assertTrue(readonly.contains("search_apis"));
         assertFalse(readonly.contains("submit_http_node"));
         assertFalse(readonly.contains("run_test_flow"));
+    }
+
+    /**
+     * 前提：Web 与协议两份工具定义文件均存在。
+     * 期望：交集工具的 parameters 深度一致；跑流与读失败现场允许参数形状不同；
+     * HTTP 节点 data 含 alwaysRun、authProfileId 与 extracts.entryKey。
+     */
+    @Test
+    @Order(11)
+    @DisplayName("Web/MCP 交集工具 parameters 对齐（除有意分轨）")
+    void intersectionToolParameters_alignedExceptAllowlist() throws Exception {
+        Map<String, JSONObject> web = loadToolParameters(FlowDesignPromptResources.TOOLS_DEFINITION);
+        Map<String, JSONObject> mcp = loadToolParameters(FlowDesignPromptResources.MCP_PROTOCOL_TOOLS);
+        Set<String> common = web.keySet().stream().filter(mcp::containsKey).collect(Collectors.toSet());
+        assertFalse(common.isEmpty());
+
+        // 协议侧强制传流 id / 运行 id，Web 侧可回退当前画布或上下文，参数形状允许不同
+        Set<String> allowDifferentParams = Set.of(
+                FlowDesignToolNames.RUN_TEST_FLOW.getId(),
+                FlowDesignToolNames.GET_RUN_FAILURE.getId());
+
+        List<String> drifts = new ArrayList<>();
+        for (String name : common) {
+            if (allowDifferentParams.contains(name)) {
+                continue;
+            }
+            String webParams = JSON.toJSONString(web.get(name));
+            String mcpParams = JSON.toJSONString(mcp.get(name));
+            if (!webParams.equals(mcpParams)) {
+                drifts.add(name);
+            }
+        }
+        assertTrue(drifts.isEmpty(), "parameters 漂移: " + drifts);
+
+        assertTrue(common.contains(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()));
+        JSONObject httpData = web.get(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId())
+                .getJSONObject("properties")
+                .getJSONObject("data")
+                .getJSONObject("properties");
+        assertTrue(httpData.containsKey("alwaysRun"));
+        assertTrue(httpData.containsKey("authProfileId"));
+        assertTrue(httpData.getJSONObject("extracts")
+                .getJSONObject("items")
+                .getJSONObject("properties")
+                .containsKey("entryKey"));
+    }
+
+    /**
+     * 从 classpath 工具定义 JSON 中按工具名取出 parameters 对象。
+     *
+     * @param resourcePath 资源路径
+     * @return 工具名到 parameters 的映射
+     */
+    private static Map<String, JSONObject> loadToolParameters(String resourcePath) throws Exception {
+        JSONArray arr = JSON.parseArray(FlowDesignPromptResources.loadText(resourcePath));
+        Map<String, JSONObject> out = new LinkedHashMap<>();
+        for (int i = 0; i < arr.size(); i++) {
+            JSONObject item = arr.getJSONObject(i);
+            JSONObject fn = item.getJSONObject("function");
+            if (fn == null) {
+                continue;
+            }
+            String name = fn.getString("name");
+            JSONObject parameters = fn.getJSONObject("parameters");
+            if (name != null && parameters != null) {
+                out.put(name, parameters);
+            }
+        }
+        return out;
     }
 }

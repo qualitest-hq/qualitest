@@ -34,7 +34,8 @@
 | ---- | ---- |
 | HTTP **extracts** | 从响应抽到 `flow` 或 `asset` |
 | **Assign** 节点 | 写入 `flow` |
-| **Subflow** 输出 | 子流 `outputs` / `meta.flowOutputs` 回写父流 |
+| **Subflow** 输出 | 子流节点 `outputs` / 子图 `meta.flowOutputs` 回写父流（子流成功后才合并） |
+| **Subflow** 输入 | 子流节点 `inputs`：在父上下文解析后写入子 `flow`（父子 `flow` 默认不共享） |
 | 场景 **flowSeed** | Run 开始前注入；可用于预置 token 等，不要塞明文口令 |
 
 登录 extract 应对齐项目 Profile 托管头占位符（如 `{{asset.adminAuth.token}}`）。登录口由节点 extracts 与 Profile `headerValueTemplate` 对齐推断。

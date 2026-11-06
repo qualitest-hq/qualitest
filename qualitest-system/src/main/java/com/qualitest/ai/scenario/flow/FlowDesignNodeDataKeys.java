@@ -12,9 +12,8 @@ import java.util.Set;
 /**
  * AI 提交节点时 data 字段白名单。
  * <p>
- * 规范化阶段删除不在名单内的键，并把删除的键名记入 warning，
- * 防止模型臆造字段进入 Staging 预览。
- * 未知节点类型返回空名单，不做剔除。
+ * 规范化阶段删除不在名单内的键，并把删除的键名记入警告，
+ * 避免臆造字段进入预览图。未知节点类型返回空名单，不做剔除。
  */
 public final class FlowDesignNodeDataKeys {
 
@@ -23,14 +22,16 @@ public final class FlowDesignNodeDataKeys {
 
     /**
      * HTTP 节点 data 允许键。
-     * extractsOnFailure：步骤失败时是否仍执行 extracts（skip=默认不写；write=失败也写内存抽取）。
-     * statusCheck：按 HTTP 状态码判定节点成败；successCheck：按 body 业务码判定。
+     * extractsOnFailure：步骤失败时是否仍执行抽取（skip 默认不写，write 失败也写内存）。
+     * statusCheck：按 HTTP 状态码判定成败；successCheck：按业务码判定。
+     * alwaysRun：业务失败后继续阶段是否仍执行本节点。
+     * authProfileId：本节点覆盖使用的多端鉴权配置 id。
      */
     private static final Set<String> HTTP = Set.of(
             "callMode", "testProjectApiId", "externalUrl", "httpMethod",
             "headers", "requestBody", "requestValueOverrides", "extracts", "extractsOnFailure",
             "statusCheck", "successCheck", "timeoutMs", "preScript", "postScript",
-            "apiName", "apiPath", "authProfileId");
+            "apiName", "apiPath", "authProfileId", "alwaysRun");
 
     /** 断言节点 data 允许键 */
     private static final Set<String> ASSERT = Set.of("rules");
@@ -38,18 +39,29 @@ public final class FlowDesignNodeDataKeys {
     /** 条件分支节点 data 允许键 */
     private static final Set<String> CONDITION = Set.of("branches");
 
-    /** 赋值节点 data 允许键 */
-    private static final Set<String> ASSIGN = Set.of("assignments");
+    /**
+     * 赋值节点 data 允许键。
+     * alwaysRun：业务失败后继续阶段是否仍执行本节点。
+     */
+    private static final Set<String> ASSIGN = Set.of("assignments", "alwaysRun");
 
     /** 延时节点 data 允许键 */
     private static final Set<String> DELAY = Set.of("ms");
 
-    /** 脚本节点 data 允许键 */
-    private static final Set<String> SCRIPT = Set.of("language", "source");
+    /**
+     * 脚本节点 data 允许键。
+     * alwaysRun：业务失败后继续阶段是否仍执行本节点。
+     */
+    private static final Set<String> SCRIPT = Set.of("language", "source", "alwaysRun");
 
-    /** 子流节点 data 允许键（含 outputs 供生成副标题） */
+    /**
+     * 子流节点 data 允许键。
+     * inputs：父流程向子流程注入的 flow 种子；outputs：子流程成功后写回父流程的映射；
+     * alwaysRun：业务失败后继续阶段是否仍执行本子流节点；
+     * 子图对外产出声明写在被引用流的图元数据中，不在本节点 data。
+     */
     private static final Set<String> SUBFLOW = Set.of(
-            "subflowId", "subflowName", "versionPolicy", "flowOutputs", "outputs", "graphJson");
+            "subflowId", "subflowName", "versionPolicy", "inputs", "outputs", "graphJson", "alwaysRun");
 
     private FlowDesignNodeDataKeys() {
     }

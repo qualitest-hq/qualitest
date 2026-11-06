@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 FlowDesignNodeDataKeys：按类型白名单剔除未知 data 键。
- * 边界：http/assert 合法键保留；requestConfig 等幻觉键剔除；未知类型不删。
+ * 测节点 data 白名单剔除未知键。
+ * 边界：http/assert/subflow 合法键保留；臆造键剔除；alwaysRun 与子流 inputs/outputs 可保留。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignNodeDataKeysTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -73,5 +73,43 @@ class FlowDesignNodeDataKeysTest {
         assertTrue(data.containsKey("statusCheck"));
         assertTrue(data.containsKey("successCheck"));
         assertFalse(data.containsKey("requestConfig"));
+    }
+
+    /**
+     * 前提：subflow data 含 inputs/outputs/alwaysRun 与误放的节点级 flowOutputs。
+     * 期望：保留映射与 alwaysRun，剔除 flowOutputs。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("subflow 保留 inputs/outputs/alwaysRun，剔除节点级 flowOutputs")
+    void stripUnknown_subflow_keepsIoAndAlwaysRun() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("subflowId", "100");
+        data.put("inputs", List.of(Map.of("name", "orderId", "value", "{{flow.orderId}}")));
+        data.put("outputs", List.of(Map.of("name", "token", "flowKey", "token")));
+        data.put("alwaysRun", true);
+        data.put("flowOutputs", List.of(Map.of("name", "token")));
+        List<String> removed = FlowDesignNodeDataKeys.stripUnknown("subflow", data);
+        assertEquals(List.of("flowOutputs"), removed);
+        assertTrue(data.containsKey("inputs"));
+        assertTrue(data.containsKey("outputs"));
+        assertTrue(data.containsKey("alwaysRun"));
+        assertFalse(data.containsKey("flowOutputs"));
+    }
+
+    /**
+     * 前提：http data 含 alwaysRun。
+     * 期望：保留 alwaysRun。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("http 保留 alwaysRun")
+    void stripUnknown_http_keepsAlwaysRun() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "external");
+        data.put("alwaysRun", true);
+        List<String> removed = FlowDesignNodeDataKeys.stripUnknown("http", data);
+        assertTrue(removed.isEmpty());
+        assertTrue(data.containsKey("alwaysRun"));
     }
 }

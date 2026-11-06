@@ -94,8 +94,8 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 |:-----|:-----|
 | `list_flows` | 按关键词列举本项目测试流摘要 |
 | `get_flow` | 读单条流完整 `graphJson`（浏览拓扑优先用下面两个） |
-| `get_graph_summary` / `get_subflow_detail` | 拓扑摘要、子流结构；`get_graph_summary` 另含 `mermaid`（flowchart 正文，供 Cursor 预览） |
-| `get_flow_meta` | 场景、seed、flowOutputs 等元数据 |
+| `get_graph_summary` / `get_subflow_detail` | 拓扑摘要、子流结构；`get_subflow_detail` 含完整 `flowOutputs` 与 `suggestedInputs`；`get_graph_summary` 另含 `mermaid`（flowchart 正文，供 Cursor 预览） |
+| `get_flow_meta` | 场景、seed、完整 `flowOutputs`（含 description）等元数据 |
 | `get_node_detail` / `get_edge_detail` / `get_scenario_detail` | 单个节点 / 边 / 场景配置 |
 | `get_run_failure` | 失败 Run 的步骤现场 |
 | `get_flow_api_health` | HTTP 节点绑定 / API 语义健康告警 |
@@ -132,7 +132,8 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 开启后 `tools/list` 追加：`create_flow`、`update_flow_meta`、全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`upsert_project_env`、`append_api_design_hints`（**不含** `run_test_flow`）。
 
 - **每次成功 `submit_*` 立即写库**；同流已在 Web 打开时画布自动同步。
-- 改名称/说明用 `update_flow_meta`（成功即落库，不动画布）；禁止用 `create_flow` 新建冒充改名。
+- 改名称/说明/分组用 `update_flow_meta`（成功即落库）；亦可传 `flowOutputs` 整表替换 `meta.flowOutputs`（不改节点/边/场景）。禁止用 `create_flow` 新建冒充改名。
+- 子流节点：`submit_subflow_node` 可配 `inputs`（父→子）、`outputs`（子→父）、`alwaysRun`。父子 `flow` 默认隔离，须显式映射；`asset`/`env`/`session` 同 Run 共享。
 - 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。
 - 若 Web 本地有未保存修改或未决 Staging，会提示「放弃本地并拉取」，不会静默覆盖。
 - 未开启时调用写工具会得到明确拒绝文案。

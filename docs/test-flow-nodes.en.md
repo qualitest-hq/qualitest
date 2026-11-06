@@ -139,7 +139,7 @@ Collapses another flow in the same project into one step:
 1. Load by `subflowId` (must share `testProjectId`)
 2. Resolve `inputs` placeholders into the child `flow` context
 3. Run the child graph in memory (fail-fast); nesting is capped (parent → child → grandchild, max **2** subflow levels)
-4. Merge `outputs` (or child `meta.flowOutputs`) back into the parent `flow`
+4. On success, merge `outputs` (or child `meta.flowOutputs` same-name defaults) back into the parent `flow`. Parent/child `flow` maps are isolated; share `asset`/`env`/`session`. Node `alwaysRun=true` still runs in the parent’s post-failure continue phase. MCP: `submit_subflow_node` writes `inputs`/`outputs`/`alwaysRun`; declare child exports via `update_flow_meta.flowOutputs`.
 5. Attach `subflow.childSteps` for Run UI and MCP `get_run_failure`
 
 | versionPolicy | Behavior |

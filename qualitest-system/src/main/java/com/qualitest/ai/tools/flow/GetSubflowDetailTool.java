@@ -17,20 +17,33 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 
 /**
- * 按测试流 ID 加载其 graph_json，返回拓扑摘要（nodes/edges）与对外输出声明。
+ * 按测试流 id 加载图画布，返回拓扑摘要与对外契约。
  * <p>
- * 返回前按拓扑形状做字节上限裁剪。
+ * 回执含节点/边摘要、对外产出声明（含说明）、产出名称列表，
+ * 以及按激活场景初值生成的建议输入映射；返回前按体积上限裁剪。
  */
 @RequiredArgsConstructor
 public class GetSubflowDetailTool implements QualitestTool {
 
     private final ITestFlowService testFlowService;
 
+    /**
+     * 返回工具名称。
+     *
+     * @return 工具 id
+     */
     @Override
     public String getName() {
         return FlowDesignToolNames.GET_SUBFLOW_DETAIL.getId();
     }
 
+    /**
+     * 组装被引用测试流的拓扑与对外契约回执。
+     *
+     * @param arguments 工具参数
+     * @param ctx       请求上下文
+     * @return JSON 回执或错误
+     */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
         Long flowId = FlowDesignToolSupport.longArg(arguments.get("testFlowId"));
@@ -57,7 +70,10 @@ public class GetSubflowDetailTool implements QualitestTool {
 
         GraphMeta meta = graph.getMeta();
         result.put("startNodeId", meta != null && meta.getStartNodeId() != null ? meta.getStartNodeId() : "");
+        // 对外产出声明、名称列表、建议的父到子输入映射
+        result.put("flowOutputs", meta != null ? GraphMetaIoSupport.flowOutputsJson(meta) : new JSONArray());
         result.put("flowOutputNames", meta != null ? GraphMetaIoSupport.flowOutputNames(meta) : new JSONArray());
+        result.put("suggestedInputs", meta != null ? GraphMetaIoSupport.suggestInputMappingsJson(meta) : new JSONArray());
 
         int nodeCount = graph.getNodes() != null ? graph.getNodes().size() : 0;
         int edgeCount = graph.getEdges() != null ? graph.getEdges().size() : 0;

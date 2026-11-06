@@ -6,30 +6,45 @@ import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.common.exception.ServiceException;
+import com.qualitest.flow.model.GraphFlowOutput;
+import com.qualitest.flow.subflow.GraphMetaIoSupport;
+import com.qualitest.flow.sync.FlowEditLeaseConflictException;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.result.TestFlowResult;
 import com.qualitest.project.service.ITestFlowService;
 import lombok.RequiredArgsConstructor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
- * 浅合并更新测试流元数据并立即写库（不改画布节点与边）。
- * 可改名称、说明、所属目录；目录传空串表示改为未分组。
+ * 更新测试流元数据并立即写库。
+ * <p>
+ * 可改名称、说明、所属目录；也可整表替换图元数据中的对外产出声明，
+ * 不修改节点、边与运行场景。
  */
 @RequiredArgsConstructor
 public class UpdateFlowMetaTool implements QualitestTool {
 
     private final ITestFlowService testFlowService;
 
+    /**
+     * 返回工具名称。
+     *
+     * @return 工具 id
+     */
     @Override
     public String getName() {
         return FlowDesignToolNames.UPDATE_FLOW_META.getId();
     }
 
     /**
-     * 解析要改的字段 → 写库 → 回执当前名称/说明/目录。
+     * 解析入参并写库，回执当前名称、说明、目录与（若本次有改）对外产出声明。
+     *
+     * @param arguments 工具参数
+     * @param ctx       请求上下文
+     * @return JSON 回执或错误
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
@@ -41,7 +56,8 @@ public class UpdateFlowMetaTool implements QualitestTool {
             return FlowDesignToolSupport.errorJson("缺少 testProjectId");
         }
         if (arguments == null) {
-            return FlowDesignToolSupport.errorJson("至少传入 flowName、flowDescription 或 flowGroupId");
+            return FlowDesignToolSupport.errorJson(
+                    "至少传入 flowName、flowDescription、flowGroupId 或 flowOutputs");
         }
 
         Long flowId = FlowDesignToolSupport.longArg(arguments.get("testFlowId"));
@@ -57,8 +73,10 @@ public class UpdateFlowMetaTool implements QualitestTool {
         boolean hasName = arguments.containsKey("flowName");
         boolean hasDescription = arguments.containsKey("flowDescription");
         boolean hasGroup = arguments.containsKey("flowGroupId");
-        if (!hasName && !hasDescription && !hasGroup) {
-            return FlowDesignToolSupport.errorJson("至少传入 flowName、flowDescription 或 flowGroupId");
+        boolean hasFlowOutputs = arguments.containsKey("flowOutputs");
+        if (!hasName && !hasDescription && !hasGroup && !hasFlowOutputs) {
+            return FlowDesignToolSupport.errorJson(
+                    "至少传入 flowName、flowDescription、flowGroupId 或 flowOutputs");
         }
 
         String newName = null;
@@ -70,7 +88,7 @@ public class UpdateFlowMetaTool implements QualitestTool {
         }
         String newDescription = null;
         if (hasDescription) {
-            // 传空串表示清空说明；保留空串以便 Mapper 更新该列
+            // 传空串表示清空说明，需保留空串以便更新该列
             newDescription = FlowDesignToolSupport.stringArg(arguments.get("flowDescription"));
         }
 
@@ -88,19 +106,46 @@ public class UpdateFlowMetaTool implements QualitestTool {
             }
         }
 
-        TestFlow toUpdate = TestFlow.builder()
-                .testFlowId(flowId)
-                .flowName(newName)
-                .flowDescription(hasDescription ? newDescription : null)
-                .flowGroupId(newGroupId)
-                .clearFlowGroup(clearGroup ? Boolean.TRUE : null)
-                .build();
+        List<GraphFlowOutput> flowOutputs = null;
+        if (hasFlowOutputs) {
+            try {
+                flowOutputs = GraphMetaIoSupport.parseFlowOutputsArg(arguments.get("flowOutputs"));
+            } catch (IllegalArgumentException e) {
+                return FlowDesignToolSupport.errorJson(e.getMessage());
+            }
+        }
 
         try {
             FlowExternalChangeSourceHolder.set(
                     FlowExternalChangeSourceHolder.mcpOrWebAutopilot(
                             ctx != null && ctx.getAiChatSessionId() != null));
-            testFlowService.updateTestFlow(toUpdate);
+
+            // 名称 / 说明 / 目录：走元数据更新，不写图画布
+            if (hasName || hasDescription || hasGroup) {
+                TestFlow toUpdate = TestFlow.builder()
+                        .testFlowId(flowId)
+                        .flowName(newName)
+                        .flowDescription(hasDescription ? newDescription : null)
+                        .flowGroupId(newGroupId)
+                        .clearFlowGroup(clearGroup ? Boolean.TRUE : null)
+                        .build();
+                testFlowService.updateTestFlow(toUpdate);
+            }
+
+            // 对外产出声明：整表替换图元数据字段，并刷新本轮工作图版本
+            if (hasFlowOutputs) {
+                String endpoint = FlowDesignAutopilotCommitSupport.resolveEndpointId(ctx);
+                ITestFlowService.ApplyGraphPatchResult applied = testFlowService.replaceFlowOutputs(
+                        flowId, projectId, flowOutputs, endpoint);
+                if (ctx != null) {
+                    ctx.advanceWorkingGraph(applied.graph());
+                    ctx.setBaseGraphRevision(applied.revision());
+                    ctx.notifyGraphCommitted(applied.graph());
+                }
+            }
+        } catch (FlowEditLeaseConflictException e) {
+            return FlowDesignToolSupport.errorJson(
+                    e.getMessage() != null ? e.getMessage() : "写锁冲突，请稍后重试");
         } catch (ServiceException e) {
             return FlowDesignToolSupport.errorJson(e.getMessage());
         } catch (Exception e) {
@@ -128,7 +173,12 @@ public class UpdateFlowMetaTool implements QualitestTool {
             result.put("flowGroupId", String.valueOf(existing.getFlowGroupId()));
             result.put("flowGroupName", existing.getFlowGroupName() != null ? existing.getFlowGroupName() : "");
         }
-        result.put("hint", "测试流元数据已更新并写库；未改动画布、场景与环境");
+        if (hasFlowOutputs) {
+            result.put("flowOutputs", GraphMetaIoSupport.flowOutputsJson(flowOutputs));
+        }
+        result.put("hint", hasFlowOutputs
+                ? "测试流元数据已更新并写库；已替换 meta.flowOutputs，未改节点/边/场景"
+                : "测试流元数据已更新并写库；未改节点/边/场景");
         return result.toJSONString();
     }
 }

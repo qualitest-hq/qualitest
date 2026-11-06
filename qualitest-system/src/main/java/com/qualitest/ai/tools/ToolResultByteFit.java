@@ -234,8 +234,13 @@ public final class ToolResultByteFit {
     }
 
     /**
-     * 适配流 meta：先去掉 scenarios 内 flowSeedKeys/remark，再从尾部减 scenarios，
-     * 仍超限则清空 flowOutputNames。
+     * 压缩画布元数据回执体积。
+     * 先去掉场景内初值键与备注，再从尾部减少场景条数；
+     * 仍超限则清空对外产出声明数组与产出名称列表。
+     *
+     * @param result   元数据回执
+     * @param maxBytes 字节上限
+     * @return 压缩后的 JSON 文本
      */
     public static String fitFlowMeta(JSONObject result, int maxBytes) {
         maxBytes = effectiveMax(maxBytes);
@@ -252,6 +257,11 @@ public final class ToolResultByteFit {
                 scenarios.remove(scenarios.size() - 1);
                 markTruncated(result, "结果过大，已裁剪 scenarios");
             }
+        }
+        JSONArray flowOutputs = result.getJSONArray("flowOutputs");
+        if (flowOutputs != null && over(result, maxBytes)) {
+            flowOutputs.clear();
+            markTruncated(result, "已省略 flowOutputs");
         }
         JSONArray outputs = result.getJSONArray("flowOutputNames");
         if (outputs != null && over(result, maxBytes)) {

@@ -225,12 +225,12 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
 
 ## Subflow（`subflow`）
 
-将同项目另一张测试流折叠为单步：
+将同项目另一张测试流折叠为单步（**另一张图**，不是同一画布上的子图）：
 
 1. 按 `subflowId` 加载（须同 `testProjectId`）
-2. `inputs` 解析占位符写入子上下文 `flow`
-3. 内存跑子图（fail-fast）；嵌套深度有限（主→子→孙，最多 **2** 层 subflow）
-4. 按 `outputs` 或子图 `meta.flowOutputs` 写回父 `flow`
+2. `inputs` 在**父上下文**解析占位符，写入子上下文独立的 `flow` 种子（父子 `flow` 默认隔离；`asset` / `env` / `session` 共享）
+3. 内存跑子图；嵌套深度有限（主→子→孙，最多 **2** 层 subflow）
+4. 子流**成功**后按节点 `outputs` 或子图 `meta.flowOutputs` 同名默认映射写回父 `flow`
 5. 步骤 `subflow.childSteps` 附内层摘要，供 Run 详情与 MCP `get_run_failure`
 
 | versionPolicy | 行为 |
@@ -238,7 +238,11 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
 | `latest` | 每次 Run 取子流当前图 |
 | `pinned` | 优先用节点 `pinnedGraphJson` 固化快照 |
 
+节点 `data.alwaysRun=true`（JSON 布尔）时：父图业务失败进入「失败后继续」阶段仍会执行本子流节点，便于整章串多个子流时一次看到后续模块结果。
+
 平台提供登录 / OAuth / 验证码等 **子流模板**，可 fork 后改参数。
+
+MCP：`submit_subflow_node` 可写 `inputs` / `outputs` / `alwaysRun`；子图对外产出声明用 `update_flow_meta.flowOutputs`（整表替换）。
 
 ---
 

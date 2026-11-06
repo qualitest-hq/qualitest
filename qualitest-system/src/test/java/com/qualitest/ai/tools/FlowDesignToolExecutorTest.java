@@ -720,8 +720,8 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * 前提：被引用测试流含 http/subflow 节点与边、meta.startNodeId/flowOutputs。
-     * 期望：返回拓扑摘要（flowName、startNodeId、计数、类型、outputs、nodes/edges 关键字段）。
+     * 前提：被引用测试流含 http/subflow 节点与边，以及开始节点与对外产出声明。
+     * 期望：返回拓扑摘要、完整对外产出声明（含说明）、产出名称列表与建议输入字段。
      */
     @Test
     @Order(19)
@@ -764,6 +764,9 @@ class FlowDesignToolExecutorTest {
         assertEquals(1, root.getJSONObject("nodeTypeCounts").getIntValue("http"));
         assertEquals(1, root.getJSONObject("nodeTypeCounts").getIntValue("subflow"));
         assertEquals("token", root.getJSONArray("flowOutputNames").getString(0));
+        assertEquals("token", root.getJSONArray("flowOutputs").getJSONObject(0).getString("name"));
+        assertEquals("访问令牌", root.getJSONArray("flowOutputs").getJSONObject(0).getString("description"));
+        assertTrue(root.containsKey("suggestedInputs"));
         assertEquals("h1", root.getJSONArray("nodes").getJSONObject(0).getString("id"));
         assertEquals("Token", root.getJSONArray("nodes").getJSONObject(0).getString("name"));
         assertEquals("external", root.getJSONArray("nodes").getJSONObject(0).getString("callMode"));

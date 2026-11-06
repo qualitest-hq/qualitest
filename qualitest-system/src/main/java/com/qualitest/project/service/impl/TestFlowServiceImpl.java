@@ -8,8 +8,11 @@ import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.model.GraphEdge;
+import com.qualitest.flow.model.GraphFlowOutput;
 import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
+import com.qualitest.flow.subflow.GraphMetaIoSupport;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
 import com.qualitest.common.utils.ServletUtils;
 import com.qualitest.flow.sync.FlowEditLeaseService;
@@ -293,44 +296,13 @@ public class TestFlowServiceImpl implements ITestFlowService {
     @Override
     public ApplyGraphPatchResult applyGraphPatch(Long testFlowId, Long testProjectId,
                                                  FlowDesignPatch patch, String endpointId) {
-        if (testFlowId == null) {
-            throw new ServiceException("缺少 testFlowId");
-        }
         if (patch == null) {
             throw new ServiceException("缺少图增量 patch");
         }
-
-        // 会话端用 endpointId 作锁值；Web 请求则尝试沿用请求头中的草稿租约
-        String holder = endpointId != null && !endpointId.isBlank()
-                ? endpointId.trim()
-                : FlowExternalChangeSourceHolder.getOrDefault();
-        String existingToken = FlowEditLeaseService.isSessionEndpoint(holder)
-                ? holder
-                : readClientLeaseToken();
-        FlowEditLeaseService.LeaseHandle lease = flowEditLeaseService.beginWrite(
-                testFlowId, holder, existingToken);
-        try {
-            // 行锁拿到当前最新图，避免同端并发写互相覆盖
-            TestFlow locked = testFlowMapper.selectTestFlowGraphForUpdate(testFlowId);
-            if (locked == null || (locked.getDelStatus() != null && locked.getDelStatus() != 0)) {
-                throw new ServiceException("测试流不存在");
-            }
-            if (testProjectId != null && locked.getTestProjectId() != null
-                    && !testProjectId.equals(locked.getTestProjectId())) {
-                throw new ServiceException("测试流不属于当前项目");
-            }
-
-            GraphJson base;
-            try {
-                base = GraphJson.parse(locked.getGraphJson());
-            } catch (Exception e) {
-                throw new ServiceException("重载图失败: " + e.getMessage());
-            }
+        return mutateGraphUnderWriteLock(testFlowId, testProjectId, endpointId, true, (locked, base) -> {
             if (base == null) {
                 throw new ServiceException("重载图为空");
             }
-
-            // 更新/删除/连线所引用的节点或边必须仍在最新图中
             List<String> refErrors = collectMissingReferenceErrors(base, patch);
             if (!refErrors.isEmpty()) {
                 throw new ServiceException(String.join("；", refErrors));
@@ -338,14 +310,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
             List<String> warnings = new ArrayList<>();
             GraphJson merged = flowDesignPatchNormalizer.mergeOnto(base, patch, warnings);
-
-            // 地板校验失败则不写库；全量与断言路径问题只记警告
-            GraphValidationResult floor =
-                    graphJsonValidator.validate(merged, GraphValidationOptions.persistMinimal());
-            if (!floor.isOk() && floor.getErrors() != null && !floor.getErrors().isEmpty()) {
-                throw new ServiceException("校验未通过，未写库：" + String.join("；", floor.getErrors()));
-            }
-            addAllNonBlank(warnings, floor.getWarnings());
+            validatePersistFloor(merged, warnings);
 
             GraphValidationResult full =
                     graphJsonValidator.validate(merged, GraphValidationOptions.full());
@@ -357,36 +322,162 @@ public class TestFlowServiceImpl implements ITestFlowService {
             addSoftFindings(warnings, assertPath.errors());
             addSoftFindings(warnings, assertPath.warnings());
 
-            TestFlow update = new TestFlow();
-            update.setTestFlowId(testFlowId);
-            update.setGraphJson(merged.toJsonString());
-            update.setUpdateTime(DateUtils.getNowDate());
-            // 不带版本号 CAS：行锁内已基于最新图合并，写回后 revision +1
-            int rows = testFlowMapper.updateTestFlowGraphIncrement(update);
-            if (rows <= 0) {
-                throw new ServiceException("写库失败");
+            return persistGraphIncrement(
+                    locked,
+                    testProjectId,
+                    merged,
+                    warnings,
+                    FlowGraphCommitPatchHolder.fromCapture(patch, merged));
+        });
+    }
+
+    /**
+     * 整表替换图元数据中的对外产出声明。
+     * 持端写锁、行锁重读图后写回；不改节点、边与运行场景。
+     *
+     * @param testFlowId    测试流 id
+     * @param testProjectId 项目 id，可空
+     * @param flowOutputs   新的对外产出声明，null 视为空列表
+     * @param endpointId    稳定端标识，空则短抢锁
+     * @return 写库后的图、新版本号与警告
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public ApplyGraphPatchResult replaceFlowOutputs(Long testFlowId, Long testProjectId,
+                                                    List<GraphFlowOutput> flowOutputs,
+                                                    String endpointId) {
+        return mutateGraphUnderWriteLock(testFlowId, testProjectId, endpointId, false, (locked, graph) -> {
+            GraphJson next = graph != null ? graph : GraphJson.builder().build();
+            if (next.getMeta() == null) {
+                next.setMeta(new GraphMeta());
             }
-            long baseRev = locked.getGraphRevision() != null ? locked.getGraphRevision() : 0L;
-            long newRev = baseRev + 1;
+            // 规范化后整表覆盖对外产出声明
+            next.getMeta().setFlowOutputs(GraphMetaIoSupport.normalizeFlowOutputs(flowOutputs));
+            List<String> warnings = new ArrayList<>();
+            validatePersistFloor(next, warnings);
+            return persistGraphIncrement(locked, testProjectId, next, warnings, null);
+        });
+    }
 
-            FlowGraphCommitPatchHolder.PatchPayload payload =
-                    FlowGraphCommitPatchHolder.fromCapture(patch, merged);
-            flowExternalChangePublisher.publishGraphCommitted(
-                    testFlowId,
-                    locked.getTestProjectId() != null ? locked.getTestProjectId() : testProjectId,
-                    FlowExternalChangeSourceHolder.getOrDefault(),
-                    update.getUpdateTime(),
-                    payload,
-                    newRev);
-
-            return new ApplyGraphPatchResult(merged, newRev, List.copyOf(warnings));
+    /**
+     * 在端写锁与行锁内改图并写库。
+     * 短抢锁写完即释放；会话端锁保留。可选在结束时清理增量提交暂存。
+     *
+     * @param testFlowId             测试流 id
+     * @param testProjectId          项目 id，可空
+     * @param endpointId             稳定端标识，空则用当前写入来源
+     * @param clearCommitPatchHolder 是否在 finally 清理图提交暂存
+     * @param mutator                已加载最新图后的改图与写库逻辑
+     * @return 写库结果
+     */
+    private ApplyGraphPatchResult mutateGraphUnderWriteLock(
+            Long testFlowId,
+            Long testProjectId,
+            String endpointId,
+            boolean clearCommitPatchHolder,
+            LockedGraphMutator mutator) {
+        if (testFlowId == null) {
+            throw new ServiceException("缺少 testFlowId");
+        }
+        String holder = endpointId != null && !endpointId.isBlank()
+                ? endpointId.trim()
+                : FlowExternalChangeSourceHolder.getOrDefault();
+        String existingToken = FlowEditLeaseService.isSessionEndpoint(holder)
+                ? holder
+                : readClientLeaseToken();
+        FlowEditLeaseService.LeaseHandle lease = flowEditLeaseService.beginWrite(
+                testFlowId, holder, existingToken);
+        try {
+            TestFlow locked = testFlowMapper.selectTestFlowGraphForUpdate(testFlowId);
+            if (locked == null || (locked.getDelStatus() != null && locked.getDelStatus() != 0)) {
+                throw new ServiceException("测试流不存在");
+            }
+            if (testProjectId != null && locked.getTestProjectId() != null
+                    && !testProjectId.equals(locked.getTestProjectId())) {
+                throw new ServiceException("测试流不属于当前项目");
+            }
+            GraphJson graph;
+            try {
+                graph = GraphJson.parse(locked.getGraphJson());
+            } catch (Exception e) {
+                throw new ServiceException("重载图失败: " + e.getMessage());
+            }
+            return mutator.mutate(locked, graph);
         } finally {
-            // 会话长持锁保留；短抢锁写完即释放
             if (lease != null && !lease.heldFromClient()) {
                 flowEditLeaseService.release(testFlowId, lease.token());
             }
-            FlowGraphCommitPatchHolder.clear();
+            if (clearCommitPatchHolder) {
+                FlowGraphCommitPatchHolder.clear();
+            }
         }
+    }
+
+    /**
+     * 持久化前的地板校验。
+     * 硬错误抛出业务异常；软警告并入 warnings。
+     *
+     * @param graph    待写库的图
+     * @param warnings 警告收集列表
+     */
+    private void validatePersistFloor(GraphJson graph, List<String> warnings) {
+        GraphValidationResult floor =
+                graphJsonValidator.validate(graph, GraphValidationOptions.persistMinimal());
+        if (!floor.isOk() && floor.getErrors() != null && !floor.getErrors().isEmpty()) {
+            throw new ServiceException("校验未通过，未写库：" + String.join("；", floor.getErrors()));
+        }
+        addAllNonBlank(warnings, floor.getWarnings());
+    }
+
+    /**
+     * 行锁内递增写回 graph_json，并发布图已提交事件。
+     *
+     * @param locked        行锁下的测试流行
+     * @param testProjectId 项目 id，可空
+     * @param graph         待写库的图
+     * @param warnings      警告列表
+     * @param payload       变更摘要，可空
+     * @return 写库结果
+     */
+    private ApplyGraphPatchResult persistGraphIncrement(
+            TestFlow locked,
+            Long testProjectId,
+            GraphJson graph,
+            List<String> warnings,
+            FlowGraphCommitPatchHolder.PatchPayload payload) {
+        TestFlow update = new TestFlow();
+        update.setTestFlowId(locked.getTestFlowId());
+        update.setGraphJson(graph.toJsonString());
+        update.setUpdateTime(DateUtils.getNowDate());
+        int rows = testFlowMapper.updateTestFlowGraphIncrement(update);
+        if (rows <= 0) {
+            throw new ServiceException("写库失败");
+        }
+        long baseRev = locked.getGraphRevision() != null ? locked.getGraphRevision() : 0L;
+        long newRev = baseRev + 1;
+        flowExternalChangePublisher.publishGraphCommitted(
+                locked.getTestFlowId(),
+                locked.getTestProjectId() != null ? locked.getTestProjectId() : testProjectId,
+                FlowExternalChangeSourceHolder.getOrDefault(),
+                update.getUpdateTime(),
+                payload,
+                newRev);
+        return new ApplyGraphPatchResult(graph, newRev, List.copyOf(warnings));
+    }
+
+    /**
+     * 行锁内改图写库回调。
+     */
+    @FunctionalInterface
+    private interface LockedGraphMutator {
+        /**
+         * 在已持行锁的前提下改图并写库。
+         *
+         * @param locked 行锁下的测试流行
+         * @param graph  解析后的当前图，可能为 null
+         * @return 写库结果
+         */
+        ApplyGraphPatchResult mutate(TestFlow locked, GraphJson graph);
     }
 
     /** 检查 patch 引用的已有节点/边是否仍在最新图中 */

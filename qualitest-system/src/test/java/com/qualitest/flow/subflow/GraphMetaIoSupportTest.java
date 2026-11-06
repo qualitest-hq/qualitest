@@ -16,8 +16,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 GraphMetaIoSupport：子流 inputs/outputs 默认映射与 flowOutput 名称提取。
- * 边界：activeScenario flowSeed；无 DB。
+ * 测图元数据子流输入输出辅助。
+ * 边界：默认输出映射、建议输入映射、产出名称与 JSON、入参解析规范化；无数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphMetaIoSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -86,5 +86,45 @@ class GraphMetaIoSupportTest {
                 .build();
 
         assertEquals(List.of("token"), GraphMetaIoSupport.flowOutputNames(meta));
+    }
+
+    /**
+     * 前提：meta.flowOutputs 含 token 与 description。
+     * 期望：flowOutputsJson 保留 name/description。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("提取：flowOutputs JSON 含 description")
+    void flowOutputsJson_includesDescription() {
+        GraphMeta meta = GraphMeta.builder()
+                .flowOutputs(List.of(GraphFlowOutput.builder()
+                        .name("token")
+                        .description("访问令牌")
+                        .build()))
+                .build();
+
+        var arr = GraphMetaIoSupport.flowOutputsJson(meta);
+        assertEquals(1, arr.size());
+        assertEquals("token", arr.getJSONObject(0).getString("name"));
+        assertEquals("访问令牌", arr.getJSONObject(0).getString("description"));
+    }
+
+    /**
+     * 前提：入参为含 name/description 的对象列表，夹杂空 name。
+     * 期望：parseFlowOutputsArg 规范化后仅保留有效项。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("解析：flowOutputs 入参规范化")
+    void parseFlowOutputsArg_normalizesRows() {
+        List<GraphFlowOutput> parsed = GraphMetaIoSupport.parseFlowOutputsArg(List.of(
+                Map.of("name", " token ", "description", " 访问令牌 "),
+                Map.of("name", "  "),
+                Map.of("name", "refreshToken")
+        ));
+        assertEquals(2, parsed.size());
+        assertEquals("token", parsed.get(0).getName());
+        assertEquals("访问令牌", parsed.get(0).getDescription());
+        assertEquals("refreshToken", parsed.get(1).getName());
     }
 }

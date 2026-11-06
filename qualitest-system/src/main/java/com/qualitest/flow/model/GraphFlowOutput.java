@@ -7,10 +7,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * 子流图对外产出变量声明，存于 {@code graph_json.meta.flowOutputs}（非数据库字段）。
+ * 测试流图级对外产出变量声明，保存在 graph_json.meta.flowOutputs。
  * <p>
- * 子流 Run 结束后，父流程 subflow 节点的 outputs 映射默认按 {@code name} 与 {@code flowKey} 一一对应；
- * 供画布展示、AI get_subflow_detail 与校验提示使用。
+ * 子流节点未配置 outputs 时，按 name 作为子流程变量名与父流程同名键写回。
  */
 @Getter
 @Setter
@@ -20,12 +19,12 @@ import lombok.Setter;
 public class GraphFlowOutput {
 
     /**
-     * flow 变量键名
+     * 流程变量键名
      */
     private String name;
 
     /**
-     * 说明（可选，模板/AI 用）
+     * 可选说明文案
      */
     private String description;
 }
