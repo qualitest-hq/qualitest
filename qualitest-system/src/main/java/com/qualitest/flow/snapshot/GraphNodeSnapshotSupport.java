@@ -9,35 +9,35 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 从流程图节点 data 读取 checkpoint 配置。
+ * 从流程图节点 data 读取执行前快照（checkpoint）配置。
+ * <p>
+ * snapshotBefore 开启时，handler 执行前先打被测数据快照，失败后可还原。
+ * 保存时若写出 snapshotBefore，值须为 JSON 布尔，且仅允许挂在 http / script / assign。
+ * 跑流时只认布尔 true 为开启。
  */
 public final class GraphNodeSnapshotSupport {
 
-    /** 节点 data：是否在执行业务逻辑前先打数据快照，默认 false */
+    /** 节点 data 键名：是否在执行业务逻辑前先打被测数据快照，缺省视为 false */
     public static final String KEY_SNAPSHOT_BEFORE = "snapshotBefore";
 
-    /** 节点 data：快照范围，格式 { scope, tables } */
+    /** 节点 data 键名：快照范围，对象形如 { scope, tables } */
     public static final String KEY_SNAPSHOT_SCOPE = "snapshotScope";
 
     private GraphNodeSnapshotSupport() {
     }
 
     /**
-     * 节点是否要求在 handler 执行前打 checkpoint。
-     * 支持布尔或字符串 "true"/"false"；缺省为 false。
+     * 判断节点是否开启「执行前打被测数据快照」。
+     * 只认 data.snapshotBefore 为布尔 true；缺省、false、字符串、数字一律视为未开启。
+     *
+     * @param node 图节点，可为 null
+     * @return 是否在业务逻辑前打快照
      */
     public static boolean isSnapshotBefore(GraphNode node) {
         if (node == null || node.getData() == null) {
             return false;
         }
-        Object v = node.getData().get(KEY_SNAPSHOT_BEFORE);
-        if (v instanceof Boolean b) {
-            return b;
-        }
-        if (v instanceof String s) {
-            return Boolean.parseBoolean(s);
-        }
-        return false;
+        return Boolean.TRUE.equals(node.getData().get(KEY_SNAPSHOT_BEFORE));
     }
 
     /**

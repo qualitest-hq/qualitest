@@ -28,7 +28,8 @@ describe('parseToolTraceFromMeta', () => {
     expect(trace?.stepsUsed).toBe(2);
     expect(trace?.calls).toHaveLength(2);
     expect(trace?.calls?.[0]?.name).toBe('submit_edges');
-    expect(trace?.calls?.[0]?.args).toEqual({ label: 'else_cred' });
+    // args 原样保留工具入参结构（submit_edges 为 { edges: [...] }）
+    expect(trace?.calls?.[0]?.args).toEqual({ edges: [{ label: 'else_cred' }] });
     expect(trace?.calls?.[1]?.ok).toBe(false);
   });
 

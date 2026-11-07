@@ -306,6 +306,10 @@ public class GraphJsonValidator {
         return nodeIds;
     }
 
+    /**
+     * 校验单个节点的 id / type / position / data，以及按 type 分发的字段规则；
+     * 末尾校验 alwaysRun、snapshotBefore 的布尔类型与允许挂载的节点类型。
+     */
     private void validateNodeFields(
             String p,
             String id,
@@ -363,6 +367,8 @@ public class GraphJsonValidator {
         }
         validateScriptNodeFields(p, id, type, data, errors, warnings);
         validateSubflowNodeFields(p, id, type, data, errors);
+        // alwaysRun / snapshotBefore：有值须为布尔，且只能挂在允许的节点类型上
+        GraphNodeBooleanFieldRules.validate(p, type, data, errors);
     }
 
     /** 校验 assert 节点：rules 非空；每条 left / JsonPath。 */

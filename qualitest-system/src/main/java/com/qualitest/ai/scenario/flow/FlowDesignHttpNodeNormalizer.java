@@ -9,6 +9,8 @@ import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpNodePathSupport;
 import com.qualitest.flow.http.HttpNodeRequestValueOverridesSupport;
 import com.qualitest.flow.http.SuccessCheckResolver;
+import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.validate.GraphNodeBooleanFieldRules;
 import com.qualitest.project.domain.TestProjectApi;
 
 import java.util.ArrayList;
@@ -18,7 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * AI 设计 patch 落盘前，规范化 HTTP 节点 data。
+ * 设计 patch 落盘前，规范化 HTTP 节点 data。
  * <p>
  * project 模式：
  * <ul>
@@ -28,6 +30,7 @@ import java.util.Map;
  * </ul>
  * 另处理 extracts 路径规范化、successCheck 默认 mode。
  * external 模式只处理 extracts 与 successCheck。
+ * 完整 normalize 路径还会把 alwaysRun、snapshotBefore 的常见脏值收成布尔。
  */
 public final class FlowDesignHttpNodeNormalizer {
 
@@ -48,8 +51,8 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 无 API 上下文时的轻量规范化：callMode / extracts / successCheck。
-     * Staging draft 再规范化时使用，不做 overrides 差分。
+     * 无项目 API 上下文时的轻量规范化：补默认 callMode、整理 extracts、补 successCheck 默认 mode。
+     * 不做相对接口资产的 overrides 差分；alwaysRun / snapshotBefore 收布尔由调用方统一处理。
      */
     public static void normalizeWithoutApi(Map<String, Object> data) {
         if (data == null) {
@@ -62,6 +65,7 @@ public final class FlowDesignHttpNodeNormalizer {
 
     /**
      * 规范化 HTTP 节点 data（就地修改）。
+     * patch 规范化会直接调用本方法，因此在此自行把 alwaysRun / snapshotBefore 常见脏值收成布尔。
      *
      * @param data            节点 data
      * @param api             已绑定的项目接口；未绑定或外联时为 null
@@ -75,6 +79,8 @@ public final class FlowDesignHttpNodeNormalizer {
         normalizeExtracts(data);
         alignLoginExtract(data, api, projectAuthJson);
         ensureSuccessCheckDefault(data);
+        // HTTP 允许 alwaysRun / snapshotBefore：常见脏值收成 Boolean
+        GraphNodeBooleanFieldRules.coerceForNodeType(FlowNodeType.HTTP.getCode(), data);
 
         String callMode = data.get("callMode") != null ? String.valueOf(data.get("callMode")).trim() : "";
         if (FlowHttpCallMode.isExternal(callMode)) {

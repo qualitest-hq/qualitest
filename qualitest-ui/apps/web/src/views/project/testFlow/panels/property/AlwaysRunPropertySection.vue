@@ -18,9 +18,10 @@
 
 <script setup>
 /**
- * 节点属性：alwaysRun 开关。
- * 勾选后写入 data.alwaysRun；取消勾选删除该字段。
- * 运行时：业务失败后本节点仍执行，成功为 continued，失败为 continued_failed。
+ * 节点属性：始终执行（alwaysRun）开关。
+ * 勾选写入 data.alwaysRun=true（布尔）；取消勾选写 null 以删除该字段。
+ * 展示态只认布尔 true。
+ * 跑流：业务失败后本节点仍执行，成功记 continued，失败记 continued_failed。
  */
 import { computed } from 'vue'
 

@@ -27,9 +27,7 @@ flowchart LR
 
 ## 🚧 Now
 
-| ID | 任务 | 说明 |
-| -- | ---- | ---- |
-| 3.15 | `alwaysRun` 与节点布尔字段图校验 | **背景**：失败后继续已落地（见 Done 3.14）；运行时 `GraphNodeAlwaysRunSupport` **只认** `data.alwaysRun === true`（布尔），字符串 / 数字一律当未开启，且**尚无**设计期校验。AI Staging、MCP 写图若写成 `"true"` / `1`，面板勾选态与真实执行会 silently 不一致。**要做**：① 后端 `GraphJsonValidator`（及前端 `graphValidate`）：`alwaysRun` 若存在则必须是 JSON 布尔；非法类型 → error（勿静默吞）。② **允许挂开关的类型**仅 `http` / `script` / `assign` / `subflow`；出现在 `assert` / `condition` / `delay` / `input` 上 → error 或强 warning（与属性面板可见范围对齐；`input` 尤其禁止，避免失败后继续阶段再暂停）。③ 缺省或 `false` 均可，不必强制删键；保存 / 校验 / 跑流前同一套规则。④ Staging / AI patch / MCP 写 `alwaysRun` 时只出布尔 `true`，取消用删键或 `false`。⑤ 顺带扫同类宽松读法：至少 `snapshotBefore` 仍接受字符串 `"true"`，与 alwaysRun「只认布尔」策略统一还是继续兼容，做校验时一并定稿并写进校验器。⑥ 补前后端校验单测（合法布尔、非法字符串/数字、非法节点类型）。 |
+（暂无）
 
 ---
 
@@ -69,7 +67,8 @@ flowchart LR
 | 7.1 | 脚本加密与报文工具 | `ctx` / `api` 同名挂载：摘要（含 SM3）、HMAC、RSA 签验与加解密（PEM / 裸 Base64 / 证书）、AES-GCM 与 CBC/ECB、国密 SM2/SM4、`urlEncode`、`xmlParse/xmlStringify`、`signContent`；可仿支付宝 RSA2、微信支付 v2 / v3 回调 |
 | 7.2 | XML 响应自动解析 | Content-Type 为 xml，或 `text/plain` 正文以 `<?xml` / `<xml>` 开头时转对象（去根节点、防 XXE）；`{{http.body.xxx}}`、断言、条件、提取直接取字段；原文在 `http.bodyText` 与步骤报告；`responseKind` / `expectedResponseKind` 新增 `xml` |
 | 3.13 | 测试流步数上限与写锁 | 场景可配 `maxSteps`（默认 200 / 封顶 1000），超限合成失败步并展示 Run 级错误；MCP/Web AI 端锁 + 行锁内增量写图，`release_flow_lock` 显式释锁 |
-| 3.14 | 失败后继续（alwaysRun） | 节点 `data.alwaysRun`（http/script/assign/subflow 属性开关）；业务失败且非 prompt 暂停后沿边继续：未标记 → `bypassed`，alwaysRun 成功 → `continued`、失败 → `continued_failed`（不盖首错、不中断后续）；未求值 condition → `bypassed` 后扇出、汇合去重；画布/时间线/HTML 报告有对应态。**未做**：图校验（见 Now 3.15） |
+| 3.14 | 失败后继续（alwaysRun） | 节点 `data.alwaysRun`（http/script/assign/subflow 属性开关）；业务失败且非 prompt 暂停后沿边继续：未标记 → `bypassed`，alwaysRun 成功 → `continued`、失败 → `continued_failed`（不盖首错、不中断后续）；未求值 condition → `bypassed` 后扇出、汇合去重；画布/时间线/HTML 报告有对应态 |
+| 3.15 | `alwaysRun` 与节点布尔字段图校验 | 保存 / Staging：`alwaysRun`、`snapshotBefore` 须为 JSON 布尔；`alwaysRun` 仅 http/script/assign/subflow，`snapshotBefore` 仅 http/script/assign；非法类型或挂错节点 → error。运行时与面板只认布尔 true；AI 写图对允许类型常见脏值收成布尔 |
 
 ---
 

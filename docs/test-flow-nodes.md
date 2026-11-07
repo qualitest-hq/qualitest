@@ -43,7 +43,8 @@
 - **前置/后置脚本**：见下方「HTTP 脚本（preScript / postScript）」
 - 占位符解析请求参数 / 体（`flow` / `env` / `asset` / `session` 等）
 - **项目鉴权补头**（Profile 托管头 `{{asset.*}}` / `{{flow.*}}` → 见 [project-summary.md §4](./project-summary.md)）
-- 可选 **执行前快照**（`snapshotBefore`）：写库失败可暂停并还原被测数据（环境允许还原时；详见概念地图 §4.4）
+- 可选 **执行前快照**（`snapshotBefore`，须为 JSON 布尔；仅 `http` / `script` / `assign`）：写库失败可暂停并还原被测数据（环境允许还原时；详见概念地图 §4.4）
+- 可选 **始终执行**（`alwaysRun`，须为 JSON 布尔；仅 `http` / `script` / `assign` / `subflow`）：业务失败后进入「失败后继续」阶段仍执行本节点
 
 节点上托管鉴权头带 `profileManaged`，Run 时按当前项目/接口配置刷新；无该标记的显式头永不被静默改掉。画布可显示节点将使用/产出的凭证路径。
 
@@ -240,7 +241,7 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
 | `latest` | 每次 Run 取子流当前图 |
 | `pinned` | 优先用节点 `pinnedGraphJson` 固化快照 |
 
-节点 `data.alwaysRun=true`（JSON 布尔）时：父图业务失败进入「失败后继续」阶段仍会执行本子流节点，便于整章串多个子流时一次看到后续模块结果。
+节点 `data.alwaysRun=true`（须为 JSON 布尔；字符串 / 数字保存时会校验失败）时：父图业务失败进入「失败后继续」阶段仍会执行本子流节点，便于整章串多个子流时一次看到后续模块结果。
 
 平台提供登录 / OAuth / 验证码等 **子流模板**，可 fork 后改参数。
 

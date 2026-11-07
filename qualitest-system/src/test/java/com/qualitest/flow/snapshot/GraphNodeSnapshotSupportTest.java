@@ -23,18 +23,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GraphNodeSnapshotSupportTest {
 
     /**
-     * 前提：snapshotBefore 为布尔 true 或字符串 "true"；另测 null / 缺省节点。
-     * 期望：true/"true" 为 true；缺省或 null 节点为 false。
+     * 前提：snapshotBefore 为布尔 true、字符串 "true"、缺省或 null 节点。
+     * 期望：仅布尔 true 为开启；字符串与缺省均为 false。
      */
     @Test
     @Order(1)
-    @DisplayName("解析 snapshotBefore 布尔与字符串")
-    void isSnapshotBefore_parsesBooleanAndString() {
+    @DisplayName("解析 snapshotBefore 仅认布尔 true")
+    void isSnapshotBefore_onlyBooleanTrue() {
         GraphNode boolNode = node(Map.of(GraphNodeSnapshotSupport.KEY_SNAPSHOT_BEFORE, true));
         assertTrue(GraphNodeSnapshotSupport.isSnapshotBefore(boolNode));
 
         GraphNode strNode = node(Map.of(GraphNodeSnapshotSupport.KEY_SNAPSHOT_BEFORE, "true"));
-        assertTrue(GraphNodeSnapshotSupport.isSnapshotBefore(strNode));
+        assertFalse(GraphNodeSnapshotSupport.isSnapshotBefore(strNode));
 
         assertFalse(GraphNodeSnapshotSupport.isSnapshotBefore(null));
         assertFalse(GraphNodeSnapshotSupport.isSnapshotBefore(node(Map.of())));

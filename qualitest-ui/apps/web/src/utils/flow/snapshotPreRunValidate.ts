@@ -12,20 +12,20 @@ export interface SnapshotResetEndpointValidation {
   message: string;
 }
 
-/** 运行前校验失败时的用户提示（与后端 TF_SNAPSHOT_ENDPOINT 语义一致） */
+/** 运行前校验失败时的用户提示：有快照节点且环境允许还原，但无法从 envUrl 派生 test-support 根路径 */
 export const SNAPSHOT_RESET_ENDPOINT_ERROR =
   '当前环境已开启数据还原且流程含快照节点，但无法从前置 URL 派生 test-support 端点，请检查环境配置';
 
-/** 解析节点 data.snapshotBefore，与后端 GraphNodeSnapshotSupport 对齐 */
+/**
+ * 判断节点 data 是否开启执行前快照。
+ * 只认 snapshotBefore === true；缺省、false、字符串、数字一律视为未开启。
+ */
 export function isSnapshotBeforeNode(data: Record<string, unknown> | null | undefined): boolean {
   if (!data) return false;
-  const raw = data.snapshotBefore;
-  if (raw === true || raw === 1) return true;
-  if (raw === 'true' || raw === '1') return true;
-  return false;
+  return data.snapshotBefore === true;
 }
 
-/** 图中是否存在开启 snapshotBefore 的节点 */
+/** 图中是否存在任一开启执行前快照的节点 */
 export function hasSnapshotBeforeNodes(graph: Pick<GraphJson, 'nodes'>): boolean {
   const nodes = graph.nodes ?? [];
   return nodes.some((n) => isSnapshotBeforeNode(n.data as Record<string, unknown> | undefined));

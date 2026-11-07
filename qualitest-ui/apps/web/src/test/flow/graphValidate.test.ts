@@ -1,5 +1,6 @@
 /**
- * 测 validateGraphJson / validateStartNodes：流程图 JSON 结构与业务规则校验。
+ * 测 validateGraphJson / validateStartNodes：流程图 JSON 结构与业务规则校验，
+ * 含 alwaysRun / snapshotBefore 须为布尔且只能挂在允许节点类型。
  * 边界：纯函数；manifest 用例来自 @flow-fixtures/graph-validate-cases.json。
  * 单跑：pnpm test graphValidate   （在 qualitest-ui 或 apps/web 下）
  */
@@ -374,6 +375,98 @@ describe('validateGraphJson', () => {
       meta: { scenarios: [{ id: 's1', name: '默认', testProjectEnvId: '', flowSeed: {} }] },
     });
     expect(result.errors.some((e) => e.includes('sourceHandle'))).toBe(true);
+  });
+
+  it('alwaysRun 合法布尔通过，字符串报错', () => {
+    // 前提：外联 HTTP 节点 alwaysRun 为 true / "true"
+    // 期望：布尔通过；字符串报「须为 JSON 布尔」
+    const ok = validateGraphJson({
+      nodes: [
+        {
+          id: '1',
+          type: 'http',
+          position: { x: 0, y: 0 },
+          data: {
+            name: 'h',
+            callMode: 'external',
+            externalUrl: 'https://e.example/a',
+            httpMethod: 'GET',
+            alwaysRun: true,
+          },
+        },
+      ],
+      edges: [],
+      meta: { scenarios: [{ id: 's1', name: '默认' }] },
+    });
+    expect(ok.ok).toBe(true);
+
+    const bad = validateGraphJson({
+      nodes: [
+        {
+          id: '1',
+          type: 'http',
+          position: { x: 0, y: 0 },
+          data: {
+            name: 'h',
+            callMode: 'external',
+            externalUrl: 'https://e.example/a',
+            httpMethod: 'GET',
+            alwaysRun: 'true',
+          },
+        },
+      ],
+      edges: [],
+      meta: { scenarios: [{ id: 's1', name: '默认' }] },
+    });
+    expect(bad.ok).toBe(false);
+    expect(bad.errors.some((e) => e.includes('alwaysRun') && e.includes('须为 JSON 布尔'))).toBe(true);
+  });
+
+  it('alwaysRun / snapshotBefore 挂在非法节点类型报错', () => {
+    // 前提：assert 带 alwaysRun；delay 带 snapshotBefore
+    // 期望：分别报不允许设置
+    const assertBad = validateGraphJson({
+      nodes: [
+        {
+          id: '1',
+          type: 'http',
+          position: { x: 0, y: 0 },
+          data: {
+            name: 'h',
+            callMode: 'external',
+            externalUrl: 'https://e.example/a',
+            httpMethod: 'GET',
+          },
+        },
+        {
+          id: '2',
+          type: 'assert',
+          position: { x: 100, y: 0 },
+          data: {
+            name: 'a',
+            alwaysRun: true,
+            rules: [{ left: 'http.body.code', operator: 'eq', right: '0' }],
+          },
+        },
+      ],
+      edges: [{ id: 'e1', source: '1', target: '2' }],
+      meta: { scenarios: [{ id: 's1', name: '默认' }] },
+    });
+    expect(assertBad.errors.some((e) => e.includes('alwaysRun') && e.includes('不允许设置'))).toBe(true);
+
+    const delayBad = validateGraphJson({
+      nodes: [
+        {
+          id: '1',
+          type: 'delay',
+          position: { x: 0, y: 0 },
+          data: { name: 'd', ms: 10, snapshotBefore: true },
+        },
+      ],
+      edges: [],
+      meta: { scenarios: [{ id: 's1', name: '默认' }] },
+    });
+    expect(delayBad.errors.some((e) => e.includes('snapshotBefore') && e.includes('不允许设置'))).toBe(true);
   });
 });
 

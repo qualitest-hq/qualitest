@@ -13,7 +13,8 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 GraphJsonValidator：开始节点、HTTP 绑定、persistMinimal 与 manifest 夹具。
+ * 测 GraphJsonValidator：开始节点、HTTP 绑定、persistMinimal、manifest 夹具，
+ * 以及 alwaysRun / snapshotBefore 的布尔类型与节点类型白名单。
  * 边界：demo-graph 与 graph-validate-cases；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=GraphJsonValidatorTest
  */
@@ -484,6 +485,116 @@ class GraphJsonValidatorTest {
                 """;
         GraphValidationResult good = validator.validateJson(ok);
         assertTrue(good.getErrors().stream().noneMatch(e -> e.contains("nodes.1")));
+    }
+
+    /**
+     * 前提：HTTP 节点 alwaysRun 为布尔 true / false / 缺省。
+     * 期望：均不因 alwaysRun 报错。
+     */
+    @Test
+    @Order(18)
+    @DisplayName("alwaysRun 合法布尔通过")
+    void alwaysRun_booleanOk() {
+        assertTrue(validator.validateJson(minimalHttpGraph("\"alwaysRun\":true")).isOk());
+        assertTrue(validator.validateJson(minimalHttpGraph("\"alwaysRun\":false")).isOk());
+        assertTrue(validator.validateJson(minimalHttpGraph("")).isOk());
+    }
+
+    /**
+     * 前提：HTTP 节点 alwaysRun 为字符串或数字。
+     * 期望：error 含「须为 JSON 布尔」。
+     */
+    @Test
+    @Order(19)
+    @DisplayName("alwaysRun 字符串或数字报错")
+    void alwaysRun_nonBoolean_producesError() {
+        GraphValidationResult str = validator.validateJson(minimalHttpGraph("\"alwaysRun\":\"true\""));
+        assertFalse(str.isOk());
+        assertTrue(str.getErrors().stream().anyMatch(e -> e.contains("alwaysRun") && e.contains("须为 JSON 布尔")));
+
+        GraphValidationResult num = validator.validateJson(minimalHttpGraph("\"alwaysRun\":1"));
+        assertFalse(num.isOk());
+        assertTrue(num.getErrors().stream().anyMatch(e -> e.contains("alwaysRun") && e.contains("须为 JSON 布尔")));
+    }
+
+    /**
+     * 前提：assert / input 节点带 alwaysRun=true。
+     * 期望：error 含「不允许设置 alwaysRun」。
+     */
+    @Test
+    @Order(20)
+    @DisplayName("alwaysRun 挂在非法节点类型报错")
+    void alwaysRun_disallowedNodeType_producesError() {
+        String assertGraph = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","alwaysRun":true,"rules":[{"left":"http.body.code","operator":"eq","right":"0"}]}}
+                  ],
+                  "edges":[{"id":"e1","source":"1","target":"2"}]
+                }
+                """;
+        GraphValidationResult assertResult = validator.validateJson(assertGraph);
+        assertFalse(assertResult.isOk());
+        assertTrue(assertResult.getErrors().stream()
+                .anyMatch(e -> e.contains("alwaysRun") && e.contains("不允许设置")));
+
+        String inputGraph = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"input","position":{"x":0,"y":0},"data":{"name":"i","alwaysRun":true,"prompt":"填","fields":[{"name":"x","label":"X","type":"text"}]}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult inputResult = validator.validateJson(inputGraph);
+        assertFalse(inputResult.isOk());
+        assertTrue(inputResult.getErrors().stream()
+                .anyMatch(e -> e.contains("alwaysRun") && e.contains("不允许设置")));
+    }
+
+    /**
+     * 前提：HTTP 节点 snapshotBefore 为字符串；delay 带 snapshotBefore=true。
+     * 期望：分别报「须为 JSON 布尔」与「不允许设置」。
+     */
+    @Test
+    @Order(21)
+    @DisplayName("snapshotBefore 非法类型与非法节点报错")
+    void snapshotBefore_typeAndNodeRules() {
+        GraphValidationResult str = validator.validateJson(minimalHttpGraph("\"snapshotBefore\":\"true\""));
+        assertFalse(str.isOk());
+        assertTrue(str.getErrors().stream()
+                .anyMatch(e -> e.contains("snapshotBefore") && e.contains("须为 JSON 布尔")));
+
+        String delayGraph = """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"delay","position":{"x":0,"y":0},"data":{"name":"d","ms":10,"snapshotBefore":true}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult delay = validator.validateJson(delayGraph);
+        assertFalse(delay.isOk());
+        assertTrue(delay.getErrors().stream()
+                .anyMatch(e -> e.contains("snapshotBefore") && e.contains("不允许设置")));
+    }
+
+    /** 单节点外联 HTTP 图；extraData 为 data 内额外 JSON 片段（可空）。 */
+    private static String minimalHttpGraph(String extraData) {
+        String extra = extraData == null || extraData.isBlank() ? "" : "," + extraData;
+        return """
+                {
+                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "nodes": [
+                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"%s}}
+                  ],
+                  "edges":[]
+                }
+                """.formatted(extra);
     }
 
     private static String loadResource(String path) {

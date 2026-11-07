@@ -42,7 +42,8 @@ Common features:
 - Placeholder resolution on params / body (`flow` / `env` / `asset` / `session`, …)
 - **Project auth headers** (Profiles / managed `{{asset.*}}` / `{{flow.*}}` → [project-summary.en.md §4](./project-summary.en.md))
 - Then run `extracts`; asset persistence still only on 2xx. Indefinite paths (filters / `[*]`) that hit **exactly one** value are auto-unboxed to a scalar (same as asserts) so `{{flow.x}}` works in path params; **zero** hits stay `[]`, **multiple** stay a list. Do not append `[n]` after a filter — JsonPath applies the index to each match and often yields `[]`
-- Optional **snapshot before** (`snapshotBefore`) for mutating calls (see concept map §4)
+- Optional **snapshot before** (`snapshotBefore`, JSON boolean only; `http` / `script` / `assign`) for mutating calls (see concept map §4)
+- Optional **always run** (`alwaysRun`, JSON boolean only; `http` / `script` / `assign` / `subflow`): still executes in the post-failure continue phase
 
 Managed auth header rows use `profileManaged` and refresh from current config at Run; unmarked headers are never silently changed. The canvas may show which credential path a node will use or produce.
 
@@ -140,7 +141,7 @@ Collapses another flow in the same project into one step:
 1. Load by `subflowId` (must share `testProjectId`)
 2. Resolve `inputs` placeholders into the child `flow` context
 3. Run the child graph in memory (fail-fast); nesting is capped (parent → child → grandchild, max **2** subflow levels)
-4. On success, merge `outputs` (or child `meta.flowOutputs` same-name defaults) back into the parent `flow`. Parent/child `flow` maps are isolated; share `asset`/`env`/`session`. Node `alwaysRun=true` still runs in the parent’s post-failure continue phase. MCP: `submit_subflow_node` writes `inputs`/`outputs`/`alwaysRun`; declare child exports via `update_flow_meta.flowOutputs`.
+4. On success, merge `outputs` (or child `meta.flowOutputs` same-name defaults) back into the parent `flow`. Parent/child `flow` maps are isolated; share `asset`/`env`/`session`. Node `alwaysRun=true` (JSON boolean required; string/number fail graph validation) still runs in the parent’s post-failure continue phase. MCP: `submit_subflow_node` writes `inputs`/`outputs`/`alwaysRun`; declare child exports via `update_flow_meta.flowOutputs`.
 5. Attach `subflow.childSteps` for Run UI and MCP `get_run_failure`
 
 | versionPolicy | Behavior |

@@ -33,13 +33,19 @@
 </template>
 
 <script setup>
-/** 节点级被测数据 checkpoint 配置：snapshotBefore + snapshotScope */
+/**
+ * 节点属性：执行前打被测数据快照。
+ * 勾选写入 data.snapshotBefore=true（布尔）；取消写入 false。
+ * 首次勾选且尚无 snapshotScope 时补默认 { scope: 'tables', tables: [] }。
+ * 展示态只认布尔 true，字符串或数字不视为已勾选。
+ */
 import { computed, onMounted } from 'vue'
 
 import { useRunConfig } from '../../composables/useRunConfig'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 
 const props = defineProps({
+  /** 当前选中的画布节点 */
   node: { type: Object, required: true },
 })
 
@@ -50,11 +56,10 @@ onMounted(() => {
   loadProjectEnvs()
 })
 
-const snapshotBefore = computed(() => {
-  const raw = props.node?.data?.snapshotBefore
-  return raw === true || raw === 'true' || raw === 1 || raw === '1'
-})
+/** 复选框是否勾选：只认 data.snapshotBefore 为布尔 true */
+const snapshotBefore = computed(() => props.node?.data?.snapshotBefore === true)
 
+/** 快照表范围文本：把 snapshotScope.tables 用逗号拼成输入框内容 */
 const tablesText = computed(() => {
   const scope = props.node?.data?.snapshotScope
   const tables = scope?.tables
@@ -62,6 +67,7 @@ const tablesText = computed(() => {
   return tables.join(', ')
 })
 
+/** 当前场景绑定环境是否允许破坏性还原（allowDestructiveReset===1） */
 const envAllowsReset = computed(() => {
   const sc = getActiveScenario()
   const envId = sc?.testProjectEnvId
@@ -70,6 +76,7 @@ const envAllowsReset = computed(() => {
   return hit?.allowDestructiveReset === 1
 })
 
+/** 勾选/取消快照开关：写入布尔 snapshotBefore；首次勾选补默认表范围 */
 function onSnapshotBeforeChange(e) {
   const checked = e.target.checked
   const patch = { snapshotBefore: checked }

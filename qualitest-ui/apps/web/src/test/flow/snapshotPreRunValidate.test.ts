@@ -1,5 +1,6 @@
 /**
- * 测 snapshotPreRunValidate / resolveResetBaseUrl：快照前置节点重置端点静态校验。
+ * 测 snapshotPreRunValidate / resolveResetBaseUrl：快照前置节点与重置端点静态校验。
+ * 含 isSnapshotBeforeNode 只认布尔 true（字符串 / 数字不算开启）。
  * 边界：纯函数，fixture 图与环境 URL。
  * 单跑：pnpm test snapshotPreRunValidate   （在 qualitest-ui 或 apps/web 下）
  */
@@ -72,13 +73,13 @@ describe('resolveResetBaseUrl', () => {
 });
 
 describe('isSnapshotBeforeNode', () => {
-  it('snapshotBefore 为真值时判定为快照节点', () => {
-    // 前提：snapshotBefore 为 true/'true'/1/'1'
-    // 期望：均判定为快照节点
+  it('仅 snapshotBefore===true 判定为快照节点', () => {
+    // 前提：snapshotBefore 为 true / 'true' / 1 / '1'
+    // 期望：仅布尔 true 为快照节点
     expect(isSnapshotBeforeNode({ snapshotBefore: true })).toBe(true);
-    expect(isSnapshotBeforeNode({ snapshotBefore: 'true' })).toBe(true);
-    expect(isSnapshotBeforeNode({ snapshotBefore: 1 })).toBe(true);
-    expect(isSnapshotBeforeNode({ snapshotBefore: '1' })).toBe(true);
+    expect(isSnapshotBeforeNode({ snapshotBefore: 'true' })).toBe(false);
+    expect(isSnapshotBeforeNode({ snapshotBefore: 1 })).toBe(false);
+    expect(isSnapshotBeforeNode({ snapshotBefore: '1' })).toBe(false);
   });
 
   it('缺省或 false 时不视为快照节点', () => {

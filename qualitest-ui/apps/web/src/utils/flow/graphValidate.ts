@@ -2,6 +2,7 @@
  * 测试流图 JSON 结构校验。
  *
  * 默认检查节点类型、边、开始节点、HTTP/断言等字段，产出 errors / warnings。
+ * 另校验 alwaysRun、snapshotBefore：有值须为 JSON 布尔，且只能挂在允许的节点类型。
  * 可选 persistMinimalOnly：只检查节点 id 与边端点，用于允许半成品落盘。
  * 可选 deferTopologyStructureRules：开始节点问题降为警告。
  */
@@ -20,6 +21,22 @@ import { isKnownInputFieldType, requiresOptions } from './inputFields';
 const ALLOWED_EDGE_KEYS = new Set(['id', 'source', 'target', 'label']);
 
 const ASSIGN_OPS = new Set(['set', 'add', 'sub', 'mul', 'div']);
+
+/**
+ * 允许写出 alwaysRun 的节点 type：http / script / assign / subflow。
+ * 数组顺序用于拼错误文案「仅 a/b/c」。
+ */
+const ALWAYS_RUN_ALLOWED_TYPES = ['http', 'script', 'assign', 'subflow'] as const;
+/** alwaysRun 允许类型的斜杠拼接，写入校验错误 */
+const ALWAYS_RUN_ALLOWED_LABEL = ALWAYS_RUN_ALLOWED_TYPES.join('/');
+
+/**
+ * 允许写出 snapshotBefore 的节点 type：http / script / assign。
+ * 数组顺序用于拼错误文案「仅 a/b/c」。
+ */
+const SNAPSHOT_BEFORE_ALLOWED_TYPES = ['http', 'script', 'assign'] as const;
+/** snapshotBefore 允许类型的斜杠拼接，写入校验错误 */
+const SNAPSHOT_BEFORE_ALLOWED_LABEL = SNAPSHOT_BEFORE_ALLOWED_TYPES.join('/');
 
 /** 图校验结果；ok 为 true 当且仅当 errors 为空 */
 export interface GraphValidationResult {
@@ -574,6 +591,65 @@ function validateNodeFields(
   if (type === 'script') {
     validateScriptNodeFields(p, id, node.data, errors, warnings);
   }
+  // alwaysRun / snapshotBefore：有值须为布尔，且只能挂在允许的节点类型上
+  validateBooleanFlags(p, type, node.data, errors);
+}
+
+/**
+ * 校验节点 data 上的 alwaysRun、snapshotBefore。
+ * 键不存在则跳过；挂错节点类型或值不是布尔时写入 errors。
+ */
+function validateBooleanFlags(
+  p: string,
+  type: string | undefined,
+  data: Record<string, unknown> | null | undefined,
+  errors: string[],
+): void {
+  if (!data || typeof data !== 'object') return;
+  validateOneBooleanFlag(p, type, data, 'alwaysRun', ALWAYS_RUN_ALLOWED_TYPES, ALWAYS_RUN_ALLOWED_LABEL, errors);
+  validateOneBooleanFlag(
+    p,
+    type,
+    data,
+    'snapshotBefore',
+    SNAPSHOT_BEFORE_ALLOWED_TYPES,
+    SNAPSHOT_BEFORE_ALLOWED_LABEL,
+    errors,
+  );
+}
+
+/**
+ * 校验单个布尔开关字段。
+ * 键存在时：节点 type 须在允许列表内，值须为 boolean。
+ */
+function validateOneBooleanFlag(
+  p: string,
+  type: string | undefined,
+  data: Record<string, unknown>,
+  key: string,
+  allowedTypes: readonly string[],
+  allowedLabel: string,
+  errors: string[],
+): void {
+  if (!(key in data)) return;
+  const typeNorm = type != null ? String(type).trim().toLowerCase() : '';
+  const typeLabel = typeNorm || '(空)';
+  if (!allowedTypes.includes(typeNorm)) {
+    errors.push(`${p} 节点类型 ${typeLabel} 不允许设置 ${key}（仅 ${allowedLabel}）`);
+    return;
+  }
+  const value = data[key];
+  if (typeof value !== 'boolean') {
+    errors.push(`${p} ${key} 须为 JSON 布尔（true/false），当前为：${describeFlagValue(value)}`);
+  }
+}
+
+/** 生成布尔开关非法值的中文描述（字符串 / 数字 / 其它） */
+function describeFlagValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return `字符串 "${value}"`;
+  if (typeof value === 'number') return `数字 ${value}`;
+  return typeof value;
 }
 
 function validateConditionBranches(
