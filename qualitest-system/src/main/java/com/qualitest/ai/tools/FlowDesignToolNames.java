@@ -64,6 +64,11 @@ public enum FlowDesignToolNames {
     GET_SCENARIO_DETAIL("get_scenario_detail", true, true),
     /** 读取某次 Run 的失败步骤现场（按失败类别分区） */
     GET_RUN_FAILURE("get_run_failure", true, true),
+    /**
+     * 读取某次 Run 的过程报告（含通过步）。
+     * 未传 nodeId 时返回全流时间线摘要；传入 nodeId 时返回该节点步骤的断言、脚本日志与 HTTP 摘要明细。
+     */
+    GET_RUN_REPORT("get_run_report", true, true),
     /** 检查画布上项目 HTTP 节点的 API 语义健康告警 */
     GET_FLOW_API_HEALTH("get_flow_api_health", true, true),
     /** 列举可引用的子流模板与项目内测试流摘要 */

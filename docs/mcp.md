@@ -88,7 +88,7 @@ Compose 全栈经 Nginx 时，把 `url` 改成浏览器能访问到的 API 根�
 
 ### 3.1 默认只读（始终可用）
 
-MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow` / `get_mcp_guide_version`）。
+MCP 侧默认 **18** 个只读工具（相对 Web AI 面板：多 `list_flows` / `get_flow` / `get_mcp_guide_version`）。
 
 | 工具 | 用途 |
 |:-----|:-----|
@@ -97,7 +97,8 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 | `get_graph_summary` / `get_subflow_detail` | 拓扑摘要、子流结构；`get_subflow_detail` 含完整 `flowOutputs` 与 `suggestedInputs`；`get_graph_summary` 另含 `mermaid`（flowchart 正文，供 Cursor 预览） |
 | `get_flow_meta` | 场景、seed、完整 `flowOutputs`（含 description）等元数据 |
 | `get_node_detail` / `get_edge_detail` / `get_scenario_detail` | 单个节点 / 边 / 场景配置 |
-| `get_run_failure` | 失败 Run 的步骤现场 |
+| `get_run_failure` | 失败 Run 的步骤现场（修失败） |
+| `get_run_report` | Run 过程报告（含通过步）；无 `nodeId` 时间线，有 `nodeId` 直出该步明细 |
 | `get_flow_api_health` | HTTP 节点绑定 / API 语义健康告警 |
 | `search_apis` / `get_api_details` | 查项目接口（详情支持一次传多个 id） |
 | `list_project_envs` | 环境列表 |
@@ -106,7 +107,7 @@ MCP 侧默认 **17** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 | `list_subflow_templates` | 平台子流模板 |
 | `get_mcp_guide_version` | 造流规程合成 `guideVersion`（内容指纹 + 可选 `+autowrite`/`+autorun`/`+importApis`）；与本地 Skill 字符串全等则未过期 |
 
-典型勘察顺序：`list_flows` → 记下 `testFlowId` → `get_graph_summary` / `get_run_failure`。
+典型勘察顺序：`list_flows` → 记下 `testFlowId` → `get_graph_summary` / `get_run_failure`；验通过程用 `get_run_report`。
 
 ### 3.2 Prompts / Resources（规程下发）
 

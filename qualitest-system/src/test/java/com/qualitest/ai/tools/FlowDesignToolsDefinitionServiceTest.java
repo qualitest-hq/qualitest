@@ -259,11 +259,31 @@ class FlowDesignToolsDefinitionServiceTest {
     }
 
     /**
+     * 前提：协议工具列表已加载 get_run_report。
+     * 期望：inputSchema 必填 runId，properties 含可选 nodeId。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("MCP get_run_report 合同必填 runId 且含 nodeId")
+    @SuppressWarnings("unchecked")
+    void loadMcpProtocolTools_getRunReport_requiresRunId() {
+        Map<String, Object> tool = service.loadMcpProtocolTools().stream()
+                .filter(t -> FlowDesignToolNames.GET_RUN_REPORT.getId().equals(String.valueOf(t.get("name"))))
+                .findFirst()
+                .orElseThrow();
+        Map<String, Object> schema = (Map<String, Object>) tool.get("inputSchema");
+        List<String> required = (List<String>) schema.get("required");
+        assertTrue(required.contains("runId"));
+        Map<String, Object> props = (Map<String, Object>) schema.get("properties");
+        assertTrue(props.containsKey("nodeId"));
+    }
+
+    /**
      * 前提：写流与跑流都开。
      * 期望：回合工具表含 submit 与 run_test_flow，不含列流、建流、导入接口、规程版本。
      */
     @Test
-    @Order(10)
+    @Order(11)
     @DisplayName("回合工具表按写流跑流裁剪且不含协议专有工具")
     void loadTurnSessionTools_canvasCatalogWithoutProtocolExtras() {
         Set<String> names = service.loadTurnSessionTools(new McpProjectGates(true, true, true, true)).stream()

@@ -219,7 +219,9 @@ public class TestFlowRunTriggerCore {
         } else if (paused) {
             result.put("hint", "Run 暂停（await-input），全自动应停止，等待用户处理");
         } else if (passed) {
-            result.put("hint", "Run 已通过，全自动结束");
+            // 通过不内嵌步骤明细，提示用过程报告工具按需查看时间线或单节点
+            result.put("hint",
+                    "Run 已通过，全自动结束；核对过程用 get_run_report(runId[, nodeId])，扫全链路可不带 nodeId");
         } else {
             result.put("hint", "Run 已结束，status=" + status);
         }

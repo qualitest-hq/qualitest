@@ -25,7 +25,7 @@ import static com.qualitest.flow.script.ScriptArgs.requireArgs;
  * 注入 API 脚本的 {@code api} 宿主对象（前置/后置脚本共用）。
  * <p>
  * 提供 variables / environment / globals、request（仅前置可写）、response（仅后置可读）、
- * test/expect（仅后置）、sendRequest，以及 Script 节点同名可用的 JSON、Base64、URL、XML、
+ * test/expect（仅后置）、sendRequest、log（写入脚本 logs），以及 Script 节点同名可用的 JSON、Base64、URL、XML、
  * 签名原文、摘要、HMAC、RSA、AES、国密 SM2/SM3/SM4 工具函数。运行在服务端 GraalJS，无 DOM、无浏览器 btoa/atob。
  * 改 request.body 必须整对象重赋；嵌套字段赋值不会回写到真实请求。
  */
@@ -34,7 +34,7 @@ public class ApiScriptHost implements ProxyObject {
     /** api 可见成员：宿主自有对象与方法 + 共用工具函数 */
     private static final Set<String> MEMBERS = Stream.concat(
             Stream.of("variables", "environment", "globals", "request", "response", "info",
-                    "test", "expect", "sendRequest"),
+                    "test", "expect", "sendRequest", "log"),
             ScriptToolMembers.names().stream()
     ).collect(Collectors.toUnmodifiableSet());
 
@@ -70,6 +70,15 @@ public class ApiScriptHost implements ProxyObject {
             case "test" -> (ProxyExecutable) this::runTest;
             case "expect" -> (ProxyExecutable) args -> ExpectAssertionHost.create(args);
             case "sendRequest" -> (ProxyExecutable) this::sendRequest;
+            // api.log(message)：把非空文本追加到当前脚本执行的 logs，写入步骤详情供运行报告展示
+            case "log" -> (ProxyExecutable) args -> {
+                requireArgs(args, 1, "log");
+                String line = args[0].asString();
+                if (line != null && !line.isBlank()) {
+                    context.getLogs().add(line);
+                }
+                return null;
+            };
             // 其余成员按名称取共用工具函数，未注册返回 null
             default -> ScriptToolMembers.get(key);
         };

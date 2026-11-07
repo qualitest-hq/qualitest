@@ -56,6 +56,26 @@ export interface RunStepDetail {
       /** 响应中的错误消息文案 */
       message?: string;
     };
+    /**
+     * HTTP 前置脚本执行结果。
+     * logs 为脚本输出行；tests 为脚本内断言；writes 为变量写入记录。
+     */
+    preScript?: {
+      language?: string;
+      logs?: string[];
+      tests?: Array<{ name?: string; passed?: boolean; message?: string }>;
+      writes?: Array<Record<string, unknown>>;
+    };
+    /**
+     * HTTP 后置脚本执行结果。
+     * 字段含义与 preScript 相同，在收到响应后执行。
+     */
+    postScript?: {
+      language?: string;
+      logs?: string[];
+      tests?: Array<{ name?: string; passed?: boolean; message?: string }>;
+      writes?: Array<Record<string, unknown>>;
+    };
   };
   assert?: {
     rules: Array<Record<string, unknown> & { passed?: boolean }>;

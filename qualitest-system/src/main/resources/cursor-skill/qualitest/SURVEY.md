@@ -6,7 +6,7 @@
 
 1. `list_flows`（可按名称 keyword）→ 记下目标 `testFlowId`。
 2. `get_graph_summary`（或 `get_subflow_detail`）了解节点、主路径、断言位置。
-3. 上次跑挂：`get_run_failure`；接口绑定问题：`get_flow_api_health`。
+3. 上次跑挂：`get_run_failure`；验通过程 / 看某步日志断言：`get_run_report`；接口绑定问题：`get_flow_api_health`。
 4. 查接口：`search_apis` → `get_api_details`；环境 / 素材键 / 鉴权：`list_project_envs` / `list_asset_variables` / `list_project_auth_profiles`。
 
 ## 硬约束

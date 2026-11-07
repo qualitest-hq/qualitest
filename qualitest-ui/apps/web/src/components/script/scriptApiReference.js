@@ -51,6 +51,7 @@ export const SCRIPT_API_GROUPS = [
     title: '辅助请求',
     items: [
       { name: 'sendRequest', sig: 'api.sendRequest({ url, method, headers, body })', desc: '同步辅助 HTTP（如换 token）', access: 'util' },
+      { name: 'log', sig: "api.log('message')", desc: '把一行文本写入当前 HTTP 前置/后置脚本的 logs，进入步骤详情', access: 'util' },
     ],
   },
   // 编码 / 报文 / 加密等共用工具函数

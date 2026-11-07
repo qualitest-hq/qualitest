@@ -2,7 +2,6 @@ package com.qualitest.ai.tools.flow;
 
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
-import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.project.service.ITestFlowRunStepService;
@@ -10,9 +9,9 @@ import com.qualitest.project.service.ITestFlowRunStepService;
 import java.util.Map;
 
 /**
- * MCP 查询失败 Run 现场的门面。
+ * 失败现场工具的 MCP 调用门面。
  * <p>
- * 不会自动带失败 Run id，必须在参数里显式传 runId。
+ * 强制要求参数显式传入 runId，不使用请求上下文中的运行 ID；校验通过后交给 {@link GetRunFailureTool} 组装失败步骤。
  */
 public class McpGetRunFailureTool implements QualitestTool {
 
@@ -20,7 +19,7 @@ public class McpGetRunFailureTool implements QualitestTool {
     private final GetRunFailureTool delegate;
 
     /**
-     * 使用已有查询实现构造
+     * 使用已有失败现场查询实现构造门面。
      *
      * @param delegate 失败现场查询工具
      */
@@ -29,32 +28,36 @@ public class McpGetRunFailureTool implements QualitestTool {
     }
 
     /**
-     * 单测用：按 Run 服务自行组装查询实现
+     * 按 Run 与步骤服务自行组装查询实现（便于单测）。
+     *
+     * @param testFlowRunService     Run 查询服务
+     * @param testFlowRunStepService 步骤查询服务
      */
     public McpGetRunFailureTool(ITestFlowRunService testFlowRunService,
                                 ITestFlowRunStepService testFlowRunStepService) {
         this(new GetRunFailureTool(testFlowRunService, testFlowRunStepService));
     }
 
+    /**
+     * 工具名：get_run_failure。
+     */
     @Override
     public String getName() {
         return FlowDesignToolNames.GET_RUN_FAILURE.getId();
     }
 
     /**
-     * 缺 runId 时返回明确错误；否则交由查询实现执行。
+     * 缺 runId 时返回错误 JSON；否则委托失败现场实现执行。
      *
-     * @param arguments 工具参数
+     * @param arguments 工具参数（须含 runId）
      * @param ctx       请求上下文
-     * @return 回执 JSON
+     * @return 失败现场 JSON 或错误 JSON
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
-        Long runId = FlowDesignToolSupport.longArg(
-                arguments != null ? arguments.get("runId") : null);
-        if (runId == null) {
-            return FlowDesignToolSupport.errorJson(
-                    "缺少 runId：请传入 runId");
+        String missing = RunToolSupport.requireExplicitRunIdOrError(arguments);
+        if (missing != null) {
+            return missing;
         }
         return delegate.execute(arguments, ctx);
     }

@@ -20,6 +20,7 @@ import com.qualitest.ai.tools.flow.GetGraphSummaryTool;
 import com.qualitest.ai.tools.flow.GetMcpGuideVersionTool;
 import com.qualitest.ai.tools.flow.GetNodeDetailTool;
 import com.qualitest.ai.tools.flow.GetRunFailureTool;
+import com.qualitest.ai.tools.flow.GetRunReportTool;
 import com.qualitest.ai.tools.flow.GetScenarioDetailTool;
 import com.qualitest.ai.tools.flow.GetSubflowDetailTool;
 import com.qualitest.ai.tools.flow.ImportApisTool;
@@ -29,6 +30,7 @@ import com.qualitest.ai.tools.flow.ListProjectAuthProfilesTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.ai.tools.flow.ListSubflowTemplatesTool;
 import com.qualitest.ai.tools.flow.McpGetRunFailureTool;
+import com.qualitest.ai.tools.flow.McpGetRunReportTool;
 import com.qualitest.ai.tools.flow.McpRunTestFlowTool;
 import com.qualitest.ai.tools.flow.ReleaseFlowLockTool;
 import com.qualitest.ai.tools.flow.RunTestFlowTool;
@@ -64,7 +66,8 @@ import java.util.stream.Collectors;
  * <p>
  * 构造时注册全部只读工具与改图 submit、素材写入、跑流等，按工具名路由执行。
  * 写工具是否允许调用由 MCP 入口按成员角色权限拦截。
- * 另有一份 MCP 门面表：同名跑流、查失败工具在 mcpMode 下优先走门面实现。
+ * 另有一份 MCP 门面表：同名跑流、查失败现场、查过程报告工具在 mcpMode 下优先走门面实现
+ * （门面强制参数显式传 runId，不回退上下文运行 ID）。
  */
 @Slf4j
 @Component
@@ -89,6 +92,8 @@ public class FlowDesignToolExecutor {
     public static final String GET_EDGE_DETAIL = FlowDesignToolNames.GET_EDGE_DETAIL.getId();
     public static final String GET_SCENARIO_DETAIL = FlowDesignToolNames.GET_SCENARIO_DETAIL.getId();
     public static final String GET_RUN_FAILURE = FlowDesignToolNames.GET_RUN_FAILURE.getId();
+    /** 过程报告工具名（时间线 / 按节点明细） */
+    public static final String GET_RUN_REPORT = FlowDesignToolNames.GET_RUN_REPORT.getId();
     public static final String GET_FLOW_API_HEALTH = FlowDesignToolNames.GET_FLOW_API_HEALTH.getId();
     public static final String LIST_SUBFLOW_TEMPLATES = FlowDesignToolNames.LIST_SUBFLOW_TEMPLATES.getId();
     public static final String GET_SUBFLOW_DETAIL = FlowDesignToolNames.GET_SUBFLOW_DETAIL.getId();
@@ -103,7 +108,7 @@ public class FlowDesignToolExecutor {
     public static final String RELEASE_FLOW_LOCK = FlowDesignToolNames.RELEASE_FLOW_LOCK.getId();
 
     private final Map<String, QualitestTool> tools;
-    /** MCP 门面表：同名工具在 mcpMode 下优先使用（跑流、查失败现场） */
+    /** MCP 门面表：同名工具在 mcpMode 下优先使用（跑流、失败现场、过程报告） */
     private final Map<String, QualitestTool> mcpTools;
 
     /**
@@ -174,8 +179,12 @@ public class FlowDesignToolExecutor {
         map.put(GET_NODE_DETAIL, new GetNodeDetailTool(graphResolver));
         map.put(GET_EDGE_DETAIL, new GetEdgeDetailTool(graphResolver));
         map.put(GET_SCENARIO_DETAIL, new GetScenarioDetailTool(graphResolver));
+        // 失败现场：只返回 failed 步骤
         GetRunFailureTool getRunFailureTool = new GetRunFailureTool(testFlowRunService, testFlowRunStepService);
         map.put(GET_RUN_FAILURE, getRunFailureTool);
+        // 过程报告：时间线或按 nodeId 的步骤明细（含通过步）
+        GetRunReportTool getRunReportTool = new GetRunReportTool(testFlowRunService, testFlowRunStepService);
+        map.put(GET_RUN_REPORT, getRunReportTool);
         map.put(GET_FLOW_API_HEALTH, new GetFlowApiHealthTool(
                 graphResolver,
                 httpNodeApiHealthChecker != null ? httpNodeApiHealthChecker : new HttpNodeApiHealthChecker(),
@@ -192,7 +201,9 @@ public class FlowDesignToolExecutor {
 
         Map<String, QualitestTool> mcpMap = new HashMap<>();
         mcpMap.put(RUN_TEST_FLOW, new McpRunTestFlowTool(runCore));
+        // MCP 门面：强制参数带 runId
         mcpMap.put(GET_RUN_FAILURE, new McpGetRunFailureTool(getRunFailureTool));
+        mcpMap.put(GET_RUN_REPORT, new McpGetRunReportTool(getRunReportTool));
         this.mcpTools = Map.copyOf(mcpMap);
     }
 
@@ -258,7 +269,7 @@ public class FlowDesignToolExecutor {
 
     /**
      * 按名执行工具。
-     * mcpMode 为 true 时，若存在 MCP 门面实现（跑流、查失败）则优先使用，否则用通用注册表。
+     * mcpMode 为 true 时，若存在 MCP 门面实现（跑流、失败现场、过程报告）则优先使用，否则用通用注册表。
      *
      * @param name          工具名
      * @param argumentsJson 参数 JSON

@@ -85,7 +85,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 
 ## 3. Read-only tools (summary)
 
-**17** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow` / `get_mcp_guide_version`).
+**18** read-only tools (vs Web AI panel: adds `list_flows` / `get_flow` / `get_mcp_guide_version`).
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -94,7 +94,8 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `get_graph_summary` / `get_subflow_detail` | Topology / subflow structure; `get_graph_summary` also returns `mermaid` (flowchart body for Cursor preview) |
 | `get_flow_meta` | Scenario, seed, full `flowOutputs` (with description), … |
 | `get_node_detail` / `get_edge_detail` / `get_scenario_detail` | Single node / edge / scenario |
-| `get_run_failure` | Failed Run step context |
+| `get_run_failure` | Failed Run step context (for fixing) |
+| `get_run_report` | Run process report (incl. passed steps); timeline without `nodeId`, step detail with `nodeId` |
 | `get_flow_api_health` | HTTP binding / API semantic warnings |
 | `search_apis` / `get_api_details` | Project APIs (batch detail by id list) |
 | `list_project_envs` | Environments |
@@ -103,7 +104,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `list_subflow_templates` | Platform subflow templates |
 | `get_mcp_guide_version` | Composite `guideVersion` (content fingerprint + optional `+autowrite`/`+autorun`/`+importApis`); exact string match vs local Skill |
 
-Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary` / `get_run_failure`.
+Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary` / `get_run_failure`; use `get_run_report` to inspect passed-run process.
 
 ### Prompts / Resources
 

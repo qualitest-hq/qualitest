@@ -642,13 +642,9 @@ const summaryHtml = computed(() => {
     })
     html += '</ul>'
   }
-  if (step.script?.logs?.length) {
-    html += '<div style="margin-top:8px">脚本输出:</div><ul style="margin:4px 0 0 16px">'
-    step.script.logs.forEach((line) => {
-      html += `<li>${escapeHtml(line)}</li>`
-    })
-    html += '</ul>'
-  }
+  html += renderScriptBlock('脚本输出', step.script)
+  html += renderScriptBlock('前置脚本', step.http?.preScript)
+  html += renderScriptBlock('后置脚本', step.http?.postScript)
   if (step.nodeType === 'runConfig' && step.scenarioLoaded) {
     const sl = step.scenarioLoaded
     html += '<div style="margin-top:8px">场景加载</div><ul style="margin:4px 0 0 16px">'
@@ -682,6 +678,36 @@ const summaryHtml = computed(() => {
   }
   return html
 })
+
+/**
+ * 渲染脚本执行块的日志与断言结果。
+ * 用于 Script 节点，以及 HTTP 步骤的前置/后置脚本（有 logs 或 tests 才输出）。
+ */
+function renderScriptBlock(title, script) {
+  if (!script) return ''
+  const logs = Array.isArray(script.logs) ? script.logs : []
+  const tests = Array.isArray(script.tests) ? script.tests : []
+  if (!logs.length && !tests.length) return ''
+  let html = `<div style="margin-top:8px">${escapeHtml(title)}:</div>`
+  if (logs.length) {
+    html += '<ul style="margin:4px 0 0 16px">'
+    logs.forEach((line) => {
+      html += `<li>${escapeHtml(line)}</li>`
+    })
+    html += '</ul>'
+  }
+  if (tests.length) {
+    html += '<ul style="margin:4px 0 0 16px">'
+    tests.forEach((t) => {
+      const color = t.passed ? '#166534' : '#b91c1c'
+      const label = t.name || 'test'
+      const msg = t.message ? ` · ${escapeHtml(t.message)}` : ''
+      html += `<li style="color:${color}">${escapeHtml(label)}${t.passed === false ? ' 失败' : t.passed ? ' 通过' : ''}${msg}</li>`
+    })
+    html += '</ul>'
+  }
+  return html
+}
 
 function escapeHtml(s) {
   return String(s ?? '')

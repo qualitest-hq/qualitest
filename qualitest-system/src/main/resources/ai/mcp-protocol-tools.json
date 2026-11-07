@@ -339,6 +339,33 @@
   {
     "type": "function",
     "function": {
+      "name": "get_run_report",
+      "description": "获取某次 Run 的过程报告（含通过步）。无 nodeId：全流时间线摘要；有 nodeId：直出该步断言/脚本日志/HTTP 摘要。与 get_run_failure（修失败）互补。须显式传 runId。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "description": "测试流运行记录 id；必填"
+          },
+          "nodeId": {
+            "type": "string",
+            "description": "可选；传入则只返回该节点匹配步的明细（无需先查全流）"
+          },
+          "includeBody": {
+            "type": "boolean",
+            "description": "可选；仅明细模式有效，为 true 时带截断后的请求/响应 body，默认 false"
+          }
+        },
+        "required": [
+          "runId"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "get_flow_api_health",
       "description": "检查当前画布「项目接口」HTTP 节点的 API 语义健康告警（API_MISSING / ORPHAN_PARAM / EXTRACT_PATH_MISSING）。用户提到左上角「API 语义」告警、绑定失效、接口不存在或已删除、修复测试流异常（非 Run 失败）时优先调用；返回 nodeId、绑定 apiId、message，以及节点残留 apiName/apiPath 便于换绑",
       "parameters": {

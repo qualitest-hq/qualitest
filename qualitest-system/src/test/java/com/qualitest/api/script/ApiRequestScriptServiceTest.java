@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -135,11 +136,38 @@ class ApiRequestScriptServiceTest {
     }
 
     /**
+     * 前提：前置脚本调用 api.log('hello')。
+     * 期望：success；result.logs 含 hello。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("前置脚本：api.log 写入 logs")
+    void preScript_apiLog_recordsLogs() {
+        DebugHttpForwardParams params = DebugHttpForwardParams.builder()
+                .method("GET")
+                .url("http://localhost/api")
+                .build();
+        ApiScriptExecutionResult result = service.executePreIfPresent(
+                "api.log('hello');",
+                new HashMap<>(),
+                new HashMap<>(),
+                new HashMap<>(),
+                params
+        );
+        assertTrue(result.isSuccess(), "api.log 不应导致脚本失败");
+        assertTrue(result.getLogs().contains("hello"), "logs 应含 api.log 写入的行");
+        @SuppressWarnings("unchecked")
+        List<String> detailLogs = (List<String>) result.toStepScriptDetails().get("logs");
+        assertNotNull(detailLogs);
+        assertEquals("hello", detailLogs.get(0));
+    }
+
+    /**
      * 前提：脚本为 null/空白。
      * 期望：直接 success，不改动请求快照与 variables。
      */
     @Test
-    @Order(5)
+    @Order(6)
     @DisplayName("空脚本：跳过执行且不改上下文")
     void blankScript_skips() {
         ApiScriptContext context = new ApiScriptContext();

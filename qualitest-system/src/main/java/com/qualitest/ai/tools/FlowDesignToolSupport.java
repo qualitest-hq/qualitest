@@ -41,6 +41,26 @@ public final class FlowDesignToolSupport {
     }
 
     /**
+     * 解析布尔工具参数。
+     * <p>
+     * 接受 Boolean 类型，或字符串 {@code true}/{@code 1}（大小写不敏感）；
+     * null 与其它值均视为 false。
+     *
+     * @param value 原始参数值
+     * @return 解析后的布尔值
+     */
+    public static boolean booleanArg(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        String s = String.valueOf(value).trim();
+        return "true".equalsIgnoreCase(s) || "1".equals(s);
+    }
+
+    /**
      * 解析长整型参数。
      * 支持 Number 或可解析的数字字符串；空串、非法格式返回 null。
      */

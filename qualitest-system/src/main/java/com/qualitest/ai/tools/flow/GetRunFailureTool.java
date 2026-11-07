@@ -4,7 +4,6 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
-import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.project.report.RunFailureCategoryResolver;
@@ -41,32 +40,25 @@ public class GetRunFailureTool implements QualitestTool {
     }
 
     /**
-     * 查询指定失败运行的全部失败步骤现场。
-     * runId 优先取参数；未传时使用请求上下文中的运行 ID。
-     * 两者皆空则返回缺少 runId 的错误。
+     * 查询指定 Run 的全部失败步骤现场。
+     * <p>
+     * 通过 {@link RunToolSupport#loadRun} 解析 runId 并校验归属；
+     * 只收集 status 为 failed 的步骤，按失败类别分区后返回。
      *
      * @param arguments 工具参数
      * @param ctx       请求上下文
-     * @return 失败现场 JSON
+     * @return 失败现场 JSON 或错误 JSON
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
-        Long runId = FlowDesignToolSupport.longArg(arguments.get("runId"));
-        if (runId == null) {
-            runId = ctx.getContextRunId();
+        RunToolSupport.LoadedRun loaded = RunToolSupport.loadRun(
+                arguments, ctx, testFlowRunService,
+                "缺少 runId：请传入 runId，或在带失败 Run 上下文的调用中使用");
+        if (loaded.failed()) {
+            return loaded.errorJson();
         }
-        if (runId == null) {
-            return FlowDesignToolSupport.errorJson(
-                    "缺少 runId：请传入 runId，或在带失败 Run 上下文的调用中使用");
-        }
-        TestFlowRunResult run = testFlowRunService.selectTestFlowRunResult(runId);
-        if (run == null) {
-            return FlowDesignToolSupport.errorJson("Run 不存在");
-        }
-        if (run.getTestFlowId() != null && ctx.getTestFlowId() != null
-                && !run.getTestFlowId().equals(ctx.getTestFlowId())) {
-            return FlowDesignToolSupport.errorJson("Run 不属于当前测试流");
-        }
+        Long runId = loaded.runId();
+        TestFlowRunResult run = loaded.run();
         TestFlowRunStepParams stepParams = TestFlowRunStepParams.builder()
                 .testFlowRunId(runId)
                 .build();

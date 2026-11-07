@@ -159,11 +159,45 @@ class ToolResultByteFitTest {
     }
 
     /**
+     * 前提：timeline 多条通过步，上限偏紧。
+     * 期望：裁剪 steps 后仍至少 1 条，并标 truncated。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("fitRunReport：超限裁剪 steps")
+    void fitRunReport_trimsSteps() {
+        JSONArray steps = new JSONArray();
+        for (int i = 0; i < 20; i++) {
+            JSONObject s = new JSONObject();
+            s.put("stepIndex", i);
+            s.put("nodeId", "n" + i);
+            s.put("nodeType", "http");
+            s.put("nodeName", "节点-" + i);
+            s.put("status", "passed");
+            s.put("durationMs", 10);
+            s.put("summary", "POST http://example/" + "x".repeat(80) + " → 200");
+            steps.add(s);
+        }
+        JSONObject result = new JSONObject();
+        result.put("runId", "1");
+        result.put("status", "passed");
+        result.put("mode", "timeline");
+        result.put("stepCount", 20);
+        result.put("steps", steps);
+
+        String out = ToolResultByteFit.fitRunReport(result, 400);
+        JSONObject parsed = JSON.parseObject(out);
+        assertTrue(parsed.getBooleanValue("truncated"));
+        assertTrue(parsed.getJSONArray("steps").size() >= 1);
+        assertTrue(parsed.getJSONArray("steps").size() < 20);
+    }
+
+    /**
      * 前提：含超长 mermaid + 节点边，上限偏紧。
      * 期望：先去掉 mermaid；仍保留 nodes/edges 键。
      */
     @Test
-    @Order(6)
+    @Order(7)
     @DisplayName("fitGraphTopology：超限先删 mermaid")
     void fitGraphTopology_dropsMermaidFirst() {
         JSONObject result = sampleGraph(2, 20);

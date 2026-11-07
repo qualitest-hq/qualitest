@@ -272,6 +272,112 @@ public final class ToolResultByteFit {
     }
 
     /**
+     * 将过程报告 JSON 压到字节上限以内。
+     * <p>
+     * 先逐条去掉大字段（body、多余 logs/rules），再优先从尾部删除通过步，尽量保留失败步，
+     * 最后截断过长字符串。裁剪后同步更新 stepCount，并标记 truncated。
+     *
+     * @param result   过程报告对象（含 steps 数组）
+     * @param maxBytes 返回 JSON 的 UTF-8 字节上限
+     * @return 裁剪后的 JSON 字符串
+     */
+    public static String fitRunReport(JSONObject result, int maxBytes) {
+        maxBytes = effectiveMax(maxBytes);
+        JSONArray steps = result.getJSONArray("steps");
+        if (steps == null) {
+            return shrinkStringsInPlace(result, maxBytes);
+        }
+        // 先瘦身每条步骤内部的大字段
+        for (int i = 0; i < steps.size() && over(result, maxBytes); i++) {
+            JSONObject step = steps.getJSONObject(i);
+            if (step == null) {
+                continue;
+            }
+            slimReportStep(step);
+        }
+        // 仍超限则删步骤：优先删尾部 passed，至少保留 1 条
+        while (over(result, maxBytes) && steps.size() > 1) {
+            int dropAt = findTailPassedIndex(steps);
+            if (dropAt < 0) {
+                steps.remove(steps.size() - 1);
+            } else {
+                steps.remove(dropAt);
+            }
+            result.put("stepCount", steps.size());
+            markTruncated(result, "结果过大，已裁剪 steps");
+        }
+        return shrinkStringsInPlace(result, maxBytes);
+    }
+
+    /**
+     * 去掉单条报告步骤中的体积字段：summary、HTTP body/headers、过长 logs、多余断言规则、嵌套脚本 tests。
+     */
+    private static void slimReportStep(JSONObject step) {
+        step.remove("summary");
+        JSONObject http = step.getJSONObject("http");
+        if (http != null) {
+            omitHttpBody(http.getJSONObject("request"));
+            omitHttpBody(http.getJSONObject("response"));
+            slimNestedScript(http.getJSONObject("preScript"));
+            slimNestedScript(http.getJSONObject("postScript"));
+        }
+        trimArrayTail(step.getJSONObject("script") != null
+                ? step.getJSONObject("script").getJSONArray("logs") : null, 3);
+        JSONObject assertObj = step.getJSONObject("assert");
+        if (assertObj != null) {
+            trimArrayTail(assertObj.getJSONArray("rules"), 3);
+        }
+    }
+
+    /**
+     * 去掉 HTTP 请求或响应中的 body 与 headers，并标记 bodyOmitted。
+     */
+    private static void omitHttpBody(JSONObject part) {
+        if (part == null) {
+            return;
+        }
+        part.remove("body");
+        part.remove("headers");
+        part.put("bodyOmitted", true);
+    }
+
+    /**
+     * 压缩嵌套脚本块：日志最多留 2 行，去掉 tests。
+     */
+    private static void slimNestedScript(JSONObject script) {
+        if (script == null) {
+            return;
+        }
+        trimArrayTail(script.getJSONArray("logs"), 2);
+        script.remove("tests");
+    }
+
+    /**
+     * 从数组尾部删除元素，直到条数不超过 keep。
+     *
+     * @param arr  可变数组，可为 null
+     * @param keep 保留上限
+     */
+    private static void trimArrayTail(JSONArray arr, int keep) {
+        while (arr != null && arr.size() > keep) {
+            arr.remove(arr.size() - 1);
+        }
+    }
+
+    /**
+     * 从数组尾部向前查找第一条 status 为 passed 的步骤下标；没有则返回 -1。
+     */
+    private static int findTailPassedIndex(JSONArray steps) {
+        for (int i = steps.size() - 1; i >= 0; i--) {
+            JSONObject step = steps.getJSONObject(i);
+            if (step != null && "passed".equals(step.getString("status"))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
      * 适配运行失败现场：去掉与 failures 重复的分区数组，压缩每条 stepDetails/childSteps，
      * 再从尾部减 failures；仍超限去掉顶层展开的 stepDetails/nodeName。
      */

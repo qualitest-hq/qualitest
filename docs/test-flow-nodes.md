@@ -88,6 +88,7 @@
 | `api.base64Encode` / `base64Decode` | Base64（不要用 `btoa`） |
 | `api.jsonParse` / `jsonStringify` | JSON |
 | `api.sendRequest({ url, method, headers, body })` | 同步辅助请求 |
+| `api.log(message)` | 写入步骤 `http.preScript` / `http.postScript` 的 logs（HTTP 脚本用此；Script 节点用 `ctx.log`） |
 | 编码 / 报文 / 加密工具 | 与 Script 节点 `ctx` 同名，见下文「脚本工具函数」 |
 | `api.test(name, fn)` / `api.expect(x).to.equal(y)` | **仅后置**断言 |
 
@@ -195,7 +196,7 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 | `source` | 脚本正文 |
 | `timeoutMs` | 超时（有上下限归一化） |
 
-在 GraalVM 沙箱中执行：可读写 `flow`、`session`；可读 `env` / `asset`；可选受控 `ctx.http`。`ctx.setFlow` 合并进当前 Run。失败时步骤带脚本错误码与消息。
+在 GraalVM 沙箱中执行：可读写 `flow`、`session`；可读 `env` / `asset`；可选受控 `ctx.http`；`ctx.log` 写入步骤 `script.logs`。`ctx.setFlow` 合并进当前 Run。失败时步骤带脚本错误码与消息。
 
 适合项目特有签名、字段拼装等「画布节点不够用」的逻辑；能用 HTTP / Assign / Assert 表达的优先用声明式节点。
 
