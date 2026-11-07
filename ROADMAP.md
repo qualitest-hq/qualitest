@@ -33,9 +33,7 @@ flowchart LR
 
 ## 📋 Next
 
-| ID | 任务 | 产出 |
-| -- | ---- | ---- |
-| 2.1 | 演示动图（可选） | README + 落地页已插 `debug-200` / `canvas-glance` / `ai-diff` / `mcp-write` / `mcp-run` |
+（暂无）
 
 ---
 
@@ -69,6 +67,7 @@ flowchart LR
 | 3.13 | 测试流步数上限与写锁 | 场景可配 `maxSteps`（默认 200 / 封顶 1000），超限合成失败步并展示 Run 级错误；MCP/Web AI 端锁 + 行锁内增量写图，`release_flow_lock` 显式释锁 |
 | 3.14 | 失败后继续（alwaysRun） | 节点 `data.alwaysRun`（http/script/assign/subflow 属性开关）；业务失败且非 prompt 暂停后沿边继续：未标记 → `bypassed`，alwaysRun 成功 → `continued`、失败 → `continued_failed`（不盖首错、不中断后续）；未求值 condition → `bypassed` 后扇出、汇合去重；画布/时间线/HTML 报告有对应态 |
 | 3.15 | `alwaysRun` 与节点布尔字段图校验 | 保存 / Staging：`alwaysRun`、`snapshotBefore` 须为 JSON 布尔；`alwaysRun` 仅 http/script/assign/subflow，`snapshotBefore` 仅 http/script/assign；非法类型或挂错节点 → error。运行时与面板只认布尔 true；AI 写图对允许类型常见脏值收成布尔 |
+| 2.1 | 演示动图 | README + 落地页已插 `debug-200` / `canvas-glance` / `ai-diff` / `mcp-write` / `mcp-run` |
 
 ---
 
