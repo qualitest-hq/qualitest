@@ -7,22 +7,24 @@ import com.qualitest.project.result.ResumeRunResult;
 import com.qualitest.project.result.TestFlowRunDetailResult;
 import com.qualitest.project.result.TestFlowRunResult;
 import com.qualitest.project.result.TriggerTestFlowRunBatchResult;
+import com.qualitest.project.result.TriggerTestFlowRunOutcome;
 
 /**
- * 测试流 Run 执行与报告查询。
+ * 测试流 Run 触发、续跑与报告查询。
+ * <p>
+ * 项目运行中心（活动列表、取消排队、等待排队开跑）由 {@link IProjectRunHubService} 承担，不在本接口。
  */
 public interface ITestFlowExecutionService {
 
     /**
-     * 触发一次 Run。
+     * 触发一次正式 Run。
      * <p>
-     * 成员与图就绪校验通过后，写入 status=running 的运行记录，并立刻返回 runId；
-     * 图遍历在后台线程继续。每完成一个可展示步骤即写入步骤表，执行中可查详情看进度。
+     * 成员与图就绪校验通过后：
+     * 并行模式，或按环境串行且环境空闲 → 占槽、写入 running、后台开跑，回执 state=started 且带 runId；
+     * 按环境串行且环境占用中 → 入 Redis 排队（不写 Run 行），回执 state=queued 且带 queueItemId。
      * 校验失败时不建记录、直接抛错。
-     *
-     * @return 新建的 testFlowRunId（返回时通常仍为 running）
      */
-    Long triggerRun(TriggerTestFlowRunParams params);
+    TriggerTestFlowRunOutcome triggerRun(TriggerTestFlowRunParams params);
 
     /**
      * 按队列串行触发多条 Run：每条 trigger 后等待离开 running，再处理下一项。

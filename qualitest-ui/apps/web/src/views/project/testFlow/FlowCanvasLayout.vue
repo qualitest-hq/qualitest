@@ -55,6 +55,13 @@
         </button>
       </div>
       <div class="flow-canvas-header__actions">
+        <ProjectRunHubEntry
+            v-if="!isTemplateCanvas && store.testProjectId"
+            :test-project-id="store.testProjectId"
+            variant="icon"
+            button-class="flow-canvas-header__icon-btn"
+            icon-class="flow-canvas-header__header-icon"
+        />
         <button
             v-if="!isTemplateCanvas"
             type="button"
@@ -324,6 +331,7 @@ import { markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, ge
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
+import ProjectRunHubEntry from '@/views/project/testProject/components/ProjectRunHubEntry.vue'
 import ProjectSettingDrawer from '@/views/project/testProject/components/ProjectSettingDrawer.vue'
 import { useProjectSettingDrawer } from '@/views/project/testProject/composables/useProjectSettingDrawer'
 

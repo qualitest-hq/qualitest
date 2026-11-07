@@ -36,6 +36,9 @@
         <el-col v-if="canViewSuite" :span="1.5">
           <el-button icon="Collection" plain @click="goSuites">测试套件</el-button>
         </el-col>
+        <el-col :span="1.5">
+          <ProjectRunHubEntry :test-project-id="testProjectId" variant="toolbar" />
+        </el-col>
         <el-col v-if="canRemoveFlow" :span="1.5">
           <el-button
               v-hasPermi="['project:testProject:remove']"
@@ -206,6 +209,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { addTestFlow, delTestFlow, listTestFlow, updateTestFlow } from '@/api/project/testFlow'
 import { getTestFlowGroupTree } from '@/api/project/testFlowGroup'
+import ProjectRunHubEntry from '@/views/project/testProject/components/ProjectRunHubEntry.vue'
 import ProjectSettingDrawer from '@/views/project/testProject/components/ProjectSettingDrawer.vue'
 import { useProjectCapabilities } from '@/views/project/testProject/composables/useProjectCapabilities'
 import { useProjectSettingDrawer } from '@/views/project/testProject/composables/useProjectSettingDrawer'

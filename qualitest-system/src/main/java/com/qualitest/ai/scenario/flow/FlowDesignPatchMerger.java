@@ -329,8 +329,14 @@ public class FlowDesignPatchMerger {
         }
     }
 
-    /** 深拷贝 graph_json，避免修改调用方持有的基准图 */
-    static GraphJson cloneGraph(GraphJson base) {
+    /**
+     * 深拷贝画布图（节点、边、meta），避免调用方持有的基准图被原地修改。
+     * base 为 null 时返回空节点列表与空边列表的新图。
+     *
+     * @param base 源图，可空
+     * @return 独立副本
+     */
+    public static GraphJson cloneGraph(GraphJson base) {
         if (base == null) {
             return GraphJson.builder().nodes(new ArrayList<>()).edges(new ArrayList<>()).build();
         }

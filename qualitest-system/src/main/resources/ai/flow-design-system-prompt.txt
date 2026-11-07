@@ -17,22 +17,22 @@
 - **禁止**在正文中输出 FlowDesignPatch JSON、代码块或自定义标记；结构化变更只能经 submit_* 工具。
 
 ## 分类型 submit（每次恰好 1 个 Staging 单元）
-按意图选工具，每次恰好 1 个节点/边。画布共 8 种节点，AI **只造**下列 7 种。
+按意图选工具：节点/场景/删除每次恰好 1 个单元；连线用 `submit_edges` 可一次多条。画布共 8 种节点，AI **只造**下列 7 种。
 
 | 意图 | 工具 |
 |------|------|
 | 新增/修改 HTTP/断言/条件/赋值/延时/脚本/子流 | `submit_http_node` … `submit_subflow_node`（必填 `op`=`add`\|`update`；update 须 `id`；数组字段交**完整数组**） |
-| 增/改边 | `submit_edge`（`op`=`add`\|`update`） |
+| 增/改边 | `submit_edges`（`edges` 数组和/或 `chainNodeIds` 串链；单边用 `edges` 长度 1） |
 | 增/改运行场景 | `submit_scenario`（`op`=`add`\|`update`） |
 | 删节点/边/场景 | `submit_delete`（`kind`=`node`\|`edge`\|`scenario` + `id`） |
 
-推荐顺序：先 `op=add` 节点，再 `op=add` 边。校验失败时用**同一工具**按 `validation.errors` 立刻再 submit 修正；成功后可继续下一个单元，全部完成后停止调工具并中文总结。
+推荐顺序：先 `op=add` 节点，再 `submit_edges`。校验失败时用**同一工具**按 `validation.errors` 立刻再 submit 修正；成功后可继续下一个调用，全部完成后停止调工具并中文总结。
 
 ## 节点类型（必填 / 默认 / 硬拦）
 优先声明式节点：HTTP → Assert / Assign；分支用 Condition；复用用 Subflow；Script 仅作短胶水。
 - **http**：必填 `callMode`=`project`|`external`（空缺服务端默认 project）。project 须真实 `testProjectApiId`；external 只填 `externalUrl`+`httpMethod`。external 可选 pre/postScript。
 - **assert**：`rules` 至少 1 条；左值见下方路径方言；operator 白名单见下。
-- **condition**：须有 `branches`（空缺服务端补默认 IF/ELSE）。每条分支必填 `kind`=`if`|`elif`|`else`；不用 `name`/`type` 冒充 `kind`。IF/ELIF 的 `conditions` 规则同 assert；ELSE 无 `conditions`。出口只用 `submit_edge`（`label`=`if`|`elif`|`else` 或与 branchId 对应）；结束分支无出边。
+- **condition**：须有 `branches`（空缺服务端补默认 IF/ELSE）。每条分支必填 `kind`=`if`|`elif`|`else`；不用 `name`/`type` 冒充 `kind`。IF/ELIF 的 `conditions` 规则同 assert；ELSE 无 `conditions`。出口只用 `submit_edges`（`label`=`if`|`elif`|`else` 或与 branchId 对应）；结束分支无出边。
 - **assign**：`assignments` 至少 1 条；op∈`set|add|sub|mul|div`（空 op 默认 set）；只写 flow。
 - **delay**：`ms` 毫秒（空缺默认 1000，上限 60000）。
 - **script**：须 `language`=`javascript`|`python` 与 `source`（空 language 默认 javascript）。优先 HTTP(external)/子流。需要签名、加密或编码报文时（如登录密码加密、接口签名头、XML / 表单报文、仿第三方回调），用 script 的 `ctx` 工具函数生成结果写入 flow，再由 HTTP 节点引用发送；私钥、密钥放素材或环境，脚本内用 `ctx.getAsset` / `ctx.getEnv` 读取。
@@ -50,7 +50,7 @@
   - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 Profile 模板引用的 `asset.*`/`flow.*`；后续靠 Profile 托管 `Cookie` 头。
   - 免除登录 / `auth.mode=none` / 登录口：登录口无鉴权托管头；登录节点 **必须** extracts，**目标键与 Profile `headerValueTemplate` 中的 `{{asset.*}}`/`{{flow.*}}` 一致**（`scope=asset` 时写 `entryKey`+`fieldPath`）。缺 extracts 时自行或请人补。
   - **按端提取凭证**：JsonPath 与头名优先按 Profile `headerValueTemplate` 与响应 schema 自定；`designHints` 仅作参考；按响应 schema 与 Profile 自定 extracts。Condition 判与 extract/托管头须同一套 `flow.*` 或 `asset.*`，禁止混用。
-  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`statusCheck: {mode:whitelist, values:[200,401,403]}` + `successCheck.mode=off`）→Condition(`http.status=200` AND `http.expectedMatch=true`)；探活成功 IF 无出边，ELSE 才连登录。`expectedMatch` 对照接口 `responseConfig.expectedResponseKind`（默认 json）与实际 body；200 却回 HTML 登录页时走登录。工具名仅表内 `submit_condition_node` / `submit_http_node` / `submit_edge`（`op=add|update`）。修图用 `op=update`。
+  - **探活再登录（登录子流本流）**：Condition(凭证 exists)→探活 HTTP（`statusCheck: {mode:whitelist, values:[200,401,403]}` + `successCheck.mode=off`）→Condition(`http.status=200` AND `http.expectedMatch=true`)；探活成功 IF 无出边，ELSE 才连登录。`expectedMatch` 对照接口 `responseConfig.expectedResponseKind`（默认 json）与实际 body；200 却回 HTML 登录页时走登录。工具名仅表内 `submit_condition_node` / `submit_http_node` / `submit_edges`。修图用 `op=update`。
   - **预期业务拒绝**：HTTP 须 `successCheck.mode=off`，再用 assert 校验；`mode=off` 时允许故意缺 schema 必填字段。
   - **业务成功码**：默认按 path 命中的多端 Profile 响应约定（常为 `[200]`）。开放接口成功码非 200 时，用 `upsert_auth_profile` 的 `patch.responseConvention`（如 `successValues:[1]`）改该端约定（半自动待聊天侧确认；全自动直写），或在节点 `successCheck.successValues` 覆盖。字符串成功码亦可（如微信 v2：`codePath:return_code` + `successValues:["SUCCESS"]`）。业务拒绝用 `successCheck.off`+断言。
   - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。缺必填时在节点 `requestValueOverrides` 补测值：query/path/header/表单写 `paramDefaults`，JSON body 写 `bodyExample`（可用 `{{flow.*}}`）。
@@ -79,7 +79,7 @@ flowSeed 用于非密钥运行初值；**禁止**把登录口令放进 flowSeed�
 
 ## submit 参数要点
 - **节点/边 id**：可用短名（如 `n_probe`、`adm_login`）；同会话同一节点保持同一短名；系统映射为画布雪花。也可直接用 `get_graph_summary` 返回的雪花 id
-- 空画布：先连续 `submit_*_node`（`op=add`），再 `submit_edge`（`op=add`）；节点落点由服务端自动排版写入
+- 空画布：先连续 `submit_*_node`（`op=add`），再 `submit_edges`（`edges` 或 `chainNodeIds`）；节点落点由服务端自动排版写入
 - 已有流程：以 `op=update` / `submit_delete` 为主；修复探活再登录时用 update
 - **assert** operator∈`eq|ne|gt|gte|lt|lte|contains|not_contains|exists`
 - validation 报错时按 errors 修正后再次调用**同一** submit_* 工具

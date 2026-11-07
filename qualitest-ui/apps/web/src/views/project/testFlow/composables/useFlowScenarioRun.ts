@@ -1,6 +1,6 @@
 /**
  * 场景运行：脏图可先保存 → 就绪检查 → POST 触发。
- * 拿到 runId 后交给 followRun，与外部开跑共用同一套跟随。
+ * 触发回执若为 queued，则先等待排队开跑拿到 runId，再交给 followRun 跟随。
  */
 import { computed } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -19,6 +19,7 @@ import { endRunReplay } from './usePlayback';
 import { useFlowGraph } from './useFlowGraph';
 import { useFlowSimulate } from './useFlowSimulate';
 import { useRunConfig } from './useRunConfig';
+import { resolveRunIdAfterTrigger } from './waitQueuedRun';
 
 export function useFlowScenarioRun() {
   const store = useFlowCanvasStore();
@@ -91,9 +92,13 @@ export function useFlowScenarioRun() {
 
       if (runLib.scenarioRunLive?.abort) return null;
 
-      const runId = String(triggerRes?.data ?? '').trim();
-      if (!runId || runId === 'null' || runId === 'undefined') {
-        ElMessage.error('触发运行失败：未返回 runId');
+      const { runId, outcome } = await resolveRunIdAfterTrigger(triggerRes?.data, {
+        testProjectId: store.testProjectId,
+        shouldAbort: () => !!runLib.scenarioRunLive?.abort,
+        onQueued: (o) => ElMessage.info(o.message || '环境有任务在跑，已排队等待…'),
+      });
+      if (!runId) {
+        ElMessage.error(outcome.message || '触发运行失败：未返回 runId');
         return null;
       }
 

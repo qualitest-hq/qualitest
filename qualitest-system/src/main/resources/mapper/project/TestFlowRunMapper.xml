@@ -461,4 +461,37 @@
             #{testFlowRunId}
         </foreach>
     </update>
+
+    <!-- 项目运行中心「最近记录」：正式 test_flow_run，按开始时间倒序 -->
+    <select id="selectRecentHubItemsByProjectId" resultType="com.qualitest.project.result.ProjectRunHubItemResult">
+        select concat('run:', tfr.test_flow_run_id) as itemId,
+               tfr.status                         as status,
+               case
+                   when tfr.trigger_type like '%suite%' then 'suite'
+                   when tfr.trigger_type = 'ai' then 'ai'
+                   when tfr.trigger_type like '%mcp%' then 'mcp'
+                   else ifnull(tfr.trigger_type, 'manual')
+                   end                            as source,
+               'flow'                             as kind,
+               tf.test_project_id                 as testProjectId,
+               tfr.test_project_env_id            as testProjectEnvId,
+               tpe.env_name                       as envName,
+               tfr.test_flow_id                   as testFlowId,
+               tf.flow_name                       as flowName,
+               tfr.test_flow_run_id               as testFlowRunId,
+               tfr.run_scenario_id                as runScenarioId,
+               tfr.trigger_type                   as triggerType,
+               tfr.started_at                     as startedAt,
+               tfr.finished_at                    as finishedAt,
+               tfr.duration_ms                    as durationMs,
+               ifnull(tf.flow_name, concat('流#', tfr.test_flow_id)) as title
+        from test_flow_run tfr
+                 inner join test_flow tf on tf.test_flow_id = tfr.test_flow_id and tf.del_status = 0
+                 left join test_project_env tpe
+                           on tpe.test_project_env_id = tfr.test_project_env_id and tpe.del_status = 0
+        where tfr.del_status = 0
+          and tf.test_project_id = #{testProjectId}
+        order by tfr.started_at desc, tfr.test_flow_run_id desc
+        limit #{limit}
+    </select>
 </mapper>

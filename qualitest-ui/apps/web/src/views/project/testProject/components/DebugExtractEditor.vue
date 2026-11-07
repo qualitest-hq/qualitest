@@ -40,11 +40,18 @@
         <template v-else>
           <el-input v-model="row.entryKey" clearable placeholder="素材 key"/>
           <el-input v-model="row.fieldPath" clearable placeholder="字段路径"/>
+          <el-checkbox
+              v-model="row.persist"
+              :true-value="true"
+              :false-value="false"
+              class="debug-extract-persist"
+          >回写项目素材</el-checkbox>
         </template>
       </div>
     </div>
     <p class="debug-extract-hint">
       flow → {{flowHint}} · env/asset 写入后可用 {{scopeHint}}
+      · asset 可关「回写项目素材」仅本 Run 生效
       · body 表达式用 JsonPath（如 $.data.items[0].id）
       <template v-if="!hasTrialBody"> · 选中一次含 HTTP 响应的 Run 后可试算</template>
     </p>
@@ -55,6 +62,7 @@
 /**
  * HTTP 节点 extracts[] 列表编辑器。
  * from=body 时可对 expr（须以 $ 开头的 JsonPath）对着 trialBody 试算。
+ * scope=asset 时提供「回写项目素材」开关（persist）：关闭后只改本次 Run 内存，不写项目库。
  */
 import { computed } from 'vue'
 import { EXTRACT_FROM_OPTIONS, EXTRACT_SCOPES, emptyExtractTarget } from '@/utils/flow/extract'
@@ -92,9 +100,13 @@ function trialPreview(expr) {
   return previewExtractExpr(props.trialBody, expr)
 }
 
+/** 切到 asset 时补默认 persist=true（回写项目素材） */
 function onScopeChange(row) {
   if (row.scope === 'asset') {
     row.name = row.name || ''
+    if (row.persist === undefined) {
+      row.persist = true
+    }
   }
 }
 

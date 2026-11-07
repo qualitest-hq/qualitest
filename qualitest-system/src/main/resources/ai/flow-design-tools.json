@@ -766,7 +766,7 @@
     "type": "function",
     "function": {
       "name": "submit_condition_node",
-      "description": "新增或修改单个条件分支节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。禁止在 branches 上写 target；出口用 submit_edge 连接，label 用 if|elif|else 或 out-<branchId>/branchId。if/elif 须带 conditions。",
+      "description": "新增或修改单个条件分支节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。禁止在 branches 上写 target；出口用 submit_edges 连接，label 用 if|elif|else 或 out-<branchId>/branchId。if/elif 须带 conditions。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -848,7 +848,7 @@
                   }
                 },
                 "minItems": 1,
-                "description": "分支列表；勿写 target。kind=if/elif 须 conditions；else 无条件。出口靠 submit_edge。"
+                "description": "分支列表；勿写 target。kind=if/elif 须 conditions；else 无条件。出口靠 submit_edges。"
               },
               "summary": {
                 "type": "string"
@@ -1160,42 +1160,61 @@
   {
     "type": "function",
     "function": {
-      "name": "submit_edge",
-      "description": "新增或修改单条边（恰好 1 个 Staging 单元）。必填 op=add|update；add 必须同时传 source 与 target；update 须 id（改端点时一并传 source/target）。条件出口 label 用 if|elif|else 或 branchId/out-<branchId>。",
+      "name": "submit_edges",
+      "description": "新增或修改一条或多条边（可一次多条 Staging 单元）。传 edges 数组，和/或 chainNodeIds 按节点序串成链；至少提供一种。单边用 edges 长度 1。add 须 source+target；update 须 id。条件出口 label 用 if|elif|else 或 branchId/out-<branchId>。全部校验通过后进入本轮累积；任一条失败则整批不接受。",
       "parameters": {
         "type": "object",
         "properties": {
-          "op": {
-            "type": "string",
-            "enum": [
-              "add",
-              "update"
-            ],
-            "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
+          "edges": {
+            "type": "array",
+            "description": "边列表；可与 chainNodeIds 同用",
+            "items": {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "add",
+                    "update"
+                  ],
+                  "description": "add=新增；update=修改已有（须带 id）"
+                },
+                "id": {
+                  "type": "string",
+                  "description": "边 id；update 必填"
+                },
+                "source": {
+                  "type": "string",
+                  "description": "起点节点 id；op=add 必填"
+                },
+                "target": {
+                  "type": "string",
+                  "description": "终点节点 id；op=add 必填"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "条件出口可用 if|elif|else 或 branchId"
+                },
+                "summary": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op"
+              ]
+            }
           },
-          "id": {
-            "type": "string",
-            "description": "边 id；update 必填"
-          },
-          "source": {
-            "type": "string",
-            "description": "起点节点 id；op=add 必填"
-          },
-          "target": {
-            "type": "string",
-            "description": "终点节点 id；op=add 必填"
-          },
-          "label": {
-            "type": "string",
-            "description": "条件出口可用 if|elif|else 或 branchId"
+          "chainNodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "按序节点 id（≥2）；生成相邻 add 边；与 edges 中已有同 source→target 的项去重"
           },
           "summary": {
             "type": "string"
           }
-        },
-        "required": [
-          "op"
-        ]
+        }
       }
     }
   },

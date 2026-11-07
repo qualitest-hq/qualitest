@@ -17,7 +17,7 @@
 | ------ | ---- | ---- |
 | `flow` | 本条 Run 里产生的变量 | `{{flow.token}}`、`{{flow.orderId}}` |
 | `env` | 当前测试环境 | `{{env.baseUrl}}`（键名以环境配置为准） |
-| `asset` | 项目素材库 | `{{asset.clientAuth.password}}`、`{{asset.cover.storagePath}}` |
+| `asset` | 项目素材库（Run 启动拷入内存；extract `persist:false` / `ctx.setAsset` 只改本 Run） | `{{asset.clientAuth.password}}`、`{{asset.cover.storagePath}}` |
 | `http` | 本上下文**最近一次** HTTP 响应快照 | 多用于断言；中间非 HTTP 节点不覆盖 |
 | `nodes` | 按画布节点 id 引用该节点最近一次 HTTP 快照 | `{{nodes.123.http.body.data.code}}`（断言更常用） |
 

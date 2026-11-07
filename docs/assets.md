@@ -26,7 +26,9 @@
 
 引用：`{{asset.clientAuth.mobile}}`、`{{asset.clientAuth.password}}`。
 
-登录凭证也走素材：内置模板 Apply 时种子 `adminAuth`（`admin` / `admin123`）或 `clientAuth`（`13800000001` / `Test@123456`）；登录流 extract 到 `asset.adminAuth.token` / `asset.clientAuth.token`（或 Session 的 `jsessionId`）；HTTP 成功后落盘，跨 Run 探活可读到。Profile 托管头形如 `Bearer {{asset.adminAuth.token}}`。登录口 `bodyExample` 与预制登录流 body 引用上述占位符。
+登录凭证也走素材：内置模板 Apply 时种子 `adminAuth`（`admin` / `admin123`）或 `clientAuth`（`13800000001` / `Test@123456`）；登录流 extract 到 `asset.adminAuth.token` / `asset.clientAuth.token`（或 Session 的 `jsessionId`）。HTTP `extracts` 的 `scope=asset` 默认 **回写项目库**（跨 Run 探活可读）；设 `persist: false` 则只改本 Run 内存。Script 可用 `ctx.setAsset(entryKey, fieldPath, value)` 写运行级副本（永不落盘）。Profile 托管头形如 `Bearer {{asset.adminAuth.token}}`。
+
+同账号互踢：项目跑流并发默认 **按环境串行**（可在设置改并行）；活动与最近记录见项目 **运行中心**。
 
 ---
 

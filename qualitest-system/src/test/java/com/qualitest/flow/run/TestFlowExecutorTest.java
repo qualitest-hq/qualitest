@@ -102,7 +102,9 @@ class TestFlowExecutorTest {
         }).when(runPersistenceService).updateRun(any());
 
         SnapshotRestoreService snapshotRestoreService = mock(SnapshotRestoreService.class);
-        RunStatusUpdater runStatusUpdater = new RunStatusUpdater(runPersistenceService);
+        RunStatusUpdater runStatusUpdater = new RunStatusUpdater(
+                runPersistenceService,
+                mock(com.qualitest.project.runhub.EnvRunSlotLifecycle.class));
         SnapshotPreExecuteHookFactory hookFactory = new SnapshotPreExecuteHookFactory(
                 snapshotCheckpointService, new StepResultWriter());
         ResumeContinuationPlanner resumePlanner = new ResumeContinuationPlanner(snapshotRestoreService);
@@ -245,7 +247,9 @@ class TestFlowExecutorTest {
         SnapshotCheckpointService snapshotCheckpointService = mock(SnapshotCheckpointService.class);
         when(snapshotCheckpointService.maybeCheckpoint(any(), any(), any(), any(), any())).thenReturn(null);
         SnapshotRestoreService snapshotRestoreService = mock(SnapshotRestoreService.class);
-        RunStatusUpdater runStatusUpdater = new RunStatusUpdater(runPersistenceService);
+        RunStatusUpdater runStatusUpdater = new RunStatusUpdater(
+                runPersistenceService,
+                mock(com.qualitest.project.runhub.EnvRunSlotLifecycle.class));
         SnapshotPreExecuteHookFactory hookFactory = new SnapshotPreExecuteHookFactory(
                 snapshotCheckpointService, new StepResultWriter());
         ResumeContinuationPlanner resumePlanner = new ResumeContinuationPlanner(snapshotRestoreService);

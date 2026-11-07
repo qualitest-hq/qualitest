@@ -1,5 +1,6 @@
 /**
  * 套件串行跑流：建 suite_run → 逐条 trigger → bind/finish 回写。
+ * 单条 trigger 若返回 queued，先等排队绑定 runId 再轮询终态。
  */
 import { reactive, ref } from 'vue'
 
@@ -8,6 +9,7 @@ import {
   triggerTestFlowRun,
   type ApiTestFlowRunDetail,
 } from '@/api/project/testFlowRun'
+import { resolveRunIdAfterTrigger } from './waitQueuedRun'
 import {
   abortTestSuiteRun,
   bindTestSuiteRunItem,
@@ -153,10 +155,13 @@ export function useFlowBatchRun() {
             stoppedEarly = true
             continue
           }
-          const runId = String(triggerRes?.data ?? '').trim()
-          if (!runId || runId === 'null' || runId === 'undefined') {
+          const { runId, outcome } = await resolveRunIdAfterTrigger(triggerRes?.data, {
+            testProjectId,
+            shouldAbort: () => abortRequested,
+          })
+          if (!runId) {
             row.status = 'error'
-            row.errorMessage = '触发运行失败：未返回 runId'
+            row.errorMessage = outcome.message || '触发运行失败：未返回 runId'
             await persistFinish(row)
             if (stopOnNonPass) stoppedEarly = true
             continue

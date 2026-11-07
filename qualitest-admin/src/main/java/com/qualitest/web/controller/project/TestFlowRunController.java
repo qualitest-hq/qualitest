@@ -32,6 +32,7 @@ import com.qualitest.project.result.ResumeRunResult;
 import com.qualitest.project.result.TestFlowRunDetailResult;
 import com.qualitest.project.result.TestFlowRunResult;
 import com.qualitest.project.result.TriggerTestFlowRunBatchResult;
+import com.qualitest.project.result.TriggerTestFlowRunOutcome;
 import com.qualitest.project.service.ITestFlowExecutionService;
 import com.qualitest.project.service.ITestFlowRunReportService;
 import com.qualitest.project.service.ITestFlowRunService;
@@ -44,7 +45,8 @@ import com.qualitest.common.core.page.TableDataInfo;
 /**
  * 测试流运行 HTTP 接口。
  * <p>
- * trigger：校验通过后写 running 记录并立刻返回 runId，图在后台执行；
+ * trigger：校验通过后，环境空闲则写 running 并返回 started（含 runId），图在后台执行；
+ * 项目按环境串行且环境占用中则返回 queued（含 queueItemId，尚无 runId）。
  * getInfo：查 Run 头、步骤与图快照，执行中也可轮询。
  */
 @RestController
@@ -116,14 +118,15 @@ public class TestFlowRunController extends BaseController {
 
     /**
      * 触发测试流 Run。
-     * 校验图与就绪条件 → 写入 running 记录 → 立刻返回 runId；图在后台异步执行，每步完成即落库。
+     * 触发一次正式 Run。
+     * 校验图与就绪条件后：能立刻开跑则 state=started 且带 runId；
+     * 按环境串行且占用中则 state=queued 且带 queueItemId，客户端应轮询排队绑定或打开运行中心。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试流运行", businessType = BusinessType.OTHER)
     @PostMapping("/trigger")
-    public R<String> trigger(@RequestBody TriggerTestFlowRunParams params) {
-        Long runId = testFlowExecutionService.triggerRun(params);
-        return ok(runId != null ? String.valueOf(runId) : null);
+    public R<TriggerTestFlowRunOutcome> trigger(@RequestBody TriggerTestFlowRunParams params) {
+        return ok(testFlowExecutionService.triggerRun(params));
     }
 
     /**

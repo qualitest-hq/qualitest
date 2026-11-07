@@ -6,7 +6,6 @@ import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
-import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphRunScenario;
 
@@ -17,11 +16,10 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Web 造流助手的画布单元提交工具。
+ * 画布单单元 submit_* 工具：节点新增/修改、场景新增/修改、统一删除。
  * <p>
- * 模型每次调用只改一类对象：某型节点 upsert、边 upsert、场景 upsert、或统一删除。
- * 把工具参数拼成只含一个 Staging 单元的增量 patch，再交给共用提交流程做校验与本轮累积。
- * 不直接写业务库；成功单元进入本轮累积 patch，用户在面板确认后才持久化。
+ * 每次调用只产生一个 Staging 单元。参数经 patchBuilder 拼成增量后交给提交流程校验并写入本轮 Capture；
+ * 不在本类内写测试流业务库。一次提交多条边不走本工具。
  */
 public class SubmitFlowDesignUnitTool implements QualitestTool {
 
@@ -32,6 +30,11 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
     /** 单单元规范化、Capture 写入、推进内存工作图 */
     private final FlowDesignUnitSubmitSupport support;
 
+    /**
+     * @param name         工具名
+     * @param patchBuilder 参数→单单元 patch
+     * @param support      提交流程
+     */
     public SubmitFlowDesignUnitTool(String name,
                                     Function<Map<String, Object>, FlowDesignPatch> patchBuilder,
                                     FlowDesignUnitSubmitSupport support) {
@@ -40,6 +43,7 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
         this.support = support;
     }
 
+    /** @return 注册时的工具名 */
     @Override
     public String getName() {
         return name;
@@ -76,18 +80,6 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
             return addNode(type, args);
         }
         return updateNode(type, args);
-    }
-
-    /**
-     * 按 op 新增或修改边。
-     * op=add 必须带 source、target；op=update 必须带 id。
-     */
-    public static FlowDesignPatch upsertEdge(Map<String, Object> args) {
-        String op = requireOp(args);
-        if ("add".equals(op)) {
-            return addEdge(args);
-        }
-        return updateEdge(args);
     }
 
     /**
@@ -131,22 +123,6 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
     private static FlowDesignPatch updateNode(String type, Map<String, Object> args) {
         requireArg(args, "id", "op=update 须提供节点 id");
         return withSummary(args, patch -> patch.getUpdateNodes().add(buildNode(type, args, false)));
-    }
-
-    /** 组装 addEdges 单元素 patch；缺 source/target 则抛错；缺 id 时生成 e_* */
-    private static FlowDesignPatch addEdge(Map<String, Object> args) {
-        String source = FlowDesignToolSupport.stringArg(args.get("source"));
-        String target = FlowDesignToolSupport.stringArg(args.get("target"));
-        if (source.isEmpty() || target.isEmpty()) {
-            throw new IllegalArgumentException("op=add 须提供 source 与 target");
-        }
-        return withSummary(args, patch -> patch.getAddEdges().add(buildEdge(args, true)));
-    }
-
-    /** 组装 updateEdges 单元素 patch；缺 id 则抛错 */
-    private static FlowDesignPatch updateEdge(Map<String, Object> args) {
-        requireArg(args, "id", "op=update 须提供边 id");
-        return withSummary(args, patch -> patch.getUpdateEdges().add(buildEdge(args, false)));
     }
 
     /** 组装 addScenarios 单元素 patch；缺 id 时生成 sc_* */
@@ -217,26 +193,6 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
             throw new IllegalArgumentException("缺少 data");
         }
         return node;
-    }
-
-    /**
-     * 组装边：写入 id、source、target、可选 label。
-     * generateIdIfMissing 为 true 且缺 id 时用 e_纳秒作临时短名。
-     */
-    private static GraphEdge buildEdge(Map<String, Object> args, boolean generateIdIfMissing) {
-        GraphEdge edge = new GraphEdge();
-        String id = FlowDesignToolSupport.stringArg(args.get("id"));
-        if (id.isEmpty() && generateIdIfMissing) {
-            id = "e_" + System.nanoTime();
-        }
-        edge.setId(id);
-        edge.setSource(FlowDesignToolSupport.stringArg(args.get("source")));
-        edge.setTarget(FlowDesignToolSupport.stringArg(args.get("target")));
-        String label = FlowDesignToolSupport.stringArg(args.get("label"));
-        if (!label.isEmpty()) {
-            edge.setLabel(label);
-        }
-        return edge;
     }
 
     /**

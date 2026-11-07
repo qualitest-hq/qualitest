@@ -52,13 +52,15 @@ class RunTestFlowToolTest {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
         ITestFlowRunService runService = mock(ITestFlowRunService.class);
         ITestFlowService flowService = mock(ITestFlowService.class);
-        when(execution.triggerRun(any(TriggerTestFlowRunParams.class))).thenReturn(88L);
+        when(execution.triggerRun(any(TriggerTestFlowRunParams.class)))
+                .thenReturn(com.qualitest.project.result.TriggerTestFlowRunOutcome.started(88L, 1L, 1L));
         TestFlowRunResult run = new TestFlowRunResult();
         run.setStatus(RunStatus.PASSED.getCode());
         when(execution.awaitRunTerminal(eq(88L), anyLong())).thenReturn(run);
 
         RunTestFlowTool tool = new RunTestFlowTool(
-                execution, runService, mock(ITestFlowRunStepService.class),
+                execution, mock(com.qualitest.project.service.IProjectRunHubService.class),
+                runService, mock(ITestFlowRunStepService.class),
                 flowService);
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
@@ -89,7 +91,8 @@ class RunTestFlowToolTest {
     void execute_withoutAutopilot_rejects() {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
         RunTestFlowTool tool = new RunTestFlowTool(
-                execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
+                execution, mock(com.qualitest.project.service.IProjectRunHubService.class),
+                mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
                 mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
@@ -127,7 +130,8 @@ class RunTestFlowToolTest {
                 DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build()));
 
         RunTestFlowTool tool = new RunTestFlowTool(
-                execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
+                execution, mock(com.qualitest.project.service.IProjectRunHubService.class),
+                mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
                 flowService);
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
@@ -157,14 +161,16 @@ class RunTestFlowToolTest {
     @DisplayName("默认场景回退并通知 Run 已触发")
     void execute_defaultScenarioAndNotifyRunStarted() {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
-        when(execution.triggerRun(any(TriggerTestFlowRunParams.class))).thenReturn(99L);
+        when(execution.triggerRun(any(TriggerTestFlowRunParams.class)))
+                .thenReturn(com.qualitest.project.result.TriggerTestFlowRunOutcome.started(99L, 1L, 1L));
         TestFlowRunResult run = new TestFlowRunResult();
         run.setStatus(RunStatus.PASSED.getCode());
         when(execution.awaitRunTerminal(eq(99L), anyLong())).thenReturn(run);
 
         java.util.concurrent.atomic.AtomicLong started = new java.util.concurrent.atomic.AtomicLong();
         RunTestFlowTool tool = new RunTestFlowTool(
-                execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
+                execution, mock(com.qualitest.project.service.IProjectRunHubService.class),
+                mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
                 mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)

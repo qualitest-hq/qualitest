@@ -196,6 +196,23 @@
           :test-project-id="resolveProjectId()"
         />
 
+        <section class="project-setting__card">
+          <header class="project-setting__card-head">
+            <h3 class="project-setting__card-title">跑流并发</h3>
+            <p class="project-setting__card-desc">
+              并行允许多条同时跑；按环境串行时同一环境同时只跑一条，其余进入运行中心排队。
+            </p>
+          </header>
+          <el-segmented
+              v-model="runConcurrencyMode"
+              :disabled="!canEditProject || concurrencySaving"
+              :options="concurrencyOptions"
+              block
+              class="project-setting__segmented"
+              @change="saveConcurrencyMode"
+          />
+        </section>
+
         <section v-if="canUseToken" class="project-setting__card">
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">项目 Token</h3>
@@ -355,8 +372,42 @@ const canUseToken = computed(() => capabilitySet.value.has('token:use'))
 
 const authPreview = computed(() => formatAuthConfigPreview(authForm))
 
+/** 项目跑流并发：serial_by_env 同环境同时只跑一条；parallel 可并行 */
+const runConcurrencyMode = ref('serial_by_env')
+const concurrencySaving = ref(false)
+const concurrencyOptions = [
+  { label: '按环境串行', value: 'serial_by_env' },
+  { label: '并行', value: 'parallel' },
+]
+
 function resolveProjectId() {
   return props.testProjectId || props.settingForm?.testProjectId
+}
+
+/** 保存跑流并发模式到项目字段 runConcurrencyMode */
+function saveConcurrencyMode(mode) {
+  if (!canEditProject.value) {
+    return
+  }
+  const pid = resolveProjectId()
+  if (!pid) {
+    return
+  }
+  const next = mode || runConcurrencyMode.value || 'serial_by_env'
+  concurrencySaving.value = true
+  updateTestProject({ testProjectId: pid, runConcurrencyMode: next })
+    .then((res) => {
+      if (res.code === 200) {
+        runConcurrencyMode.value = next
+        proxy?.$modal?.msgSuccess?.('跑流并发已保存')
+      } else {
+        proxy?.$modal?.msgError?.(res.msg || '保存失败')
+      }
+    })
+    .catch((err) => proxy?.$modal?.msgError?.(err?.message || err?.msg || '保存失败'))
+    .finally(() => {
+      concurrencySaving.value = false
+    })
 }
 
 function syncAuthCollapse() {
@@ -381,9 +432,12 @@ function loadProjectSettings() {
       applyAuthForm(parseAuthConfig(res.data?.authConfig, {
         needsAuthTemplateHint: res.data?.needsAuthTemplateHint,
       }))
+      const mode = res.data?.runConcurrencyMode
+      runConcurrencyMode.value = mode === 'parallel' ? 'parallel' : 'serial_by_env'
     })
     .catch(() => {
       applyAuthForm(emptyAuthForm())
+      runConcurrencyMode.value = 'serial_by_env'
     })
 }
 

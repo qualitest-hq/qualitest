@@ -3,6 +3,7 @@ package com.qualitest.project.service;
 import java.util.List;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.params.TestFlowRunParams;
+import com.qualitest.project.result.ProjectRunHubItemResult;
 import com.qualitest.project.result.TestFlowRunResult;
 
 /**
@@ -114,4 +115,12 @@ public interface ITestFlowRunService {
      * @return 测试流运行
      */
     TestFlowRun selectTestFlowRunOne(TestFlowRunParams params);
+
+    /**
+     * 按项目查询最近正式单流 Run，映射为运行中心历史行（含流名、环境名、状态标题等）。
+     *
+     * @param testProjectId 项目 id
+     * @param limit         最多返回条数
+     */
+    List<ProjectRunHubItemResult> selectRecentHubItemsByProjectId(Long testProjectId, int limit);
 }

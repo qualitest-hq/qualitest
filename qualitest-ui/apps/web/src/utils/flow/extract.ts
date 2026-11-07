@@ -20,6 +20,11 @@ export interface ExtractTarget {
   entryKey?: string;
   /** scope=asset 时写入素材条目内的字段名 */
   fieldPath?: string;
+  /**
+   * 仅 scope=asset 有意义：是否把抽取结果写回项目素材库。
+   * 缺省 true（回写）；false 时只改本次 Run 的内存 asset，不改项目 asset_variables。
+   */
+  persist?: boolean;
 }
 
 /** applyExtracts 返回的已应用项（步骤报告、UI 展示用） */
@@ -47,7 +52,7 @@ export const EXTRACT_FROM_OPTIONS = [
 
 /** 空白提取行模板 */
 export function emptyExtractTarget(): ExtractTarget {
-  return { from: 'body', expr: '', scope: 'flow', name: '', entryKey: '', fieldPath: '' };
+  return { from: 'body', expr: '', scope: 'flow', name: '', entryKey: '', fieldPath: '', persist: true };
 }
 
 /** 补全缺省字段 */

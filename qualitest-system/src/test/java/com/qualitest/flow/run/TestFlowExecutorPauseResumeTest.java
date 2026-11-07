@@ -114,7 +114,9 @@ class TestFlowExecutorPauseResumeTest {
 
         executor = new TestFlowExecutor(
                 registry, new FlowGraphRunner(), runService, runPersistenceService,
-                new RunStatusUpdater(runPersistenceService),
+                new RunStatusUpdater(
+                        runPersistenceService,
+                        mock(com.qualitest.project.runhub.EnvRunSlotLifecycle.class)),
                 new StepResultWriter(),
                 new SnapshotPreExecuteHookFactory(snapshotCheckpointService, new StepResultWriter()),
                 new ResumeContinuationPlanner(snapshotRestoreService));

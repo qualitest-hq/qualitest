@@ -21,7 +21,8 @@ import static com.qualitest.flow.script.ScriptArgs.requireArgs;
 /**
  * 注入 Script 节点脚本的 GraalVM {@code ctx} 宿主对象。
  * <p>
- * <b>变量读写</b>：{@code getFlow}/{@code setFlow}（唯一可写 flow）；{@code getEnv}/{@code getAsset} 只读；
+ * <b>变量读写</b>：{@code getFlow}/{@code setFlow}（可写 flow）；{@code getEnv} 只读；
+ * {@code getAsset}/{@code setAsset}（setAsset 仅写本 Run 内存，不回写项目素材库）；
  * {@code getLastHttp} 读上一步 HTTP 快照（status、headers、body、bodyText、responseKind、durationMs）。
  * <p>
  * <b>工具方法</b>：{@code uuid}、{@code log}，以及接口脚本同名可用的 JSON、Base64、URL、XML、
@@ -37,7 +38,7 @@ public class ScriptHostContext implements ProxyObject {
 
     /** ctx 可见成员：宿主自有方法 + 共用工具函数 */
     private static final Set<String> MEMBERS = Stream.concat(
-            Stream.of("getFlow", "setFlow", "getEnv", "getAsset", "getLastHttp", "log", "uuid", "http", "session"),
+            Stream.of("getFlow", "setFlow", "getEnv", "getAsset", "setAsset", "getLastHttp", "log", "uuid", "http", "session"),
             ScriptToolMembers.names().stream()
     ).collect(Collectors.toUnmodifiableSet());
 
@@ -97,6 +98,14 @@ public class ScriptHostContext implements ProxyObject {
                 String assetKey = args[0].asString();
                 String path = args.length > 1 && !args[1].isNull() ? args[1].asString() : "";
                 return ScriptValueConverter.toScriptValue(resolveAsset(assetKey, path));
+            };
+            case "setAsset" -> (ProxyExecutable) args -> {
+                requireArgs(args, 3, "setAsset");
+                String entryKey = args[0].asString();
+                String fieldPath = args[1].asString();
+                Object converted = ScriptArgs.toJava(args[2]);
+                writeAssetRunLocal(entryKey, fieldPath, converted);
+                return converted;
             };
             // 上一步 HTTP：body 为解析后对象（含 XML 转对象），bodyText 为原文，responseKind 为 json/xml/nonJson
             case "getLastHttp" -> (ProxyExecutable) args -> {
@@ -174,6 +183,59 @@ public class ScriptHostContext implements ProxyObject {
             return root;
         }
         return navigate(root, path.trim());
+    }
+
+    /**
+     * {@code ctx.setAsset(entryKey, fieldPath, value)} 的实现：
+     * 只改本 Run 内存里的 asset 副本，绝不回写项目 {@code asset_variables}。
+     * 若需持久化到项目素材，应使用 HTTP extract 且 persist 不为 false，或走素材管理接口。
+     * fieldPath 支持点分，如 {@code token} 或 {@code nested.token}。
+     */
+    @SuppressWarnings("unchecked")
+    private void writeAssetRunLocal(String entryKey, String fieldPath, Object value) {
+        if (entryKey == null || entryKey.isBlank()) {
+            throw new IllegalArgumentException("setAsset entryKey 不能为空");
+        }
+        if (fieldPath == null || fieldPath.isBlank()) {
+            throw new IllegalArgumentException("setAsset fieldPath 不能为空");
+        }
+        String key = entryKey.trim();
+        Map<String, Object> asset = runContext.getAsset();
+        Object root = asset.get(key);
+        Map<String, Object> entry;
+        if (root instanceof Map<?, ?> map) {
+            entry = new LinkedHashMap<>();
+            map.forEach((k, v) -> entry.put(String.valueOf(k), v));
+        } else {
+            entry = new LinkedHashMap<>();
+        }
+        String[] segments = fieldPath.trim().split("\\.");
+        Map<String, Object> cursor = entry;
+        for (int i = 0; i < segments.length - 1; i++) {
+            String seg = segments[i];
+            if (seg.isEmpty()) {
+                continue;
+            }
+            Object next = cursor.get(seg);
+            Map<String, Object> child;
+            if (next instanceof Map<?, ?> m) {
+                child = new LinkedHashMap<>();
+                m.forEach((k, v) -> child.put(String.valueOf(k), v));
+            } else {
+                child = new LinkedHashMap<>();
+            }
+            cursor.put(seg, child);
+            cursor = child;
+        }
+        String leaf = segments[segments.length - 1];
+        if (!leaf.isEmpty()) {
+            cursor.put(leaf, value);
+        }
+        asset.put(key, entry);
+        Map<String, Object> record = new LinkedHashMap<>();
+        record.put("key", "asset." + key + "." + fieldPath.trim());
+        record.put("value", ScriptValueConverter.toGuest(value));
+        writes.add(record);
     }
 
     private static Object navigate(Object current, String path) {

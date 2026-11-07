@@ -20,6 +20,9 @@
       <el-col v-if="canViewSuiteRun" :span="1.5">
         <el-button icon="Clock" plain @click="openHistory()">运行历史</el-button>
       </el-col>
+      <el-col :span="1.5">
+        <ProjectRunHubEntry :test-project-id="testProjectId" variant="toolbar" />
+      </el-col>
       <el-col :span="6">
         <el-input
             v-model="suiteNameQuery"
@@ -211,6 +214,7 @@ import {
 } from '@/api/project/testSuite'
 import { getTestSuiteRun, listTestSuiteRun } from '@/api/project/testSuiteRun'
 import { runStatusLabel, runStatusTagType } from './constants/runStatus'
+import ProjectRunHubEntry from '@/views/project/testProject/components/ProjectRunHubEntry.vue'
 import FlowBatchRunDialog from './components/FlowBatchRunDialog.vue'
 import SuiteRunResultPanel from './components/SuiteRunResultPanel.vue'
 import { useProjectTabTitle } from './composables/useProjectTabTitle'

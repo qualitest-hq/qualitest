@@ -95,7 +95,9 @@ class TestFlowExecutorResumePathsTest {
 
         executor = new TestFlowExecutor(
                 registry, new FlowGraphRunner(), runService, runPersistenceService,
-                new RunStatusUpdater(runPersistenceService),
+                new RunStatusUpdater(
+                        runPersistenceService,
+                        mock(com.qualitest.project.runhub.EnvRunSlotLifecycle.class)),
                 new StepResultWriter(),
                 new SnapshotPreExecuteHookFactory(snapshotCheckpointService, new StepResultWriter()),
                 new ResumeContinuationPlanner(snapshotRestoreService));
@@ -227,7 +229,9 @@ class TestFlowExecutorResumePathsTest {
                         new AssertNodeHandler()
                 )),
                 new FlowGraphRunner(), runService, runPersistenceService,
-                new RunStatusUpdater(runPersistenceService),
+                new RunStatusUpdater(
+                        runPersistenceService,
+                        mock(com.qualitest.project.runhub.EnvRunSlotLifecycle.class)),
                 new StepResultWriter(),
                 new SnapshotPreExecuteHookFactory(mock(SnapshotCheckpointService.class), new StepResultWriter()),
                 new ResumeContinuationPlanner(realRestore));

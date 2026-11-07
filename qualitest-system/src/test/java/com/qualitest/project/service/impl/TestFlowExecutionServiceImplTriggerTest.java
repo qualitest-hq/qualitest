@@ -78,6 +78,9 @@ class TestFlowExecutionServiceImplTriggerTest {
         flowRunReadinessGate = mock(FlowRunReadinessGate.class);
         when(flowRunReadinessGate.collectBlockingErrors(any(), any())).thenReturn(List.of());
 
+        com.qualitest.project.runhub.EnvRunConcurrencyService concurrency =
+                mock(com.qualitest.project.runhub.EnvRunConcurrencyService.class);
+        when(concurrency.isSerialByEnv(any())).thenReturn(false);
         service = new TestFlowExecutionServiceImpl(
                 testFlowService,
                 testFlowRunService,
@@ -89,7 +92,9 @@ class TestFlowExecutionServiceImplTriggerTest {
                 new StepResultWriter(),
                 flowRunReadinessGate,
                 mock(RunStatusUpdater.class),
-                mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class)
+                mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class),
+                concurrency,
+                mock(com.qualitest.project.service.IProjectRunHubService.class)
         );
 
         LoginUser loginUser = mock(LoginUser.class);
@@ -144,12 +149,14 @@ class TestFlowExecutionServiceImplTriggerTest {
             return ExecutionOutcome.passed(1);
         }).when(testFlowExecutor).execute(anyLong(), any(), any(), any());
 
-        Long runId = service.triggerRun(TriggerTestFlowRunParams.builder()
+        var outcome = service.triggerRun(TriggerTestFlowRunParams.builder()
                 .testFlowId(1L)
                 .triggerType("manual")
                 .build());
 
-        assertNotNull(runId);
+        assertNotNull(outcome);
+        assertNotNull(outcome.getRunId());
+        Long runId = outcome.getRunId();
         assertFalse(finished.get());
         assertTrue(entered.await(2, TimeUnit.SECONDS));
 

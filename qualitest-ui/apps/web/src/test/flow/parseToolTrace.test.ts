@@ -19,7 +19,7 @@ describe('parseToolTraceFromMeta', () => {
         maxSteps: 8,
         truncated: false,
         calls: [
-          { i: 1, name: 'submit_edge', ok: true, ms: 12, args: { label: 'else_cred' } },
+          { i: 1, name: 'submit_edges', ok: true, ms: 12, args: { edges: [{ label: 'else_cred' }] } },
           { i: 2, ok: false },
           { i: 3, name: 'search_apis', ok: false, result: { error: 'x' } },
         ],
@@ -27,7 +27,7 @@ describe('parseToolTraceFromMeta', () => {
     });
     expect(trace?.stepsUsed).toBe(2);
     expect(trace?.calls).toHaveLength(2);
-    expect(trace?.calls?.[0]?.name).toBe('submit_edge');
+    expect(trace?.calls?.[0]?.name).toBe('submit_edges');
     expect(trace?.calls?.[0]?.args).toEqual({ label: 'else_cred' });
     expect(trace?.calls?.[1]?.ok).toBe(false);
   });

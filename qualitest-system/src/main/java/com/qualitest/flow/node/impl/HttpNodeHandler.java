@@ -394,7 +394,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             }
         }
 
-        // 步骤最终通过：执行 extracts，并把配置为 asset 的抽取结果落盘
+        // 步骤最终通过：先把 extracts 写入 Run 内存；再按 persist 决定是否把 asset 回写项目素材库
         JSONArray extractsConfig = toExtractsArray(data.get("extracts"));
         List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, true);
         assetExtractPersistService.persistFromExtractConfig(ctx, extractsConfig, appliedExtracts);

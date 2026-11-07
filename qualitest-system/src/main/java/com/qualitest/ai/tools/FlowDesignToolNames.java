@@ -100,8 +100,11 @@ public enum FlowDesignToolNames {
     SUBMIT_SCRIPT_NODE("submit_script_node", true, false),
     /** 新增或修改单个子流节点 */
     SUBMIT_SUBFLOW_NODE("submit_subflow_node", true, false),
-    /** 新增或修改单条边 */
-    SUBMIT_EDGE("submit_edge", true, false),
+    /**
+     * 新增或修改一条或多条边。
+     * 参数可为 edges 数组，和/或 chainNodeIds 按节点顺序自动生成相邻连线；一次调用可提交多条边。
+     */
+    SUBMIT_EDGES("submit_edges", true, false),
     /** 新增或修改单个运行场景（不切换画布默认场景） */
     SUBMIT_SCENARIO("submit_scenario", true, false),
     /** 删除单个节点、边或运行场景 */

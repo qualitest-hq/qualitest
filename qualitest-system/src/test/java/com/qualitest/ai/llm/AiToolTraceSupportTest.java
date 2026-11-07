@@ -78,7 +78,7 @@ class AiToolTraceSupportTest {
     void recorder_truncatesWhenMaxCallsReached() {
         AiToolTraceSupport.Recorder recorder = new AiToolTraceSupport.Recorder();
         recorder.record("search_apis", "{\"keyword\":\"a\"}", "{\"items\":[]}", 3, 1);
-        recorder.record("submit_edge", "{\"label\":\"else\"}", "{\"error\":\"fail\"}", 5, 1);
+        recorder.record("submit_edges", "{\"edges\":[{\"label\":\"else\"}]}", "{\"error\":\"fail\"}", 5, 1);
 
         JSONObject trace = recorder.build(2, 1);
         assertEquals(2, trace.getIntValue("stepsUsed"));

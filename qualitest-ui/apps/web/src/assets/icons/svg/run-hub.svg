@@ -1,0 +1,10 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- 运行中心：上下通栏 + 中间短条夹三角；条外侧轻微圆角 -->
+  <g fill="currentColor">
+    <rect x="2" y="3" width="20" height="3" rx="1" ry="1"/>
+    <rect x="2" y="10.5" width="4" height="3" rx="1" ry="1"/>
+    <path d="M8 7v10l9-5z"/>
+    <rect x="18" y="10.5" width="4" height="3" rx="1" ry="1"/>
+    <rect x="2" y="18" width="20" height="3" rx="1" ry="1"/>
+  </g>
+</svg>

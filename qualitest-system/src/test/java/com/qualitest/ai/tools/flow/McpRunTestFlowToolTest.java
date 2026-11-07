@@ -42,13 +42,15 @@ class McpRunTestFlowToolTest {
     @DisplayName("带操作者与 testFlowId 可跑流")
     void execute_withOperatorAndFlowId_triggers() {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
-        when(execution.triggerRun(any(TriggerTestFlowRunParams.class))).thenReturn(88L);
+        when(execution.triggerRun(any(TriggerTestFlowRunParams.class)))
+                .thenReturn(com.qualitest.project.result.TriggerTestFlowRunOutcome.started(88L, 1L, 1L));
         TestFlowRunResult run = new TestFlowRunResult();
         run.setStatus(RunStatus.PASSED.getCode());
         when(execution.awaitRunTerminal(eq(88L), anyLong())).thenReturn(run);
 
         McpRunTestFlowTool tool = new McpRunTestFlowTool(
-                execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
+                execution, mock(com.qualitest.project.service.IProjectRunHubService.class),
+                mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
                 mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
@@ -75,7 +77,8 @@ class McpRunTestFlowToolTest {
     void execute_missingOperator_errors() {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
         McpRunTestFlowTool tool = new McpRunTestFlowTool(
-                execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
+                execution, mock(com.qualitest.project.service.IProjectRunHubService.class),
+                mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
                 mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(1L)
@@ -97,7 +100,8 @@ class McpRunTestFlowToolTest {
     void execute_missingTestFlowId_errors() {
         ITestFlowExecutionService execution = mock(ITestFlowExecutionService.class);
         McpRunTestFlowTool tool = new McpRunTestFlowTool(
-                execution, mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
+                execution, mock(com.qualitest.project.service.IProjectRunHubService.class),
+                mock(ITestFlowRunService.class), mock(ITestFlowRunStepService.class),
                 mock(ITestFlowService.class));
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .operatorUserId(7L)

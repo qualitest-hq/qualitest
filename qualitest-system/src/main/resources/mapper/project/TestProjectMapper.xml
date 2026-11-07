@@ -16,6 +16,7 @@
         <result property="mcpAutorunEnabled" column="mcp_autorun_enabled"/>
         <!-- 是否允许 MCP 导入接口（import_apis） -->
         <result property="mcpImportApisEnabled" column="mcp_import_apis_enabled"/>
+        <result property="runConcurrencyMode" column="run_concurrency_mode"/>
         <result property="lastApiSyncTime" column="last_api_sync_time"/>
         <result property="apiCount" column="api_count"/>
         <result property="ownerId" column="owner_id"/>
@@ -25,7 +26,7 @@
     </resultMap>
 
     <sql id="selectTestProjectVo">
-        select test_project_id, project_name, asset_variables, auth_config, mcp_auto_write_enabled, mcp_autorun_enabled, mcp_import_apis_enabled, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
+        select test_project_id, project_name, asset_variables, auth_config, mcp_auto_write_enabled, mcp_autorun_enabled, mcp_import_apis_enabled, run_concurrency_mode, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
         from test_project
     </sql>
 
@@ -37,6 +38,7 @@
                tp.mcp_auto_write_enabled as mcpAutoWriteEnabled,
                tp.mcp_autorun_enabled as mcpAutorunEnabled,
                tp.mcp_import_apis_enabled as mcpImportApisEnabled,
+               tp.run_concurrency_mode as runConcurrencyMode,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
                tp.owner_id           as ownerId,
@@ -95,6 +97,7 @@
                tp.mcp_auto_write_enabled as mcpAutoWriteEnabled,
                tp.mcp_autorun_enabled as mcpAutorunEnabled,
                tp.mcp_import_apis_enabled as mcpImportApisEnabled,
+               tp.run_concurrency_mode as runConcurrencyMode,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
                tp.owner_id           as ownerId,
@@ -130,6 +133,7 @@
                tp.mcp_auto_write_enabled,
                tp.mcp_autorun_enabled,
                tp.mcp_import_apis_enabled,
+               tp.run_concurrency_mode,
                tp.last_api_sync_time,
                tp.api_count,
                tp.owner_id,
@@ -173,6 +177,9 @@
             <if test="mcpImportApisEnabled != null">
                 mcp_import_apis_enabled,
             </if>
+            <if test="runConcurrencyMode != null and runConcurrencyMode != ''">
+                run_concurrency_mode,
+            </if>
             <if test="lastApiSyncTime != null">
                 last_api_sync_time,
             </if>
@@ -213,6 +220,9 @@
             </if>
             <if test="mcpImportApisEnabled != null">
                 #{mcpImportApisEnabled},
+            </if>
+            <if test="runConcurrencyMode != null and runConcurrencyMode != ''">
+                #{runConcurrencyMode},
             </if>
             <if test="lastApiSyncTime != null">
                 #{lastApiSyncTime},
@@ -255,6 +265,9 @@
             </if>
             <if test="mcpImportApisEnabled != null">
                 mcp_import_apis_enabled = #{mcpImportApisEnabled},
+            </if>
+            <if test="runConcurrencyMode != null and runConcurrencyMode != ''">
+                run_concurrency_mode = #{runConcurrencyMode},
             </if>
             <if test="lastApiSyncTime != null">
                 last_api_sync_time = #{lastApiSyncTime},

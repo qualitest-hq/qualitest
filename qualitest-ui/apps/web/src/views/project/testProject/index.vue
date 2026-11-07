@@ -87,7 +87,7 @@
       <el-table-column v-if="columnVisible['ownerId']" key="ownerId" align="center" label="所有者ID" prop="ownerId"/>
       <el-table-column v-if="columnVisible['ownerName']" key="ownerName" align="center" label="所有者"
                        prop="ownerName"/>
-      <el-table-column align="center" class-name="small-padding fixed-width" label="操作" width="360">
+      <el-table-column align="center" class-name="small-padding fixed-width" label="操作" width="430">
         <template #default="scope">
           <el-button class="test-project-op-btn" link type="primary" @click="handleOpenApi(scope.row)">
             <svg-icon icon-class="project-api"/>
@@ -101,6 +101,7 @@
             <svg-icon icon-class="test-suite"/>
             测试套件
           </el-button>
+          <ProjectRunHubEntry :test-project-id="scope.row.testProjectId" />
           <el-button
               v-hasPermi="['project:testProject:query']"
               icon="Setting"
@@ -171,6 +172,7 @@
         @opened="getSettingOnDrawerOpen"
         @refresh-token="handleRefreshToken"
     />
+
   </div>
 </template>
 
@@ -183,6 +185,7 @@ import {
   updateTestProject
 } from "@/api/project/testProject";
 import ProjectSettingDrawer from './components/ProjectSettingDrawer.vue'
+import ProjectRunHubEntry from './components/ProjectRunHubEntry.vue'
 import AuthTemplateCheckboxList from './components/AuthTemplateCheckboxList.vue'
 import { useProjectSettingDrawer } from './composables/useProjectSettingDrawer'
 import { toTemplateIds, useEnabledAuthTemplates } from './composables/useEnabledAuthTemplates'

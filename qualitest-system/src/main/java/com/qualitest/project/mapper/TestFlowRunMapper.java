@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.params.TestFlowRunParams;
+import com.qualitest.project.result.ProjectRunHubItemResult;
 import com.qualitest.project.result.TestFlowRunResult;
 
 /**
@@ -118,4 +119,11 @@ public interface TestFlowRunMapper {
      * @return 结果
      */
     int logicDeleteTestFlowRunByIdList(@Param("list") List<Long> testFlowRunIdList);
+
+    /**
+     * 按项目查最近正式单流 Run（经 test_flow / 环境表关联），
+     * 组装为运行中心「最近记录」行结构。
+     */
+    List<ProjectRunHubItemResult> selectRecentHubItemsByProjectId(
+            @Param("testProjectId") Long testProjectId, @Param("limit") int limit);
 }

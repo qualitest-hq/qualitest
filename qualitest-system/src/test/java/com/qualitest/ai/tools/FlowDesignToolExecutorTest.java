@@ -82,6 +82,7 @@ class FlowDesignToolExecutorTest {
         executor = new FlowDesignToolExecutor(
                 mapper, projectMapper, envService, flowService, runService, runStepService,
                 mock(com.qualitest.project.service.ITestFlowExecutionService.class),
+                mock(com.qualitest.project.service.IProjectRunHubService.class),
                 normalizer,
                 new com.qualitest.ai.scenario.flow.FlowDesignPatchMerger(),
                 mock(com.qualitest.flow.validate.GraphJsonValidator.class),
@@ -870,8 +871,8 @@ class FlowDesignToolExecutorTest {
                 .build();
 
         String json = executor.executeTool(
-                FlowDesignToolNames.SUBMIT_EDGE.getId(),
-                "{\"op\":\"add\",\"source\":\"a\",\"target\":\"b\"}",
+                FlowDesignToolNames.SUBMIT_EDGES.getId(),
+                "{\"edges\":[{\"op\":\"add\",\"source\":\"a\",\"target\":\"b\"}]}",
                 submitCtx);
 
         JSONObject root = JSON.parseObject(json);

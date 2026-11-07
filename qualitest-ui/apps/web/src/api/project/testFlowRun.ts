@@ -159,7 +159,44 @@ export interface TestFlowRunListParams {
   [key: string]: unknown;
 }
 
-/** 触发正式 Run；立刻返回 runId，图在后台执行 */
+/**
+ * 触发跑流回执。
+ * started：已开跑，含 runId；
+ * queued：已入环境排队，含 queueItemId，尚无 runId。
+ */
+export interface TriggerTestFlowRunOutcome {
+  /** started | queued */
+  state?: string;
+  /** 已开跑时的 Run 主键 */
+  runId?: string | number;
+  /** 排队项 id，用于轮询开跑或取消排队 */
+  queueItemId?: string;
+  testProjectId?: string | number;
+  testProjectEnvId?: string | number;
+  /** 提示文案，如排队原因 */
+  message?: string;
+}
+
+/**
+ * 解析 trigger 接口 data。
+ * 对象形态按 TriggerTestFlowRunOutcome 使用；
+ * 若仍是裸 runId 字符串/数字，则视为已开跑（state=started）。
+ */
+export function parseTriggerOutcome(data: unknown): TriggerTestFlowRunOutcome {
+  if (data && typeof data === 'object') {
+    return data as TriggerTestFlowRunOutcome;
+  }
+  if (data != null && String(data).trim() !== '') {
+    return { state: 'started', runId: data as string | number };
+  }
+  return {};
+}
+
+/**
+ * 触发正式 Run。
+ * 环境空闲或项目并行 → started；
+ * 按环境串行且占用中 → queued。
+ */
 export function triggerTestFlowRun(data: TriggerTestFlowRunParams) {
   return request({
     url: '/project/testFlowRun/trigger',

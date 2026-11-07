@@ -64,7 +64,9 @@ class TestFlowExecutionServiceImplTriggerBatchTest {
                 new StepResultWriter(),
                 mock(FlowRunReadinessGate.class),
                 mock(RunStatusUpdater.class),
-                mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class)
+                mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class),
+                mock(com.qualitest.project.runhub.EnvRunConcurrencyService.class),
+                mock(com.qualitest.project.service.IProjectRunHubService.class)
         );
         service = spy(real);
     }
@@ -77,7 +79,7 @@ class TestFlowExecutionServiceImplTriggerBatchTest {
     @Order(1)
     @DisplayName("全部通过时汇总 passedCount=2")
     void triggerBatch_allPassed() {
-        doReturn(11L).doReturn(22L).when(service).triggerRun(any(TriggerTestFlowRunParams.class));
+        doReturn(started(11L)).doReturn(started(22L)).when(service).triggerRun(any(TriggerTestFlowRunParams.class));
         doReturn(passed(11L, "sc-a", 100L))
                 .doReturn(passed(22L, "sc-b", 200L))
                 .when(service).awaitRunTerminal(anyLong(), anyLong());
@@ -110,7 +112,7 @@ class TestFlowExecutionServiceImplTriggerBatchTest {
     @Order(2)
     @DisplayName("非通过即停时后续标记 skipped")
     void triggerBatch_stopsOnFailed() {
-        doReturn(11L).when(service).triggerRun(any(TriggerTestFlowRunParams.class));
+        doReturn(started(11L)).when(service).triggerRun(any(TriggerTestFlowRunParams.class));
         doReturn(TestFlowRunResult.builder()
                 .testFlowRunId(11L)
                 .status(RunStatus.FAILED.getCode())
@@ -139,7 +141,7 @@ class TestFlowExecutionServiceImplTriggerBatchTest {
     @Order(3)
     @DisplayName("同流两场景且继续跑完")
     void triggerBatch_sameFlowTwoScenarios_continue() {
-        doReturn(11L).doReturn(22L).when(service).triggerRun(any(TriggerTestFlowRunParams.class));
+        doReturn(started(11L)).doReturn(started(22L)).when(service).triggerRun(any(TriggerTestFlowRunParams.class));
         doReturn(TestFlowRunResult.builder()
                 .testFlowRunId(11L)
                 .status(RunStatus.FAILED.getCode())
@@ -209,5 +211,9 @@ class TestFlowExecutionServiceImplTriggerBatchTest {
                 .runScenarioId(scenarioId)
                 .durationMs(durationMs)
                 .build();
+    }
+
+    private static com.qualitest.project.result.TriggerTestFlowRunOutcome started(Long runId) {
+        return com.qualitest.project.result.TriggerTestFlowRunOutcome.started(runId, 1L, 1L);
     }
 }

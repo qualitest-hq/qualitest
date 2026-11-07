@@ -35,6 +35,7 @@ import com.qualitest.ai.tools.flow.McpRunTestFlowTool;
 import com.qualitest.ai.tools.flow.ReleaseFlowLockTool;
 import com.qualitest.ai.tools.flow.RunTestFlowTool;
 import com.qualitest.ai.tools.flow.SearchApisTool;
+import com.qualitest.ai.tools.flow.SubmitFlowDesignEdgesTool;
 import com.qualitest.ai.tools.flow.SubmitFlowDesignUnitTool;
 import com.qualitest.ai.tools.flow.TestFlowRunTriggerCore;
 import com.qualitest.ai.tools.flow.UpsertAssetVariablesTool;
@@ -46,6 +47,7 @@ import com.qualitest.flow.sync.FlowEditLeaseService;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
+import com.qualitest.project.service.IProjectRunHubService;
 import com.qualitest.project.service.ITestFlowExecutionService;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.project.service.ITestFlowRunStepService;
@@ -121,6 +123,7 @@ public class FlowDesignToolExecutor {
      * @param testFlowRunService           测试流 Run 服务
      * @param testFlowRunStepService       Run 步骤服务
      * @param testFlowExecutionService     测试流执行服务
+     * @param projectRunHubService         项目运行中心（排队开跑等待）
      * @param flowDesignPatchNormalizer    改图补丁规范化
      * @param flowDesignPatchMerger        改图补丁合并
      * @param graphJsonValidator           画布 JSON 校验
@@ -140,6 +143,7 @@ public class FlowDesignToolExecutor {
                                   ITestFlowRunService testFlowRunService,
                                   ITestFlowRunStepService testFlowRunStepService,
                                   ITestFlowExecutionService testFlowExecutionService,
+                                  IProjectRunHubService projectRunHubService,
                                   FlowDesignPatchNormalizer flowDesignPatchNormalizer,
                                   FlowDesignPatchMerger flowDesignPatchMerger,
                                   GraphJsonValidator graphJsonValidator,
@@ -191,8 +195,8 @@ public class FlowDesignToolExecutor {
                 testProjectApiMapper));
         // 跑流核心只组装一份；通用工具与 MCP 门面各自持有引用
         TestFlowRunTriggerCore runCore = new TestFlowRunTriggerCore(
-                testFlowExecutionService, testFlowRunService, testFlowRunStepService,
-                testFlowService);
+                testFlowExecutionService, projectRunHubService, testFlowRunService,
+                testFlowRunStepService, testFlowService);
         map.put(RUN_TEST_FLOW, new RunTestFlowTool(runCore));
         // 端标识从上下文读取；MCP 入口会在调用前写入 editLeaseEndpoint
         map.put(RELEASE_FLOW_LOCK, new ReleaseFlowLockTool(flowEditLeaseService, null));
@@ -208,9 +212,10 @@ public class FlowDesignToolExecutor {
     }
 
     /**
-     * 注册全部 submit_* 写图工具：
-     * 七种节点与边、场景各用 upsert（参数 op=add|update）；删除统一 submit_delete。
-     * 节点工具把 type 闭包进 builder，参数里写错类型也以注册类型为准。
+     * 注册全部 submit_* 写图工具。
+     * 七种节点与场景：参数 op=add|update，每次一个 Staging 单元，节点 type 在注册时闭包写入。
+     * 边：注册 SubmitFlowDesignEdgesTool，支持一次提交多条边。
+     * 删除：统一 submit_delete。
      */
     private static void registerSubmitUnitTools(Map<String, QualitestTool> map,
                                                 FlowDesignUnitSubmitSupport unitSubmit) {
@@ -228,7 +233,7 @@ public class FlowDesignToolExecutor {
             String type = nt.type();
             putUnit(map, nt.name(), a -> SubmitFlowDesignUnitTool.upsertNode(type, a), unitSubmit);
         }
-        putUnit(map, FlowDesignToolNames.SUBMIT_EDGE, SubmitFlowDesignUnitTool::upsertEdge, unitSubmit);
+        map.put(FlowDesignToolNames.SUBMIT_EDGES.getId(), new SubmitFlowDesignEdgesTool(unitSubmit));
         putUnit(map, FlowDesignToolNames.SUBMIT_SCENARIO, SubmitFlowDesignUnitTool::upsertScenario, unitSubmit);
         putUnit(map, FlowDesignToolNames.SUBMIT_DELETE, SubmitFlowDesignUnitTool::delete, unitSubmit);
     }

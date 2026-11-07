@@ -16,9 +16,11 @@ import com.qualitest.project.enums.TestProjectMemberRole;
 import com.qualitest.project.params.ApplyAuthTemplatesParams;
 import com.qualitest.project.params.SaveAsAuthTemplateParams;
 import com.qualitest.project.params.TestProjectParams;
+import com.qualitest.project.result.ProjectRunHubResult;
 import com.qualitest.project.result.TestProjectResult;
 import com.qualitest.project.result.TestProjectUserContextResult;
 import com.qualitest.project.result.TestProjectUserSettingResult;
+import com.qualitest.project.service.IProjectRunHubService;
 import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.project.service.ITestProjectService;
 import com.qualitest.project.service.ITestProjectUserSettingService;
@@ -49,6 +51,7 @@ public class TestProjectController extends BaseController {
     private final ITestProjectUserSettingService testProjectUserSettingService;
     private final ProjectAuthTemplateApplyService projectAuthTemplateApplyService;
     private final ProjectTemplateFromProjectService projectTemplateFromProjectService;
+    private final IProjectRunHubService projectRunHubService;
 
     /**
      * 查询测试项目列表
@@ -88,6 +91,55 @@ public class TestProjectController extends BaseController {
     @GetMapping(value = "/{testProjectId}")
     public R<TestProjectResult> getInfo(@PathVariable("testProjectId") Long testProjectId) {
         return ok(testProjectService.selectTestProjectResult(testProjectId));
+    }
+
+    /**
+     * 项目运行中心总览。
+     * 返回当前并发模式、缓存中的排队/执行中活动项，以及库表最近正式 Run。
+     * 只需能查项目，不要求编辑权限。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @GetMapping("/{testProjectId}/runHub")
+    public R<ProjectRunHubResult> runHub(
+            @PathVariable Long testProjectId,
+            @RequestParam(value = "recentLimit", required = false) Integer recentLimit) {
+        return ok(projectRunHubService.getProjectRunHub(testProjectId, recentLimit));
+    }
+
+    /**
+     * 取消仍在排队、尚未开跑的项。
+     * 从环境队列移除，并打断对该 queueItemId 的等待轮询。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @DeleteMapping("/{testProjectId}/runHub/queue/{queueItemId}")
+    public R<Void> cancelQueuedRun(
+            @PathVariable Long testProjectId, @PathVariable String queueItemId) {
+        return toR(projectRunHubService.cancelQueuedRun(testProjectId, queueItemId) ? 1 : 0);
+    }
+
+    /**
+     * 非阻塞查询排队项是否已开跑。
+     * data 为 runId 字符串；尚未开跑或已取消时 data 为空。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @GetMapping("/{testProjectId}/runHub/queue/{queueItemId}/runId")
+    public R<String> peekQueuedRunId(
+            @PathVariable Long testProjectId, @PathVariable String queueItemId) {
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.FLOW_VIEW);
+        Long runId = projectRunHubService.peekQueuedRunId(queueItemId);
+        return ok(runId != null ? String.valueOf(runId) : null);
+    }
+
+    /**
+     * 从运行中心活动列表移除一行。
+     * 排队行等价于取消排队；执行中行只清缓存展示，不删库表正式报告、不中止后台 Run。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @DeleteMapping("/{testProjectId}/runHub/active/{itemId}")
+    public R<Void> dismissHubActive(
+            @PathVariable Long testProjectId, @PathVariable String itemId) {
+        projectRunHubService.dismissHubActiveItem(testProjectId, itemId);
+        return ok();
     }
 
     /**

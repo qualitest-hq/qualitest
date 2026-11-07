@@ -28,6 +28,10 @@ import com.qualitest.project.result.RunPauseInfo;
 import com.qualitest.project.result.SnapshotStackItemResult;
 import com.qualitest.project.result.TriggerTestFlowRunBatchItemResult;
 import com.qualitest.project.result.TriggerTestFlowRunBatchResult;
+import com.qualitest.project.result.TriggerTestFlowRunOutcome;
+import com.qualitest.project.runhub.EnvRunConcurrencyService;
+import com.qualitest.project.runhub.EnvRunQueueItem;
+import com.qualitest.project.service.IProjectRunHubService;
 import com.qualitest.flow.run.RunBootstrapMeta;
 import com.qualitest.flow.run.RunStatusUpdater;
 import com.qualitest.flow.run.StepResultWriter;
@@ -71,9 +75,11 @@ import java.util.stream.Collectors;
 /**
  * 测试流 Run 编排服务。
  * <p>
- * 触发运行：解析操作者 → 校验项目成员 → 解析图 → 运行就绪检查 → 解析场景与环境 →
- * 写入 running 态 Run 并立刻返回 runId；后台线程携带操作者身份继续执行，每步完成即落步骤表。<br>
+ * 触发运行：解析操作者 → 校验项目成员 → 解析图 → 就绪检查 → 解析场景与环境 →
+ * 按项目并发模式占环境槽或入队 → 能开跑则写入 running 并立刻返回 started；
+ * 后台线程携带操作者身份继续执行，每步完成即落步骤表。<br>
  * 查询详情：返回 Run 头与按 step_index 排序的步骤列表（执行中也可查）。
+ * 运行中心活动列表由 {@link IProjectRunHubService} 提供；本类批跑时仅借用其「等待排队开跑」。
  */
 @Service
 @RequiredArgsConstructor
@@ -90,6 +96,10 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     private final FlowRunReadinessGate flowRunReadinessGate;
     private final RunStatusUpdater runStatusUpdater;
     private final FlowExternalChangePublisher flowExternalChangePublisher;
+    /** 环境串行锁 / 排队 / 活动索引 */
+    private final EnvRunConcurrencyService envRunConcurrencyService;
+    /** 批跑时等待排队项开跑拿到 runId */
+    private final IProjectRunHubService projectRunHubService;
 
     /** 后台跑流线程池；守护线程，不阻塞触发接口返回 */
     private final ExecutorService runExecutor = Executors.newCachedThreadPool(r -> {
@@ -101,13 +111,11 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     /**
      * 触发一次正式 Run。
      * 操作者优先取请求参数；未传则取当前登录用户；都没有则拒绝。
-     * 校验通过后写入 running 记录并返回 runId，图在后台线程执行。
-     *
-     * @param params 触发参数（测试流、场景、环境、触发来源、操作者）
-     * @return 新创建的 Run id
+     * 校验通过后：按环境串行时先抢环境槽，抢不到则入队返回 queued（不写库）；
+     * 抢到槽或项目为并行时写入 running、登记活动项并后台开跑，返回 started。
      */
     @Override
-    public Long triggerRun(TriggerTestFlowRunParams params) {
+    public TriggerTestFlowRunOutcome triggerRun(TriggerTestFlowRunParams params) {
         if (params == null || params.getTestFlowId() == null) {
             throw new ServiceException("testFlowId 不能为空");
         }
@@ -154,8 +162,6 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         }
 
         // 3. 解析运行场景与环境。
-        // 正式跑流不自动挑环境：须入参 testProjectEnvId 或场景已绑定；
-        // 缺省时把项目下可用环境整理成 envId=… 片段塞进报错，方便复制后显式选择。
         TestProjectEnv envQuery = new TestProjectEnv();
         envQuery.setTestProjectId(testFlow.getTestProjectId());
         envQuery.setDelStatus(0);
@@ -184,10 +190,46 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             throw new ServiceException("环境与测试流不属于同一项目");
         }
 
-        String assetJson = testProjectMapper.selectAssetVariablesByTestProjectId(testFlow.getTestProjectId());
-        // 加载项目多端配置写入 Run 上下文，供本 Run 内 HTTP 节点校验业务码与补鉴权头
         TestProject project = testProjectMapper.selectTestProjectById(testFlow.getTestProjectId());
-        // 外联 HTTP：须 flow:external，或持有系统级外联菜单权限
+        // 排队提升开跑时为 true：不再二次入队，但仍要抢环境槽
+        boolean bypassQueue = Boolean.TRUE.equals(params.getBypassEnvQueue());
+        boolean serialByEnv = project != null
+                && envRunConcurrencyService.isSerialByEnv(project.getRunConcurrencyMode());
+
+        // 预先生成 runId：串行占槽用同一 id；入队时此 id 作废，开跑时再生成新的
+        Long runId = IdUtil.getSnowflakeNextId();
+        if (serialByEnv && !bypassQueue) {
+            // 普通触发：抢不到槽则入 Redis 排队，不写 test_flow_run
+            if (!envRunConcurrencyService.tryAcquireEnvSlot(env.getTestProjectEnvId(), runId)) {
+                TriggerTestFlowRunParams snap = envRunConcurrencyService.snapshotParams(params);
+                snap.setOperatorUserId(operatorUserId);
+                snap.setTestProjectEnvId(env.getTestProjectEnvId());
+                snap.setRunScenarioId(scenario.getScenarioId());
+                String queueItemId = envRunConcurrencyService.enqueue(EnvRunQueueItem.builder()
+                        .testProjectId(testFlow.getTestProjectId())
+                        .testProjectEnvId(env.getTestProjectEnvId())
+                        .envName(env.getEnvName())
+                        .testFlowId(testFlow.getTestFlowId())
+                        .flowName(testFlow.getFlowName())
+                        .runScenarioId(scenario.getScenarioId())
+                        .triggerType(StrUtil.blankToDefault(params.getTriggerType(), "manual"))
+                        .operatorUserId(operatorUserId)
+                        .triggerParams(snap)
+                        .build());
+                return TriggerTestFlowRunOutcome.queued(
+                        queueItemId,
+                        testFlow.getTestProjectId(),
+                        env.getTestProjectEnvId(),
+                        "环境「" + env.getEnvName() + "」有任务在跑，已排队");
+            }
+        } else if (serialByEnv) {
+            // 排队提升路径：必须抢到槽，否则视为异常
+            if (!envRunConcurrencyService.tryAcquireEnvSlot(env.getTestProjectEnvId(), runId)) {
+                throw new ServiceException("环境跑流槽被占用，无法提升排队项");
+            }
+        }
+
+        String assetJson = testProjectMapper.selectAssetVariablesByTestProjectId(testFlow.getTestProjectId());
         boolean externalPermitted = testProjectMemberService.hasCapability(
                 testFlow.getTestProjectId(), operatorUserId, TestProjectMemberPerm.FLOW_EXTERNAL)
                 || SecurityUtils.hasPermi(FlowExternalPermission.PERMISSION);
@@ -198,14 +240,11 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             ctx.setProjectAuthConfig(project.getAuthConfig());
         }
 
-        // 4. 固化图快照与指纹（列表对比用）
         String snapshotJson = graph.toJsonString();
         String fingerprint = StepResultWriter.fingerprint(snapshotJson);
 
-        // 5. 插入 running 态 Run 后立刻返回；图在后台线程继续跑
-        //    后台线程需携带操作者身份，供后续成员校验与外联权限使用
         Date now = DateUtils.getNowDate();
-        Long runId = IdUtil.getSnowflakeNextId();
+        String triggerType = StrUtil.blankToDefault(params.getTriggerType(), "manual");
         TestFlowRun run = TestFlowRun.builder()
                 .testFlowRunId(runId)
                 .testFlowId(testFlow.getTestFlowId())
@@ -215,11 +254,23 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 .graphJsonSnapshot(snapshotJson)
                 .graphFingerprint(fingerprint)
                 .startedAt(now)
-                .triggerType(StrUtil.blankToDefault(params.getTriggerType(), "manual"))
+                .triggerType(triggerType)
                 .delStatus(0)
                 .build();
         run.setCreateTime(now);
         testFlowRunService.insertTestFlowRun(run);
+
+        // 登记运行中心「执行中」活动项，并续期环境锁
+        envRunConcurrencyService.markRunStarted(
+                testFlow.getTestProjectId(),
+                env.getTestProjectEnvId(),
+                env.getEnvName(),
+                testFlow.getTestFlowId(),
+                testFlow.getFlowName(),
+                runId,
+                scenario.getScenarioId(),
+                triggerType,
+                operatorUserId);
 
         flowExternalChangePublisher.publishRunStarted(
                 testFlow.getTestFlowId(),
@@ -227,7 +278,6 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 runId,
                 FlowExternalChangeSourceHolder.getOrDefault());
 
-        // 为后台线程准备带操作者身份的安全上下文
         SecurityContext securityContext = securityContextForOperator(operatorUserId);
         RunBootstrapMeta bootstrap = new RunBootstrapMeta(scenario, env.getEnvName(), env);
         GraphJson graphSnapshot = graph;
@@ -238,7 +288,6 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             try {
                 testFlowExecutor.execute(runId, graphSnapshot, runCtx, bootstrap);
             } catch (Exception e) {
-                // 兜底：避免异常导致记录永久停在 running
                 try {
                     String msg = e.getMessage() != null ? e.getMessage() : "运行异常";
                     runStatusUpdater.markFinished(runId, RunStatus.FAILED.getCode(), startedAt,
@@ -251,7 +300,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 SecurityContextHolder.clearContext();
             }
         });
-        return runId;
+        return TriggerTestFlowRunOutcome.started(runId, testFlow.getTestProjectId(), env.getTestProjectEnvId());
     }
 
     /**
@@ -392,13 +441,21 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                         .testFlowId(item.getTestFlowId())
                         .runScenarioId(blankToNull(item.getRunScenarioId()));
         try {
-            Long runId = triggerRun(TriggerTestFlowRunParams.builder()
+            TriggerTestFlowRunOutcome outcome = triggerRun(TriggerTestFlowRunParams.builder()
                     .testFlowId(item.getTestFlowId())
                     .runScenarioId(blankToNull(item.getRunScenarioId()))
                     .testProjectEnvId(testProjectEnvId)
                     .triggerType(triggerType)
                     .operatorUserId(operatorUserId)
                     .build());
+            Long runId = resolveStartedRunId(outcome, perRunTimeoutMs);
+            if (runId == null) {
+                return builder.status(RunStatus.FAILED.getCode())
+                        .errorMessage(outcome != null && StrUtil.isNotBlank(outcome.getMessage())
+                                ? outcome.getMessage()
+                                : "排队取消或超时未开跑")
+                        .build();
+            }
             builder.runId(runId);
             TestFlowRunResult terminal = awaitRunTerminal(runId, perRunTimeoutMs);
             if (terminal == null) {
@@ -596,6 +653,22 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             ));
         }
         return builder.build();
+    }
+
+    /**
+     * 若已开跑直接返回 runId；若排队则轮询绑定结果直至超时。
+     */
+    private Long resolveStartedRunId(TriggerTestFlowRunOutcome outcome, long timeoutMs) {
+        if (outcome == null) {
+            return null;
+        }
+        if (outcome.isStarted() && outcome.getRunId() != null) {
+            return outcome.getRunId();
+        }
+        if (!outcome.isQueued() || StrUtil.isBlank(outcome.getQueueItemId())) {
+            return outcome.getRunId();
+        }
+        return projectRunHubService.awaitQueuedRunStart(outcome.getQueueItemId(), timeoutMs);
     }
 
     /**

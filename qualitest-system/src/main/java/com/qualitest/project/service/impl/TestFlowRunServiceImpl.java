@@ -169,4 +169,13 @@ public class TestFlowRunServiceImpl implements ITestFlowRunService {
     public TestFlowRun selectTestFlowRunOne(TestFlowRunParams params) {
         return testFlowRunMapper.selectTestFlowRunOne(params);
     }
+
+    /**
+     * 运行中心「最近记录」：项目下最近正式单流 Run。
+     */
+    @Override
+    public List<com.qualitest.project.result.ProjectRunHubItemResult> selectRecentHubItemsByProjectId(
+            Long testProjectId, int limit) {
+        return testFlowRunMapper.selectRecentHubItemsByProjectId(testProjectId, limit);
+    }
 }

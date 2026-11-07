@@ -41,6 +41,12 @@ export const SCRIPT_CTX_API_GROUPS = [
         access: 'read',
       },
       {
+        name: 'setAsset',
+        sig: "ctx.setAsset('clientAuth', 'token', value)",
+        desc: '仅写本 Run 素材内存，不回写项目素材库',
+        access: 'write',
+      },
+      {
         name: 'getLastHttp',
         sig: 'ctx.getLastHttp()',
         desc: '上一步 HTTP 快照：status / headers / body（JSON、XML 已转对象）/ bodyText（原文）/ responseKind / durationMs；无则 null',

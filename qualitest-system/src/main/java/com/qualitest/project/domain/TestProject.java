@@ -68,6 +68,13 @@ public class TestProject extends BaseEntity {
     private Boolean mcpImportApisEnabled;
 
     /**
+     * 跑流并发模式，对应列 run_concurrency_mode。
+     * parallel：多条 Run 可同时执行；
+     * serial_by_env：同一测试环境同时只跑一条，其余进入该环境排队（默认）。
+     */
+    private String runConcurrencyMode;
+
+    /**
      * 新建项目时勾选的模板主键列表。
      * 仅请求入参、不落库；创建时据此写入 authConfig 并种子预制资产。
      */

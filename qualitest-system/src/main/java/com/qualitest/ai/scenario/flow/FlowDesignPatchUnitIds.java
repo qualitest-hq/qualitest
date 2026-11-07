@@ -15,7 +15,8 @@ import java.util.Set;
  * <p>
  * 每个可独立确认或取消的变更对应一个 id，冒号前为类型前缀，例如：
  * addNode:{id}、updateEdge:{id}、deleteNode:{id}、addScenario:{id}、deleteScenario:{id}。
- * 单次 submit_* 必须恰好产出一个单元；本轮 Capture 对相同 unitId 成功提交会覆盖重试。
+ * 单次工具调用通常只含一个单元；批量提交边时同一 patch 可含多个边单元。
+ * 本轮 Capture 对相同 unitId 再次成功提交时会覆盖该切片。
  */
 public final class FlowDesignPatchUnitIds {
 

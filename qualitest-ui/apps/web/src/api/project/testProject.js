@@ -69,3 +69,48 @@ export function saveAsAuthTemplate(testProjectId, data) {
     data,
   })
 }
+
+/**
+ * 项目运行中心总览。
+ * 返回并发模式、缓存中的排队/执行中活动项，以及库表最近正式 Run。
+ */
+export function getProjectRunHub(testProjectId, recentLimit) {
+  return request({
+    url: `/project/testProject/${testProjectId}/runHub`,
+    method: 'get',
+    params: recentLimit != null ? { recentLimit } : undefined,
+  })
+}
+
+/**
+ * 取消仍在排队、尚未开跑的项。
+ * 会打断对该 queueItemId 的等待轮询。
+ */
+export function cancelProjectQueuedRun(testProjectId, queueItemId) {
+  return request({
+    url: `/project/testProject/${testProjectId}/runHub/queue/${encodeURIComponent(queueItemId)}`,
+    method: 'delete',
+  })
+}
+
+/**
+ * 从运行中心活动列表移除一行。
+ * 排队行等价于取消排队；执行中行只清展示，不删库表正式报告。
+ */
+export function dismissProjectHubActive(testProjectId, itemId) {
+  return request({
+    url: `/project/testProject/${testProjectId}/runHub/active/${encodeURIComponent(itemId)}`,
+    method: 'delete',
+  })
+}
+
+/**
+ * 非阻塞查询排队项是否已绑定 runId。
+ * data 为 runId 字符串；尚未开跑或已取消时为空。
+ */
+export function peekQueuedRunId(testProjectId, queueItemId) {
+  return request({
+    url: `/project/testProject/${testProjectId}/runHub/queue/${encodeURIComponent(queueItemId)}/runId`,
+    method: 'get',
+  })
+}

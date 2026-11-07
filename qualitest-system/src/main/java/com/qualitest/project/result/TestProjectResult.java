@@ -64,6 +64,13 @@ public class TestProjectResult implements Serializable {
     private Boolean mcpImportApisEnabled;
 
     /**
+     * 跑流并发模式。
+     * parallel：多条 Run 可同时执行；
+     * serial_by_env：同一测试环境同时只跑一条，其余排队（默认）。
+     */
+    private String runConcurrencyMode;
+
+    /**
      * 有 Profile 但预制 apis 全空时为 true，前端提示从项目模板添加。
      */
     private Boolean needsAuthTemplateHint;

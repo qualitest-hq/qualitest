@@ -4,6 +4,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
+import com.qualitest.project.service.IProjectRunHubService;
 import com.qualitest.project.service.ITestFlowExecutionService;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.project.service.ITestFlowRunStepService;
@@ -16,6 +17,7 @@ import java.util.Map;
  * <p>
  * 必须提供测试流 id（工具参数或请求信封），且上下文须带 Token 绑定的操作者用户 id。
  * 不使用「当前打开的流」隐式目标；场景/环境仅认显式参数。
+ * 触发若进入环境排队，会阻塞等待开跑后再等 Run 终态。
  */
 public class McpRunTestFlowTool implements QualitestTool {
 
@@ -35,12 +37,13 @@ public class McpRunTestFlowTool implements QualitestTool {
      * 单测用：按依赖自行组装跑流核心
      */
     public McpRunTestFlowTool(ITestFlowExecutionService testFlowExecutionService,
+                              IProjectRunHubService projectRunHubService,
                               ITestFlowRunService testFlowRunService,
                               ITestFlowRunStepService testFlowRunStepService,
                               ITestFlowService testFlowService) {
         this(new TestFlowRunTriggerCore(
-                testFlowExecutionService, testFlowRunService, testFlowRunStepService,
-                testFlowService));
+                testFlowExecutionService, projectRunHubService, testFlowRunService,
+                testFlowRunStepService, testFlowService));
     }
 
     @Override

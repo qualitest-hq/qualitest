@@ -39,7 +39,7 @@
   - **HTTP 状态** `statusCheck`：默认 `mode=2xx`（非 2xx → 失败）；`whitelist` + `values` 仅放行列表内状态码（探活常用 `[200,401,403]`）；`off` 任意状态码步骤仍 passed。有响应即写入 `lastResponse`，后续 Condition 可读 `http.status`、`http.expectedMatch`（对照接口 `expectedResponseKind`：`json` / `xml` / `html` / `any`）、`http.responseKind`（`json` / `xml` / `nonJson`）
   - **XML 响应自动解析**：Content-Type 为 `text/xml`、`application/xml`、`*+xml`，或未声明 / `text/plain` 且正文以 `<?xml`、`<xml>` 开头时，body 转为对象（去掉根节点；同名节点转数组；叶子取文本，含 CDATA；忽略属性；禁止 DOCTYPE）。之后 `http.body.return_code`、断言、条件、extracts（`$.return_code`）可直接取字段；原文在 `http.bodyText`，步骤报告 `response.bodyText` 同样保留。解析失败保留原字符串，不影响步骤成败
   - **业务码** `successCheck`：仅在 **2xx** 后可选校验 body 业务码白名单；`mode=off` 关闭。`codePath` 支持 `code` 或 `$.code`
-- **extracts**：默认仅步骤最终通过后执行；`extractsOnFailure=write` 时失败也写入内存（asset 落盘仍仅通过时）。不定路径（过滤器 / `[*]`）命中 **恰好 1 个**时自动解包为标量（与断言一致），便于 `{{flow.x}}` 写路径参数；**0 个**仍为 `[]`，**多个**保留数组。过滤器后不要再写 `[n]`（JsonPath 会把下标作用到每个命中元素，常得到 `[]`）
+- **extracts**：默认仅步骤最终通过后执行；`extractsOnFailure=write` 时失败也写入内存。`scope=asset` 默认回写项目素材库；`persist: false` 只改本 Run 内存。不定路径（过滤器 / `[*]`）命中 **恰好 1 个**时自动解包为标量（与断言一致），便于 `{{flow.x}}` 写路径参数；**0 个**仍为 `[]`，**多个**保留数组。过滤器后不要再写 `[n]`（JsonPath 会把下标作用到每个命中元素，常得到 `[]`）
 - **前置/后置脚本**：见下方「HTTP 脚本（preScript / postScript）」
 - 占位符解析请求参数 / 体（`flow` / `env` / `asset` / `session` 等）
 - **项目鉴权补头**（Profile 托管头 `{{asset.*}}` / `{{flow.*}}` → 见 [project-summary.md §4](./project-summary.md)）
@@ -254,6 +254,6 @@ MCP：`submit_subflow_node` 可写 `inputs` / `outputs` / `alwaysRun`；子图�
 2. **分支**：Condition 后各臂汇合前注意合并语义；复杂逻辑可拆子流。
 3. **复用**：登录、鉴权等多步 → Subflow，父流只传输入输出（鉴权口径见 [project-summary.md](./project-summary.md)）。
 4. **兜底**：签名、动态拼装 → Script；保持脚本短小、可测。
-5. **破坏性写**：开 `snapshotBefore` + 环境允许还原；并行勿抢同一环境。
+5. **破坏性写**：开 `snapshotBefore` + 环境允许还原。项目跑流并发默认 **按环境串行**（可改并行；排队见运行中心）。
 
 更多：[project-summary.md](./project-summary.md) · [ai-staging.md](./ai-staging.md) · [flow-variables-and-values.md](./flow-variables-and-values.md) · [deploy.md](./deploy.md) · [mcp.md](./mcp.md) · [Demo AI 提示集](../../qualitest-demo-mall/docs/ai-test-flow-prompts.md)

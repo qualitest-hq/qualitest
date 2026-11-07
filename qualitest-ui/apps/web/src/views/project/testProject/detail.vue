@@ -23,6 +23,13 @@
               @select="activateDocumentTab"
           >
             <template #actions>
+              <ProjectRunHubEntry
+                  v-if="canViewFlow && testProjectId"
+                  :test-project-id="testProjectId"
+                  variant="icon"
+                  button-class="detail-doc-tab-flow-btn"
+                  icon-class="detail-doc-tab-flow-icon"
+              />
               <button
                   v-if="canViewFlow"
                   type="button"
@@ -385,6 +392,7 @@ import AssetManageDialog from './components/AssetManageDialog.vue'
 import ProjectDetailFooter from './components/ProjectDetailFooter.vue'
 import ProjectDetailDocTabs from './components/ProjectDetailDocTabs.vue'
 import ProjectSettingDrawer from './components/ProjectSettingDrawer.vue'
+import ProjectRunHubEntry from './components/ProjectRunHubEntry.vue'
 import {pickContrastForegroundForBg, resolveEnvSwatchBackground, softenEnvUiSurface} from '@/views/project/testProject/utils/envConfigUtils'
 import {
   readDebugHttpTransportPref,

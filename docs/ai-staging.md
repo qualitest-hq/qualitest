@@ -136,4 +136,4 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 | 半自动无 Staging | 仍表示本轮没有可灌 Staging 的成功 `submit_*` |
 | 中断 | 取消 / SSE 断连：助手可带 `interrupted=true` + 已有轨迹；**不**回滚已发生的全自动写库 / Run |
 
-排障优先看：调用顺序是否触顶、某次 `submit_edge` 的 label/校验、全自动是否真的 `run_test_flow`。轨迹只负责可证伪，不替代修 MergeHelper 等回写缺陷。
+排障优先看：调用顺序是否触顶、某次 `submit_edges` 的 label/校验、全自动是否真的 `run_test_flow`。轨迹只负责可证伪，不替代修 MergeHelper 等回写缺陷。

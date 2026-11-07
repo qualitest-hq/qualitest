@@ -11,6 +11,7 @@ import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.project.params.TriggerTestFlowRunParams;
 import com.qualitest.project.result.TestFlowRunResult;
+import com.qualitest.project.service.IProjectRunHubService;
 import com.qualitest.project.service.ITestFlowExecutionService;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.project.service.ITestFlowRunStepService;
@@ -21,15 +22,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 测试流跑流共用核心。
+ * 测试流跑流共用核心（画布全自动工具与 MCP 跑流门面共用）。
  * <p>
- * 负责：解析目标参数、跑前落盘未提交改图、触发正式 Run、阻塞等待终态、组装失败摘要回执。
+ * 负责：解析目标参数、跑前落盘未提交改图、触发正式 Run；
+ * 若回执为排队则阻塞等待 queueItemId 绑定到 runId；再等待 Run 终态并组装失败摘要回执。
  */
 @RequiredArgsConstructor
 public class TestFlowRunTriggerCore {
 
-    /** 触发与等待 Run */
+    /** 触发与等待 Run 终态 */
     private final ITestFlowExecutionService testFlowExecutionService;
+    /** 触发回执为 queued 时，等待排队项开跑拿到 runId */
+    private final IProjectRunHubService projectRunHubService;
     /** 查询 Run 头 */
     private final ITestFlowRunService testFlowRunService;
     /** 查询失败步骤 */
@@ -136,7 +140,27 @@ public class TestFlowRunTriggerCore {
                     .triggerType("ai")
                     .operatorUserId(operatorUserId)
                     .build();
-            runId = testFlowExecutionService.triggerRun(params);
+            var outcome = testFlowExecutionService.triggerRun(params);
+            runId = outcome != null ? outcome.getRunId() : null;
+            // 按环境串行占用中：阻塞等到排队项绑定 runId（最长约 10 分钟）
+            if (runId == null && outcome != null && outcome.isQueued()) {
+                runId = projectRunHubService.awaitQueuedRunStart(outcome.getQueueItemId(), 600_000L);
+            }
+            if (runId == null) {
+                if (outcome != null && outcome.isQueued()) {
+                    JSONObject fail = new JSONObject();
+                    fail.put("ok", false);
+                    fail.put("error", outcome.getMessage() != null
+                            ? outcome.getMessage()
+                            : "环境排队超时或已取消");
+                    fail.put("state", "queued");
+                    fail.put("queueItemId", outcome.getQueueItemId());
+                    fail.put("autoCommittedBeforeRun", autoCommitted);
+                    fail.put("hint", "项目为按环境串行；可在项目运行中心查看排队，或稍后再 run_test_flow");
+                    return fail.toJSONString();
+                }
+                return FlowDesignToolSupport.errorJson("触发 Run 未返回 runId");
+            }
         } catch (FlowExecutionException e) {
             JSONObject fail = new JSONObject();
             fail.put("ok", false);
