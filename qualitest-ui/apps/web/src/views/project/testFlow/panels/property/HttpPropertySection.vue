@@ -149,6 +149,48 @@
     </div>
   </div>
 
+  <div class="field-group">
+    <div class="field-group__title">重试直到通过</div>
+    <div class="field">
+      <label>最多请求次数</label>
+      <input
+          :value="retryMaxAttempts"
+          :max="RETRY_UNTIL_MAX_ATTEMPTS"
+          :min="1"
+          :placeholder="String(RETRY_UNTIL_DEFAULT_MAX_ATTEMPTS)"
+          step="1"
+          type="number"
+          @change="onRetryMaxAttemptsChange"
+      />
+      <div class="field__hint">默认 1（本节点只请求一次）。大于 1 时，未通过会按下方间隔再次请求</div>
+    </div>
+    <div v-if="retryMaxAttemptsNum > 1" class="field">
+      <label>间隔（ms）</label>
+      <input
+          :value="retryIntervalMs"
+          :max="RETRY_UNTIL_MAX_INTERVAL_MS"
+          :min="0"
+          :placeholder="String(RETRY_UNTIL_DEFAULT_INTERVAL_MS)"
+          step="100"
+          type="number"
+          @change="onRetryIntervalMsChange"
+      />
+      <div class="field__hint">相邻两次请求之间的等待时间</div>
+    </div>
+    <div class="field">
+      <label>通过条件（可选）</label>
+      <DebugAssertEditor
+          v-model="retryUntilRulesModel"
+          :trial-body="trialBody"
+          :trial-source="trialSource"
+      />
+      <div class="field__hint">
+        每条含左值、运算符、右值，须全部满足才算本步最终通过（例如 http.body.data.status eq PAID）。
+        不配则只看上方 HTTP 状态与业务 Code；适合等异步业务状态到位时反复查询
+      </div>
+    </div>
+  </div>
+
   <div class="field http-prop-extracts">
     <label>响应提取</label>
     <DebugExtractEditor v-model="extractsModel" :auto-seed-row="false" :trial-body="trialBody" />
@@ -160,9 +202,13 @@
 </template>
 
 <script setup>
-/** HTTP 节点属性：调用模式、接口/外联、超时、业务码、响应提取；提取表达式可对 Run 响应或本接口响应示例试算 */
+/**
+ * HTTP 节点属性面板：调用模式、接口/外联参数、超时、成功判定（状态码与业务码）、
+ * 重试直到通过（次数、间隔、通过条件）、响应提取、执行前快照、始终执行。
+ */
 import { computed, onMounted } from 'vue'
 
+import DebugAssertEditor from '@/views/project/testProject/components/DebugAssertEditor.vue'
 import DebugExtractEditor from '@/views/project/testProject/components/DebugExtractEditor.vue'
 
 import ApiScriptWorkbench from '@/components/script/ApiScriptWorkbench.vue'
@@ -174,6 +220,12 @@ import { useFlowTrialBody } from '../../composables/useFlowTrialBody'
 import { getMethodBadgeClass } from '../../constants/flowConfig'
 import { useApiHealthStore } from '../../stores/apiHealthStore'
 import { useNodeAuthScope } from '../../composables/useNodeAuthScope'
+import {
+  RETRY_UNTIL_DEFAULT_INTERVAL_MS,
+  RETRY_UNTIL_DEFAULT_MAX_ATTEMPTS,
+  RETRY_UNTIL_MAX_ATTEMPTS,
+  RETRY_UNTIL_MAX_INTERVAL_MS,
+} from '@/utils/flow/retryUntilConstants'
 import { countHttpParamStats, emptyKVRow, HTTP_METHODS } from '../../utils/httpWorkbenchUtils'
 import { isExternalCallMode } from '../../utils/httpSummary'
 import { updateSummary } from '../../utils/nodeDataUtils'
@@ -182,7 +234,7 @@ const props = defineProps({
   node: { type: Object, required: true },
 })
 
-const { trialBody } = useFlowTrialBody({ node: () => props.node })
+const { trialBody, trialSource } = useFlowTrialBody({ node: () => props.node })
 
 const emit = defineEmits(['open-http-config'])
 
@@ -256,6 +308,87 @@ const extractsModel = computed({
     applyPatch({ extracts: val })
   },
 })
+
+/** 输入框展示的最多请求次数；节点未写时显示默认 1 */
+const retryMaxAttempts = computed(() => {
+  const raw = props.node?.data?.retryUntil?.maxAttempts
+  if (raw == null || String(raw).trim() === '') return String(RETRY_UNTIL_DEFAULT_MAX_ATTEMPTS)
+  return String(raw)
+})
+
+/** 数字形式的最多请求次数，用于控制「间隔」输入是否显示 */
+const retryMaxAttemptsNum = computed(() => {
+  const n = Number(retryMaxAttempts.value)
+  return Number.isFinite(n) && n >= 1 ? Math.trunc(n) : RETRY_UNTIL_DEFAULT_MAX_ATTEMPTS
+})
+
+/** 输入框展示的间隔毫秒；节点未写时显示默认 1000 */
+const retryIntervalMs = computed(() => {
+  const raw = props.node?.data?.retryUntil?.intervalMs
+  if (raw == null || String(raw).trim() === '') return String(RETRY_UNTIL_DEFAULT_INTERVAL_MS)
+  return String(raw)
+})
+
+/** 通过条件规则列表双向绑定到 data.retryUntil.until */
+const retryUntilRulesModel = computed({
+  get() {
+    const until = props.node?.data?.retryUntil?.until
+    return Array.isArray(until) ? until : []
+  },
+  set(val) {
+    patchRetryUntil({ until: Array.isArray(val) ? val : [] })
+  },
+})
+
+/**
+ * 合并写入 data.retryUntil。
+ * 次数截断到 1～上限，间隔截断到 0～上限；
+ * 次数为 1 且没有任何通过条件时删除整段配置（等同于默认只打一次）。
+ */
+function patchRetryUntil(partial) {
+  const current = props.node?.data?.retryUntil
+  const base =
+    current && typeof current === 'object' && !Array.isArray(current)
+      ? { ...current }
+      : {}
+  const next = { ...base, ...partial }
+  let maxAttempts = Number(next.maxAttempts)
+  if (!Number.isFinite(maxAttempts) || maxAttempts < 1) {
+    maxAttempts = RETRY_UNTIL_DEFAULT_MAX_ATTEMPTS
+  }
+  maxAttempts = Math.min(RETRY_UNTIL_MAX_ATTEMPTS, Math.trunc(maxAttempts))
+  let intervalMs = Number(next.intervalMs)
+  if (!Number.isFinite(intervalMs) || intervalMs < 0) {
+    intervalMs = RETRY_UNTIL_DEFAULT_INTERVAL_MS
+  }
+  intervalMs = Math.min(RETRY_UNTIL_MAX_INTERVAL_MS, Math.trunc(intervalMs))
+  const until = Array.isArray(next.until)
+    ? next.until.filter((r) => r && String(r.left || '').trim())
+    : []
+  if (maxAttempts <= 1 && until.length === 0) {
+    applyPatch({ retryUntil: null })
+    return
+  }
+  const payload = { maxAttempts, intervalMs }
+  if (until.length) payload.until = until
+  applyPatch({ retryUntil: payload })
+}
+
+/** 用户修改最多请求次数 */
+function onRetryMaxAttemptsChange(e) {
+  const n = Number(e.target.value)
+  patchRetryUntil({
+    maxAttempts: Number.isFinite(n) ? n : RETRY_UNTIL_DEFAULT_MAX_ATTEMPTS,
+  })
+}
+
+/** 用户修改两次请求之间的间隔毫秒 */
+function onRetryIntervalMsChange(e) {
+  const n = Number(e.target.value)
+  patchRetryUntil({
+    intervalMs: Number.isFinite(n) ? n : RETRY_UNTIL_DEFAULT_INTERVAL_MS,
+  })
+}
 
 const headersModel = computed({
   get() {

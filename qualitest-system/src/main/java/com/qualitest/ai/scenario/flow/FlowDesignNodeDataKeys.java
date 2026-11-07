@@ -26,12 +26,13 @@ public final class FlowDesignNodeDataKeys {
      * statusCheck：按 HTTP 状态码判定成败；successCheck：按业务码判定。
      * alwaysRun：业务失败后继续阶段是否仍执行本节点。
      * authProfileId：本节点覆盖使用的多端鉴权配置 id。
+     * retryUntil：重试直到通过——最多请求次数、间隔毫秒、可选通过条件规则。
      */
     private static final Set<String> HTTP = Set.of(
             "callMode", "testProjectApiId", "externalUrl", "httpMethod",
             "headers", "requestBody", "requestValueOverrides", "extracts", "extractsOnFailure",
             "statusCheck", "successCheck", "timeoutMs", "preScript", "postScript",
-            "apiName", "apiPath", "authProfileId", "alwaysRun");
+            "apiName", "apiPath", "authProfileId", "alwaysRun", "retryUntil");
 
     /** 断言节点 data 允许键 */
     private static final Set<String> ASSERT = Set.of("rules");

@@ -7,6 +7,7 @@ import com.qualitest.flow.context.CompareRuleEvaluator;
 import com.qualitest.flow.context.JsonPathFacade;
 import com.qualitest.flow.context.PlaceholderResolver;
 import com.qualitest.flow.http.FlowHttpCallMode;
+import com.qualitest.flow.http.HttpRetryUntilSupport;
 import com.qualitest.flow.input.InputFieldTypes;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
@@ -342,7 +343,11 @@ public class GraphJsonValidator {
         }
 
         if (FlowNodeType.HTTP.matches(type)) {
-            validateHttpNodeFields(p, id, data, errors, warnings);
+            validateHttpNodeFields(p, id, data, nodeTypesById, errors, warnings);
+        } else if (data != null && data.containsKey(HttpRetryUntilSupport.DATA_KEY)) {
+            // retryUntil 只属于 HTTP；其它类型出现该键直接记错误
+            String name = data.get("name") != null ? String.valueOf(data.get("name")) : id;
+            errors.add(p + " 节点「" + name + "」retryUntil 仅允许挂在 HTTP 节点");
         }
         if (FlowNodeType.ASSERT.matches(type)) {
             validateAssertNodeFields(p, id, data, nodeTypesById, errors);
@@ -748,13 +753,15 @@ public class GraphJsonValidator {
     }
 
     /**
-     * 校验 HTTP 节点：callMode、外联必填、extracts 的 JsonPath。
+     * 校验 HTTP 节点：callMode、外联必填、extracts 的 JsonPath、
+     * 以及可选的 retryUntil（次数、间隔、通过条件规则）。
      * project 模式未绑定接口不在此告警。
      */
     private void validateHttpNodeFields(
             String p,
             String id,
             Map<String, Object> data,
+            Map<String, String> nodeTypesById,
             List<String> errors,
             List<String> warnings
     ) {
@@ -772,6 +779,7 @@ public class GraphJsonValidator {
         if (FlowHttpCallMode.isProject(callMode)) {
             // project 模式未绑接口不在此告警（由 API 语义健康检查另行提示）
             validateHttpExtracts(p, name, data, errors, warnings);
+            validateHttpRetryUntil(p, name, data, nodeTypesById, errors);
             return;
         }
         Object externalUrl = data.get("externalUrl");
@@ -786,6 +794,96 @@ public class GraphJsonValidator {
             errors.add(p + " HTTP 节点「" + name + "」外联模式不可填写 testProjectApiId");
         }
         validateHttpExtracts(p, name, data, errors, warnings);
+        validateHttpRetryUntil(p, name, data, nodeTypesById, errors);
+    }
+
+    /**
+     * 校验 HTTP 节点上的 {@code retryUntil}：
+     * 须为对象；maxAttempts 可解析且落在 1～上限；intervalMs 可解析且不超过上限；
+     * until 若存在须为数组，且每条规则的 left 作用域与 JsonPath 合法。
+     * 未配置该键则跳过。
+     */
+    private void validateHttpRetryUntil(
+            String p,
+            String name,
+            Map<String, Object> data,
+            Map<String, String> nodeTypesById,
+            List<String> errors) {
+        if (data == null || !data.containsKey(HttpRetryUntilSupport.DATA_KEY)) {
+            return;
+        }
+        Object raw = data.get(HttpRetryUntilSupport.DATA_KEY);
+        if (raw == null) {
+            return;
+        }
+        if (!(raw instanceof Map<?, ?> map)) {
+            errors.add(p + " HTTP 节点「" + name + "」retryUntil 须为对象");
+            return;
+        }
+        Object maxRaw = map.get("maxAttempts");
+        if (maxRaw != null && !String.valueOf(maxRaw).isBlank()) {
+            Integer maxAttempts = tryParsePositiveInt(maxRaw);
+            if (maxAttempts == null) {
+                errors.add(p + " HTTP 节点「" + name + "」retryUntil.maxAttempts 无法解析");
+            } else if (maxAttempts < 1 || maxAttempts > HttpRetryUntilSupport.MAX_MAX_ATTEMPTS) {
+                errors.add(p + " HTTP 节点「" + name + "」retryUntil.maxAttempts 须在 1～"
+                        + HttpRetryUntilSupport.MAX_MAX_ATTEMPTS + " 之间");
+            }
+        }
+        Object intervalRaw = map.get("intervalMs");
+        if (intervalRaw != null && !String.valueOf(intervalRaw).isBlank()) {
+            Long intervalMs = tryParseNonNegativeLong(intervalRaw);
+            if (intervalMs == null) {
+                errors.add(p + " HTTP 节点「" + name + "」retryUntil.intervalMs 无法解析");
+            } else if (intervalMs > HttpRetryUntilSupport.MAX_INTERVAL_MS) {
+                errors.add(p + " HTTP 节点「" + name + "」retryUntil.intervalMs 超过上限 "
+                        + HttpRetryUntilSupport.MAX_INTERVAL_MS);
+            }
+        }
+        Object untilRaw = map.get("until");
+        if (untilRaw == null) {
+            return;
+        }
+        if (!(untilRaw instanceof List<?> untilList)) {
+            errors.add(p + " HTTP 节点「" + name + "」retryUntil.until 须为数组");
+            return;
+        }
+        for (int i = 0; i < untilList.size(); i++) {
+            Object item = untilList.get(i);
+            if (!(item instanceof Map<?, ?> rule)) {
+                continue;
+            }
+            // 通过条件每条规则走通用比较规则校验（left 作用域、nodes 引用、JsonPath）
+            validateCompareRule(
+                    p + " HTTP 节点「" + name + "」retryUntil.until[" + i + "]",
+                    rule,
+                    nodeTypesById,
+                    errors);
+        }
+    }
+
+    /** 解析为正整数；无法解析返回 null（用于校验报错，不做默认回落）。 */
+    private static Integer tryParsePositiveInt(Object raw) {
+        if (raw instanceof Number n) {
+            return n.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(raw).trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** 解析为长整型（可含 0）；无法解析返回 null。 */
+    private static Long tryParseNonNegativeLong(Object raw) {
+        if (raw instanceof Number n) {
+            return n.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(raw).trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** script 节点：非法 language 为 error，空 source 为 warning */

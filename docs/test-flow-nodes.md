@@ -45,6 +45,12 @@
 - **项目鉴权补头**（Profile 托管头 `{{asset.*}}` / `{{flow.*}}` → 见 [project-summary.md §4](./project-summary.md)）
 - 可选 **执行前快照**（`snapshotBefore`，须为 JSON 布尔；仅 `http` / `script` / `assign`）：写库失败可暂停并还原被测数据（环境允许还原时；详见概念地图 §4.4）
 - 可选 **始终执行**（`alwaysRun`，须为 JSON 布尔；仅 `http` / `script` / `assign` / `subflow`）：业务失败后进入「失败后继续」阶段仍执行本节点
+- 可选 **重试直到通过**（`retryUntil`，仅 http）：
+  - `maxAttempts`：本节点最多发出几次请求，**默认 1**；上限 60
+  - `intervalMs`：相邻两次请求之间的等待毫秒，默认 1000；上限 60000
+  - `until`：可选通过条件数组（每条含 left / operator / right，须全部满足）。不配则只看状态码 + 业务码；配了则还要业务字段到位（如 `http.body.data.status eq PAID`）才算最终通过
+  - 状态码 / 业务码 / until 未过或请求超时时，若还有剩余次数则再请求；未绑定接口、脚本失败等硬错误不重试
+  - 整节点在时间线仍占 **1 步**；步骤报告 `http.retry` 记录实际轮次；摘要可见「第 N/M 次」
 
 节点上托管鉴权头带 `profileManaged`，Run 时按当前项目/接口配置刷新；无该标记的显式头永不被静默改掉。画布可显示节点将使用/产出的凭证路径。
 

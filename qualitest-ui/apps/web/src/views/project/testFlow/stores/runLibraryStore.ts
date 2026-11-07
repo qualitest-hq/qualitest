@@ -57,6 +57,15 @@ export interface RunStepDetail {
       message?: string;
     };
     /**
+     * 重试直到通过摘要（多轮请求或配置了通过条件时写入）。
+     * attempts：实际发出的请求次数；maxAttempts：配置上限；intervalMs：两次间隔。
+     */
+    retry?: {
+      attempts?: number;
+      maxAttempts?: number;
+      intervalMs?: number;
+    };
+    /**
      * HTTP 前置脚本执行结果。
      * logs 为脚本输出行；tests 为脚本内断言；writes 为变量写入记录。
      */

@@ -133,6 +133,8 @@ flowchart TB
 
 HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，由用户选择还原再重试 / 原地重试 / 跳过 / 中止。被测方需 `/test-support`；环境 `allowDestructiveReset=0` 时 checkpoint/restore 静默跳过。**开启还原时同一环境串行跑。**
 
+HTTP 节点可配 **重试直到通过**（`retryUntil`）：最多请求 N 次（默认 1）、间隔 M ms、可选 `until` 通过条件（等异步业务状态到位时反复查询同一接口）。
+
 ---
 
 

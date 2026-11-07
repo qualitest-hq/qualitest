@@ -2,6 +2,7 @@
  * 运行详情与步骤时间线的展示工具：
  * 节点类型中文名、URL 解码、失败分类、审计步判定、耗时/时间格式化、一行摘要、关联变量。
  */
+import { formatRetryAttemptSuffix } from '@/utils/flow/retryUntilConstants';
 import { runStatusLabel } from '../constants/runStatus';
 
 /** 失败类别：bizCode 业务码失败；assert 断言失败；other 其它失败 */
@@ -29,6 +30,10 @@ export type SummarizeStepInput = {
       passed?: boolean | null;
       actualCode?: unknown;
       message?: string | null;
+    } | null;
+    retry?: {
+      attempts?: number | null;
+      maxAttempts?: number | null;
     } | null;
   } | null;
   assert?: {
@@ -320,9 +325,13 @@ export function summarizeStep(step: SummarizeStepInput | null | undefined): stri
   if (step.nodeType === 'http' && step.http) {
     const prefix = step.http.callMode === 'external' ? '↗ ' : '';
     const bizOk = step.http.bizCheck?.passed === true ? ' · 业务码通过' : '';
+    const retryPart = formatRetryAttemptSuffix(
+      step.http.retry?.attempts,
+      step.http.retry?.maxAttempts,
+    );
     const url = truncateText(decodeUrlForDisplay(step.http.url || ''), 48);
     const urlPart = url ? ` ${url}` : '';
-    return `${prefix}${step.http.method || 'HTTP'}${urlPart} → ${step.http.status}${bizOk}`;
+    return `${prefix}${step.http.method || 'HTTP'}${urlPart} → ${step.http.status}${bizOk}${retryPart}`;
   }
   if (step.nodeType === 'assert' && step.assert) {
     const rules = step.assert.rules || [];

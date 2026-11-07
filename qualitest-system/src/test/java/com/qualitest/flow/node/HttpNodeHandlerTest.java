@@ -33,7 +33,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 HttpNodeHandler：绑定 API / 外联转发、extracts（含 setCookie）、preScript、业务码。
+ * 测 HttpNodeHandler：绑定 API / 外联转发、extracts（含 setCookie）、preScript、业务码、
+ * 以及 retryUntil（多轮通过、单次 until 失败、状态码耗尽、硬错误不重试）。
  * 边界：依赖 Mock，不发真实网络。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=HttpNodeHandlerTest
  */
@@ -791,6 +792,145 @@ class HttpNodeHandlerTest {
         assertEquals(RunStatus.FAILED.getCode(), fail.getStatus());
         assertEquals(FlowErrorCode.TF_BIZ_CODE.getCode(), fail.getError().getCode());
         assertTrue(fail.getError().getMessage().contains("FAIL"));
+    }
+
+    /**
+     * 前提：节点配置最多 3 次请求、间隔 0；通过条件要求 body.data.status=PAID；
+     * Mock 首轮返回 PENDING、次轮返回 PAID；并配置 extracts 写入 flow.orderStatus。
+     * 期望：步骤 passed；http.retry.attempts=2；flow.orderStatus=PAID。
+     */
+    @Test
+    @Order(40)
+    @DisplayName("retryUntil：PENDING 后再 PAID 第二轮通过")
+    void execute_retryUntil_pendingThenPaid_passesOnSecondAttempt() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/api/order/status")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any()))
+                .thenReturn(DebugHttpForwardResult.success(200, "OK",
+                        Map.of("Content-Type", "application/json"),
+                        "{\"code\":200,\"data\":{\"status\":\"PENDING\"}}"))
+                .thenReturn(DebugHttpForwardResult.success(200, "OK",
+                        Map.of("Content-Type", "application/json"),
+                        "{\"code\":200,\"data\":{\"status\":\"PAID\"}}"));
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("successCheck", Map.of("mode", "off"));
+        data.put("retryUntil", Map.of(
+                "maxAttempts", 3,
+                "intervalMs", 0,
+                "until", List.of(Map.of(
+                        "left", "http.body.data.status",
+                        "operator", "eq",
+                        "right", "PAID"))));
+        data.put("extracts", List.of(
+                Map.of("from", "body", "expr", "$.data.status", "scope", "flow", "name", "orderStatus")));
+        GraphNode node = GraphNode.builder().id("n-retry").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
+        assertEquals("PAID", ctx.getFlow().get("orderStatus"));
+        assertNotNull(result.getHttp());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> retry = (Map<String, Object>) result.getHttp().get("retry");
+        assertNotNull(retry);
+        assertEquals(2, ((Number) retry.get("attempts")).intValue());
+        assertEquals(3, ((Number) retry.get("maxAttempts")).intValue());
+    }
+
+    /**
+     * 前提：最多请求 1 次；通过条件要求 status=PAID；Mock 始终返回 PENDING。
+     * 期望：步骤 failed、错误码 TF_ASSERT_FAILED；HTTP 只转发 1 次（不重试）。
+     */
+    @Test
+    @Order(41)
+    @DisplayName("retryUntil：默认 1 次 until 未过即失败")
+    void execute_retryUntil_maxAttemptsOne_failsWithoutRetry() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/api/order/status")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any())).thenReturn(DebugHttpForwardResult.success(200, "OK",
+                Map.of("Content-Type", "application/json"),
+                "{\"code\":200,\"data\":{\"status\":\"PENDING\"}}"));
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("successCheck", Map.of("mode", "off"));
+        data.put("retryUntil", Map.of(
+                "maxAttempts", 1,
+                "intervalMs", 0,
+                "until", List.of(Map.of(
+                        "left", "http.body.data.status",
+                        "operator", "eq",
+                        "right", "PAID"))));
+        GraphNode node = GraphNode.builder().id("n-once").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
+        assertEquals(FlowErrorCode.TF_ASSERT_FAILED.getCode(), result.getError().getCode());
+        org.mockito.Mockito.verify(forwardService, org.mockito.Mockito.times(1)).forward(any());
+    }
+
+    /**
+     * 前提：最多请求 2 次、间隔 0；Mock 两轮均返回 HTTP 500。
+     * 期望：步骤 failed、错误码 TF_HTTP_STATUS；实际转发 2 次；http.retry.attempts=2。
+     */
+    @Test
+    @Order(42)
+    @DisplayName("retryUntil：状态码失败耗尽次数")
+    void execute_retryUntil_httpStatusExhausted_fails() {
+        TestProjectApi api = TestProjectApi.builder()
+                .testProjectApiId(1001L)
+                .apiPath("/api/flaky")
+                .requestConfig(ApiConfigTestFixtures.REQUEST_NONE_BODY)
+                .build();
+        when(apiService.selectTestProjectApiById(1001L)).thenReturn(api);
+        when(forwardService.forward(any())).thenReturn(
+                DebugHttpForwardResult.success(500, "ERR", Map.of(), "{\"error\":true}"));
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "1001");
+        data.put("retryUntil", Map.of("maxAttempts", 2, "intervalMs", 0));
+        GraphNode node = GraphNode.builder().id("n-5xx").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
+        assertEquals(FlowErrorCode.TF_HTTP_STATUS.getCode(), result.getError().getCode());
+        org.mockito.Mockito.verify(forwardService, org.mockito.Mockito.times(2)).forward(any());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> retry = (Map<String, Object>) result.getHttp().get("retry");
+        assertEquals(2, ((Number) retry.get("attempts")).intValue());
+    }
+
+    /**
+     * 前提：最多请求 3 次；绑定的 testProjectApiId 在库中不存在。
+     * 期望：步骤 failed、错误码 TF_HTTP_UNBOUND；不发起 HTTP 转发（硬错误不重试）。
+     */
+    @Test
+    @Order(43)
+    @DisplayName("retryUntil：硬错误不重试")
+    void execute_retryUntil_hardError_noRetry() {
+        when(apiService.selectTestProjectApiById(9999L)).thenReturn(null);
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("testProjectApiId", "9999");
+        data.put("retryUntil", Map.of("maxAttempts", 3, "intervalMs", 0));
+        GraphNode node = GraphNode.builder().id("n-hard").type("http").data(data).build();
+
+        StepResult result = handler.execute(ctx, node, null);
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
+        assertEquals(FlowErrorCode.TF_HTTP_UNBOUND.getCode(), result.getError().getCode());
+        org.mockito.Mockito.verify(forwardService, org.mockito.Mockito.never()).forward(any());
     }
 
     /** 构造期望形态为 expectedKind 的项目接口 */

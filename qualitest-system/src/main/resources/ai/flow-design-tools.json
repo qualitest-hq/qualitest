@@ -469,7 +469,7 @@
     "type": "function",
     "function": {
       "name": "submit_http_node",
-      "description": "新增或修改单个HTTP节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。callMode=project 须 testProjectApiId；external 须 externalUrl。alwaysRun=true 时失败后继续阶段仍执行。",
+      "description": "新增或修改单个HTTP节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。callMode=project 须 testProjectApiId；external 须 externalUrl。alwaysRun=true 时失败后继续阶段仍执行。retryUntil 可选：maxAttempts 最多请求次数（默认 1）、intervalMs 两次间隔毫秒、until 通过条件数组（left/operator/right，全部满足才最终通过；不配则只看状态码与业务码）。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -669,6 +669,45 @@
               "alwaysRun": {
                 "type": "boolean",
                 "description": "true=父图业务失败后继续阶段仍执行本节点；须为 JSON 布尔"
+              },
+              "retryUntil": {
+                "type": "object",
+                "description": "重试直到通过。默认 maxAttempts=1（本节点只请求一次）。大于 1 时：若 HTTP 状态失败、业务码失败、until 未过或请求超时，则等待 intervalMs 后再请求，直到通过或次数用尽。until 可选，多条须全部满足。",
+                "properties": {
+                  "maxAttempts": {
+                    "type": "integer",
+                    "description": "本节点最多发出几次 HTTP 请求，范围 1～60；缺省 1",
+                    "minimum": 1,
+                    "maximum": 60
+                  },
+                  "intervalMs": {
+                    "type": "integer",
+                    "description": "相邻两次请求之间的等待毫秒，范围 0～60000；缺省 1000",
+                    "minimum": 0,
+                    "maximum": 60000
+                  },
+                  "until": {
+                    "type": "array",
+                    "description": "可选通过条件。每条含 left、operator、right，须全部满足才算最终通过。例：left=http.body.data.status、operator=eq、right=PAID。不配则成败只看状态码与业务码。",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "left": {
+                          "type": "string",
+                          "description": "比较左值路径，如 http.body.data.status"
+                        },
+                        "operator": {
+                          "type": "string",
+                          "description": "比较运算符，如 eq、ne、contains"
+                        },
+                        "right": {
+                          "type": "string",
+                          "description": "期望右值，可含占位符"
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           },

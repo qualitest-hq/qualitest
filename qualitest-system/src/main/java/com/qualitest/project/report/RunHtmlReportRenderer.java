@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.CompareRuleEvaluator;
+import com.qualitest.flow.http.HttpRetryUntilSupport;
 import com.qualitest.flow.http.HttpStepDetailsDesensitizer;
 import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.run.StepResultWriter;
@@ -361,6 +362,16 @@ public final class RunHtmlReportRenderer {
         kvRow(sb, "调用模式", http.getString("callMode"));
         sb.append("</table>\n");
 
+        // 多轮请求或配置了通过条件时，步骤详情会带 http.retry
+        JSONObject retry = http.getJSONObject("retry");
+        if (retry != null) {
+            sb.append("<h3>重试直到通过</h3>\n<table class=\"kv\">\n");
+            kvRow(sb, "实际次数", stringify(retry.get("attempts")));
+            kvRow(sb, "最多次数", stringify(retry.get("maxAttempts")));
+            kvRow(sb, "间隔 ms", stringify(retry.get("intervalMs")));
+            sb.append("</table>\n");
+        }
+
         JSONObject biz = http.getJSONObject("bizCheck");
         if (biz != null) {
             sb.append("<h3>业务码校验</h3>\n<table class=\"kv\">\n");
@@ -702,6 +713,11 @@ public final class RunHtmlReportRenderer {
                     if (Boolean.FALSE.equals(biz.getBoolean("passed"))) {
                         line.append(" 未通过");
                     }
+                }
+                JSONObject retry = http.getJSONObject("retry");
+                if (retry != null) {
+                    line.append(HttpRetryUntilSupport.formatAttemptSuffix(
+                            retry.get("attempts"), retry.get("maxAttempts")));
                 }
                 return line.length() > 0 ? line.toString() : statusLabel(status);
             }

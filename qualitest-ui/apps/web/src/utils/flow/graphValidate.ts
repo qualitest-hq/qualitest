@@ -3,6 +3,8 @@
  *
  * 默认检查节点类型、边、开始节点、HTTP/断言等字段，产出 errors / warnings。
  * 另校验 alwaysRun、snapshotBefore：有值须为 JSON 布尔，且只能挂在允许的节点类型。
+ * HTTP 可选 data.retryUntil（最多请求次数、间隔毫秒、until 通过条件规则）；
+ * 非 http 节点出现该键记错误。
  * 可选 persistMinimalOnly：只检查节点 id 与边端点，用于允许半成品落盘。
  * 可选 deferTopologyStructureRules：开始节点问题降为警告。
  */
@@ -16,6 +18,7 @@ import {
 import { isKnownNodeType, nodeTypeLabel } from './nodeTypes';
 import type { GraphEdge, GraphJson, GraphNode } from './graphTypes';
 import { DELAY_MAX_MS } from './delayConstants';
+import { RETRY_UNTIL_MAX_ATTEMPTS, RETRY_UNTIL_MAX_INTERVAL_MS } from './retryUntilConstants';
 import { isKnownInputFieldType, requiresOptions } from './inputFields';
 
 const ALLOWED_EDGE_KEYS = new Set(['id', 'source', 'target', 'label']);
@@ -185,6 +188,7 @@ function validateHttpNodeFields(
   p: string,
   id: string | undefined,
   data: Record<string, unknown> | undefined,
+  nodeTypesById: Map<string, string>,
   errors: string[],
 ): void {
   const name = data?.name != null ? String(data.name) : id;
@@ -201,6 +205,7 @@ function validateHttpNodeFields(
   if (callMode === 'project') {
     // project 模式未绑接口不在此告警（由 API 语义健康检查另行提示）
     validateHttpExtracts(p, name, data, errors);
+    validateHttpRetryUntil(p, name, data, nodeTypesById, errors);
     return;
   }
   const externalUrl = data?.externalUrl;
@@ -215,6 +220,64 @@ function validateHttpNodeFields(
     errors.push(`${p} HTTP 节点「${name}」外联模式不可填写 testProjectApiId`);
   }
   validateHttpExtracts(p, name, data, errors);
+  validateHttpRetryUntil(p, name, data, nodeTypesById, errors);
+}
+
+/**
+ * 校验 HTTP 节点 data.retryUntil：
+ * 须为对象；maxAttempts、intervalMs 可解析且在上下限内；
+ * until 若存在须为数组，并对每条规则校验 left 作用域与路径。
+ */
+function validateHttpRetryUntil(
+  p: string,
+  name: string | undefined,
+  data: Record<string, unknown> | undefined,
+  nodeTypesById: Map<string, string>,
+  errors: string[],
+): void {
+  if (!data || !Object.prototype.hasOwnProperty.call(data, 'retryUntil')) return;
+  const raw = data.retryUntil;
+  if (raw == null) return;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push(`${p} HTTP 节点「${name}」retryUntil 须为对象`);
+    return;
+  }
+  const retry = raw as Record<string, unknown>;
+  if (retry.maxAttempts != null && String(retry.maxAttempts).trim() !== '') {
+    const maxAttempts = tryParseDelayMs(retry.maxAttempts);
+    if (maxAttempts == null) {
+      errors.push(`${p} HTTP 节点「${name}」retryUntil.maxAttempts 无法解析`);
+    } else if (maxAttempts < 1 || maxAttempts > RETRY_UNTIL_MAX_ATTEMPTS) {
+      errors.push(
+        `${p} HTTP 节点「${name}」retryUntil.maxAttempts 须在 1～${RETRY_UNTIL_MAX_ATTEMPTS} 之间`,
+      );
+    }
+  }
+  if (retry.intervalMs != null && String(retry.intervalMs).trim() !== '') {
+    const intervalMs = tryParseDelayMs(retry.intervalMs);
+    if (intervalMs == null) {
+      errors.push(`${p} HTTP 节点「${name}」retryUntil.intervalMs 无法解析`);
+    } else if (intervalMs < 0 || intervalMs > RETRY_UNTIL_MAX_INTERVAL_MS) {
+      errors.push(
+        `${p} HTTP 节点「${name}」retryUntil.intervalMs 超过上限 ${RETRY_UNTIL_MAX_INTERVAL_MS}`,
+      );
+    }
+  }
+  const until = retry.until;
+  if (until == null) return;
+  if (!Array.isArray(until)) {
+    errors.push(`${p} HTTP 节点「${name}」retryUntil.until 须为数组`);
+    return;
+  }
+  until.forEach((item, i) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+    validateCompareRule(
+      `${p} HTTP 节点「${name}」retryUntil.until[${i}]`,
+      item as Record<string, unknown>,
+      nodeTypesById,
+      errors,
+    );
+  });
 }
 
 /** 比较左值作用域是否合法：flow / env / asset / http / nodes，或整段 http.body */
@@ -562,7 +625,10 @@ function validateNodeFields(
   }
 
   if (type === 'http') {
-    validateHttpNodeFields(p, id, node.data, errors);
+    validateHttpNodeFields(p, id, node.data, nodeTypesById, errors);
+  } else if (node.data && Object.prototype.hasOwnProperty.call(node.data, 'retryUntil')) {
+    const name = node.data?.name != null ? String(node.data.name) : id;
+    errors.push(`${p} 节点「${name}」retryUntil 仅允许挂在 HTTP 节点`);
   }
   if (type === 'assert') {
     validateAssertNodeFields(p, id, node.data, nodeTypesById, errors);

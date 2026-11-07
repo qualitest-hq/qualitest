@@ -14,6 +14,7 @@ import com.qualitest.api.service.IDebugHttpForwardService;
 import com.qualitest.api.util.ExpectedResponseKindSupport;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.context.AssetExtractPersistService;
+import com.qualitest.flow.context.CompareRuleEvaluator;
 import com.qualitest.flow.context.ExtractApplicator;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.context.JsonPathFacade;
@@ -24,6 +25,7 @@ import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
 import com.qualitest.flow.http.HttpResponseBodyMediaSupport;
 import com.qualitest.flow.http.HttpResponseBodyParser;
+import com.qualitest.flow.http.HttpRetryUntilSupport;
 import com.qualitest.flow.http.HttpStepDetailsDesensitizer;
 import com.qualitest.flow.http.StatusCheckResolver;
 import com.qualitest.flow.http.SuccessCheckResolver;
@@ -36,6 +38,7 @@ import com.qualitest.project.service.ITestProjectApiService;
 import com.qualitest.project.support.TestProjectApiEffectiveConfigResolver;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,6 +71,17 @@ import java.util.Map;
  * extracts：默认仅步骤最终通过才执行并落盘 asset；
  * extractsOnFailure=write 时失败也会做内存抽取，但 asset 落盘仍只在步骤通过时发生。
  * 业务码路径规范化为绝对路径后再读，避免 codePath 已带 {@code $.} 时再拼一层变成无效路径。
+ * <p>
+ * 可选 {@code data.retryUntil}（重试直到通过）：
+ * <ul>
+ *   <li>{@code maxAttempts}：本节点最多发出几次请求，缺省 1</li>
+ *   <li>{@code intervalMs}：两次请求之间的等待毫秒</li>
+ *   <li>{@code until}：可选通过条件（left/operator/right，全部满足才算业务状态到位）；
+ *       不配则只看状态码与业务码</li>
+ * </ul>
+ * 状态码失败、业务码失败、通过条件未满足或请求超时，且仍有剩余次数时，等待间隔后再请求；
+ * 未绑定接口、callMode 非法、外联被拒、脚本错误等立即失败且不再请求。
+ * 整节点无论请求几轮，在运行时间线里只记为一步；多轮时步骤详情写入 {@code http.retry}。
  */
 @Component
 public class HttpNodeHandler extends AbstractStubNodeHandler {
@@ -88,18 +102,18 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         this.assetExtractPersistService = assetExtractPersistService;
     }
 
+    /**
+     * 执行 HTTP 节点：先解析 retryUntil，再按次数上限循环请求，组装最终 StepResult。
+     */
     @Override
     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
         long t0 = System.currentTimeMillis();
         Map<String, Object> data = node.getData() != null ? node.getData() : Map.of();
         String nodeName = resolveNodeName(node);
-        String callMode = resolveCallMode(data);
+        HttpRetryUntilSupport.Resolved retry = HttpRetryUntilSupport.resolve(data);
 
         try {
-            if (FlowHttpCallMode.isExternal(callMode)) {
-                return executeExternal(ctx, node, incomingEdgeId, nodeName, data, t0);
-            }
-            return executeProject(ctx, node, incomingEdgeId, nodeName, data, t0);
+            return executeAttempts(ctx, node, incomingEdgeId, nodeName, data, t0, retry);
         } catch (FlowExecutionException e) {
             return failed(node, incomingEdgeId, nodeName, System.currentTimeMillis() - t0, ctx,
                     e.getErrorCode(), e.getMessage());
@@ -109,8 +123,138 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
     }
 
+    /**
+     * 按 {@code maxAttempts} 循环发请求。
+     * 次数为 1 时当场写 extracts；次数大于 1 时中间轮不写 extracts，
+     * 在成功、不可再试或次数用尽时再一次性补写抽取结果。
+     */
+    private StepResult executeAttempts(
+            FlowRunContext ctx, GraphNode node, String incomingEdgeId, String nodeName,
+            Map<String, Object> data, long t0, HttpRetryUntilSupport.Resolved retry) {
+        List<Map<String, Object>> attemptSummaries = new ArrayList<>();
+        int max = Math.max(1, retry.maxAttempts());
+        for (int attempt = 1; attempt <= max; attempt++) {
+            if (attempt > 1) {
+                StepResult interrupted = sleepBetweenAttempts(
+                        retry.intervalMs(), node, incomingEdgeId, nodeName, t0, ctx);
+                if (interrupted != null) {
+                    return attachRetryReportIfNeeded(
+                            interrupted, retry, attempt - 1, attemptSummaries, t0);
+                }
+            }
+            // 只打一轮时当场抽取；多轮时延后到终止再 commitDeferredExtracts，避免中间响应污染变量
+            boolean allowExtractsNow = max == 1;
+            StepResult last = executeOnce(ctx, node, incomingEdgeId, nodeName, data, t0, allowExtractsNow);
+            attemptSummaries.add(HttpRetryUntilSupport.attemptSummary(attempt, last));
+
+            boolean passed = RunStatus.PASSED.getCode().equals(last.getStatus());
+            boolean retryable = HttpRetryUntilSupport.isRetryable(last);
+            boolean terminal = passed || !retryable || attempt >= max;
+            if (!terminal) {
+                continue;
+            }
+            if (!allowExtractsNow) {
+                last = commitDeferredExtracts(last, data, ctx, node);
+            }
+            return attachRetryReportIfNeeded(last, retry, attempt, attemptSummaries, t0);
+        }
+        throw new IllegalStateException("HTTP retry loop exited without result");
+    }
+
+    /**
+     * 按 callMode 执行一轮 HTTP：project 绑项目接口，external 走外联 URL。
+     *
+     * @param allowExtracts false 时跳过变量抽取与素材库落盘（多轮中间请求用）
+     */
+    private StepResult executeOnce(
+            FlowRunContext ctx, GraphNode node, String incomingEdgeId, String nodeName,
+            Map<String, Object> data, long t0, boolean allowExtracts) {
+        String callMode = resolveCallMode(data);
+        if (FlowHttpCallMode.isExternal(callMode)) {
+            return executeExternal(ctx, node, incomingEdgeId, nodeName, data, t0, allowExtracts);
+        }
+        return executeProject(ctx, node, incomingEdgeId, nodeName, data, t0, allowExtracts);
+    }
+
+    /**
+     * 两次请求之间的阻塞等待。
+     *
+     * @return 被中断时返回失败 StepResult；正常睡完或间隔为 0 时返回 null
+     */
+    private static StepResult sleepBetweenAttempts(
+            long intervalMs, GraphNode node, String incomingEdgeId, String nodeName,
+            long t0, FlowRunContext ctx) {
+        if (intervalMs <= 0) {
+            return null;
+        }
+        try {
+            Thread.sleep(intervalMs);
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return failed(node, incomingEdgeId, nodeName, System.currentTimeMillis() - t0, ctx,
+                    FlowErrorCode.TF_STEP_ERROR, "HTTP 重试等待被中断");
+        }
+    }
+
+    /**
+     * 多轮请求结束时补写 extracts：成功则内存抽取并落盘素材；
+     * 失败且 extractsOnFailure=write 时只写内存不落盘。
+     */
+    private StepResult commitDeferredExtracts(
+            StepResult result, Map<String, Object> data, FlowRunContext ctx, GraphNode node) {
+        if (result == null) {
+            return null;
+        }
+        boolean passed = RunStatus.PASSED.getCode().equals(result.getStatus());
+        if (!shouldApplyExtracts(data, passed)) {
+            return result;
+        }
+        FlowRunContext.HttpResponseSnapshot snapshot = ctx.getNodeResponse(node.getId());
+        if (snapshot == null) {
+            return result;
+        }
+        JSONArray extractsConfig = toExtractsArray(data.get("extracts"));
+        List<JSONObject> applied = ExtractApplicator.apply(extractsConfig, ctx, snapshot);
+        if (passed) {
+            assetExtractPersistService.persistFromExtractConfig(ctx, extractsConfig, applied);
+        }
+        return result.toBuilder()
+                .extracts(applied)
+                .flowAfter(copyFlow(ctx))
+                .durationMs(result.getDurationMs())
+                .build();
+    }
+
+    /**
+     * 需要展示重试信息时，把 {@code http.retry} 写入步骤详情，并把 durationMs 刷新为整节点总耗时
+     * （含各轮请求与间隔等待）。仅打一轮且未配通过条件时不写 retry 字段。
+     */
+    private static StepResult attachRetryReportIfNeeded(
+            StepResult result, HttpRetryUntilSupport.Resolved retry,
+            int attemptsDone, List<Map<String, Object>> attemptSummaries, long t0) {
+        if (result == null) {
+            return null;
+        }
+        long totalMs = Math.max(0, System.currentTimeMillis() - t0);
+        boolean reportRetry = retry.needsLoop() || retry.hasUntil()
+                || (attemptSummaries != null && attemptSummaries.size() > 1);
+        if (!reportRetry) {
+            return result.getDurationMs() == totalMs
+                    ? result
+                    : result.toBuilder().durationMs(totalMs).build();
+        }
+        Map<String, Object> http = result.getHttp() != null
+                ? new LinkedHashMap<>(result.getHttp())
+                : new LinkedHashMap<>();
+        http.put("retry", HttpRetryUntilSupport.buildRetryReport(retry, attemptsDone, attemptSummaries));
+        http.put("durationMs", totalMs);
+        return result.toBuilder().http(http).durationMs(totalMs).build();
+    }
+
     private StepResult executeProject(FlowRunContext ctx, GraphNode node, String incomingEdgeId,
-                                      String nodeName, Map<String, Object> data, long t0) {
+                                      String nodeName, Map<String, Object> data, long t0,
+                                      boolean allowExtracts) {
         Long apiId = parseApiId(data.get("testProjectApiId"));
         TestProjectApi api = testProjectApiService.selectTestProjectApiById(apiId);
         if (api == null) {
@@ -186,11 +330,13 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
 
         return buildHttpStepResult(ctx, node, incomingEdgeId, nodeName, data, built, durationMs,
-                status, responseHeaders, parsedBody, forwardResult, preScriptResult, postScriptResult, effectiveApi);
+                status, responseHeaders, parsedBody, forwardResult, preScriptResult, postScriptResult,
+                effectiveApi, allowExtracts);
     }
 
     private StepResult executeExternal(FlowRunContext ctx, GraphNode node, String incomingEdgeId,
-                                       String nodeName, Map<String, Object> data, long t0) {
+                                       String nodeName, Map<String, Object> data, long t0,
+                                       boolean allowExtracts) {
         if (!ctx.isExternalHttpPermitted()) {
             return failed(node, incomingEdgeId, nodeName, t0, ctx,
                     FlowErrorCode.TF_HTTP_EXTERNAL_DENIED, "当前用户无 flow:http:external 权限");
@@ -254,15 +400,17 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         }
 
         return buildHttpStepResult(ctx, node, incomingEdgeId, nodeName, data, built, durationMs,
-                status, responseHeaders, parsedBody, forwardResult, preScriptResult, postScriptResult, null);
+                status, responseHeaders, parsedBody, forwardResult, preScriptResult, postScriptResult,
+                null, allowExtracts);
     }
 
     /**
-     * 组装 HTTP 步骤结果：用 putHttpResponse 写入运行时快照（body / bodyText / responseKind / expectedMatch）、
-     * 再写步骤报告、做状态码门禁、业务码校验与 extracts。
+     * 组装一轮 HTTP 的步骤结果：写入运行时响应快照，填充步骤报告字段，
+     * 依次做状态码门禁、业务码校验、可选 until 通过条件，再按需抽取变量。
      *
-     * @param parsedBody 正文解析结果（形态与对象）
-     * @param api        绑定的项目接口；外联时为 null
+     * @param parsedBody    正文解析结果（形态与对象）
+     * @param api           绑定的项目接口；外联时为 null
+     * @param allowExtracts false 时跳过抽取与素材落盘（多轮中间请求）
      */
     private StepResult buildHttpStepResult(
             FlowRunContext ctx, GraphNode node, String incomingEdgeId, String nodeName,
@@ -272,7 +420,8 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             DebugHttpForwardResult forwardResult,
             ApiScriptExecutionResult preScriptResult,
             ApiScriptExecutionResult postScriptResult,
-            TestProjectApi api) {
+            TestProjectApi api,
+            boolean allowExtracts) {
         Object body = parsedBody.body();
         // 形态取正文解析结果；对照接口期望形态写入 expectedMatch（不符不导致本步失败）
         String responseKind = parsedBody.kind();
@@ -339,17 +488,24 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
 
         // 状态门禁失败：步骤失败；默认不写 extracts，避免把失败响应里的脏值写入 flow/asset
         if (!statusPassed) {
-            List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, false);
+            List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, false, allowExtracts);
             return httpStepResult(node, incomingEdgeId, nodeName, durationMs, httpDetails, appliedExtracts, ctx,
                     RunStatus.FAILED.getCode(),
                     StepError.of(FlowErrorCode.TF_HTTP_STATUS, "HTTP " + status));
         }
 
-        // statusCheck 已放行但非 2xx（如 whitelist 含 401）：步骤通过，不做业务码校验
+        HttpRetryUntilSupport.Resolved retryCfg = HttpRetryUntilSupport.resolve(data);
+
+        // statusCheck 已放行但非 2xx（如 whitelist 含 401）：不做业务码；仍要过 until
         if (status < 200 || status >= 300) {
-            List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, true);
-            return httpStepResult(node, incomingEdgeId, nodeName, durationMs, httpDetails, appliedExtracts, ctx,
-                    RunStatus.PASSED.getCode(), null);
+            StepResult untilFailed = evaluateUntilOrNull(
+                    ctx, node, incomingEdgeId, nodeName, data, durationMs, httpDetails,
+                    snapshot, allowExtracts, retryCfg);
+            if (untilFailed != null) {
+                return untilFailed;
+            }
+            return passedHttpStep(node, incomingEdgeId, nodeName, data, durationMs,
+                    httpDetails, ctx, snapshot, allowExtracts);
         }
 
         // HTTP 2xx：按节点 successCheck / 项目响应约定校验 body 业务码
@@ -386,7 +542,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             httpDetails.put("bizCheck", bizCheck);
 
             if (!passed) {
-                List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, false);
+                List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, false, allowExtracts);
                 String errorMsg = formatBizCodeFailure(actualCode, message, check.getCodePath(), body);
                 return httpStepResult(node, incomingEdgeId, nodeName, durationMs, httpDetails, appliedExtracts, ctx,
                         RunStatus.FAILED.getCode(),
@@ -394,13 +550,74 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
             }
         }
 
-        // 步骤最终通过：先把 extracts 写入 Run 内存；再按 persist 决定是否把 asset 回写项目素材库
-        JSONArray extractsConfig = toExtractsArray(data.get("extracts"));
-        List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, true);
-        assetExtractPersistService.persistFromExtractConfig(ctx, extractsConfig, appliedExtracts);
+        StepResult untilFailed = evaluateUntilOrNull(
+                ctx, node, incomingEdgeId, nodeName, data, durationMs, httpDetails,
+                snapshot, allowExtracts, retryCfg);
+        if (untilFailed != null) {
+            return untilFailed;
+        }
 
+        return passedHttpStep(node, incomingEdgeId, nodeName, data, durationMs,
+                httpDetails, ctx, snapshot, allowExtracts);
+    }
+
+    /**
+     * 状态码与业务码（若适用）以及通过条件均已满足后的成功收尾：
+     * 按 allowExtracts 决定是否抽取变量并回写素材库，返回 passed 步骤。
+     */
+    private StepResult passedHttpStep(
+            GraphNode node, String incomingEdgeId, String nodeName, Map<String, Object> data,
+            long durationMs, Map<String, Object> httpDetails, FlowRunContext ctx,
+            FlowRunContext.HttpResponseSnapshot snapshot, boolean allowExtracts) {
+        List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, true, allowExtracts);
+        if (allowExtracts) {
+            JSONArray extractsConfig = toExtractsArray(data.get("extracts"));
+            assetExtractPersistService.persistFromExtractConfig(ctx, extractsConfig, appliedExtracts);
+        }
         return httpStepResult(node, incomingEdgeId, nodeName, durationMs, httpDetails, appliedExtracts, ctx,
                 RunStatus.PASSED.getCode(), null);
+    }
+
+    /**
+     * 求值 {@code retryUntil.until} 通过条件。
+     * 未配置任何条件时视为满足，返回 null；
+     * 有条件且全部通过时返回 null；
+     * 任一条未过时返回 failed 步骤（错误码 TF_ASSERT_FAILED），并在 http.until 写入各条实测。
+     */
+    private StepResult evaluateUntilOrNull(
+            FlowRunContext ctx, GraphNode node, String incomingEdgeId, String nodeName,
+            Map<String, Object> data, long durationMs, Map<String, Object> httpDetails,
+            FlowRunContext.HttpResponseSnapshot snapshot, boolean allowExtracts,
+            HttpRetryUntilSupport.Resolved retry) {
+        if (retry == null || !retry.hasUntil()) {
+            return null;
+        }
+        List<Map<String, Object>> ruleResults = new ArrayList<>();
+        boolean allPassed = true;
+        for (JSONObject rule : retry.untilRules()) {
+            CompareRuleEvaluator.EvalDetail detail = CompareRuleEvaluator.evalDetailed(rule, ctx);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("left", rule.getString("left"));
+            row.put("operator", rule.getOrDefault("operator", "eq"));
+            row.put("right", rule.getString("right"));
+            row.put("passed", detail.passed());
+            row.put("leftActual", AssertNodeHandler.serializeLeftActual(detail.leftActual()));
+            ruleResults.add(row);
+            if (!detail.passed()) {
+                allPassed = false;
+            }
+        }
+        Map<String, Object> untilReport = new LinkedHashMap<>();
+        untilReport.put("rules", ruleResults);
+        untilReport.put("passed", allPassed);
+        httpDetails.put("until", untilReport);
+        if (allPassed) {
+            return null;
+        }
+        List<JSONObject> appliedExtracts = maybeApplyExtracts(data, ctx, snapshot, false, allowExtracts);
+        return httpStepResult(node, incomingEdgeId, nodeName, durationMs, httpDetails, appliedExtracts, ctx,
+                RunStatus.FAILED.getCode(),
+                StepError.of(FlowErrorCode.TF_ASSERT_FAILED, "通过条件未满足"));
     }
 
     /**
@@ -452,12 +669,13 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
 
     /**
      * 按步骤成败与 extractsOnFailure 决定是否抽取；不抽则返回空列表。
-     * 此处只写内存 flow/asset，不负责 asset 落盘。
+     * allowExtracts=false（多轮中间请求）时一律跳过。
+     * 此处只写内存 flow/asset，不负责素材库落盘。
      */
     private List<JSONObject> maybeApplyExtracts(
             Map<String, Object> data, FlowRunContext ctx,
-            FlowRunContext.HttpResponseSnapshot snapshot, boolean stepPassed) {
-        if (!shouldApplyExtracts(data, stepPassed)) {
+            FlowRunContext.HttpResponseSnapshot snapshot, boolean stepPassed, boolean allowExtracts) {
+        if (!allowExtracts || !shouldApplyExtracts(data, stepPassed)) {
             return List.of();
         }
         JSONArray extractsConfig = toExtractsArray(data.get("extracts"));

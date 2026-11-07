@@ -7,6 +7,7 @@ import com.qualitest.ai.tools.FlowDesignToolNames;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.ai.tools.ToolResultByteFit;
+import com.qualitest.flow.http.HttpRetryUntilSupport;
 import com.qualitest.project.params.TestFlowRunStepParams;
 import com.qualitest.project.report.StepDetailsJson;
 import com.qualitest.project.result.TestFlowRunStepResult;
@@ -174,7 +175,8 @@ public class GetRunReportTool implements QualitestTool {
     }
 
     /**
-     * HTTP 步骤摘要：METHOD url → status，附业务码通过/失败。
+     * HTTP 步骤摘要：METHOD url → status，附业务码通过/失败；
+     * 若实际请求超过 1 次，再附「第 N/M 次」。
      */
     private static String summarizeHttp(JSONObject http) {
         if (http == null) {
@@ -196,6 +198,11 @@ public class GetRunReportTool implements QualitestTool {
         JSONObject biz = http.getJSONObject("bizCheck");
         if (biz != null) {
             sb.append(Boolean.TRUE.equals(biz.getBoolean("passed")) ? " · 业务码通过" : " · 业务码失败");
+        }
+        JSONObject retry = http.getJSONObject("retry");
+        if (retry != null) {
+            sb.append(HttpRetryUntilSupport.formatAttemptSuffix(
+                    retry.get("attempts"), retry.get("maxAttempts")));
         }
         return sb.toString();
     }
@@ -224,7 +231,8 @@ public class GetRunReportTool implements QualitestTool {
     }
 
     /**
-     * 写入 HTTP 明细：method/url/status、业务码校验、请求与响应摘要、前置/后置脚本 logs 与 tests。
+     * 写入 HTTP 明细：method/url/status、业务码校验、重试摘要、通过条件求值、
+     * 请求与响应摘要、前置/后置脚本 logs 与 tests。
      */
     private static void putHttpDetail(JSONObject item, JSONObject http, boolean includeBody) {
         if (http == null) {
@@ -236,6 +244,12 @@ public class GetRunReportTool implements QualitestTool {
         out.put("status", http.get("status"));
         if (http.get("bizCheck") != null) {
             out.put("bizCheck", http.get("bizCheck"));
+        }
+        if (http.get("retry") != null) {
+            out.put("retry", http.get("retry"));
+        }
+        if (http.get("until") != null) {
+            out.put("until", http.get("until"));
         }
         out.put("request", summarizeHttpPart(http.getJSONObject("request"), includeBody));
         out.put("response", summarizeHttpPart(http.getJSONObject("response"), includeBody));

@@ -94,6 +94,8 @@ Credentials may come from extracts (`asset`/`flow`), scenario `flowSeed`, or env
 
 HTTP `snapshotBefore` → pause on failure → restore & retry / retry / skip / abort. Needs SUT `/test-support`. With `allowDestructiveReset=0`, checkpoint/restore skip silently. **Serial Runs when restore is on.**
 
+HTTP `retryUntil`: max N attempts (default 1), interval M ms, optional `until` rules for re-calling the same HTTP node until business state is ready.
+
 ---
 
 ## 5. AI & Staging (short)

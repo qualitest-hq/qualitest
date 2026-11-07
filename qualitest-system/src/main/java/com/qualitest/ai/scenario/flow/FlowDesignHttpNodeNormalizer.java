@@ -8,6 +8,7 @@ import com.qualitest.api.util.LoginExtractSuggestor;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpNodePathSupport;
 import com.qualitest.flow.http.HttpNodeRequestValueOverridesSupport;
+import com.qualitest.flow.http.HttpRetryUntilSupport;
 import com.qualitest.flow.http.SuccessCheckResolver;
 import com.qualitest.flow.validate.FlowNodeType;
 import com.qualitest.flow.validate.GraphNodeBooleanFieldRules;
@@ -28,8 +29,9 @@ import java.util.Map;
  *   <li>删除整份 requestConfig、临时 requestBody、apiPath</li>
  *   <li>必要时从 API 补全 httpMethod</li>
  * </ul>
- * 另处理 extracts 路径规范化、successCheck 默认 mode。
- * external 模式只处理 extracts 与 successCheck。
+ * 另处理 extracts 路径规范化、successCheck 默认 mode、
+ * retryUntil（次数/间隔上下限、无意义配置删除）。
+ * external 模式同样处理 extracts、successCheck 与 retryUntil。
  * 完整 normalize 路径还会把 alwaysRun、snapshotBefore 的常见脏值收成布尔。
  */
 public final class FlowDesignHttpNodeNormalizer {
@@ -51,7 +53,8 @@ public final class FlowDesignHttpNodeNormalizer {
     }
 
     /**
-     * 无项目 API 上下文时的轻量规范化：补默认 callMode、整理 extracts、补 successCheck 默认 mode。
+     * 无项目 API 上下文时的轻量规范化：补默认 callMode、整理 extracts、补 successCheck 默认 mode、
+     * 规范化 retryUntil（次数/间隔上下限；无意义配置删除）。
      * 不做相对接口资产的 overrides 差分；alwaysRun / snapshotBefore 收布尔由调用方统一处理。
      */
     public static void normalizeWithoutApi(Map<String, Object> data) {
@@ -61,6 +64,7 @@ public final class FlowDesignHttpNodeNormalizer {
         ensureCallModeDefault(data);
         normalizeExtracts(data);
         ensureSuccessCheckDefault(data);
+        HttpRetryUntilSupport.normalizeForDesign(data);
     }
 
     /**
@@ -79,6 +83,7 @@ public final class FlowDesignHttpNodeNormalizer {
         normalizeExtracts(data);
         alignLoginExtract(data, api, projectAuthJson);
         ensureSuccessCheckDefault(data);
+        HttpRetryUntilSupport.normalizeForDesign(data);
         // HTTP 允许 alwaysRun / snapshotBefore：常见脏值收成 Boolean
         GraphNodeBooleanFieldRules.coerceForNodeType(FlowNodeType.HTTP.getCode(), data);
 

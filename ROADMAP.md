@@ -68,6 +68,7 @@ flowchart LR
 | 3.14 | 失败后继续（alwaysRun） | 节点 `data.alwaysRun`（http/script/assign/subflow 属性开关）；业务失败且非 prompt 暂停后沿边继续：未标记 → `bypassed`，alwaysRun 成功 → `continued`、失败 → `continued_failed`（不盖首错、不中断后续）；未求值 condition → `bypassed` 后扇出、汇合去重；画布/时间线/HTML 报告有对应态 |
 | 3.15 | `alwaysRun` 与节点布尔字段图校验 | 保存 / Staging：`alwaysRun`、`snapshotBefore` 须为 JSON 布尔；`alwaysRun` 仅 http/script/assign/subflow，`snapshotBefore` 仅 http/script/assign；非法类型或挂错节点 → error。运行时与面板只认布尔 true；AI 写图对允许类型常见脏值收成布尔 |
 | 2.1 | 演示动图 | README + 落地页已插 `debug-200` / `canvas-glance` / `ai-diff` / `mcp-write` / `mcp-run` |
+| 7.3 | HTTP 节点重试直到通过 | `data.retryUntil`：最多请求 N 次（默认 1）/ 间隔 M ms / 可选 `until` 通过条件；同一 HTTP 节点反复请求直到业务状态到位 |
 
 ---
 
@@ -116,7 +117,6 @@ flowchart LR
 
 | ID | 任务 | 说明 |
 | -- | ---- | ---- |
-| 7.3 | HTTP 节点重试直到通过 | 节点级「最多 N 次 / 间隔 M ms / 断言条件」，超时判失败；覆盖回调后异步改状态的轮询，不引入循环节点 |
 | 7.4 | 可配置入口（Webhook） | **唯一入站面**（不另开第二套回调 URL）。项目内自定义 path/slug 的固定地址，分两种用途。**启流**：绑定流与默认场景/环境，入口独立密钥（勿复用长期 Project Token），可选把 query/header/body 写入 flowSeed，异步返回 runId + 查结果，`paused` 对 CI 直接失败；供 CI、定时（3.6 / 3.10）。**收报文**：扮下游接收地址，被测系统像配商家通知地址一样配一次；不要求带质衡专用凭证；报文原样落库（headers、到达时间）并可查询/断言；按被测系统约定应答（如固定返回 `success`）。验证「有没有推到、内容对不对」优先：收件落库 + 7.3 轮询断言。固定 `/api/project/runs` 仅作调试旁路。现仅 MCP 可用令牌跑流 |
 | 7.5 | 等待回调节点（可选后置） | **不另开 URL**，只消费 7.4 收报文落库：节点配置入口 + 匹配条件（如 `body.refundNo == {{flow.refundNo}}`）+ 超时；先查已收报文，无则暂停（`await_callback`）等到达，匹配后写入 flow 继续。防伪造靠被测系统真实验签（7.1），不加质衡令牌。与 7.4 关系：7.4 是门和信箱，本节点是「等到这封信再往下走」的编排体验；业务能力与「7.4 落库 + 7.3 轮询断言」等价，可后置。渠道回调被测系统、靶场无对外推送前均不必做 |
 | 7.6 | 挡板（Mock） | 质衡常驻扮第三方网关，被测系统把外联地址配到质衡：项目级规则（方法 + 路径 → 响应模板，支持占位）、延迟 / 失败注入、入站请求记录与断言查询；需处理并发 Run 隔离。例：商城调微信「申请退款」，挡板返回成功 / 失败，流里断言商城发出的参数与签名。可先只做静态响应 + 请求记录 |
