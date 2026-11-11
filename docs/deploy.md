@@ -585,12 +585,22 @@ kubectl -n qualitest port-forward svc/qualitest-web 5180:5180
 | `TOKEN_EXPIRE_TIME` | Token 有效期（分钟） | 可选 |
 | `SERVER_PORT` | 后端监听端口 | Compose 内固定 8800 |
 | `QUALITEST_PROFILE` | 上传文件目录 | Compose / docker profile 默认 `/data/upload`（卷 `upload_data`） |
+| `QUALITEST_STORAGE_TYPE` | 存储策略（三选一）`LOCAL` / `RUSTFS` / `QINIU` | 默认 `RUSTFS`；失败直接报错，不静默换后端 |
+| `QUALITEST_RUSTFS_*` | RustFS endpoint / AK / SK / bucket | `type=RUSTFS` 时须可达 |
+| `QUALITEST_QINIU_*` | 七牛 AK/SK/bucket/domain | 密钥用 `application-local.yml`（gitignore），勿提交 |
 | `SPRING_DATASOURCE_DRUID_MASTER_*` | JDBC URL / 用户 / 密码 | Compose 已写死连服务名 `mysql`；本机改 localhost |
 | `SPRING_DATA_REDIS_*` | Redis host / port / database / password | Compose 内 host=`redis` |
 | `LOGGING_LEVEL_COM_QUALITEST` | 业务日志级别 | 默认 `info` |
 | `QUALITEST_IMAGE_PREFIX` | Compose 镜像仓库前缀 | 默认阿里云 `registry.cn-hangzhou.aliyuncs.com/qualitest-hq`；GHCR 用 `ghcr.io/qualitest-hq` |
 | `QUALITEST_IMAGE_TAG` | Compose / 本地镜像 tag | 默认 `latest` |
 | `DRUID_STAT_USERNAME` / `DRUID_STAT_PASSWORD` | Druid 控制台（仅 **dev**） | docker / prod **已关闭**控制台，勿对公网开 dev |
+
+### 文件存储（`/common/upload`、头像）
+
+- yml：`qualitest.storage.type`（默认 `RUSTFS`，三选一）+ `qualitest.rustfs.*` / `qualitest.qiniu.*`
+- 失败直接报错，**不**静默改写到其它后端；无 RustFS 时显式设 `LOCAL`
+- 个人七牛：复制 `qualitest-admin/src/main/resources/application-local.yml.example` → `application-local.yml`，`spring.profiles.active=dev,local`
+- 对象存储开启时响应 `fileName`/`url` 可为完整 https（前端外链原样入库与回显）
 
 ---
 

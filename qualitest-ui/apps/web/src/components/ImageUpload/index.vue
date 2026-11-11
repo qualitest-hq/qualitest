@@ -49,7 +49,7 @@
 
 <script setup>
 import { getToken } from "@/utils/auth"
-import { isExternal } from "@/utils/validate"
+import { resolveResourceUrl, toStoredPath } from "@/utils/file"
 import Sortable from 'sortablejs'
 
 const props = defineProps({
@@ -109,18 +109,15 @@ const showTip = computed(
   () => props.isShowTip && (props.fileType || props.fileSize)
 )
 
+// 回显：库内路径先规范成存储值，再转成可展示地址（外链完整 URL 原样展示）
 watch(() => props.modelValue, val => {
   if (val) {
-    // 首先将值转为数组
     const list = Array.isArray(val) ? val : props.modelValue.split(",")
-    // 然后将数组转为对象数组
     fileList.value = list.map(item => {
       if (typeof item === "string") {
-        if (item.indexOf(baseUrl) === -1 && !isExternal(item)) {
-          item = { name: baseUrl + item, url: baseUrl + item }
-        } else {
-          item = { name: item, url: item }
-        }
+        const stored = toStoredPath(item)
+        const display = resolveResourceUrl(stored)
+        item = { name: display, url: display }
       }
       return item
     })
@@ -170,10 +167,12 @@ function handleExceed() {
   proxy.$modal.msgError(`上传文件数量不能超过 ${props.limit} 个!`)
 }
 
-// 上传成功回调
+// 上传成功：接口 fileName/url 可能是相对路径或对象存储完整 URL，统一规范后再展示
 function handleUploadSuccess(res, file) {
   if (res.code === 200) {
-    uploadList.value.push({ name: res.fileName, url: res.fileName })
+    const stored = toStoredPath(res.fileName || res.url)
+    const display = resolveResourceUrl(stored)
+    uploadList.value.push({ name: display, url: display })
     uploadedSuccessfully()
   } else {
     number.value--
@@ -217,13 +216,13 @@ function handlePictureCardPreview(file) {
   dialogVisible.value = true
 }
 
-// 对象转成指定字符串分隔
+// 写回 v-model：外链完整 URL 原样入库，相对路径去掉前端代理前缀
 function listToString(list, separator) {
   let strs = ""
   separator = separator || ","
   for (let i in list) {
     if (undefined !== list[i].url && list[i].url.indexOf("blob:") !== 0) {
-      strs += list[i].url.replace(baseUrl, "") + separator
+      strs += toStoredPath(list[i].url) + separator
     }
   }
   return strs != "" ? strs.substr(0, strs.length - 1) : ""

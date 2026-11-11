@@ -1,0 +1,15 @@
+# 复制为 application-local.yml（已 gitignore），并启动：
+#   spring.profiles.active=dev,local
+# 密钥勿提交仓库。
+
+qualitest:
+  storage:
+    type: QINIU
+  qiniu:
+    access-key: your-ak
+    secret-key: your-sk
+    bucket: your-bucket
+    domain: cdn.example.com
+    domain-protocol: https://
+    # region: z0  # 可选：z0/z1/z2/na0/as0，空则 auto
+    # source: qualitest

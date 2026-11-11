@@ -3,8 +3,9 @@ package com.qualitest.web.controller.common;
 import com.qualitest.common.config.QualitestConfig;
 import com.qualitest.common.core.domain.AjaxResult;
 import com.qualitest.common.utils.StringUtils;
-import com.qualitest.common.utils.file.FileUploadUtils;
 import com.qualitest.common.utils.file.FileUtils;
+import com.qualitest.file.storage.FileStorageService;
+import com.qualitest.file.storage.UploadResult;
 import com.qualitest.framework.config.ServerConfig;
 import com.qualitest.project.support.cursorskill.McpCursorSkillService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,6 +38,9 @@ public class CommonController {
     /** 读取 MCP 造流 Skill 全文（全局，不绑项目） */
     @Autowired
     private McpCursorSkillService mcpCursorSkillService;
+    /** 统一文件存储（按配置写入本地盘 / RustFS / 七牛） */
+    @Autowired
+    private FileStorageService fileStorageService;
 
     /**
      * 通用下载请求
@@ -65,21 +69,24 @@ public class CommonController {
     }
 
     /**
-     * 通用上传请求（单个）
+     * 通用上传（单个）。浏览器把文件交给本接口，服务端再写入当前配置的存储后端。
+     * <p>
+     * 返回字段说明：fileName 为建议入库路径（本地相对路径或云完整 URL）；url 为可直接访问地址；
+     * objectKey 为对象键；storage 为实际后端标识。
      */
     @PostMapping("/upload")
     public AjaxResult uploadFile(MultipartFile file) throws Exception {
         try {
-            // 上传文件路径
-            String filePath = QualitestConfig.getUploadPath();
-            // 上传并返回新文件名称
-            String fileName = FileUploadUtils.upload(filePath, file);
-            String url = serverConfig.getUrl() + fileName;
+            UploadResult result = fileStorageService.upload(file);
+            String fileName = result.getFilePath();
+            String url = fileStorageService.resolveAccessUrl(fileName, serverConfig.getUrl());
             AjaxResult ajax = AjaxResult.success();
             ajax.put("url", url);
             ajax.put("fileName", fileName);
             ajax.put("newFileName", FileUtils.getName(fileName));
             ajax.put("originalFilename", file.getOriginalFilename());
+            ajax.put("objectKey", result.getObjectKey());
+            ajax.put("storage", result.getStorage());
             return ajax;
         } catch (Exception e) {
             return AjaxResult.error(e.getMessage());
@@ -87,21 +94,19 @@ public class CommonController {
     }
 
     /**
-     * 通用上传请求（多个）
+     * 通用上传（多个）。逐个走同一套存储服务，结果字段用英文逗号拼接。
      */
     @PostMapping("/uploads")
     public AjaxResult uploadFiles(List<MultipartFile> files) throws Exception {
         try {
-            // 上传文件路径
-            String filePath = QualitestConfig.getUploadPath();
             List<String> urls = new ArrayList<String>();
             List<String> fileNames = new ArrayList<String>();
             List<String> newFileNames = new ArrayList<String>();
             List<String> originalFilenames = new ArrayList<String>();
             for (MultipartFile file : files) {
-                // 上传并返回新文件名称
-                String fileName = FileUploadUtils.upload(filePath, file);
-                String url = serverConfig.getUrl() + fileName;
+                UploadResult result = fileStorageService.upload(file);
+                String fileName = result.getFilePath();
+                String url = fileStorageService.resolveAccessUrl(fileName, serverConfig.getUrl());
                 urls.add(url);
                 fileNames.add(fileName);
                 newFileNames.add(FileUtils.getName(fileName));

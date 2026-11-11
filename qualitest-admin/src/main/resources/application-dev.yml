@@ -8,11 +8,31 @@
 # -----------------------------------------------------------------------------
 qualitest:
   name: Qualitest
-  version: 1.4.20
+  version: 1.4.21
   copyrightYear: 2026
   profile: ${QUALITEST_PROFILE:D:/qualitest/uploadPath}    # 本地上传文件落盘根目录；可用环境变量覆盖
   addressEnabled: false           # 登录日志是否解析 IP 所在地
   captchaType: math             # 登录验证码类型
+  # 文件存储后端三选一（不能同时开）：LOCAL 本机盘 / RUSTFS S3 兼容 / QINIU 七牛；默认 RUSTFS，不可达时直接失败
+  storage:
+    type: ${QUALITEST_STORAGE_TYPE:RUSTFS}
+  # RustFS 连接参数；仅 type=RUSTFS 时生效，须 enabled=true 且 endpoint 可达
+  rustfs:
+    enabled: ${QUALITEST_RUSTFS_ENABLED:true}
+    endpoint: ${QUALITEST_RUSTFS_ENDPOINT:http://127.0.0.1:9000}
+    access-key: ${QUALITEST_RUSTFS_ACCESS_KEY:rustfsadmin}
+    secret-key: ${QUALITEST_RUSTFS_SECRET_KEY:rustfsadmin}
+    bucket: ${QUALITEST_RUSTFS_BUCKET:qualitest}
+    region: us-east-1
+    public-base-url: ${QUALITEST_RUSTFS_PUBLIC_BASE_URL:http://127.0.0.1:9000/qualitest}
+  qiniu:
+    access-key: ${QUALITEST_QINIU_ACCESS_KEY:}
+    secret-key: ${QUALITEST_QINIU_SECRET_KEY:}
+    bucket: ${QUALITEST_QINIU_BUCKET:}
+    domain: ${QUALITEST_QINIU_DOMAIN:}
+    domain-protocol: ${QUALITEST_QINIU_DOMAIN_PROTOCOL:https://}
+    region: ${QUALITEST_QINIU_REGION:}
+    source: ${QUALITEST_QINIU_SOURCE:}
   http:
     # 出站 HTTP 限制：关闭时只校验协议与主机；开启后目标须命中 allowlist 的 host:port
     egress:

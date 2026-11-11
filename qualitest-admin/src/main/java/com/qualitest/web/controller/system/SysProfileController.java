@@ -13,6 +13,8 @@ import com.qualitest.common.utils.StringUtils;
 import com.qualitest.common.utils.file.FileUploadUtils;
 import com.qualitest.common.utils.file.FileUtils;
 import com.qualitest.common.utils.file.MimeTypeUtils;
+import com.qualitest.file.storage.FileStorageService;
+import com.qualitest.file.storage.UploadResult;
 import com.qualitest.framework.web.service.TokenService;
 import com.qualitest.system.service.ISysUserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,10 @@ public class SysProfileController extends BaseController {
 
     @Autowired
     private TokenService tokenService;
+
+    /** 头像文件同样走统一存储服务 */
+    @Autowired
+    private FileStorageService fileStorageService;
 
     /**
      * 个人信息
@@ -104,17 +110,20 @@ public class SysProfileController extends BaseController {
     }
 
     /**
-     * 头像上传
+     * 头像上传。先校验图片扩展名，再按业务分类 avatar 写入当前存储后端。
+     * 旧头像若是本机相对路径则尝试删除本地文件；云完整 URL 不在此删除远端对象。
      */
     @Log(title = "用户头像", businessType = BusinessType.UPDATE)
     @PostMapping("/avatar")
     public AjaxResult avatar(@RequestParam("avatarfile") MultipartFile file) throws Exception {
         if (!file.isEmpty()) {
             LoginUser loginUser = getLoginUser();
-            String avatar = FileUploadUtils.upload(QualitestConfig.getAvatarPath(), file, MimeTypeUtils.IMAGE_EXTENSION, true);
+            FileUploadUtils.assertAllowed(file, MimeTypeUtils.IMAGE_EXTENSION);
+            UploadResult result = fileStorageService.upload(file, "avatar");
+            String avatar = result.getFilePath();
             if (userService.updateUserAvatar(loginUser.getUserId(), avatar)) {
                 String oldAvatar = loginUser.getUser().getAvatar();
-                if (StringUtils.isNotEmpty(oldAvatar)) {
+                if (StringUtils.isNotEmpty(oldAvatar) && !FileStorageService.isAbsoluteUrl(oldAvatar)) {
                     FileUtils.deleteFile(QualitestConfig.getProfile() + FileUtils.stripPrefix(oldAvatar));
                 }
                 AjaxResult ajax = AjaxResult.success();

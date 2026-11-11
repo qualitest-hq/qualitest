@@ -15,7 +15,7 @@
 </template>
 
 <script setup>
-import { isExternal } from "@/utils/validate"
+import { resolveResourceUrl } from "@/utils/file"
 
 const props = defineProps({
   src: {
@@ -32,30 +32,20 @@ const props = defineProps({
   }
 })
 
+// 单图预览地址：支持相对路径与外链完整 URL
 const realSrc = computed(() => {
   if (!props.src) {
     return
   }
-  let real_src = props.src.split(",")[0]
-  if (isExternal(real_src)) {
-    return real_src
-  }
-  return import.meta.env.VITE_APP_BASE_API + real_src
+  return resolveResourceUrl(props.src.split(",")[0])
 })
 
+// 多图预览列表
 const realSrcList = computed(() => {
   if (!props.src) {
     return
   }
-  let real_src_list = props.src.split(",")
-  let srcList = []
-  real_src_list.forEach(item => {
-    if (isExternal(item)) {
-      return srcList.push(item)
-    }
-    return srcList.push(import.meta.env.VITE_APP_BASE_API + item)
-  })
-  return srcList
+  return props.src.split(",").map(item => resolveResourceUrl(item))
 })
 
 const realWidth = computed(() =>

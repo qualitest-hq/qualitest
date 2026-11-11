@@ -4,11 +4,29 @@
 
 qualitest:
   name: Qualitest
-  version: 1.4.20
+  version: 1.4.21
   copyrightYear: 2026
   profile: ${QUALITEST_PROFILE:/home/qualitest/uploadPath}   # Linux 部署上传目录
   addressEnabled: false
   captchaType: math
+  storage:
+    type: ${QUALITEST_STORAGE_TYPE:RUSTFS}
+  rustfs:
+    enabled: ${QUALITEST_RUSTFS_ENABLED:false}
+    endpoint: ${QUALITEST_RUSTFS_ENDPOINT:http://127.0.0.1:9000}
+    access-key: ${QUALITEST_RUSTFS_ACCESS_KEY:}
+    secret-key: ${QUALITEST_RUSTFS_SECRET_KEY:}
+    bucket: ${QUALITEST_RUSTFS_BUCKET:qualitest}
+    region: us-east-1
+    public-base-url: ${QUALITEST_RUSTFS_PUBLIC_BASE_URL:}
+  qiniu:
+    access-key: ${QUALITEST_QINIU_ACCESS_KEY:}
+    secret-key: ${QUALITEST_QINIU_SECRET_KEY:}
+    bucket: ${QUALITEST_QINIU_BUCKET:}
+    domain: ${QUALITEST_QINIU_DOMAIN:}
+    domain-protocol: ${QUALITEST_QINIU_DOMAIN_PROTOCOL:https://}
+    region: ${QUALITEST_QINIU_REGION:}
+    source: ${QUALITEST_QINIU_SOURCE:}
   http:
     # 出站 HTTP 限制：关闭时只校验协议与主机；开启后目标须命中 allowlist 的 host:port
     egress:

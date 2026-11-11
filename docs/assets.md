@@ -39,10 +39,10 @@ UI 按行选类型（与调试台 KV 表同类）：
 | 类型 | 落盘 | 引用 |
 | ---- | ---- | ---- |
 | 普通标量 | 字符串 / 数等 | `{{asset.<key>.<field>}}` |
-| **file** | `{ type, fileName, storagePath }`；选文件走平台 `/common/upload` 落到本机盘 | HTTP form-data **`type=file`** 的 value = `{{asset.<key>.storagePath}}` |
+| **file** | `{ type, fileName, storagePath }`；选文件走平台 `/common/upload`（本地或对象存储） | HTTP form-data **`type=file`** 的 value = `{{asset.<key>.storagePath}}` |
 | 对象 / 数组 | 可加子字段 | 点分下钻 |
 
-**文件主路径**：素材库上传 → `storagePath`（如 `/profile/upload/...`）→ 跑流读盘组 **真 multipart 文件 part**。不依赖 RustFS（那是 demo 业务媒体 / T3.1）。
+**文件主路径**：素材库上传 → `storagePath`（本地为 `/profile/upload/...`；开启 RustFS/七牛等对象存储时可为完整 URL）→ 跑流读盘组 **真 multipart 文件 part**。存储类型由 yml `qualitest.storage.type` 控制（默认 RUSTFS，三选一；失败直接报错，不静默换后端）。
 
 节点上填本机绝对路径仅调试兜底，**不能**当作「产品测参已通」。质衡测参文件不要塞进 demo 业务 bucket。
 

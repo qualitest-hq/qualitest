@@ -29,7 +29,8 @@
     <!-- 文件列表 -->
     <transition-group ref="uploadFileList" class="upload-file-list el-upload-list el-upload-list--text" name="el-fade-in-linear" tag="ul">
       <li :key="file.uid" class="el-upload-list__item ele-upload-list__item-content" v-for="(file, index) in fileList">
-        <el-link :href="`${baseUrl}${file.url}`" underline="never" target="_blank">
+        <!-- 下载链接：相对路径拼代理前缀，外链完整 URL 原样使用 -->
+        <el-link :href="resolveResourceUrl(file.url)" underline="never" target="_blank">
           <span class="el-icon-document"> {{ getFileName(file.name) }} </span>
         </el-link>
         <div class="ele-upload-list__item-content-action">
@@ -42,6 +43,7 @@
 
 <script setup>
 import { getToken } from "@/utils/auth"
+import { resolveResourceUrl, toStoredPath } from "@/utils/file"
 import Sortable from 'sortablejs'
 
 const props = defineProps({
@@ -99,15 +101,15 @@ const showTip = computed(
   () => props.isShowTip && (props.fileType || props.fileSize)
 )
 
+// 回显：规范成入库路径；下载时再 resolveResourceUrl
 watch(() => props.modelValue, val => {
   if (val) {
     let temp = 1
-    // 首先将值转为数组
     const list = Array.isArray(val) ? val : props.modelValue.split(',')
-    // 然后将数组转为对象数组
     fileList.value = list.map(item => {
       if (typeof item === "string") {
-        item = { name: item, url: item }
+        const stored = toStoredPath(item)
+        item = { name: stored, url: stored }
       }
       item.uid = item.uid || new Date().getTime() + temp++
       return item
@@ -159,10 +161,11 @@ function handleUploadError(err) {
   proxy.$modal.closeLoading()
 }
 
-// 上传成功回调
+// 上传成功：保留相对路径或对象存储完整 URL 作为入库值
 function handleUploadSuccess(res, file) {
   if (res.code === 200) {
-    uploadList.value.push({ name: res.fileName, url: res.fileName })
+    const stored = toStoredPath(res.fileName || res.url)
+    uploadList.value.push({ name: stored, url: stored })
     uploadedSuccessfully()
   } else {
     number.value--
@@ -200,13 +203,13 @@ function getFileName(name) {
   }
 }
 
-// 对象转成指定字符串分隔
+// 写回 v-model：外链完整 URL 原样入库
 function listToString(list, separator) {
   let strs = ""
   separator = separator || ","
   for (let i in list) {
     if (list[i].url) {
-      strs += list[i].url + separator
+      strs += toStoredPath(list[i].url) + separator
     }
   }
   return strs != '' ? strs.substr(0, strs.length - 1) : ''

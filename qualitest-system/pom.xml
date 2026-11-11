@@ -5,7 +5,7 @@
     <parent>
         <artifactId>qualitest</artifactId>
         <groupId>com.qualitest</groupId>
-        <version>1.4.20</version>
+        <version>1.4.21</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -84,6 +84,22 @@
             <artifactId>mockwebserver</artifactId>
             <version>4.12.0</version>
             <scope>test</scope>
+        </dependency>
+
+        <!-- AWS S3 SDK（访问 RustFS） -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>apache-client</artifactId>
+        </dependency>
+
+        <!-- 七牛云对象存储（MIT） -->
+        <dependency>
+            <groupId>com.qiniu</groupId>
+            <artifactId>qiniu-java-sdk</artifactId>
         </dependency>
 
     </dependencies>
