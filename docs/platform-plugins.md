@@ -1,9 +1,8 @@
 # 质衡平台插件（草案）
 
 > **状态**：设计草案 · ROADMAP **Exploring 6.2**（不承诺版本）。  
-> **范围**：质衡**产品内**可装卸扩展，两条腿并重：  
-> 1）**运行面**——改被测 / 环境侧状态；  
-> 2）**呈现面**——改测试流（画布、时间线、报告、工具条等）的样式与可贡献 UI。  
+> **范围**：质衡**产品内**可装卸扩展；一个插件可含两端（正式称呼见 §3.1）：  
+> **运行端** + **界面端**。  
 > **不含**：JetBrains「Qualitest Helper」、Cursor MCP 工具清单本身（接入通道 ≠ 平台插件）。
 
 本文定：**什么进插件、能力怎么命名预留、如何共存**；契约形状用 **JSON** 写清。  
@@ -24,8 +23,8 @@
 
 | 问 | 是 → | 否 → |
 | --- | --- | --- |
-| 是否改被测认定的数据 / 时钟 / 进程旁路状态？ | **插件（运行面）** | 看下一问 |
-| 是否改变测流在编辑/运行/报告中的呈现或可贡献控件（且随插件装卸）？ | **插件（呈现面）** | 看下一问 |
+| 是否改被测认定的数据 / 时钟 / 进程旁路状态？ | **插件（运行端）** | 看下一问 |
+| 是否改变测流在编辑/运行/报告中的呈现或可贡献控件（且随插件装卸）？ | **插件（界面端）** | 看下一问 |
 | 是否强绑定某一被测、某一云厂商、某一支付渠道的细节？ | **插件**（或插件包） | 看下一问 |
 | 是否所有项目都需要、且与画布**引擎语义**强耦合？ | **核心** | 倾向插件或项目配置 |
 
@@ -35,7 +34,7 @@
 
 ## 2. 核心 vs 插件
 
-插件是**双面**的：同一插件常同时声明运行能力 + 呈现贡献（例如「被测时钟」既有 `sut.clock.*`，也有画布顶栏「当前虚拟时间」与审计步样式）。
+插件是**双端**的：同一包常同时带运行端能力 + 界面端贡献（例如「被测时钟」既有 `sut.clock.*`，也有画布顶栏「当前虚拟时间」）。
 
 | 归核心（保持稳定） | 归插件（可装卸） |
 | --- | --- |
@@ -48,7 +47,7 @@
 
 刻意不做（至少本阶段）：
 
-- 用「自定义画布节点类型」当插件**主**路径（成本高；ROADMAP 5.1 另议）。呈现面优先 **装饰 / 槽位 / 令牌**，而不是新增第 9 种 `FlowNodeType`。
+- 用「自定义画布节点类型」当插件**主**路径（成本高；ROADMAP 5.1 另议）。界面端优先 **装饰 / 槽位 / 令牌**，而不是新增第 9 种 `FlowNodeType`。
 - 插件任意注入全局 CSS 或替换整页布局（只允许契约内令牌 + 具名槽位，防把控制台弄崩）。
 - 插件改质衡自身 DB / 自身 JVM 时钟 / 全局多租户状态。
 - 无签名、无权限的远程 JAR/前端包热装「应用商店」（后置）。
@@ -60,11 +59,49 @@
 
 结构一律用 **JSON**（如 `qualitest.plugin.json`、环境 composition）。阅读约定：**先 JSON，紧接「说明」**，不再把字段表拆到别处。草案形状可增字段，不可随便改已有语义。
 
-### 3.1 一句话
+### 3.1 一句话与两端命名
 
-**插件 = 一份 `qualitest.plugin.json`（manifest）+ 可选运行执行体。**  
-`ui` 默认**声明式**（令牌/槽位/文案），由质衡前端壳渲染。  
-**可以有代码，但分层**：配置与 UI 描述尽量 JSON；真正拨钟/还原等逻辑在执行体里（见下「有没有代码」）。
+**插件 = 一份 `qualitest.plugin.json` +（可选）运行端材料 +（可选）界面端材料**，对外常打成**一个 zip**。
+
+两端正式称呼（文档与 UI 文案统一用这套，避免和「前后端工程」「被测/质衡」糊在一起）：
+
+```json
+{
+  "ends": [
+    {
+      "name": "运行端",
+      "nameEn": "Runtime",
+      "manifestKeys": ["capabilities(sut.*|egress.*|ingress.*|pack.*)", "hooks", "runtime", "configSchema"],
+      "zipPath": "runtime/",
+      "job": "跑流前后真正干活：拨钟、还原、挡板、域名拦截等"
+    },
+    {
+      "name": "界面端",
+      "nameEn": "Console",
+      "manifestKeys": ["capabilities(ui.flow.*)", "ui"],
+      "zipPath": "ui/",
+      "job": "测流页看得见、配得了：令牌、横幅、节点装饰/面板、时间线、报告块"
+    }
+  ],
+  "aliasDeprecated": ["运行面", "呈现面"]
+}
+```
+
+说明：
+
+- **运行端（Runtime）**：能力名以 `sut.*` / `egress.*` / `ingress.*` / `pack.*` 等为主；执行看 `runtime.kind`。  
+- **界面端（Console）**：能力名以 `ui.flow.*` 为主；描述在 `ui`；浏览器里由质衡 Web 壳渲染。  
+- 旧称「运行面 / 呈现面」等同两端，后文逐步收成 **运行端 / 界面端**。  
+- 可以只有一端（纯皮肤包只有界面端；纯 ops 脚本包几乎只有运行端），官方带行为的包建议两端都有。  
+- **不要**把两端叫成「前端插件 / 后端插件」两套独立产品——仍是**一个插件 id、一个 zip**；只是载荷分两目录。
+
+**运行端内部再分落点**（仍属运行端，不是第三「端」）：
+
+| `runtime.kind` | 代码跑在哪 |
+| --- | --- |
+| `builtin` | 质衡 **app** 进程内（随质衡版本） |
+| `httpAdapter` | 质衡 app 出站调被测/代理 |
+| `opsAgent` | **被测旁**侧车/演示机（与 app 分开发装） |
 
 ### 3.2 Manifest 根对象
 
@@ -121,7 +158,7 @@
 - `id` / `version` / `displayName`：包标识、semver、界面名。  
 - `danger`：`none` | `destructive` | `secrets_read`，驱动警告与权限。  
 - `audit`：为 true 时强制写 Run 审计步。  
-- `capabilities`：本包能力名（§3.4），运行面与 `ui.flow.*` 写在一起。  
+- `capabilities`：本包能力名（§3.4），运行端与界面端（`ui.flow.*`）写在一起。  
 - `requires` / `conflicts`：依赖与互斥，可写 `capability:…` 或 `plugin:…`。  
 - `isolation`：冲突与串行标签（§3.5）。  
 - `hooks`：Run 生命周期（§4）；同阶段内 `order` **越小越先**。  
@@ -263,12 +300,21 @@
   { "name": "egress.mock.rule", "desc": "挡板路由与响应模板", "core": "7.6 门面可在核心，渠道包插件化" },
   { "name": "egress.mock.record", "desc": "查询挡板收到的请求" },
   { "name": "egress.mock.fault", "desc": "延迟 / 5xx / 错包注入" },
+  { "name": "egress.intercept.domain", "desc": "把指定外联域名解析/导流到挡板（hosts、DNS 或代理）", "status": "方向预留，不承诺实现" },
+  { "name": "egress.intercept.tls", "desc": "为劫持域名签发/注入测试 CA，使 HTTPS SDK 校验证书能通过", "status": "方向预留；需被测信任该 CA" },
+  { "name": "egress.intercept.proxy", "desc": "边车/透明代理：不改业务代码时劫持出站 443", "status": "方向预留；opsAgent" },
   { "name": "ingress.mailbox.query", "desc": "查 7.4 收件箱", "core": "落库偏核心" },
   { "name": "ingress.mailbox.reply_policy", "desc": "定制收件应答", "core": "避免核心写死 success" }
 ]
 ```
 
-说明：质衡 HTTP 节点「扮渠道打被测 notify」仍用核心节点（7.1/7.2/7.3），一般不必插件。
+说明：
+
+- 质衡 HTTP 节点「扮渠道打被测 notify」仍用核心节点（7.1/7.2/7.3），一般不必插件。  
+- **挡板（`egress.mock.*`）≠ 流量会自动过来**：SDK 常把微信等域名写死在封装里，业务侧改不了 baseUrl。完整「仿微信支付」需要 **mock 门面 + 被测侧域名/TLS 拦截** 两半。  
+- `egress.intercept.*` 拦的是**被测进程/容器所在网络的出站**，不是质衡云端去劫持公网微信；执行体多落在 `opsAgent`（hosts、边车、mitm），与 7.6 挡板组合启用。  
+- HTTPS 几乎必做：仅改 DNS/hosts 不够，通常还要测试 CA + 被测 truststore；**证书锁定（pinning）的客户端 SDK 可能做不到**，插件须标明前提。  
+- 先占能力名与产品方向；实现难度高，**不排期、不承诺**，但值得作为仿渠道插件的正确形态记下来。
 
 #### G. 资产与领域包 `pack.*`（预留）
 
@@ -294,7 +340,7 @@
 
 说明：先占名，有痛点再做。
 
-#### I. 测流呈现面（`ui` · 与运行面对等）
+#### I. 界面端（`ui` · 与运行端对等）
 
 `manifest.ui` 两路可只写一路或两路都写：
 
@@ -402,6 +448,7 @@
   { "tag": "sut-fs", "effect": "旁路上传/文件" },
   { "tag": "sut-process", "effect": "重启被测；Prepare 末尾后须 health.wait" },
   { "tag": "egress-mock", "effect": "挡板 path 占用冲突检测" },
+  { "tag": "egress-intercept", "effect": "被测侧域名/代理劫持；须 ops-agent；与真实出网策略冲突时警告" },
   { "tag": "ops-agent", "effect": "依赖侧车/演示机代理" },
   { "tag": "secrets-read", "effect": "可读验证码等 → 权限与审计升级" },
   { "tag": "ui-theme", "effect": "测流主主题；同环境通常只启用一个，装饰可叠" },
@@ -431,20 +478,59 @@
 说明：
 
 - **包内永远有**根目录 `qualitest.plugin.json`；`id`/`version` 与文件名建议一致。  
-- **`runtime/`**：`httpAdapter` 可只放路径模板/小脚本元数据；`opsAgent` 放侧车可执行文件或安装说明；`builtin` 在**独立 zip 场景**可放附加资源，**真正 Java 类仍随质衡主版本**（见下）。  
-- **`ui/`**：复杂面板的受控前端模块；第一期多数官方包可空，只靠 JSON `ui`。  
-- 安装/启用时：校验 checksum → 读 manifest → 冲突检测 → 写入环境 composition；不是解压完就任意 `Class.forName`。
+- **`runtime/`** = 运行端载荷；**`ui/`** = 界面端载荷（声明式够用时可空，只靠 manifest 里的 `ui` JSON）。  
+- 安装/启用：校验 checksum → 读 manifest → 冲突检测 → 写入环境 composition；不是解压完就任意加载执行。
+
+**两端各自怎么发出去（重点）**：
+
+```text
+同一 zip
+  ├─ qualitest.plugin.json     → 质衡 app 入库（扩展库）
+  ├─ ui/                       → 界面端：由质衡 Web 下发到浏览器
+  └─ runtime/                  → 运行端：按 kind 留在 app 或下发到被测旁
+```
+
+| 端 | 分发路径 | 说明 |
+| --- | --- | --- |
+| **界面端** | zip → 质衡 **插件库（app 侧存储）** → 浏览器打开测流时，Web 按项目/环境已启用列表拉取 `ui` JSON（及可选 `ui/` 模块） | 用户**不用**单独装前端包；跟登录质衡同一站点走。静态资源建议经 app 反代，如 `/prod-api/plugins/{id}/{version}/ui/...`，带权限。第一期多数只需下发 JSON，无独立 JS |
+| **运行端 · builtin** | 已在质衡 **app** 发行物内；扩展目录里点启用即可 | 用户不必下 zip；开发者仍可按 zip 布局维护源码 |
+| **运行端 · httpAdapter** | 配置与模板进插件库；执行仍在 app 出站 | 薄包或内置 |
+| **运行端 · opsAgent** | zip 内 `runtime/` **另装到被测机/演示机**（或 compose 边车）；app 只保存「agent 地址 + 密钥」 | 这是用户会感觉「还要装一端」的部分；UI 上应写清「需在被测环境安装运行端代理」 |
+
+```json
+{
+  "distribute": {
+    "console": {
+      "channel": "qualitest-web",
+      "whoInstalls": "无人单独装；启用插件后浏览器自动拉",
+      "payload": ["manifest.ui", "optional zip:ui/"]
+    },
+    "runtimeBuiltin": {
+      "channel": "qualitest-app image/jar",
+      "whoInstalls": "升级质衡即可",
+      "payload": ["Java module keyed by plugin id"]
+    },
+    "runtimeOpsAgent": {
+      "channel": "same zip or agent-only extract",
+      "whoInstalls": "被测/演示机管理员",
+      "payload": ["zip:runtime/", "agent listen URL registered in env config"]
+    }
+  }
+}
+```
+
+说明：界面端**不**走 npm/独立 CDN 商店；跟质衡会话同源，避免跨域与假包。运行端 opsAgent 与界面端生命周期可以不同（先启 agent 再启用插件，或反过来在 UI 上红灯提示「运行端未连通」）。
 
 **和 `runtime.kind` 的关系（不必每个官方功能都逼用户下 zip）**：
 
 | 种类 | 用户是否必须下 zip | 说明 |
 | --- | --- | --- |
-| `builtin` | **通常不必** | 代码已在质衡发行物里；产品内「扩展目录」启用即可。仓库内仍按**同一目录布局**维护，便于以后导出 zip / 私有化打包 |
-| `httpAdapter` | 可以是薄 zip（几乎只有 JSON） | 或直接内置 |
-| `opsAgent` | **建议独立 zip** | 脚本/二进制跟质衡 app 生命周期不同，跟被测机部署走 |
+| `builtin` | **通常不必** | 运行端已在 app；界面端随启用下发 JSON |
+| `httpAdapter` | 可以是薄 zip | 或直接内置 |
+| `opsAgent` | **建议独立 zip（或从全量 zip 只解 runtime/）** | 运行端装被测旁；界面端仍只走质衡 Web |
 | 私有化自有扩展（后置） | **必须 zip + 签名** | 允许列表校验后再用 |
 
-一句话：**契约与可选代码整合成一个包是对的**；官方 builtin 对用户可以是「内置启用」，对开发者仍按同一包布局收纳，避免两套结构。
+一句话：**一个插件、一个 zip、两个端名（运行端 / 界面端）**；界面端由质衡 Web 分发，运行端按 kind 留在 app 或装到被测旁，不要拆成两个市场商品。
 
 ---
 
@@ -498,7 +584,7 @@ Run 创建 → onRunPrepare → 跑图（snapshotBefore→onCheckpoint；还原�
 | 前端 `nodeRegistry` / 节点样式 | 核心保留 8 类注册表；插件只 **decorate / panel**，不直接改 Registry 源码 |
 | Delay / `retryUntil` | 留核心；跨天过期用 `sut.clock.*` + 顶栏虚拟时间 |
 | 7.4 Webhook 门面 | 入站与落库偏核心；应答策略可 `ingress.mailbox.reply_policy` |
-| 7.6 挡板 | 门面 + 记录偏核心；渠道/模板包走 `egress.mock.*` + 报告块 |
+| 7.6 挡板 | 门面 + 记录偏核心；渠道/模板包走 `egress.mock.*`；SDK 写死域名时叠加预留的 `egress.intercept.*`（opsAgent） |
 | 7.1 脚本加密 | 通用工具留核心；渠道开箱预设可 `pack.crypto.channel` |
 | 质衡 `qualitest.storage` | **不是**被测插件；属平台自身素材存储 |
 | Script `ctx` / MCP | 后期只读暴露已启用插件安全子集；写配置走原有权限 |
@@ -528,7 +614,7 @@ Run 创建 → onRunPrepare → 跑图（snapshotBefore→onCheckpoint；还原�
 | 环境串行 | 任一写库/写钟/重启/清缓存影响共享被测 → 串行 |
 | 意图无实现则显式失败或警告 | 禁止静默 no-op 到让人以为已还原 |
 | 金库真相源默认只读于跑流 | `backup` 写入须显式人操或独立任务，防演示金库被跑流污染 |
-| 运行面与呈现面宜成对 | 有 `sut.*` 无任何 `ui.flow.*` → 启用时警告（官方插件应避免） |
+| 运行端与界面端宜成对 | 有 `sut.*` 无任何 `ui.flow.*` → 启用时警告（官方插件应避免） |
 | UI 主主题互斥、装饰可叠 | 两个 `ui-theme` 冲突；多个 `node.decorate` 可叠加 |
 
 ### 7.2 示意组合（不写具体插件设计）
@@ -576,7 +662,7 @@ Run 创建 → onRunPrepare → 跑图（snapshotBefore→onCheckpoint；还原�
 - 两个 `ui.flow.tokens` 主主题 → `ui-theme` 冲突，启用拒绝或需指定 primary theme  
 - 装饰类（角标、时间线图标）不占 `ui-theme`，可与单一主题并存
 
-**H. 仅 UI 包、无运行面**
+**H. 仅界面端、无运行端**
 
 - 允许：纯 `pack.domain` + `ui.flow.tokens` 的「教学皮肤 / 品牌测流」（模式 B）  
 - 不得伪造具备 `sut.data.*` 的操作按钮；工具条动作必须 `requires` 对应运行能力
@@ -586,6 +672,28 @@ Run 创建 → onRunPrepare → 跑图（snapshotBefore→onCheckpoint；还原�
 - 可并存：例如数据插件 = A（HTTP 角标 + panel）+ B（环境徽章）；时钟插件 = B（顶栏）为主、A 为辅  
 - 两个插件都对同一 `node.panel.http` 扩展 → `order` 排列或槽位冲突规则，与主题互斥分开处理  
 - 「完全新皮肤」（B tokens）不排斥继续对旧节点做 A 装饰；卸掉插件后 A/B 贡献一并消失，画布回到核心默认
+
+**J. 仿微信支付：挡板 × 域名拦截（方向预留）**
+
+```json
+{
+  "plugins": [
+    { "id": "official.egress-mock-wechat", "enabled": true },
+    {
+      "id": "official.egress-intercept",
+      "enabled": true,
+      "config": {
+        "domains": ["api.mch.weixin.qq.com", "api.weixin.qq.com"],
+        "mode": "hosts+testCa",
+        "note": "须被测信任测试 CA；pinning 场景可能失败"
+      }
+    }
+  ],
+  "requiresIsolation": ["egress-mock", "ops-agent"]
+}
+```
+
+说明：测「被测主动调微信」且 SDK 写死域名时用；测「微信回调被测」只需核心 HTTP 扮渠道，不必 intercept。能力名已占，实现另议。
 
 ### 7.3 能力名稳定性
 
@@ -607,7 +715,7 @@ Run 创建 → onRunPrepare → 跑图（snapshotBefore→onCheckpoint；还原�
 | **P5 扩展目录（克制）** | 官方内置启用 + 可选上传/导入签名 zip（私有化）；不做公网海量商店 |
 
 旁路状态、OTP、进程重启等：**先占能力名，实现按痛点插入**，不必阻塞 P0–P2。  
-呈现面与运行面 **同版本契约**；避免先只做后端 hook、UI 长期写死在主仓。
+界面端与运行端 **同版本契约**；避免先只做运行端、界面端长期写死在主仓。
 
 **扩展怎么进用户手里**：长期只做克制的官方扩展目录（内置启用、版本随质衡走、权限与冲突在启用时校验）。私有化若要自有扩展，再单开「签名包 + 允许列表」，仍不是公开应用商店。
 
