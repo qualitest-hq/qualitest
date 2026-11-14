@@ -1,129 +1,357 @@
 # 质衡平台插件（草案）
 
-> **状态**：设计草案 · ROADMAP **Exploring 6.2**（不承诺版本）。  
-> **范围**：质衡**产品内**可装卸扩展；一个插件可含两端（正式称呼见 §3.1）：  
-> **运行端** + **界面端**。  
-> **不含**：JetBrains「Qualitest Helper」、Cursor MCP 工具清单本身（接入通道 ≠ 平台插件）。
+> **状态**：设计草案 · ROADMAP Exploring 6.2（**不承诺版本**；契约须自洽，实现按本文执行）。  
+> **不含**：JetBrains Helper、Cursor MCP（接入通道 ≠ 平台插件）。  
+> **已定结论**：§9 · **实现对照**：§10（启用/调度/失败须有唯一答案）。
 
-本文定：**什么进插件、能力怎么命名预留、如何共存**；契约形状用 **JSON** 写清。  
-举例只说明挂接与冲突，**不**展开各插件后端实现协议。
+**本文定四件事**：什么进插件、能力名叫什么、多个插件怎么共存、平台对插件开放多少。
+
+**怎么读**：§1 边界（含**启用 vs Invoke**、被测特殊面→插件）→ §2 形态（必读，含示例）→ §3 能力归属（**无开放名录**）→ §4 隔离与生命周期 → 实现时必读 **§10**。
+
+### 规范用语
+
+| 用语 | 含义 |
+| --- | --- |
+| **必须** | 违反则拒启用、图校验失败或跑流失败（见原因码 §4.2 / §10） |
+| **禁止** | 实现不得提供该路径；出现则拒或视为契约错误 |
+| **默认** | 未另声明时的唯一行为；覆盖须在本文显式允许 |
+| **后置** | 本期不实现；占名或方向，不得当作 P0 范围 |
+
+本文不定完整 Java/HTTP 方法签名，但**必须**定清：字段约束、校验时机、路由规则、失败语义、阶段映射。细节算法以 **§10** 为准；§1～§8 与 §10 冲突时，**以 §10 为准**并回改正文。
 
 ---
 
-## 1. 为什么要做
+## 1. 边界：核心 vs 插件
 
-今天质衡核心已经能：画布编排、跑流、鉴权、AI/MCP、报告。  
-和**被测运行时状态**强相关的能力，有的埋在核心（HTTP `snapshotBefore` → `/test-support`），有的在运维仓（`qualitest-demo-host` 金库 / daily-reset），有的还只是测流里手写 HTTP（靶场 `scenario/load`）。
+今天测流引擎、鉴权、报告已在核心；拨钟、库存档点、场景加载、挡板渠道等散落在核心边角、运维仓或手写 HTTP。再不划界，每加一种靶场运维或测流皮肤都会渗进主仓，以后难兼容。插件一旦能干活，界面**必须**能表达（顶栏、徽章、贡献节点、报告块），否则视为契约不完整（启用时可警告；P0 官方包必须至少一种 B 类可见贡献，见 §7）。
 
-另一面同样重要：插件一旦能拨钟、还原库、挂挡板，**测流 UI 必须能表达这些能力**——环境条、节点角标、审计步样式、属性侧栏、报告卡片——否则能力「黑盒存在」，用户看不见、也配不了。呈现若继续写死在核心 Vue 里，每个官方插件都要改主仓前端，兼容性同样崩。
-
-若不先定插件边界，后面每加一种靶场运维或一种测流皮肤/贡献位，都会继续渗进核心，**以后很难兼容**。
-
-**原则（判定口诀）**：
+### 判定口诀
 
 | 问 | 是 → | 否 → |
 | --- | --- | --- |
-| 是否改被测认定的数据 / 时钟 / 进程旁路状态？ | **插件（运行端）** | 看下一问 |
-| 是否改变测流在编辑/运行/报告中的呈现或可贡献控件（且随插件装卸）？ | **插件（界面端）** | 看下一问 |
-| 是否强绑定某一被测、某一云厂商、某一支付渠道的细节？ | **插件**（或插件包） | 看下一问 |
-| 是否所有项目都需要、且与画布**引擎语义**强耦合？ | **核心** | 倾向插件或项目配置 |
+| 改被测数据 / 时钟 / 旁路状态？ | 插件 · 运行端 | 下一问 |
+| 改测流编辑/运行/报告呈现（随插件装卸）？ | 插件 · 界面端 | 下一问 |
+| 强绑某一被测 / 云厂商 / 支付渠道细节？ | 插件 | 下一问 |
+| 所有项目都要，且与引擎语义强耦合？ | **核心** | 插件或项目配置 |
 
-核心只提供：**挂点、能力名注册、环境总闸、串行、冲突检测、审计、UI 贡献槽与设计令牌契约**；不内置「商城金库怎么 dump」「微信退款挡板怎么回包」，也不为每个插件改一遍画布源码。
-
----
-
-## 2. 核心 vs 插件
-
-插件是**双端**的：同一包常同时带运行端能力 + 界面端贡献（例如「被测时钟」既有 `sut.clock.*`，也有画布顶栏「当前虚拟时间」）。
-
-| 归核心（保持稳定） | 归插件（可装卸） |
+| 归核心 | 归插件 |
 | --- | --- |
-| 项目 / 环境 / 成员权限 / Project Token | 被测库：检查点、整库备份还原、场景种子加载 |
-| 固定 **8** 类节点的**执行语义**与图校验骨架 | 被测时钟、缓存/MQ/上传旁路、验证码后门、进程重启等 |
-| 画布壳、时间线壳、报告壳、**贡献槽位与令牌表** | 测流主题令牌、节点装饰、顶栏/侧栏/时间线条目、报告块 |
-| MCP/AI **协议骨架**与门控开关 | 挡板渠道包、收件应答策略、领域提示包 |
-| 出站 HTTP、脚本沙箱宿主、质衡自身存储 | 强绑定被测的签头/渠道开箱预设 |
-| Webhook 入站门面、鉴权 Profile 框架、排队串行调度 | （同上，运行细节） |
+| 项目/环境/权限；核心节点执行语义；画布/时间线/报告壳；`pluginAction` 引擎类型；跑流**挂点何时触发**（如 `snapshotBefore`、续跑要不要还原） | **凡需被测特殊配合才能干的事**（接 test-support、拨钟门面、库存档点 CLI、场景种子…）的**执行**；测流主题与 UI 贡献；`ops-agent` 载荷 |
+| MCP/AI 骨架、出站 HTTP、Webhook 门面、串行调度、质衡自身存储 | 渠道签验等（有插件实现再做，**不**先占质衡开放能力名） |
 
-刻意不做（至少本阶段）：
+**核心只给架子**：宿主挂点、按 **pluginId** 调用、总闸、串行、冲突、审计、UI 槽、`pluginAction`。  
+**禁止**在核心内置「怎么打 `/test-support/*`」「怎么 dump/restore 被测库」「微信退款怎么回包」等被测细节。
 
-- 用「自定义画布节点类型」当插件**主**路径（成本高；ROADMAP 5.1 另议）。界面端优先 **装饰 / 槽位 / 令牌**，而不是新增第 9 种 `FlowNodeType`。
-- 插件任意注入全局 CSS 或替换整页布局（只允许契约内令牌 + 具名槽位，防把控制台弄崩）。
-- 插件改质衡自身 DB / 自身 JVM 时钟 / 全局多租户状态。
-- 无签名、无权限的远程 JAR/前端包热装「应用商店」（后置）。
-- 把独立 DB 节点、同流压测做进插件来绕开「刻意不做」——插件不是后门。
+#### 铁律：被测要特殊处理 → 必须插件；能力归插件，质衡不开放业务能力名
+
+| 判断 | 结论 |
+| --- | --- |
+| 被测必须接专用 HTTP / agent / 脚本 / 本机 dump 目录才干得成？ | **必须**做成插件；执行不得留在核心 |
+| 插件说明书里的 `capabilities` | **该插件私有**；质衡**禁止**维护「开放能力名录」供任意包认领 |
+| 质衡开放的是什么 | 宿主挂点名（`onCheckpoint` / `onRestore` / …）、Invoker、总闸、isolation——**不是** `save.create` / `clock.set` 这类业务能力名 |
+
+今日主仓直调 test-support 的 snapshot/restore：**必须**拆进存档点插件。拆出去之后：
+
+| | 核心 | 插件（如库存档点 / 拨钟） |
+| --- | --- | --- |
+| 留下 | 挂点何时触发、画布意图、总闸 | 私有能力 + 被测旁 **CLI**（或已有 HTTP） |
+| 调用 | `Invoker.invoke(pluginId, capability, …)` | CLI / routes / builtin |
+| 禁止 | 核心内置连库 dump、拨钟细节；开放业务能力名录 | 未启用却暗门回落；无故常驻守护难卸载 |
+
+未启用对应插件却配置了依赖该能力的意图 → 失败，**禁止**当核心功能继续用。  
+跑中即时备份/恢复 = 本插件职责；**不要**与 demo-host 运维「金库」`data/golden` 混谈。
+
+### 开放原则：默认拒绝，具名开放（架子，不是业务能力）
+
+- **界面端 / 运行端**：**必须**只走平台调用面（Invoker、UiRegistry）；平台未开放的 Host API **禁止**调用。  
+- **`capabilities[]`**：插件自声明的**私有**运行能力；挂上/摘掉仅在启用/停用时发生；**禁止**写成质衡全局开放名录的条目。  
+- **调用方向**：挂点 / 贡献节点 / 工具条 → `Invoker.invoke(pluginId, capability, …)` → 该包实现 → 按 `runtime.kind` 分发（§10.4）。插件是**被调用方**，**禁止**反向掏质衡内部服务。  
+- **界面贡献**：**必须**写在 `ui`；启用时 **UiRegistry** 登记；**禁止**经 Invoker；**禁止**写入 `capabilities[]`。  
+- Host/Context 白名单见 §10.5；**禁止**直访 Spring 容器 / 任意 DataSource / 质衡系统库。  
+- **`builtin`**：实现可在主仓；仍**必须**经 Invoker（带 `pluginId`）；注册表无实现 → 拒启用。  
+- **被测端**：装上后 OS 行为不在平台沙箱内；`ops-agent` 启用/invoke 前**必须**连通检查。  
+- **互斥**：同环境靠 `isolation` / `conflicts`；**不**靠「全局能力名唯一提供者」那套开放名录模型。
+
+官方 `builtin` = **虚包说明书 + 主仓实现**（§2.1）。**禁止**照抄 DSH「一切皆插件 / 无特权内核」。
+
+### 启用 vs Invoke（必读）
+
+这两个词后文会反复出现，指的是**两个不同时机**，不要混成「开了插件就等于干了活」。
+
+```text
+插件说明书已入库（或官方虚包已随版本带上）
+        │
+        ▼
+【启用 Enable】在「某个测试环境」里打开该插件、填 config、保存
+        │  · 人操作一次（或导入环境配置）
+        │  · 平台跑 §10.3：冲突、总闸、isolation、primary…
+        │  · 成功后：能力挂进路由表，ui 挂进 UiRegistry
+        │  · 此时通常还没对被测发任何 snapshot/restore 请求
+        ▼
+环境里插件处于「已启用」——顶栏/徽章可以出现，调色板可以拖节点
+        │
+        │  之后某次跑流 / 点工具条 / 跑到图上的 pluginAction
+        ▼
+【Invoke】平台按能力名真正调用一次实现去干活
+        │  · 可发生很多次（每次 Prepare、每个节点、每次点按钮）
+        │  · 入口：Invoker.invoke(能力名, 参数, …)（§10.4）
+        │  · 再查总闸、再查 agent 连通、再按 kind 发 HTTP / 调 builtin / 支使 agent
+        │  · 必须写审计时间线
+        ▼
+被测被改（或读到结果）/ 失败则 fail_run + 原因码
+```
+
+| | **启用 Enable** | **Invoke** |
+| --- | --- | --- |
+| **一句话** | 在这个环境里**允许用**这个插件 | **这一次**去执行某个能力 |
+| **谁触发** | 人在环境配置里勾选/保存 | 跑流挂点、图节点、工具条等 |
+| **发生次数** | 每个环境对每个插件：启用/停用，偏配置态 | 一次跑流里可以很多次 |
+| **主要检查** | 说明书、冲突、config、**本包能力 gate→总闸**、agent bundle…（§10.3） | 该 `pluginId` 是否启用、本能力 gate、连通、执行结果（§10.4） |
+| **成功之后** | 插件可被挂点/节点找到；**不等于**已经动过被测 | 对被测产生了一次真实副作用或读结果 |
+| **失败像什么** | 插件开不了，表单报原因码 | 本次跑流中断（默认 fail_run）或节点失败 |
+| **和总闸的关系** | 包内能力所需闸未开 → **拒启用** | 启用后若总闸被关掉再干活 → **拒 invoke**（再拦一次） |
+
+对照例子（SQL 存档点 CLI，私有能力 `save.restore`，`gate=destructive`）：
+
+1. 被测机已 `install` CLI 并写好 `{etc}/bind/{bindAlias}.json`；质衡**项目**挂上同名 `bindAlias`，环境启用并开破坏性总闸 → `ping` 成功（项目只能调自己的 bind 文件）。  
+2. 挂点 `onCheckpoint` → `invoke(..., "save.create", { saveId })`（连接以**本地 bind**为准；存档按项目+环境分目录）；出问题或续跑 → `save.restore`。  
+3. 不用该插件 → 环境停用 + 被测机 `uninstall.sh`，无常驻进程要杀。  
+4. 中途关总闸 → 后续 **restore** Invoke **必须** `GATE_DENIED`。
+
+**停用**是启用的反操作：摘路由与 UI；图上残留 `pluginAction` **必须**按 §2.6 **即时重算为失效**（不改流程图持久字段），之后 Invoke 不到该提供方。
+
+后文凡写「启用时…」「Invoke 时…」，均按本小节理解。
+
+### 刻意不做
+
+- 无限膨胀引擎节点枚举（画布步骤 → **`pluginAction` + 贡献外观**）  
+- 任意全局 CSS / 整页替换；改质衡自身 DB / JVM 钟 / 多租户  
+- 公网任意 JAR 热装商店；用插件绕开未开放的引擎能力  
+- DSH 式无特权内核  
+
+### 命名风格（契约字符串）
+
+| 类别 | 规则 | 示例 |
+| --- | --- | --- |
+| 枚举 / isolation / kind / 能力 `gate` | **必须** kebab-case | `ops-agent`、`http-adapter`、`destructive` |
+| 插件内能力名 | **必须** `^[a-z][a-z0-9.-]*$`；**私有于该 pluginId** | `save.create`、`clock.set` |
+| 插件 id | **必须** `^[a-z][a-z0-9.-]*$`，建议 `qualitest.*` / 厂商前缀 | `qualitest.sut-db-save-point` |
+| 贡献短 id | **必须** `^[a-z][a-z0-9-]*$`，**禁止**含 `/` | `clock-advance` |
 
 ---
 
-## 3. 插件模型（JSON 契约）
+## 2. 一个插件长什么样（必读）
 
-结构一律用 **JSON**（如 `qualitest.plugin.json`、环境 composition）。阅读约定：**先 JSON，紧接「说明」**，不再把字段表拆到别处。草案形状可增字段，不可随便改已有语义。
+### 2.1 人话：最多三端，仍是一份说明书
 
-### 3.1 一句话与两端命名
+**一个插件 = 一份说明书**（`qualitest.plugin.jsonc`，JSONC：注释 + 尾逗号，键加引号）。分发形态：
 
-**插件 = 一份 `qualitest.plugin.json` +（可选）运行端材料 +（可选）界面端材料**，对外常打成**一个 zip**。
+| 形态 | 规则 |
+| --- | --- |
+| zip 包 | 根目录**必须**含说明书；可选 `runtime/`、`agent/`、`ui/`、`assets/`、`SHA256SUMS` |
+| 官方虚包 | 发行物内嵌说明书；无独立 zip；`kind=builtin` 时主仓**必须**有对应实现注册 |
 
-两端正式称呼（文档与 UI 文案统一用这套，避免和「前后端工程」「被测/质衡」糊在一起）：
+**禁止**把同一插件拆成多个市场商品 id。按「装到哪」最多三端：
 
-```json
+| 端 | 正式名 | 装到哪 | 包内目录 | 用户感知 |
+| --- | --- | --- | --- | --- |
+| **看得见** | 界面端 Console | 质衡 Web | 说明书 `ui` + 可选 `ui/` | 顶栏、徽章、调色板节点 |
+| **质衡侧调度** | 运行端 Runtime | 质衡 app | 说明书 `runtime` / `hooks` | 跑流时平台知道何时调谁 |
+| **被测旁落地** | 被测端 Agent | 被测机 / 演示机 | **`agent/`（默认 CLI）** | 库存档点、拨钟、改 hosts 等 |
+
+硬约束：
+
+- 被测端**必须**使用与说明书相同的插件 `id`。  
+- `runtime.kind`：**必须**为 `http-adapter` \| `builtin` \| `ops-agent`（§2.3.1）。  
+- `kind=ops-agent`：**必须**有 `runtime.agent`；**默认形态 = CLI**（§2.3.2），装得上卸得下。  
+- `http-adapter` / `builtin`：**禁止**强依赖 `agent/` 才能启用。  
+- 环境侧自定义（库连接、storeRoot、钟模式等）：进环境插件绑定的 **`config`**，由说明书 **`configSchema`** 校验；**禁止**写死在流程图。ops-agent 存档类数据 **必须**按 `projectId`/`envId` 分目录（CLI 二进制不必按项目各装一份）。
+
+**完整** = 契约合法且启用后能按能力执行；**本期先定文档契约，实现样本后置**。
+
+### 2.2 目录样例（ops-agent + CLI）
+
+```text
+qualitest.sut-db-save-point-1.0.0.zip
+├─ qualitest.plugin.jsonc                  ← 必须（JSONC）
+├─ agent/                                  ← ops-agent 必须
+│   ├─ install.sh / uninstall.sh           ← 安装到 PATH 或固定目录；卸载删干净
+│   ├─ qt-plugin                           ← CLI 入口（名可自定，说明书声明）
+│   └─ install.md
+├─ ui/                                     ← 可选
+├─ assets/
+└─ SHA256SUMS
+```
+
+### 2.3 说明书字段 + 运行落点
+
+| 字段 | 必填 | 规则 |
+| --- | --- | --- |
+| `id` / `version` / `displayName` | 必须 | 身份；`version` 为 semver 字符串 |
+| `remarks` | 可选 | 给人看的说明；**禁止**参与启用/Invoke 判定 |
+| `capabilities` | 必须（可 `[]`） | **本包私有**能力对象数组，见下；**禁止** `ui.*`；**不是**质衡开放名录 |
+| `requires` | 默认 `[]` | 仅 `plugin:<id>`；**禁止** `gate.*`；**禁止**引用「全局能力名」 |
+| `conflicts` | 默认 `[]` | 仅 `plugin:<id>`；主互斥靠 isolation |
+| `isolation` | 默认 `[]` | 标签 ∈ §4.1 |
+| `hooks` | 默认 `[]` | `actions[]` **必须**为本包 `capabilities[].name` |
+| `configSchema` | 可选 | JSON Schema；环境 `config` 须通过才能启用 |
+| `ui` | 可选 | 见 §3.2 |
+| `runtime` | 有运行能力时必须 | 见 §2.3.1 |
+
+**禁止**旧稿包级 `danger`。总闸看**本包能力对象上的 `gate`**。
+
+#### `capabilities[]` 对象（插件私有）
+
+```jsonc
 {
-  "ends": [
-    {
-      "name": "运行端",
-      "nameEn": "Runtime",
-      "manifestKeys": ["capabilities(sut.*|egress.*|ingress.*|pack.*)", "hooks", "runtime", "configSchema"],
-      "zipPath": "runtime/",
-      "job": "跑流前后真正干活：拨钟、还原、挡板、域名拦截等"
-    },
-    {
-      "name": "界面端",
-      "nameEn": "Console",
-      "manifestKeys": ["capabilities(ui.flow.*)", "ui"],
-      "zipPath": "ui/",
-      "job": "测流页看得见、配得了：令牌、横幅、节点装饰/面板、时间线、报告块"
-    }
-  ],
-  "aliasDeprecated": ["运行面", "呈现面"]
+  "name": "save.restore", // 包内唯一
+  "effect": "write",         // read | write
+  "gate": "destructive",     // 省略/"none" | destructive | secrets-read
+  "preparePhase": "data",    // 仅 onRunPrepare；省略 = 禁止进 Prepare
+  "dbCompete": true
 }
 ```
 
-说明：
+| `gate` | 启用时 | Invoke 时 |
+| --- | --- | --- |
+| 无 / `none` | 无额外总闸 | 无额外总闸 |
+| `destructive` | 环境 `gate.destructive`（= `allowDestructiveReset=1`）须开 | 本能力再查一次 |
+| `secrets-read` | 环境 `gate.secrets-read` 须开（默认关） | 本能力再查一次 |
 
-- **运行端（Runtime）**：能力名以 `sut.*` / `egress.*` / `ingress.*` / `pack.*` 等为主；执行看 `runtime.kind`。  
-- **界面端（Console）**：能力名以 `ui.flow.*` 为主；描述在 `ui`；浏览器里由质衡 Web 壳渲染。  
-- 旧称「运行面 / 呈现面」等同两端，后文逐步收成 **运行端 / 界面端**。  
-- 可以只有一端（纯皮肤包只有界面端；纯 ops 脚本包几乎只有运行端），官方带行为的包建议两端都有。  
-- **不要**把两端叫成「前端插件 / 后端插件」两套独立产品——仍是**一个插件 id、一个 zip**；只是载荷分两目录。
+1. **启用**：本包能力 `gate` 并集均须已开。  
+2. **Invoke**：只查本次能力的 `gate`。  
+3. `remarks` 不影响开闸。  
+4. 高危 gate 的 Invoke **必须**审计。
 
-**运行端内部再分落点**（仍属运行端，不是第三「端」）：
+### 2.3.1 `runtime.kind`
 
-| `runtime.kind` | 代码跑在哪 |
+| `kind` | 何时用 | 质衡行为 | 被测旁 |
+| --- | --- | --- | --- |
+| `http-adapter` | 被测**已有**稳定 HTTP 门面 | 按 `runtime.http.routes` 出站 | 无 `agent/` 前提 |
+| `builtin` | 必须与跑流引擎进程内耦合 | 主仓按 `pluginId` 调实现 | 无 `agent/` 前提 |
+| `ops-agent` | 须碰 OS / 库 / 容器 / 本机文件 | 调被测旁 **CLI（默认）** | **必须**有 `agent/` |
+
+选型口诀：已有 HTTP → `http-adapter`；强绑引擎 → `builtin`；否则碰被测机 → **`ops-agent` + CLI**。  
+**禁止**第三方 JAR 热装进质衡进程。  
+**禁止**为「方便」默认起常驻 HTTP 守护；能 CLI 一次做完的，不要常驻进程（卸载麻烦）。
+
+### 2.3.2 被测端默认形态：CLI（装 / 卸）
+
+`ops-agent` **默认**交付为命令行工具，而不是常驻服务：
+
+| 要求 | 说明 |
 | --- | --- |
-| `builtin` | 质衡 **app** 进程内（随质衡版本） |
-| `httpAdapter` | 质衡 app 出站调被测/代理 |
-| `opsAgent` | **被测旁**侧车/演示机（与 app 分开发装） |
+| 安装 | `agent/install.sh`（或文档步骤）把 CLI 放到约定路径 / PATH |
+| 卸载 | `agent/uninstall.sh` **必须**能删干净二进制与本插件配置目录，不留守护进程 |
+| 调用 | 质衡 Invoke → 在被测机执行：`qt-plugin <capability> --config <env下发的配置文件>`（命令名以说明书为准） |
+| 配置 | DB 连接、storeRoot、钟文件路径等走环境插件 **`config`**（`configSchema`）；Invoke 时写入临时/约定路径并注入 `projectId`/`envId` 再传给 CLI；**密钥不进流程图** |
+| 探活 | 启用/Invoke 前跑 `qt-plugin ping`（或 `--help` 约定）；失败 → `AGENT_UNREACHABLE` |
+| 非默认 | 仅当被测**已经**提供 HTTP 且不愿装 CLI 时，改用 `http-adapter` |
 
-### 3.2 Manifest 根对象
+说明书 `runtime.agent` 示意：
 
-```json
+```jsonc
+"runtime": {
+  "kind": "ops-agent",
+  "agent": {
+    "bundle": "embedded",
+    "cli": {
+      "bin": "sdsp",   // install 后的命令名
+      "pingArgs": ["ping"],
+      // invoke：bin + capability 名 + --config <path> + 能力参数
+    }
+  }
+}
+```
+
+### 2.3.3 文档示意（非实现承诺）
+
+下列两包**仅说明书示意**，用于对齐契约；**可运行样本后置**。官方 ops CLI 样本语言定为 **Go**（单二进制）；仓库路径后置。
+
+完整设计（边界、CLI、config、衔接）：
+
+- [plugin-sut-db-save-point.md](./plugin-sut-db-save-point.md) — `qualitest.sut-db-save-point`
+- [plugin-sut-sys-clock-dial.md](./plugin-sut-sys-clock-dial.md) — `qualitest.sut-sys-clock-dial`
+
+#### 示例 A：被测库存档点（ops-agent + CLI）
+
+测中即时备份 / 出问题或断点续跑时恢复——须碰被测 **SQL / Redis 等状态源**，故 CLI；同一 `saveId` 默认可**整包**存/按序恢复。测试流推荐 **`bind-file`**（`bindAlias` 如 `demo-mall.json`；多 store 的 `kind` 见 [plugin-sut-db-save-point.md](./plugin-sut-db-save-point.md)）。
+
+```jsonc
 {
-  "id": "official.sut-clock",
+  "id": "qualitest.sut-db-save-point",
   "version": "1.0.0",
-  "displayName": "被测时钟",
-  "danger": "destructive",
-  "audit": true,
+  "displayName": "被测库存档点",
+  "remarks": "CLI+本地 bind；targets 可含 mysql/redis 等。断点默认整包 saveId。restore 需破坏性总闸。跨 store 不原子。",
   "capabilities": [
-    "sut.clock.read",
-    "sut.clock.set",
-    "sut.clock.advance",
-    "sut.clock.reset",
-    "ui.flow.chrome.banner",
-    "ui.flow.timeline.step",
-    "ui.flow.node.decorate"
+    { "name": "list", "effect": "read", "gate": "none" },
+    { "name": "save.create", "effect": "write", "gate": "none", "preparePhase": "data" },
+    { "name": "save.restore", "effect": "write", "gate": "destructive", "dbCompete": true },
+    { "name": "save.delete", "effect": "write", "gate": "none" }
   ],
-  "requires": ["gate.destructive"],
-  "conflicts": ["capability:sut.clock.set@other"],
-  "isolation": ["sut-clock", "ui-slot:flow.banner.clock"],
+  "isolation": ["sut-db", "ui-slot:flow.badge.db-save-point"],
+  "hooks": [
+    { "name": "onCheckpoint", "order": 50, "actions": ["save.create"] },
+    { "name": "onRestore", "order": 50, "actions": ["save.restore"] }
+  ],
+  "configSchema": {
+    // 完整字段表见 plugin-sut-db-save-point.md §3
+    "type": "object",
+    "properties": {
+      "storeRoot": { "type": "string", "description": "可选；覆盖 {var}，禁止改 bind 根" },
+      "defaultSaveId": { "type": "string" },
+      "db": {
+        "type": "object",
+        "properties": {
+          "resolve": { "type": "string", "enum": ["bind-file", "explicit"], "default": "bind-file" },
+          "bindAlias": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+          "bindEnvKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+          "dbKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$", "description": "默认库；多库时用" },
+          "engine": { "type": "string" },
+          "host": { "type": "string" },
+          "port": { "type": "integer" },
+          "database": { "type": "string" },
+          "user": { "type": "string" },
+          "password": { "type": "string" },
+          "options": { "type": "object" }
+        },
+        "required": ["resolve", "bindAlias"]
+      }
+    },
+    "required": ["db"]
+  },
+  "ui": {
+    "env": { "badge": { "text": "存档点", "tone": "warning" } }
+  },
+  "runtime": {
+    "kind": "ops-agent",
+    "agent": {
+      "bundle": "embedded",
+      "cli": { "bin": "sdsp", "pingArgs": ["ping"] }
+    }
+  }
+}
+```
+
+存档落盘 **必须** `{var}/{projectId}/{envId}/{saveId}/meta.json` + `{storeKey}/…`（见 [plugin-sut-db-save-point.md §3.5 / §4.3](./plugin-sut-db-save-point.md)）。
+
+#### 示例 B：被测系统拨钟（ops-agent + CLI）
+
+用 CLI **改被测机操作系统时间**（便于 Quartz 等跟系统钟的调度）；**仅靶场/演示机**。Finalize 按 `resetPolicy` 对时或恢复拨钟前快照。**不要**默认起常驻钟服务。详见 [plugin-sut-sys-clock-dial.md](./plugin-sut-sys-clock-dial.md)。
+
+```jsonc
+{
+  "id": "qualitest.sut-sys-clock-dial",
+  "version": "1.0.0",
+  "displayName": "被测系统拨钟",
+  "remarks": "CLI 改被测机系统时间（非生产）。写操作需破坏性总闸；复位建议 ntp 或 restore。短称：拨钟。",
+  "capabilities": [
+    { "name": "clock.read", "effect": "read", "gate": "none" },
+    { "name": "clock.set", "effect": "write", "gate": "destructive", "preparePhase": "clock" },
+    { "name": "clock.advance", "effect": "write", "gate": "destructive" },
+    { "name": "clock.reset", "effect": "write", "gate": "destructive" }
+  ],
+  "isolation": ["sut-sys-clock-dial", "ui-slot:flow.banner.clock"],
   "hooks": [
     { "name": "onRunPrepare", "order": 80, "actions": ["clock.set"] },
     { "name": "onRunFinalize", "order": 20, "actions": ["clock.reset"] }
@@ -131,625 +359,546 @@
   "configSchema": {
     "type": "object",
     "properties": {
-      "mode": { "enum": ["mockTimeApi", "header", "containerClock"] },
-      "baseUrl": { "type": "string" },
-      "defaultAdvance": { "type": "string", "description": "ISO-8601 duration，如 P2D" }
+      "resetPolicy": { "enum": ["ntp", "restore"], "description": "ntp=同步网络时间；restore=恢复拨钟前快照" },
+      "defaultAdvance": { "type": "string", "description": "如 P2D" },
+      "timezone": { "type": "string", "description": "展示/解释用，如 Asia/Shanghai" }
     },
-    "required": ["mode"]
+    "required": ["resetPolicy"]
   },
   "ui": {
-    "tokens": {},
-    "chrome": {},
-    "nodes": {},
-    "timeline": {},
-    "report": {},
-    "env": {},
-    "palette": {}
+    "chrome": {
+      "banner": [
+        { "id": "clock-banner", "slot": "top", "text": "系统时间 {{clock.now}}", "tone": "warning" }
+      ]
+    },
+    "env": { "badge": { "text": "拨钟", "tone": "warning" } },
+    "palette": {
+      "nodes": [
+        {
+          "id": "clock-advance",
+          "label": "快进被测系统时间",
+          "capability": "clock.advance",
+          "configSchema": {
+            "type": "object",
+            "properties": { "by": { "type": "string" } },
+            "required": ["by"]
+          }
+        }
+      ]
+    }
   },
   "runtime": {
-    "kind": "httpAdapter",
-    "entry": "builtin:sut-clock"
+    "kind": "ops-agent",
+    "agent": {
+      "bundle": "embedded",
+      "cli": { "bin": "qt-sut-sys-clock-dial", "pingArgs": ["ping"] }
+    }
   }
 }
 ```
 
-说明：
+跑中 ephemeral checkpoint/restore（今日 test-support）：**迁入本存档点插件**（或同能力 http-adapter）；**禁止**再写成「运维金库」语义。  
+`http-adapter`：若使用，每个 invoke 能力**必须**有 `routes`。`builtin`：**禁止**写 `entry`。
 
-- `id` / `version` / `displayName`：包标识、semver、界面名。  
-- `danger`：`none` | `destructive` | `secrets_read`，驱动警告与权限。  
-- `audit`：为 true 时强制写 Run 审计步。  
-- `capabilities`：本包能力名（§3.4），运行端与界面端（`ui.flow.*`）写在一起。  
-- `requires` / `conflicts`：依赖与互斥，可写 `capability:…` 或 `plugin:…`。  
-- `isolation`：冲突与串行标签（§3.5）。  
-- `hooks`：Run 生命周期（§4）；同阶段内 `order` **越小越先**。  
-- `configSchema`：环境/项目配置的 JSON Schema。  
-- `ui`：呈现贡献（§3.4-I）；用不到的子树可省略。  
-- `runtime`：执行体入口（见下）；契约不绑死实现类名。
+### 2.4 画布「新节点」：插件贡献节点
 
-**有没有代码？——复杂功能必须有；JSON 只是契约层。**
+**禁止**为每插件新增 `FlowNodeType`。**必须**使用唯一引擎类型 `pluginAction` + 说明书 `ui.palette.nodes` 贡献多颗外观。
 
-怕「不加代码搞不定」：对。拨钟、金库 dump、挡板渠道验签、场景编排等**本来就要写代码**。  
-草案禁止的是「无门禁地往质衡进程/浏览器热塞任意包」，**不是**禁止实现逻辑。
+| 用法 | 适合 |
+| --- | --- |
+| 生命周期挂点 | 每次跑流默认准备/收尾 |
+| 顶栏/工具条 | 临时触发，不改图 |
+| `ui.palette.nodes` | 写入图的步骤 |
 
-| 部分 | 有没有代码 | 说明 |
-| --- | --- | --- |
-| `qualitest.plugin.json` | **无** | 只描述能力、配置、UI 槽、hooks；再复杂的功能也先在这里登记 |
-| `ui` | **默认声明式；复杂面板可后置带代码** | 第一期：壳按 JSON 画横幅/角标/简单 panel。若某官方插件属性区实在画不动，允许随版本附带**审核过的前端贡献模块**（仍走具名槽，不是整页替换） |
-| `runtime.kind = httpAdapter` | **逻辑可很简单** | 被测已有 API 时，适配层薄；复杂规则仍可写在被测或下面两档 |
-| `runtime.kind = builtin` | **有，完整 Java（等）实现** | **复杂官方功能的主路径**：代码在质衡主仓模块里，随版本发布，测流只启用 JSON 包名。金库策略、时钟状态机、挡板渠道包都可以长在这里 |
-| `runtime.kind = opsAgent` | **有，侧车脚本/服务** | OS 拨钟、mysqldump、容器操作等不适合进 JVM 的，放运维代理；JSON 只描述怎么调 |
-| 第三方任意 JAR/前端包热装 | **近期不做** | 不等于永远不做；要做也是签名 + 允许列表之后的事 |
+图节点**必须**具备（**落图/落库**的字段）：
 
-能力够不够用，看执行体档位，不看 JSON 漂亮不漂亮：
+```jsonc
+{
+  "type": "pluginAction",
+  "pluginId": "qualitest.sut-sys-clock-dial",
+  "contributionId": "clock-advance",
+  "capability": "clock.advance",
+  "config": { "by": "P2D" }
+}
+```
 
-1. **被测已提供 HTTP 门面** → `httpAdapter` 往往够。  
-2. **要状态机、多步、和跑流深度耦合** → `builtin` 写代码（推荐官方复杂插件这么做）。  
-3. **要碰宿主机/容器/本机 DB 客户端** → `opsAgent` 写代码。  
-4. **UI 声明式不够** → 官方可加审核过的前端贡献；仍挂在 `ui` 槽上，不推翻壳。
+规则：
 
-一句话：**JSON = 身份证与说明书；代码 = 干活的手。** 复杂功能把手放在 builtin / opsAgent（必要时受控前端模块），不要因为契约是 JSON 就不敢做重逻辑。
+- `capability` **必须** ∈ 该 `pluginId` 说明书的 `capabilities[].name`。  
+- 规范化：`canonicalContributionId = pluginId + "/" + contributionId`（说明书写短 id；图存储**必须**存 `pluginId` + `contributionId` 两字段）。  
+- **可用 / 失效（启用态）即时算，禁止落图**：打开画布、切换环境、图校验、跑流时，按**当前环境**启用集 + 包登记 + 说明书推导（见 §2.7）。  
+  - 插件未启用 / 未登记 / 贡献 id 未知 / 能力不在说明书 → UI **必须**标失效（可复用节点既有启用/禁用呈现）；跑流 **禁止**静默跳过（`NODE_CAPABILITY_UNAVAILABLE`）。  
+  - **禁止**把该瞬时态写成节点上的持久 `enabled`/`disabled` 并随流程图保存；换环境后必须重算。  
+- 核心节点若另有「用户手动跳过/禁用」字段，与上条正交：手动禁用是图配置；插件失效是环境投影。两者同时存在时：**任一不可用则不调度**。  
+- P0：契约 + 校验；P2：至少 1 颗可拖且可执行样本。
 
-### 3.3 环境组合（谁启用哪些包）
+### 2.5 环境组合（开哪些包）
 
-项目/环境侧另存 composition（不是插件包内文件）：
+环境组合是 **§2.7 环境绑定表的 API/编辑投影**，存在**项目/环境侧**，**禁止**写进插件 zip。
 
-```json
+```jsonc
 {
   "envId": 12,
   "plugins": [
     {
-      "id": "official.sut-sql-backup",
+      "id": "qualitest.sut-db-save-point",
       "version": "1.0.0",
       "enabled": true,
-      "config": { "backupId": "golden-mall-2026-11" }
+      "config": {
+        "db": { "resolve": "bind-file", "bindAlias": "demo-mall" }
+      }
     },
     {
-      "id": "official.sut-clock",
+      "id": "qualitest.sut-sys-clock-dial",
       "version": "1.0.0",
       "enabled": true,
-      "config": { "mode": "mockTimeApi", "defaultAdvance": "P2D" }
+      "config": { "resetPolicy": "ntp", "defaultAdvance": "P2D", "timezone": "Asia/Shanghai" }
     }
-  ],
-  "primaryDataProvider": "official.sut-sql-backup",
-  "prepareOrder": ["data.reset", "aux.flush", "runtime.health", "clock.set"]
+  ]
+  // ≥2 个 sut-db 写竞争插件时才要 primaryDataProvider
 }
 ```
 
-说明：
+**禁止**环境级 `prepareOrder`。Prepare 阶段序与排序算法见 §4.2 / §10.4。  
+跑流、顶栏、调色板**必须**只读取**当前环境**已启用组合。
 
-- `plugins[]`：本环境启用的包；`config` 须通过对应包的 `configSchema`。  
-- `primaryDataProvider`：多个数据类插件并存时，指定 Prepare 默认真相源（金库 vs 场景加载）。  
-- `prepareOrder`：可覆盖 §4 默认 Prepare 动作序；未写则用平台默认。
+`primaryDataProvider` 必填条件（精确定义见 §10.3）：启用集中「数据写竞争插件」数 ≥ 2。单数据插件或未构成竞争时**必须**允许省略。
 
-### 3.4 能力目录（预留名 · 便于以后兼容）
+### 2.6 包 JSON vs 平台落库（必须分清）
 
-只定**名字与语义**，不定 HTTP/Java API；名字先占住，实现可分批。每组先 JSON，后说明。
+两套结构，**禁止**混成一张「插件表把说明书字段拆成列、又把环境启用写进 zip」。
 
-#### A. 数据面 `sut.data.*`
-
-```json
-[
-  { "name": "sut.data.checkpoint", "desc": "跑中检查点，返回 snapshotId", "hint": "现 /test-support + snapshotBefore" },
-  { "name": "sut.data.restore", "desc": "按 snapshotId 还原", "hint": "同上" },
-  { "name": "sut.data.backup", "desc": "导出可版本化备份（如 SQL 金库）", "hint": "demo-host data/golden" },
-  { "name": "sut.data.reset_to_backup", "desc": "约定范围回到某备份", "hint": "daily-reset" },
-  { "name": "sut.data.scenario.list", "desc": "列出被测场景目录", "hint": "mall manifest" },
-  { "name": "sut.data.scenario.load", "desc": "加载场景（常含 reset+写入）", "hint": "POST .../scenario/load/{id}" },
-  { "name": "sut.data.scenario.reset", "desc": "仅回基线", "hint": ".../scenario/reset" }
-]
-```
-
-说明：`reset_to_backup` 与 `scenario.load` 可并存，但须用 composition 的 `primaryDataProvider` 指定 Prepare 默认真相源，禁止两个都静默清库。
-
-#### B. 时间面 `sut.clock.*`
-
-```json
-[
-  { "name": "sut.clock.read", "desc": "读取被测认定的「现在」" },
-  { "name": "sut.clock.set", "desc": "设绝对时间" },
-  { "name": "sut.clock.advance", "desc": "相对快进" },
-  { "name": "sut.clock.reset", "desc": "清除偏移 / 恢复墙钟" }
-]
-```
-
-说明：实现可以是 MockTime API、header 注入或受控容器钟；**能力名相同**，用 `isolation`（如 `sut-clock` vs `sut-clock-os`）区分危险级别。
-
-#### C. 旁路状态 `sut.aux.*`（预留）
-
-```json
-[
-  { "name": "sut.aux.cache.flush", "desc": "清被测缓存（前缀 / DB index）" },
-  { "name": "sut.aux.mq.purge", "desc": "清空或跳过测试队列积压" },
-  { "name": "sut.aux.mq.inject", "desc": "向队列注入测讯（慎用）" },
-  { "name": "sut.aux.fs.reset", "desc": "重置上传目录 / 测试 bucket 前缀" },
-  { "name": "sut.aux.session.revoke", "desc": "批量作废测试会话（若有后门）" }
-]
-```
-
-说明：跨天单测常被 Redis/MQ/上传脏数据坑到；拨钟后往往要配合 `cache.flush`。
-
-#### D. 进程与就绪 `sut.runtime.*`（预留）
-
-```json
-[
-  { "name": "sut.runtime.health.wait", "desc": "等到被测健康检查通过" },
-  { "name": "sut.runtime.restart", "desc": "重启被测进程/容器（高危）" },
-  { "name": "sut.runtime.feature.set", "desc": "拨 feature flag / 动态配置" }
-]
-```
-
-说明：常见 Prepare 管线：`reset` → `restart?` → `health.wait` → `clock.set`。
-
-#### E. 人机与通知后门 `sut.hook.*`（预留 · 高危）
-
-```json
-[
-  { "name": "sut.hook.captcha.bypass", "desc": "测试环境绕过图形验证码" },
-  { "name": "sut.hook.otp.peek", "desc": "读取短信/邮箱验证码" },
-  { "name": "sut.hook.mail.list", "desc": "测试邮箱收件列表" },
-  { "name": "sut.hook.notify.mute", "desc": "静音真实短信/邮件" }
-]
-```
-
-说明：须 `danger: secrets_read`（或更高）；默认项目禁用；审计强制。
-
-#### F. 外联仿真实 `egress.*` / `ingress.*`
-
-```json
-[
-  { "name": "egress.mock.rule", "desc": "挡板路由与响应模板", "core": "7.6 门面可在核心，渠道包插件化" },
-  { "name": "egress.mock.record", "desc": "查询挡板收到的请求" },
-  { "name": "egress.mock.fault", "desc": "延迟 / 5xx / 错包注入" },
-  { "name": "egress.intercept.domain", "desc": "把指定外联域名解析/导流到挡板（hosts、DNS 或代理）", "status": "方向预留，不承诺实现" },
-  { "name": "egress.intercept.tls", "desc": "为劫持域名签发/注入测试 CA，使 HTTPS SDK 校验证书能通过", "status": "方向预留；需被测信任该 CA" },
-  { "name": "egress.intercept.proxy", "desc": "边车/透明代理：不改业务代码时劫持出站 443", "status": "方向预留；opsAgent" },
-  { "name": "ingress.mailbox.query", "desc": "查 7.4 收件箱", "core": "落库偏核心" },
-  { "name": "ingress.mailbox.reply_policy", "desc": "定制收件应答", "core": "避免核心写死 success" }
-]
-```
-
-说明：
-
-- 质衡 HTTP 节点「扮渠道打被测 notify」仍用核心节点（7.1/7.2/7.3），一般不必插件。  
-- **挡板（`egress.mock.*`）≠ 流量会自动过来**：SDK 常把微信等域名写死在封装里，业务侧改不了 baseUrl。完整「仿微信支付」需要 **mock 门面 + 被测侧域名/TLS 拦截** 两半。  
-- `egress.intercept.*` 拦的是**被测进程/容器所在网络的出站**，不是质衡云端去劫持公网微信；执行体多落在 `opsAgent`（hosts、边车、mitm），与 7.6 挡板组合启用。  
-- HTTPS 几乎必做：仅改 DNS/hosts 不够，通常还要测试 CA + 被测 truststore；**证书锁定（pinning）的客户端 SDK 可能做不到**，插件须标明前提。  
-- 先占能力名与产品方向；实现难度高，**不排期、不承诺**，但值得作为仿渠道插件的正确形态记下来。
-
-#### G. 资产与领域包 `pack.*`（预留）
-
-```json
-[
-  { "name": "pack.api.import", "desc": "入库适配（OpenAPI 等）", "note": "IDEA 插件仍是独立产品" },
-  { "name": "pack.domain.prompts", "desc": "造流提示 / 场景说明包" },
-  { "name": "pack.domain.scenarios", "desc": "场景目录与质衡侧元数据同步" },
-  { "name": "pack.crypto.channel", "desc": "渠道签验开箱预设", "note": "在通用 7.1 之上，不替换 7.1" }
-]
-```
-
-说明：避免商城文案与渠道细节渗进质衡核心。
-
-#### H. 可观测（预留 · 低优先级）
-
-```json
-[
-  { "name": "sut.obs.logs.tail", "desc": "拉取与本 Run 相关的被测日志片段" },
-  { "name": "sut.obs.metrics.snapshot", "desc": "跑前/跑后打点对比" }
-]
-```
-
-说明：先占名，有痛点再做。
-
-#### I. 界面端（`ui` · 与运行端对等）
-
-`manifest.ui` 两路可只写一路或两路都写：
-
-- **A 补充现有节点** → `ui.nodes`（不新增 `FlowNodeType`）  
-- **B 全新样式/表面** → `ui.tokens` / `chrome` / `timeline` / `report` / `env` / `palette`
-
-```json
-{
-  "ui": {
-    "tokens": {
-      "--qt-flow-accent": "#b45309",
-      "--qt-flow-canvas-dot": "#fde68a"
-    },
-    "chrome": {
-      "banner": [
-        {
-          "id": "clock-banner",
-          "slot": "top",
-          "order": 10,
-          "text": "虚拟时间 {{sut.clock.now}}",
-          "tone": "warning"
-        }
-      ],
-      "toolbar": [
-        {
-          "id": "clock-advance",
-          "order": 20,
-          "label": "快进",
-          "requires": ["sut.clock.advance"],
-          "action": "plugin:official.sut-clock/advance"
-        }
-      ]
-    },
-    "nodes": {
-      "http": {
-        "decorate": [
-          {
-            "id": "snapshot-badge",
-            "when": "node.data.snapshotBefore === true",
-            "badge": "快照",
-            "tone": "info"
-          }
-        ],
-        "panel": [
-          {
-            "id": "data-restore-hint",
-            "order": 30,
-            "title": "数据插件",
-            "fields": [
-              { "key": "showRestoreHint", "type": "boolean", "label": "显示还原提示" }
-            ]
-          }
-        ]
-      }
-    },
-    "timeline": {
-      "steps": {
-        "clock.set": {
-          "icon": "clock",
-          "title": "拨钟 {{detail.to}}",
-          "tone": "warning"
-        },
-        "data.reset_to_backup": {
-          "icon": "database",
-          "title": "回金库 {{detail.backupId}}"
-        }
-      }
-    },
-    "report": {
-      "blocks": [
-        { "id": "clock-trace", "order": 50, "title": "拨钟轨迹", "source": "audit:sut.clock.*" }
-      ]
-    },
-    "env": {
-      "badge": { "text": "拨钟", "tone": "warning" }
-    },
-    "palette": {
-      "extras": []
-    }
-  }
-}
-```
-
-说明：
-
-- `tokens`（模式 B）：测流作用域令牌；键须在核心白名单；可「完全另一套」观感，**不等于**新节点类型。  
-- `chrome.banner` / `toolbar`（B）：页级横幅与工具条；`toolbar[].requires` 必须对应运行能力。  
-- `nodes.<type>.decorate` / `panel`（模式 A）：只补充已有 `http`/`script`/…；**不改**执行语义与 `FlowNodeType`。  
-- `timeline.steps`（B）：插件审计步外观；key 与审计动作名对齐。  
-- `report.blocks` / `env.badge`（B）：报告块与环境徽章。  
-- `palette.extras`（B，后置）：快捷动作，**不是**可拖拽新引擎节点（真新类型走 ROADMAP 5.1）。  
-- 根上 `capabilities` 应声明用到的 `ui.flow.*`（如 `ui.flow.node.decorate`、`ui.flow.chrome.banner`），便于门禁与发现。  
-- A =「节点多了什么」，B =「环境/Run/领域包多了什么」；仅 A / 仅 B / A+B 均合法；官方 `sut.*` 至少提供其一。  
-- 作用域仅测流编辑 / Run / 报告；多插件同槽按 `order` 或 `conflicts`；无插件时 UI 与今日一致。
-
-### 3.5 Isolation 标签
-
-```json
-[
-  { "tag": "sut-db", "effect": "写被测库 → 环境串行；通常只允许一个默认 Prepare 清库提供者" },
-  { "tag": "sut-clock", "effect": "改业务时钟 → 与另一业务钟提供者互斥" },
-  { "tag": "sut-clock-os", "effect": "改 OS/容器墙钟 → 与依赖真 cron 的 ops 警告/冲突" },
-  { "tag": "sut-cache", "effect": "旁路缓存；可与 db 并存，写操作仍建议串行" },
-  { "tag": "sut-mq", "effect": "旁路消息队列" },
-  { "tag": "sut-fs", "effect": "旁路上传/文件" },
-  { "tag": "sut-process", "effect": "重启被测；Prepare 末尾后须 health.wait" },
-  { "tag": "egress-mock", "effect": "挡板 path 占用冲突检测" },
-  { "tag": "egress-intercept", "effect": "被测侧域名/代理劫持；须 ops-agent；与真实出网策略冲突时警告" },
-  { "tag": "ops-agent", "effect": "依赖侧车/演示机代理" },
-  { "tag": "secrets-read", "effect": "可读验证码等 → 权限与审计升级" },
-  { "tag": "ui-theme", "effect": "测流主主题；同环境通常只启用一个，装饰可叠" },
-  { "tag": "ui-slot:<name>", "effect": "独占某 UI 槽；抢同一槽则拒绝或要显式优先级" }
-]
-```
-
-说明：写在 manifest 的 `isolation[]`；启用时与 `conflicts` 一起做检测，并驱动环境是否串行跑流。
-
-### 3.6 分发形态：一个压缩包（推荐）
-
-既然可含代码，**对外分发的插件应打成单一压缩包**（建议 `.zip`；checksum + 可选签名），避免「JSON 一份、JAR 一份、脚本又一份」对不齐版本。
-
-```json
-{
-  "artifact": "official.sut-clock-1.0.0.zip",
-  "layout": {
-    "qualitest.plugin.json": "必选，包根目录",
-    "runtime/": "可选，执行体（按 kind 解释）",
-    "ui/": "可选，受控前端贡献（声明式够用时可空）",
-    "assets/": "可选，图标、说明静态资源",
-    "SHA256SUMS": "可选但推荐"
-  }
-}
-```
-
-说明：
-
-- **包内永远有**根目录 `qualitest.plugin.json`；`id`/`version` 与文件名建议一致。  
-- **`runtime/`** = 运行端载荷；**`ui/`** = 界面端载荷（声明式够用时可空，只靠 manifest 里的 `ui` JSON）。  
-- 安装/启用：校验 checksum → 读 manifest → 冲突检测 → 写入环境 composition；不是解压完就任意加载执行。
-
-**两端各自怎么发出去（重点）**：
-
-```text
-同一 zip
-  ├─ qualitest.plugin.json     → 质衡 app 入库（扩展库）
-  ├─ ui/                       → 界面端：由质衡 Web 下发到浏览器
-  └─ runtime/                  → 运行端：按 kind 留在 app 或下发到被测旁
-```
-
-| 端 | 分发路径 | 说明 |
+| | **包契约 JSON** | **平台 SQL（运营态）** |
 | --- | --- | --- |
-| **界面端** | zip → 质衡 **插件库（app 侧存储）** → 浏览器打开测流时，Web 按项目/环境已启用列表拉取 `ui` JSON（及可选 `ui/` 模块） | 用户**不用**单独装前端包；跟登录质衡同一站点走。静态资源建议经 app 反代，如 `/prod-api/plugins/{id}/{version}/ui/...`，带权限。第一期多数只需下发 JSON，无独立 JS |
-| **运行端 · builtin** | 已在质衡 **app** 发行物内；扩展目录里点启用即可 | 用户不必下 zip；开发者仍可按 zip 布局维护源码 |
-| **运行端 · httpAdapter** | 配置与模板进插件库；执行仍在 app 出站 | 薄包或内置 |
-| **运行端 · opsAgent** | zip 内 `runtime/` **另装到被测机/演示机**（或 compose 边车）；app 只保存「agent 地址 + 密钥」 | 这是用户会感觉「还要装一端」的部分；UI 上应写清「需在被测环境安装运行端代理」 |
+| 载体 | `qualitest.plugin.jsonc`（zip 根或官方虚包） | 质衡库表（P0 实体如下；DDL 开干时 Flyway） |
+| 谁写 | 插件作者 / 发行版内嵌 | 安装、环境配置、跑流 |
+| 变不变 | 随 `id@version` 基本不变 | 启用、config、闸随环境变 |
+| 典型内容 | capabilities / hooks / ui / runtime / remarks / configSchema | 包登记、环境启用行、闸、审计 |
 
-```json
-{
-  "distribute": {
-    "console": {
-      "channel": "qualitest-web",
-      "whoInstalls": "无人单独装；启用插件后浏览器自动拉",
-      "payload": ["manifest.ui", "optional zip:ui/"]
-    },
-    "runtimeBuiltin": {
-      "channel": "qualitest-app image/jar",
-      "whoInstalls": "升级质衡即可",
-      "payload": ["Java module keyed by plugin id"]
-    },
-    "runtimeOpsAgent": {
-      "channel": "same zip or agent-only extract",
-      "whoInstalls": "被测/演示机管理员",
-      "payload": ["zip:runtime/", "agent listen URL registered in env config"]
-    }
-  }
-}
-```
+#### 包契约（只在 JSON，不拆成环境列）
 
-说明：界面端**不**走 npm/独立 CDN 商店；跟质衡会话同源，避免跨域与假包。运行端 opsAgent 与界面端生命周期可以不同（先启 agent 再启用插件，或反过来在 UI 上红灯提示「运行端未连通」）。
+说明书字段以 §2.3 / §10.2 为准。入库时**必须**保留可校验的说明书快照（整包 JSON 或等价规范化文档）；**禁止**只存 `displayName` 而丢掉 `capabilities`/`hooks`。
 
-**和 `runtime.kind` 的关系（不必每个官方功能都逼用户下 zip）**：
+#### 平台实体（逻辑表，不定列类型）
 
-| 种类 | 用户是否必须下 zip | 说明 |
+| 实体 | 回答什么 | 关键字段（语义） | 备注 |
+| --- | --- | --- | --- |
+| **包登记** | 平台里有哪些插件版本 | `plugin_id`、`version`、`source`=`builtin`\|`zip`、`manifest` 快照、`content_hash`、状态、入库时间 | 官方虚包随发版写入或启动同步；zip 上传写入 |
+| **环境插件绑定** | 这个环境开了谁 | `env_id`、`plugin_id`、`version`、`enabled`、`config`（过 configSchema） | = §2.5 投影；**唯一**持久的「插件启用/停用」 |
+| **环境总闸** | 允不允许破坏性操作 | `gate.destructive`（**1:1** 今日 `test_project_env.allow_destructive_reset`）；`gate.secrets-read` 仅预留 | 不进插件包 |
+| **环境主键数据提供方** | 双清时听谁的 | `primary_data_provider`（可空） | 仅 §10.3 竞争时必填 |
+| **跑流审计** | 谁在何时 invoke 了什么 | 时间线条目（capability、pluginId、source、结果、原因码） | 挂现有 Run/时间线，不另造插件审计库也可 |
+
+**禁止落库 / 禁止落图**：
+
+- 节点上的「因插件停用而失效」——**即时算**（§2.4）。  
+- 已启用插件注册表、UiRegistry——进程内/缓存，由启用集派生，可重建。  
+- `remarks`——在说明书快照里即可，**禁止**单独业务表。
+
+#### 节点可用态算法（即时）
+
+对图上每个 `pluginAction` 节点 N、当前环境 E：
+
+1. 查 E 的环境插件绑定：存在 `plugin_id=N.pluginId` 且 `enabled=true` 且版本已包登记 → 否则 **失效**。  
+2. 读该版本说明书：存在贡献 `contributionId`，且 `capability` ∈ 本包 `capabilities[].name` → 否则 **失效**。  
+3. （可选展示）所需 `gate` 未开 → 可标「闸未开」告警；是否允许保存图不阻，**跑流/Invoke 仍按 §10.4 拒**。  
+4. 若节点另有用户手动禁用 → **不可调度**（与 1～2 独立）。
+
+切换环境或停用插件后：**必须**重算；**禁止**要求用户改图才能看到失效。
+
+### 2.7 怎么发到用户手里（含被测端安装）
+
+| 端 | 到用户 | 安装 |
 | --- | --- | --- |
-| `builtin` | **通常不必** | 运行端已在 app；界面端随启用下发 JSON |
-| `httpAdapter` | 可以是薄 zip | 或直接内置 |
-| `opsAgent` | **建议独立 zip（或从全量 zip 只解 runtime/）** | 运行端装被测旁；界面端仍只走质衡 Web |
-| 私有化自有扩展（后置） | **必须 zip + 签名** | 允许列表校验后再用 |
+| 界面端 | zip 入库或官方虚包 → Web 下发说明书 `ui` | 无需单独装 |
+| 运行端 builtin / http-adapter | 虚包或入库 | 启用即可（builtin **必须**已注册实现） |
+| 被测端 | `agent/` CLI（install/uninstall） | **必须**显式安装；`ping` 失败 → 提示；不用则 **uninstall** |
 
-一句话：**一个插件、一个 zip、两个端名（运行端 / 界面端）**；界面端由质衡 Web 分发，运行端按 kind 留在 app 或装到被测旁，不要拆成两个市场商品。
+启用（质衡侧）**必须**走 §10.3 全序校验；**禁止**「解压即执行」。  
+私有化签名 / 允许列表：**后置**。界面资源**禁止**走 npm/独立 CDN。  
+
+被测端安装通道：人工脚本、Compose 边车、控制台推送（后置）。MCP 协助安装：**后置 P4**；须确认、禁静默；不是第四端。  
+MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本机 Agent 可写 bind/装 CLI，质衡 MCP 只配项目/环境。优先**扩核心 Tool / 已有 Tool 参数**；插件可选贡献 `mcpTools[]`（私有于 pluginId、受项目开关约束）后置，禁止无闸全局乱挂。见 [plugin-sut-db-save-point.md §1.3](./plugin-sut-db-save-point.md)。
 
 ---
 
-## 4. 生命周期挂点
+## 3. 能力归属与宿主挂点
 
-```json
-{
-  "hookSequence": [
-    "onRunPrepare",
-    "onCheckpoint",
-    "onRestore",
-    "onRunFinalize"
-  ],
-  "prepareDefaultActions": [
-    "data.reset_or_scenario",
-    "aux.flush",
-    "runtime.restart?",
-    "runtime.health.wait",
-    "clock.set"
-  ],
-  "finalizeDefaultActions": ["clock.reset"]
-}
-```
+### 3.0 质衡**不**做开放业务能力名录
 
-说明：
+| 是 | 否 |
+| --- | --- |
+| 宿主挂点：`onRunPrepare` / `onCheckpoint` / `onRestore` / `onRunFinalize` … | ~~`sut.data.checkpoint` 等写进质衡开放 API~~ |
+| 插件在说明书里声明**私有** `capabilities[]` | ~~平台 §3.1 占名表，谁都能认领~~ |
+| `Invoker.invoke(pluginId, name, …)` | ~~`invoke("sut.data.checkpoint")` 全局按名找提供方~~ |
 
-- `hookSequence`：`hooks[].name` 允许取值；跑流时按此阶段推进。  
-- `prepareDefaultActions`：`onRunPrepare` 默认动作序；环境 `prepareOrder` 可覆盖。  
-- `finalizeDefaultActions`：收尾建议只 `clock.reset` 等可逆项，**不要**默认把跑后库写回金库真相源。  
-- 失败策略：`fail_run` / `skip_and_warn`（须审计可见）。  
-- `destructive` / `secrets_read` 必须过环境总闸（泛化自 `allowDestructiveReset`）。  
-- 声明写隔离标签的环境保持 Run **串行**。  
-- 审计步外观由 `ui.timeline.steps` 声明；不冒充业务 HTTP 节点。  
-- 画布意图与实现解耦：无对应 capability 则失败或跳过。  
-- 打开测流合并已启用插件的 `ui`；切换环境则令牌/横幅随 composition 变。
+因此：存档/读档 **拆进插件后**，它们只是该插件的 `capabilities[].name`（如 `save.create`），**禁止**再表述为「质衡开放能力」。
 
-```text
-Run 创建 → onRunPrepare → 跑图（snapshotBefore→onCheckpoint；还原→onRestore）→ onRunFinalize → 终态
-```
+### 3.1 官方示例包（示意，非名录）
+
+| 插件 id | 为何必须是插件 | 私有能力（示例） | kind / 被测旁 |
+| --- | --- | --- | --- |
+| `qualitest.sut-db-save-point` | 须连被测状态源（SQL/Redis 等）、碰宿主机；整包存档/断点读档；`kind` 多存储 | `list` / `save.create` / `save.restore` / `save.delete` | ops-agent + **CLI** |
+| `qualitest.sut-sys-clock-dial` | 须改被测机**系统时间**（靶场） | `clock.*` | ops-agent + **CLI**（需改钟权限） |
+
+说明书见 §2.3.3。**可运行实现后置**；与 demo-host 运维金库无关。
+
+### 3.2 界面贡献（近期路径）
+
+有 `ui` 块即登记；**禁止**要求再声明 `ui.flow.*` 能力名。
+
+| 模式 | 写哪里 | 阶段 |
+| --- | --- | --- |
+| B | `ui.chrome` / `ui.timeline` / `ui.env` /（后）`ui.report` | P0：**必须**至少徽章或横幅一种可渲染（官方运行包） |
+| C | `ui.palette.nodes` | 契约 P0；可拖执行 P2 |
+| A | `ui.nodeDecorations` 等 | **后置** P3+ |
+| 主题 | isolation `ui-theme`；独立 tokens **后置** | 后置 |
+
+`palette.nodes[].capability` **必须**为运行能力且 ∈ 本包 `capabilities`。作用域**仅**测流编辑 / Run / 报告。
+
+**UI 槽互斥**：`isolation` 中 `ui-slot:<名>` 为唯一冲突键（效应 `mutex`）。`banner.slot`（`top`\|`bottom`）只布局。若存在 `ui.chrome.banner` 且未声明任何 `ui-slot:*`，启用时**必须**自动加入 `ui-slot:flow.banner.{banner.id}`。
+
+模板绑定：仅绑定**已启用插件**导出的只读投影（如时钟包的 `clock.now`）；规则见 §10.6。
 
 ---
 
-## 5. 与现有机制的关系
+## 4. 隔离、生命周期、安全
+
+### 4.1 隔离标签（`isolation[]`）
+
+未列标签 → `UNKNOWN_ISOLATION`。
+
+| 标签 | 效应 | 启用时 | 跑流时 |
+| --- | --- | --- | --- |
+| `sut-db` | serialize + 竞争检测 | 参与 primary（§10.3） | 写操作串行 |
+| `sut-sys-clock-dial` | mutex | 第二插件带此标签 → 拒启用 | — |
+| `ops-agent` | 标记依赖 | kind 校验 | invoke 前**必须**连通 |
+| `ui-theme` | mutex | 两主主题拒 | — |
+| `ui-slot:<名>` | mutex | 同槽第二插件拒 | — |
+
+`conflicts: ["plugin:<id>"]`：若环境已启用该 id → 拒启用。  
+未知 isolation 标签 → 拒启用（`UNKNOWN_ISOLATION`）。
+
+### 4.2 跑流挂点
+
+```text
+启动 → onRunPrepare → 跑图（快照→onCheckpoint；还原→onRestore）→ onRunFinalize → 终态
+```
+
+#### Prepare 阶段桶（平台写死，环境禁止改）
+
+阶段 id 顺序：`data` → `aux` → `process` → `health` → `clock`。  
+每个 Prepare action **必须**带该插件能力对象上的 `preparePhase`（对应上表）；缺省/null → `HOOK_ACTION_BAD_PHASE`。
+
+**排序算法**（`onRunPrepare`）：
+
+1. 收集已启用插件中 `hooks.name=onRunPrepare`，展开 `actions`。  
+2. 解析为本包能力；取 `preparePhase`；非法则失败。  
+3. 按阶段序号分桶 → 桶内 `order` → `pluginId`。  
+4. 依次 `Invoker.invoke(pluginId, capability, …)`。
+
+跑中快照：**必须**走宿主 `onCheckpoint` / `onRestore` → 快照插件私有能力；**禁止**塞进 Prepare。  
+`onRunFinalize`：按 `order` + `pluginId`；时钟示例用 `clock.reset`；快照包默认无 Finalize 动作。
+
+#### 失败策略与原因码
+
+| 策略 | 何时 | 行为 |
+| --- | --- | --- |
+| `fail_run` | **默认**；P0 白名单为空集 | 中断跑流；时间线记失败；写审计 |
+| `skip_and_warn` | **仅当**能力 ∈ 本文白名单 | 跳过该 action；时间线**必须**可见警告 |
+
+**P0 `skip_and_warn` 白名单 = ∅**（一律 `fail_run`）。追加白名单**必须**改正文本表，禁止实现私加。
+
+| 原因码 | 含义 |
+| --- | --- |
+| `MANIFEST_INVALID` | 说明书解析/字段/字符集失败 |
+| `UNKNOWN_CAPABILITY` | 能力名 ∉ 该 pluginId 说明书 |
+| `UNKNOWN_ISOLATION` | 隔离标签未知 |
+| `REQUIRES_UNSATISFIED` | requires 未满足 |
+| `ISOLATION_MUTEX` | isolation mutex 冲突 |
+| `PLUGIN_CONFLICT` | conflicts 命中 |
+| `PRIMARY_DATA_REQUIRED` | 需要 primary 未填或非法 |
+| `GATE_DENIED` | 总闸未开 |
+| `BUILTIN_IMPL_MISSING` | builtin 无注册实现 |
+| `AGENT_BUNDLE_INVALID` | agent bundle/目录不合法 |
+| `AGENT_UNREACHABLE` | 被测端未连通 |
+| `CONFIG_SCHEMA_INVALID` | 环境 config 不符 schema |
+| `HOOK_ACTION_NOT_OWNED` | hook action ∉ 本包 capabilities |
+| `HOOK_ACTION_BAD_PHASE` | Prepare action 无 preparePhase |
+| `PROVIDER_NOT_FOUND` | invoke 时无启用提供方 |
+| `NODE_CAPABILITY_UNAVAILABLE` | 图节点能力不可用 |
+| `INVOKE_FAILED` | 适配器/实现执行失败 |
+| `HOST_API_DENIED` | 试图使用未开放 Host API |
+
+无对应能力却配置了意图：**禁止**静默成功；**必须**失败或（仅白名单内）警告。
+
+### 4.3 安全
+
+1. **必须**只动环境配置的被测/代理；**禁止**改质衡系统时间/清质衡库。  
+2. 安装与危险配置权限 ≥ 环境管理；挂点**禁止**绕过总闸。  
+3. 密钥进环境 config，**禁止**进流程图。  
+4. 破坏性能力（存档点 restore、拨钟写等）：**必须**审计。  
+5. 启用**必须**执行 §10.3；未声明能力**禁止**当作已提供。  
+6. 第一期官方虚包；远程市场**后置**。
+
+---
+
+## 5. 与现有机制
 
 | 现有 | 插件化方向 |
 | --- | --- |
-| `snapshotBefore` + `HttpEndpointSnapshotAdapter` | 画布保留意图；执行委托 `sut.data.checkpoint/restore`；徽标/面板走 `ui.flow.node.*` |
-| `allowDestructiveReset` | 升为破坏性插件总闸；UI 用 `env.badge` / `chrome.banner` 明示 |
-| demo-host 金库 / daily-reset | 契约归 `sut.data.backup` / `reset_to_backup`；文件可仍在运维机 |
-| 靶场 `scenario/load` | 今日测流手写 HTTP → 宜 `sut.data.scenario.*` + 侧栏场景选择面板 |
-| 前端 `nodeRegistry` / 节点样式 | 核心保留 8 类注册表；插件只 **decorate / panel**，不直接改 Registry 源码 |
-| Delay / `retryUntil` | 留核心；跨天过期用 `sut.clock.*` + 顶栏虚拟时间 |
-| 7.4 Webhook 门面 | 入站与落库偏核心；应答策略可 `ingress.mailbox.reply_policy` |
-| 7.6 挡板 | 门面 + 记录偏核心；渠道/模板包走 `egress.mock.*`；SDK 写死域名时叠加预留的 `egress.intercept.*`（opsAgent） |
-| 7.1 脚本加密 | 通用工具留核心；渠道开箱预设可 `pack.crypto.channel` |
-| 质衡 `qualitest.storage` | **不是**被测插件；属平台自身素材存储 |
-| Script `ctx` / MCP | 后期只读暴露已启用插件安全子集；写配置走原有权限 |
+| `snapshotBefore` / 续跑还原 | 意图留核心；**执行** → `qualitest.sut-db-save-point`（或 http-adapter 同能力） |
+| `allowDestructiveReset` | **1:1** → `gate.destructive` |
+| 拨钟 / 库存档点 | **插件 + 被测旁 CLI**（§2.3.3）；config 含库连接等；不进开放名录 |
+| 节点注册表 | 核心节点 + **`pluginAction`**（P2） |
+| Delay / retryUntil | 留核心 |
+| Webhook / 挡板 | 入站偏核心；有插件实现再做 |
+| Script / MCP | 后期只读安全子集；MCP 装 agent → P4 |
 
 ---
 
-## 6. 安全与多租户
-
-1. 作用对象仅限环境配置的被测 / 代理；禁止「改质衡系统时间 / 清质衡库」类 API。  
-2. 安装与改危险配置 ≥ 环境管理权；跑流触发 hook 不突破总闸。  
-3. DB/SSH/备份路径等进环境密钥，不进流程图。  
-4. 强制审计：拨钟、还原、窥 OTP、重启、挡板改规则。  
-5. 启用时做 `conflicts` + `isolation` 检测（§7）。  
-6. 第一期：官方内置或随版本附带；远程市场后置。
-
----
-
-## 7. 兼容与共存
-
-### 7.1 通用规则
+## 6. 共存规则与常见坑
 
 | 规则 | 说明 |
 | --- | --- |
-| 能力正交则可并存 | 例：`sut.clock.read` + `sut.data.checkpoint` |
-| 同隔离写冲突则互斥 | 两个默认 `reset_to_backup` 提供者 → 启用拒绝 |
-| 管线用阶段排序，不靠互相调用私协议 | Prepare 固定序（§4）；`requires` 只表达硬依赖 |
-| 环境串行 | 任一写库/写钟/重启/清缓存影响共享被测 → 串行 |
-| 意图无实现则显式失败或警告 | 禁止静默 no-op 到让人以为已还原 |
-| 金库真相源默认只读于跑流 | `backup` 写入须显式人操或独立任务，防演示金库被跑流污染 |
-| 运行端与界面端宜成对 | 有 `sut.*` 无任何 `ui.flow.*` → 启用时警告（官方插件应避免） |
-| UI 主主题互斥、装饰可叠 | 两个 `ui-theme` 冲突；多个 `node.decorate` 可叠加 |
+| 正交可并存 | 不同能力名可同时启用 |
+| isolation mutex | 启用时拒 |
+| isolation serialize | 跑流写串行 |
+| 阶段序写死 | 无环境 prepareOrder |
+| 无开放能力名录 | 能力私有于 pluginId；gate 看本包能力对象；`remarks` 不参与判定 |
+| 默认 fail_run | P0 无 skip 白名单 |
+| 运行+界面 | 官方运行包缺 B 类 UI → 启用警告（P0 官方包必须有） |
+| 能力名只追加 | 废弃留别名 ≥1 大版本 |
 
-### 7.2 示意组合（不写具体插件设计）
+常见坑：
 
-**A. SQL 金库 × 被测时钟（常见）**
-
-```json
-{
-  "plugins": [
-    { "id": "official.sut-sql-backup", "enabled": true },
-    { "id": "official.sut-clock", "enabled": true, "config": { "defaultAdvance": "P2D" } }
-  ],
-  "primaryDataProvider": "official.sut-sql-backup"
-}
-```
-
-说明：`sut-db` + `sut-clock` 可并存；Prepare 先 reset 再 dial；Finalize 只 `clock.reset`。UI 上备份包常用 A（`nodes.http`）+ B（`env.badge`），时钟包以 B（`chrome.banner` + `timeline`）为主。
-
-**B. 金库 × 场景加载（易踩坑）**
-
-- 两者都能「清库再灌」→ 必须指定环境级 **primary data provider**  
-- 推荐：日常回归用 `scenario.load`；灾难/日切用 `reset_to_backup`；同 Run 不要各执行一遍除非文档写明差分语义
-
-**C. 时钟 × 旁路缓存**
-
-- 拨钟后若权限/券状态缓存在 Redis → Prepare 在 `clock.set` 之后（或之前约定清楚）调用 `sut.aux.cache.flush`  
-- 否则会出现「库已过期、缓存未过期」的假绿/假红
-
-**D. 数据插件 × 挡板渠道包**
-
-- 一般正交：一个动被测库，一个扮第三方  
-- 冲突点在 **被测配置的外联 URL** 是否指向本环境挡板，属环境配置问题，不是 capability 互斥
-
-**E. OS 级拨钟 × 定时任务类 ops**
-
-- `sut-clock-os` 与依赖宿主机真实 cron 的任务 → 警告或 conflicts  
-- 优先业务 MockTime，降低与证书、日志、外部支付的纠缠
-
-**F. OTP 窥视 × 多租户共用被测**
-
-- `secrets-read` + 共享环境 → 强烈建议独占环境或账号命名空间；否则冲突在「安全」而非「能力名」
-
-**G. 两个领域皮肤 × 同一测流**
-
-- 两个 `ui.flow.tokens` 主主题 → `ui-theme` 冲突，启用拒绝或需指定 primary theme  
-- 装饰类（角标、时间线图标）不占 `ui-theme`，可与单一主题并存
-
-**H. 仅界面端、无运行端**
-
-- 允许：纯 `pack.domain` + `ui.flow.tokens` 的「教学皮肤 / 品牌测流」（模式 B）  
-- 不得伪造具备 `sut.data.*` 的操作按钮；工具条动作必须 `requires` 对应运行能力
-
-**I. 模式 A × 模式 B（补充节点 vs 全新表面）**
-
-- 可并存：例如数据插件 = A（HTTP 角标 + panel）+ B（环境徽章）；时钟插件 = B（顶栏）为主、A 为辅  
-- 两个插件都对同一 `node.panel.http` 扩展 → `order` 排列或槽位冲突规则，与主题互斥分开处理  
-- 「完全新皮肤」（B tokens）不排斥继续对旧节点做 A 装饰；卸掉插件后 A/B 贡献一并消失，画布回到核心默认
-
-**J. 仿微信支付：挡板 × 域名拦截（方向预留）**
-
-```json
-{
-  "plugins": [
-    { "id": "official.egress-mock-wechat", "enabled": true },
-    {
-      "id": "official.egress-intercept",
-      "enabled": true,
-      "config": {
-        "domains": ["api.mch.weixin.qq.com", "api.weixin.qq.com"],
-        "mode": "hosts+testCa",
-        "note": "须被测信任测试 CA；pinning 场景可能失败"
-      }
-    }
-  ],
-  "requiresIsolation": ["egress-mock", "ops-agent"]
-}
-```
-
-说明：测「被测主动调微信」且 SDK 写死域名时用；测「微信回调被测」只需核心 HTTP 扮渠道，不必 intercept。能力名已占，实现另议。
-
-### 7.3 能力名稳定性
-
-1. 新增能力只**追加**，不改已发布名字的语义。  
-2. 废弃用 `deprecated` + 迁移说明，保留别名至少一个大版本。  
-3. 官方插件与第三方插件都只通过能力名协作，禁止「写死依赖某插件 id」作为唯一扩展方式（`requires` 可写 id，但能力名优先）。
+- **总闸关闭**：破坏性能力 → `GATE_DENIED`。  
+- **无被测门面**：test-support / 钟面未接 → 插件 invoke 失败，不是核心兜底。  
+- **两家 sut-db 写竞争**：须 `primaryDataProvider`。  
+- **两主主题 / 两拨钟**：`ui-theme` / `sut-sys-clock-dial` mutex。
 
 ---
 
-## 8. 演进阶段
+## 7. 演进 / 非目标 / 验收
 
 | 阶段 | 目标 |
 | --- | --- |
-| **P0 契约** | 敲定 `qualitest.plugin.json`、环境 composition、**zip 包布局**、能力名、Hook、冲突、`ui` 两模式 |
-| **P1 收编** | 现有 snapshot/restore → 官方数据插件 + 最小节点徽标/时间线样式；行为对外兼容 |
-| **P2 样本** | SQL 备份还原 + 被测时钟（运行 + 顶栏/审计 UI）；验证 §7.2-A；至少 1 个可导出的示范 zip |
-| **P3 对齐 7.x** | 挡板渠道包 / 收件应答 + 对应报告块/面板 |
-| **P4 开放** | 贡献槽稳定、权限、MCP 只读列表、可选 Script API |
-| **P5 扩展目录（克制）** | 官方内置启用 + 可选上传/导入签名 zip（私有化）；不做公网海量商店 |
+| P0 | **契约文档**自洽（JSONC、CLI agent、configSchema）；启用/挂点算法可对照 §10 |
+| P1 | 主仓 Invoker 骨架 + 虚包启用；UI B 最小可见 |
+| P2 | 可复制样本：库存档点 CLI + 拨钟 CLI（**Go**；仓后定）；≥1 可拖 `pluginAction` |
+| P3 | 模式 A 后置；其它能力等质衡有实现再开目录行 |
+| P4 | 权限、MCP 只读；MCP 协助装 agent |
+| P5 | 签名包；不做公网海量商店 |
 
-旁路状态、OTP、进程重启等：**先占能力名，实现按痛点插入**，不必阻塞 P0–P2。  
-界面端与运行端 **同版本契约**；避免先只做运行端、界面端长期写死在主仓。
+**非目标**：Delay 冒充过期；改质衡服务器时间；无限私增 `FlowNodeType`；公网任意热装；DSH 无特权内核；任意全局 CSS/换 SPA；整仓并进 demo-host；把质衡存储/Flyway/成员权限当被测插件；**维护质衡开放业务能力名录**。
 
-**扩展怎么进用户手里**：长期只做克制的官方扩展目录（内置启用、版本随质衡走、权限与冲突在启用时校验）。私有化若要自有扩展，再单开「签名包 + 允许列表」，仍不是公开应用商店。
+**验收检查单**：
 
----
-
-## 9. 非目标
-
-- 用 Delay 加速冒充被测过期。  
-- 在插件里改质衡服务器时间。  
-- 第一期自定义节点类型。  
-- 公网海量第三方插件市场 / 任意热装。  
-- 插件契约使用 YAML（只认 JSON）。  
-- 代码与 manifest 分多处散落、无统一包格式（应对齐为单一 zip 布局）。  
-- 插件任意全局 CSS / 劫持路由替换整个 SPA。  
-- 把 `qualitest-demo-host` 整仓并进质衡；只吸收契约与调用方式。  
-- 把质衡自身对象存储、Flyway、成员权限做成「被测插件」。
+- [ ] 零插件行为与今日一致  
+- [ ] 开数据插件后快照路径可用且可见  
+- [ ] Prepare 按 §4.2 阶段桶稳定  
+- [ ] 可拖「快进」复现跨天（P2）  
+- [ ] 数据写竞争时 primary 必填；单插件可省略  
+- [ ] 无能力无假按钮/假节点  
+- [ ] UI 仅影响测流编辑/Run/报告  
+- [ ] 停用/切环境后贡献节点**即时**失效（图 JSON 无 enabled 脏写）  
+- [ ] 同能力第二提供方启用失败  
+- [ ] ops-agent 未连通明示；连通后可调度  
+- [ ] 启用失败均落在 §4.2 原因码  
 
 ---
 
-## 10. 验收直觉
+## 8. 相关链接
 
-1. 新环境默认零插件，跑流行为与测流外观与今日一致。  
-2. 启用官方数据插件后，原快照/还原路径仍可用；画布上能看见对应徽标/审计样式。  
-3. 金库 + 拨钟同开时，Prepare 顺序稳定，顶栏能读到虚拟时间，可复现「回基线 → T+N → 断言」。  
-4. 场景加载与金库同环境时，有明确 primary，不会双清库。  
-5. 未启用对应能力时，危险意图不会静默落到错误系统；工具条也不出现假按钮。  
-6. 换一套 `ui.flow.tokens` 只影响测流作用域，登录页/系统管理不受影响。  
-7. 新增官方能力时，追加 §3.3 名字 +（若可见）UI 槽贡献即可，不必改跑流核心语义。
+- ROADMAP Exploring **6.2**；Later **7.4～7.6**、**5.5**  
+- 现状写库快照（迁移前）：`project-summary.md`；`HttpEndpointSnapshotAdapter`  
+- 被测 test-support（ephemeral，待迁入存档点插件）：`qualitest-demo-mall` / `test-support-starter`  
+- 运维金库（**不是**本插件）：`qualitest-demo-host` `data/golden` / daily-reset  
+- 两插件设计：`plugin-sut-db-save-point.md`、`plugin-sut-sys-clock-dial.md`  
+ 
 
 ---
 
-## 11. 相关链接
+## 9. 已定结论（追溯）
 
-- ROADMAP Exploring **6.2**；Later **7.4–7.6**、**5.5**  
-- 写库快照：`project-summary.md` §4.4；`HttpEndpointSnapshotAdapter`  
-- 靶场场景与 test-support：`qualitest-demo-mall` README / `test-support-starter`  
-- 演示金库：`qualitest-demo-host` `data/golden`、GUIDE  
+> 原待定点已消化进正文；严谨化细则以 **§10** 为准。再开争议须改正文并更新本表。
+
+| 条 | 结论 |
+| --- | --- |
+| A1 | hooks / 节点引用 **本包**能力名；invoke **必须**带 pluginId |
+| A2 / B3 | **禁止**环境 `prepareOrder`；阶段序写死；阶段内 `hooks.order` |
+| A3 | 契约字符串 **kebab-case** |
+| A4 | **`ui-slot:…` 互斥**；`slot` 只布局 |
+| A5 | 短 id + 存储 `pluginId`/`contributionId` |
+| A6 | ROADMAP 指向草案 |
+| B1 | **无**全局能力唯一提供者；互斥靠 isolation |
+| B2 | primary **仅 sut-db 竞争时必填** |
+| B4 | **废包级 danger**；gate 在**插件能力对象**上；`remarks` 仅说明 |
+| B5 | 主靠 **isolation**；conflicts 可选 `plugin:<id>` |
+| B6 / D2 | capabilities **只放运行且私有于包**；UI 看 `ui` |
+| B7 | 近期仅示意 UI 路径；A/tokens **后置** |
+| B8 | http-adapter / builtin / ops-agent；builtin 靠 id；http 用 routes |
+| B9 | 默认 **fail_run**；P0 skip 白名单 = ∅ |
+| B10 | ops-agent **默认 CLI**（install/uninstall/ping）；`runtime.agent.cli` |
+| C1 | **先文档契约**；可运行样本后置 |
+| C2 | 官方 builtin = **虚包** + 主仓实现 |
+| C3 | 类型名 **`pluginAction`** |
+| C4 | allowDestructiveReset **1:1** → gate.destructive |
+| 持久化 | **包 JSONC ≠ 环境 SQL**；节点可用/失效 **即时算** |
+| C5 | 质衡**不做**开放业务能力名录；说明书 **JSONC** |
+| C6 | **被测特殊面→插件**；库存档点/拨钟示意为 **CLI + configSchema**；ephemeral snapshot **迁入**存档点插件 |
+| C7 | MCP 安装细节在 P4 |
+| D1 | runtime.kind = **§2.3.1**；CLI = **§2.3.2** |
+| D3 | 验收 checkbox |
+| 严谨化 | **§10 实现契约** |
+
+---
+
+## 10. 实现契约（对照执行）
+
+> 本章给实现者。与 §1～§8 冲突时以本章为准。
+
+### 10.1 不变量
+
+1. 能力名**私有于** `pluginId`；质衡**禁止**维护开放业务能力名录。  
+2. `capabilities` ∩ UI 贡献 = ∅（UI 只在 `ui`）。  
+3. Invoker / UiRegistry 是唯一入口。  
+4. Host/Context 不得越权（§10.5）。  
+5. Prepare 阶段序不可被环境覆盖。  
+6. P0 挂点失败 → `fail_run`。  
+7. `pluginAction` 是唯一插件步骤引擎类型。  
+8. 总闸由**本包能力对象**的 `gate` 推导；**禁止**包级 `danger`；`remarks` 不参与判定。  
+9. 官方 builtin 虚包与主仓注册表必须同发版可用。  
+10. 原因码以 §4.2 为准，禁止未列出的静默成功。  
+11. **被测特殊面执行禁止留核心**：只经 `invoke(pluginId, …)`；未启用不得回落。  
+12. 宿主挂点只调度**已启用**且声明了对应 hook 的插件。  
+13. `ops-agent` **默认 CLI**：须能 uninstall 干净；自定义连接等只进环境 `config`。
+
+### 10.2 说明书字段约束（摘要）
+
+| 字段 | 类型约束 |
+| --- | --- |
+| 文件名 | `qualitest.plugin.jsonc`（JSONC） |
+| `id` | §1 字符集 |
+| `version` | semver |
+| `remarks` | 可选；仅展示 |
+| `capabilities[]` | 对象：`name` 包内唯一；`effect`；可选 `gate` / `preparePhase` / `dbCompete` |
+| `requires[]` | 仅 `plugin:<id>` |
+| `conflicts[]` | 仅 `plugin:<id>` |
+| `isolation[]` | ∈ §4.1 或 `ui-slot:<slug>` |
+| `hooks[].name` | `onRunPrepare` \| `onRunFinalize` \| `onCheckpoint` \| `onRestore` |
+| `hooks[].order` | 整数；默认 `100` |
+| `hooks[].actions` | ⊆ 本包 `capabilities[].name` |
+| `configSchema` | 可选；环境 `config` 必须通过 |
+| `runtime.kind` | 三枚举 |
+| `runtime.http.routes` | kind=http-adapter 时必须 |
+| `runtime.agent.bundle` | kind=ops-agent 时必须 |
+| `runtime.agent.cli` | kind=ops-agent 默认必须：`bin`、`pingArgs` |
+
+出现已废字段 `danger` / 旧 `.json5` 契约若仍提交 → 按实现策略拒或迁移；能力写成「质衡开放名」→ `MANIFEST_INVALID`。
+
+### 10.3 启用校验算法（必须按序）
+
+对「将启用插件 P，环境 E」：
+
+1. **Parse** → 失败 `MANIFEST_INVALID`。  
+2. **Schema**：`config` vs `configSchema` → `CONFIG_SCHEMA_INVALID`。  
+3. **Kind**：builtin 注册表 / http routes / ops-agent bundle（同前）。  
+4. **Gate**：本包能力 `gate` 并集查 E → 未开则 `GATE_DENIED`。  
+5. **Requires**：每个 `plugin:` 须已启用 → 否则 `REQUIRES_UNSATISFIED`。  
+6. **Conflicts** → `PLUGIN_CONFLICT`。  
+7. **Isolation** mutex → `ISOLATION_MUTEX`；补全缺省 `ui-slot:flow.banner.{id}`。  
+8. **Primary data**：启用集中 `isolation` 含 `sut-db` **且** 存在 `dbCompete=true` 的能力 的插件数 ≥ 2 → 须填 `primaryDataProvider` ∈ S。  
+9. **Hooks**：每个 action ∈ 本包能力名 → 否则 `HOOK_ACTION_NOT_OWNED`。  
+10. **Commit**：环境绑定；UiRegistry；登记「已启用 pluginId → 说明书」（**无**全局 capability→plugin 名录表）。
+
+停用：摘注册；图上相关节点**即时重算失效**，禁止落图。
+
+### 10.4 Invoker 与 kind 分发
+
+```text
+invoke(envId, pluginId, capability, args, source) → Result | Error(code)
+```
+
+步骤：
+
+1. `pluginId` 在 E 已启用 → 否则 `PROVIDER_NOT_FOUND`。  
+2. `capability` ∈ 该包 `capabilities[].name` → 否则 `UNKNOWN_CAPABILITY`。  
+3. **Gate**：该能力对象的 `gate`；未开 → `GATE_DENIED`。  
+4. ops-agent：`cli ping`（或约定探活）失败 → `AGENT_UNREACHABLE`。  
+5. 按 kind 分发：http routes / builtin 注册表 / **CLI 执行**（下发 config 文件）→ 失败 `INVOKE_FAILED`。  
+6. **必须**写审计（含 pluginId、capability）；高危 gate 字段须齐全。  
+7. serialize isolation：同 env 同标签 write **必须**排队。
+
+Prepare 调度：**必须**实现 §4.2 排序算法。
+
+### 10.5 Host/Context 白名单
+
+调用实现时**允许**注入：
+
+| 键 | 用途 |
+| --- | --- |
+| `envId` / `runId` / `projectId` | 定位 |
+| `pluginId` / `capability` | 当前调用 |
+| `args` | 调用参数（已按节点/hook schema 校验） |
+| `envConfig` | 该插件在环境中的 config（只读视图） |
+| `audit` | 仅追加审计步 API |
+| `httpClient` | 仅 http-adapter 使用的受控出站客户端（目标受 routes 约束） |
+| `agentClient` | 仅 ops-agent；只达环境登记的 agent URL |
+
+**禁止**注入/访问：Spring `ApplicationContext`、任意 Bean 查找、质衡业务 Mapper/Repository、改质衡系统时钟、未登记 URL 的裸 `HttpURLConnection`、文件系统任意路径（除非经 agent）。
+
+违规尝试 → `HOST_API_DENIED`，并 `fail_run`。
+
+### 10.6 UI 登记与模板绑定
+
+1. 启用时遍历 `ui`：登记 chrome/timeline/env/palette。  
+2. `palette.nodes`：校验 capability ∈ 本包 capabilities；登记 `(pluginId, contributionId)`。  
+3. 模板 `{{path}}`：  
+   - **允许**绑定：已启用插件声明的只读投影（如时钟包 `clock.read` → `clock.now`）；键**必须**带 plugin 作用域，禁止当成质衡全局变量名开放。  
+   - 解析失败或插件未启用：**必须**明确占位并告警；**禁止**静默变空串。  
+4. 作用域外页面：**禁止**渲染插件 UI。
+
+### 10.7 P0 明确不做（防范围漂移）
+
+| 不做 | 说明 |
+| --- | --- |
+| 环境 prepareOrder | 已删 |
+| skip_and_warn 非空白名单 | 空集 |
+| ops-agent 常驻守护为默认 | 默认 CLI；RPC/守护后置 |
+| ops-agent 完整 RPC 协议 | 仅 CLI + ping；协议后置 |
+| UI 模式 A / tokens | 后置 |
+| pack/domain 能力 | 不进目录 |
+| MCP 安装被测端 | P4 |
+| 公网插件商店 / JAR 热装 | 非目标 |
+| 质衡开放业务能力名录 | **禁止** |
+| 核心直调 snapshot/restore Adapter | **禁止**（P1 拆净） |
+| 拆 gate 为多闸 | 暂 1:1 |
+
+### 10.8 P0 实现检查表
+
+**后端**
+
+- [ ] 说明书解析 + §10.2 校验  
+- [ ] §10.3 启用全序 + 原因码  
+- [ ] 包登记 + 环境插件绑定落库（§2.6 实体）  
+- [ ] 按 pluginId 启用集调度（无全局能力名录）  
+- [ ] Prepare/Finalize 调度 + §4.2 排序  
+- [ ] Invoker + http-adapter / builtin 分发  
+- [ ] gate.destructive ↔ allowDestructiveReset  
+- [ ] 审计时间线字段  
+- [ ] Host/Context 白名单边界测试  
+
+**前端**
+
+- [ ] 环境插件启用/配置表单 + 错误码展示  
+- [ ] UiRegistry：徽章/横幅至少一种  
+- [ ] `pluginAction` 可用态**即时算**（切环境/停用后重算，不落图）  
+- [ ] 模板不可用占位  
+- [ ] ops-agent 未连通提示  
+
+**官方包（后置样本）**
+
+- [ ] 库存档点 / 拨钟：说明书 JSONC + CLI install/uninstall/ping 契约可对照  
+- [ ] 环境 config（含 db）过 configSchema  
+- [ ] B 类 UI 可见（有实现时）  
