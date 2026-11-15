@@ -19,7 +19,7 @@
 | 点 | 结论 |
 | --- | --- |
 | 改墙钟本身 | **能做**：Go 调系统 API / 等价命令即可（Linux 常需 root/`CAP_SYS_TIME`；Windows 需相应管理员权限） |
-| 质衡怎么调到 CLI | 与存档点相同：属**核心执行通道**（同机 / sidecar / SSH），见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md) |
+| 质衡怎么调到 CLI | 默认同机直接起本 CLI（`local-exec`）；见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md) |
 | 容器 / 强制 NTP | 无特权容器或宿主机拧回时间 → 可能失败或被拉回；**仅靶场**；启用时 remarks 提示 |
 | Web vs MCP | Web 装不了被测旁 CLI；**MCP + 本机 Agent**（Cursor / Claude Code 等）可协助 install；跑流仍 Invoker→CLI |
 

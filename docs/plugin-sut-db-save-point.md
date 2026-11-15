@@ -17,7 +17,7 @@
 | 现在 | 专文定 CLI 契约；实现后挂点改走本插件 |
 | 插件跑通后 | **删除**被测 `/test-support` 端点与核心回落路径；**不**再保留「没开插件还能用 HTTP 快照」 |
 
-默认交付是 **ops-agent + CLI dump**（不是继续把 test-support 当正式形态）。执行通道属**质衡核心**（同机 / sidecar / SSH），见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。
+默认交付是 **ops-agent + CLI dump**（不是继续把 test-support 当正式形态）。新手路径：装 `sdsp` + 同机 `local-exec`；见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。本包兼作插件用法引导样本。
 
 ## 1. 要做什么 / 怎么用
 

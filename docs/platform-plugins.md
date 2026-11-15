@@ -254,22 +254,23 @@ qualitest.sut-db-save-point-1.0.0.zip
 
 #### 执行通道（载荷 vs 怎么够到被测机）
 
-两层不要混：
+两层不要混；**新手只记第一层**：
 
 | 层 | 含义 | 已定 |
 | --- | --- | --- |
-| **载荷** | 被测机上跑的是 **CLI**（改钟、dump 等） | 官方样本默认 CLI；**能实现**（改 OS 钟须本机权限，见拨钟专文） |
-| **通道** | 质衡 Invoker **如何**在被测机上 exec 该 CLI | **必须**有一种到达方式；「RPC 后置」= 不做重协议，**不是**完全没有通道 |
+| **载荷** | 被测机上跑的是 **业务 CLI**（dump、拨钟等） | **主路径**；官方样本默认 CLI |
+| **通道** | 质衡 Invoker **如何**起该 CLI | **核心**；默认 **同机直接 exec** |
 
-P0 通道任选其一写进实现（可并存，启用时登记）：
+P0 / 新手路径：
 
-1. **同机 exec**：质衡与被测同机 → 平台直接起进程跑 CLI（联调/一体机最常见）。  
-2. **极瘦边车**：被测旁只负责「收 Invoke → 写临时 config → exec `bin` → 回传 stdout」；**不是**业务 RPC，也**不是**业务插件——属**核心执行通道**的一种落地。设计见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。  
-3. **SSH / 已有运维通道**（可选）：远程一行命令；权限与密钥不进流程图。
+1. **`local-exec`（默认）**：同机 → 平台直接起业务 CLI。装插件 CLI 即可，**不必**再装代跑服务。  
+2. **`ssh`（分机）**：远程执行**同一条**业务 CLI（已有 SSH 时优先于边车）。  
 
-**归属（已定）**：`channel.kind`（`local-exec` \| `sidecar` \| `ssh`）与 Invoker 分发 = **质衡核心**；业务插件只声明 CLI bin，不各自发明通道。环境配通道参数，**不要**在「启用插件」列表里出现「执行边车」业务行。
+`sidecar`（HTTP 代跑）：**后置**，非引导内容。详见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。
 
-**禁止**理解成：被测机只装了业务 CLI、质衡却未配置任何 exec 通道仍声称 ops-agent 可用。
+**归属**：通道 = 核心；业务插件只声明 `cli.bin`。环境**不要**出现「执行边车」业务插件行。
+
+**新手引导（已定）**：官方业务插件（存档点、拨钟等）兼作「怎么用插件」的引导——装 CLI → 项目/环境启用 → 跑流看挂点/徽章/节点；总契约仍读本文。
 
 说明书 `runtime.agent` 示意：
 
@@ -289,17 +290,17 @@ P0 通道任选其一写进实现（可并存，启用时登记）：
 
 ### 2.3.3 官方示意包（摘要；字段全表以专文为准）
 
-下列**仅对齐契约**；**可运行样本后置**。P0 官方样本 CLI 语言 **Go**（存档点/拨钟）；边车/网混沌建议 **Rust**（亦可 Go）。  
-**仓库策略（已定）**：**官方业务插件一插件一私有仓**（README/发版互不搅）；契约与 Invoker / 执行通道仍在 **`qualitest` 主仓**。  
+下列**仅对齐契约**；**可运行样本后置**。P0 官方样本 CLI 语言 **Go**（存档点/拨钟）；网混沌建议 **Rust**（亦可 Go）。  
+**仓库策略（已定）**：**官方业务插件一插件一私有仓**；契约与 Invoker / 执行通道在 **`qualitest` 主仓**。上述官方包兼作**插件用法新手引导**。  
 **完整**字段以专文为准，本文不维护第二份全量 JSONC。
 
 | 包 | 专文 | 实现仓（私有） | 要点（摘要） |
 | --- | --- | --- | --- |
-| `qualitest.sut-db-save-point` | [plugin-sut-db-save-point.md](./plugin-sut-db-save-point.md) | [qualitest-plugin-sut-db-save-point](https://github.com/qualitest-hq/qualitest-plugin-sut-db-save-point) | **业务插件**；CLI `sdsp`；项目挂载；Checkpoint/Restore |
-| `qualitest.sut-sys-clock-dial` | [plugin-sut-sys-clock-dial.md](./plugin-sut-sys-clock-dial.md) | [qualitest-plugin-sut-sys-clock-dial](https://github.com/qualitest-hq/qualitest-plugin-sut-sys-clock-dial) | **业务插件**；改 OS 墙钟；`prepareAt`；Finalize reset |
-| `qualitest.sut-net-chaos` | [plugin-sut-net-chaos.md](./plugin-sut-net-chaos.md) | [qualitest-plugin-sut-net-chaos](https://github.com/qualitest-hq/qualitest-plugin-sut-net-chaos) | **业务插件**；延迟/丢包；Finalize reset；Linux 首期 |
+| `qualitest.sut-db-save-point` | [plugin-sut-db-save-point.md](./plugin-sut-db-save-point.md) | [qualitest-plugin-sut-db-save-point](https://github.com/qualitest-hq/qualitest-plugin-sut-db-save-point) | **业务插件 + 引导样本**；CLI `sdsp`；同机 `local-exec` |
+| `qualitest.sut-sys-clock-dial` | [plugin-sut-sys-clock-dial.md](./plugin-sut-sys-clock-dial.md) | [qualitest-plugin-sut-sys-clock-dial](https://github.com/qualitest-hq/qualitest-plugin-sut-sys-clock-dial) | **业务插件 + 引导样本**；改 OS 墙钟；`prepareAt` |
+| `qualitest.sut-net-chaos` | [plugin-sut-net-chaos.md](./plugin-sut-net-chaos.md) | [qualitest-plugin-sut-net-chaos](https://github.com/qualitest-hq/qualitest-plugin-sut-net-chaos) | **业务插件**；延迟/丢包；后置示意 |
 
-**核心（非插件）**：执行通道 → [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)；sidecar 二进制仓 [qualitest-ops-sidecar](https://github.com/qualitest-hq/qualitest-ops-sidecar)（**不要**进业务插件启用表）。
+**核心（非插件）**：执行通道 → [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)（默认 CLI + `local-exec`；sidecar **后置**、不单独作为交付前提）。
 
 ```jsonc
 // 存档点 · 能力/挂点骨架（configSchema / ui 细节见专文）
@@ -530,7 +531,7 @@ P0 通道任选其一写进实现（可并存，启用时登记）：
 | `qualitest.sut-sys-clock-dial` | 须改被测机**系统时间**（靶场） | `clock.*` | ops-agent + **CLI** |
 | `qualitest.sut-net-chaos` | 须在被测机注入延迟/丢包（靶场） | `net.*` | ops-agent + **CLI** |
 
-执行通道（`local-exec` / `sidecar` / `ssh`）= **核心**，见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)；**不要**进上表。  
+执行通道 = **核心**（默认 `local-exec`），见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)；**不要**进上表。  
 说明书见 §2.3.3 与各专文。**可运行实现后置**；与 demo-host 运维金库无关。网混沌**不**挡 P0 存档点/拨钟交付。
 
 ### 3.2 界面贡献（近期路径）
@@ -709,7 +710,7 @@ P0 通道任选其一写进实现（可并存，启用时登记）：
 - 运维金库（**不是**本插件）：`qualitest-demo-host` `data/golden` / daily-reset  
 - 业务插件专文：`plugin-sut-db-save-point.md`、`plugin-sut-sys-clock-dial.md`、`plugin-sut-net-chaos.md`  
 - 业务插件实现仓：`qualitest-hq/qualitest-plugin-sut-db-save-point`、`…-sys-clock-dial`、`…-net-chaos`（私有）  
-- 核心执行通道：`platform-ops-exec-channel.md`；sidecar 仓 `qualitest-hq/qualitest-ops-sidecar`（私有，非插件）  
+- 核心执行通道：`platform-ops-exec-channel.md`（默认 local-exec；sidecar 后置）  
  
 
 ---
@@ -746,10 +747,11 @@ P0 通道任选其一写进实现（可并存，启用时登记）：
 | C8 | **项目级挂载**（§2.5.1）；存档点 `bindAlias` 项目只读注入，环境不可改 |
 | C9 | 拨钟 Prepare=`clock.set` **必须**环境 `prepareAt`；`preparePhase` 仅 onRunPrepare |
 | C10 | 平台 §2.3.3 **只留骨架**；字段全表以两份插件专文为准 |
-| C11 | ops-agent：**载荷=CLI（插件）**；**通道=核心**（`local-exec` / `sidecar` / `ssh`）；「RPC 后置」≠ 无通道 |
-| C12 | 通道专文 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)；网混沌 [plugin-sut-net-chaos.md](./plugin-sut-net-chaos.md)（后置示意，非 P0 必交付） |
-| C13 | **禁止**把执行边车登记为可启用业务插件；环境只配 `channel.*` |
-| C14 | **官方业务插件一插件一私有仓**；主仓只留契约/Invoker/通道；sidecar 单独仓且非插件 |
+| C11 | ops-agent：**载荷=业务 CLI**；**通道=核心**；P0 默认 `local-exec`，分机优先 `ssh`；sidecar **后置** |
+| C12 | 通道专文 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)；网混沌后置示意 |
+| C13 | **禁止**把执行边车登记为业务插件；新手路径不提必须装 sidecar |
+| C14 | **官方业务插件一插件一私有仓**；兼作插件用法**新手引导**；主仓留契约/Invoker/通道 |
+| C15 | **不**将 `qualitest-ops-sidecar` 独立仓作为交付前提（sidecar 后置，实现可进主仓） |
 | D1 | runtime.kind = **§2.3.1**；CLI = **§2.3.2** |
 | D3 | 验收 checkbox |
 | 严谨化 | **§10 实现契约** |
@@ -878,7 +880,7 @@ Prepare 调度：**必须**实现 §4.2 排序算法。
 | 公网插件商店 / JAR 热装 | 非目标 |
 | 质衡开放业务能力名录 | **禁止** |
 | 核心直调 snapshot/restore Adapter | **禁止**（P1 拆净；迁完删 `/test-support`） |
-| ops-agent 无执行通道仍启用 | **禁止**（须同机/边车/SSH 等已登记） |
+| ops-agent 无到达方式仍声称可用 | **禁止**（P0 至少 `local-exec` 能起业务 CLI） |
 | 拆 gate 为多闸 | 暂 1:1 |
 
 ### 10.8 P0 实现检查表

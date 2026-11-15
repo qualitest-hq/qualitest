@@ -6,7 +6,7 @@
 > **语言（建议）**：**Rust**（Linux netlink/`tc` 等系统面）；Go 亦可。  
 > **实现仓（私有）**：[qualitest-hq/qualitest-plugin-sut-net-chaos](https://github.com/qualitest-hq/qualitest-plugin-sut-net-chaos)（一插件一仓）。  
 > **定位**：在**被测机**上短时注入延迟、丢包等，便于测超时/重试/熔断；**仅靶场**。  
-> **形态**：ops-agent + **CLI**（与存档点/拨钟同通道模型）；分机时经平台 [执行通道](./platform-ops-exec-channel.md)（sidecar / SSH）代跑。
+> **形态**：ops-agent + **CLI**；默认同机 `local-exec`，分机优先 SSH；见 [执行通道](./platform-ops-exec-channel.md)。
 
 ## 1. 要解决什么
 
@@ -183,9 +183,9 @@ qt-sut-net-chaos net.reset --config <path>
 ## 10. 一次跑流时间线（帮助建立直觉）
 
 ```text
-T0  环境已启用本插件 + 破坏性总闸；分机则边车 ping OK
+T0  环境已启用本插件 + 破坏性总闸；同机 local-exec（或分机 SSH）
 T1  图节点 net.delay delayMs=2000
-    → Invoker →（边车）→ qt-sut-net-chaos net.delay
+    → Invoker → qt-sut-net-chaos net.delay
 T2  HTTP 下单步骤变慢 / 触发重试断言
 T3  图节点 net.reset 或 Finalize hooks
     → 网络恢复
