@@ -3,7 +3,8 @@
 > **状态**：设计草案（Exploring · 随 [platform-plugins.md](./platform-plugins.md)）  
 > **显示名**：被测系统拨钟 · **短称/徽章**：拨钟 · **id**：`qualitest.sut-sys-clock-dial`  
 > **实现**：后置；契约与行为以**本文**为准（平台 §2.3.3 只留骨架）。  
-> **语言**：Go（单二进制；与库存档点 CLI 样本同策）。仓库落地后置。  
+> **语言**：Go（单二进制；与库存档点 CLI 样本同策）。  
+> **实现仓（私有）**：[qualitest-hq/qualitest-plugin-sut-sys-clock-dial](https://github.com/qualitest-hq/qualitest-plugin-sut-sys-clock-dial)（一插件一仓）。  
 > **定位**：改**被测机操作系统时间**（墙钟），以便 Quartz 等跟系统钟的调度也能被快进；**仅适用于测试/演示靶场**，非正式环境。
 
 ## 1. 要解决什么

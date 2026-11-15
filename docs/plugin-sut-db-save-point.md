@@ -1,7 +1,8 @@
 # 插件设计：被测库存档点（`qualitest.sut-db-save-point`）
 
 > Exploring · 随 [platform-plugins.md](./platform-plugins.md)。契约文档；实现后置。  
-> **语言**：Go（单二进制 `sdsp`；与拨钟 CLI 样本同策）。仓库落地后置。  
+> **语言**：Go（单二进制 `sdsp`；与拨钟 CLI 样本同策）。  
+> **实现仓（私有）**：[qualitest-hq/qualitest-plugin-sut-db-save-point](https://github.com/qualitest-hq/qualitest-plugin-sut-db-save-point)（一插件一仓）。  
 > **范围**：被测**状态存档**——首期 SQL（MySQL）+ Redis；同一 `saveId` 可一次打齐、一次按序恢复，方便断点续跑。  
 > **不是** demo-host 运维金库 / SQL 事务 `SAVEPOINT`。  
 > **命名**：id=`qualitest.sut-db-save-point`（db=数据侧，含 SQL/Redis 等）；CLI=`sdsp`。**不**再按引擎/存储拆插件 id。

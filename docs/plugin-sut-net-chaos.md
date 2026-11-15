@@ -3,7 +3,8 @@
 > **状态**：设计草案（Exploring · 随 [platform-plugins.md](./platform-plugins.md)）  
 > **显示名**：被测网络混沌 · **短称/徽章**：网混沌 · **id**：`qualitest.sut-net-chaos`  
 > **实现**：后置；契约以**本文**为准。  
-> **语言（建议）**：**Rust**（Linux netlink/`tc` 等系统面）；Go 亦可。仓库落地后置。  
+> **语言（建议）**：**Rust**（Linux netlink/`tc` 等系统面）；Go 亦可。  
+> **实现仓（私有）**：[qualitest-hq/qualitest-plugin-sut-net-chaos](https://github.com/qualitest-hq/qualitest-plugin-sut-net-chaos)（一插件一仓）。  
 > **定位**：在**被测机**上短时注入延迟、丢包等，便于测超时/重试/熔断；**仅靶场**。  
 > **形态**：ops-agent + **CLI**（与存档点/拨钟同通道模型）；分机时经平台 [执行通道](./platform-ops-exec-channel.md)（sidecar / SSH）代跑。
 

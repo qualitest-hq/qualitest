@@ -3,7 +3,8 @@
 > **状态**：设计草案（Exploring · 随 [platform-plugins.md](./platform-plugins.md) §2.3.2）  
 > **归属**：**质衡核心能力**（Invoker 的到达方式）——**不是**平台插件，用户不为「启用边车插件」勾选业务包。  
 > **实现**：后置；契约以本文为准。  
-> **语言（建议）**：被测旁边车二进制可用 **Rust**（并发 exec、超时、以后收紧权限）；Go 亦可。仓库落地后置。  
+> **语言（建议）**：被测旁边车二进制可用 **Rust**（并发 exec、超时、以后收紧权限）；Go 亦可。  
+> **实现仓（私有，非插件）**：[qualitest-hq/qualitest-ops-sidecar](https://github.com/qualitest-hq/qualitest-ops-sidecar)。  
 > **定位**：规定质衡如何在被测机上执行 ops CLI；**sidecar** 是分机时的一种落地，与 `local-exec` / `ssh` 并列。
 
 ## 1. 为何是核心，不是插件
