@@ -28,8 +28,6 @@
 | 同机 | `local-exec` | **不必启用** |
 | 算插件吗 | 否 | **是**（一插件一仓） |
 
-旧称「sidecar / 边车」易误解；产品名统一为 **执行代理**。归档仓 `qualitest-ops-sidecar` 由 `qualitest-plugin-sut-exec-agent` 接替。
-
 ## 2. `channel.kind`
 
 | kind | 说明 |
@@ -48,8 +46,6 @@
 | `channel.ssh.*` | kind=ssh |
 | `channel.execAgent.baseUrl` | kind=exec-agent |
 | `channel.execAgent.tokenRef` | 可选密钥槽；禁止进流程图 |
-
-兼容旧草稿字段名 `channel.sidecar.*`：实现可读作 `execAgent` 别名一期，文档正文只用 `execAgent`。
 
 ## 4. 协议（exec-agent）
 

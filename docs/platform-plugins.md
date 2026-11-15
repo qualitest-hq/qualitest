@@ -265,7 +265,7 @@ qualitest.sut-db-save-point-1.0.0.zip
 
 1. **`local-exec`（默认）**：同机直接起业务 CLI——**不必**装执行代理。  
 2. **`ssh`**：分机远程跑同一业务 CLI。  
-3. **`exec-agent`**：分机 HTTP 代跑——须启用官方插件 **被测执行代理**（`qualitest.sut-exec-agent`，原「边车」更名）。见 [执行代理专文](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent/blob/main/docs/design.md)、[platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。
+3. **`exec-agent`**：分机 HTTP 代跑——须启用官方插件 **被测执行代理**（`qualitest.sut-exec-agent`）。见 [执行代理专文](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent/blob/main/docs/design.md)、[platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。
 
 **归属**：`channel.kind` 分发 = 核心；执行代理 = **正式官方插件**（可启用、一仓、有徽章）；业务插件只声明各自 `cli.bin`。
 
@@ -300,7 +300,7 @@ qualitest.sut-db-save-point-1.0.0.zip
 | `qualitest.sut-exec-agent` | [design.md](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent/blob/main/docs/design.md) | [仓](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent) | **执行代理**（分机代跑）；同机不必启 |
 | `qualitest.sut-net-chaos` | [design.md](https://github.com/qualitest-hq/qualitest-plugin-sut-net-chaos/blob/main/docs/design.md) | [仓](https://github.com/qualitest-hq/qualitest-plugin-sut-net-chaos) | 网混沌；后置示意 |
 
-**核心**：通道分发 → [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。旧仓 `qualitest-ops-sidecar` 已归档，由 **执行代理** 插件仓接替。
+**核心**：通道分发 → [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。
 
 ```jsonc
 // 存档点 · 能力/挂点骨架（configSchema / ui 细节见专文）
@@ -495,7 +495,7 @@ qualitest.sut-db-save-point-1.0.0.zip
 启用（质衡侧）**必须**走 §10.3 全序校验；**禁止**「解压即执行」。  
 私有化签名 / 允许列表：**后置**。界面资源**禁止**走 npm/独立 CDN。  
 
-被测端安装通道：人工脚本、Compose 边车、控制台推送（后置）。MCP 协助本机落地：见下（装 agent 的静默推送仍 **P4**）。  
+被测端安装通道：人工脚本、Compose 旁路容器、控制台推送（后置）。MCP 协助本机落地：见下（装 agent 的静默推送仍 **P4**）。  
 
 #### Web / MCP / 本机 Agent（已定）
 
@@ -749,9 +749,8 @@ qualitest.sut-db-save-point-1.0.0.zip
 | C10 | 平台 §2.3.3 **只留骨架**；字段全表以两份插件专文为准 |
 | C11 | ops-agent：**载荷=业务 CLI**；**通道=核心**分发；P0 默认 `local-exec`；分机可用 `ssh` 或 `exec-agent` |
 | C12 | 通道专文留主仓；执行代理专文在 [plugin-sut-exec-agent](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent/blob/main/docs/design.md) |
-| C13 | **被测执行代理**（原边车）= **正式官方插件**；同机不必启用；产品名不用 sidecar |
+| C13 | **被测执行代理** = **正式官方插件**；同机不必启用 |
 | C14 | **官方插件一插件一私有仓**；专文只在各仓 `docs/design.md`；主仓**不**再留专文/跳转页 |
-| C15 | 归档仓 `qualitest-ops-sidecar` **由** `qualitest-plugin-sut-exec-agent` **接替** |
 | D1 | runtime.kind = **§2.3.1**；CLI = **§2.3.2** |
 | D3 | 验收 checkbox |
 | 严谨化 | **§10 实现契约** |
