@@ -1,62 +1,89 @@
 # 平台能力：ops 执行通道
 
 > **状态**：设计草案（Exploring · 随 [platform-plugins.md](./platform-plugins.md) §2.3.2）  
-> **归属**：**质衡核心**（Invoker 如何调到业务 CLI）——**不是**插件，无启用行、无画布能力。  
-> **主路径（已定）**：**业务 CLI + `local-exec`（同机）**；分机优先 **SSH 远程跑同一条 CLI**。  
-> **sidecar（HTTP 代跑服务）**：**后置**，非新手路径；不单独建插件仓、不挡 P0。
+> **归属**：**质衡核心**负责 `channel.kind` 分发与 Invoker 到达方式。  
+> **主路径**：**业务 CLI + `local-exec`（同机）**。  
+> **分机 HTTP**：启用官方插件 [被测执行代理](./plugin-sut-exec-agent.md)（`qualitest.sut-exec-agent`），`channel.kind=exec-agent`。  
+> **分机 SSH**：`channel.kind=ssh`（不强制执行代理插件）。
 
-## 1. 用户怎么用（先看这个）
-
-官方业务插件（存档点 / 拨钟等）**本身就是插件用法的新手引导**：
+## 1. 怎么用（分层）
 
 ```text
-① 被测机（或本机一体）安装该插件的 CLI（如 sdsp）
-② 质衡：项目挂载 / 环境启用插件 / 开总闸（按专文）
-③ 环境通道：默认 local-exec（同机）
-④ 跑流 → 平台 Invoker 直接起 CLI；MCP 可协助装 CLI、配质衡，不代替跑流调用
+同机新手：
+  装业务 CLI（sdsp / 拨钟…）→ 启用业务插件 → local-exec → 跑流
+
+分机（HTTP 代跑）：
+  被测机：装「执行代理」插件 + 各业务 CLI
+  质衡：启用 qualitest.sut-exec-agent，channel=exec-agent，填 baseUrl
+  跑流 → Invoker → 执行代理 → 业务 CLI
+
+分机（已有 SSH）：
+  被测机：只装业务 CLI
+  质衡：channel=ssh → 远程直接跑业务 CLI
 ```
 
-**不必**先理解边车。没有业务 CLI，插件无法干活；有 CLI 且同机，**不需要**任何代跑服务。
-
-| | 业务插件 CLI | 执行通道 |
+| | 核心通道 | 执行代理插件 |
 | --- | --- | --- |
-| 是什么 | dump / 拨钟 / 混沌… | 核心：怎么把 CLI 跑起来 |
-| 用户要装吗 | **要**（被测旁） | 同机：不用额外装；分机 SSH：用已有 SSH |
-| 算插件吗 | 是 | **否** |
+| 是什么 | Invoker 怎么连到被测 | 被测旁的代跑进程 + 启用/徽章 |
+| 同机 | `local-exec` | **不必启用** |
+| 算插件吗 | 否 | **是**（一插件一仓） |
 
-## 2. 通道 kind
+旧称「sidecar / 边车」易误解；产品名统一为 **执行代理**。归档仓 `qualitest-ops-sidecar` 由 `qualitest-plugin-sut-exec-agent` 接替。
 
-| `channel.kind` | 阶段 | 质衡行为 |
-| --- | --- | --- |
-| **`local-exec`** | **P0 默认** | 本机 `Process` 跑说明书里的 `cli.bin` |
-| **`ssh`** | 分机常用 | 远程 argv 执行同一 CLI（密钥走环境密钥槽） |
-| `sidecar` | **后置** | 被测旁 HTTP 小服务代 `exec`；仅当「不要 SSH、只要内网 HTTP」时考虑 |
+## 2. `channel.kind`
 
-启用 `ops-agent` 业务插件时须有合法通道；默认未配可视为 `local-exec`（实现定）。`ssh` 探活失败 → `AGENT_UNREACHABLE`。
+| kind | 说明 |
+| --- | --- |
+| **`local-exec`** | P0 默认；本机起业务 `cli.bin` |
+| **`ssh`** | 远程 argv 跑业务 CLI |
+| **`exec-agent`** | 经已启用的 `qualitest.sut-exec-agent` 的 HTTP `ping`/`exec` |
+
+选用 `exec-agent` 时：**必须**环境已启用执行代理插件且 baseUrl 可达，否则 `AGENT_UNREACHABLE` / 拒启用。
 
 ## 3. 环境配置（核心）
 
 | 字段 | 说明 |
 | --- | --- |
-| `channel.kind` | 默认 `local-exec`；分机改 `ssh` |
-| `channel.ssh.*` | kind=ssh 时：host/user/密钥引用（细节实现定）；**禁止**进流程图 |
-| `channel.sidecar.*` | **后置**；未实现前文档仅占位 |
+| `channel.kind` | 默认 `local-exec` |
+| `channel.ssh.*` | kind=ssh |
+| `channel.execAgent.baseUrl` | kind=exec-agent |
+| `channel.execAgent.tokenRef` | 可选密钥槽；禁止进流程图 |
 
-**禁止**把通道做成可启用业务插件。
+兼容旧草稿字段名 `channel.sidecar.*`：实现可读作 `execAgent` 别名一期，文档正文只用 `execAgent`。
 
-## 4. 与插件仓的关系
+## 4. 协议（exec-agent）
 
-- 业务插件：**一插件一私有仓**（CLI + README + install）  
-- 本能力：写在 **`qualitest` 主仓**（Java Invoker）；**不**设 `qualitest-ops-sidecar` 独立仓为交付前提  
-- 官方样本插件兼作 **「如何用插件」** 的引导：装 CLI → 启用 → 跑流见徽章/挂点/节点
+### ping
 
-## 5. sidecar 后置备忘（非主路径）
+```jsonc
+{ "ok": true, "version": "0.1.0", "hostname": "sut-demo-01" }
+```
 
-若将来做：被测旁短驻进程，白名单 `bin`，`ping`/`exec`，内网 + token。  
-协议细节实现时再补；**不得**写进新手 README 主流程。
+### exec
 
-## 6. 验收（P0）
+```jsonc
+// 请求
+{
+  "bin": "sdsp",
+  "args": ["save.create", "--config", "CONFIG_PATH"],
+  "configText": "{ ... }",
+  "timeoutMs": 120000
+}
+// 响应
+{
+  "ok": true,
+  "exitCode": 0,
+  "stdout": "{ \"ok\": true, ... }",
+  "stderrTail": "...",
+  "durationMs": 842
+}
+```
 
-- [ ] 同机只装业务 CLI + `local-exec` 可完成存档点或拨钟一次 invoke  
-- [ ] 环境插件列表**无**「执行边车」业务行  
-- [ ] 官方插件仓 README 主路径不提必须装 sidecar  
+规则：`bin` **白名单**；禁止 `bash -c` 拼串；超时杀进程组；P0 内网 + token。
+
+## 5. 验收
+
+- [ ] 同机：不启用执行代理，仅业务 CLI + `local-exec` 可跑通  
+- [ ] 分机：启用执行代理 + `exec-agent` 可转发一次业务 `ping`/`save.create`  
+- [ ] 非白名单 `bin` 拒  
+- [ ] 启用列表可出现「执行代理」插件行；**不是**业务 dump/拨钟本身  
