@@ -291,7 +291,7 @@ qualitest.sut-db-save-point-1.0.0.zip
 
 下列**仅对齐契约**；**可运行样本后置**。P0 官方样本 CLI 语言 **Go**（存档点/拨钟）；网混沌建议 **Rust**（亦可 Go）。  
 **仓库策略（已定）**：**官方插件一插件一私有仓**；各仓 **`docs/design.md` 为该插件权威契约**；Invoker / 执行通道 / 本文骨架在 **`qualitest` 主仓**。官方包兼作**插件用法新手引导**。  
-本文不维护第二份全量插件专文（仅索引 + stub 跳转）。
+本文不维护插件专文全文；只做索引，专文只在各实现仓 `docs/design.md`。
 
 | 包 | 专文 | 实现仓（私有） | 要点（摘要） |
 | --- | --- | --- | --- |
@@ -709,8 +709,7 @@ qualitest.sut-db-save-point-1.0.0.zip
 - 现状写库快照（迁移前）：`project-summary.md`；`HttpEndpointSnapshotAdapter`  
 - 被测 `/test-support`（迁移前）：`qualitest-demo-mall` / `test-support-starter` —— **插件跑通后删除端点与核心直调**  
 - 运维金库（**不是**本插件）：`qualitest-demo-host` `data/golden` / daily-reset  
-- 官方插件专文（各在实现仓 `docs/design.md`）：存档点 / 拨钟 / 执行代理 / 网混沌  
-- 主仓仅留跳转 stub：`plugin-sut-*.md` → 对应仓  
+- 官方插件专文：仅各实现仓 `docs/design.md`（存档点 / 拨钟 / 执行代理 / 网混沌）  
 - 通道分发：`platform-ops-exec-channel.md`（默认 local-exec；分机可用 exec-agent / ssh）  
  
 
@@ -751,7 +750,7 @@ qualitest.sut-db-save-point-1.0.0.zip
 | C11 | ops-agent：**载荷=业务 CLI**；**通道=核心**分发；P0 默认 `local-exec`；分机可用 `ssh` 或 `exec-agent` |
 | C12 | 通道专文留主仓；执行代理专文在 [plugin-sut-exec-agent](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent/blob/main/docs/design.md) |
 | C13 | **被测执行代理**（原边车）= **正式官方插件**；同机不必启用；产品名不用 sidecar |
-| C14 | **官方插件一插件一私有仓**；**专文 `docs/design.md` 落在各插件仓**；主仓 stub 跳转 |
+| C14 | **官方插件一插件一私有仓**；专文只在各仓 `docs/design.md`；主仓**不**再留专文/跳转页 |
 | C15 | 归档仓 `qualitest-ops-sidecar` **由** `qualitest-plugin-sut-exec-agent` **接替** |
 | D1 | runtime.kind = **§2.3.1**；CLI = **§2.3.2** |
 | D3 | 验收 checkbox |
