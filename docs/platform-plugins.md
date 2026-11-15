@@ -265,7 +265,7 @@ qualitest.sut-db-save-point-1.0.0.zip
 
 1. **`local-exec`（默认）**：同机直接起业务 CLI——**不必**装执行代理。  
 2. **`ssh`**：分机远程跑同一业务 CLI。  
-3. **`exec-agent`**：分机 HTTP 代跑——须启用官方插件 **被测执行代理**（`qualitest.sut-exec-agent`，原「边车」更名）。见 [plugin-sut-exec-agent.md](./plugin-sut-exec-agent.md)、[platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。
+3. **`exec-agent`**：分机 HTTP 代跑——须启用官方插件 **被测执行代理**（`qualitest.sut-exec-agent`，原「边车」更名）。见 [执行代理专文](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent/blob/main/docs/design.md)、[platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。
 
 **归属**：`channel.kind` 分发 = 核心；执行代理 = **正式官方插件**（可启用、一仓、有徽章）；业务插件只声明各自 `cli.bin`。
 
@@ -290,15 +290,15 @@ qualitest.sut-db-save-point-1.0.0.zip
 ### 2.3.3 官方示意包（摘要；字段全表以专文为准）
 
 下列**仅对齐契约**；**可运行样本后置**。P0 官方样本 CLI 语言 **Go**（存档点/拨钟）；网混沌建议 **Rust**（亦可 Go）。  
-**仓库策略（已定）**：**官方业务插件一插件一私有仓**；契约与 Invoker / 执行通道在 **`qualitest` 主仓**。上述官方包兼作**插件用法新手引导**。  
-**完整**字段以专文为准，本文不维护第二份全量 JSONC。
+**仓库策略（已定）**：**官方插件一插件一私有仓**；各仓 **`docs/design.md` 为该插件权威契约**；Invoker / 执行通道 / 本文骨架在 **`qualitest` 主仓**。官方包兼作**插件用法新手引导**。  
+本文不维护第二份全量插件专文（仅索引 + stub 跳转）。
 
 | 包 | 专文 | 实现仓（私有） | 要点（摘要） |
 | --- | --- | --- | --- |
-| `qualitest.sut-db-save-point` | [plugin-sut-db-save-point.md](./plugin-sut-db-save-point.md) | [qualitest-plugin-sut-db-save-point](https://github.com/qualitest-hq/qualitest-plugin-sut-db-save-point) | 业务 + 同机引导；CLI `sdsp` |
-| `qualitest.sut-sys-clock-dial` | [plugin-sut-sys-clock-dial.md](./plugin-sut-sys-clock-dial.md) | [qualitest-plugin-sut-sys-clock-dial](https://github.com/qualitest-hq/qualitest-plugin-sut-sys-clock-dial) | 业务 + 同机引导；拨钟 |
-| `qualitest.sut-exec-agent` | [plugin-sut-exec-agent.md](./plugin-sut-exec-agent.md) | [qualitest-plugin-sut-exec-agent](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent) | **执行代理**（分机代跑）；同机不必启 |
-| `qualitest.sut-net-chaos` | [plugin-sut-net-chaos.md](./plugin-sut-net-chaos.md) | [qualitest-plugin-sut-net-chaos](https://github.com/qualitest-hq/qualitest-plugin-sut-net-chaos) | 网混沌；后置示意 |
+| `qualitest.sut-db-save-point` | [design.md](https://github.com/qualitest-hq/qualitest-plugin-sut-db-save-point/blob/main/docs/design.md) | [仓](https://github.com/qualitest-hq/qualitest-plugin-sut-db-save-point) | 业务 + 同机引导；CLI `sdsp` |
+| `qualitest.sut-sys-clock-dial` | [design.md](https://github.com/qualitest-hq/qualitest-plugin-sut-sys-clock-dial/blob/main/docs/design.md) | [仓](https://github.com/qualitest-hq/qualitest-plugin-sut-sys-clock-dial) | 业务 + 同机引导；拨钟 |
+| `qualitest.sut-exec-agent` | [design.md](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent/blob/main/docs/design.md) | [仓](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent) | **执行代理**（分机代跑）；同机不必启 |
+| `qualitest.sut-net-chaos` | [design.md](https://github.com/qualitest-hq/qualitest-plugin-sut-net-chaos/blob/main/docs/design.md) | [仓](https://github.com/qualitest-hq/qualitest-plugin-sut-net-chaos) | 网混沌；后置示意 |
 
 **核心**：通道分发 → [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。旧仓 `qualitest-ops-sidecar` 已归档，由 **执行代理** 插件仓接替。
 
@@ -507,7 +507,7 @@ qualitest.sut-db-save-point-1.0.0.zip
 | **跑流** | `Invoker` → 执行通道 → CLI | MCP **不**直接 dump/拨钟 |
 
 云端-only、碰不到被测机的 Agent ≈ Web：MCP 仍能配质衡，装 CLI/写 bind 须人或有盘的 Agent 做。  
-优先**扩核心 Tool / 已有 Tool 参数**；插件可选 `mcpTools[]` 后置。细节见 [plugin-sut-db-save-point.md §1.3](./plugin-sut-db-save-point.md)。
+优先**扩核心 Tool / 已有 Tool 参数**；插件可选 `mcpTools[]` 后置。细节见 [存档点 design.md §1.3](https://github.com/qualitest-hq/qualitest-plugin-sut-db-save-point/blob/main/docs/design.md)。
 
 ---
 
@@ -709,8 +709,8 @@ qualitest.sut-db-save-point-1.0.0.zip
 - 现状写库快照（迁移前）：`project-summary.md`；`HttpEndpointSnapshotAdapter`  
 - 被测 `/test-support`（迁移前）：`qualitest-demo-mall` / `test-support-starter` —— **插件跑通后删除端点与核心直调**  
 - 运维金库（**不是**本插件）：`qualitest-demo-host` `data/golden` / daily-reset  
-- 官方插件专文：`plugin-sut-db-save-point.md`、`plugin-sut-sys-clock-dial.md`、`plugin-sut-exec-agent.md`、`plugin-sut-net-chaos.md`  
-- 实现仓：`qualitest-plugin-sut-db-save-point`、`…-sys-clock-dial`、`…-exec-agent`、`…-net-chaos`（私有）  
+- 官方插件专文（各在实现仓 `docs/design.md`）：存档点 / 拨钟 / 执行代理 / 网混沌  
+- 主仓仅留跳转 stub：`plugin-sut-*.md` → 对应仓  
 - 通道分发：`platform-ops-exec-channel.md`（默认 local-exec；分机可用 exec-agent / ssh）  
  
 
@@ -749,10 +749,10 @@ qualitest.sut-db-save-point-1.0.0.zip
 | C9 | 拨钟 Prepare=`clock.set` **必须**环境 `prepareAt`；`preparePhase` 仅 onRunPrepare |
 | C10 | 平台 §2.3.3 **只留骨架**；字段全表以两份插件专文为准 |
 | C11 | ops-agent：**载荷=业务 CLI**；**通道=核心**分发；P0 默认 `local-exec`；分机可用 `ssh` 或 `exec-agent` |
-| C12 | 通道专文 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)；执行代理插件 [plugin-sut-exec-agent.md](./plugin-sut-exec-agent.md) |
+| C12 | 通道专文留主仓；执行代理专文在 [plugin-sut-exec-agent](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent/blob/main/docs/design.md) |
 | C13 | **被测执行代理**（原边车）= **正式官方插件**；同机不必启用；产品名不用 sidecar |
-| C14 | **官方插件一插件一私有仓**；存档点/拨钟兼同机引导；执行代理兼分机引导 |
-| C15 | 归档仓 `qualitest-ops-sidecar` **由** `qualitest-plugin-sut-exec-agent` **接替**（非无声改名同一 README） |
+| C14 | **官方插件一插件一私有仓**；**专文 `docs/design.md` 落在各插件仓**；主仓 stub 跳转 |
+| C15 | 归档仓 `qualitest-ops-sidecar` **由** `qualitest-plugin-sut-exec-agent` **接替** |
 | D1 | runtime.kind = **§2.3.1**；CLI = **§2.3.2** |
 | D3 | 验收 checkbox |
 | 严谨化 | **§10 实现契约** |

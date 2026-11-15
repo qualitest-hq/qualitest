@@ -3,7 +3,7 @@
 > **状态**：设计草案（Exploring · 随 [platform-plugins.md](./platform-plugins.md) §2.3.2）  
 > **归属**：**质衡核心**负责 `channel.kind` 分发与 Invoker 到达方式。  
 > **主路径**：**业务 CLI + `local-exec`（同机）**。  
-> **分机 HTTP**：启用官方插件 [被测执行代理](./plugin-sut-exec-agent.md)（`qualitest.sut-exec-agent`），`channel.kind=exec-agent`。  
+> **分机 HTTP**：启用官方插件 [被测执行代理](https://github.com/qualitest-hq/qualitest-plugin-sut-exec-agent/blob/main/docs/design.md)（`qualitest.sut-exec-agent`），`channel.kind=exec-agent`。  
 > **分机 SSH**：`channel.kind=ssh`（不强制执行代理插件）。
 
 ## 1. 怎么用（分层）
