@@ -165,7 +165,10 @@
 - `runtime.kind`：**必须**为 `http-adapter` \| `builtin` \| `ops-agent`（§2.3.1）。  
 - `kind=ops-agent`：**必须**有 `runtime.agent`；**默认形态 = CLI**（§2.3.2），装得上卸得下。  
 - `http-adapter` / `builtin`：**禁止**强依赖 `agent/` 才能启用。  
-- 环境侧自定义（库连接、storeRoot、钟模式等）：进环境插件绑定的 **`config`**，由说明书 **`configSchema`** 校验；**禁止**写死在流程图。ops-agent 存档类数据 **必须**按 `projectId`/`envId` 分目录（CLI 二进制不必按项目各装一份）。
+- 环境侧自定义：进环境插件绑定的 **`config`**（`configSchema` 校验）；**禁止**写死在流程图。  
+- **项目级挂载**（按包，见 §2.5.1）：如存档点的 `bindAlias`——落在**项目**，环境启用时只读带入；**禁止**当成环境可改字段。  
+- 被测机侧连接/密钥（host、密码等）：默认在被测旁 **bind 文件**（或等价信任根），**禁止**进流程图；质衡表单原则上不收密码。  
+- ops-agent 存档类数据 **必须**按 `projectId`/`envId` 分目录（CLI 二进制不必按项目各装一份）。
 
 **完整** = 契约合法且启用后能按能力执行；**本期先定文档契约，实现样本后置**。
 
@@ -207,8 +210,9 @@ qualitest.sut-db-save-point-1.0.0.zip
   "name": "save.restore", // 包内唯一
   "effect": "write",         // read | write
   "gate": "destructive",     // 省略/"none" | destructive | secrets-read
-  "preparePhase": "data",    // 仅 onRunPrepare；省略 = 禁止进 Prepare
-  "dbCompete": true
+  "dbCompete": true          // 可选；参与 sut-db 写竞争检测
+  // preparePhase: 仅当该能力出现在 onRunPrepare 时填写（如 clock.set → "clock"）
+  //               省略 = 禁止进 Prepare；Checkpoint/Restore 能力不要写
 }
 ```
 
@@ -244,9 +248,28 @@ qualitest.sut-db-save-point-1.0.0.zip
 | 安装 | `agent/install.sh`（或文档步骤）把 CLI 放到约定路径 / PATH |
 | 卸载 | `agent/uninstall.sh` **必须**能删干净二进制与本插件配置目录，不留守护进程 |
 | 调用 | 质衡 Invoke → 在被测机执行：`qt-plugin <capability> --config <env下发的配置文件>`（命令名以说明书为准） |
-| 配置 | DB 连接、storeRoot、钟文件路径等走环境插件 **`config`**（`configSchema`）；Invoke 时写入临时/约定路径并注入 `projectId`/`envId` 再传给 CLI；**密钥不进流程图** |
+| 配置 | 环境插件 **`config`**（策略类：storeRoot、复位策略、`prepareAt` 等）+ 平台注入 `projectId`/`envId`/总闸投影；被测连接以 **bind 等本机信任根**为准（见各插件专文）。Invoke 时合并写入临时/约定路径再传 CLI；**密钥不进流程图** |
 | 探活 | 启用/Invoke 前跑 `qt-plugin ping`（或 `--help` 约定）；失败 → `AGENT_UNREACHABLE` |
 | 非默认 | 仅当被测**已经**提供 HTTP 且不愿装 CLI 时，改用 `http-adapter` |
+
+#### 执行通道（载荷 vs 怎么够到被测机）
+
+两层不要混：
+
+| 层 | 含义 | 已定 |
+| --- | --- | --- |
+| **载荷** | 被测机上跑的是 **CLI**（改钟、dump 等） | 官方样本默认 CLI；**能实现**（改 OS 钟须本机权限，见拨钟专文） |
+| **通道** | 质衡 Invoker **如何**在被测机上 exec 该 CLI | **必须**有一种到达方式；「RPC 后置」= 不做重协议，**不是**完全没有通道 |
+
+P0 通道任选其一写进实现（可并存，启用时登记）：
+
+1. **同机 exec**：质衡与被测同机 → 平台直接起进程跑 CLI（联调/一体机最常见）。  
+2. **极瘦边车**：被测旁只负责「收 Invoke → 写临时 config → exec `bin` → 回传 stdout」；**不是**业务 RPC，也**不是**业务插件——属**核心执行通道**的一种落地。设计见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。  
+3. **SSH / 已有运维通道**（可选）：远程一行命令；权限与密钥不进流程图。
+
+**归属（已定）**：`channel.kind`（`local-exec` \| `sidecar` \| `ssh`）与 Invoker 分发 = **质衡核心**；业务插件只声明 CLI bin，不各自发明通道。环境配通道参数，**不要**在「启用插件」列表里出现「执行边车」业务行。
+
+**禁止**理解成：被测机只装了业务 CLI、质衡却未配置任何 exec 通道仍声称 ops-agent 可用。
 
 说明书 `runtime.agent` 示意：
 
@@ -264,28 +287,28 @@ qualitest.sut-db-save-point-1.0.0.zip
 }
 ```
 
-### 2.3.3 文档示意（非实现承诺）
+### 2.3.3 官方示意包（摘要；字段全表以专文为准）
 
-下列两包**仅说明书示意**，用于对齐契约；**可运行样本后置**。官方 ops CLI 样本语言定为 **Go**（单二进制）；仓库路径后置。
+下列**仅对齐契约**；**可运行样本后置**。P0 官方样本 CLI 语言 **Go**（存档点/拨钟）；边车/网混沌建议 **Rust**（亦可 Go）。仓库路径后置。  
+**完整**字段以专文为准，本文不维护第二份全量 JSONC。
 
-完整设计（边界、CLI、config、衔接）：
+| 包 | 专文 | 要点（摘要） |
+| --- | --- | --- |
+| `qualitest.sut-db-save-point` | [plugin-sut-db-save-point.md](./plugin-sut-db-save-point.md) | **业务插件**；ops-agent + CLI `sdsp`；项目挂载 `bindAlias`；Checkpoint/Restore；迁完删 `/test-support` |
+| `qualitest.sut-sys-clock-dial` | [plugin-sut-sys-clock-dial.md](./plugin-sut-sys-clock-dial.md) | **业务插件**；CLI 改 OS 墙钟；Prepare 须 `prepareAt`；Finalize reset |
+| `qualitest.sut-net-chaos` | [plugin-sut-net-chaos.md](./plugin-sut-net-chaos.md) | **业务插件**；CLI 注入延迟/丢包；Finalize reset；Linux 首期 |
 
-- [plugin-sut-db-save-point.md](./plugin-sut-db-save-point.md) — `qualitest.sut-db-save-point`
-- [plugin-sut-sys-clock-dial.md](./plugin-sut-sys-clock-dial.md) — `qualitest.sut-sys-clock-dial`
-
-#### 示例 A：被测库存档点（ops-agent + CLI）
-
-测中即时备份 / 出问题或断点续跑时恢复——须碰被测 **SQL / Redis 等状态源**，故 CLI；同一 `saveId` 默认可**整包**存/按序恢复。测试流推荐 **`bind-file`**（`bindAlias` 如 `demo-mall.json`；多 store 的 `kind` 见 [plugin-sut-db-save-point.md](./plugin-sut-db-save-point.md)）。
+**核心（非插件）**：执行通道（含 sidecar 落地）→ [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)。
 
 ```jsonc
+// 存档点 · 能力/挂点骨架（configSchema / ui 细节见专文）
 {
   "id": "qualitest.sut-db-save-point",
   "version": "1.0.0",
   "displayName": "被测库存档点",
-  "remarks": "CLI+本地 bind；targets 可含 mysql/redis 等。断点默认整包 saveId。restore 需破坏性总闸。跨 store 不原子。",
   "capabilities": [
     { "name": "list", "effect": "read", "gate": "none" },
-    { "name": "save.create", "effect": "write", "gate": "none", "preparePhase": "data" },
+    { "name": "save.create", "effect": "write", "gate": "none" },
     { "name": "save.restore", "effect": "write", "gate": "destructive", "dbCompete": true },
     { "name": "save.delete", "effect": "write", "gate": "none" }
   ],
@@ -294,57 +317,19 @@ qualitest.sut-db-save-point-1.0.0.zip
     { "name": "onCheckpoint", "order": 50, "actions": ["save.create"] },
     { "name": "onRestore", "order": 50, "actions": ["save.restore"] }
   ],
-  "configSchema": {
-    // 完整字段表见 plugin-sut-db-save-point.md §3
-    "type": "object",
-    "properties": {
-      "storeRoot": { "type": "string", "description": "可选；覆盖 {var}，禁止改 bind 根" },
-      "defaultSaveId": { "type": "string" },
-      "db": {
-        "type": "object",
-        "properties": {
-          "resolve": { "type": "string", "enum": ["bind-file", "explicit"], "default": "bind-file" },
-          "bindAlias": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
-          "bindEnvKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
-          "dbKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$", "description": "默认库；多库时用" },
-          "engine": { "type": "string" },
-          "host": { "type": "string" },
-          "port": { "type": "integer" },
-          "database": { "type": "string" },
-          "user": { "type": "string" },
-          "password": { "type": "string" },
-          "options": { "type": "object" }
-        },
-        "required": ["resolve", "bindAlias"]
-      }
-    },
-    "required": ["db"]
-  },
-  "ui": {
-    "env": { "badge": { "text": "存档点", "tone": "warning" } }
-  },
   "runtime": {
     "kind": "ops-agent",
-    "agent": {
-      "bundle": "embedded",
-      "cli": { "bin": "sdsp", "pingArgs": ["ping"] }
-    }
+    "agent": { "bundle": "embedded", "cli": { "bin": "sdsp", "pingArgs": ["ping"] } }
   }
 }
 ```
 
-存档落盘 **必须** `{var}/{projectId}/{envId}/{saveId}/meta.json` + `{storeKey}/…`（见 [plugin-sut-db-save-point.md §3.5 / §4.3](./plugin-sut-db-save-point.md)）。
-
-#### 示例 B：被测系统拨钟（ops-agent + CLI）
-
-用 CLI **改被测机操作系统时间**（便于 Quartz 等跟系统钟的调度）；**仅靶场/演示机**。Finalize 按 `resetPolicy` 对时或恢复拨钟前快照。**不要**默认起常驻钟服务。详见 [plugin-sut-sys-clock-dial.md](./plugin-sut-sys-clock-dial.md)。
-
 ```jsonc
+// 拨钟 · 能力/挂点骨架（configSchema / ui 细节见专文）
 {
   "id": "qualitest.sut-sys-clock-dial",
   "version": "1.0.0",
   "displayName": "被测系统拨钟",
-  "remarks": "CLI 改被测机系统时间（非生产）。写操作需破坏性总闸；复位建议 ntp 或 restore。短称：拨钟。",
   "capabilities": [
     { "name": "clock.read", "effect": "read", "gate": "none" },
     { "name": "clock.set", "effect": "write", "gate": "destructive", "preparePhase": "clock" },
@@ -356,37 +341,6 @@ qualitest.sut-db-save-point-1.0.0.zip
     { "name": "onRunPrepare", "order": 80, "actions": ["clock.set"] },
     { "name": "onRunFinalize", "order": 20, "actions": ["clock.reset"] }
   ],
-  "configSchema": {
-    "type": "object",
-    "properties": {
-      "resetPolicy": { "enum": ["ntp", "restore"], "description": "ntp=同步网络时间；restore=恢复拨钟前快照" },
-      "defaultAdvance": { "type": "string", "description": "如 P2D" },
-      "timezone": { "type": "string", "description": "展示/解释用，如 Asia/Shanghai" }
-    },
-    "required": ["resetPolicy"]
-  },
-  "ui": {
-    "chrome": {
-      "banner": [
-        { "id": "clock-banner", "slot": "top", "text": "系统时间 {{clock.now}}", "tone": "warning" }
-      ]
-    },
-    "env": { "badge": { "text": "拨钟", "tone": "warning" } },
-    "palette": {
-      "nodes": [
-        {
-          "id": "clock-advance",
-          "label": "快进被测系统时间",
-          "capability": "clock.advance",
-          "configSchema": {
-            "type": "object",
-            "properties": { "by": { "type": "string" } },
-            "required": ["by"]
-          }
-        }
-      ]
-    }
-  },
   "runtime": {
     "kind": "ops-agent",
     "agent": {
@@ -397,8 +351,9 @@ qualitest.sut-db-save-point-1.0.0.zip
 }
 ```
 
-跑中 ephemeral checkpoint/restore（今日 test-support）：**迁入本存档点插件**（或同能力 http-adapter）；**禁止**再写成「运维金库」语义。  
-`http-adapter`：若使用，每个 invoke 能力**必须**有 `routes`。`builtin`：**禁止**写 `entry`。
+跑中 ephemeral checkpoint/restore（今日 test-support）：**迁入存档点插件**（或同能力 http-adapter）；**禁止**写成「运维金库」语义。  
+`http-adapter`：每个 invoke 能力**必须**有 `routes`。`builtin`：**禁止**写 `entry`。  
+`preparePhase`：**仅**当能力出现在 `onRunPrepare` 时需要；存档点挂点是 Checkpoint/Restore，**禁止**给 `save.*` 标 preparePhase。
 
 ### 2.4 画布「新节点」：插件贡献节点
 
@@ -444,15 +399,21 @@ qualitest.sut-db-save-point-1.0.0.zip
       "id": "qualitest.sut-db-save-point",
       "version": "1.0.0",
       "enabled": true,
+      // bindAlias 来自项目挂载（只读注入），环境只配剖面/覆盖项
       "config": {
-        "db": { "resolve": "bind-file", "bindAlias": "demo-mall" }
+        "db": { "resolve": "bind-file", "bindEnvKey": "staging" }
       }
     },
     {
       "id": "qualitest.sut-sys-clock-dial",
       "version": "1.0.0",
       "enabled": true,
-      "config": { "resetPolicy": "ntp", "defaultAdvance": "P2D", "timezone": "Asia/Shanghai" }
+      "config": {
+        "resetPolicy": "ntp",
+        "prepareAt": "2030-01-01T00:00:00+08:00",
+        "defaultAdvance": "P2D",
+        "timezone": "Asia/Shanghai"
+      }
     }
   ]
   // ≥2 个 sut-db 写竞争插件时才要 primaryDataProvider
@@ -463,6 +424,21 @@ qualitest.sut-db-save-point-1.0.0.zip
 跑流、顶栏、调色板**必须**只读取**当前环境**已启用组合。
 
 `primaryDataProvider` 必填条件（精确定义见 §10.3）：启用集中「数据写竞争插件」数 ≥ 2。单数据插件或未构成竞争时**必须**允许省略。
+
+### 2.5.1 项目级挂载（project mount）
+
+部分插件除「环境启用 + config」外，还需要**项目级**字段（跨环境共用、环境不可改）。  
+**不是**把 CLI 装进项目；**是**项目上存绑定键，启用/Invoke 时由平台注入。
+
+| | 规则 |
+| --- | --- |
+| 存哪 | 项目设置 / 项目扩展表（按 `pluginId` 分块）；**禁止**写进插件 zip |
+| 谁改 | 项目管理员；改一次，该项目下各环境共用 |
+| 启用时 | 若说明书（或专文）声明需要项目挂载：缺必填 → **拒启用**；注入到环境 config 只读视图（如 `db.bindAlias`） |
+| 环境 | **禁止**覆盖项目挂载中的只读键；可另配环境专有项（如 `bindEnvKey`） |
+| 首例 | 存档点：`bindAlias`（必填）、`storeKeys`（可选）——见专文 §1.1 / §3.1 |
+
+未声明项目挂载的插件（如拨钟）→ 仅环境 config 即可。
 
 ### 2.6 包 JSON vs 平台落库（必须分清）
 
@@ -517,8 +493,19 @@ qualitest.sut-db-save-point-1.0.0.zip
 启用（质衡侧）**必须**走 §10.3 全序校验；**禁止**「解压即执行」。  
 私有化签名 / 允许列表：**后置**。界面资源**禁止**走 npm/独立 CDN。  
 
-被测端安装通道：人工脚本、Compose 边车、控制台推送（后置）。MCP 协助安装：**后置 P4**；须确认、禁静默；不是第四端。  
-MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本机 Agent 可写 bind/装 CLI，质衡 MCP 只配项目/环境。优先**扩核心 Tool / 已有 Tool 参数**；插件可选贡献 `mcpTools[]`（私有于 pluginId、受项目开关约束）后置，禁止无闸全局乱挂。见 [plugin-sut-db-save-point.md §1.3](./plugin-sut-db-save-point.md)。
+被测端安装通道：人工脚本、Compose 边车、控制台推送（后置）。MCP 协助本机落地：见下（装 agent 的静默推送仍 **P4**）。  
+
+#### Web / MCP / 本机 Agent（已定）
+
+| 谁 | 做什么 | 结论 |
+| --- | --- | --- |
+| **质衡 Web** | 跑在质衡服务器 | **写不进**被测机磁盘；不能替用户 `install` CLI / 写 bind |
+| **本机 Agent**（Cursor、Claude Code、其它能跑命令且已挂质衡 MCP 的客户端） | 在**够得着被测盘**的机器上：装 CLI、写 bind、本机 `ping` | **可以**；关键是「有盘/有权限」，不是 IDE 品牌 |
+| **质衡 MCP** | 项目挂载、环境启用插件、总闸、查状态、返回安装说明/bind 模板 | **可以**；只配质衡侧，**禁止**假装远程改被测盘 |
+| **跑流** | `Invoker` → 执行通道 → CLI | MCP **不**直接 dump/拨钟 |
+
+云端-only、碰不到被测机的 Agent ≈ Web：MCP 仍能配质衡，装 CLI/写 bind 须人或有盘的 Agent 做。  
+优先**扩核心 Tool / 已有 Tool 参数**；插件可选 `mcpTools[]` 后置。细节见 [plugin-sut-db-save-point.md §1.3](./plugin-sut-db-save-point.md)。
 
 ---
 
@@ -536,12 +523,14 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 
 ### 3.1 官方示例包（示意，非名录）
 
-| 插件 id | 为何必须是插件 | 私有能力（示例） | kind / 被测旁 |
+| 包 id | 为何存在 | 私有能力（示例） | kind / 被测旁 |
 | --- | --- | --- | --- |
-| `qualitest.sut-db-save-point` | 须连被测状态源（SQL/Redis 等）、碰宿主机；整包存档/断点读档；`kind` 多存储 | `list` / `save.create` / `save.restore` / `save.delete` | ops-agent + **CLI** |
-| `qualitest.sut-sys-clock-dial` | 须改被测机**系统时间**（靶场） | `clock.*` | ops-agent + **CLI**（需改钟权限） |
+| `qualitest.sut-db-save-point` | 须连被测状态源、碰宿主机；断点存档 | `list` / `save.*` | ops-agent + **CLI** |
+| `qualitest.sut-sys-clock-dial` | 须改被测机**系统时间**（靶场） | `clock.*` | ops-agent + **CLI** |
+| `qualitest.sut-net-chaos` | 须在被测机注入延迟/丢包（靶场） | `net.*` | ops-agent + **CLI** |
 
-说明书见 §2.3.3。**可运行实现后置**；与 demo-host 运维金库无关。
+执行通道（`local-exec` / `sidecar` / `ssh`）= **核心**，见 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)；**不要**进上表。  
+说明书见 §2.3.3 与各专文。**可运行实现后置**；与 demo-host 运维金库无关。网混沌**不**挡 P0 存档点/拨钟交付。
 
 ### 3.2 界面贡献（近期路径）
 
@@ -572,6 +561,7 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 | --- | --- | --- | --- |
 | `sut-db` | serialize + 竞争检测 | 参与 primary（§10.3） | 写操作串行 |
 | `sut-sys-clock-dial` | mutex | 第二插件带此标签 → 拒启用 | — |
+| `sut-net-chaos` | mutex | 第二插件带此标签 → 拒启用 | Finalize 宜 reset |
 | `ops-agent` | 标记依赖 | kind 校验 | invoke 前**必须**连通 |
 | `ui-theme` | mutex | 两主主题拒 | — |
 | `ui-slot:<名>` | mutex | 同槽第二插件拒 | — |
@@ -612,6 +602,7 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 | 原因码 | 含义 |
 | --- | --- |
 | `MANIFEST_INVALID` | 说明书解析/字段/字符集失败 |
+| `PROJECT_MOUNT_REQUIRED` | 包需要项目挂载但项目未配齐（如缺 `bindAlias`） |
 | `UNKNOWN_CAPABILITY` | 能力名 ∉ 该 pluginId 说明书 |
 | `UNKNOWN_ISOLATION` | 隔离标签未知 |
 | `REQUIRES_UNSATISFIED` | requires 未满足 |
@@ -647,9 +638,10 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 
 | 现有 | 插件化方向 |
 | --- | --- |
-| `snapshotBefore` / 续跑还原 | 意图留核心；**执行** → `qualitest.sut-db-save-point`（或 http-adapter 同能力） |
+| `snapshotBefore` / 续跑还原 | 意图留核心；**执行** → `qualitest.sut-db-save-point`（CLI 为主） |
+| 今日 `/test-support` 快照 | **迁入存档点插件后删除**被测端点与核心直调；不保留「核心回落 HTTP」 |
 | `allowDestructiveReset` | **1:1** → `gate.destructive` |
-| 拨钟 / 库存档点 | **插件 + 被测旁 CLI**（§2.3.3）；config 含库连接等；不进开放名录 |
+| 拨钟 / 库存档点 | **插件 + 被测旁 CLI**（§2.3.2 通道 + §2.3.3）；用户自选启用；策略进环境 config，连接进 bind / 项目挂载 |
 | 节点注册表 | 核心节点 + **`pluginAction`**（P2） |
 | Delay / retryUntil | 留核心 |
 | Webhook / 挡板 | 入站偏核心；有插件实现再做 |
@@ -712,9 +704,10 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 
 - ROADMAP Exploring **6.2**；Later **7.4～7.6**、**5.5**  
 - 现状写库快照（迁移前）：`project-summary.md`；`HttpEndpointSnapshotAdapter`  
-- 被测 test-support（ephemeral，待迁入存档点插件）：`qualitest-demo-mall` / `test-support-starter`  
+- 被测 `/test-support`（迁移前）：`qualitest-demo-mall` / `test-support-starter` —— **插件跑通后删除端点与核心直调**  
 - 运维金库（**不是**本插件）：`qualitest-demo-host` `data/golden` / daily-reset  
-- 两插件设计：`plugin-sut-db-save-point.md`、`plugin-sut-sys-clock-dial.md`  
+- 业务插件：`plugin-sut-db-save-point.md`、`plugin-sut-sys-clock-dial.md`、`plugin-sut-net-chaos.md`  
+- 核心执行通道：`platform-ops-exec-channel.md`  
  
 
 ---
@@ -746,8 +739,14 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 | C4 | allowDestructiveReset **1:1** → gate.destructive |
 | 持久化 | **包 JSONC ≠ 环境 SQL**；节点可用/失效 **即时算** |
 | C5 | 质衡**不做**开放业务能力名录；说明书 **JSONC** |
-| C6 | **被测特殊面→插件**；库存档点/拨钟示意为 **CLI + configSchema**；ephemeral snapshot **迁入**存档点插件 |
-| C7 | MCP 安装细节在 P4 |
+| C6 | **被测特殊面→插件**（用户自选启用）；库存档点/拨钟 = **CLI**；`/test-support` **迁完即删**，不留核心回落 |
+| C7 | Web 不写被测盘；**MCP + 本机 Agent**（Cursor/Claude Code 等）配质衡 + 落地 CLI；静默推送装机仍 P4 |
+| C8 | **项目级挂载**（§2.5.1）；存档点 `bindAlias` 项目只读注入，环境不可改 |
+| C9 | 拨钟 Prepare=`clock.set` **必须**环境 `prepareAt`；`preparePhase` 仅 onRunPrepare |
+| C10 | 平台 §2.3.3 **只留骨架**；字段全表以两份插件专文为准 |
+| C11 | ops-agent：**载荷=CLI（插件）**；**通道=核心**（`local-exec` / `sidecar` / `ssh`）；「RPC 后置」≠ 无通道 |
+| C12 | 通道专文 [platform-ops-exec-channel.md](./platform-ops-exec-channel.md)；网混沌 [plugin-sut-net-chaos.md](./plugin-sut-net-chaos.md)（后置示意，非 P0 必交付） |
+| C13 | **禁止**把执行边车登记为可启用业务插件；环境只配 `channel.*` |
 | D1 | runtime.kind = **§2.3.1**；CLI = **§2.3.2** |
 | D3 | 验收 checkbox |
 | 严谨化 | **§10 实现契约** |
@@ -772,7 +771,8 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 10. 原因码以 §4.2 为准，禁止未列出的静默成功。  
 11. **被测特殊面执行禁止留核心**：只经 `invoke(pluginId, …)`；未启用不得回落。  
 12. 宿主挂点只调度**已启用**且声明了对应 hook 的插件。  
-13. `ops-agent` **默认 CLI**：须能 uninstall 干净；自定义连接等只进环境 `config`。
+13. `ops-agent` **默认 CLI**：须能 uninstall 干净；策略进环境 `config`；被测连接默认进本机信任根；项目挂载键只读注入。  
+14. `preparePhase` 仅服务 `onRunPrepare`；Checkpoint/Restore 能力**禁止**借 preparePhase 混进 Prepare。
 
 ### 10.2 说明书字段约束（摘要）
 
@@ -799,18 +799,19 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 
 ### 10.3 启用校验算法（必须按序）
 
-对「将启用插件 P，环境 E」：
+对「将启用插件 P，环境 E」（E 所属项目为 Proj）：
 
 1. **Parse** → 失败 `MANIFEST_INVALID`。  
-2. **Schema**：`config` vs `configSchema` → `CONFIG_SCHEMA_INVALID`。  
-3. **Kind**：builtin 注册表 / http routes / ops-agent bundle（同前）。  
-4. **Gate**：本包能力 `gate` 并集查 E → 未开则 `GATE_DENIED`。  
-5. **Requires**：每个 `plugin:` 须已启用 → 否则 `REQUIRES_UNSATISFIED`。  
-6. **Conflicts** → `PLUGIN_CONFLICT`。  
-7. **Isolation** mutex → `ISOLATION_MUTEX`；补全缺省 `ui-slot:flow.banner.{id}`。  
-8. **Primary data**：启用集中 `isolation` 含 `sut-db` **且** 存在 `dbCompete=true` 的能力 的插件数 ≥ 2 → 须填 `primaryDataProvider` ∈ S。  
-9. **Hooks**：每个 action ∈ 本包能力名 → 否则 `HOOK_ACTION_NOT_OWNED`。  
-10. **Commit**：环境绑定；UiRegistry；登记「已启用 pluginId → 说明书」（**无**全局 capability→plugin 名录表）。
+2. **Project mount**（§2.5.1）：若 P 需要项目挂载，校验 Proj 上必填已齐 → 否则 `PROJECT_MOUNT_REQUIRED`；把只读键注入待校验 config 视图（环境提交值**不得**覆盖这些键）。  
+3. **Schema**：合并后的 `config` vs `configSchema` → `CONFIG_SCHEMA_INVALID`（含：Prepare 绑了 `clock.set` 则须有 `prepareAt` 等专文约束）。  
+4. **Kind**：builtin 注册表 / http routes / ops-agent bundle（同前）。  
+5. **Gate**：本包能力 `gate` **并集**查 E → 未开则 `GATE_DENIED`（有 destructive 能力则启用即须开总闸，即使本次只用只读能力——**宁严勿松**）。  
+6. **Requires**：每个 `plugin:` 须已启用 → 否则 `REQUIRES_UNSATISFIED`。  
+7. **Conflicts** → `PLUGIN_CONFLICT`。  
+8. **Isolation** mutex → `ISOLATION_MUTEX`；补全缺省 `ui-slot:flow.banner.{id}`。  
+9. **Primary data**：启用集中 `isolation` 含 `sut-db` **且** 存在 `dbCompete=true` 的能力 的插件数 ≥ 2 → 须填 `primaryDataProvider` ∈ S。  
+10. **Hooks**：每个 action ∈ 本包能力名；`onRunPrepare` 的 action **必须**带合法 `preparePhase` → 否则 `HOOK_ACTION_NOT_OWNED` / `HOOK_ACTION_BAD_PHASE`。  
+11. **Commit**：环境绑定；UiRegistry；登记「已启用 pluginId → 说明书」（**无**全局 capability→plugin 名录表）。
 
 停用：摘注册；图上相关节点**即时重算失效**，禁止落图。
 
@@ -841,7 +842,8 @@ Prepare 调度：**必须**实现 §4.2 排序算法。
 | `envId` / `runId` / `projectId` | 定位 |
 | `pluginId` / `capability` | 当前调用 |
 | `args` | 调用参数（已按节点/hook schema 校验） |
-| `envConfig` | 该插件在环境中的 config（只读视图） |
+| `envConfig` | 该插件在环境中的 config（只读视图；已合并项目挂载只读键） |
+| `projectMount` | 该插件在项目上的挂载块（只读；无则空） |
 | `audit` | 仅追加审计步 API |
 | `httpClient` | 仅 http-adapter 使用的受控出站客户端（目标受 routes 约束） |
 | `agentClient` | 仅 ops-agent；只达环境登记的 agent URL |
@@ -872,7 +874,8 @@ Prepare 调度：**必须**实现 §4.2 排序算法。
 | MCP 安装被测端 | P4 |
 | 公网插件商店 / JAR 热装 | 非目标 |
 | 质衡开放业务能力名录 | **禁止** |
-| 核心直调 snapshot/restore Adapter | **禁止**（P1 拆净） |
+| 核心直调 snapshot/restore Adapter | **禁止**（P1 拆净；迁完删 `/test-support`） |
+| ops-agent 无执行通道仍启用 | **禁止**（须同机/边车/SSH 等已登记） |
 | 拆 gate 为多闸 | 暂 1:1 |
 
 ### 10.8 P0 实现检查表
@@ -899,6 +902,6 @@ Prepare 调度：**必须**实现 §4.2 排序算法。
 
 **官方包（后置样本）**
 
-- [ ] 库存档点 / 拨钟：说明书 JSONC + CLI install/uninstall/ping 契约可对照  
-- [ ] 环境 config（含 db）过 configSchema  
+- [ ] 库存档点 / 拨钟：专文契约 + CLI install/uninstall/ping 可对照  
+- [ ] 项目挂载（存档点）+ 环境 config 过 configSchema（含拨钟 `prepareAt`）  
 - [ ] B 类 UI 可见（有实现时）  
