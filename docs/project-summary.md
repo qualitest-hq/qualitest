@@ -70,7 +70,7 @@ flowchart TB
 | **改图画布**    | Web AI → Staging → 保存；规则见 [ai-staging.md](./ai-staging.md)；MCP **默认只能看**，可开写流（搭编排）/ 跑流（点运行），场景见 [mcp.md §0](./mcp.md) |
 | **Staging** | ✓ = 确认提案；删除类 ✓ = 唯一确认；空 `nodes` 不算成功 |
 | **鉴权**      | 挂**项目**，不挂环境；见 §4                         |
-| **写库场景**    | 靶场先加载场景；节点可勾「执行前快照」；还原需被测 `/test-support` |
+| **写库场景**    | 靶场先加载场景；节点可勾「执行前快照」；还原走库存档点插件（`sdap`） |
 
 
 验收口径与 Agent 铁律见 [全面测试手册.md](./全面测试手册.md) §B.0.1。
@@ -131,7 +131,7 @@ flowchart TB
 
 ### 4.4 写操作与快照
 
-HTTP 节点可勾 **执行前快照**（`snapshotBefore`）。失败可暂停，由用户选择还原再重试 / 原地重试 / 跳过 / 中止。被测方需 `/test-support`；环境 `allowDestructiveReset=0` 时 checkpoint/restore 静默跳过。**开启还原时同一环境串行跑。**
+HTTP 节点可勾 **执行前快照**（`snapshotBefore`，测试流节点配置）。失败可暂停，由用户选择还原再重试 / 原地重试 / 跳过 / 中止。执行经平台插件 `qualitest.sut-db-archive-point`（被测机 `sdap` + 项目 `bindAlias`）；环境须启用该插件并开启 `allowDestructiveReset`；未开总闸时 checkpoint 静默跳过，**显式「还原并重试」则失败**。每次打点使用新 saveId，不覆盖同节点旧档。存档范围为挂载 store 整包（非按表）。**开启还原时同一环境串行跑。** demo-mall 历史 `/test-support` 端点不再由核心直调。插件 zip 在**项目设置 → 安装插件包**上传到质衡本机（`POST /project/pluginHost/install`）；被测机 CLI 仍须单独安装。
 
 HTTP 节点可配 **重试直到通过**（`retryUntil`）：最多请求 N 次（默认 1）、间隔 M ms、可选 `until` 通过条件（等异步业务状态到位时反复查询同一接口）。
 

@@ -55,6 +55,12 @@
             <artifactId>json-path</artifactId>
         </dependency>
 
+        <!-- 平台插件环境 configSchema 校验 -->
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+        </dependency>
+
         <!-- BouncyCastle：脚本国密 SM2/SM3/SM4 与密钥 ASN.1 解析 -->
         <dependency>
             <groupId>org.bouncycastle</groupId>

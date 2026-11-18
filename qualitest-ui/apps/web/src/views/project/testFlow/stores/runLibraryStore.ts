@@ -123,6 +123,8 @@ export interface RunRecord {
   /** 触发时固化的 graph_json 字符串，回放高亮以其中 node_id 为准 */
   graphJsonSnapshot?: string;
   envLabel: string;
+  /** 本次运行绑定的环境 id */
+  testProjectEnvId?: string;
   flowSnapshot: Record<string, unknown>;
   steps: RunStepDetail[];
   scenarioId?: string;

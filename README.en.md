@@ -253,7 +253,7 @@ Install **Qualitest Helper** from the IDE marketplace ([Marketplace](https://plu
 
 1. **Main loop**: ingest via plugin or MCP → console OK → new project with auth templates → hang a login subflow → business HTTP / asserts → Run; on failure, AI fix then green.  
 2. **MCP create**: connect Token → enable write / run and reconnect → create and run from Cursor → check the Web canvas (on failure, `get_run_failure` then fix).  
-3. **Writable SUT rollback** (demo `/test-support`): load a fail scenario → env allow restore → HTTP snapshot-before → on pause choose restore & retry; timeline shows snapshot / restore.
+3. **Writable SUT rollback** (archive-point plugin): load a fail scenario → env allow restore and enable `qualitest.sut-db-archive-point` → HTTP snapshot-before → on pause choose restore & retry; timeline shows snapshot / restore.
 
 ---
 

@@ -14,7 +14,7 @@ public enum FlowErrorCode {
     /** 子图内出现 subflow 节点 */
     TF_SUBFLOW_NESTED("TF_SUBFLOW_NESTED", "子流不可嵌套"),
     TF_HTTP_STATUS("TF_HTTP_STATUS", "HTTP 状态码非成功"),
-    /** HTTP 已是 2xx，但响应体业务码不在成功白名单内（步骤报告见 http.bizCheck） */
+    /** HTTP 已是 2xx，但响应体业务码不在成功白名单内；步骤报告写入 http.bizCheck */
     TF_BIZ_CODE("TF_BIZ_CODE", "业务响应码表示失败"),
     TF_HTTP_TIMEOUT("TF_HTTP_TIMEOUT", "HTTP 请求超时"),
     TF_ASSERT_FAILED("TF_ASSERT_FAILED", "断言未通过"),
@@ -26,11 +26,11 @@ public enum FlowErrorCode {
     TF_BRANCH_UNWIRED("TF_BRANCH_UNWIRED", "条件分支未连线"),
     TF_SCRIPT_TIMEOUT("TF_SCRIPT_TIMEOUT", "脚本执行超时"),
     TF_SCRIPT_ERROR("TF_SCRIPT_ERROR", "脚本执行失败"),
-    /** envUrl 无法派生 test-support 地址，或执行 checkpoint 时环境对象为空 */
+    /** 快照插件未就绪（未启用、未挂载等），或执行 checkpoint 时环境对象为空 */
     TF_SNAPSHOT_ENDPOINT("TF_SNAPSHOT_ENDPOINT", "reset 端点未配置"),
-    /** 环境已允许还原，但调用被测 snapshot 接口失败 */
+    /** 环境已允许还原，但插件 archive.create 失败 */
     TF_SNAPSHOT_FAILED("TF_SNAPSHOT_FAILED", "快照失败"),
-    /** 环境已允许还原，但调用被测 restore 接口失败 */
+    /** 环境已允许还原，但插件 archive.restore 失败 */
     TF_SNAPSHOT_RESTORE_FAILED("TF_SNAPSHOT_RESTORE_FAILED", "还原失败"),
     /** 对非 paused 的 Run 重复调用 resume */
     TF_RUN_NOT_PAUSED("TF_RUN_NOT_PAUSED", "运行未处于暂停状态"),

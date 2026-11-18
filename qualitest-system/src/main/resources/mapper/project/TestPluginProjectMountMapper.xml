@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestPluginProjectMountMapper">
+    <resultMap type="TestPluginProjectMount" id="TestPluginProjectMountResult">
+        <result property="testPluginProjectMountId" column="test_plugin_project_mount_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="pluginId" column="plugin_id"/>
+        <result property="mountJson" column="mount_json"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestPluginProjectMountVo">
+        select test_plugin_project_mount_id, test_project_id, plugin_id, mount_json, del_status, create_time,
+        update_time from test_plugin_project_mount
+    </sql>
+
+    <sql id="selectTestPluginProjectMountAliasVo">
+        select tppm.test_plugin_project_mount_id as testPluginProjectMountId, tppm.test_project_id as testProjectId,
+        tppm.plugin_id as pluginId, tppm.mount_json as mountJson, tppm.del_status as delStatus, tppm.create_time as
+        createTime, tppm.update_time as updateTime from test_plugin_project_mount tppm
+    </sql>
+
+    <select id="selectTestPluginProjectMountList" parameterType="TestPluginProjectMount"
+            resultMap="TestPluginProjectMountResult">
+        <include refid="selectTestPluginProjectMountVo"/>
+        <where>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                and plugin_id = #{pluginId}
+            </if>
+            <if test="mountJson != null and mountJson != ''">
+                and mount_json = #{mountJson}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestPluginProjectMountById" parameterType="Long" resultMap="TestPluginProjectMountResult">
+        <include refid="selectTestPluginProjectMountVo"/>
+        where test_plugin_project_mount_id = #{testPluginProjectMountId}
+    </select>
+
+    <select id="selectTestPluginProjectMountResultList" parameterType="TestPluginProjectMountParams"
+            resultType="TestPluginProjectMountResult">
+        select
+        tppm.test_plugin_project_mount_id as testPluginProjectMountId,
+        tppm.test_project_id as testProjectId,
+        tppm.plugin_id as pluginId,
+        tppm.mount_json as mountJson,
+        tppm.del_status as delStatus,
+        tppm.create_time as createTime,
+        tppm.update_time as updateTime
+        from test_plugin_project_mount tppm
+        where tppm.del_status = 0
+        <if test="testProjectId != null">
+            and tppm.test_project_id = #{testProjectId}
+        </if>
+        <if test="pluginId != null and pluginId != ''">
+            and tppm.plugin_id = #{pluginId}
+        </if>
+        <if test="mountJson != null and mountJson != ''">
+            and tppm.mount_json = #{mountJson}
+        </if>
+        order by tppm.test_plugin_project_mount_id desc
+    </select>
+
+    <select id="selectTestPluginProjectMountResult" parameterType="Long" resultType="TestPluginProjectMountResult">
+        select
+        tppm.test_plugin_project_mount_id as testPluginProjectMountId,
+        tppm.test_project_id as testProjectId,
+        tppm.plugin_id as pluginId,
+        tppm.mount_json as mountJson,
+        tppm.del_status as delStatus,
+        tppm.create_time as createTime,
+        tppm.update_time as updateTime
+        from test_plugin_project_mount tppm
+        where
+        tppm.del_status = 0 and
+        tppm.test_plugin_project_mount_id = #{testPluginProjectMountId}
+        limit 1
+    </select>
+
+    <select id="selectTestPluginProjectMountCount" parameterType="TestPluginProjectMountParams" resultType="int">
+        select count(1)
+        from test_plugin_project_mount tppm
+        where tppm.del_status = 0
+        <if test="testProjectId != null ">
+            and tppm.test_project_id = #{testProjectId}
+        </if>
+        <if test="pluginId != null  and pluginId != ''">
+            and tppm.plugin_id = #{pluginId}
+        </if>
+        <if test="mountJson != null  and mountJson != ''">
+            and tppm.mount_json = #{mountJson}
+        </if>
+    </select>
+
+    <select id="selectTestPluginProjectMountOne" parameterType="TestPluginProjectMountParams"
+            resultMap="TestPluginProjectMountResult">
+        select
+        tppm.test_plugin_project_mount_id,
+        tppm.test_project_id,
+        tppm.plugin_id,
+        tppm.mount_json,
+        tppm.del_status,
+        tppm.create_time,
+        tppm.update_time
+        from test_plugin_project_mount tppm
+        where tppm.del_status = 0
+        <if test="testProjectId != null ">
+            and tppm.test_project_id = #{testProjectId}
+        </if>
+        <if test="pluginId != null  and pluginId != ''">
+            and tppm.plugin_id = #{pluginId}
+        </if>
+        <if test="mountJson != null  and mountJson != ''">
+            and tppm.mount_json = #{mountJson}
+        </if>
+        order by tppm.test_plugin_project_mount_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestPluginProjectMount" parameterType="TestPluginProjectMount">
+        insert into test_plugin_project_mount
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testPluginProjectMountId != null">
+                test_plugin_project_mount_id,
+            </if>
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                plugin_id,
+            </if>
+            <if test="mountJson != null and mountJson != ''">
+                mount_json,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testPluginProjectMountId != null">
+                #{testPluginProjectMountId},
+            </if>
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                #{pluginId},
+            </if>
+            <if test="mountJson != null and mountJson != ''">
+                #{mountJson},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestPluginProjectMount" parameterType="TestPluginProjectMount">
+        update test_plugin_project_mount
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                plugin_id = #{pluginId},
+            </if>
+            <if test="mountJson != null and mountJson != ''">
+                mount_json = #{mountJson},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_plugin_project_mount_id = #{testPluginProjectMountId}
+    </update>
+
+    <delete id="deleteTestPluginProjectMountById" parameterType="Long">
+        delete from test_plugin_project_mount where test_plugin_project_mount_id = #{testPluginProjectMountId}
+    </delete>
+
+    <delete id="deleteTestPluginProjectMountByIdList" parameterType="java.util.List">
+        delete from test_plugin_project_mount where test_plugin_project_mount_id in
+        <foreach item="testPluginProjectMountId" collection="list" open="(" separator="," close=")">
+            #{testPluginProjectMountId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestPluginProjectMountById" parameterType="Long">
+        update test_plugin_project_mount set del_status = 1 where test_plugin_project_mount_id =
+        #{testPluginProjectMountId}
+    </update>
+
+    <update id="logicDeleteTestPluginProjectMountByIdList" parameterType="java.util.List">
+        update test_plugin_project_mount set del_status = 1 where test_plugin_project_mount_id in
+        <foreach item="testPluginProjectMountId" collection="list" open="(" separator="," close=")">
+            #{testPluginProjectMountId}
+        </foreach>
+    </update>
+</mapper>

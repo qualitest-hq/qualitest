@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestPluginEnvBindingMapper">
+    <resultMap type="TestPluginEnvBinding" id="TestPluginEnvBindingResult">
+        <result property="testPluginEnvBindingId" column="test_plugin_env_binding_id"/>
+        <result property="testProjectId" column="test_project_id"/>
+        <result property="testProjectEnvId" column="test_project_env_id"/>
+        <result property="pluginId" column="plugin_id"/>
+        <result property="enabled" column="enabled"/>
+        <result property="configJson" column="config_json"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestPluginEnvBindingVo">
+        select test_plugin_env_binding_id, test_project_id, test_project_env_id, plugin_id, enabled, config_json,
+        del_status, create_time, update_time from test_plugin_env_binding
+    </sql>
+
+    <sql id="selectTestPluginEnvBindingAliasVo">
+        select tpeb.test_plugin_env_binding_id as testPluginEnvBindingId, tpeb.test_project_id as testProjectId,
+        tpeb.test_project_env_id as testProjectEnvId, tpeb.plugin_id as pluginId, tpeb.enabled as enabled,
+        tpeb.config_json as configJson, tpeb.del_status as delStatus, tpeb.create_time as createTime, tpeb.update_time
+        as updateTime from test_plugin_env_binding tpeb
+    </sql>
+
+    <select id="selectTestPluginEnvBindingList" parameterType="TestPluginEnvBinding"
+            resultMap="TestPluginEnvBindingResult">
+        <include refid="selectTestPluginEnvBindingVo"/>
+        <where>
+            <if test="testProjectId != null ">
+                and test_project_id = #{testProjectId}
+            </if>
+            <if test="testProjectEnvId != null ">
+                and test_project_env_id = #{testProjectEnvId}
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                and plugin_id = #{pluginId}
+            </if>
+            <if test="enabled != null ">
+                and enabled = #{enabled}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestPluginEnvBindingById" parameterType="Long" resultMap="TestPluginEnvBindingResult">
+        <include refid="selectTestPluginEnvBindingVo"/>
+        where test_plugin_env_binding_id = #{testPluginEnvBindingId}
+    </select>
+
+    <select id="selectTestPluginEnvBindingResultList" parameterType="TestPluginEnvBindingParams"
+            resultType="TestPluginEnvBindingResult">
+        select
+        tpeb.test_plugin_env_binding_id as testPluginEnvBindingId,
+        tpeb.test_project_id as testProjectId,
+        tpeb.test_project_env_id as testProjectEnvId,
+        tpeb.plugin_id as pluginId,
+        tpeb.enabled as enabled,
+        tpeb.config_json as configJson,
+        tpeb.del_status as delStatus,
+        tpeb.create_time as createTime,
+        tpeb.update_time as updateTime
+        from test_plugin_env_binding tpeb
+        where tpeb.del_status = 0
+        <if test="testProjectId != null">
+            and tpeb.test_project_id = #{testProjectId}
+        </if>
+        <if test="testProjectEnvId != null">
+            and tpeb.test_project_env_id = #{testProjectEnvId}
+        </if>
+        <if test="pluginId != null and pluginId != ''">
+            and tpeb.plugin_id = #{pluginId}
+        </if>
+        <if test="enabled != null">
+            and tpeb.enabled = #{enabled}
+        </if>
+        order by tpeb.test_plugin_env_binding_id desc
+    </select>
+
+    <select id="selectTestPluginEnvBindingResult" parameterType="Long" resultType="TestPluginEnvBindingResult">
+        select
+        tpeb.test_plugin_env_binding_id as testPluginEnvBindingId,
+        tpeb.test_project_id as testProjectId,
+        tpeb.test_project_env_id as testProjectEnvId,
+        tpeb.plugin_id as pluginId,
+        tpeb.enabled as enabled,
+        tpeb.config_json as configJson,
+        tpeb.del_status as delStatus,
+        tpeb.create_time as createTime,
+        tpeb.update_time as updateTime
+        from test_plugin_env_binding tpeb
+        where
+        tpeb.del_status = 0 and
+        tpeb.test_plugin_env_binding_id = #{testPluginEnvBindingId}
+        limit 1
+    </select>
+
+    <select id="selectTestPluginEnvBindingCount" parameterType="TestPluginEnvBindingParams" resultType="int">
+        select count(1)
+        from test_plugin_env_binding tpeb
+        where tpeb.del_status = 0
+        <if test="testProjectId != null ">
+            and tpeb.test_project_id = #{testProjectId}
+        </if>
+        <if test="testProjectEnvId != null ">
+            and tpeb.test_project_env_id = #{testProjectEnvId}
+        </if>
+        <if test="pluginId != null  and pluginId != ''">
+            and tpeb.plugin_id = #{pluginId}
+        </if>
+        <if test="enabled != null ">
+            and tpeb.enabled = #{enabled}
+        </if>
+    </select>
+
+    <select id="selectTestPluginEnvBindingOne" parameterType="TestPluginEnvBindingParams"
+            resultMap="TestPluginEnvBindingResult">
+        select
+        tpeb.test_plugin_env_binding_id,
+        tpeb.test_project_id,
+        tpeb.test_project_env_id,
+        tpeb.plugin_id,
+        tpeb.enabled,
+        tpeb.config_json,
+        tpeb.del_status,
+        tpeb.create_time,
+        tpeb.update_time
+        from test_plugin_env_binding tpeb
+        where tpeb.del_status = 0
+        <if test="testProjectId != null ">
+            and tpeb.test_project_id = #{testProjectId}
+        </if>
+        <if test="testProjectEnvId != null ">
+            and tpeb.test_project_env_id = #{testProjectEnvId}
+        </if>
+        <if test="pluginId != null  and pluginId != ''">
+            and tpeb.plugin_id = #{pluginId}
+        </if>
+        <if test="enabled != null ">
+            and tpeb.enabled = #{enabled}
+        </if>
+        order by tpeb.test_plugin_env_binding_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestPluginEnvBinding" parameterType="TestPluginEnvBinding">
+        insert into test_plugin_env_binding
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testPluginEnvBindingId != null">
+                test_plugin_env_binding_id,
+            </if>
+            <if test="testProjectId != null">
+                test_project_id,
+            </if>
+            <if test="testProjectEnvId != null">
+                test_project_env_id,
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                plugin_id,
+            </if>
+            <if test="enabled != null">
+                enabled,
+            </if>
+            <if test="configJson != null and configJson != ''">
+                config_json,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testPluginEnvBindingId != null">
+                #{testPluginEnvBindingId},
+            </if>
+            <if test="testProjectId != null">
+                #{testProjectId},
+            </if>
+            <if test="testProjectEnvId != null">
+                #{testProjectEnvId},
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                #{pluginId},
+            </if>
+            <if test="enabled != null">
+                #{enabled},
+            </if>
+            <if test="configJson != null and configJson != ''">
+                #{configJson},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestPluginEnvBinding" parameterType="TestPluginEnvBinding">
+        update test_plugin_env_binding
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="testProjectId != null">
+                test_project_id = #{testProjectId},
+            </if>
+            <if test="testProjectEnvId != null">
+                test_project_env_id = #{testProjectEnvId},
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                plugin_id = #{pluginId},
+            </if>
+            <if test="enabled != null">
+                enabled = #{enabled},
+            </if>
+            <if test="configJson != null and configJson != ''">
+                config_json = #{configJson},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_plugin_env_binding_id = #{testPluginEnvBindingId}
+    </update>
+
+    <delete id="deleteTestPluginEnvBindingById" parameterType="Long">
+        delete from test_plugin_env_binding where test_plugin_env_binding_id = #{testPluginEnvBindingId}
+    </delete>
+
+    <delete id="deleteTestPluginEnvBindingByIdList" parameterType="java.util.List">
+        delete from test_plugin_env_binding where test_plugin_env_binding_id in
+        <foreach item="testPluginEnvBindingId" collection="list" open="(" separator="," close=")">
+            #{testPluginEnvBindingId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestPluginEnvBindingById" parameterType="Long">
+        update test_plugin_env_binding set del_status = 1 where test_plugin_env_binding_id = #{testPluginEnvBindingId}
+    </update>
+
+    <update id="logicDeleteTestPluginEnvBindingByIdList" parameterType="java.util.List">
+        update test_plugin_env_binding set del_status = 1 where test_plugin_env_binding_id in
+        <foreach item="testPluginEnvBindingId" collection="list" open="(" separator="," close=")">
+            #{testPluginEnvBindingId}
+        </foreach>
+    </update>
+</mapper>

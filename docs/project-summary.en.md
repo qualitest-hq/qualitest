@@ -51,7 +51,7 @@ API ingest (IDEA plugin / MCP import_apis / Web)
 | **Edit graph** | Web AI → Staging → save; [ai-staging.en.md](./ai-staging.en.md); MCP **read-only by default**; enable write (build the flow) / run (hit Run); scenarios in [mcp.en.md §0](./mcp.en.md) |
 | **Staging** | ✓ commits; delete ✓ is the only confirm; empty `nodes` ≠ success |
 | **Auth** | On the **project**, not the environment — §4 |
-| **Mutating scenarios** | Load demo scenario first; optional `snapshotBefore`; restore needs SUT `/test-support` |
+| **Mutating scenarios** | Load demo scenario first; optional `snapshotBefore`; enable archive-point plugin + `allowDestructiveReset` |
 
 ---
 
@@ -92,7 +92,7 @@ Credentials may come from extracts (`asset`/`flow`), scenario `flowSeed`, or env
 
 ### Snapshot on writes
 
-HTTP `snapshotBefore` → pause on failure → restore & retry / retry / skip / abort. Needs SUT `/test-support`. With `allowDestructiveReset=0`, checkpoint/restore skip silently. **Serial Runs when restore is on.**
+HTTP nodes may enable **snapshot before step** (`snapshotBefore`). On failure the Run pauses; the user may restore & retry, retry, skip, or abort. Checkpoint/restore goes through platform plugin `qualitest.sut-db-archive-point` (`sdap` on the SUT + project `bindAlias`); the plugin must be enabled and `allowDestructiveReset` on. With the gate off, checkpoint skips silently; **explicit restore & retry fails**. Each checkpoint uses a new saveId. Full mounted store scope (not per-table). **Serial Runs per env when restore is on.** Legacy demo-mall `/test-support` is not called by core. Upload plugin zip under **Project settings → Install plugin package** (`POST /project/pluginHost/install`); install CLI on the SUT separately.
 
 HTTP `retryUntil`: max N attempts (default 1), interval M ms, optional `until` rules for re-calling the same HTTP node until business state is ready.
 

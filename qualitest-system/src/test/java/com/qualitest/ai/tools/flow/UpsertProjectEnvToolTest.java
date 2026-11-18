@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 UpsertProjectEnvTool：新建与更新项目环境实体。
- * 覆盖缺参拒绝、create 落库、按 id 浅合并更新、生产环境名强制关闭破坏性还原、envVariables 写入。
+ * 覆盖缺参拒绝、create 落库、按 id 浅合并更新、破坏性还原开关按请求写入、envVariables 写入。
  * 边界：Mock ITestProjectEnvService，无真实数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=UpsertProjectEnvToolTest
  */
@@ -127,13 +127,13 @@ class UpsertProjectEnvToolTest {
     }
 
     /**
-     * 前提：名称含「生产」。
-     * 期望：allowDestructiveReset 强制为 0。
+     * 前提：名称含「生产」且请求 allowDestructiveReset=1。
+     * 期望：按请求写入 1，不因环境名强制关闭。
      */
     @Test
     @Order(4)
-    @DisplayName("生产环境名强制禁止破坏性还原")
-    void create_productionForcesAllowDestructiveOff() {
+    @DisplayName("破坏性还原开关不按环境名强制关闭")
+    void create_allowDestructiveHonorsRequestEvenIfNameLooksProd() {
         when(envService.insertTestProjectEnv(any())).thenAnswer(inv -> {
             TestProjectEnv e = inv.getArgument(0);
             e.setTestProjectEnvId(1L);
@@ -145,7 +145,7 @@ class UpsertProjectEnvToolTest {
                 "allowDestructiveReset", 1), ctx());
         ArgumentCaptor<TestProjectEnv> cap = ArgumentCaptor.forClass(TestProjectEnv.class);
         verify(envService).insertTestProjectEnv(cap.capture());
-        assertEquals(0, cap.getValue().getAllowDestructiveReset());
+        assertEquals(1, cap.getValue().getAllowDestructiveReset());
     }
 
     /**

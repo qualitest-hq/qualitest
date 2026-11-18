@@ -16,7 +16,6 @@ import com.qualitest.project.support.TestProjectVariableEntrySupport;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * 新增或更新项目测试环境实体（名称、Base URL、环境变量、共享状态、破坏性还原开关等）。
@@ -24,12 +23,10 @@ import java.util.regex.Pattern;
  * 写入的是环境库记录本身，不修改画布上的运行场景绑定。
  * 调用成功即落库，无 Staging；模板画布禁止调用。
  * 经 MCP 调用时须项目已开启「允许 MCP 自动写流」。
+ * 破坏性还原开关按请求值写入，不按环境名推断或强制关闭。
  */
 @RequiredArgsConstructor
 public class UpsertProjectEnvTool implements QualitestTool {
-
-    /** 环境名命中该模式时强制禁止正式 Run 做破坏性还原 */
-    private static final Pattern PRODUCTION_NAME = Pattern.compile("prod|生产|production", Pattern.CASE_INSENSITIVE);
 
     private final ITestProjectEnvService testProjectEnvService;
 
@@ -133,7 +130,7 @@ public class UpsertProjectEnvTool implements QualitestTool {
                 .envColor(envColor.isEmpty() ? null : envColor)
                 .envVariables(envVariablesJson != null
                         ? envVariablesJson : TestProjectConstants.EMPTY_ENV_VARIABLES_JSON)
-                .allowDestructiveReset(resolveAllowDestructive(envName, allowDestructive, 0))
+                .allowDestructiveReset(resolveAllowDestructive(allowDestructive, 0))
                 .delStatus(0)
                 .build();
         testProjectEnvService.insertTestProjectEnv(env);
@@ -169,9 +166,8 @@ public class UpsertProjectEnvTool implements QualitestTool {
         if (envVariablesJson != null) {
             existing.setEnvVariables(envVariablesJson);
         }
-        String nameForGuard = !envName.isEmpty() ? envName : existing.getEnvName();
         existing.setAllowDestructiveReset(resolveAllowDestructive(
-                nameForGuard, allowDestructive, existing.getAllowDestructiveReset()));
+                allowDestructive, existing.getAllowDestructiveReset()));
         testProjectEnvService.updateTestProjectEnv(existing);
         return ack("updated", existing);
     }
@@ -220,21 +216,13 @@ public class UpsertProjectEnvTool implements QualitestTool {
     }
 
     /**
-     * 计算 allowDestructiveReset：名称像生产环境时强制 0；
-     * 否则用本次请求值（仅认 0/1），未传则沿用 fallback。
+     * 计算 allowDestructiveReset：用本次请求值（仅认 0/1），未传则沿用 fallback，默认 0。
+     * 由调用方显式决定，不按环境名推断。
      */
-    private static int resolveAllowDestructive(String envName, Integer requested, Integer fallback) {
-        if (isProductionName(envName)) {
-            return 0;
-        }
+    private static int resolveAllowDestructive(Integer requested, Integer fallback) {
         if (requested != null) {
             return requested == 1 ? 1 : 0;
         }
         return fallback != null ? fallback : 0;
-    }
-
-    /** 环境名是否按生产环境处理（含 prod / 生产 / production，忽略大小写） */
-    private static boolean isProductionName(String envName) {
-        return envName != null && PRODUCTION_NAME.matcher(envName).find();
     }
 }

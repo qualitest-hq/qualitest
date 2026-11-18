@@ -1,0 +1,45 @@
+// 被测执行代理说明书：分机代跑业务 CLI，并承接 Web 控制台推送（install / bind-write）。
+// 同机不必启用；首装本代理靠 Compose 边车或人工 install。
+{
+  "id": "qualitest.sut-exec-agent",
+  "version": "0.1.0",
+  "displayName": "被测执行代理",
+  "remarks": "分机时在被测旁代跑其它官方 CLI；可承接 Web 控制台推送装 CLI/写 bind。同机不必启用。短称：执行代理。",
+  "capabilities": [
+    { "name": "agent.ping", "effect": "read", "gate": "none" },
+    { "name": "agent.exec", "effect": "write", "gate": "none" },
+    { "name": "agent.install", "effect": "write", "gate": "none" },
+    { "name": "agent.bindWrite", "effect": "write", "gate": "none" }
+  ],
+  "isolation": ["ui-slot:flow.badge.exec-agent"],
+  "hooks": [],
+  "channelProvider": true,
+  "configSchema": {
+    "type": "object",
+    "required": ["baseUrl"],
+    "properties": {
+      "baseUrl": { "type": "string", "minLength": 1 },
+      "token": { "type": "string" }
+    }
+  },
+  "ui": {
+    "chrome": {
+      "badges": [
+        { "id": "exec-agent", "text": "执行代理", "tone": "info" }
+      ]
+    },
+    "env": {
+      "badge": { "text": "执行代理", "tone": "info" }
+    }
+  },
+  "runtime": {
+    "kind": "ops-agent",
+    "agent": {
+      "bundle": "embedded",
+      "cli": {
+        "bin": "qt-sut-exec-agent",
+        "pingArgs": ["ping"]
+      }
+    }
+  }
+}

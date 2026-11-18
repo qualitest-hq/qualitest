@@ -185,6 +185,16 @@
           </li>
         </ul>
       </div>
+      <!-- 暂停或快照失败时：按运行环境展示存档列表（通用 invoke-table） -->
+      <PluginInvokeTablePanel
+          v-if="runSaveEnvId"
+          class="run-pause-saves"
+          :env-id="runSaveEnvId"
+          plugin-id="qualitest.sut-db-archive-point"
+          list-capability="list"
+          delete-capability="archive.delete"
+          title="本运行存档"
+      />
       <div class="run-pause-actions">
         <button
             v-for="dec in visibleDecisions"
@@ -295,6 +305,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { resumeTestFlowRun } from '@/api/project/testFlowRun'
+import PluginInvokeTablePanel from '@/views/project/testProject/components/PluginInvokeTablePanel.vue'
 import ResponseMediaPreview from '@/components/ResponseMediaPreview/index.vue'
 import { normalizeInputFieldType } from '@/utils/flow/inputFields'
 import { isFailureLikeStatus, runStatusLabel, runTriggerLabel } from '../constants/runStatus'
@@ -317,9 +328,11 @@ import { useFlowViewport } from '../composables/useFlowViewport'
 import { isGraphStructurallyStale } from '../utils/graphFingerprint'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { useRunLibraryStore } from '../stores/runLibraryStore'
+import { useRunConfig } from '../composables/useRunConfig'
 
 const runLib = useRunLibraryStore()
 const canvasStore = useFlowCanvasStore()
+const { envOptions, loadProjectEnvs } = useRunConfig()
 const viewport = useFlowViewport()
 const staleWarning = ref('')
 const resumeLoading = ref(false)
@@ -336,6 +349,25 @@ const DECISION_META = {
 }
 
 const run = computed(() => runLib.selectedRun)
+
+/** 本次运行绑定的环境；没有则不展示存档列表 */
+const runSaveEnvId = computed(() => {
+  const id = run.value?.testProjectEnvId
+  if (id == null || id === '') return ''
+  return String(id)
+})
+
+/**
+ * 环境是否允许还原。
+ * 环境列表里找不到该环境时返回 null，决策按钮仍保留还原并重试。
+ */
+const envAllowsDestructiveReset = computed(() => {
+  const id = runSaveEnvId.value
+  if (!id) return null
+  const hit = envOptions.value.find((e) => e.testProjectEnvId === id)
+  if (!hit) return null
+  return Number(hit.allowDestructiveReset) === 1
+})
 
 /** 页眉展示的环境名：取步骤里场景加载结果的 envName，没有则短横线 */
 const runEnvName = computed(() => {
@@ -356,16 +388,32 @@ const awaitInputFields = computed(() => {
   return Array.isArray(fields) ? fields.filter((f) => f?.name) : []
 })
 
-/** 按 pauseInfo.availableDecisions 过滤后的可点决策按钮 */
+/** 按 pauseInfo.availableDecisions 过滤后的可点决策按钮；环境未开还原时去掉还原并重试 */
 const visibleDecisions = computed(() => {
   const info = run.value?.pauseInfo
   const available = info?.availableDecisions?.length
     ? info.availableDecisions
     : (Object.keys(DECISION_META))
+  const allowRestore = envAllowsDestructiveReset.value
   return available
     .filter((id) => DECISION_META[id])
+    .filter((id) => id !== 'restoreAndRetry' || allowRestore !== false)
     .map((id) => ({ id, ...DECISION_META[id] }))
 })
+
+/**
+ * 运行记录绑定的环境可能不在本地缓存中；缺失时懒加载，便于判断是否隐藏「还原并重试」。
+ */
+watch(
+  () => run.value?.testProjectEnvId,
+  (id) => {
+    if (id == null || id === '' || !canvasStore.testProjectId) return
+    const key = String(id)
+    if (envOptions.value.some((e) => e.testProjectEnvId === key)) return
+    loadProjectEnvs()
+  },
+  { immediate: true },
+)
 
 function pauseReasonLabel(reason) {
   if (reason === 'node_failure') return '节点失败'
@@ -1045,6 +1093,13 @@ function escapeHtml(s) {
 .run-pause-stack__label {
   font-weight: 600;
   color: var(--pd-text-muted);
+}
+
+.run-pause-saves {
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 6px;
+  background: #fff;
 }
 
 .run-pause-actions {

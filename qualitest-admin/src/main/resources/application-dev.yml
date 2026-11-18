@@ -39,6 +39,20 @@ qualitest:
       enabled: ${QUALITEST_HTTP_EGRESS_ENABLED:false}
       # 逗号分隔，如 host.docker.internal:8801；仅 enabled=true 时生效
       allowlist: ${QUALITEST_HTTP_EGRESS_ALLOWLIST:host.docker.internal:8801,localhost:8801,127.0.0.1:8801,[::1]:8801}
+  # 平台插件宿主
+  plugin:
+    # zip 安装落盘根；空则用上传根目录下的 plugins，启动发现也会扫这里
+    install-dir: ${QUALITEST_PLUGIN_INSTALL_DIR:}
+    # 额外扫描目录（其下一级子目录含 qualitest.plugin.jsonc 时登记）
+    discovery-dirs: []
+    # 被测端 CLI 目录；空则只靠 PATH
+    agent-bin-dir: ${QUALITEST_PLUGIN_AGENT_BIN_DIR:}
+    # 本机执行 CLI 超时（毫秒）
+    exec-timeout-ms: ${QUALITEST_PLUGIN_EXEC_TIMEOUT_MS:120000}
+    # 执行代理拉取制品时访问的质衡基址（无尾斜杠）；边车场景常为 http://host.docker.internal:8800
+    artifact-public-base-url: ${QUALITEST_PLUGIN_ARTIFACT_PUBLIC_BASE_URL:http://127.0.0.1:8800}
+    # 制品短时 token 有效期（毫秒）
+    artifact-token-ttl-ms: ${QUALITEST_PLUGIN_ARTIFACT_TOKEN_TTL_MS:300000}
 
 # -----------------------------------------------------------------------------
 # 内嵌 Tomcat

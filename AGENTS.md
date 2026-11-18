@@ -23,5 +23,7 @@
 | [docs/assets.md](./docs/assets.md) | 素材库 |
 | [docs/project-template.md](./docs/project-template.md) · [en](./docs/project-template.en.md) | 项目模板（勾选 / 导入导出 / 另存） |
 | [docs/faq.md](./docs/faq.md) | 日常使用 FAQ（冒烟/靶场见测试手册 §F） |
+| [docs/platform-plugins.md](./docs/platform-plugins.md) | 平台插件契约（Exploring；实现对照 §10） |
+| [docs/platform-ops-exec-channel.md](./docs/platform-ops-exec-channel.md) | 执行通道（local-exec / exec-agent） |
 
 回复与用户可见说明默认使用中文。

@@ -182,23 +182,29 @@
 
             <section class="env-section env-section--reset">
               <h3 class="env-section-title">被测数据还原</h3>
-              <div v-if="isProductionEnv" class="env-prod-warn">
-                生产环境禁止开启数据还原（allowDestructiveReset 已锁定为关闭）
-              </div>
               <div class="env-reset-row">
                 <el-switch
                     v-model="allowDestructiveResetOn"
-                    :disabled="readonly || isProductionEnv"
+                    :disabled="readonly"
                     active-text="允许还原被测数据"
                     inactive-text="禁止还原"
                 />
               </div>
               <p class="env-reset-hint">
-                开启后，测试流可在节点执行前调用被测方 <code>/test-support/snapshot</code> 打 checkpoint，失败时可还原重试。
-                test-support 根路径由前置 URL 派生，无需单独配置。
+                开启后映射为插件总闸 <code>gate.destructive</code>。快照执行走「库存档点」插件（被测机
+                <code>sdap</code>），须先在项目挂载 bindAlias 并在本环境启用该插件。
+                是否开启由本环境自行决定；对真实生产库开启会覆盖数据，请自行确认目标。
                 <strong>开启数据还原时，同一环境请串行跑</strong>（还原会覆盖被测数据，并行 Run 会互相踩库）。
               </p>
             </section>
+
+            <!-- 平台插件：说明书驱动通用壳 -->
+            <PluginEnvSection
+                v-if="form.testProjectEnvId"
+                :env-id="form.testProjectEnvId"
+                :readonly="readonly"
+                :allow-destructive-reset="persistedAllowDestructiveReset"
+            />
 
             <section class="env-section">
               <div class="env-section-head">
@@ -241,6 +247,7 @@
       </footer>
     </div>
   </el-dialog>
+
 </template>
 
 <script setup>
@@ -263,6 +270,7 @@ import {
   softenEnvUiSurface,
   serializeEnvUrlRows
 } from '@/views/project/testProject/utils/envConfigUtils'
+import PluginEnvSection from './PluginEnvSection.vue'
 import VariableEntrySheetSection from './VariableEntrySheetSection.vue'
 import {useVariableEntrySheet} from '@/views/project/testProject/composables/useVariableEntrySheet'
 import draggable from 'vuedraggable'
@@ -275,7 +283,6 @@ import {
   updateTestProjectEnv
 } from '@/api/project/testProjectEnv'
 import {editTestProjectUserSetting} from '@/api/project/testProjectUserSetting'
-import {isProductionEnvName} from '@/views/project/testProject/utils/envProductionUtils'
 
 const visible = defineModel('visible', {type: Boolean, default: false})
 
@@ -315,7 +322,7 @@ const ENV_COLOR_PRESETS = [
   '#64748b'
 ]
 
-/** 触发器与色盘一致：淡色铺底 + 保留原色变量描边 */
+/** 色值触发器：淡色铺底，并用原色变量描边 */
 const envColorTriggerStyle = computed(() => {
   const raw = resolveEnvSwatchBackground({
     envColor: form.envColor,
@@ -380,25 +387,16 @@ const form = reactive({
   allowDestructiveReset: 0
 })
 
-const isProductionEnv = computed(() => isProductionEnvName(form.envName))
+/** 已写入服务端的允许还原标记；仅本地勾选、尚未保存时不能启用插件 */
+const persistedAllowDestructiveReset = ref(0)
 
+/** 环境「允许还原被测数据」开关，直接映射 allowDestructiveReset（1/0） */
 const allowDestructiveResetOn = computed({
   get() {
-    if (isProductionEnv.value) return false
     return Number(form.allowDestructiveReset) === 1
   },
   set(val) {
-    if (isProductionEnv.value) {
-      form.allowDestructiveReset = 0
-      return
-    }
     form.allowDestructiveReset = val ? 1 : 0
-  }
-})
-
-watch(() => form.envName, () => {
-  if (isProductionEnv.value) {
-    form.allowDestructiveReset = 0
   }
 })
 
@@ -457,6 +455,9 @@ function onEnvAddChildRow(visibleIndex) {
   onAddChildRowAt(visibleIndex)
 }
 
+/**
+ * 用环境详情回填表单；载入后一次拉取插件绑定，若已启用执行代理则顺带探活。
+ */
 function loadFromPayload(payload) {
   form.testProjectEnvId = payload?.testProjectEnvId ?? null
   form.envName = payload?.envName ?? ''
@@ -464,9 +465,7 @@ function loadFromPayload(payload) {
   form.sortNum =
       payload?.sortNum != null ? Number(payload.sortNum) : 0
   form.allowDestructiveReset = Number(payload?.allowDestructiveReset ?? 0)
-  if (isProductionEnvName(form.envName)) {
-    form.allowDestructiveReset = 0
-  }
+  persistedAllowDestructiveReset.value = Number(form.allowDestructiveReset) === 1 ? 1 : 0
 
   baseUrl.value = resolveEnvBaseUrlForRequest(payload?.envUrl) || ''
   loadFromEntriesJson(payload?.envVariables)
@@ -478,6 +477,7 @@ function resetDraftNewForm() {
   form.envColor = ''
   form.sortNum = 0
   form.allowDestructiveReset = 0
+  persistedAllowDestructiveReset.value = 0
   baseUrl.value = ''
   resetSheet()
 }
@@ -635,7 +635,7 @@ function handleSave(closeAfter) {
     envVariables,
     shareStatus: 'private',
     envColor: (form.envColor || '').trim(),
-    allowDestructiveReset: isProductionEnv.value ? 0 : (Number(form.allowDestructiveReset) === 1 ? 1 : 0)
+    allowDestructiveReset: Number(form.allowDestructiveReset) === 1 ? 1 : 0
   }
   if (form.testProjectEnvId != null) {
     body.testProjectEnvId = form.testProjectEnvId
@@ -651,6 +651,7 @@ function handleSave(closeAfter) {
   req
       .then((response) => {
         if (response.code === 200) {
+          persistedAllowDestructiveReset.value = Number(form.allowDestructiveReset) === 1 ? 1 : 0
           proxy.$modal.msgSuccess('保存成功')
           emit('saved', {})
           return fetchEnvList().then(() => {

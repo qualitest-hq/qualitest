@@ -1,5 +1,6 @@
 package com.qualitest.flow.run;
 
+import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.snapshot.FlowRunSnapshotState;
@@ -18,6 +19,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -63,29 +65,27 @@ class ResumeContinuationPlannerTest {
 
     /**
      * 前提：restoreAndRetry + snap-1，但 allowDestructiveReset=0。
-     * 期望：restoreStep=null；仍从 n1 以 RETRY_NODE 续跑。
+     * 期望：抛错，不截栈、不续跑。
      */
     @Test
     @Order(2)
-    @DisplayName("环境禁止重置时静默跳过 restore")
-    void plan_restoreAndRetry_silentSkipRestoreWhenEnvDeniesReset() {
+    @DisplayName("环境禁止重置时还原并重试失败")
+    void plan_restoreAndRetry_failsWhenEnvDeniesReset() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         FlowRunSnapshotState stack = new FlowRunSnapshotState();
         stack.push("n1", "snap-1");
 
         SnapshotRestoreService realRestore = new SnapshotRestoreService(
-                mock(com.qualitest.flow.snapshot.DbSnapshotAdapter.class), new StepResultWriter());
+                mock(com.qualitest.plugin.snapshot.PluginSnapshotSupport.class),
+                new StepResultWriter());
         ResumeContinuationPlanner localPlanner = new ResumeContinuationPlanner(realRestore);
 
         RunExecutionState state = RunExecutionState.builder().pauseNodeId("n2").build();
-        ResumeContinuationPlanner.PlannedResume planned = localPlanner.plan(
+        assertThrows(FlowExecutionException.class, () -> localPlanner.plan(
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).snapshotId("snap-1").build(),
                 state, graph, stack,
-                TestProjectEnv.builder().allowDestructiveReset(0).envUrl("http://localhost:8801").build(), 99L);
-
-        assertNull(planned.getRestoreStep());
-        assertEquals("n1", planned.getContinuation().getStartNodeId());
-        assertEquals(RunContinuation.ResumeMode.RETRY_NODE, planned.getContinuation().getResumeMode());
+                TestProjectEnv.builder().allowDestructiveReset(0).envUrl("http://localhost:8801").build(), 99L));
+        assertEquals(1, stack.entries().size());
     }
 
     /**

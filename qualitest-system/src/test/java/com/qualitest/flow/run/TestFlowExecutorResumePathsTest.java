@@ -3,6 +3,7 @@ package com.qualitest.flow.run;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.context.FlowRunContextPersistence;
 import com.qualitest.flow.exception.FlowErrorCode;
+import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.NodeHandlerRegistry;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -37,7 +39,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 TestFlowExecutor.resume：四种决策 + 幂等 + 环境静默跳过还原。
+ * 测 TestFlowExecutor.resume：四种决策 + 幂等 + 总闸关闭时还原并重试失败。
  * 边界：Mock 落库与 SnapshotCheckpointService；夹具 flow/linear-run-graph.json。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=TestFlowExecutorResumePathsTest
  */
@@ -100,7 +102,8 @@ class TestFlowExecutorResumePathsTest {
                         mock(com.qualitest.project.runhub.EnvRunSlotLifecycle.class)),
                 new StepResultWriter(),
                 new SnapshotPreExecuteHookFactory(snapshotCheckpointService, new StepResultWriter()),
-                new ResumeContinuationPlanner(snapshotRestoreService));
+                new ResumeContinuationPlanner(snapshotRestoreService),
+                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class));
     }
 
     /**
@@ -182,7 +185,7 @@ class TestFlowExecutorResumePathsTest {
 
         when(snapshotRestoreService.restore(any(), any(), any(), any()))
                 .thenReturn(new StepResultWriter().toRestoreStepResult(
-                        "n1", "snap-1", "http://localhost:8801/test-support", 1));
+                        "n1", "snap-1", "plugin:qualitest.sut-db-archive-point", 1));
 
         ExecutionOutcome outcome = executor.resume(4L,
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).snapshotId("snap-1").build(),
@@ -194,12 +197,12 @@ class TestFlowExecutorResumePathsTest {
 
     /**
      * 前提：restoreAndRetry，但 allowDestructiveReset=0。
-     * 期望：跳过 restore 调用，仍从快照节点续跑通过。
+     * 期望：续跑失败，不静默跳过还原。
      */
     @Test
     @Order(5)
-    @DisplayName("禁止破坏性还原时跳过 restore 仍通过")
-    void resume_restoreAndRetry_skipsRestoreWhenEnvDeniesReset() {
+    @DisplayName("禁止破坏性还原时还原并重试失败")
+    void resume_restoreAndRetry_failsWhenEnvDeniesReset() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         graph.setNodes(graph.getNodes().subList(0, 2));
         graph.setEdges(graph.getEdges().subList(0, 1));
@@ -211,7 +214,8 @@ class TestFlowExecutorResumePathsTest {
         when(runService.selectTestFlowRunById(5L)).thenReturn(pausedRun);
 
         SnapshotRestoreService realRestore = new SnapshotRestoreService(
-                mock(com.qualitest.flow.snapshot.DbSnapshotAdapter.class), new StepResultWriter());
+                mock(com.qualitest.plugin.snapshot.PluginSnapshotSupport.class),
+                new StepResultWriter());
         executor = new TestFlowExecutor(
                 new NodeHandlerRegistry(List.of(
                         new AbstractStubNodeHandler(FlowNodeType.HTTP) {
@@ -234,14 +238,12 @@ class TestFlowExecutorResumePathsTest {
                         mock(com.qualitest.project.runhub.EnvRunSlotLifecycle.class)),
                 new StepResultWriter(),
                 new SnapshotPreExecuteHookFactory(mock(SnapshotCheckpointService.class), new StepResultWriter()),
-                new ResumeContinuationPlanner(realRestore));
+                new ResumeContinuationPlanner(realRestore),
+                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class));
 
-        ExecutionOutcome outcome = executor.resume(5L,
+        assertThrows(FlowExecutionException.class, () -> executor.resume(5L,
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).snapshotId("snap-1").build(),
-                TestProjectEnv.builder().envUrl("http://localhost:8801").allowDestructiveReset(0).build());
-
-        assertTrue(outcome.isPassed());
-        assertEquals(RunStatus.PASSED.getCode(), pausedRun.getStatus());
+                TestProjectEnv.builder().envUrl("http://localhost:8801").allowDestructiveReset(0).build()));
     }
 
     private static TestFlowRun buildPausedRun(Long runId, GraphJson graph, String pauseNodeId) {

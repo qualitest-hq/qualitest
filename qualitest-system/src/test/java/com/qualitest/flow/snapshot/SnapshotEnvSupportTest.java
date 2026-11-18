@@ -7,12 +7,11 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 SnapshotEnvSupport：破坏性重置开关与 /test-support 根路径。
+ * 测 SnapshotEnvSupport：破坏性重置开关。
  * 边界：allowDestructiveReset=1/0。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SnapshotEnvSupportTest
  */
@@ -20,20 +19,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SnapshotEnvSupportTest {
 
     /**
-     * 前提：allowDestructiveReset=1，envUrl=http://localhost:8801。
-     * 期望：isResetAllowed=true；resolveResetBase=envUrl+/test-support。
+     * 前提：allowDestructiveReset=1。
+     * 期望：isResetAllowed=true。
      */
     @Test
     @Order(1)
-    @DisplayName("允许重置时拼接 /test-support 根路径")
+    @DisplayName("允许重置时 isResetAllowed 为 true")
     void isResetAllowed_flagEnabled() {
         TestProjectEnv env = TestProjectEnv.builder()
                 .envUrl("http://localhost:8801")
                 .allowDestructiveReset(1)
                 .build();
         assertTrue(SnapshotEnvSupport.isResetAllowed(env), "allowDestructiveReset=1 时应允许重置");
-        String base = SnapshotEnvSupport.resolveResetBase(env);
-        assertEquals("http://localhost:8801/test-support", base, "重置根地址应为 envUrl + /test-support");
     }
 
     /**

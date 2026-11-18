@@ -1,0 +1,50 @@
+// 场景造数：按场景 ID 灌可审阅的小 SQL（AI 可生成、人手可改）。不做断点存档。
+{
+  "id": "qualitest.sut-db-scenario-seed",
+  "version": "0.1.0",
+  "displayName": "场景造数",
+  "remarks": "跑前按 scenarioId 执行 seed 根下 curated SQL；需 bind（可复用存档点挂载）。短称：造数。",
+  "capabilities": [
+    { "name": "seed.list", "effect": "read", "gate": "none" },
+    { "name": "seed.apply", "effect": "write", "gate": "destructive" }
+  ],
+  "requires": ["qualitest.sut-db-archive-point"],
+  "isolation": ["ui-slot:flow.badge.db-scenario-seed"],
+  "hooks": [
+    { "name": "onRunPrepare", "order": 80, "actions": ["seed.apply"] }
+  ],
+  "projectMount": {
+    "inheritFrom": "qualitest.sut-db-archive-point"
+  },
+  "configSchema": {
+    "type": "object",
+    "required": ["scenarioId"],
+    "properties": {
+      "scenarioId": { "type": "string", "minLength": 1 },
+      "autoReset": { "type": "boolean" }
+    }
+  },
+  "ui": {
+    "chrome": {
+      "badges": [
+        { "id": "db-scenario-seed", "text": "场景造数", "tone": "info" }
+      ]
+    },
+    "env": {
+      "badge": { "text": "场景造数", "tone": "info" }
+    }
+  },
+  "runtime": {
+    "kind": "ops-agent",
+    "agent": {
+      "bundle": "embedded",
+      "cli": {
+        "bin": "sdss",
+        "pingArgs": ["ping"],
+        "argMap": {
+          "scenarioId": "--id"
+        }
+      }
+    }
+  }
+}
