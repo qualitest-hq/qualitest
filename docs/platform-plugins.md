@@ -1,7 +1,7 @@
 # 质衡平台插件
 
 > **状态**：Exploring 契约（ROADMAP 6.2；**未定版**，字段/算法仍可能改；冲突以 **§10** 为准）。  
-> **实现**：**部分落地**——说明书发现/安装、环境启用、项目挂载、破坏性总闸、`ops-agent` + `local-exec` / `exec-agent`、存档点 Checkpoint/Restore、环境徽章与面板。缺口见 **§10.8**（Prepare 全序、`pluginAction`/调色板、拨钟样本、`http-adapter`/`builtin`、Host 白名单测试等）。  
+> **实现**：**部分落地**——zip/本机目录登记说明书、环境启用、项目挂载、破坏性总闸、`ops-agent` + `local-exec` / `exec-agent`、存档点 Checkpoint/Restore、环境徽章与面板。官方 ops-agent 包**不**内嵌主仓 jar。缺口见 **§10.8**。  
 > **不含**：JetBrains Helper、Cursor MCP（它们是接入通道，**不是**平台插件）。  
 > **已定结论**：§9 · **实现对照**：§10。
 
@@ -85,14 +85,14 @@
 - **被测端**：装上后 OS 层面的行为不在平台沙箱内；`ops-agent` 启用/Invoke 前**必须**连通检查。
 - **互斥**：同环境启用时，仅 `isolation` 里的 **`ui-slot:`** 同槽碰撞才拒启用；**不**靠点名其它插件，**不**靠「全局能力唯一提供者」。
 
-官方 `builtin` = **虚包说明书 + 主仓实现**（§2.1）。**禁止**照抄 DSH「一切皆插件 / 无特权内核」。
+`kind=builtin` 时实现可在主仓，但仍须经 Invoker（带 `pluginId`）。官方 **ops-agent** 包（存档点等）**不**内嵌主仓发行物，靠 zip / 安装目录登记。**禁止**照抄 DSH「一切皆插件 / 无特权内核」。
 
 ### 启用 vs Invoke（必读）
 
 > **人话**：「启用」是在某个环境里把插件**打开**；「Invoke」是**这一次真去干活**。开了插件不等于已经动过被测。
 
 ```text
-说明书已入库（或官方虚包已随版本带上）
+说明书已入库（zip 安装或本机发现目录登记）
         │
         ▼
 【启用 Enable】在某个环境里打开插件、填 config、保存
@@ -162,8 +162,11 @@
 
 | 形态 | 规则 |
 | --- | --- |
-| zip 包 | 根目录**必须**含说明书；可选 `runtime/`、`agent/`、`ui/`、`assets/`、`SHA256SUMS` |
-| 官方虚包 | 发行物内嵌说明书；无独立 zip；`kind=builtin` 时主仓**必须**有对应实现注册 |
+| zip 包 | **主路径**。根目录**必须**含说明书；可选 `runtime/`、`agent/`、`ui/`、`assets/`、`SHA256SUMS`。上传到质衡本机安装目录并登记 |
+| 本机发现目录 | 开发联调：把含说明书的包目录放到 `{install-dir}` 或 `qualitest.plugin.discovery-dirs` 下，启动时扫描登记 |
+| `builtin` | 仅当实现必须在主仓进程内时：说明书随主仓 + Java 注册表；**不是**官方 ops-agent 包的默认形态 |
+
+官方存档点 / 造数 / 执行代理 / 拨钟等：**一插件一仓**，主仓只给文档引导；**禁止**再往质衡 jar 里塞 classpath「虚包」说明书。
 
 **禁止**把同一插件拆成多个市场商品 id。
 
@@ -458,8 +461,8 @@ qualitest.sut-db-archive-point-1.0.0.zip
 
 | | **包契约 JSON** | **平台 SQL（运营态）** |
 | --- | --- | --- |
-| 载体 | `qualitest.plugin.jsonc`（zip 根或官方虚包） | 质衡库表（P0 实体如下；DDL 开干时 Flyway） |
-| 谁写 | 插件作者 / 发行版内嵌 | 安装、环境配置、跑流 |
+| 载体 | `qualitest.plugin.jsonc`（zip 根或本机发现目录） | 质衡库表（实体见 Flyway） |
+| 谁写 | 插件作者 / 插件仓 | 安装、环境配置、跑流 |
 | 变不变 | 随 `id@version` 基本不变 | 启用、config、闸随环境变 |
 | 典型内容 | capabilities / hooks / ui / runtime / remarks / configSchema | 包登记、环境启用行、闸、审计 |
 
@@ -471,7 +474,7 @@ qualitest.sut-db-archive-point-1.0.0.zip
 
 | 实体 | 回答什么 | 关键字段（语义） | 备注 |
 | --- | --- | --- | --- |
-| **包登记** | 平台里有哪些插件版本 | `plugin_id`、`version`、`source`=`builtin`\|`zip`、`manifest` 快照、`content_hash`、状态、入库时间 | 官方虚包随发版写入或启动同步；zip 上传写入 |
+| **包登记** | 平台里有哪些插件版本 | `plugin_id`、`version`、`manifest` 快照、`content_hash`、状态、入库时间 | zip 上传或启动扫描安装/发现目录写入 |
 | **环境插件绑定** | 这个环境开了谁 | `env_id`、`plugin_id`、`version`、`enabled`、`config`（过 configSchema） | = §2.5 投影；**唯一**持久的「插件启用/停用」 |
 | **环境总闸** | 允不允许破坏性操作 | `gate.destructive`（**1:1** 今日 `test_project_env.allow_destructive_reset`）；`gate.secrets-read` 仅预留 | 不进插件包 |
 | **环境主键数据提供方** | 双清时听谁的 | `primary_data_provider`（可空） | 仅 §10.3 竞争时必填 |
@@ -496,14 +499,14 @@ qualitest.sut-db-archive-point-1.0.0.zip
 
 ### 2.7 怎么发到用户手里（含被测端安装）
 
-> **人话**：界面和质衡侧调度随 zip 或官方虚包进来；被测机上的 CLI 必须显式安装，不会「解压即执行」。
+> **人话**：质衡侧靠 zip（或开发机发现目录）登记说明书与可选 `ui/`；被测机上的 CLI 另装，不会「解压即执行」。本地联调看各插件仓 README 即可。
 
 | 端 | 到用户 | 安装 |
 | --- | --- | --- |
-| 界面端 | zip 入库或官方虚包 → Web 下发说明书 `ui` | 无需单独装 |
+| 界面端 | zip / 发现目录入库 → Web 读说明书 `ui` | 随包登记 |
 | 质衡宿主 | zip → `POST /project/pluginHost/install` 落盘 `{profile}/plugins/{pluginId}` 并登记 | **项目设置 → 安装插件包**；不是被测机 |
-| 运行端 builtin / http-adapter | 虚包或入库 | 启用即可（builtin **必须**已注册实现） |
-| 被测端 | `agent/` CLI（install/uninstall） | **必须**显式安装；`ping` 失败 → 提示；不用则 **uninstall** |
+| 运行端 builtin | 主仓实现 + 已登记说明书 | 启用即可（**必须**已注册实现） |
+| 被测端 | CLI（install/uninstall） | **必须**显式安装；`ping` 失败 → 提示；不用则 **uninstall** |
 
 - 启用（质衡侧）**必须**走 §10.3 全序校验；**禁止**「解压即执行」。
 - 私有化签名 / 允许列表：**后置**。界面资源**禁止**走 npm/独立 CDN。
@@ -641,7 +644,7 @@ Exploring **只认** `ui-slot:<名>`：同环境另一 `pluginId` 已占用相�
 3. 密钥进环境 config，**禁止**进流程图。
 4. 破坏性能力（存档点 restore、拨钟写等）：**必须**审计。
 5. 启用**必须**执行 §10.3；未声明的能力**禁止**当作已提供。
-6. 第一期只做官方虚包；远程市场**后置**。
+6. 官方包走 zip / 发现目录；远程市场**后置**。
 
 ---
 
@@ -726,7 +729,7 @@ Exploring **只认** `ui-slot:<名>`：同环境另一 `pluginId` 已占用相�
 | B9 | 默认 **fail_run**；P0 skip 白名单 = ∅ |
 | B10 | ops-agent **默认 CLI**（install/uninstall/ping）；`runtime.agent.cli` |
 | C1 | **先文档契约**；样本逐个落地（存档点已部分落地，拨钟尚未，见 §10.8） |
-| C2 | 官方 builtin = **虚包** + 主仓实现 |
+| C2 | `builtin` = 主仓实现 + 已登记说明书；官方 **ops-agent** 包**不**内嵌主仓 jar |
 | C3 | 类型名 **`pluginAction`** |
 | C4 | allowDestructiveReset **1:1** → gate.destructive |
 | 持久化 | **包 JSONC ≠ 环境 SQL**；节点可用/失效 **即时算** |
@@ -760,7 +763,7 @@ Exploring **只认** `ui-slot:<名>`：同环境另一 `pluginId` 已占用相�
 6. P0 挂点失败 → `fail_run`。
 7. `pluginAction` 是唯一的插件步骤引擎类型。
 8. 总闸由**本包能力对象**的 `gate` 推导；`remarks` 不参与判定。
-9. 官方 builtin 虚包与主仓注册表必须同发版可用。
+9. `builtin` 若存在：说明书登记与主仓实现须同发版可用；ops-agent 官方包靠外置 zip/发现目录。  
 10. 原因码以 §4.2 为准，禁止未列出的静默成功。
 11. **被测特殊面的执行禁止留核心**：只经 `invoke(pluginId, …)`；未启用不得回落。
 12. 宿主挂点只调度**已启用**且声明了对应 hook 的插件。

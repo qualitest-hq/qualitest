@@ -83,7 +83,7 @@ public class PluginHostController extends BaseController {
     private final ITestProjectMemberService memberService;
 
     /**
-     * 查询已登记的全部插件包（含内嵌发现与 zip 安装写入的记录）。
+     * 查询已登记的全部插件包（含 zip 安装与本机发现目录写入的记录）。
      */
     @PreAuthorize("@ss.hasPermi('project:testPluginPackage:list')")
     @GetMapping("/packages")
