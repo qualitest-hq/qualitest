@@ -87,9 +87,11 @@ public class PluginHookRunner {
 
     /**
      * onRunPrepare：从绑定 config 取 scenarioId / autoReset 等通用键写入 args。
+     *
+     * @return 各次 Invoke 结果，供跑流写入审计步
      */
-    public void runPrepare(TestProjectEnv env, Long runId) {
-        run(env, runId, "onRunPrepare", (pluginId, capability, config) -> {
+    public List<HookInvokeOutcome> runPrepare(TestProjectEnv env, Long runId) {
+        return run(env, runId, "onRunPrepare", (pluginId, capability, config) -> {
             Map<String, Object> args = new LinkedHashMap<>();
             String scenarioId = config.getString("scenarioId");
             if (scenarioId != null && !scenarioId.isBlank()) {

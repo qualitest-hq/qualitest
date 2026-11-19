@@ -55,6 +55,11 @@ public class StepResultWriter {
 
     public static final String NODE_NAME_RESUME_DECISION = "恢复决策";
 
+    /** 平台插件 Invoke 审计步（如跑前造数） */
+    public static final String NODE_TYPE_PLUGIN_INVOKE = "pluginInvoke";
+
+    public static final String NODE_NAME_PLUGIN_INVOKE = "插件调用";
+
     /**
      * 构建待插入的 {@link TestFlowRunStep}（不含 id / createTime）。
      */
@@ -279,6 +284,38 @@ public class StepResultWriter {
                 .build();
     }
 
+    /**
+     * 插件 Invoke 审计步：记录 pluginId、capability、source 与摘要输出。
+     */
+    public StepResult toPluginInvokeStepResult(
+            String pluginId,
+            String capability,
+            String source,
+            boolean ok,
+            String stdoutSummary,
+            long durationMs
+    ) {
+        Map<String, Object> pluginDetails = new LinkedHashMap<>();
+        pluginDetails.put("pluginId", pluginId);
+        pluginDetails.put("capability", capability);
+        pluginDetails.put("source", source);
+        if (stdoutSummary != null && !stdoutSummary.isBlank()) {
+            pluginDetails.put("stdoutSummary", stdoutSummary.length() > 400
+                    ? stdoutSummary.substring(0, 400) : stdoutSummary);
+        }
+        String name = capability != null && !capability.isBlank()
+                ? NODE_NAME_PLUGIN_INVOKE + " · " + capability
+                : NODE_NAME_PLUGIN_INVOKE;
+        return StepResult.builder()
+                .nodeId("")
+                .nodeType(NODE_TYPE_PLUGIN_INVOKE)
+                .nodeName(name)
+                .status(ok ? RunStatus.PASSED.getCode() : RunStatus.FAILED.getCode())
+                .durationMs(durationMs)
+                .snapshot(pluginDetails)
+                .build();
+    }
+
     public TestFlowRunStep toEntity(Long testFlowRunId, int stepIndex, StepResult result) {
         TestFlowRunStep step = new TestFlowRunStep();
         step.setTestFlowRunId(testFlowRunId);
@@ -321,7 +358,11 @@ public class StepResultWriter {
             details.put("subflow", result.getSubflow());
         }
         if (result.getSnapshot() != null && !result.getSnapshot().isEmpty()) {
-            details.put("snapshot", result.getSnapshot());
+            if (NODE_TYPE_PLUGIN_INVOKE.equals(result.getNodeType())) {
+                details.put("plugin", result.getSnapshot());
+            } else {
+                details.put("snapshot", result.getSnapshot());
+            }
         }
         if (result.getFlowAfter() != null && !result.getFlowAfter().isEmpty()) {
             details.put("flowAfter", result.getFlowAfter());

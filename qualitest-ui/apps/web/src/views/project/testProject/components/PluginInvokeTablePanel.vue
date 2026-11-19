@@ -70,14 +70,24 @@ const errorText = ref('')
 const rows = ref([])
 const deletingId = ref('')
 
+function pickList(obj) {
+  if (!obj || typeof obj !== 'object') return null
+  if (Array.isArray(obj[props.listKey])) return obj[props.listKey]
+  if (Array.isArray(obj.saves)) return obj.saves
+  if (Array.isArray(obj.scenarios)) return obj.scenarios
+  return null
+}
+
 function extractRows(res) {
   const data = res?.data
-  if (Array.isArray(data?.[props.listKey])) return { rows: data[props.listKey], invalid: false }
+  const fromData = pickList(data)
+  if (fromData) return { rows: fromData, invalid: false }
   const stdout = typeof data?.stdout === 'string' ? data.stdout : ''
   if (!stdout.trim()) return { rows: [], invalid: false }
   try {
     const parsed = JSON.parse(stdout)
-    return { rows: Array.isArray(parsed?.[props.listKey]) ? parsed[props.listKey] : [], invalid: false }
+    const fromStdout = pickList(parsed)
+    return { rows: fromStdout || [], invalid: !fromStdout }
   } catch {
     return { rows: [], invalid: true }
   }

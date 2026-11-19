@@ -108,10 +108,13 @@ public class PluginInvoker {
         List<String> args = buildCapabilityArgs(request, cli);
         LocalExecChannel.ExecResult result = execViaChannel(channel, cli.getBin(), args, configText,
                 pluginProperties.getExecTimeoutMs());
-        log.info("plugin invoke pluginId={} capability={} channel={} source={} exit={} runId={}",
+        boolean ok = result.getExitCode() == 0;
+        // 结构化审计日志：跑流 Prepare 另有时间线步；此处覆盖手工 Invoke / 挂点
+        log.info("plugin.audit pluginId={} capability={} channel={} source={} ok={} exit={} runId={} envId={} summary={}",
                 request.getPluginId(), request.getCapability(), channel.getKind().getWire(),
-                request.getSource(), result.getExitCode(), request.getRunId());
-        if (result.getExitCode() != 0) {
+                request.getSource(), ok, result.getExitCode(), request.getRunId(), request.getEnvId(),
+                trim(result.getStdout(), result.getStderr()));
+        if (!ok) {
             throw new PluginException(PluginErrorCode.INVOKE_FAILED,
                     "CLI 失败: " + trim(result.getStdout(), result.getStderr()));
         }

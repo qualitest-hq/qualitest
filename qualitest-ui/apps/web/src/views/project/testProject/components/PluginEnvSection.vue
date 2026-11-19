@@ -44,7 +44,7 @@
           <el-button size="small" @click="openAction(item, action)">{{ action.label || action.capability }}</el-button>
         </template>
         <template v-if="item.channelProvider">
-          <el-button size="small" :loading="pingBusy === item.pluginId" @click="onPing(item)">探活</el-button>
+          <el-button size="small" :loading="pingBusy === item.pluginId" @click="onPing(item)">代理探活</el-button>
         </template>
         <template v-if="item.enabled && item.pushProducts?.length">
           <el-button
@@ -73,6 +73,9 @@
           :env-id="envId"
           :plugin-id="item.pluginId"
           :list-capability="openPanels[item.pluginId].capability || 'list'"
+          :list-key="openPanels[item.pluginId].listKey || 'saves'"
+          :id-field="openPanels[item.pluginId].idField || 'saveId'"
+          :columns="openPanels[item.pluginId].columns"
           :delete-capability="guessDeleteCapability(item)"
           :readonly="readonly"
           :title="openPanels[item.pluginId].label || '列表'"
@@ -141,19 +144,52 @@ function panelEntry(item) {
   return item?.env?.panel?.entry || ''
 }
 
+function capabilitiesOf(item) {
+  const caps = item?.capabilities
+  return Array.isArray(caps) ? caps : []
+}
+
 function enableBlocked(item) {
-  // 有 destructive 能力的包通常要总闸；后端仍会再校验
+  // 按说明书 capabilities[].gate=destructive 判断是否须先开总闸；后端仍会再校验
   if (Number(props.allowDestructiveReset) === 1) return false
+  if (item?.enabled) return false
+  const caps = capabilitiesOf(item)
+  if (caps.length) {
+    return caps.some((c) => c?.gate === 'destructive')
+  }
+  // 兼容旧接口未返回 capabilities 时，仍按 hooks 粗判
   const hooks = item?.hooks || []
-  const needsGate = hooks.some((h) => h?.name === 'onRestore' || h?.name === 'onRunPrepare')
-  return needsGate && !item.enabled
+  return hooks.some((h) => h?.name === 'onRestore' || h?.name === 'onRunPrepare')
 }
 
 function guessDeleteCapability(item) {
-  const caps = actionsOf(item)
-  // 存档点常见 archive.delete
-  if (item.pluginId?.includes('archive-point')) return 'archive.delete'
-  return ''
+  // 优先说明书 actions 上声明的 deleteCapability；再扫 capabilities 名含 .delete
+  const fromAction = actionsOf(item).find((a) => a?.deleteCapability)?.deleteCapability
+  if (fromAction) return fromAction
+  const del = capabilitiesOf(item).find((c) => typeof c?.name === 'string' && c.name.endsWith('.delete'))
+  return del?.name || ''
+}
+
+/** 把后端 GATE_DENIED: … 等拼进 msg 的原因码拆开，方便展示 */
+function formatPluginError(raw) {
+  const text = String(raw || '').trim()
+  if (!text) return ''
+  const m = text.match(/^([A-Z][A-Z0-9_]+)\s*:\s*(.*)$/s)
+  if (!m) return text
+  const code = m[1]
+  const detail = (m[2] || '').trim()
+  const hints = {
+    GATE_DENIED: '请先在环境里打开「允许还原」总闸',
+    AGENT_UNREACHABLE: '被测端工具探活失败，请检查 CLI/代理是否安装并可连库',
+    PROVIDER_NOT_FOUND: '插件未启用或不存在',
+    REQUIRES_UNSATISFIED: '请先启用其依赖的插件（如存档点）',
+    PROJECT_MOUNT_REQUIRED: '请先在项目设置中完成挂载（如 bindAlias）',
+    CONFIG_SCHEMA_INVALID: '环境配置未通过校验',
+  }
+  const hint = hints[code]
+  if (hint && detail) return `${code}：${detail}（${hint}）`
+  if (hint) return `${code}：${hint}`
+  return detail ? `${code}：${detail}` : code
 }
 
 function remoteCtx(item) {
@@ -212,7 +248,7 @@ async function onToggle(item, val) {
       const configJson = JSON.stringify(draftConfigs[item.pluginId] || {})
       const res = await enableEnvPlugin(props.envId, { pluginId: item.pluginId, configJson })
       if (res?.code !== undefined && res.code !== 200) {
-        itemErrors[item.pluginId] = res.msg || '启用失败'
+        itemErrors[item.pluginId] = formatPluginError(res.msg) || '启用失败'
         return
       }
       proxy?.$modal?.msgSuccess?.(`已启用 ${item.displayName || item.pluginId}`)
@@ -224,14 +260,36 @@ async function onToggle(item, val) {
     await reload()
     emit('changed')
   } catch (e) {
-    itemErrors[item.pluginId] = e?.message || '操作失败'
+    itemErrors[item.pluginId] = formatPluginError(e?.message) || '操作失败'
   } finally {
     busyId.value = ''
   }
 }
 
 function openAction(item, action) {
-  // 有 B 远程面板时优先走 panel.entry；否则用 action.panel（如 invoke-table）
+  // action 显式声明 panel（如 invoke-table）时优先，避免被远程 panel.entry 盖住
+  if (action?.panel === 'invoke-table' || action?.panel === 'table') {
+    const enriched = { ...action }
+    if (action.capability === 'seed.list') {
+      enriched.listKey = 'scenarios'
+      enriched.idField = 'id'
+      enriched.columns = [
+        { prop: 'id', label: 'scenarioId', minWidth: 100 },
+        { prop: 'name', label: '名称', minWidth: 160 },
+        { prop: 'file', label: '文件', minWidth: 220 },
+      ]
+    } else if (action.capability === 'list') {
+      enriched.listKey = 'saves'
+      enriched.idField = 'saveId'
+      enriched.columns = [
+        { prop: 'saveId', label: 'saveId', minWidth: 220 },
+        { prop: 'runId', label: 'runId', minWidth: 120 },
+        { prop: 'createdAt', label: '创建时间', minWidth: 168 },
+      ]
+    }
+    openPanels[item.pluginId] = enriched
+    return
+  }
   if (panelEntry(item)) {
     openPanels[item.pluginId] = 'remote'
     return

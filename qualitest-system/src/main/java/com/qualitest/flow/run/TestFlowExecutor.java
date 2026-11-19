@@ -61,11 +61,18 @@ public class TestFlowExecutor {
                         testFlowRunId, bootstrap.getScenario(), bootstrap.getEnvName(), ctx);
                 runPersistenceService.insertStep(bootstrapStep);
             }
+            long nextStepIndex = 1L;
             if (bootstrap != null && bootstrap.getEnv() != null) {
-                pluginRunPrepareService.runPrepare(bootstrap.getEnv(), testFlowRunId);
+                List<StepResult> prepareSteps = pluginRunPrepareService.runPrepare(
+                        bootstrap.getEnv(), testFlowRunId);
+                if (prepareSteps != null) {
+                    for (StepResult prepareStep : prepareSteps) {
+                        persistStep(testFlowRunId, nextStepIndex++, prepareStep);
+                    }
+                }
             }
             return advanceRun(testFlowRunId, snapshot, ctx, bootstrap, RunContinuation.fresh(),
-                    new FlowRunSnapshotState(), 1L, startedAt, runT0);
+                    new FlowRunSnapshotState(), nextStepIndex, startedAt, runT0);
         });
     }
 

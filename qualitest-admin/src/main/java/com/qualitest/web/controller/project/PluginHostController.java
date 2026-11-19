@@ -428,6 +428,7 @@ public class PluginHostController extends BaseController {
                     row.put("channelProvider", manifest.isChannelProvider());
                     row.put("projectMount", manifest.getProjectMount());
                     row.put("hooks", manifest.getHooks());
+                    row.put("capabilities", manifest.getCapabilities());
                     row.put("pushProducts", manifest.getPushProducts());
                     Object envUi = manifest.getUi() == null ? null : manifest.getUi().get("env");
                     row.put("env", envUi);
