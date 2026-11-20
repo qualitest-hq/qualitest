@@ -26,7 +26,7 @@ describe('requestConfirmFlowDesignUnit', () => {
   const baseInput = {
     nodes: [],
     edges: [],
-    runConfig: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }] },
+    runConfig: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }] },
     flowOutputs: [],
     viewport: { x: 0, y: 0, zoom: 1 },
     patch: {
@@ -78,7 +78,7 @@ describe('requestConfirmFlowDesignUnit', () => {
         },
       ],
       edges: [],
-      meta: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }] },
+      meta: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }] },
     };
     mockedConfirm.mockResolvedValue({
       ok: true,

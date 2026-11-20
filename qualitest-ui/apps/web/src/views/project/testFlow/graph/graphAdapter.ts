@@ -1,0 +1,392 @@
+/**
+ * 测试流 graph_json 与 vue-flow 编辑态的双向转换。
+ *
+ * - fromGraphJson：解开外层包装，还原 nodes/edges/viewport/runConfig/flowOutputs/入参契约；旧 inputPresets 迁入场景 inSeed；condition 出边补 sourceHandle。打开画布不据此重排
+ * - toGraphJson：剥离 selected/dragging 等界面字段，写入 meta.layout 与入参契约；场景含 inSeed
+ * - createEmptyGraph：新建空图时附带默认视口、运行场景，排版方式写成 default
+ */
+import type { Edge, Node } from '@vue-flow/core';
+import { markRaw } from 'vue';
+
+import { findStartNodeIds, unwrapGraphPayload } from '@/utils/flow/graphValidate';
+
+import { applyConditionEdgeProps } from '../utils/conditionUtils';
+import { nextSnowflakeId } from '@/utils/flow/snowflakeId';
+import type {
+  GraphEdge,
+  GraphFlowOutput,
+  GraphInputPreset,
+  GraphInputSpec,
+  GraphJson,
+  GraphMeta,
+  GraphRunScenario,
+  GraphScenarioConfig,
+  GraphViewport,
+} from '@/utils/flow/graphTypes';
+import { CURRENT_GRAPH_SCHEMA_VERSION } from '@/utils/flow/graphTypes';
+
+import type { StagingPersistFilter } from '../types/aiStagingTypes';
+import { normalizeLayoutPresetId, type FlowLayoutPresetId } from '../utils/flowLayoutPreset';
+
+export const DEFAULT_VIEWPORT: GraphViewport = { x: 40, y: 40, zoom: 1 };
+
+/** 视口坐标取有限精度，避免 VueFlow 浮点误差导致脏检查误判 */
+export function normalizeViewport(vp: GraphViewport): GraphViewport {
+  return {
+    x: Math.round(vp.x * 10) / 10,
+    y: Math.round(vp.y * 10) / 10,
+    zoom: Math.round(vp.zoom * 1000) / 1000,
+  };
+}
+
+/** 生成含一条默认冒烟场景的配置 */
+export function createDefaultRunConfig(testProjectEnvId = ''): GraphScenarioConfig {
+  const scenarioId = nextSnowflakeId();
+  const scenario: GraphRunScenario = {
+    id: scenarioId,
+    name: '默认（冒烟）',
+    testProjectEnvId,
+    inSeed: {},
+    remark: '',
+  };
+  return {
+    activeScenarioId: scenarioId,
+    scenarios: [scenario],
+  };
+}
+
+export interface CreateEmptyGraphOptions {
+  testProjectEnvId?: string;
+  viewport?: GraphViewport;
+}
+
+/** 新建空画布。排版方式固定为默认排版，此时没有节点，不会排坐标 */
+export function createEmptyGraph(options: CreateEmptyGraphOptions = {}): GraphJson {
+  const runConfig = createDefaultRunConfig(options.testProjectEnvId ?? '');
+  return {
+    nodes: [],
+    edges: [],
+    meta: {
+      viewport: options.viewport ?? { ...DEFAULT_VIEWPORT },
+      layout: 'default',
+      schemaVersion: CURRENT_GRAPH_SCHEMA_VERSION,
+      activeScenarioId: runConfig.activeScenarioId,
+      scenarios: runConfig.scenarios,
+      flowOutputs: [],
+    },
+  };
+}
+
+export interface FromGraphJsonResult {
+  nodes: Node[];
+  edges: Edge[];
+  viewport: GraphViewport;
+  runConfig: GraphScenarioConfig;
+  flowOutputs: GraphFlowOutput[];
+  inputSpec: GraphInputSpec | null;
+  inputPresets: GraphInputPreset[];
+  activeInputPresetId: string;
+  /** 这条流记住的排版。打开画布只恢复这项，不自动重排 */
+  layoutPreset: FlowLayoutPresetId;
+}
+
+function normalizeScenario(scenario: GraphRunScenario): GraphRunScenario {
+  return {
+    id: String(scenario.id ?? ''),
+    name: String(scenario.name ?? ''),
+    testProjectEnvId: scenario.testProjectEnvId != null ? String(scenario.testProjectEnvId).trim() : '',
+    remark: scenario.remark != null ? String(scenario.remark) : '',
+    inSeed: scenario.inSeed && typeof scenario.inSeed === 'object' ? scenario.inSeed : {},
+    onNodeFailure: scenario.onNodeFailure,
+    onSnapshotFailure: scenario.onSnapshotFailure,
+    maxSteps: scenario.maxSteps,
+  };
+}
+
+/**
+ * 旧图只有 inputPresets 时：把活动预设（或首条）的 values / 覆盖字段并入尚无 inSeed 的场景。
+ * 不把场景×预设展开成笛卡尔积。
+ */
+function migrateInputPresetsIntoScenarios(
+  scenarios: GraphRunScenario[],
+  inputPresets: GraphInputPreset[],
+  activeInputPresetId: string,
+): GraphRunScenario[] {
+  if (!inputPresets.length) return scenarios;
+  const targetId = activeInputPresetId || inputPresets[0]?.id || '';
+  const preset =
+    inputPresets.find((p) => p && p.id === targetId) || inputPresets.find((p) => p != null) || null;
+  if (!preset) return scenarios;
+  return scenarios.map((sc) => {
+    if (sc.inSeed != null && typeof sc.inSeed === 'object') return sc;
+    const next: GraphRunScenario = {
+      ...sc,
+      inSeed: preset.values && typeof preset.values === 'object' ? { ...preset.values } : {},
+    };
+    if (preset.testProjectEnvId) {
+      next.testProjectEnvId = String(preset.testProjectEnvId);
+    }
+    if (preset.onNodeFailure) {
+      next.onNodeFailure = preset.onNodeFailure as GraphRunScenario['onNodeFailure'];
+    }
+    if (preset.onSnapshotFailure) {
+      next.onSnapshotFailure = preset.onSnapshotFailure as GraphRunScenario['onSnapshotFailure'];
+    }
+    if (preset.maxSteps != null) {
+      next.maxSteps = preset.maxSteps;
+    }
+    return next;
+  });
+}
+
+function readScenarioConfig(meta: GraphMeta | undefined): GraphScenarioConfig {
+  if (meta?.scenarios?.length) {
+    const rawScenarios: GraphRunScenario[] = JSON.parse(JSON.stringify(meta.scenarios));
+    const inputPresets: GraphInputPreset[] = Array.isArray(meta?.inputPresets)
+      ? JSON.parse(JSON.stringify(meta.inputPresets))
+      : [];
+    const activePresetId = String(meta?.activeInputPresetId ?? inputPresets[0]?.id ?? '');
+    const migrated = migrateInputPresetsIntoScenarios(rawScenarios, inputPresets, activePresetId);
+    const scenarios = migrated.map(normalizeScenario);
+    return {
+      activeScenarioId: String(meta.activeScenarioId ?? scenarios[0].id),
+      scenarios,
+    };
+  }
+  return createDefaultRunConfig();
+}
+
+/** 从 API/导入的原始对象解析为 GraphJson（unwrap 外层 graphJson/graph_json 包装） */
+export function parseGraphJson(raw: unknown): GraphJson {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('根对象必须是 JSON 对象');
+  }
+  const graph = unwrapGraphPayload(raw as Record<string, unknown>);
+  return {
+    nodes: JSON.parse(JSON.stringify(graph.nodes ?? [])),
+    edges: JSON.parse(JSON.stringify(graph.edges ?? [])),
+    meta: graph.meta != null ? JSON.parse(JSON.stringify(graph.meta)) : undefined,
+  };
+}
+
+/** 持久化 JSON 转成画布编辑态。排版方式只读回来，不重算节点坐标 */
+export function fromGraphJson(raw: unknown): FromGraphJsonResult {
+  const graph = parseGraphJson(raw);
+  const meta = graph.meta;
+  const viewport = meta?.viewport ?? { ...DEFAULT_VIEWPORT };
+  const runConfig = readScenarioConfig(meta);
+  const flowOutputs = meta?.flowOutputs?.length
+    ? JSON.parse(JSON.stringify(meta.flowOutputs))
+    : [];
+
+  const nodes = buildVueFlowNodes(graph.nodes);
+
+  const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
+  const edges = buildVueFlowEdges(nodeById, graph.edges);
+
+  // 预设已在 readScenarioConfig 迁入场景 inSeed；画布侧不再维护独立预设列表
+  return {
+    nodes,
+    edges,
+    viewport,
+    runConfig,
+    flowOutputs,
+    inputSpec: meta?.inputSpec != null ? JSON.parse(JSON.stringify(meta.inputSpec)) : null,
+    inputPresets: [],
+    activeInputPresetId: '',
+    layoutPreset: normalizeLayoutPresetId(meta?.layout),
+  };
+}
+
+type RawNodeLike = {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data?: Record<string, unknown>;
+};
+
+/** 裸节点数据 → vue-flow Node（markRaw 避免响应式包装组件引用） */
+function buildVueFlowNodes(rawNodes: RawNodeLike[]): Node[] {
+  return rawNodes.map(
+    (n) =>
+      markRaw({
+        id: n.id,
+        type: n.type,
+        position: { x: n.position.x, y: n.position.y },
+        data: JSON.parse(JSON.stringify(n.data ?? {})),
+      }) as Node,
+  );
+}
+
+/**
+ * 将历史快照或 JSON 中的裸节点/边数据还原为 vue-flow 可渲染的编辑态。
+ * condition 出边需补全 type 与 sourceHandle。
+ */
+export function rehydrateCanvasSnapshot(
+  rawNodes: RawNodeLike[],
+  rawEdges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    label?: string;
+    sourceHandle?: string | null;
+  }>,
+): { nodes: Node[]; edges: Edge[] } {
+  const nodeById = new Map(rawNodes.map((n) => [n.id, n]));
+  const nodes = buildVueFlowNodes(rawNodes);
+
+  const edges = buildVueFlowEdges(nodeById, rawEdges, { allowPersistedSourceHandle: true });
+
+  return { nodes, edges };
+}
+
+type RawEdgeLike = {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+  sourceHandle?: string | null;
+};
+
+/** 裸边数据 → vue-flow Edge，condition 出边补全 type 与 sourceHandle（运行时反推或撤销快照） */
+function buildVueFlowEdges(
+  nodeById: Map<string, { type?: string; data?: Record<string, unknown> }>,
+  rawEdges: RawEdgeLike[],
+  options?: { allowPersistedSourceHandle?: boolean },
+): Edge[] {
+  return rawEdges.map((e) => {
+    const edge: Edge = {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+    };
+    if (e.label != null && String(e.label).trim()) {
+      edge.label = String(e.label).trim();
+    }
+    const rawForProps = options?.allowPersistedSourceHandle
+      ? e
+      : { target: e.target, label: e.label };
+    applyConditionEdgeProps(edge, nodeById.get(e.source), rawForProps);
+    return edge;
+  });
+}
+
+export interface ToGraphJsonInput {
+  nodes: Node[];
+  edges: Edge[];
+  viewport: GraphViewport;
+  runConfig: GraphScenarioConfig;
+  flowOutputs?: GraphFlowOutput[];
+  inputSpec?: GraphInputSpec | null;
+  inputPresets?: GraphInputPreset[];
+  activeInputPresetId?: string;
+  /** 当前排版方式；缺省写成 default */
+  layoutPreset?: string | null;
+  /** 保存时排除未 confirm 的 Staging 对象并回滚 pending update */
+  stagingFilter?: StagingPersistFilter;
+}
+
+function applyScenarioStagingFilter(
+  runConfig: GraphScenarioConfig,
+  filter: NonNullable<StagingPersistFilter['scenarioFilter']>,
+): GraphScenarioConfig {
+  let scenarios = runConfig.scenarios.filter((s) => !filter.excludeScenarioIds.has(s.id));
+  scenarios = scenarios.map((scenario) => {
+    const baseline = filter.scenarioBaselines.get(scenario.id);
+    if (!baseline) return scenario;
+    return JSON.parse(JSON.stringify({ ...scenario, ...baseline })) as GraphRunScenario;
+  });
+  return {
+    activeScenarioId: runConfig.activeScenarioId,
+    scenarios,
+  };
+}
+
+/** 按 Staging 过滤规则处理 nodes/edges/runConfig，供 toGraphJson 与单测使用 */
+export function applyStagingPersistFilter(input: ToGraphJsonInput): ToGraphJsonInput {
+  const filter = input.stagingFilter;
+  if (!filter) return input;
+
+  let nodes = input.nodes;
+  let edges = input.edges;
+  let runConfig = input.runConfig;
+
+  if (filter.excludeNodeIds.size) {
+    nodes = nodes.filter((n) => !filter.excludeNodeIds.has(n.id));
+  }
+  if (filter.excludeEdgeIds.size) {
+    edges = edges.filter((e) => !filter.excludeEdgeIds.has(e.id));
+  }
+
+  if (filter.nodeBaselines.size) {
+    nodes = nodes.map((n) => {
+      const baseline = filter.nodeBaselines.get(n.id);
+      if (!baseline) return n;
+      return {
+        ...n,
+        type: baseline.type ?? n.type,
+        position: baseline.position ? { ...baseline.position } : n.position,
+        data: JSON.parse(JSON.stringify(baseline.data ?? n.data ?? {})),
+      };
+    });
+  }
+
+  if (filter.edgeBaselines.size) {
+    edges = edges.map((e) => {
+      const baseline = filter.edgeBaselines.get(e.id);
+      if (!baseline) return e;
+      const next = { ...e };
+      if (baseline.source != null) next.source = baseline.source;
+      if (baseline.target != null) next.target = baseline.target;
+      if (baseline.label !== undefined) {
+        if (baseline.label) next.label = baseline.label;
+        else delete next.label;
+      }
+      return next;
+    });
+  }
+
+  if (filter.scenarioFilter) {
+    runConfig = applyScenarioStagingFilter(runConfig, filter.scenarioFilter);
+  }
+
+  return { ...input, nodes, edges, runConfig };
+}
+
+/** 画布编辑态转成可落盘的图。排版方式写入 meta.layout；未传入时写成默认排版 */
+export function toGraphJson(input: ToGraphJsonInput): GraphJson {
+  const effective = applyStagingPersistFilter(input);
+  const nodes = effective.nodes.map((n) => ({
+    id: n.id,
+    type: n.type,
+    position: { x: n.position.x, y: n.position.y },
+    data: JSON.parse(JSON.stringify(n.data ?? {})),
+  }));
+
+  const edges: GraphEdge[] = effective.edges.map((e) => {
+    const edge: GraphEdge = { id: e.id, source: e.source, target: e.target };
+    if (e.label != null && String(e.label).trim()) {
+      edge.label = String(e.label).trim();
+    }
+    return edge;
+  });
+
+  const startIds = findStartNodeIds({ nodes, edges });
+  const meta: GraphMeta = {
+    schemaVersion: CURRENT_GRAPH_SCHEMA_VERSION,
+    viewport: normalizeViewport(effective.viewport),
+    layout: normalizeLayoutPresetId(effective.layoutPreset),
+    activeScenarioId: effective.runConfig.activeScenarioId,
+    scenarios: JSON.parse(JSON.stringify(effective.runConfig.scenarios)),
+    flowOutputs: JSON.parse(JSON.stringify(effective.flowOutputs ?? [])),
+  };
+  // 入参契约随图落盘；旧 inputPresets 不再写出（in 初值在 scenarios[].inSeed）
+  if (effective.inputSpec != null) {
+    meta.inputSpec = JSON.parse(JSON.stringify(effective.inputSpec));
+  }
+  if (startIds.length === 1) {
+    meta.startNodeId = startIds[0];
+  }
+
+  return { nodes, edges, meta };
+}

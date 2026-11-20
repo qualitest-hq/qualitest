@@ -388,7 +388,7 @@
         "id": "2042000000000000101",
         "name": "默认（冒烟）",
         "testProjectEnvId": "2042000000000000001",
-        "flowSeed": {
+        "inSeed": {
           "loginUser": "admin",
           "loginPass": "***",
           "pollAttempt": 0,
@@ -400,7 +400,7 @@
         "id": "2042000000000000102",
         "name": "登录失败",
         "testProjectEnvId": "2042000000000000001",
-        "flowSeed": {
+        "inSeed": {
           "loginUser": "bad",
           "loginPass": "wrong",
           "pollAttempt": 0,
@@ -412,7 +412,7 @@
         "id": "2042000000000000103",
         "name": "预发 · 快速轮询",
         "testProjectEnvId": "2042000000000000002",
-        "flowSeed": {
+        "inSeed": {
           "loginUser": "bad",
           "loginPass": "wrong",
           "pollAttempt": 0,

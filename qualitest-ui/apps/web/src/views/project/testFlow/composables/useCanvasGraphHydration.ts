@@ -1,5 +1,6 @@
 /**
  * 画布图 JSON 灌入 store 与撤销基线收尾（项目流 / 模板预制流共用）。
+ * 除节点边与视口外，一并写入运行场景（含 inSeed）、流输出与入参契约。
  */
 import { nextTick } from 'vue'
 
@@ -20,6 +21,10 @@ export async function applyAdaptedGraphToStore(store: FlowCanvasStore, adapted: 
   store.viewport = adapted.viewport
   store.runConfig = adapted.runConfig
   store.flowOutputs = adapted.flowOutputs
+  // 从 graph_json.meta 灌回入参定义与预设
+  store.inputSpec = adapted.inputSpec
+  store.inputPresets = adapted.inputPresets
+  store.activeInputPresetId = adapted.activeInputPresetId
   store.nodes = adapted.nodes
   store.edges = []
   store.selected = null

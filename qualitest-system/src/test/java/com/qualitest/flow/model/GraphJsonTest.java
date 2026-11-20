@@ -71,7 +71,7 @@ class GraphJsonTest {
 
     /**
      * 前提：已解析的 demo 图。
-     * 期望：各场景 id/name/env/flowSeed/remark 齐全；预发场景 bizId=rpt-99。
+     * 期望：各场景 id/name/env/inSeed/remark 齐全；预发场景 bizId=rpt-99。
      */
     @Test
     @Order(2)
@@ -85,8 +85,8 @@ class GraphJsonTest {
             assertTrue(scenario.getId().matches("\\d+"), "scenario.id 应为雪花数字串: " + scenario.getId());
             assertNotNull(scenario.getName(), "scenario.name");
             assertNotNull(scenario.getTestProjectEnvId(), "scenario.testProjectEnvId");
-            assertNotNull(scenario.getFlowSeed(), "scenario.flowSeed");
-            assertFalse(scenario.getFlowSeed().isEmpty(), "scenario.flowSeed 非空");
+            assertNotNull(scenario.getInSeed(), "scenario.inSeed");
+            assertFalse(scenario.getInSeed().isEmpty(), "scenario.inSeed 非空");
             assertNotNull(scenario.getRemark(), "scenario.remark");
         }
 
@@ -94,7 +94,7 @@ class GraphJsonTest {
                 .filter(s -> SCENARIO_STAGING_POLL.equals(s.getId()))
                 .findFirst()
                 .orElseThrow();
-        assertEquals("rpt-99", staging.getFlowSeed().get("bizId"));
+        assertEquals("rpt-99", staging.getInSeed().get("bizId"));
         assertEquals("2042000000000000002", staging.getTestProjectEnvId());
     }
 

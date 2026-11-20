@@ -63,7 +63,7 @@ export interface StagingBuildContext {
       id: string;
       name?: string;
       testProjectEnvId?: string;
-      flowSeed?: Record<string, unknown>;
+      inSeed?: Record<string, unknown>;
       remark?: string;
     }>;
   };

@@ -65,15 +65,30 @@
         </div>
       </div>
       <div class="field">
-        <label>流程变量初值</label>
-        <FlowKeyValueEditor
-            :add-label="FLOW_SEED_ADD_LABEL"
-            :columns="FLOW_SEED_COLUMNS"
-            :rows="flowSeedRows"
-            @update:rows="onFlowSeedRowsChange"
-        />
-        <!-- v-pre：把 {{flow.orderId}} 当纯文案展示，不要当成模板变量求值 -->
-        <div class="field__hint" v-pre>运行选中场景时注入 flow 变量，写法如 {{flow.orderId}}</div>
+        <label>入参初值</label>
+        <div v-if="!contractFields.length" class="scenario-in-empty">
+          <div>尚未在入参契约声明字段，这里只填值、不加键。</div>
+          <button class="btn btn--ghost scenario-in-empty__btn" type="button" @click="store.showInputSpecPanel()">
+            去入参契约声明
+          </button>
+        </div>
+        <div v-else class="scenario-in-list">
+          <div v-for="f in contractFields" :key="f.name" class="scenario-in-row">
+            <div class="scenario-in-row__label">
+              <span class="scenario-in-row__title">
+                {{ f.label || f.name }}<span v-if="f.required" class="scenario-in-row__req">*</span>
+              </span>
+              <span v-if="f.label" class="scenario-in-row__name">{{ f.name }}</span>
+            </div>
+            <input
+                :placeholder="`{{in.${f.name}}}`"
+                :value="inSeedDisplayValue(f.name)"
+                type="text"
+                @input="onInSeedFieldInput(f.name, $event)"
+            />
+          </div>
+        </div>
+        <div class="field__hint" v-pre>字段在「入参契约」定义；本处只给当前场景灌 in 初值</div>
       </div>
       <!-- 当前场景的步数上限：留空走默认，输入会裁剪到 1～1000 -->
       <div class="field">
@@ -107,21 +122,8 @@
       </div>
     </template>
     <PropEmpty v-else-if="!activeScenario" icon="▶">
-      请在左侧选择场景<br/>再编辑运行参数
+      请在左侧选择场景预设<br/>再编辑运行参数
     </PropEmpty>
-
-    <div class="prop-section">
-      <div class="field">
-        <label>流程返回值（子流 outputs 默认映射）</label>
-        <div class="field__hint">定义本流程对外暴露的 flow 变量；被引用为子流时可作为 outputs 默认映射</div>
-        <FlowKeyValueEditor
-            :add-label="FLOW_OUTPUT_ADD_LABEL"
-            :columns="FLOW_OUTPUT_COLUMNS"
-            :rows="flowOutputRows"
-            @update:rows="onFlowOutputRowsChange"
-        />
-      </div>
-    </div>
 
     <EnvManageDialog
         v-model:visible="envManageDialogVisible"
@@ -133,26 +135,13 @@
 </template>
 
 <script setup>
-/** 右栏运行配置：Staging 对照 + 当前场景参数 + 流程级 flowOutputs。 */
+/** 右栏场景预设：Staging 对照 + 当前场景（按契约填 in、失败策略）。 */
 import { computed, onMounted, ref } from 'vue';
 
 import EnvManageDialog from '@/views/project/testProject/components/EnvManageDialog.vue';
 import AiStagingFieldDiff from '../components/AiStagingFieldDiff.vue';
-import FlowKeyValueEditor from '../components/FlowKeyValueEditor.vue';
 import PropEmpty from '../components/PropEmpty.vue';
-import {
-  FLOW_OUTPUT_ADD_LABEL,
-  FLOW_OUTPUT_COLUMNS,
-  FLOW_SEED_ADD_LABEL,
-  FLOW_SEED_COLUMNS,
-} from '../constants/runConfigEditors';
-import {
-  flowOutputsToRows,
-  flowSeedToRows,
-  rowsToFlowOutputs,
-  rowsToFlowSeed,
-  useRunConfig,
-} from '../composables/useRunConfig';
+import { useRunConfig } from '../composables/useRunConfig';
 import { syncStagingDraftFromScenario } from '../composables/stagingDraftSync';
 import { usePendingStagingUnit, useShowNormalFields } from '../composables/usePendingStagingUnit';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
@@ -183,8 +172,24 @@ const maxStepsDisplay = computed(() => {
   return v == null ? '' : String(v);
 });
 
-const flowSeedRows = computed(() => flowSeedToRows(activeScenario.value?.flowSeed));
-const flowOutputRows = computed(() => flowOutputsToRows(store.flowOutputs));
+/** 入参契约里已命名的字段；场景只按这些键填值 */
+const contractFields = computed(() => {
+  const list = store.inputSpec?.fields || [];
+  const seen = new Set();
+  const out = [];
+  for (const f of list) {
+    const name = String(f?.name || '').trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    out.push({
+      name,
+      label: String(f?.label || '').trim(),
+      type: f?.type || 'string',
+      required: !!f?.required,
+    });
+  }
+  return out;
+});
 
 onMounted(async () => {
   // 打开场景面板时拉取项目环境；未绑环境的激活场景会自动补绑并更新已保存基线
@@ -235,14 +240,23 @@ async function onEnvManageSaved(payload) {
   }
 }
 
-function onFlowSeedRowsChange(rows) {
-  patchActiveScenario({ flowSeed: rowsToFlowSeed(rows) });
-  syncScenarioDraft();
+function inSeedDisplayValue(name) {
+  const raw = activeScenario.value?.inSeed?.[name];
+  if (raw == null) return '';
+  if (typeof raw === 'string') return raw;
+  try {
+    return JSON.stringify(raw);
+  } catch {
+    return String(raw);
+  }
 }
 
-function onFlowOutputRowsChange(rows) {
-  store.flowOutputs = rowsToFlowOutputs(rows);
-  store.markDirty();
+/** 只 patch 契约内某一键；契约外脏键保留不展示 */
+function onInSeedFieldInput(name, e) {
+  const next = { ...(activeScenario.value?.inSeed || {}) };
+  next[name] = e.target.value;
+  patchActiveScenario({ inSeed: next });
+  syncScenarioDraft();
 }
 
 /** 步数上限变更：清空或非数字则写 null；否则取整并限制在 1～1000 */
@@ -325,5 +339,81 @@ function onSnapshotFailureChange(e) {
 .field__env-manage-icon {
   width: 16px;
   height: 16px;
+}
+
+.scenario-in-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--pd-border-subtle);
+  background: var(--pd-bg-sunken, #f8fafc);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--pd-text-muted);
+}
+
+.scenario-in-empty__btn {
+  align-self: flex-start;
+  height: 26px;
+  font-size: 11px;
+  padding: 0 8px;
+}
+
+.scenario-in-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scenario-in-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  input {
+    width: 100%;
+    height: 32px;
+    padding: 6px 8px;
+    border: 1px solid var(--pd-border-subtle);
+    border-radius: 6px;
+    font-size: 12px;
+    background: var(--pd-surface-elevated);
+    color: var(--pd-text);
+    box-sizing: border-box;
+
+    &:focus {
+      outline: none;
+      box-shadow: 0 0 0 1px var(--pd-primary) inset;
+      border-color: var(--pd-primary);
+    }
+  }
+}
+
+.scenario-in-row__label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.scenario-in-row__title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pd-text-muted);
+}
+
+.scenario-in-row__req {
+  margin-left: 2px;
+  color: var(--pd-danger, #dc2626);
+  font-weight: 700;
+}
+
+.scenario-in-row__name {
+  font-size: 10px;
+  color: var(--pd-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  opacity: 0.85;
 }
 </style>

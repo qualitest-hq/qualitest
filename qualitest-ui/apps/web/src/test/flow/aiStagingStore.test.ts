@@ -20,7 +20,7 @@ describe('aiStagingStore', () => {
   const ctx = {
     nodes: [{ id: '1001', type: 'http', position: { x: 0, y: 0 }, data: { name: '旧名' } }],
     edges: [],
-    runConfig: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }] },
+    runConfig: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }] },
   };
 
   it('hydrateStagingFromPatch 创建 pending 单元', () => {
@@ -131,7 +131,7 @@ describe('aiStagingStore', () => {
       addNodes: [{ id: 'a1', type: 'http', data: { name: 'A' } }],
       addEdges: [{ id: 'e1', source: 'a1', target: 'b1' }],
       scenarioPatch: {
-        addScenarios: [{ id: 'sc-new', name: '新场景', testProjectEnvId: '', flowSeed: {} }],
+        addScenarios: [{ id: 'sc-new', name: '新场景', testProjectEnvId: '', inSeed: {} }],
       },
     };
     const summaryCtx = {
@@ -139,7 +139,7 @@ describe('aiStagingStore', () => {
       edges: [],
       runConfig: {
         activeScenarioId: 'sc1',
-        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
       },
     };
 

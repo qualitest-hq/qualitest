@@ -62,7 +62,7 @@ export type SummarizeStepInput = {
     scenarioName?: string | null;
     scenarioId?: string | null;
     envName?: string | null;
-    flowSeed?: Record<string, unknown> | null;
+    inSeed?: Record<string, unknown> | null;
   } | null;
 };
 
@@ -359,11 +359,11 @@ export function summarizeStep(step: SummarizeStepInput | null | undefined): stri
   if (step.nodeType === 'runConfig') {
     const sl = step.scenarioLoaded;
     if (sl) {
-      const flowSeed = sl.flowSeed && typeof sl.flowSeed === 'object' ? sl.flowSeed : {};
-      const flowCount = Object.keys(flowSeed).length;
+      const inSeed = sl.inSeed && typeof sl.inSeed === 'object' ? sl.inSeed : {};
+      const inCount = Object.keys(inSeed).length;
       const scenarioLabel = sl.scenarioName || sl.scenarioId || '场景';
       const envLabel = sl.envName || '环境';
-      return `${scenarioLabel} · ${envLabel} · ${flowCount} 个 flow 初值`;
+      return `${scenarioLabel} · ${envLabel} · ${inCount} 个入参初值`;
     }
     return '场景加载';
   }

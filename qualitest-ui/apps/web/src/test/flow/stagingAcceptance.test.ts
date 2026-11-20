@@ -45,7 +45,7 @@ describe('stagingAcceptance', () => {
       edges: [],
       runConfig: {
         activeScenarioId: 'sc1',
-        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
       },
     };
 

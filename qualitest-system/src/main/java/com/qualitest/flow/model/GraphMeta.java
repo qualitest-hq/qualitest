@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 图元数据：画布状态、运行场景与流程返回值声明。
+ * 图元数据：画布状态、运行场景、入参定义/预设、以及流程返回值声明。
  */
 @Getter
 @Setter
@@ -53,6 +53,24 @@ public class GraphMeta {
      */
     @Builder.Default
     private List<GraphRunScenario> scenarios = new ArrayList<>();
+
+    /**
+     * 入参契约：声明字段，以及是否开放 HTTP 入站 path。
+     * 开放入站终态回包只读运行时 {@code out}。
+     */
+    private GraphInputSpec inputSpec;
+
+    /**
+     * 旧版入参预设列表（兼容）。
+     * 新图以场景 {@code inSeed} 为准；仅当场景尚无 {@code inSeed} 字段时开跑才回落读本列表。
+     */
+    @Builder.Default
+    private List<GraphInputPreset> inputPresets = new ArrayList<>();
+
+    /**
+     * 旧版活动入参预设 id（兼容）；新图不再作为画布主选择。
+     */
+    private String activeInputPresetId;
 
     /**
      * 流程对外暴露的 flow 返回值声明；子流节点 outputs 为空时用作默认映射

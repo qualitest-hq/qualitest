@@ -40,7 +40,7 @@
           />
           必填
         </label>
-        <button class="input-field-row__del" title="删除" type="button" @click="removeRow(index)">×</button>
+        <FlowRowRemoveButton title="删除" @click="removeRow(index)" />
       </div>
       <div class="input-field-row__extra">
         <input
@@ -75,7 +75,7 @@
               type="text"
               @input="onOptionText(index, oi, 'value', $event)"
           />
-          <button class="input-field-row__del" type="button" @click="removeOption(index, oi)">×</button>
+          <FlowRowRemoveButton title="删除选项" @click="removeOption(index, oi)" />
         </div>
         <button class="btn btn--ghost" type="button" @click="addOption(index)">+ 选项</button>
       </div>
@@ -102,6 +102,7 @@ import {
   requiresOptions,
 } from '@/utils/flow/inputFields'
 
+import FlowRowRemoveButton from '../../components/FlowRowRemoveButton.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 
 const props = defineProps({
@@ -256,19 +257,6 @@ function removeRow(index) {
   gap: 4px;
   font-size: 12px;
   white-space: nowrap;
-}
-
-.input-field-row__del {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  color: #94a3b8;
-}
-
-.input-field-row__del:hover {
-  color: #dc2626;
 }
 
 .input-field-row input,

@@ -15,17 +15,18 @@ import { useRunLibraryStore } from '../stores/runLibraryStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
 import { collectRunBlockingErrors } from '../utils/runReadiness';
 import { followRun } from './followActiveRun';
-import { endRunReplay } from './usePlayback';
 import { useFlowGraph } from './useFlowGraph';
-import { useFlowSimulate } from './useFlowSimulate';
 import { useRunConfig } from './useRunConfig';
 import { resolveRunIdAfterTrigger } from './waitQueuedRun';
+import {
+  registerRunSession,
+  stopRunSession,
+} from '../run/runSessionController';
 
 export function useFlowScenarioRun() {
   const store = useFlowCanvasStore();
   const runLib = useRunLibraryStore();
   const { saveFlow } = useFlowGraph();
-  const { abortSimulate } = useFlowSimulate();
   const { getActiveScenario, loadProjectEnvs, envOptions } = useRunConfig();
 
   const isScenarioRunActive = computed(() => !!runLib.scenarioRunLive);
@@ -76,8 +77,8 @@ export function useFlowScenarioRun() {
       return null;
     }
 
-    abortSimulate();
-    endRunReplay();
+    stopRunSession('simulate');
+    stopRunSession('replay');
 
     const placeholderId = `pending-${Date.now()}`;
     runLib.scenarioRunLive = { abort: false, recordId: placeholderId, phase: 'running' };
@@ -123,3 +124,11 @@ export function useFlowScenarioRun() {
     isScenarioRunActive,
   };
 }
+
+registerRunSession('scenario', {
+  stop: () => {
+    const runLib = useRunLibraryStore();
+    if (runLib.scenarioRunLive) runLib.scenarioRunLive.abort = true;
+  },
+  isActive: () => !!useRunLibraryStore().scenarioRunLive,
+});

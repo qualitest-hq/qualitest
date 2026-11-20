@@ -29,7 +29,7 @@
         "id": "sc-child",
         "name": "子流默认",
         "testProjectEnvId": "",
-        "flowSeed": {}
+        "inSeed": {}
       }
     ],
     "flowOutputs": [

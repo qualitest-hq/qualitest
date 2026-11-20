@@ -13,12 +13,13 @@ export interface SnapshotScope {
   tables: string[];
 }
 
-/** 运行场景 */
+/** 运行场景（场景预设）：环境、入参初值与失败策略 */
 export interface GraphRunScenario {
   id: string;
   name: string;
   testProjectEnvId: string;
-  flowSeed: Record<string, unknown>;
+  /** 入参初值 KV；Run 启动时注入 in；键由入参契约声明 */
+  inSeed?: Record<string, unknown>;
   remark?: string;
   onNodeFailure?: 'fail' | 'prompt';
   onSnapshotFailure?: 'abort' | 'prompt' | 'continue';
@@ -30,6 +31,52 @@ export interface GraphRunScenario {
 export interface GraphFlowOutput {
   name: string;
   description?: string;
+}
+
+/** 入参字段：开放入站与场景 inSeed 灌值时按 name 写入运行时 in */
+export interface GraphInputField {
+  name: string;
+  /** 画布展示名 */
+  label?: string;
+  /** 类型：string / number / boolean / json 等 */
+  type?: string;
+  /** 开放入站开跑前必须非空 */
+  required?: boolean;
+  /** 场景 inSeed 与请求都未给时写入 in 的缺省值 */
+  defaultValue?: unknown;
+  remark?: string;
+}
+
+/**
+ * 入参定义（meta.inputSpec）。
+ * open=true 时按完整 path（如 /v3/refund）入站：握连接跑图后把 out 写成 HTTP 回包。
+ */
+export interface GraphInputSpec {
+  fields?: GraphInputField[];
+  /** 是否开放 HTTP 入站 */
+  open?: boolean;
+  /** 完整相对 path，须以 / 开头（如 /v3/refund） */
+  path?: string;
+  holdTimeoutMs?: number | null;
+  /** 开放入站绑定的运行环境 id（字符串雪花）；open=true 时必填 */
+  runEnvId?: string;
+  /** @deprecated 旧入参预设兜底；场景已吸收 inSeed 后不再使用 */
+  defaultPresetId?: string;
+}
+
+/**
+ * 旧版入参预设（meta.inputPresets）。
+ * 新图以场景 inSeed 为准；加载时会迁入场景，仅兼容未重存的旧图。
+ */
+export interface GraphInputPreset {
+  id: string;
+  name: string;
+  testProjectEnvId?: string;
+  values?: Record<string, unknown>;
+  remark?: string;
+  onNodeFailure?: string;
+  onSnapshotFailure?: string;
+  maxSteps?: number | null;
 }
 
 /** 运行场景配置（画布 store 使用，对应 meta 展平字段） */
@@ -54,6 +101,12 @@ export interface GraphMeta {
   startNodeId?: string;
   activeScenarioId?: string;
   scenarios?: GraphRunScenario[];
+  /** 入参字段与是否开放入站（流级契约） */
+  inputSpec?: GraphInputSpec | null;
+  /** @deprecated 旧入参预设列表；加载迁入场景 inSeed 后不再维护 */
+  inputPresets?: GraphInputPreset[];
+  /** @deprecated 旧活动预设 id */
+  activeInputPresetId?: string;
   flowOutputs?: GraphFlowOutput[];
 }
 

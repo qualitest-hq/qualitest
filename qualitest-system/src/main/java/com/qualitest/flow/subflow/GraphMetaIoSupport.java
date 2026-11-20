@@ -102,13 +102,13 @@ public final class GraphMetaIoSupport {
     }
 
     /**
-     * 读取当前激活运行场景的流程变量初值。
+     * 读取当前激活运行场景的入参初值。
      * 无场景或初值为空时返回空 Map。
      *
      * @param meta 图元数据
      * @return 初值副本
      */
-    public static Map<String, Object> activeScenarioFlowSeed(GraphMeta meta) {
+    public static Map<String, Object> activeScenarioInSeed(GraphMeta meta) {
         if (meta == null || meta.getScenarios() == null || meta.getScenarios().isEmpty()) {
             return Map.of();
         }
@@ -120,29 +120,29 @@ public final class GraphMetaIoSupport {
         if (matched == null) {
             matched = meta.getScenarios().get(0);
         }
-        if (matched.getFlowSeed() == null || matched.getFlowSeed().isEmpty()) {
+        if (matched.getInSeed() == null || matched.getInSeed().isEmpty()) {
             return Map.of();
         }
-        return new HashMap<>(matched.getFlowSeed());
+        return new HashMap<>(matched.getInSeed());
     }
 
     /**
      * 按激活场景初值键名建议子流输入映射。
-     * 每行 name 为键名，value 为对应的流程变量占位符。
+     * 每行 name 为键名，value 为对应的入参占位符。
      *
      * @param meta 图元数据
      * @return 建议的输入映射行
      */
     public static List<Map<String, String>> suggestInputMappings(GraphMeta meta) {
         List<Map<String, String>> out = new ArrayList<>();
-        Map<String, Object> seed = activeScenarioFlowSeed(meta);
+        Map<String, Object> seed = activeScenarioInSeed(meta);
         for (String key : seed.keySet()) {
             if (key == null || key.isBlank()) {
                 continue;
             }
             Map<String, String> row = new LinkedHashMap<>();
             row.put("name", key);
-            row.put("value", "{{flow." + key + "}}");
+            row.put("value", "{{in." + key + "}}");
             out.add(row);
         }
         return out;

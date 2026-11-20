@@ -129,7 +129,7 @@
         "id": "sc-default",
         "name": "默认",
         "testProjectEnvId": "9001",
-        "flowSeed": {
+        "inSeed": {
           "loginUser": "admin"
         },
         "remark": "线性冒烟"

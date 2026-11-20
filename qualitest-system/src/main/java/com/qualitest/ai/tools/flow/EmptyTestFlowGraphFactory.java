@@ -26,7 +26,7 @@ public final class EmptyTestFlowGraphFactory {
         scenario.put("id", scenarioId);
         scenario.put("name", "默认（冒烟）");
         scenario.put("testProjectEnvId", "");
-        scenario.put("flowSeed", new JSONObject());
+        scenario.put("inSeed", new JSONObject());
         scenario.put("remark", "");
 
         JSONObject viewport = new JSONObject();

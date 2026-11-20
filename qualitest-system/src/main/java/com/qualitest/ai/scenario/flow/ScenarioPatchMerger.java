@@ -19,7 +19,7 @@ import java.util.Set;
  * 在内存中操作 GraphMeta 副本，不写库。支持：
  * <ul>
  *   <li>新增场景（跳过已存在 id）</li>
- *   <li>按 id 更新 name、环境、flowSeed、remark、失败策略等</li>
+     *   <li>按 id 更新 name、环境、inSeed、remark、失败策略等</li>
  *   <li>删除场景（至少保留一条；删光时回滚到原列表；若删掉当前默认则改指剩余首条）</li>
  * </ul>
  */
@@ -55,7 +55,7 @@ public final class ScenarioPatchMerger {
             }
         }
 
-        // 按 id 合并场景字段（name、环境、备注、失败策略、flowSeed 等）
+        // 按 id 合并场景字段（name、环境、备注、失败策略、inSeed 等）
         if (patch.getUpdateScenarios() != null) {
             for (GraphRunScenario update : patch.getUpdateScenarios()) {
                 if (update == null || update.getId() == null || update.getId().isBlank()) {
@@ -111,7 +111,7 @@ public final class ScenarioPatchMerger {
                     .id(String.valueOf(IdUtil.getSnowflakeNextId()))
                     .name("默认（冒烟）")
                     .testProjectEnvId("")
-                    .flowSeed(new HashMap<>())
+                    .inSeed(new HashMap<>())
                     .remark("")
                     .build();
             return GraphMeta.builder()

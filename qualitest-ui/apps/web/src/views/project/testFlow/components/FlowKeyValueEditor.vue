@@ -14,15 +14,11 @@
           type="text"
           @input="emitRows"
       />
-      <button
+      <FlowRowRemoveButton
           :disabled="localRows.length <= minRows"
-          class="btn btn--ghost flow-kv-editor__remove"
           title="删除行"
-          type="button"
           @click="removeRow(idx)"
-      >
-        ×
-      </button>
+      />
     </div>
     <button class="btn btn--ghost flow-kv-editor__add" type="button" @click="addRow">
       {{ addLabel }}
@@ -32,10 +28,12 @@
 
 <script setup>
 /**
- * 双列键值表编辑器：flowSeed、flowOutputs 等场景共用。
+ * 双列键值表编辑器：flowOutputs 等场景共用。
  * columns 定义列 field / label / placeholder；rows 为行对象数组。
  */
 import { ref, watch } from 'vue';
+
+import FlowRowRemoveButton from './FlowRowRemoveButton.vue';
 
 const props = defineProps({
   columns: {

@@ -20,7 +20,7 @@ export interface BuildDebugFlowContextOptions {
   envVariables?: string | null;
   /** 项目素材列表 */
   assetEntries?: VariableEntryLike[];
-  /** 已有 flow 变量（如从 session 恢复或场景 flowSeed） */
+  /** 已有 flow 变量（如从 session 恢复） */
   flow?: Record<string, unknown>;
 }
 

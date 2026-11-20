@@ -113,7 +113,7 @@
         "id": "tpl_sc_default",
         "name": "模板默认",
         "testProjectEnvId": "",
-        "flowSeed": {
+        "inSeed": {
           "username": "",
           "password": ""
         },

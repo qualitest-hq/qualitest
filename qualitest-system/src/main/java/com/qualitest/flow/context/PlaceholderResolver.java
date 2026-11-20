@@ -9,7 +9,8 @@ import java.util.Map;
  * 占位符与运行时路径解析。
  * <p>
  * 模板形态：{@code {{scope.path}}}。<br>
- * 持久变量：{@code env.*}、{@code flow.*}、{@code asset.*}。<br>
+ * 可写/可读持久作用域：{@code env.*}、{@code flow.*}（中间量）、{@code in.*}（入参）、
+ * {@code out.*}（出参）、{@code asset.*}。<br>
  * 最近一次 HTTP：{@code http.body} / {@code http.body.<JsonPath相对路径>}、
  * {@code http.status}、{@code http.duration}、{@code http.header.*}、
  * {@code http.bodyText}、{@code http.responseKind}、{@code http.expectedMatch}。<br>
@@ -53,7 +54,7 @@ public record PlaceholderResolver(ResolveMode mode) {
     }
 
     /**
-     * 替换模板中全部合法路径占位 {@code {{flow.|env.|asset.|http.|nodes.…}}}。
+     * 替换模板中全部合法路径占位（flow / in / out / env / asset / http / nodes…）。
      * 非路径形态的花括号保留为字面量；未定义路径在宽松模式下变空串，严格模式下抛错。
      *
      * @param template 模板原文，null 视为空串
@@ -99,7 +100,13 @@ public record PlaceholderResolver(ResolveMode mode) {
             return null;
         }
         if (p.startsWith("flow.")) {
-            return ctx.getFlow().get(p.substring(5));
+            return resolveScopedPath(ctx.getFlow(), p.substring(5));
+        }
+        if (p.startsWith("in.")) {
+            return resolveScopedPath(ctx.getIn(), p.substring(3));
+        }
+        if (p.startsWith("out.")) {
+            return resolveScopedPath(ctx.getOut(), p.substring(4));
         }
         if (p.startsWith("env.")) {
             return ctx.getEnv().get(p.substring(4));
@@ -235,6 +242,27 @@ public record PlaceholderResolver(ResolveMode mode) {
             return null;
         }
         return snap.getHeaders().get(name);
+    }
+
+    /**
+     * 从 flow / in / out 按路径取值。
+     * 无点取顶层键；有点时先试整段键名，再没有则按点分段在 Map 上下钻。
+     */
+    private static Object resolveScopedPath(Map<String, Object> scope, String rest) {
+        if (scope == null || rest == null || rest.isEmpty()) {
+            return null;
+        }
+        if (!rest.contains(".")) {
+            return scope.get(rest);
+        }
+        Object direct = scope.get(rest);
+        if (direct != null) {
+            return direct;
+        }
+        int dot = rest.indexOf('.');
+        String key = rest.substring(0, dot);
+        String sub = rest.substring(dot + 1);
+        return navigateMap(scope.get(key), sub);
     }
 
     /** {@code asset.key} 或 {@code asset.key.a.b}：先取条目，再按点分键逐级下钻。 */

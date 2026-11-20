@@ -20,6 +20,10 @@ export interface HttpResponseSnapshot {
 export interface FlowRunContext {
   env: Record<string, unknown>;
   flow: Record<string, unknown>;
+  /** 入参：预设/请求注入；占位 {{in.x}} */
+  in?: Record<string, unknown>;
+  /** 出参：Assign scope=out 写入；开放入站回包读此对象 */
+  out?: Record<string, unknown>;
   asset: Record<string, unknown>;
   /** 本上下文内最近一次 HTTP 响应快照 */
   lastResponse?: HttpResponseSnapshot | null;

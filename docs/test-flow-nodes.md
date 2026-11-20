@@ -14,7 +14,7 @@
 | `http` | HTTP | 调用项目接口或外联 URL |
 | `assert` | Assert | 对上下文做比较断言（多条 AND） |
 | `condition` | Condition | IF / ELIF / ELSE 分支 |
-| `assign` | Assign | 写入 `flow` 变量 |
+| `assign` | Assign | 写入 `flow` 或出参 `out` |
 | `delay` | Delay | 等待一段时间 |
 | `script` | Script | GraalVM 沙箱脚本（JS / Python） |
 | `subflow` | Subflow | 引用同项目另一张测试流，折叠为单节点 |
@@ -163,12 +163,25 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 
 ## Assign（`assign`）
 
-处理 `data.assignments[]`，**只写 `flow` 作用域**：
+处理 `data.assignments[]`。每条可指定 `scope`：
+
+| scope | 说明 |
+|-------|------|
+| `flow`（默认） | 中间变量；兼容旧图 |
+| `out` | 出参；开放入站终态回包唯一来源 |
 
 | op | 行为 |
 |----|------|
-| `set` | 解析 value 占位符后覆盖 |
-| `add` / `sub` / `mul` / `div` | 在现有值或 `ifMissing` 上按 `step` 运算 |
+| `set` | value 可为字符串或对象/数组；叶子字符串解析占位（`{{in.*}}` / `{{flow.*}}` 等）后写入 |
+| `add` / `sub` / `mul` / `div` | 仅 `flow` 标量：在现有值或 `ifMissing` 上按 `step` 运算；`out` 不支持四则 |
+
+出参约定形状（推荐一次 `set` 写全）：
+
+```text
+out = { status?: 200, headers?: {…}, body: {…} }
+```
+
+开放入站 flush 时须有合格 `out.body`；未写出参则错包。未开放入站时写 `out` 不对外 flush。
 
 每条赋值的 before/after 写入步骤报告。正式 Run 使用严格占位符：未定义占位符会失败。
 

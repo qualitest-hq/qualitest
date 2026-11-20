@@ -349,7 +349,7 @@
     "type": "function",
     "function": {
       "name": "get_scenario_detail",
-      "description": "获取单个运行场景配置（含 flowSeed 键名，不含明文）。改场景前优先调用；MCP 可仅传 testFlowId",
+      "description": "获取单个运行场景配置（含 inSeed 键名，不含明文）。改场景前优先调用；MCP 可仅传 testFlowId",
       "parameters": {
         "type": "object",
         "properties": {
@@ -452,7 +452,7 @@
     "type": "function",
     "function": {
       "name": "get_subflow_detail",
-      "description": "读取测试流拓扑摘要、flowOutputs（含 description）与 suggestedInputs（按子图 flowSeed 建议父→子映射），无需 graphJson 信封；浏览子流结构优先于 get_flow",
+      "description": "读取测试流拓扑摘要、flowOutputs（含 description）与 suggestedInputs（按子图 inSeed 建议父→子映射），无需 graphJson 信封；浏览子流结构优先于 get_flow",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1261,7 +1261,7 @@
     "type": "function",
     "function": {
       "name": "submit_scenario",
-      "description": "新增或修改单个运行场景（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id。不切换默认场景。flowSeed 为 Run 开始注入的 flow 初值（键→字面量或简单值，勿塞明文口令）。",
+      "description": "新增或修改单个运行场景（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id。不切换默认场景。inSeed 为 Run 开始注入的入参初值（键→字面量或简单值，勿塞明文口令）。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1285,9 +1285,9 @@
             "type": "string",
             "description": "绑定的项目环境 id；可空"
           },
-          "flowSeed": {
+          "inSeed": {
             "type": "object",
-            "description": "流程变量初值 Map；键为 flow 变量名（如 loginUser、orderId），值为字符串/数字/布尔/JSON。Run 启动写入 flow；不要放密码。形状可参考 get_scenario_detail。",
+            "description": "入参初值 Map；键为 inputSpec 字段名（如 orderId），值为字符串/数字/布尔/JSON。Run 启动写入 in；不要放密码。形状可参考 get_scenario_detail。",
             "additionalProperties": true
           },
           "maxSteps": {

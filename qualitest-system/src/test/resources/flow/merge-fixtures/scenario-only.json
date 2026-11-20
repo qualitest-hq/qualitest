@@ -25,13 +25,13 @@
           "id": "sc1",
           "name": "默认",
           "testProjectEnvId": "",
-          "flowSeed": {}
+          "inSeed": {}
         },
         {
           "id": "sc2",
           "name": "回归",
           "testProjectEnvId": "",
-          "flowSeed": {}
+          "inSeed": {}
         }
       ],
       "flowOutputs": []
@@ -44,7 +44,7 @@
           "id": "sc1",
           "name": "默认V2",
           "testProjectEnvId": "",
-          "flowSeed": {}
+          "inSeed": {}
         }
       ]
     }

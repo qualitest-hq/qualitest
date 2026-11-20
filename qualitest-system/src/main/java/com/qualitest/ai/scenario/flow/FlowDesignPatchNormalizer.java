@@ -998,7 +998,7 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 规范化 scenarioPatch：为新增场景补雪花 id、空 flowSeed 与占位名称。
+     * 规范化 scenarioPatch：为新增场景补雪花 id、空 inSeed 与占位名称。
      */
     private void normalizeScenarioPatch(FlowDesignPatch patch) {
         FlowDesignScenarioPatch scenarioPatch = patch.getScenarioPatch();
@@ -1014,8 +1014,8 @@ public class FlowDesignPatchNormalizer {
                 if (scenario.getId() == null || scenario.getId().isBlank() || !isValidId(scenario.getId())) {
                     scenario.setId(String.valueOf(IdUtil.getSnowflakeNextId()));
                 }
-                if (scenario.getFlowSeed() == null) {
-                    scenario.setFlowSeed(new HashMap<>());
+                if (scenario.getInSeed() == null) {
+                    scenario.setInSeed(new HashMap<>());
                 }
                 if (scenario.getName() == null || scenario.getName().isBlank()) {
                     scenario.setName("新场景 " + index);

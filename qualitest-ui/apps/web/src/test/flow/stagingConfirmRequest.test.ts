@@ -31,7 +31,7 @@ vi.mock('@/views/project/testFlow/utils/confirmFlowDesignUnit', () => ({
       edges: [],
       meta: {
         activeScenarioId: 'sc1',
-        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
       },
     },
     baseGraphHash: 'server-hash-mismatch',
@@ -55,7 +55,7 @@ describe('applyConfirmResultWithHashGuard', () => {
     canvasStore.edges = [];
     canvasStore.runConfig = {
       activeScenarioId: 'sc1',
-      scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+      scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
     };
 
     stagingStore.hydrateStagingFromPatch(
@@ -104,7 +104,7 @@ describe('applyConfirmResultWithHashGuard', () => {
     canvasStore.edges = [];
     canvasStore.runConfig = {
       activeScenarioId: 'sc1',
-      scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+      scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
     };
 
     stagingStore.hydrateStagingFromPatch(
@@ -125,7 +125,7 @@ describe('applyConfirmResultWithHashGuard', () => {
       edges: [],
       meta: {
         activeScenarioId: 'sc1',
-        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
       },
     });
     const merged = mergePendingStagingIntoConfirmedGraph(applied, canvasStore, stagingStore);
@@ -138,7 +138,7 @@ describe('applyConfirmResultWithHashGuard', () => {
         edges: [],
         meta: {
           activeScenarioId: 'sc1',
-          scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+          scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
         },
       },
       canvasStore,

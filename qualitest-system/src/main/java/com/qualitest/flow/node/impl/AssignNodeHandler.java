@@ -6,6 +6,8 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.context.PlaceholderResolver;
+import com.qualitest.flow.exception.FlowErrorCode;
+import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.validate.FlowNodeType;
@@ -17,14 +19,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Assign 节点执行器。
+ * Assign 节点执行器：按 {@code data.assignments[]} 改写运行时变量。
  * <p>
- * 逐条处理 {@code data.assignments[]}，仅写入 {@code flow} 作用域：
+ * 每条赋值含：
  * <ul>
- *   <li>set：解析 value 占位符后覆盖变量</li>
- *   <li>add/sub/mul/div：在现有值或 ifMissing 基础上按 step 步长运算</li>
+ *   <li>{@code scope}：{@code flow}（默认，中间量）或 {@code out}（出参）；{@code in} 只读，写入会失败</li>
+ *   <li>{@code name}：目标键，支持点路径（如 {@code body}、{@code headers.X-Demo}）</li>
+ *   <li>{@code op}：{@code set} 写入任意值；{@code add}/{@code sub}/{@code mul}/{@code div} 只对 {@code flow} 标量做四则</li>
+ *   <li>{@code value}：{@code set} 时可为字符串或对象/数组；对象叶子里的字符串会解析 {@code {{in.x}}} / {@code {{flow.x}}} 等占位</li>
  * </ul>
- * 每条赋值记录 before/after 写入 {@code StepResult.assigns} 供报告展示。
+ * 每条 before/after 记入步骤 {@code assigns}，供运行报告展示。
  */
 @Component
 public class AssignNodeHandler extends AbstractStubNodeHandler {
@@ -71,7 +75,8 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
     }
 
     /**
-     * 执行单条赋值；变量名为空时跳过。
+     * 执行单条赋值。
+     * 变量名为空则跳过；写 {@code out} 时禁止四则运算。
      */
     static Map<String, Object> applyAssignment(JSONObject row, FlowRunContext ctx) {
         String name = row.getString("name");
@@ -80,9 +85,17 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
         }
         name = name.trim();
         String op = normalizeOp(row.getString("op"));
+        String scope = normalizeScope(row.getString("scope"));
 
-        Map<String, Object> flow = ctx.getFlow();
-        Object before = flow.get(name);
+        if ("out".equals(scope) && isStepOp(op)) {
+            throw new FlowExecutionException(
+                    FlowErrorCode.TF_GRAPH_INVALID,
+                    "出参作用域 out 仅支持 set，不支持四则运算"
+            );
+        }
+
+        Map<String, Object> target = "out".equals(scope) ? ensureOut(ctx) : ensureFlow(ctx);
+        Object before = getByPath(target, name);
         Object after = before;
 
         if (isStepOp(op)) {
@@ -98,21 +111,167 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
                 default -> base;
             };
             after = toNumber(computed);
+            putByPath(target, name, after);
         } else {
-            String rawValue = row.getString("value");
-            after = STRICT.resolve(rawValue != null ? rawValue : "", ctx);
-            after = coerceLiteral(after);
+            Object rawValue = row.get("value");
+            after = resolveStructuredValue(rawValue, ctx);
+            putByPath(target, name, after);
         }
 
-        flow.put(name, after);
-
         Map<String, Object> record = new LinkedHashMap<>();
-        record.put("scope", "flow");
+        record.put("scope", scope);
         record.put("name", name);
         record.put("op", op);
         record.put("before", before);
         record.put("after", after);
         return record;
+    }
+
+    /**
+     * 解析 {@code set} 的 value。
+     * 字符串整段做占位替换并尝试转成布尔/数字；对象与数组递归处理叶子字符串。
+     */
+    static Object resolveStructuredValue(Object raw, FlowRunContext ctx) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof String s) {
+            Object resolved = STRICT.resolve(s, ctx);
+            return coerceLiteral(resolved);
+        }
+        if (raw instanceof JSONObject obj) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            for (String key : obj.keySet()) {
+                out.put(key, resolveStructuredValue(obj.get(key), ctx));
+            }
+            return out;
+        }
+        if (raw instanceof JSONArray arr) {
+            List<Object> out = new ArrayList<>(arr.size());
+            for (int i = 0; i < arr.size(); i++) {
+                out.add(resolveStructuredValue(arr.get(i), ctx));
+            }
+            return out;
+        }
+        if (raw instanceof Map<?, ?> map) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                if (e.getKey() == null) {
+                    continue;
+                }
+                out.put(String.valueOf(e.getKey()), resolveStructuredValue(e.getValue(), ctx));
+            }
+            return out;
+        }
+        if (raw instanceof List<?> list) {
+            List<Object> out = new ArrayList<>(list.size());
+            for (Object item : list) {
+                out.add(resolveStructuredValue(item, ctx));
+            }
+            return out;
+        }
+        if (raw instanceof Number || raw instanceof Boolean) {
+            return raw;
+        }
+        // 其它类型按字符串解析占位
+        Object resolved = STRICT.resolve(String.valueOf(raw), ctx);
+        return coerceLiteral(resolved);
+    }
+
+    /**
+     * 规范化作用域：空或未知 → {@code flow}；{@code out} 保留；{@code in} 抛错（只读）。
+     */
+    static String normalizeScope(String scope) {
+        if (scope == null || scope.isBlank()) {
+            return "flow";
+        }
+        String s = scope.trim().toLowerCase();
+        if ("out".equals(s)) {
+            return "out";
+        }
+        if ("flow".equals(s)) {
+            return "flow";
+        }
+        if ("in".equals(s)) {
+            throw new FlowExecutionException(
+                    FlowErrorCode.TF_GRAPH_INVALID,
+                    "入参作用域 in 只读，Assign 不可写入"
+            );
+        }
+        return "flow";
+    }
+
+    private static Map<String, Object> ensureFlow(FlowRunContext ctx) {
+        if (ctx.getFlow() == null) {
+            ctx.setFlow(new LinkedHashMap<>());
+        }
+        return ctx.getFlow();
+    }
+
+    private static Map<String, Object> ensureOut(FlowRunContext ctx) {
+        if (ctx.getOut() == null) {
+            ctx.setOut(new LinkedHashMap<>());
+        }
+        return ctx.getOut();
+    }
+
+    /**
+     * 按点路径从作用域取值。
+     * 无点则按整键取；有点时先试整键，再按段下钻 Map。
+     */
+    @SuppressWarnings("unchecked")
+    static Object getByPath(Map<String, Object> root, String path) {
+        if (root == null || path == null || path.isBlank()) {
+            return null;
+        }
+        if (!path.contains(".")) {
+            return root.get(path);
+        }
+        Object direct = root.get(path);
+        if (direct != null) {
+            return direct;
+        }
+        String[] parts = path.split("\\.");
+        Object cur = root;
+        for (String part : parts) {
+            if (!(cur instanceof Map)) {
+                return null;
+            }
+            cur = ((Map<String, Object>) cur).get(part);
+            if (cur == null) {
+                return null;
+            }
+        }
+        return cur;
+    }
+
+    /**
+     * 按点路径写入作用域。
+     * 无点则写顶层键；有点则沿路径创建缺失的中间 Map，最后一段写入值。
+     * 典型用法：一次写 {@code body} 整对象，或写 {@code status} / {@code headers.某头}。
+     */
+    @SuppressWarnings("unchecked")
+    static void putByPath(Map<String, Object> root, String path, Object value) {
+        if (root == null || path == null || path.isBlank()) {
+            return;
+        }
+        if (!path.contains(".")) {
+            root.put(path, value);
+            return;
+        }
+        String[] parts = path.split("\\.");
+        Map<String, Object> cur = root;
+        for (int i = 0; i < parts.length - 1; i++) {
+            Object next = cur.get(parts[i]);
+            if (!(next instanceof Map)) {
+                Map<String, Object> created = new LinkedHashMap<>();
+                cur.put(parts[i], created);
+                cur = created;
+            } else {
+                cur = (Map<String, Object>) next;
+            }
+        }
+        cur.put(parts[parts.length - 1], value);
     }
 
     /** 规范化赋值运算符；空值或非法值默认 set */
@@ -151,10 +310,13 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
         }
     }
 
-    /** 将 set 运算解析结果尝试转为布尔或数值字面量 */
+    /** 将 set 运算解析结果尝试转为布尔或数值字面量（仅纯字符串叶子） */
     private static Object coerceLiteral(Object val) {
         if (val == null) {
             return null;
+        }
+        if (!(val instanceof String)) {
+            return val;
         }
         String s = String.valueOf(val).trim();
         if ("true".equalsIgnoreCase(s)) {

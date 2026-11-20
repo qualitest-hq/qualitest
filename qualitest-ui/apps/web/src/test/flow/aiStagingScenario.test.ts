@@ -19,7 +19,7 @@ describe('aiStagingStore stagingByScenarioId', () => {
       'msg-1',
       {
         scenarioPatch: {
-          addScenarios: [{ id: 'sc-new', name: '回归场景', testProjectEnvId: '1', flowSeed: {} }],
+          addScenarios: [{ id: 'sc-new', name: '回归场景', testProjectEnvId: '1', inSeed: {} }],
         },
       },
       { nodes: [], edges: [], runConfig: { activeScenarioId: 'sc1', scenarios: [] } },
@@ -37,7 +37,7 @@ describe('aiStagingStore stagingByScenarioId', () => {
       'msg-2',
       {
         scenarioPatch: {
-          updateScenarios: [{ id: 'sc1', name: '默认V2', testProjectEnvId: '', flowSeed: {} }],
+          updateScenarios: [{ id: 'sc1', name: '默认V2', testProjectEnvId: '', inSeed: {} }],
         },
       },
       {
@@ -45,7 +45,7 @@ describe('aiStagingStore stagingByScenarioId', () => {
         edges: [],
         runConfig: {
           activeScenarioId: 'sc1',
-          scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+          scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
         },
       },
     );

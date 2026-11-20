@@ -11,7 +11,8 @@ import java.util.Map;
 /**
  * 组装单次 Run 的 {@link FlowRunContext}。
  * <p>
- * 将环境变量、素材库条目、场景 flow 初值写入对应 scope，供占位符与节点 Handler 读取。
+ * 把环境变量、素材库、in 初值写入对应作用域；{@code flow}/{@code out} 开跑为空，
+ * 供占位符解析与节点 Handler 读写。
  */
 public final class FlowRunContextBuilder {
 
@@ -19,22 +20,29 @@ public final class FlowRunContextBuilder {
     }
 
     /**
+     * 组装单次 Run 运行时上下文（无入参初值）。
+     */
+    public static FlowRunContext build(TestProjectEnv env, String assetJson) {
+        return build(env, assetJson, null, null, true);
+    }
+
+    public static FlowRunContext build(TestProjectEnv env, String assetJson, Long testProjectId) {
+        return build(env, assetJson, null, testProjectId, true);
+    }
+
+    public static FlowRunContext build(TestProjectEnv env, String assetJson, Long testProjectId,
+                                       boolean externalHttpPermitted) {
+        return build(env, assetJson, null, testProjectId, externalHttpPermitted);
+    }
+
+    /**
      * 组装单次 Run 运行时上下文。
      *
-     * @param env         测试项目环境（含 envUrl / envVariables）
-     * @param assetJson   项目 asset_variables JSON 文本
-     * @param flowSeed    场景 flow 初值
+     * @param inSeed                 入参初值，写入 {@code in}；可空
+     * @param testProjectId          所属项目 id
+     * @param externalHttpPermitted  是否允许节点发外联 HTTP
      */
-    public static FlowRunContext build(TestProjectEnv env, String assetJson, Map<String, Object> flowSeed) {
-        return build(env, assetJson, flowSeed, null);
-    }
-
-    public static FlowRunContext build(TestProjectEnv env, String assetJson, Map<String, Object> flowSeed,
-                                       Long testProjectId) {
-        return build(env, assetJson, flowSeed, testProjectId, true);
-    }
-
-    public static FlowRunContext build(TestProjectEnv env, String assetJson, Map<String, Object> flowSeed,
+    public static FlowRunContext build(TestProjectEnv env, String assetJson, Map<String, Object> inSeed,
                                        Long testProjectId, boolean externalHttpPermitted) {
         Map<String, Object> envMap = new HashMap<>();
         if (env != null) {
@@ -49,15 +57,17 @@ public final class FlowRunContextBuilder {
         List<TestProjectAsset> assetEntries = TestProjectVariableEntrySupport.parseEntries(assetJson);
         Map<String, Object> assetMap = entriesToScopeMap(assetEntries);
 
-        Map<String, Object> flow = new HashMap<>();
-        if (flowSeed != null) {
-            flow.putAll(flowSeed);
+        Map<String, Object> in = new HashMap<>();
+        if (inSeed != null) {
+            in.putAll(inSeed);
         }
 
         return FlowRunContext.builder()
                 .env(envMap)
                 .asset(assetMap)
-                .flow(flow)
+                .flow(new HashMap<>())
+                .in(in)
+                .out(new HashMap<>())
                 .testProjectId(testProjectId)
                 .externalHttpPermitted(externalHttpPermitted)
                 .build();

@@ -302,7 +302,7 @@ class TestFlowDesignAgentTest {
                 .id("2042000000000000101")
                 .name("默认")
                 .testProjectEnvId("")
-                .flowSeed(new HashMap<>())
+                .inSeed(new HashMap<>())
                 .build();
         GraphJson graph = GraphJson.builder()
                 .nodes(new ArrayList<>())

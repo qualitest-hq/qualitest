@@ -25,7 +25,7 @@ describe('buildStagingUnits', () => {
     addEdges: [{ id: '8001', source: '1001', target: '9001' }],
     suggestedDeletes: { nodeIds: ['1002'], edgeIds: ['7001'] },
     scenarioPatch: {
-      addScenarios: [{ id: 'sc3', name: '回归', testProjectEnvId: '', flowSeed: {} }],
+      addScenarios: [{ id: 'sc3', name: '回归', testProjectEnvId: '', inSeed: {} }],
       updateScenarios: [{ id: 'sc1', name: '默认V2' }],
       deleteScenarioIds: ['sc9'],
     },
@@ -36,9 +36,9 @@ describe('buildStagingUnits', () => {
     runConfig: {
       activeScenarioId: 'sc1',
       scenarios: [
-        { id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} },
-        { id: 'sc2', name: '预发', testProjectEnvId: '', flowSeed: {} },
-        { id: 'sc9', name: '废弃', testProjectEnvId: '', flowSeed: {} },
+        { id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} },
+        { id: 'sc2', name: '预发', testProjectEnvId: '', inSeed: {} },
+        { id: 'sc9', name: '废弃', testProjectEnvId: '', inSeed: {} },
       ],
     },
   };

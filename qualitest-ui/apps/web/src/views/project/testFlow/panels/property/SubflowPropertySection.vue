@@ -61,7 +61,7 @@
             type="text"
             @input="updateInput(idx, 'value', $event.target.value)"
         />
-        <button class="subflow-io-del" type="button" @click="removeInput(idx)">×</button>
+        <FlowRowRemoveButton title="删除输入" @click="removeInput(idx)" />
       </div>
       <button class="btn btn--ghost btn--sm" type="button" @click="addInput">+ 添加输入</button>
     </div>
@@ -83,7 +83,7 @@
             type="text"
             @input="updateOutput(idx, 'flowKey', $event.target.value)"
         />
-        <button class="subflow-io-del" type="button" @click="removeOutput(idx)">×</button>
+        <FlowRowRemoveButton title="删除输出" @click="removeOutput(idx)" />
       </div>
       <button class="btn btn--ghost btn--sm" type="button" @click="addOutput">+ 添加输出</button>
     </div>
@@ -107,6 +107,7 @@ import {
   listTestFlow,
 } from '@/api/project/testFlow'
 
+import FlowRowRemoveButton from '../../components/FlowRowRemoveButton.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowCanvasStore } from '../../stores/flowCanvasStore'
 import { updateSummary } from '../../utils/nodeDataUtils'
@@ -184,9 +185,9 @@ function suggestIoFromGraphJson(graphJsonRaw) {
     if (!meta?.scenarios?.length) return { inputs: [], outputs: [] }
     const activeId = meta.activeScenarioId ?? meta.scenarios[0]?.id
     const scenario = meta.scenarios.find((s) => s.id === activeId) ?? meta.scenarios[0]
-    const inputs = Object.keys(scenario?.flowSeed ?? {}).map((key) => ({
+    const inputs = Object.keys(scenario?.inSeed ?? {}).map((key) => ({
       name: key,
-      value: `{{flow.${key}}}`,
+      value: `{{in.${key}}}`,
     }))
     const outputs = (meta.flowOutputs ?? [])
       .filter((o) => o?.name?.trim())
@@ -383,17 +384,6 @@ watch(
   font-size: 11px;
   border: 1px solid var(--pd-border-subtle);
   border-radius: 4px;
-}
-
-.subflow-io-del {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  color: var(--pd-text-muted);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
 }
 
 .btn--sm {

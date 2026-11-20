@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * 单次 Run 运行时上下文。
  * <p>
- * 持有 env / flow / asset / session、外联权限、项目 ID、
+ * 持有 env / flow / in / out / asset / session、外联权限、项目 ID、
  * 最近一次 HTTP 快照 lastResponse、按节点 id 索引的 HTTP 快照 nodeResponses，
  * 以及项目多端配置（projectAuthConfig：鉴权头 + 各端响应约定）。
  */
@@ -24,6 +24,23 @@ public class FlowRunContext {
 
     @Builder.Default
     private Map<String, Object> flow = new HashMap<>();
+
+    /**
+     * 入参作用域。
+     * 来源：入参预设 {@code values}、字段缺省值、开放入站请求体按字段名注入。
+     * 图内占位写法 {@code {{in.字段名}}}；Assign 不可写入本作用域。
+     */
+    @Builder.Default
+    private Map<String, Object> in = new HashMap<>();
+
+    /**
+     * 出参作用域。
+     * 由 Assign 节点 {@code scope=out} 写入；推荐键：{@code status}（HTTP 状态，可缺省 200）、
+     * {@code headers}（响应头 Map）、{@code body}（响应体，开放入站回包必填）。
+     * 仅当本流开启了开放入站时，跑完后才把本 Map 刷成 HTTP 响应；普通跑流写了也不对外返回。
+     */
+    @Builder.Default
+    private Map<String, Object> out = new HashMap<>();
 
     /**
      * 素材 key → 业务值根节点（通常为 Map）

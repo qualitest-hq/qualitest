@@ -48,18 +48,18 @@ class GraphMetaIoSupportTest {
     }
 
     /**
-     * 前提：activeScenario 的 flowSeed 含 loginUser。
-     * 期望：inputs 一行 name=loginUser、value={{flow.loginUser}}。
+     * 前提：activeScenario 的 inSeed 含 loginUser。
+     * 期望：inputs 一行 name=loginUser、value={{in.loginUser}}。
      */
     @Test
     @Order(2)
-    @DisplayName("建议 inputs：来自 activeScenario.flowSeed")
-    void suggestInputMappings_fromActiveScenarioFlowSeed() {
+    @DisplayName("建议 inputs：来自 activeScenario.inSeed")
+    void suggestInputMappings_fromActiveScenarioInSeed() {
         GraphRunScenario scenario = GraphRunScenario.builder()
                 .id("s1")
                 .name("默认")
                 .testProjectEnvId("")
-                .flowSeed(new HashMap<>(Map.of("loginUser", "admin")))
+                .inSeed(new HashMap<>(Map.of("loginUser", "admin")))
                 .build();
         GraphMeta meta = GraphMeta.builder()
                 .activeScenarioId("s1")
@@ -70,7 +70,7 @@ class GraphMetaIoSupportTest {
 
         assertEquals(1, inputs.size());
         assertEquals("loginUser", inputs.get(0).get("name"));
-        assertEquals("{{flow.loginUser}}", inputs.get(0).get("value"));
+        assertEquals("{{in.loginUser}}", inputs.get(0).get("value"));
     }
 
     /**

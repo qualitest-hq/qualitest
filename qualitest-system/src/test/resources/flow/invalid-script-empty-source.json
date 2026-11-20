@@ -30,7 +30,7 @@
         "id": "2042000000000000101",
         "name": "默认",
         "testProjectEnvId": "2042000000000000001",
-        "flowSeed": {},
+        "inSeed": {},
         "remark": "empty script source warning"
       }
     ],

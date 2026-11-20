@@ -23,7 +23,7 @@
         "id": "s1",
         "name": "默认",
         "testProjectEnvId": "1",
-        "flowSeed": {}
+        "inSeed": {}
       }
     ],
     "flowOutputs": []

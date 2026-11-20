@@ -7,6 +7,7 @@ import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
+import com.qualitest.flow.inbound.OpenInboundPathIndex;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphFlowOutput;
 import com.qualitest.flow.model.GraphJson;
@@ -66,6 +67,10 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     @Autowired
     private ITestFlowGroupService testFlowGroupService;
+
+    /** 测试流保存后刷新开放入站 path 内存索引 */
+    @Autowired
+    private OpenInboundPathIndex openInboundPathIndex;
 
     /** 增量写图时把 patch 合并到最新图，并提供断言路径校验用的接口解析 */
     @Autowired
@@ -188,6 +193,8 @@ public class TestFlowServiceImpl implements ITestFlowService {
                     testFlow.getTestFlowId(),
                     testFlow.getTestProjectId(),
                     FlowExternalChangeSourceHolder.getOrDefault());
+            // 新建流若开启了开放入站，登记 path
+            openInboundPathIndex.upsertFlow(testFlow);
         }
         return rows;
     }
@@ -267,6 +274,8 @@ public class TestFlowServiceImpl implements ITestFlowService {
                             testFlow.getUpdateTime(),
                             patch,
                             testFlow.getGraphRevision());
+                    // 写图成功后按新 graph_json 更新开放入站 path 索引
+                    openInboundPathIndex.upsertFlow(testFlow);
                 } else {
                     flowExternalChangePublisher.publishFlowMetaChanged(
                             testFlow.getTestFlowId(), projectId, source);
@@ -462,6 +471,10 @@ public class TestFlowServiceImpl implements ITestFlowService {
                 update.getUpdateTime(),
                 payload,
                 newRev);
+        update.setTestProjectId(locked.getTestProjectId());
+        update.setDelStatus(locked.getDelStatus());
+        // 增量写图同样刷新开放入站 path
+        openInboundPathIndex.upsertFlow(update);
         return new ApplyGraphPatchResult(graph, newRev, List.copyOf(warnings));
     }
 

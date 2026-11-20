@@ -46,7 +46,7 @@ flowchart TB
 | **Run**  | 一次执行；trigger 先返 `runId`、按节点落库，详情可边跑边看；含时间线、HTTP、审计步（`run_config` / `snapshot` / `restore`） |
 
 
-跑流变量：`{{flow.*}}` · `{{env.*}}` · `{{asset.*}}`（详见 [flow-variables-and-values.md](./flow-variables-and-values.md)）。`session` 仅 Script 节点；断言左值见 [test-flow-nodes.md](./test-flow-nodes.md)。
+跑流变量：`{{in.*}}` · `{{flow.*}}` · `{{out.*}}` · `{{env.*}}` · `{{asset.*}}`（详见 [flow-variables-and-values.md](./flow-variables-and-values.md)）。`session` 仅 Script 节点；断言左值见 [test-flow-nodes.md](./test-flow-nodes.md)。画布「运行配置」：入参契约声明字段与子流对外产出（`flowOutputs`），场景预设只填 `inSeed` 值；开放入站按完整 path + 绑定 `runEnvId`，Filter 命中后握连接跑图并 flush `out`。
 
 ---
 
@@ -125,7 +125,7 @@ flowchart TB
 - **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（**仅运行**硬拦；AI 单单元 `submit_*` 进 **warnings**；整包规范化 / Staging ✓ / **保存**不硬拦）。客户端 Profile 误绑 `adminAuth`（或相反）时文案追加「疑似绑错端」。托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。
 - **AI 改 Profile**：`list_project_auth_profiles`（只读）+ `upsert_auth_profile`（半自动确认 / 全自动直写）；下一轮可带 `runRiskWarnings`。细则见 [ai-staging.md](./ai-staging.md) · [faq.md](./faq.md)。
 - 画布顶栏「刷新鉴权头」、HTTP 节点凭证行提示；Run 鉴权失败可用「AI 修复」。
-- 凭证可落在 extract→asset/flow、场景 flowSeed、或环境变量等；**口令勿明文塞进图**，可复用账号优先素材库。
+- 凭证可落在 extract→asset/flow、或环境变量等；**口令勿明文塞进图**，可复用账号优先素材库。
 
 验收步骤见手册 **T1.2**（项目模板）、**T1.8**（登录子流）、§F #21/#24。用法（导入导出 / 另存）见 [project-template.md](./project-template.md)。
 

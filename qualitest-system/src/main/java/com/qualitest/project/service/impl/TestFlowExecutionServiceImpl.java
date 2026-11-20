@@ -179,7 +179,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 params.getRunScenarioId(),
                 params.getTestProjectEnvId(),
                 null,
-                RunScenarioBootstrap.formatAvailableEnvHint(hints)
+                RunScenarioBootstrap.formatAvailableEnvHint(hints),
+                params.getInputPresetId()
         );
 
         TestProjectEnv env = testProjectEnvService.selectTestProjectEnvById(scenario.getTestProjectEnvId());
@@ -234,8 +235,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 testFlow.getTestProjectId(), operatorUserId, TestProjectMemberPerm.FLOW_EXTERNAL)
                 || SecurityUtils.hasPermi(FlowExternalPermission.PERMISSION);
         FlowRunContext ctx = FlowRunContextBuilder.build(
-                env, assetJson, scenario.getFlowSeed(), testFlow.getTestProjectId(),
-                externalPermitted);
+                env, assetJson, scenario.getInSeed(),
+                testFlow.getTestProjectId(), externalPermitted);
         if (project != null) {
             ctx.setProjectAuthConfig(project.getAuthConfig());
         }

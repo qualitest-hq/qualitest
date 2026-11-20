@@ -11,9 +11,7 @@ import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
 import com.qualitest.flow.graph.FlowHttpNodeVisitor;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.project.domain.TestProjectApi;
 
 import java.util.ArrayList;
@@ -31,7 +29,7 @@ import java.util.function.Function;
  * （如 asset.adminAuth.token、flow.token）。未解析出凭证目标的 Profile 跳过。
  * 再扫描整图是否已产出该目标：HTTP extracts（flow / asset）、assign 赋值、
  * 子流 flowOutputs（flow 作用域）、子流引用图内的 extracts
- * （子上下文与父共享 asset，登录子流写 asset.* 对本图有效）、场景 flowSeed（仅 flow）。
+ * （子上下文与父共享 asset，登录子流写 asset.* 对本图有效）。
  * 客户端与管理端分开检查，有一端凭证不能代替另一端。
  * <p>
  * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING），并附上 profileId、命中的 pathPrefix，
@@ -156,7 +154,7 @@ public final class AuthTokenPresenceGate {
 
     /**
      * 收集图中已声明会写入的凭证 identityKey。
-     * 来源：HTTP extracts（flow + asset）、assign、subflow 输出、子流引用图 extracts、场景 flowSeed（仅 flow）。
+     * 来源：HTTP extracts（flow + asset）、assign、subflow 输出、子流引用图 extracts、场景 inSeed。
      */
     static Set<String> collectProducedIdentityKeys(GraphJson graph) {
         return collectProducedIdentityKeys(graph, null, 0);
@@ -200,20 +198,6 @@ public final class AuthTokenPresenceGate {
                     GraphJson child = resolveSubflowGraph(data, subflowGraphResolver);
                     if (child != null) {
                         keys.addAll(collectProducedIdentityKeys(child, subflowGraphResolver, depth + 1));
-                    }
-                }
-            }
-        }
-        GraphMeta meta = graph.getMeta();
-        if (meta != null && meta.getScenarios() != null) {
-            for (GraphRunScenario scenario : meta.getScenarios()) {
-                if (scenario == null || scenario.getFlowSeed() == null) {
-                    continue;
-                }
-                for (String seedKey : scenario.getFlowSeed().keySet()) {
-                    CredentialTarget flowTarget = CredentialTarget.flow(seedKey);
-                    if (flowTarget != null) {
-                        keys.add(flowTarget.identityKey());
                     }
                 }
             }

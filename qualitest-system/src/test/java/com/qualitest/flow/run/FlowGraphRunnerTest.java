@@ -55,7 +55,7 @@ class FlowGraphRunnerTest {
                 {
                   "nodes":[{"id":"d1","type":"delay","position":{"x":0,"y":0},"data":{"name":"等待","ms":1}}],
                   "edges":[],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","inSeed":{}}]}
                 }
                 """;
         GraphJson graph = GraphJson.parse(json);
@@ -219,7 +219,7 @@ class FlowGraphRunnerTest {
                     {"id":"e1","source":"d1","target":"mid"},
                     {"id":"e2","source":"mid","target":"clean"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","inSeed":{}}]}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);
@@ -270,7 +270,7 @@ class FlowGraphRunnerTest {
                     {"id":"e1","source":"d1","target":"c1"},
                     {"id":"e2","source":"c1","target":"c2"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","inSeed":{}}]}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);
@@ -312,7 +312,7 @@ class FlowGraphRunnerTest {
                     {"id":"eac","source":"a","target":"clean"},
                     {"id":"ebc","source":"b","target":"clean"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","inSeed":{}}]}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);
@@ -391,7 +391,7 @@ class FlowGraphRunnerTest {
                     {"id":"eac","source":"a","target":"clean"},
                     {"id":"ebc","source":"b","target":"clean"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","inSeed":{}}]}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);
@@ -422,7 +422,7 @@ class FlowGraphRunnerTest {
                     {"id":"e1","source":"d1","target":"clean"},
                     {"id":"eloop","source":"clean","target":"clean"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","inSeed":{}}]}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);

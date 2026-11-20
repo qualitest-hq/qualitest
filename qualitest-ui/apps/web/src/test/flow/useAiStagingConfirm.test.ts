@@ -72,7 +72,7 @@ function okConfirmResult() {
       edges: [],
       meta: {
         activeScenarioId: 'sc1',
-        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+        scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
       },
     },
     baseGraphHash: 'abcd1234efgh5678',
@@ -89,7 +89,7 @@ function failConfirmResult(message = '校验失败') {
 
 const defaultRunConfig = {
   activeScenarioId: 'sc1',
-  scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+  scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', inSeed: {} }],
 };
 
 function hydrateDeleteEdges(stagingStore: ReturnType<typeof useAiStagingStore>) {

@@ -1,16 +1,21 @@
 /**
- * 画布全局键盘快捷键：保存、撤销、删除、Esc 停止、方向键步进。
- * 在 FlowCanvasLayout 挂载时注册，卸载时注销。
+ * 画布全局键盘快捷键：保存、撤销、删除、Esc 停止当前跑流会话、左右键单步。
+ * 在画布布局挂载时注册，卸载时注销。
  * Ctrl/Cmd+S 在输入框内也生效（拦截浏览器另存为）；其余编辑键在输入框聚焦时不拦截。
+ * Esc 与方向键步进通过跑流会话中枢分发，不直接依赖回放或路径模拟模块。
  */
 import { onBeforeUnmount, onMounted, type Ref } from 'vue';
 
-import { usePlayback } from './usePlayback';
 import { useFlowDelete } from './useFlowDelete';
 import { useFlowHistory } from './useFlowHistory';
-import { useFlowSimulate } from './useFlowSimulate';
-import { useFlowScenarioRun } from './useFlowScenarioRun';
-import { useRunLibraryStore } from '../stores/runLibraryStore';
+import {
+  abortActiveRunSession,
+  stepActiveRunSession,
+} from '../run/runSessionController';
+/** 加载时注册回放 / 路径模拟 / 场景跑的会话钩子，供 Esc 与步进使用 */
+import './usePlayback';
+import './useFlowSimulate';
+import './useFlowScenarioRun';
 
 /** 判断当前焦点是否在可编辑输入控件内 */
 export function isInputFocused(): boolean {
@@ -32,36 +37,11 @@ export interface UseFlowKeyboardOptions {
 export function useFlowKeyboard(options: UseFlowKeyboardOptions) {
   const { undo } = useFlowHistory();
   const { deleteSelection } = useFlowDelete();
-  const { abortScenarioRun } = useFlowScenarioRun();
-  const runLib = useRunLibraryStore();
-  const {
-    isSimulateActive,
-    abortSimulate,
-    simulateStepPrev,
-    simulateStepNext,
-  } = useFlowSimulate();
-  const {
-    isReplayActive,
-    abortReplay,
-    replayStepPrev,
-    replayStepNext,
-  } = usePlayback();
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
-      if (runLib.scenarioRunLive) {
+      if (abortActiveRunSession()) {
         e.preventDefault();
-        abortScenarioRun();
-        return;
-      }
-      if (isSimulateActive.value) {
-        e.preventDefault();
-        abortSimulate();
-        return;
-      }
-      if (isReplayActive.value) {
-        e.preventDefault();
-        abortReplay();
         return;
       }
       if (options.helpOpen.value) {
@@ -93,29 +73,12 @@ export function useFlowKeyboard(options: UseFlowKeyboardOptions) {
     }
 
     if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-      if (isSimulateActive.value) {
-        if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          simulateStepPrev();
-          return;
-        }
-        if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          simulateStepNext();
-          return;
-        }
+      if (e.key === 'ArrowLeft') {
+        if (stepActiveRunSession('prev')) e.preventDefault();
+        return;
       }
-      if (isReplayActive.value) {
-        if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          replayStepPrev();
-          return;
-        }
-        if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          replayStepNext();
-          return;
-        }
+      if (e.key === 'ArrowRight') {
+        if (stepActiveRunSession('next')) e.preventDefault();
       }
     }
   }

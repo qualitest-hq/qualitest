@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 单次运行的场景：指定环境与 flow 变量初值，同一张图可配置多套场景。
+ * 单次运行的场景预设：指定环境、入参初值与失败策略；同一张图可配置多套。
  */
 @Getter
 @Setter
@@ -35,10 +35,11 @@ public class GraphRunScenario {
     private String testProjectEnvId;
 
     /**
-     * flow 变量初值 KV；Run 启动时注入 {@code ctx.flow}
+     * 入参初值 KV；Run 启动时注入 {@code ctx.in}。
+     * 字段由 {@code meta.inputSpec.fields} 声明，场景只填值。
      */
     @Builder.Default
-    private Map<String, Object> flowSeed = new HashMap<>();
+    private Map<String, Object> inSeed = new HashMap<>();
 
     /**
      * 场景说明（可选）

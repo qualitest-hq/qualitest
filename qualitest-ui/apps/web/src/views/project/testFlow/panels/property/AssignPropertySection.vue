@@ -18,20 +18,37 @@
         class="assign-row"
     >
       <div :class="['assign-row__grid', `assign-row__grid--${assignOpCategory(row.op)}`]">
+        <select
+            :value="normalizeAssignScope(row.scope)"
+            title="作用域"
+            @change="onScopeChange(index, $event)"
+        >
+          <option v-for="s in ASSIGN_SCOPES" :key="s.value" :value="s.value">{{ s.label }}</option>
+        </select>
         <input
             :value="row.name"
-            placeholder="pollAttempt"
+            :placeholder="normalizeAssignScope(row.scope) === 'out' ? 'body / status' : 'pollAttempt'"
             type="text"
             @input="onTextInput(index, 'name', $event)"
         />
         <select
+            :disabled="normalizeAssignScope(row.scope) === 'out'"
             :value="row.op"
             @change="onOpChange(index, $event)"
         >
           <option v-for="op in ASSIGN_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
         </select>
         <template v-if="assignOpCategory(row.op) === 'value'">
+          <textarea
+              v-if="normalizeAssignScope(row.scope) === 'out' || isStructuredValue(row.value)"
+              :value="valueAsEditorText(row.value)"
+              class="assign-row__struct"
+              :placeholder="outValuePlaceholder"
+              rows="4"
+              @change="onStructValueChange(index, $event)"
+          />
           <input
+              v-else
               :value="row.value"
               :placeholder="valuePlaceholder"
               type="text"
@@ -54,44 +71,40 @@
               @input="onNumberInput(index, 'ifMissing', $event, 0)"
           />
         </template>
-        <button
-            class="assign-row__del"
-            title="删除"
-            type="button"
-            @click="removeRow(index)"
-        >
-          ×
-        </button>
+        <FlowRowRemoveButton title="删除" @click="removeRow(index)" />
       </div>
-      <div class="field__hint">{{ rowHint(row.op) }}</div>
+      <div class="field__hint">{{ rowHint(row) }}</div>
     </div>
 
     <button class="btn btn--ghost assign-add" type="button" @click="addRow">+ 添加赋值</button>
-    <div class="field__hint">作用域固定为 flow · 可用于轮询计数、标志位等</div>
+    <div class="field__hint">作用域 flow（中间量）或 out（开放入站回包）；出参建议一次 set 含 status/headers/body</div>
 
     <SnapshotPropertySection :node="node" />
-    <!-- 失败后仍执行本赋值节点（如恢复 flow 变量） -->
     <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
 <script setup>
 /**
- * Assign 节点属性区：编辑 assignments 列表，支持预设、运算符切换与增删行。
- * 变更经 patchNodeData 写回节点 data 并刷新 summary。
+ * Assign 节点属性区。
+ * 编辑 assignments：作用域 flow（中间量）或 out（出参）、运算符、标量或 JSON 结构 value。
+ * 选 out 时引导写 body/status，value 可用多行 JSON，叶子支持 {{in.x}}。
  */
 import { computed, onMounted } from 'vue'
 
 import {
   assignOpCategory,
   ASSIGN_OPS,
+  ASSIGN_SCOPES,
   defaultAssignments,
   emptyAssignment,
   normalizeAssignNodeData,
+  normalizeAssignScope,
 } from '@/utils/flow/assign'
 
 import { ASSIGN_PRESETS } from '../../constants/nodeTypes'
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import FlowRowRemoveButton from '../../components/FlowRowRemoveButton.vue'
 import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 import SnapshotPropertySection from './SnapshotPropertySection.vue'
 
@@ -101,9 +114,9 @@ const props = defineProps({
 
 const { patchNodeData } = useFlowNodes()
 
-const valuePlaceholder = '0 / {{flow.x}}'
+const valuePlaceholder = '0 / {{flow.x}} / {{in.x}}'
+const outValuePlaceholder = '{\n  "code": "SUCCESS",\n  "echo": "{{in.orderId}}"\n}'
 
-/** 打开属性时若缺 assignments，补默认一行，避免 Staging/保存报空 */
 onMounted(() => {
   const list = props.node?.data?.assignments
   if (!Array.isArray(list) || !list.length) {
@@ -113,20 +126,35 @@ onMounted(() => {
   }
 })
 
-/** 按运算符类别返回行内提示文案 */
-function rowHint(op) {
-  return assignOpCategory(op) === 'step'
-    ? '步长可为数字；缺省为变量不存在时的起始值'
-    : '支持字面量、{{flow.x}} 或 SpEL 表达式'
+function isStructuredValue(value) {
+  return value != null && typeof value === 'object'
 }
 
-/** 当前节点的 assignments，至少保留一行供编辑 */
+function valueAsEditorText(value) {
+  if (value != null && typeof value === 'object') {
+    try {
+      return JSON.stringify(value, null, 2)
+    } catch {
+      return ''
+    }
+  }
+  return value != null ? String(value) : ''
+}
+
+function rowHint(row) {
+  if (normalizeAssignScope(row.scope) === 'out') {
+    return '出参 out：建议 name=body（或 status/headers）；value 可为 JSON 结构，叶子支持 {{in.x}}'
+  }
+  return assignOpCategory(row.op) === 'step'
+    ? '步长可为数字；缺省为变量不存在时的起始值'
+    : '支持字面量、{{in.x}} / {{flow.x}}；结构值请先选作用域 out 或粘贴 JSON'
+}
+
 const rows = computed(() => {
   const list = props.node?.data?.assignments || []
   return list.length ? list : [emptyAssignment()]
 })
 
-/** 将完整 assignments 写回节点并规范化字段 */
 function commitAssignments(assignments) {
   const normalized = assignments.map((a) => ({ ...a }))
   const data = { assignments: normalized }
@@ -147,7 +175,35 @@ function onFieldInput(index, field, value) {
   commitAssignments(next)
 }
 
-/** 切换运算符时按类别补全 value 或 step/ifMissing 字段 */
+function onScopeChange(index, event) {
+  const scope = event.target.value
+  const row = { ...rows.value[index], scope }
+  if (scope === 'out') {
+    row.op = 'set'
+    delete row.step
+    delete row.ifMissing
+    if (row.name == null || String(row.name).trim() === '') {
+      row.name = 'body'
+    }
+    if (row.value == null || row.value === '') {
+      row.value = { code: 'SUCCESS' }
+    }
+  }
+  const next = rows.value.map((r, i) => (i === index ? row : { ...r }))
+  commitAssignments(next)
+}
+
+function onStructValueChange(index, event) {
+  const text = event.target.value
+  let value = text
+  try {
+    value = JSON.parse(text)
+  } catch {
+    // 保留原文，便于继续编辑
+  }
+  onFieldInput(index, 'value', value)
+}
+
 function onOpChange(index, event) {
   const op = event.target.value
   const row = { ...rows.value[index], op }
@@ -215,18 +271,19 @@ function applyPreset(assignment) {
 .assign-row__grid {
   display: grid;
   gap: 6px;
-  align-items: center;
+  align-items: start;
 
   &--value {
-    grid-template-columns: 1fr 56px 1fr 28px;
+    grid-template-columns: 64px 1fr 56px 1fr 28px;
   }
 
   &--step {
-    grid-template-columns: 1fr 56px 72px 72px 28px;
+    grid-template-columns: 64px 1fr 56px 72px 72px 28px;
   }
 
   input,
-  select {
+  select,
+  textarea {
     height: 30px;
     padding: 0 8px;
     border: 1px solid var(--pd-border-subtle);
@@ -236,24 +293,13 @@ function applyPreset(assignment) {
     color: var(--pd-text);
     min-width: 0;
   }
-}
 
-.assign-row__del {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--pd-border-subtle);
-  border-radius: 6px;
-  background: var(--pd-surface);
-  color: var(--pd-text-muted);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  padding: 0;
-
-  &:hover {
-    border-color: #ef4444;
-    color: #ef4444;
-    background: #fef2f2;
+  textarea.assign-row__struct {
+    height: auto;
+    min-height: 72px;
+    padding: 6px 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    grid-column: 4 / 5;
   }
 }
 

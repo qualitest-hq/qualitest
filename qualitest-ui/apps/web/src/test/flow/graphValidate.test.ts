@@ -372,7 +372,7 @@ describe('validateGraphJson', () => {
         { id: 'n2', type: 'http', position: { x: 0, y: 0 }, data: { callMode: 'project' } },
       ],
       edges: [{ id: 'e1', source: 'c1', target: 'n2', sourceHandle: 'out-b_if' }],
-      meta: { scenarios: [{ id: 's1', name: '默认', testProjectEnvId: '', flowSeed: {} }] },
+      meta: { scenarios: [{ id: 's1', name: '默认', testProjectEnvId: '', inSeed: {} }] },
     });
     expect(result.errors.some((e) => e.includes('sourceHandle'))).toBe(true);
   });

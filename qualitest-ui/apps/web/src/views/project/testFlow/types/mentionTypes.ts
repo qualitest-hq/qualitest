@@ -7,7 +7,7 @@
 export type MentionCategory = 'api' | 'node' | 'run' | 'var';
 /** 与 MentionCategory 同义，用于 mention 节点字段 */
 export type MentionType = MentionCategory;
-export type VarSubtype = 'flow' | 'env' | 'asset';
+export type VarSubtype = 'flow' | 'in' | 'env' | 'asset';
 
 export const COMPOSER_DOC_VERSION = 1 as const;
 export const MAX_MENTIONS_PER_MESSAGE = 20;

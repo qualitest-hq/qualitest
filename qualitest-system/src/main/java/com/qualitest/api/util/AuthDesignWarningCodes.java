@@ -115,7 +115,7 @@ public final class AuthDesignWarningCodes {
         sb.append(TOKEN_MISSING).append(CODE_SEP)
                 .append("图中使用了").append(profileDisplayName)
                 .append("（").append(pathOrFallback(displayPath)).append("），但未找到该凭证来源")
-                .append("（HTTP extracts / assign / 子流输出 / flowSeed）；请补对应端登录抽取，勿与另一端凭证混用");
+                .append("（HTTP extracts / assign / 子流输出）；请补对应端登录抽取，勿与另一端凭证混用");
         appendProfileMeta(sb, profileId, pathPrefix, false);
         sb.append(tip);
         return sb.toString();

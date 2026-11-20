@@ -1,29 +1,18 @@
 /**
- * 画布节点增删改：拖拽落点、节点库双击、属性区 patch。
- * 负责生成节点 id/data、刷新 summary、判定流程开始节点。
+ * 画布节点增删改：按屏幕坐标落点创建、双击在可视区中心创建、属性区局部 patch。
+ * 屏幕坐标换算与节点库拖放共用同一套画布根命中与 viewport 换算。
  */
 import type { Node } from '@vue-flow/core';
 
 import { findStartNodeIds } from '@/utils/flow/graphValidate';
 
+import { clientToFlowPosition, getFlowCanvasRootEl } from '../canvas/paletteDrop/dropTarget';
 import { NODE_MIN_H, NODE_W } from '../constants/flowConfig';
 import { NODE_TYPES } from '../constants/nodeTypes';
 import { useFlowHistory } from './useFlowHistory';
 import { syncStagingDraftFromNode } from './stagingDraftSync';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { createNodeData, generateNodeId, updateSummary } from '../utils/nodeDataUtils';
-
-/** 将浏览器 client 坐标转换为 vue-flow 画布逻辑坐标（考虑 viewport 平移与缩放） */
-function clientToFlowPosition(clientX: number, clientY: number, store: ReturnType<typeof useFlowCanvasStore>) {
-  const el = document.querySelector('.flow-canvas-vue-flow');
-  const rect = el?.getBoundingClientRect();
-  if (!rect) return { x: 0, y: 0 };
-  const { x: vx, y: vy, zoom } = store.viewport;
-  return {
-    x: (clientX - rect.left - vx) / zoom,
-    y: (clientY - rect.top - vy) / zoom,
-  };
-}
 
 export function useFlowNodes() {
   const store = useFlowCanvasStore();
@@ -51,7 +40,7 @@ export function useFlowNodes() {
 
   /** 在画布可视区域中心创建节点（节点库双击入口） */
   function addNodeAtCenter(type: string) {
-    const el = document.querySelector('.flow-canvas-vue-flow');
+    const el = getFlowCanvasRootEl();
     const rect = el?.getBoundingClientRect();
     const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
     const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
@@ -59,18 +48,10 @@ export function useFlowNodes() {
     return addNode(type, { x: pos.x - NODE_W / 2, y: pos.y - NODE_MIN_H / 2 });
   }
 
-  /** 节点库拖放到画布：读取 dataTransfer.nodeType 并落点创建 */
-  function handleDrop(event: DragEvent) {
-    event.preventDefault();
-    const type = event.dataTransfer?.getData('nodeType');
-    if (!type) return;
-    const pos = clientToFlowPosition(event.clientX, event.clientY, store);
-    addNode(type, { x: pos.x - NODE_W / 2, y: pos.y - NODE_MIN_H / 2 });
-  }
-
-  function handleDragOver(event: DragEvent) {
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+  /** 按屏幕坐标落点创建（节点库指针拖放） */
+  function addNodeAtClient(type: string, clientX: number, clientY: number) {
+    const pos = clientToFlowPosition(clientX, clientY, store);
+    return addNode(type, { x: pos.x - NODE_W / 2, y: pos.y - NODE_MIN_H / 2 });
   }
 
   /** 合并节点 data 字段；patch 里值为 null 的键表示删除该字段 */
@@ -115,8 +96,7 @@ export function useFlowNodes() {
   return {
     addNode,
     addNodeAtCenter,
-    handleDrop,
-    handleDragOver,
+    addNodeAtClient,
     patchNodeData,
     replaceNodeData,
     getStartNodeIds,

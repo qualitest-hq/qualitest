@@ -2,7 +2,7 @@
  * 占位符与运行时路径解析。
  *
  * 模板：{{scope.path}}
- * 持久变量：env.* / flow.* / asset.*
+ * 作用域：env.* / flow.*（中间量）/ in.*（入参）/ out.*（出参）/ asset.*
  * 最近一次 HTTP：http.body（整段）/ http.body.<相对 JsonPath>、http.status、http.duration、
  * http.header.*、http.bodyText、http.responseKind、http.expectedMatch
  * 按节点：nodes.<nodeId>.http.…，从 ctx.nodeResponses 读取该节点最后一次响应
@@ -63,7 +63,13 @@ export function resolvePathSegment(ctx: FlowRunContext, path: string): unknown {
   if (!p) return undefined;
 
   if (p.startsWith('flow.')) {
-    return ctx.flow[p.slice(5)];
+    return resolveScopedPath(ctx.flow, p.slice(5));
+  }
+  if (p.startsWith('in.')) {
+    return resolveScopedPath(ctx.in ?? {}, p.slice(3));
+  }
+  if (p.startsWith('out.')) {
+    return resolveScopedPath(ctx.out ?? {}, p.slice(4));
   }
   if (p.startsWith('env.')) {
     return ctx.env[p.slice(4)];
@@ -120,6 +126,21 @@ function resolveHttpPathOnSnapshot(
     return snap?.headers?.[rest.slice(8)];
   }
   return undefined;
+}
+
+/** 从 flow / in / out 按路径取值：无点取顶层；有点先试整键再分段下钻。 */
+function resolveScopedPath(scope: Record<string, unknown>, rest: string): unknown {
+  if (!rest) return undefined;
+  if (!rest.includes('.')) return scope[rest];
+  if (Object.prototype.hasOwnProperty.call(scope, rest)) return scope[rest];
+  const dot = rest.indexOf('.');
+  let val: unknown = scope[rest.slice(0, dot)];
+  const sub = rest.slice(dot + 1);
+  for (const part of sub.split('.')) {
+    if (val == null || typeof val !== 'object') return undefined;
+    val = (val as Record<string, unknown>)[part];
+  }
+  return val;
 }
 
 /** asset.key 或 asset.key.a.b：先取条目，再按点分键下钻。 */

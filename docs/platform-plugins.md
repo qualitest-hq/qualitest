@@ -710,7 +710,7 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 
 ## 8. 相关链接
 
-- ROADMAP Exploring **6.2**；Later **7.4～7.6**、**5.5**  
+- ROADMAP Exploring **6.2**；Later **7.5**、**5.5**  
 - 现状写库快照（迁移前）：`project-summary.md`；`HttpEndpointSnapshotAdapter`  
 - 被测 test-support（ephemeral，待迁入存档点插件）：`qualitest-demo-mall` / `test-support-starter`  
 - 运维金库（**不是**本插件）：`qualitest-demo-host` `data/golden` / daily-reset  

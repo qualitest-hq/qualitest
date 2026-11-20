@@ -45,7 +45,7 @@
           "id": "sc1",
           "name": "默认",
           "testProjectEnvId": "",
-          "flowSeed": {}
+          "inSeed": {}
         }
       ],
       "flowOutputs": []

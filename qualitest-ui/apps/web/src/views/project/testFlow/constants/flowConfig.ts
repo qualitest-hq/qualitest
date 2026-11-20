@@ -12,6 +12,9 @@ export const COND_ROW_H = 40;
 /** VueFlow 实例 id，供画布外组件通过 useVueFlow(id) 访问 */
 export const FLOW_VUE_FLOW_ID = 'flow-canvas-main';
 
+/** 画布根 DOM class：落点 hit-test / 坐标换算 / 导图查询共用 */
+export const FLOW_CANVAS_ROOT_CLASS = 'flow-canvas-vue-flow';
+
 /** 路径模拟的步数、间隔上限 */
 export const SIMULATE_MAX_PATH_STEPS = 50;
 export const SIMULATE_MAX_LOOP_EDGE_USES = 1;

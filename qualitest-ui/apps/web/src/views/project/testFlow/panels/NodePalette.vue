@@ -6,9 +6,8 @@
         :data-type="type"
         :style="{ '--palette-accent': cfg.color }"
         class="palette-item"
-        draggable="true"
         @dblclick="onDblClick(String(type))"
-        @dragstart="onDragStart($event, String(type))"
+        @pointerdown="onPointerDown($event, String(type))"
     >
       <div :style="{ background: cfg.color }" class="palette-item__icon">{{ cfg.icon }}</div>
       <div class="palette-item__info">
@@ -20,18 +19,22 @@
 </template>
 
 <script setup>
-/** 左栏节点库：拖拽或双击向画布添加节点 */
+/**
+ * 左栏节点库列表。
+ * 双击在画布可视区中心创建节点；按下拖动走指针拖放，松手落在画布内才创建。
+ * 无编辑权限时不创建。
+ */
 import { NODE_TYPES } from '../constants/nodeTypes'
+import { useFlowCanvasPermissions } from '../composables/useFlowCanvasPermissions'
 import { useFlowNodes } from '../composables/useFlowNodes'
+import { usePalettePointerDrag } from '../canvas/paletteDrop/usePalettePointerDrag'
 
-const { addNodeAtCenter } = useFlowNodes()
-
-function onDragStart(event, type) {
-  event.dataTransfer?.setData('nodeType', type)
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
-}
+const { addNodeAtCenter, addNodeAtClient } = useFlowNodes()
+const { canEditFlow } = useFlowCanvasPermissions()
+const { onPointerDown } = usePalettePointerDrag({ canEditFlow, addNodeAtClient })
 
 function onDblClick(type) {
+  if (!canEditFlow.value) return
   addNodeAtCenter(type)
 }
 </script>
@@ -52,8 +55,9 @@ function onDblClick(type) {
   border: 1px solid var(--pd-border-subtle);
   background: var(--pd-surface-elevated);
   cursor: grab;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   user-select: none;
+  touch-action: none;
 
   &:hover {
     border-color: color-mix(in srgb, var(--palette-accent, var(--pd-primary)) 40%, var(--pd-border-subtle));
@@ -62,7 +66,7 @@ function onDblClick(type) {
   }
 
   &:active {
-    cursor: grabbing;
+    cursor: move;
   }
 }
 
@@ -99,4 +103,8 @@ function onDblClick(type) {
   color: var(--pd-text-muted);
   line-height: 1.45;
 }
+</style>
+
+<style lang="scss">
+@use '../shared/styles/paletteDragCursor.scss';
 </style>

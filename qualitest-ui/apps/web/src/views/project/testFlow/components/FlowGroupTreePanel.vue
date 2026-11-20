@@ -75,25 +75,26 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <template v-if="canEditGroup && data.nodeType === 'all'">
+                    <!-- el-dropdown-item 根节点非原生元素，不能挂 v-hasPermi，改用 v-if + checkPermi -->
                     <el-dropdown-item
-                        v-hasPermi="['project:testProject:add']"
+                        v-if="checkPermi(['project:testProject:add'])"
                         command="addRoot"
                     >新建根目录
                     </el-dropdown-item>
                   </template>
                   <template v-else-if="canEditGroup && data.nodeType === 'group'">
                     <el-dropdown-item
-                        v-hasPermi="['project:testProject:add']"
+                        v-if="checkPermi(['project:testProject:add'])"
                         command="addChild"
                     >新建子目录
                     </el-dropdown-item>
                     <el-dropdown-item
-                        v-hasPermi="['project:testProject:edit']"
+                        v-if="checkPermi(['project:testProject:edit'])"
                         command="rename"
                     >重命名
                     </el-dropdown-item>
                     <el-dropdown-item
-                        v-hasPermi="['project:testProject:remove']"
+                        v-if="checkPermi(['project:testProject:remove'])"
                         class="is-danger"
                         command="delete"
                         divided
@@ -159,6 +160,7 @@ import {
   getTestFlowGroupTree,
   updateTestFlowGroup,
 } from '@/api/project/testFlowGroup'
+import { checkPermi } from '@/utils/permission'
 
 /** 虚拟节点：看全部流 */
 const ALL_KEY = 'all'

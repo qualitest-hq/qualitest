@@ -1,6 +1,6 @@
 /**
- * 运行场景配置：管理 graph_json.meta.scenarios 中的场景列表与当前激活场景。
- * 提供场景增删改查、项目环境下拉、flowSeed 键值行转换。
+ * 运行配置：管理 graph_json.meta.scenarios 中的场景预设列表与当前激活场景。
+ * 提供场景增删改查、项目环境下拉、flowOutputs 键值行转换。
  * 打开画布拉环境后，会给未绑定环境的激活场景自动补上列表第一条，并同步「已保存」基线。
  */
 import { computed, ref } from 'vue';
@@ -19,34 +19,6 @@ export interface ProjectEnvOption {
   envName: string;
   envUrl?: string;
   allowDestructiveReset?: number;
-}
-
-/** flowSeed 编辑行 */
-export interface FlowSeedRow {
-  key: string;
-  value: string;
-}
-
-/** 将 flowSeed 对象转为键值行数组，用于表单展示 */
-export function flowSeedToRows(obj: Record<string, unknown> | null | undefined): FlowSeedRow[] {
-  if (!obj || typeof obj !== 'object') return [{ key: '', value: '' }];
-  const entries = Object.entries(obj);
-  if (!entries.length) return [{ key: '', value: '' }];
-  return entries.map(([key, value]) => ({
-    key,
-    value: value == null ? '' : String(value),
-  }));
-}
-
-/** 将键值行数组转为 flowSeed 对象，忽略空键行 */
-export function rowsToFlowSeed(rows: FlowSeedRow[]): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  rows.forEach((row) => {
-    const key = String(row.key ?? '').trim();
-    if (!key) return;
-    out[key] = row.value ?? '';
-  });
-  return out;
 }
 
 /** flowOutputs 编辑行 */
@@ -111,7 +83,7 @@ export function useRunConfig() {
     if (remark) {
       parts.push(remark);
     } else if (sc.id === store.runConfig.activeScenarioId) {
-      parts.push('当前默认运行场景');
+      parts.push('当前默认场景预设');
     }
     return parts.join(' · ');
   }
@@ -181,7 +153,7 @@ export function useRunConfig() {
       id,
       name: `新场景 ${store.runConfig.scenarios.length + 1}`,
       testProjectEnvId: active?.testProjectEnvId ?? envOptions.value[0]?.testProjectEnvId ?? '',
-      flowSeed: {},
+      inSeed: {},
       remark: '',
     };
     store.runConfig.scenarios.push(scenario);
@@ -259,8 +231,6 @@ export function useRunConfig() {
     deleteScenario,
     patchActiveScenario,
     ensureActiveScenarioEnv,
-    flowSeedToRows,
-    rowsToFlowSeed,
     flowOutputsToRows,
     rowsToFlowOutputs,
   };

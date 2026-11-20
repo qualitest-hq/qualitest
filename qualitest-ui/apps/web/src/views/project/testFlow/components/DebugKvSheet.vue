@@ -24,15 +24,11 @@
           />
         </div>
         <div class="debug-kv-cell">
-          <button
+          <FlowRowRemoveButton
               :disabled="rows.length <= 1"
-              class="debug-kv-del"
               title="删除行"
-              type="button"
               @click="removeRow(idx)"
-          >
-            ×
-          </button>
+          />
         </div>
       </div>
     </div>
@@ -46,6 +42,7 @@ import { computed } from 'vue'
 
 import { isProfileManagedRow } from '../utils/authHeaderRow'
 import { emptyKVRow, ensureTrailingEmptyRow, KV_SHEET_LABELS } from '../utils/httpWorkbenchUtils'
+import FlowRowRemoveButton from './FlowRowRemoveButton.vue'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -175,31 +172,6 @@ function removeRow(idx) {
     outline: none;
     border-color: var(--pd-primary, #0b6edc);
     box-shadow: 0 0 0 1px var(--pd-primary, #0b6edc) inset;
-  }
-}
-
-.debug-kv-del {
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--pd-border-subtle, #c5d8ec);
-  border-radius: 6px;
-  background: var(--pd-surface-elevated, #fff);
-  color: var(--pd-text-muted, #5a6b86);
-  font-size: 15px;
-  line-height: 1;
-  padding: 0;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-
-  &:hover:not(:disabled) {
-    border-color: #ef4444;
-    color: #ef4444;
-    background: #fef2f2;
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
   }
 }
 

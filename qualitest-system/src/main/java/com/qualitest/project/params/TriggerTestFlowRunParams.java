@@ -29,6 +29,12 @@ public class TriggerTestFlowRunParams {
     private String runScenarioId;
 
     /**
+     * 可选，覆盖图上当前选中的入参预设。
+     * 命中后把该预设的 values 写入运行时 {@code in}。
+     */
+    private String inputPresetId;
+
+    /**
      * 触发来源，写入运行记录与运行中心来源归类。
      * 常见值：manual（画布人手）、ai（全自动工具）、suite、ci、schedule；空则按 manual。
      */

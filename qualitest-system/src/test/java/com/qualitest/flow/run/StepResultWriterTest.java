@@ -38,7 +38,7 @@ class StepResultWriterTest {
                 .scenarioId("sc-1")
                 .scenarioName("冒烟")
                 .testProjectEnvId(200L)
-                .flowSeed(Map.of("loginUser", "admin"))
+                .inSeed(Map.of("loginUser", "admin"))
                 .build();
         FlowRunContext ctx = FlowRunContext.builder()
                 .env(Map.of("baseUrl", "https://dev.example.com", "token", "t1"))
@@ -65,8 +65,8 @@ class StepResultWriterTest {
     }
 
     /**
-     * 前提：run 无 step0，仅有 graphJsonSnapshot（sc-1 + flowSeed.x=1）。
-     * 期望：fallback 步含 scenarioLoaded；flowAfter.x=1；hasRunConfigStep=true。
+     * 前提：run 无 step0，仅有 graphJsonSnapshot（sc-1 + inSeed.x=1）。
+     * 期望：fallback 步含 scenarioLoaded.inSeed.x=1；hasRunConfigStep=true。
      */
     @Test
     @Order(2)
@@ -81,7 +81,7 @@ class StepResultWriterTest {
                         "id": "sc-1",
                         "name": "默认",
                         "testProjectEnvId": "201",
-                        "flowSeed": { "x": 1 }
+                        "inSeed": { "x": 1 }
                       }
                     ]
                   },
@@ -102,7 +102,7 @@ class StepResultWriterTest {
         assertEquals(StepResultWriter.NODE_TYPE_RUN_CONFIG, step.getNodeType());
         var details = writer.parseStepDetails(step.getStepDetails());
         assertTrue(details.containsKey("scenarioLoaded"));
-        assertEquals(1, details.getJSONObject("flowAfter").getIntValue("x"));
+        assertEquals(1, details.getJSONObject("scenarioLoaded").getJSONObject("inSeed").getIntValue("x"));
         assertTrue(writer.hasRunConfigStep(List.of(step)));
     }
 

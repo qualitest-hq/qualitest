@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * 只读：按 scenarioId 返回单个运行场景配置。
  * <p>
- * flowSeed 只回键名不回明文；额外带 active 表示是否为当前默认场景。
+ * inSeed 只回键名不回明文；额外带 active 表示是否为当前默认场景。
  * 读图走工作图优先，便于改场景前核对本轮已提交的场景单元。
  */
 public class GetScenarioDetailTool implements QualitestTool {

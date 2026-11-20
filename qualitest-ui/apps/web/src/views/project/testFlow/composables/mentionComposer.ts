@@ -464,12 +464,20 @@ const MENTION_PROVIDERS: MentionProvider[] = [
         ?? store.runConfig.scenarios?.[0];
 
       if (varSubtype === 'flow') {
-        items = Object.keys(scenario?.flowSeed ?? {}).map((key) => ({
+        // flow 由 Assign / extract 在跑中写入；场景初值只走 inSeed
+        items = [];
+      } else if (varSubtype === 'in') {
+        const seedKeys = Object.keys(scenario?.inSeed ?? {});
+        const contractKeys = (store.inputSpec?.fields || [])
+          .map((f) => String(f?.name || '').trim())
+          .filter(Boolean);
+        const keys = [...new Set([...contractKeys, ...seedKeys])];
+        items = keys.map((key) => ({
           type: 'var',
-          subtype: 'flow',
+          subtype: 'in',
           id: key,
-          label: `flow.${key}`,
-          detail: '运行场景初值',
+          label: `in.${key}`,
+          detail: '入参',
         }));
       } else if (varSubtype === 'env') {
         if (store.canvasMode === 'template') {

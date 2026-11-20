@@ -100,6 +100,7 @@ import {
 
 const VAR_SUBTYPES: { id: VarSubtype; label: string }[] = [
   { id: 'flow', label: 'flow' },
+  { id: 'in', label: 'in' },
   { id: 'env', label: 'env' },
   { id: 'asset', label: 'asset' },
 ];

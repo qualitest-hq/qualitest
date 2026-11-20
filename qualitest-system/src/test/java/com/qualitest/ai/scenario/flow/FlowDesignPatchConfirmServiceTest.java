@@ -619,7 +619,7 @@ class FlowDesignPatchConfirmServiceTest {
                                 .id("sc1")
                                 .name("默认")
                                 .testProjectEnvId("")
-                                .flowSeed(Map.of())
+                                .inSeed(Map.of())
                                 .build()))
                         .flowOutputs(List.of())
                         .build())

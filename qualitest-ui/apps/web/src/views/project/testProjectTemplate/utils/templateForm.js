@@ -305,7 +305,7 @@ export function buildLoginGraphJson({
           id: scenarioId,
           name: '默认（冒烟）',
           testProjectEnvId: '',
-          flowSeed: {},
+          inSeed: {},
           remark: '',
         },
       ],

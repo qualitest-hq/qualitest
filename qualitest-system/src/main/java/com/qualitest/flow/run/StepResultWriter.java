@@ -87,7 +87,12 @@ public class StepResultWriter {
             if (scenario.getTestProjectEnvId() != null) {
                 scenarioLoaded.put("testProjectEnvId", String.valueOf(scenario.getTestProjectEnvId()));
             }
-            scenarioLoaded.put("flowSeed", scenario.getFlowSeed() != null ? scenario.getFlowSeed() : Map.of());
+            // 入参初值与所用预设，写入 runConfig 步便于报告回放
+            scenarioLoaded.put("inSeed", scenario.getInSeed() != null ? scenario.getInSeed() : Map.of());
+            if (scenario.getInputPresetId() != null) {
+                scenarioLoaded.put("inputPresetId", scenario.getInputPresetId());
+                scenarioLoaded.put("inputPresetName", scenario.getInputPresetName());
+            }
         }
         scenarioLoaded.put("envName", envName);
         if (ctx != null && ctx.getEnv() != null) {
@@ -122,7 +127,7 @@ public class StepResultWriter {
     public TestFlowRunStepResult buildFallbackRunConfigStepResult(TestFlowRunResult run, String envName) {
         final String runScenarioId = run.getRunScenarioId();
         String scenarioName = null;
-        Map<String, Object> flowSeed = new HashMap<>();
+        Map<String, Object> inSeed = new HashMap<>();
         String scenarioId = runScenarioId;
 
         if (run.getGraphJsonSnapshot() != null && !run.getGraphJsonSnapshot().isBlank()) {
@@ -139,8 +144,8 @@ public class StepResultWriter {
                             scenarioId = matched.getId();
                         }
                         scenarioName = matched.getName();
-                        if (matched.getFlowSeed() != null) {
-                            flowSeed.putAll(matched.getFlowSeed());
+                        if (matched.getInSeed() != null) {
+                            inSeed.putAll(matched.getInSeed());
                         }
                     }
                 }
@@ -156,7 +161,7 @@ public class StepResultWriter {
             scenarioLoaded.put("testProjectEnvId", String.valueOf(run.getTestProjectEnvId()));
         }
         scenarioLoaded.put("envName", envName);
-        scenarioLoaded.put("flowSeed", flowSeed);
+        scenarioLoaded.put("inSeed", inSeed);
         Map<String, Object> envSnapshot = new LinkedHashMap<>();
         envSnapshot.put("testProjectEnvId", scenarioLoaded.get("testProjectEnvId"));
         envSnapshot.put("envName", envName);
@@ -164,9 +169,6 @@ public class StepResultWriter {
 
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("scenarioLoaded", scenarioLoaded);
-        if (!flowSeed.isEmpty()) {
-            details.put("flowAfter", flowSeed);
-        }
 
         return TestFlowRunStepResult.builder()
                 .testFlowRunId(run.getTestFlowRunId())

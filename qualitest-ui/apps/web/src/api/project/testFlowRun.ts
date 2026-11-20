@@ -7,6 +7,8 @@ export interface TriggerTestFlowRunParams {
   testFlowId: string;
   testProjectEnvId?: string;
   runScenarioId?: string;
+  /** 入参预设 id：开跑时把该预设 values 写入运行时 in */
+  inputPresetId?: string;
   /** 触发来源：manual / ai / ci / schedule / suite 等 */
   triggerType?: string;
   [key: string]: unknown;

@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-/** 左栏四个 Tab：运行场景、节点库、参数库、运行库；模板画布隐藏运行库 */
+/** 左栏四个 Tab：运行配置、节点库、参数库、运行库；模板画布隐藏运行库 */
 import { computed } from 'vue'
 
 import NodePalette from './NodePalette.vue'
@@ -50,7 +50,7 @@ const store = useFlowCanvasStore()
 
 const tabs = computed(() => {
   const all = [
-    { id: 'runConfig', label: '运行场景' },
+    { id: 'runConfig', label: '运行配置' },
     { id: 'nodes', label: '节点库' },
     { id: 'params', label: '参数库' },
     { id: 'runs', label: '运行库' },
@@ -62,7 +62,7 @@ const tabs = computed(() => {
 })
 
 const meta = {
-  runConfig: { title: '运行场景', desc: '选择要运行的场景 · 右侧编辑运行配置' },
+  runConfig: { title: '运行配置', desc: '入参契约声明字段 · 场景预设只填值' },
   nodes: { title: '节点库', desc: '拖拽或双击添加到画布' },
   params: { title: '参数库', desc: 'Env / Asset 配置态叶子；搜索；复制 {{path}} 或值' },
   runs: { title: '运行库', desc: '正式 Run 记录与回放' },

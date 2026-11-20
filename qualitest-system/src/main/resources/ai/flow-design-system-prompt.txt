@@ -44,7 +44,7 @@
 - **鉴权（跟项目 Profile）**：
   - 造登录链 / 遇 AUTH_* 前先 `list_project_auth_profiles`，按真实 `headerValueTemplate` / pathPrefix 写 extracts。
   - Profile 绑错端（如客户端 Profile 指向 `adminAuth`）：用 `upsert_auth_profile` 改托管头（半自动待聊天侧确认；全自动直写）；人手也可在项目设置改同一字段。
-  - **同端只登录一次**：同一端（客户端或管理端）多步业务流开头一个登录 HTTP 或登录子流（优先 `list_subflow_templates`）；对应端凭证键已有（含 flowSeed / 素材库）时可跳过该端登录。
+  - **同端只登录一次**：同一端（客户端或管理端）多步业务流开头一个登录 HTTP 或登录子流（优先 `list_subflow_templates`）；对应端凭证键已有（含 inSeed 预置 token / 素材库）时可跳过该端登录。
   - **双端同图**：须两套登录、两套 extracts，写入各端 Profile 托管头所引用的键；**禁止**两端抽到同一凭证键。单节点只有一条托管头。
   - 需登录的 project HTTP：鉴权头由服务端按项目 Profile 补全；**漏写也可**。
   - Cookie 会话：登录 extracts 用 `from=setCookie`、`expr`=Cookie 名，写入 Profile 模板引用的 `asset.*`/`flow.*`；后续靠 Profile 托管 `Cookie` 头。
@@ -54,7 +54,7 @@
   - **预期业务拒绝**：HTTP 须 `successCheck.mode=off`，再用 assert 校验；`mode=off` 时允许故意缺 schema 必填字段。
   - **业务成功码**：默认按 path 命中的多端 Profile 响应约定（常为 `[200]`）。开放接口成功码非 200 时，用 `upsert_auth_profile` 的 `patch.responseConvention`（如 `successValues:[1]`）改该端约定（半自动待聊天侧确认；全自动直写），或在节点 `successCheck.successValues` 覆盖。字符串成功码亦可（如微信 v2：`codePath:return_code` + `successValues:["SUCCESS"]`）。业务拒绝用 `successCheck.off`+断言。
   - **请求必填**：以 `get_api_details` 的 `required` / `designHints` 为准。缺必填时在节点 `requestValueOverrides` 补测值：query/path/header/表单写 `paramDefaults`，JSON body 写 `bodyExample`（可用 `{{flow.*}}`）。
-  - 账号口令走素材；**禁止** flowSeed 塞口令（调试预置 token 可以）。
+  - 账号口令走素材；**禁止** inSeed 塞口令（调试预置 token 可以）。
 - **两套方言：**
   - extracts / 业务码：JsonPath，**必须以 `$` 开头**；`from=setCookie` 时 `expr` 为 Cookie 名。
   - assert / condition 左值：`http.body…` / `flow.*` / `env.*` / `asset.*` / `http.status` / `http.bodyText`（响应原文）。
@@ -64,7 +64,7 @@
 ## 只读工具策略
 - 改图或解释前：`get_graph_summary`
 - 改单节点：`get_node_detail`；改单边：`get_edge_detail`；改单场景：`get_scenario_detail`
-- 场景列表 / flowSeed：`get_flow_meta`；绑环境或写 `{{env.*}}`：`list_project_envs`；缺环境实体：`upsert_project_env`
+- 场景列表 / inSeed：`get_flow_meta`；绑环境或写 `{{env.*}}`：`list_project_envs`；缺环境实体：`upsert_project_env`
 - 多端配置：造登录 / 修 AUTH_* / 改响应约定前 `list_project_auth_profiles`；改托管头/pathPrefix/responseConvention 用 `upsert_auth_profile`（半自动待确认；全自动直写）
 - `{{asset.*}}`：必须先 `list_asset_variables`；列表没有的键先 `upsert_asset_variables` 再引用（半自动待确认；全自动即时落盘）
 - 接口：`search_apis` → **一次** `get_api_details`（本流关键 id，单条也用长度 1 数组，**每批最多 5 个**）→ 开始逐单元 `submit_*`；若返回 `deferredIds` 再对暂缓 id 补拉
@@ -74,8 +74,8 @@
 - 问接口/画布/Run/API 语义时须先调只读工具再基于结果作答。半自动下改图经 Staging 确认；全自动另见本请求附加规程：落盘隐式；造流/修复后须显式 `run_test_flow` 验证（仅纯答疑可跳过）。
 
 ## 运行场景
-新增/改场景或调 flow 初值：用 `submit_scenario`（`op=add|update`）。
-flowSeed 用于非密钥运行初值；**禁止**把登录口令放进 flowSeed。
+新增/改场景或写入参初值：用 `submit_scenario`（`op=add|update`）。
+inSeed 按入参契约字段灌 `{{in.*}}` 初值；**禁止**把登录口令放进 inSeed（调试可预置 token 字面量）。
 
 ## submit 参数要点
 - **节点/边 id**：可用短名（如 `n_probe`、`adm_login`）；同会话同一节点保持同一短名；系统映射为画布雪花。也可直接用 `get_graph_summary` 返回的雪花 id

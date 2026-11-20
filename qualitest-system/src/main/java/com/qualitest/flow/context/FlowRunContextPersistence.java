@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * FlowRunContext 暂停/续跑时的序列化与反序列化。
  * <p>
- * 写入内容：env / flow / asset / session、外联权限、项目 ID、子流深度、projectAuthConfig。
+ * 写入内容：env / flow / in / out / asset / session、外联权限、项目 ID、子流深度、projectAuthConfig。
  * 不写入 lastResponse、nodeResponses：续跑后这两项为空，须再次执行 HTTP 节点后才能用
  * {@code http.*} 与 {@code nodes.<节点id>.http.*} 取值。
  */
@@ -22,6 +22,8 @@ public final class FlowRunContextPersistence {
         }
         map.put("env", ctx.getEnv() != null ? new HashMap<>(ctx.getEnv()) : new HashMap<>());
         map.put("flow", ctx.getFlow() != null ? new HashMap<>(ctx.getFlow()) : new HashMap<>());
+        map.put("in", ctx.getIn() != null ? new HashMap<>(ctx.getIn()) : new HashMap<>());
+        map.put("out", ctx.getOut() != null ? new HashMap<>(ctx.getOut()) : new HashMap<>());
         map.put("asset", ctx.getAsset() != null ? new HashMap<>(ctx.getAsset()) : new HashMap<>());
         map.put("session", ctx.getSession() != null ? new HashMap<>(ctx.getSession()) : new HashMap<>());
         map.put("externalHttpPermitted", ctx.isExternalHttpPermitted());
@@ -44,6 +46,14 @@ public final class FlowRunContextPersistence {
         Object flow = map.get("flow");
         if (flow instanceof Map) {
             builder.flow(new HashMap<>((Map<String, Object>) flow));
+        }
+        Object in = map.get("in");
+        if (in instanceof Map) {
+            builder.in(new HashMap<>((Map<String, Object>) in));
+        }
+        Object out = map.get("out");
+        if (out instanceof Map) {
+            builder.out(new HashMap<>((Map<String, Object>) out));
         }
         Object asset = map.get("asset");
         if (asset instanceof Map) {

@@ -18,7 +18,7 @@ public final class ScenarioPatchMergeSupport {
 
     /**
      * 把 update 里的非空字段覆盖到已有场景。
-     * flowSeed 做键级浅合并；remark、失败策略等字段同样在此统一写入。
+     * inSeed 做键级浅合并；remark、失败策略等字段同样在此统一写入。
      */
     public static void applyScenarioUpdate(GraphRunScenario existing, GraphRunScenario update) {
         if (update.getName() != null && !update.getName().isBlank()) {
@@ -40,13 +40,13 @@ public final class ScenarioPatchMergeSupport {
         if (update.getMaxSteps() != null) {
             existing.setMaxSteps(update.getMaxSteps());
         }
-        if (update.getFlowSeed() != null && !update.getFlowSeed().isEmpty()) {
+        if (update.getInSeed() != null && !update.getInSeed().isEmpty()) {
             Map<String, Object> merged = new HashMap<>();
-            if (existing.getFlowSeed() != null) {
-                merged.putAll(existing.getFlowSeed());
+            if (existing.getInSeed() != null) {
+                merged.putAll(existing.getInSeed());
             }
-            merged.putAll(update.getFlowSeed());
-            existing.setFlowSeed(merged);
+            merged.putAll(update.getInSeed());
+            existing.setInSeed(merged);
         }
     }
 }

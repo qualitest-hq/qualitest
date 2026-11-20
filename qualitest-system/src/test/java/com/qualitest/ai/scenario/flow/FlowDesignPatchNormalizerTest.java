@@ -373,7 +373,7 @@ class FlowDesignPatchNormalizerTest {
         GraphRunScenario newScenario = GraphRunScenario.builder()
                 .name("异常路径")
                 .testProjectEnvId("")
-                .flowSeed(new HashMap<>(Map.of("loginUser", "bad")))
+                .inSeed(new HashMap<>(Map.of("loginUser", "bad")))
                 .remark("登录失败")
                 .build();
         FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
@@ -389,19 +389,19 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 前提：已有场景 flowSeed 含 loginUser；update 只带 pollAttempt。
+     * 前提：已有场景 inSeed 含 loginUser；update 只带 pollAttempt。
      * 期望：浅合并后两者都在。
      */
     @Test
     @Order(10)
-    @DisplayName("更新场景浅合并 flowSeed")
-    void mergeScenarioPatch_updateScenario_mergesFlowSeed() {
+    @DisplayName("更新场景浅合并 inSeed")
+    void mergeScenarioPatch_updateScenario_mergesInSeed() {
         String scenarioId = "2042000000000000101";
         GraphMeta base = graphWithMeta().getMeta();
-        base.getScenarios().get(0).setFlowSeed(new HashMap<>(Map.of("loginUser", "admin")));
+        base.getScenarios().get(0).setInSeed(new HashMap<>(Map.of("loginUser", "admin")));
         GraphRunScenario update = GraphRunScenario.builder()
                 .id(scenarioId)
-                .flowSeed(new HashMap<>(Map.of("pollAttempt", 1)))
+                .inSeed(new HashMap<>(Map.of("pollAttempt", 1)))
                 .build();
         FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
         scenarioPatch.setUpdateScenarios(new ArrayList<>(List.of(update)));
@@ -413,8 +413,8 @@ class FlowDesignPatchNormalizerTest {
                 .filter(s -> scenarioId.equals(s.getId()))
                 .findFirst()
                 .orElseThrow();
-        assertEquals("admin", scenario.getFlowSeed().get("loginUser"));
-        assertEquals(1, scenario.getFlowSeed().get("pollAttempt"));
+        assertEquals("admin", scenario.getInSeed().get("loginUser"));
+        assertEquals(1, scenario.getInSeed().get("pollAttempt"));
     }
 
     /**
@@ -432,7 +432,7 @@ class FlowDesignPatchNormalizerTest {
                 .id(removeId)
                 .name("备用")
                 .testProjectEnvId("")
-                .flowSeed(new HashMap<>())
+                .inSeed(new HashMap<>())
                 .build());
         FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
         scenarioPatch.setDeleteScenarioIds(new ArrayList<>(List.of(removeId)));
@@ -1039,7 +1039,7 @@ class FlowDesignPatchNormalizerTest {
                 .id("2042000000000000101")
                 .name("默认")
                 .testProjectEnvId("")
-                .flowSeed(new HashMap<>())
+                .inSeed(new HashMap<>())
                 .build();
         GraphMeta meta = GraphMeta.builder()
                 .activeScenarioId(scenario.getId())

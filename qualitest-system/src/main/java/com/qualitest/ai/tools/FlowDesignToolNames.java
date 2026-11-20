@@ -60,7 +60,7 @@ public enum FlowDesignToolNames {
     GET_NODE_DETAIL("get_node_detail", true, true),
     /** 读取单条边的 id、source、target、label */
     GET_EDGE_DETAIL("get_edge_detail", true, true),
-    /** 读取单个运行场景配置（含 flowSeed 键名，不含明文） */
+    /** 读取单个运行场景配置（含 inSeed 键名，不含明文） */
     GET_SCENARIO_DETAIL("get_scenario_detail", true, true),
     /** 读取某次 Run 的失败步骤现场（按失败类别分区） */
     GET_RUN_FAILURE("get_run_failure", true, true),

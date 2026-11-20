@@ -41,6 +41,8 @@
  * 画布顶部校验条。
  * 展示结构问题、Staging 确认失败、运行风险、API 语义告警；
  * 节点名可点击居中并高亮该节点。
+ * 根条 pointer-events:none，不挡住节点库往画布中部拖放；
+ * 可点击的节点名链接单独 pointer-events:auto。
  */
 import { computed } from 'vue'
 
@@ -100,6 +102,8 @@ async function focusIssueNode(nodeId: string) {
   overflow-y: auto;
   font-size: 11px;
   line-height: 1.45;
+  /* 整条不接收指针，避免挡住下方画布落点；可点链接在子元素上重新打开 */
+  pointer-events: none;
 }
 
 .flow-validation-bar__group-label {
@@ -147,6 +151,7 @@ async function focusIssueNode(nodeId: string) {
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
+  pointer-events: auto;
 
   &:hover {
     opacity: 0.85;

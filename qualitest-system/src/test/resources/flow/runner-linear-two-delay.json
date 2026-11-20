@@ -39,7 +39,7 @@
         "id": "s1",
         "name": "线性",
         "testProjectEnvId": "",
-        "flowSeed": {}
+        "inSeed": {}
       }
     ],
     "flowOutputs": []

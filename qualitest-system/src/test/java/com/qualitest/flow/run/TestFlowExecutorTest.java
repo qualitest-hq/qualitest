@@ -138,7 +138,7 @@ class TestFlowExecutorTest {
                         .scenarioId("sc-default")
                         .scenarioName("默认场景")
                         .testProjectEnvId(100L)
-                        .flowSeed(Map.of("code", 0))
+                        .inSeed(Map.of("code", 0))
                         .build(),
                 "开发环境",
                 null
@@ -183,7 +183,7 @@ class TestFlowExecutorTest {
                         .scenarioId("sc-default")
                         .scenarioName("默认场景")
                         .testProjectEnvId(100L)
-                        .flowSeed(Map.of("code", 99))
+                        .inSeed(Map.of("code", 99))
                         .build(),
                 "开发环境",
                 null
@@ -267,7 +267,7 @@ class TestFlowExecutorTest {
                         .scenarioId("sc-default")
                         .scenarioName("默认场景")
                         .testProjectEnvId(100L)
-                        .flowSeed(Map.of("code", 0))
+                        .inSeed(Map.of("code", 0))
                         .build(),
                 "开发环境",
                 null

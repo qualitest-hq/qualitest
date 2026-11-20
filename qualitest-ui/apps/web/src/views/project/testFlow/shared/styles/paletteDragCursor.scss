@@ -1,0 +1,9 @@
+/**
+ * 节点库拖拽进行中的全局光标。
+ * body 带 is-flow-palette-dragging 时强制四向箭头，并禁止选中文本。
+ */
+body.is-flow-palette-dragging,
+body.is-flow-palette-dragging * {
+  cursor: move !important;
+  user-select: none !important;
+}

@@ -456,11 +456,11 @@ class FlowDesignToolExecutorTest {
 
     /**
      * 前提：画布 meta 含 activeScenarioId 与场景。
-     * 期望：返回场景摘要（name、flowSeedKeys 等）。
+     * 期望：返回场景摘要（name、inSeedKeys 等）。
      */
     @Test
     @Order(10)
-    @DisplayName("返回场景摘要与 flowSeedKeys")
+    @DisplayName("返回场景摘要与 inSeedKeys")
     void getFlowMeta_returnsScenarios() {
         GraphJson graph = GraphJson.builder()
                 .nodes(new ArrayList<>())
@@ -473,7 +473,7 @@ class FlowDesignToolExecutorTest {
                                         .id("sc-default")
                                         .name("默认")
                                         .testProjectEnvId("201")
-                                        .flowSeed(new java.util.HashMap<>(java.util.Map.of("loginUser", "demo")))
+                                        .inSeed(new java.util.HashMap<>(java.util.Map.of("loginUser", "demo")))
                                         .remark("冒烟")
                                         .build()
                         )))
@@ -494,7 +494,7 @@ class FlowDesignToolExecutorTest {
         assertEquals("start-1", root.getString("startNodeId"));
         assertEquals("默认", root.getJSONArray("scenarios").getJSONObject(0).getString("name"));
         assertEquals("loginUser", root.getJSONArray("scenarios").getJSONObject(0)
-                .getJSONArray("flowSeedKeys").getString(0));
+                .getJSONArray("inSeedKeys").getString(0));
     }
 
     /**

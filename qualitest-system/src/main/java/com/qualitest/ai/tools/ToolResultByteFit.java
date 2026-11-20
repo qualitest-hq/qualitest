@@ -249,7 +249,7 @@ public final class ToolResultByteFit {
             for (int i = 0; i < scenarios.size() && over(result, maxBytes); i++) {
                 JSONObject sc = scenarios.getJSONObject(i);
                 if (sc != null) {
-                    sc.remove("flowSeedKeys");
+                    sc.remove("inSeedKeys");
                     sc.remove("remark");
                 }
             }

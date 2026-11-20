@@ -10,10 +10,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 本次 Run 实际使用的运行场景解析结果。
+ * 本次 Run 实际采用的场景与入参解析结果。
  * <p>
- * 由图 meta.scenarios 与触发参数（scenarioId、testProjectEnvId 覆盖）解析得到，
- * 供上下文组装、runConfig 首步落库、以及快照失败策略使用。
+ * 从图 {@code meta.scenarios}（含 {@code inSeed}；旧图可回落 {@code inputPresets}）以及触发参数解析得到：
+ * 环境 id、in 初值、失败策略等，供组装运行上下文、写 runConfig 首步、执行器决策使用。
  */
 @Getter
 @Setter
@@ -31,16 +31,22 @@ public class ResolvedRunScenario {
     /** 本次 Run 使用的项目环境 id */
     private Long testProjectEnvId;
 
-    /** flow 变量初值，Run 启动时注入上下文 */
+    /** 入参初值，Run 启动时写入 {@code ctx.in} */
     @Builder.Default
-    private Map<String, Object> flowSeed = new HashMap<>();
+    private Map<String, Object> inSeed = new HashMap<>();
 
-    /** 节点失败策略，来自场景配置 */
+    /** 实际采用的入参预设 id；无预设时为 null */
+    private String inputPresetId;
+
+    /** 实际采用的入参预设显示名；无预设时为 null */
+    private String inputPresetName;
+
+    /** 节点失败策略（预设可覆盖场景） */
     private String onNodeFailure;
 
-    /** checkpoint 失败策略，来自场景配置 */
+    /** checkpoint 失败策略（预设可覆盖场景） */
     private String onSnapshotFailure;
 
-    /** 单次运行步数上限，来自场景配置；空则用系统默认 */
+    /** 单次运行步数上限；空则用系统默认 */
     private Integer maxSteps;
 }

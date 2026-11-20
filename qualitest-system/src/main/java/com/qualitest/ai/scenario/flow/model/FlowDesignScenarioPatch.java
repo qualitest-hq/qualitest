@@ -21,7 +21,7 @@ public class FlowDesignScenarioPatch {
     private List<GraphRunScenario> addScenarios = new ArrayList<>();
 
     /**
-     * 按 id 修改已有运行场景（浅合并 name、testProjectEnvId、flowSeed、remark）
+     * 按 id 修改已有运行场景（浅合并 name、testProjectEnvId、inSeed、remark）
      */
     private List<GraphRunScenario> updateScenarios = new ArrayList<>();
 

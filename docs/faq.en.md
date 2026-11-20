@@ -13,7 +13,7 @@
 Common causes:
 
 1. Wrong login **extract path**, or it does not match the Profile managed-header target.
-2. Graph uses Bearer but has **no** matching source (extract / flowSeed / env / persisted asset).
+2. Graph uses Bearer but has **no** matching source (extract / env / persisted asset).
 3. Login API should be anonymous (`mode=none`) but still got a managed Bearer — check template and API `auth.mode`.
 
 → [project-summary.en.md §4](./project-summary.en.md) · [flow-variables-and-values.en.md](./flow-variables-and-values.en.md)
@@ -31,7 +31,7 @@ Hard blocks for token / login-extract / HTTP-required run on **Run** only — St
 
 | Code | Meaning | Fix |
 | ---- | ------- | --- |
-| `AUTH_TOKEN_MISSING` | Bearer needed but no writer in the graph | Add a matching source (login extract / flowSeed / env) for the Profile header; “wrong side” tip → fix project auth |
+| `AUTH_TOKEN_MISSING` | Bearer needed but no writer in the graph | Add a matching source (login extract / env) for the Profile header; “wrong side” tip → fix project auth |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Two logins write the same credential path | Use `adminAuth` / `clientAuth` separately |
 | `AUTH_HEADER_MANAGED` | Managed header filled | Info only |
 
@@ -53,7 +53,7 @@ Usually the **client Profile’s managed header points at the wrong asset** (`{{
 
 ### Where to put passwords
 
-Reusable main accounts: asset library + `{{asset.*}}`. Failure scenarios: **literals** on the node. Do not put plaintext passwords on the graph or in flowSeed.
+Reusable main accounts: asset library + `{{asset.*}}`. Failure scenarios: **literals** on the node. Do not put plaintext passwords on the graph or in scenario inSeed.
 
 → [assets.en.md](./assets.en.md) · [flow-variables-and-values.en.md](./flow-variables-and-values.en.md)
 

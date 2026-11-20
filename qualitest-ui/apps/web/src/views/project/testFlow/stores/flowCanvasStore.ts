@@ -1,14 +1,20 @@
 /**
  * 测试流画布页 Pinia 状态。
  *
- * 持有 vue-flow 的 nodes/edges/viewport、运行场景、flowOutputs、
+ * 持有 vue-flow 的 nodes/edges/viewport、运行场景（含 inSeed）、入参契约、flowOutputs、
  * 选中项、三栏 UI 开关，场景运行节点高亮，以及 AI 设计侧栏状态。
  * 真实项目画布另持有当前用户在本项目的权限列表，供画布顶栏与操作门禁使用。
  */
 import type { Edge, Node } from '@vue-flow/core';
 import { computed, nextTick } from 'vue';
 
-import type { GraphFlowOutput, GraphScenarioConfig, GraphViewport } from '@/utils/flow/graphTypes';
+import type {
+  GraphFlowOutput,
+  GraphInputPreset,
+  GraphInputSpec,
+  GraphScenarioConfig,
+  GraphViewport,
+} from '@/utils/flow/graphTypes';
 
 import { getTestProject, myProjectContext } from '@/api/project/testProject';
 import { parseProjectCapabilities } from '../../testProject/utils/projectCapabilities';
@@ -18,12 +24,12 @@ import { createDefaultRunConfig, DEFAULT_VIEWPORT } from '../graphAdapter';
 import { AI_CONFIRM_HIGHLIGHT_CLEAR_MS } from '../constants/flowConfig';
 import { presetById, type FlowLayoutAxis, type FlowLayoutPresetId } from '../utils/flowLayoutPreset';
 import { waitDoubleAnimationFrame } from '../utils/waitDoubleAnimationFrame';
-import { useAiStagingStore } from './aiStagingStore';
+import { clear as clearCanvasStaging } from '../staging/canvasStagingFacade';
 
 export { AI_CONFIRM_HIGHLIGHT_CLEAR_MS };
 
 export type LeftPanelTab = 'runConfig' | 'nodes' | 'params' | 'runs';
-export type RightPanelMode = 'props' | 'run' | 'scenario';
+export type RightPanelMode = 'props' | 'run' | 'scenario' | 'inputSpec';
 /** project=真实项目测试流；template=项目模板预制流（无真实 projectId） */
 export type FlowCanvasMode = 'project' | 'template';
 
@@ -80,7 +86,14 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const edges = ref<Edge[]>([]);
   const viewport = ref<GraphViewport>({ ...DEFAULT_VIEWPORT });
   const runConfig = ref<GraphScenarioConfig>(createDefaultRunConfig());
+  /** 流对外声明的 flow 返回值列表（meta.flowOutputs） */
   const flowOutputs = ref<GraphFlowOutput[]>([]);
+  /** 入参字段与是否开放 HTTP 入站（meta.inputSpec） */
+  const inputSpec = ref<GraphInputSpec | null>(null);
+  /** @deprecated 旧入参预设；打开画布后已迁入场景 inSeed，通常为空 */
+  const inputPresets = ref<GraphInputPreset[]>([]);
+  /** @deprecated 旧活动预设 id */
+  const activeInputPresetId = ref('');
   const testFlowId = ref('');
   const testProjectId = ref('');
   const flowName = ref('');
@@ -214,6 +227,9 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     viewport.value = { ...DEFAULT_VIEWPORT };
     runConfig.value = createDefaultRunConfig();
     flowOutputs.value = [];
+    inputSpec.value = null;
+    inputPresets.value = [];
+    activeInputPresetId.value = '';
     testFlowId.value = '';
     testProjectId.value = '';
     flowName.value = '';
@@ -249,7 +265,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     aiHighlightNodeIds.value = [];
     externalSyncHighlightNodeIds.value = [];
     stagingEdgeFlushToken.value = 0;
-    useAiStagingStore().reset();
+    clearCanvasStaging();
   }
 
   /** 记录已保存基线（加载或保存成功后调用） */
@@ -366,12 +382,42 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     ui.value.rightOpen = true;
   }
 
+  /** 打开右栏「入参契约」面板（字段 / 开放 path） */
+  function showInputSpecPanel() {
+    aiDesignPanelOpen.value = false;
+    ui.value.rightMode = 'inputSpec';
+    ui.value.rightOpen = true;
+  }
+
+  /** 合并写入 meta.inputSpec，并标脏 */
+  function patchInputSpec(patch: Partial<GraphInputSpec>) {
+    const base: GraphInputSpec = inputSpec.value ? { ...inputSpec.value } : { fields: [] };
+    inputSpec.value = { ...base, ...patch };
+    markDirty();
+  }
+
+  /** @deprecated 旧入参预设列表；场景已吸收 inSeed，保留空实现以免外部调用报错 */
+  function setInputPresets(next: GraphInputPreset[]) {
+    inputPresets.value = next;
+    markDirty();
+  }
+
+  /** @deprecated 旧活动预设；开跑改用场景 inSeed */
+  function setActiveInputPresetId(id: string) {
+    activeInputPresetId.value = id;
+    markDirty();
+  }
+
   /**
    * 切换左栏 Tab。
-   * 离开运行配置时若右栏处于场景模式则回到属性模式；进入运行配置时自动打开场景面板。
+   * 离开运行配置时若右栏处于场景/入参模式则回到属性模式；进入运行配置时自动打开场景面板。
    */
   function setLeftTab(tab: LeftPanelTab) {
-    if (ui.value.leftTab === 'runConfig' && tab !== 'runConfig' && ui.value.rightMode === 'scenario') {
+    if (
+      ui.value.leftTab === 'runConfig' &&
+      tab !== 'runConfig' &&
+      (ui.value.rightMode === 'scenario' || ui.value.rightMode === 'inputSpec')
+    ) {
       ui.value.rightMode = 'props';
       if (!selected.value) {
         ui.value.rightOpen = false;
@@ -504,6 +550,9 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     viewport,
     runConfig,
     flowOutputs,
+    inputSpec,
+    inputPresets,
+    activeInputPresetId,
     testFlowId,
     testProjectId,
     flowName,
@@ -551,6 +600,10 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     patchEdgeLabel,
     setLeftTab,
     showScenarioPanel,
+    showInputSpecPanel,
+    patchInputSpec,
+    setInputPresets,
+    setActiveInputPresetId,
     showRunPanel,
     clearRunHighlight,
     addAiConfirmHighlight,

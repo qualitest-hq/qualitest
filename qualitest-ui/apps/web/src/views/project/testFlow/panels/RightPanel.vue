@@ -15,6 +15,7 @@
             @open-http-config="emit('open-http-config', $event)"
         />
         <ScenarioConfigPanel v-else-if="contentKey === 'scenario'" />
+        <InputSpecPanel v-else-if="contentKey === 'inputSpec'" />
         <RunDetailPanel v-else-if="contentKey === 'run'" />
       </div>
     </div>
@@ -22,10 +23,11 @@
 </template>
 
 <script setup>
-/** 右栏：属性 / 运行配置 / 运行详情，共用滚动容器与标题区 */
+/** 右栏：节点属性、场景预设、入参契约、运行详情；共用滚动与标题 */
 import EdgePropertyPanel from './EdgePropertyPanel.vue';
+import InputSpecPanel from './InputSpecPanel.vue';
 import NodePropertyPanel from './NodePropertyPanel.vue';
-import RunDetailPanel from './RunDetailPanel.vue';
+import RunDetailPanel from '../run/RunDetailPanel.vue';
 import ScenarioConfigPanel from './ScenarioConfigPanel.vue';
 import { useRightPanelMeta } from '../composables/useRightPanelMeta';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
@@ -37,7 +39,7 @@ const { title, desc, contentKey } = useRightPanelMeta();
 
 function closePanel() {
   store.ui.rightOpen = false;
-  if (store.ui.rightMode === 'run' || store.ui.rightMode === 'scenario') {
+  if (store.ui.rightMode === 'run' || store.ui.rightMode === 'scenario' || store.ui.rightMode === 'inputSpec') {
     store.ui.rightMode = 'props';
   }
 }

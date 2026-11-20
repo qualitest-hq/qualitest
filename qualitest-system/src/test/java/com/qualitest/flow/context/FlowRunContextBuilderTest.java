@@ -11,9 +11,10 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 FlowRunContextBuilder / EnvUrlSupport：组装 env/asset/flow 与多模块 envUrl。
+ * 测 FlowRunContextBuilder / EnvUrlSupport：组装 env/asset/in 与多模块 envUrl。
  * 边界：无协议 host 补 http；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowRunContextBuilderTest
  */
@@ -21,12 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class FlowRunContextBuilderTest {
 
     /**
-     * 前提：TestProjectEnv 含 envUrl、envVariables；assetJson 与 flowSeed 非空。
-     * 期望：ctx.env 含 baseUrl/timeout，flow 含 loginUser，asset.defaults 含 clientId。
+     * 前提：TestProjectEnv 含 envUrl、envVariables；assetJson 与 inSeed 非空。
+     * 期望：ctx.env 含 baseUrl/timeout，in 含 loginUser，flow 为空，asset.defaults 含 clientId。
      */
     @Test
     @Order(1)
-    @DisplayName("build：注入 env baseUrl 与 asset 作用域")
+    @DisplayName("build：注入 env baseUrl、in 与 asset 作用域")
     void build_injectsEnvBaseUrlAndAssetScope() {
         TestProjectEnv env = TestProjectEnv.builder()
                 .envUrl("http://localhost:8800")
@@ -35,11 +36,13 @@ class FlowRunContextBuilderTest {
 
         String assetJson = "[{\"id\":2,\"key\":\"defaults\",\"assets\":{\"defaults\":{\"clientId\":\"app-1\"}}}]";
 
-        FlowRunContext ctx = FlowRunContextBuilder.build(env, assetJson, Map.of("loginUser", "admin"));
+        FlowRunContext ctx = FlowRunContextBuilder.build(
+                env, assetJson, Map.of("loginUser", "admin"), null, true);
 
         assertEquals("http://localhost:8800", ctx.getEnv().get("baseUrl"));
         assertEquals(5000, ctx.getEnv().get("timeout"));
-        assertEquals("admin", ctx.getFlow().get("loginUser"));
+        assertEquals("admin", ctx.getIn().get("loginUser"));
+        assertTrue(ctx.getFlow().isEmpty());
 
         @SuppressWarnings("unchecked")
         Map<String, Object> defaults = (Map<String, Object>) ctx.getAsset().get("defaults");

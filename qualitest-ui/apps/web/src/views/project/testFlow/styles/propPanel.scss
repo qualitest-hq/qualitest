@@ -100,17 +100,19 @@
 
   .flow-kv-editor__head {
     display: grid;
-    grid-template-columns: 1fr 1fr 28px;
+    grid-template-columns: 1fr 1fr 32px;
     gap: 6px;
+    align-items: center;
     font-size: 10px;
     font-weight: 600;
     color: var(--pd-text-muted);
     padding: 0 2px;
+    min-height: 18px;
   }
 
   .flow-kv-editor__row {
     display: grid;
-    grid-template-columns: 1fr 1fr 28px;
+    grid-template-columns: 1fr 1fr 32px;
     gap: 6px;
     align-items: center;
   }
@@ -118,10 +120,11 @@
   .flow-kv-editor__input {
     width: 100%;
     height: 32px;
-    padding: 6px 8px;
+    padding: 0 8px;
     border: 1px solid var(--pd-border-subtle);
     border-radius: 6px;
     font-size: 12px;
+    line-height: 32px;
     font-family: inherit;
     color: var(--pd-text);
     background: var(--pd-surface-elevated);
@@ -133,16 +136,6 @@
       box-shadow: 0 0 0 1px var(--pd-primary) inset;
       border-color: var(--pd-primary);
     }
-  }
-
-  .flow-kv-editor__remove {
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-    padding: 0;
-    justify-content: center;
-    font-size: 16px;
-    line-height: 1;
   }
 
   .flow-kv-editor__add {
