@@ -724,6 +724,8 @@ docker compose up -d --build # 改代码、Dockerfile，或 GHCR 拉取失败时
 | 配置 | Druid master 下须显式配 `spring.flyway.url` / `user` / `password`（见各 `application-*.yml`） |
 | 生产 | 禁止 `clean`；回滚靠新版本正向修复或备份还原（Community 无自动 down） |
 
+**2.0 基线方向**（开发期不执行）：继续只加 `V{n}`（含插件表等增量）。产品 **2.0.0** 发版时对空库重做单一基线；**不提供** 1.x 热升、不迁旧 `graph_json`。此刻**不**删改已执行的 V1…Vn。
+
 查当前版本：
 
 ```sql

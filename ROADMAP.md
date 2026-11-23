@@ -20,16 +20,18 @@ flowchart LR
 ```
 
 ```text
-测试流工程化  >  跑流/密钥硬伤  >  仿第三方与平台插件（评估）  >  其余看反馈
+测试流工程化  >  跑流/密钥硬伤  >  流契约 2.0 + 平台插件  >  其余看反馈
 ```
 
-> **命名**：JetBrains「Qualitest Helper」市场上架已在 Done（1.2）。**平台插件**（Exploring 6.2）指质衡内可装卸扩展：既含**被测/环境运行面**，也含**测试流呈现面**（样式与 UI 贡献槽），见 [docs/platform-plugins.md](./docs/platform-plugins.md)；与 IDEA 插件不是同一件事。
+> **命名**：JetBrains「Qualitest Helper」市场上架已在 Done（1.2）。**平台插件**指质衡内可装卸扩展：既含**被测/环境运行面**，也含**测试流呈现面**（样式与 UI 贡献槽），见 [docs/platform-plugins.md](./docs/platform-plugins.md)；与 IDEA 插件不是同一件事。
 
 ---
 
 ## 🚧 Now
 
-（暂无）
+| ID | 方向 | 说明 |
+| -- | ---- | ---- |
+| 6.2 | 流契约 2.0 + 平台插件 | 产品 **2.0.0** 同发：流契约重建（见 [flow-contract-2.0.md](./docs/flow-contract-2.0.md)）与平台插件一口切。插件：契约优先（JSONC）；被测特殊面 → 插件；能力私有；被测旁默认 CLI；`invoke(pluginId, capability, …)`。见 [platform-plugins.md](./docs/platform-plugins.md)。**不做**：开放业务能力名录；默认常驻 agent 守护；改质衡自身时钟/库；公开热装商店；不与 1.2 JetBrains 市场混名。 |
 
 ---
 
@@ -46,7 +48,6 @@ flowchart LR
 | ID | 方向 | 说明 |
 | -- | ---- | ---- |
 | 6.1 | 可私有化的垂直造流模型 | 先把外接 LLM + Staging 做稳，训练样本与通过率够了再评估。**产出**是一份可部署的微调权重（约 7B～14B 开源基座 + LoRA/SFT），接现有 AI 通道，服务内网与调用成本；不替代多模型接入，也不是从零预训练。**训练集**来自真实造流/修流：用户意图 → 调了哪些工具、提交了什么改图 → Staging/校验失败后再改到通过。时间未定。靶场以 [`qualitest-demo-mall`](https://github.com/qualitest-hq/qualitest-demo-mall) 为主。 |
-| 6.2 | 平台插件（运行端 + 界面端） | **契约优先（JSONC）**。被测特殊面 → 插件；能力私有于插件。被测旁 **默认 CLI**（install/uninstall，配置走环境 `config`/`configSchema`）。文档示意：被测库存档点（SQL/Redis 等整包存档、断点读档）+ 拨钟（改被测机系统时间，仅靶场）；可运行样本后置（官方 ops CLI：**Go**）。`invoke(pluginId, capability, …)`。见 [platform-plugins.md](./docs/platform-plugins.md)。**不做**：开放业务能力名录；默认常驻 agent 守护；改质衡自身时钟/库；公开热装商店；不与 1.2 JetBrains 市场混名。 |
 
 ---
 
