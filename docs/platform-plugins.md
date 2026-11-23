@@ -1,6 +1,7 @@
 # 质衡平台插件（草案）
 
-> **状态**：设计草案 · ROADMAP Exploring 6.2（**不承诺版本**；契约须自洽，实现按本文执行）。  
+> **状态**：设计草案 · 与产品 **2.0.0** **同发**（流契约重建 + 平台插件一口切；见 [flow-contract-2.0.md](./flow-contract-2.0.md)）。  
+> **ROADMAP**：原 Exploring 6.2 并入 2.0.0 发布列车；**不再**写「不承诺版本」。  
 > **不含**：JetBrains Helper、Cursor MCP（接入通道 ≠ 平台插件）。  
 > **已定结论**：§9 · **实现对照**：§10（启用/调度/失败须有唯一答案）。
 
@@ -710,7 +711,8 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 
 ## 8. 相关链接
 
-- ROADMAP Exploring **6.2**；Later **7.4～7.6**、**5.5**  
+- 发布列车：**2.0.0** 与 [flow-contract-2.0.md](./flow-contract-2.0.md) 同发；ROADMAP 原 Exploring **6.2** 并入该列车；Later **7.4～7.6**、**5.5** 仍后置  
+- 流侧协议入口 / 消费面：`flow-contract-2.0.md` §2.3、§7（`{protocol}-entry` 等与本稿 `pluginAction` 贡献面在 2.0 列车内对齐）  
 - 现状写库快照（迁移前）：`project-summary.md`；`HttpEndpointSnapshotAdapter`  
 - 被测 test-support（ephemeral，待迁入存档点插件）：`qualitest-demo-mall` / `test-support-starter`  
 - 运维金库（**不是**本插件）：`qualitest-demo-host` `data/golden` / daily-reset  
@@ -730,7 +732,7 @@ MCP 与平台插件：**通道 ≠ 插件**。Web 改不了被测机磁盘；本
 | A3 | 契约字符串 **kebab-case** |
 | A4 | **`ui-slot:…` 互斥**；`slot` 只布局 |
 | A5 | 短 id + 存储 `pluginId`/`contributionId` |
-| A6 | ROADMAP 指向草案 |
+| A6 | 与产品 **2.0.0** 同发（流契约 + 插件一口切）；不再「不承诺版本」 |
 | B1 | **无**全局能力唯一提供者；互斥靠 isolation |
 | B2 | primary **仅 sut-db 竞争时必填** |
 | B4 | **废包级 danger**；gate 在**插件能力对象**上；`remarks` 仅说明 |
