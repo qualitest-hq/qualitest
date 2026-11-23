@@ -75,6 +75,9 @@ importers:
       '@lezer/highlight':
         specifier: 1.2.3
         version: 1.2.3
+      '@lljj/vue3-form-element':
+        specifier: 1.19.0
+        version: 1.19.0
       '@lobehub/icons':
         specifier: 5.16.0
         version: 5.16.0(@lobehub/ui@5.32.3)(@types/react@19.2.18)(antd@6.6.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@8.1.1)
@@ -869,6 +872,15 @@ packages:
 
   '@lit/reactive-element@2.1.2':
     resolution: {integrity: sha512-pbCDiVMnne1lYUIaYNN5wrwQXDtHaYtg7YEFPeW+hws6U47WeFvISGUWekPGKWOP1ygrs0ef0o1VJMk1exos5A==}
+
+  '@lljj/vjsf-utils@1.19.0':
+    resolution: {integrity: sha512-dnW7bmwJdPLFjV3W54TA/9DTcB5WT5ElntNJZfaYbRldZywztmBpBO+JEZ8uTyKSchke1eBXDyP8kC/9wbvjwg==}
+
+  '@lljj/vue3-form-core@1.19.0':
+    resolution: {integrity: sha512-RqnepJ6mHs6lhcAFX/ZF0pa/q1fJaK1Kibhazs3eneGQ2ovMJP5bTUAuKfEaNO+8PKRUQQdrUfZBkuSPs/+nJQ==}
+
+  '@lljj/vue3-form-element@1.19.0':
+    resolution: {integrity: sha512-nGQtLGRYpEdyoDl0Ro7mpO70qX7QPyuX4zwFDx1jn0ufvzSy++OxZ8d5fZblw0SfEjDs1zuVEVYHL1oymTcZeA==}
 
   '@lobehub/emojilib@1.0.0':
     resolution: {integrity: sha512-s9KnjaPjsEefaNv150G3aifvB+J3P4eEKG+epY9zDPS2BeB6+V2jELWqAZll+nkogMaVovjEE813z3V751QwGw==}
@@ -6801,6 +6813,19 @@ snapshots:
   '@lit/reactive-element@2.1.2':
     dependencies:
       '@lit-labs/ssr-dom-shim': 1.6.0
+
+  '@lljj/vjsf-utils@1.19.0':
+    dependencies:
+      ajv: 6.15.0
+
+  '@lljj/vue3-form-core@1.19.0':
+    dependencies:
+      '@lljj/vjsf-utils': 1.19.0
+
+  '@lljj/vue3-form-element@1.19.0':
+    dependencies:
+      '@lljj/vjsf-utils': 1.19.0
+      '@lljj/vue3-form-core': 1.19.0
 
   '@lobehub/emojilib@1.0.0': {}
 

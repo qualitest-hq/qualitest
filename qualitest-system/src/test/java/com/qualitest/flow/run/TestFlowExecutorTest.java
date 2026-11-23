@@ -111,7 +111,8 @@ class TestFlowExecutorTest {
 
         executor = new TestFlowExecutor(
                 registry, new FlowGraphRunner(), runService, runPersistenceService,
-                runStatusUpdater, new StepResultWriter(), hookFactory, resumePlanner);
+                runStatusUpdater, new StepResultWriter(), hookFactory, resumePlanner,
+                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class));
     }
 
     private static final class RunCaptorHolder {
@@ -255,7 +256,8 @@ class TestFlowExecutorTest {
         ResumeContinuationPlanner resumePlanner = new ResumeContinuationPlanner(snapshotRestoreService);
         executor = new TestFlowExecutor(
                 registry, new FlowGraphRunner(), runService, runPersistenceService,
-                runStatusUpdater, new StepResultWriter(), hookFactory, resumePlanner);
+                runStatusUpdater, new StepResultWriter(), hookFactory, resumePlanner,
+                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class));
 
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         FlowRunContext ctx = FlowRunContext.builder()

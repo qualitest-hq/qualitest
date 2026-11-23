@@ -74,9 +74,8 @@ public class TestProjectEnv extends BaseEntity {
     private String envVariables;
 
     /**
-     * 是否允许在正式 Run 中还原被测数据。
-     * 0：禁止打 checkpoint 与 restore；1：允许（须被测环境已暴露快照接口）。
-     * 生产环境应置 0。
+     * 正式 Run 是否允许破坏性快照与还原：1 允许，0 禁止。
+     * 由用户在环境上自行配置，不按环境名称推断。
      */
     private Integer allowDestructiveReset;
 

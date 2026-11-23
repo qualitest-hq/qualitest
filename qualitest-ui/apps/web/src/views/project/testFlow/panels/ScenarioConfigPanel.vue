@@ -216,8 +216,8 @@ function openEnvManageDialog() {
 }
 
 async function onEnvManageSaved(payload) {
-  // 环境增删改后重拉列表，并修正当前场景的绑定
-  await loadProjectEnvs();
+  // 环境增删改后强制重拉列表，并修正当前场景的绑定
+  await loadProjectEnvs(true);
   const sc = activeScenario.value;
   if (!sc) return;
   const curId = String(sc.testProjectEnvId ?? '');

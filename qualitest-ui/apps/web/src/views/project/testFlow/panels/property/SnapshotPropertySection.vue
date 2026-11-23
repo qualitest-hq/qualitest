@@ -13,31 +13,18 @@
         当前场景环境未允许还原，checkpoint 将静默跳过
       </div>
       <div v-else-if="snapshotBefore" class="field__hint">
-        开启数据还原时，同一环境请串行跑（避免并行 Run 互相覆盖被测数据）
+        依赖环境已启用「库存档点」插件与项目 bindAlias 挂载；同一环境请串行跑（避免并行 Run 互相踩库）。
+        存档范围为项目挂载的库/store 整包，不是按表裁剪。
       </div>
     </div>
-
-    <template v-if="snapshotBefore">
-      <div class="field">
-        <label>快照表范围（逗号或换行分隔）</label>
-        <textarea
-            :value="tablesText"
-            placeholder="orders, order_items"
-            rows="3"
-            @input="onTablesInput"
-        />
-        <div class="field__hint">scope 固定为 tables；留空表示不限制表列表</div>
-      </div>
-    </template>
   </div>
 </template>
 
 <script setup>
 /**
- * 节点属性：执行前打被测数据快照。
- * 勾选写入 data.snapshotBefore=true（布尔）；取消写入 false。
- * 首次勾选且尚无 snapshotScope 时补默认 { scope: 'tables', tables: [] }。
- * 展示态只认布尔 true，字符串或数字不视为已勾选。
+ * 节点属性：执行前打被测数据快照（测试流 HTTP 节点配置，非质衡平台自身开关）。
+ * 勾选写入 data.snapshotBefore=true；取消写入 false。
+ * 能力为整库存档，不再提供表范围编辑。
  */
 import { computed, onMounted } from 'vue'
 
@@ -59,14 +46,6 @@ onMounted(() => {
 /** 复选框是否勾选：只认 data.snapshotBefore 为布尔 true */
 const snapshotBefore = computed(() => props.node?.data?.snapshotBefore === true)
 
-/** 快照表范围文本：把 snapshotScope.tables 用逗号拼成输入框内容 */
-const tablesText = computed(() => {
-  const scope = props.node?.data?.snapshotScope
-  const tables = scope?.tables
-  if (!Array.isArray(tables)) return ''
-  return tables.join(', ')
-})
-
 /** 当前场景绑定环境是否允许破坏性还原（allowDestructiveReset===1） */
 const envAllowsReset = computed(() => {
   const sc = getActiveScenario()
@@ -76,25 +55,10 @@ const envAllowsReset = computed(() => {
   return hit?.allowDestructiveReset === 1
 })
 
-/** 勾选/取消快照开关：写入布尔 snapshotBefore；首次勾选补默认表范围 */
+/** 勾选/取消快照开关：写入布尔 snapshotBefore */
 function onSnapshotBeforeChange(e) {
   const checked = e.target.checked
-  const patch = { snapshotBefore: checked }
-  if (checked && !props.node?.data?.snapshotScope) {
-    patch.snapshotScope = { scope: 'tables', tables: [] }
-  }
-  patchNodeData(props.node.id, patch)
-}
-
-function onTablesInput(e) {
-  const raw = String(e.target.value ?? '')
-  const tables = raw
-    .split(/[\n,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  patchNodeData(props.node.id, {
-    snapshotScope: { scope: 'tables', tables },
-  })
+  patchNodeData(props.node.id, { snapshotBefore: checked })
 }
 </script>
 
@@ -125,23 +89,6 @@ function onTablesInput(e) {
   display: flex;
   flex-direction: column;
   gap: 4px;
-
-  label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--pd-text-muted);
-  }
-
-  textarea {
-    width: 100%;
-    padding: 6px 8px;
-    border-radius: 6px;
-    border: 1px solid var(--pd-border-subtle);
-    font-size: 11px;
-    font-family: ui-monospace, Consolas, monospace;
-    resize: vertical;
-    box-sizing: border-box;
-  }
 }
 
 .field__hint {

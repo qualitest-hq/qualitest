@@ -270,7 +270,7 @@ IDE 插件市场搜 **Qualitest Helper**（[Marketplace](https://plugins.jetbrai
 
 1. **主链路**：插件或 MCP 入库 → 调试台发通 → 建项勾鉴权模板 → 画布挂登录子流 → 串业务 HTTP / 断言 → Run；失败可用 AI 修复后再绿。  
 2. **MCP 造流**：接 Token → 开写流 / 跑流并重连 → Cursor 造流并 Run → 回 Web 看画布（失败则 `get_run_failure` 再修）。  
-3. **写库可回滚**（demo `/test-support`）：加载失败场景 → 环境开「允许还原」→ HTTP 勾「执行前快照」→ 失败暂停后选「还原并重试」；时间线可见 snapshot / restore。
+3. **写库可回滚**（库存档点插件）：加载失败场景 → 环境开「允许还原」并启用 `qualitest.sut-db-archive-point` → HTTP 勾「执行前快照」→ 失败暂停后选「还原并重试」；时间线可见 snapshot / restore。
 
 ---
 

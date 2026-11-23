@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qualitest.project.mapper.TestPluginPackageMapper">
+    <resultMap type="TestPluginPackage" id="TestPluginPackageResult">
+        <result property="testPluginPackageId" column="test_plugin_package_id"/>
+        <result property="pluginId" column="plugin_id"/>
+        <result property="version" column="version"/>
+        <result property="displayName" column="display_name"/>
+        <result property="manifestJson" column="manifest_json"/>
+        <result property="contentHash" column="content_hash"/>
+        <result property="delStatus" column="del_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectTestPluginPackageVo">
+        select test_plugin_package_id, plugin_id, version, display_name, manifest_json, content_hash, del_status,
+        create_time, update_time from test_plugin_package
+    </sql>
+
+    <sql id="selectTestPluginPackageAliasVo">
+        select tpp.test_plugin_package_id as testPluginPackageId, tpp.plugin_id as pluginId, tpp.version as version,
+        tpp.display_name as displayName, tpp.manifest_json as manifestJson, tpp.content_hash as contentHash,
+        tpp.del_status as delStatus, tpp.create_time as createTime, tpp.update_time as updateTime from
+        test_plugin_package tpp
+    </sql>
+
+    <select id="selectTestPluginPackageList" parameterType="TestPluginPackage" resultMap="TestPluginPackageResult">
+        <include refid="selectTestPluginPackageVo"/>
+        <where>
+            <if test="pluginId != null and pluginId != ''">
+                and plugin_id = #{pluginId}
+            </if>
+            <if test="version != null and version != ''">
+                and version = #{version}
+            </if>
+            <if test="displayName != null and displayName != ''">
+                and display_name = #{displayName}
+            </if>
+            <if test="contentHash != null and contentHash != ''">
+                and content_hash = #{contentHash}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTestPluginPackageById" parameterType="Long" resultMap="TestPluginPackageResult">
+        <include refid="selectTestPluginPackageVo"/>
+        where test_plugin_package_id = #{testPluginPackageId}
+    </select>
+
+    <select id="selectTestPluginPackageResultList" parameterType="TestPluginPackageParams"
+            resultType="TestPluginPackageResult">
+        select
+        tpp.test_plugin_package_id as testPluginPackageId,
+        tpp.plugin_id as pluginId,
+        tpp.version as version,
+        tpp.display_name as displayName,
+        tpp.manifest_json as manifestJson,
+        tpp.content_hash as contentHash,
+        tpp.del_status as delStatus,
+        tpp.create_time as createTime,
+        tpp.update_time as updateTime
+        from test_plugin_package tpp
+        where tpp.del_status = 0
+        <if test="pluginId != null and pluginId != ''">
+            and tpp.plugin_id = #{pluginId}
+        </if>
+        <if test="version != null and version != ''">
+            and tpp.version = #{version}
+        </if>
+        <if test="displayName != null and displayName != ''">
+            and tpp.display_name like concat('%', #{displayName}, '%')
+        </if>
+        <if test="contentHash != null and contentHash != ''">
+            and tpp.content_hash = #{contentHash}
+        </if>
+        order by tpp.test_plugin_package_id desc
+    </select>
+
+    <select id="selectTestPluginPackageResult" parameterType="Long" resultType="TestPluginPackageResult">
+        select
+        tpp.test_plugin_package_id as testPluginPackageId,
+        tpp.plugin_id as pluginId,
+        tpp.version as version,
+        tpp.display_name as displayName,
+        tpp.manifest_json as manifestJson,
+        tpp.content_hash as contentHash,
+        tpp.del_status as delStatus,
+        tpp.create_time as createTime,
+        tpp.update_time as updateTime
+        from test_plugin_package tpp
+        where
+        tpp.del_status = 0 and
+        tpp.test_plugin_package_id = #{testPluginPackageId}
+        limit 1
+    </select>
+
+    <select id="selectTestPluginPackageCount" parameterType="TestPluginPackageParams" resultType="int">
+        select count(1)
+        from test_plugin_package tpp
+        where tpp.del_status = 0
+        <if test="pluginId != null  and pluginId != ''">
+            and tpp.plugin_id = #{pluginId}
+        </if>
+        <if test="version != null  and version != ''">
+            and tpp.version = #{version}
+        </if>
+        <if test="displayName != null  and displayName != ''">
+            and tpp.display_name like concat('%', #{displayName}, '%')
+        </if>
+        <if test="contentHash != null  and contentHash != ''">
+            and tpp.content_hash = #{contentHash}
+        </if>
+    </select>
+
+    <select id="selectTestPluginPackageOne" parameterType="TestPluginPackageParams" resultMap="TestPluginPackageResult">
+        select
+        tpp.test_plugin_package_id,
+        tpp.plugin_id,
+        tpp.version,
+        tpp.display_name,
+        tpp.manifest_json,
+        tpp.content_hash,
+        tpp.del_status,
+        tpp.create_time,
+        tpp.update_time
+        from test_plugin_package tpp
+        where tpp.del_status = 0
+        <if test="pluginId != null  and pluginId != ''">
+            and tpp.plugin_id = #{pluginId}
+        </if>
+        <if test="version != null  and version != ''">
+            and tpp.version = #{version}
+        </if>
+        <if test="displayName != null  and displayName != ''">
+            and tpp.display_name like concat('%', #{displayName}, '%')
+        </if>
+        <if test="contentHash != null  and contentHash != ''">
+            and tpp.content_hash = #{contentHash}
+        </if>
+        order by tpp.test_plugin_package_id desc
+        limit 1
+    </select>
+
+    <insert id="insertTestPluginPackage" parameterType="TestPluginPackage">
+        insert into test_plugin_package
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="testPluginPackageId != null">
+                test_plugin_package_id,
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                plugin_id,
+            </if>
+            <if test="version != null and version != ''">
+                version,
+            </if>
+            <if test="displayName != null and displayName != ''">
+                display_name,
+            </if>
+            <if test="manifestJson != null and manifestJson != ''">
+                manifest_json,
+            </if>
+            <if test="contentHash != null and contentHash != ''">
+                content_hash,
+            </if>
+            <if test="delStatus != null">
+                del_status,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="testPluginPackageId != null">
+                #{testPluginPackageId},
+            </if>
+            <if test="pluginId != null and pluginId != ''">
+                #{pluginId},
+            </if>
+            <if test="version != null and version != ''">
+                #{version},
+            </if>
+            <if test="displayName != null and displayName != ''">
+                #{displayName},
+            </if>
+            <if test="manifestJson != null and manifestJson != ''">
+                #{manifestJson},
+            </if>
+            <if test="contentHash != null and contentHash != ''">
+                #{contentHash},
+            </if>
+            <if test="delStatus != null">
+                #{delStatus},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateTestPluginPackage" parameterType="TestPluginPackage">
+        update test_plugin_package
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="pluginId != null and pluginId != ''">
+                plugin_id = #{pluginId},
+            </if>
+            <if test="version != null and version != ''">
+                version = #{version},
+            </if>
+            <if test="displayName != null and displayName != ''">
+                display_name = #{displayName},
+            </if>
+            <if test="manifestJson != null and manifestJson != ''">
+                manifest_json = #{manifestJson},
+            </if>
+            <if test="contentHash != null and contentHash != ''">
+                content_hash = #{contentHash},
+            </if>
+            <if test="delStatus != null">
+                del_status = #{delStatus},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+        </trim>
+        where test_plugin_package_id = #{testPluginPackageId}
+    </update>
+
+    <delete id="deleteTestPluginPackageById" parameterType="Long">
+        delete from test_plugin_package where test_plugin_package_id = #{testPluginPackageId}
+    </delete>
+
+    <delete id="deleteTestPluginPackageByIdList" parameterType="java.util.List">
+        delete from test_plugin_package where test_plugin_package_id in
+        <foreach item="testPluginPackageId" collection="list" open="(" separator="," close=")">
+            #{testPluginPackageId}
+        </foreach>
+    </delete>
+
+    <update id="logicDeleteTestPluginPackageById" parameterType="Long">
+        update test_plugin_package set del_status = 1 where test_plugin_package_id = #{testPluginPackageId}
+    </update>
+
+    <update id="logicDeleteTestPluginPackageByIdList" parameterType="java.util.List">
+        update test_plugin_package set del_status = 1 where test_plugin_package_id in
+        <foreach item="testPluginPackageId" collection="list" open="(" separator="," close=")">
+            #{testPluginPackageId}
+        </foreach>
+    </update>
+</mapper>

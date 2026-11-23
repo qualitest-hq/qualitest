@@ -37,6 +37,15 @@
           >
             {{ leaseBadge.text }}
           </span>
+          <!-- 活动场景环境已启用插件的顶栏徽章 -->
+          <span
+              v-for="badge in pluginBadges"
+              :key="badge.pluginId + '-' + badge.id"
+              class="flow-canvas-header__plugin-badge"
+              :title="badge.pluginId"
+          >
+            {{ badge.text }}
+          </span>
         </div>
       </div>
       <!-- 外部写入冲突条幅：图 / 鉴权 / 素材 -->
@@ -370,6 +379,8 @@ import { useFlowKeyboard } from './composables/useFlowKeyboard'
 import { useFlowMinimap } from './composables/useFlowMinimap'
 import { useFlowNodes } from './composables/useFlowNodes'
 import { useFlowScenarioRun } from './composables/useFlowScenarioRun'
+import { useRunConfig } from './composables/useRunConfig'
+import { getEnvPluginUi } from '@/api/project/pluginHost'
 import { useFlowCanvasPermissions } from './composables/useFlowCanvasPermissions'
 import { useAiStagingCanvas } from './composables/useAiStagingCanvas'
 import { useAiStagingConfirm } from './composables/useAiStagingConfirm'
@@ -443,6 +454,37 @@ const assetFormDirty = computed(() => store.ui.leftTab === 'params')
 const { leaseBadge, pulseRemoteActivity } = useFlowEditLease({
   testFlowId: externalSyncTestFlowId,
   enabled: externalSyncEnabled,
+})
+
+const { getActiveScenario, loadProjectEnvs } = useRunConfig()
+/** 当前场景环境已启用插件贡献的顶栏徽章（如「存档点」） */
+const pluginBadges = ref([])
+
+/** 按活动场景环境拉取插件 UI 投影中的徽章列表 */
+async function refreshPluginBadges() {
+  pluginBadges.value = []
+  const envId = getActiveScenario()?.testProjectEnvId
+  if (!envId) return
+  try {
+    const res = await getEnvPluginUi(envId)
+    pluginBadges.value = Array.isArray(res?.data?.badges) ? res.data.badges : []
+  } catch {
+    pluginBadges.value = []
+  }
+}
+
+/** 切换活动场景环境时刷新顶栏插件徽章 */
+watch(
+  () => getActiveScenario()?.testProjectEnvId,
+  () => {
+    refreshPluginBadges()
+  },
+  { immediate: true },
+)
+
+/** 进入画布时预拉环境列表，供顶栏徽章与运行侧读取环境字段 */
+onMounted(() => {
+  loadProjectEnvs?.()
 })
 
 // 订阅外部写入；条幅驱动顶栏「放弃并刷新」
@@ -977,6 +1019,19 @@ function onPaneClick() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.flow-canvas-header__plugin-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a5f;
+  background: #e0f2fe;
+  border: 1px solid #7dd3fc;
 }
 
 .flow-canvas-header__lease.is-self {

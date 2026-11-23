@@ -1,6 +1,6 @@
 import { parseVariableEntries } from './variableEntryUtils'
 
-/** 默认模块名称，与 Apifox 类工具习惯一致 */
+/** 环境 URL 行未指定模块名时使用的默认模块名 */
 export const DEFAULT_ENV_MODULE_NAME = '默认模块'
 
 /**
@@ -90,25 +90,6 @@ export function ensureHttpSchemeForRequest(baseUrl) {
   return `http://${u}`
 }
 
-/** 被测系统快照服务挂载路径，与后端 ResetEndpointSupport.TEST_SUPPORT_PATH 一致 */
-export const TEST_SUPPORT_PATH = '/test-support'
-
-/**
- * 从 envUrl 派生 test-support 根地址（静态，不发 HTTP）。
- * @param {string|null|undefined} envUrl
- * @returns {string} 如 http://host:8801/test-support；无法派生时返回 ''
- */
-export function resolveResetBaseUrl(envUrl) {
-  const base = ensureHttpSchemeForRequest(resolveEnvBaseUrlForRequest(envUrl))
-  if (!base) return ''
-  let trimmed = base
-  while (trimmed.endsWith('/')) {
-    trimmed = trimmed.slice(0, -1)
-  }
-  const path = TEST_SUPPORT_PATH.startsWith('/') ? TEST_SUPPORT_PATH : `/${TEST_SUPPORT_PATH}`
-  return `${trimmed}${path}`
-}
-
 /**
  * 前置 URL 格式校验：不强制 http(s) 前缀，允许无协议（如 localhost:8800）、占位符、相对路径等。
  * 始终视为可接受，具体拼接与合法性由调试请求等环节处理。
@@ -138,7 +119,7 @@ export function previewEnvVariablesLabel(raw) {
   return `${preview.join('、')}${more}`
 }
 
-/** 与环境管理侧栏一致：无自定义色时按名称哈希取色 */
+/** 无自定义色时按环境名称哈希选取的预设色板 */
 const ENV_NAME_BADGE_PALETTE = ['#7c3aed', '#2563eb', '#db2777', '#059669', '#d97706']
 
 export function badgeColorForEnvName(name) {
@@ -152,7 +133,7 @@ export function badgeColorForEnvName(name) {
 }
 
 /**
- * 环境色块背景：优先 `env.envColor`，否则按 `env.envName` 生成稳定配色（与环境管理一致）。
+ * 环境色块背景：优先 envColor；未设置时按 envName 哈希生成稳定配色。
  * @param {{ envColor?: string, envName?: string }|null|undefined} env
  */
 export function resolveEnvSwatchBackground(env) {

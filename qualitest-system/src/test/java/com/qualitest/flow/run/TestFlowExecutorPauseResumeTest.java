@@ -119,7 +119,8 @@ class TestFlowExecutorPauseResumeTest {
                         mock(com.qualitest.project.runhub.EnvRunSlotLifecycle.class)),
                 new StepResultWriter(),
                 new SnapshotPreExecuteHookFactory(snapshotCheckpointService, new StepResultWriter()),
-                new ResumeContinuationPlanner(snapshotRestoreService));
+                new ResumeContinuationPlanner(snapshotRestoreService),
+                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class));
     }
 
     /**

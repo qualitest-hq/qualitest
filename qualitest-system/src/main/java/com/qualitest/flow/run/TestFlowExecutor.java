@@ -15,6 +15,7 @@ import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.snapshot.FlowRunSnapshotState;
 import com.qualitest.flow.snapshot.RunSnapshotPolicy;
+import com.qualitest.plugin.prepare.PluginRunPrepareService;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestFlowRunStep;
 import com.qualitest.project.domain.TestProjectEnv;
@@ -44,9 +45,10 @@ public class TestFlowExecutor {
     private final StepResultWriter stepResultWriter;
     private final SnapshotPreExecuteHookFactory snapshotPreExecuteHookFactory;
     private final ResumeContinuationPlanner resumeContinuationPlanner;
+    private final PluginRunPrepareService pluginRunPrepareService;
 
     /**
-     * 首次执行 Run：写 runConfig 首步 → 从图起点遍历。
+     * 首次执行 Run：写 runConfig 首步 → onRunPrepare（如场景造数）→ 从图起点遍历。
      * 异常统一由 {@link #runWithExceptionGuard} 兜底为 failed 终态。
      */
     public ExecutionOutcome execute(Long testFlowRunId, GraphJson snapshot, FlowRunContext ctx,
@@ -59,8 +61,18 @@ public class TestFlowExecutor {
                         testFlowRunId, bootstrap.getScenario(), bootstrap.getEnvName(), ctx);
                 runPersistenceService.insertStep(bootstrapStep);
             }
+            long nextStepIndex = 1L;
+            if (bootstrap != null && bootstrap.getEnv() != null) {
+                List<StepResult> prepareSteps = pluginRunPrepareService.runPrepare(
+                        bootstrap.getEnv(), testFlowRunId);
+                if (prepareSteps != null) {
+                    for (StepResult prepareStep : prepareSteps) {
+                        persistStep(testFlowRunId, nextStepIndex++, prepareStep);
+                    }
+                }
+            }
             return advanceRun(testFlowRunId, snapshot, ctx, bootstrap, RunContinuation.fresh(),
-                    new FlowRunSnapshotState(), 1L, startedAt, runT0);
+                    new FlowRunSnapshotState(), nextStepIndex, startedAt, runT0);
         });
     }
 

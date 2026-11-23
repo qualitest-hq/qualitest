@@ -28,6 +28,7 @@
     "@codemirror/view": "6.43.9",
     "@element-plus/icons-vue": "2.3.2",
     "@lezer/highlight": "1.2.3",
+    "@lljj/vue3-form-element": "1.19.0",
     "@lobehub/icons": "5.16.0",
     "@qualitest/transport-types": "workspace:*",
     "@tanstack/vue-virtual": "3.13.36",

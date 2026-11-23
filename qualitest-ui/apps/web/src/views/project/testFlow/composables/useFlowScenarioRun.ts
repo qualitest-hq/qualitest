@@ -5,6 +5,7 @@
 import { computed } from 'vue';
 import { ElMessage } from 'element-plus';
 
+import { getEnvPluginUi } from '@/api/project/pluginHost';
 import { triggerTestFlowRun } from '@/api/project/testFlowRun';
 import { validateSnapshotResetEndpointStatic } from '@/utils/flow/snapshotPreRunValidate';
 
@@ -38,7 +39,8 @@ export function useFlowScenarioRun() {
     if (runLib.scenarioRunLive) return null;
 
     await store.ensureEdgesHydrated();
-    await loadProjectEnvs();
+    // 跑流前强制刷新环境，拿到最新的允许还原等字段
+    await loadProjectEnvs(true);
     const scenario = getActiveScenario();
     const envId = scenario?.testProjectEnvId;
     const env = envId
@@ -55,7 +57,29 @@ export function useFlowScenarioRun() {
 
     // 运行前的图带上当前排版方式，避免随后保存的运行快照丢掉这项
     const graphForRun = toGraphJson(buildFlowGraphInput(store));
-    const snapshotCheck = validateSnapshotResetEndpointStatic(graphForRun, env);
+    /**
+     * 环境已开还原总闸时拉 UI 投影，判断是否已启用声明 onCheckpoint 的插件；
+     * 拉取失败视为未启用，由后续静态校验拦下跑流。
+     */
+    let checkpointPluginEnabled = false;
+    if (envId && Number(env?.allowDestructiveReset) === 1) {
+      try {
+        const uiRes = await getEnvPluginUi(envId);
+        const envPlugins = Array.isArray(uiRes?.data?.env) ? uiRes.data.env : [];
+        checkpointPluginEnabled = envPlugins.some(
+          (p: { enabled?: boolean; hooks?: Array<{ name?: string }> }) =>
+            !!p?.enabled &&
+            Array.isArray(p.hooks) &&
+            p.hooks.some((h) => h?.name === 'onCheckpoint'),
+        );
+      } catch {
+        checkpointPluginEnabled = false;
+      }
+    }
+    const snapshotCheck = validateSnapshotResetEndpointStatic(graphForRun, {
+      ...env,
+      checkpointPluginEnabled,
+    });
     if (!snapshotCheck.ok) {
       ElMessage.error(snapshotCheck.message);
       return null;
@@ -67,7 +91,7 @@ export function useFlowScenarioRun() {
     });
     useRunRiskStore().setWarnings(precheckErrors);
     if (blocking.length) {
-      ElMessage.error(`${blocking[0]}（详见左上角校验条）`);
+      ElMessage.error(`${blocking[0]}（请查看左上角校验条）`);
       return null;
     }
 

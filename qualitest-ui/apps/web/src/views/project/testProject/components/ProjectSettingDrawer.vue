@@ -31,6 +31,85 @@
         </p>
       </section>
 
+      <!-- 质衡本机插件 zip 安装：落盘登记后才可在环境中启用；不负责装被测机 CLI -->
+      <section v-if="settingContext !== null" class="project-setting__card">
+        <header class="project-setting__card-head">
+          <h3 class="project-setting__card-title">安装插件包</h3>
+          <p class="project-setting__card-desc">
+            上传含说明书文件（qualitest.plugin.jsonc）的 zip，安装到质衡本机并登记；之后可在环境中启用。
+            被测机上的业务 CLI 需在被测机另行安装，本入口不会替你写入被测机。
+          </p>
+        </header>
+        <p v-if="pluginInstallDir" class="project-setting__hint">安装目录：{{ pluginInstallDir }}</p>
+        <el-upload
+            v-if="canEditProject"
+            :auto-upload="false"
+            :limit="1"
+            :file-list="pluginZipFileList"
+            accept=".zip"
+            :on-change="onPluginZipChange"
+            :on-remove="onPluginZipRemove"
+            drag
+        >
+          <div class="el-upload__text">将插件 zip 拖到此处，或<em>点击选择</em></div>
+        </el-upload>
+        <div class="project-setting__auth-toolbar" style="margin-top: 12px">
+          <el-button
+              v-if="canEditProject"
+              :disabled="!pluginZipFile"
+              :loading="pluginInstallSaving"
+              size="small"
+              type="primary"
+              @click="submitPluginZip"
+          >
+            安装到质衡
+          </el-button>
+          <el-button size="small" :loading="pluginPackagesLoading" @click="loadPluginPackages">
+            刷新已登记
+          </el-button>
+        </div>
+        <ul v-if="pluginPackages.length" class="project-setting__plugin-list">
+          <li v-for="p in pluginPackages" :key="p.pluginId">
+            <strong>{{ p.displayName || p.pluginId }}</strong>
+            <span>{{ p.pluginId }} @ {{ p.version }}</span>
+          </li>
+        </ul>
+        <p v-else-if="!pluginPackagesLoading" class="project-setting__hint">暂无已登记插件包</p>
+      </section>
+
+      <!-- 项目级挂载：把各插件 projectMount.fields 转成 Schema 后用同一套表单编辑 -->
+      <template v-if="settingContext !== null">
+        <section
+            v-for="mountCard in mountCards"
+            :key="mountCard.pluginId"
+            class="project-setting__card"
+        >
+          <header class="project-setting__card-head">
+            <h3 class="project-setting__card-title">{{ mountCard.displayName }}挂载</h3>
+            <p class="project-setting__card-desc">
+              插件 <code>{{ mountCard.pluginId }}</code> 的项目级挂载；环境启用时只读注入。
+            </p>
+          </header>
+          <!-- mountSchema 已由 fields 收成 JSON Schema；保存走下方按钮而非表单内置页脚 -->
+          <PluginSchemaForm
+              v-model="mountDrafts[mountCard.pluginId]"
+              :disabled="!canEditProject || mountSavingId === mountCard.pluginId"
+              :schema="mountCard.mountSchema"
+          />
+          <div class="project-setting__auth-toolbar" style="margin-top: 12px">
+            <el-button
+                v-if="canEditProject"
+                :loading="mountSavingId === mountCard.pluginId"
+                size="small"
+                type="primary"
+                @click="saveMountCard(mountCard)"
+            >
+              保存挂载
+            </el-button>
+          </div>
+        </section>
+      </template>
+
       <template v-if="settingContext !== null">
         <section class="project-setting__card">
           <header class="project-setting__card-head">
@@ -303,7 +382,16 @@ import {
   parseAuthConfig,
 } from '../utils/projectAuthConfig'
 import { applyAuthTemplates, getTestProject, updateTestProject } from '@/api/project/testProject'
+import {
+  getPluginInstallDir,
+  installPluginPackage,
+  listPluginPackages,
+  listProjectPluginMounts,
+  saveProjectPluginMount,
+} from '@/api/project/pluginHost'
 import AuthTemplateCheckboxList from './AuthTemplateCheckboxList.vue'
+/** 项目挂载表单：与环境配置共用同一 JSON Schema 渲染组件 */
+import PluginSchemaForm from './PluginSchemaForm.vue'
 import SaveAsAuthTemplateDialog from './SaveAsAuthTemplateDialog.vue'
 import { toTemplateIds, useEnabledAuthTemplates } from '../composables/useEnabledAuthTemplates'
 
@@ -420,13 +508,247 @@ function applyAuthForm(next) {
   syncAuthCollapse()
 }
 
-/** 打开抽屉后拉取项目多端鉴权配置 */
+/** 项目挂载草稿：pluginId → mountJson 对象 */
+const mountDrafts = reactive({})
+/** 正在保存的挂载插件 id */
+const mountSavingId = ref('')
+/** 待上传的插件 zip 原始 File */
+const pluginZipFile = ref(null)
+/** el-upload 展示用的文件列表 */
+const pluginZipFileList = ref([])
+/** 安装 zip 请求进行中 */
+const pluginInstallSaving = ref(false)
+/** 拉取已登记包列表进行中 */
+const pluginPackagesLoading = ref(false)
+/** 已登记插件包列表 */
+const pluginPackages = ref([])
+/** 后端返回的本机安装根目录，只读展示 */
+const pluginInstallDir = ref('')
+
+/** 选择 zip：记下 raw 文件并同步 file-list */
+function onPluginZipChange(uploadFile, uploadFiles) {
+  pluginZipFile.value = uploadFile?.raw || null
+  pluginZipFileList.value = uploadFiles || []
+}
+
+/** 移除已选 zip */
+function onPluginZipRemove() {
+  pluginZipFile.value = null
+  pluginZipFileList.value = []
+}
+
+/** 刷新已登记插件包列表 */
+function loadPluginPackages() {
+  pluginPackagesLoading.value = true
+  listPluginPackages()
+    .then((res) => {
+      pluginPackages.value = Array.isArray(res?.data) ? res.data : []
+    })
+    .catch(() => {
+      pluginPackages.value = []
+    })
+    .finally(() => {
+      pluginPackagesLoading.value = false
+    })
+}
+
+/** 拉取本机插件安装目录路径 */
+function loadPluginInstallDir() {
+  getPluginInstallDir()
+    .then((res) => {
+      pluginInstallDir.value = res?.data?.installDir || ''
+    })
+    .catch(() => {
+      pluginInstallDir.value = ''
+    })
+}
+
+/** 提交 zip：安装到质衡本机，成功后清空选择并刷新列表 */
+function submitPluginZip() {
+  if (!pluginZipFile.value) {
+    proxy?.$modal?.msgWarning?.('请先选择 zip')
+    return
+  }
+  pluginInstallSaving.value = true
+  installPluginPackage(pluginZipFile.value)
+    .then((res) => {
+      if (res.code === 200) {
+        const id = res.data?.pluginId || ''
+        const ver = res.data?.version || ''
+        const hash = res.data?.contentHash || ''
+        const prevHash = pluginPackages.value.find((p) => p.pluginId === id)?.contentHash || ''
+        let tip = `已安装 ${id}@${ver}`
+        if (prevHash && hash && prevHash !== hash) {
+          tip += `（指纹 ${prevHash} → ${hash}）`
+        } else if (hash) {
+          tip += `（指纹 ${hash}）`
+        }
+        proxy?.$modal?.msgSuccess?.(tip)
+        pluginZipFile.value = null
+        pluginZipFileList.value = []
+        loadPluginPackages()
+      } else {
+        proxy?.$modal?.msgError?.(res.msg || '安装失败')
+      }
+    })
+    .catch((err) => proxy?.$modal?.msgError?.(err?.message || err?.msg || '安装失败'))
+    .finally(() => {
+      pluginInstallSaving.value = false
+    })
+}
+
+/**
+ * 从已登记插件包的 manifestJson 取出 projectMount。
+ * 解析失败或没有该段时返回 null，该包不出现在挂载卡片列表。
+ */
+function parseProjectMount(pkg) {
+  const text = pkg?.manifestJson
+  if (!text) return null
+  try {
+    const obj = typeof text === 'string' ? JSON.parse(stripJsonc(text)) : text
+    return obj?.projectMount || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 去掉 JSONC 风格的行注释，方便前端 JSON.parse。
+ * 整行注释直接删掉；行内 // 仅在引号外成对时截断，避免误伤字符串里的双斜杠。
+ */
+function stripJsonc(text) {
+  return String(text || '')
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('//')) return ''
+      const idx = line.indexOf('//')
+      if (idx >= 0) {
+        const before = line.slice(0, idx)
+        const quotes = (before.match(/"/g) || []).length
+        if (quotes % 2 === 0) return before
+      }
+      return line
+    })
+    .join('\n')
+}
+
+/**
+ * 把 projectMount.fields 收成 JSON Schema 对象。
+ * 挂载声明本身是字段列表（name / required / pattern），不是 Schema；
+ * 转成 type=object + properties 后，才能交给 PluginSchemaForm 渲染输入框。
+ */
+function mountFieldsToSchema(projectMount) {
+  const fields = Array.isArray(projectMount?.fields) ? projectMount.fields : []
+  if (!fields.length) return null
+  const properties = {}
+  const required = []
+  for (const f of fields) {
+    if (!f?.name) continue
+    properties[f.name] = {
+      type: 'string',
+      title: f.name,
+      ...(f.pattern ? { pattern: f.pattern } : {}),
+    }
+    if (f.required) required.push(f.name)
+  }
+  return { type: 'object', properties, required }
+}
+
+/**
+ * 需要在项目设置里编辑挂载的插件卡片。
+ * 仅包含能解析出非空 fields、并成功转成 mountSchema 的已登记包。
+ */
+const mountCards = computed(() => {
+  return (pluginPackages.value || [])
+    .map((pkg) => {
+      const projectMount = parseProjectMount(pkg)
+      const mountSchema = mountFieldsToSchema(projectMount)
+      if (!mountSchema) return null
+      return {
+        pluginId: pkg.pluginId,
+        displayName: pkg.displayName || pkg.pluginId,
+        projectMount,
+        mountSchema,
+      }
+    })
+    .filter(Boolean)
+})
+
+/** 拉取当前项目下各插件已保存的挂载值，写入 mountDrafts 供表单编辑 */
+function loadProjectMounts() {
+  const pid = resolveProjectId()
+  Object.keys(mountDrafts).forEach((k) => delete mountDrafts[k])
+  if (!pid) return
+  listProjectPluginMounts(pid)
+    .then((res) => {
+      const rows = Array.isArray(res?.data) ? res.data : []
+      for (const row of rows) {
+        if (!row?.pluginId) continue
+        try {
+          const obj = typeof row.mountJson === 'string' ? JSON.parse(row.mountJson || '{}') : (row.mountJson || {})
+          mountDrafts[row.pluginId] = obj && typeof obj === 'object' ? { ...obj } : {}
+        } catch {
+          mountDrafts[row.pluginId] = {}
+        }
+      }
+      for (const card of mountCards.value) {
+        if (!mountDrafts[card.pluginId]) mountDrafts[card.pluginId] = {}
+      }
+    })
+    .catch(() => {
+      for (const card of mountCards.value) {
+        mountDrafts[card.pluginId] = {}
+      }
+    })
+}
+
+/**
+ * 把某一插件挂载表单草稿写回项目。
+ * mountJson 直接取自 PluginSchemaForm 绑定的 mountDrafts，不做额外字段映射。
+ */
+function saveMountCard(mountCard) {
+  const pid = resolveProjectId()
+  if (!pid) {
+    proxy?.$modal?.msgError?.('缺少项目 ID')
+    return
+  }
+  const mountJson = { ...(mountDrafts[mountCard.pluginId] || {}) }
+  mountSavingId.value = mountCard.pluginId
+  saveProjectPluginMount(pid, { pluginId: mountCard.pluginId, mountJson })
+    .then((res) => {
+      if (res.code === 200) {
+        proxy?.$modal?.msgSuccess?.(`${mountCard.displayName}挂载已保存`)
+      } else {
+        proxy?.$modal?.msgError?.(res.msg || '保存失败')
+      }
+    })
+    .catch((err) => proxy?.$modal?.msgError?.(err?.message || err?.msg || '保存失败'))
+    .finally(() => {
+      mountSavingId.value = ''
+    })
+}
+
+/** 打开抽屉后：挂载、已登记包、安装目录、多端鉴权一并拉取 */
 function loadProjectSettings() {
   const pid = resolveProjectId()
   if (!pid) {
     applyAuthForm(emptyAuthForm())
     return
   }
+  loadPluginInstallDir()
+  pluginPackagesLoading.value = true
+  listPluginPackages()
+    .then((res) => {
+      pluginPackages.value = Array.isArray(res?.data) ? res.data : []
+      loadProjectMounts()
+    })
+    .catch(() => {
+      pluginPackages.value = []
+    })
+    .finally(() => {
+      pluginPackagesLoading.value = false
+    })
   getTestProject(pid)
     .then((res) => {
       applyAuthForm(parseAuthConfig(res.data?.authConfig, {
@@ -617,6 +939,28 @@ const mcpConfigText = computed(() => {
     margin-top: 10px;
     margin-bottom: 0;
     color: var(--el-color-warning-dark-2);
+  }
+}
+
+/* 已登记插件包简要列表 */
+.project-setting__plugin-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--el-border-color-extra-light);
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+
+    strong {
+      font-size: 13px;
+      color: var(--el-text-color-primary);
+    }
   }
 }
 

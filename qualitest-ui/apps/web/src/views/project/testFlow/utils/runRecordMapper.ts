@@ -122,6 +122,11 @@ export function mapRunListItem(run: ApiTestFlowRun): RunRecord {
     graphFingerprint: run.graphFingerprint ?? '',
     graphJsonSnapshot: run.graphJsonSnapshot,
     envLabel: resolveEnvLabel(run, scenarioName),
+    // 运行触发时绑定的环境 id；暂停面板存档列表与还原决策会用到
+    testProjectEnvId:
+      run.testProjectEnvId != null && String(run.testProjectEnvId).trim() !== ''
+        ? String(run.testProjectEnvId).trim()
+        : undefined,
     flowSnapshot: parseJsonObject(run.flowSnapshot),
     steps: [],
     scenarioId: run.runScenarioId,
