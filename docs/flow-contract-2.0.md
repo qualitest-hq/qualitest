@@ -4,7 +4,7 @@
 > **产品切口**：**流契约 2.0 + 平台插件**同发大更新（不是「先发流、插件另版」）。  
 > **范围**：入参 / 出参、入口形态、返回与收束、入口说明、与插件边界。  
 > **本稿不做**：改代码、迁库、改画布实现。  
-> **版本判断**：见 §8.2；§8.1 允许 Flyway 重做基线（不做 1.x 热升级）。
+> **产品版本**：**2.0.0**（流契约重建 + 插件体系同发）；Flyway 按 2.0 基线安装，不做旧图热升。
 
 ---
 
@@ -17,10 +17,10 @@
 | 子流入口 | `subflow-entry` | 被父流调用 |
 | HTTP 入口 | `http-entry` | 开放入站 |
 | 协议入口 | `{protocol}-entry` | 插件贡献，如 `tcp-entry` |
-| **返回** | **return** | 平台节点：定稿出参 `out`（瘦配置，见 §4.1）；按 `entryKind` **立刻写出/挂载**；**默认不结束路径** |
-| **收束** | **settle** | 引擎概念（**非画布节点**）：路径走尽（真并行则 **join 齐**）后结束；写 Run；**默认不再写出**（开放/子流已在 return 做过）。**唯一例外**：整次从未 `return` 时，用入口**兜底出参**交付一次（见 §4.3） |
+| **返回** | **`http-return` / `subflow-return`** | 按入口种类拆开：从 `data.from` 晋升到 `out` 并立刻写出/挂载（见 §4.1）；**默认不结束路径**。场景图**不提供**返回节点 |
+| **收束** | **settle** | 引擎概念（**非画布节点**）：路径走尽（真并行则 **join 齐**）后结束；写 Run；**默认不再写出**（开放/子流已在返回节点做过）。**唯一例外**：整次从未执行返回节点时，用入口**兜底出参**交付一次（见 §4.3） |
 | **出参** | **`out`** | 运行时对象：`status` / `headers` / `body`；**回什么由它说了算** |
-| **入口兜底出参** | **`fallbackOut`** | 挂在 **HTTP / 子流入口**上的**一份**默认失败 `out`；仅当整次 Run **零次** `return` 时，在**收束**交付；不是响应表 |
+| **入口兜底出参** | **`fallbackOut`** | 挂在 **HTTP / 子流入口**上的**一份**默认失败 `out`；仅当整次 Run **零次**返回节点时，在**收束**交付；不是响应表 |
 | **入参** | **`in`** | 运行时入参；形状挂在各入口上 |
 | **入口说明** | entry doc / `doc` | 挂在**入口节点**上的可选 Markdown；给人看，不参与跑流 |
 | **入口种类** | **`entryKind`** | `scenario` / `subflow` / `http` / 协议短名 |
@@ -28,19 +28,20 @@
 | **触发源** | **`run.trigger`** | 谁发起的这次 Run（与 entryKind 正交；见 §2.1.0） |
 
 角色：`entry` | `return` |（并行）`fork` / `join`。  
-类型（平台）：`scenario-entry` | `subflow-entry` | `http-entry` | `return` | `fork` | `join`。
+类型（平台）：`scenario-entry` | `subflow-entry` | `http-entry` | `http-return` | `subflow-return` | `fork` | `join`。  
+（无裸 `return`；无 `scenario-return`——场景自然走尽即可；多种业务回法靠 IF 各臂接到对应返回节点。）
 
-**不做**：必选的「成功/失败响应表 / 响应目录」。入口**不**声明回法清单；开放 / 子流只允**一份**兜底出参防漏网，多种业务回法仍靠图内 `return`。
+**不做**：必选的「成功/失败响应表 / 响应目录」。入口**不**声明回法清单；开放 / 子流只允**一份**兜底出参防漏网，多种业务回法仍靠图内返回节点。
 
 ---
 
 ## 1. 为什么要升到 2.0
 
-1.0 把「怎么跑图」做起来了，但对外契约是拼出来的：
+对外契约需要一份能说清楚的统一模型：
 
-- 入参 / 开放入站挤在侧栏「流配置」
-- 扁平 `flowOutputs` 和真正运行时 `out` 两套话
-- 场景 / 子流 / HTTP 入口语义不同，却挤在同一块 meta 里
+- 入参 / 开放入站进 **入口节点**，不靠侧栏大块 meta 拼出来  
+- 写出与子流挂载统一走运行时 **`out`**（Assign 打包 + 返回节点 `from` 晋升）  
+- 场景 / 子流 / HTTP 入口语义不同，各有专属节点与配置面  
 
 2.0 口号：
 
@@ -56,7 +57,7 @@
 - 进用入口；走到无后继即收束（并行先 join）。  
 - 多入口共用中段；业务分道用 IF；**真并行**各臂可同时跑；入口差异用 `run.entryKind`。  
 - **返回时立刻写出、图继续**（已拍板）：先回包/挂载，再断言；断言失败不影响已写出的内容。  
-- **整次 Run 的 `return` 次数**（已拍板）：开放/子流**至多一次**（零次 → 入口兜底；多于一次非法）；场景零或一次；见 §2.2、§4.3。
+- **整次 Run 的返回节点次数**（已拍板）：开放/子流**至多一次**（零次 → 入口兜底；多于一次非法）；场景**不画**返回节点；见 §2.2、§4.3。
 
 ---
 
@@ -111,17 +112,12 @@
 Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。  
 **收束 / 写出仍只看 `entryKind`**，不靠 `trigger`，不靠结束类节点。
 
-### 2.1.1 旧「运行配置」
+### 2.1.1 运行配置进画布
 
-大一统侧栏退役：
-
-| 1.0 | 2.0 |
-|-----|-----|
-| 场景 / inSeed | 场景入口 |
-| 入参、`open`+path | **HTTP 入口**（有即开放，不再要 `open` 布尔）；子流入口只管入参形状 |
-| 扁平 `flowOutputs` | **不再要流级对外字段表**；写出靠 `out`；子流在 **`return` 时整包挂载** `nodes.<子流节点id>.out`（父节点**不要** `outputs` 映射表） |
-
-侧栏最多总览；跑前选入口/环境是运行动作。
+- **场景**：挂在 **场景入口** 上的场景子集（`envId` + `inSeed`）。  
+- **开放 HTTP**：**HTTP 入口**（`method` + `path`、入参形状、一份 `fallbackOut`）；有该节点即开放入站。  
+- **子流**：**子流入口**声明入参形状 + `fallbackOut`；父 **Subflow** 用 `inputs` 灌子 `in`，定稿出参在 **`return` 时整包挂** `nodes.<子流节点id>.out`（**无**父侧 `outputs` 映射表）。  
+- 侧栏最多总览；跑前选入口/环境是运行动作。
 
 ### 2.1.2 说明给人对着看（不是从流里抽表）
 
@@ -146,7 +142,7 @@ Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。
 3. **`return` 时立刻按 `entryKind` 写出/挂载**，图继续；已交付过则收束**不再**写第二遍。  
 4. **整次 Run 的 `return` 执行次数**：  
    - **开放 / 子流**：**至多一次**（多于一次非法）。**零次** → 收束用该入口 `fallbackOut` 交付一次，Run **仍记失败**（未定稿 / 缺 return）。  
-   - **场景**：**零或一次**（不要求；场景无对外兜底）。  
+   - **场景**：**不画**返回节点（无对外兜底；分支用 IF）。  
    不限于「同一条线」——并行各臂合计也算。  
 5. **图上多个 `return` 节点何时合法**：  
    - **IF 互斥臂**：各臂可各有一个 `return`（运行时只走一臂 → 仍只执行一次）。某臂漏画 return → 走该臂时零次 return → **入口兜底**（保存期宜警告，不强制每臂都有 return）。  
@@ -158,7 +154,7 @@ Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。
 
 ```text
 顺序：
-… → Assign 组 out → return（定稿 + 立刻写出/挂载）→ 断言 →（收束：只收尾）
+… → Assign 写入 `flow.out`（或 `scope=out`）→ return（晋升 + 立刻写出/挂载）→ 断言 →（收束：只收尾）
 
 IF 互斥（图上可有多个 return 节点；业务失败也宜各画 return）：
 IF
@@ -202,6 +198,23 @@ join → 收束
 
 `return` 写出时对完整 `out` 做 codec；业务图尽量不碰裸字节。
 
+### 2.5 图节点壳（持久化）
+
+画布与 `graph_json` 中每个节点统一为：
+
+```json
+{
+  "id": "<唯一 id>",
+  "type": "<FlowNodeType>",
+  "name": "<展示名，必填>",
+  "position": { "x": 0, "y": 0 },
+  "data": { }
+}
+```
+
+- **`name`**：节点顶层必填；Run 步骤名与画布标题共用；写在节点壳，不落在 `data`。  
+- **`data`**：仅存该 `type` 的业务配置；不含画布 UI 状态字段（如 `selected` / `dragging`）。卡片副标题由前端根据 `type` + `data` 运行时计算，不落盘。
+
 ---
 
 ## 3. 三层失败
@@ -221,67 +234,95 @@ join → 收束
 
 ## 4. 出参与入参（无响应表）
 
-### 4.0 出参 `out` 就是回法
+### 4.0 三组运行时桶：`in` / `out` / `flow`
 
-| 字段 | 含义 | 谁写 |
-|------|------|------|
-| `out.status` | HTTP 状态（主要给**开放写出**用） | Assign / 脚本写入；**不是** return 节点配置项 |
-| `out.headers` | 响应头 | 可写 |
-| `out.body` | 正文 | 主写 |
+跑流时三套对象**互不混写**；占位符前缀一一对应：
+
+| 桶 | 占位符 | 含义 |
+|----|--------|------|
+| **`in`** | `{{in.*}}` | 本次 Run 入参（场景 `inSeed` / 开放请求 / 子流父侧 `inputs` 灌入） |
+| **`out`** | `{{out.*}}` | 定稿出参（`status` / `headers` / `body`）；返回节点晋升后写入，对外交付读它 |
+| **`flow`** | `{{flow.*}}` | 本条 Run 业务变量（extract、Assign、Input 等） |
+
+**打包出参（Assign）**：默认 `scope` 写 `flow`。常见做法是把整份回包对象写到 **`flow.out`**（`name: "out"` 且 `op: "set"`，`value` 为含 `headers` / `body` 等的对象字面量）。也可继续用 **`scope: "out"`** 逐键写 `ctx.out` 的 `status` / `headers` / `body`——与 `flow.out` 二选一或组合使用均可。
 
 写出/挂载时机：
 
-- **命中 `return`**：立刻按 `entryKind` 交付当时 `out`；收束不再写。  
+- **命中 `return`**：按 `data.from` **晋升**到 `ctx.out` 后立刻按 `entryKind` 交付；收束不再写。  
 - **零次 `return`（仅 HTTP / 子流）**：收束时用入口 **`fallbackOut`** 交付一次（§4.3）。  
 - **场景**：无对外写出（无兜底）。
 
-HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out` 写啥；缺 `out.status` → **写出时**补 **200**；缺 Content-Type → 补 json（见下）。  
-**子流**：整包挂载当时的 `out` 或兜底（含是否带 status，原样挂；**不**在 return 上补 HTTP 默认码）。
+定稿出参形状（晋升后 `ctx.out`）：
+
+| 字段 | 含义 |
+|------|------|
+| `status` | HTTP 状态（开放写出用；`http-return` 可在节点上覆盖，见 §4.1） |
+| `headers` | 响应头 |
+| `body` | 正文 |
 
 **响应 `Content-Type`（入口不选手填）**：
 
 1. `out.headers` / 兜底里已有 `Content-Type` / `content-type` → 用它；  
-2. 否则默认 **`application/json;charset=UTF-8`**（平台错包同此）。  
+2. 否则开放写出时默认 **`application/json;charset=UTF-8`**（平台错包同此）。  
 
-要 XML/其它类型 → Assign 写进 `out.headers`（或写进兜底 headers），不在 HTTP 入口另开「响应类型」配置项。
+要 XML/其它类型 → 在打包对象或 `scope: "out"` 赋值里写进 `headers`，不在 HTTP 入口另开「响应类型」配置项。
 
-### 4.1 返回节点（瘦配置）
+### 4.1 返回节点（按入口拆 type · 晋升 + 交付）
 
-**返回 = 打定稿戳 + 按入口立刻交付，不是小配置中心。** 回包内容仍由前面的 Assign / 抽取写入 `out`。
+**返回 = 从 `from` 晋升整包到 `ctx.out` + 立刻交付**，不是字段编辑面板。回包内容由前面的 Assign / 脚本等写入 `flow.out`（或其它 `flow` 键）或 `ctx.out`。
+
+节点 type **按入口种类拆开**（与入口对称）：
+
+| type | 用于 | 立刻交付 |
+|------|------|----------|
+| `http-return` | 开放 HTTP 图 | 晋升后写出（`data.status` 默认 200，写在晋升之后、覆盖 `out.status`） |
+| `subflow-return` | 子流图 | 晋升后挂父 `nodes.<子流节点id>.out` |
+| （无） | 场景图 | **不提供**返回节点；自然走尽；多种分支用 IF |
 
 运行时：
 
-1. 读取当前 `out`，记为「本路径定稿出参」（**不**在节点上补 `status`）。  
-2. 按 `entryKind` **立刻交付**：**HTTP** → 写出（缺 status 则在**写出路径**补 200）；**子流** → 挂父 `nodes.<子流节点id>.out`；**场景** → 无对外写出（仅快照）。  
-3. **不停**，继续往后走（断言等）。本 Run 若再执行到第二个 `return` → 异常（图校验应已拦）。
+1. 读取必填 **`data.from`**（路径段，保存缺省写 `flow.out`），`resolve(from)` 须为 **Map**。  
+2. `ctx.out.clear()` 后 `putAll` 晋升结果。  
+3. **`http-return`**：再写入 `data.status`（缺省 **200**，须 100–599，**覆盖**晋升包里的 `status`）。  
+4. **`subflow-return`**：无 `status` 配置项。  
+5. 按节点 type **立刻交付**（须与当前 `entryKind` 匹配）；**不停**，继续往后走。整次 Run 第二次命中返回 → 异常。
 
-| 配置项 | 要不要 | 说明 |
-|--------|--------|------|
-| （节点本身） | 要 | 时间线可见的一步：定稿 + 立刻交付 |
-| `label` / 备注 | 可选 | 如「支付成功」「余额不足」，方便人与 AI 读图 |
+| 配置项 | type | 说明 |
+|--------|------|------|
+| `from` | 两者 | **必填**；晋升来源，默认 `flow.out` |
+| `status` | `http-return` | 可选；默认 200；晋升**之后**写入，覆盖 `out.status` |
+| 顶层 `name` | 两者 | 节点壳必填；展示名，不进 `data` |
 
-**首版不要：**
+图校验（与 §2.2 一致）：开放/子流 **至多一次**返回节点；`subflow-return` 不得配 `status`；入口可达子图上的返回 type 须匹配；HTTP/子流 **须**配置 `fallbackOut`。场景禁止返回节点。
 
-| 不要 | 原因 |
-|------|------|
-| `defaultStatus` 等 HTTP 专用项挂在 return 上 | status 缺省只在 **HTTP 写出**补 200；场景/子流用不上 |
-| 绑定响应目录 / 响应 id | 不维护响应表 |
-| 按字段树校验整份出参 | 要验用后面的 Assert |
-| 灌示例 body | body 靠前面 Assign |
-| 成功/失败角色章 | 成败看步骤/断言；子流执行到 return 就挂，与成败分离（§6.4） |
-
-`data` 示意：
+`http-return` 示意（注意顶层 `name` 与 `data.from` / `data.status`）：
 
 ```json
 {
-  "type": "return",
+  "id": "n-ret",
+  "type": "http-return",
+  "name": "支付成功回包",
+  "position": { "x": 480, "y": 0 },
   "data": {
-    "label": "支付成功"
+    "from": "flow.out",
+    "status": 200
   }
 }
 ```
 
-图校验（与 §2.2 一致）：开放/子流 **至多一次** return（并行域禁止多臂都带；IF 互斥臂除外）；**须**配置 `fallbackOut`。场景不要求 return / 兜底。
+`subflow-return` 示意：
+
+```json
+{
+  "id": "n-ret",
+  "type": "subflow-return",
+  "name": "返回父流",
+  "position": { "x": 480, "y": 0 },
+  "data": {
+    "from": "flow.out"
+  }
+}
+```
 
 ### 4.2 入参（形状 vs 值）
 
@@ -347,7 +388,8 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 - 入参形状提示（无值，可与 HTTP/子流共用声明思路）；开跑用所选场景的值树灌 `in`。  
 - 不 HTTP 写出；成败看步骤 / 断言。  
 - **不要求** `return`；若有，定稿的 `out` 仅 Run 详情可见。  
-- 可选入口说明。
+- 可选入口说明。  
+- **失败策略（可选，仅场景项）**：每个场景子对象可带 `onNodeFailure` / `onSnapshotFailure` / `maxSteps`；人跑/CI 从所选场景条目解析。HTTP / 子流入站不配这三项，走引擎默认。
 
 ### 5.2 子流入口
 
@@ -357,14 +399,13 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 - 执行到 `return`：定稿并**立刻**把 `out` 整包挂到父 `nodes.<子流节点id>.out`（**只要执行到 return 就挂**，含失败后继续才摸到 return）。  
 - **零次 return**：收束时把入口 `fallbackOut` 挂到父同位置；子 Run / 父步**仍失败**。  
 - 子图曾业务失败 → 父步骤 / 子 Run **仍失败**（挂了 `out` 也不改成败）。  
-- **失败后父流仍可读 `nodes.<id>.out`**（含错误码等）做后续断言 / Assign——**有内容 ≠ 成功**；读用不改变子步已记的失败。别再按 1.0「成功才合并」理解。  
+- **失败后父流仍可读 `nodes.<id>.out`**（含错误码等）做后续断言 / Assign——**有内容 ≠ 成功**；读用不改变子步已记的失败。  
 - 父侧在子流节点后断言失败：同理，挂载已发生，Run 可记失败。  
-- **不**读子图 `flowOutputs`，**不**双读旧父 `outputs`。  
 - 嵌套上限仍 **2** 层。
 
 ### 5.3 HTTP 入口
 
-- **有 HTTP 入口 = 已开放入站**；不再要 1.0 的 `open` 布尔。人跑 / CI 走**场景入口**，不靠把 HTTP 入口关掉。  
+- **有 HTTP 入口 = 已开放入站**。人跑 / CI 走**场景入口**，与开放入站无关。  
 - method + path、环境、请求 format（入站解析用）。  
 - 入参**形状无值**：body 字段树 + query/header 轻量参数表；运行时值来自**入站请求**（按形状注入 `in`）。  
 - **须**配置一份 `fallbackOut`（§4.3）。  
@@ -401,7 +442,7 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 ### 6.1 子流
 
 1. 开跑前图须合法（至多一次 return；须有 `fallbackOut`；并行域 / IF 规则见 §2.2）。  
-2. 执行到 `return` → 父 `nodes.<子流节点id>.out` = 定稿；**不**摊进父 `flow`、**不**读 `outputs` / `flowOutputs`。  
+2. 执行到 `return` → 父 `nodes.<子流节点id>.out` = 晋升后的定稿包；**不**摊进父 `flow`。  
 3. 可含真并行：无 return 的臂照常跑；全部臂结束后再收束；已挂载则收束不再挂。  
 4. 零次 return → 收束挂 `fallbackOut`；子/父仍失败。  
 5. 成败：有业务失败则父步失败；与是否已挂 `out` 无关（见 §6.4）。  
@@ -433,8 +474,7 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 
 ### 6.3 场景
 
-自然结束即可；**不要求** return（零或一次）。  
-若有 return：只定稿快照，无对外写出。  
+自然结束即可；**不画**返回节点。  
 无 `fallbackOut`。可含真并行；收束前 join。
 
 ### 6.4 `alwaysRun`（失败后继续）——一种口径，不拆模式
@@ -473,38 +513,9 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 
 | 做 | 不做 |
 |----|------|
-| 读写**入口节点**（入参形状、HTTP method/path、入口说明 `doc`、HTTP/子流 `fallbackOut`、场景入口上的场景子集/`inSeed`） | `flowOutputs`、`inputSpec.open`、流级大一统 meta 入参；多套入口失败模板 |
-| 读写**返回节点**；跑流语境看 **`out`** | 父节点 `outputs` 映射；旧 `inputPresets` 作为主 API |
-| `submit_*` / 读图工具字段与画布契约对齐 | 长期双读 1.0 字段名「顺带兼容」 |
-
----
-
-## 8. 相对 1.0 的概念对照（不是数据迁移）
-
-> **不做** 1.x → 2.0 的库表/图 JSON 热升级。演示种子、模板、文档示例在 2.0 下**重写**，不写迁移脚本去改用户旧数据。
-
-| 1.0 | 2.0 |
-|-----|-----|
-| 拓扑「唯一无入边开始点」+ 侧栏 meta | **入口节点**（场景 / 子流 / HTTP）；一次 Run 选一个进 |
-| `open` + path 在 inputSpec | **HTTP 入口**（存在即开放；废弃 `open` 开关） |
-| 扁平 `flowOutputs` | **废弃**；HTTP 靠 `out`；子流整包挂 `nodes.<id>.out` |
-| 父节点 `outputs` 映射 | **废弃**；不再字段级合并进父 `flow` |
-| Assign + 自然结束 | Assign + **返回** + **收束** |
-| 子流合并读子 flow / flowOutputs | 读子定稿 **`out`**，挂到父节点位 |
-
-### 8.1 Flyway
-
-**重做 2.0 基线**；空库安装；**不提供** 1.x 热升、不迁旧 `graph_json`。产品版本 **2.0.0**。
-
-### 8.2 产品版本与分支
-
-- 对外产品版本 **2.0.0** = **流契约重建 + 插件体系同发**（大更新一口切）。  
-- 实现主线建议 **`feat/flow-2.0`**（或等价大版本分支）；**不必**把未完成的 `wip/flow-input-spec`（1.0 入参/开放半截）当主线——有用口径吸进 2.0，代码按新契约重做。  
-- 插件仓 / 官方插件与主仓 **同一发布列车** 上车，不另开「仅插件」的小版本充数。
-
-### 8.3 与 1.0 半截工作的关系
-
-`wip/flow-input-spec` 里的 inSeed / inputSpec / 开放 path 等意图，由 2.0 **入口节点 + 形状/值分离**承接；不在该 wip 上继续堆 1.0 兼容层。
+| 读写**入口节点**（入参形状、HTTP method/path、入口说明 `doc`、HTTP/子流 `fallbackOut`、场景入口上的场景子集/`inSeed`） | 流级大一统 meta 入参；多套入口失败模板 |
+| 读写**返回节点**（`from` / `http-return` 的 `status`）；跑流语境看 **`out`** | 父节点字段级出参映射表 |
+| `submit_*` / 读图工具字段与画布契约对齐 | 与已实现节点壳不一致的字段名 |
 
 ---
 
@@ -520,7 +531,7 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 | 批 | 做 | 说明 |
 |----|----|------|
 | 0 | 定案、开 `feat/flow-2.0`；插件契约/官方插件仓对齐发布列车；Flyway 2.0 基线方向对齐 | — |
-| **1a** | **契约主链（引擎）**：`out`；`return` 立刻写出/挂载；至多一次 return；零次收束用 `fallbackOut`；交付后腾入站名额；断开后图仍跑完；弃用 `flowOutputs` / 父 `outputs`；子流失败仍可读 `out` | **先可演示**；不含真并行 |
+| **1a** | **契约主链（引擎）**：`from` 晋升 `out`；`http-return` / `subflow-return` 立刻写出/挂载；至多一次；零次收束用 `fallbackOut`；交付后腾入站名额；断开后图仍跑完；子流失败仍可读 `out` | **先可演示**；不含真并行 |
 | **1b** | **真并行（引擎）**：`fork`/`join`；并行域校验（域内至多一臂 return）；一臂失败其它臂照跑、join 等齐 | 可与 1a **并行**；合入前 1a 验收须绿 |
 | 2 | 三种入口上画布（HTTP/子流含 `fallbackOut`、`envId`）；`fork`/`join` 节点；侧栏退役；注入 `entryKind` + `entryNodeId` + `trigger`；同项目 `method+path` 保存硬拦 | 与插件 UI/登记面可并行 |
 | 3 | 入参形状/场景值树；形状不符 → 开放 400；每入口可选说明；详情以说明为主；MCP 读写面同步 2.0 | — |
@@ -539,7 +550,7 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 - 开放/子流：零次 `return` → 收束用入口 `fallbackOut`；Run 仍失败。  
 - 子流：`return`（或兜底）后父可读 `nodes.<id>.out`；有内容不改成败。  
 - 响应交付后腾入站名额；调用方断开后步骤仍跑完。  
-- 不再依赖 `flowOutputs` / 父 `outputs` 合并。
+- 子流定稿只挂 `nodes.<id>.out`，不经父侧出参映射表。
 
 **批 1b（真并行）**
 
@@ -582,23 +593,24 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 - HTTP 入口再挂「是否开放」开关；入口级平台鉴权 / 自动 401（鉴权只做图内业务）  
 - HTTP 入口上配置开放入站名额 / 每入口并发上限（名额属平台或项目运维，见 §6.2.1）  
 - 同项目内重复的 `method + path` 后注册覆盖（冲突硬拦，见 §5.3.1）  
-- return 节点上挂 `defaultStatus` 等 HTTP 专用配置（缺 status 只在写出路径补）  
-- 规定 `return` 默认 `alwaysRun`（零次 return 靠入口兜底保证有包）  
+- 返回节点上灌整份 body / headers（应用 Assign 打包 `flow.out`）  
+- 裸 `return` / `scenario-return`；成功/失败两套返回 type（多种回法靠 IF）  
+- 规定返回节点默认 `alwaysRun`（零次靠入口兜底保证有包）  
 - 2.0 另立一套入参 type 词表（沿用各面现有即可）  
 - 非入口当第二套开始点  
 - 一上来完整 JSON Schema / XSD  
 - 子流失败还合并进父流（除非单独立项）  
-- 1.x 图 JSON / 库表热迁移；双读旧 `flowOutputs` / 父 `outputs` 做兼容
+- 图 JSON / 库表热迁移旧格式  
 
 ---
 
 ## 11. 讨论纪要
 
-- 回法 = **出参 `out`**；返回定稿并按 entryKind 立刻写出/挂载；收束默认只收尾。  
-- **返回节点很瘦**：可选 `label` 即可；**不**挂 `defaultStatus`——缺 `out.status` 只在 **HTTP 写出**补 200；不绑响应表、不做字段树校验、不灌示例。  
+- 回法 = **出参 `out`**；返回按 `data.from` 晋升并按 entryKind 立刻写出/挂载；收束默认只收尾。  
+- **返回节点配置**：必填 `from`；`http-return` 可选 `status`（默认 200，覆盖晋升包里的 `status`）；顶层 `name` 必填；`data` 仅 `from`（及 HTTP 的 `status`）。  
 - **不要**硬要响应表：开放 HTTP「return 反啥写啥」；子流也不在入口声明回法清单。  
 - **入口兜底出参（已拍板）**：HTTP/子流入口各一份 `fallbackOut`；仅整次零次 return 时在**收束**交付；命中过 return 则收束不再写；用了兜底 Run 仍失败；不是多套失败模板；故意业务包仍走 return。见 §4.3。  
-- **子流合并（已拍板）**：`return` 时整包挂父 `nodes.<子流节点id>.out`；零次则挂 `fallbackOut`；弃父 `outputs` / 子 `flowOutputs`；要字段用 Assign（对称 `nodes.x.http`）。失败后父仍可读 `out`，有内容不改成败。  
+- **子流合并（已拍板）**：`return` 时整包挂父 `nodes.<子流节点id>.out`；零次则挂 `fallbackOut`；父侧读子定稿用 `nodes.<id>.out` / Assign。失败后父仍可读 `out`，有内容不改成败。  
 - **return 图约束（已拍板）**：整次 Run——开放/子流**至多一次**（零次走兜底）、场景零或一次；**IF 互斥臂可各有 return**（漏臂警告+兜底，不硬拦）；**真并行域静态禁止多臂都带 return**；同序双 return 非法。  
 - **真并行（已拍板：首版要做）**：`fork`/`join` 画法；多臂同时跑、一臂失败其它臂仍跑完；域内至多一臂 return；`flow` 同键勿并发写。见 §2.2.2。  
 - **立刻写出（已拍板）**：`return` 时按 entryKind 写出/挂载，图继续；已交付则收束不再二次写出；其后断言失败不撤回已写出内容。  
@@ -612,22 +624,22 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 - **响应 Content-Type（已拍板）**：`out.headers` 优先，否则 `application/json;charset=UTF-8`；入口不选手填。  
 - **HTTP 入口（已拍板）**：存在即开放，无 `open` 开关；**无**入口级鉴权/自动 401，鉴权只做图内业务；入参形状不符 → 平台 400 不进图。  
 - **环境字段（已拍板）**：场景子集与 HTTP 入口统一 **`envId`**。  
-- **HTTP status（已拍板）**：写在 `out.status`（图内 Assign）；return 节点不配 `defaultStatus`；HTTP 写出时缺省补 200。  
+- **HTTP status（已拍板）**：可在打包对象或 `scope=out` 写入；`http-return` 的 `data.status` 在晋升后覆盖；未配时节点默认 200。  
 - **字段 type（已拍板）**：不另立枚举；沿用各面现有类型（`GraphInputField` / Input 节点等）。  
 - **入口说明（已拍板）**：挂入口节点；多套靠切换看；分享深链只前期考虑、本次不做。  
 - **多场景入口（已拍板）**：每入口自带场景子集，不流级共用大列表。  
 - **新建流（已拍板）**：完全空白，不预置入口；用户自己拖。  
 - **OpenAPI（已拍板：不做）**：用不到；发对接材料复制入口说明，或 MCP/AI 读图。  
-- **MCP（已拍板）**：只暴露 2.0 入口/返回/`out`/兜底等；不兼容旧 `flowOutputs` / `open` 等，不双写。  
+- **MCP（已拍板）**：只暴露 2.0 入口/返回（`from`/`status`）/`out`/兜底与节点壳 `name` 等。  
 - **alwaysRun（已拍板）**：一种口径——执行到 return 就交付；不强制 return 的 alwaysRun；零次靠兜底；成败与交付分离；不拆多模式。  
 - **最小图示例（已补）**：见 §13（场景-only、HTTP+return+兜底）。  
 - **`run.trigger`（已拍板）**：首版就要；与 entryKind 正交；收束仍只看 entryKind。枚举见 §2.1.0。  
-- **无数据迁移（已拍板）**：Flyway 重做 2.0 基线；不热升 1.x、不迁旧图；种子/模板按 2.0 重写。  
-- **发布切口（已拍板）**：**2.0.0 = 流契约 + 插件同发大更新**；`platform-plugins.md` 同步去掉「不承诺版本」；`wip/flow-input-spec` 不当主线；批内可并行，tag 前一流一插件一起上。
+- **数据与种子（已拍板）**：Flyway 2.0 基线；种子/模板与本文契约对齐。  
+- **发布切口（已拍板）**：**2.0.0 = 流契约 + 插件同发大更新**；`platform-plugins.md` 与插件消费面对齐；批内可并行，tag 前一流一插件一起上。
 
 ---
 
-## 12. 相关现状文档（1.0）
+## 12. 相关文档
 
 - [test-flow-nodes.md](./test-flow-nodes.md)  
 - [flow-variables-and-values.md](./flow-variables-and-values.md)  
@@ -639,7 +651,7 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 
 ## 13. 附录：最小合法图 JSON 示意
 
-> 示意用，字段名以落地实现为准；**无** 1.0 `flowOutputs` / `open` / 父 `outputs`。  
+> 示意用，字段名以落地实现为准。节点壳见 §2.5（顶层 **`name` 必填**，`data` 仅存该 type 业务配置）。  
 > 仅两条：场景（可不 return）、HTTP（宜 return 立刻写出；须带 `fallbackOut`）。
 
 ### 13.1 场景-only（人跑 / CI）
@@ -652,16 +664,18 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
     {
       "id": "e-sc",
       "type": "scenario-entry",
+      "name": "默认场景入口",
       "position": { "x": 0, "y": 0 },
       "data": {
-        "name": "默认场景入口",
         "doc": "",
         "scenarios": [
           {
             "id": "sc1",
             "name": "冒烟",
             "envId": "<envId>",
-            "inSeed": {}
+            "inSeed": {},
+            "onNodeFailure": "fail",
+            "onSnapshotFailure": "abort"
           }
         ]
       }
@@ -669,9 +683,9 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
     {
       "id": "n-http",
       "type": "http",
+      "name": "调用被测接口",
       "position": { "x": 240, "y": 0 },
       "data": {
-        "name": "调用被测接口",
         "apiId": "<apiId>"
       }
     }
@@ -683,11 +697,11 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 }
 ```
 
-开跑：`entryKind=scenario`，`entryNodeId=e-sc`，`trigger` 如 `ui`/`ci`/`suite`/`mcp`；选场景 `sc1` 灌 `inSeed`；走到 `n-http` 无后继 → 收束写 Run。
+开跑：`entryKind=scenario`，`entryNodeId=e-sc`，`trigger` 如 `ui`/`ci`/`suite`/`mcp`；选场景 `sc1` 灌 `inSeed`；失败策略取自该场景条目；走到 `n-http` 无后继 → 收束写 Run。
 
 ### 13.2 HTTP 开放（宜 return；须兜底）
 
-`http-entry`（含 `fallbackOut`）→ Assign 组 `out` → `return`（立刻写出）→ 可选断言 → 尽头。  
+`http-entry`（含 `fallbackOut`）→ Assign 写入 `flow.out` → `http-return`（`from` 晋升 + 立刻写出）→ 可选断言 → 尽头。  
 若整次未碰到 return → 收束写出 `fallbackOut`。
 
 ```json
@@ -696,9 +710,9 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
     {
       "id": "e-http",
       "type": "http-entry",
+      "name": "退款入站",
       "position": { "x": 0, "y": 0 },
       "data": {
-        "name": "退款入站",
         "method": "POST",
         "path": "/v3/refund",
         "envId": "<envId>",
@@ -725,40 +739,41 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
     {
       "id": "n-assign",
       "type": "assign",
+      "name": "组出参",
       "position": { "x": 240, "y": 0 },
       "data": {
-        "name": "组出参",
         "assignments": [
           {
-            "scope": "out",
-            "name": "status",
+            "scope": "flow",
+            "name": "out",
             "op": "set",
-            "value": 200
-          },
-          {
-            "scope": "out",
-            "name": "body",
-            "op": "set",
-            "value": { "ok": true }
+            "value": {
+              "headers": {
+                "Content-Type": "application/json;charset=UTF-8"
+              },
+              "body": { "ok": true }
+            }
           }
         ]
       }
     },
     {
       "id": "n-ret",
-      "type": "return",
+      "type": "http-return",
+      "name": "成功回包",
       "position": { "x": 480, "y": 0 },
       "data": {
-        "label": "成功回包"
+        "from": "flow.out",
+        "status": 200
       }
     },
     {
       "id": "n-assert",
       "type": "assert",
+      "name": "回包后校验（可选）",
       "position": { "x": 720, "y": 0 },
       "data": {
-        "name": "回包后校验（可选）",
-        "assertions": []
+        "rules": []
       }
     }
   ],
@@ -771,7 +786,7 @@ HTTP 写出约定（开放入站，跟既有开放写出口径）：有啥 `out`
 }
 ```
 
-开跑（入站）：`entryKind=http`，`entryNodeId=e-http`，`trigger=http`；请求注入 `in` → Assign → **return 立刻写出** → assert → 收束（不再写）。缺 `out.status` 时写出路径补 200。若零次 return → 收束写出 `fallbackOut`，Run 失败。
+开跑（入站）：`entryKind=http`，`entryNodeId=e-http`，`trigger=http`；请求注入 `in` → Assign 写 `flow.out` → **http-return**（`from` 晋升 + `status` 覆盖 + 立刻写出）→ assert → 收束（不再写）。若零次返回节点 → 收束写出 `fallbackOut`，Run 失败。
 
 ---
 

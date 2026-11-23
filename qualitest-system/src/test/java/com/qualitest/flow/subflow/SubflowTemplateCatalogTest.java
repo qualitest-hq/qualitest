@@ -1,6 +1,5 @@
 package com.qualitest.flow.subflow;
 
-import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -11,7 +10,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 SubflowTemplateCatalog：内置模板目录、按 id 查找、图骨架与 flowOutputs 嵌入。
+ * 测 SubflowTemplateCatalog：内置模板目录、按 id 查找、图骨架规范化。
  * 边界：classpath 模板；未知 templateId / null 元数据；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowTemplateCatalogTest
  */
@@ -65,32 +64,30 @@ class SubflowTemplateCatalogTest {
     }
 
     /**
-     * 前提：login_bearer / oauth 模板及其图骨架；另测 null 元数据。
-     * 期望：meta.flowOutputs 非空；null 元数据写入空数组。
+     * 前提：login_bearer / oauth 模板及其图骨架；另测空 meta。
+     * 期望：normalize 写入当前 schemaVersion；不含 meta.flowOutputs。
      */
     @Test
     @Order(4)
-    @DisplayName("嵌入：meta.flowOutputs 写入图骨架")
-    void embedFlowOutputsIntoGraph_writesMetaFlowOutputs() {
+    @DisplayName("规范化：写入 schemaVersion，不含 flowOutputs")
+    void normalizeTemplateGraph_setsSchemaVersion() {
         JSONObject tpl = SubflowTemplateCatalog.findById(LOGIN_BEARER_TEMPLATE_ID);
         assertNotNull(tpl);
 
         String baseGraph = SubflowTemplateCatalog.loadGraphJson(LOGIN_BEARER_TEMPLATE_ID);
         assertNotNull(baseGraph);
-        String embedded = SubflowTemplateCatalog.embedFlowOutputsIntoGraph(baseGraph, tpl);
-        JSONObject graph = JSONObject.parseObject(embedded);
-        JSONArray flowOutputs = graph.getJSONObject("meta").getJSONArray("flowOutputs");
-        assertNotNull(flowOutputs);
-        assertFalse(flowOutputs.isEmpty());
+        String normalized = SubflowTemplateCatalog.normalizeTemplateGraph(baseGraph, tpl);
+        JSONObject graph = JSONObject.parseObject(normalized);
+        assertNotNull(graph.getJSONObject("meta").getInteger("schemaVersion"));
+        assertFalse(graph.getJSONObject("meta").containsKey("flowOutputs"));
 
         JSONObject oauthTpl = SubflowTemplateCatalog.findById(OAUTH_TEMPLATE_ID);
         assertNotNull(oauthTpl);
-        String oauthGraph = SubflowTemplateCatalog.embedFlowOutputsIntoGraph(
+        String oauthGraph = SubflowTemplateCatalog.normalizeTemplateGraph(
                 SubflowTemplateCatalog.loadGraphJson(OAUTH_TEMPLATE_ID), oauthTpl);
-        JSONArray oauthOutputs = JSONObject.parseObject(oauthGraph).getJSONObject("meta").getJSONArray("flowOutputs");
-        assertFalse(oauthOutputs.isEmpty());
+        assertFalse(JSONObject.parseObject(oauthGraph).getJSONObject("meta").containsKey("flowOutputs"));
 
-        String empty = SubflowTemplateCatalog.embedFlowOutputsIntoGraph("{\"meta\":{}}", null);
-        assertTrue(JSONObject.parseObject(empty).getJSONObject("meta").getJSONArray("flowOutputs").isEmpty());
+        String empty = SubflowTemplateCatalog.normalizeTemplateGraph("{\"meta\":{}}", null);
+        assertNotNull(JSONObject.parseObject(empty).getJSONObject("meta").getInteger("schemaVersion"));
     }
 }

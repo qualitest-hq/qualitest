@@ -1,12 +1,13 @@
 /**
- * 测试流图 JSON 结构校验。
+ * 测试流图 JSON 结构校验（前端预检）。
  *
- * 默认检查节点类型、边、开始节点、HTTP/断言等字段，产出 errors / warnings。
- * 另校验 alwaysRun、snapshotBefore：有值须为 JSON 布尔，且只能挂在允许的节点类型。
- * HTTP 可选 data.retryUntil（最多请求次数、间隔毫秒、until 通过条件规则）；
- * 非 http 节点出现该键记错误。
- * 可选 persistMinimalOnly：只检查节点 id 与边端点，用于允许半成品落盘。
- * 可选 deferTopologyStructureRules：开始节点问题降为警告。
+ * 检查节点壳字段（顶层 name 必填）、已知 type、边端点、开始节点、各类型业务字段，产出 errors / warnings。
+ * 场景只允许写在 scenario-entry.data.scenarios；meta 上若出现 scenarios / activeScenarioId / flowOutputs 记错误。
+ * 场景条目禁止 testProjectEnvId / flowSeed，应使用 envId / inSeed。
+ * http-return / subflow-return：from 非空；http-return 的 status 若写出须为 100～599。
+ * 另校验 alwaysRun、snapshotBefore（有值须为布尔且类型允许）、HTTP retryUntil。
+ * persistMinimalOnly：只检查节点 id 与边端点。
+ * deferTopologyStructureRules：开始节点问题降为警告。
  */
 import {
   isValidJsonPath,
@@ -113,15 +114,50 @@ export function findStartNodeIds(graph: Pick<GraphJson, 'nodes' | 'edges'>): str
   return uniqueIds.filter((id) => !hasIncoming.has(id));
 }
 
+/** 节点展示名：优先顶层 name，否则类型中文名，再否则 id */
+function resolveGraphNodeName(node: Pick<GraphNode, 'id' | 'name' | 'type'> | null | undefined): string {
+  const top = node?.name;
+  if (top != null && String(top).trim()) return String(top).trim();
+  return nodeTypeLabel(node?.type) || String(node?.id ?? '');
+}
+
+/** 把多个开始节点 id 拼成「展示名」列表，写入错误文案 */
 function formatStartNodeNames(nodes: GraphNode[], ids: string[]): string {
   return ids
     .map((id) => {
       const node = nodes.find((n) => n.id === id);
-      const name = node?.data?.name;
-      if (name != null && String(name).trim()) return String(name);
-      return nodeTypeLabel(node?.type) || id;
+      return resolveGraphNodeName(node) || id;
     })
     .join('、');
+}
+
+/**
+ * 校验返回节点：from 必填；http-return 可选 status（有值须为 100～599 整数）。
+ * subflow-return 不读 status。
+ */
+function validateReturnNodeFields(
+  p: string,
+  type: string,
+  nodeName: string,
+  data: Record<string, unknown> | undefined,
+  errors: string[],
+): void {
+  const from = data?.from;
+  if (from == null || String(from).trim() === '') {
+    errors.push(`${p} ${nodeTypeLabel(type)}节点「${nodeName}」from 不能为空`);
+  }
+  if (type !== 'http-return' || !data) return;
+  if (!Object.prototype.hasOwnProperty.call(data, 'status')) return;
+  const statusRaw = data.status;
+  if (statusRaw == null || String(statusRaw).trim() === '') return;
+  const status = tryParseDelayMs(statusRaw);
+  if (status == null) {
+    errors.push(`${p} HTTP 返回节点「${nodeName}」status 无法解析`);
+    return;
+  }
+  if (status < 100 || status > 599) {
+    errors.push(`${p} HTTP 返回节点「${nodeName}」status 须在 100～599 之间`);
+  }
 }
 
 /** 校验流程是否恰有一个开始节点（无入边节点） */
@@ -186,12 +222,12 @@ function validateHttpExtracts(
 
 function validateHttpNodeFields(
   p: string,
-  id: string | undefined,
+  nodeName: string,
   data: Record<string, unknown> | undefined,
   nodeTypesById: Map<string, string>,
   errors: string[],
 ): void {
-  const name = data?.name != null ? String(data.name) : id;
+  const name = nodeName;
   const callModeRaw = data?.callMode;
   if (callModeRaw == null || String(callModeRaw).trim() === '') {
     errors.push(`${p} HTTP 节点「${name}」缺少 callMode`);
@@ -385,12 +421,12 @@ function validateCompareRule(
 
 function validateAssertNodeFields(
   p: string,
-  id: string | undefined,
+  nodeName: string,
   data: Record<string, unknown> | undefined,
   nodeTypesById: Map<string, string>,
   errors: string[],
 ): void {
-  const name = data?.name != null ? String(data.name) : id;
+  const name = nodeName;
   const rules = data?.rules;
   if (!Array.isArray(rules) || !rules.length) {
     errors.push(`${p} 断言节点「${name}」rules 不能为空`);
@@ -409,12 +445,12 @@ function validateAssertNodeFields(
 
 function validateConditionNodeFields(
   p: string,
-  id: string | undefined,
+  nodeName: string,
   data: Record<string, unknown> | undefined,
   nodeTypesById: Map<string, string>,
   errors: string[],
 ): void {
-  const name = data?.name != null ? String(data.name) : id;
+  const name = nodeName;
   const branches = data?.branches;
   if (!Array.isArray(branches)) return;
   branches.forEach((branchItem, bi) => {
@@ -437,11 +473,11 @@ function validateConditionNodeFields(
 
 function validateAssignNodeFields(
   p: string,
-  id: string | undefined,
+  nodeName: string,
   data: Record<string, unknown> | undefined,
   errors: string[],
 ): void {
-  const name = data?.name != null ? String(data.name) : id;
+  const name = nodeName;
   const assignments = data?.assignments;
   if (!Array.isArray(assignments) || !assignments.length) {
     errors.push(`${p} Assign 节点「${name}」assignments 不能为空`);
@@ -478,11 +514,11 @@ function tryParseDelayMs(raw: unknown): number | null {
 
 function validateDelayNodeFields(
   p: string,
-  id: string | undefined,
+  nodeName: string,
   data: Record<string, unknown> | undefined,
   errors: string[],
 ): void {
-  const name = data?.name != null ? String(data.name) : id;
+  const name = nodeName;
   const ms = tryParseDelayMs(data?.ms);
   if (ms == null) {
     errors.push(`${p} Delay 节点「${name}」缺少 ms 或无法解析`);
@@ -496,11 +532,11 @@ function validateDelayNodeFields(
 /** input：fields 非空；name 唯一；type 合法；select/multiselect 须有 options 且 value 非空 */
 function validateInputNodeFields(
   p: string,
-  id: string | undefined,
+  nodeName: string,
   data: Record<string, unknown> | undefined,
   errors: string[],
 ): void {
-  const name = data?.name != null ? String(data.name) : id;
+  const name = nodeName;
   const raw = data?.fields;
   if (!Array.isArray(raw) || !raw.length) {
     errors.push(`${p} Input 节点「${name}」fields 不能为空`);
@@ -546,14 +582,14 @@ function validateInputNodeFields(
   });
 }
 
-/** subflowId 缺失为 error；inputs/outputs 空映射合法（asset 跨流 / meta.flowOutputs 回退） */
+/** subflowId 缺失为 error；inputs/outputs 空映射合法 */
 function validateSubflowNodeFields(
   p: string,
-  id: string | undefined,
+  nodeName: string,
   data: Record<string, unknown> | undefined,
   errors: string[],
 ): void {
-  const name = data?.name != null ? String(data.name) : id;
+  const name = nodeName;
   const subflowId = data?.subflowId;
   if (subflowId == null || String(subflowId).trim() === '') {
     errors.push(`${p} 子流节点「${name}」缺少 subflowId`);
@@ -572,12 +608,12 @@ const SCRIPT_LANGUAGES = new Set(['javascript', 'python']);
 /** script 节点：非法 language 为 error，空 source 为 warning */
 function validateScriptNodeFields(
   p: string,
-  id: string | undefined,
+  nodeName: string,
   data: Record<string, unknown> | undefined,
   errors: string[],
   warnings: string[],
 ): void {
-  const name = data?.name != null ? String(data.name) : id;
+  const name = nodeName;
   const language = data?.language != null ? String(data.language).trim() : '';
   if (!language || !SCRIPT_LANGUAGES.has(language)) {
     errors.push(`${p} script 节点「${name}」language 无效：${language || '(空)'}`);
@@ -592,6 +628,11 @@ function hasOutgoingEdge(edges: GraphEdge[], source: string, target: string): bo
   return edges.some((e) => e.source === source && e.target === target);
 }
 
+/**
+ * 校验单个节点：id 唯一、type 合法、position、data 对象、顶层 name 非空，
+ * 再按 type 分派 HTTP / 断言 / 条件 / 赋值 / 延迟 / 输入 / 子流 / 脚本 / 返回等字段规则。
+ * 旧 type「return」一律报错，须改用 http-return 或 subflow-return。
+ */
 function validateNodeFields(
   p: string,
   node: GraphNode | null | undefined,
@@ -624,38 +665,46 @@ function validateNodeFields(
     errors.push(`${p} 缺少 data 对象`);
   }
 
+  const nodeName = resolveGraphNodeName(node as GraphNode);
+  if (!node.name || !String(node.name).trim()) {
+    errors.push(`${p} 节点缺少非空 name`);
+  }
+  if (type === 'return') {
+    errors.push(`${p} type 无效：return（请使用 http-return 或 subflow-return）`);
+  }
   if (type === 'http') {
-    validateHttpNodeFields(p, id, node.data, nodeTypesById, errors);
+    validateHttpNodeFields(p, nodeName, node.data, nodeTypesById, errors);
   } else if (node.data && Object.prototype.hasOwnProperty.call(node.data, 'retryUntil')) {
-    const name = node.data?.name != null ? String(node.data.name) : id;
-    errors.push(`${p} 节点「${name}」retryUntil 仅允许挂在 HTTP 节点`);
+    errors.push(`${p} 节点「${nodeName}」retryUntil 仅允许挂在 HTTP 节点`);
   }
   if (type === 'assert') {
-    validateAssertNodeFields(p, id, node.data, nodeTypesById, errors);
+    validateAssertNodeFields(p, nodeName, node.data, nodeTypesById, errors);
   }
   if (type === 'condition') {
     const branches = node.data?.branches;
     if (!Array.isArray(branches) || !branches.length) {
-      const name = node.data?.name != null ? String(node.data.name) : id;
-      errors.push(`条件节点「${name}」缺少 branches，请配置 IF/ELSE 分支`);
+      errors.push(`条件节点「${nodeName}」缺少 branches，请配置 IF/ELSE 分支`);
     } else {
-      validateConditionNodeFields(p, id, node.data, nodeTypesById, errors);
+      validateConditionNodeFields(p, nodeName, node.data, nodeTypesById, errors);
     }
   }
   if (type === 'assign') {
-    validateAssignNodeFields(p, id, node.data, errors);
+    validateAssignNodeFields(p, nodeName, node.data, errors);
   }
   if (type === 'delay') {
-    validateDelayNodeFields(p, id, node.data, errors);
+    validateDelayNodeFields(p, nodeName, node.data, errors);
   }
   if (type === 'input') {
-    validateInputNodeFields(p, id, node.data, errors);
+    validateInputNodeFields(p, nodeName, node.data, errors);
   }
   if (type === 'subflow') {
-    validateSubflowNodeFields(p, id, node.data, errors);
+    validateSubflowNodeFields(p, nodeName, node.data, errors);
   }
   if (type === 'script') {
-    validateScriptNodeFields(p, id, node.data, errors, warnings);
+    validateScriptNodeFields(p, nodeName, node.data, errors, warnings);
+  }
+  if (type === 'http-return' || type === 'subflow-return') {
+    validateReturnNodeFields(p, type, nodeName, node.data, errors);
   }
   // alwaysRun / snapshotBefore：有值须为布尔，且只能挂在允许的节点类型上
   validateBooleanFlags(p, type, node.data, errors);
@@ -725,9 +774,7 @@ function validateConditionBranches(
 ): void {
   nodes.forEach((n) => {
     if (n.type !== 'condition') return;
-    const name = n.data?.name != null && String(n.data.name).trim()
-      ? String(n.data.name).trim()
-      : n.id;
+    const name = resolveGraphNodeName(n);
     const branches = (n.data?.branches as Array<Record<string, unknown>> | undefined) ?? [];
     branches.forEach((b) => {
       const branchId = b.id;
@@ -741,16 +788,96 @@ function validateConditionBranches(
   });
 }
 
-function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): void {
+/** 是否为场景入口节点 */
+function isScenarioEntryNode(node: unknown): boolean {
+  return (
+    !!node &&
+    typeof node === 'object' &&
+    !Array.isArray(node) &&
+    (node as Record<string, unknown>).type === 'scenario-entry'
+  );
+}
+
+/** 是否为任一入口类型（场景 / HTTP / 子流） */
+function isEntryNode(node: unknown): boolean {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return false;
+  const t = (node as Record<string, unknown>).type;
+  return t === 'scenario-entry' || t === 'subflow-entry' || t === 'http-entry';
+}
+
+/** 场景入口是否已挂非空 scenarios 列表 */
+function entryHasScenarios(node: unknown): boolean {
+  if (!isScenarioEntryNode(node)) return false;
+  const data = (node as Record<string, unknown>).data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+  const scenarios = (data as Record<string, unknown>).scenarios;
+  return Array.isArray(scenarios) && scenarios.length > 0;
+}
+
+/**
+ * 拒绝已废弃的 meta / 场景字段：
+ * meta.scenarios、meta.activeScenarioId、meta.flowOutputs；
+ * 场景条目上的 testProjectEnvId、flowSeed。
+ */
+function appendForbiddenLegacyMetaScenarios(graph: Record<string, unknown>, errors: string[]): void {
   const meta = graph.meta;
-  if (meta == null || typeof meta !== 'object' || Array.isArray(meta)) {
-    errors.push('缺少 meta.scenarios');
+  if (meta == null || typeof meta !== 'object' || Array.isArray(meta)) return;
+  const m = meta as Record<string, unknown>;
+  if (Array.isArray(m.scenarios) && m.scenarios.length > 0) {
+    errors.push('非法字段 meta.scenarios，请写在 scenario-entry.data.scenarios');
+  }
+  const activeId = m.activeScenarioId;
+  if (activeId != null && String(activeId).trim()) {
+    errors.push('非法字段 meta.activeScenarioId');
+  }
+  if ('flowOutputs' in m) {
+    errors.push('非法字段 meta.flowOutputs');
+  }
+  const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+  for (const n of nodes) {
+    if (!n || typeof n !== 'object') continue;
+    const node = n as Record<string, unknown>;
+    if (node.type !== 'scenario-entry') continue;
+    const data = node.data;
+    if (data == null || typeof data !== 'object' || Array.isArray(data)) continue;
+    const scenarios = (data as Record<string, unknown>).scenarios;
+    if (!Array.isArray(scenarios)) continue;
+    scenarios.forEach((sc, j) => {
+      if (sc == null || typeof sc !== 'object' || Array.isArray(sc)) return;
+      const row = sc as Record<string, unknown>;
+      if ('testProjectEnvId' in row) {
+        errors.push(`scenarios[${j}] 非法字段 testProjectEnvId，请使用 envId`);
+      }
+      if ('flowSeed' in row) {
+        errors.push(`scenarios[${j}] 非法字段 flowSeed，请使用 inSeed`);
+      }
+    });
+  }
+}
+
+/**
+ * 检查运行场景是否齐全：须落在 scenario-entry.data.scenarios。
+ * 仅有 http-entry / subflow-entry、不依赖人跑场景的图可跳过场景列表。
+ */
+function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): void {
+  appendForbiddenLegacyMetaScenarios(graph, errors);
+  const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+  if (nodes.some(entryHasScenarios)) {
     return;
   }
-  const scenarios = (meta as Record<string, unknown>).scenarios;
-  if (!Array.isArray(scenarios) || scenarios.length === 0) {
-    errors.push('meta.scenarios 不能为空');
+  const hasScenarioEntry = nodes.some(isScenarioEntryNode);
+  if (hasScenarioEntry) {
+    errors.push('scenario-entry 须配置非空 data.scenarios（含 inSeed）');
+    return;
   }
+  const hasAnyEntry = nodes.some(isEntryNode);
+  const hasNonScenarioEntry = nodes.some(
+    (n) => isEntryNode(n) && !isScenarioEntryNode(n),
+  );
+  if (hasAnyEntry && hasNonScenarioEntry) {
+    return;
+  }
+  errors.push('缺少运行场景：请在 scenario-entry 配置 scenarios');
 }
 
 /** 校验测试流图 JSON；按 options 选择完整规则或仅落库地板 */

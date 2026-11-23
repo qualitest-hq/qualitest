@@ -1,6 +1,32 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561420",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "tpl_sc_default",
+            "name": "模板默认",
+            "remark": "双身份登录子流模板",
+            "envId": "",
+            "inSeed": {
+              "userA": "",
+              "passA": "",
+              "userB": "",
+              "passB": ""
+            }
+          }
+        ]
+      }
+    },
+    {
       "id": "login_a",
       "type": "http",
       "position": {
@@ -8,7 +34,6 @@
         "y": 60
       },
       "data": {
-        "name": "身份 A 登录",
         "callMode": "project",
         "testProjectApiId": "",
         "httpMethod": "POST",
@@ -29,9 +54,9 @@
             "scope": "flow",
             "name": "tokenA"
           }
-        ],
-        "summary": "请选择身份 A 登录接口"
-      }
+        ]
+      },
+      "name": "身份 A 登录"
     },
     {
       "id": "login_b",
@@ -41,7 +66,6 @@
         "y": 60
       },
       "data": {
-        "name": "身份 B 登录",
         "callMode": "project",
         "testProjectApiId": "",
         "httpMethod": "POST",
@@ -62,9 +86,9 @@
             "scope": "flow",
             "name": "tokenB"
           }
-        ],
-        "summary": "请选择身份 B 登录接口"
-      }
+        ]
+      },
+      "name": "身份 B 登录"
     }
   ],
   "edges": [
@@ -81,21 +105,6 @@
       "y": 0,
       "zoom": 1
     },
-    "activeScenarioId": "tpl_sc_default",
-    "scenarios": [
-      {
-        "id": "tpl_sc_default",
-        "name": "模板默认",
-        "testProjectEnvId": "",
-        "flowSeed": {
-          "userA": "",
-          "passA": "",
-          "userB": "",
-          "passB": ""
-        },
-        "remark": "双身份登录子流模板"
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561420"
   }
 }

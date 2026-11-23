@@ -6,6 +6,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.CompareRuleEvaluator;
 import com.qualitest.flow.context.JsonPathFacade;
 import com.qualitest.flow.context.PlaceholderResolver;
+import com.qualitest.flow.delivery.EntryKind;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.HttpRetryUntilSupport;
 import com.qualitest.flow.input.InputFieldTypes;
@@ -13,6 +14,7 @@ import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
+import com.qualitest.flow.model.GraphNodeShellSupport;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,7 +32,13 @@ import org.springframework.stereotype.Component;
 /**
  * 测试流画布 graph_json 结构校验。
  * <p>
- * 默认（完整）检查：节点/边形状、唯一开始节点、各节点类型字段、条件分支与出边对齐、meta.scenarios。<br>
+ * 默认（完整）检查：节点/边形状、开始节点与入口规则、各节点类型字段、
+ * 条件分支与出边对齐、scenario-entry 场景、
+ * HTTP/子流入口必须配置 {@code fallbackOut}、
+ * 合法返回节点仅为 {@code http-return} / {@code subflow-return}
+ * （裸 {@code return} 属未知 type；仅含场景入口的图禁止出现返回节点）、
+ * 各入口可达子图上的返回 type 必须匹配该入口种类、
+ * 同一顺序路径上不可出现两个返回节点（条件节点各出边分别累计，互不影响）。
  * 可选「仅落库地板」：只检查节点 id、边端点，允许半成品图写入数据库。<br>
  * 可选「延后拓扑」：开始节点问题写入警告而非错误。<br>
  * {@code ok=true} 当且仅当 errors 为空；warnings 不影响 ok。
@@ -84,7 +92,12 @@ public class GraphJsonValidator {
         } else {
             appendStartNodeError(nodes, edges, errors);
         }
+        if (graph != null) {
+            appendForbiddenLegacyMetaScenariosFromRaw(
+                    JSON.parseObject(JSON.toJSONString(graph)), errors);
+        }
         appendMetaRunError(graph, errors);
+        appendReturnAndEntryRules(nodes, edges, errors, warnings);
         if (nodes.isEmpty()) {
             warnings.add("nodes 为空，导入后将得到空白画布");
         }
@@ -125,6 +138,9 @@ public class GraphJsonValidator {
 
     /**
      * 校验原始 JSON 文本（含 {@code graph_json} / {@code graphJson} 解包）。
+     * 覆盖节点/边字段、条件分支、开始节点、废弃 meta/场景键、场景是否齐全；
+     * 不跑入口可达返回 type、双返回拓扑、fallbackOut 对象形态等入口-返回规则
+     * （那些仅在 {@link #validate(GraphJson)} 路径执行）。
      */
     public GraphValidationResult validateJson(String json) {
         List<String> errors = new ArrayList<>();
@@ -157,6 +173,7 @@ public class GraphJsonValidator {
         validateRawEdges(edgesArr, nodeIds, errors, warnings);
         validateRawConditionBranches(nodesArr, edgesArr, errors, warnings);
         appendStartNodeErrorFromRaw(nodesArr, edgesArr, errors);
+        appendForbiddenLegacyMetaScenariosFromRaw(graph, errors);
         appendMetaRunErrorFromRaw(graph, errors);
         if (nodesArr.isEmpty()) {
             warnings.add("nodes 为空，导入后将得到空白画布");
@@ -218,6 +235,7 @@ public class GraphJsonValidator {
             validateNodeFields(
                     p,
                     node.getId(),
+                    node.getName(),
                     node.getType(),
                     node.getPosition(),
                     node.getData(),
@@ -292,6 +310,7 @@ public class GraphJsonValidator {
                 continue;
             }
             String id = node.getString("id");
+            String nodeName = node.getString("name");
             String type = node.getString("type");
             JSONObject position = node.getJSONObject("position");
             JSONObject data = node.getJSONObject("data");
@@ -302,18 +321,19 @@ public class GraphJsonValidator {
                         .y(position.getDoubleValue("y"))
                         .build();
             }
-            validateNodeFields(p, id, type, pos, data, nodeIds, nodeTypesById, errors, warnings);
+            validateNodeFields(p, id, nodeName, type, pos, data, nodeIds, nodeTypesById, errors, warnings);
         }
         return nodeIds;
     }
 
     /**
-     * 校验单个节点的 id / type / position / data，以及按 type 分发的字段规则；
+     * 校验单个节点的 id / name / type / position / data，以及按 type 分发的字段规则；
      * 末尾校验 alwaysRun、snapshotBefore 的布尔类型与允许挂载的节点类型。
      */
     private void validateNodeFields(
             String p,
             String id,
+            String nodeName,
             String type,
             GraphNodePosition position,
             Map<String, Object> data,
@@ -330,6 +350,10 @@ public class GraphJsonValidator {
             nodeIds.add(id);
         }
 
+        if (nodeName == null || nodeName.isBlank()) {
+            errors.add(p + " 缺少 name");
+        }
+
         if (type == null || type.isBlank() || !FlowNodeType.isKnown(type)) {
             errors.add(p + " type 无效：" + (type == null || type.isBlank() ? "(空)" : type));
         }
@@ -342,49 +366,93 @@ public class GraphJsonValidator {
             errors.add(p + " 缺少 data 对象");
         }
 
+        String displayName = nodeDisplayName(nodeName, id);
+
         if (FlowNodeType.HTTP.matches(type)) {
-            validateHttpNodeFields(p, id, data, nodeTypesById, errors, warnings);
+            validateHttpNodeFields(p, displayName, data, nodeTypesById, errors, warnings);
         } else if (data != null && data.containsKey(HttpRetryUntilSupport.DATA_KEY)) {
-            // retryUntil 只属于 HTTP；其它类型出现该键直接记错误
-            String name = data.get("name") != null ? String.valueOf(data.get("name")) : id;
-            errors.add(p + " 节点「" + name + "」retryUntil 仅允许挂在 HTTP 节点");
+            errors.add(p + " 节点「" + displayName + "」retryUntil 仅允许挂在 HTTP 节点");
         }
         if (FlowNodeType.ASSERT.matches(type)) {
-            validateAssertNodeFields(p, id, data, nodeTypesById, errors);
+            validateAssertNodeFields(p, displayName, data, nodeTypesById, errors);
         }
         if (FlowNodeType.CONDITION.matches(type)) {
             Object branches = data != null ? data.get("branches") : null;
             if (!(branches instanceof List<?> list) || list.isEmpty()) {
-                String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
-                errors.add("条件节点「" + name + "」缺少 branches，请配置 IF/ELSE 分支");
+                errors.add("条件节点「" + displayName + "」缺少 branches，请配置 IF/ELSE 分支");
             } else {
-                validateConditionNodeFields(p, id, data, nodeTypesById, errors);
+                validateConditionNodeFields(p, displayName, data, nodeTypesById, errors);
             }
         }
         if (FlowNodeType.ASSIGN.matches(type)) {
-            validateAssignNodeFields(p, id, data, errors);
+            validateAssignNodeFields(p, displayName, data, errors);
         }
         if (FlowNodeType.DELAY.matches(type)) {
-            validateDelayNodeFields(p, id, data, errors);
+            validateDelayNodeFields(p, displayName, data, errors);
         }
         if (FlowNodeType.INPUT.matches(type)) {
-            validateInputNodeFields(p, id, data, errors);
+            validateInputNodeFields(p, displayName, data, errors);
         }
-        validateScriptNodeFields(p, id, type, data, errors, warnings);
-        validateSubflowNodeFields(p, id, type, data, errors);
-        // alwaysRun / snapshotBefore：有值须为布尔，且只能挂在允许的节点类型上
+        validateScriptNodeFields(p, displayName, type, data, errors, warnings);
+        validateSubflowNodeFields(p, displayName, type, data, errors);
+        if (FlowNodeType.HTTP_RETURN.matches(type) || FlowNodeType.SUBFLOW_RETURN.matches(type)) {
+            validateReturnNodeFields(p, displayName, type, data, errors);
+        }
         GraphNodeBooleanFieldRules.validate(p, type, data, errors);
+    }
+
+    /** 节点展示名：顶层 name，空白则类型标签，再否则「(未知)」。 */
+    public static String nodeDisplayName(GraphNode node) {
+        return GraphNodeShellSupport.displayName(node);
+    }
+
+    /** 原始 JSON 节点展示名：顶层 name，空白则类型标签或 id。 */
+    public static String nodeDisplayName(JSONObject node) {
+        return GraphNodeShellSupport.displayName(node);
+    }
+
+    /** 仅用顶层 name 与 id 拼展示名（无类型信息时）。 */
+    private static String nodeDisplayName(String topLevelName, String id) {
+        return GraphNodeShellSupport.displayNameFromParts(topLevelName, id);
+    }
+
+    /**
+     * 校验返回节点字段：from 必填；http-return 的 status 若写出须为 100–599；
+     * subflow-return 禁止写 status。
+     */
+    private void validateReturnNodeFields(
+            String p,
+            String displayName,
+            String type,
+            Map<String, Object> data,
+            List<String> errors
+    ) {
+        Object fromObj = data != null ? data.get("from") : null;
+        String from = fromObj == null ? "" : String.valueOf(fromObj).trim();
+        if (from.isEmpty()) {
+            errors.add(p + " 返回节点「" + displayName + "」缺少 from");
+        }
+        if (FlowNodeType.HTTP_RETURN.matches(type) && data != null && data.containsKey("status")) {
+            Object statusRaw = data.get("status");
+            Integer status = tryParsePositiveInt(statusRaw);
+            if (status == null || status < 100 || status > 599) {
+                errors.add(p + " http-return「" + displayName + "」status 须为 100–599 的整数");
+            }
+        }
+        if (FlowNodeType.SUBFLOW_RETURN.matches(type) && data != null && data.containsKey("status")) {
+            errors.add(p + " subflow-return「" + displayName + "」不允许 status");
+        }
     }
 
     /** 校验 assert 节点：rules 非空；每条 left / JsonPath。 */
     private void validateAssertNodeFields(
             String p,
-            String id,
+            String displayName,
             Map<String, Object> data,
             Map<String, String> nodeTypesById,
             List<String> errors
     ) {
-        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        String name = displayName;
         Object rulesRaw = data != null ? data.get("rules") : null;
         if (!(rulesRaw instanceof List<?> rules) || rules.isEmpty()) {
             errors.add(p + " 断言节点「" + name + "」rules 不能为空");
@@ -399,14 +467,17 @@ public class GraphJsonValidator {
         }
     }
 
-    /** assign：assignments 非空；每条 name 非空且 op 合法。 */
+    /**
+     * assign：assignments 非空；每条 name 非空且 op 为 set/add/sub/mul/div。
+     * scope 运行时再归一（flow/out），保存阶段不强制校验 scope 取值。
+     */
     private void validateAssignNodeFields(
             String p,
-            String id,
+            String displayName,
             Map<String, Object> data,
             List<String> errors
     ) {
-        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        String name = displayName;
         Object raw = data != null ? data.get("assignments") : null;
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
             errors.add(p + " Assign 节点「" + name + "」assignments 不能为空");
@@ -441,11 +512,11 @@ public class GraphJsonValidator {
     /** delay：ms 可解析且不超过上限。 */
     private void validateDelayNodeFields(
             String p,
-            String id,
+            String displayName,
             Map<String, Object> data,
             List<String> errors
     ) {
-        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        String name = displayName;
         Object raw = data != null ? data.get("ms") : null;
         Long ms = com.qualitest.flow.delay.DelayConstants.tryParseMs(raw);
         if (ms == null) {
@@ -464,11 +535,11 @@ public class GraphJsonValidator {
      */
     private void validateInputNodeFields(
             String p,
-            String id,
+            String displayName,
             Map<String, Object> data,
             List<String> errors
     ) {
-        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        String name = displayName;
         Object raw = data != null ? data.get("fields") : null;
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
             errors.add(p + " Input 节点「" + name + "」fields 不能为空");
@@ -519,12 +590,12 @@ public class GraphJsonValidator {
     /** 校验 condition 各分支 conditions 的 left / JsonPath。 */
     private void validateConditionNodeFields(
             String p,
-            String id,
+            String displayName,
             Map<String, Object> data,
             Map<String, String> nodeTypesById,
             List<String> errors
     ) {
-        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        String name = displayName;
         Object branchesRaw = data.get("branches");
         if (!(branchesRaw instanceof List<?> branches)) {
             return;
@@ -729,7 +800,7 @@ public class GraphJsonValidator {
      */
     private void validateSubflowNodeFields(
             String p,
-            String id,
+            String displayName,
             String type,
             Map<String, Object> data,
             List<String> errors
@@ -737,8 +808,7 @@ public class GraphJsonValidator {
         if (!FlowNodeType.SUBFLOW.matches(type)) {
             return;
         }
-        // subflowId 缺失阻断保存/运行；inputs/outputs 空映射合法（asset 跨流 / meta.flowOutputs 回退）
-        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        String name = displayName;
         Object subflowId = data != null ? data.get("subflowId") : null;
         if (subflowId == null || String.valueOf(subflowId).isBlank()) {
             errors.add(p + " 子流节点「" + name + "」缺少 subflowId");
@@ -759,13 +829,13 @@ public class GraphJsonValidator {
      */
     private void validateHttpNodeFields(
             String p,
-            String id,
+            String displayName,
             Map<String, Object> data,
             Map<String, String> nodeTypesById,
             List<String> errors,
             List<String> warnings
     ) {
-        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        String name = displayName;
         Object callModeObj = data != null ? data.get("callMode") : null;
         if (callModeObj == null || String.valueOf(callModeObj).isBlank()) {
             errors.add(p + " HTTP 节点「" + name + "」缺少 callMode");
@@ -889,7 +959,7 @@ public class GraphJsonValidator {
     /** script 节点：非法 language 为 error，空 source 为 warning */
     private void validateScriptNodeFields(
             String p,
-            String id,
+            String displayName,
             String type,
             Map<String, Object> data,
             List<String> errors,
@@ -898,7 +968,7 @@ public class GraphJsonValidator {
         if (!FlowNodeType.SCRIPT.matches(type)) {
             return;
         }
-        String name = data != null && data.get("name") != null ? String.valueOf(data.get("name")) : id;
+        String name = displayName;
         String language = data != null && data.get("language") != null
                 ? String.valueOf(data.get("language")).trim()
                 : "";
@@ -1088,35 +1158,301 @@ public class GraphJsonValidator {
         }
     }
 
-    private void appendMetaRunError(GraphJson graph, List<String> errors) {
-        if (graph.getMeta() == null) {
-            errors.add("缺少 meta.scenarios");
+    /**
+     * 拒绝已废弃的 meta 字段：scenarios、activeScenarioId、flowOutputs；
+     * 并继续检查场景条目上的 testProjectEnvId / flowSeed。
+     */
+    private void appendForbiddenLegacyMetaScenariosFromRaw(JSONObject graph, List<String> errors) {
+        if (graph == null) {
             return;
         }
-        if (graph.getMeta().getScenarios() == null
-                || graph.getMeta().getScenarios().isEmpty()) {
-            errors.add("meta.scenarios 不能为空");
-        }
-    }
-
-    private void appendMetaRunErrorFromRaw(JSONObject graph, List<String> errors) {
         JSONObject meta = graph.getJSONObject("meta");
         if (meta == null) {
-            errors.add("缺少 meta.scenarios");
             return;
         }
         JSONArray scenarios = meta.getJSONArray("scenarios");
-        if (scenarios == null || scenarios.isEmpty()) {
-            errors.add("meta.scenarios 不能为空");
+        if (scenarios != null && !scenarios.isEmpty()) {
+            errors.add("非法字段 meta.scenarios，请写在 scenario-entry.data.scenarios");
+        }
+        String activeId = meta.getString("activeScenarioId");
+        if (activeId != null && !activeId.isBlank()) {
+            errors.add("非法字段 meta.activeScenarioId");
+        }
+        if (meta.containsKey("flowOutputs")) {
+            errors.add("非法字段 meta.flowOutputs");
+        }
+        appendForbiddenLegacyScenarioFieldsFromRaw(graph, errors);
+    }
+
+    /**
+     * 拒绝 scenario-entry 场景条目中已废弃的双键字段。
+     */
+    private void appendForbiddenLegacyScenarioFieldsFromRaw(JSONObject graph, List<String> errors) {
+        JSONArray nodes = graph.getJSONArray("nodes");
+        if (nodes == null) {
+            return;
+        }
+        for (int i = 0; i < nodes.size(); i++) {
+            JSONObject node = nodes.getJSONObject(i);
+            if (node == null || !FlowNodeType.SCENARIO_ENTRY.matches(node.getString("type"))) {
+                continue;
+            }
+            JSONObject data = node.getJSONObject("data");
+            if (data == null) {
+                continue;
+            }
+            JSONArray scenarios = data.getJSONArray("scenarios");
+            if (scenarios == null) {
+                continue;
+            }
+            for (int j = 0; j < scenarios.size(); j++) {
+                JSONObject sc = scenarios.getJSONObject(j);
+                if (sc == null) {
+                    continue;
+                }
+                if (sc.containsKey("testProjectEnvId")) {
+                    errors.add("scenarios[" + j + "] 非法字段 testProjectEnvId，请使用 envId");
+                }
+                if (sc.containsKey("flowSeed")) {
+                    errors.add("scenarios[" + j + "] 非法字段 flowSeed，请使用 inSeed");
+                }
+            }
         }
     }
 
+    /**
+     * 运行场景须写在 scenario-entry.data.scenarios。
+     * 纯 HTTP/子流图（无场景入口且不依赖人跑场景）可无场景列表。
+     */
+    private void appendMetaRunError(GraphJson graph, List<String> errors) {
+        if (com.qualitest.flow.context.EntryScenarioSupport.hasEntryScopedScenarios(graph)) {
+            return;
+        }
+        boolean hasScenarioEntry = graph.getNodes() != null && graph.getNodes().stream()
+                .anyMatch(n -> n != null && FlowNodeType.SCENARIO_ENTRY.matches(n.getType()));
+        if (hasScenarioEntry) {
+            errors.add("scenario-entry 须配置非空 data.scenarios（含 inSeed）");
+            return;
+        }
+        boolean onlyNonScenarioEntries = graph.getNodes() != null && graph.getNodes().stream()
+                .anyMatch(n -> n != null && FlowNodeType.isEntry(n.getType())
+                        && !FlowNodeType.SCENARIO_ENTRY.matches(n.getType()));
+        boolean hasAnyEntry = graph.getNodes() != null && graph.getNodes().stream()
+                .anyMatch(n -> n != null && FlowNodeType.isEntry(n.getType()));
+        if (hasAnyEntry && onlyNonScenarioEntries) {
+            // 仅有 http-entry / subflow-entry：不要求场景列表
+            return;
+        }
+        errors.add("缺少运行场景：请在 scenario-entry 配置 scenarios");
+    }
+
+    /**
+     * 原始 JSON 路径下的场景齐全性检查：能解析成 GraphJson 则复用对象路径规则，否则记缺场景错误。
+     */
+    private void appendMetaRunErrorFromRaw(JSONObject graph, List<String> errors) {
+        GraphJson parsed;
+        try {
+            parsed = GraphJson.parse(graph.toJSONString());
+        } catch (Exception e) {
+            parsed = null;
+        }
+        if (parsed != null) {
+            appendMetaRunError(parsed, errors);
+            return;
+        }
+        errors.add("缺少运行场景：请在 scenario-entry 配置 scenarios");
+    }
+
+    /**
+     * 开始节点校验：图上若有任一入口类型节点，走入口规则；否则要求恰好一个无入边起点。
+     */
     private void appendStartNodeError(List<GraphNode> nodes, List<GraphEdge> edges, List<String> errors) {
         if (nodes.isEmpty()) {
             return;
         }
         List<String> ids = findStartNodeIds(collectNodeIds(nodes), collectTypedEdgeTargets(edges));
+        boolean hasEntry = nodes.stream().anyMatch(n -> n != null && FlowNodeType.isEntry(n.getType()));
+        if (hasEntry) {
+            appendEntryStartNodeMessage(nodes, ids, errors);
+            return;
+        }
         appendStartNodeMessage(ids, id -> formatTypedStartNodeName(nodes, id), errors);
+    }
+
+    /**
+     * 有入口时：
+     * 所有「无入边」节点都必须是入口类型；入口本身也必须无入边；
+     * 允许多个入口并存（开跑时用 entryNodeId 选定）。
+     */
+    private void appendEntryStartNodeMessage(List<GraphNode> nodes, List<String> startIds, List<String> errors) {
+        Map<String, GraphNode> byId = new HashMap<>();
+        for (GraphNode n : nodes) {
+            if (n != null && n.getId() != null) {
+                byId.put(n.getId(), n);
+            }
+        }
+        if (startIds.isEmpty()) {
+            errors.add("未找到开始节点（入口须无入边）");
+            return;
+        }
+        for (String id : startIds) {
+            GraphNode n = byId.get(id);
+            if (n == null || !FlowNodeType.isEntry(n.getType())) {
+                errors.add("存在非入口的无入边节点：" + formatTypedStartNodeName(nodes, id)
+                        + "（有入口时仅入口可作开始）");
+            }
+        }
+        for (GraphNode n : nodes) {
+            if (n != null && FlowNodeType.isEntry(n.getType()) && n.getId() != null
+                    && !startIds.contains(n.getId())) {
+                errors.add("入口节点须无入边：" + formatTypedStartNodeName(nodes, n.getId()));
+            }
+        }
+    }
+
+    /**
+     * 入口与返回节点相关规则：
+     * <ul>
+     *   <li>{@code http-entry} / {@code subflow-entry} 的 {@code data.fallbackOut} 必须是对象</li>
+     *   <li>仅含场景入口的图不得出现 {@code http-return} / {@code subflow-return}</li>
+     *   <li>从各入口沿出边可达的返回节点，type 必须是该入口对应的返回 type</li>
+     *   <li>同一顺序路径上返回节点超过 1 个则报错；条件节点各出边分别累计</li>
+     * </ul>
+     */
+    private void appendReturnAndEntryRules(
+            List<GraphNode> nodes, List<GraphEdge> edges, List<String> errors, List<String> warnings) {
+        boolean hasScenarioEntry = false;
+        boolean hasHttpEntry = false;
+        boolean hasSubflowEntry = false;
+        for (GraphNode n : nodes) {
+            if (n == null) {
+                continue;
+            }
+            if (FlowNodeType.SCENARIO_ENTRY.matches(n.getType())) {
+                hasScenarioEntry = true;
+            }
+            if (FlowNodeType.HTTP_ENTRY.matches(n.getType()) || FlowNodeType.SUBFLOW_ENTRY.matches(n.getType())) {
+                if (FlowNodeType.HTTP_ENTRY.matches(n.getType())) {
+                    hasHttpEntry = true;
+                } else {
+                    hasSubflowEntry = true;
+                }
+                Map<String, Object> data = n.getData();
+                Object fb = data != null ? data.get("fallbackOut") : null;
+                if (!(fb instanceof Map<?, ?>)) {
+                    errors.add("入口节点「" + formatTypedStartNodeName(nodes, n.getId())
+                            + "」须配置 fallbackOut");
+                }
+            }
+        }
+
+        boolean scenarioOnly = hasScenarioEntry && !hasHttpEntry && !hasSubflowEntry;
+        for (GraphNode n : nodes) {
+            if (n == null || !FlowNodeType.isReturn(n.getType())) {
+                continue;
+            }
+            if (scenarioOnly) {
+                errors.add("场景图不支持返回节点（含「" + formatTypedStartNodeName(nodes, n.getId()) + "」）");
+            }
+        }
+
+        Map<String, GraphNode> byId = new HashMap<>();
+        for (GraphNode n : nodes) {
+            if (n != null && n.getId() != null) {
+                byId.put(n.getId(), n);
+            }
+        }
+        Map<String, List<GraphEdge>> outs = new HashMap<>();
+        if (edges != null) {
+            for (GraphEdge e : edges) {
+                if (e == null || e.getSource() == null) {
+                    continue;
+                }
+                outs.computeIfAbsent(e.getSource(), k -> new ArrayList<>()).add(e);
+            }
+        }
+        for (GraphNode entry : nodes) {
+            if (entry == null || entry.getId() == null || !FlowNodeType.isEntry(entry.getType())) {
+                continue;
+            }
+            String expectedReturn = EntryKind.expectedReturnTypeForEntry(entry.getType());
+            if (expectedReturn != null) {
+                detectReturnTypeMismatch(entry.getId(), expectedReturn, new HashSet<>(), byId, outs, errors);
+            }
+        }
+        Set<String> startIds = new HashSet<>(findStartNodeIds(collectNodeIds(nodes), collectTypedEdgeTargets(edges)));
+        for (String start : startIds) {
+            detectSequentialDoubleReturn(start, 0, new HashSet<>(), byId, outs, errors);
+        }
+    }
+
+    /**
+     * 从入口沿出边检查：遇到的返回节点 type 必须等于 expectedReturnType。
+     */
+    private void detectReturnTypeMismatch(
+            String nodeId,
+            String expectedReturnType,
+            Set<String> path,
+            Map<String, GraphNode> byId,
+            Map<String, List<GraphEdge>> outs,
+            List<String> errors) {
+        if (nodeId == null || path.contains(nodeId)) {
+            return;
+        }
+        GraphNode node = byId.get(nodeId);
+        if (node == null) {
+            return;
+        }
+        if (FlowNodeType.isReturn(node.getType()) && !expectedReturnType.equals(node.getType())) {
+            errors.add("入口可达的返回节点「" + nodeId + "」类型须为 " + expectedReturnType
+                    + "（当前为 " + node.getType() + "）");
+        }
+        Set<String> nextPath = new HashSet<>(path);
+        nextPath.add(nodeId);
+        for (GraphEdge e : outs.getOrDefault(nodeId, List.of())) {
+            detectReturnTypeMismatch(e.getTarget(), expectedReturnType, nextPath, byId, outs, errors);
+        }
+    }
+
+    /**
+     * 从 nodeId 沿出边检测「同一路径两个返回节点」。
+     * path 用于环检测；returnsSoFar 为到达本节点前已遇到的返回节点数。
+     */
+    private void detectSequentialDoubleReturn(
+            String nodeId,
+            int returnsSoFar,
+            Set<String> path,
+            Map<String, GraphNode> byId,
+            Map<String, List<GraphEdge>> outs,
+            List<String> errors) {
+        if (nodeId == null || path.contains(nodeId)) {
+            return;
+        }
+        GraphNode node = byId.get(nodeId);
+        if (node == null) {
+            return;
+        }
+        int returns = returnsSoFar;
+        if (FlowNodeType.isReturn(node.getType())) {
+            returns++;
+            if (returns > 1) {
+                errors.add("同一路径上存在多个返回节点（含「" + nodeId + "」）");
+                return;
+            }
+        }
+        Set<String> nextPath = new HashSet<>(path);
+        nextPath.add(nodeId);
+        if (FlowNodeType.CONDITION.matches(node.getType())) {
+            List<GraphEdge> edgeList = outs.getOrDefault(nodeId, List.of());
+            for (GraphEdge e : edgeList) {
+                detectSequentialDoubleReturn(e.getTarget(), returns, nextPath, byId, outs, errors);
+            }
+            return;
+        }
+        List<GraphEdge> edgeList = outs.getOrDefault(nodeId, List.of());
+        for (GraphEdge e : edgeList) {
+            detectSequentialDoubleReturn(e.getTarget(), returns, nextPath, byId, outs, errors);
+        }
     }
 
     /** Staging 分批确认：拓扑问题暂记 warning，待本批全部确认/拒绝后再做 error 校验 */
@@ -1237,9 +1573,8 @@ public class GraphJsonValidator {
     private String formatTypedStartNodeName(List<GraphNode> nodes, String id) {
         for (GraphNode node : nodes) {
             if (node != null && id.equals(node.getId())) {
-                Map<String, Object> data = node.getData();
-                if (data != null && data.get("name") != null) {
-                    return String.valueOf(data.get("name"));
+                if (node.getName() != null && !node.getName().isBlank()) {
+                    return node.getName().trim();
                 }
                 return FlowNodeType.labelOf(node.getType());
             }
@@ -1250,9 +1585,9 @@ public class GraphJsonValidator {
     private String formatRawStartNodeName(JSONArray nodesArr, String id) {
         for (Object item : nodesArr) {
             if (item instanceof JSONObject node && id.equals(node.getString("id"))) {
-                JSONObject data = node.getJSONObject("data");
-                if (data != null && data.get("name") != null) {
-                    return data.getString("name");
+                String name = node.getString("name");
+                if (name != null && !name.isBlank()) {
+                    return name.trim();
                 }
                 return FlowNodeType.labelOf(node.getString("type"));
             }

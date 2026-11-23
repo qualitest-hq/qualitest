@@ -9,7 +9,7 @@
     <div class="flow-node__bar" />
     <div class="flow-node__head">
       <span class="flow-node__badge">{{ icon }}</span>
-      <span class="flow-node__title">{{ data.name || label }}</span>
+      <span class="flow-node__title">{{ displayName }}</span>
       <span v-if="isStartNode(id)" class="flow-node__start-badge">开始</span>
     </div>
     <div class="flow-node__body">
@@ -30,7 +30,7 @@
 
 <script setup>
 /** 节点卡片外壳：顶栏色条、标题、运行高亮、校验描边、Staging 角标、连接锚点 */
-import { Handle, Position, useVueFlow } from '@vue-flow/core'
+import { Handle, Position, useNode, useVueFlow } from '@vue-flow/core'
 import { computed, inject, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
 
 import AiStagingChrome from '../components/AiStagingChrome.vue'
@@ -58,10 +58,17 @@ const { issueNodeIds } = useFlowValidation()
 
 const stagingMark = useStagingMark(toRef(() => props.id), 'node')
 
+const nodeApi = useNode()
+
 const cfg = computed(() => NODE_TYPES[props.type] || {})
 const color = computed(() => cfg.value.color || '#0b6edc')
 const icon = computed(() => cfg.value.icon || '?')
 const label = computed(() => cfg.value.label || props.type)
+const displayName = computed(() => {
+  const shell = (nodeApi.node as { name?: string } | undefined)?.name
+  if (shell != null && String(shell).trim()) return String(shell).trim()
+  return label.value
+})
 
 /** 横向左入右出；纵向上入下出，和一键排版方向一致 */
 const vertical = computed(() => store.layoutAxis === 'vertical')

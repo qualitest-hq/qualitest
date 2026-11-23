@@ -72,7 +72,12 @@ public class TestFlowRunTriggerCore {
         if (envId == null && useCanvasDefaults && ctx != null) {
             envId = ctx.getDefaultTestProjectEnvId();
         }
-        return new ResolvedRunArgs(testFlowId, runScenarioId, envId);
+        String entryNodeId = FlowDesignToolSupport.stringArg(
+                arguments != null ? arguments.get("entryNodeId") : null);
+        if (entryNodeId != null && entryNodeId.isBlank()) {
+            entryNodeId = null;
+        }
+        return new ResolvedRunArgs(testFlowId, runScenarioId, envId, entryNodeId);
     }
 
     /**
@@ -81,8 +86,10 @@ public class TestFlowRunTriggerCore {
      * @param testFlowId       测试流 id
      * @param runScenarioId    运行场景 id，可空
      * @param testProjectEnvId 环境 id，可空
+     * @param entryNodeId      scenario-entry 节点 id，可空
      */
-    public record ResolvedRunArgs(Long testFlowId, String runScenarioId, Long testProjectEnvId) {
+    public record ResolvedRunArgs(Long testFlowId, String runScenarioId, Long testProjectEnvId,
+                                  String entryNodeId) {
     }
 
     /**
@@ -99,6 +106,15 @@ public class TestFlowRunTriggerCore {
     public String run(Long testFlowId,
                       String runScenarioId,
                       Long testProjectEnvId,
+                      Long operatorUserId,
+                      FlowDesignToolContext ctx) {
+        return run(testFlowId, runScenarioId, testProjectEnvId, null, operatorUserId, ctx);
+    }
+
+    public String run(Long testFlowId,
+                      String runScenarioId,
+                      Long testProjectEnvId,
+                      String entryNodeId,
                       Long operatorUserId,
                       FlowDesignToolContext ctx) {
         if (testFlowId == null) {
@@ -137,6 +153,7 @@ public class TestFlowRunTriggerCore {
                     .testFlowId(testFlowId)
                     .runScenarioId(runScenarioId)
                     .testProjectEnvId(testProjectEnvId)
+                    .entryNodeId(entryNodeId)
                     .triggerType("ai")
                     .operatorUserId(operatorUserId)
                     .build();

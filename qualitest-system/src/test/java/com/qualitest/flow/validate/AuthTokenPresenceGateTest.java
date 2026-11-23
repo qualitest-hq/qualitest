@@ -173,7 +173,7 @@ class AuthTokenPresenceGateTest {
      */
     @Test
     @Order(6)
-    @DisplayName("无子流解析器时仅 flowOutputs 不满足 asset 托管头")
+    @DisplayName("无子流解析器时仅 outputs 不满足 asset 托管头")
     void validate_subflowWithoutResolver_stillMissingAsset() {
         GraphNode sub = GraphNode.builder()
                 .id("sf1")
@@ -216,10 +216,9 @@ class AuthTokenPresenceGateTest {
 
     private static GraphNode httpNode(String id, Long apiId) {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", id);
         data.put("callMode", "project");
         data.put("testProjectApiId", String.valueOf(apiId));
-        return GraphNode.builder().id(id).type("http").data(data).build();
+        return GraphNode.builder().id(id).type("http").name(id).data(data).build();
     }
 
     private static TestProjectApi api(Long id, String path, String mode) {

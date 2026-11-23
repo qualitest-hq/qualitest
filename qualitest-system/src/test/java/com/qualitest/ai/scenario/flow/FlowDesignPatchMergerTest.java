@@ -156,8 +156,8 @@ class FlowDesignPatchMergerTest {
     }
 
     /**
-     * 前提：已有节点 data.name=旧名；update 带 name/callMode。
-     * 期望：浅合并后 name=新名，并写入 callMode。
+     * 前提：已有节点顶层 name=旧名；update 带顶层 name 与 data.callMode。
+     * 期望：顶层 name=新名，浅合并后写入 callMode。
      */
     @Test
     @Order(10)
@@ -166,16 +166,18 @@ class FlowDesignPatchMergerTest {
         GraphNode existing = GraphNode.builder()
                 .id("1001")
                 .type("http")
-                .data(new java.util.HashMap<>(Map.of("name", "旧名")))
+                .name("旧名")
+                .data(new java.util.HashMap<>())
                 .build();
         GraphNode update = GraphNode.builder()
                 .id("1001")
-                .data(new java.util.HashMap<>(Map.of("name", "新名", "callMode", "external")))
+                .name("新名")
+                .data(new java.util.HashMap<>(Map.of("callMode", "external")))
                 .build();
 
         FlowDesignPatchMerger.applyNodeUpdate(existing, update);
 
-        assertEquals("新名", existing.getData().get("name"));
+        assertEquals("新名", existing.getName());
         assertEquals("external", existing.getData().get("callMode"));
     }
 

@@ -9,13 +9,17 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import com.qualitest.flow.model.GraphNode;
+
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 测 RunScenarioBootstrap：从图 meta 解析运行场景与环境。
+ * 测 RunScenarioBootstrap：从 scenario-entry 解析运行场景与环境。
  * 覆盖：默认场景与 flowSeed、maxSteps、入参环境覆盖、场景不存在、fallback 回落、缺环境硬失败文案。
  * 边界：夹具 flow/linear-run-graph.json；无数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunScenarioBootstrapTest
@@ -24,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class RunScenarioBootstrapTest {
 
     /**
-     * 前提：未传 scenarioId，图 meta.activeScenarioId=sc-default。
+     * 前提：未传 scenarioId，入口首条场景 id=sc-default。
      * 期望：scenarioId=sc-default；flowSeed.loginUser=admin；envId=9001。
      */
     @Test
@@ -37,7 +41,7 @@ class RunScenarioBootstrapTest {
         assertEquals("sc-default", scenario.getScenarioId());
         assertEquals("默认", scenario.getScenarioName());
         assertEquals(9001L, scenario.getTestProjectEnvId());
-        assertEquals("admin", scenario.getFlowSeed().get("loginUser"));
+        assertEquals("admin", scenario.getInSeed().get("loginUser"));
     }
 
     /**
@@ -78,7 +82,7 @@ class RunScenarioBootstrapTest {
     @DisplayName("解析：场景无 env 时用 fallback")
     void resolve_usesFallbackWhenScenarioEnvBlank() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
-        graph.getMeta().getScenarios().get(0).setTestProjectEnvId("");
+        patchFirstScenarioField(graph, "envId", "");
         ResolvedRunScenario scenario = RunScenarioBootstrap.resolve(graph, null, null, 5555L);
         assertEquals(5555L, scenario.getTestProjectEnvId());
     }
@@ -92,7 +96,7 @@ class RunScenarioBootstrapTest {
     @DisplayName("解析：无 env 无 fallback 时文案含指引")
     void resolve_missingEnv_messageHintsListEnvs() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
-        graph.getMeta().getScenarios().get(0).setTestProjectEnvId("");
+        patchFirstScenarioField(graph, "envId", "");
         FlowExecutionException ex = assertThrows(
                 FlowExecutionException.class,
                 () -> RunScenarioBootstrap.resolve(graph, null, null, null)
@@ -100,7 +104,7 @@ class RunScenarioBootstrapTest {
         assertEquals(FlowErrorCode.TF_GRAPH_INVALID.getCode(), ex.getCode());
         assertTrue(ex.getMessage().contains("list_project_envs")
                 || ex.getMessage().contains("不会自动选环境"));
-        assertTrue(ex.getMessage().contains("testProjectEnvId"));
+        assertTrue(ex.getMessage().contains("envId"));
     }
 
     /**
@@ -112,7 +116,7 @@ class RunScenarioBootstrapTest {
     @DisplayName("解析：场景 maxSteps 传入 ResolvedRunScenario")
     void resolve_passesMaxSteps() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
-        graph.getMeta().getScenarios().get(0).setMaxSteps(120);
+        patchFirstScenarioField(graph, "maxSteps", 120);
         ResolvedRunScenario scenario = RunScenarioBootstrap.resolve(graph, null, null);
         assertEquals(120, scenario.getMaxSteps());
     }
@@ -126,7 +130,7 @@ class RunScenarioBootstrapTest {
     @DisplayName("解析：缺 env 时报错附可选 envId")
     void resolve_missingEnv_includesAvailableHint() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
-        graph.getMeta().getScenarios().get(0).setTestProjectEnvId("");
+        patchFirstScenarioField(graph, "envId", "");
         FlowExecutionException ex = assertThrows(
                 FlowExecutionException.class,
                 () -> RunScenarioBootstrap.resolve(
@@ -134,6 +138,15 @@ class RunScenarioBootstrapTest {
         );
         assertTrue(ex.getMessage().contains("envId=2103"));
         assertTrue(ex.getMessage().contains("默认环境"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void patchFirstScenarioField(GraphJson graph, String field, Object value) {
+        GraphNode entry = EntryScenarioSupport.findScenarioEntry(graph, null);
+        assertNotNull(entry);
+        List<?> raw = (List<?>) entry.getData().get("scenarios");
+        assertNotNull(raw);
+        ((Map<String, Object>) raw.get(0)).put(field, value);
     }
 
     private static GraphJson loadGraph(String path) {

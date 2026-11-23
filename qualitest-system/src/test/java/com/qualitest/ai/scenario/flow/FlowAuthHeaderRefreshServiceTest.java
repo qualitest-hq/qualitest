@@ -158,6 +158,7 @@ class FlowAuthHeaderRefreshServiceTest {
         GraphNode node = GraphNode.builder()
                 .id(nodeId)
                 .type("http")
+                .name(name)
                 .data(data)
                 .build();
         return GraphJson.builder()

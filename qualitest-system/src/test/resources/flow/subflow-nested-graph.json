@@ -1,6 +1,26 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561396",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "sc1",
+            "name": "默认",
+            "envId": "",
+            "inSeed": {}
+          }
+        ]
+      }
+    },
+    {
       "id": "nested1",
       "type": "subflow",
       "position": {
@@ -8,25 +28,16 @@
         "y": 0
       },
       "data": {
-        "name": "嵌套子流",
         "subflowId": "999",
         "versionPolicy": "latest",
         "inputs": [],
         "outputs": []
-      }
+      },
+      "name": "嵌套子流"
     }
   ],
   "edges": [],
   "meta": {
-    "activeScenarioId": "sc1",
-    "scenarios": [
-      {
-        "id": "sc1",
-        "name": "默认",
-        "testProjectEnvId": "",
-        "flowSeed": {}
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561396"
   }
 }

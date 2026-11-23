@@ -881,10 +881,9 @@ public final class PrefabricatedTemplateExtrasSupport {
         JSONObject condToken = new JSONObject();
         condToken.put("id", "cond_token");
         condToken.put("type", "condition");
+        condToken.put("name", "凭证是否存在");
         condToken.put("position", pos(80, 260));
         JSONObject condTokenData = new JSONObject();
-        condTokenData.put("name", "凭证是否存在");
-        condTokenData.put("summary", "凭证是否存在");
         condTokenData.put("branches", List.of(
                 branch("b_token_if", "if", "probe_http", List.of(
                         condition(assetPath, "exists", ""))),
@@ -895,9 +894,9 @@ public final class PrefabricatedTemplateExtrasSupport {
         JSONObject probeHttp = new JSONObject();
         probeHttp.put("id", "probe_http");
         probeHttp.put("type", "http");
+        probeHttp.put("name", "探活");
         probeHttp.put("position", pos(480, 60));
         JSONObject probeData = new JSONObject();
-        probeData.put("name", "探活");
         probeData.put("callMode", "project");
         probeData.put("httpMethod", safeProbeMethod);
         probeData.put("apiPath", safeProbePath);
@@ -916,18 +915,14 @@ public final class PrefabricatedTemplateExtrasSupport {
         probeSuccess.put("mode", "off");
         probeData.put("successCheck", probeSuccess);
         probeData.put("extracts", List.of());
-        probeData.put("summary", StrUtil.isNotBlank(probeApiId)
-                ? safeProbeMethod + " " + probeName
-                : "探活");
         probeHttp.put("data", probeData);
 
         JSONObject condAlive = new JSONObject();
         condAlive.put("id", "cond_alive");
         condAlive.put("type", "condition");
+        condAlive.put("name", "凭证是否有效");
         condAlive.put("position", pos(960, 60));
         JSONObject condAliveData = new JSONObject();
-        condAliveData.put("name", "凭证是否有效");
-        condAliveData.put("summary", "凭证是否有效");
         // 已登录：HTTP 200 且实际响应符合接口期望形态（如期望 json 却回 HTML 则去登录）
         condAliveData.put("branches", List.of(
                 endBranch("b_alive_if", "if", List.of(
@@ -940,9 +935,9 @@ public final class PrefabricatedTemplateExtrasSupport {
         JSONObject loginHttp = new JSONObject();
         loginHttp.put("id", "login_http");
         loginHttp.put("type", "http");
+        loginHttp.put("name", "登录");
         loginHttp.put("position", pos(680, 440));
         JSONObject loginData = new JSONObject();
-        loginData.put("name", "登录");
         loginData.put("callMode", "project");
         loginData.put("httpMethod", safeLoginMethod);
         loginData.put("apiPath", safeLoginPath);
@@ -956,9 +951,6 @@ public final class PrefabricatedTemplateExtrasSupport {
         loginData.put("successCheck", loginSuccess);
         loginData.put("extracts", List.of(extract));
         loginData.put("requestValueOverrides", loginBodyOverrides(entryKey));
-        loginData.put("summary", StrUtil.isNotBlank(loginApiId)
-                ? safeLoginMethod + " " + loginName
-                : "登录");
         loginHttp.put("data", loginData);
 
         // 出边：ELSE 连登录；成功 IF 无出边（结束本流）
@@ -969,9 +961,6 @@ public final class PrefabricatedTemplateExtrasSupport {
                 edge("e_alive_else", "cond_alive", "login_http")
         );
 
-        JSONObject output = new JSONObject();
-        output.put("name", entryKey + "." + fieldPath);
-
         JSONObject viewport = new JSONObject();
         viewport.put("x", 0);
         viewport.put("y", 0);
@@ -981,21 +970,28 @@ public final class PrefabricatedTemplateExtrasSupport {
         JSONObject scenario = new JSONObject();
         scenario.put("id", scenarioId);
         scenario.put("name", "默认（冒烟）");
-        scenario.put("testProjectEnvId", "");
-        scenario.put("flowSeed", new JSONObject());
+        scenario.put("envId", "");
+        scenario.put("inSeed", new JSONObject());
         scenario.put("remark", "");
+
+        JSONObject entryData = new JSONObject();
+        entryData.put("doc", "");
+        entryData.put("scenarios", List.of(scenario));
+        JSONObject scenarioEntry = new JSONObject();
+        scenarioEntry.put("id", String.valueOf(IdUtil.getSnowflakeNextId()));
+        scenarioEntry.put("type", "scenario-entry");
+        scenarioEntry.put("name", "默认场景入口");
+        scenarioEntry.put("position", new JSONObject(Map.of("x", 0, "y", 0)));
+        scenarioEntry.put("data", entryData);
 
         JSONObject meta = new JSONObject();
         meta.put("schemaVersion", 1);
         // 预制流记为默认排版。节点坐标在组装时已经写好，这里不重排
         meta.put("layout", "default");
-        meta.put("flowOutputs", List.of(output));
         meta.put("viewport", viewport);
-        meta.put("activeScenarioId", scenarioId);
-        meta.put("scenarios", List.of(scenario));
 
         JSONObject graph = new JSONObject();
-        graph.put("nodes", List.of(condToken, probeHttp, condAlive, loginHttp));
+        graph.put("nodes", List.of(scenarioEntry, condToken, probeHttp, condAlive, loginHttp));
         graph.put("edges", edges);
         graph.put("meta", meta);
 

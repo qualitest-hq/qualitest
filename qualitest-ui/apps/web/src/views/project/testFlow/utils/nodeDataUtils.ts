@@ -1,6 +1,5 @@
 /**
- * 节点 data 工具：生成 id、创建默认 data、格式化画布摘要（summary）。
- * 供节点库创建、属性编辑、画布卡片展示共用。
+ * 节点 data 工具：生成 id、创建默认 data、格式化画布副标题（运行时计算，不写入 data）。
  */
 import { formatAssignSummary, formatAssignAssignment, getAssignAssignments } from '@/utils/flow/assign';
 import { condOpLabel, normalizeOperator, unboxSingleton } from '@/utils/flow/compareRule';
@@ -190,38 +189,57 @@ export function formatSubflowSummary(data: Record<string, unknown>) {
   return name;
 }
 
-/** 按节点类型刷新 data.summary，供卡片副标题展示 */
-export function updateSummary(type: string, data: Record<string, unknown>) {
+/** 返回节点卡片副标题：from 路径；http-return 追加目标状态码 */
+function formatReturnSummary(type: string, data: Record<string, unknown>): string {
+  const from = String(data.from ?? 'flow.out').trim() || 'flow.out';
+  if (type === 'http-return') {
+    const statusRaw = data.status;
+    const status =
+      statusRaw != null && String(statusRaw).trim() !== '' ? String(statusRaw).trim() : '200';
+    return `${from} → HTTP ${status}`;
+  }
+  return from;
+}
+
+/** 按节点类型生成卡片副标题（只读，不落盘） */
+export function formatNodeSummary(type: string, data: Record<string, unknown>): string {
   switch (type) {
     case 'http': {
-      data.summary = formatHttpRequestLine(data);
+      let line = formatHttpRequestLine(data);
       const extractCount = filterFilledExtracts((data.extracts as never[]) || []).length;
-      if (extractCount) data.summary += ` · 提取 ${extractCount} 项`;
-      break;
+      if (extractCount) line += ` · 提取 ${extractCount} 项`;
+      return line;
     }
     case 'assert':
-      data.summary = formatAssertSummary(data);
-      break;
+      return formatAssertSummary(data);
     case 'delay':
-      data.summary = `${data.ms || 0} ms`;
-      break;
+      return `${data.ms || 0} ms`;
     case 'condition':
-      data.summary = formatConditionSummary(data);
-      break;
+      return formatConditionSummary(data);
     case 'assign':
-      data.summary = formatAssignSummary(data);
-      break;
+      return formatAssignSummary(data);
     case 'script':
-      data.summary = formatScriptSummary(data);
-      break;
+      return formatScriptSummary(data);
     case 'subflow':
-      data.summary = formatSubflowSummary(data);
-      break;
+      return formatSubflowSummary(data);
     case 'input':
-      data.summary = formatInputSummary(data);
-      break;
+      return formatInputSummary(data);
+    case 'http-return':
+    case 'subflow-return':
+      return formatReturnSummary(type, data);
+    case 'http-entry': {
+      const method = String(data.method || 'POST');
+      const path = String(data.path || '');
+      return `${method} ${path}`.trim();
+    }
+    case 'scenario-entry': {
+      const n = Array.isArray(data.scenarios) ? data.scenarios.length : 0;
+      return n ? `${n} 个场景` : '未配置场景';
+    }
+    case 'subflow-entry':
+      return '子流入口';
     default:
-      break;
+      return '';
   }
 }
 
@@ -229,11 +247,26 @@ export function updateSummary(type: string, data: Record<string, unknown>) {
 export function createNodeData(type: string, override: Record<string, unknown> = {}) {
   const cfg = NODE_TYPES[type];
   if (!cfg) throw new Error(`Unknown node type: ${type}`);
-  const data = { ...cfg.defaults, ...override };
+  const merged = { ...cfg.defaults, ...override };
+  const data = { ...merged };
   if (type === 'condition' && !data.branches) {
     data.branches = defaultConditionBranches();
   }
-  updateSummary(type, data);
+  // 场景入口无场景行时补一条默认冒烟项，便于保存与批量跑
+  if (type === 'scenario-entry') {
+    const scenarios = data.scenarios;
+    if (!Array.isArray(scenarios) || scenarios.length === 0) {
+      data.scenarios = [
+        {
+          id: nextSnowflakeId(),
+          name: '默认（冒烟）',
+          envId: '',
+          inSeed: {},
+          remark: '',
+        },
+      ];
+    }
+  }
   return data;
 }
 

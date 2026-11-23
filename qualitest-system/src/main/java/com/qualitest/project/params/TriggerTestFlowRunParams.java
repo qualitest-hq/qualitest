@@ -25,7 +25,14 @@ public class TriggerTestFlowRunParams {
     /** 可选，覆盖场景内绑定的环境 */
     private Long testProjectEnvId;
 
-    /** 可选，覆盖图 meta 里的活动场景 */
+    /**
+     * 可选，指定从哪个 scenario-entry 开跑；多场景入口时必传。
+     */
+    private String entryNodeId;
+
+    /**
+     * 可选，覆盖活动场景 id（scenario-entry.data.scenarios 内条目的 id）。
+     */
     private String runScenarioId;
 
     /**

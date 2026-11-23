@@ -32,7 +32,7 @@
 
 <script setup>
 /**
- * 双列键值表编辑器：flowSeed、flowOutputs 等场景共用。
+ * 双列键值表编辑器：inSeed 等场景配置共用。
  * columns 定义列 field / label / placeholder；rows 为行对象数组。
  */
 import { ref, watch } from 'vue';

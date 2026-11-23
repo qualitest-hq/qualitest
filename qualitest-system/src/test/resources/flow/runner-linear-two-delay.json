@@ -8,9 +8,9 @@
         "y": 0
       },
       "data": {
-        "name": "等待1",
         "ms": 1
-      }
+      },
+      "name": "等待1"
     },
     {
       "id": "d2",
@@ -20,9 +20,9 @@
         "y": 0
       },
       "data": {
-        "name": "等待2",
         "ms": 1
-      }
+      },
+      "name": "等待2"
     }
   ],
   "edges": [
@@ -32,16 +32,5 @@
       "target": "d2"
     }
   ],
-  "meta": {
-    "activeScenarioId": "s1",
-    "scenarios": [
-      {
-        "id": "s1",
-        "name": "线性",
-        "testProjectEnvId": "",
-        "flowSeed": {}
-      }
-    ],
-    "flowOutputs": []
-  }
+  "meta": {}
 }

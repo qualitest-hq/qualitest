@@ -11,7 +11,7 @@ import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.run.FlowGraphRunner;
-import com.qualitest.flow.subflow.GraphMetaIoSupport;
+import com.qualitest.flow.delivery.EntryKind;
 import com.qualitest.flow.subflow.SubflowDepth;
 import com.qualitest.flow.subflow.SubflowIoSupport;
 import com.qualitest.flow.validate.FlowNodeType;
@@ -28,15 +28,16 @@ import java.util.Map;
 /**
  * 子流节点执行器（type=subflow）。
  * <p>
- * 将同项目内另一张测试流图折叠为单步执行，对外通过 inputs/outputs 映射变量：
+ * 将同项目内另一张测试流图折叠为单步执行：
  * <ol>
- *   <li>按 {@code subflowId} 加载测试流（须同 {@code testProjectId}）</li>
- *   <li>{@link SubflowIoSupport#resolveInputSeed} 解析 inputs 占位符，写入子 {@link com.qualitest.flow.context.FlowRunContext} 的 flow</li>
- *   <li>{@link FlowGraphRunner} 在内存跑子图（fail-fast）；嵌套深度由 {@link SubflowDepth} 限制（主→子→孙，最多 2 层 subflow 嵌套）</li>
- *   <li>{@link SubflowIoSupport#mergeOutputsToParent} 将子 flow 按 outputs 或子图 {@code meta.flowOutputs} 默认映射写回父 flow</li>
- *   <li>步骤 {@code subflow.childSteps} 附带内层步骤摘要，供 Run 详情展开与 AI {@code get_run_failure} 分析</li>
+ *   <li>按 {@code subflowId} 加载测试流（须与当前 Run 同 {@code testProjectId}）</li>
+ *   <li>解析 inputs：同时写入子上下文 {@code in} 与 {@code flow}；子 Run 的 entryKind/trigger 均为 subflow</li>
+ *   <li>用 {@link FlowGraphRunner} 跑子图；子图 {@code subflow-return} 或收束时把定稿 out 挂到父图
+ *       {@code nodes.&lt;本 subflow 节点 id&gt;.out}，供父图占位符读取</li>
+ *   <li>本步成败只看子 Outcome；是否已挂 out 不影响成败判定；子失败时父图仍可读已挂的 out</li>
  * </ol>
- * {@code versionPolicy}：{@code latest} 每次 Run 取子流当前图；{@code pinned} 优先用节点 {@code pinnedGraphJson} 固化快照。
+ * {@code versionPolicy}：{@code latest}（默认）每次取子流定义当前 graph_json；
+ * {@code pinned} 优先用节点上 {@code pinnedGraphJson} 固化快照，快照缺失则回落当前定义。
  */
 @Component
 public class SubflowNodeHandler extends AbstractStubNodeHandler {
@@ -91,15 +92,19 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
             }
 
             Map<String, Object> childSeed = SubflowIoSupport.resolveInputSeed(ctx, data.get("inputs"));
-            FlowRunContext childCtx = buildChildContext(ctx, childSeed);
+            FlowRunContext childCtx = buildChildContext(ctx, childSeed, node.getId());
 
             FlowGraphRunner.Outcome outcome = flowGraphRunner.run(
                     childGraph, childCtx, nodeHandlerRegistry);
             List<Map<String, Object>> childSteps = SubflowIoSupport.toChildStepSummaries(outcome.getSteps());
             long durationMs = System.currentTimeMillis() - t0;
 
+            Map<String, Object> mounted = ctx.getNodeOut(node.getId());
             Map<String, Object> subflowDetails = buildSubflowDetails(
                     subflowId, subflow.getFlowName(), outcome.isPassed() ? "passed" : "failed", childSteps);
+            if (mounted != null) {
+                subflowDetails.put("out", new LinkedHashMap<>(mounted));
+            }
 
             if (!outcome.isPassed()) {
                 StepError childError = outcome.getError() != null
@@ -117,14 +122,6 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                         .error(childError)
                         .build();
             }
-
-            Object outputsObj = data.get("outputs");
-            if (SubflowIoSupport.isEmptyMappingList(outputsObj)) {
-                outputsObj = GraphMetaIoSupport.defaultOutputMappings(childGraph.getMeta());
-            }
-            Map<String, Object> mergedOutputs = SubflowIoSupport.applyOutputs(
-                    ctx, childCtx.getFlow(), outputsObj);
-            subflowDetails.put("outputsMerged", mergedOutputs);
 
             return StepResult.builder()
                     .nodeId(node.getId())
@@ -149,15 +146,12 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
 
     /**
      * 组装子流运行上下文。
-     * 继承父级 env / asset / session / 外联权限 / 多端配置；flow 仅放入本节点 inputs 解析后的种子。
-     * 不复制父级 lastResponse、nodeResponses：子流内 HTTP 只更新子上下文；
-     * 父流无法用 {@code nodes.<子图节点id>.http…} 读子流响应，需经子流 outputs 写入父 flow。
-     *
-     * @param parent    父上下文
-     * @param childSeed 子 flow 初始键值
-     * @return 新建的子上下文
+     * 继承父级 env / asset / session / 外联权限 / 项目鉴权配置；inputs 种子同时灌入 in 与 flow。
+     * 记录 parentContext 与 parentSubflowNodeId，供子图交付时把 out 挂回父图对应节点。
      */
-    private static FlowRunContext buildChildContext(FlowRunContext parent, Map<String, Object> childSeed) {
+    private static FlowRunContext buildChildContext(FlowRunContext parent, Map<String, Object> childSeed,
+                                                    String parentSubflowNodeId) {
+        Map<String, Object> seed = childSeed != null ? new HashMap<>(childSeed) : new HashMap<>();
         return FlowRunContext.builder()
                 .testProjectId(parent.getTestProjectId())
                 .projectAuthConfig(parent.getProjectAuthConfig())
@@ -166,7 +160,12 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                 .session(parent.getSession() != null ? parent.getSession() : new HashMap<>())
                 .subflowDepth(parent.getSubflowDepth() + 1)
                 .externalHttpPermitted(parent.isExternalHttpPermitted())
-                .flow(new HashMap<>(childSeed))
+                .flow(new HashMap<>(seed))
+                .in(new HashMap<>(seed))
+                .entryKind(EntryKind.SUBFLOW.getCode())
+                .trigger(EntryKind.SUBFLOW.getCode())
+                .parentContext(parent)
+                .parentSubflowNodeId(parentSubflowNodeId)
                 .build();
     }
 

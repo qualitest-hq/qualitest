@@ -92,7 +92,7 @@ public class StepResultWriter {
             if (scenario.getTestProjectEnvId() != null) {
                 scenarioLoaded.put("testProjectEnvId", String.valueOf(scenario.getTestProjectEnvId()));
             }
-            scenarioLoaded.put("flowSeed", scenario.getFlowSeed() != null ? scenario.getFlowSeed() : Map.of());
+            scenarioLoaded.put("inSeed", scenario.getInSeed() != null ? scenario.getInSeed() : Map.of());
         }
         scenarioLoaded.put("envName", envName);
         if (ctx != null && ctx.getEnv() != null) {
@@ -127,26 +127,26 @@ public class StepResultWriter {
     public TestFlowRunStepResult buildFallbackRunConfigStepResult(TestFlowRunResult run, String envName) {
         final String runScenarioId = run.getRunScenarioId();
         String scenarioName = null;
-        Map<String, Object> flowSeed = new HashMap<>();
+        Map<String, Object> inSeedSnapshot = new HashMap<>();
         String scenarioId = runScenarioId;
 
         if (run.getGraphJsonSnapshot() != null && !run.getGraphJsonSnapshot().isBlank()) {
             try {
                 GraphJson graph = GraphJson.parse(run.getGraphJsonSnapshot());
-                if (graph.getMeta() != null && graph.getMeta().getScenarios() != null) {
-                    List<GraphRunScenario> scenarios = graph.getMeta().getScenarios();
-                    if (scenarios != null && !scenarios.isEmpty()) {
-                        GraphRunScenario matched = scenarios.stream()
-                                .filter(s -> Objects.equals(s.getId(), runScenarioId))
-                                .findFirst()
-                                .orElse(scenarios.get(0));
-                        if (scenarioId == null) {
-                            scenarioId = matched.getId();
-                        }
-                        scenarioName = matched.getName();
-                        if (matched.getFlowSeed() != null) {
-                            flowSeed.putAll(matched.getFlowSeed());
-                        }
+                List<GraphRunScenario> scenarios =
+                        com.qualitest.flow.context.EntryScenarioSupport.allEntryScenarios(graph);
+                if (!scenarios.isEmpty()) {
+                    GraphRunScenario matched = scenarios.stream()
+                            .filter(s -> Objects.equals(s.getId(), runScenarioId))
+                            .findFirst()
+                            .orElse(scenarios.get(0));
+                    if (scenarioId == null) {
+                        scenarioId = matched.getId();
+                    }
+                    scenarioName = matched.getName();
+                    Map<String, Object> inSeed = matched.getInSeed();
+                    if (inSeed != null && !inSeed.isEmpty()) {
+                        inSeedSnapshot.putAll(inSeed);
                     }
                 }
             } catch (Exception ignored) {
@@ -161,7 +161,7 @@ public class StepResultWriter {
             scenarioLoaded.put("testProjectEnvId", String.valueOf(run.getTestProjectEnvId()));
         }
         scenarioLoaded.put("envName", envName);
-        scenarioLoaded.put("flowSeed", flowSeed);
+        scenarioLoaded.put("inSeed", inSeedSnapshot);
         Map<String, Object> envSnapshot = new LinkedHashMap<>();
         envSnapshot.put("testProjectEnvId", scenarioLoaded.get("testProjectEnvId"));
         envSnapshot.put("envName", envName);
@@ -169,8 +169,8 @@ public class StepResultWriter {
 
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("scenarioLoaded", scenarioLoaded);
-        if (!flowSeed.isEmpty()) {
-            details.put("flowAfter", flowSeed);
+        if (!inSeedSnapshot.isEmpty()) {
+            details.put("inAfter", inSeedSnapshot);
         }
 
         return TestFlowRunStepResult.builder()

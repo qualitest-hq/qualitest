@@ -8,11 +8,9 @@ import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.model.GraphEdge;
-import com.qualitest.flow.model.GraphFlowOutput;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.subflow.GraphMetaIoSupport;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
 import com.qualitest.common.utils.ServletUtils;
 import com.qualitest.flow.sync.FlowEditLeaseService;
@@ -328,34 +326,6 @@ public class TestFlowServiceImpl implements ITestFlowService {
                     merged,
                     warnings,
                     FlowGraphCommitPatchHolder.fromCapture(patch, merged));
-        });
-    }
-
-    /**
-     * 整表替换图元数据中的对外产出声明。
-     * 持端写锁、行锁重读图后写回；不改节点、边与运行场景。
-     *
-     * @param testFlowId    测试流 id
-     * @param testProjectId 项目 id，可空
-     * @param flowOutputs   新的对外产出声明，null 视为空列表
-     * @param endpointId    稳定端标识，空则短抢锁
-     * @return 写库后的图、新版本号与警告
-     */
-    @Transactional(rollbackFor = Exception.class)
-    @Override
-    public ApplyGraphPatchResult replaceFlowOutputs(Long testFlowId, Long testProjectId,
-                                                    List<GraphFlowOutput> flowOutputs,
-                                                    String endpointId) {
-        return mutateGraphUnderWriteLock(testFlowId, testProjectId, endpointId, false, (locked, graph) -> {
-            GraphJson next = graph != null ? graph : GraphJson.builder().build();
-            if (next.getMeta() == null) {
-                next.setMeta(new GraphMeta());
-            }
-            // 规范化后整表覆盖对外产出声明
-            next.getMeta().setFlowOutputs(GraphMetaIoSupport.normalizeFlowOutputs(flowOutputs));
-            List<String> warnings = new ArrayList<>();
-            validatePersistFloor(next, warnings);
-            return persistGraphIncrement(locked, testProjectId, next, warnings, null);
         });
     }
 
@@ -746,7 +716,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
         flow.setTestProjectId(params.getTestProjectId());
         flow.setFlowName(StrUtil.blankToDefault(params.getFlowName(), template.getString("name")));
         flow.setFlowDescription(template.getString("description"));
-        flow.setGraphJson(SubflowTemplateCatalog.embedFlowOutputsIntoGraph(graphJson, template));
+        flow.setGraphJson(SubflowTemplateCatalog.normalizeTemplateGraph(graphJson, template));
         flow.setDelStatus(0);
         insertTestFlow(flow);
         return flow.getTestFlowId();

@@ -14,20 +14,22 @@ import {
 
 describe('buildNodeStagingFieldRows', () => {
   it('仅输出 baseline 与 draft 不同的字段', () => {
-    // 前提：baseline 与 draft 仅 name 不同
-    // 期望：只输出 data.name 一行差异
+    // 前提：baseline 与 draft 仅壳 name 不同
+    // 期望：只输出 name 一行差异
     const rows = buildNodeStagingFieldRows(
       {
         type: 'http',
-        data: { name: '登录', externalUrl: 'https://a.com' },
+        name: '登录',
+        data: { externalUrl: 'https://a.com' },
       },
       {
         type: 'http',
-        data: { name: '登录V2', externalUrl: 'https://a.com' },
+        name: '登录V2',
+        data: { externalUrl: 'https://a.com' },
       },
     );
     expect(rows).toHaveLength(1);
-    expect(rows[0].key).toBe('data.name');
+    expect(rows[0].key).toBe('name');
     expect(rows[0].label).toBe('节点名称');
     expect(rows[0].baselineText).toBe('登录');
     expect(rows[0].draftValue).toBe('登录V2');
@@ -103,14 +105,14 @@ describe('buildScenarioStagingFieldRows', () => {
 
 describe('applyStagingFieldToDraft', () => {
   it('写回 data 字段', () => {
-    // 前提：draft 含 data.name，写入新值
-    // 期望：data.name 更新为新名称
+    // 前提：draft 含壳 name，写入新值
+    // 期望：name 更新为新名称
     const next = applyStagingFieldToDraft(
-      { data: { name: '旧' } },
-      'data.name',
+      { name: '旧', data: {} },
+      'name',
       '新名称',
     );
-    expect((next.data as Record<string, unknown>).name).toBe('新名称');
+    expect(next.name).toBe('新名称');
   });
 
   it('写回 extracts JSON 时还原为对象', () => {

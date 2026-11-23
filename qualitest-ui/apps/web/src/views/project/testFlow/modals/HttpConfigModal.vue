@@ -129,7 +129,7 @@ import {
 } from '../utils/httpWorkbenchUtils'
 import { resolveCanvasApiDetail } from '../utils/resolveCanvasApiDetail'
 import { flattenApiTree } from '../utils/apiPickerUtils'
-import { updateSummary } from '../utils/nodeDataUtils'
+import { NODE_TYPES } from '../constants/nodeTypes'
 import { getMethodBadgeClass } from '../constants/flowConfig'
 
 const props = defineProps({
@@ -141,7 +141,7 @@ const emit = defineEmits(['update:visible'])
 
 const store = useFlowCanvasStore()
 const apiHealth = useApiHealthStore()
-const { replaceNodeData } = useFlowNodes()
+const { replaceNodeData, patchNodeName } = useFlowNodes()
 
 /** 当前弹窗节点上的语义健康告警 */
 const nodeHealthWarnings = computed(() => apiHealth.warningsForNode(props.nodeId))
@@ -308,8 +308,12 @@ function save() {
   const data = { ...node.data }
   applyWorkbenchToNodeData(data, draft.value, assetBaseline.value)
   data.callMode = 'project'
-  updateSummary('http', data)
   replaceNodeData(props.nodeId, data)
+  const shellName = String((node as { name?: string }).name ?? '').trim()
+  if (!shellName || shellName === NODE_TYPES.http.label) {
+    const apiName = String(draft.value.apiName ?? '').trim()
+    if (apiName) patchNodeName(props.nodeId, apiName)
+  }
   ElMessage.success('HTTP 节点参数已更新')
   close()
 }

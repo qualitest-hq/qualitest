@@ -38,7 +38,7 @@ class StepResultWriterTest {
                 .scenarioId("sc-1")
                 .scenarioName("冒烟")
                 .testProjectEnvId(200L)
-                .flowSeed(Map.of("loginUser", "admin"))
+                .inSeed(Map.of("loginUser", "admin"))
                 .build();
         FlowRunContext ctx = FlowRunContext.builder()
                 .env(Map.of("baseUrl", "https://dev.example.com", "token", "t1"))
@@ -74,18 +74,25 @@ class StepResultWriterTest {
     void buildFallbackRunConfigStepResult_derivesFromGraphSnapshot() {
         String snapshot = """
                 {
-                  "meta": {
-                    "activeScenarioId": "sc-1",
-                    "scenarios": [
-                      {
-                        "id": "sc-1",
-                        "name": "默认",
-                        "testProjectEnvId": "201",
-                        "flowSeed": { "x": 1 }
+                  "meta": {},
+                  "nodes": [
+                    {
+                      "id": "entry-1",
+                      "type": "scenario-entry",
+                      "name": "入口",
+                      "position": { "x": 0, "y": 0 },
+                      "data": {
+                        "scenarios": [
+                          {
+                            "id": "sc-1",
+                            "name": "默认",
+                            "envId": "201",
+                            "inSeed": { "x": 1 }
+                          }
+                        ]
                       }
-                    ]
-                  },
-                  "nodes": [],
+                    }
+                  ],
                   "edges": []
                 }
                 """;

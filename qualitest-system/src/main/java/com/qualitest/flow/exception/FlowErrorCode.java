@@ -39,7 +39,18 @@ public enum FlowErrorCode {
     /** Input 节点到达：Run 进入 paused，等待人工填写（非失败） */
     TF_AWAIT_INPUT("TF_AWAIT_INPUT", "等待人工输入"),
     /** 人工提交的 inputs 未通过字段类型 / 必填 / options 校验 */
-    TF_INPUT_INVALID("TF_INPUT_INVALID", "人工输入校验失败");
+    TF_INPUT_INVALID("TF_INPUT_INVALID", "人工输入校验失败"),
+    /**
+     * 整次 Run 内第二次（及以后）对 http-return / subflow-return 发起交付。
+     * 该返回步骤记失败；若此前已交付成功则 delivered 保持不变。
+     */
+    TF_RETURN_DUPLICATE("TF_RETURN_DUPLICATE", "返回节点执行超过一次"),
+    /**
+     * 开放 HTTP 或子流路径走尽仍未执行对应返回节点。
+     * 收束已用入口 fallbackOut（或平台默认包）补交；Outcome 仍记失败；
+     * 调用方或父流仍可从已写出/已挂载的 out 读到兜底内容。
+     */
+    TF_RETURN_MISSING("TF_RETURN_MISSING", "未执行到返回节点");
 
     private final String code;
     private final String defaultMessage;

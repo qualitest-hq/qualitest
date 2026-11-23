@@ -1,6 +1,30 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561441",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "tpl_sc_default",
+            "name": "模板默认",
+            "remark": "手动填验证码登录子流模板",
+            "envId": "",
+            "inSeed": {
+              "username": "",
+              "password": ""
+            }
+          }
+        ]
+      }
+    },
+    {
       "id": "captcha_image",
       "type": "http",
       "position": {
@@ -8,7 +32,6 @@
         "y": 60
       },
       "data": {
-        "name": "获取验证码",
         "callMode": "project",
         "testProjectApiId": "",
         "httpMethod": "GET",
@@ -26,9 +49,9 @@
             "scope": "flow",
             "name": "captchaUuid"
           }
-        ],
-        "summary": "请选择验证码图片接口"
-      }
+        ]
+      },
+      "name": "获取验证码"
     },
     {
       "id": "captcha_input",
@@ -38,7 +61,6 @@
         "y": 60
       },
       "data": {
-        "name": "填写验证码",
         "prompt": "请查看上一步验证码图片后填写",
         "fields": [
           {
@@ -50,9 +72,9 @@
             "defaultValue": "",
             "options": []
           }
-        ],
-        "summary": "请查看上一步验证码图片后填写 · 1 字段 · captchaCode"
-      }
+        ]
+      },
+      "name": "填写验证码"
     },
     {
       "id": "login_http",
@@ -62,7 +84,6 @@
         "y": 60
       },
       "data": {
-        "name": "验证码登录",
         "callMode": "project",
         "testProjectApiId": "",
         "httpMethod": "POST",
@@ -83,9 +104,9 @@
             "scope": "flow",
             "name": "token"
           }
-        ],
-        "summary": "请选择登录接口"
-      }
+        ]
+      },
+      "name": "验证码登录"
     }
   ],
   "edges": [
@@ -107,19 +128,6 @@
       "y": 0,
       "zoom": 1
     },
-    "activeScenarioId": "tpl_sc_default",
-    "scenarios": [
-      {
-        "id": "tpl_sc_default",
-        "name": "模板默认",
-        "testProjectEnvId": "",
-        "flowSeed": {
-          "username": "",
-          "password": ""
-        },
-        "remark": "手动填验证码登录子流模板"
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561441"
   }
 }

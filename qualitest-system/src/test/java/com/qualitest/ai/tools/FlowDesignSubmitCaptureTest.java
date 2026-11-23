@@ -56,15 +56,15 @@ class FlowDesignSubmitCaptureTest {
     void record_sameUnitId_replacesSlice() {
         FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
         FlowDesignPatch first = nodePatch("n1");
-        first.getAddNodes().get(0).getData().put("name", "旧");
+        first.getAddNodes().get(0).setName("旧");
         capture.record(new FlowDesignPatchNormalizer.NormalizeResult(first, okValidation()));
 
         FlowDesignPatch second = nodePatch("n1");
-        second.getAddNodes().get(0).getData().put("name", "新");
+        second.getAddNodes().get(0).setName("新");
         capture.record(new FlowDesignPatchNormalizer.NormalizeResult(second, okValidation()));
 
         assertEquals(1, capture.getNormalizedPatch().getAddNodes().size());
-        assertEquals("新", capture.getNormalizedPatch().getAddNodes().get(0).getData().get("name"));
+        assertEquals("新", capture.getNormalizedPatch().getAddNodes().get(0).getName());
     }
 
     private static FlowDesignPatch nodePatch(String id) {

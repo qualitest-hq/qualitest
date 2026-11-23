@@ -8,20 +8,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * AI 对测试流运行场景配置（graph_json.meta）的增量修改建议。
+ * AI 对运行场景配置的增量修改建议。
  * <p>
- * 仅覆盖新增、修改、删除运行场景；不包含切换画布默认场景
- * （默认场景由用户在界面直接改 runConfig，不经 Staging）。
+ * 目标为 {@code scenario-entry.data.scenarios}。
+ * 不包含切换画布默认场景（由用户在界面直接改）。
  */
 @Getter
 @Setter
 public class FlowDesignScenarioPatch {
 
+    /**
+     * 目标 scenario-entry 节点 id；空则取图上第一个场景入口，无则新建。
+     */
+    private String entryNodeId;
+
     /** 新增运行场景列表 */
     private List<GraphRunScenario> addScenarios = new ArrayList<>();
 
     /**
-     * 按 id 修改已有运行场景（浅合并 name、testProjectEnvId、flowSeed、remark）
+     * 按 id 修改已有运行场景（浅合并 name、envId/inSeed 等）
      */
     private List<GraphRunScenario> updateScenarios = new ArrayList<>();
 

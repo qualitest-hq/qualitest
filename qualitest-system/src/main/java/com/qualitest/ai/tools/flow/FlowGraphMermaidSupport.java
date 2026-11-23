@@ -117,30 +117,18 @@ public final class FlowGraphMermaidSupport {
     }
 
     /**
-     * 节点展示标签：类型标签 · name（空则用 summary）。
+     * 节点展示标签：类型标签 · 顶壳 name。
      */
     static String nodeLabel(GraphNode node) {
         String typeLabel = FlowNodeType.labelOf(node.getType());
         if (typeLabel == null || typeLabel.isBlank()) {
             typeLabel = node.getType() != null ? node.getType() : "?";
         }
-        String name = "";
-        String summary = "";
-        if (node.getData() != null) {
-            Object n = node.getData().get("name");
-            if (n != null && !String.valueOf(n).isBlank()) {
-                name = String.valueOf(n).trim();
-            }
-            Object s = node.getData().get("summary");
-            if (s != null && !String.valueOf(s).isBlank()) {
-                summary = String.valueOf(s).trim();
-            }
-        }
-        String detail = !name.isEmpty() ? name : summary;
-        if (detail.isEmpty()) {
+        String name = node != null && node.getName() != null ? node.getName().trim() : "";
+        if (name.isEmpty()) {
             return typeLabel;
         }
-        return typeLabel + " · " + detail;
+        return typeLabel + " · " + name;
     }
 
     /**

@@ -79,7 +79,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 | CODE | 硬拦？ | 何时硬拦 | 含义 |
 | ---- | ---- | ---- | ---- |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **运行**（同上） | 两套不同登录口写出同一凭证路径 |
-| `AUTH_TOKEN_MISSING` | 是 | **运行**（同上；末单元 confirm 可预警） | 图要用某托管 Bearer，但 extracts / assign / 子流输出 / **flowSeed(仅 flow)** 都没有该目标 |
+| `AUTH_TOKEN_MISSING` | 是 | **运行**（同上；末单元 confirm 可预警） | 图要用某托管 Bearer，但 extracts / assign / 子流 outputs / **inSeed** 都没有该目标 |
 | `AUTH_HEADER_MANAGED` | 否（soft） | — | 已按项目鉴权补托管头 |
 | `AUTH_LOGIN_NO_BEARER` | 否（soft） | — | 登录/免登口剥掉了误补的托管头 |
 | 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | **submit 与 Staging ✓**；**运行**亦拦全图；schema 缺字段多为警告；**保存不拦** | 见节点文档 |
@@ -98,7 +98,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 灌入 Staging 前前端另做轻量 schema：缺 id / 未知 type / update·delete 目标不存在的项**不建 unit**；边端点启发式改写必 toast 提示。
 
-鉴权产品口径见 [project-summary.md §4](./project-summary.md)。跑流变量 / flowSeed 见 [flow-variables-and-values.md](./flow-variables-and-values.md)。
+鉴权产品口径见 [project-summary.md §4](./project-summary.md)。跑流变量 / inSeed 见 [flow-variables-and-values.md](./flow-variables-and-values.md)。
 
 ---
 

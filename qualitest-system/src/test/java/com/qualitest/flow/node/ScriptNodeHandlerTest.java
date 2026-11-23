@@ -66,13 +66,13 @@ class ScriptNodeHandlerTest {
 
     private static GraphNode scriptNode(String language, String source) {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "测试脚本");
         data.put("language", language);
         data.put("source", source);
         data.put("timeoutMs", 5000);
         return GraphNode.builder()
                 .id("n-script")
                 .type("script")
+                .name("测试脚本")
                 .data(data)
                 .build();
     }

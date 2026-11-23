@@ -1,14 +1,14 @@
 <template>
   <div class="node-palette">
     <div
-        v-for="(cfg, type) in NODE_TYPES"
+        v-for="[type, cfg] in paletteTypes"
         :key="type"
         :data-type="type"
         :style="{ '--palette-accent': cfg.color }"
         class="palette-item"
         draggable="true"
-        @dblclick="onDblClick(String(type))"
-        @dragstart="onDragStart($event, String(type))"
+        @dblclick="onDblClick(type)"
+        @dragstart="onDragStart($event, type)"
     >
       <div :style="{ background: cfg.color }" class="palette-item__icon">{{ cfg.icon }}</div>
       <div class="palette-item__info">
@@ -20,11 +20,31 @@
 </template>
 
 <script setup>
-/** 左栏节点库：拖拽或双击向画布添加节点 */
-import { NODE_TYPES } from '../constants/nodeTypes'
+/** 左栏节点库：拖拽或双击向画布添加节点；返回类节点随入口类型出现 */
+import { computed } from 'vue'
+
+import { NODE_TYPES, type FlowNodeTypeKey } from '../constants/nodeTypes'
 import { useFlowNodes } from '../composables/useFlowNodes'
+import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 
 const { addNodeAtCenter } = useFlowNodes()
+const store = useFlowCanvasStore()
+
+const paletteTypes = computed(() => {
+  const onCanvas = new Set(store.nodes.map((n) => n.type));
+  const hasHttpEntry = onCanvas.has('http-entry');
+  const hasSubflowEntry = onCanvas.has('subflow-entry');
+
+  return (Object.entries(NODE_TYPES) as Array<[FlowNodeTypeKey, (typeof NODE_TYPES)[FlowNodeTypeKey]]>)
+    .filter(([type]) => {
+      if (type === 'http-return') return hasHttpEntry;
+      if (type === 'subflow-return') return hasSubflowEntry;
+      if (type === 'scenario-entry' || type === 'http-entry' || type === 'subflow-entry') {
+        return !onCanvas.has(type);
+      }
+      return true;
+    });
+});
 
 function onDragStart(event, type) {
   event.dataTransfer?.setData('nodeType', type)

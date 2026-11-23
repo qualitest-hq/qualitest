@@ -90,7 +90,7 @@
 /**
  * Input 节点属性区。
  * 编辑 data.prompt，以及 data.fields[]（name / label / type / required / placeholder / defaultValue / options）。
- * 变更经 patchNodeData 写回并刷新 summary。
+ * 变更经 patchNodeData 写回节点 data。
  */
 import { computed, onMounted } from 'vue'
 

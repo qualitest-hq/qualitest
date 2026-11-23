@@ -66,8 +66,10 @@ export function normalizeAssignNodeData(data: Record<string, unknown> | undefine
   if (Array.isArray(data.assignments) && data.assignments.length) {
     data.assignments = (data.assignments as Array<Record<string, unknown>>).map((a) => {
       const op = normalizeAssignOp(a.op);
+      const scopeRaw = String(a.scope || 'flow').trim();
+      const scope = scopeRaw === 'out' ? 'out' : 'flow';
       const row: Record<string, unknown> = {
-        scope: 'flow',
+        scope,
         name: String(a.name || '').trim(),
         op,
       };
@@ -95,7 +97,8 @@ export function getAssignAssignments(data: Record<string, unknown> | undefined):
 export function formatAssignDest(a: Record<string, unknown>): string {
   const name = String(a.name || '').trim();
   if (!name) return '';
-  return `flow.${name}`;
+  const scope = String(a.scope || 'flow').trim() === 'out' ? 'out' : 'flow';
+  return `${scope}.${name}`;
 }
 
 /** 单条赋值的可读摘要，如 flow.pollAttempt ← 0 或 flow.pollAttempt += 1 */

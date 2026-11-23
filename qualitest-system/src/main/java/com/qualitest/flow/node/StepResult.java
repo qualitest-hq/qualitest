@@ -29,7 +29,7 @@ public class StepResult {
     /** 节点 type，如 {@code http} / {@code assert} */
     private String nodeType;
 
-    /** 展示名：{@code data.name} 或节点类型标签 */
+    /** 展示名：节点顶壳 {@code name} 或类型标签 */
     private String nodeName;
 
     /** 入边 id；开始节点为 null */

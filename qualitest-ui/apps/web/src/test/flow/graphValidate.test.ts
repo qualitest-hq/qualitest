@@ -28,6 +28,32 @@ import invalidScriptLanguage from '@flow-fixtures/invalid-script-language.json';
 import invalidSubflowMissingId from '@flow-fixtures/invalid-subflow-missing-id.json';
 import noStart from '@flow-fixtures/invalid-no-start.json';
 
+function graphWithScenarioEntry<T extends { nodes?: unknown[]; meta?: unknown }>(graph: T): T {
+  const hasEntry = (graph.nodes ?? []).some(
+    (n) => (n as { type?: string })?.type === 'scenario-entry',
+  );
+  if (hasEntry) {
+    const meta = { ...(graph.meta as object) } as Record<string, unknown>;
+    delete meta.scenarios;
+    delete meta.activeScenarioId;
+    return { ...graph, meta };
+  }
+  return {
+    ...graph,
+    meta: {},
+    nodes: [
+      {
+        id: 'entry',
+        type: 'scenario-entry',
+        name: '入口',
+        position: { x: 0, y: 0 },
+        data: { scenarios: [{ id: 's1', name: '默认', envId: '', inSeed: {} }] },
+      },
+      ...(graph.nodes ?? []),
+    ],
+  };
+}
+
 const fixtureMap: Record<string, unknown> = {
   'demo-graph.json': demoGraph,
   'invalid-multi-start.json': multiStart,
@@ -96,7 +122,8 @@ describe('validateGraphJson', () => {
     const raw = structuredClone(httpUnbound) as {
       nodes: Array<{ id: string; type: string; data?: Record<string, unknown> }>
     };
-    delete raw.nodes[0].data!.callMode;
+    const httpNode = raw.nodes.find((n) => n.type === 'http');
+    if (httpNode?.data) delete httpNode.data.callMode;
     const full = validateGraphJson(raw);
     expect(full.ok).toBe(false);
     const floor = validateGraphJson(raw, { persistMinimalOnly: true });
@@ -204,7 +231,7 @@ describe('validateGraphJson', () => {
     expect(result.warnings).toHaveLength(spec.expectWarnings);
   });
 
-  it('manifest：缺少 meta.scenarios 配置，errors=1 warnings=0', () => {
+  it('manifest：缺少 scenario-entry 场景配置，errors=1 warnings=0', () => {
     // 前提：manifest missing-meta-run fixture
     // 期望：errors=1，warnings=0
     const spec = graphValidateCases.cases.find((x) => x.id === 'missing-meta-run')!;
@@ -262,31 +289,31 @@ describe('validateGraphJson', () => {
     expect(
       validateGraphJson({
         ...base,
-        nodes: [{ id: '1', type: 'assert', position: { x: 0, y: 0 }, data: { name: 'a', rules: [] } }],
+        nodes: [{ id: '1', type: 'assert', name: 'a', position: { x: 0, y: 0 }, data: { rules: [] } }],
       }).errors.some((e) => e.includes('rules 不能为空')),
     ).toBe(true);
     expect(
       validateGraphJson({
         ...base,
-        nodes: [{ id: '1', type: 'assign', position: { x: 0, y: 0 }, data: { name: 'as', assignments: [] } }],
+        nodes: [{ id: '1', type: 'assign', name: 'as', position: { x: 0, y: 0 }, data: { assignments: [] } }],
       }).errors.some((e) => e.includes('assignments 不能为空')),
     ).toBe(true);
     expect(
       validateGraphJson({
         ...base,
-        nodes: [{ id: '1', type: 'delay', position: { x: 0, y: 0 }, data: { name: 'd', ms: 70000 } }],
+        nodes: [{ id: '1', type: 'delay', name: 'd', position: { x: 0, y: 0 }, data: { ms: 70000 } }],
       }).errors.some((e) => e.includes('ms 超过上限')),
     ).toBe(true);
     expect(
       validateGraphJson({
         ...base,
-        nodes: [{ id: '1', type: 'condition', position: { x: 0, y: 0 }, data: { name: 'c', branches: [] } }],
+        nodes: [{ id: '1', type: 'condition', name: 'c', position: { x: 0, y: 0 }, data: { branches: [] } }],
       }).errors.some((e) => e.includes('缺少 branches')),
     ).toBe(true);
     expect(
       validateGraphJson({
         ...base,
-        nodes: [{ id: '1', type: 'input', position: { x: 0, y: 0 }, data: { name: 'in', fields: [] } }],
+        nodes: [{ id: '1', type: 'input', name: 'in', position: { x: 0, y: 0 }, data: { fields: [] } }],
       }).errors.some((e) => e.includes('fields 不能为空')),
     ).toBe(true);
     expect(
@@ -303,16 +330,19 @@ describe('validateGraphJson', () => {
   });
 
   it('condition 无 target 不警告；有 target 无出边仍警告', () => {
-    const endOk = validateGraphJson({
-      meta: { scenarios: [{ id: 's1', name: '默认' }] },
-      edges: [{ id: 'e1', source: 'c1', target: 'n2' }],
+    const endOk = validateGraphJson(
+      graphWithScenarioEntry({
+      edges: [
+        { id: 'e0', source: 'entry', target: 'c1' },
+        { id: 'e1', source: 'c1', target: 'n2' },
+      ],
       nodes: [
         {
           id: 'c1',
+          name: 'c',
           type: 'condition',
           position: { x: 0, y: 0 },
           data: {
-            name: 'c',
             branches: [
               {
                 id: 'b_if',
@@ -323,22 +353,23 @@ describe('validateGraphJson', () => {
             ],
           },
         },
-        { id: 'n2', type: 'delay', position: { x: 0, y: 0 }, data: { name: 'd', ms: 0 } },
+        { id: 'n2', type: 'delay', name: 'd', position: { x: 0, y: 0 }, data: { ms: 0 } },
       ],
-    });
+    }),
+    );
     expect(endOk.ok).toBe(true);
     expect(endOk.warnings.some((w) => w.includes('未绑定 target'))).toBe(false);
 
-    const dangling = validateGraphJson({
-      meta: { scenarios: [{ id: 's1', name: '默认' }] },
-      edges: [],
+    const dangling = validateGraphJson(
+      graphWithScenarioEntry({
+      edges: [{ id: 'e0', source: 'entry', target: 'c1' }],
       nodes: [
         {
           id: 'c1',
+          name: 'c',
           type: 'condition',
           position: { x: 0, y: 0 },
           data: {
-            name: 'c',
             branches: [
               {
                 id: 'b_if',
@@ -350,9 +381,10 @@ describe('validateGraphJson', () => {
             ],
           },
         },
-        { id: 'n2', type: 'delay', position: { x: 0, y: 0 }, data: { name: 'd', ms: 0 } },
+        { id: 'n2', type: 'delay', name: 'd', position: { x: 0, y: 0 }, data: { ms: 0 } },
       ],
-    });
+    }),
+    );
     expect(dangling.warnings.some((w) => w.includes('无对应出边'))).toBe(true);
   });
 
@@ -361,6 +393,7 @@ describe('validateGraphJson', () => {
       nodes: [
         {
           id: 'c1',
+          name: 'c1',
           type: 'condition',
           position: { x: 0, y: 0 },
           data: {
@@ -369,10 +402,10 @@ describe('validateGraphJson', () => {
             ],
           },
         },
-        { id: 'n2', type: 'http', position: { x: 0, y: 0 }, data: { callMode: 'project' } },
+        { id: 'n2', name: 'n2', type: 'http', position: { x: 0, y: 0 }, data: { callMode: 'project' } },
       ],
       edges: [{ id: 'e1', source: 'c1', target: 'n2', sourceHandle: 'out-b_if' }],
-      meta: { scenarios: [{ id: 's1', name: '默认', testProjectEnvId: '', flowSeed: {} }] },
+      meta: {},
     });
     expect(result.errors.some((e) => e.includes('sourceHandle'))).toBe(true);
   });
@@ -380,14 +413,15 @@ describe('validateGraphJson', () => {
   it('alwaysRun 合法布尔通过，字符串报错', () => {
     // 前提：外联 HTTP 节点 alwaysRun 为 true / "true"
     // 期望：布尔通过；字符串报「须为 JSON 布尔」
-    const ok = validateGraphJson({
+    const ok = validateGraphJson(
+      graphWithScenarioEntry({
       nodes: [
         {
           id: '1',
+          name: 'h',
           type: 'http',
           position: { x: 0, y: 0 },
           data: {
-            name: 'h',
             callMode: 'external',
             externalUrl: 'https://e.example/a',
             httpMethod: 'GET',
@@ -395,19 +429,20 @@ describe('validateGraphJson', () => {
           },
         },
       ],
-      edges: [],
-      meta: { scenarios: [{ id: 's1', name: '默认' }] },
-    });
+      edges: [{ id: 'e0', source: 'entry', target: '1' }],
+    }),
+    );
     expect(ok.ok).toBe(true);
 
-    const bad = validateGraphJson({
+    const bad = validateGraphJson(
+      graphWithScenarioEntry({
       nodes: [
         {
           id: '1',
+          name: 'h',
           type: 'http',
           position: { x: 0, y: 0 },
           data: {
-            name: 'h',
             callMode: 'external',
             externalUrl: 'https://e.example/a',
             httpMethod: 'GET',
@@ -415,9 +450,9 @@ describe('validateGraphJson', () => {
           },
         },
       ],
-      edges: [],
-      meta: { scenarios: [{ id: 's1', name: '默认' }] },
-    });
+      edges: [{ id: 'e0', source: 'entry', target: '1' }],
+    }),
+    );
     expect(bad.ok).toBe(false);
     expect(bad.errors.some((e) => e.includes('alwaysRun') && e.includes('须为 JSON 布尔'))).toBe(true);
   });

@@ -73,14 +73,15 @@ class GraphNodeSnapshotSupportTest {
     }
 
     /**
-     * 前提：data.name=下单；另测 null 节点。
+     * 前提：顶壳 name=下单；另测 null 节点。
      * 期望：返回「下单」；null 返回空串。
      */
     @Test
     @Order(4)
-    @DisplayName("读取节点 data.name")
-    void nodeName_readsDataName() {
-        assertEquals("下单", GraphNodeSnapshotSupport.nodeName(node(Map.of("name", "下单"))));
+    @DisplayName("读取节点顶壳 name")
+    void nodeName_readsTopLevelName() {
+        assertEquals("下单", GraphNodeSnapshotSupport.nodeName(
+                GraphNode.builder().id("n1").type("http").name("下单").data(Map.of()).build()));
         assertEquals("", GraphNodeSnapshotSupport.nodeName(null));
     }
 

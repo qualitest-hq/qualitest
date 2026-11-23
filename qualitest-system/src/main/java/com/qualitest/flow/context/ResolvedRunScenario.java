@@ -12,8 +12,8 @@ import java.util.Map;
 /**
  * 本次 Run 实际使用的运行场景解析结果。
  * <p>
- * 由图 meta.scenarios 与触发参数（scenarioId、testProjectEnvId 覆盖）解析得到，
- * 供上下文组装、runConfig 首步落库、以及快照失败策略使用。
+ * 自 scenario-entry 场景子集解析。
+ * 供上下文组装（{@code inSeed} 灌 {@code ctx.in}）、runConfig 首步、快照失败策略使用。
  */
 @Getter
 @Setter
@@ -28,12 +28,17 @@ public class ResolvedRunScenario {
     /** 场景显示名称 */
     private String scenarioName;
 
+    /** 解析所用的 scenario-entry 节点 id */
+    private String entryNodeId;
+
     /** 本次 Run 使用的项目环境 id */
     private Long testProjectEnvId;
 
-    /** flow 变量初值，Run 启动时注入上下文 */
+    /**
+     * 入参值树，Run 启动时注入 {@code ctx.in}。
+     */
     @Builder.Default
-    private Map<String, Object> flowSeed = new HashMap<>();
+    private Map<String, Object> inSeed = new HashMap<>();
 
     /** 节点失败策略，来自场景配置 */
     private String onNodeFailure;

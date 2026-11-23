@@ -19,7 +19,6 @@ export async function applyAdaptedGraphToStore(store: FlowCanvasStore, adapted: 
   store.setLayoutPreset(adapted.layoutPreset)
   store.viewport = adapted.viewport
   store.runConfig = adapted.runConfig
-  store.flowOutputs = adapted.flowOutputs
   store.nodes = adapted.nodes
   store.edges = []
   store.selected = null

@@ -19,15 +19,17 @@ describe('createEmptyGraph', () => {
     // 前提：调用 createEmptyGraph
     // 期望：空 nodes/edges，meta 含默认 viewport 与至少一条场景
     const graph = createEmptyGraph();
-    expect(graph.nodes).toEqual([]);
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0].type).toBe('scenario-entry');
+    expect(graph.nodes[0].name).toBe('默认场景入口');
     expect(graph.edges).toEqual([]);
     expect(graph.meta?.viewport).toEqual({ x: 40, y: 40, zoom: 1 });
     expect(graph.meta?.layout).toBe('default');
     expect(graph.meta?.schemaVersion).toBe(1);
-    expect(graph.meta?.scenarios?.length).toBeGreaterThanOrEqual(1);
-    expect(graph.meta?.activeScenarioId).toMatch(/^\d+$/);
-    expect(graph.meta?.scenarios?.[0]?.id).toBe(graph.meta?.activeScenarioId);
-    expect(graph.meta?.flowOutputs).toEqual([]);
+    const scenarios = graph.nodes[0].data?.scenarios as unknown[];
+    expect(scenarios?.length).toBeGreaterThanOrEqual(1);
+    expect(graph.meta?.startNodeId).toBe(graph.nodes[0].id);
+    expect(graph.meta?.flowOutputs).toBeUndefined();
   });
 });
 
@@ -43,9 +45,9 @@ describe('fromGraphJson / toGraphJson', () => {
     const roundtrip = toGraphJson(adapted);
     expect(roundtrip.meta?.viewport).toEqual({ x: 0, y: 0, zoom: 1 });
     expect(roundtrip.meta?.schemaVersion).toBe(1);
-    expect(roundtrip.meta?.activeScenarioId).toBe('2042000000000000101');
-    expect(roundtrip.meta?.scenarios).toHaveLength(3);
-    expect(roundtrip.meta?.startNodeId).toBe('2040354743931883501');
+    const entry = roundtrip.nodes.find((n) => n.type === 'scenario-entry');
+    expect((entry?.data?.scenarios as unknown[])?.length).toBe(3);
+    expect(roundtrip.meta?.startNodeId).toBe('2040354743931883499');
     expect(roundtrip.edges).toHaveLength(adapted.edges.length);
   });
 
@@ -110,14 +112,16 @@ describe('fromGraphJson / toGraphJson', () => {
   })
 
   it('空图往返保留 meta 场景', () => {
-    // 前提：空图设置 viewport 与 testProjectEnvId 后往返
+    // 前提：空图设置 viewport 与 scenario.envId 后往返
     // 期望：meta viewport 与 envId 保留
-    const empty = createEmptyGraph({ testProjectEnvId: '1001' });
+    const empty = createEmptyGraph({ envId: '1001' });
     const adapted = fromGraphJson(empty);
     adapted.viewport = { x: 120, y: 80, zoom: 1.25 };
     const saved = toGraphJson(adapted);
     expect(saved.meta?.viewport).toEqual({ x: 120, y: 80, zoom: 1.25 });
-    expect(saved.meta?.scenarios?.[0]?.testProjectEnvId).toBe('1001');
+    const entry = saved.nodes.find((n) => n.type === 'scenario-entry');
+    const sc = (entry?.data?.scenarios as Array<{ envId?: string }> | undefined)?.[0];
+    expect(sc?.envId).toBe('1001');
   });
 
   it('toGraphJson 排除未 confirm 的 Staging add 并回滚 pending update', () => {
@@ -125,18 +129,18 @@ describe('fromGraphJson / toGraphJson', () => {
     // 期望：输出无 staging 新增节点，update 节点恢复基线名称
     const adapted = fromGraphJson(demoGraph);
     const baseNode = adapted.nodes[0];
-    const stagingNode: Node = {
+    const stagingNode: Node & { name?: string } = {
       id: 'staging-add-1',
       type: 'http',
+      name: 'Staging 新增',
       position: { x: 100, y: 100 },
-      data: { name: 'Staging 新增' },
+      data: {},
     };
     const canvasNode = {
       ...baseNode,
-      data: { ...baseNode.data, name: '画布已改' },
+      name: '画布已改',
     };
     const baselineData = JSON.parse(JSON.stringify(baseNode.data)) as Record<string, unknown>;
-    baselineData.name = '基线名称';
 
     const graph = toGraphJson({
       ...adapted,
@@ -145,13 +149,16 @@ describe('fromGraphJson / toGraphJson', () => {
         excludeNodeIds: new Set(['staging-add-1']),
         excludeEdgeIds: new Set(),
         nodeBaselines: new Map([
-          [baseNode.id, { type: baseNode.type, position: baseNode.position, data: baselineData }],
+          [
+            baseNode.id,
+            { type: baseNode.type, name: '基线名称', position: baseNode.position, data: baselineData },
+          ],
         ]),
         edgeBaselines: new Map(),
       },
     });
 
     expect(graph.nodes.some((n) => n.id === 'staging-add-1')).toBe(false);
-    expect(graph.nodes.find((n) => n.id === baseNode.id)?.data?.name).toBe('基线名称');
+    expect(graph.nodes.find((n) => n.id === baseNode.id)?.name).toBe('基线名称');
   });
 });

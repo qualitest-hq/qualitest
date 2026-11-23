@@ -1,6 +1,26 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561320",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "sc1",
+            "name": "默认",
+            "envId": "1",
+            "inSeed": {}
+          }
+        ]
+      }
+    },
+    {
       "id": "n_start",
       "type": "assign",
       "position": {
@@ -8,7 +28,6 @@
         "y": 0
       },
       "data": {
-        "name": "初始化",
         "assignments": [
           {
             "scope": "flow",
@@ -17,7 +36,8 @@
             "value": "0"
           }
         ]
-      }
+      },
+      "name": "初始化"
     },
     {
       "id": "n_cond",
@@ -27,7 +47,6 @@
         "y": 0
       },
       "data": {
-        "name": "分支",
         "branches": [
           {
             "id": "b_if",
@@ -48,7 +67,8 @@
             "conditions": []
           }
         ]
-      }
+      },
+      "name": "分支"
     },
     {
       "id": "n_ok",
@@ -58,9 +78,9 @@
         "y": -40
       },
       "data": {
-        "name": "成功",
         "ms": 10
-      }
+      },
+      "name": "成功"
     },
     {
       "id": "n_fail",
@@ -70,12 +90,17 @@
         "y": 40
       },
       "data": {
-        "name": "失败",
         "ms": 10
-      }
+      },
+      "name": "失败"
     }
   ],
   "edges": [
+    {
+      "id": "e_scn_entry_1795425561320_n_start",
+      "source": "scn_entry_1795425561320",
+      "target": "n_start"
+    },
     {
       "id": "e1",
       "source": "n_start",
@@ -99,16 +124,6 @@
       "zoom": 1
     },
     "layout": "manual",
-    "startNodeId": "n_start",
-    "activeScenarioId": "sc1",
-    "scenarios": [
-      {
-        "id": "sc1",
-        "name": "默认",
-        "testProjectEnvId": "1",
-        "flowSeed": {}
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561320"
   }
 }

@@ -83,9 +83,8 @@ class AssignNodeHandlerTest {
 
     private static GraphNode assignNode(JSONArray assignments) {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "计数");
         data.put("assignments", assignments);
-        return GraphNode.builder().id("n_assign").type("assign").data(data).build();
+        return GraphNode.builder().id("n_assign").type("assign").name("计数").data(data).build();
     }
 
     private static JSONObject row(String name, String op, String value, Integer step, Integer ifMissing) {

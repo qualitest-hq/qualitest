@@ -73,7 +73,7 @@
     "type": "function",
     "function": {
       "name": "update_flow_meta",
-      "description": "浅合并更新已有测试流的名称与/或说明与/或分组，并可整表替换 meta.flowOutputs；立即写库（成功即落盘，不进 Staging）。不改节点/边/场景与 testFlowId。flowDescription 传空串清空，不传则不动。flowGroupId 传空串清空为未分组。flowOutputs 省略不改，传数组则整表替换（[] 清空）。至少传 flowName、flowDescription、flowGroupId 或 flowOutputs 之一。",
+      "description": "浅合并更新已有测试流的名称与/或说明与/或分组；立即写库（成功即落盘，不进 Staging）。不改节点/边/场景与 testFlowId。flowDescription 传空串清空，不传则不动。flowGroupId 传空串清空为未分组。至少传 flowName、flowDescription 或 flowGroupId 之一。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -92,26 +92,6 @@
           "flowGroupId": {
             "type": "string",
             "description": "新分组 ID；传空串清空为未分组；省略则不改"
-          },
-          "flowOutputs": {
-            "type": "array",
-            "description": "整表替换 graph_json.meta.flowOutputs；子流对外产出声明；[] 清空；省略不改",
-            "items": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "flow 变量名"
-                },
-                "description": {
-                  "type": "string",
-                  "description": "可选说明"
-                }
-              },
-              "required": [
-                "name"
-              ]
-            }
           }
         },
         "required": [
@@ -141,7 +121,7 @@
     "type": "function",
     "function": {
       "name": "get_flow_meta",
-      "description": "获取画布 meta：运行场景列表摘要、flowOutputs（含 description）、flowOutputNames、startNodeId。单场景详情用 get_scenario_detail。MCP 可仅传 testFlowId",
+      "description": "获取画布 meta：scenario-entry 内运行场景列表摘要（含 inSeedKeys）、entryNodeId、startNodeId。单场景详情用 get_scenario_detail。MCP 可仅传 testFlowId",
       "parameters": {
         "type": "object",
         "properties": {
@@ -349,7 +329,7 @@
     "type": "function",
     "function": {
       "name": "get_scenario_detail",
-      "description": "获取单个运行场景配置（含 flowSeed 键名，不含明文）。改场景前优先调用；MCP 可仅传 testFlowId",
+      "description": "获取单个运行场景配置（含 inSeed 键名，不含明文）。改场景前优先调用；MCP 可仅传 testFlowId",
       "parameters": {
         "type": "object",
         "properties": {
@@ -452,7 +432,7 @@
     "type": "function",
     "function": {
       "name": "get_subflow_detail",
-      "description": "读取测试流拓扑摘要、flowOutputs（含 description）与 suggestedInputs（按子图 flowSeed 建议父→子映射），无需 graphJson 信封；浏览子流结构优先于 get_flow",
+      "description": "读取测试流拓扑摘要与 suggestedInputs（按首条场景 inSeed 建议父→子 inputs）；子流对外交付见 nodes.<id>.out。无需 graphJson 信封；浏览子流结构优先于 get_flow",
       "parameters": {
         "type": "object",
         "properties": {
@@ -498,9 +478,6 @@
                   "external"
                 ],
                 "description": "project=项目接口库；external=外联 URL"
-              },
-              "name": {
-                "type": "string"
               },
               "testProjectApiId": {
                 "type": "string",
@@ -659,9 +636,6 @@
                 ],
                 "description": "步骤失败时是否仍执行 extracts。默认 skip（不写）；write 时失败也写入内存抽取（asset 落盘仍仅步骤最终通过时）。"
               },
-              "summary": {
-                "type": "string"
-              },
               "authProfileId": {
                 "type": "string",
                 "description": "可选；覆盖本节点使用的多端鉴权 Profile id；省略则按项目/接口默认"
@@ -713,11 +687,16 @@
           },
           "summary": {
             "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名（写在参数顶层，勿放入 data）"
           }
         },
         "required": [
           "op",
-          "data"
+          "data",
+          "name"
         ]
       }
     }
@@ -748,9 +727,6 @@
               "rules"
             ],
             "properties": {
-              "name": {
-                "type": "string"
-              },
               "rules": {
                 "type": "array",
                 "items": {
@@ -784,19 +760,21 @@
                   }
                 },
                 "minItems": 1
-              },
-              "summary": {
-                "type": "string"
               }
             }
           },
           "summary": {
             "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名（写在参数顶层，勿放入 data）"
           }
         },
         "required": [
           "op",
-          "data"
+          "data",
+          "name"
         ]
       }
     }
@@ -827,9 +805,6 @@
               "branches"
             ],
             "properties": {
-              "name": {
-                "type": "string"
-              },
               "branches": {
                 "type": "array",
                 "items": {
@@ -888,19 +863,21 @@
                 },
                 "minItems": 1,
                 "description": "分支列表；勿写 target。kind=if/elif 须 conditions；else 无条件。出口靠 submit_edges。"
-              },
-              "summary": {
-                "type": "string"
               }
             }
           },
           "summary": {
             "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名（写在参数顶层，勿放入 data）"
           }
         },
         "required": [
           "op",
-          "data"
+          "data",
+          "name"
         ]
       }
     }
@@ -931,9 +908,6 @@
               "assignments"
             ],
             "properties": {
-              "name": {
-                "type": "string"
-              },
               "assignments": {
                 "type": "array",
                 "items": {
@@ -967,9 +941,6 @@
                 },
                 "minItems": 1
               },
-              "summary": {
-                "type": "string"
-              },
               "alwaysRun": {
                 "type": "boolean",
                 "description": "true=父图业务失败后继续阶段仍执行本节点；须为 JSON 布尔"
@@ -978,11 +949,16 @@
           },
           "summary": {
             "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名（写在参数顶层，勿放入 data）"
           }
         },
         "required": [
           "op",
-          "data"
+          "data",
+          "name"
         ]
       }
     }
@@ -1011,25 +987,24 @@
             "type": "object",
             "required": [],
             "properties": {
-              "name": {
-                "type": "string"
-              },
               "ms": {
                 "type": "number",
                 "description": "延时毫秒；省略则用系统默认（规范化补齐）"
-              },
-              "summary": {
-                "type": "string"
               }
             }
           },
           "summary": {
             "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名（写在参数顶层，勿放入 data）"
           }
         },
         "required": [
           "op",
-          "data"
+          "data",
+          "name"
         ]
       }
     }
@@ -1060,9 +1035,6 @@
               "source"
             ],
             "properties": {
-              "name": {
-                "type": "string"
-              },
               "language": {
                 "type": "string",
                 "enum": [
@@ -1074,9 +1046,6 @@
                 "type": "string",
                 "description": "脚本正文，服务端 GraalVM 执行，JS / Python 同一套宿主 ctx。读写：ctx.getFlow(k) / setFlow(k,v)（唯一可写 flow）、getEnv(k)、getAsset(key,path?)、getLastHttp()、session.get/set；ctx.http({method,url,headers?,body?,timeoutMs?})（节点每次执行最多调用 3 次，超出报错）；ctx.log、uuid。工具函数（入参出参均为字符串）：jsonParse/jsonStringify、base64Encode/Decode、urlEncode/Decode、xmlParse、xmlStringify(obj,{root,cdata})、signContent(params,{exclude,skipEmpty})（按 key 排序拼 k=v&，不 URL 编码）、md5/sha1/sha256/sha512/sm3(data,'hex'|'base64')、hmacSha1/hmacSha256/hmacSha512(data,secret,enc?)、rsaSign/rsaVerify（默认 SHA256withRSA，签名 Base64，密钥 PEM 或裸 Base64）、rsaEncrypt/rsaDecrypt、aesGcmEncrypt/Decrypt(data,key,nonce,aad?)、aesEncrypt/Decrypt(data,key,{mode,iv,keyEncoding})、sm2Sign/sm2Verify/sm2Encrypt/sm2Decrypt、sm4Encrypt/Decrypt。密钥从 getAsset / getEnv 读取，勿写死；无 require / import、文件与子进程。"
               },
-              "summary": {
-                "type": "string"
-              },
               "alwaysRun": {
                 "type": "boolean",
                 "description": "true=父图业务失败后继续阶段仍执行本节点；须为 JSON 布尔"
@@ -1085,11 +1054,16 @@
           },
           "summary": {
             "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名（写在参数顶层，勿放入 data）"
           }
         },
         "required": [
           "op",
-          "data"
+          "data",
+          "name"
         ]
       }
     }
@@ -1098,7 +1072,7 @@
     "type": "function",
     "function": {
       "name": "submit_subflow_node",
-      "description": "新增或修改单个子流节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。子 flow 与父隔离：用 inputs 从父上下文灌入子 flow，用 outputs 在子流成功后写回父 flow；子图对外声明用 update_flow_meta.flowOutputs。alwaysRun=true 时父图失败后继续阶段仍执行本节点。",
+      "description": "新增或修改单个子流节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。子 flow 与父隔离：inputs 灌子 in/flow；子流成功时子图 out 挂 nodes.<本节点 id>.out，父图用 {{nodes.<id>.out.*}}；outputs 可选写回父 flow。alwaysRun=true 时父图失败后继续阶段仍执行本节点。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1120,9 +1094,6 @@
               "subflowId"
             ],
             "properties": {
-              "name": {
-                "type": "string"
-              },
               "subflowId": {
                 "type": "string",
                 "description": "同项目被引用测试流 id"
@@ -1159,7 +1130,7 @@
               },
               "outputs": {
                 "type": "array",
-                "description": "子→父输出映射；从子 flow[name] 写到父 flow[flowKey]；空则回退子图 meta.flowOutputs 同名映射；交完整数组",
+                "description": "子→父 flow 映射；从子 flow[name] 写到父 flow[flowKey]；空数组表示不写回；交完整数组",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -1179,9 +1150,62 @@
               "alwaysRun": {
                 "type": "boolean",
                 "description": "true=父图业务失败后继续阶段仍执行本子流节点；须为 JSON 布尔"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名（写在参数顶层，勿放入 data）"
+          }
+        },
+        "required": [
+          "op",
+          "data",
+          "name"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_http_return_node",
+      "description": "新增或修改单个 http-return 节点（恰好 1 个 Staging 单元）。先 assign 写入 flow.out，再本节点 data.from=flow.out 定稿写出。必填 op、name、data.from；http-return 可选 data.status（100-599）。勿使用裸 type return。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ],
+            "description": "add=新增；update=修改已有（须带 id）"
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id；update 必填"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名（写在参数顶层，勿放入 data）"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "from"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "description": "定稿来源路径，如 flow.out"
               },
-              "summary": {
-                "type": "string"
+              "status": {
+                "type": "integer",
+                "description": "可选 HTTP 状态码 100-599；缺省 200"
               }
             }
           },
@@ -1191,6 +1215,53 @@
         },
         "required": [
           "op",
+          "name",
+          "data"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_subflow_return_node",
+      "description": "新增或修改单个 subflow-return 节点。先 assign 写入 flow.out，再 data.from=flow.out 挂回父流。必填 op、name、data.from；不允许 data.status。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "from"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "description": "如 flow.out"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "name",
           "data"
         ]
       }
@@ -1261,7 +1332,7 @@
     "type": "function",
     "function": {
       "name": "submit_scenario",
-      "description": "新增或修改单个运行场景（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id。不切换默认场景。flowSeed 为 Run 开始注入的 flow 初值（键→字面量或简单值，勿塞明文口令）。",
+      "description": "新增或修改单个运行场景（恰好 1 个 Staging 单元）。写入 scenario-entry.data.scenarios（可传 entryNodeId）。必填 op=add|update；update 须 id。用 envId + inSeed（开跑灌 ctx.in，占位符 {{in.*}}）。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1273,6 +1344,10 @@
             ],
             "description": "add=新增；update=修改已有（须带 id；数组字段交完整数组）"
           },
+          "entryNodeId": {
+            "type": "string",
+            "description": "目标 scenario-entry 节点 id；可空则取第一个场景入口"
+          },
           "id": {
             "type": "string",
             "description": "场景 id；update 必填"
@@ -1281,13 +1356,13 @@
             "type": "string",
             "description": "场景显示名"
           },
-          "testProjectEnvId": {
+          "envId": {
             "type": "string",
-            "description": "绑定的项目环境 id；可空"
+            "description": "绑定的项目环境 id（2.0）；可空"
           },
-          "flowSeed": {
+          "inSeed": {
             "type": "object",
-            "description": "流程变量初值 Map；键为 flow 变量名（如 loginUser、orderId），值为字符串/数字/布尔/JSON。Run 启动写入 flow；不要放密码。形状可参考 get_scenario_detail。",
+            "description": "入参值树；Run 启动写入 ctx.in",
             "additionalProperties": true
           },
           "maxSteps": {
@@ -1342,13 +1417,17 @@
     "type": "function",
     "function": {
       "name": "run_test_flow",
-      "description": "全自动专用：触发当前测试流 Run。若本轮有未落盘的 submit_* 会先自动写库再跑。返回 runId/status/失败摘要。须用户选择全自动。可选 runScenarioId、testProjectEnvId。失败后可修图再 run，最多再修 2 轮。未绑环境时不会自动选；须场景已绑或显式传入。",
+      "description": "全自动专用：触发当前测试流 Run。若本轮有未落盘的 submit_* 会先自动写库再跑。返回 runId/status/失败摘要。须用户选择全自动。可选 entryNodeId、runScenarioId、testProjectEnvId。场景值树取自 scenario-entry.inSeed。未绑环境时不会自动选。",
       "parameters": {
         "type": "object",
         "properties": {
+          "entryNodeId": {
+            "type": "string",
+            "description": "可选，scenario-entry 节点 id；多场景入口时传入"
+          },
           "runScenarioId": {
             "type": "string",
-            "description": "可选，覆盖默认运行场景 id"
+            "description": "可选，覆盖默认运行场景 id（入口内 scenarios）"
           },
           "testProjectEnvId": {
             "type": "string",

@@ -1,6 +1,27 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561357",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "2042000000000000101",
+            "name": "默认",
+            "remark": "invalid script language",
+            "envId": "2042000000000000001",
+            "inSeed": {}
+          }
+        ]
+      }
+    },
+    {
       "id": "2040999000000000031",
       "type": "script",
       "position": {
@@ -8,14 +29,20 @@
         "y": 0
       },
       "data": {
-        "name": "非法语言",
         "language": "ruby",
         "source": "ctx.setFlow('x', 1);",
         "timeoutMs": 5000
-      }
+      },
+      "name": "非法语言"
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "id": "e_scn_entry_1795425561357_2040999000000000031",
+      "source": "scn_entry_1795425561357",
+      "target": "2040999000000000031"
+    }
+  ],
   "meta": {
     "viewport": {
       "x": 0,
@@ -23,17 +50,6 @@
       "zoom": 1
     },
     "layout": "manual",
-    "startNodeId": "2040999000000000031",
-    "activeScenarioId": "2042000000000000101",
-    "scenarios": [
-      {
-        "id": "2042000000000000101",
-        "name": "默认",
-        "testProjectEnvId": "2042000000000000001",
-        "flowSeed": {},
-        "remark": "invalid script language"
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561357"
   }
 }

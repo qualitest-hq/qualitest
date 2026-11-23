@@ -195,14 +195,29 @@ export function buildLoginGraphJson({
       fieldPath: e.fieldPath != null ? String(e.fieldPath) : '',
     }))
   }
-  const flowOutputs =
-    extractScope === 'asset'
-      ? [{ name: `${assetEntry}.${assetField}` }]
-      : extractList.filter((e) => (e.scope || 'flow') === 'flow' && e.name).map((e) => ({ name: e.name }))
   const scenarioId = `sc_${Date.now()}`
+  const entryId = `scn_entry_${scenarioId}`
   const timeout = Number(timeoutMs) > 0 ? Number(timeoutMs) : 30000
   return {
     nodes: [
+      {
+        id: entryId,
+        type: 'scenario-entry',
+        name: '默认场景入口',
+        position: { x: 0, y: 0 },
+        data: {
+          doc: '',
+          scenarios: [
+            {
+              id: scenarioId,
+              name: '默认（冒烟）',
+              envId: '',
+              inSeed: {},
+              remark: '',
+            },
+          ],
+        },
+      },
       {
         id: 'cond_token',
         type: 'condition',
@@ -292,23 +307,16 @@ export function buildLoginGraphJson({
         },
       },
     ],
-    edges: LOGIN_FLOW_EDGES.map((e) => ({ ...e })),
+    edges: [
+      { id: 'e_entry', source: entryId, target: 'cond_token' },
+      ...LOGIN_FLOW_EDGES.map((e) => ({ ...e })),
+    ],
     meta: {
       schemaVersion: 1,
       // 预制登录流记为默认排版。坐标用上面写好的位置，这里不重排
       layout: 'default',
       viewport: { x: 0, y: 0, zoom: 0.85 },
-      flowOutputs: flowOutputs.length ? flowOutputs : [],
-      activeScenarioId: scenarioId,
-      scenarios: [
-        {
-          id: scenarioId,
-          name: '默认（冒烟）',
-          testProjectEnvId: '',
-          flowSeed: {},
-          remark: '',
-        },
-      ],
+      startNodeId: entryId,
     },
   }
 }
@@ -573,7 +581,7 @@ export function validateTemplateGraphApiBindings(graph, catalog) {
     const data = node.data || {}
     if (String(data.callMode || 'project').toLowerCase() !== 'project') continue
     const id = String(data.testProjectApiId ?? '').trim()
-    const label = String(data.name || node.id || 'HTTP').trim()
+    const label = String(node.name || node.id || 'HTTP').trim()
     if (!id) {
       return { ok: false, message: `节点「${label}」未绑定预制接口` }
     }

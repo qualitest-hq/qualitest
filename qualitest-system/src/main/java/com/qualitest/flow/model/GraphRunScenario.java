@@ -10,7 +10,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 单次运行的场景：指定环境与 flow 变量初值，同一张图可配置多套场景。
+ * 运行场景条目：环境与入参值树。
+ * <p>
+ * 挂在 {@code scenario-entry.data.scenarios[]}；开跑时 envId 选环境，inSeed 灌入 {@code ctx.in}。
  */
 @Getter
 @Setter
@@ -19,30 +21,24 @@ import java.util.Map;
 @AllArgsConstructor
 public class GraphRunScenario {
 
-    /**
-     * 场景 id
-     */
+    /** 场景 id */
     private String id;
 
-    /**
-     * 场景显示名称
-     */
+    /** 场景显示名称 */
     private String name;
 
     /**
-     * 测试项目环境 id（雪花 ID，JSON 中以字符串存储避免精度丢失）
+     * 测试项目环境 id（雪花 ID 以字符串存避免精度丢失）。
      */
-    private String testProjectEnvId;
+    private String envId;
 
     /**
-     * flow 变量初值 KV；Run 启动时注入 {@code ctx.flow}
+     * 入参值树；开跑灌入 {@code ctx.in}。
      */
     @Builder.Default
-    private Map<String, Object> flowSeed = new HashMap<>();
+    private Map<String, Object> inSeed = new HashMap<>();
 
-    /**
-     * 场景说明（可选）
-     */
+    /** 场景说明（可选） */
     private String remark;
 
     /**

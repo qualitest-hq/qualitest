@@ -18,6 +18,10 @@
         class="assign-row"
     >
       <div :class="['assign-row__grid', `assign-row__grid--${assignOpCategory(row.op)}`]">
+        <select :value="row.scope || 'flow'" @change="onScopeChange(index, $event)">
+          <option value="flow">流程变量 flow</option>
+          <option value="out">出参 out</option>
+        </select>
         <input
             :value="row.name"
             placeholder="pollAttempt"
@@ -67,7 +71,7 @@
     </div>
 
     <button class="btn btn--ghost assign-add" type="button" @click="addRow">+ 添加赋值</button>
-    <div class="field__hint">作用域固定为 flow · 可用于轮询计数、标志位等</div>
+    <div class="field__hint">写入流程变量或出参 · 可用于轮询计数、标志位等</div>
 
     <SnapshotPropertySection :node="node" />
     <!-- 失败后仍执行本赋值节点（如恢复 flow 变量） -->
@@ -78,7 +82,7 @@
 <script setup>
 /**
  * Assign 节点属性区：编辑 assignments 列表，支持预设、运算符切换与增删行。
- * 变更经 patchNodeData 写回节点 data 并刷新 summary。
+ * 变更经 patchNodeData 写回节点 data 并刷新画布副标题。
  */
 import { computed, onMounted } from 'vue'
 
@@ -140,6 +144,10 @@ function onTextInput(index, field, event) {
 
 function onNumberInput(index, field, event, fallback) {
   onFieldInput(index, field, Number(event.target.value) || fallback)
+}
+
+function onScopeChange(index, event) {
+  onFieldInput(index, 'scope', event.target.value);
 }
 
 function onFieldInput(index, field, value) {
@@ -218,11 +226,11 @@ function applyPreset(assignment) {
   align-items: center;
 
   &--value {
-    grid-template-columns: 1fr 56px 1fr 28px;
+    grid-template-columns: 108px 1fr 56px 1fr 28px;
   }
 
   &--step {
-    grid-template-columns: 1fr 56px 72px 72px 28px;
+    grid-template-columns: 108px 1fr 56px 72px 72px 28px;
   }
 
   input,

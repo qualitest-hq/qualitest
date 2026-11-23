@@ -1,6 +1,29 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561444",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "tpl_sc_default",
+            "name": "模板默认",
+            "remark": "OAuth Refresh 子流模板",
+            "envId": "",
+            "inSeed": {
+              "refreshToken": ""
+            }
+          }
+        ]
+      }
+    },
+    {
       "id": "oauth_refresh",
       "type": "http",
       "position": {
@@ -8,7 +31,6 @@
         "y": 80
       },
       "data": {
-        "name": "OAuth Refresh Token",
         "callMode": "external",
         "httpMethod": "POST",
         "externalUrl": "{{env.oauthTokenUrl}}",
@@ -54,9 +76,9 @@
             "scope": "flow",
             "name": "token"
           }
-        ],
-        "summary": "POST ↗ {{env.oauthTokenUrl}} · refresh"
-      }
+        ]
+      },
+      "name": "OAuth Refresh Token"
     }
   ],
   "edges": [],
@@ -67,18 +89,6 @@
       "y": 0,
       "zoom": 1
     },
-    "activeScenarioId": "tpl_sc_default",
-    "scenarios": [
-      {
-        "id": "tpl_sc_default",
-        "name": "模板默认",
-        "testProjectEnvId": "",
-        "flowSeed": {
-          "refreshToken": ""
-        },
-        "remark": "OAuth Refresh 子流模板"
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561444"
   }
 }

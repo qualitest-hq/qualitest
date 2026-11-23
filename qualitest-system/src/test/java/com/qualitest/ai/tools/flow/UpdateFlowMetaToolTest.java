@@ -3,7 +3,6 @@ package com.qualitest.ai.tools.flow;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignToolContext;
-import com.qualitest.flow.model.GraphFlowOutput;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.project.domain.TestFlow;
@@ -176,57 +175,4 @@ class UpdateFlowMetaToolTest {
         verify(testFlowService, never()).updateTestFlow(any());
     }
 
-    /**
-     * 前提：只传 flowOutputs 数组。
-     * 期望：调用 replaceFlowOutputs；不改名称；回执含 flowOutputs。
-     */
-    @Test
-    @Order(7)
-    @DisplayName("只改 flowOutputs")
-    @SuppressWarnings("unchecked")
-    void execute_flowOutputsOnly_replacesOutputs() {
-        GraphJson saved = GraphJson.builder()
-                .meta(GraphMeta.builder()
-                        .flowOutputs(List.of(GraphFlowOutput.builder()
-                                .name("token")
-                                .description("访问令牌")
-                                .build()))
-                        .build())
-                .build();
-        when(testFlowService.replaceFlowOutputs(eq(FLOW_ID), eq(PROJECT_ID), anyList(), any()))
-                .thenReturn(new ITestFlowService.ApplyGraphPatchResult(saved, 2L, List.of()));
-
-        Map<String, Object> args = new HashMap<>();
-        args.put("testFlowId", String.valueOf(FLOW_ID));
-        args.put("flowOutputs", List.of(Map.of("name", "token", "description", "访问令牌")));
-        String json = tool.execute(args, ctx);
-        JSONObject result = JSON.parseObject(json);
-        assertFalse(result.containsKey("error"), json);
-        assertEquals("旧名", result.getString("flowName"));
-        assertEquals("token", result.getJSONArray("flowOutputs").getJSONObject(0).getString("name"));
-        assertEquals("访问令牌", result.getJSONArray("flowOutputs").getJSONObject(0).getString("description"));
-
-        verify(testFlowService, never()).updateTestFlow(any());
-        ArgumentCaptor<List<GraphFlowOutput>> captor = ArgumentCaptor.forClass(List.class);
-        verify(testFlowService).replaceFlowOutputs(eq(FLOW_ID), eq(PROJECT_ID), captor.capture(), any());
-        assertEquals(1, captor.getValue().size());
-        assertEquals("token", captor.getValue().get(0).getName());
-    }
-
-    /**
-     * 前提：flowOutputs 不是数组。
-     * 期望：error；不写库。
-     */
-    @Test
-    @Order(8)
-    @DisplayName("flowOutputs 非数组返回 error")
-    void execute_flowOutputsNotArray_returnsError() {
-        Map<String, Object> args = new HashMap<>();
-        args.put("testFlowId", String.valueOf(FLOW_ID));
-        args.put("flowOutputs", "token");
-        String json = tool.execute(args, ctx);
-        assertTrue(json.contains("error"));
-        verify(testFlowService, never()).updateTestFlow(any());
-        verify(testFlowService, never()).replaceFlowOutputs(any(), any(), any(), any());
-    }
 }

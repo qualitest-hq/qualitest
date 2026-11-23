@@ -2,7 +2,6 @@
 export { nextSnowflakeId } from './snowflakeId';
 export type {
   GraphEdge,
-  GraphFlowOutput,
   GraphJson,
   GraphMeta,
   GraphNode,

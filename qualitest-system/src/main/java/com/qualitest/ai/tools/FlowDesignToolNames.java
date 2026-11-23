@@ -60,7 +60,7 @@ public enum FlowDesignToolNames {
     GET_NODE_DETAIL("get_node_detail", true, true),
     /** 读取单条边的 id、source、target、label */
     GET_EDGE_DETAIL("get_edge_detail", true, true),
-    /** 读取单个运行场景配置（含 flowSeed 键名，不含明文） */
+    /** 读取单个运行场景配置（含 inSeed 键名，不含明文） */
     GET_SCENARIO_DETAIL("get_scenario_detail", true, true),
     /** 读取某次 Run 的失败步骤现场（按失败类别分区） */
     GET_RUN_FAILURE("get_run_failure", true, true),
@@ -73,7 +73,7 @@ public enum FlowDesignToolNames {
     GET_FLOW_API_HEALTH("get_flow_api_health", true, true),
     /** 列举可引用的子流模板与项目内测试流摘要 */
     LIST_SUBFLOW_TEMPLATES("list_subflow_templates", true, true),
-    /** 读取指定测试流的拓扑摘要与 flowOutputs */
+    /** 读取指定测试流的拓扑摘要与子流输入建议 */
     GET_SUBFLOW_DETAIL("get_subflow_detail", true, true),
     /** 仅 MCP：按项目列举测试流 */
     LIST_FLOWS("list_flows", false, true),
@@ -100,6 +100,10 @@ public enum FlowDesignToolNames {
     SUBMIT_SCRIPT_NODE("submit_script_node", true, false),
     /** 新增或修改单个子流节点 */
     SUBMIT_SUBFLOW_NODE("submit_subflow_node", true, false),
+    /** 新增或修改单个开放 HTTP 返回节点 */
+    SUBMIT_HTTP_RETURN_NODE("submit_http_return_node", true, false),
+    /** 新增或修改单个子流返回节点 */
+    SUBMIT_SUBFLOW_RETURN_NODE("submit_subflow_return_node", true, false),
     /**
      * 新增或修改一条或多条边。
      * 参数可为 edges 数组，和/或 chainNodeIds 按节点顺序自动生成相邻连线；一次调用可提交多条边。

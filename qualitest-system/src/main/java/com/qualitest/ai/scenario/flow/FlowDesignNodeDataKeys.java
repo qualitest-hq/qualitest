@@ -17,8 +17,8 @@ import java.util.Set;
  */
 public final class FlowDesignNodeDataKeys {
 
-    /** 各类型共用：显示名与画布副标题 */
-    private static final Set<String> COMMON = Set.of("name", "summary");
+    /** 展示名写在节点顶层；data 白名单仅含各 type 业务键 */
+    private static final Set<String> COMMON = Set.of();
 
     /**
      * HTTP 节点 data 允许键。
@@ -59,16 +59,35 @@ public final class FlowDesignNodeDataKeys {
      * 子流节点 data 允许键。
      * inputs：父流程向子流程注入的 flow 种子；outputs：子流程成功后写回父流程的映射；
      * alwaysRun：业务失败后继续阶段是否仍执行本子流节点；
-     * 子图对外产出声明写在被引用流的图元数据中，不在本节点 data。
+     * 子图定稿出参由子图内 subflow-return（或入口 fallbackOut）写入本节点 out，不在此名单声明。
      */
     private static final Set<String> SUBFLOW = Set.of(
             "subflowId", "subflowName", "versionPolicy", "inputs", "outputs", "graphJson", "alwaysRun");
+
+    /** 人工输入节点 data 允许键 */
+    private static final Set<String> INPUT = Set.of("fields", "alwaysRun");
+
+    /** http-return：out 来源路径与可选 HTTP 状态码 */
+    private static final Set<String> HTTP_RETURN = Set.of("from", "status");
+
+    /** subflow-return：子流定稿 out 的来源路径 */
+    private static final Set<String> SUBFLOW_RETURN = Set.of("from");
+
+    /** scenario-entry：说明文档与可批量执行的场景列表 */
+    private static final Set<String> SCENARIO_ENTRY = Set.of("doc", "scenarios");
+
+    /** http-entry：开放路由 method/path、环境与收束兜底出参 */
+    private static final Set<String> HTTP_ENTRY = Set.of(
+            "method", "path", "envId", "fallbackOut", "doc");
+
+    /** subflow-entry：未跑到返回节点时的兜底出参与说明 */
+    private static final Set<String> SUBFLOW_ENTRY = Set.of("fallbackOut", "doc");
 
     private FlowDesignNodeDataKeys() {
     }
 
     /**
-     * 返回指定节点类型允许的 data 键集合（已含 name、summary）。
+     * 返回指定节点类型允许的 data 键集合。
      * 无法识别的 type 返回空集合。
      */
     public static Set<String> allowedFor(String type) {
@@ -82,6 +101,12 @@ public final class FlowDesignNodeDataKeys {
             case "delay" -> keys.addAll(DELAY);
             case "script" -> keys.addAll(SCRIPT);
             case "subflow" -> keys.addAll(SUBFLOW);
+            case "input" -> keys.addAll(INPUT);
+            case "http-return" -> keys.addAll(HTTP_RETURN);
+            case "subflow-return" -> keys.addAll(SUBFLOW_RETURN);
+            case "scenario-entry" -> keys.addAll(SCENARIO_ENTRY);
+            case "http-entry" -> keys.addAll(HTTP_ENTRY);
+            case "subflow-entry" -> keys.addAll(SUBFLOW_ENTRY);
             default -> {
                 return Collections.emptySet();
             }

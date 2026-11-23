@@ -1,6 +1,6 @@
 /**
  * 画布节点增删改：拖拽落点、节点库双击、属性区 patch。
- * 负责生成节点 id/data、刷新 summary、判定流程开始节点。
+ * 展示名写在节点壳 name；data 仅存该 type 业务字段。
  */
 import type { Node } from '@vue-flow/core';
 
@@ -11,7 +11,9 @@ import { NODE_TYPES } from '../constants/nodeTypes';
 import { useFlowHistory } from './useFlowHistory';
 import { syncStagingDraftFromNode } from './stagingDraftSync';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
-import { createNodeData, generateNodeId, updateSummary } from '../utils/nodeDataUtils';
+import { createNodeData, generateNodeId } from '../utils/nodeDataUtils';
+
+export type FlowCanvasNode = Node & { name?: string };
 
 /** 将浏览器 client 坐标转换为 vue-flow 画布逻辑坐标（考虑 viewport 平移与缩放） */
 function clientToFlowPosition(clientX: number, clientY: number, store: ReturnType<typeof useFlowCanvasStore>) {
@@ -31,17 +33,20 @@ export function useFlowNodes() {
 
   /** 在指定坐标创建节点，选中并打开右栏属性 */
   function addNode(type: string, position: { x: number; y: number }, dataOverride: Record<string, unknown> = {}) {
-    const cfg = NODE_TYPES[type];
+    const cfg = NODE_TYPES[type as keyof typeof NODE_TYPES];
     if (!cfg) return null;
     const id = generateNodeId(type);
-    const data = createNodeData(type, dataOverride);
-    const node: Node = {
+    const override = { ...dataOverride };
+    const name = String(override.name ?? cfg.label).trim() || cfg.label;
+    const data = createNodeData(type, override);
+    const node: FlowCanvasNode = {
       id,
       type,
+      name,
       position: { x: position.x, y: position.y },
       data,
     };
-    store.nodes.push(node);
+    store.nodes.push(node as Node);
     store.markDirty();
     store.selectItem('node', id);
     store.ui.rightOpen = true;
@@ -77,13 +82,21 @@ export function useFlowNodes() {
   function patchNodeData(nodeId: string, patch: Record<string, unknown>) {
     const node = store.nodes.find((n) => n.id === nodeId);
     if (!node) return;
-    Object.assign(node.data, patch);
-    for (const [key, value] of Object.entries(patch)) {
+    const next = { ...patch };
+    Object.assign(node.data, next);
+    for (const [key, value] of Object.entries(next)) {
       if (value === null) {
         delete node.data[key];
       }
     }
-    updateSummary(String(node.type), node.data as Record<string, unknown>);
+    store.markDirty();
+    syncStagingDraftFromNode(nodeId);
+  }
+
+  function patchNodeName(nodeId: string, name: string) {
+    const node = store.nodes.find((n) => n.id === nodeId) as FlowCanvasNode | undefined;
+    if (!node) return;
+    node.name = String(name);
     store.markDirty();
     syncStagingDraftFromNode(nodeId);
   }
@@ -95,8 +108,8 @@ export function useFlowNodes() {
   function replaceNodeData(nodeId: string, data: Record<string, unknown>) {
     const node = store.nodes.find((n) => n.id === nodeId);
     if (!node) return;
-    node.data = data;
-    updateSummary(String(node.type), node.data as Record<string, unknown>);
+    const cleaned = { ...data };
+    node.data = cleaned;
     store.markDirty();
     syncStagingDraftFromNode(nodeId);
   }
@@ -118,6 +131,7 @@ export function useFlowNodes() {
     handleDrop,
     handleDragOver,
     patchNodeData,
+    patchNodeName,
     replaceNodeData,
     getStartNodeIds,
     isStartNode,

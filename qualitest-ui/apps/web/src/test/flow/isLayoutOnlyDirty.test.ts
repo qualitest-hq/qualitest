@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import type { GraphJson } from '@/utils/flow/graphTypes'
+import type { GraphJson, GraphRunScenario } from '@/utils/flow/graphTypes'
 
 import { graphJsonToSnapshotString } from '../../views/project/testFlow/utils/graphFingerprint'
 import { stripViewportForCompare } from '../../views/project/testFlow/utils/reconcileFlowDirty'
@@ -15,10 +15,24 @@ import {
   stripLayoutForCompare,
 } from '../../views/project/testFlow/utils/isLayoutOnlyDirty'
 
+function entryWithScenarios(scenarios: GraphRunScenario[]) {
+  return {
+    id: 'entry',
+    type: 'scenario-entry',
+    name: '入口',
+    position: { x: 0, y: 0 },
+    data: { scenarios: JSON.parse(JSON.stringify(scenarios)) },
+  }
+}
+
 /** 构造最小双节点一带图，可用 overrides 覆盖顶层字段 */
 function sampleGraph(overrides?: Partial<GraphJson>): GraphJson {
+  const defaultScenarios: GraphRunScenario[] = [
+    { id: 's1', name: '默认', envId: '', inSeed: {} },
+  ]
   return {
     nodes: [
+      entryWithScenarios(defaultScenarios),
       {
         id: 'a',
         type: 'http',
@@ -35,10 +49,17 @@ function sampleGraph(overrides?: Partial<GraphJson>): GraphJson {
     edges: [{ id: 'e1', source: 'a', target: 'b' }],
     meta: {
       viewport: { x: 0, y: 0, zoom: 1 },
-      activeScenarioId: 's1',
-      scenarios: [],
     },
     ...overrides,
+  }
+}
+
+function patchEntryScenarios(graph: GraphJson, scenarios: GraphRunScenario[]): GraphJson {
+  return {
+    ...graph,
+    nodes: graph.nodes.map((n) =>
+      n.type === 'scenario-entry' ? { ...n, data: { ...n.data, scenarios } } : n,
+    ),
   }
 }
 
@@ -92,7 +113,7 @@ describe('isLayoutOnlyDirty', () => {
     const saved = sampleGraph()
     const current = sampleGraph({
       nodes: saved.nodes.map((n, i) =>
-        i === 0 ? { ...n, data: { ...n.data, name: '改过' } } : n,
+        n.id === 'a' ? { ...n, data: { ...n.data, name: '改过' } } : n,
       ),
     })
     expect(
@@ -151,43 +172,29 @@ describe('isLayoutOnlyDirty', () => {
   // 前提：基线里场景环境 id 为空；当前图补上了环境 id，并且只移动了节点坐标。
   // 期望：不是仅布局脏（环境 id 属于内容差异）。
   it('静默补 env 未刷新基线 + 仅移坐标 → false', () => {
-    const saved = sampleGraph({
-      meta: {
-        viewport: { x: 0, y: 0, zoom: 1 },
-        activeScenarioId: 's1',
-        scenarios: [
-          {
-            id: 's1',
-            name: '默认（冒烟）',
-            testProjectEnvId: '',
-            flowSeed: {},
-            remark: '',
-          },
-        ],
-      },
-    })
-    const current = sampleGraph({
-      nodes: saved.nodes.map((n) => ({
-        ...n,
-        position: { x: n.position.x + 40, y: n.position.y + 40 },
-      })),
-      meta: {
-        ...saved.meta,
-        scenarios: [
-          {
-            id: 's1',
-            name: '默认（冒烟）',
-            testProjectEnvId: 'env-1',
-            flowSeed: {},
-            remark: '',
-          },
-        ],
-      },
-    })
+    const scenarioBlank: GraphRunScenario = {
+      id: 's1',
+      name: '默认（冒烟）',
+      envId: '',
+      inSeed: {},
+      remark: '',
+    }
+    const scenarioWithEnv: GraphRunScenario = { ...scenarioBlank, envId: 'env-1' }
+    const saved = sampleGraph()
+    const savedWithScenario = patchEntryScenarios(saved, [scenarioBlank])
+    const current = patchEntryScenarios(
+      sampleGraph({
+        nodes: savedWithScenario.nodes.map((n) => ({
+          ...n,
+          position: { x: n.position.x + 40, y: n.position.y + 40 },
+        })),
+      }),
+      [scenarioWithEnv],
+    )
     expect(
       isLayoutOnlyDirty({
         currentGraph: current,
-        savedGraphSnapshot: baselineOf(saved),
+        savedGraphSnapshot: baselineOf(savedWithScenario),
         pendingStagingCount: 0,
       }),
     ).toBe(false)
@@ -196,21 +203,14 @@ describe('isLayoutOnlyDirty', () => {
   // 前提：基线已含环境 id；当前图只改节点坐标与视口。
   // 期望：判定为仅布局脏。
   it('补 env 后刷新基线再仅移坐标 → true', () => {
-    const withEnv = sampleGraph({
-      meta: {
-        viewport: { x: 0, y: 0, zoom: 1 },
-        activeScenarioId: 's1',
-        scenarios: [
-          {
-            id: 's1',
-            name: '默认（冒烟）',
-            testProjectEnvId: 'env-1',
-            flowSeed: {},
-            remark: '',
-          },
-        ],
-      },
-    })
+    const scenarioWithEnv: GraphRunScenario = {
+      id: 's1',
+      name: '默认（冒烟）',
+      envId: 'env-1',
+      inSeed: {},
+      remark: '',
+    }
+    const withEnv = patchEntryScenarios(sampleGraph(), [scenarioWithEnv])
     const afterTidy = sampleGraph({
       nodes: withEnv.nodes.map((n) => ({
         ...n,
@@ -220,7 +220,7 @@ describe('isLayoutOnlyDirty', () => {
     })
     expect(
       isLayoutOnlyDirty({
-        currentGraph: afterTidy,
+        currentGraph: patchEntryScenarios(afterTidy, [scenarioWithEnv]),
         savedGraphSnapshot: baselineOf(withEnv),
         pendingStagingCount: 0,
       }),
@@ -237,7 +237,7 @@ describe('stripLayoutForCompare', () => {
     expect(stripped.meta?.viewport).toBeUndefined()
     expect(stripped.meta?.layout).toBeUndefined()
     expect(stripped.nodes.every((n) => n.position.x === 0 && n.position.y === 0)).toBe(true)
-    expect(stripped.nodes[0].data).toEqual(g.nodes[0].data)
+    expect(stripped.nodes.find((n) => n.id === 'a')?.data).toEqual(g.nodes.find((n) => n.id === 'a')?.data)
     expect(stripped.edges).toEqual(g.edges)
   })
 })

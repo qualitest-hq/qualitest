@@ -455,10 +455,9 @@ export function collectAssertPathDesignIssues(
     if (type !== 'assert' && type !== 'condition') continue;
     const apiId = resolveTrialApiId(node, nodes as Node[], edges);
     const upstreamSchemaPaths = apiId ? (schemaMap.get(apiId) ?? []) : [];
+    const shellName = (node as { name?: string }).name;
     const nodeName =
-      node.data?.name != null && String(node.data.name).trim()
-        ? String(node.data.name)
-        : node.id ?? '?';
+      shellName != null && String(shellName).trim() ? String(shellName).trim() : node.id ?? '?';
     const kindLabel = type === 'assert' ? '断言' : '条件';
 
     if (apiId && schemaMap.has(apiId) && !upstreamSchemaPaths.length) {

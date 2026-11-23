@@ -55,7 +55,7 @@ public class HttpNodeApiHealthChecker {
                 return;
             }
             Long apiId = FlowHttpNodeVisitor.parseTestProjectApiId(data.get("testProjectApiId"));
-            String nodeName = FlowHttpNodeVisitor.resolveNodeName(data, nodeId);
+            String nodeName = FlowHttpNodeVisitor.resolveNodeName(node.getString("name"), data, nodeId);
             if (apiId == null) {
                 warnings.add(HttpNodeApiHealthWarning.of(
                         CODE_API_MISSING,

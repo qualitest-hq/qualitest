@@ -76,13 +76,13 @@ public final class GraphNodeSnapshotSupport {
         return SnapshotScope.builder().scope(scope).tables(tables).build();
     }
 
-    /** 读取节点展示名 data.name，写入快照 meta */
+    /** 读取节点顶壳展示名，写入快照 meta */
     public static String nodeName(GraphNode node) {
-        if (node == null || node.getData() == null) {
+        if (node == null) {
             return "";
         }
-        Object name = node.getData().get("name");
-        return name != null ? String.valueOf(name) : "";
+        String name = node.getName();
+        return name != null ? name : "";
     }
 
     private static SnapshotScope defaultScope() {

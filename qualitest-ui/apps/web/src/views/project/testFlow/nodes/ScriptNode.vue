@@ -12,6 +12,7 @@
 import { computed } from 'vue'
 
 import BaseFlowNode from './BaseFlowNode.vue'
+import { formatScriptSummary } from '../utils/nodeDataUtils'
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -24,13 +25,7 @@ const languageLabel = computed(() => {
   return lang === 'python' ? 'Python' : 'JavaScript'
 })
 
-const previewText = computed(() => {
-  if (props.data.summary) return String(props.data.summary)
-  const source = String(props.data.source || '').trim()
-  if (!source) return '未配置源码'
-  const firstLine = source.split(/\r?\n/)[0] || source
-  return firstLine.length > 48 ? `${firstLine.slice(0, 48)}…` : firstLine
-})
+const previewText = computed(() => formatScriptSummary(props.data))
 </script>
 
 <style scoped lang="scss">

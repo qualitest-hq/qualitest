@@ -8,6 +8,7 @@ import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
+import com.qualitest.flow.node.impl.EntryNodeHandler;
 import com.qualitest.flow.snapshot.RunSnapshotPolicy;
 import com.qualitest.flow.validate.FlowNodeType;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +56,7 @@ class FlowGraphRunnerTest {
                 {
                   "nodes":[{"id":"d1","type":"delay","position":{"x":0,"y":0},"data":{"name":"等待","ms":1}}],
                   "edges":[],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{}
                 }
                 """;
         GraphJson graph = GraphJson.parse(json);
@@ -89,6 +90,7 @@ class FlowGraphRunnerTest {
     @DisplayName("首步失败后后续未标记节点记 bypassed")
     void run_failedStep_bypassesUnmarkedFollowers() {
         registry = new NodeHandlerRegistry(List.of(
+                new EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.DELAY) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
@@ -125,6 +127,7 @@ class FlowGraphRunnerTest {
     @DisplayName("含 subflow 节点的图可执行")
     void run_graphWithSubflowNode_executes() {
         registry = new NodeHandlerRegistry(List.of(
+                new EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.SUBFLOW) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
@@ -219,7 +222,7 @@ class FlowGraphRunnerTest {
                     {"id":"e1","source":"d1","target":"mid"},
                     {"id":"e2","source":"mid","target":"clean"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);
@@ -270,7 +273,7 @@ class FlowGraphRunnerTest {
                     {"id":"e1","source":"d1","target":"c1"},
                     {"id":"e2","source":"c1","target":"c2"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);
@@ -312,7 +315,7 @@ class FlowGraphRunnerTest {
                     {"id":"eac","source":"a","target":"clean"},
                     {"id":"ebc","source":"b","target":"clean"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);
@@ -391,7 +394,7 @@ class FlowGraphRunnerTest {
                     {"id":"eac","source":"a","target":"clean"},
                     {"id":"ebc","source":"b","target":"clean"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);
@@ -422,7 +425,7 @@ class FlowGraphRunnerTest {
                     {"id":"e1","source":"d1","target":"clean"},
                     {"id":"eloop","source":"clean","target":"clean"}
                   ],
-                  "meta":{"activeScenarioId":"s1","scenarios":[{"id":"s1","name":"d","testProjectEnvId":"","flowSeed":{}}]}
+                  "meta":{}
                 }
                 """;
         FlowGraphRunner.Outcome outcome = runner.run(GraphJson.parse(json), ctx, registry);
@@ -435,6 +438,7 @@ class FlowGraphRunnerTest {
     /** delay 桩：指定节点 id 返回失败「首步失败」，其余通过 */
     private static NodeHandlerRegistry delayRegistryFailing(String failNodeId) {
         return new NodeHandlerRegistry(List.of(
+                new EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.DELAY) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
@@ -456,6 +460,7 @@ class FlowGraphRunnerTest {
     /** delay 桩：全部节点通过 */
     private static NodeHandlerRegistry passingDelayRegistry() {
         return new NodeHandlerRegistry(List.of(
+                new EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.DELAY) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {

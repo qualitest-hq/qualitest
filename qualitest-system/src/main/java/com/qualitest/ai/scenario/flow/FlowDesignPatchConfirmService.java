@@ -263,7 +263,7 @@ public class FlowDesignPatchConfirmService {
             for (GraphRunScenario scenario : scenarios) {
                 if (scenario != null && scenarioId.equals(scenario.getId())) {
                     GraphRunScenario override = draft.to(GraphRunScenario.class);
-                    // 写入 remark、失败策略、flowSeed 等场景字段
+                    // 写入 remark、失败策略、inSeed 等场景字段
                     ScenarioPatchMergeSupport.applyScenarioUpdate(scenario, override);
                     return;
                 }
@@ -409,8 +409,8 @@ public class FlowDesignPatchConfirmService {
         }
         GraphRunScenario scenario = findPatchScenario(patch, unitId);
         if (scenario != null
-                && (scenario.getTestProjectEnvId() == null || scenario.getTestProjectEnvId().isBlank())) {
-            warnings.add("场景 " + unitId + " 未绑定 testProjectEnvId，保存后运行前请选择环境");
+                && (scenario.getEnvId() == null || scenario.getEnvId().isBlank())) {
+            warnings.add("场景 " + unitId + " 未绑定 envId，保存后运行前请选择环境");
         }
     }
 

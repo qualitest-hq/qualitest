@@ -8,9 +8,9 @@
         "y": 0
       },
       "data": {
-        "name": "等待 A",
         "ms": 1000
-      }
+      },
+      "name": "等待 A"
     },
     {
       "id": "2040999000000000026",
@@ -20,9 +20,9 @@
         "y": 0
       },
       "data": {
-        "name": "等待 B",
         "ms": 500
-      }
+      },
+      "name": "等待 B"
     }
   ],
   "edges": [
@@ -43,18 +43,6 @@
       "y": 0,
       "zoom": 1
     },
-    "layout": "manual",
-    "startNodeId": "2040999000000000025",
-    "activeScenarioId": "2042000000000000101",
-    "scenarios": [
-      {
-        "id": "2042000000000000101",
-        "name": "默认",
-        "testProjectEnvId": "2042000000000000001",
-        "flowSeed": {},
-        "remark": "无开始节点（环）"
-      }
-    ],
-    "flowOutputs": []
+    "layout": "manual"
   }
 }

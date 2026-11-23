@@ -10,17 +10,17 @@ import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.subflow.GraphMetaIoSupport;
+import com.qualitest.flow.subflow.SubflowInputSuggestSupport;
 import com.qualitest.project.service.ITestFlowService;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 
 /**
- * 按测试流 id 加载图画布，返回拓扑摘要与对外契约。
+ * 按测试流 id 加载图画布，返回拓扑摘要与输入建议。
  * <p>
- * 回执含节点/边摘要、对外产出声明（含说明）、产出名称列表，
- * 以及按激活场景初值生成的建议输入映射；返回前按体积上限裁剪。
+ * 回执含节点/边摘要、按主入口首条场景 inSeed 生成的 suggestedInputs；
+ * 子流定稿出参挂在父图 nodes.&lt;subflowNodeId&gt;.out；返回前按体积上限裁剪。
  */
 @RequiredArgsConstructor
 public class GetSubflowDetailTool implements QualitestTool {
@@ -38,7 +38,7 @@ public class GetSubflowDetailTool implements QualitestTool {
     }
 
     /**
-     * 组装被引用测试流的拓扑与对外契约回执。
+     * 组装被引用测试流的拓扑摘要与 suggestedInputs 回执。
      *
      * @param arguments 工具参数
      * @param ctx       请求上下文
@@ -70,10 +70,7 @@ public class GetSubflowDetailTool implements QualitestTool {
 
         GraphMeta meta = graph.getMeta();
         result.put("startNodeId", meta != null && meta.getStartNodeId() != null ? meta.getStartNodeId() : "");
-        // 对外产出声明、名称列表、建议的父到子输入映射
-        result.put("flowOutputs", meta != null ? GraphMetaIoSupport.flowOutputsJson(meta) : new JSONArray());
-        result.put("flowOutputNames", meta != null ? GraphMetaIoSupport.flowOutputNames(meta) : new JSONArray());
-        result.put("suggestedInputs", meta != null ? GraphMetaIoSupport.suggestInputMappingsJson(meta) : new JSONArray());
+        result.put("suggestedInputs", SubflowInputSuggestSupport.suggestInputMappingsJson(graph));
 
         int nodeCount = graph.getNodes() != null ? graph.getNodes().size() : 0;
         int edgeCount = graph.getEdges() != null ? graph.getEdges().size() : 0;

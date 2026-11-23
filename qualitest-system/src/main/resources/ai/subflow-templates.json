@@ -4,11 +4,20 @@
     "name": "Bearer 登录",
     "description": "HTTP(project) 登录 → extract token",
     "inputs": [
-      { "name": "username", "description": "登录用户名" },
-      { "name": "password", "description": "登录密码" }
+      {
+        "name": "username",
+        "description": "登录用户名"
+      },
+      {
+        "name": "password",
+        "description": "登录密码"
+      }
     ],
     "outputs": [
-      { "name": "token", "description": "Bearer Token" }
+      {
+        "name": "token",
+        "description": "Bearer Token"
+      }
     ]
   },
   {
@@ -16,11 +25,20 @@
     "name": "验证码登录",
     "description": "取验证码图 → 外联打码 → 登录",
     "inputs": [
-      { "name": "username", "description": "登录用户名" },
-      { "name": "password", "description": "登录密码" }
+      {
+        "name": "username",
+        "description": "登录用户名"
+      },
+      {
+        "name": "password",
+        "description": "登录密码"
+      }
     ],
     "outputs": [
-      { "name": "token", "description": "Bearer Token" }
+      {
+        "name": "token",
+        "description": "Bearer Token"
+      }
     ]
   },
   {
@@ -28,11 +46,20 @@
     "name": "验证码登录（手动）",
     "description": "取验证码图 → Input 人工填码 → 登录",
     "inputs": [
-      { "name": "username", "description": "登录用户名" },
-      { "name": "password", "description": "登录密码" }
+      {
+        "name": "username",
+        "description": "登录用户名"
+      },
+      {
+        "name": "password",
+        "description": "登录密码"
+      }
     ],
     "outputs": [
-      { "name": "token", "description": "Bearer Token" }
+      {
+        "name": "token",
+        "description": "Bearer Token"
+      }
     ]
   },
   {
@@ -41,8 +68,14 @@
     "description": "HTTP(external) 获取 access_token",
     "inputs": [],
     "outputs": [
-      { "name": "token", "description": "access_token" },
-      { "name": "tokenExpiresIn", "description": "过期秒数" }
+      {
+        "name": "token",
+        "description": "access_token"
+      },
+      {
+        "name": "tokenExpiresIn",
+        "description": "过期秒数"
+      }
     ]
   },
   {
@@ -50,10 +83,16 @@
     "name": "OAuth Refresh Token",
     "description": "HTTP(external) refresh_token grant",
     "inputs": [
-      { "name": "refreshToken", "description": "refresh_token" }
+      {
+        "name": "refreshToken",
+        "description": "refresh_token"
+      }
     ],
     "outputs": [
-      { "name": "token", "description": "新的 access_token" }
+      {
+        "name": "token",
+        "description": "新的 access_token"
+      }
     ]
   },
   {
@@ -61,14 +100,32 @@
     "name": "双身份登录",
     "description": "两次登录链，输出 tokenA / tokenB",
     "inputs": [
-      { "name": "userA", "description": "身份 A 用户名" },
-      { "name": "passA", "description": "身份 A 密码" },
-      { "name": "userB", "description": "身份 B 用户名" },
-      { "name": "passB", "description": "身份 B 密码" }
+      {
+        "name": "userA",
+        "description": "身份 A 用户名"
+      },
+      {
+        "name": "passA",
+        "description": "身份 A 密码"
+      },
+      {
+        "name": "userB",
+        "description": "身份 B 用户名"
+      },
+      {
+        "name": "passB",
+        "description": "身份 B 密码"
+      }
     ],
     "outputs": [
-      { "name": "tokenA", "description": "身份 A Token" },
-      { "name": "tokenB", "description": "身份 B Token" }
+      {
+        "name": "tokenA",
+        "description": "身份 A Token"
+      },
+      {
+        "name": "tokenB",
+        "description": "身份 B Token"
+      }
     ]
   }
 ]

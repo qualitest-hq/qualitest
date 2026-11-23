@@ -30,8 +30,8 @@ import java.util.function.Function;
  * 对每个需鉴权的 project HTTP，解析其命中的鉴权 Profile，读取托管头上的凭证目标
  * （如 asset.adminAuth.token、flow.token）。未解析出凭证目标的 Profile 跳过。
  * 再扫描整图是否已产出该目标：HTTP extracts（flow / asset）、assign 赋值、
- * 子流 flowOutputs（flow 作用域）、子流引用图内的 extracts
- * （子上下文与父共享 asset，登录子流写 asset.* 对本图有效）、场景 flowSeed（仅 flow）。
+ * 子流节点 outputs（flow 作用域）、子流引用图内的 extracts
+ * （子上下文与父共享 asset，登录子流写 asset.* 对本图有效）、场景 inSeed（仅 flow 顶层键）。
  * 客户端与管理端分开检查，有一端凭证不能代替另一端。
  * <p>
  * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING），并附上 profileId、命中的 pathPrefix，
@@ -156,7 +156,7 @@ public final class AuthTokenPresenceGate {
 
     /**
      * 收集图中已声明会写入的凭证 identityKey。
-     * 来源：HTTP extracts（flow + asset）、assign、subflow 输出、子流引用图 extracts、场景 flowSeed（仅 flow）。
+     * 来源：HTTP extracts（flow + asset）、assign、subflow outputs、子流引用图 extracts、场景 inSeed 键（仅 flow）。
      */
     static Set<String> collectProducedIdentityKeys(GraphJson graph) {
         return collectProducedIdentityKeys(graph, null, 0);
@@ -191,11 +191,7 @@ public final class AuthTokenPresenceGate {
                 collectFlowNames(raw, keys);
             }
             if ("subflow".equals(type)) {
-                Object raw = data.get("flowOutputs");
-                if (raw == null) {
-                    raw = data.get("outputs");
-                }
-                collectFlowField(raw, "flowKey", keys);
+                collectFlowField(data.get("outputs"), "flowKey", keys);
                 if (depth < MAX_SUBFLOW_DEPTH) {
                     GraphJson child = resolveSubflowGraph(data, subflowGraphResolver);
                     if (child != null) {
@@ -204,17 +200,17 @@ public final class AuthTokenPresenceGate {
                 }
             }
         }
-        GraphMeta meta = graph.getMeta();
-        if (meta != null && meta.getScenarios() != null) {
-            for (GraphRunScenario scenario : meta.getScenarios()) {
-                if (scenario == null || scenario.getFlowSeed() == null) {
-                    continue;
-                }
-                for (String seedKey : scenario.getFlowSeed().keySet()) {
-                    CredentialTarget flowTarget = CredentialTarget.flow(seedKey);
-                    if (flowTarget != null) {
-                        keys.add(flowTarget.identityKey());
-                    }
+        List<GraphRunScenario> scenarios =
+                com.qualitest.flow.context.EntryScenarioSupport.allEntryScenarios(graph);
+        for (GraphRunScenario scenario : scenarios) {
+            if (scenario == null) {
+                continue;
+            }
+            Map<String, Object> seed = scenario.getInSeed() != null ? scenario.getInSeed() : Map.of();
+            for (String seedKey : seed.keySet()) {
+                CredentialTarget flowTarget = CredentialTarget.flow(seedKey);
+                if (flowTarget != null) {
+                    keys.add(flowTarget.identityKey());
                 }
             }
         }

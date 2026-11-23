@@ -35,11 +35,12 @@ class FlowRunContextBuilderTest {
 
         String assetJson = "[{\"id\":2,\"key\":\"defaults\",\"assets\":{\"defaults\":{\"clientId\":\"app-1\"}}}]";
 
-        FlowRunContext ctx = FlowRunContextBuilder.build(env, assetJson, Map.of("loginUser", "admin"));
+        FlowRunContext ctx = FlowRunContextBuilder.build(env, assetJson, Map.of("loginUser", "admin"), null, true);
 
         assertEquals("http://localhost:8800", ctx.getEnv().get("baseUrl"));
         assertEquals(5000, ctx.getEnv().get("timeout"));
-        assertEquals("admin", ctx.getFlow().get("loginUser"));
+        assertEquals("admin", ctx.getIn().get("loginUser"));
+        assertEquals(0, ctx.getFlow().size());
 
         @SuppressWarnings("unchecked")
         Map<String, Object> defaults = (Map<String, Object>) ctx.getAsset().get("defaults");

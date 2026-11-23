@@ -2,10 +2,11 @@
  * Staging 属性面板「原值 / 现值」对照行构建。
  * 数组字段若原值非空、现值变空，字段名旁附带「将清空 N 项」。
  */
+
 import { stagingHeadersFieldLabel } from './stagingAuthHints'
 
 export interface StagingFieldRow {
-  /** 唯一键，如 data.name、source */
+  /** 唯一键，如 name、data.from、source */
   key: string;
   label: string;
   baselineText: string;
@@ -21,7 +22,6 @@ const NODE_DATA_LABELS: Record<string, string> = {
   externalUrl: '请求 URL',
   httpMethod: 'HTTP 方法',
   callMode: '调用模式',
-  summary: '摘要',
   script: '脚本',
   source: '脚本 source',
   code: '脚本 code',
@@ -104,6 +104,7 @@ export function buildNodeStagingFieldRows(
   if (!draft) return rows;
 
   pushRow(rows, 'type', '节点类型', baseline?.type, draft.type);
+  pushRow(rows, 'name', '节点名称', baseline?.name, draft.name);
 
   const basePos = baseline?.position as { x?: number; y?: number } | undefined;
   const draftPos = draft.position as { x?: number; y?: number } | undefined;
@@ -123,10 +124,7 @@ export function buildNodeStagingFieldRows(
   const baseData = (baseline?.data ?? {}) as Record<string, unknown>;
   const draftData = (draft.data ?? {}) as Record<string, unknown>;
   const dataKeys = new Set([...Object.keys(baseData), ...Object.keys(draftData)]);
-  const orderedKeys = [
-    ...(['name'].filter((k) => dataKeys.has(k))),
-    ...[...dataKeys].filter((k) => k !== 'name').sort(),
-  ];
+  const orderedKeys = [...dataKeys].sort();
 
   for (const field of orderedKeys) {
     const label = field === 'headers'
@@ -161,8 +159,9 @@ export function buildEdgeStagingFieldRows(
 const SCENARIO_FIELD_LABELS: Record<string, string> = {
   name: '场景名称',
   remark: '说明',
+  envId: '环境 ID',
   testProjectEnvId: '环境 ID',
-  flowSeed: '流程变量初值',
+  inSeed: '入参值（inSeed）',
   onNodeFailure: '节点失败时',
   onSnapshotFailure: '快照失败时',
   maxSteps: '单次运行步数上限',
@@ -208,6 +207,11 @@ export function applyStagingFieldToDraft(
     return next;
   }
 
+  if (fieldKey === 'name') {
+    next.name = rawValue;
+    return next;
+  }
+
   if (fieldKey === 'position') {
     const parts = rawValue.split(',').map((s) => s.trim());
     const x = Number(parts[0]);
@@ -232,8 +236,8 @@ export function applyStagingFieldToDraft(
     return next;
   }
 
-  if (fieldKey === 'flowSeed') {
-    next.flowSeed = parseJsonOrRaw(rawValue);
+  if (fieldKey === 'inSeed') {
+    next.inSeed = parseJsonOrRaw(rawValue);
     return next;
   }
 

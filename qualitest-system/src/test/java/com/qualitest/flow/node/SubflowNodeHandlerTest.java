@@ -94,15 +94,15 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 前提：节点 outputs 为空；子图 meta.flowOutputs 声明 childOut。
-     * 期望：passed；父 flow.childOut 等于子图写入值。
+     * 前提：节点 outputs 为空；子图 assign 写入 childOut。
+     * 期望：passed；父 flow 不自动合并 childOut。
      */
     @Test
     @Order(2)
-    @DisplayName("子流：空 outputs 回退 meta.flowOutputs")
-    void execute_emptyOutputs_usesFlowOutputsDefault() {
+    @DisplayName("子流：空 outputs 不写回父 flow")
+    void execute_emptyOutputs_doesNotMergeToParent() {
         GraphNode node = subflowNode(nodeData(
-                "name", "默认输出映射",
+                "name", "无输出映射",
                 "subflowId", String.valueOf(SUBFLOW_ID),
                 "versionPolicy", "latest",
                 "inputs", List.of(),
@@ -112,7 +112,7 @@ class SubflowNodeHandlerTest {
         StepResult result = handler.execute(parentCtx, node, null);
 
         assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
-        assertEquals("ok", parentCtx.getFlow().get("childOut"));
+        assertNull(parentCtx.getFlow().get("childOut"));
     }
 
     /**

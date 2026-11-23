@@ -109,7 +109,6 @@ import {
 
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowCanvasStore } from '../../stores/flowCanvasStore'
-import { updateSummary } from '../../utils/nodeDataUtils'
 import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 
 const props = defineProps({
@@ -170,9 +169,7 @@ async function loadTemplates() {
 }
 
 function refreshSummary(patch) {
-  const data = { ...props.node.data, ...patch }
-  updateSummary('subflow', data)
-  patchNodeData(props.node.id, { ...patch, summary: data.summary })
+  patchNodeData(props.node.id, patch)
 }
 
 function suggestIoFromGraphJson(graphJsonRaw) {
@@ -180,18 +177,18 @@ function suggestIoFromGraphJson(graphJsonRaw) {
   try {
     const raw = typeof graphJsonRaw === 'string' ? JSON.parse(graphJsonRaw) : graphJsonRaw
     const graph = unwrapGraphPayload(raw)
+    const nodes = Array.isArray(graph.nodes) ? graph.nodes : []
+    const entry = nodes.find((n) => n && n.type === 'scenario-entry')
+    const rawScenarios = entry?.data?.scenarios
+    if (!Array.isArray(rawScenarios) || rawScenarios.length === 0) return { inputs: [], outputs: [] }
+    const scenario = rawScenarios[0]
+    const seed = scenario?.inSeed && typeof scenario.inSeed === 'object' ? scenario.inSeed : {}
     const meta = graph.meta
-    if (!meta?.scenarios?.length) return { inputs: [], outputs: [] }
-    const activeId = meta.activeScenarioId ?? meta.scenarios[0]?.id
-    const scenario = meta.scenarios.find((s) => s.id === activeId) ?? meta.scenarios[0]
-    const inputs = Object.keys(scenario?.flowSeed ?? {}).map((key) => ({
+    const inputs = Object.keys(seed).map((key) => ({
       name: key,
       value: `{{flow.${key}}}`,
     }))
-    const outputs = (meta.flowOutputs ?? [])
-      .filter((o) => o?.name?.trim())
-      .map((o) => ({ name: String(o.name).trim(), flowKey: String(o.name).trim() }))
-    return { inputs, outputs }
+    return { inputs, outputs: [] }
   } catch {
     return { inputs: [], outputs: [] }
   }

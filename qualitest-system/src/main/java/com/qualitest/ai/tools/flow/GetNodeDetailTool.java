@@ -50,6 +50,7 @@ public class GetNodeDetailTool implements QualitestTool {
                 JSONObject result = new JSONObject();
                 result.put("id", node.getId());
                 result.put("type", node.getType());
+                result.put("name", node.getName());
                 result.put("data", node.getData());
                 return ToolResultByteFit.fitNodeDetail(result, ctx.getMaxToolResultBytes());
             }

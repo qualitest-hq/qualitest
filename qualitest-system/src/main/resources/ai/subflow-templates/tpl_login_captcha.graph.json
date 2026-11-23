@@ -1,6 +1,30 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561440",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "tpl_sc_default",
+            "name": "模板默认",
+            "remark": "验证码登录子流模板",
+            "envId": "",
+            "inSeed": {
+              "username": "",
+              "password": ""
+            }
+          }
+        ]
+      }
+    },
+    {
       "id": "captcha_image",
       "type": "http",
       "position": {
@@ -8,7 +32,6 @@
         "y": 60
       },
       "data": {
-        "name": "获取验证码",
         "callMode": "project",
         "testProjectApiId": "",
         "httpMethod": "GET",
@@ -26,9 +49,9 @@
             "scope": "flow",
             "name": "captchaUuid"
           }
-        ],
-        "summary": "请选择验证码图片接口"
-      }
+        ]
+      },
+      "name": "获取验证码"
     },
     {
       "id": "captcha_solve",
@@ -38,7 +61,6 @@
         "y": 60
       },
       "data": {
-        "name": "外联打码",
         "callMode": "external",
         "httpMethod": "POST",
         "externalUrl": "{{env.captchaApiUrl}}",
@@ -58,9 +80,9 @@
             "scope": "flow",
             "name": "captchaCode"
           }
-        ],
-        "summary": "POST ↗ {{env.captchaApiUrl}}"
-      }
+        ]
+      },
+      "name": "外联打码"
     },
     {
       "id": "login_http",
@@ -70,7 +92,6 @@
         "y": 60
       },
       "data": {
-        "name": "验证码登录",
         "callMode": "project",
         "testProjectApiId": "",
         "httpMethod": "POST",
@@ -91,9 +112,9 @@
             "scope": "flow",
             "name": "token"
           }
-        ],
-        "summary": "请选择登录接口"
-      }
+        ]
+      },
+      "name": "验证码登录"
     }
   ],
   "edges": [
@@ -115,19 +136,6 @@
       "y": 0,
       "zoom": 1
     },
-    "activeScenarioId": "tpl_sc_default",
-    "scenarios": [
-      {
-        "id": "tpl_sc_default",
-        "name": "模板默认",
-        "testProjectEnvId": "",
-        "flowSeed": {
-          "username": "",
-          "password": ""
-        },
-        "remark": "验证码登录子流模板"
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561440"
   }
 }

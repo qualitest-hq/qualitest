@@ -6,6 +6,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
+import com.qualitest.flow.model.GraphNodeShellSupport;
 
 import java.util.List;
 
@@ -169,20 +170,8 @@ public final class FlowHttpNodeVisitor {
         }
     }
 
-    /**
-     * 节点展示名：优先 data.name，其次 data.apiName，最后用 nodeId。
-     */
-    public static String resolveNodeName(JSONObject data, String nodeId) {
-        if (data != null) {
-            String name = data.getString("name");
-            if (name != null && !name.isBlank()) {
-                return name.trim();
-            }
-            String apiName = data.getString("apiName");
-            if (apiName != null && !apiName.isBlank()) {
-                return apiName.trim();
-            }
-        }
-        return nodeId != null ? nodeId : "";
+    /** 节点展示名：顶壳 name 必填语义下，空白则回退 nodeId。 */
+    public static String resolveNodeName(String shellName, JSONObject data, String nodeId) {
+        return GraphNodeShellSupport.displayNameFromParts(shellName, nodeId);
     }
 }

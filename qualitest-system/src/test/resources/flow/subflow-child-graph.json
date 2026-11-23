@@ -1,6 +1,26 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561395",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "sc-child",
+            "name": "子流默认",
+            "envId": "",
+            "inSeed": {}
+          }
+        ]
+      }
+    },
+    {
       "id": "c1",
       "type": "assign",
       "position": {
@@ -8,7 +28,6 @@
         "y": 0
       },
       "data": {
-        "name": "写入子变量",
         "assignments": [
           {
             "scope": "flow",
@@ -16,24 +35,13 @@
             "op": "set",
             "value": "ok"
           }
-        ],
-        "summary": "flow.childOut ← ok"
-      }
+        ]
+      },
+      "name": "写入子变量"
     }
   ],
   "edges": [],
   "meta": {
-    "activeScenarioId": "sc-child",
-    "scenarios": [
-      {
-        "id": "sc-child",
-        "name": "子流默认",
-        "testProjectEnvId": "",
-        "flowSeed": {}
-      }
-    ],
-    "flowOutputs": [
-      { "name": "childOut", "description": "子流输出变量" }
-    ]
+    "startNodeId": "scn_entry_1795425561395"
   }
 }

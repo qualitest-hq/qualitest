@@ -565,7 +565,6 @@ watch(
       edges: canvasStore.edges,
       viewport: canvasStore.viewport,
       runConfig: canvasStore.runConfig,
-      flowOutputs: canvasStore.flowOutputs,
       layoutPreset: canvasStore.layoutPresetId,
     })
     const stale = isGraphStructurallyStale(r.graphJsonSnapshot, graph)
@@ -702,12 +701,12 @@ const summaryHtml = computed(() => {
     if (sl.envName || sl.testProjectEnvId) {
       html += `<li>环境: ${escapeHtml(sl.envName || sl.testProjectEnvId)}</li>`
     }
-    const flowSeed = sl.flowSeed && typeof sl.flowSeed === 'object' ? sl.flowSeed : {}
-    const seedKeys = Object.keys(flowSeed)
+    const inSeed = sl.inSeed && typeof sl.inSeed === 'object' ? sl.inSeed : {}
+    const seedKeys = Object.keys(inSeed)
     if (seedKeys.length) {
       html += '<li>flow 初值:</li><ul style="margin:2px 0 0 16px">'
       seedKeys.forEach((key) => {
-        html += `<li>${escapeHtml(key)} = ${escapeHtml(JSON.stringify(flowSeed[key]))}</li>`
+        html += `<li>${escapeHtml(key)} = ${escapeHtml(JSON.stringify(inSeed[key]))}</li>`
       })
       html += '</ul>'
     }

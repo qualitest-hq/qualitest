@@ -1,6 +1,27 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561333",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "2042000000000000101",
+            "name": "默认",
+            "remark": "duplicate node id + 多开始节点",
+            "envId": "2042000000000000001",
+            "inSeed": {}
+          }
+        ]
+      }
+    },
+    {
       "id": "2040999000000000020",
       "type": "delay",
       "position": {
@@ -8,9 +29,9 @@
         "y": 0
       },
       "data": {
-        "name": "等待 A",
         "ms": 1000
-      }
+      },
+      "name": "等待 A"
     },
     {
       "id": "2040999000000000020",
@@ -20,12 +41,18 @@
         "y": 0
       },
       "data": {
-        "name": "等待 B",
         "ms": 500
-      }
+      },
+      "name": "等待 B"
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "id": "e_scn_entry_1795425561333_2040999000000000020",
+      "source": "scn_entry_1795425561333",
+      "target": "2040999000000000020"
+    }
+  ],
   "meta": {
     "viewport": {
       "x": 0,
@@ -33,17 +60,6 @@
       "zoom": 1
     },
     "layout": "manual",
-    "startNodeId": "2040999000000000020",
-    "activeScenarioId": "2042000000000000101",
-    "scenarios": [
-      {
-        "id": "2042000000000000101",
-        "name": "默认",
-        "testProjectEnvId": "2042000000000000001",
-        "flowSeed": {},
-        "remark": "duplicate node id + 多开始节点"
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561333"
   }
 }

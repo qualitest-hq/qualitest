@@ -1,6 +1,30 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561439",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "tpl_sc_default",
+            "name": "模板默认",
+            "remark": "Bearer 登录子流模板",
+            "envId": "",
+            "inSeed": {
+              "username": "",
+              "password": ""
+            }
+          }
+        ]
+      }
+    },
+    {
       "id": "login_http",
       "type": "http",
       "position": {
@@ -8,7 +32,6 @@
         "y": 80
       },
       "data": {
-        "name": "Bearer 登录",
         "callMode": "project",
         "testProjectApiId": "",
         "httpMethod": "POST",
@@ -29,9 +52,9 @@
             "scope": "flow",
             "name": "token"
           }
-        ],
-        "summary": "请选择项目登录接口"
-      }
+        ]
+      },
+      "name": "Bearer 登录"
     }
   ],
   "edges": [],
@@ -42,19 +65,6 @@
       "y": 0,
       "zoom": 1
     },
-    "activeScenarioId": "tpl_sc_default",
-    "scenarios": [
-      {
-        "id": "tpl_sc_default",
-        "name": "模板默认",
-        "testProjectEnvId": "",
-        "flowSeed": {
-          "username": "",
-          "password": ""
-        },
-        "remark": "Bearer 登录子流模板"
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561439"
   }
 }

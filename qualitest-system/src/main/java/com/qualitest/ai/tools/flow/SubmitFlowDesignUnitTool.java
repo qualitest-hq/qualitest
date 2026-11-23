@@ -7,6 +7,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.flow.model.GraphNode;
+import com.qualitest.flow.validate.FlowNodeType;
 import com.qualitest.flow.model.GraphRunScenario;
 
 import java.util.HashMap;
@@ -129,6 +130,10 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
     private static FlowDesignPatch addScenario(Map<String, Object> args) {
         return withSummary(args, patch -> {
             FlowDesignScenarioPatch sp = new FlowDesignScenarioPatch();
+            String entryNodeId = FlowDesignToolSupport.stringArg(args.get("entryNodeId"));
+            if (!entryNodeId.isEmpty()) {
+                sp.setEntryNodeId(entryNodeId);
+            }
             sp.getAddScenarios().add(buildScenario(args, true));
             patch.setScenarioPatch(sp);
         });
@@ -139,6 +144,10 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
         requireArg(args, "id", "op=update 须提供 scenario id");
         return withSummary(args, patch -> {
             FlowDesignScenarioPatch sp = new FlowDesignScenarioPatch();
+            String entryNodeId = FlowDesignToolSupport.stringArg(args.get("entryNodeId"));
+            if (!entryNodeId.isEmpty()) {
+                sp.setEntryNodeId(entryNodeId);
+            }
             sp.getUpdateScenarios().add(buildScenario(args, false));
             patch.setScenarioPatch(sp);
         });
@@ -172,13 +181,14 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
     }
 
     /**
-     * 组装节点：强制写入 type，data 必填；不从参数读取 position（坐标由规范化阶段自动排版写入）。
+     * 组装节点：强制写入 type 与顶层 name，data 必填；不从参数读取 position（坐标由规范化阶段自动排版写入）。
      * generateIdIfMissing 为 true 且缺 id 时用 n_纳秒作临时短名，供会话内映射为雪花。
      */
     @SuppressWarnings("unchecked")
     private static GraphNode buildNode(String type, Map<String, Object> args, boolean generateIdIfMissing) {
         GraphNode node = new GraphNode();
         node.setType(type);
+        node.setName(requireArg(args, "name", "缺少 name（节点展示名，写在参数顶层而非 data）"));
         String id = FlowDesignToolSupport.stringArg(args.get("id"));
         if (id.isEmpty() && generateIdIfMissing) {
             id = "n_" + System.nanoTime();
@@ -192,11 +202,24 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
         } else {
             throw new IllegalArgumentException("缺少 data");
         }
+        if (generateIdIfMissing
+                && (FlowNodeType.HTTP_RETURN.matches(type) || FlowNodeType.SUBFLOW_RETURN.matches(type))) {
+            Object from = node.getData().get("from");
+            if (from == null || String.valueOf(from).isBlank()) {
+                node.getData().put("from", "flow.out");
+            }
+        }
+        if (FlowNodeType.HTTP_RETURN.matches(type) || FlowNodeType.SUBFLOW_RETURN.matches(type)) {
+            String from = FlowDesignToolSupport.stringArg(node.getData().get("from"));
+            if (from.isEmpty()) {
+                throw new IllegalArgumentException("返回节点须配置 data.from（如 flow.out）");
+            }
+        }
         return node;
     }
 
     /**
-     * 组装运行场景：可选 name、环境 id、备注、flowSeed、maxSteps 等。
+     * 组装运行场景：可选 name、环境 id、备注、inSeed、maxSteps 等。
      * generateIdIfMissing 为 true 且缺 id 时用 sc_纳秒作临时短名。
      */
     @SuppressWarnings("unchecked")
@@ -211,19 +234,18 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
         if (!name.isEmpty()) {
             s.setName(name);
         }
-        String envId = FlowDesignToolSupport.stringArg(args.get("testProjectEnvId"));
+        String envId = FlowDesignToolSupport.stringArg(args.get("envId"));
         if (!envId.isEmpty()) {
-            s.setTestProjectEnvId(envId);
+            s.setEnvId(envId);
         }
         String remark = FlowDesignToolSupport.stringArg(args.get("remark"));
         if (!remark.isEmpty()) {
             s.setRemark(remark);
         }
-        Object seed = args.get("flowSeed");
-        if (seed instanceof Map<?, ?> seedMap) {
-            s.setFlowSeed(new HashMap<>((Map<String, Object>) seedMap));
+        Object inSeed = args.get("inSeed");
+        if (inSeed instanceof Map<?, ?> seedMap) {
+            s.setInSeed(new HashMap<>((Map<String, Object>) seedMap));
         }
-        // 单次 Run 步数上限；落库后由 Run 启动策略解析并裁剪
         Integer maxSteps = FlowDesignToolSupport.intArg(args.get("maxSteps"));
         if (maxSteps != null) {
             s.setMaxSteps(maxSteps);

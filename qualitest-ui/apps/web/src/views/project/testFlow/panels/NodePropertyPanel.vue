@@ -10,7 +10,7 @@
 
     <div v-if="showNormalFields" class="field">
       <label>节点名称</label>
-      <input :value="node.data.name" type="text" @input="onNameInput" />
+      <input :value="nodeName" type="text" @input="onNameInput" />
     </div>
 
     <div v-if="showNormalFields" class="prop-section">
@@ -33,7 +33,7 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 const emit = defineEmits(['open-http-config']);
 
 const store = useFlowCanvasStore();
-const { patchNodeData, isStartNode } = useFlowNodes();
+const { patchNodeName, isStartNode } = useFlowNodes();
 
 const node = computed(() => {
   const sel = store.selected;
@@ -50,9 +50,11 @@ const isStart = computed(() => (node.value ? isStartNode(node.value.id) : false)
 
 const propertySection = computed(() => getNodePropertyComponent(node.value?.type));
 
+const nodeName = computed(() => String((node.value as { name?: string } | null)?.name ?? ''));
+
 function onNameInput(e) {
   if (!node.value) return;
-  patchNodeData(node.value.id, { name: e.target.value });
+  patchNodeName(node.value.id, e.target.value);
 }
 </script>
 

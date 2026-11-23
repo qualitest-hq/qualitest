@@ -301,16 +301,23 @@ class TestFlowDesignAgentTest {
         GraphRunScenario scenario = GraphRunScenario.builder()
                 .id("2042000000000000101")
                 .name("默认")
-                .testProjectEnvId("")
-                .flowSeed(new HashMap<>())
+                .envId("")
+                .inSeed(new HashMap<>())
+                .build();
+        Map<String, Object> data = new HashMap<>();
+        data.put("scenarios", List.of(scenario));
+        GraphNode entry = GraphNode.builder()
+                .id("entry-agent")
+                .type("scenario-entry")
+                .name("默认场景入口")
+                .position(GraphNodePosition.builder().x(0).y(0).build())
+                .data(data)
                 .build();
         GraphJson graph = GraphJson.builder()
-                .nodes(new ArrayList<>())
+                .nodes(new ArrayList<>(List.of(entry)))
                 .edges(new ArrayList<>())
                 .meta(GraphMeta.builder()
-                        .activeScenarioId("2042000000000000101")
-                        .scenarios(List.of(scenario))
-                        .flowOutputs(new ArrayList<>())
+                        
                         .build())
                 .build();
 

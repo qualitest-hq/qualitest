@@ -15,11 +15,15 @@
 
 | 作用域 | 含义 | 示例 |
 | ------ | ---- | ---- |
-| `flow` | 本条 Run 里产生的变量 | `{{flow.token}}`、`{{flow.orderId}}` |
+| `in` | 本次 Run 入参（场景 / 开放请求 / 子流父灌入） | `{{in.body.orderId}}` |
+| `out` | 定稿出参（返回晋升后；含 `status` / `headers` / `body`） | `{{out.body.code}}` |
+| `flow` | 本条 Run 里产生的业务变量 | `{{flow.token}}`、`{{flow.out}}`（Assign 打包的回包对象） |
 | `env` | 当前测试环境 | `{{env.baseUrl}}`（键名以环境配置为准） |
 | `asset` | 项目素材库（Run 启动拷入内存；extract `persist:false` / `ctx.setAsset` 只改本 Run） | `{{asset.clientAuth.password}}`、`{{asset.cover.storagePath}}` |
 | `http` | 本上下文**最近一次** HTTP 响应快照 | 多用于断言；中间非 HTTP 节点不覆盖 |
-| `nodes` | 按画布节点 id 引用该节点最近一次 HTTP 快照 | `{{nodes.123.http.body.data.code}}`（断言更常用） |
+| `nodes` | 按画布节点 id 引用该节点 HTTP 快照或挂载的 `out` | `{{nodes.123.http.body.data.code}}`、`{{nodes.sub1.out.body.code}}` |
+
+`in` / `out` / `flow` **三桶分离**：不要把入参写进 `flow`，也不要把业务变量当作出参交付源（交付前先经 `http-return` / `subflow-return` 的 `from` 晋升到 `out`）。
 
 **没有** `{{session.*}}`——`session` 只在 Script 节点里用 `ctx.session`，不能写在 `{{…}}` 里。
 
@@ -35,9 +39,9 @@
 | ---- | ---- |
 | HTTP **extracts** | 从响应抽到 `flow` 或 `asset` |
 | **Assign** 节点 | 写入 `flow` |
-| **Subflow** 输出 | 子流节点 `outputs` / 子图 `meta.flowOutputs` 回写父流（子流成功后才合并） |
+| **Subflow** 定稿 | 子图 `subflow-return` 的 `from` 晋升后挂父 `nodes.<子流节点id>.out`（与父子步成败分离；失败后父仍可读） |
 | **Subflow** 输入 | 子流节点 `inputs`：在父上下文解析后写入子 `flow`（父子 `flow` 默认不共享） |
-| 场景 **flowSeed** | Run 开始前注入；可用于预置 token 等，不要塞明文口令 |
+| 场景 **inSeed** | Run 开始前灌 `ctx.in`；占位符 `{{in.*}}`；可用于预置 token 等，不要塞明文口令 |
 
 登录 extract 应对齐项目 Profile 托管头占位符（如 `{{asset.adminAuth.token}}`）。登录口由节点 extracts 与 Profile `headerValueTemplate` 对齐推断。
 
@@ -67,7 +71,7 @@
 | ---- | ---- |
 | 主测号、可复用 | 素材库 + `{{asset.*}}` |
 | 失败用例（停用号、错密码） | 节点 **字面量**；配合「预期业务拒绝」模板 |
-| 调试跳过登录 | flowSeed / 素材库预置 token，或探活分支跳过登录 HTTP |
+| 调试跳过登录 | inSeed / 素材库预置 token，或探活分支跳过登录 HTTP |
 
 ---
 
@@ -87,7 +91,7 @@
 
 | 现象 | 先查 |
 | ---- | ---- |
-| `TF_PLACEHOLDER_UNDEFINED: {{…token…}}` | 是否已有对应凭证来源（extract / flowSeed / env）；登录口是否误补 Bearer |
+| `TF_PLACEHOLDER_UNDEFINED: {{…token…}}` | 是否已有对应凭证来源（extract / inSeed / env）；登录口是否误补 Bearer |
 | HTTP 200 但业务码失败 | 失败用例是否应关「业务 Code 校验」 |
 | 某字段没出现在请求里 | `requestValueOverrides` 形状不对；或字段写在 overrides 根上 |
 | 文件变成普通字符串 | form-data 该行 `type=file`，且值为 `{{asset.*.storagePath}}` |

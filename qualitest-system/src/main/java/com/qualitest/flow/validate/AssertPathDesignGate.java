@@ -420,12 +420,9 @@ public final class AssertPathDesignGate {
     }
 
     private static String resolveName(GraphNode node) {
-        if (node.getData() != null) {
-            Object name = node.getData().get("name");
-            if (name != null && !String.valueOf(name).isBlank()) {
-                return String.valueOf(name).trim();
-            }
+        if (node != null && node.getName() != null && !node.getName().isBlank()) {
+            return node.getName().trim();
         }
-        return node.getId() != null ? node.getId() : "assert";
+        return node != null && node.getId() != null ? node.getId() : "assert";
     }
 }

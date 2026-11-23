@@ -1,9 +1,9 @@
 # 测试流节点说明
 
-画布固定 **8** 种节点类型（`FlowNodeType`），不可自定义 `type`。持久化值为小写 code；UI 展示用英文 label。
+画布节点 type 见 `FlowNodeType`（持久化小写 code；UI 展示用英文 label）。持久化壳：`{ id, type, name, position, data }`——**顶层 `name` 必填**（展示名）；**`data` 仅含该 type 的业务字段**（卡片副标题在 UI 运行时计算，不落盘）。流契约 2.0 另增 `http-return` / `subflow-return` 与入口类型（`scenario-entry` / `subflow-entry` / `http-entry`）。场景图不提供返回节点。
 
 英文版：[test-flow-nodes.en.md](./test-flow-nodes.en.md)  
-产品概念 / 项目鉴权：[project-summary.md](./project-summary.md)
+产品概念 / 项目鉴权：[project-summary.md](./project-summary.md) · 契约草案：[flow-contract-2.0.md](./flow-contract-2.0.md)
 
 ---
 
@@ -14,11 +14,16 @@
 | `http` | HTTP | 调用项目接口或外联 URL |
 | `assert` | Assert | 对上下文做比较断言（多条 AND） |
 | `condition` | Condition | IF / ELIF / ELSE 分支 |
-| `assign` | Assign | 写入 `flow` 变量 |
+| `assign` | Assign | 默认写 `flow`；`scope: "out"` 写运行时出参；常用 `name: "out"` 打包整份回包到 `flow.out` |
 | `delay` | Delay | 等待一段时间 |
 | `script` | Script | GraalVM 沙箱脚本（JS / Python） |
 | `subflow` | Subflow | 引用同项目另一张测试流，折叠为单节点 |
 | `input` | Input | 暂停等待人工输入，写入 `flow` 后继续 |
+| `http-return` | HTTP Return | 从 `data.from`（默认 `flow.out`）晋升到 `out`，可选 `data.status`（默认 200），立刻写出 |
+| `subflow-return` | Subflow Return | 从 `data.from` 晋升到 `out`，立刻挂父 `nodes.<id>.out`；无 `status` |
+| `scenario-entry` | Scenario Entry | 人跑/CI 入口；`data.scenarios[]` 含 `envId` + **`inSeed`（入参值）** |
+| `subflow-entry` | Subflow Entry | 子流入口；须 `fallbackOut`；入参来自父 `inputs` |
+| `http-entry` | HTTP Entry | 开放入站；`method`/`path`/`envId`/`fallbackOut`；值来自请求 |
 
 执行时还有审计步（非画布拖拽节点）：`run_config`、`snapshot` / `restore` 等，见 Run 详情。
 
@@ -129,7 +134,7 @@ UI 调试台侧栏「脚本 API」与片段库与上表同源（`scriptApiRefere
 | 按节点引用 | `nodes.<节点ID>.http.body.data.code` | 读该 HTTP 节点最近一次执行快照；只认 id。目标缺失/非 HTTP → 校验条 structure 错误，运行硬拦 |
 | 简写（会规范化） | `$.data.code` | 设计态 / 运行态规范为 `http.body.data.code`（仅裸 http，不是 nodes） |
 | Extract / 业务码 | `$.data.token` | **必须以 `$` 开头**，相对 body 根 |
-| 其它上下文 | `flow.*` / `env.*` / `asset.*` / `http.status` / `http.duration` / `http.bodyText` | **不走 JsonPath**；`http.bodyText` 为响应原文 |
+| 其它上下文 | `flow.*` / `env.*` / `asset.*` / `in.*` / `out.*` / `nodes.<id>.out.*` / `http.status` / `http.duration` / `http.bodyText` | **不走 JsonPath**；`http.bodyText` 为响应原文；`out` / `nodes.*.out` 见流契约 2.0 |
 
 禁止：`http.body.$.…`（Confirm / **运行**会失败；保存可带错落盘）。字段向后传递仍优先 HTTP **extracts** / Assign → `flow.*`。
 
@@ -163,14 +168,36 @@ UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 
 ## Assign（`assign`）
 
-处理 `data.assignments[]`，**只写 `flow` 作用域**：
+处理 `data.assignments[]`：
+
+| scope | 写入目标 | 典型用法 |
+|-------|----------|----------|
+| 缺省 / `flow` | 运行时 `flow` 键 | 业务变量；`name: "out"` + 对象 `value` → `{{flow.out}}` 供返回节点晋升 |
+| `out` | 运行时 `ctx.out` 字段 | 逐键写 `status` / `headers` / `body`（与 `flow.out` 可二选一或组合） |
 
 | op | 行为 |
 |----|------|
-| `set` | 解析 value 占位符后覆盖 |
-| `add` / `sub` / `mul` / `div` | 在现有值或 `ifMissing` 上按 `step` 运算 |
+| `set` | 解析 value 占位符后覆盖（`value` 可为对象字面量） |
+| `add` / `sub` / `mul` / `div` | 在现有值或 `ifMissing` 上按 `step` 运算（仅 `flow` scope） |
 
-每条赋值的 before/after 写入步骤报告。正式 Run 使用严格占位符：未定义占位符会失败。
+每条赋值的 before/after 写入步骤报告。正式 Run 使用严格占位符：未定义占位符会失败。占位符分桶见 [flow-variables-and-values.md](./flow-variables-and-values.md)（`{{in.*}}` / `{{out.*}}` / `{{flow.*}}`）。
+
+## HTTP Return（`http-return`） / Subflow Return（`subflow-return`）
+
+按入口种类拆开（**不是**万能 `return`；场景图**不画**返回节点）。节点壳：**顶层 `name` 必填**；`data` 仅 `from`（及 HTTP 的 `status`）。
+
+| 字段 | `http-return` | `subflow-return` |
+|------|---------------|-------------------|
+| `from` | **必填**；路径段，缺省 `flow.out`；解析须为 Map，整表晋升到 `ctx.out` | 同左 |
+| `status` | 可选；默认 **200**；在晋升**之后**写入，**覆盖** `out.status` | **不允许** |
+| 顶层 `name` | 必填（如「支付成功回包」） | 必填 |
+
+| type | 交付 |
+|------|------|
+| `http-return` | 晋升 `out` 后经开放入站立刻写出 |
+| `subflow-return` | 晋升 `out` 后立刻挂到父 `nodes.<子流节点id>.out` |
+
+多种业务回包用 **IF 各臂**各自接到一个对应返回节点。默认**不结束路径**（后面还可 Assert）。开放/子流整次至多执行一次返回节点；零次则收束用入口 `fallbackOut`，Run 仍失败。详见 [flow-contract-2.0.md §4](./flow-contract-2.0.md)。
 
 ---
 
@@ -237,9 +264,9 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
 将同项目另一张测试流折叠为单步（**另一张图**，不是同一画布上的子图）：
 
 1. 按 `subflowId` 加载（须同 `testProjectId`）
-2. `inputs` 在**父上下文**解析占位符，写入子上下文独立的 `flow` 种子（父子 `flow` 默认隔离；`asset` / `env` / `session` 共享）
+2. `inputs` 在**父上下文**解析占位符，写入子上下文 `in` / `flow`（`entryKind=subflow`；`asset` / `env` / `session` 共享）
 3. 内存跑子图；嵌套深度有限（主→子→孙，最多 **2** 层 subflow）
-4. 子流**成功**后按节点 `outputs` 或子图 `meta.flowOutputs` 同名默认映射写回父 `flow`
+4. 子图 `subflow-return`（或零次时的入口 `fallbackOut`）把定稿 `out` **挂到**父 `nodes.<子流节点id>.out`；**成败与是否已挂 out 分离**（失败后父仍可读 out）
 5. 步骤 `subflow.childSteps` 附内层摘要，供 Run 详情与 MCP `get_run_failure`
 
 | versionPolicy | 行为 |
@@ -251,7 +278,7 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
 
 平台提供登录 / OAuth / 验证码等 **子流模板**，可 fork 后改参数。
 
-MCP：`submit_subflow_node` 可写 `inputs` / `outputs` / `alwaysRun`；子图对外产出声明用 `update_flow_meta.flowOutputs`（整表替换）。
+MCP：`submit_subflow_node` 可写 `inputs` / `alwaysRun`；子流定稿只看子图 `subflow-return`（或入口 `fallbackOut`）挂父 `nodes.<id>.out`（见 [flow-contract-2.0.md](./flow-contract-2.0.md)）。
 
 ---
 

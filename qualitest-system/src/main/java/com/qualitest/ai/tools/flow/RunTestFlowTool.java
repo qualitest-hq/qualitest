@@ -68,6 +68,6 @@ public class RunTestFlowTool implements QualitestTool {
         }
         Long operatorUserId = ctx != null ? ctx.getOperatorUserId() : null;
         return runCore.run(args.testFlowId(), args.runScenarioId(), args.testProjectEnvId(),
-                operatorUserId, ctx);
+                args.entryNodeId(), operatorUserId, ctx);
     }
 }

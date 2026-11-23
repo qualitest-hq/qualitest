@@ -3,9 +3,32 @@
   "baseGraph": {
     "nodes": [
       {
+        "id": "scn_entry_1795425561389",
+        "type": "scenario-entry",
+        "name": "默认场景入口",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "doc": "",
+          "scenarios": [
+            {
+              "id": "sc1",
+              "name": "默认",
+              "envId": "",
+              "inSeed": {}
+            }
+          ]
+        }
+      },
+      {
         "id": "1001",
         "type": "http",
-        "position": { "x": 40, "y": 80 },
+        "position": {
+          "x": 40,
+          "y": 80
+        },
         "data": {
           "name": "登录",
           "callMode": "external",
@@ -14,21 +37,21 @@
         }
       }
     ],
-    "edges": [],
+    "edges": [
+      {
+        "id": "e_scn_entry_1795425561389_1001",
+        "source": "scn_entry_1795425561389",
+        "target": "1001"
+      }
+    ],
     "meta": {
-      "viewport": { "x": 0, "y": 0, "zoom": 1 },
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1
+      },
       "layout": "manual",
-      "startNodeId": "1001",
-      "activeScenarioId": "sc1",
-      "scenarios": [
-        {
-          "id": "sc1",
-          "name": "默认",
-          "testProjectEnvId": "",
-          "flowSeed": {}
-        }
-      ],
-      "flowOutputs": []
+      "startNodeId": "scn_entry_1795425561389"
     }
   },
   "patch": {
@@ -45,9 +68,16 @@
       }
     ],
     "addEdges": [
-      { "id": "8001", "source": "1001", "target": "9001" }
+      {
+        "id": "8001",
+        "source": "1001",
+        "target": "9001"
+      }
     ]
   },
-  "acceptedIds": ["addNode:9001", "addEdge:8001"],
+  "acceptedIds": [
+    "addNode:9001",
+    "addEdge:8001"
+  ],
   "expectOk": true
 }

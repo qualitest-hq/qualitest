@@ -13,12 +13,14 @@ export interface SnapshotScope {
   tables: string[];
 }
 
-/** 运行场景 */
+/** 运行场景（挂在 scenario-entry.data.scenarios） */
 export interface GraphRunScenario {
   id: string;
   name: string;
-  testProjectEnvId: string;
-  flowSeed: Record<string, unknown>;
+  /** 环境 id */
+  envId?: string;
+  /** 入参值树，开跑灌 ctx.in */
+  inSeed?: Record<string, unknown>;
   remark?: string;
   onNodeFailure?: 'fail' | 'prompt';
   onSnapshotFailure?: 'abort' | 'prompt' | 'continue';
@@ -26,13 +28,10 @@ export interface GraphRunScenario {
   maxSteps?: number | null;
 }
 
-/** 流程对外暴露的 flow 返回值声明 */
-export interface GraphFlowOutput {
-  name: string;
-  description?: string;
-}
-
-/** 运行场景配置（画布 store 使用，对应 meta 展平字段） */
+/**
+ * 画布侧运行场景编辑态（不落盘到 meta）。
+ * scenarios 保存时写回 scenario-entry.data.scenarios；activeScenarioId 仅表示当前选中项。
+ */
 export interface GraphScenarioConfig {
   activeScenarioId: string;
   scenarios: GraphRunScenario[];
@@ -41,7 +40,10 @@ export interface GraphScenarioConfig {
 /** 当前 graph_json schema 版本；新图写入 1 */
 export const CURRENT_GRAPH_SCHEMA_VERSION = 1;
 
-/** 图元数据 */
+/**
+ * 图元数据：视口、排版、开始节点 id、schema 版本。
+ * 不存放场景列表、活动场景 id、出参声明或环境 id；场景写在 scenario-entry 节点 data 内。
+ */
 export interface GraphMeta {
   schemaVersion?: number;
   viewport?: GraphViewport;
@@ -52,9 +54,6 @@ export interface GraphMeta {
    */
   layout?: string;
   startNodeId?: string;
-  activeScenarioId?: string;
-  scenarios?: GraphRunScenario[];
-  flowOutputs?: GraphFlowOutput[];
 }
 
 /** 测试流图根对象（nodes + edges + meta） */
@@ -64,12 +63,14 @@ export interface GraphJson {
   meta?: GraphMeta;
 }
 
-/** 图内单个节点 */
+/** 图内单个节点：壳 = id / type / name / position / data */
 export interface GraphNode {
   id: string;
   type: string;
+  /** 节点展示名（必填） */
+  name: string;
   position: { x: number; y: number };
-  /** 按 type 存放业务配置 */
+  /** 按 type 存放业务配置；展示名写在节点顶层 name */
   data: Record<string, unknown>;
 }
 

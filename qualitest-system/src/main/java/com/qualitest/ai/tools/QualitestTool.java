@@ -3,7 +3,7 @@ package com.qualitest.ai.tools;
 import java.util.Map;
 
 /**
- * Agent 可调用的只读工具契约。
+ * Agent 可调用的只读工具接口。
  * <p>
  * 实现类由 {@link FlowDesignToolExecutor} 注册并按 {@link #getName()} 路由；
  * {@link #execute(Map, FlowDesignToolContext)} 返回 JSON 字符串作为 tool 消息 content。

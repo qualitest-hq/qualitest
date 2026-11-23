@@ -19,10 +19,7 @@ const props = defineProps({
   selected: { type: Boolean, default: false },
 })
 
-const summaryText = computed(() => {
-  if (props.data.summary) return String(props.data.summary)
-  return formatSubflowSummary(props.data)
-})
+const summaryText = computed(() => formatSubflowSummary(props.data))
 
 const ioHint = computed(() => {
   const inputs = (props.data.inputs || []).map((i) => i.name).filter(Boolean)

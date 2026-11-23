@@ -35,7 +35,9 @@ export function resolveScenarioNameFromSnapshot(
   if (!graphJsonSnapshot || !runScenarioId) return undefined
   try {
     const graph = JSON.parse(graphJsonSnapshot)
-    const scenarios = graph?.meta?.scenarios
+    const nodes = Array.isArray(graph?.nodes) ? graph.nodes : []
+    const entry = nodes.find((n: { type?: string }) => n?.type === 'scenario-entry')
+    const scenarios = entry?.data?.scenarios
     if (!Array.isArray(scenarios)) return undefined
     const sc = scenarios.find(
       (s: { id?: string | number }) => s != null && String(s.id) === String(runScenarioId),
@@ -140,7 +142,7 @@ export function mapRunListItem(run: ApiTestFlowRun): RunRecord {
 
 /**
  * 详情响应映射为完整 RunRecord（含按 stepIndex 排序的 steps）。
- * 场景名称优先从 graphJsonSnapshot.meta.scenarios 解析。
+ * 场景名称优先从 graphJsonSnapshot 的 scenario-entry 解析。
  */
 export function mapRunDetail(detail: ApiTestFlowRunDetail): RunRecord | null {
   const run = detail.run

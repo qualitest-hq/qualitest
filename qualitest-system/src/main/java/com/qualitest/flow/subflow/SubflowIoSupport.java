@@ -18,7 +18,7 @@ import java.util.Map;
  *   <li>{@code inputs} — {@code [{name, value}]}，value 支持 {@code {{flow.*}}}/{@code {{asset.*}}}/{@code {{env.*}}}，
  *       strict 解析后写入子上下文 flow 作为种子</li>
  *   <li>{@code outputs} — {@code [{name, flowKey}]}，从子 flow 的 {@code name} 取值，写回父 flow 的 {@code flowKey}；
- *       为空时使用子图 {@code meta.flowOutputs} 默认映射（见 {@link GraphMetaIoSupport}）</li>
+ *       为空时不写回父 flow</li>
  * </ul>
  */
 public final class SubflowIoSupport {

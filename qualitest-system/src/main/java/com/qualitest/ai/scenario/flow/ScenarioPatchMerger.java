@@ -3,24 +3,22 @@ package com.qualitest.ai.scenario.flow;
 import cn.hutool.core.util.IdUtil;
 import com.alibaba.fastjson2.JSON;
 import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
-import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphRunScenario;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
- * 运行场景（meta.scenarios）增量 patch 的合并器。
+ * scenario-entry.data.scenarios 增量 patch 的合并器。
  * <p>
- * 在内存中操作 GraphMeta 副本，不写库。支持：
+ * 在内存中操作场景列表副本，不写库。支持：
  * <ul>
  *   <li>新增场景（跳过已存在 id）</li>
- *   <li>按 id 更新 name、环境、flowSeed、remark、失败策略等</li>
- *   <li>删除场景（至少保留一条；删光时回滚到原列表；若删掉当前默认则改指剩余首条）</li>
+ *   <li>按 id 更新 name、环境、inSeed、remark、失败策略等</li>
+ *   <li>删除场景（至少保留一条；删光时回滚到原列表）</li>
  * </ul>
  */
 public final class ScenarioPatchMerger {
@@ -29,39 +27,39 @@ public final class ScenarioPatchMerger {
     }
 
     /**
-     * 将 scenarioPatch 合并到 meta 的场景配置副本。
+     * 将 scenarioPatch 合并到场景列表副本。
      *
-     * @param base     基准 meta，null 时创建含默认冒烟场景的 meta
+     * @param base     基准场景列表，null 时创建含默认冒烟场景
      * @param patch    AI 返回的场景增量，无变更时直接返回克隆
      * @param warnings 合并过程产生的非阻断提示（如删光场景时回滚）
-     * @return 合并后的 meta 副本，不修改入参 base
+     * @return 合并后的列表副本，不修改入参 base
      */
-    public static GraphMeta merge(GraphMeta base, FlowDesignScenarioPatch patch, List<String> warnings) {
-        GraphMeta meta = cloneScenarioMeta(base);
+    public static List<GraphRunScenario> merge(List<GraphRunScenario> base,
+                                               FlowDesignScenarioPatch patch,
+                                               List<String> warnings) {
+        List<GraphRunScenario> scenarios = cloneScenarios(base);
         if (patch == null || !FlowDesignScenarioPatch.hasChanges(patch)) {
-            return meta;
+            return scenarios;
         }
 
-        // 追加新场景，id 已存在则跳过
         if (patch.getAddScenarios() != null) {
             for (GraphRunScenario scenario : patch.getAddScenarios()) {
                 if (scenario == null || scenario.getId() == null || scenario.getId().isBlank()) {
                     continue;
                 }
-                if (findScenario(meta.getScenarios(), scenario.getId()) != null) {
+                if (findScenario(scenarios, scenario.getId()) != null) {
                     continue;
                 }
-                meta.getScenarios().add(scenario);
+                scenarios.add(scenario);
             }
         }
 
-        // 按 id 合并场景字段（name、环境、备注、失败策略、flowSeed 等）
         if (patch.getUpdateScenarios() != null) {
             for (GraphRunScenario update : patch.getUpdateScenarios()) {
                 if (update == null || update.getId() == null || update.getId().isBlank()) {
                     continue;
                 }
-                GraphRunScenario existing = findScenario(meta.getScenarios(), update.getId());
+                GraphRunScenario existing = findScenario(scenarios, update.getId());
                 if (existing == null) {
                     continue;
                 }
@@ -69,26 +67,21 @@ public final class ScenarioPatchMerger {
             }
         }
 
-        // 删除场景：不允许删光；若当前默认被删则切到剩余首条
         if (patch.getDeleteScenarioIds() != null && !patch.getDeleteScenarioIds().isEmpty()) {
             Set<String> deleteIds = new HashSet<>(patch.getDeleteScenarioIds());
-            int before = meta.getScenarios().size();
-            meta.getScenarios().removeIf(s -> s != null && deleteIds.contains(s.getId()));
-            if (meta.getScenarios().isEmpty()) {
+            int before = scenarios.size();
+            scenarios.removeIf(s -> s != null && deleteIds.contains(s.getId()));
+            if (scenarios.isEmpty()) {
                 warnings.add("删除场景后列表为空，已保留原场景列表");
-                meta = cloneScenarioMeta(base);
-            } else if (meta.getScenarios().size() < before) {
-                String activeId = meta.getActiveScenarioId();
-                if (activeId != null && deleteIds.contains(activeId)) {
-                    meta.setActiveScenarioId(meta.getScenarios().get(0).getId());
-                }
+                scenarios = cloneScenarios(base);
+            } else if (scenarios.size() < before) {
+                // 删场景后列表非空，无需维护 meta 级 activeScenarioId
             }
         }
 
-        return meta;
+        return scenarios;
     }
 
-    /** 在场景列表中按 id 查找 */
     private static GraphRunScenario findScenario(List<GraphRunScenario> scenarios, String id) {
         if (scenarios == null || id == null) {
             return null;
@@ -102,31 +95,20 @@ public final class ScenarioPatchMerger {
     }
 
     /**
-     * 深拷贝 meta 的场景相关字段。
-     * base 为 null 时生成一条默认「冒烟」场景作为初始配置。
+     * 深拷贝场景列表。
+     * base 为 null 或空时生成一条默认「冒烟」场景。
      */
-    static GraphMeta cloneScenarioMeta(GraphMeta base) {
-        if (base == null) {
+    static List<GraphRunScenario> cloneScenarios(List<GraphRunScenario> base) {
+        if (base == null || base.isEmpty()) {
             GraphRunScenario defaultScenario = GraphRunScenario.builder()
                     .id(String.valueOf(IdUtil.getSnowflakeNextId()))
                     .name("默认（冒烟）")
-                    .testProjectEnvId("")
-                    .flowSeed(new HashMap<>())
+                    .envId("")
+                    .inSeed(new HashMap<>())
                     .remark("")
                     .build();
-            return GraphMeta.builder()
-                    .activeScenarioId(defaultScenario.getId())
-                    .scenarios(new ArrayList<>(List.of(defaultScenario)))
-                    .flowOutputs(new ArrayList<>())
-                    .build();
+            return new ArrayList<>(List.of(defaultScenario));
         }
-        GraphMeta cloned = JSON.parseObject(JSON.toJSONString(base), GraphMeta.class);
-        if (cloned.getScenarios() == null) {
-            cloned.setScenarios(new ArrayList<>());
-        }
-        if (cloned.getFlowOutputs() == null) {
-            cloned.setFlowOutputs(new ArrayList<>());
-        }
-        return cloned;
+        return JSON.parseArray(JSON.toJSONString(base), GraphRunScenario.class);
     }
 }

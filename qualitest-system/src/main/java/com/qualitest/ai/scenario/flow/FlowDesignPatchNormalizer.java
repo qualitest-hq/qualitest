@@ -12,6 +12,7 @@ import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
+import com.qualitest.flow.model.GraphNodeShellSupport;
 import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
@@ -47,7 +48,7 @@ import java.util.function.Function;
  * <p>
  * 在提交进 Capture / 返回前端 Staging 前依次完成：
  * 补雪花 id、忽略入参坐标并为新增节点自动写入 position、校验 HTTP 接口归属、
- * 补鉴权托管头与节点 summary、规范化场景字段、预合并跑图结构校验与断言路径门禁等。
+ * 补鉴权托管头、剥离 data 壳字段、规范化场景字段、预合并跑图结构校验与断言路径门禁等。
  * 更新节点不写坐标，合并时保留画布原位置。
  * 本类不写业务库；用户在前端确认后才持久化 graph_json。
  * <p>
@@ -214,7 +215,7 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 规范化 patch 字段（id、新增节点坐标、API 绑定、summary 等），不做预合并整图校验。
+     * 规范化 patch 字段（id、新增节点坐标、API 绑定、壳字段剥离等），不做预合并整图校验。
      * 用于确认前单独跑规范化；第四参收集 warnings。
      */
     public FlowDesignPatch preparePatch(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId, List<String> warnings) {
@@ -318,7 +319,7 @@ public class FlowDesignPatchNormalizer {
     /**
      * 规范化入口编排：补 suggestedDeletes 空壳、规范化 id、清空入参坐标并为新增节点自动排版、
      * 校验删除目标、告警 add 撞已有 id、Condition 分支整理、删映射、场景字段、剔除未知 data 键、
-     * HTTP API 绑定、按 type 补全 data、补 summary。
+     * HTTP API 绑定、按 type 补全 data、剥离 data 禁止键。
      * unitLocal 为 true 时边端点允许前向短名（本轮稍后才会提交的节点）。
      */
     private FlowDesignPatch initAndNormalizePatch(
@@ -361,7 +362,6 @@ public class FlowDesignPatchNormalizer {
             }
             FlowDesignNodeDataNormalizer.normalize(type, node.getData());
         }, warnings);
-        fillSummaries(patch);
         return patch;
     }
 
@@ -481,13 +481,13 @@ public class FlowDesignPatchNormalizer {
         return ids;
     }
 
-    /** 收集基准图 meta.scenarios 全部场景 id */
+    /** 收集基准图 scenario-entry 全部场景 id */
     private static Set<String> collectKnownScenarioIds(GraphJson baseGraph) {
         Set<String> ids = new HashSet<>();
-        if (baseGraph == null || baseGraph.getMeta() == null || baseGraph.getMeta().getScenarios() == null) {
+        if (baseGraph == null) {
             return ids;
         }
-        for (GraphRunScenario s : baseGraph.getMeta().getScenarios()) {
+        for (GraphRunScenario s : com.qualitest.flow.context.EntryScenarioSupport.allEntryScenarios(baseGraph)) {
             if (s != null && s.getId() != null && !s.getId().isBlank()) {
                 ids.add(s.getId().trim());
             }
@@ -998,7 +998,7 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 规范化 scenarioPatch：为新增场景补雪花 id、空 flowSeed 与占位名称。
+     * 规范化 scenarioPatch：为新增场景补雪花 id、空 inSeed 与占位名称。
      */
     private void normalizeScenarioPatch(FlowDesignPatch patch) {
         FlowDesignScenarioPatch scenarioPatch = patch.getScenarioPatch();
@@ -1014,14 +1014,14 @@ public class FlowDesignPatchNormalizer {
                 if (scenario.getId() == null || scenario.getId().isBlank() || !isValidId(scenario.getId())) {
                     scenario.setId(String.valueOf(IdUtil.getSnowflakeNextId()));
                 }
-                if (scenario.getFlowSeed() == null) {
-                    scenario.setFlowSeed(new HashMap<>());
+                if (scenario.getInSeed() == null) {
+                    scenario.setInSeed(new HashMap<>());
                 }
                 if (scenario.getName() == null || scenario.getName().isBlank()) {
                     scenario.setName("新场景 " + index);
                 }
-                if (scenario.getTestProjectEnvId() == null) {
-                    scenario.setTestProjectEnvId("");
+                if (scenario.getEnvId() == null) {
+                    scenario.setEnvId("");
                 }
                 if (scenario.getRemark() == null) {
                     scenario.setRemark("");
@@ -1136,7 +1136,7 @@ public class FlowDesignPatchNormalizer {
         if (FlowHttpCallMode.isExternal(callMode)) {
             Object externalUrl = data.get("externalUrl");
             if (externalUrl == null || String.valueOf(externalUrl).isBlank()) {
-                String nodeLabel = String.valueOf(data.getOrDefault("name", node.getId() != null ? node.getId() : "HTTP 节点"));
+                String nodeLabel = GraphNodeShellSupport.displayName(node);
                 warnings.add("HTTP 节点「" + nodeLabel + "」外联模式缺少 externalUrl");
             }
             FlowDesignHttpNodeNormalizer.normalize(data, null, projectAuthJson);
@@ -1146,7 +1146,7 @@ public class FlowDesignPatchNormalizer {
         TestProjectApi boundApi = null;
         if (FlowHttpCallMode.isProject(callMode) || data.get("testProjectApiId") != null) {
             Object rawId = data.get("testProjectApiId");
-            String nodeLabel = String.valueOf(data.getOrDefault("name", node.getId() != null ? node.getId() : "HTTP 节点"));
+            String nodeLabel = GraphNodeShellSupport.displayName(node);
             if (rawId != null && !String.valueOf(rawId).isBlank()) {
                 Long apiId = FlowDesignIds.parseLong(rawId);
                 if (apiId == null) {
@@ -1179,107 +1179,6 @@ public class FlowDesignPatchNormalizer {
         }
 
         FlowDesignHttpNodeNormalizer.normalize(data, boundApi, projectAuthJson);
-    }
-
-    /** 按节点类型生成画布卡片副标题 summary */
-    private void fillSummaries(FlowDesignPatch patch) {
-        if (patch.getAddNodes() == null) return;
-        for (GraphNode node : patch.getAddNodes()) {
-            Map<String, Object> data = node.getData();
-            if (data == null) continue;
-            switch (node.getType()) {
-                case "http" -> data.put("summary", buildHttpSummary(data));
-                case "assert" -> data.put("summary", buildAssertSummary(data));
-                case "subflow" -> data.put("summary", buildSubflowSummary(data));
-                default -> {
-                    if (data.get("name") != null) {
-                        data.put("summary", String.valueOf(data.get("name")));
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * 生成 HTTP 节点画布副标题 summary。
-     * external：METHOD ↗ host/path；
-     * project：METHOD +（节点 apiPath 若有，否则 apiName，再否则 —）。
-     */
-    private static String buildHttpSummary(Map<String, Object> data) {
-        String callMode = data.get("callMode") != null ? String.valueOf(data.get("callMode")).trim() : "";
-        if (FlowHttpCallMode.isExternal(callMode)) {
-            String method = data.get("httpMethod") != null
-                    ? String.valueOf(data.get("httpMethod")).toUpperCase(Locale.ROOT)
-                    : "GET";
-            String externalUrl = data.get("externalUrl") != null ? String.valueOf(data.get("externalUrl")) : "—";
-            return FlowHttpRequestBuilder.formatExternalSummary(method, externalUrl);
-        }
-        if (data.get("testProjectApiId") == null) {
-            return "请选择项目接口";
-        }
-        String method = data.get("httpMethod") != null
-                ? String.valueOf(data.get("httpMethod")).toUpperCase(Locale.ROOT)
-                : "GET";
-        String path = null;
-        if (data.get("apiPath") != null && !String.valueOf(data.get("apiPath")).isBlank()) {
-            path = String.valueOf(data.get("apiPath"));
-        } else if (data.get("apiName") != null && !String.valueOf(data.get("apiName")).isBlank()) {
-            path = String.valueOf(data.get("apiName"));
-        } else {
-            path = "—";
-        }
-        return method + " " + path;
-    }
-
-    private static String buildAssertSummary(Map<String, Object> data) {
-        Object rulesObj = data.get("rules");
-        if (!(rulesObj instanceof List<?> rules) || rules.isEmpty()) {
-            return "点击配置断言";
-        }
-        List<String> parts = new ArrayList<>();
-        for (Object r : rules) {
-            if (r instanceof Map<?, ?> rule) {
-                Object left = rule.get("left");
-                Object op = rule.get("operator");
-                Object right = rule.get("right");
-                if (left != null && String.valueOf(left).trim().length() > 0) {
-                    parts.add(String.valueOf(left) + " " + String.valueOf(op) + " " + String.valueOf(right));
-                }
-            }
-        }
-        return parts.isEmpty() ? "点击配置断言" : String.join(" 且 ", parts);
-    }
-
-    /**
-     * 生成子流节点画布副标题 {@code summary}。
-     * <p>
-     * 优先使用 {@code subflowName}，否则为「子流#subflowId」；若配置了 {@code outputs}，
-     * 追加「→ flowKey1, flowKey2」表示写回父 flow 的变量键。
-     */
-    private static String buildSubflowSummary(Map<String, Object> data) {
-        String name = data.get("subflowName") != null ? String.valueOf(data.get("subflowName")).trim() : "";
-        if (name.isEmpty() && data.get("subflowId") != null && !String.valueOf(data.get("subflowId")).isBlank()) {
-            name = "子流#" + data.get("subflowId");
-        }
-        if (name.isEmpty()) {
-            return "请选择子流";
-        }
-        Object outputs = data.get("outputs");
-        if (outputs instanceof List<?> rows && !rows.isEmpty()) {
-            List<String> keys = new ArrayList<>();
-            for (Object row : rows) {
-                if (row instanceof Map<?, ?> map) {
-                    Object flowKey = map.get("flowKey");
-                    if (flowKey != null && !String.valueOf(flowKey).isBlank()) {
-                        keys.add(String.valueOf(flowKey).trim());
-                    }
-                }
-            }
-            if (!keys.isEmpty()) {
-                return name + " → " + String.join(", ", keys);
-            }
-        }
-        return name;
     }
 
     /** 规范化后的 patch 与校验结果 */

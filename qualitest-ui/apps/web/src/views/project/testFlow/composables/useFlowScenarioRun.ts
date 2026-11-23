@@ -107,9 +107,12 @@ export function useFlowScenarioRun() {
     runLib.scenarioRunLive = { abort: false, recordId: placeholderId, phase: 'running' };
 
     try {
+      const entryNode = store.nodes.find((n) => n.type === 'scenario-entry');
+      const envId = scenario?.envId || scenario?.testProjectEnvId || undefined;
       const triggerRes = await triggerTestFlowRun({
         testFlowId: store.testFlowId,
-        testProjectEnvId: scenario?.testProjectEnvId || undefined,
+        testProjectEnvId: envId || undefined,
+        entryNodeId: entryNode?.id || undefined,
         runScenarioId: scenario?.id || undefined,
         triggerType: 'manual',
       });

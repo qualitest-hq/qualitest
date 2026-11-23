@@ -13,7 +13,7 @@ import type { AiStagingCanvasMark, AiStagingUnit } from '../types/aiStagingTypes
 import { applyConditionEdgeProps } from './conditionUtils';
 import { mergeEdgeFields, mergeNodeFields } from './stagingFieldMerge';
 import { graphObjectIdFromUnit } from './stagingUnitIds';
-import { updateSummary } from './nodeDataUtils';
+import { NODE_TYPES } from '../constants/nodeTypes';
 import { runStagingItemSync } from '../composables/useStagingSync';
 
 /**
@@ -38,13 +38,14 @@ export function buildStagingNodeFromUnit(unit: AiStagingUnit): Node | null {
     ...((patchNode?.data ?? {}) as Record<string, unknown>),
     ...((draft.data as Record<string, unknown> | undefined) ?? {}),
   };
-  if (nodeType === 'http') {
-    updateSummary('http', data);
-  }
+  const draftName = draft.name ?? (patchNode as { name?: string } | undefined)?.name;
+  const cfg = NODE_TYPES[nodeType as keyof typeof NODE_TYPES];
+  const name = String(draftName ?? cfg?.label ?? nodeType).trim() || nodeType;
 
   return markRaw({
     id: nodeId,
     type: nodeType,
+    name,
     position: (draft.position as { x: number; y: number }) ??
       patchNode?.position ?? { x: 40, y: 80 },
     data,

@@ -59,7 +59,6 @@ const exportText = computed(() => {
     edges: store.edges,
     viewport: store.viewport,
     runConfig: store.runConfig,
-    flowOutputs: store.flowOutputs,
     layoutPreset: store.layoutPresetId,
   })
   return JSON.stringify(graph, null, 2)

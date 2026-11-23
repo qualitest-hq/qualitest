@@ -5,6 +5,7 @@ import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
+import com.qualitest.flow.model.GraphNodeShellSupport;
 import com.qualitest.flow.node.NodeHandler;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
@@ -53,27 +54,15 @@ public abstract class AbstractStubNodeHandler implements NodeHandler {
     }
 
     /**
-     * 解析节点展示名：优先 {@code data.name}，否则取类型标签。
+     * 解析节点展示名：读顶壳 {@code name}；空白时回落类型标签（校验应已拦空白）。
      */
-    static String resolveNodeName(GraphNode node) {
-        if (node == null) {
-            return "";
-        }
-        Map<String, Object> data = node.getData();
-        if (data != null) {
-            Object name = data.get("name");
-            if (name != null) {
-                String text = String.valueOf(name).trim();
-                if (!text.isEmpty()) {
-                    return text;
-                }
-            }
-        }
-        return FlowNodeType.labelOf(node.getType());
+    public static String resolveNodeName(GraphNode node) {
+        return GraphNodeShellSupport.resolveNodeName(node);
     }
 
     /**
      * 浅拷贝当前 {@code flow} 变量，用于填充 {@link StepResult#getFlowAfter()}。
+     * 包内可见，供入口等未继承本类的 Handler 复用。
      */
     static Map<String, Object> copyFlow(FlowRunContext ctx) {
         Map<String, Object> flow = ctx != null ? ctx.getFlow() : null;

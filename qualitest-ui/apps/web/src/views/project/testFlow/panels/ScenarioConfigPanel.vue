@@ -25,7 +25,7 @@
         <div class="field__env-row">
           <el-select
               :loading="envLoading"
-              :model-value="activeScenario.testProjectEnvId"
+              :model-value="activeScenario.envId"
               class="prop-el-select field__env-select"
               placeholder="选择测试环境"
               @change="onEnvChange"
@@ -65,15 +65,15 @@
         </div>
       </div>
       <div class="field">
-        <label>流程变量初值</label>
+        <label>入参值（inSeed）</label>
         <FlowKeyValueEditor
             :add-label="FLOW_SEED_ADD_LABEL"
             :columns="FLOW_SEED_COLUMNS"
-            :rows="flowSeedRows"
-            @update:rows="onFlowSeedRowsChange"
+            :rows="inSeedRows"
+            @update:rows="onInSeedRowsChange"
         />
-        <!-- v-pre：把 {{flow.orderId}} 当纯文案展示，不要当成模板变量求值 -->
-        <div class="field__hint" v-pre>运行选中场景时注入 flow 变量，写法如 {{flow.orderId}}</div>
+        <!-- v-pre：把 {{in.orderId}} 当纯文案展示，不要当成模板变量求值 -->
+        <div class="field__hint" v-pre>运行选中场景时注入 in，写法如 {{in.orderId}}</div>
       </div>
       <!-- 当前场景的步数上限：留空走默认，输入会裁剪到 1～1000 -->
       <div class="field">
@@ -110,49 +110,25 @@
       请在左侧选择场景<br/>再编辑运行参数
     </PropEmpty>
 
-    <div class="prop-section">
-      <div class="field">
-        <label>流程返回值（子流 outputs 默认映射）</label>
-        <div class="field__hint">定义本流程对外暴露的 flow 变量；被引用为子流时可作为 outputs 默认映射</div>
-        <FlowKeyValueEditor
-            :add-label="FLOW_OUTPUT_ADD_LABEL"
-            :columns="FLOW_OUTPUT_COLUMNS"
-            :rows="flowOutputRows"
-            @update:rows="onFlowOutputRowsChange"
-        />
-      </div>
-    </div>
-
     <EnvManageDialog
         v-model:visible="envManageDialogVisible"
         :test-project-id="store.testProjectId"
-        :toolbar-env-id="activeScenario?.testProjectEnvId ?? ''"
+        :toolbar-env-id="activeScenario?.envId ?? ''"
         @saved="onEnvManageSaved"
     />
   </div>
 </template>
 
 <script setup>
-/** 右栏运行配置：Staging 对照 + 当前场景参数 + 流程级 flowOutputs。 */
+/** 右栏运行配置：Staging 对照 + 当前场景参数。 */
 import { computed, onMounted, ref } from 'vue';
 
 import EnvManageDialog from '@/views/project/testProject/components/EnvManageDialog.vue';
 import AiStagingFieldDiff from '../components/AiStagingFieldDiff.vue';
 import FlowKeyValueEditor from '../components/FlowKeyValueEditor.vue';
 import PropEmpty from '../components/PropEmpty.vue';
-import {
-  FLOW_OUTPUT_ADD_LABEL,
-  FLOW_OUTPUT_COLUMNS,
-  FLOW_SEED_ADD_LABEL,
-  FLOW_SEED_COLUMNS,
-} from '../constants/runConfigEditors';
-import {
-  flowOutputsToRows,
-  flowSeedToRows,
-  rowsToFlowOutputs,
-  rowsToFlowSeed,
-  useRunConfig,
-} from '../composables/useRunConfig';
+import { FLOW_SEED_ADD_LABEL, FLOW_SEED_COLUMNS } from '../constants/runConfigEditors';
+import { inSeedToRows, rowsToInSeed, useRunConfig } from '../composables/useRunConfig';
 import { syncStagingDraftFromScenario } from '../composables/stagingDraftSync';
 import { usePendingStagingUnit, useShowNormalFields } from '../composables/usePendingStagingUnit';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
@@ -183,8 +159,7 @@ const maxStepsDisplay = computed(() => {
   return v == null ? '' : String(v);
 });
 
-const flowSeedRows = computed(() => flowSeedToRows(activeScenario.value?.flowSeed));
-const flowOutputRows = computed(() => flowOutputsToRows(store.flowOutputs));
+const inSeedRows = computed(() => inSeedToRows(activeScenario.value?.inSeed));
 
 onMounted(async () => {
   // 打开场景面板时拉取项目环境；未绑环境的激活场景会自动补绑并更新已保存基线
@@ -207,7 +182,8 @@ function onRemarkInput(e) {
 }
 
 function onEnvChange(val) {
-  patchActiveScenario({ testProjectEnvId: String(val ?? '') });
+  const envId = String(val ?? '');
+  patchActiveScenario({ envId });
   syncScenarioDraft();
 }
 
@@ -220,14 +196,12 @@ async function onEnvManageSaved(payload) {
   await loadProjectEnvs(true);
   const sc = activeScenario.value;
   if (!sc) return;
-  const curId = String(sc.testProjectEnvId ?? '');
+  const curId = String(sc.envId ?? '');
   const deletedId = payload?.deletedId != null ? String(payload.deletedId) : '';
   const stillExists = envOptions.value.some((e) => e.testProjectEnvId === curId);
   if (curId && (!stillExists || (deletedId && deletedId === curId))) {
-    // 原绑定已不存在：改绑到列表第一条（没有则清空），并标未保存
-    patchActiveScenario({
-      testProjectEnvId: envOptions.value[0]?.testProjectEnvId ?? '',
-    });
+    const envId = envOptions.value[0]?.testProjectEnvId ?? '';
+    patchActiveScenario({ envId });
     syncScenarioDraft();
   } else {
     // 原绑定仍有效：若场景本来未绑环境，则自动补绑第一条
@@ -235,14 +209,10 @@ async function onEnvManageSaved(payload) {
   }
 }
 
-function onFlowSeedRowsChange(rows) {
-  patchActiveScenario({ flowSeed: rowsToFlowSeed(rows) });
+function onInSeedRowsChange(rows) {
+  const inSeed = rowsToInSeed(rows);
+  patchActiveScenario({ inSeed });
   syncScenarioDraft();
-}
-
-function onFlowOutputRowsChange(rows) {
-  store.flowOutputs = rowsToFlowOutputs(rows);
-  store.markDirty();
 }
 
 /** 步数上限变更：清空或非数字则写 null；否则取整并限制在 1～1000 */

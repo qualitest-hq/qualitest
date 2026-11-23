@@ -226,10 +226,9 @@ class LoginExtractPresenceGateTest {
 
     private static GraphNode httpNode(String id, Long apiId) {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", id);
         data.put("callMode", "project");
         data.put("testProjectApiId", String.valueOf(apiId));
-        return GraphNode.builder().id(id).type("http").data(data).build();
+        return GraphNode.builder().id(id).type("http").name(id).data(data).build();
     }
 
     private static TestProjectApi api(Long id, String path) {

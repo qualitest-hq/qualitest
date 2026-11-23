@@ -1,10 +1,13 @@
 package com.qualitest.flow.run;
 
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.delivery.RunDelivery;
+import com.qualitest.flow.delivery.SettleSupport;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
+import com.qualitest.flow.model.GraphNodeShellSupport;
 import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
@@ -30,9 +33,25 @@ import java.util.function.Consumer;
  * 业务步失败且不暂停时进入失败后继续：沿出边前进；
  * 未标 alwaysRun 记 bypassed；alwaysRun 成功记 continued、失败记 continued_failed 且不中断后续；
  * 未求值的 condition 记 bypassed 并对各分支 target 扇出；Run 主错误保留首个业务失败。
+ * <p>
+ * 主路径走尽或失败后继续扫完后，调用 {@link SettleSupport#settle}：
+ * 若开放/子流尚未交付，用入口兜底出参补交并记失败；
+ * 若已在 http-return / subflow-return 交付过则无动作。
  */
 @Component
 public class FlowGraphRunner {
+
+    private final RunDelivery runDelivery;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public FlowGraphRunner(RunDelivery runDelivery) {
+        this.runDelivery = runDelivery;
+    }
+
+    /** 测试用：无 Spring 时注入交付器。 */
+    public FlowGraphRunner() {
+        this(new RunDelivery(new com.qualitest.flow.delivery.InboundSlotRegistry()));
+    }
 
     /** 使用默认钩子、全新续跑与默认策略执行图 */
     public Outcome run(GraphJson snapshot, FlowRunContext ctx, NodeHandlerRegistry registry) {
@@ -82,7 +101,10 @@ public class FlowGraphRunner {
             incomingEdgeId = continuation.getIncomingEdgeId();
         } else {
             try {
-                currentId = walker.findUniqueStartNodeId();
+                currentId = walker.resolveStartNodeId(ctx != null ? ctx.getEntryNodeId() : null);
+                if (ctx != null && (ctx.getEntryNodeId() == null || ctx.getEntryNodeId().isBlank())) {
+                    ctx.setEntryNodeId(currentId);
+                }
             } catch (FlowExecutionException e) {
                 return Outcome.failed(List.of(), ctx, StepError.of(e.getErrorCode(), e.getMessage()), 0);
             }
@@ -187,7 +209,9 @@ public class FlowGraphRunner {
                 PostFailureState postState = new PostFailureState(stepIndex + 1, maxSteps);
                 runPostFailureContinue(walker, ctx, registry, preExecuteHook, steps, onStep,
                         visitedNodeIds, postState, nextId, nextEdgeId);
-                return Outcome.failed(steps, ctx, error, steps.size());
+                // 失败后继续扫完仍要收束：开放/子流零次返回节点时补交兜底
+                StepError settleErr = SettleSupport.settle(ctx, snapshot, runDelivery);
+                return Outcome.failed(steps, ctx, error != null ? error : settleErr, steps.size());
             }
 
             stepIndex++;
@@ -196,6 +220,11 @@ public class FlowGraphRunner {
             incomingEdgeId = currentId != null ? walker.findEdgeId(fromId, currentId) : null;
         }
 
+        // 主路径正常走尽：若尚未交付则按入口种类决定是否用 fallbackOut 补交
+        StepError settleErr = SettleSupport.settle(ctx, snapshot, runDelivery);
+        if (settleErr != null) {
+            return Outcome.failed(steps, ctx, settleErr, steps.size());
+        }
         return Outcome.passed(steps, ctx, steps.size());
     }
 
@@ -430,15 +459,9 @@ public class FlowGraphRunner {
                 .build();
     }
 
-    /** 节点展示名：优先 data.name，否则节点 id */
+    /** 节点展示名：顶层 name，空白则类型标签。 */
     private static String resolveDisplayName(GraphNode node) {
-        if (node.getData() != null && node.getData().get("name") != null) {
-            String name = String.valueOf(node.getData().get("name")).trim();
-            if (!name.isEmpty()) {
-                return name;
-            }
-        }
-        return node.getId();
+        return GraphNodeShellSupport.resolveNodeName(node);
     }
 
     /**

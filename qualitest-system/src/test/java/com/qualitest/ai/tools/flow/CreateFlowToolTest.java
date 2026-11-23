@@ -20,6 +20,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -92,10 +93,17 @@ class CreateFlowToolTest {
         assertTrue(graph.getJSONArray("edges").isEmpty());
         JSONObject meta = graph.getJSONObject("meta");
         assertEquals(GraphSchemaVersions.CURRENT, meta.getIntValue("schemaVersion"));
-        JSONArray scenarios = meta.getJSONArray("scenarios");
+        var nodes = graph.getJSONArray("nodes");
+        var entry = nodes.stream()
+                .map(o -> (JSONObject) o)
+                .filter(n -> "scenario-entry".equals(n.getString("type")))
+                .findFirst()
+                .orElseThrow();
+        JSONArray scenarios = entry.getJSONObject("data").getJSONArray("scenarios");
         assertEquals(1, scenarios.size());
         assertEquals("默认（冒烟）", scenarios.getJSONObject(0).getString("name"));
-        assertEquals(scenarios.getJSONObject(0).getString("id"), meta.getString("activeScenarioId"));
+        assertNull(meta.get("activeScenarioId"));
+        assertNull(meta.get("scenarios"));
     }
 
     /**

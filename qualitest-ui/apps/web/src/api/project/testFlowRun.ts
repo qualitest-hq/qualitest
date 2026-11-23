@@ -6,6 +6,8 @@ import request from '@/utils/request';
 export interface TriggerTestFlowRunParams {
   testFlowId: string;
   testProjectEnvId?: string;
+  /** scenario-entry 节点 id；多场景入口时传入 */
+  entryNodeId?: string;
   runScenarioId?: string;
   /** 触发来源：manual / ai / ci / schedule / suite 等 */
   triggerType?: string;

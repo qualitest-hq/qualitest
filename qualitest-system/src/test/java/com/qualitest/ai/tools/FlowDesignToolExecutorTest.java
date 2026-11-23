@@ -338,8 +338,9 @@ class FlowDesignToolExecutorTest {
                         GraphNode.builder()
                                 .id("n1")
                                 .type("http")
+                                .name("登录")
                                 .position(GraphNodePosition.builder().x(0).y(0).build())
-                                .data(new java.util.HashMap<>(java.util.Map.of("name", "登录")))
+                                .data(new java.util.HashMap<>())
                                 .build()
                 )))
                 .edges(new ArrayList<>(List.of(
@@ -380,7 +381,8 @@ class FlowDesignToolExecutorTest {
                         GraphNode.builder()
                                 .id("n1")
                                 .type("http")
-                                .data(new java.util.HashMap<>(java.util.Map.of("name", "登录")))
+                                .name("登录")
+                                .data(new java.util.HashMap<>())
                                 .build()
                 )))
                 .edges(new ArrayList<>())
@@ -400,7 +402,7 @@ class FlowDesignToolExecutorTest {
         JSONObject root = JSON.parseObject(json);
         assertEquals("n1", root.getString("id"));
         assertEquals("http", root.getString("type"));
-        assertEquals("登录", root.getJSONObject("data").getString("name"));
+        assertEquals("登录", root.getString("name"));
     }
 
     /**
@@ -455,29 +457,34 @@ class FlowDesignToolExecutorTest {
     }
 
     /**
-     * 前提：画布 meta 含 activeScenarioId 与场景。
-     * 期望：返回场景摘要（name、flowSeedKeys 等）。
+     * 前提：scenario-entry 含场景。
+     * 期望：返回场景摘要（name、inSeedKeys 等）。
      */
     @Test
     @Order(10)
-    @DisplayName("返回场景摘要与 flowSeedKeys")
+    @DisplayName("返回场景摘要与 inSeedKeys")
     void getFlowMeta_returnsScenarios() {
+        Map<String, Object> data = new java.util.HashMap<>();
+        data.put("scenarios", List.of(GraphRunScenario.builder()
+                .id("sc-default")
+                .name("默认")
+                .envId("201")
+                .inSeed(new java.util.HashMap<>(java.util.Map.of("loginUser", "demo")))
+                .remark("冒烟")
+                .build()));
+        GraphNode entry = GraphNode.builder()
+                .id("entry-1")
+                .type("scenario-entry")
+                .name("场景入口")
+                .position(GraphNodePosition.builder().x(0).y(0).build())
+                .data(data)
+                .build();
         GraphJson graph = GraphJson.builder()
-                .nodes(new ArrayList<>())
+                .nodes(new ArrayList<>(List.of(entry)))
                 .edges(new ArrayList<>())
                 .meta(GraphMeta.builder()
                         .startNodeId("start-1")
-                        .activeScenarioId("sc-default")
-                        .scenarios(new ArrayList<>(List.of(
-                                GraphRunScenario.builder()
-                                        .id("sc-default")
-                                        .name("默认")
-                                        .testProjectEnvId("201")
-                                        .flowSeed(new java.util.HashMap<>(java.util.Map.of("loginUser", "demo")))
-                                        .remark("冒烟")
-                                        .build()
-                        )))
-                        .flowOutputs(new ArrayList<>())
+                        
                         .build())
                 .build();
         FlowDesignToolContext graphCtx = FlowDesignToolContext.builder()
@@ -494,7 +501,7 @@ class FlowDesignToolExecutorTest {
         assertEquals("start-1", root.getString("startNodeId"));
         assertEquals("默认", root.getJSONArray("scenarios").getJSONObject(0).getString("name"));
         assertEquals("loginUser", root.getJSONArray("scenarios").getJSONObject(0)
-                .getJSONArray("flowSeedKeys").getString(0));
+                .getJSONArray("inSeedKeys").getString(0));
     }
 
     /**
@@ -555,7 +562,8 @@ class FlowDesignToolExecutorTest {
             manyNodes.add(GraphNode.builder()
                     .id("n" + i)
                     .type("http")
-                    .data(new java.util.HashMap<>(java.util.Map.of("name", "节点" + i)))
+                    .name("节点" + i)
+                    .data(new java.util.HashMap<>())
                     .build());
         }
         GraphJson graph = GraphJson.builder()
@@ -731,13 +739,12 @@ class FlowDesignToolExecutorTest {
         String graphJson = """
                 {
                   "nodes": [
-                    {"id":"h1","type":"http","data":{"name":"Token","callMode":"external","externalUrl":"https://oauth.example.com/token","summary":"POST ↗ oauth.example.com/token"}},
-                    {"id":"s1","type":"subflow","data":{"name":"内层","subflowId":"4001"}}
+                    {"id":"h1","type":"http","name":"Token","data":{"callMode":"external","externalUrl":"https://oauth.example.com/token"}},
+                    {"id":"s1","type":"subflow","name":"内层","data":{"subflowId":"4001"}}
                   ],
                   "edges": [{"id":"e1","source":"h1","target":"s1"}],
                   "meta": {
-                    "startNodeId": "h1",
-                    "flowOutputs": [{"name":"token","description":"访问令牌"}]
+                    "startNodeId": "h1"
                   }
                 }
                 """;
@@ -764,9 +771,6 @@ class FlowDesignToolExecutorTest {
         assertEquals(1, root.getIntValue("edgeCount"));
         assertEquals(1, root.getJSONObject("nodeTypeCounts").getIntValue("http"));
         assertEquals(1, root.getJSONObject("nodeTypeCounts").getIntValue("subflow"));
-        assertEquals("token", root.getJSONArray("flowOutputNames").getString(0));
-        assertEquals("token", root.getJSONArray("flowOutputs").getJSONObject(0).getString("name"));
-        assertEquals("访问令牌", root.getJSONArray("flowOutputs").getJSONObject(0).getString("description"));
         assertTrue(root.containsKey("suggestedInputs"));
         assertEquals("h1", root.getJSONArray("nodes").getJSONObject(0).getString("id"));
         assertEquals("Token", root.getJSONArray("nodes").getJSONObject(0).getString("name"));
@@ -934,7 +938,7 @@ class FlowDesignToolExecutorTest {
     @DisplayName("无图时按 testFlowId 自动加载摘要")
     void getGraphSummary_autoLoadByTestFlowId() {
         String graphJson = """
-                {"nodes":[{"id":"n1","type":"http","data":{"name":"登录"}}],"edges":[]}
+                {"nodes":[{"id":"n1","type":"http","name":"登录","data":{}}],"edges":[]}
                 """;
         when(flowService.selectTestFlowResult(3001L)).thenReturn(
                 TestFlowResult.builder()
@@ -966,7 +970,6 @@ class FlowDesignToolExecutorTest {
         when(mapper.selectTestProjectApiById(missingApiId)).thenReturn(null);
 
         Map<String, Object> data = new java.util.HashMap<>();
-        data.put("name", "客户端用户登录");
         data.put("callMode", "project");
         data.put("testProjectApiId", String.valueOf(missingApiId));
         data.put("apiName", "客户端用户登录");
@@ -977,6 +980,7 @@ class FlowDesignToolExecutorTest {
                 .nodes(List.of(GraphNode.builder()
                         .id("n1")
                         .type("http")
+                        .name("客户端用户登录")
                         .position(GraphNodePosition.builder().x(0).y(0).build())
                         .data(data)
                         .build()))

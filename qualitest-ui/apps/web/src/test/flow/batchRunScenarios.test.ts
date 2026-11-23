@@ -15,14 +15,20 @@ describe('batchRunScenarios', () => {
     // 期望：两条场景，活动标记正确
     const scenarios = parseFlowScenariosFromGraphJson(
       JSON.stringify({
-        meta: {
-          activeScenarioId: 'sc-2',
-          scenarios: [
-            { id: 'sc-1', name: '正常' },
-            { id: 'sc-2', name: '异常' },
-          ],
-        },
+        nodes: [
+          {
+            id: 'entry',
+            type: 'scenario-entry',
+            data: {
+              scenarios: [
+                { id: 'sc-1', name: '正常' },
+                { id: 'sc-2', name: '异常' },
+              ],
+            },
+          },
+        ],
       }),
+      'sc-2',
     )
     expect(scenarios).toHaveLength(2)
     expect(scenarios[0].active).toBe(false)
@@ -52,12 +58,18 @@ describe('batchRunScenarios', () => {
         testFlowId: '7',
         flowName: '登录',
         graphJson: JSON.stringify({
-          meta: {
-            scenarios: [
-              { id: 'sc-a', name: 'A' },
-              { id: 'sc-b', name: 'B' },
-            ],
-          },
+          nodes: [
+            {
+              id: 'entry',
+              type: 'scenario-entry',
+              data: {
+                scenarios: [
+                  { id: 'sc-a', name: 'A' },
+                  { id: 'sc-b', name: 'B' },
+                ],
+              },
+            },
+          ],
         }),
       },
     ])

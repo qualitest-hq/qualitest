@@ -179,7 +179,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 params.getRunScenarioId(),
                 params.getTestProjectEnvId(),
                 null,
-                RunScenarioBootstrap.formatAvailableEnvHint(hints)
+                RunScenarioBootstrap.formatAvailableEnvHint(hints),
+                params.getEntryNodeId()
         );
 
         TestProjectEnv env = testProjectEnvService.selectTestProjectEnvById(scenario.getTestProjectEnvId());
@@ -233,9 +234,17 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         boolean externalPermitted = testProjectMemberService.hasCapability(
                 testFlow.getTestProjectId(), operatorUserId, TestProjectMemberPerm.FLOW_EXTERNAL)
                 || SecurityUtils.hasPermi(FlowExternalPermission.PERMISSION);
-        FlowRunContext ctx = FlowRunContextBuilder.build(
-                env, assetJson, scenario.getFlowSeed(), testFlow.getTestProjectId(),
+        FlowRunContext ctx = FlowRunContextBuilder.buildFromScenario(
+                env, assetJson, scenario, testFlow.getTestProjectId(),
                 externalPermitted);
+        String entryNodeId = scenario.getEntryNodeId() != null
+                ? scenario.getEntryNodeId()
+                : params.getEntryNodeId();
+        if (entryNodeId != null && !entryNodeId.isBlank()) {
+            ctx.setEntryNodeId(entryNodeId);
+        }
+        ctx.setEntryKind(com.qualitest.flow.delivery.EntryKind.SCENARIO.getCode());
+        ctx.setTrigger(StrUtil.blankToDefault(params.getTriggerType(), "manual"));
         if (project != null) {
             ctx.setProjectAuthConfig(project.getAuthConfig());
         }

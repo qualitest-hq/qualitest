@@ -76,9 +76,9 @@ public final class SubflowTemplateCatalog {
     }
 
     /**
-     * 把模板元数据中的 outputs 写入 graph_json.meta.flowOutputs。
+     * 规范化从模板克隆出的 graph_json：确保 meta.schemaVersion。
      */
-    public static String embedFlowOutputsIntoGraph(String graphJson, JSONObject template) {
+    public static String normalizeTemplateGraph(String graphJson, JSONObject template) {
         if (graphJson == null || graphJson.isBlank()) {
             return graphJson;
         }
@@ -91,22 +91,6 @@ public final class SubflowTemplateCatalog {
             meta = new JSONObject();
             graph.put("meta", meta);
         }
-        JSONArray flowOutputs = new JSONArray();
-        if (template != null && template.getJSONArray("outputs") != null) {
-            for (int i = 0; i < template.getJSONArray("outputs").size(); i++) {
-                JSONObject output = template.getJSONArray("outputs").getJSONObject(i);
-                if (output == null) {
-                    continue;
-                }
-                JSONObject item = new JSONObject();
-                item.put("name", output.getString("name"));
-                if (output.containsKey("description")) {
-                    item.put("description", output.getString("description"));
-                }
-                flowOutputs.add(item);
-            }
-        }
-        meta.put("flowOutputs", flowOutputs);
         meta.put("schemaVersion", GraphSchemaVersions.CURRENT);
         return graph.toJSONString();
     }

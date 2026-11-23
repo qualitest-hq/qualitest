@@ -50,7 +50,7 @@ const store = useFlowCanvasStore()
 
 const tabs = computed(() => {
   const all = [
-    { id: 'runConfig', label: '运行场景' },
+    { id: 'runConfig', label: '跑前场景' },
     { id: 'nodes', label: '节点库' },
     { id: 'params', label: '参数库' },
     { id: 'runs', label: '运行库' },
@@ -62,8 +62,11 @@ const tabs = computed(() => {
 })
 
 const meta = {
-  runConfig: { title: '运行场景', desc: '选择要运行的场景 · 右侧编辑运行配置' },
-  nodes: { title: '节点库', desc: '拖拽或双击添加到画布' },
+  runConfig: {
+    title: '跑前场景',
+    desc: '选中要跑的场景；值树挂在 scenario-entry，保存写入入口',
+  },
+  nodes: { title: '节点库', desc: '拖拽或双击添加到画布（含三种入口）' },
   params: { title: '参数库', desc: 'Env / Asset 配置态叶子；搜索；复制 {{path}} 或值' },
   runs: { title: '运行库', desc: '正式 Run 记录与回放' },
 }

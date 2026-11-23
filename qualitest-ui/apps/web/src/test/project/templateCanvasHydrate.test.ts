@@ -58,8 +58,8 @@ describe('syncTemplateHttpNodesFromCatalog', () => {
       {
         id: 'login_http',
         type: 'http',
+        name: '登录',
         data: {
-          name: '登录',
           callMode: 'project',
           httpMethod: 'POST',
           apiPath: '/login',
@@ -72,7 +72,7 @@ describe('syncTemplateHttpNodesFromCatalog', () => {
     expect(changed).toBe(true)
     expect(nodes[0].data.testProjectApiId).toBe('2100000000000004101')
     expect(nodes[0].data.apiName).toBe('登录')
-    expect(nodes[0].data.summary).toContain('POST')
+    expect(nodes[0].name).toBe('登录')
   })
 })
 

@@ -130,8 +130,9 @@ final class FlowMergeFixtureTestSupport {
             assertEquals(fixture.getString("expectEdgeTarget"), edge.getTarget());
         }
         if (fixture.containsKey("expectActiveScenarioId")) {
-            assertNotNull(merged.getMeta());
-            assertEquals(fixture.getString("expectActiveScenarioId"), merged.getMeta().getActiveScenarioId());
+            var scenarios = com.qualitest.flow.context.EntryScenarioSupport.allEntryScenarios(merged);
+            assertFalse(scenarios.isEmpty());
+            assertEquals(fixture.getString("expectActiveScenarioId"), scenarios.get(0).getId());
         }
     }
 }

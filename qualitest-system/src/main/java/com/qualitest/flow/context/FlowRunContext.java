@@ -1,16 +1,21 @@
 package com.qualitest.flow.context;
 
+import com.qualitest.flow.delivery.DeliverySink;
 import lombok.*;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * 单次 Run 运行时上下文。
  * <p>
- * 持有 env / flow / asset / session、外联权限、项目 ID、
- * 最近一次 HTTP 快照 lastResponse、按节点 id 索引的 HTTP 快照 nodeResponses，
- * 以及项目多端配置（projectAuthConfig：鉴权头 + 各端响应约定）。
+ * 变量区：env / flow / asset / session；入参 {@code in}；出参 {@code out}（status/headers/body）。
+ * 入口：entryKind（scenario/subflow/http）、entryNodeId、trigger。
+ * 交付：returnCount（http-return/subflow-return 成功次数）、delivered、deliveryWriteFailed、
+ * deliverySink、inboundSlotToken。
+ * 子流挂载：nodeOuts、parentContext、parentSubflowNodeId。
+ * 另有外联权限、项目 ID、HTTP 快照（lastResponse / nodeResponses）、项目鉴权配置。
  */
 @Getter
 @Setter
@@ -24,6 +29,90 @@ public class FlowRunContext {
 
     @Builder.Default
     private Map<String, Object> flow = new HashMap<>();
+
+    /**
+     * 运行时入参。
+     * 开放 HTTP：常含 query / headers / body；子流：由父节点 inputs 解析灌入。
+     * 占位符路径 {@code in.*}。
+     */
+    @Builder.Default
+    private Map<String, Object> in = new LinkedHashMap<>();
+
+    /**
+     * 运行时出参，键为 status / headers / body。
+     * Assign(scope=out) 写入；http-return / subflow-return 定稿后覆盖为交付包；占位符路径 {@code out.*}。
+     */
+    @Builder.Default
+    private Map<String, Object> out = new LinkedHashMap<>();
+
+    /**
+     * 入口种类字符串：scenario / subflow / http。
+     * 决定用哪种返回节点、是否对外交付、收束是否强制兜底。
+     */
+    @Builder.Default
+    private String entryKind = "scenario";
+
+    /**
+     * 本图实际入口节点 id。
+     * 开放入站由路由写入；入口 Handler 在空时补写；收束读 fallbackOut 时用来定位入口。
+     */
+    private String entryNodeId;
+
+    /**
+     * 触发源字符串：ui / ci / suite / http / mcp / subflow 等，与 entryKind 分开记录。
+     */
+    @Builder.Default
+    private String trigger = "ui";
+
+    /**
+     * 本 Run 已成功执行返回节点（http-return / subflow-return）交付的次数。
+     * 用于拦截整次第二次返回交付。
+     */
+    @Builder.Default
+    private int returnCount = 0;
+
+    /**
+     * 是否已完成一次对外交付（开放写出或子流挂父）。
+     * 为 true 后交付器与收束均不再写第二遍。
+     */
+    @Builder.Default
+    private boolean delivered = false;
+
+    /**
+     * 开放 HTTP 写出失败（连接已断、DeferredResult 已过期等）。
+     * 不影响 delivered 置位与图继续执行。
+     */
+    @Builder.Default
+    private boolean deliveryWriteFailed = false;
+
+    /**
+     * 按画布节点 id 挂载的定稿 out（多为子流节点）。
+     * 供占位符 {@code nodes.&lt;id&gt;.out…} 读取。
+     */
+    @Builder.Default
+    private Map<String, Map<String, Object>> nodeOuts = new HashMap<>();
+
+    /**
+     * 子流 Run 指向父上下文；subflow-return 或收束时把 out 挂回父 nodeOuts。
+     * 不参与暂停序列化。
+     */
+    private FlowRunContext parentContext;
+
+    /**
+     * 本子流在父图上对应的 subflow 节点 id，作为 nodeOuts 的键。
+     */
+    private String parentSubflowNodeId;
+
+    /**
+     * 开放 HTTP 写出端；场景/子流通常为 null。
+     * 不参与暂停序列化，续跑须由入站层重新挂上。
+     */
+    private DeliverySink deliverySink;
+
+    /**
+     * 开放入站名额令牌；交付成功后由交付器 release 并清空本字段。
+     */
+    private String inboundSlotToken;
 
     /**
      * 素材 key → 业务值根节点（通常为 Map）
@@ -137,5 +226,29 @@ public class FlowRunContext {
             return null;
         }
         return this.nodeResponses.get(nodeId.trim());
+    }
+
+    /**
+     * 挂载某画布节点的定稿出参（拷贝写入）。
+     * nodeId 或 payload 为空则忽略。
+     */
+    public void putNodeOut(String nodeId, Map<String, Object> outPayload) {
+        if (nodeId == null || nodeId.isBlank() || outPayload == null) {
+            return;
+        }
+        if (this.nodeOuts == null) {
+            this.nodeOuts = new HashMap<>();
+        }
+        this.nodeOuts.put(nodeId.trim(), new LinkedHashMap<>(outPayload));
+    }
+
+    /**
+     * 读取已挂载的节点出参 Map；未挂载或 id 空则 null。
+     */
+    public Map<String, Object> getNodeOut(String nodeId) {
+        if (nodeId == null || nodeId.isBlank() || this.nodeOuts == null) {
+            return null;
+        }
+        return this.nodeOuts.get(nodeId.trim());
     }
 }

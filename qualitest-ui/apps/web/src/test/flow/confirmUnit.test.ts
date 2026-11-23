@@ -26,8 +26,7 @@ describe('requestConfirmFlowDesignUnit', () => {
   const baseInput = {
     nodes: [],
     edges: [],
-    runConfig: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }] },
-    flowOutputs: [],
+    runConfig: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', envId: '', inSeed: {} }] },
     viewport: { x: 0, y: 0, zoom: 1 },
     patch: {
       addNodes: [
@@ -78,7 +77,7 @@ describe('requestConfirmFlowDesignUnit', () => {
         },
       ],
       edges: [],
-      meta: { activeScenarioId: 'sc1', scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }] },
+      meta: {},
     };
     mockedConfirm.mockResolvedValue({
       ok: true,
@@ -92,7 +91,8 @@ describe('requestConfirmFlowDesignUnit', () => {
     expect(mockedConfirm).toHaveBeenCalledOnce();
     expect(result.validation.ok).toBe(true);
     expect(result.graphJson?.nodes.map((n) => n.id)).toEqual(['9001']);
-    expect(result.graphJson?.meta?.activeScenarioId).toBe('sc1');
+    expect(result.graphJson?.meta?.activeScenarioId).toBeUndefined();
+    expect(result.graphJson?.meta?.scenarios).toBeUndefined();
   });
 
   it('失败 → 改 draft → 再请求可由 false 变 true', async () => {

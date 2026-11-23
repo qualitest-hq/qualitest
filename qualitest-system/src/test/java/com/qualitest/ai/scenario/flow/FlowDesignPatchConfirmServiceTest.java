@@ -7,6 +7,7 @@ import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
+import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.project.domain.TestProject;
@@ -235,7 +236,8 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatch patch = new FlowDesignPatch();
         GraphNode update = GraphNode.builder()
                 .id("9001")
-                .data(new java.util.HashMap<>(Map.of("name", "登录V2")))
+                .name("登录V2")
+                .data(new java.util.HashMap<>())
                 .build();
         patch.getUpdateNodes().add(update);
 
@@ -244,13 +246,13 @@ class FlowDesignPatchConfirmServiceTest {
         updateRequest.setPatch(patch);
         updateRequest.setUnitId("updateNode:9001");
         updateRequest.setConfirmedUnitIds(List.of("addNode:9001"));
-        updateRequest.setDraftOverride(Map.of("data", Map.of("name", "登录V2")));
+        updateRequest.setDraftOverride(Map.of("name", "登录V2"));
 
         FlowDesignPatchConfirmResult updateResult = confirmService.confirmUnit(updateRequest);
         assertTrue(updateResult.isOk(), () -> "errors=" + updateResult.getErrors());
         GraphNode merged = FlowDesignPatchMerger.findNode(updateResult.getGraphJson().getNodes(), "9001");
         assertNotNull(merged);
-        assertEquals("登录V2", merged.getData().get("name"));
+        assertEquals("登录V2", merged.getName());
     }
 
     /**
@@ -264,8 +266,8 @@ class FlowDesignPatchConfirmServiceTest {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-node-only.json");
 
         Map<String, Object> badDraft = Map.of(
+                "name", "坏节点",
                 "data", Map.of(
-                        "name", "坏节点",
                         "callMode", "external",
                         "externalUrl", "",
                         "httpMethod", "GET"));
@@ -278,8 +280,8 @@ class FlowDesignPatchConfirmServiceTest {
         assertFalse(badResult.getErrors().isEmpty());
 
         Map<String, Object> goodDraft = Map.of(
+                "name", "下一步",
                 "data", Map.of(
-                        "name", "下一步",
                         "callMode", "external",
                         "externalUrl", "https://example.com/next",
                         "httpMethod", "GET"));
@@ -360,7 +362,7 @@ class FlowDesignPatchConfirmServiceTest {
         assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
         assertNotNull(result.getGraphJson());
 
-        GraphRunScenario merged = result.getGraphJson().getMeta().getScenarios().stream()
+        GraphRunScenario merged = com.qualitest.flow.context.EntryScenarioSupport.allEntryScenarios(result.getGraphJson()).stream()
                 .filter(s -> "sc1".equals(s.getId()))
                 .findFirst()
                 .orElse(null);
@@ -404,7 +406,6 @@ class FlowDesignPatchConfirmServiceTest {
 
         Map<String, Object> httpData = projectHttpData();
         Map<String, Object> assertData = new HashMap<>();
-        assertData.put("name", "断言数量");
         assertData.put("rules", List.of(Map.of(
                 "left", "http.body.data.items[0].quantity",
                 "operator", "eq",
@@ -415,12 +416,14 @@ class FlowDesignPatchConfirmServiceTest {
                 GraphNode.builder()
                         .id("9001")
                         .type("http")
+                        .name("我的购物车")
                         .position(com.qualitest.flow.model.GraphNodePosition.builder().x(40).y(80).build())
                         .data(httpData)
                         .build(),
                 GraphNode.builder()
                         .id("9002")
                         .type("assert")
+                        .name("断言数量")
                         .position(com.qualitest.flow.model.GraphNodePosition.builder().x(420).y(80).build())
                         .data(assertData)
                         .build()));
@@ -450,7 +453,6 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchConfirmService gated = confirmServiceWithCartApi();
 
         Map<String, Object> assertData = new HashMap<>();
-        assertData.put("name", "孤立断言");
         assertData.put("rules", List.of(Map.of(
                 "left", "http.body.data[0].quantity",
                 "operator", "eq",
@@ -460,6 +462,7 @@ class FlowDesignPatchConfirmServiceTest {
         patch.getAddNodes().add(GraphNode.builder()
                 .id("9002")
                 .type("assert")
+                .name("孤立断言")
                 .position(com.qualitest.flow.model.GraphNodePosition.builder().x(40).y(80).build())
                 .data(assertData)
                 .build());
@@ -528,7 +531,6 @@ class FlowDesignPatchConfirmServiceTest {
             String nodeId, String name, List<? extends Map<String, ?>> extracts) {
         FlowDesignPatchConfirmService gated = confirmServiceWithDualBearerAuth();
         Map<String, Object> httpData = new HashMap<>();
-        httpData.put("name", name);
         httpData.put("callMode", "project");
         httpData.put("testProjectApiId", "501");
         if (extracts != null) {
@@ -538,6 +540,7 @@ class FlowDesignPatchConfirmServiceTest {
         patch.getAddNodes().add(GraphNode.builder()
                 .id(nodeId)
                 .type("http")
+                .name(name)
                 .position(com.qualitest.flow.model.GraphNodePosition.builder().x(40).y(80).build())
                 .data(httpData)
                 .build());
@@ -609,26 +612,32 @@ class FlowDesignPatchConfirmServiceTest {
     }
 
     private static GraphJson emptyBaseWithScenario() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("scenarios", List.of(GraphRunScenario.builder()
+                .id("sc1")
+                .name("默认")
+                .envId("")
+                .inSeed(Map.of())
+                .build()));
+        GraphNode entry = GraphNode.builder()
+                .id("entry-sc1")
+                .type("scenario-entry")
+                .name("默认场景入口")
+                .position(GraphNodePosition.builder().x(0).y(0).build())
+                .data(data)
+                .build();
         return GraphJson.builder()
-                .nodes(List.of())
+                .nodes(List.of(entry))
                 .edges(List.of())
                 .meta(com.qualitest.flow.model.GraphMeta.builder()
                         .layout("manual")
-                        .activeScenarioId("sc1")
-                        .scenarios(List.of(GraphRunScenario.builder()
-                                .id("sc1")
-                                .name("默认")
-                                .testProjectEnvId("")
-                                .flowSeed(Map.of())
-                                .build()))
-                        .flowOutputs(List.of())
+                        
                         .build())
                 .build();
     }
 
     private static Map<String, Object> projectHttpData() {
         Map<String, Object> httpData = new HashMap<>();
-        httpData.put("name", "我的购物车");
         httpData.put("callMode", "project");
         httpData.put("testProjectApiId", "1");
         return httpData;
@@ -640,11 +649,11 @@ class FlowDesignPatchConfirmServiceTest {
         patch.getAddNodes().add(GraphNode.builder()
                 .id("9001")
                 .type("http")
+                .name("我的购物车")
                 .position(com.qualitest.flow.model.GraphNodePosition.builder().x(40).y(80).build())
                 .data(projectHttpData())
                 .build());
         Map<String, Object> assertData = new HashMap<>();
-        assertData.put("name", "断言数量");
         assertData.put("rules", List.of(Map.of(
                 "left", assertLeft,
                 "operator", "eq",
@@ -652,6 +661,7 @@ class FlowDesignPatchConfirmServiceTest {
         patch.getAddNodes().add(GraphNode.builder()
                 .id("9002")
                 .type("assert")
+                .name("断言数量")
                 .position(com.qualitest.flow.model.GraphNodePosition.builder().x(420).y(80).build())
                 .data(assertData)
                 .build());

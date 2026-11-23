@@ -5,7 +5,7 @@
 import type { Edge, Node } from '@vue-flow/core';
 
 import { confirmFlowDesignUnit } from '@/api/project/testFlowAi';
-import type { GraphFlowOutput, GraphScenarioConfig, GraphJson, GraphViewport } from '@/utils/flow/graphTypes';
+import type { GraphScenarioConfig, GraphJson, GraphViewport } from '@/utils/flow/graphTypes';
 import type { GraphValidationResult } from '@/utils/flow/graphValidate';
 import { promiseWithTimeout } from '@/utils/promiseWithTimeout';
 
@@ -22,7 +22,6 @@ export interface ConfirmFlowDesignUnitInput {
   nodes: Node[];
   edges: Edge[];
   runConfig: GraphScenarioConfig;
-  flowOutputs: GraphFlowOutput[];
   viewport: GraphViewport;
   /** 当前排版方式，随确认后的图一起写回 */
   layoutPreset?: string | null;
@@ -66,7 +65,6 @@ export async function requestConfirmFlowDesignUnit(
     edges: input.edges,
     viewport: input.viewport,
     runConfig: input.runConfig,
-    flowOutputs: input.flowOutputs,
     layoutPreset: input.layoutPreset,
     stagingFilter: input.stagingFilter,
   });

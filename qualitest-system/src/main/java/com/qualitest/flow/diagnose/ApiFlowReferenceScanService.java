@@ -269,7 +269,7 @@ public class ApiFlowReferenceScanService {
                     return;
                 }
                 consumer.accept(flow, nodeId, data, boundId,
-                        FlowHttpNodeVisitor.resolveNodeName(data, nodeId));
+                        FlowHttpNodeVisitor.resolveNodeName(node.getString("name"), data, nodeId));
             });
         }
     }

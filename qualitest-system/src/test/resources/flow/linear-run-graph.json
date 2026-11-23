@@ -1,6 +1,29 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561360",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "sc-default",
+            "name": "默认",
+            "remark": "线性冒烟",
+            "envId": "9001",
+            "inSeed": {
+              "loginUser": "admin"
+            }
+          }
+        ]
+      }
+    },
+    {
       "id": "n1",
       "type": "http",
       "position": {
@@ -8,7 +31,6 @@
         "y": 0
       },
       "data": {
-        "name": "登录",
         "testProjectApiId": "1001",
         "apiPath": "/api/login",
         "httpMethod": "POST",
@@ -40,7 +62,8 @@
           }
         ],
         "callMode": "project"
-      }
+      },
+      "name": "登录"
     },
     {
       "id": "n2",
@@ -50,7 +73,6 @@
         "y": 0
       },
       "data": {
-        "name": "业务A",
         "testProjectApiId": "1002",
         "apiPath": "/api/biz/a",
         "httpMethod": "GET",
@@ -62,7 +84,8 @@
           }
         ],
         "callMode": "project"
-      }
+      },
+      "name": "业务A"
     },
     {
       "id": "n3",
@@ -72,12 +95,12 @@
         "y": 0
       },
       "data": {
-        "name": "业务B",
         "testProjectApiId": "1003",
         "apiPath": "/api/biz/b",
         "httpMethod": "GET",
         "callMode": "project"
-      }
+      },
+      "name": "业务B"
     },
     {
       "id": "n4",
@@ -87,7 +110,6 @@
         "y": 0
       },
       "data": {
-        "name": "断言 code",
         "rules": [
           {
             "left": "flow.code",
@@ -95,10 +117,16 @@
             "right": "0"
           }
         ]
-      }
+      },
+      "name": "断言 code"
     }
   ],
   "edges": [
+    {
+      "id": "e_scn_entry_1795425561360_n1",
+      "source": "scn_entry_1795425561360",
+      "target": "n1"
+    },
     {
       "id": "e1",
       "source": "n1",
@@ -122,19 +150,6 @@
       "zoom": 1
     },
     "layout": "manual",
-    "startNodeId": "n1",
-    "activeScenarioId": "sc-default",
-    "scenarios": [
-      {
-        "id": "sc-default",
-        "name": "默认",
-        "testProjectEnvId": "9001",
-        "flowSeed": {
-          "loginUser": "admin"
-        },
-        "remark": "线性冒烟"
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561360"
   }
 }

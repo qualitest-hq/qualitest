@@ -3,8 +3,22 @@
  * 持久化 JSON 中 type 为字符串；校验层用 isKnownNodeType 判断是否合法。
  */
 
-/** MVP 可执行节点 type（含 input：运行时暂停等人填） */
-export const KNOWN_NODE_TYPES = ['http', 'assert', 'delay', 'condition', 'assign', 'script', 'subflow', 'input'] as const;
+/** 画布可执行 / 入口 / 返回节点 type */
+export const KNOWN_NODE_TYPES = [
+  'http',
+  'assert',
+  'delay',
+  'condition',
+  'assign',
+  'script',
+  'subflow',
+  'input',
+  'scenario-entry',
+  'http-entry',
+  'subflow-entry',
+  'http-return',
+  'subflow-return',
+] as const;
 
 export type KnownNodeType = (typeof KNOWN_NODE_TYPES)[number];
 
@@ -18,9 +32,14 @@ export const NODE_TYPE_LABELS: Record<KnownNodeType, string> = {
   script: 'Script',
   subflow: 'Subflow',
   input: 'Input',
+  'scenario-entry': '场景入口',
+  'http-entry': 'HTTP 入口',
+  'subflow-entry': '子流入口',
+  'http-return': 'HTTP 返回',
+  'subflow-return': '子流返回',
 };
 
-/** 是否为 MVP 可执行 type */
+/** 是否为已知 type */
 export function isKnownNodeType(type: string | undefined | null): type is KnownNodeType {
   return type != null && (KNOWN_NODE_TYPES as readonly string[]).includes(type);
 }

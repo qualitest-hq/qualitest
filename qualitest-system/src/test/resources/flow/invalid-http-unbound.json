@@ -1,6 +1,56 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561336",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "2042000000000000101",
+            "name": "默认（冒烟）",
+            "remark": "登录成功 → 业务 A → 断言（短路径）",
+            "envId": "2042000000000000001",
+            "inSeed": {
+              "loginUser": "admin",
+              "loginPass": "***",
+              "pollAttempt": 0,
+              "bizId": "preview-1"
+            }
+          },
+          {
+            "id": "2042000000000000102",
+            "name": "登录失败",
+            "remark": "登录失败 → 业务 B → 轮询环（多步）",
+            "envId": "2042000000000000001",
+            "inSeed": {
+              "loginUser": "bad",
+              "loginPass": "wrong",
+              "pollAttempt": 0,
+              "bizId": "preview-1"
+            }
+          },
+          {
+            "id": "2042000000000000103",
+            "name": "预发 · 快速轮询",
+            "remark": "预发 env + 特殊 bizId → 首轮轮询即完成",
+            "envId": "2042000000000000002",
+            "inSeed": {
+              "loginUser": "bad",
+              "loginPass": "wrong",
+              "pollAttempt": 0,
+              "bizId": "rpt-99"
+            }
+          }
+        ]
+      }
+    },
+    {
       "id": "2040354743931883501",
       "type": "http",
       "position": {
@@ -8,7 +58,6 @@
         "y": 80
       },
       "data": {
-        "name": "用户登录",
         "testProjectApiId": "",
         "apiName": "用户登录",
         "apiPath": "/api/auth/login",
@@ -97,9 +146,9 @@
             "fieldPath": "lastTraceId"
           }
         ],
-        "summary": "POST /api/auth/login · 4 项参数 · 3 项提取",
         "callMode": "project"
-      }
+      },
+      "name": "用户登录"
     },
     {
       "id": "2040354743931883503",
@@ -109,7 +158,6 @@
         "y": 60
       },
       "data": {
-        "name": "条件分支",
         "branches": [
           {
             "id": "b_if",
@@ -129,9 +177,9 @@
             "target": "2040354743931883505",
             "conditions": []
           }
-        ],
-        "summary": "IF flow.code 等于 0"
-      }
+        ]
+      },
+      "name": "条件分支"
     },
     {
       "id": "2040354743931883504",
@@ -141,14 +189,13 @@
         "y": 40
       },
       "data": {
-        "name": "业务接口 A",
         "testProjectApiId": "2020797886924791802",
         "apiName": "业务接口 A",
         "httpMethod": "GET",
         "apiPath": "/api/biz/a",
-        "summary": "GET /api/biz/a",
         "callMode": "project"
-      }
+      },
+      "name": "业务接口 A"
     },
     {
       "id": "2040354743931883505",
@@ -158,14 +205,13 @@
         "y": 260
       },
       "data": {
-        "name": "业务接口 B",
         "testProjectApiId": "2020797886924791803",
         "apiName": "业务接口 B",
         "httpMethod": "GET",
         "apiPath": "/api/biz/b",
-        "summary": "GET /api/biz/b",
         "callMode": "project"
-      }
+      },
+      "name": "业务接口 B"
     },
     {
       "id": "2040354743931883506",
@@ -175,16 +221,15 @@
         "y": 40
       },
       "data": {
-        "name": "断言 A",
         "rules": [
           {
             "left": "http.body.code",
             "operator": "eq",
             "right": "0"
           }
-        ],
-        "summary": "http.body.code 等于 0"
-      }
+        ]
+      },
+      "name": "断言 A"
     },
     {
       "id": "2040354743931883601",
@@ -194,7 +239,6 @@
         "y": 540
       },
       "data": {
-        "name": "轮询 · 计数清零",
         "assignments": [
           {
             "scope": "flow",
@@ -202,9 +246,9 @@
             "op": "set",
             "value": "0"
           }
-        ],
-        "summary": "flow.pollAttempt ← 0"
-      }
+        ]
+      },
+      "name": "轮询 · 计数清零"
     },
     {
       "id": "2040354743931883602",
@@ -214,7 +258,6 @@
         "y": 540
       },
       "data": {
-        "name": "查询任务状态",
         "testProjectApiId": "2020797886924791804",
         "apiName": "任务状态",
         "httpMethod": "GET",
@@ -227,9 +270,9 @@
             "name": "status"
           }
         ],
-        "summary": "GET /api/task/status · 提取 1 项",
         "callMode": "project"
-      }
+      },
+      "name": "查询任务状态"
     },
     {
       "id": "2040354743931883603",
@@ -239,7 +282,6 @@
         "y": 520
       },
       "data": {
-        "name": "状态就绪?",
         "branches": [
           {
             "id": "b_if",
@@ -259,9 +301,9 @@
             "target": "2040354743931883604",
             "conditions": []
           }
-        ],
-        "summary": "IF flow.status 等于 done · ELSE"
-      }
+        ]
+      },
+      "name": "状态就绪?"
     },
     {
       "id": "2040354743931883606",
@@ -271,16 +313,15 @@
         "y": 480
       },
       "data": {
-        "name": "任务完成断言",
         "rules": [
           {
             "left": "flow.status",
             "operator": "eq",
             "right": "done"
           }
-        ],
-        "summary": "flow.status 等于 done"
-      }
+        ]
+      },
+      "name": "任务完成断言"
     },
     {
       "id": "2040354743931883604",
@@ -290,7 +331,6 @@
         "y": 640
       },
       "data": {
-        "name": "轮询 · 计数 +1",
         "assignments": [
           {
             "scope": "flow",
@@ -299,9 +339,9 @@
             "step": 1,
             "ifMissing": 0
           }
-        ],
-        "summary": "flow.pollAttempt += 1"
-      }
+        ]
+      },
+      "name": "轮询 · 计数 +1"
     },
     {
       "id": "2040354743931883605",
@@ -311,13 +351,17 @@
         "y": 800
       },
       "data": {
-        "name": "轮询间隔",
-        "ms": 2000,
-        "summary": "2000 ms"
-      }
+        "ms": 2000
+      },
+      "name": "轮询间隔"
     }
   ],
   "edges": [
+    {
+      "id": "e_scn_entry_1795425561336_2040354743931883501",
+      "source": "scn_entry_1795425561336",
+      "target": "2040354743931883501"
+    },
     {
       "id": "2040354743931883511",
       "source": "2040354743931883501",
@@ -381,46 +425,6 @@
       "zoom": 1
     },
     "layout": "manual",
-    "startNodeId": "2040354743931883501",
-    "activeScenarioId": "2042000000000000101",
-    "scenarios": [
-      {
-        "id": "2042000000000000101",
-        "name": "默认（冒烟）",
-        "testProjectEnvId": "2042000000000000001",
-        "flowSeed": {
-          "loginUser": "admin",
-          "loginPass": "***",
-          "pollAttempt": 0,
-          "bizId": "preview-1"
-        },
-        "remark": "登录成功 → 业务 A → 断言（短路径）"
-      },
-      {
-        "id": "2042000000000000102",
-        "name": "登录失败",
-        "testProjectEnvId": "2042000000000000001",
-        "flowSeed": {
-          "loginUser": "bad",
-          "loginPass": "wrong",
-          "pollAttempt": 0,
-          "bizId": "preview-1"
-        },
-        "remark": "登录失败 → 业务 B → 轮询环（多步）"
-      },
-      {
-        "id": "2042000000000000103",
-        "name": "预发 · 快速轮询",
-        "testProjectEnvId": "2042000000000000002",
-        "flowSeed": {
-          "loginUser": "bad",
-          "loginPass": "wrong",
-          "pollAttempt": 0,
-          "bizId": "rpt-99"
-        },
-        "remark": "预发 env + 特殊 bizId → 首轮轮询即完成"
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561336"
   }
 }

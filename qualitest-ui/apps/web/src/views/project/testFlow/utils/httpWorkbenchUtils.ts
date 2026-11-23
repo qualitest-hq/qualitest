@@ -308,7 +308,6 @@ export function applyWorkbenchToNodeData(
   data.cookies = draft.cookieRows.filter(
     (r) => String(r.name || '').trim() || String(r.value || '').trim(),
   );
-  if (!data.name || data.name === 'HTTP 请求') data.name = draft.apiName || data.name;
 }
 
 /**

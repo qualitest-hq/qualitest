@@ -64,7 +64,7 @@ Edit the canvas on Web only. Use MCP to inspect `testFlowId` and failure context
 | CODE | Hard? | When | Meaning |
 | ---- | ----- | ---- | ------- |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | **Run** (same) | Two logins write the same credential path |
-| `AUTH_TOKEN_MISSING` | Yes | **Run** (same; last-unit confirm may warn) | Bearer needed but no extract / assign / subflow output / **flowSeed(flow only)**; may tip “wrong side” Profile |
+| `AUTH_TOKEN_MISSING` | Yes | **Run** (same; last-unit confirm may warn) | Bearer needed but no extract / assign / subflow output / **inSeed**; may tip “wrong side” Profile |
 | `AUTH_HEADER_MANAGED` / `AUTH_LOGIN_NO_BEARER` | Soft | — | Managed header filled / stripped on anonymous login |
 | Bad assert path (`.items`, `http.body.$.…`) | Yes on that unit | **submit and Staging ✓**; also **Run**; Save soft | See node docs |
 | Update empty array wipe (`rules`/`extracts`/`assignments`) | Yes | **submit / preparePatch** | Empty array vs non-empty baseline blocked |
@@ -76,7 +76,7 @@ Edit the canvas on Web only. Use MCP to inspect `testFlowId` and failure context
 
 Assistants may call `list_project_auth_profiles` and `upsert_auth_profile`. Dotted extract names like `adminAuth.token` without `entryKey` are split server-side.
 
-Auth model: concept map §4. Variables / flowSeed: [flow-variables-and-values.en.md](./flow-variables-and-values.en.md).
+Auth model: concept map §4. Variables / inSeed: [flow-variables-and-values.en.md](./flow-variables-and-values.en.md).
 
 ---
 

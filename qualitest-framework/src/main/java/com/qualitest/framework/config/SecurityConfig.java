@@ -116,6 +116,8 @@ public class SecurityConfig {
                             .requestMatchers("/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").permitAll()
                             // 被测旁执行代理凭短时 token 拉取制品（无用户 JWT）
                             .requestMatchers(HttpMethod.GET, "/project/pluginHost/artifact/**").permitAll()
+                            // 开放 HTTP 握连接入站路径：允许匿名；鉴权由流图业务节点处理
+                            .requestMatchers("/open-http/**").permitAll()
                             // 除上面外的所有请求全部需要鉴权认证
                             .anyRequest().authenticated();
                 })

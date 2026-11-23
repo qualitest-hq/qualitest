@@ -3,15 +3,16 @@ package com.qualitest.ai.scenario.flow;
 import com.alibaba.fastjson2.JSON;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
+import com.qualitest.flow.context.EntryScenarioSupport;
 import com.qualitest.flow.graph.ConditionBranchMergeHelper;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpNodePathSupport;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphRunScenario;
+import com.qualitest.flow.validate.FlowNodeType;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -25,7 +26,7 @@ import java.util.Set;
  * 将 AI 增量 patch 合并进基准图副本（内存操作，不写库）。
  * <p>
  * 合并顺序：新增节点 → 更新节点 → 新增边 → 更新边 →
- * 按 suggestedDeletes 删节点/边（删节点时级联移除关联边）→ 合并 scenarioPatch 到 meta。
+ * 按 suggestedDeletes 删节点/边（删节点时级联移除关联边）→ 合并 scenarioPatch 到 scenario-entry。
  * condition 出边增删改时会同步源节点 data.branches[].target。
  * <p>
  * 用途：单单元 submit 成功后推进工作图；前端确认 Staging 时把勾选单元并入正式图预览。
@@ -250,14 +251,15 @@ public class FlowDesignPatchMerger {
 
         FlowDesignScenarioPatch scenarioPatch = patch.getScenarioPatch();
         if (FlowDesignScenarioPatch.hasChanges(scenarioPatch)) {
-            GraphMeta meta = graph.getMeta();
-            if (meta == null) {
-                meta = new GraphMeta();
-                graph.setMeta(meta);
+            GraphNode entry = EntryScenarioSupport.ensureScenarioEntry(graph, scenarioPatch.getEntryNodeId());
+            List<GraphRunScenario> entryScenarios = new ArrayList<>(EntryScenarioSupport.scenariosOf(entry));
+            List<GraphRunScenario> merged = ScenarioPatchMerger.merge(entryScenarios, scenarioPatch, warnings);
+            Map<String, Object> entryData = entry.getData();
+            if (entryData == null) {
+                entryData = new HashMap<>();
+                entry.setData(entryData);
             }
-            GraphMeta merged = ScenarioPatchMerger.merge(meta, scenarioPatch, warnings);
-            meta.setActiveScenarioId(merged.getActiveScenarioId());
-            meta.setScenarios(merged.getScenarios());
+            entryData.put("scenarios", EntryScenarioSupport.toEntryScenarioMaps(merged));
         }
 
         return graph;
@@ -280,6 +282,9 @@ public class FlowDesignPatchMerger {
     static void applyNodeUpdate(GraphNode existing, GraphNode update) {
         if (update.getType() != null && !update.getType().isBlank()) {
             existing.setType(update.getType());
+        }
+        if (update.getName() != null && !update.getName().isBlank()) {
+            existing.setName(update.getName());
         }
         if (update.getPosition() != null) {
             existing.setPosition(update.getPosition());
@@ -349,4 +354,5 @@ public class FlowDesignPatchMerger {
         }
         return cloned;
     }
+
 }

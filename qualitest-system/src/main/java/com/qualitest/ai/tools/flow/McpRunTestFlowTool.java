@@ -69,6 +69,6 @@ public class McpRunTestFlowTool implements QualitestTool {
             return FlowDesignToolSupport.errorJson("缺少 testFlowId：请显式传入");
         }
         return runCore.run(args.testFlowId(), args.runScenarioId(), args.testProjectEnvId(),
-                ctx.getOperatorUserId(), ctx);
+                args.entryNodeId(), ctx.getOperatorUserId(), ctx);
     }
 }

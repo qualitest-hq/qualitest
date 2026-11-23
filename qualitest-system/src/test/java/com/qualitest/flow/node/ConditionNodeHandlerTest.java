@@ -99,9 +99,8 @@ class ConditionNodeHandlerTest {
         branches.add(ifBranch);
         branches.add(elseBranch);
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "测试分支");
         data.put("branches", branches);
-        return GraphNode.builder().id("n_cond").type("condition").data(data).build();
+        return GraphNode.builder().id("n_cond").type("condition").name("测试分支").data(data).build();
     }
 
     private static JSONObject branch(String id, String kind, String target) {

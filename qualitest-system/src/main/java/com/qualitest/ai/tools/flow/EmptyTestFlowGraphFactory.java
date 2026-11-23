@@ -5,9 +5,13 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.model.GraphSchemaVersions;
+import com.qualitest.flow.validate.FlowNodeType;
 
 /**
- * 组装与 Web「新建测试流」一致的空画布 graph_json。
+ * 组装新建测试流用的空画布 graph_json。
+ * <p>
+ * 默认带一个 scenario-entry，冒烟场景挂在入口 data.scenarios（含空 inSeed）；
+ * meta 仅视口、排版、schemaVersion、startNodeId。
  */
 public final class EmptyTestFlowGraphFactory {
 
@@ -15,39 +19,55 @@ public final class EmptyTestFlowGraphFactory {
     }
 
     /**
-     * 空 nodes/edges，附带默认视口与一条「默认（冒烟）」运行场景。
+     * 空 edges，一个默认场景入口 + 冒烟场景；meta 仅视口/排版。
      *
      * @return 可直接写入 test_flow.graph_json 的 JSON 字符串
      */
     public static String createEmptyGraphJson() {
         String scenarioId = String.valueOf(IdUtil.getSnowflakeNextId());
+        String entryId = String.valueOf(IdUtil.getSnowflakeNextId());
 
         JSONObject scenario = new JSONObject();
         scenario.put("id", scenarioId);
         scenario.put("name", "默认（冒烟）");
-        scenario.put("testProjectEnvId", "");
-        scenario.put("flowSeed", new JSONObject());
+        scenario.put("envId", "");
+        scenario.put("inSeed", new JSONObject());
         scenario.put("remark", "");
+
+        JSONArray scenarios = new JSONArray();
+        scenarios.add(scenario);
+
+        JSONObject entryData = new JSONObject();
+        entryData.put("doc", "");
+        entryData.put("scenarios", scenarios);
+
+        JSONObject entryPos = new JSONObject();
+        entryPos.put("x", 0);
+        entryPos.put("y", 0);
+
+        JSONObject entryNode = new JSONObject();
+        entryNode.put("id", entryId);
+        entryNode.put("type", FlowNodeType.SCENARIO_ENTRY.getCode());
+        entryNode.put("name", "默认场景入口");
+        entryNode.put("position", entryPos);
+        entryNode.put("data", entryData);
+
+        JSONArray nodes = new JSONArray();
+        nodes.add(entryNode);
 
         JSONObject viewport = new JSONObject();
         viewport.put("x", 40);
         viewport.put("y", 40);
         viewport.put("zoom", 1);
 
-        JSONArray scenarios = new JSONArray();
-        scenarios.add(scenario);
-
         JSONObject meta = new JSONObject();
         meta.put("viewport", viewport);
-        // 新建空流记为默认排版：从左往右分层并折行。此时没有节点，不计算坐标
         meta.put("layout", "default");
         meta.put("schemaVersion", GraphSchemaVersions.CURRENT);
-        meta.put("activeScenarioId", scenarioId);
-        meta.put("scenarios", scenarios);
-        meta.put("flowOutputs", new JSONArray());
+        meta.put("startNodeId", entryId);
 
         JSONObject graph = new JSONObject();
-        graph.put("nodes", new JSONArray());
+        graph.put("nodes", nodes);
         graph.put("edges", new JSONArray());
         graph.put("meta", meta);
         return JSON.toJSONString(graph);

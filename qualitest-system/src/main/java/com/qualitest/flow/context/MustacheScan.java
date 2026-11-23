@@ -9,9 +9,9 @@ import java.util.function.Predicate;
 /**
  * 模板中 {@code {{…}}} 占位符的扫描与替换。
  * <p>
- * 默认仅把以 {@code flow.}、{@code env.}、{@code asset.}、{@code http.}、{@code nodes.} 开头、
- * 且前缀后还有内容的内层当作占位路径。其它 {@code {{…}}} 不当占位：只越过开头的 {@code {{}，
- * 继续向后查找，避免说明性花括号吞掉后面的真占位。
+ * 默认仅把以 {@code flow.}、{@code env.}、{@code asset.}、{@code in.}、{@code out.}、
+ * {@code http.}、{@code nodes.} 开头、且前缀后还有内容的内层当作占位路径。其它 {@code {{…}}} 不当占位：
+ * 只越过开头的 {@code {{}，继续向后查找，避免说明性花括号吞掉后面的真占位。
  * <p>
  * 不把反斜杠当转义；原文里的 {@code \} 按普通字符保留。
  * 写入替换结果后不再对结果做二次扫描，变量值里可含花括号。
@@ -31,8 +31,8 @@ public final class MustacheScan {
 
     /**
      * 判断内层是否为可求值的占位路径。
-     * 先 trim，再检查是否以 flow. / env. / http. / asset. / nodes. 开头，
-     * 且前缀后至少还有一个字符（含 {@code nodes.<节点id>.http.…}）。
+     * 先 trim，再检查是否以 flow. / env. / in. / out. / http. / asset. / nodes. 开头，
+     * 且前缀后至少还有一个字符（含 {@code nodes.<节点id>.http.…} / {@code nodes.<id>.out.…}）。
      *
      * @param inner 定界符内原文，可为 null
      * @return 是合法路径则 true
@@ -44,6 +44,8 @@ public final class MustacheScan {
         String p = inner.trim();
         return startsWithScopeAndKey(p, "flow.")
                 || startsWithScopeAndKey(p, "env.")
+                || startsWithScopeAndKey(p, "in.")
+                || startsWithScopeAndKey(p, "out.")
                 || startsWithScopeAndKey(p, "http.")
                 || startsWithScopeAndKey(p, "asset.")
                 || startsWithScopeAndKey(p, "nodes.");

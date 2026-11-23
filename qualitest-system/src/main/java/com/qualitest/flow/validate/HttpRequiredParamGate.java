@@ -51,7 +51,7 @@ public final class HttpRequiredParamGate {
             if (api == null) {
                 return;
             }
-            String nodeLabel = FlowHttpNodeVisitor.resolveNodeName(data, node.getId());
+            String nodeLabel = FlowHttpNodeVisitor.resolveNodeName(node.getName(), data, node.getId());
             if (StrUtil.isBlank(nodeLabel)) {
                 nodeLabel = "HTTP 节点";
             }

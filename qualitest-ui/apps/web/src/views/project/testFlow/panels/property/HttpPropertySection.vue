@@ -228,7 +228,6 @@ import {
 } from '@/utils/flow/retryUntilConstants'
 import { countHttpParamStats, emptyKVRow, HTTP_METHODS } from '../../utils/httpWorkbenchUtils'
 import { isExternalCallMode } from '../../utils/httpSummary'
-import { updateSummary } from '../../utils/nodeDataUtils'
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -401,9 +400,7 @@ const headersModel = computed({
 })
 
 function applyPatch(patch) {
-  const data = { ...props.node.data, ...patch }
-  updateSummary('http', data)
-  patchNodeData(props.node.id, { ...patch, summary: data.summary })
+  patchNodeData(props.node.id, patch)
 }
 
 function setCallMode(mode) {
@@ -422,7 +419,6 @@ function setCallMode(mode) {
       successCheck: { mode: 'off' },
     }
     delete data.requestValueOverrides
-    updateSummary('http', data)
     replaceNodeData(props.node.id, data)
     return
   }
@@ -435,7 +431,6 @@ function setCallMode(mode) {
     successCheck: { mode: 'inherit' },
   }
   delete data.requestConfig
-  updateSummary('http', data)
   replaceNodeData(props.node.id, data)
 }
 

@@ -2,7 +2,6 @@
  * 模板预制流画布灌入：从 catalog 同步 HTTP 合成绑定、探活再登录标准排版。
  */
 import { parseJsonMaybe } from '../../testProject/utils/projectAuthConfig'
-import { updateSummary } from '../../testFlow/utils/nodeDataUtils'
 
 /**
  * 探活再登录骨架坐标。
@@ -107,8 +106,11 @@ export function syncTemplateHttpNodesFromCatalog(nodes, catalog) {
       data.httpMethod = method
       nodeChanged = true
     }
+    if (apiName && (!node.name || String(node.name).trim() === '' || node.name === 'HTTP')) {
+      node.name = apiName
+      nodeChanged = true
+    }
     if (nodeChanged) {
-      updateSummary('http', data)
       node.data = data
       changed = true
     }

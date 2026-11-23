@@ -385,7 +385,7 @@ export function useFlowEditLease(options: UseFlowEditLeaseOptions) {
   // 节点、边、场景、流输出或排版方式变化且画布未保存时，重新判断要不要占写锁。
   // 只换排版方式或只挪坐标时放开写锁，外部可以继续写这张图。
   watch(
-    () => [store.nodes, store.edges, store.runConfig, store.flowOutputs, store.layoutPresetId] as const,
+    () => [store.nodes, store.edges, store.runConfig, store.layoutPresetId] as const,
     () => {
       if (!store.dirty) return
       publishIntent()

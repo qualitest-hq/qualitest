@@ -169,10 +169,12 @@ describe('buildLoginGraphJson', () => {
         { left: 'http.expectedMatch', operator: 'eq', right: 'true' },
       ])
     )
-    expect(graph.edges.length).toBe(4)
+    expect(graph.edges.length).toBe(5)
     expect(graph.meta.layout).toBe('default')
-    expect(graph.meta.scenarios).toHaveLength(1)
-    expect(graph.meta.flowOutputs).toEqual([{ name: 'adminAuth.token' }])
+    const entry = graph.nodes.find((n) => n.type === 'scenario-entry')
+    expect(entry?.data?.scenarios).toHaveLength(1)
+    expect(entry?.data?.scenarios?.[0]?.envId).toBe('')
+    expect(entry?.data?.scenarios?.[0]?.inSeed).toEqual({})
   })
 
   it('写入合成 testProjectApiId', () => {

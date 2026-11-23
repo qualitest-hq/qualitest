@@ -100,6 +100,40 @@ public class GraphWalker {
     }
 
     /**
+     * 解析开跑起点。
+     * <ol>
+     *   <li>ctx/调用方传入的 entryNodeId 非空：必须在图中存在，否则报开始节点错误</li>
+     *   <li>否则若图上恰好一个入口类型节点，用该节点</li>
+     *   <li>多个入口且未指定 id：报错，要求显式指定</li>
+     *   <li>无入口：回落为「无入边」的唯一起点（无入口节点的图）</li>
+     * </ol>
+     */
+    public String resolveStartNodeId(String entryNodeId) {
+        if (entryNodeId != null && !entryNodeId.isBlank()) {
+            String id = entryNodeId.trim();
+            if (!nodeById.containsKey(id)) {
+                throw new FlowExecutionException(FlowErrorCode.TF_START_NODE, "入口节点不存在: " + id);
+            }
+            return id;
+        }
+        List<String> entryIds = nodeById.values().stream()
+                .filter(n -> n != null && FlowNodeType.isEntry(n.getType()))
+                .map(GraphNode::getId)
+                .filter(id -> id != null && !id.isBlank())
+                .sorted()
+                .collect(Collectors.toList());
+        if (entryIds.size() == 1) {
+            return entryIds.get(0);
+        }
+        if (entryIds.size() > 1) {
+            throw new FlowExecutionException(
+                    FlowErrorCode.TF_START_NODE,
+                    "存在多个入口，须指定 entryNodeId: " + String.join(", ", entryIds));
+        }
+        return findUniqueStartNodeId();
+    }
+
+    /**
      * 根据当前节点与步骤结果解析下一节点 id；无后继或命中结束分支时返回 null。
      *
      * @param node       刚执行完的节点

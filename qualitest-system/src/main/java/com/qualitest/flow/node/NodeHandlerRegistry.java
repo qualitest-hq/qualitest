@@ -8,8 +8,10 @@ import com.qualitest.flow.node.impl.AssertNodeHandler;
 import com.qualitest.flow.node.impl.AssignNodeHandler;
 import com.qualitest.flow.node.impl.ConditionNodeHandler;
 import com.qualitest.flow.node.impl.DelayNodeHandler;
+import com.qualitest.flow.node.impl.EntryNodeHandler;
 import com.qualitest.flow.node.impl.HttpNodeHandler;
 import com.qualitest.flow.node.impl.InputNodeHandler;
+import com.qualitest.flow.node.impl.ReturnNodeHandler;
 import com.qualitest.flow.node.impl.ScriptNodeHandler;
 import com.qualitest.flow.node.impl.SubflowNodeHandler;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +21,6 @@ import java.util.List;
 
 /**
  * 节点 Handler 注册表：按 {@code nodes[].type} 路由到对应 {@link NodeHandler} 实现。
- * <p>
- * 支持 http、assert、delay、condition、assign、script、subflow、input。
  */
 @Component
 public class NodeHandlerRegistry {
@@ -36,7 +36,9 @@ public class NodeHandlerRegistry {
                                AssignNodeHandler assignNodeHandler,
                                ScriptNodeHandler scriptNodeHandler,
                                SubflowNodeHandler subflowNodeHandler,
-                               InputNodeHandler inputNodeHandler) {
+                               InputNodeHandler inputNodeHandler,
+                               ReturnNodeHandler returnNodeHandler,
+                               EntryNodeHandler entryNodeHandler) {
         this.handlers = List.of(
                 httpNodeHandler,
                 assertNodeHandler,
@@ -45,7 +47,9 @@ public class NodeHandlerRegistry {
                 assignNodeHandler,
                 scriptNodeHandler,
                 subflowNodeHandler,
-                inputNodeHandler
+                inputNodeHandler,
+                returnNodeHandler,
+                entryNodeHandler
         );
     }
 

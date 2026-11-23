@@ -1,4 +1,4 @@
-/** 运行配置表单：flowSeed / flowOutputs 键值编辑器列定义 */
+/** 运行配置表单：inSeed 键值编辑器列定义 */
 
 export interface FlowKvColumn {
   field: string;

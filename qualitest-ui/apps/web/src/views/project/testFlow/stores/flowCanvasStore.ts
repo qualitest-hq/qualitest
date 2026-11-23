@@ -1,14 +1,14 @@
 /**
  * 测试流画布页 Pinia 状态。
  *
- * 持有 vue-flow 的 nodes/edges/viewport、运行场景、flowOutputs、
+ * 持有 vue-flow 的 nodes/edges/viewport、运行场景、
  * 选中项、三栏 UI 开关，场景运行节点高亮，以及 AI 设计侧栏状态。
  * 真实项目画布另持有当前用户在本项目的权限列表，供画布顶栏与操作门禁使用。
  */
 import type { Edge, Node } from '@vue-flow/core';
 import { computed, nextTick } from 'vue';
 
-import type { GraphFlowOutput, GraphScenarioConfig, GraphViewport } from '@/utils/flow/graphTypes';
+import type { GraphScenarioConfig, GraphViewport } from '@/utils/flow/graphTypes';
 
 import { getTestProject, myProjectContext } from '@/api/project/testProject';
 import { parseProjectCapabilities } from '../../testProject/utils/projectCapabilities';
@@ -80,7 +80,6 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const edges = ref<Edge[]>([]);
   const viewport = ref<GraphViewport>({ ...DEFAULT_VIEWPORT });
   const runConfig = ref<GraphScenarioConfig>(createDefaultRunConfig());
-  const flowOutputs = ref<GraphFlowOutput[]>([]);
   const testFlowId = ref('');
   const testProjectId = ref('');
   const flowName = ref('');
@@ -213,7 +212,6 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     edges.value = [];
     viewport.value = { ...DEFAULT_VIEWPORT };
     runConfig.value = createDefaultRunConfig();
-    flowOutputs.value = [];
     testFlowId.value = '';
     testProjectId.value = '';
     flowName.value = '';
@@ -503,7 +501,6 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     edges,
     viewport,
     runConfig,
-    flowOutputs,
     testFlowId,
     testProjectId,
     flowName,

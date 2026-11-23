@@ -27,7 +27,7 @@ describe('useFlowValidation', () => {
     const staging = useAiStagingStore();
     const runConfig = {
       activeScenarioId: 'sc1',
-      scenarios: [{ id: 'sc1', name: '默认', testProjectEnvId: '', flowSeed: {} }],
+      scenarios: [{ id: 'sc1', name: '默认', envId: '', inSeed: {} }],
     };
     canvas.runConfig = runConfig;
     canvas.nodes = [

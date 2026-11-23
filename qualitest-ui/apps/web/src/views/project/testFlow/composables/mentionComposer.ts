@@ -464,12 +464,12 @@ const MENTION_PROVIDERS: MentionProvider[] = [
         ?? store.runConfig.scenarios?.[0];
 
       if (varSubtype === 'flow') {
-        items = Object.keys(scenario?.flowSeed ?? {}).map((key) => ({
+        items = Object.keys(scenario?.inSeed ?? {}).map((key) => ({
           type: 'var',
           subtype: 'flow',
           id: key,
-          label: `flow.${key}`,
-          detail: '运行场景初值',
+          label: `in.${key}`,
+          detail: '场景入参 inSeed',
         }));
       } else if (varSubtype === 'env') {
         if (store.canvasMode === 'template') {
@@ -481,7 +481,7 @@ const MENTION_PROVIDERS: MentionProvider[] = [
             detail: row.remark || '模板 env',
           }));
         } else {
-          const envId = scenario?.testProjectEnvId;
+          const envId = scenario?.envId ?? (scenario as { testProjectEnvId?: string })?.testProjectEnvId;
           if (envId && store.testProjectId) {
             try {
               const { getTestProjectEnv } = await import('@/api/project/testProjectEnv');

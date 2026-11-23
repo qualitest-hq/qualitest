@@ -224,9 +224,8 @@ class ConditionBranchMergeHelperTest {
         elseBranch.put("conditions", List.of());
 
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "条件");
         data.put("branches", new ArrayList<>(List.of(ifBranch, elseBranch)));
 
-        return GraphNode.builder().id(id).type("condition").data(data).build();
+        return GraphNode.builder().id(id).type("condition").name("条件").data(data).build();
     }
 }

@@ -13,7 +13,6 @@ export function buildFlowGraphInput(store: FlowCanvasStore): ToGraphJsonInput {
     edges: store.getEffectiveEdges(),
     viewport: store.viewport,
     runConfig: store.runConfig,
-    flowOutputs: store.flowOutputs,
     // 当前排版方式，保存、运行和脏检查都带着它，避免落盘时被写成默认排版
     layoutPreset: store.layoutPresetId,
   };

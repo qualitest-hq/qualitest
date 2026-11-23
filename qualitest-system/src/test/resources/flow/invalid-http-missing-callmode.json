@@ -1,6 +1,26 @@
 {
   "nodes": [
     {
+      "id": "scn_entry_1795425561335",
+      "type": "scenario-entry",
+      "name": "默认场景入口",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "doc": "",
+        "scenarios": [
+          {
+            "id": "s1",
+            "name": "默认",
+            "envId": "1",
+            "inSeed": {}
+          }
+        ]
+      }
+    },
+    {
       "id": "2040354743931883501",
       "type": "http",
       "position": {
@@ -8,24 +28,21 @@
         "y": 80
       },
       "data": {
-        "name": "缺少 callMode",
         "testProjectApiId": "2020797886924791801",
         "httpMethod": "GET",
         "apiPath": "/api/test"
-      }
+      },
+      "name": "缺少 callMode"
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "id": "e_entry_http",
+      "source": "scn_entry_1795425561335",
+      "target": "2040354743931883501"
+    }
+  ],
   "meta": {
-    "activeScenarioId": "s1",
-    "scenarios": [
-      {
-        "id": "s1",
-        "name": "默认",
-        "testProjectEnvId": "1",
-        "flowSeed": {}
-      }
-    ],
-    "flowOutputs": []
+    "startNodeId": "scn_entry_1795425561335"
   }
 }

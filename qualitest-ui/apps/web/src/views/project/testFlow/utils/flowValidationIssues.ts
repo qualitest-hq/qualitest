@@ -22,9 +22,9 @@ export type FlowCanvasValidationIssue = {
   source: FlowCanvasValidationIssueSource
 }
 
-/** 节点展示名：优先 data.name，否则用 id */
+/** 节点展示名：优先壳字段 name，否则用 id */
 export function nodeDisplayName(node: GraphNode | undefined, fallbackId: string): string {
-  const name = node?.data?.name
+  const name = node?.name
   if (name != null && String(name).trim()) return String(name).trim()
   return fallbackId
 }

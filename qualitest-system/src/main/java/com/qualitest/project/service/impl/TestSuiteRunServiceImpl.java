@@ -482,9 +482,9 @@ public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
         }
         try {
             GraphJson graph = GraphJson.parse(flow.getGraphJson());
-            GraphMeta meta = graph != null ? graph.getMeta() : null;
-            List<GraphRunScenario> scenarios = meta != null ? meta.getScenarios() : null;
-            if (scenarios != null) {
+            List<GraphRunScenario> scenarios =
+                    com.qualitest.flow.context.EntryScenarioSupport.allEntryScenarios(graph);
+            if (!scenarios.isEmpty()) {
                 for (GraphRunScenario sc : scenarios) {
                     if (sc != null && scenarioId.equals(sc.getId()) && StrUtil.isNotBlank(sc.getName())) {
                         return sc.getName().trim();

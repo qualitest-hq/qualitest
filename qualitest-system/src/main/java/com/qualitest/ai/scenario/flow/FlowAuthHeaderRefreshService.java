@@ -71,7 +71,7 @@ public class FlowAuthHeaderRefreshService {
             }
 
             Map<String, Object> working = new HashMap<>(data);
-            String nodeLabel = FlowHttpNodeVisitor.resolveNodeName(dataJson, node.getId());
+            String nodeLabel = FlowHttpNodeVisitor.resolveNodeName(node.getName(), dataJson, node.getId());
             if (nodeLabel == null || nodeLabel.isBlank()) {
                 nodeLabel = "HTTP 节点";
             }

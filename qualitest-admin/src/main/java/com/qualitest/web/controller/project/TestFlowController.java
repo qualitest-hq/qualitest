@@ -35,7 +35,6 @@ import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.flow.diagnose.ApiFlowReferenceScanService;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
-import com.qualitest.flow.support.ProbeLoginGraphMigrateSupport;
 import com.qualitest.flow.sync.FlowEditLeaseService;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.common.core.text.Convert;
@@ -155,32 +154,6 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 升级本流旧版探活再登录骨架。
-     * 探活白名单补 403；活着判定补上「实际响应符合接口期望」。
-     * 认不出探活骨架时不改图。
-     * 需编辑测试流与分组权限。
-     */
-    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
-    @Log(title = "测试流探活迁移", businessType = BusinessType.UPDATE)
-    @PostMapping("/{testFlowId}/migrateProbeLogin")
-    public R<Map<String, Object>> migrateProbeLogin(@PathVariable("testFlowId") Long testFlowId) {
-        TestFlow flow = requireEditableFlow(testFlowId);
-        String before = flow.getGraphJson();
-        String after = ProbeLoginGraphMigrateSupport.migrate(before);
-        boolean changed = after != null && !after.equals(before);
-        Map<String, Object> body = new HashMap<>();
-        body.put("changed", changed);
-        if (changed) {
-            TestFlow patch = new TestFlow();
-            patch.setTestFlowId(testFlowId);
-            patch.setGraphJson(after);
-            testFlowService.updateTestFlow(patch);
-            body.put("graphJson", after);
-        }
-        return ok(body);
-    }
-
-    /**
      * 加载未删除的测试流，并校验当前登录用户具备查看权限。
      *
      * @return 通过校验的测试流实体
@@ -216,7 +189,7 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 按 templateId 复制平台模板为当前项目的测试流，含图与 meta.flowOutputs；需新建测试流权限。
+     * 按 templateId 复制平台模板为当前项目的测试流；需新建测试流权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:add')")
     @Log(title = "测试流", businessType = BusinessType.INSERT)

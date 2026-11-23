@@ -323,7 +323,8 @@ class FlowDesignToolsDefinitionServiceTest {
         // 协议侧强制传流 id / 运行 id，Web 侧可回退当前画布或上下文，参数形状允许不同
         Set<String> allowDifferentParams = Set.of(
                 FlowDesignToolNames.RUN_TEST_FLOW.getId(),
-                FlowDesignToolNames.GET_RUN_FAILURE.getId());
+                FlowDesignToolNames.GET_RUN_FAILURE.getId(),
+                FlowDesignToolNames.GET_RUN_REPORT.getId());
 
         List<String> drifts = new ArrayList<>();
         for (String name : common) {
@@ -339,10 +340,11 @@ class FlowDesignToolsDefinitionServiceTest {
         assertTrue(drifts.isEmpty(), "parameters 漂移: " + drifts);
 
         assertTrue(common.contains(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()));
-        JSONObject httpData = web.get(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId())
-                .getJSONObject("properties")
-                .getJSONObject("data")
-                .getJSONObject("properties");
+        JSONObject httpParams = web.get(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId());
+        assertTrue(httpParams.getJSONArray("required").contains("name"));
+        JSONObject httpData = httpParams.getJSONObject("properties").getJSONObject("data").getJSONObject("properties");
+        assertFalse(httpData.containsKey("name"));
+        assertFalse(httpData.containsKey("summary"));
         assertTrue(httpData.containsKey("alwaysRun"));
         assertTrue(httpData.containsKey("authProfileId"));
         assertTrue(httpData.getJSONObject("extracts")

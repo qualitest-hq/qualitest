@@ -79,7 +79,7 @@ export function formatBranchSummary(branch: ConditionBranch): string {
   return rules.map(formatCondRule).join(' 且 ');
 }
 
-/** 节点 data.summary：取首条非 else 分支的摘要 */
+/** 条件节点卡片正文：取首条非 else 分支的摘要 */
 export function formatConditionSummary(data: Record<string, unknown> | null | undefined): string {
   const branches = getConditionBranches(data);
   const first = branches.find((b) => b.kind !== 'else');

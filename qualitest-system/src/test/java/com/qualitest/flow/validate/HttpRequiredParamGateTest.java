@@ -223,13 +223,12 @@ class HttpRequiredParamGateTest {
     /** 组装一个绑定项目接口的 HTTP 节点；overrides 写入 requestValueOverrides。 */
     private static GraphNode httpNode(String id, Long apiId, Map<String, Object> overrides) {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", id);
         data.put("callMode", "project");
         data.put("testProjectApiId", String.valueOf(apiId));
         if (overrides != null) {
             data.put("requestValueOverrides", new HashMap<>(overrides));
         }
-        return GraphNode.builder().id(id).type("http").data(data).build();
+        return GraphNode.builder().id(id).type("http").name(id).data(data).build();
     }
 
     /** 构造仅含 requestConfig 的接口资产。 */

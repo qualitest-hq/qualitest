@@ -155,7 +155,11 @@ class FlowGraphMermaidSupportTest {
     }
 
     private static GraphNode node(String id, String type, Map<String, Object> data) {
-        return GraphNode.builder().id(id).type(type).data(new LinkedHashMap<>(data)).build();
+        Object nameObj = data.get("name");
+        String name = nameObj != null ? String.valueOf(nameObj) : "";
+        Map<String, Object> payload = new LinkedHashMap<>(data);
+        payload.remove("name");
+        return GraphNode.builder().id(id).type(type).name(name).data(payload).build();
     }
 
     private static GraphEdge edge(String id, String source, String target, String label) {

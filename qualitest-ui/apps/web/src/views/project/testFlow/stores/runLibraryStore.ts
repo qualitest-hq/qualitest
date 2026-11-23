@@ -104,7 +104,7 @@ export interface RunStepDetail {
     scenarioName?: string;
     testProjectEnvId?: string;
     envName?: string;
-    flowSeed?: Record<string, unknown>;
+    inSeed?: Record<string, unknown>;
     envSnapshot?: Record<string, unknown>;
   };
 }

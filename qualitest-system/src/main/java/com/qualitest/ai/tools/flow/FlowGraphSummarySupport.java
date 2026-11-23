@@ -24,8 +24,8 @@ public final class FlowGraphSummarySupport {
     /**
      * 将单个画布节点转为摘要对象。
      * <p>
-     * 固定包含 {@code id}、{@code type}、{@code name}；HTTP / 子流节点再附加
-     * {@code callMode}、{@code subflowId}、{@code summary} 等便于 Agent 识别的字段。
+     * 固定包含 {@code id}、{@code type}、顶壳 {@code name}；HTTP / 子流节点再附加
+     * {@code callMode}、{@code subflowId} 等便于 Agent 识别的字段。
      *
      * @param node 画布节点，可为 null（返回空对象）
      * @return 节点摘要 JSON
@@ -37,8 +37,7 @@ public final class FlowGraphSummarySupport {
         }
         item.put("id", node.getId());
         item.put("type", node.getType());
-        Object name = node.getData() != null ? node.getData().get("name") : null;
-        item.put("name", name != null ? String.valueOf(name) : "");
+        item.put("name", node.getName() != null ? node.getName() : "");
         enrichNodeSummary(node, item);
         return item;
     }
@@ -48,7 +47,6 @@ public final class FlowGraphSummarySupport {
      * <ul>
      *   <li>HTTP：{@code callMode}（project / external）</li>
      *   <li>子流：{@code subflowId}</li>
-     *   <li>任意类型：非空 {@code summary}（画布卡片副标题）</li>
      * </ul>
      *
      * @param node 源节点
@@ -70,10 +68,6 @@ public final class FlowGraphSummarySupport {
             if (subflowId != null && !String.valueOf(subflowId).isBlank()) {
                 item.put("subflowId", String.valueOf(subflowId).trim());
             }
-        }
-        Object summary = data.get("summary");
-        if (summary != null && !String.valueOf(summary).isBlank()) {
-            item.put("summary", String.valueOf(summary));
         }
     }
 

@@ -6,11 +6,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * 图元数据：画布状态、运行场景与流程返回值声明。
+ * 图元数据：画布视口/排版等。
+ * <p>
+ * 可运行场景列表保存在 scenario-entry 节点的 data.scenarios，本类不承载场景配置。
  */
 @Getter
 @Setter
@@ -19,9 +18,7 @@ import java.util.List;
 @AllArgsConstructor
 public class GraphMeta {
 
-    /**
-     * 图 schema 版本；当前写入 {@link GraphSchemaVersions#CURRENT}（为 1）。
-     */
+    /** 图 JSON 结构版本号，供解析与迁移识别 */
     private Integer schemaVersion;
 
     /**
@@ -42,21 +39,4 @@ public class GraphMeta {
      * 唯一开始节点 id 缓存；执行仍以拓扑入度为准，此字段仅辅助画布
      */
     private String startNodeId;
-
-    /**
-     * 默认选中的场景 id（画布场景运行时使用）
-     */
-    private String activeScenarioId;
-
-    /**
-     * 运行场景列表（至少 1 条）
-     */
-    @Builder.Default
-    private List<GraphRunScenario> scenarios = new ArrayList<>();
-
-    /**
-     * 流程对外暴露的 flow 返回值声明；子流节点 outputs 为空时用作默认映射
-     */
-    @Builder.Default
-    private List<GraphFlowOutput> flowOutputs = new ArrayList<>();
 }

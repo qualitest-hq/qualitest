@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 FlowDesignPatchNormalizer：AI 流程补丁规范化（补雪花 id、自动排版写入新增节点坐标、
- * API 绑定、summary）与预合并校验；含单单元将 AUTH_* / HTTP 必填写入 warnings、整包写入 errors。
+ * API 绑定）与预合并校验；含单单元将 AUTH_* / HTTP 必填写入 warnings、整包写入 errors。
  * 边界：Mock TestProjectApiMapper，不访问数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignPatchNormalizerTest
  */
@@ -69,7 +69,7 @@ class FlowDesignPatchNormalizerTest {
         GraphNode httpNode = GraphNode.builder()
                 .id("bad")
                 .type("http")
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录")))
+                .name("登录").data(new HashMap<>(Map.of("callMode", "project")))
                 .build();
         GraphEdge edge = GraphEdge.builder()
                 .source("bad")
@@ -105,7 +105,7 @@ class FlowDesignPatchNormalizerTest {
                 .id("1001")
                 .type("http")
                 .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
-                .data(new HashMap<>(Map.of("name", "登录")))
+                .name("登录").data(new HashMap<>())
                 .build();
         GraphJson base = GraphJson.builder()
                 .nodes(new ArrayList<>(List.of(existing)))
@@ -113,7 +113,7 @@ class FlowDesignPatchNormalizerTest {
                 .build();
         GraphNode add = GraphNode.builder()
                 .type("http")
-                .data(new HashMap<>(Map.of("name", "下一步", "callMode", "external")))
+                .name("下一步").data(new HashMap<>(Map.of("callMode", "external")))
                 .build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(add)));
@@ -135,12 +135,13 @@ class FlowDesignPatchNormalizerTest {
     @DisplayName("非法 API id 置空并告警")
     void normalize_invalidApiId_clearedWithWarning() {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "非法API");
+        String shellName = "非法API";
         data.put("callMode", "project");
         data.put("testProjectApiId", "not-a-number");
         GraphNode node = GraphNode.builder()
                 .id("9001")
                 .type("http")
+                .name("非法API")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
                 .data(data)
                 .build();
@@ -156,12 +157,12 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：合法 API 绑定，Mapper 返回登录接口（含 method=POST）。
-     * 期望：补全 apiName；不写入 apiPath（路径只跟资产）；summary=「POST 用户登录」。
+     * 期望：补全 apiName；不写入 apiPath（路径只跟资产）；不在 data 落展示摘要。
      */
     @Test
     @Order(4)
-    @DisplayName("合法 API 补全字段与 summary")
-    void normalize_validApi_enrichesSummaryAndFields() {
+    @DisplayName("合法 API 补全字段")
+    void normalize_validApi_enrichesFields() {
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
@@ -171,12 +172,13 @@ class FlowDesignPatchNormalizerTest {
                 .build());
 
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "登录");
+        String shellName = "登录";
         data.put("callMode", "project");
         data.put("testProjectApiId", String.valueOf(API_ID));
         GraphNode node = GraphNode.builder()
                 .id("9002")
                 .type("http")
+                .name("登录")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
                 .data(data)
                 .build();
@@ -188,16 +190,15 @@ class FlowDesignPatchNormalizerTest {
         Map<String, Object> normalized = result.patch().getAddNodes().get(0).getData();
         assertEquals("用户登录", normalized.get("apiName"));
         assertNull(normalized.get("apiPath"), "节点不存 apiPath，路径只跟资产");
-        assertEquals("POST 用户登录", normalized.get("summary"));
     }
 
     /**
      * 前提：线性 http→assert 补丁，API 合法。
-     * 期望：validation.ok；assert summary=「http.body.data.code eq 0」。
+     * 期望：validation.ok。
      */
     @Test
     @Order(5)
-    @DisplayName("线性补丁校验通过并生成 assert summary")
+    @DisplayName("线性补丁校验通过")
     void normalize_linearPatch_mergedGraphHasSingleStartNode() {
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
                 .testProjectApiId(API_ID)
@@ -212,9 +213,7 @@ class FlowDesignPatchNormalizerTest {
                 .id(httpId)
                 .type("http")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
-                .data(new HashMap<>(Map.of(
-                        "callMode", "project",
-                        "name", "登录",
+                .name("登录").data(new HashMap<>(Map.of("callMode", "project",
                         "testProjectApiId", String.valueOf(API_ID),
                         "requestConfig", Map.of("method", "POST"),
                         "apiPath", "/api/account/auth/login",
@@ -224,21 +223,18 @@ class FlowDesignPatchNormalizerTest {
                                 "entryKey", "clientAuth",
                                 "fieldPath", "token",
                                 "expr", "$.data.token",
-                                "from", "body"))
-                )))
+                                "from", "body")))))
                 .build();
         GraphNode assertNode = GraphNode.builder()
                 .id(assertId)
                 .type("assert")
                 .position(GraphNodePosition.builder().x(420).y(80).build())
-                .data(new HashMap<>(Map.of(
-                        "name", "校验 code",
-                        "rules", List.of(Map.of("left", "http.body.data.code", "operator", "eq", "right", "0"))
-                )))
+                .name("校验 code").data(new HashMap<>(Map.of("rules", List.of(Map.of("left", "http.body.data.code", "operator", "eq", "right", "0")))))
                 .build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(http, assertNode)));
         patch.setAddEdges(new ArrayList<>(List.of(
+                GraphEdge.builder().id("9200").source("entry-test-1").target(httpId).build(),
                 GraphEdge.builder().id("9201").source(httpId).target(assertId).build()
         )));
 
@@ -246,7 +242,6 @@ class FlowDesignPatchNormalizerTest {
 
         assertTrue(result.validation().isOk(), () -> String.join("; ", result.validation().getErrors()));
         assertEquals(2, result.patch().getAddNodes().size());
-        assertEquals("http.body.data.code eq 0", result.patch().getAddNodes().get(1).getData().get("summary"));
     }
 
     /**
@@ -261,12 +256,9 @@ class FlowDesignPatchNormalizerTest {
                 .id("9101")
                 .type("http")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
-                .data(new HashMap<>(Map.of(
-                        "callMode", "project",
-                        "name", "登录",
+                .name("登录").data(new HashMap<>(Map.of("callMode", "project",
                         "testProjectApiId", String.valueOf(API_ID),
-                        "apiPath", "/api/account/auth/login"
-                )))
+                        "apiPath", "/api/account/auth/login")))
                 .build();
         GraphJson base = graphWithMeta();
         base.getNodes().add(existingHttp);
@@ -301,16 +293,17 @@ class FlowDesignPatchNormalizerTest {
                 .id(httpId)
                 .type("http")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录", "testProjectApiId", String.valueOf(API_ID))))
+                .name("登录").data(new HashMap<>(Map.of("callMode", "project", "testProjectApiId", String.valueOf(API_ID))))
                 .build();
         GraphNode assertNode = GraphNode.builder()
                 .id(assertId)
                 .type("assert")
                 .position(GraphNodePosition.builder().x(420).y(80).build())
-                .data(new HashMap<>(Map.of("name", "校验", "rules", List.of())))
+                .name("校验").data(new HashMap<>(Map.of("rules", List.of())))
                 .build();
         GraphJson base = graphWithMeta();
         base.getNodes().addAll(List.of(http, assertNode));
+        base.getEdges().add(GraphEdge.builder().id("9199").source("entry-test-1").target(httpId).build());
         base.getEdges().add(GraphEdge.builder().id("9201").source(httpId).target(assertId).build());
 
         FlowDesignPatch patch = new FlowDesignPatch();
@@ -341,7 +334,7 @@ class FlowDesignPatchNormalizerTest {
                 .id("9101")
                 .type("http")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录")))
+                .name("登录").data(new HashMap<>(Map.of("callMode", "project")))
                 .build();
         GraphJson base = graphWithMeta();
         base.getNodes().add(existingHttp);
@@ -372,8 +365,8 @@ class FlowDesignPatchNormalizerTest {
     void normalize_addScenarios_assignsIdAndValidates() {
         GraphRunScenario newScenario = GraphRunScenario.builder()
                 .name("异常路径")
-                .testProjectEnvId("")
-                .flowSeed(new HashMap<>(Map.of("loginUser", "bad")))
+                .envId("")
+                .inSeed(new HashMap<>(Map.of("loginUser", "bad")))
                 .remark("登录失败")
                 .build();
         FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
@@ -397,24 +390,25 @@ class FlowDesignPatchNormalizerTest {
     @DisplayName("更新场景浅合并 flowSeed")
     void mergeScenarioPatch_updateScenario_mergesFlowSeed() {
         String scenarioId = "2042000000000000101";
-        GraphMeta base = graphWithMeta().getMeta();
-        base.getScenarios().get(0).setFlowSeed(new HashMap<>(Map.of("loginUser", "admin")));
+        List<GraphRunScenario> base = new ArrayList<>(com.qualitest.flow.context.EntryScenarioSupport
+                .allEntryScenarios(graphWithScenarioEntry()));
+        base.get(0).setInSeed(new HashMap<>(Map.of("loginUser", "admin")));
         GraphRunScenario update = GraphRunScenario.builder()
                 .id(scenarioId)
-                .flowSeed(new HashMap<>(Map.of("pollAttempt", 1)))
+                .inSeed(new HashMap<>(Map.of("pollAttempt", 1)))
                 .build();
         FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
         scenarioPatch.setUpdateScenarios(new ArrayList<>(List.of(update)));
         List<String> warnings = new ArrayList<>();
 
-        GraphMeta merged = ScenarioPatchMerger.merge(base, scenarioPatch, warnings);
+        List<GraphRunScenario> merged = ScenarioPatchMerger.merge(base, scenarioPatch, warnings);
 
-        GraphRunScenario scenario = merged.getScenarios().stream()
+        GraphRunScenario scenario = merged.stream()
                 .filter(s -> scenarioId.equals(s.getId()))
                 .findFirst()
                 .orElseThrow();
-        assertEquals("admin", scenario.getFlowSeed().get("loginUser"));
-        assertEquals(1, scenario.getFlowSeed().get("pollAttempt"));
+        assertEquals("admin", scenario.getInSeed().get("loginUser"));
+        assertEquals(1, scenario.getInSeed().get("pollAttempt"));
     }
 
     /**
@@ -427,50 +421,51 @@ class FlowDesignPatchNormalizerTest {
     void mergeScenarioPatch_deleteScenario_keepsAtLeastOne() {
         String keepId = "2042000000000000101";
         String removeId = "2042000000000000102";
-        GraphMeta base = graphWithMeta().getMeta();
-        base.getScenarios().add(GraphRunScenario.builder()
+        List<GraphRunScenario> base = new ArrayList<>(com.qualitest.flow.context.EntryScenarioSupport
+                .allEntryScenarios(graphWithScenarioEntry()));
+        base.add(GraphRunScenario.builder()
                 .id(removeId)
                 .name("备用")
-                .testProjectEnvId("")
-                .flowSeed(new HashMap<>())
+                .envId("")
+                .inSeed(new HashMap<>())
                 .build());
         FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
         scenarioPatch.setDeleteScenarioIds(new ArrayList<>(List.of(removeId)));
         List<String> warnings = new ArrayList<>();
 
-        GraphMeta merged = ScenarioPatchMerger.merge(base, scenarioPatch, warnings);
+        List<GraphRunScenario> merged = ScenarioPatchMerger.merge(base, scenarioPatch, warnings);
 
-        assertEquals(1, merged.getScenarios().size());
-        assertEquals(keepId, merged.getScenarios().get(0).getId());
+        assertEquals(1, merged.size());
+        assertEquals(keepId, merged.get(0).getId());
     }
 
     /**
      * 前提：外联 HTTP 带 externalUrl 与 POST。
-     * 期望：summary=「POST ↗ oauth.example.com/token」；callMode/httpMethod 保留。
+     * 期望：不在 data 落展示摘要；callMode/httpMethod 保留。
      */
     @Test
     @Order(12)
-    @DisplayName("外联 HTTP 生成外部 summary")
-    void normalize_externalHttp_buildsExternalSummary() {
+    @DisplayName("外联 HTTP 不落 data 摘要")
+    void normalize_noLongerWritesDataSummary() {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "OAuth");
         data.put("callMode", "external");
         data.put("externalUrl", "https://oauth.example.com/token");
         data.put("httpMethod", "POST");
         GraphNode node = GraphNode.builder()
                 .id("ext1")
                 .type("http")
+                .name("OAuth")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
                 .data(data)
                 .build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(node)));
+        patch.setAddEdges(new ArrayList<>(List.of(
+                GraphEdge.builder().id("e-ext1").source("entry-test-1").target("ext1").build())));
 
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, graphWithMeta(), PROJECT_ID);
 
         Map<String, Object> normalized = result.patch().getAddNodes().get(0).getData();
-        String summary = String.valueOf(normalized.get("summary"));
-        assertEquals("POST ↗ oauth.example.com/token", summary);
         assertEquals("external", normalized.get("callMode"));
         assertEquals("POST", normalized.get("httpMethod"));
         assertTrue(result.validation().isOk());
@@ -485,7 +480,7 @@ class FlowDesignPatchNormalizerTest {
     @DisplayName("外联缺 URL 产生 warning")
     void normalize_externalHttp_missingExternalUrl_producesWarning() {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "OAuth");
+        String shellName = "OAuth";
         data.put("callMode", "external");
         data.put("httpMethod", "POST");
         GraphNode node = GraphNode.builder()
@@ -496,6 +491,8 @@ class FlowDesignPatchNormalizerTest {
                 .build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(node)));
+        patch.setAddEdges(new ArrayList<>(List.of(
+                GraphEdge.builder().id("e-ext2").source("entry-test-1").target("ext2").build())));
 
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, graphWithMeta(), PROJECT_ID);
 
@@ -505,31 +502,31 @@ class FlowDesignPatchNormalizerTest {
 
     /**
      * 前提：子流节点带 subflowName 与 outputs.flowKey=token。
-     * 期望：summary=「登录子流 → token」；subflowId 保留。
+     * 期望：不在 data 落展示摘要；subflowId 保留。
      */
     @Test
     @Order(15)
-    @DisplayName("子流节点生成子流 summary")
-    void normalize_subflow_buildsSubflowSummary() {
+    @DisplayName("子流节点不落 data 摘要")
+    void normalize_subflow_noDataSummary() {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "登录子流");
         data.put("subflowName", "登录子流");
         data.put("subflowId", "3001");
         data.put("outputs", List.of(Map.of("name", "token", "flowKey", "token")));
         GraphNode node = GraphNode.builder()
                 .id("sf1")
                 .type("subflow")
+                .name("登录子流")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
                 .data(data)
                 .build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(node)));
+        patch.setAddEdges(new ArrayList<>(List.of(
+                GraphEdge.builder().id("e-sf1").source("entry-test-1").target("sf1").build())));
 
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, graphWithMeta(), PROJECT_ID);
 
         Map<String, Object> normalized = result.patch().getAddNodes().get(0).getData();
-        String summary = String.valueOf(normalized.get("summary"));
-        assertEquals("登录子流 → token", summary);
         assertEquals("3001", normalized.get("subflowId"));
         assertTrue(result.validation().isOk());
     }
@@ -545,12 +542,12 @@ class FlowDesignPatchNormalizerTest {
         GraphNode a = GraphNode.builder()
                 .type("http")
                 .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
-                .data(new HashMap<>(Map.of("name", "A", "callMode", "external", "externalUrl", "http://x")))
+                .name("A").data(new HashMap<>(Map.of("callMode", "external", "externalUrl", "http://x")))
                 .build();
         GraphNode b = GraphNode.builder()
                 .type("http")
                 .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
-                .data(new HashMap<>(Map.of("name", "B", "callMode", "external", "externalUrl", "http://y")))
+                .name("B").data(new HashMap<>(Map.of("callMode", "external", "externalUrl", "http://y")))
                 .build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(a, b)));
@@ -577,7 +574,7 @@ class FlowDesignPatchNormalizerTest {
                 .id("1001")
                 .type("http")
                 .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
-                .data(new HashMap<>(Map.of("name", "登录")))
+                .name("登录").data(new HashMap<>())
                 .build();
         GraphJson base = GraphJson.builder()
                 .nodes(new ArrayList<>(List.of(existing)))
@@ -586,7 +583,7 @@ class FlowDesignPatchNormalizerTest {
         GraphNode add = GraphNode.builder()
                 .type("http")
                 .position(GraphNodePosition.builder().x(40.0).y(80.0).build())
-                .data(new HashMap<>(Map.of("name", "下一步", "callMode", "external", "externalUrl", "http://z")))
+                .name("下一步").data(new HashMap<>(Map.of("callMode", "external", "externalUrl", "http://z")))
                 .build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(add)));
@@ -616,11 +613,11 @@ class FlowDesignPatchNormalizerTest {
                 .build());
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
-        data.put("name", "查资料");
         data.put("testProjectApiId", String.valueOf(API_ID));
         GraphNode node = GraphNode.builder()
                 .id("9301")
                 .type("http")
+                .name("查资料")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
                 .data(data)
                 .build();
@@ -662,11 +659,11 @@ class FlowDesignPatchNormalizerTest {
                 .build());
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
-        data.put("name", "分类");
         data.put("testProjectApiId", String.valueOf(API_ID));
         GraphNode node = GraphNode.builder()
                 .id("9302")
                 .type("http")
+                .name("分类")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
                 .data(data)
                 .build();
@@ -695,7 +692,7 @@ class FlowDesignPatchNormalizerTest {
         GraphNode n1 = GraphNode.builder()
                 .id("n_login")
                 .type("http")
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录")))
+                .name("登录").data(new HashMap<>(Map.of("callMode", "project")))
                 .build();
         FlowDesignPatch add = new FlowDesignPatch();
         add.setAddNodes(new ArrayList<>(List.of(n1)));
@@ -706,13 +703,13 @@ class FlowDesignPatchNormalizerTest {
         assertEquals(snowflake, r1.patch().getAddNodes().get(0).getId());
 
         GraphJson base = GraphJson.builder()
-                .nodes(new ArrayList<>(List.of(GraphNode.builder().id(snowflake).type("http").data(new HashMap<>()).build())))
+                .nodes(new ArrayList<>(List.of(GraphNode.builder().id(snowflake).type("http").name("登录").data(new HashMap<>()).build())))
                 .edges(new ArrayList<>())
                 .build();
         GraphNode upd = GraphNode.builder()
                 .id("n_login")
                 .type("http")
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录改")))
+                .name("登录改").data(new HashMap<>(Map.of("callMode", "project")))
                 .build();
         FlowDesignPatch update = new FlowDesignPatch();
         update.setUpdateNodes(new ArrayList<>(List.of(upd)));
@@ -728,7 +725,6 @@ class FlowDesignPatchNormalizerTest {
     void normalize_edgeWinsOverWrongTarget() {
         Map<String, String> sessionMap = new HashMap<>();
         Map<String, Object> condData = new HashMap<>();
-        condData.put("name", "分支");
         condData.put("branches", new ArrayList<>(List.of(
                 new HashMap<>(Map.of(
                         "id", "b_if",
@@ -740,11 +736,11 @@ class FlowDesignPatchNormalizerTest {
                         "kind", "else",
                         "target", "n_wrong"))
         )));
-        GraphNode cond = GraphNode.builder().id("n_cond").type("condition").data(condData).build();
+        GraphNode cond = GraphNode.builder().id("n_cond").type("condition").name("分支").data(condData).build();
         GraphNode probe = GraphNode.builder().id("n_probe").type("http")
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "探活"))).build();
+                .name("探活").data(new HashMap<>(Map.of("callMode", "project"))).build();
         GraphNode login = GraphNode.builder().id("n_login").type("http")
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录"))).build();
+                .name("登录").data(new HashMap<>(Map.of("callMode", "project"))).build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(cond, probe, login)));
         patch.setAddEdges(new ArrayList<>(List.of(
@@ -768,7 +764,6 @@ class FlowDesignPatchNormalizerTest {
     void normalize_noEdgeClearsTarget_ignoresTypeLabel() {
         Map<String, String> sessionMap = new HashMap<>();
         Map<String, Object> statusData = new HashMap<>();
-        statusData.put("name", "探活是否200");
         statusData.put("branches", new ArrayList<>(List.of(
                 new HashMap<>(Map.of(
                         "id", "b_ok",
@@ -789,9 +784,9 @@ class FlowDesignPatchNormalizerTest {
         List<Map<String, Object>> raw = (List<Map<String, Object>>) statusData.get("branches");
         raw.add(dirty);
 
-        GraphNode status = GraphNode.builder().id("n_status").type("condition").data(statusData).build();
+        GraphNode status = GraphNode.builder().id("n_status").type("condition").name("探活是否200").data(statusData).build();
         GraphNode login = GraphNode.builder().id("n_login").type("http")
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录"))).build();
+                .name("登录").data(new HashMap<>(Map.of("callMode", "project"))).build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(status, login)));
         // 仅 ELSE 有出边；IF 无出边应清 target
@@ -820,7 +815,7 @@ class FlowDesignPatchNormalizerTest {
         GraphNode upd = GraphNode.builder()
                 .id("never_seen")
                 .type("http")
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "x")))
+                .name("x").data(new HashMap<>(Map.of("callMode", "project")))
                 .build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setUpdateNodes(new ArrayList<>(List.of(upd)));
@@ -866,7 +861,7 @@ class FlowDesignPatchNormalizerTest {
     /** 构造绑定客户端 inherit HTTP 的 addNode 补丁（缺 token 来源）。 */
     private static FlowDesignPatch dualBearerHttpAddPatch(String nodeId) {
         Map<String, Object> data = new HashMap<>();
-        data.put("name", "资料");
+        String shellName = "资料";
         data.put("callMode", "project");
         data.put("testProjectApiId", String.valueOf(API_ID));
         GraphNode node = GraphNode.builder()
@@ -892,10 +887,7 @@ class FlowDesignPatchNormalizerTest {
                 .id("9101")
                 .type("assert")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
-                .data(new HashMap<>(Map.of(
-                        "name", "校验",
-                        "rules", List.of(Map.of("left", "flow.code", "operator", "eq", "right", "0"))
-                )))
+                .name("校验").data(new HashMap<>(Map.of("rules", List.of(Map.of("left", "flow.code", "operator", "eq", "right", "0")))))
                 .build();
         GraphJson base = graphWithMeta();
         base.getNodes().add(existing);
@@ -925,9 +917,7 @@ class FlowDesignPatchNormalizerTest {
                 .id("9101")
                 .type("condition")
                 .position(GraphNodePosition.builder().x(40).y(80).build())
-                .data(new HashMap<>(Map.of(
-                        "name", "分支",
-                        "branches", List.of(
+                .name("分支").data(new HashMap<>(Map.of("branches", List.of(
                                 new HashMap<>(Map.of(
                                         "id", "b1",
                                         "kind", "if",
@@ -942,8 +932,7 @@ class FlowDesignPatchNormalizerTest {
                                         "kind", "else",
                                         "conditions", List.of()
                                 ))
-                        )
-                )))
+                        ))))
                 .build();
         GraphJson base = graphWithMeta();
         base.getNodes().add(existing);
@@ -984,7 +973,6 @@ class FlowDesignPatchNormalizerTest {
     void normalize_edgeLabelBranchId_bindsElse() {
         Map<String, String> sessionMap = new HashMap<>();
         Map<String, Object> condData = new HashMap<>();
-        condData.put("name", "凭证是否存在");
         condData.put("branches", new ArrayList<>(List.of(
                 new HashMap<>(Map.of(
                         "id", "b_if",
@@ -994,9 +982,9 @@ class FlowDesignPatchNormalizerTest {
                         "id", "else_cred",
                         "kind", "else"))
         )));
-        GraphNode cond = GraphNode.builder().id("n_cond").type("condition").data(condData).build();
+        GraphNode cond = GraphNode.builder().id("n_cond").type("condition").name("凭证是否存在").data(condData).build();
         GraphNode login = GraphNode.builder().id("n_login").type("http")
-                .data(new HashMap<>(Map.of("callMode", "project", "name", "登录"))).build();
+                .name("登录").data(new HashMap<>(Map.of("callMode", "project"))).build();
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(cond, login)));
         patch.setAddEdges(new ArrayList<>(List.of(
@@ -1022,7 +1010,7 @@ class FlowDesignPatchNormalizerTest {
 
     private static GraphNode nodeByDataName(List<GraphNode> nodes, String name) {
         return nodes.stream()
-                .filter(n -> n.getData() != null && name.equals(n.getData().get("name")))
+                .filter(n -> name.equals(n.getName()))
                 .findFirst()
                 .orElseThrow();
     }
@@ -1035,21 +1023,29 @@ class FlowDesignPatchNormalizerTest {
     }
 
     private static GraphJson graphWithMeta() {
+        return graphWithScenarioEntry();
+    }
+
+    private static GraphJson graphWithScenarioEntry() {
         GraphRunScenario scenario = GraphRunScenario.builder()
                 .id("2042000000000000101")
                 .name("默认")
-                .testProjectEnvId("")
-                .flowSeed(new HashMap<>())
+                .envId("")
+                .inSeed(new HashMap<>())
                 .build();
-        GraphMeta meta = GraphMeta.builder()
-                .activeScenarioId(scenario.getId())
-                .scenarios(new ArrayList<>(List.of(scenario)))
-                .flowOutputs(new ArrayList<>())
+        Map<String, Object> data = new HashMap<>();
+        data.put("scenarios", List.of(scenario));
+        GraphNode entry = GraphNode.builder()
+                .id("entry-test-1")
+                .type("scenario-entry")
+                .name("默认场景入口")
+                .position(GraphNodePosition.builder().x(0).y(0).build())
+                .data(data)
                 .build();
         return GraphJson.builder()
-                .nodes(new ArrayList<>())
+                .nodes(new ArrayList<>(List.of(entry)))
                 .edges(new ArrayList<>())
-                .meta(meta)
+                .meta(GraphMeta.builder().build())
                 .build();
     }
 }

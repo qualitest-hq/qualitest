@@ -103,7 +103,7 @@ public class ProjectAuthTemplateApplyService {
 
     /**
      * 按勾选顺序把模板写入项目。
-     * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 种子测试流（含 flowSeed）
+     * 步骤：组装鉴权 Profile → 写项目 auth_config → 种子接口 → 种子测试流（含 inSeed）
      * → 种子预制环境 / 素材口令 / AI 提示词（后四项 Profile 已存在仍补）。
      */
     @Transactional(rollbackFor = Exception.class)

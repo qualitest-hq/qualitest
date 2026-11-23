@@ -23,6 +23,7 @@ import { resolveLayoutSize } from './flowGraphLayeredLayout';
 import {
   formatAssertRule,
   formatAssertSummary,
+  formatNodeSummary,
   formatExtractTargetDest,
   formatHttpRequestLine,
   getAssertRules,
@@ -172,7 +173,8 @@ function buildExportNodeSvg(node: Node): string {
   svg += `<rect x="${x}" y="${y + 4}" width="${w}" height="2" fill="${cfg.color}"/>`;
   svg += `<rect x="${x + 14}" y="${y + 15}" width="38" height="22" rx="5" fill="${cfg.color}"/>`;
   svg += `<text x="${x + 33}" y="${y + 31}" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle" font-family="Segoe UI,PingFang SC,sans-serif">${svgText(cfg.icon)}</text>`;
-  svg += `<text x="${x + 62}" y="${y + 32}" fill="#0f172a" font-size="15" font-weight="600" font-family="Segoe UI,PingFang SC,sans-serif">${svgText(truncateText(data.name || cfg.label, 18))}</text>`;
+  const shellName = String((node as Node & { name?: string }).name ?? '').trim();
+  svg += `<text x="${x + 62}" y="${y + 32}" fill="#0f172a" font-size="15" font-weight="600" font-family="Segoe UI,PingFang SC,sans-serif">${svgText(truncateText(shellName || cfg.label, 18))}</text>`;
 
   if (node.type === 'condition') {
     const branches = getConditionBranches(data);
@@ -197,12 +199,13 @@ function buildExportNodeSvg(node: Node): string {
     });
   } else if (node.type === 'assign') {
     const items = getAssignAssignments(data).map(formatAssignAssignment);
-    const lines = items.length ? items : [String(data.summary || '变量赋值')];
+    const lines = items.length ? items : ['变量赋值'];
     lines.forEach((line, i) => {
       svg += `<text x="${x + 14}" y="${y + 58 + i * 18}" fill="${cfg.color}" font-size="13" font-family="Segoe UI,PingFang SC,sans-serif">${svgText(truncateText(line, 36))}</text>`;
     });
   } else {
-    svg += `<text x="${x + 14}" y="${y + 80}" fill="#5a6b86" font-size="14" font-family="Segoe UI,PingFang SC,sans-serif">${svgText(truncateText(data.summary || '', 36))}</text>`;
+    const summary = formatNodeSummary(String(node.type), data);
+    svg += `<text x="${x + 14}" y="${y + 80}" fill="#5a6b86" font-size="14" font-family="Segoe UI,PingFang SC,sans-serif">${svgText(truncateText(summary, 36))}</text>`;
   }
 
   return svg;

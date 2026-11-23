@@ -17,14 +17,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Assign 节点执行器。
+ * Assign 节点执行器（type=assign）。
  * <p>
- * 逐条处理 {@code data.assignments[]}，仅写入 {@code flow} 作用域：
+ * 逐条处理 {@code data.assignments[]}：
  * <ul>
- *   <li>set：解析 value 占位符后覆盖变量</li>
- *   <li>add/sub/mul/div：在现有值或 ifMissing 基础上按 step 步长运算</li>
+ *   <li>{@code scope} 缺省或非 out → 写入运行时 {@code flow}</li>
+ *   <li>{@code scope=out} → 写入运行时 {@code out}（供后续 http-return / subflow-return 定稿交付）</li>
+ *   <li>op=set：解析 value 占位符后覆盖；value 可为对象/数组字面量（常见于写 out.body）</li>
+ *   <li>op=add/sub/mul/div：在现有值或 ifMissing 上按 step 运算，仅对 flow 生效；写 out 时一律按 set</li>
  * </ul>
- * 每条赋值记录 before/after 写入 {@code StepResult.assigns} 供报告展示。
+ * 每条赋值的 before/after 写入 {@code StepResult.assigns} 供报告展示。
  */
 @Component
 public class AssignNodeHandler extends AbstractStubNodeHandler {
@@ -72,6 +74,7 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
 
     /**
      * 执行单条赋值；变量名为空时跳过。
+     * scope 归一为 flow 或 out；非法 op 当作 set。
      */
     static Map<String, Object> applyAssignment(JSONObject row, FlowRunContext ctx) {
         String name = row.getString("name");
@@ -79,13 +82,14 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
             return null;
         }
         name = name.trim();
+        String scope = normalizeScope(row.getString("scope"));
         String op = normalizeOp(row.getString("op"));
 
-        Map<String, Object> flow = ctx.getFlow();
-        Object before = flow.get(name);
+        Map<String, Object> target = "out".equals(scope) ? ensureOut(ctx) : ctx.getFlow();
+        Object before = target.get(name);
         Object after = before;
 
-        if (isStepOp(op)) {
+        if (isStepOp(op) && !"out".equals(scope)) {
             double base = before != null && !"".equals(String.valueOf(before))
                     ? toDouble(before)
                     : row.getDoubleValue("ifMissing");
@@ -99,20 +103,45 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
             };
             after = toNumber(computed);
         } else {
-            String rawValue = row.getString("value");
-            after = STRICT.resolve(rawValue != null ? rawValue : "", ctx);
-            after = coerceLiteral(after);
+            Object raw = row.get("value");
+            if (raw instanceof String s) {
+                after = STRICT.resolve(s, ctx);
+                after = coerceLiteral(after);
+            } else if (raw != null) {
+                after = raw;
+            } else {
+                after = null;
+            }
         }
 
-        flow.put(name, after);
+        target.put(name, after);
 
         Map<String, Object> record = new LinkedHashMap<>();
-        record.put("scope", "flow");
+        record.put("scope", scope);
         record.put("name", name);
         record.put("op", op);
         record.put("before", before);
         record.put("after", after);
         return record;
+    }
+
+    /** 作用域：仅识别 out；其余（含空）一律 flow */
+    private static String normalizeScope(String scope) {
+        if (scope == null || scope.isBlank()) {
+            return "flow";
+        }
+        String s = scope.trim().toLowerCase();
+        return "out".equals(s) ? "out" : "flow";
+    }
+
+    /** 确保 ctx.out 非 null，可直接 put */
+    private static Map<String, Object> ensureOut(FlowRunContext ctx) {
+        Map<String, Object> out = ctx.getOut();
+        if (out == null) {
+            out = new LinkedHashMap<>();
+            ctx.setOut(out);
+        }
+        return out;
     }
 
     /** 规范化赋值运算符；空值或非法值默认 set */
@@ -173,9 +202,20 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
         }
     }
 
-    /** 从节点 data 读取 assignments 数组 */
+    /** 从节点 data 读取 assignments 数组（兼容 JSONArray 与 List） */
     private static JSONArray toAssignmentsArray(Object raw) {
         if (raw instanceof JSONArray arr) {
+            return arr;
+        }
+        if (raw instanceof List<?> list) {
+            JSONArray arr = new JSONArray();
+            for (Object item : list) {
+                if (item instanceof JSONObject jo) {
+                    arr.add(jo);
+                } else if (item instanceof Map<?, ?> map) {
+                    arr.add(new JSONObject(map));
+                }
+            }
             return arr;
         }
         return null;

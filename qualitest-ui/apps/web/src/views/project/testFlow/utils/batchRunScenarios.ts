@@ -1,11 +1,12 @@
 /**
  * 从测试流列表行解析批量跑场景树节点。
+ * 场景定义读取各图 scenario-entry 节点的 data.scenarios，不从图元数据取。
  */
 
 export interface BatchFlowScenarioNode {
   scenarioId: string;
   scenarioName: string;
-  /** 是否为图 meta 活动场景 */
+  /** 是否为当前勾选的活动场景（未指定时默认首条） */
   active: boolean;
 }
 
@@ -42,9 +43,15 @@ export function parseFlowScenariosFromGraphJson(
     return [];
   }
 
-  const meta = (root.meta ?? {}) as Record<string, unknown>;
-  const scenarios = Array.isArray(meta.scenarios) ? (meta.scenarios as GraphScenarioLike[]) : [];
-  const activeId = String(activeScenarioId ?? meta.activeScenarioId ?? '').trim();
+  const nodes = Array.isArray(root.nodes) ? root.nodes : [];
+  const entry = nodes.find(
+    (n) => n && typeof n === 'object' && (n as { type?: string }).type === 'scenario-entry',
+  ) as { data?: { scenarios?: unknown } } | undefined;
+  const entryData = entry?.data;
+  const scenarios = Array.isArray(entryData?.scenarios)
+    ? (entryData.scenarios as GraphScenarioLike[])
+    : [];
+  const activeId = String(activeScenarioId ?? '').trim();
 
   const out: BatchFlowScenarioNode[] = [];
   for (const sc of scenarios) {

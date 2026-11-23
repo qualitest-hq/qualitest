@@ -8,13 +8,15 @@ import java.util.Map;
 /**
  * 占位符与运行时路径解析。
  * <p>
- * 模板形态：{@code {{scope.path}}}。<br>
- * 持久变量：{@code env.*}、{@code flow.*}、{@code asset.*}。<br>
+ * 模板形态：{@code {{路径}}}。<br>
+ * 变量区：{@code env.*}、{@code flow.*}、{@code asset.*}、
+ * {@code in.*}（入参）、{@code out.*}（出参 status/headers/body 及下钻）。<br>
  * 最近一次 HTTP：{@code http.body} / {@code http.body.<JsonPath相对路径>}、
  * {@code http.status}、{@code http.duration}、{@code http.header.*}、
  * {@code http.bodyText}、{@code http.responseKind}、{@code http.expectedMatch}。<br>
- * 按节点引用：{@code nodes.<nodeId>.http.…}，从 nodeResponses 读取该节点最后一次响应。<br>
- * LENIENT：未定义占位符替换为空串；STRICT：未定义则抛业务错误码 TF_PLACEHOLDER_UNDEFINED。
+ * 按节点：{@code nodes.&lt;nodeId&gt;.http.…} 读该节点 HTTP 快照；
+ * {@code nodes.&lt;nodeId&gt;.out} 或 {@code nodes.&lt;nodeId&gt;.out.…} 读挂载的节点出参。<br>
+ * LENIENT：未定义占位符替换为空串；STRICT：未定义则抛 TF_PLACEHOLDER_UNDEFINED。
  */
 public record PlaceholderResolver(ResolveMode mode) {
 
@@ -32,6 +34,13 @@ public record PlaceholderResolver(ResolveMode mode) {
      * @param httpRest {@code http.} 之后的路径，例如 {@code body.data.code}、{@code status}
      */
     public record NodesHttpRef(String nodeId, String httpRest) {
+    }
+
+    /**
+     * 将路径 {@code nodes.&lt;nodeId&gt;.out} 或 {@code nodes.&lt;nodeId&gt;.out.&lt;rest&gt;}
+     * 拆成节点 id 与 out 相对段（空 rest 表示整包 out）。
+     */
+    public record NodesOutRef(String nodeId, String outRest) {
     }
 
     /**
@@ -53,7 +62,8 @@ public record PlaceholderResolver(ResolveMode mode) {
     }
 
     /**
-     * 替换模板中全部合法路径占位 {@code {{flow.|env.|asset.|http.|nodes.…}}}。
+     * 替换模板中全部合法路径占位
+     * （flow / env / asset / in / out / http / nodes…）。
      * 非路径形态的花括号保留为字面量；未定义路径在宽松模式下变空串，严格模式下抛错。
      *
      * @param template 模板原文，null 视为空串
@@ -84,7 +94,9 @@ public record PlaceholderResolver(ResolveMode mode) {
     /**
      * 单段路径求值：占位符内部、断言/条件左值、比较右值路径共用。
      * 纯 {@code $…} 会先改成 {@code http.body…}；
-     * {@code nodes.<id>.http…} 读 nodeResponses；{@code http…} 读 lastResponse。
+     * {@code in.*}/{@code out.*} 读入参/出参 Map；
+     * {@code nodes.&lt;id&gt;.out…} 读 nodeOuts；{@code nodes.&lt;id&gt;.http…} 读 nodeResponses；
+     * {@code http…} 读 lastResponse。
      *
      * @param ctx  运行上下文
      * @param path 路径原文
@@ -99,13 +111,23 @@ public record PlaceholderResolver(ResolveMode mode) {
             return null;
         }
         if (p.startsWith("flow.")) {
-            return ctx.getFlow().get(p.substring(5));
+            return ctx.getFlow() != null ? ctx.getFlow().get(p.substring(5)) : null;
         }
         if (p.startsWith("env.")) {
-            return ctx.getEnv().get(p.substring(4));
+            return ctx.getEnv() != null ? ctx.getEnv().get(p.substring(4)) : null;
+        }
+        if (p.startsWith("in.")) {
+            return resolveOutLikePath(ctx.getIn(), p.substring(3));
+        }
+        if (p.startsWith("out.")) {
+            return resolveOutLikePath(ctx.getOut(), p.substring(4));
         }
         if (p.startsWith("asset.")) {
             return resolveAssetPath(ctx.getAsset(), p.substring(6));
+        }
+        NodesOutRef nodesOut = parseNodesOutPath(p);
+        if (nodesOut != null) {
+            return resolveOutLikePath(ctx.getNodeOut(nodesOut.nodeId()), nodesOut.outRest());
         }
         NodesHttpRef nodesRef = parseNodesHttpPath(p);
         if (nodesRef != null) {
@@ -164,6 +186,51 @@ public record PlaceholderResolver(ResolveMode mode) {
             return null;
         }
         return new NodesHttpRef(nodeId, httpRest);
+    }
+
+    /**
+     * 解析 {@code nodes.&lt;nodeId&gt;.out} 或 {@code nodes.&lt;nodeId&gt;.out.&lt;rest&gt;}。
+     * 形态不符（缺 .out、nodeId 空、.out 后非点分）返回 null。
+     */
+    public static NodesOutRef parseNodesOutPath(String path) {
+        if (path == null || !path.startsWith("nodes.")) {
+            return null;
+        }
+        String after = path.substring("nodes.".length());
+        int outIdx = after.indexOf(".out");
+        if (outIdx <= 0) {
+            return null;
+        }
+        String nodeId = after.substring(0, outIdx).trim();
+        if (nodeId.isEmpty()) {
+            return null;
+        }
+        String rest = after.substring(outIdx + ".out".length());
+        if (rest.isEmpty()) {
+            return new NodesOutRef(nodeId, "");
+        }
+        if (!rest.startsWith(".")) {
+            return null;
+        }
+        return new NodesOutRef(nodeId, rest.substring(1).trim());
+    }
+
+    /** 在 out / in Map 上取值：空 rest 返回整包；否则按点分下钻。 */
+    private static Object resolveOutLikePath(Map<String, Object> root, String rest) {
+        if (root == null) {
+            return null;
+        }
+        if (rest == null || rest.isEmpty()) {
+            return root;
+        }
+        int dot = rest.indexOf('.');
+        String key = dot >= 0 ? rest.substring(0, dot) : rest;
+        String sub = dot >= 0 ? rest.substring(dot + 1) : "";
+        Object val = root.get(key);
+        if (sub.isEmpty()) {
+            return val;
+        }
+        return navigateMap(val, sub);
     }
 
     /**

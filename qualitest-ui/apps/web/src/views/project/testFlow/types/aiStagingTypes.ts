@@ -62,8 +62,8 @@ export interface StagingBuildContext {
     scenarios: Array<{
       id: string;
       name?: string;
-      testProjectEnvId?: string;
-      flowSeed?: Record<string, unknown>;
+      envId?: string;
+      inSeed?: Record<string, unknown>;
       remark?: string;
     }>;
   };

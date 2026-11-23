@@ -60,8 +60,9 @@ class GraphJsonValidatorTest {
         GraphJson graph = GraphJson.parse(json);
         GraphValidationResult result = validator.validate(graph);
         assertFalse(result.isOk());
-        assertEquals(1, result.getErrors().size());
-        assertTrue(result.getErrors().get(0).contains("开始节点"));
+        assertFalse(result.getErrors().isEmpty());
+        assertTrue(result.getErrors().stream().anyMatch(e ->
+                e.contains("开始") || e.contains("入口") || e.contains("起点")));
     }
 
     /**
@@ -90,7 +91,8 @@ class GraphJsonValidatorTest {
         GraphNode http = GraphNode.builder()
                 .id("n1")
                 .type("http")
-                .data(new java.util.HashMap<>(java.util.Map.of("name", "半成品")))
+                .name("半成品")
+                .data(new java.util.HashMap<>(java.util.Map.of("callMode", "project")))
                 .build();
         GraphJson graph = GraphJson.builder()
                 .nodes(java.util.List.of(http))
@@ -179,7 +181,7 @@ class GraphJsonValidatorTest {
         GraphValidationResult result = validator.validateJson(json);
         assertFalse(result.isOk());
         assertEquals(1, result.getErrors().size());
-        assertTrue(result.getErrors().get(0).contains("subflowId"));
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("subflowId")));
         assertEquals(0, result.getWarnings().size());
     }
 
@@ -190,8 +192,8 @@ class GraphJsonValidatorTest {
         String json = """
                 {
                   "nodes": [
-                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
-                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"","operator":"eq","right":"0"}]}}
+                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{"callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","name":"a","position":{"x":100,"y":0},"data":{"rules":[{"left":"","operator":"eq","right":"0"}]}}
                   ],
                   "edges":[{"id":"e1","source":"1","target":"2"}]
                 }
@@ -203,8 +205,8 @@ class GraphJsonValidatorTest {
         String json2 = """
                 {
                   "nodes": [
-                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
-                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"http.body.$.data.code","operator":"eq","right":"0"}]}}
+                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{"callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","name":"a","position":{"x":100,"y":0},"data":{"rules":[{"left":"http.body.$.data.code","operator":"eq","right":"0"}]}}
                   ],
                   "edges":[{"id":"e1","source":"1","target":"2"}]
                 }
@@ -221,12 +223,12 @@ class GraphJsonValidatorTest {
         String json = """
                 {
                   "nodes": [
-                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{
-                      "name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET",
+                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{
+                      "callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET",
                       "extracts":[{"from":"body","expr":"$.data[","scope":"flow","name":"x"}]
                     }}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult result = validator.validateJson(json);
@@ -242,14 +244,15 @@ class GraphJsonValidatorTest {
         // 期望：ok=true；warnings 提示去掉 [n]
         String json = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{
-                      "name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET",
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{
+                      "callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET",
                       "extracts":[{"from":"body","expr":"$.data.rows[?(@.couponId==3002)][0].couponId","scope":"flow","name":"couponId"}]
                     }}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult result = validator.validateJson(json);
@@ -264,11 +267,12 @@ class GraphJsonValidatorTest {
     void hardenedNodeFields_produceErrors() {
         String emptyAssert = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"assert","position":{"x":0,"y":0},"data":{"name":"a","rules":[]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"assert","name":"a","position":{"x":0,"y":0},"data":{"rules":[]}}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult a = validator.validateJson(emptyAssert);
@@ -276,11 +280,12 @@ class GraphJsonValidatorTest {
 
         String emptyCond = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"condition","name":"c","position":{"x":0,"y":0},"data":{"branches":[]}}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult c = validator.validateJson(emptyCond);
@@ -288,11 +293,12 @@ class GraphJsonValidatorTest {
 
         String emptyAssign = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"assign","position":{"x":0,"y":0},"data":{"name":"as","assignments":[]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"assign","name":"as","position":{"x":0,"y":0},"data":{"assignments":[]}}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult as = validator.validateJson(emptyAssign);
@@ -300,11 +306,12 @@ class GraphJsonValidatorTest {
 
         String delayOver = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"delay","position":{"x":0,"y":0},"data":{"name":"d","ms":70000}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"delay","name":"d","position":{"x":0,"y":0},"data":{"ms":70000}}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult d = validator.validateJson(delayOver);
@@ -312,11 +319,12 @@ class GraphJsonValidatorTest {
 
         String emptyInput = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"input","position":{"x":0,"y":0},"data":{"name":"in","fields":[]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"input","name":"in","position":{"x":0,"y":0},"data":{"fields":[]}}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult in = validator.validateJson(emptyInput);
@@ -324,13 +332,14 @@ class GraphJsonValidatorTest {
 
         String badInputType = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"input","position":{"x":0,"y":0},"data":{"name":"in","fields":[
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"input","name":"in","position":{"x":0,"y":0},"data":{"fields":[
                       {"name":"x","type":"file"}
                     ]}}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult badType = validator.validateJson(badInputType);
@@ -348,15 +357,19 @@ class GraphJsonValidatorTest {
     void conditionEndBranchValidation() {
         String endOk = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"c1","type":"condition","name":"c","position":{"x":0,"y":0},"data":{"branches":[
                       {"id":"b_if","kind":"if","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
                       {"id":"b_else","kind":"else","target":"n2"}
                     ]}},
-                    {"id":"n2","type":"http","position":{"x":1,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
+                    {"id":"n2","type":"http","name":"h","position":{"x":1,"y":0},"data":{"callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
                   ],
-                  "edges":[{"id":"e1","source":"c1","target":"n2"}]
+                  "edges":[
+                    {"id":"e0","source":"e1","target":"c1"},
+                    {"id":"e1","source":"c1","target":"n2"}
+                  ]
                 }
                 """;
         GraphValidationResult ok = validator.validateJson(endOk);
@@ -365,15 +378,18 @@ class GraphJsonValidatorTest {
 
         String danglingTarget = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"c1","type":"condition","name":"c","position":{"x":0,"y":0},"data":{"branches":[
                       {"id":"b_if","kind":"if","target":"n2","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
-                      {"id":"b_else","kind":"else"}
+                      {"id":"b_else","kind":"else","target":"n2"}
                     ]}},
-                    {"id":"n2","type":"http","position":{"x":1,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
+                    {"id":"n2","type":"http","name":"h","position":{"x":1,"y":0},"data":{"callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
                   ],
-                  "edges":[]
+                  "edges":[
+                    {"id":"e0","source":"e1","target":"c1"}
+                  ]
                 }
                 """;
         GraphValidationResult dangling = validator.validateJson(danglingTarget);
@@ -381,15 +397,19 @@ class GraphJsonValidatorTest {
 
         String orphanEdge = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"c1","type":"condition","name":"c","position":{"x":0,"y":0},"data":{"branches":[
                       {"id":"b_if","kind":"if","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]},
                       {"id":"b_else","kind":"else"}
                     ]}},
-                    {"id":"n2","type":"http","position":{"x":1,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
+                    {"id":"n2","type":"http","name":"h","position":{"x":1,"y":0},"data":{"callMode":"external","externalUrl":"https://x","httpMethod":"GET"}}
                   ],
-                  "edges":[{"id":"e1","source":"c1","target":"n2","label":"else"}]
+                  "edges":[
+                    {"id":"e0","source":"e1","target":"c1"},
+                    {"id":"e1","source":"c1","target":"n2","label":"else"}
+                  ]
                 }
                 """;
         GraphValidationResult orphan = validator.validateJson(orphanEdge);
@@ -403,12 +423,13 @@ class GraphJsonValidatorTest {
     void conditionEdgeSourceHandle_forbiddenInGraphJson() {
         String json = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"c1","type":"condition","position":{"x":0,"y":0},"data":{"name":"c","branches":[
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"c1","type":"condition","name":"c","position":{"x":0,"y":0},"data":{"branches":[
                       {"id":"b_if","kind":"if","target":"n2","conditions":[{"left":"flow.x","operator":"eq","right":"1"}]}
                     ]}},
-                    {"id":"n2","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"project"}}
+                    {"id":"n2","type":"http","name":"h","position":{"x":0,"y":0},"data":{"callMode":"project"}}
                   ],
                   "edges":[
                     {"id":"e1","source":"c1","target":"n2","sourceHandle":"out-b_if"}
@@ -446,10 +467,11 @@ class GraphJsonValidatorTest {
     void assertNodesHttp_missingOrNonHttp_producesError() {
         String missing = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
-                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"nodes.missing.http.body.code","operator":"eq","right":"0"}]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{"callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","name":"a","position":{"x":100,"y":0},"data":{"rules":[{"left":"nodes.missing.http.body.code","operator":"eq","right":"0"}]}}
                   ],
                   "edges":[{"id":"e1","source":"1","target":"2"}]
                 }
@@ -460,11 +482,12 @@ class GraphJsonValidatorTest {
 
         String nonHttp = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
-                    {"id":"d1","type":"delay","position":{"x":50,"y":0},"data":{"name":"d","ms":10}},
-                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"nodes.d1.http.body.code","operator":"eq","right":"0"}]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{"callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"d1","type":"delay","name":"d","position":{"x":50,"y":0},"data":{"ms":10}},
+                    {"id":"2","type":"assert","name":"a","position":{"x":100,"y":0},"data":{"rules":[{"left":"nodes.d1.http.body.code","operator":"eq","right":"0"}]}}
                   ],
                   "edges":[{"id":"e1","source":"1","target":"d1"},{"id":"e2","source":"d1","target":"2"}]
                 }
@@ -475,10 +498,11 @@ class GraphJsonValidatorTest {
 
         String ok = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
-                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","rules":[{"left":"nodes.1.http.body.code","operator":"eq","right":"0"}]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{"callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","name":"a","position":{"x":100,"y":0},"data":{"rules":[{"left":"nodes.1.http.body.code","operator":"eq","right":"0"}]}}
                   ],
                   "edges":[{"id":"e1","source":"1","target":"2"}]
                 }
@@ -527,10 +551,11 @@ class GraphJsonValidatorTest {
     void alwaysRun_disallowedNodeType_producesError() {
         String assertGraph = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
-                    {"id":"2","type":"assert","position":{"x":100,"y":0},"data":{"name":"a","alwaysRun":true,"rules":[{"left":"http.body.code","operator":"eq","right":"0"}]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{"callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"2","type":"assert","name":"a","position":{"x":100,"y":0},"data":{"alwaysRun":true,"rules":[{"left":"http.body.code","operator":"eq","right":"0"}]}}
                   ],
                   "edges":[{"id":"e1","source":"1","target":"2"}]
                 }
@@ -542,11 +567,12 @@ class GraphJsonValidatorTest {
 
         String inputGraph = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"input","position":{"x":0,"y":0},"data":{"name":"i","alwaysRun":true,"prompt":"填","fields":[{"name":"x","label":"X","type":"text"}]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"input","name":"i","position":{"x":0,"y":0},"data":{"alwaysRun":true,"prompt":"填","fields":[{"name":"x","label":"X","type":"text"}]}}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult inputResult = validator.validateJson(inputGraph);
@@ -570,11 +596,12 @@ class GraphJsonValidatorTest {
 
         String delayGraph = """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"delay","position":{"x":0,"y":0},"data":{"name":"d","ms":10,"snapshotBefore":true}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"delay","name":"d","position":{"x":0,"y":0},"data":{"ms":10,"snapshotBefore":true}}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """;
         GraphValidationResult delay = validator.validateJson(delayGraph);
@@ -583,16 +610,59 @@ class GraphJsonValidatorTest {
                 .anyMatch(e -> e.contains("snapshotBefore") && e.contains("不允许设置")));
     }
 
+    /**
+     * 前提：节点无顶层 name。
+     * 期望：报错含「缺少 name」。
+     */
+    @Test
+    @Order(22)
+    @DisplayName("缺顶层 name 校验失败")
+    void missingTopLevelName_fails() {
+        String json = """
+                {
+                  "nodes": [
+                    {"id":"1","type":"delay","position":{"x":0,"y":0},"data":{"ms":10}}
+                  ],
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("缺少 name")));
+    }
+
+    /**
+     * 前提：http-return 缺 from。
+     * 期望：报错缺少 from。
+     */
+    @Test
+    @Order(24)
+    @DisplayName("http-return 缺 from 失败")
+    void httpReturnMissingFrom_fails() {
+        String json = """
+                {
+                  "nodes": [
+                    {"id":"1","type":"http-return","name":"写出","position":{"x":0,"y":0},"data":{}}
+                  ],
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("缺少 from")));
+    }
+
     /** 单节点外联 HTTP 图；extraData 为 data 内额外 JSON 片段（可空）。 */
     private static String minimalHttpGraph(String extraData) {
         String extra = extraData == null || extraData.isBlank() ? "" : "," + extraData;
         return """
                 {
-                  "meta":{"scenarios":[{"id":"s1","name":"默认"}]},
+                  "meta":{},
                   "nodes": [
-                    {"id":"1","type":"http","position":{"x":0,"y":0},"data":{"name":"h","callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"%s}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{"callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"%s}}
                   ],
-                  "edges":[]
+                  "edges":[{"id":"e0","source":"e1","target":"1"}]
                 }
                 """.formatted(extra);
     }

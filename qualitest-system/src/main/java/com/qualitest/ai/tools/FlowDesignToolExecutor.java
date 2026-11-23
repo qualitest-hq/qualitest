@@ -228,6 +228,8 @@ public class FlowDesignToolExecutor {
                 new NodeTool(FlowDesignToolNames.SUBMIT_DELAY_NODE, "delay"),
                 new NodeTool(FlowDesignToolNames.SUBMIT_SCRIPT_NODE, "script"),
                 new NodeTool(FlowDesignToolNames.SUBMIT_SUBFLOW_NODE, "subflow"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_HTTP_RETURN_NODE, "http-return"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_SUBFLOW_RETURN_NODE, "subflow-return"),
         };
         for (NodeTool nt : nodeTools) {
             String type = nt.type();

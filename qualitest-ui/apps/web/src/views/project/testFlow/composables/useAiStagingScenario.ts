@@ -9,12 +9,16 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { objectIdFromUnitId } from '../utils/stagingUnitIds';
 import { runStagingItemSync, useStagingSync } from './useStagingSync';
 
+function resolveScenarioEnvId(scenario: GraphRunScenario): string {
+  return String(scenario.envId ?? (scenario as { testProjectEnvId?: string }).testProjectEnvId ?? '');
+}
+
 export function buildDraftFromCanvasScenario(scenario: GraphRunScenario): Record<string, unknown> {
   return JSON.parse(
     JSON.stringify({
       name: scenario.name,
-      testProjectEnvId: scenario.testProjectEnvId,
-      flowSeed: scenario.flowSeed ?? {},
+      envId: resolveScenarioEnvId(scenario),
+      inSeed: scenario.inSeed ?? {},
       remark: scenario.remark ?? '',
       onNodeFailure: scenario.onNodeFailure,
       onSnapshotFailure: scenario.onSnapshotFailure,
@@ -33,9 +37,9 @@ function buildScenarioFromStagingUnit(unit: AiStagingUnit): GraphRunScenario | n
   return {
     id,
     name: String(draft.name ?? patchSlice?.name ?? '新场景'),
-    testProjectEnvId: String(draft.testProjectEnvId ?? patchSlice?.testProjectEnvId ?? ''),
-    flowSeed: (draft.flowSeed as Record<string, unknown> | undefined) ??
-      patchSlice?.flowSeed ??
+    envId: String(draft.envId ?? patchSlice?.envId ?? ''),
+    inSeed: (draft.inSeed as Record<string, unknown> | undefined) ??
+      patchSlice?.inSeed ??
       {},
     remark: String(draft.remark ?? patchSlice?.remark ?? ''),
     onNodeFailure: (draft.onNodeFailure as GraphRunScenario['onNodeFailure']) ??
@@ -60,10 +64,9 @@ function applyScenarioDraft(unit: AiStagingUnit, scenarios: GraphRunScenario[]):
   const next: GraphRunScenario = {
     ...existing,
     name: draft.name != null ? String(draft.name) : existing.name,
-    testProjectEnvId:
-      draft.testProjectEnvId != null ? String(draft.testProjectEnvId) : existing.testProjectEnvId,
+    envId: draft.envId != null ? String(draft.envId) : resolveScenarioEnvId(existing),
     remark: draft.remark != null ? String(draft.remark) : existing.remark,
-    flowSeed: (draft.flowSeed as Record<string, unknown> | undefined) ?? existing.flowSeed,
+    inSeed: (draft.inSeed as Record<string, unknown> | undefined) ?? existing.inSeed,
     onNodeFailure:
       (draft.onNodeFailure as GraphRunScenario['onNodeFailure']) ?? existing.onNodeFailure,
     onSnapshotFailure:

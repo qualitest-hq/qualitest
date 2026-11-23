@@ -25,7 +25,7 @@ No `{{session.*}}` — use Script `ctx.session` instead. Assets use **dot** path
 
 ## 2. Where `flow` comes from
 
-HTTP **extracts**, **Assign**, subflow **outputs**, scenario **flowSeed** (ok for preseeded tokens; no plaintext passwords).
+HTTP **extracts**, **Assign**, subflow **outputs**, scenario **inSeed** (preloads `ctx.in`; no plaintext passwords).
 
 ---
 
@@ -41,7 +41,7 @@ Overrides may only have **`paramDefaults`** and **`bodyExample`**. Do not put bo
 
 ## 4. Passwords & scenario accounts
 
-Reusable accounts: assets + `{{asset.*}}`. Failure cases: **literals** on the node. Skip-login debug: flowSeed / asset token / probe branch.
+Reusable accounts: assets + `{{asset.*}}`. Failure cases: **literals** on the node. Skip-login debug: inSeed / asset token / probe branch.
 
 ---
 
@@ -59,4 +59,4 @@ Invalid / missing `nodes.<id>` → canvas validation bar (structure).
 
 ## 6. Typical errors
 
-Undefined token placeholder → missing source (extract / flowSeed / env) or bad auth header. Missing field → bad override shape. File as string → form-data `type=file` + `storagePath`.
+Undefined token placeholder → missing source (extract / inSeed / env) or bad auth header. Missing field → bad override shape. File as string → form-data `type=file` + `storagePath`.
