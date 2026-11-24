@@ -652,6 +652,60 @@ class GraphJsonValidatorTest {
         assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("缺少 from")));
     }
 
+    /**
+     * 前提：http-entry 缺 method / path / envId。
+     * 期望：全量校验分别报须配置。
+     */
+    @Test
+    @Order(30)
+    @DisplayName("http-entry 缺 method/path/envId 报错")
+    void httpEntry_missingFields_producesErrors() {
+        String json = """
+                {
+                  "nodes": [
+                    {"id":"e1","type":"http-entry","name":"入站","position":{"x":0,"y":0},
+                     "data":{"fallbackOut":{"status":500,"headers":{},"body":{}}}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult result = validator.validate(GraphJson.parse(json));
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("须配置 method")));
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("须配置非空 path")));
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("须配置 envId")));
+    }
+
+    /**
+     * 前提：图含同序双 http-return；走 validateJson。
+     * 期望：errors 含双返回拓扑文案（全量规则并入 validateJson）。
+     */
+    @Test
+    @Order(31)
+    @DisplayName("validateJson 跑全量双返回规则")
+    void validateJson_includesSequentialDoubleReturn() {
+        String json = """
+                {
+                  "nodes": [
+                    {"id":"e1","type":"http-entry","name":"入站","position":{"x":0,"y":0},
+                     "data":{"method":"POST","path":"/x","envId":"1",
+                       "fallbackOut":{"status":500,"headers":{},"body":{}}}},
+                    {"id":"r1","type":"http-return","name":"回1","position":{"x":100,"y":0},
+                     "data":{"from":"flow.out","status":200}},
+                    {"id":"r2","type":"http-return","name":"回2","position":{"x":200,"y":0},
+                     "data":{"from":"flow.out","status":200}}
+                  ],
+                  "edges":[
+                    {"id":"ed1","source":"e1","target":"r1"},
+                    {"id":"ed2","source":"r1","target":"r2"}
+                  ]
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("同一路径上存在多个返回节点")));
+    }
+
     /** 单节点外联 HTTP 图；extraData 为 data 内额外 JSON 片段（可空）。 */
     private static String minimalHttpGraph(String extraData) {
         String extra = extraData == null || extraData.isBlank() ? "" : "," + extraData;

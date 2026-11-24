@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  collectHttpRouteSelfCollisionErrors,
   DEFERRED_MULTI_START_WARNING,
   DEFERRED_NO_START_WARNING,
   rewriteStartNodeErrorForPendingEdges,
@@ -109,7 +110,7 @@ describe('validateGraphJson', () => {
           data: {
             method: 'POST',
             path: '/v1/demo',
-            envId: '',
+            envId: '1',
             fallbackOut: { status: 500, headers: {}, body: { code: 'NO_RETURN' } },
           },
         },
@@ -613,5 +614,103 @@ describe('validateStartNodes', () => {
     });
     expect(result.ok).toBe(false);
     expect(result.message).toContain('须至少配置一个入口');
+  });
+
+  it('http-entry 缺 method/path/envId 时全量校验报错', () => {
+    // 前提：仅有 http-entry，缺 method/path/envId，有 fallbackOut
+    // 期望：errors 含 method、path、envId
+    const result = validateGraphJson({
+      nodes: [
+        {
+          id: 'e1',
+          type: 'http-entry',
+          name: '入站',
+          position: { x: 0, y: 0 },
+          data: { fallbackOut: { status: 500, headers: {}, body: {} } },
+        },
+      ],
+      edges: [],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('须配置 method'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('须配置非空 path'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('须配置 envId'))).toBe(true);
+  });
+
+  it('本流两个 http-entry 同 method+path 自冲突', () => {
+    // 前提：两入口 POST /v3/a
+    // 期望：collectHttpRouteSelfCollisionErrors 与全量校验均报占用
+    const nodes = [
+      {
+        id: 'a',
+        type: 'http-entry',
+        name: '入口A',
+        position: { x: 0, y: 0 },
+        data: {
+          method: 'POST',
+          path: '/v3/a',
+          envId: '1',
+          fallbackOut: { status: 500, headers: {}, body: {} },
+        },
+      },
+      {
+        id: 'b',
+        type: 'http-entry',
+        name: '入口B',
+        position: { x: 0, y: 80 },
+        data: {
+          method: 'POST',
+          path: '/v3/a',
+          envId: '1',
+          fallbackOut: { status: 500, headers: {}, body: {} },
+        },
+      },
+    ];
+    const self = collectHttpRouteSelfCollisionErrors(nodes as never);
+    expect(self.some((e) => e.includes('开放 HTTP 入口冲突') && e.includes('POST /v3/a'))).toBe(true);
+    const full = validateGraphJson({ nodes, edges: [] });
+    expect(full.ok).toBe(false);
+    expect(full.errors.some((e) => e.includes('开放 HTTP 入口冲突'))).toBe(true);
+  });
+
+  it('同序双 http-return 画布校验标异常', () => {
+    // 前提：http-entry → return → return
+    // 期望：errors 含同一路径多个返回（画布校验条可展示）
+    const result = validateGraphJson({
+      nodes: [
+        {
+          id: 'e1',
+          type: 'http-entry',
+          name: '入站',
+          position: { x: 0, y: 0 },
+          data: {
+            method: 'POST',
+            path: '/x',
+            envId: '1',
+            fallbackOut: { status: 500, headers: {}, body: {} },
+          },
+        },
+        {
+          id: 'r1',
+          type: 'http-return',
+          name: '回1',
+          position: { x: 100, y: 0 },
+          data: { from: 'flow.out', status: 200 },
+        },
+        {
+          id: 'r2',
+          type: 'http-return',
+          name: '回2',
+          position: { x: 200, y: 0 },
+          data: { from: 'flow.out', status: 200 },
+        },
+      ],
+      edges: [
+        { id: 'ed1', source: 'e1', target: 'r1' },
+        { id: 'ed2', source: 'r1', target: 'r2' },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('同一路径上存在多个返回节点'))).toBe(true);
   });
 });

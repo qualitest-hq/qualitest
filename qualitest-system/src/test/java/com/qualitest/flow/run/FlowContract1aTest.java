@@ -324,11 +324,12 @@ class FlowContract1aTest {
         return g;
     }
 
-    /** 带 method/path/fallbackOut 的 http-entry 节点。 */
+    /** 带 method/path/envId/fallbackOut 的 http-entry 节点。 */
     private static GraphNode entryHttp(String id) {
         return node(id, FlowNodeType.HTTP_ENTRY.getCode(), Map.of(
                 "method", "POST",
                 "path", "/v1/demo",
+                "envId", "1",
                 "fallbackOut", fallbackMap()
         ));
     }

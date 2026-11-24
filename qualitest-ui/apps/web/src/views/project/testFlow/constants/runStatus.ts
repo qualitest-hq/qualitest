@@ -98,11 +98,10 @@ export function toCanvasVisitStatus(
   return 'passed';
 }
 
-/** 运行触发方式短名：画布 / MCP / CI / 套件 / 开放 HTTP / 子流调用 */
+/** 运行触发方式短名：画布 / MCP / 套件 / 开放 HTTP / 子流调用 */
 export const RUN_TRIGGER_TYPES = [
   'ui',
   'mcp',
-  'ci',
   'suite',
   'http',
   'subflow',
@@ -114,7 +113,6 @@ export type RunTriggerType = (typeof RUN_TRIGGER_TYPES)[number];
 export const RUN_TRIGGER_LABEL: Record<RunTriggerType, string> = {
   ui: '画布',
   mcp: 'MCP',
-  ci: 'CI',
   suite: '套件',
   http: '开放 HTTP',
   subflow: '子流',

@@ -250,6 +250,7 @@ class FlowContract1bTest {
 
     private static GraphNode entryHttp(String id) {
         return node(id, FlowNodeType.HTTP_ENTRY.getCode(), Map.of(
+                "envId", "1",
                 "method", "POST",
                 "path", "/v1/parallel",
                 "fallbackOut", fallbackMap()

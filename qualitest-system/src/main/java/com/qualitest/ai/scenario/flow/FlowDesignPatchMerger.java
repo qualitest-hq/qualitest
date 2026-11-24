@@ -251,9 +251,17 @@ public class FlowDesignPatchMerger {
 
         FlowDesignScenarioPatch scenarioPatch = patch.getScenarioPatch();
         if (FlowDesignScenarioPatch.hasChanges(scenarioPatch)) {
-            GraphNode entry = EntryScenarioSupport.ensureScenarioEntry(graph, scenarioPatch.getEntryNodeId());
+            // 不隐式新建场景入口：须已有入口（或显式 entryNodeId 能唯一解析）
+            GraphNode entry = EntryScenarioSupport.findScenarioEntry(graph, scenarioPatch.getEntryNodeId());
             if (entry == null) {
-                warnings.add("多场景入口须指定 scenarioPatch.entryNodeId");
+                List<GraphNode> entries = EntryScenarioSupport.listScenarioEntries(graph);
+                if (entries.size() > 1) {
+                    warnings.add("多场景入口须指定 scenarioPatch.entryNodeId");
+                } else if (entries.isEmpty()) {
+                    warnings.add("图上无场景入口：请先 submit_scenario_entry_node，再改场景测值");
+                } else {
+                    warnings.add("无法定位场景入口：请指定 scenarioPatch.entryNodeId");
+                }
             } else {
                 List<GraphRunScenario> entryScenarios = new ArrayList<>(EntryScenarioSupport.scenariosOf(entry));
                 List<GraphRunScenario> merged = ScenarioPatchMerger.merge(entryScenarios, scenarioPatch, warnings);

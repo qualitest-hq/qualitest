@@ -13,8 +13,6 @@ public enum RunTrigger {
 
     /** 画布人手点跑 */
     UI("ui", "画布"),
-    /** CI 管线 */
-    CI("ci", "CI"),
     /** 套件串跑 */
     SUITE("suite", "套件"),
     /** 开放 HTTP 入站 */

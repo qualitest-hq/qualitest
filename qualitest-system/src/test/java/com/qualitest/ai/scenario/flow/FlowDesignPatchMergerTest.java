@@ -3,11 +3,15 @@ package com.qualitest.ai.scenario.flow;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
+import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
+import com.qualitest.flow.context.EntryScenarioSupport;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
+import com.qualitest.flow.model.GraphRunScenario;
+import com.qualitest.flow.validate.FlowNodeType;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -208,6 +212,41 @@ class FlowDesignPatchMergerTest {
 
         assertNull(GraphLookupUtils.findNode(merged.getNodes(), "1002"));
         assertTrue(merged.getEdges().isEmpty());
+    }
+
+    /**
+     * 前提：空白图 + scenarioPatch 新增场景，无场景入口。
+     * 期望：不隐式造入口；warnings 提示先 submit_scenario_entry_node；nodes 仍空。
+     */
+    @Test
+    @Order(13)
+    @DisplayName("无场景入口时 scenarioPatch 不隐式造入口")
+    void merge_scenarioPatch_withoutEntry_doesNotAutoCreate() {
+        GraphJson base = GraphJson.builder()
+                .nodes(new ArrayList<>())
+                .edges(new ArrayList<>())
+                .meta(GraphMeta.builder().build())
+                .build();
+        FlowDesignPatch patch = new FlowDesignPatch();
+        FlowDesignScenarioPatch scenarioPatch = new FlowDesignScenarioPatch();
+        GraphRunScenario add = GraphRunScenario.builder()
+                .id("sc-new")
+                .name("新场景")
+                .envId("1")
+                .inSeed(Map.of())
+                .build();
+        scenarioPatch.setAddScenarios(new ArrayList<>(List.of(add)));
+        patch.setScenarioPatch(scenarioPatch);
+
+        List<String> warnings = new ArrayList<>();
+        // acceptedIds=null：不过滤 patch，直接合并 scenarioPatch
+        GraphJson merged = merger.merge(base, patch, null, warnings);
+
+        assertTrue(EntryScenarioSupport.listScenarioEntries(merged).isEmpty());
+        assertTrue(merged.getNodes() == null || merged.getNodes().isEmpty()
+                || merged.getNodes().stream().noneMatch(n ->
+                n != null && FlowNodeType.SCENARIO_ENTRY.matches(n.getType())));
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("无场景入口")));
     }
 
     private void runFixture(String classpath) throws IOException {

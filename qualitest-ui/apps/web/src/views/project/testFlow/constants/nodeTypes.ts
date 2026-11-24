@@ -68,7 +68,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     label: '场景入口',
     color: NODE_COLORS['scenario-entry'],
     icon: 'SC',
-    desc: '人跑 / CI · 场景列表与 inSeed',
+    desc: '人跑 / 套件 · 场景列表与 inSeed',
     defaults: {
       doc: '',
       scenarios: [],

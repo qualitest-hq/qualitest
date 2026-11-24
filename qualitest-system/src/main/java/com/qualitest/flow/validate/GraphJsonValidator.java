@@ -16,6 +16,7 @@ import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphNodeShellSupport;
 import com.qualitest.flow.model.GraphSchemaVersions;
+import com.qualitest.flow.openhttp.OpenHttpRouteCatalog;
 import com.qualitest.flow.run.FanoutSupport;
 import com.qualitest.flow.run.GraphWalker;
 
@@ -35,7 +36,7 @@ import org.springframework.stereotype.Component;
  * <p>
  * 默认（完整）检查：节点/边形状、开始节点与入口规则、各节点类型字段、
  * 条件分支与出边对齐、scenario-entry 场景、
- * HTTP/子流入口必须配置 {@code fallbackOut}、
+ * HTTP 入口须 method / 非空 path / envId、HTTP/子流入口必须配置 {@code fallbackOut}、
  * 合法返回节点仅为 {@code http-return} / {@code subflow-return}
  * （裸 {@code return} 属未知 type；仅含场景入口的图禁止出现返回节点）、
  * 各入口可达子图上的返回 type 必须匹配该入口种类、
@@ -136,9 +137,8 @@ public class GraphJsonValidator {
 
     /**
      * 校验原始 JSON 文本（含 {@code graph_json} / {@code graphJson} 解包）。
-     * 覆盖节点/边字段、条件分支、开始节点、废弃 meta/场景键、场景是否齐全；
-     * 不跑入口可达返回 type、双返回拓扑、fallbackOut 对象形态等入口-返回规则
-     * （那些仅在 {@link #validate(GraphJson)} 路径执行）。
+     * 先做 JSON 形状与节点/边字段级检查；能解析为 {@link GraphJson} 后再合并
+     * {@link #validate(GraphJson)} 全量规则（入口/返回/扇出等），避免「JSON 已过检」假绿。
      */
     public GraphValidationResult validateJson(String json) {
         List<String> errors = new ArrayList<>();
@@ -175,7 +175,53 @@ public class GraphJsonValidator {
         if (nodesArr.isEmpty()) {
             warnings.add("nodes 为空，导入后将得到空白画布");
         }
+        try {
+            GraphJson typed = GraphJson.parse(graph.toJSONString());
+            GraphValidationResult typedResult = validate(typed);
+            if (typedResult != null) {
+                if (typedResult.getErrors() != null) {
+                    for (String e : typedResult.getErrors()) {
+                        if (e != null && !errors.contains(e)) {
+                            errors.add(e);
+                        }
+                    }
+                }
+                if (typedResult.getWarnings() != null) {
+                    for (String w : typedResult.getWarnings()) {
+                        if (w != null && !warnings.contains(w)) {
+                            warnings.add(w);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // 形状级错误已在上方收集；无法再跑 typed 全量时不追加
+        }
         return GraphValidationResult.of(errors, warnings);
+    }
+
+    /**
+     * HTTP 入口开跑必填：method、规范化后非空 path、envId。
+     * 保存不走本方法（半成品可落盘）；画布 errors 与开跑门禁会拦。
+     */
+    private void appendHttpEntryFieldErrors(GraphNode n, List<GraphNode> nodes, List<String> errors) {
+        Map<String, Object> data = n.getData();
+        String label = formatTypedStartNodeName(nodes, n.getId());
+        String method = data != null && data.get("method") != null
+                ? String.valueOf(data.get("method")).trim() : "";
+        if (method.isEmpty()) {
+            errors.add("HTTP 入口「" + label + "」须配置 method");
+        }
+        String pathRaw = data != null && data.get("path") != null
+                ? String.valueOf(data.get("path")).trim() : "";
+        if (OpenHttpRouteCatalog.normalizePath(pathRaw).isEmpty()) {
+            errors.add("HTTP 入口「" + label + "」须配置非空 path");
+        }
+        Object envRaw = data != null ? data.get("envId") : null;
+        String envId = envRaw == null ? "" : String.valueOf(envRaw).trim();
+        if (envId.isEmpty()) {
+            errors.add("HTTP 入口「" + label + "」须配置 envId");
+        }
     }
 
     /**
@@ -1286,6 +1332,7 @@ public class GraphJsonValidator {
             if (FlowNodeType.HTTP_ENTRY.matches(n.getType()) || FlowNodeType.SUBFLOW_ENTRY.matches(n.getType())) {
                 if (FlowNodeType.HTTP_ENTRY.matches(n.getType())) {
                     hasHttpEntry = true;
+                    appendHttpEntryFieldErrors(n, nodes, errors);
                 } else {
                     hasSubflowEntry = true;
                 }

@@ -3,7 +3,7 @@
     <div class="run-config__toolbar">
       <button
           v-if="!isScenarioRunActive"
-          :disabled="!canRunFlow || isTemplateCanvas || !selectedEntry"
+          :disabled="!canRunFlow || isTemplateCanvas || !canTriggerRun"
           :title="runButtonTitle"
           class="btn btn--primary run-config__scenario-run-btn"
           type="button"
@@ -92,8 +92,8 @@
 /**
  * 左栏「跑前入口」面板。
  * 列出画布上的平台入口供单选；选中后跟读该入口的 Markdown 说明。
- * 选中场景入口时再列出其场景供单选，点运行按所选入口（及场景）触发真实跑流；跑流中按钮变为停止。
- * 运行按钮受执行权限、模板画布、是否已选入口限制；场景增删与 inSeed 编辑在右侧面板完成。
+ * 仅场景入口可点跑（再选其场景）；HTTP / 子流入口只读查看说明与路由信息，开放入站与父流调起不走此按钮。
+ * 运行按钮受执行权限、模板画布、是否已选场景入口限制；场景增删与 inSeed 编辑在右侧面板完成。
  */
 import { computed, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -149,23 +149,26 @@ const scenarios = computed(() => store.runConfig.scenarios);
 /** 当前选中的场景 id（下次运行使用） */
 const activeScenarioId = computed(() => store.runConfig.activeScenarioId);
 
-/** 运行按钮文案：场景入口显示当前场景名，其他入口显示入口名称 */
+/** 是否可点跑：须已选场景入口（HTTP/子流入口仅供查看说明） */
+const canTriggerRun = computed(() => selectedEntry.value?.type === 'scenario-entry');
+
+/** 运行按钮文案：仅场景入口可跑，显示当前场景名 */
 const runButtonLabel = computed(() => {
-  if (selectedEntry.value?.type === 'scenario-entry') {
+  if (canTriggerRun.value) {
     return activeScenarioName.value || '运行场景';
   }
-  return entryLabel(selectedEntry.value) || '运行';
+  return '运行场景';
 });
 
-/** 运行按钮悬浮提示：按不可运行原因给出说明，可运行时说明将运行的场景或入口 */
+/** 运行按钮悬浮提示：按不可运行原因给出说明，可运行时说明将运行的场景 */
 const runButtonTitle = computed(() => {
   if (isTemplateCanvas.value) return '模板画布不支持运行';
   if (!canRunFlow.value) return '当前账号无执行权限，无法运行';
-  if (!selectedEntry.value) return '请先选择入口';
-  if (selectedEntry.value.type === 'scenario-entry') {
-    return `运行场景「${activeScenarioName.value}」`;
+  if (!selectedEntry.value) return '请先选择场景入口';
+  if (selectedEntry.value.type !== 'scenario-entry') {
+    return '画布点跑仅支持场景入口；HTTP 走开放入站，子流由父流调用';
   }
-  return `从入口「${entryLabel(selectedEntry.value)}」运行`;
+  return `运行场景「${activeScenarioName.value}」`;
 });
 
 /** 入口展示名：优先节点名称；HTTP 入口回退为「方法 路径」；其余按入口类型给默认名 */
@@ -187,8 +190,8 @@ function entryLabel(entry) {
 function entryMeta(entry) {
   if (!entry) return '';
   if (entry.type === 'scenario-entry') return '场景入口 · 下方选场景后点跑';
-  if (entry.type === 'http-entry') return '开放 HTTP 入口 · 画布点跑按场景轨注入';
-  if (entry.type === 'subflow-entry') return '子流入口 · 通常由父流调用';
+  if (entry.type === 'http-entry') return '开放 HTTP 入口 · 查看说明；入站走握连接';
+  if (entry.type === 'subflow-entry') return '子流入口 · 查看说明；由父流节点调起';
   return entry.type;
 }
 
@@ -226,8 +229,8 @@ async function onRunScenario() {
     ElMessage.warning('当前账号无执行权限，无法运行');
     return;
   }
-  if (!selectedEntry.value) {
-    ElMessage.warning('请先选择入口');
+  if (!selectedEntry.value || selectedEntry.value.type !== 'scenario-entry') {
+    ElMessage.warning('请先选择场景入口后再运行');
     return;
   }
   await runActiveScenario();

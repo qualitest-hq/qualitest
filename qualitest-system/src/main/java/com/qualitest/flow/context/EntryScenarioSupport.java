@@ -27,6 +27,8 @@ public final class EntryScenarioSupport {
 
     /**
      * 定位或新建 scenario-entry；新建时写入默认场景。
+     * <p>
+     * 仅供显式需要「确保有入口」的调用方使用；AI scenarioPatch 合并不得调用本方法隐式造入口。
      *
      * @param entryNodeId 指定入口 id；空白时仅在无场景入口时新建，唯一入口直接返回；多入口须显式指定
      */

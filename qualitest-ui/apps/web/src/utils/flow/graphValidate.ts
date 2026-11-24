@@ -4,8 +4,10 @@
  * 检查节点壳字段（顶层 name 必填）、已知 type、边端点、开始节点、各类型业务字段，产出 errors / warnings。
  * 场景写在 scenario-entry.data.scenarios（envId / inSeed）；meta 不承载场景列表。
  * http-return / subflow-return：from 非空；http-return 的 status 若写出须为 100～599；
- * subflow-return 禁止 status。入口 fallbackOut、同序双 return、返回 type 匹配等记 errors。
- * IF 臂漏 return 记 warnings。画布「异常」(errors) 保存不拦、开跑硬拦。
+ * subflow-return 禁止 status。入口 fallbackOut、HTTP method/path/envId、同序双 return、
+ * 返回 type 匹配、本流 method+path 自冲突等记 errors。
+ * IF 臂漏 return 记 warnings。画布「异常」(errors) 一般保存不拦、开跑硬拦；
+ * 本流开放路由自冲突除外（保存也硬拦，与后端一致）。
  * persistMinimalOnly：只检查节点 id 与边端点（保存地板）。
  * deferTopologyStructureRules：开始节点问题降为警告。
  */
@@ -883,6 +885,9 @@ function appendReturnAndEntryRules(
     if (n.type === 'http-entry') hasHttpEntry = true;
     if (n.type === 'subflow-entry') hasSubflowEntry = true;
     if (n.type === 'http-entry' || n.type === 'subflow-entry') {
+      if (n.type === 'http-entry') {
+        appendHttpEntryFieldErrors(n, errors);
+      }
       const fb = n.data?.fallbackOut;
       if (fb == null || typeof fb !== 'object' || Array.isArray(fb)) {
         errors.push(`入口节点「${resolveGraphNodeName(n)}」须配置 fallbackOut`);
@@ -922,6 +927,70 @@ function appendReturnAndEntryRules(
 
   appendMissingReturnArmWarnings(nodes, byId, outs, warnings);
   appendFanoutReturnRules(nodes, byId, outs, errors);
+  appendHttpRouteSelfCollisionErrors(nodes, errors);
+}
+
+/** 与后端 OpenHttpRouteCatalog 对齐的 method 规范化 */
+export function normalizeOpenHttpMethod(method: unknown): string {
+  const raw = method == null ? '' : String(method).trim();
+  return raw ? raw.toUpperCase() : 'GET';
+}
+
+/** 与后端 OpenHttpRouteCatalog 对齐的 path 规范化；空 → 空串 */
+export function normalizeOpenHttpPath(path: unknown): string {
+  let p = path == null ? '' : String(path).trim();
+  if (!p) return '';
+  if (!p.startsWith('/')) p = `/${p}`;
+  while (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+  return p;
+}
+
+/** HTTP 入口开跑必填：method、非空 path、envId（保存不拦，画布/开跑拦） */
+function appendHttpEntryFieldErrors(n: GraphNode, errors: string[]): void {
+  const label = resolveGraphNodeName(n);
+  const method = n.data?.method == null ? '' : String(n.data.method).trim();
+  if (!method) {
+    errors.push(`HTTP 入口「${label}」须配置 method`);
+  }
+  if (!normalizeOpenHttpPath(n.data?.path)) {
+    errors.push(`HTTP 入口「${label}」须配置非空 path`);
+  }
+  const envId = n.data?.envId == null ? '' : String(n.data.envId).trim();
+  if (!envId) {
+    errors.push(`HTTP 入口「${label}」须配置 envId`);
+  }
+}
+
+/**
+ * 本流 http-entry method+path 自冲突（路由占用）。
+ * 供全量校验与保存硬拦共用。
+ */
+export function collectHttpRouteSelfCollisionErrors(
+  nodes: GraphNode[] | undefined | null,
+): string[] {
+  const errors: string[] = [];
+  appendHttpRouteSelfCollisionErrors(nodes ?? [], errors);
+  return errors;
+}
+
+function appendHttpRouteSelfCollisionErrors(nodes: GraphNode[], errors: string[]): void {
+  const owners = new Map<string, string>();
+  for (const n of nodes) {
+    if (!n || n.type !== 'http-entry') continue;
+    const path = normalizeOpenHttpPath(n.data?.path);
+    if (!path) continue;
+    const method = normalizeOpenHttpMethod(n.data?.method);
+    const key = `${method} ${path}`;
+    const label = resolveGraphNodeName(n);
+    const previous = owners.get(key);
+    if (previous != null) {
+      errors.push(
+        `开放 HTTP 入口冲突：${key} 在本流被「${previous}」与「${label}」同时占用`,
+      );
+    } else {
+      owners.set(key, label);
+    }
+  }
 }
 
 /** 从入口沿出边：返回节点 type 须匹配 */

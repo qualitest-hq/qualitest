@@ -13,7 +13,10 @@
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
-import { validateGraphJson } from '@/utils/flow/graphValidate';
+import {
+  collectHttpRouteSelfCollisionErrors,
+  validateGraphJson,
+} from '@/utils/flow/graphValidate';
 
 import { fromGraphJson } from '../graphAdapter';
 import { buildCanvasPersistGraph } from './buildCanvasPersistGraph';
@@ -211,9 +214,14 @@ export function useFlowGraph() {
 
     const graph = buildCanvasPersistGraph();
     const floor = validateGraphJson(graph, { persistMinimalOnly: true });
-    if (!floor.ok) {
+    const routeSelfErrors = collectHttpRouteSelfCollisionErrors(graph.nodes);
+    if (!floor.ok || routeSelfErrors.length) {
       if (!options?.quiet) {
-        ElMessage.error(floor.errors[0] ?? '图校验失败');
+        ElMessage.error(
+          floor.errors[0]
+            ?? routeSelfErrors[0]
+            ?? '图校验失败',
+        );
       }
       return false;
     }
