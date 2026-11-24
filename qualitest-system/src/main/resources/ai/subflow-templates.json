@@ -2,7 +2,7 @@
   {
     "templateId": "tpl_login_bearer",
     "name": "Bearer 登录",
-    "description": "HTTP(project) 登录 → extract token → subflow-return；父流在子流节点执行后读 nodes.<子流节点id>.out.body.token。inputs/outputs 为目录提示。",
+    "description": "HTTP(project) 登录 → extract token → subflow-return；父流读 nodes.<子流节点id>.out.body.token。inputs / outBodyKeys 为目录提示。",
     "inputs": [
       {
         "name": "username",
@@ -13,7 +13,7 @@
         "description": "登录密码"
       }
     ],
-    "outputs": [
+    "outBodyKeys": [
       {
         "name": "token",
         "description": "Bearer Token"
@@ -23,7 +23,7 @@
   {
     "templateId": "tpl_login_captcha",
     "name": "验证码登录",
-    "description": "取验证码图 → 外联打码 → 登录 → 返回；父流读 nodes.<子流节点id>.out.body.token。inputs/outputs 为目录提示。",
+    "description": "取验证码图 → 外联打码 → 登录 → 返回；父流读 nodes.<子流节点id>.out.body.token。inputs / outBodyKeys 为目录提示。",
     "inputs": [
       {
         "name": "username",
@@ -34,7 +34,7 @@
         "description": "登录密码"
       }
     ],
-    "outputs": [
+    "outBodyKeys": [
       {
         "name": "token",
         "description": "Bearer Token"
@@ -44,7 +44,7 @@
   {
     "templateId": "tpl_login_captcha_manual",
     "name": "验证码登录（手动）",
-    "description": "取验证码图 → Input 人工填码 → 登录 → 返回；父流读 nodes.<子流节点id>.out.body.token。inputs/outputs 为目录提示。",
+    "description": "取验证码图 → Input 人工填码 → 登录 → 返回；父流读 nodes.<子流节点id>.out.body.token。inputs / outBodyKeys 为目录提示。",
     "inputs": [
       {
         "name": "username",
@@ -55,7 +55,7 @@
         "description": "登录密码"
       }
     ],
-    "outputs": [
+    "outBodyKeys": [
       {
         "name": "token",
         "description": "Bearer Token"
@@ -65,9 +65,9 @@
   {
     "templateId": "tpl_oauth_client_credentials",
     "name": "OAuth Client Credentials",
-    "description": "HTTP(external) 获取 access_token；父流读 nodes.<子流节点id>.out.body.token、tokenExpiresIn。inputs/outputs 为目录提示。",
+    "description": "HTTP(external) 获取 access_token；父流读 nodes.<子流节点id>.out.body.token、tokenExpiresIn。inputs / outBodyKeys 为目录提示。",
     "inputs": [],
-    "outputs": [
+    "outBodyKeys": [
       {
         "name": "token",
         "description": "access_token"
@@ -81,14 +81,14 @@
   {
     "templateId": "tpl_oauth_refresh",
     "name": "OAuth Refresh Token",
-    "description": "HTTP(external) refresh_token grant → 返回；父流读 nodes.<子流节点id>.out.body.token。inputs/outputs 为目录提示。",
+    "description": "HTTP(external) refresh_token grant → 返回；父流读 nodes.<子流节点id>.out.body.token。inputs / outBodyKeys 为目录提示。",
     "inputs": [
       {
         "name": "refreshToken",
         "description": "refresh_token"
       }
     ],
-    "outputs": [
+    "outBodyKeys": [
       {
         "name": "token",
         "description": "新的 access_token"
@@ -98,7 +98,7 @@
   {
     "templateId": "tpl_dual_login",
     "name": "双身份登录",
-    "description": "两次登录链，pack tokenA/tokenB 后返回；父流读 nodes.<子流节点id>.out.body.tokenA、tokenB。inputs/outputs 为目录提示。",
+    "description": "两次登录链，pack tokenA/tokenB 后返回；父流读 nodes.<子流节点id>.out.body.tokenA、tokenB。inputs / outBodyKeys 为目录提示。",
     "inputs": [
       {
         "name": "userA",
@@ -117,7 +117,7 @@
         "description": "身份 B 密码"
       }
     ],
-    "outputs": [
+    "outBodyKeys": [
       {
         "name": "tokenA",
         "description": "身份 A Token"

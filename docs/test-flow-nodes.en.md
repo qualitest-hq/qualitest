@@ -138,16 +138,11 @@ Use for project-specific signing or field assembly when declarative nodes are no
 
 Collapses another flow in the same project into one step:
 
-1. Load by `subflowId` (must share `testProjectId`)
+1. Load by `subflowId` (must share `testProjectId`); each Run uses the referenced flow’s **current** graph
 2. Resolve `inputs` placeholders into the child `flow` context
 3. Run the child graph in memory (fail-fast); nesting is capped (parent → child → grandchild, max **2** subflow levels)
-4. Child `subflow-return` (or equivalent) mounts delivery on `nodes.<subflowNodeId>.out` for parent placeholders; optional `outputs` maps child `flow` keys back to parent `flow`. Parent/child `flow` are isolated; share `asset`/`env`/`session`. Node `alwaysRun=true` (JSON boolean required) still runs in the parent’s post-failure continue phase. MCP: `submit_subflow_node` writes `inputs`/`outputs`/`alwaysRun`.
+4. Child `subflow-return` (or entry `fallbackOut`) mounts delivery on `nodes.<subflowNodeId>.out` for parent placeholders. Parent/child `flow` are isolated; share `asset`/`env`/`session`. Node `alwaysRun=true` (JSON boolean required) still runs in the parent’s post-failure continue phase. MCP: `submit_subflow_node` writes `inputs`/`alwaysRun`.
 5. Attach `subflow.childSteps` for Run UI and MCP `get_run_failure`
-
-| versionPolicy | Behavior |
-|---------------|----------|
-| `latest` | Each Run loads the child’s current graph |
-| `pinned` | Prefer node `pinnedGraphJson` snapshot |
 
 Platform **subflow templates** (login / OAuth / captcha, …) can be forked and parameterized.
 
@@ -157,7 +152,7 @@ Platform **subflow templates** (login / OAuth / captcha, …) can be forked and 
 
 1. **Happy path:** HTTP (`project`) → Assert; variables via extracts / Assign.
 2. **Branches:** wire Condition arms carefully before merge; extract complex arms into subflows.
-3. **Reuse:** multi-step auth → Subflow; parent only maps inputs/outputs (auth model: [project-summary.en.md](./project-summary.en.md)).
+3. **Reuse:** multi-step auth → Subflow; parent maps `inputs`, then reads `nodes.<id>.out` (auth model: [project-summary.en.md](./project-summary.en.md)).
 4. **Escape hatch:** signing / dynamic assembly → Script; keep scripts short and testable.
 5. **Destructive writes:** `snapshotBefore` + env allows restore; don’t parallelize the same env.
 

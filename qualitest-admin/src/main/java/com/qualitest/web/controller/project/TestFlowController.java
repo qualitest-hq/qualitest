@@ -180,7 +180,7 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 列举平台内置子流模板元数据（templateId、名称、inputs/outputs），不含 graphJson 全文。
+     * 列举平台内置子流模板元数据（templateId、名称、inputs / outBodyKeys），不含 graphJson 全文。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:list')")
     @GetMapping("/subflowTemplates")

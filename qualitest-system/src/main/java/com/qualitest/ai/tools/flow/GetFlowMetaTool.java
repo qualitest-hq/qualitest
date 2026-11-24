@@ -8,7 +8,6 @@ import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.flow.context.EntryScenarioSupport;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphRunScenario;
 
@@ -18,7 +17,7 @@ import java.util.Map;
 /**
  * 读取当前测试流画布元数据与场景摘要。
  * <p>
- * meta 回执含 startNodeId 等；scenarios / activeScenarioId 取自 scenario-entry.data.scenarios。
+ * 回执按全部 scenario-entry 列举；单入口时额外回填顶层 entryNodeId / scenarios / activeScenarioId 以便兼容。
  */
 public class GetFlowMetaTool implements QualitestTool {
 
@@ -35,7 +34,7 @@ public class GetFlowMetaTool implements QualitestTool {
     }
 
     /**
-     * 组装 meta 与场景摘要 JSON；解析失败时返回错误回执。
+     * 组装各入口场景摘要 JSON；解析失败时返回错误回执。
      */
     @Override
     public String execute(Map<String, Object> arguments, FlowDesignToolContext ctx) {
@@ -47,30 +46,51 @@ public class GetFlowMetaTool implements QualitestTool {
         JSONObject result = new JSONObject();
         result.put("activeScenarioId", "");
         result.put("scenarios", new JSONArray());
-        result.put("startNodeId", "");
         result.put("entryNodeId", "");
 
-        GraphMeta meta = graph.getMeta();
-        if (meta != null && meta.getStartNodeId() != null) {
-            result.put("startNodeId", meta.getStartNodeId());
+        List<GraphNode> entryNodes = EntryScenarioSupport.listScenarioEntries(graph);
+        JSONArray entriesArr = new JSONArray();
+        for (GraphNode entry : entryNodes) {
+            if (entry == null) {
+                continue;
+            }
+            JSONObject entryObj = new JSONObject();
+            String entryId = entry.getId() != null ? entry.getId() : "";
+            entryObj.put("entryNodeId", entryId);
+            entryObj.put("entryName", entry.getName() != null ? entry.getName() : "");
+            JSONArray scenarioArr = toScenarioSummaries(EntryScenarioSupport.scenariosOf(entry));
+            entryObj.put("scenarios", scenarioArr);
+            entriesArr.add(entryObj);
+        }
+        result.put("entries", entriesArr);
+
+        // 单入口：顶层字段与旧调用方兼容（直接复用 entries[0]，避免再算一遍）
+        if (entriesArr.size() == 1) {
+            JSONObject sole = entriesArr.getJSONObject(0);
+            result.put("entryNodeId", sole.getString("entryNodeId"));
+            JSONArray scenarios = sole.getJSONArray("scenarios");
+            result.put("scenarios", scenarios != null ? scenarios : new JSONArray());
+            if (scenarios != null && !scenarios.isEmpty()) {
+                JSONObject first = scenarios.getJSONObject(0);
+                if (first != null && first.getString("id") != null) {
+                    result.put("activeScenarioId", first.getString("id"));
+                }
+            }
         }
 
-        GraphNode entry = EntryScenarioSupport.findScenarioEntry(graph, null);
-        List<GraphRunScenario> scenarios = EntryScenarioSupport.scenariosOf(entry);
-        if (entry != null) {
-            result.put("entryNodeId", entry.getId());
-        }
-        if (!scenarios.isEmpty() && scenarios.get(0).getId() != null) {
-            result.put("activeScenarioId", scenarios.get(0).getId());
-        }
+        return ToolResultByteFit.fitFlowMeta(result, ctx.getMaxToolResultBytes());
+    }
 
+    private static JSONArray toScenarioSummaries(List<GraphRunScenario> scenarios) {
         JSONArray scenarioArr = new JSONArray();
+        if (scenarios == null) {
+            return scenarioArr;
+        }
         for (GraphRunScenario scenario : scenarios) {
             if (scenario != null) {
                 scenarioArr.add(FlowDesignScenarioJsonSupport.toSummary(scenario));
             }
         }
-        result.put("scenarios", scenarioArr);
-        return ToolResultByteFit.fitFlowMeta(result, ctx.getMaxToolResultBytes());
+        return scenarioArr;
     }
 }

@@ -252,14 +252,18 @@ public class FlowDesignPatchMerger {
         FlowDesignScenarioPatch scenarioPatch = patch.getScenarioPatch();
         if (FlowDesignScenarioPatch.hasChanges(scenarioPatch)) {
             GraphNode entry = EntryScenarioSupport.ensureScenarioEntry(graph, scenarioPatch.getEntryNodeId());
-            List<GraphRunScenario> entryScenarios = new ArrayList<>(EntryScenarioSupport.scenariosOf(entry));
-            List<GraphRunScenario> merged = ScenarioPatchMerger.merge(entryScenarios, scenarioPatch, warnings);
-            Map<String, Object> entryData = entry.getData();
-            if (entryData == null) {
-                entryData = new HashMap<>();
-                entry.setData(entryData);
+            if (entry == null) {
+                warnings.add("多场景入口须指定 scenarioPatch.entryNodeId");
+            } else {
+                List<GraphRunScenario> entryScenarios = new ArrayList<>(EntryScenarioSupport.scenariosOf(entry));
+                List<GraphRunScenario> merged = ScenarioPatchMerger.merge(entryScenarios, scenarioPatch, warnings);
+                Map<String, Object> entryData = entry.getData();
+                if (entryData == null) {
+                    entryData = new HashMap<>();
+                    entry.setData(entryData);
+                }
+                entryData.put("scenarios", EntryScenarioSupport.toEntryScenarioMaps(merged));
             }
-            entryData.put("scenarios", EntryScenarioSupport.toEntryScenarioMaps(merged));
         }
 
         return graph;

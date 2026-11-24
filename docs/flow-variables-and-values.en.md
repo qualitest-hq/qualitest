@@ -25,7 +25,7 @@ No `{{session.*}}` — use Script `ctx.session` instead. Assets use **dot** path
 
 ## 2. Where `flow` comes from
 
-HTTP **extracts**, **Assign**, subflow **outputs**, scenario **inSeed** (preloads `ctx.in`; no plaintext passwords).
+HTTP **extracts**, **Assign**, child-graph extracts (shared `asset`), scenario **inSeed** (preloads `ctx.in`; no plaintext passwords). Subflow delivery is read via `nodes.<id>.out`, not copied into parent `flow`.
 
 ---
 

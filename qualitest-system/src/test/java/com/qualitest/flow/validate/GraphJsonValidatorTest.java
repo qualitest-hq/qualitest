@@ -140,8 +140,8 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * 前提：多个无入边节点。
-     * 期望：validateStartNodes 失败，并返回候选开始节点 id。
+     * 前提：有入口 + 非入口无入边节点。
+     * 期望：validateStartNodes 失败（仅入口可作开始），并返回候选无入边 id。
      */
     @Test
     @Order(6)
@@ -150,28 +150,28 @@ class GraphJsonValidatorTest {
         GraphJson graph = GraphJson.parse(loadResource("flow/invalid-multi-start.json"));
         StartNodesValidation result = validator.validateStartNodes(graph);
         assertFalse(result.isOk());
-        assertTrue(result.getMessage().contains("开始节点"));
+        assertTrue(result.getMessage().contains("非入口的无入边"));
         assertTrue(result.getIds().size() > 1);
     }
 
     /**
-     * 前提：环图（每个节点都有入边）。
-     * 期望：失败；消息含「未找到开始节点」；ids 为空。
+     * 前提：环图（每个节点都有入边，且无入口）。
+     * 期望：失败；消息含「须至少配置一个入口」；ids 为空。
      */
     @Test
     @Order(7)
-    @DisplayName("环图未找到开始节点")
+    @DisplayName("环图无入口 validateStartNodes 失败")
     void validateStartNodes_noStart_fails() {
         GraphJson graph = GraphJson.parse(loadResource("flow/invalid-no-start.json"));
         StartNodesValidation result = validator.validateStartNodes(graph);
         assertFalse(result.isOk());
-        assertTrue(result.getMessage().contains("未找到开始节点"));
+        assertTrue(result.getMessage().contains("须至少配置一个入口"));
         assertTrue(result.getIds().isEmpty());
     }
 
     /**
-     * 前提：subflow 缺 subflowId，且未配 inputs/outputs。
-     * 期望：仅 subflowId error；空 inputs/outputs 不再告警。
+     * 前提：subflow 缺 subflowId，且未配 inputs。
+     * 期望：仅 subflowId error；空 inputs 不再告警。
      */
     @Test
     @Order(8)

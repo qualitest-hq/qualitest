@@ -30,8 +30,8 @@ import java.util.function.Function;
  * 对每个需鉴权的 project HTTP，解析其命中的鉴权 Profile，读取托管头上的凭证目标
  * （如 asset.adminAuth.token、flow.token）。未解析出凭证目标的 Profile 跳过。
  * 再扫描整图是否已产出该目标：HTTP extracts（flow / asset）、assign 赋值、
- * 子流节点 outputs（flow 作用域）、子流引用图内的 extracts
- * （子上下文与父共享 asset，登录子流写 asset.* 对本图有效）、场景 inSeed（仅 flow 顶层键）。
+ * 子流引用图内的 extracts（子上下文与父共享 asset，登录子流写 asset.* 对本图有效）、
+ * 场景 inSeed（仅 flow 顶层键）。
  * 客户端与管理端分开检查，有一端凭证不能代替另一端。
  * <p>
  * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING），并附上 profileId、命中的 pathPrefix，
@@ -156,7 +156,7 @@ public final class AuthTokenPresenceGate {
 
     /**
      * 收集图中已声明会写入的凭证 identityKey。
-     * 来源：HTTP extracts（flow + asset）、assign、subflow outputs、子流引用图 extracts、场景 inSeed 键（仅 flow）。
+     * 来源：HTTP extracts（flow + asset）、assign、子流引用图 extracts、场景 inSeed 键（仅 flow）。
      */
     static Set<String> collectProducedIdentityKeys(GraphJson graph) {
         return collectProducedIdentityKeys(graph, null, 0);
@@ -191,7 +191,7 @@ public final class AuthTokenPresenceGate {
                 collectFlowNames(raw, keys);
             }
             if ("subflow".equals(type)) {
-                collectFlowField(data.get("outputs"), "flowKey", keys);
+                // 展开子图：共享 asset 上的 extracts 可作凭证来源
                 if (depth < MAX_SUBFLOW_DEPTH) {
                     GraphJson child = resolveSubflowGraph(data, subflowGraphResolver);
                     if (child != null) {
@@ -218,26 +218,12 @@ public final class AuthTokenPresenceGate {
     }
 
     /**
-     * 解析子流节点绑定的子图：优先节点内 pinned graphJson，否则按 subflowId 走解析器。
+     * 按 subflowId 解析子流节点绑定的子图。
      */
     private static GraphJson resolveSubflowGraph(
             Map<String, Object> data,
             Function<Long, GraphJson> subflowGraphResolver) {
-        Object pinned = data.get("graphJson");
-        if (pinned instanceof String text && !text.isBlank()) {
-            try {
-                return GraphJson.parse(text);
-            } catch (Exception ignored) {
-                // 回落 subflowId
-            }
-        } else if (pinned != null && !(pinned instanceof String)) {
-            try {
-                return GraphJson.parse(JSONObject.toJSONString(pinned));
-            } catch (Exception ignored) {
-                // 回落 subflowId
-            }
-        }
-        if (subflowGraphResolver == null) {
+        if (subflowGraphResolver == null || data == null) {
             return null;
         }
         Long subflowId = FlowHttpNodeVisitor.parseTestProjectApiId(data.get("subflowId"));

@@ -5,7 +5,6 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphRunScenario;
@@ -27,14 +26,18 @@ public final class EntryScenarioSupport {
     }
 
     /**
-     * 定位或新建 scenario-entry；新建时写入默认场景并设置 {@code meta.startNodeId}。
+     * 定位或新建 scenario-entry；新建时写入默认场景。
      *
-     * @param entryNodeId 指定入口 id；空白则取或建图上第一个入口
+     * @param entryNodeId 指定入口 id；空白时仅在无场景入口时新建，唯一入口直接返回；多入口须显式指定
      */
     public static GraphNode ensureScenarioEntry(GraphJson graph, String entryNodeId) {
         GraphNode entry = findScenarioEntry(graph, entryNodeId);
         if (entry != null) {
             return entry;
+        }
+        if (!listScenarioEntries(graph).isEmpty()) {
+            // 已有场景入口但未能唯一解析（多入口未指定 id）：不新建
+            return null;
         }
         entry = new GraphNode();
         entry.setId(String.valueOf(IdUtil.getSnowflakeNextId()));
@@ -64,18 +67,28 @@ public final class EntryScenarioSupport {
             graph.setNodes(nodes);
         }
         nodes.add(0, entry);
-
-        GraphMeta meta = graph.getMeta();
-        if (meta == null) {
-            meta = GraphMeta.builder().build();
-            graph.setMeta(meta);
-        }
-        meta.setStartNodeId(entry.getId());
         return entry;
     }
 
     /**
-     * 按 entryNodeId 定位 scenario-entry；未指定时取图上第一个场景入口。
+     * 列出图上全部 scenario-entry（按 nodes 顺序）。
+     */
+    public static List<GraphNode> listScenarioEntries(GraphJson graph) {
+        if (graph == null || graph.getNodes() == null) {
+            return List.of();
+        }
+        List<GraphNode> out = new ArrayList<>();
+        for (GraphNode n : graph.getNodes()) {
+            if (n != null && FlowNodeType.SCENARIO_ENTRY.matches(n.getType())) {
+                out.add(n);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 按 entryNodeId 定位 scenario-entry。
+     * 未指定时：恰好一个则返回该入口；零个或多个则返回 null（多入口禁止静默取第一个）。
      */
     public static GraphNode findScenarioEntry(GraphJson graph, String entryNodeId) {
         if (graph == null || graph.getNodes() == null) {
@@ -90,12 +103,8 @@ public final class EntryScenarioSupport {
             }
             return null;
         }
-        for (GraphNode n : graph.getNodes()) {
-            if (n != null && FlowNodeType.SCENARIO_ENTRY.matches(n.getType())) {
-                return n;
-            }
-        }
-        return null;
+        List<GraphNode> entries = listScenarioEntries(graph);
+        return entries.size() == 1 ? entries.get(0) : null;
     }
 
     /**
@@ -171,13 +180,39 @@ public final class EntryScenarioSupport {
         if (item instanceof GraphRunScenario sc) {
             return sc;
         }
-        if (item instanceof Map<?, ?> map) {
-            return JSON.parseObject(JSON.toJSONString(map), GraphRunScenario.class);
-        }
         if (item instanceof JSONObject jo) {
-            return jo.toJavaObject(GraphRunScenario.class);
+            return coerceScenarioMap(jo);
+        }
+        if (item instanceof Map<?, ?> map) {
+            return coerceScenarioMap(new JSONObject(map));
         }
         return JSON.parseObject(JSON.toJSONString(item), GraphRunScenario.class);
+    }
+
+    /**
+     * 将场景 Map 转为模型：正名 envId/inSeed；若仅有旧键则迁值后丢弃旧键。
+     */
+    private static GraphRunScenario coerceScenarioMap(JSONObject raw) {
+        if (raw == null) {
+            return null;
+        }
+        JSONObject cleaned = new JSONObject(raw);
+        String envId = cleaned.getString("envId");
+        if (envId == null || envId.isBlank()) {
+            Object legacyEnv = cleaned.get("testProjectEnvId");
+            if (legacyEnv != null && !String.valueOf(legacyEnv).isBlank()) {
+                cleaned.put("envId", String.valueOf(legacyEnv).trim());
+            }
+        }
+        cleaned.remove("testProjectEnvId");
+        if (!cleaned.containsKey("inSeed") || cleaned.get("inSeed") == null) {
+            Object legacySeed = cleaned.get("flowSeed");
+            if (legacySeed instanceof Map<?, ?> || legacySeed instanceof JSONObject) {
+                cleaned.put("inSeed", legacySeed);
+            }
+        }
+        cleaned.remove("flowSeed");
+        return cleaned.toJavaObject(GraphRunScenario.class);
     }
 
     /**

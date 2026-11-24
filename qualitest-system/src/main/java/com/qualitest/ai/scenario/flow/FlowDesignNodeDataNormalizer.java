@@ -35,7 +35,6 @@ public final class FlowDesignNodeDataNormalizer {
             case "condition" -> FlowDesignConditionNodeNormalizer.normalize(data);
             case "assign" -> FlowDesignAssignNodeNormalizer.normalize(data);
             case "delay" -> FlowDesignDelayNodeNormalizer.normalize(data);
-            case "subflow" -> FlowDesignSubflowNodeNormalizer.normalize(data);
             default -> {
             }
         }

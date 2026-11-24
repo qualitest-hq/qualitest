@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * 平台内置子流模板目录（classpath 资源，非数据库表）。
  * <p>
- * 元数据：{@code ai/subflow-templates.json}（templateId、名称、inputs/outputs 说明）。<br>
+ * 元数据：{@code ai/subflow-templates.json}（templateId、名称、inputs / outBodyKeys 说明）。<br>
  * 图骨架：{@code ai/subflow-templates/{templateId}.graph.json}。
  * <p>
  * 内置模板：tpl_login_bearer（Bearer 登录）、tpl_login_captcha（取验证码图后外联打码再登录）、

@@ -501,17 +501,17 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 前提：子流节点带 subflowName 与 outputs.flowKey=token。
-     * 期望：不在 data 落展示摘要；subflowId 保留。
+     * 前提：子流节点带 subflowName 与未知键 legacyFoo。
+     * 期望：不在 data 落展示摘要；subflowId 保留；未知键被剔除。
      */
     @Test
     @Order(15)
-    @DisplayName("子流节点不落 data 摘要")
+    @DisplayName("子流节点不落 data 摘要，剔除未知键")
     void normalize_subflow_noDataSummary() {
         Map<String, Object> data = new HashMap<>();
         data.put("subflowName", "登录子流");
         data.put("subflowId", "3001");
-        data.put("outputs", List.of(Map.of("name", "token", "flowKey", "token")));
+        data.put("legacyFoo", List.of(Map.of("name", "token")));
         GraphNode node = GraphNode.builder()
                 .id("sf1")
                 .type("subflow")
@@ -528,6 +528,7 @@ class FlowDesignPatchNormalizerTest {
 
         Map<String, Object> normalized = result.patch().getAddNodes().get(0).getData();
         assertEquals("3001", normalized.get("subflowId"));
+        assertFalse(normalized.containsKey("legacyFoo"));
         assertTrue(result.validation().isOk());
     }
 

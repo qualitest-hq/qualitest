@@ -3,14 +3,14 @@
  *
  * - fromGraphJson：解开外层包装，还原 nodes/edges/viewport；从场景入口 data.scenarios 灌入 runConfig，
  *   并带回该入口 id（scenarioEntryNodeId）供跑前入口选中；condition 出边补 sourceHandle；打开画布不重排坐标
- * - toGraphJson：剥离界面字段，把 runConfig.scenarios（envId / inSeed）写回指定或第一个场景入口；
- *   排版写入 meta.layout；meta 不写场景列表
+ * - toGraphJson：剥离界面字段，把 runConfig.scenarios（envId / inSeed）写回指定的场景入口；
+ *   未指定入口时不改写任一入口的 scenarios；排版写入 meta.layout；meta 不写场景列表
  * - createEmptyGraph：新建完全空白图（无入口节点），仅默认视口
  */
 import type { Edge, Node } from '@vue-flow/core';
 import { markRaw } from 'vue';
 
-import { findStartNodeIds, unwrapGraphPayload } from '@/utils/flow/graphValidate';
+import { unwrapGraphPayload } from '@/utils/flow/graphValidate';
 
 import { applyConditionEdgeProps } from './utils/conditionUtils';
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId';
@@ -29,6 +29,26 @@ import { normalizeLayoutPresetId, type FlowLayoutPresetId } from './utils/flowLa
 
 export const DEFAULT_VIEWPORT: GraphViewport = { x: 40, y: 40, zoom: 1 };
 
+/** 子流节点落盘允许的 data 键（与后端 FlowDesignNodeDataKeys.SUBFLOW 对齐） */
+const SUBFLOW_PERSIST_DATA_KEYS = new Set([
+  'subflowId',
+  'subflowName',
+  'inputs',
+  'alwaysRun',
+  'templateId',
+]);
+
+/** 只保留子流落盘白名单键，丢弃其余未知键 */
+function pickSubflowPersistData(data: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = {};
+  for (const key of Object.keys(data)) {
+    if (SUBFLOW_PERSIST_DATA_KEYS.has(key)) {
+      next[key] = data[key];
+    }
+  }
+  return next;
+}
+
 /** 视口坐标取有限精度，避免 VueFlow 浮点误差导致脏检查误判 */
 export function normalizeViewport(vp: GraphViewport): GraphViewport {
   return {
@@ -38,16 +58,22 @@ export function normalizeViewport(vp: GraphViewport): GraphViewport {
   };
 }
 
-/** 解析场景环境 id */
+/** 解析场景环境 id（正名 envId；读旧图时兼容 testProjectEnvId） */
 export function resolveScenarioEnvId(sc: GraphRunScenario | undefined | null): string {
   if (!sc) return '';
-  return sc.envId != null ? String(sc.envId).trim() : '';
+  if (sc.envId != null && String(sc.envId).trim()) return String(sc.envId).trim();
+  const legacy = (sc as Record<string, unknown>).testProjectEnvId;
+  return legacy != null ? String(legacy).trim() : '';
 }
 
-/** 解析入参值树 */
+/** 解析入参值树（正名 inSeed；读旧图时兼容 flowSeed） */
 export function resolveScenarioInSeed(sc: GraphRunScenario | undefined | null): Record<string, unknown> {
   if (!sc) return {};
   if (sc.inSeed && typeof sc.inSeed === 'object') return { ...sc.inSeed };
+  const legacy = (sc as Record<string, unknown>).flowSeed;
+  if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
+    return { ...(legacy as Record<string, unknown>) };
+  }
   return {};
 }
 
@@ -102,52 +128,49 @@ export interface FromGraphJsonResult {
   layoutPreset: FlowLayoutPresetId;
 }
 
-/** 规整单条场景：补齐 id/name，统一 envId 与 inSeed */
+/** 规整单条场景：补齐 id/name，统一 envId 与 inSeed；不保留旧键 */
 function normalizeScenario(scenario: GraphRunScenario): GraphRunScenario {
   const envId = resolveScenarioEnvId(scenario);
   const inSeed = resolveScenarioInSeed(scenario);
-  return {
-    ...scenario,
+  const out: GraphRunScenario = {
     id: String(scenario.id ?? ''),
     name: String(scenario.name ?? ''),
     envId,
     inSeed,
     remark: scenario.remark != null ? String(scenario.remark) : '',
   };
+  if (scenario.onNodeFailure != null) out.onNodeFailure = scenario.onNodeFailure;
+  if (scenario.onSnapshotFailure != null) out.onSnapshotFailure = scenario.onSnapshotFailure;
+  if (scenario.maxSteps !== undefined) out.maxSteps = scenario.maxSteps;
+  return out;
 }
 
 /**
  * 从场景入口节点读出场景列表。
- * 优先取第一个带非空 scenarios 的场景入口；若只有空列表入口则返回该入口 id 与空数组；没有场景入口返回 null。
+ * 恰好一个 scenario-entry 时用它（空列表也记住入口 id）；多个则返回 null，由 UI 显式选入口后再灌。
  */
 function scenariosFromEntryNodes(
   nodes: GraphJson['nodes'] | undefined,
 ): { entryId: string; scenarios: GraphRunScenario[] } | null {
   if (!nodes?.length) return null;
-  let firstEmptyEntryId: string | null = null;
+  const entries: Array<{ entryId: string; scenarios: GraphRunScenario[] }> = [];
   for (const n of nodes) {
     if (n?.type !== 'scenario-entry') continue;
     const entryId = String(n.id ?? '').trim();
     if (!entryId) continue;
     const raw = n.data?.scenarios;
-    if (!Array.isArray(raw) || raw.length === 0) {
-      if (!firstEmptyEntryId) firstEmptyEntryId = entryId;
-      continue;
-    }
-    return {
-      entryId,
-      scenarios: raw.map((s) => normalizeScenario(s as GraphRunScenario)),
-    };
+    const scenarios = Array.isArray(raw) && raw.length
+      ? raw.map((s) => normalizeScenario(s as GraphRunScenario))
+      : [];
+    entries.push({ entryId, scenarios });
   }
-  if (firstEmptyEntryId) {
-    return { entryId: firstEmptyEntryId, scenarios: [] };
-  }
-  return null;
+  if (entries.length !== 1) return null;
+  return entries[0];
 }
 
 /**
  * 打开画布时组装运行配置，并标出场景列表来自哪个入口节点。
- * 有非空场景则灌入并默认激活第一条；有空场景入口则生成默认冒烟场景但仍记住入口 id；无场景入口则仅默认配置。
+ * 唯一入口：有场景则灌入并默认激活第一条，无场景则默认冒烟配置；多入口：不静默灌，等用户选入口。
  */
 function readScenarioConfig(nodes?: GraphJson['nodes']): {
   runConfig: GraphScenarioConfig;
@@ -288,8 +311,50 @@ export interface ToGraphJsonInput {
   layoutPreset?: string | null;
   /** 保存时排除未 confirm 的 Staging 对象并回滚 pending update */
   stagingFilter?: StagingPersistFilter;
-  /** 场景列表写回到哪个场景入口节点；为空或找不到时写回画布中第一个场景入口 */
+  /** 场景列表写回到哪个场景入口节点；为空或找不到时不改写任何入口的 scenarios */
   scenarioEntryNodeId?: string | null;
+}
+
+/**
+ * 把场景列表写成落盘形态（envId / inSeed 等），供写回入口节点。
+ */
+export function scenariosToPersistPayload(scenarios: GraphRunScenario[]): GraphRunScenario[] {
+  return JSON.parse(JSON.stringify(scenarios ?? [])).map((s: GraphRunScenario) => {
+    const envId = resolveScenarioEnvId(s);
+    const inSeed = resolveScenarioInSeed(s);
+    return {
+      id: s.id,
+      name: s.name,
+      envId,
+      inSeed,
+      remark: s.remark ?? '',
+      onNodeFailure: s.onNodeFailure,
+      onSnapshotFailure: s.onSnapshotFailure,
+      maxSteps: s.maxSteps ?? null,
+    };
+  });
+}
+
+/**
+ * 将场景列表写回指定 scenario-entry 的 data.scenarios。
+ * 入口不存在或不是场景入口时不改 nodes，返回 false。
+ */
+export function writeScenariosToScenarioEntry(
+  nodes: Array<{ id: string; type?: string; data?: Record<string, unknown> | null }>,
+  entryNodeId: string | null | undefined,
+  scenarios: GraphRunScenario[],
+): boolean {
+  const preferredEntryId = entryNodeId != null ? String(entryNodeId).trim() : '';
+  if (!preferredEntryId) return false;
+  const entryIdx = nodes.findIndex(
+    (n) => n.type === 'scenario-entry' && n.id === preferredEntryId,
+  );
+  if (entryIdx < 0) return false;
+  const entry = nodes[entryIdx];
+  const data = { ...(entry.data ?? {}) };
+  data.scenarios = scenariosToPersistPayload(scenarios);
+  nodes[entryIdx] = { ...entry, data };
+  return true;
 }
 
 /**
@@ -368,12 +433,15 @@ export function applyStagingPersistFilter(input: ToGraphJsonInput): ToGraphJsonI
 /**
  * 画布编辑态转成可落盘的图。
  * 节点展示名写在顶层 name；runConfig.scenarios 写回 scenario-entry.data；
- * meta 只含 schemaVersion / viewport / layout / startNodeId。
+ * meta 只含 schemaVersion / viewport / layout。
  */
 export function toGraphJson(input: ToGraphJsonInput): GraphJson {
   const effective = applyStagingPersistFilter(input);
   const nodes = effective.nodes.map((n) => {
-    const data = JSON.parse(JSON.stringify(n.data ?? {})) as Record<string, unknown>;
+    let data = JSON.parse(JSON.stringify(n.data ?? {})) as Record<string, unknown>;
+    if (n.type === 'subflow') {
+      data = pickSubflowPersistData(data);
+    }
     const shellName = (n as Node & { name?: string }).name;
     return {
       id: n.id,
@@ -392,48 +460,18 @@ export function toGraphJson(input: ToGraphJsonInput): GraphJson {
     return edge;
   });
 
-  const startIds = findStartNodeIds({ nodes, edges });
-  /** 场景落盘形态：仅 envId / inSeed，不含编辑态专用字段 */
-  const scenariosPayload = JSON.parse(JSON.stringify(effective.runConfig.scenarios)).map(
-    (s: GraphRunScenario) => {
-      const envId = resolveScenarioEnvId(s);
-      const inSeed = resolveScenarioInSeed(s);
-      return {
-        id: s.id,
-        name: s.name,
-        envId,
-        inSeed,
-        remark: s.remark ?? '',
-        onNodeFailure: s.onNodeFailure,
-        onSnapshotFailure: s.onSnapshotFailure,
-        maxSteps: s.maxSteps ?? null,
-      };
-    },
+  // 只写回明确指定的场景入口；未指定时保留各入口既有 data.scenarios，避免串写
+  writeScenariosToScenarioEntry(
+    nodes,
+    effective.scenarioEntryNodeId,
+    effective.runConfig.scenarios,
   );
-
-  // 优先写回指定的场景入口；指定入口不存在时退回第一个场景入口
-  const preferredEntryId = effective.scenarioEntryNodeId;
-  let entryIdx = preferredEntryId
-    ? nodes.findIndex((n) => n.type === 'scenario-entry' && n.id === preferredEntryId)
-    : -1;
-  if (entryIdx < 0) {
-    entryIdx = nodes.findIndex((n) => n.type === 'scenario-entry');
-  }
-  if (entryIdx >= 0) {
-    const entry = nodes[entryIdx];
-    const data = { ...(entry.data ?? {}) };
-    data.scenarios = scenariosPayload;
-    nodes[entryIdx] = { ...entry, data };
-  }
 
   const meta: GraphMeta = {
     schemaVersion: CURRENT_GRAPH_SCHEMA_VERSION,
     viewport: normalizeViewport(effective.viewport),
     layout: normalizeLayoutPresetId(effective.layoutPreset),
   };
-  if (startIds.length === 1) {
-    meta.startNodeId = startIds[0];
-  }
 
   return { nodes, edges, meta };
 }

@@ -105,7 +105,7 @@ public class GraphWalker {
      *   <li>ctx/调用方传入的 entryNodeId 非空：必须在图中存在，否则报开始节点错误</li>
      *   <li>否则若图上恰好一个入口类型节点，用该节点</li>
      *   <li>多个入口且未指定 id：报错，要求显式指定</li>
-     *   <li>无入口：回落为「无入边」的唯一起点（无入口节点的图）</li>
+     *   <li>无入口：无法解析起点（图须配置入口节点）</li>
      * </ol>
      */
     public String resolveStartNodeId(String entryNodeId) {
@@ -130,7 +130,9 @@ public class GraphWalker {
                     FlowErrorCode.TF_START_NODE,
                     "存在多个入口，须指定 entryNodeId: " + String.join(", ", entryIds));
         }
-        return findUniqueStartNodeId();
+        throw new FlowExecutionException(
+                FlowErrorCode.TF_START_NODE,
+                "须至少配置一个入口节点（场景 / HTTP / 子流入口）才能开跑");
     }
 
     /**

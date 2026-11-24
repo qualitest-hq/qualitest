@@ -482,10 +482,7 @@ class FlowDesignToolExecutorTest {
         GraphJson graph = GraphJson.builder()
                 .nodes(new ArrayList<>(List.of(entry)))
                 .edges(new ArrayList<>())
-                .meta(GraphMeta.builder()
-                        .startNodeId("start-1")
-                        
-                        .build())
+                .meta(GraphMeta.builder().build())
                 .build();
         FlowDesignToolContext graphCtx = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
@@ -497,11 +494,14 @@ class FlowDesignToolExecutorTest {
         String json = executor.executeTool(FlowDesignToolExecutor.GET_FLOW_META, "{}", graphCtx);
 
         JSONObject root = JSON.parseObject(json);
+        assertFalse(root.containsKey("startNodeId"));
+        assertEquals("entry-1", root.getString("entryNodeId"));
         assertEquals("sc-default", root.getString("activeScenarioId"));
-        assertEquals("start-1", root.getString("startNodeId"));
         assertEquals("默认", root.getJSONArray("scenarios").getJSONObject(0).getString("name"));
         assertEquals("loginUser", root.getJSONArray("scenarios").getJSONObject(0)
                 .getJSONArray("inSeedKeys").getString(0));
+        assertEquals(1, root.getJSONArray("entries").size());
+        assertEquals("entry-1", root.getJSONArray("entries").getJSONObject(0).getString("entryNodeId"));
     }
 
     /**
@@ -743,9 +743,7 @@ class FlowDesignToolExecutorTest {
                     {"id":"s1","type":"subflow","name":"内层","data":{"subflowId":"4001"}}
                   ],
                   "edges": [{"id":"e1","source":"h1","target":"s1"}],
-                  "meta": {
-                    "startNodeId": "h1"
-                  }
+                  "meta": {}
                 }
                 """;
         when(flowService.selectTestFlowResult(3002L)).thenReturn(
@@ -766,7 +764,7 @@ class FlowDesignToolExecutorTest {
         assertEquals("3002", root.getString("testFlowId"));
         assertEquals("OAuth 子流", root.getString("flowName"));
         assertEquals("演示", root.getString("flowDescription"));
-        assertEquals("h1", root.getString("startNodeId"));
+        assertFalse(root.containsKey("startNodeId"));
         assertEquals(2, root.getIntValue("nodeCount"));
         assertEquals(1, root.getIntValue("edgeCount"));
         assertEquals(1, root.getJSONObject("nodeTypeCounts").getIntValue("http"));

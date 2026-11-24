@@ -112,6 +112,7 @@ import { useRunConfig } from '../composables/useRunConfig';
 import { useFlowCanvasPermissions } from '../composables/useFlowCanvasPermissions';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
+import { bindScenarioEntry } from '../utils/stagingGraphInput';
 
 /** 画布点击运行时可选的入口类型：场景入口、HTTP 入口、子流入口（协议入口不在此列） */
 const ENTRY_TYPES = new Set(PLATFORM_ENTRY_TYPES);
@@ -192,22 +193,11 @@ function entryMeta(entry) {
 }
 
 /**
- * 选中跑前入口：写入 selectedRunEntryNodeId。
- * 若为场景入口，把该节点 data.scenarios 载入跑前场景状态（默认激活第一条）并在画布上选中该节点。
+ * 选中跑前入口：刷回上一场景入口编辑后切换；
+ * 场景入口会载入 scenarios，并在画布上选中该节点。
  */
 function selectEntry(entryId) {
-  store.selectedRunEntryNodeId = entryId;
-  const entry = store.nodes.find((n) => n.id === entryId);
-  if (entry?.type === 'scenario-entry') {
-    const raw = entry.data?.scenarios;
-    if (Array.isArray(raw) && raw.length) {
-      store.runConfig = {
-        activeScenarioId: raw[0].id,
-        scenarios: JSON.parse(JSON.stringify(raw)),
-      };
-    }
-    store.selected = { kind: 'node', id: entryId };
-  }
+  bindScenarioEntry(store, entryId, { selectOnCanvas: true });
 }
 
 /** 取场景在 AI 暂存区对应的变更单元 id；无暂存标记时为 undefined */
@@ -244,8 +234,9 @@ async function onRunScenario() {
 }
 
 /**
- * 保证有一个有效的选中入口：
- * 已选入口仍存在则保持；否则优先选画布上当前选中的入口节点，再退到第一个场景入口，最后取第一个入口；无入口则清空。
+ * 校正选中入口：
+ * 已选仍有效则保持；否则优先画布当前选中的入口节点；
+ * 恰好一个入口时可自动选；多个入口未选时不静默落到第一个。
  */
 function ensureSelectedEntry() {
   const entries = entryNodes.value;
@@ -262,12 +253,25 @@ function ensureSelectedEntry() {
     selectEntry(selectedNode.id);
     return;
   }
-  const firstScenario = entries.find((e) => e.type === 'scenario-entry');
-  selectEntry((firstScenario || entries[0]).id);
+  if (entries.length === 1) {
+    selectEntry(entries[0].id);
+    return;
+  }
+  store.selectedRunEntryNodeId = null;
 }
 
-// 入口节点增删时重新校正选中入口
+// 入口节点增删时重新校正选中入口；画布点选入口节点时同步跑前入口
 watch(entryNodes, () => ensureSelectedEntry(), { immediate: true });
+watch(
+  () => (store.selected?.kind === 'node' ? store.selected.id : null),
+  (nodeId) => {
+    if (!nodeId) return;
+    const node = store.nodes.find((n) => n.id === nodeId);
+    if (node && ENTRY_TYPES.has(node.type) && store.selectedRunEntryNodeId !== nodeId) {
+      selectEntry(nodeId);
+    }
+  },
+);
 
 onMounted(() => {
   loadProjectEnvs();

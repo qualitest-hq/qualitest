@@ -9,9 +9,11 @@ import com.qualitest.flow.delivery.EntryKind;
 import com.qualitest.flow.delivery.InboundSlotRegistry;
 import com.qualitest.flow.delivery.OutPayload;
 import com.qualitest.flow.delivery.RunDelivery;
+import com.qualitest.flow.delivery.RunTrigger;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.run.FlowGraphRunner;
+import com.qualitest.flow.validate.FlowRunReadinessGate;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.mapper.TestProjectMapper;
@@ -24,6 +26,7 @@ import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -36,9 +39,10 @@ import java.util.concurrent.Executors;
  * <ol>
  *   <li>按项目 + method + path 查路由；未登记立即 404</li>
  *   <li>若入口声明了 inputShape，校验 query / headers / body 的必填与类型；不符立即 400，不跑图</li>
+ *   <li>跑前就绪闸：图结构 / 鉴权等非法则 400，不跑图</li>
  *   <li>占入站名额；满员立即 503，不跑图</li>
  *   <li>把 query / headers / body 灌入运行时 {@code in}，挂 DeliverySink 与名额令牌</li>
- *   <li>后台线程跑图；http-return 或收束时写出并腾槽</li>
+ *   <li>后台线程跑图；http-return 或收束时写出并腾槽；Input 暂停则 503</li>
  * </ol>
  * 客户端超时或断开只标记 sink 断开，不取消跑图；写出失败时仍释放名额。
  * 跑图未捕获异常且尚未交付时，用 502 错误包 complete，并释放令牌。
@@ -57,6 +61,8 @@ public class OpenHttpIngressService {
     private final FlowGraphRunner flowGraphRunner;
     /** 节点执行器注册表 */
     private final NodeHandlerRegistry nodeHandlerRegistry;
+    /** 正式开跑前就绪闸 */
+    private final FlowRunReadinessGate flowRunReadinessGate;
     /** 测试环境服务 */
     private final ITestProjectEnvService testProjectEnvService;
     /** 测试项目数据访问 */
@@ -68,17 +74,19 @@ public class OpenHttpIngressService {
         return t;
     });
 
-    /** 组装路由目录、跑图引擎与环境服务，供开放入站异步执行 */
+    /** 组装路由目录、跑图引擎、就绪闸与环境服务，供开放入站异步执行 */
     public OpenHttpIngressService(OpenHttpRouteCatalog routeCatalog,
                                   InboundSlotRegistry inboundSlotRegistry,
                                   FlowGraphRunner flowGraphRunner,
                                   NodeHandlerRegistry nodeHandlerRegistry,
+                                  FlowRunReadinessGate flowRunReadinessGate,
                                   ITestProjectEnvService testProjectEnvService,
                                   TestProjectMapper testProjectMapper) {
         this.routeCatalog = routeCatalog;
         this.inboundSlotRegistry = inboundSlotRegistry;
         this.flowGraphRunner = flowGraphRunner;
         this.nodeHandlerRegistry = nodeHandlerRegistry;
+        this.flowRunReadinessGate = flowRunReadinessGate;
         this.testProjectEnvService = testProjectEnvService;
         this.testProjectMapper = testProjectMapper;
     }
@@ -118,6 +126,16 @@ public class OpenHttpIngressService {
             return deferred;
         }
 
+        GraphJson graph = route.graph();
+        List<String> readinessErrors = flowRunReadinessGate.collectBlockingErrors(graph, testProjectId);
+        if (readinessErrors != null && !readinessErrors.isEmpty()) {
+            deferred.setResult(platformError(
+                    HttpStatus.BAD_REQUEST,
+                    "OPEN_GRAPH_NOT_READY",
+                    readinessErrors.get(0)));
+            return deferred;
+        }
+
         String slot = inboundSlotRegistry.tryAcquire();
         if (slot == null) {
             deferred.setResult(platformError(HttpStatus.SERVICE_UNAVAILABLE, "OPEN_SLOT_FULL", "开放入站名额已满"));
@@ -148,7 +166,7 @@ public class OpenHttpIngressService {
         ctx.setIn(in);
         ctx.setEntryKind(EntryKind.HTTP.getCode());
         ctx.setEntryNodeId(route.entryNodeId());
-        ctx.setTrigger(EntryKind.HTTP.getCode());
+        ctx.setTrigger(RunTrigger.HTTP.getCode());
         // 入口绑定了环境时，把环境 id 写入上下文供插件步骤使用
         if (route.envId() != null) {
             ctx.setTestProjectEnvId(route.envId());
@@ -159,10 +177,22 @@ public class OpenHttpIngressService {
             ctx.setProjectAuthConfig(project.getAuthConfig());
         }
 
-        GraphJson graph = route.graph();
         runPool.execute(() -> {
             try {
-                flowGraphRunner.run(graph, ctx, nodeHandlerRegistry);
+                FlowGraphRunner.Outcome outcome = flowGraphRunner.run(graph, ctx, nodeHandlerRegistry);
+                // Input 等人机暂停：开放入站无法续跑，对调用方返回 503
+                if (outcome != null && outcome.isPaused() && !ctx.isDelivered()) {
+                    OutPayload err = new OutPayload();
+                    err.setStatus(503);
+                    err.getHeaders().put("Content-Type", RunDelivery.DEFAULT_CONTENT_TYPE);
+                    err.setBody(Map.of(
+                            "code", "OPEN_AWAIT_INPUT",
+                            "message", "开放入站遇到人工输入，暂不可自动完成"));
+                    sink.complete(err);
+                    inboundSlotRegistry.release(slot);
+                    ctx.setInboundSlotToken(null);
+                    ctx.setDelivered(true);
+                }
             } catch (Exception e) {
                 if (!ctx.isDelivered()) {
                     OutPayload err = new OutPayload();

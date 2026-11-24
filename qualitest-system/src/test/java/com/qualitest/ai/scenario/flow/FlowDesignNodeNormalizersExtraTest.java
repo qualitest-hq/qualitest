@@ -85,15 +85,6 @@ class FlowDesignNodeNormalizersExtraTest {
 
     @Test
     @Order(4)
-    @DisplayName("subflow 缺 versionPolicy 默认 latest")
-    void subflowVersionPolicy() {
-        Map<String, Object> data = new HashMap<>();
-        FlowDesignSubflowNodeNormalizer.normalize(data);
-        assertEquals("latest", data.get("versionPolicy"));
-    }
-
-    @Test
-    @Order(5)
     @DisplayName("http 缺 callMode 默认 project")
     void httpCallModeDefault() {
         Map<String, Object> data = new HashMap<>();

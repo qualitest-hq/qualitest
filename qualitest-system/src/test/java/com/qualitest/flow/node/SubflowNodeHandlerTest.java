@@ -39,7 +39,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 SubflowNodeHandler：子流加载、inputs/outputs、跨项目与深度限制。
+ * 测 SubflowNodeHandler：子流加载、inputs、跨项目与深度限制、定稿挂 nodes.&lt;id&gt;.out。
  * 边界：Mock ITestFlowService；子图用 assign 桩。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowNodeHandlerTest
  */
@@ -80,26 +80,28 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 前提：子图 assign 写 childOut；outputs 映射到 parentToken。
-     * 期望：passed；childSteps 非空；父 flow 含种子与合并结果。
+     * 前提：子图 return 定稿 out；父节点仅配 inputs。
+     * 期望：passed；定稿挂 nodes.sf-node.out；父 flow 不自动带上子 flow 键。
      */
     @Test
     @Order(1)
-    @DisplayName("子流：outputs 合并进父 flow")
-    void execute_subflow_mergesOutputs() {
+    @DisplayName("子流：定稿挂 nodes.<id>.out")
+    void execute_subflow_mountsNodeOut() {
         GraphNode node = subflowNode(nodeData(
                 "name", "调用子流",
                 "subflowId", String.valueOf(SUBFLOW_ID),
-                "versionPolicy", "latest",
-                "inputs", List.of(inputRow("childIn", "{{flow.seedIn}}")),
-                "outputs", List.of(outputRow("childOut", "parentToken"))
+                "inputs", List.of(inputRow("childIn", "{{flow.seedIn}}"))
         ));
 
         StepResult result = handler.execute(parentCtx, node, "e1");
 
         assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertNotNull(result.getSubflow());
-        assertEquals("ok", parentCtx.getFlow().get("parentToken"));
+        assertNull(parentCtx.getFlow().get("parentToken"));
+        assertNull(parentCtx.getFlow().get("childOut"));
+        Map<String, Object> mounted = parentCtx.getNodeOut("sf-node");
+        assertNotNull(mounted);
+        assertNotNull(result.getSubflow().get("out"));
         assertNotNull(result.getSubflow().get("childSteps"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> childSteps = (List<Map<String, Object>>) result.getSubflow().get("childSteps");
@@ -107,25 +109,24 @@ class SubflowNodeHandlerTest {
     }
 
     /**
-     * 前提：节点 outputs 为空；子图 assign 写入 childOut。
-     * 期望：passed；父 flow 不自动合并 childOut。
+     * 前提：父节点无 inputs；子图仍会 return。
+     * 期望：passed；父 flow 不自动合并子 flow 键，定稿仍挂 nodes.&lt;id&gt;.out。
      */
     @Test
     @Order(2)
-    @DisplayName("子流：空 outputs 不写回父 flow")
-    void execute_emptyOutputs_doesNotMergeToParent() {
+    @DisplayName("子流：无 inputs 时仍只挂 nodes.<id>.out")
+    void execute_withoutInputs_stillMountsNodeOutOnly() {
         GraphNode node = subflowNode(nodeData(
-                "name", "无输出映射",
+                "name", "无输入映射",
                 "subflowId", String.valueOf(SUBFLOW_ID),
-                "versionPolicy", "latest",
-                "inputs", List.of(),
-                "outputs", List.of()
+                "inputs", List.of()
         ));
 
         StepResult result = handler.execute(parentCtx, node, null);
 
         assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
         assertNull(parentCtx.getFlow().get("childOut"));
+        assertNotNull(parentCtx.getNodeOut("sf-node"));
     }
 
     /**
@@ -144,7 +145,7 @@ class SubflowNodeHandlerTest {
 
     /**
      * 前提：subflowId 指向同项目任意测试流且图可跑。
-     * 期望：passed；outputs 映射到 parentToken。
+     * 期望：passed；定稿挂 nodes.sf-node.out。
      */
     @Test
     @Order(4)
@@ -153,14 +154,12 @@ class SubflowNodeHandlerTest {
         GraphNode node = subflowNode(nodeData(
                 "name", "引用普通测试流",
                 "subflowId", String.valueOf(SUBFLOW_ID),
-                "versionPolicy", "latest",
-                "inputs", List.of(inputRow("childIn", "{{flow.seedIn}}")),
-                "outputs", List.of(outputRow("childOut", "parentToken"))
+                "inputs", List.of(inputRow("childIn", "{{flow.seedIn}}"))
         ));
 
         StepResult result = handler.execute(parentCtx, node, null);
         assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
-        assertEquals("ok", parentCtx.getFlow().get("parentToken"));
+        assertNotNull(parentCtx.getNodeOut("sf-node"));
     }
 
     /**
@@ -175,9 +174,7 @@ class SubflowNodeHandlerTest {
         GraphNode node = subflowNode(nodeData(
                 "name", "跨项目子流",
                 "subflowId", String.valueOf(SUBFLOW_ID),
-                "versionPolicy", "latest",
-                "inputs", List.of(),
-                "outputs", List.of()
+                "inputs", List.of()
         ));
 
         StepResult result = handler.execute(parentCtx, node, null);
@@ -199,9 +196,7 @@ class SubflowNodeHandlerTest {
         GraphNode node = subflowNode(nodeData(
                 "name", "子流失败",
                 "subflowId", String.valueOf(SUBFLOW_ID),
-                "versionPolicy", "latest",
-                "inputs", List.of(),
-                "outputs", List.of()
+                "inputs", List.of()
         ));
 
         StepResult result = handler.execute(parentCtx, node, null);
@@ -227,9 +222,7 @@ class SubflowNodeHandlerTest {
         GraphNode node = subflowNode(nodeData(
                 "name", "嵌套过深",
                 "subflowId", String.valueOf(SUBFLOW_ID),
-                "versionPolicy", "latest",
-                "inputs", List.of(),
-                "outputs", List.of()
+                "inputs", List.of()
         ));
 
         StepResult result = handler.execute(parentCtx, node, null);
@@ -296,13 +289,6 @@ class SubflowNodeHandlerTest {
         Map<String, Object> row = new HashMap<>();
         row.put("name", name);
         row.put("value", value);
-        return row;
-    }
-
-    private static Map<String, Object> outputRow(String name, String flowKey) {
-        Map<String, Object> row = new HashMap<>();
-        row.put("name", name);
-        row.put("flowKey", flowKey);
         return row;
     }
 

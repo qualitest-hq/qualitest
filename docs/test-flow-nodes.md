@@ -263,16 +263,11 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
 
 将同项目另一张测试流折叠为单步（**另一张图**，不是同一画布上的子图）：
 
-1. 按 `subflowId` 加载（须同 `testProjectId`）
+1. 按 `subflowId` 加载（须同 `testProjectId`）；**每次 Run 取被引用流当前图**
 2. `inputs` 在**父上下文**解析占位符，写入子上下文 `in` / `flow`（`entryKind=subflow`；`asset` / `env` / `session` 共享）
 3. 内存跑子图；嵌套深度有限（主→子→孙，最多 **2** 层 subflow）
 4. 子图 `subflow-return`（或零次时的入口 `fallbackOut`）把定稿 `out` **挂到**父 `nodes.<子流节点id>.out`；**成败与是否已挂 out 分离**（失败后父仍可读 out）
 5. 步骤 `subflow.childSteps` 附内层摘要，供 Run 详情与 MCP `get_run_failure`
-
-| versionPolicy | 行为 |
-|---------------|------|
-| `latest` | 每次 Run 取子流当前图 |
-| `pinned` | 优先用节点 `pinnedGraphJson` 固化快照 |
 
 节点 `data.alwaysRun=true`（须为 JSON 布尔；字符串 / 数字保存时会校验失败）时：父图业务失败进入「失败后继续」阶段仍会执行本子流节点，便于整章串多个子流时一次看到后续模块结果。
 

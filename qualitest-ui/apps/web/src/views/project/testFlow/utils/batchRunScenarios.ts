@@ -44,17 +44,23 @@ export function parseFlowScenariosFromGraphJson(
   }
 
   const nodes = Array.isArray(root.nodes) ? root.nodes : [];
-  const entry = nodes.find(
-    (n) => n && typeof n === 'object' && (n as { type?: string }).type === 'scenario-entry',
-  ) as { data?: { scenarios?: unknown } } | undefined;
-  const entryData = entry?.data;
-  const scenarios = Array.isArray(entryData?.scenarios)
-    ? (entryData.scenarios as GraphScenarioLike[])
-    : [];
+  // 汇总全部 scenario-entry 的场景（同 id 后者覆盖），不静默只读第一个入口
+  const byId = new Map<string, GraphScenarioLike>();
+  for (const n of nodes) {
+    if (!n || typeof n !== 'object') continue;
+    if ((n as { type?: string }).type !== 'scenario-entry') continue;
+    const data = (n as { data?: { scenarios?: unknown } }).data;
+    const scenarios = Array.isArray(data?.scenarios) ? (data.scenarios as GraphScenarioLike[]) : [];
+    for (const sc of scenarios) {
+      const scenarioId = String(sc?.id ?? '').trim();
+      if (!scenarioId) continue;
+      byId.set(scenarioId, sc);
+    }
+  }
   const activeId = String(activeScenarioId ?? '').trim();
 
   const out: BatchFlowScenarioNode[] = [];
-  for (const sc of scenarios) {
+  for (const sc of byId.values()) {
     const scenarioId = String(sc?.id ?? '').trim();
     if (!scenarioId) continue;
     const scenarioName = String(sc?.name ?? '').trim() || scenarioId;

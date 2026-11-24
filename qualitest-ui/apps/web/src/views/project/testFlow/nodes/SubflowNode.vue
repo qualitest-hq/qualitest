@@ -23,11 +23,8 @@ const summaryText = computed(() => formatSubflowSummary(props.data))
 
 const ioHint = computed(() => {
   const inputs = (props.data.inputs || []).map((i) => i.name).filter(Boolean)
-  const outputs = (props.data.outputs || []).map((o) => o.flowKey || o.name).filter(Boolean)
-  const parts = []
-  if (inputs.length) parts.push(`← ${inputs.join(' · ')}`)
-  if (outputs.length) parts.push(`→ flow.${outputs.join(', flow.')}`)
-  return parts.join('  ')
+  if (!inputs.length) return ''
+  return `← ${inputs.join(' · ')}`
 })
 </script>
 

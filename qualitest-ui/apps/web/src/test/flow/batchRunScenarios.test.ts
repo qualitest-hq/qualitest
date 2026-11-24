@@ -36,6 +36,26 @@ describe('batchRunScenarios', () => {
     expect(scenarios[1].scenarioName).toBe('异常')
   })
 
+  it('多 scenario-entry 汇总全部场景而非只读第一个', () => {
+    const scenarios = parseFlowScenariosFromGraphJson(
+      JSON.stringify({
+        nodes: [
+          {
+            id: 'e1',
+            type: 'scenario-entry',
+            data: { scenarios: [{ id: 'sc-a', name: 'A' }] },
+          },
+          {
+            id: 'e2',
+            type: 'scenario-entry',
+            data: { scenarios: [{ id: 'sc-b', name: 'B' }] },
+          },
+        ],
+      }),
+    )
+    expect(scenarios.map((s) => s.scenarioId).sort()).toEqual(['sc-a', 'sc-b'])
+  })
+
   it('无场景流默认勾选流本身并生成队列项', () => {
     // 前提：选中一行无 scenarios
     // 期望：defaultChecked 为 flowId；队列一项、不传 runScenarioId

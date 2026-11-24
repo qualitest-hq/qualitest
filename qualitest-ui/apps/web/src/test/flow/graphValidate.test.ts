@@ -79,14 +79,55 @@ describe('validateGraphJson', () => {
     expect(result.warnings).toHaveLength(0);
   });
 
-  /** 多个无入边节点（多个开始节点）时校验应失败，1 条 error 含「开始节点」 */
-  it('存在多个开始节点时产生 1 条 error', () => {
-    // 前提：图含多个无入边开始节点
-    // 期望：ok 为 false，1 条 error 含「开始节点」
+  /** 有入口时另有非入口无入边节点 → 报「仅入口可作开始」 */
+  it('有入口时存在非入口无入边节点则报错', () => {
+    // 前提：multi-start 含 scenario-entry 与孤立 HTTP
+    // 期望：ok 为 false，文案含「非入口的无入边」
     const result = validateGraphJson(multiStart);
     expect(result.ok).toBe(false);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain('开始节点');
+    expect(result.errors.some((e) => e.includes('非入口的无入边'))).toBe(true);
+  });
+
+  /** 两个合法入口并存应通过开始节点规则 */
+  it('多个入口并存时开始节点校验通过', () => {
+    // 前提：scenario-entry + http-entry 各无入边，共用一个 HTTP 业务节点
+    // 期望：开始节点相关 errors 为空
+    const result = validateGraphJson({
+      nodes: [
+        {
+          id: 'e-sc',
+          type: 'scenario-entry',
+          name: '场景入口',
+          position: { x: 0, y: 0 },
+          data: { scenarios: [{ id: 's1', name: '冒烟', envId: '', inSeed: {} }] },
+        },
+        {
+          id: 'e-http',
+          type: 'http-entry',
+          name: 'HTTP 入口',
+          position: { x: 0, y: 120 },
+          data: {
+            method: 'POST',
+            path: '/v1/demo',
+            envId: '',
+            fallbackOut: { status: 500, headers: {}, body: { code: 'NO_RETURN' } },
+          },
+        },
+        {
+          id: 'n-http',
+          type: 'http',
+          name: '业务',
+          position: { x: 240, y: 60 },
+          data: { callMode: 'project', testProjectApiId: '1' },
+        },
+      ],
+      edges: [
+        { id: 'ed1', source: 'e-sc', target: 'n-http' },
+        { id: 'ed2', source: 'e-http', target: 'n-http' },
+      ],
+      meta: { schemaVersion: 2 },
+    });
+    expect(result.errors.filter((e) => /开始节点|无入边|入口须/.test(e))).toHaveLength(0);
   });
 
   /** O7：Staging 延后拓扑时多开始降为警告 */
@@ -100,6 +141,11 @@ describe('validateGraphJson', () => {
   it('rewriteStartNodeErrorForPendingEdges 改写多开始/无开始文案', () => {
     expect(
       rewriteStartNodeErrorForPendingEdges('流程只能有一个开始节点，当前有 2 个：A、B'),
+    ).toBe(DEFERRED_MULTI_START_WARNING);
+    expect(
+      rewriteStartNodeErrorForPendingEdges(
+        '存在非入口的无入边节点：业务接口 A（有入口时仅入口可作开始）',
+      ),
     ).toBe(DEFERRED_MULTI_START_WARNING);
     expect(rewriteStartNodeErrorForPendingEdges('未找到开始节点（每个节点都有入边）')).toBe(
       DEFERRED_NO_START_WARNING,
@@ -160,7 +206,7 @@ describe('validateGraphJson', () => {
     expect(result.errors[0]).toContain('callMode');
   });
 
-  /** 子流节点缺少 subflowId 时产生 error；空 inputs/outputs 不再告警 */
+  /** 子流节点缺少 subflowId 时产生 error；空 inputs 不再告警 */
   it('子流节点缺少 subflowId 时产生 error 与 warnings', () => {
     // 前提：subflow 节点缺 subflowId
     // 期望：1 条 error、0 条 warnings
@@ -515,23 +561,57 @@ describe('validateStartNodes', () => {
     expect(result.ids).toHaveLength(1);
   });
 
-  /** 多个无入边节点时 validateStartNodes 应失败，返回所有候选开始节点 id */
-  it('多个候选开始节点时校验失败，返回全部候选 id', () => {
-    // 前提：multi-start 图
-    // 期望：ok 为 false，ids 多于 1
+  /** 有入口 + 非入口无入边时失败，并返回全部无入边 id */
+  it('有入口时非入口无入边节点校验失败，返回全部候选 id', () => {
+    // 前提：multi-start 图（入口 + 孤立 HTTP）
+    // 期望：ok 为 false，文案含非入口，ids 多于 1
     const result = validateStartNodes(multiStart);
     expect(result.ok).toBe(false);
-    expect(result.message).toContain('开始节点');
+    expect(result.message).toContain('非入口的无入边');
     expect(result.ids.length).toBeGreaterThan(1);
   });
 
-  /** 环图无开始节点时应失败，消息含「未找到开始节点」，ids 为空 */
-  it('环图无开始节点时校验失败，提示未找到开始节点', () => {
-    // 前提：no-start 环图
-    // 期望：ok 为 false，消息含「未找到开始节点」，ids 为空
+  /** 两个入口节点并存时开始节点校验通过 */
+  it('两个入口并存时 validateStartNodes 通过', () => {
+    // 前提：仅两个入口、无其它无入边节点
+    // 期望：ok 为 true
+    const result = validateStartNodes({
+      nodes: [
+        { id: 'a', type: 'scenario-entry', name: 'A', position: { x: 0, y: 0 }, data: {} },
+        { id: 'b', type: 'http-entry', name: 'B', position: { x: 0, y: 80 }, data: {} },
+      ],
+      edges: [],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.ids).toEqual(['a', 'b']);
+  });
+
+  /** 环图无入口时应失败，提示须配置入口 */
+  it('无入口图校验失败，提示须配置入口', () => {
+    // 前提：no-start 环图（无入口节点）
+    // 期望：ok 为 false，消息含「须至少配置一个入口」
     const result = validateStartNodes(noStart);
     expect(result.ok).toBe(false);
-    expect(result.message).toContain('未找到开始节点');
-    expect(result.ids).toHaveLength(0);
+    expect(result.message).toContain('须至少配置一个入口');
+  });
+
+  /** 仅有业务节点、无入口时不能开跑 */
+  it('仅有业务节点无入口时 validateStartNodes 失败', () => {
+    // 前提：单个 HTTP 节点、无入口
+    // 期望：报须配置入口
+    const result = validateStartNodes({
+      nodes: [
+        {
+          id: 'h1',
+          type: 'http',
+          name: '探活',
+          position: { x: 0, y: 0 },
+          data: { callMode: 'project', testProjectApiId: '1' },
+        },
+      ],
+      edges: [],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('须至少配置一个入口');
   });
 });

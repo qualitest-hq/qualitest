@@ -29,9 +29,7 @@
       },
       "data": {
         "subflowId": "999",
-        "versionPolicy": "latest",
-        "inputs": [],
-        "outputs": []
+        "inputs": []
       },
       "name": "嵌套子流"
     }

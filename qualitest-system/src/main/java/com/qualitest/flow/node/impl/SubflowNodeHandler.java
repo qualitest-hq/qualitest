@@ -13,6 +13,7 @@ import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.run.FlowGraphRunner;
 import com.qualitest.flow.delivery.EntryKind;
+import com.qualitest.flow.delivery.RunTrigger;
 import com.qualitest.flow.subflow.SubflowDepth;
 import com.qualitest.flow.subflow.SubflowIoSupport;
 import com.qualitest.flow.validate.FlowNodeType;
@@ -36,15 +37,11 @@ import java.util.Map;
  *   <li>用 {@link FlowGraphRunner} 跑子图；子图 {@code subflow-return} 或收束时把定稿 out 挂到父图
  *       {@code nodes.&lt;本 subflow 节点 id&gt;.out}，供父图占位符读取</li>
  *   <li>本步成败只看子 Outcome；是否已挂 out 不影响成败判定；子失败时父图仍可读已挂的 out</li>
+ *   <li>子图经 {@link ParsedGraphCache} 取被引用流的当前定义</li>
  * </ol>
- * {@code versionPolicy}：{@code latest}（默认）经 {@link ParsedGraphCache} 取子流当前图；
- * {@code pinned} 优先用节点上 {@code pinnedGraphJson} 固化快照，快照缺失则回落当前定义（不强制走缓存）。
  */
 @Component
 public class SubflowNodeHandler extends AbstractStubNodeHandler {
-
-    private static final String VERSION_PINNED = "pinned";
-    private static final String VERSION_LATEST = "latest";
 
     private final ITestFlowService testFlowService;
     private final ParsedGraphCache parsedGraphCache;
@@ -88,7 +85,7 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                         FlowErrorCode.TF_SUBFLOW_INVALID, "子流不属于当前项目", data, subflowId, List.of());
             }
 
-            GraphJson childGraph = resolveSubflowGraph(data, subflow);
+            GraphJson childGraph = resolveSubflowGraph(subflow);
             if (childGraph == null) {
                 return failed(node, incomingEdgeId, nodeName, t0, ctx,
                         FlowErrorCode.TF_SUBFLOW_INVALID, "子流图解析失败", data, subflowId, List.of());
@@ -101,10 +98,6 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                     childGraph, childCtx, nodeHandlerRegistry);
             List<Map<String, Object>> childSteps = SubflowIoSupport.toChildStepSummaries(outcome.getSteps());
             long durationMs = System.currentTimeMillis() - t0;
-
-            if (outcome.isPassed()) {
-                SubflowIoSupport.applyOutputs(ctx, childCtx.getFlow(), data.get("outputs"));
-            }
 
             Map<String, Object> mounted = ctx.getNodeOut(node.getId());
             Map<String, Object> subflowDetails = buildSubflowDetails(
@@ -170,26 +163,16 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                 .flow(new HashMap<>(seed))
                 .in(new HashMap<>(seed))
                 .entryKind(EntryKind.SUBFLOW.getCode())
-                .trigger(EntryKind.SUBFLOW.getCode())
+                .trigger(RunTrigger.SUBFLOW.getCode())
                 .parentContext(parent)
                 .parentSubflowNodeId(parentSubflowNodeId)
                 .build();
     }
 
     /**
-     * 按 versionPolicy 解析子图：pinned 用节点快照（不走缓存）；
-     * latest 走 {@link ParsedGraphCache}，避免同 Run 内重复 parse。
+     * 取被引用流当前图：优先 {@link ParsedGraphCache}，避免同 Run 内重复 parse。
      */
-    private GraphJson resolveSubflowGraph(Map<String, Object> data, TestFlow subflow) {
-        String policy = data.get("versionPolicy") != null
-                ? String.valueOf(data.get("versionPolicy")).trim()
-                : VERSION_LATEST;
-        if (VERSION_PINNED.equalsIgnoreCase(policy)) {
-            Object pinned = data.get("pinnedGraphJson");
-            if (pinned != null && !String.valueOf(pinned).isBlank()) {
-                return GraphJson.parse(String.valueOf(pinned));
-            }
-        }
+    private GraphJson resolveSubflowGraph(TestFlow subflow) {
         GraphJson cached = parsedGraphCache.getFrom(subflow);
         if (cached != null) {
             return cached;

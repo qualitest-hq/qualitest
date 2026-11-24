@@ -992,7 +992,6 @@ public final class PrefabricatedTemplateExtrasSupport {
         // 预制流记为默认排版。节点坐标在组装时已经写好，这里不重排
         meta.put("layout", "default");
         meta.put("viewport", viewport);
-        meta.put("startNodeId", entryId);
 
         JSONObject graph = new JSONObject();
         graph.put("nodes", List.of(scenarioEntry, condToken, probeHttp, condAlive, loginHttp));

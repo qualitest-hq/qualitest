@@ -427,7 +427,6 @@ class FlowDesignPatchConfirmServiceTest {
                         .position(com.qualitest.flow.model.GraphNodePosition.builder().x(420).y(80).build())
                         .data(assertData)
                         .build()));
-        base.getMeta().setStartNodeId("9001");
 
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.getAddEdges().add(GraphEdge.builder().id("8001").source("9001").target("9002").build());
@@ -545,7 +544,6 @@ class FlowDesignPatchConfirmServiceTest {
                 .data(httpData)
                 .build());
         GraphJson base = emptyBaseWithScenario();
-        base.getMeta().setStartNodeId(nodeId);
         FlowDesignPatchConfirmRequest request = new FlowDesignPatchConfirmRequest();
         request.setGraphJson(base);
         request.setPatch(patch);

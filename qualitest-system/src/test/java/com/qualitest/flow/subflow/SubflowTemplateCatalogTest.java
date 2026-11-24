@@ -67,11 +67,11 @@ class SubflowTemplateCatalogTest {
 
     /**
      * 前提：login_bearer / oauth 模板及其图骨架；另测空 meta。
-     * 期望：normalize 写入当前 schemaVersion；不含 meta.flowOutputs。
+     * 期望：normalize 写入当前 schemaVersion。
      */
     @Test
     @Order(4)
-    @DisplayName("规范化：写入 schemaVersion，不含 flowOutputs")
+    @DisplayName("规范化：写入 schemaVersion")
     void normalizeTemplateGraph_setsSchemaVersion() {
         JSONObject tpl = SubflowTemplateCatalog.findById(LOGIN_BEARER_TEMPLATE_ID);
         assertNotNull(tpl);
@@ -81,13 +81,12 @@ class SubflowTemplateCatalogTest {
         String normalized = SubflowTemplateCatalog.normalizeTemplateGraph(baseGraph, tpl);
         JSONObject graph = JSONObject.parseObject(normalized);
         assertNotNull(graph.getJSONObject("meta").getInteger("schemaVersion"));
-        assertFalse(graph.getJSONObject("meta").containsKey("flowOutputs"));
 
         JSONObject oauthTpl = SubflowTemplateCatalog.findById(OAUTH_TEMPLATE_ID);
         assertNotNull(oauthTpl);
         String oauthGraph = SubflowTemplateCatalog.normalizeTemplateGraph(
                 SubflowTemplateCatalog.loadGraphJson(OAUTH_TEMPLATE_ID), oauthTpl);
-        assertFalse(JSONObject.parseObject(oauthGraph).getJSONObject("meta").containsKey("flowOutputs"));
+        assertNotNull(JSONObject.parseObject(oauthGraph).getJSONObject("meta").getInteger("schemaVersion"));
 
         String empty = SubflowTemplateCatalog.normalizeTemplateGraph("{\"meta\":{}}", null);
         assertNotNull(JSONObject.parseObject(empty).getJSONObject("meta").getInteger("schemaVersion"));

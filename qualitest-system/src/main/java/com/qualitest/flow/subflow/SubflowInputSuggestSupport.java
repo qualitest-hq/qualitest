@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 子流输入映射建议：按主入口首条场景的 inSeed 推导占位符。
+ * 子流输入映射建议：按唯一场景入口首条场景的 inSeed 推导占位符；多入口时返回空。
  */
 public final class SubflowInputSuggestSupport {
 
@@ -22,7 +22,7 @@ public final class SubflowInputSuggestSupport {
     }
 
     /**
-     * 主入口节点下首条场景的 inSeed 键值（用于子流输入建议）。
+     * 唯一场景入口下首条场景的 inSeed 键值（用于子流输入建议）；多入口无法唯一解析时为空。
      */
     public static Map<String, Object> primaryEntryFirstInSeed(GraphJson graph) {
         GraphNode entry = EntryScenarioSupport.findScenarioEntry(graph, null);

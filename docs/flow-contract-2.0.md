@@ -116,7 +116,7 @@ Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。
 
 - **场景**：挂在 **场景入口** 上的场景子集（`envId` + `inSeed`）。  
 - **开放 HTTP**：**HTTP 入口**（`method` + `path`、入参形状、一份 `fallbackOut`）；有该节点即开放入站。  
-- **子流**：**子流入口**声明入参形状 + `fallbackOut`；父 **Subflow** 用 `inputs` 灌子 `in`，定稿出参在 **`return` 时整包挂** `nodes.<子流节点id>.out`（**无**父侧 `outputs` 映射表）。  
+- **子流**：**子流入口**声明入参形状 + `fallbackOut`；父 **Subflow** 用 `inputs` 灌子 `in`，定稿出参在 **`return` 时整包挂** `nodes.<子流节点id>.out`。  
 - 侧栏最多总览；跑前选入口/环境是运行动作。
 
 ### 2.1.2 说明给人对着看（不是从流里抽表）
@@ -394,7 +394,7 @@ IF
 ### 5.2 子流入口
 
 - **声明入参**（树 + 必填）+ **一份 `fallbackOut`**；**不**声明回法表。  
-- 父节点 `inputs` 映射灌入后从该入口起步（入参侧仍可映射；**出参侧不要 `outputs`**）。  
+- 父节点 `inputs` 映射灌入后从该入口起步。  
 - 图校验：整次 Run **至多一次** `return`（IF 各臂可各画一个；真并行域至多一臂带 return）；须有兜底。  
 - 执行到 `return`：定稿并**立刻**把 `out` 整包挂到父 `nodes.<子流节点id>.out`（**只要执行到 return 就挂**，含失败后继续才摸到 return）。  
 - **零次 return**：收束时把入口 `fallbackOut` 挂到父同位置；子 Run / 父步**仍失败**。  
@@ -514,7 +514,7 @@ IF
 | 做 | 不做 |
 |----|------|
 | 读写**入口节点**（入参形状、HTTP method/path、入口说明 `doc`、HTTP/子流 `fallbackOut`、场景入口上的场景子集/`inSeed`） | 流级大一统 meta 入参；多套入口失败模板 |
-| 读写**返回节点**（`from` / `http-return` 的 `status`）；跑流语境看 **`out`** | 父节点字段级出参映射表 |
+| 读写**返回节点**（`from` / `http-return` 的 `status`）；跑流语境看 **`out`** / `nodes.<子流节点id>.out` | 流级大一统出参表 |
 | `submit_*` / 读图工具字段与画布契约对齐 | 与已实现节点壳不一致的字段名 |
 
 ---
@@ -550,7 +550,7 @@ IF
 - 开放/子流：零次 `return` → 收束用入口 `fallbackOut`；Run 仍失败。  
 - 子流：`return`（或兜底）后父可读 `nodes.<id>.out`；有内容不改成败。  
 - 响应交付后腾入站名额；调用方断开后步骤仍跑完。  
-- 子流定稿只挂 `nodes.<id>.out`，不经父侧出参映射表。
+- 子流定稿只挂 `nodes.<id>.out`；父流用占位符 / Assign / 断言读取。
 
 **批 1b（真并行）**
 

@@ -11,15 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 子流节点与父流程之间的 inputs/outputs 变量传递。
+ * 子流节点与父流程之间的 inputs 传递，以及子步骤摘要。
  * <p>
- * 节点 data 约定：
- * <ul>
- *   <li>{@code inputs} — {@code [{name, value}]}，value 支持 {@code {{flow.*}}}/{@code {{asset.*}}}/{@code {{env.*}}}，
- *       strict 解析后写入子上下文 flow 作为种子</li>
- *   <li>{@code outputs} — {@code [{name, flowKey}]}，从子 flow 的 {@code name} 取值，写回父 flow 的 {@code flowKey}；
- *       为空时不写回父 flow</li>
- * </ul>
+ * 节点 data 约定：{@code inputs} — {@code [{name, value}]}，value 支持占位符，
+ * strict 解析后写入子上下文。子流定稿出参由返回/收束挂父 {@code nodes.&lt;id&gt;.out}。
  */
 public final class SubflowIoSupport {
 
@@ -53,38 +48,7 @@ public final class SubflowIoSupport {
         return seed;
     }
 
-    /**
-     * 子图执行成功后，按 outputs 映射把子 flow 变量合并进父 flow，并返回本次写入的键值副本。
-     */
-    @SuppressWarnings("unchecked")
-    public static Map<String, Object> applyOutputs(
-            FlowRunContext parentCtx,
-            Map<String, Object> childFlow,
-            Object outputsObj
-    ) {
-        Map<String, Object> merged = new LinkedHashMap<>();
-        if (!(outputsObj instanceof List<?> rows) || childFlow == null) {
-            return merged;
-        }
-        for (Object row : rows) {
-            if (!(row instanceof Map<?, ?> map)) {
-                continue;
-            }
-            String name = map.get("name") != null ? String.valueOf(map.get("name")).trim() : "";
-            String flowKey = map.get("flowKey") != null ? String.valueOf(map.get("flowKey")).trim() : name;
-            if (name.isEmpty() || flowKey.isEmpty()) {
-                continue;
-            }
-            if (childFlow.containsKey(name)) {
-                Object val = childFlow.get(name);
-                parentCtx.getFlow().put(flowKey, val);
-                merged.put(flowKey, val);
-            }
-        }
-        return merged;
-    }
-
-    /** 判断 inputs/outputs 映射列表是否为空或未配置 */
+    /** 判断 inputs 映射列表是否为空或未配置 */
     public static boolean isEmptyMappingList(Object listObj) {
         if (!(listObj instanceof List<?> rows)) {
             return true;

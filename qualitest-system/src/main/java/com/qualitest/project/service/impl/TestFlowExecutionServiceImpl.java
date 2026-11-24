@@ -364,7 +364,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
 
         boolean stopOnNonPass = params.getStopOnNonPass() == null || Boolean.TRUE.equals(params.getStopOnNonPass());
         long perRunTimeoutMs = resolvePerRunTimeoutMs(params.getPerRunTimeoutMs());
-        String triggerType = StrUtil.blankToDefault(params.getTriggerType(), "suite");
+        String triggerType = StrUtil.blankToDefault(
+                params.getTriggerType(), com.qualitest.flow.delivery.RunTrigger.SUITE.getCode());
 
         TriggerTestFlowRunBatchResult result = TriggerTestFlowRunBatchResult.builder()
                 .items(new ArrayList<>())

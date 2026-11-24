@@ -253,7 +253,7 @@ public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
                 .status(RunStatus.RUNNING.getCode())
                 .stopOnNonPass(stopOnNonPass ? 1 : 0)
                 .testProjectEnvId(params.getTestProjectEnvId())
-                .triggerType("suite")
+                .triggerType(com.qualitest.flow.delivery.RunTrigger.SUITE.getCode())
                 .passedCount(0)
                 .failedCount(0)
                 .pausedCount(0)

@@ -2,11 +2,11 @@
  * 测试流图 JSON 结构校验（前端预检）。
  *
  * 检查节点壳字段（顶层 name 必填）、已知 type、边端点、开始节点、各类型业务字段，产出 errors / warnings。
- * 场景只允许写在 scenario-entry.data.scenarios；meta 上若出现 scenarios / activeScenarioId / flowOutputs 记错误。
- * 场景条目禁止 testProjectEnvId / flowSeed，应使用 envId / inSeed。
- * http-return / subflow-return：from 非空；http-return 的 status 若写出须为 100～599。
- * 另校验 alwaysRun、snapshotBefore（有值须为布尔且类型允许）、HTTP retryUntil。
- * persistMinimalOnly：只检查节点 id 与边端点。
+ * 场景写在 scenario-entry.data.scenarios（envId / inSeed）；meta 不承载场景列表。
+ * http-return / subflow-return：from 非空；http-return 的 status 若写出须为 100～599；
+ * subflow-return 禁止 status。入口 fallbackOut、同序双 return、返回 type 匹配等记 errors。
+ * IF 臂漏 return 记 warnings。画布「异常」(errors) 保存不拦、开跑硬拦。
+ * persistMinimalOnly：只检查节点 id 与边端点（保存地板）。
  * deferTopologyStructureRules：开始节点问题降为警告。
  */
 import {
@@ -18,6 +18,7 @@ import {
 } from './placeholder';
 import { isAnyEntryType, isKnownNodeType, nodeTypeLabel } from './nodeTypes';
 import type { GraphEdge, GraphJson, GraphNode } from './graphTypes';
+import { CURRENT_GRAPH_SCHEMA_VERSION } from './graphTypes';
 import { DELAY_MAX_MS } from './delayConstants';
 import { RETRY_UNTIL_MAX_ATTEMPTS, RETRY_UNTIL_MAX_INTERVAL_MS } from './retryUntilConstants';
 import { isKnownInputFieldType, requiresOptions } from './inputFields';
@@ -49,18 +50,21 @@ export interface GraphValidationResult {
   warnings: string[];
 }
 
-/** 开始节点唯一性校验结果 */
+/** 开始节点校验结果（有节点须有入口；允许多入口并存） */
 export interface StartNodesValidation {
   ok: boolean;
   ids: string[];
+  /** 首条错误文案；无错误时为空串 */
   message: string;
+  /** 全部错误文案（入口规则下可能多条） */
+  messages: string[];
 }
 
 /**
- * 存在未确认连线时，开始节点「看起来像多个入口」的提示文案（降为 warning，不硬拦保存预览）。
+ * 存在未确认连线时，开始节点「看起来像多个入口」的提示文案（降为 warning）。
  */
 export const DEFERRED_MULTI_START_WARNING =
-  '尚有未确认的连线；确认边之后将只保留一个开始节点（当前看起来像多个入口）。';
+  '尚有未确认的连线；确认边之后再校验开始节点（当前看起来像多个入口）。';
 
 /**
  * 存在未确认连线时，开始节点「看起来缺失」的提示文案（降为 warning）。
@@ -69,15 +73,18 @@ export const DEFERRED_NO_START_WARNING =
   '尚有未确认的连线；确认边之后再校验开始节点（当前每个节点都有入边或图不完整）。';
 
 /**
- * 保存路径：若错误文案涉及开始节点，且业务上属于「pending 连线导致的假象」，则改写成延后提示文案。
+ * 若错误文案涉及开始节点 / 入口起点，且业务上属于「pending 连线导致的假象」，则改写成延后提示文案。
  * 不匹配则原样返回。
  */
 export function rewriteStartNodeErrorForPendingEdges(error: string): string {
   const text = String(error ?? '').trim();
-  if (!/开始节点/.test(text)) return text;
-  return /只能有一个开始节点/.test(text)
-    ? DEFERRED_MULTI_START_WARNING
-    : DEFERRED_NO_START_WARNING;
+  if (!/(开始节点|无入边|入口须)/.test(text)) return text;
+  if (
+    /只能有一个开始节点|非入口的无入边|须至少配置一个入口|看起来像多个/.test(text)
+  ) {
+    return DEFERRED_MULTI_START_WARNING;
+  }
+  return DEFERRED_NO_START_WARNING;
 }
 
 export type ValidateGraphJsonOptions = {
@@ -121,19 +128,26 @@ function resolveGraphNodeName(node: Pick<GraphNode, 'id' | 'name' | 'type'> | nu
   return nodeTypeLabel(node?.type) || String(node?.id ?? '');
 }
 
-/** 把多个开始节点 id 拼成「展示名」列表，写入错误文案 */
-function formatStartNodeNames(nodes: GraphNode[], ids: string[]): string {
-  return ids
-    .map((id) => {
-      const node = nodes.find((n) => n.id === id);
-      return resolveGraphNodeName(node) || id;
-    })
-    .join('、');
+/** 源 → 出边目标 id 列表（可达性 / 扇出 / 双 return 共用） */
+function buildOutgoingTargets(edges: GraphEdge[]): Map<string, string[]> {
+  const outs = new Map<string, string[]>();
+  for (const e of edges) {
+    if (!e?.source || !e?.target) continue;
+    const list = outs.get(e.source) ?? [];
+    list.push(e.target);
+    outs.set(e.source, list);
+  }
+  return outs;
+}
+
+/** 节点 id → 节点 */
+function buildNodeById(nodes: GraphNode[]): Map<string | undefined, GraphNode> {
+  return new Map(nodes.map((n) => [n.id, n]));
 }
 
 /**
- * 校验返回节点：from 必填；http-return 可选 status（有值须为 100～599 整数）。
- * subflow-return 不读 status。
+ * 校验返回节点：from 必填；http-return 可选 status（有值须为 100～599 整数）；
+ * subflow-return 不允许 status。
  */
 function validateReturnNodeFields(
   p: string,
@@ -145,6 +159,10 @@ function validateReturnNodeFields(
   const from = data?.from;
   if (from == null || String(from).trim() === '') {
     errors.push(`${p} ${nodeTypeLabel(type)}节点「${nodeName}」from 不能为空`);
+  }
+  if (type === 'subflow-return' && data && Object.prototype.hasOwnProperty.call(data, 'status')) {
+    errors.push(`${p} subflow-return「${nodeName}」不允许 status`);
+    return;
   }
   if (type !== 'http-return' || !data) return;
   if (!Object.prototype.hasOwnProperty.call(data, 'status')) return;
@@ -160,28 +178,56 @@ function validateReturnNodeFields(
   }
 }
 
-/** 校验流程是否恰有一个开始节点（无入边节点） */
+/**
+ * 校验开始节点。
+ * 空白图画布可落盘（nodes 为空不在此报错）。
+ * 有节点时必须至少有一个入口；无入边节点必须都是入口，入口本身须无入边，允许多入口并存。
+ */
 export function validateStartNodes(graph: Pick<GraphJson, 'nodes' | 'edges'>): StartNodesValidation {
   const nodes = graph.nodes ?? [];
   const ids = findStartNodeIds(graph);
   if (!nodes.length) {
-    return { ok: true, ids, message: '' };
+    return { ok: true, ids, message: '', messages: [] };
   }
+
+  const messages: string[] = [];
+  const hasEntry = nodes.some((n) => isAnyEntryType(n?.type));
+
+  if (!hasEntry) {
+    messages.push('须至少配置一个入口节点（场景 / HTTP / 子流入口）才能开跑');
+    return {
+      ok: false,
+      ids,
+      message: messages[0],
+      messages,
+    };
+  }
+
   if (ids.length === 0) {
-    return {
-      ok: false,
-      ids,
-      message: '未找到开始节点（每个节点都有入边，可能存在无法触发的子图）',
-    };
+    messages.push('未找到开始节点（入口须无入边）');
+  } else {
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    for (const id of ids) {
+      const node = byId.get(id);
+      if (!node || !isAnyEntryType(node.type)) {
+        messages.push(
+          `存在非入口的无入边节点：${resolveGraphNodeName(node) || id}（有入口时仅入口可作开始）`,
+        );
+      }
+    }
+    for (const node of nodes) {
+      if (isAnyEntryType(node?.type) && node.id && !ids.includes(node.id)) {
+        messages.push(`入口节点须无入边：${resolveGraphNodeName(node)}`);
+      }
+    }
   }
-  if (ids.length > 1) {
-    return {
-      ok: false,
-      ids,
-      message: `流程只能有一个开始节点，当前有 ${ids.length} 个：${formatStartNodeNames(nodes, ids)}`,
-    };
-  }
-  return { ok: true, ids, message: '' };
+
+  return {
+    ok: messages.length === 0,
+    ids,
+    message: messages[0] ?? '',
+    messages,
+  };
 }
 
 function hasTestProjectApiId(data: Record<string, unknown> | undefined): boolean {
@@ -582,7 +628,7 @@ function validateInputNodeFields(
   });
 }
 
-/** subflowId 缺失为 error；inputs/outputs 空映射合法 */
+/** subflowId 缺失为 error */
 function validateSubflowNodeFields(
   p: string,
   nodeName: string,
@@ -593,13 +639,6 @@ function validateSubflowNodeFields(
   const subflowId = data?.subflowId;
   if (subflowId == null || String(subflowId).trim() === '') {
     errors.push(`${p} 子流节点「${name}」缺少 subflowId`);
-  }
-  const policy = data?.versionPolicy;
-  if (policy != null && String(policy).trim() !== '') {
-    const pv = String(policy).trim();
-    if (pv !== 'pinned' && pv !== 'latest') {
-      errors.push(`${p} 子流节点「${name}」versionPolicy 无效：${pv}`);
-    }
   }
 }
 
@@ -814,64 +853,187 @@ function entryHasScenarios(node: unknown): boolean {
   return Array.isArray(scenarios) && scenarios.length > 0;
 }
 
+/** 入口 type 对应的返回节点 type；场景入口无对外返回 */
+function expectedReturnTypeForEntry(entryType: string | undefined | null): string | null {
+  if (entryType === 'http-entry') return 'http-return';
+  if (entryType === 'subflow-entry') return 'subflow-return';
+  return null;
+}
+
+function isReturnNodeType(type: string | undefined | null): boolean {
+  return type === 'http-return' || type === 'subflow-return';
+}
+
 /**
- * 拒绝已废弃的 meta / 场景字段：
- * meta.scenarios、meta.activeScenarioId、meta.flowOutputs；
- * 场景条目上的 testProjectEnvId、flowSeed。
+ * 入口与返回规则：fallbackOut、场景图禁返回、可达返回 type、同序双 return；
+ * IF 臂漏 return 写入 warnings（不挡开跑）。
  */
-function appendForbiddenLegacyMetaScenarios(graph: Record<string, unknown>, errors: string[]): void {
-  const meta = graph.meta;
-  if (meta == null || typeof meta !== 'object' || Array.isArray(meta)) return;
-  const m = meta as Record<string, unknown>;
-  if (Array.isArray(m.scenarios) && m.scenarios.length > 0) {
-    errors.push('非法字段 meta.scenarios，请写在 scenario-entry.data.scenarios');
-  }
-  const activeId = m.activeScenarioId;
-  if (activeId != null && String(activeId).trim()) {
-    errors.push('非法字段 meta.activeScenarioId');
-  }
-  if ('flowOutputs' in m) {
-    errors.push('非法字段 meta.flowOutputs');
-  }
-  const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+function appendReturnAndEntryRules(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  errors: string[],
+  warnings: string[],
+): void {
+  let hasScenarioEntry = false;
+  let hasHttpEntry = false;
+  let hasSubflowEntry = false;
   for (const n of nodes) {
-    if (!n || typeof n !== 'object') continue;
-    const node = n as Record<string, unknown>;
-    if (node.type !== 'scenario-entry') continue;
-    const data = node.data;
-    if (data == null || typeof data !== 'object' || Array.isArray(data)) continue;
-    const scenarios = (data as Record<string, unknown>).scenarios;
-    if (!Array.isArray(scenarios)) continue;
-    scenarios.forEach((sc, j) => {
-      if (sc == null || typeof sc !== 'object' || Array.isArray(sc)) return;
-      const row = sc as Record<string, unknown>;
-      if ('testProjectEnvId' in row) {
-        errors.push(`scenarios[${j}] 非法字段 testProjectEnvId，请使用 envId`);
+    if (!n) continue;
+    if (n.type === 'scenario-entry') hasScenarioEntry = true;
+    if (n.type === 'http-entry') hasHttpEntry = true;
+    if (n.type === 'subflow-entry') hasSubflowEntry = true;
+    if (n.type === 'http-entry' || n.type === 'subflow-entry') {
+      const fb = n.data?.fallbackOut;
+      if (fb == null || typeof fb !== 'object' || Array.isArray(fb)) {
+        errors.push(`入口节点「${resolveGraphNodeName(n)}」须配置 fallbackOut`);
       }
-      if ('flowSeed' in row) {
-        errors.push(`scenarios[${j}] 非法字段 flowSeed，请使用 inSeed`);
-      }
-    });
+    }
+    if (n.type === 'scenario-entry' && n.data?.fallbackOut != null) {
+      warnings.push(`场景入口「${resolveGraphNodeName(n)}」不应配置 fallbackOut`);
+    }
+  }
+
+  const scenarioOnly = hasScenarioEntry && !hasHttpEntry && !hasSubflowEntry;
+  for (const n of nodes) {
+    if (!n || !isReturnNodeType(n.type)) continue;
+    if (scenarioOnly) {
+      errors.push(`场景图不支持返回节点（含「${resolveGraphNodeName(n)}」）`);
+    }
+  }
+
+  const outs = buildOutgoingTargets(edges);
+  const byId = buildNodeById(nodes);
+
+  for (const entry of nodes) {
+    if (!entry?.id || !isAnyEntryType(entry.type)) continue;
+    const expected = expectedReturnTypeForEntry(entry.type);
+    if (expected) {
+      detectReturnTypeMismatch(entry.id, expected, new Set(), byId, outs, errors);
+    } else if (entry.type === 'scenario-entry' && !scenarioOnly) {
+      // 混图：场景入口可达子图不得含返回节点
+      detectScenarioEntryReachableReturn(entry.id, new Set(), byId, outs, errors);
+    }
+  }
+
+  const startIds = findStartNodeIds({ nodes, edges });
+  for (const start of startIds) {
+    detectSequentialDoubleReturn(start, 0, new Set(), byId, outs, errors);
+  }
+
+  appendMissingReturnArmWarnings(nodes, byId, outs, warnings);
+  appendFanoutReturnRules(nodes, byId, outs, errors);
+}
+
+/** 从入口沿出边：返回节点 type 须匹配 */
+function detectReturnTypeMismatch(
+  nodeId: string,
+  expectedReturnType: string,
+  path: Set<string>,
+  byId: Map<string | undefined, GraphNode>,
+  outs: Map<string, string[]>,
+  errors: string[],
+): void {
+  if (!nodeId || path.has(nodeId)) return;
+  const node = byId.get(nodeId);
+  if (!node) return;
+  if (isReturnNodeType(node.type) && node.type !== expectedReturnType) {
+    errors.push(
+      `入口可达的返回节点「${nodeId}」类型须为 ${expectedReturnType}（当前为 ${node.type}）`,
+    );
+  }
+  const nextPath = new Set(path);
+  nextPath.add(nodeId);
+  for (const t of outs.get(nodeId) ?? []) {
+    detectReturnTypeMismatch(t, expectedReturnType, nextPath, byId, outs, errors);
+  }
+}
+
+/** 混图中场景入口可达子图若含返回节点则报错 */
+function detectScenarioEntryReachableReturn(
+  nodeId: string,
+  path: Set<string>,
+  byId: Map<string | undefined, GraphNode>,
+  outs: Map<string, string[]>,
+  errors: string[],
+): void {
+  if (!nodeId || path.has(nodeId)) return;
+  const node = byId.get(nodeId);
+  if (!node) return;
+  if (isReturnNodeType(node.type)) {
+    errors.push(`场景入口可达子图不支持返回节点（含「${resolveGraphNodeName(node)}」）`);
+    return;
+  }
+  const nextPath = new Set(path);
+  nextPath.add(nodeId);
+  for (const t of outs.get(nodeId) ?? []) {
+    detectScenarioEntryReachableReturn(t, nextPath, byId, outs, errors);
+  }
+}
+
+/** 同序路径上两个返回节点 */
+function detectSequentialDoubleReturn(
+  nodeId: string,
+  returnsSoFar: number,
+  path: Set<string>,
+  byId: Map<string | undefined, GraphNode>,
+  outs: Map<string, string[]>,
+  errors: string[],
+): void {
+  if (!nodeId || path.has(nodeId)) return;
+  const node = byId.get(nodeId);
+  if (!node) return;
+  let returns = returnsSoFar;
+  if (isReturnNodeType(node.type)) {
+    returns += 1;
+    if (returns > 1) {
+      errors.push(`同一路径上存在多个返回节点（含「${nodeId}」）`);
+      return;
+    }
+  }
+  const nextPath = new Set(path);
+  nextPath.add(nodeId);
+  for (const t of outs.get(nodeId) ?? []) {
+    detectSequentialDoubleReturn(t, returns, nextPath, byId, outs, errors);
   }
 }
 
 /**
- * 检查运行场景是否齐全：须落在 scenario-entry.data.scenarios。
- * 仅有 http-entry / subflow-entry、不依赖人跑场景的图可跳过场景列表。
+ * IF 某臂漏画 return：仅警告（运行时可走入口兜底），不挡开跑。
+ * 仅当图含 http/subflow 入口时提示。
  */
+function appendMissingReturnArmWarnings(
+  nodes: GraphNode[],
+  byId: Map<string | undefined, GraphNode>,
+  outs: Map<string, string[]>,
+  warnings: string[],
+): void {
+  const needsReturn = nodes.some((n) => n.type === 'http-entry' || n.type === 'subflow-entry');
+  if (!needsReturn) return;
+  for (const node of nodes) {
+    if (node?.type !== 'condition' || !node.id) continue;
+    const targets = outs.get(node.id) ?? [];
+    if (targets.length < 2) continue;
+    for (const t of targets) {
+      if (!armCanReachReturn(t, byId, outs, new Set())) {
+        warnings.push(
+          `条件节点「${resolveGraphNodeName(node)}」有分支未到达返回节点（走该臂将用入口兜底）`,
+        );
+        break;
+      }
+    }
+  }
+}
+
 /**
  * 隐式扇出：非 condition 且出边≥2 时，至多一臂可达返回节点（避免二次交付）。
- * 错误写入 errors，保存/画布预检会展示给用户。
+ * 错误写入 errors（画布提醒 + 挡开跑；保存不拦）。
  */
-function appendFanoutReturnRules(nodes: GraphNode[], edges: GraphEdge[], errors: string[]): void {
-  const outs = new Map<string, string[]>();
-  for (const e of edges) {
-    if (!e?.source || !e?.target) continue;
-    const list = outs.get(e.source) ?? [];
-    list.push(e.target);
-    outs.set(e.source, list);
-  }
-  const byId = new Map(nodes.map((n) => [n.id, n]));
+function appendFanoutReturnRules(
+  nodes: GraphNode[],
+  byId: Map<string | undefined, GraphNode>,
+  outs: Map<string, string[]>,
+  errors: string[],
+): void {
   for (const node of nodes) {
     if (!node?.id || node.type === 'condition') continue;
     const targets = outs.get(node.id) ?? [];
@@ -899,16 +1061,38 @@ function armCanReachReturn(
   if (!nodeId || path.has(nodeId)) return false;
   const node = byId.get(nodeId);
   if (!node) return false;
-  if (node.type === 'http-return' || node.type === 'subflow-return') return true;
+  if (isReturnNodeType(node.type)) return true;
   const nextPath = new Set(path);
   nextPath.add(nodeId);
   const targets = outs.get(nodeId) ?? [];
   return targets.some((t) => armCanReachReturn(t, byId, outs, nextPath));
 }
 
+/**
+ * schemaVersion：缺失不拦（保存会写当前版本）；显式旧版本记错误（不做热升，挡开跑）。
+ */
+function appendSchemaVersionFinding(
+  graph: Record<string, unknown>,
+  errors: string[],
+): void {
+  const meta = graph.meta;
+  const version =
+    meta != null && typeof meta === 'object' && !Array.isArray(meta)
+      ? (meta as Record<string, unknown>).schemaVersion
+      : undefined;
+  if (version == null) return;
+  if (version !== CURRENT_GRAPH_SCHEMA_VERSION) {
+    errors.push(
+      `meta.schemaVersion 须为 ${CURRENT_GRAPH_SCHEMA_VERSION}（当前为 ${String(version)}，不做旧图热升）`,
+    );
+  }
+}
+
 function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): void {
-  appendForbiddenLegacyMetaScenarios(graph, errors);
   const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+  if (!nodes.length) {
+    return;
+  }
   if (nodes.some(entryHasScenarios)) {
     return;
   }
@@ -917,14 +1101,11 @@ function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): v
     errors.push('scenario-entry 须配置非空 data.scenarios（含 inSeed）');
     return;
   }
-  const hasAnyEntry = nodes.some(isEntryNode);
-  const hasNonScenarioEntry = nodes.some(
-    (n) => isEntryNode(n) && !isScenarioEntryNode(n),
-  );
-  if (hasAnyEntry && hasNonScenarioEntry) {
+  // 仅有 HTTP / 子流入口、不依赖人跑场景时，不要求 scenarios
+  if (nodes.some((n) => isEntryNode(n) && !isScenarioEntryNode(n))) {
     return;
   }
-  errors.push('缺少运行场景：请在 scenario-entry 配置 scenarios');
+  // 有节点但无入口时，开始节点规则已报「须配置入口」，此处不再叠「缺少运行场景」
 }
 
 /** 校验测试流图 JSON；按 options 选择完整规则或仅落库地板 */
@@ -1031,16 +1212,24 @@ export function validateGraphJson(
   const startCheck = validateStartNodes({ nodes: nodes as GraphNode[], edges: edges as GraphEdge[] });
   if (!startCheck.ok) {
     if (deferTopology) {
-      warnings.push(
-        startCheck.ids.length > 1 ? DEFERRED_MULTI_START_WARNING : DEFERRED_NO_START_WARNING,
-      );
+      const looksMulti =
+        startCheck.ids.length > 1
+        || startCheck.messages.some((m) =>
+          /只能有一个开始节点|非入口的无入边|须至少配置一个入口/.test(m));
+      warnings.push(looksMulti ? DEFERRED_MULTI_START_WARNING : DEFERRED_NO_START_WARNING);
     } else {
-      errors.push(startCheck.message);
+      errors.push(...startCheck.messages);
     }
   }
 
+  appendSchemaVersionFinding(graph, errors);
   appendMetaRunError(graph, errors);
-  appendFanoutReturnRules(nodes as GraphNode[], edges as GraphEdge[], errors);
+  appendReturnAndEntryRules(
+    nodes as GraphNode[],
+    edges as GraphEdge[],
+    errors,
+    warnings,
+  );
 
   if (!(nodes as GraphNode[]).length) {
     warnings.push('nodes 为空，导入后将得到空白画布');

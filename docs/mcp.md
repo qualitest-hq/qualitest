@@ -95,7 +95,7 @@ MCP 侧默认 **18** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 | `list_flows` | 按关键词列举本项目测试流摘要 |
 | `get_flow` | 读单条流完整 `graphJson`（浏览拓扑优先用下面两个） |
 | `get_graph_summary` / `get_subflow_detail` | 拓扑摘要、子流结构；`get_subflow_detail` 含 `suggestedInputs`（按 inSeed）；子流交付见 `nodes.<id>.out`；`get_graph_summary` 另含 `mermaid`（flowchart 正文，供 Cursor 预览） |
-| `get_flow_meta` | scenario-entry 场景摘要（含 inSeedKeys）、`entryNodeId`、`startNodeId` |
+| `get_flow_meta` | 全部 scenario-entry 场景摘要（含 inSeedKeys、entryNodeId） |
 | `get_node_detail` / `get_edge_detail` / `get_scenario_detail` | 单个节点 / 边 / 场景配置 |
 | `get_run_failure` | 失败 Run 的步骤现场（修失败） |
 | `get_run_report` | Run 过程报告（含通过步）；无 `nodeId` 时间线，有 `nodeId` 直出该步明细 |
@@ -134,7 +134,7 @@ MCP 侧默认 **18** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 - **每次成功 `submit_*` 立即写库**；同流已在 Web 打开时画布自动同步。
 - 改名称/说明/分组用 `update_flow_meta`（成功即落库；不改节点/边/场景）。禁止用 `create_flow` 新建冒充改名。
-- 子流节点：`submit_subflow_node` 可配 `inputs`（父→子）、`alwaysRun`。子流定稿挂父 `nodes.<子流节点id>.out`（由子图 `subflow-return` 或入口 `fallbackOut`）；不做父侧 `outputs` 映射表。`asset`/`env`/`session` 同 Run 共享。
+- 子流节点：`submit_subflow_node` 可配 `inputs`（父→子）、`alwaysRun`。子流定稿挂父 `nodes.<子流节点id>.out`（由子图 `subflow-return` 或入口 `fallbackOut`）。`asset`/`env`/`session` 同 Run 共享。
 - 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。
 - 若 Web 本地有未保存修改或未决 Staging，会提示「放弃本地并拉取」，不会静默覆盖。
 - 未开启时调用写工具会得到明确拒绝文案。

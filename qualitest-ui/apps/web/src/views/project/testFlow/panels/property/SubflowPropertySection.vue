@@ -14,7 +14,7 @@
           </option>
         </optgroup>
       </select>
-      <div class="field__hint">引用同项目下任意测试流（不含当前正在编辑的流）</div>
+      <div class="field__hint">引用同项目下任意测试流（不含当前正在编辑的流）；每次 Run 取该流当前图</div>
     </div>
 
     <div v-if="platformTemplates.length" class="field">
@@ -30,17 +30,6 @@
         >
           {{ tpl.name }}
         </button>
-      </div>
-    </div>
-
-    <div class="field">
-      <label>版本策略</label>
-      <select :value="versionPolicy" @change="onPolicyChange">
-        <option value="pinned">pinned（固化当前图）</option>
-        <option value="latest">latest（每次 Run 取最新）</option>
-      </select>
-      <div v-if="versionPolicy === 'pinned' && hasPinnedSnapshot" class="field__hint">
-        已固化子流图快照（pinnedGraphJson）
       </div>
     </div>
 
@@ -70,7 +59,7 @@
       <label>子流定稿出参</label>
       <div class="field__hint">
         子流 return（或入口 fallbackOut）后挂在
-        <code v-pre>{{nodes.&lt;本节点id&gt;.out}}</code>，父流用 Assign / 断言读取；不再做父侧 outputs 映射表。
+        <code v-pre>{{nodes.&lt;本节点id&gt;.out}}</code>，父流用 Assign / 断言读取。
       </div>
     </div>
 
@@ -81,8 +70,8 @@
 
 <script setup>
 /**
- * 子流节点属性面板：选择被引用的子流、版本策略、入参映射、失败后是否仍执行。
- * 子流运行结束后的出参挂在 nodes.<本节点id>.out，父流直接读取，此处不再配置出参映射。
+ * 子流节点属性面板：选择被引用的子流、入参映射、失败后是否仍执行。
+ * 每次 Run 取被引用流当前图；定稿出参挂在 nodes.<本节点id>.out。
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -125,13 +114,8 @@ const platformTemplates = ref([])
 const creating = ref(false)
 
 const subflowIdVal = computed(() => String(props.node?.data?.subflowId || ''))
-const versionPolicy = computed(() => props.node?.data?.versionPolicy || 'pinned')
 /** 入参映射行列表：每行为子流变量名与传入值 */
 const inputRows = computed(() => props.node?.data?.inputs || [])
-const hasPinnedSnapshot = computed(() => {
-  const raw = props.node?.data?.pinnedGraphJson
-  return raw != null && String(raw).trim() !== ''
-})
 
 /** 拉取同项目其它测试流（排除当前流），供引用选择 */
 async function loadSubflows() {
@@ -206,10 +190,6 @@ function onSubflowChange(e) {
     subflowId: id,
     subflowName: sf?.flowName || '',
   }
-  if (versionPolicy.value === 'pinned' && id) {
-    snapshotPinnedGraph(id, patch)
-    return
-  }
   if (id) {
     loadAndSuggestIo(id, patch)
     return
@@ -225,30 +205,6 @@ async function loadAndSuggestIo(subflowId, basePatch = {}) {
   } catch {
     refreshSummary(basePatch)
   }
-}
-
-async function snapshotPinnedGraph(subflowId, basePatch = {}) {
-  if (!subflowId) return
-  try {
-    const res = await getTestFlow(subflowId)
-    const graphJson = res.data?.graphJson ?? res.data?.graph_json ?? ''
-    applyIoSuggestions(graphJson, {
-      ...basePatch,
-      pinnedGraphJson: graphJson || undefined,
-    })
-  } catch {
-    refreshSummary(basePatch)
-    ElMessage.warning('无法读取子流图，pinned 快照未更新')
-  }
-}
-
-function onPolicyChange(e) {
-  const policy = e.target.value
-  if (policy === 'pinned' && subflowIdVal.value) {
-    snapshotPinnedGraph(subflowIdVal.value, { versionPolicy: policy })
-    return
-  }
-  patchNodeData(props.node.id, { versionPolicy: policy })
 }
 
 function addInput() {
@@ -280,15 +236,15 @@ async function createFromTemplate(tpl) {
       name: i.name,
       value: `{{flow.${i.name}}}`,
     }))
-    refreshSummary({
+    const patch = {
       subflowId: String(created?.testFlowId || ''),
       subflowName: created?.flowName || tpl.name,
       templateId: tpl.templateId,
       inputs,
-      versionPolicy: 'pinned',
-    })
-    if (created?.testFlowId) {
-      await snapshotPinnedGraph(String(created.testFlowId))
+    }
+    refreshSummary(patch)
+    if (created?.testFlowId && !inputs.length) {
+      await loadAndSuggestIo(String(created.testFlowId), patch)
     }
     ElMessage.success(`已创建子流「${tpl.name}」并绑定`)
   } catch (e) {

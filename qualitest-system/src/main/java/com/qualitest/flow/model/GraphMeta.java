@@ -34,9 +34,4 @@ public class GraphMeta {
      * vertical：自上而下分层。
      */
     private String layout;
-
-    /**
-     * 唯一开始节点 id 缓存；执行仍以拓扑入度为准，此字段仅辅助画布
-     */
-    private String startNodeId;
 }

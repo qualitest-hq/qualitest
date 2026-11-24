@@ -92,7 +92,7 @@ After reload, Cursor Agent / Chat should list the `qualitest` MCP server and its
 | `list_flows` | List flow summaries (optional keyword) |
 | `get_flow` | Full `graphJson` (prefer the next two for browsing) |
 | `get_graph_summary` / `get_subflow_detail` | Topology / subflow structure; `get_graph_summary` also returns `mermaid` (flowchart body for Cursor preview) |
-| `get_flow_meta` | scenario-entry summaries (inSeedKeys), entryNodeId, startNodeId, … |
+| `get_flow_meta` | all scenario-entry summaries (inSeedKeys, entryNodeId) |
 | `get_node_detail` / `get_edge_detail` / `get_scenario_detail` | Single node / edge / scenario |
 | `get_run_failure` | Failed Run step context (for fixing) |
 | `get_run_report` | Run process report (incl. passed steps); timeline without `nodeId`, step detail with `nodeId` |
@@ -124,7 +124,7 @@ Typical inspect order: `list_flows` → note `testFlowId` → `get_graph_summary
 Do **not** hide `prompts/list`. If local Skill already has the same `guideVersion`, do not `prompts/get` the three body prompts again (avoids double token cost). Re-run sync when the server version changes (including switch-suffix changes). Navbar “copy guide” passes route `testProjectId` when available; otherwise read-only gates.
 ### Write tools (auto-write switch on)
 
-When enabled, `tools/list` also exposes `create_flow`, `update_flow_meta`, all `submit_*`, upserts, and `append_api_design_hints` (**not** `run_test_flow`). Use `create_flow` only to create an empty flow; rename/description/group with `update_flow_meta` (do not create a new flow to fake a rename). `submit_subflow_node` accepts `inputs` / `alwaysRun`; child delivery mounts on `nodes.<id>.out` (no parent `outputs` map). Graph edits still require `testFlowId`.
+When enabled, `tools/list` also exposes `create_flow`, `update_flow_meta`, all `submit_*`, upserts, and `append_api_design_hints` (**not** `run_test_flow`). Use `create_flow` only to create an empty flow; rename/description/group with `update_flow_meta` (do not create a new flow to fake a rename). `submit_subflow_node` accepts `inputs` / `alwaysRun`; child delivery mounts on `nodes.<id>.out`. Graph edits still require `testFlowId`.
 
 ### Auto-run (“Allow MCP auto-run” on)
 

@@ -148,7 +148,7 @@ class AuthTokenPresenceGateTest {
                 .data(new HashMap<>(Map.of(
                         "name", "客户端 Bearer 登录",
                         "subflowId", "9001",
-                        "outputs", List.of(Map.of("name", "clientAuth.token", "flowKey", "clientAuth.token"))
+                        "inputs", List.of()
                 )))
                 .build();
         GraphJson parent = GraphJson.builder()
@@ -173,7 +173,7 @@ class AuthTokenPresenceGateTest {
      */
     @Test
     @Order(6)
-    @DisplayName("无子流解析器时仅 outputs 不满足 asset 托管头")
+    @DisplayName("无子流解析器时仍缺 asset 托管头")
     void validate_subflowWithoutResolver_stillMissingAsset() {
         GraphNode sub = GraphNode.builder()
                 .id("sf1")
@@ -181,7 +181,7 @@ class AuthTokenPresenceGateTest {
                 .data(new HashMap<>(Map.of(
                         "name", "客户端 Bearer 登录",
                         "subflowId", "9001",
-                        "outputs", List.of(Map.of("name", "clientAuth.token", "flowKey", "clientAuth.token"))
+                        "inputs", List.of()
                 )))
                 .build();
         GraphJson parent = GraphJson.builder()

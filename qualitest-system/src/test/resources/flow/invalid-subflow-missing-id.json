@@ -28,9 +28,7 @@
         "y": 0
       },
       "data": {
-        "versionPolicy": "latest",
-        "inputs": [],
-        "outputs": []
+        "inputs": []
       },
       "name": "未绑定子流"
     }

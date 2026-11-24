@@ -18,7 +18,7 @@ import java.util.List;
 public class FlowDesignScenarioPatch {
 
     /**
-     * 目标 scenario-entry 节点 id；空则取图上第一个场景入口，无则新建。
+     * 目标 scenario-entry 节点 id；空则仅在唯一场景入口时使用，无入口则新建；多入口须显式指定。
      */
     private String entryNodeId;
 

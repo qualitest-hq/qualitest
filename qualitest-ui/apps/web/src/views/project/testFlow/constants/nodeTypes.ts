@@ -190,7 +190,6 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     desc: '引用子流 · 登录 / OAuth 等复用块',
     defaults: {
       subflowId: '',
-      versionPolicy: 'pinned',
       inputs: [],
     },
   },

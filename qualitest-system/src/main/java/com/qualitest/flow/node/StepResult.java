@@ -80,7 +80,7 @@ public class StepResult {
 
     /**
      * subflow 节点落库详情（step_details.subflow）。
-     * 含 subflowId、subflowName、status、childSteps（内层步骤摘要）、outputsMerged（成功时）。
+     * 含 subflowId、subflowName、status、childSteps（内层步骤摘要）；定稿出参见父上下文 nodes.&lt;id&gt;.out。
      */
     private Map<String, Object> subflow;
 

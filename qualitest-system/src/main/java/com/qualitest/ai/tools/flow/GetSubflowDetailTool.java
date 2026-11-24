@@ -8,7 +8,6 @@ import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.subflow.SubflowInputSuggestSupport;
 import com.qualitest.project.service.ITestFlowService;
@@ -68,8 +67,6 @@ public class GetSubflowDetailTool implements QualitestTool {
             result.put("warning", "graph_json 解析失败，拓扑摘要可能不完整");
         }
 
-        GraphMeta meta = graph.getMeta();
-        result.put("startNodeId", meta != null && meta.getStartNodeId() != null ? meta.getStartNodeId() : "");
         result.put("suggestedInputs", SubflowInputSuggestSupport.suggestInputMappingsJson(graph));
 
         int nodeCount = graph.getNodes() != null ? graph.getNodes().size() : 0;

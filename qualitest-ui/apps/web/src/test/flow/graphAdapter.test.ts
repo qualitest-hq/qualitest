@@ -24,10 +24,8 @@ describe('createEmptyGraph', () => {
     expect(graph.meta?.viewport).toEqual({ x: 40, y: 40, zoom: 1 });
     expect(graph.meta?.layout).toBe('default');
     expect(graph.meta?.schemaVersion).toBe(2);
-    expect(graph.meta?.startNodeId).toBeUndefined();
     expect(graph.meta?.scenarios).toBeUndefined();
     expect(graph.meta?.activeScenarioId).toBeUndefined();
-    expect(graph.meta?.flowOutputs).toBeUndefined();
   });
 });
 
@@ -45,7 +43,7 @@ describe('fromGraphJson / toGraphJson', () => {
     expect(roundtrip.meta?.schemaVersion).toBe(2);
     const entry = roundtrip.nodes.find((n) => n.type === 'scenario-entry');
     expect((entry?.data?.scenarios as unknown[])?.length).toBe(3);
-    expect(roundtrip.meta?.startNodeId).toBe('2040354743931883499');
+    expect(roundtrip.meta).not.toHaveProperty('startNodeId');
     expect(roundtrip.edges).toHaveLength(adapted.edges.length);
   });
 
@@ -108,6 +106,80 @@ describe('fromGraphJson / toGraphJson', () => {
     expect(adapted.layoutPreset).toBe('horizontal')
     expect(toGraphJson(adapted).meta?.layout).toBe('horizontal')
   })
+
+  it('未指定 scenarioEntryNodeId 时不覆盖任一场景入口的 scenarios', () => {
+    // 前提：两场景入口各有自己的场景；toGraphJson 不传 scenarioEntryNodeId
+    // 期望：两个入口的 scenarios 均保持原样
+    const graph = {
+      nodes: [
+        {
+          id: 'e-a',
+          type: 'scenario-entry',
+          name: 'A',
+          position: { x: 0, y: 0 },
+          data: { scenarios: [{ id: 'sa', name: '入口A', envId: '1', inSeed: { a: 1 } }] },
+        },
+        {
+          id: 'e-b',
+          type: 'scenario-entry',
+          name: 'B',
+          position: { x: 0, y: 80 },
+          data: { scenarios: [{ id: 'sb', name: '入口B', envId: '2', inSeed: { b: 2 } }] },
+        },
+      ],
+      edges: [],
+      meta: {},
+    };
+    const adapted = fromGraphJson(graph);
+    const saved = toGraphJson({
+      ...adapted,
+      runConfig: {
+        activeScenarioId: 'hijack',
+        scenarios: [{ id: 'hijack', name: '串写', envId: '9', inSeed: {} }],
+      },
+      scenarioEntryNodeId: null,
+    });
+    const a = saved.nodes.find((n) => n.id === 'e-a');
+    const b = saved.nodes.find((n) => n.id === 'e-b');
+    expect(a?.data?.scenarios?.[0]?.id).toBe('sa');
+    expect(b?.data?.scenarios?.[0]?.id).toBe('sb');
+  });
+
+  it('指定 scenarioEntryNodeId 时只写回该入口', () => {
+    // 前提：两场景入口；只指定写回 e-b
+    // 期望：e-b 场景被替换，e-a 不变
+    const graph = {
+      nodes: [
+        {
+          id: 'e-a',
+          type: 'scenario-entry',
+          name: 'A',
+          position: { x: 0, y: 0 },
+          data: { scenarios: [{ id: 'sa', name: '入口A', envId: '1', inSeed: {} }] },
+        },
+        {
+          id: 'e-b',
+          type: 'scenario-entry',
+          name: 'B',
+          position: { x: 0, y: 80 },
+          data: { scenarios: [{ id: 'sb', name: '入口B', envId: '2', inSeed: {} }] },
+        },
+      ],
+      edges: [],
+      meta: {},
+    };
+    const adapted = fromGraphJson(graph);
+    const saved = toGraphJson({
+      ...adapted,
+      runConfig: {
+        activeScenarioId: 'nb',
+        scenarios: [{ id: 'nb', name: '新B', envId: '3', inSeed: { x: 1 } }],
+      },
+      scenarioEntryNodeId: 'e-b',
+    });
+    expect(saved.nodes.find((n) => n.id === 'e-a')?.data?.scenarios?.[0]?.id).toBe('sa');
+    expect(saved.nodes.find((n) => n.id === 'e-b')?.data?.scenarios?.[0]?.id).toBe('nb');
+  });
 
   it('空图往返保留 viewport', () => {
     // 前提：空白空图改 viewport 后经 fromGraphJson → toGraphJson 往返

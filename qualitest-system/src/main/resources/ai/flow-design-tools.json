@@ -1072,7 +1072,7 @@
     "type": "function",
     "function": {
       "name": "submit_subflow_node",
-      "description": "新增或修改单个子流节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id。AI 不造 input 节点。inputs 灌子 in/flow；子流定稿挂父 nodes.<本节点 id>.out（由子图 return 或入口 fallbackOut）；父侧无 outputs 映射表。alwaysRun=true 时父图失败后继续阶段仍执行本节点。",
+      "description": "新增或修改单个子流节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id。AI 不造 input 节点。inputs 灌子 in/flow；子流定稿挂父 nodes.<本节点 id>.out（由子图 return 或入口 fallbackOut）。alwaysRun=true 时父图失败后继续阶段仍执行本节点。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1101,14 +1101,6 @@
               "subflowName": {
                 "type": "string"
               },
-              "versionPolicy": {
-                "type": "string",
-                "enum": [
-                  "pinned",
-                  "latest"
-                ],
-                "description": "latest=每次取子流当前图；pinned=用节点快照（勿经本工具提交 graphJson）"
-              },
               "inputs": {
                 "type": "array",
                 "description": "父→子输入映射；value 在父上下文解析（{{flow.*}}/{{asset.*}}/{{env.*}}），写入子 flow[name]；交完整数组",
@@ -1125,25 +1117,6 @@
                   "required": [
                     "name",
                     "value"
-                  ]
-                }
-              },
-              "outputs": {
-                "type": "array",
-                "description": "子→父 flow 映射；从子 flow[name] 写到父 flow[flowKey]；空数组表示不写回；交完整数组",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "flowKey": {
-                      "type": "string",
-                      "description": "写入父 flow 的键；省略则等同 name"
-                    }
-                  },
-                  "required": [
-                    "name"
                   ]
                 }
               },

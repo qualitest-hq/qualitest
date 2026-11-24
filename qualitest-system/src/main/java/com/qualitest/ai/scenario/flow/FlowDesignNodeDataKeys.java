@@ -59,10 +59,10 @@ public final class FlowDesignNodeDataKeys {
      * 子流节点 data 允许键。
      * inputs：父流程向子流程注入的 in/flow 种子；
      * alwaysRun：业务失败后继续阶段是否仍执行本子流节点；
-     * 子图定稿出参由子图内 subflow-return（或入口 fallbackOut）挂父 nodes.&lt;id&gt;.out，无父侧 outputs 映射表。
+     * 子图定稿出参由子图内 subflow-return（或入口 fallbackOut）挂父 nodes.&lt;id&gt;.out。
      */
     private static final Set<String> SUBFLOW = Set.of(
-            "subflowId", "subflowName", "versionPolicy", "inputs", "graphJson", "alwaysRun", "pinnedGraphJson", "templateId");
+            "subflowId", "subflowName", "inputs", "alwaysRun", "templateId");
 
     /** 人工输入节点 data 允许键 */
     private static final Set<String> INPUT = Set.of("fields", "alwaysRun");

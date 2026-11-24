@@ -44,8 +44,9 @@ export interface GraphScenarioConfig {
 export const CURRENT_GRAPH_SCHEMA_VERSION = 2;
 
 /**
- * 图元数据：视口、排版、开始节点 id、schema 版本。
+ * 图元数据：视口、排版、schema 版本。
  * 不存放场景列表、活动场景 id、出参声明或环境 id；场景写在 scenario-entry 节点 data 内。
+ * 开跑起点由拓扑入口 + 调用方 entryNodeId 决定，不在 meta 缓存。
  */
 export interface GraphMeta {
   schemaVersion?: number;
@@ -56,7 +57,6 @@ export interface GraphMeta {
    * horizontal-wrap 横向折行；vertical 自上而下。
    */
   layout?: string;
-  startNodeId?: string;
 }
 
 /** 测试流图根对象（nodes + edges + meta） */

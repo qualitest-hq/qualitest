@@ -22,7 +22,7 @@ public enum FlowDesignToolNames {
     GET_API_DETAILS("get_api_details", true, true),
     /** 获取当前画布节点与边摘要，含开始节点数与异常拓扑提示 */
     GET_GRAPH_SUMMARY("get_graph_summary", true, true),
-    /** 获取画布 meta：运行场景列表、flow 输出名、开始节点、当前默认场景 id */
+    /** 获取画布摘要：场景入口上的场景列表、开始节点、当前默认场景 id */
     GET_FLOW_META("get_flow_meta", true, true),
     /** 列举项目环境 id、名称、URL 与环境变量键名（不含值） */
     LIST_PROJECT_ENVS("list_project_envs", true, true),

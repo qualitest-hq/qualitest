@@ -66,17 +66,16 @@ public class RunDelivery {
         if (ctx == null || mode == null || !mode.deliversExternally()) {
             return;
         }
-        if (ctx.isDelivered()) {
-            return;
-        }
+        // 来自返回节点：先判次数 / 已交付，避免第二次 return 静默跳过
         if (fromReturn) {
-            int count = ctx.getReturnCount();
-            if (count >= 1) {
+            if (ctx.getReturnCount() >= 1 || ctx.isDelivered()) {
                 throw new FlowExecutionException(
                         FlowErrorCode.TF_RETURN_DUPLICATE,
                         "整次 Run 至多执行一次返回节点");
             }
-            ctx.setReturnCount(count + 1);
+            ctx.setReturnCount(ctx.getReturnCount() + 1);
+        } else if (ctx.isDelivered()) {
+            return;
         }
 
         OutPayload toWrite = payload != null ? payload.copy() : new OutPayload();

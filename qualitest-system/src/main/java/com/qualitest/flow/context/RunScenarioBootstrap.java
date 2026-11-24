@@ -44,19 +44,28 @@ public final class RunScenarioBootstrap {
     /**
      * 解析场景配置。
      *
-     * @param entryNodeIdOverride 指定 scenario-entry 节点 id；可空则取第一个带场景的入口
+     * @param entryNodeIdOverride 指定 scenario-entry 节点 id；可空则仅当图上恰好一个场景入口时使用
      */
     public static ResolvedRunScenario resolve(GraphJson graph, String scenarioIdOverride, Long envIdOverride,
                                               Long fallbackEnvId, String availableEnvHint,
                                               String entryNodeIdOverride) {
         GraphNode entry = EntryScenarioSupport.findScenarioEntry(graph, entryNodeIdOverride);
+        if (entry == null) {
+            List<GraphNode> entries = EntryScenarioSupport.listScenarioEntries(graph);
+            if (entries.size() > 1) {
+                throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID,
+                        "存在多个场景入口，须指定 entryNodeId");
+            }
+            throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID,
+                    "缺少运行场景：请在 scenario-entry 配置 scenarios");
+        }
         List<GraphRunScenario> entryScenarios = EntryScenarioSupport.scenariosOf(entry);
         if (entryScenarios.isEmpty()) {
             throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID,
                     "缺少运行场景：请在 scenario-entry 配置 scenarios");
         }
         return resolveFromList(entryScenarios, scenarioIdOverride, envIdOverride, fallbackEnvId,
-                availableEnvHint, entry != null ? entry.getId() : entryNodeIdOverride);
+                availableEnvHint, entry.getId());
     }
 
     private static ResolvedRunScenario resolveFromList(List<GraphRunScenario> scenarios,

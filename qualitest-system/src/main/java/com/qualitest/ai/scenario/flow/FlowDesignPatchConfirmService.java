@@ -402,7 +402,7 @@ public class FlowDesignPatchConfirmService {
         return hints;
     }
 
-    /** 场景增改单元未填 testProjectEnvId 时写入 warning，不阻断确认 */
+    /** 场景增改单元未填 envId 时写入 warning，不阻断确认 */
     private static void noteScenarioEnvWarning(FlowDesignPatch patch, String unitId, List<String> warnings) {
         if (!unitId.startsWith("addScenario:") && !unitId.startsWith("updateScenario:")) {
             return;

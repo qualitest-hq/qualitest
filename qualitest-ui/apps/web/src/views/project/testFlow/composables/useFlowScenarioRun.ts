@@ -108,11 +108,17 @@ export function useFlowScenarioRun() {
     runLib.scenarioRunLive = { abort: false, recordId: placeholderId, phase: 'running' };
 
     try {
-      // 运行入口：优先用户在运行配置中选中的入口，否则取画布第一个场景入口
+      // 运行入口：优先选中项；唯一场景入口可自动；多入口未选则拦下
+      const scenarioEntries = store.nodes.filter((n) => n.type === 'scenario-entry');
       const entryNodeId =
         store.selectedRunEntryNodeId
-        || store.nodes.find((n) => n.type === 'scenario-entry')?.id
+        || (scenarioEntries.length === 1 ? scenarioEntries[0]?.id : undefined)
         || undefined;
+      if (!entryNodeId && scenarioEntries.length > 1) {
+        ElMessage.warning('请先选择入口');
+        runLib.scenarioRunLive = null;
+        return null;
+      }
       const triggerRes = await triggerTestFlowRun({
         testFlowId: store.testFlowId,
         testProjectEnvId: envId || undefined,

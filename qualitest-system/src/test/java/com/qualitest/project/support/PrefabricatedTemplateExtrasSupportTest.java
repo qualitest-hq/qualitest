@@ -213,7 +213,7 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertTrue(graph.contains("scenario-entry"));
         assertTrue(graph.contains("e_entry"));
         assertTrue(graph.contains("\"schemaVersion\":2") || graph.contains("\"schemaVersion\": 2"));
-        assertTrue(graph.contains("startNodeId"));
+        assertFalse(graph.contains("startNodeId"));
         assertTrue(graph.contains("cond_token"));
         assertTrue(graph.contains("probe_http"));
         assertTrue(graph.contains("cond_alive"));

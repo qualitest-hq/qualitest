@@ -23,7 +23,7 @@
 
 ### 规程
 
-1. 造流或修复：多次 `submit_*`（每次 1 单元）；缺素材/鉴权时先 upsert（立刻落盘）；缺环境实体时 `upsert_project_env`；跑前场景须已绑 `testProjectEnvId`（或 run 时显式传入）；**禁止**未选环境时自动挑环境
+1. 造流或修复：多次 `submit_*`（每次 1 单元）；缺素材/鉴权时先 upsert（立刻落盘）；缺环境实体时 `upsert_project_env`；跑前场景须已绑图字段 `envId`（或 run 时显式传入 `testProjectEnvId`）；**禁止**未选环境时自动挑环境
 2. 本轮已成功接受至少 1 个改图单元，或用户明确要求跑流 → **立刻** `run_test_flow`
 3. Run **失败**：看 failures 或 `get_run_failure` → `submit_*` 修复 → 再 `run_test_flow`
 4. **失败后再修最多 2 轮**（合计最多 3 次 run）；仍失败则停止并中文说明原因与下一步

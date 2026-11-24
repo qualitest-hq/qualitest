@@ -129,7 +129,8 @@ public class FlowGraphRunner {
                         FlowErrorCode.TF_GRAPH_INVALID,
                         "节点不存在: " + currentId
                 );
-                return Outcome.failed(steps, ctx, StepError.of(ex.getErrorCode(), ex.getMessage()), steps.size());
+                return failedAfterSettle(snapshot, ctx, steps,
+                        StepError.of(ex.getErrorCode(), ex.getMessage()));
             }
 
             // 下一步将超出上限：不执行该节点 Handler，合成一条失败步并终止 Run
@@ -138,7 +139,7 @@ public class FlowGraphRunner {
                 visitedNodeIds.add(currentId);
                 recordStep(steps, errorStep(node, incomingEdgeId, ctx,
                         RunStatus.FAILED.getCode(), limitError), onStep);
-                return Outcome.failed(steps, ctx, limitError, steps.size());
+                return failedAfterSettle(snapshot, ctx, steps, limitError);
             }
 
             if (!skipCurrentNode && !completeCurrentNode && preExecuteHook != null && preExecuteHook != FlowNodePreExecuteHook.NONE) {
@@ -159,7 +160,7 @@ public class FlowGraphRunner {
                         StepError error = pre.abortError() != null
                                 ? pre.abortError()
                                 : StepError.of(FlowErrorCode.TF_SNAPSHOT_FAILED, "checkpoint 失败");
-                        return Outcome.failed(steps, ctx, error, steps.size());
+                        return failedAfterSettle(snapshot, ctx, steps, error);
                     }
                 }
             }
@@ -674,6 +675,19 @@ public class FlowGraphRunner {
     /** 节点展示名：顶层 name，空白则类型标签。 */
     private static String resolveDisplayName(GraphNode node) {
         return GraphNodeShellSupport.resolveNodeName(node);
+    }
+
+    /**
+     * 已进图后的失败出口：先收束（零次 return 时补交兜底），再返回失败 Outcome。
+     */
+    private Outcome failedAfterSettle(
+            GraphJson snapshot,
+            FlowRunContext ctx,
+            List<StepResult> steps,
+            StepError error
+    ) {
+        StepError settleErr = SettleSupport.settle(ctx, snapshot, runDelivery);
+        return Outcome.failed(steps, ctx, error != null ? error : settleErr, steps.size());
     }
 
     /**

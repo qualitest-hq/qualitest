@@ -65,7 +65,8 @@ public final class SettleSupport {
     }
 
     /**
-     * 定位本 Run 使用的入口节点：优先 {@code ctx.entryNodeId}；否则取图上第一个入口类型节点。
+     * 定位本 Run 使用的入口节点：优先 {@code ctx.entryNodeId}；
+     * 未指定时恰好一个入口类型节点则用之，多个则返回 null（与 GraphWalker 一致）。
      */
     public static GraphNode findEntryNode(FlowRunContext ctx, GraphJson graph) {
         if (graph == null || graph.getNodes() == null) {
@@ -78,13 +79,19 @@ public final class SettleSupport {
                     return n;
                 }
             }
+            return null;
         }
+        GraphNode sole = null;
         for (GraphNode n : graph.getNodes()) {
-            if (n != null && FlowNodeType.isEntry(n.getType())) {
-                return n;
+            if (n == null || !FlowNodeType.isEntry(n.getType())) {
+                continue;
             }
+            if (sole != null) {
+                return null;
+            }
+            sole = n;
         }
-        return null;
+        return sole;
     }
 
     /**
