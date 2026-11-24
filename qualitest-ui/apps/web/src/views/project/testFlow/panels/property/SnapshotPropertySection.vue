@@ -46,10 +46,13 @@ onMounted(() => {
 /** 复选框是否勾选：只认 data.snapshotBefore 为布尔 true */
 const snapshotBefore = computed(() => props.node?.data?.snapshotBefore === true)
 
-/** 当前场景绑定环境是否允许破坏性还原（allowDestructiveReset===1） */
+/**
+ * 当前激活场景所绑环境是否允许破坏性还原。
+ * 用场景 envId 在环境下拉里查找，allowDestructiveReset 为 1 时允许。
+ */
 const envAllowsReset = computed(() => {
   const sc = getActiveScenario()
-  const envId = sc?.testProjectEnvId
+  const envId = sc?.envId ? String(sc.envId).trim() : ''
   if (!envId) return false
   const hit = envOptions.value.find((e) => e.testProjectEnvId === envId)
   return hit?.allowDestructiveReset === 1

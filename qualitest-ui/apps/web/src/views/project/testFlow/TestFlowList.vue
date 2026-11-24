@@ -95,9 +95,10 @@
             show-overflow-tooltip
         />
         <el-table-column align="center" label="更新时间" prop="updateTime" width="180"/>
-        <el-table-column align="center" label="操作" width="200">
+        <el-table-column align="center" label="操作" width="260">
           <template #default="scope">
             <el-button link type="primary" @click.stop="openCanvas(scope.row)">打开</el-button>
+            <el-button link type="primary" @click.stop="openEntryDoc(scope.row)">说明</el-button>
             <el-button
                 v-if="canEditFlowMeta"
                 v-hasPermi="['project:testProject:edit']"
@@ -194,14 +195,21 @@
         @opened="getSettingOnDrawerOpen"
         @refresh-token="handleRefreshToken"
     />
+
+    <EntryDocDrawer
+        v-model:visible="entryDocVisible"
+        :test-flow-id="entryDocFlowId"
+        :flow-name="entryDocFlowName"
+    />
   </div>
 </template>
 
 <script setup>
 /**
  * 项目测试流列表：左侧目录树 + 右侧表格。
- * 支持按目录/未分组过滤、名称搜索、新建与改元信息（含挂目录）、批量移动目录、删除、进画布；批量跑走「测试套件」。
- * 顶栏项目设置抽屉通过 useProjectSettingDrawer 注入 capabilities；列表按钮另按 flow:* 细粒度隐藏。
+ * 支持按目录/未分组过滤、名称搜索、新建与改元信息（含挂目录）、批量移动目录、删除、进画布；
+ * 行内「说明」打开入口说明只读抽屉；批量跑走「测试套件」。
+ * 顶栏项目设置抽屉注入当前用户项目权限；列表按钮按 flow:* 细粒度隐藏。
  */
 import { computed, getCurrentInstance, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -214,6 +222,7 @@ import ProjectSettingDrawer from '@/views/project/testProject/components/Project
 import { useProjectCapabilities } from '@/views/project/testProject/composables/useProjectCapabilities'
 import { useProjectSettingDrawer } from '@/views/project/testProject/composables/useProjectSettingDrawer'
 
+import EntryDocDrawer from './components/EntryDocDrawer.vue'
 import FlowGroupTreePanel from './components/FlowGroupTreePanel.vue'
 import { createEmptyGraph } from './graphAdapter'
 import { useProjectTabTitle } from './composables/useProjectTabTitle'
@@ -276,6 +285,13 @@ const moveDialogVisible = ref(false)
 const moveTargetGroupId = ref(null)
 const moveSubmitting = ref(false)
 
+/** 入口说明抽屉是否打开 */
+const entryDocVisible = ref(false)
+/** 抽屉当前查看的测流 id */
+const entryDocFlowId = ref(null)
+/** 抽屉标题用的测流名称 */
+const entryDocFlowName = ref('')
+
 function resetMetaForm() {
   metaForm.testFlowId = null
   metaForm.flowName = ''
@@ -299,6 +315,17 @@ function handleSelectionChange(selection) {
 
 function openCanvas(row) {
   router.push(`/project/testProject/flow/${testProjectId.value}/${row.testFlowId}`)
+}
+
+/**
+ * 打开入口说明只读抽屉。
+ * 写入测流 id 与名称后显示抽屉，由抽屉自行拉取图并按入口切换说明。
+ */
+function openEntryDoc(row) {
+  if (!row?.testFlowId) return
+  entryDocFlowId.value = row.testFlowId
+  entryDocFlowName.value = String(row.flowName ?? '').trim()
+  entryDocVisible.value = true
 }
 
 /** 左侧点选目录后刷新表格 */

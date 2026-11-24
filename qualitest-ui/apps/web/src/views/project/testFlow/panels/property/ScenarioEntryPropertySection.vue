@@ -1,9 +1,10 @@
 <template>
   <div class="prop-form">
-    <div class="field">
-      <label>入口说明（可选）</label>
-      <textarea :value="node.data?.doc ?? ''" rows="3" @input="onDoc" />
-    </div>
+    <EntryDocMarkdownField
+      :model-value="node.data?.doc ?? ''"
+      :rows="4"
+      @update:model-value="onDoc"
+    />
     <div class="field">
       <label>场景列表</label>
       <div class="field__hint">入参值（inSeed）在左侧选场景后于右侧编辑；保存时写入本入口</div>
@@ -21,11 +22,13 @@
 
 <script setup>
 /**
- * 场景入口属性：编辑入口说明；场景列表读写 store.runConfig，
- * 保存时由 toGraphJson 写回本节点 data.scenarios（含 envId / inSeed）。
+ * 场景入口节点属性面板。
+ * 可改入口说明（编辑 / Markdown 预览）；下方列出本入口的场景，点选后打开右侧场景配置面板改环境与入参值。
+ * 画布保存时把当前运行配置里的场景列表写回本节点 data.scenarios（含 envId、inSeed）。
  */
 import { computed } from 'vue'
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId'
+import EntryDocMarkdownField from '../../components/EntryDocMarkdownField.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowCanvasStore } from '../../stores/flowCanvasStore'
 
@@ -35,11 +38,12 @@ const props = defineProps({
 
 const store = useFlowCanvasStore()
 const { patchNodeData } = useFlowNodes()
-/** 画布当前场景列表（与入口落盘内容同源） */
+/** 当前画布运行配置中的场景列表（编辑中；保存时写回本入口） */
 const scenarios = computed(() => store.runConfig.scenarios)
 
-function onDoc(e) {
-  patchNodeData(props.node.id, { doc: e.target.value })
+/** 写回入口说明原文 */
+function onDoc(doc) {
+  patchNodeData(props.node.id, { doc })
 }
 
 /** 选中场景并打开右侧场景配置面板 */

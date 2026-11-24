@@ -138,7 +138,7 @@
     "type": "function",
     "function": {
       "name": "list_project_envs",
-      "description": "列举当前测试项目的环境 id、名称、URL 与环境变量键名（不含值）；为场景绑定 testProjectEnvId、编写 {{env.*}} 或 upsert_project_env 前建议调用",
+      "description": "列举当前测试项目的环境 id、名称、URL 与环境变量键名（不含值）；为场景绑定 envId（值为环境主键）、编写 {{env.*}} 或 upsert_project_env 前建议调用",
       "parameters": {
         "type": "object",
         "properties": {},

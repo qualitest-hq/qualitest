@@ -22,28 +22,31 @@
       <label>环境 envId</label>
       <input :value="node.data?.envId ?? ''" type="text" @input="(e) => patch({ envId: e.target.value })" />
     </div>
-    <div class="field">
-      <label>入口说明（可选）</label>
-      <textarea :value="node.data?.doc ?? ''" rows="3" @input="(e) => patch({ doc: e.target.value })" />
-    </div>
+    <EntryDocMarkdownField
+      :model-value="node.data?.doc ?? ''"
+      :rows="4"
+      @update:model-value="(v) => patch({ doc: v })"
+    />
     <EntryInputShapeSection
       :model-value="node.data?.inputShape ?? null"
       @update:model-value="(v) => patch({ inputShape: v })"
     />
-    <div class="field">
-      <label>fallbackOut（JSON）</label>
-      <textarea :value="fallbackText" rows="8" @change="onFallback" />
-      <div class="field__hint">零次 return 时收束交付；须含 status / headers / body</div>
-    </div>
+    <FallbackOutJsonField
+      :model-value="node.data?.fallbackOut ?? null"
+      hint="零次 return 时收束交付；须含 status / headers / body"
+      @update:model-value="(v) => patch({ fallbackOut: v })"
+    />
   </div>
 </template>
 
 <script setup>
 /**
- * HTTP 入口属性：method / path / envId / 说明、入参形状声明，
- * 以及没有执行任何返回节点时使用的兜底出参 fallbackOut（status / headers / body）。
+ * HTTP 入口节点属性面板。
+ * 可改：HTTP 方法、路径、绑定环境 id、入口说明（支持编辑与 Markdown 预览）、
+ * 入参形状声明、兜底出参 fallbackOut（整次未走到返回节点时对外写出的包）。
  */
-import { computed } from 'vue'
+import EntryDocMarkdownField from '../../components/EntryDocMarkdownField.vue'
+import FallbackOutJsonField from '../../components/FallbackOutJsonField.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import EntryInputShapeSection from './EntryInputShapeSection.vue'
 
@@ -54,27 +57,9 @@ const props = defineProps({
 const { patchNodeData } = useFlowNodes()
 const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
-/** fallbackOut 的 JSON 文本展示 */
-const fallbackText = computed(() => {
-  try {
-    return JSON.stringify(props.node.data?.fallbackOut ?? {}, null, 2)
-  } catch {
-    return '{}'
-  }
-})
-
 /** 把局部字段合并写回当前节点数据（含入参形状） */
 function patch(p) {
   patchNodeData(props.node.id, p)
-}
-
-/** 失焦解析 JSON；非法则忽略本次输入，不写脏对象 */
-function onFallback(e) {
-  try {
-    patch({ fallbackOut: JSON.parse(e.target.value || '{}') })
-  } catch {
-    /* ignore */
-  }
 }
 </script>
 

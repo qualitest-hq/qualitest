@@ -700,7 +700,7 @@ Exploring **只认** `ui-slot:<名>`：同环境另一 `pluginId` 已占用相�
 ## 8. 相关链接
 
 - 发布列车：**2.0.0** 与 [flow-contract-2.0.md](./flow-contract-2.0.md) 同发；ROADMAP 原 Exploring **6.2** 并入该列车；Later **7.4～7.6**、**5.5** 仍后置  
-- 流侧协议入口 / 消费面：`flow-contract-2.0.md` §2.3、§7（`{protocol}-entry` 等与本稿 `pluginAction` 贡献面在 2.0 列车内对齐）  
+- 流侧协议入口 / 消费面：`flow-contract-2.0.md` §2.3、§7（`{protocol}-entry` 等与本稿 `pluginAction` 贡献面在 2.0 列车内对齐）。**现状**：引擎仅 type 识别骨架；codec / 该 kind 交付登记 / 可演示样本 **后置**。2.0 批 4 本轮验收以官方 **存档点**可装可跑为准（见 §10.8）  
 - 写库快照主路径：`project-summary.md`（经存档点插件；旧 `HttpEndpointSnapshotAdapter` / 核心直调待清干净）  
 - 被测 `/test-support`：demo-mall 历史端点——**迁完即删**，禁止核心回落  
 - 运维金库（**不是**本插件）：`qualitest-demo-host` `data/golden` / daily-reset  
@@ -905,4 +905,6 @@ Prepare 调度：**必须**实现 §4.2 排序算法。
 - [x] 库存档点：专文 + `sdap` CLI（首期 MySQL）install/ping/create/restore
 - [x] 项目挂载（存档点）
 - [x] B 类 UI 可见（存档点徽章）
+- [x] 2.0 批 4 样本路径：插件仓 README「最短上手」（同机 local-exec；zip/发现目录 → bindAlias → 启用 → 徽章 → snapshotBefore）
+- [ ] 协议入口 `{protocol}-entry` 可演示消费面（codec / 交付登记）— **后置**，不挡批 4 存档点验收
 - [ ] 拨钟样本

@@ -156,6 +156,10 @@ export async function applyConfirmedGraph(
   canvasStore.nodes = merged.nodes;
   canvasStore.edges = [];
   canvasStore.runConfig = applied.runConfig;
+  // 有场景入口来源时同步跑前选中入口，保持场景列表与入口一致
+  if (applied.scenarioEntryNodeId) {
+    canvasStore.selectedRunEntryNodeId = applied.scenarioEntryNodeId;
+  }
   // 不写入 applied.viewport：确认落盘不应改变用户当前视角
   canvasStore.bumpStagingEdgeFlushToken();
   canvasStore.endCanvasHydration();

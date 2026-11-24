@@ -24,7 +24,8 @@ export function useRightPanelMeta() {
       if (!sc) return '环境、变量初值、失败策略与流程返回值';
       // 依赖 envOptions，环境列表加载完成后刷新副标题
       void envOptions.value.length;
-      return `场景「${sc.name}」· ${resolveEnvName(sc.testProjectEnvId)}`;
+      // 副标题展示场景名与其绑定环境的显示名（由场景 envId 解析）
+      return `场景「${sc.name}」· ${resolveEnvName(sc.envId)}`;
     }
     const sel = store.selected;
     if (!sel) return '选中节点或边以编辑';

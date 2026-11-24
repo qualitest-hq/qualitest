@@ -113,12 +113,15 @@ const groupedItems = computed(() => {
 
 const hasAnyVisible = computed(() => groupedItems.value.some((g) => g.items.length > 0))
 
-/** 当前激活场景绑定的环境 id（用于触发重载） */
+/**
+ * 当前激活场景绑定的环境 id（取自场景 envId）。
+ * 变化时触发参数库按环境重载。
+ */
 function activeScenarioEnvId() {
   const id = store.runConfig.activeScenarioId
   const scenarios = store.runConfig.scenarios || []
   const scenario = scenarios.find((s) => s.id === id) ?? scenarios[0]
-  return scenario?.testProjectEnvId ?? ''
+  return scenario?.envId ?? ''
 }
 
 onMounted(() => {

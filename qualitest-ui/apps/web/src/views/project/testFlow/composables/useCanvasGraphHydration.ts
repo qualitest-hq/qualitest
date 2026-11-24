@@ -1,5 +1,6 @@
 /**
  * 画布图 JSON 灌入 store 与撤销基线收尾（项目流 / 模板预制流共用）。
+ * 灌入时同步 runConfig 与跑前选中的场景入口 id。
  */
 import { nextTick } from 'vue'
 
@@ -10,8 +11,9 @@ import type { useFlowCanvasStore } from '../stores/flowCanvasStore'
 type FlowCanvasStore = ReturnType<typeof useFlowCanvasStore>
 
 /**
- * 将读出的图写入画布。
- * 排版方式只记到 store，用来决定顶栏名称和句柄方向，不在这里重排节点。
+ * 将读出的图写入画布 store。
+ * 排版方式只记到 store（决定顶栏名称和句柄方向），不在这里重排节点坐标。
+ * 同时把跑前选中入口设为灌入场景列表所来自的那个场景入口，避免多场景入口时列表与选中入口不一致。
  */
 export async function applyAdaptedGraphToStore(store: FlowCanvasStore, adapted: FromGraphJsonResult) {
   store.setPendingEdges(adapted.edges)
@@ -19,6 +21,7 @@ export async function applyAdaptedGraphToStore(store: FlowCanvasStore, adapted: 
   store.setLayoutPreset(adapted.layoutPreset)
   store.viewport = adapted.viewport
   store.runConfig = adapted.runConfig
+  store.selectedRunEntryNodeId = adapted.scenarioEntryNodeId
   store.nodes = adapted.nodes
   store.edges = []
   store.selected = null

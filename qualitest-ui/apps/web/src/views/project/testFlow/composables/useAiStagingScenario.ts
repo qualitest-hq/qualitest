@@ -9,8 +9,9 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { objectIdFromUnitId } from '../utils/stagingUnitIds';
 import { runStagingItemSync, useStagingSync } from './useStagingSync';
 
+/** 读取场景绑定的环境 id；空则返回空串 */
 function resolveScenarioEnvId(scenario: GraphRunScenario): string {
-  return String(scenario.envId ?? (scenario as { testProjectEnvId?: string }).testProjectEnvId ?? '');
+  return String(scenario.envId ?? '');
 }
 
 export function buildDraftFromCanvasScenario(scenario: GraphRunScenario): Record<string, unknown> {

@@ -460,10 +460,12 @@ const { getActiveScenario, loadProjectEnvs } = useRunConfig()
 /** 当前场景环境已启用插件贡献的顶栏徽章（如「存档点」） */
 const pluginBadges = ref([])
 
-/** 按活动场景环境拉取插件 UI 投影中的徽章列表 */
+/**
+ * 按当前激活场景绑定的环境 id（场景 envId）拉取该环境已启用插件贡献的顶栏徽章。
+ */
 async function refreshPluginBadges() {
   pluginBadges.value = []
-  const envId = getActiveScenario()?.testProjectEnvId
+  const envId = getActiveScenario()?.envId
   if (!envId) return
   try {
     const res = await getEnvPluginUi(envId)
@@ -473,9 +475,9 @@ async function refreshPluginBadges() {
   }
 }
 
-/** 切换活动场景环境时刷新顶栏插件徽章 */
+/** 激活场景或其 envId 变化时刷新顶栏插件徽章 */
 watch(
-  () => getActiveScenario()?.testProjectEnvId,
+  () => getActiveScenario()?.envId,
   () => {
     refreshPluginBadges()
   },

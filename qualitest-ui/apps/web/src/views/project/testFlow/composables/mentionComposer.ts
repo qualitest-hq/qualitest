@@ -481,7 +481,8 @@ const MENTION_PROVIDERS: MentionProvider[] = [
             detail: row.remark || '模板 env',
           }));
         } else {
-          const envId = scenario?.envId ?? (scenario as { testProjectEnvId?: string })?.testProjectEnvId;
+          // 按当前场景 envId 拉环境变量键，供 @ 提及候选
+          const envId = scenario?.envId;
           if (envId && store.testProjectId) {
             try {
               const { getTestProjectEnv } = await import('@/api/project/testProjectEnv');

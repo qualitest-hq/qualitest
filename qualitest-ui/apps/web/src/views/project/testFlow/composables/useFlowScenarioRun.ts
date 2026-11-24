@@ -42,9 +42,10 @@ export function useFlowScenarioRun() {
     // 跑流前强制刷新环境，拿到最新的允许还原等字段
     await loadProjectEnvs(true);
     const scenario = getActiveScenario();
-    const envId = scenario?.testProjectEnvId;
+    // 场景条目上的 envId 存的是项目环境主键，用来查环境下拉与触发跑流
+    const envId = scenario?.envId ? String(scenario.envId).trim() : '';
     const env = envId
-      ? envOptions.value.find((e) => e.testProjectEnvId === String(envId))
+      ? envOptions.value.find((e) => e.testProjectEnvId === envId)
       : undefined;
 
     if (store.dirty) {
@@ -112,7 +113,6 @@ export function useFlowScenarioRun() {
         store.selectedRunEntryNodeId
         || store.nodes.find((n) => n.type === 'scenario-entry')?.id
         || undefined;
-      const envId = scenario?.envId || scenario?.testProjectEnvId || undefined;
       const triggerRes = await triggerTestFlowRun({
         testFlowId: store.testFlowId,
         testProjectEnvId: envId || undefined,

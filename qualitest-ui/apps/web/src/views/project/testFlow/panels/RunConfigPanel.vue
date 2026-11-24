@@ -49,6 +49,15 @@
       </label>
     </div>
 
+    <div v-if="selectedEntry" class="run-config__entry-doc">
+      <div class="run-config__scenarios-title">当前入口说明</div>
+      <EntryDocReadonly
+          class="run-config__entry-doc-body"
+          :source="selectedEntryDoc"
+          empty-text="未写说明（可在入口节点属性中编辑）"
+      />
+    </div>
+
     <div v-if="selectedEntry?.type === 'scenario-entry'" class="run-config__scenarios">
       <div class="run-config__scenarios-title">场景（选中 = 下次运行）</div>
       <div class="run-config__hint">编辑场景名称 / 环境 / inSeed：点入口节点后在右侧属性与场景面板改</div>
@@ -81,14 +90,18 @@
 
 <script setup>
 /**
- * 左栏跑前入口选择：列出画布上的入口节点供单选；选中场景入口时再列出其场景供选择，
- * 然后触发真实跑流，跑流中按钮切换为停止。
- * 运行按钮受执行权限、模板画布及是否已选入口限制；本栏只做选择，场景的增删与值编辑在右侧面板完成。
+ * 左栏「跑前入口」面板。
+ * 列出画布上的平台入口供单选；选中后跟读该入口的 Markdown 说明。
+ * 选中场景入口时再列出其场景供单选，点运行按所选入口（及场景）触发真实跑流；跑流中按钮变为停止。
+ * 运行按钮受执行权限、模板画布、是否已选入口限制；场景增删与 inSeed 编辑在右侧面板完成。
  */
 import { computed, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 
+import { PLATFORM_ENTRY_TYPES } from '@/utils/flow/nodeTypes';
+
 import AiStagingScenarioBanner from '../components/AiStagingScenarioBanner.vue';
+import EntryDocReadonly from '../components/EntryDocReadonly.vue';
 import {
   STAGING_ADD_COLOR,
   STAGING_DELETE_COLOR,
@@ -99,7 +112,6 @@ import { useRunConfig } from '../composables/useRunConfig';
 import { useFlowCanvasPermissions } from '../composables/useFlowCanvasPermissions';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
-import { PLATFORM_ENTRY_TYPES } from '@/utils/flow/nodeTypes';
 
 /** 画布点击运行时可选的入口类型：场景入口、HTTP 入口、子流入口（协议入口不在此列） */
 const ENTRY_TYPES = new Set(PLATFORM_ENTRY_TYPES);
@@ -127,6 +139,9 @@ const selectedEntryId = computed(() => store.selectedRunEntryNodeId);
 const selectedEntry = computed(() =>
   entryNodes.value.find((n) => n.id === selectedEntryId.value) || null,
 );
+
+/** 当前选中入口的说明原文，用于跑前栏只读跟读 */
+const selectedEntryDoc = computed(() => String(selectedEntry.value?.data?.doc ?? ''));
 
 /** 当前运行配置中的场景列表（选中场景入口时展示） */
 const scenarios = computed(() => store.runConfig.scenarios);
@@ -176,7 +191,10 @@ function entryMeta(entry) {
   return entry.type;
 }
 
-/** 选中入口：记录入口 id；若为场景入口，把其场景列表载入运行配置（默认选第一个场景）并选中该节点 */
+/**
+ * 选中跑前入口：写入 selectedRunEntryNodeId。
+ * 若为场景入口，把该节点 data.scenarios 载入运行配置（默认激活第一条）并在画布上选中该节点。
+ */
 function selectEntry(entryId) {
   store.selectedRunEntryNodeId = entryId;
   const entry = store.nodes.find((n) => n.id === entryId);
@@ -288,6 +306,18 @@ onMounted(() => {
   color: var(--el-text-color-secondary, #909399);
   margin-bottom: 8px;
   line-height: 1.4;
+}
+
+.run-config__entry-doc {
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--el-border-color-lighter, #ebeef5);
+}
+
+.run-config__entry-doc-body {
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 140px;
+  overflow: auto;
 }
 
 .run-config-scenario {

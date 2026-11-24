@@ -1,27 +1,30 @@
 <template>
   <div class="prop-form">
-    <div class="field">
-      <label>入口说明（可选）</label>
-      <textarea :value="node.data?.doc ?? ''" rows="3" @input="(e) => patch({ doc: e.target.value })" />
-    </div>
+    <EntryDocMarkdownField
+      :model-value="node.data?.doc ?? ''"
+      :rows="4"
+      @update:model-value="(v) => patch({ doc: v })"
+    />
     <EntryInputShapeSection
       :model-value="node.data?.inputShape ?? null"
       @update:model-value="(v) => patch({ inputShape: v })"
     />
-    <div class="field">
-      <label>fallbackOut（JSON）</label>
-      <textarea :value="fallbackText" rows="8" @change="onFallback" />
-      <div class="field__hint">零次 return 时挂到父节点 out</div>
-    </div>
+    <FallbackOutJsonField
+      :model-value="node.data?.fallbackOut ?? null"
+      hint="零次 return 时挂到父节点 out"
+      @update:model-value="(v) => patch({ fallbackOut: v })"
+    />
   </div>
 </template>
 
 <script setup>
 /**
- * 子流入口属性：入口说明、入参形状声明与兜底出参 fallbackOut；
- * 子图没有执行任何返回节点时，用 fallbackOut 作为父流对应子流节点的出参。
+ * 子流入口节点属性面板。
+ * 可改：入口说明（编辑 / Markdown 预览）、入参形状声明、兜底出参 fallbackOut。
+ * 子图整次未走到返回节点时，把 fallbackOut 挂到父流对应子流节点的 out。
  */
-import { computed } from 'vue'
+import EntryDocMarkdownField from '../../components/EntryDocMarkdownField.vue'
+import FallbackOutJsonField from '../../components/FallbackOutJsonField.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import EntryInputShapeSection from './EntryInputShapeSection.vue'
 
@@ -31,27 +34,9 @@ const props = defineProps({
 
 const { patchNodeData } = useFlowNodes()
 
-/** fallbackOut 的 JSON 文本展示 */
-const fallbackText = computed(() => {
-  try {
-    return JSON.stringify(props.node.data?.fallbackOut ?? {}, null, 2)
-  } catch {
-    return '{}'
-  }
-})
-
 /** 把局部字段合并写回当前节点数据（含入参形状） */
 function patch(p) {
   patchNodeData(props.node.id, p)
-}
-
-/** 失焦解析 JSON；非法则忽略本次输入 */
-function onFallback(e) {
-  try {
-    patch({ fallbackOut: JSON.parse(e.target.value || '{}') })
-  } catch {
-    /* ignore */
-  }
 }
 </script>
 

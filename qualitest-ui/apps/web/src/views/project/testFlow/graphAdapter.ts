@@ -1,8 +1,10 @@
 /**
  * 测试流 graph_json 与 vue-flow 编辑态的双向转换。
  *
- * - fromGraphJson：解开外层包装，还原 nodes/edges/viewport，并从 scenario-entry.data.scenarios 灌入 runConfig；condition 出边补 sourceHandle。打开画布不重排坐标
- * - toGraphJson：剥离界面字段，把 runConfig.scenarios（envId / inSeed）写回 scenario-entry；排版写入 meta.layout；meta 不写场景列表
+ * - fromGraphJson：解开外层包装，还原 nodes/edges/viewport；从场景入口 data.scenarios 灌入 runConfig，
+ *   并带回该入口 id（scenarioEntryNodeId）供跑前入口选中；condition 出边补 sourceHandle；打开画布不重排坐标
+ * - toGraphJson：剥离界面字段，把 runConfig.scenarios（envId / inSeed）写回指定或第一个场景入口；
+ *   排版写入 meta.layout；meta 不写场景列表
  * - createEmptyGraph：新建完全空白图（无入口节点），仅默认视口
  */
 import type { Edge, Node } from '@vue-flow/core';
@@ -84,12 +86,19 @@ export function createEmptyGraph(options: CreateEmptyGraphOptions = {}): GraphJs
   };
 }
 
+/** 图 JSON 转画布编辑态的结果 */
 export interface FromGraphJsonResult {
   nodes: Node[];
   edges: Edge[];
   viewport: GraphViewport;
+  /** 打开时灌入的场景运行配置 */
   runConfig: GraphScenarioConfig;
-  /** 这条流记住的排版。打开画布只恢复这项，不自动重排 */
+  /**
+   * 上述 runConfig 所来自的场景入口节点 id。
+   * 打开画布时用来同步跑前选中入口，避免多场景入口时场景列表与选中入口错位；无场景入口时为 null。
+   */
+  scenarioEntryNodeId: string | null;
+  /** 这条流记住的排版方式；打开画布只恢复，不自动重排节点 */
   layoutPreset: FlowLayoutPresetId;
 }
 
@@ -107,31 +116,57 @@ function normalizeScenario(scenario: GraphRunScenario): GraphRunScenario {
   };
 }
 
-/** 从第一个带非空 scenarios 的 scenario-entry 读出场景列表；没有则返回 null */
-function scenariosFromEntryNodes(nodes: GraphJson['nodes'] | undefined): GraphRunScenario[] | null {
+/**
+ * 从场景入口节点读出场景列表。
+ * 优先取第一个带非空 scenarios 的场景入口；若只有空列表入口则返回该入口 id 与空数组；没有场景入口返回 null。
+ */
+function scenariosFromEntryNodes(
+  nodes: GraphJson['nodes'] | undefined,
+): { entryId: string; scenarios: GraphRunScenario[] } | null {
   if (!nodes?.length) return null;
+  let firstEmptyEntryId: string | null = null;
   for (const n of nodes) {
     if (n?.type !== 'scenario-entry') continue;
+    const entryId = String(n.id ?? '').trim();
+    if (!entryId) continue;
     const raw = n.data?.scenarios;
-    if (!Array.isArray(raw) || raw.length === 0) continue;
-    return raw.map((s) => normalizeScenario(s as GraphRunScenario));
+    if (!Array.isArray(raw) || raw.length === 0) {
+      if (!firstEmptyEntryId) firstEmptyEntryId = entryId;
+      continue;
+    }
+    return {
+      entryId,
+      scenarios: raw.map((s) => normalizeScenario(s as GraphRunScenario)),
+    };
+  }
+  if (firstEmptyEntryId) {
+    return { entryId: firstEmptyEntryId, scenarios: [] };
   }
   return null;
 }
 
 /**
- * 打开画布时组装 runConfig：优先入口上的场景，否则生成默认冒烟场景。
- * activeScenarioId 取列表首条，仅用于右侧场景面板当前选中。
+ * 打开画布时组装运行配置，并标出场景列表来自哪个入口节点。
+ * 有非空场景则灌入并默认激活第一条；有空场景入口则生成默认冒烟场景但仍记住入口 id；无场景入口则仅默认配置。
  */
-function readScenarioConfig(nodes?: GraphJson['nodes']): GraphScenarioConfig {
+function readScenarioConfig(nodes?: GraphJson['nodes']): {
+  runConfig: GraphScenarioConfig;
+  scenarioEntryNodeId: string | null;
+} {
   const fromEntry = scenariosFromEntryNodes(nodes);
-  if (fromEntry?.length) {
-    return {
-      activeScenarioId: fromEntry[0].id,
-      scenarios: fromEntry,
-    };
+  if (!fromEntry) {
+    return { scenarioEntryNodeId: null, runConfig: createDefaultRunConfig() };
   }
-  return createDefaultRunConfig();
+  if (!fromEntry.scenarios.length) {
+    return { scenarioEntryNodeId: fromEntry.entryId, runConfig: createDefaultRunConfig() };
+  }
+  return {
+    scenarioEntryNodeId: fromEntry.entryId,
+    runConfig: {
+      activeScenarioId: fromEntry.scenarios[0].id,
+      scenarios: fromEntry.scenarios,
+    },
+  };
 }
 
 /** 从 API/导入的原始对象解析为 GraphJson（unwrap 外层 graphJson/graph_json 包装） */
@@ -152,7 +187,7 @@ export function fromGraphJson(raw: unknown): FromGraphJsonResult {
   const graph = parseGraphJson(raw);
   const meta = graph.meta;
   const viewport = meta?.viewport ?? { ...DEFAULT_VIEWPORT };
-  const runConfig = readScenarioConfig(graph.nodes);
+  const { runConfig, scenarioEntryNodeId } = readScenarioConfig(graph.nodes);
 
   const nodes = buildVueFlowNodes(graph.nodes);
 
@@ -164,6 +199,7 @@ export function fromGraphJson(raw: unknown): FromGraphJsonResult {
     edges,
     viewport,
     runConfig,
+    scenarioEntryNodeId,
     layoutPreset: normalizeLayoutPresetId(meta?.layout),
   };
 }

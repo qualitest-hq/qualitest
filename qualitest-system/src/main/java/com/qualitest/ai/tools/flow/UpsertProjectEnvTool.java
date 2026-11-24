@@ -184,8 +184,9 @@ public class UpsertProjectEnvTool implements QualitestTool {
         result.put("allowDestructiveReset", env.getAllowDestructiveReset() != null
                 ? env.getAllowDestructiveReset() : 0);
         result.put("envVarKeys", TestProjectVariableEntrySupport.extractVariableKeys(env.getEnvVariables()));
-        result.put("hint", "环境已写库；场景绑定请 submit_scenario(testProjectEnvId=…)，"
-                + "或 run_test_flow 显式传 testProjectEnvId");
+        // 提示调用方：改场景上的环境绑定用 submit_scenario 的 envId；单次跑流覆盖环境用 run_test_flow 的 testProjectEnvId
+        result.put("hint", "环境已写库；场景绑定请 submit_scenario(envId=…)，"
+                + "或 run_test_flow 显式传 testProjectEnvId（运行覆盖用环境主键）");
         return result.toJSONString();
     }
 

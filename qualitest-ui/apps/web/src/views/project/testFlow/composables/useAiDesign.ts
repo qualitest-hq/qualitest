@@ -379,10 +379,10 @@ export function useAiDesign() {
       thinkingEnabled: thinkingEnabled.value,
       // 模板画布强制半自动；项目画布跟本地全自动开关
       autopilotEnabled: !isTemplate && isAutopilotEnabled(),
-      // 当前画布活动场景/环境，供服务端跑流默认回退
+      // 当前画布活动场景 id；环境主键取自场景 envId，供服务端跑流默认回退
       runScenarioId: activeScenario?.id || undefined,
-      testProjectEnvId: activeScenario?.testProjectEnvId
-        ? String(activeScenario.testProjectEnvId)
+      testProjectEnvId: activeScenario?.envId
+        ? String(activeScenario.envId)
         : undefined,
       // 当前图版本，供 Web 整图保存 CAS；AI 增量落盘走服务端行锁
       graphRevision: store.graphRevision,

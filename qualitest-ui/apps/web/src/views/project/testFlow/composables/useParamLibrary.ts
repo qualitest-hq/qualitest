@@ -143,7 +143,8 @@ export function useParamLibrary() {
       return;
     }
     try {
-      const envId = getActiveScenario(store)?.testProjectEnvId;
+      // 用当前场景 envId 拉环境变量；无绑定环境则环境条目为空
+      const envId = getActiveScenario(store)?.envId;
       const [envRow, assetRows] = await Promise.all([
         envId
           ? getTestProjectEnv(envId).then(unwrapEnvRow).catch(() => ({} as Record<string, unknown>))
