@@ -2,22 +2,24 @@
   "nodes": [
     {
       "id": "scn_entry_1795425561394",
-      "type": "scenario-entry",
-      "name": "默认场景入口",
+      "type": "subflow-entry",
+      "name": "子流入口",
       "position": {
         "x": 0,
         "y": 0
       },
       "data": {
         "doc": "",
-        "scenarios": [
-          {
-            "id": "sc-child",
-            "name": "子流默认",
-            "envId": "",
-            "inSeed": {}
+        "fallbackOut": {
+          "status": 500,
+          "headers": {
+            "Content-Type": "application/json;charset=UTF-8"
+          },
+          "body": {
+            "code": "NO_RETURN",
+            "message": "未执行到返回节点"
           }
-        ]
+        }
       }
     },
     {
@@ -41,6 +43,7 @@
     }
   ],
   "meta": {
+    "schemaVersion": 2,
     "startNodeId": "scn_entry_1795425561394"
   }
 }

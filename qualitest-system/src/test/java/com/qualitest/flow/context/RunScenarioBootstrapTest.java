@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 RunScenarioBootstrap：从 scenario-entry 解析运行场景与环境。
- * 覆盖：默认场景与 flowSeed、maxSteps、入参环境覆盖、场景不存在、fallback 回落、缺环境硬失败文案。
+ * 覆盖：默认场景与 inSeed、maxSteps、入参环境覆盖、场景不存在、fallback 回落、缺环境硬失败文案。
  * 边界：夹具 flow/linear-run-graph.json；无数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunScenarioBootstrapTest
  */
@@ -29,11 +29,11 @@ class RunScenarioBootstrapTest {
 
     /**
      * 前提：未传 scenarioId，入口首条场景 id=sc-default。
-     * 期望：scenarioId=sc-default；flowSeed.loginUser=admin；envId=9001。
+     * 期望：scenarioId=sc-default；inSeed.loginUser=admin；envId=9001。
      */
     @Test
     @Order(1)
-    @DisplayName("解析：使用 activeScenario 与 flowSeed")
+    @DisplayName("解析：使用 activeScenario 与 inSeed")
     void resolve_usesActiveScenarioAndFlowSeed() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         ResolvedRunScenario scenario = RunScenarioBootstrap.resolve(graph, null, null);

@@ -85,7 +85,7 @@
           "body": {
             "mode": "json",
             "json": {
-              "example": "{\n  \"username\": \"{{flow.loginUser}}\",\n  \"password\": \"{{flow.loginPass}}\"\n}"
+              "example": "{\n  \"username\": \"{{in.loginUser}}\",\n  \"password\": \"{{in.loginPass}}\"\n}"
             },
             "urlencoded": [
               {
@@ -419,6 +419,7 @@
     }
   ],
   "meta": {
+    "schemaVersion": 2,
     "viewport": {
       "x": 0,
       "y": 0,

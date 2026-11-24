@@ -28,7 +28,7 @@ class StepResultWriterTest {
 
     /**
      * 前提：ResolvedRunScenario + ctx 含 env/flow。
-     * 期望：stepIndex=0、nodeType=run_config；details 含 scenarioLoaded 与 flowAfter。
+     * 期望：stepIndex=0、nodeType=run_config；details 含 scenarioLoaded 与 flowAfter（运行时 flow 桶快照）。
      */
     @Test
     @Order(1)
@@ -65,8 +65,8 @@ class StepResultWriterTest {
     }
 
     /**
-     * 前提：run 无 step0，仅有 graphJsonSnapshot（sc-1 + flowSeed.x=1）。
-     * 期望：fallback 步含 scenarioLoaded；flowAfter.x=1；hasRunConfigStep=true。
+     * 前提：run 无 step0，仅有 graphJsonSnapshot（scenario-entry 上 sc-1 + inSeed.x=1）。
+     * 期望：fallback 步含 scenarioLoaded；inAfter.x=1；hasRunConfigStep=true。
      */
     @Test
     @Order(2)
@@ -109,7 +109,7 @@ class StepResultWriterTest {
         assertEquals(StepResultWriter.NODE_TYPE_RUN_CONFIG, step.getNodeType());
         var details = writer.parseStepDetails(step.getStepDetails());
         assertTrue(details.containsKey("scenarioLoaded"));
-        assertEquals(1, details.getJSONObject("flowAfter").getIntValue("x"));
+        assertEquals(1, details.getJSONObject("inAfter").getIntValue("x"));
         assertTrue(writer.hasRunConfigStep(List.of(step)));
     }
 

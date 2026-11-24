@@ -143,7 +143,7 @@ const selectedEntry = computed(() =>
 /** 当前选中入口的说明原文，用于跑前栏只读跟读 */
 const selectedEntryDoc = computed(() => String(selectedEntry.value?.data?.doc ?? ''));
 
-/** 当前运行配置中的场景列表（选中场景入口时展示） */
+/** 当前入口下的场景列表（选中场景入口时展示） */
 const scenarios = computed(() => store.runConfig.scenarios);
 /** 当前选中的场景 id（下次运行使用） */
 const activeScenarioId = computed(() => store.runConfig.activeScenarioId);
@@ -193,7 +193,7 @@ function entryMeta(entry) {
 
 /**
  * 选中跑前入口：写入 selectedRunEntryNodeId。
- * 若为场景入口，把该节点 data.scenarios 载入运行配置（默认激活第一条）并在画布上选中该节点。
+ * 若为场景入口，把该节点 data.scenarios 载入跑前场景状态（默认激活第一条）并在画布上选中该节点。
  */
 function selectEntry(entryId) {
   store.selectedRunEntryNodeId = entryId;

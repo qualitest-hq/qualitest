@@ -953,14 +953,6 @@ public final class PrefabricatedTemplateExtrasSupport {
         loginData.put("requestValueOverrides", loginBodyOverrides(entryKey));
         loginHttp.put("data", loginData);
 
-        // 出边：ELSE 连登录；成功 IF 无出边（结束本流）
-        List<JSONObject> edges = List.of(
-                edge("e_token_if", "cond_token", "probe_http"),
-                edge("e_token_else", "cond_token", "login_http"),
-                edge("e_probe", "probe_http", "cond_alive"),
-                edge("e_alive_else", "cond_alive", "login_http")
-        );
-
         JSONObject viewport = new JSONObject();
         viewport.put("x", 0);
         viewport.put("y", 0);
@@ -974,15 +966,25 @@ public final class PrefabricatedTemplateExtrasSupport {
         scenario.put("inSeed", new JSONObject());
         scenario.put("remark", "");
 
+        String entryId = String.valueOf(IdUtil.getSnowflakeNextId());
         JSONObject entryData = new JSONObject();
         entryData.put("doc", "");
         entryData.put("scenarios", List.of(scenario));
         JSONObject scenarioEntry = new JSONObject();
-        scenarioEntry.put("id", String.valueOf(IdUtil.getSnowflakeNextId()));
+        scenarioEntry.put("id", entryId);
         scenarioEntry.put("type", "scenario-entry");
         scenarioEntry.put("name", "默认场景入口");
         scenarioEntry.put("position", new JSONObject(Map.of("x", 0, "y", 0)));
         scenarioEntry.put("data", entryData);
+
+        // 出边：入口连凭证判断；ELSE 连登录；成功 IF 无出边（结束本流）
+        List<JSONObject> edges = List.of(
+                edge("e_entry", entryId, "cond_token"),
+                edge("e_token_if", "cond_token", "probe_http"),
+                edge("e_token_else", "cond_token", "login_http"),
+                edge("e_probe", "probe_http", "cond_alive"),
+                edge("e_alive_else", "cond_alive", "login_http")
+        );
 
         JSONObject meta = new JSONObject();
         // 写入当前 graph_json 结构版本（入口节点化等能力）
@@ -990,6 +992,7 @@ public final class PrefabricatedTemplateExtrasSupport {
         // 预制流记为默认排版。节点坐标在组装时已经写好，这里不重排
         meta.put("layout", "default");
         meta.put("viewport", viewport);
+        meta.put("startNodeId", entryId);
 
         JSONObject graph = new JSONObject();
         graph.put("nodes", List.of(scenarioEntry, condToken, probeHttp, condAlive, loginHttp));

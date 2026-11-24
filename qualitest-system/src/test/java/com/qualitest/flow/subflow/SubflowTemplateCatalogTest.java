@@ -1,6 +1,8 @@
 package com.qualitest.flow.subflow;
 
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.flow.model.GraphSchemaVersions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -89,5 +91,77 @@ class SubflowTemplateCatalogTest {
 
         String empty = SubflowTemplateCatalog.normalizeTemplateGraph("{\"meta\":{}}", null);
         assertNotNull(JSONObject.parseObject(empty).getJSONObject("meta").getInteger("schemaVersion"));
+    }
+
+    /**
+     * 前提：目录中每个 templateId 均有 classpath 图 JSON。
+     * 期望：Flow 2.0 可调用子流骨架（subflow-entry/return、fallbackOut、in.* 入参、入口出边）。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("模板图：全部符合 Flow 2.0 可调用子流契约")
+    void everyTemplateGraph_matchesFlow2CallableSubflowShape() {
+        for (JSONObject tpl : SubflowTemplateCatalog.listTemplates()) {
+            String templateId = tpl.getString("templateId");
+            assertNotNull(templateId, "templateId");
+
+            String raw = SubflowTemplateCatalog.loadGraphJson(templateId);
+            assertNotNull(raw, templateId + " graph missing");
+
+            String normalized = SubflowTemplateCatalog.normalizeTemplateGraph(raw, tpl);
+            JSONObject graph = JSONObject.parseObject(normalized);
+            assertNotNull(graph);
+
+            Integer schemaVersion = graph.getJSONObject("meta").getInteger("schemaVersion");
+            assertEquals(GraphSchemaVersions.V2, schemaVersion, templateId + " schemaVersion");
+
+            JSONArray nodes = graph.getJSONArray("nodes");
+            assertNotNull(nodes);
+            assertFalse(nodes.isEmpty(), templateId + " nodes empty");
+
+            boolean hasSubflowEntry = false;
+            boolean hasSubflowReturn = false;
+            String entryNodeId = null;
+            for (int i = 0; i < nodes.size(); i++) {
+                JSONObject node = nodes.getJSONObject(i);
+                String type = node.getString("type");
+                if ("subflow-entry".equals(type)) {
+                    hasSubflowEntry = true;
+                    entryNodeId = node.getString("id");
+                    assertNotNull(node.getString("name"), templateId + " entry name");
+                    JSONObject data = node.getJSONObject("data");
+                    assertNotNull(data, templateId + " entry data");
+                    assertNotNull(data.getJSONObject("fallbackOut"), templateId + " fallbackOut");
+                }
+                if ("subflow-return".equals(type)) {
+                    hasSubflowReturn = true;
+                    assertNotNull(node.getString("name"), templateId + " return name");
+                    assertEquals("flow.out", node.getJSONObject("data").getString("from"),
+                            templateId + " return from");
+                }
+            }
+            assertTrue(hasSubflowEntry, templateId + " lacks subflow-entry");
+            assertTrue(hasSubflowReturn, templateId + " lacks subflow-return");
+
+            assertFalse(raw.contains("{{flow.username}}"), templateId);
+            assertFalse(raw.contains("{{flow.password}}"), templateId);
+            assertFalse(raw.contains("{{flow.refreshToken}}"), templateId);
+            assertFalse(raw.contains("{{flow.userA}}"), templateId);
+
+            assertTrue(raw.contains("fallbackOut"), templateId + " fallbackOut missing in source");
+
+            JSONArray edges = graph.getJSONArray("edges");
+            boolean wiredFromEntry = "e_entry".equals(entryNodeId);
+            if (!wiredFromEntry && edges != null && entryNodeId != null) {
+                for (int i = 0; i < edges.size(); i++) {
+                    JSONObject edge = edges.getJSONObject(i);
+                    if (entryNodeId.equals(edge.getString("source"))) {
+                        wiredFromEntry = true;
+                        break;
+                    }
+                }
+            }
+            assertTrue(wiredFromEntry, templateId + " entry not wired to first step");
+        }
     }
 }

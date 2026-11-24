@@ -118,6 +118,7 @@
     }
   ],
   "meta": {
+    "schemaVersion": 2,
     "viewport": {
       "x": 40,
       "y": 40,

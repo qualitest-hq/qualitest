@@ -209,7 +209,11 @@ class PrefabricatedTemplateExtrasSupportTest {
                 "管理端登录", "POST", "/login", "adminAuth", "token", "body", "$.token");
         String graph = PrefabricatedTemplateExtrasSupport.parseFlows(flows).get(0).getGraphJson();
 
-        // 期望：存在凭证 Condition、探活 whitelist、登录 extract 与口令占位符
+        // 期望：场景入口连出、schemaVersion=2、探活 whitelist、登录 extract 与口令占位符
+        assertTrue(graph.contains("scenario-entry"));
+        assertTrue(graph.contains("e_entry"));
+        assertTrue(graph.contains("\"schemaVersion\":2") || graph.contains("\"schemaVersion\": 2"));
+        assertTrue(graph.contains("startNodeId"));
         assertTrue(graph.contains("cond_token"));
         assertTrue(graph.contains("probe_http"));
         assertTrue(graph.contains("cond_alive"));

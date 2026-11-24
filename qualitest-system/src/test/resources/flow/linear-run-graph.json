@@ -43,7 +43,7 @@
           "body": {
             "mode": "json",
             "json": {
-              "example": "{\"username\":\"{{flow.loginUser}}\"}"
+              "example": "{\"username\":\"{{in.loginUser}}\"}"
             }
           }
         },
@@ -144,6 +144,7 @@
     }
   ],
   "meta": {
+    "schemaVersion": 2,
     "viewport": {
       "x": 0,
       "y": 0,

@@ -4,11 +4,16 @@ package com.qualitest.flow.node;
 import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.context.PlaceholderResolver;
+import com.qualitest.flow.delivery.InboundSlotRegistry;
+import com.qualitest.flow.delivery.RunDelivery;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
+import com.qualitest.flow.node.impl.AssignNodeHandler;
 import com.qualitest.flow.node.impl.EntryNodeHandler;
+import com.qualitest.flow.node.impl.ReturnNodeHandler;
 import com.qualitest.flow.node.impl.SubflowNodeHandler;
 import com.qualitest.flow.run.FlowGraphRunner;
 import com.qualitest.flow.subflow.SubflowDepth;
@@ -56,8 +61,9 @@ class SubflowNodeHandlerTest {
     void setUp() {
         testFlowService = mock(ITestFlowService.class);
         parsedGraphCache = mock(ParsedGraphCache.class);
-        flowGraphRunner = new FlowGraphRunner();
-        childRegistry = passingAssignRegistry();
+        RunDelivery delivery = new RunDelivery(new InboundSlotRegistry(4));
+        flowGraphRunner = new FlowGraphRunner(delivery);
+        childRegistry = passingAssignRegistry(delivery);
 
         Map<String, Object> flow = new HashMap<>();
         flow.put("seedIn", "parent-val");
@@ -232,23 +238,11 @@ class SubflowNodeHandlerTest {
         assertTrue(result.getError().getMessage().contains("嵌套超过上限"));
     }
 
-    private static NodeHandlerRegistry passingAssignRegistry() {
+    private static NodeHandlerRegistry passingAssignRegistry(RunDelivery delivery) {
         return new NodeHandlerRegistry(List.of(
                 new EntryNodeHandler(),
-                new AbstractStubNodeHandler(FlowNodeType.ASSIGN) {
-                    @Override
-                    public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
-                        ctx.getFlow().put("childOut", "ok");
-                        return StepResult.builder()
-                                .nodeId(node.getId())
-                                .nodeType("assign")
-                                .nodeName("stub-assign")
-                                .status(RunStatus.PASSED.getCode())
-                                .durationMs(1)
-                                .flowAfter(new HashMap<>(ctx.getFlow()))
-                                .build();
-                    }
-                }
+                new AssignNodeHandler(),
+                new ReturnNodeHandler(delivery, PlaceholderResolver.strict())
         ));
     }
 

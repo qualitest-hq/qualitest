@@ -221,10 +221,9 @@ export function buildLoginGraphJson({
       {
         id: 'cond_token',
         type: 'condition',
+        name: '凭证是否存在',
         position: { ...LOGIN_FLOW_NODE_LAYOUT.cond_token },
         data: {
-          name: '凭证是否存在',
-          summary: '凭证是否存在',
           branches: [
             {
               id: 'b_token_if',
@@ -239,9 +238,9 @@ export function buildLoginGraphJson({
       {
         id: 'probe_http',
         type: 'http',
+        name: '探活',
         position: { ...LOGIN_FLOW_NODE_LAYOUT.probe_http },
         data: {
-          name: '探活',
           callMode: 'project',
           httpMethod: safeProbeMethod,
           apiPath: safeProbePath,
@@ -257,18 +256,14 @@ export function buildLoginGraphJson({
           // 关闭业务码，避免非 JSON / 401 体误失败
           successCheck: { mode: 'off' },
           extracts: [],
-          summary: String(probeApiId || '').trim()
-            ? `${safeProbeMethod} ${String(probeApiName || '').trim() || safeProbePath}`
-            : '探活',
         },
       },
       {
         id: 'cond_alive',
         type: 'condition',
+        name: '凭证是否有效',
         position: { ...LOGIN_FLOW_NODE_LAYOUT.cond_alive },
         data: {
-          name: '凭证是否有效',
-          summary: '凭证是否有效',
           branches: [
             {
               id: 'b_alive_if',
@@ -286,9 +281,9 @@ export function buildLoginGraphJson({
       {
         id: 'login_http',
         type: 'http',
+        name: nodeName || '登录',
         position: { ...LOGIN_FLOW_NODE_LAYOUT.login_http },
         data: {
-          name: nodeName || '登录',
           callMode: 'project',
           httpMethod: String(method || 'POST').trim().toUpperCase() || 'POST',
           apiPath: String(apiPath || '').trim(),
@@ -301,9 +296,20 @@ export function buildLoginGraphJson({
           timeoutMs: timeout,
           successCheck: { mode: successCheckMode === 'off' ? 'off' : 'inherit' },
           extracts: extractList,
-          summary: String(loginApiId || '').trim()
-            ? `${String(method || 'POST').trim().toUpperCase() || 'POST'} ${String(loginApiName || '').trim() || String(apiPath || '').trim() || nodeName || '登录'}`
-            : nodeName || '登录',
+          requestValueOverrides:
+            assetEntry === 'clientAuth'
+              ? {
+                  bodyExample: {
+                    mobile: '{{asset.clientAuth.mobile}}',
+                    password: '{{asset.clientAuth.password}}',
+                  },
+                }
+              : {
+                  bodyExample: {
+                    username: `{{asset.${assetEntry}.username}}`,
+                    password: `{{asset.${assetEntry}.password}}`,
+                  },
+                },
         },
       },
     ],
@@ -312,7 +318,7 @@ export function buildLoginGraphJson({
       ...LOGIN_FLOW_EDGES.map((e) => ({ ...e })),
     ],
     meta: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       // 预制登录流记为默认排版。坐标用上面写好的位置，这里不重排
       layout: 'default',
       viewport: { x: 0, y: 0, zoom: 0.85 },

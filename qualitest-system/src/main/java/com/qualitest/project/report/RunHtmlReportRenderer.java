@@ -4,8 +4,11 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.CompareRuleEvaluator;
+import com.qualitest.flow.context.EntryScenarioSupport;
 import com.qualitest.flow.http.HttpRetryUntilSupport;
 import com.qualitest.flow.http.HttpStepDetailsDesensitizer;
+import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.project.result.TestFlowRunDetailResult;
@@ -651,29 +654,17 @@ public final class RunHtmlReportRenderer {
     }
 
     /**
-     * 在触发时固化的流程图快照里，按场景 ID 查找场景显示名。
+     * 在触发时固化的流程图快照里，按场景 ID 查找场景显示名（读 scenario-entry）。
      */
     private static String resolveScenarioNameFromSnapshot(String graphJsonSnapshot, String runScenarioId) {
         if (graphJsonSnapshot == null || graphJsonSnapshot.isBlank() || runScenarioId == null) {
             return null;
         }
         try {
-            JSONObject graph = JSON.parseObject(graphJsonSnapshot);
-            if (graph == null) {
-                return null;
-            }
-            JSONObject meta = graph.getJSONObject("meta");
-            if (meta == null) {
-                return null;
-            }
-            JSONArray scenarios = meta.getJSONArray("scenarios");
-            if (scenarios == null) {
-                return null;
-            }
-            for (int i = 0; i < scenarios.size(); i++) {
-                JSONObject sc = scenarios.getJSONObject(i);
-                if (sc != null && runScenarioId.equals(String.valueOf(sc.get("id")))) {
-                    String name = sc.getString("name");
+            GraphJson graph = GraphJson.parse(graphJsonSnapshot);
+            for (GraphRunScenario sc : EntryScenarioSupport.allEntryScenarios(graph)) {
+                if (sc != null && runScenarioId.equals(String.valueOf(sc.getId()))) {
+                    String name = sc.getName();
                     return name != null && !name.isBlank() ? name.trim() : null;
                 }
             }

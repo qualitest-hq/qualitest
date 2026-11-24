@@ -382,12 +382,12 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 前提：已有场景 flowSeed 含 loginUser；update 只带 pollAttempt。
+     * 前提：已有场景 inSeed 含 loginUser；update 只带 pollAttempt。
      * 期望：浅合并后两者都在。
      */
     @Test
     @Order(10)
-    @DisplayName("更新场景浅合并 flowSeed")
+    @DisplayName("更新场景浅合并 inSeed")
     void mergeScenarioPatch_updateScenario_mergesFlowSeed() {
         String scenarioId = "2042000000000000101";
         List<GraphRunScenario> base = new ArrayList<>(com.qualitest.flow.context.EntryScenarioSupport

@@ -11,7 +11,7 @@ import {
 
 describe('batchRunScenarios', () => {
   it('从 graphJson 解析场景并标记活动场景', () => {
-    // 前提：meta 含两场景且指定 activeScenarioId
+    // 前提：scenario-entry 含两场景且指定 activeScenarioId
     // 期望：两条场景，活动标记正确
     const scenarios = parseFlowScenariosFromGraphJson(
       JSON.stringify({

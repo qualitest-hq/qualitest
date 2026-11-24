@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class FlowRunContextBuilderTest {
 
     /**
-     * 前提：TestProjectEnv 含 envUrl、envVariables；assetJson 与 flowSeed 非空。
+     * 前提：TestProjectEnv 含 envUrl、envVariables；assetJson 与 inSeed 非空。
      * 期望：ctx.env 含 baseUrl/timeout，flow 含 loginUser，asset.defaults 含 clientId。
      */
     @Test

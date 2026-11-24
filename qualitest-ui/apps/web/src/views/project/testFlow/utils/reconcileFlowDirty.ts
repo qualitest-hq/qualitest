@@ -53,7 +53,7 @@ export function snapshotStringWithoutViewport(graph: GraphJson | Record<string, 
 
 /**
  * 从画布生成未保存比较用的快照（不含视口）。
- * 先确保边已灌入，再序列化节点、边、运行配置、流输出和排版方式。
+ * 先确保边已灌入，再序列化节点、边、入口场景（scenario-entry）与排版方式。
  * 换排版或挪坐标都会和基线不同，从而显示未保存。
  *
  * @param store 画布 store

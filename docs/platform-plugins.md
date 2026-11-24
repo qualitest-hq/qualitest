@@ -905,6 +905,6 @@ Prepare 调度：**必须**实现 §4.2 排序算法。
 - [x] 库存档点：专文 + `sdap` CLI（首期 MySQL）install/ping/create/restore
 - [x] 项目挂载（存档点）
 - [x] B 类 UI 可见（存档点徽章）
-- [x] 2.0 批 4 样本路径：插件仓 README「最短上手」（同机 local-exec；zip/发现目录 → bindAlias → 启用 → 徽章 → snapshotBefore）
-- [ ] 协议入口 `{protocol}-entry` 可演示消费面（codec / 交付登记）— **后置**，不挡批 4 存档点验收
+- [x] 2.0 批 4 样本路径：插件仓 README「最短上手」（同机 local-exec；zip/发现目录 → bindAlias → 启用 → 徽章 → snapshotBefore）；验收以各仓 README / `examples/` 为准，主仓不另留临时手测稿
+- [ ] 协议入口 `{protocol}-entry` 可演示消费面（codec / 交付登记）— **后置**，不挡批 4 存档点验收、不挡 2.0.0 tag
 - [ ] 拨钟样本

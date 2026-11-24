@@ -291,9 +291,9 @@ curl.exe -fsS -D - -o NUL http://localhost:5180/healthz
 ```
 
 - 浏览器：`http://localhost:5180`（若改过 `WEB_PORT`，用改后的端口）
-- 开箱账号（Flyway 跑完后，含 **V6**）：
+- 开箱账号（Flyway **`V1__baseline`** 跑完后）：
   - **`admin` / `admin123`**：超级管理员（**仅本地 / 私有环境**；公网务必改密）
-  - **`demo` / `demo123`**：演示访客（由 V6 将种子账号收敛而来；仅测试管理 + AI；正式环境请改密或停用）
+  - **`demo` / `demo123`**：演示访客（内置种子；仅测试管理 + AI；正式环境请改密或停用）
 - **公网演示**：[https://qualitesthq.cn/](https://qualitesthq.cn/) · 靶场 [https://demo.qualitesthq.cn/](https://demo.qualitesthq.cn/) · 访客 **`demo` / `demo123`**（勿公布运维账号）。正式登录页不预填；演示可选挂载 `config.js`。本地 `.env.development` 可预填 `admin`
 - 首次以响应头 **`HTTP/1.1 200`** / 日志 Flyway migrate 成功为准（空库由 Flyway 建表，不再依赖 initdb 整库 dump）
 - IDEA 插件服务器地址：Compose 填 **`http://localhost:5180/prod-api`**；本机后端填 **`http://localhost:8800`**
@@ -714,17 +714,16 @@ docker compose up -d --build # 改代码、Dockerfile，或 GHCR 拉取失败时
 
 ## 库表迁移（Flyway）
 
-质衡（**仅主仓**）用 Flyway：空库启动应用自动 migrate；之后改表只加增量脚本。脚本目录：`qualitest-admin/src/main/resources/db/migration/`。
+质衡（**仅主仓**）用 Flyway：空库启动应用自动 migrate。产品 **2.0.0** 起仓内仅保留 **`V1__baseline.sql`**（含结构 + 种子）；开发期的 `V2`…`V13` 增量已折叠进 V1，**不随 2.0 发布**。脚本目录：`qualitest-admin/src/main/resources/db/migration/`。
 
 | 约定 | 说明 |
 |------|------|
-| 命名 | `V{n}__short_desc.sql`（两个下划线），如 `V2__add_api_group_index.sql` |
-| 空库 | Compose 只建空库 `qualitest` → app 启动跑 `V1`…`Vn` |
-| 新功能 | **只加**新的 `V{n}`；禁止改已执行文件；**不要**用本机 mysqldump 全库导出当升级路径 |
+| 空库安装 | Compose 只建空库 `qualitest` → app 启动仅执行 **`V1__baseline`** |
+| 2.0 之后新功能 | **只加**新的 `V{n}`；禁止改已执行文件；**不要**用本机 mysqldump 全库导出当升级路径 |
 | 配置 | Druid master 下须显式配 `spring.flyway.url` / `user` / `password`（见各 `application-*.yml`） |
 | 生产 | 禁止 `clean`；回滚靠新版本正向修复或备份还原（Community 无自动 down） |
 
-**2.0 基线方向**（开发期不执行）：继续只加 `V{n}`（含插件表等增量）。产品 **2.0.0** 发版时对空库重做单一基线；**不提供** 1.x 热升、不迁旧 `graph_json`。此刻**不**删改已执行的 V1…Vn。
+**不提供 1.x 热升**：不迁旧 `graph_json`；从 1.x 迁到 2.0 请新建空库按 2.0 开箱，或自建迁数脚本（放仓外）。
 
 查当前版本：
 
@@ -734,15 +733,8 @@ FROM flyway_schema_history
 ORDER BY installed_rank;
 ```
 
-### 存量库接入（本地有数据 / 将来生产）
+### 存量库（已有 Flyway 历史、非空库）
 
-**禁止**对已有业务库直接执行完整 `V1__baseline.sql`（含 `DROP` / 重复 `CREATE`）。
-
-1. 备份库（`mysqldump` 等，备份文件**勿提交**进 Git）
-2. 确认当前结构 ≈ V1 所描述结构
-3. 临时设置 `spring.flyway.baseline-on-migrate: true`（`baseline-version: 1` 已配置）
-4. 启动一次 → `flyway_schema_history` 出现 baseline 记录（版本 1），**不**执行 V1 文件体
-5. 改回 `baseline-on-migrate: false`
-6. 之后只通过新增 `V2`、`V3`… 升级
+**禁止**对已有业务库直接执行完整 `V1__baseline.sql`（含 `DROP` / 重复 `CREATE`）。2.0 单一基线面向**空库**；存量库继续靠备份与手工迁数，或丢弃后重建。
 
 **新变更只加 migration。** 本机全库 dump / 临时升级脚本请放仓外，勿进仓库。

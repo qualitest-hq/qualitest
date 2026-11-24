@@ -38,6 +38,7 @@
   ],
   "edges": [],
   "meta": {
+    "schemaVersion": 2,
     "startNodeId": "scn_entry_1795425561396"
   }
 }
