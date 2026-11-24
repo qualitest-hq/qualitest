@@ -116,9 +116,9 @@ public class TestFlowRunResult implements Serializable {
     private String errorMessage;
 
     /**
-     * 触发来源：manual（画布人手）、ai（全自动）、ci、schedule 等
+     * 触发来源短名：ui / mcp / ci / suite / http / subflow
      */
-    @Excel(name = "触发方式", readConverterExp = "manual=手动,ai=AI,ci=持续集成,schedule=定时")
+    @Excel(name = "触发方式", readConverterExp = "ui=画布,mcp=MCP,ci=CI,suite=套件,http=开放HTTP,subflow=子流")
     private String triggerType;
 
 

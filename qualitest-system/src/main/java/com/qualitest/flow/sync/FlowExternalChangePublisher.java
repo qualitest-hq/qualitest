@@ -122,6 +122,31 @@ public class FlowExternalChangePublisher {
                 .build());
     }
 
+    /** 测试流已删除（逻辑或物理） */
+    public void publishFlowDeleted(Long testFlowId, Long testProjectId, String source) {
+        if (testFlowId == null) {
+            return;
+        }
+        publish(FlowExternalChangeEvent.builder()
+                .type(FlowExternalChangeEvent.TYPE_FLOW_DELETED)
+                .testFlowId(testFlowId)
+                .testProjectId(testProjectId)
+                .source(source != null ? source : FlowExternalChangeSourceHolder.getOrDefault())
+                .build());
+    }
+
+    /** 测试项目已删除（逻辑或物理） */
+    public void publishProjectDeleted(Long testProjectId, String source) {
+        if (testProjectId == null) {
+            return;
+        }
+        publish(FlowExternalChangeEvent.builder()
+                .type(FlowExternalChangeEvent.TYPE_PROJECT_DELETED)
+                .testProjectId(testProjectId)
+                .source(source != null ? source : FlowExternalChangeSourceHolder.getOrDefault())
+                .build());
+    }
+
     /** 本机订阅者推送 + Redis 广播其它实例 */
     public void publish(FlowExternalChangeEvent event) {
         hub.publish(event);

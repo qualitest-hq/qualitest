@@ -9,7 +9,8 @@ import java.util.Map;
  * 占位符与运行时路径解析。
  * <p>
  * 模板形态：{@code {{路径}}}。<br>
- * 变量区：{@code env.*}、{@code flow.*}、{@code asset.*}、
+ * 变量区：{@code run.*}（entryKind / entryNodeId / trigger）、
+ * {@code env.*}、{@code flow.*}、{@code asset.*}、
  * {@code in.*}（入参）、{@code out.*}（出参 status/headers/body 及下钻）。<br>
  * 最近一次 HTTP：{@code http.body} / {@code http.body.<JsonPath相对路径>}、
  * {@code http.status}、{@code http.duration}、{@code http.header.*}、
@@ -20,6 +21,7 @@ import java.util.Map;
  */
 public record PlaceholderResolver(ResolveMode mode) {
 
+    /** 占位符解析模式 */
     public enum ResolveMode {
         /** 未定义占位符 → 空字符串（调试 / Mock） */
         LENIENT,
@@ -63,7 +65,7 @@ public record PlaceholderResolver(ResolveMode mode) {
 
     /**
      * 替换模板中全部合法路径占位
-     * （flow / env / asset / in / out / http / nodes…）。
+     * （run / flow / env / asset / in / out / http / nodes…）。
      * 非路径形态的花括号保留为字面量；未定义路径在宽松模式下变空串，严格模式下抛错。
      *
      * @param template 模板原文，null 视为空串
@@ -94,6 +96,7 @@ public record PlaceholderResolver(ResolveMode mode) {
     /**
      * 单段路径求值：占位符内部、断言/条件左值、比较右值路径共用。
      * 纯 {@code $…} 会先改成 {@code http.body…}；
+     * {@code run.*} 读本次运行的入口种类、入口节点与触发源；
      * {@code in.*}/{@code out.*} 读入参/出参 Map；
      * {@code nodes.&lt;id&gt;.out…} 读 nodeOuts；{@code nodes.&lt;id&gt;.http…} 读 nodeResponses；
      * {@code http…} 读 lastResponse。
@@ -109,6 +112,9 @@ public record PlaceholderResolver(ResolveMode mode) {
         String p = normalizeAssertLeftPath(path.trim());
         if (p.isEmpty()) {
             return null;
+        }
+        if (p.startsWith("run.")) {
+            return resolveRunPath(ctx, p.substring(4));
         }
         if (p.startsWith("flow.")) {
             return ctx.getFlow() != null ? ctx.getFlow().get(p.substring(5)) : null;
@@ -137,6 +143,26 @@ public record PlaceholderResolver(ResolveMode mode) {
             return resolveHttpPathOnSnapshot(ctx.getLastResponse(), p.substring(5));
         }
         return null;
+    }
+
+    /**
+     * 解析 {@code run.*} 路径：支持 entryKind（入口种类）、entryNodeId（入口节点 id）、
+     * trigger（触发源）三个键，其余键或空键返回 null。
+     *
+     * @param ctx  运行上下文
+     * @param rest {@code run.} 之后的键名
+     * @return 对应取值；未知键返回 null
+     */
+    private static Object resolveRunPath(FlowRunContext ctx, String rest) {
+        if (rest == null || rest.isBlank()) {
+            return null;
+        }
+        return switch (rest.trim()) {
+            case "entryKind" -> ctx.getEntryKind();
+            case "entryNodeId" -> ctx.getEntryNodeId();
+            case "trigger" -> ctx.getTrigger();
+            default -> null;
+        };
     }
 
     /**

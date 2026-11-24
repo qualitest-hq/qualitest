@@ -1,6 +1,8 @@
 package com.qualitest.flow.openhttp;
 
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.input.EntryInputShapeValidator;
+import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.context.FlowRunContextBuilder;
 import com.qualitest.flow.delivery.DeferredResultDeliverySink;
 import com.qualitest.flow.delivery.EntryKind;
@@ -23,6 +25,7 @@ import org.springframework.web.context.request.async.DeferredResult;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,6 +35,7 @@ import java.util.concurrent.Executors;
  * 处理流程：
  * <ol>
  *   <li>按项目 + method + path 查路由；未登记立即 404</li>
+ *   <li>若入口声明了 inputShape，校验 query / headers / body 的必填与类型；不符立即 400，不跑图</li>
  *   <li>占入站名额；满员立即 503，不跑图</li>
  *   <li>把 query / headers / body 灌入运行时 {@code in}，挂 DeliverySink 与名额令牌</li>
  *   <li>后台线程跑图；http-return 或收束时写出并腾槽</li>
@@ -45,12 +49,19 @@ public class OpenHttpIngressService {
     /** 握连接最长等待毫秒；超时只断写出端，图继续 */
     private static final long TIMEOUT_MS = 120_000L;
 
+    /** 开放路由目录，按 method+path 查找路由 */
     private final OpenHttpRouteCatalog routeCatalog;
+    /** 入站名额登记表 */
     private final InboundSlotRegistry inboundSlotRegistry;
+    /** 跑图引擎 */
     private final FlowGraphRunner flowGraphRunner;
+    /** 节点执行器注册表 */
     private final NodeHandlerRegistry nodeHandlerRegistry;
+    /** 测试环境服务 */
     private final ITestProjectEnvService testProjectEnvService;
+    /** 测试项目数据访问 */
     private final TestProjectMapper testProjectMapper;
+    /** 后台跑图线程池 */
     private final ExecutorService runPool = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "open-http-ingress");
         t.setDaemon(true);
@@ -97,6 +108,16 @@ public class OpenHttpIngressService {
             return deferred;
         }
 
+        // 入口声明了 inputShape 时先校验入参形状，不符直接返回 400
+        Optional<String> shapeError = validateIngressShape(route, query, headers, body);
+        if (shapeError.isPresent()) {
+            deferred.setResult(platformError(
+                    HttpStatus.BAD_REQUEST,
+                    EntryInputShapeValidator.ERROR_CODE,
+                    shapeError.get()));
+            return deferred;
+        }
+
         String slot = inboundSlotRegistry.tryAcquire();
         if (slot == null) {
             deferred.setResult(platformError(HttpStatus.SERVICE_UNAVAILABLE, "OPEN_SLOT_FULL", "开放入站名额已满"));
@@ -128,6 +149,10 @@ public class OpenHttpIngressService {
         ctx.setEntryKind(EntryKind.HTTP.getCode());
         ctx.setEntryNodeId(route.entryNodeId());
         ctx.setTrigger(EntryKind.HTTP.getCode());
+        // 入口绑定了环境时，把环境 id 写入上下文供插件步骤使用
+        if (route.envId() != null) {
+            ctx.setTestProjectEnvId(route.envId());
+        }
         ctx.setDeliverySink(sink);
         ctx.setInboundSlotToken(slot);
         if (project != null) {
@@ -159,6 +184,42 @@ public class OpenHttpIngressService {
             }
         });
         return deferred;
+    }
+
+    /**
+     * 按入口节点 data.inputShape 校验入站请求；找不到入口节点或未声明 shape 时不拦截。
+     *
+     * @param route   命中的开放路由
+     * @param query   查询参数
+     * @param headers 请求头
+     * @param body    请求体
+     * @return 校验失败原因；通过或无需校验时为 empty
+     */
+    private static Optional<String> validateIngressShape(
+            OpenHttpRoute route,
+            Map<String, Object> query,
+            Map<String, String> headers,
+            Object body) {
+        if (route == null || route.graph() == null || route.graph().getNodes() == null) {
+            return Optional.empty();
+        }
+        GraphNode entry = null;
+        for (GraphNode n : route.graph().getNodes()) {
+            if (n != null && route.entryNodeId().equals(n.getId())) {
+                entry = n;
+                break;
+            }
+        }
+        if (entry == null || entry.getData() == null) {
+            return Optional.empty();
+        }
+        Object rawShape = entry.getData().get("inputShape");
+        if (!(rawShape instanceof Map<?, ?> map)) {
+            return Optional.empty();
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> inputShape = (Map<String, Object>) map;
+        return EntryInputShapeValidator.validate(inputShape, query, headers, body);
     }
 
     /** 平台侧即时错误（未开跑）：统一 JSON 形态 code + message */

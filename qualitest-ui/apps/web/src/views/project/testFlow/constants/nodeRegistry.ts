@@ -27,8 +27,10 @@ import ScriptNode from '../nodes/ScriptNode.vue';
 import SubflowEntryPropertySection from '../panels/property/SubflowEntryPropertySection.vue';
 import SubflowNode from '../nodes/SubflowNode.vue';
 import InputNode from '../nodes/InputNode.vue';
+import PluginActionNode from '../nodes/PluginActionNode.vue';
 import SubflowPropertySection from '../panels/property/SubflowPropertySection.vue';
 import InputPropertySection from '../panels/property/InputPropertySection.vue';
+import PluginActionPropertySection from '../panels/property/PluginActionPropertySection.vue';
 
 import type { FlowNodeTypeKey } from './nodeTypes';
 
@@ -90,6 +92,11 @@ export const NODE_REGISTRY: Record<FlowNodeTypeKey, NodeRegistryEntry> = {
   input: {
     canvas: InputNode,
     property: InputPropertySection,
+  },
+  // 插件动作：卡片展示插件与能力，右侧面板编辑插件 id / 能力 / 参数
+  pluginAction: {
+    canvas: PluginActionNode,
+    property: PluginActionPropertySection,
   },
 };
 

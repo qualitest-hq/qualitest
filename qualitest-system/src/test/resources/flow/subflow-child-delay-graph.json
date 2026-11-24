@@ -33,7 +33,13 @@
       "name": "子流等待"
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "id": "e-entry-cd1",
+      "source": "scn_entry_1795425561394",
+      "target": "cd1"
+    }
+  ],
   "meta": {
     "startNodeId": "scn_entry_1795425561394"
   }

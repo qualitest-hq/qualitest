@@ -11,6 +11,7 @@ import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
 import com.qualitest.flow.snapshot.SnapshotStackEntry;
 import com.qualitest.flow.run.RunStatusUpdater;
+import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.validate.FlowRunReadinessGate;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestFlowRun;
@@ -87,6 +88,7 @@ class TestFlowExecutionServiceImplResumeTest {
                 testFlowExecutor,
                 stepResultWriter,
                 mock(FlowRunReadinessGate.class),
+                mock(ParsedGraphCache.class),
                 mock(RunStatusUpdater.class),
                 mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class),
                 mock(com.qualitest.project.runhub.EnvRunConcurrencyService.class),

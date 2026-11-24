@@ -3,8 +3,6 @@ package com.qualitest.flow.openhttp;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.validate.FlowNodeType;
-import com.qualitest.project.domain.TestFlow;
-import com.qualitest.project.service.ITestFlowService;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -13,20 +11,20 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 按项目扫描未删除流图中的 {@code http-entry}，把 method+path 解析成可命中的路由。
+ * 开放 HTTP 路由目录门面。
  * <p>
- * 查找时线性扫描项目下全部流；同一 method+path 出现多次时保留先扫到的一条，
- * 后到的同路径入口会被忽略（保存期是否硬拦重复 path 由其它校验负责）。
+ * 查找委托 {@link OpenHttpRouteIndex}（进程内 method+path 索引 + 图缓存）；
+ * 规范化与单图解析工具仍保留在本类，供冲突门禁与单测使用。
  * method 空则视为 GET；path 统一补前导 /、去掉多余尾 /。
  */
 @Component
 public class OpenHttpRouteCatalog {
 
-    private final ITestFlowService testFlowService;
+    private final OpenHttpRouteIndex routeIndex;
 
-    /** 通过测试流服务扫描项目下图上的 http-entry */
-    public OpenHttpRouteCatalog(ITestFlowService testFlowService) {
-        this.testFlowService = testFlowService;
+    /** 通过项目级路由索引查找开放入口 */
+    public OpenHttpRouteCatalog(OpenHttpRouteIndex routeIndex) {
+        this.routeIndex = routeIndex;
     }
 
     /**
@@ -35,34 +33,7 @@ public class OpenHttpRouteCatalog {
      * @return 命中的路由；无匹配或参数非法时 null
      */
     public OpenHttpRoute find(Long testProjectId, String method, String path) {
-        String m = normalizeMethod(method);
-        String p = normalizePath(path);
-        if (testProjectId == null || m.isEmpty() || p.isEmpty()) {
-            return null;
-        }
-        TestFlow query = new TestFlow();
-        query.setTestProjectId(testProjectId);
-        query.setDelStatus(0);
-        List<TestFlow> flows = testFlowService.selectTestFlowList(query);
-        if (flows == null) {
-            return null;
-        }
-        for (TestFlow flow : flows) {
-            if (flow == null || flow.getGraphJson() == null || flow.getGraphJson().isBlank()) {
-                continue;
-            }
-            GraphJson graph = GraphJson.parse(flow.getGraphJson());
-            if (graph == null || graph.getNodes() == null) {
-                continue;
-            }
-            for (GraphNode node : graph.getNodes()) {
-                OpenHttpRoute route = toRoute(testProjectId, flow.getTestFlowId(), graph, node);
-                if (route != null && m.equals(route.method()) && p.equals(route.path())) {
-                    return route;
-                }
-            }
-        }
-        return null;
+        return routeIndex.find(testProjectId, method, path);
     }
 
     /** HTTP 方法：trim + 大写；空串视为 GET */

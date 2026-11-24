@@ -36,6 +36,7 @@ import com.qualitest.flow.run.RunBootstrapMeta;
 import com.qualitest.flow.run.RunStatusUpdater;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
+import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.http.FlowExternalPermission;
 import com.qualitest.flow.validate.FlowRunReadinessGate;
 import com.qualitest.project.enums.TestProjectMemberPerm;
@@ -94,6 +95,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     private final TestFlowExecutor testFlowExecutor;
     private final StepResultWriter stepResultWriter;
     private final FlowRunReadinessGate flowRunReadinessGate;
+    private final ParsedGraphCache parsedGraphCache;
     private final RunStatusUpdater runStatusUpdater;
     private final FlowExternalChangePublisher flowExternalChangePublisher;
     /** 环境串行锁 / 排队 / 活动索引 */
@@ -141,15 +143,10 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         testProjectMemberService.requireCapability(
                 testFlow.getTestProjectId(), operatorUserId, TestProjectMemberPerm.FLOW_RUN);
 
-        // 2. 解析图并做运行就绪检查；未通过则不创建 Run 记录
-        GraphJson graph;
-        try {
-            graph = GraphJson.parse(testFlow.getGraphJson());
-            if (graph == null) {
-                throw new IllegalArgumentException("解析结果为空");
-            }
-        } catch (Exception e) {
-            throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID, "图解析失败: " + e.getMessage());
+        // 2. 经图缓存解析并做运行就绪检查；未通过则不创建 Run 记录
+        GraphJson graph = parsedGraphCache.get(testFlow.getTestFlowId());
+        if (graph == null) {
+            throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID, "图解析失败");
         }
 
         List<String> readinessErrors =
@@ -213,7 +210,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                         .testFlowId(testFlow.getTestFlowId())
                         .flowName(testFlow.getFlowName())
                         .runScenarioId(scenario.getScenarioId())
-                        .triggerType(StrUtil.blankToDefault(params.getTriggerType(), "manual"))
+                        // 触发方式规范化后入队，空值按 ui
+                        .triggerType(com.qualitest.flow.delivery.RunTrigger.normalize(params.getTriggerType()))
                         .operatorUserId(operatorUserId)
                         .triggerParams(snap)
                         .build());
@@ -244,7 +242,12 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             ctx.setEntryNodeId(entryNodeId);
         }
         ctx.setEntryKind(com.qualitest.flow.delivery.EntryKind.SCENARIO.getCode());
-        ctx.setTrigger(StrUtil.blankToDefault(params.getTriggerType(), "manual"));
+        // 规范化触发方式（空值按 ui），同时写入上下文与运行记录
+        String triggerType = com.qualitest.flow.delivery.RunTrigger.normalize(params.getTriggerType());
+        ctx.setTrigger(triggerType);
+        // 记录环境 id 与运行记录 id，供插件步骤使用
+        ctx.setTestProjectEnvId(env.getTestProjectEnvId());
+        ctx.setTestFlowRunId(runId);
         if (project != null) {
             ctx.setProjectAuthConfig(project.getAuthConfig());
         }
@@ -253,7 +256,6 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         String fingerprint = StepResultWriter.fingerprint(snapshotJson);
 
         Date now = DateUtils.getNowDate();
-        String triggerType = StrUtil.blankToDefault(params.getTriggerType(), "manual");
         TestFlowRun run = TestFlowRun.builder()
                 .testFlowRunId(runId)
                 .testFlowId(testFlow.getTestFlowId())

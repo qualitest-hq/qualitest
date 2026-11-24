@@ -107,14 +107,19 @@ export function useFlowScenarioRun() {
     runLib.scenarioRunLive = { abort: false, recordId: placeholderId, phase: 'running' };
 
     try {
-      const entryNode = store.nodes.find((n) => n.type === 'scenario-entry');
+      // 运行入口：优先用户在运行配置中选中的入口，否则取画布第一个场景入口
+      const entryNodeId =
+        store.selectedRunEntryNodeId
+        || store.nodes.find((n) => n.type === 'scenario-entry')?.id
+        || undefined;
       const envId = scenario?.envId || scenario?.testProjectEnvId || undefined;
       const triggerRes = await triggerTestFlowRun({
         testFlowId: store.testFlowId,
         testProjectEnvId: envId || undefined,
-        entryNodeId: entryNode?.id || undefined,
+        entryNodeId: entryNodeId || undefined,
         runScenarioId: scenario?.id || undefined,
-        triggerType: 'manual',
+        // 来自画布点击运行
+        triggerType: 'ui',
       });
 
       if (runLib.scenarioRunLive?.abort) return null;

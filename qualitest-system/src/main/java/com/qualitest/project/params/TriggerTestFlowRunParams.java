@@ -36,8 +36,8 @@ public class TriggerTestFlowRunParams {
     private String runScenarioId;
 
     /**
-     * 触发来源，写入运行记录与运行中心来源归类。
-     * 常见值：manual（画布人手）、ai（全自动工具）、suite、ci、schedule；空则按 manual。
+     * 触发来源，写入运行记录与 {@code run.trigger}。
+     * 短名：ui / mcp / ci / suite / http / subflow；空则按 ui。
      */
     private String triggerType;
 

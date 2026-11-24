@@ -985,7 +985,8 @@ public final class PrefabricatedTemplateExtrasSupport {
         scenarioEntry.put("data", entryData);
 
         JSONObject meta = new JSONObject();
-        meta.put("schemaVersion", 1);
+        // 写入当前 graph_json 结构版本（入口节点化等能力）
+        meta.put("schemaVersion", com.qualitest.flow.model.GraphSchemaVersions.CURRENT);
         // 预制流记为默认排版。节点坐标在组装时已经写好，这里不重排
         meta.put("layout", "default");
         meta.put("viewport", viewport);

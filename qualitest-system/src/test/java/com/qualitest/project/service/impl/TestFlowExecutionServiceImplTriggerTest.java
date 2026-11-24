@@ -6,6 +6,7 @@ import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.run.RunStatusUpdater;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
+import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.validate.FlowRunReadinessGate;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestFlowRun;
@@ -81,6 +82,13 @@ class TestFlowExecutionServiceImplTriggerTest {
         com.qualitest.project.runhub.EnvRunConcurrencyService concurrency =
                 mock(com.qualitest.project.runhub.EnvRunConcurrencyService.class);
         when(concurrency.isSerialByEnv(any())).thenReturn(false);
+        ParsedGraphCache parsedGraphCache = mock(ParsedGraphCache.class);
+        when(parsedGraphCache.get(anyLong())).thenAnswer(inv -> {
+            TestFlow f = testFlowService.selectTestFlowById(inv.getArgument(0));
+            return f != null && f.getGraphJson() != null
+                    ? com.qualitest.flow.model.GraphJson.parse(f.getGraphJson())
+                    : null;
+        });
         service = new TestFlowExecutionServiceImpl(
                 testFlowService,
                 testFlowRunService,
@@ -91,6 +99,7 @@ class TestFlowExecutionServiceImplTriggerTest {
                 testFlowExecutor,
                 new StepResultWriter(),
                 flowRunReadinessGate,
+                parsedGraphCache,
                 mock(RunStatusUpdater.class),
                 mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class),
                 concurrency,
@@ -110,7 +119,7 @@ class TestFlowExecutionServiceImplTriggerTest {
 
     /**
      * 前提：合法图与环境；Executor.execute 阻塞至 latch 释放。
-     * 期望：triggerRun 在 execute 结束前返回 runId；已 insert running。
+     * 期望：triggerRun 在 execute 结束前返回 runId；已 insert running，且运行记录的触发方式为传入的 ui。
      */
     @Test
     @Order(1)
@@ -151,7 +160,7 @@ class TestFlowExecutionServiceImplTriggerTest {
 
         var outcome = service.triggerRun(TriggerTestFlowRunParams.builder()
                 .testFlowId(1L)
-                .triggerType("manual")
+                .triggerType("ui")
                 .build());
 
         assertNotNull(outcome);
@@ -164,7 +173,7 @@ class TestFlowExecutionServiceImplTriggerTest {
         verify(testFlowRunService).insertTestFlowRun(runCaptor.capture());
         assertEquals(RunStatus.RUNNING.getCode(), runCaptor.getValue().getStatus());
         assertEquals(runId, runCaptor.getValue().getTestFlowRunId());
-        assertEquals("manual", runCaptor.getValue().getTriggerType());
+        assertEquals("ui", runCaptor.getValue().getTriggerType());
 
         release.countDown();
         assertTrue(entered.await(0, TimeUnit.MILLISECONDS));

@@ -33,7 +33,7 @@ public class ProjectRunHubItemResult implements Serializable {
     /** queued / running / passed / failed / paused / aborted / cancelled 等 */
     private String status;
 
-    /** manual / mcp / ai / suite / ci / schedule 等 */
+    /** 来源短名：ui / mcp / ci / suite / http / subflow */
     private String source;
 
     /** flow / suite / queue */
@@ -63,8 +63,10 @@ public class ProjectRunHubItemResult implements Serializable {
 
     private String suiteName;
 
+    /** 本次运行选用的场景 id；无场景时为空 */
     private String runScenarioId;
 
+    /** 触发来源短名：ui / mcp / ci / suite / http / subflow */
     private String triggerType;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING)

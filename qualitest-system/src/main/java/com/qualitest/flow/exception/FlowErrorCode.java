@@ -50,20 +50,29 @@ public enum FlowErrorCode {
      * 收束已用入口 fallbackOut（或平台默认包）补交；Outcome 仍记失败；
      * 调用方或父流仍可从已写出/已挂载的 out 读到兜底内容。
      */
-    TF_RETURN_MISSING("TF_RETURN_MISSING", "未执行到返回节点");
+    TF_RETURN_MISSING("TF_RETURN_MISSING", "未执行到返回节点"),
+    /** pluginAction 所需插件未启用、未登记，或插件未提供所配置的 capability */
+    TF_NODE_CAPABILITY_UNAVAILABLE("TF_NODE_CAPABILITY_UNAVAILABLE", "插件能力不可用"),
+    /** pluginAction 调用插件失败（插件返回非成功或调用过程异常） */
+    TF_PLUGIN_ACTION_FAILED("TF_PLUGIN_ACTION_FAILED", "插件步骤执行失败");
 
+    /** 错误码字符串 */
     private final String code;
+    /** 默认错误提示 */
     private final String defaultMessage;
 
+    /** 构造错误码枚举项 */
     FlowErrorCode(String code, String defaultMessage) {
         this.code = code;
         this.defaultMessage = defaultMessage;
     }
 
+    /** 获取错误码字符串 */
     public String getCode() {
         return code;
     }
 
+    /** 获取默认错误提示 */
     public String getDefaultMessage() {
         return defaultMessage;
     }

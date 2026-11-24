@@ -80,6 +80,8 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
   const edges = ref<Edge[]>([]);
   const viewport = ref<GraphViewport>({ ...DEFAULT_VIEWPORT });
   const runConfig = ref<GraphScenarioConfig>(createDefaultRunConfig());
+  /** 跑前选中的入口节点 id（场景入口 / HTTP 入口 / 子流入口）；未选时为 null */
+  const selectedRunEntryNodeId = ref<string | null>(null);
   const testFlowId = ref('');
   const testProjectId = ref('');
   const flowName = ref('');
@@ -212,6 +214,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     edges.value = [];
     viewport.value = { ...DEFAULT_VIEWPORT };
     runConfig.value = createDefaultRunConfig();
+    selectedRunEntryNodeId.value = null;
     testFlowId.value = '';
     testProjectId.value = '';
     flowName.value = '';
@@ -501,6 +504,7 @@ export const useFlowCanvasStore = defineStore('flowCanvas', () => {
     edges,
     viewport,
     runConfig,
+    selectedRunEntryNodeId,
     testFlowId,
     testProjectId,
     flowName,

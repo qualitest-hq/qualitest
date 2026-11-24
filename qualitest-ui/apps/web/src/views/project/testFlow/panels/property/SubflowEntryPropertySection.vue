@@ -4,6 +4,10 @@
       <label>入口说明（可选）</label>
       <textarea :value="node.data?.doc ?? ''" rows="3" @input="(e) => patch({ doc: e.target.value })" />
     </div>
+    <EntryInputShapeSection
+      :model-value="node.data?.inputShape ?? null"
+      @update:model-value="(v) => patch({ inputShape: v })"
+    />
     <div class="field">
       <label>fallbackOut（JSON）</label>
       <textarea :value="fallbackText" rows="8" @change="onFallback" />
@@ -14,11 +18,12 @@
 
 <script setup>
 /**
- * 子流入口属性：入口说明与 fallbackOut；
- * 子图零次返回时用 fallbackOut 挂到父流对应子流节点的 out。
+ * 子流入口属性：入口说明、入参形状声明与兜底出参 fallbackOut；
+ * 子图没有执行任何返回节点时，用 fallbackOut 作为父流对应子流节点的出参。
  */
 import { computed } from 'vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import EntryInputShapeSection from './EntryInputShapeSection.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -35,6 +40,7 @@ const fallbackText = computed(() => {
   }
 })
 
+/** 把局部字段合并写回当前节点数据（含入参形状） */
 function patch(p) {
   patchNodeData(props.node.id, p)
 }

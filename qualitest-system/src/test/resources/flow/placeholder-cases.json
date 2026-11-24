@@ -1,5 +1,8 @@
 {
   "mockContext": {
+    "entryKind": "scenario",
+    "entryNodeId": "e-sc",
+    "trigger": "ui",
     "env": {
       "baseUrl": "https://dev.example.com",
       "timeout": 30
@@ -36,6 +39,12 @@
     }
   },
   "cases": [
+    {
+      "id": "run-trigger",
+      "template": "{{run.trigger}}/{{run.entryKind}}/{{run.entryNodeId}}",
+      "expected": "ui/scenario/e-sc",
+      "mode": "both"
+    },
     {
       "id": "env-base-url",
       "template": "{{env.baseUrl}}/api",

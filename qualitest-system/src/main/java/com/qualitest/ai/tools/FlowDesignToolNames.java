@@ -104,6 +104,12 @@ public enum FlowDesignToolNames {
     SUBMIT_HTTP_RETURN_NODE("submit_http_return_node", true, false),
     /** 新增或修改单个子流返回节点 */
     SUBMIT_SUBFLOW_RETURN_NODE("submit_subflow_return_node", true, false),
+    /** 新增或修改场景入口节点（scenario-entry）：挂场景列表与默认场景 */
+    SUBMIT_SCENARIO_ENTRY_NODE("submit_scenario_entry_node", true, false),
+    /** 新增或修改开放 HTTP 入口节点（http-entry）：method/path、入参形状、兜底出参 */
+    SUBMIT_HTTP_ENTRY_NODE("submit_http_entry_node", true, false),
+    /** 新增或修改子流入口节点（subflow-entry）：入参形状与兜底出参 */
+    SUBMIT_SUBFLOW_ENTRY_NODE("submit_subflow_entry_node", true, false),
     /**
      * 新增或修改一条或多条边。
      * 参数可为 edges 数组，和/或 chainNodeIds 按节点顺序自动生成相邻连线；一次调用可提交多条边。

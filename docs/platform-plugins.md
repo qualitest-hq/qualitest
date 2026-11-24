@@ -896,8 +896,8 @@ Prepare 调度：**必须**实现 §4.2 排序算法。
 - [x] 环境插件启用 + 错误展示；项目挂载 bindAlias
 - [x] 项目设置：上传 zip 安装到质衡本机（非被测机 CLI）
 - [x] UiRegistry：徽章至少一种
-- [ ] `pluginAction` 可用态**即时算**（切环境/停用后重算，不落图）
-- [ ] 模板不可用占位
+- [x] `pluginAction` 引擎类型 + Handler（可用态按启用集即时失败；不落盘 enabled）
+- [ ] 模板不可用占位 / 画布失效外观即时重算
 - [x] ops-agent 未连通：跑流/Invoke 失败明示
 
 **官方包**

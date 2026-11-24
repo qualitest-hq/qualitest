@@ -37,8 +37,11 @@ export interface GraphScenarioConfig {
   scenarios: GraphRunScenario[];
 }
 
-/** 当前 graph_json schema 版本；新图写入 1 */
-export const CURRENT_GRAPH_SCHEMA_VERSION = 1;
+/**
+ * 当前 graph_json 结构版本号；新保存的图写入该值。
+ * 该版本的图支持：入口节点化、返回/出参节点、多出边隐式扇出、插件动作节点。
+ */
+export const CURRENT_GRAPH_SCHEMA_VERSION = 2;
 
 /**
  * 图元数据：视口、排版、开始节点 id、schema 版本。

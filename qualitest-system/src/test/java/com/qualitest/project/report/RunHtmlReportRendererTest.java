@@ -249,7 +249,7 @@ class RunHtmlReportRendererTest {
                 .testFlowRunId(1001L)
                 .testFlowId(10L)
                 .status(status)
-                .triggerType("manual")
+                .triggerType("ui")
                 .startedAt(new Date())
                 .finishedAt(new Date())
                 .durationMs(1234L)

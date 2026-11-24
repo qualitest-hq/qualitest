@@ -841,19 +841,9 @@ public final class RunHtmlReportRenderer {
         };
     }
 
-    /** 触发方式 code 转为中文或简写标签 */
+    /** 把触发方式短名转为报告展示名；空值显示为短横线，未知短名原样显示 */
     private static String triggerLabel(String triggerType) {
-        if (triggerType == null || triggerType.isBlank()) {
-            return "-";
-        }
-        return switch (triggerType) {
-            case "manual" -> "手动";
-            case "ai" -> "AI 跑流";
-            case "ci" -> "CI";
-            case "schedule" -> "定时";
-            case "suite" -> "批量";
-            default -> triggerType;
-        };
+        return com.qualitest.flow.delivery.RunTrigger.displayLabel(triggerType);
     }
 
     /** 格式化时间，空值显示为短横线 */

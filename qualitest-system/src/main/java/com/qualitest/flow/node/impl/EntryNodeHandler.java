@@ -12,18 +12,17 @@ import org.springframework.stereotype.Component;
 /**
  * 入口节点透传执行器。
  * <p>
- * 支持 {@code scenario-entry} / {@code subflow-entry} / {@code http-entry}：
+ * 支持三种平台入口与协议入口 {@code {protocol}-entry}：
  * <ul>
  *   <li>若上下文尚未记录 {@code entryNodeId}，写入本节点 id</li>
- *   <li>按节点 type 写入 {@code entryKind}（http / subflow / scenario）</li>
+ *   <li>按节点 type 写入 {@code entryKind}（http / subflow / scenario / 协议短名）</li>
  * </ul>
  * 不改 flow / out；步骤恒为通过，图继续沿出边前进。
- * 画布侧入口配置面板可另做；本 Handler 保证引擎能跑通带入口的图。
  */
 @Component
 public class EntryNodeHandler implements NodeHandler {
 
-    /** 仅处理三种入口节点 type */
+    /** 处理三种平台入口与协议入口节点 type */
     @Override
     public boolean supports(String type) {
         return FlowNodeType.isEntry(type);
@@ -39,7 +38,14 @@ public class EntryNodeHandler implements NodeHandler {
             }
             EntryKind kind = EntryKind.forEntryNodeType(node.getType());
             if (kind != null) {
+                // 平台入口：直接取对应的入口种类
                 ctx.setEntryKind(kind.getCode());
+            } else {
+                // 协议入口：以协议短名作为入口种类
+                String protocol = FlowNodeType.protocolShortName(node.getType());
+                if (protocol != null) {
+                    ctx.setEntryKind(protocol);
+                }
             }
         }
         String name = AbstractStubNodeHandler.resolveNodeName(node);

@@ -119,6 +119,8 @@ public class FlowGraphRunner {
         List<StepResult> steps = new ArrayList<>();
         // 本 Run 已走过的节点，供失败后继续去重与回边终止
         Set<String> visitedNodeIds = new HashSet<>();
+        // 隐式扇出各臂的首个错误：全部臂跑完后若仍非空，则整次 Run 判定失败
+        StepError fanoutDomainError = null;
 
         while (currentId != null) {
             GraphNode node = walker.getNode(currentId);
@@ -199,16 +201,29 @@ public class FlowGraphRunner {
                 }
                 // 进入失败后继续；Outcome 仍带本步 error 作为 Run 主错误
                 String fromId = currentId;
-                String nextId;
-                try {
-                    nextId = walker.resolveNextNodeId(node, result);
-                } catch (FlowExecutionException ex) {
-                    return Outcome.failed(steps, ctx, error, steps.size());
-                }
-                String nextEdgeId = nextId != null ? walker.findEdgeId(fromId, nextId) : null;
                 PostFailureState postState = new PostFailureState(stepIndex + 1, maxSteps);
-                runPostFailureContinue(walker, ctx, registry, preExecuteHook, steps, onStep,
-                        visitedNodeIds, postState, nextId, nextEdgeId);
+                if (walker.isFanoutNode(node)) {
+                    for (com.qualitest.flow.model.GraphEdge edge : walker.listOutgoingEdges(fromId)) {
+                        if (edge == null || edge.getTarget() == null || edge.getTarget().isBlank()) {
+                            continue;
+                        }
+                        if (visitedNodeIds.contains(edge.getTarget())) {
+                            continue;
+                        }
+                        runPostFailureContinue(walker, ctx, registry, preExecuteHook, steps, onStep,
+                                visitedNodeIds, postState, edge.getTarget(), edge.getId());
+                    }
+                } else {
+                    String nextId;
+                    try {
+                        nextId = walker.resolveNextNodeId(node, result);
+                    } catch (FlowExecutionException ex) {
+                        return Outcome.failed(steps, ctx, error, steps.size());
+                    }
+                    String nextEdgeId = nextId != null ? walker.findEdgeId(fromId, nextId) : null;
+                    runPostFailureContinue(walker, ctx, registry, preExecuteHook, steps, onStep,
+                            visitedNodeIds, postState, nextId, nextEdgeId);
+                }
                 // 失败后继续扫完仍要收束：开放/子流零次返回节点时补交兜底
                 StepError settleErr = SettleSupport.settle(ctx, snapshot, runDelivery);
                 return Outcome.failed(steps, ctx, error != null ? error : settleErr, steps.size());
@@ -216,12 +231,39 @@ public class FlowGraphRunner {
 
             stepIndex++;
             String fromId = currentId;
+
+            // 非 condition 多出边：对各下游依次扇出跑完（臂内可再扇出；多入边到达几次执行几次）
+            if (walker.isFanoutNode(node)) {
+                FanoutRunState armState = new FanoutRunState(stepIndex, maxSteps);
+                for (com.qualitest.flow.model.GraphEdge edge : walker.listOutgoingEdges(fromId)) {
+                    if (edge == null || edge.getTarget() == null || edge.getTarget().isBlank()) {
+                        continue;
+                    }
+                    FanoutArmOutcome armOutcome = runFanoutArm(
+                            walker, ctx, registry, preExecuteHook, policy, steps, onStep,
+                            armState, edge.getTarget(), edge.getId());
+                    if (armOutcome.paused) {
+                        return armOutcome.pausedOutcome;
+                    }
+                    if (armOutcome.firstError != null && fanoutDomainError == null) {
+                        fanoutDomainError = armOutcome.firstError;
+                    }
+                }
+                stepIndex = armState.stepIndex;
+                currentId = null;
+                incomingEdgeId = null;
+                continue;
+            }
+
             currentId = walker.resolveNextNodeId(node, result);
             incomingEdgeId = currentId != null ? walker.findEdgeId(fromId, currentId) : null;
         }
 
         // 主路径正常走尽：若尚未交付则按入口种类决定是否用 fallbackOut 补交
         StepError settleErr = SettleSupport.settle(ctx, snapshot, runDelivery);
+        if (fanoutDomainError != null) {
+            return Outcome.failed(steps, ctx, fanoutDomainError, steps.size());
+        }
         if (settleErr != null) {
             return Outcome.failed(steps, ctx, settleErr, steps.size());
         }
@@ -323,6 +365,19 @@ public class FlowGraphRunner {
             state.stepIndex++;
 
             String fromId = currentId;
+            if (walker.isFanoutNode(node)) {
+                for (com.qualitest.flow.model.GraphEdge edge : walker.listOutgoingEdges(fromId)) {
+                    if (edge == null || edge.getTarget() == null || edge.getTarget().isBlank()) {
+                        continue;
+                    }
+                    if (visitedNodeIds.contains(edge.getTarget())) {
+                        continue;
+                    }
+                    runPostFailureContinue(walker, ctx, registry, preExecuteHook, steps, onStep,
+                            visitedNodeIds, state, edge.getTarget(), edge.getId());
+                }
+                return;
+            }
             try {
                 currentId = walker.resolveNextNodeId(node, result);
             } catch (FlowExecutionException ex) {
@@ -331,6 +386,163 @@ public class FlowGraphRunner {
             }
             incomingEdgeId = currentId != null ? walker.findEdgeId(fromId, currentId) : null;
         }
+    }
+
+    /**
+     * 隐式扇出的一条臂：从起点沿图跑到无后继或本臂内环；臂内失败不取消兄弟臂。
+     * 臂内再遇多出边时递归扇出。本臂用独立已访问集合，以便汇合节点在其它臂到达时再执行。
+     */
+    private FanoutArmOutcome runFanoutArm(
+            GraphWalker walker,
+            FlowRunContext ctx,
+            NodeHandlerRegistry registry,
+            FlowNodePreExecuteHook preExecuteHook,
+            RunSnapshotPolicy policy,
+            List<StepResult> steps,
+            Consumer<StepResult> onStep,
+            FanoutRunState state,
+            String armStart,
+            String incomingEdgeId
+    ) {
+        Set<String> armVisited = new HashSet<>();
+        String currentId = armStart;
+        String inEdge = incomingEdgeId;
+        StepError firstError = null;
+
+        while (currentId != null) {
+            if (armVisited.contains(currentId)) {
+                break;
+            }
+            GraphNode node = walker.getNode(currentId);
+            if (node == null) {
+                StepError err = StepError.of(FlowErrorCode.TF_GRAPH_INVALID, "节点不存在: " + currentId);
+                if (firstError == null) {
+                    firstError = err;
+                }
+                break;
+            }
+            if (state.stepIndex > state.maxSteps) {
+                StepError limitError = stepLimitError(node, currentId, state.maxSteps);
+                recordStep(steps, errorStep(node, inEdge, ctx, RunStatus.FAILED.getCode(), limitError), onStep);
+                if (firstError == null) {
+                    firstError = limitError;
+                }
+                break;
+            }
+
+            if (preExecuteHook != null && preExecuteHook != FlowNodePreExecuteHook.NONE) {
+                FlowNodePreExecuteHook.PreExecuteOutcome pre = preExecuteHook.beforeNode(node);
+                if (pre != null) {
+                    for (StepResult prelude : pre.preludeSteps()) {
+                        recordStep(steps, prelude, onStep);
+                    }
+                    if (pre.pause()) {
+                        StepError error = pre.abortError() != null
+                                ? pre.abortError()
+                                : StepError.of(FlowErrorCode.TF_SNAPSHOT_FAILED, "checkpoint 失败");
+                        return FanoutArmOutcome.paused(Outcome.paused(steps, ctx, error, node.getId(),
+                                RunExecutionState.PAUSE_REASON_SNAPSHOT_FAILURE, steps.size(),
+                                currentId, inEdge));
+                    }
+                    if (pre.abort()) {
+                        StepError error = pre.abortError() != null
+                                ? pre.abortError()
+                                : StepError.of(FlowErrorCode.TF_SNAPSHOT_FAILED, "checkpoint 失败");
+                        if (firstError == null) {
+                            firstError = error;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            StepResult result = registry.execute(ctx, node, inEdge);
+            armVisited.add(currentId);
+            recordStep(steps, result, onStep);
+            state.stepIndex++;
+
+            if (RunStatus.PAUSED.matches(result.getStatus())) {
+                StepError error = result.getError() != null
+                        ? result.getError()
+                        : StepError.of(FlowErrorCode.TF_AWAIT_INPUT, "等待人工输入");
+                return FanoutArmOutcome.paused(Outcome.paused(steps, ctx, error, node.getId(),
+                        RunExecutionState.PAUSE_REASON_AWAIT_INPUT, steps.size(),
+                        currentId, inEdge));
+            }
+
+            if (RunStatus.FAILED.matches(result.getStatus())) {
+                StepError error = result.getError() != null
+                        ? result.getError()
+                        : StepError.of(FlowErrorCode.TF_STEP_ERROR, "步骤失败");
+                if (firstError == null) {
+                    firstError = error;
+                }
+                if (policy != null && policy.shouldPauseOnNodeFailure()) {
+                    return FanoutArmOutcome.paused(Outcome.paused(steps, ctx, error, node.getId(),
+                            RunExecutionState.PAUSE_REASON_NODE_FAILURE, steps.size(),
+                            currentId, inEdge));
+                }
+                String fromId = currentId;
+                PostFailureState postState = new PostFailureState(state.stepIndex, state.maxSteps);
+                if (walker.isFanoutNode(node)) {
+                    for (com.qualitest.flow.model.GraphEdge edge : walker.listOutgoingEdges(fromId)) {
+                        if (edge == null || edge.getTarget() == null || edge.getTarget().isBlank()) {
+                            continue;
+                        }
+                        if (armVisited.contains(edge.getTarget())) {
+                            continue;
+                        }
+                        runPostFailureContinue(walker, ctx, registry, preExecuteHook, steps, onStep,
+                                armVisited, postState, edge.getTarget(), edge.getId());
+                    }
+                } else {
+                    String nextId;
+                    try {
+                        nextId = walker.resolveNextNodeId(node, result);
+                    } catch (FlowExecutionException ex) {
+                        return FanoutArmOutcome.withError(firstError);
+                    }
+                    String nextEdgeId = nextId != null ? walker.findEdgeId(fromId, nextId) : null;
+                    runPostFailureContinue(walker, ctx, registry, preExecuteHook, steps, onStep,
+                            armVisited, postState, nextId, nextEdgeId);
+                }
+                state.stepIndex = postState.stepIndex;
+                break;
+            }
+
+            String fromId = currentId;
+            if (walker.isFanoutNode(node)) {
+                for (com.qualitest.flow.model.GraphEdge edge : walker.listOutgoingEdges(fromId)) {
+                    if (edge == null || edge.getTarget() == null || edge.getTarget().isBlank()) {
+                        continue;
+                    }
+                    FanoutArmOutcome nested = runFanoutArm(
+                            walker, ctx, registry, preExecuteHook, policy, steps, onStep,
+                            state, edge.getTarget(), edge.getId());
+                    if (nested.paused) {
+                        return nested;
+                    }
+                    if (nested.firstError != null && firstError == null) {
+                        firstError = nested.firstError;
+                    }
+                }
+                break;
+            }
+            String nextId;
+            try {
+                nextId = walker.resolveNextNodeId(node, result);
+            } catch (FlowExecutionException ex) {
+                StepError err = StepError.of(ex.getErrorCode(), ex.getMessage());
+                if (firstError == null) {
+                    firstError = err;
+                }
+                break;
+            }
+            currentId = nextId;
+            inEdge = currentId != null ? walker.findEdgeId(fromId, currentId) : null;
+        }
+
+        return FanoutArmOutcome.withError(firstError);
     }
 
     /**
@@ -477,6 +689,40 @@ public class FlowGraphRunner {
         private PostFailureState(int stepIndex, int maxSteps) {
             this.stepIndex = stepIndex;
             this.maxSteps = maxSteps;
+        }
+    }
+
+    /** 隐式扇出多臂共享的步数计数 */
+    private static final class FanoutRunState {
+        /** 下一待执行步的序号（从 1 起算） */
+        private int stepIndex;
+        /** 单次 Run 步数上限 */
+        private final int maxSteps;
+
+        private FanoutRunState(int stepIndex, int maxSteps) {
+            this.stepIndex = stepIndex;
+            this.maxSteps = maxSteps;
+        }
+    }
+
+    /** 隐式扇出单臂结果：臂内首个错误，或暂停时的整体结果 */
+    private static final class FanoutArmOutcome {
+        private final StepError firstError;
+        private final boolean paused;
+        private final Outcome pausedOutcome;
+
+        private FanoutArmOutcome(StepError firstError, boolean paused, Outcome pausedOutcome) {
+            this.firstError = firstError;
+            this.paused = paused;
+            this.pausedOutcome = pausedOutcome;
+        }
+
+        static FanoutArmOutcome withError(StepError firstError) {
+            return new FanoutArmOutcome(firstError, false, null);
+        }
+
+        static FanoutArmOutcome paused(Outcome outcome) {
+            return new FanoutArmOutcome(null, true, outcome);
         }
     }
 

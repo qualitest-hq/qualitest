@@ -25,6 +25,10 @@ public class FlowExternalChangeHub {
     private final ConcurrentHashMap<Long, CopyOnWriteArrayList<Consumer<FlowExternalChangeEvent>>> byProject =
             new ConcurrentHashMap<>();
 
+    /** 全局监听（进程内缓存失效等基础设施，接收全部事件） */
+    private final CopyOnWriteArrayList<Consumer<FlowExternalChangeEvent>> allListeners =
+            new CopyOnWriteArrayList<>();
+
     /**
      * 订阅某测试流的变更。
      *
@@ -55,11 +59,24 @@ public class FlowExternalChangeHub {
         return () -> unsubscribe(byProject, testProjectId, listener);
     }
 
+    /**
+     * 订阅全部外部变更（不按流 / 项目过滤）。
+     * 供路由索引、图缓存等进程内失效使用。
+     *
+     * @return 取消订阅的 Runnable
+     */
+    public Runnable subscribeAll(Consumer<FlowExternalChangeEvent> listener) {
+        Objects.requireNonNull(listener, "listener");
+        allListeners.add(listener);
+        return () -> allListeners.remove(listener);
+    }
+
     /** 发布事件到本进程订阅者（按变更域路由，避免同连接双推） */
     public void publish(FlowExternalChangeEvent event) {
         if (event == null || event.getType() == null) {
             return;
         }
+        fanout(allListeners, event);
         if (isProjectDomain(event.getType())) {
             if (event.getTestProjectId() != null) {
                 fanout(byProject.get(event.getTestProjectId()), event);
@@ -71,11 +88,12 @@ public class FlowExternalChangeHub {
         }
     }
 
-    /** 素材 / 鉴权 / 环境属项目域；其余（图 / Run / 流元数据）属流域 */
+    /** 素材 / 鉴权 / 环境 / 项目删除属项目域；其余（图 / Run / 流元数据）属流域 */
     private static boolean isProjectDomain(String type) {
         return FlowExternalChangeEvent.TYPE_ASSET_VARIABLES_CHANGED.equals(type)
                 || FlowExternalChangeEvent.TYPE_AUTH_CONFIG_CHANGED.equals(type)
-                || FlowExternalChangeEvent.TYPE_PROJECT_ENVS_CHANGED.equals(type);
+                || FlowExternalChangeEvent.TYPE_PROJECT_ENVS_CHANGED.equals(type)
+                || FlowExternalChangeEvent.TYPE_PROJECT_DELETED.equals(type);
     }
 
     private static void fanout(List<Consumer<FlowExternalChangeEvent>> listeners,

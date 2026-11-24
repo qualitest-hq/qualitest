@@ -4,6 +4,8 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.flow.sync.FlowExternalChangePublisher;
+import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.project.constant.TestProjectConstants;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.mapper.TestProjectMapper;
@@ -27,6 +29,9 @@ import java.util.Objects;
 public class TestProjectServiceImpl implements ITestProjectService {
     @Autowired
     private TestProjectMapper testProjectMapper;
+
+    @Autowired
+    private FlowExternalChangePublisher flowExternalChangePublisher;
 
     /**
      * 查询测试项目列表
@@ -140,7 +145,9 @@ public class TestProjectServiceImpl implements ITestProjectService {
      */
     @Override
     public int deleteTestProjectByIdList(List<Long> testProjectIdList) {
-        return testProjectMapper.deleteTestProjectByIdList(testProjectIdList);
+        int rows = testProjectMapper.deleteTestProjectByIdList(testProjectIdList);
+        publishProjectDeletedEvents(testProjectIdList);
+        return rows;
     }
 
     /**
@@ -151,7 +158,12 @@ public class TestProjectServiceImpl implements ITestProjectService {
      */
     @Override
     public int deleteTestProjectById(Long testProjectId) {
-        return testProjectMapper.deleteTestProjectById(testProjectId);
+        int rows = testProjectMapper.deleteTestProjectById(testProjectId);
+        if (rows > 0) {
+            flowExternalChangePublisher.publishProjectDeleted(
+                    testProjectId, FlowExternalChangeSourceHolder.getOrDefault());
+        }
+        return rows;
     }
 
     /**
@@ -162,7 +174,12 @@ public class TestProjectServiceImpl implements ITestProjectService {
      */
     @Override
     public int logicDeleteTestProjectById(Long testProjectId) {
-        return testProjectMapper.logicDeleteTestProjectById(testProjectId);
+        int rows = testProjectMapper.logicDeleteTestProjectById(testProjectId);
+        if (rows > 0) {
+            flowExternalChangePublisher.publishProjectDeleted(
+                    testProjectId, FlowExternalChangeSourceHolder.getOrDefault());
+        }
+        return rows;
     }
 
     /**
@@ -173,7 +190,21 @@ public class TestProjectServiceImpl implements ITestProjectService {
      */
     @Override
     public int logicDeleteTestProjectByIdList(List<Long> testProjectIdList) {
-        return testProjectMapper.logicDeleteTestProjectByIdList(testProjectIdList);
+        int rows = testProjectMapper.logicDeleteTestProjectByIdList(testProjectIdList);
+        publishProjectDeletedEvents(testProjectIdList);
+        return rows;
+    }
+
+    private void publishProjectDeletedEvents(List<Long> testProjectIdList) {
+        if (testProjectIdList == null || testProjectIdList.isEmpty()) {
+            return;
+        }
+        String source = FlowExternalChangeSourceHolder.getOrDefault();
+        for (Long id : testProjectIdList) {
+            if (id != null) {
+                flowExternalChangePublisher.publishProjectDeleted(id, source);
+            }
+        }
     }
 
     /**

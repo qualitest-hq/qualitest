@@ -181,11 +181,6 @@ export function formatSubflowSummary(data: Record<string, unknown>) {
     name = String(data.templateId);
   }
   if (!name) return '请选择子流';
-  const outputs = (data.outputs as Array<Record<string, unknown>>) || [];
-  const keys = outputs
-    .map((o) => String(o.flowKey || o.name || '').trim())
-    .filter(Boolean);
-  if (keys.length) return `${name} → ${keys.join(', ')}`;
   return name;
 }
 

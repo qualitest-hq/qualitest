@@ -462,16 +462,11 @@
         </foreach>
     </update>
 
-    <!-- 项目运行中心「最近记录」：正式 test_flow_run，按开始时间倒序 -->
+    <!-- 项目运行中心「最近记录」：正式 test_flow_run，按开始时间倒序；source 直接取 trigger_type，空则按 ui -->
     <select id="selectRecentHubItemsByProjectId" resultType="com.qualitest.project.result.ProjectRunHubItemResult">
         select concat('run:', tfr.test_flow_run_id) as itemId,
                tfr.status                         as status,
-               case
-                   when tfr.trigger_type like '%suite%' then 'suite'
-                   when tfr.trigger_type = 'ai' then 'ai'
-                   when tfr.trigger_type like '%mcp%' then 'mcp'
-                   else ifnull(tfr.trigger_type, 'manual')
-                   end                            as source,
+               ifnull(tfr.trigger_type, 'ui')     as source,
                'flow'                             as kind,
                tf.test_project_id                 as testProjectId,
                tfr.test_project_env_id            as testProjectEnvId,

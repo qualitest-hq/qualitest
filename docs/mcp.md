@@ -134,7 +134,7 @@ MCP 侧默认 **18** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 - **每次成功 `submit_*` 立即写库**；同流已在 Web 打开时画布自动同步。
 - 改名称/说明/分组用 `update_flow_meta`（成功即落库；不改节点/边/场景）。禁止用 `create_flow` 新建冒充改名。
-- 子流节点：`submit_subflow_node` 可配 `inputs`（父→子）、`outputs`（子→父）、`alwaysRun`。父子 `flow` 默认隔离，须显式映射；`asset`/`env`/`session` 同 Run 共享。
+- 子流节点：`submit_subflow_node` 可配 `inputs`（父→子）、`alwaysRun`。子流定稿挂父 `nodes.<子流节点id>.out`（由子图 `subflow-return` 或入口 `fallbackOut`）；不做父侧 `outputs` 映射表。`asset`/`env`/`session` 同 Run 共享。
 - 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。
 - 若 Web 本地有未保存修改或未决 Staging，会提示「放弃本地并拉取」，不会静默覆盖。
 - 未开启时调用写工具会得到明确拒绝文案。

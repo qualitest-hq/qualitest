@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 PlaceholderResolver：{{scope.path}} 占位符解析（lenient / strict），
- * 以及 http.*、nodes.节点id.http.* 路径求值。
+ * 以及 run.*（入口种类、入口节点、触发源）、http.*、nodes.节点id.http.* 路径求值。
  * 边界：fixture placeholder-cases.json；无 DB。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=PlaceholderResolverTest
  */
@@ -208,13 +208,23 @@ class PlaceholderResolverTest {
 
     /**
      * 将 fixture 中的 mockContext JSON 转为 FlowRunContext。
-     * 填充 env / flow / asset / lastResponse（含 durationMs）。
+     * 填充 env / flow / asset / lastResponse（含 durationMs）；
+     * 若 mock 中带 entryKind / entryNodeId / trigger，则一并写入，用于验证 run.* 路径取值。
      */
     private static FlowRunContext buildContext(JSONObject mock) {
         FlowRunContext.FlowRunContextBuilder builder = FlowRunContext.builder()
                 .env(toMap(mock.getJSONObject("env")))
                 .flow(toMap(mock.getJSONObject("flow")))
                 .asset(toMap(mock.getJSONObject("asset")));
+        if (mock.containsKey("entryKind")) {
+            builder.entryKind(mock.getString("entryKind"));
+        }
+        if (mock.containsKey("entryNodeId")) {
+            builder.entryNodeId(mock.getString("entryNodeId"));
+        }
+        if (mock.containsKey("trigger")) {
+            builder.trigger(mock.getString("trigger"));
+        }
 
         JSONObject last = mock.getJSONObject("lastResponse");
         if (last != null) {

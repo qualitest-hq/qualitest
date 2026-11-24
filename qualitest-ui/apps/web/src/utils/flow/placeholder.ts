@@ -57,16 +57,31 @@ export function looksLikeNodesPath(path: string | null | undefined): boolean {
 /**
  * 单段路径求值：占位符内部、断言/条件左值共用。
  * 纯 $… 先改成 http.body…；nodes.<id>.http… 读 nodeResponses；http… 读 lastResponse。
+ * run.* 读本次运行信息（入口种类 / 入口节点 id / 触发来源），其他 run 子键返回 undefined；
+ * in.* / out.* 分别读入参与出参集合。
  */
 export function resolvePathSegment(ctx: FlowRunContext, path: string): unknown {
   const p = normalizeAssertLeftPath(String(path ?? '').trim());
   if (!p) return undefined;
 
+  if (p.startsWith('run.')) {
+    const rest = p.slice(4);
+    if (rest === 'entryKind') return ctx.entryKind;
+    if (rest === 'entryNodeId') return ctx.entryNodeId;
+    if (rest === 'trigger') return ctx.trigger;
+    return undefined;
+  }
   if (p.startsWith('flow.')) {
     return ctx.flow[p.slice(5)];
   }
   if (p.startsWith('env.')) {
     return ctx.env[p.slice(4)];
+  }
+  if (p.startsWith('in.')) {
+    return ctx.in?.[p.slice(3)];
+  }
+  if (p.startsWith('out.')) {
+    return ctx.out?.[p.slice(4)];
   }
   if (p.startsWith('asset.')) {
     return resolveAssetPath(ctx.asset, p.slice(6));

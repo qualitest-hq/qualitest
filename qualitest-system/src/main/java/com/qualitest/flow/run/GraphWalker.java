@@ -23,9 +23,9 @@ import java.util.stream.Collectors;
  * 供 {@link TestFlowExecutor} 在单步执行后解析下一节点 id；
  * 不预展开全路径，支持回边构成的轮询子图。
  * <ul>
- *   <li>普通节点（http/assert/delay/assign/script/subflow/input）：必须仅有一条出边，沿该边 target 前进</li>
- *   <li>condition 节点：读取本步 {@link com.qualitest.flow.node.StepResult#getBranchTaken()}，
- *       在 {@code data.branches} 中匹配 branchId 后取 target</li>
+ *   <li>condition：按本步 branchTaken 只走一臂</li>
+ *   <li>其它节点仅一条出边：沿该边前进</li>
+ *   <li>其它节点多条出边：由运行器对各下游依次扇出；本类 {@link #resolveNextNodeId} 不解析单一下一跳</li>
  * </ul>
  */
 public class GraphWalker {
@@ -134,7 +134,21 @@ public class GraphWalker {
     }
 
     /**
+     * 判断节点是否为隐式扇出点：非 condition 且出边不少于 2 条。
+     */
+    public boolean isFanoutNode(GraphNode node) {
+        if (node == null || node.getId() == null) {
+            return false;
+        }
+        if (FlowNodeType.CONDITION.matches(node.getType())) {
+            return false;
+        }
+        return outEdgesBySource.getOrDefault(node.getId(), List.of()).size() > 1;
+    }
+
+    /**
      * 根据当前节点与步骤结果解析下一节点 id；无后继或命中结束分支时返回 null。
+     * 非 condition 多出边由运行器扇出，调用本方法会抛图非法异常。
      *
      * @param node       刚执行完的节点
      * @param stepResult 该步执行结果（condition 需含 branchTaken）
@@ -154,10 +168,24 @@ public class GraphWalker {
         if (outEdges.size() > 1) {
             throw new FlowExecutionException(
                     FlowErrorCode.TF_GRAPH_INVALID,
-                    "当前节点存在多条出边，仅 condition 支持多出口: " + node.getId()
+                    "当前节点存在多条出边，须由运行器扇出各下游: " + node.getId()
             );
         }
         return outEdges.get(0).getTarget();
+    }
+
+    /**
+     * 按图内登记顺序列出节点全部出边（返回副本）。
+     *
+     * @param nodeId 源节点 id
+     * @return 出边列表；节点 id 为空或无出边时返回空列表
+     */
+    public List<GraphEdge> listOutgoingEdges(String nodeId) {
+        if (nodeId == null) {
+            return List.of();
+        }
+        List<GraphEdge> edges = outEdgesBySource.getOrDefault(nodeId, List.of());
+        return edges.isEmpty() ? List.of() : List.copyOf(edges);
     }
 
     /**

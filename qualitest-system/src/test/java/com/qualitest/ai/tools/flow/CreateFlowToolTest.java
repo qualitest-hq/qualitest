@@ -1,7 +1,6 @@
 package com.qualitest.ai.tools.flow;
 
 import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.flow.model.GraphSchemaVersions;
@@ -65,7 +64,7 @@ class CreateFlowToolTest {
 
     /**
      * 前提：合法 flowName；insert 成功。
-     * 期望：回执含 testFlowId / flowName；落库 graphJson 为空图结构。
+     * 期望：回执含 testFlowId / flowName；落库 graphJson 为空画布：无节点、无边，meta 带当前 schemaVersion 且无 startNodeId。
      */
     @Test
     @Order(2)
@@ -93,15 +92,7 @@ class CreateFlowToolTest {
         assertTrue(graph.getJSONArray("edges").isEmpty());
         JSONObject meta = graph.getJSONObject("meta");
         assertEquals(GraphSchemaVersions.CURRENT, meta.getIntValue("schemaVersion"));
-        var nodes = graph.getJSONArray("nodes");
-        var entry = nodes.stream()
-                .map(o -> (JSONObject) o)
-                .filter(n -> "scenario-entry".equals(n.getString("type")))
-                .findFirst()
-                .orElseThrow();
-        JSONArray scenarios = entry.getJSONObject("data").getJSONArray("scenarios");
-        assertEquals(1, scenarios.size());
-        assertEquals("默认（冒烟）", scenarios.getJSONObject(0).getString("name"));
+        assertNull(meta.get("startNodeId"));
         assertNull(meta.get("activeScenarioId"));
         assertNull(meta.get("scenarios"));
     }

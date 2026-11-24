@@ -57,4 +57,17 @@ describe('mustacheScan', () => {
     // 期望：\ 留下，{{flow.x}} 仍按路径求值
     expect(replaceMustache('show \\{{flow.x}} end', () => 'NO')).toBe('show \\NO end')
   })
+
+  it('run. / in. / out. 前缀视为合法占位路径', () => {
+    // 前提：模板含 run.、in.、out. 路径与单 token
+    // 期望：list 保序；isMustachePlaceholderPath 为 true；单 token 仍为 false
+    expect(
+      listMustacheInners('{{run.id}} {{in.seed.x}} tail {{out.status}}'),
+    ).toEqual(['run.id', 'in.seed.x', 'out.status'])
+    expect(isMustachePlaceholderPath('run.traceId')).toBe(true)
+    expect(isMustachePlaceholderPath('in.payload')).toBe(true)
+    expect(isMustachePlaceholderPath('out.code')).toBe(true)
+    expect(isMustachePlaceholderPath('run.')).toBe(false)
+    expect(isMustachePlaceholderPath('trace')).toBe(false)
+  })
 })

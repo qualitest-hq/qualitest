@@ -67,25 +67,11 @@
     </div>
 
     <div class="field">
-      <label>输出映射（outputs）</label>
-      <div v-for="(row, idx) in outputRows" :key="'out-' + idx" class="subflow-io-row">
-        <input
-            :value="row.name"
-            class="subflow-io-name"
-            placeholder="子流变量名"
-            type="text"
-            @input="updateOutput(idx, 'name', $event.target.value)"
-        />
-        <input
-            :value="row.flowKey"
-            class="subflow-io-value"
-            placeholder="flowKey"
-            type="text"
-            @input="updateOutput(idx, 'flowKey', $event.target.value)"
-        />
-        <button class="subflow-io-del" type="button" @click="removeOutput(idx)">×</button>
+      <label>子流定稿出参</label>
+      <div class="field__hint">
+        子流 return（或入口 fallbackOut）后挂在
+        <code v-pre>{{nodes.&lt;本节点id&gt;.out}}</code>，父流用 Assign / 断言读取；不再做父侧 outputs 映射表。
       </div>
-      <button class="btn btn--ghost btn--sm" type="button" @click="addOutput">+ 添加输出</button>
     </div>
 
     <!-- 失败后仍执行本子流节点（封装多步清理） -->
@@ -94,7 +80,10 @@
 </template>
 
 <script setup>
-/** 子流节点属性：选择子流、版本策略、inputs/outputs 映射、始终执行 */
+/**
+ * 子流节点属性面板：选择被引用的子流、版本策略、入参映射、失败后是否仍执行。
+ * 子流运行结束后的出参挂在 nodes.<本节点id>.out，父流直接读取，此处不再配置出参映射。
+ */
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
@@ -137,8 +126,8 @@ const creating = ref(false)
 
 const subflowIdVal = computed(() => String(props.node?.data?.subflowId || ''))
 const versionPolicy = computed(() => props.node?.data?.versionPolicy || 'pinned')
+/** 入参映射行列表：每行为子流变量名与传入值 */
 const inputRows = computed(() => props.node?.data?.inputs || [])
-const outputRows = computed(() => props.node?.data?.outputs || [])
 const hasPinnedSnapshot = computed(() => {
   const raw = props.node?.data?.pinnedGraphJson
   return raw != null && String(raw).trim() !== ''
@@ -168,43 +157,45 @@ async function loadTemplates() {
   }
 }
 
+/** 把补丁合并写回当前子流节点数据，卡片摘要随之刷新 */
 function refreshSummary(patch) {
   patchNodeData(props.node.id, patch)
 }
 
-function suggestIoFromGraphJson(graphJsonRaw) {
-  if (!graphJsonRaw) return { inputs: [], outputs: [] }
+/**
+ * 根据子流图的第一个场景入口的入参种子，生成入参映射建议：
+ * 每个种子键对应一行，值默认引用同名流变量；解析失败或无场景时返回空数组。
+ */
+function suggestInputsFromGraphJson(graphJsonRaw) {
+  if (!graphJsonRaw) return []
   try {
     const raw = typeof graphJsonRaw === 'string' ? JSON.parse(graphJsonRaw) : graphJsonRaw
     const graph = unwrapGraphPayload(raw)
     const nodes = Array.isArray(graph.nodes) ? graph.nodes : []
     const entry = nodes.find((n) => n && n.type === 'scenario-entry')
     const rawScenarios = entry?.data?.scenarios
-    if (!Array.isArray(rawScenarios) || rawScenarios.length === 0) return { inputs: [], outputs: [] }
+    if (!Array.isArray(rawScenarios) || rawScenarios.length === 0) return []
     const scenario = rawScenarios[0]
     const seed = scenario?.inSeed && typeof scenario.inSeed === 'object' ? scenario.inSeed : {}
-    const meta = graph.meta
-    const inputs = Object.keys(seed).map((key) => ({
+    return Object.keys(seed).map((key) => ({
       name: key,
       value: `{{flow.${key}}}`,
     }))
-    return { inputs, outputs: [] }
   } catch {
-    return { inputs: [], outputs: [] }
+    return []
   }
 }
 
+/** 已有入参映射时只提交基础补丁；否则按子流图生成入参建议并一并写入节点 */
 function applyIoSuggestions(graphJsonRaw, basePatch = {}) {
   const hasInputs = Array.isArray(props.node?.data?.inputs) && props.node.data.inputs.length > 0
-  const hasOutputs = Array.isArray(props.node?.data?.outputs) && props.node.data.outputs.length > 0
-  if (hasInputs && hasOutputs) {
+  if (hasInputs) {
     refreshSummary(basePatch)
     return
   }
-  const suggested = suggestIoFromGraphJson(graphJsonRaw)
+  const suggestedInputs = suggestInputsFromGraphJson(graphJsonRaw)
   const patch = { ...basePatch }
-  if (!hasInputs && suggested.inputs.length) patch.inputs = suggested.inputs
-  if (!hasOutputs && suggested.outputs.length) patch.outputs = suggested.outputs
+  if (suggestedInputs.length) patch.inputs = suggestedInputs
   refreshSummary(patch)
 }
 
@@ -274,20 +265,6 @@ function removeInput(idx) {
   refreshSummary({ inputs: inputRows.value.filter((_, i) => i !== idx) })
 }
 
-function addOutput() {
-  const rows = [...outputRows.value, { name: '', flowKey: '' }]
-  refreshSummary({ outputs: rows })
-}
-
-function updateOutput(idx, key, val) {
-  const rows = outputRows.value.map((r, i) => (i === idx ? { ...r, [key]: val } : r))
-  refreshSummary({ outputs: rows })
-}
-
-function removeOutput(idx) {
-  refreshSummary({ outputs: outputRows.value.filter((_, i) => i !== idx) })
-}
-
 async function createFromTemplate(tpl) {
   if (!store.testProjectId || creating.value) return
   creating.value = true
@@ -303,16 +280,11 @@ async function createFromTemplate(tpl) {
       name: i.name,
       value: `{{flow.${i.name}}}`,
     }))
-    const outputs = (tpl.outputs || []).map((o) => ({
-      name: o.name,
-      flowKey: o.name,
-    }))
     refreshSummary({
       subflowId: String(created?.testFlowId || ''),
       subflowName: created?.flowName || tpl.name,
       templateId: tpl.templateId,
       inputs,
-      outputs,
       versionPolicy: 'pinned',
     })
     if (created?.testFlowId) {

@@ -79,6 +79,10 @@ public class FlowExternalChangeEvent {
     public static final String TYPE_FLOW_META_CHANGED = "flowMetaChanged";
     /** 新建测试流 */
     public static final String TYPE_FLOW_CREATED = "flowCreated";
+    /** 测试流已逻辑/物理删除 */
+    public static final String TYPE_FLOW_DELETED = "flowDeleted";
+    /** 测试项目已逻辑/物理删除 */
+    public static final String TYPE_PROJECT_DELETED = "projectDeleted";
 
     public static final String SOURCE_MCP = "mcp";
     public static final String SOURCE_WEB_AUTOPILOT = "web-autopilot";

@@ -111,6 +111,18 @@ public class TestFlowRunTriggerCore {
         return run(testFlowId, runScenarioId, testProjectEnvId, null, operatorUserId, ctx);
     }
 
+    /**
+     * 触发测试流 Run 并等待结果，可指定入口节点。
+     * 触发源统一记为 MCP，表示由 AI / MCP 跑流工具发起。
+     *
+     * @param testFlowId       测试流 id
+     * @param runScenarioId    可选场景 id
+     * @param testProjectEnvId 可选环境 id
+     * @param entryNodeId      可选入口节点 id；多入口图须指定
+     * @param operatorUserId   操作者用户 id；可空则由触发服务取当前登录用户
+     * @param ctx              工具上下文（落盘、回调、结果字节上限）
+     * @return 工具回执 JSON 字符串
+     */
     public String run(Long testFlowId,
                       String runScenarioId,
                       Long testProjectEnvId,
@@ -154,7 +166,8 @@ public class TestFlowRunTriggerCore {
                     .runScenarioId(runScenarioId)
                     .testProjectEnvId(testProjectEnvId)
                     .entryNodeId(entryNodeId)
-                    .triggerType("ai")
+                    // 触发源记为 MCP：由 AI / MCP 跑流工具发起
+                    .triggerType(com.qualitest.flow.delivery.RunTrigger.MCP.getCode())
                     .operatorUserId(operatorUserId)
                     .build();
             var outcome = testFlowExecutionService.triggerRun(params);

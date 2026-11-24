@@ -1045,7 +1045,7 @@
     "type": "function",
     "function": {
       "name": "submit_subflow_node",
-      "description": "新增或修改单个子流节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id；校验失败按 errors 再调本工具修正。AI 不造 input 节点。inputs 灌子 in/flow；子流成功时子图 out 挂 nodes.<本节点 id>.out；outputs 可选写回父 flow。alwaysRun=true 时父图失败后继续阶段仍执行本节点。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
+      "description": "新增或修改单个子流节点（恰好 1 个 Staging 单元）。必填 op=add|update；update 须 id。AI 不造 input 节点。inputs 灌子 in/flow；子流定稿挂父 nodes.<本节点 id>.out；父侧无 outputs 映射表。alwaysRun=true 时父图失败后继续阶段仍执行本节点。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1237,6 +1237,158 @@
           "name",
           "data"
         ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_scenario_entry_node",
+      "description": "新增或修改 scenario-entry 节点（恰好 1 个 Staging 单元）。必填 op、name；data 可含 doc、scenarios（完整数组，含 envId/inSeed）。场景条目仍可用 submit_scenario 增量维护。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": ["add", "update"]
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id；update 必填"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名（顶层，勿放入 data）"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "doc": {
+                "type": "string",
+                "description": "入口说明"
+              },
+              "scenarios": {
+                "type": "array",
+                "description": "运行场景列表（含 id/name/envId/inSeed）",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": ["op", "name", "data"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_http_entry_node",
+      "description": "新增或修改 http-entry 节点（开放入站）。必填 op、name、data.method、data.path、data.fallbackOut；可选 envId/doc/inputShape。inputShape 为 body/query/headers 无值字段表；不符时平台 400 不进图。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": ["add", "update"]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "节点展示名"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "description": "HTTP 方法，如 POST"
+              },
+              "path": {
+                "type": "string",
+                "description": "业务 path，如 /v3/refund"
+              },
+              "envId": {
+                "type": "string",
+                "description": "开跑环境 id，可空"
+              },
+              "doc": {
+                "type": "string"
+              },
+              "inputShape": {
+                "type": "object",
+                "properties": {
+                  "body": { "type": "array", "items": { "type": "object" } },
+                  "query": { "type": "array", "items": { "type": "object" } },
+                  "headers": { "type": "array", "items": { "type": "object" } }
+                }
+              },
+              "fallbackOut": {
+                "type": "object",
+                "description": "零次 return 时收束交付；含 status/headers/body"
+              }
+            },
+            "required": ["method", "path", "fallbackOut"]
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": ["op", "name", "data"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_subflow_entry_node",
+      "description": "新增或修改 subflow-entry 节点。必填 op、name、data.fallbackOut；可选 doc/inputShape。 【MCP 自动写】本工具成功后立即写入测试流库，无需再 commit。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": ["add", "update"]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "doc": {
+                "type": "string"
+              },
+              "inputShape": {
+                "type": "object",
+                "properties": {
+                  "body": { "type": "array", "items": { "type": "object" } },
+                  "query": { "type": "array", "items": { "type": "object" } },
+                  "headers": { "type": "array", "items": { "type": "object" } }
+                }
+              },
+              "fallbackOut": {
+                "type": "object",
+                "description": "零次 return 时挂父 nodes.<子流节点id>.out"
+              }
+            },
+            "required": ["fallbackOut"]
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": ["op", "name", "data"]
       }
     }
   },

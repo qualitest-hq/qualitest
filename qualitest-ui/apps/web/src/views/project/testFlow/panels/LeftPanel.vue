@@ -48,9 +48,10 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 
 const store = useFlowCanvasStore()
 
+/** 左侧面板的标签页列表（跑前入口 / 节点库 / 参数库 / 运行库），按权限等条件过滤后展示 */
 const tabs = computed(() => {
   const all = [
-    { id: 'runConfig', label: '跑前场景' },
+    { id: 'runConfig', label: '跑前入口' },
     { id: 'nodes', label: '节点库' },
     { id: 'params', label: '参数库' },
     { id: 'runs', label: '运行库' },
@@ -61,12 +62,13 @@ const tabs = computed(() => {
   return all
 })
 
+/** 各标签页顶部显示的标题与说明文案 */
 const meta = {
   runConfig: {
-    title: '跑前场景',
-    desc: '选中要跑的场景；值树挂在 scenario-entry，保存写入入口',
+    title: '跑前入口',
+    desc: '选入口（及场景）后点跑；场景值树在入口属性 / 右侧面板编辑',
   },
-  nodes: { title: '节点库', desc: '拖拽或双击添加到画布（含三种入口）' },
+  nodes: { title: '节点库', desc: '拖拽或双击添加到画布（可多个入口）' },
   params: { title: '参数库', desc: 'Env / Asset 配置态叶子；搜索；复制 {{path}} 或值' },
   runs: { title: '运行库', desc: '正式 Run 记录与回放' },
 }

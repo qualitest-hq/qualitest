@@ -1285,7 +1285,7 @@ CREATE TABLE `test_flow_run`
     `duration_ms`         bigint                                                       NULL     DEFAULT NULL COMMENT '耗时',
     `error_code`          varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL     DEFAULT NULL COMMENT '失败错误码',
     `error_message`       text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci        NULL COMMENT '失败错误信息',
-    `trigger_type`        varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'manual' COMMENT '触发方式（manual手动 ci持续集成 schedule定时）',
+    `trigger_type`        varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'ui' COMMENT '触发方式短名：ui / mcp / ci / suite / http / subflow',
     `del_status`          tinyint                                                      NOT NULL DEFAULT 0 COMMENT '删除状态（0正常 1删除）',
     `create_time`         datetime                                                     NOT NULL COMMENT '创建时间',
     `update_time`         datetime                                                     NULL     DEFAULT NULL COMMENT '修改时间',

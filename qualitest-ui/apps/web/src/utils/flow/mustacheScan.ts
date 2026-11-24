@@ -24,14 +24,18 @@ function startsWithScopeAndKey(p: string, prefix: string): boolean {
 
 /**
  * 判断内层是否为可求值的占位路径。
- * 先 trim，再检查是否以 flow. / env. / http. / asset. / nodes. 开头且前缀后至少还有一个字符。
+ * 先 trim，再检查是否以 run. / flow. / env. / in. / out. / http. / asset. / nodes. 开头且前缀后至少还有一个字符。
+ * run. 为本次运行信息，in. / out. 为入参与出参集合。
  */
 export function isMustachePlaceholderPath(inner: string | null | undefined): boolean {
   if (inner == null) return false
   const p = String(inner).trim()
   return (
+    startsWithScopeAndKey(p, 'run.') ||
     startsWithScopeAndKey(p, 'flow.') ||
     startsWithScopeAndKey(p, 'env.') ||
+    startsWithScopeAndKey(p, 'in.') ||
+    startsWithScopeAndKey(p, 'out.') ||
     startsWithScopeAndKey(p, 'http.') ||
     startsWithScopeAndKey(p, 'asset.') ||
     startsWithScopeAndKey(p, 'nodes.')

@@ -7,7 +7,14 @@ import type { ToGraphJsonInput } from '../graphAdapter';
 
 type FlowCanvasStore = ReturnType<typeof useFlowCanvasStore>;
 
+/** 由画布 store 组装序列化 graph_json 所需的输入（节点、边、视口、场景配置、排版等） */
 export function buildFlowGraphInput(store: FlowCanvasStore): ToGraphJsonInput {
+  // 仅当跑前选中的入口是场景入口时，才把场景列表写回它；否则交给序列化逻辑回退到第一个场景入口
+  const selected = store.selectedRunEntryNodeId;
+  const scenarioEntryNodeId =
+    selected && store.nodes.some((n) => n.id === selected && n.type === 'scenario-entry')
+      ? selected
+      : null;
   return {
     nodes: store.nodes,
     edges: store.getEffectiveEdges(),
@@ -15,5 +22,6 @@ export function buildFlowGraphInput(store: FlowCanvasStore): ToGraphJsonInput {
     runConfig: store.runConfig,
     // 当前排版方式，保存、运行和脏检查都带着它，避免落盘时被写成默认排版
     layoutPreset: store.layoutPresetId,
+    scenarioEntryNodeId,
   };
 }

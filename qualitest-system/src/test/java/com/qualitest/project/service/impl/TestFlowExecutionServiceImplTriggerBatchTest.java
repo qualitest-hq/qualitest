@@ -5,6 +5,7 @@ import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.run.RunStatusUpdater;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
+import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.validate.FlowRunReadinessGate;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.params.TriggerTestFlowRunBatchItemParams;
@@ -63,6 +64,7 @@ class TestFlowExecutionServiceImplTriggerBatchTest {
                 mock(TestFlowExecutor.class),
                 new StepResultWriter(),
                 mock(FlowRunReadinessGate.class),
+                mock(ParsedGraphCache.class),
                 mock(RunStatusUpdater.class),
                 mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class),
                 mock(com.qualitest.project.runhub.EnvRunConcurrencyService.class),

@@ -395,19 +395,9 @@ public class EnvRunConcurrencyService {
                 .build();
     }
 
-    /** 由 triggerType 归类运行中心来源标签 */
+    /** 由触发方式归类运行中心来源标签：空值按 ui，其余为规范化后的小写短名 */
     private static String resolveSource(String triggerType) {
-        String t = StrUtil.blankToDefault(triggerType, "manual").toLowerCase();
-        if (t.contains("suite")) {
-            return "suite";
-        }
-        if (t.contains("mcp")) {
-            return "mcp";
-        }
-        if ("ai".equals(t)) {
-            return "ai";
-        }
-        return t;
+        return com.qualitest.flow.delivery.RunTrigger.hubSource(triggerType);
     }
 
     /** 活动行标题：流名优先，缺省时用流 id */

@@ -119,7 +119,7 @@ public class TestFlowRun extends BaseEntity {
     private String errorMessage;
 
     /**
-     * 触发来源：manual（画布人手）、ai（全自动）、ci、schedule 等
+     * 触发来源短名：ui / mcp / ci / suite / http / subflow
      */
     private String triggerType;
 

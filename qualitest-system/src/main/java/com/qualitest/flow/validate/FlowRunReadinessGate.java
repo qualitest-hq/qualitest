@@ -1,11 +1,9 @@
 package com.qualitest.flow.validate;
 
-import cn.hutool.core.util.StrUtil;
+import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
-import com.qualitest.project.mapper.TestFlowMapper;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +26,7 @@ public class FlowRunReadinessGate {
     private final GraphJsonValidator graphJsonValidator;
     private final TestProjectApiMapper testProjectApiMapper;
     private final TestProjectMapper testProjectMapper;
-    private final TestFlowMapper testFlowMapper;
+    private final ParsedGraphCache parsedGraphCache;
 
     /**
      * 收集阻止开跑的全部错误文案。
@@ -50,17 +48,7 @@ public class FlowRunReadinessGate {
         errors.addAll(AssertPathDesignGate.validate(graph, apiResolver).errors());
 
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        Function<Long, GraphJson> subflowResolver = id -> {
-            TestFlow sub = testFlowMapper.selectTestFlowById(id);
-            if (sub == null || StrUtil.isBlank(sub.getGraphJson())) {
-                return null;
-            }
-            try {
-                return GraphJson.parse(sub.getGraphJson());
-            } catch (Exception e) {
-                return null;
-            }
-        };
+        Function<Long, GraphJson> subflowResolver = parsedGraphCache::get;
         errors.addAll(DesignAuthRiskGates.collect(graph, projectAuthJson, apiResolver, subflowResolver));
         return errors;
     }

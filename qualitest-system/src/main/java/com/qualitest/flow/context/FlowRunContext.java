@@ -11,7 +11,7 @@ import java.util.Map;
  * 单次 Run 运行时上下文。
  * <p>
  * 变量区：env / flow / asset / session；入参 {@code in}；出参 {@code out}（status/headers/body）。
- * 入口：entryKind（scenario/subflow/http）、entryNodeId、trigger。
+ * 入口：entryKind（scenario/subflow/http 或协议入口短名）、entryNodeId、trigger（触发源）。
  * 交付：returnCount（http-return/subflow-return 成功次数）、delivered、deliveryWriteFailed、
  * deliverySink、inboundSlotToken。
  * 子流挂载：nodeOuts、parentContext、parentSubflowNodeId。
@@ -24,9 +24,11 @@ import java.util.Map;
 @AllArgsConstructor
 public class FlowRunContext {
 
+    /** 环境变量区，占位符路径 {@code env.*} */
     @Builder.Default
     private Map<String, Object> env = new HashMap<>();
 
+    /** 流程变量区，占位符路径 {@code flow.*} */
     @Builder.Default
     private Map<String, Object> flow = new HashMap<>();
 
@@ -46,8 +48,8 @@ public class FlowRunContext {
     private Map<String, Object> out = new LinkedHashMap<>();
 
     /**
-     * 入口种类字符串：scenario / subflow / http。
-     * 决定用哪种返回节点、是否对外交付、收束是否强制兜底。
+     * 入口种类字符串：scenario / subflow / http，或协议入口的协议短名（如 tcp）。
+     * 决定用哪种返回节点、是否对外交付、收束是否强制兜底；占位符路径 {@code run.entryKind}。
      */
     @Builder.Default
     private String entryKind = "scenario";
@@ -59,7 +61,8 @@ public class FlowRunContext {
     private String entryNodeId;
 
     /**
-     * 触发源字符串：ui / ci / suite / http / mcp / subflow 等，与 entryKind 分开记录。
+     * 触发源字符串：ui / ci / suite / http / mcp / subflow 等，表示谁发起了本次运行；
+     * 与入口种类 entryKind 相互独立，占位符路径 {@code run.trigger}。
      */
     @Builder.Default
     private String trigger = "ui";
@@ -157,6 +160,16 @@ public class FlowRunContext {
      * 当前 Run 所属测试项目 ID（子流归属校验）
      */
     private Long testProjectId;
+
+    /**
+     * 当前 Run 绑定的测试环境 ID，插件步骤据此定位要操作的环境；未绑定环境时为 null
+     */
+    private Long testProjectEnvId;
+
+    /**
+     * 当前测试流运行记录 ID，插件步骤调用时随请求带给插件，用于关联本次运行
+     */
+    private Long testFlowRunId;
 
     /**
      * 项目多端配置原始 JSON（表字段 auth_config）。

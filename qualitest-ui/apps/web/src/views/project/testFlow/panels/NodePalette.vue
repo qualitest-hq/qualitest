@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-/** 左栏节点库：拖拽或双击向画布添加节点；返回类节点随入口类型出现 */
+/** 左栏节点库：拖拽或双击向画布添加节点；入口类节点可重复添加，返回类节点仅在存在对应入口时出现 */
 import { computed } from 'vue'
 
 import { NODE_TYPES, type FlowNodeTypeKey } from '../constants/nodeTypes'
@@ -30,6 +30,10 @@ import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 const { addNodeAtCenter } = useFlowNodes()
 const store = useFlowCanvasStore()
 
+/**
+ * 节点库中可添加的节点类型列表：
+ * HTTP 返回仅在画布有 HTTP 入口时出现，子流返回仅在画布有子流入口时出现，其余类型始终可添加。
+ */
 const paletteTypes = computed(() => {
   const onCanvas = new Set(store.nodes.map((n) => n.type));
   const hasHttpEntry = onCanvas.has('http-entry');
@@ -39,18 +43,17 @@ const paletteTypes = computed(() => {
     .filter(([type]) => {
       if (type === 'http-return') return hasHttpEntry;
       if (type === 'subflow-return') return hasSubflowEntry;
-      if (type === 'scenario-entry' || type === 'http-entry' || type === 'subflow-entry') {
-        return !onCanvas.has(type);
-      }
       return true;
     });
 });
 
+/** 开始拖拽节点卡片：携带节点类型，供画布放置时创建对应节点 */
 function onDragStart(event, type) {
   event.dataTransfer?.setData('nodeType', type)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
 }
 
+/** 双击节点卡片：在画布可视区域中心添加该类型节点 */
 function onDblClick(type) {
   addNodeAtCenter(type)
 }

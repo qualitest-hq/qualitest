@@ -213,7 +213,7 @@ public class FlowDesignToolExecutor {
 
     /**
      * 注册全部 submit_* 写图工具。
-     * 七种节点与场景：参数 op=add|update，每次一个 Staging 单元，节点 type 在注册时闭包写入。
+     * 普通节点、返回节点、三类入口节点与场景：参数 op=add|update，每次一个 Staging 单元，节点 type 在注册时闭包写入。
      * 边：注册 SubmitFlowDesignEdgesTool，支持一次提交多条边。
      * 删除：统一 submit_delete。
      */
@@ -230,6 +230,9 @@ public class FlowDesignToolExecutor {
                 new NodeTool(FlowDesignToolNames.SUBMIT_SUBFLOW_NODE, "subflow"),
                 new NodeTool(FlowDesignToolNames.SUBMIT_HTTP_RETURN_NODE, "http-return"),
                 new NodeTool(FlowDesignToolNames.SUBMIT_SUBFLOW_RETURN_NODE, "subflow-return"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_SCENARIO_ENTRY_NODE, "scenario-entry"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_HTTP_ENTRY_NODE, "http-entry"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_SUBFLOW_ENTRY_NODE, "subflow-entry"),
         };
         for (NodeTool nt : nodeTools) {
             String type = nt.type();

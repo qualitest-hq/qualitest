@@ -40,7 +40,13 @@
       "name": "写入子变量"
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "id": "e-entry-c1",
+      "source": "scn_entry_1795425561395",
+      "target": "c1"
+    }
+  ],
   "meta": {
     "startNodeId": "scn_entry_1795425561395"
   }

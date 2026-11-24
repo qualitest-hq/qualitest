@@ -125,13 +125,14 @@ const STATUS_LABEL = {
   cancelled: '已取消',
 }
 
+/** 运行触发来源短名 → 界面展示中文名 */
 const SOURCE_LABEL = {
-  manual: '手动',
-  ai: 'AI',
+  ui: '画布',
   mcp: 'MCP',
   suite: '套件',
   ci: 'CI',
-  schedule: '定时',
+  http: '开放 HTTP',
+  subflow: '子流',
 }
 
 const KIND_LABEL = {

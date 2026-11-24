@@ -16,7 +16,7 @@ import {
   parseNodesHttpPath,
   toAbsoluteJsonPath,
 } from './placeholder';
-import { isKnownNodeType, nodeTypeLabel } from './nodeTypes';
+import { isAnyEntryType, isKnownNodeType, nodeTypeLabel } from './nodeTypes';
 import type { GraphEdge, GraphJson, GraphNode } from './graphTypes';
 import { DELAY_MAX_MS } from './delayConstants';
 import { RETRY_UNTIL_MAX_ATTEMPTS, RETRY_UNTIL_MAX_INTERVAL_MS } from './retryUntilConstants';
@@ -798,11 +798,11 @@ function isScenarioEntryNode(node: unknown): boolean {
   );
 }
 
-/** 是否为任一入口类型（场景 / HTTP / 子流） */
+/** 是否为任一入口类型节点：场景 / HTTP / 子流等平台入口，或「{协议名}-entry」协议入口 */
 function isEntryNode(node: unknown): boolean {
   if (!node || typeof node !== 'object' || Array.isArray(node)) return false;
   const t = (node as Record<string, unknown>).type;
-  return t === 'scenario-entry' || t === 'subflow-entry' || t === 'http-entry';
+  return typeof t === 'string' && isAnyEntryType(t);
 }
 
 /** 场景入口是否已挂非空 scenarios 列表 */
@@ -859,6 +859,53 @@ function appendForbiddenLegacyMetaScenarios(graph: Record<string, unknown>, erro
  * 检查运行场景是否齐全：须落在 scenario-entry.data.scenarios。
  * 仅有 http-entry / subflow-entry、不依赖人跑场景的图可跳过场景列表。
  */
+/**
+ * 隐式扇出：非 condition 且出边≥2 时，至多一臂可达返回节点（避免二次交付）。
+ * 错误写入 errors，保存/画布预检会展示给用户。
+ */
+function appendFanoutReturnRules(nodes: GraphNode[], edges: GraphEdge[], errors: string[]): void {
+  const outs = new Map<string, string[]>();
+  for (const e of edges) {
+    if (!e?.source || !e?.target) continue;
+    const list = outs.get(e.source) ?? [];
+    list.push(e.target);
+    outs.set(e.source, list);
+  }
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  for (const node of nodes) {
+    if (!node?.id || node.type === 'condition') continue;
+    const targets = outs.get(node.id) ?? [];
+    if (targets.length < 2) continue;
+    let armsWithReturn = 0;
+    for (const t of targets) {
+      if (armCanReachReturn(t, byId, outs, new Set())) {
+        armsWithReturn++;
+      }
+    }
+    if (armsWithReturn > 1) {
+      const name = resolveGraphNodeName(node) || node.id;
+      errors.push(`多出边扇出后至多一臂可含返回节点（节点「${name}」）`);
+    }
+  }
+}
+
+/** 从臂起点沿出边（含 condition 全部分支）是否能碰到返回节点 */
+function armCanReachReturn(
+  nodeId: string,
+  byId: Map<string | undefined, GraphNode>,
+  outs: Map<string, string[]>,
+  path: Set<string>,
+): boolean {
+  if (!nodeId || path.has(nodeId)) return false;
+  const node = byId.get(nodeId);
+  if (!node) return false;
+  if (node.type === 'http-return' || node.type === 'subflow-return') return true;
+  const nextPath = new Set(path);
+  nextPath.add(nodeId);
+  const targets = outs.get(nodeId) ?? [];
+  return targets.some((t) => armCanReachReturn(t, byId, outs, nextPath));
+}
+
 function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): void {
   appendForbiddenLegacyMetaScenarios(graph, errors);
   const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
@@ -993,6 +1040,7 @@ export function validateGraphJson(
   }
 
   appendMetaRunError(graph, errors);
+  appendFanoutReturnRules(nodes as GraphNode[], edges as GraphEdge[], errors);
 
   if (!(nodes as GraphNode[]).length) {
     warnings.push('nodes 为空，导入后将得到空白画布');

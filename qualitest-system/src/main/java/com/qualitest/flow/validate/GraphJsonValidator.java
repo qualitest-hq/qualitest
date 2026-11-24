@@ -15,6 +15,8 @@ import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphNodeShellSupport;
+import com.qualitest.flow.run.FanoutSupport;
+import com.qualitest.flow.run.GraphWalker;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -1384,6 +1386,39 @@ public class GraphJsonValidator {
         for (String start : startIds) {
             detectSequentialDoubleReturn(start, 0, new HashSet<>(), byId, outs, errors);
         }
+        appendFanoutReturnRules(nodes, edges, errors);
+    }
+
+    /**
+     * 隐式扇出校验：非 condition 多出边时，至多一臂的可达子图可含返回节点（避免二次交付）。
+     */
+    private void appendFanoutReturnRules(
+            List<GraphNode> nodes, List<GraphEdge> edges, List<String> errors) {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        GraphJson graph = new GraphJson();
+        graph.setNodes(nodes);
+        graph.setEdges(edges != null ? edges : List.of());
+        GraphWalker walker = new GraphWalker(graph);
+        for (GraphNode n : nodes) {
+            if (n == null || n.getId() == null || !walker.isFanoutNode(n)) {
+                continue;
+            }
+            String display = formatTypedStartNodeName(nodes, n.getId());
+            int armsWithReturn = 0;
+            for (GraphEdge edge : walker.listOutgoingEdges(n.getId())) {
+                if (edge == null || edge.getTarget() == null || edge.getTarget().isBlank()) {
+                    continue;
+                }
+                if (FanoutSupport.armCanReachReturn(walker, edge.getTarget())) {
+                    armsWithReturn++;
+                }
+            }
+            if (armsWithReturn > 1) {
+                errors.add("多出边扇出后至多一臂可含返回节点（节点「" + display + "」）");
+            }
+        }
     }
 
     /**
@@ -1409,7 +1444,8 @@ public class GraphJsonValidator {
         }
         Set<String> nextPath = new HashSet<>(path);
         nextPath.add(nodeId);
-        for (GraphEdge e : outs.getOrDefault(nodeId, List.of())) {
+        List<GraphEdge> edgeList = outs.getOrDefault(nodeId, List.of());
+        for (GraphEdge e : edgeList) {
             detectReturnTypeMismatch(e.getTarget(), expectedReturnType, nextPath, byId, outs, errors);
         }
     }
@@ -1442,13 +1478,7 @@ public class GraphJsonValidator {
         }
         Set<String> nextPath = new HashSet<>(path);
         nextPath.add(nodeId);
-        if (FlowNodeType.CONDITION.matches(node.getType())) {
-            List<GraphEdge> edgeList = outs.getOrDefault(nodeId, List.of());
-            for (GraphEdge e : edgeList) {
-                detectSequentialDoubleReturn(e.getTarget(), returns, nextPath, byId, outs, errors);
-            }
-            return;
-        }
+        // condition 与隐式扇出均对各出边分别累计返回次数（互不影响）
         List<GraphEdge> edgeList = outs.getOrDefault(nodeId, List.of());
         for (GraphEdge e : edgeList) {
             detectSequentialDoubleReturn(e.getTarget(), returns, nextPath, byId, outs, errors);

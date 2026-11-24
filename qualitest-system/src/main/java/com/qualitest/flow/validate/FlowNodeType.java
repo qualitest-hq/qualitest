@@ -25,19 +25,33 @@ import java.util.stream.Collectors;
  *   <li>SCENARIO_ENTRY — 场景图入口；引擎透传；场景图不画返回节点</li>
  *   <li>SUBFLOW_ENTRY — 子流图入口；须配置 fallbackOut</li>
  *   <li>HTTP_ENTRY — 开放 HTTP 入口（method/path/envId/fallbackOut）；引擎透传</li>
+ *   <li>PLUGIN_ACTION — 平台插件步骤（引擎侧只有这一种类型，具体外观与能力由插件声明）</li>
  * </ul>
+ * 多出边（非 condition）由运行器隐式扇出，不设独立节点类型。
+ * 协议入口：持久化为 {@code {protocol}-entry}（如 tcp-entry），枚举中不逐一列出；
+ * 是否已知类型、是否入口类型均按 {@code -entry} 后缀规则识别。
  */
 @Getter
 public enum FlowNodeType {
 
+    /** HTTP 请求 */
     HTTP("http", "HTTP"),
+    /** 断言 */
     ASSERT("assert", "Assert"),
+    /** 延时等待 */
     DELAY("delay", "Delay"),
+    /** 条件分支 */
     CONDITION("condition", "Condition"),
+    /** 变量赋值 */
     ASSIGN("assign", "Assign"),
+    /** 脚本 */
     SCRIPT("script", "Script"),
+    /** 子流调用 */
     SUBFLOW("subflow", "Subflow"),
+    /** 人工输入 */
     INPUT("input", "Input"),
+    /** 平台插件步骤：调用已启用插件提供的能力 */
+    PLUGIN_ACTION("pluginAction", "Plugin Action"),
     /** 开放 HTTP 定稿写出 */
     HTTP_RETURN("http-return", "HTTP Return"),
     /** 子流定稿挂父 */
@@ -49,18 +63,26 @@ public enum FlowNodeType {
     /** 开放 HTTP 图入口 */
     HTTP_ENTRY("http-entry", "HTTP Entry");
 
+    /** code 到枚举的映射 */
     private static final Map<String, FlowNodeType> BY_CODE = Arrays.stream(values())
             .collect(Collectors.toMap(FlowNodeType::getCode, t -> t));
 
+    /** 全部已枚举的 type code 集合 */
     private static final Set<String> KNOWN_CODES = Arrays.stream(values())
             .map(FlowNodeType::getCode)
             .collect(Collectors.toUnmodifiableSet());
 
+    /** 三种平台入口的 type code 集合 */
     private static final Set<String> ENTRY_CODES = Set.of(
             SCENARIO_ENTRY.code, SUBFLOW_ENTRY.code, HTTP_ENTRY.code);
 
+    /** 返回节点的 type code 集合 */
     private static final Set<String> RETURN_CODES = Set.of(
             HTTP_RETURN.code, SUBFLOW_RETURN.code);
+
+    /** 协议入口 type：小写字母开头、仅字母数字、以 -entry 结尾 */
+    private static final java.util.regex.Pattern PROTOCOL_ENTRY =
+            java.util.regex.Pattern.compile("^[a-z][a-z0-9]*-entry$");
 
     /** 持久化与画布使用的节点 type 字符串 */
     private final String code;
@@ -68,12 +90,13 @@ public enum FlowNodeType {
     /** 画布与报告展示的英文标签 */
     private final String label;
 
+    /** 构造节点类型枚举项：code 为持久化字符串，label 为展示标签 */
     FlowNodeType(String code, String label) {
         this.code = code;
         this.label = label;
     }
 
-    /** 判断是否与给定 {@link GraphNode#getType()} 字符串相同 */
+    /** 判断是否与给定节点 type 字符串相同 */
     public boolean matches(String type) {
         return code.equals(type);
     }
@@ -86,17 +109,41 @@ public enum FlowNodeType {
         return Optional.ofNullable(BY_CODE.get(type));
     }
 
-    /** 是否为已知可执行 type */
+    /** 是否为已知可执行 type（含平台枚举与协议入口 {protocol}-entry） */
     public static boolean isKnown(String type) {
-        return type != null && KNOWN_CODES.contains(type);
+        if (type == null) {
+            return false;
+        }
+        return KNOWN_CODES.contains(type) || isProtocolEntry(type);
     }
 
     /**
-     * 是否为入口节点 type（scenario-entry / subflow-entry / http-entry）。
+     * 是否为入口节点 type（三种平台入口 + 协议入口）。
      * 有入口时图校验要求入口无入边，且仅入口可作为开跑起点。
      */
     public static boolean isEntry(String type) {
-        return type != null && ENTRY_CODES.contains(type);
+        return type != null && (ENTRY_CODES.contains(type) || isProtocolEntry(type));
+    }
+
+    /**
+     * 是否为插件贡献的协议入口（如 {@code tcp-entry}）。
+     * 三种平台入口不算协议入口。
+     */
+    public static boolean isProtocolEntry(String type) {
+        if (type == null || ENTRY_CODES.contains(type)) {
+            return false;
+        }
+        return PROTOCOL_ENTRY.matcher(type).matches();
+    }
+
+    /**
+     * 协议入口短名：{@code tcp-entry} → {@code tcp}；非协议入口返回 null。
+     */
+    public static String protocolShortName(String type) {
+        if (!isProtocolEntry(type)) {
+            return null;
+        }
+        return type.substring(0, type.length() - "-entry".length());
     }
 
     /**

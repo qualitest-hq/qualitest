@@ -15,20 +15,18 @@ import {
 import demoGraph from '@flow-fixtures/demo-graph.json';
 
 describe('createEmptyGraph', () => {
-  it('包含默认 viewport 与至少一条 run 场景', () => {
+  it('空 nodes/edges 与默认 viewport、schemaVersion 2', () => {
     // 前提：调用 createEmptyGraph
-    // 期望：空 nodes/edges，meta 含默认 viewport 与至少一条场景
+    // 期望：无 scenario-entry；仅默认 viewport 与 schemaVersion
     const graph = createEmptyGraph();
-    expect(graph.nodes).toHaveLength(1);
-    expect(graph.nodes[0].type).toBe('scenario-entry');
-    expect(graph.nodes[0].name).toBe('默认场景入口');
+    expect(graph.nodes).toEqual([]);
     expect(graph.edges).toEqual([]);
     expect(graph.meta?.viewport).toEqual({ x: 40, y: 40, zoom: 1 });
     expect(graph.meta?.layout).toBe('default');
-    expect(graph.meta?.schemaVersion).toBe(1);
-    const scenarios = graph.nodes[0].data?.scenarios as unknown[];
-    expect(scenarios?.length).toBeGreaterThanOrEqual(1);
-    expect(graph.meta?.startNodeId).toBe(graph.nodes[0].id);
+    expect(graph.meta?.schemaVersion).toBe(2);
+    expect(graph.meta?.startNodeId).toBeUndefined();
+    expect(graph.meta?.scenarios).toBeUndefined();
+    expect(graph.meta?.activeScenarioId).toBeUndefined();
     expect(graph.meta?.flowOutputs).toBeUndefined();
   });
 });
@@ -44,7 +42,7 @@ describe('fromGraphJson / toGraphJson', () => {
 
     const roundtrip = toGraphJson(adapted);
     expect(roundtrip.meta?.viewport).toEqual({ x: 0, y: 0, zoom: 1 });
-    expect(roundtrip.meta?.schemaVersion).toBe(1);
+    expect(roundtrip.meta?.schemaVersion).toBe(2);
     const entry = roundtrip.nodes.find((n) => n.type === 'scenario-entry');
     expect((entry?.data?.scenarios as unknown[])?.length).toBe(3);
     expect(roundtrip.meta?.startNodeId).toBe('2040354743931883499');
@@ -111,17 +109,17 @@ describe('fromGraphJson / toGraphJson', () => {
     expect(toGraphJson(adapted).meta?.layout).toBe('horizontal')
   })
 
-  it('空图往返保留 meta 场景', () => {
-    // 前提：空图设置 viewport 与 scenario.envId 后往返
-    // 期望：meta viewport 与 envId 保留
-    const empty = createEmptyGraph({ envId: '1001' });
+  it('空图往返保留 viewport', () => {
+    // 前提：空白空图改 viewport 后经 fromGraphJson → toGraphJson 往返
+    // 期望：meta viewport 保留；createEmptyGraph 不再用 envId 种子场景
+    const empty = createEmptyGraph();
     const adapted = fromGraphJson(empty);
     adapted.viewport = { x: 120, y: 80, zoom: 1.25 };
     const saved = toGraphJson(adapted);
+    expect(saved.nodes).toEqual([]);
+    expect(saved.edges).toEqual([]);
     expect(saved.meta?.viewport).toEqual({ x: 120, y: 80, zoom: 1.25 });
-    const entry = saved.nodes.find((n) => n.type === 'scenario-entry');
-    const sc = (entry?.data?.scenarios as Array<{ envId?: string }> | undefined)?.[0];
-    expect(sc?.envId).toBe('1001');
+    expect(saved.nodes.some((n) => n.type === 'scenario-entry')).toBe(false);
   });
 
   it('toGraphJson 排除未 confirm 的 Staging add 并回滚 pending update', () => {

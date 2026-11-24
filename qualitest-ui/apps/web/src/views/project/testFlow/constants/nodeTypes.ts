@@ -25,17 +25,24 @@ export const NODE_COLORS = {
   'subflow-entry': '#4f46e5',
   'http-return': '#0e7490',
   'subflow-return': '#4338ca',
+  pluginAction: '#334155',
 } as const;
 
+/** 单个节点类型的展示与默认值配置 */
 export interface NodeTypeConfig {
+  /** 节点库与画布显示的名称 */
   label: string;
+  /** 主题色 */
   color: string;
+  /** 节点图标缩写文字 */
   icon: string;
+  /** 节点库中的一句话说明 */
   desc: string;
+  /** 新建该类型节点时写入 data 的初始值 */
   defaults: Record<string, unknown>;
 }
 
-/** 画布可创建的节点类型 key（入口 / 业务 / 返回） */
+/** 画布可创建的节点类型 key（入口 / 业务 / 返回 / 插件动作） */
 export type FlowNodeTypeKey =
   | 'http'
   | 'assert'
@@ -49,7 +56,8 @@ export type FlowNodeTypeKey =
   | 'http-entry'
   | 'subflow-entry'
   | 'http-return'
-  | 'subflow-return';
+  | 'subflow-return'
+  | 'pluginAction';
 
 /**
  * 各 type 的展示元数据与新建默认 data。
@@ -184,7 +192,6 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
       subflowId: '',
       versionPolicy: 'pinned',
       inputs: [],
-      outputs: [],
     },
   },
   input: {
@@ -195,6 +202,19 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     defaults: {
       prompt: '请填写后继续',
       fields: defaultInputFields(),
+    },
+  },
+  // 插件动作：默认值依次为插件 id、贡献点 id、能力名称、能力参数
+  pluginAction: {
+    label: '插件步骤',
+    color: NODE_COLORS.pluginAction,
+    icon: 'PA',
+    desc: '调用已启用插件能力 · pluginId + capability',
+    defaults: {
+      pluginId: '',
+      contributionId: '',
+      capability: '',
+      config: {},
     },
   },
 };

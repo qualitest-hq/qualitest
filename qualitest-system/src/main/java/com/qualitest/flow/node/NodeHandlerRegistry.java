@@ -11,6 +11,7 @@ import com.qualitest.flow.node.impl.DelayNodeHandler;
 import com.qualitest.flow.node.impl.EntryNodeHandler;
 import com.qualitest.flow.node.impl.HttpNodeHandler;
 import com.qualitest.flow.node.impl.InputNodeHandler;
+import com.qualitest.flow.node.impl.PluginActionNodeHandler;
 import com.qualitest.flow.node.impl.ReturnNodeHandler;
 import com.qualitest.flow.node.impl.ScriptNodeHandler;
 import com.qualitest.flow.node.impl.SubflowNodeHandler;
@@ -20,7 +21,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 节点 Handler 注册表：按 {@code nodes[].type} 路由到对应 {@link NodeHandler} 实现。
+ * 节点执行器注册表：按节点 type 路由到对应的节点执行器。
  */
 @Component
 public class NodeHandlerRegistry {
@@ -28,6 +29,9 @@ public class NodeHandlerRegistry {
     /** 已注册的 Handler 列表，按 type 匹配第一个 supports 为真的实现 */
     private final List<NodeHandler> handlers;
 
+    /**
+     * Spring 构造：注册全部内置节点执行器，包括入口与插件步骤。
+     */
     @Autowired
     public NodeHandlerRegistry(HttpNodeHandler httpNodeHandler,
                                AssertNodeHandler assertNodeHandler,
@@ -38,7 +42,8 @@ public class NodeHandlerRegistry {
                                SubflowNodeHandler subflowNodeHandler,
                                InputNodeHandler inputNodeHandler,
                                ReturnNodeHandler returnNodeHandler,
-                               EntryNodeHandler entryNodeHandler) {
+                               EntryNodeHandler entryNodeHandler,
+                               PluginActionNodeHandler pluginActionNodeHandler) {
         this.handlers = List.of(
                 httpNodeHandler,
                 assertNodeHandler,
@@ -49,7 +54,8 @@ public class NodeHandlerRegistry {
                 subflowNodeHandler,
                 inputNodeHandler,
                 returnNodeHandler,
-                entryNodeHandler
+                entryNodeHandler,
+                pluginActionNodeHandler
         );
     }
 
@@ -81,6 +87,7 @@ public class NodeHandlerRegistry {
         return handler.execute(ctx, node, incomingEdgeId);
     }
 
+    /** 构造“不支持的节点类型”异常，type 为空时展示为“(空)” */
     private static FlowExecutionException unsupported(String type) {
         String display = type == null || type.isBlank() ? "(空)" : type;
         return new FlowExecutionException(

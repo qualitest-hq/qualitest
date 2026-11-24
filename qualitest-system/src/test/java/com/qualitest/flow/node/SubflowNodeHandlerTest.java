@@ -1,11 +1,14 @@
 package com.qualitest.flow.node;
 
 
+import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
+import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
+import com.qualitest.flow.node.impl.EntryNodeHandler;
 import com.qualitest.flow.node.impl.SubflowNodeHandler;
 import com.qualitest.flow.run.FlowGraphRunner;
 import com.qualitest.flow.subflow.SubflowDepth;
@@ -42,6 +45,7 @@ class SubflowNodeHandlerTest {
     private static final long PROJECT_ID = 1L;
 
     private ITestFlowService testFlowService;
+    private ParsedGraphCache parsedGraphCache;
     private FlowGraphRunner flowGraphRunner;
     private NodeHandlerRegistry childRegistry;
     private SubflowNodeHandler handler;
@@ -51,9 +55,9 @@ class SubflowNodeHandlerTest {
     @BeforeEach
     void setUp() {
         testFlowService = mock(ITestFlowService.class);
+        parsedGraphCache = mock(ParsedGraphCache.class);
         flowGraphRunner = new FlowGraphRunner();
         childRegistry = passingAssignRegistry();
-        handler = new SubflowNodeHandler(testFlowService, flowGraphRunner, childRegistry);
 
         Map<String, Object> flow = new HashMap<>();
         flow.put("seedIn", "parent-val");
@@ -64,6 +68,9 @@ class SubflowNodeHandlerTest {
 
         subflow = defaultSubflow();
         when(testFlowService.selectTestFlowById(anyLong())).thenReturn(subflow);
+        when(parsedGraphCache.getFrom(org.mockito.ArgumentMatchers.any(TestFlow.class))).thenAnswer(inv ->
+                subflow.getGraphJson() != null ? GraphJson.parse(subflow.getGraphJson()) : null);
+        handler = new SubflowNodeHandler(testFlowService, parsedGraphCache, flowGraphRunner, childRegistry);
     }
 
     /**
@@ -181,7 +188,7 @@ class SubflowNodeHandlerTest {
     @Order(6)
     @DisplayName("子流：子步失败向上传播")
     void execute_childStepFails_propagatesError() {
-        handler = new SubflowNodeHandler(testFlowService, flowGraphRunner, failingDelayRegistry());
+        handler = new SubflowNodeHandler(testFlowService, parsedGraphCache, flowGraphRunner, failingDelayRegistry());
         subflow.setGraphJson(loadResource("flow/subflow-child-delay-graph.json"));
         GraphNode node = subflowNode(nodeData(
                 "name", "子流失败",
@@ -197,8 +204,8 @@ class SubflowNodeHandlerTest {
         assertEquals("failed", result.getSubflow().get("status"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> childSteps = (List<Map<String, Object>>) result.getSubflow().get("childSteps");
-        assertEquals(1, childSteps.size());
-        assertEquals("failed", childSteps.get(0).get("status"));
+        assertEquals(2, childSteps.size());
+        assertEquals("failed", childSteps.get(1).get("status"));
         assertNotNull(result.getError());
     }
 
@@ -227,6 +234,7 @@ class SubflowNodeHandlerTest {
 
     private static NodeHandlerRegistry passingAssignRegistry() {
         return new NodeHandlerRegistry(List.of(
+                new EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.ASSIGN) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
@@ -246,6 +254,7 @@ class SubflowNodeHandlerTest {
 
     private static NodeHandlerRegistry failingDelayRegistry() {
         return new NodeHandlerRegistry(List.of(
+                new EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.DELAY) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {

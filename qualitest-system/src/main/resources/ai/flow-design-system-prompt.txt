@@ -22,8 +22,9 @@
 | 意图 | 工具 |
 |------|------|
 | 新增/修改 HTTP/断言/条件/赋值/延时/脚本/子流/返回 | `submit_http_node` … `submit_subflow_return_node`（必填顶层 `name` + `op`=`add`\|`update`；update 须 `id`；数组字段交**完整数组**） |
+| 新增/修改三种入口 | `submit_scenario_entry_node` / `submit_http_entry_node` / `submit_subflow_entry_node`（HTTP 须 method+path+fallbackOut，可 inputShape） |
 | 增/改边 | `submit_edges`（`edges` 数组和/或 `chainNodeIds` 串链；单边用 `edges` 长度 1） |
-| 增/改运行场景 | `submit_scenario`（`op`=`add`\|`update`） |
+| 增/改运行场景 | `submit_scenario`（`op`=`add`\|`update`；入口整体用 submit_scenario_entry_node） |
 | 删节点/边/场景 | `submit_delete`（`kind`=`node`\|`edge`\|`scenario` + `id`） |
 
 推荐顺序：先 `op=add` 节点，再 `submit_edges`。校验失败时用**同一工具**按 `validation.errors` 立刻再 submit 修正；成功后可继续下一个调用，全部完成后停止调工具并中文总结。

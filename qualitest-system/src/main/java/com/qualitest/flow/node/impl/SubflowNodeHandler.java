@@ -1,6 +1,7 @@
 package com.qualitest.flow.node.impl;
 
 
+import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
@@ -36,8 +37,8 @@ import java.util.Map;
  *       {@code nodes.&lt;本 subflow 节点 id&gt;.out}，供父图占位符读取</li>
  *   <li>本步成败只看子 Outcome；是否已挂 out 不影响成败判定；子失败时父图仍可读已挂的 out</li>
  * </ol>
- * {@code versionPolicy}：{@code latest}（默认）每次取子流定义当前 graph_json；
- * {@code pinned} 优先用节点上 {@code pinnedGraphJson} 固化快照，快照缺失则回落当前定义。
+ * {@code versionPolicy}：{@code latest}（默认）经 {@link ParsedGraphCache} 取子流当前图；
+ * {@code pinned} 优先用节点上 {@code pinnedGraphJson} 固化快照，快照缺失则回落当前定义（不强制走缓存）。
  */
 @Component
 public class SubflowNodeHandler extends AbstractStubNodeHandler {
@@ -46,14 +47,17 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
     private static final String VERSION_LATEST = "latest";
 
     private final ITestFlowService testFlowService;
+    private final ParsedGraphCache parsedGraphCache;
     private final FlowGraphRunner flowGraphRunner;
     private final NodeHandlerRegistry nodeHandlerRegistry;
 
     public SubflowNodeHandler(ITestFlowService testFlowService,
+                              ParsedGraphCache parsedGraphCache,
                               FlowGraphRunner flowGraphRunner,
                               @Lazy NodeHandlerRegistry nodeHandlerRegistry) {
         super(FlowNodeType.SUBFLOW);
         this.testFlowService = testFlowService;
+        this.parsedGraphCache = parsedGraphCache;
         this.flowGraphRunner = flowGraphRunner;
         this.nodeHandlerRegistry = nodeHandlerRegistry;
     }
@@ -84,8 +88,7 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                         FlowErrorCode.TF_SUBFLOW_INVALID, "子流不属于当前项目", data, subflowId, List.of());
             }
 
-            String graphJson = resolveSubflowGraphJson(data, subflow);
-            GraphJson childGraph = GraphJson.parse(graphJson);
+            GraphJson childGraph = resolveSubflowGraph(data, subflow);
             if (childGraph == null) {
                 return failed(node, incomingEdgeId, nodeName, t0, ctx,
                         FlowErrorCode.TF_SUBFLOW_INVALID, "子流图解析失败", data, subflowId, List.of());
@@ -98,6 +101,10 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                     childGraph, childCtx, nodeHandlerRegistry);
             List<Map<String, Object>> childSteps = SubflowIoSupport.toChildStepSummaries(outcome.getSteps());
             long durationMs = System.currentTimeMillis() - t0;
+
+            if (outcome.isPassed()) {
+                SubflowIoSupport.applyOutputs(ctx, childCtx.getFlow(), data.get("outputs"));
+            }
 
             Map<String, Object> mounted = ctx.getNodeOut(node.getId());
             Map<String, Object> subflowDetails = buildSubflowDetails(
@@ -169,21 +176,28 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                 .build();
     }
 
-    /** 按 versionPolicy 选择子图 JSON：pinned 用节点快照，否则读子流定义当前 graph_json */
-    private static String resolveSubflowGraphJson(Map<String, Object> data, TestFlow subflow) {
+    /**
+     * 按 versionPolicy 解析子图：pinned 用节点快照（不走缓存）；
+     * latest 走 {@link ParsedGraphCache}，避免同 Run 内重复 parse。
+     */
+    private GraphJson resolveSubflowGraph(Map<String, Object> data, TestFlow subflow) {
         String policy = data.get("versionPolicy") != null
                 ? String.valueOf(data.get("versionPolicy")).trim()
                 : VERSION_LATEST;
         if (VERSION_PINNED.equalsIgnoreCase(policy)) {
             Object pinned = data.get("pinnedGraphJson");
             if (pinned != null && !String.valueOf(pinned).isBlank()) {
-                return String.valueOf(pinned);
+                return GraphJson.parse(String.valueOf(pinned));
             }
+        }
+        GraphJson cached = parsedGraphCache.getFrom(subflow);
+        if (cached != null) {
+            return cached;
         }
         if (subflow.getGraphJson() == null || subflow.getGraphJson().isBlank()) {
             throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID, "子流 graph_json 为空");
         }
-        return subflow.getGraphJson();
+        return null;
     }
 
     private static Map<String, Object> buildSubflowDetails(

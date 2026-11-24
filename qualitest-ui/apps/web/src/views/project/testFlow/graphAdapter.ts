@@ -3,7 +3,7 @@
  *
  * - fromGraphJson：解开外层包装，还原 nodes/edges/viewport，并从 scenario-entry.data.scenarios 灌入 runConfig；condition 出边补 sourceHandle。打开画布不重排坐标
  * - toGraphJson：剥离界面字段，把 runConfig.scenarios（envId / inSeed）写回 scenario-entry；排版写入 meta.layout；meta 不写场景列表
- * - createEmptyGraph：新建空图时附带 scenario-entry、默认视口与冒烟场景
+ * - createEmptyGraph：新建完全空白图（无入口节点），仅默认视口
  */
 import type { Edge, Node } from '@vue-flow/core';
 import { markRaw } from 'vue';
@@ -65,34 +65,21 @@ export function createDefaultRunConfig(testProjectEnvId = ''): GraphScenarioConf
   };
 }
 
+/** 新建空画布的可选参数 */
 export interface CreateEmptyGraphOptions {
-  envId?: string;
+  /** 初始视口；缺省使用默认视口 */
   viewport?: GraphViewport;
 }
 
-/** 新建空画布：默认带 scenario-entry，场景挂入口；meta 不写 scenarios */
+/** 新建空画布：无入口、无场景；用户自行拖入口。meta 仅视口/排版/schemaVersion */
 export function createEmptyGraph(options: CreateEmptyGraphOptions = {}): GraphJson {
-  const runConfig = createDefaultRunConfig(options.envId ?? '');
-  const entryId = nextSnowflakeId();
   return {
-    nodes: [
-      {
-        id: entryId,
-        type: 'scenario-entry',
-        name: '默认场景入口',
-        position: { x: 0, y: 0 },
-        data: {
-          doc: '',
-          scenarios: JSON.parse(JSON.stringify(runConfig.scenarios)),
-        },
-      },
-    ],
+    nodes: [],
     edges: [],
     meta: {
       viewport: options.viewport ?? { ...DEFAULT_VIEWPORT },
       layout: 'default',
       schemaVersion: CURRENT_GRAPH_SCHEMA_VERSION,
-      startNodeId: entryId,
     },
   };
 }
@@ -265,6 +252,8 @@ export interface ToGraphJsonInput {
   layoutPreset?: string | null;
   /** 保存时排除未 confirm 的 Staging 对象并回滚 pending update */
   stagingFilter?: StagingPersistFilter;
+  /** 场景列表写回到哪个场景入口节点；为空或找不到时写回画布中第一个场景入口 */
+  scenarioEntryNodeId?: string | null;
 }
 
 /**
@@ -386,7 +375,14 @@ export function toGraphJson(input: ToGraphJsonInput): GraphJson {
     },
   );
 
-  const entryIdx = nodes.findIndex((n) => n.type === 'scenario-entry');
+  // 优先写回指定的场景入口；指定入口不存在时退回第一个场景入口
+  const preferredEntryId = effective.scenarioEntryNodeId;
+  let entryIdx = preferredEntryId
+    ? nodes.findIndex((n) => n.type === 'scenario-entry' && n.id === preferredEntryId)
+    : -1;
+  if (entryIdx < 0) {
+    entryIdx = nodes.findIndex((n) => n.type === 'scenario-entry');
+  }
   if (entryIdx >= 0) {
     const entry = nodes[entryIdx];
     const data = { ...(entry.data ?? {}) };

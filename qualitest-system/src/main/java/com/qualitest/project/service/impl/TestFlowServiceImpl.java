@@ -22,6 +22,8 @@ import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
+import com.qualitest.flow.openhttp.OpenHttpRouteIndex;
+import com.qualitest.flow.validate.OpenHttpRouteCollisionGate;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.mapper.TestFlowMapper;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
@@ -68,6 +70,10 @@ public class TestFlowServiceImpl implements ITestFlowService {
     /** 增量写图时把 patch 合并到最新图，并提供断言路径校验用的接口解析 */
     @Autowired
     private FlowDesignPatchNormalizer flowDesignPatchNormalizer;
+
+    /** 开放 HTTP 项目级路由索引（冲突门禁读 peers，避免保存时再全表 parse） */
+    @Autowired
+    private OpenHttpRouteIndex openHttpRouteIndex;
 
     /**
      * 查询测试流列表
@@ -178,7 +184,8 @@ public class TestFlowServiceImpl implements ITestFlowService {
             testFlow.setTestFlowId(IdUtil.getSnowflakeNextId());
         }
         validateFlowGroupAssignment(testFlow);
-        validateGraphJsonForPersist(testFlow.getGraphJson());
+        validateGraphJsonForPersist(
+                testFlow.getGraphJson(), testFlow.getTestProjectId(), testFlow.getTestFlowId());
         testFlow.setCreateTime(DateUtils.getNowDate());
         int rows = testFlowMapper.insertTestFlow(testFlow);
         if (rows > 0 && testFlow.getTestFlowId() != null) {
@@ -208,7 +215,16 @@ public class TestFlowServiceImpl implements ITestFlowService {
             testFlow.setFlowGroupId(null);
         }
         validateFlowGroupAssignment(testFlow);
-        validateGraphJsonForPersist(testFlow.getGraphJson());
+        // 更新时请求未带项目 id，则按库中记录补全，用于开放路由冲突检查
+        Long projectIdForGate = testFlow.getTestProjectId();
+        if (projectIdForGate == null && testFlow.getTestFlowId() != null) {
+            TestFlow existing = testFlowMapper.selectTestFlowById(testFlow.getTestFlowId());
+            if (existing != null) {
+                projectIdForGate = existing.getTestProjectId();
+            }
+        }
+        validateGraphJsonForPersist(
+                testFlow.getGraphJson(), projectIdForGate, testFlow.getTestFlowId());
         boolean writingGraph = StrUtil.isNotBlank(testFlow.getGraphJson());
         FlowEditLeaseService.LeaseHandle lease = null;
         try {
@@ -308,7 +324,9 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
             List<String> warnings = new ArrayList<>();
             GraphJson merged = flowDesignPatchNormalizer.mergeOnto(base, patch, warnings);
-            validatePersistFloor(merged, warnings);
+            // 项目 id 优先取入参，缺省时取已锁定流记录的项目 id
+            Long projectId = testProjectId != null ? testProjectId : locked.getTestProjectId();
+            validatePersistFloor(merged, warnings, projectId, locked.getTestFlowId());
 
             GraphValidationResult full =
                     graphJsonValidator.validate(merged, GraphValidationOptions.full());
@@ -387,16 +405,24 @@ public class TestFlowServiceImpl implements ITestFlowService {
      * 持久化前的地板校验。
      * 硬错误抛出业务异常；软警告并入 warnings。
      *
-     * @param graph    待写库的图
-     * @param warnings 警告收集列表
+     * @param graph         待写库的图
+     * @param warnings      警告收集列表
+     * @param testProjectId 项目 id，可空（空则不比对其它流的路由占用）
+     * @param testFlowId    当前流 id，可空
      */
-    private void validatePersistFloor(GraphJson graph, List<String> warnings) {
+    private void validatePersistFloor(
+            GraphJson graph, List<String> warnings, Long testProjectId, Long testFlowId) {
         GraphValidationResult floor =
                 graphJsonValidator.validate(graph, GraphValidationOptions.persistMinimal());
         if (!floor.isOk() && floor.getErrors() != null && !floor.getErrors().isEmpty()) {
             throw new ServiceException("校验未通过，未写库：" + String.join("；", floor.getErrors()));
         }
         addAllNonBlank(warnings, floor.getWarnings());
+        // 开放 HTTP 路由冲突属于硬错误，直接拒绝写库
+        List<String> routeErrors = collectOpenHttpRouteCollisionErrors(graph, testProjectId, testFlowId);
+        if (!routeErrors.isEmpty()) {
+            throw new ServiceException("校验未通过，未写库：" + String.join("；", routeErrors));
+        }
     }
 
     /**
@@ -601,11 +627,15 @@ public class TestFlowServiceImpl implements ITestFlowService {
 
     /**
      * 写库前校验 graph_json。
-     * 仅拒绝：无法解析、节点缺 id / id 重复、边缺 source/target。
+     * 拒绝：无法解析、节点缺 id / id 重复、边缺 source/target、同项目开放 HTTP method+path 冲突。
      * 不拒绝：开始节点异常、断言路径错误、鉴权缺失、HTTP 缺必填等（允许半成品落盘）。
      * graphJson 为空时跳过（只改名称等元数据时可不带图）。
+     *
+     * @param graphJson     待写库的图 JSON
+     * @param testProjectId 所属项目 id，可空（空则不比对其它流的路由占用）
+     * @param testFlowId    当前流 id，可空
      */
-    private void validateGraphJsonForPersist(String graphJson) {
+    private void validateGraphJsonForPersist(String graphJson, Long testProjectId, Long testFlowId) {
         if (StrUtil.isBlank(graphJson)) {
             return;
         }
@@ -623,6 +653,30 @@ public class TestFlowServiceImpl implements ITestFlowService {
         if (!validation.isOk() && !validation.getErrors().isEmpty()) {
             throw new ServiceException(validation.getErrors().get(0));
         }
+        // 开放 HTTP 路由冲突：同项目内 method+path 重复时拒绝写库
+        List<String> routeErrors = collectOpenHttpRouteCollisionErrors(graph, testProjectId, testFlowId);
+        if (!routeErrors.isEmpty()) {
+            throw new ServiceException(routeErrors.get(0));
+        }
+    }
+
+    /**
+     * 收集开放 HTTP 入口的 method+path 冲突：既检查本图内部，也检查同项目内其它未删除流。
+     *
+     * @param graph         待写库的图
+     * @param testProjectId 项目 id，可空（空则只检查本图内部）
+     * @param testFlowId    当前流 id，可空；比对其它流时排除自身
+     * @return 冲突说明列表；无冲突为空列表
+     */
+    private List<String> collectOpenHttpRouteCollisionErrors(
+            GraphJson graph, Long testProjectId, Long testFlowId) {
+        if (graph == null) {
+            return List.of();
+        }
+        List<OpenHttpRouteCollisionGate.PeerRoute> peers = testProjectId != null
+                ? openHttpRouteIndex.listPeerRoutes(testProjectId)
+                : List.of();
+        return OpenHttpRouteCollisionGate.validate(graph, testFlowId, peers);
     }
 
     /**
@@ -633,7 +687,10 @@ public class TestFlowServiceImpl implements ITestFlowService {
      */
     @Override
     public int deleteTestFlowByIdList(List<Long> testFlowIdList) {
-        return testFlowMapper.deleteTestFlowByIdList(testFlowIdList);
+        List<TestFlow> before = loadFlowsForDeleteEvent(testFlowIdList);
+        int rows = testFlowMapper.deleteTestFlowByIdList(testFlowIdList);
+        publishFlowDeletedEvents(before);
+        return rows;
     }
 
     /**
@@ -644,7 +701,14 @@ public class TestFlowServiceImpl implements ITestFlowService {
      */
     @Override
     public int deleteTestFlowById(Long testFlowId) {
-        return testFlowMapper.deleteTestFlowById(testFlowId);
+        TestFlow before = testFlowId != null ? testFlowMapper.selectTestFlowById(testFlowId) : null;
+        int rows = testFlowMapper.deleteTestFlowById(testFlowId);
+        if (rows > 0 && before != null) {
+            flowExternalChangePublisher.publishFlowDeleted(
+                    before.getTestFlowId(), before.getTestProjectId(),
+                    FlowExternalChangeSourceHolder.getOrDefault());
+        }
+        return rows;
     }
 
     /**
@@ -655,7 +719,14 @@ public class TestFlowServiceImpl implements ITestFlowService {
      */
     @Override
     public int logicDeleteTestFlowById(Long testFlowId) {
-        return testFlowMapper.logicDeleteTestFlowById(testFlowId);
+        TestFlow before = testFlowId != null ? testFlowMapper.selectTestFlowById(testFlowId) : null;
+        int rows = testFlowMapper.logicDeleteTestFlowById(testFlowId);
+        if (rows > 0 && before != null) {
+            flowExternalChangePublisher.publishFlowDeleted(
+                    before.getTestFlowId(), before.getTestProjectId(),
+                    FlowExternalChangeSourceHolder.getOrDefault());
+        }
+        return rows;
     }
 
     /**
@@ -666,7 +737,42 @@ public class TestFlowServiceImpl implements ITestFlowService {
      */
     @Override
     public int logicDeleteTestFlowByIdList(List<Long> testFlowIdList) {
-        return testFlowMapper.logicDeleteTestFlowByIdList(testFlowIdList);
+        List<TestFlow> before = loadFlowsForDeleteEvent(testFlowIdList);
+        int rows = testFlowMapper.logicDeleteTestFlowByIdList(testFlowIdList);
+        publishFlowDeletedEvents(before);
+        return rows;
+    }
+
+    /** 删除前读出流，便于发布带 projectId 的失效事件 */
+    private List<TestFlow> loadFlowsForDeleteEvent(List<Long> testFlowIdList) {
+        if (testFlowIdList == null || testFlowIdList.isEmpty()) {
+            return List.of();
+        }
+        List<TestFlow> list = new ArrayList<>();
+        for (Long id : testFlowIdList) {
+            if (id == null) {
+                continue;
+            }
+            TestFlow f = testFlowMapper.selectTestFlowById(id);
+            if (f != null) {
+                list.add(f);
+            }
+        }
+        return list;
+    }
+
+    private void publishFlowDeletedEvents(List<TestFlow> flows) {
+        if (flows == null || flows.isEmpty()) {
+            return;
+        }
+        String source = FlowExternalChangeSourceHolder.getOrDefault();
+        for (TestFlow f : flows) {
+            if (f == null || f.getTestFlowId() == null) {
+                continue;
+            }
+            flowExternalChangePublisher.publishFlowDeleted(
+                    f.getTestFlowId(), f.getTestProjectId(), source);
+        }
     }
 
     /**

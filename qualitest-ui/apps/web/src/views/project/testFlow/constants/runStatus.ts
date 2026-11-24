@@ -98,18 +98,26 @@ export function toCanvasVisitStatus(
   return 'passed';
 }
 
-/** 运行触发方式 code */
-export const RUN_TRIGGER_TYPES = ['manual', 'ai', 'ci', 'schedule', 'suite'] as const;
+/** 运行触发方式短名：画布 / MCP / CI / 套件 / 开放 HTTP / 子流调用 */
+export const RUN_TRIGGER_TYPES = [
+  'ui',
+  'mcp',
+  'ci',
+  'suite',
+  'http',
+  'subflow',
+] as const;
 
 export type RunTriggerType = (typeof RUN_TRIGGER_TYPES)[number];
 
-/** 触发方式中文标签 */
+/** 触发方式短名 → 界面展示中文名 */
 export const RUN_TRIGGER_LABEL: Record<RunTriggerType, string> = {
-  manual: '手动',
-  ai: 'AI 跑流',
+  ui: '画布',
+  mcp: 'MCP',
   ci: 'CI',
-  schedule: '定时',
-  suite: '批量',
+  suite: '套件',
+  http: '开放 HTTP',
+  subflow: '子流',
 };
 
 /** 触发方式展示文案；未知 code 原样返回 */

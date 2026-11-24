@@ -57,15 +57,19 @@ public final class FlowDesignNodeDataKeys {
 
     /**
      * 子流节点 data 允许键。
-     * inputs：父流程向子流程注入的 flow 种子；outputs：子流程成功后写回父流程的映射；
+     * inputs：父流程向子流程注入的 in/flow 种子；
      * alwaysRun：业务失败后继续阶段是否仍执行本子流节点；
-     * 子图定稿出参由子图内 subflow-return（或入口 fallbackOut）写入本节点 out，不在此名单声明。
+     * 子图定稿出参由子图内 subflow-return（或入口 fallbackOut）挂父 nodes.&lt;id&gt;.out，无父侧 outputs 映射表。
      */
     private static final Set<String> SUBFLOW = Set.of(
-            "subflowId", "subflowName", "versionPolicy", "inputs", "outputs", "graphJson", "alwaysRun");
+            "subflowId", "subflowName", "versionPolicy", "inputs", "graphJson", "alwaysRun", "pinnedGraphJson", "templateId");
 
     /** 人工输入节点 data 允许键 */
     private static final Set<String> INPUT = Set.of("fields", "alwaysRun");
+
+    /** 插件步骤：pluginId + capability；contributionId / config 可选 */
+    private static final Set<String> PLUGIN_ACTION = Set.of(
+            "pluginId", "contributionId", "capability", "config", "alwaysRun");
 
     /** http-return：out 来源路径与可选 HTTP 状态码 */
     private static final Set<String> HTTP_RETURN = Set.of("from", "status");
@@ -73,15 +77,15 @@ public final class FlowDesignNodeDataKeys {
     /** subflow-return：子流定稿 out 的来源路径 */
     private static final Set<String> SUBFLOW_RETURN = Set.of("from");
 
-    /** scenario-entry：说明文档与可批量执行的场景列表 */
+    /** scenario-entry：入口说明文字与可批量执行的场景列表 */
     private static final Set<String> SCENARIO_ENTRY = Set.of("doc", "scenarios");
 
     /** http-entry：开放路由 method/path、环境与收束兜底出参 */
     private static final Set<String> HTTP_ENTRY = Set.of(
-            "method", "path", "envId", "fallbackOut", "doc");
+            "method", "path", "envId", "fallbackOut", "doc", "inputShape");
 
     /** subflow-entry：未跑到返回节点时的兜底出参与说明 */
-    private static final Set<String> SUBFLOW_ENTRY = Set.of("fallbackOut", "doc");
+    private static final Set<String> SUBFLOW_ENTRY = Set.of("fallbackOut", "doc", "inputShape");
 
     private FlowDesignNodeDataKeys() {
     }
@@ -102,6 +106,7 @@ public final class FlowDesignNodeDataKeys {
             case "script" -> keys.addAll(SCRIPT);
             case "subflow" -> keys.addAll(SUBFLOW);
             case "input" -> keys.addAll(INPUT);
+            case "pluginaction" -> keys.addAll(PLUGIN_ACTION);
             case "http-return" -> keys.addAll(HTTP_RETURN);
             case "subflow-return" -> keys.addAll(SUBFLOW_RETURN);
             case "scenario-entry" -> keys.addAll(SCENARIO_ENTRY);

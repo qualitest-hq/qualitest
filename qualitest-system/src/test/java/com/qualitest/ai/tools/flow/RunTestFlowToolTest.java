@@ -34,7 +34,7 @@ import static org.mockito.Mockito.*;
 
 /**
  * 测 RunTestFlowTool：半自动拒绝；无 pending 时直接跑；有 pending 且校验失败则不触发；
- * triggerType=ai、等待终态、默认场景回退、Run 已触发回调。
+ * triggerType=mcp、等待终态、默认场景回退、Run 已触发回调。
  * 边界：Mock execution / run / flow 服务，不真实跑流。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunTestFlowToolTest
  */
@@ -43,7 +43,7 @@ class RunTestFlowToolTest {
 
     /**
      * 前提：已开全自动、无 pending capture、trigger 返回 runId、await 终态 passed。
-     * 期望：ok、passed=true，未走落盘；triggerType=ai；调用 awaitRunTerminal。
+     * 期望：ok、passed=true，未走落盘；triggerType=mcp；调用 awaitRunTerminal。
      */
     @Test
     @Order(1)
@@ -78,7 +78,7 @@ class RunTestFlowToolTest {
         verify(execution).awaitRunTerminal(eq(88L), anyLong());
         ArgumentCaptor<TriggerTestFlowRunParams> captor = ArgumentCaptor.forClass(TriggerTestFlowRunParams.class);
         verify(execution).triggerRun(captor.capture());
-        assertEquals("ai", captor.getValue().getTriggerType());
+        assertEquals("mcp", captor.getValue().getTriggerType());
     }
 
     /**
@@ -154,7 +154,7 @@ class RunTestFlowToolTest {
 
     /**
      * 前提：工具参数未传场景/环境，上下文带默认值；已注册「Run 已触发」回调。
-     * 期望：触发参数带上默认场景/环境与 triggerType=ai；回调收到 runId。
+     * 期望：触发参数带上默认场景/环境与 triggerType=mcp；回调收到 runId。
      */
     @Test
     @Order(4)
@@ -189,6 +189,6 @@ class RunTestFlowToolTest {
         verify(execution).triggerRun(captor.capture());
         assertEquals("sc-canvas", captor.getValue().getRunScenarioId());
         assertEquals(9001L, captor.getValue().getTestProjectEnvId());
-        assertEquals("ai", captor.getValue().getTriggerType());
+        assertEquals("mcp", captor.getValue().getTriggerType());
     }
 }
