@@ -9,8 +9,9 @@
 <script setup>
 /**
  * 入口兜底出参（fallbackOut）的 JSON 编辑框。
- * 展示时把对象格式化成多行 JSON；失焦（change）时解析回对象并写回父组件。
- * 解析失败则丢弃本次输入，不覆盖原值。
+ * HTTP 入口通常编完整包（status/headers/body）；子流入口通常只编业务对象。
+ * 展示时把对象格式化成多行 JSON；失焦（change）时解析回对象并写回。
+ * 解析失败则丢弃本次输入，不覆盖原值。具体形状由父组件 hint 说明。
  */
 import { computed } from 'vue'
 

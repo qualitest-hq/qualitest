@@ -175,10 +175,15 @@ public class TestSuiteServiceImpl implements ITestSuiteService {
             if (StrUtil.isBlank(scenarioId)) {
                 scenarioId = null;
             }
+            String entryNodeId = StrUtil.trim(item.getEntryNodeId());
+            if (StrUtil.isBlank(entryNodeId)) {
+                entryNodeId = null;
+            }
             TestSuiteItem row = TestSuiteItem.builder()
                     .testSuiteItemId(IdUtil.getSnowflakeNextId())
                     .testSuiteId(suiteId)
                     .testFlowId(item.getTestFlowId())
+                    .entryNodeId(entryNodeId)
                     .runScenarioId(scenarioId)
                     .sortNum(sortNum)
                     .delStatus(0)

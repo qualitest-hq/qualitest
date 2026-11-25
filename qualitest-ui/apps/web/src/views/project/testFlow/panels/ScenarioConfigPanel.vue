@@ -69,11 +69,15 @@
         <FlowKeyValueEditor
             :add-label="FLOW_SEED_ADD_LABEL"
             :columns="FLOW_SEED_COLUMNS"
+            :required-keys="requiredInSeedKeys"
             :rows="inSeedRows"
             @update:rows="onInSeedRowsChange"
         />
         <!-- v-pre：把 {{in.orderId}} 当纯文案展示，不要当成模板变量求值 -->
         <div class="field__hint" v-pre>运行选中场景时注入 in，写法如 {{in.orderId}}</div>
+        <div v-if="requiredInSeedKeys.length" class="field__hint">
+          标 * 的键来自入口 inSeedKeys 的必填提示；缺值不阻止开跑
+        </div>
       </div>
     </template>
     <PropEmpty v-else-if="!activeScenario" icon="▶">
@@ -98,7 +102,7 @@ import AiStagingFieldDiff from '../components/AiStagingFieldDiff.vue';
 import FlowKeyValueEditor from '../components/FlowKeyValueEditor.vue';
 import PropEmpty from '../components/PropEmpty.vue';
 import { FLOW_SEED_ADD_LABEL, FLOW_SEED_COLUMNS } from '../constants/runConfigEditors';
-import { inSeedToRows, rowsToInSeed, useRunConfig } from '../composables/useRunConfig';
+import { mergeInSeedRowsWithKeys, rowsToInSeed, useRunConfig } from '../composables/useRunConfig';
 import { syncStagingDraftFromScenario } from '../composables/stagingDraftSync';
 import { usePendingStagingUnit, useShowNormalFields } from '../composables/usePendingStagingUnit';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
@@ -121,7 +125,30 @@ const stagingUnit = usePendingStagingUnit(computed(() => activeScenario.value?.i
 
 const showNormalFields = useShowNormalFields(stagingUnit, ['updateScenario']);
 
-const inSeedRows = computed(() => inSeedToRows(activeScenario.value?.inSeed));
+/**
+ * 当前跑前选中的场景入口上的 inSeedKeys。
+ * 用于补空 inSeed 行、标必填；入口未选或非场景入口时为空。
+ */
+const entryInSeedKeys = computed(() => {
+  const entryId = store.selectedRunEntryNodeId;
+  if (!entryId) return [];
+  const node = store.nodes.find((n) => n.id === entryId && n.type === 'scenario-entry');
+  const keys = node?.data?.inSeedKeys;
+  return Array.isArray(keys) ? keys : [];
+});
+
+/** 测值行 = inSeed 现有值 + inSeedKeys 补空 */
+const inSeedRows = computed(() =>
+  mergeInSeedRowsWithKeys(activeScenario.value?.inSeed, entryInSeedKeys.value),
+);
+
+/** inSeedKeys 里标了 required 的键名，交给键值表在行首画 * */
+const requiredInSeedKeys = computed(() =>
+  entryInSeedKeys.value
+    .filter((k) => k && k.required)
+    .map((k) => String(k.name ?? '').trim())
+    .filter(Boolean),
+);
 
 onMounted(async () => {
   // 打开场景面板时拉取项目环境；未绑环境的激活场景会自动补绑并更新已保存基线

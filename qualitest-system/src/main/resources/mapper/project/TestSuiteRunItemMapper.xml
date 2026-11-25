@@ -9,6 +9,7 @@
         <result property="sortNum" column="sort_num"/>
         <result property="testFlowId" column="test_flow_id"/>
         <result property="flowNameSnapshot" column="flow_name_snapshot"/>
+        <result property="entryNodeId" column="entry_node_id"/>
         <result property="runScenarioId" column="run_scenario_id"/>
         <result property="scenarioNameSnapshot" column="scenario_name_snapshot"/>
         <result property="testFlowRunId" column="test_flow_run_id"/>
@@ -26,6 +27,7 @@
                sort_num,
                test_flow_id,
                flow_name_snapshot,
+               entry_node_id,
                run_scenario_id,
                scenario_name_snapshot,
                test_flow_run_id,
@@ -70,6 +72,7 @@
             sort_num as sortNum,
             test_flow_id as testFlowId,
             flow_name_snapshot as flowNameSnapshot,
+            entry_node_id as entryNodeId,
             run_scenario_id as runScenarioId,
             scenario_name_snapshot as scenarioNameSnapshot,
             test_flow_run_id as testFlowRunId,
@@ -100,6 +103,7 @@
             sort_num as sortNum,
             test_flow_id as testFlowId,
             flow_name_snapshot as flowNameSnapshot,
+            entry_node_id as entryNodeId,
             run_scenario_id as runScenarioId,
             scenario_name_snapshot as scenarioNameSnapshot,
             test_flow_run_id as testFlowRunId,
@@ -161,6 +165,7 @@
             <if test="sortNum != null">sort_num,</if>
             <if test="testFlowId != null">test_flow_id,</if>
             <if test="flowNameSnapshot != null">flow_name_snapshot,</if>
+            <if test="entryNodeId != null">entry_node_id,</if>
             <if test="runScenarioId != null">run_scenario_id,</if>
             <if test="scenarioNameSnapshot != null">scenario_name_snapshot,</if>
             <if test="testFlowRunId != null">test_flow_run_id,</if>
@@ -177,6 +182,7 @@
             <if test="sortNum != null">#{sortNum},</if>
             <if test="testFlowId != null">#{testFlowId},</if>
             <if test="flowNameSnapshot != null">#{flowNameSnapshot},</if>
+            <if test="entryNodeId != null">#{entryNodeId},</if>
             <if test="runScenarioId != null">#{runScenarioId},</if>
             <if test="scenarioNameSnapshot != null">#{scenarioNameSnapshot},</if>
             <if test="testFlowRunId != null">#{testFlowRunId},</if>

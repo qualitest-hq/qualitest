@@ -1,9 +1,25 @@
 # 测试流节点说明
 
-画布节点 type 见 `FlowNodeType`（持久化小写 code；UI 展示用英文 label）。持久化壳：`{ id, type, name, position, data }`——**顶层 `name` 必填**（展示名）；**`data` 仅含该 type 的业务字段**（卡片副标题在 UI 运行时计算，不落盘）。流契约 2.0 另增 `http-return` / `subflow-return` 与入口类型（`scenario-entry` / `subflow-entry` / `http-entry`）。场景图不提供返回节点。
+画布节点 type 见 `FlowNodeType`（持久化小写 code；UI 展示用英文 label）。流契约 2.0：入口三类 + `http-return` / `subflow-return`；场景图不提供返回节点。下文每种节点单独一节，用 **JSONC**（`jsonc` 代码块，`//` 注释字段含义）展示落盘结构。
 
 英文版：[test-flow-nodes.en.md](./test-flow-nodes.en.md)  
 产品概念 / 项目鉴权：[project-summary.md](./project-summary.md) · 契约草案：[flow-contract-2.0.md](./flow-contract-2.0.md)
+
+---
+
+## 节点壳
+
+所有画布节点统一壳字段；`data` 仅存该 `type` 的业务配置（不含 `selected` / `dragging`）。卡片副标题由 UI 运行时计算，不落盘。
+
+```jsonc
+{
+  "id": "n1",                 // 图内唯一
+  "type": "http",             // FlowNodeType code
+  "name": "调用登录",          // 顶层必填；展示名 / Run 步骤名；不进 data
+  "position": { "x": 0, "y": 0 },
+  "data": { /* 见各节 */ }
+}
+```
 
 ---
 
@@ -11,53 +27,203 @@
 
 | type | 标签 | 作用 |
 |------|------|------|
+| `scenario-entry` | Scenario Entry | 人跑/套件入口；可选 `inSeedKeys` + 场景子集 `inSeed` |
+| `http-entry` | HTTP Entry | 开放入站；`inputShape` 三节 + 完整 `fallbackOut` |
+| `subflow-entry` | Subflow Entry | 被父流调用；`inputDecl` + 业务对象 `fallbackOut` |
 | `http` | HTTP | 调用项目接口或外联 URL |
 | `assert` | Assert | 对上下文做比较断言（多条 AND） |
 | `condition` | Condition | IF / ELIF / ELSE 分支 |
-| `assign` | Assign | 默认写 `flow`；`scope: "out"` 写运行时出参；常用 `name: "out"` 打包整份回包到 `flow.out` |
+| `assign` | Assign | 写 `flow` 或 `out`；可打包 `flow.out` |
 | `delay` | Delay | 等待一段时间 |
 | `script` | Script | GraalVM 沙箱脚本（JS / Python） |
-| `subflow` | Subflow | 引用同项目另一张测试流，折叠为单节点 |
-| `input` | Input | 暂停等待人工输入，写入 `flow` 后继续 |
-| `http-return` | HTTP Return | 从 `data.from`（默认 `flow.out`）晋升到 `out`，可选 `data.status`（默认 200），立刻写出 |
-| `subflow-return` | Subflow Return | 从 `data.from` 晋升到 `out`，立刻挂父 `nodes.<id>.out`；无 `status` |
-| `scenario-entry` | Scenario Entry | 人跑/CI 入口；`data.scenarios[]` 含 `envId` + **`inSeed`（入参值）** |
-| `subflow-entry` | Subflow Entry | 子流入口；须 `fallbackOut`；入参来自父 `inputs` |
-| `http-entry` | HTTP Entry | 开放入站；`method`/`path`/`envId`/`fallbackOut`；值来自请求 |
+| `subflow` | Subflow | 引用同项目另一张测试流 |
+| `input` | Input | 暂停等待人工输入，写入 `flow` |
+| `http-return` | HTTP Return | 晋升 `out` 并立刻写出 |
+| `subflow-return` | Subflow Return | 晋升 `out` 并挂父 `nodes.<id>.out` |
+| `pluginAction` | 插件步骤 | 调用已启用插件能力 |
 
 执行时还有审计步（非画布拖拽节点）：`run_config`、`snapshot` / `restore` 等，见 Run 详情。
 
 ---
 
+## Scenario Entry（`scenario-entry`）
+
+人跑 / 套件从这里进；**无** `fallbackOut`，**不画**返回节点。场景列表挂在本入口上（每入口一份子集）。入参声明用可选 **`inSeedKeys`**（与 HTTP `inputShape` / 子流 `inputDecl` 分治）。
+
+```jsonc
+{
+  "id": "e-sc",
+  "type": "scenario-entry",
+  "name": "默认场景入口",
+  "position": { "x": 0, "y": 0 },
+  "data": {
+    "doc": "",
+    "maxSteps": 200,
+    "inSeedKeys": [                    // 可选；提示场景该填哪些键（含 required），无测值
+      { "name": "mobile", "type": "string", "required": true },
+      { "name": "password", "type": "string", "required": true }
+    ],
+    // 无 inputShape / inputDecl / fallbackOut
+    "scenarios": [
+      {
+        "id": "sc1",
+        "name": "冒烟",
+        "envId": "<envId>",
+        "inSeed": {                    // 有值；开跑灌进 in
+          "mobile": "13800000000",
+          "password": "Test@123456"
+        }
+      }
+    ]
+  }
+}
+```
+
+开跑：`entryKind=scenario` + `entryNodeId` + `trigger`（`ui` / `suite` / `mcp`…）；选场景后灌 `inSeed`。跑前面板按 `inSeedKeys` 补空行并标 required（本轮不硬拦开跑）。节点失败固定记失败并走失败后继续（`alwaysRun`）；存档失败策略见环境存档点插件 `onSnapshotFailure`。
+
+---
+
+## HTTP Entry（`http-entry`）
+
+有该节点即开放入站（无「是否开放」开关）。**仅** HTTP 使用 **`inputShape`** 三节；真实值来自入站请求，形状不符 → 平台 **400** 不进图。
+
+```jsonc
+{
+  "id": "e-http",
+  "type": "http-entry",
+  "name": "退款入站",
+  "position": { "x": 0, "y": 0 },
+  "data": {
+    "doc": "",
+    "maxSteps": 200,
+    "method": "POST",
+    "path": "/v3/refund",
+    "envId": "<envId>",
+    "inputShape": {                    // 仅 HTTP；入站按此校验，不符 400
+      "body": [                        // 字段树：可嵌套；父级 type 多为 object / json
+        {
+          "name": "order",
+          "type": "object",
+          "required": true,
+          "children": [
+            { "name": "orderId", "type": "string", "required": true },
+            { "name": "amount", "type": "number", "required": false }
+          ]
+        }
+      ],
+      "query": [                       // 轻量表：扁平，无 children
+        { "name": "traceId", "type": "string", "required": false }
+      ],
+      "headers": [                     // 同上，扁平
+        { "name": "X-Request-Id", "type": "string", "required": false }
+      ]
+    },
+    "fallbackOut": {                   // 必配；零次 return 时对外写出
+      "status": 500,
+      "headers": { "Content-Type": "application/json;charset=UTF-8" },
+      "body": { "code": "NO_RETURN", "message": "未执行到返回节点" }
+    }
+  }
+}
+```
+
+不在入口上做平台鉴权 / 自动 401、不选手填响应 Content-Type、不配入站名额。同项目 `method + path` 冲突 → 保存硬拦。
+
+---
+
+## Subflow Entry（`subflow-entry`）
+
+被父流 `subflow` 节点调起时的入口。入参用扁平 **`inputDecl`**（不用 HTTP 三节表）；须一份**业务对象** `fallbackOut`（引擎收束包成 `out.body` 再挂父；存量完整 out 形兼容）。
+
+```jsonc
+{
+  "id": "e-sub",
+  "type": "subflow-entry",
+  "name": "登录子流入口",
+  "position": { "x": 0, "y": 0 },
+  "data": {
+    "doc": "",
+    "maxSteps": 200,
+    "inputDecl": [                     // 仅子流；对齐父 subflow.inputs 的键清单
+      { "name": "mobile", "type": "string", "required": true },
+      { "name": "password", "type": "string", "required": true }
+    ],
+    // 无 inputShape / query / headers
+    "fallbackOut": {                   // 必配；业务兜底（无 status/headers）
+      "code": "NO_RETURN",
+      "message": "未执行到返回节点"
+    }
+  }
+}
+```
+
+挂父后父侧可读：`{{nodes.<子流节点id>.out.body.code}}`（引擎补了 `body` 包装）。父侧 `inputs` 灌子 `in`；命中 `subflow-return` 立刻挂父；成败与是否已挂 `out` 分离。嵌套上限 **2** 层。本轮不做父 `inputs` ↔ `inputDecl` 开跑硬拦。
+
+---
+
 ## HTTP（`http`）
 
-按 `data.callMode` 分两条链路，共用转发与 `extracts` 抽变量：
+按 `data.callMode` 分两条链路，共用转发与 `extracts`。
+
+```jsonc
+{
+  "id": "n-http",
+  "type": "http",
+  "name": "调用登录",
+  "position": { "x": 240, "y": 0 },
+  "data": {
+    "callMode": "project",           // project | external
+    "testProjectApiId": "<apiId>",   // project：绑定接口资产
+    // external 时改用：
+    // "externalUrl": "https://…",
+    // "httpMethod": "POST",
+    // "headers": [{ "key": "Authorization", "value": "Bearer …" }],
+    // "requestBody": { "kind": "json", "raw": "{…}" },
+    // "preScript": "", "postScript": "",   // 仅 external 执行节点脚本
+    "timeoutMs": 30000,
+    "statusCheck": {                 // HTTP 状态层；默认 mode=2xx
+      "mode": "2xx"                  // 2xx | whitelist | off
+      // "values": [200, 401, 403]   // whitelist 时
+    },
+    "successCheck": {                // 业务码层；仅 2xx 后可选
+      "mode": "off",                 // off | whitelist
+      "codePath": "$.code",
+      "values": ["0"]
+    },
+    "extracts": [
+      {
+        "path": "$.data.token",      // 相对 body 根，须以 $ 开头
+        "name": "token",
+        "scope": "flow"              // flow | asset；asset 默认可回写素材库
+        // "persist": false          // 仅改本 Run 内存
+      }
+    ],
+    // "extractsOnFailure": "write", // 失败也写入内存；默认仅最终通过后提取
+    "snapshotBefore": false,         // 须 JSON 布尔；打档失败看环境插件 onSnapshotFailure
+    "alwaysRun": false,              // 须 JSON 布尔；失败后继续阶段仍执行
+    "retryUntil": {                  // 可选；仅 http
+      "maxAttempts": 1,              // 默认 1；上限 60
+      "intervalMs": 1000,            // 上限 60000
+      "until": [                     // 可选；全满足才算最终通过
+        { "left": "http.body.data.status", "operator": "eq", "right": "PAID" }
+      ]
+    }
+  }
+}
+```
 
 | callMode | 说明 |
 |----------|------|
-| `project` | 绑定 `testProjectApiId`，合并项目接口资产；pre/post 脚本来自接口定义 |
-| `external` | 使用节点 `externalUrl` / `httpMethod` / `headers` / `requestBody`；校验外联权限；步骤报告会脱敏敏感字段 |
+| `project` | 绑定 `testProjectApiId`，合并接口资产；pre/post 脚本来自**接口定义**（节点 `preScript` **不执行**） |
+| `external` | 用节点 URL / method / headers / body；校验外联权限；步骤报告脱敏 |
 
-常用能力：
+常用能力摘要：
 
-- 成功判定（两层，不合并）：
-  - **HTTP 状态** `statusCheck`：默认 `mode=2xx`（非 2xx → 失败）；`whitelist` + `values` 仅放行列表内状态码（探活常用 `[200,401,403]`）；`off` 任意状态码步骤仍 passed。有响应即写入 `lastResponse`，后续 Condition 可读 `http.status`、`http.expectedMatch`（对照接口 `expectedResponseKind`：`json` / `xml` / `html` / `any`）、`http.responseKind`（`json` / `xml` / `nonJson`）
-  - **XML 响应自动解析**：Content-Type 为 `text/xml`、`application/xml`、`*+xml`，或未声明 / `text/plain` 且正文以 `<?xml`、`<xml>` 开头时，body 转为对象（去掉根节点；同名节点转数组；叶子取文本，含 CDATA；忽略属性；禁止 DOCTYPE）。之后 `http.body.return_code`、断言、条件、extracts（`$.return_code`）可直接取字段；原文在 `http.bodyText`，步骤报告 `response.bodyText` 同样保留。解析失败保留原字符串，不影响步骤成败
-  - **业务码** `successCheck`：仅在 **2xx** 后可选校验 body 业务码白名单；`mode=off` 关闭。`codePath` 支持 `code` 或 `$.code`
-- **extracts**：默认仅步骤最终通过后执行；`extractsOnFailure=write` 时失败也写入内存。`scope=asset` 默认回写项目素材库；`persist: false` 只改本 Run 内存。不定路径（过滤器 / `[*]`）命中 **恰好 1 个**时自动解包为标量（与断言一致），便于 `{{flow.x}}` 写路径参数；**0 个**仍为 `[]`，**多个**保留数组。过滤器后不要再写 `[n]`（JsonPath 会把下标作用到每个命中元素，常得到 `[]`）
-- **前置/后置脚本**：见下方「HTTP 脚本（preScript / postScript）」
-- 占位符解析请求参数 / 体（`flow` / `env` / `asset` / `session` 等）
-- **项目鉴权补头**（Profile 托管头 `{{asset.*}}` / `{{flow.*}}` → 见 [project-summary.md §4](./project-summary.md)）
-- 可选 **执行前快照**（`snapshotBefore`，须为 JSON 布尔；仅 `http` / `script` / `assign`）：打档失败按环境存档点插件 `onSnapshotFailure`（`abort` | `continue`）；历史 paused 仍可还原（环境允许还原时；详见概念地图 §4.4）
-- 可选 **始终执行**（`alwaysRun`，须为 JSON 布尔；仅 `http` / `script` / `assign` / `subflow`）：业务失败后进入「失败后继续」阶段仍执行本节点
-- 可选 **重试直到通过**（`retryUntil`，仅 http）：
-  - `maxAttempts`：本节点最多发出几次请求，**默认 1**；上限 60
-  - `intervalMs`：相邻两次请求之间的等待毫秒，默认 1000；上限 60000
-  - `until`：可选通过条件数组（每条含 left / operator / right，须全部满足）。不配则只看状态码 + 业务码；配了则还要业务字段到位（如 `http.body.data.status eq PAID`）才算最终通过
-  - 状态码 / 业务码 / until 未过或请求超时时，若还有剩余次数则再请求；未绑定接口、脚本失败等硬错误不重试
-  - 整节点在时间线仍占 **1 步**；步骤报告 `http.retry` 记录实际轮次；摘要可见「第 N/M 次」
-
-节点上托管鉴权头带 `profileManaged`，Run 时按当前项目/接口配置刷新；无该标记的显式头永不被静默改掉。画布可显示节点将使用/产出的凭证路径。
+- **两层成功判定不合并**：状态码 `statusCheck` → 可选业务码 `successCheck`
+- **XML 自动解析**：合适 Content-Type / 正文特征时 body 转对象；原文在 `http.bodyText`
+- **extracts**：不定路径命中恰好 1 个时解包为标量；0 个为 `[]`，多个保留数组
+- 占位符解析请求；项目鉴权补头（Profile 托管头带 `profileManaged`）
+- `retryUntil`：整节点时间线仍占 1 步；硬错误不重试
 
 ### HTTP 脚本（preScript / postScript）
 
@@ -65,7 +231,7 @@
 
 | 挂载位置 | 何时执行 |
 |----------|----------|
-| `callMode=project` | 接口库 `preRequestScript` / `postRequestScript`（**节点** `data.preScript` **不执行**） |
+| `callMode=project` | 接口库 `preRequestScript` / `postRequestScript` |
 | `callMode=external` | 节点 `data.preScript` / `data.postScript` |
 
 #### 变量
@@ -83,7 +249,7 @@
 | `api.request.url` / `method` | 读、赋值修改；改 query 请改完整 `url` |
 | `api.request.headers.add({key,value})` 或 `add(k,v)` | 增改头 |
 | `api.request.headers.remove(name)` / `get` / `list` | 删、读 |
-| `api.request.body` | 读快照；**写入须整对象重赋** `api.request.body = {…}`（`body.xxx =` 嵌套改不会回写） |
+| `api.request.body` | 读快照；**写入须整对象重赋** `api.request.body = {…}` |
 
 #### 响应（仅后置）
 
@@ -100,11 +266,9 @@
 | `api.base64Encode` / `base64Decode` | Base64（不要用 `btoa`） |
 | `api.jsonParse` / `jsonStringify` | JSON |
 | `api.sendRequest({ url, method, headers, body })` | 同步辅助请求 |
-| `api.log(message)` | 写入步骤 `http.preScript` / `http.postScript` 的 logs（HTTP 脚本用此；Script 节点用 `ctx.log`） |
-| 编码 / 报文 / 加密工具 | 与 Script 节点 `ctx` 同名，见下文「脚本工具函数」 |
+| `api.log(message)` | 写入步骤 `http.preScript` / `http.postScript` 的 logs |
+| 编码 / 报文 / 加密工具 | 与 Script 节点 `ctx` 同名，见 Script 节 |
 | `api.test(name, fn)` / `api.expect(x).to.equal(y)` | **仅后置**断言 |
-
-#### 示例：密码 Base64 后发出
 
 ```javascript
 var pwd = api.environment.get('password');
@@ -123,116 +287,159 @@ UI 调试台侧栏「脚本 API」与片段库与上表同源（`scriptApiRefere
 
 ## Assert（`assert`）
 
-对 `data.rules[]` 逐条求值（`CompareRuleEvaluator`），**全部通过才算通过**。  
-不负责 HTTP 状态码（由 HTTP 节点在本步处理）。规则字段常见：`left`、`operator`（默认 `eq`）、`right`（可含占位符）。
+对 `data.rules[]` 逐条求值（`CompareRuleEvaluator`），**全部通过才算通过**。不负责 HTTP 状态码。
+
+```jsonc
+{
+  "id": "n-assert",
+  "type": "assert",
+  "name": "校验业务码",
+  "position": { "x": 480, "y": 0 },
+  "data": {
+    "rules": [
+      {
+        "left": "http.body.data.code",   // 见下方路径方言
+        "operator": "eq",                // 默认 eq；见运算符
+        "right": "0"                     // 可含占位符
+      }
+    ]
+  }
+}
+```
 
 ### 路径方言
 
 | 场景 | 写法 | 说明 |
 |------|------|------|
-| 断言 / 条件左值 | `http.body.data.code`、`http.body.data[?(@.cartId=='5001')].quantity` | 相对本上下文**最近一次** HTTP 响应 body；中间非 HTTP 节点不覆盖。支持下标、过滤器、`[*]`、`length()`。**数组字段不要写 JSON Schema 关键字 `.items`** |
-| 按节点引用 | `nodes.<节点ID>.http.body.data.code` | 读该 HTTP 节点最近一次执行快照；只认 id。目标缺失/非 HTTP → 校验条 structure 错误，运行硬拦 |
-| 简写（会规范化） | `$.data.code` | 设计态 / 运行态规范为 `http.body.data.code`（仅裸 http，不是 nodes） |
+| 断言 / 条件左值 | `http.body.data.code`、`http.body.data[?(@.cartId=='5001')].quantity` | 相对本上下文**最近一次** HTTP 响应 body。支持下标、过滤器、`[*]`、`length()`。**数组字段不要写 `.items`** |
+| 按节点引用 | `nodes.<节点ID>.http.body.data.code` | 读该 HTTP 节点最近一次快照；只认 id |
+| 简写（会规范化） | `$.data.code` | 规范为 `http.body.data.code`（仅裸 http） |
 | Extract / 业务码 | `$.data.token` | **必须以 `$` 开头**，相对 body 根 |
-| 其它上下文 | `flow.*` / `env.*` / `asset.*` / `in.*` / `out.*` / `nodes.<id>.out.*` / `http.status` / `http.duration` / `http.bodyText` | **不走 JsonPath**；`http.bodyText` 为响应原文；`out` / `nodes.*.out` 见流契约 2.0 |
+| 其它上下文 | `flow.*` / `env.*` / `asset.*` / `in.*` / `out.*` / `nodes.<id>.out.*` / `http.status` / `http.duration` / `http.bodyText` | **不走 JsonPath** |
 
-禁止：`http.body.$.…`（Confirm / **运行**会失败；保存可带错落盘）。字段向后传递仍优先 HTTP **extracts** / Assign → `flow.*`。
+禁止：`http.body.$.…`（Confirm / **运行**失败；保存可带错落盘）。
 
 ### 运算符
 
-UI 提供：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。  
-别名：`equals`/`==` → `eq`；`notempty`/`not_empty` → `exists`（勿再写 `notempty`）。
+UI：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。  
+别名：`equals`/`==` → `eq`；`notempty`/`not_empty` → `exists`。
 
-集合语义：
+集合语义：`exists` 要求非空；`eq` 多元素列表仅恰好 1 个时拆箱；`contains` 左值为列表时任一元素包含即可。
 
-- `exists`：非 null、非空串；列表/数组非空才通过  
-- `eq`：多元素列表仅当恰好 1 个元素时拆箱再比，否则失败  
-- `contains`：左值为列表时**任一**元素包含右值即可  
-
-购物车「是否含某 cartId」推荐：`http.body.data[?(@.cartId=='5001')]` + `exists`（若 `data` 直接是数组；勿写成 `data.items[…]`）。
-
-设计期：Staging ✓ 确认 **assert/condition 节点**时，会在含尚未确认 Staging 上下游的**预览图**上按上游接口**响应 schema** 校验 `http.body…` 左值（禁 `.items` / `http.body.$.…` 等结构错误 → **硬拦**；schema 缺字段或无 schema → **警告**，允许确认与保存；过滤器与 `data[*].字段` 对齐）；预览图仍无上游 project HTTP 则硬拦。错误挂在该断言/条件单元，**不会**因路径问题拦住边确认。AI submit 对本单元硬拦；**保存**不拦全图断言路径；**运行**对全图跑结构 + 断言路径 + AUTH/必填 readiness。响应 **example 只给人看**，属性面板可对照 example 软试算（空结果标红），**不参与硬拦**。
+设计期：Staging ✓ 确认 assert/condition 时按上游接口响应 schema 校验 `http.body…`（结构错误硬拦；缺 schema 警告）。**保存**不拦全图断言路径；**运行**跑结构 + 断言路径 + readiness。响应 example 只给人看，不参与硬拦。
 
 ---
 
 ## Condition（`condition`）
 
-扫描 `data.branches[]`（顺序 IF → ELIF → ELSE）：
+扫描 `data.branches[]`（顺序 IF → ELIF → ELSE）。命中分支有非空 `target` 则继续；无 `target` 则本流正常结束。结果写入步骤 `branchTaken`。
 
-- **if / elif**：`conditions[]` 全部成立则命中（AND）
-- **else**：前序均未命中时兜底
+```jsonc
+{
+  "id": "n-if",
+  "type": "condition",
+  "name": "是否成功",
+  "position": { "x": 360, "y": 0 },
+  "data": {
+    "branches": [
+      {
+        "id": "<snowflake>",
+        "kind": "if",                    // if | elif | else
+        "conditions": [                  // if/elif：全部成立（AND）
+          { "left": "flow.code", "operator": "eq", "right": "0" }
+        ],
+        "target": "n-ok"                 // 下一节点 id；可空=正常结束
+      },
+      {
+        "id": "<snowflake>",
+        "kind": "else",
+        "conditions": [],
+        "target": "n-fail"
+      }
+    ]
+  }
+}
+```
 
-命中分支有非空 `target`（下一节点 id）则继续走；无 `target` 则本流正常结束。结果写入步骤 `branchTaken`（`branchId` / `kind`）。
+与隐式扇出不同：`condition` 只走一臂；普通节点多出边各臂都跑。
 
 ---
 
 ## Assign（`assign`）
 
-处理 `data.assignments[]`：
+处理 `data.assignments[]`。正式 Run 使用严格占位符。占位符分桶见 [flow-variables-and-values.md](./flow-variables-and-values.md)。
+
+```jsonc
+{
+  "id": "n-assign",
+  "type": "assign",
+  "name": "组出参",
+  "position": { "x": 240, "y": 0 },
+  "data": {
+    "assignments": [
+      {
+        "scope": "flow",                 // 缺省 / flow → 写 flow；out → 写 ctx.out
+        "name": "out",                   // flow.out 整包供返回节点 from 晋升
+        "op": "set",                     // set | add | sub | mul | div
+        "value": {                       // set：可为对象字面量；可含占位符
+          "headers": { "Content-Type": "application/json;charset=UTF-8" },
+          "body": { "ok": true }
+        }
+        // 算术 op 时常用：
+        // "step": 1,
+        // "ifMissing": 0
+      }
+    ],
+    "snapshotBefore": false,             // 须 JSON 布尔
+    "alwaysRun": false                   // 须 JSON 布尔
+  }
+}
+```
 
 | scope | 写入目标 | 典型用法 |
 |-------|----------|----------|
-| 缺省 / `flow` | 运行时 `flow` 键 | 业务变量；`name: "out"` + 对象 `value` → `{{flow.out}}` 供返回节点晋升 |
-| `out` | 运行时 `ctx.out` 字段 | 逐键写 `status` / `headers` / `body`（与 `flow.out` 可二选一或组合） |
-
-| op | 行为 |
-|----|------|
-| `set` | 解析 value 占位符后覆盖（`value` 可为对象字面量） |
-| `add` / `sub` / `mul` / `div` | 在现有值或 `ifMissing` 上按 `step` 运算（仅 `flow` scope） |
-
-每条赋值的 before/after 写入步骤报告。正式 Run 使用严格占位符：未定义占位符会失败。占位符分桶见 [flow-variables-and-values.md](./flow-variables-and-values.md)（`{{in.*}}` / `{{out.*}}` / `{{flow.*}}`）。
-
-## HTTP Return（`http-return`） / Subflow Return（`subflow-return`）
-
-按入口种类拆开（**不是**万能 `return`；场景图**不画**返回节点）。节点壳：**顶层 `name` 必填**；`data` 仅 `from`（及 HTTP 的 `status`）。
-
-| 字段 | `http-return` | `subflow-return` |
-|------|---------------|-------------------|
-| `from` | **必填**；路径段，缺省 `flow.out`；解析须为 Map，整表晋升到 `ctx.out` | 同左 |
-| `status` | 可选；默认 **200**；在晋升**之后**写入，**覆盖** `out.status` | **不允许** |
-| 顶层 `name` | 必填（如「支付成功回包」） | 必填 |
-
-| type | 交付 |
-|------|------|
-| `http-return` | 晋升 `out` 后经开放入站立刻写出 |
-| `subflow-return` | 晋升 `out` 后立刻挂到父 `nodes.<子流节点id>.out` |
-
-多种业务回包用 **IF 各臂**各自接到一个对应返回节点。默认**不结束路径**（后面还可 Assert）。开放/子流整次至多执行一次返回节点；零次则收束用入口 `fallbackOut`，Run 仍失败。详见 [flow-contract-2.0.md §4](./flow-contract-2.0.md)。
+| 缺省 / `flow` | 运行时 `flow` | `name: "out"` + 对象 → `{{flow.out}}` |
+| `out` | `ctx.out` 字段 | 逐键写 `status` / `headers` / `body` |
 
 ---
 
 ## Delay（`delay`）
 
-按 `data.ms` 阻塞当前执行线程。单步上限 **60_000 ms**，防止配置过大拖垮线程。
+按 `data.ms` 阻塞当前执行线程。单步上限 **60_000 ms**。
 
----
-
-## Input（`input`）
-
-运行时暂停等待人工填写，将值写入 `flow` 后从下一节点继续。无媒体预览配置（看图请打开上一步 HTTP 步骤）。
-
-| 字段 | 说明 |
-|------|------|
-| `prompt` | 暂停面板提示文案 |
-| `fields[]` | 输入项；每项含 `name` / `label` / `type` / `required` / `placeholder` / `defaultValue`；`select`/`multiselect` 另需静态 `options` |
-
-`type` 缺省 `text`；合法值：`text` / `textarea` / `password` / `number` / `boolean` / `select` / `multiselect` / `date` / `datetime`。未知 type **运行**硬拦（保存可带错落盘）。
-
-暂停原因 `await_input`；可用决策 `continueWithInput`（提交 `inputs`）与 `abort`。CI / 无人值守碰到即 paused；自动化主路径可用外联打码子流 `tpl_login_captcha`，人手填码可用 `tpl_login_captcha_manual`。
+```jsonc
+{
+  "id": "n-delay",
+  "type": "delay",
+  "name": "等待 1s",
+  "position": { "x": 240, "y": 0 },
+  "data": {
+    "ms": 1000
+  }
+}
+```
 
 ---
 
 ## Script（`script`）
 
-| 字段 | 说明 |
-|------|------|
-| `language` | `javascript`（默认）或 `python` |
-| `source` | 脚本正文 |
-| `timeoutMs` | 超时（有上下限归一化） |
+在 GraalVM 沙箱中执行：可读写 `flow`、`session`；可读 `env` / `asset`；可选受控 `ctx.http`；`ctx.log` → 步骤 `script.logs`。能用 HTTP / Assign / Assert 表达的优先用声明式节点。
 
-在 GraalVM 沙箱中执行：可读写 `flow`、`session`；可读 `env` / `asset`；可选受控 `ctx.http`；`ctx.log` 写入步骤 `script.logs`。`ctx.setFlow` 合并进当前 Run。失败时步骤带脚本错误码与消息。
-
-适合项目特有签名、字段拼装等「画布节点不够用」的逻辑；能用 HTTP / Assign / Assert 表达的优先用声明式节点。
+```jsonc
+{
+  "id": "n-script",
+  "type": "script",
+  "name": "拼签名",
+  "position": { "x": 240, "y": 0 },
+  "data": {
+    "language": "javascript",            // javascript（默认）| python
+    "source": "ctx.setFlow('demo', ctx.jsonStringify({ ok: true }));",
+    "timeoutMs": 5000,                   // 有上下限归一化
+    "snapshotBefore": false,             // 须 JSON 布尔
+    "alwaysRun": false                   // 须 JSON 布尔
+  }
+}
+```
 
 ### 脚本工具函数
 
@@ -247,33 +454,138 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
 | `signContent(params, { exclude: ['sign'], skipEmpty: true })` | 按 key ASCII 升序拼 `k=v&k2=v2`（不 URL 编码） |
 | `md5` / `sha1` / `sha256` / `sha512` / `sm3(data, encoding?)` | 摘要；`encoding` 为 `hex`（默认）或 `base64` |
 | `hmacSha1` / `hmacSha256` / `hmacSha512(data, secret, encoding?)` | HMAC，密钥按 UTF-8 |
-| `rsaSign(data, privateKey, alg?)` / `rsaVerify(data, sign, publicKey, alg?)` | 默认 `SHA256withRSA`，签名为 Base64；私钥支持 PKCS#8 / PKCS#1 PEM 或裸 Base64，公钥支持公钥 PEM、证书 PEM 或裸 Base64 |
-| `rsaEncrypt` / `rsaDecrypt(data, key, padding?)` | `OAEP`（默认，SHA-1）/ `OAEP256` / `PKCS1` |
-| `aesGcmEncrypt` / `aesGcmDecrypt(data, key, nonce, aad?)` | key / nonce / aad 按 UTF-8；密文为 Base64(密文 + tag)，即微信支付 v3 `resource.ciphertext` 格式 |
-| `aesEncrypt` / `aesDecrypt(data, key, opts?)` | `mode`（`CBC` 默认 / `ECB`）、`iv`、`keyEncoding` / `ivEncoding`（`utf8` 默认 / `base64` / `hex`）、`padding`（`PKCS5Padding` 默认 / `NoPadding`）、`encoding`（密文 `base64` 默认 / `hex`）；CBC 未传 iv 用全 0 |
-| `sm2Sign` / `sm2Verify(data, …, key, opts?)` | `userId`（默认 `1234567812345678`）、`format`（`der` 默认 / `rs`）、`encoding` |
-| `sm2Encrypt` / `sm2Decrypt(data, key, opts?)` | `mode`（`C1C3C2` 默认 / `C1C2C3`）、`encoding`；解密兼容缺 `04` 前缀 |
+| `rsaSign(data, privateKey, alg?)` / `rsaVerify(data, sign, publicKey, alg?)` | 默认 `SHA256withRSA`，签名为 Base64 |
+| `rsaEncrypt` / `rsaDecrypt(data, key, padding?)` | `OAEP`（默认）/ `OAEP256` / `PKCS1` |
+| `aesGcmEncrypt` / `aesGcmDecrypt(data, key, nonce, aad?)` | 密文为 Base64(密文 + tag) |
+| `aesEncrypt` / `aesDecrypt(data, key, opts?)` | `mode`/`iv`/`padding`/`encoding` 等 |
+| `sm2Sign` / `sm2Verify` / `sm2Encrypt` / `sm2Decrypt` | 国密签名与加解密 |
 | `sm4Encrypt` / `sm4Decrypt(data, key, opts?)` | 参数同 `aesEncrypt`，`keyEncoding` 默认 `hex` |
 
-国密密钥支持 hex（私钥 d、`04` 开头公钥）、PEM 与裸 Base64。PEM 存在 JSON 素材里时可用字面量 `\n` 换行。仿渠道回调时，被测系统须配置与脚本私钥对应的公钥 / 证书，验签才会通过。
+国密密钥支持 hex、PEM 与裸 Base64。PEM 在 JSON 素材里可用字面量 `\n` 换行。
 
 ---
 
 ## Subflow（`subflow`）
 
-将同项目另一张测试流折叠为单步（**另一张图**，不是同一画布上的子图）：
+将同项目另一张测试流折叠为单步（**另一张图**，不是同画布子图）。开跑前子图须过就绪门禁。
 
-1. 按 `subflowId` 加载（须同 `testProjectId`）；**每次 Run 取被引用流当前图**
-2. `inputs` 在**父上下文**解析占位符，写入子上下文 `in` / `flow`（`entryKind=subflow`；`asset` / `env` / `session` 共享）
-3. 内存跑子图；嵌套深度有限（主→子→孙，最多 **2** 层 subflow）
-4. 子图 `subflow-return`（或零次时的入口 `fallbackOut`）把定稿 `out` **挂到**父 `nodes.<子流节点id>.out`；**成败与是否已挂 out 分离**（失败后父仍可读 out）
-5. 步骤 `subflow.childSteps` 附内层摘要，供 Run 详情与 MCP `get_run_failure`
+```jsonc
+{
+  "id": "n-sub",
+  "type": "subflow",
+  "name": "登录子流",
+  "position": { "x": 240, "y": 0 },
+  "data": {
+    "subflowId": "<testFlowId>",         // 须同 testProjectId
+    "inputs": [                          // 在父上下文解析占位符 → 子 in / flow
+      { "name": "mobile", "value": "{{flow.mobile}}" }
+    ],
+    "alwaysRun": false                   // 须 JSON 布尔；失败后继续阶段仍执行
+  }
+}
+```
 
-节点 `data.alwaysRun=true`（须为 JSON 布尔；字符串 / 数字保存时会校验失败）时：父图业务失败进入「失败后继续」阶段仍会执行本子流节点，便于整章串多个子流时一次看到后续模块结果。
+1. 按 `subflowId` 加载；**每次 Run 取被引用流当前图**
+2. `entryKind=subflow`；`asset` / `env` / `session` 共享
+3. 嵌套：主→子→孙，最多 **2** 层
+4. 子图 `subflow-return`（或零次时入口 `fallbackOut`）挂父 `nodes.<本节点id>.out`；成败与是否已挂 out 分离
+5. 步骤 `subflow.childSteps` 附内层摘要
 
-平台提供登录 / OAuth / 验证码等 **子流模板**，可 fork 后改参数。
+平台提供登录 / OAuth / 验证码等子流模板，可 fork。MCP：`submit_subflow_node` 可写 `inputs` / `alwaysRun`。
 
-MCP：`submit_subflow_node` 可写 `inputs` / `alwaysRun`；子流定稿只看子图 `subflow-return`（或入口 `fallbackOut`）挂父 `nodes.<id>.out`（见 [flow-contract-2.0.md](./flow-contract-2.0.md)）。
+---
+
+## Input（`input`）
+
+运行时暂停等待人工填写，将值写入 `flow` 后继续。无媒体预览配置（看图请打开上一步 HTTP 步骤）。
+
+```jsonc
+{
+  "id": "n-input",
+  "type": "input",
+  "name": "填写验证码",
+  "position": { "x": 240, "y": 0 },
+  "data": {
+    "prompt": "请填写后继续",
+    "fields": [
+      {
+        "name": "captcha",
+        "label": "验证码",
+        "type": "text",                  // text|textarea|password|number|boolean|select|multiselect|date|datetime
+        "required": true,
+        "placeholder": "",
+        "defaultValue": ""
+        // select / multiselect 另需：
+        // "options": [{ "label": "A", "value": "a" }]
+      }
+    ]
+  }
+}
+```
+
+`type` 缺省 `text`；未知 type **运行**硬拦（保存可带错落盘）。暂停原因 `await_input`；决策 `continueWithInput` / `abort`。套件 / 无人值守碰到即 paused；打码可用 `tpl_login_captcha` / `tpl_login_captcha_manual`。
+
+---
+
+## HTTP Return（`http-return`）
+
+定稿 `out` 并立刻写出；**默认不结束路径**（后面还可 Assert）。场景图不提供本节点。
+
+```jsonc
+{
+  "id": "n-ret",
+  "type": "http-return",
+  "name": "支付成功回包",
+  "position": { "x": 480, "y": 0 },
+  "data": {
+    "from": "flow.out",                  // 必填；解析须为 Map，整表晋升到 ctx.out
+    "status": 200                        // 可选；默认 200；晋升后覆盖 out.status
+  }
+}
+```
+
+开放入站整次至多执行一次返回；零次则收束用入口 `fallbackOut`，Run 仍失败。多种业务回包用 IF 各臂各接一个返回节点。详见 [flow-contract-2.0.md §4](./flow-contract-2.0.md)。
+
+---
+
+## Subflow Return（`subflow-return`）
+
+定稿 `out` 并立刻挂父 `nodes.<子流节点id>.out`；**无** `status` 配置项；默认不结束路径。
+
+```jsonc
+{
+  "id": "n-ret",
+  "type": "subflow-return",
+  "name": "返回父流",
+  "position": { "x": 480, "y": 0 },
+  "data": {
+    "from": "flow.out"                   // 必填；无 status
+  }
+}
+```
+
+子流整次至多一次返回；零次挂入口 `fallbackOut`；子/父仍记失败。失败后父仍可读已挂的 `out`。
+
+---
+
+## 插件步骤（`pluginAction`）
+
+调用项目已启用插件的能力（如存档点）。具体 `config` 以各插件 `docs/design.md` 为准。
+
+```jsonc
+{
+  "id": "n-plugin",
+  "type": "pluginAction",
+  "name": "跑前存档",
+  "position": { "x": 240, "y": 0 },
+  "data": {
+    "pluginId": "qualitest.sut-db-archive-point",
+    "contributionId": "",                // 贡献点 id（按插件约定）
+    "capability": "snapshotBefore",      // 能力名
+    "config": {}                         // 能力参数
+  }
+}
+```
 
 ---
 

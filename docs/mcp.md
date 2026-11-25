@@ -2,7 +2,7 @@
 
 质衡通过 **Streamable HTTP** 暴露项目级 MCP 服务，供 **支持 MCP 的 AI 编辑器 / Agent**（Cursor、VS Code 生态、Claude Code 等）查询本项目的接口、测试流与 Run 现场。  
 下文配置以 **Cursor `mcp.json`** 为例；其它客户端只要支持同协议的 HTTP MCP + 自定义 Header，即可按同等字段接入。  
-**默认只读**。项目设置有三道独立开关：「允许 MCP 自动写流」（`create_flow` / `update_flow_meta` / `submit_*` / upsert 含 `upsert_project_env`）、「允许 MCP 自动跑流」（仅 `run_test_flow`）与「允许 MCP 导入接口」（仅 `import_apis`）。跑流通常依赖写流已开。Token 只绑定项目身份。未开启时改画布请走 Web 端 AI 面板。
+**默认只读**。项目设置有三道独立开关：「允许 MCP 自动写流」（`create_flow` / `update_flow_meta` / `submit_*` / upsert 含 `upsert_project_env`）、「允许 MCP 自动跑流」（仅 `run_test_flow`）与「允许 MCP 导入接口」（仅 `import_apis`）。跑流通常依赖写流已开。Token 只绑定项目身份。未开启时改画布请走 Web 端 AI 面板（**Staging → 确认 → 保存**）。开启「允许 MCP 自动写流」后，写工具成功即落库，**不经 Staging**（与流契约 §7.2 例外一致）。
 
 English: [mcp.en.md](./mcp.en.md)
 
@@ -132,7 +132,7 @@ MCP 侧默认 **18** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 开启后 `tools/list` 追加：`create_flow`、`update_flow_meta`、全部 `submit_*`、`upsert_asset_variables`、`upsert_auth_profile`、`upsert_project_env`、`append_api_design_hints`（**不含** `run_test_flow`）。
 
-- **每次成功 `submit_*` 立即写库**；同流已在 Web 打开时画布自动同步。
+- **每次成功 `submit_*` 立即写库**（跳过 Web Staging）；同流已在 Web 打开时画布自动同步。
 - 改名称/说明/分组用 `update_flow_meta`（成功即落库；不改节点/边/场景）。禁止用 `create_flow` 新建冒充改名。
 - 子流节点：`submit_subflow_node` 可配 `inputs`（父→子）、`alwaysRun`。子流定稿挂父 `nodes.<子流节点id>.out`（由子图 `subflow-return` 或入口 `fallbackOut`）。`asset`/`env`/`session` 同 Run 共享。
 - 无合适流时可先 `create_flow` 拿 `testFlowId`；改图须带已有 `testFlowId`。

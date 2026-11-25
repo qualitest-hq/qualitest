@@ -37,6 +37,37 @@ export function inSeedToRows(obj: Record<string, unknown> | null | undefined): I
   }));
 }
 
+/**
+ * 把场景 inSeed 与入口 inSeedKeys 合成编辑行。
+ * 顺序：先按 inSeedKeys 列出（有值填值、无值空串），再追加 inSeed 里多出的键；同名去重。
+ * 两边都空时返回一行空键值，方便表单继续录入。
+ */
+export function mergeInSeedRowsWithKeys(
+  inSeed: Record<string, unknown> | null | undefined,
+  inSeedKeys: Array<{ name?: unknown; required?: unknown }> | null | undefined,
+): InSeedRow[] {
+  const seed = inSeed && typeof inSeed === 'object' ? inSeed : {};
+  const keys = Array.isArray(inSeedKeys) ? inSeedKeys : [];
+  const seen = new Set<string>();
+  const rows: InSeedRow[] = [];
+  // 先铺提示键
+  for (const k of keys) {
+    const name = String(k?.name ?? '').trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    const v = seed[name];
+    rows.push({ key: name, value: v == null ? '' : String(v) });
+  }
+  // 再保留测值里多出的键，不删用户已写内容
+  for (const [key, value] of Object.entries(seed)) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ key, value: value == null ? '' : String(value) });
+  }
+  if (!rows.length) return [{ key: '', value: '' }];
+  return rows;
+}
+
 /** 将键值行数组转为 inSeed 对象，忽略空键行 */
 export function rowsToInSeed(rows: InSeedRow[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};

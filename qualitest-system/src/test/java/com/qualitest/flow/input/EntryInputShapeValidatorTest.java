@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 EntryInputShapeValidator：开放入站 inputShape 运行时校验。
- * 边界：空 shape、body/query/headers 必填缺失、类型合法通过。
+ * 测 EntryInputShapeValidator：HTTP 入口 inputShape 运行时校验。
+ * 覆盖：空 shape 跳过、三节必填缺失、必填齐全通过、body children 嵌套必填与通过。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=EntryInputShapeValidatorTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -114,6 +114,45 @@ class EntryInputShapeValidatorTest {
                 Map.of("orderNo", "A001"),
                 Map.of("x-trace-id", "t-1"),
                 Map.of("userId", "u1"));
+        assertTrue(err.isEmpty());
+    }
+
+    /**
+     * 前提：body 父字段 order 为 object，children 声明必填 orderId；请求体 order 缺 orderId。
+     * 期望：错误文案为 body.order 缺少必填字段: orderId。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("body 嵌套子字段必填缺失")
+    void bodyNestedRequiredMissing_error() {
+        Map<String, Object> orderField = new java.util.LinkedHashMap<>();
+        orderField.put("name", "order");
+        orderField.put("type", "object");
+        orderField.put("required", true);
+        orderField.put("children", List.of(Map.of("name", "orderId", "type", "string", "required", true)));
+        Map<String, Object> shape = Map.of("body", List.of(orderField));
+        Optional<String> err = EntryInputShapeValidator.validate(
+                shape, Map.of(), Map.of(), Map.of("order", Map.of("amount", 1)));
+        assertTrue(err.isPresent());
+        assertEquals("body.order 缺少必填字段: orderId", err.get());
+    }
+
+    /**
+     * 前提：body 嵌套声明齐全，请求体含 order.orderId。
+     * 期望：校验通过，返回 empty。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("body 嵌套子字段齐全时通过")
+    void bodyNestedPresent_ok() {
+        Map<String, Object> orderField = new java.util.LinkedHashMap<>();
+        orderField.put("name", "order");
+        orderField.put("type", "object");
+        orderField.put("required", true);
+        orderField.put("children", List.of(Map.of("name", "orderId", "type", "string", "required", true)));
+        Map<String, Object> shape = Map.of("body", List.of(orderField));
+        Optional<String> err = EntryInputShapeValidator.validate(
+                shape, Map.of(), Map.of(), Map.of("order", Map.of("orderId", "O1")));
         assertTrue(err.isEmpty());
     }
 }

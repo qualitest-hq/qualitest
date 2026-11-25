@@ -6,14 +6,14 @@
       :rows="4"
       @update:model-value="(v) => patch({ doc: v })"
     />
-    <EntryInputShapeSection
-      :model-value="node.data?.inputShape ?? null"
-      @update:model-value="(v) => patch({ inputShape: v })"
+    <SubflowInputDeclSection
+      :model-value="inputDecl"
+      @update:model-value="onInputDecl"
     />
     <FallbackOutJsonField
-      :model-value="node.data?.fallbackOut ?? null"
-      hint="零次 return 时挂到父节点 out"
-      @update:model-value="(v) => patch({ fallbackOut: v })"
+      :model-value="fallbackOutEdit"
+      hint="未走到返回时挂给父流（Run 仍失败）；只填业务对象，引擎会包成 out.body"
+      @update:model-value="onFallbackOut"
     />
   </div>
 </template>
@@ -21,14 +21,22 @@
 <script setup>
 /**
  * 子流入口节点属性面板。
- * 可改：步数上限、入口说明（编辑 / Markdown 预览）、入参形状声明、兜底出参 fallbackOut。
- * 子图整次未走到返回节点时，把 fallbackOut 挂到父流对应子流节点的 out。
+ * - inputDecl：扁平入参键声明。
+ * - fallbackOut：业务兜底对象（无 status/headers）；整次未碰到返回节点时，
+ *   引擎收束把它包成 { body: 该对象 } 挂到父流 nodes.<子流节点id>.out，Run 仍记失败。
+ * 打开面板时若节点仍带旧三节 inputShape 且尚无 inputDecl，会一次性展平写入 inputDecl 并清掉 inputShape。
  */
+import { computed, watch } from 'vue'
+
 import EntryDocMarkdownField from '../../components/EntryDocMarkdownField.vue'
 import EntryMaxStepsField from '../../components/EntryMaxStepsField.vue'
 import FallbackOutJsonField from '../../components/FallbackOutJsonField.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
-import EntryInputShapeSection from './EntryInputShapeSection.vue'
+import {
+  migrateSubflowInputDecl,
+  subflowFallbackOutForEdit,
+} from '../../utils/subflowEntryCompat'
+import SubflowInputDeclSection from './SubflowInputDeclSection.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -36,9 +44,40 @@ const props = defineProps({
 
 const { patchNodeData } = useFlowNodes()
 
-/** 把局部字段合并写回当前节点数据（含入参形状） */
+/** 当前入参声明（含从旧 inputShape 展平的只读展示） */
+const inputDecl = computed(() => migrateSubflowInputDecl(props.node?.data) ?? [])
+
+/** 编辑态兜底对象：完整 out 只取 body；非法则用默认业务对象 */
+const fallbackOutEdit = computed(() => subflowFallbackOutForEdit(props.node?.data?.fallbackOut))
+
+/**
+ * 切到本节点时：若只有旧 inputShape、没有 inputDecl，则展平落盘并删除 inputShape。
+ */
+watch(
+  () => props.node?.id,
+  () => {
+    const data = props.node?.data
+    if (!data || Array.isArray(data.inputDecl)) return
+    if (!data.inputShape) return
+    const migrated = migrateSubflowInputDecl(data)
+    if (migrated == null) return
+    patchNodeData(props.node.id, { inputDecl: migrated, inputShape: undefined })
+  },
+  { immediate: true },
+)
+
 function patch(p) {
   patchNodeData(props.node.id, p)
+}
+
+/** 保存声明时顺带清掉可能残留的旧 inputShape */
+function onInputDecl(v) {
+  patch({ inputDecl: v, inputShape: undefined })
+}
+
+/** 兜底只落业务对象；空值用默认 code/message */
+function onFallbackOut(v) {
+  patch({ fallbackOut: v && typeof v === 'object' ? v : { code: 'NO_RETURN', message: '未执行到返回节点' } })
 }
 </script>
 

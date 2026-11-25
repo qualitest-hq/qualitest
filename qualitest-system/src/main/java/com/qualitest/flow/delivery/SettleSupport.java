@@ -50,6 +50,12 @@ public final class SettleSupport {
 
     /**
      * 从本图入口节点 {@code data.fallbackOut} 读取兜底包；无入口或值不是 Map 则 null。
+     * <p>
+     * 两种落盘形态：
+     * <ul>
+     *   <li>完整出参：含 status / headers / body 任一键 → 按完整 OutPayload 解析（HTTP 入口常用）。</li>
+     *   <li>业务对象：不含上述键 → 整包放进 {@code out.body} 再交付（子流入口常用；挂父后可读 out.body）。</li>
+     * </ul>
      */
     @SuppressWarnings("unchecked")
     public static OutPayload resolveFallbackOut(FlowRunContext ctx, GraphJson graph) {
@@ -58,15 +64,33 @@ public final class SettleSupport {
             return null;
         }
         Object raw = entry.getData().get("fallbackOut");
-        if (raw instanceof Map<?, ?> m) {
-            return OutPayload.fromMap((Map<String, Object>) m);
+        if (!(raw instanceof Map<?, ?> m)) {
+            return null;
         }
-        return null;
+        Map<String, Object> map = (Map<String, Object>) m;
+        if (isFullOutShape(map)) {
+            return OutPayload.fromMap(map);
+        }
+        // 业务对象兜底：整包作为 body，便于父侧读 nodes.<id>.out.body
+        OutPayload p = new OutPayload();
+        p.setBody(new java.util.LinkedHashMap<>(map));
+        return p;
     }
 
     /**
-     * 定位本 Run 使用的入口节点：优先 {@code ctx.entryNodeId}；
-     * 未指定时恰好一个入口类型节点则用之，多个则返回 null（与 GraphWalker 一致）。
+     * 判断 Map 是否已是完整出参形（含 body、status、headers 任一键）。
+     * 旧子流图若仍存完整形，走此分支照挂，不做 body 再包装。
+     */
+    private static boolean isFullOutShape(Map<String, Object> map) {
+        if (map == null || map.isEmpty()) {
+            return false;
+        }
+        return map.containsKey("body") || map.containsKey("status") || map.containsKey("headers");
+    }
+
+    /**
+     * 定位本 Run 使用的入口节点。
+     * 优先用 {@code ctx.entryNodeId}；未指定时图上恰好一个入口类型节点则用之，多个则返回 null。
      */
     public static GraphNode findEntryNode(FlowRunContext ctx, GraphJson graph) {
         if (graph == null || graph.getNodes() == null) {

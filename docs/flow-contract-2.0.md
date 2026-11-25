@@ -115,10 +115,10 @@ Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。
 
 ### 2.1.1 运行配置进画布
 
-- **场景**：挂在 **场景入口** 上的场景子集（`envId` + `inSeed`）。  
-- **开放 HTTP**：**HTTP 入口**（`method` + `path`、入参形状、一份 `fallbackOut`）；有该节点即开放入站。  
-- **子流**：**子流入口**声明入参形状 + `fallbackOut`；父 **Subflow** 用 `inputs` 灌子 `in`，定稿出参在 **`return` 时整包挂** `nodes.<子流节点id>.out`。  
-- 侧栏最多总览；跑前选入口/环境是运行动作。
+- **场景**：挂在 **场景入口** 上的场景子集（`envId` + `inSeed`）；可选 `inSeedKeys` 提示。  
+- **开放 HTTP**：**HTTP 入口**（`method` + `path`、`inputShape` 三节、一份完整 `fallbackOut`）；有该节点即开放入站。  
+- **子流**：**子流入口** `inputDecl` + 业务对象 `fallbackOut`；父 **Subflow** 用 `inputs` 灌子 `in`，定稿出参在 **`return` 时整包挂** `nodes.<子流节点id>.out`。  
+- 侧栏最多总览；跑前选入口/环境是运行动作。三种入口入参声明字段**分治**（§4.2），不统一成一份 `fields`。
 
 ### 2.1.2 说明给人对着看（不是从流里抽表）
 
@@ -334,21 +334,24 @@ IF
 
 ### 4.2 入参（形状 vs 值）
 
-入参形状与测值分开（沿用各面既有字段 type 词表，如 `GraphInputField`；**不**再流级 `inputSpec`）：
+**原则：三种入口各管各的声明字段，不统一成一份 `fields` / 共用组件形态。**  
+入参声明与测值分开（沿用各面既有字段 type 词表，如 `GraphInputField`；**不**再流级 `inputSpec`）：
 
-| 放哪 | 有没有值 | 是什么 |
-|------|----------|--------|
-| **入口上的入参形状**（`inputShape`） | **无值**（或仅可选 default，不当测值主存放） | 声明有哪些键、类型、是否必填（HTTP / 子流入口） |
-| **场景上的值树** | **有值** | 挂在 **scenario-entry** 的 `scenarios[].inSeed`：开跑灌进运行时 `in` |
+| 入口 | 声明字段（无测值） | 值从哪来 | 不符时 |
+|------|-------------------|----------|--------|
+| **`http-entry`** | **`inputShape: { body, query, headers }`** | 入站请求 | **平台 400，不进图**（§3） |
+| **`subflow-entry`** | **`inputDecl: [{ name, type?, required? }]`**（扁平） | 父 `subflow.inputs` 灌 `in` | 本轮仅提示；不对齐不硬拦开跑 |
+| **`scenario-entry`** | 可选 **`inSeedKeys: [{ name, type?, required? }]`**（提示） | `scenarios[].inSeed` | 补空行 / UI 标 required；本轮不硬拦开跑 |
 
-形状怎么拆（HTTP / 子流入口）：
+HTTP `inputShape` 怎么拆（**仅** HTTP）：
 
-- **body**：字段树（可嵌套；必填、类型等）  
-- **query / header**：轻量参数表（name / type / required / remark…），**不写测值**——与 HTTP 工作台 Kv 行、资产参数行同思路，契约侧只留名与约束  
-- HTTP 入口（开放入站）：请求里的真实 query/header/body 按形状校验并注入 `in`；**不符 → 平台 400，不进图**（§3）；场景值树只服务**场景入口**开跑  
+- **body**：字段树（可嵌套 `children`；父级 type 多为 object / json；必填、类型等）  
+- **query / headers**：轻量**扁平**参数表（name / type / required / remark…），**无 children**、**不写测值**  
+- 真实 query/header/body 按形状校验并注入 `in`
 
-场景入口：形状可提示人填什么；**值只存在场景值树**里。  
-出参仍**不**要求入口再声明响应字段树；HTTP/子流只需一份兜底 `out`（§4.3），不是字段树。  
+子流 / 场景**不**使用 `inputShape` 三节表，也**不**互相复用对方的 `inputDecl` / `inSeedKeys` 字段名。
+
+出参仍**不**要求入口再声明响应字段树；HTTP/子流只需一份兜底（§4.3），不是字段树。  
 环境字段落盘名统一为 **`envId`**（场景子集与 HTTP 入口共用此键；附录示意同此）。
 
 **字段 `type`**：不新开一套枚举。各面沿用现有词表即可——入参契约侧现有 `GraphInputField`（string / number / boolean / json…）；若场景表单复用 Input 节点控件则跟 `InputFieldTypes`（text / number / boolean / select…）。缺省仍按各面现逻辑（多当字符串）。出参不强制带类型的字段树。
@@ -362,6 +365,7 @@ IF
 |------|------|
 | **谁要配** | **HTTP 入口、子流入口必配**一份；场景入口不要 |
 | **有几份** | **恰好一份**（`data.fallbackOut` 或等价）；禁止多套失败模板 / 按错误码选型 |
+| **形状（分治）** | **HTTP**：完整 `{ status, headers, body }`；**子流**：仅业务兜底对象（引擎收束规范成 `{ body: <该对象> }` 再挂父；存量完整 out 形兼容照挂） |
 | **何时交付** | 仅当整次 `return` 执行次数 = **0**；在**收束**交付（这是「收束默认不写」的**唯一例外**） |
 | **命中过 return** | 收束**绝不**再写第二遍（不覆盖已交付内容） |
 | **成败** | 用了兜底 → 对外/对父**有包**，本 Run / 父步仍记失败（未定稿 / 缺 return） |
@@ -369,7 +373,7 @@ IF
 | **和业务失败包** | 故意的 401 / 业务码仍应图内 `return`；兜底宜像「未执行到返回」，勿冒充业务码 |
 | **造流提示** | 仍鼓励 IF 各业务臂画 `return`；某臂漏画 → 画布**警告**即可，运行时走兜底，不改「至多一次 return」 |
 
-创建 HTTP / 子流入口时，平台可预填模板（用户可改），示意：
+创建 HTTP 入口时，平台可预填完整 out 模板（用户可改），示意：
 
 ```json
 {
@@ -384,6 +388,15 @@ IF
 }
 ```
 
+创建子流入口时，预填**业务对象**（无 status/headers），示意：
+
+```json
+{
+  "code": "NO_RETURN",
+  "message": "未执行到返回节点"
+}
+```
+
 `alwaysRun`：不另规定 `return` 强制始终执行。若失败后 `return` 被 bypass → 零次 return → 兜底交付，调用方/父流仍能收到包；**故意业务回包仍应画并走到 return**。
 
 ---
@@ -393,9 +406,11 @@ IF
 ### 5.1 场景入口
 
 - **场景列表挂在本入口上**（每入口一份子集：环境 + `inSeed` 值树）；入口之间可重复配同类场景，不设流级共用大表。  
-- 入参形状提示（无值，可与 HTTP/子流共用声明思路）；开跑用所选场景的值树灌 `in`。  
+- 可选 **`data.inSeedKeys`**（`[{ name, type?, required? }]`）：只提示场景该填哪些键；**无测值**；与 HTTP `inputShape` / 子流 `inputDecl` **分治**，字段名互不混用。跑前面板按提示补空 `inSeed` 行、UI 标 `required`；本轮不硬拦开跑。  
+- 开跑用所选场景的 **`scenarios[].inSeed`** 灌 `in`。  
 - 不 HTTP 写出；成败看步骤 / 断言。  
 - **不提供**返回节点（无 `scenario-return`；场景轨自然走尽）。混图可另有 `http-return` / `subflow-return` 给开放/子流轨用，与场景入口不冲突；场景入口可达子图不得含返回节点。  
+- **无** `fallbackOut`。  
 - 可选入口说明。  
 - **`data.maxSteps`（入口壳，可选）**：单次 Run 步数上限；新建默认约 200；缺省开跑补默认。场景条目不再挂失败策略 / maxSteps。  
 - **节点失败**：固定记失败并走失败后继续（`alwaysRun`）；不设场景级 `onNodeFailure` / 策略 `prompt` 暂停。  
@@ -403,23 +418,25 @@ IF
 
 ### 5.2 子流入口
 
-- **声明入参**（树 + 必填）+ **一份 `fallbackOut`**；**不**声明回法表。  
+- **`data.inputDecl`**：扁平 `[{ name, type?, required? }]`，对齐父 `subflow.inputs` 的键清单；**不**用 HTTP 三节 `inputShape`。  
+- **一份 `fallbackOut`**：**业务兜底对象**（无 status/headers）；引擎零次 return 收束时规范成 `{ body: <该对象> }` 再挂父；存量完整 `{ status, headers, body }` 兼容照挂。**不**声明回法表。  
 - **`data.maxSteps`**：同入口壳约定（缺省开跑补默认）。  
 - 父节点 `inputs` 映射灌入后从该入口起步。  
 - 图校验：整次 Run **至多一次** `return`（IF 各臂可各画一个；真并行域至多一臂带 return）；须有兜底。  
 - 执行到 `return`：定稿并**立刻**把 `out` 整包挂到父 `nodes.<子流节点id>.out`（**只要执行到 return 就挂**，含失败后继续才摸到 return）。  
-- **零次 return**：收束时把入口 `fallbackOut` 挂到父同位置；子 Run / 父步**仍失败**。  
+- **零次 return**：收束时把入口 `fallbackOut`（经上述包装）挂到父同位置；子 Run / 父步**仍失败**。  
 - 子图曾业务失败 → 父步骤 / 子 Run **仍失败**（挂了 `out` 也不改成败）。  
 - **失败后父流仍可读 `nodes.<id>.out`**（含错误码等）做后续断言 / Assign——**有内容 ≠ 成功**；读用不改变子步已记的失败。  
 - 父侧在子流节点后断言失败：同理，挂载已发生，Run 可记失败。  
-- 嵌套上限仍 **2** 层。
+- 嵌套上限仍 **2** 层。  
+- 本轮不做父 `inputs` ↔ `inputDecl` 的开跑硬拦（声明仅提示）。
 
 ### 5.3 HTTP 入口
 
 - **有 HTTP 入口 = 已开放入站**。人跑 / 套件走**场景入口**，与开放入站无关。  
 - method + path、环境、请求 format（入站解析用）。  
-- 入参**形状无值**：body 字段树 + query/header 轻量参数表；运行时值来自**入站请求**（按形状注入 `in`）。  
-- **须**配置一份 `fallbackOut`（§4.3）。  
+- 入参 **`data.inputShape`**（**仅** HTTP）：`body` 字段树（可嵌套 `children`）+ 扁平 `query` / `headers`；运行时值来自**入站请求**（按形状注入 `in`）；**不符 → 400**。  
+- **须**配置一份完整 **`fallbackOut`**（`status` / `headers` / `body`，§4.3）。  
 - **`data.maxSteps`**：同入口壳约定（含协议 `{protocol}-entry`；插件不另发明限额字段）。  
 - **不**在入口上做平台鉴权 / 自动 401；要鉴权是**图内业务**（判断 → 组 `out` 含 status 401 → return）。  
 - **不**在入口上维护成功/失败响应表；**不**选手填响应 Content-Type（见 §4.0）。  
@@ -517,7 +534,7 @@ IF
 ### 7.1 插件兼容面（摘要）
 
 画布节点/属性；Run 步骤与详情（从哪个入口进、如何收束、`out` 摘要）；报告；Staging；MCP；套件/CI 错误码；模板；审计。  
-改画布仍 **Staging → 确认 → 保存**。完整度级别同前（能启用 / 能画能跑 / 能看懂 / AI 可用 / 官方完整包）。
+改画布默认仍 **Staging → 确认 → 保存**（Web AI 助手半自动路径）。完整度级别同前（能启用 / 能画能跑 / 能看懂 / AI 可用 / 官方完整包）。
 
 ### 7.2 MCP / AI 读写面（已拍板）
 
@@ -528,6 +545,8 @@ IF
 | 读写**入口节点**（入参形状、HTTP method/path、入口说明 `doc`、HTTP/子流 `fallbackOut`、场景入口上的场景子集/`inSeed`） | 流级大一统 meta 入参；多套入口失败模板 |
 | 读写**返回节点**（`from` / `http-return` 的 `status`）；跑流语境看 **`out`** / `nodes.<子流节点id>.out` | 流级大一统出参表 |
 | `submit_*` / 读图工具字段与画布契约对齐 | 与已实现节点壳不一致的字段名 |
+
+**Staging 例外（产品已落地）**：MCP **默认只读**。项目开启「允许 MCP 自动写流」后，`create_flow` / `submit_*` / upsert 等工具**成功即写库**，不经 Web Staging 确认；与 §7.1 默认路径并存，细则见 [mcp.md](./mcp.md)。Web 端 AI 助手仍走 Staging。
 
 ---
 

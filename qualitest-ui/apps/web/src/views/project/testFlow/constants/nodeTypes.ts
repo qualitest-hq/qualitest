@@ -61,17 +61,23 @@ export type FlowNodeTypeKey =
 
 /**
  * 各 type 的展示元数据与新建默认 data。
- * 入口默认含 scenarios 或 fallbackOut；返回默认 from=flow.out（http-return 另带 status=200）。
+ * 三种入口默认字段不同：
+ * - scenario-entry：inSeedKeys（键提示）+ scenarios（含 inSeed 测值）
+ * - http-entry：完整 fallbackOut（status/headers/body）
+ * - subflow-entry：inputDecl + 业务对象 fallbackOut
+ * 返回节点默认 from=flow.out（http-return 另带 status=200）。
  */
 export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
   'scenario-entry': {
     label: '场景入口',
     color: NODE_COLORS['scenario-entry'],
     icon: 'SC',
-    desc: '人跑 / 套件 · 场景列表与 inSeed',
+    desc: '人跑 / 套件 · inSeedKeys 提示 + 场景 inSeed',
     defaults: {
       doc: '',
       maxSteps: 200,
+      /** 可选：提示各场景 inSeed 宜填的键 */
+      inSeedKeys: [],
       scenarios: [],
     },
   },
@@ -86,6 +92,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
       envId: '',
       doc: '',
       maxSteps: 200,
+      /** 整次未碰到返回节点时对外写出的完整 HTTP 包 */
       fallbackOut: {
         status: 500,
         headers: { 'Content-Type': 'application/json;charset=UTF-8' },
@@ -97,14 +104,16 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     label: '子流入口',
     color: NODE_COLORS['subflow-entry'],
     icon: 'SE',
-    desc: '被父流调用 · fallbackOut',
+    desc: '被父流调用 · inputDecl / 业务 fallbackOut',
     defaults: {
       doc: '',
       maxSteps: 200,
+      /** 父流 inputs 应对齐的扁平键清单 */
+      inputDecl: [],
+      /** 业务兜底对象；引擎收束时包成 out.body 再挂父 */
       fallbackOut: {
-        status: 500,
-        headers: { 'Content-Type': 'application/json;charset=UTF-8' },
-        body: { code: 'NO_RETURN', message: '未执行到返回节点' },
+        code: 'NO_RETURN',
+        message: '未执行到返回节点',
       },
     },
   },

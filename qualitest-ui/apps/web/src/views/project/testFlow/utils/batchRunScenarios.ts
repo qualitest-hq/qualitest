@@ -1,11 +1,13 @@
 /**
  * 从测试流列表行解析批量跑场景树节点。
- * 场景定义读取各图 scenario-entry 节点的 data.scenarios，不从图元数据取。
+ * 场景定义读取各图 scenario-entry 节点的 data.scenarios，并保留所属入口 id。
  */
 
 export interface BatchFlowScenarioNode {
   scenarioId: string;
   scenarioName: string;
+  /** 所属 scenario-entry 节点 id */
+  entryNodeId: string;
   /** 是否为当前勾选的活动场景（未指定时默认首条） */
   active: boolean;
 }
@@ -23,6 +25,7 @@ type GraphScenarioLike = {
 
 /**
  * 解析单条流的 graphJson，得到场景列表；无场景时返回空数组（调用方按「默认一项」处理）。
+ * 多入口时逐入口展开，同 scenarioId 可在不同入口各出现一次（键含 entryNodeId）。
  */
 export function parseFlowScenariosFromGraphJson(
   graphJson: unknown,
@@ -44,31 +47,27 @@ export function parseFlowScenariosFromGraphJson(
   }
 
   const nodes = Array.isArray(root.nodes) ? root.nodes : [];
-  // 汇总全部 scenario-entry 的场景（同 id 后者覆盖），不静默只读第一个入口
-  const byId = new Map<string, GraphScenarioLike>();
+  const activeId = String(activeScenarioId ?? '').trim();
+  const out: BatchFlowScenarioNode[] = [];
+
   for (const n of nodes) {
     if (!n || typeof n !== 'object') continue;
     if ((n as { type?: string }).type !== 'scenario-entry') continue;
+    const entryNodeId = String((n as { id?: unknown }).id ?? '').trim();
+    if (!entryNodeId) continue;
     const data = (n as { data?: { scenarios?: unknown } }).data;
     const scenarios = Array.isArray(data?.scenarios) ? (data.scenarios as GraphScenarioLike[]) : [];
     for (const sc of scenarios) {
       const scenarioId = String(sc?.id ?? '').trim();
       if (!scenarioId) continue;
-      byId.set(scenarioId, sc);
+      const scenarioName = String(sc?.name ?? '').trim() || scenarioId;
+      out.push({
+        scenarioId,
+        scenarioName,
+        entryNodeId,
+        active: activeId ? scenarioId === activeId : out.length === 0,
+      });
     }
-  }
-  const activeId = String(activeScenarioId ?? '').trim();
-
-  const out: BatchFlowScenarioNode[] = [];
-  for (const sc of byId.values()) {
-    const scenarioId = String(sc?.id ?? '').trim();
-    if (!scenarioId) continue;
-    const scenarioName = String(sc?.name ?? '').trim() || scenarioId;
-    out.push({
-      scenarioId,
-      scenarioName,
-      active: activeId ? scenarioId === activeId : out.length === 0,
-    });
   }
   if (out.length && !out.some((s) => s.active)) {
     out[0].active = true;
@@ -99,20 +98,49 @@ export function buildBatchFlowTree(
 export interface BatchQueueItem {
   testFlowId: string;
   flowName: string;
+  entryNodeId?: string;
   runScenarioId?: string;
   scenarioName: string;
-  /** 树勾选键：flowId 或 flowId::scenarioId */
+  /** 树勾选键：flowId 或 flowId::entryNodeId::scenarioId */
   key: string;
 }
 
-/** 场景勾选键 */
-export function scenarioCheckKey(testFlowId: string, scenarioId: string): string {
-  return `${testFlowId}::${scenarioId}`;
+/** 场景勾选键（含入口归属） */
+export function scenarioCheckKey(
+  testFlowId: string,
+  entryNodeId: string,
+  scenarioId: string,
+): string {
+  return `${testFlowId}::${entryNodeId}::${scenarioId}`;
 }
 
 /** 无场景流的勾选键（仅流） */
 export function flowOnlyCheckKey(testFlowId: string): string {
   return testFlowId;
+}
+
+/**
+ * 在树中按流 + 场景 id 找回勾选键（兼容旧套件项未存 entryNodeId）。
+ */
+export function findScenarioCheckKey(
+  tree: BatchFlowTreeNode[],
+  testFlowId: string,
+  runScenarioId: string,
+  entryNodeId?: string | null,
+): string | null {
+  const flowId = String(testFlowId ?? '').trim();
+  const scenarioId = String(runScenarioId ?? '').trim();
+  if (!flowId || !scenarioId) return null;
+  const preferredEntry = String(entryNodeId ?? '').trim();
+  for (const flow of tree) {
+    if (flow.testFlowId !== flowId) continue;
+    for (const sc of flow.scenarios) {
+      if (sc.scenarioId !== scenarioId) continue;
+      if (preferredEntry && sc.entryNodeId !== preferredEntry) continue;
+      return scenarioCheckKey(flow.testFlowId, sc.entryNodeId, sc.scenarioId);
+    }
+  }
+  return null;
 }
 
 /**
@@ -137,11 +165,12 @@ export function buildBatchQueueFromChecks(
       continue;
     }
     for (const sc of flow.scenarios) {
-      const key = scenarioCheckKey(flow.testFlowId, sc.scenarioId);
+      const key = scenarioCheckKey(flow.testFlowId, sc.entryNodeId, sc.scenarioId);
       if (!checked.has(key)) continue;
       queue.push({
         testFlowId: flow.testFlowId,
         flowName: flow.flowName,
+        entryNodeId: sc.entryNodeId,
         runScenarioId: sc.scenarioId,
         scenarioName: sc.scenarioName,
         key,
@@ -160,7 +189,7 @@ export function defaultCheckedKeysForTree(tree: BatchFlowTreeNode[]): string[] {
       continue;
     }
     for (const sc of flow.scenarios) {
-      keys.push(scenarioCheckKey(flow.testFlowId, sc.scenarioId));
+      keys.push(scenarioCheckKey(flow.testFlowId, sc.entryNodeId, sc.scenarioId));
     }
   }
   return keys;

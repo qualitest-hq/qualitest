@@ -17,6 +17,7 @@ import com.qualitest.flow.delivery.RunTrigger;
 import com.qualitest.flow.subflow.SubflowDepth;
 import com.qualitest.flow.subflow.SubflowIoSupport;
 import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.validate.FlowRunReadinessGate;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.service.ITestFlowService;
 import org.springframework.context.annotation.Lazy;
@@ -33,6 +34,7 @@ import java.util.Map;
  * 将同项目内另一张测试流图折叠为单步执行：
  * <ol>
  *   <li>按 {@code subflowId} 加载测试流（须与当前 Run 同 {@code testProjectId}）</li>
+ *   <li>子图经 {@link FlowRunReadinessGate} 就绪检查；未通过则本步失败，不进子 runner</li>
  *   <li>解析 inputs：同时写入子上下文 {@code in} 与 {@code flow}；子 Run 的 entryKind/trigger 均为 subflow</li>
  *   <li>用 {@link FlowGraphRunner} 跑子图；子图 {@code subflow-return} 或收束时把定稿 out 挂到父图
  *       {@code nodes.&lt;本 subflow 节点 id&gt;.out}，供父图占位符读取</li>
@@ -46,16 +48,19 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
     private final ITestFlowService testFlowService;
     private final ParsedGraphCache parsedGraphCache;
     private final FlowGraphRunner flowGraphRunner;
+    private final FlowRunReadinessGate flowRunReadinessGate;
     private final NodeHandlerRegistry nodeHandlerRegistry;
 
     public SubflowNodeHandler(ITestFlowService testFlowService,
                               ParsedGraphCache parsedGraphCache,
                               FlowGraphRunner flowGraphRunner,
+                              FlowRunReadinessGate flowRunReadinessGate,
                               @Lazy NodeHandlerRegistry nodeHandlerRegistry) {
         super(FlowNodeType.SUBFLOW);
         this.testFlowService = testFlowService;
         this.parsedGraphCache = parsedGraphCache;
         this.flowGraphRunner = flowGraphRunner;
+        this.flowRunReadinessGate = flowRunReadinessGate;
         this.nodeHandlerRegistry = nodeHandlerRegistry;
     }
 
@@ -89,6 +94,15 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
             if (childGraph == null) {
                 return failed(node, incomingEdgeId, nodeName, t0, ctx,
                         FlowErrorCode.TF_SUBFLOW_INVALID, "子流图解析失败", data, subflowId, List.of());
+            }
+
+            List<String> readinessErrors = flowRunReadinessGate.collectBlockingErrors(
+                    childGraph, ctx.getTestProjectId());
+            if (readinessErrors != null && !readinessErrors.isEmpty()) {
+                return failed(node, incomingEdgeId, nodeName, t0, ctx,
+                        FlowErrorCode.TF_GRAPH_INVALID,
+                        String.join("; ", readinessErrors),
+                        data, subflowId, List.of());
             }
 
             Map<String, Object> childSeed = SubflowIoSupport.resolveInputSeed(ctx, data.get("inputs"));

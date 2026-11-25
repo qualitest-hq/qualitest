@@ -280,6 +280,7 @@ public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
                 throw new ServiceException("测试流不属于该项目：" + item.getTestFlowId());
             }
             String flowName = StrUtil.blankToDefault(StrUtil.trim(item.getFlowName()), flow.getFlowName());
+            String entryNodeId = blankToNull(item.getEntryNodeId());
             String scenarioId = blankToNull(item.getRunScenarioId());
             String scenarioName = resolveScenarioName(flow, scenarioId);
             int sortNum = item.getSortNum() != null ? item.getSortNum() : sort;
@@ -289,6 +290,7 @@ public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
                     .sortNum(sortNum)
                     .testFlowId(item.getTestFlowId())
                     .flowNameSnapshot(flowName)
+                    .entryNodeId(entryNodeId)
                     .runScenarioId(scenarioId)
                     .scenarioNameSnapshot(scenarioName)
                     .status("pending")

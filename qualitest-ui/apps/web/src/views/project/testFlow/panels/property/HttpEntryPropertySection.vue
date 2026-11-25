@@ -43,8 +43,9 @@
 <script setup>
 /**
  * HTTP 入口节点属性面板。
- * 可改：HTTP 方法、路径、绑定环境 id、步数上限、入口说明（支持编辑与 Markdown 预览）、
- * 入参形状声明、兜底出参 fallbackOut（整次未走到返回节点时对外写出的包）。
+ * 可改：method、path、envId、步数上限、入口说明、
+ * inputShape（body 可嵌套；query/headers 扁平；入站不符返回 400）、
+ * fallbackOut（完整 status/headers/body；整次未碰到返回节点时收束对外写出）。
  */
 import EntryDocMarkdownField from '../../components/EntryDocMarkdownField.vue'
 import EntryMaxStepsField from '../../components/EntryMaxStepsField.vue'

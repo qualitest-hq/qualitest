@@ -6,6 +6,10 @@
       @update:model-value="onDoc"
     />
     <EntryMaxStepsField :node="node" />
+    <ScenarioInSeedHintSection
+      :model-value="node.data?.inSeedKeys ?? []"
+      @update:model-value="(v) => patchNodeData(node.id, { inSeedKeys: v })"
+    />
     <div class="field">
       <label>场景列表</label>
       <div class="field__hint">入参值（inSeed）在左侧选场景后于右侧编辑；保存时写入本入口</div>
@@ -24,8 +28,10 @@
 <script setup>
 /**
  * 场景入口节点属性面板。
- * 可改入口说明（编辑 / Markdown 预览）；下方列出本入口的场景，点选后打开右侧场景配置面板改环境与入参值。
- * 打开本面板时切到该入口为跑前选中，编辑态场景列表与本入口 data.scenarios 对齐。
+ * - 入口说明、步数上限。
+ * - inSeedKeys：可选键提示（无测值），跑前场景面板据此补空 inSeed 行。
+ * - 场景列表：点选后右侧改环境与 inSeed 测值；保存写入本入口 data.scenarios。
+ * 打开本面板时切到该入口为跑前选中，编辑态场景列表跟本入口 data.scenarios 对齐。
  */
 import { computed, watch } from 'vue'
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId'
@@ -34,6 +40,7 @@ import EntryMaxStepsField from '../../components/EntryMaxStepsField.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowCanvasStore } from '../../stores/flowCanvasStore'
 import { bindScenarioEntry } from '../../utils/stagingGraphInput'
+import ScenarioInSeedHintSection from './ScenarioInSeedHintSection.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },

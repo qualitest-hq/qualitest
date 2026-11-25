@@ -36,6 +36,7 @@ export interface BatchRunProgressItem {
   key: string
   testFlowId: string
   flowName: string
+  entryNodeId?: string
   runScenarioId?: string
   scenarioName: string
   status: BatchItemRunStatus
@@ -88,9 +89,11 @@ export function useFlowBatchRun() {
     suiteRunId.value = String(detail?.testSuiteRunId ?? '').trim()
     const items = Array.isArray(detail?.items) ? detail.items : []
     progress.items = items.map((it: any) => ({
-      key: String(it.testSuiteRunItemId ?? `${it.testFlowId}::${it.runScenarioId ?? ''}`),
+      key: String(it.testSuiteRunItemId
+        ?? `${it.testFlowId}::${it.entryNodeId ?? ''}::${it.runScenarioId ?? ''}`),
       testFlowId: String(it.testFlowId ?? ''),
       flowName: String(it.flowNameSnapshot ?? it.testFlowId ?? ''),
+      entryNodeId: it.entryNodeId ? String(it.entryNodeId) : undefined,
       runScenarioId: it.runScenarioId ? String(it.runScenarioId) : undefined,
       scenarioName: String(it.scenarioNameSnapshot ?? '默认场景'),
       status: (it.status || 'pending') as BatchItemRunStatus,
@@ -145,6 +148,7 @@ export function useFlowBatchRun() {
         try {
           const triggerRes = await triggerTestFlowRun({
             testFlowId: row.testFlowId,
+            entryNodeId: row.entryNodeId,
             runScenarioId: row.runScenarioId,
             testProjectEnvId: envId,
             triggerType: 'suite',

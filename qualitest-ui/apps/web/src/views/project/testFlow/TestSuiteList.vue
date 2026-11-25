@@ -222,6 +222,7 @@ import { formatDurationMs } from './utils/runStepDisplay'
 import {
   buildBatchFlowTree,
   buildBatchQueueFromChecks,
+  findScenarioCheckKey,
   defaultCheckedKeysForTree,
   flowOnlyCheckKey,
   scenarioCheckKey,
@@ -299,7 +300,7 @@ const editTreeData = computed(() =>
         key: `flow:${flow.testFlowId}`,
         label: flow.flowName,
         children: flow.scenarios.map((sc) => ({
-          key: scenarioCheckKey(flow.testFlowId, sc.scenarioId),
+          key: scenarioCheckKey(flow.testFlowId, sc.entryNodeId, sc.scenarioId),
           label: sc.active ? `${sc.scenarioName}（活动）` : sc.scenarioName,
         })),
       }
@@ -374,7 +375,13 @@ async function openEdit(row) {
     const keys = []
     for (const it of detail.items || []) {
       if (it.runScenarioId) {
-        keys.push(scenarioCheckKey(String(it.testFlowId), String(it.runScenarioId)))
+        const key = findScenarioCheckKey(
+          editTree.value,
+          String(it.testFlowId),
+          String(it.runScenarioId),
+          it.entryNodeId != null ? String(it.entryNodeId) : undefined,
+        )
+        if (key) keys.push(key)
       } else {
         keys.push(flowOnlyCheckKey(String(it.testFlowId)))
       }
@@ -416,6 +423,7 @@ async function submitEdit() {
     stopOnNonPass: editForm.stopOnNonPass,
     items: queue.map((it, idx) => ({
       testFlowId: it.testFlowId,
+      entryNodeId: it.entryNodeId,
       runScenarioId: it.runScenarioId,
       sortNum: idx,
     })),

@@ -18,6 +18,7 @@ import com.qualitest.flow.node.impl.SubflowNodeHandler;
 import com.qualitest.flow.run.FlowGraphRunner;
 import com.qualitest.flow.subflow.SubflowDepth;
 import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.validate.FlowRunReadinessGate;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.service.ITestFlowService;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,13 +35,16 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 SubflowNodeHandler：子流加载、inputs、跨项目与深度限制、定稿挂 nodes.&lt;id&gt;.out。
- * 边界：Mock ITestFlowService；子图用 assign 桩。
+ * 测 SubflowNodeHandler：子流加载、inputs、跨项目与深度限制、定稿挂 nodes.&lt;id&gt;.out、就绪门禁。
+ * 边界：Mock ITestFlowService / FlowRunReadinessGate；子图用 assign 桩。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -52,6 +56,7 @@ class SubflowNodeHandlerTest {
     private ITestFlowService testFlowService;
     private ParsedGraphCache parsedGraphCache;
     private FlowGraphRunner flowGraphRunner;
+    private FlowRunReadinessGate flowRunReadinessGate;
     private NodeHandlerRegistry childRegistry;
     private SubflowNodeHandler handler;
     private FlowRunContext parentCtx;
@@ -61,6 +66,8 @@ class SubflowNodeHandlerTest {
     void setUp() {
         testFlowService = mock(ITestFlowService.class);
         parsedGraphCache = mock(ParsedGraphCache.class);
+        flowRunReadinessGate = mock(FlowRunReadinessGate.class);
+        when(flowRunReadinessGate.collectBlockingErrors(any(), any())).thenReturn(List.of());
         RunDelivery delivery = new RunDelivery(new InboundSlotRegistry(4));
         flowGraphRunner = new FlowGraphRunner(delivery);
         childRegistry = passingAssignRegistry(delivery);
@@ -76,7 +83,8 @@ class SubflowNodeHandlerTest {
         when(testFlowService.selectTestFlowById(anyLong())).thenReturn(subflow);
         when(parsedGraphCache.getFrom(org.mockito.ArgumentMatchers.any(TestFlow.class))).thenAnswer(inv ->
                 subflow.getGraphJson() != null ? GraphJson.parse(subflow.getGraphJson()) : null);
-        handler = new SubflowNodeHandler(testFlowService, parsedGraphCache, flowGraphRunner, childRegistry);
+        handler = new SubflowNodeHandler(
+                testFlowService, parsedGraphCache, flowGraphRunner, flowRunReadinessGate, childRegistry);
     }
 
     /**
@@ -191,7 +199,8 @@ class SubflowNodeHandlerTest {
     @Order(6)
     @DisplayName("子流：子步失败向上传播")
     void execute_childStepFails_propagatesError() {
-        handler = new SubflowNodeHandler(testFlowService, parsedGraphCache, flowGraphRunner, failingDelayRegistry());
+        handler = new SubflowNodeHandler(
+                testFlowService, parsedGraphCache, flowGraphRunner, flowRunReadinessGate, failingDelayRegistry());
         subflow.setGraphJson(loadResource("flow/subflow-child-delay-graph.json"));
         GraphNode node = subflowNode(nodeData(
                 "name", "子流失败",
@@ -229,6 +238,37 @@ class SubflowNodeHandlerTest {
         assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
         assertEquals(FlowErrorCode.TF_SUBFLOW_NESTED.getCode(), result.getError().getCode());
         assertTrue(result.getError().getMessage().contains("嵌套超过上限"));
+    }
+
+    /**
+     * 前提：就绪门禁返回缺 fallbackOut 等 blocking 错误。
+     * 期望：failed；TF_GRAPH_INVALID；不进入子 runner（无 childSteps）。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("子流：图未就绪则硬拦不进 runner")
+    void execute_childGraphNotReady_failsWithoutRunning() {
+        FlowGraphRunner runnerSpy = org.mockito.Mockito.spy(flowGraphRunner);
+        when(flowRunReadinessGate.collectBlockingErrors(any(), any()))
+                .thenReturn(List.of("子流入口须配置 fallbackOut"));
+        handler = new SubflowNodeHandler(
+                testFlowService, parsedGraphCache, runnerSpy, flowRunReadinessGate, childRegistry);
+        GraphNode node = subflowNode(nodeData(
+                "name", "半成品子流",
+                "subflowId", String.valueOf(SUBFLOW_ID),
+                "inputs", List.of()
+        ));
+
+        StepResult result = handler.execute(parentCtx, node, null);
+
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
+        assertEquals(FlowErrorCode.TF_GRAPH_INVALID.getCode(), result.getError().getCode());
+        assertTrue(result.getError().getMessage().contains("fallbackOut"));
+        assertNotNull(result.getSubflow());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> childSteps = (List<Map<String, Object>>) result.getSubflow().get("childSteps");
+        assertTrue(childSteps == null || childSteps.isEmpty());
+        verify(runnerSpy, never()).run(any(), any(), any());
     }
 
     private static NodeHandlerRegistry passingAssignRegistry(RunDelivery delivery) {

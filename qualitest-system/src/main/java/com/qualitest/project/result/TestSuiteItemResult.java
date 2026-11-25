@@ -44,6 +44,9 @@ public class TestSuiteItemResult implements Serializable {
     @Excel(name = "测试流名称")
     private String flowName;
 
+    /** 入口节点 id（多场景入口时指定） */
+    private String entryNodeId;
+
     /** 场景ID（空表示默认场景） */
     private String runScenarioId;
 

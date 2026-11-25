@@ -17,6 +17,8 @@ export interface TriggerTestFlowRunParams {
 /** 批量串行队列单条 */
 export interface TriggerTestFlowRunBatchItemParams {
   testFlowId: string;
+  /** 多场景入口时指定从哪个入口进入 */
+  entryNodeId?: string;
   runScenarioId?: string;
 }
 

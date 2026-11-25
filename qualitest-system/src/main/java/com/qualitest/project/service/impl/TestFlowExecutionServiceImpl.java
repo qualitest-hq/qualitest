@@ -455,6 +455,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         try {
             TriggerTestFlowRunOutcome outcome = triggerRun(TriggerTestFlowRunParams.builder()
                     .testFlowId(item.getTestFlowId())
+                    .entryNodeId(blankToNull(item.getEntryNodeId()))
                     .runScenarioId(blankToNull(item.getRunScenarioId()))
                     .testProjectEnvId(testProjectEnvId)
                     .triggerType(triggerType)

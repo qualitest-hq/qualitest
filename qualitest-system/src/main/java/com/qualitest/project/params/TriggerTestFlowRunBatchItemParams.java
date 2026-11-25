@@ -19,6 +19,9 @@ public class TriggerTestFlowRunBatchItemParams {
     /** 测试流 id */
     private Long testFlowId;
 
+    /** 可选，指定从哪个入口节点进入；多场景入口时须传 */
+    private String entryNodeId;
+
     /** 可选，覆盖该流图 meta 中的活动场景；空则走后端默认解析 */
     private String runScenarioId;
 }
