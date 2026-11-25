@@ -83,13 +83,13 @@ class SnapshotCheckpointServiceTest {
     }
 
     /**
-     * 前提：onSnapshotFailure=prompt，插件调用失败。
-     * 期望：shouldPause=true。
+     * 前提：历史 onSnapshotFailure=prompt（现归 abort），插件调用失败。
+     * 期望：abortRun=true，不 continue。
      */
     @Test
     @Order(3)
-    @DisplayName("快照失败且 prompt 时应暂停")
-    void maybeCheckpoint_onSnapshotFailurePrompt_shouldPause() {
+    @DisplayName("快照失败且历史 prompt 归 abort")
+    void maybeCheckpoint_legacyPrompt_aborts() {
         when(snapshotSupport.isCheckpointProviderEnabled(anyLong())).thenReturn(true);
         when(snapshotSupport.describeCheckpointProvider(anyLong())).thenReturn("plugin:onCheckpoint");
         when(snapshotSupport.createSave(any(), anyLong(), anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt()))
@@ -99,16 +99,13 @@ class SnapshotCheckpointServiceTest {
         data.put(GraphNodeSnapshotSupport.KEY_SNAPSHOT_BEFORE, true);
         GraphNode node = GraphNode.builder().id("n1").type("http").data(data).build();
 
-        RunSnapshotPolicy policy = RunSnapshotPolicy.builder()
-                .onSnapshotFailure(RunSnapshotPolicy.ON_SNAPSHOT_FAILURE_PROMPT)
-                .build();
+        RunSnapshotPolicy policy = RunSnapshotPolicy.compose(null, "prompt");
 
         CheckpointAttempt attempt = service.maybeCheckpoint(
                 node, 1L, env(), policy, new FlowRunSnapshotState());
 
-        assertTrue(attempt.isShouldPause());
+        assertTrue(attempt.isAbortRun());
         assertFalse(attempt.shouldContinueDespiteFailure());
-        assertFalse(attempt.isAbortRun());
     }
 
     /**

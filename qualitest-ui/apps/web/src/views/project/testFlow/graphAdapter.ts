@@ -132,17 +132,13 @@ export interface FromGraphJsonResult {
 function normalizeScenario(scenario: GraphRunScenario): GraphRunScenario {
   const envId = resolveScenarioEnvId(scenario);
   const inSeed = resolveScenarioInSeed(scenario);
-  const out: GraphRunScenario = {
+  return {
     id: String(scenario.id ?? ''),
     name: String(scenario.name ?? ''),
     envId,
     inSeed,
     remark: scenario.remark != null ? String(scenario.remark) : '',
   };
-  if (scenario.onNodeFailure != null) out.onNodeFailure = scenario.onNodeFailure;
-  if (scenario.onSnapshotFailure != null) out.onSnapshotFailure = scenario.onSnapshotFailure;
-  if (scenario.maxSteps !== undefined) out.maxSteps = scenario.maxSteps;
-  return out;
 }
 
 /**
@@ -328,9 +324,6 @@ export function scenariosToPersistPayload(scenarios: GraphRunScenario[]): GraphR
       envId,
       inSeed,
       remark: s.remark ?? '',
-      onNodeFailure: s.onNodeFailure,
-      onSnapshotFailure: s.onSnapshotFailure,
-      maxSteps: s.maxSteps ?? null,
     };
   });
 }

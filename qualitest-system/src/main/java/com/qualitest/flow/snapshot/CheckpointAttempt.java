@@ -7,7 +7,7 @@ import lombok.Getter;
 /**
  * 单次 checkpoint 尝试的结果。
  * <p>
- * 用于生成快照审计步，并决定 checkpoint 失败后是继续、暂停还是中止 Run。
+ * 用于生成快照审计步，并决定 checkpoint 失败后是继续还是中止 Run（不再暂停）。
  */
 @Getter
 public class CheckpointAttempt {
@@ -23,8 +23,6 @@ public class CheckpointAttempt {
     private final long durationMs;
     /** checkpoint 失败且策略为 abort 时为 true */
     private final boolean abortRun;
-    /** checkpoint 失败且策略为 prompt 时为 true */
-    private final boolean shouldPause;
 
     private CheckpointAttempt(
             GraphNode node,
@@ -36,8 +34,7 @@ public class CheckpointAttempt {
             SnapshotScope scope,
             String label,
             long durationMs,
-            boolean abortRun,
-            boolean shouldPause
+            boolean abortRun
     ) {
         this.node = node;
         this.passed = passed;
@@ -49,7 +46,6 @@ public class CheckpointAttempt {
         this.label = label;
         this.durationMs = durationMs;
         this.abortRun = abortRun;
-        this.shouldPause = shouldPause;
     }
 
     public static CheckpointAttempt success(
@@ -60,7 +56,7 @@ public class CheckpointAttempt {
             String label,
             long durationMs
     ) {
-        return new CheckpointAttempt(node, true, ref, null, null, resetBase, scope, label, durationMs, false, false);
+        return new CheckpointAttempt(node, true, ref, null, null, resetBase, scope, label, durationMs, false);
     }
 
     public static CheckpointAttempt failure(
@@ -76,14 +72,13 @@ public class CheckpointAttempt {
         RunSnapshotPolicy effective = policy != null ? policy : RunSnapshotPolicy.defaults();
         return new CheckpointAttempt(
                 node, false, null, errorCode, errorMessage, resetBase, scope, label, durationMs,
-                effective.shouldAbortOnSnapshotFailure(),
-                effective.shouldPauseOnSnapshotFailure());
+                effective.shouldAbortOnSnapshotFailure());
     }
 
     /**
      * checkpoint 失败但策略为 continue：记失败审计步后仍执行节点业务逻辑。
      */
     public boolean shouldContinueDespiteFailure() {
-        return !passed && !abortRun && !shouldPause;
+        return !passed && !abortRun;
     }
 }

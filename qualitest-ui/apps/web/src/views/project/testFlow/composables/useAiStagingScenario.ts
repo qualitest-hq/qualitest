@@ -21,10 +21,6 @@ export function buildDraftFromCanvasScenario(scenario: GraphRunScenario): Record
       envId: resolveScenarioEnvId(scenario),
       inSeed: scenario.inSeed ?? {},
       remark: scenario.remark ?? '',
-      onNodeFailure: scenario.onNodeFailure,
-      onSnapshotFailure: scenario.onSnapshotFailure,
-      // 未设置时显式 null，Staging 对照可区分「走默认 200」与「已填具体步数」
-      maxSteps: scenario.maxSteps ?? null,
     }),
   ) as Record<string, unknown>;
 }
@@ -43,14 +39,6 @@ function buildScenarioFromStagingUnit(unit: AiStagingUnit): GraphRunScenario | n
       patchSlice?.inSeed ??
       {},
     remark: String(draft.remark ?? patchSlice?.remark ?? ''),
-    onNodeFailure: (draft.onNodeFailure as GraphRunScenario['onNodeFailure']) ??
-      patchSlice?.onNodeFailure,
-    onSnapshotFailure: (draft.onSnapshotFailure as GraphRunScenario['onSnapshotFailure']) ??
-      patchSlice?.onSnapshotFailure,
-    // 新增场景待定：draft 优先，其次 patch 切片，否则 null
-    maxSteps: (draft.maxSteps as number | null | undefined) ??
-      patchSlice?.maxSteps ??
-      null,
   };
 }
 
@@ -68,14 +56,6 @@ function applyScenarioDraft(unit: AiStagingUnit, scenarios: GraphRunScenario[]):
     envId: draft.envId != null ? String(draft.envId) : resolveScenarioEnvId(existing),
     remark: draft.remark != null ? String(draft.remark) : existing.remark,
     inSeed: (draft.inSeed as Record<string, unknown> | undefined) ?? existing.inSeed,
-    onNodeFailure:
-      (draft.onNodeFailure as GraphRunScenario['onNodeFailure']) ?? existing.onNodeFailure,
-    onSnapshotFailure:
-      (draft.onSnapshotFailure as GraphRunScenario['onSnapshotFailure']) ?? existing.onSnapshotFailure,
-    // 更新场景待定：仅当 draft 含 maxSteps 字段时才覆盖画布上的值
-    maxSteps: draft.maxSteps !== undefined
-      ? (draft.maxSteps as number | null)
-      : existing.maxSteps,
   };
 
   if (JSON.stringify(next) === JSON.stringify(existing)) return null;

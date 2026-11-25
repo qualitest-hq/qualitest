@@ -1463,10 +1463,6 @@
             "description": "入参值树；Run 启动写入 ctx.in",
             "additionalProperties": true
           },
-          "maxSteps": {
-            "type": "integer",
-            "description": "单次运行步数上限；1～1000，省略则用系统默认 200"
-          },
           "remark": {
             "type": "string"
           },

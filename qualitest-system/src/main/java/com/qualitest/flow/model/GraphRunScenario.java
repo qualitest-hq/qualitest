@@ -13,6 +13,7 @@ import java.util.Map;
  * 运行场景条目：环境与入参值树。
  * <p>
  * 挂在 {@code scenario-entry.data.scenarios[]}；开跑时 envId 选环境，inSeed 灌入 {@code ctx.in}。
+ * 步数上限与存档失败策略不在场景条目上：见入口 {@code data.maxSteps} 与存档点插件环境 config。
  */
 @Getter
 @Setter
@@ -40,22 +41,4 @@ public class GraphRunScenario {
 
     /** 场景说明（可选） */
     private String remark;
-
-    /**
-     * 节点失败时的处理策略。
-     * fail：Run 直接失败；prompt：暂停等待人工（预留）。
-     */
-    private String onNodeFailure;
-
-    /**
-     * 打 checkpoint 失败时的处理策略。
-     * abort：中止 Run；continue：跳过本次 checkpoint 继续执行节点；prompt：暂停（预留）。
-     */
-    private String onSnapshotFailure;
-
-    /**
-     * 单次运行步数上限；空则用系统默认。
-     * 合法范围 1～1000，超出由解析侧裁剪。
-     */
-    private Integer maxSteps;
 }

@@ -30,7 +30,6 @@
           "y": 80
         },
         "data": {
-          "name": "条件",
           "branches": [
             {
               "id": "2071158532992012288",
@@ -49,7 +48,8 @@
               "conditions": []
             }
           ]
-        }
+        },
+        "name": "条件"
       },
       {
         "id": "1002",
@@ -59,11 +59,11 @@
           "y": 80
         },
         "data": {
-          "name": "下一步",
           "callMode": "external",
           "externalUrl": "https://example.com/next",
           "httpMethod": "GET"
-        }
+        },
+        "name": "下一步"
       }
     ],
     "edges": [

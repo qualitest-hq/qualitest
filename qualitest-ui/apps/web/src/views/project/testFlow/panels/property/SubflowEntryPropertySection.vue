@@ -1,5 +1,6 @@
 <template>
   <div class="prop-form">
+    <EntryMaxStepsField :node="node" />
     <EntryDocMarkdownField
       :model-value="node.data?.doc ?? ''"
       :rows="4"
@@ -20,10 +21,11 @@
 <script setup>
 /**
  * 子流入口节点属性面板。
- * 可改：入口说明（编辑 / Markdown 预览）、入参形状声明、兜底出参 fallbackOut。
+ * 可改：步数上限、入口说明（编辑 / Markdown 预览）、入参形状声明、兜底出参 fallbackOut。
  * 子图整次未走到返回节点时，把 fallbackOut 挂到父流对应子流节点的 out。
  */
 import EntryDocMarkdownField from '../../components/EntryDocMarkdownField.vue'
+import EntryMaxStepsField from '../../components/EntryMaxStepsField.vue'
 import FallbackOutJsonField from '../../components/FallbackOutJsonField.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import EntryInputShapeSection from './EntryInputShapeSection.vue'

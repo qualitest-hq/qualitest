@@ -36,11 +36,11 @@
           "y": 80
         },
         "data": {
-          "name": "登录",
           "callMode": "external",
           "externalUrl": "https://example.com/login",
           "httpMethod": "POST"
-        }
+        },
+        "name": "登录"
       }
     ],
     "edges": [

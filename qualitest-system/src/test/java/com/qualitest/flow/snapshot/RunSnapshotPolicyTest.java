@@ -1,6 +1,5 @@
 package com.qualitest.flow.snapshot;
 
-import com.qualitest.flow.context.ResolvedRunScenario;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -14,54 +13,51 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 RunSnapshotPolicy：运行场景上的失败/快照策略解析，以及 maxSteps 解析与裁剪。
- * 边界：纯函数，仅依赖 ResolvedRunScenario 字段，无 DB / HTTP。
+ * 测 RunSnapshotPolicy：compose 合成入口 maxSteps / 存档失败策略，以及步数裁剪。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunSnapshotPolicyTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RunSnapshotPolicyTest {
 
     /**
-     * 前提：fromScenario 传入大小写混合的 onNodeFailure / onSnapshotFailure。
-     * 期望：归一后 prompt 暂停节点失败，continue 在快照失败时继续。
+     * 前提：compose 传入 continue 与历史 prompt。
+     * 期望：continue 生效；prompt 归 abort。
      */
     @Test
     @Order(1)
-    @DisplayName("归一化场景策略大小写")
-    void fromScenario_normalizesCase() {
-        RunSnapshotPolicy policy = RunSnapshotPolicy.fromScenario(ResolvedRunScenario.builder()
-                .onNodeFailure("Prompt")
-                .onSnapshotFailure("CONTINUE")
-                .build());
-        assertTrue(policy.shouldPauseOnNodeFailure());
-        assertTrue(policy.shouldContinueOnSnapshotFailure());
-        assertFalse(policy.shouldAbortOnSnapshotFailure());
+    @DisplayName("compose 归一化存档失败策略")
+    void compose_normalizesSnapshotFailure() {
+        RunSnapshotPolicy continuePolicy = RunSnapshotPolicy.compose(null, "CONTINUE");
+        assertTrue(continuePolicy.shouldContinueOnSnapshotFailure());
+        assertFalse(continuePolicy.shouldAbortOnSnapshotFailure());
+
+        RunSnapshotPolicy promptAsAbort = RunSnapshotPolicy.compose(50, "prompt");
+        assertTrue(promptAsAbort.shouldAbortOnSnapshotFailure());
+        assertEquals(50, promptAsAbort.getMaxSteps());
     }
 
     /**
-     * 前提：使用 defaults()，场景字段未配置。
-     * 期望：节点失败不暂停；checkpoint 失败 abort。
+     * 前提：使用 defaults()。
+     * 期望：checkpoint 失败 abort；步数默认。
      */
     @Test
     @Order(2)
-    @DisplayName("defaults 节点不暂停且快照 abort")
-    void defaults_failAndAbort() {
+    @DisplayName("defaults 快照 abort 且步数默认")
+    void defaults_abortAndDefaultMaxSteps() {
         RunSnapshotPolicy policy = RunSnapshotPolicy.defaults();
-        assertFalse(policy.shouldPauseOnNodeFailure());
         assertTrue(policy.shouldAbortOnSnapshotFailure());
         assertEquals(GraphWalker.DEFAULT_MAX_STEPS, policy.getMaxSteps());
     }
 
     /**
-     * 前提：场景配置 maxSteps=80；单独解析 null、0、5000。
-     * 期望：80 原样生效；null 用默认步数；0 裁为 1；超大值裁为允许上限。
+     * 前提：compose maxSteps=80；单独解析 null、0、5000。
+     * 期望：80 原样；null 默认；0→1；超大裁封顶。
      */
     @Test
     @Order(3)
     @DisplayName("maxSteps 传入并裁剪到合法范围")
-    void fromScenario_resolvesMaxSteps() {
-        assertEquals(80, RunSnapshotPolicy.fromScenario(
-                ResolvedRunScenario.builder().maxSteps(80).build()).getMaxSteps());
+    void compose_resolvesMaxSteps() {
+        assertEquals(80, RunSnapshotPolicy.compose(80, null).getMaxSteps());
         assertEquals(1, RunSnapshotPolicy.resolveMaxSteps(0));
         assertEquals(GraphWalker.MAX_STEPS_CEILING, RunSnapshotPolicy.resolveMaxSteps(5000));
         assertEquals(GraphWalker.DEFAULT_MAX_STEPS, RunSnapshotPolicy.resolveMaxSteps(null));

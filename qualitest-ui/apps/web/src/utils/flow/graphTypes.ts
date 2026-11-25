@@ -22,10 +22,6 @@ export interface GraphRunScenario {
   /** 入参值树，开跑灌 ctx.in */
   inSeed?: Record<string, unknown>;
   remark?: string;
-  onNodeFailure?: 'fail' | 'prompt';
-  onSnapshotFailure?: 'abort' | 'prompt' | 'continue';
-  /** 单次运行允许执行的最大节点步数；留空表示使用默认 200 */
-  maxSteps?: number | null;
 }
 
 /**

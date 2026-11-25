@@ -45,11 +45,11 @@
           "y": 80
         },
         "data": {
-          "name": "登录",
           "callMode": "external",
           "externalUrl": "https://example.com/login",
           "httpMethod": "POST"
-        }
+        },
+        "name": "登录"
       },
       {
         "id": "9002",
@@ -59,11 +59,11 @@
           "y": 80
         },
         "data": {
-          "name": "获取用户信息",
           "callMode": "external",
           "externalUrl": "https://example.com/profile",
           "httpMethod": "GET"
-        }
+        },
+        "name": "获取用户信息"
       }
     ],
     "addEdges": [

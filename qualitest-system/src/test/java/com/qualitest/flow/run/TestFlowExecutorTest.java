@@ -53,8 +53,9 @@ class TestFlowExecutorTest {
         runService = mock(ITestFlowRunService.class);
         persistedSteps = new ArrayList<>();
 
-        // http/delay 用桩返回 passed；assert 走真实 Handler
+        // 入口透传 + http/delay 桩；assert 走真实 Handler
         registry = new NodeHandlerRegistry(List.of(
+                new com.qualitest.flow.node.impl.EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.HTTP) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
@@ -112,7 +113,8 @@ class TestFlowExecutorTest {
         executor = new TestFlowExecutor(
                 registry, new FlowGraphRunner(), runService, runPersistenceService,
                 runStatusUpdater, new StepResultWriter(), hookFactory, resumePlanner,
-                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class));
+                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class),
+                mock(com.qualitest.plugin.enable.PluginEnableService.class));
     }
 
     private static final class RunCaptorHolder {
@@ -147,13 +149,15 @@ class TestFlowExecutorTest {
 
         ExecutionOutcome outcome = executor.execute(5001L, graph, ctx, bootstrap);
 
-        assertTrue(outcome.isPassed());
-        assertEquals(4, outcome.getExecutedSteps());
-        assertEquals(5, persistedSteps.size());
+        assertTrue(outcome.isPassed(),
+                () -> "errorCode=" + outcome.getErrorCode() + " msg=" + outcome.getErrorMessage());
+        assertEquals(5, outcome.getExecutedSteps());
+        assertEquals(6, persistedSteps.size());
         assertEquals(StepResultWriter.NODE_TYPE_RUN_CONFIG, persistedSteps.get(0).getNodeType());
         assertEquals(0L, persistedSteps.get(0).getStepIndex());
-        assertEquals("n1", persistedSteps.get(1).getNodeId());
-        assertEquals("n4", persistedSteps.get(4).getNodeId());
+        assertEquals("scn_entry_1795425561360", persistedSteps.get(1).getNodeId());
+        assertEquals("n1", persistedSteps.get(2).getNodeId());
+        assertEquals("n4", persistedSteps.get(5).getNodeId());
 
         ArgumentCaptor<TestFlowRun> runCaptor = ArgumentCaptor.forClass(TestFlowRun.class);
         verify(runPersistenceService).updateRun(runCaptor.capture());
@@ -164,9 +168,9 @@ class TestFlowExecutorTest {
 
         StepResultWriter writer = new StepResultWriter();
         assertTrue(writer.parseStepDetails(persistedSteps.get(0).getStepDetails()).containsKey("scenarioLoaded"));
-        String details = persistedSteps.get(1).getStepDetails();
+        String details = persistedSteps.get(2).getStepDetails();
         assertTrue(writer.parseStepDetails(details).containsKey("http"));
-        assertTrue(writer.parseStepDetails(persistedSteps.get(1).getStepDetails()).containsKey("flowAfter"));
+        assertTrue(writer.parseStepDetails(persistedSteps.get(2).getStepDetails()).containsKey("flowAfter"));
     }
 
     /**
@@ -193,8 +197,8 @@ class TestFlowExecutorTest {
         ExecutionOutcome outcome = executor.execute(5002L, graph, ctx, bootstrap);
 
         assertFalse(outcome.isPassed());
-        assertEquals(5, persistedSteps.size());
-        assertEquals(RunStatus.FAILED.getCode(), persistedSteps.get(4).getStatus());
+        assertEquals(6, persistedSteps.size());
+        assertEquals(RunStatus.FAILED.getCode(), persistedSteps.get(5).getStatus());
 
         verify(runPersistenceService).updateRun(argThat((TestFlowRun r) ->
                 RunStatus.FAILED.matches(r.getStatus())
@@ -211,6 +215,7 @@ class TestFlowExecutorTest {
     @DisplayName("节点执行中前序步骤已落库")
     void execute_persistsStepBeforeNextNodeRuns() {
         registry = new NodeHandlerRegistry(List.of(
+                new com.qualitest.flow.node.impl.EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.HTTP) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
@@ -257,7 +262,8 @@ class TestFlowExecutorTest {
         executor = new TestFlowExecutor(
                 registry, new FlowGraphRunner(), runService, runPersistenceService,
                 runStatusUpdater, new StepResultWriter(), hookFactory, resumePlanner,
-                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class));
+                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class),
+                mock(com.qualitest.plugin.enable.PluginEnableService.class));
 
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         FlowRunContext ctx = FlowRunContext.builder()

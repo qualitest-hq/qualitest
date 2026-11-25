@@ -1,6 +1,7 @@
 package com.qualitest.flow.run;
 
 import com.qualitest.common.utils.DateUtils;
+import com.qualitest.flow.context.EntryRunPolicySupport;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.context.FlowRunContextPersistence;
 import com.qualitest.flow.context.ResolvedRunScenario;
@@ -15,9 +16,11 @@ import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.snapshot.FlowRunSnapshotState;
 import com.qualitest.flow.snapshot.RunSnapshotPolicy;
+import com.qualitest.plugin.enable.PluginEnableService;
 import com.qualitest.plugin.prepare.PluginRunPrepareService;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestFlowRunStep;
+import com.qualitest.project.domain.TestPluginEnvBinding;
 import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.service.ITestFlowRunService;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +49,7 @@ public class TestFlowExecutor {
     private final SnapshotPreExecuteHookFactory snapshotPreExecuteHookFactory;
     private final ResumeContinuationPlanner resumeContinuationPlanner;
     private final PluginRunPrepareService pluginRunPrepareService;
+    private final PluginEnableService pluginEnableService;
 
     /**
      * 首次执行 Run：写 runConfig 首步 → onRunPrepare（如场景造数）→ 从图起点遍历。
@@ -173,7 +177,12 @@ public class TestFlowExecutor {
     ) {
         ResolvedRunScenario scenario = bootstrap != null ? bootstrap.getScenario() : null;
         TestProjectEnv env = bootstrap != null ? bootstrap.getEnv() : null;
-        RunSnapshotPolicy policy = RunSnapshotPolicy.fromScenario(scenario);
+        List<TestPluginEnvBinding> bindings = null;
+        if (env != null && env.getTestProjectEnvId() != null) {
+            bindings = pluginEnableService.listEnabledBindings(env.getTestProjectEnvId());
+        }
+        RunSnapshotPolicy policy = EntryRunPolicySupport.compose(
+                snapshot, EntryRunPolicySupport.resolveEntryNodeId(ctx, scenario), bindings);
 
         FlowNodePreExecuteHook snapshotHook = snapshotPreExecuteHookFactory.create(
                 testFlowRunId, env, policy, snapshotState);

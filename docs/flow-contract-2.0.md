@@ -397,11 +397,14 @@ IF
 - 不 HTTP 写出；成败看步骤 / 断言。  
 - **不提供**返回节点（无 `scenario-return`；场景轨自然走尽）。混图可另有 `http-return` / `subflow-return` 给开放/子流轨用，与场景入口不冲突；场景入口可达子图不得含返回节点。  
 - 可选入口说明。  
-- **失败策略（可选，仅场景项）**：每个场景子对象可带 `onNodeFailure` / `onSnapshotFailure` / `maxSteps`；人跑/套件从所选场景条目解析。HTTP / 子流入站不配这三项，走引擎默认。
+- **`data.maxSteps`（入口壳，可选）**：单次 Run 步数上限；新建默认约 200；缺省开跑补默认。场景条目不再挂失败策略 / maxSteps。  
+- **节点失败**：固定记失败并走失败后继续（`alwaysRun`）；不设场景级 `onNodeFailure` / 策略 `prompt` 暂停。  
+- **存档失败**：见环境上存档点插件 config 的 `onSnapshotFailure`（`abort` | `continue`），不挂场景。
 
 ### 5.2 子流入口
 
 - **声明入参**（树 + 必填）+ **一份 `fallbackOut`**；**不**声明回法表。  
+- **`data.maxSteps`**：同入口壳约定（缺省开跑补默认）。  
 - 父节点 `inputs` 映射灌入后从该入口起步。  
 - 图校验：整次 Run **至多一次** `return`（IF 各臂可各画一个；真并行域至多一臂带 return）；须有兜底。  
 - 执行到 `return`：定稿并**立刻**把 `out` 整包挂到父 `nodes.<子流节点id>.out`（**只要执行到 return 就挂**，含失败后继续才摸到 return）。  
@@ -413,10 +416,11 @@ IF
 
 ### 5.3 HTTP 入口
 
-- **有 HTTP 入口 = 已开放入站**。人跑 / CI 走**场景入口**，与开放入站无关。  
+- **有 HTTP 入口 = 已开放入站**。人跑 / 套件走**场景入口**，与开放入站无关。  
 - method + path、环境、请求 format（入站解析用）。  
 - 入参**形状无值**：body 字段树 + query/header 轻量参数表；运行时值来自**入站请求**（按形状注入 `in`）。  
 - **须**配置一份 `fallbackOut`（§4.3）。  
+- **`data.maxSteps`**：同入口壳约定（含协议 `{protocol}-entry`；插件不另发明限额字段）。  
 - **不**在入口上做平台鉴权 / 自动 401；要鉴权是**图内业务**（判断 → 组 `out` 含 status 401 → return）。  
 - **不**在入口上维护成功/失败响应表；**不**选手填响应 Content-Type（见 §4.0）。  
 - **不**在入口上配置「开放入站名额 / 并发上限」（见 §6.2.1）。  
@@ -677,14 +681,13 @@ IF
       "position": { "x": 0, "y": 0 },
       "data": {
         "doc": "",
+        "maxSteps": 200,
         "scenarios": [
           {
             "id": "sc1",
             "name": "冒烟",
             "envId": "<envId>",
-            "inSeed": {},
-            "onNodeFailure": "fail",
-            "onSnapshotFailure": "abort"
+            "inSeed": {}
           }
         ]
       }
@@ -706,7 +709,7 @@ IF
 }
 ```
 
-开跑：`entryKind=scenario`，`entryNodeId=e-sc`，`trigger` 如 `ui`/`suite`/`mcp`；选场景 `sc1` 灌 `inSeed`；失败策略取自该场景条目；走到 `n-http` 无后继 → 收束写 Run。
+开跑：`entryKind=scenario`，`entryNodeId=e-sc`，`trigger` 如 `ui`/`suite`/`mcp`；选场景 `sc1` 灌 `inSeed`；`maxSteps` 取自入口；存档失败策略取自环境存档点插件；走到 `n-http` 无后继 → 收束写 Run。
 
 ### 13.2 HTTP 开放（宜 return；须兜底）
 
@@ -725,6 +728,7 @@ IF
         "method": "POST",
         "path": "/v3/refund",
         "envId": "<envId>",
+        "maxSteps": 200,
         "doc": "开放退款入站说明（可选）",
         "inputShape": {
           "body": [

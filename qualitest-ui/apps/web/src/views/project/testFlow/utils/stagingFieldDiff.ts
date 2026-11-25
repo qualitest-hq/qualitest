@@ -162,9 +162,6 @@ const SCENARIO_FIELD_LABELS: Record<string, string> = {
   envId: '环境 ID',
   testProjectEnvId: '环境 ID',
   inSeed: '入参值（inSeed）',
-  onNodeFailure: '节点失败时',
-  onSnapshotFailure: '快照失败时',
-  maxSteps: '单次运行步数上限',
 };
 
 /** updateScenario：对比 baseline 与 draft */
@@ -241,24 +238,11 @@ export function applyStagingFieldToDraft(
     return next;
   }
 
-  // 步数上限：空串写 null 表示走默认；否则解析为整数
-  if (fieldKey === 'maxSteps') {
-    const trimmed = rawValue.trim();
-    if (!trimmed) {
-      next.maxSteps = null;
-      return next;
-    }
-    const n = Number(trimmed);
-    next.maxSteps = Number.isFinite(n) ? n : null;
-    return next;
-  }
-
   if (
     fieldKey === 'name' ||
     fieldKey === 'remark' ||
-    fieldKey === 'testProjectEnvId' ||
-    fieldKey === 'onNodeFailure' ||
-    fieldKey === 'onSnapshotFailure'
+    fieldKey === 'envId' ||
+    fieldKey === 'testProjectEnvId'
   ) {
     next[fieldKey] = rawValue;
   }

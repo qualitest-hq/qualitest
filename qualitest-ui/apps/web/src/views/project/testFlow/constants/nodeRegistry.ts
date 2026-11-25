@@ -31,7 +31,9 @@ import PluginActionNode from '../nodes/PluginActionNode.vue';
 import SubflowPropertySection from '../panels/property/SubflowPropertySection.vue';
 import InputPropertySection from '../panels/property/InputPropertySection.vue';
 import PluginActionPropertySection from '../panels/property/PluginActionPropertySection.vue';
+import ProtocolEntryPropertySection from '../panels/property/ProtocolEntryPropertySection.vue';
 
+import { isProtocolEntryType } from '@/utils/flow/nodeTypes';
 import type { FlowNodeTypeKey } from './nodeTypes';
 
 /** 节点类型 → 画布组件 + 右侧属性区，新增类型只需改此文件 */
@@ -100,9 +102,10 @@ export const NODE_REGISTRY: Record<FlowNodeTypeKey, NodeRegistryEntry> = {
   },
 };
 
-/** 按节点 type 取右侧属性面板组件；未知类型回落默认面板 */
+/** 按节点 type 取右侧属性面板组件；协议入口走平台壳 maxSteps；未知类型回落默认面板 */
 export function getNodePropertyComponent(type: string | undefined): Component {
   if (!type) return DefaultPropertySection;
+  if (isProtocolEntryType(type)) return ProtocolEntryPropertySection;
   return NODE_REGISTRY[type as FlowNodeTypeKey]?.property ?? DefaultPropertySection;
 }
 

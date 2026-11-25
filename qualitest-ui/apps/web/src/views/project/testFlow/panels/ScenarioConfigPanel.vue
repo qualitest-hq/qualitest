@@ -75,36 +75,6 @@
         <!-- v-pre：把 {{in.orderId}} 当纯文案展示，不要当成模板变量求值 -->
         <div class="field__hint" v-pre>运行选中场景时注入 in，写法如 {{in.orderId}}</div>
       </div>
-      <!-- 当前场景的步数上限：留空走默认，输入会裁剪到 1～1000 -->
-      <div class="field">
-        <label>单次运行步数上限</label>
-        <input
-            :value="maxStepsDisplay"
-            inputmode="numeric"
-            max="1000"
-            min="1"
-            placeholder="默认 200"
-            type="number"
-            @change="onMaxStepsChange"
-        />
-        <div class="field__hint">留空使用默认 200；合法范围 1～1000，超出上限时运行失败并指出停在哪个节点</div>
-      </div>
-      <div class="field">
-        <label>节点失败时</label>
-        <select :value="onNodeFailure" @change="onNodeFailureChange">
-          <option value="fail">直接失败</option>
-          <option value="prompt">暂停等待决策</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>快照失败时</label>
-        <select :value="onSnapshotFailure" @change="onSnapshotFailureChange">
-          <option value="abort">中止运行</option>
-          <option value="prompt">暂停等待决策</option>
-          <option value="continue">记录失败后继续</option>
-        </select>
-        <div class="field__hint">需配合节点 snapshotBefore 与环境 allowDestructiveReset 使用；开启数据还原时，同一环境请串行跑</div>
-      </div>
     </template>
     <PropEmpty v-else-if="!activeScenario" icon="▶">
       请在左侧选择场景<br/>再编辑运行参数
@@ -150,14 +120,6 @@ const activeScenario = computed(() => getActiveScenario());
 const stagingUnit = usePendingStagingUnit(computed(() => activeScenario.value?.id), 'scenario');
 
 const showNormalFields = useShowNormalFields(stagingUnit, ['updateScenario']);
-
-const onNodeFailure = computed(() => activeScenario.value?.onNodeFailure ?? 'fail');
-const onSnapshotFailure = computed(() => activeScenario.value?.onSnapshotFailure ?? 'abort');
-/** 步数上限输入框展示值：未配置时为空字符串，占位提示默认 200 */
-const maxStepsDisplay = computed(() => {
-  const v = activeScenario.value?.maxSteps;
-  return v == null ? '' : String(v);
-});
 
 const inSeedRows = computed(() => inSeedToRows(activeScenario.value?.inSeed));
 
@@ -212,37 +174,6 @@ async function onEnvManageSaved(payload) {
 function onInSeedRowsChange(rows) {
   const inSeed = rowsToInSeed(rows);
   patchActiveScenario({ inSeed });
-  syncScenarioDraft();
-}
-
-/** 步数上限变更：清空或非数字则写 null；否则取整并限制在 1～1000 */
-function onMaxStepsChange(e) {
-  const raw = String(e.target.value ?? '').trim();
-  if (!raw) {
-    patchActiveScenario({ maxSteps: null });
-    syncScenarioDraft();
-    return;
-  }
-  let n = Number(raw);
-  if (!Number.isFinite(n)) {
-    patchActiveScenario({ maxSteps: null });
-    syncScenarioDraft();
-    return;
-  }
-  n = Math.round(n);
-  if (n < 1) n = 1;
-  if (n > 1000) n = 1000;
-  patchActiveScenario({ maxSteps: n });
-  syncScenarioDraft();
-}
-
-function onNodeFailureChange(e) {
-  patchActiveScenario({ onNodeFailure: e.target.value });
-  syncScenarioDraft();
-}
-
-function onSnapshotFailureChange(e) {
-  patchActiveScenario({ onSnapshotFailure: e.target.value });
   syncScenarioDraft();
 }
 </script>

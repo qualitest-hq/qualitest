@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * 运行场景只读摘要 JSON 组装。
- * 输出 id/name/环境/备注、inSeed 键名列表（不含明文），以及 maxSteps。
+ * 输出 id/name/环境/备注、inSeed 键名列表（不含明文）。
  */
 final class FlowDesignScenarioJsonSupport {
 
@@ -28,9 +28,6 @@ final class FlowDesignScenarioJsonSupport {
         JSONArray inSeedKeys = new JSONArray();
         inSeedKeys.addAll(inSeed.keySet());
         item.put("inSeedKeys", inSeedKeys);
-        if (scenario.getMaxSteps() != null) {
-            item.put("maxSteps", scenario.getMaxSteps());
-        }
         return item;
     }
 }

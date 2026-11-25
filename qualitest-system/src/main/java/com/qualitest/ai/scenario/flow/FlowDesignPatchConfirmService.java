@@ -263,7 +263,7 @@ public class FlowDesignPatchConfirmService {
             for (GraphRunScenario scenario : scenarios) {
                 if (scenario != null && scenarioId.equals(scenario.getId())) {
                     GraphRunScenario override = draft.to(GraphRunScenario.class);
-                    // 写入 remark、失败策略、inSeed 等场景字段
+                    // 写入 remark、env、inSeed 等场景字段（失败策略 / maxSteps 已迁出场景）
                     ScenarioPatchMergeSupport.applyScenarioUpdate(scenario, override);
                     return;
                 }

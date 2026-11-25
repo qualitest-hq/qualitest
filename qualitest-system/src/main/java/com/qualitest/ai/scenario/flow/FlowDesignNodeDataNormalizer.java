@@ -1,5 +1,6 @@
 package com.qualitest.ai.scenario.flow;
 
+import com.qualitest.flow.run.GraphWalker;
 import com.qualitest.flow.validate.GraphNodeBooleanFieldRules;
 
 import java.util.Locale;
@@ -11,6 +12,7 @@ import java.util.Map;
  * 草稿覆盖后再跑一遍规范化，避免草稿冲掉先前补全的字段。
  * HTTP 此处只补 callMode、extracts、successCheck，不做相对接口资产的 overrides 差分。
  * 各类型规范化结束后，对允许写出的 alwaysRun、snapshotBefore 把常见脏值收成真正布尔。
+ * 入口（含协议 {@code *-entry}）缺 {@code maxSteps} 时写入引擎默认。
  */
 public final class FlowDesignNodeDataNormalizer {
 
@@ -38,7 +40,19 @@ public final class FlowDesignNodeDataNormalizer {
             default -> {
             }
         }
+        ensureEntryMaxSteps(t, data);
         // 允许类型上的 alwaysRun / snapshotBefore：字符串或 0/1 等收成 Boolean
         GraphNodeBooleanFieldRules.coerceForNodeType(t, data);
+    }
+
+    /** 平台入口与协议入口：新建缺 maxSteps 时写入默认（与引擎一致） */
+    private static void ensureEntryMaxSteps(String type, Map<String, Object> data) {
+        if (type == null || type.isEmpty() || !type.endsWith("-entry")) {
+            return;
+        }
+        if (data.containsKey("maxSteps") && data.get("maxSteps") != null) {
+            return;
+        }
+        data.put("maxSteps", GraphWalker.DEFAULT_MAX_STEPS);
     }
 }

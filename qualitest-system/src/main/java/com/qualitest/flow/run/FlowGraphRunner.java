@@ -81,7 +81,7 @@ public class FlowGraphRunner {
      * @param registry       节点 Handler 注册表
      * @param preExecuteHook 节点执行前钩子，可为 NONE
      * @param continuation   续跑起点与模式
-     * @param policy         运行策略（步数上限、失败是否暂停等）
+     * @param policy         运行策略（步数上限、存档失败 abort|continue）
      * @param onStep         每产生一步立刻回调，便于落库；可为 null
      * @return 通过、失败或暂停结果；失败时 error 为首个业务失败
      */
@@ -112,7 +112,7 @@ public class FlowGraphRunner {
         }
 
         int stepIndex = 1;
-        // 步数上限来自运行策略（由场景 maxSteps 解析）；策略缺失时用遍历器默认值
+        // 步数上限来自运行策略（入口 data.maxSteps）；策略缺失时用遍历器默认值
         int maxSteps = policy != null && policy.getMaxSteps() > 0
                 ? policy.getMaxSteps()
                 : GraphWalker.DEFAULT_MAX_STEPS;
@@ -147,14 +147,6 @@ public class FlowGraphRunner {
                 if (pre != null) {
                     for (StepResult prelude : pre.preludeSteps()) {
                         recordStep(steps, prelude, onStep);
-                    }
-                    if (pre.pause()) {
-                        StepError error = pre.abortError() != null
-                                ? pre.abortError()
-                                : StepError.of(FlowErrorCode.TF_SNAPSHOT_FAILED, "checkpoint 失败");
-                        return Outcome.paused(steps, ctx, error, node.getId(),
-                                RunExecutionState.PAUSE_REASON_SNAPSHOT_FAILURE, steps.size(),
-                                currentId, incomingEdgeId);
                     }
                     if (pre.abort()) {
                         StepError error = pre.abortError() != null
@@ -195,11 +187,6 @@ public class FlowGraphRunner {
                 StepError error = result.getError() != null
                         ? result.getError()
                         : StepError.of(FlowErrorCode.TF_STEP_ERROR, "步骤失败");
-                if (policy != null && policy.shouldPauseOnNodeFailure()) {
-                    return Outcome.paused(steps, ctx, error, node.getId(),
-                            RunExecutionState.PAUSE_REASON_NODE_FAILURE, steps.size(),
-                            currentId, incomingEdgeId);
-                }
                 // 进入失败后继续；Outcome 仍带本步 error 作为 Run 主错误
                 String fromId = currentId;
                 PostFailureState postState = new PostFailureState(stepIndex + 1, maxSteps);
@@ -241,7 +228,7 @@ public class FlowGraphRunner {
                         continue;
                     }
                     FanoutArmOutcome armOutcome = runFanoutArm(
-                            walker, ctx, registry, preExecuteHook, policy, steps, onStep,
+                            walker, ctx, registry, preExecuteHook, steps, onStep,
                             armState, edge.getTarget(), edge.getId());
                     if (armOutcome.paused) {
                         return armOutcome.pausedOutcome;
@@ -398,7 +385,6 @@ public class FlowGraphRunner {
             FlowRunContext ctx,
             NodeHandlerRegistry registry,
             FlowNodePreExecuteHook preExecuteHook,
-            RunSnapshotPolicy policy,
             List<StepResult> steps,
             Consumer<StepResult> onStep,
             FanoutRunState state,
@@ -437,14 +423,6 @@ public class FlowGraphRunner {
                     for (StepResult prelude : pre.preludeSteps()) {
                         recordStep(steps, prelude, onStep);
                     }
-                    if (pre.pause()) {
-                        StepError error = pre.abortError() != null
-                                ? pre.abortError()
-                                : StepError.of(FlowErrorCode.TF_SNAPSHOT_FAILED, "checkpoint 失败");
-                        return FanoutArmOutcome.paused(Outcome.paused(steps, ctx, error, node.getId(),
-                                RunExecutionState.PAUSE_REASON_SNAPSHOT_FAILURE, steps.size(),
-                                currentId, inEdge));
-                    }
                     if (pre.abort()) {
                         StepError error = pre.abortError() != null
                                 ? pre.abortError()
@@ -477,11 +455,6 @@ public class FlowGraphRunner {
                         : StepError.of(FlowErrorCode.TF_STEP_ERROR, "步骤失败");
                 if (firstError == null) {
                     firstError = error;
-                }
-                if (policy != null && policy.shouldPauseOnNodeFailure()) {
-                    return FanoutArmOutcome.paused(Outcome.paused(steps, ctx, error, node.getId(),
-                            RunExecutionState.PAUSE_REASON_NODE_FAILURE, steps.size(),
-                            currentId, inEdge));
                 }
                 String fromId = currentId;
                 PostFailureState postState = new PostFailureState(state.stepIndex, state.maxSteps);
@@ -518,7 +491,7 @@ public class FlowGraphRunner {
                         continue;
                     }
                     FanoutArmOutcome nested = runFanoutArm(
-                            walker, ctx, registry, preExecuteHook, policy, steps, onStep,
+                            walker, ctx, registry, preExecuteHook, steps, onStep,
                             state, edge.getTarget(), edge.getId());
                     if (nested.paused) {
                         return nested;

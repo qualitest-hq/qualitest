@@ -38,7 +38,7 @@ public class EnvRunQueueItem implements Serializable {
     private String flowName;
     /** 运行场景 id */
     private String runScenarioId;
-    /** 触发来源短名：ui / mcp / ci / suite / http / subflow */
+    /** 触发来源短名：ui / mcp / suite / http / subflow */
     private String triggerType;
     /** 发起人用户 id */
     private Long operatorUserId;

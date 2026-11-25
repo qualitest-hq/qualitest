@@ -219,7 +219,7 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
     }
 
     /**
-     * 组装运行场景：可选 name、环境 id、备注、inSeed、maxSteps 等。
+     * 组装运行场景：可选 name、环境 id、备注、inSeed 等。
      * generateIdIfMissing 为 true 且缺 id 时用 sc_纳秒作临时短名。
      */
     @SuppressWarnings("unchecked")
@@ -245,10 +245,6 @@ public class SubmitFlowDesignUnitTool implements QualitestTool {
         Object inSeed = args.get("inSeed");
         if (inSeed instanceof Map<?, ?> seedMap) {
             s.setInSeed(new HashMap<>((Map<String, Object>) seedMap));
-        }
-        Integer maxSteps = FlowDesignToolSupport.intArg(args.get("maxSteps"));
-        if (maxSteps != null) {
-            s.setMaxSteps(maxSteps);
         }
         return s;
     }

@@ -13,7 +13,8 @@ import java.util.Map;
  * 本次 Run 实际使用的运行场景解析结果。
  * <p>
  * 自 scenario-entry 场景子集解析。
- * 供上下文组装（{@code inSeed} 灌 {@code ctx.in}）、runConfig 首步、快照失败策略使用。
+ * 供上下文组装（{@code inSeed} 灌 {@code ctx.in}）、runConfig 首步使用。
+ * 步数上限与存档失败策略由入口 / 插件环境在开跑时另行合成，不挂本对象。
  */
 @Getter
 @Setter
@@ -39,13 +40,4 @@ public class ResolvedRunScenario {
      */
     @Builder.Default
     private Map<String, Object> inSeed = new HashMap<>();
-
-    /** 节点失败策略，来自场景配置 */
-    private String onNodeFailure;
-
-    /** checkpoint 失败策略，来自场景配置 */
-    private String onSnapshotFailure;
-
-    /** 单次运行步数上限，来自场景配置；空则用系统默认 */
-    private Integer maxSteps;
 }

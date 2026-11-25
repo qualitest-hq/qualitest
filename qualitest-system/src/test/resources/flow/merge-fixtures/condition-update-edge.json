@@ -30,7 +30,6 @@
           "y": 80
         },
         "data": {
-          "name": "条件",
           "branches": [
             {
               "id": "2071158532992012288",
@@ -50,7 +49,8 @@
               "conditions": []
             }
           ]
-        }
+        },
+        "name": "条件"
       },
       {
         "id": "1002",
@@ -60,11 +60,11 @@
           "y": 40
         },
         "data": {
-          "name": "旧目标",
           "callMode": "external",
           "externalUrl": "https://example.com/old",
           "httpMethod": "GET"
-        }
+        },
+        "name": "旧目标"
       },
       {
         "id": "1003",
@@ -74,11 +74,11 @@
           "y": 160
         },
         "data": {
-          "name": "新目标",
           "callMode": "external",
           "externalUrl": "https://example.com/new",
           "httpMethod": "GET"
-        }
+        },
+        "name": "新目标"
       }
     ],
     "edges": [

@@ -22,6 +22,7 @@
       <label>环境 envId</label>
       <input :value="node.data?.envId ?? ''" type="text" @input="(e) => patch({ envId: e.target.value })" />
     </div>
+    <EntryMaxStepsField :node="node" />
     <EntryDocMarkdownField
       :model-value="node.data?.doc ?? ''"
       :rows="4"
@@ -42,10 +43,11 @@
 <script setup>
 /**
  * HTTP 入口节点属性面板。
- * 可改：HTTP 方法、路径、绑定环境 id、入口说明（支持编辑与 Markdown 预览）、
+ * 可改：HTTP 方法、路径、绑定环境 id、步数上限、入口说明（支持编辑与 Markdown 预览）、
  * 入参形状声明、兜底出参 fallbackOut（整次未走到返回节点时对外写出的包）。
  */
 import EntryDocMarkdownField from '../../components/EntryDocMarkdownField.vue'
+import EntryMaxStepsField from '../../components/EntryMaxStepsField.vue'
 import FallbackOutJsonField from '../../components/FallbackOutJsonField.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import EntryInputShapeSection from './EntryInputShapeSection.vue'

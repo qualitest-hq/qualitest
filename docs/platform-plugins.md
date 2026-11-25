@@ -700,7 +700,8 @@ Exploring **只认** `ui-slot:<名>`：同环境另一 `pluginId` 已占用相�
 ## 8. 相关链接
 
 - 发布列车：**2.0.0** 与 [flow-contract-2.0.md](./flow-contract-2.0.md) 同发；ROADMAP 原 Exploring **6.2** 并入该列车；Later **7.4～7.6**、**5.5** 仍后置  
-- 流侧协议入口 / 消费面：`flow-contract-2.0.md` §2.3、§7（`{protocol}-entry` 等与本稿 `pluginAction` 贡献面在 2.0 列车内对齐）。**现状**：引擎仅 type 识别骨架；codec / 该 kind 交付登记 / 可演示样本 **后置**。2.0 批 4 本轮验收以官方 **存档点**可装可跑为准（见 §10.8）  
+- 流侧协议入口 / 消费面：`flow-contract-2.0.md` §2.3、§7（`{protocol}-entry` 等与本稿 `pluginAction` 贡献面在 2.0 列车内对齐）。运行限额用平台入口壳 `data.maxSteps`，插件不另发明名；存档失败策略见存档点环境 config `onSnapshotFailure`。**现状**：引擎仅 type 识别骨架；codec / 该 kind 交付登记 / 可演示样本 **后置**。2.0 批 4 本轮验收以官方 **存档点**可装可跑为准（见 §10.8）  
+
 - 写库快照主路径：`project-summary.md`（经存档点插件；旧 `HttpEndpointSnapshotAdapter` / 核心直调待清干净）  
 - 被测 `/test-support`：demo-mall 历史端点——**迁完即删**，禁止核心回落  
 - 运维金库（**不是**本插件）：`qualitest-demo-host` `data/golden` / daily-reset  

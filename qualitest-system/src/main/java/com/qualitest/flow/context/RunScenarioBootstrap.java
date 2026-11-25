@@ -123,9 +123,6 @@ public final class RunScenarioBootstrap {
                 .entryNodeId(entryNodeId)
                 .testProjectEnvId(envId)
                 .inSeed(inSeed)
-                .onNodeFailure(matched.getOnNodeFailure())
-                .onSnapshotFailure(matched.getOnSnapshotFailure())
-                .maxSteps(matched.getMaxSteps())
                 .build();
     }
 

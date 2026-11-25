@@ -48,7 +48,7 @@
 - **前置/后置脚本**：见下方「HTTP 脚本（preScript / postScript）」
 - 占位符解析请求参数 / 体（`flow` / `env` / `asset` / `session` 等）
 - **项目鉴权补头**（Profile 托管头 `{{asset.*}}` / `{{flow.*}}` → 见 [project-summary.md §4](./project-summary.md)）
-- 可选 **执行前快照**（`snapshotBefore`，须为 JSON 布尔；仅 `http` / `script` / `assign`）：写库失败可暂停并还原被测数据（环境允许还原时；详见概念地图 §4.4）
+- 可选 **执行前快照**（`snapshotBefore`，须为 JSON 布尔；仅 `http` / `script` / `assign`）：打档失败按环境存档点插件 `onSnapshotFailure`（`abort` | `continue`）；历史 paused 仍可还原（环境允许还原时；详见概念地图 §4.4）
 - 可选 **始终执行**（`alwaysRun`，须为 JSON 布尔；仅 `http` / `script` / `assign` / `subflow`）：业务失败后进入「失败后继续」阶段仍执行本节点
 - 可选 **重试直到通过**（`retryUntil`，仅 http）：
   - `maxAttempts`：本节点最多发出几次请求，**默认 1**；上限 60

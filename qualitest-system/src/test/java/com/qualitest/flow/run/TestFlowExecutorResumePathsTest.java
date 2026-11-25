@@ -80,6 +80,7 @@ class TestFlowExecutorResumePathsTest {
         when(snapshotCheckpointService.maybeCheckpoint(any(), any(), any(), any(), any())).thenReturn(null);
 
         NodeHandlerRegistry registry = new NodeHandlerRegistry(List.of(
+                new com.qualitest.flow.node.impl.EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.HTTP) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
@@ -103,7 +104,8 @@ class TestFlowExecutorResumePathsTest {
                 new StepResultWriter(),
                 new SnapshotPreExecuteHookFactory(snapshotCheckpointService, new StepResultWriter()),
                 new ResumeContinuationPlanner(snapshotRestoreService),
-                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class));
+                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class),
+                mock(com.qualitest.plugin.enable.PluginEnableService.class));
     }
 
     /**
@@ -239,7 +241,8 @@ class TestFlowExecutorResumePathsTest {
                 new StepResultWriter(),
                 new SnapshotPreExecuteHookFactory(mock(SnapshotCheckpointService.class), new StepResultWriter()),
                 new ResumeContinuationPlanner(realRestore),
-                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class));
+                mock(com.qualitest.plugin.prepare.PluginRunPrepareService.class),
+                mock(com.qualitest.plugin.enable.PluginEnableService.class));
 
         assertThrows(FlowExecutionException.class, () -> executor.resume(5L,
                 ResumeDecision.builder().decision(ResumeDecision.RESTORE_AND_RETRY).snapshotId("snap-1").build(),

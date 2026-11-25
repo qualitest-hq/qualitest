@@ -25,10 +25,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 FlowGraphRunner 续跑：从中部节点继续、跳过节点、节点失败 pause。
+ * 测 FlowGraphRunner 续跑：从中部节点继续、跳过节点、节点失败不暂停。
  * 边界：Stub handler + 夹具 flow/linear-run-graph.json；无真实 HTTP。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphRunnerResumeTest
  */
@@ -131,16 +132,17 @@ class FlowGraphRunnerResumeTest {
     }
 
     /**
-     * 前提：HTTP stub 失败，策略 onNodeFailure=prompt。
-     * 期望：outcome 暂停，pauseNodeId=n1。
+     * 前提：HTTP stub 失败；策略无 prompt 暂停。
+     * 期望：outcome 非 paused（失败后继续或 failed）。
      */
     @Test
     @Order(3)
-    @DisplayName("节点失败且 prompt 时暂停")
-    void nodeFailureWithPrompt_pausesRun() {
+    @DisplayName("节点失败不暂停")
+    void nodeFailure_doesNotPause() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
 
         NodeHandlerRegistry registry = new NodeHandlerRegistry(List.of(
+                new com.qualitest.flow.node.impl.EntryNodeHandler(),
                 new AbstractStubNodeHandler(FlowNodeType.HTTP) {
                     @Override
                     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
@@ -155,10 +157,6 @@ class FlowGraphRunnerResumeTest {
                 }
         ));
 
-        RunSnapshotPolicy policy = RunSnapshotPolicy.builder()
-                .onNodeFailure(RunSnapshotPolicy.ON_NODE_FAILURE_PROMPT)
-                .build();
-
         FlowGraphRunner runner = new FlowGraphRunner();
         FlowGraphRunner.Outcome outcome = runner.run(
                 graph,
@@ -166,11 +164,11 @@ class FlowGraphRunnerResumeTest {
                 registry,
                 FlowNodePreExecuteHook.NONE,
                 RunContinuation.fresh(),
-                policy
+                RunSnapshotPolicy.defaults()
         );
 
-        assertTrue(outcome.isPaused());
-        assertEquals("n1", outcome.getPauseNodeId());
+        assertFalse(outcome.isPaused());
+        assertFalse(outcome.isPassed());
     }
 
     private static GraphJson loadGraph(String path) {

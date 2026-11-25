@@ -47,7 +47,7 @@ public class TestFlowRunParams extends BaseEntity implements Serializable {
     private String graphFingerprint;
 
     /**
-     * 触发来源短名：ui / mcp / ci / suite / http / subflow
+     * 触发来源短名：ui / mcp / suite / http / subflow
      */
     private String triggerType;
 

@@ -30,11 +30,11 @@
           "y": 80
         },
         "data": {
-          "name": "开始",
           "callMode": "external",
           "externalUrl": "https://example.com/start",
           "httpMethod": "GET"
-        }
+        },
+        "name": "开始"
       },
       {
         "id": "1002",
@@ -44,11 +44,11 @@
           "y": 80
         },
         "data": {
-          "name": "待删",
           "callMode": "external",
           "externalUrl": "https://example.com/remove",
           "httpMethod": "GET"
-        }
+        },
+        "name": "待删"
       }
     ],
     "edges": [

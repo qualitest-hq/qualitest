@@ -71,6 +71,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     desc: '人跑 / 套件 · 场景列表与 inSeed',
     defaults: {
       doc: '',
+      maxSteps: 200,
       scenarios: [],
     },
   },
@@ -84,6 +85,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
       path: '/api/demo',
       envId: '',
       doc: '',
+      maxSteps: 200,
       fallbackOut: {
         status: 500,
         headers: { 'Content-Type': 'application/json;charset=UTF-8' },
@@ -98,6 +100,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     desc: '被父流调用 · fallbackOut',
     defaults: {
       doc: '',
+      maxSteps: 200,
       fallbackOut: {
         status: 500,
         headers: { 'Content-Type': 'application/json;charset=UTF-8' },

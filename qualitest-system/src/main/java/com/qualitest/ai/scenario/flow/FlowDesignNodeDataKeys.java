@@ -77,15 +77,19 @@ public final class FlowDesignNodeDataKeys {
     /** subflow-return：子流定稿 out 的来源路径 */
     private static final Set<String> SUBFLOW_RETURN = Set.of("from");
 
-    /** scenario-entry：入口说明文字与可批量执行的场景列表 */
-    private static final Set<String> SCENARIO_ENTRY = Set.of("doc", "scenarios");
+    /** 平台入口壳：单次 Run 步数上限（协议入口同样认此键，不另发明名） */
+    private static final String ENTRY_MAX_STEPS = "maxSteps";
 
-    /** http-entry：开放路由 method/path、环境与收束兜底出参 */
+    /** scenario-entry：入口说明、步数上限与可批量执行的场景列表 */
+    private static final Set<String> SCENARIO_ENTRY = Set.of("doc", ENTRY_MAX_STEPS, "scenarios");
+
+    /** http-entry：开放路由 method/path、环境、步数上限与收束兜底出参 */
     private static final Set<String> HTTP_ENTRY = Set.of(
-            "method", "path", "envId", "fallbackOut", "doc", "inputShape");
+            "method", "path", "envId", "fallbackOut", "doc", "inputShape", ENTRY_MAX_STEPS);
 
-    /** subflow-entry：未跑到返回节点时的兜底出参与说明 */
-    private static final Set<String> SUBFLOW_ENTRY = Set.of("fallbackOut", "doc", "inputShape");
+    /** subflow-entry：兜底出参、说明、步数上限与入参形状 */
+    private static final Set<String> SUBFLOW_ENTRY = Set.of(
+            "fallbackOut", "doc", "inputShape", ENTRY_MAX_STEPS);
 
     private FlowDesignNodeDataKeys() {
     }

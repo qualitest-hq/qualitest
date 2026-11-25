@@ -5,6 +5,7 @@
       :rows="4"
       @update:model-value="onDoc"
     />
+    <EntryMaxStepsField :node="node" />
     <div class="field">
       <label>场景列表</label>
       <div class="field__hint">入参值（inSeed）在左侧选场景后于右侧编辑；保存时写入本入口</div>
@@ -29,6 +30,7 @@
 import { computed, watch } from 'vue'
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId'
 import EntryDocMarkdownField from '../../components/EntryDocMarkdownField.vue'
+import EntryMaxStepsField from '../../components/EntryMaxStepsField.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowCanvasStore } from '../../stores/flowCanvasStore'
 import { bindScenarioEntry } from '../../utils/stagingGraphInput'

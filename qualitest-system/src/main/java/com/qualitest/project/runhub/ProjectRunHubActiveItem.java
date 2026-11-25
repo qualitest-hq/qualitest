@@ -32,7 +32,7 @@ public class ProjectRunHubActiveItem implements Serializable {
     private String status;
     /** 行类型：queue（排队）/ flow（执行中单流） */
     private String kind;
-    /** 来源归类短名：ui / mcp / ci / suite / http / subflow */
+    /** 来源归类短名：ui / mcp / suite / http / subflow */
     private String source;
     /** 所属项目 */
     private Long testProjectId;
@@ -48,7 +48,7 @@ public class ProjectRunHubActiveItem implements Serializable {
     private Long testFlowRunId;
     /** 运行场景 id */
     private String runScenarioId;
-    /** 触发来源短名：ui / mcp / ci / suite / http / subflow */
+    /** 触发来源短名：ui / mcp / suite / http / subflow */
     private String triggerType;
     /** 操作者用户 id */
     private Long operatorUserId;

@@ -130,7 +130,6 @@ const SOURCE_LABEL = {
   ui: '画布',
   mcp: 'MCP',
   suite: '套件',
-  ci: 'CI',
   http: '开放 HTTP',
   subflow: '子流',
 }

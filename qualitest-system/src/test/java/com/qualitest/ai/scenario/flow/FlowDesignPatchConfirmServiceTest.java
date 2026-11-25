@@ -327,8 +327,8 @@ class FlowDesignPatchConfirmServiceTest {
     }
 
     /**
-     * 前提：updateScenario + draftOverride 改 remark / 失败策略。
-     * 期望：场景字段落盘成功。
+     * 前提：updateScenario + draftOverride 改 remark。
+     * 期望：场景字段落盘成功；旧失败策略键被忽略。
      */
     @Test
     @Order(15)
@@ -368,8 +368,6 @@ class FlowDesignPatchConfirmServiceTest {
                 .orElse(null);
         assertNotNull(merged);
         assertEquals("新说明", merged.getRemark());
-        assertEquals("prompt", merged.getOnNodeFailure());
-        assertEquals("continue", merged.getOnSnapshotFailure());
     }
 
     /**

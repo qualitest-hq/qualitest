@@ -23,12 +23,16 @@ import java.util.Map;
 @AllArgsConstructor
 public class RunExecutionState {
 
-    /** 业务节点失败导致暂停 */
+    /**
+     * 业务节点失败导致暂停（历史值；新 Run 不再写入，仅兼容旧 paused 记录展示 / 续跑）。
+     */
     public static final String PAUSE_REASON_NODE_FAILURE = "node_failure";
-    /** checkpoint 失败且策略为 prompt 导致暂停 */
+    /**
+     * checkpoint 失败暂停（历史值；新 Run 不再写入，存档失败现为 abort|continue）。
+     */
     public static final String PAUSE_REASON_SNAPSHOT_FAILURE = "snapshot_failure";
     /**
-     * Input 节点等待人工输入。
+     * Input 节点等待人工输入（现行唯一会新写入的暂停原因）。
      * 可用决策仅为 continueWithInput（提交字段值）与 abort。
      */
     public static final String PAUSE_REASON_AWAIT_INPUT = "await_input";
@@ -42,7 +46,10 @@ public class RunExecutionState {
     /** 续跑时该节点的入边 id */
     private String incomingEdgeId;
 
-    /** 暂停原因：node_failure / snapshot_failure / await_input */
+    /**
+     * 暂停原因：现行 {@link #PAUSE_REASON_AWAIT_INPUT}；
+     * 另可能读到历史 {@link #PAUSE_REASON_NODE_FAILURE} / {@link #PAUSE_REASON_SNAPSHOT_FAILURE}。
+     */
     private String pauseReason;
 
     /** 触发暂停的节点 id，通常与 currentNodeId 相同 */

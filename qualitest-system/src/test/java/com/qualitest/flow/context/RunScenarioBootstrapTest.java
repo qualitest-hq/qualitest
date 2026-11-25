@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 测 RunScenarioBootstrap：从 scenario-entry 解析运行场景与环境。
- * 覆盖：默认场景与 inSeed、maxSteps、入参环境覆盖、场景不存在、fallback 回落、缺环境硬失败文案。
+ * 覆盖：默认场景与 inSeed、入参环境覆盖、场景不存在、fallback 回落、缺环境硬失败文案、旧策略字段忽略。
  * 边界：夹具 flow/linear-run-graph.json；无数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=RunScenarioBootstrapTest
  */
@@ -108,17 +108,20 @@ class RunScenarioBootstrapTest {
     }
 
     /**
-     * 前提：场景配置 maxSteps=120。
-     * 期望：解析结果带上 maxSteps=120。
+     * 前提：场景条目仍带旧字段 maxSteps / onNodeFailure（读盘忽略）。
+     * 期望：解析仍成功，且不因旧字段失败。
      */
     @Test
     @Order(6)
-    @DisplayName("解析：场景 maxSteps 传入 ResolvedRunScenario")
-    void resolve_passesMaxSteps() {
+    @DisplayName("解析：忽略场景条目旧策略字段")
+    void resolve_ignoresLegacyScenarioPolicyFields() {
         GraphJson graph = loadGraph("flow/linear-run-graph.json");
         patchFirstScenarioField(graph, "maxSteps", 120);
+        patchFirstScenarioField(graph, "onNodeFailure", "prompt");
+        patchFirstScenarioField(graph, "onSnapshotFailure", "continue");
         ResolvedRunScenario scenario = RunScenarioBootstrap.resolve(graph, null, null);
-        assertEquals(120, scenario.getMaxSteps());
+        assertEquals("sc-default", scenario.getScenarioId());
+        assertEquals(9001L, scenario.getTestProjectEnvId());
     }
 
     /**

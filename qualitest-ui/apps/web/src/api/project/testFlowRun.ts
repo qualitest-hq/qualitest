@@ -9,7 +9,7 @@ export interface TriggerTestFlowRunParams {
   /** 本次运行从哪个入口节点进入；画布有多个入口时传入 */
   entryNodeId?: string;
   runScenarioId?: string;
-  /** 触发来源短名：ui / mcp / ci / suite / http / subflow */
+  /** 触发来源短名：ui / mcp / suite / http / subflow */
   triggerType?: string;
   [key: string]: unknown;
 }
@@ -66,7 +66,7 @@ export interface ApiTestFlowRun {
   durationMs?: string | number;
   errorCode?: string;
   errorMessage?: string;
-  /** 触发来源短名：ui / mcp / ci / suite / http / subflow */
+  /** 触发来源短名：ui / mcp / suite / http / subflow */
   triggerType?: string;
   runExecutionState?: string;
   pausedAt?: string;

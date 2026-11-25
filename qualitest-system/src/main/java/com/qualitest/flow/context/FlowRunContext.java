@@ -61,7 +61,7 @@ public class FlowRunContext {
     private String entryNodeId;
 
     /**
-     * 触发源字符串：ui / ci / suite / http / mcp / subflow 等，表示谁发起了本次运行；
+     * 触发源字符串：ui / suite / http / mcp / subflow 等，表示谁发起了本次运行；
      * 与入口种类 entryKind 相互独立，占位符路径 {@code run.trigger}。
      */
     @Builder.Default

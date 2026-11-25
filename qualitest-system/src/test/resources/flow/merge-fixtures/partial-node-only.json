@@ -30,11 +30,11 @@
           "y": 80
         },
         "data": {
-          "name": "登录",
           "callMode": "external",
           "externalUrl": "https://example.com/login",
           "httpMethod": "POST"
-        }
+        },
+        "name": "登录"
       }
     ],
     "edges": [
@@ -65,11 +65,11 @@
           "y": 80
         },
         "data": {
-          "name": "下一步",
           "callMode": "external",
           "externalUrl": "https://example.com/next",
           "httpMethod": "GET"
-        }
+        },
+        "name": "下一步"
       }
     ],
     "addEdges": [

@@ -21,7 +21,7 @@ export function useRightPanelMeta() {
     if (store.ui.rightMode === 'run') return '步骤时间线与 Inspector';
     if (store.ui.rightMode === 'scenario') {
       const sc = getActiveScenario();
-      if (!sc) return '当前入口：环境、inSeed 初值与失败策略';
+      if (!sc) return '当前入口：环境与 inSeed 初值（步数上限在入口节点）';
       // 依赖 envOptions，环境列表加载完成后刷新副标题
       void envOptions.value.length;
       // 副标题展示场景名与其绑定环境的显示名（由场景 envId 解析）

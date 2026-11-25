@@ -35,7 +35,7 @@ public class TriggerTestFlowRunBatchParams {
     private Long testProjectEnvId;
 
     /**
-     * 触发来源短名：ui / mcp / ci / suite / http / subflow；空则按 suite。
+     * 触发来源短名：ui / mcp / suite / http / subflow；空则按 suite。
      */
     private String triggerType;
 

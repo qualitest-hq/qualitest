@@ -32,7 +32,7 @@ export interface FlowRunContext {
   entryKind?: string;
   /** 本次运行进入的入口节点 id，占位符 run.entryNodeId 读取 */
   entryNodeId?: string;
-  /** 触发来源短名：ui / mcp / ci / suite / http / subflow，占位符 run.trigger 读取 */
+  /** 触发来源短名：ui / mcp / suite / http / subflow，占位符 run.trigger 读取 */
   trigger?: string;
   /** 本上下文内最近一次 HTTP 响应快照 */
   lastResponse?: HttpResponseSnapshot | null;

@@ -57,6 +57,7 @@ public final class EntryScenarioSupport {
 
         Map<String, Object> data = new HashMap<>();
         data.put("doc", "");
+        data.put("maxSteps", com.qualitest.flow.run.GraphWalker.DEFAULT_MAX_STEPS);
         data.put("scenarios", List.of(defaultScenario));
         entry.setData(data);
 
@@ -214,6 +215,10 @@ public final class EntryScenarioSupport {
             }
         }
         cleaned.remove("flowSeed");
+        // 旧字段读盘忽略：失败策略 / 条目级 maxSteps 已迁出场景
+        cleaned.remove("onNodeFailure");
+        cleaned.remove("onSnapshotFailure");
+        cleaned.remove("maxSteps");
         return cleaned.toJavaObject(GraphRunScenario.class);
     }
 
@@ -238,15 +243,6 @@ public final class EntryScenarioSupport {
             m.put("inSeed", sc.getInSeed() != null ? new HashMap<>(sc.getInSeed()) : Map.of());
             if (sc.getRemark() != null) {
                 m.put("remark", sc.getRemark());
-            }
-            if (sc.getOnNodeFailure() != null) {
-                m.put("onNodeFailure", sc.getOnNodeFailure());
-            }
-            if (sc.getOnSnapshotFailure() != null) {
-                m.put("onSnapshotFailure", sc.getOnSnapshotFailure());
-            }
-            if (sc.getMaxSteps() != null) {
-                m.put("maxSteps", sc.getMaxSteps());
             }
             out.add(m);
         }

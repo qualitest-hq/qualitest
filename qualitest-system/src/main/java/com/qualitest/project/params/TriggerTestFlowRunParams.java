@@ -37,7 +37,7 @@ public class TriggerTestFlowRunParams {
 
     /**
      * 触发来源，写入运行记录与 {@code run.trigger}。
-     * 短名：ui / mcp / ci / suite / http / subflow；空则按 ui。
+     * 短名：ui / mcp / suite / http / subflow；空则按 ui。
      */
     private String triggerType;
 

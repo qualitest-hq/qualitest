@@ -5,7 +5,7 @@ import com.qualitest.flow.validate.FlowNodeType;
 /**
  * 本次 Run 从哪种入口进入。
  * <p>
- * 与 trigger（ui / ci / suite / http 等「谁发起」）相互独立记录：
+ * 与 trigger（ui / suite / http / mcp 等「谁发起」）相互独立记录：
  * 同一张场景图既可由界面触发，也可由套件触发，entryKind 仍是 scenario。
  * <ul>
  *   <li>{@link #SCENARIO} — 场景主图：不提供返回节点；收束不强制对外交付</li>
