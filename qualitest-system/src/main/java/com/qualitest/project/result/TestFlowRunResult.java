@@ -121,5 +121,20 @@ public class TestFlowRunResult implements Serializable {
     @Excel(name = "触发方式", readConverterExp = "ui=画布,mcp=MCP,suite=套件,http=开放HTTP,subflow=子流")
     private String triggerType;
 
+    /**
+     * 本次 Run 入口种类：scenario / subflow / http / 协议短名
+     */
+    private String entryKind;
+
+    /**
+     * 本次 Run 入口节点 id
+     */
+    private String entryNodeId;
+
+    /**
+     * 定稿出参（out）摘要，JSON 文本
+     */
+    private String outSummary;
+
 
 }

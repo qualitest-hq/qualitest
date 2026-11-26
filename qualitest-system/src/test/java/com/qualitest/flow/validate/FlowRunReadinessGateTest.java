@@ -1,0 +1,105 @@
+package com.qualitest.flow.validate;
+
+import com.qualitest.flow.cache.ParsedGraphCache;
+import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.openhttp.OpenHttpRouteIndex;
+import com.qualitest.project.mapper.TestProjectApiMapper;
+import com.qualitest.project.mapper.TestProjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * 测谁：FlowRunReadinessGate 的路由冲突门禁。
+ * 边界：保存不拦，开跑/入站/子流统一在这里拦；同流内重复与跨流占用都算。
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowRunReadinessGateTest
+ */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+class FlowRunReadinessGateTest {
+
+    private static final long PROJECT_ID = 7L;
+    private static final long FLOW_ID = 70L;
+
+    private OpenHttpRouteIndex routeIndex;
+    private FlowRunReadinessGate gate;
+
+    @BeforeEach
+    void setUp() {
+        routeIndex = mock(OpenHttpRouteIndex.class);
+        gate = new FlowRunReadinessGate(
+                new GraphJsonValidator(),
+                mock(TestProjectApiMapper.class),
+                mock(TestProjectMapper.class),
+                mock(ParsedGraphCache.class),
+                routeIndex);
+    }
+
+    /**
+     * 前提：本流 HTTP 入口 POST /dup，项目内另一流已占同键。
+     * 期望：开跑门禁返回「开放 HTTP 入口冲突」，不再等到保存才拦。
+     */
+    @Test
+    @Order(1)
+    @DisplayName("跨流路由冲突阻止开跑")
+    void collectBlockingErrors_crossFlowRouteConflict() {
+        when(routeIndex.listPeerRoutes(PROJECT_ID)).thenReturn(List.of(
+                new OpenHttpRouteCollisionGate.PeerRoute(
+                        99L, "旧流", "e-old", "旧入口", "POST", "/dup")));
+
+        List<String> errors = gate.collectBlockingErrors(httpGraph("/dup"), PROJECT_ID, FLOW_ID);
+
+        assertTrue(errors.stream().anyMatch(e -> e.contains("开放 HTTP 入口冲突") && e.contains("POST /dup")));
+    }
+
+    /**
+     * 前提：本流两个 HTTP 入口写同一 method+path（同流重复）。
+     * 期望：开跑门禁也拦，提示本流内占用。
+     */
+    @Test
+    @Order(2)
+    @DisplayName("同流路由冲突阻止开跑")
+    void collectBlockingErrors_sameFlowRouteConflict() {
+        List<String> errors = gate.collectBlockingErrors(sameFlowDuplicateGraph(), PROJECT_ID, FLOW_ID);
+
+        assertTrue(errors.stream().anyMatch(e ->
+                e.contains("开放 HTTP 入口冲突") && e.contains("在本流") && e.contains("POST /dup")));
+    }
+
+    /** 单 http-entry 图，路径可指定 */
+    private static GraphJson httpGraph(String path) {
+        return parse("""
+                {"nodes":[{"id":"e1","type":"http-entry","name":"入站","position":{"x":0,"y":0},
+                 "data":{"method":"POST","path":"%s","envId":"1",
+                         "fallbackOut":{"status":500,"headers":{},"body":{}}}}],
+                 "edges":[]}
+                """.formatted(path));
+    }
+
+    /** 同流两个 http-entry 都写 POST /dup */
+    private static GraphJson sameFlowDuplicateGraph() {
+        return parse("""
+                {"nodes":[
+                   {"id":"e1","type":"http-entry","name":"入口一","position":{"x":0,"y":0},
+                    "data":{"method":"POST","path":"/dup","envId":"1",
+                            "fallbackOut":{"status":500,"headers":{},"body":{}}}},
+                   {"id":"e2","type":"http-entry","name":"入口二","position":{"x":100,"y":0},
+                    "data":{"method":"POST","path":"/dup","envId":"1",
+                            "fallbackOut":{"status":500,"headers":{},"body":{}}}}
+                 ],
+                 "edges":[]}
+                """);
+    }
+
+    private static GraphJson parse(String json) {
+        return GraphJson.parse(json);
+    }
+}

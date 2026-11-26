@@ -27,6 +27,14 @@
           <span class="run-hero__v">{{ runTriggerLabel(run.triggerType) || '-' }}</span>
         </div>
         <div class="run-hero__cell">
+          <span class="run-hero__k">入口</span>
+          <span class="run-hero__v">{{ entryKindLabel(run.entryKind, run.entryNodeId) }}</span>
+        </div>
+        <div class="run-hero__cell">
+          <span class="run-hero__k">出参</span>
+          <span class="run-hero__v" :title="run.outSummary || ''">{{ outSummaryText(run.outSummary) }}</span>
+        </div>
+        <div class="run-hero__cell">
           <span class="run-hero__k">耗时</span>
           <span class="run-hero__v">{{ formatDurationMs(run.durationMs) }}</span>
         </div>
@@ -379,9 +387,22 @@ const runEnvName = computed(() => {
   return '-'
 })
 
+/** 入口展示：种类 · 入口节点 id */
+function entryKindLabel(kind?: string, nodeId?: string): string {
+  const k = kind?.trim() || '-'
+  const id = nodeId?.trim()
+  return id ? `${k} · ${id}` : k
+}
+
+/** 出参摘要展示：过长截断，避免撑爆页眉 */
+function outSummaryText(raw?: string): string {
+  const text = raw?.trim() || ''
+  if (!text) return '-'
+  return text.length <= 120 ? text : `${text.slice(0, 120)}…`
+}
+
 /** 是否因等待人工输入而暂停 */
 const isAwaitInput = computed(() => run.value?.pauseInfo?.pauseReason === 'await_input')
-
 /** 暂停面板要渲染的字段列表（来自 pauseInfo.fields） */
 const awaitInputFields = computed(() => {
   const fields = run.value?.pauseInfo?.fields

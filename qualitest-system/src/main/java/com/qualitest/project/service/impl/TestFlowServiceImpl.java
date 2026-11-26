@@ -9,6 +9,7 @@ import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.model.ReturnNodeDefaults;
 import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
@@ -39,7 +40,9 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,6 +57,7 @@ import java.util.function.Supplier;
  */
 @Service
 public class TestFlowServiceImpl implements ITestFlowService {
+
     @Autowired
     private TestFlowMapper testFlowMapper;
 
@@ -111,7 +115,62 @@ public class TestFlowServiceImpl implements ITestFlowService {
     @Override
     public List<TestFlowResult> selectTestFlowResultList(TestFlowParams params) {
         prepareFlowGroupFilter(params);
-        return testFlowMapper.selectTestFlowResultList(params);
+        List<TestFlowResult> rows = testFlowMapper.selectTestFlowResultList(params);
+        annotateRouteConflicts(rows, params != null ? params.getTestProjectId() : null);
+        return rows;
+    }
+
+    /**
+     * 给列表行标注开放 HTTP 路由冲突：同一 method+path 被本流其它入口或别的流重复占用。
+     * 只影响列表提示；保存不拦，开跑门禁另拦。
+     */
+    private void annotateRouteConflicts(List<TestFlowResult> rows, Long testProjectId) {
+        if (rows == null || rows.isEmpty() || testProjectId == null) {
+            return;
+        }
+        List<OpenHttpRouteIndex.AmbiguousRoute> conflicts =
+                openHttpRouteIndex.findAmbiguousRoutes(testProjectId);
+        if (conflicts.isEmpty()) {
+            return;
+        }
+        Map<Long, String> messages = new LinkedHashMap<>();
+        for (OpenHttpRouteIndex.AmbiguousRoute conflict : conflicts) {
+            for (OpenHttpRouteCollisionGate.PeerRoute entry : conflict.entries()) {
+                Long flowId = entry.testFlowId();
+                if (flowId == null) {
+                    continue;
+                }
+                List<String> others = new ArrayList<>();
+                for (OpenHttpRouteCollisionGate.PeerRoute peer : conflict.entries()) {
+                    if (!Objects.equals(peer.testFlowId(), flowId)) {
+                        others.add(peerLabel(peer));
+                    }
+                }
+                String who = others.isEmpty() ? "本流其它入口" : String.join("、", others);
+                messages.merge(flowId, conflict.key() + " 与 " + who + " 冲突", (a, b) -> a + "；" + b);
+            }
+        }
+        for (TestFlowResult row : rows) {
+            if (row == null || row.getTestFlowId() == null) {
+                continue;
+            }
+            String message = messages.get(row.getTestFlowId());
+            if (message != null) {
+                row.setRouteConflict(Boolean.TRUE);
+                row.setRouteConflictMessage("开放 HTTP 入口冲突：" + message);
+            }
+        }
+    }
+
+    /** 冲突占用方展示名：流名 / 入口名，缺省用 id */
+    private static String peerLabel(OpenHttpRouteCollisionGate.PeerRoute peer) {
+        String flow = peer.flowName() != null && !peer.flowName().isBlank()
+                ? peer.flowName()
+                : "流#" + peer.testFlowId();
+        String node = peer.nodeName() != null && !peer.nodeName().isBlank()
+                ? peer.nodeName()
+                : peer.nodeId();
+        return "「" + flow + "」入口「" + node + "」";
     }
 
     /**
@@ -190,6 +249,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
         }
         validateFlowGroupAssignment(testFlow);
         return withOpenHttpRoutePersistLock(testFlow.getTestProjectId(), () -> {
+            testFlow.setGraphJson(applyGraphSaveDefaults(testFlow.getGraphJson()));
             validateGraphJsonForPersist(
                     testFlow.getGraphJson(), testFlow.getTestProjectId(), testFlow.getTestFlowId());
             testFlow.setCreateTime(DateUtils.getNowDate());
@@ -232,6 +292,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
         }
         final Long routeProjectId = projectIdForGate;
         return withOpenHttpRoutePersistLock(routeProjectId, () -> {
+        testFlow.setGraphJson(applyGraphSaveDefaults(testFlow.getGraphJson()));
         validateGraphJsonForPersist(
                 testFlow.getGraphJson(), routeProjectId, testFlow.getTestFlowId());
         boolean writingGraph = StrUtil.isNotBlank(testFlow.getGraphJson());
@@ -421,27 +482,18 @@ public class TestFlowServiceImpl implements ITestFlowService {
     }
 
     /**
-     * 持久化前的地板校验。
-     * 硬错误抛出业务异常；软警告并入 warnings。
+     * 持久化前的轻校验：保存不因图校验 / 路由冲突拦截；软警告并入 warnings。
      *
      * @param graph         待写库的图
      * @param warnings      警告收集列表
-     * @param testProjectId 项目 id，可空（空则不比对其它流的路由占用）
-     * @param testFlowId    当前流 id，可空
+     * @param testProjectId 项目 id（保留参数以兼容调用点）
+     * @param testFlowId    当前流 id（保留参数以兼容调用点）
      */
     private void validatePersistFloor(
             GraphJson graph, List<String> warnings, Long testProjectId, Long testFlowId) {
         GraphValidationResult floor =
                 graphJsonValidator.validate(graph, GraphValidationOptions.persistMinimal());
-        if (!floor.isOk() && floor.getErrors() != null && !floor.getErrors().isEmpty()) {
-            throw new ServiceException("校验未通过，未写库：" + String.join("；", floor.getErrors()));
-        }
         addAllNonBlank(warnings, floor.getWarnings());
-        // 开放 HTTP 路由冲突属于硬错误，直接拒绝写库（调用方须已持项目路由锁）
-        List<String> routeErrors = collectOpenHttpRouteCollisionErrors(graph, testProjectId, testFlowId);
-        if (!routeErrors.isEmpty()) {
-            throw new ServiceException("校验未通过，未写库：" + String.join("；", routeErrors));
-        }
     }
 
     /**
@@ -460,6 +512,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
             GraphJson graph,
             List<String> warnings,
             FlowGraphCommitPatchHolder.PatchPayload payload) {
+        ReturnNodeDefaults.fillMissingFrom(graph);
         TestFlow update = new TestFlow();
         update.setTestFlowId(locked.getTestFlowId());
         update.setGraphJson(graph.toJsonString());
@@ -645,6 +698,27 @@ public class TestFlowServiceImpl implements ITestFlowService {
     }
 
     /**
+     * 落库前默认值：返回节点缺 from 时补 {@code flow.out}（契约 §4.1「保存缺省写 flow.out」）。
+     * 仅在确有改动时重写 JSON 文本，避免无谓的格式变化。
+     */
+    private static String applyGraphSaveDefaults(String graphJson) {
+        if (StrUtil.isBlank(graphJson)) {
+            return graphJson;
+        }
+        GraphJson graph;
+        try {
+            graph = GraphJson.parse(graphJson);
+        } catch (Exception e) {
+            // 解析失败交给后续校验报错
+            return graphJson;
+        }
+        if (graph == null || !ReturnNodeDefaults.fillMissingFrom(graph)) {
+            return graphJson;
+        }
+        return graph.toJsonString();
+    }
+
+    /**
      * 写库前校验 graph_json。
      * 拒绝：无法解析、节点缺 id / id 重复、边缺 source/target、同项目开放 HTTP method+path 冲突。
      * 不拒绝：开始节点异常、断言路径错误、鉴权缺失、HTTP 缺必填等（允许半成品落盘）。
@@ -653,6 +727,14 @@ public class TestFlowServiceImpl implements ITestFlowService {
      * @param graphJson     待写库的图 JSON
      * @param testProjectId 所属项目 id，可空（空则不比对其它流的路由占用）
      * @param testFlowId    当前流 id，可空
+     */
+    /**
+     * 持久化前的轻校验：只要求 JSON 可解析，保存不因图校验/路由冲突拦截。
+     * 画布异常与开跑门禁负责阻断运行；残缺图允许落盘继续改。
+     *
+     * @param graphJson     待写库的图 JSON
+     * @param testProjectId 项目 id（保留参数以兼容调用点）
+     * @param testFlowId    当前流 id（保留参数以兼容调用点）
      */
     private void validateGraphJsonForPersist(String graphJson, Long testProjectId, Long testFlowId) {
         if (StrUtil.isBlank(graphJson)) {
@@ -667,35 +749,6 @@ public class TestFlowServiceImpl implements ITestFlowService {
         if (graph == null) {
             throw new ServiceException("graph_json 无法解析：解析结果为空");
         }
-        GraphValidationResult validation =
-                graphJsonValidator.validate(graph, GraphValidationOptions.persistMinimal());
-        if (!validation.isOk() && !validation.getErrors().isEmpty()) {
-            throw new ServiceException(validation.getErrors().get(0));
-        }
-        // 开放 HTTP 路由冲突：同项目内 method+path 重复时拒绝写库
-        List<String> routeErrors = collectOpenHttpRouteCollisionErrors(graph, testProjectId, testFlowId);
-        if (!routeErrors.isEmpty()) {
-            throw new ServiceException(routeErrors.get(0));
-        }
-    }
-
-    /**
-     * 收集开放 HTTP 入口的 method+path 冲突：既检查本图内部，也检查同项目内其它未删除流。
-     *
-     * @param graph         待写库的图
-     * @param testProjectId 项目 id，可空（空则只检查本图内部）
-     * @param testFlowId    当前流 id，可空；比对其它流时排除自身
-     * @return 冲突说明列表；无冲突为空列表
-     */
-    private List<String> collectOpenHttpRouteCollisionErrors(
-            GraphJson graph, Long testProjectId, Long testFlowId) {
-        if (graph == null) {
-            return List.of();
-        }
-        List<OpenHttpRouteCollisionGate.PeerRoute> peers = testProjectId != null
-                ? openHttpRouteIndex.listPeerRoutes(testProjectId)
-                : List.of();
-        return OpenHttpRouteCollisionGate.validate(graph, testFlowId, peers);
     }
 
     /**

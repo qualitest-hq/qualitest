@@ -27,7 +27,7 @@ import java.util.Map;
  * <ul>
  *   <li>{@code from} 必填（保存期缺省由 {@code flow.out} 等规则写入）；运行时缺失或解析结果非 Map 则失败</li>
  *   <li>{@code http-return} — 再写入 {@code data.status}（缺省 200，须 100–599）到 {@code out.status}，经 DeliverySink 写出</li>
- *   <li>{@code subflow-return} — 挂到父图对应 subflow 节点的 out；不写 HTTP 状态缺省</li>
+ *   <li>{@code subflow-return} — 把晋升后的 out <b>整包</b>挂到父图对应 subflow 节点的 out（不拆 status/headers/body）</li>
  * </ul>
  * 交付后本步记通过，图继续沿出边前进；整次 Run 第二次执行任一返回节点会失败（{@link FlowErrorCode#TF_RETURN_DUPLICATE}）。
  */
@@ -76,8 +76,12 @@ public class ReturnNodeHandler implements NodeHandler {
             }
 
             EntryKind mode = resolveMode(nodeType, ctx);
-            OutPayload payload = OutPayload.fromMap(ctx.getOut());
-            runDelivery.deliver(ctx, payload, true, mode);
+            if (mode == EntryKind.HTTP) {
+                runDelivery.deliverHttp(ctx, OutPayload.fromMap(ctx.getOut()), true);
+            } else {
+                // 子流：晋升后的 out 整包挂父，不拆 status/headers/body
+                runDelivery.deliverSubflow(ctx, ctx.getOut(), true);
+            }
             return result(node, nodeType, incomingEdgeId, nodeName, t0, ctx, RunStatus.PASSED.getCode(), null);
         } catch (FlowExecutionException e) {
             return result(node, nodeType, incomingEdgeId, nodeName, t0, ctx, RunStatus.FAILED.getCode(),

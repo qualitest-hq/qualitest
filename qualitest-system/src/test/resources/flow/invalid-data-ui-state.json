@@ -1,0 +1,25 @@
+{
+  "meta": {},
+  "nodes": [
+    {
+      "id": "e1",
+      "type": "scenario-entry",
+      "name": "入口",
+      "position": { "x": 0, "y": 0 },
+      "data": {
+        "scenarios": [{ "id": "s1", "name": "默认", "envId": "", "inSeed": {} }]
+      }
+    },
+    {
+      "id": "a1",
+      "type": "assign",
+      "name": "赋值",
+      "position": { "x": 200, "y": 0 },
+      "data": {
+        "assignments": [{ "name": "x", "op": "set", "value": 1 }],
+        "selected": true
+      }
+    }
+  ],
+  "edges": [{ "id": "ed1", "source": "e1", "target": "a1" }]
+}

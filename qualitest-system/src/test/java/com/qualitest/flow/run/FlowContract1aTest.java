@@ -328,6 +328,60 @@ class FlowContract1aTest {
         assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("多个返回节点")));
     }
 
+    /**
+     * 前提：子流 return 的 from 是业务对象（无 status/headers/body 键）。
+     * 期望：晋升后的整包原样挂父，不被拆成 status/headers/body。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("subflow-return 业务对象整包挂父")
+    void subflowReturn_mountsBusinessObjectAsIs() {
+        FlowRunContext parent = FlowRunContext.builder().entryKind(EntryKind.SCENARIO.getCode()).build();
+        GraphJson child = subflowGraphWithBusinessReturn();
+        FlowRunContext childCtx = FlowRunContext.builder()
+                .entryKind(EntryKind.SUBFLOW.getCode())
+                .trigger(EntryKind.SUBFLOW.getCode())
+                .parentContext(parent)
+                .parentSubflowNodeId("sf1")
+                .build();
+
+        FlowGraphRunner.Outcome outcome = runner.run(child, childCtx, registry);
+
+        assertTrue(outcome.isPassed());
+        Map<String, Object> mounted = parent.getNodeOut("sf1");
+        assertNotNull(mounted);
+        assertEquals(0, ((Number) mounted.get("code")).intValue());
+        assertEquals(1, ((Number) ((Map<?, ?>) mounted.get("data")).get("x")).intValue());
+        assertFalse(mounted.containsKey("headers"), "业务对象不应被补上 headers");
+    }
+
+    /**
+     * 前提：子流零次 return，入口 fallbackOut 是业务对象（无 status/headers）。
+     * 期望：规范成 {body: …} 后挂父；Run 仍失败。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("子流业务兜底包成 body 挂父")
+    void subflowFallback_mountsBodyWrappedPackage() {
+        FlowRunContext parent = FlowRunContext.builder().entryKind(EntryKind.SCENARIO.getCode()).build();
+        GraphJson child = subflowGraphNoReturnBusinessFallback();
+        FlowRunContext childCtx = FlowRunContext.builder()
+                .entryKind(EntryKind.SUBFLOW.getCode())
+                .trigger(EntryKind.SUBFLOW.getCode())
+                .parentContext(parent)
+                .parentSubflowNodeId("sf1")
+                .build();
+
+        FlowGraphRunner.Outcome outcome = runner.run(child, childCtx, registry);
+
+        assertFalse(outcome.isPassed());
+        Map<String, Object> mounted = parent.getNodeOut("sf1");
+        assertNotNull(mounted);
+        assertFalse(mounted.containsKey("status"));
+        assertFalse(mounted.containsKey("headers"));
+        assertEquals("NO_RETURN", ((Map<?, ?>) mounted.get("body")).get("code"));
+    }
+
     /** 构造开放 HTTP 上下文：已占名额、挂内存 sink。 */
     private FlowRunContext baseHttpCtx(String slot, DeliverySink sink) {
         return FlowRunContext.builder()
@@ -435,6 +489,37 @@ class FlowContract1aTest {
         GraphJson g = new GraphJson();
         g.setNodes(List.of(
                 node("e1", FlowNodeType.SUBFLOW_ENTRY.getCode(), Map.of("fallbackOut", fallbackMap())),
+                node("a1", "assign", Map.of("assignments", List.of()))
+        ));
+        g.setEdges(List.of(edge("e1", "a1")));
+        return g;
+    }
+
+    /** 子流：entry → assign 业务对象 → subflow-return。 */
+    private GraphJson subflowGraphWithBusinessReturn() {
+        GraphJson g = new GraphJson();
+        g.setNodes(List.of(
+                node("e1", FlowNodeType.SUBFLOW_ENTRY.getCode(), Map.of("fallbackOut", fallbackMap())),
+                node("a1", "assign", Map.of(
+                        "assignments", List.of(
+                                Map.of("scope", "flow", "name", "pkg", "op", "set", "value",
+                                        Map.of("code", 0, "data", Map.of("x", 1)))
+                        )
+                )),
+                node("r1", FlowNodeType.SUBFLOW_RETURN.getCode(), Map.of("from", "flow.pkg"))
+        ));
+        g.setEdges(List.of(edge("e1", "a1"), edge("a1", "r1")));
+        return g;
+    }
+
+    /** 子流：entry（业务对象兜底）→ assign，无返回节点。 */
+    private GraphJson subflowGraphNoReturnBusinessFallback() {
+        Map<String, Object> fb = new LinkedHashMap<>();
+        fb.put("code", "NO_RETURN");
+        fb.put("message", "未执行到返回节点");
+        GraphJson g = new GraphJson();
+        g.setNodes(List.of(
+                node("e1", FlowNodeType.SUBFLOW_ENTRY.getCode(), Map.of("fallbackOut", fb)),
                 node("a1", "assign", Map.of("assignments", List.of()))
         ));
         g.setEdges(List.of(edge("e1", "a1")));

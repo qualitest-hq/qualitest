@@ -130,6 +130,12 @@ export interface RunRecord {
   scenarioId?: string;
   scenarioName?: string;
   triggerType?: string;
+  /** 本次 Run 入口种类（scenario / subflow / http / 协议短名） */
+  entryKind?: string;
+  /** 本次 Run 入口节点 id */
+  entryNodeId?: string;
+  /** 定稿出参（out）摘要 JSON 文本 */
+  outSummary?: string;
   errorCode?: string;
   errorMessage?: string;
   pauseInfo?: RunPauseInfo;

@@ -925,7 +925,8 @@ public final class PrefabricatedTemplateExtrasSupport {
         JSONObject condAliveData = new JSONObject();
         // 已登录：HTTP 200 且实际响应符合接口期望形态（如期望 json 却回 HTML 则去登录）
         condAliveData.put("branches", List.of(
-                endBranch("b_alive_if", "if", List.of(
+                // 已登录：组出参后进入入口分流守卫；场景跑自然结束，子流跑挂父
+                branch("b_alive_if", "if", "pack_out", List.of(
                         condition("http.status", "eq", "200"),
                         condition("http.expectedMatch", "eq", "true"))),
                 branch("b_alive_else", "else", "login_http", List.of())
@@ -953,6 +954,61 @@ public final class PrefabricatedTemplateExtrasSupport {
         loginData.put("requestValueOverrides", loginBodyOverrides(entryKey));
         loginHttp.put("data", loginData);
 
+        JSONObject subflowEntry = new JSONObject();
+        subflowEntry.put("id", "sub_entry");
+        subflowEntry.put("type", "subflow-entry");
+        subflowEntry.put("name", "登录子流入口");
+        subflowEntry.put("position", pos(0, 520));
+        JSONObject subEntryData = new JSONObject();
+        subEntryData.put("doc", "被父流 subflow 节点挂载时从这里进；登录成功后挂出 token");
+        subEntryData.put("inputDecl", List.of());
+        JSONObject subEntryFallback = new JSONObject();
+        subEntryFallback.put("code", "NO_RETURN");
+        subEntryFallback.put("message", "未执行到返回节点");
+        subEntryData.put("fallbackOut", subEntryFallback);
+        subflowEntry.put("data", subEntryData);
+
+        JSONObject packOut = new JSONObject();
+        packOut.put("id", "pack_out");
+        packOut.put("type", "assign");
+        packOut.put("name", "组出参");
+        packOut.put("position", pos(1240, 60));
+        JSONObject packOutData = new JSONObject();
+        JSONObject packAssignment = new JSONObject();
+        packAssignment.put("scope", "flow");
+        packAssignment.put("name", "out");
+        packAssignment.put("op", "set");
+        JSONObject packBody = new JSONObject();
+        packBody.put("token", "{{" + assetPath + "}}");
+        JSONObject packValue = new JSONObject();
+        packValue.put("body", packBody);
+        packAssignment.put("value", packValue);
+        packOutData.put("assignments", List.of(packAssignment));
+        packOut.put("data", packOutData);
+
+        JSONObject guardEntry = new JSONObject();
+        guardEntry.put("id", "guard_entry");
+        guardEntry.put("type", "condition");
+        guardEntry.put("name", "按入口分流");
+        guardEntry.put("position", pos(1480, 60));
+        JSONObject guardData = new JSONObject();
+        // 规范守卫：子流（或其它非场景入口）才走返回节点；场景跑走 ELSE 自然结束
+        guardData.put("branches", List.of(
+                branch("b_subflow", "if", "n_ret", List.of(
+                        condition("run.entryKind", "ne", "scenario"))),
+                endBranch("b_guard_else", "else", List.of())
+        ));
+        guardEntry.put("data", guardData);
+
+        JSONObject subflowReturn = new JSONObject();
+        subflowReturn.put("id", "n_ret");
+        subflowReturn.put("type", "subflow-return");
+        subflowReturn.put("name", "返回父流");
+        subflowReturn.put("position", pos(1700, 60));
+        JSONObject returnData = new JSONObject();
+        returnData.put("from", "flow.out");
+        subflowReturn.put("data", returnData);
+
         JSONObject viewport = new JSONObject();
         viewport.put("x", 0);
         viewport.put("y", 0);
@@ -977,13 +1033,18 @@ public final class PrefabricatedTemplateExtrasSupport {
         scenarioEntry.put("position", new JSONObject(Map.of("x", 0, "y", 0)));
         scenarioEntry.put("data", entryData);
 
-        // 出边：入口连凭证判断；ELSE 连登录；成功 IF 无出边（结束本流）
+        // 场景入口只跑冒烟；子流入口供父流挂载。末端统一组 out，再由 run.entryKind 守卫决定是否返回
         List<JSONObject> edges = List.of(
                 edge("e_entry", entryId, "cond_token"),
+                edge("e_sub_entry", "sub_entry", "cond_token"),
                 edge("e_token_if", "cond_token", "probe_http"),
                 edge("e_token_else", "cond_token", "login_http"),
                 edge("e_probe", "probe_http", "cond_alive"),
-                edge("e_alive_else", "cond_alive", "login_http")
+                edge("e_alive_if", "cond_alive", "pack_out"),
+                edge("e_alive_else", "cond_alive", "login_http"),
+                edge("e_login_out", "login_http", "pack_out"),
+                edge("e_pack_guard", "pack_out", "guard_entry"),
+                edge("e_guard_ret", "guard_entry", "n_ret")
         );
 
         JSONObject meta = new JSONObject();
@@ -994,7 +1055,8 @@ public final class PrefabricatedTemplateExtrasSupport {
         meta.put("viewport", viewport);
 
         JSONObject graph = new JSONObject();
-        graph.put("nodes", List.of(scenarioEntry, condToken, probeHttp, condAlive, loginHttp));
+        graph.put("nodes", List.of(scenarioEntry, subflowEntry, condToken, probeHttp, condAlive, loginHttp,
+                packOut, guardEntry, subflowReturn));
         graph.put("edges", edges);
         graph.put("meta", meta);
 

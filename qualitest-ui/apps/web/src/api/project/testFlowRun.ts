@@ -70,6 +70,12 @@ export interface ApiTestFlowRun {
   errorMessage?: string;
   /** 触发来源短名：ui / mcp / suite / http / subflow */
   triggerType?: string;
+  /** 本次 Run 入口种类（scenario / subflow / http / 协议短名） */
+  entryKind?: string;
+  /** 本次 Run 入口节点 id */
+  entryNodeId?: string;
+  /** 定稿出参（out）摘要 JSON 文本 */
+  outSummary?: string;
   runExecutionState?: string;
   pausedAt?: string;
 }

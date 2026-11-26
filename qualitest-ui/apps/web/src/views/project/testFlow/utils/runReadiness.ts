@@ -5,7 +5,12 @@
  * 保存图时不跑本检查；点「运行」前用本结果决定是否允许开跑。
  */
 import { savePrecheckFlowDesign } from '@/api/project/testFlowAi'
-import { validateGraphJson } from '@/utils/flow/graphValidate'
+import { listOpenHttpRoutes } from '@/api/project/testFlow'
+import {
+  collectHttpRoutePeerCollisionErrors,
+  collectHttpRouteSelfCollisionErrors,
+  validateGraphJson,
+} from '@/utils/flow/graphValidate'
 
 import { resolveCanvasApiDetail } from './resolveCanvasApiDetail'
 import {
@@ -70,6 +75,7 @@ export type RunBlockingResult = {
 export async function collectRunBlockingErrors(opts: {
   graph: unknown
   testProjectId?: string | null
+  testFlowId?: string | null
 }): Promise<RunBlockingResult> {
   const errors: string[] = []
   const validation = validateGraphJson(opts.graph)
@@ -82,7 +88,34 @@ export async function collectRunBlockingErrors(opts: {
   errors.push(...(assertPath.errors ?? []))
 
   const projectId = opts.testProjectId != null ? String(opts.testProjectId).trim() : ''
+  const routeErrors = await loadRouteConflictErrors(graphObj, projectId, opts.testFlowId)
+  errors.push(...routeErrors)
+
   const precheckErrors = projectId ? await fetchSavePrecheckErrors(projectId, opts.graph) : []
   errors.push(...precheckErrors)
   return { errors, precheckErrors }
+}
+
+/**
+ * 路由冲突：本流内重复 + 项目内其它流占用。
+ * 不论从哪个入口开跑都由这里拦下（保存放行，列表页标 error）。
+ */
+async function loadRouteConflictErrors(
+  graphObj: { nodes?: Array<Record<string, unknown>> },
+  projectId: string,
+  testFlowId?: string | null,
+): Promise<string[]> {
+  const nodes = Array.isArray(graphObj.nodes) ? graphObj.nodes : []
+  const errors = collectHttpRouteSelfCollisionErrors(nodes as never)
+  if (!projectId) return errors
+  try {
+    const res = await listOpenHttpRoutes(projectId)
+    const peers = Array.isArray(res?.data) ? res.data : []
+    errors.push(
+      ...collectHttpRoutePeerCollisionErrors(nodes as never, peers, testFlowId ?? undefined),
+    )
+  } catch {
+    // 预检失败不阻断其它就绪错误；开跑后服务端仍会做同一门禁
+  }
+  return errors
 }

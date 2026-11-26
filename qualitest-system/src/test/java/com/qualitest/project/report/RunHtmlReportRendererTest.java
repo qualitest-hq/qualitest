@@ -244,6 +244,26 @@ class RunHtmlReportRendererTest {
     }
 
     /** 构造带头信息的运行详情 */
+    /**
+     * 前提：Run 记录带 entryKind / entryNodeId / outSummary。
+     * 期望：报告页眉展示「入口」与「出参摘要」，可回溯从哪个入口进、回了什么。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("页眉展示入口与出参摘要")
+    void render_entryAndOutSummary() {
+        TestFlowRunDetailResult detail = detail("passed", List.of());
+        detail.getRun().setEntryKind("subflow");
+        detail.getRun().setEntryNodeId("sub_entry");
+        detail.getRun().setOutSummary("{\"body\":{\"token\":\"t-1\"}}");
+
+        String html = RunHtmlReportRenderer.render(detail, null, "登录流");
+
+        assertTrue(html.contains("subflow · sub_entry"));
+        assertTrue(html.contains("出参摘要"));
+        assertTrue(html.contains("token"));
+    }
+
     private static TestFlowRunDetailResult detail(String status, List<TestFlowRunStepResult> steps) {
         TestFlowRunResult run = TestFlowRunResult.builder()
                 .testFlowRunId(1001L)

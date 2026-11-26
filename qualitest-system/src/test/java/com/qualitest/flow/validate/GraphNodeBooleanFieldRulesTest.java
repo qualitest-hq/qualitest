@@ -53,8 +53,8 @@ class GraphNodeBooleanFieldRulesTest {
     }
 
     /**
-     * 前提：assert 节点带 alwaysRun="true"。
-     * 期望：不 coerce（非允许类型）；校验报不允许设置。
+     * 前提：入口节点（scenario-entry）带 alwaysRun="true"。
+     * 期望：不 coerce（入口不允许）；校验报不允许设置。
      */
     @Test
     @Order(2)
@@ -62,11 +62,11 @@ class GraphNodeBooleanFieldRulesTest {
     void disallowedType_noCoerce_validateError() {
         Map<String, Object> data = new HashMap<>();
         data.put(GraphNodeAlwaysRunSupport.KEY_ALWAYS_RUN, "true");
-        GraphNodeBooleanFieldRules.coerceForNodeType("assert", data);
+        GraphNodeBooleanFieldRules.coerceForNodeType("scenario-entry", data);
         assertEquals("true", data.get(GraphNodeAlwaysRunSupport.KEY_ALWAYS_RUN));
 
         List<String> errors = new ArrayList<>();
-        GraphNodeBooleanFieldRules.validate("nodes[0]", "assert", data, errors);
+        GraphNodeBooleanFieldRules.validate("nodes[0]", "scenario-entry", data, errors);
         assertFalse(errors.isEmpty());
         assertTrue(errors.get(0).contains("不允许设置"));
     }

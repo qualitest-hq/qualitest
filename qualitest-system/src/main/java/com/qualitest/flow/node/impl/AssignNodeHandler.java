@@ -104,14 +104,7 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
             after = toNumber(computed);
         } else {
             Object raw = row.get("value");
-            if (raw instanceof String s) {
-                after = STRICT.resolve(s, ctx);
-                after = coerceLiteral(after);
-            } else if (raw != null) {
-                after = raw;
-            } else {
-                after = null;
-            }
+            after = raw == null ? null : resolveLiteralValue(raw, ctx);
         }
 
         target.put(name, after);
@@ -123,6 +116,31 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
         record.put("before", before);
         record.put("after", after);
         return record;
+    }
+
+    /**
+     * 递归解析写入值里的占位符：
+     * 字符串走 {@link PlaceholderResolver} 严格解析并做字面量归一；
+     * Map / List（含 fastjson 的 JSONObject / JSONArray）逐层重建，避免改动原图 data。
+     * 其它类型原样返回。
+     */
+    private static Object resolveLiteralValue(Object raw, FlowRunContext ctx) {
+        if (raw instanceof String s) {
+            return coerceLiteral(STRICT.resolve(s, ctx));
+        }
+        if (raw instanceof Map<?, ?> map) {
+            Map<String, Object> resolved = new LinkedHashMap<>();
+            map.forEach((key, value) -> resolved.put(String.valueOf(key), resolveLiteralValue(value, ctx)));
+            return resolved;
+        }
+        if (raw instanceof List<?> list) {
+            List<Object> resolved = new ArrayList<>(list.size());
+            for (Object item : list) {
+                resolved.add(resolveLiteralValue(item, ctx));
+            }
+            return resolved;
+        }
+        return raw;
     }
 
     /** 作用域：仅识别 out；其余（含空）一律 flow */

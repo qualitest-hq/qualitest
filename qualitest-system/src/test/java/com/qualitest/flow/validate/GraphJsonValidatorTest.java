@@ -238,10 +238,10 @@ class GraphJsonValidatorTest {
 
     @Test
     @Order(16)
-    @DisplayName("http extract 过滤器后紧跟 [n] 产生 warning 不硬拦")
+    @DisplayName("http extract 过滤器后紧跟 [n] 产生 error")
     void httpExtractFilterThenIndex_producesWarning() {
         // 前提：合法 JsonPath，但过滤器后写了 [0]
-        // 期望：ok=true；warnings 提示去掉 [n]
+        // 期望：errors 提示去掉 [n]（不再做提示性 warning）
         String json = """
                 {
                   "meta":{},
@@ -256,8 +256,8 @@ class GraphJsonValidatorTest {
                 }
                 """;
         GraphValidationResult result = validator.validateJson(json);
-        assertTrue(result.isOk());
-        assertTrue(result.getWarnings().stream().anyMatch(w ->
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(w ->
                 w.contains("过滤器后的 [n]") && w.contains("去掉 [n]")));
     }
 
@@ -349,7 +349,7 @@ class GraphJsonValidatorTest {
     /**
      * 前提：IF 无 target；ELSE 有 target 且有对应出边。
      * 期望：校验通过。
-     * 另测：分支有 target 但无出边 → warnings；有出边但无分支 target → errors。
+     * 另测：分支有 target 但无出边 → errors；有出边但无分支 target → errors。
      */
     @Test
     @Order(13)
@@ -393,7 +393,7 @@ class GraphJsonValidatorTest {
                 }
                 """;
         GraphValidationResult dangling = validator.validateJson(danglingTarget);
-        assertTrue(dangling.getWarnings().stream().anyMatch(w -> w.contains("无对应出边")));
+        assertTrue(dangling.getErrors().stream().anyMatch(w -> w.contains("无对应出边")));
 
         String orphanEdge = """
                 {
@@ -442,19 +442,18 @@ class GraphJsonValidatorTest {
 
     /**
      * 前提：图含多个无入边节点；Staging 分批确认延后拓扑。
-     * 期望：ok；errors 空；warnings 含 O7「未确认的连线」文案。
+     * 期望：ok；errors 与 warnings 均为空（半成品阶段不提示开始节点问题）。
      */
     @Test
     @Order(12)
-    @DisplayName("延后拓扑时多开始降为 O7 警告")
+    @DisplayName("延后拓扑时不校验开始节点")
     void multiStartNode_deferredAsWarning() {
         String json = loadResource("flow/invalid-multi-start.json");
         GraphJson graph = GraphJson.parse(json);
         GraphValidationResult result = validator.validate(graph, GraphValidationOptions.stagingPartialConfirm());
         assertTrue(result.isOk());
         assertTrue(result.getErrors().isEmpty());
-        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("未确认的连线")));
-        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("开始节点")));
+        assertTrue(result.getWarnings().isEmpty());
     }
 
     /**
@@ -542,43 +541,74 @@ class GraphJsonValidatorTest {
     }
 
     /**
-     * 前提：assert / input 节点带 alwaysRun=true。
-     * 期望：error 含「不允许设置 alwaysRun」。
+     * 前提：入口节点（scenario-entry / http-entry）带 alwaysRun=true。
+     * 期望：error 含「不允许设置 alwaysRun」（入口在失败后继续阶段无意义）。
      */
     @Test
     @Order(20)
-    @DisplayName("alwaysRun 挂在非法节点类型报错")
+    @DisplayName("alwaysRun 挂在入口节点报错")
     void alwaysRun_disallowedNodeType_producesError() {
-        String assertGraph = """
+        String scenarioGraph = """
                 {
                   "meta":{},
                   "nodes": [
-                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
-                    {"id":"1","type":"http","name":"h","position":{"x":0,"y":0},"data":{"callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
-                    {"id":"2","type":"assert","name":"a","position":{"x":100,"y":0},"data":{"alwaysRun":true,"rules":[{"left":"http.body.code","operator":"eq","right":"0"}]}}
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},
+                     "data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}],
+                             "alwaysRun":true}}
                   ],
-                  "edges":[{"id":"e1","source":"1","target":"2"}]
+                  "edges":[]
                 }
                 """;
-        GraphValidationResult assertResult = validator.validateJson(assertGraph);
-        assertFalse(assertResult.isOk());
-        assertTrue(assertResult.getErrors().stream()
+        GraphValidationResult scenarioResult = validator.validateJson(scenarioGraph);
+        assertTrue(scenarioResult.getErrors().stream()
                 .anyMatch(e -> e.contains("alwaysRun") && e.contains("不允许设置")));
 
-        String inputGraph = """
+        String httpEntryGraph = """
                 {
                   "meta":{},
                   "nodes": [
-                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},"data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
-                    {"id":"1","type":"input","name":"i","position":{"x":0,"y":0},"data":{"alwaysRun":true,"prompt":"填","fields":[{"name":"x","label":"X","type":"text"}]}}
+                    {"id":"e1","type":"http-entry","name":"入站","position":{"x":0,"y":0},
+                     "data":{"method":"POST","path":"/x","envId":"1",
+                             "fallbackOut":{"status":500,"headers":{},"body":{}},
+                             "alwaysRun":true}}
                   ],
-                  "edges":[{"id":"e0","source":"e1","target":"1"}]
+                  "edges":[]
                 }
                 """;
-        GraphValidationResult inputResult = validator.validateJson(inputGraph);
-        assertFalse(inputResult.isOk());
-        assertTrue(inputResult.getErrors().stream()
+        GraphValidationResult httpResult = validator.validateJson(httpEntryGraph);
+        assertTrue(httpResult.getErrors().stream()
                 .anyMatch(e -> e.contains("alwaysRun") && e.contains("不允许设置")));
+    }
+
+    /**
+     * 前提：业务节点（assert / condition / input / http-return）带 alwaysRun=true。
+     * 期望：不再报「不允许设置」。
+     */
+    @Test
+    @Order(56)
+    @DisplayName("业务节点允许 alwaysRun")
+    void alwaysRun_businessNodes_allowed() {
+        String json = """
+                {
+                  "meta":{},
+                  "nodes": [
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},
+                     "data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"a1","type":"assert","name":"断言","position":{"x":100,"y":0},
+                     "data":{"alwaysRun":true,"rules":[{"left":"http.body.code","operator":"eq","right":"0"}]}},
+                    {"id":"c1","type":"condition","name":"条件","position":{"x":200,"y":0},
+                     "data":{"alwaysRun":true,"branches":[{"id":"b1","kind":"else","conditions":[]}]}},
+                    {"id":"i1","type":"input","name":"填","position":{"x":300,"y":0},
+                     "data":{"alwaysRun":true,"fields":[{"name":"x","type":"text"}]}},
+                    {"id":"r1","type":"http-return","name":"回包","position":{"x":400,"y":0},
+                     "data":{"alwaysRun":true,"from":"flow.out","status":200}}
+                  ],
+                  "edges":[{"id":"e0","source":"e1","target":"a1"}]
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.getErrors().stream()
+                .noneMatch(e -> e.contains("alwaysRun") && e.contains("不允许设置")));
     }
 
     /**
@@ -800,6 +830,317 @@ class GraphJsonValidatorTest {
         GraphValidationResult result = validator.validateJson(json);
         assertFalse(result.isOk());
         assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("同一路径上存在多个返回节点")));
+    }
+
+    /**
+     * 前提：assign 一条赋值显式写 scope=out。
+     * 期望：不报 scope 异常（契约允许写定稿出参）。
+     */
+    @Test
+    @Order(40)
+    @DisplayName("assign scope=out 合法")
+    void validateAssign_scopeOut_ok() {
+        GraphValidationResult result = validator.validateJson(assignGraph(",\"scope\":\"out\""));
+        assertFalse(hasAssignScopeError(result));
+    }
+
+    /**
+     * 前提：assign 一条赋值 scope=env（非 flow/out）。
+     * 期望：报「scope 只能是 flow 或 out」。
+     */
+    @Test
+    @Order(41)
+    @DisplayName("assign scope=env 报错")
+    void validateAssign_scopeEnv_error() {
+        GraphValidationResult result = validator.validateJson(assignGraph(",\"scope\":\"env\""));
+        assertTrue(hasAssignScopeError(result));
+    }
+
+    /**
+     * 前提：assign 一条赋值 scope 为空串。
+     * 期望：按非法值报错（缺省应整个不写 scope 字段）。
+     */
+    @Test
+    @Order(42)
+    @DisplayName("assign scope 空串报错")
+    void validateAssign_scopeBlank_error() {
+        GraphValidationResult result = validator.validateJson(assignGraph(",\"scope\":\"  \""));
+        assertTrue(hasAssignScopeError(result));
+    }
+
+    /**
+     * 前提：assign 一条赋值不写 scope。
+     * 期望：按缺省 flow 处理，不报 scope 异常。
+     */
+    @Test
+    @Order(43)
+    @DisplayName("assign 缺省 scope 不报错")
+    void validateAssign_scopeMissing_ok() {
+        GraphValidationResult result = validator.validateJson(assignGraph(""));
+        assertFalse(hasAssignScopeError(result));
+    }
+
+    /**
+     * 前提：assign 一条赋值写 scope=OUT（大小写不同）。
+     * 期望：与运行时归一一致，视为 out，不报错。
+     */
+    @Test
+    @Order(44)
+    @DisplayName("assign scope=OUT 视作 out")
+    void validateAssign_scopeUppercase_ok() {
+        GraphValidationResult result = validator.validateJson(assignGraph(",\"scope\":\"OUT\""));
+        assertFalse(hasAssignScopeError(result));
+    }
+
+    /**
+     * 前提：subflow-entry 仍带旧三节 inputShape，fallbackOut 已是业务对象。
+     * 期望：报 error「须改用 inputDecl」。
+     */
+    @Test
+    @Order(45)
+    @DisplayName("子流入口旧 inputShape 报错")
+    void validateSubflowEntry_legacyInputShape_warningOnly() {
+        String json = """
+                {
+                  "nodes": [
+                    {"id":"se","type":"subflow-entry","name":"子流入口","position":{"x":0,"y":0},
+                     "data":{"inputShape":{"body":[{"name":"username","type":"string","required":true}],
+                                            "query":[],"headers":[]},
+                             "fallbackOut":{"code":"NO_RETURN","message":"未执行到返回节点"}}}
+                  ],
+                  "edges": []
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("inputDecl")));
+    }
+
+    /**
+     * 前提：场景入口 + 子流入口共用登录链，返回节点放在 run.entryKind eq subflow 的 IF 臂里。
+     * 期望：不再报「场景入口可达返回节点」；图可开跑。
+     */
+    @Test
+    @Order(46)
+    @DisplayName("场景可达返回被 entryKind 守卫时放行")
+    void validateScenarioReachableReturn_guarded_ok() {
+        GraphValidationResult result = validator.validateJson(mixedEntryGraph(true));
+        assertFalse(result.getErrors().stream().anyMatch(e -> e.contains("场景入口可达子图不支持返回节点")),
+                () -> "errors=" + result.getErrors());
+    }
+
+    /**
+     * 前提：同样的图，但返回节点直接挂在共享链后面，没有 entryKind 守卫。
+     * 期望：报「场景入口可达子图不支持返回节点」。
+     */
+    @Test
+    @Order(47)
+    @DisplayName("场景可达返回未守卫时报错")
+    void validateScenarioReachableReturn_unguarded_error() {
+        GraphValidationResult result = validator.validateJson(mixedEntryGraph(false));
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("场景入口可达子图不支持返回节点")),
+                () -> "errors=" + result.getErrors());
+    }
+
+    /**
+     * 混合入口图：场景/子流入口共用一条链，末端的 subflow-return 是否用 entryKind 守卫由参数决定。
+     */
+    private static String mixedEntryGraph(boolean guarded) {
+        String tail = guarded
+                ? """
+                    {"id":"guard","type":"condition","name":"按入口分流","position":{"x":400,"y":0},
+                     "data":{"branches":[
+                       {"id":"b_sub","kind":"if","target":"ret",
+                        "conditions":[{"left":"run.entryKind","operator":"eq","right":"subflow"}]},
+                       {"id":"b_else","kind":"else"}
+                     ]}},
+                    {"id":"ret","type":"subflow-return","name":"返回父流","position":{"x":600,"y":0},"data":{"from":"flow.out"}}
+                  """.trim()
+                : """
+                    {"id":"ret","type":"subflow-return","name":"返回父流","position":{"x":600,"y":0},"data":{"from":"flow.out"}}
+                  """.trim();
+        String tailEdges = guarded
+                ? """
+                    {"id":"e3","source":"chain","target":"guard"},
+                    {"id":"e4","source":"guard","target":"ret"}
+                  """.trim()
+                : """
+                    {"id":"e3","source":"chain","target":"ret"}
+                  """.trim();
+        return """
+                {
+                  "meta": {},
+                  "nodes": [
+                    {"id":"se","type":"scenario-entry","name":"场景入口","position":{"x":0,"y":0},
+                     "data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"fe","type":"subflow-entry","name":"子流入口","position":{"x":0,"y":120},
+                     "data":{"fallbackOut":{"code":"NO_RETURN","message":"未执行到返回节点"}}},
+                    {"id":"chain","type":"http","name":"登录","position":{"x":200,"y":0},
+                     "data":{"callMode":"external","externalUrl":"https://e.example/login","httpMethod":"POST"}},
+                    %s
+                  ],
+                  "edges": [
+                    {"id":"e1","source":"se","target":"chain"},
+                    {"id":"e2","source":"fe","target":"chain"},
+                    %s
+                  ]
+                }
+                """.formatted(tail, tailEdges);
+    }
+
+    /**
+     * 前提：assign 节点 data 里混入画布 UI 状态字段 selected。
+     * 期望：报 §2.5「data 不得承载画布 UI 状态字段」。
+     */
+    @Test
+    @Order(50)
+    @DisplayName("data 含 UI 状态字段报错")
+    void validateNodeData_uiStateField_error() {
+        String json = """
+                {"nodes":[{"id":"a1","type":"assign","name":"赋值","position":{"x":0,"y":0},
+                 "data":{"assignments":[{"name":"x","op":"set","value":1}],"selected":true}}],
+                 "edges":[]}
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.getErrors().stream().anyMatch(e ->
+                e.contains("UI 状态字段") && e.contains("selected")));
+    }
+
+    /**
+     * 前提：HTTP 入口 inputShape.query 的字段带 children。
+     * 期望：query 须扁平，报「不允许 children」。
+     */
+    @Test
+    @Order(51)
+    @DisplayName("inputShape query 不允许 children")
+    void validateHttpInputShape_queryChildren_error() {
+        String json = """
+                {"nodes":[{"id":"e1","type":"http-entry","name":"入站","position":{"x":0,"y":0},
+                 "data":{"method":"POST","path":"/x","envId":"1",
+                         "fallbackOut":{"status":500,"headers":{},"body":{}},
+                         "inputShape":{"query":[{"name":"q","children":[]}]}}}],
+                 "edges":[]}
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.getErrors().stream().anyMatch(e ->
+                e.contains("inputShape.query") && e.contains("不允许 children")));
+    }
+
+    /**
+     * 前提：HTTP 入口 inputShape.body 的字段带嵌套 children（合法）。
+     * 期望：不报 inputShape 形状错误。
+     */
+    @Test
+    @Order(52)
+    @DisplayName("inputShape body 允许嵌套 children")
+    void validateHttpInputShape_bodyChildren_ok() {
+        String json = """
+                {"nodes":[{"id":"e1","type":"http-entry","name":"入站","position":{"x":0,"y":0},
+                 "data":{"method":"POST","path":"/x","envId":"1",
+                         "fallbackOut":{"status":500,"headers":{},"body":{}},
+                         "inputShape":{"body":[{"name":"user","type":"object",
+                                                "children":[{"name":"id","type":"string"}]}]}}}],
+                 "edges":[]}
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.getErrors().stream().noneMatch(e -> e.contains("inputShape")));
+    }
+
+    /**
+     * 前提：子流入口 inputDecl 带 children；场景入口 inSeedKeys 带 children。
+     * 期望：两者都报「须为扁平声明，不允许 children」。
+     */
+    @Test
+    @Order(53)
+    @DisplayName("inputDecl / inSeedKeys 不允许 children")
+    void validateEntryDeclaration_children_error() {
+        String subflow = """
+                {"nodes":[{"id":"se","type":"subflow-entry","name":"子流入口","position":{"x":0,"y":0},
+                 "data":{"fallbackOut":{"code":"NO_RETURN","message":"未执行到返回节点"},
+                         "inputDecl":[{"name":"a","children":[]}]}}],
+                 "edges":[]}
+                """;
+        String scenario = """
+                {"nodes":[{"id":"sc","type":"scenario-entry","name":"场景入口","position":{"x":0,"y":0},
+                 "data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}],
+                         "inSeedKeys":[{"name":"a","children":[]}]}}],
+                 "edges":[]}
+                """;
+        assertTrue(validator.validateJson(subflow).getErrors().stream()
+                .anyMatch(e -> e.contains("inputDecl") && e.contains("不允许 children")));
+        assertTrue(validator.validateJson(scenario).getErrors().stream()
+                .anyMatch(e -> e.contains("inSeedKeys") && e.contains("不允许 children")));
+    }
+
+    /**
+     * 前提：HTTP 入口路径为 入口 → 返回 → Input。
+     * 期望：报「返回节点之后又出现 Input」。
+     */
+    @Test
+    @Order(54)
+    @DisplayName("返回之后出现 Input 报错")
+    void validateInputAfterReturn_error() {
+        String json = """
+                {"nodes":[
+                   {"id":"e1","type":"http-entry","name":"入站","position":{"x":0,"y":0},
+                    "data":{"method":"POST","path":"/x","envId":"1",
+                            "fallbackOut":{"status":500,"headers":{},"body":{}}}},
+                   {"id":"r1","type":"http-return","name":"回包","position":{"x":200,"y":0},
+                    "data":{"from":"flow.out","status":200}},
+                   {"id":"i1","type":"input","name":"填码","position":{"x":400,"y":0},
+                    "data":{"fields":[{"name":"code","type":"text"}]}}
+                 ],
+                 "edges":[{"id":"ed1","source":"e1","target":"r1"},
+                          {"id":"ed2","source":"r1","target":"i1"}]}
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.getErrors().stream().anyMatch(e ->
+                e.contains("返回节点之后又出现 Input")));
+    }
+
+    /**
+     * 前提：HTTP 入口路径为 入口 → Input → 返回（Input 在交付前，合法）。
+     * 期望：不报「返回节点之后又出现 Input」。
+     */
+    @Test
+    @Order(55)
+    @DisplayName("Input 在返回之前不报错")
+    void validateInputBeforeReturn_ok() {
+        String json = """
+                {"nodes":[
+                   {"id":"e1","type":"http-entry","name":"入站","position":{"x":0,"y":0},
+                    "data":{"method":"POST","path":"/x","envId":"1",
+                            "fallbackOut":{"status":500,"headers":{},"body":{}}}},
+                   {"id":"i1","type":"input","name":"填码","position":{"x":200,"y":0},
+                    "data":{"fields":[{"name":"code","type":"text"}]}},
+                   {"id":"r1","type":"http-return","name":"回包","position":{"x":400,"y":0},
+                    "data":{"from":"flow.out","status":200}}
+                 ],
+                 "edges":[{"id":"ed1","source":"e1","target":"i1"},
+                          {"id":"ed2","source":"i1","target":"r1"}]}
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.getErrors().stream().noneMatch(e ->
+                e.contains("返回节点之后又出现 Input")));
+    }
+
+    /** 单 assign 节点图；scopeFragment 为 data 内额外 JSON 片段（如 ,"scope":"out"，可空）。 */
+    private static String assignGraph(String scopeFragment) {
+        String extra = scopeFragment == null ? "" : scopeFragment;
+        return """
+                {
+                  "nodes": [
+                    {"id":"1","type":"assign","name":"组出参","position":{"x":0,"y":0},
+                     "data":{"assignments":[{"name":"status","op":"set","value":200%s}]}}
+                  ],
+                  "edges": []
+                }
+                """.formatted(extra);
+    }
+
+    /** 是否命中 assign scope 非法报错 */
+    private static boolean hasAssignScopeError(GraphValidationResult result) {
+        return result.getErrors().stream()
+                .anyMatch(e -> e.contains("scope 只能是 flow 或 out"));
     }
 
     /** 单节点外联 HTTP 图；extraData 为 data 内额外 JSON 片段（可空）。 */

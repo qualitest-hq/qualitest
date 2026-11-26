@@ -27,7 +27,7 @@ function nodeDisplayName(
   fallbackData?: Record<string, unknown>,
 ): string {
   const onCanvas = ctx.nodes.find((n) => n.id === nodeId);
-  const name = (onCanvas?.data?.name as string) || (fallbackData?.name as string);
+  const name = onCanvas?.name || (onCanvas?.data?.name as string) || (fallbackData?.name as string);
   if (name?.trim()) return name.trim();
   const type = onCanvas?.type || (fallbackData?.type as string);
   return type ? `${type} · ${nodeId}` : nodeId;
@@ -35,7 +35,7 @@ function nodeDisplayName(
 
 function edgeEndpointLabel(nodeId: string, ctx: StagingBuildContext): string {
   const node = ctx.nodes.find((n) => n.id === nodeId);
-  const name = node?.data?.name as string | undefined;
+  const name = node?.name || (node?.data?.name as string | undefined);
   return name?.trim() ? `${name}(${nodeId})` : nodeId;
 }
 
@@ -47,7 +47,7 @@ function enumeratePatchUnits(patch: FlowDesignPatch, ctx: StagingBuildContext): 
   const items: StagingUnitSeed[] = [];
 
   for (const node of patch.addNodes ?? []) {
-    const name = (node.data?.name as string) || node.type;
+    const name = node.name || (node.data?.name as string) || node.type;
     items.push({
       id: `addNode:${node.id}`,
       kind: 'addNode',
@@ -56,8 +56,9 @@ function enumeratePatchUnits(patch: FlowDesignPatch, ctx: StagingBuildContext): 
   }
 
   for (const node of patch.updateNodes ?? []) {
-    const canvasName = ctx.nodes.find((n) => n.id === node.id)?.data?.name as string | undefined;
-    const name = canvasName?.trim() || (node.data?.name as string) || node.type;
+    const canvasNode = ctx.nodes.find((n) => n.id === node.id);
+    const canvasName = (canvasNode?.name || canvasNode?.data?.name) as string | undefined;
+    const name = canvasName?.trim() || node.name || (node.data?.name as string) || node.type;
     items.push({
       id: `updateNode:${node.id}`,
       kind: 'updateNode',

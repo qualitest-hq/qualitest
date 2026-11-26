@@ -90,6 +90,17 @@ public class TestFlowResult implements Serializable {
     private String apiHealthWarningCodes;
 
     /**
+     * 开放 HTTP 路由冲突：本条流入口的 method+path 在项目内被重复占用。
+     * 保存不拦，列表页标 error 提示，开跑门禁硬拦。
+     */
+    private Boolean routeConflict;
+
+    /**
+     * 路由冲突说明（含占用方流/入口），供列表 tooltip 展示。
+     */
+    private String routeConflictMessage;
+
+    /**
      * 删除状态（0正常 1删除）
      */
     private Integer delStatus;

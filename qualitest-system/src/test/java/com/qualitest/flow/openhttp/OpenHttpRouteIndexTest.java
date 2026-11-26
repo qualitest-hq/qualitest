@@ -141,6 +141,80 @@ class OpenHttpRouteIndexTest {
         assertEquals(2, index.listPeerRoutes(PROJECT_ID).size());
     }
 
+    /**
+     * 前提：同一流内两个 http-entry 写同一 method+path（脏数据）。
+     * 期望：入站不命中（404）；预检能列出冲突键。
+     */
+    @Test
+    @Order(5)
+    @DisplayName("同流内同键也不命中且预检可见")
+    void sameFlowDuplicate_findNull_preflightVisible() {
+        when(testFlowMapper.selectTestFlowList(any())).thenReturn(List.of(sameFlowDuplicate()));
+        when(testFlowMapper.selectTestFlowById(FLOW_ID)).thenReturn(sameFlowDuplicate());
+
+        assertNull(catalog.find(PROJECT_ID, "POST", "/dup"));
+        assertEquals(List.of("POST /dup"), index.findAmbiguousRouteKeys(PROJECT_ID));
+    }
+
+    /**
+     * 前提：入口 path 写成 /a//b/；请求按 /a/b 访问。
+     * 期望：规范化后命中同一路由（内部斜杠折叠、尾斜杠剥除）。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("路径规范化：折叠连续斜杠并可查")
+    void normalizePath_collapsesSlashes() {
+        when(testFlowMapper.selectTestFlowList(any()))
+                .thenReturn(List.of(httpFlow("POST", "/a//b/", 1L)));
+        when(testFlowMapper.selectTestFlowById(FLOW_ID)).thenReturn(httpFlow("POST", "/a//b/", 1L));
+
+        OpenHttpRoute route = catalog.find(PROJECT_ID, "POST", "/a/b");
+
+        assertNotNull(route);
+        assertEquals("/a/b", route.path());
+    }
+
+    /**
+     * 前提：入口 path 误带 query。
+     * 期望：规范化剥掉 query，按纯 path 命中。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("路径规范化：剥掉 query 后命中")
+    void normalizePath_stripsQuery() {
+        when(testFlowMapper.selectTestFlowList(any()))
+                .thenReturn(List.of(httpFlow("GET", "/x?a=1", 1L)));
+        when(testFlowMapper.selectTestFlowById(FLOW_ID)).thenReturn(httpFlow("GET", "/x?a=1", 1L));
+
+        assertNotNull(catalog.find(PROJECT_ID, "GET", "/x"));
+    }
+
+    /** 同一流两个入口写同一 method+path */
+    private static TestFlow sameFlowDuplicate() {
+        GraphJson g = new GraphJson();
+        GraphNode first = new GraphNode();
+        first.setId("entry-1");
+        first.setType(FlowNodeType.HTTP_ENTRY.getCode());
+        first.setName("入口一");
+        first.setData(Map.of("method", "POST", "path", "/dup",
+                "fallbackOut", Map.of("status", 500, "headers", Map.of(), "body", Map.of())));
+        GraphNode second = new GraphNode();
+        second.setId("entry-2");
+        second.setType(FlowNodeType.HTTP_ENTRY.getCode());
+        second.setName("入口二");
+        second.setData(Map.of("method", "POST", "path", "/dup",
+                "fallbackOut", Map.of("status", 500, "headers", Map.of(), "body", Map.of())));
+        g.setNodes(List.of(first, second));
+        return TestFlow.builder()
+                .testFlowId(FLOW_ID)
+                .testProjectId(PROJECT_ID)
+                .flowName("同流重复")
+                .graphJson(g.toJsonString())
+                .graphRevision(1L)
+                .delStatus(0)
+                .build();
+    }
+
     private static TestFlow httpFlow(String method, String path, long revision) {
         return httpFlow(FLOW_ID, "HTTP流", method, path, revision);
     }

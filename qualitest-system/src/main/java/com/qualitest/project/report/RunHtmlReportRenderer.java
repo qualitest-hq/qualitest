@@ -193,6 +193,8 @@ public final class RunHtmlReportRenderer {
         metaCell(sb, "场景", blankToDash(meta.scenarioName != null ? meta.scenarioName : run.getRunScenarioId()));
         metaCell(sb, "环境", blankToDash(meta.envName));
         metaCell(sb, "触发", blankToDash(triggerLabel(run.getTriggerType())));
+        metaCell(sb, "入口", entryLabel(run.getEntryKind(), run.getEntryNodeId()));
+        metaCell(sb, "出参摘要", outSummaryLabel(run.getOutSummary()));
         metaCell(sb, "耗时", formatDuration(run.getDurationMs()));
         metaCell(sb, "开始", formatTime(run.getStartedAt()));
         metaCell(sb, "结束", formatTime(run.getFinishedAt()));
@@ -209,6 +211,24 @@ public final class RunHtmlReportRenderer {
     private static void metaCell(StringBuilder sb, String k, String v) {
         sb.append("<div class=\"meta-cell\"><span class=\"meta-k\">").append(esc(k))
                 .append("</span><span class=\"meta-v\">").append(esc(v)).append("</span></div>\n");
+    }
+
+    /** 入口展示：种类 · 入口节点 id */
+    private static String entryLabel(String entryKind, String entryNodeId) {
+        String kind = entryKind == null || entryKind.isBlank() ? "-" : entryKind.trim();
+        if (entryNodeId == null || entryNodeId.isBlank()) {
+            return kind;
+        }
+        return kind + " · " + entryNodeId.trim();
+    }
+
+    /** 出参摘要展示：过长截断，避免撑爆报告页眉 */
+    private static String outSummaryLabel(String outSummary) {
+        if (outSummary == null || outSummary.isBlank()) {
+            return "-";
+        }
+        String text = outSummary.trim();
+        return text.length() <= 200 ? text : text.substring(0, 200) + "…";
     }
 
     /**

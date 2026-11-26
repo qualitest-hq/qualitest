@@ -81,6 +81,70 @@ class AssignNodeHandlerTest {
         assertEquals(5L, assigns.get(0).get("after"));
     }
 
+    /**
+     * 前提：flow.token=t-1，assignment 写对象字面量 {"body":{"token":"{{flow.token}}"}}。
+     * 期望：嵌套占位符被解析，flow.out.body.token=t-1（不是字面量）。
+     */
+    @Test
+    @Order(3)
+    @DisplayName("执行：对象字面量里的占位符逐层解析")
+    void execute_resolvesPlaceholdersInObjectLiteral() {
+        JSONObject row = new JSONObject();
+        row.put("scope", "flow");
+        row.put("name", "out");
+        row.put("op", "set");
+        JSONObject body = new JSONObject();
+        body.put("token", "{{flow.token}}");
+        JSONObject value = new JSONObject();
+        value.put("body", body);
+        row.put("value", value);
+        JSONArray assignments = new JSONArray();
+        assignments.add(row);
+
+        FlowRunContext ctx = new FlowRunContext();
+        ctx.getFlow().put("token", "t-1");
+
+        StepResult result = handler.execute(ctx, assignNode(assignments), null);
+
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> out = (Map<String, Object>) ctx.getFlow().get("out");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> outBody = (Map<String, Object>) out.get("body");
+        assertEquals("t-1", outBody.get("token"));
+    }
+
+    /**
+     * 前提：flow.tag=a，assignment 写数组字面量 ["{{flow.tag}}", "x-{{flow.tag}}"]。
+     * 期望：数组元素里的占位符都完成替换。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("执行：数组字面量里的占位符逐层解析")
+    void execute_resolvesPlaceholdersInArrayLiteral() {
+        JSONObject row = new JSONObject();
+        row.put("scope", "flow");
+        row.put("name", "list");
+        row.put("op", "set");
+        JSONArray value = new JSONArray();
+        value.add("{{flow.tag}}");
+        value.add("x-{{flow.tag}}");
+        row.put("value", value);
+        JSONArray assignments = new JSONArray();
+        assignments.add(row);
+
+        FlowRunContext ctx = new FlowRunContext();
+        ctx.getFlow().put("tag", "a");
+
+        StepResult result = handler.execute(ctx, assignNode(assignments), null);
+
+        assertEquals(RunStatus.PASSED.getCode(), result.getStatus());
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) ctx.getFlow().get("list");
+        assertEquals("a", list.get(0));
+        assertEquals("x-a", list.get(1));
+    }
+
     private static GraphNode assignNode(JSONArray assignments) {
         Map<String, Object> data = new HashMap<>();
         data.put("assignments", assignments);

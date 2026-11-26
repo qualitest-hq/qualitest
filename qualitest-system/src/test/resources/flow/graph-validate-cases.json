@@ -58,11 +58,17 @@
       "id": "script-empty-source",
       "fixture": "invalid-script-empty-source.json",
       "expectErrors": 0,
-      "expectWarnings": 1
+      "expectWarnings": 0
     },
     {
       "id": "subflow-missing-id",
       "fixture": "invalid-subflow-missing-id.json",
+      "expectErrors": 1,
+      "expectWarnings": 0
+    },
+    {
+      "id": "data-ui-state",
+      "fixture": "invalid-data-ui-state.json",
       "expectErrors": 1,
       "expectWarnings": 0
     }

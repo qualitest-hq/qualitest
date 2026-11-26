@@ -11,7 +11,7 @@ import java.util.Set;
 /**
  * AI / 设计 patch 落图前，规范化 assign 节点 {@code data.assignments[]}。
  * <ul>
- *   <li>scope 固定为 flow</li>
+ *   <li>scope 缺省补 flow；flow / out 归一大小写与空白；其它取值原样留给校验器报错</li>
  *   <li>op 空或非法 → set；合法：set/add/sub/mul/div</li>
  *   <li>name trim</li>
  * </ul>
@@ -38,13 +38,33 @@ public final class FlowDesignAssignNodeNormalizer {
             if (row == null) {
                 continue;
             }
-            row.put("scope", "flow");
+            normalizeScope(row);
             String name = row.getString("name");
             row.put("name", name != null ? name.trim() : "");
             row.put("op", normalizeOp(row.get("op")));
             next.add(row);
         }
         data.put("assignments", next);
+    }
+
+    /**
+     * 作用域归一：缺省补 {@code flow}（契约默认）；写出 flow / out（大小写、空白容忍）时统一小写；
+     * 其它取值原样保留，交给 {@link com.qualitest.flow.validate.GraphJsonValidator} 报画布异常，
+     * 避免把写错的 scope 静默改成 flow。
+     */
+    private static void normalizeScope(JSONObject row) {
+        if (!row.containsKey("scope")) {
+            row.put("scope", "flow");
+            return;
+        }
+        Object raw = row.get("scope");
+        if (!(raw instanceof String s)) {
+            return;
+        }
+        String normalized = s.trim().toLowerCase(Locale.ROOT);
+        if ("flow".equals(normalized) || "out".equals(normalized)) {
+            row.put("scope", normalized);
+        }
     }
 
     /** 空/非法 op → set；合法取值原样小写归一。 */

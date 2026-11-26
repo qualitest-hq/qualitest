@@ -89,6 +89,7 @@ export function useFlowScenarioRun() {
     const { errors: blocking, precheckErrors } = await collectRunBlockingErrors({
       graph: graphForRun,
       testProjectId: store.testProjectId,
+      testFlowId: store.testFlowId,
     });
     useRunRiskStore().setWarnings(precheckErrors);
     if (blocking.length) {

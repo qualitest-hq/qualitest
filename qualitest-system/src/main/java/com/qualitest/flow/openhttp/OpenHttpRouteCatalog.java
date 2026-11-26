@@ -45,15 +45,31 @@ public class OpenHttpRouteCatalog {
     }
 
     /**
-     * 路径规范化：空→空串；补前导 /；去掉末尾多余 /（根路径保留为 /）。
+     * 路径规范化：空→空串；剥掉 query / fragment；补前导 /；折叠连续 /；去掉末尾多余 /
+     * （根路径保留为 /）。路径大小写保持敏感（HTTP 语义）。
      */
     public static String normalizePath(String path) {
         if (path == null || path.isBlank()) {
             return "";
         }
         String p = path.trim();
+        int query = p.indexOf('?');
+        if (query >= 0) {
+            p = p.substring(0, query);
+        }
+        int fragment = p.indexOf('#');
+        if (fragment >= 0) {
+            p = p.substring(0, fragment);
+        }
+        p = p.trim();
+        if (p.isEmpty()) {
+            return "";
+        }
         if (!p.startsWith("/")) {
             p = "/" + p;
+        }
+        while (p.contains("//")) {
+            p = p.replace("//", "/");
         }
         while (p.length() > 1 && p.endsWith("/")) {
             p = p.substring(0, p.length() - 1);

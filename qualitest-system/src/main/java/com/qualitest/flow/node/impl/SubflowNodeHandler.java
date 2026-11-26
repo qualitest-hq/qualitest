@@ -17,6 +17,7 @@ import com.qualitest.flow.run.FlowNodePreExecuteHook;
 import com.qualitest.flow.run.RunContinuation;
 import com.qualitest.flow.delivery.EntryKind;
 import com.qualitest.flow.delivery.RunTrigger;
+import com.qualitest.flow.delivery.SettleSupport;
 import com.qualitest.flow.snapshot.RunSnapshotPolicy;
 import com.qualitest.flow.subflow.SubflowDepth;
 import com.qualitest.flow.subflow.SubflowIoSupport;
@@ -87,33 +88,40 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
             Long subflowId = parseSubflowId(data.get("subflowId"));
             TestFlow subflow = testFlowService.selectTestFlowById(subflowId);
             if (subflow == null || (subflow.getDelStatus() != null && subflow.getDelStatus() != 0)) {
+                ctx.putNodeOut(node.getId(), SettleSupport.defaultSubflowFallbackPackage());
                 return failed(node, incomingEdgeId, nodeName, t0, ctx,
                         FlowErrorCode.TF_SUBFLOW_INVALID, "子流不存在: " + subflowId, data, subflowId, List.of());
             }
             if (ctx.getTestProjectId() != null && subflow.getTestProjectId() != null
                     && !ctx.getTestProjectId().equals(subflow.getTestProjectId())) {
+                ctx.putNodeOut(node.getId(), SettleSupport.defaultSubflowFallbackPackage());
                 return failed(node, incomingEdgeId, nodeName, t0, ctx,
                         FlowErrorCode.TF_SUBFLOW_INVALID, "子流不属于当前项目", data, subflowId, List.of());
             }
 
             GraphJson childGraph = resolveSubflowGraph(subflow);
             if (childGraph == null) {
+                // 子图不可用也要给父一个包，避免父侧读 nodes.<id>.out 时凭空为空
+                ctx.putNodeOut(node.getId(), SettleSupport.defaultSubflowFallbackPackage());
                 return failed(node, incomingEdgeId, nodeName, t0, ctx,
                         FlowErrorCode.TF_SUBFLOW_INVALID, "子流图解析失败", data, subflowId, List.of());
             }
 
+            Map<String, Object> childSeed = SubflowIoSupport.resolveInputSeed(ctx, data.get("inputs"));
+            String childEntryNodeId = resolveChildEntryNodeId(data.get("entryNodeId"), childGraph);
+            FlowRunContext childCtx = buildChildContext(ctx, childSeed, node.getId(), childEntryNodeId);
+
             List<String> readinessErrors = flowRunReadinessGate.collectBlockingErrors(
-                    childGraph, ctx.getTestProjectId());
+                    childGraph, ctx.getTestProjectId(), subflowId);
             if (readinessErrors != null && !readinessErrors.isEmpty()) {
+                // 开跑被拦仍按子流入口 fallbackOut 挂父：调用方要「有返回」
+                ctx.putNodeOut(node.getId(), SettleSupport.resolveSubflowFallbackPackage(childCtx, childGraph));
                 return failed(node, incomingEdgeId, nodeName, t0, ctx,
                         FlowErrorCode.TF_GRAPH_INVALID,
                         String.join("; ", readinessErrors),
                         data, subflowId, List.of());
             }
 
-            Map<String, Object> childSeed = SubflowIoSupport.resolveInputSeed(ctx, data.get("inputs"));
-            String childEntryNodeId = resolveChildEntryNodeId(data.get("entryNodeId"), childGraph);
-            FlowRunContext childCtx = buildChildContext(ctx, childSeed, node.getId(), childEntryNodeId);
             RunSnapshotPolicy childPolicy = EntryRunPolicySupport.compose(
                     childGraph, childEntryNodeId, null);
 
@@ -131,6 +139,7 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
             }
 
             if (!outcome.isPassed()) {
+                ensureFallbackOutMounted(ctx, node.getId());
                 StepError childError = outcome.getError() != null
                         ? outcome.getError()
                         : StepError.of(FlowErrorCode.TF_STEP_ERROR, "子流执行失败");
@@ -158,13 +167,22 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                     .flowAfter(copyFlow(ctx))
                     .build();
         } catch (FlowExecutionException e) {
+            ensureFallbackOutMounted(ctx, node.getId());
             return failed(node, incomingEdgeId, nodeName, t0, ctx, e.getErrorCode(), e.getMessage(),
                     data, null, List.of());
         } catch (Exception e) {
+            ensureFallbackOutMounted(ctx, node.getId());
             return failed(node, incomingEdgeId, nodeName, t0, ctx,
                     FlowErrorCode.TF_STEP_ERROR,
                     e.getMessage() != null ? e.getMessage() : "子流步骤异常",
                     data, null, List.of());
+        }
+    }
+
+    /** 子流被拦/失败且父侧还没有 out 时，补一份默认兜底包，保证父图读 nodes.<id>.out 有值 */
+    private static void ensureFallbackOutMounted(FlowRunContext ctx, String nodeId) {
+        if (ctx != null && nodeId != null && ctx.getNodeOut(nodeId) == null) {
+            ctx.putNodeOut(nodeId, SettleSupport.defaultSubflowFallbackPackage());
         }
     }
 

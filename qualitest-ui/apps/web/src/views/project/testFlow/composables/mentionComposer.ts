@@ -382,9 +382,11 @@ async function ensureApiList(projectId: string): Promise<FlatApiItem[]> {
 export function buildNodeMentionCandidate(node: {
   id: string;
   type?: string;
+  /** 节点壳展示名（§2.5）；旧图可能仍在 data.name */
+  name?: string;
   data?: { name?: string };
 }): MentionCandidate {
-  const name = node.data?.name?.trim() || node.type || '节点';
+  const name = node.name?.trim() || node.data?.name?.trim() || node.type || '节点';
   return { type: 'node', id: node.id, label: `${node.type} · ${name}`, detail: node.id };
 }
 

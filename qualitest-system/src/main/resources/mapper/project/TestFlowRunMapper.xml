@@ -21,6 +21,9 @@
         <result property="errorCode" column="error_code"/>
         <result property="errorMessage" column="error_message"/>
         <result property="triggerType" column="trigger_type"/>
+        <result property="entryKind" column="entry_kind"/>
+        <result property="entryNodeId" column="entry_node_id"/>
+        <result property="outSummary" column="out_summary"/>
         <result property="delStatus" column="del_status"/>
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
@@ -43,6 +46,9 @@
                error_code,
                error_message,
                trigger_type,
+               entry_kind,
+               entry_node_id,
+               out_summary,
                del_status,
                create_time,
                update_time
@@ -66,6 +72,9 @@
                tfr.error_code          as errorCode,
                tfr.error_message       as errorMessage,
                tfr.trigger_type        as triggerType,
+               tfr.entry_kind          as entryKind,
+               tfr.entry_node_id       as entryNodeId,
+               tfr.out_summary         as outSummary,
                tfr.del_status          as delStatus,
                tfr.create_time         as createTime,
                tfr.update_time         as updateTime
@@ -119,6 +128,9 @@
         tfr.error_code as errorCode,
         tfr.error_message as errorMessage,
         tfr.trigger_type as triggerType,
+        tfr.entry_kind as entryKind,
+        tfr.entry_node_id as entryNodeId,
+        tfr.out_summary as outSummary,
         tfr.del_status as delStatus,
         tfr.create_time as createTime,
         tfr.update_time as updateTime
@@ -162,6 +174,9 @@
                tfr.error_code          as errorCode,
                tfr.error_message       as errorMessage,
                tfr.trigger_type        as triggerType,
+               tfr.entry_kind          as entryKind,
+               tfr.entry_node_id       as entryNodeId,
+               tfr.out_summary         as outSummary,
                tfr.del_status          as delStatus,
                tfr.create_time         as createTime,
                tfr.update_time         as updateTime
@@ -213,6 +228,9 @@
         tfr.error_code,
         tfr.error_message,
         tfr.trigger_type,
+        tfr.entry_kind,
+        tfr.entry_node_id,
+        tfr.out_summary,
         tfr.del_status,
         tfr.create_time,
         tfr.update_time
@@ -291,6 +309,15 @@
             <if test="triggerType != null and triggerType != ''">
                 trigger_type,
             </if>
+            <if test="entryKind != null">
+                entry_kind,
+            </if>
+            <if test="entryNodeId != null">
+                entry_node_id,
+            </if>
+            <if test="outSummary != null">
+                out_summary,
+            </if>
             <if test="delStatus != null">
                 del_status,
             </if>
@@ -349,6 +376,15 @@
             </if>
             <if test="triggerType != null and triggerType != ''">
                 #{triggerType},
+            </if>
+            <if test="entryKind != null">
+                #{entryKind},
+            </if>
+            <if test="entryNodeId != null">
+                #{entryNodeId},
+            </if>
+            <if test="outSummary != null">
+                #{outSummary},
             </if>
             <if test="delStatus != null">
                 #{delStatus},
@@ -413,6 +449,15 @@
             </if>
             <if test="triggerType != null and triggerType != ''">
                 trigger_type = #{triggerType},
+            </if>
+            <if test="entryKind != null">
+                entry_kind = #{entryKind},
+            </if>
+            <if test="entryNodeId != null">
+                entry_node_id = #{entryNodeId},
+            </if>
+            <if test="outSummary != null">
+                out_summary = #{outSummary},
             </if>
             <if test="delStatus != null">
                 del_status = #{delStatus},

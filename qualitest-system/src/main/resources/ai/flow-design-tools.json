@@ -121,7 +121,7 @@
     "type": "function",
     "function": {
       "name": "get_flow_meta",
-      "description": "获取画布 meta：scenario-entry 内运行场景列表摘要（含 inSeedKeys）、entryNodeId、startNodeId。单场景详情用 get_scenario_detail。MCP 可仅传 testFlowId",
+      "description": "获取画布 meta：按 scenario-entry 列出运行场景摘要（含场景 inSeed 的键名 inSeedKeys）、entryNodeId；单入口时回填顶层 scenarios/activeScenarioId。单场景详情用 get_scenario_detail。MCP 可仅传 testFlowId",
       "parameters": {
         "type": "object",
         "properties": {
@@ -432,7 +432,7 @@
     "type": "function",
     "function": {
       "name": "get_subflow_detail",
-      "description": "读取测试流拓扑摘要与 suggestedInputs（按首条场景 inSeed 建议父→子 inputs）；子流对外交付见 nodes.<id>.out。无需 graphJson 信封；浏览子流结构优先于 get_flow",
+      "description": "读取测试流拓扑摘要与 suggestedInputs（优先按子流入口 inputDecl，旧图回落首条场景 inSeed 建议父→子 inputs）；子流对外交付见 nodes.<id>.out。无需 graphJson 信封；浏览子流结构优先于 get_flow",
       "parameters": {
         "type": "object",
         "properties": {
@@ -933,8 +933,10 @@
                     },
                     "scope": {
                       "type": "string",
+                      "description": "写入目标：flow（流程变量，默认）或 out（定稿出参，供 http-return / subflow-return 使用）",
                       "enum": [
-                        "flow"
+                        "flow",
+                        "out"
                       ]
                     }
                   }
@@ -1244,7 +1246,7 @@
     "type": "function",
     "function": {
       "name": "submit_scenario_entry_node",
-      "description": "新增或修改 scenario-entry 节点（恰好 1 个 Staging 单元）。必填 op、name；data 可含 doc、scenarios（完整数组，含 envId/inSeed）。场景条目仍可用 submit_scenario 增量维护。",
+      "description": "新增或修改 scenario-entry 节点（恰好 1 个 Staging 单元）。必填 op、name；data 可含 doc、inSeedKeys（入参键提示）、maxSteps、scenarios（完整数组，含 envId/inSeed）。场景条目仍可用 submit_scenario 增量维护。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1266,6 +1268,17 @@
               "doc": {
                 "type": "string",
                 "description": "入口说明"
+              },
+              "inSeedKeys": {
+                "type": "array",
+                "description": "可选：提示各场景 inSeed 宜填的键（[{name,type,required}]），无测值",
+                "items": { "type": "object", "additionalProperties": true }
+              },
+              "maxSteps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "description": "单次 Run 步数上限；缺省 200"
               },
               "scenarios": {
                 "type": "array",
@@ -1289,7 +1302,7 @@
     "type": "function",
     "function": {
       "name": "submit_http_entry_node",
-      "description": "新增或修改 http-entry 节点（开放入站）。必填 op、name、data.method、data.path、data.fallbackOut；可选 envId/doc/inputShape。inputShape 为 body/query/headers 无值字段表；不符时平台 400 不进图。",
+      "description": "新增或修改 http-entry 节点（开放入站）。必填 op、name、data.method、data.path、data.envId、data.fallbackOut；可选 doc/inputShape/maxSteps。inputShape 为 body/query/headers 无值字段表；不符时平台 400 不进图。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1317,10 +1330,16 @@
               },
               "envId": {
                 "type": "string",
-                "description": "开跑环境 id，可空"
+                "description": "开跑环境 id（项目环境 id，必填）"
               },
               "doc": {
                 "type": "string"
+              },
+              "maxSteps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "description": "单次 Run 步数上限；缺省 200"
               },
               "inputShape": {
                 "type": "object",
@@ -1335,7 +1354,7 @@
                 "description": "零次 return 时收束交付；含 status/headers/body"
               }
             },
-            "required": ["method", "path", "fallbackOut"]
+            "required": ["method", "path", "envId", "fallbackOut"]
           },
           "summary": {
             "type": "string"
@@ -1349,7 +1368,7 @@
     "type": "function",
     "function": {
       "name": "submit_subflow_entry_node",
-      "description": "新增或修改 subflow-entry 节点。必填 op、name、data.fallbackOut；可选 doc/inputShape。",
+      "description": "新增或修改 subflow-entry 节点。必填 op、name、data.fallbackOut（业务兜底对象，无 status/headers）；可选 doc/inputDecl/maxSteps。inputDecl 为扁平入参键声明，对齐父 flow 的 subflow.inputs。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1369,17 +1388,20 @@
               "doc": {
                 "type": "string"
               },
-              "inputShape": {
-                "type": "object",
-                "properties": {
-                  "body": { "type": "array", "items": { "type": "object" } },
-                  "query": { "type": "array", "items": { "type": "object" } },
-                  "headers": { "type": "array", "items": { "type": "object" } }
-                }
+              "inputDecl": {
+                "type": "array",
+                "description": "扁平入参键声明（[{name,type,required}]），对齐父 flow 的 subflow.inputs",
+                "items": { "type": "object", "additionalProperties": true }
+              },
+              "maxSteps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "description": "单次 Run 步数上限；缺省 200"
               },
               "fallbackOut": {
                 "type": "object",
-                "description": "零次 return 时挂父 nodes.<子流节点id>.out"
+                "description": "业务兜底对象（无 status/headers）；零次 return 时包成 out.body 挂父 nodes.<子流节点id>.out"
               }
             },
             "required": ["fallbackOut"]

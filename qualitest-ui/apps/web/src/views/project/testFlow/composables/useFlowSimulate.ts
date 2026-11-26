@@ -70,8 +70,17 @@ function applySimulateHighlight(
 function buildNodeNameMap(store: ReturnType<typeof useFlowCanvasStore>) {
   const map = new Map<string, string>();
   store.nodes.forEach((n) => {
-    const name = (n.data as Record<string, unknown> | undefined)?.name;
+    const name = n.name ?? (n.data as Record<string, unknown> | undefined)?.name;
     map.set(n.id, name != null && String(name).trim() ? String(name) : n.id);
+  });
+  return map;
+}
+
+/** 构建节点 id → 类型映射，供路径枚举区分 condition 与隐式扇出 */
+function buildNodeTypeMap(store: ReturnType<typeof useFlowCanvasStore>) {
+  const map = new Map<string, string>();
+  store.nodes.forEach((n) => {
+    if (n.id) map.set(n.id, String(n.type ?? ''));
   });
   return map;
 }
@@ -91,7 +100,12 @@ export function useFlowSimulate() {
     if (!store.nodes.length || store.pendingEdges?.length) return null;
     const check = validateStartNodes({ nodes: store.nodes, edges: store.edges });
     if (!check.ok) return null;
-    return enumerateSimulatePaths(store.edges, check.ids[0], buildNodeNameMap(store)).length;
+    return enumerateSimulatePaths(
+      store.edges,
+      check.ids[0],
+      buildNodeNameMap(store),
+      buildNodeTypeMap(store),
+    ).length;
   });
 
   /** 是否有正在进行的路径模拟会话 */
@@ -185,6 +199,7 @@ export function useFlowSimulate() {
       store.edges,
       startCheck.ids[0],
       buildNodeNameMap(store),
+      buildNodeTypeMap(store),
     );
     if (!paths.length) {
       ElMessage.warning('无可模拟的路径');

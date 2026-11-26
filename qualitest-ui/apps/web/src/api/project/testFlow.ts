@@ -34,6 +34,10 @@ export interface TestFlowRecord {
    */
   graphRevision?: number;
   updateTime?: string;
+  /** 开放 HTTP 路由冲突：列表页标 error 提示，开跑硬拦 */
+  routeConflict?: boolean;
+  /** 冲突说明（含占用方） */
+  routeConflictMessage?: string;
   [key: string]: unknown;
 }
 

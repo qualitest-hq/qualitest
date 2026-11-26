@@ -11,7 +11,7 @@ import java.util.Set;
 /**
  * 节点 data 上布尔开关字段的设计期规则。
  * <p>
- * {@code alwaysRun}：业务失败后是否仍执行本节点；仅允许挂在 http、script、assign、subflow。
+ * {@code alwaysRun}：业务失败后是否仍执行本节点；业务步骤（含 return）允许，入口节点不允许。
  * {@code snapshotBefore}：handler 执行前是否先打被测数据快照；仅允许挂在 http、script、assign。
  * 字段缺省合法；一旦写出则值必须是 JSON 布尔（true/false），字符串或数字视为非法。
  * 写图规范化阶段可将常见脏值收成真正布尔；无法识别的值留给校验报错。
@@ -19,13 +19,23 @@ import java.util.Set;
  */
 public final class GraphNodeBooleanFieldRules {
 
-    /** 允许写出 alwaysRun 的节点 type；集合遍历顺序用于错误文案 */
+    /**
+     * 允许写出 alwaysRun 的节点 type：业务步骤统一允许（失败后继续阶段仍执行），
+     * 入口节点不允许（失败后继续从下游开始，入口无执行意义）。
+     */
     public static final Set<String> ALWAYS_RUN_ALLOWED_TYPES =
             Set.of(
                     FlowNodeType.HTTP.getCode(),
                     FlowNodeType.SCRIPT.getCode(),
                     FlowNodeType.ASSIGN.getCode(),
-                    FlowNodeType.SUBFLOW.getCode());
+                    FlowNodeType.SUBFLOW.getCode(),
+                    FlowNodeType.DELAY.getCode(),
+                    FlowNodeType.ASSERT.getCode(),
+                    FlowNodeType.CONDITION.getCode(),
+                    FlowNodeType.INPUT.getCode(),
+                    FlowNodeType.PLUGIN_ACTION.getCode(),
+                    FlowNodeType.HTTP_RETURN.getCode(),
+                    FlowNodeType.SUBFLOW_RETURN.getCode());
 
     /** 允许写出 snapshotBefore 的节点 type；集合遍历顺序用于错误文案 */
     public static final Set<String> SNAPSHOT_BEFORE_ALLOWED_TYPES =

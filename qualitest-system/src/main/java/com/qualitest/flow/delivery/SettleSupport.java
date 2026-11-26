@@ -7,6 +7,7 @@ import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.validate.FlowNodeType;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -14,8 +15,8 @@ import java.util.Map;
  * <p>
  * 若本次 Run 已在 {@code http-return} / {@code subflow-return} 交付过，此处不再写。
  * 开放 HTTP / 子流若整次从未执行返回节点，则读取入口节点 {@code data.fallbackOut}
- * （缺失则用 {@link #defaultFallback()}）补交一次，并返回「未执行到返回节点」错误，
- * 使 Outcome 记失败；子流场景下父图仍可读已挂上的兜底 out。
+ * 补交一次（HTTP 走完整 out 包；子流按业务对象包成 {@code {body: …}} 后整包挂父），
+ * 并返回「未执行到返回节点」错误，使 Outcome 记失败；子流场景下父图仍可读已挂上的兜底 out。
  * 场景主图不要求对外交付，本类直接无动作。
  */
 public final class SettleSupport {
@@ -45,28 +46,76 @@ public final class SettleSupport {
         if (!kind.requiresFallbackOut()) {
             return null;
         }
-        OutPayload fallback = resolveFallbackOut(ctx, graph);
-        if (fallback == null) {
-            fallback = defaultFallback();
+        if (kind == EntryKind.HTTP) {
+            OutPayload fallback = resolveFallbackOut(ctx, graph);
+            if (fallback == null) {
+                fallback = defaultFallback();
+            }
+            delivery.deliverHttp(ctx, fallback, false);
+            if (ctx.isDeliveryWriteFailed()) {
+                return StepError.of(FlowErrorCode.TF_DELIVERY_WRITE_FAILED,
+                        "未执行到返回节点，且开放响应写出失败");
+            }
+            return StepError.of(FlowErrorCode.TF_RETURN_MISSING, "未执行到返回节点，已用入口兜底出参交付");
         }
-        delivery.deliver(ctx, fallback, false);
-        if (ctx.isDeliveryWriteFailed()) {
-            return StepError.of(FlowErrorCode.TF_DELIVERY_WRITE_FAILED, "未执行到返回节点，且开放响应写出失败");
-        }
+        // 子流：整包挂父（业务对象规范成 {body: …}；存量完整 out 形照挂）
+        delivery.deliverSubflow(ctx, resolveSubflowFallbackPackage(ctx, graph), false);
         return StepError.of(FlowErrorCode.TF_RETURN_MISSING, "未执行到返回节点，已用入口兜底出参交付");
     }
 
     /**
-     * 从本图入口节点 {@code data.fallbackOut} 读取兜底包；无入口或值不是 Map 则 null。
-     * <p>
+     * 子流兜底出参的挂父形态：
+     * <ul>
+     *   <li>入口 {@code fallbackOut} 是业务对象（无 status/headers/body 完整形）→ {@code {body: <该对象>}}</li>
+     *   <li>存量完整 out 形（含可解析 status + body 键）→ 原样整包挂</li>
+     *   <li>未配置 → {@code {body: {code: NO_RETURN, message: 未执行到返回节点}}}</li>
+     * </ul>
+     */
+    public static Map<String, Object> resolveSubflowFallbackPackage(FlowRunContext ctx, GraphJson graph) {
+        Map<String, Object> raw = rawFallbackMap(ctx, graph);
+        if (raw == null) {
+            return defaultSubflowFallbackPackage();
+        }
+        Map<String, Object> packageMap = new LinkedHashMap<>();
+        if (isFullOutShape(raw)) {
+            packageMap.putAll(raw);
+            return packageMap;
+        }
+        packageMap.put("body", new LinkedHashMap<>(raw));
+        return packageMap;
+    }
+
+    /** 子流图不可用 / 未配置入口兜底时的默认挂父包：{@code {body:{code:NO_RETURN,…}}} */
+    public static Map<String, Object> defaultSubflowFallbackPackage() {
+        Map<String, Object> packageMap = new LinkedHashMap<>();
+        packageMap.put("body", defaultFallbackBody());
+        return packageMap;
+    }
+
+    /**
+     * 从本图入口节点 {@code data.fallbackOut} 读取兜底包，解析成 HTTP 用 {@link OutPayload}。
      * 两种落盘形态：
      * <ul>
      *   <li>完整出参：含 status / headers / body 任一键 → 按完整 OutPayload 解析（HTTP 入口常用）。</li>
-     *   <li>业务对象：不含上述键 → 整包放进 {@code out.body} 再交付（子流入口常用；挂父后可读 out.body）。</li>
+     *   <li>业务对象：不含上述键 → 整包放进 {@code out.body} 再交付。</li>
      * </ul>
      */
-    @SuppressWarnings("unchecked")
     public static OutPayload resolveFallbackOut(FlowRunContext ctx, GraphJson graph) {
+        Map<String, Object> map = rawFallbackMap(ctx, graph);
+        if (map == null) {
+            return null;
+        }
+        if (isFullOutShape(map)) {
+            return OutPayload.fromMap(map);
+        }
+        // 业务对象兜底：整包作为 body，便于父侧读 nodes.<id>.out.body
+        OutPayload p = new OutPayload();
+        p.setBody(new LinkedHashMap<>(map));
+        return p;
+    }
+
+    /** 读入口 {@code data.fallbackOut} 原始 Map；无入口或不是 Map 时 null */
+    private static Map<String, Object> rawFallbackMap(FlowRunContext ctx, GraphJson graph) {
         GraphNode entry = findEntryNode(ctx, graph);
         if (entry == null || entry.getData() == null) {
             return null;
@@ -75,14 +124,13 @@ public final class SettleSupport {
         if (!(raw instanceof Map<?, ?> m)) {
             return null;
         }
-        Map<String, Object> map = (Map<String, Object>) m;
-        if (isFullOutShape(map)) {
-            return OutPayload.fromMap(map);
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> e : m.entrySet()) {
+            if (e.getKey() != null) {
+                map.put(String.valueOf(e.getKey()), e.getValue());
+            }
         }
-        // 业务对象兜底：整包作为 body，便于父侧读 nodes.<id>.out.body
-        OutPayload p = new OutPayload();
-        p.setBody(new java.util.LinkedHashMap<>(map));
-        return p;
+        return map;
     }
 
     /**
@@ -138,9 +186,15 @@ public final class SettleSupport {
         OutPayload p = new OutPayload();
         p.setStatus(500);
         p.getHeaders().put("Content-Type", RunDelivery.DEFAULT_CONTENT_TYPE);
-        p.setBody(Map.of(
-                "code", "NO_RETURN",
-                "message", "未执行到返回节点"));
+        p.setBody(defaultFallbackBody());
         return p;
+    }
+
+    /** 默认兜底业务对象（HTTP 的 body / 子流包进 body 用） */
+    private static Map<String, Object> defaultFallbackBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("code", "NO_RETURN");
+        body.put("message", "未执行到返回节点");
+        return body;
     }
 }

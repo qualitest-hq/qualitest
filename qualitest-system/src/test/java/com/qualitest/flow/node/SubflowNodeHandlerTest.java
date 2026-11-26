@@ -67,7 +67,7 @@ class SubflowNodeHandlerTest {
         testFlowService = mock(ITestFlowService.class);
         parsedGraphCache = mock(ParsedGraphCache.class);
         flowRunReadinessGate = mock(FlowRunReadinessGate.class);
-        when(flowRunReadinessGate.collectBlockingErrors(any(), any())).thenReturn(List.of());
+        when(flowRunReadinessGate.collectBlockingErrors(any(), any(), any())).thenReturn(List.of());
         RunDelivery delivery = new RunDelivery(new InboundSlotRegistry(4));
         flowGraphRunner = new FlowGraphRunner(delivery);
         childRegistry = passingAssignRegistry(delivery);
@@ -269,7 +269,7 @@ class SubflowNodeHandlerTest {
     @DisplayName("子流：图未就绪则硬拦不进 runner")
     void execute_childGraphNotReady_failsWithoutRunning() {
         FlowGraphRunner runnerSpy = org.mockito.Mockito.spy(flowGraphRunner);
-        when(flowRunReadinessGate.collectBlockingErrors(any(), any()))
+        when(flowRunReadinessGate.collectBlockingErrors(any(), any(), any()))
                 .thenReturn(List.of("子流入口须配置 fallbackOut"));
         handler = new SubflowNodeHandler(
                 testFlowService, parsedGraphCache, runnerSpy, flowRunReadinessGate, childRegistry);
@@ -289,6 +289,10 @@ class SubflowNodeHandlerTest {
         List<Map<String, Object>> childSteps = (List<Map<String, Object>>) result.getSubflow().get("childSteps");
         assertTrue(childSteps == null || childSteps.isEmpty());
         verify(runnerSpy, never()).run(any(), any(), any());
+        // 被拦也要给父一个兜底包，父侧读 nodes.<id>.out 不会凭空为空
+        Map<String, Object> mounted = parentCtx.getNodeOut(node.getId());
+        assertNotNull(mounted);
+        assertTrue(mounted.containsKey("body"));
     }
 
     private static NodeHandlerRegistry passingAssignRegistry(RunDelivery delivery) {

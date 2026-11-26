@@ -124,6 +124,21 @@ public class TestFlowRun extends BaseEntity {
     private String triggerType;
 
     /**
+     * 本次 Run 入口种类：scenario / subflow / http / 协议短名
+     */
+    private String entryKind;
+
+    /**
+     * 本次 Run 入口节点 id
+     */
+    private String entryNodeId;
+
+    /**
+     * 定稿出参（out）摘要，JSON 文本
+     */
+    private String outSummary;
+
+    /**
      * 删除状态（0正常 1删除）
      */
     private Integer delStatus;

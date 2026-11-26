@@ -9,9 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
   collectHttpRoutePeerCollisionErrors,
   collectHttpRouteSelfCollisionErrors,
-  DEFERRED_MULTI_START_WARNING,
-  DEFERRED_NO_START_WARNING,
-  rewriteStartNodeErrorForPendingEdges,
+  normalizeOpenHttpPath,
   validateGraphJson,
   validateStartNodes,
 } from '@/utils/flow/graphValidate';
@@ -28,6 +26,7 @@ import invalidNodeType from '@flow-fixtures/invalid-node-type.json';
 import invalidScriptEmptySource from '@flow-fixtures/invalid-script-empty-source.json';
 import invalidScriptLanguage from '@flow-fixtures/invalid-script-language.json';
 import invalidSubflowMissingId from '@flow-fixtures/invalid-subflow-missing-id.json';
+import dataUiState from '@flow-fixtures/invalid-data-ui-state.json';
 import noStart from '@flow-fixtures/invalid-no-start.json';
 
 function graphWithScenarioEntry<T extends { nodes?: unknown[]; meta?: unknown }>(graph: T): T {
@@ -56,6 +55,84 @@ function graphWithScenarioEntry<T extends { nodes?: unknown[]; meta?: unknown }>
   };
 }
 
+/** 混合入口图：场景/子流入口共用登录链；guarded 决定末端 subflow-return 是否用 entryKind 守卫 */
+function mixedEntryGraph(guarded: boolean) {
+  const tailNodes = guarded
+    ? [
+        {
+          id: 'guard',
+          type: 'condition',
+          name: '按入口分流',
+          position: { x: 400, y: 0 },
+          data: {
+            branches: [
+              {
+                id: 'b_sub',
+                kind: 'if',
+                target: 'ret',
+                conditions: [{ left: 'run.entryKind', operator: 'eq', right: 'subflow' }],
+              },
+              { id: 'b_else', kind: 'else' },
+            ],
+          },
+        },
+        {
+          id: 'ret',
+          type: 'subflow-return',
+          name: '返回父流',
+          position: { x: 600, y: 0 },
+          data: { from: 'flow.out' },
+        },
+      ]
+    : [
+        {
+          id: 'ret',
+          type: 'subflow-return',
+          name: '返回父流',
+          position: { x: 600, y: 0 },
+          data: { from: 'flow.out' },
+        },
+      ];
+  const tailEdges = guarded
+    ? [
+        { id: 'e3', source: 'chain', target: 'guard' },
+        { id: 'e4', source: 'guard', target: 'ret' },
+      ]
+    : [{ id: 'e3', source: 'chain', target: 'ret' }];
+  return {
+    meta: { schemaVersion: 2 },
+    nodes: [
+      {
+        id: 'se',
+        type: 'scenario-entry',
+        name: '场景入口',
+        position: { x: 0, y: 0 },
+        data: { scenarios: [{ id: 's1', name: '默认', envId: '', inSeed: {} }] },
+      },
+      {
+        id: 'fe',
+        type: 'subflow-entry',
+        name: '子流入口',
+        position: { x: 0, y: 120 },
+        data: { fallbackOut: { code: 'NO_RETURN', message: '未执行到返回节点' } },
+      },
+      {
+        id: 'chain',
+        type: 'http',
+        name: '登录',
+        position: { x: 200, y: 0 },
+        data: { callMode: 'external', externalUrl: 'https://e.example/login', httpMethod: 'POST' },
+      },
+      ...tailNodes,
+    ],
+    edges: [
+      { id: 'e1', source: 'se', target: 'chain' },
+      { id: 'e2', source: 'fe', target: 'chain' },
+      ...tailEdges,
+    ],
+  };
+}
+
 const fixtureMap: Record<string, unknown> = {
   'demo-graph.json': demoGraph,
   'invalid-multi-start.json': multiStart,
@@ -68,6 +145,7 @@ const fixtureMap: Record<string, unknown> = {
   'invalid-script-empty-source.json': invalidScriptEmptySource,
   'invalid-http-missing-callmode.json': invalidHttpMissingCallmode,
   'invalid-subflow-missing-id.json': invalidSubflowMissingId,
+  'invalid-data-ui-state.json': dataUiState,
 };
 
 describe('validateGraphJson', () => {
@@ -132,27 +210,14 @@ describe('validateGraphJson', () => {
     expect(result.errors.filter((e) => /开始节点|无入边|入口须/.test(e))).toHaveLength(0);
   });
 
-  /** O7：Staging 延后拓扑时多开始降为警告 */
-  it('deferTopologyStructureRules 时多开始进 warnings 不硬拦', () => {
+  /** Staging 延后拓扑时不校验开始节点 */
+  it('deferTopologyStructureRules 时暂不校验开始节点', () => {
+    // 前提：multi-start 在多入口/半成品阶段，拓扑规则延后
+    // 期望：ok 为 true，errors 与 warnings 均为空
     const result = validateGraphJson(multiStart, { deferTopologyStructureRules: true });
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
-    expect(result.warnings).toContain(DEFERRED_MULTI_START_WARNING);
-  });
-
-  it('rewriteStartNodeErrorForPendingEdges 改写多开始/无开始文案', () => {
-    expect(
-      rewriteStartNodeErrorForPendingEdges('流程只能有一个开始节点，当前有 2 个：A、B'),
-    ).toBe(DEFERRED_MULTI_START_WARNING);
-    expect(
-      rewriteStartNodeErrorForPendingEdges(
-        '存在非入口的无入边节点：业务接口 A（有入口时仅入口可作开始）',
-      ),
-    ).toBe(DEFERRED_MULTI_START_WARNING);
-    expect(rewriteStartNodeErrorForPendingEdges('未找到开始节点（每个节点都有入边）')).toBe(
-      DEFERRED_NO_START_WARNING,
-    );
-    expect(rewriteStartNodeErrorForPendingEdges('其它错误')).toBe('其它错误');
+    expect(result.warnings).toHaveLength(0);
   });
 
   /** HTTP 未绑定接口时，结构校验不再产生 testProjectApiId warning */
@@ -188,14 +253,14 @@ describe('validateGraphJson', () => {
     expect(result.errors[0]).toContain('language');
   });
 
-  /** script 节点 source 为空时产生 warning */
-  it('script 节点 source 为空时产生 warning', () => {
-    // 前提：script 节点 source 为空
-    // 期望：ok 为 true，warning 含 source
+  /** script 节点 source 为空不再提示 */
+  it('script 节点 source 为空不产生异常/提示', () => {
+    // 前提：script 节点 source 为空（空脚本可执行，属允许）
+    // 期望：ok 为 true，errors 与 warnings 均为空
     const result = validateGraphJson(invalidScriptEmptySource);
     expect(result.ok).toBe(true);
-    expect(result.warnings).toHaveLength(1);
-    expect(result.warnings[0]).toContain('source');
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
   });
 
   /** HTTP 节点缺少 callMode 时产生 error */
@@ -309,9 +374,9 @@ describe('validateGraphJson', () => {
     expect(result.warnings).toHaveLength(spec.expectWarnings);
   });
 
-  it('manifest：script 节点 source 为空，errors=0 warnings=1', () => {
-    // 前提：manifest script-empty-source fixture
-    // 期望：errors=0，warnings=1
+  it('manifest：script 节点 source 为空，errors=0 warnings=0', () => {
+    // 前提：manifest script-empty-source fixture（空脚本属允许）
+    // 期望：errors=0，warnings=0
     const spec = graphValidateCases.cases.find((x) => x.id === 'script-empty-source')!;
     const raw = fixtureMap[spec.fixture];
     const result = validateGraphJson(raw);
@@ -377,6 +442,162 @@ describe('validateGraphJson', () => {
     ).toBe(true);
   });
 
+  it('assign scope 只允许 flow / out，其余值报画布异常', () => {
+    // 前提：同一 assign 节点四条赋值：缺省、out、大写 OUT、非法 env
+    // 期望：只对 env 报 scope 错误；缺省与大小写变体不报
+    const result = validateGraphJson(
+      graphWithScenarioEntry({
+        edges: [{ id: 'e0', source: 'entry', target: 'as' }],
+        nodes: [
+          {
+            id: 'as',
+            type: 'assign',
+            name: '组出参',
+            position: { x: 0, y: 0 },
+            data: {
+              assignments: [
+                { name: 'a', op: 'set', value: 1 },
+                { name: 'status', op: 'set', value: 200, scope: 'out' },
+                { name: 'body', op: 'set', value: { ok: true }, scope: ' OUT ' },
+                { name: 'b', op: 'set', value: 2, scope: 'env' },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const scopeErrors = result.errors.filter((e) => e.includes('scope 只能是 flow 或 out'));
+    expect(scopeErrors).toHaveLength(1);
+    expect(scopeErrors[0]).toContain('assignments[3]');
+  });
+
+  it('子流入口旧 inputShape 报错', () => {
+    // 前提：subflow-entry 仍带旧三节 inputShape，fallbackOut 已是业务对象
+    // 期望：errors 提示须改用 inputDecl
+    const result = validateGraphJson({
+      meta: {},
+      edges: [],
+      nodes: [
+        {
+          id: 'se',
+          type: 'subflow-entry',
+          name: '子流入口',
+          position: { x: 0, y: 0 },
+          data: {
+            inputShape: {
+              body: [{ name: 'username', type: 'string', required: true }],
+              query: [],
+              headers: [],
+            },
+            fallbackOut: { code: 'NO_RETURN', message: '未执行到返回节点' },
+          },
+        },
+      ],
+    });
+    expect(result.errors.some((e) => e.includes('inputDecl'))).toBe(true);
+  });
+
+  it('data 含画布 UI 状态字段报错', () => {
+    // 前提：assign 节点 data 混入 selected
+    // 期望：errors 提示 data 不得承载画布 UI 状态字段
+    const result = validateGraphJson({
+      meta: {},
+      edges: [],
+      nodes: [
+        {
+          id: 'a1',
+          type: 'assign',
+          name: '赋值',
+          position: { x: 0, y: 0 },
+          data: { assignments: [{ name: 'x', op: 'set', value: 1 }], selected: true },
+        },
+      ],
+    });
+    expect(result.errors.some((e) => e.includes('UI 状态字段') && e.includes('selected'))).toBe(true);
+  });
+
+  it('inputShape 的 query 不允许 children', () => {
+    // 前提：HTTP 入口 inputShape.query 的字段带 children
+    // 期望：报 query 须扁平、不允许 children
+    const result = validateGraphJson({
+      meta: {},
+      edges: [],
+      nodes: [
+        {
+          id: 'e1',
+          type: 'http-entry',
+          name: '入站',
+          position: { x: 0, y: 0 },
+          data: {
+            method: 'POST',
+            path: '/x',
+            envId: '1',
+            fallbackOut: { status: 500, headers: {}, body: {} },
+            inputShape: { query: [{ name: 'q', children: [] }] },
+          },
+        },
+      ],
+    });
+    expect(
+      result.errors.some((e) => e.includes('inputShape.query') && e.includes('不允许 children')),
+    ).toBe(true);
+  });
+
+  it('HTTP 入口返回节点之后出现 Input 报错', () => {
+    // 前提：http-entry → http-return → input
+    // 期望：报响应已交付后无法暂停续跑
+    const result = validateGraphJson({
+      meta: {},
+      nodes: [
+        {
+          id: 'e1',
+          type: 'http-entry',
+          name: '入站',
+          position: { x: 0, y: 0 },
+          data: {
+            method: 'POST',
+            path: '/x',
+            envId: '1',
+            fallbackOut: { status: 500, headers: {}, body: {} },
+          },
+        },
+        {
+          id: 'r1',
+          type: 'http-return',
+          name: '回包',
+          position: { x: 200, y: 0 },
+          data: { from: 'flow.out', status: 200 },
+        },
+        {
+          id: 'i1',
+          type: 'input',
+          name: '填码',
+          position: { x: 400, y: 0 },
+          data: { fields: [{ name: 'code', type: 'text' }] },
+        },
+      ],
+      edges: [
+        { id: 'ed1', source: 'e1', target: 'r1' },
+        { id: 'ed2', source: 'r1', target: 'i1' },
+      ],
+    });
+    expect(result.errors.some((e) => e.includes('返回节点之后又出现 Input'))).toBe(true);
+  });
+
+  it('场景可达返回被 run.entryKind 守卫时放行，未守卫则报错', () => {
+    // 前提：场景/子流入口共用登录链，末端 subflow-return 分别带守卫 IF / 不带
+    // 期望：带守卫无「场景入口可达子图不支持返回节点」；不带守卫报该错误
+    const guarded = validateGraphJson(mixedEntryGraph(true));
+    expect(
+      guarded.errors.some((e) => e.includes('场景入口可达子图不支持返回节点')),
+    ).toBe(false);
+
+    const unguarded = validateGraphJson(mixedEntryGraph(false));
+    expect(
+      unguarded.errors.some((e) => e.includes('场景入口可达子图不支持返回节点')),
+    ).toBe(true);
+  });
+
   it('condition 无 target 不警告；有 target 无出边仍警告', () => {
     const endOk = validateGraphJson(
       graphWithScenarioEntry({
@@ -433,7 +654,7 @@ describe('validateGraphJson', () => {
       ],
     }),
     );
-    expect(dangling.warnings.some((w) => w.includes('无对应出边'))).toBe(true);
+    expect(dangling.errors.some((w) => w.includes('无对应出边'))).toBe(true);
   });
 
   it('边含 sourceHandle 字段时报错', () => {
@@ -506,36 +727,28 @@ describe('validateGraphJson', () => {
   });
 
   it('alwaysRun / snapshotBefore 挂在非法节点类型报错', () => {
-    // 前提：assert 带 alwaysRun；delay 带 snapshotBefore
+    // 前提：入口节点带 alwaysRun；delay 带 snapshotBefore
     // 期望：分别报不允许设置
-    const assertBad = validateGraphJson({
+    const entryBad = validateGraphJson({
       nodes: [
         {
-          id: '1',
-          type: 'http',
+          id: 'e1',
+          type: 'http-entry',
+          name: '入站',
           position: { x: 0, y: 0 },
           data: {
-            name: 'h',
-            callMode: 'external',
-            externalUrl: 'https://e.example/a',
-            httpMethod: 'GET',
-          },
-        },
-        {
-          id: '2',
-          type: 'assert',
-          position: { x: 100, y: 0 },
-          data: {
-            name: 'a',
+            method: 'POST',
+            path: '/x',
+            envId: '1',
+            fallbackOut: { status: 500, headers: {}, body: {} },
             alwaysRun: true,
-            rules: [{ left: 'http.body.code', operator: 'eq', right: '0' }],
           },
         },
       ],
-      edges: [{ id: 'e1', source: '1', target: '2' }],
-      meta: { scenarios: [{ id: 's1', name: '默认' }] },
+      edges: [],
+      meta: {},
     });
-    expect(assertBad.errors.some((e) => e.includes('alwaysRun') && e.includes('不允许设置'))).toBe(true);
+    expect(entryBad.errors.some((e) => e.includes('alwaysRun') && e.includes('不允许设置'))).toBe(true);
 
     const delayBad = validateGraphJson({
       nodes: [
@@ -725,6 +938,31 @@ describe('validateStartNodes', () => {
     const full = validateGraphJson({ nodes, edges: [] });
     expect(full.ok).toBe(false);
     expect(full.errors.some((e) => e.includes('开放 HTTP 入口冲突'))).toBe(true);
+  });
+
+  it('路由规范化：连续斜杠与 query 视为同一键', () => {
+    // 前提：path 写成 /a//b/ 与 /x?a=1
+    // 期望：规范化折叠斜杠、剥 query；/a//b/ 与 /a/b 判为同键冲突
+    expect(normalizeOpenHttpPath('/a//b/')).toBe('/a/b');
+    expect(normalizeOpenHttpPath('/x?a=1')).toBe('/x');
+
+    const makeEntry = (id: string, path: string) => ({
+      id,
+      type: 'http-entry',
+      name: `入口${id}`,
+      position: { x: 0, y: 0 },
+      data: {
+        method: 'POST',
+        path,
+        envId: '1',
+        fallbackOut: { status: 500, headers: {}, body: {} },
+      },
+    });
+    const errors = collectHttpRouteSelfCollisionErrors([
+      makeEntry('a', '/a//b/'),
+      makeEntry('b', '/a/b'),
+    ] as never);
+    expect(errors.some((e) => e.includes('开放 HTTP 入口冲突') && e.includes('POST /a/b'))).toBe(true);
   });
 
   it('跨流 method+path 占用可预检', () => {

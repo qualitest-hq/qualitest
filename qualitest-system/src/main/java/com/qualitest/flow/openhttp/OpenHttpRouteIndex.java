@@ -19,7 +19,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,8 +47,20 @@ public class OpenHttpRouteIndex {
 
     private Runnable unsubscribe;
 
-    /** 单项目路由快照：查找用去歧义索引 + 门禁用全量 peers */
-    record ProjectRoutes(Map<String, RouteRef> byKey, List<OpenHttpRouteCollisionGate.PeerRoute> peers) {}
+    /** 单项目路由快照：查找用去歧义索引 + 门禁用全量 peers + 冲突键（同流/跨流都算） */
+    record ProjectRoutes(Map<String, RouteRef> byKey,
+                         List<OpenHttpRouteCollisionGate.PeerRoute> peers,
+                         Set<String> ambiguousKeys) {}
+
+    /**
+     * 冲突分组（只读预检/端点用）：同一条规范化 method+path 的全部占用入口。
+     */
+    public record AmbiguousRoute(
+            String key,
+            String method,
+            String path,
+            String reason,
+            List<OpenHttpRouteCollisionGate.PeerRoute> entries) {}
 
     public OpenHttpRouteIndex(TestFlowMapper testFlowMapper,
                               ParsedGraphCache parsedGraphCache,
@@ -190,24 +201,87 @@ public class OpenHttpRouteIndex {
                         continue;
                     }
                     RouteRef previous = byKey.putIfAbsent(key, ref);
-                    if (previous != null && !Objects.equals(previous.testFlowId(), ref.testFlowId())) {
+                    if (previous != null) {
+                        // 同流内重复也算冲突：不做「先注册先赢」，入站统一 404
                         byKey.remove(key);
                         ambiguousKeys.add(key);
                         log.warn(
-                                "开放 HTTP 路由双活：项目 {} 的 {} 同时被流 {} 与 {} 占用，入站暂不命中",
+                                "开放 HTTP 路由冲突：项目 {} 的 {} 同时被流 {} 节点 {} 与流 {} 节点 {} 占用，入站 404",
                                 testProjectId,
                                 key,
                                 previous.testFlowId(),
-                                ref.testFlowId());
+                                previous.entryNodeId(),
+                                ref.testFlowId(),
+                                ref.entryNodeId());
                     }
                 }
                 // 重建时顺带温热图缓存，避免随后 find 再 parse
                 parsedGraphCache.put(flow.getTestFlowId(), flow.getTestProjectId(), rev, graph);
             }
         }
-        ProjectRoutes snapshot = new ProjectRoutes(Map.copyOf(byKey), List.copyOf(peers));
+        ProjectRoutes snapshot = new ProjectRoutes(
+                Map.copyOf(byKey), List.copyOf(peers), Set.copyOf(ambiguousKeys));
         byProject.put(testProjectId, snapshot);
         return snapshot;
+    }
+
+    /**
+     * 只读预检：返回该项目下规范化后占用冲突的 {@code method path} 键（含同流内重复）。
+     * 用于收紧路由规范化前先看「哪些存量入口会变成冲突」。
+     */
+    public List<String> findAmbiguousRouteKeys(Long testProjectId) {
+        if (testProjectId == null) {
+            return List.of();
+        }
+        ProjectRoutes routes = byProject.get(testProjectId);
+        if (routes == null) {
+            routes = rebuild(testProjectId);
+        }
+        return routes.ambiguousKeys().stream().sorted().toList();
+    }
+
+    /**
+     * 只读预检：按规范化 method+path 分组返回冲突，带冲突双方入口与同流/跨流原因。
+     * 供「路由冲突」只读端点/页面与部署前排障使用；不写库、不加锁。
+     */
+    public List<AmbiguousRoute> findAmbiguousRoutes(Long testProjectId) {
+        if (testProjectId == null) {
+            return List.of();
+        }
+        ProjectRoutes routes = byProject.get(testProjectId);
+        if (routes == null) {
+            routes = rebuild(testProjectId);
+        }
+        if (routes.ambiguousKeys().isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<OpenHttpRouteCollisionGate.PeerRoute>> grouped = new LinkedHashMap<>();
+        for (OpenHttpRouteCollisionGate.PeerRoute peer : routes.peers()) {
+            if (peer == null) {
+                continue;
+            }
+            String key = routeKey(peer.method(), peer.path());
+            if (!routes.ambiguousKeys().contains(key)) {
+                continue;
+            }
+            grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(peer);
+        }
+        List<AmbiguousRoute> conflicts = new ArrayList<>();
+        grouped.forEach((key, entries) -> {
+            OpenHttpRouteCollisionGate.PeerRoute first = entries.get(0);
+            boolean sameFlow = entries.stream()
+                    .map(OpenHttpRouteCollisionGate.PeerRoute::testFlowId)
+                    .distinct()
+                    .count() <= 1;
+            conflicts.add(new AmbiguousRoute(
+                    key,
+                    first.method(),
+                    first.path(),
+                    sameFlow ? "sameFlow" : "crossFlow",
+                    List.copyOf(entries)));
+        });
+        conflicts.sort((a, b) -> a.key().compareTo(b.key()));
+        return conflicts;
     }
 
     private void onExternalChange(FlowExternalChangeEvent event) {

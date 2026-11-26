@@ -151,7 +151,8 @@ export function useFlowBatchRun() {
             entryNodeId: row.entryNodeId,
             runScenarioId: row.runScenarioId,
             testProjectEnvId: envId,
-            triggerType: 'ui',
+            // 套件串跑：run.trigger 落 suite，与画布人手点跑（ui）区分
+            triggerType: 'suite',
           })
           if (abortRequested) {
             row.status = 'skipped'

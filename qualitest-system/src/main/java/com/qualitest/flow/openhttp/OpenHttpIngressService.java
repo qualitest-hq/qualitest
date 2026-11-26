@@ -112,6 +112,9 @@ public class OpenHttpIngressService {
 
     /**
      * 受理一次开放入站，立即返回 DeferredResult；实际响应在 return/收束时写入。
+     * <p>
+     * 占到入站名额之后、线程池接手之前的准备失败（环境/素材查询、Run 落库等）
+     * 一律释放名额并返回 502 平台错包，避免名额泄漏把后续入站全部挤成 503。
      *
      * @param testProjectId 路径上的项目 id
      * @param method        HTTP 方法
@@ -145,7 +148,8 @@ public class OpenHttpIngressService {
         }
 
         GraphJson graph = route.graph();
-        List<String> readinessErrors = flowRunReadinessGate.collectBlockingErrors(graph, testProjectId);
+        List<String> readinessErrors = flowRunReadinessGate.collectBlockingErrors(
+                graph, testProjectId, route.testFlowId());
         if (readinessErrors != null && !readinessErrors.isEmpty()) {
             deferred.setResult(platformError(
                     HttpStatus.BAD_REQUEST,
@@ -164,90 +168,119 @@ public class OpenHttpIngressService {
         deferred.onTimeout(sink::markDisconnected);
         deferred.onError(t -> sink.markDisconnected());
 
-        TestProjectEnv env = route.envId() != null
-                ? testProjectEnvService.selectTestProjectEnvById(route.envId())
-                : null;
-        String assetJson = testProjectMapper.selectAssetVariablesByTestProjectId(testProjectId);
-        TestProject project = testProjectMapper.selectTestProjectById(testProjectId);
+        Date startedAt = DateUtils.getNowDate();
+        FlowRunContext ctx;
+        Long runId;
+        try {
+            TestProjectEnv env = route.envId() != null
+                    ? testProjectEnvService.selectTestProjectEnvById(route.envId())
+                    : null;
+            String assetJson = testProjectMapper.selectAssetVariablesByTestProjectId(testProjectId);
+            TestProject project = testProjectMapper.selectTestProjectById(testProjectId);
 
-        Map<String, Object> in = new LinkedHashMap<>();
-        if (query != null) {
-            in.put("query", query);
-        }
-        if (headers != null) {
-            in.put("headers", new HashMap<>(headers));
-        }
-        in.put("body", body);
-
-        Long runId = IdUtil.getSnowflakeNextId();
-        Date now = DateUtils.getNowDate();
-        String snapshotJson = graph.toJsonString();
-        TestFlowRun run = TestFlowRun.builder()
-                .testFlowRunId(runId)
-                .testFlowId(route.testFlowId())
-                .testProjectEnvId(route.envId())
-                .status(RunStatus.RUNNING.getCode())
-                .graphJsonSnapshot(snapshotJson)
-                .graphFingerprint(StepResultWriter.fingerprint(snapshotJson))
-                .startedAt(now)
-                .triggerType(RunTrigger.HTTP.getCode())
-                .delStatus(0)
-                .build();
-        run.setCreateTime(now);
-        testFlowRunService.insertTestFlowRun(run);
-
-        FlowRunContext ctx = FlowRunContextBuilder.build(env, assetJson, null, testProjectId, true);
-        ctx.setIn(in);
-        ctx.setEntryKind(EntryKind.HTTP.getCode());
-        ctx.setEntryNodeId(route.entryNodeId());
-        ctx.setTrigger(RunTrigger.HTTP.getCode());
-        if (route.envId() != null) {
-            ctx.setTestProjectEnvId(route.envId());
-        }
-        ctx.setTestFlowRunId(runId);
-        ctx.setDeliverySink(sink);
-        ctx.setInboundSlotToken(slot);
-        if (project != null) {
-            ctx.setProjectAuthConfig(project.getAuthConfig());
-        }
-
-        runPool.execute(() -> {
-            long runT0 = System.currentTimeMillis();
-            AtomicLong stepIndex = new AtomicLong(1L);
-            try {
-                RunSnapshotPolicy policy = EntryRunPolicySupport.compose(
-                        graph, route.entryNodeId(), null);
-                FlowGraphRunner.Outcome outcome = flowGraphRunner.run(
-                        graph, ctx, nodeHandlerRegistry,
-                        FlowNodePreExecuteHook.NONE, RunContinuation.fresh(), policy,
-                        result -> persistStep(runId, stepIndex.getAndIncrement(), result));
-
-                if (outcome != null && outcome.isPaused() && !ctx.isDelivered()) {
-                    completeUndelivered(sink, ctx, slot, 503, "OPEN_AWAIT_INPUT",
-                            "开放入站遇到人工输入，暂不可自动完成");
-                    finishRun(runId, now, runT0, ctx, false,
-                            FlowErrorCode.TF_AWAIT_INPUT.getCode(), "开放入站遇到人工输入");
-                    return;
-                }
-
-                boolean passed = outcome != null && outcome.isPassed();
-                String errorCode = null;
-                String errorMessage = null;
-                if (!passed && outcome != null && outcome.getError() != null) {
-                    errorCode = outcome.getError().getCode();
-                    errorMessage = outcome.getError().getMessage();
-                }
-                finishRun(runId, now, runT0, ctx, passed, errorCode, errorMessage);
-            } catch (Exception e) {
-                String msg = e.getMessage() != null ? e.getMessage() : "开放入站跑图异常";
-                if (!ctx.isDelivered()) {
-                    completeUndelivered(sink, ctx, slot, 502, "OPEN_RUN_ERROR", msg);
-                }
-                finishRun(runId, now, runT0, ctx, false, FlowErrorCode.TF_STEP_ERROR.getCode(), msg);
-            } finally {
-                releaseInboundSlotIfHeld(ctx);
+            Map<String, Object> in = new LinkedHashMap<>();
+            if (query != null) {
+                in.put("query", query);
             }
-        });
+            if (headers != null) {
+                in.put("headers", new HashMap<>(headers));
+            }
+            in.put("body", body);
+
+            runId = IdUtil.getSnowflakeNextId();
+            ctx = FlowRunContextBuilder.build(env, assetJson, null, testProjectId, true);
+            ctx.setIn(in);
+            ctx.setEntryKind(EntryKind.HTTP.getCode());
+            ctx.setEntryNodeId(route.entryNodeId());
+            ctx.setTrigger(RunTrigger.HTTP.getCode());
+            if (route.envId() != null) {
+                ctx.setTestProjectEnvId(route.envId());
+            }
+            ctx.setTestFlowRunId(runId);
+            ctx.setDeliverySink(sink);
+            ctx.setInboundSlotToken(slot);
+            if (project != null) {
+                ctx.setProjectAuthConfig(project.getAuthConfig());
+            }
+
+            // 落库放最后：此前的准备失败不会留下 RUNNING 幽灵行
+            String snapshotJson = graph.toJsonString();
+            TestFlowRun run = TestFlowRun.builder()
+                    .testFlowRunId(runId)
+                    .testFlowId(route.testFlowId())
+                    .testProjectEnvId(route.envId())
+                    .status(RunStatus.RUNNING.getCode())
+                    .graphJsonSnapshot(snapshotJson)
+                    .graphFingerprint(StepResultWriter.fingerprint(snapshotJson))
+                    .startedAt(startedAt)
+                    .triggerType(RunTrigger.HTTP.getCode())
+                    .delStatus(0)
+                    .build();
+            run.setCreateTime(startedAt);
+            testFlowRunService.insertTestFlowRun(run);
+        } catch (Exception e) {
+            // 占位之后、开跑之前的任何失败都须交回名额，否则会逐步打满入站上限
+            inboundSlotRegistry.release(slot);
+            deferred.setResult(platformError(
+                    HttpStatus.BAD_GATEWAY,
+                    "OPEN_RUN_ERROR",
+                    e.getMessage() != null ? e.getMessage() : "开放入站准备失败"));
+            return deferred;
+        }
+
+        try {
+            runPool.execute(() -> {
+                long runT0 = System.currentTimeMillis();
+                AtomicLong stepIndex = new AtomicLong(1L);
+                try {
+                    RunSnapshotPolicy policy = EntryRunPolicySupport.compose(
+                            graph, route.entryNodeId(), null);
+                    FlowGraphRunner.Outcome outcome = flowGraphRunner.run(
+                            graph, ctx, nodeHandlerRegistry,
+                            FlowNodePreExecuteHook.NONE, RunContinuation.fresh(), policy,
+                            result -> persistStep(runId, stepIndex.getAndIncrement(), result));
+
+                    if (outcome != null && outcome.isPaused() && !ctx.isDelivered()) {
+                        completeUndelivered(sink, ctx, slot, 503, "OPEN_AWAIT_INPUT",
+                                "开放入站遇到人工输入，暂不可自动完成");
+                        finishRun(runId, startedAt, runT0, ctx, false,
+                                FlowErrorCode.TF_AWAIT_INPUT.getCode(), "开放入站遇到人工输入");
+                        return;
+                    }
+                    if (outcome != null && outcome.isPaused()) {
+                        // 响应已交付：连接已写完，无法再暂停等待人工输入；明确记失败并留可读原因
+                        finishRun(runId, startedAt, runT0, ctx, false,
+                                FlowErrorCode.TF_AWAIT_INPUT.getCode(),
+                                "响应已交付后遇到人工输入，开放入站不再续跑");
+                        return;
+                    }
+
+                    boolean passed = outcome != null && outcome.isPassed();
+                    String errorCode = null;
+                    String errorMessage = null;
+                    if (!passed && outcome != null && outcome.getError() != null) {
+                        errorCode = outcome.getError().getCode();
+                        errorMessage = outcome.getError().getMessage();
+                    }
+                    finishRun(runId, startedAt, runT0, ctx, passed, errorCode, errorMessage);
+                } catch (Exception e) {
+                    String msg = e.getMessage() != null ? e.getMessage() : "开放入站跑图异常";
+                    if (!ctx.isDelivered()) {
+                        completeUndelivered(sink, ctx, slot, 502, "OPEN_RUN_ERROR", msg);
+                    }
+                    finishRun(runId, startedAt, runT0, ctx, false, FlowErrorCode.TF_STEP_ERROR.getCode(), msg);
+                } finally {
+                    releaseInboundSlotIfHeld(ctx);
+                }
+            });
+        } catch (Exception e) {
+            // 线程池拒绝：Run 行已落库，收尾为失败并交回名额
+            String msg = e.getMessage() != null ? e.getMessage() : "开放入站提交执行失败";
+            releaseInboundSlotIfHeld(ctx);
+            finishRun(runId, startedAt, System.currentTimeMillis(), ctx, false,
+                    FlowErrorCode.TF_STEP_ERROR.getCode(), msg);
+            deferred.setResult(platformError(HttpStatus.BAD_GATEWAY, "OPEN_RUN_ERROR", msg));
+        }
         return deferred;
     }
 

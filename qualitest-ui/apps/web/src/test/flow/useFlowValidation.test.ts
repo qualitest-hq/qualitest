@@ -5,7 +5,6 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { DEFERRED_MULTI_START_WARNING } from '@/utils/flow/graphValidate';
 import { withFreshPinia } from '@/test/helpers/pinia';
 import {
   resetFlowValidationForTests,
@@ -22,7 +21,7 @@ describe('useFlowValidation', () => {
 
   it('最后一条 Staging 边确认后，不再误报多个开始节点', () => {
     // 前提：登录子流 → 查购物车 → 断言，第二条边仍是待确认的 Staging 新增
-    // 期望：待确认时只有延后提示；确认后无开始节点错误
+    // 期望：待确认与确认后都不出现开始节点类问题（半成品阶段不提示，确认后按完整规则判）
     const canvas = useFlowCanvasStore();
     const staging = useAiStagingStore();
     const runConfig = {
@@ -57,7 +56,7 @@ describe('useFlowValidation', () => {
     const { issues } = useFlowValidation();
     const startIssues = () => issues.value.filter((i) => i.message.includes('开始节点'));
 
-    expect(startIssues().map((i) => i.message)).toEqual([DEFERRED_MULTI_START_WARNING]);
+    expect(startIssues()).toEqual([]);
 
     staging.markConfirmed('addEdge:e2');
 

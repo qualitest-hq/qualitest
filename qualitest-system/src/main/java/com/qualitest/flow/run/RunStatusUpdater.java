@@ -83,6 +83,12 @@ public class RunStatusUpdater {
         update.setFinishedAt(finishedAt);
         update.setDurationMs(Math.max(0, System.currentTimeMillis() - runT0));
         update.setFlowSnapshot(com.alibaba.fastjson2.JSON.toJSONString(ctx.getFlow()));
+        // 入口与定稿出参摘要：报告/详情可回溯「从哪个入口进、回了什么」
+        update.setEntryKind(ctx != null ? ctx.getEntryKind() : null);
+        update.setEntryNodeId(ctx != null ? ctx.getEntryNodeId() : null);
+        update.setOutSummary(ctx != null && ctx.getOut() != null && !ctx.getOut().isEmpty()
+                ? com.alibaba.fastjson2.JSON.toJSONString(ctx.getOut())
+                : null);
         update.setErrorCode(errorCode);
         update.setErrorMessage(errorMessage);
         update.setClearExecutionState(true);

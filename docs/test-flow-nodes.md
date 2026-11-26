@@ -127,7 +127,7 @@
 }
 ```
 
-不在入口上做平台鉴权 / 自动 401、不选手填响应 Content-Type、不配入站名额。同项目 `method + path` 冲突 → 保存硬拦。
+不在入口上做平台鉴权 / 自动 401、不选手填响应 Content-Type、不配入站名额。同项目 `method + path` 冲突 → 保存放行、列表标 error、开跑硬拦。
 
 ---
 
@@ -401,6 +401,8 @@ UI：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 | 缺省 / `flow` | 运行时 `flow` | `name: "out"` + 对象 → `{{flow.out}}` |
 | `out` | `ctx.out` 字段 | 逐键写 `status` / `headers` / `body` |
 
+`scope` 只允许 `flow` / `out`；显式写出其它值（含空串）按画布异常报错并被开跑门禁拦下。缺省即 `flow`，运行时按同一口径归一。`value` 为对象 / 数组字面量时，内部的 `{{…}}` 会逐层解析（不再原样写入）。
+
 ---
 
 ## Delay（`delay`）
@@ -538,13 +540,15 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
   "name": "支付成功回包",
   "position": { "x": 480, "y": 0 },
   "data": {
-    "from": "flow.out",                  // 必填；解析须为 Map，整表晋升到 ctx.out
+    "from": "flow.out",                  // 必填；保存缺省写 flow.out；解析须为 Map，整表晋升到 ctx.out
     "status": 200                        // 可选；默认 200；晋升后覆盖 out.status
   }
 }
 ```
 
 开放入站整次至多执行一次返回；零次则收束用入口 `fallbackOut`，Run 仍失败。多种业务回包用 IF 各臂各接一个返回节点。详见 [flow-contract-2.0.md §4](./flow-contract-2.0.md)。
+
+混图（场景入口 + HTTP/子流入口共用一条链）里要放返回节点，必须放在 `run.entryKind` 守卫的 IF 臂里（如 `run.entryKind eq subflow`，或 `ne scenario`）：场景 Run 静态走不到该臂，校验放行；没有守卫则按「场景入口可达子图不得含返回节点」报**画布异常**（开跑硬拦）。
 
 ---
 
@@ -565,6 +569,8 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
 ```
 
 子流整次至多一次返回；零次挂入口 `fallbackOut`；子/父仍记失败。失败后父仍可读已挂的 `out`。
+
+挂父形状：`from` 解析结果**整包**挂 `nodes.<子流节点 id>.out`（业务对象如 `{code,data}` 原样挂，不拆 status/headers/body）；零次 return 时入口 `fallbackOut` 若是业务对象，会规范成 `{body: <该对象>}` 再挂，存量完整 out 形照挂。
 
 ---
 

@@ -80,16 +80,17 @@ public final class FlowDesignNodeDataKeys {
     /** 平台入口壳：单次 Run 步数上限（协议入口同样认此键，不另发明名） */
     private static final String ENTRY_MAX_STEPS = "maxSteps";
 
-    /** scenario-entry：入口说明、步数上限与可批量执行的场景列表 */
-    private static final Set<String> SCENARIO_ENTRY = Set.of("doc", ENTRY_MAX_STEPS, "scenarios");
+    /** scenario-entry：入口说明、步数上限、入参键提示与可批量执行的场景列表 */
+    private static final Set<String> SCENARIO_ENTRY = Set.of(
+            "doc", ENTRY_MAX_STEPS, "inSeedKeys", "scenarios");
 
     /** http-entry：开放路由 method/path、环境、步数上限与收束兜底出参 */
     private static final Set<String> HTTP_ENTRY = Set.of(
             "method", "path", "envId", "fallbackOut", "doc", "inputShape", ENTRY_MAX_STEPS);
 
-    /** subflow-entry：兜底出参、说明、步数上限与入参形状 */
+    /** subflow-entry：扁平入参声明、兜底出参、说明与步数上限（不使用 HTTP 三节 inputShape） */
     private static final Set<String> SUBFLOW_ENTRY = Set.of(
-            "fallbackOut", "doc", "inputShape", ENTRY_MAX_STEPS);
+            "fallbackOut", "doc", "inputDecl", ENTRY_MAX_STEPS);
 
     private FlowDesignNodeDataKeys() {
     }

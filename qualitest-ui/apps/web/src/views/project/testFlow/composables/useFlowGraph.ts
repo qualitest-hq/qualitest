@@ -1,9 +1,8 @@
 /**
  * 测试流持久化读写：对接后端 testFlow API，与画布 store 同步。
  *
- * 保存规则：只拦「无法解析 / 节点缺 id / 边缺端点」；
- * 结构细节、断言路径、鉴权缺失等允许带错落盘，方便继续改图。
- * 开跑前另做完整就绪检查。
+ * 保存规则：图校验错误与路由冲突都不拦保存（只要求请求体可解析 + 版本/锁等落库条件）；
+ * 画布提示错误，开跑前另做完整就绪检查并硬拦。
  *
  * 半自动下 Staging ✓ 后须调用本模块的 saveFlow 才写库；
  * 若仍有 pending，先弹门禁（去确认 / 仅保存已确认 / 取消）。
@@ -14,7 +13,6 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 
 import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
 import {
-  collectHttpRoutePeerCollisionErrors,
   collectHttpRouteSelfCollisionErrors,
   validateGraphJson,
 } from '@/utils/flow/graphValidate';
@@ -217,24 +215,8 @@ export function useFlowGraph() {
     }
 
     const graph = buildCanvasPersistGraph();
-    const floor = validateGraphJson(graph, { persistMinimalOnly: true });
-    const routeSelfErrors = collectHttpRouteSelfCollisionErrors(graph.nodes);
-    await openHttpRoutes.refresh(store.testProjectId);
-    const routePeerErrors = collectHttpRoutePeerCollisionErrors(
-      graph.nodes,
-      openHttpRoutes.peers,
-      store.testFlowId,
-    );
-    if (!floor.ok || routeSelfErrors.length || routePeerErrors.length) {
-      // quiet 仍提示校验/路由冲突原因（点跑静默保存时用户需看到占用方）
-      ElMessage.error(
-        floor.errors[0]
-          ?? routeSelfErrors[0]
-          ?? routePeerErrors[0]
-          ?? '图校验失败',
-      );
-      return false;
-    }
+    // 保存不再因图校验 / 路由冲突拦截：错误留给画布提示与开跑门禁；
+    // 仅无法解析的请求体、版本冲突等落库问题仍会失败。
 
     store.loading = true;
     /** 冲突分流已接管后续异步流程时，finally 不再清 loading */
@@ -265,6 +247,7 @@ export function useFlowGraph() {
         const { errors, precheckErrors } = await collectRunBlockingErrors({
           graph,
           testProjectId: store.testProjectId,
+          testFlowId: store.testFlowId,
         });
         runRisk.setWarnings(precheckErrors);
         if (excludedPending > 0) {

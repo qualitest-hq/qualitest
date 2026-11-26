@@ -1,5 +1,10 @@
 package com.qualitest.project.support;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+import com.qualitest.flow.validate.GraphJsonValidator;
+import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.DerivedCredential;
 import com.qualitest.project.support.PrefabricatedTemplateExtrasSupport.PrefabParam;
 import org.junit.jupiter.api.DisplayName;
@@ -333,5 +338,96 @@ class PrefabricatedTemplateExtrasSupportTest {
         assertEquals(List.of("101"), PrefabricatedTemplateExtrasSupport.collectGraphHttpApiIds(graph));
         assertTrue(PrefabricatedTemplateExtrasSupport.graphHasHttpExtracts(
                 "{\"nodes\":[{\"type\":\"http\",\"data\":{\"extracts\":[{\"expr\":\"$.token\"}]}}]}"));
+    }
+
+    @Test
+    @Order(13)
+    @DisplayName("内置登录流通过 2.0 全量图校验")
+    void builtinLoginFlow_passesFullValidation() {
+        // 前提：管理端 Bearer 登录流（绑预制登录/探活口）
+        // 期望：整图通过全量校验，可开跑
+        JSONObject graph = builtinLoginGraph();
+
+        GraphValidationResult result = new GraphJsonValidator().validateJson(graph.toJSONString());
+
+        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("内置登录流为双入口 + entryKind 守卫返回")
+    void builtinLoginFlow_dualEntryGuardedReturn() {
+        // 前提：同一张登录图既要有场景入口，也要能被父流当子流挂载
+        // 期望：子流入口带业务兜底、守卫按 run.entryKind 分流、返回挂 flow.out
+        JSONObject graph = builtinLoginGraph();
+        JSONObject subEntry = nodeOfType(graph, "subflow-entry");
+        JSONObject subReturn = nodeOfType(graph, "subflow-return");
+
+        assertNotNull(nodeOfType(graph, "scenario-entry"));
+        assertNotNull(subEntry);
+        assertEquals("NO_RETURN",
+                subEntry.getJSONObject("data").getJSONObject("fallbackOut").getString("code"));
+        assertEquals("flow.out", subReturn.getJSONObject("data").getString("from"));
+        assertFalse(subReturn.getJSONObject("data").containsKey("status"));
+        assertTrue(hasEntryKindGuard(graph));
+        assertTrue(hasEdge(graph, "login_http", "pack_out"));
+        assertTrue(hasEdge(graph, "guard_entry", "n_ret"));
+    }
+
+    /** 内置登录流图（管理端 Bearer，绑定预制登录/探活口） */
+    private static JSONObject builtinLoginGraph() {
+        String flows = PrefabricatedTemplateExtrasSupport.builtinLoginFlowJson(
+                "管理端登录子流", "POST", "/login", "adminAuth", "token", "body", "$.token",
+                "GET", "/getInfo", "9001", "9002", "登录", "探活");
+        JSONArray arr = JSON.parseArray(flows);
+        return arr.getJSONObject(0).getJSONObject("graphJson");
+    }
+
+    /** 按 type 找首个节点；无则 null */
+    private static JSONObject nodeOfType(JSONObject graph, String type) {
+        JSONArray nodes = graph.getJSONArray("nodes");
+        for (int i = 0; i < nodes.size(); i++) {
+            JSONObject node = nodes.getJSONObject(i);
+            if (type.equals(node.getString("type"))) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    /** 是否存在「run.entryKind 非 scenario」的规范守卫分支 */
+    private static boolean hasEntryKindGuard(JSONObject graph) {
+        JSONArray nodes = graph.getJSONArray("nodes");
+        for (int i = 0; i < nodes.size(); i++) {
+            JSONObject node = nodes.getJSONObject(i);
+            if (!"condition".equals(node.getString("type"))) {
+                continue;
+            }
+            JSONArray branches = node.getJSONObject("data").getJSONArray("branches");
+            for (int j = 0; j < branches.size(); j++) {
+                JSONArray conditions = branches.getJSONObject(j).getJSONArray("conditions");
+                for (int k = 0; k < conditions.size(); k++) {
+                    JSONObject condition = conditions.getJSONObject(k);
+                    if ("run.entryKind".equals(condition.getString("left"))
+                            && "scenario".equals(condition.getString("right"))
+                            && "ne".equals(condition.getString("operator"))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** 是否存在指定 source→target 的边 */
+    private static boolean hasEdge(JSONObject graph, String source, String target) {
+        JSONArray edges = graph.getJSONArray("edges");
+        for (int i = 0; i < edges.size(); i++) {
+            JSONObject edge = edges.getJSONObject(i);
+            if (source.equals(edge.getString("source")) && target.equals(edge.getString("target"))) {
+                return true;
+            }
+        }
+        return false;
     }
 }

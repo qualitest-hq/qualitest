@@ -150,7 +150,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         }
 
         List<String> readinessErrors =
-                flowRunReadinessGate.collectBlockingErrors(graph, testFlow.getTestProjectId());
+                flowRunReadinessGate.collectBlockingErrors(
+                        graph, testFlow.getTestProjectId(), testFlow.getTestFlowId());
         if (!readinessErrors.isEmpty()) {
             throw new FlowExecutionException(
                     FlowErrorCode.TF_GRAPH_INVALID,

@@ -1,15 +1,14 @@
 /**
  * 测试流图 JSON 结构校验（前端预检）。
  *
- * 检查节点壳字段（顶层 name 必填）、已知 type、边端点、开始节点、各类型业务字段，产出 errors / warnings。
+ * 检查节点壳字段（顶层 name 必填）、已知 type、边端点、开始节点、各类型业务字段，只产出 errors。
  * 场景写在 scenario-entry.data.scenarios（envId / inSeed）；meta 不承载场景列表。
  * http-return / subflow-return：from 非空；http-return 的 status 若写出须为 100～599；
  * subflow-return 禁止 status。入口 fallbackOut、HTTP method/path/envId、同序双 return、
  * 返回 type 匹配、本流 method+path 自冲突等记 errors。
- * IF 臂漏 return 记 warnings。画布「异常」(errors) 一般保存不拦、开跑硬拦；
- * 本流开放路由自冲突除外（保存也硬拦，与后端一致）。
+ * 画布「异常」(errors) 一般保存不拦、开跑硬拦；本流开放路由自冲突除外（保存也硬拦，与后端一致）。
  * persistMinimalOnly：只检查节点 id 与边端点（保存地板）。
- * deferTopologyStructureRules：开始节点问题降为警告。
+ * deferTopologyStructureRules：暂不校验开始节点（半成品 / 尚有未确认连线）。
  */
 import {
   isValidJsonPath,
@@ -30,11 +29,29 @@ const ALLOWED_EDGE_KEYS = new Set(['id', 'source', 'target', 'label']);
 
 const ASSIGN_OPS = new Set(['set', 'add', 'sub', 'mul', 'div']);
 
+/** assign 允许写出的 scope：缺省视为 flow；写出其它值按画布异常报错 */
+const ASSIGN_SCOPES = new Set(['flow', 'out']);
+
+/** §2.5：data 不得承载画布 UI 状态字段 */
+const FORBIDDEN_DATA_UI_KEYS = ['selected', 'dragging', 'highlighted', 'hovered'] as const;
+
 /**
- * 允许写出 alwaysRun 的节点 type：http / script / assign / subflow。
+ * 允许写出 alwaysRun 的节点 type：业务步骤统一允许（含 return），入口节点不允许。
  * 数组顺序用于拼错误文案「仅 a/b/c」。
  */
-const ALWAYS_RUN_ALLOWED_TYPES = ['http', 'script', 'assign', 'subflow'] as const;
+const ALWAYS_RUN_ALLOWED_TYPES = [
+  'http',
+  'script',
+  'assign',
+  'subflow',
+  'delay',
+  'assert',
+  'condition',
+  'input',
+  'pluginAction',
+  'http-return',
+  'subflow-return',
+] as const;
 /** alwaysRun 允许类型的斜杠拼接，写入校验错误 */
 const ALWAYS_RUN_ALLOWED_LABEL = ALWAYS_RUN_ALLOWED_TYPES.join('/');
 
@@ -63,37 +80,9 @@ export interface StartNodesValidation {
   messages: string[];
 }
 
-/**
- * 存在未确认连线时，开始节点「看起来像多个入口」的提示文案（降为 warning）。
- */
-export const DEFERRED_MULTI_START_WARNING =
-  '尚有未确认的连线；确认边之后再校验开始节点（当前看起来像多个入口）。';
-
-/**
- * 存在未确认连线时，开始节点「看起来缺失」的提示文案（降为 warning）。
- */
-export const DEFERRED_NO_START_WARNING =
-  '尚有未确认的连线；确认边之后再校验开始节点（当前每个节点都有入边或图不完整）。';
-
-/**
- * 若错误文案涉及开始节点 / 入口起点，且业务上属于「pending 连线导致的假象」，则改写成延后提示文案。
- * 不匹配则原样返回。
- */
-export function rewriteStartNodeErrorForPendingEdges(error: string): string {
-  const text = String(error ?? '').trim();
-  if (!/(开始节点|无入边|入口须)/.test(text)) return text;
-  if (
-    /只能有一个开始节点|非入口的无入边|须至少配置一个入口|看起来像多个/.test(text)
-  ) {
-    return DEFERRED_MULTI_START_WARNING;
-  }
-  return DEFERRED_NO_START_WARNING;
-}
-
 export type ValidateGraphJsonOptions = {
   /**
-   * true：开始节点不唯一/缺失时写入 warnings，不写入 errors。
-   * 用于尚有未确认连线、落盘过滤图拓扑暂不可信。
+   * true：暂不校验开始节点（半成品 / 尚有未确认连线的落盘过滤图）。
    */
   deferTopologyStructureRules?: boolean;
   /**
@@ -581,6 +570,16 @@ function validateAssignNodeFields(
     } else if (!ASSIGN_OPS.has(op)) {
       errors.push(`${p} Assign 节点「${name}」assignments[${i}] op 无效：${op}`);
     }
+    // scope 缺省按 flow；一旦写出只允许 flow / out（去空白、忽略大小写，与运行时归一一致）
+    if ('scope' in row) {
+      const rawScope = row.scope;
+      const scope = typeof rawScope === 'string' ? rawScope.trim().toLowerCase() : '';
+      if (typeof rawScope !== 'string' || !ASSIGN_SCOPES.has(scope)) {
+        errors.push(
+          `${p} Assign 节点「${name}」assignments[${i}] scope 只能是 flow 或 out（当前为：${describeScopeValue(rawScope)}）`,
+        );
+      }
+    }
   });
 }
 
@@ -693,10 +692,6 @@ function validateScriptNodeFields(
   if (!language || !SCRIPT_LANGUAGES.has(language)) {
     errors.push(`${p} script 节点「${name}」language 无效：${language || '(空)'}`);
   }
-  const source = data?.source != null ? String(data.source) : '';
-  if (!source.trim()) {
-    warnings.push(`Script 节点「${name}」source 为空`);
-  }
 }
 
 function hasOutgoingEdge(edges: GraphEdge[], source: string, target: string): boolean {
@@ -743,6 +738,9 @@ function validateNodeFields(
   const nodeName = resolveGraphNodeName(node as GraphNode);
   if (!node.name || !String(node.name).trim()) {
     errors.push(`${p} 节点缺少非空 name`);
+  }
+  if (node.data && typeof node.data === 'object' && !Array.isArray(node.data)) {
+    appendDataUiStateErrors(p, nodeName, node.data as Record<string, unknown>, errors);
   }
   if (type === 'return') {
     errors.push(`${p} type 无效：return（请使用 http-return 或 subflow-return）`);
@@ -842,10 +840,34 @@ function describeFlagValue(value: unknown): string {
   return typeof value;
 }
 
+/** 生成 assign scope 非法值的中文描述（字符串 / 数字 / 对象 / 数组 / null） */
+function describeScopeValue(value: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  if (typeof value === 'string') return `字符串 "${value}"`;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return '数组';
+  return '对象';
+}
+
+/** §2.5：data 只存业务配置，不得承载画布 UI 状态字段 */
+function appendDataUiStateErrors(
+  p: string,
+  name: string,
+  data: Record<string, unknown>,
+  errors: string[],
+): void {
+  for (const key of FORBIDDEN_DATA_UI_KEYS) {
+    if (key in data) {
+      errors.push(`${p} 节点「${name}」data 不得承载画布 UI 状态字段：${key}`);
+    }
+  }
+}
+
 function validateConditionBranches(
   nodes: GraphNode[],
   edges: GraphEdge[],
-  warnings: string[],
+  errors: string[],
+  deferEdgeAlignment: boolean,
 ): void {
   nodes.forEach((n) => {
     if (n.type !== 'condition') return;
@@ -854,12 +876,26 @@ function validateConditionBranches(
     branches.forEach((b) => {
       const branchId = b.id;
       const target = b.target;
-      // 无 target：结束出口，不告警；有 target 须存在对应出边
+      // 无 target：结束出口；有 target 须存在对应出边（半成品阶段延后判定）
       if (!target || String(target).trim() === '') return;
-      if (!hasOutgoingEdge(edges, n.id, String(target))) {
-        warnings.push(`条件节点「${name}」分支 ${branchId} 的 target 无对应出边：${target}`);
+      if (!deferEdgeAlignment && !hasOutgoingEdge(edges, n.id, String(target))) {
+        errors.push(`条件节点「${name}」分支 ${branchId} 的 target 无对应出边：${target}`);
       }
     });
+    // 反向：条件节点的出边必须被某个 branches.target 认领，否则运行时走不到该目标
+    if (!branches.length || deferEdgeAlignment) return;
+    const claimed = new Set(
+      branches
+        .map((b) => (b.target == null ? '' : String(b.target).trim()))
+        .filter((t) => !!t),
+    );
+    for (const edge of edges) {
+      if (edge.source !== n.id) continue;
+      const target = edge.target == null ? '' : String(edge.target).trim();
+      if (target && !claimed.has(target)) {
+        errors.push(`条件节点「${name}」出边无对应 branches.target：${target}`);
+      }
+    }
   });
 }
 
@@ -901,8 +937,7 @@ function isReturnNodeType(type: string | undefined | null): boolean {
 }
 
 /**
- * 入口与返回规则：fallbackOut、场景图禁返回、可达返回 type、同序双 return；
- * IF 臂漏 return 写入 warnings（不挡开跑）。
+ * 入口与返回规则：fallbackOut、场景图禁返回、可达返回 type、同序双 return、入口声明形状。
  */
 function appendReturnAndEntryRules(
   nodes: GraphNode[],
@@ -921,6 +956,7 @@ function appendReturnAndEntryRules(
     if (n.type === 'http-entry' || n.type === 'subflow-entry') {
       if (n.type === 'http-entry') {
         appendHttpEntryFieldErrors(n, errors);
+        appendHttpInputShapeErrors(n, errors);
       }
       const fb = n.data?.fallbackOut;
       if (fb == null || typeof fb !== 'object' || Array.isArray(fb)) {
@@ -930,7 +966,18 @@ function appendReturnAndEntryRules(
       }
     }
     if (n.type === 'scenario-entry' && n.data?.fallbackOut != null) {
-      warnings.push(`场景入口「${resolveGraphNodeName(n)}」不应配置 fallbackOut`);
+      errors.push(`场景入口「${resolveGraphNodeName(n)}」不得配置 fallbackOut`);
+    }
+    if (n.type === 'scenario-entry') {
+      appendEntryDeclarationShapeErrors(n, 'inSeedKeys', errors);
+    }
+    if (n.type === 'subflow-entry' && n.data?.inputShape != null) {
+      errors.push(
+        `子流入口「${resolveGraphNodeName(n)}」须改用 inputDecl（inputShape 仅 HTTP 入口支持）`,
+      );
+    }
+    if (n.type === 'subflow-entry') {
+      appendEntryDeclarationShapeErrors(n, 'inputDecl', errors);
     }
   }
 
@@ -948,6 +995,9 @@ function appendReturnAndEntryRules(
   for (const entry of nodes) {
     if (!entry?.id || !isAnyEntryType(entry.type)) continue;
     const expected = expectedReturnTypeForEntry(entry.type);
+    if (entry.type === 'http-entry') {
+      detectInputAfterReturn(entry.id, 0, new Set(), byId, outs, errors);
+    }
     if (expected) {
       detectReturnTypeMismatch(entry.id, expected, new Set(), byId, outs, errors);
     } else if (entry.type === 'scenario-entry' && !scenarioOnly) {
@@ -961,7 +1011,6 @@ function appendReturnAndEntryRules(
     detectSequentialDoubleReturn(start, 0, new Set(), byId, outs, errors);
   }
 
-  appendMissingReturnArmWarnings(nodes, byId, outs, warnings);
   appendFanoutReturnRules(nodes, byId, outs, errors);
   appendHttpRouteSelfCollisionErrors(nodes, errors);
 }
@@ -972,11 +1021,17 @@ export function normalizeOpenHttpMethod(method: unknown): string {
   return raw ? raw.toUpperCase() : 'GET';
 }
 
-/** 与后端 OpenHttpRouteCatalog 对齐的 path 规范化；空 → 空串 */
+/** 与后端 OpenHttpRouteCatalog 对齐的 path 规范化；剥 query/fragment、折叠连续 /；空 → 空串 */
 export function normalizeOpenHttpPath(path: unknown): string {
   let p = path == null ? '' : String(path).trim();
+  const query = p.indexOf('?');
+  if (query >= 0) p = p.slice(0, query);
+  const fragment = p.indexOf('#');
+  if (fragment >= 0) p = p.slice(0, fragment);
+  p = p.trim();
   if (!p) return '';
   if (!p.startsWith('/')) p = `/${p}`;
+  while (p.includes('//')) p = p.replace('//', '/');
   while (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
   return p;
 }
@@ -995,6 +1050,104 @@ function appendHttpEntryFieldErrors(n: GraphNode, errors: string[]): void {
   if (!envId) {
     errors.push(`HTTP 入口「${label}」须配置 envId`);
   }
+}
+
+/**
+ * 入口声明数组（scenario 的 inSeedKeys / subflow 的 inputDecl）：须为扁平数组，name 必填，
+ * 不允许 children 嵌套（与 HTTP inputShape 的三节树分治）。
+ */
+function appendEntryDeclarationShapeErrors(
+  n: GraphNode,
+  key: 'inSeedKeys' | 'inputDecl',
+  errors: string[],
+): void {
+  const raw = n.data?.[key];
+  if (raw == null) return;
+  const label = resolveGraphNodeName(n);
+  if (!Array.isArray(raw)) {
+    errors.push(`入口「${label}」的 ${key} 须为数组`);
+    return;
+  }
+  raw.forEach((item, i) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      errors.push(`入口「${label}」${key}[${i}] 须为对象`);
+      return;
+    }
+    const row = item as Record<string, unknown>;
+    const name = row.name == null ? '' : String(row.name).trim();
+    if (!name) {
+      errors.push(`入口「${label}」${key}[${i}].name 不能为空`);
+    }
+    if ('children' in row) {
+      errors.push(`入口「${label}」${key}[${i}] 须为扁平声明，不允许 children`);
+    }
+  });
+}
+
+/** HTTP 入口 inputShape：仅 body/query/headers 三节；body 可嵌套 children，query/headers 扁平 */
+function appendHttpInputShapeErrors(n: GraphNode, errors: string[]): void {
+  const raw = n.data?.inputShape;
+  if (raw == null) return;
+  const label = resolveGraphNodeName(n);
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push(`HTTP 入口「${label}」的 inputShape 须为对象`);
+    return;
+  }
+  const shape = raw as Record<string, unknown>;
+  for (const key of Object.keys(shape)) {
+    if (!['body', 'query', 'headers'].includes(key)) {
+      errors.push(`HTTP 入口「${label}」inputShape 只支持 body / query / headers，出现：${key}`);
+    }
+  }
+  appendShapeSection(label, 'body', shape.body, true, errors);
+  appendShapeSection(label, 'query', shape.query, false, errors);
+  appendShapeSection(label, 'headers', shape.headers, false, errors);
+}
+
+/** 校验 inputShape 的一节（须为数组） */
+function appendShapeSection(
+  label: string,
+  section: string,
+  raw: unknown,
+  allowChildren: boolean,
+  errors: string[],
+): void {
+  if (raw == null) return;
+  if (!Array.isArray(raw)) {
+    errors.push(`HTTP 入口「${label}」inputShape.${section} 须为数组`);
+    return;
+  }
+  appendShapeFields(label, `inputShape.${section}`, raw, allowChildren, errors);
+}
+
+/** 递归校验字段表：name 必填；仅 body 允许 children */
+function appendShapeFields(
+  label: string,
+  path: string,
+  fields: unknown[],
+  allowChildren: boolean,
+  errors: string[],
+): void {
+  fields.forEach((item, i) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      errors.push(`HTTP 入口「${label}」${path}[${i}] 须为对象`);
+      return;
+    }
+    const row = item as Record<string, unknown>;
+    const name = row.name == null ? '' : String(row.name).trim();
+    if (!name) {
+      errors.push(`HTTP 入口「${label}」${path}[${i}].name 不能为空`);
+    }
+    const children = row.children;
+    if (children == null) return;
+    if (!allowChildren) {
+      errors.push(`HTTP 入口「${label}」${path}[${i}] 须为扁平参数表，不允许 children`);
+    } else if (Array.isArray(children)) {
+      appendShapeFields(label, `${path}[${name}].children`, children, true, errors);
+    } else {
+      errors.push(`HTTP 入口「${label}」${path}[${i}].children 须为数组`);
+    }
+  });
 }
 
 /** HTTP 入口 fallbackOut 须含合法 status（100–599）以及 headers / body 键 */
@@ -1153,13 +1306,101 @@ function detectScenarioEntryReachableReturn(
   const node = byId.get(nodeId);
   if (!node) return;
   if (isReturnNodeType(node.type)) {
-    errors.push(`场景入口可达子图不支持返回节点（含「${resolveGraphNodeName(node)}」）`);
+    errors.push(
+      `场景入口可达子图不支持返回节点（含「${resolveGraphNodeName(node)}」）；返回节点须放在 run.entryKind 守卫的 IF 臂里（如 run.entryKind eq subflow）`,
+    );
     return;
   }
   const nextPath = new Set(path);
   nextPath.add(nodeId);
+  const guardedTargets = node.type === 'condition' ? scenarioGuardedTargets(node) : new Set<string>();
   for (const t of outs.get(nodeId) ?? []) {
+    if (guardedTargets.has(t)) continue;
     detectScenarioEntryReachableReturn(t, nextPath, byId, outs, errors);
+  }
+}
+
+/** 运算符归一（与后端 CompareRuleEvaluator 对齐：空 → eq） */
+function normalizeGuardOperator(raw: unknown): string {
+  const s = raw == null ? '' : String(raw).trim().toLowerCase();
+  if (!s) return 'eq';
+  if (s === 'equals' || s === 'equal' || s === '==') return 'eq';
+  if (s === 'notequals' || s === 'not_equals' || s === 'neq' || s === '!=') return 'ne';
+  return s;
+}
+
+/** 去掉整段 {{…}} 外壳 */
+function stripMustacheText(raw: unknown): string {
+  let s = raw == null ? '' : String(raw).trim();
+  if (s.startsWith('{{') && s.endsWith('}}') && s.length >= 4) {
+    s = s.slice(2, -2).trim();
+  }
+  return s;
+}
+
+/**
+ * 条件节点的「场景不可达」目标：分支条件含 run.entryKind eq 非 scenario / ne scenario。
+ * 同一目标若还有未守卫的分支指过来，则不算守卫（保守口径，与后端一致）。
+ */
+function scenarioGuardedTargets(node: GraphNode): Set<string> {
+  const branches = Array.isArray(node.data?.branches)
+    ? (node.data.branches as Array<Record<string, unknown>>)
+    : [];
+  const allGuarded = new Map<string, boolean>();
+  for (const branch of branches) {
+    if (!branch || typeof branch !== 'object') continue;
+    const target = branch.target == null ? '' : String(branch.target).trim();
+    if (!target) continue;
+    const guarded = branchExcludesScenario(branch);
+    const previous = allGuarded.get(target);
+    allGuarded.set(target, previous === undefined ? guarded : previous && guarded);
+  }
+  const out = new Set<string>();
+  allGuarded.forEach((guarded, target) => {
+    if (guarded) out.add(target);
+  });
+  return out;
+}
+
+/** 分支条件是否把 entryKind 锁死为非 scenario */
+function branchExcludesScenario(branch: Record<string, unknown>): boolean {
+  const conditions = Array.isArray(branch.conditions)
+    ? (branch.conditions as Array<Record<string, unknown>>)
+    : [];
+  for (const condition of conditions) {
+    if (!condition || typeof condition !== 'object') continue;
+    if (stripMustacheText(condition.left) !== 'run.entryKind') continue;
+    const op = normalizeGuardOperator(condition.operator);
+    const right = condition.right == null ? '' : String(condition.right).trim();
+    if (op === 'eq' && right && right.toLowerCase() !== 'scenario') return true;
+    if (op === 'ne' && right.toLowerCase() === 'scenario') return true;
+  }
+  return false;
+}
+
+/** HTTP 入口可达路径上：返回节点之后再出现 Input → 响应已交付，入站无法暂停续跑 */
+function detectInputAfterReturn(
+  nodeId: string,
+  returnsBefore: number,
+  path: Set<string>,
+  byId: Map<string | undefined, GraphNode>,
+  outs: Map<string, string[]>,
+  errors: string[],
+): void {
+  if (!nodeId || path.has(nodeId)) return;
+  const node = byId.get(nodeId);
+  if (!node) return;
+  if (node.type === 'input' && returnsBefore > 0) {
+    errors.push(
+      `HTTP 入口可达路径上，返回节点之后又出现 Input「${resolveGraphNodeName(node)}」；响应已交付后无法暂停续跑`,
+    );
+    return;
+  }
+  const returnsHere = returnsBefore + (isReturnNodeType(node.type) ? 1 : 0);
+  const nextPath = new Set(path);
+  nextPath.add(nodeId);
+  for (const t of outs.get(nodeId) ?? []) {
+    detectInputAfterReturn(t, returnsHere, nextPath, byId, outs, errors);
   }
 }
 
@@ -1187,33 +1428,6 @@ function detectSequentialDoubleReturn(
   nextPath.add(nodeId);
   for (const t of outs.get(nodeId) ?? []) {
     detectSequentialDoubleReturn(t, returns, nextPath, byId, outs, errors);
-  }
-}
-
-/**
- * IF 某臂漏画 return：仅警告（运行时可走入口兜底），不挡开跑。
- * 仅当图含 http/subflow 入口时提示。
- */
-function appendMissingReturnArmWarnings(
-  nodes: GraphNode[],
-  byId: Map<string | undefined, GraphNode>,
-  outs: Map<string, string[]>,
-  warnings: string[],
-): void {
-  const needsReturn = nodes.some((n) => n.type === 'http-entry' || n.type === 'subflow-entry');
-  if (!needsReturn) return;
-  for (const node of nodes) {
-    if (node?.type !== 'condition' || !node.id) continue;
-    const targets = outs.get(node.id) ?? [];
-    if (targets.length < 2) continue;
-    for (const t of targets) {
-      if (!armCanReachReturn(t, byId, outs, new Set())) {
-        warnings.push(
-          `条件节点「${resolveGraphNodeName(node)}」有分支未到达返回节点（走该臂将用入口兜底）`,
-        );
-        break;
-      }
-    }
   }
 }
 
@@ -1281,9 +1495,13 @@ function appendSchemaVersionFinding(
   }
 }
 
-function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): void {
+function appendMetaRunError(
+  graph: Record<string, unknown>,
+  errors: string[],
+  deferTopology: boolean,
+): void {
   const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
-  if (!nodes.length) {
+  if (!nodes.length || deferTopology) {
     return;
   }
   // 每个场景入口各自须挂非空 scenarios（多入口不能互相顶替）
@@ -1348,9 +1566,6 @@ export function validateGraphJson(
       if (!edge.source) errors.push(`${p} 缺少 source`);
       if (!edge.target) errors.push(`${p} 缺少 target`);
     });
-    if (!(nodes as GraphNode[]).length) {
-      warnings.push('nodes 为空，导入后将得到空白画布');
-    }
     return { ok: errors.length === 0, errors, warnings };
   }
 
@@ -1397,33 +1612,21 @@ export function validateGraphJson(
     });
   });
 
-  validateConditionBranches(nodes as GraphNode[], edges as GraphEdge[], warnings);
+  validateConditionBranches(nodes as GraphNode[], edges as GraphEdge[], errors, deferTopology);
 
   const startCheck = validateStartNodes({ nodes: nodes as GraphNode[], edges: edges as GraphEdge[] });
-  if (!startCheck.ok) {
-    if (deferTopology) {
-      const looksMulti =
-        startCheck.ids.length > 1
-        || startCheck.messages.some((m) =>
-          /只能有一个开始节点|非入口的无入边|须至少配置一个入口/.test(m));
-      warnings.push(looksMulti ? DEFERRED_MULTI_START_WARNING : DEFERRED_NO_START_WARNING);
-    } else {
-      errors.push(...startCheck.messages);
-    }
+  if (!startCheck.ok && !deferTopology) {
+    errors.push(...startCheck.messages);
   }
 
   appendSchemaVersionFinding(graph, errors);
-  appendMetaRunError(graph, errors);
+  appendMetaRunError(graph, errors, deferTopology);
   appendReturnAndEntryRules(
     nodes as GraphNode[],
     edges as GraphEdge[],
     errors,
     warnings,
   );
-
-  if (!(nodes as GraphNode[]).length) {
-    warnings.push('nodes 为空，导入后将得到空白画布');
-  }
 
   return { ok: errors.length === 0, errors, warnings };
 }

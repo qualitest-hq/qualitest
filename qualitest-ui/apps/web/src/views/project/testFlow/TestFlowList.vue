@@ -94,6 +94,18 @@
             prop="flowDescription"
             show-overflow-tooltip
         />
+        <el-table-column align="center" label="状态" width="120">
+          <template #default="scope">
+            <el-tooltip
+                v-if="scope.row.routeConflict"
+                :content="scope.row.routeConflictMessage || '开放 HTTP 路由冲突'"
+                placement="top"
+            >
+              <el-tag effect="light" size="small" type="danger">路由冲突</el-tag>
+            </el-tooltip>
+            <span v-else class="flow-status-ok">-</span>
+          </template>
+        </el-table-column>
         <el-table-column align="center" label="更新时间" prop="updateTime" width="180"/>
         <el-table-column align="center" label="操作" width="260">
           <template #default="scope">
@@ -544,7 +556,6 @@ onMounted(async () => {
   await Promise.all([getList(), loadProjectName(testProjectId.value)])
 })
 </script>
-
 <style lang="scss" scoped>
 .flow-list-page {
   display: flex;
@@ -564,5 +575,8 @@ onMounted(async () => {
 
 .toolbar-row {
   align-items: center;
+}
+.flow-status-ok {
+  color: var(--el-text-color-secondary, #909399);
 }
 </style>

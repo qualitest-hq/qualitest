@@ -10,41 +10,31 @@
       },
       "data": {
         "doc": "双身份登录子流模板",
-        "inputShape": {
-          "body": [
-            {
-              "name": "userA",
-              "type": "string",
-              "required": true
-            },
-            {
-              "name": "passA",
-              "type": "string",
-              "required": true
-            },
-            {
-              "name": "userB",
-              "type": "string",
-              "required": true
-            },
-            {
-              "name": "passB",
-              "type": "string",
-              "required": true
-            }
-          ],
-          "query": [],
-          "headers": []
-        },
-        "fallbackOut": {
-          "status": 500,
-          "headers": {
-            "Content-Type": "application/json;charset=UTF-8"
+        "inputDecl": [
+          {
+            "name": "userA",
+            "type": "string",
+            "required": true
           },
-          "body": {
-            "code": "NO_RETURN",
-            "message": "未执行到返回节点"
+          {
+            "name": "passA",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "userB",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "passB",
+            "type": "string",
+            "required": true
           }
+        ],
+        "fallbackOut": {
+          "code": "NO_RETURN",
+          "message": "未执行到返回节点"
         }
       }
     },
@@ -177,7 +167,6 @@
       "x": 0,
       "y": 0,
       "zoom": 1
-    },
-    "startNodeId": "e_entry"
+    }
   }
 }
