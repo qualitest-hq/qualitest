@@ -72,7 +72,7 @@ public class FlowRunReadinessGate {
             return issues;
         }
         GraphValidationResult structure = graphJsonValidator.validate(graph, GraphValidationOptions.full());
-        issues.addAll(FlowIssues.fromValidationResult(structure, effective, false));
+        issues.addAll(FlowIssues.fromValidationResult(structure, effective));
 
         // 路由占用冲突：不论从场景/HTTP/子流哪个入口跑都拦（保存放行，列表页标 error）
         if (testProjectId != null) {
@@ -84,6 +84,21 @@ public class FlowRunReadinessGate {
             issues.add(FlowIssue.error(FlowIssueCodes.ASSERT_PATH, effective, null, err));
         }
 
+        issues.addAll(collectAuthIssues(graph, testProjectId, effective));
+        return issues;
+    }
+
+    /**
+     * 仅鉴权 / 登录抽取 / HTTP 必填（画布图 error 与开跑共用）。
+     * 不跑结构、路由、断言路径。
+     */
+    public List<FlowIssue> collectAuthIssues(GraphJson graph, Long testProjectId, FlowIssue.Stage stage) {
+        FlowIssue.Stage effective = stage != null ? stage : FlowIssue.Stage.CANVAS;
+        List<FlowIssue> issues = new ArrayList<>();
+        if (graph == null) {
+            return issues;
+        }
+        Function<Long, TestProjectApi> apiResolver = testProjectApiMapper::selectTestProjectApiById;
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
         Function<Long, GraphJson> subflowResolver = parsedGraphCache::get;
         for (String err : DesignAuthRiskGates.collect(graph, projectAuthJson, apiResolver, subflowResolver)) {

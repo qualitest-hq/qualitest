@@ -43,8 +43,8 @@ import org.springframework.stereotype.Component;
  * 各入口可达子图上的返回 type 必须匹配该入口种类、
  * 同一顺序路径上不可出现两个返回节点（条件节点各出边分别累计，互不影响）。
  * 可选「仅落库地板」：只检查节点 id、边端点，允许半成品图写入数据库。<br>
- * 可选「延后拓扑」：开始节点问题写入警告而非错误。<br>
- * {@code ok=true} 当且仅当 errors 为空；warnings 不影响 ok。
+ * 可选「延后拓扑」：跳过开始节点等拓扑硬拦。<br>
+ * {@code ok=true} 当且仅当 errors 为空。
  */
 @Component
 public class GraphJsonValidator {
@@ -70,18 +70,17 @@ public class GraphJsonValidator {
     public GraphValidationResult validate(GraphJson graph, GraphValidationOptions options) {
         GraphValidationOptions effective = options != null ? options : GraphValidationOptions.full();
         List<String> errors = new ArrayList<>();
-        List<String> warnings = new ArrayList<>();
         if (graph == null) {
             errors.add("根对象必须是 JSON 对象");
-            return GraphValidationResult.of(errors, warnings);
+            return GraphValidationResult.of(errors);
         }
         if (effective.isPersistMinimalOnly()) {
-            validatePersistMinimal(graph, errors, warnings);
-            return GraphValidationResult.of(errors, warnings);
+            validatePersistMinimal(graph, errors);
+            return GraphValidationResult.of(errors);
         }
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
         List<GraphEdge> edges = graph.getEdges() != null ? graph.getEdges() : List.of();
-        Set<String> nodeIds = validateTypedNodes(nodes, errors, warnings);
+        Set<String> nodeIds = validateTypedNodes(nodes, errors);
         validateTypedEdges(edges, nodeIds, errors);
         validateConditionBranches(nodes, edges, errors, effective.isDeferTopologyStructureRules());
         // 半成品（拓扑暂不可信）阶段不提示开始节点问题；完整校验时才开始节点硬拦
@@ -90,15 +89,15 @@ public class GraphJsonValidator {
         }
         appendSchemaVersionFinding(graph, errors);
         appendMetaRunError(graph, errors, effective.isDeferTopologyStructureRules());
-        appendReturnAndEntryRules(nodes, edges, errors, warnings);
-        return GraphValidationResult.of(errors, warnings);
+        appendReturnAndEntryRules(nodes, edges, errors);
+        return GraphValidationResult.of(errors);
     }
 
     /**
      * 落库地板校验：节点须有非空且不重复的 id；边须有 source/target。
      * 不检查 callMode、开始节点、断言规则等字段级内容。
      */
-    private void validatePersistMinimal(GraphJson graph, List<String> errors, List<String> warnings) {
+    private void validatePersistMinimal(GraphJson graph, List<String> errors) {
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
         List<GraphEdge> edges = graph.getEdges() != null ? graph.getEdges() : List.of();
         Set<String> ids = new HashSet<>();
@@ -139,17 +138,16 @@ public class GraphJsonValidator {
     public GraphValidationResult validateJson(String json, GraphValidationOptions options) {
         GraphValidationOptions effective = options != null ? options : GraphValidationOptions.full();
         List<String> errors = new ArrayList<>();
-        List<String> warnings = new ArrayList<>();
         Object parsed;
         try {
             parsed = JSON.parse(json);
         } catch (Exception e) {
             errors.add("JSON 解析失败：" + e.getMessage());
-            return GraphValidationResult.of(errors, warnings);
+            return GraphValidationResult.of(errors);
         }
         if (!(parsed instanceof Map)) {
             errors.add("根对象必须是 JSON 对象");
-            return GraphValidationResult.of(errors, warnings);
+            return GraphValidationResult.of(errors);
         }
         JSONObject root = parsed instanceof JSONObject ? (JSONObject) parsed : new JSONObject((Map<?, ?>) parsed);
         JSONObject graph = unwrapGraphPayload(root);
@@ -160,13 +158,13 @@ public class GraphJsonValidator {
             errors.add("缺少 edges 数组");
         }
         if (!errors.isEmpty()) {
-            return GraphValidationResult.of(errors, warnings);
+            return GraphValidationResult.of(errors);
         }
         JSONArray nodesArr = graph.getJSONArray("nodes");
         JSONArray edgesArr = graph.getJSONArray("edges");
-        Set<String> nodeIds = validateRawNodes(nodesArr, errors, warnings);
-        validateRawEdges(edgesArr, nodeIds, errors, warnings);
-        validateRawConditionBranches(nodesArr, edgesArr, errors, warnings);
+        Set<String> nodeIds = validateRawNodes(nodesArr, errors);
+        validateRawEdges(edgesArr, nodeIds, errors);
+        validateRawConditionBranches(nodesArr, edgesArr, errors);
         if (!effective.isDeferTopologyStructureRules()) {
             appendStartNodeErrorFromRaw(nodesArr, edgesArr, errors);
             appendMetaRunErrorFromRaw(graph, errors);
@@ -174,26 +172,17 @@ public class GraphJsonValidator {
         try {
             GraphJson typed = GraphJson.parse(graph.toJSONString());
             GraphValidationResult typedResult = validate(typed, effective);
-            if (typedResult != null) {
-                if (typedResult.getErrors() != null) {
-                    for (String e : typedResult.getErrors()) {
-                        if (e != null && !errors.contains(e)) {
-                            errors.add(e);
-                        }
-                    }
-                }
-                if (typedResult.getWarnings() != null) {
-                    for (String w : typedResult.getWarnings()) {
-                        if (w != null && !warnings.contains(w)) {
-                            warnings.add(w);
-                        }
+            if (typedResult != null && typedResult.getErrors() != null) {
+                for (String e : typedResult.getErrors()) {
+                    if (e != null && !errors.contains(e)) {
+                        errors.add(e);
                     }
                 }
             }
         } catch (Exception ignored) {
             // 形状级错误已在上方收集；无法再跑 typed 全量时不追加
         }
-        return GraphValidationResult.of(errors, warnings);
+        return GraphValidationResult.of(errors);
     }
 
     /**
@@ -274,7 +263,7 @@ public class GraphJsonValidator {
      * 先建立全图节点 id 到 type 的映射，再逐节点校验字段
      *（断言/条件左值若写 nodes.节点id.http…，用该映射检查目标是否存在且为 http）。
      */
-    private Set<String> validateTypedNodes(List<GraphNode> nodes, List<String> errors, List<String> warnings) {
+    private Set<String> validateTypedNodes(List<GraphNode> nodes, List<String> errors) {
         Set<String> nodeIds = new HashSet<>();
         Map<String, String> nodeTypesById = new HashMap<>();
         for (GraphNode node : nodes) {
@@ -298,9 +287,7 @@ public class GraphJsonValidator {
                     node.getData(),
                     nodeIds,
                     nodeTypesById,
-                    errors,
-                    warnings
-            );
+                    errors);
         }
         return nodeIds;
     }
@@ -345,7 +332,7 @@ public class GraphJsonValidator {
      * 校验原始 JSON 节点数组。
      * 先扫描建立 id→type，再逐节点做字段校验（含 nodes.节点id.http 引用目标检查）。
      */
-    private Set<String> validateRawNodes(JSONArray nodesArr, List<String> errors, List<String> warnings) {
+    private Set<String> validateRawNodes(JSONArray nodesArr, List<String> errors) {
         Set<String> nodeIds = new HashSet<>();
         Map<String, String> nodeTypesById = new HashMap<>();
         for (int i = 0; i < nodesArr.size(); i++) {
@@ -378,7 +365,7 @@ public class GraphJsonValidator {
                         .y(position.getDoubleValue("y"))
                         .build();
             }
-            validateNodeFields(p, id, nodeName, type, pos, data, nodeIds, nodeTypesById, errors, warnings);
+            validateNodeFields(p, id, nodeName, type, pos, data, nodeIds, nodeTypesById, errors);
         }
         return nodeIds;
     }
@@ -396,9 +383,7 @@ public class GraphJsonValidator {
             Map<String, Object> data,
             Set<String> nodeIds,
             Map<String, String> nodeTypesById,
-            List<String> errors,
-            List<String> warnings
-    ) {
+            List<String> errors) {
         if (id == null || id.isBlank()) {
             errors.add(p + " 缺少 id");
         } else if (nodeIds.contains(id)) {
@@ -428,7 +413,7 @@ public class GraphJsonValidator {
         String displayName = nodeDisplayName(nodeName, id);
 
         if (FlowNodeType.HTTP.matches(type)) {
-            validateHttpNodeFields(p, displayName, data, nodeTypesById, errors, warnings);
+            validateHttpNodeFields(p, displayName, data, nodeTypesById, errors);
         } else if (data != null && data.containsKey(HttpRetryUntilSupport.DATA_KEY)) {
             errors.add(p + " 节点「" + displayName + "」retryUntil 仅允许挂在 HTTP 节点");
         }
@@ -452,7 +437,7 @@ public class GraphJsonValidator {
         if (FlowNodeType.INPUT.matches(type)) {
             validateInputNodeFields(p, displayName, data, errors);
         }
-        validateScriptNodeFields(p, displayName, type, data, errors, warnings);
+        validateScriptNodeFields(p, displayName, type, data, errors);
         validateSubflowNodeFields(p, displayName, type, data, errors);
         if (FlowNodeType.HTTP_RETURN.matches(type) || FlowNodeType.SUBFLOW_RETURN.matches(type)) {
             validateReturnNodeFields(p, displayName, type, data, errors);
@@ -886,15 +871,13 @@ public class GraphJsonValidator {
 
     /**
      * 校验 HTTP extracts：from=body 时 expr 非空、须以 {@code $} 开头且 JsonPath 可解析；
-     * 过滤器后紧跟 [n] 时写入 warnings（不硬拦）。
+     * 过滤器后紧跟 [n] 时写入 errors。
      */
     private void validateHttpExtracts(
             String p,
             String name,
             Map<String, Object> data,
-            List<String> errors,
-            List<String> warnings
-    ) {
+            List<String> errors) {
         Object extractsRaw = data != null ? data.get("extracts") : null;
         if (!(extractsRaw instanceof List<?> extracts) || extracts.isEmpty()) {
             return;
@@ -961,9 +944,7 @@ public class GraphJsonValidator {
             String displayName,
             Map<String, Object> data,
             Map<String, String> nodeTypesById,
-            List<String> errors,
-            List<String> warnings
-    ) {
+            List<String> errors) {
         String name = displayName;
         Object callModeObj = data != null ? data.get("callMode") : null;
         if (callModeObj == null || String.valueOf(callModeObj).isBlank()) {
@@ -977,7 +958,7 @@ public class GraphJsonValidator {
         }
         if (FlowHttpCallMode.isProject(callMode)) {
             // project 模式未绑接口不在此告警（由 API 语义健康检查另行提示）
-            validateHttpExtracts(p, name, data, errors, warnings);
+            validateHttpExtracts(p, name, data, errors);
             validateHttpRetryUntil(p, name, data, nodeTypesById, errors);
             return;
         }
@@ -992,7 +973,7 @@ public class GraphJsonValidator {
         if (hasTestProjectApiId(data)) {
             errors.add(p + " HTTP 节点「" + name + "」外联模式不可填写 testProjectApiId");
         }
-        validateHttpExtracts(p, name, data, errors, warnings);
+        validateHttpExtracts(p, name, data, errors);
         validateHttpRetryUntil(p, name, data, nodeTypesById, errors);
     }
 
@@ -1085,15 +1066,13 @@ public class GraphJsonValidator {
         }
     }
 
-    /** script 节点：非法 language 为 error，空 source 为 warning */
+    /** script 节点：非法 language 为 error；空 source 不提示 */
     private void validateScriptNodeFields(
             String p,
             String displayName,
             String type,
             Map<String, Object> data,
-            List<String> errors,
-            List<String> warnings
-    ) {
+            List<String> errors) {
         if (!FlowNodeType.SCRIPT.matches(type)) {
             return;
         }
@@ -1109,9 +1088,7 @@ public class GraphJsonValidator {
     private void validateRawEdges(
             JSONArray edgesArr,
             Set<String> nodeIds,
-            List<String> errors,
-            List<String> warnings
-    ) {
+            List<String> errors) {
         Set<String> edgeIds = new HashSet<>();
         for (int i = 0; i < edgesArr.size(); i++) {
             String p = "edges[" + i + "]";
@@ -1157,13 +1134,12 @@ public class GraphJsonValidator {
      * 校验条件节点分支与出边是否对齐。
      * <p>
      * 分支无 {@code target}：表示命中后本流正常结束，合法。<br>
-     * 分支有 {@code target}：须存在同源同目标的出边，否则记入 warnings。<br>
-     * 条件节点有出边：须有分支的 {@code target} 认领该目标，否则记入 errors（硬拦）。
+     * 分支有 {@code target}：须存在同源同目标的出边，否则记入 errors。<br>
+     * 条件节点有出边：须有分支的 {@code target} 认领该目标，否则记入 errors。
      *
-     * @param nodes    节点列表
-     * @param edges    边列表
-     * @param errors   错误收集
-     * @param warnings 警告收集
+     * @param nodes  节点列表
+     * @param edges  边列表
+     * @param errors 错误收集
      */
     private void validateConditionBranches(
             List<GraphNode> nodes,
@@ -1218,20 +1194,17 @@ public class GraphJsonValidator {
      * 对未解析成模型对象的原始 JSON 图，校验条件分支与出边是否对齐。
      * <p>
      * 分支无 {@code target}：表示命中后本流正常结束，合法。<br>
-     * 分支有 {@code target}：须存在同源同目标的出边，否则记入 warnings。<br>
-     * 条件节点有出边：须有分支的 {@code target} 认领该目标，否则记入 errors（硬拦）。
+     * 分支有 {@code target}：须存在同源同目标的出边，否则记入 errors。<br>
+     * 条件节点有出边：须有分支的 {@code target} 认领该目标，否则记入 errors。
      *
      * @param nodesArr 节点 JSON 数组
      * @param edgesArr 边 JSON 数组
      * @param errors   错误收集
-     * @param warnings 警告收集
      */
     private void validateRawConditionBranches(
             JSONArray nodesArr,
             JSONArray edgesArr,
-            List<String> errors,
-            List<String> warnings
-    ) {
+            List<String> errors) {
         for (Object item : nodesArr) {
             if (!(item instanceof JSONObject node)) {
                 continue;
@@ -1394,7 +1367,7 @@ public class GraphJsonValidator {
      * </ul>
      */
     private void appendReturnAndEntryRules(
-            List<GraphNode> nodes, List<GraphEdge> edges, List<String> errors, List<String> warnings) {
+            List<GraphNode> nodes, List<GraphEdge> edges, List<String> errors) {
         boolean hasScenarioEntry = false;
         boolean hasHttpEntry = false;
         boolean hasSubflowEntry = false;

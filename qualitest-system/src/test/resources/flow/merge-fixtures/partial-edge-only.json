@@ -1,5 +1,5 @@
 {
-  "description": "仅勾选 addEdge 不勾选 addNode，应校验失败",
+  "description": "仅勾选 addEdge 不勾选 addNode，仍确认落盘（依赖不挡；悬空目标交给画布）",
   "baseGraph": {
     "nodes": [
       {
@@ -83,5 +83,6 @@
   "acceptedIds": [
     "addEdge:8001"
   ],
-  "expectOk": false
+  "expectOk": true,
+  "expectEdgeCount": 2
 }

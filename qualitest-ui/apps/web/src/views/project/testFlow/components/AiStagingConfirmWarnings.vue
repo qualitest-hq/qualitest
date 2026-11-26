@@ -15,15 +15,12 @@
 <script setup>
 /**
  * Staging 单元旁的鉴权提示条（不阻断确认）。
- * 展示：校验 warnings 里的「已补托管头」文案，以及草稿 headers 上 profileManaged 托管头的兜底提示。
+ * 展示草稿 headers 上 profileManaged 托管头相关提示。
  */
 import { computed } from 'vue'
 
 import { useAiStagingStore } from '../stores/aiStagingStore'
-import {
-  collectAuthManagedHeaderHints,
-  filterAuthRelatedWarnings,
-} from '../utils/stagingAuthHints'
+import { collectAuthManagedHeaderHints } from '../utils/stagingAuthHints'
 
 const props = defineProps({
   unitId: { type: String, required: true },
@@ -35,11 +32,10 @@ const stagingStore = useAiStagingStore()
 const displayWarnings = computed(() => {
   const unit = stagingStore.getUnit(props.unitId)
   if (!unit) return []
-  const fromValidation = filterAuthRelatedWarnings(unit.lastValidation?.warnings)
   const fromHeaders = collectAuthManagedHeaderHints(unit.draft)
   const merged = []
   const seen = new Set()
-  for (const msg of [...fromValidation, ...fromHeaders]) {
+  for (const msg of fromHeaders) {
     const key = msg.trim()
     if (!key || seen.has(key)) continue
     seen.add(key)

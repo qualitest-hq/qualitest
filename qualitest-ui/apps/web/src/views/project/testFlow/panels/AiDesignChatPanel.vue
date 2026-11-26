@@ -125,17 +125,6 @@
                     v-if="shouldShowStagingSummary(msg as AiDesignMessageView)"
                     class="ai-design-staging-extra"
                 >
-                  <ul
-                      v-if="authValidationWarnings(msg as AiDesignMessageView).length"
-                      class="ai-design-auth-warnings"
-                  >
-                    <li
-                        v-for="(warn, wi) in authValidationWarnings(msg as AiDesignMessageView)"
-                        :key="`${(msg as AiDesignMessageView).id}-w-${wi}`"
-                    >
-                      {{ warn }}
-                    </li>
-                  </ul>
                   <div
                       v-if="isMessagePatchPending(msg as AiDesignMessageView) || (msg as AiDesignMessageView).patchLoading"
                       class="ai-design-staging-extra__loading"
@@ -189,7 +178,7 @@
  *
  * 壳层 UI 由 AiChatShell 承担；本文件处理：
  * Mention 输入与发送、画布 Staging 变更摘要、素材库写入提案卡片、
- * 项目鉴权 Profile 写入提案卡片、造流鉴权软提示摘要、
+ * 项目鉴权 Profile 写入提案卡片、
  * Run 失败修复 / 节点添加入口预填、半自动|全自动偏好开关。
  *
  * 半自动：改图进 Staging、素材进提案，确认后不自动保存，须人手点保存。
@@ -230,8 +219,6 @@ import type {
   AuthProfileUpsertProposalView,
 } from '../types/aiDesignTypes';
 import { shouldShowStagingSummary } from '../utils/stagingMessage';
-import { filterAuthRelatedWarnings } from '../utils/stagingAuthHints';
-
 const store = useFlowCanvasStore();
 const stagingStore = useAiStagingStore();
 const { saveFlow } = useFlowGraph();
@@ -383,17 +370,6 @@ function shouldShowAssetProposals(msg: AiDesignMessageView) {
 }
 
 /**
- * 从造流校验 warnings 中筛出鉴权相关软提示，在 Staging 摘要上方展示。
- * 多条时聊天区只保留首条，并注明另有若干项（完整列表在属性 Diff 区）。
- */
-function authValidationWarnings(msg: AiDesignMessageView): string[] {
-  const all = filterAuthRelatedWarnings(msg.validation?.warnings)
-  if (!all.length) return []
-  if (all.length === 1) return all
-  return [`${all[0]}（另有 ${all.length - 1} 项鉴权提示，见属性 Diff）`]
-}
-
-/**
  * 就地更新某条助手消息的局部字段（不可变替换 messages 数组项）。
  * 用于提案卡片确认/拒绝后回写列表，或素材提案 fields 懒加载完成后合并。
  */
@@ -542,17 +518,6 @@ function close() {
   font-size: 13px;
   color: var(--pd-text-secondary);
   padding: 8px 0;
-}
-
-.ai-design-auth-warnings {
-  margin: 0 0 8px;
-  padding: 8px 10px 8px 22px;
-  border-radius: 6px;
-  border: 1px solid #fde68a;
-  background: #fffbeb;
-  color: #92400e;
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 /* el-select 下拉 teleported 到 body，需高于侧栏 */

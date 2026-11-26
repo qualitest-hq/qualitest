@@ -5,7 +5,6 @@ import com.qualitest.ai.scenario.flow.FlowDesignClientIdMapSupport;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchMerger;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchUnitIds;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.service.AiChatConversationService;
 import com.qualitest.ai.tools.FlowDesignPatchStats;
@@ -84,9 +83,8 @@ public class FlowDesignUnitSubmitSupport {
         }
 
         JSONObject validation = new JSONObject();
-        validation.put("ok", normalized.validation().isOk());
-        validation.put("errors", normalized.validation().getErrors());
-        validation.put("warnings", normalized.validation().getWarnings());
+        validation.put("ok", normalized.ok());
+        validation.put("errors", normalized.errors());
         JSONObject result = new JSONObject();
         result.put("validation", validation);
         result.put("unitId", unitId);
@@ -99,7 +97,7 @@ public class FlowDesignUnitSubmitSupport {
         if (!unitIdMap.isEmpty()) {
             result.put("idMap", unitIdMap);
         }
-        if (normalized.validation().isOk()) {
+        if (normalized.ok()) {
             saveClientIdMap(ctx, clientIdMap);
             advanceWorkingGraph(ctx, normalized.patch());
             result.put("received", true);
@@ -108,8 +106,9 @@ public class FlowDesignUnitSubmitSupport {
                     ctx.getSubmitCapture() != null ? ctx.getSubmitCapture().getNormalizedPatch() : normalized.patch()));
         } else {
             result.put("received", false);
-            result.put("error", "校验未通过");
-            result.put("hint", "请根据 validation.errors 修正后再次调用 " + toolName);
+            result.put("error", "地板校验未通过");
+            result.put("hint", "请根据 validation.errors（缺 id / 未知引用等）修正后再次调用 " + toolName
+                    + "；结构与鉴权问题合进 Staging 后由画布与开跑处理");
         }
         return result.toJSONString();
     }
@@ -138,7 +137,6 @@ public class FlowDesignUnitSubmitSupport {
         GraphJson working = FlowDesignPatchMerger.cloneGraph(ctx.resolveGraphJson());
         List<FlowDesignPatchNormalizer.NormalizeResult> accepted = new ArrayList<>(edgeUnits.size());
         List<String> allErrors = new ArrayList<>();
-        List<String> allWarnings = new ArrayList<>();
         List<String> unitIdList = new ArrayList<>(edgeUnits.size());
 
         for (int i = 0; i < edgeUnits.size(); i++) {
@@ -152,16 +150,11 @@ public class FlowDesignUnitSubmitSupport {
                 allErrors.add("[" + unitId + "] 规范化返回空");
                 continue;
             }
-            DesignValidationResult validation = normalized.validation();
-            if (validation != null && validation.getWarnings() != null) {
-                for (String w : validation.getWarnings()) {
-                    allWarnings.add("[" + unitId + "] " + w);
+            if (!normalized.ok()) {
+                List<String> errs = normalized.errors();
+                if (errs.isEmpty()) {
+                    errs = List.of("地板校验失败");
                 }
-            }
-            if (validation == null || !validation.isOk()) {
-                List<String> errs = validation != null && validation.getErrors() != null
-                        ? validation.getErrors()
-                        : List.of("校验失败");
                 for (String err : errs) {
                     allErrors.add("[" + unitId + "] " + err);
                 }
@@ -184,13 +177,12 @@ public class FlowDesignUnitSubmitSupport {
         boolean ok = allErrors.isEmpty();
         validationJson.put("ok", ok);
         validationJson.put("errors", allErrors);
-        validationJson.put("warnings", allWarnings);
         result.put("validation", validationJson);
 
         if (!ok) {
             result.put("received", false);
-            result.put("error", "校验未通过");
-            result.put("hint", "请根据 validation.errors 修正后再次调用 " + toolName
+            result.put("error", "地板校验未通过");
+            result.put("hint", "请根据 validation.errors（缺 id / 未知引用等）修正后再次调用 " + toolName
                     + "（本批未写入，可整批重试）");
             return result.toJSONString();
         }

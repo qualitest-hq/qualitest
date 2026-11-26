@@ -1,8 +1,8 @@
 /**
  * 画布实时校验汇总（页面级单例）。
  *
- * 合并：服务端 stage=canvas issues、本地落盘地板、Staging 确认失败、
- * 运行风险、API 语义告警。业务结构规则以服务端为准；本地只做即时地板。
+ * 合并：服务端 stage=canvas issues（结构+鉴权/必填）、本地落盘地板、API 语义告警。
+ * 业务规则以服务端为准；本地只做即时地板。
  * 平移/缩放视口不触发服务端校验；Staging 有未确认边时 deferTopology。
  */
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
@@ -13,13 +13,10 @@ import { validateGraphJson } from '@/utils/flow/graphValidate'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useApiHealthStore } from '../stores/apiHealthStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
-import { useRunRiskStore } from '../stores/runRiskStore'
 import {
   collectIssueNodeIds,
   issuesFromApiHealthWarnings,
   issuesFromGraphValidation,
-  issuesFromRunRiskWarnings,
-  issuesFromStagingConfirmFailures,
   resolveNodeIdsFromMessage,
   type FlowCanvasValidationIssue,
 } from '../utils/flowValidationIssues'
@@ -44,7 +41,7 @@ function dedupeCanvasIssues(list: FlowCanvasValidationIssue[]): FlowCanvasValida
   const seen = new Set<string>()
   const out: FlowCanvasValidationIssue[] = []
   for (const issue of list) {
-    const key = `${issue.level}|${issue.message}|${(issue.nodeIds || []).join(',')}|${issue.source}`
+    const key = `${issue.level}|${issue.code || ''}|${issue.message}|${(issue.nodeIds || []).join(',')}|${issue.source}`
     if (seen.has(key)) continue
     seen.add(key)
     out.push(issue)
@@ -56,7 +53,6 @@ function createFlowValidation(): FlowValidationApi {
   const stagingStore = useAiStagingStore()
   const canvasStore = useFlowCanvasStore()
   const apiHealth = useApiHealthStore()
-  const runRisk = useRunRiskStore()
 
   const persistGraph = computed(() => buildCanvasPersistGraph())
   const serverIssues = ref<FlowIssueRecord[]>([])
@@ -114,21 +110,24 @@ function createFlowValidation(): FlowValidationApi {
 
   const issues = computed(() => {
     const graph = persistGraph.value
-    const stagingUnits = Object.values(stagingStore.unitsById)
     const floor = validateGraphJson(graph, { persistMinimalOnly: true })
-    const fromServer: FlowCanvasValidationIssue[] = serverIssues.value.map((issue) => ({
-      level: String(issue?.severity || '').toUpperCase() === 'WARNING' ? 'warning' : 'error',
-      message: String(issue?.message || issue?.code || '').trim() || '校验失败',
-      nodeIds: issue?.nodeId
-        ? [String(issue.nodeId)]
-        : resolveNodeIdsFromMessage(String(issue?.message || ''), graph),
-      source: 'structure',
-    }))
+    const fromServer: FlowCanvasValidationIssue[] = serverIssues.value
+      .filter((issue) => String(issue?.severity || 'ERROR').toUpperCase() === 'ERROR')
+      .map((issue) => {
+        const code = issue?.code != null && String(issue.code).trim() ? String(issue.code).trim() : undefined
+        return {
+          level: 'error' as const,
+          message: String(issue?.message || issue?.code || '').trim() || '校验失败',
+          nodeIds: issue?.nodeId
+            ? [String(issue.nodeId)]
+            : resolveNodeIdsFromMessage(String(issue?.message || ''), graph),
+          source: 'structure' as const,
+          code,
+        }
+      })
     return dedupeCanvasIssues([
       ...issuesFromGraphValidation(floor, graph),
       ...fromServer,
-      ...issuesFromStagingConfirmFailures(stagingUnits, canvasStore.edges),
-      ...issuesFromRunRiskWarnings(runRisk.warnings),
       ...issuesFromApiHealthWarnings(apiHealth.warnings),
     ])
   })

@@ -1,5 +1,5 @@
 /**
- * 测 flowValidationIssues：文案解析节点 id、Staging/API 汇总。
+ * 测 flowValidationIssues：文案解析节点 id、结构/API 汇总。
  * 单跑：pnpm test flowValidationIssues --run
  */
 import { describe, expect, it } from 'vitest'
@@ -8,17 +8,16 @@ import {
   collectIssueNodeIds,
   issuesFromApiHealthWarnings,
   issuesFromGraphValidation,
-  issuesFromRunRiskWarnings,
-  issuesFromStagingConfirmFailures,
   resolveNodeIdsFromMessage,
 } from '@/views/project/testFlow/utils/flowValidationIssues'
+import { isAuthReadinessIssue, isAuthRiskMessage } from '@/views/project/testFlow/utils/runReadiness'
 
 describe('flowValidationIssues', () => {
   const graph = {
     nodes: [
-      { id: 'n1', type: 'http', data: { name: '探活' } },
-      { id: 'n2', type: 'condition', data: { name: '探活结果' } },
-      { id: 'n3', type: 'http', data: { name: '登录' } },
+      { id: 'n1', type: 'http', name: '探活', data: {} },
+      { id: 'n2', type: 'condition', name: '探活结果', data: {} },
+      { id: 'n3', type: 'http', name: '登录', data: {} },
     ],
     edges: [] as Array<{ id: string; source: string; target: string }>,
   }
@@ -43,72 +42,26 @@ describe('flowValidationIssues', () => {
       {
         ok: false,
         errors: ['nodes[0] HTTP 节点「探活」缺少 callMode'],
-        warnings: ['条件节点「探活结果」分支 if1 的 target 无对应出边：n3'],
       },
       graph,
     )
-    expect(issues).toHaveLength(2)
-    expect(issues[0].nodeIds).toEqual(['n1'])
-    expect(issues[1].level).toBe('warning')
-    expect(issues[1].nodeIds).toEqual(['n2'])
-  })
-
-  it('issuesFromStagingConfirmFailures：挂到节点', () => {
-    const issues = issuesFromStagingConfirmFailures(
-      [
-        {
-          unitId: 'addNode:n2',
-          kind: 'addNode',
-          messageId: 'm1',
-          status: 'pending',
-          lastValidation: { ok: false, errors: ['确认失败：缺依赖'], warnings: [] },
-        } as never,
-      ],
-      [],
-    )
-    expect(issues).toEqual([
-      {
-        level: 'error',
-        message: '确认失败：缺依赖',
-        nodeIds: ['n2'],
-        source: 'staging',
-      },
-    ])
-  })
-
-  it('issuesFromStagingConfirmFailures：多错误摘要为一条', () => {
-    // 前提：同一单元 lastValidation 有多条 errors
-    // 期望：校验条只出一条摘要，指向 Diff
-    const issues = issuesFromStagingConfirmFailures(
-      [
-        {
-          unitId: 'addNode:n2',
-          kind: 'addNode',
-          messageId: 'm1',
-          status: 'pending',
-          lastValidation: {
-            ok: false,
-            errors: ['错误甲', '错误乙', '错误丙'],
-            warnings: [],
-          },
-        } as never,
-      ],
-      [],
-    )
     expect(issues).toHaveLength(1)
-    expect(issues[0].message).toBe('错误甲（另有 2 项，见属性 Diff）')
+    expect(issues[0].level).toBe('error')
+    expect(issues[0].source).toBe('structure')
+    expect(issues[0].nodeIds).toEqual(['n1'])
   })
 
-  it('issuesFromRunRiskWarnings：运行风险进条', () => {
-    const issues = issuesFromRunRiskWarnings(['AUTH_TOKEN_MISSING: 缺 token'])
-    expect(issues).toEqual([
-      {
-        level: 'error',
-        message: 'AUTH_TOKEN_MISSING: 缺 token',
-        nodeIds: [],
-        source: 'runRisk',
-      },
+  it('isAuthReadinessIssue：优先 code，文案前缀兜底', () => {
+    expect(isAuthReadinessIssue({ code: 'RUN_READINESS_AUTH', message: 'x' })).toBe(true)
+    expect(isAuthRiskMessage('AUTH_TOKEN_MISSING: 缺 token')).toBe(true)
+    expect(isAuthReadinessIssue({ code: 'GRAPH_STRUCTURE', message: '边缺少 source' })).toBe(false)
+  })
+
+  it('issuesFromApiHealthWarnings 可带 code', () => {
+    const issues = issuesFromApiHealthWarnings([
+      { message: '绑定的接口不存在', nodeId: 'n1', code: 'API_MISSING' },
     ])
+    expect(issues[0].code).toBe('API_MISSING')
   })
 
   it('issuesFromApiHealthWarnings + collectIssueNodeIds', () => {

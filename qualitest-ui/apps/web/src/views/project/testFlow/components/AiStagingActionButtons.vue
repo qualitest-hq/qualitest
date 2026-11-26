@@ -10,7 +10,6 @@
       {{ confirmLabel }}
     </button>
     <button
-        v-if="!blockedByDependency"
         :class="btnClass('retry')"
         :disabled="confirmDisabled"
         :title="retryTitle"
@@ -31,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-/** Staging 确认 / 取消按钮（Chrome、Banner、FieldDiff 复用） */
+/** Staging 确认 / 取消按钮（Chrome、Banner、FieldDiff 复用）；✓/✕ 与校验无关 */
 import { computed } from 'vue'
 
 import { useAiStagingConfirm } from '../composables/useAiStagingConfirm'
@@ -47,8 +46,6 @@ const { confirmUnit, retryUnit, rejectUnit } = useAiStagingConfirm();
 const {
   unit,
   confirming,
-  blockedByDependency,
-  confirmBlockTitle,
   confirmDisabled,
 } = useStagingConfirmAvailability(() => props.unitId);
 
@@ -68,20 +65,13 @@ const retryLabel = computed(() => {
 });
 
 const confirmTitle = computed(() => {
-  if (confirmBlockTitle.value) return confirmBlockTitle.value;
   if (isDelete.value) {
     return props.size === 'full' ? '确认删除本项' : '确认删除';
   }
   return props.size === 'full' ? '确认本项变更' : '确认';
 });
 
-const retryTitle = computed(() => {
-  if (confirmBlockTitle.value) return confirmBlockTitle.value;
-  if (unit.value?.lastValidation && !unit.value.lastValidation.ok) {
-    return '重新校验并确认本单元';
-  }
-  return '重新发起校验并确认（校验通过时也可重试）';
-});
+const retryTitle = computed(() => '重新发起确认');
 
 const rejectLabel = computed(() => (props.size === 'full' ? '✕ 取消' : '✕'));
 
@@ -89,10 +79,7 @@ function btnClass(variant: 'confirm' | 'retry' | 'reject') {
   const base = props.size === 'compact'
     ? 'ai-staging-actions__btn ai-staging-actions__btn--compact'
     : 'ai-staging-actions__btn ai-staging-actions__btn--full';
-  const blocked = variant === 'confirm' && blockedByDependency.value
-    ? ' ai-staging-actions__btn--blocked'
-    : '';
-  return `${base} ai-staging-actions__btn--${variant}${blocked}`;
+  return `${base} ai-staging-actions__btn--${variant}`;
 }
 
 async function onConfirm() {
@@ -145,10 +132,5 @@ function onReject() {
   &.ai-staging-actions__btn--retry {
     @include staging.ai-staging-btn('retry', false);
   }
-}
-
-.ai-staging-actions__btn--compact.ai-staging-actions__btn--blocked:disabled,
-.ai-staging-actions__btn--full.ai-staging-actions__btn--blocked:disabled {
-  @include staging.ai-staging-btn-blocked;
 }
 </style>

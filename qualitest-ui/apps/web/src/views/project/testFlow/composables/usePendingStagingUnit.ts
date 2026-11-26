@@ -56,10 +56,6 @@ export function useStagingUnitByMark(
   });
 }
 
-export function hasStagingConfirmError(unit: AiStagingUnit | undefined | null): boolean {
-  return unit?.lastValidation != null && !unit.lastValidation.ok;
-}
-
 export function useShowNormalFields(
   stagingUnit: ComputedRef<AiStagingUnit | null>,
   hideOnKinds: DiffItemKind[],

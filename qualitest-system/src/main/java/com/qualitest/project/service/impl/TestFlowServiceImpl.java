@@ -19,7 +19,6 @@ import com.qualitest.flow.sync.FlowExternalChangePublisher;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.flow.sync.FlowGraphCommitPatchHolder;
 import com.qualitest.flow.sync.FlowGraphRevisionConflictException;
-import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.FlowGraphValidateResult;
 import com.qualitest.flow.validate.FlowGraphValidateService;
 import com.qualitest.flow.validate.FlowIssue;
@@ -363,27 +362,18 @@ public class TestFlowServiceImpl implements ITestFlowService {
                 throw new ServiceException(String.join("；", refErrors));
             }
 
-            List<String> warnings = new ArrayList<>();
-            GraphJson merged = flowDesignPatchNormalizer.mergeOnto(base, patch, warnings);
+            List<String> errors = new ArrayList<>();
+            GraphJson merged = flowDesignPatchNormalizer.mergeOnto(base, patch, errors);
             // 项目 id 优先取入参，缺省时取已锁定流记录的项目 id
             Long projectId = testProjectId != null ? testProjectId : locked.getTestProjectId();
-            validatePersistFloor(merged, warnings, projectId, locked.getTestFlowId());
-
-            GraphValidationResult full =
-                    graphJsonValidator.validate(merged, GraphValidationOptions.full());
-            addSoftFindings(warnings, full.getErrors());
-            addSoftFindings(warnings, full.getWarnings());
-
-            AssertPathDesignGate.AssertPathGateResult assertPath =
-                    AssertPathDesignGate.validate(merged, flowDesignPatchNormalizer.apiResolver());
-            addSoftFindings(warnings, assertPath.errors());
-            addSoftFindings(warnings, assertPath.warnings());
+            // 写库不硬拦：只收 persistMinimal 地板软文案；结构/断言交给画布与开跑
+            validatePersistFloor(merged, errors, projectId, locked.getTestFlowId());
 
             return persistGraphIncrement(
                     locked,
                     testProjectId,
                     merged,
-                    warnings,
+                    errors,
                     FlowGraphCommitPatchHolder.fromCapture(patch, merged));
         }));
     }
@@ -443,18 +433,18 @@ public class TestFlowServiceImpl implements ITestFlowService {
     }
 
     /**
-     * 持久化前的轻校验：保存不因图校验 / 路由冲突拦截；软警告并入 warnings。
+     * 持久化前的轻校验：落盘不硬拦；地板问题并入 errors 列表。
      *
      * @param graph         待写库的图
-     * @param warnings      警告收集列表
+     * @param errors        不拦写库的问题收集列表
      * @param testProjectId 项目 id（保留参数以兼容调用点）
      * @param testFlowId    当前流 id（保留参数以兼容调用点）
      */
     private void validatePersistFloor(
-            GraphJson graph, List<String> warnings, Long testProjectId, Long testFlowId) {
+            GraphJson graph, List<String> errors, Long testProjectId, Long testFlowId) {
         GraphValidationResult floor =
                 graphJsonValidator.validate(graph, GraphValidationOptions.persistMinimal());
-        addAllNonBlank(warnings, floor.getWarnings());
+        addAllNonBlank(errors, floor.getErrors());
     }
 
     /**
@@ -463,7 +453,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
      * @param locked        行锁下的测试流行
      * @param testProjectId 项目 id，可空
      * @param graph         待写库的图
-     * @param warnings      警告列表
+     * @param errors        不拦写库的问题列表
      * @param payload       变更摘要，可空
      * @return 写库结果
      */
@@ -471,7 +461,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
             TestFlow locked,
             Long testProjectId,
             GraphJson graph,
-            List<String> warnings,
+            List<String> errors,
             FlowGraphCommitPatchHolder.PatchPayload payload) {
         ReturnNodeDefaults.fillMissingFrom(graph);
         TestFlow update = new TestFlow();
@@ -491,7 +481,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
                 update.getUpdateTime(),
                 payload,
                 newRev);
-        return new ApplyGraphPatchResult(graph, newRev, List.copyOf(warnings));
+        return new ApplyGraphPatchResult(graph, newRev, List.copyOf(errors));
     }
 
     /**
@@ -598,7 +588,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
         return false;
     }
 
-    /** 把 source 中非空且未重复的条目追加到 warnings 列表 */
+    /** 把 source 中非空且未重复的条目追加到 target */
     private static void addAllNonBlank(List<String> target, List<String> source) {
         if (source == null || source.isEmpty()) {
             return;
@@ -608,11 +598,6 @@ public class TestFlowServiceImpl implements ITestFlowService {
                 target.add(item);
             }
         }
-    }
-
-    /** 全量/断言路径等软校验结果并入 warnings，不拦写库 */
-    private static void addSoftFindings(List<String> warnings, List<String> findings) {
-        addAllNonBlank(warnings, findings);
     }
 
     /**

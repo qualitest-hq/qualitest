@@ -2,16 +2,13 @@ package com.qualitest.flow.validate;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.ai.tools.FlowDesignApiSummarizer;
 import com.qualitest.flow.context.JsonPathFacade;
 import com.qualitest.flow.context.PlaceholderResolver;
-import com.qualitest.flow.diagnose.HttpNodeApiHealthChecker;
 import com.qualitest.flow.graph.FlowHttpNodeVisitor;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.project.domain.TestProjectApi;
-import com.qualitest.project.support.TestProjectApiEffectiveConfigResolver;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,14 +23,11 @@ import java.util.regex.Pattern;
  * 设计期断言 / 条件左值路径门禁。
  * <p>
  * 扫描 {@code http.body…} 与 {@code nodes.<节点id>.http.body…} 左值，
- * 对照绑定项目接口的响应 schema 做字段检查；响应 example 不参与硬拦。
+ * 只拦静态可断定的写法错误；无 schema 或字段是否存在猜不准时静默，运行时再失败。
  * <ul>
- *   <li>裸 {@code http.body…}：用沿入边找到的最近上游 project HTTP 的 schema</li>
- *   <li>{@code nodes.<id>.http.body…}：用该 id 对应 HTTP 节点绑定接口的 schema</li>
  *   <li>{@code flow.*} / {@code env.*} / {@code asset.*} 等非 body 路径跳过</li>
  *   <li>误含 Schema 关键字 {@code .items}、或写成 {@code http.body.$.…} → errors</li>
- *   <li>schema 有叶路径但字段未命中 → warnings</li>
- *   <li>schema 为空且存在待检左值 → warnings</li>
+ *   <li>无响应 schema、叶路径未命中 → 静默</li>
  *   <li>全图扫描且无上游、也无 nodes 引用时跳过该节点；收窄到指定节点且无上游时记 errors</li>
  * </ul>
  */
@@ -42,15 +36,14 @@ public final class AssertPathDesignGate {
     /** 路径段 {@code items}：JSON Schema 描述数组元素的关键字，不应出现在断言左值里 */
     private static final Pattern SCHEMA_ITEMS_SEGMENT = Pattern.compile("(^|\\.)items(\\.|\\[|$)");
 
-    /** 门禁结果：errors 阻断确认/保存；warnings 仅提示。 */
-    public record AssertPathGateResult(List<String> errors, List<String> warnings) {
+    /** 门禁结果：仅静态可断定 errors；不确定项静默不进结果。 */
+    public record AssertPathGateResult(List<String> errors) {
         public static AssertPathGateResult empty() {
-            return new AssertPathGateResult(List.of(), List.of());
+            return new AssertPathGateResult(List.of());
         }
 
         public AssertPathGateResult {
             errors = errors == null ? List.of() : List.copyOf(errors);
-            warnings = warnings == null ? List.of() : List.copyOf(warnings);
         }
 
         public boolean hasErrors() {
@@ -62,32 +55,31 @@ public final class AssertPathDesignGate {
     }
 
     /**
-     * 扫描图中全部 assert、condition 节点，按响应 schema 校验 body 类左值。
+     * 扫描图中全部 assert、condition 节点的 body 类左值写法。
      *
      * @param graph       待检查的图
-     * @param apiResolver 按 testProjectApiId 取接口；返回 null 则该 HTTP 节点无 schema
-     * @return errors 与 warnings
+     * @param apiResolver 兼容旧调用；本门禁不再按 schema 验字段
+     * @return 仅含静态可断定错误；不确定项不进结果
      */
     public static AssertPathGateResult validate(GraphJson graph, Function<Long, TestProjectApi> apiResolver) {
         return validate(graph, apiResolver, null);
     }
 
     /**
-     * 按响应 schema 校验 body 类左值，可按节点 id 收窄范围。
+     * 校验 body 类左值写法，可按节点 id 收窄范围。
      * {@code onlyNodeIds == null}：全图扫描；无上游且无 nodes 引用则跳过该节点。
      * {@code onlyNodeIds} 非空：只校验这些 assert/condition；无上游且无 nodes 引用则记 errors。
      *
      * @param graph        待检查的图
-     * @param apiResolver  按 testProjectApiId 取接口
+     * @param apiResolver  兼容旧调用；本门禁不再按 schema 验字段
      * @param onlyNodeIds  仅校验这些节点 id；null 表示全图
-     * @return errors 与 warnings
+     * @return 仅含静态可断定错误；不确定项不进结果
      */
     public static AssertPathGateResult validate(
             GraphJson graph,
             Function<Long, TestProjectApi> apiResolver,
             Set<String> onlyNodeIds) {
         List<String> errors = new ArrayList<>();
-        List<String> warnings = new ArrayList<>();
         if (graph == null || apiResolver == null) {
             return AssertPathGateResult.empty();
         }
@@ -131,29 +123,19 @@ public final class AssertPathDesignGate {
                 }
                 continue;
             }
-            Set<String> upstreamSchemaPaths = upstreamHttp != null
-                    ? resolveSchemaPaths(upstreamHttp, apiResolver)
-                    : Set.of();
-            if (upstreamHttp != null && upstreamSchemaPaths.isEmpty() && hasBareHttpBodyLeftToCheck(type, node.getData())) {
-                warnings.add(kindLabel + "节点「" + nodeName + "」上游接口无响应 schema，未做字段校验");
-            }
             if ("assert".equals(type)) {
-                validateRules(
-                        kindLabel, nodeName, "rules", node.getData().get("rules"),
-                        upstreamSchemaPaths, byId, apiResolver, errors, warnings);
+                validateRules(kindLabel, nodeName, "rules", node.getData().get("rules"), errors);
             } else {
                 for (Object b : GraphDataLists.asList(node.getData().get("branches"))) {
                     Map<?, ?> branch = GraphDataLists.asMap(b);
                     if (branch == null) {
                         continue;
                     }
-                    validateRules(
-                            kindLabel, nodeName, "conditions", branch.get("conditions"),
-                            upstreamSchemaPaths, byId, apiResolver, errors, warnings);
+                    validateRules(kindLabel, nodeName, "conditions", branch.get("conditions"), errors);
                 }
             }
         }
-        return new AssertPathGateResult(errors, warnings);
+        return new AssertPathGateResult(errors);
     }
 
     /**
@@ -166,49 +148,28 @@ public final class AssertPathDesignGate {
     private record HttpBodyLeftRef(String relative, String sourceNodeId, String displayLeft) {
     }
 
-    /** 节点规则里是否存在裸 {@code http.body.} 字段左值（不含 nodes 引用）。 */
-    private static boolean hasBareHttpBodyLeftToCheck(String type, Map<String, Object> data) {
-        return anyHttpBodyLeft(type, data, false);
-    }
-
     /** 节点规则里是否存在 {@code nodes.<id>.http.body.} 字段左值。 */
     private static boolean hasNodesHttpBodyLeftToCheck(String type, Map<String, Object> data) {
-        return anyHttpBodyLeft(type, data, true);
-    }
-
-    /**
-     * 扫描 assert 的 rules 或 condition 各分支 conditions，判断是否含待检 body 左值。
-     *
-     * @param nodesOnly true 只认 nodes 引用；false 只认裸 http.body
-     */
-    private static boolean anyHttpBodyLeft(String type, Map<String, Object> data, boolean nodesOnly) {
         if ("assert".equals(type)) {
-            return rulesHaveHttpBodyLeft(data.get("rules"), nodesOnly);
+            return rulesHaveNodesHttpBodyLeft(data.get("rules"));
         }
         for (Object b : GraphDataLists.asList(data.get("branches"))) {
             Map<?, ?> branch = GraphDataLists.asMap(b);
-            if (branch != null && rulesHaveHttpBodyLeft(branch.get("conditions"), nodesOnly)) {
+            if (branch != null && rulesHaveNodesHttpBodyLeft(branch.get("conditions"))) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean rulesHaveHttpBodyLeft(Object rulesRaw, boolean nodesOnly) {
+    private static boolean rulesHaveNodesHttpBodyLeft(Object rulesRaw) {
         for (Object item : GraphDataLists.asList(rulesRaw)) {
             Map<?, ?> rule = GraphDataLists.asMap(item);
             if (rule == null) {
                 continue;
             }
             HttpBodyLeftRef ref = parseHttpBodyLeft(rule.get("left"));
-            if (ref == null) {
-                continue;
-            }
-            if (nodesOnly) {
-                if (ref.sourceNodeId() != null) {
-                    return true;
-                }
-            } else if (ref.sourceNodeId() == null) {
+            if (ref != null && ref.sourceNodeId() != null) {
                 return true;
             }
         }
@@ -242,21 +203,15 @@ public final class AssertPathDesignGate {
     }
 
     /**
-     * 逐条检查规则左值。
-     * 结构错误（{@code body.$…}、误含 {@code .items}）写入 errors；
-     * schema 缺字段或引用节点无 schema 写入 warnings。
-     * nodes 引用用目标 HTTP 节点的接口 schema；裸 http.body 用上游 schema。
+     * 逐条检查规则左值：只拦 {@code body.$…}、误含 {@code .items}；
+     * 无 schema 或字段是否存在静默（运行时再失败）。
      */
     private static void validateRules(
             String kindLabel,
             String nodeName,
             String fieldName,
             Object rulesRaw,
-            Set<String> upstreamSchemaPaths,
-            Map<String, GraphNode> byId,
-            Function<Long, TestProjectApi> apiResolver,
-            List<String> errors,
-            List<String> warnings) {
+            List<String> errors) {
         List<?> rules = GraphDataLists.asList(rulesRaw);
         for (int i = 0; i < rules.size(); i++) {
             Map<?, ?> rule = GraphDataLists.asMap(rules.get(i));
@@ -277,28 +232,6 @@ public final class AssertPathDesignGate {
             if (containsJsonSchemaItemsSegment(relative)) {
                 errors.add(kindLabel + "节点「" + nodeName + "」" + fieldName + "[" + i + "] 左值「" + left
                         + "」误含 JSON Schema 关键字 .items；数组请用 data[0]、data[*] 或 data[?(@.field==…)]");
-                continue;
-            }
-            Set<String> schemaPaths = upstreamSchemaPaths;
-            String schemaLabel = "上游接口";
-            if (bodyRef.sourceNodeId() != null) {
-                GraphNode sourceHttp = byId.get(bodyRef.sourceNodeId());
-                if (sourceHttp == null) {
-                    continue;
-                }
-                schemaPaths = resolveSchemaPaths(sourceHttp, apiResolver);
-                schemaLabel = "节点「" + bodyRef.sourceNodeId() + "」接口";
-                if (schemaPaths.isEmpty()) {
-                    warnings.add(kindLabel + "节点「" + nodeName + "」" + fieldName + "[" + i + "] 左值「" + left
-                            + "」引用的 " + schemaLabel + "无响应 schema，未做字段校验");
-                    continue;
-                }
-            } else if (schemaPaths == null || schemaPaths.isEmpty()) {
-                continue;
-            }
-            if (!HttpNodeApiHealthChecker.pathMatchesSchema(relative, schemaPaths)) {
-                warnings.add(kindLabel + "节点「" + nodeName + "」" + fieldName + "[" + i + "] 左值「" + left
-                        + "」在" + schemaLabel + "响应 schema 中未找到对应字段");
             }
         }
     }
@@ -360,30 +293,6 @@ public final class AssertPathDesignGate {
             return arr.isEmpty();
         }
         return false;
-    }
-
-    /**
-     * 从上游 HTTP 节点解析响应 schema 叶路径集合。
-     */
-    private static Set<String> resolveSchemaPaths(GraphNode httpNode, Function<Long, TestProjectApi> apiResolver) {
-        Map<String, Object> data = httpNode.getData();
-        if (data == null) {
-            return Set.of();
-        }
-        JSONObject dataJson = new JSONObject(data);
-        if (!FlowHttpNodeVisitor.isProjectBoundHttp(dataJson)) {
-            return Set.of();
-        }
-        Long apiId = FlowHttpNodeVisitor.parseTestProjectApiId(dataJson.get("testProjectApiId"));
-        if (apiId == null) {
-            return Set.of();
-        }
-        TestProjectApi api = apiResolver.apply(apiId);
-        if (api == null) {
-            return Set.of();
-        }
-        String responseConfig = TestProjectApiEffectiveConfigResolver.resolve(api).getResponseConfig();
-        return FlowDesignApiSummarizer.summarizeResponsePaths(responseConfig);
     }
 
     /**

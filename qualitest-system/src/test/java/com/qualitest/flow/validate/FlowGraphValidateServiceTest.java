@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测谁：FlowGraphValidateService 按 stage 产出 issues。
- * 边界：SAVE 永不因图 error 出 issue；CANVAS 走 raw；RUN 含路由冲突；deferTopology 延后开始节点。
+ * 边界：SAVE 永不因图 error 出 issue；CANVAS 走 raw + 鉴权；RUN 含路由冲突；deferTopology 延后开始节点。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowGraphValidateServiceTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -28,11 +28,12 @@ class FlowGraphValidateServiceTest {
 
     private FlowGraphValidateService service;
     private OpenHttpRouteRegistry routeRegistry;
+    private FlowRunReadinessGate readiness;
 
     @BeforeEach
     void setUp() {
         routeRegistry = mock(OpenHttpRouteRegistry.class);
-        FlowRunReadinessGate readiness = mock(FlowRunReadinessGate.class);
+        readiness = mock(FlowRunReadinessGate.class);
         when(readiness.collectBlockingIssues(any(), any(), any(), eq(FlowIssue.Stage.RUN)))
                 .thenReturn(List.of(FlowIssue.error(
                         FlowIssueCodes.ENTRY_ROUTE_CONFLICT,
@@ -51,6 +52,8 @@ class FlowGraphValidateServiceTest {
                         FlowIssue.Stage.SUBFLOW_CALL,
                         null,
                         "未找到开始节点（入口须无入边）")));
+        when(readiness.collectAuthIssues(any(), any(), eq(FlowIssue.Stage.CANVAS)))
+                .thenReturn(List.of());
         service = new FlowGraphValidateService(new GraphJsonValidator(), readiness, routeRegistry);
     }
 
@@ -206,5 +209,38 @@ class FlowGraphValidateServiceTest {
                 "{\"nodes\":[],\"edges\":[]}", FlowIssue.Stage.SUBFLOW_CALL, 1L, 10L);
         assertEquals(FlowIssue.Stage.SUBFLOW_CALL, subflow.getIssues().get(0).getStage());
         assertEquals(FlowIssueCodes.GRAPH_STRUCTURE, subflow.getIssues().get(0).getCode());
+    }
+
+    /**
+     * 前提：canvas 校验；readiness 返回 AUTH 文案。
+     * 期望：issues 含 RUN_READINESS_AUTH（并进图 error）。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("CANVAS 合并鉴权图 error")
+    void canvasStageMergesAuthIssues() {
+        when(routeRegistry.conflicts(any(), any(), any(), eq(FlowIssue.Stage.CANVAS)))
+                .thenReturn(List.of());
+        when(readiness.collectAuthIssues(any(), any(), eq(FlowIssue.Stage.CANVAS)))
+                .thenReturn(List.of(FlowIssue.error(
+                        FlowIssueCodes.RUN_READINESS_AUTH,
+                        FlowIssue.Stage.CANVAS,
+                        null,
+                        "AUTH_TOKEN_MISSING: 缺 token")));
+        String json = """
+                {"nodes":[
+                   {"id":"se","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},
+                    "data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                   {"id":"h1","type":"http","name":"HTTP","position":{"x":100,"y":0},
+                    "data":{"callMode":"external","externalUrl":"https://e.example","httpMethod":"GET"}}
+                 ],
+                 "edges":[{"id":"e1","source":"se","target":"h1"}]}
+                """;
+        FlowGraphValidateResult result =
+                service.validate(json, FlowIssue.Stage.CANVAS, 1L, 10L, false);
+        assertTrue(result.getIssues().stream()
+                .anyMatch(i -> FlowIssueCodes.RUN_READINESS_AUTH.equals(i.getCode())
+                        && i.getMessage() != null
+                        && i.getMessage().startsWith("AUTH_TOKEN_MISSING:")));
     }
 }

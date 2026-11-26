@@ -17,11 +17,11 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
   → 模型调工具（search_apis / get_api_details / …）
   → 多次 submit_*（每次 1 个 Staging 单元）
   → 画布 Staging 黄条 / 单元
-  → ✓ 确认（跑设计期门禁）
-  → 保存（画布可见节点）
+  → ✓ 确认（必落画布；图 error 进校验条，不挡 ✓）
+  → 保存（画布可见节点；有 error 也可存）
 ```
 
-**例外：全自动**（AI 面板「半自动 | 全自动」，默认半自动）：请求带 `autopilotEnabled=true` 时注入 `run_test_flow`（跑前/回合结束**自动落盘**，无独立 commit 工具），且 `upsert_asset_variables` / `upsert_auth_profile` **直接写库**。隐式落盘门槛与人手**保存**相同（只拦无法解析 / 缺节点 id / 边端点）；双开始节点、断言路径等只进 warnings，不拦写库——开跑时再硬拦。造流/修复类请求完成后模型应主动 `run_test_flow`（纯答疑除外）；同会话内 upsert → `submit_*` → `run_test_flow` → 失败再修（最多再修 2 轮）。落盘成功后 SSE `graphCommitted`，前端清 Staging 并 reload 画布；`run_test_flow` 触发后 SSE `runStarted`，与人手共用轮询边跑边亮（执行中步骤即可读）。半自动则仍走上文 Staging ✓ → **人手保存**；素材与鉴权提案在聊天侧确认。只拨开关不发送请求不会跑流。
+**例外：全自动**（AI 面板「半自动 | 全自动」，默认半自动）：请求带 `autopilotEnabled=true` 时注入 `run_test_flow`（跑前/回合结束**自动落盘**，无独立 commit 工具），且 `upsert_asset_variables` / `upsert_auth_profile` **直接写库**。隐式落盘门槛与人手**保存**相同（只拦 JSON 无法解析）；双开始节点、地板/结构/断言等 errors 保存不硬拦——开跑时再硬拦；无 schema / 字段是否存在设计期静默。造流/修复类请求完成后模型应主动 `run_test_flow`（纯答疑除外）；同会话内 upsert → `submit_*` → `run_test_flow` → 失败再修（最多再修 2 轮）。落盘成功后 SSE `graphCommitted`，前端清 Staging 并 reload 画布；`run_test_flow` 触发后 SSE `runStarted`，与人手共用轮询边跑边亮（执行中步骤即可读）。半自动则仍走上文 Staging ✓ → **人手保存**；素材与鉴权提案在聊天侧确认。只拨开关不发送请求不会跑流。
 
 **MCP 默认只读**：无写工具。项目设置开启「允许 MCP 自动写流」后，可经 MCP 调用 `submit_*` / upsert（每次成功 submit 立即落盘）；另开「允许 MCP 自动跑流」后可调 `run_test_flow`；开启「允许 MCP 导入接口」后可调 `import_apis`（只控制导入接口，不控制改图与跑流）。MCP 与 Web 全自动落盘共用外部变更同步语义（`graphCommitted` 等）：打开中的画布经 SSE 轻量跟上，脏稿/Staging 时不静默覆盖。
 
@@ -31,10 +31,10 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 | 动作 | 口径 |
 | ---- | ---- |
-| ✓ 确认 | 接受该单元；跑图结构与**本单元断言路径**门禁。token 来源 / 登录 extract / HTTP 必填**不硬拦**；若本轮已无未决单元，响应可带 `saveRiskWarnings` 提示**运行风险** |
+| ✓ 确认 | 接受该单元并**必落画布**（请求成功即有 `graphJson`）。依赖顺序 / 图结构 / 断言路径**不挡 ✓**；问题只进画布图 error（含鉴权/必填，随 `validate?stage=canvas` 刷新） |
 | ✕ 取消 | 丢弃该单元，不落盘 |
 | 删除类 ✓ | **唯一确认**，无二次 `MessageBox`；勿对 Staging 边按键盘 Delete 当确认 |
-| 保存 | 可带设计期错误落盘（仅拦无法解析/最小 schema）；Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
+| 保存 | 可带设计期错误落盘（仅拦 JSON 无法解析）；Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
 | 运行 | 结构 + 断言路径 + AUTH/必填 readiness 硬拦 |
 | 仅保存已确认 | 未确认项会丢，易得半截图；应先去确认或全部 ✕ 后新建流 |
 | 刷新鉴权头 | 批量改托管头，**仍进 Staging**，不是静默写库 |
@@ -79,18 +79,18 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 | CODE | 硬拦？ | 何时硬拦 | 含义 |
 | ---- | ---- | ---- | ---- |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **运行**（同上） | 两套不同登录口写出同一凭证路径 |
-| `AUTH_TOKEN_MISSING` | 是 | **运行**（同上；末单元 confirm 可预警） | 图要用某托管 Bearer，但 extracts / assign / 子流内 extracts / **inSeed** 都没有该目标 |
+| `AUTH_TOKEN_MISSING` | 是 | **运行**（同上；画布图 error 可预警） | 图要用某托管 Bearer，但 extracts / assign / 子流内 extracts / **inSeed** 都没有该目标 |
 | `AUTH_HEADER_MANAGED` | 否（soft） | — | 已按项目鉴权补托管头 |
 | `AUTH_LOGIN_NO_BEARER` | 否（soft） | — | 登录/免登口剥掉了误补的托管头 |
-| 断言路径结构错（`.items`、`http.body.$.…`） | 是（挂在该 assert/condition 单元） | **submit 与 Staging ✓**；**运行**亦拦全图；schema 缺字段多为警告；**保存不拦** | 见节点文档 |
-| update 空数组误清空（`rules` / `extracts` / `assignments`） | 是 | **submit / preparePatch** | baseline 同字段非空时，禁止用空数组整表替换 |
+| 断言路径结构错（`.items`、`http.body.$.…`） | 是（画布图 error / 开跑） | **运行**硬拦全图；**Staging ✓ / 保存 / submit 收单不拦**（submit 仅地板拒收）；无 schema / 字段未命中静默 | 见节点文档 |
+| update 空数组误清空（`rules` / `extracts` / `assignments`） | 是 | **submit 地板**（可不进 Staging）；Staging ✓ / 保存不硬拦 | baseline 同字段非空时，空数组属危险 patch，优先在 submit 拒收 |
 | condition `branches[].target` | — | normalize **直接剔除** | 出口只认边，AI 预写 target 丢弃 |
 
-**保存**：仅拦「无法解析 / 最小 schema（节点 id、边端点）」；结构细节、断言路径、AUTH / HTTP 必填允许带错落盘，方便 AI 继续修。校验条仍红；toast 可提示「已保存，暂不可运行」。
+**保存**：仅拦 JSON 无法解析；地板 / 结构 / 断言 / AUTH / HTTP 必填等 errors 允许带错落盘，方便 AI 继续修。校验条仍红；toast 可提示「已保存，暂不可运行」。
 
 **运行**：前端开跑预检改调 `POST /project/testFlow/validate?stage=run`（与后端 `FlowRunReadinessGate` 同口径：图结构 + 路由冲突 + 断言路径 + AUTH / 登录 extract / HTTP 必填）。画布展示走 `stage=canvas`；本地 `graphValidate` 只做落盘地板。不过则不开跑。
 
-`/patch/savePrecheck` 与末单元 `saveRiskWarnings` 现为**运行风险**预警（不阻断 ✓ / 保存），写入画布校验条；下一轮 AI 设计请求会带上 `runRiskWarnings` 注入模型 user 上下文。单单元 `submit_*` 对 AUTH_* / HTTP 必填写入 **warnings**（不进 errors）；整包规范化仍进 errors。开跑失败再 toast。
+鉴权 / 登录抽取 / HTTP 必填与结构问题一并进画布 **图 error**（`validate?stage=canvas`，不阻断 ✓ / 保存）；下一轮 AI 设计请求会从校验条按码过滤出 `runRiskWarnings` 注入 user 上下文。单单元 `submit_*`：**仅地板**（缺 id / 未知引用等）拒收；结构 / 鉴权 / 断言不挡收，合进 Staging 后靠画布与开跑。开跑失败再 toast。
 
 造流助手可读 `list_project_auth_profiles`、可提 `upsert_auth_profile`（半自动确认卡片写入项目 `auth_config`）。客户端 Profile 误绑 `adminAuth`（或相反）时，`AUTH_TOKEN_MISSING` 文案会追加「疑似绑错端」。登录 extract 的 `name=入口.字段` 缺 `entryKey` 时服务端会拆开。
 
@@ -106,7 +106,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 多次「Run 失败 → AI 修复 → 再确认」可能出现双开始节点、未确认项卡死。
 
-- 画布校验：有 **pending 边单元** 时请求 `validate?stage=canvas` 带 `deferTopology=true`，避免未确认连线造成开始节点/无入边等假错误；单元确认始终用 `stagingPartialConfirm`（拓扑延后），开跑再硬拦。
+- 画布校验：有 **pending 边单元** 时请求 `validate?stage=canvas` 带 `deferTopology=true`，避免未确认连线造成开始节点/无入边等假错误；开跑再硬拦。
 - 图乱：Staging **全部 ✕**，或 **新建流**（修复超 2 轮仍乱优先新建）。
 - 禁止空白 `nodes: []` 当成功。
 - 禁止改 Pinia / 直接 UPDATE `graph_json` 刷绿。

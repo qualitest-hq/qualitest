@@ -11,7 +11,7 @@ See also: [project-summary.en.md](./project-summary.en.md) · [test-flow-nodes.e
 
 The model **does not write the DB by default**. The Web assistant calls typed `submit_*` tools (e.g. `submit_http_node` with `op=add|update`), one Staging unit per call; the UI merges the accumulated patch into **Staging units**. A human (or an agent clicking the UI) **✓ confirms** or **✕ cancels**, then **Save**. Only then is `graph_json` persisted.
 
-**Full-auto (opt-in):** Web panel **Semi-auto | Full-auto** (default Semi-auto). With Full-auto (`autopilotEnabled`), the model gets `run_test_flow` (auto-persists pending submit_* before run / at turn end), and `upsert_asset_variables` / `upsert_auth_profile` write immediately. Implicit persist uses the same floor as human **Save** (unparseable / missing node id / edge endpoints only); multiple start nodes, assert paths, etc. become warnings and do not block write — Run hard-blocks later. No separate commit tool. Max 2 fix rounds after a failed run. Semi-auto still uses Staging ✓ then **manual Save**; asset and auth proposals confirm in chat.
+**Full-auto (opt-in):** Web panel **Semi-auto | Full-auto** (default Semi-auto). With Full-auto (`autopilotEnabled`), the model gets `run_test_flow` (auto-persists pending submit_* before run / at turn end), and `upsert_asset_variables` / `upsert_auth_profile` write immediately. Implicit persist matches human **Save** (hard-blocks only unparseable JSON); floor / structure / assert errors do not hard-block write — Run hard-blocks later; empty schema / unmatched fields stay silent at design time. No separate commit tool. Max 2 fix rounds after a failed run. Semi-auto still uses Staging ✓ then **manual Save**; asset and auth proposals confirm in chat.
 
 **MCP is read-only** — no `submit_*`, no asset/auth upsert writers, no commit/run. Edit graphs on the Web AI panel.
 
@@ -25,10 +25,10 @@ Prompt → tools → multiple submit_* (1 unit each) → Staging → ✓ → Sav
 
 | Action | Rule |
 | ------ | ---- |
-| ✓ Confirm | Accept unit; graph structure + **assert-path for this unit**. AUTH / login extract / HTTP-required stay soft on ✓; last unresolved unit may return `saveRiskWarnings` |
+| ✓ Confirm | Accept unit and **always apply to canvas** when the request succeeds. Dependency / structure / assert-path do **not** block ✓ (canvas graph errors + Run gate). AUTH / login extract / HTTP-required stay soft and appear in the same canvas graph-error bar (`validate?stage=canvas`) |
 | ✕ | Drop unit |
 | Delete ✓ | **Only** confirm; no second dialog. Do not keyboard-Delete Staging edges |
-| Save | May persist with design-time errors (only unparseable / minimal schema hard-block). Staging should be empty. Banner “nodes empty” = empty graph in DB — **not** a pass |
+| Save | May persist with design-time errors (only unparseable JSON hard-blocks). Staging should be empty. Banner “nodes empty” = empty graph in DB — **not** a pass |
 | Run | Structure + assert-path + AUTH / required readiness hard-block |
 | Save confirmed only | Leftover units vanish → half graph. Confirm first or ✕ all and recreate |
 | Refresh auth headers | Still goes through Staging |
@@ -64,15 +64,15 @@ Edit the canvas on Web only. Use MCP to inspect `testFlowId` and failure context
 | CODE | Hard? | When | Meaning |
 | ---- | ----- | ---- | ------- |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | **Run** (same) | Two logins write the same credential path |
-| `AUTH_TOKEN_MISSING` | Yes | **Run** (same; last-unit confirm may warn) | Bearer needed but no extract / assign / child-graph extract / **inSeed**; may tip “wrong side” Profile |
+| `AUTH_TOKEN_MISSING` | Yes | **Run** (same; canvas graph error may warn) | Bearer needed but no extract / assign / child-graph extract / **inSeed**; may tip “wrong side” Profile |
 | `AUTH_HEADER_MANAGED` / `AUTH_LOGIN_NO_BEARER` | Soft | — | Managed header filled / stripped on anonymous login |
-| Bad assert path (`.items`, `http.body.$.…`) | Yes on that unit | **submit and Staging ✓**; also **Run**; Save soft | See node docs |
-| Update empty array wipe (`rules`/`extracts`/`assignments`) | Yes | **submit / preparePatch** | Empty array vs non-empty baseline blocked |
+| Bad assert path (`.items`, `http.body.$.…`) | Yes (canvas / Run) | **Run** hard-blocks; **Staging ✓ / Save / submit accept soft** (submit only floor-rejects) | See node docs |
+| Update empty array wipe (`rules`/`extracts`/`assignments`) | Yes | **submit floor** (may not enter Staging); Staging ✓ / Save soft | Prefer reject at submit vs wiping baseline |
 | condition `branches[].target` | — | stripped in normalize | Exits follow edges only |
 
-**Save** only hard-blocks unparseable / minimal schema. **Run** readiness = structure + assert-path errors + `/patch/savePrecheck` (AUTH / login extract / HTTP required).
+**Save** only hard-blocks unparseable JSON. **Run** readiness = structure + assert-path + AUTH / login extract / HTTP required (`validate?stage=run`).
 
-`/patch/savePrecheck` and last-unit `saveRiskWarnings` are **run-risk** advisories (do not block ✓ / Save); they feed the validation bar and the next design request’s `runRiskWarnings`. Unit `submit_*` puts AUTH_* / HTTP-required into **warnings**; full-graph normalize still uses **errors**.
+AUTH / login extract / HTTP-required join **canvas graph errors** (`validate?stage=canvas`; do not block ✓ / Save). The next design request may filter those codes into `runRiskWarnings` in the user context. Unit `submit_*`: **floor only** (missing id / unknown refs) rejects; structure / AUTH / assert do not block accept—fix via canvas and Run.
 
 Assistants may call `list_project_auth_profiles` and `upsert_auth_profile`. Dotted extract names like `adminAuth.token` without `entryKey` are split server-side.
 

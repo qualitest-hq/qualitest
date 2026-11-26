@@ -1,7 +1,7 @@
 /**
  * Staging 单元 confirm 的服务端请求、画布 hash 守卫与落盘。
  *
- * 从画布读取最新 draft，请求服务端合并单单元，校验通过后将 graph_json 写回画布。
+ * 从画布读取最新 draft，请求服务端合并单单元，有 graphJson 则写回画布。
  * 不在此处入撤销栈，由调用方在 Staging 状态更新后再 pushHistory。
  */
 import { fromGraphJson } from '../graphAdapter';
@@ -180,7 +180,7 @@ export async function applyConfirmResultWithHashGuard(
   canvasStore: ReturnType<typeof useFlowCanvasStore>,
   onHashConflict: () => void,
 ): Promise<boolean> {
-  if (!result.validation.ok || !result.graphJson) {
+  if (!result.graphJson) {
     return false;
   }
 
@@ -190,7 +190,7 @@ export async function applyConfirmResultWithHashGuard(
 
   if (shouldBlockConfirmByBaseGraphHash(expectedHash, currentHash)) {
     const retry = await requestConfirmOnce(unitId, patch, projectId, stagingStore, canvasStore);
-    if (!retry.result.validation.ok || !retry.result.graphJson) {
+    if (!retry.result.graphJson) {
       return false;
     }
     expectedHash = retry.requestBaseHash;

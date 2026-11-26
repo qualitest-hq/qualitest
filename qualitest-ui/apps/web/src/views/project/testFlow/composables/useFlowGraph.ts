@@ -33,7 +33,6 @@ import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
-import { useRunRiskStore } from '../stores/runRiskStore';
 import {
   applyAdaptedGraphToStore,
   finalizeCanvasHistoryBaseline,
@@ -41,13 +40,8 @@ import {
 import { recoverLoginFlowEdgesIfMissing } from '../../testProjectTemplate/utils/templateCanvasHydrate';
 
 export interface SaveFlowOptions {
-  /** true：不弹成功/风险 toast（开跑前静默落盘等场景） */
+  /** true：不弹成功/就绪 toast（开跑前静默落盘等场景） */
   quiet?: boolean;
-  /**
-   * true：保存成功后不做运行风险刷新与「暂不可运行」计数。
-   * 开跑路径会紧接着自己做一次完整就绪检查，避免重复请求。
-   */
-  skipRunRiskRefresh?: boolean;
   /** 内部：版本冲突自动重试中，避免死循环 */
   _conflictRetry?: boolean;
 }
@@ -55,7 +49,6 @@ export interface SaveFlowOptions {
 export function useFlowGraph() {
   const store = useFlowCanvasStore();
   const stagingStore = useAiStagingStore();
-  const runRisk = useRunRiskStore();
   const { scheduleHistoryReset, resetHistory } = useFlowHistory();
 
   async function finalizeHistoryBaseline() {
@@ -187,7 +180,7 @@ export function useFlowGraph() {
    * 序列化当前画布并提交保存。
    * - 有未确认 Staging 时弹窗：去确认 / 仅保存已确认 / 取消
    * - 序列化时排除未确认的 Staging 对象；「仅保存已确认」即走此路径
-   * - 仅落库地板失败才阻断；其余问题可落盘，并提示尚不可运行
+   * - 图结构 / 地板 / 路由等 errors 不拦保存；仅 JSON 无法解析等落库问题会失败
    * - 写图携带本地图版本号作基准；冲突按仅布局脏 / 内容脏分流
    */
   async function saveFlow(options?: SaveFlowOptions) {
@@ -235,26 +228,19 @@ export function useFlowGraph() {
       store.setGraphRevision(nextRev != null ? nextRev : store.graphRevision + 1);
       await refreshSavedBaseline(store);
 
-      if (!options?.skipRunRiskRefresh && !options?.quiet) {
-        // 刷新运行风险条：只把鉴权/必填写入 store；结构/断言仍由实时结构校验展示
-        const { errors, precheckErrors } = await collectRunBlockingErrors({
+      if (!options?.quiet) {
+        // 人手保存：再跑一遍开跑就绪，提示「已存但暂不可跑」；校验条本身由 canvas 刷新
+        const { errors } = await collectRunBlockingErrors({
           graph,
           testProjectId: store.testProjectId,
           testFlowId: store.testFlowId,
         });
-        runRisk.setWarnings(precheckErrors);
         if (excludedPending > 0) {
           ElMessage.success(`已保存（已排除 ${excludedPending} 项未确认 Staging）`);
         } else if (errors.length) {
           ElMessage.warning(
             `已保存，尚有 ${errors.length} 项问题暂不可运行（见左上角校验条）`,
           );
-        } else {
-          ElMessage.success('保存成功');
-        }
-      } else if (!options?.quiet) {
-        if (excludedPending > 0) {
-          ElMessage.success(`已保存（已排除 ${excludedPending} 项未确认 Staging）`);
         } else {
           ElMessage.success('保存成功');
         }

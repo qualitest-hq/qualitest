@@ -26,7 +26,7 @@
 
 1. 造登录或修 `AUTH_TOKEN_MISSING` 前先 `list_project_auth_profiles`，核对托管头凭证目标。
 2. Profile 绑错端 → `upsert_auth_profile`（半自动：聊天侧确认卡片写入 `auth_config`；全自动：工具内直写）。未确认的鉴权提案会挡住 `run_test_flow` / 隐式落盘。
-3. 下一轮设计请求会带上校验条里的 `runRiskWarnings`，模型可据此继续改图。
+3. 下一轮设计请求会从画布图 error 过滤鉴权/必填写入 `runRiskWarnings`，模型可据此继续改图。
 4. 登录 extract 写成 `name=adminAuth.token` 且缺 `entryKey` 时，服务端会拆成 `entryKey` + `fieldPath`。
 
 | 码 | 含义 | 处理 |

@@ -45,13 +45,13 @@ public class FlowDesignPatchConfirmRequest {
 
     /**
      * 本会话内已确认通过的 Staging 单元 id 列表。
-     * 用于 addEdge 等依赖校验：patch 内 addNode 端点须先出现在此列表中。
+     * 前端 slim patch 用；服务端确认合图不依赖此列表。
      */
     private List<String> confirmedUnitIds = new ArrayList<>();
 
     /**
      * 本会话内已拒绝的 Staging 单元 id 列表。
-     * 与 confirmedUnitIds 一起判定本 patch 是否仍有未决单元，以决定是否延后拓扑结构校验。
+     * 与 confirmedUnitIds 一起判定本 patch 是否仍有未决单元。
      */
     private List<String> rejectedUnitIds = new ArrayList<>();
 }

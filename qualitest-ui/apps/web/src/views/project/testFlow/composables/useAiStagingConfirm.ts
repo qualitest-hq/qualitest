@@ -1,9 +1,9 @@
 /**
  * Staging 单元确认与取消的编排入口。
  *
- * 负责：依赖检查、服务端校验、把已确认变更写入画布内存、撤销历史入栈，
+ * 负责：请求服务端合并、把已确认变更写入画布内存、撤销历史入栈，
  * 以及 reject 时把画布上的提案回滚。
- * 另提供「确认全部就绪」波次串行批量确认（失败停顿、可跳过继续）。
+ * 另提供串行批量确认（请求失败停顿、可跳过继续）。图校验不挡 ✓。
  *
  * 确认成功后不自动调用保存；半自动下须用户再点「保存」才持久化 test_flow。
  * 全自动改图落盘由服务端隐式完成，不走本确认路径的自动保存。
@@ -13,10 +13,8 @@ import { ElMessage } from 'element-plus';
 
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
-import { useRunRiskStore } from '../stores/runRiskStore';
-import { listReadyPendingUnitIds } from '../utils/listReadyPendingUnits';
+import { listPendingUnitIdsSorted } from '../utils/listPendingUnitIds';
 import { collectStagingConfirmHighlightIds } from '../utils/mergeHighlight';
-import { resolveStagingConfirmDependency } from '../utils/stagingDependencyHints';
 import { revertStagingUnitOnCanvas } from '../utils/stagingCanvasRevert';
 import { resolveNextStagingFocusUnit } from '../utils/stagingFocusNavigation';
 import { isDeleteStagingUnit, objectIdFromUnitId } from '../utils/stagingUnitIds';
@@ -102,17 +100,11 @@ export function useAiStagingConfirm() {
     }
   }
 
-  function markConfirmFailure(
-    unitId: string,
-    dependencyHints: string[] | undefined,
-    errors: string[],
-    warnings: string[] = [],
-  ) {
-    stagingStore.markConfirmFailed(
-      unitId,
-      { ok: false, errors, warnings },
-      { dependencyHints },
-    );
+  /** 请求层失败：toast 提示，不写 Staging validation（图 error 只走画布） */
+  function notifyConfirmRequestFailure(errors: string[], quiet?: boolean) {
+    if (quiet) return;
+    const first = errors.find((e) => !!String(e ?? '').trim()) || '确认失败';
+    ElMessage.error(first);
   }
 
   /**
@@ -151,10 +143,10 @@ export function useAiStagingConfirm() {
 
   /**
    * 单单元确认核心（须由调用方持有 busy 占坑）。
-   * 跑依赖检查与服务端校验，通过后把变更写入画布内存并入撤销历史；
+   * 请求成功即把变更写入画布内存并入撤销历史；图校验不挡确认。
    * 不调用 saveFlow，不写后端 test_flow。
-   * 返回 ok / failed / aborted（缺 patch、依赖阻断、缺项目 id 等未发起确认）。
-   * 成功且响应带运行风险文案时写入校验条，不弹 toast。
+   * 返回 ok / failed / aborted（缺 patch、缺项目 id、请求失败等）。
+   * 鉴权/必填由图 error（stage=canvas）刷新，不弹 toast。
    */
   async function confirmUnitCore(
     unitId: string,
@@ -166,13 +158,6 @@ export function useAiStagingConfirm() {
     const patch = stagingStore.getPatchForMessage(unit.messageId);
     if (!patch) {
       if (!opts.quiet) ElMessage.warning('找不到对应的 AI patch');
-      return 'aborted';
-    }
-
-    const confirmedIds = new Set(stagingStore.listConfirmedUnitIds());
-    const dependency = resolveStagingConfirmDependency(unitId, patch, confirmedIds);
-    if (dependency.blocked) {
-      if (!opts.quiet) ElMessage.warning(dependency.blockTitle);
       return 'aborted';
     }
 
@@ -195,30 +180,15 @@ export function useAiStagingConfirm() {
           stagingStore,
           store,
         );
-        const dependencyHints = result.dependencyHints ?? [];
 
-        if (!result.validation.ok || !result.graphJson) {
-          const errors = dependencyHints.length
-            ? dependencyHints
-            : result.validation.errors.length
-              ? result.validation.errors
-              : ['确认失败'];
-          if (attempts > 1 && !dependencyHints.length) {
+        if (!result.graphJson) {
+          const errors = [result.error || '确认失败'];
+          if (attempts > 1) {
             errors.push(`已自动重试 ${attempts} 次`);
           }
-          markConfirmFailure(
-            unitId,
-            dependencyHints,
-            errors,
-            result.validation.warnings,
-          );
+          notifyConfirmRequestFailure(errors, opts.quiet);
           outcome = 'failed';
           return;
-        }
-
-        if (result.saveRiskWarnings?.length) {
-          // 末单元确认成功但仍有运行风险：写入校验条，不弹 toast
-          useRunRiskStore().setWarnings(result.saveRiskWarnings);
         }
 
         const applied = await applyConfirmResultWithHashGuard(
@@ -229,10 +199,9 @@ export function useAiStagingConfirm() {
           projectId,
           stagingStore,
           store,
-          () => markConfirmFailure(
-            unitId,
-            undefined,
+          () => notifyConfirmRequestFailure(
             ['画布在确认期间已变更，请再次点击确认或重试'],
+            opts.quiet,
           ),
         );
         if (!applied) {
@@ -300,10 +269,9 @@ export function useAiStagingConfirm() {
       return outcome;
     } catch (error) {
       const message = error instanceof Error ? error.message : '确认请求失败';
-      markConfirmFailure(
-        unitId,
-        undefined,
+      notifyConfirmRequestFailure(
         [message, `已自动重试 ${CONFIRM_UNIT_AUTO_RETRY_MAX} 次`],
+        opts.quiet,
       );
       return 'failed';
     } finally {
@@ -332,33 +300,32 @@ export function useAiStagingConfirm() {
       .map((u) => ({ unitId: u.unitId, messageId: u.messageId }));
   }
 
-  function currentReadyUnitIds(skip?: ReadonlySet<string>) {
+  function currentPendingUnitIds(skip?: ReadonlySet<string>) {
     void stagingStore.unitsById;
-    return listReadyPendingUnitIds({
+    return listPendingUnitIdsSorted({
       pendingUnits: collectPendingUnitRefs(),
       getPatchForMessage: (messageId) => stagingStore.getPatchForMessage(messageId),
-      confirmedUnitIds: new Set(stagingStore.listConfirmedUnitIds()),
       skipUnitIds: skip ?? batchSkipUnitIds,
     });
   }
 
-  /** 工具条角标：当前依赖已满足的 pending 数（不含批量 skip 集） */
-  const readyPendingCount = computed(() => currentReadyUnitIds(new Set()).length);
+  /** 工具条角标：当前 pending 数（不含批量 skip 集） */
+  const pendingConfirmCount = computed(() => currentPendingUnitIds(new Set()).length);
 
   /**
-   * 波次串行确认：反复取出当前依赖已满足的 pending，逐个 confirm。
-   * 某一单元失败则停顿，等待用户跳过或处理；整批结束后统一 toast。
+   * 波次串行确认：反复取出当前 pending，逐个 confirm。
+   * 某一单元请求失败则停顿，等待用户跳过或处理；整批结束后统一 toast。
    * 同样不自动保存 test_flow。
    */
-  async function runConfirmAllReadyLoop() {
+  async function runConfirmAllPendingLoop() {
     let totalOk = 0;
 
     while (true) {
-      const ready = currentReadyUnitIds(batchSkipUnitIds);
-      if (!ready.length) break;
+      const pending = currentPendingUnitIds(batchSkipUnitIds);
+      if (!pending.length) break;
 
       let successThisWave = 0;
-      for (const unitId of ready) {
+      for (const unitId of pending) {
         // 波次快照内可能已被上一拍间接 reject（如 deleteNode 清边），跳过
         const unit = stagingStore.getUnit(unitId);
         if (!unit || unit.status !== 'pending') continue;
@@ -389,8 +356,8 @@ export function useAiStagingConfirm() {
     stagingBatchPausedOnUnitId.value = null;
     if (totalOk > 0) {
       ElMessage.success(`已确认 ${totalOk} 项`);
-    } else if (stagingStore.pendingCount > 0 && currentReadyUnitIds(batchSkipUnitIds).length === 0) {
-      ElMessage.info('当前没有可确认项（可能仍有依赖未满足）');
+    } else if (stagingStore.pendingCount > 0 && currentPendingUnitIds(batchSkipUnitIds).length === 0) {
+      ElMessage.info('当前没有可确认项');
     }
   }
 
@@ -407,23 +374,23 @@ export function useAiStagingConfirm() {
     }
   }
 
-  /** 按依赖波次串行确认全部就绪 pending；失败停顿，不静默跳过 */
-  async function confirmAllReady() {
+  /** 串行确认全部 pending；请求失败停顿，不静默跳过 */
+  async function confirmAllPending() {
     await withBatchBusy(async () => {
       stagingBatchPausedOnUnitId.value = null;
       batchSkipUnitIds = new Set();
-      await runConfirmAllReadyLoop();
+      await runConfirmAllPendingLoop();
     });
   }
 
-  /** 跳过上次失败单元，继续批量确认其余就绪项 */
-  async function resumeConfirmAllReady() {
+  /** 跳过上次失败单元，继续批量确认其余 pending */
+  async function resumeConfirmAllPending() {
     const pausedId = stagingBatchPausedOnUnitId.value;
     if (!pausedId) return;
     await withBatchBusy(async () => {
       batchSkipUnitIds.add(pausedId);
       stagingBatchPausedOnUnitId.value = null;
-      await runConfirmAllReadyLoop();
+      await runConfirmAllPendingLoop();
     });
   }
 
@@ -452,9 +419,9 @@ export function useAiStagingConfirm() {
     confirmUnit,
     retryUnit,
     rejectUnit,
-    confirmAllReady,
-    resumeConfirmAllReady,
-    readyPendingCount,
+    confirmAllPending,
+    resumeConfirmAllPending,
+    pendingConfirmCount,
     batchConfirmBusy: stagingBatchConfirmBusy,
     batchPausedOnUnitId: stagingBatchPausedOnUnitId,
   };

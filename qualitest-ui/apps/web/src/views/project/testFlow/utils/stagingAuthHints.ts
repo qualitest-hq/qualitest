@@ -75,28 +75,10 @@ export function parseAuthWarning(raw: unknown): { code: string; message: string 
 
 /**
  * 展示用文案：若是鉴权机器码则去掉 CODE 前缀，只留人类可读部分；否则原样 trim。
- * 用于 Staging 确认失败时的错误列表展示。
+ * 用于校验条文案展示（去掉 AUTH_* CODE 前缀）。
  */
 export function displayAuthCodedMessage(raw: unknown): string {
   if (typeof raw !== 'string') return ''
   const parsed = parseAuthWarning(raw)
   return parsed ? parsed.message : raw.trim()
-}
-
-/**
- * 从校验 warnings 中筛出鉴权托管相关提示（补头 / 登录口剥离），并去掉 CODE 前缀。
- */
-export function filterAuthRelatedWarnings(warnings: unknown[] | undefined | null): string[] {
-  if (!Array.isArray(warnings)) return []
-  const out: string[] = []
-  for (const w of warnings) {
-    const parsed = parseAuthWarning(w)
-    if (
-      parsed?.code === AUTH_WARNING_CODES.HEADER_MANAGED
-      || parsed?.code === AUTH_WARNING_CODES.LOGIN_NO_BEARER
-    ) {
-      out.push(parsed.message)
-    }
-  }
-  return out
 }

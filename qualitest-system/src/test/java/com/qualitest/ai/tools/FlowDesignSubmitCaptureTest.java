@@ -1,7 +1,7 @@
 package com.qualitest.ai.tools;
 
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
+import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.flow.model.GraphNode;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +37,6 @@ class FlowDesignSubmitCaptureTest {
         capture.record(new FlowDesignPatchNormalizer.NormalizeResult(bad, failValidation()));
         assertEquals(1, capture.getNormalizedPatch().getAddNodes().size());
         assertEquals("n1", capture.getNormalizedPatch().getAddNodes().get(0).getId());
-        assertFalse(capture.getValidation().isOk());
     }
 
     @Test
@@ -74,11 +73,11 @@ class FlowDesignSubmitCaptureTest {
         return patch;
     }
 
-    private static DesignValidationResult okValidation() {
-        return DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build();
+    private static GraphValidationResult okValidation() {
+        return GraphValidationResult.of(List.of());
     }
 
-    private static DesignValidationResult failValidation() {
-        return DesignValidationResult.builder().ok(false).errors(List.of("x")).warnings(List.of()).build();
+    private static GraphValidationResult failValidation() {
+        return GraphValidationResult.of(List.of("x"));
     }
 }

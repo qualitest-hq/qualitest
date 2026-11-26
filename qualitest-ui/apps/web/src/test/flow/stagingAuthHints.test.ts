@@ -1,6 +1,6 @@
 /**
  * 测 stagingAuthHints：托管头识别、Diff 标签、鉴权机器码解析与展示剥前缀。
- * 边界：无 headers / 显式头 / profileManaged；只认 AUTH_* CODE；TOKEN_MISSING 不进 soft warnings。
+ * 边界：无 headers / 显式头 / profileManaged；只认 AUTH_* CODE。
  * 单跑：pnpm test stagingAuthHints   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
@@ -9,7 +9,6 @@ import {
   AUTH_WARNING_CODES,
   collectAuthManagedHeaderHints,
   displayAuthCodedMessage,
-  filterAuthRelatedWarnings,
   hasProfileManagedHeaders,
   parseAuthWarning,
   stagingHeadersFieldLabel,
@@ -54,19 +53,6 @@ describe('stagingAuthHints', () => {
     expect(stagingHeadersFieldLabel(draft)).toBe('请求头（按项目鉴权补全）');
     expect(collectAuthManagedHeaderHints(draft)[0]).toContain('Authorization');
     expect(collectAuthManagedHeaderHints(draft)[0]).toContain('asset.adminAuth.token');
-  });
-
-  it('按 AUTH_* 筛 soft 提示，并剥掉 CODE 前缀', () => {
-    // 前提：混有普通文案、HEADER_MANAGED、TOKEN_MISSING
-    // 期望：只留下 HEADER_MANAGED 的人类文案；TOKEN_MISSING 不出现在 soft 列表
-    expect(filterAuthRelatedWarnings([
-      '边缺少 source',
-      `${AUTH_WARNING_CODES.HEADER_MANAGED}: HTTP 节点「资料」已按项目鉴权补全 Authorization（托管头，Run 时随项目配置刷新）`,
-      `${AUTH_WARNING_CODES.TOKEN_MISSING}: 图中使用了客户端 Bearer（flow.token），但未找到该变量来源`,
-      '按项目鉴权 但无 code 前缀应忽略',
-    ])).toEqual([
-      'HTTP 节点「资料」已按项目鉴权补全 Authorization（托管头，Run 时随项目配置刷新）',
-    ]);
   });
 
   it('displayAuthCodedMessage 去掉鉴权 CODE 前缀', () => {

@@ -1,17 +1,15 @@
 /**
- * 画布草稿预检调度。
+ * 画布草稿 API 语义预检调度。
  * <p>
- * 在防抖后请求 API 语义预检与运行风险预检，结果写入对应 store，驱动校验条。
+ * 在防抖后请求 API 语义预检，结果写入 apiHealth store。
+ * 鉴权/必填已并入 stage=canvas 图 error（useFlowValidation），不再平行预检。
  * 全页只保留一份运行时：多处挂载共享暂停开关与监听，卸载全部挂载后再释放。
- * 监听的是可落盘图内容（节点业务数据、边、场景、流输出及 Staging 过滤结果），
- * 不把节点尺寸、选中态等画布运行时字段算作变更，避免空闲时反复请求。
  */
 import { onBeforeUnmount, watch, type Ref } from 'vue'
 
 import { snapshotStringWithoutViewport } from '../utils/reconcileFlowDirty'
 import { useApiHealthStore } from '../stores/apiHealthStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
-import { useRunRiskStore } from '../stores/runRiskStore'
 import { buildCanvasPersistGraph } from './buildCanvasPersistGraph'
 
 /** 预检防抖间隔（毫秒） */
@@ -41,7 +39,6 @@ let bindCount = 0
 function createApiHealthDraftPreview(): PreviewRuntime {
   const store = useFlowCanvasStore()
   const apiHealth = useApiHealthStore()
-  const runRisk = useRunRiskStore()
 
   /** 防抖定时器句柄 */
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -90,16 +87,15 @@ function createApiHealthDraftPreview(): PreviewRuntime {
     if (value) clearTimer()
   }
 
-  /** 清空两侧预检告警，并记下当前内容键，避免立刻再打一轮 */
+  /** 清空 API 语义告警，并记下当前内容键，避免立刻再打一轮 */
   function clearPreviewState() {
     lastPreviewKey = currentPreviewKey()
     apiHealth.clear()
-    runRisk.clear()
   }
 
   /**
-   * 立刻执行预检：取消排队，按当前可落盘图并发请求 API 语义与运行风险。
-   * 跳过条件下只清空告警；无项目 id 时只清运行风险。
+   * 立刻执行预检：取消排队，按当前可落盘图请求 API 语义。
+   * 跳过条件下只清空告警。
    */
   async function runPreview() {
     clearTimer()
@@ -110,12 +106,7 @@ function createApiHealthDraftPreview(): PreviewRuntime {
     }
     const graph = buildCanvasPersistGraph()
     lastPreviewKey = `${id}|${snapshotStringWithoutViewport(graph)}`
-    await Promise.all([
-      apiHealth.preview(id, graph),
-      store.testProjectId
-        ? runRisk.preview(String(store.testProjectId), graph)
-        : Promise.resolve(runRisk.clear()),
-    ])
+    await apiHealth.preview(id, graph)
   }
 
   /**
@@ -153,9 +144,7 @@ function createApiHealthDraftPreview(): PreviewRuntime {
 }
 
 /**
- * 挂载画布草稿预检调度。
- * <p>
- * 多次调用共享同一运行时；每次挂载增加计数，全部卸载后释放定时器与单例。
+ * 挂载画布草稿 API 语义预检调度。
  *
  * @param testFlowId 当前测试流 id（响应式）
  * @returns runPreview 立刻预检；setSuspended 暂停/恢复自动预检

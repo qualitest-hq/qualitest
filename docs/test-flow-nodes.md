@@ -326,7 +326,7 @@ UI：`eq/ne/gt/gte/lt/lte/contains/not_contains/exists`。
 
 集合语义：`exists` 要求非空；`eq` 多元素列表仅恰好 1 个时拆箱；`contains` 左值为列表时任一元素包含即可。
 
-设计期：Staging ✓ 确认 assert/condition 时按上游接口响应 schema 校验 `http.body…`（结构错误硬拦；缺 schema 警告）。**保存**不拦全图断言路径；**运行**跑结构 + 断言路径 + readiness。响应 example 只给人看，不参与硬拦。
+设计期：`http.body…` 静态可断定写法错误（如 `.items` / `http.body.$.…`）进画布图 error；**Staging ✓ / 保存不拦**；无 schema、字段是否存在静默。**运行**拦结构 + 断言路径结构错 + readiness。响应 example 只给人看，不参与硬拦。
 
 ---
 

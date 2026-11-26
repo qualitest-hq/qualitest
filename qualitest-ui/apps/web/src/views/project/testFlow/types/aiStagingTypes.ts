@@ -1,5 +1,3 @@
-import type { GraphValidationResult } from '@/utils/flow/graphValidate';
-
 import type { DiffItemKind, FlowDesignPatch } from './aiDesignTypes';
 
 /** Staging 单元生命周期 */
@@ -29,10 +27,6 @@ export interface AiStagingUnit {
   baseline?: Record<string, unknown>;
   /** add/update 类：用户可编辑 draft（默认来自 patch） */
   draft?: Record<string, unknown>;
-  /** 最近一次 confirm 校验；失败时供重试 UI，成功后清除 */
-  lastValidation?: GraphValidationResult;
-  /** 最近一次 confirm 的依赖提示（与 errors 分开展示来源） */
-  lastDependencyHints?: string[];
   /** confirm 请求进行中，防止重复提交 */
   confirmInFlight?: boolean;
   confirmedAt?: number;

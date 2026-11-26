@@ -26,10 +26,9 @@ describe('stagingConfirmRetry', () => {
     vi.useRealTimers();
   });
 
-  it('校验通过立即返回，不继续重试', async () => {
+  it('有响应立即返回，不继续重试', async () => {
     requestConfirmOnceMock.mockResolvedValue({
       result: {
-        validation: { ok: true, errors: [], warnings: [] },
         graphJson: { nodes: [], edges: [], meta: {} },
       },
       requestBaseHash: 'hash-1',
@@ -47,11 +46,11 @@ describe('stagingConfirmRetry', () => {
     expect(requestConfirmOnceMock).toHaveBeenCalledTimes(1);
   });
 
-  it('本单元校验失败时不重试，立即返回', async () => {
+  it('无 graphJson 的响应也不重试，立即返回', async () => {
     requestConfirmOnceMock.mockResolvedValue({
       result: {
-        validation: { ok: false, errors: ['HTTP 节点缺少 externalUrl'], warnings: [] },
         graphJson: null,
+        error: '确认失败',
       },
       requestBaseHash: 'hash-1',
     });
@@ -66,7 +65,7 @@ describe('stagingConfirmRetry', () => {
 
     expect(out.attempts).toBe(1);
     expect(requestConfirmOnceMock).toHaveBeenCalledTimes(1);
-    expect(out.result.validation.ok).toBe(false);
+    expect(out.result.graphJson).toBeNull();
   });
 
   it('网络抛错时自动重试至上限', async () => {

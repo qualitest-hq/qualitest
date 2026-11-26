@@ -158,11 +158,11 @@
         </button>
         <button
             v-if="stagingPendingCount > 0 && canEditFlow"
-            :disabled="stagingBatchBusy || stagingReadyPendingCount === 0"
+            :disabled="stagingBatchBusy || stagingPendingConfirmCount === 0"
             :title="stagingConfirmAllTitle"
             class="btn btn--ghost"
             type="button"
-            @click="handleConfirmAllReady"
+            @click="handleConfirmAllPending"
         >
           {{ stagingConfirmAllLabel }}
         </button>
@@ -170,9 +170,9 @@
             v-if="stagingBatchPausedOnUnitId && canEditFlow"
             :disabled="stagingBatchBusy"
             class="btn btn--ghost"
-            title="跳过失败项，继续确认其余就绪变更"
+            title="跳过失败项，继续确认其余待确认变更"
             type="button"
-            @click="handleResumeConfirmAllReady"
+            @click="handleResumeConfirmAllPending"
         >
           跳过失败继续
         </button>
@@ -502,28 +502,28 @@ const { externalConflictBanners } = useExternalGraphSync({
 })
 
 const {
-  confirmAllReady,
-  resumeConfirmAllReady,
-  readyPendingCount: stagingReadyPendingCount,
+  confirmAllPending,
+  resumeConfirmAllPending,
+  pendingConfirmCount: stagingPendingConfirmCount,
   batchConfirmBusy: stagingBatchBusy,
   batchPausedOnUnitId: stagingBatchPausedOnUnitId,
 } = useAiStagingConfirm()
 const stagingConfirmAllLabel = computed(() => {
   if (stagingBatchBusy.value) return '确认中…'
-  return `确认全部就绪 (${stagingReadyPendingCount.value})`
+  return `确认全部待确认 (${stagingPendingConfirmCount.value})`
 })
 const stagingConfirmAllTitle = computed(() => {
-  if (stagingBatchBusy.value) return '正在按依赖顺序确认就绪项'
-  if (stagingReadyPendingCount.value === 0) return '当前没有可确认项（可能仍有依赖未满足）'
-  return `按依赖顺序确认 ${stagingReadyPendingCount.value} 项就绪变更`
+  if (stagingBatchBusy.value) return '正在串行确认待确认项'
+  if (stagingPendingConfirmCount.value === 0) return '当前没有待确认项'
+  return `串行确认 ${stagingPendingConfirmCount.value} 项待确认变更`
 })
-async function handleConfirmAllReady() {
-  if (!canEditFlow.value || stagingBatchBusy.value || stagingReadyPendingCount.value === 0) return
-  await confirmAllReady()
+async function handleConfirmAllPending() {
+  if (!canEditFlow.value || stagingBatchBusy.value || stagingPendingConfirmCount.value === 0) return
+  await confirmAllPending()
 }
-async function handleResumeConfirmAllReady() {
+async function handleResumeConfirmAllPending() {
   if (!canEditFlow.value || stagingBatchBusy.value || !stagingBatchPausedOnUnitId.value) return
-  await resumeConfirmAllReady()
+  await resumeConfirmAllPending()
 }
 const { onConnect, onEdgesChange } = useFlowConnect()
 const { refreshAllNodeInternals } = useFlowNodeInternalsRefresh()

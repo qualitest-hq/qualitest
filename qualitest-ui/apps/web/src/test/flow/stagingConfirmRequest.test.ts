@@ -25,7 +25,6 @@ vi.mock('@/views/project/testFlow/utils/computeBaseGraphHash', () => ({
 
 vi.mock('@/views/project/testFlow/utils/confirmFlowDesignUnit', () => ({
   requestConfirmFlowDesignUnit: vi.fn(async () => ({
-    validation: { ok: true, errors: [], warnings: [] },
     graphJson: {
       nodes: [{ id: '9001', type: 'http', position: { x: 0, y: 0 }, data: { name: 'A' } }],
       edges: [],

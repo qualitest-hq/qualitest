@@ -1,36 +1,28 @@
 /**
- * 列出当前可确认的 Staging pending 单元（依赖已满足、且不在 skip 集）。
+ * 列出当前 pending Staging 单元（依赖不挡），并稳定排序。
  *
  * 排序：跨消息按 messageId；同消息内按 patch 枚举序（节点先于边）。
  */
 import type { FlowDesignPatch } from '../types/aiDesignTypes';
 import { enumeratePatchUnitIds } from './stagingFocusNavigation';
-import { isStagingConfirmBlockedByDependencies } from './stagingDependencyHints';
 
-export type ReadyPendingUnitRef = {
+export type PendingUnitRef = {
   unitId: string;
   messageId: string;
 };
 
-export type ListReadyPendingUnitIdsOptions = {
-  pendingUnits: ReadonlyArray<ReadyPendingUnitRef>;
+export type ListPendingUnitIdsOptions = {
+  pendingUnits: ReadonlyArray<PendingUnitRef>;
   getPatchForMessage: (messageId: string) => FlowDesignPatch | undefined;
-  confirmedUnitIds: ReadonlySet<string>;
   skipUnitIds?: ReadonlySet<string>;
 };
 
-/** 当前依赖已满足、可发起 confirm 的 pending unitId 列表 */
-export function listReadyPendingUnitIds(options: ListReadyPendingUnitIdsOptions): string[] {
+/** 当前 pending unitId 列表（可发起 confirm；依赖不挡） */
+export function listPendingUnitIdsSorted(options: ListPendingUnitIdsOptions): string[] {
   const skip = options.skipUnitIds ?? new Set<string>();
   const candidates = options.pendingUnits.filter((unit) => {
     if (skip.has(unit.unitId)) return false;
-    const patch = options.getPatchForMessage(unit.messageId);
-    if (!patch) return false;
-    return !isStagingConfirmBlockedByDependencies(
-      unit.unitId,
-      patch,
-      options.confirmedUnitIds,
-    );
+    return !!options.getPatchForMessage(unit.messageId);
   });
 
   const orderCache = new Map<string, string[]>();

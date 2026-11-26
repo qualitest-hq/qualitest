@@ -5,7 +5,7 @@
  * - 加载模型与会话列表，刷新后恢复历史消息
  * - SSE 流式设计，支持取消
  * - patch 到达 → hydratePatchToStaging / createAiStagingHydration（画布就地确认）
- * - 发送设计请求时注入当前画布 runRiskWarnings，写入本轮 user 上下文
+ * - 发送设计请求时从画布图 error 过滤鉴权/必填子集写入 runRiskWarnings
  * - 流式结果挂载素材提案与鉴权 Profile 提案到助手消息
  */
 import { reactive, ref, watch } from 'vue';
@@ -31,8 +31,9 @@ import { useAiDesignStream } from './useAiDesignStream';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
-import { useRunRiskStore } from '../stores/runRiskStore';
 import { useFlowGraph } from './useFlowGraph';
+import { useFlowValidation } from './useFlowValidation';
+import { isAuthReadinessIssue } from '../utils/runReadiness';
 import { followRun } from './followActiveRun';
 import { useRunConfig } from './useRunConfig';
 import { isAutopilotEnabled } from '../utils/aiDesignPreferences';
@@ -387,10 +388,13 @@ export function useAiDesign() {
       // 当前图版本，供 Web 整图保存 CAS；AI 增量落盘走服务端行锁
       graphRevision: store.graphRevision,
     };
-    // 把当前画布已算出的开跑/鉴权风险文案带入本轮设计请求
-    const riskWarnings = useRunRiskStore().warnings;
-    if (Array.isArray(riskWarnings) && riskWarnings.length > 0) {
-      base.runRiskWarnings = riskWarnings.filter((w) => typeof w === 'string' && w.trim());
+    // 从统一图 error 按 code/前缀过滤鉴权/必填，写入本轮设计请求（字段名暂留）
+    const authWarnings = useFlowValidation()
+      .issues.value.filter((i) => isAuthReadinessIssue(i))
+      .map((i) => i.message)
+      .filter((m) => typeof m === 'string' && m.trim());
+    if (authWarnings.length > 0) {
+      base.runRiskWarnings = authWarnings;
     }
     if (isTemplate) {
       base.designMode = 'template';
@@ -538,7 +542,6 @@ export function useAiDesign() {
       vendorName: data.vendorName,
       modelName: data.modelName,
       patch,
-      validation: data.validation,
       explainOnly,
       assetProposals,
       authProfileProposals,

@@ -115,7 +115,7 @@ const preview = computed(() => {
   if (parseError.value) return { parseError: parseError.value }
   if (!validationResult.value) return null
 
-  const { ok, errors, warnings, softErrors, graph } = validationResult.value
+  const { ok, errors, softErrors, graph } = validationResult.value
   const nodes = graph?.nodes || []
   const edges = graph?.edges || []
   const typeCount = {}
@@ -134,7 +134,7 @@ const preview = computed(() => {
     })
   }
   errors.forEach((msg) => items.push({ class: 'import-preview__item--error', text: `✗ ${msg}` }))
-  const hints = [...(softErrors || []), ...(warnings || [])]
+  const hints = softErrors || []
   hints.slice(0, 8).forEach((msg) => {
     items.push({ class: 'import-preview__item--warn', text: `⚠ ${msg}` })
   })
@@ -166,7 +166,6 @@ function refreshPreview() {
       ok: floor.ok,
       errors: floor.errors || [],
       softErrors: [],
-      warnings: floor.warnings || [],
       graph: unwrapped,
       raw: data,
     }
@@ -197,8 +196,7 @@ async function applyImport() {
   if (!validationResult.value?.ok) return
   const ok = await importGraph(validationResult.value.raw)
   if (ok) {
-    const w = validationResult.value.warnings?.length || 0
-    ElMessage.success(w ? `导入成功（${w} 条警告）` : '导入成功')
+    ElMessage.success('导入成功')
     close()
   }
 }

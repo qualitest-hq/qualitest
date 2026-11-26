@@ -3,7 +3,7 @@ package com.qualitest.ai.tools.flow;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
+import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
@@ -126,8 +126,7 @@ class RunTestFlowToolTest {
         FlowDesignPatch unit = new FlowDesignPatch();
         unit.getAddNodes().add(GraphNode.builder().id("n1").type("delay").build());
         capture.record(new FlowDesignPatchNormalizer.NormalizeResult(
-                unit,
-                DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build()));
+                unit, GraphValidationResult.of(List.of())));
 
         RunTestFlowTool tool = new RunTestFlowTool(
                 execution, mock(com.qualitest.project.service.IProjectRunHubService.class),

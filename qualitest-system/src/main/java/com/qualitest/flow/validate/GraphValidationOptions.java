@@ -11,14 +11,14 @@ import lombok.Getter;
 public class GraphValidationOptions {
 
     /**
-     * true：开始节点「不唯一 / 缺失」只记为警告，不记为错误。
+     * true：跳过开始节点等拓扑规则（不产出 issue）。
      * 用于尚有未确认连线、当前合并预览拓扑可能暂时不准。
      */
     @Builder.Default
     private final boolean deferTopologyStructureRules = false;
 
     /**
-     * true：只检查能否安全落库的最小结构（节点 id、边端点），
+     * true：只检查落库地板（节点 id、边端点），
      * 不检查字段完整性、开始节点、断言等内容细节。
      */
     @Builder.Default
@@ -32,15 +32,18 @@ public class GraphValidationOptions {
                 .build();
     }
 
-    /** 分批确认预览：开始节点问题降为警告，避免未确认边造成误报。 */
-    public static GraphValidationOptions stagingPartialConfirm() {
+    /**
+     * 延后开始节点等拓扑硬规则（submit 单单元 / 画布有 pending 边时）。
+     * 避免半成品图误报；开跑仍用 {@link #full()}。
+     */
+    public static GraphValidationOptions deferTopology() {
         return GraphValidationOptions.builder()
                 .deferTopologyStructureRules(true)
                 .persistMinimalOnly(false)
                 .build();
     }
 
-    /** 写库地板：只拦节点缺 id / id 重复、边缺 source/target。 */
+    /** 写库地板：只查节点缺 id / id 重复、边缺 source/target（不硬拦保存）。 */
     public static GraphValidationOptions persistMinimal() {
         return GraphValidationOptions.builder()
                 .deferTopologyStructureRules(false)

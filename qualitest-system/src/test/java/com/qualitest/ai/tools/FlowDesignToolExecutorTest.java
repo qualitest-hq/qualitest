@@ -6,7 +6,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.flow.GetApiDetailsTool;
 import com.qualitest.api.util.ApiConfigTestFixtures;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
+import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.domain.TestProjectEnv;
@@ -816,13 +816,8 @@ class FlowDesignToolExecutorTest {
         patch.setSummary("登录链路");
         patch.setAddNodes(new ArrayList<>(List.of(
                 GraphNode.builder().id("n1").type("http").data(new java.util.HashMap<>()).build())));
-        DesignValidationResult validation = DesignValidationResult.builder()
-                .ok(true)
-                .errors(List.of())
-                .warnings(List.of("HTTP 节点 API 已置空"))
-                .build();
         when(normalizer.normalizeUnit(any(FlowDesignPatch.class), any(), eq(PROJECT_ID), any())).thenReturn(
-                new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
+                new FlowDesignPatchNormalizer.NormalizeResult(patch, GraphValidationResult.of(List.of())));
 
         FlowDesignSubmitCapture capture = new FlowDesignSubmitCapture();
         FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
@@ -841,7 +836,7 @@ class FlowDesignToolExecutorTest {
         JSONObject root = JSON.parseObject(json);
         assertTrue(root.getBooleanValue("received"));
         assertTrue(root.getJSONObject("validation").getBooleanValue("ok"));
-        assertEquals(1, root.getJSONObject("validation").getJSONArray("warnings").size());
+        assertNull(root.get("softTips"));
         assertEquals(1, root.getJSONObject("patchStats").getIntValue("addNodes"));
         assertTrue(capture.isSubmitted());
         assertEquals("登录链路", capture.getNormalizedPatch().getSummary());
@@ -856,13 +851,8 @@ class FlowDesignToolExecutorTest {
     @DisplayName("submit 校验失败返回 errors")
     void submitAddEdge_validationFailed_returnsErrors() {
         FlowDesignPatch patch = new FlowDesignPatch();
-        DesignValidationResult validation = DesignValidationResult.builder()
-                .ok(false)
-                .errors(List.of("边 target 不存在"))
-                .warnings(List.of())
-                .build();
         when(normalizer.normalizeUnit(any(FlowDesignPatch.class), any(), eq(PROJECT_ID), any())).thenReturn(
-                new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
+                new FlowDesignPatchNormalizer.NormalizeResult(patch, GraphValidationResult.of(List.of("边 target 不存在"))));
 
         FlowDesignToolContext submitCtx = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
@@ -880,7 +870,7 @@ class FlowDesignToolExecutorTest {
         JSONObject root = JSON.parseObject(json);
         assertFalse(root.getJSONObject("validation").getBooleanValue("ok"));
         assertFalse(root.getBooleanValue("received"));
-        assertEquals("校验未通过", root.getString("error"));
+        assertEquals("地板校验未通过", root.getString("error"));
         assertEquals(1, root.getJSONObject("validation").getJSONArray("errors").size());
         assertTrue(root.getString("hint").contains("修正"));
     }
@@ -896,11 +886,7 @@ class FlowDesignToolExecutorTest {
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setAddNodes(new ArrayList<>(List.of(
                 GraphNode.builder().id("n2").type("http").data(new java.util.HashMap<>()).build())));
-        DesignValidationResult validation = DesignValidationResult.builder()
-                .ok(true)
-                .errors(List.of())
-                .warnings(List.of())
-                .build();
+        GraphValidationResult validation = GraphValidationResult.of(List.of());
         when(normalizer.normalizeUnit(any(FlowDesignPatch.class), any(), eq(PROJECT_ID), any())).thenReturn(
                 new FlowDesignPatchNormalizer.NormalizeResult(patch, validation));
 

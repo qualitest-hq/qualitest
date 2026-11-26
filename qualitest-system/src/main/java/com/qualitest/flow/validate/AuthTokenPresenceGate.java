@@ -36,7 +36,7 @@ import java.util.function.Function;
  * <p>
  * 缺来源时返回错误文案（前缀 AUTH_TOKEN_MISSING），并附上 profileId、命中的 pathPrefix，
  * 便于核对「哪一端、哪段前缀」缺登录抽取。仅运行硬拦；
- * 单单元规范化时把同样结果写入 warnings（不硬拦）；Staging 确认 / 保存不硬拦。
+ * 单单元 submit 地板不拦；Staging ✓ / 保存不硬拦，开跑硬拦（画布 stage=canvas 图 error 可预警）。
  * 项目未配置鉴权 Profile 时不做检查。
  */
 public final class AuthTokenPresenceGate {

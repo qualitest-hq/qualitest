@@ -3,8 +3,6 @@ package com.qualitest.ai.scenario.flow;
 import cn.hutool.core.util.IdUtil;
 import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
-import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckResult;
 import com.qualitest.ai.tools.FlowDesignIds;
 import com.qualitest.api.util.ManagedAuthHeaderApplier;
 import com.qualitest.flow.graph.FlowGraphLayeredLayout;
@@ -17,10 +15,7 @@ import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
 import com.qualitest.flow.validate.AssertPathDesignGate;
-import com.qualitest.flow.validate.AuthTokenPresenceGate;
 import com.qualitest.flow.validate.DesignAuthRiskGates;
-import com.qualitest.flow.validate.HttpRequiredParamGate;
-import com.qualitest.flow.validate.LoginExtractPresenceGate;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
@@ -48,14 +43,14 @@ import java.util.function.Function;
  * <p>
  * 在提交进 Capture / 返回前端 Staging 前依次完成：
  * 补雪花 id、忽略入参坐标并为新增节点自动写入 position、校验 HTTP 接口归属、
- * 补鉴权托管头、剥离 data 壳字段、规范化场景字段、预合并跑图结构校验与断言路径门禁等。
+ * 补鉴权托管头、剥离 data 壳字段、规范化场景字段等。
  * 更新节点不写坐标，合并时保留画布原位置。
  * 本类不写业务库；用户在前端确认后才持久化 graph_json。
  * <p>
  * 提供两条入口：
  * <ul>
- *   <li>normalize：整包严格校验（含鉴权 token 来源、登录抽取、HTTP 必填测值）</li>
- *   <li>normalizeUnit：单 Staging 单元宽松校验（跨单元依赖延后，便于一次一单元造流）</li>
+ *   <li>{@link #normalizeUnit}：造流 {@code submit_*} 用；仅地板（idErrors）拒收，结构/鉴权/断言交给画布与开跑</li>
+ *   <li>{@link #normalize}：整包严格快照（结构+断言+鉴权进 errors）；生产 submit 不用，供单测/对照</li>
  * </ul>
  */
 @Component
@@ -69,149 +64,63 @@ public class FlowDesignPatchNormalizer {
     private final FlowDesignPatchMerger patchMerger;
 
     /**
-     * 全量规范化并预合并校验：合并后跑完整图结构校验与鉴权/必填门禁，错误回传模型。
+     * 整包严格快照（测试/对照用，非 {@code submit_*} 生产路径）。
+     * 合并后跑完整图结构 + 断言 + 鉴权/必填，全部进 {@link GraphValidationResult#getErrors()}。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId) {
         return normalize(patch, baseGraph, testProjectId, null);
     }
 
     /**
-     * 全量规范化；sessionClientIdMap 为会话短名→雪花映射（可 null），解析成功时就地写入。
+     * 整包严格快照；sessionClientIdMap 为会话短名→雪花映射（可 null），解析成功时就地写入。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
                                      Map<String, String> sessionClientIdMap) {
-        return normalizeInternal(patch, baseGraph, testProjectId, sessionClientIdMap, false);
+        return normalizeStrict(patch, baseGraph, testProjectId, sessionClientIdMap);
     }
 
     /**
-     * 单 Staging 单元规范化（造流 submit_* 用）。
+     * 单 Staging 单元规范化（造流 {@code submit_*} 用）。
      * <p>
-     * 与全量差异：
-     * <ul>
-     *   <li>图校验用局部确认选项（开始节点等整图硬规则放宽）</li>
-     *   <li>边端点允许前向短名（本轮稍后才会 add 的节点）</li>
-     *   <li>source/target 尚不存在的拓扑报错降为 warnings</li>
-     *   <li>断言路径只把命中本单元节点的错误当 errors</li>
-     *   <li>AUTH_* 鉴权风险与 HTTP 必填项记入 warnings，不硬拦（分批造流时图常不完整）</li>
-     * </ul>
+     * 仅地板拒收（idErrors：缺 id、未知引用等）；边端点允许前向短名。
+     * 结构 / 断言 / AUTH 不挡收——合进 Staging 后由画布与开跑处理。
      */
     public NormalizeResult normalizeUnit(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
                                          Map<String, String> sessionClientIdMap) {
-        return normalizeInternal(patch, baseGraph, testProjectId, sessionClientIdMap, true);
-    }
-
-    /**
-     * @param unitLocal true=单单元宽松（鉴权风险与跨单元拓扑进 warnings）；false=整包严格
-     */
-    private NormalizeResult normalizeInternal(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
-                                              Map<String, String> sessionClientIdMap, boolean unitLocal) {
         List<String> normWarnings = new ArrayList<>();
         List<String> idErrors = new ArrayList<>();
         Map<String, String> clientIdMap = sessionClientIdMap != null ? sessionClientIdMap : new HashMap<>();
-        patch = initAndNormalizePatch(patch, baseGraph, testProjectId, normWarnings, clientIdMap, idErrors, unitLocal);
+        patch = initAndNormalizePatch(patch, baseGraph, testProjectId, normWarnings, clientIdMap, idErrors, true);
+        if (!idErrors.isEmpty()) {
+            return new NormalizeResult(patch, GraphValidationResult.of(idErrors));
+        }
+        return new NormalizeResult(patch, GraphValidationResult.of(List.of()));
+    }
+
+    /** 整包：规范化 + 合图后结构/断言/鉴权全部进 errors（无 soft 旁路）。 */
+    private NormalizeResult normalizeStrict(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
+                                            Map<String, String> sessionClientIdMap) {
+        List<String> normWarnings = new ArrayList<>();
+        List<String> idErrors = new ArrayList<>();
+        Map<String, String> clientIdMap = sessionClientIdMap != null ? sessionClientIdMap : new HashMap<>();
+        patch = initAndNormalizePatch(patch, baseGraph, testProjectId, normWarnings, clientIdMap, idErrors, false);
 
         if (!idErrors.isEmpty()) {
-            DesignValidationResult failed = DesignValidationResult.builder()
-                    .ok(false)
-                    .errors(idErrors)
-                    .warnings(normWarnings)
-                    .build();
-            return new NormalizeResult(patch, failed);
+            return new NormalizeResult(patch, GraphValidationResult.of(idErrors));
         }
 
         GraphJson merged = patchMerger.mergeAll(baseGraph, patch, normWarnings);
-        GraphValidationResult validation = graphJsonValidator.validate(
-                merged, unitLocal ? GraphValidationOptions.stagingPartialConfirm() : GraphValidationOptions.full());
-        List<String> warnings = new ArrayList<>(normWarnings);
-        warnings.addAll(validation.getWarnings());
+        GraphValidationResult graphResult = graphJsonValidator.validate(merged, GraphValidationOptions.full());
+        List<String> errors = new ArrayList<>(graphResult.getErrors());
 
-        List<String> errors = new ArrayList<>();
-        for (String err : validation.getErrors()) {
-            // 单单元造流：边端点可能指向尚未提交的节点，暂不阻断
-            if (unitLocal && isCrossUnitTopologyError(err)) {
-                warnings.add(err);
-            } else {
-                errors.add(err);
-            }
-        }
-        // 断言路径：结构错误进 errors；schema 缺字段进 warnings（不阻断 Staging）
         Function<Long, TestProjectApi> apiResolver = apiResolver();
         AssertPathDesignGate.AssertPathGateResult assertPath =
                 AssertPathDesignGate.validate(merged, apiResolver);
-        if (unitLocal) {
-            Set<String> unitNodeIds = unitNodeIds(patch);
-            for (String err : assertPath.errors()) {
-                if (touchesUnitNode(err, unitNodeIds)) {
-                    errors.add(err);
-                } else {
-                    warnings.add(err);
-                }
-            }
-            for (String w : assertPath.warnings()) {
-                warnings.add(w);
-            }
-        } else {
-            errors.addAll(assertPath.errors());
-            warnings.addAll(assertPath.warnings());
-        }
-        // 整包：鉴权风险进 errors 硬拦；单单元：仅进 warnings（分批造流时图常不完整）
-        List<String> authRisks = DesignAuthRiskGates.collect(
-                merged, loadProjectAuthConfig(testProjectId), apiResolver, subflowGraphResolver());
-        if (unitLocal) {
-            warnings.addAll(authRisks);
-        } else {
-            errors.addAll(authRisks);
-        }
+        errors.addAll(assertPath.errors());
+        errors.addAll(DesignAuthRiskGates.collect(
+                merged, loadProjectAuthConfig(testProjectId), apiResolver, subflowGraphResolver()));
 
-        DesignValidationResult planValidation = DesignValidationResult.builder()
-                .ok(errors.isEmpty())
-                .errors(errors)
-                .warnings(warnings)
-                .build();
-
-        return new NormalizeResult(patch, planValidation);
-    }
-
-    /** 边端点节点尚未在图中出现时的拓扑文案（单单元模式降为 warning）。 */
-    private static boolean isCrossUnitTopologyError(String err) {
-        if (err == null) {
-            return false;
-        }
-        return err.contains(" source 不存在：")
-                || err.contains(" target 不存在：");
-    }
-
-    /** 本单元涉及的节点 id（addNodes + updateNodes），用于裁剪断言错误归属。 */
-    private static Set<String> unitNodeIds(FlowDesignPatch patch) {
-        Set<String> ids = new HashSet<>();
-        if (patch.getAddNodes() != null) {
-            for (GraphNode n : patch.getAddNodes()) {
-                if (n != null && n.getId() != null) {
-                    ids.add(n.getId().trim());
-                }
-            }
-        }
-        if (patch.getUpdateNodes() != null) {
-            for (GraphNode n : patch.getUpdateNodes()) {
-                if (n != null && n.getId() != null) {
-                    ids.add(n.getId().trim());
-                }
-            }
-        }
-        return ids;
-    }
-
-    /** 断言错误文案是否点名给定节点 id；unitNodeIds 为空时视为相关（整单元裁剪用） */
-    static boolean touchesUnitNode(String err, Set<String> unitNodeIds) {
-        if (err == null || unitNodeIds == null || unitNodeIds.isEmpty()) {
-            return true;
-        }
-        for (String id : unitNodeIds) {
-            if (err.contains(id)) {
-                return true;
-            }
-        }
-        return false;
+        return new NormalizeResult(patch, GraphValidationResult.of(errors));
     }
 
     /**
@@ -223,7 +132,8 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 规范化 patch；idErrorsOut 非 null 时写入须阻断确认的项（如 update 空数组误清空）。
+     * 规范化 patch；idErrorsOut 非 null 时写入 id 类问题（如 update 空数组误清空）。
+     * Staging 确认不再用其硬拦落盘（文案可进 warnings）；submit_* 仍可据此拒收单元。
      * 确认时底图往往已是 Staging 预览态（待删对象可能已从画布抹掉），
      * 故 delete*「未知 id」只进 warnings，不写入 idErrorsOut。
      */
@@ -248,16 +158,6 @@ public class FlowDesignPatchNormalizer {
         return out;
     }
 
-    /**
-     * 检查图中需登录的 project HTTP 是否已有对应端凭证来源。
-     * 缺来源时返回错误文案列表；项目未配鉴权或无需登录时返回空列表。
-     */
-    public List<String> collectAuthTokenPresenceErrors(GraphJson graph, Long testProjectId) {
-        String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        return AuthTokenPresenceGate.validate(
-                graph, projectAuthJson, apiResolver(), subflowGraphResolver());
-    }
-
     /** 按子流 id 加载 graph_json；mapper 未注入或解析失败时返回 null。 */
     private Function<Long, GraphJson> subflowGraphResolver() {
         if (testFlowMapper == null) {
@@ -274,41 +174,6 @@ public class FlowDesignPatchNormalizer {
                 return null;
             }
         };
-    }
-
-    /**
-     * 检查图中登录/注册类 project HTTP 是否已配置期望的 flow 变量 extract。
-     * 缺 extract 时返回错误文案；非登录口或已配置时返回空列表。
-     */
-    public List<String> collectLoginExtractPresenceErrors(GraphJson graph, Long testProjectId) {
-        String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        return LoginExtractPresenceGate.validate(graph, projectAuthJson, apiResolver());
-    }
-
-    /**
-     * 检查成功路径上的项目 HTTP 是否缺少必填测值。
-     * 缺字段返回错误文案；节点关掉业务码校验或没有必填时返回空列表。
-     */
-    public List<String> collectHttpRequiredParamErrors(GraphJson graph) {
-        return HttpRequiredParamGate.validate(graph, apiResolver());
-    }
-
-    /**
-     * 运行风险预检：检查鉴权凭证来源、登录口抽取、HTTP 必填测值。
-     * 不写库；错误不阻断保存，只返回文案列表。
-     */
-    public FlowDesignSavePrecheckResult savePrecheck(GraphJson graph, Long testProjectId) {
-        List<String> errors = graph == null
-                ? List.of()
-                : DesignAuthRiskGates.collect(
-                        graph,
-                        loadProjectAuthConfig(testProjectId),
-                        apiResolver(),
-                        subflowGraphResolver());
-        return FlowDesignSavePrecheckResult.builder()
-                .ok(errors.isEmpty())
-                .errors(new ArrayList<>(errors))
-                .build();
     }
 
     /** 按接口 id 查项目接口；mapper 未注入时一律返回 null */
@@ -1181,8 +1046,19 @@ public class FlowDesignPatchNormalizer {
         FlowDesignHttpNodeNormalizer.normalize(data, boundApi, projectAuthJson);
     }
 
-    /** 规范化后的 patch 与校验结果 */
-    public record NormalizeResult(FlowDesignPatch patch, DesignValidationResult validation) {}
+    /**
+     * 单次规范化结果：patch + 拒收用 errors（单元=地板；整包=结构/断言/鉴权）。
+     * {@code graph.ok} 为 true 时可接受进 Staging / Capture。
+     */
+    public record NormalizeResult(FlowDesignPatch patch, GraphValidationResult graph) {
+        public boolean ok() {
+            return graph != null && graph.isOk();
+        }
+
+        public List<String> errors() {
+            return graph != null && graph.getErrors() != null ? graph.getErrors() : List.of();
+        }
+    }
 
     /**
      * 将规范化 patch 合并到基准图。

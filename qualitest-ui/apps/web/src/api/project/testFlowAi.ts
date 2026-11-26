@@ -3,7 +3,6 @@
  *
  * - POST /project/testFlow/ai/design/stream — SSE 流式设计
  * - POST /project/testFlow/ai/patch/confirmUnit — 确认单个画布变更单元
- * - POST /project/testFlow/ai/patch/savePrecheck — 运行风险预检（鉴权/必填；不写库、不拦保存）
  * - POST /project/testFlow/ai/assetProposal/confirm — 确认素材库写入提案并落盘
  * - POST /project/testFlow/ai/assetProposal/reject — 拒绝素材库写入提案
  * - POST /project/testFlow/ai/authProfileProposal/confirm — 确认鉴权 Profile 提案并写入项目 auth_config
@@ -17,7 +16,6 @@ import type { GraphJson } from '@/utils/flow/graphTypes';
 
 import type { AiDesignMention, ComposerDoc } from '@/views/project/testFlow/types/mentionTypes';
 import type {
-  DesignValidationResult,
   FlowDesignPatch,
   TestFlowDesignResult,
 } from '@/views/project/testFlow/types/aiDesignTypes';
@@ -170,22 +168,15 @@ export interface FlowDesignPatchConfirmPayload {
   rejectedUnitIds?: string[];
 }
 
-/** 单 Staging 单元 confirm 的响应体 */
-export interface FlowDesignPatchConfirmResult extends DesignValidationResult {
-  graphJson?: GraphJson | null;
-  dependencyHints?: string[];
-  /**
-   * 本轮已无未决 Staging 单元时的保存风险文案
-   *（鉴权凭证 / 登录抽取 / HTTP 必填等），不阻断本次确认
-   */
-  saveRiskWarnings?: string[];
+/** 单 Staging 单元 confirm 的响应体（图校验不挡；非法请求走业务错误） */
+export interface FlowDesignPatchConfirmResult {
+  graphJson: GraphJson;
   baseGraphHash?: string;
 }
 
 /**
- * 确认单个 Staging 变更单元：draft 合并 → 裁剪 patch → 全图校验。
- * 成功返回 graphJson；本轮已无未决单元时可能带 saveRiskWarnings（不阻断确认）。
- * 失败时 graphJson 为 null。
+ * 确认单个 Staging 变更单元：draft 合并 → 裁剪 patch → 返回合并图。
+ * 成功返回 graphJson；鉴权/必填随画布 stage=canvas 图 error 刷新。
  */
 export async function confirmFlowDesignUnit(
   data: FlowDesignPatchConfirmPayload,
@@ -197,34 +188,6 @@ export async function confirmFlowDesignUnit(
     data,
   });
   return res.data as FlowDesignPatchConfirmResult;
-}
-
-/** 保存前预检请求：项目 id + 拟持久化的 graph_json 字符串 */
-export interface FlowDesignSavePrecheckPayload {
-  testProjectId: string;
-  graphJson: string;
-}
-
-/** 运行风险预检响应：ok 为 false 时 errors 含鉴权/登录抽取/HTTP 必填等文案 */
-export interface FlowDesignSavePrecheckResult {
-  ok: boolean;
-  errors?: string[];
-}
-
-/**
- * 运行风险预检：鉴权凭证来源、登录抽取、HTTP 必填测值。
- * 不写库、不阻断保存；用于校验条提示与开跑前拦截。
- */
-export async function savePrecheckFlowDesign(
-  data: FlowDesignSavePrecheckPayload,
-): Promise<FlowDesignSavePrecheckResult> {
-  const res = await request({
-    url: '/project/testFlow/ai/patch/savePrecheck',
-    method: 'post',
-    headers: { repeatSubmit: false },
-    data,
-  });
-  return res.data as FlowDesignSavePrecheckResult;
 }
 
 /** 确认或拒绝素材库写入提案的请求参数 */

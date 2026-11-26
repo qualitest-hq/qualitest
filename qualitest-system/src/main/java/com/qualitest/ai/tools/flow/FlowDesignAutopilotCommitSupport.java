@@ -18,8 +18,8 @@ import java.util.List;
  * 全自动模式下的隐式落盘（不暴露给大模型作独立工具）。
  * <p>
  * 把本轮已接受的 submit 内存单元增量应用到库中最新图。
- * 写库只硬拦地板错误（无法解析 / 缺节点 id / 边端点等）与引用已不存在；
- * 开始节点不唯一、断言路径等只进 warnings，不拦落盘（开跑时再硬拦）。
+ * 写库只硬拦 JSON 无法解析、以及 patch 引用已不存在的节点/边；
+ * 地板 / 结构 / 断言等 errors 并入 soft findings，不拦落盘（开跑时再硬拦）。
  * 调用时机：跑流之前；Web 一整轮对话结束仍有未落盘单元时；
  * MCP 每次改图 submit 校验通过后立即落盘。
  * 半自动不走本类；模板预制流禁止落盘。
@@ -49,17 +49,16 @@ public final class FlowDesignAutopilotCommitSupport {
             return CommitOutcome.skip("非全自动，跳过隐式落盘");
         }
         if (ctx.isTemplateDesignMode()) {
-            return CommitOutcome.fail("模板预制流不支持落盘", List.of("模板预制流不支持落盘"), List.of());
+            return CommitOutcome.fail("模板预制流不支持落盘", List.of("模板预制流不支持落盘"));
         }
         if (ctx.getTestFlowId() == null) {
-            return CommitOutcome.fail("缺少 testFlowId", List.of("缺少 testFlowId"), List.of());
+            return CommitOutcome.fail("缺少 testFlowId", List.of("缺少 testFlowId"));
         }
         String pendingUpsert = ctx.pendingUpsertBlockReason();
         if (pendingUpsert != null) {
             return CommitOutcome.fail(
                     pendingUpsert,
-                    List.of(pendingUpsert + "，请先确认后再落盘"),
-                    List.of());
+                    List.of(pendingUpsert + "，请先确认后再落盘"));
         }
         FlowDesignSubmitCapture capture = ctx.getSubmitCapture();
         if (capture == null || !capture.hasAccepted()) {
@@ -68,16 +67,16 @@ public final class FlowDesignAutopilotCommitSupport {
 
         TestFlow existing = testFlowService.selectTestFlowById(ctx.getTestFlowId());
         if (existing == null || (existing.getDelStatus() != null && existing.getDelStatus() != 0)) {
-            return CommitOutcome.fail("测试流不存在", List.of("测试流不存在"), List.of());
+            return CommitOutcome.fail("测试流不存在", List.of("测试流不存在"));
         }
         if (ctx.getTestProjectId() != null && existing.getTestProjectId() != null
                 && !ctx.getTestProjectId().equals(existing.getTestProjectId())) {
-            return CommitOutcome.fail("测试流不属于当前项目", List.of("测试流不属于当前项目"), List.of());
+            return CommitOutcome.fail("测试流不属于当前项目", List.of("测试流不属于当前项目"));
         }
 
         FlowDesignPatch accepted = capture.getNormalizedPatch();
         if (accepted == null) {
-            return CommitOutcome.fail("已接受单元为空", List.of("已接受单元为空，无法落盘"), List.of());
+            return CommitOutcome.fail("已接受单元为空", List.of("已接受单元为空，无法落盘"));
         }
 
         // 解析本端锁标识后，把已接受 patch 增量合并进库中最新图
@@ -95,15 +94,15 @@ public final class FlowDesignAutopilotCommitSupport {
             ctx.advanceWorkingGraph(saved);
             ctx.setBaseGraphRevision(applied.revision());
             ctx.notifyGraphCommitted(saved);
-            return CommitOutcome.committed(String.valueOf(ctx.getTestFlowId()), applied.warnings());
+            return CommitOutcome.committed(String.valueOf(ctx.getTestFlowId()), applied.errors());
         } catch (FlowEditLeaseConflictException e) {
-            return CommitOutcome.leaseConflict(e, List.of());
+            return CommitOutcome.leaseConflict(e);
         } catch (ServiceException e) {
             String msg = e.getMessage() != null ? e.getMessage() : "写库失败";
-            return CommitOutcome.fail(msg, List.of(msg), List.of());
+            return CommitOutcome.fail(msg, List.of(msg));
         } catch (Exception e) {
             String msg = "写库异常: " + e.getMessage();
-            return CommitOutcome.fail(msg, List.of(msg), List.of());
+            return CommitOutcome.fail(msg, List.of(msg));
         } finally {
             FlowExternalChangeSourceHolder.clear();
         }
@@ -135,41 +134,37 @@ public final class FlowDesignAutopilotCommitSupport {
      * @param ok          true=成功或跳过；false=失败未写库
      * @param committed   true=本次确实写入了测试流
      * @param message     人类可读说明
-     * @param errors      失败时的错误列表
-     * @param warnings    校验警告（成功也可能带）
+     * @param errors      问题列表（失败为硬错；成功落盘时可为不拦写库的静态校验问题）
      * @param lockHeldBy  写锁冲突时的持锁方摘要；无冲突为 null
      */
     public record CommitOutcome(boolean ok, boolean committed, String message,
-                                List<String> errors, List<String> warnings, String lockHeldBy) {
+                                List<String> errors, String lockHeldBy) {
 
         /** 无需落盘（半自动，或本轮没有已接受单元） */
         static CommitOutcome skip(String message) {
-            return new CommitOutcome(true, false, message, List.of(), List.of(), null);
+            return new CommitOutcome(true, false, message, List.of(), null);
         }
 
-        /** 已写入测试流 */
-        static CommitOutcome committed(String testFlowId, List<String> warnings) {
+        /** 已写入测试流；errors 可为不拦写库的静态问题 */
+        static CommitOutcome committed(String testFlowId, List<String> errors) {
             return new CommitOutcome(true, true, "已落库 testFlowId=" + testFlowId,
-                    List.of(), warnings != null ? warnings : List.of(), null);
+                    errors != null ? errors : List.of(), null);
         }
 
         /** 校验或写库失败，库未改 */
-        static CommitOutcome fail(String message, List<String> errors, List<String> warnings) {
+        static CommitOutcome fail(String message, List<String> errors) {
             return new CommitOutcome(false, false, message,
-                    errors != null ? errors : List.of(),
-                    warnings != null ? warnings : List.of(),
-                    null);
+                    errors != null ? errors : List.of(), null);
         }
 
         /** 写锁被他端占用，库未改 */
-        static CommitOutcome leaseConflict(FlowEditLeaseConflictException e, List<String> warnings) {
+        static CommitOutcome leaseConflict(FlowEditLeaseConflictException e) {
             String msg = e != null ? e.getMessage() : "测试流写锁冲突";
             String held = e != null ? e.getLockHeldBy() : "unknown";
-            return new CommitOutcome(false, false, msg, List.of(msg),
-                    warnings != null ? warnings : List.of(), held);
+            return new CommitOutcome(false, false, msg, List.of(msg), held);
         }
 
-        /** 组装回执 JSON（ok / committed / message / errors / warnings / lockHeldBy） */
+        /** 组装回执 JSON（ok / committed / message / errors / lockHeldBy） */
         public JSONObject toJson() {
             JSONObject o = new JSONObject();
             o.put("ok", ok);
@@ -177,9 +172,6 @@ public final class FlowDesignAutopilotCommitSupport {
             o.put("message", message);
             if (!errors.isEmpty()) {
                 o.put("errors", errors);
-            }
-            if (!warnings.isEmpty()) {
-                o.put("warnings", warnings);
             }
             if (lockHeldBy != null && !lockHeldBy.isBlank()) {
                 o.put("lockHeldBy", lockHeldBy);

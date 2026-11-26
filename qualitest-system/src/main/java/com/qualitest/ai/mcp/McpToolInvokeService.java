@@ -470,9 +470,11 @@ public class McpToolInvokeService {
                 result.put("hint", "请根据 commit errors 修正后再 submit_*");
             }
             result.put("commitErrors", commit.errors());
-        }
-        if (commit.warnings() != null && !commit.warnings().isEmpty()) {
-            result.put("commitWarnings", commit.warnings());
+        } else if (commit.committed()
+                && commit.errors() != null
+                && !commit.errors().isEmpty()) {
+            // 已落盘但仍有静态校验问题（不拦写库）
+            result.put("commitErrors", commit.errors());
         }
 
         log.info("MCP submit 落盘 projectId={} tool={} flowId={} committed={} ok={}",

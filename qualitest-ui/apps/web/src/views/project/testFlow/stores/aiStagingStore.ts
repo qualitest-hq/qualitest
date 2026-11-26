@@ -3,8 +3,6 @@
  */
 import { computed, ref } from 'vue';
 
-import type { GraphValidationResult } from '@/utils/flow/graphValidate';
-
 import type {
   AiStagingCanvasMark,
   AiStagingMessageSummary,
@@ -153,25 +151,10 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
     patchUnit(unitId, { confirmInFlight: inFlight });
   }
 
-  function markConfirmFailed(
-    unitId: string,
-    validation: GraphValidationResult,
-    options?: { dependencyHints?: string[] },
-  ) {
-    patchUnit(unitId, {
-      lastValidation: validation,
-      lastDependencyHints: options?.dependencyHints?.length ? [...options.dependencyHints] : undefined,
-      confirmInFlight: false,
-      status: 'pending',
-    });
-  }
-
   function markConfirmed(unitId: string) {
     const unit = unitsById.value[unitId];
     patchUnit(unitId, {
       status: 'confirmed',
-      lastValidation: undefined,
-      lastDependencyHints: undefined,
       confirmInFlight: false,
       confirmedAt: Date.now(),
     });
@@ -184,8 +167,6 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
     const unit = unitsById.value[unitId];
     patchUnit(unitId, {
       status: 'rejected',
-      lastValidation: undefined,
-      lastDependencyHints: undefined,
       confirmInFlight: false,
     });
     if (unit) {
@@ -408,7 +389,6 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
     listConfirmedUnitIds,
     updateDraft,
     setConfirmInFlight,
-    markConfirmFailed,
     markConfirmed,
     markRejected,
     removeMessageUnits,

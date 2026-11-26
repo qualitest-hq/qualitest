@@ -84,12 +84,7 @@ final class FlowMergeFixtureTestSupport {
 
             FlowDesignPatchConfirmResult stepResult = confirmService.confirmUnit(request);
             lastResult = stepResult;
-            boolean expectOk = fixture.getBooleanValue("expectOk");
-            assertEquals(expectOk, stepResult.isOk(), () -> "unitId=" + unitId + " errors=" + stepResult.getErrors());
-
-            if (!stepResult.isOk()) {
-                return stepResult;
-            }
+            assertNotNull(stepResult.getGraphJson(), () -> "unitId=" + unitId + " 应返回 graphJson");
             currentGraph = stepResult.getGraphJson();
             confirmed.add(unitId);
         }
@@ -97,20 +92,13 @@ final class FlowMergeFixtureTestSupport {
     }
 
     static void assertConfirmFixture(JSONObject fixture, FlowDesignPatchConfirmResult result) {
-        boolean expectOk = fixture.getBooleanValue("expectOk");
-        assertEquals(expectOk, result.isOk(), () -> "errors=" + result.getErrors());
         assertNotNull(result.getBaseGraphHash());
         assertEquals(16, result.getBaseGraphHash().length());
         assertEquals(
                 GraphJsonHashUtil.computeBaseGraphHash(buildStagingCanvas(fixture)),
                 result.getBaseGraphHash());
-        if (!expectOk) {
-            assertFalse(result.getErrors().isEmpty());
-            assertNull(result.getGraphJson());
-        } else {
-            assertNotNull(result.getGraphJson());
-            assertMergedGraphExpectations(fixture, result.getGraphJson());
-        }
+        assertNotNull(result.getGraphJson());
+        assertMergedGraphExpectations(fixture, result.getGraphJson());
     }
 
     static void assertMergedGraphExpectations(JSONObject fixture, GraphJson merged) {

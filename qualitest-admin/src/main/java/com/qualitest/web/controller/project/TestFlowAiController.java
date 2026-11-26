@@ -4,15 +4,12 @@ import com.qualitest.ai.scenario.flow.TestFlowDesignAgent;
 import com.qualitest.ai.scenario.flow.AssetUpsertProposalService;
 import com.qualitest.ai.scenario.flow.AuthProfileUpsertProposalService;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchConfirmService;
-import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.AssetUpsertProposalDecisionRequest;
 import com.qualitest.ai.scenario.flow.model.AssetUpsertProposalDecisionResult;
 import com.qualitest.ai.scenario.flow.model.AuthProfileUpsertProposalDecisionRequest;
 import com.qualitest.ai.scenario.flow.model.AuthProfileUpsertProposalDecisionResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmRequest;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatchConfirmResult;
-import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckRequest;
-import com.qualitest.ai.scenario.flow.model.FlowDesignSavePrecheckResult;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignRequest;
 import com.qualitest.ai.result.AiPromptTemplateResult;
 import com.qualitest.ai.service.IAiPromptTemplateService;
@@ -21,7 +18,6 @@ import com.qualitest.ai.scenario.flow.TestFlowDesignAccessValidator;
 import com.qualitest.web.ai.AiSseStreamSupport;
 import com.qualitest.common.core.controller.BaseController;
 import com.qualitest.common.core.domain.AjaxResult;
-import com.qualitest.flow.model.GraphJson;
 import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.service.ITestProjectMemberService;
 import lombok.AllArgsConstructor;
@@ -53,7 +49,6 @@ public class TestFlowAiController extends BaseController {
 
     private final TestFlowDesignAgent testFlowDesignAgent;
     private final FlowDesignPatchConfirmService flowDesignPatchConfirmService;
-    private final FlowDesignPatchNormalizer flowDesignPatchNormalizer;
     private final AssetUpsertProposalService assetUpsertProposalService;
     private final AuthProfileUpsertProposalService authProfileUpsertProposalService;
     private final ITestProjectMemberService testProjectMemberService;
@@ -80,9 +75,8 @@ public class TestFlowAiController extends BaseController {
     /**
      * 确认单个 Staging 变更单元。
      * <p>
-     * 内存中合并该单元并校验，不写 test_flow、不触发 Run。
-     * 成功返回 graphJson；本轮已无未决单元时还可带 saveRiskWarnings（不阻断本次确认）。
-     * 失败保持该单元 Staging 态，errors 供前端展示。
+     * 内存中合并该单元，不写 test_flow、不触发 Run。
+     * 合法请求返回 graphJson（图校验不挡）；鉴权/必填随画布 stage=canvas 图 error 刷新。
      * 需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
@@ -92,34 +86,6 @@ public class TestFlowAiController extends BaseController {
             testProjectMemberService.requireCapability(request.getTestProjectId(), TestProjectMemberPerm.FLOW_EDIT);
         }
         FlowDesignPatchConfirmResult result = flowDesignPatchConfirmService.confirmUnit(request);
-        return AjaxResult.success(result);
-    }
-
-    /**
-     * 运行风险预检接口。
-     * 检查鉴权凭证来源、登录抽取、HTTP 必填测值是否齐全；不写库、不阻断保存。
-     * 返回错误列表供画布提示；正式开跑前会再次用同类规则拦截。
-     * 需查看测试流与跑流记录权限。
-     */
-    @PreAuthorize("@ss.hasPermi('project:testProject:query') or @ss.hasPermi('project:testProjectTemplate:list') or @ss.hasPermi('project:testProjectTemplate:edit') or @ss.hasPermi('project:testProjectTemplate:query')")
-    @PostMapping("/patch/savePrecheck")
-    public AjaxResult savePrecheck(@RequestBody FlowDesignSavePrecheckRequest request) {
-        if (request.getTestProjectId() != null) {
-            testProjectMemberService.requireCapability(request.getTestProjectId(), TestProjectMemberPerm.FLOW_VIEW);
-        }
-        GraphJson graph = null;
-        if (request.getGraphJson() != null && !request.getGraphJson().isBlank()) {
-            try {
-                graph = GraphJson.parse(request.getGraphJson());
-            } catch (Exception e) {
-                return AjaxResult.success(FlowDesignSavePrecheckResult.builder()
-                        .ok(false)
-                        .errors(List.of("graphJson 无法解析"))
-                        .build());
-            }
-        }
-        FlowDesignSavePrecheckResult result = flowDesignPatchNormalizer.savePrecheck(
-                graph, request.getTestProjectId());
         return AjaxResult.success(result);
     }
 

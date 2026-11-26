@@ -4,21 +4,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * FlowIssue 组装辅助：把旧的 errors/warnings 字符串列表投影为结构化诊断。
+ * FlowIssue 组装辅助：把结构校验 errors 投影为结构化诊断。
  */
 public final class FlowIssues {
 
     private FlowIssues() {}
 
     /**
-     * 将 {@link GraphValidationResult} 投影为 FlowIssue 列表。
+     * 将 {@link GraphValidationResult} 的 errors 投影为 FlowIssue 列表。
      *
-     * @param result          结构校验结果
-     * @param stage           诊断阶段
-     * @param includeWarnings 是否纳入 warnings
+     * @param result 结构校验结果
+     * @param stage  诊断阶段
      */
-    public static List<FlowIssue> fromValidationResult(
-            GraphValidationResult result, FlowIssue.Stage stage, boolean includeWarnings) {
+    public static List<FlowIssue> fromValidationResult(GraphValidationResult result, FlowIssue.Stage stage) {
         List<FlowIssue> issues = new ArrayList<>();
         if (result == null) {
             return issues;
@@ -31,15 +29,6 @@ public final class FlowIssues {
                 }
                 issues.add(FlowIssue.error(
                         FlowIssueCodes.GRAPH_STRUCTURE, effective, guessNodeId(err), err));
-            }
-        }
-        if (includeWarnings && result.getWarnings() != null) {
-            for (String warn : result.getWarnings()) {
-                if (warn == null || warn.isBlank()) {
-                    continue;
-                }
-                issues.add(FlowIssue.warning(
-                        FlowIssueCodes.GRAPH_STRUCTURE, effective, guessNodeId(warn), warn));
             }
         }
         return issues;

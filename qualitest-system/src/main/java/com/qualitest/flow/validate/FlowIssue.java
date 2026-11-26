@@ -13,7 +13,7 @@ public class FlowIssue {
     /** 诊断码，如 ENTRY_ROUTE_CONFLICT */
     private final String code;
 
-    /** error 硬拦开跑；warning 仅展示 */
+    /** 仅 error；不确定项静默不产出 issue */
     private final Severity severity;
 
     /** 该问题面向的门禁阶段 */
@@ -26,8 +26,7 @@ public class FlowIssue {
     private final String message;
 
     public enum Severity {
-        ERROR,
-        WARNING
+        ERROR
     }
 
     /**
@@ -73,25 +72,13 @@ public class FlowIssue {
 
     /** 兼容旧 ValidationIssue 投影 */
     public ValidationIssue toValidationIssue() {
-        ValidationIssue.Level level =
-                severity == Severity.WARNING ? ValidationIssue.Level.WARNING : ValidationIssue.Level.ERROR;
-        return new ValidationIssue(level, message);
+        return new ValidationIssue(ValidationIssue.Level.ERROR, message);
     }
 
     public static FlowIssue error(String code, Stage stage, String nodeId, String message) {
         return FlowIssue.builder()
                 .code(code)
                 .severity(Severity.ERROR)
-                .stage(stage)
-                .nodeId(nodeId)
-                .message(message)
-                .build();
-    }
-
-    public static FlowIssue warning(String code, Stage stage, String nodeId, String message) {
-        return FlowIssue.builder()
-                .code(code)
-                .severity(Severity.WARNING)
                 .stage(stage)
                 .nodeId(nodeId)
                 .message(message)

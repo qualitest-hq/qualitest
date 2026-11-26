@@ -109,7 +109,9 @@ describe('jsonPathTrial design gate helpers', () => {
     expect(resolveTrialApiId(nodes[0], nodes, edges)).toBe('99');
   });
 
-  it('collectAssertPathDesignIssues：.items 硬拦；缺字段警告；无 schema 警告；过滤器通过', () => {
+  it('collectAssertPathDesignIssues：.items 硬拦；缺字段/无 schema 静默；过滤器通过', () => {
+    // 前提：图含 .items 坏断言、合法过滤器、schema 缺字段三条
+    // 期望：仅 .items 进 errors；缺字段与无 schema 均不进 warnings
     const graph = {
       nodes: [
         { id: 'h1', type: 'http', data: { testProjectApiId: '99', callMode: 'project' } },
@@ -148,7 +150,6 @@ describe('jsonPathTrial design gate helpers', () => {
     const hit = collectAssertPathDesignIssues(graph, new Map([['99', schemaPaths]]));
     expect(hit.errors.some((e) => e.includes('.items'))).toBe(true);
     expect(hit.errors.some((e) => e.includes('好断言'))).toBe(false);
-    expect(hit.warnings.some((w) => w.includes('缺字段') && w.includes('schema'))).toBe(true);
 
     const goodOnly = {
       nodes: [graph.nodes[0], graph.nodes[2]],
@@ -156,11 +157,8 @@ describe('jsonPathTrial design gate helpers', () => {
     };
     expect(collectAssertPathDesignIssues(goodOnly, new Map([['99', schemaPaths]]))).toEqual({
       errors: [],
-      warnings: [],
     });
     const noSchema = collectAssertPathDesignIssues(graph, new Map([['99', []]]));
-    // 前提：接口 schema 叶路径为空。期望：仍报 .items 结构错误，并警告无响应 schema
     expect(noSchema.errors.some((e) => e.includes('.items'))).toBe(true);
-    expect(noSchema.warnings.some((w) => w.includes('无响应 schema'))).toBe(true);
   });
 });

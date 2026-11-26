@@ -2,11 +2,7 @@
  * Staging 边 stroke 样式（DefaultEdge / ConditionEdge 共用）。
  */
 import type { AiStagingCanvasMark } from '../types/aiStagingTypes';
-import {
-  STAGING_DELETE_COLOR,
-  STAGING_ERROR_COLOR,
-  STAGING_UPDATE_COLOR,
-} from '../constants/stagingTheme';
+import { STAGING_UPDATE_COLOR } from '../constants/stagingTheme';
 
 export interface StagingEdgeStrokeStyle {
   stroke: string;
@@ -16,12 +12,8 @@ export interface StagingEdgeStrokeStyle {
 
 export function resolveStagingEdgeStroke(
   mark: AiStagingCanvasMark | undefined,
-  hasError: boolean,
   selected: boolean,
 ): StagingEdgeStrokeStyle | null {
-  if (hasError) {
-    return { stroke: `rgba(220, 38, 38, 0.9)`, strokeWidth: 2.5 };
-  }
   if (mark?.mode === 'delete') {
     return { stroke: `rgba(185, 28, 28, 0.85)`, strokeWidth: 2.5, strokeDasharray: '5 4' };
   }

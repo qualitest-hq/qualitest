@@ -33,7 +33,6 @@ import { resetProjectEnvs, useRunConfig } from './composables/useRunConfig'
 import { useApiHealthStore } from './stores/apiHealthStore'
 import { useFlowCanvasStore } from './stores/flowCanvasStore'
 import { useRunLibraryStore } from './stores/runLibraryStore'
-import { useRunRiskStore } from './stores/runRiskStore'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,7 +40,6 @@ const appStore = useAppStore()
 const store = useFlowCanvasStore()
 const runLib = useRunLibraryStore()
 const apiHealth = useApiHealthStore()
-const runRisk = useRunRiskStore()
 const { loadFlow, saveFlow } = useFlowGraph()
 const { loadProjectEnvs } = useRunConfig()
 const { loadProjectName } = useProjectTabTitle(
@@ -60,7 +58,7 @@ function handleBack() {
   router.push(`/project/testProject/flows/${route.params.testProjectId}`)
 }
 
-/** 保存画布；成功后只刷新 API 语义告警（运行风险已在 saveFlow 内写入） */
+/** 保存画布；成功后刷新 API 语义告警（鉴权/结构由图 error canvas 校验刷新） */
 async function handleSave() {
   const ok = await saveFlow()
   if (ok) {
@@ -84,7 +82,7 @@ function onBeforeUnload(event) {
   event.returnValue = ''
 }
 
-/** 加载指定测试流：先出图，再并行拉鉴权/项目名/环境/Run，预检稍后 */
+/** 加载指定测试流：先出图，再并行拉鉴权/项目名/环境/Run，API 语义预检稍后 */
 async function initFlow() {
   const testFlowId = String(route.params.testFlowId ?? '')
   const testProjectId = String(route.params.testProjectId ?? '')
@@ -93,7 +91,6 @@ async function initFlow() {
   setSuspended(true)
   store.reset()
   apiHealth.clear()
-  runRisk.clear()
   resetProjectEnvs()
   store.testProjectId = testProjectId
   try {
@@ -108,7 +105,7 @@ async function initFlow() {
       runLib.loadRuns(testFlowId),
     ])
     await applyRunIdDeepLink()
-    // 预检稍后，避免挡住首屏出图
+    // API 语义预检稍后，避免挡住首屏出图；图 error 由 useFlowValidation 自行刷新
     void runPreview()
   } catch (error) {
     const message = error instanceof Error ? error.message : '加载测试流失败'

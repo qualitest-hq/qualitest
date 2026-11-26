@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测设计期断言路径门禁：结构错误硬拦；schema 缺字段降为警告。
- * 覆盖：误写 .items、过滤器路径、占位 example、无 schema 警告、condition、scoped。
+ * 测设计期断言路径门禁：结构错误硬拦；无 schema / 字段未命中静默。
+ * 覆盖：误写 .items、过滤器路径、无 schema、缺字段、condition、scoped。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AssertPathDesignGateTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -46,7 +46,6 @@ class AssertPathDesignGateTest {
                 AssertPathDesignGate.validate(graph, id -> cartApi());
         assertFalse(result.errors().isEmpty());
         assertTrue(result.errors().get(0).contains(".items"));
-        assertTrue(result.warnings().isEmpty());
     }
 
     @Test
@@ -57,21 +56,20 @@ class AssertPathDesignGateTest {
         AssertPathDesignGate.AssertPathGateResult result =
                 AssertPathDesignGate.validate(graph, id -> cartApi());
         assertEquals(List.of(), result.errors());
-        assertEquals(List.of(), result.warnings());
     }
 
     @Test
     @Order(3)
-    @DisplayName("接口无 schema 时不硬拦，发未校验警告")
-    void validate_warnsWhenNoSchema() {
+    @DisplayName("接口无 schema 时不硬拦也不提示（运行时再失败）")
+    void validate_silentWhenNoSchema() {
+        // 前提：上游接口仅有 example、无 schema，断言左值为 body 字段
+        // 期望：errors 为空
         GraphJson graph = cartFlow("http.body.data.missing.field");
         AssertPathDesignGate.AssertPathGateResult result = AssertPathDesignGate.validate(graph, id -> TestProjectApi.builder()
                 .testProjectApiId(1L)
                 .responseConfig("{\"responses\":[{\"example\":{\"code\":0}}]}")
                 .build());
         assertEquals(List.of(), result.errors());
-        assertFalse(result.warnings().isEmpty());
-        assertTrue(result.warnings().get(0).contains("无响应 schema"));
     }
 
     @Test
@@ -129,14 +127,12 @@ class AssertPathDesignGateTest {
         httpData.put("testProjectApiId", "1");
 
         Map<String, Object> badAssert = new HashMap<>();
-        badAssert.put("name", "坏断言");
         badAssert.put("rules", List.of(Map.of(
                 "left", "http.body.data.items[0].quantity",
                 "operator", "eq",
                 "right", "3")));
 
         Map<String, Object> goodAssert = new HashMap<>();
-        goodAssert.put("name", "好断言");
         goodAssert.put("rules", List.of(Map.of(
                 "left", "http.body.data[?(@.cartId=='5001')].quantity",
                 "operator", "eq",
@@ -145,8 +141,8 @@ class AssertPathDesignGateTest {
         GraphJson graph = GraphJson.builder()
                 .nodes(List.of(
                         GraphNode.builder().id("h1").type("http").data(httpData).build(),
-                        GraphNode.builder().id("bad").type("assert").data(badAssert).build(),
-                        GraphNode.builder().id("good").type("assert").data(goodAssert).build()))
+                        GraphNode.builder().id("bad").type("assert").name("坏断言").data(badAssert).build(),
+                        GraphNode.builder().id("good").type("assert").name("好断言").data(goodAssert).build()))
                 .edges(List.of(
                         GraphEdge.builder().id("e1").source("h1").target("bad").build(),
                         GraphEdge.builder().id("e2").source("h1").target("good").build()))
@@ -155,7 +151,6 @@ class AssertPathDesignGateTest {
         AssertPathDesignGate.AssertPathGateResult onlyGood =
                 AssertPathDesignGate.validate(graph, id -> cartApi(), Set.of("good"));
         assertEquals(List.of(), onlyGood.errors());
-        assertEquals(List.of(), onlyGood.warnings());
 
         AssertPathDesignGate.AssertPathGateResult onlyBad =
                 AssertPathDesignGate.validate(graph, id -> cartApi(), Set.of("bad"));
@@ -168,21 +163,19 @@ class AssertPathDesignGateTest {
     @DisplayName("scoped 校验无上游时硬拦而非跳过")
     void validate_scopedReportsMissingUpstream() {
         Map<String, Object> assertData = new HashMap<>();
-        assertData.put("name", "孤立断言");
         assertData.put("rules", List.of(Map.of(
                 "left", "http.body.data[0].quantity",
                 "operator", "eq",
                 "right", "3")));
 
         GraphJson graph = GraphJson.builder()
-                .nodes(List.of(GraphNode.builder().id("a1").type("assert").data(assertData).build()))
+                .nodes(List.of(GraphNode.builder().id("a1").type("assert").name("孤立断言").data(assertData).build()))
                 .edges(List.of())
                 .build();
 
         AssertPathDesignGate.AssertPathGateResult fullSkip =
                 AssertPathDesignGate.validate(graph, id -> cartApi());
         assertEquals(List.of(), fullSkip.errors());
-        assertEquals(List.of(), fullSkip.warnings());
 
         AssertPathDesignGate.AssertPathGateResult scoped =
                 AssertPathDesignGate.validate(graph, id -> cartApi(), Set.of("a1"));
@@ -193,29 +186,28 @@ class AssertPathDesignGateTest {
 
     @Test
     @Order(8)
-    @DisplayName("schema 中不存在的字段降为警告（可确认/可保存）")
-    void validate_unknownFieldIsWarning() {
+    @DisplayName("schema 中不存在的字段设计期静默")
+    void validate_unknownFieldIsSilent() {
+        // 前提：上游 schema 有 data 数组，断言左值字段不在 schema 中
+        // 期望：errors 为空
         GraphJson graph = cartFlow("http.body.data[0].notAField");
         AssertPathDesignGate.AssertPathGateResult result =
                 AssertPathDesignGate.validate(graph, id -> cartApi());
         assertEquals(List.of(), result.errors());
-        assertFalse(result.warnings().isEmpty());
-        assertTrue(result.warnings().get(0).contains("schema"));
-        assertTrue(result.warnings().get(0).contains("未找到对应字段"));
     }
 
     @Test
     @Order(9)
-    @DisplayName("残缺 schema + user.userName：仅警告不硬拦")
-    void validate_sparseSchemaMissingUserIsWarning() {
+    @DisplayName("残缺 schema + user.userName：设计期静默")
+    void validate_sparseSchemaMissingUserIsSilent() {
+        // 前提：schema 仅有 code/msg，断言左值为 user.userName
+        // 期望：errors 为空
         GraphJson graph = cartFlow("http.body.user.userName");
         AssertPathDesignGate.AssertPathGateResult result = AssertPathDesignGate.validate(graph, id -> TestProjectApi.builder()
                 .testProjectApiId(1L)
                 .responseConfig(SPARSE_GET_INFO)
                 .build());
         assertEquals(List.of(), result.errors());
-        assertFalse(result.warnings().isEmpty());
-        assertTrue(result.warnings().get(0).contains("user.userName"));
     }
 
     private static TestProjectApi cartApi() {

@@ -39,8 +39,7 @@
 <script setup lang="ts">
 /**
  * 画布顶部校验条。
- * 展示结构问题、Staging 确认失败、运行风险、API 语义告警；
- * 节点名可点击居中并高亮该节点。
+ * 展示图 error（结构/鉴权/必填等）与 API 语义告警；节点名可点击居中并高亮该节点。
  */
 import { computed } from 'vue'
 
@@ -57,9 +56,7 @@ const sections = computed(() => [
   {
     key: 'main',
     label: '',
-    items: issues.value.filter(
-      (i) => i.source === 'structure' || i.source === 'staging' || i.source === 'runRisk',
-    ),
+    items: issues.value.filter((i) => i.source === 'structure'),
   },
   {
     key: 'api',

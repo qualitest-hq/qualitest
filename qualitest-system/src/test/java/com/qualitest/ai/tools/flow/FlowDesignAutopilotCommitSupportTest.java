@@ -1,7 +1,7 @@
 package com.qualitest.ai.tools.flow;
 
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
+import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
@@ -78,8 +78,7 @@ class FlowDesignAutopilotCommitSupportTest {
         FlowDesignPatch unit = new FlowDesignPatch();
         unit.getAddNodes().add(node);
         capture.record(new FlowDesignPatchNormalizer.NormalizeResult(
-                unit,
-                DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build()));
+                unit, GraphValidationResult.of(List.of())));
 
         boolean[] committed = {false};
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
@@ -109,8 +108,10 @@ class FlowDesignAutopilotCommitSupportTest {
      */
     @Test
     @Order(3)
-    @DisplayName("合并后双开始节点带 warnings 仍落盘")
-    void commit_twoStartNodes_commitsWithWarnings() {
+    @DisplayName("合并后双开始节点带 errors 仍落盘")
+    void commit_twoStartNodes_commitsWithErrors() {
+        // 前提：applyGraphPatch 成功且带回开始节点结构错
+        // 期望：outcome 成功落盘，errors 含开始节点文案
         ITestFlowService flowService = mock(ITestFlowService.class);
         GraphNode a = GraphNode.builder().id("a").type("http").build();
         GraphNode b = GraphNode.builder().id("b").type("condition").build();
@@ -130,8 +131,7 @@ class FlowDesignAutopilotCommitSupportTest {
         unit.getAddNodes().add(a);
         unit.getAddNodes().add(b);
         capture.record(new FlowDesignPatchNormalizer.NormalizeResult(
-                unit,
-                DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build()));
+                unit, GraphValidationResult.of(List.of())));
 
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(3002L)
@@ -146,7 +146,7 @@ class FlowDesignAutopilotCommitSupportTest {
 
         assertTrue(outcome.ok());
         assertTrue(outcome.committed());
-        assertTrue(outcome.warnings().stream().anyMatch(w -> w.contains("开始节点")));
+        assertTrue(outcome.errors().stream().anyMatch(e -> e.contains("开始节点")));
     }
 
     /**
@@ -173,8 +173,7 @@ class FlowDesignAutopilotCommitSupportTest {
         GraphNode edgeSourceMissing = GraphNode.builder().id("n1").type("delay").build();
         unit.getAddNodes().add(edgeSourceMissing);
         capture.record(new FlowDesignPatchNormalizer.NormalizeResult(
-                unit,
-                DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build()));
+                unit, GraphValidationResult.of(List.of())));
 
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(3003L)
@@ -215,8 +214,7 @@ class FlowDesignAutopilotCommitSupportTest {
         FlowDesignPatch unit = new FlowDesignPatch();
         unit.getAddNodes().add(GraphNode.builder().id("n1").type("delay").build());
         capture.record(new FlowDesignPatchNormalizer.NormalizeResult(
-                unit,
-                DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build()));
+                unit, GraphValidationResult.of(List.of())));
 
         FlowDesignToolContext ctx = FlowDesignToolContext.builder()
                 .testFlowId(3004L)

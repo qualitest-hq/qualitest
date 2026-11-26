@@ -80,17 +80,20 @@ public class FlowGraphValidateService {
     private FlowGraphValidateResult validateCanvas(
             String graphJson, Long testProjectId, Long testFlowId, boolean deferTopology) {
         GraphValidationOptions options = deferTopology
-                ? GraphValidationOptions.stagingPartialConfirm()
+                ? GraphValidationOptions.deferTopology()
                 : GraphValidationOptions.full();
         // 走 raw 路径，保留未知键 / 边多余字段等 typed 会丢掉的问题
         GraphValidationResult structure = graphJsonValidator.validateJson(graphJson, options);
         List<FlowIssue> issues = new ArrayList<>(
-                FlowIssues.fromValidationResult(structure, FlowIssue.Stage.CANVAS, true));
+                FlowIssues.fromValidationResult(structure, FlowIssue.Stage.CANVAS));
         try {
             GraphJson graph = GraphJson.parse(graphJson);
             if (graph != null && testProjectId != null) {
                 issues.addAll(openHttpRouteRegistry.conflicts(
                         graph, testProjectId, testFlowId, FlowIssue.Stage.CANVAS));
+                // 鉴权/必填并进画布图 error（不硬拦保存；开跑仍由 readiness 硬拦）
+                issues.addAll(flowRunReadinessGate.collectAuthIssues(
+                        graph, testProjectId, FlowIssue.Stage.CANVAS));
             }
         } catch (Exception ignored) {
             // 结构错误已在 validateJson 收集

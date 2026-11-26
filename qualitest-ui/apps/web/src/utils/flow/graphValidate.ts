@@ -8,11 +8,10 @@
 import { isAnyEntryType, nodeTypeLabel } from './nodeTypes';
 import type { GraphEdge, GraphJson, GraphNode } from './graphTypes';
 
-/** 图校验结果；ok 为 true 当且仅当 errors 为空 */
+/** 图校验结果；ok 为 true 当且仅当 errors 为空（无 warning 档） */
 export interface GraphValidationResult {
   ok: boolean;
   errors: string[];
-  warnings: string[];
 }
 
 /** 开始节点校验结果（有节点须有入口；允许多入口并存） */
@@ -125,10 +124,9 @@ export function validateGraphJson(
   _options?: ValidateGraphJsonOptions,
 ): GraphValidationResult {
   const errors: string[] = [];
-  const warnings: string[] = [];
 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { ok: false, errors: ['根对象必须是 JSON 对象'], warnings };
+    return { ok: false, errors: ['根对象必须是 JSON 对象'] };
   }
 
   const graph = unwrapGraphPayload(raw as Record<string, unknown>);
@@ -137,7 +135,7 @@ export function validateGraphJson(
 
   if (!Array.isArray(nodes)) errors.push('缺少 nodes 数组');
   if (!Array.isArray(edges)) errors.push('缺少 edges 数组');
-  if (errors.length) return { ok: false, errors, warnings };
+  if (errors.length) return { ok: false, errors };
 
   const nodeIds = new Set<string>();
   (nodes as GraphNode[]).forEach((node, i) => {
@@ -166,5 +164,5 @@ export function validateGraphJson(
     if (!edge.source) errors.push(`${p} 缺少 source`);
     if (!edge.target) errors.push(`${p} 缺少 target`);
   });
-  return { ok: errors.length === 0, errors, warnings };
+  return { ok: errors.length === 0, errors };
 }

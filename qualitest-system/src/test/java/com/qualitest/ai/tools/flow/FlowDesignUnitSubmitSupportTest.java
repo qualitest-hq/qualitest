@@ -4,7 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchMerger;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
+import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.tools.FlowDesignSubmitCapture;
 import com.qualitest.ai.tools.FlowDesignToolContext;
@@ -183,15 +183,15 @@ class FlowDesignUnitSubmitSupportTest {
     }
 
     /** @return 校验通过摘要 */
-    private static DesignValidationResult okValidation() {
-        return DesignValidationResult.builder().ok(true).errors(List.of()).warnings(List.of()).build();
+    private static GraphValidationResult okValidation() {
+        return GraphValidationResult.of(List.of());
     }
 
     /**
      * @param msg 错误文案
      * @return 校验失败摘要
      */
-    private static DesignValidationResult failValidation(String msg) {
-        return DesignValidationResult.builder().ok(false).errors(List.of(msg)).warnings(List.of()).build();
+    private static GraphValidationResult failValidation(String msg) {
+        return GraphValidationResult.of(List.of(msg));
     }
 }

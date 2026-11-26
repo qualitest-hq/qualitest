@@ -59,10 +59,10 @@ export interface OpenHttpPeerRouteRecord {
   path?: string;
 }
 
-/** 服务端图诊断单条（与后端 FlowIssue 对齐） */
+/** 服务端图诊断单条（与后端 FlowIssue 对齐；仅 ERROR，不确定项静默不返回） */
 export interface FlowIssueRecord {
   code?: string
-  severity?: 'ERROR' | 'WARNING' | string
+  severity?: 'ERROR' | string
   stage?: string
   nodeId?: string | null
   message?: string

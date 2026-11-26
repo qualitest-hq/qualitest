@@ -4,84 +4,72 @@
       "id": "demo-graph-ok",
       "fixture": "demo-graph.json",
       "expectErrors": 0,
-      "expectWarnings": 0,
       "expectIssueCodes": []
     },
     {
       "id": "multi-start",
       "fixture": "invalid-multi-start.json",
       "expectErrors": 1,
-      "expectWarnings": 0,
       "expectIssueCodes": ["GRAPH_STRUCTURE"]
     },
     {
       "id": "http-unbound",
       "fixture": "invalid-http-unbound.json",
       "expectErrors": 0,
-      "expectWarnings": 0,
       "expectIssueCodes": []
     },
     {
       "id": "duplicate-node-id",
       "fixture": "invalid-duplicate-node-id.json",
       "expectErrors": 1,
-      "expectWarnings": 0,
       "expectIssueCodes": ["GRAPH_STRUCTURE"]
     },
     {
       "id": "invalid-node-type",
       "fixture": "invalid-node-type.json",
       "expectErrors": 1,
-      "expectWarnings": 0,
       "expectIssueCodes": ["GRAPH_STRUCTURE"]
     },
     {
       "id": "edge-extra-field",
       "fixture": "invalid-edge-extra-field.json",
       "expectErrors": 1,
-      "expectWarnings": 0,
       "expectIssueCodes": ["GRAPH_STRUCTURE"]
     },
     {
       "id": "missing-meta-run",
       "fixture": "invalid-missing-meta-run.json",
       "expectErrors": 1,
-      "expectWarnings": 0,
       "expectIssueCodes": ["GRAPH_STRUCTURE"]
     },
     {
       "id": "script-invalid-language",
       "fixture": "invalid-script-language.json",
       "expectErrors": 1,
-      "expectWarnings": 0,
       "expectIssueCodes": ["GRAPH_STRUCTURE"]
     },
     {
       "id": "http-missing-callmode",
       "fixture": "invalid-http-missing-callmode.json",
       "expectErrors": 1,
-      "expectWarnings": 0,
       "expectIssueCodes": ["GRAPH_STRUCTURE"]
     },
     {
       "id": "script-empty-source",
       "fixture": "invalid-script-empty-source.json",
       "expectErrors": 0,
-      "expectWarnings": 0,
       "expectIssueCodes": []
     },
     {
       "id": "subflow-missing-id",
       "fixture": "invalid-subflow-missing-id.json",
       "expectErrors": 1,
-      "expectWarnings": 0,
       "expectIssueCodes": ["GRAPH_STRUCTURE"]
     },
     {
       "id": "data-ui-state",
       "fixture": "invalid-data-ui-state.json",
       "expectErrors": 1,
-      "expectWarnings": 0,
       "expectIssueCodes": ["GRAPH_STRUCTURE"]
     }
   ]

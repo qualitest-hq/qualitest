@@ -45,10 +45,7 @@ export interface FlowDesignPatch {
   summary?: string;
 }
 
-/** 图结构校验摘要：ok 为 true 表示无 errors，warnings 不阻断合并 */
-export type DesignValidationResult = import('@/utils/flow/graphValidate').GraphValidationResult;
-
-/** AI 设计流式接口一轮响应：说明文案、画布 patch、校验、素材库写入提案、鉴权 Profile 提案等 */
+/** AI 设计流式接口一轮响应：说明文案、画布 patch、素材库写入提案、鉴权 Profile 提案等 */
 export interface TestFlowDesignResult {
   aiChatSessionId?: string | null;
   aiLlmModelId?: string;
@@ -59,7 +56,6 @@ export interface TestFlowDesignResult {
   /** 过程旁白：调用工具前模型输出的说明文字，多句以换行分隔，不含总结 */
   processNarration?: string;
   patch?: FlowDesignPatch;
-  validation?: DesignValidationResult;
   /** 本轮未成功接受任何 submit_* 单元时为 true（纯答疑，无画布 patch） */
   explainOnly?: boolean;
   /** 本轮素材库写入提案；流式结束事件中通常带 fields 明文 */
@@ -145,7 +141,6 @@ export interface AiDesignMessageView {
   modelName?: string;
   /** 画布修改建议；explainOnly 或本轮未成功 submit 时无 */
   patch?: FlowDesignPatch;
-  validation?: DesignValidationResult;
   /** 本轮未成功接受任何 submit_*：纯答疑，不灌 Staging */
   explainOnly?: boolean;
   /** 列表摘要：有改图标记但尚未拉到完整 patch */

@@ -26,7 +26,7 @@ Hard blocks for token / login-extract / HTTP-required run on **Run** only — St
 
 1. Before fixing login / `AUTH_TOKEN_MISSING`, call `list_project_auth_profiles`.
 2. Wrong-side Profile → `upsert_auth_profile` (semi-auto: confirm card writes `auth_config`; full-auto: writes in-tool). Pending auth proposals block `run_test_flow` / implicit persist.
-3. Next design turn sends canvas `runRiskWarnings` in the user context.
+3. Next design turn filters auth/required issues from canvas graph errors into `runRiskWarnings`.
 4. Login extract `name=adminAuth.token` without `entryKey` is split server-side into entry + field.
 
 | Code | Meaning | Fix |

@@ -34,7 +34,7 @@ class GraphJsonValidatorTest {
 
     /**
      * 前提：标准 demo-graph.json。
-     * 期望：ok；errors/warnings 为空。
+     * 期望：ok；errors 为空。
      */
     @Test
     @Order(1)
@@ -45,7 +45,6 @@ class GraphJsonValidatorTest {
         GraphValidationResult result = validator.validate(graph);
         assertTrue(result.isOk());
         assertTrue(result.getErrors().isEmpty());
-        assertTrue(result.getWarnings().isEmpty());
     }
 
     /**
@@ -67,17 +66,16 @@ class GraphJsonValidatorTest {
 
     /**
      * 前提：HTTP 节点未绑定 testProjectApiId。
-     * 期望：结构校验 ok，且 warnings 不含 testProjectApiId 文案。
+     * 期望：结构校验 ok，且不产出 testProjectApiId 结构错误。
      */
     @Test
     @Order(3)
     @DisplayName("未绑定 HTTP 不由结构校验告警")
-    void httpUnbound_noStructureWarning() {
+    void httpUnbound_noStructureError() {
         String json = loadResource("flow/invalid-http-unbound.json");
         GraphJson graph = GraphJson.parse(json);
         GraphValidationResult result = validator.validate(graph);
         assertTrue(result.isOk());
-        assertTrue(result.getWarnings().stream().noneMatch(w -> w.contains("testProjectApiId")));
     }
 
     /**
@@ -106,7 +104,7 @@ class GraphJsonValidatorTest {
 
     /**
      * 前提：graph-validate-cases.json 各 fixture。
-     * 期望：expectErrors / expectWarnings 条数与 manifest 一致；
+     * 期望：expectErrors 条数与 manifest 一致；
      * 有 expectIssueCodes 时，canvas 诊断码多重集一致（忽略 message）。
      */
     @Test
@@ -122,11 +120,9 @@ class GraphJsonValidatorTest {
             String id = spec.getString("id");
             String fixture = spec.getString("fixture");
             int expectErrors = spec.getIntValue("expectErrors");
-            int expectWarnings = spec.getIntValue("expectWarnings");
             String json = loadResource("flow/" + fixture);
             GraphValidationResult result = validator.validateJson(json);
             assertEquals(expectErrors, result.getErrors().size(), id + " errors");
-            assertEquals(expectWarnings, result.getWarnings().size(), id + " warnings");
             if (spec.containsKey("expectIssueCodes")) {
                 // 走 canvas 收口：validateJson(raw) → FlowIssues 投影，断言真实 code 多重集
                 FlowGraphValidateResult canvas =
@@ -200,14 +196,13 @@ class GraphJsonValidatorTest {
      */
     @Test
     @Order(8)
-    @DisplayName("subflow 缺 id 产生 error，空 IO 无 warning")
-    void subflowMissingId_producesErrorAndWarnings() {
+    @DisplayName("subflow 缺 id 产生 error")
+    void subflowMissingId_producesError() {
         String json = loadResource("flow/invalid-subflow-missing-id.json");
         GraphValidationResult result = validator.validateJson(json);
         assertFalse(result.isOk());
         assertEquals(1, result.getErrors().size());
         assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("subflowId")));
-        assertEquals(0, result.getWarnings().size());
     }
 
     @Test
@@ -264,9 +259,9 @@ class GraphJsonValidatorTest {
     @Test
     @Order(16)
     @DisplayName("http extract 过滤器后紧跟 [n] 产生 error")
-    void httpExtractFilterThenIndex_producesWarning() {
+    void httpExtractFilterThenIndex_producesError() {
         // 前提：合法 JsonPath，但过滤器后写了 [0]
-        // 期望：errors 提示去掉 [n]（不再做提示性 warning）
+        // 期望：errors 提示去掉 [n]
         String json = """
                 {
                   "meta":{},
@@ -399,7 +394,6 @@ class GraphJsonValidatorTest {
                 """;
         GraphValidationResult ok = validator.validateJson(endOk);
         assertTrue(ok.isOk(), () -> "errors=" + ok.getErrors());
-        assertFalse(ok.getWarnings().stream().anyMatch(w -> w.contains("未绑定 target")));
 
         String danglingTarget = """
                 {
@@ -467,18 +461,17 @@ class GraphJsonValidatorTest {
 
     /**
      * 前提：图含多个无入边节点；Staging 分批确认延后拓扑。
-     * 期望：ok；errors 与 warnings 均为空（半成品阶段不提示开始节点问题）。
+     * 期望：ok；errors 为空（半成品阶段不提示开始节点问题）。
      */
     @Test
     @Order(12)
     @DisplayName("延后拓扑时不校验开始节点")
-    void multiStartNode_deferredAsWarning() {
+    void multiStartNode_deferredSilent() {
         String json = loadResource("flow/invalid-multi-start.json");
         GraphJson graph = GraphJson.parse(json);
-        GraphValidationResult result = validator.validate(graph, GraphValidationOptions.stagingPartialConfirm());
+        GraphValidationResult result = validator.validate(graph, GraphValidationOptions.deferTopology());
         assertTrue(result.isOk());
         assertTrue(result.getErrors().isEmpty());
-        assertTrue(result.getWarnings().isEmpty());
     }
 
     /**
@@ -924,7 +917,7 @@ class GraphJsonValidatorTest {
     @Test
     @Order(45)
     @DisplayName("子流入口旧 inputShape 报错")
-    void validateSubflowEntry_legacyInputShape_warningOnly() {
+    void validateSubflowEntry_legacyInputShape_isError() {
         String json = """
                 {
                   "nodes": [

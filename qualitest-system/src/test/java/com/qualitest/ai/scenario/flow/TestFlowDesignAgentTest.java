@@ -7,7 +7,7 @@ import com.qualitest.ai.llm.*;
 import com.qualitest.ai.llm.history.HistoryWindowPolicy;
 import com.qualitest.ai.llm.history.HistoryWindowPolicyResolver;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
+import com.qualitest.flow.validate.GraphValidationResult;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignRequest;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignResult;
 import com.qualitest.ai.service.AiChatConversationService;
@@ -140,7 +140,7 @@ class TestFlowDesignAgentTest {
 
     /**
      * 前提：Agent 调用 submit 且校验通过。
-     * 期望：返回 patch、validation.ok、explainOnly=false；落库并触发摘要刷新。
+     * 期望：返回 patch、explainOnly=false；落库并触发摘要刷新。
      */
     @Test
     @Order(2)
@@ -149,11 +149,7 @@ class TestFlowDesignAgentTest {
         TestFlowDesignRequest request = baseRequest();
         FlowDesignPatch rawPatch = patchWithLoginNode();
         FlowDesignPatch normalizedPatch = patchWithLoginNode();
-        DesignValidationResult validation = DesignValidationResult.builder()
-                .ok(true)
-                .errors(List.of())
-                .warnings(List.of())
-                .build();
+        GraphValidationResult validation = GraphValidationResult.of(List.of());
 
         stubAgentRunWithSubmit(rawPatch, normalizedPatch, validation, "已建议新增登录节点");
 
@@ -162,7 +158,6 @@ class TestFlowDesignAgentTest {
         assertEquals(1001L, result.getAiLlmModelId());
         assertEquals("登录链路", result.getSummary());
         assertNotNull(result.getPatch());
-        assertTrue(result.getValidation().isOk());
         assertFalse(result.isExplainOnly());
         assertEquals(SESSION_ID, result.getAiChatSessionId());
         assertNotNull(result.getToolTrace());
@@ -217,11 +212,7 @@ class TestFlowDesignAgentTest {
     void design_submitWithEmptyContent_success() {
         TestFlowDesignRequest request = baseRequest();
         FlowDesignPatch normalizedPatch = patchWithLoginNode();
-        DesignValidationResult validation = DesignValidationResult.builder()
-                .ok(true)
-                .errors(List.of())
-                .warnings(List.of())
-                .build();
+        GraphValidationResult validation = GraphValidationResult.of(List.of());
 
         when(toolExecutor.executeTool(eq(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()), anyString(), any()))
                 .thenAnswer(inv -> {
@@ -347,7 +338,7 @@ class TestFlowDesignAgentTest {
     /** 模拟 Agent 循环：触发 submit 工具并填充 capture，再返回自然语言结束文本 */
     private void stubAgentRunWithSubmit(FlowDesignPatch rawPatch,
                                         FlowDesignPatch normalizedPatch,
-                                        DesignValidationResult validation,
+                                        GraphValidationResult validation,
                                         String assistantText) {
         when(toolExecutor.executeTool(eq(FlowDesignToolNames.SUBMIT_HTTP_NODE.getId()), anyString(), any()))
                 .thenAnswer(inv -> {

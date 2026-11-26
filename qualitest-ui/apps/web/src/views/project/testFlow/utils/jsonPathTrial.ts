@@ -3,7 +3,7 @@
  *
  * 功能：从选中 Run 步骤或接口 example 取试算 body；按节点 id 取历史 HTTP body；
  * 回溯上游 project HTTP 得试算 apiId；格式化断言/提取试算文案；
- * 按响应 schema 校验 http.body / nodes.<id>.http.body 左值（example 不硬拦）。
+ * 校验 http.body / nodes.<id>.http.body 左值写法（仅静态可断定错误；example 不硬拦）。
  */
 import type { Edge, Node } from '@vue-flow/core';
 
@@ -429,58 +429,31 @@ export function collectAssertReferencedApiIds(graph: {
  * 设计期断言路径门禁（前端预检）。
  * 扫描 assert / condition 的 http.body… 与 nodes.<id>.http.body… 左值：
  * 结构错误（误含 .items、写成 http.body.$.）→ errors；
- * schema 缺字段或无 schema → warnings。
- * 响应 example 不参与硬拦。
+ * 无 schema / 字段未命中 → 静默。
+ * schemaPathsByApiId 保留兼容旧调用，不再参与校验。
  */
 export function collectAssertPathDesignIssues(
   graph: { nodes?: Array<Record<string, unknown>>; edges?: Array<Record<string, unknown>> } | null | undefined,
-  schemaPathsByApiId: Map<string, string[]> | Record<string, string[]>,
-): { errors: string[]; warnings: string[] } {
+  _schemaPathsByApiId?: Map<string, string[]> | Record<string, string[]>,
+): { errors: string[] } {
   const errors: string[] = [];
-  const warnings: string[] = [];
   const nodes = (graph?.nodes ?? []) as Array<{
     id?: string;
     type?: string;
     data?: Record<string, unknown>;
   }>;
-  const edges = (graph?.edges ?? []) as Edge[];
-  const byId = new Map(nodes.map((n) => [String(n.id ?? ''), n]));
-  const schemaMap =
-    schemaPathsByApiId instanceof Map
-      ? schemaPathsByApiId
-      : new Map(Object.entries(schemaPathsByApiId ?? {}));
 
   for (const node of nodes) {
     const type = String(node.type ?? '').trim().toLowerCase();
     if (type !== 'assert' && type !== 'condition') continue;
-    const apiId = resolveTrialApiId(node, nodes as Node[], edges);
-    const upstreamSchemaPaths = apiId ? (schemaMap.get(apiId) ?? []) : [];
     const shellName = (node as { name?: string }).name;
     const nodeName =
       shellName != null && String(shellName).trim() ? String(shellName).trim() : node.id ?? '?';
     const kindLabel = type === 'assert' ? '断言' : '条件';
 
-    if (apiId && schemaMap.has(apiId) && !upstreamSchemaPaths.length) {
-      if (hasBareHttpBodyLeftToCheck(type, node.data)) {
-        warnings.push(`${kindLabel}节点「${nodeName}」上游接口无响应 schema，未做字段校验`);
-      }
-    }
-
-    const resolveSchemaForLeft = (left: string): { paths: string[]; label: string } | null => {
-      const mapped = toHttpScopedLeft(left);
-      if (!mapped?.scoped.startsWith('http.body.')) return null;
-      if (mapped.nodeId) {
-        const source = byId.get(mapped.nodeId);
-        const sourceApiId = String(source?.data?.testProjectApiId ?? '').trim();
-        const paths = sourceApiId ? (schemaMap.get(sourceApiId) ?? []) : [];
-        return { paths, label: `节点「${mapped.nodeId}」接口` };
-      }
-      return { paths: upstreamSchemaPaths, label: '上游接口' };
-    };
-
     if (type === 'assert') {
       const rules = Array.isArray(node.data?.rules) ? (node.data!.rules as Array<Record<string, unknown>>) : [];
-      appendSchemaPathIssues(errors, warnings, kindLabel, nodeName, 'rules', rules, resolveSchemaForLeft);
+      appendAssertLeftStructureIssues(errors, kindLabel, nodeName, 'rules', rules);
     } else {
       const branches = Array.isArray(node.data?.branches)
         ? (node.data!.branches as Array<Record<string, unknown>>)
@@ -489,62 +462,28 @@ export function collectAssertPathDesignIssues(
         const conditions = Array.isArray(branch?.conditions)
           ? (branch.conditions as Array<Record<string, unknown>>)
           : [];
-        appendSchemaPathIssues(
+        appendAssertLeftStructureIssues(
           errors,
-          warnings,
           kindLabel,
           nodeName,
           `branches[${bi}].conditions`,
           conditions,
-          resolveSchemaForLeft,
         );
       });
     }
   }
-  return { errors, warnings };
-}
-
-/** 节点是否含裸 http.body. 字段左值（不含 nodes 引用） */
-function hasBareHttpBodyLeftToCheck(
-  type: string,
-  data: Record<string, unknown> | undefined,
-): boolean {
-  if (!data) return false;
-  if (type === 'assert') {
-    return rulesHaveBareHttpBodyLeft(Array.isArray(data.rules) ? (data.rules as Array<Record<string, unknown>>) : []);
-  }
-  const branches = Array.isArray(data.branches) ? (data.branches as Array<Record<string, unknown>>) : [];
-  return branches.some((branch) =>
-    rulesHaveBareHttpBodyLeft(
-      Array.isArray(branch?.conditions) ? (branch.conditions as Array<Record<string, unknown>>) : [],
-    ),
-  );
-}
-
-/** 规则列表中是否存在裸 http.body. 字段左值 */
-function rulesHaveBareHttpBodyLeft(rules: Array<Record<string, unknown>>): boolean {
-  return rules.some((rule) => {
-    const rawLeft = rule?.left == null ? '' : String(rule.left).trim();
-    if (!rawLeft) return false;
-    const mapped = toHttpScopedLeft(rawLeft);
-    return Boolean(
-      mapped && !mapped.nodeId && mapped.scoped.startsWith('http.body.') && mapped.scoped.length > 'http.body.'.length,
-    );
-  });
+  return { errors };
 }
 
 /**
- * 逐条把规则左值对照 schema：结构错误进 errors，缺字段或引用节点无 schema 进 warnings。
- * resolveSchemaForLeft 按左值决定用上游 schema 还是 nodes 目标节点的 schema。
+ * 逐条检查规则左值写法：仅 body.$…、误含 .items 进 errors。
  */
-function appendSchemaPathIssues(
+function appendAssertLeftStructureIssues(
   errors: string[],
-  warnings: string[],
   kindLabel: string,
   nodeName: string,
   fieldName: string,
   rules: Array<Record<string, unknown>>,
-  resolveSchemaForLeft: (left: string) => { paths: string[]; label: string } | null,
 ): void {
   rules.forEach((rule, i) => {
     const rawLeft = rule?.left == null ? '' : String(rule.left).trim();
@@ -563,22 +502,6 @@ function appendSchemaPathIssues(
     if (containsJsonSchemaItemsSegment(relative)) {
       errors.push(
         `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」误含 JSON Schema 关键字 .items；数组请用 data[0]、data[*] 或 data[?(@.field==…)]`,
-      );
-      return;
-    }
-    const schema = resolveSchemaForLeft(rawLeft);
-    if (!schema) return;
-    if (!schema.paths.length) {
-      if (mapped.nodeId) {
-        warnings.push(
-          `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」引用的 ${schema.label}无响应 schema，未做字段校验`,
-        );
-      }
-      return;
-    }
-    if (!pathMatchesSchema(relative, schema.paths)) {
-      warnings.push(
-        `${kindLabel}节点「${nodeName}」${fieldName}[${i}] 左值「${left}」在${schema.label}响应 schema 中未找到对应字段`,
       );
     }
   });

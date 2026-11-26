@@ -35,30 +35,13 @@ describe('aiStagingStore', () => {
     expect(store.buildMessageSummary('msg-1').pending).toBe(2);
   });
 
-  it('markConfirmFailed 保持 pending 并写入 lastValidation', () => {
-    // 前提：confirm 校验失败
-    // 期望：status 仍 pending，lastValidation 含错误
+  it('markConfirmed 后从 staging map 移除', () => {
     const store = useAiStagingStore();
     store.hydrateStagingFromPatch('msg-1', patch, ctx);
-    store.markConfirmFailed('addNode:9001', { ok: false, errors: ['缺少 externalUrl'], warnings: [] });
-
-    const unit = store.getUnit('addNode:9001');
-    expect(unit?.status).toBe('pending');
-    expect(unit?.lastValidation?.errors[0]).toContain('externalUrl');
-    expect(unit?.confirmInFlight).toBe(false);
-  });
-
-  it('markConfirmed 清除 lastValidation', () => {
-    // 前提：先 markConfirmFailed 再 markConfirmed
-    // 期望：status 为 confirmed，lastValidation 清除，staging map 移除
-    const store = useAiStagingStore();
-    store.hydrateStagingFromPatch('msg-1', patch, ctx);
-    store.markConfirmFailed('addNode:9001', { ok: false, errors: ['err'], warnings: [] });
     store.markConfirmed('addNode:9001');
 
     const unit = store.getUnit('addNode:9001');
     expect(unit?.status).toBe('confirmed');
-    expect(unit?.lastValidation).toBeUndefined();
     expect(store.stagingByNodeId['9001']).toBeUndefined();
   });
 

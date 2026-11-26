@@ -1,12 +1,11 @@
 /**
  * 单 Staging 单元确认 API 封装。
- * 组装 graph_json，裁剪未决 patch，调用 confirmUnit，并解析 saveRiskWarnings。
+ * 组装 graph_json，裁剪未决 patch，调用 confirmUnit。
  */
 import type { Edge, Node } from '@vue-flow/core';
 
 import { confirmFlowDesignUnit } from '@/api/project/testFlowAi';
 import type { GraphScenarioConfig, GraphJson, GraphViewport } from '@/utils/flow/graphTypes';
-import type { GraphValidationResult } from '@/utils/flow/graphValidate';
 import { promiseWithTimeout } from '@/utils/promiseWithTimeout';
 
 import { toGraphJson } from '../graphAdapter';
@@ -35,19 +34,17 @@ export interface ConfirmFlowDesignUnitInput {
   stagingFilter?: StagingPersistFilter;
 }
 
-/** 确认单单元响应 */
+/** 确认单单元响应；无图时表示请求层失败 */
 export interface ConfirmFlowDesignUnitResult {
-  validation: GraphValidationResult;
   graphJson: GraphJson | null;
-  dependencyHints?: string[];
-  /** 本轮已无未决单元时的保存风险文案（不阻断本次确认） */
-  saveRiskWarnings?: string[];
+  /** 客户端/请求层失败文案（无 graphJson 时） */
+  error?: string;
   baseGraphHash?: string;
 }
 
 /**
  * 调用服务端确认单元：底图 + 裁剪后的 patch + draft。
- * 成功时 graphJson 非空；失败时 validation.ok=false。
+ * 以 graphJson 有无为落盘依据；图校验 findings 不挡确认，由画布展示。
  */
 export async function requestConfirmFlowDesignUnit(
   input: ConfirmFlowDesignUnitInput,
@@ -55,8 +52,8 @@ export async function requestConfirmFlowDesignUnit(
   const projectId = input.testProjectId.trim();
   if (!projectId) {
     return {
-      validation: { ok: false, errors: ['缺少 testProjectId'], warnings: [] },
       graphJson: null,
+      error: '缺少 testProjectId',
     };
   }
 
@@ -87,15 +84,10 @@ export async function requestConfirmFlowDesignUnit(
     '确认变更超时，请稍后重试',
   );
 
+  const mergedGraph = result.graphJson ?? null;
   return {
-    validation: {
-      ok: result.ok,
-      errors: result.errors ?? [],
-      warnings: result.warnings ?? [],
-    },
-    graphJson: result.ok ? (result.graphJson ?? null) : null,
-    dependencyHints: result.dependencyHints,
-    saveRiskWarnings: result.saveRiskWarnings,
+    graphJson: mergedGraph,
+    error: mergedGraph ? undefined : '确认失败：未返回合并图',
     baseGraphHash: result.baseGraphHash,
   };
 }

@@ -1,25 +1,24 @@
 /**
  * 画布校验条用的结构化问题。
- * 每条含：严重级别、文案、可定位节点 id、来源分类
- *（结构 / Staging 确认失败 / 运行风险 / API 语义）。
+ * 每条含：严重级别、文案、可定位节点 id、可选服务端 CODE、来源分类
+ *（图 error / API 语义）。
  */
 import type { GraphJson, GraphNode } from '@/utils/flow/graphTypes'
 import type { GraphValidationResult } from '@/utils/flow/graphValidate'
 import { findStartNodeIds } from '@/utils/flow/graphValidate'
 
-import type { AiStagingUnit } from '../types/aiStagingTypes'
-import { objectIdFromUnitId } from './stagingUnitIds'
+/** 问题来源：画布图 error（含结构与鉴权/必填）/ API 健康探测 */
+export type FlowCanvasValidationIssueSource = 'structure' | 'apiHealth'
 
-/** 问题来源：结构校验 / Staging 确认 / 运行风险 / API 健康探测 */
-export type FlowCanvasValidationIssueSource = 'structure' | 'staging' | 'runRisk' | 'apiHealth'
-
-/** 单条画布校验问题 */
+/** 单条画布校验问题；warning 仅 API 健康，其余来源一律 error */
 export type FlowCanvasValidationIssue = {
   level: 'error' | 'warning'
   message: string
   /** 可点击定位的节点 id；边类问题可挂两端节点 */
   nodeIds: string[]
   source: FlowCanvasValidationIssueSource
+  /** 服务端 FlowIssue.code（如 RUN_READINESS_AUTH）；本地地板可无 */
+  code?: string
 }
 
 /** 节点展示名：优先壳字段 name，否则用 id */
@@ -60,91 +59,17 @@ export function resolveNodeIdsFromMessage(
   return [...new Set(ids)]
 }
 
-/** 把图结构校验的 errors/warnings 转成带节点定位的问题列表 */
+/** 把图结构校验的 errors 转成带节点定位的问题列表 */
 export function issuesFromGraphValidation(
   result: GraphValidationResult,
   graph: Pick<GraphJson, 'nodes' | 'edges'>,
 ): FlowCanvasValidationIssue[] {
-  const map = (level: 'error' | 'warning', message: string): FlowCanvasValidationIssue => ({
-    level,
+  return (result.errors ?? []).map((message) => ({
+    level: 'error' as const,
     message,
     nodeIds: resolveNodeIdsFromMessage(message, graph),
-    source: 'structure',
-  })
-  return [
-    ...(result.errors ?? []).map((m) => map('error', m)),
-    ...(result.warnings ?? []).map((m) => map('warning', m)),
-  ]
-}
-
-/**
- * Staging 确认失败转问题列表。
- * 校验条每单元只出一条摘要（多条错误合并进文案）；
- * 节点类挂到对应节点，边类挂到两端节点。
- */
-export function issuesFromStagingConfirmFailures(
-  units: Iterable<AiStagingUnit>,
-  edges: Array<{ id?: string; source?: string; target?: string }>,
-): FlowCanvasValidationIssue[] {
-  const out: FlowCanvasValidationIssue[] = []
-  for (const unit of units) {
-    if (!unit?.lastValidation || unit.lastValidation.ok) continue
-    const objectId = objectIdFromUnitId(unit.unitId)
-    let nodeIds: string[] = []
-    if (unit.kind === 'addEdge' || unit.kind === 'updateEdge' || unit.kind === 'deleteEdge') {
-      const edge = edges.find((e) => e.id === objectId)
-      if (edge?.source) nodeIds.push(edge.source)
-      if (edge?.target) nodeIds.push(edge.target)
-    } else if (
-      unit.kind === 'addNode'
-      || unit.kind === 'updateNode'
-      || unit.kind === 'deleteNode'
-    ) {
-      if (objectId) nodeIds = [objectId]
-    }
-    nodeIds = [...new Set(nodeIds.filter(Boolean))]
-
-    const errors = unit.lastValidation.errors ?? []
-    const warnings = unit.lastValidation.warnings ?? []
-    if (errors.length) {
-      const first = errors[0]
-      const extra = errors.length - 1
-      out.push({
-        level: 'error',
-        message:
-          extra > 0
-            ? `${first}（另有 ${extra} 项，见属性 Diff）`
-            : first,
-        nodeIds,
-        source: 'staging',
-      })
-    } else if (warnings.length) {
-      const first = warnings[0]
-      const extra = warnings.length - 1
-      out.push({
-        level: 'warning',
-        message:
-          extra > 0
-            ? `${first}（另有 ${extra} 项，见属性 Diff）`
-            : first,
-        nodeIds,
-        source: 'staging',
-      })
-    }
-  }
-  return out
-}
-
-/** 运行风险文案转问题列表（鉴权/登录抽取/HTTP 必填） */
-export function issuesFromRunRiskWarnings(messages: string[]): FlowCanvasValidationIssue[] {
-  return (messages ?? [])
-    .filter((m) => !!String(m ?? '').trim())
-    .map((message) => ({
-      level: 'error' as const,
-      message,
-      nodeIds: [] as string[],
-      source: 'runRisk' as const,
-    }))
+    source: 'structure' as const,
+  }))
 }
 
 /** API 健康探测告警转问题列表（有 nodeId 则可定位） */
@@ -161,6 +86,7 @@ export function issuesFromApiHealthWarnings(
         message,
         nodeIds: nodeId ? [nodeId] : [],
         source: 'apiHealth' as const,
+        code: w.code != null && String(w.code).trim() ? String(w.code).trim() : undefined,
       }
     })
     .filter((x): x is FlowCanvasValidationIssue => x != null)

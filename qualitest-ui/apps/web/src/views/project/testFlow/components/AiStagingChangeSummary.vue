@@ -5,22 +5,22 @@
     <p class="ai-staging-summary__counts">
       待确认 {{ summary.pending }} · 已确认 {{ summary.confirmed }} · 已取消 {{ summary.rejected }}
     </p>
-    <div v-if="hasGraphPending || hasScenarioPending || readyPendingCount > 0 || batchPausedOnUnitId" class="ai-staging-summary__actions">
+    <div v-if="hasGraphPending || hasScenarioPending || pendingConfirmCount > 0 || batchPausedOnUnitId" class="ai-staging-summary__actions">
       <button
-          v-if="readyPendingCount > 0"
+          v-if="pendingConfirmCount > 0"
           :disabled="batchConfirmBusy"
           class="btn btn--ghost btn--sm"
           type="button"
-          @click="onConfirmAllReady"
+          @click="onConfirmAllPending"
       >
-        {{ batchConfirmBusy ? '确认中…' : `确认全部就绪 (${readyPendingCount})` }}
+        {{ batchConfirmBusy ? '确认中…' : `确认全部待确认 (${pendingConfirmCount})` }}
       </button>
       <button
           v-if="batchPausedOnUnitId"
           :disabled="batchConfirmBusy"
           class="btn btn--ghost btn--sm"
           type="button"
-          @click="onResumeConfirmAllReady"
+          @click="onResumeConfirmAllPending"
       >
         跳过失败继续
       </button>
@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-/** 会话内 Staging 变更摘要：统计、计数与定位；含「确认全部就绪」入口 */
+/** 会话内 Staging 变更摘要：统计、计数与定位；含「确认全部待确认」入口 */
 import { computed } from 'vue'
 
 import { useAiStagingConfirm } from '../composables/useAiStagingConfirm'
@@ -68,9 +68,9 @@ const props = defineProps({
 const stagingStore = useAiStagingStore()
 const canvasStore = useFlowCanvasStore()
 const {
-  confirmAllReady,
-  resumeConfirmAllReady,
-  readyPendingCount,
+  confirmAllPending,
+  resumeConfirmAllPending,
+  pendingConfirmCount,
   batchConfirmBusy,
   batchPausedOnUnitId,
 } = useAiStagingConfirm()
@@ -90,14 +90,14 @@ const hasScenarioPending = computed(() =>
 
 const breakdownText = computed(() => formatMessageSummaryBreakdown(summary.value))
 
-async function onConfirmAllReady() {
-  if (batchConfirmBusy.value || readyPendingCount.value === 0) return
-  await confirmAllReady()
+async function onConfirmAllPending() {
+  if (batchConfirmBusy.value || pendingConfirmCount.value === 0) return
+  await confirmAllPending()
 }
 
-async function onResumeConfirmAllReady() {
+async function onResumeConfirmAllPending() {
   if (batchConfirmBusy.value || !batchPausedOnUnitId.value) return
-  await resumeConfirmAllReady()
+  await resumeConfirmAllPending()
 }
 
 function locateCanvas() {

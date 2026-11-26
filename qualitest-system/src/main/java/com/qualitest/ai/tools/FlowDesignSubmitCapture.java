@@ -2,7 +2,6 @@ package com.qualitest.ai.tools;
 
 import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.FlowDesignPatchUnitIds;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.flow.model.GraphEdge;
@@ -20,8 +19,8 @@ import java.util.function.Function;
  * <p>
  * 行为：
  * <ul>
- *   <li>校验通过：单元并入累积 patch，供本轮结束时返回前端 Staging</li>
- *   <li>校验失败：只更新最近一次 validation，不改动已接受累积</li>
+ *   <li>地板通过：单元并入累积 patch，供本轮结束时返回前端 Staging</li>
+ *   <li>地板失败：不改动已接受累积（errors 见当次工具回执）</li>
  *   <li>同一 unitId（如 addNode:n_1）再次成功：先删旧切片再写入，实现修正覆盖</li>
  * </ul>
  * 编排层据此判断 explainOnly（无任何成功单元）或返回累积 patch。
@@ -35,19 +34,15 @@ public class FlowDesignSubmitCapture {
     /** 已接受单元合并后的规范化 patch（可能含多个单元） */
     private FlowDesignPatch normalizedPatch;
 
-    /** 最近一次 submit 的校验摘要（成功或失败都会更新） */
-    private DesignValidationResult validation;
-
     /**
      * 记录一次单元 submit 的规范化结果。
-     * 通过则合并；失败则仅刷新 validation。
+     * 通过则合并；失败则忽略本笔。
      */
     public void record(FlowDesignPatchNormalizer.NormalizeResult result) {
         if (result == null) {
             return;
         }
-        this.validation = result.validation();
-        if (result.validation() != null && result.validation().isOk() && result.patch() != null) {
+        if (result.ok() && result.patch() != null) {
             this.submitted = true;
             this.normalizedPatch = mergeReplaceUnits(this.normalizedPatch, result.patch());
         }
@@ -65,7 +60,6 @@ public class FlowDesignSubmitCapture {
     public void clearAccepted() {
         this.submitted = false;
         this.normalizedPatch = null;
-        this.validation = null;
     }
 
     /**

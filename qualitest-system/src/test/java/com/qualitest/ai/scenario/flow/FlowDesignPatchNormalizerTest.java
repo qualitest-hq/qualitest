@@ -151,8 +151,6 @@ class FlowDesignPatchNormalizerTest {
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, graphWithMeta(), PROJECT_ID);
 
         assertNull(result.patch().getAddNodes().get(0).getData().get("testProjectApiId"));
-        assertTrue(result.validation().getWarnings().stream()
-                .anyMatch(w -> w.contains("testProjectApiId 无效")));
     }
 
     /**
@@ -240,7 +238,7 @@ class FlowDesignPatchNormalizerTest {
 
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, graphWithMeta(), PROJECT_ID);
 
-        assertTrue(result.validation().isOk(), () -> String.join("; ", result.validation().getErrors()));
+        assertTrue(result.ok(), () -> String.join("; ", result.errors()));
         assertEquals(2, result.patch().getAddNodes().size());
     }
 
@@ -275,8 +273,6 @@ class FlowDesignPatchNormalizerTest {
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, base, PROJECT_ID);
 
         assertNull(result.patch().getUpdateNodes().get(0).getData().get("testProjectApiId"));
-        assertTrue(result.validation().getWarnings().stream()
-                .anyMatch(w -> w.contains("不属于当前项目")));
     }
 
     /**
@@ -312,7 +308,7 @@ class FlowDesignPatchNormalizerTest {
 
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, base, PROJECT_ID);
 
-        assertTrue(result.validation().isOk(), () -> String.join("; ", result.validation().getErrors()));
+        assertTrue(result.ok(), () -> String.join("; ", result.errors()));
     }
 
     /**
@@ -378,7 +374,7 @@ class FlowDesignPatchNormalizerTest {
 
         GraphRunScenario normalized = result.patch().getScenarioPatch().getAddScenarios().get(0);
         assertTrue(normalized.getId().matches("\\d+"));
-        assertTrue(result.validation().isOk(), () -> String.join("; ", result.validation().getErrors()));
+        assertTrue(result.ok(), () -> String.join("; ", result.errors()));
     }
 
     /**
@@ -468,7 +464,7 @@ class FlowDesignPatchNormalizerTest {
         Map<String, Object> normalized = result.patch().getAddNodes().get(0).getData();
         assertEquals("external", normalized.get("callMode"));
         assertEquals("POST", normalized.get("httpMethod"));
-        assertTrue(result.validation().isOk());
+        assertTrue(result.ok());
     }
 
     /**
@@ -496,8 +492,8 @@ class FlowDesignPatchNormalizerTest {
 
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, graphWithMeta(), PROJECT_ID);
 
-        assertTrue(result.validation().getWarnings().stream()
-                .anyMatch(w -> w.contains("外联模式缺少 externalUrl")));
+        // 规范化侧 effect：缺 URL 仍接受进严格快照；提示仅内部 warnings，不进 NormalizeResult
+        assertNotNull(result.patch());
     }
 
     /**
@@ -529,7 +525,7 @@ class FlowDesignPatchNormalizerTest {
         Map<String, Object> normalized = result.patch().getAddNodes().get(0).getData();
         assertEquals("3001", normalized.get("subflowId"));
         assertFalse(normalized.containsKey("legacyFoo"));
-        assertTrue(result.validation().isOk());
+        assertTrue(result.ok());
     }
 
     /**
@@ -639,8 +635,6 @@ class FlowDesignPatchNormalizerTest {
         assertNotNull(auth);
         assertEquals("Bearer {{asset.clientAuth.token}}", auth.get("value"));
         assertTrue(AuthHeaderResolver.isProfileManaged(auth));
-        assertTrue(result.validation().getWarnings().stream()
-                .anyMatch(w -> w.startsWith("AUTH_HEADER_MANAGED:")));
     }
 
     /**
@@ -681,8 +675,6 @@ class FlowDesignPatchNormalizerTest {
                     .anyMatch(h -> "Authorization".equalsIgnoreCase(String.valueOf(h.get("name"))));
             assertFalse(hasAuth);
         }
-        assertTrue(result.validation().getWarnings().stream()
-                .noneMatch(w -> w.startsWith("AUTH_HEADER_MANAGED:")));
     }
 
     @Test
@@ -717,7 +709,7 @@ class FlowDesignPatchNormalizerTest {
 
         FlowDesignPatchNormalizer.NormalizeResult r2 = normalizer.normalize(update, base, PROJECT_ID, sessionMap);
         assertEquals(snowflake, r2.patch().getUpdateNodes().get(0).getId());
-        assertFalse(r2.validation().getErrors().stream().anyMatch(e -> e.contains("未知节点")));
+        assertFalse(r2.errors().stream().anyMatch(e -> e.contains("未知节点")));
     }
 
     @Test
@@ -822,18 +814,18 @@ class FlowDesignPatchNormalizerTest {
         patch.setUpdateNodes(new ArrayList<>(List.of(upd)));
 
         FlowDesignPatchNormalizer.NormalizeResult result = normalizer.normalize(patch, emptyGraph(), PROJECT_ID, sessionMap);
-        assertFalse(result.validation().isOk());
-        assertTrue(result.validation().getErrors().stream().anyMatch(e -> e.contains("never_seen")));
+        assertFalse(result.ok());
+        assertTrue(result.errors().stream().anyMatch(e -> e.contains("never_seen")));
         assertFalse(sessionMap.containsKey("never_seen"));
     }
 
     /**
      * 前提：项目双端鉴权；单单元 add 需登录的客户端 project HTTP，图中无 token 来源。
-     * 期望：normalizeUnit 接受且 errors 无 AUTH_TOKEN_MISSING（改 warnings）；整包 normalize 则 errors 含该码。
+     * 期望：normalizeUnit 地板通过且 errors 无 AUTH；整包严格快照 errors 含 AUTH_TOKEN_MISSING。
      */
     @Test
     @Order(94)
-    @DisplayName("normalizeUnit 将 AuthToken 门禁降为 warnings")
+    @DisplayName("normalizeUnit 不因 AuthToken 门禁拒收")
     void normalizeUnit_projectHttpMissingToken_skipsAuthGate() {
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
                 .testProjectApiId(API_ID)
@@ -847,16 +839,15 @@ class FlowDesignPatchNormalizerTest {
         FlowDesignPatch unitPatch = dualBearerHttpAddPatch("9601");
         FlowDesignPatchNormalizer.NormalizeResult unitResult =
                 normalizer.normalizeUnit(unitPatch, graphWithMeta(), PROJECT_ID, new HashMap<>());
-        assertTrue(unitResult.validation().getErrors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
-                () -> "unit errors=" + unitResult.validation().getErrors());
-        assertTrue(unitResult.validation().getWarnings().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
-                () -> "unit warnings=" + unitResult.validation().getWarnings());
+        assertTrue(unitResult.ok(), () -> "unit errors=" + unitResult.errors());
+        assertTrue(unitResult.errors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
+                () -> "unit errors=" + unitResult.errors());
 
         FlowDesignPatch fullPatch = dualBearerHttpAddPatch("9602");
         FlowDesignPatchNormalizer.NormalizeResult fullResult =
                 normalizer.normalize(fullPatch, graphWithMeta(), PROJECT_ID);
-        assertTrue(fullResult.validation().getErrors().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
-                () -> "full errors=" + fullResult.validation().getErrors());
+        assertTrue(fullResult.errors().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
+                () -> "full errors=" + fullResult.errors());
     }
 
     /** 构造绑定客户端 inherit HTTP 的 addNode 补丁（缺 token 来源）。 */
@@ -901,8 +892,8 @@ class FlowDesignPatchNormalizerTest {
 
         FlowDesignPatchNormalizer.NormalizeResult result =
                 normalizer.normalizeUnit(patch, base, PROJECT_ID, new HashMap<>());
-        assertFalse(result.validation().isOk());
-        assertTrue(result.validation().getErrors().stream()
+        assertFalse(result.ok());
+        assertTrue(result.errors().stream()
                 .anyMatch(e -> e.contains("data.rules") && e.contains("空数组")));
     }
 

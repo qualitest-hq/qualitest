@@ -11,10 +11,8 @@ import lombok.Getter;
 public class ValidationIssue {
 
     public enum Level {
-        /** 阻止保存或 Run */
-        ERROR,
-        /** 允许保存，Run 或导入时可能失败/需迁移 */
-        WARNING
+        /** 画布标错 / 开跑硬拦；不拦保存 */
+        ERROR
     }
 
     private final Level level;

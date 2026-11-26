@@ -86,9 +86,9 @@ public interface ITestFlowService {
      *
      * @param graph    写库后的图
      * @param revision 写库后的图版本号
-     * @param warnings 软校验警告
+     * @param errors   静态校验等问题（不拦写库，有错仍可能 revision 已递增）
      */
-    record ApplyGraphPatchResult(GraphJson graph, long revision, List<String> warnings) {
+    record ApplyGraphPatchResult(GraphJson graph, long revision, List<String> errors) {
     }
 
     /**

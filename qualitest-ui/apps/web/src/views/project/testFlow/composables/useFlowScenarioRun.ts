@@ -13,7 +13,6 @@ import { toGraphJson } from '../graphAdapter';
 import { buildFlowGraphInput } from '../utils/stagingGraphInput';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useRunLibraryStore } from '../stores/runLibraryStore';
-import { useRunRiskStore } from '../stores/runRiskStore';
 import { collectRunBlockingErrors } from '../utils/runReadiness';
 import { followRun } from './followActiveRun';
 import { endRunReplay } from './usePlayback';
@@ -49,7 +48,7 @@ export function useFlowScenarioRun() {
       : undefined;
 
     if (store.dirty) {
-      const saved = await saveFlow({ quiet: true, skipRunRiskRefresh: true });
+      const saved = await saveFlow({ quiet: true });
       if (!saved) {
         // saveFlow 已 toast 具体原因（含 method+path 占用方）；此处不再叠泛化提示
         return null;
@@ -86,12 +85,11 @@ export function useFlowScenarioRun() {
       return null;
     }
 
-    const { errors: blocking, precheckErrors } = await collectRunBlockingErrors({
+    const { errors: blocking } = await collectRunBlockingErrors({
       graph: graphForRun,
       testProjectId: store.testProjectId,
       testFlowId: store.testFlowId,
     });
-    useRunRiskStore().setWarnings(precheckErrors);
     if (blocking.length) {
       ElMessage.error(`${blocking[0]}（请查看左上角校验条）`);
       return null;

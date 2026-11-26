@@ -1,6 +1,6 @@
 /**
  * 测 useAiStagingConfirm：deleteNode confirm 后关联 pending addEdge 应 reject；
- * 全局单飞确认（连点多 deleteEdge 只进一笔）；确认全部就绪波次串行 / 失败停顿 / resume。
+ * 全局单飞确认（连点多 deleteEdge 只进一笔）；确认全部待确认波次串行 / 失败停顿 / resume。
  * 边界：mock confirm API、viewport、history 等；Pinia 内存态。
  * 单跑：pnpm test useAiStagingConfirm   （在 qualitest-ui 或 apps/web 下）
  */
@@ -66,7 +66,6 @@ import {
 
 function okConfirmResult() {
   return {
-    validation: { ok: true, errors: [], warnings: [] },
     graphJson: {
       nodes: [],
       edges: [],
@@ -79,10 +78,10 @@ function okConfirmResult() {
   };
 }
 
-function failConfirmResult(message = '校验失败') {
+function failConfirmResult(message = '确认失败') {
   return {
-    validation: { ok: false, errors: [message], warnings: [] },
-    graphJson: undefined,
+    graphJson: null,
+    error: message,
     baseGraphHash: 'abcd1234efgh5678',
   };
 }
@@ -215,10 +214,10 @@ describe('useAiStagingConfirm deleteNode', () => {
   });
 });
 
-describe('useAiStagingConfirm confirmAllReady', () => {
-  it('链式 addNode+addEdge 一次确认全部就绪后 pending 归零', async () => {
+describe('useAiStagingConfirm confirmAllPending', () => {
+  it('链式 addNode+addEdge 一次确认全部待确认后 pending 归零', async () => {
     // 前提：两节点与依赖边均 pending
-    // 期望：confirmAllReady 后三者 confirmed，API 调用 3 次且无并行重叠
+    // 期望：confirmAllPending 后三者 confirmed，API 调用 3 次且无并行重叠
     const canvasStore = useFlowCanvasStore();
     const stagingStore = useAiStagingStore();
     canvasStore.testProjectId = '10';
@@ -234,8 +233,8 @@ describe('useAiStagingConfirm confirmAllReady', () => {
       return okConfirmResult();
     });
 
-    const { confirmAllReady } = useAiStagingConfirm();
-    await confirmAllReady();
+    const { confirmAllPending } = useAiStagingConfirm();
+    await confirmAllPending();
 
     expect(stagingStore.getUnit('addNode:9001')?.status).toBe('confirmed');
     expect(stagingStore.getUnit('addNode:9002')?.status).toBe('confirmed');
@@ -246,9 +245,9 @@ describe('useAiStagingConfirm confirmAllReady', () => {
     expect(ElMessage.success).toHaveBeenCalledWith('已确认 3 项');
   });
 
-  it('中途校验失败时已成功项保留且停在失败项', async () => {
-    // 前提：3 条独立 deleteEdge；e2 的 confirm 始终校验失败（含自动重试）
-    // 期望：e1 confirmed，e2 pending 且带 lastValidation，e3 仍 pending；pausedOnUnitId=e2
+  it('中途请求失败时已成功项保留且停在失败项', async () => {
+    // 前提：3 条独立 deleteEdge；e2 的 confirm 始终无 graphJson（含自动重试）
+    // 期望：e1 confirmed，e2/e3 仍 pending；pausedOnUnitId=e2
     const canvasStore = useFlowCanvasStore();
     const stagingStore = useAiStagingStore();
     canvasStore.testProjectId = '10';
@@ -256,19 +255,18 @@ describe('useAiStagingConfirm confirmAllReady', () => {
 
     mockFailUnit('deleteEdge:e2');
 
-    const { confirmAllReady } = useAiStagingConfirm();
-    await confirmAllReady();
+    const { confirmAllPending } = useAiStagingConfirm();
+    await confirmAllPending();
 
     expect(stagingStore.getUnit('deleteEdge:e1')?.status).toBe('confirmed');
     expect(stagingStore.getUnit('deleteEdge:e2')?.status).toBe('pending');
-    expect(stagingStore.getUnit('deleteEdge:e2')?.lastValidation?.ok).toBe(false);
     expect(stagingStore.getUnit('deleteEdge:e3')?.status).toBe('pending');
     expect(stagingBatchPausedOnUnitId.value).toBe('deleteEdge:e2');
     expect(ElMessage.error).toHaveBeenCalled();
   });
 
-  it('跳过失败继续后确认其余就绪项', async () => {
-    // 前提：e2 始终失败停顿后调用 resumeConfirmAllReady
+  it('跳过失败继续后确认其余待确认项', async () => {
+    // 前提：e2 始终失败停顿后调用 resumeConfirmAllPending
     // 期望：跳过 e2，e3 被确认；e2 仍 pending
     const canvasStore = useFlowCanvasStore();
     const stagingStore = useAiStagingStore();
@@ -277,11 +275,11 @@ describe('useAiStagingConfirm confirmAllReady', () => {
 
     mockFailUnit('deleteEdge:e2');
 
-    const { confirmAllReady, resumeConfirmAllReady } = useAiStagingConfirm();
-    await confirmAllReady();
+    const { confirmAllPending, resumeConfirmAllPending } = useAiStagingConfirm();
+    await confirmAllPending();
     expect(stagingBatchPausedOnUnitId.value).toBe('deleteEdge:e2');
 
-    await resumeConfirmAllReady();
+    await resumeConfirmAllPending();
 
     expect(stagingStore.getUnit('deleteEdge:e1')?.status).toBe('confirmed');
     expect(stagingStore.getUnit('deleteEdge:e2')?.status).toBe('pending');
@@ -290,7 +288,7 @@ describe('useAiStagingConfirm confirmAllReady', () => {
   });
 
   it('批量确认进行中再调 confirmUnit 被单飞挡住', async () => {
-    // 前提：confirmAllReady 进行中（API 挂起）；同时再点单条 confirmUnit
+    // 前提：confirmAllPending 进行中（API 挂起）；同时再点单条 confirmUnit
     // 期望：仅批量路径发起 API，单条不额外请求
     const canvasStore = useFlowCanvasStore();
     const stagingStore = useAiStagingStore();
@@ -306,8 +304,8 @@ describe('useAiStagingConfirm confirmAllReady', () => {
       return okConfirmResult();
     });
 
-    const { confirmAllReady, confirmUnit } = useAiStagingConfirm();
-    const batchPromise = confirmAllReady();
+    const { confirmAllPending, confirmUnit } = useAiStagingConfirm();
+    const batchPromise = confirmAllPending();
     await vi.waitFor(() => {
       expect(requestConfirmMock).toHaveBeenCalledTimes(1);
     });

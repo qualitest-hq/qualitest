@@ -158,7 +158,7 @@ Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。
 - **不允许开跑**（人跑 / 开放入站 / 子流调起的就绪门禁硬拦）。  
 - **被拦时仍要有返回**：开放 HTTP 写平台错误响应（不挂起、不空回）；子流按该子流入口 `fallbackOut` 挂父（未配置则默认 `{body:{code:"NO_RETURN",…}}`），父侧读 `nodes.<id>.out` 有值。  
 - **路由占用冲突不再保存硬拦**：保存放行、列表标 error，开跑与入站硬拦（见 §5.3.1）。  
-- **校验收口**：`POST /project/testFlow/validate?stage=canvas|save|run|ingress|subflow` 返回统一 `issues[{code,severity,stage,nodeId,message}]`；画布/开跑以前端消费该接口为准，本地只做 JSON/节点 id/边端点地板。`stage=canvas` 走 `validateJson(raw)`（保留未知键/边多余字段）；body 可带 `deferTopology=true`（Staging 有未确认边时延后开始节点等拓扑硬拦）。
+- **校验收口**：`POST /project/testFlow/validate?stage=canvas|save|run|ingress|subflow` 返回统一 `issues[{code,severity,stage,nodeId,message}]`；`severity` 仅 `ERROR`（静态不确定项静默不返回）。画布/开跑以前端消费该接口为准，本地只做 JSON/节点 id/边端点地板。`stage=canvas` 走 `validateJson(raw)`（保留未知键/边多余字段）；body 可带 `deferTopology=true`（Staging 有未确认边时延后开始节点等拓扑硬拦）。
 
 ### 2.2.1 典型画法
 

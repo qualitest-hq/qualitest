@@ -27,16 +27,14 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测 FlowDesignPatchConfirmService：单 Staging 单元 confirm（合并、依赖、图校验、幂等）。
+ * 测 FlowDesignPatchConfirmService：单 Staging 单元 confirm（合并落盘、幂等；校验不挡确认）。
  * 边界：全部内存完成，不写数据库。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignPatchConfirmServiceTest
  */
@@ -49,7 +47,7 @@ class FlowDesignPatchConfirmServiceTest {
     void setUp() {
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(null, null, null, new GraphJsonValidator(), merger);
-        confirmService = new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator());
+        confirmService = new FlowDesignPatchConfirmService(normalizer, merger);
     }
 
     /**
@@ -65,12 +63,12 @@ class FlowDesignPatchConfirmServiceTest {
 
     /**
      * 前提：仅 confirm addEdge:8001，未先 confirm 依赖节点。
-     * 期望：失败（与夹具 assertConfirmFixture 一致）。
+     * 期望：仍落盘（依赖不挡确认），合并图带悬空边目标由画布校验。
      */
     @Test
     @Order(2)
-    @DisplayName("仅确认边缺依赖节点时失败")
-    void confirm_partialEdgeOnly_fails() throws IOException {
+    @DisplayName("仅确认边缺依赖节点时仍落盘")
+    void confirm_partialEdgeOnly_stillApplies() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-edge-only.json");
         FlowDesignPatchConfirmRequest request = FlowMergeFixtureTestSupport.buildConfirmRequest(
                 fixture, "addEdge:8001", List.of(), null);
@@ -80,22 +78,20 @@ class FlowDesignPatchConfirmServiceTest {
 
     /**
      * 前提：同上，仅 confirm addEdge。
-     * 期望：dependencyHints 提示需先确认 addNode:9001；baseGraphHash 长 16；无 graphJson。
+     * 期望：有 graphJson；baseGraphHash 长 16。
      */
     @Test
     @Order(3)
-    @DisplayName("仅确认边时返回依赖提示")
-    void confirm_partialEdgeOnly_emitsDependencyHints() throws IOException {
+    @DisplayName("仅确认边时仍返回合并图")
+    void confirm_partialEdgeOnly_returnsGraph() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-edge-only.json");
         FlowDesignPatchConfirmRequest request = FlowMergeFixtureTestSupport.buildConfirmRequest(
                 fixture, "addEdge:8001", List.of(), null);
         FlowDesignPatchConfirmResult result = confirmService.confirmUnit(request);
-        assertFalse(result.getDependencyHints().isEmpty());
-        assertEquals(
-                "确认 addEdge:8001 需要先确认 addNode:9001",
-                result.getDependencyHints().get(0));
+        assertNotNull(result.getGraphJson());
         assertTrue(result.getBaseGraphHash().length() == 16);
-        assertNull(result.getGraphJson());
+        assertTrue(result.getGraphJson().getEdges().stream()
+                .anyMatch(e -> e != null && "8001".equals(e.getId())));
     }
 
     /**
@@ -111,7 +107,7 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchConfirmRequest addNodeRequest = FlowMergeFixtureTestSupport.buildConfirmRequest(
                 fixture, "addNode:9001", List.of(), null);
         FlowDesignPatchConfirmResult addNodeResult = confirmService.confirmUnit(addNodeRequest);
-        assertTrue(addNodeResult.isOk(), () -> "errors=" + addNodeResult.getErrors());
+        assertNotNull(addNodeResult.getGraphJson());
 
         FlowDesignPatchConfirmRequest addEdgeRequest = new FlowDesignPatchConfirmRequest();
         addEdgeRequest.setGraphJson(addNodeResult.getGraphJson());
@@ -120,7 +116,7 @@ class FlowDesignPatchConfirmServiceTest {
         addEdgeRequest.setConfirmedUnitIds(List.of("addNode:9001"));
 
         FlowDesignPatchConfirmResult addEdgeResult = confirmService.confirmUnit(addEdgeRequest);
-        assertTrue(addEdgeResult.isOk(), () -> "errors=" + addEdgeResult.getErrors());
+        assertNotNull(addEdgeResult.getGraphJson());
         // base 已有场景入口→HTTP 边，再确认 patch 边后共 2 条
         assertEquals(2, addEdgeResult.getGraphJson().getEdges().size());
     }
@@ -206,8 +202,8 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchConfirmResult first = confirmService.confirmUnit(request);
         FlowDesignPatchConfirmResult second = confirmService.confirmUnit(request);
 
-        assertTrue(first.isOk());
-        assertTrue(second.isOk());
+        assertNotNull(first.getGraphJson());
+        assertNotNull(second.getGraphJson());
         assertEquals(
                 GraphJsonHashUtil.computeBaseGraphHash(first.getGraphJson()),
                 GraphJsonHashUtil.computeBaseGraphHash(second.getGraphJson()));
@@ -226,7 +222,7 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchConfirmRequest addNodeRequest = FlowMergeFixtureTestSupport.buildConfirmRequest(
                 fixture, "addNode:9001", List.of(), null);
         FlowDesignPatchConfirmResult addNodeResult = confirmService.confirmUnit(addNodeRequest);
-        assertTrue(addNodeResult.isOk());
+        assertNotNull(addNodeResult.getGraphJson());
 
         FlowDesignPatch patch = new FlowDesignPatch();
         GraphNode update = GraphNode.builder()
@@ -244,20 +240,20 @@ class FlowDesignPatchConfirmServiceTest {
         updateRequest.setDraftOverride(Map.of("name", "登录V2"));
 
         FlowDesignPatchConfirmResult updateResult = confirmService.confirmUnit(updateRequest);
-        assertTrue(updateResult.isOk(), () -> "errors=" + updateResult.getErrors());
+        assertNotNull(updateResult.getGraphJson());
         GraphNode merged = FlowDesignPatchMerger.findNode(updateResult.getGraphJson().getNodes(), "9001");
         assertNotNull(merged);
         assertEquals("登录V2", merged.getName());
     }
 
     /**
-     * 前提：先用坏 draft（空 externalUrl）失败，再用合法 draft 重试。
-     * 期望：先 false，后 true 且有 graphJson。
+     * 前提：先用坏 draft（空 externalUrl）确认，再用合法 draft 确认。
+     * 期望：两次均落盘（校验不挡确认）；坏 draft 可有 soft warnings。
      */
     @Test
     @Order(13)
-    @DisplayName("坏 draft 失败后合法 draft 重试成功")
-    void confirm_failedRetryWithDraft_ok() throws IOException {
+    @DisplayName("坏 draft 仍落盘后合法 draft 亦可确认")
+    void confirm_badDraftStillApplies_thenGoodDraftOk() throws IOException {
         JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/partial-node-only.json");
 
         Map<String, Object> badDraft = Map.of(
@@ -270,9 +266,7 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchConfirmRequest badRequest = FlowMergeFixtureTestSupport.buildConfirmRequest(
                 fixture, "addNode:9001", List.of(), badDraft);
         FlowDesignPatchConfirmResult badResult = confirmService.confirmUnit(badRequest);
-        assertFalse(badResult.isOk());
-        assertNull(badResult.getGraphJson());
-        assertFalse(badResult.getErrors().isEmpty());
+        assertNotNull(badResult.getGraphJson());
 
         Map<String, Object> goodDraft = Map.of(
                 "name", "下一步",
@@ -284,7 +278,6 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchConfirmRequest goodRequest = FlowMergeFixtureTestSupport.buildConfirmRequest(
                 fixture, "addNode:9001", List.of(), goodDraft);
         FlowDesignPatchConfirmResult goodResult = confirmService.confirmUnit(goodRequest);
-        assertTrue(goodResult.isOk(), () -> "errors=" + goodResult.getErrors());
         assertNotNull(goodResult.getGraphJson());
     }
 
@@ -305,7 +298,7 @@ class FlowDesignPatchConfirmServiceTest {
         firstRequest.setPatch(patch);
         firstRequest.setUnitId("addNode:9001");
         FlowDesignPatchConfirmResult firstResult = confirmService.confirmUnit(firstRequest);
-        assertTrue(firstResult.isOk(), () -> "errors=" + firstResult.getErrors());
+        assertNotNull(firstResult.getGraphJson());
         // base 已有场景入口节点，确认 addNode:9001 后共 2 个节点
         assertEquals(2, firstResult.getGraphJson().getNodes().size());
 
@@ -316,7 +309,7 @@ class FlowDesignPatchConfirmServiceTest {
         secondRequest.setConfirmedUnitIds(List.of("addNode:9001"));
 
         FlowDesignPatchConfirmResult secondResult = confirmService.confirmUnit(secondRequest);
-        assertTrue(secondResult.isOk(), () -> "errors=" + secondResult.getErrors());
+        assertNotNull(secondResult.getGraphJson());
         assertEquals(3, secondResult.getGraphJson().getNodes().size());
         // 边仍 pending：半成品拓扑不挡确认；开始节点硬规则留给开跑门禁
     }
@@ -354,7 +347,6 @@ class FlowDesignPatchConfirmServiceTest {
         request.setDraftOverride(draftOverride);
 
         FlowDesignPatchConfirmResult result = confirmService.confirmUnit(request);
-        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
         assertNotNull(result.getGraphJson());
 
         GraphRunScenario merged = com.qualitest.flow.context.EntryScenarioSupport.allEntryScenarios(result.getGraphJson()).stream()
@@ -383,7 +375,6 @@ class FlowDesignPatchConfirmServiceTest {
         request.setTestProjectId(100L);
 
         FlowDesignPatchConfirmResult result = gated.confirmUnit(request);
-        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
         assertNotNull(result.getGraphJson());
     }
 
@@ -430,7 +421,7 @@ class FlowDesignPatchConfirmServiceTest {
         request.setUnitId("addEdge:8001");
 
         FlowDesignPatchConfirmResult result = gated.confirmUnit(request);
-        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
+        assertNotNull(result.getGraphJson());
         assertEquals(1, result.getGraphJson().getEdges().size());
     }
 
@@ -465,15 +456,12 @@ class FlowDesignPatchConfirmServiceTest {
         request.setUnitId("addNode:9002");
 
         FlowDesignPatchConfirmResult result = gated.confirmUnit(request);
-        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
         assertNotNull(result.getGraphJson());
-        assertTrue(result.getErrors().stream().noneMatch(e -> e.contains("尚无上游")),
-                () -> "errors=" + result.getErrors());
     }
 
     /**
      * 前提：项目已配双端鉴权；确认一个需登录的客户端 HTTP，图中无 token 写入来源。
-     * 期望：确认仍成功（token 门禁后移到保存）；errors 不含 AUTH_TOKEN_MISSING。
+     * 期望：确认仍落盘（鉴权不进 Confirm 响应，由画布 stage=canvas 图 error 预检）。
      */
     @Test
     @Order(19)
@@ -481,21 +469,12 @@ class FlowDesignPatchConfirmServiceTest {
     void confirm_projectHttpMissingToken_okWithoutBusinessGate() {
         FlowDesignPatchConfirmResult result = confirmDualBearerHttpNode(
                 "9501", "资料", null);
-        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
-        assertTrue(result.getErrors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
-                () -> "errors=" + result.getErrors());
-        // 末单元附带保存风险预警（不硬拦）
-        assertNotNull(result.getSaveRiskWarnings());
-        assertTrue(
-                result.getSaveRiskWarnings().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:"))
-                        || result.getWarnings().stream().anyMatch(w -> w.startsWith("AUTH_TOKEN_MISSING:")),
-                () -> "saveRiskWarnings=" + result.getSaveRiskWarnings()
-                        + " warnings=" + result.getWarnings());
+        assertNotNull(result.getGraphJson());
     }
 
     /**
      * 前提：同上，但该 HTTP 的 extracts 已声明写出 asset.clientAuth.token。
-     * 期望：确认成功，errors 不含 AUTH_TOKEN_MISSING。
+     * 期望：确认落盘。
      */
     @Test
     @Order(20)
@@ -511,8 +490,7 @@ class FlowDesignPatchConfirmServiceTest {
                         "fieldPath", "token",
                         "expr", "$.data.token",
                         "from", "body")));
-        assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
-        assertTrue(result.getErrors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")));
+        assertNotNull(result.getGraphJson());
     }
 
     /**
@@ -561,7 +539,7 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchConfirmResult result = FlowMergeFixtureTestSupport.confirmAllAcceptedUnits(fixture, confirmService);
         assertTrue(fixture.getBooleanValue("expectOk"));
         assertNotNull(result);
-        assertTrue(result.isOk());
+        assertNotNull(result.getGraphJson());
         FlowMergeFixtureTestSupport.assertMergedGraphExpectations(fixture, result.getGraphJson());
     }
 
@@ -576,7 +554,7 @@ class FlowDesignPatchConfirmServiceTest {
                 .build());
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(mapper, null, null, new GraphJsonValidator(), merger);
-        return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator());
+        return new FlowDesignPatchConfirmService(normalizer, merger);
     }
 
     /** 装配带双端 Bearer 项目鉴权与 /api 接口的 ConfirmService，供缺 token / 有 extracts 用例使用 */
@@ -599,7 +577,7 @@ class FlowDesignPatchConfirmServiceTest {
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(
                 apiMapper, projectMapper, null, new GraphJsonValidator(), merger);
-        return new FlowDesignPatchConfirmService(normalizer, merger, new GraphJsonValidator());
+        return new FlowDesignPatchConfirmService(normalizer, merger);
     }
 
     private static GraphJson emptyBaseWithScenario() {

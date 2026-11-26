@@ -71,37 +71,6 @@ public final class FlowDesignPatchUnitIds {
         return ids;
     }
 
-    /**
-     * 判断 patch 是否还有未确认且未拒绝的单元。
-     * confirmingUnitId 视为本轮正在确认、算已处理。
-     */
-    public static boolean hasUnresolvedUnits(
-            FlowDesignPatch patch,
-            Set<String> confirmedUnitIds,
-            Set<String> rejectedUnitIds,
-            String confirmingUnitId) {
-        Set<String> patchUnits = enumerate(patch);
-        if (patchUnits.isEmpty()) {
-            return false;
-        }
-        Set<String> resolved = new LinkedHashSet<>();
-        if (confirmedUnitIds != null) {
-            resolved.addAll(confirmedUnitIds);
-        }
-        if (rejectedUnitIds != null) {
-            resolved.addAll(rejectedUnitIds);
-        }
-        if (confirmingUnitId != null && !confirmingUnitId.isBlank()) {
-            resolved.add(confirmingUnitId.trim());
-        }
-        for (String unitId : patchUnits) {
-            if (!resolved.contains(unitId)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /** 把节点列表写成 prefix+id 的单元键 */
     private static void addNodes(Set<String> unitIds, List<GraphNode> nodes, String prefix) {
         if (nodes == null) {

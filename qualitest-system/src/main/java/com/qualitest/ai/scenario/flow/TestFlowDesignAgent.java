@@ -13,7 +13,6 @@ import com.qualitest.ai.llm.history.HistoryWindowPolicy;
 import com.qualitest.ai.llm.history.HistoryWindowPolicyResolver;
 import com.qualitest.ai.llm.history.TokenEstimator;
 import com.qualitest.ai.llm.lc4j.Lc4jMessageSupport;
-import com.qualitest.ai.scenario.flow.model.DesignValidationResult;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignRequest;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignResult;
@@ -237,25 +236,9 @@ public class TestFlowDesignAgent {
         String content = runResult.getContent();
         boolean explainOnly = !submitCapture.hasAccepted();
         FlowDesignPatch normalizedPatch = explainOnly ? null : submitCapture.getNormalizedPatch();
-        DesignValidationResult validation;
-
-        if (explainOnly) {
-            validation = DesignValidationResult.builder()
-                    .ok(true)
-                    .errors(List.of())
-                    .warnings(List.of())
-                    .build();
-        } else {
+        if (!explainOnly) {
             if (normalizedPatch == null && !interruptedOrFailed) {
                 throw new LlmClientException("submit_* 未产生有效 patch");
-            }
-            validation = submitCapture.getValidation();
-            if (validation == null) {
-                validation = DesignValidationResult.builder()
-                        .ok(true)
-                        .errors(List.of())
-                        .warnings(List.of())
-                        .build();
             }
         }
 
@@ -315,7 +298,6 @@ public class TestFlowDesignAgent {
                 .thinkingContent(runResult.getThinkingContent())
                 .processNarration(runResult.getProcessNarration())
                 .patch(normalizedPatch)
-                .validation(validation)
                 .explainOnly(explainOnly)
                 .assetProposals(assetProposals.isEmpty() ? null : assetProposals)
                 .authProfileProposals(authProfileProposals.isEmpty() ? null : authProfileProposals)
