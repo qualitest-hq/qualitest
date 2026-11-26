@@ -835,7 +835,7 @@ class FlowDesignToolExecutorTest {
 
         String json = executor.executeTool(
                 FlowDesignToolNames.SUBMIT_HTTP_NODE.getId(),
-                "{\"op\":\"add\",\"id\":\"n1\",\"summary\":\"登录链路\",\"data\":{\"callMode\":\"project\"}}",
+                "{\"op\":\"add\",\"id\":\"n1\",\"name\":\"登录\",\"summary\":\"登录链路\",\"data\":{\"callMode\":\"project\"}}",
                 submitCtx);
 
         JSONObject root = JSON.parseObject(json);
@@ -918,7 +918,7 @@ class FlowDesignToolExecutorTest {
 
         String json = executor.executeTool(
                 FlowDesignToolNames.SUBMIT_HTTP_NODE.getId(),
-                "{\"op\":\"add\",\"id\":\"n2\",\"data\":{\"callMode\":\"project\"}}",
+                "{\"op\":\"add\",\"id\":\"n2\",\"name\":\"资料\",\"data\":{\"callMode\":\"project\"}}",
                 submitCtx);
 
         JSONObject root = JSON.parseObject(json);

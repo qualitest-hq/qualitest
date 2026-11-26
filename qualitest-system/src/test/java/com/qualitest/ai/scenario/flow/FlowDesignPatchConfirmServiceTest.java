@@ -121,7 +121,8 @@ class FlowDesignPatchConfirmServiceTest {
 
         FlowDesignPatchConfirmResult addEdgeResult = confirmService.confirmUnit(addEdgeRequest);
         assertTrue(addEdgeResult.isOk(), () -> "errors=" + addEdgeResult.getErrors());
-        assertEquals(1, addEdgeResult.getGraphJson().getEdges().size());
+        // base 已有场景入口→HTTP 边，再确认 patch 边后共 2 条
+        assertEquals(2, addEdgeResult.getGraphJson().getEdges().size());
     }
 
     /**
@@ -158,20 +159,14 @@ class FlowDesignPatchConfirmServiceTest {
     }
 
     /**
-     * 前提：夹具 condition-update-edge（与 preview 同 fixture）。
-     * 期望：当前校验器对旧目标悬空报错，confirm 失败且无 graphJson。
+     * 前提：夹具 condition-update-edge；merger 会按出边同步 branches.target。
+     * 期望：confirm 成功，边目标切到 1003（与 fixture.expectOk 一致）。
      */
     @Test
     @Order(8)
-    @DisplayName("更新条件边与 preview 同失败")
+    @DisplayName("更新条件边同步分支目标成功")
     void confirm_conditionUpdateEdge_matchesPreviewBehavior() throws IOException {
-        JSONObject fixture = FlowMergeFixtureTestSupport.loadFixture("flow/merge-fixtures/condition-update-edge.json");
-        String unitId = fixture.getList("acceptedIds", String.class).get(0);
-        FlowDesignPatchConfirmRequest request = FlowMergeFixtureTestSupport.buildConfirmRequest(
-                fixture, unitId, List.of(), null);
-        FlowDesignPatchConfirmResult result = confirmService.confirmUnit(request);
-        assertFalse(result.isOk());
-        assertNull(result.getGraphJson());
+        runSingleUnitFixture("flow/merge-fixtures/condition-update-edge.json");
     }
 
     /**
@@ -311,7 +306,8 @@ class FlowDesignPatchConfirmServiceTest {
         firstRequest.setUnitId("addNode:9001");
         FlowDesignPatchConfirmResult firstResult = confirmService.confirmUnit(firstRequest);
         assertTrue(firstResult.isOk(), () -> "errors=" + firstResult.getErrors());
-        assertEquals(1, firstResult.getGraphJson().getNodes().size());
+        // base 已有场景入口节点，确认 addNode:9001 后共 2 个节点
+        assertEquals(2, firstResult.getGraphJson().getNodes().size());
 
         FlowDesignPatchConfirmRequest secondRequest = new FlowDesignPatchConfirmRequest();
         secondRequest.setGraphJson(firstResult.getGraphJson());
@@ -321,9 +317,8 @@ class FlowDesignPatchConfirmServiceTest {
 
         FlowDesignPatchConfirmResult secondResult = confirmService.confirmUnit(secondRequest);
         assertTrue(secondResult.isOk(), () -> "errors=" + secondResult.getErrors());
-        assertEquals(2, secondResult.getGraphJson().getNodes().size());
-        assertTrue(secondResult.getWarnings().stream()
-                .anyMatch(w -> w.contains("未确认的连线") || w.contains("开始节点")));
+        assertEquals(3, secondResult.getGraphJson().getNodes().size());
+        // 边仍 pending：半成品拓扑不挡确认；开始节点硬规则留给开跑门禁
     }
 
     /**

@@ -2,7 +2,7 @@ package com.qualitest.flow.validate;
 
 import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.openhttp.OpenHttpRouteIndex;
+import com.qualitest.flow.openhttp.OpenHttpRouteRegistry;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,9 +12,12 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -29,18 +32,27 @@ class FlowRunReadinessGateTest {
     private static final long PROJECT_ID = 7L;
     private static final long FLOW_ID = 70L;
 
-    private OpenHttpRouteIndex routeIndex;
+    private OpenHttpRouteRegistry routeRegistry;
     private FlowRunReadinessGate gate;
 
     @BeforeEach
     void setUp() {
-        routeIndex = mock(OpenHttpRouteIndex.class);
+        routeRegistry = mock(OpenHttpRouteRegistry.class);
+        when(routeRegistry.conflicts(any(), eq(PROJECT_ID), eq(FLOW_ID), any())).thenAnswer(inv -> {
+            GraphJson graph = inv.getArgument(0);
+            FlowIssue.Stage stage = inv.getArgument(3);
+            List<FlowIssue> issues = new ArrayList<>();
+            for (String message : OpenHttpRouteCollisionGate.validate(graph, FLOW_ID, List.of())) {
+                issues.add(FlowIssue.error(FlowIssueCodes.ENTRY_ROUTE_CONFLICT, stage, null, message));
+            }
+            return issues;
+        });
         gate = new FlowRunReadinessGate(
                 new GraphJsonValidator(),
                 mock(TestProjectApiMapper.class),
                 mock(TestProjectMapper.class),
                 mock(ParsedGraphCache.class),
-                routeIndex);
+                routeRegistry);
     }
 
     /**
@@ -51,9 +63,12 @@ class FlowRunReadinessGateTest {
     @Order(1)
     @DisplayName("跨流路由冲突阻止开跑")
     void collectBlockingErrors_crossFlowRouteConflict() {
-        when(routeIndex.listPeerRoutes(PROJECT_ID)).thenReturn(List.of(
-                new OpenHttpRouteCollisionGate.PeerRoute(
-                        99L, "旧流", "e-old", "旧入口", "POST", "/dup")));
+        when(routeRegistry.conflicts(any(), eq(PROJECT_ID), eq(FLOW_ID), any())).thenReturn(List.of(
+                FlowIssue.error(
+                        FlowIssueCodes.ENTRY_ROUTE_CONFLICT,
+                        FlowIssue.Stage.RUN,
+                        null,
+                        "开放 HTTP 入口冲突：POST /dup 已被流「旧流」的入口「旧入口」占用（本流节点「入站」）")));
 
         List<String> errors = gate.collectBlockingErrors(httpGraph("/dup"), PROJECT_ID, FLOW_ID);
 

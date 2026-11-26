@@ -4,6 +4,8 @@ import java.util.List;
 
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.validate.FlowGraphValidateResult;
+import com.qualitest.flow.validate.FlowIssue;
 import com.qualitest.flow.validate.OpenHttpRouteCollisionGate;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
@@ -159,4 +161,19 @@ public interface ITestFlowService {
      * @return 已占用路由；项目 id 为空时为空列表
      */
     List<OpenHttpRouteCollisionGate.PeerRoute> listOpenHttpPeerRoutes(Long testProjectId);
+
+    /**
+     * 按 stage 校验图，返回统一 FlowIssue 列表。
+     *
+     * @param graphJson     图 JSON
+     * @param stage         canvas / save / run / ingress / subflow
+     * @param testProjectId 项目 id（可空）
+     * @param testFlowId    当前流 id（可空）
+     */
+    FlowGraphValidateResult validateGraph(
+            String graphJson,
+            FlowIssue.Stage stage,
+            Long testProjectId,
+            Long testFlowId,
+            boolean deferTopology);
 }

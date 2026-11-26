@@ -97,12 +97,11 @@ public class FlowDesignPatchConfirmService {
 
         Set<String> acceptedIds = Set.of(unitId);
         GraphJson merged = patchMerger.merge(workingGraph, patch, acceptedIds, warnings);
-        boolean deferTopology = FlowDesignPatchUnitIds.hasUnresolvedUnits(
+        // 单单元确认始终按半成品拓扑校验：开始节点 / 无入边等留给画布展示与开跑门禁，不挡确认落盘
+        boolean hasUnresolvedUnits = FlowDesignPatchUnitIds.hasUnresolvedUnits(
                 patch, confirmedUnitIds, rejectedUnitIds, unitId);
-        GraphValidationOptions validationOptions = deferTopology
-                ? GraphValidationOptions.stagingPartialConfirm()
-                : GraphValidationOptions.full();
-        GraphValidationResult validation = graphJsonValidator.validate(merged, validationOptions);
+        GraphValidationResult validation =
+                graphJsonValidator.validate(merged, GraphValidationOptions.stagingPartialConfirm());
         List<String> allWarnings = new ArrayList<>(warnings);
         allWarnings.addAll(validation.getWarnings());
         List<String> allErrors = new ArrayList<>(validation.getErrors());
@@ -121,7 +120,7 @@ public class FlowDesignPatchConfirmService {
         allWarnings.addAll(assertPath.warnings());
 
         List<String> saveRiskWarnings = List.of();
-        if (allErrors.isEmpty() && !deferTopology) {
+        if (allErrors.isEmpty() && !hasUnresolvedUnits) {
             // 本轮已无未决单元：跑保存预检，结果放入 saveRiskWarnings（不硬拦本次确认）
             FlowDesignSavePrecheckResult precheck =
                     patchNormalizer.savePrecheck(merged, request.getTestProjectId());

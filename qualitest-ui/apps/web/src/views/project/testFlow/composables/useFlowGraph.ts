@@ -12,10 +12,7 @@
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
-import {
-  collectHttpRouteSelfCollisionErrors,
-  validateGraphJson,
-} from '@/utils/flow/graphValidate';
+import { validateGraphJson } from '@/utils/flow/graphValidate';
 
 import { fromGraphJson } from '../graphAdapter';
 import { buildCanvasPersistGraph } from './buildCanvasPersistGraph';
@@ -36,7 +33,6 @@ import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
-import { useOpenHttpRouteStore } from '../stores/openHttpRouteStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
 import {
   applyAdaptedGraphToStore,
@@ -60,7 +56,6 @@ export function useFlowGraph() {
   const store = useFlowCanvasStore();
   const stagingStore = useAiStagingStore();
   const runRisk = useRunRiskStore();
-  const openHttpRoutes = useOpenHttpRouteStore();
   const { scheduleHistoryReset, resetHistory } = useFlowHistory();
 
   async function finalizeHistoryBaseline() {
@@ -82,7 +77,6 @@ export function useFlowGraph() {
     store.markClean();
     scheduleHistoryReset();
     await finalizeHistoryBaseline();
-    void openHttpRoutes.refresh(store.testProjectId);
     return adapted;
   }
 
@@ -240,7 +234,6 @@ export function useFlowGraph() {
       const nextRev = extractGraphRevisionFromResponse(res);
       store.setGraphRevision(nextRev != null ? nextRev : store.graphRevision + 1);
       await refreshSavedBaseline(store);
-      void openHttpRoutes.refresh(store.testProjectId);
 
       if (!options?.skipRunRiskRefresh && !options?.quiet) {
         // 刷新运行风险条：只把鉴权/必填写入 store；结构/断言仍由实时结构校验展示
@@ -290,7 +283,7 @@ export function useFlowGraph() {
 
   /**
    * 导入 graph_json 覆盖当前画布。
-   * 与保存对齐：只拦落盘地板与本流路由自冲突；挂图异常可导入，导入后由校验条标红。
+   * 与保存对齐：只拦落盘地板；挂图异常与路由冲突可导入，导入后由校验条标红。
    */
   async function importGraph(raw: unknown): Promise<boolean> {
     store.beginCanvasHydration();
@@ -302,14 +295,6 @@ export function useFlowGraph() {
         return false;
       }
       const adapted = fromGraphJson(raw);
-      const routeSelfErrors = collectHttpRouteSelfCollisionErrors(
-        adapted.nodes as Array<{ id?: string; type?: string; name?: string; data?: Record<string, unknown> }>,
-      );
-      if (routeSelfErrors.length) {
-        store.endCanvasHydration();
-        ElMessage.error(routeSelfErrors[0]);
-        return false;
-      }
       await applyAdaptedGraphToStore(store, adapted);
       store.markDirty();
       scheduleHistoryReset();

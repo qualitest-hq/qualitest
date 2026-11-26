@@ -20,10 +20,13 @@ import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.flow.sync.FlowGraphCommitPatchHolder;
 import com.qualitest.flow.sync.FlowGraphRevisionConflictException;
 import com.qualitest.flow.validate.AssertPathDesignGate;
+import com.qualitest.flow.validate.FlowGraphValidateResult;
+import com.qualitest.flow.validate.FlowGraphValidateService;
+import com.qualitest.flow.validate.FlowIssue;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
-import com.qualitest.flow.openhttp.OpenHttpRouteIndex;
+import com.qualitest.flow.openhttp.OpenHttpRouteRegistry;
 import com.qualitest.flow.validate.OpenHttpRouteCollisionGate;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.mapper.TestFlowMapper;
@@ -40,7 +43,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -77,9 +79,13 @@ public class TestFlowServiceImpl implements ITestFlowService {
     @Autowired
     private FlowDesignPatchNormalizer flowDesignPatchNormalizer;
 
-    /** 开放 HTTP 项目级路由索引（冲突门禁读 peers，避免保存时再全表 parse） */
+    /** 开放 HTTP 路由唯一端口（peers / 冲突标注 / 写库后失效） */
     @Autowired
-    private OpenHttpRouteIndex openHttpRouteIndex;
+    private OpenHttpRouteRegistry openHttpRouteRegistry;
+
+    /** 按 stage 产出统一诊断 */
+    @Autowired
+    private FlowGraphValidateService flowGraphValidateService;
 
     /** 同项目开放路由校验+写库串行化，避免并发保存双双通过 */
     private final ConcurrentHashMap<Long, Object> openHttpRoutePersistLocks = new ConcurrentHashMap<>();
@@ -125,52 +131,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
      * 只影响列表提示；保存不拦，开跑门禁另拦。
      */
     private void annotateRouteConflicts(List<TestFlowResult> rows, Long testProjectId) {
-        if (rows == null || rows.isEmpty() || testProjectId == null) {
-            return;
-        }
-        List<OpenHttpRouteIndex.AmbiguousRoute> conflicts =
-                openHttpRouteIndex.findAmbiguousRoutes(testProjectId);
-        if (conflicts.isEmpty()) {
-            return;
-        }
-        Map<Long, String> messages = new LinkedHashMap<>();
-        for (OpenHttpRouteIndex.AmbiguousRoute conflict : conflicts) {
-            for (OpenHttpRouteCollisionGate.PeerRoute entry : conflict.entries()) {
-                Long flowId = entry.testFlowId();
-                if (flowId == null) {
-                    continue;
-                }
-                List<String> others = new ArrayList<>();
-                for (OpenHttpRouteCollisionGate.PeerRoute peer : conflict.entries()) {
-                    if (!Objects.equals(peer.testFlowId(), flowId)) {
-                        others.add(peerLabel(peer));
-                    }
-                }
-                String who = others.isEmpty() ? "本流其它入口" : String.join("、", others);
-                messages.merge(flowId, conflict.key() + " 与 " + who + " 冲突", (a, b) -> a + "；" + b);
-            }
-        }
-        for (TestFlowResult row : rows) {
-            if (row == null || row.getTestFlowId() == null) {
-                continue;
-            }
-            String message = messages.get(row.getTestFlowId());
-            if (message != null) {
-                row.setRouteConflict(Boolean.TRUE);
-                row.setRouteConflictMessage("开放 HTTP 入口冲突：" + message);
-            }
-        }
-    }
-
-    /** 冲突占用方展示名：流名 / 入口名，缺省用 id */
-    private static String peerLabel(OpenHttpRouteCollisionGate.PeerRoute peer) {
-        String flow = peer.flowName() != null && !peer.flowName().isBlank()
-                ? peer.flowName()
-                : "流#" + peer.testFlowId();
-        String node = peer.nodeName() != null && !peer.nodeName().isBlank()
-                ? peer.nodeName()
-                : peer.nodeId();
-        return "「" + flow + "」入口「" + node + "」";
+        openHttpRouteRegistry.annotateFlows(rows, testProjectId);
     }
 
     /**
@@ -756,14 +717,22 @@ public class TestFlowServiceImpl implements ITestFlowService {
      */
     @Override
     public List<OpenHttpRouteCollisionGate.PeerRoute> listOpenHttpPeerRoutes(Long testProjectId) {
-        if (testProjectId == null) {
-            return List.of();
-        }
-        return openHttpRouteIndex.listPeerRoutes(testProjectId);
+        return openHttpRouteRegistry.listPeers(testProjectId);
+    }
+
+    @Override
+    public FlowGraphValidateResult validateGraph(
+            String graphJson,
+            FlowIssue.Stage stage,
+            Long testProjectId,
+            Long testFlowId,
+            boolean deferTopology) {
+        return flowGraphValidateService.validate(
+                graphJson, stage, testProjectId, testFlowId, deferTopology);
     }
 
     /**
-     * 同项目串行化开放路由校验与写库；进入前使索引失效，保证 peers 来自最新库表。
+     * 同项目串行化开放路由写库；进入前使索引失效，保证 peers 来自最新库表。
      */
     private <T> T withOpenHttpRoutePersistLock(Long testProjectId, Supplier<T> action) {
         if (testProjectId == null) {
@@ -771,7 +740,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
         }
         Object lock = openHttpRoutePersistLocks.computeIfAbsent(testProjectId, id -> new Object());
         synchronized (lock) {
-            openHttpRouteIndex.invalidateProject(testProjectId);
+            openHttpRouteRegistry.invalidateProject(testProjectId);
             return action.get();
         }
     }

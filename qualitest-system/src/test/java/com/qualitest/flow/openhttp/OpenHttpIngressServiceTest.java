@@ -56,7 +56,7 @@ class OpenHttpIngressServiceTest {
     private static final String PATH = "/v3/refund";
 
     @Mock
-    private OpenHttpRouteCatalog routeCatalog;
+    private OpenHttpRouteRegistry routeRegistry;
     @Mock
     private FlowGraphRunner flowGraphRunner;
     @Mock
@@ -83,7 +83,7 @@ class OpenHttpIngressServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new OpenHttpIngressService(routeCatalog, slots, flowGraphRunner, nodeHandlerRegistry,
+        service = new OpenHttpIngressService(routeRegistry, slots, flowGraphRunner, nodeHandlerRegistry,
                 flowRunReadinessGate, testProjectEnvService, testProjectMapper, testFlowRunService,
                 runPersistenceService, stepResultWriter, runStatusUpdater);
     }
@@ -96,7 +96,7 @@ class OpenHttpIngressServiceTest {
     @Order(1)
     @DisplayName("Run 落库抛异常时释放名额并回 502")
     void insertRunFails_releasesSlotAndReturnsBadGateway() {
-        when(routeCatalog.find(PROJECT_ID, METHOD, PATH)).thenReturn(route());
+        when(routeRegistry.resolve(PROJECT_ID, METHOD, PATH)).thenReturn(route());
         when(flowRunReadinessGate.collectBlockingErrors(any(), eq(PROJECT_ID), any())).thenReturn(List.of());
         doThrow(new RuntimeException("落库失败")).when(testFlowRunService).insertTestFlowRun(any());
 
@@ -116,7 +116,7 @@ class OpenHttpIngressServiceTest {
     @Order(2)
     @DisplayName("落库前准备失败不留 Run 行且释放名额")
     void prepareFailsBeforeInsert_noGhostRunAndSlotReleased() {
-        when(routeCatalog.find(PROJECT_ID, METHOD, PATH)).thenReturn(route());
+        when(routeRegistry.resolve(PROJECT_ID, METHOD, PATH)).thenReturn(route());
         when(flowRunReadinessGate.collectBlockingErrors(any(), eq(PROJECT_ID), any())).thenReturn(List.of());
         when(testProjectMapper.selectAssetVariablesByTestProjectId(PROJECT_ID))
                 .thenThrow(new RuntimeException("素材查询失败"));
@@ -138,7 +138,7 @@ class OpenHttpIngressServiceTest {
     @Order(3)
     @DisplayName("未登记路由时不占名额直接 404")
     void routeMissing_noSlotAcquired() {
-        when(routeCatalog.find(PROJECT_ID, METHOD, PATH)).thenReturn(null);
+        when(routeRegistry.resolve(PROJECT_ID, METHOD, PATH)).thenReturn(null);
 
         DeferredResult<ResponseEntity<Object>> result = service.handle(
                 PROJECT_ID, METHOD, PATH, Map.of(), Map.of(), Map.of());

@@ -124,11 +124,20 @@ public class GraphJsonValidator {
     }
 
     /**
-     * 校验原始 JSON 文本（含 {@code graph_json} / {@code graphJson} 解包）。
-     * 先做 JSON 形状与节点/边字段级检查；能解析为 {@link GraphJson} 后再合并
-     * {@link #validate(GraphJson)} 全量规则（入口/返回/扇出等），避免「JSON 已过检」假绿。
+     * 校验原始 JSON 文本（完整规则）。
      */
     public GraphValidationResult validateJson(String json) {
+        return validateJson(json, GraphValidationOptions.full());
+    }
+
+    /**
+     * 校验原始 JSON 文本（含 {@code graph_json} / {@code graphJson} 解包）。
+     * 先做 JSON 形状与节点/边字段级检查；能解析为 {@link GraphJson} 后再合并
+     * typed 规则（入口/返回/扇出等），避免「JSON 已过检」假绿。
+     * deferTopology 时跳过开始节点 / 条件边对齐硬拦。
+     */
+    public GraphValidationResult validateJson(String json, GraphValidationOptions options) {
+        GraphValidationOptions effective = options != null ? options : GraphValidationOptions.full();
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         Object parsed;
@@ -158,11 +167,13 @@ public class GraphJsonValidator {
         Set<String> nodeIds = validateRawNodes(nodesArr, errors, warnings);
         validateRawEdges(edgesArr, nodeIds, errors, warnings);
         validateRawConditionBranches(nodesArr, edgesArr, errors, warnings);
-        appendStartNodeErrorFromRaw(nodesArr, edgesArr, errors);
-        appendMetaRunErrorFromRaw(graph, errors);
+        if (!effective.isDeferTopologyStructureRules()) {
+            appendStartNodeErrorFromRaw(nodesArr, edgesArr, errors);
+            appendMetaRunErrorFromRaw(graph, errors);
+        }
         try {
             GraphJson typed = GraphJson.parse(graph.toJSONString());
-            GraphValidationResult typedResult = validate(typed);
+            GraphValidationResult typedResult = validate(typed, effective);
             if (typedResult != null) {
                 if (typedResult.getErrors() != null) {
                     for (String e : typedResult.getErrors()) {

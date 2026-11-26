@@ -87,7 +87,6 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import {
-  collectHttpRouteSelfCollisionErrors,
   unwrapGraphPayload,
   validateGraphJson,
 } from '@/utils/flow/graphValidate'
@@ -152,7 +151,7 @@ const preview = computed(() => {
 
 const canConfirm = computed(() => validationResult.value?.ok === true)
 
-/** 解析文本并更新校验预览（地板硬拦；全量问题降为导入提示） */
+/** 解析文本并更新校验预览（仅地板硬拦；结构/路由问题降为导入提示，导入后校验条标红） */
 function refreshPreview() {
   parseError.value = null
   validationResult.value = null
@@ -163,15 +162,11 @@ function refreshPreview() {
     if (typeof data === 'string') data = JSON.parse(data)
     const unwrapped = unwrapGraphPayload(data)
     const floor = validateGraphJson(unwrapped, { persistMinimalOnly: true })
-    const routeSelf = collectHttpRouteSelfCollisionErrors(unwrapped?.nodes)
-    const full = validateGraphJson(unwrapped)
-    const blocking = [...(floor.errors || []), ...routeSelf]
-    const softErrors = (full.errors || []).filter((msg) => !blocking.includes(msg))
     validationResult.value = {
-      ok: blocking.length === 0,
-      errors: blocking,
-      softErrors,
-      warnings: full.warnings || [],
+      ok: floor.ok,
+      errors: floor.errors || [],
+      softErrors: [],
+      warnings: floor.warnings || [],
       graph: unwrapped,
       raw: data,
     }

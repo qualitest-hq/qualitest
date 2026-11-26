@@ -12,10 +12,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 设计期门禁：同一测试项目内 {@code http-entry} 的 method+path 不得重复。
+ * 开放 HTTP 路由冲突判定（本流自冲突 + 跨流占用）。
  * <p>
- * 同时检查同一流内多个入口之间的冲突，以及不同流之间的冲突；保存时直接拦截，
- * 错误文案会带上已占用路由的流名与节点名。
+ * 保存不拦；画布/列表标注、开跑与入站硬拦。生产调用经 {@code OpenHttpRouteRegistry}，
+ * 本类仅作判定实现，勿在业务服务中直接调用。
  */
 public final class OpenHttpRouteCollisionGate {
 

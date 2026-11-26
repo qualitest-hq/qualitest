@@ -88,7 +88,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 **保存**：仅拦「无法解析 / 最小 schema（节点 id、边端点）」；结构细节、断言路径、AUTH / HTTP 必填允许带错落盘，方便 AI 继续修。校验条仍红；toast 可提示「已保存，暂不可运行」。
 
-**运行**：前端与后端统一 readiness（图结构 + 断言路径错误 + `/patch/savePrecheck` 同口径的 AUTH / 登录 extract / HTTP 必填）。不过则不开跑。
+**运行**：前端开跑预检改调 `POST /project/testFlow/validate?stage=run`（与后端 `FlowRunReadinessGate` 同口径：图结构 + 路由冲突 + 断言路径 + AUTH / 登录 extract / HTTP 必填）。画布展示走 `stage=canvas`；本地 `graphValidate` 只做落盘地板。不过则不开跑。
 
 `/patch/savePrecheck` 与末单元 `saveRiskWarnings` 现为**运行风险**预警（不阻断 ✓ / 保存），写入画布校验条；下一轮 AI 设计请求会带上 `runRiskWarnings` 注入模型 user 上下文。单单元 `submit_*` 对 AUTH_* / HTTP 必填写入 **warnings**（不进 errors）；整包规范化仍进 errors。开跑失败再 toast。
 
@@ -106,6 +106,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 多次「Run 失败 → AI 修复 → 再确认」可能出现双开始节点、未确认项卡死。
 
+- 画布校验：有 **pending 边单元** 时请求 `validate?stage=canvas` 带 `deferTopology=true`，避免未确认连线造成开始节点/无入边等假错误；单元确认始终用 `stagingPartialConfirm`（拓扑延后），开跑再硬拦。
 - 图乱：Staging **全部 ✕**，或 **新建流**（修复超 2 轮仍乱优先新建）。
 - 禁止空白 `nodes: []` 当成功。
 - 禁止改 Pinia / 直接 UPDATE `graph_json` 刷绿。

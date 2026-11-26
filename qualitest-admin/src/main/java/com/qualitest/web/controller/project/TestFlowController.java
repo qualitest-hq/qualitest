@@ -26,6 +26,7 @@ import com.qualitest.ai.scenario.flow.FlowAuthHeaderRefreshService;
 import com.qualitest.ai.scenario.flow.model.RefreshAuthHeadersResult;
 import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
+import com.qualitest.project.params.FlowGraphValidateParams;
 import com.qualitest.project.params.RefreshAuthHeadersParams;
 import com.qualitest.project.params.TestFlowApiHealthPreviewParams;
 import com.qualitest.project.params.TestFlowParams;
@@ -36,6 +37,8 @@ import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.flow.diagnose.ApiFlowReferenceScanService;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
 import com.qualitest.flow.sync.FlowEditLeaseService;
+import com.qualitest.flow.validate.FlowGraphValidateResult;
+import com.qualitest.flow.validate.FlowIssue;
 import com.qualitest.flow.validate.OpenHttpRouteCollisionGate;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.common.core.text.Convert;
@@ -106,6 +109,37 @@ public class TestFlowController extends BaseController {
         }
         testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.FLOW_VIEW);
         return ok(testFlowService.listOpenHttpPeerRoutes(testProjectId));
+    }
+
+    /**
+     * 按 stage 校验图，返回统一 issues（code / severity / stage / nodeId / message）。
+     * stage=canvas 供画布展示；stage=run 等价开跑门禁；stage=save 仅验 JSON 可解析。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @PostMapping("/validate")
+    public R<FlowGraphValidateResult> validateGraph(
+            @RequestParam("stage") String stage,
+            @RequestBody FlowGraphValidateParams params) {
+        FlowIssue.Stage parsed = FlowIssue.Stage.fromQuery(stage);
+        if (parsed == null) {
+            throw new ServiceException("stage 须为 canvas|save|run|ingress|subflow");
+        }
+        if (params == null) {
+            throw new ServiceException("请求体不能为空");
+        }
+        Long projectId = params.getTestProjectId();
+        if (projectId == null && params.getTestFlowId() != null) {
+            TestFlowResult existing = testFlowService.selectTestFlowResult(params.getTestFlowId());
+            if (existing != null) {
+                projectId = existing.getTestProjectId();
+            }
+        }
+        if (projectId != null) {
+            testProjectMemberService.requireCapability(projectId, TestProjectMemberPerm.FLOW_VIEW);
+        }
+        boolean deferTopology = Boolean.TRUE.equals(params.getDeferTopology());
+        return ok(testFlowService.validateGraph(
+                params.getGraphJson(), parsed, projectId, params.getTestFlowId(), deferTopology));
     }
 
     /**

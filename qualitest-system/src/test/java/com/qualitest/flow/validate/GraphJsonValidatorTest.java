@@ -106,12 +106,17 @@ class GraphJsonValidatorTest {
 
     /**
      * 前提：graph-validate-cases.json 各 fixture。
-     * 期望：expectErrors / expectWarnings 条数与 manifest 一致。
+     * 期望：expectErrors / expectWarnings 条数与 manifest 一致；
+     * 有 expectIssueCodes 时，canvas 诊断码多重集一致（忽略 message）。
      */
     @Test
     @Order(5)
     @DisplayName("manifest 夹具错误警告条数一致")
     void validateCases_fromManifest() {
+        FlowGraphValidateService validateService = new FlowGraphValidateService(
+                validator,
+                org.mockito.Mockito.mock(FlowRunReadinessGate.class),
+                org.mockito.Mockito.mock(com.qualitest.flow.openhttp.OpenHttpRouteRegistry.class));
         for (int i = 0; i < validateCases.size(); i++) {
             JSONObject spec = validateCases.getJSONObject(i);
             String id = spec.getString("id");
@@ -122,6 +127,26 @@ class GraphJsonValidatorTest {
             GraphValidationResult result = validator.validateJson(json);
             assertEquals(expectErrors, result.getErrors().size(), id + " errors");
             assertEquals(expectWarnings, result.getWarnings().size(), id + " warnings");
+            if (spec.containsKey("expectIssueCodes")) {
+                // 走 canvas 收口：validateJson(raw) → FlowIssues 投影，断言真实 code 多重集
+                FlowGraphValidateResult canvas =
+                        validateService.validate(json, FlowIssue.Stage.CANVAS, null, null);
+                java.util.List<String> actualCodes = canvas.getIssues().stream()
+                        .filter(issue -> issue.getSeverity() == FlowIssue.Severity.ERROR)
+                        .map(FlowIssue::getCode)
+                        .sorted()
+                        .toList();
+                java.util.List<String> expectedSorted = new java.util.ArrayList<>(
+                        spec.getList("expectIssueCodes", String.class));
+                java.util.Collections.sort(expectedSorted);
+                assertEquals(expectedSorted, actualCodes, id + " canvas issue codes");
+                assertEquals(
+                        expectErrors,
+                        canvas.getIssues().stream()
+                                .filter(issue -> issue.getSeverity() == FlowIssue.Severity.ERROR)
+                                .count(),
+                        id + " canvas error count must match raw validateJson");
+            }
         }
     }
 

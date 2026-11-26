@@ -69,7 +69,7 @@ public class OpenHttpIngressService {
     /** 握连接最长等待毫秒；超时只断写出端，图继续 */
     private static final long TIMEOUT_MS = 120_000L;
 
-    private final OpenHttpRouteCatalog routeCatalog;
+    private final OpenHttpRouteRegistry routeRegistry;
     private final InboundSlotRegistry inboundSlotRegistry;
     private final FlowGraphRunner flowGraphRunner;
     private final NodeHandlerRegistry nodeHandlerRegistry;
@@ -86,7 +86,7 @@ public class OpenHttpIngressService {
         return t;
     });
 
-    public OpenHttpIngressService(OpenHttpRouteCatalog routeCatalog,
+    public OpenHttpIngressService(OpenHttpRouteRegistry routeRegistry,
                                   InboundSlotRegistry inboundSlotRegistry,
                                   FlowGraphRunner flowGraphRunner,
                                   NodeHandlerRegistry nodeHandlerRegistry,
@@ -97,7 +97,7 @@ public class OpenHttpIngressService {
                                   RunPersistenceService runPersistenceService,
                                   StepResultWriter stepResultWriter,
                                   RunStatusUpdater runStatusUpdater) {
-        this.routeCatalog = routeCatalog;
+        this.routeRegistry = routeRegistry;
         this.inboundSlotRegistry = inboundSlotRegistry;
         this.flowGraphRunner = flowGraphRunner;
         this.nodeHandlerRegistry = nodeHandlerRegistry;
@@ -132,7 +132,7 @@ public class OpenHttpIngressService {
             Object body) {
 
         DeferredResult<ResponseEntity<Object>> deferred = new DeferredResult<>(TIMEOUT_MS);
-        OpenHttpRoute route = routeCatalog.find(testProjectId, method, path);
+        OpenHttpRoute route = routeRegistry.resolve(testProjectId, method, path);
         if (route == null) {
             deferred.setResult(platformError(HttpStatus.NOT_FOUND, "OPEN_PATH_NOT_FOUND", "未登记的开放 path"));
             return deferred;

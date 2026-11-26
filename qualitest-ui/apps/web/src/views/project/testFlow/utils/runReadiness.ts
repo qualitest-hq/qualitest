@@ -1,47 +1,52 @@
 /**
  * 运行前就绪检查。
- *
- * 汇总三类问题：完整图结构错误、断言/条件路径结构错误、鉴权与 HTTP 必填预检错误。
- * 保存图时不跑本检查；点「运行」前用本结果决定是否允许开跑。
+ * 开跑硬拦：POST /project/testFlow/validate?stage=run。
+ * 风险条预览：仍走 savePrecheck（只取鉴权/必填，不跑整份开跑门禁）。
  */
+import { validateTestFlowGraph, type FlowIssueRecord } from '@/api/project/testFlow'
 import { savePrecheckFlowDesign } from '@/api/project/testFlowAi'
-import { listOpenHttpRoutes } from '@/api/project/testFlow'
-import {
-  collectHttpRoutePeerCollisionErrors,
-  collectHttpRouteSelfCollisionErrors,
-  validateGraphJson,
-} from '@/utils/flow/graphValidate'
 
-import { resolveCanvasApiDetail } from './resolveCanvasApiDetail'
-import {
-  collectAssertPathDesignIssues,
-  collectAssertReferencedApiIds,
-  extractResponseSchemaPaths,
-} from './jsonPathTrial'
-
-/**
- * 按图上 assert/condition 节点收集需校验的接口 id（含最近上游与 nodes 引用的 HTTP 节点），
- * 拉取各接口响应 schema 后做路径门禁。
- * 返回 errors（结构硬错）与 warnings（schema 缺字段等软提示）。
- */
-export async function loadAssertPathDesignIssues(graph: {
-  nodes?: Array<Record<string, unknown>>
-  edges?: Array<Record<string, unknown>>
-}): Promise<{ errors: string[]; warnings: string[] }> {
-  const apiIds = collectAssertReferencedApiIds(graph)
-  const schemaPathsByApiId = new Map<string, string[]>()
-  await Promise.all(
-    apiIds.map(async (apiId) => {
-      const detail = await resolveCanvasApiDetail(apiId)
-      schemaPathsByApiId.set(apiId, extractResponseSchemaPaths(detail?.responseConfig))
-    }),
-  )
-  return collectAssertPathDesignIssues(graph, schemaPathsByApiId)
+/** 运行就绪检查结果 */
+export type RunBlockingResult = {
+  /** 全部阻断文案 */
+  errors: string[]
+  /** 鉴权 / 登录抽取 / HTTP 必填子集，供校验条「运行风险」段 */
+  precheckErrors: string[]
 }
 
 /**
- * 请求后端运行风险预检：鉴权凭证、登录抽取、HTTP 必填。
- * 不写库；失败时把异常信息收成单条错误返回。
+ * 收集阻止开跑的错误（服务端权威，与 FlowRunReadinessGate 同口径）。
+ */
+export async function collectRunBlockingErrors(opts: {
+  graph: unknown
+  testProjectId?: string | null
+  testFlowId?: string | null
+}): Promise<RunBlockingResult> {
+  const graphJson = typeof opts.graph === 'string' ? opts.graph : JSON.stringify(opts.graph ?? {})
+  const projectId = opts.testProjectId != null ? String(opts.testProjectId).trim() : ''
+  const flowId = opts.testFlowId != null ? String(opts.testFlowId).trim() : ''
+  try {
+    const res = await validateTestFlowGraph('run', {
+      graphJson,
+      testProjectId: projectId || undefined,
+      testFlowId: flowId || undefined,
+    })
+    const issues = Array.isArray(res?.data?.issues) ? res.data!.issues! : []
+    const errorIssues = issues.filter((i) => String(i?.severity || '').toUpperCase() !== 'WARNING')
+    const errors = errorIssues.map((i) => String(i?.message || i?.code || '').trim()).filter(Boolean)
+    const precheckErrors = errorIssues
+      .filter((i) => isAuthReadinessIssue(i))
+      .map((i) => String(i?.message || '').trim())
+      .filter(Boolean)
+    return { errors, precheckErrors }
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : '运行前校验失败'
+    return { errors: [message], precheckErrors: [message] }
+  }
+}
+
+/**
+ * 仅取鉴权 / 登录抽取 / HTTP 必填风险文案（画布风险条预览用，不跑整份开跑门禁）。
  */
 export async function fetchSavePrecheckErrors(
   testProjectId: string,
@@ -60,62 +65,13 @@ export async function fetchSavePrecheckErrors(
   }
 }
 
-/** 运行就绪检查结果 */
-export type RunBlockingResult = {
-  /** 全部阻断文案（结构 + 断言路径 + 鉴权/必填） */
-  errors: string[]
-  /** 仅鉴权/登录抽取/HTTP 必填子集，用于校验条「运行风险」段，避免与结构段重复 */
-  precheckErrors: string[]
-}
-
-/**
- * 收集阻止开跑的错误。
- * 顺序：完整图结构 → 断言路径 → 鉴权与必填预检。
- */
-export async function collectRunBlockingErrors(opts: {
-  graph: unknown
-  testProjectId?: string | null
-  testFlowId?: string | null
-}): Promise<RunBlockingResult> {
-  const errors: string[] = []
-  const validation = validateGraphJson(opts.graph)
-  errors.push(...(validation.errors ?? []))
-
-  const graphObj = opts.graph && typeof opts.graph === 'object' && !Array.isArray(opts.graph)
-    ? (opts.graph as { nodes?: Array<Record<string, unknown>>; edges?: Array<Record<string, unknown>> })
-    : { nodes: [], edges: [] }
-  const assertPath = await loadAssertPathDesignIssues(graphObj)
-  errors.push(...(assertPath.errors ?? []))
-
-  const projectId = opts.testProjectId != null ? String(opts.testProjectId).trim() : ''
-  const routeErrors = await loadRouteConflictErrors(graphObj, projectId, opts.testFlowId)
-  errors.push(...routeErrors)
-
-  const precheckErrors = projectId ? await fetchSavePrecheckErrors(projectId, opts.graph) : []
-  errors.push(...precheckErrors)
-  return { errors, precheckErrors }
-}
-
-/**
- * 路由冲突：本流内重复 + 项目内其它流占用。
- * 不论从哪个入口开跑都由这里拦下（保存放行，列表页标 error）。
- */
-async function loadRouteConflictErrors(
-  graphObj: { nodes?: Array<Record<string, unknown>> },
-  projectId: string,
-  testFlowId?: string | null,
-): Promise<string[]> {
-  const nodes = Array.isArray(graphObj.nodes) ? graphObj.nodes : []
-  const errors = collectHttpRouteSelfCollisionErrors(nodes as never)
-  if (!projectId) return errors
-  try {
-    const res = await listOpenHttpRoutes(projectId)
-    const peers = Array.isArray(res?.data) ? res.data : []
-    errors.push(
-      ...collectHttpRoutePeerCollisionErrors(nodes as never, peers, testFlowId ?? undefined),
-    )
-  } catch {
-    // 预检失败不阻断其它就绪错误；开跑后服务端仍会做同一门禁
-  }
-  return errors
+function isAuthReadinessIssue(issue: FlowIssueRecord): boolean {
+  const code = String(issue?.code || '')
+  if (code === 'RUN_READINESS_AUTH') return true
+  const message = String(issue?.message || '')
+  return (
+    message.startsWith('AUTH_TOKEN_MISSING:')
+    || message.startsWith('LOGIN_EXTRACT_MISSING:')
+    || message.startsWith('HTTP_REQUIRED_PARAM_MISSING:')
+  )
 }

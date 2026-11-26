@@ -59,13 +59,45 @@ export interface OpenHttpPeerRouteRecord {
   path?: string;
 }
 
-/** 列出项目内已占用的开放 HTTP method+path */
-export function listOpenHttpRoutes(testProjectId: string | number) {
+/** 服务端图诊断单条（与后端 FlowIssue 对齐） */
+export interface FlowIssueRecord {
+  code?: string
+  severity?: 'ERROR' | 'WARNING' | string
+  stage?: string
+  nodeId?: string | null
+  message?: string
+}
+
+/** 图校验 API 出参 */
+export interface FlowGraphValidateResult {
+  issues?: FlowIssueRecord[]
+}
+
+/**
+ * 按 stage 请求服务端权威校验。
+ * stage=canvas 供画布；stage=run 等价开跑门禁；stage=save 仅验可解析。
+ */
+export function validateTestFlowGraph(
+  stage: 'canvas' | 'save' | 'run' | 'ingress' | 'subflow',
+  data: {
+    graphJson: string
+    testProjectId?: string | number | null
+    testFlowId?: string | number | null
+    /** 仅 canvas：Staging 未确认边时延后拓扑硬拦 */
+    deferTopology?: boolean
+  },
+) {
   return request({
-    url: '/project/testFlow/openHttpRoutes',
-    method: 'get',
-    params: { testProjectId },
-  });
+    url: '/project/testFlow/validate',
+    method: 'post',
+    params: { stage },
+    data: {
+      graphJson: data.graphJson,
+      testProjectId: data.testProjectId ?? undefined,
+      testFlowId: data.testFlowId ?? undefined,
+      deferTopology: data.deferTopology === true ? true : undefined,
+    },
+  }) as Promise<{ data?: FlowGraphValidateResult }>
 }
 
 export function getTestFlow(testFlowId: string | number) {
