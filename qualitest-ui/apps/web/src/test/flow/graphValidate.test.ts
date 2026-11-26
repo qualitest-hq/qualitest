@@ -766,4 +766,105 @@ describe('validateStartNodes', () => {
     expect(result.ok).toBe(false);
     expect(result.errors.some((e) => e.includes('同一路径上存在多个返回节点'))).toBe(true);
   });
+
+  it('断言允许 run/in/out 与 nodes.<id>.out', () => {
+    // 前提：子流后断言 left 分别为 run.entryKind / in.x / out.status / nodes.sf1.out.body.code
+    // 期望：不因作用域或 nodes 目标报错
+    const result = validateGraphJson({
+      nodes: [
+        {
+          id: 'e1',
+          type: 'scenario-entry',
+          name: '入口',
+          position: { x: 0, y: 0 },
+          data: { scenarios: [{ id: 's1', name: '默认', envId: '', inSeed: {} }] },
+        },
+        {
+          id: 'sf1',
+          type: 'subflow',
+          name: '子',
+          position: { x: 80, y: 0 },
+          data: { subflowId: '1' },
+        },
+        {
+          id: 'a1',
+          type: 'assert',
+          name: '查入口',
+          position: { x: 160, y: 0 },
+          data: { rules: [{ left: 'run.entryKind', operator: 'eq', right: 'scenario' }] },
+        },
+        {
+          id: 'a2',
+          type: 'assert',
+          name: '查入参',
+          position: { x: 240, y: 0 },
+          data: { rules: [{ left: 'in.orderId', operator: 'eq', right: '1' }] },
+        },
+        {
+          id: 'a3',
+          type: 'assert',
+          name: '查出参',
+          position: { x: 320, y: 0 },
+          data: { rules: [{ left: 'out.status', operator: 'eq', right: '200' }] },
+        },
+        {
+          id: 'a4',
+          type: 'assert',
+          name: '查子流',
+          position: { x: 400, y: 0 },
+          data: { rules: [{ left: 'nodes.sf1.out.body.code', operator: 'eq', right: '0' }] },
+        },
+      ],
+      edges: [
+        { id: 'ed0', source: 'e1', target: 'sf1' },
+        { id: 'ed1', source: 'sf1', target: 'a1' },
+        { id: 'ed2', source: 'a1', target: 'a2' },
+        { id: 'ed3', source: 'a2', target: 'a3' },
+        { id: 'ed4', source: 'a3', target: 'a4' },
+      ],
+    });
+    expect(result.errors.some((e) => e.includes('作用域非法'))).toBe(false);
+    expect(result.errors.some((e) => e.includes('须为 nodes.'))).toBe(false);
+    expect(result.errors.some((e) => e.includes('只能引用'))).toBe(false);
+  });
+
+  it('断言 nodes.<id>.out 引用非自流节点时报错', () => {
+    // 前提：left 为 nodes.http1.out.status，目标是 HTTP 节点
+    // 期望：errors 含「.out 只能引用子流节点」
+    const result = validateGraphJson({
+      nodes: [
+        {
+          id: 'e1',
+          type: 'scenario-entry',
+          name: '入口',
+          position: { x: 0, y: 0 },
+          data: { scenarios: [{ id: 's1', name: '默认', envId: '', inSeed: {} }] },
+        },
+        {
+          id: 'http1',
+          type: 'http',
+          name: 'h',
+          position: { x: 80, y: 0 },
+          data: {
+            callMode: 'external',
+            externalUrl: 'https://e.example/a',
+            httpMethod: 'GET',
+          },
+        },
+        {
+          id: 'a1',
+          type: 'assert',
+          name: 'a',
+          position: { x: 160, y: 0 },
+          data: { rules: [{ left: 'nodes.http1.out.status', operator: 'eq', right: '200' }] },
+        },
+      ],
+      edges: [
+        { id: 'ed0', source: 'e1', target: 'http1' },
+        { id: 'ed1', source: 'http1', target: 'a1' },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('.out 只能引用子流节点'))).toBe(true);
+  });
 });

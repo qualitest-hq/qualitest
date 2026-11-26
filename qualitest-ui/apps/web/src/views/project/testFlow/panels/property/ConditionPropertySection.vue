@@ -45,7 +45,7 @@
     >
       + ELIF
     </button>
-    <div class="field__hint">左值可用 flow.* / env.* / asset.* / http.body… / nodes.节点ID.http.body…；同分支内多条条件为 AND</div>
+    <div class="field__hint">左值可用 run.* / flow.* / env.* / in.* / out.* / asset.* / http.body… / nodes.节点ID.http.body… / nodes.节点ID.out…；同分支内多条条件为 AND</div>
   </div>
 </template>
 
@@ -53,7 +53,7 @@
 /**
  * condition 节点属性区：编辑各分支 conditions，增删 ELIF。
  * 分支出口由画布连线决定；无出边则命中后结束本流。
- * 条件左值支持 http.body… 与 nodes.<节点id>.http.body…；
+ * 条件左值支持 run.* / in.* / out.*、http.body…、nodes.<id>.http.body… 与 nodes.<id>.out…；
  * 试算优先用选中 Run 的 HTTP 响应，否则用上游接口响应示例。
  */
 import { computed } from 'vue'

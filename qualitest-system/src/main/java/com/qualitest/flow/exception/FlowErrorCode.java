@@ -51,6 +51,11 @@ public enum FlowErrorCode {
      * 调用方或父流仍可从已写出/已挂载的 out 读到兜底内容。
      */
     TF_RETURN_MISSING("TF_RETURN_MISSING", "未执行到返回节点"),
+    /**
+     * 开放 HTTP 已定稿并尝试写出，但握连接写出失败（如调用方已断开）。
+     * 图与报告仍跑完；Run 记失败，不因后续断言通过而显示绿灯。
+     */
+    TF_DELIVERY_WRITE_FAILED("TF_DELIVERY_WRITE_FAILED", "开放响应写出失败"),
     /** pluginAction 所需插件未启用、未登记，或插件未提供所配置的 capability */
     TF_NODE_CAPABILITY_UNAVAILABLE("TF_NODE_CAPABILITY_UNAVAILABLE", "插件能力不可用"),
     /** pluginAction 调用插件失败（插件返回非成功或调用过程异常） */

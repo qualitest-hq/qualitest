@@ -24,17 +24,18 @@ export {
 } from './nodeTypes';
 export type { FlowRunContext, HttpResponseSnapshot, PlaceholderResolveMode } from './types';
 export { PlaceholderUndefinedError } from './types';
-/** 占位符路径：含 nodes.<节点id>.http… 解析与求值 */
+/** 占位符路径：含 nodes.<节点id>.http… / nodes.<节点id>.out… 解析与求值 */
 export {
   looksLikeNodesPath,
   normalizeAssertLeftPath,
   parseNodesHttpPath,
+  parseNodesOutPath,
   resolvePathSegment,
   resolvePlaceholder,
   resolvePlaceholderString,
   simpleJsonPath,
 } from './placeholder';
-export type { NodesHttpRef } from './placeholder';
+export type { NodesHttpRef, NodesOutRef } from './placeholder';
 /** 占位扫描：listMustacheInners / replaceMustache；MustacheSpan 为命中片段 */
 export {
   listMustacheInners,

@@ -700,6 +700,79 @@ class GraphJsonValidatorTest {
     }
 
     /**
+     * 前提：断言 left 分别为 run.entryKind、in.orderId、out.status、nodes.sf1.out.body.code（子流目标）。
+     * 期望：均不因作用域或 nodes 目标产生错误。
+     */
+    @Test
+    @Order(33)
+    @DisplayName("assert 允许 run/in/out 与 nodes.<id>.out")
+    void assert_allowsRunInOutAndNodesOut() {
+        String json = """
+                {
+                  "meta":{},
+                  "nodes": [
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},
+                     "data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"sf1","type":"subflow","name":"子","position":{"x":80,"y":0},
+                     "data":{"subflowId":"1"}},
+                    {"id":"a1","type":"assert","name":"查入口","position":{"x":160,"y":0},
+                     "data":{"rules":[{"left":"run.entryKind","operator":"eq","right":"scenario"}]}},
+                    {"id":"a2","type":"assert","name":"查入参","position":{"x":240,"y":0},
+                     "data":{"rules":[{"left":"in.orderId","operator":"eq","right":"1"}]}},
+                    {"id":"a3","type":"assert","name":"查出参","position":{"x":320,"y":0},
+                     "data":{"rules":[{"left":"out.status","operator":"eq","right":"200"}]}},
+                    {"id":"a4","type":"assert","name":"查子流出参","position":{"x":400,"y":0},
+                     "data":{"rules":[{"left":"nodes.sf1.out.body.code","operator":"eq","right":"0"}]}}
+                  ],
+                  "edges":[
+                    {"id":"ed0","source":"e1","target":"sf1"},
+                    {"id":"ed1","source":"sf1","target":"a1"},
+                    {"id":"ed2","source":"a1","target":"a2"},
+                    {"id":"ed3","source":"a2","target":"a3"},
+                    {"id":"ed4","source":"a3","target":"a4"}
+                  ]
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertTrue(result.getErrors().stream().noneMatch(e -> e.contains("作用域非法")),
+                () -> String.join("; ", result.getErrors()));
+        assertTrue(result.getErrors().stream().noneMatch(e -> e.contains("须为 nodes.")),
+                () -> String.join("; ", result.getErrors()));
+        assertTrue(result.getErrors().stream().noneMatch(e -> e.contains("只能引用")),
+                () -> String.join("; ", result.getErrors()));
+    }
+
+    /**
+     * 前提：断言 left 为 nodes.http1.out.status，目标是 HTTP 节点。
+     * 期望：errors 含「.out 只能引用子流节点」。
+     */
+    @Test
+    @Order(34)
+    @DisplayName("assert nodes.<id>.out 非子流目标报错")
+    void assert_nodesOut_nonSubflow_producesError() {
+        String json = """
+                {
+                  "meta":{},
+                  "nodes": [
+                    {"id":"e1","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},
+                     "data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                    {"id":"http1","type":"http","name":"h","position":{"x":80,"y":0},
+                     "data":{"callMode":"external","externalUrl":"https://e.example/a","httpMethod":"GET"}},
+                    {"id":"a1","type":"assert","name":"a","position":{"x":160,"y":0},
+                     "data":{"rules":[{"left":"nodes.http1.out.status","operator":"eq","right":"200"}]}}
+                  ],
+                  "edges":[
+                    {"id":"ed0","source":"e1","target":"http1"},
+                    {"id":"ed1","source":"http1","target":"a1"}
+                  ]
+                }
+                """;
+        GraphValidationResult result = validator.validateJson(json);
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains(".out 只能引用子流节点")));
+    }
+
+    /**
      * 前提：图含同序双 http-return；走 validateJson。
      * 期望：errors 含双返回拓扑文案（全量规则并入 validateJson）。
      */

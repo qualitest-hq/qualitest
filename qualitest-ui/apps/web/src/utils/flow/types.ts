@@ -38,6 +38,8 @@ export interface FlowRunContext {
   lastResponse?: HttpResponseSnapshot | null;
   /** 按画布节点 id 索引的 HTTP 快照；同节点多次执行时覆盖为最后一次 */
   nodeResponses?: Record<string, HttpResponseSnapshot>;
+  /** 按画布节点 id 索引的定稿出参（如子流挂载的 out）；占位符 nodes.<id>.out 读取 */
+  nodeOuts?: Record<string, Record<string, unknown>>;
 }
 
 export type PlaceholderResolveMode = 'lenient' | 'strict';

@@ -27,13 +27,18 @@ public final class SettleSupport {
     /**
      * 按需执行收束交付。
      *
-     * @return 因缺少返回节点而补交时的失败错误；已交付或不需要兜底时为 null
+     * @return 因缺少返回节点而补交时的失败错误；已交付但写出失败时的错误；
+     *         已交付成功或不需要兜底时为 null
      */
     public static StepError settle(FlowRunContext ctx, GraphJson graph, RunDelivery delivery) {
         if (ctx == null || delivery == null) {
             return null;
         }
         if (ctx.isDelivered()) {
+            // 返回节点已交付但写出失败：收束不再写第二遍，仍须让 Run 记失败
+            if (ctx.isDeliveryWriteFailed()) {
+                return StepError.of(FlowErrorCode.TF_DELIVERY_WRITE_FAILED, "开放响应写出失败");
+            }
             return null;
         }
         EntryKind kind = EntryKind.fromCode(ctx.getEntryKind());
@@ -45,6 +50,9 @@ public final class SettleSupport {
             fallback = defaultFallback();
         }
         delivery.deliver(ctx, fallback, false);
+        if (ctx.isDeliveryWriteFailed()) {
+            return StepError.of(FlowErrorCode.TF_DELIVERY_WRITE_FAILED, "未执行到返回节点，且开放响应写出失败");
+        }
         return StepError.of(FlowErrorCode.TF_RETURN_MISSING, "未执行到返回节点，已用入口兜底出参交付");
     }
 

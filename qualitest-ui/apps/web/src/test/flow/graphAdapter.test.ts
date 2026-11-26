@@ -194,6 +194,35 @@ describe('fromGraphJson / toGraphJson', () => {
     expect(saved.nodes.some((n) => n.type === 'scenario-entry')).toBe(false);
   });
 
+  it('toGraphJson 给缺 from 的返回节点补 flow.out', () => {
+    // 前提：http-return / subflow-return 的 data.from 为空
+    // 期望：落盘后 from 为 flow.out
+    const saved = toGraphJson({
+      nodes: [
+        {
+          id: 'r1',
+          type: 'http-return',
+          name: '回',
+          position: { x: 0, y: 0 },
+          data: { status: 200 },
+        },
+        {
+          id: 'r2',
+          type: 'subflow-return',
+          name: '挂父',
+          position: { x: 80, y: 0 },
+          data: { from: '  ' },
+        },
+      ] as never,
+      edges: [],
+      runConfig: { scenarios: [], activeScenarioId: '' },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      layoutPreset: 'default',
+    });
+    expect(saved.nodes.find((n) => n.id === 'r1')?.data?.from).toBe('flow.out');
+    expect(saved.nodes.find((n) => n.id === 'r2')?.data?.from).toBe('flow.out');
+  });
+
   it('toGraphJson 排除未 confirm 的 Staging add 并回滚 pending update', () => {
     // 前提：stagingFilter 排除 add、回滚 update 基线
     // 期望：输出无 staging 新增节点，update 节点恢复基线名称

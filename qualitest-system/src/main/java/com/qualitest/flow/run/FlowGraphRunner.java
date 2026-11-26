@@ -169,7 +169,7 @@ public class FlowGraphRunner {
                         resolveDisplayName(node));
                 completeCurrentNode = false;
             } else {
-                result = registry.execute(ctx, node, incomingEdgeId);
+                result = executeNodeSafely(registry, ctx, node, incomingEdgeId);
             }
             visitedNodeIds.add(currentId);
             recordStep(steps, result, onStep);
@@ -350,7 +350,7 @@ public class FlowGraphRunner {
             StepResult result;
             if (alwaysRun) {
                 recordPreludeIgnoringAbort(preExecuteHook, node, steps, onStep);
-                result = toPostFailureStep(registry.execute(ctx, node, incomingEdgeId));
+                result = toPostFailureStep(executeNodeSafely(registry, ctx, node, incomingEdgeId));
             } else {
                 result = syntheticStep(node, incomingEdgeId, ctx,
                         RunStatus.BYPASSED.getCode(), null, resolveDisplayName(node));
@@ -441,7 +441,7 @@ public class FlowGraphRunner {
                 }
             }
 
-            StepResult result = registry.execute(ctx, node, inEdge);
+            StepResult result = executeNodeSafely(registry, ctx, node, inEdge);
             armVisited.add(currentId);
             recordStep(steps, result, onStep);
             state.stepIndex++;
@@ -586,6 +586,26 @@ public class FlowGraphRunner {
         return StepError.of(FlowErrorCode.TF_RUN_STEP_LIMIT,
                 "超过单次运行步数上限（" + maxSteps + "），停在节点「"
                         + nodeName + "」（" + nodeId + "），后续节点未执行");
+    }
+
+    /**
+     * 调用节点 Handler；抛出的异常转为 FAILED 步骤，便于走失败后继续与收束（含兜底交付）。
+     */
+    private static StepResult executeNodeSafely(
+            NodeHandlerRegistry registry,
+            FlowRunContext ctx,
+            GraphNode node,
+            String incomingEdgeId) {
+        try {
+            return registry.execute(ctx, node, incomingEdgeId);
+        } catch (FlowExecutionException e) {
+            return errorStep(node, incomingEdgeId, ctx, RunStatus.FAILED.getCode(),
+                    StepError.of(e.getErrorCode(), e.getMessage()));
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "步骤执行异常";
+            return errorStep(node, incomingEdgeId, ctx, RunStatus.FAILED.getCode(),
+                    StepError.of(FlowErrorCode.TF_STEP_ERROR, msg));
+        }
     }
 
     /**

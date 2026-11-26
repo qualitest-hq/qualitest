@@ -439,6 +439,13 @@ export function toGraphJson(input: ToGraphJsonInput): GraphJson {
     if (n.type === 'subflow') {
       data = pickSubflowPersistData(data);
     }
+    // 返回节点缺 from 时落盘补默认，避免界面显示默认值却开跑报挂图异常
+    if (n.type === 'http-return' || n.type === 'subflow-return') {
+      const from = String(data.from ?? '').trim();
+      if (!from) {
+        data.from = 'flow.out';
+      }
+    }
     const shellName = (n as Node & { name?: string }).name;
     return {
       id: n.id,

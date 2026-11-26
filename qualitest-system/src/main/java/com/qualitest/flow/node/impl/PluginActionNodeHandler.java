@@ -6,6 +6,7 @@ import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.NodeHandler;
+import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.validate.FlowNodeType;
@@ -22,6 +23,7 @@ import java.util.Map;
  * 平台插件步骤执行器：按节点 data 中的 pluginId / capability / config 调用插件能力。
  * <p>
  * 插件是否可用由当前环境的启用集合即时决定；插件未启用或缺少对应能力时步骤直接失败，不会静默跳过。
+ * 配置缺失、调用失败均返回 FAILED 步骤，不向外抛异常，以便跑图走失败后继续与收束。
  */
 @Component
 public class PluginActionNodeHandler implements NodeHandler {
@@ -42,7 +44,7 @@ public class PluginActionNodeHandler implements NodeHandler {
 
     /**
      * 执行插件步骤：校验必填配置与环境绑定，调用插件能力，成功时记录标准输出并返回通过的步骤结果。
-     * 配置缺失、插件能力不可用、插件返回失败或调用异常都会转为流执行异常。
+     * 配置缺失、插件能力不可用、插件返回失败或调用异常都会转为 FAILED 步骤。
      */
     @Override
     public StepResult execute(FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
@@ -53,12 +55,12 @@ public class PluginActionNodeHandler implements NodeHandler {
         String capability = stringVal(data.get("capability"));
         String contributionId = stringVal(data.get("contributionId"));
         if (pluginId.isBlank() || capability.isBlank()) {
-            throw new FlowExecutionException(
+            return failed(node, incomingEdgeId, name, t0, ctx,
                     FlowErrorCode.TF_NODE_CAPABILITY_UNAVAILABLE,
                     "pluginAction 须配置 pluginId 与 capability");
         }
         if (ctx == null || ctx.getTestProjectEnvId() == null) {
-            throw new FlowExecutionException(
+            return failed(node, incomingEdgeId, name, t0, ctx,
                     FlowErrorCode.TF_NODE_CAPABILITY_UNAVAILABLE,
                     "pluginAction 需要已绑定测试环境");
         }
@@ -88,7 +90,8 @@ public class PluginActionNodeHandler implements NodeHandler {
                 String detail = result != null && StrUtil.isNotBlank(result.getStderr())
                         ? result.getStderr()
                         : "插件步骤退出码非 0";
-                throw new FlowExecutionException(FlowErrorCode.TF_PLUGIN_ACTION_FAILED, detail);
+                return failed(node, incomingEdgeId, name, t0, ctx,
+                        FlowErrorCode.TF_PLUGIN_ACTION_FAILED, detail);
             }
             if (result.getStdout() != null && !result.getStdout().isBlank()) {
                 ctx.getFlow().put("pluginAction.lastStdout", result.getStdout());
@@ -103,16 +106,37 @@ public class PluginActionNodeHandler implements NodeHandler {
                     .flowAfter(AbstractStubNodeHandler.copyFlow(ctx))
                     .build();
         } catch (PluginException e) {
-            throw new FlowExecutionException(
+            return failed(node, incomingEdgeId, name, t0, ctx,
                     FlowErrorCode.TF_NODE_CAPABILITY_UNAVAILABLE,
                     e.getMessage() != null ? e.getMessage() : "插件能力不可用");
         } catch (FlowExecutionException e) {
-            throw e;
+            return failed(node, incomingEdgeId, name, t0, ctx, e.getErrorCode(), e.getMessage());
         } catch (Exception e) {
-            throw new FlowExecutionException(
+            return failed(node, incomingEdgeId, name, t0, ctx,
                     FlowErrorCode.TF_PLUGIN_ACTION_FAILED,
                     e.getMessage() != null ? e.getMessage() : "插件步骤执行失败");
         }
+    }
+
+    /** 构造 FAILED 步骤 */
+    private static StepResult failed(
+            GraphNode node,
+            String incomingEdgeId,
+            String name,
+            long t0,
+            FlowRunContext ctx,
+            FlowErrorCode code,
+            String message) {
+        return StepResult.builder()
+                .nodeId(node != null ? node.getId() : null)
+                .nodeType(node != null ? node.getType() : FlowNodeType.PLUGIN_ACTION.getCode())
+                .nodeName(name)
+                .edgeId(incomingEdgeId)
+                .status(RunStatus.FAILED.getCode())
+                .durationMs(Math.max(0, System.currentTimeMillis() - t0))
+                .error(StepError.of(code, message))
+                .flowAfter(AbstractStubNodeHandler.copyFlow(ctx))
+                .build();
     }
 
     /** 转为去首尾空白的字符串，null 返回空串 */

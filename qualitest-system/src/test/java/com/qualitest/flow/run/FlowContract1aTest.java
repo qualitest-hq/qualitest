@@ -183,12 +183,12 @@ class FlowContract1aTest {
     }
 
     /**
-     * 前提：交付前 sink 已断开。
-     * 期望：图仍跑完；delivered=true；deliveryWriteFailed；槽释放。
+     * 前提：交付前 sink 已断开（complete 返回 false）。
+     * 期望：图仍跑完；delivered=true；deliveryWriteFailed；Outcome 失败（写出失败）；槽释放。
      */
     @Test
     @Order(5)
-    @DisplayName("写出前断连后图仍跑完")
+    @DisplayName("写出前断连后图仍跑完且 Run 记失败")
     void disconnectBeforeWrite_runContinues() {
         String slot = slots.tryAcquire();
         AtomicBoolean connected = new AtomicBoolean(false);
@@ -206,9 +206,66 @@ class FlowContract1aTest {
         });
 
         FlowGraphRunner.Outcome outcome = runner.run(graph, ctx, registry);
-        assertTrue(outcome.isPassed());
+        assertFalse(outcome.isPassed());
+        assertNotNull(outcome.getError());
+        assertEquals(FlowErrorCode.TF_DELIVERY_WRITE_FAILED.getCode(), outcome.getError().getCode());
         assertTrue(ctx.isDelivered());
         assertTrue(ctx.isDeliveryWriteFailed());
+        assertEquals(0, slots.heldCount());
+    }
+
+    /**
+     * 前提：开放图 http-entry → 抛异常的业务步（模拟 pluginAction 失败），无 return。
+     * 期望：异常转为 FAILED 步；收束写出 fallbackOut；Outcome 失败；不是未捕获冒泡。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("业务步抛异常仍收束用 fallbackOut")
+    void throwingStep_stillSettlesFallback() {
+        AtomicReference<OutPayload> got = new AtomicReference<>();
+        String slot = slots.tryAcquire();
+        GraphJson graph = httpGraphNoReturn();
+        NodeHandlerRegistry throwingRegistry = new NodeHandlerRegistry(List.of(
+                new com.qualitest.flow.node.NodeHandler() {
+                    @Override
+                    public boolean supports(String type) {
+                        return FlowNodeType.ASSIGN.matches(type);
+                    }
+
+                    @Override
+                    public com.qualitest.flow.node.StepResult execute(
+                            FlowRunContext ctx, GraphNode node, String incomingEdgeId) {
+                        throw new com.qualitest.flow.exception.FlowExecutionException(
+                                FlowErrorCode.TF_PLUGIN_ACTION_FAILED, "模拟插件失败");
+                    }
+                },
+                new ReturnNodeHandler(delivery, PlaceholderResolver.strict()),
+                new EntryNodeHandler(),
+                new AssertNodeHandler(),
+                new ConditionNodeHandler()
+        ));
+        FlowRunContext ctx = baseHttpCtx(slot, new DeliverySink() {
+            @Override
+            public boolean complete(OutPayload out) {
+                got.set(out.copy());
+                return true;
+            }
+
+            @Override
+            public boolean isConnected() {
+                return true;
+            }
+        });
+
+        FlowGraphRunner.Outcome outcome = runner.run(graph, ctx, throwingRegistry);
+        assertFalse(outcome.isPassed());
+        assertNotNull(got.get());
+        assertEquals(500, got.get().getStatus());
+        assertEquals("NO_RETURN", ((Map<?, ?>) got.get().getBody()).get("code"));
+        assertTrue(ctx.isDelivered());
+        assertTrue(outcome.getSteps().stream().anyMatch(s ->
+                "failed".equalsIgnoreCase(s.getStatus())
+                        && FlowNodeType.ASSIGN.matches(s.getNodeType())));
         assertEquals(0, slots.heldCount());
     }
 

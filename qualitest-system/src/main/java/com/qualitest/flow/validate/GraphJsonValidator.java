@@ -687,8 +687,9 @@ public class GraphJsonValidator {
 
     /**
      * 校验单条比较规则的左值。
-     * 检查：非空；作用域为 flow / env / asset / http / nodes；
-     * 禁止 {@code http.body.$.…}；{@code nodes.<id>.http…} 的目标节点须存在且类型为 http；
+     * 检查：非空；作用域为 run / flow / env / in / out / asset / http / nodes；
+     * 禁止 {@code http.body.$.…}；
+     * {@code nodes.<id>.http…} 目标须为 http；{@code nodes.<id>.out…} 目标须为 subflow；
      * body 字段后缀须能解析为 JsonPath。
      *
      * @param prefix         错误文案前缀（含节点名与规则下标）
@@ -710,15 +711,20 @@ public class GraphJsonValidator {
         left = CompareRuleEvaluator.stripMustache(left);
         String normalized = PlaceholderResolver.normalizeAssertLeftPath(left);
         if (!isAllowedCompareLeftScope(normalized)) {
-            errors.add(prefix + " left 作用域非法（须为 flow./env./asset./http./nodes.<id>.http. 或 $.…）：" + left);
+            errors.add(prefix + " left 作用域非法（须为 run./flow./env./in./out./asset./http./nodes.<id>.http.|out. 或 $.…）：" + left);
             return;
         }
-        PlaceholderResolver.NodesHttpRef nodesRef = PlaceholderResolver.parseNodesHttpPath(normalized);
-        if (PlaceholderResolver.looksLikeNodesPath(normalized) && nodesRef == null) {
-            errors.add(prefix + " left 须为 nodes.<节点ID>.http.…：" + left);
-            return;
-        }
-        if (nodesRef != null) {
+        if (PlaceholderResolver.looksLikeNodesPath(normalized)) {
+            PlaceholderResolver.NodesOutRef nodesOut = PlaceholderResolver.parseNodesOutPath(normalized);
+            if (nodesOut != null) {
+                validateNodesOutTarget(prefix, left, nodesOut, nodeTypesById, errors);
+                return;
+            }
+            PlaceholderResolver.NodesHttpRef nodesRef = PlaceholderResolver.parseNodesHttpPath(normalized);
+            if (nodesRef == null) {
+                errors.add(prefix + " left 须为 nodes.<节点ID>.http.… 或 nodes.<节点ID>.out…：" + left);
+                return;
+            }
             validateNodesHttpTarget(prefix, left, nodesRef, nodeTypesById, errors);
             validateHttpBodyRelativePath(prefix, left, nodesRef.httpRest(), errors);
             return;
@@ -762,6 +768,28 @@ public class GraphJsonValidator {
     }
 
     /**
+     * 校验 {@code nodes.<id>.out…} 引用的目标节点。
+     * 节点不在图中，或类型不是 subflow 时写入 errors。
+     */
+    private static void validateNodesOutTarget(
+            String prefix,
+            String left,
+            PlaceholderResolver.NodesOutRef nodesOut,
+            Map<String, String> nodeTypesById,
+            List<String> errors) {
+        Map<String, String> types = nodeTypesById != null ? nodeTypesById : Map.of();
+        String targetType = types.get(nodesOut.nodeId());
+        if (targetType == null) {
+            errors.add(prefix + " left 引用的节点不存在：" + nodesOut.nodeId() + "（" + left + "）");
+            return;
+        }
+        if (!FlowNodeType.SUBFLOW.matches(targetType)) {
+            errors.add(prefix + " left 的 .out 只能引用子流节点，节点「" + nodesOut.nodeId()
+                    + "」类型为 " + targetType + "（" + left + "）");
+        }
+    }
+
+    /**
      * 校验 http 相对段里 body 字段路径是否合法。
      * 禁止 {@code body.$…}；{@code body.} 后的相对路径须能解析为 JsonPath；
      * 仅 {@code body} 或非 body 段（如 status）不做 JsonPath 检查。
@@ -787,14 +815,17 @@ public class GraphJsonValidator {
 
     /**
      * 判断比较左值作用域是否合法。
-     * 允许：flow. / env. / asset. / http. / nodes. 前缀，以及整段 http.body。
+     * 允许：run. / flow. / env. / in. / out. / asset. / http. / nodes. 前缀，以及整段 http.body。
      */
     private static boolean isAllowedCompareLeftScope(String left) {
         if (left == null || left.isEmpty()) {
             return false;
         }
-        return left.startsWith("flow.")
+        return left.startsWith("run.")
+                || left.startsWith("flow.")
                 || left.startsWith("env.")
+                || left.startsWith("in.")
+                || left.startsWith("out.")
                 || left.startsWith("asset.")
                 || left.startsWith("http.")
                 || left.startsWith("nodes.")

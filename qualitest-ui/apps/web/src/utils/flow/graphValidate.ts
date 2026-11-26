@@ -16,6 +16,7 @@ import {
   looksLikeNodesPath,
   normalizeAssertLeftPath,
   parseNodesHttpPath,
+  parseNodesOutPath,
   toAbsoluteJsonPath,
 } from './placeholder';
 import { isAnyEntryType, isKnownNodeType, nodeTypeLabel } from './nodeTypes';
@@ -364,11 +365,14 @@ function validateHttpRetryUntil(
   });
 }
 
-/** 比较左值作用域是否合法：flow / env / asset / http / nodes，或整段 http.body */
+/** 比较左值作用域是否合法：run / flow / env / in / out / asset / http / nodes，或整段 http.body */
 function isAllowedCompareLeftScope(left: string): boolean {
   return (
-    left.startsWith('flow.')
+    left.startsWith('run.')
+    || left.startsWith('flow.')
     || left.startsWith('env.')
+    || left.startsWith('in.')
+    || left.startsWith('out.')
     || left.startsWith('asset.')
     || left.startsWith('http.')
     || left.startsWith('nodes.')
@@ -423,7 +427,30 @@ function validateNodesHttpTarget(
 }
 
 /**
- * 校验单条比较规则左值：非空、作用域合法、nodes 目标存在且为 HTTP、body JsonPath 可解析。
+ * 校验 nodes.<id>.out… 引用的目标节点：须存在于图中且类型为 subflow。
+ */
+function validateNodesOutTarget(
+  prefix: string,
+  left: string,
+  nodeId: string,
+  nodeTypesById: Map<string, string>,
+  errors: string[],
+): void {
+  const targetType = nodeTypesById.get(nodeId);
+  if (targetType == null) {
+    errors.push(`${prefix} left 引用的节点不存在：${nodeId}（${left}）`);
+    return;
+  }
+  if (String(targetType).trim().toLowerCase() !== 'subflow') {
+    errors.push(
+      `${prefix} left 的 .out 只能引用子流节点，节点「${nodeId}」类型为 ${targetType || '(空)'}（${left}）`,
+    );
+  }
+}
+
+/**
+ * 校验单条比较规则左值：非空、作用域合法；
+ * nodes 可为 .http…（目标 HTTP）或 .out…（目标子流）；body JsonPath 可解析。
  */
 function validateCompareRule(
   prefix: string,
@@ -440,15 +467,22 @@ function validateCompareRule(
   left = stripMustache(left);
   const normalized = normalizeAssertLeftPath(left);
   if (!isAllowedCompareLeftScope(normalized)) {
-    errors.push(`${prefix} left 作用域非法（须为 flow./env./asset./http./nodes.<id>.http. 或 $.…）：${left}`);
+    errors.push(
+      `${prefix} left 作用域非法（须为 run./flow./env./in./out./asset./http./nodes.<id>.http.|out. 或 $.…）：${left}`,
+    );
     return;
   }
-  const nodesRef = parseNodesHttpPath(normalized);
-  if (looksLikeNodesPath(normalized) && !nodesRef) {
-    errors.push(`${prefix} left 须为 nodes.<节点ID>.http.…：${left}`);
-    return;
-  }
-  if (nodesRef) {
+  if (looksLikeNodesPath(normalized)) {
+    const nodesOut = parseNodesOutPath(normalized);
+    if (nodesOut) {
+      validateNodesOutTarget(prefix, left, nodesOut.nodeId, nodeTypesById, errors);
+      return;
+    }
+    const nodesRef = parseNodesHttpPath(normalized);
+    if (!nodesRef) {
+      errors.push(`${prefix} left 须为 nodes.<节点ID>.http.… 或 nodes.<节点ID>.out…：${left}`);
+      return;
+    }
     validateNodesHttpTarget(prefix, left, nodesRef.nodeId, nodeTypesById, errors);
     validateHttpBodyRelativePath(prefix, left, nodesRef.httpRest, errors);
     return;

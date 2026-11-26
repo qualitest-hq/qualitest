@@ -17,6 +17,9 @@ import { replaceMustache } from './mustacheScan';
 /** 将路径 nodes.<nodeId>.http.<rest> 拆成节点 id 与 http 相对段 */
 export type NodesHttpRef = { nodeId: string; httpRest: string };
 
+/** 将路径 nodes.<nodeId>.out 或 nodes.<nodeId>.out.<rest> 拆成节点 id 与 out 相对段 */
+export type NodesOutRef = { nodeId: string; outRest: string };
+
 /**
  * 把以 $ 开头的断言左值改成带 scope 的写法。
  * $ → http.body；$.data.x → http.body.data.x；$[0] → http.body[0]。
@@ -47,11 +50,44 @@ export function parseNodesHttpPath(path: string | null | undefined): NodesHttpRe
 }
 
 /**
+ * 解析 nodes.<nodeId>.out 或 nodes.<nodeId>.out.<rest>。
+ * 缺 .out、nodeId 空、.out 后非点分时返回 null。
+ */
+export function parseNodesOutPath(path: string | null | undefined): NodesOutRef | null {
+  const p = String(path ?? '').trim();
+  if (!p.startsWith('nodes.')) return null;
+  const after = p.slice('nodes.'.length);
+  const outIdx = after.indexOf('.out');
+  if (outIdx <= 0) return null;
+  const nodeId = after.slice(0, outIdx).trim();
+  if (!nodeId) return null;
+  const rest = after.slice(outIdx + '.out'.length);
+  if (!rest) return { nodeId, outRest: '' };
+  if (!rest.startsWith('.')) return null;
+  return { nodeId, outRest: rest.slice(1).trim() };
+}
+
+/**
  * 判断路径是否以 nodes. 开头。
- * 形态不完整（缺 .http.）时也为 true，便于校验单独报错。
+ * 形态不完整（缺 .http. / .out）时也为 true，便于校验单独报错。
  */
 export function looksLikeNodesPath(path: string | null | undefined): boolean {
   return String(path ?? '').trim().startsWith('nodes.');
+}
+
+/** 在 out / in Map 上取值：空 rest 返回整包；否则按点分下钻。 */
+function resolveOutLikePath(
+  root: Record<string, unknown> | null | undefined,
+  rest: string,
+): unknown {
+  if (root == null) return undefined;
+  if (!rest) return root;
+  let cur: unknown = root;
+  for (const part of rest.split('.')) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = (cur as Record<string, unknown>)[part];
+  }
+  return cur;
 }
 
 /**
@@ -78,13 +114,17 @@ export function resolvePathSegment(ctx: FlowRunContext, path: string): unknown {
     return ctx.env[p.slice(4)];
   }
   if (p.startsWith('in.')) {
-    return ctx.in?.[p.slice(3)];
+    return resolveOutLikePath(ctx.in, p.slice(3));
   }
   if (p.startsWith('out.')) {
-    return ctx.out?.[p.slice(4)];
+    return resolveOutLikePath(ctx.out, p.slice(4));
   }
   if (p.startsWith('asset.')) {
     return resolveAssetPath(ctx.asset, p.slice(6));
+  }
+  const nodesOut = parseNodesOutPath(p);
+  if (nodesOut) {
+    return resolveOutLikePath(ctx.nodeOuts?.[nodesOut.nodeId], nodesOut.outRest);
   }
   const nodesRef = parseNodesHttpPath(p);
   if (nodesRef) {
