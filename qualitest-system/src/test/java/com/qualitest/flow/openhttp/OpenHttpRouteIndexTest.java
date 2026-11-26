@@ -125,7 +125,27 @@ class OpenHttpRouteIndexTest {
         assertNull(catalog.find(PROJECT_ID, "GET", "/ping"));
     }
 
+    /**
+     * 前提：两流同占 POST /dup（脏数据）。
+     * 期望：find 不命中；listPeerRoutes 仍暴露两条占用。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("双活路由入站不命中且 peers 全量暴露")
+    void ambiguousRoute_findNull_peersKeepBoth() {
+        TestFlow a = httpFlow(FLOW_ID, "A流", "POST", "/dup", 1L);
+        TestFlow b = httpFlow(71L, "B流", "POST", "/dup", 1L);
+        when(testFlowMapper.selectTestFlowList(any())).thenReturn(List.of(a, b));
+
+        assertNull(catalog.find(PROJECT_ID, "POST", "/dup"));
+        assertEquals(2, index.listPeerRoutes(PROJECT_ID).size());
+    }
+
     private static TestFlow httpFlow(String method, String path, long revision) {
+        return httpFlow(FLOW_ID, "HTTP流", method, path, revision);
+    }
+
+    private static TestFlow httpFlow(long flowId, String flowName, String method, String path, long revision) {
         GraphJson g = new GraphJson();
         GraphNode n = new GraphNode();
         n.setId("entry-1");
@@ -137,9 +157,9 @@ class OpenHttpRouteIndexTest {
                 "fallbackOut", Map.of("status", 500, "headers", Map.of(), "body", Map.of())));
         g.setNodes(List.of(n));
         return TestFlow.builder()
-                .testFlowId(FLOW_ID)
+                .testFlowId(flowId)
                 .testProjectId(PROJECT_ID)
-                .flowName("HTTP流")
+                .flowName(flowName)
                 .graphJson(g.toJsonString())
                 .graphRevision(revision)
                 .delStatus(0)

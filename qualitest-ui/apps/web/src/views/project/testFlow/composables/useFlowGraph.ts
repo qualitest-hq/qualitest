@@ -14,6 +14,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 
 import { getTestFlow, updateTestFlow, type TestFlowRecord } from '@/api/project/testFlow';
 import {
+  collectHttpRoutePeerCollisionErrors,
   collectHttpRouteSelfCollisionErrors,
   validateGraphJson,
 } from '@/utils/flow/graphValidate';
@@ -37,6 +38,7 @@ import { useFlowHistory } from './useFlowHistory';
 import { openPendingStagingReview } from './useStagingNavigation';
 import { useFlowCanvasStore } from '../stores/flowCanvasStore';
 import { useAiStagingStore } from '../stores/aiStagingStore';
+import { useOpenHttpRouteStore } from '../stores/openHttpRouteStore';
 import { useRunRiskStore } from '../stores/runRiskStore';
 import {
   applyAdaptedGraphToStore,
@@ -60,6 +62,7 @@ export function useFlowGraph() {
   const store = useFlowCanvasStore();
   const stagingStore = useAiStagingStore();
   const runRisk = useRunRiskStore();
+  const openHttpRoutes = useOpenHttpRouteStore();
   const { scheduleHistoryReset, resetHistory } = useFlowHistory();
 
   async function finalizeHistoryBaseline() {
@@ -81,6 +84,7 @@ export function useFlowGraph() {
     store.markClean();
     scheduleHistoryReset();
     await finalizeHistoryBaseline();
+    void openHttpRoutes.refresh(store.testProjectId);
     return adapted;
   }
 
@@ -215,11 +219,18 @@ export function useFlowGraph() {
     const graph = buildCanvasPersistGraph();
     const floor = validateGraphJson(graph, { persistMinimalOnly: true });
     const routeSelfErrors = collectHttpRouteSelfCollisionErrors(graph.nodes);
-    if (!floor.ok || routeSelfErrors.length) {
+    await openHttpRoutes.refresh(store.testProjectId);
+    const routePeerErrors = collectHttpRoutePeerCollisionErrors(
+      graph.nodes,
+      openHttpRoutes.peers,
+      store.testFlowId,
+    );
+    if (!floor.ok || routeSelfErrors.length || routePeerErrors.length) {
       // quiet 仍提示校验/路由冲突原因（点跑静默保存时用户需看到占用方）
       ElMessage.error(
         floor.errors[0]
           ?? routeSelfErrors[0]
+          ?? routePeerErrors[0]
           ?? '图校验失败',
       );
       return false;
@@ -247,6 +258,7 @@ export function useFlowGraph() {
       const nextRev = extractGraphRevisionFromResponse(res);
       store.setGraphRevision(nextRev != null ? nextRev : store.graphRevision + 1);
       await refreshSavedBaseline(store);
+      void openHttpRoutes.refresh(store.testProjectId);
 
       if (!options?.skipRunRiskRefresh && !options?.quiet) {
         // 刷新运行风险条：只把鉴权/必填写入 store；结构/断言仍由实时结构校验展示
@@ -295,22 +307,36 @@ export function useFlowGraph() {
 
   /**
    * 导入 graph_json 覆盖当前画布。
-   * 导入走完整结构校验；失败不改 store。
+   * 与保存对齐：只拦落盘地板与本流路由自冲突；挂图异常可导入，导入后由校验条标红。
    */
   async function importGraph(raw: unknown): Promise<boolean> {
     store.beginCanvasHydration();
-    const validation = validateGraphJson(raw);
-    if (!validation.ok) {
+    try {
+      const floor = validateGraphJson(raw, { persistMinimalOnly: true });
+      if (!floor.ok) {
+        store.endCanvasHydration();
+        ElMessage.error(floor.errors[0] ?? '图校验失败');
+        return false;
+      }
+      const adapted = fromGraphJson(raw);
+      const routeSelfErrors = collectHttpRouteSelfCollisionErrors(
+        adapted.nodes as Array<{ id?: string; type?: string; name?: string; data?: Record<string, unknown> }>,
+      );
+      if (routeSelfErrors.length) {
+        store.endCanvasHydration();
+        ElMessage.error(routeSelfErrors[0]);
+        return false;
+      }
+      await applyAdaptedGraphToStore(store, adapted);
+      store.markDirty();
+      scheduleHistoryReset();
+      await finalizeHistoryBaseline();
+      return true;
+    } catch (e: unknown) {
       store.endCanvasHydration();
-      ElMessage.error(validation.errors[0] ?? '图校验失败');
+      ElMessage.error(e instanceof Error ? e.message : '导入失败');
       return false;
     }
-    const adapted = fromGraphJson(raw);
-    await applyAdaptedGraphToStore(store, adapted);
-    store.markDirty();
-    scheduleHistoryReset();
-    await finalizeHistoryBaseline();
-    return true;
   }
 
   return { loadFlow, saveFlow, importGraph };

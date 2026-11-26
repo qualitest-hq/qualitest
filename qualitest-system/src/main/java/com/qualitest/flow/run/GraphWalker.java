@@ -102,7 +102,7 @@ public class GraphWalker {
     /**
      * 解析开跑起点。
      * <ol>
-     *   <li>ctx/调用方传入的 entryNodeId 非空：必须在图中存在，否则报开始节点错误</li>
+     *   <li>ctx/调用方传入的 entryNodeId 非空：必须在图中存在且为入口类型，否则报开始节点错误</li>
      *   <li>否则若图上恰好一个入口类型节点，用该节点</li>
      *   <li>多个入口且未指定 id：报错，要求显式指定</li>
      *   <li>无入口：无法解析起点（图须配置入口节点）</li>
@@ -111,8 +111,14 @@ public class GraphWalker {
     public String resolveStartNodeId(String entryNodeId) {
         if (entryNodeId != null && !entryNodeId.isBlank()) {
             String id = entryNodeId.trim();
-            if (!nodeById.containsKey(id)) {
+            GraphNode start = nodeById.get(id);
+            if (start == null) {
                 throw new FlowExecutionException(FlowErrorCode.TF_START_NODE, "入口节点不存在: " + id);
+            }
+            if (!FlowNodeType.isEntry(start.getType())) {
+                throw new FlowExecutionException(
+                        FlowErrorCode.TF_START_NODE,
+                        "entryNodeId 须为入口节点，当前类型: " + start.getType());
             }
             return id;
         }

@@ -10,12 +10,17 @@ import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.mapper.TestFlowMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -24,22 +29,27 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>
  * 索引正文只存 {@link RouteRef}，整图走 {@link ParsedGraphCache}。
  * 失效订阅 {@link FlowExternalChangeHub}；miss 时扫项目未删流重建。
- * 冲突策略：先写入者胜（与历史 Catalog 扫描顺序一致）。
+ * 同 key 被多流占用时：入站查找不命中（拒绝双活），peers 列表仍暴露全部占用供保存门禁。
  */
 @Component
 public class OpenHttpRouteIndex {
+
+    private static final Logger log = LoggerFactory.getLogger(OpenHttpRouteIndex.class);
 
     private final TestFlowMapper testFlowMapper;
     private final ParsedGraphCache parsedGraphCache;
     private final FlowExternalChangeHub hub;
 
-    /** projectId → ( "METHOD path" → RouteRef ) */
-    private final ConcurrentHashMap<Long, Map<String, RouteRef>> byProject = new ConcurrentHashMap<>();
+    /** projectId → 重建后的查找索引与 peers 快照 */
+    private final ConcurrentHashMap<Long, ProjectRoutes> byProject = new ConcurrentHashMap<>();
 
     /** 项目索引重建次数（单测断言用） */
     private final AtomicInteger rebuildCount = new AtomicInteger();
 
     private Runnable unsubscribe;
+
+    /** 单项目路由快照：查找用去歧义索引 + 门禁用全量 peers */
+    record ProjectRoutes(Map<String, RouteRef> byKey, List<OpenHttpRouteCollisionGate.PeerRoute> peers) {}
 
     public OpenHttpRouteIndex(TestFlowMapper testFlowMapper,
                               ParsedGraphCache parsedGraphCache,
@@ -74,11 +84,11 @@ public class OpenHttpRouteIndex {
             return null;
         }
         String key = routeKey(m, p);
-        Map<String, RouteRef> index = byProject.get(testProjectId);
-        if (index == null) {
-            index = rebuild(testProjectId);
+        ProjectRoutes project = byProject.get(testProjectId);
+        if (project == null) {
+            project = rebuild(testProjectId);
         }
-        RouteRef ref = index.get(key);
+        RouteRef ref = project.byKey().get(key);
         if (ref == null) {
             return null;
         }
@@ -100,27 +110,17 @@ public class OpenHttpRouteIndex {
 
     /**
      * 列出项目内已占用的开放路由（供冲突门禁）。
-     * 索引未建时先重建；不附带整图。
+     * 含脏数据双活占用；索引未建时先重建；不附带整图。
      */
     public List<OpenHttpRouteCollisionGate.PeerRoute> listPeerRoutes(Long testProjectId) {
         if (testProjectId == null) {
             return List.of();
         }
-        Map<String, RouteRef> index = byProject.get(testProjectId);
-        if (index == null) {
-            index = rebuild(testProjectId);
+        ProjectRoutes project = byProject.get(testProjectId);
+        if (project == null) {
+            project = rebuild(testProjectId);
         }
-        List<OpenHttpRouteCollisionGate.PeerRoute> peers = new ArrayList<>(index.size());
-        for (RouteRef ref : index.values()) {
-            peers.add(new OpenHttpRouteCollisionGate.PeerRoute(
-                    ref.testFlowId(),
-                    ref.flowName(),
-                    ref.entryNodeId(),
-                    ref.nodeName(),
-                    ref.method(),
-                    ref.path()));
-        }
-        return peers;
+        return List.copyOf(project.peers());
     }
 
     /** 使某项目路由索引失效 */
@@ -144,12 +144,15 @@ public class OpenHttpRouteIndex {
     }
 
     /**
-     * 扫项目未删流重建索引；同 key 先写入者胜。
-     * 入口解析复用 {@link OpenHttpRouteCatalog#parseRoutes}，避免与 Catalog 双份解析逻辑。
+     * 扫项目未删流重建索引。
+     * 同 key 多流占用时从查找索引剔除（入站 404），peers 仍保留全部占用；
+     * 入口解析复用 {@link OpenHttpRouteCatalog#parseRoutes}。
      */
-    Map<String, RouteRef> rebuild(Long testProjectId) {
+    ProjectRoutes rebuild(Long testProjectId) {
         rebuildCount.incrementAndGet();
-        Map<String, RouteRef> next = new LinkedHashMap<>();
+        Map<String, RouteRef> byKey = new LinkedHashMap<>();
+        List<OpenHttpRouteCollisionGate.PeerRoute> peers = new ArrayList<>();
+        Set<String> ambiguousKeys = new HashSet<>();
         TestFlow query = new TestFlow();
         query.setTestProjectId(testProjectId);
         query.setDelStatus(0);
@@ -174,16 +177,37 @@ public class OpenHttpRouteIndex {
                     if (route == null || route.path() == null || route.path().isEmpty()) {
                         continue;
                     }
-                    next.putIfAbsent(
-                            routeKey(route.method(), route.path()),
-                            toRef(flow, graph, route));
+                    RouteRef ref = toRef(flow, graph, route);
+                    peers.add(new OpenHttpRouteCollisionGate.PeerRoute(
+                            ref.testFlowId(),
+                            ref.flowName(),
+                            ref.entryNodeId(),
+                            ref.nodeName(),
+                            ref.method(),
+                            ref.path()));
+                    String key = routeKey(route.method(), route.path());
+                    if (ambiguousKeys.contains(key)) {
+                        continue;
+                    }
+                    RouteRef previous = byKey.putIfAbsent(key, ref);
+                    if (previous != null && !Objects.equals(previous.testFlowId(), ref.testFlowId())) {
+                        byKey.remove(key);
+                        ambiguousKeys.add(key);
+                        log.warn(
+                                "开放 HTTP 路由双活：项目 {} 的 {} 同时被流 {} 与 {} 占用，入站暂不命中",
+                                testProjectId,
+                                key,
+                                previous.testFlowId(),
+                                ref.testFlowId());
+                    }
                 }
                 // 重建时顺带温热图缓存，避免随后 find 再 parse
                 parsedGraphCache.put(flow.getTestFlowId(), flow.getTestProjectId(), rev, graph);
             }
         }
-        byProject.put(testProjectId, next);
-        return next;
+        ProjectRoutes snapshot = new ProjectRoutes(Map.copyOf(byKey), List.copyOf(peers));
+        byProject.put(testProjectId, snapshot);
+        return snapshot;
     }
 
     private void onExternalChange(FlowExternalChangeEvent event) {

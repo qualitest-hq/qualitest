@@ -42,6 +42,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * 测试流业务层。
@@ -74,6 +76,9 @@ public class TestFlowServiceImpl implements ITestFlowService {
     /** 开放 HTTP 项目级路由索引（冲突门禁读 peers，避免保存时再全表 parse） */
     @Autowired
     private OpenHttpRouteIndex openHttpRouteIndex;
+
+    /** 同项目开放路由校验+写库串行化，避免并发保存双双通过 */
+    private final ConcurrentHashMap<Long, Object> openHttpRoutePersistLocks = new ConcurrentHashMap<>();
 
     /**
      * 查询测试流列表
@@ -184,17 +189,19 @@ public class TestFlowServiceImpl implements ITestFlowService {
             testFlow.setTestFlowId(IdUtil.getSnowflakeNextId());
         }
         validateFlowGroupAssignment(testFlow);
-        validateGraphJsonForPersist(
-                testFlow.getGraphJson(), testFlow.getTestProjectId(), testFlow.getTestFlowId());
-        testFlow.setCreateTime(DateUtils.getNowDate());
-        int rows = testFlowMapper.insertTestFlow(testFlow);
-        if (rows > 0 && testFlow.getTestFlowId() != null) {
-            flowExternalChangePublisher.publishFlowCreated(
-                    testFlow.getTestFlowId(),
-                    testFlow.getTestProjectId(),
-                    FlowExternalChangeSourceHolder.getOrDefault());
-        }
-        return rows;
+        return withOpenHttpRoutePersistLock(testFlow.getTestProjectId(), () -> {
+            validateGraphJsonForPersist(
+                    testFlow.getGraphJson(), testFlow.getTestProjectId(), testFlow.getTestFlowId());
+            testFlow.setCreateTime(DateUtils.getNowDate());
+            int rows = testFlowMapper.insertTestFlow(testFlow);
+            if (rows > 0 && testFlow.getTestFlowId() != null) {
+                flowExternalChangePublisher.publishFlowCreated(
+                        testFlow.getTestFlowId(),
+                        testFlow.getTestProjectId(),
+                        FlowExternalChangeSourceHolder.getOrDefault());
+            }
+            return rows;
+        });
     }
 
     /**
@@ -223,8 +230,10 @@ public class TestFlowServiceImpl implements ITestFlowService {
                 projectIdForGate = existing.getTestProjectId();
             }
         }
+        final Long routeProjectId = projectIdForGate;
+        return withOpenHttpRoutePersistLock(routeProjectId, () -> {
         validateGraphJsonForPersist(
-                testFlow.getGraphJson(), projectIdForGate, testFlow.getTestFlowId());
+                testFlow.getGraphJson(), routeProjectId, testFlow.getTestFlowId());
         boolean writingGraph = StrUtil.isNotBlank(testFlow.getGraphJson());
         FlowEditLeaseService.LeaseHandle lease = null;
         try {
@@ -294,6 +303,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
             }
             FlowGraphCommitPatchHolder.clear();
         }
+        });
     }
 
     /**
@@ -313,7 +323,16 @@ public class TestFlowServiceImpl implements ITestFlowService {
         if (patch == null) {
             throw new ServiceException("缺少图增量 patch");
         }
-        return mutateGraphUnderWriteLock(testFlowId, testProjectId, endpointId, true, (locked, base) -> {
+        // 路由锁须先于写锁，避免与 updateTestFlow 交叉死锁
+        Long routeProjectId = testProjectId;
+        if (routeProjectId == null && testFlowId != null) {
+            TestFlow existing = testFlowMapper.selectTestFlowById(testFlowId);
+            if (existing != null) {
+                routeProjectId = existing.getTestProjectId();
+            }
+        }
+        return withOpenHttpRoutePersistLock(routeProjectId, () ->
+        mutateGraphUnderWriteLock(testFlowId, testProjectId, endpointId, true, (locked, base) -> {
             if (base == null) {
                 throw new ServiceException("重载图为空");
             }
@@ -344,7 +363,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
                     merged,
                     warnings,
                     FlowGraphCommitPatchHolder.fromCapture(patch, merged));
-        });
+        }));
     }
 
     /**
@@ -418,7 +437,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
             throw new ServiceException("校验未通过，未写库：" + String.join("；", floor.getErrors()));
         }
         addAllNonBlank(warnings, floor.getWarnings());
-        // 开放 HTTP 路由冲突属于硬错误，直接拒绝写库
+        // 开放 HTTP 路由冲突属于硬错误，直接拒绝写库（调用方须已持项目路由锁）
         List<String> routeErrors = collectOpenHttpRouteCollisionErrors(graph, testProjectId, testFlowId);
         if (!routeErrors.isEmpty()) {
             throw new ServiceException("校验未通过，未写库：" + String.join("；", routeErrors));
@@ -677,6 +696,31 @@ public class TestFlowServiceImpl implements ITestFlowService {
                 ? openHttpRouteIndex.listPeerRoutes(testProjectId)
                 : List.of();
         return OpenHttpRouteCollisionGate.validate(graph, testFlowId, peers);
+    }
+
+    /**
+     * 列出项目内已占用的开放 HTTP 路由（画布跨流预检用）。
+     */
+    @Override
+    public List<OpenHttpRouteCollisionGate.PeerRoute> listOpenHttpPeerRoutes(Long testProjectId) {
+        if (testProjectId == null) {
+            return List.of();
+        }
+        return openHttpRouteIndex.listPeerRoutes(testProjectId);
+    }
+
+    /**
+     * 同项目串行化开放路由校验与写库；进入前使索引失效，保证 peers 来自最新库表。
+     */
+    private <T> T withOpenHttpRoutePersistLock(Long testProjectId, Supplier<T> action) {
+        if (testProjectId == null) {
+            return action.get();
+        }
+        Object lock = openHttpRoutePersistLocks.computeIfAbsent(testProjectId, id -> new Object());
+        synchronized (lock) {
+            openHttpRouteIndex.invalidateProject(testProjectId);
+            return action.get();
+        }
     }
 
     /**

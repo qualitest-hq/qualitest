@@ -36,6 +36,7 @@ import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.flow.diagnose.ApiFlowReferenceScanService;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
 import com.qualitest.flow.sync.FlowEditLeaseService;
+import com.qualitest.flow.validate.OpenHttpRouteCollisionGate;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.common.core.text.Convert;
 import com.qualitest.common.utils.poi.ExcelUtil;
@@ -90,6 +91,21 @@ public class TestFlowController extends BaseController {
         List<TestFlowResult> list = testFlowService.selectTestFlowResultList(params);
         ExcelUtil<TestFlowResult> util = new ExcelUtil<>(TestFlowResult.class);
         util.exportExcel(response, list, "测试流数据");
+    }
+
+    /**
+     * 列出项目内已占用的开放 HTTP 路由（画布跨流 method+path 预检）。
+     * 需查看测试流与跑流记录权限。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @GetMapping("/openHttpRoutes")
+    public R<List<OpenHttpRouteCollisionGate.PeerRoute>> listOpenHttpRoutes(
+            @RequestParam("testProjectId") Long testProjectId) {
+        if (testProjectId == null) {
+            throw new ServiceException("testProjectId 不能为空");
+        }
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.FLOW_VIEW);
+        return ok(testFlowService.listOpenHttpPeerRoutes(testProjectId));
     }
 
     /**

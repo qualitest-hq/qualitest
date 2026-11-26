@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.flow.model.GraphJson;
+import com.qualitest.flow.validate.OpenHttpRouteCollisionGate;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.params.CreateSubflowFromTemplateParams;
 import com.qualitest.project.params.TestFlowParams;
@@ -150,4 +151,12 @@ public interface ITestFlowService {
      * @return 新测试流 id
      */
     Long createFromSubflowTemplate(CreateSubflowFromTemplateParams params);
+
+    /**
+     * 列出项目内已占用的开放 HTTP 路由（画布跨流预检）。
+     *
+     * @param testProjectId 测试项目 id
+     * @return 已占用路由；项目 id 为空时为空列表
+     */
+    List<OpenHttpRouteCollisionGate.PeerRoute> listOpenHttpPeerRoutes(Long testProjectId);
 }

@@ -1,6 +1,8 @@
 package com.qualitest.flow.run;
 
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.exception.FlowErrorCode;
+import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepResult;
@@ -27,7 +29,7 @@ class GraphWalkerTest {
 
     /**
      * 前提：branch-graph；flow.code=0 命中 IF。
-     * 期望：开始 n_start；branchTaken=b_if；next=n_ok，边 e_if。
+     * 期望：拓扑开始为场景入口；branchTaken=b_if；next=n_ok，边 e_if。
      */
     @Test
     @Order(1)
@@ -35,7 +37,7 @@ class GraphWalkerTest {
     void resolveNext_conditionIfBranch() {
         GraphJson graph = loadGraph("flow/branch-graph.json");
         GraphWalker walker = new GraphWalker(graph);
-        assertEquals("n_start", walker.findUniqueStartNodeId());
+        assertEquals("scn_entry_1795425561320", walker.findUniqueStartNodeId());
 
         FlowRunContext ctx = new FlowRunContext();
         ctx.getFlow().put("code", 0);
@@ -159,6 +161,50 @@ class GraphWalkerTest {
         assertEquals("b_if", condResult.getBranchTaken().get("branchId"));
 
         assertNull(walker.resolveNextNodeId(condNode, condResult));
+    }
+
+    /**
+     * 前提：图含入口与业务节点；显式传入业务节点 id。
+     * 期望：抛 TF_START_NODE（只有入口可作开始）。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("显式 entryNodeId 非入口类型时拒绝开跑")
+    void resolveStartNodeId_rejectsNonEntry() {
+        String json = """
+                {
+                  "nodes":[
+                    {"id":"e1","type":"scenario-entry","name":"场景入口","position":{"x":0,"y":0},"data":{}},
+                    {"id":"n1","type":"assign","name":"赋值","position":{"x":120,"y":0},"data":{"assignments":[]}}
+                  ],
+                  "edges":[{"id":"e","source":"e1","target":"n1"}]
+                }
+                """;
+        GraphWalker walker = new GraphWalker(GraphJson.parse(json));
+        FlowExecutionException ex = assertThrows(
+                FlowExecutionException.class,
+                () -> walker.resolveStartNodeId("n1"));
+        assertEquals(FlowErrorCode.TF_START_NODE, ex.getErrorCode());
+    }
+
+    /**
+     * 前提：图含场景入口；显式传入该入口 id。
+     * 期望：返回入口 id。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("显式 entryNodeId 为入口时可用")
+    void resolveStartNodeId_acceptsEntry() {
+        String json = """
+                {
+                  "nodes":[
+                    {"id":"e1","type":"scenario-entry","name":"场景入口","position":{"x":0,"y":0},"data":{}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphWalker walker = new GraphWalker(GraphJson.parse(json));
+        assertEquals("e1", walker.resolveStartNodeId("e1"));
     }
 
     /** 从 classpath 加载夹具图 JSON */

@@ -45,6 +45,25 @@ export function listTestFlow(query?: TestFlowListParams) {
   });
 }
 
+/** 项目内已占用的开放 HTTP 路由（画布跨流预检） */
+export interface OpenHttpPeerRouteRecord {
+  testFlowId?: string | number;
+  flowName?: string;
+  nodeId?: string;
+  nodeName?: string;
+  method?: string;
+  path?: string;
+}
+
+/** 列出项目内已占用的开放 HTTP method+path */
+export function listOpenHttpRoutes(testProjectId: string | number) {
+  return request({
+    url: '/project/testFlow/openHttpRoutes',
+    method: 'get',
+    params: { testProjectId },
+  });
+}
+
 export function getTestFlow(testFlowId: string | number) {
   return request({
     url: `/project/testFlow/${testFlowId}`,

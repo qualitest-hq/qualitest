@@ -6,7 +6,7 @@
           <div>
             <div id="importModalTitle" class="import-modal__title">导入 graph_json</div>
             <div class="import-modal__subtitle">
-              支持粘贴 JSON、选择 .json 文件或从剪贴板读取；导入前自动校验结构与引用关系
+              支持粘贴 JSON、选择 .json 文件或从剪贴板读取；半成品可导入，挂图问题导入后在画布继续修
             </div>
           </div>
           <button class="btn btn--ghost" type="button" @click="close">×</button>
@@ -86,7 +86,11 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
-import { unwrapGraphPayload, validateGraphJson } from '@/utils/flow/graphValidate'
+import {
+  collectHttpRouteSelfCollisionErrors,
+  unwrapGraphPayload,
+  validateGraphJson,
+} from '@/utils/flow/graphValidate'
 
 import { useFlowGraph } from '../composables/useFlowGraph'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
@@ -112,7 +116,7 @@ const preview = computed(() => {
   if (parseError.value) return { parseError: parseError.value }
   if (!validationResult.value) return null
 
-  const { ok, errors, warnings, graph } = validationResult.value
+  const { ok, errors, warnings, softErrors, graph } = validationResult.value
   const nodes = graph?.nodes || []
   const edges = graph?.edges || []
   const typeCount = {}
@@ -122,11 +126,21 @@ const preview = computed(() => {
   const typeSummary = Object.entries(typeCount).map(([t, c]) => `${c} ${t}`).join(' · ') || '无'
 
   const items = []
-  if (ok) items.push({ class: 'import-preview__item--ok', text: '结构校验通过，可以导入' })
+  if (ok) {
+    items.push({
+      class: 'import-preview__item--ok',
+      text: softErrors?.length
+        ? '落盘地板通过，可以导入（导入后请在画布修挂图问题）'
+        : '结构校验通过，可以导入',
+    })
+  }
   errors.forEach((msg) => items.push({ class: 'import-preview__item--error', text: `✗ ${msg}` }))
-  warnings.slice(0, 8).forEach((msg) => items.push({ class: 'import-preview__item--warn', text: `⚠ ${msg}` }))
-  if (warnings.length > 8) {
-    items.push({ class: 'import-preview__item--warn', text: `… 另有 ${warnings.length - 8} 条警告` })
+  const hints = [...(softErrors || []), ...(warnings || [])]
+  hints.slice(0, 8).forEach((msg) => {
+    items.push({ class: 'import-preview__item--warn', text: `⚠ ${msg}` })
+  })
+  if (hints.length > 8) {
+    items.push({ class: 'import-preview__item--warn', text: `… 另有提示项，导入后见画布校验条` })
   }
 
   return {
@@ -138,7 +152,7 @@ const preview = computed(() => {
 
 const canConfirm = computed(() => validationResult.value?.ok === true)
 
-/** 解析文本并更新校验预览 */
+/** 解析文本并更新校验预览（地板硬拦；全量问题降为导入提示） */
 function refreshPreview() {
   parseError.value = null
   validationResult.value = null
@@ -148,9 +162,16 @@ function refreshPreview() {
     let data = JSON.parse(text)
     if (typeof data === 'string') data = JSON.parse(data)
     const unwrapped = unwrapGraphPayload(data)
-    const result = validateGraphJson(unwrapped)
+    const floor = validateGraphJson(unwrapped, { persistMinimalOnly: true })
+    const routeSelf = collectHttpRouteSelfCollisionErrors(unwrapped?.nodes)
+    const full = validateGraphJson(unwrapped)
+    const blocking = [...(floor.errors || []), ...routeSelf]
+    const softErrors = (full.errors || []).filter((msg) => !blocking.includes(msg))
     validationResult.value = {
-      ...result,
+      ok: blocking.length === 0,
+      errors: blocking,
+      softErrors,
+      warnings: full.warnings || [],
       graph: unwrapped,
       raw: data,
     }

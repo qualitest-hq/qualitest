@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  collectHttpRoutePeerCollisionErrors,
   collectHttpRouteSelfCollisionErrors,
   DEFERRED_MULTI_START_WARNING,
   DEFERRED_NO_START_WARNING,
@@ -724,6 +725,47 @@ describe('validateStartNodes', () => {
     const full = validateGraphJson({ nodes, edges: [] });
     expect(full.ok).toBe(false);
     expect(full.errors.some((e) => e.includes('开放 HTTP 入口冲突'))).toBe(true);
+  });
+
+  it('跨流 method+path 占用可预检', () => {
+    // 前提：本流 POST /pay；peers 中另一流已占用同键
+    // 期望：collectHttpRoutePeerCollisionErrors 报占用方；排除当前流自身
+    const nodes = [
+      {
+        id: 'e1',
+        type: 'http-entry',
+        name: '本流入站',
+        position: { x: 0, y: 0 },
+        data: {
+          method: 'POST',
+          path: '/pay',
+          envId: '1',
+          fallbackOut: { status: 500, headers: {}, body: {} },
+        },
+      },
+    ];
+    const peers = [
+      {
+        testFlowId: '99',
+        flowName: '支付流',
+        nodeId: 'other',
+        nodeName: '旧入口',
+        method: 'POST',
+        path: '/pay',
+      },
+      {
+        testFlowId: '1',
+        flowName: '当前流',
+        nodeId: 'e1',
+        nodeName: '本流入站',
+        method: 'POST',
+        path: '/pay',
+      },
+    ];
+    const errors = collectHttpRoutePeerCollisionErrors(nodes as never, peers, '1');
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('支付流');
+    expect(errors[0]).toContain('旧入口');
   });
 
   it('同序双 http-return 画布校验标异常', () => {

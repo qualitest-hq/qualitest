@@ -7,11 +7,15 @@
  */
 import { computed, type ComputedRef } from 'vue'
 
-import { validateGraphJson } from '@/utils/flow/graphValidate'
+import {
+  collectHttpRoutePeerCollisionErrors,
+  validateGraphJson,
+} from '@/utils/flow/graphValidate'
 
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useApiHealthStore } from '../stores/apiHealthStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
+import { useOpenHttpRouteStore } from '../stores/openHttpRouteStore'
 import { useRunRiskStore } from '../stores/runRiskStore'
 import {
   collectIssueNodeIds,
@@ -19,6 +23,7 @@ import {
   issuesFromGraphValidation,
   issuesFromRunRiskWarnings,
   issuesFromStagingConfirmFailures,
+  resolveNodeIdsFromMessage,
   type FlowCanvasValidationIssue,
 } from '../utils/flowValidationIssues'
 import { hasPendingStagingEdgeUnits } from '../utils/stagingUnitIds'
@@ -36,6 +41,7 @@ function createFlowValidation(): FlowValidationApi {
   const canvasStore = useFlowCanvasStore()
   const apiHealth = useApiHealthStore()
   const runRisk = useRunRiskStore()
+  const openHttpRoutes = useOpenHttpRouteStore()
 
   /**
    * 可落盘图单独缓存：只随画布节点 / 边 / Staging 单元变化重算。
@@ -48,8 +54,20 @@ function createFlowValidation(): FlowValidationApi {
     const stagingUnits = Object.values(stagingStore.unitsById)
     const deferTopologyStructureRules = hasPendingStagingEdgeUnits(stagingUnits)
     const validation = validateGraphJson(graph, { deferTopologyStructureRules })
+    const peerRouteErrors = collectHttpRoutePeerCollisionErrors(
+      graph.nodes,
+      openHttpRoutes.peers,
+      canvasStore.testFlowId,
+    )
+    const peerIssues: FlowCanvasValidationIssue[] = peerRouteErrors.map((message) => ({
+      level: 'error',
+      message,
+      nodeIds: resolveNodeIdsFromMessage(message, graph),
+      source: 'structure',
+    }))
     return [
       ...issuesFromGraphValidation(validation, graph),
+      ...peerIssues,
       ...issuesFromStagingConfirmFailures(stagingUnits, canvasStore.edges),
       ...issuesFromRunRiskWarnings(runRisk.warnings),
       ...issuesFromApiHealthWarnings(apiHealth.warnings),

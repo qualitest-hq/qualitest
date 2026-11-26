@@ -1040,6 +1040,63 @@ export function collectHttpRouteSelfCollisionErrors(
   return errors;
 }
 
+/** 其它流已占用的开放路由（与后端 PeerRoute 对齐） */
+export type OpenHttpPeerRoute = {
+  testFlowId?: string | number | null
+  flowName?: string | null
+  nodeId?: string | null
+  nodeName?: string | null
+  method?: string | null
+  path?: string | null
+}
+
+/**
+ * 本流 http-entry 与同项目其它流的 method+path 冲突。
+ * peers 通常来自 GET /project/testFlow/openHttpRoutes。
+ */
+export function collectHttpRoutePeerCollisionErrors(
+  nodes: GraphNode[] | undefined | null,
+  peers: OpenHttpPeerRoute[] | undefined | null,
+  currentFlowId?: string | number | null,
+): string[] {
+  const errors: string[] = [];
+  if (!nodes?.length || !peers?.length) return errors;
+  const currentId = currentFlowId != null && String(currentFlowId).trim()
+    ? String(currentFlowId).trim()
+    : '';
+  const localOwners = new Map<string, string>();
+  for (const n of nodes) {
+    if (!n || n.type !== 'http-entry') continue;
+    const path = normalizeOpenHttpPath(n.data?.path);
+    if (!path) continue;
+    const method = normalizeOpenHttpMethod(n.data?.method);
+    const key = `${method} ${path}`;
+    if (!localOwners.has(key)) {
+      localOwners.set(key, resolveGraphNodeName(n));
+    }
+  }
+  for (const [key, localLabel] of localOwners) {
+    for (const peer of peers) {
+      if (!peer) continue;
+      const peerFlowId = peer.testFlowId != null ? String(peer.testFlowId).trim() : '';
+      if (currentId && peerFlowId && currentId === peerFlowId) continue;
+      const peerPath = normalizeOpenHttpPath(peer.path);
+      if (!peerPath) continue;
+      const peerKey = `${normalizeOpenHttpMethod(peer.method)} ${peerPath}`;
+      if (key !== peerKey) continue;
+      const peerFlowLabel = (peer.flowName && String(peer.flowName).trim())
+        || (peerFlowId ? `#${peerFlowId}` : '?');
+      const peerNodeLabel = (peer.nodeName && String(peer.nodeName).trim())
+        || (peer.nodeId && String(peer.nodeId).trim())
+        || '?';
+      errors.push(
+        `开放 HTTP 入口冲突：${key} 已被流「${peerFlowLabel}」的入口「${peerNodeLabel}」占用（本流节点「${localLabel}」）`,
+      );
+    }
+  }
+  return errors;
+}
+
 function appendHttpRouteSelfCollisionErrors(nodes: GraphNode[], errors: string[]): void {
   const owners = new Map<string, string>();
   for (const n of nodes) {

@@ -151,7 +151,7 @@ export function useFlowBatchRun() {
             entryNodeId: row.entryNodeId,
             runScenarioId: row.runScenarioId,
             testProjectEnvId: envId,
-            triggerType: 'suite',
+            triggerType: 'ui',
           })
           if (abortRequested) {
             row.status = 'skipped'

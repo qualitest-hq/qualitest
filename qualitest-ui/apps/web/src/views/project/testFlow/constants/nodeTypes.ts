@@ -88,7 +88,8 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     desc: '开放入站 · method/path/fallbackOut',
     defaults: {
       method: 'POST',
-      path: '/api/demo',
+      /** 空 path：避免连拖多个入口时默认撞车；半成品可存，配好 path 后再开放 */
+      path: '',
       envId: '',
       doc: '',
       maxSteps: 200,
