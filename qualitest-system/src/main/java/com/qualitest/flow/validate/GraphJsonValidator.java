@@ -7,6 +7,7 @@ import com.qualitest.flow.context.CompareRuleEvaluator;
 import com.qualitest.flow.context.JsonPathFacade;
 import com.qualitest.flow.context.PlaceholderResolver;
 import com.qualitest.flow.delivery.EntryKind;
+import com.qualitest.flow.delivery.HttpStatusCodes;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.HttpRetryUntilSupport;
 import com.qualitest.flow.input.InputFieldTypes;
@@ -221,6 +222,21 @@ public class GraphJsonValidator {
         String envId = envRaw == null ? "" : String.valueOf(envRaw).trim();
         if (envId.isEmpty()) {
             errors.add("HTTP 入口「" + label + "」须配置 envId");
+        }
+    }
+
+    /**
+     * HTTP 入口兜底出参须为完整包：status 为 100–599 的数字，且含 headers / body 键（值可为 null）。
+     */
+    private void appendHttpFallbackOutShapeErrors(String label, Map<?, ?> fb, List<String> errors) {
+        if (HttpStatusCodes.coerce(fb.get("status")) == null) {
+            errors.add("HTTP 入口「" + label + "」的 fallbackOut.status 须为 100–599 的数字");
+        }
+        if (!fb.containsKey("headers")) {
+            errors.add("HTTP 入口「" + label + "」的 fallbackOut 须含 headers");
+        }
+        if (!fb.containsKey("body")) {
+            errors.add("HTTP 入口「" + label + "」的 fallbackOut 须含 body");
         }
     }
 
@@ -479,9 +495,7 @@ public class GraphJsonValidator {
             errors.add(p + " 返回节点「" + displayName + "」缺少 from");
         }
         if (FlowNodeType.HTTP_RETURN.matches(type) && data != null && data.containsKey("status")) {
-            Object statusRaw = data.get("status");
-            Integer status = tryParsePositiveInt(statusRaw);
-            if (status == null || status < 100 || status > 599) {
+            if (HttpStatusCodes.coerce(data.get("status")) == null) {
                 errors.add(p + " http-return「" + displayName + "」status 须为 100–599 的整数");
             }
         }
@@ -1341,6 +1355,9 @@ public class GraphJsonValidator {
                 if (!(fb instanceof Map<?, ?>)) {
                     errors.add("入口节点「" + formatTypedStartNodeName(nodes, n.getId())
                             + "」须配置 fallbackOut");
+                } else if (FlowNodeType.HTTP_ENTRY.matches(n.getType())) {
+                    appendHttpFallbackOutShapeErrors(
+                            formatTypedStartNodeName(nodes, n.getId()), (Map<?, ?>) fb, errors);
                 }
             }
         }

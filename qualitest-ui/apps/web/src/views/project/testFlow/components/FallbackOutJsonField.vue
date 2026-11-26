@@ -1,8 +1,9 @@
 <template>
   <div class="field">
     <label>fallbackOut（JSON）</label>
-    <textarea :value="text" rows="8" @change="onChange" />
-    <div v-if="hint" class="field__hint">{{ hint }}</div>
+    <textarea :value="draft" rows="8" @input="onInput" @change="onChange" />
+    <div v-if="parseError" class="field__error">{{ parseError }}</div>
+    <div v-else-if="hint" class="field__hint">{{ hint }}</div>
   </div>
 </template>
 
@@ -10,10 +11,10 @@
 /**
  * 入口兜底出参（fallbackOut）的 JSON 编辑框。
  * HTTP 入口通常编完整包（status/headers/body）；子流入口通常只编业务对象。
- * 展示时把对象格式化成多行 JSON；失焦（change）时解析回对象并写回。
- * 解析失败则丢弃本次输入，不覆盖原值。具体形状由父组件 hint 说明。
+ * 展示时把对象格式化成多行 JSON；输入过程保留草稿；失焦时解析：
+ * 合法 JSON 对象写回；非法或不为对象则提示错误且不覆盖原值。
  */
-import { computed } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps({
   /** 当前兜底出参对象；空则按 {} 展示 */
@@ -24,24 +25,49 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-/** 供文本框展示的 JSON 字符串 */
-const text = computed(() => {
+const draft = ref('')
+const parseError = ref('')
+
+function formatValue(v) {
   try {
-    return JSON.stringify(props.modelValue ?? {}, null, 2)
+    return JSON.stringify(v ?? {}, null, 2)
   } catch {
     return '{}'
   }
-})
+}
+
+watch(
+  () => props.modelValue,
+  (v) => {
+    draft.value = formatValue(v)
+    parseError.value = ''
+  },
+  { immediate: true, deep: true },
+)
+
+function onInput(e) {
+  draft.value = e.target.value
+  if (parseError.value) parseError.value = ''
+}
 
 /**
  * 失焦解析文本框内容。
- * 合法 JSON 对象写回；非法则忽略。
+ * 合法 JSON 对象写回；数组 / 标量 / 非法 JSON 提示错误且不写回。
  */
 function onChange(e) {
+  const raw = e.target.value || ''
   try {
-    emit('update:modelValue', JSON.parse(e.target.value || '{}'))
+    const parsed = JSON.parse(raw || '{}')
+    if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      parseError.value = 'fallbackOut 须为 JSON 对象'
+      draft.value = raw
+      return
+    }
+    parseError.value = ''
+    emit('update:modelValue', parsed)
   } catch {
-    /* 非法 JSON：不写回 */
+    parseError.value = 'JSON 无法解析，已保留原值'
+    draft.value = raw
   }
 }
 </script>
@@ -55,5 +81,11 @@ function onChange(e) {
 
 .field__hint {
   @include prop.flow-prop-field-hint;
+}
+
+.field__error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-color-danger, #dc2626);
 }
 </style>

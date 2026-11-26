@@ -891,6 +891,8 @@ function appendReturnAndEntryRules(
       const fb = n.data?.fallbackOut;
       if (fb == null || typeof fb !== 'object' || Array.isArray(fb)) {
         errors.push(`入口节点「${resolveGraphNodeName(n)}」须配置 fallbackOut`);
+      } else if (n.type === 'http-entry') {
+        appendHttpFallbackOutShapeErrors(n, fb as Record<string, unknown>, errors);
       }
     }
     if (n.type === 'scenario-entry' && n.data?.fallbackOut != null) {
@@ -959,6 +961,37 @@ function appendHttpEntryFieldErrors(n: GraphNode, errors: string[]): void {
   if (!envId) {
     errors.push(`HTTP 入口「${label}」须配置 envId`);
   }
+}
+
+/** HTTP 入口 fallbackOut 须含合法 status（100–599）以及 headers / body 键 */
+function appendHttpFallbackOutShapeErrors(
+  n: GraphNode,
+  fb: Record<string, unknown>,
+  errors: string[],
+): void {
+  const label = resolveGraphNodeName(n);
+  if (coerceHttpStatus(fb.status) == null) {
+    errors.push(`HTTP 入口「${label}」的 fallbackOut.status 须为 100–599 的数字`);
+  }
+  if (!Object.prototype.hasOwnProperty.call(fb, 'headers')) {
+    errors.push(`HTTP 入口「${label}」的 fallbackOut 须含 headers`);
+  }
+  if (!Object.prototype.hasOwnProperty.call(fb, 'body')) {
+    errors.push(`HTTP 入口「${label}」的 fallbackOut 须含 body`);
+  }
+}
+
+/** 解析 HTTP 状态码；非法或不在 100–599 返回 null */
+function coerceHttpStatus(raw: unknown): number | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const v = Math.trunc(raw);
+    return v >= 100 && v <= 599 ? v : null;
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    const v = Number.parseInt(raw.trim(), 10);
+    if (!Number.isNaN(v) && v >= 100 && v <= 599) return v;
+  }
+  return null;
 }
 
 /**
@@ -1162,19 +1195,16 @@ function appendMetaRunError(graph: Record<string, unknown>, errors: string[]): v
   if (!nodes.length) {
     return;
   }
-  if (nodes.some(entryHasScenarios)) {
-    return;
+  // 每个场景入口各自须挂非空 scenarios（多入口不能互相顶替）
+  for (const n of nodes) {
+    if (!isScenarioEntryNode(n)) continue;
+    if (entryHasScenarios(n)) continue;
+    const name =
+      n && typeof n === 'object' && !Array.isArray(n)
+        ? resolveGraphNodeName(n as GraphNode)
+        : 'scenario-entry';
+    errors.push(`场景入口「${name}」须配置非空 data.scenarios（含 inSeed）`);
   }
-  const hasScenarioEntry = nodes.some(isScenarioEntryNode);
-  if (hasScenarioEntry) {
-    errors.push('scenario-entry 须配置非空 data.scenarios（含 inSeed）');
-    return;
-  }
-  // 仅有 HTTP / 子流入口、不依赖人跑场景时，不要求 scenarios
-  if (nodes.some((n) => isEntryNode(n) && !isScenarioEntryNode(n))) {
-    return;
-  }
-  // 有节点但无入口时，开始节点规则已报「须配置入口」，此处不再叠「缺少运行场景」
 }
 
 /** 校验测试流图 JSON；按 options 选择完整规则或仅落库地板 */

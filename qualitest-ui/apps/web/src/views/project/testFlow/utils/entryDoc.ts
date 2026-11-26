@@ -92,6 +92,13 @@ export function summarizeInputShape(inputShape: unknown): {
 }
 
 /**
+ * 将子流入口 inputDecl 压成短文案列表（name · type · 必填）。
+ */
+export function summarizeInputDecl(inputDecl: unknown): string[] {
+  return summarizeFieldList(inputDecl);
+}
+
+/**
  * 将场景条目压成只读摘要：场景名、绑定环境 id、入参值树的键名列表。
  * 不输出 inSeed 的具体取值，避免在说明面泄露测值明文。
  */

@@ -43,7 +43,13 @@
             <p class="entry-doc-drawer__line">
               兜底出参：{{ activeEntry.data.fallbackOut ? '已配置' : '未配置' }}
             </p>
-            <InputShapeSummary :input-shape="activeEntry.data.inputShape" />
+            <div class="entry-doc-drawer__decl">
+              <div class="entry-doc-drawer__decl-title">入参声明 inputDecl</div>
+              <ul v-if="inputDeclRows.length" class="entry-doc-drawer__decl-list">
+                <li v-for="(row, i) in inputDeclRows" :key="i">{{ row }}</li>
+              </ul>
+              <p v-else class="entry-doc-drawer__hint">（无）</p>
+            </div>
           </template>
           <template v-else-if="activeEntry.type === 'scenario-entry'">
             <ul v-if="scenarioRows.length" class="entry-doc-drawer__scenarios">
@@ -76,6 +82,7 @@ import { nodeTypeLabel } from '@/utils/flow/nodeTypes';
 
 import {
   extractEntryNodesFromGraph,
+  summarizeInputDecl,
   summarizeScenarios,
   type EntryDocNode,
 } from '../utils/entryDoc';
@@ -115,6 +122,12 @@ const activeEntry = computed(() => entries.value.find((e) => e.id === activeId.v
 const scenarioRows = computed(() => {
   if (activeEntry.value?.type !== 'scenario-entry') return [];
   return summarizeScenarios(activeEntry.value.data.scenarios);
+});
+
+/** 子流入口 inputDecl 摘要行 */
+const inputDeclRows = computed(() => {
+  if (activeEntry.value?.type !== 'subflow-entry') return [];
+  return summarizeInputDecl(activeEntry.value.data.inputDecl);
 });
 
 /** 抽屉打开或测流 id 变化时重新加载入口 */
@@ -217,6 +230,23 @@ async function loadEntries(testFlowId: string | number) {
 .entry-doc-drawer__line {
   margin: 0 0 8px;
   font-size: 13px;
+}
+
+.entry-doc-drawer__decl {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.entry-doc-drawer__decl-title {
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.entry-doc-drawer__decl-list {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.5;
+  color: var(--el-text-color-regular, #606266);
 }
 
 .entry-doc-drawer__scenarios {

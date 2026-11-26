@@ -49,17 +49,22 @@ public enum RunTrigger {
     }
 
     /**
-     * 规范化触发源：空白按 ui 处理，其余去首尾空白并转小写。
-     * 不校验是否为已知触发源，未知值以小写串原样返回。
+     * 规范化触发源：空白按 ui 处理；已知短名去首尾空白并转小写；未知值回落为 ui。
      *
      * @param raw 原始触发源文本
-     * @return 规范化后的短名
+     * @return 规范化后的短名（仅 ui / suite / http / mcp / subflow）
      */
     public static String normalize(String raw) {
         if (StrUtil.isBlank(raw)) {
             return UI.code;
         }
-        return raw.trim().toLowerCase(Locale.ROOT);
+        String c = raw.trim().toLowerCase(Locale.ROOT);
+        for (RunTrigger t : values()) {
+            if (t.code.equals(c)) {
+                return t.code;
+            }
+        }
+        return UI.code;
     }
 
     /**

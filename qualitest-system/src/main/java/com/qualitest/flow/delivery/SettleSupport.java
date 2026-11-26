@@ -78,14 +78,15 @@ public final class SettleSupport {
     }
 
     /**
-     * 判断 Map 是否已是完整出参形（含 body、status、headers 任一键）。
+     * 判断 Map 是否已是完整出参形。
+     * 以可解析的 HTTP 状态码为准，避免子流业务对象里的字符串 status 被误判。
      * 旧子流图若仍存完整形，走此分支照挂，不做 body 再包装。
      */
     private static boolean isFullOutShape(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
             return false;
         }
-        return map.containsKey("body") || map.containsKey("status") || map.containsKey("headers");
+        return HttpStatusCodes.coerce(map.get("status")) != null;
     }
 
     /**

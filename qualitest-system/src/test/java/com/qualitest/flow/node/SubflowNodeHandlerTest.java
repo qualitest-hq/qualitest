@@ -241,11 +241,31 @@ class SubflowNodeHandlerTest {
     }
 
     /**
+     * 前提：父节点指定错误的 entryNodeId（非 subflow-entry）。
+     * 期望：failed；TF_SUBFLOW_INVALID；消息含 subflow-entry。
+     */
+    @Test
+    @Order(8)
+    @DisplayName("子流：entryNodeId 非 subflow-entry 拒绝")
+    void execute_entryNodeIdNotSubflowEntry_fails() {
+        GraphNode node = subflowNode(nodeData(
+                "name", "错入口",
+                "subflowId", String.valueOf(SUBFLOW_ID),
+                "entryNodeId", "c1",
+                "inputs", List.of()
+        ));
+        StepResult result = handler.execute(parentCtx, node, null);
+        assertEquals(RunStatus.FAILED.getCode(), result.getStatus());
+        assertEquals(FlowErrorCode.TF_SUBFLOW_INVALID.getCode(), result.getError().getCode());
+        assertTrue(result.getError().getMessage().contains("subflow-entry"));
+    }
+
+    /**
      * 前提：就绪门禁返回缺 fallbackOut 等 blocking 错误。
      * 期望：failed；TF_GRAPH_INVALID；不进入子 runner（无 childSteps）。
      */
     @Test
-    @Order(8)
+    @Order(9)
     @DisplayName("子流：图未就绪则硬拦不进 runner")
     void execute_childGraphNotReady_failsWithoutRunning() {
         FlowGraphRunner runnerSpy = org.mockito.Mockito.spy(flowGraphRunner);

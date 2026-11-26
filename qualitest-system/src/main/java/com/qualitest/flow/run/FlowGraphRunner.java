@@ -206,15 +206,15 @@ public class FlowGraphRunner {
                     try {
                         nextId = walker.resolveNextNodeId(node, result);
                     } catch (FlowExecutionException ex) {
-                        return Outcome.failed(steps, ctx, error, steps.size());
+                        // 下一跳解析失败（如 IF 未命中任何臂）仍须收束：零次 return 时补交兜底
+                        return failedAfterSettle(snapshot, ctx, steps, error);
                     }
                     String nextEdgeId = nextId != null ? walker.findEdgeId(fromId, nextId) : null;
                     runPostFailureContinue(walker, ctx, registry, preExecuteHook, steps, onStep,
                             visitedNodeIds, postState, nextId, nextEdgeId);
                 }
                 // 失败后继续扫完仍要收束：开放/子流零次返回节点时补交兜底
-                StepError settleErr = SettleSupport.settle(ctx, snapshot, runDelivery);
-                return Outcome.failed(steps, ctx, error != null ? error : settleErr, steps.size());
+                return failedAfterSettle(snapshot, ctx, steps, error);
             }
 
             stepIndex++;
@@ -243,7 +243,13 @@ public class FlowGraphRunner {
                 continue;
             }
 
-            currentId = walker.resolveNextNodeId(node, result);
+            try {
+                currentId = walker.resolveNextNodeId(node, result);
+            } catch (FlowExecutionException ex) {
+                // 成功步后下一跳非法（如目标节点缺失）仍收束，避免开放/子流漏交付
+                return failedAfterSettle(snapshot, ctx, steps,
+                        StepError.of(ex.getErrorCode(), ex.getMessage()));
+            }
             incomingEdgeId = currentId != null ? walker.findEdgeId(fromId, currentId) : null;
         }
 

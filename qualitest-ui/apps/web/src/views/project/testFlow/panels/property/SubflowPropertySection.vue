@@ -33,6 +33,17 @@
       </div>
     </div>
 
+    <div v-if="subflowIdVal && childEntryOptions.length" class="field">
+      <label>子流入口</label>
+      <select :value="entryNodeIdVal" @change="onEntryNodeChange">
+        <option v-if="childEntryOptions.length > 1" value="">— 请选择 —</option>
+        <option v-for="opt in childEntryOptions" :key="opt.id" :value="opt.id">
+          {{ opt.label }}
+        </option>
+      </select>
+      <div class="field__hint">多入口时须指定从哪个 subflow-entry 进入</div>
+    </div>
+
     <div class="field">
       <label>输入映射（inputs）</label>
       <div v-for="(row, idx) in inputRows" :key="'in-' + idx" class="subflow-io-row">
@@ -53,6 +64,7 @@
         <button class="subflow-io-del" type="button" @click="removeInput(idx)">×</button>
       </div>
       <button class="btn btn--ghost btn--sm" type="button" @click="addInput">+ 添加输入</button>
+      <div class="field__hint">建议对齐子流入口的 inputDecl 键名</div>
     </div>
 
     <div class="field">
@@ -70,7 +82,7 @@
 
 <script setup>
 /**
- * 子流节点属性面板：选择被引用的子流、入参映射、失败后是否仍执行。
+ * 子流节点属性面板：选择被引用的子流、子流入口、入参映射、失败后是否仍执行。
  * 每次 Run 取被引用流当前图；定稿出参挂在 nodes.<本节点id>.out。
  */
 import { computed, onMounted, ref, watch } from 'vue'
@@ -112,8 +124,11 @@ const projectSubflowGroups = computed(() => {
 })
 const platformTemplates = ref([])
 const creating = ref(false)
+/** 被引用流上的 subflow-entry 选项 */
+const childEntryOptions = ref([])
 
 const subflowIdVal = computed(() => String(props.node?.data?.subflowId || ''))
+const entryNodeIdVal = computed(() => String(props.node?.data?.entryNodeId || ''))
 /** 入参映射行列表：每行为子流变量名与传入值 */
 const inputRows = computed(() => props.node?.data?.inputs || [])
 
@@ -147,39 +162,58 @@ function refreshSummary(patch) {
 }
 
 /**
- * 根据子流图的第一个场景入口的入参种子，生成入参映射建议：
- * 每个种子键对应一行，值默认引用同名流变量；解析失败或无场景时返回空数组。
+ * 从子流图收集 subflow-entry，并按 inputDecl（或指定入口）生成入参映射建议。
+ * 每个声明键对应一行，值默认引用同名流变量；解析失败或无声明时返回空列表。
  */
-function suggestInputsFromGraphJson(graphJsonRaw) {
-  if (!graphJsonRaw) return []
+function parseChildGraphMeta(graphJsonRaw, preferredEntryId) {
+  const empty = { entries: [], suggestedInputs: [], defaultEntryId: '' }
+  if (!graphJsonRaw) return empty
   try {
     const raw = typeof graphJsonRaw === 'string' ? JSON.parse(graphJsonRaw) : graphJsonRaw
     const graph = unwrapGraphPayload(raw)
     const nodes = Array.isArray(graph.nodes) ? graph.nodes : []
-    const entry = nodes.find((n) => n && n.type === 'scenario-entry')
-    const rawScenarios = entry?.data?.scenarios
-    if (!Array.isArray(rawScenarios) || rawScenarios.length === 0) return []
-    const scenario = rawScenarios[0]
-    const seed = scenario?.inSeed && typeof scenario.inSeed === 'object' ? scenario.inSeed : {}
-    return Object.keys(seed).map((key) => ({
-      name: key,
-      value: `{{flow.${key}}}`,
-    }))
+    const entries = nodes
+      .filter((n) => n && n.type === 'subflow-entry' && n.id)
+      .map((n) => ({
+        id: String(n.id),
+        label: String(n.name || n.id),
+        inputDecl: Array.isArray(n.data?.inputDecl) ? n.data.inputDecl : [],
+      }))
+    if (!entries.length) return empty
+    const preferred = preferredEntryId ? String(preferredEntryId) : ''
+    const entry =
+      entries.find((e) => e.id === preferred) ||
+      (entries.length === 1 ? entries[0] : null)
+    const suggestedInputs = (entry?.inputDecl || [])
+      .map((row) => {
+        const name = row?.name != null ? String(row.name).trim() : ''
+        if (!name) return null
+        return { name, value: `{{flow.${name}}}` }
+      })
+      .filter(Boolean)
+    return {
+      entries,
+      suggestedInputs,
+      defaultEntryId: entry?.id || (entries.length === 1 ? entries[0].id : ''),
+    }
   } catch {
-    return []
+    return empty
   }
 }
 
-/** 已有入参映射时只提交基础补丁；否则按子流图生成入参建议并一并写入节点 */
+/** 已有入参映射时只提交基础补丁；否则按子流入口 inputDecl 生成建议 */
 function applyIoSuggestions(graphJsonRaw, basePatch = {}) {
-  const hasInputs = Array.isArray(props.node?.data?.inputs) && props.node.data.inputs.length > 0
-  if (hasInputs) {
-    refreshSummary(basePatch)
-    return
-  }
-  const suggestedInputs = suggestInputsFromGraphJson(graphJsonRaw)
+  const preferred = basePatch.entryNodeId ?? props.node?.data?.entryNodeId
+  const meta = parseChildGraphMeta(graphJsonRaw, preferred)
+  childEntryOptions.value = meta.entries
   const patch = { ...basePatch }
-  if (suggestedInputs.length) patch.inputs = suggestedInputs
+  if (meta.defaultEntryId && !patch.entryNodeId) {
+    patch.entryNodeId = meta.defaultEntryId
+  }
+  const hasInputs = Array.isArray(props.node?.data?.inputs) && props.node.data.inputs.length > 0
+  if (!hasInputs && meta.suggestedInputs.length) {
+    patch.inputs = meta.suggestedInputs
+  }
   refreshSummary(patch)
 }
 
@@ -189,9 +223,22 @@ function onSubflowChange(e) {
   const patch = {
     subflowId: id,
     subflowName: sf?.flowName || '',
+    entryNodeId: '',
   }
   if (id) {
     loadAndSuggestIo(id, patch)
+    return
+  }
+  childEntryOptions.value = []
+  refreshSummary(patch)
+}
+
+function onEntryNodeChange(e) {
+  const entryNodeId = e.target.value || ''
+  const patch = { entryNodeId }
+  const hasInputs = Array.isArray(props.node?.data?.inputs) && props.node.data.inputs.length > 0
+  if (!hasInputs && subflowIdVal.value) {
+    loadAndSuggestIo(subflowIdVal.value, patch)
     return
   }
   refreshSummary(patch)
@@ -203,6 +250,7 @@ async function loadAndSuggestIo(subflowId, basePatch = {}) {
     const graphJson = res.data?.graphJson ?? res.data?.graph_json ?? ''
     applyIoSuggestions(graphJson, basePatch)
   } catch {
+    childEntryOptions.value = []
     refreshSummary(basePatch)
   }
 }
@@ -264,6 +312,22 @@ watch(
   () => {
     loadSubflows()
   },
+)
+
+// immediate：打开面板时若已绑子流，只拉一次入口/入参建议，避免与 onMounted 重复请求
+watch(
+  () => subflowIdVal.value,
+  (id) => {
+    if (!id) {
+      childEntryOptions.value = []
+      return
+    }
+    loadAndSuggestIo(id, {
+      subflowId: id,
+      entryNodeId: entryNodeIdVal.value,
+    })
+  },
+  { immediate: true },
 )
 </script>
 

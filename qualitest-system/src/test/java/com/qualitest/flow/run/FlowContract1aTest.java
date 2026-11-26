@@ -17,6 +17,7 @@ import com.qualitest.flow.model.GraphRunScenario;
 import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.impl.AssertNodeHandler;
 import com.qualitest.flow.node.impl.AssignNodeHandler;
+import com.qualitest.flow.node.impl.ConditionNodeHandler;
 import com.qualitest.flow.node.impl.EntryNodeHandler;
 import com.qualitest.flow.node.impl.ReturnNodeHandler;
 import com.qualitest.flow.validate.FlowNodeType;
@@ -41,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 开放/子流交付主链单测。
  * <p>
  * 覆盖：http-return 立刻写出、后置断言失败不改已写出包、零次返回用 fallbackOut 收束、
- * subflow-return 挂父 nodeOuts、子流零次仍挂兜底且 Outcome 失败、
+ * IF 未命中任何臂时仍收束兜底、subflow-return 挂父 nodeOuts、子流零次仍挂兜底且 Outcome 失败、
  * 写出前断连后图仍跑完并腾槽、同序两个 http-return 图校验失败。
  * 边界：内存图 + 内存 DeliverySink；不连库。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowContract1aTest}
@@ -56,7 +57,8 @@ class FlowContract1aTest {
             new AssignNodeHandler(),
             new ReturnNodeHandler(delivery, PlaceholderResolver.strict()),
             new EntryNodeHandler(),
-            new AssertNodeHandler()
+            new AssertNodeHandler(),
+            new ConditionNodeHandler()
     ));
 
     /**
@@ -211,11 +213,44 @@ class FlowContract1aTest {
     }
 
     /**
+     * 前提：http-entry → condition（仅 IF 且条件永不命中、无 ELSE）。
+     * 期望：条件步失败后仍收束写出 fallbackOut，不挂死握连接；Outcome 失败。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("IF 未命中任何臂仍收束用 fallbackOut")
+    void conditionUnwired_stillSettlesFallback() {
+        AtomicReference<OutPayload> got = new AtomicReference<>();
+        String slot = slots.tryAcquire();
+        GraphJson graph = httpGraphConditionNoMatch();
+        FlowRunContext ctx = baseHttpCtx(slot, new DeliverySink() {
+            @Override
+            public boolean complete(OutPayload out) {
+                got.set(out.copy());
+                return true;
+            }
+
+            @Override
+            public boolean isConnected() {
+                return true;
+            }
+        });
+
+        FlowGraphRunner.Outcome outcome = runner.run(graph, ctx, registry);
+        assertFalse(outcome.isPassed());
+        assertNotNull(got.get());
+        assertEquals(500, got.get().getStatus());
+        assertEquals("NO_RETURN", ((Map<?, ?>) got.get().getBody()).get("code"));
+        assertTrue(ctx.isDelivered());
+        assertEquals(0, slots.heldCount());
+    }
+
+    /**
      * 前提：同序 assign → return → return。
      * 期望：校验报错。
      */
     @Test
-    @Order(6)
+    @Order(7)
     @DisplayName("同序双 http-return 图校验失败")
     void validate_sequentialDoubleReturn() {
         GraphJson graph = new GraphJson();
@@ -292,6 +327,31 @@ class FlowContract1aTest {
                 )))
         ));
         g.setEdges(List.of(edge("e1", "a1")));
+        return g;
+    }
+
+    /** http-entry → condition（IF 永不命中、无 ELSE），零次 return。 */
+    private GraphJson httpGraphConditionNoMatch() {
+        GraphJson g = new GraphJson();
+        g.setNodes(List.of(
+                entryHttp("e1"),
+                node("c1", "condition", Map.of(
+                        "branches", List.of(
+                                Map.of(
+                                        "id", "b_if",
+                                        "kind", "if",
+                                        "target", "dead",
+                                        "conditions", List.of(Map.of(
+                                                "left", "1",
+                                                "operator", "eq",
+                                                "right", "0"
+                                        ))
+                                )
+                        )
+                )),
+                node("dead", "assign", Map.of("assignments", List.of()))
+        ));
+        g.setEdges(List.of(edge("e1", "c1"), edge("c1", "dead")));
         return g;
     }
 

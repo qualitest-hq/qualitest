@@ -2,6 +2,7 @@ package com.qualitest.flow.node.impl;
 
 
 import com.qualitest.flow.cache.ParsedGraphCache;
+import com.qualitest.flow.context.EntryRunPolicySupport;
 import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
@@ -12,8 +13,11 @@ import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.run.FlowGraphRunner;
+import com.qualitest.flow.run.FlowNodePreExecuteHook;
+import com.qualitest.flow.run.RunContinuation;
 import com.qualitest.flow.delivery.EntryKind;
 import com.qualitest.flow.delivery.RunTrigger;
+import com.qualitest.flow.snapshot.RunSnapshotPolicy;
 import com.qualitest.flow.subflow.SubflowDepth;
 import com.qualitest.flow.subflow.SubflowIoSupport;
 import com.qualitest.flow.validate.FlowNodeType;
@@ -35,8 +39,10 @@ import java.util.Map;
  * <ol>
  *   <li>按 {@code subflowId} 加载测试流（须与当前 Run 同 {@code testProjectId}）</li>
  *   <li>子图经 {@link FlowRunReadinessGate} 就绪检查；未通过则本步失败，不进子 runner</li>
- *   <li>解析 inputs：同时写入子上下文 {@code in} 与 {@code flow}；子 Run 的 entryKind/trigger 均为 subflow</li>
- *   <li>用 {@link FlowGraphRunner} 跑子图；子图 {@code subflow-return} 或收束时把定稿 out 挂到父图
+ *   <li>解析 inputs：写入子上下文 {@code in}；子 Run 的 entryKind/trigger 均为 subflow；
+ *       可选 {@code entryNodeId} 指定进哪个子流入口</li>
+ *   <li>用 {@link FlowGraphRunner} 跑子图（步数上限取子流入口 {@code maxSteps}）；
+ *       子图 {@code subflow-return} 或收束时把定稿 out 挂到父图
  *       {@code nodes.&lt;本 subflow 节点 id&gt;.out}，供父图占位符读取</li>
  *   <li>本步成败只看子 Outcome；是否已挂 out 不影响成败判定；子失败时父图仍可读已挂的 out</li>
  *   <li>子图经 {@link ParsedGraphCache} 取被引用流的当前定义</li>
@@ -106,10 +112,14 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
             }
 
             Map<String, Object> childSeed = SubflowIoSupport.resolveInputSeed(ctx, data.get("inputs"));
-            FlowRunContext childCtx = buildChildContext(ctx, childSeed, node.getId());
+            String childEntryNodeId = resolveChildEntryNodeId(data.get("entryNodeId"), childGraph);
+            FlowRunContext childCtx = buildChildContext(ctx, childSeed, node.getId(), childEntryNodeId);
+            RunSnapshotPolicy childPolicy = EntryRunPolicySupport.compose(
+                    childGraph, childEntryNodeId, null);
 
             FlowGraphRunner.Outcome outcome = flowGraphRunner.run(
-                    childGraph, childCtx, nodeHandlerRegistry);
+                    childGraph, childCtx, nodeHandlerRegistry,
+                    FlowNodePreExecuteHook.NONE, RunContinuation.fresh(), childPolicy);
             List<Map<String, Object>> childSteps = SubflowIoSupport.toChildStepSummaries(outcome.getSteps());
             long durationMs = System.currentTimeMillis() - t0;
 
@@ -160,11 +170,13 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
 
     /**
      * 组装子流运行上下文。
-     * 继承父级 env / asset / session / 外联权限 / 项目鉴权配置；inputs 种子同时灌入 in 与 flow。
+     * 继承父级 env / asset / session / 外联权限 / 项目鉴权配置；inputs 种子只灌入 {@code in}。
      * 记录 parentContext 与 parentSubflowNodeId，供子图交付时把 out 挂回父图对应节点。
+     *
+     * @param childEntryNodeId 子图入口节点 id；可空（图上恰好一个入口时由 runner 补写）
      */
     private static FlowRunContext buildChildContext(FlowRunContext parent, Map<String, Object> childSeed,
-                                                    String parentSubflowNodeId) {
+                                                    String parentSubflowNodeId, String childEntryNodeId) {
         Map<String, Object> seed = childSeed != null ? new HashMap<>(childSeed) : new HashMap<>();
         return FlowRunContext.builder()
                 .testProjectId(parent.getTestProjectId())
@@ -174,13 +186,75 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
                 .session(parent.getSession() != null ? parent.getSession() : new HashMap<>())
                 .subflowDepth(parent.getSubflowDepth() + 1)
                 .externalHttpPermitted(parent.isExternalHttpPermitted())
-                .flow(new HashMap<>(seed))
+                .flow(new HashMap<>())
                 .in(new HashMap<>(seed))
                 .entryKind(EntryKind.SUBFLOW.getCode())
+                .entryNodeId(childEntryNodeId)
                 .trigger(RunTrigger.SUBFLOW.getCode())
                 .parentContext(parent)
                 .parentSubflowNodeId(parentSubflowNodeId)
                 .build();
+    }
+
+    /**
+     * 解析父节点指定的子流入口 id。
+     * 显式指定时须存在且为 {@code subflow-entry}；未指定时若图上恰好一个子流入口则用之，
+     * 多个子流入口或缺入口则抛错；唯一入口若不是子流入口也抛错。
+     */
+    private static String resolveChildEntryNodeId(Object rawEntryNodeId, GraphJson childGraph) {
+        String specified = rawEntryNodeId == null ? null : String.valueOf(rawEntryNodeId).trim();
+        if (specified != null && specified.isEmpty()) {
+            specified = null;
+        }
+        if (childGraph == null || childGraph.getNodes() == null) {
+            throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID, "子流图为空");
+        }
+        if (specified != null) {
+            GraphNode found = null;
+            for (GraphNode n : childGraph.getNodes()) {
+                if (n != null && specified.equals(n.getId())) {
+                    found = n;
+                    break;
+                }
+            }
+            if (found == null) {
+                throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
+                        "子流入口不存在: " + specified);
+            }
+            if (!FlowNodeType.SUBFLOW_ENTRY.matches(found.getType())) {
+                throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
+                        "指定入口须为 subflow-entry: " + specified);
+            }
+            return specified;
+        }
+        GraphNode soleSubflowEntry = null;
+        int entryCount = 0;
+        for (GraphNode n : childGraph.getNodes()) {
+            if (n == null || !FlowNodeType.isEntry(n.getType())) {
+                continue;
+            }
+            entryCount++;
+            if (FlowNodeType.SUBFLOW_ENTRY.matches(n.getType())) {
+                if (soleSubflowEntry != null) {
+                    throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
+                            "子流存在多个子流入口，须在父节点指定 entryNodeId");
+                }
+                soleSubflowEntry = n;
+            }
+        }
+        // 图上恰有一个 subflow-entry 时用之（可与其它入口并存）
+        if (soleSubflowEntry != null) {
+            return soleSubflowEntry.getId();
+        }
+        if (entryCount > 1) {
+            throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
+                    "子流存在多个入口且无 subflow-entry，须指定 entryNodeId");
+        }
+        if (entryCount == 1) {
+            throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
+                    "子流唯一入口须为 subflow-entry");
+        }
+        throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID, "子流缺少入口节点");
     }
 
     /**

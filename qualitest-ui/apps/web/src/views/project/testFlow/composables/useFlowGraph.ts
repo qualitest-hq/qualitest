@@ -216,13 +216,12 @@ export function useFlowGraph() {
     const floor = validateGraphJson(graph, { persistMinimalOnly: true });
     const routeSelfErrors = collectHttpRouteSelfCollisionErrors(graph.nodes);
     if (!floor.ok || routeSelfErrors.length) {
-      if (!options?.quiet) {
-        ElMessage.error(
-          floor.errors[0]
-            ?? routeSelfErrors[0]
-            ?? '图校验失败',
-        );
-      }
+      // quiet 仍提示校验/路由冲突原因（点跑静默保存时用户需看到占用方）
+      ElMessage.error(
+        floor.errors[0]
+          ?? routeSelfErrors[0]
+          ?? '图校验失败',
+      );
       return false;
     }
 
@@ -284,10 +283,8 @@ export function useFlowGraph() {
         }
         return resolveContentRevisionConflict(conflictRev, options);
       }
-      // 写锁冲突等其它错误：直接展示服务端文案（含占用方信息）
-      if (!options?.quiet) {
-        ElMessage.error(e instanceof Error ? e.message : '保存失败');
-      }
+      // 写锁 / 跨流路由冲突等：quiet 也展示服务端文案（含占用方）
+      ElMessage.error(e instanceof Error ? e.message : '保存失败');
       return false;
     } finally {
       if (!conflictHandoff) {

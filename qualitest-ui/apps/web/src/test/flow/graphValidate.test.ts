@@ -637,6 +637,59 @@ describe('validateStartNodes', () => {
     expect(result.errors.some((e) => e.includes('须配置 envId'))).toBe(true);
   });
 
+  it('http-entry fallbackOut 缺 status 时报错', () => {
+    // 前提：method/path/envId 齐全，fallbackOut 无 status
+    // 期望：errors 含 fallbackOut.status
+    const result = validateGraphJson({
+      nodes: [
+        {
+          id: 'e1',
+          type: 'http-entry',
+          name: '入站',
+          position: { x: 0, y: 0 },
+          data: {
+            method: 'POST',
+            path: '/x',
+            envId: '1',
+            fallbackOut: { headers: {}, body: {} },
+          },
+        },
+      ],
+      edges: [],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('fallbackOut.status'))).toBe(true);
+  });
+
+  it('多个 scenario-entry 时每个都须有 scenarios', () => {
+    // 前提：入口 A 有场景，入口 B 空列表
+    // 期望：仅报 B 须配置非空 scenarios
+    const result = validateGraphJson({
+      nodes: [
+        {
+          id: 'a',
+          type: 'scenario-entry',
+          name: '入口A',
+          position: { x: 0, y: 0 },
+          data: {
+            scenarios: [{ id: 's1', name: '冒烟', envId: '1', inSeed: {} }],
+          },
+        },
+        {
+          id: 'b',
+          type: 'scenario-entry',
+          name: '入口B',
+          position: { x: 0, y: 80 },
+          data: { scenarios: [] },
+        },
+      ],
+      edges: [],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('入口B') && e.includes('scenarios'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('入口A') && e.includes('scenarios'))).toBe(false);
+  });
+
   it('本流两个 http-entry 同 method+path 自冲突', () => {
     // 前提：两入口 POST /v3/a
     // 期望：collectHttpRouteSelfCollisionErrors 与全量校验均报占用

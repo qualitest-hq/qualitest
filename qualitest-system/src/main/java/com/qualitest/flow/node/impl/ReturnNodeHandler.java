@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.context.PlaceholderResolver;
 import com.qualitest.flow.delivery.EntryKind;
+import com.qualitest.flow.delivery.HttpStatusCodes;
 import com.qualitest.flow.delivery.OutPayload;
 import com.qualitest.flow.delivery.RunDelivery;
 import com.qualitest.flow.exception.FlowErrorCode;
@@ -57,6 +58,12 @@ public class ReturnNodeHandler implements NodeHandler {
         Map<String, Object> data = node != null && node.getData() != null ? node.getData() : Map.of();
 
         try {
+            // 第二次 return：在改写 ctx.out 之前失败，保留已交付的 out 快照给后续步骤读
+            if (ctx != null && (ctx.getReturnCount() >= 1 || ctx.isDelivered())) {
+                throw new FlowExecutionException(
+                        FlowErrorCode.TF_RETURN_DUPLICATE,
+                        "整次 Run 至多执行一次返回节点");
+            }
             String from = requireFrom(data);
             Object resolved = placeholderResolver.resolvePathSegment(ctx, from);
             Map<String, Object> promoted = requireMap(resolved, from);
@@ -132,20 +139,10 @@ public class ReturnNodeHandler implements NodeHandler {
     private static Integer resolveHttpReturnStatus(Map<String, Object> data) {
         Object raw = data != null ? data.get("status") : null;
         if (raw == null) {
-            return 200;
+            return HttpStatusCodes.DEFAULT;
         }
-        int status;
-        if (raw instanceof Number n) {
-            status = n.intValue();
-        } else {
-            try {
-                status = Integer.parseInt(String.valueOf(raw).trim());
-            } catch (NumberFormatException e) {
-                throw new FlowExecutionException(
-                        FlowErrorCode.TF_STEP_ERROR, "http-return status 须为 100–599 的整数");
-            }
-        }
-        if (status < 100 || status > 599) {
+        Integer status = HttpStatusCodes.coerce(raw);
+        if (status == null) {
             throw new FlowExecutionException(
                     FlowErrorCode.TF_STEP_ERROR, "http-return status 须为 100–599 的整数");
         }

@@ -51,7 +51,7 @@ export function useFlowScenarioRun() {
     if (store.dirty) {
       const saved = await saveFlow({ quiet: true, skipRunRiskRefresh: true });
       if (!saved) {
-        ElMessage.warning('请先保存测试流后再运行');
+        // saveFlow 已 toast 具体原因（含 method+path 占用方）；此处不再叠泛化提示
         return null;
       }
     }

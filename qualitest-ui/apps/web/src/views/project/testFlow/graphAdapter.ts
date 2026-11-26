@@ -166,7 +166,8 @@ function scenariosFromEntryNodes(
 
 /**
  * 打开画布时组装运行配置，并标出场景列表来自哪个入口节点。
- * 唯一入口：有场景则灌入并默认激活第一条，无场景则默认冒烟配置；多入口：不静默灌，等用户选入口。
+ * 唯一入口：有场景则灌入并默认激活第一条；入口上场景为空则保持空列表（不静默塞默认冒烟）。
+ * 多入口：不静默灌，等用户选入口。
  */
 function readScenarioConfig(nodes?: GraphJson['nodes']): {
   runConfig: GraphScenarioConfig;
@@ -177,7 +178,10 @@ function readScenarioConfig(nodes?: GraphJson['nodes']): {
     return { scenarioEntryNodeId: null, runConfig: createDefaultRunConfig() };
   }
   if (!fromEntry.scenarios.length) {
-    return { scenarioEntryNodeId: fromEntry.entryId, runConfig: createDefaultRunConfig() };
+    return {
+      scenarioEntryNodeId: fromEntry.entryId,
+      runConfig: { activeScenarioId: '', scenarios: [] },
+    };
   }
   return {
     scenarioEntryNodeId: fromEntry.entryId,

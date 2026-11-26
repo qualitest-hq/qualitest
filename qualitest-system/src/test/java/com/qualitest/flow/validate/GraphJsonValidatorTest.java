@@ -677,11 +677,34 @@ class GraphJsonValidatorTest {
     }
 
     /**
+     * 前提：http-entry 的 fallbackOut 缺 status。
+     * 期望：报 fallbackOut.status 须为 100–599。
+     */
+    @Test
+    @Order(31)
+    @DisplayName("http-entry fallbackOut 缺 status 报错")
+    void httpEntry_fallbackOutMissingStatus_producesError() {
+        String json = """
+                {
+                  "nodes": [
+                    {"id":"e1","type":"http-entry","name":"入站","position":{"x":0,"y":0},
+                     "data":{"method":"POST","path":"/x","envId":"1",
+                       "fallbackOut":{"headers":{},"body":{}}}}
+                  ],
+                  "edges":[]
+                }
+                """;
+        GraphValidationResult result = validator.validate(GraphJson.parse(json));
+        assertFalse(result.isOk());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("fallbackOut.status")));
+    }
+
+    /**
      * 前提：图含同序双 http-return；走 validateJson。
      * 期望：errors 含双返回拓扑文案（全量规则并入 validateJson）。
      */
     @Test
-    @Order(31)
+    @Order(32)
     @DisplayName("validateJson 跑全量双返回规则")
     void validateJson_includesSequentialDoubleReturn() {
         String json = """
