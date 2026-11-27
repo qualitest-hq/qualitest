@@ -1,6 +1,6 @@
 package com.qualitest.project.support;
 
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;

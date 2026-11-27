@@ -1,4 +1,4 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import com.alibaba.fastjson2.JSONObject;
 import org.junit.jupiter.api.DisplayName;
@@ -61,7 +61,18 @@ class LoginExtractSuggestorTest {
     void suggest_adminLogin_usesAssetTarget() {
         JSONObject schema = new JSONObject();
         schema.put("token", "string");
-        String single = ProjectAuthConfigSupport.toJson(ProjectAuthConfigSupport.ruoyiBearerTemplate());
+        // 单端模板须带能命中 /login 的 pathPrefix，否则 resolveProfile 为空会退回 flow
+        String single = """
+                {
+                  "authProfiles":[{
+                    "id":"ruoyiBearer",
+                    "name":"RuoYi Bearer",
+                    "match":{"pathPrefix":["/login","/system/","/monitor/"]},
+                    "headerName":"Authorization",
+                    "headerValueTemplate":"Bearer {{asset.adminAuth.token}}"
+                  }]
+                }
+                """;
 
         LoginExtractSuggestor.Suggestion s = LoginExtractSuggestor.suggest(single, "/login", schema);
 

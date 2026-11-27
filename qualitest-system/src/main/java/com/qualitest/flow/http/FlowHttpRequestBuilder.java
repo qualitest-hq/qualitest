@@ -5,7 +5,7 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.params.DebugHttpForwardParams;
 import com.qualitest.api.util.ApiImportMatchSupport;
-import com.qualitest.api.util.AuthHeaderResolver;
+import com.qualitest.project.auth.AuthHeaderResolver;
 import com.qualitest.common.config.QualitestConfig;
 import com.qualitest.common.utils.file.FileUtils;
 import com.qualitest.flow.context.EnvUrlSupport;

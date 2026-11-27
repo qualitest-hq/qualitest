@@ -4,7 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.RefreshAuthHeadersResult;
-import com.qualitest.api.util.ManagedAuthHeaderApplier;
+import com.qualitest.project.auth.ManagedAuthHeaderApplier;
 import com.qualitest.flow.graph.FlowHttpNodeVisitor;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
@@ -47,7 +47,6 @@ public class FlowAuthHeaderRefreshService {
         String projectAuthJson = project != null ? project.getAuthConfig() : null;
 
         List<GraphNode> updates = new ArrayList<>();
-        List<String> warnings = new ArrayList<>();
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
 
         for (GraphNode node : nodes) {
@@ -72,17 +71,11 @@ public class FlowAuthHeaderRefreshService {
             }
 
             Map<String, Object> working = new HashMap<>(data);
-            String nodeLabel = FlowHttpNodeVisitor.resolveNodeName(node.getName(), dataJson, node.getId());
-            if (nodeLabel == null || nodeLabel.isBlank()) {
-                nodeLabel = "HTTP 节点";
-            }
             boolean changed = ManagedAuthHeaderApplier.applyToNodeData(
                     working,
                     api.getAuthConfig(),
                     projectAuthJson,
-                    api.getApiPath(),
-                    nodeLabel,
-                    warnings);
+                    api.getApiPath());
             if (!changed) {
                 continue;
             }
@@ -103,7 +96,6 @@ public class FlowAuthHeaderRefreshService {
 
         return RefreshAuthHeadersResult.builder()
                 .patch(patch)
-                .warnings(warnings)
                 .changedCount(updates.size())
                 .message(updates.isEmpty()
                         ? "当前图中托管鉴权头已与项目配置一致，无需刷新"
@@ -116,7 +108,6 @@ public class FlowAuthHeaderRefreshService {
         patch.setUpdateNodes(new ArrayList<>());
         return RefreshAuthHeadersResult.builder()
                 .patch(patch)
-                .warnings(new ArrayList<>())
                 .changedCount(0)
                 .message(message)
                 .build();

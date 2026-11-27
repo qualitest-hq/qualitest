@@ -40,7 +40,7 @@ const requestLine = computed(() => formatHttpRequestLine(props.data))
 
 const extracts = computed(() => filterFilledExtracts(props.data.extracts || []))
 
-const { authScope, authLabel } = useNodeAuthScope(() => props.data)
+const { authScope, authLabel } = useNodeAuthScope(() => ({ id: props.id, data: props.data }))
 
 function formatDest(t) {
   return formatExtractTargetDest(t)

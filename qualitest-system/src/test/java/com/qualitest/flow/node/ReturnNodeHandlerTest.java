@@ -11,7 +11,7 @@ import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.ReturnNodeHandler;
 import com.qualitest.flow.run.RunStatus;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;

@@ -10,7 +10,7 @@ import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
 import com.qualitest.flow.node.impl.AssertNodeHandler;
 import com.qualitest.flow.snapshot.RunSnapshotPolicy;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;

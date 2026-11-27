@@ -1,77 +1,36 @@
 /**
- * 解析当前 HTTP 节点的鉴权作用域，供画布卡片与属性面板展示凭证标签。
- *
- * 节点通常只存 testProjectApiId，不存 apiPath。
- * 无 apiPath 时按接口 id 拉取资产路径，再按 pathPrefix 选 Profile；
- * 路径为空或未命中前缀则不加托管头期望。
+ * 解析当前 HTTP 节点的鉴权展示：凭证路径读节点 data；
+ * conflict 消费画布 validate?stage=canvas 的 AUTH_* issues。
  */
-import { computed, ref, watch, type MaybeRefOrGetter, toValue } from 'vue'
+import { computed, type MaybeRefOrGetter, toValue } from 'vue'
 
-import { useFlowCanvasStore } from '../stores/flowCanvasStore'
+import { useFlowValidation } from './useFlowValidation'
 import { formatNodeAuthScopeLabel, resolveNodeAuthScope } from '../utils/nodeAuthScope'
-import { resolveCanvasApiDetail } from '../utils/resolveCanvasApiDetail'
-
-/** 按接口 id 缓存已解析的资产路径，减少重复请求 */
-const apiPathCache = new Map<string, string>()
-
-/** 清空资产路径缓存（单测隔离用） */
-export function clearNodeAuthApiPathCache() {
-  apiPathCache.clear()
-}
 
 /**
- * @param getData 当前 HTTP 节点 data（可含 apiPath、testProjectApiId、headers、extracts）
+ * @param getNode 当前 HTTP 节点（需 id + data）
  * @returns authScope 鉴权作用域；authLabel 展示文案
  */
-export function useNodeAuthScope(getData: MaybeRefOrGetter<Record<string, unknown> | undefined>) {
-  const store = useFlowCanvasStore()
-  /** 按接口 id 异步解析出的资产路径 */
-  const resolvedApiPath = ref('')
-
-  /** 节点上直接保存的路径（有则优先，不再请求资产） */
-  const inlineApiPath = computed(() => {
-    const data = toValue(getData) || {}
-    return String(data.apiPath || '').trim()
-  })
-
-  /** 需要反查路径时的接口 id；已有 inline 路径时为空 */
-  const targetApiId = computed(() => {
-    if (inlineApiPath.value) return ''
-    const data = toValue(getData) || {}
-    return String(data.testProjectApiId ?? '').trim()
-  })
-
-  // 接口 id 变化时拉取资产路径；命中缓存直接用；异步返回时校验仍是当前 id，避免错位
-  watch(
-    targetApiId,
-    async (apiId) => {
-      if (!apiId) {
-        resolvedApiPath.value = ''
-        return
-      }
-      if (apiPathCache.has(apiId)) {
-        resolvedApiPath.value = apiPathCache.get(apiId) || ''
-        return
-      }
-      const detail = await resolveCanvasApiDetail(apiId)
-      const path = String(detail?.apiPath ?? '').trim()
-      apiPathCache.set(apiId, path)
-      if (targetApiId.value === apiId) {
-        resolvedApiPath.value = path
-      }
-    },
-    { immediate: true },
-  )
+export function useNodeAuthScope(
+  getNode: MaybeRefOrGetter<{ id?: string; data?: Record<string, unknown> } | undefined>,
+) {
+  const { issues } = useFlowValidation()
 
   const authScope = computed(() => {
-    const data = toValue(getData) || {}
+    const node = toValue(getNode) || {}
+    const data = (node.data || {}) as Record<string, unknown>
     return resolveNodeAuthScope({
-      apiPath: inlineApiPath.value || resolvedApiPath.value || undefined,
+      nodeId: node.id != null ? String(node.id) : undefined,
       headers: data.headers,
       extracts: data.extracts,
-      authConfig: store.projectAuthConfig,
+      authIssues: issues.value,
     })
   })
   const authLabel = computed(() => formatNodeAuthScopeLabel(authScope.value))
   return { authScope, authLabel }
+}
+
+/** @deprecated 路径缓存已移除；保留空实现以免旧测试 import 报错 */
+export function clearNodeAuthApiPathCache() {
+  // no-op：不再按 pathPrefix 拉资产路径
 }

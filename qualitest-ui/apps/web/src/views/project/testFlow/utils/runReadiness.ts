@@ -12,7 +12,7 @@ export type RunBlockingResult = {
 }
 
 /**
- * 收集阻止开跑的错误（服务端权威，与 FlowRunReadinessGate 同口径）。
+ * 收集阻止开跑的错误（服务端权威，与 FlowGraphValidateService stage=run 同口径）。
  */
 export async function collectRunBlockingErrors(opts: {
   graph: unknown

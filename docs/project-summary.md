@@ -122,7 +122,7 @@ flowchart TB
 
 - **同端**：开头只登录一次（或挂登录子流），后续靠托管 Bearer 复用 `asset.*`（HTTP 成功后 extract 落盘，跨 Run 可探活）。内置预制登录流为 **探活再登录**：`statusCheck: {mode:whitelist, values:[200,401,403]}` 探活 + Condition(`http.status=200` 且 `http.expectedMatch`)，有效则跳过登录。接口 `responseConfig.expectedResponseKind`（默认 json）为期望形态唯一配置；跑流只对照。
 - **双端同图**：两套登录、两套 extracts；**禁止**覆盖同一凭证路径（硬拦 `AUTH_LOGIN_FLOWKEY_COLLISION`）。
-- **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（**仅运行**硬拦；AI 单单元 `submit_*` 仅地板拒收，AUTH 不挡收；Staging ✓ / **保存**不硬拦）。客户端 Profile 误绑 `adminAuth`（或相反）时文案追加「疑似绑错端」。托管头补全为 soft warning（`AUTH_HEADER_MANAGED`）。
+- **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（**仅运行**硬拦；AI 单单元 `submit_*` 仅地板拒收，AUTH 不挡收；Staging ✓ / **保存**不硬拦）。客户端 Profile 误绑 `adminAuth`（或相反）时文案追加「疑似绑错端」。托管头由 normalize / 刷新写入节点（无 soft 提示码）。Stage × CODE 总表见 [flow-contract-2.0.md §2.2](./flow-contract-2.0.md)。
 - **AI 改 Profile**：`list_project_auth_profiles`（只读）+ `upsert_auth_profile`（半自动确认 / 全自动直写）；下一轮可带 `runRiskWarnings`。细则见 [ai-staging.md](./ai-staging.md) · [faq.md](./faq.md)。
 - 画布顶栏「刷新鉴权头」、HTTP 节点凭证行提示；Run 鉴权失败可用「AI 修复」。
 - 凭证可落在 extract→asset/flow、场景 inSeed、或环境变量等；**口令勿明文塞进图**，可复用账号优先素材库。

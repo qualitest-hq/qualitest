@@ -4,7 +4,7 @@ import cn.hutool.core.util.IdUtil;
 import com.qualitest.ai.scenario.flow.model.FlowDesignScenarioPatch;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.tools.FlowDesignIds;
-import com.qualitest.api.util.ManagedAuthHeaderApplier;
+import com.qualitest.project.auth.ManagedAuthHeaderApplier;
 import com.qualitest.flow.graph.FlowGraphLayeredLayout;
 import com.qualitest.flow.graph.GraphLookupUtils;
 import com.qualitest.flow.model.GraphEdge;
@@ -64,7 +64,8 @@ public class FlowDesignPatchNormalizer {
     private final FlowDesignPatchMerger patchMerger;
 
     /**
-     * 整包严格快照（测试/对照用，非 {@code submit_*} 生产路径）。
+     * 整包严格快照（仅单测 / 对照；非 {@code submit_*} 生产路径）。
+     * 生产开跑硬拦请走 {@link com.qualitest.flow.validate.FlowGraphValidateService}。
      * 合并后跑完整图结构 + 断言 + 鉴权/必填，全部进 {@link GraphValidationResult#getErrors()}。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId) {
@@ -72,7 +73,7 @@ public class FlowDesignPatchNormalizer {
     }
 
     /**
-     * 整包严格快照；sessionClientIdMap 为会话短名→雪花映射（可 null），解析成功时就地写入。
+     * 整包严格快照（仅单测 / 对照）；sessionClientIdMap 为会话短名→雪花映射（可 null），解析成功时就地写入。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId,
                                      Map<String, String> sessionClientIdMap) {
@@ -1035,9 +1036,7 @@ public class FlowDesignPatchNormalizer {
                                 data,
                                 api.getAuthConfig(),
                                 projectAuthJson,
-                                api.getApiPath(),
-                                nodeLabel,
-                                warnings);
+                                api.getApiPath());
                     }
                 }
             }

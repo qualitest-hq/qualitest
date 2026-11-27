@@ -3,7 +3,7 @@ package com.qualitest.project.service.impl;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.common.utils.DateUtils;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.flow.sync.FlowExternalChangePublisher;
 import com.qualitest.flow.sync.FlowExternalChangeSourceHolder;
 import com.qualitest.project.constant.TestProjectConstants;

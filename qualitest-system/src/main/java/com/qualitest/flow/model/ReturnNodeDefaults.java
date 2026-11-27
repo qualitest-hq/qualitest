@@ -1,6 +1,6 @@
 package com.qualitest.flow.model;
 
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

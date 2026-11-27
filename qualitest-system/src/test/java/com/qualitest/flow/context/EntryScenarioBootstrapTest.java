@@ -7,7 +7,7 @@ import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphRunScenario;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;

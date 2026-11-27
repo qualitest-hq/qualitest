@@ -13,7 +13,7 @@ import com.qualitest.flow.node.impl.AssertNodeHandler;
 import com.qualitest.flow.snapshot.SnapshotCheckpointService;
 import com.qualitest.flow.snapshot.SnapshotRestoreService;
 import com.qualitest.flow.snapshot.SnapshotStackEntry;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestProjectEnv;
 import com.qualitest.project.service.ITestFlowRunService;

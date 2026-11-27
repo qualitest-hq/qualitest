@@ -9,7 +9,7 @@ import com.qualitest.flow.node.NodeHandler;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.run.RunStatus;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.plugin.PluginException;
 import com.qualitest.plugin.invoke.PluginInvokeRequest;
 import com.qualitest.plugin.invoke.PluginInvokeResult;

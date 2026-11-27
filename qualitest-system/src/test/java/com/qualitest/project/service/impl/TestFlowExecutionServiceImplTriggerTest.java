@@ -7,7 +7,7 @@ import com.qualitest.flow.run.RunStatusUpdater;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
 import com.qualitest.flow.cache.ParsedGraphCache;
-import com.qualitest.flow.validate.FlowRunReadinessGate;
+import com.qualitest.flow.validate.FlowGraphValidateService;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestProjectEnv;
@@ -65,7 +65,7 @@ class TestFlowExecutionServiceImplTriggerTest {
     private ITestProjectMemberService testProjectMemberService;
     private TestProjectMapper testProjectMapper;
     private TestFlowExecutor testFlowExecutor;
-    private FlowRunReadinessGate flowRunReadinessGate;
+    private FlowGraphValidateService flowGraphValidateService;
     private TestFlowExecutionServiceImpl service;
 
     @BeforeEach
@@ -76,8 +76,9 @@ class TestFlowExecutionServiceImplTriggerTest {
         testProjectMemberService = mock(ITestProjectMemberService.class);
         testProjectMapper = mock(TestProjectMapper.class);
         testFlowExecutor = mock(TestFlowExecutor.class);
-        flowRunReadinessGate = mock(FlowRunReadinessGate.class);
-        when(flowRunReadinessGate.collectBlockingErrors(any(), any())).thenReturn(List.of());
+        flowGraphValidateService = mock(FlowGraphValidateService.class);
+        when(flowGraphValidateService.collectBlockingErrorMessages(any(), any(), any(), any(), any()))
+                .thenReturn(List.of());
 
         com.qualitest.project.runhub.EnvRunConcurrencyService concurrency =
                 mock(com.qualitest.project.runhub.EnvRunConcurrencyService.class);
@@ -98,7 +99,7 @@ class TestFlowExecutionServiceImplTriggerTest {
                 testProjectMapper,
                 testFlowExecutor,
                 new StepResultWriter(),
-                flowRunReadinessGate,
+                flowGraphValidateService,
                 parsedGraphCache,
                 mock(RunStatusUpdater.class),
                 mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class),

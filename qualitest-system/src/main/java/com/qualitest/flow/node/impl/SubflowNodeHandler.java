@@ -21,8 +21,9 @@ import com.qualitest.flow.delivery.SettleSupport;
 import com.qualitest.flow.snapshot.RunSnapshotPolicy;
 import com.qualitest.flow.subflow.SubflowDepth;
 import com.qualitest.flow.subflow.SubflowIoSupport;
-import com.qualitest.flow.validate.FlowNodeType;
-import com.qualitest.flow.validate.FlowRunReadinessGate;
+import com.qualitest.flow.validate.FlowGraphValidateService;
+import com.qualitest.flow.validate.FlowIssue;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.service.ITestFlowService;
 import org.springframework.context.annotation.Lazy;
@@ -39,7 +40,7 @@ import java.util.Map;
  * 将同项目内另一张测试流图折叠为单步执行：
  * <ol>
  *   <li>按 {@code subflowId} 加载测试流（须与当前 Run 同 {@code testProjectId}）</li>
- *   <li>子图经 {@link FlowRunReadinessGate} 就绪检查；未通过则本步失败，不进子 runner</li>
+ *   <li>子图经 {@link FlowGraphValidateService} 开跑类校验；未通过则本步失败，不进子 runner</li>
  *   <li>解析 inputs：写入子上下文 {@code in}；子 Run 的 entryKind/trigger 均为 subflow；
  *       可选 {@code entryNodeId} 指定进哪个子流入口</li>
  *   <li>用 {@link FlowGraphRunner} 跑子图（步数上限取子流入口 {@code maxSteps}）；
@@ -55,19 +56,19 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
     private final ITestFlowService testFlowService;
     private final ParsedGraphCache parsedGraphCache;
     private final FlowGraphRunner flowGraphRunner;
-    private final FlowRunReadinessGate flowRunReadinessGate;
+    private final FlowGraphValidateService flowGraphValidateService;
     private final NodeHandlerRegistry nodeHandlerRegistry;
 
     public SubflowNodeHandler(ITestFlowService testFlowService,
                               ParsedGraphCache parsedGraphCache,
                               FlowGraphRunner flowGraphRunner,
-                              FlowRunReadinessGate flowRunReadinessGate,
+                              FlowGraphValidateService flowGraphValidateService,
                               @Lazy NodeHandlerRegistry nodeHandlerRegistry) {
         super(FlowNodeType.SUBFLOW);
         this.testFlowService = testFlowService;
         this.parsedGraphCache = parsedGraphCache;
         this.flowGraphRunner = flowGraphRunner;
-        this.flowRunReadinessGate = flowRunReadinessGate;
+        this.flowGraphValidateService = flowGraphValidateService;
         this.nodeHandlerRegistry = nodeHandlerRegistry;
     }
 
@@ -111,8 +112,12 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
             String childEntryNodeId = resolveChildEntryNodeId(data.get("entryNodeId"), childGraph);
             FlowRunContext childCtx = buildChildContext(ctx, childSeed, node.getId(), childEntryNodeId);
 
-            List<String> readinessErrors = flowRunReadinessGate.collectBlockingErrors(
-                    childGraph, ctx.getTestProjectId(), subflowId);
+            List<String> readinessErrors = flowGraphValidateService.collectBlockingErrorMessages(
+                    childGraph,
+                    FlowIssue.Stage.SUBFLOW_CALL,
+                    ctx.getTestProjectId(),
+                    subflowId,
+                    ctx.getTestProjectEnvId());
             if (readinessErrors != null && !readinessErrors.isEmpty()) {
                 // 开跑被拦仍按子流入口 fallbackOut 挂父：调用方要「有返回」
                 ctx.putNodeOut(node.getId(), SettleSupport.resolveSubflowFallbackPackage(childCtx, childGraph));

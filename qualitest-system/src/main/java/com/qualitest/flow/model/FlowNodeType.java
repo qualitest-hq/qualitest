@@ -1,6 +1,5 @@
-package com.qualitest.flow.validate;
+package com.qualitest.flow.model;
 
-import com.qualitest.flow.model.GraphNode;
 import lombok.Getter;
 
 import java.util.Arrays;

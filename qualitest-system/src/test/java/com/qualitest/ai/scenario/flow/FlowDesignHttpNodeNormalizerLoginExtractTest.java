@@ -1,7 +1,7 @@
 package com.qualitest.ai.scenario.flow;
 
-import com.qualitest.api.util.AuthProfileTestFixtures;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.AuthProfileTestFixtures;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.project.domain.TestProjectApi;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;

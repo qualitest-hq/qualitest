@@ -22,8 +22,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 测谁：FlowRunReadinessGate 的路由冲突门禁。
- * 边界：保存不拦，开跑/入站/子流统一在这里拦；同流内重复与跨流占用都算。
+ * 测谁：FlowRunReadinessGate 的路由冲突原料收集（不定级）。
+ * 边界：只产 raw issues；定级与硬拦文案由 FlowGraphValidateService 负责。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowRunReadinessGateTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -47,26 +47,22 @@ class FlowRunReadinessGateTest {
             }
             return issues;
         });
-        com.qualitest.flow.inspect.FlowIssueFinalizeService finalize =
-                mock(com.qualitest.flow.inspect.FlowIssueFinalizeService.class);
-        when(finalize.finalizeIssues(any(), any())).thenAnswer(inv -> inv.getArgument(0));
         gate = new FlowRunReadinessGate(
                 new GraphJsonValidator(),
                 mock(TestProjectApiMapper.class),
                 mock(TestProjectMapper.class),
                 mock(ParsedGraphCache.class),
-                routeRegistry,
-                finalize);
+                routeRegistry);
     }
 
     /**
      * 前提：本流 HTTP 入口 POST /dup，项目内另一流已占同键。
-     * 期望：开跑门禁返回「开放 HTTP 入口冲突」，不再等到保存才拦。
+     * 期望：raw 问题含「开放 HTTP 入口冲突」。
      */
     @Test
     @Order(1)
-    @DisplayName("跨流路由冲突阻止开跑")
-    void collectBlockingErrors_crossFlowRouteConflict() {
+    @DisplayName("跨流路由冲突写入 raw issues")
+    void collectRaw_crossFlowRouteConflict() {
         when(routeRegistry.conflicts(any(), eq(PROJECT_ID), eq(FLOW_ID), any())).thenReturn(List.of(
                 FlowIssue.error(
                         FlowIssueCodes.ENTRY_ROUTE_CONFLICT,
@@ -74,23 +70,31 @@ class FlowRunReadinessGateTest {
                         null,
                         "开放 HTTP 入口冲突：POST /dup 已被流「旧流」的入口「旧入口」占用（本流节点「入站」）")));
 
-        List<String> errors = gate.collectBlockingErrors(httpGraph("/dup"), PROJECT_ID, FLOW_ID);
+        List<FlowIssue> issues = gate.collectRawBlockingIssues(
+                httpGraph("/dup"), PROJECT_ID, FLOW_ID, FlowIssue.Stage.RUN);
 
-        assertTrue(errors.stream().anyMatch(e -> e.contains("开放 HTTP 入口冲突") && e.contains("POST /dup")));
+        assertTrue(issues.stream().anyMatch(i ->
+                i.getMessage() != null
+                        && i.getMessage().contains("开放 HTTP 入口冲突")
+                        && i.getMessage().contains("POST /dup")));
     }
 
     /**
      * 前提：本流两个 HTTP 入口写同一 method+path（同流重复）。
-     * 期望：开跑门禁也拦，提示本流内占用。
+     * 期望：raw 问题提示本流内占用。
      */
     @Test
     @Order(2)
-    @DisplayName("同流路由冲突阻止开跑")
-    void collectBlockingErrors_sameFlowRouteConflict() {
-        List<String> errors = gate.collectBlockingErrors(sameFlowDuplicateGraph(), PROJECT_ID, FLOW_ID);
+    @DisplayName("同流路由冲突写入 raw issues")
+    void collectRaw_sameFlowRouteConflict() {
+        List<FlowIssue> issues = gate.collectRawBlockingIssues(
+                sameFlowDuplicateGraph(), PROJECT_ID, FLOW_ID, FlowIssue.Stage.RUN);
 
-        assertTrue(errors.stream().anyMatch(e ->
-                e.contains("开放 HTTP 入口冲突") && e.contains("在本流") && e.contains("POST /dup")));
+        assertTrue(issues.stream().anyMatch(i ->
+                i.getMessage() != null
+                        && i.getMessage().contains("开放 HTTP 入口冲突")
+                        && i.getMessage().contains("在本流")
+                        && i.getMessage().contains("POST /dup")));
     }
 
     /** 单 http-entry 图，路径可指定 */

@@ -33,7 +33,8 @@ Hard blocks for token / login-extract / HTTP-required run on **Run** only — St
 | ---- | ------- | --- |
 | `AUTH_TOKEN_MISSING` | Bearer needed but no writer in the graph | Add a matching source (login extract / inSeed / env) for the Profile header; “wrong side” tip → fix project auth |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Two logins write the same credential path | Use `adminAuth` / `clientAuth` separately |
-| `AUTH_HEADER_MANAGED` | Managed header filled | Info only |
+
+Managed headers are written by normalize / “Refresh auth headers” (Diff may label “filled from project auth”); no separate tip codes.
 
 → [ai-staging.en.md §5](./ai-staging.en.md)
 

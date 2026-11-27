@@ -1,5 +1,7 @@
 package com.qualitest.flow.validate;
 
+import com.qualitest.flow.model.FlowNodeType;
+
 import com.qualitest.flow.run.GraphNodeAlwaysRunSupport;
 import com.qualitest.flow.snapshot.GraphNodeSnapshotSupport;
 

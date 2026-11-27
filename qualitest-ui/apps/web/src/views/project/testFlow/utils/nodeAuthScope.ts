@@ -1,15 +1,10 @@
 /**
- * 画布 HTTP 节点的鉴权作用域：按项目 authProfiles 解析本节点将使用 / 将产出的凭证。
- * 凭证目标从 headerValueTemplate 里的 {{asset.*}} / {{flow.*}} 读取。
- *
- * 选端规则：最长 pathPrefix 命中优先；都未命中则不加托管头。
- * 登录口：extracts 写出目标命中某 Profile 托管头 → kind=login；空 extracts 不当登录口、不因缺写 conflict。
- * 免登口（预制 api authMode=none）：kind=none。
- * 普通 inherit：托管头凭证路径若与 pathPrefix 命中 Profile 的模板不同，则 conflict。
+ * 画布 HTTP 节点鉴权展示：凭证路径来自节点 headers/extracts；
+ * conflict 只认画布校验里的 AUTH_* / RUN_READINESS_AUTH issues（服务端权威）。
+ * 不再本地推演 pathPrefix / Profile 匹配。
  */
 
 import { listExtractCredentialPaths } from '@/utils/flow/credentialTarget'
-import { parseAuthConfig, splitPathLines } from '@/views/project/testProject/utils/projectAuthConfig'
 
 import {
   isProfileManagedRow,
@@ -17,6 +12,8 @@ import {
   type CredentialPlaceholder,
   parseCredentialPlaceholders,
 } from './authHeaderRow'
+import type { FlowCanvasValidationIssue } from './flowValidationIssues'
+import { isAuthRiskMessage } from './runReadiness'
 
 export type NodeAuthKind = 'login' | 'none' | 'inherit' | 'empty'
 
@@ -29,32 +26,10 @@ export interface NodeAuthScope {
   headerCredential: string
   /** 本节点 extracts 产出的凭证展示路径列表 */
   extractCredentials: string[]
-  /** 是否存在凭证目标冲突或缺写 */
+  /** 是否存在服务端鉴权硬拦/预警 */
   conflict: boolean
   /** conflict 时的人类可读原因 */
   conflictReason: string
-}
-
-/** 规范化接口路径：补前导 /、去掉多余尾斜杠。 */
-function normalizeApiPath(apiPath: string) {
-  let p = String(apiPath || '').trim()
-  if (!p) return '/'
-  if (!p.startsWith('/')) p = '/' + p
-  while (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1)
-  return p
-}
-
-/** 规范化 pathPrefix：补前导 / 与尾斜杠；空或单独 / 视为无效。 */
-function normalizePrefix(prefix: string) {
-  let p = String(prefix || '').trim()
-  if (!p || p === '/') return ''
-  if (!p.startsWith('/')) p = '/' + p
-  if (!p.endsWith('/')) p += '/'
-  return p
-}
-
-function pathsEqual(a: string, b: string) {
-  return normalizeApiPath(a) === normalizeApiPath(b)
 }
 
 /** 从节点 headers 里找第一条 profileManaged 行，解析其值模板中的凭证路径。 */
@@ -71,62 +46,23 @@ function parseHeaderCredential(headers: unknown): string {
   return ''
 }
 
-function expectedFromProfile(profile: { valueTemplate?: string } | null | undefined): string {
-  return parseCredentialDisplayPath(profile?.valueTemplate)
-}
-
-/** 按最长 pathPrefix 选 Profile；都未命中返回 null。 */
-function resolveProfile(apiPath: string, profiles: ReturnType<typeof parseAuthConfig>['profiles']) {
-  const path = normalizeApiPath(apiPath)
-  let best: (typeof profiles)[0] | null = null
-  let bestLen = -1
-  for (const p of profiles) {
-    const prefixes = splitPathLines(p.pathPrefixText)
-    for (const raw of prefixes) {
-      const prefix = normalizePrefix(raw)
-      if (!prefix) continue
-      if ((path + '/').startsWith(prefix) && prefix.length > bestLen) {
-        bestLen = prefix.length
-        best = p
-      }
-    }
+function stripAuthCodePrefix(message: string): string {
+  const text = String(message || '').trim()
+  const idx = text.indexOf(':')
+  if (idx > 0 && /^AUTH_[A-Z0-9_]+$/.test(text.slice(0, idx))) {
+    return text.slice(idx + 1).trim() || text
   }
-  return best
+  return text
 }
 
-/**
- * extracts 产出路径是否命中某 Profile 托管头；命中则返回该 Profile（先扫完取第一条相交）。
- */
-function findLoginProfileByExtracts(
-  extractCredentials: string[],
-  profiles: ReturnType<typeof parseAuthConfig>['profiles'],
-) {
-  if (!extractCredentials.length) return null
-  for (const p of profiles) {
-    const expected = expectedFromProfile(p)
-    if (expected && extractCredentials.includes(expected)) {
-      return p
-    }
-  }
-  return null
+function isAuthCanvasIssue(issue: FlowCanvasValidationIssue): boolean {
+  const code = String(issue.code || '').trim()
+  if (code === 'RUN_READINESS_AUTH') return true
+  if (code.startsWith('AUTH_')) return true
+  return isAuthRiskMessage(String(issue.message || ''))
 }
 
-/** 路径是否落在某端预制免登接口上（authMode=none）。 */
-function isAnonymousPrefabricated(
-  apiPath: string,
-  profiles: ReturnType<typeof parseAuthConfig>['profiles'],
-) {
-  for (const p of profiles) {
-    for (const api of p.apis || []) {
-      if (pathsEqual(api.apiPath, apiPath) && String(api.authMode || '').toLowerCase() === 'none') {
-        return true
-      }
-    }
-  }
-  return false
-}
-
-/** 空作用域：项目无 authProfiles 或无法解析时使用。 */
+/** 空作用域：无凭证展示、无鉴权 issue。 */
 export function emptyNodeAuthScope(): NodeAuthScope {
   return {
     kind: 'empty',
@@ -140,64 +76,65 @@ export function emptyNodeAuthScope(): NodeAuthScope {
 }
 
 /**
- * 解析节点将使用或产出的凭证变量，供卡片角标与属性面板展示。
+ * 解析节点鉴权展示。
+ * conflict 仅来自 authIssues（通常为 validate?stage=canvas 中与本节点相关的 AUTH 问题）。
  */
 export function resolveNodeAuthScope(input: {
-  apiPath?: string
+  nodeId?: string
   headers?: unknown
   extracts?: unknown
-  authConfig?: unknown
+  authIssues?: FlowCanvasValidationIssue[]
 }): NodeAuthScope {
-  const form = parseAuthConfig(input.authConfig)
-  const profiles = form.profiles || []
-  if (!profiles.length) {
-    return emptyNodeAuthScope()
-  }
-  const apiPath = String(input.apiPath || '')
+  const nodeId = String(input.nodeId || '').trim()
   const extractCredentials = listExtractCredentialPaths(input.extracts)
   const headerCredential = parseHeaderCredential(input.headers)
-  const loginProfile = findLoginProfileByExtracts(extractCredentials, profiles)
-  if (loginProfile) {
-    const expectedCredential = expectedFromProfile(loginProfile)
+  const related = (input.authIssues || []).filter((issue) => {
+    if (!isAuthCanvasIssue(issue)) return false
+    if (!nodeId) return true
+    const ids = issue.nodeIds || []
+    if (!ids.length) return true
+    return ids.includes(nodeId)
+  })
+  const conflict = related.length > 0
+  const conflictReason = conflict ? stripAuthCodePrefix(related[0].message) : ''
+
+  if (extractCredentials.length) {
     return {
       kind: 'login',
-      profileName: loginProfile.name || loginProfile.id,
-      expectedCredential,
+      profileName: '',
+      expectedCredential: extractCredentials[0] || '',
       headerCredential,
       extractCredentials,
-      conflict: false,
-      conflictReason: '',
+      conflict,
+      conflictReason,
     }
   }
-  if (isAnonymousPrefabricated(apiPath, profiles)) {
+  if (headerCredential) {
     return {
-      kind: 'none',
+      kind: 'inherit',
+      profileName: '',
+      expectedCredential: headerCredential,
+      headerCredential,
+      extractCredentials,
+      conflict,
+      conflictReason,
+    }
+  }
+  if (conflict) {
+    return {
+      kind: 'inherit',
       profileName: '',
       expectedCredential: '',
-      headerCredential,
+      headerCredential: '',
       extractCredentials,
-      conflict: false,
-      conflictReason: '',
+      conflict: true,
+      conflictReason,
     }
   }
-  const profile = resolveProfile(apiPath, profiles)
-  const expectedCredential = expectedFromProfile(profile)
-  const conflict =
-    !!headerCredential && !!expectedCredential && headerCredential !== expectedCredential
-  return {
-    kind: 'inherit',
-    profileName: profile?.name || profile?.id || '',
-    expectedCredential,
-    headerCredential,
-    extractCredentials,
-    conflict,
-    conflictReason: conflict
-      ? `托管头使用 ${headerCredential}，按 pathPrefix 应为 ${expectedCredential}`
-      : '',
-  }
+  return emptyNodeAuthScope()
 }
 
-/** 卡片/属性面板短文案（如「产出 asset.x.token」「凭证 asset.x.token」「免登」）。 */
+/** 卡片/属性面板短文案（如「产出 asset.x.token」「凭证 asset.x.token」）。 */
 export function formatNodeAuthScopeLabel(scope: NodeAuthScope): string {
   if (scope.kind === 'empty') return ''
   if (scope.kind === 'none') return '免登'
@@ -206,6 +143,7 @@ export function formatNodeAuthScopeLabel(scope: NodeAuthScope): string {
     return expected ? `产出 ${expected}` : '登录口'
   }
   if (expected) return `凭证 ${expected}`
+  if (scope.conflict) return '鉴权风险'
   return scope.profileName ? `凭证 ${scope.profileName}` : ''
 }
 

@@ -15,6 +15,15 @@
 - [ ] 行为有变时已更新 README / 对应 `docs/`（如适用）
 - [ ] 未提交密钥、`.env`、本地绝对路径、`target/` / `node_modules/` 等
 
+## 流热点（改鉴权 / HTTP data / validate Stage 时勾）
+
+<!-- 未触及可整段删除 -->
+
+- [ ] **BE 唯一源**：业务规则只在服务端（`FlowGraphValidateService` / Gates / `FlowDesignHttpNodeNormalizer` / `project.auth`）
+- [ ] **FE 无镜像**：未在 `testFlow/utils` 新增 pathPrefix / AUTH 硬拦 / HTTP overrides 差分镜像
+- [ ] **文档矩阵**：`docs/flow-contract-2.0.md` Stage×CODE 表与 `ai-staging.md` §5 已同步（若行为有变）
+- [ ] **金样**：canvas/run issues 的 CODE+nodeId 集合与改前一致，或 PR 中显式列出批准的差异
+
 ## 关联
 
 <!-- 例如：Closes #123 ；无则删本段 -->

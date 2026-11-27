@@ -1,4 +1,4 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.api.model.ApiAuthConfig;
@@ -119,7 +119,7 @@ public final class AuthHeaderResolver {
                 return new ApplyResult(rows, false);
             }
             if (managedRowMatches(existing, resolved)) {
-                // 静默补写 authProfileId，不视为变更（避免重复刷 warnings）
+                // 静默补写 authProfileId，不视为变更（避免无意义刷 Staging）
                 if (resolved.profileId() != null && rowProfileId == null) {
                     existing.put(AUTH_PROFILE_ID, resolved.profileId());
                 }
@@ -287,7 +287,7 @@ public final class AuthHeaderResolver {
      * 写回头列表。
      *
      * @param headers 可能已追加/刷新的行列表
-     * @param changed true 表示新增或刷新了托管头（需记 AUTH_HEADER_MANAGED 提示）
+     * @param changed true 表示新增或刷新了托管头
      */
     public record ApplyResult(List<Map<String, Object>> headers, boolean changed) {}
 }

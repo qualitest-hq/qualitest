@@ -1,4 +1,4 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
@@ -7,6 +7,7 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
+import com.qualitest.api.util.ApiTestValuePeelSupport;
 import com.qualitest.api.model.ProjectAuthConfig.Match;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;

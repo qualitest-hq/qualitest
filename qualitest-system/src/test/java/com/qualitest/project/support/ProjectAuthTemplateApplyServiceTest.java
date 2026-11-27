@@ -3,7 +3,7 @@ package com.qualitest.project.support;
 import com.qualitest.ai.domain.AiPromptTemplate;
 import com.qualitest.ai.service.IAiPromptTemplateService;
 import com.qualitest.api.model.ProjectAuthConfig;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.domain.TestProjectApiGroup;

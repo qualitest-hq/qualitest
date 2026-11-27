@@ -6,7 +6,7 @@ import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.sync.FlowExternalChangeEvent;
 import com.qualitest.flow.sync.FlowExternalChangeHub;
 import com.qualitest.flow.sync.FlowExternalChangePublisher;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.mapper.TestFlowMapper;
 import org.junit.jupiter.api.BeforeEach;

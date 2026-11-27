@@ -17,8 +17,8 @@ import com.qualitest.flow.node.impl.ReturnNodeHandler;
 import com.qualitest.flow.node.impl.SubflowNodeHandler;
 import com.qualitest.flow.run.FlowGraphRunner;
 import com.qualitest.flow.subflow.SubflowDepth;
-import com.qualitest.flow.validate.FlowNodeType;
-import com.qualitest.flow.validate.FlowRunReadinessGate;
+import com.qualitest.flow.validate.FlowGraphValidateService;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.service.ITestFlowService;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 SubflowNodeHandler：子流加载、inputs、跨项目与深度限制、定稿挂 nodes.&lt;id&gt;.out、就绪门禁。
- * 边界：Mock ITestFlowService / FlowRunReadinessGate；子图用 assign 桩。
+ * 边界：Mock ITestFlowService / FlowGraphValidateService；子图用 assign 桩。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=SubflowNodeHandlerTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -56,7 +56,7 @@ class SubflowNodeHandlerTest {
     private ITestFlowService testFlowService;
     private ParsedGraphCache parsedGraphCache;
     private FlowGraphRunner flowGraphRunner;
-    private FlowRunReadinessGate flowRunReadinessGate;
+    private FlowGraphValidateService flowGraphValidateService;
     private NodeHandlerRegistry childRegistry;
     private SubflowNodeHandler handler;
     private FlowRunContext parentCtx;
@@ -66,8 +66,9 @@ class SubflowNodeHandlerTest {
     void setUp() {
         testFlowService = mock(ITestFlowService.class);
         parsedGraphCache = mock(ParsedGraphCache.class);
-        flowRunReadinessGate = mock(FlowRunReadinessGate.class);
-        when(flowRunReadinessGate.collectBlockingErrors(any(), any(), any())).thenReturn(List.of());
+        flowGraphValidateService = mock(FlowGraphValidateService.class);
+        when(flowGraphValidateService.collectBlockingErrorMessages(any(), any(), any(), any(), any()))
+                .thenReturn(List.of());
         RunDelivery delivery = new RunDelivery(new InboundSlotRegistry(4));
         flowGraphRunner = new FlowGraphRunner(delivery);
         childRegistry = passingAssignRegistry(delivery);
@@ -84,7 +85,7 @@ class SubflowNodeHandlerTest {
         when(parsedGraphCache.getFrom(org.mockito.ArgumentMatchers.any(TestFlow.class))).thenAnswer(inv ->
                 subflow.getGraphJson() != null ? GraphJson.parse(subflow.getGraphJson()) : null);
         handler = new SubflowNodeHandler(
-                testFlowService, parsedGraphCache, flowGraphRunner, flowRunReadinessGate, childRegistry);
+                testFlowService, parsedGraphCache, flowGraphRunner, flowGraphValidateService, childRegistry);
     }
 
     /**
@@ -200,7 +201,7 @@ class SubflowNodeHandlerTest {
     @DisplayName("子流：子步失败向上传播")
     void execute_childStepFails_propagatesError() {
         handler = new SubflowNodeHandler(
-                testFlowService, parsedGraphCache, flowGraphRunner, flowRunReadinessGate, failingDelayRegistry());
+                testFlowService, parsedGraphCache, flowGraphRunner, flowGraphValidateService, failingDelayRegistry());
         subflow.setGraphJson(loadResource("flow/subflow-child-delay-graph.json"));
         GraphNode node = subflowNode(nodeData(
                 "name", "子流失败",
@@ -269,10 +270,10 @@ class SubflowNodeHandlerTest {
     @DisplayName("子流：图未就绪则硬拦不进 runner")
     void execute_childGraphNotReady_failsWithoutRunning() {
         FlowGraphRunner runnerSpy = org.mockito.Mockito.spy(flowGraphRunner);
-        when(flowRunReadinessGate.collectBlockingErrors(any(), any(), any()))
+        when(flowGraphValidateService.collectBlockingErrorMessages(any(), any(), any(), any(), any()))
                 .thenReturn(List.of("子流入口须配置 fallbackOut"));
         handler = new SubflowNodeHandler(
-                testFlowService, parsedGraphCache, runnerSpy, flowRunReadinessGate, childRegistry);
+                testFlowService, parsedGraphCache, runnerSpy, flowGraphValidateService, childRegistry);
         GraphNode node = subflowNode(nodeData(
                 "name", "半成品子流",
                 "subflowId", String.valueOf(SUBFLOW_ID),

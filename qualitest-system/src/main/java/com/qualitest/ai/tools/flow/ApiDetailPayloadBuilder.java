@@ -2,9 +2,9 @@ package com.qualitest.ai.tools.flow;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.tools.FlowDesignApiSummarizer;
-import com.qualitest.api.util.AuthHeaderHintSupport;
+import com.qualitest.project.auth.AuthHeaderHintSupport;
 import com.qualitest.api.util.ExpectedResponseKindSupport;
-import com.qualitest.api.util.LoginExtractSuggestor;
+import com.qualitest.project.auth.LoginExtractSuggestor;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.support.ResponseConventionSupport;
 import com.qualitest.project.support.TestProjectApiDesignHintsService;

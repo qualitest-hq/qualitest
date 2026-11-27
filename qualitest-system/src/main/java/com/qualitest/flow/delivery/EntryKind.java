@@ -1,6 +1,6 @@
 package com.qualitest.flow.delivery;
 
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 
 /**
  * 本次 Run 从哪种入口进入。

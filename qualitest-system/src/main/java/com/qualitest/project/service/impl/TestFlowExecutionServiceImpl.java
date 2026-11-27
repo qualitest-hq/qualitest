@@ -38,7 +38,8 @@ import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.run.TestFlowExecutor;
 import com.qualitest.flow.cache.ParsedGraphCache;
 import com.qualitest.flow.http.FlowExternalPermission;
-import com.qualitest.flow.validate.FlowRunReadinessGate;
+import com.qualitest.flow.validate.FlowGraphValidateService;
+import com.qualitest.flow.validate.FlowIssue;
 import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.domain.TestFlow;
 import com.qualitest.project.domain.TestFlowRun;
@@ -74,13 +75,11 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
- * 测试流 Run 编排服务。
+ * 测试流 Run 编排服务（触发 / 续跑 / 详情；不内嵌图校验业务规则）。
  * <p>
- * 触发运行：解析操作者 → 校验项目成员 → 解析图 → 就绪检查 → 解析场景与环境 →
- * 按项目并发模式占环境槽或入队 → 能开跑则写入 running 并立刻返回 started；
- * 后台线程携带操作者身份继续执行，每步完成即落步骤表。<br>
- * 查询详情：返回 Run 头与按 step_index 排序的步骤列表（执行中也可查）。
- * 运行中心活动列表由 {@link IProjectRunHubService} 提供；本类批跑时仅借用其「等待排队开跑」。
+ * 开跑硬拦委托 {@link FlowGraphValidateService}；图执行委托 {@link TestFlowExecutor}。
+ * 本类负责：权限、场景/环境解析、环境并发槽与排队、写 Run、后台调度。
+ * 运行中心活动列表由 {@link IProjectRunHubService} 提供；批跑时借用其「等待排队开跑」。
  */
 @Service
 @RequiredArgsConstructor
@@ -94,7 +93,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     private final TestProjectMapper testProjectMapper;
     private final TestFlowExecutor testFlowExecutor;
     private final StepResultWriter stepResultWriter;
-    private final FlowRunReadinessGate flowRunReadinessGate;
+    private final FlowGraphValidateService flowGraphValidateService;
     private final ParsedGraphCache parsedGraphCache;
     private final RunStatusUpdater runStatusUpdater;
     private final FlowExternalChangePublisher flowExternalChangePublisher;
@@ -149,9 +148,12 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID, "图解析失败");
         }
 
-        List<String> readinessErrors =
-                flowRunReadinessGate.collectBlockingErrors(
-                        graph, testFlow.getTestProjectId(), testFlow.getTestFlowId());
+        List<String> readinessErrors = flowGraphValidateService.collectBlockingErrorMessages(
+                graph,
+                FlowIssue.Stage.RUN,
+                testFlow.getTestProjectId(),
+                testFlow.getTestFlowId(),
+                params.getTestProjectEnvId());
         if (!readinessErrors.isEmpty()) {
             throw new FlowExecutionException(
                     FlowErrorCode.TF_GRAPH_INVALID,

@@ -19,6 +19,7 @@ import java.util.Set;
  * 按阶段产出统一流问题列表。
  * 除图结构外，还会合并路由冲突、鉴权就绪、API 语义、平台插件检查与（开跑时）插件 Invoke 检查，
  * 最后按项目流检查配置定级并过滤已关闭项。
+ * {@link FlowIssueCodes#GRAPH_JSON_INVALID} 为解析地板：短路返回，不经流检查定级。
  */
 @Service
 @RequiredArgsConstructor
@@ -53,11 +54,10 @@ public class FlowGraphValidateService {
             throw new ServiceException("stage 不能为空（canvas|save|run|ingress|subflow）");
         }
         if (graphJson == null || graphJson.isBlank()) {
-            return FlowGraphValidateResult.of(finalizeIssues(List.of(FlowIssue.error(
-                    FlowIssueCodes.GRAPH_JSON_INVALID, stage, null, "graphJson 不能为空")), testProjectId));
+            return parseFloorResult(stage, "graphJson 不能为空");
         }
         return switch (stage) {
-            case SAVE -> validateSave(graphJson, testProjectId);
+            case SAVE -> validateSave(graphJson);
             case CANVAS -> validateCanvas(graphJson, testProjectId, testFlowId, deferTopology);
             case RUN, INGRESS, SUBFLOW_CALL ->
                     validateRunLike(graphJson, stage, testProjectId, testFlowId, testProjectEnvId);
@@ -84,23 +84,15 @@ public class FlowGraphValidateService {
      * 保存阶段：只要求图能解析成对象。
      * 结构错误、路由冲突等不在此拦截，便于草稿落盘。
      */
-    private FlowGraphValidateResult validateSave(String graphJson, Long testProjectId) {
+    private FlowGraphValidateResult validateSave(String graphJson) {
         try {
             GraphJson graph = GraphJson.parse(graphJson);
             if (graph == null) {
-                return FlowGraphValidateResult.of(finalizeIssues(List.of(FlowIssue.error(
-                        FlowIssueCodes.GRAPH_JSON_INVALID,
-                        FlowIssue.Stage.SAVE,
-                        null,
-                        "graph_json 无法解析：解析结果为空")), testProjectId));
+                return parseFloorResult(FlowIssue.Stage.SAVE, "graph_json 无法解析：解析结果为空");
             }
             return FlowGraphValidateResult.of(List.of());
         } catch (Exception e) {
-            return FlowGraphValidateResult.of(finalizeIssues(List.of(FlowIssue.error(
-                    FlowIssueCodes.GRAPH_JSON_INVALID,
-                    FlowIssue.Stage.SAVE,
-                    null,
-                    "graph_json 无法解析：" + e.getMessage())), testProjectId));
+            return parseFloorResult(FlowIssue.Stage.SAVE, "graph_json 无法解析：" + e.getMessage());
         }
     }
 
@@ -157,16 +149,10 @@ public class FlowGraphValidateService {
         try {
             graph = GraphJson.parse(graphJson);
         } catch (Exception e) {
-            return FlowGraphValidateResult.of(finalizeIssues(List.of(FlowIssue.error(
-                    FlowIssueCodes.GRAPH_JSON_INVALID,
-                    stage,
-                    null,
-                    "graph_json 无法解析：" + e.getMessage())), testProjectId));
+            return parseFloorResult(stage, "graph_json 无法解析：" + e.getMessage());
         }
         if (graph == null) {
-            return FlowGraphValidateResult.of(finalizeIssues(List.of(FlowIssue.error(
-                    FlowIssueCodes.GRAPH_JSON_INVALID, stage, null, "graph_json 无法解析：解析结果为空")),
-                    testProjectId));
+            return parseFloorResult(stage, "graph_json 无法解析：解析结果为空");
         }
         List<FlowIssue> issues = new ArrayList<>(
                 flowRunReadinessGate.collectRawBlockingIssues(graph, testProjectId, testFlowId, stage));
@@ -175,6 +161,39 @@ public class FlowGraphValidateService {
         issues.addAll(pluginInvokeInspectionCollector.collect(
                 testProjectEnvId, testProjectId, testFlowId, graphJson, stage));
         return FlowGraphValidateResult.of(finalizeIssues(dedupe(issues), testProjectId));
+    }
+
+    /**
+     * 收集某阶段定级后的 ERROR 文案（开跑 / 入站 / 子流硬拦用）。
+     * 定级与过滤只走本服务，不再由就绪门禁自行 finalize。
+     */
+    public List<String> collectBlockingErrorMessages(
+            GraphJson graph,
+            FlowIssue.Stage stage,
+            Long testProjectId,
+            Long testFlowId,
+            Long testProjectEnvId) {
+        if (graph == null) {
+            return List.of("根对象必须是 JSON 对象");
+        }
+        FlowIssue.Stage effective = stage != null ? stage : FlowIssue.Stage.RUN;
+        FlowGraphValidateResult result = validate(
+                graph.toJsonString(), effective, testProjectId, testFlowId, false, testProjectEnvId);
+        List<String> errors = new ArrayList<>();
+        for (FlowIssue issue : result.getIssues()) {
+            if (issue != null && issue.isError() && issue.getMessage() != null) {
+                errors.add(issue.getMessage());
+            }
+        }
+        return errors;
+    }
+
+    /**
+     * 解析地板失败：固定 ERROR，不经流检查定级（不能被 inspection_profile OFF）。
+     */
+    private static FlowGraphValidateResult parseFloorResult(FlowIssue.Stage stage, String message) {
+        return FlowGraphValidateResult.of(List.of(FlowIssue.error(
+                FlowIssueCodes.GRAPH_JSON_INVALID, stage, null, message)));
     }
 
     /** 按项目流检查配置定级并过滤 OFF */

@@ -9,7 +9,7 @@ import com.qualitest.flow.http.FlowHttpNodePathSupport;
 import com.qualitest.flow.http.HttpNodeRequestValueOverridesSupport;
 import com.qualitest.flow.http.HttpRetryUntilSupport;
 import com.qualitest.flow.http.SuccessCheckResolver;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.flow.validate.GraphNodeBooleanFieldRules;
 import com.qualitest.project.domain.TestProjectApi;
 

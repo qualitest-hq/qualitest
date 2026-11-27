@@ -572,7 +572,7 @@ class FlowDesignPatchConfirmServiceTest {
         TestProjectMapper projectMapper = mock(TestProjectMapper.class);
         when(projectMapper.selectTestProjectById(anyLong())).thenReturn(TestProject.builder()
                 .testProjectId(100L)
-                .authConfig(com.qualitest.api.util.AuthProfileTestFixtures.adminThenClientJson())
+                .authConfig(com.qualitest.project.auth.AuthProfileTestFixtures.adminThenClientJson())
                 .build());
         FlowDesignPatchMerger merger = new FlowDesignPatchMerger();
         FlowDesignPatchNormalizer normalizer = new FlowDesignPatchNormalizer(

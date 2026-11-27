@@ -1,6 +1,7 @@
 package com.qualitest.flow.inspect;
 
 import com.qualitest.flow.validate.FlowIssue;
+import com.qualitest.flow.validate.FlowIssueCodes;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -9,7 +10,7 @@ import java.util.Map;
 
 /**
  * 计算流检查的生效严重性，并把原始问题列表按项目配置重映射。
- * 优先级：锁定项固定 ERROR → 项目覆盖 → 目录默认 → 未知码按 ERROR。
+ * 优先级：解析地板码固定 ERROR → 锁定项固定 ERROR → 项目覆盖 → 目录默认 → 未知码按 ERROR。
  * 配置为 OFF 的码不会进入最终结果。
  */
 @Component
@@ -26,6 +27,10 @@ public class InspectionSeverityResolver {
             String code,
             FlowInspectionDef def,
             Map<String, InspectionConfiguredSeverity> overrides) {
+        // 解析地板：不进流检查目录，也不允许历史 profile OFF
+        if (FlowIssueCodes.GRAPH_JSON_INVALID.equals(code)) {
+            return InspectionConfiguredSeverity.ERROR;
+        }
         if (def != null && def.isLocked()) {
             return InspectionConfiguredSeverity.ERROR;
         }

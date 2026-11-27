@@ -5,8 +5,6 @@
       <span v-if="unit?.label" class="ai-staging-field-diff__subtitle">{{ unit.label }}</span>
     </div>
 
-    <AiStagingConfirmWarnings :unit-id="unitId" />
-
     <p v-if="deleteHint" class="ai-staging-field-diff__delete-hint">{{ deleteHint }}</p>
 
     <table v-if="fieldRows.length" class="ai-staging-field-diff__table">
@@ -54,7 +52,6 @@
 import { computed } from 'vue'
 
 import AiStagingActionButtons from './AiStagingActionButtons.vue'
-import AiStagingConfirmWarnings from './AiStagingConfirmWarnings.vue'
 import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { stagingDeleteHint, stagingKindTitle } from '../utils/stagingLabels'

@@ -266,7 +266,6 @@ export function previewTestFlowApiHealth(
 /** 「按项目鉴权刷新本流托管头」预览结果（不写库） */
 export interface RefreshAuthHeadersResult {
   patch?: FlowDesignPatch;
-  warnings?: string[];
   changedCount?: number;
   message?: string;
 }

@@ -665,18 +665,8 @@ public class TestFlowServiceImpl implements ITestFlowService {
     }
 
     /**
-     * 写库前校验 graph_json。
-     * 拒绝：无法解析、节点缺 id / id 重复、边缺 source/target、同项目开放 HTTP method+path 冲突。
-     * 不拒绝：开始节点异常、断言路径错误、鉴权缺失、HTTP 缺必填等（允许半成品落盘）。
-     * graphJson 为空时跳过（只改名称等元数据时可不带图）。
-     *
-     * @param graphJson     待写库的图 JSON
-     * @param testProjectId 所属项目 id，可空（空则不比对其它流的路由占用）
-     * @param testFlowId    当前流 id，可空
-     */
-    /**
-     * 持久化前的轻校验：只要求 JSON 可解析，保存不因图校验/路由冲突拦截。
-     * 画布异常与开跑门禁负责阻断运行；残缺图允许落盘继续改。
+     * 保存地板：只要求 graph_json 可解析；结构/鉴权/开跑硬拦不在此拦截。
+     * 完整校验委托 {@link FlowGraphValidateService}（{@code validateGraph}）。
      *
      * @param graphJson     待写库的图 JSON
      * @param testProjectId 项目 id（保留参数以兼容调用点）

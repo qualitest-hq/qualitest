@@ -25,7 +25,8 @@ import com.qualitest.flow.run.RunStatus;
 import com.qualitest.flow.run.RunStatusUpdater;
 import com.qualitest.flow.run.StepResultWriter;
 import com.qualitest.flow.snapshot.RunSnapshotPolicy;
-import com.qualitest.flow.validate.FlowRunReadinessGate;
+import com.qualitest.flow.validate.FlowGraphValidateService;
+import com.qualitest.flow.validate.FlowIssue;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectEnv;
@@ -73,7 +74,7 @@ public class OpenHttpIngressService {
     private final InboundSlotRegistry inboundSlotRegistry;
     private final FlowGraphRunner flowGraphRunner;
     private final NodeHandlerRegistry nodeHandlerRegistry;
-    private final FlowRunReadinessGate flowRunReadinessGate;
+    private final FlowGraphValidateService flowGraphValidateService;
     private final ITestProjectEnvService testProjectEnvService;
     private final TestProjectMapper testProjectMapper;
     private final ITestFlowRunService testFlowRunService;
@@ -90,7 +91,7 @@ public class OpenHttpIngressService {
                                   InboundSlotRegistry inboundSlotRegistry,
                                   FlowGraphRunner flowGraphRunner,
                                   NodeHandlerRegistry nodeHandlerRegistry,
-                                  FlowRunReadinessGate flowRunReadinessGate,
+                                  FlowGraphValidateService flowGraphValidateService,
                                   ITestProjectEnvService testProjectEnvService,
                                   TestProjectMapper testProjectMapper,
                                   ITestFlowRunService testFlowRunService,
@@ -101,7 +102,7 @@ public class OpenHttpIngressService {
         this.inboundSlotRegistry = inboundSlotRegistry;
         this.flowGraphRunner = flowGraphRunner;
         this.nodeHandlerRegistry = nodeHandlerRegistry;
-        this.flowRunReadinessGate = flowRunReadinessGate;
+        this.flowGraphValidateService = flowGraphValidateService;
         this.testProjectEnvService = testProjectEnvService;
         this.testProjectMapper = testProjectMapper;
         this.testFlowRunService = testFlowRunService;
@@ -148,8 +149,12 @@ public class OpenHttpIngressService {
         }
 
         GraphJson graph = route.graph();
-        List<String> readinessErrors = flowRunReadinessGate.collectBlockingErrors(
-                graph, testProjectId, route.testFlowId());
+        List<String> readinessErrors = flowGraphValidateService.collectBlockingErrorMessages(
+                graph,
+                FlowIssue.Stage.INGRESS,
+                testProjectId,
+                route.testFlowId(),
+                null);
         if (readinessErrors != null && !readinessErrors.isEmpty()) {
             deferred.setResult(platformError(
                     HttpStatus.BAD_REQUEST,

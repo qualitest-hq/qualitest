@@ -1,5 +1,7 @@
 package com.qualitest.flow.validate;
 
+import com.qualitest.flow.model.FlowNodeType;
+
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import org.junit.jupiter.api.DisplayName;

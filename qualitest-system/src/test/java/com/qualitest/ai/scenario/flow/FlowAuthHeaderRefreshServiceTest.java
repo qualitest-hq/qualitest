@@ -1,8 +1,7 @@
 package com.qualitest.ai.scenario.flow;
 
 import com.qualitest.ai.scenario.flow.model.RefreshAuthHeadersResult;
-import com.qualitest.api.util.AuthHeaderResolver;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.AuthHeaderResolver;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.project.domain.TestProject;
@@ -50,7 +49,7 @@ class FlowAuthHeaderRefreshServiceTest {
         service = new FlowAuthHeaderRefreshService(apiMapper, projectMapper);
         when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(TestProject.builder()
                 .testProjectId(PROJECT_ID)
-                .authConfig(com.qualitest.api.util.AuthProfileTestFixtures.adminThenClientJson())
+                .authConfig(com.qualitest.project.auth.AuthProfileTestFixtures.adminThenClientJson())
                 .build());
     }
 
@@ -80,7 +79,6 @@ class FlowAuthHeaderRefreshServiceTest {
                 .orElseThrow();
         assertEquals("Bearer {{asset.clientAuth.token}}", auth.get("value"));
         assertTrue(AuthHeaderResolver.isProfileManaged(auth));
-        assertTrue(result.getWarnings().stream().anyMatch(w -> w.startsWith("AUTH_HEADER_MANAGED:")));
     }
 
     @Test
@@ -116,7 +114,6 @@ class FlowAuthHeaderRefreshServiceTest {
         RefreshAuthHeadersResult result = service.refresh(PROJECT_ID, graph.toJsonString());
 
         assertEquals(0, result.getChangedCount());
-        assertTrue(result.getWarnings().stream().noneMatch(w -> w.startsWith("AUTH_HEADER_MANAGED:")));
     }
 
     @Test

@@ -157,8 +157,8 @@ class FlowDesignToolExecutorTest {
         when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(
                 com.qualitest.project.domain.TestProject.builder()
                         .testProjectId(PROJECT_ID)
-                        .authConfig(com.qualitest.api.util.ProjectAuthConfigSupport.toJson(
-                                com.qualitest.api.util.AuthProfileTestFixtures.adminThenClient()))
+                        .authConfig(com.qualitest.project.auth.ProjectAuthConfigSupport.toJson(
+                                com.qualitest.project.auth.AuthProfileTestFixtures.adminThenClient()))
                         .build());
 
         String json = executor.executeTool(

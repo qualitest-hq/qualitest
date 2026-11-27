@@ -2,7 +2,7 @@ package com.qualitest.flow.model;
 
 import com.alibaba.fastjson2.JSONObject;
 
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 
 /**
  * 节点壳字段约定：展示名写在节点顶层 {@code name}；{@code data} 仅存该 type 业务配置。

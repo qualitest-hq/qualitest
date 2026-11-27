@@ -10,7 +10,7 @@ import com.qualitest.flow.run.FlowGraphRunner;
 import com.qualitest.flow.run.RunPersistenceService;
 import com.qualitest.flow.run.RunStatusUpdater;
 import com.qualitest.flow.run.StepResultWriter;
-import com.qualitest.flow.validate.FlowRunReadinessGate;
+import com.qualitest.flow.validate.FlowGraphValidateService;
 import com.qualitest.project.mapper.TestProjectMapper;
 import com.qualitest.project.service.ITestFlowRunService;
 import com.qualitest.project.service.ITestProjectEnvService;
@@ -62,7 +62,7 @@ class OpenHttpIngressServiceTest {
     @Mock
     private NodeHandlerRegistry nodeHandlerRegistry;
     @Mock
-    private FlowRunReadinessGate flowRunReadinessGate;
+    private FlowGraphValidateService flowGraphValidateService;
     @Mock
     private ITestProjectEnvService testProjectEnvService;
     @Mock
@@ -84,7 +84,7 @@ class OpenHttpIngressServiceTest {
     @BeforeEach
     void setUp() {
         service = new OpenHttpIngressService(routeRegistry, slots, flowGraphRunner, nodeHandlerRegistry,
-                flowRunReadinessGate, testProjectEnvService, testProjectMapper, testFlowRunService,
+                flowGraphValidateService, testProjectEnvService, testProjectMapper, testFlowRunService,
                 runPersistenceService, stepResultWriter, runStatusUpdater);
     }
 
@@ -97,7 +97,8 @@ class OpenHttpIngressServiceTest {
     @DisplayName("Run 落库抛异常时释放名额并回 502")
     void insertRunFails_releasesSlotAndReturnsBadGateway() {
         when(routeRegistry.resolve(PROJECT_ID, METHOD, PATH)).thenReturn(route());
-        when(flowRunReadinessGate.collectBlockingErrors(any(), eq(PROJECT_ID), any())).thenReturn(List.of());
+        when(flowGraphValidateService.collectBlockingErrorMessages(any(), any(), eq(PROJECT_ID), any(), any()))
+                .thenReturn(List.of());
         doThrow(new RuntimeException("落库失败")).when(testFlowRunService).insertTestFlowRun(any());
 
         DeferredResult<ResponseEntity<Object>> result = service.handle(
@@ -117,7 +118,8 @@ class OpenHttpIngressServiceTest {
     @DisplayName("落库前准备失败不留 Run 行且释放名额")
     void prepareFailsBeforeInsert_noGhostRunAndSlotReleased() {
         when(routeRegistry.resolve(PROJECT_ID, METHOD, PATH)).thenReturn(route());
-        when(flowRunReadinessGate.collectBlockingErrors(any(), eq(PROJECT_ID), any())).thenReturn(List.of());
+        when(flowGraphValidateService.collectBlockingErrorMessages(any(), any(), eq(PROJECT_ID), any(), any()))
+                .thenReturn(List.of());
         when(testProjectMapper.selectAssetVariablesByTestProjectId(PROJECT_ID))
                 .thenThrow(new RuntimeException("素材查询失败"));
 

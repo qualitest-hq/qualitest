@@ -9,7 +9,7 @@ import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.script.ScriptConstants;
 import com.qualitest.flow.script.ScriptExecutionResult;
 import com.qualitest.flow.script.ScriptRuntime;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;

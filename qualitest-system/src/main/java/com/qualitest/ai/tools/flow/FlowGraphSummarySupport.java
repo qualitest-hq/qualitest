@@ -5,7 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 
 import java.util.LinkedHashMap;
 import java.util.List;

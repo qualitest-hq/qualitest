@@ -11,7 +11,7 @@ import com.qualitest.api.params.ApiImportParams;
 import com.qualitest.api.result.ApiImportResult;
 import com.qualitest.api.service.IApiImportService;
 import com.qualitest.api.util.ApiImportMatchSupport;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.SecurityUtils;
 import com.qualitest.project.domain.TestProjectApi;

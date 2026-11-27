@@ -1,8 +1,8 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.api.model.ApiAuthConfig;
-import com.qualitest.api.util.AuthHeaderResolver.ResolvedAuthHeader;
+import com.qualitest.project.auth.AuthHeaderResolver.ResolvedAuthHeader;
 import com.qualitest.project.result.ManagedAuthHeader;
 
 /**

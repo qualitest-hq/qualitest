@@ -1,4 +1,4 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import com.alibaba.fastjson2.JSONObject;
 import org.junit.jupiter.api.DisplayName;

@@ -33,7 +33,8 @@
 | --- | --- | --- |
 | `AUTH_TOKEN_MISSING` | 后续 HTTP 要用凭证，但图里没有来源 | 补登录 extract / inSeed / 环境变量等与 Profile 托管头一致的来源；文案含「疑似绑错端」时改项目鉴权 |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | 两套登录写出同一凭证路径 | 双端分用 `adminAuth` / `clientAuth` |
-| `AUTH_HEADER_MANAGED` | 已自动补托管头 | 提示，不拦 |
+
+托管头由 normalize /「刷新鉴权头」自动写入（Diff 可标「按项目鉴权补全」），无单独提示码。
 
 → [ai-staging.md §5](./ai-staging.md)
 

@@ -1,10 +1,10 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.PrefabricatedApi;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
-import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
+import com.qualitest.project.auth.CredentialTargetSupport.CredentialTarget;
 import com.qualitest.common.exception.ServiceException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;

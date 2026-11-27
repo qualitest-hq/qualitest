@@ -12,7 +12,7 @@ import com.qualitest.flow.node.NodeHandlerRegistry;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.snapshot.RunSnapshotPolicy;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import lombok.Getter;
 import org.springframework.stereotype.Component;
 

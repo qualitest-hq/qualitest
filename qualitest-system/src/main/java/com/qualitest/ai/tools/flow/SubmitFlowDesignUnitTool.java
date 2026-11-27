@@ -7,7 +7,7 @@ import com.qualitest.ai.tools.FlowDesignToolContext;
 import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.QualitestTool;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.flow.model.GraphRunScenario;
 
 import java.util.HashMap;

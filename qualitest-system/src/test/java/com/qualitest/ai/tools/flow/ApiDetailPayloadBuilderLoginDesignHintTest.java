@@ -1,9 +1,9 @@
 package com.qualitest.ai.tools.flow;
 
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.api.util.AuthProfileTestFixtures;
-import com.qualitest.api.util.LoginExtractSuggestor;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.AuthProfileTestFixtures;
+import com.qualitest.project.auth.LoginExtractSuggestor;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;

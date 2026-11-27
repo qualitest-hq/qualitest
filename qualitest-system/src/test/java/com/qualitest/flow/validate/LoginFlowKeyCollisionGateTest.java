@@ -1,7 +1,7 @@
 package com.qualitest.flow.validate;
 
-import com.qualitest.api.util.AuthProfileTestFixtures;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.AuthProfileTestFixtures;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.project.domain.TestProjectApi;
@@ -18,12 +18,12 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 LoginExtractPresenceGate：不再按声明登录口硬拦缺 extract；仅保留已有 extracts 写出托管头目标时的键碰撞。
+ * 测 LoginFlowKeyCollisionGate：不再按声明登录口硬拦缺 extract；仅保留已有 extracts 写出托管头目标时的键碰撞。
  * 边界：双端模板；空 extracts 通过；两端写同一目标硬拦。
- * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=LoginExtractPresenceGateTest
+ * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=LoginFlowKeyCollisionGateTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class LoginExtractPresenceGateTest {
+class LoginFlowKeyCollisionGateTest {
 
     private static final String PROJECT_AUTH = ProjectAuthConfigSupport.toJson(
             AuthProfileTestFixtures.adminThenClient());
@@ -40,7 +40,7 @@ class LoginExtractPresenceGateTest {
                 .nodes(List.of(httpNode("login", 1L)))
                 .build();
 
-        assertTrue(LoginExtractPresenceGate.validate(
+        assertTrue(LoginFlowKeyCollisionGate.validate(
                 graph, PROJECT_AUTH, id -> api(id, "/login")).isEmpty());
     }
 
@@ -63,7 +63,7 @@ class LoginExtractPresenceGateTest {
         )));
         GraphJson graph = GraphJson.builder().nodes(List.of(n)).build();
 
-        assertTrue(LoginExtractPresenceGate.validate(
+        assertTrue(LoginFlowKeyCollisionGate.validate(
                 graph, PROJECT_AUTH, id -> api(id, "/login")).isEmpty());
     }
 
@@ -86,7 +86,7 @@ class LoginExtractPresenceGateTest {
         )));
         GraphJson graph = GraphJson.builder().nodes(List.of(n)).build();
 
-        assertTrue(LoginExtractPresenceGate.validate(
+        assertTrue(LoginFlowKeyCollisionGate.validate(
                 graph, PROJECT_AUTH, id -> apiWithTokenSchema(id, "/login")).isEmpty());
     }
 
@@ -106,7 +106,7 @@ class LoginExtractPresenceGateTest {
         )));
         GraphJson graph = GraphJson.builder().nodes(List.of(n)).build();
 
-        assertTrue(LoginExtractPresenceGate.validate(
+        assertTrue(LoginFlowKeyCollisionGate.validate(
                 graph, null, id -> apiWithMapSchema(id, "/login")).isEmpty());
     }
 
@@ -122,7 +122,7 @@ class LoginExtractPresenceGateTest {
                 .nodes(List.of(httpNode("clientLogin", 2L)))
                 .build();
 
-        assertTrue(LoginExtractPresenceGate.validate(
+        assertTrue(LoginFlowKeyCollisionGate.validate(
                 graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/login")).isEmpty());
     }
 
@@ -145,7 +145,7 @@ class LoginExtractPresenceGateTest {
         )));
         GraphJson graph = GraphJson.builder().nodes(List.of(n)).build();
 
-        assertTrue(LoginExtractPresenceGate.validate(
+        assertTrue(LoginFlowKeyCollisionGate.validate(
                 graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/login")).isEmpty());
     }
 
@@ -185,7 +185,7 @@ class LoginExtractPresenceGateTest {
         )));
         GraphJson graph = GraphJson.builder().nodes(List.of(admin, client)).build();
 
-        List<String> errors = LoginExtractPresenceGate.validate(
+        List<String> errors = LoginFlowKeyCollisionGate.validate(
                 graph, PROJECT_AUTH, id -> api(id, id == 1L ? "/login" : "/api/account/auth/login"));
 
         assertTrue(errors.stream().anyMatch(e -> e.startsWith("AUTH_LOGIN_FLOWKEY_COLLISION:")));
@@ -218,7 +218,7 @@ class LoginExtractPresenceGateTest {
                 "from", "body")));
         GraphJson graph = GraphJson.builder().nodes(List.of(a, b)).build();
 
-        List<String> errors = LoginExtractPresenceGate.validate(
+        List<String> errors = LoginFlowKeyCollisionGate.validate(
                 graph, PROJECT_AUTH, id -> api(id, "/api/account/auth/login"));
 
         assertTrue(errors.stream().noneMatch(e -> e.startsWith("AUTH_LOGIN_FLOWKEY_COLLISION:")));

@@ -8,7 +8,7 @@ import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.context.PlaceholderResolver;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepResult;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

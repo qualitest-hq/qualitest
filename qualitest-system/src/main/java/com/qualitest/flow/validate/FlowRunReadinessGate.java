@@ -1,7 +1,6 @@
 package com.qualitest.flow.validate;
 
 import com.qualitest.flow.cache.ParsedGraphCache;
-import com.qualitest.flow.inspect.FlowIssueFinalizeService;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.openhttp.OpenHttpRouteRegistry;
 import com.qualitest.project.domain.TestProject;
@@ -16,10 +15,11 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * 正式开跑前的就绪检查。
+ * 开跑就绪原料收集器。
  * <p>
- * 依次检查：完整图结构、路由占用冲突、断言/条件路径错误、鉴权凭证来源、登录抽取、HTTP 必填测值。
- * 保存图时不走本门禁。对外硬拦只认定级后的 ERROR；项目流检查配置可把部分码降为 WARNING 或关闭。
+ * 只产出尚未按项目流检查配置定级的原始问题：完整图结构、路由占用冲突、
+ * 断言/条件路径错误、鉴权凭证来源、登录键碰撞、HTTP 必填测值。
+ * 定级、过滤与硬拦文案统一由 {@link FlowGraphValidateService} 完成。
  */
 @Component
 @RequiredArgsConstructor
@@ -30,54 +30,6 @@ public class FlowRunReadinessGate {
     private final TestProjectMapper testProjectMapper;
     private final ParsedGraphCache parsedGraphCache;
     private final OpenHttpRouteRegistry openHttpRouteRegistry;
-    private final FlowIssueFinalizeService flowIssueFinalizeService;
-
-    /**
-     * 收集阻止开跑的全部错误文案。
-     * 未传当前流 id 时仍可做跨流路由冲突检查。
-     *
-     * @param graph         已解析的图
-     * @param testProjectId 所属测试项目，用于读鉴权配置与路由冲突对照
-     * @return 错误文案列表；空表示可以开跑
-     */
-    public List<String> collectBlockingErrors(GraphJson graph, Long testProjectId) {
-        return collectBlockingErrors(graph, testProjectId, null);
-    }
-
-    /**
-     * 收集阻止开跑的全部错误文案。
-     *
-     * @param graph         已解析的图
-     * @param testProjectId 所属测试项目，用于读鉴权配置与路由冲突对照
-     * @param testFlowId    当前流 id（可空）；用于排除自身已保存的路由
-     * @return 错误文案列表；空表示可以开跑
-     */
-    public List<String> collectBlockingErrors(GraphJson graph, Long testProjectId, Long testFlowId) {
-        List<String> errors = new ArrayList<>();
-        for (FlowIssue issue : collectBlockingIssues(graph, testProjectId, testFlowId, FlowIssue.Stage.RUN)) {
-            if (issue != null && issue.isError() && issue.getMessage() != null) {
-                errors.add(issue.getMessage());
-            }
-        }
-        return errors;
-    }
-
-    /**
-     * 收集会硬拦开跑的结构化问题。
-     * 先汇总原始就绪问题，再按项目流检查配置定级，只保留 ERROR。
-     */
-    public List<FlowIssue> collectBlockingIssues(
-            GraphJson graph, Long testProjectId, Long testFlowId, FlowIssue.Stage stage) {
-        List<FlowIssue> raw = collectRawBlockingIssues(graph, testProjectId, testFlowId, stage);
-        List<FlowIssue> finalized = flowIssueFinalizeService.finalizeIssues(raw, testProjectId);
-        List<FlowIssue> blocking = new ArrayList<>();
-        for (FlowIssue issue : finalized) {
-            if (issue != null && issue.isError()) {
-                blocking.add(issue);
-            }
-        }
-        return blocking;
-    }
 
     /**
      * 收集开跑相关的原始问题（尚未按项目流检查配置定级）。
@@ -109,7 +61,7 @@ public class FlowRunReadinessGate {
     }
 
     /**
-     * 仅鉴权、登录抽取、HTTP 必填相关问题（画布与开跑共用）。
+     * 仅鉴权、登录键碰撞、HTTP 必填相关问题（画布与开跑共用）。
      * 不跑结构、路由、断言路径检查。
      */
     public List<FlowIssue> collectAuthIssues(GraphJson graph, Long testProjectId, FlowIssue.Stage stage) {

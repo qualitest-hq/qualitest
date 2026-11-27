@@ -1,5 +1,7 @@
 package com.qualitest.flow.validate;
 
+import com.qualitest.flow.model.FlowNodeType;
+
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;

@@ -39,7 +39,7 @@ public final class DesignAuthRiskGates {
         }
         Function<Long, TestProjectApi> apis = apiResolver != null ? apiResolver : id -> null;
         errors.addAll(AuthTokenPresenceGate.validate(graph, projectAuthJson, apis, subflowResolver));
-        errors.addAll(LoginExtractPresenceGate.validate(graph, projectAuthJson, apis));
+        errors.addAll(LoginFlowKeyCollisionGate.validate(graph, projectAuthJson, apis));
         errors.addAll(HttpRequiredParamGate.validate(graph, apis));
         return errors;
     }

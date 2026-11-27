@@ -2,10 +2,10 @@ package com.qualitest.project.service.impl;
 
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
-import com.qualitest.api.util.ApiAuthConfigSupport;
+import com.qualitest.project.auth.ApiAuthConfigSupport;
 import com.qualitest.api.util.ApiImportMatchSupport;
 import com.qualitest.api.util.ApiTestValuePeelSupport;
-import com.qualitest.api.util.ManagedAuthHeaderSupport;
+import com.qualitest.project.auth.ManagedAuthHeaderSupport;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.diagnose.ApiFlowHealthPersistService;
 import com.qualitest.project.domain.TestProjectApi;

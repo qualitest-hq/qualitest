@@ -10,7 +10,7 @@ import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.node.impl.AbstractStubNodeHandler;
 import com.qualitest.flow.snapshot.SnapshotCheckpointService;
 import com.qualitest.flow.snapshot.SnapshotRestoreService;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.project.domain.TestFlowRun;
 import com.qualitest.project.domain.TestFlowRunStep;
 import com.qualitest.project.domain.TestProjectEnv;

@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 InspectionSeverityResolver：locked、覆盖、OFF 过滤。
+ * 测 InspectionSeverityResolver：locked、覆盖、OFF 过滤、解析地板码。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=InspectionSeverityResolverTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -27,12 +27,16 @@ class InspectionSeverityResolverTest {
     @Order(1)
     @DisplayName("locked 码忽略覆盖，固定 ERROR")
     void lockedIgnoresOverride() {
-        // 前提：GRAPH_JSON_INVALID locked，profile 试图 OFF
+        // 前提：合成 locked 目录项；profile 试图 OFF
         // 期望：仍为 ERROR
-        FlowInspectionDef def = BuiltinFlowInspections.ALL.stream()
-                .filter(d -> FlowIssueCodes.GRAPH_JSON_INVALID.equals(d.getCode()))
-                .findFirst()
-                .orElseThrow();
+        FlowInspectionDef def = FlowInspectionDef.builder()
+                .code("LOCKED_SAMPLE")
+                .shortCode("LOCKED_SAMPLE")
+                .name("锁定样例")
+                .category("测试")
+                .defaultSeverity(InspectionConfiguredSeverity.ERROR)
+                .locked(true)
+                .build();
         assertEquals(
                 InspectionConfiguredSeverity.ERROR,
                 resolver.resolve(
@@ -69,5 +73,19 @@ class InspectionSeverityResolverTest {
         assertEquals(1, out.size());
         assertTrue(out.get(0).isWarning());
         assertEquals(FlowIssueCodes.ORPHAN_PARAM, out.get(0).getCode());
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("GRAPH_JSON_INVALID 忽略覆盖，固定 ERROR")
+    void graphJsonInvalidIgnoresOverride() {
+        // 前提：解析地板码不在目录；profile 试图 OFF
+        // 期望：仍为 ERROR（不能被流检查关掉）
+        assertEquals(
+                InspectionConfiguredSeverity.ERROR,
+                resolver.resolve(
+                        FlowIssueCodes.GRAPH_JSON_INVALID,
+                        null,
+                        Map.of(FlowIssueCodes.GRAPH_JSON_INVALID, InspectionConfiguredSeverity.OFF)));
     }
 }

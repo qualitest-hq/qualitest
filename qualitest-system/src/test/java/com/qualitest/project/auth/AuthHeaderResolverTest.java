@@ -1,4 +1,4 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import com.qualitest.api.model.ApiAuthConfig;
 import org.junit.jupiter.api.DisplayName;
@@ -215,6 +215,7 @@ class AuthHeaderResolverTest {
                   "authProfiles":[{
                     "id":"sessionCookie",
                     "name":"会话 Cookie",
+                    "match":{"pathPrefix":["/app/"]},
                     "headerName":"Cookie",
                     "headerValueTemplate":"JSESSIONID={{asset.adminAuth.jsessionId}}"
                   }]

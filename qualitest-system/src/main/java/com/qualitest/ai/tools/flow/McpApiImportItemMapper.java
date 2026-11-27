@@ -7,7 +7,7 @@ import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.params.ApiImportParams;
 import com.qualitest.api.util.ApiConfigJsonSupport;
 import com.qualitest.api.util.ExpectedResponseKindSupport;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.api.util.RequestConfigImportNormalizer;
 import com.qualitest.common.exception.ServiceException;
 

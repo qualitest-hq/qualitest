@@ -1,4 +1,4 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONArray;

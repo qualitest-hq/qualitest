@@ -9,7 +9,7 @@ import com.qualitest.flow.exception.FlowExecutionException;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;

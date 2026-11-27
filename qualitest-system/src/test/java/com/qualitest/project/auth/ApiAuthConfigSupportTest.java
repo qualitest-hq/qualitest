@@ -1,4 +1,4 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.common.exception.ServiceException;

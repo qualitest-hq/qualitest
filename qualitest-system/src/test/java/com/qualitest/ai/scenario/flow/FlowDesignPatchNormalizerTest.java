@@ -14,7 +14,7 @@ import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
-import com.qualitest.api.util.AuthHeaderResolver;
+import com.qualitest.project.auth.AuthHeaderResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.DisplayName;
@@ -53,7 +53,7 @@ class FlowDesignPatchNormalizerTest {
         projectMapper = mock(TestProjectMapper.class);
         when(projectMapper.selectTestProjectById(PROJECT_ID)).thenReturn(TestProject.builder()
                 .testProjectId(PROJECT_ID)
-                .authConfig(com.qualitest.api.util.AuthProfileTestFixtures.adminThenClientJson())
+                .authConfig(com.qualitest.project.auth.AuthProfileTestFixtures.adminThenClientJson())
                 .build());
         normalizer = new FlowDesignPatchNormalizer(mapper, projectMapper, null, new GraphJsonValidator(), new FlowDesignPatchMerger());
     }

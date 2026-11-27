@@ -31,11 +31,11 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 | 动作 | 口径 |
 | ---- | ---- |
-| ✓ 确认 | 接受该单元并**必落画布**（请求成功即有 `graphJson`）。依赖顺序 / 图结构 / 断言路径**不挡 ✓**；问题只进画布图 error（含鉴权/必填，随 `validate?stage=canvas` 刷新） |
+| ✓ 确认 | 接受该单元并**必落画布**（请求成功即有 `graphJson`）。依赖顺序 / 图结构 / 断言路径**不挡 ✓**；问题进画布校验条（`ERROR`+`WARNING`，随 `validate?stage=canvas` 刷新） |
 | ✕ 取消 | 丢弃该单元，不落盘 |
 | 删除类 ✓ | **唯一确认**，无二次 `MessageBox`；勿对 Staging 边按键盘 Delete 当确认 |
-| 保存 | 可带设计期错误落盘（仅拦 JSON 无法解析）；Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
-| 运行 | 生效 severity=ERROR 的流检查硬拦（结构 / 断言 / AUTH / API 语义 / 插件检查等，可由项目「流检查」改级） |
+| 保存 | 可带设计期问题落盘（仅拦 `GRAPH_JSON_INVALID`）；Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
+| 运行 | 定级后 `severity=ERROR` 硬拦；`WARNING` 只提示（目录内码可由「流检查」改级；解析地板除外） |
 | 仅保存已确认 | 未确认项会丢，易得半截图；应先去确认或全部 ✕ 后新建流 |
 | 刷新鉴权头 | 批量改托管头，**仍进 Staging**，不是静默写库 |
 
@@ -74,23 +74,31 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 ## 5. 设计期门禁（确认 / submit / 保存 / 运行）
 
-错误串格式：`CODE: 人类文案`。前端认冒号前的 CODE。
+错误串格式：`CODE: 人类文案`。前端认冒号前的 CODE。  
+权威总表（severity / 收集器 / CODE 列）：[flow-contract-2.0.md §2.2 门禁矩阵](./flow-contract-2.0.md)（编排：`FlowGraphValidateService`）。本节只写 AI/Staging 侧要点，不重复揉表。
+
+**门槛摘要**
+
+| 动作 | 硬拦什么 | 展示 |
+|---|---|---|
+| Staging ✓ / submit 收单 | submit **仅地板**（缺 id / 未知引用 / update 空数组误清空等）；结构·鉴权·断言**不挡** | 合进画布后靠校验条 |
+| 保存 | **仅** `GRAPH_JSON_INVALID`（解析地板，固定 ERROR，不进流检查目录） | 其它 ERROR/WARNING 可带错落盘；toast 可提示「已保存，暂不可运行」 |
+| 画布 `stage=canvas` | 不硬拦 | 定级后 `ERROR` + `WARNING`（含鉴权/结构/API/插件 **platform.***）；**不含** Invoke |
+| 开跑 `stage=run`（入站/子流同族） | 定级后 **`severity=ERROR`** | 另含插件 **Invoke**（默认 WARNING，需环境）；WARNING 不拦跑 |
+
+**鉴权相关码（细节）**
 
 | CODE | 硬拦？ | 何时硬拦 | 含义 |
 | ---- | ---- | ---- | ---- |
-| `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **运行**（同上） | 两套不同登录口写出同一凭证路径 |
-| `AUTH_TOKEN_MISSING` | 是 | **运行**（同上；画布图 error 可预警） | 图要用某托管 Bearer，但 extracts / assign / 子流内 extracts / **inSeed** 都没有该目标 |
-| `AUTH_HEADER_MANAGED` | 否（soft） | — | 已按项目鉴权补托管头 |
-| `AUTH_LOGIN_NO_BEARER` | 否（soft） | — | 登录/免登口剥掉了误补的托管头 |
-| 断言路径结构错（`.items`、`http.body.$.…`） | 是（画布图 error / 开跑） | **运行**硬拦全图；**Staging ✓ / 保存 / submit 收单不拦**（submit 仅地板拒收）；无 schema / 字段未命中静默 | 见节点文档 |
-| update 空数组误清空（`rules` / `extracts` / `assignments`） | 是 | **submit 地板**（可不进 Staging）；Staging ✓ / 保存不硬拦 | baseline 同字段非空时，空数组属危险 patch，优先在 submit 拒收 |
+| `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **运行**（画布已可见 ERROR） | 两套不同登录口写出同一凭证路径 |
+| `AUTH_TOKEN_MISSING` | 是 | **运行**（画布已可见 ERROR） | 图要用某托管 Bearer，但 extracts / assign / 子流内 extracts / **inSeed** 都没有该目标 |
+| 断言路径结构错（`.items`、`http.body.$.…`） | 默认 ERROR | **运行**；✓ / 保存 / submit 不拦 | 见节点文档；无 schema / 字段未命中静默 |
+| update 空数组误清空（`rules` / `extracts` / `assignments`） | 是 | **submit 地板** | baseline 同字段非空时优先拒收 |
 | condition `branches[].target` | — | normalize **直接剔除** | 出口只认边，AI 预写 target 丢弃 |
 
-**保存**：仅拦 JSON 无法解析；地板 / 结构 / 断言 / AUTH / HTTP 必填等 errors 允许带错落盘，方便 AI 继续修。校验条仍红；toast 可提示「已保存，暂不可运行」。
+托管头由 normalize /「刷新鉴权头」写入节点；Staging Diff 标签「请求头（按项目鉴权补全）」标明系统补的，无独立 soft 提示码。
 
-**运行**：前端开跑预检改调 `POST /project/testFlow/validate?stage=run`（图结构 + 路由 + 断言 + AUTH/必填 + API 语义 + 插件 platform/invoke 检查，经项目 `inspection_profile` 定级后**仅 ERROR 硬拦**）。画布展示走 `stage=canvas`（含 WARNING）；本地 `graphValidate` 只做落盘地板。不过则不开跑。
-
-鉴权 / 登录抽取 / HTTP 必填 / API 语义与结构问题一并进画布校验条（`validate?stage=canvas`，不阻断 ✓ / 保存）；下一轮 AI 设计请求会从校验条按码过滤出 `runRiskWarnings` 注入 user 上下文。单单元 `submit_*`：**仅地板**（缺 id / 未知引用等）拒收；结构 / 鉴权 / 断言不挡收，合进 Staging 后靠画布与开跑。开跑失败再 toast。项目设置「流检查」可把某码改为 WARNING/OFF（`GRAPH_JSON_INVALID` locked）。
+下一轮 AI 设计请求会从校验条按码过滤出 `runRiskWarnings` 注入 user 上下文。开跑失败再 toast。项目「流检查」可把目录内业务码改为 WARNING/OFF。
 
 造流助手可读 `list_project_auth_profiles`、可提 `upsert_auth_profile`（半自动确认卡片写入项目 `auth_config`）。客户端 Profile 误绑 `adminAuth`（或相反）时，`AUTH_TOKEN_MISSING` 文案会追加「疑似绑错端」。登录 extract 的 `name=入口.字段` 缺 `entryKey` 时服务端会拆开。
 

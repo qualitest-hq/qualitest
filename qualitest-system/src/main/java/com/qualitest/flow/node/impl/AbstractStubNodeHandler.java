@@ -9,7 +9,7 @@ import com.qualitest.flow.model.GraphNodeShellSupport;
 import com.qualitest.flow.node.NodeHandler;
 import com.qualitest.flow.node.StepError;
 import com.qualitest.flow.node.StepResult;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 
 import java.util.HashMap;
 import java.util.Map;

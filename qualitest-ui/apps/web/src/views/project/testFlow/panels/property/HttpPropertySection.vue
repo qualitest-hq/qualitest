@@ -45,7 +45,7 @@
       <div v-else class="api-preview is-empty">尚未绑定项目接口</div>
       <div class="http-prop-meta">{{ httpMeta }}</div>
       <p v-if="authLabel && authScope.kind === 'inherit'" class="field__hint">
-        未命中 pathPrefix 时不加托管头。
+        凭证展示来自节点托管头；鉴权硬拦以画布校验条为准。
       </p>
       <ul v-if="nodeHealthWarnings.length" class="http-prop-health">
         <li v-for="(w, i) in nodeHealthWarnings" :key="i">{{ w.message || w.code }}</li>
@@ -241,7 +241,9 @@ const emit = defineEmits(['open-http-config'])
 const { patchNodeData, replaceNodeData } = useFlowNodes()
 const { issues } = useFlowValidation()
 
-const { authScope, authLabel } = useNodeAuthScope(() => props.node?.data)
+const { authScope, authLabel } = useNodeAuthScope(() =>
+  props.node ? { id: props.node.id, data: props.node.data } : undefined,
+)
 
 /** 打开属性时若缺 callMode，补 project（与 AI Normalizer / 拖拽默认一致） */
 onMounted(() => {

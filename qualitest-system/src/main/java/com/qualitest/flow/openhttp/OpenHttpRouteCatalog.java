@@ -2,7 +2,7 @@ package com.qualitest.flow.openhttp;
 
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

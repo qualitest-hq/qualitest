@@ -16,7 +16,7 @@ import com.qualitest.flow.node.impl.AssertNodeHandler;
 import com.qualitest.flow.node.impl.AssignNodeHandler;
 import com.qualitest.flow.node.impl.EntryNodeHandler;
 import com.qualitest.flow.node.impl.ReturnNodeHandler;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;

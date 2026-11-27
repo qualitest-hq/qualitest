@@ -1,7 +1,7 @@
 package com.qualitest.flow.validate;
 
-import com.qualitest.api.util.AuthProfileTestFixtures;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.AuthProfileTestFixtures;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.project.domain.TestProjectApi;

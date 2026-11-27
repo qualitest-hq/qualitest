@@ -1,4 +1,4 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import com.qualitest.api.model.ApiAuthConfig;
 import org.junit.jupiter.api.DisplayName;
@@ -34,14 +34,12 @@ class ManagedAuthHeaderApplierTest {
     void apply_loginPath_noManagedHeader() {
         Map<String, Object> data = new HashMap<>();
         data.put("headers", new ArrayList<>());
-        List<String> warnings = new ArrayList<>();
         String apiAuth = ApiAuthConfigSupport.toStorageJson(
                 ApiAuthConfig.builder().mode("inherit").build());
         boolean changed = ManagedAuthHeaderApplier.applyToNodeData(
-                data, apiAuth, PROJECT_AUTH, "/login", "管理端登录", warnings);
+                data, apiAuth, PROJECT_AUTH, "/login");
         assertFalse(changed);
         assertTrue(((List<?>) data.get("headers")).isEmpty());
-        assertTrue(warnings.isEmpty());
     }
 
     @Test
@@ -64,15 +62,12 @@ class ManagedAuthHeaderApplierTest {
                 "expr", "$.data.token",
                 "from", "body"
         )));
-        List<String> warnings = new ArrayList<>();
         String apiAuth = ApiAuthConfigSupport.toStorageJson(
                 ApiAuthConfig.builder().mode("inherit").build());
         boolean changed = ManagedAuthHeaderApplier.applyToNodeData(
-                data, apiAuth, PROJECT_AUTH, "/api/account/auth/profile", "登录", warnings);
+                data, apiAuth, PROJECT_AUTH, "/api/account/auth/profile");
         assertTrue(changed);
         assertTrue(((List<?>) data.get("headers")).isEmpty());
-        assertEquals(1, warnings.size());
-        assertTrue(warnings.get(0).startsWith(AuthDesignWarningCodes.LOGIN_NO_BEARER));
     }
 
     /**
@@ -89,12 +84,11 @@ class ManagedAuthHeaderApplierTest {
         client.put("headers", new ArrayList<>());
         Map<String, Object> admin = new HashMap<>();
         admin.put("headers", new ArrayList<>());
-        List<String> warnings = new ArrayList<>();
 
         boolean clientChanged = ManagedAuthHeaderApplier.applyToNodeData(
-                client, apiAuth, PROJECT_AUTH, "/api/orders", "客户端下单", warnings);
+                client, apiAuth, PROJECT_AUTH, "/api/orders");
         boolean adminChanged = ManagedAuthHeaderApplier.applyToNodeData(
-                admin, apiAuth, PROJECT_AUTH, "/system/user/list", "管理端用户", warnings);
+                admin, apiAuth, PROJECT_AUTH, "/system/user/list");
 
         assertTrue(clientChanged);
         assertTrue(adminChanged);

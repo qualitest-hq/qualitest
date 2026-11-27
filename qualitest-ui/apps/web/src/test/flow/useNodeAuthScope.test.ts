@@ -1,18 +1,24 @@
 /**
- * 测 HTTP 节点鉴权标签：无 apiPath 时按接口 id 反查路径再匹配 Profile。
- * 边界：mock 接口详情；Pinia 注入项目鉴权配置。
+ * 测 HTTP 节点鉴权标签：消费画布 AUTH issues + 节点托管头。
+ * 边界：mock useFlowValidation；不再反查 apiPath / pathPrefix。
  * 单跑：pnpm test useNodeAuthScope   （在 qualitest-ui 或 apps/web 下）
  */
-import { nextTick, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setupFreshPinia } from '@/test/helpers/pinia'
-import { useFlowCanvasStore } from '@/views/project/testFlow/stores/flowCanvasStore'
 
-const resolveCanvasApiDetailMock = vi.fn()
+const issuesRef = ref<Array<{ level: 'error' | 'warning'; message: string; nodeIds: string[]; code?: string }>>([])
 
-vi.mock('@/views/project/testFlow/utils/resolveCanvasApiDetail', () => ({
-  resolveCanvasApiDetail: (...args: unknown[]) => resolveCanvasApiDetailMock(...args),
+vi.mock('@/views/project/testFlow/composables/useFlowValidation', () => ({
+  useFlowValidation: () => ({
+    issues: computed(() => issuesRef.value),
+    issueNodeIds: computed(() => new Set<string>()),
+    serverIssues: ref([]),
+  }),
+  resetFlowValidationForTests: () => {
+    issuesRef.value = []
+  },
 }))
 
 import {
@@ -20,81 +26,61 @@ import {
   useNodeAuthScope,
 } from '@/views/project/testFlow/composables/useNodeAuthScope'
 
-const dualAuthJson = JSON.stringify({
-  authProfiles: [
-    {
-      id: 'adminBearer',
-      name: '管理端 Bearer',
-      match: { pathPrefix: ['/system/', '/monitor/'] },
-      headerName: 'Authorization',
-      headerValueTemplate: 'Bearer {{asset.adminAuth.token}}',
-      apis: [],
-    },
-    {
-      id: 'clientHeader',
-      name: '客户端 Header',
-      match: { pathPrefix: ['/api/'] },
-      headerName: 'token',
-      headerValueTemplate: '{{asset.clientAuth.data}}',
-      apis: [],
-    },
-  ],
-})
-
-async function flushAuthResolve() {
-  await Promise.resolve()
-  await nextTick()
-  await Promise.resolve()
-  await nextTick()
-}
-
 describe('useNodeAuthScope', () => {
   beforeEach(() => {
     setupFreshPinia()
     clearNodeAuthApiPathCache()
-    resolveCanvasApiDetailMock.mockReset()
-    const store = useFlowCanvasStore()
-    store.projectAuthConfig = dualAuthJson
+    issuesRef.value = []
   })
 
-  it('薄节点无 apiPath 时反查 /api 路径，期望客户端凭证且无冲突', async () => {
-    // 前提：节点无 apiPath，仅有接口 id；详情返回 /api/login/getPhoneByToken；托管头为客户端凭证
-    resolveCanvasApiDetailMock.mockResolvedValue({
-      apiPath: '/api/login/getPhoneByToken',
-    })
-    const data = ref<Record<string, unknown>>({
-      testProjectApiId: 'api-probe-1',
-      headers: [
-        {
-          name: 'token',
-          value: '{{asset.clientAuth.data}}',
-          profileManaged: true,
-        },
-      ],
+  it('托管头展示凭证；无 AUTH issue 时不冲突', () => {
+    // 前提：节点有客户端托管头；校验条无 AUTH
+    const node = ref({
+      id: 'n1',
+      data: {
+        headers: [
+          {
+            name: 'token',
+            value: '{{asset.clientAuth.data}}',
+            profileManaged: true,
+          },
+        ],
+      },
     })
 
-    const { authScope, authLabel } = useNodeAuthScope(data)
-    await flushAuthResolve()
+    const { authScope, authLabel } = useNodeAuthScope(node)
 
-    // 期望：期望凭证为客户端，标签无冲突
-    expect(resolveCanvasApiDetailMock).toHaveBeenCalledWith('api-probe-1')
+    // 期望：凭证来自托管头
     expect(authScope.value.expectedCredential).toBe('asset.clientAuth.data')
     expect(authScope.value.conflict).toBe(false)
     expect(authLabel.value).toBe('凭证 asset.clientAuth.data')
   })
 
-  it('节点已有 apiPath 时不请求资产详情', async () => {
-    // 前提：节点已有 apiPath=/system/user/list，同时带接口 id
-    const data = ref<Record<string, unknown>>({
-      apiPath: '/system/user/list',
-      testProjectApiId: 'api-admin-1',
+  it('本节点 AUTH issue 时标 conflict', () => {
+    // 前提：画布 issue 挂本节点
+    issuesRef.value = [{
+      level: 'error',
+      code: 'RUN_READINESS_AUTH',
+      message: 'AUTH_TOKEN_MISSING: 缺少凭证来源',
+      nodeIds: ['n1'],
+    }]
+    const node = ref({
+      id: 'n1',
+      data: {
+        headers: [
+          {
+            name: 'Authorization',
+            value: 'Bearer {{asset.adminAuth.token}}',
+            profileManaged: true,
+          },
+        ],
+      },
     })
 
-    const { authScope } = useNodeAuthScope(data)
-    await flushAuthResolve()
+    const { authScope, authLabel } = useNodeAuthScope(node)
 
-    // 期望：按路径命中管理端凭证，且不发起详情请求
-    expect(resolveCanvasApiDetailMock).not.toHaveBeenCalled()
-    expect(authScope.value.expectedCredential).toBe('asset.adminAuth.token')
+    expect(authScope.value.conflict).toBe(true)
+    expect(authScope.value.conflictReason).toContain('缺少凭证来源')
+    expect(authLabel.value).toBe('凭证 asset.adminAuth.token')
   })
 })

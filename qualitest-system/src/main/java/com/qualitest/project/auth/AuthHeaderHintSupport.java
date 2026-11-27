@@ -1,11 +1,11 @@
-package com.qualitest.api.util;
+package com.qualitest.project.auth;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
-import com.qualitest.api.util.AuthHeaderResolver.ResolvedAuthHeader;
-import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
+import com.qualitest.project.auth.AuthHeaderResolver.ResolvedAuthHeader;
+import com.qualitest.project.auth.CredentialTargetSupport.CredentialTarget;
 
 /**
  * 为 AI 工具拼装接口鉴权摘要：auth（mode 等）和 headerHint（需登录时的头模板与凭证目标）。

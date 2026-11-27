@@ -11,7 +11,7 @@ import com.qualitest.ai.tools.ToolResultByteFit;
 import com.qualitest.ai.tools.support.AuthProfileUpsertSupport;
 import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.mapper.TestProjectMapper;

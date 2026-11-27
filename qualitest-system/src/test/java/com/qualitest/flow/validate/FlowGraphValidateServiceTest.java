@@ -181,7 +181,7 @@ class FlowGraphValidateServiceTest {
 
     /**
      * 前提：空 graphJson。
-     * 期望：GRAPH_JSON_INVALID。
+     * 期望：GRAPH_JSON_INVALID（解析地板短路，不经流检查定级）。
      */
     @Test
     @Order(6)
@@ -191,6 +191,27 @@ class FlowGraphValidateServiceTest {
                 service.validate("  ", FlowIssue.Stage.CANVAS, null, null);
         assertTrue(result.hasErrors());
         assertEquals(FlowIssueCodes.GRAPH_JSON_INVALID, result.getIssues().get(0).getCode());
+        assertTrue(result.getIssues().get(0).isError());
+    }
+
+    /**
+     * 前提：非法 JSON 文本；SAVE / RUN。
+     * 期望：均为 GRAPH_JSON_INVALID ERROR（短路，不被 profile 影响）。
+     */
+    @Test
+    @Order(9)
+    @DisplayName("坏 JSON 各 stage 短路为 GRAPH_JSON_INVALID")
+    void malformedJsonShortCircuitsAllStages() {
+        String bad = "{not-json";
+        FlowGraphValidateResult save = service.validate(bad, FlowIssue.Stage.SAVE, 1L, 10L);
+        assertEquals(1, save.getIssues().size());
+        assertEquals(FlowIssueCodes.GRAPH_JSON_INVALID, save.getIssues().get(0).getCode());
+        assertTrue(save.getIssues().get(0).isError());
+
+        FlowGraphValidateResult run = service.validate(bad, FlowIssue.Stage.RUN, 1L, 10L);
+        assertEquals(1, run.getIssues().size());
+        assertEquals(FlowIssueCodes.GRAPH_JSON_INVALID, run.getIssues().get(0).getCode());
+        assertTrue(run.getIssues().get(0).isError());
     }
 
     /**

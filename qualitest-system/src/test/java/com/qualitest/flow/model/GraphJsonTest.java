@@ -1,7 +1,7 @@
 package com.qualitest.flow.model;
 
 import com.qualitest.flow.context.EntryScenarioSupport;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;

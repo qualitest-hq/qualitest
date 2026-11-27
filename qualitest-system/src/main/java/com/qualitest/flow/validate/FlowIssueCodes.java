@@ -11,7 +11,9 @@ public final class FlowIssueCodes {
     /** 开放 HTTP 入口的 method+path 在本流或跨流发生冲突 */
     public static final String ENTRY_ROUTE_CONFLICT = "ENTRY_ROUTE_CONFLICT";
 
-    /** 图 JSON 无法解析成对象 */
+    /**
+     * 图 JSON 文本无法解析成对象（解析地板，非流检查目录项；不能被 inspection_profile 改级/关闭）。
+     */
     public static final String GRAPH_JSON_INVALID = "GRAPH_JSON_INVALID";
 
     /** 图结构或字段类错误的通用码 */

@@ -1,5 +1,7 @@
 package com.qualitest.flow.validate;
 
+import com.qualitest.flow.model.FlowNodeType;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;

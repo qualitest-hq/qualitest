@@ -2,10 +2,10 @@ package com.qualitest.flow.validate;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ProjectAuthConfig;
-import com.qualitest.api.util.CredentialTargetSupport;
-import com.qualitest.api.util.CredentialTargetSupport.CredentialTarget;
-import com.qualitest.api.util.LoginExtractSuggestor;
-import com.qualitest.api.util.ProjectAuthConfigSupport;
+import com.qualitest.project.auth.CredentialTargetSupport;
+import com.qualitest.project.auth.CredentialTargetSupport.CredentialTarget;
+import com.qualitest.project.auth.LoginExtractSuggestor;
+import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.flow.graph.FlowHttpNodeVisitor;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;

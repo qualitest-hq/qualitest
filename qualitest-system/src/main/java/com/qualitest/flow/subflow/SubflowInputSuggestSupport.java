@@ -6,7 +6,7 @@ import com.qualitest.flow.context.EntryScenarioSupport;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphRunScenario;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 
 import java.util.ArrayList;
 import java.util.HashMap;

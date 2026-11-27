@@ -65,12 +65,13 @@ Edit the canvas on Web only. Use MCP to inspect `testFlowId` and failure context
 | ---- | ----- | ---- | ------- |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | **Run** (same) | Two logins write the same credential path |
 | `AUTH_TOKEN_MISSING` | Yes | **Run** (same; canvas graph error may warn) | Bearer needed but no extract / assign / child-graph extract / **inSeed**; may tip “wrong side” Profile |
-| `AUTH_HEADER_MANAGED` / `AUTH_LOGIN_NO_BEARER` | Soft | — | Managed header filled / stripped on anonymous login |
 | Bad assert path (`.items`, `http.body.$.…`) | Yes (canvas / Run) | **Run** hard-blocks; **Staging ✓ / Save / submit accept soft** (submit only floor-rejects) | See node docs |
 | Update empty array wipe (`rules`/`extracts`/`assignments`) | Yes | **submit floor** (may not enter Staging); Staging ✓ / Save soft | Prefer reject at submit vs wiping baseline |
 | condition `branches[].target` | — | stripped in normalize | Exits follow edges only |
 
 **Save** only hard-blocks unparseable JSON. **Run** readiness = structure + assert-path + AUTH / login extract / HTTP required (`validate?stage=run`).
+
+Managed headers are written by normalize / “Refresh auth headers”; Staging Diff may label headers as filled from project auth. No soft tip codes.
 
 AUTH / login extract / HTTP-required join **canvas graph errors** (`validate?stage=canvas`; do not block ✓ / Save). The next design request may filter those codes into `runRiskWarnings` in the user context. Unit `submit_*`: **floor only** (missing id / unknown refs) rejects; structure / AUTH / assert do not block accept—fix via canvas and Run.
 

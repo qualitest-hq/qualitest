@@ -2,7 +2,7 @@ package com.qualitest.flow.graph;
 
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.flow.validate.FlowNodeType;
+import com.qualitest.flow.model.FlowNodeType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
