@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 测谁：项目鉴权配置当前形态、免登只认预制 none 口。
- * 边界：空配置 builtin、有 Profile 不再猜 /login；凭证目标在托管头。
+ * 边界：空配置 builtin、有 Profile 只认预制 none；凭证目标在托管头。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ProjectAuthConfigSupportTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -50,9 +50,7 @@ class ProjectAuthConfigSupportTest {
         assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("GET", "/captchaImage", cfg));
         assertFalse(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
                 "POST", "/api/account/auth/login", cfg));
-        assertEquals(
-                ProjectAuthConfigSupport.PROFILE_RUOYI,
-                ProjectAuthConfigSupport.resolveProfileId("/system/user/list", cfg));
+        assertNull(ProjectAuthConfigSupport.resolveProfileId("/system/user/list", cfg));
         PrefabricatedApi login = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
         assertNotNull(login);
         assertEquals("none", login.getAuthConfig().getMode());
@@ -66,12 +64,12 @@ class ProjectAuthConfigSupportTest {
 
     /**
      * 前提：管理端在前 + 客户端夹具。
-     * 期望：/api/ 命中客户端，/web/ 命中管理端，未命中前缀返回 null（不回落第一条）。
+     * 期望：/api/ 命中客户端，/web/ 命中管理端，未命中前缀返回 null。
      */
     @Test
     @Order(2)
     @DisplayName("双端夹具：前缀命中与未命中为 null")
-    void adminThenClient_prefixAndFirstFallback() {
+    void adminThenClient_prefixHitAndMiss() {
         ProjectAuthConfig cfg = AuthProfileTestFixtures.adminThenClient();
 
         assertEquals(2, cfg.getAuthProfiles().size());
@@ -107,13 +105,24 @@ class ProjectAuthConfigSupportTest {
     }
 
     /**
+     * 前提：非法 JSON。
+     * 期望：抛业务异常。
+     */
+    @Test
+    @Order(17)
+    @DisplayName("非法 auth JSON 抛错")
+    void parse_illegalThrows() {
+        assertThrows(ServiceException.class, () -> ProjectAuthConfigSupport.parse("{"));
+    }
+
+    /**
      * 前提：有 Profile、apis 为空。
-     * 期望：/login inherit 不再免登；needsAuthTemplateHint 为 true。
+     * 期望：/login 不免登；needsAuthTemplateHint 为 true。
      */
     @Test
     @Order(4)
-    @DisplayName("有 Profile 且 apis 空：不再猜 /login")
-    void profilesWithoutApis_doNotGuessLogin() {
+    @DisplayName("有 Profile 且 apis 空：/login 不免登")
+    void profilesWithoutApis_loginNotAnonymous() {
         String json = """
                 {"authProfiles":[{
                   "id":"p1","name":"Bearer",

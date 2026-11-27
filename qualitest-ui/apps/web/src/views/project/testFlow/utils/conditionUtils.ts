@@ -137,7 +137,7 @@ export function applyConditionEdgeProps(
 
 /**
  * 根据 condition 源节点与边的 target，反推边应挂载的分支锚点 id（out-{branchId}）。
- * 先按 branches[].target 匹配；再回退到首条尚无 target 的分支；都没有则用第一条分支。
+ * 按 branches[].target 精确匹配；匹配不到返回通用 out。
  */
 export function getConditionEdgeHandle(
   srcNode: { type?: string; data?: Record<string, unknown> } | null | undefined,
@@ -147,11 +147,7 @@ export function getConditionEdgeHandle(
   const branches = getConditionBranches(srcNode.data);
   const byTarget = branches.find((b) => b.target === edge.target);
   if (byTarget) return `out-${byTarget.id}`;
-  // 找不到「out」通用锚点时：挂到首条尚未绑定 target 的分支，避免边因无效 handle 不渲染
-  const unbound = branches.find((b) => !hasConditionBranchTarget(b));
-  if (unbound) return `out-${unbound.id}`;
-  const fallback = branches[0];
-  return fallback ? `out-${fallback.id}` : 'out';
+  return 'out';
 }
 
 /** 统计当前 ELIF 分支数量 */
@@ -171,9 +167,7 @@ export function createElifBranchId(_branches: ConditionBranch[]): string {
 
 /**
  * 将 condition 出边的 target 写入 data.branches[].target。
- *
- * 有 sourceHandle（out-{branchId}）时写入对应分支；否则若已有分支指向同一 target 则跳过；
- * 再否则写入第一条尚无 target 的分支。
+ * 须有合法 sourceHandle（out-{branchId}）。
  *
  * @returns 是否实际修改了 branches
  */
@@ -182,14 +176,9 @@ export function bindConditionBranchTarget(
   edge: { target?: string; sourceHandle?: string | null },
 ): boolean {
   if (!edge.target) return false;
+  const branchId = resolveBranchFromHandle(edge.sourceHandle);
+  if (!branchId) return false;
   const branches = getConditionBranches(nodeData).map((b) => ({ ...b }));
-  let branchId = resolveBranchFromHandle(edge.sourceHandle);
-  if (!branchId) {
-    if (branches.some((b) => b.target === edge.target)) return false;
-    const unbound = branches.find((b) => !hasConditionBranchTarget(b));
-    if (!unbound) return false;
-    branchId = unbound.id;
-  }
   const branch = branches.find((b) => b.id === branchId);
   if (!branch || branch.target === edge.target) return false;
   branch.target = edge.target;

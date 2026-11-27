@@ -89,7 +89,7 @@ class ApiAuthConfigSupportTest {
     }
 
     /**
-     * 前提：JSON 空白或非法。
+     * 前提：JSON 空白。
      * 期望：parseOrInherit 回落 inherit。
      */
     @Test
@@ -98,7 +98,17 @@ class ApiAuthConfigSupportTest {
     void parseOrInherit_blankDefaultsToInherit() {
         assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit(null).getMode());
         assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit("").getMode());
-        assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit("{").getMode());
+    }
+
+    /**
+     * 前提：非法 JSON。
+     * 期望：抛业务异常。
+     */
+    @Test
+    @Order(16)
+    @DisplayName("非法 JSON 抛错")
+    void parseOrInherit_illegalThrows() {
+        assertThrows(ServiceException.class, () -> ApiAuthConfigSupport.parseOrInherit("{"));
     }
 
     /**

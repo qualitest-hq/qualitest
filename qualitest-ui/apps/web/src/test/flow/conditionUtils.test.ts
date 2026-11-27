@@ -1,11 +1,15 @@
 /**
- * 测谁：conditionUtils.normalizeConditionBranches
- * 边界：空 branches 补默认；已有内容不因缺 kind:else 追加结束 else
+ * 测谁：conditionUtils.normalizeConditionBranches / getConditionEdgeHandle / bindConditionBranchTarget
+ * 边界：空 branches 补默认；缺 sourceHandle 不绑分支
  * 单跑：pnpm test conditionUtils
  */
 import { describe, expect, it } from 'vitest'
 
-import { normalizeConditionBranches } from '@/views/project/testFlow/utils/conditionUtils'
+import {
+  bindConditionBranchTarget,
+  getConditionEdgeHandle,
+  normalizeConditionBranches,
+} from '@/views/project/testFlow/utils/conditionUtils'
 
 describe('normalizeConditionBranches', () => {
   it('空 branches 写入默认 IF+ELSE', () => {
@@ -37,5 +41,33 @@ describe('normalizeConditionBranches', () => {
     // 期望：默认两条
     normalizeConditionBranches(data)
     expect(data.branches).toHaveLength(2)
+  })
+
+  it('getConditionEdgeHandle：无 target 匹配时返回 out', () => {
+    // 前提：condition 有分支但 edge.target 未绑到任何分支
+    // 期望：返回通用 out
+    const src = {
+      type: 'condition',
+      data: {
+        branches: [
+          { id: 'if1', kind: 'if' },
+          { id: 'else1', kind: 'else' },
+        ],
+      },
+    }
+    expect(getConditionEdgeHandle(src, { target: 'ghost' })).toBe('out')
+  })
+
+  it('bindConditionBranchTarget：缺 sourceHandle 不绑', () => {
+    // 前提：边无 sourceHandle
+    // 期望：不修改 branches
+    const data: Record<string, unknown> = {
+      branches: [
+        { id: 'if1', kind: 'if' },
+        { id: 'else1', kind: 'else' },
+      ],
+    }
+    expect(bindConditionBranchTarget(data, { target: '9001' })).toBe(false)
+    expect((data.branches as Array<{ target?: string }>)[0].target).toBeUndefined()
   })
 })

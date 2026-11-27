@@ -70,7 +70,6 @@ export async function hydratePatchToStaging(
     },
     {
       onConflict: (text: string) => ElMessage.info(text),
-      onRewireWarning: (text: string) => ElMessage.warning(text),
       confirmedUnitIds: options.confirmedUnitIds,
       rejectedUnitIds: options.rejectedUnitIds,
     },

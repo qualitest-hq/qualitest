@@ -2,8 +2,7 @@
  * 画布 HTTP 节点的鉴权作用域：按项目 authProfiles 解析本节点将使用 / 将产出的凭证。
  * 凭证目标从 headerValueTemplate 里的 {{asset.*}} / {{flow.*}} 读取。
  *
- * 选端规则：最长 pathPrefix 命中优先；多端都未命中则不加托管头（返回空凭证期望）；
- * 项目只有一套 Profile 时，未命中前缀仍用该套。
+ * 选端规则：最长 pathPrefix 命中优先；都未命中则不加托管头。
  * 登录口：extracts 写出目标命中某 Profile 托管头 → kind=login；空 extracts 不当登录口、不因缺写 conflict。
  * 免登口（预制 api authMode=none）：kind=none。
  * 普通 inherit：托管头凭证路径若与 pathPrefix 命中 Profile 的模板不同，则 conflict。
@@ -76,9 +75,7 @@ function expectedFromProfile(profile: { valueTemplate?: string } | null | undefi
   return parseCredentialDisplayPath(profile?.valueTemplate)
 }
 
-/**
- * 按最长 pathPrefix 选 Profile；都未命中时，仅一套 Profile 则回落该套，否则 null。
- */
+/** 按最长 pathPrefix 选 Profile；都未命中返回 null。 */
 function resolveProfile(apiPath: string, profiles: ReturnType<typeof parseAuthConfig>['profiles']) {
   const path = normalizeApiPath(apiPath)
   let best: (typeof profiles)[0] | null = null
@@ -94,7 +91,7 @@ function resolveProfile(apiPath: string, profiles: ReturnType<typeof parseAuthCo
       }
     }
   }
-  return best || (profiles.length === 1 ? profiles[0] : null) || null
+  return best
 }
 
 /**

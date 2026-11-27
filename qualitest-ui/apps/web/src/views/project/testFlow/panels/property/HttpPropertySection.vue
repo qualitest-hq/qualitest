@@ -45,7 +45,7 @@
       <div v-else class="api-preview is-empty">尚未绑定项目接口</div>
       <div class="http-prop-meta">{{ httpMeta }}</div>
       <p v-if="authLabel && authScope.kind === 'inherit'" class="field__hint">
-        未命中 pathPrefix 时用数组第一条 Profile。
+        未命中 pathPrefix 时不加托管头。
       </p>
       <ul v-if="nodeHealthWarnings.length" class="http-prop-health">
         <li v-for="(w, i) in nodeHealthWarnings" :key="i">{{ w.message || w.code }}</li>

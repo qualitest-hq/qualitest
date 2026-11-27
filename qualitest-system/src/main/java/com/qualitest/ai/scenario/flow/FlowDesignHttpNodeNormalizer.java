@@ -4,8 +4,6 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import com.qualitest.ai.tools.FlowDesignApiSummarizer;
-import com.qualitest.api.util.LoginExtractSuggestor;
 import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpNodePathSupport;
 import com.qualitest.flow.http.HttpNodeRequestValueOverridesSupport;
@@ -74,7 +72,7 @@ public final class FlowDesignHttpNodeNormalizer {
      *
      * @param data            节点 data
      * @param api             已绑定的项目接口；未绑定或外联时为 null
-     * @param projectAuthJson 项目鉴权 JSON；用于按托管头凭证目标与响应 schema 补全/修正登录口 extracts
+     * @param projectAuthJson 项目鉴权 JSON（保留参数以兼容调用点）
      */
     public static void normalize(Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
         if (data == null) {
@@ -82,7 +80,6 @@ public final class FlowDesignHttpNodeNormalizer {
         }
         ensureCallModeDefault(data);
         normalizeExtracts(data);
-        alignLoginExtract(data, api, projectAuthJson);
         ensureSuccessCheckDefault(data);
         HttpRetryUntilSupport.normalizeForDesign(data);
         // HTTP 允许 alwaysRun / snapshotBefore：常见脏值收成 Boolean
@@ -117,57 +114,6 @@ public final class FlowDesignHttpNodeNormalizer {
     /** 无项目鉴权 JSON 时规范化：不自动补登录 extract。 */
     public static void normalize(Map<String, Object> data, TestProjectApi api) {
         normalize(data, api, null);
-    }
-
-    /**
-     * 登录类接口：已有凭证类 extracts 时，按 pathPrefix Profile 托管头目标对齐 scope/name/expr。
-     * 空 extracts 不自动补行（由人/AI 按 headerValueTemplate 后补）。
-     */
-    static void alignLoginExtract(
-            Map<String, Object> data, TestProjectApi api, String projectAuthJson) {
-        if (data == null || api == null || !LoginExtractSuggestor.isLoginLikeApi(api.getApiPath())) {
-            return;
-        }
-        Object raw = data.get("extracts");
-        if (!(raw instanceof List<?> list) || list.isEmpty()) {
-            return;
-        }
-        boolean hasCredentialLike = false;
-        for (Object item : list) {
-            JSONObject row = toJsonObject(item);
-            if (row != null && LoginExtractSuggestor.isCredentialLikeExtract(row)) {
-                hasCredentialLike = true;
-                break;
-            }
-        }
-        if (!hasCredentialLike) {
-            return;
-        }
-        JSONObject schema = FlowDesignApiSummarizer.summarizeResponse(api.getResponseConfig());
-        LoginExtractSuggestor.Suggestion suggestion = LoginExtractSuggestor.suggest(
-                projectAuthJson, api.getApiPath(), schema);
-        if (suggestion == null) {
-            return;
-        }
-        List<Object> next = new ArrayList<>();
-        boolean aligned = false;
-        for (Object item : list) {
-            JSONObject row = toJsonObject(item);
-            if (row == null) {
-                continue;
-            }
-            if (!aligned && LoginExtractSuggestor.isCredentialLikeExtract(row)) {
-                JSONObject alignedRow = new JSONObject(suggestion.toExtractRow());
-                copyOptionalExtractFields(row, alignedRow);
-                next.add(alignedRow);
-                aligned = true;
-                continue;
-            }
-            next.add(row);
-        }
-        if (aligned) {
-            data.put("extracts", next);
-        }
     }
 
     /**
@@ -303,17 +249,6 @@ public final class FlowDesignHttpNodeNormalizer {
     private static boolean looksLikeAssetEntryKey(String left) {
         String k = left.toLowerCase();
         return k.contains("auth");
-    }
-
-    private static void copyOptionalExtractFields(JSONObject from, JSONObject to) {
-        String entryKey = from.getString("entryKey");
-        if (entryKey != null) {
-            to.put("entryKey", entryKey);
-        }
-        String fieldPath = from.getString("fieldPath");
-        if (fieldPath != null) {
-            to.put("fieldPath", fieldPath);
-        }
     }
 
     /**

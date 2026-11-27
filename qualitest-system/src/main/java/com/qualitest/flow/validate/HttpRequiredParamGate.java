@@ -117,12 +117,19 @@ public final class HttpRequiredParamGate {
         if (schema == null) {
             return;
         }
-        JSONObject actual = readJsonExample(json.get("example"));
+        Object example = json.get("example");
+        JSONObject actual = readJsonExample(example, nodeLabel, errors);
+        if (actual == null) {
+            return;
+        }
         walkJsonRequired(schema, actual, "", nodeLabel, errors);
     }
 
-    /** 把 body.example 收成对象；字符串会先 parse，解析失败或非对象则当成空对象。 */
-    private static JSONObject readJsonExample(Object example) {
+    /**
+     * 把 body.example 收成对象。
+     * 字符串非法 JSON 或非对象时记 error 并返回 null；缺省 example 返回空对象。
+     */
+    private static JSONObject readJsonExample(Object example, String nodeLabel, List<String> errors) {
         if (example instanceof JSONObject obj) {
             return obj;
         }
@@ -135,8 +142,11 @@ public final class HttpRequiredParamGate {
                 if (parsed instanceof JSONObject obj) {
                     return obj;
                 }
-            } catch (Exception ignored) {
-                return new JSONObject();
+                errors.add(nodeLabel + " 的 body.example 须为 JSON 对象");
+                return null;
+            } catch (Exception e) {
+                errors.add(nodeLabel + " 的 body.example 不是合法 JSON");
+                return null;
             }
         }
         return new JSONObject();

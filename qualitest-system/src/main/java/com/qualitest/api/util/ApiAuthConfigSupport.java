@@ -21,7 +21,7 @@ public final class ApiAuthConfigSupport {
     private ApiAuthConfigSupport() {}
 
     /**
-     * 解析接口鉴权 JSON。空白或非法按 inherit（未标注视为要登录）。
+     * 解析接口鉴权 JSON。空白按 inherit（未标注视为要登录）；非法 JSON 抛业务异常。
      */
     public static ApiAuthConfig parseOrInherit(String json) {
         if (StrUtil.isBlank(json)) {
@@ -33,8 +33,10 @@ public final class ApiAuthConfigSupport {
                 return ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
             }
             return cfg;
+        } catch (ServiceException e) {
+            throw e;
         } catch (Exception e) {
-            return ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
+            throw new ServiceException("接口鉴权配置不是合法 JSON");
         }
     }
 

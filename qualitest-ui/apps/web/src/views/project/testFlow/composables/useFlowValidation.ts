@@ -103,7 +103,16 @@ function createFlowValidation(): FlowValidationApi {
       serverIssues.value = Array.isArray(res?.data?.issues) ? res.data!.issues! : []
     } catch {
       if (seq !== requestSeq) return
-      serverIssues.value = []
+      const unavailable: FlowIssueRecord = {
+        code: 'VALIDATION_SERVICE_UNAVAILABLE',
+        severity: 'ERROR',
+        stage: 'canvas',
+        message: '校验服务不可用，请稍后重试',
+      }
+      const prev = serverIssues.value.filter(
+        (i) => String(i?.code || '') !== 'VALIDATION_SERVICE_UNAVAILABLE',
+      )
+      serverIssues.value = [...prev, unavailable]
     }
   }
 

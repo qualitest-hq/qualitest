@@ -28,7 +28,7 @@ export interface ValidatePatchForHydrateResult {
 
 /**
  * 按规则过滤 add/update/delete 节点、边、场景。
- * addNode 必须有 id 与合法 type（禁止 input）；缺 type 直接跳过，不默认成 http。
+ * addNode 必须有 id 与合法 type（禁止 input）；缺 type 直接跳过。
  */
 export function validatePatchForHydrate(
   patch: FlowDesignPatch,
@@ -49,7 +49,7 @@ export function validatePatchForHydrate(
     const id = node.id.trim();
     const type = typeof node.type === 'string' ? node.type.trim() : '';
     if (!type) {
-      warnings.push(`addNode:${id} 缺 type，已跳过（不再默认当成 http）`);
+      warnings.push(`addNode:${id} 缺 type，已跳过`);
       continue;
     }
     if (!isKnownNodeType(type) || type === 'input') {
@@ -79,10 +79,23 @@ export function validatePatchForHydrate(
     updateNodes.push(node);
   }
 
+  const knownNodeIds = new Set<string>([...existingNodes, ...addNodeIds]);
+
   const addEdges: GraphEdge[] = [];
   for (const edge of patch.addEdges ?? []) {
     if (!edge?.id?.trim()) {
       warnings.push('已跳过缺 id 的 addEdge');
+      continue;
+    }
+    const id = edge.id.trim();
+    const source = edge.source != null ? String(edge.source).trim() : '';
+    const target = edge.target != null ? String(edge.target).trim() : '';
+    if (!source || !target) {
+      warnings.push(`addEdge:${id} 缺 source/target，已跳过`);
+      continue;
+    }
+    if (!knownNodeIds.has(source) || !knownNodeIds.has(target)) {
+      warnings.push(`addEdge:${id} 端点无效（${source}→${target}），已跳过`);
       continue;
     }
     addEdges.push(edge);
@@ -97,6 +110,16 @@ export function validatePatchForHydrate(
     const id = edge.id.trim();
     if (!existingEdges.has(id)) {
       warnings.push(`updateEdge:${id} 目标不在画布，已跳过`);
+      continue;
+    }
+    const source = edge.source != null ? String(edge.source).trim() : '';
+    const target = edge.target != null ? String(edge.target).trim() : '';
+    if (source && !knownNodeIds.has(source)) {
+      warnings.push(`updateEdge:${id} source「${source}」不在画布，已跳过`);
+      continue;
+    }
+    if (target && !knownNodeIds.has(target)) {
+      warnings.push(`updateEdge:${id} target「${target}」不在画布，已跳过`);
       continue;
     }
     updateEdges.push(edge);

@@ -81,10 +81,10 @@ public final class LoginFlowKeyCollisionGate {
                 if (rc != null && StrUtil.isNotBlank(rc.getString("method"))) {
                     return rc.getString("method").trim().toUpperCase(Locale.ROOT);
                 }
-            } catch (Exception ignored) {
-                // 解析失败则回落 POST
+            } catch (Exception e) {
+                return "MISSING_METHOD";
             }
         }
-        return "POST";
+        return "MISSING_METHOD";
     }
 }

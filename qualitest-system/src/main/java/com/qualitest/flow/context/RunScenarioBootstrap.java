@@ -14,7 +14,7 @@ import java.util.Map;
  * 运行场景解析：选出本次 Run 的环境与入参值树。
  * <p>
  * 仅从 {@code scenario-entry.data.scenarios} 读取（可指定 entryNodeId）。
- * 场景选择：入参 scenarioId → 列表首条。
+ * 场景选择：入参 scenarioId；未指定时仅当入口恰好一个场景才采用该场景，多个则报错。
  * 环境：入参 env 覆盖 → 场景 envId → fallbackEnvId。
  */
 public final class RunScenarioBootstrap {
@@ -76,6 +76,10 @@ public final class RunScenarioBootstrap {
                                                        String entryNodeId) {
         String targetId = scenarioIdOverride;
         if (targetId == null || targetId.isBlank()) {
+            if (scenarios.size() != 1) {
+                throw new FlowExecutionException(FlowErrorCode.TF_GRAPH_INVALID,
+                        "未指定运行场景，且入口有多个场景，请显式选择");
+            }
             targetId = scenarios.get(0).getId();
         }
 

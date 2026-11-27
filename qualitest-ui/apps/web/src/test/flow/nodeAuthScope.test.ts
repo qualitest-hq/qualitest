@@ -67,7 +67,7 @@ describe('resolveNodeAuthScope', () => {
     expect(formatNodeAuthScopeLabel(scope)).toBe('凭证 asset.adminAuth.token')
   })
 
-  it('未命中 pathPrefix 时双端不回落第一条', () => {
+  it('未命中 pathPrefix 时无期望凭证', () => {
     // 前提：管理端在前；路径 /other/ping
     const scope = resolveNodeAuthScope({ apiPath: '/other/ping', authConfig: dualAuth })
 
@@ -188,6 +188,16 @@ describe('resolveNodeAuthScope', () => {
     // 期望：none
     expect(scope.kind).toBe('none')
     expect(formatNodeAuthScopeLabel(scope)).toBe('免登')
+  })
+
+  it('单套 Profile 未命中 pathPrefix 时无期望凭证', () => {
+    // 前提：仅管理端一套；路径 /other/ping 不在前缀内
+    const scope = resolveNodeAuthScope({
+      apiPath: '/other/ping',
+      authConfig: { authProfiles: [dualAuth.authProfiles[0]] },
+    })
+    expect(scope.expectedCredential).toBe('')
+    expect(scope.profileName).toBe('')
   })
 })
 

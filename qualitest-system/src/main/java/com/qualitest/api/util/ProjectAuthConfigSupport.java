@@ -28,8 +28,8 @@ import java.util.Set;
  * 根结构为 authProfiles 数组；每条 Profile 含：
  * 路径前缀匹配、鉴权托管头、响应约定四字段、预制接口列表。
  * <ul>
- *   <li>选端：按接口 path 命中最长 pathPrefix；都未命中则不加托管头（不回落第一条）</li>
- *   <li>免登：配置为空时用内置登录类路径；有 Profile 后只认预制口 auth.mode=none</li>
+ *   <li>选端：按接口 path 命中最长 pathPrefix；都未命中则不加托管头</li>
+ *   <li>免登：空配置用内置登录类路径；有 Profile 后只认预制口 auth.mode=none</li>
  *   <li>抽凭证：节点 extracts 对齐托管头占位符；登录口由此推断</li>
  *   <li>响应约定：取命中 Profile 上的四字段；Profile 未写或残缺时用代码缺省（code/[200]/msg/data）</li>
  * </ul>
@@ -51,7 +51,7 @@ public final class ProjectAuthConfigSupport {
     private ProjectAuthConfigSupport() {}
 
     /**
-     * 解析库中 JSON。空白或非法返回空配置。
+     * 解析库中 JSON。空白返回空配置；非法 JSON 抛业务异常。
      */
     public static ProjectAuthConfig parse(String json) {
         if (StrUtil.isBlank(json)) {
@@ -60,11 +60,13 @@ public final class ProjectAuthConfigSupport {
         try {
             ProjectAuthConfig cfg = JSONUtil.toBean(json, ProjectAuthConfig.class);
             if (cfg == null) {
-                return empty();
+                throw new ServiceException("项目鉴权配置不是合法 JSON");
             }
             return cfg;
+        } catch (ServiceException e) {
+            throw e;
         } catch (Exception e) {
-            return empty();
+            throw new ServiceException("项目鉴权配置不是合法 JSON");
         }
     }
 
@@ -598,7 +600,6 @@ public final class ProjectAuthConfigSupport {
 
     /**
      * 配置完全空时使用的免登路径（去尾斜杠后精确比）。
-     * 有 Profile 之后不再用这份列表。
      */
     public static final List<String> BUILTIN_ANONYMOUS_AUTH_PATH_EXACT = List.of(
             "/login",
@@ -635,7 +636,8 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * 按 method+apiPath 查找预制接口；method 空或预制口 method 空时只比 path。
+     * 按 method+apiPath 查找预制接口。
+     * 调用方未给 method 时只比 path；双方都有 method 时须一致；预制口缺 method 且调用方给了 method 时不命中。
      */
     public static PrefabricatedApi findPrefabricatedApi(ProjectAuthConfig config, String method, String apiPath) {
         if (config == null || config.getAuthProfiles() == null || StrUtil.isBlank(apiPath)) {
@@ -646,7 +648,6 @@ public final class ProjectAuthConfigSupport {
         if (wantMethod != null) {
             wantMethod = wantMethod.toUpperCase(Locale.ROOT);
         }
-        PrefabricatedApi pathOnly = null;
         for (ProjectAuthProfile profile : config.getAuthProfiles()) {
             if (profile == null || profile.getApis() == null) {
                 continue;
@@ -659,13 +660,10 @@ public final class ProjectAuthConfigSupport {
                     continue;
                 }
                 String apiMethod = prefabricatedHttpMethod(api);
-                if (apiMethod == null || wantMethod == null) {
-                    if (pathOnly == null) {
-                        pathOnly = api;
-                    }
-                    if (apiMethod == null && wantMethod == null) {
-                        return api;
-                    }
+                if (wantMethod == null) {
+                    return api;
+                }
+                if (apiMethod == null) {
                     continue;
                 }
                 if (apiMethod.equals(wantMethod)) {
@@ -673,11 +671,11 @@ public final class ProjectAuthConfigSupport {
                 }
             }
         }
-        return pathOnly;
+        return null;
     }
 
     /**
-     * 预制口 HTTP 方法；requestConfig.method 缺失则返回 null（path-only）。
+     * 预制口 HTTP 方法；requestConfig.method 缺失则返回 null。
      */
     public static String prefabricatedHttpMethod(PrefabricatedApi api) {
         if (api == null || api.getRequestConfig() == null) {
@@ -695,26 +693,17 @@ public final class ProjectAuthConfigSupport {
 
     /**
      * 按接口路径解析应使用的 Profile id。
-     * 规则：在所有 Profile 的 pathPrefix 里取最长命中；多端都未命中返回 null（不会随便落到第一条）。
-     * 例外：项目里只有一套 Profile 时，未命中前缀仍用该套（旧模板 match 可能为空）。
+     * 规则：在所有 Profile 的 pathPrefix 里取最长命中；都未命中返回 null。
      *
      * @return profile id；未命中或配置为空时为 null
      */
     public static String resolveProfileId(String apiPath, ProjectAuthConfig config) {
-        String byPrefix = resolveProfileIdByPrefixOnly(apiPath, config);
-        if (byPrefix != null) {
-            return byPrefix;
-        }
-        if (!isEmpty(config) && config.getAuthProfiles().size() == 1) {
-            ProjectAuthProfile only = config.getAuthProfiles().get(0);
-            return only != null ? StrUtil.trimToNull(only.getId()) : null;
-        }
-        return null;
+        return resolveProfileIdByPrefixOnly(apiPath, config);
     }
 
     /**
      * 只按 pathPrefix 选 Profile id。
-     * 最长前缀命中优先；都未命中返回 null，不做单端回落。
+     * 最长前缀命中优先；都未命中返回 null。
      */
     public static String resolveProfileIdByPrefixOnly(String apiPath, ProjectAuthConfig config) {
         PrefixHit hit = bestPrefixHit(apiPath, config);

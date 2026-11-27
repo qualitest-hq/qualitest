@@ -76,6 +76,8 @@ AUTH / login extract / HTTP-required join **canvas graph errors** (`validate?sta
 
 Assistants may call `list_project_auth_profiles` and `upsert_auth_profile`. Dotted extract names like `adminAuth.token` without `entryKey` are split server-side.
 
+Before hydrate, the Web also soft-gates the patch: missing id / unknown type / update·delete target absent / **addEdge endpoints not in canvas ∪ batch addNodes** → skip that unit (toast).
+
 Auth model: concept map §4. Variables / inSeed: [flow-variables-and-values.en.md](./flow-variables-and-values.en.md).
 
 ---

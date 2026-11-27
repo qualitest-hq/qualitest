@@ -14,7 +14,7 @@ import type {
 import type { FlowDesignPatch } from '../types/aiDesignTypes';
 import { buildStagingUnits } from '../utils/buildStagingUnits';
 import { filterPatchForConfirm } from '../utils/filterPatchForConfirm';
-import { normalizeFlowDesignPatchIdsWithWarnings } from '../utils/patchIdNormalize';
+import { normalizeFlowDesignPatchIds } from '../utils/patchIdNormalize';
 import {
   graphObjectIdFromUnit,
   isScenarioKind,
@@ -189,8 +189,7 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
 
   /**
    * 将一条助手 patch 灌入 Staging。
-   * 规范化 id 与边端点（改写必回调 onRewireWarning）；
-   * 同消息旧 pending 先清再重建；
+   * 规范化 id；同消息旧 pending 先清再重建；
    * 与其它消息 pending 占用同一 node/edge/scenario id 时，回滚旧单元画布效果并替换。
    */
   function hydrateStagingFromPatch(
@@ -199,16 +198,11 @@ export const useAiStagingStore = defineStore('aiStaging', () => {
     ctx: StagingBuildContext,
     options?: {
       onConflict?: (message: string) => void;
-      /** 边端点启发式改写时的警告文案 */
-      onRewireWarning?: (message: string) => void;
       confirmedUnitIds?: ReadonlySet<string>;
       rejectedUnitIds?: ReadonlySet<string>;
     },
   ) {
-    const { patch: normalizedPatch, rewireWarnings } = normalizeFlowDesignPatchIdsWithWarnings(patch);
-    for (const w of rewireWarnings) {
-      options?.onRewireWarning?.(w);
-    }
+    const normalizedPatch = normalizeFlowDesignPatchIds(patch);
     patchesByMessageId.value = { ...patchesByMessageId.value, [messageId]: normalizedPatch };
 
     const next = { ...unitsById.value };

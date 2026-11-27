@@ -194,7 +194,8 @@ public final class FlowHttpRequestBuilder {
         }
         String resolved = STRICT.resolve(String.valueOf(bodyObj), ctx);
         if (!hasHeader(headers, "Content-Type")) {
-            headers.put("Content-Type", guessContentType(resolved));
+            throw new FlowExecutionException(FlowErrorCode.TF_STEP_ERROR,
+                    "外联 HTTP 有请求体但缺少 Content-Type，请在节点 headers 中显式配置");
         }
         DebugHttpForwardParams.DebugBodySpec spec = new DebugHttpForwardParams.DebugBodySpec();
         String trimmed = resolved.trim();
@@ -225,17 +226,6 @@ public final class FlowHttpRequestBuilder {
             spec.setContentType(headers.get("Content-Type"));
         }
         return spec;
-    }
-
-    private static String guessContentType(String body) {
-        String trimmed = body != null ? body.trim() : "";
-        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-            return "application/json";
-        }
-        if (body != null && body.contains("=") && !body.contains("{")) {
-            return "application/x-www-form-urlencoded";
-        }
-        return "text/plain";
     }
 
     /** 从 externalUrl 提取 host/path 用于摘要展示 */

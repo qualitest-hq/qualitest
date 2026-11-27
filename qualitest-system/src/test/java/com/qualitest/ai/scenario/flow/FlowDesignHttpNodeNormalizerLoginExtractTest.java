@@ -15,11 +15,10 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测 FlowDesignHttpNodeNormalizer 登录 extract 对齐。
- * 边界：已有凭证类 extracts 才按托管头目标纠；空 extracts 不自动补；Map schema 不编路径。
+ * 测 FlowDesignHttpNodeNormalizer 对登录口 extracts 的处理。
+ * 边界：空 extracts 不自动补；已有行保持原样。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowDesignHttpNodeNormalizerLoginExtractTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -32,7 +31,7 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
     @Test
     @Order(1)
     @DisplayName("空 extracts 不自动补登录 extract")
-    void alignLoginExtract_whenEmpty_doesNotFill() {
+    void emptyExtracts_notFilled() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
         TestProjectApi api = TestProjectApi.builder()
@@ -53,13 +52,13 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
     }
 
     /**
-     * 前提：单端 RuoYi 模板；管理端 /login；AI 写成 flow token + $.data.token；schema 含 token。
-     * 期望：纠成 asset.adminAuth.token + $.token。
+     * 前提：单端 RuoYi 模板；管理端 /login；已有 flow token + $.data.token。
+     * 期望：凭证行保持原样。
      */
     @Test
     @Order(2)
-    @DisplayName("管理端错误凭证行按目标纠正")
-    void alignLoginExtract_rewritesWrongAdminPath() {
+    @DisplayName("已有凭证行保持原样")
+    void existingCredentialRow_unchanged() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
         data.put("extracts", List.of(Map.of(
@@ -83,20 +82,19 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> extracts = (List<Map<String, Object>>) data.get("extracts");
         assertEquals(1, extracts.size());
-        assertEquals("asset", extracts.get(0).get("scope"));
-        assertEquals("adminAuth", extracts.get(0).get("entryKey"));
-        assertEquals("token", extracts.get(0).get("fieldPath"));
-        assertEquals("$.token", extracts.get(0).get("expr"));
+        assertEquals("flow", extracts.get(0).get("scope"));
+        assertEquals("token", extracts.get(0).get("name"));
+        assertEquals("$.data.token", extracts.get(0).get("expr"));
     }
 
     /**
      * 前提：双端模板；管理端 /login；extract 名为 token、expr 为 $.custom。
-     * 期望：不改自定义路径（非凭证类 expr）。
+     * 期望：自定义路径保持原样。
      */
     @Test
     @Order(3)
-    @DisplayName("自定义 expr 不覆盖")
-    void alignLoginExtract_skipsCustomExpr() {
+    @DisplayName("自定义 expr 保持原样")
+    void customExpr_unchanged() {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
         data.put("extracts", List.of(Map.of(
@@ -117,64 +115,5 @@ class FlowDesignHttpNodeNormalizerLoginExtractTest {
         assertEquals(1, extracts.size());
         assertEquals("token", extracts.get(0).get("name"));
         assertEquals("$.custom", extracts.get(0).get("expr"));
-    }
-
-    /**
-     * 前提：无项目鉴权；/login 响应 schema 为 Map；已有 token + $.data.token。
-     * 期望：不编、不改写成 $.token。
-     */
-    @Test
-    @Order(4)
-    @DisplayName("Map schema 无目标时不改 extracts")
-    void alignLoginExtract_mapSchema_doesNotInventPath() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("callMode", "project");
-        data.put("extracts", List.of(Map.of(
-                "name", "token",
-                "expr", "$.data.token",
-                "scope", "flow",
-                "from", "body"
-        )));
-        TestProjectApi api = TestProjectApi.builder()
-                .apiPath("/login")
-                .responseConfig("""
-                        {"responses":[{"schema":{"type":"object","properties":{
-                          "threshold":{"type":"integer"},
-                          "loadFactor":{"type":"number"}
-                        }}}]}
-                        """)
-                .build();
-
-        FlowDesignHttpNodeNormalizer.normalize(data, api, null);
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> extracts = (List<Map<String, Object>>) data.get("extracts");
-        assertEquals("token", extracts.get(0).get("name"));
-        assertEquals("$.data.token", extracts.get(0).get("expr"));
-    }
-
-    /**
-     * 前提：无项目鉴权；/login；extracts 为空；schema 为 Map。
-     * 期望：不凭空插入 extract。
-     */
-    @Test
-    @Order(5)
-    @DisplayName("Map schema 空 extracts 不自动补路径")
-    void alignLoginExtract_mapSchemaEmpty_doesNotFill() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("callMode", "project");
-        TestProjectApi api = TestProjectApi.builder()
-                .apiPath("/login")
-                .responseConfig("""
-                        {"responses":[{"schema":{"type":"object","properties":{
-                          "threshold":{"type":"integer"}
-                        }}}]}
-                        """)
-                .build();
-
-        FlowDesignHttpNodeNormalizer.normalize(data, api, null);
-
-        assertNull(data.get("extracts"));
-        assertTrue(data.containsKey("successCheck") || data.get("successCheck") != null);
     }
 }

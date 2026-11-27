@@ -67,19 +67,19 @@ Configured in project settings → auth. Shared by Normalizer, Run, and debug.
 | Apply | Copy into `authProfiles` (**new ids**); insert prefab `apis[]` (skip existing method+path); optional envs/params/flows. Managed header: prefer login-flow extracts, else match_config.credential, else reject the row |
 | New project | **At least one** template; dual mall: admin Bearer then client Bearer |
 | Anonymous | Prefab `apis[].authConfig.mode=none` only; no project-level anonymous path list |
-| Empty config | Builtin `/login` heuristics only when auth is completely empty; Profiles with empty apis → settings banner |
+| Empty config | Builtin `/login` anonymous paths when auth is empty; illegal auth JSON is rejected; Profiles with empty apis → settings banner |
 
 ### Three layers
 
 | Layer | Notes |
 | ----- | ----- |
-| Project `authProfiles` | Header template (`headerName` + `headerValueTemplate`) + prefab `apis[]`; unmatched `pathPrefix` → **first array item** |
+| Project `authProfiles` | Header template (`headerName` + `headerValueTemplate`) + prefab `apis[]`; unmatched `pathPrefix` → **no managed header** |
 | API `auth.mode` | `inherit` / `none` / `override` |
 | Node headers | `profileManaged` rows refresh from current config at Run; unmarked headers never silently change |
 
-**Match:** `authProfileId` if set; else longest `pathPrefix`; else first profile. **`pathPrefix="/"` forbidden.**
+**Match:** `authProfileId` if set; else longest `pathPrefix`; unmatched → no managed header. **`pathPrefix="/"` forbidden.**
 
-**Login extracts:** usually `scope=asset` into the asset library; Profile header uses `{{asset.adminAuth.token}}` etc. Login nodes are inferred when extracts match headerValueTemplate; missing extracts are not hard-blocked (human/AI can add later). Uploads merge API schema/`mode` by method+path; optional upload protection (`syncProtected=1` skips the row; built-in prefab APIs default to `1`).
+**Login extracts:** usually `scope=asset` into the asset library; Profile header uses `{{asset.adminAuth.token}}` etc. Login nodes are recognized when extracts match headerValueTemplate; missing extracts are not hard-blocked (human/AI can add later). Uploads merge API schema/`mode` by method+path; optional upload protection (`syncProtected=1` skips the row; built-in prefab APIs default to `1`).
 
 | Side | Typical path | Extract |
 | ---- | ------------ | ------- |

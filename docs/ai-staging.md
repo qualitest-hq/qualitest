@@ -96,7 +96,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 造流 submit 工具面：节点/边/场景用 `submit_*` + `op=add|update`；删除统一 `submit_delete`（`kind`+`id`）。AI **不造** `input` 节点，**不切**默认运行场景。
 
-灌入 Staging 前前端另做轻量 schema：缺 id / 未知 type / update·delete 目标不存在的项**不建 unit**；边端点启发式改写必 toast 提示。
+灌入 Staging 前前端另做轻量 schema：缺 id / 未知 type / update·delete 目标不存在的项、以及 addEdge 端点不在「画布 ∪ 本批新增节点」的项**不建 unit**（toast 提示）。
 
 鉴权产品口径见 [project-summary.md §4](./project-summary.md)。跑流变量 / inSeed 见 [flow-variables-and-values.md](./flow-variables-and-values.md)。
 

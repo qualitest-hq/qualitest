@@ -1,15 +1,12 @@
 /**
- * 测 normalizeFlowDesignPatchIds：patch id 规范化与边端点重连。
+ * 测 normalizeFlowDesignPatchIds：patch id 规范化与边端点 remap。
  * 边界：纯函数，无 store 依赖。
  * 单跑：pnpm test patchIdNormalize   （在 qualitest-ui 或 apps/web 下）
  */
 import { describe, expect, it } from 'vitest';
 
 import type { FlowDesignPatch } from '@/views/project/testFlow/types/aiDesignTypes';
-import {
-  normalizeFlowDesignPatchIds,
-  normalizeFlowDesignPatchIdsWithWarnings,
-} from '@/views/project/testFlow/utils/patchIdNormalize';
+import { normalizeFlowDesignPatchIds } from '@/views/project/testFlow/utils/patchIdNormalize';
 
 describe('normalizeFlowDesignPatchIds', () => {
   /** 非数字节点 id 被替换后，连线 source/target 应指向新节点 id。 */
@@ -35,6 +32,8 @@ describe('normalizeFlowDesignPatchIds', () => {
   });
 
   it('传入 clientIdMap 时复用已映射雪花，不重新发号', () => {
+    // 前提：clientIdMap 已有 n_login
+    // 期望：复用映射 id，不重新发号
     const patch: FlowDesignPatch = {
       addNodes: [{ id: 'n_login', type: 'http', data: { name: '登录' } }],
       addEdges: [],
@@ -43,30 +42,9 @@ describe('normalizeFlowDesignPatchIds', () => {
     expect(normalized.addNodes![0].id).toBe('2097000000000000001');
   });
 
-  /** 端点 id 全部无效且为 3 节点 3 边时，应重连为 A→B、B→C、A→C。 */
-  it('3 节点 3 边且端点全无效时按流水线拓扑重连', () => {
-    // 前提：3 节点 id 有效，3 边端点均无效
-    // 期望：边重连为 9001→9002、9002→9003、9001→9003
-    const patch: FlowDesignPatch = {
-      addNodes: [
-        { id: '9001', type: 'http', data: { name: 'A' } },
-        { id: '9002', type: 'http', data: { name: 'B' } },
-        { id: '9003', type: 'assert', data: { name: 'C' } },
-      ],
-      addEdges: [
-        { id: '8001', source: 'x1', target: 'x2' },
-        { id: '8002', source: 'x2', target: 'x3' },
-        { id: '8003', source: 'x1', target: 'x3' },
-      ],
-    };
-
-    const normalized = normalizeFlowDesignPatchIds(patch);
-    expect(normalized.addEdges![0]).toMatchObject({ source: '9001', target: '9002' });
-    expect(normalized.addEdges![1]).toMatchObject({ source: '9002', target: '9003' });
-    expect(normalized.addEdges![2]).toMatchObject({ source: '9001', target: '9003' });
-  });
-
-  it('端点改写时产出 rewireWarnings', () => {
+  it('未 remap 的边端点保持原样', () => {
+    // 前提：节点 id 有效，边端点指向未知 id
+    // 期望：端点不被改写
     const patch: FlowDesignPatch = {
       addNodes: [
         { id: '9001', type: 'http', data: { name: 'A' } },
@@ -74,9 +52,7 @@ describe('normalizeFlowDesignPatchIds', () => {
       ],
       addEdges: [{ id: '8001', source: 'x1', target: 'x2' }],
     };
-    const { patch: normalized, rewireWarnings } = normalizeFlowDesignPatchIdsWithWarnings(patch);
-    expect(normalized.addEdges![0]).toMatchObject({ source: '9001', target: '9002' });
-    expect(rewireWarnings.length).toBeGreaterThan(0);
-    expect(rewireWarnings[0]).toContain('端点无效');
+    const normalized = normalizeFlowDesignPatchIds(patch);
+    expect(normalized.addEdges![0]).toMatchObject({ source: 'x1', target: 'x2' });
   });
 });

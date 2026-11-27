@@ -139,14 +139,16 @@ public class StepResultWriter {
                     GraphRunScenario matched = scenarios.stream()
                             .filter(s -> Objects.equals(s.getId(), runScenarioId))
                             .findFirst()
-                            .orElse(scenarios.get(0));
-                    if (scenarioId == null) {
-                        scenarioId = matched.getId();
-                    }
-                    scenarioName = matched.getName();
-                    Map<String, Object> inSeed = matched.getInSeed();
-                    if (inSeed != null && !inSeed.isEmpty()) {
-                        inSeedSnapshot.putAll(inSeed);
+                            .orElse(null);
+                    if (matched != null) {
+                        if (scenarioId == null) {
+                            scenarioId = matched.getId();
+                        }
+                        scenarioName = matched.getName();
+                        Map<String, Object> inSeed = matched.getInSeed();
+                        if (inSeed != null && !inSeed.isEmpty()) {
+                            inSeedSnapshot.putAll(inSeed);
+                        }
                     }
                 }
             } catch (Exception ignored) {

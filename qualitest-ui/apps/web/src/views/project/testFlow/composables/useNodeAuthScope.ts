@@ -3,7 +3,7 @@
  *
  * 节点通常只存 testProjectApiId，不存 apiPath。
  * 无 apiPath 时按接口 id 拉取资产路径，再按 pathPrefix 选 Profile；
- * 若路径为空则无法命中前缀，会回落到鉴权配置数组第一条 Profile，标签可能显示错误端凭证。
+ * 路径为空或未命中前缀则不加托管头期望。
  */
 import { computed, ref, watch, type MaybeRefOrGetter, toValue } from 'vue'
 
