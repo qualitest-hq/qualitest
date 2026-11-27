@@ -21,4 +21,9 @@ public class FlowGraphValidateParams {
      * 仅 stage=canvas：有未确认 Staging 边时为 true，延后开始节点等拓扑硬拦。
      */
     private Boolean deferTopology;
+
+    /**
+     * 仅 stage=run：环境 id，用于调度已启用插件的 onFlowInspect。
+     */
+    private Long testProjectEnvId;
 }

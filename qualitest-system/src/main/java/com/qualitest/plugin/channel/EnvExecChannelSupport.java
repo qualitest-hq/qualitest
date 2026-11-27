@@ -1,5 +1,6 @@
 package com.qualitest.plugin.channel;
 
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.plugin.PluginErrorCode;
@@ -58,7 +59,7 @@ public class EnvExecChannelSupport {
         if (cfg == null) {
             return null;
         }
-        return firstNonBlank(cfg.getString("baseUrl"), nestedBaseUrl(cfg));
+        return StrUtil.firstNonBlank(cfg.getString("baseUrl"), nestedBaseUrl(cfg));
     }
 
     /**
@@ -68,7 +69,7 @@ public class EnvExecChannelSupport {
         if (cfg == null) {
             return null;
         }
-        return firstNonBlank(cfg.getString("token"), nestedToken(cfg));
+        return StrUtil.firstNonBlank(cfg.getString("token"), nestedToken(cfg));
     }
 
     /**
@@ -148,16 +149,6 @@ public class EnvExecChannelSupport {
         } catch (Exception e) {
             return new JSONObject();
         }
-    }
-
-    private static String firstNonBlank(String a, String b) {
-        if (a != null && !a.isBlank()) {
-            return a;
-        }
-        if (b != null && !b.isBlank()) {
-            return b;
-        }
-        return null;
     }
 
     /**

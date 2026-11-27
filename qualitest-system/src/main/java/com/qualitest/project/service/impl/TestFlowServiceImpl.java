@@ -711,9 +711,10 @@ public class TestFlowServiceImpl implements ITestFlowService {
             FlowIssue.Stage stage,
             Long testProjectId,
             Long testFlowId,
-            boolean deferTopology) {
+            boolean deferTopology,
+            Long testProjectEnvId) {
         return flowGraphValidateService.validate(
-                graphJson, stage, testProjectId, testFlowId, deferTopology);
+                graphJson, stage, testProjectId, testFlowId, deferTopology, testProjectEnvId);
     }
 
     /**

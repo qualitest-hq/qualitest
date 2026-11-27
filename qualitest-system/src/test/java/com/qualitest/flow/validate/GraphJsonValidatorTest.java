@@ -111,10 +111,14 @@ class GraphJsonValidatorTest {
     @Order(5)
     @DisplayName("manifest 夹具错误警告条数一致")
     void validateCases_fromManifest() {
-        FlowGraphValidateService validateService = new FlowGraphValidateService(
-                validator,
-                org.mockito.Mockito.mock(FlowRunReadinessGate.class),
-                org.mockito.Mockito.mock(com.qualitest.flow.openhttp.OpenHttpRouteRegistry.class));
+        FlowRunReadinessGate readiness = org.mockito.Mockito.mock(FlowRunReadinessGate.class);
+        org.mockito.Mockito.when(readiness.collectAuthIssues(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        FlowGraphValidateService validateService =
+                FlowGraphValidateServiceTestSupport.create(validator, readiness);
         for (int i = 0; i < validateCases.size(); i++) {
             JSONObject spec = validateCases.getJSONObject(i);
             String id = spec.getString("id");

@@ -1,5 +1,6 @@
 package com.qualitest.ai.mcp.protocol;
 
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 
 /**
@@ -40,8 +41,8 @@ public final class McpSessionOpen {
     public static Parsed parse(JSONObject request, String modeHeader, String flowHeader) {
         JSONObject params = request == null ? null : request.getJSONObject("params");
         JSONObject qualitest = params == null ? null : params.getJSONObject("qualitest");
-        String modeText = firstNonBlank(text(qualitest, "session"), modeHeader);
-        String flowText = firstNonBlank(text(qualitest, "testFlowId"), flowHeader);
+        String modeText = StrUtil.firstNonBlank(text(qualitest, "session"), modeHeader);
+        String flowText = StrUtil.firstNonBlank(text(qualitest, "testFlowId"), flowHeader);
 
         McpSession.Mode mode = McpSession.Mode.CALL;
         if (modeText != null) {
@@ -76,14 +77,4 @@ public final class McpSessionOpen {
         return value.isEmpty() ? null : value;
     }
 
-    /** 正文有值用正文，否则用请求头。两边都空则返回 null。 */
-    private static String firstNonBlank(String primary, String fallback) {
-        if (primary != null && !primary.isBlank()) {
-            return primary;
-        }
-        if (fallback != null && !fallback.isBlank()) {
-            return fallback;
-        }
-        return null;
-    }
 }

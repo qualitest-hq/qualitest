@@ -162,6 +162,22 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
         return out;
     }
 
+    /** 从节点 data 读取 assignments（契约为对象数组；元素可为 JSONObject / Map） */
+    private static JSONArray toAssignmentsArray(Object raw) {
+        if (!(raw instanceof List<?> list)) {
+            return null;
+        }
+        JSONArray arr = new JSONArray();
+        for (Object item : list) {
+            if (item instanceof JSONObject jo) {
+                arr.add(jo);
+            } else if (item instanceof Map<?, ?> map) {
+                arr.add(new JSONObject(map));
+            }
+        }
+        return arr;
+    }
+
     /** 规范化赋值运算符；空值或非法值默认 set */
     private static String normalizeOp(String op) {
         if (op == null || op.isBlank()) {
@@ -220,22 +236,4 @@ public class AssignNodeHandler extends AbstractStubNodeHandler {
         }
     }
 
-    /** 从节点 data 读取 assignments 数组（兼容 JSONArray 与 List） */
-    private static JSONArray toAssignmentsArray(Object raw) {
-        if (raw instanceof JSONArray arr) {
-            return arr;
-        }
-        if (raw instanceof List<?> list) {
-            JSONArray arr = new JSONArray();
-            for (Object item : list) {
-                if (item instanceof JSONObject jo) {
-                    arr.add(jo);
-                } else if (item instanceof Map<?, ?> map) {
-                    arr.add(new JSONObject(map));
-                }
-            }
-            return arr;
-        }
-        return null;
-    }
 }

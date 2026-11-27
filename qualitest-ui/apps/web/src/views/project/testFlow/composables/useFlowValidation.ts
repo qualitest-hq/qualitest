@@ -1,7 +1,7 @@
 /**
  * 画布实时校验汇总（页面级单例）。
  *
- * 合并：服务端 stage=canvas issues（结构+鉴权/必填）、本地落盘地板、API 语义告警。
+ * 合并：服务端 stage=canvas issues（图结构/鉴权/API 语义/插件 platform 检查，已定级）与本地落盘地板。
  * 业务规则以服务端为准；本地只做即时地板。
  * 平移/缩放视口不触发服务端校验；Staging 有未确认边时 deferTopology。
  */
@@ -11,11 +11,9 @@ import { validateTestFlowGraph, type FlowIssueRecord } from '@/api/project/testF
 import { validateGraphJson } from '@/utils/flow/graphValidate'
 
 import { useAiStagingStore } from '../stores/aiStagingStore'
-import { useApiHealthStore } from '../stores/apiHealthStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import {
   collectIssueNodeIds,
-  issuesFromApiHealthWarnings,
   issuesFromGraphValidation,
   resolveNodeIdsFromMessage,
   type FlowCanvasValidationIssue,
@@ -41,7 +39,7 @@ function dedupeCanvasIssues(list: FlowCanvasValidationIssue[]): FlowCanvasValida
   const seen = new Set<string>()
   const out: FlowCanvasValidationIssue[] = []
   for (const issue of list) {
-    const key = `${issue.level}|${issue.code || ''}|${issue.message}|${(issue.nodeIds || []).join(',')}|${issue.source}`
+    const key = `${issue.level}|${issue.code || ''}|${issue.message}|${(issue.nodeIds || []).join(',')}`
     if (seen.has(key)) continue
     seen.add(key)
     out.push(issue)
@@ -49,10 +47,26 @@ function dedupeCanvasIssues(list: FlowCanvasValidationIssue[]): FlowCanvasValida
   return out
 }
 
+function mapServerIssue(
+  issue: FlowIssueRecord,
+  graph: ReturnType<typeof buildCanvasPersistGraph>,
+): FlowCanvasValidationIssue | null {
+  const sev = String(issue?.severity || 'ERROR').toUpperCase()
+  if (sev !== 'ERROR' && sev !== 'WARNING') return null
+  const code = issue?.code != null && String(issue.code).trim() ? String(issue.code).trim() : undefined
+  return {
+    level: sev === 'WARNING' ? 'warning' : 'error',
+    message: String(issue?.message || issue?.code || '').trim() || '校验失败',
+    nodeIds: issue?.nodeId
+      ? [String(issue.nodeId)]
+      : resolveNodeIdsFromMessage(String(issue?.message || ''), graph),
+    code,
+  }
+}
+
 function createFlowValidation(): FlowValidationApi {
   const stagingStore = useAiStagingStore()
   const canvasStore = useFlowCanvasStore()
-  const apiHealth = useApiHealthStore()
 
   const persistGraph = computed(() => buildCanvasPersistGraph())
   const serverIssues = ref<FlowIssueRecord[]>([])
@@ -89,7 +103,6 @@ function createFlowValidation(): FlowValidationApi {
       serverIssues.value = Array.isArray(res?.data?.issues) ? res.data!.issues! : []
     } catch {
       if (seq !== requestSeq) return
-      // 失败清空，避免跨流脏高亮
       serverIssues.value = []
     }
   }
@@ -111,25 +124,10 @@ function createFlowValidation(): FlowValidationApi {
   const issues = computed(() => {
     const graph = persistGraph.value
     const floor = validateGraphJson(graph, { persistMinimalOnly: true })
-    const fromServer: FlowCanvasValidationIssue[] = serverIssues.value
-      .filter((issue) => String(issue?.severity || 'ERROR').toUpperCase() === 'ERROR')
-      .map((issue) => {
-        const code = issue?.code != null && String(issue.code).trim() ? String(issue.code).trim() : undefined
-        return {
-          level: 'error' as const,
-          message: String(issue?.message || issue?.code || '').trim() || '校验失败',
-          nodeIds: issue?.nodeId
-            ? [String(issue.nodeId)]
-            : resolveNodeIdsFromMessage(String(issue?.message || ''), graph),
-          source: 'structure' as const,
-          code,
-        }
-      })
-    return dedupeCanvasIssues([
-      ...issuesFromGraphValidation(floor, graph),
-      ...fromServer,
-      ...issuesFromApiHealthWarnings(apiHealth.warnings),
-    ])
+    const fromServer = serverIssues.value
+      .map((issue) => mapServerIssue(issue, graph))
+      .filter((x): x is FlowCanvasValidationIssue => x != null)
+    return dedupeCanvasIssues([...issuesFromGraphValidation(floor, graph), ...fromServer])
   })
 
   const issueNodeIds = computed(() => collectIssueNodeIds(issues.value))

@@ -378,7 +378,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                 TriggerTestFlowRunBatchItemParams skipped = queue.get(i);
                 result.getItems().add(TriggerTestFlowRunBatchItemResult.builder()
                         .testFlowId(skipped.getTestFlowId())
-                        .runScenarioId(blankToNull(skipped.getRunScenarioId()))
+                        .runScenarioId(StrUtil.trimToNull(skipped.getRunScenarioId()))
                         .status(RunStatus.SKIPPED.getCode())
                         .errorMessage("队列已提前停止")
                         .build());
@@ -452,12 +452,12 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         TriggerTestFlowRunBatchItemResult.TriggerTestFlowRunBatchItemResultBuilder builder =
                 TriggerTestFlowRunBatchItemResult.builder()
                         .testFlowId(item.getTestFlowId())
-                        .runScenarioId(blankToNull(item.getRunScenarioId()));
+                        .runScenarioId(StrUtil.trimToNull(item.getRunScenarioId()));
         try {
             TriggerTestFlowRunOutcome outcome = triggerRun(TriggerTestFlowRunParams.builder()
                     .testFlowId(item.getTestFlowId())
-                    .entryNodeId(blankToNull(item.getEntryNodeId()))
-                    .runScenarioId(blankToNull(item.getRunScenarioId()))
+                    .entryNodeId(StrUtil.trimToNull(item.getEntryNodeId()))
+                    .runScenarioId(StrUtil.trimToNull(item.getRunScenarioId()))
                     .testProjectEnvId(testProjectEnvId)
                     .triggerType(triggerType)
                     .operatorUserId(operatorUserId)
@@ -481,7 +481,7 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
                     .status(terminal.getStatus())
                     .durationMs(terminal.getDurationMs())
                     .errorMessage(terminal.getErrorMessage())
-                    .runScenarioId(blankToNull(StrUtil.blankToDefault(
+                    .runScenarioId(StrUtil.trimToNull(StrUtil.blankToDefault(
                             terminal.getRunScenarioId(), item.getRunScenarioId())))
                     .build();
         } catch (Exception e) {
@@ -502,10 +502,6 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         } else {
             result.setOtherCount(result.getOtherCount() + 1);
         }
-    }
-
-    private static String blankToNull(String value) {
-        return StrUtil.isBlank(value) ? null : value.trim();
     }
 
     /**

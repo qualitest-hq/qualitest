@@ -1,5 +1,6 @@
 package com.qualitest.project.report;
 
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
@@ -190,9 +191,9 @@ public final class RunHtmlReportRenderer {
         sb.append("Run ").append(esc(String.valueOf(run.getTestFlowRunId())));
         sb.append("</p>\n");
         sb.append("<div class=\"meta-grid\">\n");
-        metaCell(sb, "场景", blankToDash(meta.scenarioName != null ? meta.scenarioName : run.getRunScenarioId()));
-        metaCell(sb, "环境", blankToDash(meta.envName));
-        metaCell(sb, "触发", blankToDash(triggerLabel(run.getTriggerType())));
+        metaCell(sb, "场景", StrUtil.blankToDefault(meta.scenarioName != null ? meta.scenarioName : run.getRunScenarioId(), "-"));
+        metaCell(sb, "环境", StrUtil.blankToDefault(meta.envName, "-"));
+        metaCell(sb, "触发", StrUtil.blankToDefault(triggerLabel(run.getTriggerType()), "-"));
         metaCell(sb, "入口", entryLabel(run.getEntryKind(), run.getEntryNodeId()));
         metaCell(sb, "出参摘要", outSummaryLabel(run.getOutSummary()));
         metaCell(sb, "耗时", formatDuration(run.getDurationMs()));
@@ -450,11 +451,11 @@ public final class RunHtmlReportRenderer {
             sb.append("<tr class=\"").append(ok ? "rule-ok" : "rule-fail").append("\">");
             sb.append("<td>").append(i + 1).append("</td>");
             sb.append("<td>").append(ok ? "通过" : "失败").append("</td>");
-            sb.append("<td>").append(esc(blankToDash(rule.getString("left")))).append("</td>");
-            sb.append("<td>").append(esc(blankToDash(stringify(rule.get("operator"))))).append("</td>");
-            sb.append("<td>").append(esc(blankToDash(stringify(rule.get("right"))))).append("</td>");
-            sb.append("<td>").append(esc(blankToDash(
-                    formatLeftActualForDisplay(rule.getString("operator"), rule.get("leftActual"))))).append("</td>");
+            sb.append("<td>").append(esc(StrUtil.blankToDefault(rule.getString("left"), "-"))).append("</td>");
+            sb.append("<td>").append(esc(StrUtil.blankToDefault(stringify(rule.get("operator")), "-"))).append("</td>");
+            sb.append("<td>").append(esc(StrUtil.blankToDefault(stringify(rule.get("right")), "-"))).append("</td>");
+            sb.append("<td>").append(esc(StrUtil.blankToDefault(
+                    formatLeftActualForDisplay(rule.getString("operator"), rule.get("leftActual")), "-"))).append("</td>");
             sb.append("</tr>\n");
         }
         sb.append("</tbody></table>\n");
@@ -491,9 +492,9 @@ public final class RunHtmlReportRenderer {
                     continue;
                 }
                 sb.append("<tr>");
-                sb.append("<td>").append(esc(blankToDash(stringify(w.get("key"))))).append("</td>");
-                sb.append("<td>").append(esc(blankToDash(stringify(w.get("before"))))).append("</td>");
-                sb.append("<td>").append(esc(blankToDash(stringify(w.get("value"))))).append("</td>");
+                sb.append("<td>").append(esc(StrUtil.blankToDefault(stringify(w.get("key")), "-"))).append("</td>");
+                sb.append("<td>").append(esc(StrUtil.blankToDefault(stringify(w.get("before")), "-"))).append("</td>");
+                sb.append("<td>").append(esc(StrUtil.blankToDefault(stringify(w.get("value")), "-"))).append("</td>");
                 sb.append("</tr>\n");
             }
             sb.append("</tbody></table>\n");
@@ -528,8 +529,8 @@ public final class RunHtmlReportRenderer {
             }
             String key = firstString(a, "key", "name", "var");
             Object val = a.containsKey("value") ? a.get("value") : a.get("to");
-            sb.append("<tr><td>").append(esc(blankToDash(key))).append("</td><td>")
-                    .append(esc(blankToDash(stringify(val)))).append("</td></tr>\n");
+            sb.append("<tr><td>").append(esc(StrUtil.blankToDefault(key, "-"))).append("</td><td>")
+                    .append(esc(StrUtil.blankToDefault(stringify(val), "-"))).append("</td></tr>\n");
         }
         sb.append("</tbody></table>\n");
     }
@@ -562,8 +563,8 @@ public final class RunHtmlReportRenderer {
                 continue;
             }
             sb.append("<li>");
-            sb.append(esc(blankToDash(firstString(child, "nodeName", "name"))));
-            sb.append(" · ").append(esc(blankToDash(st)));
+            sb.append(esc(StrUtil.blankToDefault(firstString(child, "nodeName", "name"), "-")));
+            sb.append(" · ").append(esc(StrUtil.blankToDefault(st, "-")));
             String msg = child.getString("errorMessage");
             if (msg == null && child.getJSONObject("error") != null) {
                 msg = child.getJSONObject("error").getString("message");
@@ -589,9 +590,9 @@ public final class RunHtmlReportRenderer {
                 continue;
             }
             sb.append("<tr>");
-            sb.append("<td>").append(esc(blankToDash(e.getString("name")))).append("</td>");
-            sb.append("<td>").append(esc(blankToDash(e.getString("scope")))).append("</td>");
-            sb.append("<td>").append(esc(blankToDash(shorten(stringify(e.get("value")), 120)))).append("</td>");
+            sb.append("<td>").append(esc(StrUtil.blankToDefault(e.getString("name"), "-"))).append("</td>");
+            sb.append("<td>").append(esc(StrUtil.blankToDefault(e.getString("scope"), "-"))).append("</td>");
+            sb.append("<td>").append(esc(StrUtil.blankToDefault(shorten(stringify(e.get("value")), 120), "-"))).append("</td>");
             sb.append("</tr>\n");
         }
         sb.append("</tbody></table>\n");
@@ -628,8 +629,8 @@ public final class RunHtmlReportRenderer {
             boolean failed = RunStatus.isFailureLike(step.getStatus());
             StepView v = new StepView();
             v.index = index;
-            v.nodeName = blankToDash(step.getNodeName());
-            v.nodeType = blankToDash(step.getNodeType());
+            v.nodeName = StrUtil.blankToDefault(step.getNodeName(), "-");
+            v.nodeType = StrUtil.blankToDefault(step.getNodeType(), "-");
             v.status = step.getStatus() != null ? step.getStatus() : "-";
             v.durationMs = step.getDurationMs();
             v.details = details;
@@ -752,7 +753,7 @@ public final class RunHtmlReportRenderer {
         if ("condition".equals(nodeType)) {
             JSONObject branch = details.getJSONObject("branchTaken");
             if (branch != null) {
-                return "命中 " + blankToDash(branch.getString("branchId"));
+                return "命中 " + StrUtil.blankToDefault(branch.getString("branchId"), "-");
             }
         }
         if ("script".equals(nodeType)) {
@@ -891,10 +892,6 @@ public final class RunHtmlReportRenderer {
         }
     }
 
-    /** 空串显示为短横线 */
-    private static String blankToDash(String s) {
-        return s == null || s.isBlank() ? "-" : s;
-    }
 
     /** 实测展示最大长度（超出截断） */
     private static final int LEFT_ACTUAL_MAX_LEN = 80;

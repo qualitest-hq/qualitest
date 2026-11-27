@@ -47,12 +47,16 @@ class FlowRunReadinessGateTest {
             }
             return issues;
         });
+        com.qualitest.flow.inspect.FlowIssueFinalizeService finalize =
+                mock(com.qualitest.flow.inspect.FlowIssueFinalizeService.class);
+        when(finalize.finalizeIssues(any(), any())).thenAnswer(inv -> inv.getArgument(0));
         gate = new FlowRunReadinessGate(
                 new GraphJsonValidator(),
                 mock(TestProjectApiMapper.class),
                 mock(TestProjectMapper.class),
                 mock(ParsedGraphCache.class),
-                routeRegistry);
+                routeRegistry,
+                finalize);
     }
 
     /**

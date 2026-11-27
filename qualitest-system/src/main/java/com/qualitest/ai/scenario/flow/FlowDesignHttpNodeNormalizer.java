@@ -1,5 +1,6 @@
 package com.qualitest.ai.scenario.flow;
 
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
@@ -250,7 +251,7 @@ public final class FlowDesignHttpNodeNormalizer {
      * @return 规范化后的行；name 或 expr 缺失时返回 null（丢弃该行）
      */
     private static JSONObject normalizeExtractRow(JSONObject row) {
-        String name = defaultString(row.getString("name"), row.getString("entryKey"));
+        String name = StrUtil.blankToDefault(row.getString("name"), row.getString("entryKey"));
         String expr = row.getString("expr");
         if (expr != null && !expr.isBlank()) {
             expr = normalizeExtractExprPath(expr);
@@ -258,10 +259,10 @@ public final class FlowDesignHttpNodeNormalizer {
         if (name == null || name.isBlank() || expr == null || expr.isBlank()) {
             return null;
         }
-        String rawScope = trimToNull(row.getString("scope"));
+        String rawScope = StrUtil.trimToNull(row.getString("scope"));
         String scope = rawScope != null ? rawScope : "flow";
-        String entryKey = trimToNull(row.getString("entryKey"));
-        String fieldPath = trimToNull(row.getString("fieldPath"));
+        String entryKey = StrUtil.trimToNull(row.getString("entryKey"));
+        String fieldPath = StrUtil.trimToNull(row.getString("fieldPath"));
 
         // name=adminAuth.token 且缺 entryKey：拆成 asset 的入口名与字段路径
         String dotted = name.trim();
@@ -282,7 +283,7 @@ public final class FlowDesignHttpNodeNormalizer {
         }
 
         JSONObject next = new JSONObject();
-        next.put("from", defaultString(row.getString("from"), "body"));
+        next.put("from", StrUtil.blankToDefault(row.getString("from"), "body"));
         next.put("expr", expr);
         next.put("scope", scope);
         next.put("name", name.trim());
@@ -302,14 +303,6 @@ public final class FlowDesignHttpNodeNormalizer {
     private static boolean looksLikeAssetEntryKey(String left) {
         String k = left.toLowerCase();
         return k.contains("auth");
-    }
-
-    private static String trimToNull(String s) {
-        if (s == null) {
-            return null;
-        }
-        String t = s.trim();
-        return t.isEmpty() ? null : t;
     }
 
     private static void copyOptionalExtractFields(JSONObject from, JSONObject to) {
@@ -373,7 +366,4 @@ public final class FlowDesignHttpNodeNormalizer {
         return null;
     }
 
-    private static String defaultString(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value;
-    }
 }

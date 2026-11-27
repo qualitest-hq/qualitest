@@ -1,5 +1,6 @@
 package com.qualitest.ai.tools;
 
+import cn.hutool.core.util.StrUtil;
 import com.qualitest.ai.config.AiLlmConfigService;
 import com.qualitest.ai.scenario.flow.AiDesignMentionSupport;
 import com.qualitest.ai.scenario.flow.model.TestFlowDesignRequest;
@@ -104,7 +105,7 @@ public class FlowDesignToolContextFactory {
                 autopilotEnabled,
                 onGraphCommitted,
                 onRunStarted,
-                blankToNull(request.getRunScenarioId()),
+                StrUtil.trimToNull(request.getRunScenarioId()),
                 request.getTestProjectEnvId(),
                 null);
         ctx.setBaseGraphRevision(request.getGraphRevision());
@@ -239,10 +240,6 @@ public class FlowDesignToolContextFactory {
                 .aiChatSessionId(aiChatSessionId)
                 .flowDesignClientIdMap(idMap)
                 .build();
-    }
-
-    private static String blankToNull(String s) {
-        return s == null || s.isBlank() ? null : s.trim();
     }
 
     private static boolean tokenIdEquals(Long a, Long b) {

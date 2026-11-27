@@ -2,7 +2,6 @@ package com.qualitest.api.util;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -125,7 +124,7 @@ public final class ExpectedResponseKindSupport {
         if (parsedBody instanceof Map<?, ?> || parsedBody instanceof JSONObject) {
             return ACTUAL_JSON;
         }
-        if (parsedBody instanceof java.util.List<?> || parsedBody instanceof JSONArray) {
+        if (parsedBody instanceof java.util.List<?>) {
             return ACTUAL_JSON;
         }
         return ACTUAL_NON_JSON;

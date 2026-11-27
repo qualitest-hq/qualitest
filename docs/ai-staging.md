@@ -35,7 +35,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 | ✕ 取消 | 丢弃该单元，不落盘 |
 | 删除类 ✓ | **唯一确认**，无二次 `MessageBox`；勿对 Staging 边按键盘 Delete 当确认 |
 | 保存 | 可带设计期错误落盘（仅拦 JSON 无法解析）；Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
-| 运行 | 结构 + 断言路径 + AUTH/必填 readiness 硬拦 |
+| 运行 | 生效 severity=ERROR 的流检查硬拦（结构 / 断言 / AUTH / API 语义 / 插件检查等，可由项目「流检查」改级） |
 | 仅保存已确认 | 未确认项会丢，易得半截图；应先去确认或全部 ✕ 后新建流 |
 | 刷新鉴权头 | 批量改托管头，**仍进 Staging**，不是静默写库 |
 
@@ -88,9 +88,9 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 
 **保存**：仅拦 JSON 无法解析；地板 / 结构 / 断言 / AUTH / HTTP 必填等 errors 允许带错落盘，方便 AI 继续修。校验条仍红；toast 可提示「已保存，暂不可运行」。
 
-**运行**：前端开跑预检改调 `POST /project/testFlow/validate?stage=run`（与后端 `FlowRunReadinessGate` 同口径：图结构 + 路由冲突 + 断言路径 + AUTH / 登录 extract / HTTP 必填）。画布展示走 `stage=canvas`；本地 `graphValidate` 只做落盘地板。不过则不开跑。
+**运行**：前端开跑预检改调 `POST /project/testFlow/validate?stage=run`（图结构 + 路由 + 断言 + AUTH/必填 + API 语义 + 插件 platform/invoke 检查，经项目 `inspection_profile` 定级后**仅 ERROR 硬拦**）。画布展示走 `stage=canvas`（含 WARNING）；本地 `graphValidate` 只做落盘地板。不过则不开跑。
 
-鉴权 / 登录抽取 / HTTP 必填与结构问题一并进画布 **图 error**（`validate?stage=canvas`，不阻断 ✓ / 保存）；下一轮 AI 设计请求会从校验条按码过滤出 `runRiskWarnings` 注入 user 上下文。单单元 `submit_*`：**仅地板**（缺 id / 未知引用等）拒收；结构 / 鉴权 / 断言不挡收，合进 Staging 后靠画布与开跑。开跑失败再 toast。
+鉴权 / 登录抽取 / HTTP 必填 / API 语义与结构问题一并进画布校验条（`validate?stage=canvas`，不阻断 ✓ / 保存）；下一轮 AI 设计请求会从校验条按码过滤出 `runRiskWarnings` 注入 user 上下文。单单元 `submit_*`：**仅地板**（缺 id / 未知引用等）拒收；结构 / 鉴权 / 断言不挡收，合进 Staging 后靠画布与开跑。开跑失败再 toast。项目设置「流检查」可把某码改为 WARNING/OFF（`GRAPH_JSON_INVALID` locked）。
 
 造流助手可读 `list_project_auth_profiles`、可提 `upsert_auth_profile`（半自动确认卡片写入项目 `auth_config`）。客户端 Profile 误绑 `adminAuth`（或相反）时，`AUTH_TOKEN_MISSING` 文案会追加「疑似绑错端」。登录 extract 的 `name=入口.字段` 缺 `entryKey` 时服务端会拆开。
 

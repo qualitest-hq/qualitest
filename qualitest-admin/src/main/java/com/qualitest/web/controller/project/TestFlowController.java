@@ -139,7 +139,12 @@ public class TestFlowController extends BaseController {
         }
         boolean deferTopology = Boolean.TRUE.equals(params.getDeferTopology());
         return ok(testFlowService.validateGraph(
-                params.getGraphJson(), parsed, projectId, params.getTestFlowId(), deferTopology));
+                params.getGraphJson(),
+                parsed,
+                projectId,
+                params.getTestFlowId(),
+                deferTopology,
+                params.getTestProjectEnvId()));
     }
 
     /**

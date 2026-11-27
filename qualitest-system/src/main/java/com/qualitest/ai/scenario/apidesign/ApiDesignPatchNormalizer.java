@@ -1,5 +1,6 @@
 package com.qualitest.ai.scenario.apidesign;
 
+import cn.hutool.core.util.StrUtil;
 import com.qualitest.ai.scenario.apidesign.model.ApiDesignPatch;
 import com.qualitest.ai.scenario.apidesign.model.ApiDesignPatchChange;
 import com.qualitest.ai.scenario.apidesign.model.ApiDesignValidationResult;
@@ -78,7 +79,7 @@ public class ApiDesignPatchNormalizer {
             errors.add("patch 为空");
             return new NormalizeResult(patch, buildResult(false, errors, warnings));
         }
-        patch.setSummary(trimOrNull(raw.getSummary()));
+        patch.setSummary(StrUtil.trimToNull(raw.getSummary()));
         if (patch.getSummary() == null) {
             errors.add("缺少 summary");
         }
@@ -139,7 +140,7 @@ public class ApiDesignPatchNormalizer {
             errors.add("script 的 action 须为 update 或 clear");
             return null;
         }
-        String unitId = trimOrNull(change.getUnitId());
+        String unitId = StrUtil.trimToNull(change.getUnitId());
         if (unitId == null) {
             unitId = "script:" + phase;
         }
@@ -177,7 +178,7 @@ public class ApiDesignPatchNormalizer {
             errors.add(target + " 的 action 须为 updateConstraints");
             return null;
         }
-        String path = trimOrNull(change.getPath());
+        String path = StrUtil.trimToNull(change.getPath());
         if (path == null) {
             errors.add(target + " 缺少 path");
             return null;
@@ -190,7 +191,7 @@ public class ApiDesignPatchNormalizer {
         Map<String, Object> rawConstraints = change.getConstraints();
         if (rawConstraints == null || rawConstraints.isEmpty()) {
             // 允许仅更新 description
-            if (trimOrNull(change.getDescription()) == null) {
+            if (StrUtil.trimToNull(change.getDescription()) == null) {
                 errors.add(target + "." + path + " 缺少 constraints 或 description");
                 return null;
             }
@@ -202,13 +203,13 @@ public class ApiDesignPatchNormalizer {
         if (pruned.hasErrors()) {
             return null;
         }
-        if (pruned.constraints().isEmpty() && trimOrNull(change.getDescription()) == null) {
+        if (pruned.constraints().isEmpty() && StrUtil.trimToNull(change.getDescription()) == null) {
             errors.add(target + "." + path + " prune 后无有效约束");
             return null;
         }
 
-        String responseId = trimOrNull(change.getResponseId());
-        String unitId = trimOrNull(change.getUnitId());
+        String responseId = StrUtil.trimToNull(change.getResponseId());
+        String unitId = StrUtil.trimToNull(change.getUnitId());
         if (unitId == null) {
             if ("response.schema".equals(target) && responseId != null) {
                 unitId = "constraint:" + target + "." + responseId + "." + path;
@@ -229,7 +230,7 @@ public class ApiDesignPatchNormalizer {
             normalized.setResponseId(responseId);
         }
         normalized.setConstraints(new LinkedHashMap<>(pruned.constraints()));
-        String desc = trimOrNull(change.getDescription());
+        String desc = StrUtil.trimToNull(change.getDescription());
         if (desc != null) {
             normalized.setDescription(desc);
         }
@@ -250,7 +251,7 @@ public class ApiDesignPatchNormalizer {
             errors.add(target + " 测值变更不得包含 constraints");
             return null;
         }
-        String path = trimOrNull(change.getPath());
+        String path = StrUtil.trimToNull(change.getPath());
         if ("testValue.request.paramDefaults".equals(target)
                 || "testValue.response.examplesById".equals(target)) {
             if (path == null) {
@@ -263,7 +264,7 @@ public class ApiDesignPatchNormalizer {
             return null;
         }
 
-        String unitId = trimOrNull(change.getUnitId());
+        String unitId = StrUtil.trimToNull(change.getUnitId());
         if (unitId == null) {
             if (path != null) {
                 unitId = "testValue:" + target.substring("testValue.".length()) + "." + path;
@@ -292,7 +293,7 @@ public class ApiDesignPatchNormalizer {
             errors.add("meta 的 action 须为 update 或 clear");
             return null;
         }
-        String path = trimOrNull(change.getPath());
+        String path = StrUtil.trimToNull(change.getPath());
         if (path == null) {
             path = "apiDescription";
         }
@@ -300,7 +301,7 @@ public class ApiDesignPatchNormalizer {
             errors.add("meta.path 仅支持 apiDescription 或 apiName");
             return null;
         }
-        String unitId = trimOrNull(change.getUnitId());
+        String unitId = StrUtil.trimToNull(change.getUnitId());
         if (unitId == null) {
             unitId = "meta:" + path;
         }
@@ -375,15 +376,6 @@ public class ApiDesignPatchNormalizer {
             return "updateConstraints";
         }
         return a;
-    }
-
-    /** 去首尾空白，空串视为 null。 */
-    private static String trimOrNull(String text) {
-        if (text == null) {
-            return null;
-        }
-        String trimmed = text.trim();
-        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /** 组装校验结果对象。 */

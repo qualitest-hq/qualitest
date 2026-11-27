@@ -126,24 +126,16 @@ public class GetApiDetailsTool implements QualitestTool {
 
     private static List<String> parseApiIdStrings(Object raw) {
         List<String> out = new ArrayList<>();
-        if (raw instanceof JSONArray arr) {
-            for (int i = 0; i < arr.size(); i++) {
-                String id = arr.getString(i);
-                if (id != null && !id.isBlank()) {
-                    out.add(id.trim());
-                }
-            }
+        if (!(raw instanceof List<?> list)) {
             return out;
         }
-        if (raw instanceof List<?> list) {
-            for (Object item : list) {
-                if (item == null) {
-                    continue;
-                }
-                String id = String.valueOf(item).trim();
-                if (!id.isEmpty()) {
-                    out.add(id);
-                }
+        for (Object item : list) {
+            if (item == null) {
+                continue;
+            }
+            String id = String.valueOf(item).trim();
+            if (!id.isEmpty()) {
+                out.add(id);
             }
         }
         return out;
@@ -279,15 +271,6 @@ public class GetApiDetailsTool implements QualitestTool {
         Set<Long> seen = new LinkedHashSet<>();
         if (raw == null) {
             return List.of();
-        }
-        if (raw instanceof JSONArray arr) {
-            for (int i = 0; i < arr.size(); i++) {
-                Long id = FlowDesignToolSupport.longArg(arr.get(i));
-                if (id != null) {
-                    seen.add(id);
-                }
-            }
-            return new ArrayList<>(seen);
         }
         if (raw instanceof List<?> list) {
             for (Object item : list) {

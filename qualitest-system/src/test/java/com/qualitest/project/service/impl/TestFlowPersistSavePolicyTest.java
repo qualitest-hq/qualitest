@@ -2,9 +2,9 @@ package com.qualitest.project.service.impl;
 
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.openhttp.OpenHttpRouteRegistry;
 import com.qualitest.flow.validate.FlowGraphValidateResult;
 import com.qualitest.flow.validate.FlowGraphValidateService;
+import com.qualitest.flow.validate.FlowGraphValidateServiceTestSupport;
 import com.qualitest.flow.validate.FlowIssue;
 import com.qualitest.flow.validate.FlowIssueCodes;
 import com.qualitest.flow.validate.FlowRunReadinessGate;
@@ -21,7 +21,6 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -69,10 +68,8 @@ class TestFlowPersistSavePolicyTest {
         GraphValidationResult floor = validator.validate(graph, GraphValidationOptions.persistMinimal());
         assertTrue(floor.isOk(), () -> "floor errors=" + floor.getErrors());
 
-        FlowGraphValidateService validateService = new FlowGraphValidateService(
-                validator,
-                mock(FlowRunReadinessGate.class),
-                mock(OpenHttpRouteRegistry.class));
+        FlowGraphValidateService validateService = FlowGraphValidateServiceTestSupport.create(
+                validator, mock(FlowRunReadinessGate.class));
         FlowGraphValidateResult save =
                 validateService.validate(DIRTY_GRAPH, FlowIssue.Stage.SAVE, 1L, 10L);
         assertFalse(save.hasErrors());
@@ -103,10 +100,8 @@ class TestFlowPersistSavePolicyTest {
         assertTrue(cause instanceof ServiceException);
         assertTrue(cause.getMessage().contains("无法解析"));
 
-        FlowGraphValidateService validateService = new FlowGraphValidateService(
-                new GraphJsonValidator(),
-                mock(FlowRunReadinessGate.class),
-                mock(OpenHttpRouteRegistry.class));
+        FlowGraphValidateService validateService = FlowGraphValidateServiceTestSupport.create(
+                new GraphJsonValidator(), mock(FlowRunReadinessGate.class));
         FlowGraphValidateResult save =
                 validateService.validate("{not-json", FlowIssue.Stage.SAVE, 1L, 10L);
         assertTrue(save.hasErrors());
@@ -143,4 +138,5 @@ class TestFlowPersistSavePolicyTest {
         assertTrue(updateBody.contains("validateGraphJsonForPersist("),
                 "updateTestFlow 未调用 validateGraphJsonForPersist");
     }
+
 }

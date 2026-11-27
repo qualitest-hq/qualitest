@@ -1,5 +1,6 @@
 package com.qualitest.ai.llm.lc4j;
 
+import cn.hutool.core.util.StrUtil;
 import com.qualitest.ai.llm.LlmContentPart;
 import com.qualitest.ai.llm.LlmMessage;
 import com.qualitest.ai.llm.LlmToolCall;
@@ -60,12 +61,12 @@ public final class Lc4jMessageSupport {
             return null;
         }
         return switch (msg.getRole()) {
-            case "system" -> SystemMessage.from(nullToEmpty(msg.getContent()));
+            case "system" -> SystemMessage.from(StrUtil.nullToEmpty(msg.getContent()));
             case "user" -> toUserMessage(msg);
             case "assistant" -> toAiMessage(msg);
             case "tool" -> ToolExecutionResultMessage.builder()
                     .id(msg.getToolCallId())
-                    .text(nullToEmpty(msg.getContent()))
+                    .text(StrUtil.nullToEmpty(msg.getContent()))
                     .isError(msg.isToolError())
                     .build();
             default -> null;
@@ -98,7 +99,7 @@ public final class Lc4jMessageSupport {
                 return UserMessage.from(contents);
             }
         }
-        return UserMessage.from(nullToEmpty(msg.getContent()));
+        return UserMessage.from(StrUtil.nullToEmpty(msg.getContent()));
     }
 
     /**
@@ -123,7 +124,4 @@ public final class Lc4jMessageSupport {
         return builder.build();
     }
 
-    private static String nullToEmpty(String content) {
-        return content == null ? "" : content;
-    }
 }

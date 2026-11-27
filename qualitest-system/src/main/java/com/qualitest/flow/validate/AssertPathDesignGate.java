@@ -1,6 +1,5 @@
 package com.qualitest.flow.validate;
 
-import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.context.JsonPathFacade;
 import com.qualitest.flow.context.PlaceholderResolver;
@@ -279,7 +278,7 @@ public final class AssertPathDesignGate {
     }
 
     /**
-     * 判断试算结果是否未命中：值为 null，或空 List / 空 JSONArray。
+     * 判断试算结果是否未命中：值为 null，或空 List。
      * 标量与非空集合视为命中。
      */
     public static boolean isMiss(Object value) {
@@ -288,9 +287,6 @@ public final class AssertPathDesignGate {
         }
         if (value instanceof List<?> list) {
             return list.isEmpty();
-        }
-        if (value instanceof JSONArray arr) {
-            return arr.isEmpty();
         }
         return false;
     }

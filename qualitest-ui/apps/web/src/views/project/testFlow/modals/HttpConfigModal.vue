@@ -117,7 +117,8 @@ import { getTestProjectApiTree } from '@/api/project/testProjectApi'
 import DebugKvSheet from '../components/DebugKvSheet.vue'
 import HttpConfigBodyPanel from '../components/HttpConfigBodyPanel.vue'
 import { useFlowNodes } from '../composables/useFlowNodes'
-import { useApiHealthStore } from '../stores/apiHealthStore'
+import { useFlowValidation } from '../composables/useFlowValidation'
+import { issuesForNode } from '../utils/flowValidationIssues'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { isUrlencodedBodyMode } from '@/views/project/testProject/utils/bodyModeUtils'
 import {
@@ -140,11 +141,11 @@ const props = defineProps({
 const emit = defineEmits(['update:visible'])
 
 const store = useFlowCanvasStore()
-const apiHealth = useApiHealthStore()
+const { issues } = useFlowValidation()
 const { replaceNodeData, patchNodeName } = useFlowNodes()
 
 /** 当前弹窗节点上的语义健康告警 */
-const nodeHealthWarnings = computed(() => apiHealth.warningsForNode(props.nodeId))
+const nodeHealthWarnings = computed(() => issuesForNode(issues.value, props.nodeId))
 
 const draft = ref(null)
 /** 打开/换绑 API 时的资产有效配置，保存时用作差分基线 */

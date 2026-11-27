@@ -1,45 +1,37 @@
 <template>
   <div v-if="hasIssues" class="flow-validation-bar">
-    <template v-for="section in sections" :key="section.key">
-      <div
-          v-if="section.label && section.items.length"
-          class="flow-validation-bar__group-label"
-      >
-        {{ section.label }}
-      </div>
-      <div
-          v-for="(issue, i) in section.items"
-          :key="section.key + '-' + i"
-          :class="[
-            'flow-validation-bar__item',
-            issue.level === 'error'
-              ? 'flow-validation-bar__item--error'
-              : 'flow-validation-bar__item--warn',
-          ]"
-      >
-        <span class="flow-validation-bar__icon">{{ issue.level === 'error' ? '✗' : '⚠' }}</span>
-        <span class="flow-validation-bar__text">{{ issue.message }}</span>
-        <template v-if="issue.nodeIds.length">
-          <span class="flow-validation-bar__sep">·</span>
-          <button
-              v-for="nodeId in issue.nodeIds"
-              :key="nodeId"
-              type="button"
-              class="flow-validation-bar__node-link"
-              @click="focusIssueNode(nodeId)"
-          >
-            {{ displayNodeName(nodeId) }}
-          </button>
-        </template>
-      </div>
-    </template>
+    <div
+        v-for="(issue, i) in issues"
+        :key="'issue-' + i"
+        :class="[
+          'flow-validation-bar__item',
+          issue.level === 'error'
+            ? 'flow-validation-bar__item--error'
+            : 'flow-validation-bar__item--warn',
+        ]"
+    >
+      <span class="flow-validation-bar__icon">{{ issue.level === 'error' ? '✗' : '⚠' }}</span>
+      <span class="flow-validation-bar__text">{{ issue.message }}</span>
+      <template v-if="issue.nodeIds.length">
+        <span class="flow-validation-bar__sep">·</span>
+        <button
+            v-for="nodeId in issue.nodeIds"
+            :key="nodeId"
+            type="button"
+            class="flow-validation-bar__node-link"
+            @click="focusIssueNode(nodeId)"
+        >
+          {{ displayNodeName(nodeId) }}
+        </button>
+      </template>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 /**
  * 画布顶部校验条。
- * 展示图 error（结构/鉴权/必填等）与 API 语义告警；节点名可点击居中并高亮该节点。
+ * 展示统一 issues（ERROR / WARNING）；节点名可点击居中并高亮该节点。
  */
 import { computed } from 'vue'
 
@@ -51,19 +43,6 @@ import { nodeDisplayName } from '../utils/flowValidationIssues'
 const { issues } = useFlowValidation()
 const store = useFlowCanvasStore()
 const viewport = useFlowViewport()
-
-const sections = computed(() => [
-  {
-    key: 'main',
-    label: '',
-    items: issues.value.filter((i) => i.source === 'structure'),
-  },
-  {
-    key: 'api',
-    label: 'API 语义',
-    items: issues.value.filter((i) => i.source === 'apiHealth'),
-  },
-])
 
 const hasIssues = computed(() => issues.value.length > 0)
 
@@ -99,14 +78,6 @@ async function focusIssueNode(nodeId: string) {
   line-height: 1.45;
 }
 
-.flow-validation-bar__group-label {
-  margin-top: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #92400e;
-  letter-spacing: 0.02em;
-}
-
 .flow-validation-bar__item {
   display: flex;
   flex-wrap: wrap;
@@ -119,34 +90,29 @@ async function focusIssueNode(nodeId: string) {
 }
 
 .flow-validation-bar__item--warn {
-  color: #a16207;
+  color: #92400e;
 }
 
 .flow-validation-bar__icon {
   flex: none;
-}
-
-.flow-validation-bar__text {
-  min-width: 0;
+  font-weight: 600;
 }
 
 .flow-validation-bar__sep {
-  opacity: 0.55;
+  opacity: 0.45;
 }
 
 .flow-validation-bar__node-link {
   padding: 0;
-  border: none;
-  background: none;
+  border: 0;
+  background: transparent;
   color: inherit;
-  font: inherit;
-  font-weight: 600;
   text-decoration: underline;
-  text-underline-offset: 2px;
   cursor: pointer;
+  font: inherit;
+}
 
-  &:hover {
-    opacity: 0.85;
-  }
+.flow-validation-bar__node-link:hover {
+  opacity: 0.8;
 }
 </style>

@@ -1,5 +1,6 @@
 package com.qualitest.plugin.channel;
 
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.plugin.PluginErrorCode;
@@ -81,7 +82,12 @@ public class ExecAgentChannel {
         return LocalExecChannel.ExecResult.builder()
                 .exitCode(exit)
                 .stdout(json.getString("stdout") == null ? "" : json.getString("stdout"))
-                .stderr(firstNonBlank(json.getString("stderrTail"), json.getString("stderr"), json.getString("error")))
+                .stderr(StrUtil.blankToDefault(
+                        StrUtil.firstNonBlank(
+                                json.getString("stderrTail"),
+                                json.getString("stderr"),
+                                json.getString("error")),
+                        ""))
                 .build();
     }
 
@@ -118,11 +124,16 @@ public class ExecAgentChannel {
             }
             if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
                 throw new PluginException(PluginErrorCode.INVOKE_FAILED,
-                        "执行代理 HTTP " + resp.statusCode() + ": " + firstNonBlank(json.getString("error"), resp.body()));
+                        "执行代理 HTTP " + resp.statusCode() + ": "
+                                + StrUtil.blankToDefault(
+                                        StrUtil.firstNonBlank(json.getString("error"), resp.body()),
+                                        ""));
             }
             if (Boolean.FALSE.equals(json.getBoolean("ok"))) {
                 throw new PluginException(PluginErrorCode.INVOKE_FAILED,
-                        firstNonBlank(json.getString("error"), "执行代理返回失败"));
+                        StrUtil.blankToDefault(
+                                StrUtil.firstNonBlank(json.getString("error"), "执行代理返回失败"),
+                                "执行代理返回失败"));
             }
             return json;
         } catch (PluginException e) {
@@ -145,18 +156,6 @@ public class ExecAgentChannel {
         }
         String base = baseUrl.trim().replaceAll("/+$", "");
         return base + path;
-    }
-
-    private static String firstNonBlank(String... parts) {
-        if (parts == null) {
-            return "";
-        }
-        for (String p : parts) {
-            if (p != null && !p.isBlank()) {
-                return p;
-            }
-        }
-        return "";
     }
 
     /**

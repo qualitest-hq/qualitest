@@ -723,6 +723,7 @@ CREATE TABLE `test_project` (
   `mcp_autorun_enabled` tinyint NOT NULL DEFAULT '0' COMMENT '允许MCP自动跑流（0否 1是）',
   `mcp_import_apis_enabled` tinyint NOT NULL DEFAULT '0' COMMENT '允许MCP导入接口（0否 1是）',
   `run_concurrency_mode` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'serial_by_env' COMMENT '跑流并发：parallel 并行；serial_by_env 按环境串行（默认）',
+  `inspection_profile` json DEFAULT NULL COMMENT '流检查严重性覆盖 JSON',
   `last_api_sync_time` datetime DEFAULT NULL COMMENT '最新API同步时间',
   `api_count` int NOT NULL DEFAULT '0' COMMENT 'API数量',
   `owner_id` bigint NOT NULL COMMENT '所有者ID',

@@ -75,6 +75,13 @@ public class TestProject extends BaseEntity {
     private String runConcurrencyMode;
 
     /**
+     * 本项目流检查严重性覆盖，JSON 对象。
+     * 键为诊断码（核心短码或 {@code 插件id/短码}），值为 {@code ERROR}/{@code WARNING}/{@code OFF}。
+     * 未出现的码使用目录默认；锁定项即使写了覆盖也仍按 ERROR 生效。
+     */
+    private String inspectionProfile;
+
+    /**
      * 新建项目时勾选的模板主键列表。
      * 仅请求入参、不落库；创建时据此写入 authConfig 并种子预制资产。
      */

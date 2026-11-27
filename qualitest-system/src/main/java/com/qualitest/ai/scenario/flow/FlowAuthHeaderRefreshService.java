@@ -1,5 +1,6 @@
 package com.qualitest.ai.scenario.flow;
 
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.ai.scenario.flow.model.RefreshAuthHeadersResult;
@@ -50,7 +51,7 @@ public class FlowAuthHeaderRefreshService {
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
 
         for (GraphNode node : nodes) {
-            if (node == null || !"http".equalsIgnoreCase(trim(node.getType()))) {
+            if (node == null || !"http".equalsIgnoreCase(StrUtil.trimToEmpty(node.getType()))) {
                 continue;
             }
             Map<String, Object> data = node.getData();
@@ -121,7 +122,4 @@ public class FlowAuthHeaderRefreshService {
                 .build();
     }
 
-    private static String trim(String s) {
-        return s != null ? s.trim() : "";
-    }
 }

@@ -21,7 +21,8 @@ import java.util.function.Function;
 /**
  * HTTP 节点相对当前 API 配置的语义健康检查。
  * <p>
- * 输出 warning 列表，不修改节点、不阻断保存或 Run。检查项：
+ * 产出带 code 的告警列表；经 {@code ApiHealthIssueCollector} 并入统一 FlowIssue，
+ * 再由项目流检查 profile 定级（默认 API_MISSING=ERROR，其余 WARNING）。检查项：
  * <ul>
  *   <li>API 是否仍存在</li>
  *   <li>requestValueOverrides.paramDefaults 里的参数名是否还在 API 请求参数中</li>
@@ -163,16 +164,10 @@ public class HttpNodeApiHealthChecker {
             Set<String> schemaPaths) {
         List<HttpNodeApiHealthWarning> warnings = new ArrayList<>();
         Object raw = data.get("extracts");
-        JSONArray extractsArr = null;
-        if (raw instanceof JSONArray arr) {
-            extractsArr = arr;
-        } else if (raw instanceof List<?> list) {
-            extractsArr = new JSONArray();
-            extractsArr.addAll(list);
-        }
-        if (extractsArr == null || extractsArr.isEmpty()) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
             return warnings;
         }
+        JSONArray extractsArr = JSONArray.from(list);
         if (schemaPaths == null || schemaPaths.isEmpty()) {
             return warnings;
         }

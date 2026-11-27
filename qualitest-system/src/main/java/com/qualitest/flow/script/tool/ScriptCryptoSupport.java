@@ -1,5 +1,6 @@
 package com.qualitest.flow.script.tool;
 
+import cn.hutool.core.util.StrUtil;
 import org.bouncycastle.asn1.DERNull;
 import org.bouncycastle.asn1.gm.GMNamedCurves;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -154,7 +155,7 @@ public final class ScriptCryptoSupport {
      */
     public static String rsaSign(String data, String privateKey, String algorithm) {
         try {
-            Signature signer = Signature.getInstance(defaultIfBlank(algorithm, "SHA256withRSA"));
+            Signature signer = Signature.getInstance(StrUtil.blankToDefault(algorithm, "SHA256withRSA"));
             signer.initSign(parseRsaPrivateKey(privateKey));
             signer.update(utf8(data));
             return Base64.getEncoder().encodeToString(signer.sign());
@@ -172,7 +173,7 @@ public final class ScriptCryptoSupport {
      */
     public static boolean rsaVerify(String data, String sign, String publicKey, String algorithm) {
         try {
-            Signature verifier = Signature.getInstance(defaultIfBlank(algorithm, "SHA256withRSA"));
+            Signature verifier = Signature.getInstance(StrUtil.blankToDefault(algorithm, "SHA256withRSA"));
             verifier.initVerify(parseRsaPublicKey(publicKey));
             verifier.update(utf8(data));
             return verifier.verify(decode(sign, ENC_BASE64, ENC_BASE64));
@@ -216,7 +217,7 @@ public final class ScriptCryptoSupport {
      * @param mode    Cipher.ENCRYPT_MODE 或 Cipher.DECRYPT_MODE
      */
     private static Cipher rsaCipher(String padding, int mode, Key key) throws GeneralSecurityException {
-        String name = defaultIfBlank(padding, "OAEP").trim().toUpperCase(Locale.ROOT);
+        String name = StrUtil.blankToDefault(padding, "OAEP").trim().toUpperCase(Locale.ROOT);
         switch (name) {
             case "OAEP" -> {
                 Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-1AndMGF1Padding");
@@ -754,11 +755,6 @@ public final class ScriptCryptoSupport {
 
     /** PEM 类型（裸 Base64 时为 null）与 DER 内容 */
     private record KeyMaterial(String type, byte[] der) {
-    }
-
-    /** 空白时返回默认值 */
-    private static String defaultIfBlank(String value, String defaultValue) {
-        return value == null || value.isBlank() ? defaultValue : value;
     }
 
     /** 文本按 UTF-8 转字节；null 按字符串 "null" 处理 */

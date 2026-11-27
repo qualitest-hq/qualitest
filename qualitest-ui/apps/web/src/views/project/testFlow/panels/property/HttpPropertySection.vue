@@ -48,7 +48,7 @@
         未命中 pathPrefix 时用数组第一条 Profile。
       </p>
       <ul v-if="nodeHealthWarnings.length" class="http-prop-health">
-        <li v-for="(w, i) in nodeHealthWarnings" :key="i">{{ w.message || w.detail || w.code }}</li>
+        <li v-for="(w, i) in nodeHealthWarnings" :key="i">{{ w.message || w.code }}</li>
       </ul>
       <button class="btn btn--primary" style="width:100%" type="button" @click="emit('open-http-config', node.id)">
         {{ node.data.testProjectApiId ? '编辑接口与参数' : '选择接口并配置参数' }}
@@ -218,7 +218,8 @@ import SnapshotPropertySection from './SnapshotPropertySection.vue'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowTrialBody } from '../../composables/useFlowTrialBody'
 import { getMethodBadgeClass } from '../../constants/flowConfig'
-import { useApiHealthStore } from '../../stores/apiHealthStore'
+import { useFlowValidation } from '../../composables/useFlowValidation'
+import { issuesForNode } from '../../utils/flowValidationIssues'
 import { useNodeAuthScope } from '../../composables/useNodeAuthScope'
 import {
   RETRY_UNTIL_DEFAULT_INTERVAL_MS,
@@ -238,7 +239,7 @@ const { trialBody, trialSource } = useFlowTrialBody({ node: () => props.node })
 const emit = defineEmits(['open-http-config'])
 
 const { patchNodeData, replaceNodeData } = useFlowNodes()
-const apiHealth = useApiHealthStore()
+const { issues } = useFlowValidation()
 
 const { authScope, authLabel } = useNodeAuthScope(() => props.node?.data)
 
@@ -250,8 +251,8 @@ onMounted(() => {
   }
 })
 
-/** 当前选中节点上的语义告警（孤儿测值、抽取路径等） */
-const nodeHealthWarnings = computed(() => apiHealth.warningsForNode(props.node?.id))
+/** 当前选中节点上的画布校验问题（含 API 语义） */
+const nodeHealthWarnings = computed(() => issuesForNode(issues.value, props.node?.id))
 
 const callMode = computed(() => (isExternalCallMode(props.node?.data?.callMode) ? 'external' : 'project'))
 

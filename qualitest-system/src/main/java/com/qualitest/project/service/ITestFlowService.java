@@ -169,11 +169,14 @@ public interface ITestFlowService {
      * @param stage         canvas / save / run / ingress / subflow
      * @param testProjectId 项目 id（可空）
      * @param testFlowId    当前流 id（可空）
+     * @param deferTopology canvas 延后拓扑
+     * @param testProjectEnvId run 期 onFlowInspect 用环境 id（可空）
      */
     FlowGraphValidateResult validateGraph(
             String graphJson,
             FlowIssue.Stage stage,
             Long testProjectId,
             Long testFlowId,
-            boolean deferTopology);
+            boolean deferTopology,
+            Long testProjectEnvId);
 }

@@ -15,22 +15,20 @@
 <script setup>
 /**
  * 测试流画布页入口。
- * 负责加载/保存流、挂载 API 语义预检、全屏与离开页未保存拦截；
+ * 负责加载/保存流、全屏与离开页未保存拦截；
  * 进入页隐藏全局侧栏，离开恢复。initFlow 时拉取 loadMemberCapabilities 供画布权限判断。
+ * 画布校验（含 API 语义）由 useFlowValidation → validate?stage=canvas，不再平行 apiHealth preview。
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 import useAppStore from '@/store/modules/app'
 
 import FlowCanvasLayout from './FlowCanvasLayout.vue'
-import { useApiHealthDraftPreview } from './composables/useApiHealthDraftPreview'
-import { buildCanvasPersistGraph } from './composables/buildCanvasPersistGraph'
 import { useFlowGraph } from './composables/useFlowGraph'
 import { useProjectTabTitle } from './composables/useProjectTabTitle'
 import { resetProjectEnvs, useRunConfig } from './composables/useRunConfig'
-import { useApiHealthStore } from './stores/apiHealthStore'
 import { useFlowCanvasStore } from './stores/flowCanvasStore'
 import { useRunLibraryStore } from './stores/runLibraryStore'
 
@@ -39,7 +37,6 @@ const router = useRouter()
 const appStore = useAppStore()
 const store = useFlowCanvasStore()
 const runLib = useRunLibraryStore()
-const apiHealth = useApiHealthStore()
 const { loadFlow, saveFlow } = useFlowGraph()
 const { loadProjectEnvs } = useRunConfig()
 const { loadProjectName } = useProjectTabTitle(
@@ -49,24 +46,14 @@ const { loadProjectName } = useProjectTabTitle(
 
 /** 是否全屏编辑（整页 fixed 覆盖；全局侧栏由进/出画布页统一隐藏） */
 const isFullscreen = ref(false)
-/** 路由上的测试流 id，驱动预检调度 */
-const testFlowIdRef = computed(() => String(route.params.testFlowId ?? ''))
-/** runPreview：立刻预检；setSuspended：加载期暂停自动预检，避免重复请求 */
-const { runPreview, setSuspended } = useApiHealthDraftPreview(testFlowIdRef)
 
 function handleBack() {
   router.push(`/project/testProject/flows/${route.params.testProjectId}`)
 }
 
-/** 保存画布；成功后刷新 API 语义告警（鉴权/结构由图 error canvas 校验刷新） */
+/** 保存画布 */
 async function handleSave() {
-  const ok = await saveFlow()
-  if (ok) {
-    const id = String(store.testFlowId || '').trim()
-    if (id && !id.startsWith('tpl-') && store.canvasMode !== 'template') {
-      await apiHealth.preview(id, buildCanvasPersistGraph())
-    }
-  }
+  await saveFlow()
 }
 
 function toggleFullscreen() {
@@ -82,31 +69,24 @@ function onBeforeUnload(event) {
   event.returnValue = ''
 }
 
-/** 加载指定测试流：先出图，再并行拉鉴权/项目名/环境/Run，API 语义预检稍后 */
+/** 加载指定测试流：先出图，再并行拉鉴权/项目名/环境/Run */
 async function initFlow() {
   const testFlowId = String(route.params.testFlowId ?? '')
   const testProjectId = String(route.params.testProjectId ?? '')
   if (!testFlowId) return
-  // 加载期间暂停 watch，防止 loadFlow 写节点触发防抖预检，与结尾 runPreview 重复
-  setSuspended(true)
   store.reset()
-  apiHealth.clear()
   resetProjectEnvs()
   store.testProjectId = testProjectId
   try {
     await loadFlow(testFlowId)
-    // 并行拉鉴权、项目名、环境列表、Run 库；拉环境时会给未绑环境的场景自动补绑并更新已保存基线
     await Promise.all([
       store.loadProjectAuthConfig(),
-      // 与鉴权并行拉成员权限，供画布顶栏与运行面板 gate
       store.loadMemberCapabilities(),
       loadProjectName(testProjectId),
       loadProjectEnvs(),
       runLib.loadRuns(testFlowId),
     ])
     await applyRunIdDeepLink()
-    // API 语义预检稍后，避免挡住首屏出图；图 error 由 useFlowValidation 自行刷新
-    void runPreview()
   } catch (error) {
     const message = error instanceof Error ? error.message : '加载测试流失败'
     ElMessage.error(message)
@@ -115,8 +95,6 @@ async function initFlow() {
     } else {
       router.replace('/project/testProject')
     }
-  } finally {
-    setSuspended(false)
   }
 }
 
@@ -138,7 +116,6 @@ async function applyRunIdDeepLink() {
 }
 
 onMounted(() => {
-  // 进入画布即藏全局侧栏，避免遮挡 Staging ✓
   appStore.toggleSideBarHide(true)
   window.addEventListener('beforeunload', onBeforeUnload)
   initFlow()

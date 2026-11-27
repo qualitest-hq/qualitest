@@ -110,6 +110,62 @@
         </section>
       </template>
 
+      <!-- 流检查：按码配置 ERROR / WARNING / OFF；ERROR 拦 Run -->
+      <section v-if="settingContext !== null" class="project-setting__card">
+        <header class="project-setting__card-head">
+          <h3 class="project-setting__card-title">流检查</h3>
+          <p class="project-setting__card-desc">
+            按团队风格配置检查严重性。ERROR 开跑硬拦；WARNING 仅画布提示；OFF 关闭。
+            locked 项不可关闭或降级。
+          </p>
+        </header>
+        <div v-loading="inspectionLoading" class="project-setting__inspection-list">
+          <div
+              v-for="group in inspectionGroups"
+              :key="group.key"
+              class="project-setting__inspection-group"
+          >
+            <div class="project-setting__inspection-group-title">{{ group.label }}</div>
+            <div
+                v-for="item in group.items"
+                :key="item.code"
+                class="project-setting__inspection-row"
+            >
+              <div class="project-setting__inspection-meta">
+                <strong>{{ item.name || item.code }}</strong>
+                <span class="project-setting__hint">{{ item.code }}</span>
+              </div>
+              <el-select
+                  v-model="inspectionDraft[item.code]"
+                  :disabled="!canEditProject || item.locked"
+                  size="small"
+                  style="width: 120px"
+              >
+                <el-option label="错误" value="ERROR" />
+                <el-option label="警告" value="WARNING" />
+                <el-option label="关闭" value="OFF" />
+              </el-select>
+            </div>
+          </div>
+          <p v-if="!inspectionLoading && !inspectionItems.length" class="project-setting__hint">
+            暂无检查项
+          </p>
+        </div>
+        <div v-if="canEditProject" class="project-setting__auth-toolbar" style="margin-top: 12px">
+          <el-button
+              :loading="inspectionSaving"
+              size="small"
+              type="primary"
+              @click="saveInspectionProfile"
+          >
+            保存流检查
+          </el-button>
+          <el-button size="small" :loading="inspectionLoading" @click="loadFlowInspections">
+            刷新
+          </el-button>
+        </div>
+      </section>
+
       <template v-if="settingContext !== null">
         <section class="project-setting__card">
           <header class="project-setting__card-head">
@@ -383,6 +439,10 @@ import {
 } from '../utils/projectAuthConfig'
 import { applyAuthTemplates, getTestProject, updateTestProject } from '@/api/project/testProject'
 import {
+  listFlowInspections,
+  saveFlowInspectionProfile,
+} from '@/api/project/flowInspections'
+import {
   getPluginInstallDir,
   installPluginPackage,
   listPluginPackages,
@@ -467,6 +527,96 @@ const concurrencyOptions = [
   { label: '按环境串行', value: 'serial_by_env' },
   { label: '并行', value: 'parallel' },
 ]
+
+/** 流检查目录加载中 */
+const inspectionLoading = ref(false)
+/** 流检查覆盖保存中 */
+const inspectionSaving = ref(false)
+/** 服务端返回的检查目录 */
+const inspectionItems = ref([])
+/** 页面上的严重性草稿：诊断码 → ERROR|WARNING|OFF */
+const inspectionDraft = reactive({})
+
+/** 按插件 / 核心分类分组，供设置页列表渲染 */
+const inspectionGroups = computed(() => {
+  const map = new Map()
+  for (const item of inspectionItems.value) {
+    const pluginId = item.pluginId ? String(item.pluginId) : ''
+    const key = pluginId || `core:${item.category || '核心'}`
+    const label = pluginId
+      ? `插件 · ${pluginId}`
+      : String(item.category || '核心')
+    if (!map.has(key)) {
+      map.set(key, { key, label, items: [] })
+    }
+    map.get(key).items.push(item)
+  }
+  return [...map.values()]
+})
+
+/** 拉取目录并灌入草稿；锁定项固定为 ERROR */
+function loadFlowInspections() {
+  const pid = resolveProjectId()
+  if (!pid) {
+    inspectionItems.value = []
+    return
+  }
+  inspectionLoading.value = true
+  listFlowInspections(pid)
+    .then((res) => {
+      const list = Array.isArray(res?.data) ? res.data : []
+      inspectionItems.value = list
+      for (const key of Object.keys(inspectionDraft)) {
+        delete inspectionDraft[key]
+      }
+      for (const item of list) {
+        if (!item?.code) continue
+        const sev = item.locked
+          ? 'ERROR'
+          : String(item.effectiveSeverity || item.defaultSeverity || 'ERROR').toUpperCase()
+        inspectionDraft[item.code] = ['ERROR', 'WARNING', 'OFF'].includes(sev) ? sev : 'ERROR'
+      }
+    })
+    .catch((err) => {
+      inspectionItems.value = []
+      proxy?.$modal?.msgError?.(err?.message || err?.msg || '加载流检查失败')
+    })
+    .finally(() => {
+      inspectionLoading.value = false
+    })
+}
+
+/**
+ * 保存相对目录默认有变化的严重性覆盖。
+ * 锁定项不提交；空覆盖表示恢复全部默认。
+ */
+function saveInspectionProfile() {
+  const pid = resolveProjectId()
+  if (!pid || !canEditProject.value) return
+  const overrides = {}
+  for (const item of inspectionItems.value) {
+    if (!item?.code || item.locked) continue
+    const draft = inspectionDraft[item.code]
+    const def = String(item.defaultSeverity || 'ERROR').toUpperCase()
+    if (draft && draft !== def) {
+      overrides[item.code] = draft
+    }
+  }
+  inspectionSaving.value = true
+  saveFlowInspectionProfile(pid, overrides)
+    .then((res) => {
+      if (res.code === 200) {
+        proxy?.$modal?.msgSuccess?.('流检查已保存')
+        loadFlowInspections()
+      } else {
+        proxy?.$modal?.msgError?.(res.msg || '保存失败')
+      }
+    })
+    .catch((err) => proxy?.$modal?.msgError?.(err?.message || err?.msg || '保存失败'))
+    .finally(() => {
+      inspectionSaving.value = false
+    })
+}
 
 function resolveProjectId() {
   return props.testProjectId || props.settingForm?.testProjectId
@@ -737,6 +887,7 @@ function loadProjectSettings() {
     return
   }
   loadPluginInstallDir()
+  loadFlowInspections()
   pluginPackagesLoading.value = true
   listPluginPackages()
     .then((res) => {
@@ -1173,6 +1324,38 @@ const mcpConfigText = computed(() => {
 
 .project-setting__auth-remove {
   margin-right: 8px;
+}
+
+.project-setting__inspection-group {
+  margin-bottom: 12px;
+}
+
+.project-setting__inspection-group-title {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
+
+.project-setting__inspection-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+}
+
+.project-setting__inspection-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    font-size: 13px;
+    font-weight: 500;
+  }
 }
 
 .project-setting__preview-block {

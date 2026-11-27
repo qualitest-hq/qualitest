@@ -12,7 +12,9 @@ public class ValidationIssue {
 
     public enum Level {
         /** 画布标错 / 开跑硬拦；不拦保存 */
-        ERROR
+        ERROR,
+        /** 画布提示；不拦 Run */
+        WARNING
     }
 
     private final Level level;

@@ -34,7 +34,6 @@ import { useAiStagingStore } from '../stores/aiStagingStore'
 import { useFlowCanvasStore } from '../stores/flowCanvasStore'
 import { followRun, reconcileActiveRun } from './followActiveRun'
 import { useFlowGraph } from './useFlowGraph'
-import { useApiHealthDraftPreview } from './useApiHealthDraftPreview'
 import { useRunConfig } from './useRunConfig'
 import { fetchProjectAssetRows } from './useProjectVariables'
 
@@ -89,7 +88,6 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
   const store = useFlowCanvasStore()
   const stagingStore = useAiStagingStore()
   const { loadFlow } = useFlowGraph()
-  const { setSuspended } = useApiHealthDraftPreview(options.testFlowId)
   const { loadProjectEnvs } = useRunConfig()
 
   const graphConflict = createPendingExternal()
@@ -214,7 +212,6 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     }
 
     const before = fingerprintNodes(store.nodes as Array<{ id?: string; data?: unknown; position?: unknown }>)
-    setSuspended(true)
     try {
       let highlightIds: string[] = []
 
@@ -261,8 +258,6 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
       }
     } catch {
       ElMessage.warning('外部已更新，但同步画布失败，请手动刷新')
-    } finally {
-      setSuspended(false)
     }
   }
 
@@ -298,14 +293,11 @@ export function useExternalGraphSync(options: UseExternalGraphSyncOptions) {
     graphConflict.clear()
     const flowId = String(options.testFlowId.value)
     if (!flowId) return
-    setSuspended(true)
     try {
       await loadFlow(flowId)
       ElMessage.success('已放弃本地修改并拉取最新画布')
     } catch {
       ElMessage.error('拉取失败')
-    } finally {
-      setSuspended(false)
     }
   }
 

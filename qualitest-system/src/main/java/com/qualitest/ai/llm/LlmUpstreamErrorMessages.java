@@ -1,5 +1,6 @@
 package com.qualitest.ai.llm;
 
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 
@@ -199,18 +200,18 @@ public final class LlmUpstreamErrorMessages {
             String code = null;
             Object errorNode = root.get("error");
             if (errorNode instanceof JSONObject errorObj) {
-                message = blankToNull(errorObj.getString("message"));
-                type = blankToNull(errorObj.getString("type"));
-                code = blankToNull(errorObj.getString("code"));
+                message = StrUtil.trimToNull(errorObj.getString("message"));
+                type = StrUtil.trimToNull(errorObj.getString("type"));
+                code = StrUtil.trimToNull(errorObj.getString("code"));
             }
             if (message == null) {
-                message = firstNonBlank(root.getString("message"), root.getString("msg"));
+                message = StrUtil.firstNonBlank(root.getString("message"), root.getString("msg"));
             }
             if (type == null) {
-                type = blankToNull(root.getString("type"));
+                type = StrUtil.trimToNull(root.getString("type"));
             }
             if (code == null) {
-                code = blankToNull(root.getString("code"));
+                code = StrUtil.trimToNull(root.getString("code"));
             }
             if (message == null && type == null && code == null) {
                 return null;
@@ -339,20 +340,6 @@ public final class LlmUpstreamErrorMessages {
             sb.append(t.getMessage().trim());
         }
         return sb.toString();
-    }
-
-    /** 返回第一个非空字符串；两者皆空则 null。 */
-    private static String firstNonBlank(String first, String second) {
-        String a = blankToNull(first);
-        return a != null ? a : blankToNull(second);
-    }
-
-    /** 空白串视为 null，非空白则 trim 后返回。 */
-    private static String blankToNull(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
     }
 
     /** 超长细节截断并加省略号，避免把超长上游正文直接推给前端。 */

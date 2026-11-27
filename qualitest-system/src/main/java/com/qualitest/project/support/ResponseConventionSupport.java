@@ -54,9 +54,9 @@ public final class ResponseConventionSupport {
      */
     public static Parsed parseOrDefault(String raw) {
         JSONObject obj = parseObject(raw);
-        String codePath = firstNonBlank(obj.getString("codePath"), DEFAULT_CODE_PATH);
-        String messagePath = firstNonBlank(obj.getString("messagePath"), DEFAULT_MESSAGE_PATH);
-        String dataPath = firstNonBlank(obj.getString("dataPath"), DEFAULT_DATA_PATH);
+        String codePath = StrUtil.blankToDefault(StrUtil.trim(obj.getString("codePath")), DEFAULT_CODE_PATH);
+        String messagePath = StrUtil.blankToDefault(StrUtil.trim(obj.getString("messagePath")), DEFAULT_MESSAGE_PATH);
+        String dataPath = StrUtil.blankToDefault(StrUtil.trim(obj.getString("dataPath")), DEFAULT_DATA_PATH);
         List<Object> successValues = readSuccessValues(obj.getJSONArray("successValues"));
         if (successValues.isEmpty()) {
             successValues = List.copyOf(DEFAULT_SUCCESS_VALUES);
@@ -268,11 +268,6 @@ public final class ResponseConventionSupport {
             }
         }
         return out;
-    }
-
-    /** 取非空白字符串，否则用回落值。 */
-    private static String firstNonBlank(String value, String fallback) {
-        return StrUtil.isNotBlank(value) ? value.trim() : fallback;
     }
 
     /**

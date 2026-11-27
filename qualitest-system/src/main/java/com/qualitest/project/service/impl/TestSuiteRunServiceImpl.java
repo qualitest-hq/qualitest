@@ -280,8 +280,8 @@ public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
                 throw new ServiceException("测试流不属于该项目：" + item.getTestFlowId());
             }
             String flowName = StrUtil.blankToDefault(StrUtil.trim(item.getFlowName()), flow.getFlowName());
-            String entryNodeId = blankToNull(item.getEntryNodeId());
-            String scenarioId = blankToNull(item.getRunScenarioId());
+            String entryNodeId = StrUtil.trimToNull(item.getEntryNodeId());
+            String scenarioId = StrUtil.trimToNull(item.getRunScenarioId());
             String scenarioName = resolveScenarioName(flow, scenarioId);
             int sortNum = item.getSortNum() != null ? item.getSortNum() : sort;
             TestSuiteRunItem row = TestSuiteRunItem.builder()
@@ -469,10 +469,6 @@ public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
             throw new ServiceException("运行项不属于该套件运行");
         }
         return item;
-    }
-
-    private static String blankToNull(String value) {
-        return StrUtil.isBlank(value) ? null : value.trim();
     }
 
     /**

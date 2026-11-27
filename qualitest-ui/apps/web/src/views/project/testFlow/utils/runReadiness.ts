@@ -1,7 +1,7 @@
 /**
  * 运行前就绪检查。
  * 开跑硬拦：POST /project/testFlow/validate?stage=run。
- * 画布鉴权/必填图 error：走 stage=canvas（与结构同条刷新链）。
+ * 画布鉴权/必填图 error：走 stage=canvas（与拓扑等同条 graph 刷新链）。
  */
 import { validateTestFlowGraph, type FlowIssueRecord } from '@/api/project/testFlow'
 

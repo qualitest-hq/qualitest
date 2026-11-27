@@ -1,23 +1,19 @@
 /**
  * 画布校验条用的结构化问题。
- * 每条含：严重级别、文案、可定位节点 id、可选服务端 CODE、来源分类
- *（图 error / API 语义）。
+ * 每条含：严重级别、文案、可定位节点 id、可选服务端 CODE。
+ * 统一来自 validate?stage=canvas（含 API 语义与插件 platform 检查），不再按 source 分桶。
  */
 import type { GraphJson, GraphNode } from '@/utils/flow/graphTypes'
 import type { GraphValidationResult } from '@/utils/flow/graphValidate'
 import { findStartNodeIds } from '@/utils/flow/graphValidate'
 
-/** 问题来源：画布图 error（含结构与鉴权/必填）/ API 健康探测 */
-export type FlowCanvasValidationIssueSource = 'structure' | 'apiHealth'
-
-/** 单条画布校验问题；warning 仅 API 健康，其余来源一律 error */
+/** 单条画布校验问题 */
 export type FlowCanvasValidationIssue = {
   level: 'error' | 'warning'
   message: string
   /** 可点击定位的节点 id；边类问题可挂两端节点 */
   nodeIds: string[]
-  source: FlowCanvasValidationIssueSource
-  /** 服务端 FlowIssue.code（如 RUN_READINESS_AUTH）；本地地板可无 */
+  /** 服务端 FlowIssue.code；本地地板可无 */
   code?: string
 }
 
@@ -59,7 +55,7 @@ export function resolveNodeIdsFromMessage(
   return [...new Set(ids)]
 }
 
-/** 把图结构校验的 errors 转成带节点定位的问题列表 */
+/** 把本地地板 errors 转成带节点定位的问题列表 */
 export function issuesFromGraphValidation(
   result: GraphValidationResult,
   graph: Pick<GraphJson, 'nodes' | 'edges'>,
@@ -68,28 +64,7 @@ export function issuesFromGraphValidation(
     level: 'error' as const,
     message,
     nodeIds: resolveNodeIdsFromMessage(message, graph),
-    source: 'structure' as const,
   }))
-}
-
-/** API 健康探测告警转问题列表（有 nodeId 则可定位） */
-export function issuesFromApiHealthWarnings(
-  warnings: Array<{ message?: string; detail?: string; code?: string; nodeId?: string | number | null }>,
-): FlowCanvasValidationIssue[] {
-  return warnings
-    .map((w) => {
-      const message = w.message || w.detail || w.code || ''
-      if (!message) return null
-      const nodeId = w.nodeId != null && String(w.nodeId).trim() ? String(w.nodeId) : ''
-      return {
-        level: 'warning' as const,
-        message,
-        nodeIds: nodeId ? [nodeId] : [],
-        source: 'apiHealth' as const,
-        code: w.code != null && String(w.code).trim() ? String(w.code).trim() : undefined,
-      }
-    })
-    .filter((x): x is FlowCanvasValidationIssue => x != null)
 }
 
 /** 汇总所有问题涉及的节点 id，供卡片描边高亮 */
@@ -101,4 +76,14 @@ export function collectIssueNodeIds(issues: FlowCanvasValidationIssue[]): Set<st
     }
   }
   return ids
+}
+
+/** 按节点过滤问题（属性面板内联） */
+export function issuesForNode(
+  issues: FlowCanvasValidationIssue[],
+  nodeId: string | undefined | null,
+): FlowCanvasValidationIssue[] {
+  if (!nodeId) return []
+  const id = String(nodeId)
+  return issues.filter((i) => (i.nodeIds || []).includes(id))
 }

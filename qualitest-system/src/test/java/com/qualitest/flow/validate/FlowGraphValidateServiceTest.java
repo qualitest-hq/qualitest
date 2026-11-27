@@ -34,19 +34,19 @@ class FlowGraphValidateServiceTest {
     void setUp() {
         routeRegistry = mock(OpenHttpRouteRegistry.class);
         readiness = mock(FlowRunReadinessGate.class);
-        when(readiness.collectBlockingIssues(any(), any(), any(), eq(FlowIssue.Stage.RUN)))
+        when(readiness.collectRawBlockingIssues(any(), any(), any(), eq(FlowIssue.Stage.RUN)))
                 .thenReturn(List.of(FlowIssue.error(
                         FlowIssueCodes.ENTRY_ROUTE_CONFLICT,
                         FlowIssue.Stage.RUN,
                         null,
                         "开放 HTTP 入口冲突：POST /dup")));
-        when(readiness.collectBlockingIssues(any(), any(), any(), eq(FlowIssue.Stage.INGRESS)))
+        when(readiness.collectRawBlockingIssues(any(), any(), any(), eq(FlowIssue.Stage.INGRESS)))
                 .thenReturn(List.of(FlowIssue.error(
                         FlowIssueCodes.ENTRY_ROUTE_CONFLICT,
                         FlowIssue.Stage.INGRESS,
                         null,
                         "开放 HTTP 入口冲突：POST /dup")));
-        when(readiness.collectBlockingIssues(any(), any(), any(), eq(FlowIssue.Stage.SUBFLOW_CALL)))
+        when(readiness.collectRawBlockingIssues(any(), any(), any(), eq(FlowIssue.Stage.SUBFLOW_CALL)))
                 .thenReturn(List.of(FlowIssue.error(
                         FlowIssueCodes.GRAPH_STRUCTURE,
                         FlowIssue.Stage.SUBFLOW_CALL,
@@ -54,7 +54,8 @@ class FlowGraphValidateServiceTest {
                         "未找到开始节点（入口须无入边）")));
         when(readiness.collectAuthIssues(any(), any(), eq(FlowIssue.Stage.CANVAS)))
                 .thenReturn(List.of());
-        service = new FlowGraphValidateService(new GraphJsonValidator(), readiness, routeRegistry);
+        service = FlowGraphValidateServiceTestSupport.create(
+                new GraphJsonValidator(), readiness, routeRegistry);
     }
 
     /**

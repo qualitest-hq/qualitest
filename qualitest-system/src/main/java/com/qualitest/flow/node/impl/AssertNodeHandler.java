@@ -39,27 +39,26 @@ public class AssertNodeHandler extends AbstractStubNodeHandler {
         Map<String, Object> data = node.getData() != null ? node.getData() : Map.of();
         String nodeName = resolveNodeName(node);
 
-        JSONArray rules = toRulesArray(data.get("rules"));
+        Object rulesRaw = data.get("rules");
+        JSONArray rules = rulesRaw instanceof List<?> list ? JSONArray.from(list) : new JSONArray();
         List<Map<String, Object>> ruleResults = new ArrayList<>();
         boolean allPassed = true;
 
-        if (rules != null) {
-            for (int i = 0; i < rules.size(); i++) {
-                JSONObject rule = rules.getJSONObject(i);
-                if (rule == null) {
-                    continue;
-                }
-                CompareRuleEvaluator.EvalDetail detail = CompareRuleEvaluator.evalDetailed(rule, ctx);
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("left", rule.getString("left"));
-                row.put("operator", rule.getOrDefault("operator", "eq"));
-                row.put("right", rule.getString("right"));
-                row.put("passed", detail.passed());
-                row.put("leftActual", serializeLeftActual(detail.leftActual()));
-                ruleResults.add(row);
-                if (!detail.passed()) {
-                    allPassed = false;
-                }
+        for (int i = 0; i < rules.size(); i++) {
+            JSONObject rule = rules.getJSONObject(i);
+            if (rule == null) {
+                continue;
+            }
+            CompareRuleEvaluator.EvalDetail detail = CompareRuleEvaluator.evalDetailed(rule, ctx);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("left", rule.getString("left"));
+            row.put("operator", rule.getOrDefault("operator", "eq"));
+            row.put("right", rule.getString("right"));
+            row.put("passed", detail.passed());
+            row.put("leftActual", serializeLeftActual(detail.leftActual()));
+            ruleResults.add(row);
+            if (!detail.passed()) {
+                allPassed = false;
             }
         }
 
@@ -109,16 +108,4 @@ public class AssertNodeHandler extends AbstractStubNodeHandler {
         }
     }
 
-    private static JSONArray toRulesArray(Object raw) {
-        if (raw == null) {
-            return new JSONArray();
-        }
-        if (raw instanceof JSONArray arr) {
-            return arr;
-        }
-        if (raw instanceof List<?> list) {
-            return JSONArray.parseArray(JSON.toJSONString(list));
-        }
-        return JSONArray.parseArray(JSON.toJSONString(raw));
-    }
 }

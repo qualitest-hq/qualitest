@@ -64,7 +64,7 @@ public final class McpApiImportItemMapper {
     /**
      * 将 arguments.items 转为导入包。
      *
-     * @param itemsArg items 数组（List 或 JSONArray）
+     * @param itemsArg items 数组
      * @throws ServiceException items 为空、非数组或单条缺必填字段时抛出
      */
     public static MappedBatch toImportParams(Object itemsArg) {
@@ -292,9 +292,6 @@ public final class McpApiImportItemMapper {
         if (raw instanceof List<?> list) {
             return list;
         }
-        if (raw instanceof JSONArray arr) {
-            return arr;
-        }
         throw new ServiceException("items 须为数组");
     }
 
@@ -321,22 +318,9 @@ public final class McpApiImportItemMapper {
         return null;
     }
 
-    /**
-     * 转为 JSONArray：null → 空数组；已是数组或 List 则包装；其它类型 → 空数组。
-     */
+    /** 入参不是数组时返回空 JSONArray，避免写入 null */
     private static JSONArray toJsonArray(Object raw) {
-        if (raw == null) {
-            return new JSONArray();
-        }
-        if (raw instanceof JSONArray arr) {
-            return arr;
-        }
-        if (raw instanceof List<?> list) {
-            JSONArray arr = new JSONArray();
-            arr.addAll(list);
-            return arr;
-        }
-        return new JSONArray();
+        return raw instanceof List<?> list ? JSONArray.from(list) : new JSONArray();
     }
 
     /**
@@ -357,7 +341,7 @@ public final class McpApiImportItemMapper {
                 return s;
             }
         }
-        if (raw instanceof JSONObject || raw instanceof JSONArray || raw instanceof Map || raw instanceof List) {
+        if (raw instanceof JSONObject || raw instanceof Map || raw instanceof List) {
             return raw;
         }
         return raw;

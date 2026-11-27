@@ -587,6 +587,22 @@ qualitest.sut-db-archive-point-1.0.0.zip
 
 模板绑定：仅绑定**已启用插件**导出的只读投影（如时钟包的 `clock.now`）；规则见 §10.6。
 
+#### `ui.inspections`（流检查目录）
+
+**禁止**写进 `capabilities[]`。安装包后进入项目「流检查」目录；严重性由项目 `inspection_profile` 覆盖（ERROR / WARNING / OFF；ERROR 拦 Run）。
+
+| 字段 | 含义 |
+| --- | --- |
+| `code` | 包内短码；生效码 = `pluginId/code` |
+| `name` / `category` | 展示 |
+| `defaultSeverity` | ERROR \| WARNING \| OFF |
+| `locked` | true 时固定 ERROR |
+| `evaluator` | `platform.projectMount.required` \| `platform.graph.requiresPluginEnabled` \| `invoke` |
+| `capability` | 仅 `evaluator=invoke`：本包能力名 |
+
+- **platform.***：`stage=canvas` 与 `stage=run` 由质衡主仓求值，**不** Invoke。
+- **invoke**：仅 `stage=run`，经挂点 `onFlowInspect` 调度；stdout JSON：`{ "issues": [{ "code", "nodeId?", "message" }] }`。失败记 `pluginId/INSPECT_INVOKE_FAILED`（默认 WARNING）。
+
 ---
 
 ## 4. 隔离、生命周期、安全
@@ -783,7 +799,7 @@ Exploring **只认** `ui-slot:<名>`：同环境另一 `pluginId` 已占用相�
 | `capabilities[]` | 对象：`name` 包内唯一；`effect`；可选 `gate` |
 | `requires[]` | 仅 `plugin:<id>` |
 | `isolation[]` | 见 §4.1；启用互斥仅 `ui-slot:<slug>` |
-| `hooks[].name` | `onRunPrepare` \| `onRunFinalize` \| `onCheckpoint` \| `onRestore` |
+| `hooks[].name` | `onRunPrepare` \| `onRunFinalize` \| `onCheckpoint` \| `onRestore` \| `onFlowInspect` |
 | `hooks[].order` | 整数；默认 `100` |
 | `hooks[].actions` | ⊆ 本包 `capabilities[].name` |
 | `configSchema` | 可选；环境 `config` 必须通过 |
@@ -795,6 +811,7 @@ Exploring **只认** `ui-slot:<名>`：同环境另一 `pluginId` 已占用相�
 | `runtime.agent.bundle` | kind=ops-agent 时必须 |
 | `runtime.agent.cli` | kind=ops-agent 默认必须：`bin`、`pingArgs`；可选 `argMap` |
 | `ui.env` | 可选；`badge` / `actions` / `panel.entry` |
+| `ui.inspections[]` | 可选；流检查目录（见 §3.2.1） |
 
 能力写成「质衡开放名」→ `MANIFEST_INVALID`。说明书文件名须为 `qualitest.plugin.jsonc`。
 

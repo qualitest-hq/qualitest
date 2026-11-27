@@ -2,7 +2,6 @@ package com.qualitest.flow.context;
 
 import cn.hutool.core.util.IdUtil;
 import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
@@ -123,23 +122,14 @@ public final class EntryScenarioSupport {
             return List.of();
         }
         List<GraphRunScenario> out = new ArrayList<>();
-        if (raw instanceof List<?> list) {
-            for (Object item : list) {
-                GraphRunScenario sc = coerceScenario(item);
-                if (sc != null) {
-                    out.add(sc);
-                }
-            }
+        if (!(raw instanceof List<?> list)) {
             return out;
         }
-        if (raw instanceof JSONArray arr) {
-            for (int i = 0; i < arr.size(); i++) {
-                GraphRunScenario sc = coerceScenario(arr.get(i));
-                if (sc != null) {
-                    out.add(sc);
-                }
+        for (Object item : list) {
+            GraphRunScenario sc = coerceScenario(item);
+            if (sc != null) {
+                out.add(sc);
             }
-            return out;
         }
         return out;
     }

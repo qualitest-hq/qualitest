@@ -13,7 +13,12 @@ import com.qualitest.project.domain.TestProjectMember;
 import com.qualitest.project.domain.TestProjectUserSetting;
 import com.qualitest.project.enums.TestProjectMemberPerm;
 import com.qualitest.project.enums.TestProjectMemberRole;
+import com.qualitest.flow.inspect.FlowInspectionCatalogItem;
+import com.qualitest.flow.inspect.FlowInspectionCatalogService;
+import com.qualitest.flow.inspect.InspectionConfiguredSeverity;
+import com.qualitest.flow.inspect.InspectionProfileSupport;
 import com.qualitest.project.params.ApplyAuthTemplatesParams;
+import com.qualitest.project.params.InspectionProfileSaveParams;
 import com.qualitest.project.params.SaveAsAuthTemplateParams;
 import com.qualitest.project.params.TestProjectParams;
 import com.qualitest.project.result.ProjectRunHubResult;
@@ -24,6 +29,7 @@ import com.qualitest.project.service.IProjectRunHubService;
 import com.qualitest.project.service.ITestProjectMemberService;
 import com.qualitest.project.service.ITestProjectService;
 import com.qualitest.project.service.ITestProjectUserSettingService;
+import com.qualitest.common.exception.ServiceException;
 import com.qualitest.project.support.ProjectAuthTemplateApplyService;
 import com.qualitest.project.support.templatepack.ProjectTemplateFromProjectService;
 import com.qualitest.project.support.templatepack.ProjectTemplatePackModels.PackOpResult;
@@ -33,7 +39,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 测试项目Controller
@@ -52,6 +60,7 @@ public class TestProjectController extends BaseController {
     private final ProjectAuthTemplateApplyService projectAuthTemplateApplyService;
     private final ProjectTemplateFromProjectService projectTemplateFromProjectService;
     private final IProjectRunHubService projectRunHubService;
+    private final FlowInspectionCatalogService flowInspectionCatalogService;
 
     /**
      * 查询测试项目列表
@@ -184,6 +193,60 @@ public class TestProjectController extends BaseController {
                     testProject.getTestProjectId(), TestProjectMemberPerm.PROJECT_EDIT);
         }
         return toR(testProjectService.updateTestProject(testProject));
+    }
+
+    /**
+     * 列出流检查目录（平台内置 + 已安装插件），并带上本项目生效后的严重性。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:query')")
+    @GetMapping("/{testProjectId}/flowInspections")
+    public R<List<FlowInspectionCatalogItem>> listFlowInspections(@PathVariable Long testProjectId) {
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.FLOW_VIEW);
+        return ok(flowInspectionCatalogService.listCatalogForProject(testProjectId));
+    }
+
+    /**
+     * 保存本项目的流检查严重性覆盖。
+     * 空覆盖对象表示恢复目录默认；未知码、非法严重性、对锁定项降级或关闭都会直接拒绝。
+     */
+    @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
+    @Log(title = "流检查配置", businessType = BusinessType.UPDATE)
+    @PutMapping("/{testProjectId}/flowInspections/profile")
+    public R<Void> saveFlowInspectionProfile(
+            @PathVariable Long testProjectId,
+            @RequestBody InspectionProfileSaveParams params) {
+        testProjectMemberService.requireCapability(testProjectId, TestProjectMemberPerm.PROJECT_EDIT);
+        if (params == null || params.getOverrides() == null) {
+            throw new ServiceException("overrides 不能为空（传 {} 表示恢复目录默认）");
+        }
+        TestProject existing = testProjectService.selectTestProjectById(testProjectId);
+        if (existing == null) {
+            throw new ServiceException("项目不存在");
+        }
+        Map<String, InspectionConfiguredSeverity> overrides = new LinkedHashMap<>();
+        var defs = flowInspectionCatalogService.defsByCode();
+        for (Map.Entry<String, String> e : params.getOverrides().entrySet()) {
+            if (e.getKey() == null || e.getKey().isBlank()) {
+                throw new ServiceException("检查码不能为空");
+            }
+            String code = e.getKey().trim();
+            var def = defs.get(code);
+            if (def == null) {
+                throw new ServiceException("未知检查项: " + code);
+            }
+            InspectionConfiguredSeverity sev = InspectionConfiguredSeverity.fromCode(e.getValue());
+            if (sev == null) {
+                throw new ServiceException("非法严重性: " + e.getValue() + "（码 " + code + "）");
+            }
+            if (def.isLocked() && sev != InspectionConfiguredSeverity.ERROR) {
+                throw new ServiceException("检查项「" + code + "」不可关闭或降级");
+            }
+            overrides.put(code, sev);
+        }
+        TestProject patch = new TestProject();
+        patch.setTestProjectId(testProjectId);
+        patch.setInspectionProfile(InspectionProfileSupport.toJson(overrides));
+        return toR(testProjectService.updateTestProject(patch));
     }
 
     /**

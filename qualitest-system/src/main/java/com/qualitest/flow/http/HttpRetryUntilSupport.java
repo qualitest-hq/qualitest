@@ -284,28 +284,14 @@ public final class HttpRetryUntilSupport {
     }
 
     /**
-     * 解析 through 条件数组；跳过 null 项与 left 为空的规则。
-     * 非数组或无法解析时返回空列表。
+     * 解析重试通过条件数组。
+     * 非数组或空数组返回空列表；跳过空项以及 left 为空的规则。
      */
     private static List<JSONObject> parseUntilRules(Object raw) {
-        if (raw == null) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
             return List.of();
         }
-        JSONArray arr;
-        if (raw instanceof JSONArray a) {
-            arr = a;
-        } else if (raw instanceof List<?> list) {
-            arr = JSON.parseArray(JSON.toJSONString(list));
-        } else {
-            try {
-                arr = JSON.parseArray(JSON.toJSONString(raw));
-            } catch (Exception e) {
-                return List.of();
-            }
-        }
-        if (arr == null || arr.isEmpty()) {
-            return List.of();
-        }
+        JSONArray arr = JSONArray.from(list);
         List<JSONObject> out = new ArrayList<>();
         for (int i = 0; i < arr.size(); i++) {
             JSONObject rule = arr.getJSONObject(i);

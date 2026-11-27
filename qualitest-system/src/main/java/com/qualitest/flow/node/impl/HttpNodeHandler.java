@@ -1,6 +1,8 @@
 package com.qualitest.flow.node.impl;
 
 
+import cn.hutool.core.convert.Convert;
+import cn.hutool.core.util.StrUtil;
 import com.qualitest.flow.run.RunStatus;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
@@ -345,7 +347,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         FlowHttpRequestBuilder.BuiltHttpRequest built = FlowHttpRequestBuilder.buildFromExternal(ctx, data);
 
         ApiScriptExecutionResult preScriptResult = null;
-        String preScript = stringOrNull(data.get("preScript"));
+        String preScript = StrUtil.trimToNull(Convert.toStr(data.get("preScript")));
         if (preScript != null) {
             preScriptResult = apiRequestScriptService.executePreIfPresent(
                     preScript, ctx.getFlow(), ctx.getEnv(), Map.of(), built.getForwardParams());
@@ -382,7 +384,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         ctx.putHttpResponse(node.getId(), snapshot);
 
         ApiScriptExecutionResult postScriptResult = null;
-        String postScript = stringOrNull(data.get("postScript"));
+        String postScript = StrUtil.trimToNull(Convert.toStr(data.get("postScript")));
         if (postScript != null) {
             ApiScriptContext.ResponseSnapshot responseSnapshot = ApiScriptSupport.fromForwardResult(
                     status,
@@ -787,25 +789,9 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
         return new HashMap<>(headers);
     }
 
+    /** 读取节点 extracts：须为数组，否则视为未配置 */
     private static JSONArray toExtractsArray(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        if (raw instanceof JSONArray arr) {
-            return arr;
-        }
-        if (raw instanceof List<?> list) {
-            return JSON.parseArray(JSON.toJSONString(list));
-        }
-        return JSON.parseArray(JSON.toJSONString(raw));
-    }
-
-    private static String stringOrNull(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        String s = String.valueOf(raw);
-        return s.isBlank() ? null : s;
+        return raw instanceof List<?> list ? JSONArray.from(list) : null;
     }
 
     /** 从完整 URL 抽出 path，供无绑定 API 时按路径选端并取响应约定。 */
