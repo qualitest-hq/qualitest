@@ -81,7 +81,7 @@
               </el-col>
               <el-col :md="12" :span="24">
                 <el-form-item label="鉴权模式">
-                  <el-select v-model="auth.mode" class="design-w100" placeholder="inherit">
+                  <el-select v-model="auth.mode" class="design-w100" placeholder="必选">
                     <el-option label="继承项目配置 (inherit)" value="inherit"/>
                     <el-option label="免登录 (none)" value="none"/>
                     <el-option label="接口自定义 (override)" value="override"/>
@@ -256,6 +256,7 @@ function formatJsonForEdit(raw) {
   }
 }
 
+/** 新建接口时表单默认 inherit；不是读库缺字段时的回填 */
 function emptyAuthParsed() {
   return {
     mode: 'inherit',
@@ -265,15 +266,21 @@ function emptyAuthParsed() {
   }
 }
 
+/**
+ * 解析接口 auth_config 到表单。
+ * raw 为空：用新建默认 inherit。
+ * 已有 JSON：mode 只认 none/inherit/override，缺或非法保持空串，不改写成 inherit。
+ */
 function parseAuthConfig(raw) {
   if (raw == null || raw === '') {
     return emptyAuthParsed()
   }
   try {
     const obj = typeof raw === 'string' ? JSON.parse(raw) : raw
-    const mode = String(obj?.mode || 'inherit').trim() || 'inherit'
+    const modeRaw = String(obj?.mode || '').trim().toLowerCase()
+    const mode = ['none', 'inherit', 'override'].includes(modeRaw) ? modeRaw : ''
     return {
-      mode: ['none', 'inherit', 'override'].includes(mode) ? mode : 'inherit',
+      mode,
       authProfileId: obj?.authProfileId != null ? String(obj.authProfileId).trim() : '',
       headerName: obj?.header?.name != null && String(obj.header.name).trim()
           ? String(obj.header.name).trim()
@@ -281,12 +288,21 @@ function parseAuthConfig(raw) {
       valueTemplate: obj?.header?.valueTemplate != null ? String(obj.header.valueTemplate).trim() : ''
     }
   } catch {
-    return emptyAuthParsed()
+    return {
+      mode: '',
+      authProfileId: '',
+      headerName: 'Authorization',
+      valueTemplate: ''
+    }
   }
 }
 
+/** 组装落库 JSON；mode 未选或非法时抛错，不静默写成 inherit */
 function buildAuthConfigPayload() {
-  const mode = (auth.mode || 'inherit').trim()
+  const mode = (auth.mode || '').trim()
+  if (!['none', 'inherit', 'override'].includes(mode)) {
+    throw new Error('须选择鉴权模式（none / inherit / override）')
+  }
   const payload = { mode }
   if (mode === 'inherit' && auth.authProfileId?.trim()) {
     payload.authProfileId = auth.authProfileId.trim()

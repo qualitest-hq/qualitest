@@ -39,8 +39,10 @@ export function countFilledRows(rows: KvRow[] | undefined) {
 export interface HttpWorkbenchDraft {
   testProjectApiId: string;
   apiName: string;
-  /** 仅展示用，来自 API 资产；保存时不写回节点 */
+  /** 接口 path；保存节点时写入 data.apiPath，供画布鉴权标签按前缀命中 Profile */
   apiPath: string;
+  /** 接口 auth.mode（none/inherit/override）；保存节点时写入 data.apiAuthMode */
+  apiAuthMode: string;
   requestConfig: {
     configVersion: number;
     method: string;
@@ -55,13 +57,17 @@ export interface HttpWorkbenchDraft {
 /** 节点测值覆盖类型（相对资产默认的差分） */
 // 见本文件上方 import 的 NodeRequestValueOverrides
 
-/** 从 API 详情构建编辑草稿（详情里的 requestConfig 已是有效配置） */
+/**
+ * 从接口详情构建编辑草稿（详情里的 requestConfig 已是有效配置）。
+ * 同时带出 apiPath 与 authConfig.mode，供保存节点时写回画布鉴权展示字段。
+ */
 export function buildWorkbenchFromApiDetail(apiDetail: Record<string, unknown> | null): HttpWorkbenchDraft {
   if (!apiDetail) {
     return {
       testProjectApiId: '',
       apiName: '',
       apiPath: '',
+      apiAuthMode: '',
       requestConfig: {
         configVersion: REQUEST_CONFIG_VERSION,
         method: 'GET',
@@ -74,10 +80,15 @@ export function buildWorkbenchFromApiDetail(apiDetail: Record<string, unknown> |
     };
   }
   const rc = (parseFlexibleJson(apiDetail.requestConfig) as Record<string, unknown>) || {};
+  // 只读 mode 原文并小写化；非法/缺失保持空串，不默认 inherit
+  const authObj = parseFlexibleJson(apiDetail.authConfig) as Record<string, unknown> | null;
+  const apiAuthMode =
+    authObj && typeof authObj.mode === 'string' ? String(authObj.mode).trim().toLowerCase() : '';
   return {
     testProjectApiId: String(apiDetail.testProjectApiId ?? ''),
     apiName: String(apiDetail.apiName ?? ''),
     apiPath: String(apiDetail.apiPath ?? ''),
+    apiAuthMode,
     requestConfig: {
       configVersion: REQUEST_CONFIG_VERSION,
       method: String(rc.method || 'GET').toUpperCase(),
@@ -275,8 +286,9 @@ export function buildRequestValueOverridesDiff(
 }
 
 /**
- * 把编辑草稿写回节点 data：
- * 只写 requestValueOverrides 差分；删除 requestConfig、requestBody、apiPath。
+ * 把编辑草稿写回节点 data。
+ * 写入 apiPath、apiAuthMode（空则删字段），只落 requestValueOverrides 相对资产的差分，
+ * 并去掉节点上的整段 requestConfig / requestBody。
  *
  * @param assetBaseline 打开弹窗时的资产有效配置基线；缺省则空基线（有值都进 overrides）
  */
@@ -289,6 +301,13 @@ export function applyWorkbenchToNodeData(
   data.apiName = draft.apiName;
   data.httpMethod = draft.requestConfig.method;
   data.callMode = 'project';
+  // 画布鉴权标签依赖 path + mode，绑接口时一并落在节点上
+  data.apiPath = draft.apiPath;
+  if (draft.apiAuthMode) {
+    data.apiAuthMode = draft.apiAuthMode;
+  } else {
+    delete data.apiAuthMode;
+  }
 
   const baseline = assetBaseline || buildWorkbenchFromApiDetail(null);
   const overrides = buildRequestValueOverridesDiff(draft, baseline);
@@ -300,7 +319,6 @@ export function applyWorkbenchToNodeData(
 
   delete data.requestConfig;
   delete data.requestBody;
-  delete data.apiPath;
 
   data.headers = draft.headerRows.filter(
     (r) => String(r.name || '').trim() || String(r.value || '').trim(),

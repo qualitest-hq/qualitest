@@ -147,7 +147,7 @@ MCP 侧默认 **18** 个只读工具（相对 Web AI 面板：多 `list_flows` /
 
 ### 3.5 MCP 导入接口（须「允许 MCP 导入接口」）
 
-开启后追加 `import_apis`：将结构化 `items[]`（method、path、name、参数摘要等）按 HTTP 方法 + 规范化 path 写入本项目接口库（已存在则更新，不存在则新增），成功即落库；回执含 created/updated/skipped/conflicts 与 `testProjectApiId`。不会改写接口上的设计提示。**任意语言栈**均可：由 AI 从业务仓（Controller / router / OpenAPI 注释等）抽取后调用即可，不依赖 IDEA / Java。本开关不影响写流权限；IDEA 插件的 REST 导入不受本开关限制。
+开启后追加 `import_apis`：将结构化 `items[]`（method、path、name、**`authSuggestion.mode` 必填**（`none`/`inherit`/`override`）、参数摘要等）按 HTTP 方法 + 规范化 path 写入本项目接口库（已存在则更新，不存在则新增），成功即落库；缺 mode 拒收。回执含 created/updated/skipped/conflicts 与 `testProjectApiId`。不会改写接口上的设计提示。**任意语言栈**均可：由 AI 从业务仓（Controller / router / OpenAPI 注释等）抽取后调用即可，不依赖 IDEA / Java。本开关不影响写流权限；IDEA 插件按免登注解自判并上传 mode，同样缺 mode 拒收。
 
 ---
 
@@ -203,7 +203,7 @@ testFlowId 用 <上一步拿到的 id>。
 - MCP **默认只读**；写流与导入接口由项目设置两道独立开关控制（不由 Token「权限」区分）。落盘规则见 [ai-staging.md](./ai-staging.md)。卡住见 [faq.md](./faq.md)。
 - 未开 MCP 写权限时：顶栏「MCP 造流 Agent 规程」可复制单功能 / 整项目提示词贴到 Cursor，汇总短提示后再贴回 Web 造流。
 - 靶场联调、自然语言造流示例见：[qualitest-demo-mall · AI 提示集](https://github.com/qualitest-hq/qualitest-demo-mall/blob/main/docs/ai-test-flow-prompts.md)。
-- IDEA / OpenAPI 同步后：检查登录口（`/login`、`/api/account/auth/login` 等）资产的 `auth.mode` 应为 `none`；若仍为 `inherit`，造流可能误补托管 Bearer。存量可用 `sql/fix_anonymous_auth_builtin_paths.sql` 预览后修复。
+- IDEA 同步后：登录/公开口应带免登注解（默认认 `Anonymous`），插件会上传 `auth.mode=none`；若注解漏标成 `inherit`，运行会误补托管 Bearer。
 
 ---
 

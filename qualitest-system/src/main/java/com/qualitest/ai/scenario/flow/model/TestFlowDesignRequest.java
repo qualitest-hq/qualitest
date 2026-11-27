@@ -52,7 +52,7 @@ public class TestFlowDesignRequest {
     private String prompt;
 
     /**
-     * 画布当前运行风险文案（如 AUTH_TOKEN_MISSING），注入本轮 user 上下文供模型自愈。
+     * 画布当前运行风险文案（如 AUTH_LOGIN_FLOWKEY_COLLISION），注入本轮 user 上下文供模型自愈。
      * 可空。
      */
     private List<String> runRiskWarnings;

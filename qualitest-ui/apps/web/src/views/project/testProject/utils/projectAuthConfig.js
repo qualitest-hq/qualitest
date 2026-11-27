@@ -282,10 +282,14 @@ export function formatAuthConfigPreview(form) {
   }
 }
 
-/** 预制接口 authMode 展示文案 */
+/**
+ * 鉴权 mode 短文案：none→免登录，override→自定义，inherit→继承。
+ * 空或未识别值返回空串，不默认写成「继承」。
+ */
 export function formatAuthModeLabel(mode) {
-  const m = String(mode || 'inherit').trim().toLowerCase()
+  const m = String(mode || '').trim().toLowerCase()
   if (m === 'none') return '免登录'
   if (m === 'override') return '自定义'
-  return '继承'
+  if (m === 'inherit') return '继承'
+  return ''
 }

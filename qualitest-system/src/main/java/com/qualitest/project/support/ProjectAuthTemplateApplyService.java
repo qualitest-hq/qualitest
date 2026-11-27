@@ -573,19 +573,17 @@ public class ProjectAuthTemplateApplyService {
         return RequestConfigImportNormalizer.normalize(raw);
     }
 
-    /** 预制接口鉴权落库：只保留 mode / profileId / 自定义头。 */
+    /** 预制接口鉴权落库：须含 mode；只保留 mode / profileId / 自定义头。 */
     private String serializeAuthConfig(PrefabricatedApi prefab) {
         if (prefab.getAuthConfig() == null || StrUtil.isBlank(prefab.getAuthConfig().getMode())) {
-            return ApiAuthConfigSupport.noneStorageJson();
+            throw new ServiceException("预制接口须含 authConfig.mode（none/inherit/override）");
         }
         ApiAuthConfig auth = prefab.getAuthConfig();
-        ApiAuthConfig stored = ApiAuthConfig.builder()
+        return ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder()
                 .mode(auth.getMode())
                 .authProfileId(auth.getAuthProfileId())
                 .header(auth.getHeader())
-                .build();
-        String json = ApiAuthConfigSupport.toStorageJson(stored);
-        return json != null ? json : ApiAuthConfigSupport.noneStorageJson();
+                .build());
     }
 
     /** 对象或 JSON 字符串转成可写库 JSON；空则用缺省值。 */

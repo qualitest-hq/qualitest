@@ -594,23 +594,30 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 前提：绑定需登录接口且节点未写 Authorization；项目已有双端 Profile。
-     * 期望：补 profileManaged Authorization=Bearer {{asset.clientAuth.token}}，并有鉴权补全 warning。
+     * 前提：绑定需登录接口；节点上已有误落的 profileManaged 行。
+     * 期望：设计期规范化剥掉托管行，不写入新的托管 Authorization（补头仅运行期）。
      */
     @Test
     @Order(16)
-    @DisplayName("需登录接口缺头时补托管 Authorization")
-    void normalize_addsManagedAuthHeader() {
+    @DisplayName("设计期不补托管头，并剥掉已有 profileManaged")
+    void normalize_stripsManagedAuthHeader_doesNotAdd() {
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
                 .apiName("当前用户")
                 .apiPath("/api/account/auth/profile")
                 .authConfig("{\"mode\":\"inherit\",\"authProfileId\":\"clientBearer\"}")
+                .requestConfig("{\"method\":\"GET\"}")
                 .build());
+        Map<String, Object> managed = new HashMap<>();
+        managed.put("_enabled", true);
+        managed.put("name", "Authorization");
+        managed.put("value", "Bearer {{asset.clientAuth.token}}");
+        managed.put(AuthHeaderResolver.PROFILE_MANAGED, true);
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
         data.put("testProjectApiId", String.valueOf(API_ID));
+        data.put("headers", new ArrayList<>(List.of(managed)));
         GraphNode node = GraphNode.builder()
                 .id("9301")
                 .type("http")
@@ -626,15 +633,10 @@ class FlowDesignPatchNormalizerTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> headers =
                 (List<Map<String, Object>>) result.patch().getAddNodes().get(0).getData().get("headers");
-        assertNotNull(headers);
-        assertFalse(headers.isEmpty());
-        Map<String, Object> auth = headers.stream()
-                .filter(h -> "Authorization".equalsIgnoreCase(String.valueOf(h.get("name"))))
-                .findFirst()
-                .orElse(null);
-        assertNotNull(auth);
-        assertEquals("Bearer {{asset.clientAuth.token}}", auth.get("value"));
-        assertTrue(AuthHeaderResolver.isProfileManaged(auth));
+        if (headers != null) {
+            assertTrue(headers.stream().noneMatch(AuthHeaderResolver::isProfileManaged),
+                    () -> "headers=" + headers);
+        }
     }
 
     /**
@@ -820,13 +822,13 @@ class FlowDesignPatchNormalizerTest {
     }
 
     /**
-     * 前提：项目双端鉴权；单单元 add 需登录的客户端 project HTTP，图中无 token 来源。
-     * 期望：normalizeUnit 地板通过且 errors 无 AUTH；整包严格快照 errors 含 AUTH_TOKEN_MISSING。
+     * 前提：项目双端鉴权；单单元 / 整包 add 需登录的客户端 project HTTP，图中无 token 写出。
+     * 期望：认票硬拦已移除，unit 与 full 均不含 AUTH_TOKEN_MISSING。
      */
     @Test
     @Order(94)
-    @DisplayName("normalizeUnit 不因 AuthToken 门禁拒收")
-    void normalizeUnit_projectHttpMissingToken_skipsAuthGate() {
+    @DisplayName("normalize 不再因缺写出路径 AUTH_TOKEN_MISSING 拒收")
+    void normalize_projectHttpMissingToken_noPresenceHardBlock() {
         when(mapper.selectTestProjectApiById(API_ID)).thenReturn(TestProjectApi.builder()
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
@@ -846,7 +848,7 @@ class FlowDesignPatchNormalizerTest {
         FlowDesignPatch fullPatch = dualBearerHttpAddPatch("9602");
         FlowDesignPatchNormalizer.NormalizeResult fullResult =
                 normalizer.normalize(fullPatch, graphWithMeta(), PROJECT_ID);
-        assertTrue(fullResult.errors().stream().anyMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
+        assertTrue(fullResult.errors().stream().noneMatch(e -> e.startsWith("AUTH_TOKEN_MISSING:")),
                 () -> "full errors=" + fullResult.errors());
     }
 

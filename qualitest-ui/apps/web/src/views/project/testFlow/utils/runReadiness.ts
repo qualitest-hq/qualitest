@@ -44,7 +44,7 @@ export async function collectRunBlockingErrors(opts: {
   }
 }
 
-/** 鉴权 / 登录抽取 / HTTP 必填类（优先看 FlowIssue.code，文案前缀兜底） */
+/** 鉴权 / 登录键碰撞类（不含 HTTP 必填；优先看 FlowIssue.code） */
 export function isAuthReadinessIssue(
   issue: Pick<FlowIssueRecord, 'code' | 'message'> | { code?: string; message?: string } | string,
 ): boolean {
@@ -53,17 +53,15 @@ export function isAuthReadinessIssue(
   }
   const code = String(issue?.code || '')
   if (code === 'RUN_READINESS_AUTH') return true
+  if (code === 'RUN_READINESS_HTTP_PARAM') return false
   return isAuthRiskMessage(String(issue?.message || ''))
 }
 
 /**
  * 文案是否属鉴权风险（按后端实际产出的 message 前缀；无 structured code 时用）。
- * 仅认 AUTH_TOKEN_MISSING / AUTH_LOGIN_FLOWKEY_COLLISION（非独立 CODE）。
+ * 认票硬拦已移除；现主要认 AUTH_LOGIN_FLOWKEY_COLLISION。
  */
 export function isAuthRiskMessage(message: string): boolean {
   const text = String(message || '')
-  return (
-    text.startsWith('AUTH_TOKEN_MISSING:')
-    || text.startsWith('AUTH_LOGIN_FLOWKEY_COLLISION:')
-  )
+  return text.startsWith('AUTH_LOGIN_FLOWKEY_COLLISION:')
 }

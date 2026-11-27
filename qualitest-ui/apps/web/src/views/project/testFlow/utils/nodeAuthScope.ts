@@ -1,13 +1,19 @@
 /**
- * 画布 HTTP 节点鉴权展示：凭证路径来自节点 headers/extracts；
- * conflict 只认画布校验里的 AUTH_* / RUN_READINESS_AUTH issues（服务端权威）。
- * 不再本地推演 pathPrefix / Profile 匹配。
+ * 画布 HTTP 节点鉴权展示计算。
+ *
+ * 直接产出卡片短文案 label：
+ * - apiAuthMode=none →「免登」
+ * - path 命中 Profile 头模板 →「头 asset.x.token」
+ * - 仅有鉴权错误 →「鉴权风险」
+ *
+ * 凭证写出走节点自带的 extracts chip，这里不再重复「写出 …」。
+ * 不读节点 headers 上的 profileManaged（设计期不落托管头，开跑时才补）。
+ * conflict 只来自传进来的鉴权类画布错误（error 级）。
  */
 
-import { listExtractCredentialPaths } from '@/utils/flow/credentialTarget'
+import { parseJsonMaybe } from '@/views/project/testProject/utils/projectAuthConfig'
 
 import {
-  isProfileManagedRow,
   parseCredentialDisplayPath,
   type CredentialPlaceholder,
   parseCredentialPlaceholders,
@@ -15,37 +21,19 @@ import {
 import type { FlowCanvasValidationIssue } from './flowValidationIssues'
 import { isAuthRiskMessage } from './runReadiness'
 
-export type NodeAuthKind = 'login' | 'none' | 'inherit' | 'empty'
-
 export interface NodeAuthScope {
-  kind: NodeAuthKind
+  /** 卡片/属性面板短文案；无信息时为空串 */
+  label: string
   profileName: string
-  /** 期望凭证展示路径，如 asset.adminAuth.token / flow.token */
+  /** 期望/展示用占位路径，如 asset.adminAuth.token / flow.token */
   expectedCredential: string
-  /** 当前节点托管头上的凭证展示路径 */
-  headerCredential: string
-  /** 本节点 extracts 产出的凭证展示路径列表 */
-  extractCredentials: string[]
-  /** 是否存在服务端鉴权硬拦/预警 */
+  /** 本节点是否挂有鉴权类画布错误 */
   conflict: boolean
-  /** conflict 时的人类可读原因 */
+  /** conflict 时去掉 AUTH_ 码前缀后的可读原因 */
   conflictReason: string
 }
 
-/** 从节点 headers 里找第一条 profileManaged 行，解析其值模板中的凭证路径。 */
-function parseHeaderCredential(headers: unknown): string {
-  if (!Array.isArray(headers)) return ''
-  for (const row of headers) {
-    if (!row || typeof row !== 'object') continue
-    const r = row as Record<string, unknown>
-    if (!isProfileManagedRow(r)) continue
-    const path = parseCredentialDisplayPath(r.value)
-    if (path) return path
-    return ''
-  }
-  return ''
-}
-
+/** 去掉 message 开头的 AUTH_XXX: 前缀，只留人类可读部分 */
 function stripAuthCodePrefix(message: string): string {
   const text = String(message || '').trim()
   const idx = text.indexOf(':')
@@ -55,41 +43,103 @@ function stripAuthCodePrefix(message: string): string {
   return text
 }
 
+/** 是否为鉴权相关画布 issue（排除 HTTP 必填类） */
 function isAuthCanvasIssue(issue: FlowCanvasValidationIssue): boolean {
   const code = String(issue.code || '').trim()
   if (code === 'RUN_READINESS_AUTH') return true
-  if (code.startsWith('AUTH_')) return true
+  if (code === 'RUN_READINESS_HTTP_PARAM') return false
+  if (code.startsWith('AUTH_LOGIN_')) return true
   return isAuthRiskMessage(String(issue.message || ''))
 }
 
-/** 空作用域：无凭证展示、无鉴权 issue。 */
-export function emptyNodeAuthScope(): NodeAuthScope {
+function buildScope(partial: Partial<NodeAuthScope> & { label?: string }): NodeAuthScope {
+  const expected = partial.expectedCredential || ''
+  const profileName = partial.profileName || ''
+  const conflict = !!partial.conflict
+  let label = partial.label
+  if (label === undefined) {
+    if (expected) {
+      label = `头 ${expected}`
+    } else if (conflict) {
+      label = '鉴权风险'
+    } else if (profileName) {
+      label = `头 ${profileName}`
+    } else {
+      label = ''
+    }
+  }
   return {
-    kind: 'empty',
+    label,
+    profileName,
+    expectedCredential: expected,
+    conflict,
+    conflictReason: partial.conflictReason || '',
+  }
+}
+
+/** 空作用域：无文案、无鉴权错误 */
+export function emptyNodeAuthScope(): NodeAuthScope {
+  return buildScope({
+    label: '',
     profileName: '',
     expectedCredential: '',
-    headerCredential: '',
-    extractCredentials: [],
     conflict: false,
     conflictReason: '',
+  })
+}
+
+/**
+ * 按最长 pathPrefix 命中项目 Profile，取出头值模板里的凭证展示路径与 Profile 名。
+ * 单独的「/」前缀忽略；path 为空则不命中。
+ */
+export function resolveProfileCredentialFromProjectAuth(
+  projectAuthConfig: unknown,
+  apiPath: unknown,
+): { profileName: string; credentialPath: string } {
+  const path = String(apiPath || '').trim()
+  if (!path) return { profileName: '', credentialPath: '' }
+  const root = parseJsonMaybe(projectAuthConfig)
+  const profiles = Array.isArray(root?.authProfiles) ? root.authProfiles : []
+  let best: { name: string; template: string; len: number } | null = null
+  for (const p of profiles) {
+    if (!p || typeof p !== 'object') continue
+    const prefixes = Array.isArray(p.match?.pathPrefix) ? p.match.pathPrefix : []
+    for (const raw of prefixes) {
+      const prefix = String(raw || '').trim()
+      if (!prefix || prefix === '/') continue
+      if (!path.startsWith(prefix)) continue
+      if (!best || prefix.length > best.len) {
+        best = {
+          name: String(p.name || p.id || '').trim(),
+          template: String(p.headerValueTemplate || '').trim(),
+          len: prefix.length,
+        }
+      }
+    }
+  }
+  if (!best) return { profileName: '', credentialPath: '' }
+  return {
+    profileName: best.name,
+    credentialPath: parseCredentialDisplayPath(best.template),
   }
 }
 
 /**
- * 解析节点鉴权展示。
- * conflict 仅来自 authIssues（通常为 validate?stage=canvas 中与本节点相关的 AUTH 问题）。
+ * 解析节点鉴权展示结果（含 label）。
+ * conflict 仅统计 error 级、且挂到本节点（或未标节点）的鉴权类 issue。
  */
 export function resolveNodeAuthScope(input: {
   nodeId?: string
-  headers?: unknown
-  extracts?: unknown
+  /** 绑接口时写入节点的 auth.mode */
+  apiAuthMode?: unknown
+  /** 绑接口时写入节点的 path，用于命中 Profile */
+  apiPath?: unknown
+  projectAuthConfig?: unknown
   authIssues?: FlowCanvasValidationIssue[]
 }): NodeAuthScope {
   const nodeId = String(input.nodeId || '').trim()
-  const extractCredentials = listExtractCredentialPaths(input.extracts)
-  const headerCredential = parseHeaderCredential(input.headers)
+  const apiAuthMode = String(input.apiAuthMode || '').trim().toLowerCase()
   const related = (input.authIssues || []).filter((issue) => {
-    // 仅生效 ERROR 当鉴权 conflict；WARNING 不进硬样式
     if (issue.level !== 'error') return false
     if (!isAuthCanvasIssue(issue)) return false
     if (!nodeId) return true
@@ -99,57 +149,37 @@ export function resolveNodeAuthScope(input: {
   })
   const conflict = related.length > 0
   const conflictReason = conflict ? stripAuthCodePrefix(related[0].message) : ''
+  const profileHit = resolveProfileCredentialFromProjectAuth(
+    input.projectAuthConfig,
+    input.apiPath,
+  )
 
-  if (extractCredentials.length) {
-    return {
-      kind: 'login',
-      profileName: '',
-      expectedCredential: extractCredentials[0] || '',
-      headerCredential,
-      extractCredentials,
+  if (apiAuthMode === 'none') {
+    return buildScope({
+      label: '免登',
       conflict,
       conflictReason,
-    }
+    })
   }
-  if (headerCredential) {
-    return {
-      kind: 'inherit',
-      profileName: '',
-      expectedCredential: headerCredential,
-      headerCredential,
-      extractCredentials,
+  if (apiAuthMode === 'inherit' || apiAuthMode === 'override' || profileHit.credentialPath) {
+    return buildScope({
+      expectedCredential: profileHit.credentialPath,
+      profileName: profileHit.profileName,
       conflict,
       conflictReason,
-    }
+    })
   }
   if (conflict) {
-    return {
-      kind: 'inherit',
-      profileName: '',
-      expectedCredential: '',
-      headerCredential: '',
-      extractCredentials,
+    return buildScope({
+      label: '鉴权风险',
       conflict: true,
       conflictReason,
-    }
+    })
   }
   return emptyNodeAuthScope()
 }
 
-/** 卡片/属性面板短文案（如「产出 asset.x.token」「凭证 asset.x.token」）。 */
-export function formatNodeAuthScopeLabel(scope: NodeAuthScope): string {
-  if (scope.kind === 'empty') return ''
-  if (scope.kind === 'none') return '免登'
-  const expected = scope.expectedCredential || ''
-  if (scope.kind === 'login') {
-    return expected ? `产出 ${expected}` : '登录口'
-  }
-  if (expected) return `凭证 ${expected}`
-  if (scope.conflict) return '鉴权风险'
-  return scope.profileName ? `凭证 ${scope.profileName}` : ''
-}
-
-/** 从 Profile 值模板解析凭证占位（asset.* / flow.*）。 */
+/** 从 Profile 头值模板解析凭证占位（asset.* / flow.*） */
 export function parseProfileCredentialPlaceholders(valueTemplate: unknown): CredentialPlaceholder[] {
   return parseCredentialPlaceholders(valueTemplate)
 }

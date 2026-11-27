@@ -580,9 +580,15 @@ const selectedMethod = computed({
   },
 })
 
+/**
+ * 当前选中预制接口的鉴权模式。
+ * 读：只认 none/inherit/override，缺或非法返回空串，不默认 inherit。
+ * 写：经 patchAuthConfigMode 写回该条 authConfig。
+ */
 const selectedAuthMode = computed({
   get() {
-    return String(selectedApi.value?.authConfig?.mode || 'inherit').trim() || 'inherit'
+    const mode = String(selectedApi.value?.authConfig?.mode || '').trim().toLowerCase()
+    return ['none', 'inherit', 'override'].includes(mode) ? mode : ''
   },
   set(mode) {
     if (!selectedApi.value || selectedIndex.value < 0 || props.readOnly) return

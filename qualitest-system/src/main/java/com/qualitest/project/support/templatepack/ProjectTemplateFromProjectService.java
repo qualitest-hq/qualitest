@@ -425,7 +425,7 @@ public class ProjectTemplateFromProjectService {
             return Map.of("mode", "none");
         }
         try {
-            ApiAuthConfig cfg = ApiAuthConfigSupport.parseOrInherit(raw);
+            ApiAuthConfig cfg = ApiAuthConfigSupport.parse(raw);
             if (cfg == null || StrUtil.isBlank(cfg.getMode())) {
                 return Map.of("mode", "none");
             }

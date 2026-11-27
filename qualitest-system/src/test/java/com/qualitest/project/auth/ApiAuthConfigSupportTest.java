@@ -10,28 +10,29 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测谁：鉴权标签转落库 JSON 的校验与序列化、更新导入合并。
- * 边界：未声明 auth、合法 none/inherit/override、非法 mode、缺 header；更新时 hint 本地优先。
+ * 测谁：鉴权标签转落库 JSON 的校验与序列化、导入写入。
+ * 覆盖：缺 mode 拒收、合法 none/inherit/override、非法 mode、override 缺 header、
+ * 导入按上传 mode 落库（不会因预制列表改成 none）、缺 auth 拒收。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ApiAuthConfigSupportTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiAuthConfigSupportTest {
 
     /**
-     * 前提：上传包未带 auth，或 mode 为空。
-     * 期望：返回 null，表示不要覆盖库中已有值。
+     * 前提：auth 为 null 或 mode 空白。
+     * 期望：抛业务异常。
      */
     @Test
     @Order(1)
-    @DisplayName("省略 auth 不落库")
-    void toStorageJson_nullWhenAuthOmitted() {
-        assertNull(ApiAuthConfigSupport.toStorageJson(null));
-        assertNull(ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder().mode("  ").build()));
+    @DisplayName("缺 mode 拒收")
+    void toStorageJson_rejectsMissingMode() {
+        assertThrows(ServiceException.class, () -> ApiAuthConfigSupport.toStorageJson(null));
+        assertThrows(ServiceException.class,
+                () -> ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder().mode("  ").build()));
     }
 
     /**
@@ -90,14 +91,15 @@ class ApiAuthConfigSupportTest {
 
     /**
      * 前提：JSON 空白。
-     * 期望：parseOrInherit 回落 inherit。
+     * 期望：parse 抛错。
      */
     @Test
     @Order(6)
-    @DisplayName("空白 JSON 按 inherit")
-    void parseOrInherit_blankDefaultsToInherit() {
-        assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit(null).getMode());
-        assertEquals(ApiAuthConfig.MODE_INHERIT, ApiAuthConfigSupport.parseOrInherit("").getMode());
+    @DisplayName("空白 JSON 拒收")
+    void parse_blankRejects() {
+        assertThrows(ServiceException.class, () -> ApiAuthConfigSupport.parse(null));
+        assertThrows(ServiceException.class, () -> ApiAuthConfigSupport.parse(""));
+        assertThrows(ServiceException.class, () -> ApiAuthConfigSupport.parse("{}"));
     }
 
     /**
@@ -105,10 +107,10 @@ class ApiAuthConfigSupportTest {
      * 期望：抛业务异常。
      */
     @Test
-    @Order(16)
+    @Order(7)
     @DisplayName("非法 JSON 抛错")
-    void parseOrInherit_illegalThrows() {
-        assertThrows(ServiceException.class, () -> ApiAuthConfigSupport.parseOrInherit("{"));
+    void parse_illegalThrows() {
+        assertThrows(ServiceException.class, () -> ApiAuthConfigSupport.parse("{"));
     }
 
     /**
@@ -116,7 +118,7 @@ class ApiAuthConfigSupportTest {
      * 期望：JSON 含 mode 与 header，不含 authProfileId。
      */
     @Test
-    @Order(7)
+    @Order(8)
     @DisplayName("override 落库含 header")
     void toStorageJson_overrideWithHeader() {
         String json = ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder()
@@ -139,7 +141,7 @@ class ApiAuthConfigSupportTest {
      * 期望：ServiceException。
      */
     @Test
-    @Order(8)
+    @Order(9)
     @DisplayName("override 缺 header 拒绝")
     void toStorageJson_overrideRequiresHeader() {
         ServiceException ex = assertThrows(ServiceException.class,
@@ -152,7 +154,7 @@ class ApiAuthConfigSupportTest {
      * 期望：落库不含 header 字段。
      */
     @Test
-    @Order(9)
+    @Order(10)
     @DisplayName("inherit 不残留 header")
     void toStorageJson_inheritDropsHeader() {
         String json = ApiAuthConfigSupport.toStorageJson(ApiAuthConfig.builder()
@@ -172,78 +174,56 @@ class ApiAuthConfigSupportTest {
      * 期望：normalizeToJson 产出可解析的 override。
      */
     @Test
-    @Order(10)
+    @Order(11)
     @DisplayName("normalizeToJson 规范化 override")
     void normalizeToJson_override() {
         String stored = ApiAuthConfigSupport.normalizeToJson("""
                 {"mode":"override","header":{"name":"Authorization","valueTemplate":"Bearer bad"}}
                 """);
-        ApiAuthConfig cfg = ApiAuthConfigSupport.parseOrInherit(stored);
+        ApiAuthConfig cfg = ApiAuthConfigSupport.parse(stored);
         assertEquals(ApiAuthConfig.MODE_OVERRIDE, cfg.getMode());
         assertEquals("Authorization", cfg.getHeader().getName());
         assertEquals("Bearer bad", cfg.getHeader().getValueTemplate());
     }
 
     /**
-     * 前提：本地免登口 mode=none；上传包 mode=none。
+     * 前提：上传 mode=none。
      * 期望：落库瘦 JSON 仅含 mode=none。
      */
     @Test
-    @Order(11)
-    @DisplayName("更新导入：上传 none 写出瘦 JSON")
-    void mergeOnImportUpdate_noneWritesLeanJson() {
-        String local = "{\"mode\":\"none\"}";
+    @Order(12)
+    @DisplayName("导入：none 写出瘦 JSON")
+    void applyOnImport_noneWritesLeanJson() {
         ApiAuthConfig incoming = ApiAuthConfig.builder().mode("none").build();
-
-        String merged = ApiAuthConfigSupport.mergeOnImportUpdate(local, incoming, true, null);
-
+        String merged = ApiAuthConfigSupport.applyOnImport(incoming, null);
         assertTrue(merged.contains("\"none\""));
         assertFalse(merged.contains("inherit"));
         assertFalse(merged.contains("header"));
     }
 
     /**
-     * 前提：本地免登口 mode=none；上传 inherit。
-     * 期望：强制 none，不写 inherit。
-     */
-    @Test
-    @Order(12)
-    @DisplayName("更新导入：上传 inherit 对免登口强制 none")
-    void mergeOnImportUpdate_inheritAnonymousForcesNone() {
-        String local = "{\"mode\":\"none\"}";
-        ApiAuthConfig incoming = ApiAuthConfig.builder().mode("inherit").build();
-
-        String merged = ApiAuthConfigSupport.mergeOnImportUpdate(local, incoming, true, "p1");
-
-        assertTrue(merged.contains("\"none\""));
-        assertFalse(merged.contains("inherit"));
-    }
-
-    /**
-     * 前提：非免登口；上传未带 auth。
-     * 期望：返回 null，表示不改库中已有值。
+     * 前提：上传 inherit 且未带 profileId。
+     * 期望：回填 inheritProfileId，不改写成 none。
      */
     @Test
     @Order(13)
-    @DisplayName("更新导入：未带 auth 且非免登则不改")
-    void mergeOnImportUpdate_noAuthNonAnonymous_skips() {
-        assertNull(ApiAuthConfigSupport.mergeOnImportUpdate(
-                "{\"mode\":\"inherit\"}", null, false, "p1"));
+    @DisplayName("导入：inherit 回填 profileId")
+    void applyOnImport_inheritFillsProfileId() {
+        ApiAuthConfig incoming = ApiAuthConfig.builder().mode("inherit").build();
+        String merged = ApiAuthConfigSupport.applyOnImport(incoming, "p1");
+        assertTrue(merged.contains("\"inherit\""));
+        assertTrue(merged.contains("p1"));
     }
 
     /**
-     * 前提：免登口本地 mode=none；上传未带 auth。
-     * 期望：仍写出 mode=none。
+     * 前提：上传未带 auth。
+     * 期望：抛错。
      */
     @Test
     @Order(14)
-    @DisplayName("更新导入：未带 auth 的免登口补 none")
-    void mergeOnImportUpdate_noAuthAnonymous_writesNone() {
-        String local = "{\"mode\":\"none\"}";
-
-        String merged = ApiAuthConfigSupport.mergeOnImportUpdate(local, null, true, null);
-
-        assertTrue(merged.contains("\"none\""));
-        assertFalse(merged.contains("inherit"));
+    @DisplayName("导入：缺 auth 拒收")
+    void applyOnImport_missingAuthRejects() {
+        assertThrows(ServiceException.class,
+                () -> ApiAuthConfigSupport.applyOnImport(null, "p1"));
     }
 }

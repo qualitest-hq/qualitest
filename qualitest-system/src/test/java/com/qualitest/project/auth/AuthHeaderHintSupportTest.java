@@ -13,8 +13,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测谁：{@link AuthHeaderHintSupport} 工具回传 auth / headerHint。
- * 边界：none 不加 hint；inherit 按路径命中 client/admin；override 自定义头；compact 精简字段。
+ * 测造流摘要里的 auth / headerHint 拼装。
+ * 覆盖：mode=none 只有 auth；inherit 按 path 命中客户端/管理端 Profile；
+ * override 用接口自定义头；compactAuth 回填 profileId。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AuthHeaderHintSupportTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -90,7 +91,7 @@ class AuthHeaderHintSupportTest {
     void putAuthFields_adminPath_returnsAdminAsset() {
         JSONObject target = new JSONObject();
         AuthHeaderHintSupport.putAuthFields(
-                target, null, PROJECT_AUTH, "/system/user/list");
+                target, "{\"mode\":\"inherit\"}", PROJECT_AUTH, "/system/user/list");
         JSONObject hint = target.getJSONObject("headerHint");
         assertEquals("adminBearer", hint.getString("profileId"));
         assertFalse(hint.containsKey("displayPath"));

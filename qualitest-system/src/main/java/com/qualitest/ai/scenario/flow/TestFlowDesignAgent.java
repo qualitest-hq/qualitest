@@ -437,7 +437,7 @@ public class TestFlowDesignAgent {
                     sb.append("- ").append(risk.trim()).append('\n');
                 }
             }
-            sb.append("若含 AUTH_TOKEN_MISSING：先 list_project_auth_profiles 判断 Profile 是否绑错端；")
+            sb.append("若含 AUTH_LOGIN_FLOWKEY_COLLISION：先 list_project_auth_profiles 判断各端写出路径是否冲突；")
                     .append("绑错则 upsert_auth_profile，缺登录抽取则 submit 补 extracts / 登录子流。");
         }
         sb.append("\n\n").append(AiAgentRunner.OUTPUT_LANGUAGE_REMINDER);

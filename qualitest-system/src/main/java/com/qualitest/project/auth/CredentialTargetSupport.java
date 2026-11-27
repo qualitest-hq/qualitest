@@ -15,8 +15,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 从 Profile 托管头解析凭证目标（{{asset.*}} / {{flow.*}}）。
- * 结果用于鉴权门禁校验、以及造流时识别登录接口应提取的凭证字段。
+ * 从 Profile 托管头 / extract 行解析占位目标（{{asset.*}} / {{flow.*}}），供造流建议等使用。
+ * 开跑认票硬拦已移除；认票路径比对见 {@link ManagedAuthHeaderApplier}。
  */
 public final class CredentialTargetSupport {
 

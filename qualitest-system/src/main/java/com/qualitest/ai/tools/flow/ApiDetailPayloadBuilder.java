@@ -33,7 +33,8 @@ final class ApiDetailPayloadBuilder {
                 TestProjectApiEffectiveConfigResolver.resolve(api);
         JSONObject result = new JSONObject();
         result.put("testProjectApiId", String.valueOf(api.getTestProjectApiId()));
-        result.put("method", FlowDesignApiSummarizer.resolveMethod(effective.toApiView(api)));
+        String method = FlowDesignApiSummarizer.resolveMethod(effective.toApiView(api));
+        result.put("method", method);
         result.put("path", api.getApiPath());
         result.put("name", api.getApiName());
         result.put("description", api.getApiDescription() != null ? api.getApiDescription() : "");
@@ -67,7 +68,9 @@ final class ApiDetailPayloadBuilder {
 
         JSONObject convention = ResponseConventionSupport.toJsonObject(conventionJson);
         result.put("responseConvention", convention);
-        AuthHeaderHintSupport.putAuthFields(result, api.getAuthConfig(), projectAuthJson, api.getApiPath());
+        // 写入 auth / headerHint；是否免登只看本接口 auth.mode
+        AuthHeaderHintSupport.putAuthFields(
+                result, api.getAuthConfig(), projectAuthJson, api.getApiPath());
         return result;
     }
 

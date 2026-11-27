@@ -1,12 +1,13 @@
 /**
- * 测 HTTP 节点鉴权标签：消费画布 AUTH issues + 节点托管头。
- * 边界：mock useFlowValidation；不再反查 apiPath / pathPrefix。
- * 单跑：pnpm test useNodeAuthScope   （在 qualitest-ui 或 apps/web 下）
+ * 测 HTTP 节点鉴权标签 composable。
+ * 覆盖：节点 apiAuthMode+apiPath 命中项目 Profile 展示凭证、本节点鉴权 error 标 conflict、mode=none 显示免登。
+ * 单跑：pnpm test useNodeAuthScope
  */
 import { computed, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setupFreshPinia } from '@/test/helpers/pinia'
+import { useFlowCanvasStore } from '@/views/project/testFlow/stores/flowCanvasStore'
 
 const issuesRef = ref<Array<{ level: 'error' | 'warning'; message: string; nodeIds: string[]; code?: string }>>([])
 
@@ -33,56 +34,63 @@ describe('useNodeAuthScope', () => {
     setupFreshPinia()
     clearNodeAuthApiPathCache()
     issuesRef.value = []
+    const store = useFlowCanvasStore()
+    store.projectAuthConfig = JSON.stringify({
+      authProfiles: [{
+        id: 'clientBearer',
+        name: '客户端 Bearer',
+        match: { pathPrefix: ['/api/'] },
+        headerName: 'Authorization',
+        headerValueTemplate: 'Bearer {{asset.clientAuth.token}}',
+        apis: [],
+      }],
+    })
   })
 
-  it('托管头展示凭证；无 AUTH issue 时不冲突', () => {
-    // 前提：节点有客户端托管头；校验条无 AUTH
+  it('inherit + path 命中 Profile 时展示凭证', () => {
     const node = ref({
       id: 'n1',
       data: {
-        headers: [
-          {
-            name: 'token',
-            value: '{{asset.clientAuth.data}}',
-            profileManaged: true,
-          },
-        ],
+        apiAuthMode: 'inherit',
+        apiPath: '/api/cart',
       },
     })
 
     const { authScope, authLabel } = useNodeAuthScope(node)
 
-    // 期望：凭证来自托管头
-    expect(authScope.value.expectedCredential).toBe('asset.clientAuth.data')
+    expect(authScope.value.expectedCredential).toBe('asset.clientAuth.token')
     expect(authScope.value.conflict).toBe(false)
-    expect(authLabel.value).toBe('凭证 asset.clientAuth.data')
+    expect(authLabel.value).toBe('头 asset.clientAuth.token')
   })
 
   it('本节点 AUTH issue 时标 conflict', () => {
-    // 前提：画布 issue 挂本节点
     issuesRef.value = [{
       level: 'error',
       code: 'RUN_READINESS_AUTH',
-      message: 'AUTH_TOKEN_MISSING: 缺少凭证来源',
+      message: 'AUTH_LOGIN_FLOWKEY_COLLISION: 登录键碰撞',
       nodeIds: ['n1'],
     }]
     const node = ref({
       id: 'n1',
       data: {
-        headers: [
-          {
-            name: 'Authorization',
-            value: 'Bearer {{asset.adminAuth.token}}',
-            profileManaged: true,
-          },
-        ],
+        apiAuthMode: 'inherit',
+        apiPath: '/api/cart',
       },
     })
 
     const { authScope, authLabel } = useNodeAuthScope(node)
 
     expect(authScope.value.conflict).toBe(true)
-    expect(authScope.value.conflictReason).toContain('缺少凭证来源')
-    expect(authLabel.value).toBe('凭证 asset.adminAuth.token')
+    expect(authScope.value.conflictReason).toContain('登录键碰撞')
+    expect(authLabel.value).toBe('头 asset.clientAuth.token')
+  })
+
+  it('apiAuthMode=none 显示免登', () => {
+    const node = ref({
+      id: 'n1',
+      data: { apiAuthMode: 'none', apiPath: '/login' },
+    })
+    const { authLabel } = useNodeAuthScope(node)
+    expect(authLabel.value).toBe('免登')
   })
 })

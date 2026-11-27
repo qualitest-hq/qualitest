@@ -37,7 +37,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 | 保存 | 可带设计期问题落盘（仅拦 `GRAPH_JSON_INVALID`）；Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
 | 运行 | 生效 `severity=ERROR` 硬拦；`WARNING` 只提示（目录内码可由「流检查」改级；解析地板除外） |
 | 仅保存已确认 | 未确认项会丢，易得半截图；应先去确认或全部 ✕ 后新建流 |
-| 刷新鉴权头 | 批量改托管头，**仍进 Staging**，不是静默写库 |
+| 清除托管头 | 剥掉节点上误落的设计期托管头，**仍进 Staging**，不是静默写库；开跑时按项目配置再补 |
 
 画布被侧栏挡住时：关侧栏 → 拖拽 / 小地图 / 适应视图，再点 ✓。禁止 `force` 点视口外控件冒充确认。
 
@@ -94,16 +94,15 @@ issue.code 统一为 `RUN_READINESS_AUTH`；下表前缀仅出现在 **message**
 | message 前缀 / 项 | 硬拦？ | 何时硬拦 | 含义 |
 | ---- | ---- | ---- | ---- |
 | `AUTH_LOGIN_FLOWKEY_COLLISION:` | 是（随 `RUN_READINESS_AUTH` 生效 ERROR） | **运行**（画布已可见） | 两套不同登录口写出同一凭证路径 |
-| `AUTH_TOKEN_MISSING:` | 是（同上） | **运行**（画布已可见） | 图要用某托管 Bearer，但 extracts / assign / 子流内 extracts / **inSeed** 都没有该目标 |
 | 断言路径结构错（`.items`、`http.body.$.…`） | 默认 ERROR | **运行**；✓ / 保存 / submit 不拦 | 见节点文档；无 schema / 字段未命中静默 |
 | update 空数组误清空（`rules` / `extracts` / `assignments`） | 是 | **submit 地板** | baseline 同字段非空时优先拒收 |
 | condition `branches[].target` | — | normalize **直接剔除** | 出口只认边，AI 预写 target 丢弃 |
 
-托管头由 normalize /「刷新鉴权头」写入节点；Staging Diff 标签「请求头（按项目鉴权补全）」标明系统补的，无独立 soft 提示码。
+缺凭证写出路径**不再**产出 `AUTH_TOKEN_MISSING` 硬拦；真跑时占位符未定义才失败。托管头仅运行期按项目配置补；设计期 normalize /「清除托管头」只剥不写。无独立 soft 提示码。免登只认接口 `auth.mode=none`。
 
 下一轮 AI 设计请求会从校验条按码过滤出 `runRiskWarnings` 注入 user 上下文。开跑失败再 toast。项目「流检查」可把目录内业务码改为 WARNING/OFF。
 
-造流助手可读 `list_project_auth_profiles`、可提 `upsert_auth_profile`（半自动确认卡片写入项目 `auth_config`）。客户端 Profile 误绑 `adminAuth`（或相反）时，`AUTH_TOKEN_MISSING` 文案会追加「疑似绑错端」。登录 extract 的 `name=入口.字段` 缺 `entryKey` 时服务端会拆开。
+造流助手可读 `list_project_auth_profiles`、可提 `upsert_auth_profile`（半自动确认卡片写入项目 `auth_config`）。登录 extract 的 `name=入口.字段` 缺 `entryKey` 时服务端会拆开。
 
 造流 submit 工具面：节点/边/场景用 `submit_*` + `op=add|update`；删除统一 `submit_delete`（`kind`+`id`）。AI **不造** `input` 节点，**不切**默认运行场景。
 

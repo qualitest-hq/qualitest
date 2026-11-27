@@ -193,9 +193,9 @@ public class TestFlowController extends BaseController {
     }
 
     /**
-     * 按当前项目鉴权配置，为本流 project HTTP 节点刷新 profileManaged 托管头。
+     * 清除本流 project HTTP 节点上误落的设计期 profileManaged 托管头。
      * <p>
-     * 只返回 Staging 可用的 updateNodes patch，不写 test_flow；前端确认后再保存。
+     * 托管头仅运行期按项目配置补；本接口只返回剥离用的 updateNodes patch，不写 test_flow。
      * 需编辑测试流与分组权限。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")

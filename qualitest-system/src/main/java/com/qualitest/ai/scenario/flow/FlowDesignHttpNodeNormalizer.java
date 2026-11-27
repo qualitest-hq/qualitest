@@ -210,17 +210,15 @@ public final class FlowDesignHttpNodeNormalizer {
         String entryKey = StrUtil.trimToNull(row.getString("entryKey"));
         String fieldPath = StrUtil.trimToNull(row.getString("fieldPath"));
 
-        // name=adminAuth.token 且缺 entryKey：拆成 asset 的入口名与字段路径
+        // 仅当显式 scope=asset 且 name=entry.field、缺 entryKey 时拆分；不做「含 auth 即 asset」启发式
         String dotted = name.trim();
         int dot = dotted.indexOf('.');
-        if (entryKey == null && dot > 0 && dot < dotted.length() - 1
+        if (entryKey == null && "asset".equalsIgnoreCase(scope)
+                && dot > 0 && dot < dotted.length() - 1
                 && dotted.indexOf('.', dot + 1) < 0) {
             String left = dotted.substring(0, dot).trim();
             String right = dotted.substring(dot + 1).trim();
-            boolean explicitAsset = "asset".equalsIgnoreCase(scope);
-            boolean omittedScope = rawScope == null;
-            if (!left.isEmpty() && !right.isEmpty()
-                    && (explicitAsset || (omittedScope && looksLikeAssetEntryKey(left)))) {
+            if (!left.isEmpty() && !right.isEmpty()) {
                 entryKey = left;
                 fieldPath = fieldPath != null ? fieldPath : right;
                 name = fieldPath;
@@ -240,15 +238,6 @@ public final class FlowDesignHttpNodeNormalizer {
             next.put("fieldPath", fieldPath);
         }
         return next;
-    }
-
-    /**
-     * 判断 name 左段是否像素材入口名（含 auth）。
-     * 用于在未写 entryKey、未显式声明 scope 时，把「入口.字段」拆成 asset 抽取。
-     */
-    private static boolean looksLikeAssetEntryKey(String left) {
-        String k = left.toLowerCase();
-        return k.contains("auth");
     }
 
     /**

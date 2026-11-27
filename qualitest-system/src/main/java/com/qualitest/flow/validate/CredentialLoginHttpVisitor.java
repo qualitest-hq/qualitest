@@ -2,9 +2,7 @@ package com.qualitest.flow.validate;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ProjectAuthConfig;
-import com.qualitest.project.auth.CredentialTargetSupport;
-import com.qualitest.project.auth.CredentialTargetSupport.CredentialTarget;
-import com.qualitest.project.auth.LoginExtractSuggestor;
+import com.qualitest.project.auth.ManagedAuthHeaderApplier;
 import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.flow.graph.FlowHttpNodeVisitor;
 import com.qualitest.flow.model.GraphJson;
@@ -15,7 +13,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * 遍历图中「extracts 写出托管头凭证目标」的 project HTTP 节点。
+ * 遍历图中「extracts 写出项目托管头模板占位路径」的 project HTTP 节点。
  * LoginFlowKeyCollisionGate 等共用此扫描条件；空 extracts 不回调。
  */
 final class CredentialLoginHttpVisitor {
@@ -36,27 +34,14 @@ final class CredentialLoginHttpVisitor {
             return;
         }
         ProjectAuthConfig config = ProjectAuthConfigSupport.parse(projectAuthJson);
-        Set<String> required = ProjectAuthConfigSupport.collectCredentialIdentityKeys(config);
+        Set<String> required = ManagedAuthHeaderApplier.placeholderPathsInProjectAuth(config);
         FlowHttpNodeVisitor.visitProjectBound(graph, (node, data, apiId) -> {
             TestProjectApi api = apiResolver.apply(apiId);
-            if (api == null || !producesManagedCredential(data != null ? data.get("extracts") : null, required)) {
+            if (api == null || !ManagedAuthHeaderApplier.extractsWriteAnyOf(
+                    data != null ? data.get("extracts") : null, required)) {
                 return;
             }
             consumer.accept(node, data, api);
         });
-    }
-
-    /** extracts 是否写出项目托管头上的任一凭证目标。 */
-    static boolean producesManagedCredential(Object extracts, Set<String> requiredKeys) {
-        if (requiredKeys == null || requiredKeys.isEmpty()) {
-            return LoginExtractSuggestor.extractsContainAnyFlowKey(
-                    extracts, Set.of("token", "adminToken"));
-        }
-        for (CredentialTarget produced : CredentialTargetSupport.listProducedTargets(extracts)) {
-            if (produced != null && requiredKeys.contains(produced.identityKey())) {
-                return true;
-            }
-        }
-        return false;
     }
 }

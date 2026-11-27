@@ -7,29 +7,31 @@ import com.qualitest.project.result.ManagedAuthHeader;
 
 /**
  * 按接口鉴权标签和项目鉴权配置，算出调试台要展示的托管头。
- * 解析结果为跳过（免登录、未命中配置、模板不完整）时返回 null。
+ * <p>
+ * 内部委托 {@link AuthHeaderResolver}：接口 mode=none、未命中 Profile、头模板不完整时返回 null。
+ * 返回对象带上头名、值模板、来源（profile / override）及 Profile 显示名。
  */
 public final class ManagedAuthHeaderSupport {
 
-    /** 继承项目鉴权配置 */
+    /** 头来自项目 Profile 模板 */
     public static final String SOURCE_PROFILE = "profile";
 
-    /** 接口自定义头 */
+    /** 头来自接口 override 自定义模板 */
     public static final String SOURCE_OVERRIDE = "override";
 
     private ManagedAuthHeaderSupport() {
     }
 
     /**
-     * 计算托管头。method 参与免登口判断，空则只按 path。
+     * 计算调试台展示用的托管头。
+     * 接口 auth.mode=none 时返回 null；inherit / override 时按解析结果组装。
      */
-    public static ManagedAuthHeader resolve(
-            String apiAuthJson, String projectAuthJson, String apiPath, String method) {
-        ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(apiAuthJson, projectAuthJson, apiPath, method);
+    public static ManagedAuthHeader resolve(String apiAuthJson, String projectAuthJson, String apiPath) {
+        ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(apiAuthJson, projectAuthJson, apiPath);
         if (resolved == null || resolved.skipped() || StrUtil.isBlank(resolved.name())) {
             return null;
         }
-        ApiAuthConfig apiAuth = ApiAuthConfigSupport.parseOrInherit(apiAuthJson);
+        ApiAuthConfig apiAuth = ApiAuthConfigSupport.parse(apiAuthJson);
         boolean override = ApiAuthConfig.MODE_OVERRIDE.equalsIgnoreCase(StrUtil.trim(apiAuth.getMode()));
         String profileName = null;
         if (!override && StrUtil.isNotBlank(resolved.profileId())) {

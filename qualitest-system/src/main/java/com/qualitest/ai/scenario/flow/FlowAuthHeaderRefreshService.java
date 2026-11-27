@@ -8,7 +8,6 @@ import com.qualitest.project.auth.ManagedAuthHeaderApplier;
 import com.qualitest.flow.graph.FlowHttpNodeVisitor;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
-import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.domain.TestProjectApi;
 import com.qualitest.project.mapper.TestProjectApiMapper;
 import com.qualitest.project.mapper.TestProjectMapper;
@@ -21,9 +20,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 按当前项目鉴权配置，批量刷新本流 project HTTP 节点上的 profileManaged 托管头。
+ * 清掉本流 project HTTP 节点上误落的 profileManaged 托管头。
  * <p>
- * 只产出 {@link FlowDesignPatch}（updateNodes），不写 test_flow；由前端灌入 Staging 确认后保存。
+ * 托管头只在运行期按项目配置补；本服务只产出剥离 patch（updateNodes），
+ * 不写 test_flow；由前端灌入 Staging 确认后保存。
  */
 @Service
 @RequiredArgsConstructor
@@ -33,18 +33,20 @@ public class FlowAuthHeaderRefreshService {
     private final TestProjectMapper testProjectMapper;
 
     /**
-     * 扫描 graphJson 中需登录的 project HTTP 节点，对变更者产出 updateNodes。
+     * 扫描 graphJson，对含 profileManaged 行的 project HTTP 节点产出剥离 patch。
      */
     public RefreshAuthHeadersResult refresh(Long testProjectId, String graphJson) {
         if (testProjectId == null) {
             return emptyResult("testProjectId 不能为空");
         }
+        // 保留查项目：无项目时仍允许剥离（不依赖当前 auth 配置）
+        if (testProjectMapper != null) {
+            testProjectMapper.selectTestProjectById(testProjectId);
+        }
         GraphJson graph = GraphJson.parse(graphJson != null ? graphJson : "{}");
         if (graph == null) {
             graph = GraphJson.builder().nodes(new ArrayList<>()).edges(new ArrayList<>()).build();
         }
-        TestProject project = testProjectMapper.selectTestProjectById(testProjectId);
-        String projectAuthJson = project != null ? project.getAuthConfig() : null;
 
         List<GraphNode> updates = new ArrayList<>();
         List<GraphNode> nodes = graph.getNodes() != null ? graph.getNodes() : List.of();
@@ -71,11 +73,7 @@ public class FlowAuthHeaderRefreshService {
             }
 
             Map<String, Object> working = new HashMap<>(data);
-            boolean changed = ManagedAuthHeaderApplier.applyToNodeData(
-                    working,
-                    api.getAuthConfig(),
-                    projectAuthJson,
-                    api.getApiPath());
+            boolean changed = ManagedAuthHeaderApplier.stripManagedFromNodeData(working);
             if (!changed) {
                 continue;
             }
@@ -91,26 +89,26 @@ public class FlowAuthHeaderRefreshService {
         FlowDesignPatch patch = new FlowDesignPatch();
         patch.setUpdateNodes(updates);
         patch.setSummary(updates.isEmpty()
-                ? "无需刷新托管鉴权头"
-                : "按项目鉴权刷新 " + updates.size() + " 个节点的托管头");
+                ? "节点上无设计期托管鉴权头，开跑时按项目配置自动带"
+                : "清除 " + updates.size() + " 个节点上的设计期托管头（开跑时按项目配置自动带）");
 
         return RefreshAuthHeadersResult.builder()
                 .patch(patch)
                 .changedCount(updates.size())
                 .message(updates.isEmpty()
-                        ? "当前图中托管鉴权头已与项目配置一致，无需刷新"
-                        : "已生成 " + updates.size() + " 处托管头刷新提案，请在 Staging 确认后保存")
+                        ? "节点上无设计期托管鉴权头"
+                        : "已生成清除 " + updates.size() + " 个节点托管头的提案")
                 .build();
     }
 
     private static RefreshAuthHeadersResult emptyResult(String message) {
         FlowDesignPatch patch = new FlowDesignPatch();
-        patch.setUpdateNodes(new ArrayList<>());
+        patch.setUpdateNodes(List.of());
+        patch.setSummary(message);
         return RefreshAuthHeadersResult.builder()
                 .patch(patch)
                 .changedCount(0)
                 .message(message)
                 .build();
     }
-
 }

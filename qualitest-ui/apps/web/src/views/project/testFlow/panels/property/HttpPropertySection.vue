@@ -44,8 +44,8 @@
       </div>
       <div v-else class="api-preview is-empty">尚未绑定项目接口</div>
       <div class="http-prop-meta">{{ httpMeta }}</div>
-      <p v-if="authLabel && authScope.kind === 'inherit'" class="field__hint">
-        凭证展示来自节点托管头；鉴权硬拦以画布校验条为准。
+      <p v-if="authLabel && authLabel.startsWith('头')" class="field__hint">
+        托管鉴权头开跑时按项目配置自动带，不落在节点上；鉴权问题以画布校验条为准。
       </p>
       <ul v-if="nodeHealthIssues.length" class="http-prop-health">
         <li

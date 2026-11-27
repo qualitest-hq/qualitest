@@ -1032,17 +1032,14 @@ public class FlowDesignPatchNormalizer {
                         }
                         // 不自动写入 apiPath：路径只跟资产，节点不存路径
                         boundApi = api;
-                        ManagedAuthHeaderApplier.applyToNodeData(
-                                data,
-                                api.getAuthConfig(),
-                                projectAuthJson,
-                                api.getApiPath());
                     }
                 }
             }
         }
 
+        // 补 httpMethod；托管头只在运行期补，设计期剥掉误落的 profileManaged 行
         FlowDesignHttpNodeNormalizer.normalize(data, boundApi, projectAuthJson);
+        ManagedAuthHeaderApplier.stripManagedFromNodeData(data);
     }
 
     /**

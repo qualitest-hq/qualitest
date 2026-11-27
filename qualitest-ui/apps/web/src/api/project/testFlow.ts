@@ -274,8 +274,8 @@ export interface RefreshAuthHeadersResult {
 }
 
 /**
- * 按项目鉴权配置刷新本流托管头，返回 Staging 可用的 updateNodes patch。
- * 不写 test_flow；前端确认后再保存。
+ * 清除本流节点上误落的设计期托管头，返回 Staging 可用的 updateNodes patch。
+ * 托管头仅运行期按项目配置补；不写 test_flow；前端确认后再保存。
  */
 export async function refreshAuthHeaders(params: {
   testProjectId: string | number;

@@ -14,27 +14,27 @@
 
 1. 登录节点 **extract 路径写错**，或未与 Profile 托管头目标对齐。
 2. 图里用了 Bearer，但**没有**对应来源（extract / inSeed / env / 已落盘素材）。
-3. 登录口应是免登（`mode=none`），却仍被补了托管 Bearer——查项目模板与接口 `auth.mode`。
+3. 登录口应是免登（`mode=none`），却仍被补了托管 Bearer——查接口 `auth.mode`（Web/MCP/IDEA 均须显式带 mode；IDEA 靠免登注解自判）。
 
 → [project-summary.md §4](./project-summary.md) · [flow-variables-and-values.md](./flow-variables-and-values.md)
 
 ### 确认 Staging 或运行时报 `AUTH_*`
 
-`AUTH_TOKEN_MISSING` / 登录 extract / HTTP 必填等 **只在运行硬拦**（保存可带错落盘）。Staging ✓ 能过、点保存也成功、点运行才报 AUTH → 先查项目 Profile 托管头是否绑错端（如客户端误用 `adminAuth`）、再查登录 extract，不是 confirm / 保存 bug。
+`AUTH_LOGIN_FLOWKEY_COLLISION` / 登录 extract / HTTP 必填等 **只在运行硬拦**（保存可带错落盘）。缺凭证来源**不再**产出 `AUTH_TOKEN_MISSING` 硬拦——真跑时占位符未定义才失败。Staging ✓ 能过、点保存也成功、点运行才报 AUTH → 先查项目 Profile 托管头是否绑错端（如客户端误用 `adminAuth`）、再查登录 extract，不是 confirm / 保存 bug。
 
 **AI 自愈**（与人手改设置页等价）：
 
-1. 造登录或修 `AUTH_TOKEN_MISSING` 前先 `list_project_auth_profiles`，核对托管头凭证目标。
+1. 造登录或修缺凭证前先 `list_project_auth_profiles`，核对托管头凭证目标。
 2. Profile 绑错端 → `upsert_auth_profile`（半自动：聊天侧确认卡片写入 `auth_config`；全自动：工具内直写）。未确认的鉴权提案会挡住 `run_test_flow` / 隐式落盘。
 3. 下一轮设计请求会从画布图 error 过滤鉴权/必填写入 `runRiskWarnings`，模型可据此继续改图。
 4. 登录 extract 写成 `name=adminAuth.token` 且缺 `entryKey` 时，服务端会拆成 `entryKey` + `fieldPath`。
 
 | 码 | 含义 | 处理 |
 | --- | --- | --- |
-| `AUTH_TOKEN_MISSING` | 后续 HTTP 要用凭证，但图里没有来源 | 补登录 extract / inSeed / 环境变量等与 Profile 托管头一致的来源；文案含「疑似绑错端」时改项目鉴权 |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | 两套登录写出同一凭证路径 | 双端分用 `adminAuth` / `clientAuth` |
+| 占位符未定义（真跑） | 托管头引用了 `{{asset.*}}` 等，但图里/素材无来源 | 补登录 extract / inSeed / 环境变量；Profile 绑错端时改项目鉴权 |
 
-托管头由 normalize /「刷新鉴权头」自动写入（Diff 可标「按项目鉴权补全」），无单独提示码。
+托管头仅运行期按项目配置自动带；设计期不落节点（「清除托管头」可剥误落行）。空 `authConfig` / 缺 `mode` 非法。无单独提示码。
 
 → [ai-staging.md §5](./ai-staging.md)
 

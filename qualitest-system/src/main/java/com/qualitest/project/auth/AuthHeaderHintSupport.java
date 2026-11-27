@@ -1,23 +1,30 @@
 package com.qualitest.project.auth;
 
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.model.ApiAuthConfig;
-import com.qualitest.api.model.ProjectAuthConfig.ProjectAuthProfile;
 import com.qualitest.project.auth.AuthHeaderResolver.ResolvedAuthHeader;
-import com.qualitest.project.auth.CredentialTargetSupport.CredentialTarget;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * 为 AI 工具拼装接口鉴权摘要：auth（mode 等）和 headerHint（需登录时的头模板与凭证目标）。
+ * 为造流工具拼装接口鉴权摘要字段。
+ * <p>
+ * 写入 {@code auth}（mode 等）；需要加托管头时再写 {@code headerHint}
+ * （头名、值模板、profileId、模板内占位路径）。是否免登只看接口 auth.mode。
  */
 public final class AuthHeaderHintSupport {
 
     private AuthHeaderHintSupport() {}
 
     /**
-     * 写入 auth；需要加鉴权头时再写 headerHint（头名、值模板、profileId、凭证目标）。
+     * 向目标对象写入 auth；解析后需要加托管头时再写 headerHint。
+     * 接口 mode=none 时只有 auth、没有 headerHint。
      */
-    public static void putAuthFields(JSONObject target, String apiAuthJson, String projectAuthJson, String apiPath) {
+    public static void putAuthFields(
+            JSONObject target, String apiAuthJson, String projectAuthJson, String apiPath) {
         if (target == null) {
             return;
         }
@@ -33,20 +40,21 @@ public final class AuthHeaderHintSupport {
         if (StrUtil.isNotBlank(resolved.profileId())) {
             hint.put("profileId", resolved.profileId());
         }
-        ProjectAuthProfile profile = ProjectAuthConfigSupport.findProfile(
-                ProjectAuthConfigSupport.parse(projectAuthJson), resolved.profileId());
-        CredentialTarget credentialTarget = CredentialTargetSupport.primaryTarget(profile);
-        if (credentialTarget != null) {
-            JSONObject ct = new JSONObject();
-            ct.put("displayPath", credentialTarget.displayPath());
-            ct.put("scope", credentialTarget.scope());
-            if (credentialTarget.isAsset()) {
-                ct.put("entryKey", credentialTarget.entryKey());
-                ct.put("fieldPath", credentialTarget.fieldPath());
-            } else if (credentialTarget.isFlow()) {
-                ct.put("flowKey", credentialTarget.flowKey());
+        // 展示用保留模板原文大小写；比对用的小写集合在 ManagedAuthHeaderApplier 内
+        List<String> displayPaths = new ArrayList<>();
+        for (String inner : com.qualitest.flow.context.MustacheScan.listInners(resolved.valueTemplate())) {
+            if (StrUtil.isNotBlank(inner)) {
+                displayPaths.add(inner.trim());
             }
-            hint.put("credentialTarget", ct);
+        }
+        if (!displayPaths.isEmpty()) {
+            JSONArray arr = new JSONArray();
+            arr.addAll(displayPaths);
+            hint.put("placeholderPaths", arr);
+            JSONObject ct = credentialTargetFromPath(displayPaths.get(0));
+            if (ct != null) {
+                hint.put("credentialTarget", ct);
+            }
         }
         target.put("headerHint", hint);
     }
@@ -58,12 +66,12 @@ public final class AuthHeaderHintSupport {
         return buildAuthObject(apiAuthJson, projectAuthJson, apiPath, true);
     }
 
-    /**
-     * 组装 auth 对象。fillResolvedProfileId 为 true 且接口没写 authProfileId 时，按路径补上。
-     */
     private static JSONObject buildAuthObject(
-            String apiAuthJson, String projectAuthJson, String apiPath, boolean fillResolvedProfileId) {
-        ApiAuthConfig apiAuth = ApiAuthConfigSupport.parseOrInherit(apiAuthJson);
+            String apiAuthJson,
+            String projectAuthJson,
+            String apiPath,
+            boolean fillResolvedProfileId) {
+        ApiAuthConfig apiAuth = ApiAuthConfigSupport.parse(apiAuthJson);
         JSONObject auth = new JSONObject();
         String mode = StrUtil.blankToDefault(StrUtil.trim(apiAuth.getMode()), ApiAuthConfig.MODE_INHERIT);
         auth.put("mode", mode);
@@ -89,5 +97,36 @@ public final class AuthHeaderHintSupport {
             auth.put("authProfileId", profileId);
         }
         return auth;
+    }
+
+    /** 将 asset.x.y / flow.k 拆成旧 credentialTarget 字段，供提示词兼容。 */
+    private static JSONObject credentialTargetFromPath(String path) {
+        if (StrUtil.isBlank(path)) {
+            return null;
+        }
+        String p = path.trim();
+        int dot = p.indexOf('.');
+        if (dot <= 0 || dot >= p.length() - 1) {
+            return null;
+        }
+        String scope = p.substring(0, dot);
+        String rest = p.substring(dot + 1);
+        JSONObject ct = new JSONObject();
+        ct.put("scope", scope);
+        ct.put("displayPath", p);
+        if ("asset".equals(scope)) {
+            int next = rest.indexOf('.');
+            if (next <= 0 || next >= rest.length() - 1) {
+                return null;
+            }
+            ct.put("entryKey", rest.substring(0, next));
+            ct.put("fieldPath", rest.substring(next + 1));
+            return ct;
+        }
+        if ("flow".equals(scope) || "env".equals(scope)) {
+            ct.put("flowKey", rest);
+            return ct;
+        }
+        return null;
     }
 }

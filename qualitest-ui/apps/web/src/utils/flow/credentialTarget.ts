@@ -1,26 +1,22 @@
 /**
- * 从 HTTP 节点 extract 行解析凭证展示路径（asset.entry.field / flow.name）。
- *
- * 缺 entryKey 且 name 含点号时：若 scope 已是 asset，或未写 scope 且 name 左侧含 auth，
- * 则把 name 拆成 entryKey + fieldPath，并按 asset 作用域拼出展示路径。
- * asset 作用域输出 `asset.{entryKey}.{fieldPath}`；flow（或缺省）输出 `flow.{name}`。
+ * 从 HTTP 节点 extract 行解析将写出的占位路径（asset.entry.field / flow.name / env.name）。
+ * 只认明确的 scope / entryKey；不做「含 auth 即 asset」启发式。
  */
+
 export function credentialDisplayPathFromExtractRow(row: Record<string, unknown>): string {
-  let scope = row.scope != null ? String(row.scope).trim().toLowerCase() : 'flow'
+  const scope = row.scope != null ? String(row.scope).trim().toLowerCase() : 'flow'
   let entryKey = row.entryKey != null ? String(row.entryKey).trim() : ''
   let fieldPath = row.fieldPath != null ? String(row.fieldPath).trim() : ''
   const name = row.name != null ? String(row.name).trim() : ''
 
-  if (!entryKey && name.includes('.')) {
+  // 仅显式 scope=asset 且 name=entry.field、缺 entryKey 时拆分
+  if (!entryKey && scope === 'asset' && name.includes('.')) {
     const dot = name.indexOf('.')
     const left = name.slice(0, dot).trim()
     const right = name.slice(dot + 1).trim()
-    const explicitAsset = scope === 'asset'
-    const omittedScope = row.scope == null || String(row.scope).trim() === ''
-    if (left && right && (explicitAsset || (omittedScope && left.toLowerCase().includes('auth')))) {
+    if (left && right && !name.includes('.', dot + 1)) {
       entryKey = left
       fieldPath = fieldPath || right
-      scope = 'asset'
     }
   }
 
@@ -29,13 +25,14 @@ export function credentialDisplayPathFromExtractRow(row: Record<string, unknown>
     if (!entryKey || !fieldPath) return ''
     return `asset.${entryKey}.${fieldPath}`
   }
-  if (scope === 'flow' || !scope) {
-    return name ? `flow.${name}` : ''
+  if (scope === 'flow' || scope === 'env' || !scope) {
+    const key = scope === 'env' ? 'env' : 'flow'
+    return name ? `${key}.${name}` : ''
   }
   return ''
 }
 
-/** 列出 extracts 产出的凭证展示路径（去重、保序）。 */
+/** 列出 extracts 写出的占位路径（去重、保序）。 */
 export function listExtractCredentialPaths(extracts: unknown): string[] {
   if (!Array.isArray(extracts)) return []
   const keys: string[] = []

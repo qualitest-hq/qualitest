@@ -13,15 +13,15 @@ import java.util.Map;
 /**
  * 按接口鉴权标签和项目配置，决定要不要加托管鉴权头。
  * <p>
- * none：不加头。
- * inherit：按路径选 Profile，取头名与值模板；pathPrefix 未命中且非单端项目则不加。
- * 节点已有同名头且未标 profileManaged：不覆盖（视为手工头）。
- * 已有另一端 profileManaged 托管头：不覆盖、不追加，防止客户端/管理端凭证串端。
- * 无头或带同端 profileManaged：按当前项目配置写入或刷新，并写入 authProfileId。
+ * 是否免登只看接口 {@code auth.mode}：{@code none} 不加头；不读取项目预制接口列表。
+ * {@code inherit}：按接口绑定的 authProfileId，或接口 path 命中的最长 pathPrefix 选 Profile，取头名与值模板；未命中则不加。
+ * {@code override}：用接口自身头模板。
+ * 写入节点时：已有同名且未标 profileManaged 的头不覆盖；已有另一端 profileManaged 托管头不覆盖、不追加；
+ * 无头或同端托管头则写入/刷新，并带上 authProfileId。
  */
 public final class AuthHeaderResolver {
 
-    /** 节点 headers 行标记：由项目鉴权托管，Run 时可按最新 Profile 模板刷新。 */
+    /** 节点 headers 行标记：由项目鉴权托管，开跑时可按最新 Profile 模板刷新。 */
     public static final String PROFILE_MANAGED = "profileManaged";
 
     /** 托管行绑定的 Profile id；刷新时若与当前解析结果不同端则拒绝覆盖。 */
@@ -30,20 +30,13 @@ public final class AuthHeaderResolver {
     private AuthHeaderResolver() {}
 
     /**
-     * 解析应使用的鉴权头。skipped=true 表示不加、不改。method 为空时只按 path 判断免登口。
+     * 解析应使用的鉴权头。
+     * {@code skipped=true}：不加头（接口 mode=none、项目无 Profile、path 未命中、头模板不完整）。
+     * 不根据预制接口的 mode 决定是否跳过。
      */
     public static ResolvedAuthHeader resolve(String apiAuthJson, String projectAuthJson, String apiPath) {
-        return resolve(apiAuthJson, projectAuthJson, apiPath, null);
-    }
-
-    /**
-     * 按 method+path 解析应使用的鉴权头。
-     * skipped=true：不加头（none、免登口、无可用 Profile、头模板不完整）。
-     * 否则返回头名、值模板、命中的 profileId，以及命中的 pathPrefix（供告警展示）。
-     */
-    public static ResolvedAuthHeader resolve(
-            String apiAuthJson, String projectAuthJson, String apiPath, String method) {
-        ApiAuthConfig apiAuth = ApiAuthConfigSupport.parseOrInherit(apiAuthJson);
+        ApiAuthConfig apiAuth = ApiAuthConfigSupport.parse(apiAuthJson);
+        // mode=none：本接口免登，直接不加托管头
         if (ApiAuthConfig.MODE_NONE.equalsIgnoreCase(StrUtil.trim(apiAuth.getMode()))) {
             return ResolvedAuthHeader.skip();
         }
@@ -52,15 +45,12 @@ public final class AuthHeaderResolver {
         }
 
         ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
-        // inherit 且该路径是免登口：不加托管头
-        if (ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(method, apiPath, projectAuth)) {
-            return ResolvedAuthHeader.skip();
-        }
+        // inherit：无项目 Profile 则无可补的头
         if (ProjectAuthConfigSupport.isEmpty(projectAuth)) {
             return ResolvedAuthHeader.skip();
         }
 
-        // 优先用接口上显式绑定的 authProfileId；否则按 pathPrefix 选端
+        // 优先用接口显式绑定的 Profile；否则按 path 最长前缀选端
         String profileId = StrUtil.trimToNull(apiAuth.getAuthProfileId());
         if (profileId == null) {
             profileId = ProjectAuthConfigSupport.resolveProfileId(apiPath, projectAuth);
@@ -79,7 +69,7 @@ public final class AuthHeaderResolver {
         return new ResolvedAuthHeader(false, name, valueTemplate.trim(), profileId, matchedPrefix);
     }
 
-    /** 接口自定义头：读 auth.header；缺字段则不加头。 */
+    /** mode=override：读接口 auth.header；头名或值模板缺失则不加头。 */
     private static ResolvedAuthHeader resolveOverride(ApiAuthConfig apiAuth) {
         ApiAuthConfig.Header header = apiAuth.getHeader();
         String name = header != null ? StrUtil.trimToNull(header.getName()) : null;

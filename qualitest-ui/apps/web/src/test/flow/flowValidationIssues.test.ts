@@ -58,7 +58,8 @@ describe('flowValidationIssues', () => {
     // 前提：鉴权码 vs 结构码
     // 期望：仅鉴权类为 true
     expect(isAuthReadinessIssue({ code: 'RUN_READINESS_AUTH', message: 'x' })).toBe(true)
-    expect(isAuthRiskMessage('AUTH_TOKEN_MISSING: 缺 token')).toBe(true)
+    expect(isAuthReadinessIssue({ code: 'RUN_READINESS_HTTP_PARAM', message: '缺参' })).toBe(false)
+    expect(isAuthRiskMessage('AUTH_LOGIN_FLOWKEY_COLLISION: 碰撞')).toBe(true)
     expect(isAuthReadinessIssue({ code: 'GRAPH_STRUCTURE', message: '边缺少 source' })).toBe(false)
   })
 
@@ -86,9 +87,9 @@ describe('flowValidationIssues', () => {
     expect([...collectIssueNodeIds(issues, 'warning')].sort()).toEqual(['n1', 'n2'])
   })
 
-  it('isAuthRiskMessage 只认后端实际前缀', () => {
-    // 前提：后端产出 AUTH_TOKEN_MISSING / AUTH_LOGIN_FLOWKEY_COLLISION；无 LOGIN_EXTRACT_MISSING
-    expect(isAuthRiskMessage('AUTH_TOKEN_MISSING: 缺 token')).toBe(true)
+  it('isAuthRiskMessage 只认登录键碰撞前缀', () => {
+    // 前提：认票硬拦已移除；现认 AUTH_LOGIN_FLOWKEY_COLLISION
+    expect(isAuthRiskMessage('AUTH_TOKEN_MISSING: 缺 token')).toBe(false)
     expect(isAuthRiskMessage('AUTH_LOGIN_FLOWKEY_COLLISION: 碰撞')).toBe(true)
     expect(isAuthRiskMessage('LOGIN_EXTRACT_MISSING: 旧前缀')).toBe(false)
     expect(isAuthRiskMessage('HTTP_REQUIRED_PARAM_MISSING: 旧前缀')).toBe(false)

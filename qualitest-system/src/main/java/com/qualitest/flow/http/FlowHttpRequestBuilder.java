@@ -4,7 +4,6 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.qualitest.api.params.DebugHttpForwardParams;
-import com.qualitest.api.util.ApiImportMatchSupport;
 import com.qualitest.project.auth.AuthHeaderResolver;
 import com.qualitest.common.config.QualitestConfig;
 import com.qualitest.common.utils.file.FileUtils;
@@ -327,12 +326,11 @@ public final class FlowHttpRequestBuilder {
         Object rawNodeHeaders = nodeData != null ? nodeData.get("headers") : null;
         List<Map<String, Object>> nodeHeaderRows = parseHeaderRows(rawNodeHeaders);
         if (api != null && ctx != null) {
+            // 开跑时按接口 auth.mode 解析并合并托管头；不读节点 extracts、不读预制接口列表
             AuthHeaderResolver.ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(
                     api.getAuthConfig(),
                     ctx.getProjectAuthConfig(),
-                    resolveApiPath(api),
-                    ApiImportMatchSupport.extractHttpMethod(api.getRequestConfig()));
-            // 按当前项目配置刷新/补齐托管头（显式非托管头不改）
+                    resolveApiPath(api));
             nodeHeaderRows = AuthHeaderResolver.applyToHeaderRows(nodeHeaderRows, resolved).headers();
         }
         appendHeaderRows(headers, nodeHeaderRows, ctx);

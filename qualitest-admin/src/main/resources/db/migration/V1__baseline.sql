@@ -750,7 +750,7 @@ CREATE TABLE `test_project_api` (
   `response_config` json NOT NULL COMMENT '响应结构（条目/schema，不含示例正文）',
   `test_value_config` json DEFAULT NULL COMMENT '测值（参数默认值、body/响应示例）',
   `biz_code_config` json DEFAULT NULL COMMENT '业务code白名单',
-  `auth_config` json DEFAULT NULL COMMENT '接口鉴权标签：是否免登录等',
+  `auth_config` json NOT NULL DEFAULT ('{"mode":"inherit"}') COMMENT '接口鉴权标签：须含 mode（none/inherit/override）',
   `sync_protected` tinyint NOT NULL DEFAULT '0' COMMENT '上传保护：1=插件/批量导入跳过本接口',
   `pre_request_script` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '前置操作脚本',
   `post_request_script` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '后置操作脚本',

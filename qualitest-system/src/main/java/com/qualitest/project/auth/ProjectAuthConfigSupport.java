@@ -24,15 +24,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 项目多端配置（存于 test_project.auth_config）的解析、校验、写出和运行期查询。
+ * 项目多端配置（存于 test_project.auth_config）的解析、校验、写出和查询。
  * <p>
- * 根结构为 authProfiles 数组；每条 Profile 含：
- * 路径前缀匹配、鉴权托管头、响应约定四字段、预制接口列表。
+ * 根结构为 authProfiles 数组；每条 Profile 含：路径前缀匹配、鉴权托管头、响应约定、预制接口列表。
  * <ul>
  *   <li>选端：按接口 path 命中最长 pathPrefix；都未命中则不加托管头</li>
- *   <li>免登：空配置用内置登录类路径；有 Profile 后只认预制口 auth.mode=none</li>
- *   <li>抽凭证：节点 extracts 对齐托管头占位符；登录口由此推断</li>
- *   <li>响应约定：取命中 Profile 上的四字段；Profile 未写或残缺时用代码缺省（code/[200]/msg/data）</li>
+ *   <li>开跑补头是否免登：只看接口资产上的 auth.mode；预制 apis 里的 mode 只在建项/模板种子时写入接口库，不在开跑时二次裁决</li>
+ *   <li>抽凭证：登录节点 extracts 写出的占位应对齐托管头模板里的占位</li>
+ *   <li>响应约定：取命中 Profile 上的字段；未写或残缺时用代码缺省（code / [200] / msg / data）</li>
  * </ul>
  */
 public final class ProjectAuthConfigSupport {
@@ -269,7 +268,10 @@ public final class ProjectAuthConfigSupport {
         return writeResponseConvention(raw);
     }
 
-    /** 校验预制接口：path 去重，补默认 protocol/status，规范 auth.mode。 */
+    /**
+     * 校验并规范化预制接口列表：按 method+path 去重，补默认 protocol/status。
+     * 每条必须带 authConfig.mode（none/inherit/override），缺省或非法直接抛错，不会默认写成 inherit。
+     */
     private static List<PrefabricatedApi> normalizePrefabricatedApis(List<PrefabricatedApi> raw, String profileId) {
         List<PrefabricatedApi> out = new ArrayList<>();
         if (raw == null) {
@@ -289,19 +291,19 @@ public final class ProjectAuthConfigSupport {
             }
             ApiAuthConfig auth = api.getAuthConfig();
             if (auth == null || StrUtil.isBlank(auth.getMode())) {
-                auth = ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
-            } else {
-                String mode = ApiAuthConfigSupport.canonicalizeMode(auth.getMode());
-                if (mode == null) {
-                    throw new ServiceException(
-                            "Profile「" + profileId + "」.apis[" + i + "].authConfig.mode 不支持: " + auth.getMode());
-                }
-                auth = ApiAuthConfig.builder()
-                        .mode(mode)
-                        .authProfileId(StrUtil.trimToNull(auth.getAuthProfileId()))
-                        .header(auth.getHeader())
-                        .build();
+                throw new ServiceException(
+                        "Profile「" + profileId + "」.apis[" + i + "] 须含 authConfig.mode（none/inherit/override）");
             }
+            String mode = ApiAuthConfigSupport.canonicalizeMode(auth.getMode());
+            if (mode == null) {
+                throw new ServiceException(
+                        "Profile「" + profileId + "」.apis[" + i + "].authConfig.mode 不支持: " + auth.getMode());
+            }
+            auth = ApiAuthConfig.builder()
+                    .mode(mode)
+                    .authProfileId(StrUtil.trimToNull(auth.getAuthProfileId()))
+                    .header(auth.getHeader())
+                    .build();
             out.add(PrefabricatedApi.builder()
                     .testProjectApiId(StrUtil.trimToNull(api.getTestProjectApiId()))
                     .apiName(StrUtil.blankToDefault(StrUtil.trimToNull(api.getApiName()), path))
@@ -600,55 +602,20 @@ public final class ProjectAuthConfigSupport {
     }
 
     /**
-     * 配置完全空时使用的免登路径（去尾斜杠后精确比）。
-     */
-    public static final List<String> BUILTIN_ANONYMOUS_AUTH_PATH_EXACT = List.of(
-            "/login",
-            "/register",
-            "/captchaImage",
-            "/api/account/auth/login",
-            "/api/account/auth/register");
-
-    /**
-     * 路径是否命中内置免登列表。只给空配置兜底用。
-     */
-    public static boolean matchesBuiltinAnonymousAuthPath(String apiPath) {
-        String path = normalizeApiPath(apiPath);
-        for (String raw : BUILTIN_ANONYMOUS_AUTH_PATH_EXACT) {
-            if (path.equals(normalizeApiPath(raw))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 是否应按免登处理：配置空则 builtin；有 Profile 则只认预制 mode=none 口。
-     */
-    public static boolean shouldTreatAsAnonymousAuth(String method, String apiPath, ProjectAuthConfig config) {
-        if (isEmpty(config)) {
-            return matchesBuiltinAnonymousAuthPath(apiPath);
-        }
-        PrefabricatedApi api = findPrefabricatedApi(config, method, apiPath);
-        if (api == null || api.getAuthConfig() == null) {
-            return false;
-        }
-        return ApiAuthConfig.MODE_NONE.equalsIgnoreCase(StrUtil.trim(api.getAuthConfig().getMode()));
-    }
-
-    /**
-     * 按 method+apiPath 查找预制接口。
-     * 调用方未给 method 时只比 path；双方都有 method 时须一致；预制口缺 method 且调用方给了 method 时不命中。
+     * 按 HTTP method + apiPath 在项目预制接口列表中查找一条。
+     * 用于种子/模板侧按标识取预制口；开跑补头不调用本方法。
+     * method 或预制口 requestConfig.method 任一缺失则不命中；双方都有时须大小写规范化后相等。
      */
     public static PrefabricatedApi findPrefabricatedApi(ProjectAuthConfig config, String method, String apiPath) {
         if (config == null || config.getAuthProfiles() == null || StrUtil.isBlank(apiPath)) {
             return null;
         }
-        String path = normalizeApiPath(apiPath);
         String wantMethod = StrUtil.trimToNull(method);
-        if (wantMethod != null) {
-            wantMethod = wantMethod.toUpperCase(Locale.ROOT);
+        if (wantMethod == null) {
+            return null;
         }
+        wantMethod = wantMethod.toUpperCase(Locale.ROOT);
+        String path = normalizeApiPath(apiPath);
         for (ProjectAuthProfile profile : config.getAuthProfiles()) {
             if (profile == null || profile.getApis() == null) {
                 continue;
@@ -661,9 +628,6 @@ public final class ProjectAuthConfigSupport {
                     continue;
                 }
                 String apiMethod = prefabricatedHttpMethod(api);
-                if (wantMethod == null) {
-                    return api;
-                }
                 if (apiMethod == null) {
                     continue;
                 }
@@ -933,21 +897,9 @@ public final class ProjectAuthConfigSupport {
         return StrUtil.trimToNull(profile.getHeaderValueTemplate());
     }
 
-    /** 收集各 Profile 托管头上的凭证 identityKey。 */
+    /** 收集各 Profile 托管头模板里的占位路径（小写），供碰撞检查等集合运算。 */
     public static Set<String> collectCredentialIdentityKeys(ProjectAuthConfig config) {
-        Set<String> keys = new LinkedHashSet<>();
-        if (config == null || config.getAuthProfiles() == null) {
-            return keys;
-        }
-        for (ProjectAuthProfile profile : config.getAuthProfiles()) {
-            if (profile == null) {
-                continue;
-            }
-            for (CredentialTargetSupport.CredentialTarget target : CredentialTargetSupport.targetsOnProfile(profile)) {
-                keys.add(target.identityKey());
-            }
-        }
-        return keys;
+        return ManagedAuthHeaderApplier.placeholderPathsInProjectAuth(config);
     }
 
     /**

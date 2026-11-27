@@ -45,7 +45,7 @@ Common features:
 - Optional **snapshot before** (`snapshotBefore`, JSON boolean only; `http` / `script` / `assign`) for mutating calls (see concept map §4)
 - Optional **always run** (`alwaysRun`, JSON boolean only; `http` / `script` / `assign` / `subflow`): still executes in the post-failure continue phase
 
-Managed auth header rows use `profileManaged` and refresh from current config at Run; unmarked headers are never silently changed. The canvas may show which credential path a node will use or produce.
+Managed auth is applied at Run from project config (not persisted on the node); design-time may strip stray `profileManaged` rows. Unmarked headers are never silently changed. The canvas may show which credential path a node will use or produce.
 
 ---
 

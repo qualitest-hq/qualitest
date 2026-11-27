@@ -3,7 +3,6 @@ package com.qualitest.project.service.impl;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.qualitest.project.auth.ApiAuthConfigSupport;
-import com.qualitest.api.util.ApiImportMatchSupport;
 import com.qualitest.api.util.ApiTestValuePeelSupport;
 import com.qualitest.project.auth.ManagedAuthHeaderSupport;
 import com.qualitest.common.utils.DateUtils;
@@ -190,19 +189,7 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
         if (api == null || api.getAuthConfig() == null) {
             return;
         }
-        String normalized = StrUtil.isBlank(api.getAuthConfig())
-                ? ApiAuthConfigSupport.normalizeToJson("{}")
-                : ApiAuthConfigSupport.normalizeToJson(api.getAuthConfig());
-        String projectAuthJson = null;
-        if (api.getTestProjectId() != null) {
-            var project = testProjectService.selectTestProjectById(api.getTestProjectId());
-            if (project != null) {
-                projectAuthJson = project.getAuthConfig();
-            }
-        }
-        String method = ApiImportMatchSupport.extractHttpMethod(api.getRequestConfig());
-        api.setAuthConfig(ApiAuthConfigSupport.coerceInheritToNoneIfAnonymous(
-                normalized, api.getApiPath(), method, projectAuthJson));
+        api.setAuthConfig(ApiAuthConfigSupport.normalizeToJson(api.getAuthConfig()));
     }
 
     /**
@@ -328,8 +315,8 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
     }
 
     /**
-     * 详情读路径附上托管鉴权头，供调试台展示。
-     * 免登录、未命中配置时为 null。
+     * 接口详情读路径附上托管鉴权头，供调试台展示。
+     * 按本接口 auth.mode 与项目 Profile 解析；mode=none 或未命中时为 null。
      */
     private void fillManagedAuthHeader(TestProjectApiResult result) {
         if (result == null) {
@@ -342,8 +329,7 @@ public class TestProjectApiServiceImpl implements ITestProjectApiService {
                 projectAuthJson = project.getAuthConfig();
             }
         }
-        String method = ApiImportMatchSupport.extractHttpMethod(result.getRequestConfig());
         result.setManagedAuthHeader(ManagedAuthHeaderSupport.resolve(
-                result.getAuthConfig(), projectAuthJson, result.getApiPath(), method));
+                result.getAuthConfig(), projectAuthJson, result.getApiPath()));
     }
 }

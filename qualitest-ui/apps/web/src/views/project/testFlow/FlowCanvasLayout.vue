@@ -180,12 +180,12 @@
         <button
             v-if="!isTemplateCanvas"
             :disabled="store.loading || !canEditFlow || refreshAuthLoading"
-            :title="canEditFlow ? '按项目鉴权配置刷新本流托管头（进 Staging 确认）' : '当前账号无编辑权限'"
+            :title="canEditFlow ? '清除节点上误落的设计期托管头；开跑时按项目配置自动带（进 Staging 确认）' : '当前账号无编辑权限'"
             class="btn btn--ghost"
             type="button"
             @click="handleRefreshAuthHeaders"
         >
-          {{ refreshAuthLoading ? '刷新中…' : '刷新鉴权头' }}
+          {{ refreshAuthLoading ? '处理中…' : '清除托管头' }}
         </button>
         <!-- dirty 时文案改为「保存更改」，并加橙色强调样式；pending 时角标提示 -->
         <button
@@ -613,7 +613,7 @@ const refreshAuthLoading = ref(false)
 
 async function handleRefreshAuthHeaders() {
   if (!canEditFlow.value) {
-    ElMessage.warning('当前账号无编辑权限，无法刷新鉴权头')
+    ElMessage.warning('当前账号无编辑权限，无法清除托管头')
     return
   }
   if (!store.testProjectId) {
@@ -638,7 +638,7 @@ async function handleRefreshAuthHeaders() {
     })
     ElMessage.success(result.message || `已生成 ${pending} 项托管头刷新提案`)
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '刷新鉴权头失败')
+    ElMessage.error(e instanceof Error ? e.message : '清除托管头失败')
   } finally {
     refreshAuthLoading.value = false
   }

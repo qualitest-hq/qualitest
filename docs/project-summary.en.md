@@ -66,27 +66,27 @@ Configured in project settings → auth. Shared by Normalizer, Run, and debug.
 | `test_project_template` | One row = one Profile; built-ins: RuoYi Bearer/Session, client Bearer, admin Bearer |
 | Apply | Copy into `authProfiles` (**new ids**); insert prefab `apis[]` (skip existing method+path); optional envs/params/flows. Managed header: prefer login-flow extracts, else match_config.credential, else reject the row |
 | New project | **At least one** template; dual mall: admin Bearer then client Bearer |
-| Anonymous | Prefab `apis[].authConfig.mode=none` only; no project-level anonymous path list |
-| Empty config | Builtin `/login` anonymous paths when auth is empty; illegal auth JSON is rejected; Profiles with empty apis → settings banner |
+| Anonymous | **Runtime SSOT = API `auth.mode=none`**; prefab `apis[]` seeds only (missing mode rejected), not a second roster |
+| Empty config | No anonymous fallback when Profiles empty; illegal auth JSON rejected; Profiles with empty apis → settings banner |
 
 ### Three layers
 
 | Layer | Notes |
 | ----- | ----- |
 | Project `authProfiles` | Header template (`headerName` + `headerValueTemplate`) + prefab `apis[]`; unmatched `pathPrefix` → **no managed header** |
-| API `auth.mode` | `inherit` / `none` / `override` |
-| Node headers | `profileManaged` rows refresh from current config at Run; unmarked headers never silently change |
+| API `auth.mode` | **Required** `none` / `inherit` / `override` (Web / MCP / IDEA writes must include it; blank illegal). IDEA sets `none`/`inherit` from anonymous annotations |
+| Node headers | Managed auth applied **at Run only** from project config; not persisted at design time; unmarked headers never silently change |
 
 **Match:** `authProfileId` if set; else longest `pathPrefix`; unmatched → no managed header. **`pathPrefix="/"` forbidden.**
 
-**Login extracts:** usually `scope=asset` into the asset library; Profile header uses `{{asset.adminAuth.token}}` etc. Login nodes are recognized when extracts match headerValueTemplate; missing extracts are not hard-blocked (human/AI can add later). Uploads merge API schema/`mode` by method+path; optional upload protection (`syncProtected=1` skips the row; built-in prefab APIs default to `1`).
+**Login extracts:** usually `scope=asset` into the asset library; Profile header uses `{{asset.adminAuth.token}}` etc. **Managed-header apply uses only API `auth.mode`** (`none` skip; `inherit`→Profile; `override`→API header)—not prefab roster / extracts skip. Missing writers are not hard-blocked at design time; real Runs fail on undefined placeholders. Uploads must include mode; optional upload protection (`syncProtected=1` skips the row; built-in prefab APIs default to `1`).
 
 | Side | Typical path | Extract |
 | ---- | ------------ | ------- |
 | Client | `/api/account/auth/login` | `$.data.token` → `asset.clientAuth.token` |
 | Admin | `/login` | `$.token` → `asset.adminAuth.token` |
 
-Same side: login once (or subflow), reuse managed Bearer on `asset.*` (probe-then-login: whitelist `[200,401,403]` + Condition `http.status=200` and `http.expectedMatch`; API `expectedResponseKind` default json). Dual-side same graph: two logins, two extracts — never overwrite one credential path (`AUTH_LOGIN_FLOWKEY_COLLISION`). Missing source → `AUTH_TOKEN_MISSING` (**Run** hard-block; unit `submit_*` floor-only reject, AUTH does not block accept; Staging ✓ / Save soft; may tip “wrong side” Profile). Managed headers are written by normalize / refresh (no soft tip codes). AI: `list_project_auth_profiles` + `upsert_auth_profile`; next turn may carry `runRiskWarnings`. Details: [ai-staging.en.md](./ai-staging.en.md) · [faq.en.md](./faq.en.md) · [project-template.en.md](./project-template.en.md).
+Same side: login once (or subflow), reuse managed Bearer on `asset.*` (probe-then-login: whitelist `[200,401,403]` + Condition `http.status=200` and `http.expectedMatch`; API `expectedResponseKind` default json). Dual-side same graph: two logins, two extracts — never overwrite one credential path (`AUTH_LOGIN_FLOWKEY_COLLISION`). Missing credential writers no longer emit `AUTH_TOKEN_MISSING`; real Runs fail on undefined placeholders. Managed headers apply at Run only; design-time normalize / “Clear managed headers” strip only (no soft tip codes). AI: `list_project_auth_profiles` + `upsert_auth_profile`; next turn may carry `runRiskWarnings`. Details: [ai-staging.en.md](./ai-staging.en.md) · [faq.en.md](./faq.en.md) · [project-template.en.md](./project-template.en.md).
 
 Credentials may come from extracts (`asset`/`flow`), scenario `inSeed`, or env vars. Prefer the asset library for reusable accounts; do not put plaintext passwords on the graph.
 

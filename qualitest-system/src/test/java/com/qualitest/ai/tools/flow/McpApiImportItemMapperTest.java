@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -73,17 +72,20 @@ class McpApiImportItemMapperTest {
     }
 
     /**
-     * 前提：仅 method/path/name，无分组注释。
+     * 前提：method/path/name + authSuggestion；无分组注释。
      * 期望：metaFlags 标记未提供；apiGroup/description 为空。
      */
     @Test
     @Order(2)
     @DisplayName("映射：省略分组注释时 flags 为未提供")
     void toImportParams_omittedMeta_flagsFalse() {
-        Map<String, Object> item = Map.of(
-                "method", "GET",
-                "path", "/api/ping",
-                "name", "ping");
+        JSONObject item = new JSONObject();
+        item.put("method", "GET");
+        item.put("path", "/api/ping");
+        item.put("name", "ping");
+        JSONObject auth = new JSONObject();
+        auth.put("mode", "inherit");
+        item.put("authSuggestion", auth);
 
         McpApiImportItemMapper.MappedBatch batch =
                 McpApiImportItemMapper.toImportParams(List.of(item));
@@ -92,6 +94,7 @@ class McpApiImportItemMapperTest {
         assertEquals("/api/ping", api.getApiPath());
         assertFalse(batch.metaFlags().get(0).groupProvided());
         assertFalse(batch.metaFlags().get(0).descriptionProvided());
+        assertEquals("inherit", api.getAuth().getMode());
     }
 
     /**
@@ -105,6 +108,22 @@ class McpApiImportItemMapperTest {
         JSONObject item = new JSONObject();
         item.put("method", "GET");
         item.put("path", "/x");
+        assertThrows(com.qualitest.common.exception.ServiceException.class,
+                () -> McpApiImportItemMapper.toImportParams(List.of(item)));
+    }
+
+    /**
+     * 前提：缺 authSuggestion。
+     * 期望：抛 ServiceException。
+     */
+    @Test
+    @Order(4)
+    @DisplayName("映射：缺 authSuggestion 失败")
+    void toImportParams_missingAuth_throws() {
+        JSONObject item = new JSONObject();
+        item.put("method", "GET");
+        item.put("path", "/api/ping");
+        item.put("name", "ping");
         assertThrows(com.qualitest.common.exception.ServiceException.class,
                 () -> McpApiImportItemMapper.toImportParams(List.of(item)));
     }

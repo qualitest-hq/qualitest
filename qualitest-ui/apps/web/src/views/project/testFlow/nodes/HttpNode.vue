@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-/** HTTP 节点卡片：请求摘要 + 凭证作用域 + 响应提取 chip */
+/** HTTP 节点卡片：请求摘要 + 鉴权短标签（免登/头占位）+ 响应提取 chip */
 import { computed } from 'vue'
 
 import { filterFilledExtracts } from '@/utils/flow/extract'

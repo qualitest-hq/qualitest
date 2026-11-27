@@ -1769,10 +1769,11 @@
                 },
                 "authSuggestion": {
                   "type": "object",
-                  "description": "鉴权建议。mode：none / inherit / override；可选 authProfileId、header（name + valueTemplate）",
+                  "description": "鉴权（必填）。mode：none / inherit / override；可选 authProfileId、header（name + valueTemplate）",
                   "properties": {
                     "mode": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "none / inherit / override"
                     },
                     "authProfileId": {
                       "type": "string"
@@ -1788,13 +1789,17 @@
                         }
                       }
                     }
-                  }
+                  },
+                  "required": [
+                    "mode"
+                  ]
                 }
               },
               "required": [
                 "method",
                 "path",
-                "name"
+                "name",
+                "authSuggestion"
               ]
             }
           }

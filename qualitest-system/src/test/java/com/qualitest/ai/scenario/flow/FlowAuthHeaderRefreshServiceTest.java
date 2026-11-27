@@ -21,12 +21,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * FlowAuthHeaderRefreshService：按项目配置批量刷新托管头。
+ * FlowAuthHeaderRefreshService：清除设计期误落的托管头（补头仅运行期）。
  * <p>
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=FlowAuthHeaderRefreshServiceTest
  */
@@ -35,7 +34,6 @@ class FlowAuthHeaderRefreshServiceTest {
 
     private static final Long PROJECT_ID = 100L;
     private static final Long API_ID = 200L;
-    private static final Long ANON_API_ID = 201L;
 
     @Mock
     private TestProjectApiMapper apiMapper;
@@ -53,9 +51,13 @@ class FlowAuthHeaderRefreshServiceTest {
                 .build());
     }
 
+    /**
+     * 前提：节点上有旧 profileManaged 行。
+     * 期望：产出剥离 patch，headers 中不再有托管行。
+     */
     @Test
-    @DisplayName("旧 profileManaged 模板按当前项目配置刷新")
-    void refresh_updatesStaleManagedHeader() {
+    @DisplayName("清除旧 profileManaged 托管头")
+    void refresh_stripsStaleManagedHeader() {
         when(apiMapper.selectTestProjectApiById(API_ID)).thenReturn(clientApi());
 
         Map<String, Object> stale = new HashMap<>();
@@ -68,21 +70,18 @@ class FlowAuthHeaderRefreshServiceTest {
         RefreshAuthHeadersResult result = service.refresh(PROJECT_ID, graph.toJsonString());
 
         assertEquals(1, result.getChangedCount());
-        assertNotNull(result.getPatch());
-        assertEquals(1, result.getPatch().getUpdateNodes().size());
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> headers =
                 (List<Map<String, Object>>) result.getPatch().getUpdateNodes().get(0).getData().get("headers");
-        Map<String, Object> auth = headers.stream()
-                .filter(h -> "Authorization".equalsIgnoreCase(String.valueOf(h.get("name"))))
-                .findFirst()
-                .orElseThrow();
-        assertEquals("Bearer {{asset.clientAuth.token}}", auth.get("value"));
-        assertTrue(AuthHeaderResolver.isProfileManaged(auth));
+        assertTrue(headers == null || headers.stream().noneMatch(AuthHeaderResolver::isProfileManaged));
     }
 
+    /**
+     * 前提：仅有显式非托管头。
+     * 期望：无变更。
+     */
     @Test
-    @DisplayName("显式非托管头不被刷新覆盖")
+    @DisplayName("显式非托管头不产生变更")
     void refresh_skipsExplicitHeader() {
         when(apiMapper.selectTestProjectApiById(API_ID)).thenReturn(clientApi());
 
@@ -99,68 +98,36 @@ class FlowAuthHeaderRefreshServiceTest {
                 || result.getPatch().getUpdateNodes().isEmpty());
     }
 
+    /**
+     * 前提：无托管行。
+     * 期望：无变更。
+     */
     @Test
-    @DisplayName("mode=none 不补头")
-    void refresh_noneMode_noChange() {
-        when(apiMapper.selectTestProjectApiById(ANON_API_ID)).thenReturn(TestProjectApi.builder()
-                .testProjectApiId(ANON_API_ID)
-                .testProjectId(PROJECT_ID)
-                .apiName("分类")
-                .apiPath("/api/mall/category/list")
-                .authConfig("{\"mode\":\"none\"}")
-                .build());
-
-        GraphJson graph = graphWithHttp("n2", "分类", ANON_API_ID, new ArrayList<>());
-        RefreshAuthHeadersResult result = service.refresh(PROJECT_ID, graph.toJsonString());
-
-        assertEquals(0, result.getChangedCount());
-    }
-
-    @Test
-    @DisplayName("已与项目配置一致时无变更")
-    void refresh_alreadyCurrent_empty() {
+    @DisplayName("无设计期托管头时无变更")
+    void refresh_noManaged_noChange() {
         when(apiMapper.selectTestProjectApiById(API_ID)).thenReturn(clientApi());
-
-        Map<String, Object> current = new HashMap<>();
-        current.put("_enabled", true);
-        current.put("name", "Authorization");
-        current.put("value", "Bearer {{asset.clientAuth.token}}");
-        current.put(AuthHeaderResolver.PROFILE_MANAGED, true);
-
-        GraphJson graph = graphWithHttp("n1", "查资料", API_ID, List.of(current));
+        GraphJson graph = graphWithHttp("n1", "查资料", API_ID, new ArrayList<>());
         RefreshAuthHeadersResult result = service.refresh(PROJECT_ID, graph.toJsonString());
-
         assertEquals(0, result.getChangedCount());
-        assertTrue(result.getPatch().getUpdateNodes() == null
-                || result.getPatch().getUpdateNodes().isEmpty());
     }
 
     private static TestProjectApi clientApi() {
         return TestProjectApi.builder()
                 .testProjectApiId(API_ID)
                 .testProjectId(PROJECT_ID)
-                .apiName("当前用户")
+                .apiName("资料")
                 .apiPath("/api/account/auth/profile")
-                .authConfig("{\"mode\":\"inherit\",\"authProfileId\":\"clientBearer\"}")
+                .authConfig("{\"mode\":\"inherit\"}")
+                .requestConfig("{\"method\":\"GET\"}")
                 .build();
     }
 
-    private static GraphJson graphWithHttp(
-            String nodeId, String name, Long apiId, List<Map<String, Object>> headers) {
+    private static GraphJson graphWithHttp(String id, String name, Long apiId, List<Map<String, Object>> headers) {
         Map<String, Object> data = new HashMap<>();
         data.put("callMode", "project");
-        data.put("name", name);
         data.put("testProjectApiId", String.valueOf(apiId));
-        data.put("headers", headers);
-        GraphNode node = GraphNode.builder()
-                .id(nodeId)
-                .type("http")
-                .name(name)
-                .data(data)
-                .build();
-        return GraphJson.builder()
-                .nodes(new ArrayList<>(List.of(node)))
-                .edges(new ArrayList<>())
-                .build();
+        data.put("headers", new ArrayList<>(headers));
+        GraphNode node = GraphNode.builder().id(id).type("http").name(name).data(data).build();
+        return GraphJson.builder().nodes(new ArrayList<>(List.of(node))).edges(new ArrayList<>()).build();
     }
 }

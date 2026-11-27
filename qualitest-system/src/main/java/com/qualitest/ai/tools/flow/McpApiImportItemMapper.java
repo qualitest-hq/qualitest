@@ -242,19 +242,18 @@ public final class McpApiImportItemMapper {
 
     /**
      * 映射鉴权建议：mode 必填；可选 authProfileId、header(name + valueTemplate)。
-     * 无有效 mode 时返回 null（不写鉴权）。
      */
     private static ApiAuthConfig mapAuth(Object raw) {
         if (raw == null) {
-            return null;
+            throw new ServiceException("items[].authSuggestion 不能为空，须含 mode（none/inherit/override）");
         }
         JSONObject o = toObject(raw);
         if (o == null || o.isEmpty()) {
-            return null;
+            throw new ServiceException("items[].authSuggestion 须为对象且含 mode（none/inherit/override）");
         }
         String mode = str(o.get("mode"));
         if (mode == null || mode.isBlank()) {
-            return null;
+            throw new ServiceException("items[].authSuggestion.mode 不能为空（none/inherit/override）");
         }
         ApiAuthConfig.ApiAuthConfigBuilder b = ApiAuthConfig.builder().mode(mode.trim());
         String profileId = str(o.get("authProfileId"));

@@ -17,8 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测谁：鉴权头解析与托管头写入。
- * 边界：none / inherit / 显式头不覆盖 / profileManaged 刷新 / override / 项目配置空。
+ * 测鉴权头解析与托管头写入。
+ * 覆盖：mode=none 不加头；inherit 按 path 选 Profile；显式头不覆盖；profileManaged 刷新；
+ * override；项目配置空；预制 apis 标 none 不能让 inherit 接口跳过补头；取消勾选的托管行不再补。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=AuthHeaderResolverTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -278,16 +279,17 @@ class AuthHeaderResolverTest {
     }
 
     /**
-     * 前提：项目鉴权含 /login none 口。
-     * 期望：inherit 的 /login 不加 Bearer。
+     * 前提：项目预制列表把 /login 标成 none，但接口 auth.mode 仍是 inherit，且 pathPrefix 能命中。
+     * 期望：仍按 Profile 补托管头；是否免登只看接口行 mode，不看预制列表。
      */
     @Test
     @Order(12)
-    @DisplayName("预制 none 口：inherit 的 /login 不加头")
-    void resolve_prefabricatedNoneLogin_skips() {
+    @DisplayName("预制 none 不再旁路 inherit")
+    void resolve_prefabricatedNone_doesNotBypassInherit() {
         String projectAuth = """
                 {"authProfiles":[{
                   "id":"defaultBearer","name":"Bearer",
+                  "match":{"pathPrefix":["/login"]},
                   "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
                   "apis":[{"apiPath":"/login","authConfig":{"mode":"none"},
                     "requestConfig":{"configVersion":1,"method":"POST"}}]
@@ -297,7 +299,8 @@ class AuthHeaderResolverTest {
                 ApiAuthConfig.builder().mode("inherit").build());
         AuthHeaderResolver.ResolvedAuthHeader resolved =
                 AuthHeaderResolver.resolve(apiAuth, projectAuth, "/login");
-        assertTrue(resolved.skipped());
+        assertFalse(resolved.skipped());
+        assertEquals("Bearer {{asset.adminAuth.token}}", resolved.valueTemplate());
     }
 
     /**

@@ -180,7 +180,7 @@ Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。
 
 含义对照：`ERROR` = 开跑硬拦；`WARNING` = 校验条提示、不拦跑；`OFF` = 不返回。UI 须区分错误与警告，不可把 WARNING 画成/说成「错误」。
 
-托管头由 normalize /「刷新鉴权头」**直接写入**节点（`profileManaged`）；无 soft 提示码。Staging Diff 字段标签可标「按项目鉴权补全」。
+托管头**仅运行期**按项目鉴权配置补上节点请求；设计期 normalize /「清除托管头」只剥掉误落的 `profileManaged` 行，不写入节点。无 soft 提示码。
 
 **按 stage 跑哪些收集器**（有才可能出对应码）
 
@@ -199,7 +199,7 @@ Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。
 | `GRAPH_STRUCTURE`（拓扑/字段；可 `deferTopology`） | ERROR | 是 | 有 | 否 | 生效仍 ERROR 才拦 | 不挡 ✓；submit 仅 id 地板 |
 | `ENTRY_ROUTE_CONFLICT` | ERROR | 是 | 有 | 否 | 同上 | 不挡 |
 | `ASSERT_PATH` | ERROR | 是 | 有 | 否 | 同上 | 不挡 |
-| `RUN_READINESS_AUTH` | ERROR | 是 | 有（开跑前可见，不挡存） | 否 | 同上 | 不挡；`AUTH_TOKEN_MISSING` / `AUTH_LOGIN_FLOWKEY_COLLISION` 等为 **message 前缀**（非独立 CODE，不可单独 profile） |
+| `RUN_READINESS_AUTH` | ERROR | 是 | 有（开跑前可见，不挡存） | 否 | 同上 | 不挡；`AUTH_LOGIN_FLOWKEY_COLLISION` 等为 **message 前缀**（非独立 CODE，不可单独 profile）；缺凭证**不再**产出 `AUTH_TOKEN_MISSING`，真跑占位失败 |
 | `API_MISSING` | ERROR | 是 | 有 | 否 | 同上 | 不挡 |
 | `ORPHAN_PARAM` | **WARNING** | 是 | 有 | 否 | 默认不拦；改成 ERROR 才拦 | 不挡 |
 | `EXTRACT_PATH_MISSING` | **WARNING** | 是 | 有 | 否 | 同上 | 不挡 |

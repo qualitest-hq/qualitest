@@ -23,8 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 测谁：项目鉴权配置当前形态、免登只认预制 none 口。
- * 边界：空配置 builtin、有 Profile 只认预制 none；凭证目标在托管头。
+ * 测项目鉴权配置解析、预制接口查找与托管头。
+ * 覆盖：空配置；预制 mode=none 种子可按 method+path 查到；预制缺 mode 拒收；
+ * 凭证目标在托管头。开跑是否免登只看接口资产 mode，不看本类查找结果。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ProjectAuthConfigSupportTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -46,14 +47,14 @@ class ProjectAuthConfigSupportTest {
         assertEquals("Authorization", cfg.getAuthProfiles().get(0).getHeaderName());
         assertEquals("Bearer {{asset.adminAuth.token}}",
                 cfg.getAuthProfiles().get(0).getHeaderValueTemplate());
-        assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
-        assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("GET", "/captchaImage", cfg));
-        assertFalse(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
-                "POST", "/api/account/auth/login", cfg));
         assertNull(ProjectAuthConfigSupport.resolveProfileId("/system/user/list", cfg));
         PrefabricatedApi login = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
         assertNotNull(login);
         assertEquals("none", login.getAuthConfig().getMode());
+        PrefabricatedApi captcha = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "GET", "/captchaImage");
+        assertNotNull(captcha);
+        assertEquals("none", captcha.getAuthConfig().getMode());
+        assertNull(ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/api/account/auth/login"));
         assertTrue(String.valueOf(login.getTestValueConfig()).contains("{{asset.adminAuth.username}}"));
         assertTrue(String.valueOf(login.getResponseConfig()).contains("token"));
         String roundtripJson = ProjectAuthConfigSupport.toJson(cfg);
@@ -81,27 +82,29 @@ class ProjectAuthConfigSupportTest {
         assertEquals(
                 ProjectAuthConfigSupport.PROFILE_ADMIN,
                 ProjectAuthConfigSupport.resolveProfileId("/web/account/list", cfg));
-        assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
-        assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
-                "POST", "/api/account/auth/login", cfg));
-        assertFalse(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("GET", "/system/user/list", cfg));
+        PrefabricatedApi adminLogin = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
+        assertNotNull(adminLogin);
+        assertEquals("none", adminLogin.getAuthConfig().getMode());
+        PrefabricatedApi clientLogin = ProjectAuthConfigSupport.findPrefabricatedApi(
+                cfg, "POST", "/api/account/auth/login");
+        assertNotNull(clientLogin);
+        assertEquals("none", clientLogin.getAuthConfig().getMode());
+        assertNull(ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "GET", "/system/user/list"));
     }
 
     /**
      * 前提：空配置。
-     * 期望：isEmpty；resolve 返回 null；/login 仍走 builtin。
+     * 期望：isEmpty；resolve 返回 null；无预制口。
      */
     @Test
     @Order(3)
-    @DisplayName("空配置才用 builtin /login")
-    void emptyConfig_usesBuiltin() {
+    @DisplayName("空配置无 Profile、无预制口")
+    void emptyConfig_noProfiles() {
         assertTrue(ProjectAuthConfigSupport.isEmpty(ProjectAuthConfigSupport.empty()));
         assertTrue(ProjectAuthConfigSupport.isEmpty(ProjectAuthConfigSupport.parse(null)));
         assertNull(ProjectAuthConfigSupport.resolveProfileId("/api/x", ProjectAuthConfigSupport.empty()));
-        assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
-                "POST", "/login", ProjectAuthConfigSupport.empty()));
-        assertTrue(ProjectAuthConfigSupport.matchesBuiltinAnonymousAuthPath("/api/account/auth/register/"));
-        assertFalse(ProjectAuthConfigSupport.matchesBuiltinAnonymousAuthPath("/api/account/auth/profile"));
+        assertNull(ProjectAuthConfigSupport.findPrefabricatedApi(
+                ProjectAuthConfigSupport.empty(), "POST", "/login"));
     }
 
     /**
@@ -117,12 +120,12 @@ class ProjectAuthConfigSupportTest {
 
     /**
      * 前提：有 Profile、apis 为空。
-     * 期望：/login 不免登；needsAuthTemplateHint 为 true。
+     * 期望：无预制登录口；needsAuthTemplateHint 为 true。
      */
     @Test
     @Order(4)
-    @DisplayName("有 Profile 且 apis 空：/login 不免登")
-    void profilesWithoutApis_loginNotAnonymous() {
+    @DisplayName("有 Profile 且 apis 空：无预制口、需补模板")
+    void profilesWithoutApis_needsHint() {
         String json = """
                 {"authProfiles":[{
                   "id":"p1","name":"Bearer",
@@ -134,7 +137,7 @@ class ProjectAuthConfigSupportTest {
 
         assertFalse(ProjectAuthConfigSupport.isEmpty(cfg));
         assertTrue(ProjectAuthConfigSupport.needsAuthTemplateHint(cfg));
-        assertFalse(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
+        assertNull(ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login"));
     }
 
     /**
@@ -162,9 +165,6 @@ class ProjectAuthConfigSupportTest {
 
         assertEquals("adminBearer", cfg.getAuthProfiles().get(0).getId());
         assertEquals("Authorization", cfg.getAuthProfiles().get(0).getHeaderName());
-        assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
-        assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
-                "POST", "/api/account/auth/login", cfg));
         PrefabricatedApi adminLogin = ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login");
         assertEquals("none", adminLogin.getAuthConfig().getMode());
         assertEquals("Bearer {{asset.adminAuth.token}}",
@@ -280,17 +280,35 @@ class ProjectAuthConfigSupportTest {
     }
 
     /**
-     * 前提：inherit 的 /login，项目有 Profile 且 apis 含该口 mode=none。
-     * 期望：应免登。
+     * 前提：项目有 Profile 且预制 apis 含 /login、mode=none。
+     * 期望：按 method+path 能查到该预制口且 mode=none。
+     * 本方法只验证查找；开跑是否免登由接口资产上的 mode 决定。
      */
     @Test
     @Order(11)
-    @DisplayName("预制 none 口：/login 免登")
-    void noneApi_skipsLogin() {
+    @DisplayName("预制 none 口：可按 method+path 查到")
+    void prefabNoneApi_findable() {
         ProjectAuthConfig cfg = ProjectAuthConfigSupport.ruoyiBearerTemplate();
-        assertTrue(ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth("POST", "/login", cfg));
         assertEquals(ApiAuthConfig.MODE_NONE,
                 ProjectAuthConfigSupport.findPrefabricatedApi(cfg, "POST", "/login").getAuthConfig().getMode());
+    }
+
+    /**
+     * 前提：预制接口缺 authConfig.mode。
+     * 期望：normalizeToJson 抛业务异常，不默认写成 inherit。
+     */
+    @Test
+    @Order(18)
+    @DisplayName("预制口缺 mode 拒收")
+    void normalizeToJson_rejectsPrefabWithoutMode() {
+        String raw = """
+                {"authProfiles":[{
+                  "id":"p1","name":"x",
+                  "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
+                  "apis":[{"apiPath":"/login","requestConfig":{"configVersion":1,"method":"POST"}}]
+                }]}
+                """;
+        assertThrows(ServiceException.class, () -> ProjectAuthConfigSupport.normalizeToJson(raw));
     }
 
     /**

@@ -31,7 +31,7 @@ Prompt → tools → multiple submit_* (1 unit each) → Staging → ✓ → Sav
 | Save | May persist with design-time errors (only unparseable JSON hard-blocks). Staging should be empty. Banner “nodes empty” = empty graph in DB — **not** a pass |
 | Run | Structure + assert-path + AUTH / required readiness hard-block |
 | Save confirmed only | Leftover units vanish → half graph. Confirm first or ✕ all and recreate |
-| Refresh auth headers | Still goes through Staging |
+| Clear managed headers | Strips design-time stray managed headers; still goes through Staging; applied again at Run from project config |
 
 If the canvas is covered: close sidebars, pan / minimap / fit, then ✓. Do not `force`-click off-screen controls.
 
@@ -64,14 +64,15 @@ Edit the canvas on Web only. Use MCP to inspect `testFlowId` and failure context
 | CODE | Hard? | When | Meaning |
 | ---- | ----- | ---- | ------- |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Yes | **Run** (same) | Two logins write the same credential path |
-| `AUTH_TOKEN_MISSING` | Yes | **Run** (same; canvas graph error may warn) | Bearer needed but no extract / assign / child-graph extract / **inSeed**; may tip “wrong side” Profile |
 | Bad assert path (`.items`, `http.body.$.…`) | Yes (canvas / Run) | **Run** hard-blocks; **Staging ✓ / Save / submit accept soft** (submit only floor-rejects) | See node docs |
 | Update empty array wipe (`rules`/`extracts`/`assignments`) | Yes | **submit floor** (may not enter Staging); Staging ✓ / Save soft | Prefer reject at submit vs wiping baseline |
 | condition `branches[].target` | — | stripped in normalize | Exits follow edges only |
 
+Missing credential writers no longer emit `AUTH_TOKEN_MISSING`; real Runs fail on undefined placeholders. Anonymous = API `auth.mode=none` only.
+
 **Save** only hard-blocks unparseable JSON. **Run** readiness = structure + assert-path + AUTH / login extract / HTTP required (`validate?stage=run`).
 
-Managed headers are written by normalize / “Refresh auth headers”; Staging Diff may label headers as filled from project auth. No soft tip codes.
+Managed headers apply at Run only; design-time normalize / “Clear managed headers” strip only. No soft tip codes.
 
 AUTH / login extract / HTTP-required join **canvas graph errors** (`validate?stage=canvas`; do not block ✓ / Save). The next design request may filter those codes into `runRiskWarnings` in the user context. Unit `submit_*`: **floor only** (missing id / unknown refs) rejects; structure / AUTH / assert do not block accept—fix via canvas and Run.
 

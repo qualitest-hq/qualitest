@@ -14,27 +14,27 @@ Common causes:
 
 1. Wrong login **extract path**, or it does not match the Profile managed-header target.
 2. Graph uses Bearer but has **no** matching source (extract / inSeed / env / persisted asset).
-3. Login API should be anonymous (`mode=none`) but still got a managed Bearer — check template and API `auth.mode`.
+3. Login API should be anonymous (`mode=none`) but still got a managed Bearer — check API `auth.mode` (required on Web/MCP/IDEA; IDEA derives from anonymous annotations).
 
 → [project-summary.en.md §4](./project-summary.en.md) · [flow-variables-and-values.en.md](./flow-variables-and-values.en.md)
 
 ### Staging / save: `AUTH_*` codes
 
-Hard blocks for token / login-extract / HTTP-required run on **Run** only — Staging ✓ and Save can succeed while Run still fails with AUTH. Check Profile `headerValueTemplate` (wrong side e.g. client using `adminAuth`) and login extracts first; not a confirm/save bug.
+`AUTH_LOGIN_FLOWKEY_COLLISION` / login-extract / HTTP-required hard-block on **Run** only — Staging ✓ and Save can succeed while Run still fails with AUTH. Missing credential writers no longer emit `AUTH_TOKEN_MISSING`; real Runs fail on undefined placeholders instead. Check Profile `headerValueTemplate` (wrong side e.g. client using `adminAuth`) and login extracts first; not a confirm/save bug.
 
 **AI self-heal** (same fields as project settings):
 
-1. Before fixing login / `AUTH_TOKEN_MISSING`, call `list_project_auth_profiles`.
+1. Before fixing login / missing credentials, call `list_project_auth_profiles`.
 2. Wrong-side Profile → `upsert_auth_profile` (semi-auto: confirm card writes `auth_config`; full-auto: writes in-tool). Pending auth proposals block `run_test_flow` / implicit persist.
 3. Next design turn filters auth/required issues from canvas graph errors into `runRiskWarnings`.
 4. Login extract `name=adminAuth.token` without `entryKey` is split server-side into entry + field.
 
 | Code | Meaning | Fix |
 | ---- | ------- | --- |
-| `AUTH_TOKEN_MISSING` | Bearer needed but no writer in the graph | Add a matching source (login extract / inSeed / env) for the Profile header; “wrong side” tip → fix project auth |
 | `AUTH_LOGIN_FLOWKEY_COLLISION` | Two logins write the same credential path | Use `adminAuth` / `clientAuth` separately |
+| Undefined placeholder (real Run) | Managed header refs `{{asset.*}}` etc. with no writer | Add login extract / inSeed / env; wrong-side Profile → fix project auth |
 
-Managed headers are written by normalize / “Refresh auth headers” (Diff may label “filled from project auth”); no separate tip codes.
+Managed headers apply at Run only from project config; design-time does not persist them (“Clear managed headers” strips strays). Blank `authConfig` / missing `mode` is illegal. No separate tip codes.
 
 → [ai-staging.en.md §5](./ai-staging.en.md)
 

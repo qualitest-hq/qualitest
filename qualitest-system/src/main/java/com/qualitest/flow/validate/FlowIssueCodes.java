@@ -22,8 +22,11 @@ public final class FlowIssueCodes {
     /** 断言或条件路径设计错误 */
     public static final String ASSERT_PATH = "ASSERT_PATH";
 
-    /** 鉴权、登录抽取、HTTP 必填等运行就绪问题 */
+    /** 鉴权 / 登录键碰撞等运行就绪问题（不含 HTTP 必填） */
     public static final String RUN_READINESS_AUTH = "RUN_READINESS_AUTH";
+
+    /** 成功路径 HTTP 缺必填测值 */
+    public static final String RUN_READINESS_HTTP_PARAM = "RUN_READINESS_HTTP_PARAM";
 
     /** HTTP 节点未绑定接口，或绑定的接口已不存在 */
     public static final String API_MISSING = "API_MISSING";

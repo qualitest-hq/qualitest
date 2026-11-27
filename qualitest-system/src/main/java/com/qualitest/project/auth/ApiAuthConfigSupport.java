@@ -4,7 +4,6 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.qualitest.api.model.ApiAuthConfig;
 import com.qualitest.api.model.ApiAuthConfig.Header;
-import com.qualitest.api.model.ProjectAuthConfig;
 import com.qualitest.common.exception.ServiceException;
 
 import java.util.Locale;
@@ -12,26 +11,30 @@ import java.util.Locale;
 /**
  * 接口鉴权标签的校验、解析与落库序列化。
  * <p>
- * 导入接口时把上传包里的 auth 对象转成 JSON 字符串写入数据库；
- * 未声明或 mode 为空时返回 null，表示本次导入不要改库里已有值。
- * 凭证目标在项目 Profile 托管头，接口行只存 mode / profileId / override 头。
+ * {@code auth.mode} 必填，仅允许 none / inherit / override；空白或非法值一律抛错，不会改写成 inherit。
+ * 接口行只存 mode、可选 authProfileId、override 时的头模板；凭证占位写在项目 Profile 托管头上。
  */
 public final class ApiAuthConfigSupport {
 
     private ApiAuthConfigSupport() {}
 
     /**
-     * 解析接口鉴权 JSON。空白按 inherit（未标注视为要登录）；非法 JSON 抛业务异常。
+     * 解析接口鉴权 JSON。空白、缺 mode 或非法 JSON 抛业务异常。
      */
-    public static ApiAuthConfig parseOrInherit(String json) {
+    public static ApiAuthConfig parse(String json) {
         if (StrUtil.isBlank(json)) {
-            return ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
+            throw new ServiceException("接口鉴权配置不能为空，须含 auth.mode（none/inherit/override）");
         }
         try {
             ApiAuthConfig cfg = JSONUtil.toBean(json, ApiAuthConfig.class);
             if (cfg == null || StrUtil.isBlank(cfg.getMode())) {
-                return ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
+                throw new ServiceException("接口鉴权配置须含 auth.mode（none/inherit/override）");
             }
+            String mode = canonicalizeMode(cfg.getMode());
+            if (mode == null) {
+                throw new ServiceException("不支持的 auth.mode: " + cfg.getMode() + "（允许 none/inherit/override）");
+            }
+            cfg.setMode(mode);
             return cfg;
         } catch (ServiceException e) {
             throw e;
@@ -41,11 +44,11 @@ public final class ApiAuthConfigSupport {
     }
 
     /**
-     * 规范化接口鉴权 JSON 并写库。空白写成 inherit；非法 JSON 或规则失败抛业务异常。
+     * 规范化接口鉴权 JSON 并写库。缺 mode 或非法则抛业务异常。
      */
     public static String normalizeToJson(String raw) {
         if (StrUtil.isBlank(raw)) {
-            return JSONUtil.toJsonStr(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build());
+            throw new ServiceException("接口鉴权配置不能为空，须含 auth.mode（none/inherit/override）");
         }
         ApiAuthConfig parsed;
         try {
@@ -53,24 +56,16 @@ public final class ApiAuthConfigSupport {
         } catch (Exception e) {
             throw new ServiceException("接口鉴权配置不是合法 JSON");
         }
-        if (parsed == null || StrUtil.isBlank(parsed.getMode())) {
-            parsed = ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build();
-        }
-        String stored = toStorageJson(parsed);
-        if (stored == null) {
-            return JSONUtil.toJsonStr(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build());
-        }
-        return stored;
+        return toStorageJson(parsed);
     }
 
     /**
      * 转成可写入接口 auth_config 列的 JSON。
-     * 未带 auth 或 mode 为空返回 null，调用方应跳过覆盖。
-     * 非法 mode、override 缺头时抛业务异常。
+     * auth 或 mode 为空、非法 mode、override 缺头时抛业务异常。
      */
     public static String toStorageJson(ApiAuthConfig auth) {
         if (auth == null || StrUtil.isBlank(auth.getMode())) {
-            return null;
+            throw new ServiceException("接口鉴权配置须含 auth.mode（none/inherit/override）");
         }
         String mode = canonicalizeMode(auth.getMode());
         if (mode == null) {
@@ -103,37 +98,29 @@ public final class ApiAuthConfigSupport {
         return JSONUtil.toJsonStr(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_NONE).build());
     }
 
+    /** 落库用的 {"mode":"inherit"}。 */
+    public static String inheritStorageJson() {
+        return JSONUtil.toJsonStr(ApiAuthConfig.builder().mode(ApiAuthConfig.MODE_INHERIT).build());
+    }
+
     /**
-     * 更新导入时合并鉴权：免登口强制 mode=none。
+     * 导入时写入接口鉴权：上传包必须带 mode，按上传值落库，不会因预制列表改成 none。
+     * inherit 且上传未带 authProfileId 时，用 inheritProfileId 回填；none 时清空 profileId。
      *
-     * @param localAuthJson 库中已有 auth_config
-     * @param incoming      上传包 auth，可为 null
-     * @param anonymous     是否为项目预制免登口
-     * @param inheritProfileId inherit 且上传未指定 profile 时回填
-     * @return 可落库 JSON；非免登且上传未带 mode 时返回 null 表示不改
+     * @param incoming         上传包中的鉴权对象，须含 mode
+     * @param inheritProfileId inherit 且上传未指定 profile 时回填的 Profile id
+     * @return 可写入接口 auth_config 的 JSON
      */
-    public static String mergeOnImportUpdate(
-            String localAuthJson,
-            ApiAuthConfig incoming,
-            boolean anonymous,
-            String inheritProfileId) {
+    public static String applyOnImport(ApiAuthConfig incoming, String inheritProfileId) {
         if (incoming == null || StrUtil.isBlank(incoming.getMode())) {
-            if (!anonymous) {
-                return null;
-            }
-            return toStorageJson(ApiAuthConfig.builder()
-                    .mode(ApiAuthConfig.MODE_NONE)
-                    .build());
+            throw new ServiceException("导入接口须带 auth.mode（none/inherit/override）");
         }
         String mode = canonicalizeMode(incoming.getMode());
         if (mode == null) {
-            toStorageJson(incoming);
-            return null;
+            throw new ServiceException("不支持的 auth.mode: " + incoming.getMode() + "（允许 none/inherit/override）");
         }
         String profileId = StrUtil.trimToNull(incoming.getAuthProfileId());
-        if (!ApiAuthConfig.MODE_NONE.equals(mode) && anonymous) {
-            mode = ApiAuthConfig.MODE_NONE;
-        } else if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
+        if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
             profileId = StrUtil.trimToNull(inheritProfileId);
         }
         if (ApiAuthConfig.MODE_NONE.equals(mode)) {
@@ -146,23 +133,6 @@ public final class ApiAuthConfigSupport {
             builder.header(incoming.getHeader());
         }
         return toStorageJson(builder.build());
-    }
-
-    /**
-     * inherit 且该接口是免登口时改成 none。override 和已是 none 不改。
-     * 项目有 Profile 时只认预制 mode=none；配置空才用内置 /login 等路径。
-     */
-    public static String coerceInheritToNoneIfAnonymous(
-            String authJson, String apiPath, String method, String projectAuthJson) {
-        ProjectAuthConfig projectAuth = ProjectAuthConfigSupport.parse(projectAuthJson);
-        if (!ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(method, apiPath, projectAuth)) {
-            return authJson;
-        }
-        ApiAuthConfig parsed = parseOrInherit(authJson);
-        if (!ApiAuthConfig.MODE_INHERIT.equalsIgnoreCase(StrUtil.trim(parsed.getMode()))) {
-            return authJson;
-        }
-        return noneStorageJson();
     }
 
     /**

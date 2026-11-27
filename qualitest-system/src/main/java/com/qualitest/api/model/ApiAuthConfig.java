@@ -11,8 +11,8 @@ import java.io.Serializable;
 /**
  * 接口鉴权标签。
  * <p>
- * 描述该接口是否免登录、是否继承项目鉴权配置，或是否使用本接口自定义鉴权头。
- * 由插件扫描上传后写入接口资产，供后续执行请求时决定是否加 Authorization。
+ * {@code mode} 必填：none（免登录）、inherit（继承项目配置）、override（本接口自定义头）。
+ * Web / MCP / IDEA 写入均须带 mode；运行期据此决定是否加托管 Authorization。
  */
 @Data
 @Builder

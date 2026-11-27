@@ -54,9 +54,9 @@ import java.util.stream.Collectors;
  * 更新：request/response 做结构合并；headers、cookies、前后置脚本本地非空则保留；
  * biz_code_config、design_hints、test_value_config 不由上传包整段替换（test_value_config 由合并服务按字段更新）；
  * sync_protected=1 时整条跳过（不改任何字段）；
- * 上传包若带 auth，则覆盖写入鉴权标签；命中项目匿名 path 则 mode=none；
- * inherit 且未指定 authProfileId 时按项目鉴权配置回填。
- * 若 uploadType=project 且项目鉴权配置为空，则写入通用单套 Bearer 种子（不分端、无匿名 path）。
+ * 上传包须带 auth.mode，按上传值写入接口鉴权，不会因预制列表改成 none；
+ * inherit 且未指定 authProfileId 时按项目 pathPrefix 回填 Profile id。
+ * 若 uploadType=project 且项目鉴权配置为空，则写入通用单套 Bearer 种子。
  * 结束后刷新项目的 api_count 与 last_api_sync_time。
  * 若本批有更新成功的接口：扫描项目内测试流影响写入 syncImpact，并对受影响流回写 api_health_*。
  */
@@ -414,7 +414,7 @@ public class ApiImportServiceImpl implements IApiImportService {
             api.setPostRequestScript(item.getPostRequestScript());
         }
 
-        applyAuthConfig(api, item, projectAuth, isUpdate);
+        applyAuthConfig(api, item, projectAuth);
 
         api.setLastSyncTime(item.getLastSyncTime() != null ? item.getLastSyncTime() : new Date());
         api.setUpdateTime(DateUtils.getNowDate());
@@ -456,60 +456,15 @@ public class ApiImportServiceImpl implements IApiImportService {
     }
 
     /**
-     * 写入鉴权标签：只碰接口行 mode（及 override 头）。凭证规则在项目 Profile。
-     * 更新时免登强制 none。
+     * 把上传包中的鉴权写入接口行：必须带 auth.mode，按上传值落库。
+     * inherit 且未带 authProfileId 时，用当前 path 在项目配置里命中的 Profile id 回填。
      */
     private void applyAuthConfig(
             TestProjectApi api,
             ApiImportParams.ApiImportItem item,
-            ProjectAuthConfig projectAuth,
-            boolean isUpdate) {
-        ApiAuthConfig auth = item.getAuth();
-        String method = ApiImportMatchSupport.extractHttpMethod(item.getRequestConfig());
-        boolean anon = ProjectAuthConfigSupport.shouldTreatAsAnonymousAuth(
-                method, item.getApiPath(), projectAuth);
+            ProjectAuthConfig projectAuth) {
         String inheritProfileId = ProjectAuthConfigSupport.resolveProfileId(item.getApiPath(), projectAuth);
-
-        if (isUpdate) {
-            String json = ApiAuthConfigSupport.mergeOnImportUpdate(
-                    api.getAuthConfig(), auth, anon, inheritProfileId);
-            if (json != null) {
-                api.setAuthConfig(json);
-            }
-            return;
-        }
-
-        if (auth == null || StrUtil.isBlank(auth.getMode())) {
-            if (!anon) {
-                return;
-            }
-            api.setAuthConfig(ApiAuthConfigSupport.noneStorageJson());
-            return;
-        }
-        String mode = ApiAuthConfigSupport.canonicalizeMode(auth.getMode());
-        if (mode == null) {
-            ApiAuthConfigSupport.toStorageJson(auth);
-            return;
-        }
-        String profileId = StrUtil.trimToNull(auth.getAuthProfileId());
-        if (!ApiAuthConfig.MODE_NONE.equals(mode) && anon) {
-            mode = ApiAuthConfig.MODE_NONE;
-        } else if (ApiAuthConfig.MODE_INHERIT.equals(mode) && profileId == null) {
-            profileId = inheritProfileId;
-        }
-        if (ApiAuthConfig.MODE_NONE.equals(mode)) {
-            profileId = null;
-        }
-        ApiAuthConfig.ApiAuthConfigBuilder toStore = ApiAuthConfig.builder()
-                .mode(mode)
-                .authProfileId(profileId);
-        if (ApiAuthConfig.MODE_OVERRIDE.equals(mode)) {
-            toStore.header(auth.getHeader());
-        }
-        String json = ApiAuthConfigSupport.toStorageJson(toStore.build());
-        if (json != null) {
-            api.setAuthConfig(json);
-        }
+        api.setAuthConfig(ApiAuthConfigSupport.applyOnImport(item.getAuth(), inheritProfileId));
     }
 
     /**

@@ -91,8 +91,8 @@ flowchart TB
 | `test_project_template` | 一行模板 = 一条 Profile；内置 RuoYi Bearer / Session、客户端 Bearer、管理端 Bearer           |
 | Apply                   | 勾选后拷入项目 `authProfiles`（**新生成 id**）；按 `templateApis[]` 插入预制接口（已有 method+path **跳过**；作者期 `testProjectApiId` 为雪花字符串，种子时换新主键）；可选种子 `templateEnvs`（填建项占位环境 URL，已定制不覆盖；`envVariables` 同 key 不覆盖；**Profile 同名跳过仍补**）与 `templateParams`（**仅** kind=asset→素材库，**Profile 同名跳过仍补 asset**；内置管理端 `adminAuth`、客户端 `clientAuth`；存量 `kind=env` 仍合并进第一条环境）与 `templateFlows`（同名流跳过；HTTP 作者期雪花 id **remap** 为项目 apiId，历史 `tpl_*` 兼容，legacy 仅 path 仍按 method+path 绑；登录 HTTP body 引用 `{{asset.*}}`）；托管头：优先登录流 extracts 派生，其次 match_config.credential，仍无法派生则拒绝该条 |
 | 新建项目                    | **至少勾一套**；商城双端建议先「管理端 Bearer」再「客户端 Bearer」                                  |
-| 免登                      | 认预制 `apis[].authConfig.mode=none`；**不再**维护项目级匿名 path 清单                     |
-| 空配置                     | 空 Profile 时用 builtin `/login` 等免登路径；非法 auth JSON **硬拒**；有 Profile 但 apis 空 → 设置页黄条提示补模板 |
+| 免登                      | **运行期只认接口** `auth.mode=none`；预制 `apis[]` 仅建项种子（缺 mode 拒收），不当第二本花名册 |
+| 空配置                     | 空 Profile 时**无**免登兜底；非法 auth JSON **硬拒**；有 Profile 但 apis 空 → 设置页黄条提示补模板 |
 
 
 
@@ -103,13 +103,13 @@ flowchart TB
 | 层级                | 要点                                                                            |
 | ----------------- | ----------------------------------------------------------------------------- |
 | 项目 `authProfiles` | 头模板（`headerName` + `headerValueTemplate`）+ 预制 `apis[]`；未命中 `pathPrefix` **不加托管头** |
-| 接口 `auth.mode`    | `inherit` → 项目 Profile；`none` 不加头；`override` 用本接口头模板 |
-| 节点 headers        | 托管头带 `profileManaged`，Run 按**当前**配置刷新；无该标记的显式头永不被静默改掉                         |
+| 接口 `auth.mode`    | **必填** `none` / `inherit` / `override`（Web / MCP / IDEA 写入均须带；空配置非法）；`inherit` → 项目 Profile；`none` 不加头；`override` 用本接口头模板。IDEA 按免登注解自判 `none`/`inherit` |
+| 节点 headers        | 托管头**仅运行期**按项目配置补，设计期不落节点；无 `profileManaged` 的显式头永不被静默改掉 |
 
 
 **匹配**：接口指定 `authProfileId` 优先；否则最长 `pathPrefix`；无人命中则不加托管头。**禁止** `pathPrefix="/"`。
 
-**登录抽凭证**：登录流 HTTP `extracts`（通常 `scope=asset`）写素材库；Profile 托管头引用 `{{asset.adminAuth.token}}` 等。登录口由 extracts 对齐 headerValueTemplate 识别；缺 extracts 不硬拦，由人/AI 后补。上传/OpenAPI 改接口行 schema 与 mode：同 method+path 合并；接口可选 **上传保护**（`sync_protected` / `syncProtected` 为 `0/1`），`1` 则导入整条跳过（**内置模板预制口默认 `1`**），`0` 后可覆盖。
+**登录抽凭证**：登录流 HTTP `extracts`（通常 `scope=asset`）写素材库；Profile 托管头引用 `{{asset.adminAuth.token}}` 等。**补头只认接口 `auth.mode`**（`none` 不加；`inherit`→Profile；`override`→接口头），不按预制口 / extracts 跳过。缺凭证来源不硬拦补头，真跑占位失败；由人/AI 后补来源。上传改接口行须带 mode；接口可选 **上传保护**（`sync_protected` / `syncProtected` 为 `0/1`），`1` 则导入整条跳过（**内置模板预制口默认 `1`**），`0` 后可覆盖。
 
 ### 4.3 双端与门禁
 
@@ -122,9 +122,9 @@ flowchart TB
 
 - **同端**：开头只登录一次（或挂登录子流），后续靠托管 Bearer 复用 `asset.*`（HTTP 成功后 extract 落盘，跨 Run 可探活）。内置预制登录流为 **探活再登录**：`statusCheck: {mode:whitelist, values:[200,401,403]}` 探活 + Condition(`http.status=200` 且 `http.expectedMatch`)，有效则跳过登录。接口 `responseConfig.expectedResponseKind`（默认 json）为期望形态唯一配置；跑流只对照。
 - **双端同图**：两套登录、两套 extracts；**禁止**覆盖同一凭证路径（硬拦 `AUTH_LOGIN_FLOWKEY_COLLISION`）。
-- **其它硬拦**：缺对应端凭证来源 → `AUTH_TOKEN_MISSING`（**仅运行**硬拦；AI 单单元 `submit_*` 仅地板拒收，AUTH 不挡收；Staging ✓ / **保存**不硬拦）。客户端 Profile 误绑 `adminAuth`（或相反）时文案追加「疑似绑错端」。托管头由 normalize / 刷新写入节点（无 soft 提示码）。Stage × CODE 总表见 [flow-contract-2.0.md §2.2](./flow-contract-2.0.md)。
+- **缺凭证**：不再产出 `AUTH_TOKEN_MISSING` 硬拦；真跑时 `{{asset.*}}` / `{{flow.*}}` 占位未定义才失败。托管头仅运行期补、设计期不落节点（无 soft 提示码）。Stage × CODE 总表见 [flow-contract-2.0.md §2.2](./flow-contract-2.0.md)。
 - **AI 改 Profile**：`list_project_auth_profiles`（只读）+ `upsert_auth_profile`（半自动确认 / 全自动直写）；下一轮可带 `runRiskWarnings`。细则见 [ai-staging.md](./ai-staging.md) · [faq.md](./faq.md)。
-- 画布顶栏「刷新鉴权头」、HTTP 节点凭证行提示；Run 鉴权失败可用「AI 修复」。
+- 画布顶栏「清除托管头」、HTTP 节点凭证行提示；Run 鉴权失败可用「AI 修复」。
 - 凭证可落在 extract→asset/flow、场景 inSeed、或环境变量等；**口令勿明文塞进图**，可复用账号优先素材库。
 
 验收步骤见手册 **T1.2**（项目模板）、**T1.8**（登录子流）、§F #21/#24。用法（导入导出 / 另存）见 [project-template.md](./project-template.md)。

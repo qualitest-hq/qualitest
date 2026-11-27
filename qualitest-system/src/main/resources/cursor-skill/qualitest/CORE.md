@@ -71,7 +71,7 @@
 名称：@Operation.summary → JavaDoc 首行 → 方法名
 ```
 
-从**业务仓**抽取 method/path/参数及上述分组注释（**不限 Java**：Controller / router / handler / OpenAPI 注释等均可）；有标注则传入 `import_apis` 覆盖；省略则更新保留库内、新增落入默认分组。看回执 `warnings` / `metaGroupSource`。Java 示例见上占位；其它栈按同等字段映射即可。
+从**业务仓**抽取 method/path/参数及上述分组注释（**不限 Java**：Controller / router / handler / OpenAPI 注释等均可）；每条须带 `authSuggestion.mode`（登录/公开口 `none`，业务口多为 `inherit`）。有标注则传入 `import_apis` 覆盖；省略分组则更新保留库内、新增落入默认分组。看回执 `warnings` / `metaGroupSource`。Java 示例见上占位；其它栈按同等字段映射即可。
 
 ### 缺接口时充实接口库
 
@@ -102,7 +102,7 @@
 | `append_api_design_hints` | 追加接口短提示并落库 |
 
 <!-- mcp:import -->
-另有 `import_apis`：结构化 items 幂等 upsert；成功即落库；返回 created/updated/skipped/conflicts 与 testProjectApiId。
+另有 `import_apis`：结构化 items 幂等 upsert（每条须含 `authSuggestion.mode`）；成功即落库；返回 created/updated/skipped/conflicts 与 testProjectApiId。
 <!-- /mcp:import -->
 
 调用写工具时把 `testFlowId`（及工具要求的节点/边字段）放进 MCP arguments；项目由 Token 绑定，一般不必改 `testProjectId`。

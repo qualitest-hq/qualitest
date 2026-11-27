@@ -12,8 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * 测谁：详情接口附带的托管鉴权头。
- * 边界：inherit 命中客户端、override 自定义头、none、预制免登口。
+ * 测详情接口附带的托管鉴权头。
+ * 覆盖：inherit 命中客户端 Profile、override 自定义头、mode=none 返回 null、
+ * 预制列表标 none 时 inherit 接口仍返回托管头。
  * 单跑：{@code mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ManagedAuthHeaderSupportTest}
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -33,7 +34,7 @@ class ManagedAuthHeaderSupportTest {
         String apiAuth = ApiAuthConfigSupport.toStorageJson(
                 ApiAuthConfig.builder().mode("inherit").build());
         ManagedAuthHeader header = ManagedAuthHeaderSupport.resolve(
-                apiAuth, PROJECT_AUTH, "/api/coupon/coupon/available", "GET");
+                apiAuth, PROJECT_AUTH, "/api/coupon/coupon/available");
         assertEquals("Authorization", header.getName());
         assertEquals("Bearer {{asset.clientAuth.token}}", header.getValueTemplate());
         assertEquals(ProjectAuthConfigSupport.PROFILE_CLIENT, header.getAuthProfileId());
@@ -57,7 +58,7 @@ class ManagedAuthHeaderSupportTest {
                         .build())
                 .build());
         ManagedAuthHeader header = ManagedAuthHeaderSupport.resolve(
-                apiAuth, PROJECT_AUTH, "/api/orders", "POST");
+                apiAuth, PROJECT_AUTH, "/api/orders");
         assertEquals("X-Token", header.getName());
         assertEquals("{{asset.clientAuth.token}}", header.getValueTemplate());
         assertNull(header.getAuthProfileId());
@@ -75,20 +76,21 @@ class ManagedAuthHeaderSupportTest {
     void resolve_none_null() {
         String apiAuth = ApiAuthConfigSupport.toStorageJson(
                 ApiAuthConfig.builder().mode("none").build());
-        assertNull(ManagedAuthHeaderSupport.resolve(apiAuth, PROJECT_AUTH, "/api/orders", "GET"));
+        assertNull(ManagedAuthHeaderSupport.resolve(apiAuth, PROJECT_AUTH, "/api/orders"));
     }
 
     /**
-     * 前提：项目把 /login 标成免登，接口 inherit。
-     * 期望：不加托管头。
+     * 前提：预制列表把 /login 标成 none，接口 auth.mode=inherit，且 pathPrefix 命中。
+     * 期望：仍返回托管头；免登只看接口 mode。
      */
     @Test
     @Order(4)
-    @DisplayName("预制免登口不返回托管头")
-    void resolve_anonymousLogin_null() {
+    @DisplayName("预制 none 不旁路 inherit")
+    void resolve_prefabricatedNone_stillReturnsHeader() {
         String projectAuth = """
                 {"authProfiles":[{
                   "id":"defaultBearer","name":"Bearer",
+                  "match":{"pathPrefix":["/login"]},
                   "headerName":"Authorization","headerValueTemplate":"Bearer {{asset.adminAuth.token}}",
                   "apis":[{"apiPath":"/login","authConfig":{"mode":"none"},
                     "requestConfig":{"configVersion":1,"method":"POST"}}]
@@ -96,6 +98,9 @@ class ManagedAuthHeaderSupportTest {
                 """;
         String apiAuth = ApiAuthConfigSupport.toStorageJson(
                 ApiAuthConfig.builder().mode("inherit").build());
-        assertNull(ManagedAuthHeaderSupport.resolve(apiAuth, projectAuth, "/login", "POST"));
+        ManagedAuthHeader header = ManagedAuthHeaderSupport.resolve(
+                apiAuth, projectAuth, "/login");
+        assertEquals("Authorization", header.getName());
+        assertEquals("Bearer {{asset.adminAuth.token}}", header.getValueTemplate());
     }
 }

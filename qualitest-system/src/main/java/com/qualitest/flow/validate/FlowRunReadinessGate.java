@@ -18,7 +18,7 @@ import java.util.function.Function;
  * 开跑就绪原料收集器。
  * <p>
  * 只产出尚未按项目流检查配置定级的原始问题：完整图结构、路由占用冲突、
- * 断言/条件路径错误、鉴权凭证来源、登录键碰撞、HTTP 必填测值。
+ * 断言/条件路径错误、登录键碰撞、HTTP 必填测值。
  * 定级、过滤与硬拦文案统一由 {@link FlowGraphValidateService} 完成。
  */
 @Component
@@ -73,8 +73,8 @@ public class FlowRunReadinessGate {
     }
 
     /**
-     * 仅鉴权、登录键碰撞、HTTP 必填相关问题（画布与开跑共用）。
-     * 不跑结构、路由、断言路径检查。
+     * 鉴权碰撞与 HTTP 必填相关问题（画布与开跑共用）。
+     * 鉴权与必填分不同 code；不再做「图上是否已写出鉴权头路径」硬拦。
      */
     public List<FlowIssue> collectAuthIssues(GraphJson graph, Long testProjectId, FlowIssue.Stage stage) {
         FlowIssue.Stage effective = stage != null ? stage : FlowIssue.Stage.CANVAS;
@@ -84,9 +84,11 @@ public class FlowRunReadinessGate {
         }
         Function<Long, TestProjectApi> apiResolver = testProjectApiMapper::selectTestProjectApiById;
         String projectAuthJson = loadProjectAuthConfig(testProjectId);
-        Function<Long, GraphJson> subflowResolver = parsedGraphCache::get;
-        for (String err : DesignAuthRiskGates.collect(graph, projectAuthJson, apiResolver, subflowResolver)) {
+        for (String err : DesignAuthRiskGates.collectAuthOnly(graph, projectAuthJson, apiResolver)) {
             issues.add(FlowIssue.error(FlowIssueCodes.RUN_READINESS_AUTH, effective, null, err));
+        }
+        for (String err : DesignAuthRiskGates.collectHttpRequiredOnly(graph, apiResolver)) {
+            issues.add(FlowIssue.error(FlowIssueCodes.RUN_READINESS_HTTP_PARAM, effective, null, err));
         }
         return issues;
     }
