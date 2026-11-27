@@ -88,4 +88,15 @@ class InspectionSeverityResolverTest {
                         null,
                         Map.of(FlowIssueCodes.GRAPH_JSON_INVALID, InspectionConfiguredSeverity.OFF)));
     }
+
+    @Test
+    @Order(4)
+    @DisplayName("未知插件检查码无目录时默认 WARNING")
+    void unknownCodeDefaultsToWarning() {
+        // 前提：无目录定义、无 profile 覆盖
+        // 期望：WARNING，避免漏登说明书意外硬拦开跑
+        assertEquals(
+                InspectionConfiguredSeverity.WARNING,
+                resolver.resolve("some.plugin/CUSTOM_CHECK", null, Map.of()));
+    }
 }

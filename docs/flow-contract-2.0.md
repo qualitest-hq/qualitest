@@ -154,11 +154,11 @@ Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。
 **挂图异常（拓扑非法 / 配置残缺）与落盘**：
 
 - **允许保存**（半成品、协作中途可落盘）。  
-- **画布展示异常**（定级后 `ERROR` / `WARNING` 可见）。  
-- **不允许开跑**（人跑 / 开放入站 / 子流：定级后仍为 `ERROR` 才硬拦）。  
+- **画布展示异常**（生效 `ERROR` / `WARNING` 可见）。  
+- **不允许开跑**（人跑 / 开放入站 / 子流：生效 `severity=ERROR` 才硬拦；`WARNING` 只提示）。  
 - **被拦时仍要有返回**：开放 HTTP 写平台错误响应（不挂起、不空回）；子流按该子流入口 `fallbackOut` 挂父（未配置则默认 `{body:{code:"NO_RETURN",…}}`），父侧读 `nodes.<id>.out` 有值。  
 - **路由占用冲突不再保存硬拦**：保存放行、列表标 error，开跑与入站硬拦（见 §5.3.1）。  
-- **校验收口**：`POST /project/testFlow/validate?stage=canvas|save|run|ingress|subflow` 返回统一 `issues[{code,severity,stage,nodeId,message}]`。`severity` 为 `ERROR` | `WARNING`（静态不确定项静默不返回；`OFF` 定级后不出现）。画布/开跑以前端消费该接口为准，本地只做 JSON/节点 id/边端点地板。`stage=canvas` 走 `validateJson(raw)`（保留未知键/边多余字段）；body 可带 `deferTopology=true`（Staging 有未确认边时延后开始节点等拓扑硬拦）。定级与硬拦文案**只**经 `FlowGraphValidateService`（就绪原料由 `FlowRunReadinessGate` 产出，不再自行 finalize）。
+- **校验收口**：`POST /project/testFlow/validate?stage=canvas|save|run|ingress|subflow` 返回统一 `issues[{code,severity,stage,nodeId,message}]`。`severity` 为 `ERROR` | `WARNING`（静态不确定项静默不返回；`OFF` 生效后不出现）。画布/开跑以前端消费该接口为准，本地只做 JSON/节点 id/边端点地板。`stage=canvas` 走 `validateJson(raw)`（保留未知键/边多余字段）；body 可带 `deferTopology=true`（Staging 有未确认边时延后开始节点等拓扑硬拦）。生效严重性与硬拦文案**只**经 `FlowGraphValidateService`（就绪原料由 `FlowRunReadinessGate` 产出，不再自行 finalize）。
 
 #### 状态与门禁矩阵（Stage × CODE）
 
@@ -166,42 +166,45 @@ Condition 示例：`run.entryKind`、`run.entryNodeId`、`run.trigger`。
 
 | 门槛 | 规则 |
 |---|---|
-| 画布展示 | 定级后仍返回的 `ERROR` + `WARNING` 都进校验条；**不**挡 Staging ✓ / 保存 |
+| 画布展示 | 生效仍返回的 `ERROR` + `WARNING` 都进校验条；**不**挡 Staging ✓ / 保存 |
 | 保存硬拦 | **仅**解析地板 `GRAPH_JSON_INVALID` |
-| 开跑硬拦（人跑 / 入站 / 子流） | 定级后 **`severity=ERROR`** 才硬拦；`WARNING` 只提示 |
+| 开跑硬拦（人跑 / 入站 / 子流） | 生效 **`severity=ERROR`** 才硬拦；`WARNING` 只提示 |
 
-**severity 从哪来**
+**生效 severity 从哪来**
 
 | 来源 | 说明 |
 |---|---|
 | 解析地板 | `GRAPH_JSON_INVALID`：**固定 ERROR**；**不进**流检查目录；不能被 `inspection_profile` 改级/OFF |
-| 流检查目录 | 内置码 + 插件说明书码；项目设置可改为 `ERROR` / `WARNING` / `OFF`；表中「默认」指未覆盖时的内置/说明书默认 |
+| 流检查目录 | 内置码 + 插件说明书码；项目设置可改为 `ERROR` / `WARNING` / `OFF`；表中「默认」指未覆盖时的内置/说明书默认；**生效值 = 目录默认 ∪ 项目覆盖** |
+| 未知插件检查码 | 无目录定义时默认 **WARNING**（避免漏登说明书意外硬拦）；有说明书则以说明书为准 |
+
+含义对照：`ERROR` = 开跑硬拦；`WARNING` = 校验条提示、不拦跑；`OFF` = 不返回。UI 须区分错误与警告，不可把 WARNING 画成/说成「错误」。
 
 托管头由 normalize /「刷新鉴权头」**直接写入**节点（`profileManaged`）；无 soft 提示码。Staging Diff 字段标签可标「按项目鉴权补全」。
 
 **按 stage 跑哪些收集器**（有才可能出对应码）
 
-| 收集器 | canvas | save | run / ingress / subflow |
-|---|---|---|---|
-| 图解析地板 | ✓ | ✓ | ✓ |
-| 图结构 / 路由 / 鉴权就绪 / API 语义 | ✓ | — | ✓ |
-| 插件 **platform.***（平台侧、不启插件进程） | ✓ | — | ✓ |
-| 插件 **Invoke**（`INSPECT_INVOKE_FAILED` 等，需环境调度） | — | — | ✓（需 `testProjectEnvId`） |
+| 收集器 | canvas | save | run | ingress | subflow |
+|---|---|---|---|---|---|
+| 图解析地板 | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 图结构 / 路由 / 鉴权就绪 / 断言路径 / API 语义 | ✓ | — | ✓ | ✓ | ✓ |
+| 插件 **platform.***（平台侧、不启插件进程） | ✓ | — | ✓ | ✓ | ✓ |
+| 插件 **Invoke**（`INSPECT_INVOKE_FAILED` 等） | — | — | ✓（需 `testProjectEnvId`） | **—**（入站不传环境，故意跳过） | ✓（需环境） |
 
 **CODE 表**
 
 | CODE | 默认 severity | 可 profile | canvas | save 硬拦 | run 硬拦 | Staging ✓ / submit |
 |---|---|---|---|---|---|---|
 | `GRAPH_JSON_INVALID`（文本不成 `GraphJson`） | ERROR（固定） | 否 | 有 | **是** | **是** | submit 地板拒收 |
-| `GRAPH_STRUCTURE`（拓扑/字段；可 `deferTopology`） | ERROR | 是 | 有 | 否 | 定级后仍 ERROR 才拦 | 不挡 ✓；submit 仅 id 地板 |
+| `GRAPH_STRUCTURE`（拓扑/字段；可 `deferTopology`） | ERROR | 是 | 有 | 否 | 生效仍 ERROR 才拦 | 不挡 ✓；submit 仅 id 地板 |
 | `ENTRY_ROUTE_CONFLICT` | ERROR | 是 | 有 | 否 | 同上 | 不挡 |
 | `ASSERT_PATH` | ERROR | 是 | 有 | 否 | 同上 | 不挡 |
-| `RUN_READINESS_AUTH`（含 `AUTH_TOKEN_MISSING` / `AUTH_LOGIN_FLOWKEY_COLLISION` / HTTP 必填） | ERROR | 是 | 有（开跑前可见，不挡存） | 否 | 同上 | 不挡 |
+| `RUN_READINESS_AUTH` | ERROR | 是 | 有（开跑前可见，不挡存） | 否 | 同上 | 不挡；`AUTH_TOKEN_MISSING` / `AUTH_LOGIN_FLOWKEY_COLLISION` 等为 **message 前缀**（非独立 CODE，不可单独 profile） |
 | `API_MISSING` | ERROR | 是 | 有 | 否 | 同上 | 不挡 |
 | `ORPHAN_PARAM` | **WARNING** | 是 | 有 | 否 | 默认不拦；改成 ERROR 才拦 | 不挡 |
 | `EXTRACT_PATH_MISSING` | **WARNING** | 是 | 有 | 否 | 同上 | 不挡 |
-| 插件 `platform.*`（挂载/启用等平台求值） | 说明书默认 | 是 | 有 | 否 | 定级后仍 ERROR 才拦 | 不挡 |
-| `INSPECT_INVOKE_FAILED`（及 `插件id/INSPECT_INVOKE_FAILED`） | **WARNING** | 是 | **无**（仅 run 类 stage） | 否 | 默认不拦；改成 ERROR 才拦 | 不挡 |
+| 插件 `platform.*`（挂载/启用等平台求值） | 说明书默认 | 是 | 有 | 否 | 生效仍 ERROR 才拦 | 不挡 |
+| `INSPECT_INVOKE_FAILED`（及 `插件id/INSPECT_INVOKE_FAILED`） | **WARNING** | 是 | **无**（仅 run / subflow；ingress 不做 Invoke） | 否 | 默认不拦；改成 ERROR 才拦 | 不挡 |
 
 改行为时同步改本表与 [ai-staging.md §5](./ai-staging.md)。
 

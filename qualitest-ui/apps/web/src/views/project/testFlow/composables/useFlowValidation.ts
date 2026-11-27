@@ -25,7 +25,12 @@ import { buildCanvasPersistGraph } from './buildCanvasPersistGraph'
 
 interface FlowValidationApi {
   issues: ComputedRef<FlowCanvasValidationIssue[]>
-  issueNodeIds: ComputedRef<Set<string>>
+  /** 生效 ERROR 涉及的节点（红描边） */
+  errorNodeIds: ComputedRef<Set<string>>
+  /** 生效 WARNING 涉及的节点（琥珀描边）；同节点有 ERROR 时仍以 ERROR 为准 */
+  warningNodeIds: ComputedRef<Set<string>>
+  /** 生效 ERROR 条数（跑钮 / toast 只认此项） */
+  errorCount: ComputedRef<number>
   serverIssues: Ref<FlowIssueRecord[]>
 }
 
@@ -139,11 +144,17 @@ function createFlowValidation(): FlowValidationApi {
     return dedupeCanvasIssues([...issuesFromGraphValidation(floor, graph), ...fromServer])
   })
 
-  const issueNodeIds = computed(() => collectIssueNodeIds(issues.value))
+  const errorNodeIds = computed(() => collectIssueNodeIds(issues.value, 'error'))
+  const warningNodeIds = computed(() => collectIssueNodeIds(issues.value, 'warning'))
+  const errorCount = computed(
+    () => issues.value.filter((i) => i.level === 'error').length,
+  )
 
   return {
     issues,
-    issueNodeIds,
+    errorNodeIds,
+    warningNodeIds,
+    errorCount,
     serverIssues,
   }
 }

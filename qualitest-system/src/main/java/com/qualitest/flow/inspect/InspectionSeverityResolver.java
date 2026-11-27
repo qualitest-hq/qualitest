@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * 计算流检查的生效严重性，并把原始问题列表按项目配置重映射。
- * 优先级：解析地板码固定 ERROR → 锁定项固定 ERROR → 项目覆盖 → 目录默认 → 未知码按 ERROR。
+ * 优先级：解析地板码固定 ERROR → 锁定项固定 ERROR → 项目覆盖 → 目录默认 → 未知码按 WARNING。
  * 配置为 OFF 的码不会进入最终结果。
  */
 @Component
@@ -20,7 +20,7 @@ public class InspectionSeverityResolver {
      * 解析单个诊断码的生效严重性。
      *
      * @param code      诊断码，用于在覆盖表中查找
-     * @param def       目录定义；可为 null（未知码按 ERROR）
+     * @param def       目录定义；可为 null（未知码按 WARNING，避免漏登说明书意外硬拦）
      * @param overrides 项目覆盖表；可为 null，表示无覆盖
      */
     public InspectionConfiguredSeverity resolve(
@@ -43,7 +43,7 @@ public class InspectionSeverityResolver {
         if (def != null && def.getDefaultSeverity() != null) {
             return def.getDefaultSeverity();
         }
-        return InspectionConfiguredSeverity.ERROR;
+        return InspectionConfiguredSeverity.WARNING;
     }
 
     /**

@@ -13,7 +13,9 @@ const issuesRef = ref<Array<{ level: 'error' | 'warning'; message: string; nodeI
 vi.mock('@/views/project/testFlow/composables/useFlowValidation', () => ({
   useFlowValidation: () => ({
     issues: computed(() => issuesRef.value),
-    issueNodeIds: computed(() => new Set<string>()),
+    errorNodeIds: computed(() => new Set<string>()),
+    warningNodeIds: computed(() => new Set<string>()),
+    errorCount: computed(() => 0),
     serverIssues: ref([]),
   }),
   resetFlowValidationForTests: () => {

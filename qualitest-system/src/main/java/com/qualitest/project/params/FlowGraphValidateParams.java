@@ -23,7 +23,8 @@ public class FlowGraphValidateParams {
     private Boolean deferTopology;
 
     /**
-     * 仅 stage=run：环境 id，用于调度已启用插件的 onFlowInspect。
+     * 仅 stage=run / subflow：环境 id，用于调度已启用插件的 onFlowInspect。
+     * ingress 不传（故意跳过 Invoke）。
      */
     private Long testProjectEnvId;
 }

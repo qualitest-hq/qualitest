@@ -47,8 +47,12 @@
       <p v-if="authLabel && authScope.kind === 'inherit'" class="field__hint">
         凭证展示来自节点托管头；鉴权硬拦以画布校验条为准。
       </p>
-      <ul v-if="nodeHealthWarnings.length" class="http-prop-health">
-        <li v-for="(w, i) in nodeHealthWarnings" :key="i">{{ w.message || w.code }}</li>
+      <ul v-if="nodeHealthIssues.length" class="http-prop-health">
+        <li
+            v-for="(issue, i) in nodeHealthIssues"
+            :key="i"
+            :class="issue.level === 'error' ? 'http-prop-health__item--error' : 'http-prop-health__item--warn'"
+        >{{ issue.message || issue.code }}</li>
       </ul>
       <button class="btn btn--primary" style="width:100%" type="button" @click="emit('open-http-config', node.id)">
         {{ node.data.testProjectApiId ? '编辑接口与参数' : '选择接口并配置参数' }}
@@ -253,8 +257,8 @@ onMounted(() => {
   }
 })
 
-/** 当前选中节点上的画布校验问题（含 API 语义） */
-const nodeHealthWarnings = computed(() => issuesForNode(issues.value, props.node?.id))
+/** 当前选中节点上的画布校验问题（含 API 语义；ERROR + WARNING） */
+const nodeHealthIssues = computed(() => issuesForNode(issues.value, props.node?.id))
 
 const callMode = computed(() => (isExternalCallMode(props.node?.data?.callMode) ? 'external' : 'project'))
 
@@ -598,12 +602,19 @@ function onPostScriptChange(val) {
 }
 
 .http-prop-health {
-  /* 属性面板：当前 HTTP 节点的语义告警列表 */
+  /* 属性面板：当前 HTTP 节点的校验问题（ERROR 红 / WARNING 琥珀） */
   margin: 0 0 8px;
   padding-left: 16px;
   font-size: 11px;
-  color: #a16207;
   line-height: 1.45;
+}
+
+.http-prop-health__item--error {
+  color: #b91c1c;
+}
+
+.http-prop-health__item--warn {
+  color: #a16207;
 }
 
 .method-badge {

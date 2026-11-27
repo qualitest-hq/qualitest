@@ -89,6 +89,8 @@ export function resolveNodeAuthScope(input: {
   const extractCredentials = listExtractCredentialPaths(input.extracts)
   const headerCredential = parseHeaderCredential(input.headers)
   const related = (input.authIssues || []).filter((issue) => {
+    // 仅生效 ERROR 当鉴权 conflict；WARNING 不进硬样式
+    if (issue.level !== 'error') return false
     if (!isAuthCanvasIssue(issue)) return false
     if (!nodeId) return true
     const ids = issue.nodeIds || []

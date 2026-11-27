@@ -17,7 +17,7 @@ import java.util.Set;
 
 /**
  * 按阶段产出统一流问题列表。
- * 除图结构外，还会合并路由冲突、鉴权就绪、API 语义、平台插件检查与（开跑时）插件 Invoke 检查，
+ * 除图结构外，还会合并路由冲突、断言路径、鉴权就绪、API 语义、平台插件检查与（开跑时）插件 Invoke 检查，
  * 最后按项目流检查配置定级并过滤已关闭项。
  * {@link FlowIssueCodes#GRAPH_JSON_INVALID} 为解析地板：短路返回，不经流检查定级。
  */
@@ -85,54 +85,42 @@ public class FlowGraphValidateService {
      * 结构错误、路由冲突等不在此拦截，便于草稿落盘。
      */
     private FlowGraphValidateResult validateSave(String graphJson) {
-        try {
-            GraphJson graph = GraphJson.parse(graphJson);
-            if (graph == null) {
-                return parseFloorResult(FlowIssue.Stage.SAVE, "graph_json 无法解析：解析结果为空");
-            }
-            return FlowGraphValidateResult.of(List.of());
-        } catch (Exception e) {
-            return parseFloorResult(FlowIssue.Stage.SAVE, "graph_json 无法解析：" + e.getMessage());
+        ParseOutcome parsed = parseGraph(graphJson, FlowIssue.Stage.SAVE);
+        if (parsed.floorFailure() != null) {
+            return parsed.floorFailure();
         }
+        return FlowGraphValidateResult.of(List.of());
     }
 
     /**
-     * 画布阶段：结构校验 + 路由冲突 + 鉴权就绪 + 平台插件检查 + API 语义。
-     * 图解析失败时只保留结构类问题；其它收集器在图可用时再跑，异常向上抛出。
+     * 画布阶段：结构校验 + 路由冲突 + 断言路径 + 鉴权就绪 + 平台插件检查 + API 语义。
+     * 图文本无法解析时短路为 {@link FlowIssueCodes#GRAPH_JSON_INVALID}（与 save/run 同口径）。
      */
     private FlowGraphValidateResult validateCanvas(
             String graphJson, Long testProjectId, Long testFlowId, boolean deferTopology) {
+        ParseOutcome parsed = parseGraph(graphJson, FlowIssue.Stage.CANVAS);
+        if (parsed.floorFailure() != null) {
+            return parsed.floorFailure();
+        }
+        GraphJson graph = parsed.graph();
         GraphValidationOptions options = deferTopology
                 ? GraphValidationOptions.deferTopology()
                 : GraphValidationOptions.full();
+        // raw 校验保留未知键 / 边多余字段；解析地板已在上方短路
         GraphValidationResult graphResult = graphJsonValidator.validateJson(graphJson, options);
         List<FlowIssue> issues = new ArrayList<>(
                 FlowIssues.fromValidationResult(graphResult, FlowIssue.Stage.CANVAS));
-        GraphJson graph = tryParseGraph(graphJson);
-        if (graph != null) {
-            if (testProjectId != null) {
-                issues.addAll(openHttpRouteRegistry.conflicts(
-                        graph, testProjectId, testFlowId, FlowIssue.Stage.CANVAS));
-                issues.addAll(flowRunReadinessGate.collectAuthIssues(
-                        graph, testProjectId, FlowIssue.Stage.CANVAS));
-                issues.addAll(platformPluginInspectionEvaluator.evaluate(
-                        graph, testProjectId, FlowIssue.Stage.CANVAS));
-            }
-            issues.addAll(apiHealthIssueCollector.collect(graphJson, FlowIssue.Stage.CANVAS));
+        issues.addAll(flowRunReadinessGate.collectAssertPathIssues(graph, FlowIssue.Stage.CANVAS));
+        if (testProjectId != null) {
+            issues.addAll(openHttpRouteRegistry.conflicts(
+                    graph, testProjectId, testFlowId, FlowIssue.Stage.CANVAS));
+            issues.addAll(flowRunReadinessGate.collectAuthIssues(
+                    graph, testProjectId, FlowIssue.Stage.CANVAS));
+            issues.addAll(platformPluginInspectionEvaluator.evaluate(
+                    graph, testProjectId, FlowIssue.Stage.CANVAS));
         }
+        issues.addAll(apiHealthIssueCollector.collect(graphJson, FlowIssue.Stage.CANVAS));
         return FlowGraphValidateResult.of(finalizeIssues(dedupe(issues), testProjectId));
-    }
-
-    /**
-     * 尝试解析图对象。
-     * 失败返回 null；结构错误已由 {@link GraphJsonValidator#validateJson} 收集，此处不再抛出。
-     */
-    private static GraphJson tryParseGraph(String graphJson) {
-        try {
-            return GraphJson.parse(graphJson);
-        } catch (RuntimeException e) {
-            return null;
-        }
     }
 
     /**
@@ -145,15 +133,11 @@ public class FlowGraphValidateService {
             Long testProjectId,
             Long testFlowId,
             Long testProjectEnvId) {
-        GraphJson graph;
-        try {
-            graph = GraphJson.parse(graphJson);
-        } catch (Exception e) {
-            return parseFloorResult(stage, "graph_json 无法解析：" + e.getMessage());
+        ParseOutcome parsed = parseGraph(graphJson, stage);
+        if (parsed.floorFailure() != null) {
+            return parsed.floorFailure();
         }
-        if (graph == null) {
-            return parseFloorResult(stage, "graph_json 无法解析：解析结果为空");
-        }
+        GraphJson graph = parsed.graph();
         List<FlowIssue> issues = new ArrayList<>(
                 flowRunReadinessGate.collectRawBlockingIssues(graph, testProjectId, testFlowId, stage));
         issues.addAll(apiHealthIssueCollector.collect(graphJson, stage));
@@ -161,6 +145,22 @@ public class FlowGraphValidateService {
         issues.addAll(pluginInvokeInspectionCollector.collect(
                 testProjectEnvId, testProjectId, testFlowId, graphJson, stage));
         return FlowGraphValidateResult.of(finalizeIssues(dedupe(issues), testProjectId));
+    }
+
+    /** 解析成功带图；失败带 GRAPH_JSON_INVALID 结果（二选一）。 */
+    private record ParseOutcome(GraphJson graph, FlowGraphValidateResult floorFailure) {}
+
+    /** 统一解析地板：save / canvas / run-like 共用，避免三段重复 try/catch。 */
+    private static ParseOutcome parseGraph(String graphJson, FlowIssue.Stage stage) {
+        try {
+            GraphJson graph = GraphJson.parse(graphJson);
+            if (graph == null) {
+                return new ParseOutcome(null, parseFloorResult(stage, "graph_json 无法解析：解析结果为空"));
+            }
+            return new ParseOutcome(graph, null);
+        } catch (Exception e) {
+            return new ParseOutcome(null, parseFloorResult(stage, "graph_json 无法解析：" + e.getMessage()));
+        }
     }
 
     /**

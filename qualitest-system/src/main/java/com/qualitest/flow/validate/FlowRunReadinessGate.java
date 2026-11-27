@@ -51,12 +51,24 @@ public class FlowRunReadinessGate {
             issues.addAll(openHttpRouteRegistry.conflicts(graph, testProjectId, testFlowId, effective));
         }
 
+        issues.addAll(collectAssertPathIssues(graph, effective));
+        issues.addAll(collectAuthIssues(graph, testProjectId, effective));
+        return issues;
+    }
+
+    /**
+     * 仅断言 / 条件路径设计错误（画布与开跑共用）。
+     */
+    public List<FlowIssue> collectAssertPathIssues(GraphJson graph, FlowIssue.Stage stage) {
+        FlowIssue.Stage effective = stage != null ? stage : FlowIssue.Stage.CANVAS;
+        List<FlowIssue> issues = new ArrayList<>();
+        if (graph == null) {
+            return issues;
+        }
         Function<Long, TestProjectApi> apiResolver = testProjectApiMapper::selectTestProjectApiById;
         for (String err : AssertPathDesignGate.validate(graph, apiResolver).errors()) {
             issues.add(FlowIssue.error(FlowIssueCodes.ASSERT_PATH, effective, null, err));
         }
-
-        issues.addAll(collectAuthIssues(graph, testProjectId, effective));
         return issues;
     }
 

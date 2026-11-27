@@ -73,4 +73,24 @@ describe('flowValidationIssues', () => {
     expect(issuesForNode(issues, 'n1')[0].code).toBe('API_MISSING')
     expect([...collectIssueNodeIds(issues)]).toEqual(['n1'])
   })
+
+  it('collectIssueNodeIds 可按 level 过滤', () => {
+    // 前提：同节点既有 ERROR 又有 WARNING，另有仅 WARNING 节点
+    // 期望：按 level 分别汇总
+    const issues = [
+      { level: 'error' as const, message: '缺接口', nodeIds: ['n1'], code: 'API_MISSING' },
+      { level: 'warning' as const, message: '孤儿参', nodeIds: ['n1'], code: 'ORPHAN_PARAM' },
+      { level: 'warning' as const, message: '抽取路径', nodeIds: ['n2'], code: 'EXTRACT_PATH_MISSING' },
+    ]
+    expect([...collectIssueNodeIds(issues, 'error')].sort()).toEqual(['n1'])
+    expect([...collectIssueNodeIds(issues, 'warning')].sort()).toEqual(['n1', 'n2'])
+  })
+
+  it('isAuthRiskMessage 只认后端实际前缀', () => {
+    // 前提：后端产出 AUTH_TOKEN_MISSING / AUTH_LOGIN_FLOWKEY_COLLISION；无 LOGIN_EXTRACT_MISSING
+    expect(isAuthRiskMessage('AUTH_TOKEN_MISSING: 缺 token')).toBe(true)
+    expect(isAuthRiskMessage('AUTH_LOGIN_FLOWKEY_COLLISION: 碰撞')).toBe(true)
+    expect(isAuthRiskMessage('LOGIN_EXTRACT_MISSING: 旧前缀')).toBe(false)
+    expect(isAuthRiskMessage('HTTP_REQUIRED_PARAM_MISSING: 旧前缀')).toBe(false)
+  })
 })

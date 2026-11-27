@@ -35,7 +35,7 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 | ✕ 取消 | 丢弃该单元，不落盘 |
 | 删除类 ✓ | **唯一确认**，无二次 `MessageBox`；勿对 Staging 边按键盘 Delete 当确认 |
 | 保存 | 可带设计期问题落盘（仅拦 `GRAPH_JSON_INVALID`）；Staging 应清零；顶栏「nodes 为空」= 库里仍是空图，**不算造流成功** |
-| 运行 | 定级后 `severity=ERROR` 硬拦；`WARNING` 只提示（目录内码可由「流检查」改级；解析地板除外） |
+| 运行 | 生效 `severity=ERROR` 硬拦；`WARNING` 只提示（目录内码可由「流检查」改级；解析地板除外） |
 | 仅保存已确认 | 未确认项会丢，易得半截图；应先去确认或全部 ✕ 后新建流 |
 | 刷新鉴权头 | 批量改托管头，**仍进 Staging**，不是静默写库 |
 
@@ -82,16 +82,19 @@ AI **默认不直接写库**。Web 助手按单元调用 `submit_*`（如 `submi
 | 动作 | 硬拦什么 | 展示 |
 |---|---|---|
 | Staging ✓ / submit 收单 | submit **仅地板**（缺 id / 未知引用 / update 空数组误清空等）；结构·鉴权·断言**不挡** | 合进画布后靠校验条 |
-| 保存 | **仅** `GRAPH_JSON_INVALID`（解析地板，固定 ERROR，不进流检查目录） | 其它 ERROR/WARNING 可带错落盘；toast 可提示「已保存，暂不可运行」 |
-| 画布 `stage=canvas` | 不硬拦 | 定级后 `ERROR` + `WARNING`（含鉴权/结构/API/插件 **platform.***）；**不含** Invoke |
-| 开跑 `stage=run`（入站/子流同族） | 定级后 **`severity=ERROR`** | 另含插件 **Invoke**（默认 WARNING，需环境）；WARNING 不拦跑 |
+| 保存 | **仅** `GRAPH_JSON_INVALID`（解析地板，固定 ERROR，不进流检查目录） | 其它 ERROR/WARNING 可带错落盘；有 ERROR 时 toast「已保存，暂不可运行」；仅 WARNING 不说成错误 |
+| 画布 `stage=canvas` | 不硬拦 | 生效 `ERROR` + `WARNING`（含鉴权/结构/断言路径/API/插件 **platform.***）；**不含** Invoke |
+| 开跑 `stage=run` / 子流 | 生效 **`severity=ERROR`** | 另含插件 **Invoke**（默认 WARNING，需 `testProjectEnvId`）；WARNING 不拦跑 |
+| 入站 `stage=ingress` | 生效 **`severity=ERROR`** | **故意不做** Invoke（不传环境） |
 
 **鉴权相关码（细节）**
 
-| CODE | 硬拦？ | 何时硬拦 | 含义 |
+issue.code 统一为 `RUN_READINESS_AUTH`；下表前缀仅出现在 **message** 开头，**不是**独立 CODE，不可单独改级。
+
+| message 前缀 / 项 | 硬拦？ | 何时硬拦 | 含义 |
 | ---- | ---- | ---- | ---- |
-| `AUTH_LOGIN_FLOWKEY_COLLISION` | 是 | **运行**（画布已可见 ERROR） | 两套不同登录口写出同一凭证路径 |
-| `AUTH_TOKEN_MISSING` | 是 | **运行**（画布已可见 ERROR） | 图要用某托管 Bearer，但 extracts / assign / 子流内 extracts / **inSeed** 都没有该目标 |
+| `AUTH_LOGIN_FLOWKEY_COLLISION:` | 是（随 `RUN_READINESS_AUTH` 生效 ERROR） | **运行**（画布已可见） | 两套不同登录口写出同一凭证路径 |
+| `AUTH_TOKEN_MISSING:` | 是（同上） | **运行**（画布已可见） | 图要用某托管 Bearer，但 extracts / assign / 子流内 extracts / **inSeed** 都没有该目标 |
 | 断言路径结构错（`.items`、`http.body.$.…`） | 默认 ERROR | **运行**；✓ / 保存 / submit 不拦 | 见节点文档；无 schema / 字段未命中静默 |
 | update 空数组误清空（`rules` / `extracts` / `assignments`） | 是 | **submit 地板** | baseline 同字段非空时优先拒收 |
 | condition `branches[].target` | — | normalize **直接剔除** | 出口只认边，AI 预写 target 丢弃 |

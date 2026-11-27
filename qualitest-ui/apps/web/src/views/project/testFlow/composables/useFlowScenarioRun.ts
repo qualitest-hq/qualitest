@@ -89,6 +89,7 @@ export function useFlowScenarioRun() {
       graph: graphForRun,
       testProjectId: store.testProjectId,
       testFlowId: store.testFlowId,
+      testProjectEnvId: envId || undefined,
     });
     if (blocking.length) {
       ElMessage.error(`${blocking[0]}（请查看左上角校验条）`);

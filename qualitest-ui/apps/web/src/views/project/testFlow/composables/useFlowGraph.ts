@@ -239,7 +239,7 @@ export function useFlowGraph() {
           ElMessage.success(`已保存（已排除 ${excludedPending} 项未确认 Staging）`);
         } else if (errors.length) {
           ElMessage.warning(
-            `已保存，尚有 ${errors.length} 项问题暂不可运行（见左上角校验条）`,
+            `已保存，尚有 ${errors.length} 项错误暂不可运行（见左上角校验条）`,
           );
         } else {
           ElMessage.success('保存成功');

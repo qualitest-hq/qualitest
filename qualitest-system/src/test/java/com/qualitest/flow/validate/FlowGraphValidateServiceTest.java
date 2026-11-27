@@ -54,6 +54,8 @@ class FlowGraphValidateServiceTest {
                         "未找到开始节点（入口须无入边）")));
         when(readiness.collectAuthIssues(any(), any(), eq(FlowIssue.Stage.CANVAS)))
                 .thenReturn(List.of());
+        when(readiness.collectAssertPathIssues(any(), eq(FlowIssue.Stage.CANVAS)))
+                .thenReturn(List.of());
         service = FlowGraphValidateServiceTestSupport.create(
                 new GraphJsonValidator(), readiness, routeRegistry);
     }
@@ -195,7 +197,7 @@ class FlowGraphValidateServiceTest {
     }
 
     /**
-     * 前提：非法 JSON 文本；SAVE / RUN。
+     * 前提：非法 JSON 文本；SAVE / CANVAS / RUN。
      * 期望：均为 GRAPH_JSON_INVALID ERROR（短路，不被 profile 影响）。
      */
     @Test
@@ -208,10 +210,46 @@ class FlowGraphValidateServiceTest {
         assertEquals(FlowIssueCodes.GRAPH_JSON_INVALID, save.getIssues().get(0).getCode());
         assertTrue(save.getIssues().get(0).isError());
 
+        FlowGraphValidateResult canvas = service.validate(bad, FlowIssue.Stage.CANVAS, 1L, 10L);
+        assertEquals(1, canvas.getIssues().size());
+        assertEquals(FlowIssueCodes.GRAPH_JSON_INVALID, canvas.getIssues().get(0).getCode());
+        assertTrue(canvas.getIssues().get(0).isError());
+
         FlowGraphValidateResult run = service.validate(bad, FlowIssue.Stage.RUN, 1L, 10L);
         assertEquals(1, run.getIssues().size());
         assertEquals(FlowIssueCodes.GRAPH_JSON_INVALID, run.getIssues().get(0).getCode());
         assertTrue(run.getIssues().get(0).isError());
+    }
+
+    /**
+     * 前提：mock 断言路径门禁返回错误。
+     * 期望：canvas issues 含 ASSERT_PATH。
+     */
+    @Test
+    @Order(10)
+    @DisplayName("CANVAS 合并 ASSERT_PATH")
+    void canvasStageMergesAssertPath() {
+        when(routeRegistry.conflicts(any(), any(), any(), eq(FlowIssue.Stage.CANVAS)))
+                .thenReturn(List.of());
+        when(readiness.collectAssertPathIssues(any(), eq(FlowIssue.Stage.CANVAS)))
+                .thenReturn(List.of(FlowIssue.error(
+                        FlowIssueCodes.ASSERT_PATH,
+                        FlowIssue.Stage.CANVAS,
+                        null,
+                        "ASSERT_PATH: 断言路径非法")));
+        String json = """
+                {"nodes":[
+                   {"id":"se","type":"scenario-entry","name":"入口","position":{"x":0,"y":0},
+                    "data":{"scenarios":[{"id":"s1","name":"默认","envId":"","inSeed":{}}]}},
+                   {"id":"a1","type":"assert","name":"断言","position":{"x":100,"y":0},
+                    "data":{"rules":[]}}
+                 ],
+                 "edges":[{"id":"e1","source":"se","target":"a1"}]}
+                """;
+        FlowGraphValidateResult result =
+                service.validate(json, FlowIssue.Stage.CANVAS, 1L, 10L, false);
+        assertTrue(result.getIssues().stream()
+                .anyMatch(i -> FlowIssueCodes.ASSERT_PATH.equals(i.getCode())));
     }
 
     /**

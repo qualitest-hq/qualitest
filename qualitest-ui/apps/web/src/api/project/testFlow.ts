@@ -85,6 +85,8 @@ export function validateTestFlowGraph(
     testFlowId?: string | number | null
     /** 仅 canvas：Staging 未确认边时延后拓扑硬拦 */
     deferTopology?: boolean
+    /** 仅 run / subflow：环境 id，用于插件 Invoke 检查 */
+    testProjectEnvId?: string | number | null
   },
 ) {
   return request({
@@ -96,6 +98,7 @@ export function validateTestFlowGraph(
       testProjectId: data.testProjectId ?? undefined,
       testFlowId: data.testFlowId ?? undefined,
       deferTopology: data.deferTopology === true ? true : undefined,
+      testProjectEnvId: data.testProjectEnvId ?? undefined,
     },
   }) as Promise<{ data?: FlowGraphValidateResult }>
 }

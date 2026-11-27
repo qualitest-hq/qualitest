@@ -54,7 +54,7 @@ const openHttpConfig = inject('openHttpConfig', null)
 
 const store = useFlowCanvasStore()
 const { isStartNode } = useFlowNodes()
-const { issueNodeIds } = useFlowValidation()
+const { errorNodeIds, warningNodeIds } = useFlowValidation()
 
 const stagingMark = useStagingMark(toRef(() => props.id), 'node')
 
@@ -93,7 +93,10 @@ const nodeClasses = computed(() => ({
   'is-ai-staging-add': stagingMark.value?.mode === 'add',
   'is-ai-staging-update': stagingMark.value?.mode === 'update',
   'is-ai-staging-delete': stagingMark.value?.mode === 'delete',
-  'is-ai-staging-error': issueNodeIds.value.has(props.id),
+  'is-ai-staging-error': errorNodeIds.value.has(props.id),
+  // 同节点有 ERROR 时不叠琥珀，避免把硬拦画成警告
+  'is-ai-staging-warning':
+    !errorNodeIds.value.has(props.id) && warningNodeIds.value.has(props.id),
 }))
 
 function onDblClick() {
@@ -293,6 +296,13 @@ defineExpose({ rootEl })
     box-shadow:
       0 0 0 2px rgba(220, 38, 38, 0.45),
       0 0 0 6px rgba(220, 38, 38, 0.12);
+  }
+
+  &.is-ai-staging-warning {
+    border-color: #d97706 !important;
+    box-shadow:
+      0 0 0 2px rgba(217, 119, 6, 0.4),
+      0 0 0 6px rgba(217, 119, 6, 0.12);
   }
 
   /* condition：加宽；body 去水平 padding，供行内 Handle 贴右缘（须压过下方默认 body padding） */

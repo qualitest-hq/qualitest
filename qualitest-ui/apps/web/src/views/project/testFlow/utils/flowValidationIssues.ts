@@ -67,10 +67,14 @@ export function issuesFromGraphValidation(
   }))
 }
 
-/** 汇总所有问题涉及的节点 id，供卡片描边高亮 */
-export function collectIssueNodeIds(issues: FlowCanvasValidationIssue[]): Set<string> {
+/** 汇总指定级别问题涉及的节点 id，供卡片描边高亮 */
+export function collectIssueNodeIds(
+  issues: FlowCanvasValidationIssue[],
+  level?: 'error' | 'warning',
+): Set<string> {
   const ids = new Set<string>()
   for (const issue of issues) {
+    if (level && issue.level !== level) continue
     for (const id of issue.nodeIds) {
       if (id) ids.add(id)
     }

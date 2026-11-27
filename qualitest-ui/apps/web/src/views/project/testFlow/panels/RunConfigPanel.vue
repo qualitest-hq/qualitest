@@ -108,6 +108,7 @@ import {
   STAGING_UPDATE_COLOR,
 } from '../constants/stagingTheme';
 import { useFlowScenarioRun } from '../composables/useFlowScenarioRun';
+import { useFlowValidation } from '../composables/useFlowValidation';
 import { useRunConfig } from '../composables/useRunConfig';
 import { useFlowCanvasPermissions } from '../composables/useFlowCanvasPermissions';
 import { useAiStagingStore } from '../stores/aiStagingStore';
@@ -119,6 +120,7 @@ const ENTRY_TYPES = new Set(PLATFORM_ENTRY_TYPES);
 
 const { canRunFlow, isTemplateCanvas } = useFlowCanvasPermissions();
 const { isScenarioRunActive, runActiveScenario, abortScenarioRun } = useFlowScenarioRun();
+const { errorCount } = useFlowValidation();
 
 const store = useFlowCanvasStore();
 const stagingStore = useAiStagingStore();
@@ -160,13 +162,16 @@ const runButtonLabel = computed(() => {
   return '运行场景';
 });
 
-/** 运行按钮悬浮提示：按不可运行原因给出说明，可运行时说明将运行的场景 */
+/** 运行按钮悬浮提示：按不可运行原因给出说明；有 ERROR 时提示条数（WARNING 不计入） */
 const runButtonTitle = computed(() => {
   if (isTemplateCanvas.value) return '模板画布不支持运行';
   if (!canRunFlow.value) return '当前账号无执行权限，无法运行';
   if (!selectedEntry.value) return '请先选择场景入口';
   if (selectedEntry.value.type !== 'scenario-entry') {
     return '画布点跑仅支持场景入口；HTTP 走开放入站，子流由父流调用';
+  }
+  if (errorCount.value > 0) {
+    return `有 ${errorCount.value} 项错误待修复（见左上角校验条），仍可点击尝试运行`;
   }
   return `运行场景「${activeScenarioName.value}」`;
 });

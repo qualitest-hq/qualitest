@@ -63,8 +63,8 @@
                     type="text"
                 />
               </div>
-              <p v-if="nodeHealthWarnings.length" class="http-modal__health-hint">
-                有 {{ nodeHealthWarnings.length }} 条 API 语义告警，详见右侧属性面板
+              <p v-if="nodeHealthIssues.length" class="http-modal__health-hint">
+                有 {{ nodeHealthErrorCount }} 条错误、{{ nodeHealthWarnCount }} 条警告，详见右侧属性面板
               </p>
               <nav class="debug-inner-tablist">
                 <button
@@ -144,8 +144,14 @@ const store = useFlowCanvasStore()
 const { issues } = useFlowValidation()
 const { replaceNodeData, patchNodeName } = useFlowNodes()
 
-/** 当前弹窗节点上的语义健康告警 */
-const nodeHealthWarnings = computed(() => issuesForNode(issues.value, props.nodeId))
+/** 当前弹窗节点上的画布校验问题（含 ERROR / WARNING） */
+const nodeHealthIssues = computed(() => issuesForNode(issues.value, props.nodeId))
+const nodeHealthErrorCount = computed(
+  () => nodeHealthIssues.value.filter((i) => i.level === 'error').length,
+)
+const nodeHealthWarnCount = computed(
+  () => nodeHealthIssues.value.filter((i) => i.level === 'warning').length,
+)
 
 const draft = ref(null)
 /** 打开/换绑 API 时的资产有效配置，保存时用作差分基线 */

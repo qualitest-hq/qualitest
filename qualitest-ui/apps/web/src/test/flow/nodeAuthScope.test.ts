@@ -81,6 +81,28 @@ describe('resolveNodeAuthScope', () => {
     expect(scope.conflictReason).not.toMatch(/^AUTH_TOKEN_MISSING/)
   })
 
+  it('本节点 AUTH WARNING 不标 conflict', () => {
+    // 前提：鉴权问题被 profile 降为 WARNING
+    // 期望：不进硬样式 conflict
+    const scope = resolveNodeAuthScope({
+      nodeId: 'n1',
+      headers: [
+        {
+          name: 'Authorization',
+          value: 'Bearer {{asset.adminAuth.token}}',
+          profileManaged: true,
+        },
+      ],
+      authIssues: [{
+        level: 'warning',
+        code: 'RUN_READINESS_AUTH',
+        message: 'AUTH_TOKEN_MISSING: 缺少凭证来源 asset.adminAuth.token',
+        nodeIds: ['n1'],
+      }],
+    })
+    expect(scope.conflict).toBe(false)
+  })
+
   it('其它节点的 AUTH issue 不标本节点 conflict', () => {
     // 前提：issue 只挂 n2
     const scope = resolveNodeAuthScope({
