@@ -15,7 +15,9 @@ import java.util.Map;
  * 交付：returnCount（http-return/subflow-return 成功次数）、delivered、deliveryWriteFailed、
  * deliverySink、inboundSlotToken。
  * 子流挂载：nodeOuts、parentContext、parentSubflowNodeId。
- * 另有外联权限、项目 ID、HTTP 快照（lastResponse / nodeResponses）、项目鉴权配置。
+ * 权限与身份：externalHttpPermitted（外联 HTTP）、pausePermitted（Input 暂停）、
+ * testProjectId / testProjectEnvId / testFlowRunId、projectAuthConfig。
+ * HTTP 快照：lastResponse、nodeResponses；暂停落盘时一并序列化，续跑后仍可按节点读取。
  */
 @Getter
 @Setter
@@ -136,10 +138,22 @@ public class FlowRunContext {
     private int subflowDepth = 0;
 
     /**
-     * 当前 Run 是否允许执行外联 HTTP（由触发 Run 时按成员角色/权限写入）。
+     * 当前 Run 是否允许执行外联 HTTP。
+     * 场景/套件等登录入口：开跑时按操作者是否具备项目外联能力写入；
+     * 开放 HTTP 入站：开跑时按项目「开放入站允许外联」开关写入；缺省 false。
      */
     @Builder.Default
-    private boolean externalHttpPermitted = true;
+    private boolean externalHttpPermitted = false;
+
+    /**
+     * 当前 Run 是否允许 Input 节点进入 paused、等人填表。
+     * 场景等入口：开跑时按项目「允许暂停」写入，缺省 true；
+     * 开放 HTTP 入站：开跑时固定 false（无人值守，不可等人）。
+     * 为 false 时 Input 直接失败，不写 paused。
+     * 子流 fork 时从父上下文原样继承。
+     */
+    @Builder.Default
+    private boolean pausePermitted = true;
 
     /**
      * 本上下文内最近一次 HTTP 响应快照（status / headers / body / durationMs /
@@ -151,7 +165,7 @@ public class FlowRunContext {
     /**
      * 按画布节点 id 索引的 HTTP 响应快照。
      * 同一节点多次执行时覆盖为该节点最后一次响应；
-     * 供路径 {@code nodes.<nodeId>.http…} 取值；暂停续跑序列化时不写入本 Map。
+     * 供路径 {@code nodes.<nodeId>.http…} 取值；暂停续跑时一并落盘，以免道具丢失。
      */
     @Builder.Default
     private Map<String, HttpResponseSnapshot> nodeResponses = new HashMap<>();
@@ -263,5 +277,63 @@ public class FlowRunContext {
             return null;
         }
         return this.nodeOuts.get(nodeId.trim());
+    }
+
+    /**
+     * 为子流组装子上下文：同一场 Run 内进入子图时调用。
+     * <p>
+     * 继承（同一身份与许可，避免子图丢环境/跑流 id 或权限变严变松）：
+     * testProjectId、testProjectEnvId、testFlowRunId、projectAuthConfig、
+     * externalHttpPermitted、pausePermitted；env / asset / session 与父共用同一 Map 引用。
+     * 隔离：新建空 flow；in 只灌入本步 inputs 种子；subflowDepth = 父深度 + 1；
+     * parentContext / parentSubflowNodeId 指向父，供子流 return 挂回父 nodeOuts。
+     * parent 为空时仍能建最小子上下文（深度 1），仅供极端兜底。
+     *
+     * @param parent               父 Run 上下文
+     * @param childSeed            子流 in 种子；可空
+     * @param parentSubflowNodeId  父图上本 subflow 节点 id
+     * @param childEntryNodeId     子图入口节点 id；可空
+     * @param entryKind            子流入口种类 code（通常 subflow）
+     * @param trigger              触发源 code（通常 subflow）
+     * @return 子流上下文
+     */
+    public static FlowRunContext forkForSubflow(
+            FlowRunContext parent,
+            Map<String, Object> childSeed,
+            String parentSubflowNodeId,
+            String childEntryNodeId,
+            String entryKind,
+            String trigger) {
+        Map<String, Object> seed = childSeed != null ? new HashMap<>(childSeed) : new HashMap<>();
+        if (parent == null) {
+            return FlowRunContext.builder()
+                    .flow(new HashMap<>())
+                    .in(new HashMap<>(seed))
+                    .entryKind(entryKind)
+                    .entryNodeId(childEntryNodeId)
+                    .trigger(trigger)
+                    .parentSubflowNodeId(parentSubflowNodeId)
+                    .subflowDepth(1)
+                    .build();
+        }
+        return FlowRunContext.builder()
+                .testProjectId(parent.getTestProjectId())
+                .testProjectEnvId(parent.getTestProjectEnvId())
+                .testFlowRunId(parent.getTestFlowRunId())
+                .projectAuthConfig(parent.getProjectAuthConfig())
+                .env(parent.getEnv() != null ? parent.getEnv() : Map.of())
+                .asset(parent.getAsset() != null ? parent.getAsset() : Map.of())
+                .session(parent.getSession() != null ? parent.getSession() : new HashMap<>())
+                .subflowDepth(parent.getSubflowDepth() + 1)
+                .externalHttpPermitted(parent.isExternalHttpPermitted())
+                .pausePermitted(parent.isPausePermitted())
+                .flow(new HashMap<>())
+                .in(new HashMap<>(seed))
+                .entryKind(entryKind)
+                .entryNodeId(childEntryNodeId)
+                .trigger(trigger)
+                .parentContext(parent)
+                .parentSubflowNodeId(parentSubflowNodeId)
+                .build();
     }
 }

@@ -552,7 +552,7 @@ AI / MCP 工具带 `toolKind`：`builtin`（平台 `flow-design-tools.json`）�
 
 | 是 | 否 |
 | --- | --- |
-| 宿主挂点：`onRunPrepare` / `onCheckpoint` / `onRestore` / `onRunFinalize` … | ~~`sut.data.checkpoint` 等写进质衡开放 API~~ |
+| 宿主挂点：`onRunPrepare` / `onCheckpoint` / `onRestore` / `onRunFinalize` / `onAwaitInput` … | ~~`sut.data.checkpoint` 等写进质衡开放 API~~ |
 | 插件在说明书里声明**私有** `capabilities[]` | ~~平台占名表，谁都能认领~~ |
 | `Invoker.invoke(pluginId, name, …)` | ~~`invoke("sut.data.checkpoint")` 全局按名找提供方~~ |
 
@@ -815,7 +815,7 @@ Exploring **只认** `ui-slot:<名>`：同环境另一 `pluginId` 已占用相�
 | `capabilities[]` | 对象：`name` 包内唯一；`effect`；可选 `gate` |
 | `requires[]` | 仅 `plugin:<id>` |
 | `isolation[]` | 见 §4.1；启用互斥仅 `ui-slot:<slug>` |
-| `hooks[].name` | `onRunPrepare` \| `onRunFinalize` \| `onCheckpoint` \| `onRestore` \| `onFlowInspect` |
+| `hooks[].name` | `onRunPrepare` \| `onRunFinalize` \| `onCheckpoint` \| `onRestore` \| `onFlowInspect` \| `onAwaitInput` |
 | `hooks[].order` | 整数；默认 `100` |
 | `hooks[].actions` | ⊆ 本包 `capabilities[].name` |
 | `configSchema` | 可选；环境 `config` 必须通过 |

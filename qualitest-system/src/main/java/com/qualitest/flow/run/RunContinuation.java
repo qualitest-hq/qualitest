@@ -24,7 +24,10 @@ public class RunContinuation {
         RETRY_NODE,
         /** 不执行当前节点，记 skipped 后沿出边前进 */
         SKIP_NODE,
-        /** 不执行 Handler：flow 已在续跑前写好，记 passed（可带 assigns）后沿出边前进 */
+        /**
+         * 不执行 Handler：flow 已在续跑前按填表结果写好，
+         * 记本步 passed（可带 assigns）后沿出边前进。用于 await_input 的 continueWithInput。
+         */
         COMPLETE_NODE
     }
 

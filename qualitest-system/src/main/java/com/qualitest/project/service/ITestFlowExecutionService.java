@@ -50,6 +50,17 @@ public interface ITestFlowExecutionService {
     TestFlowRunResult awaitRunTerminal(Long testFlowRunId, long timeoutMs);
 
     /**
+     * 从 trigger 回执解析正式 runId，供套件串跑等调用方复用。
+     * 已开跑（started）直接返回 runId；仍在排队则阻塞等待提升开跑直至 timeoutMs；
+     * 排队取消、超时或回执无效时返回 null。
+     *
+     * @param outcome   trigger 回执
+     * @param timeoutMs 排队等待上限毫秒
+     * @return 正式 runId；超时或取消时 null
+     */
+    Long resolveStartedRunId(TriggerTestFlowRunOutcome outcome, long timeoutMs);
+
+    /**
      * 恢复 paused 状态的 Run（续跑或按决策跳过/重试等）。
      */
     ResumeRunResult resumeRun(Long testFlowRunId, ResumeTestFlowRunParams params);

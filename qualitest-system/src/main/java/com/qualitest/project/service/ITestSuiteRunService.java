@@ -114,12 +114,21 @@ public interface ITestSuiteRunService {
     TestSuiteRun selectTestSuiteRunOne(TestSuiteRunParams params);
 
     /**
-     * 开始套件运行：按已保存套件写入 running 头与 pending 项，立刻返回；由客户端串行 trigger 并回写
+     * 开始套件运行：按已保存套件写入 running 头与 pending 项，立刻返回详情。
+     * 真正串跑由 {@link #executeAsync(Long)} 在后台完成；前端只需轮询本套件运行详情，不必再逐条 trigger。
      *
      * @param params 启动参数（须含 testSuiteId）
      * @return 套件运行详情
      */
     TestSuiteRunResult start(StartTestSuiteRunParams params);
+
+    /**
+     * 后台串行执行套件各项：对每项 trigger → 解析 runId → bind → 等待终态 → finish。
+     * 浏览器关页不影响编排；中途 abort 会把未跑项标 skipped、头状态 aborted。
+     *
+     * @param testSuiteRunId 套件运行 ID
+     */
+    void executeAsync(Long testSuiteRunId);
 
     /**
      * 运行项绑定正式 RunId，状态置为 running

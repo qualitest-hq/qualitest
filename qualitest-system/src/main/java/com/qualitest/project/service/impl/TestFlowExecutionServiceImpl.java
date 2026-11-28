@@ -101,6 +101,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     private final EnvRunConcurrencyService envRunConcurrencyService;
     /** 批跑时等待排队项开跑拿到 runId */
     private final IProjectRunHubService projectRunHubService;
+    /** 外联 HTTP / 暂停项目策略 */
+    private final FlowExternalPermission flowExternalPermission;
 
     /** 后台跑流线程池；守护线程，不阻塞触发接口返回 */
     private final ExecutorService runExecutor = Executors.newCachedThreadPool(r -> {
@@ -232,9 +234,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         }
 
         String assetJson = testProjectMapper.selectAssetVariablesByTestProjectId(testFlow.getTestProjectId());
-        boolean externalPermitted = testProjectMemberService.hasCapability(
-                testFlow.getTestProjectId(), operatorUserId, TestProjectMemberPerm.FLOW_EXTERNAL)
-                || SecurityUtils.hasPermi(FlowExternalPermission.PERMISSION);
+        boolean externalPermitted = flowExternalPermission.resolve(
+                testFlow.getTestProjectId(), operatorUserId);
         FlowRunContext ctx = FlowRunContextBuilder.buildFromScenario(
                 env, assetJson, scenario, testFlow.getTestProjectId(),
                 externalPermitted);
@@ -248,11 +249,13 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
         // 规范化触发方式（空值按 ui），同时写入上下文与运行记录
         String triggerType = com.qualitest.flow.delivery.RunTrigger.normalize(params.getTriggerType());
         ctx.setTrigger(triggerType);
-        // 记录环境 id 与运行记录 id，供插件步骤使用
+        // 环境 id / 运行记录 id：插件步骤与挂点调度要用；暂停许可按项目开关写入
         ctx.setTestProjectEnvId(env.getTestProjectEnvId());
         ctx.setTestFlowRunId(runId);
         if (project != null) {
             ctx.setProjectAuthConfig(project.getAuthConfig());
+            // 项目关「允许暂停」时 Input 不得落 paused
+            ctx.setPausePermitted(project.isPauseAllowed());
         }
 
         String snapshotJson = graph.toJsonString();
@@ -623,9 +626,9 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     }
 
     /**
-     * 组装 paused Run 的 pauseInfo。
-     * await_input：决策仅 continueWithInput / abort，并填入节点 prompt 与 fields；
-     * 其它暂停：四决策（还原重试 / 原地重试 / 跳过 / 中止）。
+     * 组装 paused Run 的 pauseInfo，供前端展示原因与可点决策。
+     * pauseReason=await_input：仅开放 continueWithInput / abort，并带上节点 prompt、fields 供填表；
+     * 其它历史暂停原因：新跑已不再写入，旧记录仅开放 abort，避免出现无法完成的重试入口。
      * 非 paused 返回 null。
      */
     private RunPauseInfo buildPauseInfo(TestFlowRunResult run) {
@@ -657,20 +660,18 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
             ));
             fillAwaitInputFields(builder, run, state.getPauseNodeId());
         } else {
-            builder.availableDecisions(Arrays.asList(
-                    ResumeDecision.RESTORE_AND_RETRY,
-                    ResumeDecision.RETRY_IN_PLACE,
-                    ResumeDecision.SKIP,
-                    ResumeDecision.ABORT
-            ));
+            // 新跑不再写入失败类暂停；旧记录仅允许中止，避免半死决策入口
+            builder.availableDecisions(List.of(ResumeDecision.ABORT));
         }
         return builder.build();
     }
 
     /**
-     * 若已开跑直接返回 runId；若排队则轮询绑定结果直至超时。
+     * 从 trigger 回执拿到正式 runId：已 started 直接返回；queued 则等排队提升开跑。
+     * 供套件后台串跑等复用，避免各处复制排队等待逻辑。
      */
-    private Long resolveStartedRunId(TriggerTestFlowRunOutcome outcome, long timeoutMs) {
+    @Override
+    public Long resolveStartedRunId(TriggerTestFlowRunOutcome outcome, long timeoutMs) {
         if (outcome == null) {
             return null;
         }
@@ -684,8 +685,8 @@ public class TestFlowExecutionServiceImpl implements ITestFlowExecutionService {
     }
 
     /**
-     * 从 Run 的 graph 快照读取暂停节点 data.prompt / data.fields，写入 pauseInfo。
-     * 解析失败时不影响基础 pauseInfo。
+     * 从 Run 固化的 graph 快照读取暂停 Input 节点的 data.prompt / data.fields，写入 pauseInfo。
+     * 供前端渲染提示文案与表单；解析失败时仍返回已有的基础 pauseInfo。
      */
     private void fillAwaitInputFields(RunPauseInfo.RunPauseInfoBuilder builder, TestFlowRunResult run, String pauseNodeId) {
         if (run == null || pauseNodeId == null || run.getGraphJsonSnapshot() == null) {

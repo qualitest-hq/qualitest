@@ -1,24 +1,17 @@
 /**
- * 套件串行跑流：建 suite_run → 逐条 trigger → bind/finish 回写。
- * 单条 trigger 若返回 queued，先等排队绑定 runId 再轮询终态。
+ * 套件串行跑流前端会话。
+ * 只负责：调用 start 建套件运行 → 轮询详情刷新进度 → cancel 时调 abort。
+ * 各项的 trigger / 等待终态由后端后台导演完成，关浏览器页不影响串跑。
  */
 import { reactive, ref } from 'vue'
 
 import {
-  getTestFlowRun,
-  triggerTestFlowRun,
-  type ApiTestFlowRunDetail,
-} from '@/api/project/testFlowRun'
-import { resolveRunIdAfterTrigger } from './waitQueuedRun'
-import {
   abortTestSuiteRun,
-  bindTestSuiteRunItem,
-  finishTestSuiteRunItem,
+  getTestSuiteRun,
   startTestSuiteRun,
 } from '@/api/project/testSuiteRun'
 
 import { LIVE_RUN_POLL_MS } from '../constants/flowConfig'
-import { TERMINAL_RUN_STATUSES, type RunRecordStatus } from '../constants/runStatus'
 import { abortableSleep } from '../utils/abortableSleep'
 
 export type BatchItemRunStatus =
@@ -30,7 +23,6 @@ export type BatchItemRunStatus =
   | 'aborted'
   | 'cancelled'
   | 'skipped'
-  | 'error'
 
 export interface BatchRunProgressItem {
   key: string
@@ -53,13 +45,6 @@ export interface FlowBatchRunOptions {
   testProjectEnvId?: string
   stopOnNonPass?: boolean
   perRunTimeoutMs?: number
-}
-
-function mapTerminalStatus(status: string | undefined): BatchItemRunStatus {
-  if (status && TERMINAL_RUN_STATUSES.has(status as RunRecordStatus)) {
-    return status as BatchItemRunStatus
-  }
-  return 'failed'
 }
 
 /**
@@ -96,7 +81,7 @@ export function useFlowBatchRun() {
       entryNodeId: it.entryNodeId ? String(it.entryNodeId) : undefined,
       runScenarioId: it.runScenarioId ? String(it.runScenarioId) : undefined,
       scenarioName: String(it.scenarioNameSnapshot ?? '默认场景'),
-      status: (it.status || 'pending') as BatchItemRunStatus,
+      status: mapItemStatus(it.status),
       runId: it.testFlowRunId != null ? String(it.testFlowRunId) : undefined,
       errorMessage: it.errorMessage || undefined,
       durationMs: it.durationMs != null ? Number(it.durationMs) : undefined,
@@ -104,6 +89,10 @@ export function useFlowBatchRun() {
     }))
   }
 
+  /**
+   * 启动套件跑：POST start（服务端立刻后台串跑）后轮询 GET 详情直到头离开 running。
+   * 用户 cancel 时请求 abort，再拉一次详情刷新进度。
+   */
   async function start(options: FlowBatchRunOptions): Promise<void> {
     const testProjectId = String(options.testProjectId ?? '').trim()
     const testSuiteId = String(options.testSuiteId ?? '').trim()
@@ -115,8 +104,11 @@ export function useFlowBatchRun() {
     suiteRunId.value = ''
 
     const stopOnNonPass = options.stopOnNonPass !== false
-    const perRunTimeoutMs = Math.min(Math.max(options.perRunTimeoutMs ?? 600_000, 1), 1_800_000)
     const envId = String(options.testProjectEnvId ?? '').trim() || undefined
+    const overallTimeoutMs = Math.min(
+      Math.max((options.perRunTimeoutMs ?? 600_000) * 20, 60_000),
+      3_600_000,
+    )
 
     try {
       const startRes = await startTestSuiteRun({
@@ -128,125 +120,37 @@ export function useFlowBatchRun() {
       })
       const detail = startRes?.data ?? startRes
       loadFromSuiteRunDetail(detail)
-      if (!progress.items.length) {
+      if (!suiteRunId.value) {
         return
       }
 
-      let stoppedEarly = false
-      for (const row of progress.items) {
-        if (stoppedEarly || abortRequested) {
-          row.status = 'skipped'
-          row.errorMessage = abortRequested ? '已中止队列' : '队列已提前停止'
-          continue
+      const deadline = Date.now() + overallTimeoutMs
+      while (Date.now() <= deadline) {
+        if (abortRequested) {
+          try {
+            await abortTestSuiteRun(suiteRunId.value)
+          } catch {
+            // 忽略中止回写失败
+          }
+          const afterAbort = await getTestSuiteRun(suiteRunId.value)
+          loadFromSuiteRunDetail(afterAbort?.data ?? afterAbort)
+          break
         }
-
-        row.status = 'running'
-        row.errorMessage = undefined
-        row.runId = undefined
-        row.durationMs = undefined
-
         try {
-          const triggerRes = await triggerTestFlowRun({
-            testFlowId: row.testFlowId,
-            entryNodeId: row.entryNodeId,
-            runScenarioId: row.runScenarioId,
-            testProjectEnvId: envId,
-            // 套件串跑：run.trigger 落 suite，与画布人手点跑（ui）区分
-            triggerType: 'suite',
-          })
-          if (abortRequested) {
-            row.status = 'skipped'
-            row.errorMessage = '已中止队列'
-            stoppedEarly = true
-            continue
+          const res = await getTestSuiteRun(suiteRunId.value)
+          const latest = res?.data ?? res
+          loadFromSuiteRunDetail(latest)
+          const headerStatus = String(latest?.status ?? '').trim()
+          if (headerStatus && headerStatus !== 'running') {
+            break
           }
-          const { runId, outcome } = await resolveRunIdAfterTrigger(triggerRes?.data, {
-            testProjectId,
-            shouldAbort: () => abortRequested,
-          })
-          if (!runId) {
-            row.status = 'error'
-            row.errorMessage = outcome.message || '触发运行失败：未返回 runId'
-            await persistFinish(row)
-            if (stopOnNonPass) stoppedEarly = true
-            continue
-          }
-          row.runId = runId
-          await persistBind(row, runId)
-
-          const terminal = await pollUntilTerminal(runId, perRunTimeoutMs, () => abortRequested)
-          if (
-            abortRequested &&
-            (!terminal?.status || !TERMINAL_RUN_STATUSES.has(terminal.status as RunRecordStatus))
-          ) {
-            row.status = 'skipped'
-            row.errorMessage = '已中止队列（当前 Run 仍在后台执行）'
-            await persistFinish(row)
-            stoppedEarly = true
-            continue
-          }
-          if (!terminal) {
-            row.status = 'error'
-            row.errorMessage = '无法获取运行状态'
-            await persistFinish(row)
-            if (stopOnNonPass) stoppedEarly = true
-            continue
-          }
-          row.status = mapTerminalStatus(terminal.status)
-          row.durationMs =
-            terminal.durationMs != null && terminal.durationMs !== ''
-              ? Number(terminal.durationMs)
-              : undefined
-          row.errorMessage = terminal.errorMessage || undefined
-          await persistFinish(row)
-          if (terminal.status !== 'passed' && stopOnNonPass) {
-            stoppedEarly = true
-          }
-        } catch (e) {
-          row.status = 'error'
-          row.errorMessage = e instanceof Error ? e.message : '触发失败'
-          await persistFinish(row)
-          if (stopOnNonPass) stoppedEarly = true
-        }
-      }
-
-      if (suiteRunId.value && abortRequested) {
-        try {
-          await abortTestSuiteRun(suiteRunId.value)
         } catch {
-          // 忽略中止回写失败
+          // 单次轮询失败继续
         }
-      } else if (suiteRunId.value && stoppedEarly) {
-        for (const row of progress.items) {
-          if (row.status === 'skipped') {
-            await persistFinish(row)
-          }
-        }
+        await abortableSleep(LIVE_RUN_POLL_MS, () => abortRequested)
       }
     } finally {
       running.value = false
-    }
-  }
-
-  async function persistBind(row: BatchRunProgressItem, runId: string) {
-    if (!suiteRunId.value || !row.suiteRunItemId) return
-    try {
-      await bindTestSuiteRunItem(suiteRunId.value, row.suiteRunItemId, runId)
-    } catch {
-      // 回写失败不阻断本地进度
-    }
-  }
-
-  async function persistFinish(row: BatchRunProgressItem) {
-    if (!suiteRunId.value || !row.suiteRunItemId) return
-    try {
-      await finishTestSuiteRunItem(suiteRunId.value, row.suiteRunItemId, {
-        status: row.status,
-        errorMessage: row.errorMessage,
-        durationMs: row.durationMs,
-      })
-    } catch {
-      // 回写失败不阻断本地进度
     }
   }
 
@@ -261,39 +165,20 @@ export function useFlowBatchRun() {
   }
 }
 
-type TerminalSnapshot = {
-  status?: string
-  errorMessage?: string
-  durationMs?: string | number
-}
-
-async function pollUntilTerminal(
-  runId: string,
-  timeoutMs: number,
-  shouldAbort: () => boolean,
-): Promise<TerminalSnapshot | null> {
-  const deadline = Date.now() + timeoutMs
-  let latest: TerminalSnapshot | null = null
-  while (Date.now() <= deadline) {
-    if (shouldAbort()) return latest
-    try {
-      const res = await getTestFlowRun(runId)
-      const data = (res?.data ?? res) as ApiTestFlowRunDetail
-      const run = data?.run
-      if (run) {
-        latest = {
-          status: run.status,
-          errorMessage: run.errorMessage,
-          durationMs: run.durationMs,
-        }
-        if (run.status && TERMINAL_RUN_STATUSES.has(run.status as RunRecordStatus)) {
-          return latest
-        }
-      }
-    } catch {
-      // 单次轮询失败继续
-    }
-    await abortableSleep(LIVE_RUN_POLL_MS, shouldAbort)
+function mapItemStatus(status: string | undefined): BatchItemRunStatus {
+  const s = String(status ?? 'pending').trim()
+  if (s === 'error') return 'failed'
+  if (
+    s === 'pending'
+    || s === 'running'
+    || s === 'passed'
+    || s === 'failed'
+    || s === 'paused'
+    || s === 'aborted'
+    || s === 'cancelled'
+    || s === 'skipped'
+  ) {
+    return s
   }
-  return latest
+  return 'failed'
 }

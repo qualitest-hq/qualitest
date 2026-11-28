@@ -4,6 +4,7 @@ import cn.hutool.core.util.IdUtil;
 import com.qualitest.common.utils.DateUtils;
 import com.qualitest.flow.context.EntryRunPolicySupport;
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.http.FlowExternalPermission;
 import com.qualitest.flow.input.EntryInputShapeValidator;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.context.FlowRunContextBuilder;
@@ -59,7 +60,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li>跑前就绪闸：图结构 / 鉴权等非法则 400，不跑图</li>
  *   <li>占入站名额；满员立即 503，不跑图</li>
  *   <li>落一条 trigger=http 的运行记录，把 query / headers / body 灌入 {@code in}</li>
- *   <li>后台线程跑图并逐步落库；http-return 或收束时写出并腾槽；Input 暂停则 503</li>
+ *   <li>外联许可按项目 openHttpAllowExternal 写入；pausePermitted 固定 false（无人值守）</li>
+ *   <li>后台线程跑图并逐步落库；http-return 或收束时写出并腾槽；
+ *       图上若仍走到 Input，因禁止暂停会 failed，对客户端按失败写出</li>
  * </ol>
  * 客户端超时或断开只标记 sink 断开，不取消跑图；写出失败时仍释放名额。
  * 跑图未捕获异常且尚未交付时，用 502 错误包 complete，并释放令牌。
@@ -81,6 +84,7 @@ public class OpenHttpIngressService {
     private final RunPersistenceService runPersistenceService;
     private final StepResultWriter stepResultWriter;
     private final RunStatusUpdater runStatusUpdater;
+    private final FlowExternalPermission flowExternalPermission;
     private final ExecutorService runPool = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "open-http-ingress");
         t.setDaemon(true);
@@ -97,7 +101,8 @@ public class OpenHttpIngressService {
                                   ITestFlowRunService testFlowRunService,
                                   RunPersistenceService runPersistenceService,
                                   StepResultWriter stepResultWriter,
-                                  RunStatusUpdater runStatusUpdater) {
+                                  RunStatusUpdater runStatusUpdater,
+                                  FlowExternalPermission flowExternalPermission) {
         this.routeRegistry = routeRegistry;
         this.inboundSlotRegistry = inboundSlotRegistry;
         this.flowGraphRunner = flowGraphRunner;
@@ -109,6 +114,7 @@ public class OpenHttpIngressService {
         this.runPersistenceService = runPersistenceService;
         this.stepResultWriter = stepResultWriter;
         this.runStatusUpdater = runStatusUpdater;
+        this.flowExternalPermission = flowExternalPermission;
     }
 
     /**
@@ -193,11 +199,15 @@ public class OpenHttpIngressService {
             in.put("body", body);
 
             runId = IdUtil.getSnowflakeNextId();
-            ctx = FlowRunContextBuilder.build(env, assetJson, null, testProjectId, true);
+            // 外联：只看项目「开放入站允许外联」，不看成员 flow:external
+            boolean externalPermitted = flowExternalPermission.resolveForOpenIngress(testProjectId);
+            ctx = FlowRunContextBuilder.build(env, assetJson, null, testProjectId, externalPermitted);
             ctx.setIn(in);
             ctx.setEntryKind(EntryKind.HTTP.getCode());
             ctx.setEntryNodeId(route.entryNodeId());
             ctx.setTrigger(RunTrigger.HTTP.getCode());
+            // 开放入站无人值守：固定禁止暂停；图上若有 Input 将直接失败
+            ctx.setPausePermitted(false);
             if (route.envId() != null) {
                 ctx.setTestProjectEnvId(route.envId());
             }

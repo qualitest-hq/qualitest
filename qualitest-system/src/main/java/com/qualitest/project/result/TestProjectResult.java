@@ -71,6 +71,18 @@ public class TestProjectResult implements Serializable {
     private String runConcurrencyMode;
 
     /**
+     * 是否允许暂停（Input 等人填表后可续跑）。
+     * 前端项目设置开关读写此字段；缺省按 true 展示。
+     */
+    private Boolean allowPause;
+
+    /**
+     * 开放 HTTP 入站是否允许外联 HTTP。
+     * 前端项目设置开关读写此字段；缺省按 false 展示。
+     */
+    private Boolean openHttpAllowExternal;
+
+    /**
      * 有 Profile 但预制 apis 全空时为 true，前端提示从项目模板添加。
      */
     private Boolean needsAuthTemplateHint;

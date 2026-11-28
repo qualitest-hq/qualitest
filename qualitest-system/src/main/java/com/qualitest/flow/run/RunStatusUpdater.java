@@ -27,7 +27,9 @@ public class RunStatusUpdater {
     private final EnvRunSlotLifecycle envRunSlotLifecycle;
 
     /**
-     * 标记 Run 为 paused：写入续跑所需上下文、快照栈、下一 step_index、错误信息。
+     * 标记 Run 为 paused。
+     * 将上下文（含 pausePermitted / 外联许可 / HTTP 快照等）序列化进 run_execution_state，
+     * 并记下 pauseReason、pauseNodeId、快照栈与下一 step_index，供续跑恢复。
      */
     public void markPaused(
             Long testFlowRunId,

@@ -75,6 +75,34 @@ public class TestProject extends BaseEntity {
     private String runConcurrencyMode;
 
     /**
+     * 是否允许暂停：Input 等人填表时可落 paused。
+     * 关闭后碰到输入节点直接失败，不写 paused。库缺省 1（允许）；Java null 按允许处理。
+     * 开跑时写入 {@code FlowRunContext.pausePermitted}（开放 HTTP 入站除外，入站固定禁止暂停）。
+     */
+    private Boolean allowPause;
+
+    /**
+     * 开放 HTTP 入站是否允许外联 HTTP。
+     * 仅影响匿名开放入站开跑时的 {@code externalHttpPermitted}；
+     * 不影响已登录场景/套件按成员外联能力判定。库缺省 0；Java null 按禁止处理。
+     */
+    private Boolean openHttpAllowExternal;
+
+    /**
+     * 开跑前解析「允许暂停」：字段为 null 或 true 时允许；false 时禁止。
+     */
+    public boolean isPauseAllowed() {
+        return allowPause == null || Boolean.TRUE.equals(allowPause);
+    }
+
+    /**
+     * 开跑前解析「开放入站允许外联」：仅 true 时允许，null/false 禁止。
+     */
+    public boolean isOpenHttpExternalAllowed() {
+        return Boolean.TRUE.equals(openHttpAllowExternal);
+    }
+
+    /**
      * 本项目流检查严重性覆盖，JSON 对象。
      * 键为诊断码（核心短码或 {@code 插件id/短码}），值为 {@code ERROR}/{@code WARNING}/{@code OFF}。
      * 未出现的码使用目录默认；锁定项即使写了覆盖也仍按 ERROR 生效。

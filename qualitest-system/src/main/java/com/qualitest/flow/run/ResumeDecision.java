@@ -24,10 +24,13 @@ public class ResumeDecision {
     public static final String SKIP = "skip";
     /** 中止本次 Run */
     public static final String ABORT = "abort";
-    /** 提交人工输入后完成 Input 节点并继续（仅 await_input） */
+    /**
+     * 提交填表结果后完成 Input 节点并继续。
+     * 仅当暂停原因为 await_input 时合法；须同时带 inputs 字段值。
+     */
     public static final String CONTINUE_WITH_INPUT = "continueWithInput";
 
-    /** 决策字符串，见上方常量 */
+    /** 决策字符串，取上方常量之一 */
     private String decision;
 
     /**

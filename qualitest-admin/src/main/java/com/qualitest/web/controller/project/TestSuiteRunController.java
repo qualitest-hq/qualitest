@@ -68,7 +68,8 @@ public class TestSuiteRunController extends BaseController {
     }
 
     /**
-     * 开始套件运行：写入 running 头与 pending 项；需执行套件权限。
+     * 开始套件运行：写入 running 头与 pending 项，随即后台串行 trigger 各项。
+     * 需执行套件权限。客户端轮询 GET /{id} 看进度即可，不必再逐条 trigger。
      */
     @PreAuthorize("@ss.hasPermi('project:testProject:edit')")
     @Log(title = "测试套件运行", businessType = BusinessType.OTHER)
@@ -78,7 +79,11 @@ public class TestSuiteRunController extends BaseController {
             throw new ServiceException("testProjectId 不能为空");
         }
         testProjectMemberService.requireCapability(params.getTestProjectId(), TestProjectMemberPerm.SUITE_RUN);
-        return ok(testSuiteRunService.start(params));
+        TestSuiteRunResult result = testSuiteRunService.start(params);
+        if (result != null && result.getTestSuiteRunId() != null) {
+            testSuiteRunService.executeAsync(result.getTestSuiteRunId());
+        }
+        return ok(result);
     }
 
     /**

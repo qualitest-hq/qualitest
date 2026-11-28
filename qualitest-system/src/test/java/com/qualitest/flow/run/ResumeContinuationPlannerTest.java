@@ -27,6 +27,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 测 ResumeContinuationPlanner：resume 决策到续跑计划的翻译。
+ * 含 await_input + continueWithInput → COMPLETE_NODE，以及 await_input 拒绝 skip。
  * 边界：Mock SnapshotRestoreService；夹具 flow/linear-run-graph.json。
  * 单跑：mvn test -DskipTests=false -pl qualitest-system -am -Dtest=ResumeContinuationPlannerTest
  */

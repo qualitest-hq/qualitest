@@ -174,6 +174,7 @@ public class FlowGraphRunner {
             visitedNodeIds.add(currentId);
             recordStep(steps, result, onStep);
 
+            // Input 等人填表：步状态 paused → 整 Run 暂停，原因固定 await_input
             if (RunStatus.PAUSED.matches(result.getStatus())) {
                 StepError error = result.getError() != null
                         ? result.getError()
@@ -446,6 +447,7 @@ public class FlowGraphRunner {
             recordStep(steps, result, onStep);
             state.stepIndex++;
 
+            // 扇出臂上遇到 Input 暂停：整 Run 以 await_input 停下
             if (RunStatus.PAUSED.matches(result.getStatus())) {
                 StepError error = result.getError() != null
                         ? result.getError()

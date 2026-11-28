@@ -68,7 +68,8 @@ class TestFlowExecutionServiceImplTriggerBatchTest {
                 mock(RunStatusUpdater.class),
                 mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class),
                 mock(com.qualitest.project.runhub.EnvRunConcurrencyService.class),
-                mock(com.qualitest.project.service.IProjectRunHubService.class)
+                mock(com.qualitest.project.service.IProjectRunHubService.class),
+                mock(com.qualitest.flow.http.FlowExternalPermission.class)
         );
         service = spy(real);
     }

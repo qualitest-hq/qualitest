@@ -17,6 +17,8 @@
         <!-- 是否允许 MCP 导入接口（import_apis） -->
         <result property="mcpImportApisEnabled" column="mcp_import_apis_enabled"/>
         <result property="runConcurrencyMode" column="run_concurrency_mode"/>
+        <result property="allowPause" column="allow_pause"/>
+        <result property="openHttpAllowExternal" column="open_http_allow_external"/>
         <result property="inspectionProfile" column="inspection_profile"/>
         <result property="lastApiSyncTime" column="last_api_sync_time"/>
         <result property="apiCount" column="api_count"/>
@@ -27,7 +29,7 @@
     </resultMap>
 
     <sql id="selectTestProjectVo">
-        select test_project_id, project_name, asset_variables, auth_config, mcp_auto_write_enabled, mcp_autorun_enabled, mcp_import_apis_enabled, run_concurrency_mode, inspection_profile, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
+        select test_project_id, project_name, asset_variables, auth_config, mcp_auto_write_enabled, mcp_autorun_enabled, mcp_import_apis_enabled, run_concurrency_mode, allow_pause, open_http_allow_external, inspection_profile, last_api_sync_time, api_count, owner_id, del_status, create_time, update_time
         from test_project
     </sql>
 
@@ -40,6 +42,8 @@
                tp.mcp_autorun_enabled as mcpAutorunEnabled,
                tp.mcp_import_apis_enabled as mcpImportApisEnabled,
                tp.run_concurrency_mode as runConcurrencyMode,
+               tp.allow_pause as allowPause,
+               tp.open_http_allow_external as openHttpAllowExternal,
                tp.inspection_profile as inspectionProfile,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
@@ -100,6 +104,8 @@
                tp.mcp_autorun_enabled as mcpAutorunEnabled,
                tp.mcp_import_apis_enabled as mcpImportApisEnabled,
                tp.run_concurrency_mode as runConcurrencyMode,
+               tp.allow_pause as allowPause,
+               tp.open_http_allow_external as openHttpAllowExternal,
                tp.last_api_sync_time as lastApiSyncTime,
                tp.api_count          as apiCount,
                tp.owner_id           as ownerId,
@@ -136,6 +142,8 @@
                tp.mcp_autorun_enabled,
                tp.mcp_import_apis_enabled,
                tp.run_concurrency_mode,
+               tp.allow_pause,
+               tp.open_http_allow_external,
                tp.last_api_sync_time,
                tp.api_count,
                tp.owner_id,
@@ -181,6 +189,12 @@
             </if>
             <if test="runConcurrencyMode != null and runConcurrencyMode != ''">
                 run_concurrency_mode,
+            </if>
+            <if test="allowPause != null">
+                allow_pause,
+            </if>
+            <if test="openHttpAllowExternal != null">
+                open_http_allow_external,
             </if>
             <if test="inspectionProfile != null">
                 inspection_profile,
@@ -229,6 +243,12 @@
             <if test="runConcurrencyMode != null and runConcurrencyMode != ''">
                 #{runConcurrencyMode},
             </if>
+            <if test="allowPause != null">
+                #{allowPause},
+            </if>
+            <if test="openHttpAllowExternal != null">
+                #{openHttpAllowExternal},
+            </if>
             <if test="inspectionProfile != null">
                 #{inspectionProfile},
             </if>
@@ -276,6 +296,12 @@
             </if>
             <if test="runConcurrencyMode != null and runConcurrencyMode != ''">
                 run_concurrency_mode = #{runConcurrencyMode},
+            </if>
+            <if test="allowPause != null">
+                allow_pause = #{allowPause},
+            </if>
+            <if test="openHttpAllowExternal != null">
+                open_http_allow_external = #{openHttpAllowExternal},
             </if>
             <if test="inspectionProfile != null">
                 inspection_profile = #{inspectionProfile},

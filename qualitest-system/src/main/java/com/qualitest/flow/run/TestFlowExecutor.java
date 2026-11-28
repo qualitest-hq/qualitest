@@ -81,7 +81,9 @@ public class TestFlowExecutor {
     }
 
     /**
-     * 续跑 paused 的 Run：记决策审计步 →（人工输入则先写 flow）→ 按 decision 规划 → 恢复图遍历。
+     * 续跑 paused 的 Run。
+     * 流程：落决策审计步 → continueWithInput 时先按字段定义校验写入 flow →
+     * 按 decision 规划续跑起点 → 置回 running 并继续图遍历。
      * 非 paused 返回幂等结果；参数非法抛异常。
      */
     public ExecutionOutcome resume(Long testFlowRunId, ResumeDecision decision, TestProjectEnv env) {
@@ -138,8 +140,9 @@ public class TestFlowExecutor {
     }
 
     /**
-     * continueWithInput：按暂停节点 fields 校验 inputs，写入 ctx.flow，
-     * 并把 assigns 明细放到 decision.completionAssigns 供 COMPLETE_NODE 落库。
+     * continueWithInput 专用：按暂停 Input 节点的 fields 校验客户端 inputs，写入 ctx.flow；
+     * assigns 明细挂到 decision.completionAssigns，供 COMPLETE_NODE 模式落库通过步。
+     * 暂停原因不是 await_input、或节点找不到时抛非法续跑。
      */
     private void applyContinueWithInput(
             ResumeDecision decision,
@@ -195,6 +198,7 @@ public class TestFlowExecutor {
                 result -> persistStep(testFlowRunId, stepIndexRef.getAndIncrement(), result));
         long stepIndex = stepIndexRef.get();
 
+        // 图遍历返回暂停：落 run_execution_state（含上下文快照），头状态 paused
         if (outcome.isPaused()) {
             String errorCode = outcome.getError() != null
                     ? outcome.getError().getCode()
@@ -202,6 +206,7 @@ public class TestFlowExecutor {
             String errorMessage = outcome.getError() != null
                     ? outcome.getError().getMessage()
                     : "步骤失败";
+            // 填表暂停统一对外错误码 / 文案，便于前端识别
             if (RunExecutionState.PAUSE_REASON_AWAIT_INPUT.equals(outcome.getPauseReason())) {
                 errorCode = FlowErrorCode.TF_AWAIT_INPUT.getCode();
                 errorMessage = "等待人工输入";

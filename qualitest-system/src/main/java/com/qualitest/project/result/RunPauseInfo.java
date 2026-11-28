@@ -13,7 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Run 详情中 paused 状态的补充信息，供前端展示暂停原因与续跑操作。
+ * Run 详情中 paused 状态的补充信息。
+ * 前端据此展示暂停原因、填表表单与可点的续跑按钮。
  */
 @Getter
 @Setter
@@ -23,8 +24,8 @@ import java.util.Map;
 public class RunPauseInfo implements Serializable {
 
     /**
-     * 暂停原因：node_failure（步骤失败）、snapshot_failure（checkpoint 失败）、
-     * await_input（等待人工输入）。
+     * 暂停原因：await_input（等待填表）；
+     * 旧记录还可能是 node_failure（步骤失败）、snapshot_failure（checkpoint 失败）。
      */
     private String pauseReason;
     /** 触发暂停的节点 id */
@@ -40,9 +41,9 @@ public class RunPauseInfo implements Serializable {
     private Date pausedAt;
 
     /**
-     * 当前允许的决策列表。
-     * await_input 仅为 continueWithInput、abort；
-     * 失败类暂停为 restoreAndRetry、retryInPlace、skip、abort。
+     * 当前允许的决策列表（前端只渲染这些按钮）。
+     * await_input：continueWithInput、abort；
+     * 旧失败类暂停：服务端现仅下发 abort。
      */
     @Builder.Default
     private List<String> availableDecisions = new ArrayList<>();
@@ -51,8 +52,8 @@ public class RunPauseInfo implements Serializable {
     private String prompt;
 
     /**
-     * await_input 时节点上的字段定义（data.fields），含 name/label/type/required/options 等，
-     * 供前端按类型渲染表单。
+     * await_input 时节点上的字段定义（data.fields）。
+     * 含 name/label/type/required/options 等，供前端按类型渲染表单。
      */
     @Builder.Default
     private List<Map<String, Object>> fields = new ArrayList<>();

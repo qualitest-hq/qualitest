@@ -29,7 +29,6 @@ import com.qualitest.project.service.ITestFlowService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +41,7 @@ import java.util.Map;
  *   <li>按 {@code subflowId} 加载测试流（须与当前 Run 同 {@code testProjectId}）</li>
  *   <li>子图经 {@link FlowGraphValidateService} 开跑类校验；未通过则本步失败，不进子 runner</li>
  *   <li>解析 inputs：写入子上下文 {@code in}；子 Run 的 entryKind/trigger 均为 subflow；
+ *       通过 {@link FlowRunContext#forkForSubflow} 继承父的环境/运行 id、外联与暂停许可及共享区；
  *       可选 {@code entryNodeId} 指定进哪个子流入口</li>
  *   <li>用 {@link FlowGraphRunner} 跑子图（步数上限取子流入口 {@code maxSteps}）；
  *       子图 {@code subflow-return} 或收束时把定稿 out 挂到父图
@@ -110,7 +110,14 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
 
             Map<String, Object> childSeed = SubflowIoSupport.resolveInputSeed(ctx, data.get("inputs"));
             String childEntryNodeId = resolveChildEntryNodeId(data.get("entryNodeId"), childGraph);
-            FlowRunContext childCtx = buildChildContext(ctx, childSeed, node.getId(), childEntryNodeId);
+            // 同一场 Run：子图继承身份与 pause/外联许可，避免子流里丢环境或改严改松权限
+            FlowRunContext childCtx = FlowRunContext.forkForSubflow(
+                    ctx,
+                    childSeed,
+                    node.getId(),
+                    childEntryNodeId,
+                    EntryKind.SUBFLOW.getCode(),
+                    RunTrigger.SUBFLOW.getCode());
 
             List<String> readinessErrors = flowGraphValidateService.collectBlockingErrorMessages(
                     childGraph,
@@ -189,34 +196,6 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
         if (ctx != null && nodeId != null && ctx.getNodeOut(nodeId) == null) {
             ctx.putNodeOut(nodeId, SettleSupport.defaultSubflowFallbackPackage());
         }
-    }
-
-    /**
-     * 组装子流运行上下文。
-     * 继承父级 env / asset / session / 外联权限 / 项目鉴权配置；inputs 种子只灌入 {@code in}。
-     * 记录 parentContext 与 parentSubflowNodeId，供子图交付时把 out 挂回父图对应节点。
-     *
-     * @param childEntryNodeId 子图入口节点 id；可空（图上恰好一个入口时由 runner 补写）
-     */
-    private static FlowRunContext buildChildContext(FlowRunContext parent, Map<String, Object> childSeed,
-                                                    String parentSubflowNodeId, String childEntryNodeId) {
-        Map<String, Object> seed = childSeed != null ? new HashMap<>(childSeed) : new HashMap<>();
-        return FlowRunContext.builder()
-                .testProjectId(parent.getTestProjectId())
-                .projectAuthConfig(parent.getProjectAuthConfig())
-                .env(parent.getEnv() != null ? parent.getEnv() : Map.of())
-                .asset(parent.getAsset() != null ? parent.getAsset() : Map.of())
-                .session(parent.getSession() != null ? parent.getSession() : new HashMap<>())
-                .subflowDepth(parent.getSubflowDepth() + 1)
-                .externalHttpPermitted(parent.isExternalHttpPermitted())
-                .flow(new HashMap<>())
-                .in(new HashMap<>(seed))
-                .entryKind(EntryKind.SUBFLOW.getCode())
-                .entryNodeId(childEntryNodeId)
-                .trigger(RunTrigger.SUBFLOW.getCode())
-                .parentContext(parent)
-                .parentSubflowNodeId(parentSubflowNodeId)
-                .build();
     }
 
     /**

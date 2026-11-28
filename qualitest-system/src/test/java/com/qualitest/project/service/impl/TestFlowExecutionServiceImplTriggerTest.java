@@ -104,7 +104,8 @@ class TestFlowExecutionServiceImplTriggerTest {
                 mock(RunStatusUpdater.class),
                 mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class),
                 concurrency,
-                mock(com.qualitest.project.service.IProjectRunHubService.class)
+                mock(com.qualitest.project.service.IProjectRunHubService.class),
+                mock(com.qualitest.flow.http.FlowExternalPermission.class)
         );
 
         LoginUser loginUser = mock(LoginUser.class);

@@ -1,34 +1,57 @@
 package com.qualitest.flow.http;
 
-import com.qualitest.common.utils.SecurityUtils;
+import com.qualitest.project.domain.TestProject;
 import com.qualitest.project.enums.TestProjectMemberPerm;
-
-import java.util.Collection;
+import com.qualitest.project.mapper.TestProjectMapper;
+import com.qualitest.project.service.ITestProjectMemberService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
- * 判断当前用户是否允许在测试流中发起外联 HTTP 请求。
- *
- * @author qualitest
+ * 测试流外联 HTTP 权限解析器。
+ * <p>
+ * 开跑时把解析结果写入 {@code FlowRunContext.externalHttpPermitted}，
+ * 后续 HTTP 节点按该标志决定能否访问外部地址。
+ * <ul>
+ *   <li>已登录触发（场景 / 套件 / MCP 等）：看操作者是否具备项目能力 {@code flow:external}</li>
+ *   <li>开放 HTTP 入站：不看成员能力，只看项目开关 {@code openHttpAllowExternal}；未开或 null 视为禁止</li>
+ * </ul>
+ * 暂停许可不在本类处理，由项目 {@code allowPause} / 入站固定 false 在开跑处写入 pausePermitted。
  */
-public final class FlowExternalPermission {
+@Component
+@RequiredArgsConstructor
+public class FlowExternalPermission {
 
-    /** 平台菜单级权限字，用于未配置项目 flow:external 时的放行 */
-    public static final String PERMISSION = "flow:http:external";
+    private final ITestProjectMemberService testProjectMemberService;
+    private final TestProjectMapper testProjectMapper;
 
-    /** 禁止实例化 */
-    private FlowExternalPermission() {
+    /**
+     * 已登录入口：操作者是否具备项目外联能力。
+     *
+     * @param testProjectId  项目 id
+     * @param operatorUserId 操作者用户 id；任一为空则返回 false
+     * @return 允许外联时 true
+     */
+    public boolean resolve(Long testProjectId, Long operatorUserId) {
+        if (testProjectId == null || operatorUserId == null) {
+            return false;
+        }
+        return testProjectMemberService.hasCapability(
+                testProjectId, operatorUserId, TestProjectMemberPerm.FLOW_EXTERNAL);
     }
 
     /**
-     * 根据项目成员权限集合与平台权限判断是否允许外联
+     * 开放 HTTP 入站：读项目「开放入站允许外联」开关。
+     * 项目不存在、开关为 null 或 false 时返回 false。
      *
-     * @param capabilities 项目成员权限 code 集合；为 null 时仅校验平台权限
-     * @return 允许外联时为 true
+     * @param testProjectId 项目 id
+     * @return 允许外联时 true
      */
-    public static boolean isPermitted(Collection<String> capabilities) {
-        if (capabilities != null && capabilities.contains(TestProjectMemberPerm.FLOW_EXTERNAL.getCode())) {
-            return true;
+    public boolean resolveForOpenIngress(Long testProjectId) {
+        if (testProjectId == null) {
+            return false;
         }
-        return SecurityUtils.hasPermi(PERMISSION);
+        TestProject project = testProjectMapper.selectTestProjectById(testProjectId);
+        return project != null && project.isOpenHttpExternalAllowed();
     }
 }

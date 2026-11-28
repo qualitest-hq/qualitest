@@ -11,7 +11,9 @@ import java.util.Map;
 /**
  * 组装单次 Run 的 {@link FlowRunContext}。
  * <p>
- * 将环境变量、素材库条目写入对应 scope；场景入参值树灌入 {@code in}。
+ * 将环境变量、素材库条目写入对应 scope；场景入参值树灌入 {@code in}；
+ * 写入 testProjectId 与 externalHttpPermitted。
+ * pausePermitted 不在此设置：场景开跑由项目 allowPause 写入，开放入站固定 false。
  */
 public final class FlowRunContextBuilder {
 
@@ -19,15 +21,15 @@ public final class FlowRunContextBuilder {
     }
 
     /**
-     * 组装单次 Run 运行时上下文（无场景入参种子、无项目 id，外联 HTTP 默认允许）。
+     * 组装单次 Run 运行时上下文（无场景入参种子、无项目 id，外联 HTTP 默认禁止）。
      */
     public static FlowRunContext build(TestProjectEnv env, String assetJson) {
-        return build(env, assetJson, null, null, true);
+        return build(env, assetJson, null, null, false);
     }
 
-    /** 组装上下文并写入所属测试项目 id。 */
+    /** 组装上下文并写入所属测试项目 id（外联默认禁止）。 */
     public static FlowRunContext build(TestProjectEnv env, String assetJson, Long testProjectId) {
-        return build(env, assetJson, null, testProjectId, true);
+        return build(env, assetJson, null, testProjectId, false);
     }
 
     /**

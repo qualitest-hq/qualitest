@@ -88,19 +88,21 @@ export interface SnapshotStackItem {
 
 /**
  * paused Run 详情中的暂停信息。
- * await_input 时带 prompt、fields，且 availableDecisions 仅为 continueWithInput / abort。
+ * pauseReason=await_input 时带 prompt、fields，且 availableDecisions 只有 continueWithInput / abort；
+ * 旧失败类暂停可能只带 abort。
  */
 export interface RunPauseInfo {
-  /** node_failure / snapshot_failure / await_input */
+  /** 暂停原因：await_input；旧记录还可能是 node_failure / snapshot_failure */
   pauseReason?: string;
   pauseNodeId?: string;
   currentNodeId?: string;
   snapshotStack?: SnapshotStackItem[];
   pausedAt?: string;
+  /** 服务端允许的决策列表，前端只渲染这些按钮 */
   availableDecisions?: ResumeDecision[];
-  /** 等待人工输入时的提示文案 */
+  /** 等待填表时的提示文案 */
   prompt?: string;
-  /** 等待人工输入时的字段定义，用于渲染表单 */
+  /** 等待填表时的字段定义，用于渲染表单 */
   fields?: InputPauseField[];
 }
 
@@ -117,7 +119,10 @@ export interface InputPauseField {
   options?: Array<{ label?: string; value?: string }>;
 }
 
-/** 续跑决策取值 */
+/**
+ * 续跑决策取值。
+ * continueWithInput：提交填表结果并完成 Input 节点；仅 await_input 可用。
+ */
 export type ResumeDecision =
   | 'restoreAndRetry'
   | 'retryInPlace'
@@ -130,7 +135,7 @@ export interface ResumeTestFlowRunParams {
   decision: ResumeDecision;
   /** restoreAndRetry 时的快照 id */
   snapshotId?: string;
-  /** continueWithInput 时提交的字段值 */
+  /** continueWithInput 时提交的字段值：字段 name → 值 */
   inputs?: Record<string, unknown>;
 }
 

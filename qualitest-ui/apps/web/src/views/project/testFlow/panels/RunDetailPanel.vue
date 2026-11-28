@@ -401,15 +401,18 @@ function outSummaryText(raw?: string): string {
   return text.length <= 120 ? text : `${text.slice(0, 120)}…`
 }
 
-/** 是否因等待人工输入而暂停 */
+/** 是否因 Input 等待填表而暂停（pauseReason=await_input） */
 const isAwaitInput = computed(() => run.value?.pauseInfo?.pauseReason === 'await_input')
-/** 暂停面板要渲染的字段列表（来自 pauseInfo.fields） */
+/** 填表暂停时要渲染的字段列表（pauseInfo.fields） */
 const awaitInputFields = computed(() => {
   const fields = run.value?.pauseInfo?.fields
   return Array.isArray(fields) ? fields.filter((f) => f?.name) : []
 })
 
-/** 按 pauseInfo.availableDecisions 过滤后的可点决策按钮；环境未开还原时去掉还原并重试 */
+/**
+ * 可点续跑按钮：以服务端 availableDecisions 为准；
+ * await_input 通常只有「提交并继续」「中止」；环境未开还原时再去掉「还原并重试」。
+ */
 const visibleDecisions = computed(() => {
   const info = run.value?.pauseInfo
   const available = info?.availableDecisions?.length
@@ -490,7 +493,7 @@ watch(
   { immediate: true, deep: true },
 )
 
-/** 组装 continueWithInput 的 inputs（datetime 补秒；number 转数值） */
+/** 组装 continueWithInput 的 inputs：按字段类型规整后再提交（datetime 补秒；number 转数值） */
 function buildContinueInputs() {
   const out = {}
   for (const field of awaitInputFields.value) {

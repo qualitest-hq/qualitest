@@ -28,6 +28,10 @@ export function getTestSuiteRun(testSuiteRunId: string | number) {
   })
 }
 
+/**
+ * 开始套件运行：服务端写入头/项后立刻后台串跑各项。
+ * 前端只需轮询 getTestSuiteRun，不必再逐条 trigger。
+ */
 export function startTestSuiteRun(data: StartSuiteRunPayload) {
   return request({
     url: '/project/testSuiteRun/start',
@@ -60,6 +64,7 @@ export function finishTestSuiteRunItem(
   })
 }
 
+/** 中止套件串跑：未跑项标 skipped，头状态 aborted */
 export function abortTestSuiteRun(testSuiteRunId: string | number) {
   return request({
     url: `/project/testSuiteRun/${testSuiteRunId}/abort`,

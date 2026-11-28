@@ -341,7 +341,7 @@ public class HttpNodeHandler extends AbstractStubNodeHandler {
                                        boolean allowExtracts) {
         if (!ctx.isExternalHttpPermitted()) {
             return failed(node, incomingEdgeId, nodeName, t0, ctx,
-                    FlowErrorCode.TF_HTTP_EXTERNAL_DENIED, "当前用户无 flow:http:external 权限");
+                    FlowErrorCode.TF_HTTP_EXTERNAL_DENIED, "无测试流外联 HTTP 权限（flow:external）");
         }
 
         FlowHttpRequestBuilder.BuiltHttpRequest built = FlowHttpRequestBuilder.buildFromExternal(ctx, data);

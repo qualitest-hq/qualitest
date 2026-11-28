@@ -92,7 +92,8 @@ class TestFlowExecutionServiceImplResumeTest {
                 mock(RunStatusUpdater.class),
                 mock(com.qualitest.flow.sync.FlowExternalChangePublisher.class),
                 mock(com.qualitest.project.runhub.EnvRunConcurrencyService.class),
-                mock(com.qualitest.project.service.IProjectRunHubService.class)
+                mock(com.qualitest.project.service.IProjectRunHubService.class),
+                mock(com.qualitest.flow.http.FlowExternalPermission.class)
         );
 
         LoginUser loginUser = mock(LoginUser.class);
@@ -107,8 +108,8 @@ class TestFlowExecutionServiceImplResumeTest {
     }
 
     /**
-     * 前提：Run 状态 paused，executionState 含 pauseNode=n2 与 snap-1。
-     * 期望：pauseInfo 含节点、栈、pausedAt 与 RESTORE_AND_RETRY 决策。
+     * 前提：Run 状态 paused，executionState 含 pauseNode=n2 与 snap-1（历史 node_failure）。
+     * 期望：pauseInfo 含节点、栈、pausedAt；旧失败暂停仅暴露 abort。
      */
     @Test
     @Order(1)
@@ -146,7 +147,7 @@ class TestFlowExecutionServiceImplResumeTest {
         assertEquals("n1", pauseInfo.getSnapshotStack().get(0).getNodeId());
         assertEquals("snap-1", pauseInfo.getSnapshotStack().get(0).getSnapshotId());
         assertEquals(pausedAt, pauseInfo.getPausedAt());
-        assertTrue(pauseInfo.getAvailableDecisions().contains(ResumeDecision.RESTORE_AND_RETRY));
+        assertEquals(List.of(ResumeDecision.ABORT), pauseInfo.getAvailableDecisions());
     }
 
     /**

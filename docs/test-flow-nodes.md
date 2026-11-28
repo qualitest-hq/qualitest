@@ -525,7 +525,8 @@ Script 节点 `ctx.*` 与接口前后置脚本 `api.*` 同名可用。入参出�
 }
 ```
 
-`type` 缺省 `text`；未知 type **运行**硬拦（保存可带错落盘）。暂停原因 `await_input`；决策 `continueWithInput` / `abort`。套件 / 无人值守碰到即 paused；打码可用 `tpl_login_captcha` / `tpl_login_captcha_manual`。
+`type` 缺省 `text`；未知 type **运行**硬拦（保存可带错落盘）。暂停原因 `await_input`；决策 `continueWithInput` / `abort`。
+项目开关「允许暂停」关闭时，Input **直接失败**（不落 paused），适合 CI。开启时可先走宿主挂点 `onAwaitInput`（插件自动填表）；无插件则等人填。打码可用 `tpl_login_captcha` / `tpl_login_captcha_manual`。
 
 ---
 

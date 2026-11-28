@@ -348,6 +348,31 @@
           />
         </section>
 
+        <section class="project-setting__card">
+          <header class="project-setting__card-head">
+            <h3 class="project-setting__card-title">跑流策略</h3>
+            <p class="project-setting__card-desc">
+              暂停：关则输入节点直接失败，适合 CI。开放入站外联：仅影响匿名 HTTP 入站能否打外网。
+            </p>
+          </header>
+          <div class="project-setting__switch-row">
+            <span>允许暂停（Input 等人填表）</span>
+            <el-switch
+                v-model="allowPause"
+                :disabled="!canEditProject || runPolicySaving"
+                @change="(val) => saveRunPolicyFlag('allowPause', val)"
+            />
+          </div>
+          <div class="project-setting__switch-row">
+            <span>开放 HTTP 入站允许外联</span>
+            <el-switch
+                v-model="openHttpAllowExternal"
+                :disabled="!canEditProject || runPolicySaving"
+                @change="(val) => saveRunPolicyFlag('openHttpAllowExternal', val)"
+            />
+          </div>
+        </section>
+
         <section v-if="canUseToken" class="project-setting__card">
           <header class="project-setting__card-head">
             <h3 class="project-setting__card-title">项目 Token</h3>
@@ -522,6 +547,12 @@ const authPreview = computed(() => formatAuthConfigPreview(authForm))
 
 /** 项目跑流并发：serial_by_env 同环境同时只跑一条；parallel 可并行 */
 const runConcurrencyMode = ref('serial_by_env')
+/** 项目开关：允许 Input 暂停等人填表；缺省开 */
+const allowPause = ref(true)
+/** 项目开关：开放 HTTP 入站是否允许外联；缺省关（与成员外联能力无关） */
+const openHttpAllowExternal = ref(false)
+/** 跑流策略两开关任一保存中，避免连点 */
+const runPolicySaving = ref(false)
 const concurrencySaving = ref(false)
 const concurrencyOptions = [
   { label: '按环境串行', value: 'serial_by_env' },
@@ -620,6 +651,35 @@ function saveInspectionProfile() {
 
 function resolveProjectId() {
   return props.testProjectId || props.settingForm?.testProjectId
+}
+
+/**
+ * 保存跑流策略开关到项目。
+ * field 为 allowPause 或 openHttpAllowExternal；失败时把开关拨回原值。
+ */
+function saveRunPolicyFlag(field, val) {
+  if (!canEditProject.value) return
+  const pid = resolveProjectId()
+  if (!pid) return
+  const target = field === 'allowPause' ? allowPause : openHttpAllowExternal
+  runPolicySaving.value = true
+  updateTestProject({ testProjectId: pid, [field]: !!val })
+    .then((res) => {
+      if (res.code === 200) {
+        target.value = !!val
+        proxy?.$modal?.msgSuccess?.('已保存')
+      } else {
+        target.value = !val
+        proxy?.$modal?.msgError?.(res.msg || '保存失败')
+      }
+    })
+    .catch((err) => {
+      target.value = !val
+      proxy?.$modal?.msgError?.(err?.message || err?.msg || '保存失败')
+    })
+    .finally(() => {
+      runPolicySaving.value = false
+    })
 }
 
 /** 保存跑流并发模式到项目字段 runConcurrencyMode */
@@ -907,10 +967,15 @@ function loadProjectSettings() {
       }))
       const mode = res.data?.runConcurrencyMode
       runConcurrencyMode.value = mode === 'parallel' ? 'parallel' : 'serial_by_env'
+      // 跑流策略：缺省允许暂停；开放入站外联缺省关
+      allowPause.value = res.data?.allowPause !== false
+      openHttpAllowExternal.value = res.data?.openHttpAllowExternal === true
     })
     .catch(() => {
       applyAuthForm(emptyAuthForm())
       runConcurrencyMode.value = 'serial_by_env'
+      allowPause.value = true
+      openHttpAllowExternal.value = false
     })
 }
 
@@ -1078,6 +1143,16 @@ const mcpConfigText = computed(() => {
   :deep(.el-segmented__item) {
     flex: 1;
   }
+}
+
+.project-setting__switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
 }
 
 .project-setting__hint {

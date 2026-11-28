@@ -23,16 +23,24 @@ import com.qualitest.project.result.TestSuiteItemResult;
 import com.qualitest.project.result.TestSuiteResult;
 import com.qualitest.project.result.TestSuiteRunItemResult;
 import com.qualitest.project.result.TestSuiteRunResult;
+import com.qualitest.project.params.TriggerTestFlowRunParams;
+import com.qualitest.project.result.TestFlowRunResult;
+import com.qualitest.project.result.TriggerTestFlowRunOutcome;
+import com.qualitest.project.service.ITestFlowExecutionService;
 import com.qualitest.project.service.ITestFlowService;
 import com.qualitest.project.service.ITestSuiteRunService;
 import com.qualitest.project.service.ITestSuiteService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 测试套件运行Service业务层处理
@@ -40,14 +48,25 @@ import java.util.Objects;
  * @author qualitest
  * @date 2026-10-28
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
+
+    private static final long DEFAULT_PER_RUN_TIMEOUT_MS = 600_000L;
 
     private final TestSuiteRunMapper testSuiteRunMapper;
     private final TestSuiteRunItemMapper testSuiteRunItemMapper;
     private final ITestSuiteService testSuiteService;
     private final ITestFlowService testFlowService;
+    /** 延迟取执行服务，避免与跑流编排循环依赖 */
+    private final ObjectProvider<ITestFlowExecutionService> testFlowExecutionService;
+
+    private final ExecutorService suiteExecutor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "test-suite-run");
+        t.setDaemon(true);
+        return t;
+    });
 
     /**
      * 查询测试套件运行列表
@@ -198,7 +217,7 @@ public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
     }
 
     /**
-     * 开始套件运行：按已保存套件写入 running 头与 pending 项，立刻返回；由客户端串行 trigger 并回写
+     * 开始套件运行：按已保存套件写入 running 头与 pending 项，立刻返回。
      *
      * @param params 启动参数（须含 testSuiteId）
      * @return 套件运行详情
@@ -305,6 +324,141 @@ public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
     }
 
     /**
+     * 提交后台线程串行跑套件各项。
+     * 线程内按库中 pending/running 项依次 trigger、绑定 runId、等待终态并 finish；
+     * 头状态为 aborted 或 stopOnNonPass 触发提前停止时，剩余项标 skipped。
+     */
+    @Override
+    public void executeAsync(Long testSuiteRunId) {
+        if (testSuiteRunId == null) {
+            return;
+        }
+        suiteExecutor.execute(() -> {
+            try {
+                executeSuiteRun(testSuiteRunId);
+            } catch (Exception e) {
+                log.error("套件串跑异常 testSuiteRunId={}", testSuiteRunId, e);
+                try {
+                    abort(testSuiteRunId);
+                } catch (Exception ignored) {
+                    // 尽力中止
+                }
+            }
+        });
+    }
+
+    /**
+     * 套件导演主循环：唯一编排点，前端只轮询不参与 trigger。
+     * 每项经 resolveStartedRunId 处理排队；终态写入项并按 stopOnNonPass 决定是否跳过后续。
+     */
+    private void executeSuiteRun(Long testSuiteRunId) {
+        TestSuiteRunResult detail = selectTestSuiteRunResult(testSuiteRunId);
+        if (detail == null || detail.getItems() == null || detail.getItems().isEmpty()) {
+            return;
+        }
+        boolean stopOnNonPass = detail.getStopOnNonPass() == null || detail.getStopOnNonPass() == 1;
+        Long envId = detail.getTestProjectEnvId();
+        Long operatorId = detail.getOperatorUserId();
+        boolean stoppedEarly = false;
+        ITestFlowExecutionService execution = testFlowExecutionService.getObject();
+
+        for (TestSuiteRunItemResult item : detail.getItems()) {
+            if (item == null || item.getTestSuiteRunItemId() == null) {
+                continue;
+            }
+            TestSuiteRun header = testSuiteRunMapper.selectTestSuiteRunById(testSuiteRunId);
+            if (header != null && "aborted".equals(header.getStatus())) {
+                break;
+            }
+            if (stoppedEarly) {
+                finishSuiteItem(testSuiteRunId, item.getTestSuiteRunItemId(),
+                        RunStatus.SKIPPED.getCode(), "队列已提前停止", null);
+                continue;
+            }
+            if (!"pending".equals(item.getStatus()) && !RunStatus.RUNNING.matches(item.getStatus())) {
+                continue;
+            }
+
+            try {
+                TriggerTestFlowRunOutcome outcome = execution.triggerRun(
+                        TriggerTestFlowRunParams.builder()
+                                .testFlowId(item.getTestFlowId())
+                                .entryNodeId(StrUtil.trimToNull(item.getEntryNodeId()))
+                                .runScenarioId(StrUtil.trimToNull(item.getRunScenarioId()))
+                                .testProjectEnvId(envId)
+                                .triggerType(com.qualitest.flow.delivery.RunTrigger.SUITE.getCode())
+                                .operatorUserId(operatorId)
+                                .build());
+                Long flowRunId = execution.resolveStartedRunId(outcome, DEFAULT_PER_RUN_TIMEOUT_MS);
+                if (flowRunId == null) {
+                    finishSuiteItem(testSuiteRunId, item.getTestSuiteRunItemId(),
+                            RunStatus.FAILED.getCode(),
+                            outcome != null && StrUtil.isNotBlank(outcome.getMessage())
+                                    ? outcome.getMessage()
+                                    : "排队取消或超时未开跑",
+                            null);
+                    if (stopOnNonPass) {
+                        stoppedEarly = true;
+                    }
+                    continue;
+                }
+                bindRun(testSuiteRunId, item.getTestSuiteRunItemId(), BindTestSuiteRunItemParams.builder()
+                        .testFlowRunId(flowRunId)
+                        .build());
+                TestFlowRunResult terminal = execution.awaitRunTerminal(
+                        flowRunId, DEFAULT_PER_RUN_TIMEOUT_MS);
+                if (terminal == null) {
+                    finishSuiteItem(testSuiteRunId, item.getTestSuiteRunItemId(),
+                            RunStatus.FAILED.getCode(), "运行记录不存在", null);
+                    if (stopOnNonPass) {
+                        stoppedEarly = true;
+                    }
+                    continue;
+                }
+                String status = normalizeItemStatus(terminal.getStatus());
+                finishSuiteItem(testSuiteRunId, item.getTestSuiteRunItemId(),
+                        status, terminal.getErrorMessage(), terminal.getDurationMs());
+                if (stopOnNonPass && !RunStatus.PASSED.matches(status)) {
+                    stoppedEarly = true;
+                }
+            } catch (Exception e) {
+                finishSuiteItem(testSuiteRunId, item.getTestSuiteRunItemId(),
+                        RunStatus.FAILED.getCode(),
+                        StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
+                        null);
+                if (stopOnNonPass) {
+                    stoppedEarly = true;
+                }
+            }
+        }
+        refreshHeader(testSuiteRunId, false);
+    }
+
+    /** 将套件项写成终态（或 skipped），并刷新头汇总。 */
+    private void finishSuiteItem(Long testSuiteRunId, Long itemId, String status,
+                                 String errorMessage, Long durationMs) {
+        finishItem(testSuiteRunId, itemId, FinishTestSuiteRunItemParams.builder()
+                .status(status)
+                .errorMessage(errorMessage)
+                .durationMs(durationMs)
+                .build());
+    }
+
+    /**
+     * 把 Run 终态规范成套件项可存状态：空白或 error 记为 failed，其余原样保留（含 paused）。
+     */
+    private static String normalizeItemStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return RunStatus.FAILED.getCode();
+        }
+        String trimmed = status.trim();
+        if ("error".equalsIgnoreCase(trimmed)) {
+            return RunStatus.FAILED.getCode();
+        }
+        return trimmed;
+    }
+
+    /**
      * 运行项绑定正式 RunId，状态置为 running
      *
      * @param testSuiteRunId     套件运行ID
@@ -353,7 +507,7 @@ public class TestSuiteRunServiceImpl implements ITestSuiteRunService {
         Date now = DateUtils.getNowDate();
         TestSuiteRunItem patch = TestSuiteRunItem.builder()
                 .testSuiteRunItemId(item.getTestSuiteRunItemId())
-                .status(params.getStatus().trim())
+                .status(normalizeItemStatus(params.getStatus()))
                 .errorMessage(params.getErrorMessage())
                 .durationMs(params.getDurationMs())
                 .updateTime(now)

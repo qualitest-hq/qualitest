@@ -31,9 +31,11 @@ public class ResumeContinuationPlanner {
      *   <li>restoreAndRetry：按需还原快照、截断栈，从快照节点 RETRY_NODE</li>
      *   <li>retryInPlace：从暂停节点 RETRY_NODE</li>
      *   <li>skip：从暂停节点 SKIP_NODE</li>
-     *   <li>continueWithInput：仅当 pauseReason=await_input；COMPLETE_NODE（flow 须已由调用方写好）</li>
+     *   <li>continueWithInput：仅 pauseReason=await_input；模式 COMPLETE_NODE
+     *       （flow 须已由执行器按 inputs 写好）</li>
      * </ul>
-     * await_input 下除 continueWithInput / abort 外的决策一律拒绝。
+     * 暂停原因为 await_input 时，除 continueWithInput / abort 外一律拒绝，
+     * 避免对填表暂停误用重试或跳过。
      */
     public PlannedResume plan(
             ResumeDecision decision,

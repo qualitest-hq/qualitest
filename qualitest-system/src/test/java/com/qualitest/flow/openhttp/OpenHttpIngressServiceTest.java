@@ -83,9 +83,11 @@ class OpenHttpIngressServiceTest {
 
     @BeforeEach
     void setUp() {
+        com.qualitest.flow.http.FlowExternalPermission externalPermission =
+                org.mockito.Mockito.mock(com.qualitest.flow.http.FlowExternalPermission.class);
         service = new OpenHttpIngressService(routeRegistry, slots, flowGraphRunner, nodeHandlerRegistry,
                 flowGraphValidateService, testProjectEnvService, testProjectMapper, testFlowRunService,
-                runPersistenceService, stepResultWriter, runStatusUpdater);
+                runPersistenceService, stepResultWriter, runStatusUpdater, externalPermission);
     }
 
     /**

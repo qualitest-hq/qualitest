@@ -24,15 +24,15 @@ import java.util.Map;
 public class RunExecutionState {
 
     /**
-     * 业务节点失败导致暂停（历史值；新 Run 不再写入，仅兼容旧 paused 记录展示 / 续跑）。
+     * 业务节点失败导致暂停（旧记录可能仍带此值；新开跑不再写入）。
      */
     public static final String PAUSE_REASON_NODE_FAILURE = "node_failure";
     /**
-     * checkpoint 失败暂停（历史值；新 Run 不再写入，存档失败现为 abort|continue）。
+     * checkpoint 失败导致暂停（旧记录可能仍带此值；新开跑不再写入）。
      */
     public static final String PAUSE_REASON_SNAPSHOT_FAILURE = "snapshot_failure";
     /**
-     * Input 节点等待人工输入（现行唯一会新写入的暂停原因）。
+     * Input 节点等待填表（新开跑会写入的暂停原因）。
      * 可用决策仅为 continueWithInput（提交字段值）与 abort。
      */
     public static final String PAUSE_REASON_AWAIT_INPUT = "await_input";
@@ -47,8 +47,9 @@ public class RunExecutionState {
     private String incomingEdgeId;
 
     /**
-     * 暂停原因：现行 {@link #PAUSE_REASON_AWAIT_INPUT}；
-     * 另可能读到历史 {@link #PAUSE_REASON_NODE_FAILURE} / {@link #PAUSE_REASON_SNAPSHOT_FAILURE}。
+     * 暂停原因字符串。
+     * 新开跑写入 {@link #PAUSE_REASON_AWAIT_INPUT}；
+     * 读库时仍可能遇到旧的 node_failure / snapshot_failure。
      */
     private String pauseReason;
 
