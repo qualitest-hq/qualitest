@@ -34,6 +34,7 @@
         :trial-source="trialSource"
         :resolve-node-body="resolveNodeBody"
     />
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
@@ -52,6 +53,7 @@ import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowTrialBody } from '../../composables/useFlowTrialBody'
 import { useFlowCanvasStore } from '../../stores/flowCanvasStore'
 import { nodeDisplayName } from '../../utils/flowValidationIssues'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },

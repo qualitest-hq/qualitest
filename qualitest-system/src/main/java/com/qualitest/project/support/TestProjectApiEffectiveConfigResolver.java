@@ -99,6 +99,8 @@ public final class TestProjectApiEffectiveConfigResolver {
     /**
      * 把 paramDefaults、bodyExample 写进请求结构副本后序列化。
      * 用于合成 API 有效配置，以及把节点测值覆盖叠到请求上。
+     * <p>
+     * paramDefaults：按 name 命中则写 value；禁用行重新启用；无行则追加（与 FE 叠回一致）。
      *
      * @param rawRequestConfig 请求结构 JSON（或已含部分测值的副本）
      * @param paramDefaults    按参数 name 写入 query / path / header / form-data / urlencoded 的 value；空则跳过
@@ -107,10 +109,12 @@ public final class TestProjectApiEffectiveConfigResolver {
     public static String overlayRequestValues(String rawRequestConfig, ObjectNode paramDefaults, JsonNode bodyExample) {
         ObjectNode root = ApiConfigJsonSupport.parseObjectOrEmpty(rawRequestConfig);
         ObjectNode defaults = paramDefaults != null ? paramDefaults : JsonNodeFactory.instance.objectNode();
-        for (String field : PARAM_ARRAY_FIELDS) {
-            applyParamDefaultsToArray(root.get(field), defaults);
+        if (!defaults.isEmpty()) {
+            for (String field : PARAM_ARRAY_FIELDS) {
+                applyParamDefaultsToArray(ensureArrayField(root, field), defaults);
+            }
+            applyBodyParamDefaults(root, defaults);
         }
-        applyBodyParamDefaults(root, defaults);
         if (bodyExample != null && !bodyExample.isNull()) {
             applyBodyExampleNode(root, bodyExample);
         }
@@ -178,7 +182,7 @@ public final class TestProjectApiEffectiveConfigResolver {
 
     /**
      * 把 paramDefaults 按参数名写入 body.formData、body.urlencoded 各行的 value。
-     * 用于 multipart / 表单类请求体的测值叠层。
+     * 用于 multipart / 表单类请求体的测值叠层；无对应行则追加。
      */
     private static void applyBodyParamDefaults(ObjectNode root, ObjectNode paramDefaults) {
         JsonNode body = root.get("body");
@@ -186,33 +190,85 @@ public final class TestProjectApiEffectiveConfigResolver {
             return;
         }
         ObjectNode bodyObj = (ObjectNode) body;
-        applyParamDefaultsToArray(bodyObj.get("formData"), paramDefaults);
-        applyParamDefaultsToArray(bodyObj.get("urlencoded"), paramDefaults);
+        applyParamDefaultsToArray(ensureArrayField(bodyObj, "formData"), paramDefaults);
+        applyParamDefaultsToArray(ensureArrayField(bodyObj, "urlencoded"), paramDefaults);
     }
 
     /**
-     * 遍历参数数组，按 name 把 paramDefaults 中的值写入对应项的 value 字段。
+     * 按 paramDefaults 的键写入参数行：命中则改 value 并重新启用；无行则追加。
+     * 与 FE {@code peelTestValueConfig.applyParamDefaultsToArray} 同语义。
      */
-    private static void applyParamDefaultsToArray(JsonNode arrNode, ObjectNode paramDefaults) {
-        if (arrNode == null || !arrNode.isArray() || paramDefaults == null || paramDefaults.isEmpty()) {
+    private static void applyParamDefaultsToArray(ArrayNode rows, ObjectNode paramDefaults) {
+        if (rows == null || paramDefaults == null || paramDefaults.isEmpty()) {
             return;
         }
-        for (JsonNode item : arrNode) {
+        Iterator<Map.Entry<String, JsonNode>> fields = paramDefaults.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            String name = entry.getKey() == null ? null : entry.getKey().trim();
+            if (name == null || name.isEmpty()) {
+                continue;
+            }
+            writeParamValue(upsertParamRow(rows, name), entry.getValue());
+        }
+    }
+
+    /** 保证 parent[field] 为数组并返回；原先非数组则新建空数组 */
+    private static ArrayNode ensureArrayField(ObjectNode parent, String field) {
+        JsonNode existing = parent.get(field);
+        if (existing != null && existing.isArray()) {
+            return (ArrayNode) existing;
+        }
+        ArrayNode created = JsonNodeFactory.instance.arrayNode();
+        parent.set(field, created);
+        return created;
+    }
+
+    /**
+     * 按 name 取参数行：无则追加启用行；有且禁用则重新启用（覆盖即要发出）。
+     */
+    private static ObjectNode upsertParamRow(ArrayNode rows, String name) {
+        ObjectNode row = findParamRowByName(rows, name);
+        if (row == null) {
+            row = JsonNodeFactory.instance.objectNode();
+            row.put("name", name);
+            row.put("type", "string");
+            row.put("_enabled", true);
+            rows.add(row);
+            return row;
+        }
+        JsonNode enabled = row.get("_enabled");
+        if (enabled != null && enabled.isBoolean() && !enabled.asBoolean()) {
+            row.put("_enabled", true);
+        }
+        return row;
+    }
+
+    /** 把 JsonNode 测值写入行的 value 字段 */
+    private static void writeParamValue(ObjectNode row, JsonNode def) {
+        if (def == null || def.isNull()) {
+            row.put("value", "");
+        } else if (def.isTextual()) {
+            row.put("value", def.asText());
+        } else if (def.isValueNode()) {
+            row.put("value", def.asText());
+        } else {
+            row.put("value", def.toString());
+        }
+    }
+
+    /** 在参数数组中按 name 查找行 */
+    private static ObjectNode findParamRowByName(ArrayNode rows, String name) {
+        for (JsonNode item : rows) {
             if (!item.isObject()) {
                 continue;
             }
-            ObjectNode param = (ObjectNode) item;
-            String name = ApiConfigJsonSupport.textField(param, "name");
-            if (name == null || !paramDefaults.has(name)) {
-                continue;
-            }
-            JsonNode def = paramDefaults.get(name);
-            if (def.isTextual()) {
-                param.put("value", def.asText());
-            } else {
-                param.set("value", def.deepCopy());
+            ObjectNode row = (ObjectNode) item;
+            if (name.equals(ApiConfigJsonSupport.textField(row, "name"))) {
+                return row;
             }
         }
+        return null;
     }
 
     /**
@@ -308,9 +364,7 @@ public final class TestProjectApiEffectiveConfigResolver {
         if (!bodyExample.isObject()) {
             return;
         }
-        ArrayNode rows = bodyObj.has("urlencoded") && bodyObj.get("urlencoded").isArray()
-                ? (ArrayNode) bodyObj.get("urlencoded")
-                : JsonNodeFactory.instance.arrayNode();
+        ArrayNode rows = ensureArrayField(bodyObj, "urlencoded");
         Iterator<Map.Entry<String, JsonNode>> fields = bodyExample.fields();
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> entry = fields.next();
@@ -318,42 +372,8 @@ public final class TestProjectApiEffectiveConfigResolver {
             if (name == null || name.isEmpty()) {
                 continue;
             }
-            ObjectNode row = findUrlencodedRowByName(rows, name);
-            if (row == null) {
-                row = JsonNodeFactory.instance.objectNode();
-                row.put("name", name);
-                rows.add(row);
-            }
-            JsonNode val = entry.getValue();
-            if (val == null || val.isNull()) {
-                row.put("value", "");
-            } else if (val.isTextual()) {
-                row.put("value", val.asText());
-            } else if (val.isValueNode()) {
-                row.put("value", val.asText());
-            } else {
-                row.put("value", val.toString());
-            }
+            writeParamValue(upsertParamRow(rows, name), entry.getValue());
         }
-        bodyObj.set("urlencoded", rows);
-    }
-
-    /**
-     * 在 urlencoded 参数数组中按 name 查找行。
-     *
-     * @return 命中的行对象；未找到返回 null
-     */
-    private static ObjectNode findUrlencodedRowByName(ArrayNode rows, String name) {
-        for (JsonNode item : rows) {
-            if (!item.isObject()) {
-                continue;
-            }
-            ObjectNode row = (ObjectNode) item;
-            if (name.equals(ApiConfigJsonSupport.textField(row, "name"))) {
-                return row;
-            }
-        }
-        return null;
     }
 
     /**

@@ -78,7 +78,10 @@ export function useApiDebugSend(props, draft, bodyJson, proxy, script) {
       if (row._enabled === false) continue
       const k = (row.name || '').trim()
       if (!k) continue
-      qs.append(k, row.value ?? '')
+      // 与流 Run 一致：空值不发出（避免被测端 Map 绑定类 500）
+      const v = row.value ?? ''
+      if (String(v).trim() === '') continue
+      qs.append(k, v)
     }
     const qStr = qs.toString()
     const base = ensureHttpSchemeForRequest(envBase).replace(/\/$/, '')

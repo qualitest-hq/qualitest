@@ -10,6 +10,7 @@
       />
       <div class="field__hint">相当于 out = 该路径对象，再挂到父流对应子流节点的 out</div>
     </div>
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
@@ -19,6 +20,7 @@
  * 交付时挂到父图画布上对应子流节点的 out，不写 HTTP status。
  */
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },

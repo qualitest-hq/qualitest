@@ -117,4 +117,43 @@ class FlowDesignNodeDataKeysTest {
         assertTrue(removed.isEmpty());
         assertTrue(data.containsKey("alwaysRun"));
     }
+
+    /**
+     * 前提：http data 含 cookies 与 snapshotBefore（画布可配）。
+     * 期望：白名单保留，不被 strip。
+     */
+    @Test
+    @Order(6)
+    @DisplayName("http 保留 cookies 与 snapshotBefore")
+    void stripUnknown_http_keepsCookiesAndSnapshotBefore() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("callMode", "project");
+        data.put("cookies", List.of(Map.of("name", "sid", "value", "1")));
+        data.put("snapshotBefore", true);
+        List<String> removed = FlowDesignNodeDataKeys.stripUnknown("http", data);
+        assertTrue(removed.isEmpty());
+        assertTrue(data.containsKey("cookies"));
+        assertTrue(data.containsKey("snapshotBefore"));
+    }
+
+    /**
+     * 前提：assert / delay 带 alwaysRun。
+     * 期望：与 BooleanFieldRules 对齐，保留 alwaysRun。
+     */
+    @Test
+    @Order(7)
+    @DisplayName("assert/delay 保留 alwaysRun")
+    void stripUnknown_assertAndDelay_keepAlwaysRun() {
+        Map<String, Object> assertData = new HashMap<>();
+        assertData.put("rules", List.of());
+        assertData.put("alwaysRun", true);
+        assertTrue(FlowDesignNodeDataKeys.stripUnknown("assert", assertData).isEmpty());
+        assertTrue(assertData.containsKey("alwaysRun"));
+
+        Map<String, Object> delayData = new HashMap<>();
+        delayData.put("ms", 100);
+        delayData.put("alwaysRun", true);
+        assertTrue(FlowDesignNodeDataKeys.stripUnknown("delay", delayData).isEmpty());
+        assertTrue(delayData.containsKey("alwaysRun"));
+    }
 }

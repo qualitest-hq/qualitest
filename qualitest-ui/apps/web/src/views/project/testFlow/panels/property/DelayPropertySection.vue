@@ -1,24 +1,28 @@
 <template>
-  <div class="field">
-    <label>毫秒</label>
-    <input
-        :value="node.data.ms ?? DELAY_DEFAULT_MS"
-        :max="DELAY_MAX_MS"
-        min="0"
-        step="100"
-        type="number"
-        @input="onDelayInput"
-    />
-    <p class="field__hint">默认 {{ DELAY_DEFAULT_MS }} ms，上限 {{ DELAY_MAX_MS }} ms</p>
+  <div class="delay-prop">
+    <div class="field">
+      <label>毫秒</label>
+      <input
+          :value="node.data.ms ?? DELAY_DEFAULT_MS"
+          :max="DELAY_MAX_MS"
+          min="0"
+          step="100"
+          type="number"
+          @input="onDelayInput"
+      />
+      <p class="field__hint">默认 {{ DELAY_DEFAULT_MS }} ms，上限 {{ DELAY_MAX_MS }} ms</p>
+    </div>
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
 <script setup>
-/** 等待节点：配置延迟毫秒数；缺 ms 时写入默认值 */
+/** 等待节点：配置延迟毫秒数；缺 ms 时写入默认值；可勾 alwaysRun */
 import { onMounted } from 'vue'
 
 import { DELAY_DEFAULT_MS, DELAY_MAX_MS } from '../../constants/flowConfig'
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },

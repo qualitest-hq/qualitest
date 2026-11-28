@@ -20,6 +20,7 @@
         @input="onStatusInput"
       />
     </div>
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
@@ -31,6 +32,7 @@
 import { computed } from 'vue'
 
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },

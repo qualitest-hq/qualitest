@@ -46,6 +46,7 @@
       + ELIF
     </button>
     <div class="field__hint">左值可用 run.* / flow.* / env.* / in.* / out.* / asset.* / http.body… / nodes.节点ID.http.body… / nodes.节点ID.out…；同分支内多条条件为 AND</div>
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
@@ -64,6 +65,7 @@ import { emptyCompareRule } from '@/utils/flow/compareRule'
 import { useFlowCanvasStore } from '../../stores/flowCanvasStore'
 import { useFlowNodes } from '../../composables/useFlowNodes'
 import { useFlowTrialBody } from '../../composables/useFlowTrialBody'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 import {
   branchKindLabel,
   canAddElifBranch,

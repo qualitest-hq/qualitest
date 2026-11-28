@@ -83,6 +83,7 @@
 
     <button class="btn btn--ghost" type="button" @click="addRow">+ 添加字段</button>
     <div class="field__hint">运行时写入 flow.*；验证码等可从上一步 HTTP 看图后在此填写</div>
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
@@ -103,6 +104,7 @@ import {
 } from '@/utils/flow/inputFields'
 
 import { useFlowNodes } from '../../composables/useFlowNodes'
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },

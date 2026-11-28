@@ -73,6 +73,51 @@ describe('applyTestValuesToStructure', () => {
     expect(rc.body.mode).toBe('json')
     expect(rc.body.json.example).toEqual({ username: 'admin', password: 'admin123' })
   })
+
+  it('urlencoded：bodyExample 按字段写入行并追加缺失名', () => {
+    // 前提：body.mode 为 urlencoded，已有 phone 行禁用；bodyExample 含 phone/code
+    // 期望：phone 重启用且改值，code 追加为新行
+    const rc = {
+      method: 'POST',
+      queryParams: [],
+      body: {
+        mode: 'x-www-form-urlencoded',
+        urlencoded: [{ name: 'phone', value: '', type: 'string', _enabled: false }],
+      },
+    }
+    applyTestValuesToStructure(rc, {
+      request: { bodyExample: { phone: '13800001111', code: '1234' } },
+    })
+    expect(rc.body.urlencoded.find((r) => r.name === 'phone')).toMatchObject({
+      value: '13800001111',
+      _enabled: true,
+    })
+    expect(rc.body.urlencoded.find((r) => r.name === 'code')).toMatchObject({
+      value: '1234',
+      _enabled: true,
+    })
+  })
+
+  it('paramDefaults：无结构行时追加并重开禁用行', () => {
+    // 前提：query 仅有禁用的 page；paramDefaults 含 page 与 extra
+    // 期望：page 启用且有值，extra 追加
+    const rc = {
+      method: 'GET',
+      queryParams: [{ name: 'page', value: '', type: 'string', _enabled: false }],
+      pathParams: [],
+    }
+    applyTestValuesToStructure(rc, {
+      request: { paramDefaults: { page: '2', extra: 'x' } },
+    })
+    expect(rc.queryParams.find((r) => r.name === 'page')).toMatchObject({
+      value: '2',
+      _enabled: true,
+    })
+    expect(rc.queryParams.find((r) => r.name === 'extra')).toMatchObject({
+      value: 'x',
+      _enabled: true,
+    })
+  })
 })
 
 describe('buildRequestWorkbenchStateFromDetail 合并测值', () => {

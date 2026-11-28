@@ -8,7 +8,8 @@ import com.qualitest.flow.model.GraphNode;
  * 布尔 true：业务步骤失败后进入失败后继续阶段，本节点仍会执行；
  * 执行成功记 continued，失败记 continued_failed。
  * 未标记或非布尔 true：该阶段记 bypassed，不调用 Handler。
- * 保存时若写出该字段，值须为 JSON 布尔，且仅允许挂在 http / script / assign / subflow。
+ * 保存时若写出该字段，值须为 JSON 布尔；允许的节点类型见
+ * {@link com.qualitest.flow.validate.GraphNodeBooleanFieldRules#ALWAYS_RUN_ALLOWED_TYPES}。
  */
 public final class GraphNodeAlwaysRunSupport {
 

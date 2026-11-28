@@ -32,6 +32,7 @@
       <textarea :value="configText" rows="6" @change="onConfig" />
       <div class="field__hint">能力参数对象；可用态按当前环境启用集即时算，不落盘 enabled</div>
     </div>
+    <AlwaysRunPropertySection :node="node" />
   </div>
 </template>
 
@@ -41,6 +42,7 @@
  */
 import { computed } from 'vue';
 import { useFlowNodes } from '../../composables/useFlowNodes';
+import AlwaysRunPropertySection from './AlwaysRunPropertySection.vue';
 
 const props = defineProps({
   /** 当前选中的插件动作节点 */

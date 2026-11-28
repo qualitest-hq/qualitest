@@ -37,6 +37,8 @@ API asset defaults → node requestValueOverrides → resolve {{…}} → send
 
 Overrides may only have **`paramDefaults`** and **`bodyExample`**. Do not put body fields at the override root.
 
+Run and the API debug console share the **same overlay algorithm and wire packing** (single `Cookie` header, path/query space as `%20`, blank query omitted); value sources may differ.
+
 ---
 
 ## 4. Passwords & scenario accounts

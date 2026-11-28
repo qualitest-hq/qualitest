@@ -147,30 +147,47 @@ function ensureParamArray(parent, key) {
   return parent[key]
 }
 
+/**
+ * 按 name 覆盖或追加参数行；禁用行重新启用。
+ * paramDefaults 与 urlencoded bodyExample 共用。
+ */
+function upsertParamRow(rows, name, value) {
+  const row = rows.find((r) => r && String(r.name || '').trim() === name)
+  if (row) {
+    row.value = value
+    if (row._enabled === false) row._enabled = true
+    return
+  }
+  rows.push({
+    name,
+    value,
+    type: 'string',
+    _enabled: true,
+  })
+}
+
 /** 按参数名把 defaults 写进 KV 行；没有对应行则追加 */
 function applyParamDefaultsToArray(rows, params) {
   if (!Array.isArray(rows) || !params) return
   for (const [name, value] of Object.entries(params)) {
     const key = String(name || '').trim()
     if (!key) continue
-    const row = rows.find((r) => r && String(r.name || '').trim() === key)
-    if (row) {
-      row.value = value
-      if (row._enabled === false) row._enabled = true
-    } else {
-      rows.push({
-        name: key,
-        value,
-        type: 'string',
-        _enabled: true,
-      })
-    }
+    upsertParamRow(rows, key, value)
   }
 }
 
-/** 把 bodyExample 写入 body.json.example；mode 为 none/空时切到 json */
+/**
+ * 把 bodyExample 写入请求 body。
+ * urlencoded / x-www-form-urlencoded：按字段名覆盖/追加行 value（与 BE 一致）；
+ * 其它：写入 body.json.example；mode 为 none/空时切到 json。
+ */
 function applyBodyExampleToRequest(request, bodyExample) {
   const body = ensureObj(request, 'body')
+  const mode = String(body.mode || '').toLowerCase()
+  if (mode === 'x-www-form-urlencoded' || mode === 'urlencoded') {
+    applyBodyExampleToUrlencoded(body, bodyExample)
+    return
+  }
   if (!body.mode || body.mode === 'none') {
     body.mode = 'json'
   }
@@ -178,4 +195,15 @@ function applyBodyExampleToRequest(request, bodyExample) {
   const jsonPart = asObject(body.json) || {}
   jsonPart.example = cloneJson(bodyExample)
   body.json = jsonPart
+}
+
+/** 对象型 bodyExample 按字段写入 urlencoded 行；无行则追加 */
+function applyBodyExampleToUrlencoded(body, bodyExample) {
+  if (!bodyExample || typeof bodyExample !== 'object' || Array.isArray(bodyExample)) return
+  const rows = ensureParamArray(body, 'urlencoded')
+  for (const [rawName, value] of Object.entries(bodyExample)) {
+    const name = String(rawName || '').trim()
+    if (!name) continue
+    upsertParamRow(rows, name, value == null ? '' : value)
+  }
 }

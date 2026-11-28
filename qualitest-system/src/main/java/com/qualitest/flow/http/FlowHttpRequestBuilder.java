@@ -40,6 +40,9 @@ import java.util.Map;
  * URL = 节点 externalUrl；method / headers / body 在节点 data 上配置。
  * <p>
  * 正式 Run 使用 strict 占位符：未定义变量直接失败。
+ * <p>
+ * 装箱与调试台对齐：Cookie 行合成单条 {@code Cookie} 头；path/query 空格用 {@code %20}
+ *（不用 {@code URLEncoder} 的 {@code +}）；空 query 值不发出。
  */
 public final class FlowHttpRequestBuilder {
 
@@ -289,7 +292,7 @@ public final class FlowHttpRequestBuilder {
                 continue;
             }
             String val = STRICT.resolve(String.valueOf(row.getOrDefault("value", "")), ctx);
-            urlPath = urlPath.replace("{" + name + "}", encode(val));
+            urlPath = urlPath.replace("{" + name + "}", encodePathQuery(val));
         }
         return urlPath;
     }
@@ -310,11 +313,11 @@ public final class FlowHttpRequestBuilder {
                 continue;
             }
             String val = STRICT.resolve(String.valueOf(row.getOrDefault("value", "")), ctx);
-            // 跳过空值：部分框架常把 BaseEntity.params(Map) 暴露为 query，空串会触发类型转换 500
+            // 跳过空值：与调试台一致；部分框架常把 BaseEntity.params(Map) 暴露为 query，空串会触发类型转换 500
             if (val == null || val.isBlank()) {
                 continue;
             }
-            pairs.add(encode(name) + "=" + encode(val));
+            pairs.add(encodePathQuery(name) + "=" + encodePathQuery(val));
         }
         return String.join("&", pairs);
     }
@@ -325,8 +328,9 @@ public final class FlowHttpRequestBuilder {
 
         Object rawNodeHeaders = nodeData != null ? nodeData.get("headers") : null;
         List<Map<String, Object>> nodeHeaderRows = parseHeaderRows(rawNodeHeaders);
-        if (api != null && ctx != null) {
-            // 开跑时按接口 auth.mode 解析并合并托管头；不读节点 extracts、不读预制接口列表
+        // 有 authConfig 时按 mode 合并托管头；空白则跳过（不中断组包）
+        if (api != null && ctx != null
+                && api.getAuthConfig() != null && !api.getAuthConfig().isBlank()) {
             AuthHeaderResolver.ResolvedAuthHeader resolved = AuthHeaderResolver.resolve(
                     api.getAuthConfig(),
                     ctx.getProjectAuthConfig(),
@@ -334,8 +338,11 @@ public final class FlowHttpRequestBuilder {
             nodeHeaderRows = AuthHeaderResolver.applyToHeaderRows(nodeHeaderRows, resolved).headers();
         }
         appendHeaderRows(headers, nodeHeaderRows, ctx);
-        appendHeaderRows(headers, parseHeaderRows(api != null ? api.getCookies() : null), ctx);
-        appendHeaderRows(headers, parseHeaderRows(nodeData != null ? nodeData.get("cookies") : null), ctx);
+        // Cookie 行合成标准 Cookie 头（与调试台同形），禁止 cookie 名当独立头
+        List<Map<String, Object>> cookieRows = new ArrayList<>();
+        cookieRows.addAll(parseHeaderRows(api != null ? api.getCookies() : null));
+        cookieRows.addAll(parseHeaderRows(nodeData != null ? nodeData.get("cookies") : null));
+        appendCookieRows(headers, cookieRows, ctx);
         return headers;
     }
 
@@ -348,16 +355,65 @@ public final class FlowHttpRequestBuilder {
             if (row == null || Boolean.FALSE.equals(row.get("_enabled"))) {
                 continue;
             }
-            String name = row.get("name") != null ? String.valueOf(row.get("name")).trim() : "";
-            if (name.isEmpty() && row.get("key") != null) {
-                name = String.valueOf(row.get("key")).trim();
-            }
+            String name = headerRowName(row);
             if (name.isEmpty()) {
                 continue;
             }
             String val = STRICT.resolve(String.valueOf(row.getOrDefault("value", "")), ctx);
             headers.put(name, val);
         }
+    }
+
+    /**
+     * 把 cookie KV 行合成 {@code Cookie: name=value; …}，追加到已有 Cookie 头。
+     * 与调试台拼法一致；不把 cookie 名写成独立 HTTP 头。
+     */
+    private static void appendCookieRows(Map<String, String> headers, List<Map<String, Object>> rows, FlowRunContext ctx) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        List<String> parts = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            if (row == null || Boolean.FALSE.equals(row.get("_enabled"))) {
+                continue;
+            }
+            String name = headerRowName(row);
+            if (name.isEmpty()) {
+                continue;
+            }
+            // 行本身已是 Cookie 头时，值里已是 name=value 串，原样并入
+            if ("cookie".equalsIgnoreCase(name)) {
+                String raw = STRICT.resolve(String.valueOf(row.getOrDefault("value", "")), ctx).trim();
+                if (!raw.isEmpty()) {
+                    parts.add(raw);
+                }
+                continue;
+            }
+            String val = STRICT.resolve(String.valueOf(row.getOrDefault("value", "")), ctx);
+            parts.add(name + "=" + val);
+        }
+        if (parts.isEmpty()) {
+            return;
+        }
+        String joined = String.join("; ", parts);
+        String existingKey = findHeaderKey(headers, "Cookie");
+        if (existingKey != null) {
+            String existing = headers.get(existingKey);
+            if (existing != null && !existing.isBlank()) {
+                headers.put(existingKey, existing + "; " + joined);
+                return;
+            }
+        }
+        headers.put("Cookie", joined);
+    }
+
+    /** 从 KV 行取头名：优先 name，其次 key */
+    private static String headerRowName(Map<String, Object> row) {
+        String name = row.get("name") != null ? String.valueOf(row.get("name")).trim() : "";
+        if (name.isEmpty() && row.get("key") != null) {
+            name = String.valueOf(row.get("key")).trim();
+        }
+        return name;
     }
 
     @SuppressWarnings("unchecked")
@@ -691,12 +747,20 @@ public final class FlowHttpRequestBuilder {
     }
 
     private static boolean hasHeader(Map<String, String> headers, String name) {
+        return findHeaderKey(headers, name) != null;
+    }
+
+    /** 忽略大小写查找头名；未找到返回 null */
+    private static String findHeaderKey(Map<String, String> headers, String name) {
+        if (headers == null || name == null) {
+            return null;
+        }
         for (String key : headers.keySet()) {
             if (key != null && key.equalsIgnoreCase(name)) {
-                return true;
+                return key;
             }
         }
-        return false;
+        return null;
     }
 
     private static JSONObject parseJsonObject(Object raw) {
@@ -716,8 +780,13 @@ public final class FlowHttpRequestBuilder {
         }
     }
 
-    private static String encode(String value) {
-        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
+    /**
+     * path/query 百分号编码：空格为 {@code %20}（对齐 {@code encodeURIComponent}），
+     * 不用表单编码里的 {@code +}。
+     */
+    private static String encodePathQuery(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8)
+                .replace("+", "%20");
     }
 
     /** build 方法的返回值：转发参数 + 写入 step_details 的请求快照字段 */

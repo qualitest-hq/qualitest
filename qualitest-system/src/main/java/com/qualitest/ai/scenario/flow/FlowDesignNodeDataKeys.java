@@ -24,36 +24,33 @@ public final class FlowDesignNodeDataKeys {
      * HTTP 节点 data 允许键。
      * extractsOnFailure：步骤失败时是否仍执行抽取（skip 默认不写，write 失败也写内存）。
      * statusCheck：按 HTTP 状态码判定成败；successCheck：按业务码判定。
-     * alwaysRun：业务失败后继续阶段是否仍执行本节点。
-     * authProfileId：本节点覆盖使用的多端鉴权配置 id。
-     * retryUntil：重试直到通过——最多请求次数、间隔毫秒、可选通过条件规则。
+     * alwaysRun / snapshotBefore：与 {@link com.qualitest.flow.validate.GraphNodeBooleanFieldRules} 对齐。
+     * cookies：节点 Cookie KV（Run 合成 Cookie 头）；authProfileId：多端鉴权覆盖；retryUntil：重试直到通过。
      */
     private static final Set<String> HTTP = Set.of(
             "callMode", "testProjectApiId", "externalUrl", "httpMethod",
-            "headers", "requestBody", "requestValueOverrides", "extracts", "extractsOnFailure",
+            "headers", "cookies", "requestBody", "requestValueOverrides", "extracts", "extractsOnFailure",
             "statusCheck", "successCheck", "timeoutMs", "preScript", "postScript",
-            "apiName", "apiPath", "authProfileId", "alwaysRun", "retryUntil");
+            "apiName", "apiPath", "authProfileId", "alwaysRun", "snapshotBefore", "retryUntil");
 
-    /** 断言节点 data 允许键 */
-    private static final Set<String> ASSERT = Set.of("rules");
+    /** 断言节点：rules + alwaysRun（与 BooleanFieldRules 对齐） */
+    private static final Set<String> ASSERT = Set.of("rules", "alwaysRun");
 
-    /** 条件分支节点 data 允许键 */
-    private static final Set<String> CONDITION = Set.of("branches");
-
-    /**
-     * 赋值节点 data 允许键。
-     * alwaysRun：业务失败后继续阶段是否仍执行本节点。
-     */
-    private static final Set<String> ASSIGN = Set.of("assignments", "alwaysRun");
-
-    /** 延时节点 data 允许键 */
-    private static final Set<String> DELAY = Set.of("ms");
+    /** 条件分支：branches + alwaysRun */
+    private static final Set<String> CONDITION = Set.of("branches", "alwaysRun");
 
     /**
-     * 脚本节点 data 允许键。
-     * alwaysRun：业务失败后继续阶段是否仍执行本节点。
+     * 赋值节点：assignments、alwaysRun、snapshotBefore。
      */
-    private static final Set<String> SCRIPT = Set.of("language", "source", "alwaysRun");
+    private static final Set<String> ASSIGN = Set.of("assignments", "alwaysRun", "snapshotBefore");
+
+    /** 延时：ms + alwaysRun */
+    private static final Set<String> DELAY = Set.of("ms", "alwaysRun");
+
+    /**
+     * 脚本：language、source、alwaysRun、snapshotBefore。
+     */
+    private static final Set<String> SCRIPT = Set.of("language", "source", "alwaysRun", "snapshotBefore");
 
     /**
      * 子流节点 data 允许键。
@@ -78,11 +75,11 @@ public final class FlowDesignNodeDataKeys {
     private static final Set<String> PLUGIN_ACTION = Set.of(
             "pluginId", "contributionId", "capability", "config", "alwaysRun");
 
-    /** http-return：out 来源路径与可选 HTTP 状态码 */
-    private static final Set<String> HTTP_RETURN = Set.of("from", "status");
+    /** http-return：out 来源路径、可选 HTTP 状态码、alwaysRun */
+    private static final Set<String> HTTP_RETURN = Set.of("from", "status", "alwaysRun");
 
-    /** subflow-return：子流定稿 out 的来源路径 */
-    private static final Set<String> SUBFLOW_RETURN = Set.of("from");
+    /** subflow-return：子流定稿 out 来源路径 + alwaysRun */
+    private static final Set<String> SUBFLOW_RETURN = Set.of("from", "alwaysRun");
 
     /** 平台入口壳：单次 Run 步数上限（协议入口同样认此键，不另发明名） */
     private static final String ENTRY_MAX_STEPS = "maxSteps";
