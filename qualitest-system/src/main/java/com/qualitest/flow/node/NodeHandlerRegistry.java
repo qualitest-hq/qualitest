@@ -3,6 +3,7 @@ package com.qualitest.flow.node;
 import com.qualitest.flow.context.FlowRunContext;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.exception.FlowExecutionException;
+import com.qualitest.flow.model.FlowNodeType;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.impl.AssertNodeHandler;
 import com.qualitest.flow.node.impl.AssignNodeHandler;
@@ -15,9 +16,11 @@ import com.qualitest.flow.node.impl.PluginActionNodeHandler;
 import com.qualitest.flow.node.impl.ReturnNodeHandler;
 import com.qualitest.flow.node.impl.ScriptNodeHandler;
 import com.qualitest.flow.node.impl.SubflowNodeHandler;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -64,6 +67,29 @@ public class NodeHandlerRegistry {
      */
     public NodeHandlerRegistry(List<NodeHandler> handlers) {
         this.handlers = List.copyOf(handlers);
+    }
+
+    /**
+     * 启动断言：平台 FlowNodeType 枚举每一项，以及协议入口抽样，均须能 resolve 到 Handler。
+     */
+    @PostConstruct
+    void assertExecutableHandlersPresent() {
+        List<String> missing = new ArrayList<>();
+        for (FlowNodeType type : FlowNodeType.values()) {
+            String code = type.getCode();
+            boolean ok = handlers.stream().anyMatch(h -> h.supports(code));
+            if (!ok) {
+                missing.add(code);
+            }
+        }
+        // 协议入口走 EntryHandler：抽样 tcp-entry（枚举不逐一列出）
+        if (handlers.stream().noneMatch(h -> h.supports("tcp-entry"))) {
+            missing.add("tcp-entry(protocol)");
+        }
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException(
+                    "NodeHandler 未覆盖平台节点类型: " + String.join(", ", missing));
+        }
     }
 
     /**

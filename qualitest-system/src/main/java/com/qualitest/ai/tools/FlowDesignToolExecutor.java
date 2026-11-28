@@ -29,6 +29,7 @@ import com.qualitest.ai.tools.flow.ListFlowsTool;
 import com.qualitest.ai.tools.flow.ListProjectAuthProfilesTool;
 import com.qualitest.ai.tools.flow.ListProjectEnvsTool;
 import com.qualitest.ai.tools.flow.ListSubflowTemplatesTool;
+import com.qualitest.ai.tools.plugin.PluginInvokeSupport;
 import com.qualitest.ai.tools.flow.McpGetRunFailureTool;
 import com.qualitest.ai.tools.flow.McpGetRunReportTool;
 import com.qualitest.ai.tools.flow.McpRunTestFlowTool;
@@ -109,12 +110,15 @@ public class FlowDesignToolExecutor {
     /** 释放本端测试流写锁（MCP） */
     public static final String RELEASE_FLOW_LOCK = FlowDesignToolNames.RELEASE_FLOW_LOCK.getId();
 
+    /** 平台内置工具名 → 实现（不含插件说明书动态贡献） */
     private final Map<String, QualitestTool> tools;
     /** MCP 门面表：同名工具在 mcpMode 下优先使用（跑流、失败现场、过程报告） */
     private final Map<String, QualitestTool> mcpTools;
+    /** 插件贡献工具执行；单测可空 */
+    private final PluginInvokeSupport pluginInvokeSupport;
 
     /**
-     * 注册全部 Flow Design 工具（只读、改图、导入、规程版本查询等）。
+     * 注册全部 Flow Design 工具（只读、改图、导入、规程版本查询、插件 invoke 等）。
      *
      * @param testProjectApiMapper         项目接口 Mapper
      * @param testProjectMapper            测试项目 Mapper
@@ -135,6 +139,7 @@ public class FlowDesignToolExecutor {
      * @param mcpPromptResourceService     造流规程加载与合成版本计算
      * @param mcpProjectGateResolver       按角色解析 MCP 门控
      * @param flowEditLeaseService         测试流写锁（release_flow_lock）
+     * @param pluginInvokeSupport          插件贡献工具执行；可空（单测）
      */
     public FlowDesignToolExecutor(TestProjectApiMapper testProjectApiMapper,
                                   TestProjectMapper testProjectMapper,
@@ -154,10 +159,12 @@ public class FlowDesignToolExecutor {
                                   IApiImportService apiImportService,
                                   McpPromptResourceService mcpPromptResourceService,
                                   McpProjectGateResolver mcpProjectGateResolver,
-                                  FlowEditLeaseService flowEditLeaseService) {
+                                  FlowEditLeaseService flowEditLeaseService,
+                                  PluginInvokeSupport pluginInvokeSupport) {
         FlowGraphContextResolver graphResolver = new FlowGraphContextResolver(testFlowService);
         FlowDesignUnitSubmitSupport unitSubmit = new FlowDesignUnitSubmitSupport(
                 flowDesignPatchNormalizer, aiChatConversationService, flowDesignPatchMerger);
+        this.pluginInvokeSupport = pluginInvokeSupport;
         Map<String, QualitestTool> map = new HashMap<>();
         map.put(SEARCH_APIS, new SearchApisTool(testProjectApiMapper, testProjectMapper));
         map.put(GET_API_DETAILS, new GetApiDetailsTool(testProjectApiMapper, testProjectMapper));
@@ -228,6 +235,7 @@ public class FlowDesignToolExecutor {
                 new NodeTool(FlowDesignToolNames.SUBMIT_DELAY_NODE, "delay"),
                 new NodeTool(FlowDesignToolNames.SUBMIT_SCRIPT_NODE, "script"),
                 new NodeTool(FlowDesignToolNames.SUBMIT_SUBFLOW_NODE, "subflow"),
+                new NodeTool(FlowDesignToolNames.SUBMIT_INPUT_NODE, "input"),
                 new NodeTool(FlowDesignToolNames.SUBMIT_HTTP_RETURN_NODE, "http-return"),
                 new NodeTool(FlowDesignToolNames.SUBMIT_SUBFLOW_RETURN_NODE, "subflow-return"),
                 new NodeTool(FlowDesignToolNames.SUBMIT_SCENARIO_ENTRY_NODE, "scenario-entry"),
@@ -288,6 +296,12 @@ public class FlowDesignToolExecutor {
      * @return 回执 JSON
      */
     public String executeTool(String name, String argumentsJson, FlowDesignToolContext context, boolean mcpMode) {
+        Map<String, Object> args;
+        try {
+            args = FlowDesignToolSupport.parseArgs(argumentsJson);
+        } catch (IllegalArgumentException e) {
+            return FlowDesignToolSupport.errorJson(e.getMessage());
+        }
         QualitestTool tool = null;
         if (mcpMode) {
             tool = mcpTools.get(name);
@@ -296,13 +310,19 @@ public class FlowDesignToolExecutor {
             tool = tools.get(name);
         }
         if (tool == null) {
+            // 插件说明书 ai.tools：点查一次；未贡献则与拼错 builtin 一样报「未知工具」
+            if (pluginInvokeSupport != null) {
+                try {
+                    String pluginResult = pluginInvokeSupport.invokeIfContributed(name, args, context);
+                    if (pluginResult != null) {
+                        return pluginResult;
+                    }
+                } catch (Exception ex) {
+                    log.warn("插件工具 {} 执行异常: {}", name, ex.getMessage(), ex);
+                    return FlowDesignToolSupport.errorJson("工具执行异常: " + ex.getMessage());
+                }
+            }
             return FlowDesignToolSupport.errorJson("未知工具: " + name);
-        }
-        Map<String, Object> args;
-        try {
-            args = FlowDesignToolSupport.parseArgs(argumentsJson);
-        } catch (IllegalArgumentException e) {
-            return FlowDesignToolSupport.errorJson(e.getMessage());
         }
         try {
             return tool.execute(args, context);

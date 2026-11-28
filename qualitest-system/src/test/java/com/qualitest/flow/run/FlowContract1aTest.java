@@ -323,7 +323,7 @@ class FlowContract1aTest {
                 edge("r1", "r2")
         ));
         graph.setMeta(new GraphMeta());
-        var result = new GraphJsonValidator().validate(graph);
+        var result = new GraphJsonValidator(null).validate(graph);
         assertFalse(result.isOk());
         assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("多个返回节点")));
     }

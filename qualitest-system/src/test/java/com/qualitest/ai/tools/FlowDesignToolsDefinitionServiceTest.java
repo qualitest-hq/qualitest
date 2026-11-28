@@ -42,13 +42,14 @@ class FlowDesignToolsDefinitionServiceTest {
     @BeforeEach
     void setUp() {
         when(flowDesignToolExecutor.registeredToolNames()).thenReturn(FlowDesignToolExecutor.allDeclaredToolNames());
-        service = new FlowDesignToolsDefinitionService(flowDesignToolExecutor);
+        service = new FlowDesignToolsDefinitionService(flowDesignToolExecutor, null);
         service.validateToolRegistryConsistency();
     }
 
     /**
      * 前提：执行器已注册全部声明工具；加载 Web JSON 清单。
-     * 期望：数量与 webAgent 枚举一致；含 submit、upsert、run；不含 list_flows、get_flow。
+     * 期望：数量与 webAgent 枚举一致；含 submit、upsert、run；
+     * 不含 list_enabled_flow_plugins / submit_plugin_*、不含 list_flows/get_flow/create_flow。
      */
     @Test
     @Order(1)
@@ -74,6 +75,9 @@ class FlowDesignToolsDefinitionServiceTest {
         assertTrue(names.contains(FlowDesignToolNames.GET_FLOW_API_HEALTH.getId()));
         assertTrue(names.contains(FlowDesignToolNames.LIST_ASSET_VARIABLES.getId()));
         assertTrue(names.contains(FlowDesignToolNames.RUN_TEST_FLOW.getId()));
+        assertFalse(names.contains("invoke_plugin"));
+        assertFalse(names.contains("list_enabled_flow_plugins"));
+        assertFalse(names.contains("submit_plugin_action_node"));
         assertFalse(names.contains(FlowDesignToolNames.LIST_FLOWS.getId()));
         assertFalse(names.contains(FlowDesignToolNames.GET_FLOW.getId()));
         assertFalse(names.contains(FlowDesignToolNames.CREATE_FLOW.getId()));

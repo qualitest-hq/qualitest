@@ -37,7 +37,7 @@ class V1SeedFlowGraphsTest {
         // 前提：V1 种子里 4 条内置登录流
         // 期望：每条都通过全量图校验（可开跑）
         List<JSONObject> graphs = seedLoginGraphs();
-        GraphJsonValidator validator = new GraphJsonValidator();
+        GraphJsonValidator validator = new GraphJsonValidator(null);
 
         for (JSONObject graph : graphs) {
             GraphValidationResult result = validator.validateJson(graph.toJSONString());

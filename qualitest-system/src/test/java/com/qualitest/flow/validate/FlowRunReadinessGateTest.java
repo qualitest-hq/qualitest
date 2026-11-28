@@ -48,7 +48,7 @@ class FlowRunReadinessGateTest {
             return issues;
         });
         gate = new FlowRunReadinessGate(
-                new GraphJsonValidator(),
+                new GraphJsonValidator(null),
                 mock(TestProjectApiMapper.class),
                 mock(TestProjectMapper.class),
                 mock(ParsedGraphCache.class),

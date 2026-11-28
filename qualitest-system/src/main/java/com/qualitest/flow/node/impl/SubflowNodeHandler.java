@@ -220,64 +220,14 @@ public class SubflowNodeHandler extends AbstractStubNodeHandler {
     }
 
     /**
-     * 解析父节点指定的子流入口 id。
-     * 显式指定时须存在且为 {@code subflow-entry}；未指定时若图上恰好一个子流入口则用之，
-     * 多个子流入口或缺入口则抛错；唯一入口若不是子流入口也抛错。
+     * 解析父节点指定的子流入口 id（委托 {@link com.qualitest.flow.contract.EntryLocator}）。
      */
     private static String resolveChildEntryNodeId(Object rawEntryNodeId, GraphJson childGraph) {
         String specified = rawEntryNodeId == null ? null : String.valueOf(rawEntryNodeId).trim();
         if (specified != null && specified.isEmpty()) {
             specified = null;
         }
-        if (childGraph == null || childGraph.getNodes() == null) {
-            throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID, "子流图为空");
-        }
-        if (specified != null) {
-            GraphNode found = null;
-            for (GraphNode n : childGraph.getNodes()) {
-                if (n != null && specified.equals(n.getId())) {
-                    found = n;
-                    break;
-                }
-            }
-            if (found == null) {
-                throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
-                        "子流入口不存在: " + specified);
-            }
-            if (!FlowNodeType.SUBFLOW_ENTRY.matches(found.getType())) {
-                throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
-                        "指定入口须为 subflow-entry: " + specified);
-            }
-            return specified;
-        }
-        GraphNode soleSubflowEntry = null;
-        int entryCount = 0;
-        for (GraphNode n : childGraph.getNodes()) {
-            if (n == null || !FlowNodeType.isEntry(n.getType())) {
-                continue;
-            }
-            entryCount++;
-            if (FlowNodeType.SUBFLOW_ENTRY.matches(n.getType())) {
-                if (soleSubflowEntry != null) {
-                    throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
-                            "子流存在多个子流入口，须在父节点指定 entryNodeId");
-                }
-                soleSubflowEntry = n;
-            }
-        }
-        // 图上恰有一个 subflow-entry 时用之（可与其它入口并存）
-        if (soleSubflowEntry != null) {
-            return soleSubflowEntry.getId();
-        }
-        if (entryCount > 1) {
-            throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
-                    "子流存在多个入口且无 subflow-entry，须指定 entryNodeId");
-        }
-        if (entryCount == 1) {
-            throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID,
-                    "子流唯一入口须为 subflow-entry");
-        }
-        throw new FlowExecutionException(FlowErrorCode.TF_SUBFLOW_INVALID, "子流缺少入口节点");
+        return com.qualitest.flow.contract.EntryLocator.requireSubflowEntryId(childGraph, specified);
     }
 
     /**

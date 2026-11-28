@@ -48,8 +48,8 @@ class FlowDesignPatchMergerTest {
     @BeforeEach
     void setUp() {
         merger = new FlowDesignPatchMerger();
-        validator = new GraphJsonValidator();
-        normalizer = new FlowDesignPatchNormalizer(null, null, null, validator, merger);
+        validator = new GraphJsonValidator(null);
+        normalizer = new FlowDesignPatchNormalizer(null, null, null, validator, merger, null);
     }
 
     /**

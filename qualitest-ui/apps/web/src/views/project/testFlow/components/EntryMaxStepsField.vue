@@ -19,15 +19,11 @@
 <script setup>
 /**
  * 平台入口壳 maxSteps：场景 / HTTP / 子流 / 协议入口共用。
- * 默认 / 封顶与后端 GraphWalker.DEFAULT_MAX_STEPS / MAX_STEPS_CEILING 对齐。
+ * 默认 / 封顶与后端 FlowContractDefaults 对齐。
  */
 import { computed } from 'vue'
+import { DEFAULT_MAX_STEPS, MAX_STEPS_CEILING } from '@/utils/flow/flowContractDefaults'
 import { useFlowNodes } from '../composables/useFlowNodes'
-
-/** 与引擎 GraphWalker.DEFAULT_MAX_STEPS 一致 */
-const DEFAULT_MAX_STEPS = 200
-/** 与引擎 GraphWalker.MAX_STEPS_CEILING 一致 */
-const MAX_STEPS_CEILING = 1000
 
 const props = defineProps({
   node: { type: Object, required: true },

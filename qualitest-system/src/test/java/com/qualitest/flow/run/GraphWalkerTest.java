@@ -37,7 +37,7 @@ class GraphWalkerTest {
     void resolveNext_conditionIfBranch() {
         GraphJson graph = loadGraph("flow/branch-graph.json");
         GraphWalker walker = new GraphWalker(graph);
-        assertEquals("scn_entry_1795425561320", walker.findUniqueStartNodeId());
+        assertEquals("scn_entry_1795425561320", walker.resolveStartNodeId(null));
 
         FlowRunContext ctx = new FlowRunContext();
         ctx.getFlow().put("code", 0);

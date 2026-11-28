@@ -5,6 +5,8 @@ import com.alibaba.fastjson2.JSONArray;
 import com.qualitest.ai.llm.LlmClientException;
 import com.qualitest.ai.mcp.McpProjectGates;
 import com.qualitest.ai.scenario.flow.FlowDesignPromptResources;
+import com.qualitest.ai.tools.plugin.PluginAiToolDefinitions;
+import com.qualitest.ai.tools.plugin.PluginAiToolCatalog;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,11 +23,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 加载造流助手与 MCP 协议的工具定义（名称、描述、参数 Schema）。
+ * 加载造流助手与 MCP 的工具定义（名称、描述、参数 Schema）。
  * <p>
- * 造流助手：读助手工具清单文件，按是否全自动裁剪跑流工具。
- * MCP：读协议工具清单文件，再按成员角色 MCP 门控裁剪可见列表。
- * 启动时校验枚举、执行器注册名与 JSON 工具名集合齐全、无多余项。
+ * 平台内置工具：启动时校验枚举、执行器注册名、JSON 清单三方名称集合完全一致（toolKind=builtin）。
+ * 插件贡献工具：来自已启用插件说明书 {@code ai.tools[]}，每次按项目动态合并（toolKind=plugin）。
  */
 @Slf4j
 @Service
@@ -33,6 +34,8 @@ import java.util.stream.Collectors;
 public class FlowDesignToolsDefinitionService {
 
     private final FlowDesignToolExecutor flowDesignToolExecutor;
+    /** 可空：单测未注入时不合并动态插件工具 */
+    private final PluginAiToolCatalog pluginAiToolCatalog;
 
     /** Web 造流助手工具定义缓存 */
     @Getter
@@ -63,7 +66,9 @@ public class FlowDesignToolsDefinitionService {
         }
     }
 
-    /** 校验枚举、执行器、JSON 三处工具名集合齐全且无多余项 */
+    /**
+     * 校验平台工具：枚举 ↔ 执行器注册名 ↔ Web/MCP JSON 清单名称集合一致。
+     */
     private void validateToolRegistryConsistencyInternal() throws IOException {
         Set<String> declared = FlowDesignToolExecutor.allDeclaredToolNames();
         Set<String> registered = flowDesignToolExecutor.registeredToolNames();
@@ -131,6 +136,7 @@ public class FlowDesignToolsDefinitionService {
                 cachedTools = arr.stream()
                         .map(item -> (Map<String, Object>) JSON.parseObject(JSON.toJSONString(item)))
                         .map(FlowDesignToolsDefinitionService::compactToolDefinition)
+                        .map(FlowDesignToolsDefinitionService::stampToolKind)
                         .toList();
                 return cachedTools;
             } catch (IOException e) {
@@ -140,11 +146,18 @@ public class FlowDesignToolsDefinitionService {
     }
 
     /**
-     * 按是否全自动返回 Web Agent 本轮可用工具定义。
-     * false：去掉 run_test_flow（半自动不能跑流）。
-     * true：保留全部 Web 工具含 run_test_flow。
+     * 按是否全自动返回 Web 造流助手本轮工具定义。
+     * false：去掉 run_test_flow；true：保留含跑流工具。
      */
     public List<Map<String, Object>> loadToolsDefinition(boolean autopilotEnabled) {
+        return loadToolsDefinition(autopilotEnabled, null);
+    }
+
+    /**
+     * Web 造流助手工具列表。
+     * testProjectId 非空时追加该项目启用插件说明书贡献的 ai.tools。
+     */
+    public List<Map<String, Object>> loadToolsDefinition(boolean autopilotEnabled, Long testProjectId) {
         List<Map<String, Object>> all = loadToolsDefinition();
         List<Map<String, Object>> filtered = new ArrayList<>();
         for (Map<String, Object> tool : all) {
@@ -154,6 +167,7 @@ public class FlowDesignToolsDefinitionService {
             }
             filtered.add(tool);
         }
+        appendContributedPluginTools(filtered, testProjectId);
         return List.copyOf(filtered);
     }
 
@@ -243,6 +257,17 @@ public class FlowDesignToolsDefinitionService {
     public List<Map<String, Object>> loadMcpProtocolTools(boolean mcpAutoWriteEnabled,
                                                           boolean mcpAutorunEnabled,
                                                           boolean mcpImportApisEnabled) {
+        return loadMcpProtocolTools(mcpAutoWriteEnabled, mcpAutorunEnabled, mcpImportApisEnabled, null);
+    }
+
+    /**
+     * 组装 MCP tools/list。
+     * testProjectId 非空时追加插件说明书贡献的 ai.tools（协议格式）。
+     */
+    public List<Map<String, Object>> loadMcpProtocolTools(boolean mcpAutoWriteEnabled,
+                                                          boolean mcpAutorunEnabled,
+                                                          boolean mcpImportApisEnabled,
+                                                          Long testProjectId) {
         List<Map<String, Object>> protocolTools = new ArrayList<>(
                 mcpAutoWriteEnabled ? loadMcpAutoWriteProtocolToolsCached() : loadMcpProtocolTools());
         if (mcpImportApisEnabled) {
@@ -254,6 +279,7 @@ public class FlowDesignToolsDefinitionService {
             appendMcpNamedTool(protocolTools, FlowDesignToolNames.RUN_TEST_FLOW.getId(),
                     "加载 MCP run_test_flow 定义失败");
         }
+        appendContributedPluginProtocolTools(protocolTools, testProjectId);
         return List.copyOf(protocolTools);
     }
 
@@ -263,11 +289,18 @@ public class FlowDesignToolsDefinitionService {
      * @param gates 成员角色 MCP 门控快照；null 按只读
      */
     public List<Map<String, Object>> loadMcpProtocolTools(McpProjectGates gates) {
+        return loadMcpProtocolTools(gates, null);
+    }
+
+    /**
+     * 按成员 MCP 门控与项目 id 组装协议工具列表。
+     */
+    public List<Map<String, Object>> loadMcpProtocolTools(McpProjectGates gates, Long testProjectId) {
         if (gates == null) {
-            return loadMcpProtocolTools();
+            return loadMcpProtocolTools(false, false, false, testProjectId);
         }
         return loadMcpProtocolTools(
-                gates.autoWriteEnabled(), gates.autorunEnabled(), gates.importApisEnabled());
+                gates.autoWriteEnabled(), gates.autorunEnabled(), gates.importApisEnabled(), testProjectId);
     }
 
     /**
@@ -279,17 +312,79 @@ public class FlowDesignToolsDefinitionService {
      * @param gates 成员角色 MCP 门控快照；null 按只读
      */
     public List<Map<String, Object>> loadTurnSessionTools(McpProjectGates gates) {
+        return loadTurnSessionTools(gates, null);
+    }
+
+    /**
+     * 回合会话 tools/list：画布设计工具表转协议格式，并按写流/跑流门控裁剪；
+     * 插件贡献工具（toolKind=plugin）始终可列入（不改图）。
+     */
+    public List<Map<String, Object>> loadTurnSessionTools(McpProjectGates gates, Long testProjectId) {
         boolean write = gates != null && gates.autoWriteEnabled();
         boolean run = gates != null && gates.autorunEnabled();
         List<Map<String, Object>> protocolTools = new ArrayList<>();
-        for (Map<String, Object> tool : loadToolsDefinition()) {
+        for (Map<String, Object> tool : loadToolsDefinition(true, testProjectId)) {
             String name = extractFunctionName(tool);
+            if (isPluginKindTool(tool)) {
+                protocolTools.add(toMcpProtocolTool(tool));
+                continue;
+            }
             if (!FlowDesignToolNames.isTurnSessionCallable(name, write, run)) {
                 continue;
             }
             protocolTools.add(toMcpProtocolTool(tool));
         }
         return List.copyOf(protocolTools);
+    }
+
+    /** 把插件 ai.tools 以 Web function 结构并入列表 */
+    private void appendContributedPluginTools(List<Map<String, Object>> tools, Long testProjectId) {
+        appendContributedPluginDefinitions(
+                tools,
+                testProjectId,
+                FlowDesignToolsDefinitionService::compactToolDefinition,
+                FlowDesignToolsDefinitionService::extractFunctionName);
+    }
+
+    /** 把插件 ai.tools 转成 MCP 协议条目并入列表 */
+    private void appendContributedPluginProtocolTools(List<Map<String, Object>> protocolTools, Long testProjectId) {
+        appendContributedPluginDefinitions(
+                protocolTools,
+                testProjectId,
+                FlowDesignToolsDefinitionService::toMcpProtocolTool,
+                t -> String.valueOf(t.get("name")));
+    }
+
+    private void appendContributedPluginDefinitions(
+            List<Map<String, Object>> target,
+            Long testProjectId,
+            java.util.function.Function<Map<String, Object>, Map<String, Object>> toEntry,
+            java.util.function.Function<Map<String, Object>, String> entryName) {
+        if (pluginAiToolCatalog == null || testProjectId == null || target == null) {
+            return;
+        }
+        Set<String> existing = target.stream()
+                .map(entryName)
+                .filter(n -> n != null && !n.isBlank() && !"null".equals(n))
+                .collect(Collectors.toCollection(HashSet::new));
+        for (Map<String, Object> def : PluginAiToolDefinitions.buildAll(
+                pluginAiToolCatalog.listContributedTools(testProjectId))) {
+            Map<String, Object> entry = toEntry.apply(def);
+            String name = entryName.apply(entry);
+            if (name == null || name.isBlank() || "null".equals(name) || existing.contains(name)) {
+                continue;
+            }
+            target.add(entry);
+            existing.add(name);
+        }
+    }
+
+    private static boolean isPluginKindTool(Map<String, Object> tool) {
+        if (tool == null) {
+            return false;
+        }
+        Object kind = tool.get(FlowDesignToolKind.JSON_FIELD);
+        return FlowDesignToolKind.PLUGIN.wire().equals(kind);
     }
 
     /** 缓存「只读 + 自动写流」协议列表 */
@@ -350,7 +445,7 @@ public class FlowDesignToolsDefinitionService {
         }
     }
 
-    /** 内部 function 结构转为 MCP 协议格式（name / description / inputSchema） */
+    /** 内部 function 结构转为 MCP 协议格式（name / description / inputSchema / toolKind） */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> toMcpProtocolTool(Map<String, Object> functionTool) {
         Object fnObj = functionTool.get("function");
@@ -359,10 +454,28 @@ public class FlowDesignToolsDefinitionService {
         }
         Map<String, Object> fn = (Map<String, Object>) fnMap;
         Map<String, Object> mcpTool = new LinkedHashMap<>();
-        mcpTool.put("name", String.valueOf(fn.get("name")));
+        String name = String.valueOf(fn.get("name"));
+        mcpTool.put("name", name);
         mcpTool.put("description", fn.get("description"));
         mcpTool.put("inputSchema", fn.get("parameters"));
+        Object kind = functionTool.get(FlowDesignToolKind.JSON_FIELD);
+        if (kind != null) {
+            mcpTool.put(FlowDesignToolKind.JSON_FIELD, kind);
+        } else {
+            // 静态清单无 toolKind 时一律视为平台内置
+            mcpTool.put(FlowDesignToolKind.JSON_FIELD, FlowDesignToolKind.BUILTIN.wire());
+        }
         return mcpTool;
+    }
+
+    /** 静态工具定义补齐顶层 toolKind=builtin（插件贡献定义自带 plugin） */
+    private static Map<String, Object> stampToolKind(Map<String, Object> tool) {
+        if (tool.containsKey(FlowDesignToolKind.JSON_FIELD)) {
+            return tool;
+        }
+        Map<String, Object> next = new LinkedHashMap<>(tool);
+        next.put(FlowDesignToolKind.JSON_FIELD, FlowDesignToolKind.BUILTIN.wire());
+        return next;
     }
 
     /** 是否属于 MCP 默认只读工具定义 */

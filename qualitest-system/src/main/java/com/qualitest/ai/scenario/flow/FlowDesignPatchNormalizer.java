@@ -16,6 +16,9 @@ import com.qualitest.flow.http.FlowHttpCallMode;
 import com.qualitest.flow.http.FlowHttpRequestBuilder;
 import com.qualitest.flow.validate.AssertPathDesignGate;
 import com.qualitest.flow.validate.DesignAuthRiskGates;
+import com.qualitest.flow.validate.FlowGraphValidateResult;
+import com.qualitest.flow.validate.FlowGraphValidateService;
+import com.qualitest.flow.validate.FlowIssue;
 import com.qualitest.flow.validate.GraphJsonValidator;
 import com.qualitest.flow.validate.GraphValidationOptions;
 import com.qualitest.flow.validate.GraphValidationResult;
@@ -62,11 +65,13 @@ public class FlowDesignPatchNormalizer {
     private final TestFlowMapper testFlowMapper;
     private final GraphJsonValidator graphJsonValidator;
     private final FlowDesignPatchMerger patchMerger;
+    /** 生产注入；单测可传 null，此时走下方无 finalize 的对照路径 */
+    private final FlowGraphValidateService flowGraphValidateService;
 
     /**
      * 整包严格快照（仅单测 / 对照；非 {@code submit_*} 生产路径）。
-     * 生产开跑硬拦请走 {@link com.qualitest.flow.validate.FlowGraphValidateService}。
-     * 合并后跑完整图结构 + 断言 + 鉴权/必填，全部进 {@link GraphValidationResult#getErrors()}。
+     * 有 {@link FlowGraphValidateService} 时走画布阶段定级（与图检查同口径）；
+     * 否则回退为结构 + 断言 + 鉴权字符串列表（单测无定级依赖）。
      */
     public NormalizeResult normalize(FlowDesignPatch patch, GraphJson baseGraph, Long testProjectId) {
         return normalize(patch, baseGraph, testProjectId, null);
@@ -111,6 +116,24 @@ public class FlowDesignPatchNormalizer {
         }
 
         GraphJson merged = patchMerger.mergeAll(baseGraph, patch, normWarnings);
+        if (flowGraphValidateService != null) {
+            FlowGraphValidateResult validated = flowGraphValidateService.validate(
+                    merged.toJsonString(),
+                    FlowIssue.Stage.CANVAS,
+                    testProjectId,
+                    null,
+                    false,
+                    null);
+            List<String> errors = new ArrayList<>();
+            if (validated != null && validated.getIssues() != null) {
+                for (FlowIssue issue : validated.getIssues()) {
+                    if (issue != null && issue.isError() && issue.getMessage() != null) {
+                        errors.add(issue.getMessage());
+                    }
+                }
+            }
+            return new NormalizeResult(patch, GraphValidationResult.of(errors));
+        }
         GraphValidationResult graphResult = graphJsonValidator.validate(merged, GraphValidationOptions.full());
         List<String> errors = new ArrayList<>(graphResult.getErrors());
 

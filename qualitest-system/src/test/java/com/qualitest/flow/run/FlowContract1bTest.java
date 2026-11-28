@@ -91,7 +91,7 @@ class FlowContract1bTest {
     @DisplayName("扇出双臂 return 图校验失败")
     void validate_dualReturnInFanout() {
         GraphJson graph = dualReturnFanoutGraph();
-        var result = new GraphJsonValidator().validate(graph);
+        var result = new GraphJsonValidator(null).validate(graph);
         assertFalse(result.isOk());
         assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("至多一臂")));
     }

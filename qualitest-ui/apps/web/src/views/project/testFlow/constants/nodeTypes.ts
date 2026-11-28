@@ -7,6 +7,9 @@
  */
 import { nextSnowflakeId } from '@/utils/flow/snowflakeId';
 import { DELAY_DEFAULT_MS } from '@/utils/flow/delayConstants';
+import { DEFAULT_FROM, DEFAULT_MAX_STEPS } from '@/utils/flow/flowContractDefaults';
+import { defaultHttpFallbackOut } from '@/utils/flow/httpEntryDefaults';
+import { defaultSubflowFallbackOut } from '@/utils/flow/subflowEntryDefaults';
 import { defaultInputFields } from '@/utils/flow/inputFields';
 import { SCRIPT_DEFAULT_TIMEOUT_MS } from './flowConfig';
 
@@ -75,7 +78,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     desc: '人跑 / 套件 · inSeedKeys 提示 + 场景 inSeed',
     defaults: {
       doc: '',
-      maxSteps: 200,
+      maxSteps: DEFAULT_MAX_STEPS,
       /** 可选：提示各场景 inSeed 宜填的键 */
       inSeedKeys: [],
       scenarios: [],
@@ -92,13 +95,9 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
       path: '',
       envId: '',
       doc: '',
-      maxSteps: 200,
+      maxSteps: DEFAULT_MAX_STEPS,
       /** 整次未碰到返回节点时对外写出的完整 HTTP 包 */
-      fallbackOut: {
-        status: 500,
-        headers: { 'Content-Type': 'application/json;charset=UTF-8' },
-        body: { code: 'NO_RETURN', message: '未执行到返回节点' },
-      },
+      fallbackOut: defaultHttpFallbackOut(),
     },
   },
   'subflow-entry': {
@@ -108,14 +107,11 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     desc: '被父流调用 · inputDecl / 业务 fallbackOut',
     defaults: {
       doc: '',
-      maxSteps: 200,
+      maxSteps: DEFAULT_MAX_STEPS,
       /** 父流 inputs 应对齐的扁平键清单 */
       inputDecl: [],
       /** 业务兜底对象；引擎收束时包成 out.body 再挂父 */
-      fallbackOut: {
-        code: 'NO_RETURN',
-        message: '未执行到返回节点',
-      },
+      fallbackOut: defaultSubflowFallbackOut(),
     },
   },
   'http-return': {
@@ -124,7 +120,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     icon: 'HR',
     desc: '定稿 out 并立刻写出',
     defaults: {
-      from: 'flow.out',
+      from: DEFAULT_FROM,
       status: 200,
     },
   },
@@ -134,7 +130,7 @@ export const NODE_TYPES: Record<FlowNodeTypeKey, NodeTypeConfig> = {
     icon: 'SR',
     desc: '定稿 out 并挂父节点',
     defaults: {
-      from: 'flow.out',
+      from: DEFAULT_FROM,
     },
   },
   http: {

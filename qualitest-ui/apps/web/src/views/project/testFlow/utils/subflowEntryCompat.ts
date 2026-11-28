@@ -5,6 +5,8 @@
  *   保存时落盘为业务对象，引擎收束时再包成 out.body。
  */
 
+import { defaultSubflowFallbackOut } from '@/utils/flow/subflowEntryDefaults'
+
 type Dict = Record<string, unknown>
 
 /** 把未知值收成字段对象数组，非数组或非对象元素忽略 */
@@ -53,14 +55,14 @@ export function migrateSubflowInputDecl(data: Dict | null | undefined): Dict[] |
  */
 export function subflowFallbackOutForEdit(raw: unknown): Dict {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { code: 'NO_RETURN', message: '未执行到返回节点' }
+    return defaultSubflowFallbackOut()
   }
   const m = raw as Dict
   if (m.body != null && typeof m.body === 'object' && !Array.isArray(m.body)) {
     return { ...(m.body as Dict) }
   }
   if ('status' in m || 'headers' in m) {
-    return { code: 'NO_RETURN', message: '未执行到返回节点' }
+    return defaultSubflowFallbackOut()
   }
   return { ...m }
 }

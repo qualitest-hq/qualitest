@@ -27,7 +27,7 @@ class GraphJsonValidatorTest {
 
     @BeforeEach
     void setUp() {
-        validator = new GraphJsonValidator();
+        validator = new GraphJsonValidator(null);
         String casesJson = loadResource("flow/graph-validate-cases.json");
         validateCases = JSON.parseObject(casesJson).getJSONArray("cases");
     }

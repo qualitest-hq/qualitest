@@ -60,7 +60,7 @@ class TestFlowPersistSavePolicyTest {
     @DisplayName("结构错误与路由自冲突不拦保存")
     void persistAllowsGraphErrorsAndRouteSelfConflict() throws Exception {
         GraphJson graph = GraphJson.parse(DIRTY_GRAPH);
-        GraphJsonValidator validator = new GraphJsonValidator();
+        GraphJsonValidator validator = new GraphJsonValidator(null);
         GraphValidationResult full = validator.validate(graph, GraphValidationOptions.full());
         assertFalse(full.isOk());
         assertTrue(full.getErrors().stream().anyMatch(e -> e.contains("开放 HTTP 入口冲突") || e.contains("无入边")));
@@ -101,7 +101,7 @@ class TestFlowPersistSavePolicyTest {
         assertTrue(cause.getMessage().contains("无法解析"));
 
         FlowGraphValidateService validateService = FlowGraphValidateServiceTestSupport.create(
-                new GraphJsonValidator(), mock(FlowRunReadinessGate.class));
+                new GraphJsonValidator(null), mock(FlowRunReadinessGate.class));
         FlowGraphValidateResult save =
                 validateService.validate("{not-json", FlowIssue.Stage.SAVE, 1L, 10L);
         assertTrue(save.hasErrors());

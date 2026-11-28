@@ -98,7 +98,7 @@ class ReturnNodeDefaultsTest {
                 }
                 """;
         GraphJson graph = GraphJson.parse(json);
-        GraphJsonValidator validator = new GraphJsonValidator();
+        GraphJsonValidator validator = new GraphJsonValidator(null);
         GraphValidationResult before = validator.validate(graph);
         assertTrue(before.getErrors().stream().anyMatch(e -> e.contains("缺少 from")));
 

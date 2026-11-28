@@ -8,8 +8,8 @@ import java.util.stream.Collectors;
 /**
  * 测试流 AI 设计工具名注册表。
  * <p>
- * 每个工具两个开关：webAgent（是否进 Web 造流助手工具列表）、
- * mcpAllowed（是否默认允许 MCP 调用，一般为只读勘察工具）。
+ * 每个工具两个开关：webAgent（是否进 Web 造流助手）、mcpAllowed（是否默认允许 MCP）。
+ * 插件贡献工具不在本枚举，由说明书 ai.tools 动态合并（定义上盖 toolKind=plugin）。
  * 改图 submit、create_flow、update_flow_meta、素材/鉴权/环境写入等默认不进 MCP；
  * 仅当项目开启「允许 MCP 自动写流」后，由运行时追加进工具列表并可调用。
  * run_test_flow 另由「允许 MCP 自动跑流」控制（且须写流已开）。
@@ -100,6 +100,11 @@ public enum FlowDesignToolNames {
     SUBMIT_SCRIPT_NODE("submit_script_node", true, false),
     /** 新增或修改单个子流节点 */
     SUBMIT_SUBFLOW_NODE("submit_subflow_node", true, false),
+    /**
+     * 新增或修改单个人工输入节点（type=input）。
+     * 参数含 op、name、data.fields 等；跑到该节点时暂停等人填写。
+     */
+    SUBMIT_INPUT_NODE("submit_input_node", true, false),
     /** 新增或修改单个开放 HTTP 返回节点 */
     SUBMIT_HTTP_RETURN_NODE("submit_http_return_node", true, false),
     /** 新增或修改单个子流返回节点 */
@@ -162,6 +167,7 @@ public enum FlowDesignToolNames {
 
     /**
      * 是否为画布单元提交类工具（名称以 submit_ 开头）。
+     * 仅平台内置 submit_*；插件 AI 工具由说明书 ai.tools 动态贡献，不在本枚举。
      */
     public static boolean isSubmitUnitTool(String name) {
         return name != null && name.startsWith("submit_");
@@ -188,7 +194,7 @@ public enum FlowDesignToolNames {
      * 需项目开启「允许 MCP 自动写流」后，才可列入 tools/list 并接受 tools/call。
      * 包括：全部 submit_*、create_flow、update_flow_meta、素材/鉴权/环境写入、
      * 追加接口设计提示、release_flow_lock。
-     * 不包括 import_apis、run_test_flow。
+     * 不包括 import_apis、run_test_flow、插件贡献工具。
      */
     public static boolean isMcpAutoWriteTool(String name) {
         if (name == null || name.isBlank()) {
@@ -226,7 +232,7 @@ public enum FlowDesignToolNames {
     /**
      * 判断当前请求是否允许经 MCP 调用该工具。
      * <ul>
-     *   <li>只读白名单工具：始终允许</li>
+     *   <li>只读白名单工具：始终允许（插件贡献工具由调用入口按启用目录另行放行）</li>
      *   <li>import_apis：仅当 importApisEnabled 为 true</li>
      *   <li>写流类工具：仅当 autoWriteEnabled 为 true</li>
      *   <li>run_test_flow：仅当 autorunEnabled 与 autoWriteEnabled 均为 true</li>
@@ -271,7 +277,9 @@ public enum FlowDesignToolNames {
         return true;
     }
 
-    /** 按工具名判断是否属于 Web 造流助手 */
+    /**
+     * 按工具名判断是否属于 Web 造流助手可见集。
+     */
     public static boolean isWebAgent(String name) {
         if (name == null || name.isBlank()) {
             return false;
@@ -280,7 +288,10 @@ public enum FlowDesignToolNames {
                 .anyMatch(t -> t.id.equals(name) && t.webAgent);
     }
 
-    /** Web 造流助手应加载的全部工具 id */
+    /**
+     * 枚举中标记为 Web 造流助手的工具 id。
+     * 启动时与 flow-design-tools.json 做等量校验用本集合。
+     */
     public static Set<String> webAgentToolIds() {
         return Arrays.stream(values())
                 .filter(FlowDesignToolNames::isWebAgent)

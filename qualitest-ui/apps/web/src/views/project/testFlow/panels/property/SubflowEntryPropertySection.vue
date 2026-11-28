@@ -28,6 +28,7 @@
  */
 import { computed, watch } from 'vue'
 
+import { defaultSubflowFallbackOut } from '@/utils/flow/subflowEntryDefaults'
 import EntryDocMarkdownField from '../../components/EntryDocMarkdownField.vue'
 import EntryMaxStepsField from '../../components/EntryMaxStepsField.vue'
 import FallbackOutJsonField from '../../components/FallbackOutJsonField.vue'
@@ -77,7 +78,7 @@ function onInputDecl(v) {
 
 /** 兜底只落业务对象；空值用默认 code/message */
 function onFallbackOut(v) {
-  patch({ fallbackOut: v && typeof v === 'object' ? v : { code: 'NO_RETURN', message: '未执行到返回节点' } })
+  patch({ fallbackOut: v && typeof v === 'object' ? v : defaultSubflowFallbackOut() })
 }
 </script>
 

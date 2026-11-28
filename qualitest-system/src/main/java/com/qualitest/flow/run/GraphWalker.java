@@ -9,6 +9,8 @@ import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepResult;
 import com.qualitest.flow.graph.ConditionBranchTargetSupport;
+import com.qualitest.flow.contract.EntryLocator;
+import com.qualitest.flow.contract.FlowContractDefaults;
 import com.qualitest.flow.model.FlowNodeType;
 
 import java.util.ArrayList;
@@ -31,11 +33,13 @@ import java.util.stream.Collectors;
 public class GraphWalker {
 
     /** 场景未配置步数上限时，单次 Run 采用的默认最大步数 */
-    public static final int DEFAULT_MAX_STEPS = 200;
+    public static final int DEFAULT_MAX_STEPS = FlowContractDefaults.DEFAULT_MAX_STEPS;
 
     /** 场景配置的步数上限可被裁剪到的最大值 */
-    public static final int MAX_STEPS_CEILING = 1000;
+    public static final int MAX_STEPS_CEILING = FlowContractDefaults.MAX_STEPS_CEILING;
 
+    /** 固化图快照（入口解析用） */
+    private final GraphJson graph;
     /** 节点 id → 节点定义 */
     private final Map<String, GraphNode> nodeById;
     /** 源节点 id → 出边列表 */
@@ -49,6 +53,7 @@ public class GraphWalker {
      * @param graph 触发 Run 时深拷贝的 graph_json
      */
     public GraphWalker(GraphJson graph) {
+        this.graph = graph;
         this.nodeById = new HashMap<>();
         this.outEdgesBySource = new HashMap<>();
         this.inEdgesByTarget = new HashMap<>();
@@ -80,65 +85,10 @@ public class GraphWalker {
     }
 
     /**
-     * 返回唯一无入边的开始节点 id。
-     */
-    public String findUniqueStartNodeId() {
-        List<String> startIds = nodeById.keySet().stream()
-                .filter(id -> inEdgesByTarget.getOrDefault(id, List.of()).isEmpty())
-                .sorted()
-                .collect(Collectors.toList());
-        if (startIds.isEmpty()) {
-            throw new FlowExecutionException(FlowErrorCode.TF_START_NODE, "未找到开始节点");
-        }
-        if (startIds.size() > 1) {
-            throw new FlowExecutionException(
-                    FlowErrorCode.TF_START_NODE,
-                    "开始节点不唯一: " + String.join(", ", startIds)
-            );
-        }
-        return startIds.get(0);
-    }
-
-    /**
-     * 解析开跑起点。
-     * <ol>
-     *   <li>ctx/调用方传入的 entryNodeId 非空：必须在图中存在且为入口类型，否则报开始节点错误</li>
-     *   <li>否则若图上恰好一个入口类型节点，用该节点</li>
-     *   <li>多个入口且未指定 id：报错，要求显式指定</li>
-     *   <li>无入口：无法解析起点（图须配置入口节点）</li>
-     * </ol>
+     * 解析开跑起点（委托 {@link EntryLocator#requireStartId}）。
      */
     public String resolveStartNodeId(String entryNodeId) {
-        if (entryNodeId != null && !entryNodeId.isBlank()) {
-            String id = entryNodeId.trim();
-            GraphNode start = nodeById.get(id);
-            if (start == null) {
-                throw new FlowExecutionException(FlowErrorCode.TF_START_NODE, "入口节点不存在: " + id);
-            }
-            if (!FlowNodeType.isEntry(start.getType())) {
-                throw new FlowExecutionException(
-                        FlowErrorCode.TF_START_NODE,
-                        "entryNodeId 须为入口节点，当前类型: " + start.getType());
-            }
-            return id;
-        }
-        List<String> entryIds = nodeById.values().stream()
-                .filter(n -> n != null && FlowNodeType.isEntry(n.getType()))
-                .map(GraphNode::getId)
-                .filter(id -> id != null && !id.isBlank())
-                .sorted()
-                .collect(Collectors.toList());
-        if (entryIds.size() == 1) {
-            return entryIds.get(0);
-        }
-        if (entryIds.size() > 1) {
-            throw new FlowExecutionException(
-                    FlowErrorCode.TF_START_NODE,
-                    "存在多个入口，须指定 entryNodeId: " + String.join(", ", entryIds));
-        }
-        throw new FlowExecutionException(
-                FlowErrorCode.TF_START_NODE,
-                "须至少配置一个入口节点（场景 / HTTP / 子流入口）才能开跑");
+        return EntryLocator.requireStartId(graph, entryNodeId);
     }
 
     /**

@@ -7,9 +7,9 @@ import com.qualitest.ai.scenario.flow.FlowDesignPatchNormalizer;
 import com.qualitest.ai.scenario.flow.model.FlowDesignPatch;
 import com.qualitest.common.exception.ServiceException;
 import com.qualitest.common.utils.DateUtils;
+import com.qualitest.flow.contract.FlowContractDefaults;
 import com.qualitest.flow.model.GraphEdge;
 import com.qualitest.flow.model.GraphJson;
-import com.qualitest.flow.model.ReturnNodeDefaults;
 import com.qualitest.flow.model.GraphMeta;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.subflow.SubflowTemplateCatalog;
@@ -463,7 +463,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
             GraphJson graph,
             List<String> errors,
             FlowGraphCommitPatchHolder.PatchPayload payload) {
-        ReturnNodeDefaults.fillMissingFrom(graph);
+        FlowContractDefaults.applySaveDefaults(graph);
         TestFlow update = new TestFlow();
         update.setTestFlowId(locked.getTestFlowId());
         update.setGraphJson(graph.toJsonString());
@@ -644,7 +644,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
     }
 
     /**
-     * 落库前默认值：返回节点缺 from 时补 {@code flow.out}（契约 §4.1「保存缺省写 flow.out」）。
+     * 落库前默认值：返回 from、入口 maxSteps、meta.schemaVersion（见 {@link FlowContractDefaults}）。
      * 仅在确有改动时重写 JSON 文本，避免无谓的格式变化。
      */
     private static String applyGraphSaveDefaults(String graphJson) {
@@ -658,7 +658,7 @@ public class TestFlowServiceImpl implements ITestFlowService {
             // 解析失败交给后续校验报错
             return graphJson;
         }
-        if (graph == null || !ReturnNodeDefaults.fillMissingFrom(graph)) {
+        if (graph == null || !FlowContractDefaults.applySaveDefaults(graph)) {
             return graphJson;
         }
         return graph.toJsonString();

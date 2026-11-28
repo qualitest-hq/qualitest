@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import com.qualitest.plugin.manifest.PluginActionArgsSchemaSupport;
 import org.springframework.stereotype.Component;
 
 /**
@@ -56,6 +57,19 @@ public class GraphJsonValidator {
     /** §2.5：data 不得承载画布 UI 状态字段 */
     private static final Set<String> FORBIDDEN_DATA_UI_KEYS =
             Set.of("selected", "dragging", "highlighted", "hovered");
+
+    /**
+     * 按插件 palette 的 argsSchema 校验 pluginAction.config。
+     * Spring 构造注入（必有 Bean）；单测可显式传 null，此时跳过 schema 检查。
+     */
+    private final PluginActionArgsSchemaSupport pluginActionArgsSchemaSupport;
+
+    /**
+     * @param pluginActionArgsSchemaSupport 插件步骤 config 的 schema 校验；单测可传 null
+     */
+    public GraphJsonValidator(PluginActionArgsSchemaSupport pluginActionArgsSchemaSupport) {
+        this.pluginActionArgsSchemaSupport = pluginActionArgsSchemaSupport;
+    }
 
     /**
      * 校验已解析的图结构（完整规则）。
@@ -164,16 +178,15 @@ public class GraphJsonValidator {
         }
         JSONArray nodesArr = graph.getJSONArray("nodes");
         JSONArray edgesArr = graph.getJSONArray("edges");
+        // raw 独有：节点字段形状 + 边多余键（canvas-only；typed GraphEdge 会丢未知键）
         Set<String> nodeIds = validateRawNodes(nodesArr, errors);
         validateRawEdges(edgesArr, nodeIds, errors);
-        validateRawConditionBranches(nodesArr, edgesArr, errors);
-        if (!effective.isDeferTopologyStructureRules()) {
-            appendStartNodeErrorFromRaw(nodesArr, edgesArr, errors);
-            appendMetaRunErrorFromRaw(graph, errors);
-        }
+        // 拓扑 / 开始节点 / 场景齐全 / return·entry：只走下方 typed 单轨，避免 raw 平行副本
+        boolean typedMerged = false;
         try {
             GraphJson typed = GraphJson.parse(graph.toJSONString());
             GraphValidationResult typedResult = validate(typed, effective);
+            typedMerged = true;
             if (typedResult != null && typedResult.getErrors() != null) {
                 for (String e : typedResult.getErrors()) {
                     if (e != null && !errors.contains(e)) {
@@ -182,7 +195,12 @@ public class GraphJsonValidator {
                 }
             }
         } catch (Exception ignored) {
-            // 形状级错误已在上方收集；无法再跑 typed 全量时不追加
+            // 形状级错误已在上方收集；无法再跑 typed 全量时回退 raw 拓扑
+        }
+        if (!typedMerged && !effective.isDeferTopologyStructureRules()) {
+            validateRawConditionBranches(nodesArr, edgesArr, errors);
+            appendStartNodeErrorFromRaw(nodesArr, edgesArr, errors);
+            appendMetaRunErrorFromRaw(graph, errors);
         }
         return GraphValidationResult.of(errors);
     }
@@ -215,15 +233,7 @@ public class GraphJsonValidator {
      * HTTP 入口兜底出参须为完整包：status 为 100–599 的数字，且含 headers / body 键（值可为 null）。
      */
     private void appendHttpFallbackOutShapeErrors(String label, Map<?, ?> fb, List<String> errors) {
-        if (HttpStatusCodes.coerce(fb.get("status")) == null) {
-            errors.add("HTTP 入口「" + label + "」的 fallbackOut.status 须为 100–599 的数字");
-        }
-        if (!fb.containsKey("headers")) {
-            errors.add("HTTP 入口「" + label + "」的 fallbackOut 须含 headers");
-        }
-        if (!fb.containsKey("body")) {
-            errors.add("HTTP 入口「" + label + "」的 fallbackOut 须含 body");
-        }
+        com.qualitest.flow.contract.HttpEntryDefaults.appendFallbackOutShapeErrors(label, fb, errors);
     }
 
     /**
@@ -438,6 +448,9 @@ public class GraphJsonValidator {
         }
         if (FlowNodeType.INPUT.matches(type)) {
             validateInputNodeFields(p, displayName, data, errors);
+        }
+        if (FlowNodeType.PLUGIN_ACTION.matches(type)) {
+            validatePluginActionNodeFields(p, displayName, data, errors);
         }
         validateScriptNodeFields(p, displayName, type, data, errors);
         validateSubflowNodeFields(p, displayName, type, data, errors);
@@ -917,6 +930,36 @@ public class GraphJsonValidator {
     }
 
     /**
+     * 校验 pluginAction 节点 data：
+     * pluginId、capability 必填；config 若出现须为对象；
+     * 有 contributionId 且说明书声明了 argsSchema 时，再按 schema 检查 config。
+     */
+    private void validatePluginActionNodeFields(
+            String p,
+            String displayName,
+            Map<String, Object> data,
+            List<String> errors
+    ) {
+        String name = displayName;
+        Object pluginId = data != null ? data.get("pluginId") : null;
+        if (pluginId == null || String.valueOf(pluginId).isBlank()) {
+            errors.add(p + " 插件步骤「" + name + "」缺少 pluginId");
+        }
+        Object capability = data != null ? data.get("capability") : null;
+        if (capability == null || String.valueOf(capability).isBlank()) {
+            errors.add(p + " 插件步骤「" + name + "」缺少 capability");
+        }
+        if (data != null && data.containsKey("config") && data.get("config") != null
+                && !(data.get("config") instanceof Map<?, ?>)) {
+            errors.add(p + " 插件步骤「" + name + "」config 须为对象（字段跟插件声明）");
+        }
+        // 可选：按 palette 贡献的 argsSchema 校验 config
+        if (pluginActionArgsSchemaSupport != null) {
+            pluginActionArgsSchemaSupport.appendGraphConfigErrors(p, name, data, errors);
+        }
+    }
+
+    /**
      * 校验子流节点：须有 subflowId。
      */
     private void validateSubflowNodeFields(
@@ -1346,7 +1389,8 @@ public class GraphJsonValidator {
     }
 
     /**
-     * schemaVersion：缺失不拦（保存会写当前版本）；显式旧版本记错误（不做热升，挡开跑）。
+     * schemaVersion：缺失不拦（落库 {@code FlowContractDefaults.stampSchemaVersion} 会补当前版）；
+     * 显式旧版本记错误（不做热升，挡开跑）。
      */
     private void appendSchemaVersionFinding(GraphJson graph, List<String> errors) {
         Integer version = graph.getMeta() != null ? graph.getMeta().getSchemaVersion() : null;

@@ -165,7 +165,9 @@ public class TestFlowDesignAgent {
                 });
         ctxHolder.set(toolContext);
 
-        List<Map<String, Object>> tools = flowDesignToolsDefinitionService.loadToolsDefinition(autopilot);
+        // 按项目合并启用插件说明书 ai.tools；半自动时去掉 run_test_flow
+        List<Map<String, Object>> tools = flowDesignToolsDefinitionService.loadToolsDefinition(
+                autopilot, request.getTestProjectId());
         List<ChatMessage> messages = buildInitialMessages(request, session, modelConfig, autopilot);
 
         aiChatConversationService.appendUserMessage(

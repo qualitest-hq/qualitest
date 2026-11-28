@@ -7,6 +7,8 @@ import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.model.GraphNodePosition;
 import com.qualitest.flow.model.GraphRunScenario;
+import com.qualitest.flow.contract.EntryLocator;
+import com.qualitest.flow.contract.FlowContractDefaults;
 import com.qualitest.flow.model.FlowNodeType;
 
 import java.util.ArrayList;
@@ -56,7 +58,7 @@ public final class EntryScenarioSupport {
 
         Map<String, Object> data = new HashMap<>();
         data.put("doc", "");
-        data.put("maxSteps", com.qualitest.flow.run.GraphWalker.DEFAULT_MAX_STEPS);
+        data.put("maxSteps", FlowContractDefaults.DEFAULT_MAX_STEPS);
         data.put("scenarios", List.of(defaultScenario));
         entry.setData(data);
 
@@ -89,24 +91,11 @@ public final class EntryScenarioSupport {
     }
 
     /**
-     * 按 entryNodeId 定位 scenario-entry。
+     * 按 entryNodeId 定位 scenario-entry（委托 {@link EntryLocator#findScenarioEntry}）。
      * 未指定时：恰好一个则返回该入口；零个或多个则返回 null（多入口禁止静默取第一个）。
      */
     public static GraphNode findScenarioEntry(GraphJson graph, String entryNodeId) {
-        if (graph == null || graph.getNodes() == null) {
-            return null;
-        }
-        if (entryNodeId != null && !entryNodeId.isBlank()) {
-            for (GraphNode n : graph.getNodes()) {
-                if (n != null && entryNodeId.equals(n.getId())
-                        && FlowNodeType.SCENARIO_ENTRY.matches(n.getType())) {
-                    return n;
-                }
-            }
-            return null;
-        }
-        List<GraphNode> entries = listScenarioEntries(graph);
-        return entries.size() == 1 ? entries.get(0) : null;
+        return EntryLocator.findScenarioEntry(graph, entryNodeId).orElse(null);
     }
 
     /**

@@ -160,7 +160,7 @@ class McpJsonRpcDispatcherTest {
         List<Map<String, Object>> mcpTools = List.of(Map.of("name", "list_flows"));
         when(mcpToolInvokeService.resolveMcpGates(any(), any()))
                 .thenReturn(new McpProjectGates(true, false, false, false));
-        when(toolsDefinitionService.loadMcpProtocolTools(any(McpProjectGates.class)))
+        when(toolsDefinitionService.loadMcpProtocolTools(any(McpProjectGates.class), any()))
                 .thenReturn(mcpTools);
 
         String body = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}";
@@ -414,7 +414,7 @@ class McpJsonRpcDispatcherTest {
     void dispatch_initialize_turnHeader_listsTurnTools() {
         when(mcpToolInvokeService.resolveMcpGates(any(), any()))
                 .thenReturn(new McpProjectGates(true, true, true, false));
-        when(toolsDefinitionService.loadTurnSessionTools(any()))
+        when(toolsDefinitionService.loadTurnSessionTools(any(), any()))
                 .thenReturn(List.of(Map.of("name", "submit_http_node")));
         String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
 
@@ -433,7 +433,7 @@ class McpJsonRpcDispatcherTest {
         JSONObject tool = JSON.parseObject(listed.getResponseBody())
                 .getJSONObject("result").getJSONArray("tools").getJSONObject(0);
         assertEquals("submit_http_node", tool.getString("name"));
-        verify(toolsDefinitionService).loadTurnSessionTools(any());
+        verify(toolsDefinitionService).loadTurnSessionTools(any(), any());
     }
 
     /**

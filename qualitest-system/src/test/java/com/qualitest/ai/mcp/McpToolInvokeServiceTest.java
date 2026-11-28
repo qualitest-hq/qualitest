@@ -62,7 +62,7 @@ class McpToolInvokeServiceTest {
         service = new McpToolInvokeService(
                 toolExecutor, contextFactory, testProjectService,
                 mcpProjectGateResolver,
-                testFlowService, flowEditLeaseService);
+                testFlowService, flowEditLeaseService, null);
         when(testProjectService.selectTestProjectById(PROJECT_ID)).thenReturn(
                 TestProject.builder().testProjectId(PROJECT_ID).build());
         stubGates(true, false, false, false);

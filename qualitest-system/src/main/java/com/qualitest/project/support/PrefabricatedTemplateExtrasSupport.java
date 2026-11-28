@@ -12,6 +12,7 @@ import com.qualitest.project.auth.ProjectAuthConfigSupport;
 import com.qualitest.project.constant.TestProjectConstants;
 import com.qualitest.project.domain.TestProjectAsset;
 import com.qualitest.flow.context.MustacheScan;
+import com.qualitest.flow.contract.SubflowEntryDefaults;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -962,9 +963,7 @@ public final class PrefabricatedTemplateExtrasSupport {
         JSONObject subEntryData = new JSONObject();
         subEntryData.put("doc", "被父流 subflow 节点挂载时从这里进；登录成功后挂出 token");
         subEntryData.put("inputDecl", List.of());
-        JSONObject subEntryFallback = new JSONObject();
-        subEntryFallback.put("code", "NO_RETURN");
-        subEntryFallback.put("message", "未执行到返回节点");
+        JSONObject subEntryFallback = new JSONObject(SubflowEntryDefaults.defaultFallbackOut());
         subEntryData.put("fallbackOut", subEntryFallback);
         subflowEntry.put("data", subEntryData);
 

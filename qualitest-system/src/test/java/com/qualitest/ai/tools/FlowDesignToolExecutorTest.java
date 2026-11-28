@@ -90,7 +90,8 @@ class FlowDesignToolExecutorTest {
                 mock(com.qualitest.api.service.IApiImportService.class),
                 new com.qualitest.ai.mcp.McpPromptResourceService(),
                 mock(com.qualitest.ai.mcp.McpProjectGateResolver.class),
-                mock(com.qualitest.flow.sync.FlowEditLeaseService.class));
+                mock(com.qualitest.flow.sync.FlowEditLeaseService.class),
+                null);
         context = FlowDesignToolContext.builder()
                 .testProjectId(PROJECT_ID)
                 .testFlowId(3001L)

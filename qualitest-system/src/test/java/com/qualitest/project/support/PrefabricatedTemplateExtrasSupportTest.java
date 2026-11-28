@@ -348,7 +348,7 @@ class PrefabricatedTemplateExtrasSupportTest {
         // 期望：整图通过全量校验，可开跑
         JSONObject graph = builtinLoginGraph();
 
-        GraphValidationResult result = new GraphJsonValidator().validateJson(graph.toJSONString());
+        GraphValidationResult result = new GraphJsonValidator(null).validateJson(graph.toJSONString());
 
         assertTrue(result.isOk(), () -> "errors=" + result.getErrors());
     }

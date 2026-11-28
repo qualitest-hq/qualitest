@@ -1,6 +1,6 @@
 package com.qualitest.ai.scenario.flow;
 
-import com.qualitest.flow.run.GraphWalker;
+import com.qualitest.flow.contract.FlowContractDefaults;
 import com.qualitest.flow.validate.GraphNodeBooleanFieldRules;
 
 import java.util.Locale;
@@ -53,6 +53,6 @@ public final class FlowDesignNodeDataNormalizer {
         if (data.containsKey("maxSteps") && data.get("maxSteps") != null) {
             return;
         }
-        data.put("maxSteps", GraphWalker.DEFAULT_MAX_STEPS);
+        data.put("maxSteps", FlowContractDefaults.DEFAULT_MAX_STEPS);
     }
 }

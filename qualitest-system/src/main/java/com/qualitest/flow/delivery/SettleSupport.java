@@ -1,11 +1,13 @@
 package com.qualitest.flow.delivery;
 
 import com.qualitest.flow.context.FlowRunContext;
+import com.qualitest.flow.contract.EntryLocator;
+import com.qualitest.flow.contract.FlowContractDefaults;
+import com.qualitest.flow.contract.HttpEntryDefaults;
 import com.qualitest.flow.exception.FlowErrorCode;
 import com.qualitest.flow.model.GraphJson;
 import com.qualitest.flow.model.GraphNode;
 import com.qualitest.flow.node.StepError;
-import com.qualitest.flow.model.FlowNodeType;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -150,33 +152,12 @@ public final class SettleSupport {
     }
 
     /**
-     * 定位本 Run 使用的入口节点。
-     * 优先用 {@code ctx.entryNodeId}；未指定时图上恰好一个入口类型节点则用之，多个则返回 null。
+     * 定位本 Run 使用的入口节点（委托 {@link EntryLocator#findOptional}）。
+     * 显式 id 须为入口类型；未指定时 sole 入口，多入口返回 null。
      */
     public static GraphNode findEntryNode(FlowRunContext ctx, GraphJson graph) {
-        if (graph == null || graph.getNodes() == null) {
-            return null;
-        }
         String entryId = ctx != null ? ctx.getEntryNodeId() : null;
-        if (entryId != null && !entryId.isBlank()) {
-            for (GraphNode n : graph.getNodes()) {
-                if (n != null && entryId.equals(n.getId())) {
-                    return n;
-                }
-            }
-            return null;
-        }
-        GraphNode sole = null;
-        for (GraphNode n : graph.getNodes()) {
-            if (n == null || !FlowNodeType.isEntry(n.getType())) {
-                continue;
-            }
-            if (sole != null) {
-                return null;
-            }
-            sole = n;
-        }
-        return sole;
+        return EntryLocator.findOptional(graph, entryId).orElse(null);
     }
 
     /**
@@ -184,17 +165,14 @@ public final class SettleSupport {
      */
     public static OutPayload defaultFallback() {
         OutPayload p = new OutPayload();
-        p.setStatus(500);
-        p.getHeaders().put("Content-Type", RunDelivery.DEFAULT_CONTENT_TYPE);
+        p.setStatus(HttpEntryDefaults.DEFAULT_FALLBACK_HTTP_STATUS);
+        p.getHeaders().put("Content-Type", HttpEntryDefaults.DEFAULT_FALLBACK_CONTENT_TYPE);
         p.setBody(defaultFallbackBody());
         return p;
     }
 
     /** 默认兜底业务对象（HTTP 的 body / 子流包进 body 用） */
     private static Map<String, Object> defaultFallbackBody() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("code", "NO_RETURN");
-        body.put("message", "未执行到返回节点");
-        return body;
+        return FlowContractDefaults.defaultNoReturnBody();
     }
 }

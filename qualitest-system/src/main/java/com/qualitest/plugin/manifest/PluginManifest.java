@@ -41,6 +41,11 @@ public class PluginManifest {
     private final boolean channelProvider;
     /** 前端贡献，如 chrome.badges、env */
     private final Map<String, Object> ui;
+    /**
+     * AI / MCP 工具贡献（说明书顶层 ai）。
+     * 典型：ai.tools[] 声明 Function Tool，由平台发现后进造流助手与 MCP。
+     */
+    private final Map<String, Object> ai;
     /** 运行时形态（ops-agent / http-adapter / builtin） */
     private final RuntimeSpec runtime;
     /** 规范化后的说明书 JSON 原文 */

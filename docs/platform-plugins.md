@@ -219,6 +219,7 @@ qualitest.sut-db-archive-point-1.0.0.zip
 | `push` | 可选 | 经执行代理推送的制品白名单：`push.products[]`，每项含 `productId` 与制品相对路径（`artifact` / `artifactWin`） |
 | `channelProvider` | 可选 | `true` 时本包可作为 Invoker 的 `exec-agent` 通道提供者 |
 | `ui` | 可选 | 见 §3.2 |
+| `ai` | 可选 | `ai.tools[]`：造流助手 / MCP Function Tool 贡献（`name`/`description`/`capability`/可选 `parameters`）；见 §2.4 |
 | `runtime` | 有运行能力时必须 | 见 §2.3.1 |
 
 总闸看**本包能力对象上的 `gate`**。
@@ -389,7 +390,20 @@ qualitest.sut-db-archive-point-1.0.0.zip
 | --- | --- |
 | 生命周期挂点 | 每次跑流默认准备/收尾 |
 | 顶栏/工具条 | 临时触发，不改图 |
-| `ui.palette.nodes` | 写入图的步骤 |
+| `ui.palette.nodes` | 写入图的步骤（人拖；AI 不经工具写 pluginAction） |
+
+`ui.palette.nodes[]` 每项至少：
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | 短贡献 id → 图 `contributionId` |
+| `label` | 展示名 |
+| `capability` | ∈ 本包 `capabilities[].name` |
+| `argsSchema` | 该步骤 `config` 的 JSON Schema（AI tool parameters 与图校验共用；草稿可用 `configSchema` 别名，平台解析时等同 `argsSchema`） |
+
+`ui.palette.nodes` = 可落图步骤的**唯一声明**（人拖）；图实例引擎类型固定为 `pluginAction`。  
+AI / MCP 工具带 `toolKind`：`builtin`（平台 `flow-design-tools.json`）与 `plugin`（**插件说明书自声明**）。  
+插件在顶层 **`ai.tools[]`** 贡献 Function Tool（每项至少 `name` / `description` / `capability`，可选 `parameters` JSON Schema）；启用后进入 Web 造流助手与 MCP `tools/list`，调用经 `PluginInvoker` **当场执行**，**不改图**。工具名须 `^[a-zA-Z][a-zA-Z0-9_]*$`，启用集内唯一；`capability` ∈ 本包 `capabilities`。**禁止**平台为 palette 自动注册写图工具；**禁止**平台再提供万能 `invoke_plugin`。
 
 图节点**必须**具备的落图/落库字段：
 
@@ -407,11 +421,13 @@ qualitest.sut-db-archive-point-1.0.0.zip
 
 - `capability` **必须** ∈ 该 `pluginId` 说明书的 `capabilities[].name`。
 - 规范化：`canonicalContributionId = pluginId + "/" + contributionId`（说明书写短 id；图存储**必须**存 `pluginId` + `contributionId` 两个字段）。
+- 有 `argsSchema` 时图校验对 `config` 做 JSON Schema 校验；无 schema 的旧节点不因缺 schema 硬拦开跑。
 - **可用 / 失效（启用态）即时算，禁止落图**：打开画布、切换环境、图校验、跑流时，按**当前环境**启用集 + 包登记 + 说明书推导（§2.6 算法）。
   - 插件未启用 / 未登记 / 贡献 id 未知 / 能力不在说明书 → UI **必须**标失效（可复用节点既有启用/禁用呈现）；跑流 **禁止**静默跳过（`NODE_CAPABILITY_UNAVAILABLE`）。
   - **禁止**把这种瞬时状态写成节点上的持久 `enabled`/`disabled` 并随流程图保存；换环境后必须重算。
 - 核心节点若另有「用户手动跳过/禁用」字段，与上条正交：手动禁用是图配置；插件失效是环境投影。两者同时存在时：**任一不可用则不调度**。
-- P0：契约 + 校验；P2：至少 1 颗可拖且可执行的样本。
+- **禁止**把环境级 `configSchema` 误当作节点 `config` 的 schema。
+- P0：契约 + 校验；P2：至少 1 颗可拖且可执行的样本（拨钟包 `clock-advance` 已示范 palette + argsSchema）。
 
 ### 2.5 环境组合（开哪些包）
 

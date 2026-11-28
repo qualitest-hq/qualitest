@@ -64,10 +64,17 @@ public final class FlowDesignNodeDataKeys {
     private static final Set<String> SUBFLOW = Set.of(
             "subflowId", "subflowName", "inputs", "alwaysRun", "templateId");
 
-    /** 人工输入节点 data 允许键 */
+    /**
+     * 人工输入节点 data 允许键。
+     * fields：待填字段列表；alwaysRun：失败后继续阶段是否仍执行。
+     */
     private static final Set<String> INPUT = Set.of("fields", "alwaysRun");
 
-    /** 插件步骤：pluginId + capability；contributionId / config 可选 */
+    /**
+     * 插件步骤（pluginAction）data 允许键。
+     * pluginId / capability 必填；contributionId 标识 palette 贡献；
+     * config 为该贡献的步骤参数；alwaysRun 控制失败后继续阶段是否仍执行。
+     */
     private static final Set<String> PLUGIN_ACTION = Set.of(
             "pluginId", "contributionId", "capability", "config", "alwaysRun");
 

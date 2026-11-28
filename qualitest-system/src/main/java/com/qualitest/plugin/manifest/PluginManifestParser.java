@@ -69,6 +69,10 @@ public class PluginManifestParser {
         if (root.get("ui") instanceof JSONObject uiObj) {
             ui = uiObj.to(Map.class);
         }
+        Map<String, Object> ai = null;
+        if (root.get("ai") instanceof JSONObject aiObj) {
+            ai = aiObj.to(Map.class);
+        }
 
         List<String> isolation = readStringList(root.getJSONArray("isolation"));
         List<String> requires = normalizePluginRefs(readStringList(root.getJSONArray("requires")));
@@ -90,6 +94,7 @@ public class PluginManifestParser {
                 .pushProducts(pushProducts)
                 .channelProvider(channelProvider)
                 .ui(ui)
+                .ai(ai)
                 .runtime(runtime)
                 .rawJson(JSON.toJSONString(root))
                 .build();

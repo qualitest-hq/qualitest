@@ -164,12 +164,14 @@ public class McpJsonRpcDispatcher {
 
     /**
      * 处理 tools/list。
-     * 没有会话或逐次调用会话：列出 MCP 协议工具，含列流、建流、导入接口。
-     * 回合会话：列出画布设计工具，按 mcp:flow:write、mcp:run 裁剪，不含列流、建流、导入接口、规程版本。
+     * 无会话或逐次调用：MCP 协议工具（列流、建流、导入等），写流开启时含改图工具，
+     * 并按 testProjectId 合并启用插件说明书 ai.tools。
+     * 回合会话：画布设计工具表，按写流/跑流门控裁剪，同样合并插件贡献工具；
+     * 不含列流、建流、导入接口、规程版本查询。
      *
      * @param id            请求 id
-     * @param testProjectId 测试项目 id
-     * @param session       请求头 Mcp-Session-Id 对应的会话，可空
+     * @param testProjectId 测试项目 id（用于插件动态工具与门控）
+     * @param session       请求头会话，可空
      * @return JSON-RPC 成功响应字符串
      */
     private String handleToolsList(Object id, Long testProjectId, Long operatorUserId, McpSession session) {
@@ -180,9 +182,9 @@ public class McpJsonRpcDispatcher {
                 && !gates.autorunEnabled()) {
             mcpTools = List.of();
         } else if (session != null && session.isTurn()) {
-            mcpTools = toolsDefinitionService.loadTurnSessionTools(gates);
+            mcpTools = toolsDefinitionService.loadTurnSessionTools(gates, testProjectId);
         } else {
-            mcpTools = toolsDefinitionService.loadMcpProtocolTools(gates);
+            mcpTools = toolsDefinitionService.loadMcpProtocolTools(gates, testProjectId);
         }
         return McpJsonRpc.result(id, Map.of("tools", mcpTools));
     }

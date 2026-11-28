@@ -4,6 +4,7 @@
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 
+import { isAnyEntryType } from '@/utils/flow/nodeTypes';
 import { validateStartNodes } from '@/utils/flow/graphValidate';
 
 import {
@@ -15,6 +16,32 @@ import { useRunLibraryStore } from '../stores/runLibraryStore';
 import { abortableSleep } from '../utils/abortableSleep';
 import { enumerateSimulatePaths, type SimulatePath } from '../utils/simulatePaths';
 import { endRunReplay } from './usePlayback';
+
+/**
+ * 解析路径模拟起点：优先当前选中的入口；否则 sole 入口；多入口未选则失败。
+ * 禁止多入口时静默取 ids[0]。
+ */
+function resolveSimulateEntryId(
+  nodes: Array<{ id: string; type?: string }>,
+  selectedEntryId: string | null | undefined,
+): { ok: true; entryId: string } | { ok: false; message: string } {
+  const entries = nodes.filter((n) => n?.id && isAnyEntryType(n.type));
+  const selected = selectedEntryId != null ? String(selectedEntryId).trim() : '';
+  if (selected) {
+    const hit = entries.find((n) => n.id === selected);
+    if (!hit) {
+      return { ok: false, message: '选中的入口节点不存在或不是入口类型' };
+    }
+    return { ok: true, entryId: hit.id };
+  }
+  if (entries.length === 1) {
+    return { ok: true, entryId: entries[0].id };
+  }
+  if (entries.length > 1) {
+    return { ok: false, message: '存在多个入口，请先在运行配置中选择入口再模拟' };
+  }
+  return { ok: false, message: '图上没有入口节点，无法模拟' };
+}
 
 type TimelineEntry =
   | { kind: 'step'; pathIndex: number; stepIndex: number }
@@ -95,14 +122,16 @@ export function useFlowSimulate() {
   const store = useFlowCanvasStore();
   const runLib = useRunLibraryStore();
 
-  /** 当前图可枚举的路径总数；图无效或边未就绪时为 null */
+  /** 当前图可枚举的路径总数；图无效、未选入口或边未就绪时为 null */
   const pathCount = computed(() => {
     if (!store.nodes.length || store.pendingEdges?.length) return null;
     const check = validateStartNodes({ nodes: store.nodes, edges: store.edges });
     if (!check.ok) return null;
+    const entry = resolveSimulateEntryId(store.nodes, store.selectedRunEntryNodeId);
+    if (!entry.ok) return null;
     return enumerateSimulatePaths(
       store.edges,
-      check.ids[0],
+      entry.entryId,
       buildNodeNameMap(store),
       buildNodeTypeMap(store),
     ).length;
@@ -194,10 +223,15 @@ export function useFlowSimulate() {
       ElMessage.error(startCheck.message);
       return;
     }
+    const entry = resolveSimulateEntryId(store.nodes, store.selectedRunEntryNodeId);
+    if (!entry.ok) {
+      ElMessage.error(entry.message);
+      return;
+    }
 
     const paths = enumerateSimulatePaths(
       store.edges,
-      startCheck.ids[0],
+      entry.entryId,
       buildNodeNameMap(store),
       buildNodeTypeMap(store),
     );

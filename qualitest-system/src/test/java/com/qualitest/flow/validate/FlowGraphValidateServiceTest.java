@@ -57,7 +57,7 @@ class FlowGraphValidateServiceTest {
         when(readiness.collectAssertPathIssues(any(), eq(FlowIssue.Stage.CANVAS)))
                 .thenReturn(List.of());
         service = FlowGraphValidateServiceTestSupport.create(
-                new GraphJsonValidator(), readiness, routeRegistry);
+                new GraphJsonValidator(null), readiness, routeRegistry);
     }
 
     /**

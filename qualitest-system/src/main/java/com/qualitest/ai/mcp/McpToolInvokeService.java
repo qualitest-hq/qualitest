@@ -12,6 +12,7 @@ import com.qualitest.ai.tools.FlowDesignToolSupport;
 import com.qualitest.ai.tools.flow.FlowDesignAutopilotCommitSupport;
 import com.qualitest.ai.tools.flow.ReleaseFlowLockTool;
 import com.qualitest.ai.tools.flow.TestFlowAccessSupport;
+import com.qualitest.ai.tools.plugin.PluginInvokeSupport;
 import com.qualitest.api.params.McpToolInvokeParams;
 import com.qualitest.api.result.McpToolResult;
 import com.qualitest.common.exception.ServiceException;
@@ -61,6 +62,8 @@ public class McpToolInvokeService {
     private final ITestFlowService testFlowService;
     /** 测试流端锁 */
     private final FlowEditLeaseService flowEditLeaseService;
+    /** 插件说明书贡献工具：门控放行与执行（可空仅当测试手工构造） */
+    private final PluginInvokeSupport pluginInvokeSupport;
 
     /**
      * 执行一次 MCP 工具调用（不传操作者，仅适合只读工具）。
@@ -119,9 +122,10 @@ public class McpToolInvokeService {
         loadProject(tokenProjectId, params);
         McpProjectGates gates = resolveMcpGates(tokenProjectId, operatorUserId);
         boolean turn = session != null && session.isTurn();
+        boolean pluginContributed = isPluginContributedTool(tokenProjectId, toolName);
         if (turn) {
-            // 回合会话只开放画布设计工具。列流、建流、导入接口、规程版本直接拒绝。
-            if (!FlowDesignToolNames.isTurnSessionCallable(
+            // 回合会话只开放画布设计工具 + 插件贡献工具。列流、建流、导入接口、规程版本直接拒绝。
+            if (!pluginContributed && !FlowDesignToolNames.isTurnSessionCallable(
                     toolName, gates.autoWriteEnabled(), gates.autorunEnabled())) {
                 if (!FlowDesignToolNames.isWebAgent(toolName)) {
                     throw new ServiceException("回合会话不提供工具: " + toolName);
@@ -129,7 +133,7 @@ public class McpToolInvokeService {
                 rejectClosedTool(toolName, gates);
             }
             bindTurnEnvelope(session, params);
-        } else if (!FlowDesignToolNames.isMcpCallable(toolName,
+        } else if (!pluginContributed && !FlowDesignToolNames.isMcpCallable(toolName,
                 gates.autoWriteEnabled(), gates.autorunEnabled(), gates.importApisEnabled())) {
             rejectClosedTool(toolName, gates);
         } else if (!gates.readEnabled() && !gates.autoWriteEnabled() && !gates.importApisEnabled()
@@ -484,6 +488,12 @@ public class McpToolInvokeService {
                 commit.committed(),
                 commit.ok());
         return new CommitWrapped(result.toJSONString(), error);
+    }
+
+    /** 是否为当前项目已启用插件在说明书 ai.tools 中贡献的工具 */
+    private boolean isPluginContributedTool(Long testProjectId, String toolName) {
+        return pluginInvokeSupport != null
+                && pluginInvokeSupport.isContributedTool(testProjectId, toolName);
     }
 
     /**
